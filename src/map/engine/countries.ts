@@ -89,6 +89,24 @@ export const coastWidthPx = (unitsPerPixel: number): number =>
 
 const COAST_OPACITY = 0.92;
 
+/**
+ * **Le niveau « près » quand l'écran peut le lire** (ADR 0034) : « loin » garde 6 % des points,
+ * un écart moyen d'un kilomètre ; avec 42° de champ sur 900 px, un pixel vaut 0,00085 u par unité
+ * de distance, soit 2 km à 25. Plus loin, « près » dessinerait quatre fois plus de côte pour rien.
+ * Deux seuils, pour qu'un zoom arrêté entre les deux ne batte pas d'un niveau à l'autre.
+ */
+const NEAR_UNDER = 25;
+const FAR_OVER = 27;
+
+export const levelAt = (current: Detail, distance: number): Detail =>
+  current === 'near'
+    ? distance > FAR_OVER
+      ? 'far'
+      : 'near'
+    : distance < NEAR_UNDER
+      ? 'near'
+      : 'far';
+
 /** One level of the atlas, as the sheet draws it: the land of each country, the ink between
  *  countries, the coast and its wash. */
 export type SheetLevel = {

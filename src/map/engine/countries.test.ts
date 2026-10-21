@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { decodeAtlas } from '@/domain/atlas';
 import type { World } from '@/domain/world';
 import projection from '../../../public/projection.json';
-import { COAST_FLOOR_PX, coastLines, coastWidthPx } from './countries';
+import { COAST_FLOOR_PX, coastLines, coastWidthPx, levelAt } from './countries';
 import { WorldFrame } from './frame';
 
 describe('the coast', () => {
@@ -39,5 +39,14 @@ describe('coastWidthPx', () => {
   it('grows with the zoom like ink on the sheet', () => {
     expect(coastWidthPx(0.001)).toBeGreaterThan(coastWidthPx(0.004));
     expect(coastWidthPx(0.001)).toBeGreaterThan(COAST_FLOOR_PX);
+  });
+});
+
+describe('levelAt', () => {
+  it('comes near under 25 and goes far again over 27, holding between', () => {
+    expect(levelAt('far', 26)).toBe('far');
+    expect(levelAt('far', 24)).toBe('near');
+    expect(levelAt('near', 26)).toBe('near');
+    expect(levelAt('near', 28)).toBe('far');
   });
 });

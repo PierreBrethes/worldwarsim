@@ -82,6 +82,7 @@ import { PALETTE } from './palette';
 import {
   buildCountries,
   coastWidthPx,
+  levelAt,
   sheetLevel,
   showLevel,
   type CountryMesh,
@@ -89,8 +90,14 @@ import {
   type SheetLevel,
 } from './countries';
 import { buildBoard } from './board';
-import { TerrainDrawings } from './terrain-drawings';
-import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
+import { TerrainDrawings, terrainWash } from './terrain-drawings';
+import {
+  RegionLayer,
+  regionLines,
+  REGIONS_GONE_DISTANCE,
+  TRAME_SCALE,
+  type HeldClaim,
+} from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
 import { COUNTRY_THICKNESS, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
@@ -368,16 +375,16 @@ export class MapEngine {
   private readonly regions: RegionLayer;
   /** The best level of the atlas landed so far: what the regions and the terrain read. */
   private atlas: Atlas;
-  private atlasDetail: Detail = 'far';
   private regionTypes: ReadonlyMap<string, RegionType> | null = null;
   private readonly drawings: TerrainDrawings;
   private readonly countries: CountryMesh[];
   /** Land, ink, coast and wash, drawn at the far level of the atlas until the near one lands
-   *  and the eye comes under `REGIONS_GONE_DISTANCE` (ADR 0034). */
+   *  and the eye comes close enough to tell them apart (`levelAt`, ADR 0034); the region lines
+   *  and the terrain's wash follow. */
   private readonly sheet: CountrySheet;
   private readonly farLevel: SheetLevel;
   private nearLevel: SheetLevel | null = null;
-  private level: SheetLevel;
+  private detail: Detail = 'far';
   /** The sea plane, kept apart from the decor: it is what a ray hits off the coast. */
   private readonly surface: Mesh;
   /** Land and water in one list, allocated once: it is walked on every hover of a placement,
@@ -623,7 +630,7 @@ export class MapEngine {
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.farLevel = this.level = sheetLevel(atlas, 'far', this.frame);
+    this.farLevel = sheetLevel(atlas, 'far', this.frame);
     this.sheet = buildCountries(this.farLevel);
     const { meshes, borders, coast, wash } = this.sheet;
     this.countries = meshes;
@@ -1030,14 +1037,14 @@ export class MapEngine {
   }
 
   /** The near level of the atlas, after the board like the regions: drawn from the next frame
-   *  under `REGIONS_GONE_DISTANCE`. */
+   *  close enough (`levelAt`). */
   displayNearAtlas(atlas: Atlas): void {
     this.invalidate();
     this.nearLevel = sheetLevel(atlas, 'near', this.frame);
     this.atlas = atlas;
-    this.atlasDetail = 'near';
-    this.regions.showAtlas(atlas, 'near');
-    if (this.regionTypes !== null) this.drawings.display(atlas, 'near', this.regionTypes);
+    this.regions.showAtlas(atlas, regionLines(atlas, 'near', this.frame));
+    if (this.regionTypes !== null)
+      this.drawings.showNear(terrainWash(atlas, 'near', this.regionTypes, this.frame));
   }
 
   /** The regions' terrain and anchor points: the lines, the hover and the terrain wait for them. */
@@ -1048,7 +1055,9 @@ export class MapEngine {
     this.invalidate();
     this.regionTypes = types;
     this.regions.display(types, points);
-    this.drawings.display(this.atlas, this.atlasDetail, types);
+    this.drawings.display(this.atlas, types);
+    if (this.nearLevel !== null)
+      this.drawings.showNear(terrainWash(this.atlas, 'near', types, this.frame));
     // The anchors land after the board, so the buildings are asked for before
     // the ground that carries them: a region anchor has no position until now, and without
     // this their labels would never find their footing.
@@ -2702,11 +2711,13 @@ export class MapEngine {
         ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
         : 0.62;
     this.sheet.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
-    // Under the regions' fade, a kilometre is a pixel or more: above it, the far level is finer
-    // than the screen.
-    const level =
-      this.nearLevel !== null && distance < REGIONS_GONE_DISTANCE ? this.nearLevel : this.farLevel;
-    if (level !== this.level) showLevel(this.sheet, (this.level = level));
+    const detail = this.nearLevel === null ? 'far' : levelAt(this.detail, distance);
+    if (detail !== this.detail) {
+      this.detail = detail;
+      showLevel(this.sheet, detail === 'near' ? this.nearLevel! : this.farLevel);
+      this.regions.showLines(detail);
+      this.drawings.showWash(detail);
+    }
 
     this.renderer.render(this.scene, this.eye);
     // The ambience only steps shader uniforms: the labels stand where the last whole frame put them.

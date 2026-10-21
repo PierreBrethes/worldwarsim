@@ -19,6 +19,8 @@ import { ContourLayer } from './contours';
 import type { NightUniforms } from './night-here';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 
+type Sheet = Pick<WorldFrame, 'centerX' | 'centerY'>;
+
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
 /**
@@ -125,6 +127,31 @@ export const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
     gl_FragColor.a *= ink;`,
   );
 
+/** The arcs between two regions of one country, each with its distance along its line: a dash
+ *  restarting at every vertex would stutter. */
+export function regionLines(atlas: Atlas, detail: Detail, frame: Sheet): BufferGeometry {
+  const lines = atlas.borders(
+    (a, b) => a !== null && b !== null && a.country === b.country && a.id !== b.id,
+    detail,
+  );
+  const distances: number[] = [];
+  for (const { points } of lines) {
+    let along = 0;
+    for (let i = 2; i < points.length; i += 2) {
+      const next = along + Math.hypot(points[i]! - points[i - 2]!, points[i + 1]! - points[i - 1]!);
+      distances.push(along, next);
+      along = next;
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new Float32BufferAttribute(lineGeometry(lines, frame, COUNTRY_THICKNESS + STROKE_LIFT), 3),
+  );
+  geometry.setAttribute('lineDistance', new Float32BufferAttribute(distances, 1));
+  return geometry;
+}
+
 /**
  * The admin-1 borders (regions, states, departments), read off the atlas (ADR 0034): the arcs
  * between two regions of one country, coasts and country borders being drawn already. The layer
@@ -140,8 +167,11 @@ export class RegionLayer {
   readonly hoverOutline: LineSegments;
   private readonly lineMaterial: LineDashedMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
-  /** The level the layer reads: far at first, near once it has landed (`showAtlas`). */
+  /** The level the hover, the hatches and `regionAt` read: far at first, near once it has landed
+   *  (`showAtlas`). The lines follow the sheet's level instead (`showLines`). */
   private detail: Detail = 'far';
+  private readonly lineLevels: Partial<Record<Detail, BufferGeometry>> = {};
+  private linesShown: Detail = 'far';
   /** `null` until the regions' facts land (`display`): no hover, no anchor before. */
   private types: ReadonlyMap<string, RegionType> | null = null;
   private points: ReadonlyMap<string, LonLat> = new Map();
@@ -190,51 +220,31 @@ export class RegionLayer {
   display(types: ReadonlyMap<string, RegionType>, points: ReadonlyMap<string, LonLat>): void {
     this.types = types;
     this.points = points;
-    this.drawLines();
+    this.lineLevels.far ??= regionLines(this.atlas, 'far', this.frame);
+    this.showLines(this.linesShown);
     this.rebuild();
   }
 
-  /** The near level landed: the lines, the hatches and the hover follow its arcs. */
-  showAtlas(atlas: Atlas, detail: Detail): void {
+  /** The near level landed: the hatches and the hover follow its arcs, and its lines wait for
+   *  `showLines`. */
+  showAtlas(atlas: Atlas, nearLines: BufferGeometry): void {
     this.atlas = atlas;
-    this.detail = detail;
-    if (this.types === null) return;
-    this.drawLines();
-    this.rebuild();
+    this.detail = 'near';
+    this.lineLevels.near = nearLines;
+    this.showLines(this.linesShown);
+    if (this.types !== null) this.rebuild();
+  }
+
+  /** The lines at the sheet's level, as soon as that level has them. */
+  showLines(detail: Detail): void {
+    this.linesShown = detail;
+    const geometry = this.lineLevels[detail] ?? this.lineLevels.far;
+    if (geometry !== undefined && this.types !== null) this.lines.geometry = geometry;
   }
 
   showContourRegions(regions: ReadonlyArray<DisplayedRegion>): void {
     this.contourRegions = regions;
     this.rebuildHeld();
-  }
-
-  private drawLines(): void {
-    const lines = this.atlas.borders(
-      (a, b) => a !== null && b !== null && a.country === b.country && a.id !== b.id,
-      this.detail,
-    );
-    // Along each line and not per segment: a dash restarting at every vertex would stutter.
-    const distances: number[] = [];
-    for (const { points } of lines) {
-      let along = 0;
-      for (let i = 2; i < points.length; i += 2) {
-        const next =
-          along + Math.hypot(points[i]! - points[i - 2]!, points[i + 1]! - points[i - 1]!);
-        distances.push(along, next);
-        along = next;
-      }
-    }
-    this.lines.geometry.dispose();
-    const geometry = new BufferGeometry();
-    geometry.setAttribute(
-      'position',
-      new Float32BufferAttribute(
-        lineGeometry(lines, this.frame, COUNTRY_THICKNESS + STROKE_LIFT),
-        3,
-      ),
-    );
-    geometry.setAttribute('lineDistance', new Float32BufferAttribute(distances, 1));
-    this.lines.geometry = geometry;
   }
 
   /**
@@ -379,7 +389,7 @@ export class RegionLayer {
     this.held.clear();
     this.held.removeFromParent();
     this.contours.dispose();
-    this.lines.geometry.dispose();
+    for (const geometry of Object.values(this.lineLevels)) geometry.dispose();
     this.hoverOutline.geometry.dispose();
     this.lineMaterial.dispose();
     this.hoverMaterial.dispose();

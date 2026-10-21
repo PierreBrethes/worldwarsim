@@ -503,8 +503,25 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-/** The massifs triangulated flat, each vertex carrying its type's wash. */
-function washGeometry(massifs: Massifs, frame: WorldFrame): BufferGeometry {
+const drawnOf = (types: ReadonlyMap<string, RegionType>) => (region: { id: string }) => {
+  const type = types.get(region.id) ?? 'plain';
+  return terrainCode(type) === 0 ? null : type;
+};
+
+/** The massifs at `detail` triangulated flat, each vertex carrying its type's wash. */
+export function terrainWash(
+  atlas: Atlas,
+  detail: Detail,
+  types: ReadonlyMap<string, RegionType>,
+  frame: Pick<WorldFrame, 'centerX' | 'centerY'>,
+): BufferGeometry {
+  return washGeometry(atlas.shapes(drawnOf(types), detail), frame);
+}
+
+function washGeometry(
+  massifs: Massifs,
+  frame: Pick<WorldFrame, 'centerX' | 'centerY'>,
+): BufferGeometry {
   const color = new Color();
   const parts = [...massifs].map(([type, shapes]) => {
     const geometry = fillGeometry(shapes, frame, COUNTRY_THICKNESS + WASH_LIFT);
@@ -526,6 +543,8 @@ export class TerrainDrawings {
   private readonly drawing: Mesh<PlaneGeometry, ShaderMaterial>;
   private readonly wash: Mesh<BufferGeometry, ShaderMaterial>;
   private types: DataTexture | null = null;
+  private readonly washes: Partial<Record<Detail, BufferGeometry>> = {};
+  private washShown: Detail = 'far';
   private readonly atlas = paintAtlas();
 
   constructor(
@@ -592,28 +611,34 @@ export class TerrainDrawings {
     this.object.visible = false;
   }
 
-  /**
-   * Bakes the type map once (a cell of 0.2 u is coarser than either level), and the wash at
-   * `detail`: again when the near level lands, so that it keeps to the coast.
-   */
-  display(atlas: Atlas, detail: Detail, types: ReadonlyMap<string, RegionType>): void {
-    const drawn = (region: { id: string }) => {
-      const type = types.get(region.id) ?? 'plain';
-      return terrainCode(type) === 0 ? null : type;
-    };
-    const massifs = atlas.shapes(drawn, detail);
-    if (this.types === null) {
-      this.types = paintTypes(massifs, this.frame);
-      this.drawing.material.uniforms.uTypes!.value = this.types;
-    }
-    this.wash.geometry.dispose();
-    this.wash.geometry = washGeometry(massifs, this.frame);
+  /** Bakes the type map (a cell of 0.2 u is coarser than either level) and the far wash. */
+  display(atlas: Atlas, types: ReadonlyMap<string, RegionType>): void {
+    const massifs = atlas.shapes(drawnOf(types), 'far');
+    this.types?.dispose();
+    this.types = paintTypes(massifs, this.frame);
+    this.drawing.material.uniforms.uTypes!.value = this.types;
+    this.washes.far?.dispose();
+    this.washes.far = washGeometry(massifs, this.frame);
+    this.showWash(this.washShown);
     this.object.visible = true;
+  }
+
+  /** The near wash, kept to the near coast; drawn once the sheet comes to its level. */
+  showNear(wash: BufferGeometry): void {
+    this.washes.near = wash;
+    this.showWash(this.washShown);
+  }
+
+  showWash(detail: Detail): void {
+    this.washShown = detail;
+    const geometry = this.washes[detail] ?? this.washes.far;
+    if (geometry !== undefined) this.wash.geometry = geometry;
   }
 
   dispose(): void {
     this.types?.dispose();
     this.atlas.dispose();
+    for (const geometry of Object.values(this.washes)) geometry.dispose();
     for (const mesh of [this.wash, this.drawing]) {
       mesh.geometry.dispose();
       mesh.material.dispose();
