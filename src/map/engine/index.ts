@@ -319,6 +319,8 @@ export class MapEngine {
   private readonly halos: Halos;
   /** The night the pieces were last warmed by. */
   private warmed = 0;
+  /** A piece or a layer came in since the programs were last compiled ahead (`warmPrograms`). */
+  private programsStale = true;
   private readonly theatreFrame: TheatreFrame;
   private readonly veil: CarryVeil;
   private readonly forcedInstant = forcedInstant(location.search);
@@ -546,6 +548,9 @@ export class MapEngine {
     // Off by default in three: a site under the crane is cut where its work has reached, by a
     // plane on its own materials (`maquettes.ts`).
     this.renderer.localClippingEnabled = true;
+    // Each program's first use read back its log, a wait on the driver's compiler (~100 ms at the
+    // first close-up on a phone, #199): the checks stay in development, where shaders change.
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
     container.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -636,7 +641,7 @@ export class MapEngine {
     this.ghost = new PlacingGhost(this.frame);
     this.standing = new StandingLayer(
       this.frame,
-      () => this.invalidate(),
+      () => this.landed(),
       (id) => this.maquettes.garrisonAt(id),
       (lonLat) => this.seawardOf(lonLat),
     );
@@ -646,7 +651,7 @@ export class MapEngine {
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
-      () => this.invalidate(),
+      () => this.landed(),
       (at, words) =>
         this.inkBurst({
           kind: 'built',
@@ -717,6 +722,36 @@ export class MapEngine {
     this.demand.stir(performance.now());
   }
 
+  /** A figurine or a maquette landed in the scene: drawn at the next frame, compiled ahead at rest. */
+  private landed(): void {
+    this.invalidate();
+    this.programsStale = true;
+  }
+
+  /**
+   * **Les programmes se compilent au repos, pas au premier rapproché** (#199). De loin la lampe ne
+   * porte pas d'ombre et les pièces ne se dessinent pas : le premier zoom compilait d'un coup une
+   * quarantaine de programmes — pièces, et tout ce qui reçoit l'ombre —, une demi-seconde figée
+   * au banc du téléphone. Au battement qui suit l'arrivée d'une pièce, chaque couche du plateau se compile
+   * à son tour, lampe portante, sans rien dessiner ; restent les programmes de la carte d'ombres.
+   */
+  private warmPrograms(): void {
+    this.programsStale = false;
+    const roots = [...this.scene.children];
+    const next = (): void => {
+      const root = roots.shift();
+      // Disposed meanwhile: the scene was cleared, and the context is gone with it.
+      if (root === undefined || root.parent !== this.scene) return;
+      const light = this.lamp.light;
+      const cast = light.castShadow;
+      light.castShadow = true;
+      const ready = this.renderer.compileAsync(root, this.eye, this.scene);
+      light.castShadow = cast;
+      void ready.then(next, next);
+    };
+    next();
+  }
+
   /** **Couverte par une feuille, la carte ne dessine plus** (#189) : au téléphone, sous le
    *  journal ou une fiche, elle rendait encore 45 images par seconde que personne ne voyait. */
   cover(covered: boolean): void {
@@ -776,6 +811,7 @@ export class MapEngine {
 
   displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {
     this.invalidate();
+    this.programsStale = true;
     this.arcs.troops = troops;
     this.arcs.display(arcs);
     // New pick targets under an unmoved pointer: the hover must be recomputed even though
@@ -786,6 +822,7 @@ export class MapEngine {
   /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
   displayStanding(piles: ReadonlyArray<StandingPile>): void {
     this.invalidate();
+    this.programsStale = true;
     this.standing.display(piles);
   }
 
@@ -795,6 +832,7 @@ export class MapEngine {
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
     this.invalidate();
+    this.programsStale = true;
     const runways = this.maquettes.runwaysKey();
     if (runways === this.runways) return;
     this.runways = runways;
@@ -933,6 +971,7 @@ export class MapEngine {
   /** The enemy's surveyed camps, annotated in ink up close (F2, ADR 0026 §4 révisé). */
   displayCamps(camps: ReadonlyArray<SurveyedCamp>): void {
     this.invalidate();
+    this.programsStale = true;
     this.camps.display(camps);
   }
 
@@ -2507,6 +2546,7 @@ export class MapEngine {
       document.hidden ? Number.POSITIVE_INFINITY : flowing ? flowPace : HEARTBEAT_MS,
     );
     if (reason === null) return;
+    if (reason === 'heartbeat' && this.programsStale) this.warmPrograms();
     const whole = reason !== 'ambient';
     this.ambience.frame();
     // The sun crosses a few degrees a minute at most: the heartbeat is enough, no frame is ever
