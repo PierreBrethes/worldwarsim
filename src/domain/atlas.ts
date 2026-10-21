@@ -41,8 +41,17 @@ export type Atlas = {
     differ: (left: AtlasRegion | null, right: AtlasRegion | null) => boolean,
     detail: Detail,
   ): Border[];
-  /** The regions sharing a key merged into polygons; a `null` key leaves a region out. */
-  shapes(key: (region: AtlasRegion) => string | null, detail: Detail): Map<string, Shape[]>;
+  /**
+   * The regions sharing a key merged into polygons; a `null` key leaves a region out. `among`
+   * reads only those regions' arcs: a few regions cost a few arcs, not the whole atlas.
+   */
+  shapes(
+    key: (region: AtlasRegion) => string | null,
+    detail: Detail,
+    among?: ReadonlySet<string>,
+  ): Map<string, Shape[]>;
+  /** The lines around one region: its own arcs, without a walk through the others. */
+  outline(regionId: string, detail: Detail): { readonly points: Float32Array }[];
   /** A point on a line goes to what lies east of it: a border to the eastern region. */
   regionAt(point: readonly [number, number], detail: Detail): AtlasRegion | null;
 };
@@ -50,7 +59,23 @@ export type Atlas = {
 /** `public/atlas-near.json`: the near arcs, in the atlas's order, with their quantum. */
 export type NearFile = Pick<AtlasFile, 'transform' | 'arcs'>;
 
-export function decodeAtlas(file: AtlasFile, near?: NearFile): Atlas {
+/** The near arcs as a worker hands them over, already decoded: one buffer, cut at `offsets`. */
+export type DecodedArcs = { readonly points: Float32Array; readonly offsets: Uint32Array };
+
+export function packArcs(arcs: readonly Float32Array[]): DecodedArcs {
+  const offsets = new Uint32Array(arcs.length + 1);
+  arcs.forEach((arc, i) => (offsets[i + 1] = offsets[i]! + arc.length));
+  const points = new Float32Array(offsets[arcs.length]!);
+  arcs.forEach((arc, i) => points.set(arc, offsets[i]));
+  return { points, offsets };
+}
+
+const unpackArcs = ({ points, offsets }: DecodedArcs): Float32Array[] =>
+  Array.from({ length: offsets.length - 1 }, (_, i) =>
+    points.subarray(offsets[i]!, offsets[i + 1]!),
+  );
+
+export function decodeAtlas(file: AtlasFile, near?: NearFile | DecodedArcs): Atlas {
   const geometries = file.objects.regions.geometries;
   const regions = geometries.map(({ id, properties }) => ({
     id,
@@ -62,7 +87,7 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile): Atlas {
   );
   const decoded: Record<Detail, Float32Array[] | undefined> = {
     far: decodeArcs(file.arcs, file.transform),
-    near: near && decodeArcs(near.arcs, near.transform),
+    near: near && ('offsets' in near ? unpackArcs(near) : decodeArcs(near.arcs, near.transform)),
   };
   const arcsOf = (detail: Detail) => {
     const arcs = decoded[detail];
@@ -89,16 +114,24 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile): Atlas {
       break findWinding;
     }
   const regionOf = (owner: number) => (owner < 0 ? null : regions[owner]!);
+  const ownerOf = new Map(regions.map(({ id }, owner) => [id, owner]));
+  // The arcs each region walks, each once: what `regionAt`, `outline` and `shapes(among)` read.
+  const arcsOfRegion = polygons.map((list) => new Int32Array(new Set(list.flat(2).map(arcIndex))));
 
-  const ringCache: Partial<Record<Detail, Float32Array[][]>> = {};
-  const regionRings = (detail: Detail) =>
-    (ringCache[detail] ??= polygons.map((list) =>
-      list.flatMap((polygon) =>
-        polygon.map((ring) => ringPoints(arcsOf(detail), ring)).filter(hasArea),
-      ),
-    ));
-  const boxCache: Partial<Record<Detail, Float64Array[]>> = {};
-  const regionBoxes = (detail: Detail) => (boxCache[detail] ??= regionRings(detail).map(boxOf));
+  // A region's box is its arcs' boxes together: built per level at the first `regionAt`, a few
+  // milliseconds where joining every region's rings cost a hitch at the first hover.
+  const boxCache: Partial<Record<Detail, Float64Array>> = {};
+  const regionBoxes = (detail: Detail) => {
+    const cached = boxCache[detail];
+    if (cached) return cached;
+    const arcs = arcsOf(detail);
+    const boxes = new Float64Array(regions.length * 4);
+    arcsOfRegion.forEach((list, owner) => {
+      const box = boxOf(Array.from(list, (arc) => arcs[arc]!));
+      boxes.set(box, owner * 4);
+    });
+    return (boxCache[detail] = boxes);
+  };
 
   return {
     regions,
@@ -113,20 +146,31 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile): Atlas {
       });
       return out;
     },
-    shapes(key, detail) {
+    shapes(key, detail, among) {
       const arcs = arcsOf(detail);
-      const keyOf = (owner: number) => (owner < 0 ? null : key(regions[owner]!));
+      const inside = (owner: number) => owner >= 0 && (!among || among.has(regions[owner]!.id));
+      const keyOf = (owner: number) => (inside(owner) ? key(regions[owner]!) : null);
       const pieces = new Map<string, Float32Array[]>();
       const add = (k: string | null, points: Float32Array) => {
         if (k !== null) (pieces.get(k) ?? pieces.set(k, []).get(k)!).push(points);
       };
-      arcs.forEach((points, arc) => {
+      const walk = (arc: number) => {
+        const points = arcs[arc]!;
         const forward = keyOf(forwardOwner[arc]!);
         const backward = keyOf(backwardOwner[arc]!);
         if (forward === backward) return;
         add(forward, points);
         add(backward, reversed(points));
-      });
+      };
+      if (among) {
+        const walked = new Set<number>();
+        for (const id of among)
+          for (const arc of arcsOfRegion[ownerOf.get(id) ?? -1] ?? [])
+            if (!walked.has(arc)) {
+              walked.add(arc);
+              walk(arc);
+            }
+      } else arcs.forEach((_, arc) => walk(arc));
       const out = new Map<string, Shape[]>();
       for (const [k, list] of pieces) {
         const shapes = withHoles(chainRings(list).filter(hasArea), insideOnLeft);
@@ -134,14 +178,21 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile): Atlas {
       }
       return out;
     },
+    outline(regionId, detail) {
+      const arcs = arcsOf(detail);
+      return Array.from(arcsOfRegion[ownerOf.get(regionId) ?? -1] ?? [], (arc) => ({
+        points: arcs[arc]!,
+      }));
+    },
     regionAt([x, y], detail) {
       const boxes = regionBoxes(detail);
-      const rings = regionRings(detail);
+      const arcs = arcsOf(detail);
       for (let owner = 0; owner < regions.length; owner++) {
-        const box = boxes[owner]!;
-        if (x < box[0]! || x > box[2]! || y < box[1]! || y > box[3]!) continue;
+        const b = owner * 4;
+        if (x < boxes[b]! || x > boxes[b + 2]! || y < boxes[b + 1]! || y > boxes[b + 3]!) continue;
+        // Its rings are its arcs: the crossings counted arc by arc are the rings' crossings.
         let inside = false;
-        for (const ring of rings[owner]!) if (contains(ring, x, y)) inside = !inside;
+        for (const arc of arcsOfRegion[owner]!) if (crosses(arcs[arc]!, x, y)) inside = !inside;
         if (inside) return regions[owner]!;
       }
       return null;
@@ -242,6 +293,19 @@ function signedArea(ring: Float32Array): number {
 }
 
 const hasArea = (ring: Float32Array) => ring.length >= 6 && signedArea(ring) !== 0;
+
+/** Whether a ray from the point towards +x crosses the open line an odd number of times. */
+function crosses(line: Float32Array, x: number, y: number): boolean {
+  let odd = false;
+  for (let i = 2; i < line.length; i += 2) {
+    const xi = line[i]!;
+    const yi = line[i + 1]!;
+    const xj = line[i - 2]!;
+    const yj = line[i - 1]!;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) odd = !odd;
+  }
+  return odd;
+}
 
 function contains(ring: Float32Array, x: number, y: number): boolean {
   let inside = false;

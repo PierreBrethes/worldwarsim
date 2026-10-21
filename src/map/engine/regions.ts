@@ -299,9 +299,7 @@ export class RegionLayer {
         claim.regions.filter(({ state }) => state === 'suspended').map(({ id }) => id),
       );
       if (suspended.size === 0 || this.types === null) continue;
-      const shapes = this.atlas
-        .shapes((region) => (suspended.has(region.id) ? 'suspended' : null), this.detail)
-        .get('suspended');
+      const shapes = this.atlas.shapes(() => 'suspended', this.detail, suspended).get('suspended');
       if (shapes === undefined) continue;
       const geometry = fillGeometry(shapes, this.frame, COUNTRY_THICKNESS + SUSPENDED_LIFT);
       const material = onLand(
@@ -417,10 +415,7 @@ export class RegionLayer {
      *  the ground it frames, and the terrain is told by the drawing, never by a tint. */
     this.hoverMaterial.color.set(penOf(this.heldByRegion.get(region.id)?.ink ?? null));
 
-    const outline = this.atlas.borders(
-      (a, b) => (a?.id === region.id) !== (b?.id === region.id),
-      this.detail,
-    );
+    const outline = this.atlas.outline(region.id, this.detail);
     const geometry = new BufferGeometry();
     geometry.setAttribute(
       'position',

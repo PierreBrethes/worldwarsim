@@ -272,6 +272,27 @@ describe('public/atlas.json', () => {
     expect(findCrossings(absolute(arcs))).toEqual([]);
   });
 
+  const sample = ['FRA-2000', 'DEU-1601', 'DEU-DE21', 'DEU-DE22'];
+
+  it('merges a few regions from their own arcs as from the whole atlas', () => {
+    const atlas = decodeAtlas(file, near);
+    const among = new Set(sample.filter((id) => atlas.regions.some((r) => r.id === id)));
+    expect(among.size).toBeGreaterThan(0);
+    const key = (region: { id: string }) => (among.has(region.id) ? 'x' : null);
+    expect(atlas.shapes(key, 'near', among)).toEqual(atlas.shapes(key, 'near'));
+  });
+
+  it('outlines a region with the arcs that have it on one side', () => {
+    const atlas = decodeAtlas(file, near);
+    for (const { id } of atlas.regions.slice(0, 200)) {
+      const outline = atlas.outline(id, 'near').map(({ points }) => points);
+      const borders = atlas
+        .borders((a, b) => (a?.id === id) !== (b?.id === id), 'near')
+        .map(({ points }) => points);
+      expect(new Set(outline)).toEqual(new Set(borders));
+    }
+  });
+
   /**
    * A gap between two regions would be a hole in the land. There are two, and both are in
    * Natural Earth: the Caspian, and the Southern Patagonian Ice Field Chile and Argentina
