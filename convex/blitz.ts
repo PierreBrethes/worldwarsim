@@ -42,7 +42,7 @@ import { fail } from './errors';
 import { endowIrregular, irregularSeat } from './objectives';
 import { reassessDetection } from './movement/detection';
 import { allRegions, pointOfBuilding, pointOfRegion, regionFacts } from './regions';
-import { coastPointNear, routeKmFrom } from './routes';
+import { quayOfRegion, routeKmFrom } from './routes';
 import { seatsOf } from './seats';
 import { concludeSeason } from './seasons';
 import { surveyFromPoint } from './surveys';
@@ -153,7 +153,7 @@ function drawMap(
    *  aucun port tiré ne disparaît ensuite faute d'amarrage. */
   const quays = new Map<string, LonLat>();
   const candidates = theatreGround(theatre.box).map((candidate) => {
-    const quay = candidate.coastal ? coastPointNear(candidate.point) : null;
+    const quay = candidate.coastal ? quayOfRegion(candidate.regionId, candidate.point) : null;
     if (quay !== null) quays.set(candidate.regionId, quay);
     return { ...candidate, coastal: quay !== null };
   });

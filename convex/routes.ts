@@ -1,6 +1,8 @@
 import type { LonLat } from '../src/domain/geo';
 import type { ComputedRoute, Ground, RouteMode } from '../src/domain/routing';
+import { distanceKm } from '../src/domain/geo';
 import {
+  coastCellsIn,
   computeRoute,
   computeRouteToAny,
   decodeGrid,
@@ -139,21 +141,35 @@ export function coastAtPoint(point: LonLat): boolean {
 }
 
 /**
- * **Le quai le plus proche d'un point**, cherché par anneaux d'un dixième de degré : la carte de
- * départ d'une Blitz pose ses ports sans joueur pour choisir la côte (`blitz.place`).
+ * **Le quai d'une région, chez elle** : sa cellule côtière la plus proche de son point, lue sur la
+ * grille de routage, et dont le raster dit qu'elle est de cette région. Un quai cherché autour du
+ * point sans cette garde tombait chez le voisin, souvent dans un autre pays. `null` : la région
+ * n'a pas de cellule côtière à elle (`blitz.place`).
  */
-export function coastPointNear(point: LonLat): LonLat | null {
-  const step = 0.1;
-  for (let ring = 0; ring * step <= 2; ring += 1) {
-    for (let dx = -ring; dx <= ring; dx += 1) {
-      for (let dy = -ring; dy <= ring; dy += 1) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
-        const candidate: LonLat = [point[0] + dx * step, point[1] + dy * step];
-        if (coastAtPoint(candidate)) return candidate;
-      }
-    }
+export function quayOfRegion(regionId: string, point: LonLat): LonLat | null {
+  let best: LonLat | null = null;
+  let bestKm = Infinity;
+  for (const quay of quaysByRegion().get(regionId) ?? []) {
+    const km = distanceKm(point, quay);
+    if (km < bestKm) [best, bestKm] = [quay, km];
   }
-  return null;
+  return best;
+}
+
+let quays: ReadonlyMap<string, ReadonlyArray<LonLat>> | null = null;
+function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
+  if (quays !== null) return quays;
+  grid ??= decodeGrid(gridAsset, world);
+  const { minX, minY, maxX, maxY } = grid.sphere;
+  const found = new Map<string, LonLat[]>();
+  for (const { lonLat } of coastCellsIn(grid, [minX, minY, maxX, maxY])) {
+    const regionId = regionAtRoutePoint(lonLat);
+    if (regionId === null) continue;
+    const list = found.get(regionId);
+    if (list === undefined) found.set(regionId, [lonLat]);
+    else list.push(lonLat);
+  }
+  return (quays = found);
 }
 
 export function landAtPoint(point: LonLat): boolean {

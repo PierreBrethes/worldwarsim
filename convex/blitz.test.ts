@@ -8,6 +8,7 @@ import { BLITZ, CAPTURE_MINUTES } from './constants';
 import { captureAimOf } from './movement/orders';
 import { pointOfBuilding, regionFacts } from './regions';
 import { routeKmFrom } from './routes';
+import { regionAtRoutePoint } from './regionGeometry';
 import { surveyFromPoint } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -239,13 +240,27 @@ describe('la carte de départ, théâtre par théâtre', () => {
   for (const { id: theatre, players: range } of THEATRES) {
     it(`se pose sur six graines à son plafond — ${theatre} à ${String(range.max)}`, async () => {
       const refused = [];
+      const astray: string[] = [];
       for (const seed of SIX_SEEDS) {
         const t = boot();
         const [seat] = await blitzLaunchedOn(t, theatre, range.max, seed);
         const season = (await t.run((ctx) => ctx.db.get(seat!.seasonId)))!;
         if (season.status !== 'launched') refused.push(seed);
+        /** **Un port est dans sa région** : son quai est lu sur la grille, chez elle. */
+        const ports = await t.run((ctx) =>
+          ctx.db
+            .query('buildings')
+            .withIndex('bySeason', (q) => q.eq('seasonId', seat!.seasonId))
+            .filter((q) => q.eq(q.field('key'), 'port'))
+            .collect(),
+        );
+        for (const port of ports) {
+          const at = regionAtRoutePoint([port.point!.lon, port.point!.lat]);
+          if (at !== port.regionId) astray.push(`${String(seed)} ${port.regionId} → ${String(at)}`);
+        }
       }
       expect(refused).toEqual([]);
+      expect(astray).toEqual([]);
     }, 180_000);
 
     const players = range.max;
