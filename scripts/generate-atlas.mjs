@@ -3,7 +3,7 @@
  * the admin-1 regions with their far arcs, and `public/atlas-near.json`, the near arcs in the
  * same order. `src/domain/atlas.ts` reads them.
  *
- * 1. Natural Earth 10m admin-1, Antarctica left out as `world.json` leaves it, three German
+ * 1. Natural Earth 10m admin-1, Antarctica left out, three German
  *    Länder cut into their Regierungsbezirke (BKG VG2500), in lon/lat.
  * 2. One topology with shared arcs, cleaned by mapshaper: no gap, no overlap between regions.
  *    The great lakes are cut out of it: their water is no region's.
@@ -393,15 +393,12 @@ const ids = atlas.objects.regions.geometries.map(({ id }) => id);
 const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
 if (duplicates.length > 0) throw new Error(`duplicate region ids: ${duplicates.join(', ')}`);
 
-// The ids are compared with the atlas being replaced; the first bake compares with regions.json.
+// The ids are compared with the atlas being replaced; the first bake has nothing to compare with.
 const previous = existsSync('public/atlas.json')
   ? JSON.parse(readFileSync('public/atlas.json', 'utf8')).objects.regions.geometries.map(
       ({ id, properties }) => [id, properties],
     )
-  : JSON.parse(readFileSync('public/regions.json', 'utf8')).regions.map(({ id, country, n }) => [
-      id,
-      { country, name: n },
-    ]);
+  : [];
 
 for (const [file, content] of [
   ['public/atlas.json', JSON.stringify(atlas)],

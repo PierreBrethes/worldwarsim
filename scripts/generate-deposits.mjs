@@ -1,7 +1,7 @@
 /**
  * Bakes `public/deposits.json` — the four deposits of the Mondiale (ADR 0028) as **points** on
  * the map (ADR 0029 §3): `{ id, deposit, regionId, country, lon, lat }`, one per deposit. The
- * draw still chooses admin-1 regions, keyed by the `adm1_code` that `regions.json` carries as
+ * draw still chooses admin-1 regions, keyed by the `adm1_code` that the atlas carries as
  * `id`; coal, iron and oil then stand on their site of 1940, food at random inside its region.
  *
  * Run after `generate-region-grid.mjs`: a point's region is the one its cell carries.
@@ -507,20 +507,28 @@ function ringArea(ring) {
   return Math.abs(sum / 2);
 }
 
-const raw = JSON.parse(readFileSync('public/regions.json', 'utf8'));
-const regions = raw.regions.map((region) => {
-  const largest = region.p.reduce((a, b) => (ringArea(a) >= ringArea(b) ? a : b));
+const shapes = atlas.shapes((region) => region.id, 'near');
+const regions = atlas.regions.flatMap(({ id, country, name }) => {
+  const rings = (shapes.get(id) ?? []).map((shape) => shape.outer);
+  if (rings.length === 0) return [];
+  const polygons = rings.map((flat) =>
+    Array.from({ length: flat.length / 2 }, (_, i) => [flat[2 * i], flat[2 * i + 1]]),
+  );
+  const closed = polygons.map((ring) => [...ring, ring[0]]);
+  const largest = closed.reduce((a, b) => (ringArea(a) >= ringArea(b) ? a : b));
   const point = polylabel([largest], 0.5);
   const lonLat = projection.invert(point);
-  return {
-    id: region.id,
-    country: region.country,
-    name: region.n,
-    area: region.p.reduce((sum, ring) => sum + ringArea(ring), 0),
-    point,
-    longitude: lonLat[0],
-    latitude: lonLat[1],
-  };
+  return [
+    {
+      id,
+      country,
+      name,
+      area: closed.reduce((sum, ring) => sum + ringArea(ring), 0),
+      point,
+      longitude: lonLat[0],
+      latitude: lonLat[1],
+    },
+  ];
 });
 
 const byId = new Map(regions.map((region) => [region.id, region]));

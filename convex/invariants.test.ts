@@ -30,7 +30,6 @@ import depositsAsset from '../public/deposits.json';
 import gridAsset from '../public/grid.json';
 import rasterAsset from '../public/region-grid.json';
 import indexAsset from '../public/region-index.json';
-import regionsAsset from '../public/regions.json';
 import { STARTING_KIT, buildCost, recruitmentCost } from './constants';
 import { capitalRegionOf, regionFacts } from './regions';
 import { coastAtPoint, pointInRegion } from './routes';
@@ -124,7 +123,7 @@ describe('les noms de modules de convex/', () => {
  * `routes.ts` — `let grid = null` puis `grid ??= decodeGrid(gridAsset, world)`.
  *
  * La mesure porte sur l'**exécution** et non sur le premier import : celui-ci paie la
- * transformation de `public/regions.json` par Vite et la lecture de 2,6 Mo à travers le pont
+ * transformation des gros JSON de `public/` par Vite et leur lecture à travers le pont
  * WSL, deux coûts que le serveur ne paie pas. D'où la passe de chauffe, puis `resetModules` avant
  * chaque module — ce qui reste est le travail que l'isolat, lui, refera.
  */
@@ -170,34 +169,31 @@ const atlasRegionAt = (lonLat: LonLat): string | null =>
 /**
  * **Le cadre de la projection n'est pas un contour, et c'est l'actif qui doit le dire.** Natural
  * Earth projette de loin en loin un îlot dégénéré sur tout le cadre — quarante-deux points de
- * `[0,0]` à `[400,208]`. `generate-regions.mjs` les filtre depuis le 09/09, mais
- * `public/regions.json` datait du 15/08 : le Maryland a porté ce cadre en troisième anneau
- * pendant cinq jours, et la carte le remplissait dès qu'une encre lui arrivait — un voile sur
- * le monde entier, mer comprise.
- *
- * Le script pouvait donc être juste et l'actif faux. C'est l'actif que la CI lit.
+ * `[0,0]` à `[400,208]` — et la carte le remplissait dès qu'une encre lui arrivait : un voile sur
+ * le monde entier, mer comprise. Le script pouvait être juste et l'actif faux : c'est l'actif que
+ * la CI lit, aux deux niveaux de l'atlas.
  *
  * **Les deux dimensions, pas l'une ou l'autre** : l'Antarctique s'étend légitimement sur les
  * deux tiers du monde en x, et sur un dixième en y. Ce qui n'existe pas, c'est un anneau qui
  * couvre la moitié du monde dans les deux sens à la fois.
  */
-describe('les contours de public/regions.json', () => {
-  it('ne portent aucun cadre de projection', () => {
+describe('les contours de public/atlas.json', () => {
+  it.each(['far', 'near'] as const)('ne portent aucun cadre de projection (%s)', (detail) => {
     const frames: string[] = [];
-    for (const region of regionsAsset.regions) {
-      region.p.forEach((ring, rank) => {
-        const xs = ring.map(([x]) => x!);
-        const ys = ring.map(([, y]) => y!);
+    for (const [id, shapes] of atlas.shapes((region) => region.id, detail)) {
+      shapes.forEach(({ outer }, rank) => {
+        const xs = Array.from({ length: outer.length / 2 }, (_, i) => outer[2 * i]!);
+        const ys = Array.from({ length: outer.length / 2 }, (_, i) => outer[2 * i + 1]!);
         const spanX = Math.max(...xs) - Math.min(...xs);
         const spanY = Math.max(...ys) - Math.min(...ys);
         if (spanX > 400 / 2 && spanY > projectionAsset.sphere.maxY / 2)
-          frames.push(`${region.id} (${region.n}), anneau ${rank + 1}/${region.p.length}`);
+          frames.push(`${id}, forme ${rank + 1}/${shapes.length}`);
       });
     }
 
     expect(
       frames,
-      `Ces anneaux sont le cadre de la projection, pas une région : la carte les remplit et repeint le monde. Recuire avec node scripts/generate-regions.mjs <ne_10m_admin_1_states_provinces.geojson>, puis generate-region-index.mjs et generate-region-grid.mjs.`,
+      `Ces formes sont le cadre de la projection, pas une région : la carte les remplit et repeint le monde. Recuire avec node scripts/generate-atlas.mjs, puis les générateurs qui en lisent.`,
     ).toEqual([]);
   });
 });
