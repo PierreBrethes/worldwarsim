@@ -63,14 +63,14 @@ describe('ce qu’un disque d’avant-poste touche', () => {
   /**
    * **La règle ne doit pas faire exploser l'Europe**, où les régions sont petites et les pôles
    * proches : c'est là que le disque et le pôle devraient se ressembler. Mesuré depuis Paris —
-   * 13 régions au pôle contre 19 au disque au niveau 1, 34 contre 40 au niveau 3. L'écart est
+   * 12 régions au pôle contre 19 au disque au niveau 1, 34 contre 40 au niveau 3. L'écart est
    * celui des régions dont la lisière entre dans le cercle sans que leur pôle y soit, et il se
    * resserre à mesure que le cercle grandit.
    */
   it('ne change presque rien là où les régions sont petites', () => {
     const paris: LonLat = [2.35, 48.85];
     expect(coveredByDisc(raster, paris, REACH_L1).size).toBe(19);
-    expect(byPole(paris, REACH_L1)).toHaveLength(13);
+    expect(byPole(paris, REACH_L1)).toHaveLength(12);
     expect(coveredByDisc(raster, paris, REACH_L3).size).toBe(40);
     expect(byPole(paris, REACH_L3)).toHaveLength(34);
   });

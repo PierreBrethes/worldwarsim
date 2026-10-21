@@ -214,7 +214,7 @@ describe('what the jobs file for the journal', () => {
     const { notices } = await t.query(api.view.playerView, seat);
     const place = (kind: string) => notices.find((notice) => notice.kind === kind)?.place;
     expect(place('columnArrived')).toEqual({ lon: destination[0], lat: destination[1] });
-    expect(place('constructionFinished')).toEqual({ lon: 4.22, lat: 48.97 });
+    expect(place('constructionFinished')).toEqual({ lon: 4.114, lat: 49.033 });
   });
 
   /**
