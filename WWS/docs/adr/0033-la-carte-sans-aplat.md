@@ -43,8 +43,12 @@ en tirets à l'encre de chaque nation (`WWS/prototypes/carte-refonte/main.js`).
 - `RegionLayer` dessine des rubans de contour (`contours.ts`) au lieu des aplats ; la largeur et
   le tiret se disent en pixels d'écran, la feuille ne se teinte plus jamais.
 - `HeldClaim` perd `wash` et `outlined`, et gagne `mine`.
-- Le pays d'une nation n'est plus peint sur sa feuille : `colorNations`, `wholeSheets`,
-  `inkByClaimedCountry` et `nationShades` disparaissent.
+- Le pays d'une nation n'est plus peint sur sa feuille : `colorNations`, `wholeSheets` et
+  `inkByClaimedCountry` disparaissent ; le lavis (`nationShades`) ne sert plus qu'à la table de
+  la page d'accueil.
+- Le grain de crayon couvre toute la terre : c'est l'absence de contour qui dit une région vierge.
+- Les tirets avancent par une couche d'`Ambience` passive au doigt (`passive`), qui suit les
+  images déjà dessinées sans en demander.
 
 ## Ce qu'on abandonne
 
