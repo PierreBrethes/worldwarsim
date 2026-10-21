@@ -11,9 +11,11 @@ import cnInfantry1 from './china/infantry-1.glb';
 import cnInfantry2 from './china/infantry-2.glb';
 import cnLandTransport from './china/landTransport.glb';
 import frAirTransport from './france/airTransport.glb';
+import frArmor1 from './france/armor-1.glb';
 import frArmor2 from './france/armor-2.glb';
 import frArtillery from './france/artillery.glb';
 import frBomber from './france/bomber.glb';
+import frCargo from './france/cargo.glb';
 import frCarrier from './france/carrier.glb';
 import frEscort from './france/escort.glb';
 import frFighter from './france/fighter.glb';
@@ -111,7 +113,7 @@ export type FigurineFiles = Partial<
 export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = {
   france: {
     infantry: [frInfantry1, frInfantry2],
-    armor: [null, frArmor2],
+    armor: [frArmor1, frArmor2],
     artillery: frArtillery,
     landTransport: frLandTransport,
     fighter: frFighter,
@@ -119,6 +121,7 @@ export const FIGURINE_FILES: Readonly<Partial<Record<Nation, FigurineFiles>>> = 
     airTransport: frAirTransport,
     escort: frEscort,
     carrier: frCarrier,
+    cargo: frCargo,
   },
   uk: {
     infantry: [ukInfantry1, ukInfantry2],
