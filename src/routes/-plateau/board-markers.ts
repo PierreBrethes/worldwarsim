@@ -496,6 +496,16 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
 export const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
   point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
 
+/** La maquette sous un point de l'écran, par l'id de son étiquette (`MapEngine.maquetteAtPoint`). */
+export type MaquetteAt = (clientX: number, clientY: number) => string | null;
+
+/** Mes bâtiments que nomme la maquette sous la main (`MapEngine.maquetteAtPoint`) : la
+ *  maquette est ce que le joueur vise, son mât est replié (#205). */
+export const buildingsOfMaquette = <B extends { key: string; point: LonLat | null }>(
+  buildings: ReadonlyArray<B>,
+  labelId: string | null,
+): B[] => buildings.filter((building) => buildingLabelId(building) === labelId);
+
 export const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
   troops.reduce<Stack>(
     (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),

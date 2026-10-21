@@ -1,6 +1,6 @@
 import { RESOURCES } from '@/domain/ids';
 import type { CargoView } from '@/domain/player-view';
-import { ResourceIcon, resourceColor } from '@/emblems/ResourceIcon';
+import { ResourcePlate } from '@/emblems/Plate';
 import { fr } from '@/i18n/fr';
 
 /** Exact owner-only load. The server groups connected carriers; this component never divides it. */
@@ -32,9 +32,7 @@ export function ResourceAmounts({ amounts }: { amounts: CargoView['loot'] }) {
     <div className="mt-[6px] flex flex-wrap gap-x-[10px] gap-y-[5px]">
       {rows.map((resource) => (
         <span key={resource} className="flex items-center gap-[4px]" title={fr.resources[resource]}>
-          <span className="flex" style={{ color: resourceColor(resource, true) }}>
-            <ResourceIcon resource={resource} size={12} />
-          </span>
+          <ResourcePlate resource={resource} height={17} width={17} />
           <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink)]">
             {amounts[resource]}
           </span>

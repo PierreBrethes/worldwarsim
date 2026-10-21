@@ -16,9 +16,12 @@ import {
   EXPLOITED_DEPOSITS,
   nearestBuilding,
   placementRefusal,
-  siteOfPoint,
 } from '../src/domain/economy';
-import { outpostRaiseHold, type OutpostRaiseHold } from '../src/domain/construction';
+import {
+  outpostRaiseHold,
+  raiseRefusalOf,
+  type OutpostRaiseHold,
+} from '../src/domain/construction';
 import { depositAt, type DepositPoint } from '../src/domain/world';
 import {
   buildingAt,
@@ -42,7 +45,7 @@ import {
 import { coastAtPoint, pointInRegion } from './routes';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
-import { anchorAt, anchored, reachesOf, sitesOf } from './sites';
+import { anchorAt, anchored, isReached, sitesOf } from './sites';
 import { credit, debit, economyOf, settle } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seats';
@@ -630,26 +633,35 @@ async function refusalFor(
    * **Home, or within reach of one of the player's outposts** (ADR 0015, ADR 0029). The reach is
    * a radius in kilometres from the outpost to the point, never a count of regions.
    */
-  const reached =
-    siteOfPoint(lonLat, region.country === sites.homeCountry, reachesOf(sites.outposts)) !== null;
-  /** A raise reads no placement rule, but ground no living site reaches carries nothing more. */
-  if (standing !== undefined && !reached) {
-    return { code: 'OUT_OF_OUTPOST_REACH', details: outOfReachDetails(sites.outposts) };
-  }
+  const reached = isReached(lonLat, region, sites);
 
   if (building === 'hq' && buildings.some((held) => held.key === 'hq' && held !== standing)) {
     return { code: 'HQ_ALREADY_BUILT' };
   }
 
-  /** **Le quartier général d'abord** (décision 1b du 13/09) : une élévation aussi l'attend. */
-  if (building !== 'hq' && hqLevel === 0) return { code: 'HQ_FIRST' };
-
   /**
-   * **One entry per point, standing or queued.** A raise queued twice would bill a level nobody
-   * can reach; a placement queued on a point already pledged is refused by the spacing below.
+   * **A raise is `raiseRefusalOf`'s**, the very function the tile in hand and the site sheet read:
+   * ground no living site reaches carries nothing more, the headquarters comes first (decision 1b
+   * of 13/09) and one entry per point stands — a raise queued twice would bill a level nobody
+   * can reach. A placement reads the same last two below, then the spacing.
    */
-  if (pledged.some((entry) => entry.point !== undefined && samePoint(entry.point, point))) {
-    return { code: 'ALREADY_QUEUED_HERE' };
+  const queuedHere = pledged.some(
+    (entry) => entry.point !== undefined && samePoint(entry.point, point),
+  );
+  if (standing !== undefined) {
+    const refusal = raiseRefusalOf({
+      reached,
+      hqLevel: building === 'hq' ? 1 : hqLevel,
+      queued: queuedHere,
+      cappedByHq: cappedByHq(building, standing.level, hqLevel),
+    });
+    if (refusal === 'OUT_OF_OUTPOST_REACH') {
+      return { code: refusal, details: outOfReachDetails(sites.outposts) };
+    }
+    if (refusal !== null) return { code: refusal };
+  } else {
+    if (building !== 'hq' && hqLevel === 0) return { code: 'HQ_FIRST' };
+    if (queuedHere) return { code: 'ALREADY_QUEUED_HERE' };
   }
 
   if (standing === undefined) {

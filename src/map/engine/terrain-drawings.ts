@@ -8,9 +8,9 @@ import {
   LinearFilter,
   LinearMipmapLinearFilter,
   Mesh,
-  NearestFilter,
   PlaneGeometry,
   RedFormat,
+  RGFormat,
   ShapeUtils,
   ShaderMaterial,
   UnsignedByteType,
@@ -30,9 +30,10 @@ import { spansTheFrame, TRAME_SCALE } from './regions';
  *
  * **Cuit, pas dessiné** : la maquette grave ses dessins dans une feuille de 2560 à 4096 px (~22 Mo
  * à 2560) ; le monde entier à cette finesse ne tiendrait pas en mémoire. Deux petites textures à
- * la place, cuites une fois — la carte des types (un octet par cellule de 0,2 u) et l'atlas des
- * glyphes (un octet par pixel, en mips) — et un fragment qui sème les glyphes sur une grille
- * décalée, où le grain tombe en dessous de la lisibilité. Rien par image côté CPU, rien à
+ * la place, cuites une fois — la carte des types (par cellule de 0,2 u, le type et la profondeur
+ * dans son massif) et l'atlas des glyphes (un octet par pixel, en mips) — et un fragment qui sème
+ * les glyphes sur une grille décalée, dense au cœur des massifs et nue à leurs bords (#208), où le
+ * grain tombe en dessous de la lisibilité. Rien par image côté CPU, rien à
  * invalider : la carte à la demande n'en sait rien.
  */
 
@@ -49,6 +50,19 @@ export const terrainCode = (type: RegionType): number => {
 
 /** Une cellule de la carte des types : 0,2 u, soit quelque vingt kilomètres. @a-mesurer */
 const TYPES_PER_UNIT = 5.12;
+/** The depth's byte: 1/32 u a step, so 8 u at most, far past where a massif is full. */
+const DEPTH_PER_UNIT = 32;
+/** A massif is bare up to `BARE_AT` from its edge, full from `FULL_AT`, in units (1 u ≈ 100 km);
+ *  the edge wobbles by ±`EDGE_WOBBLE` on a noise `EDGE_GRAIN` wide, so no region's border shows
+ *  through. @a-mesurer */
+const BARE_AT = 0.05;
+const FULL_AT = 0.4;
+const EDGE_WOBBLE = 0.3;
+const EDGE_GRAIN = 1.5;
+/** Even a massif's heart has its clearings, `CLEARING_GRAIN` wide, down to `CLEARING_KEEP` of its
+ *  drawings: a forest of a thousand kilometres is not one wall of trees. @a-mesurer */
+const CLEARING_GRAIN = 4;
+const CLEARING_KEEP = 0.5;
 const ATLAS_CELL = 128;
 const VARIANTS = 4;
 /** One pen for every glyph, in atlas pixels: the stroke must not follow the glyph's size. */
@@ -251,6 +265,54 @@ export function codesFromMasks(
   return codes;
 }
 
+/**
+ * **The massifs** (#208): each cell's distance, in cells, to the nearest cell of another code. A
+ * type's regions are one block in the codes, so the borders between them are gone: a forest is
+ * deepest at its heart, whatever regions it spans. The grid's edge is no shore. Two chamfer passes,
+ * a step straight 1 and aslant √2.
+ */
+export function depthsFromCodes(
+  codes: ArrayLike<number>,
+  width: number,
+  height: number,
+): Float32Array {
+  const depths = new Float32Array(width * height).fill(Infinity);
+  for (let i = 0; i < depths.length; i++) {
+    const x = i % width;
+    const differs = (j: number) => codes[j] !== codes[i];
+    const shore =
+      (x > 0 && differs(i - 1)) ||
+      (x < width - 1 && differs(i + 1)) ||
+      (i >= width && differs(i - width)) ||
+      (i < depths.length - width && differs(i + width));
+    if (codes[i] === 0) depths[i] = 0;
+    else if (shore) depths[i] = 1;
+  }
+  const relax = (i: number, x: number, y: number, dx: number, dy: number, step: number) => {
+    const [nx, ny] = [x + dx, y + dy];
+    if (nx < 0 || ny < 0 || nx >= width || ny >= height) return;
+    const through = depths[ny * width + nx]! + step;
+    if (through < depths[i]!) depths[i] = through;
+  };
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      relax(i, x, y, -1, 0, 1);
+      relax(i, x, y, 0, -1, 1);
+      relax(i, x, y, -1, -1, Math.SQRT2);
+      relax(i, x, y, 1, -1, Math.SQRT2);
+    }
+  for (let y = height - 1; y >= 0; y--)
+    for (let x = width - 1; x >= 0; x--) {
+      const i = y * width + x;
+      relax(i, x, y, 1, 0, 1);
+      relax(i, x, y, 0, 1, 1);
+      relax(i, x, y, 1, 1, Math.SQRT2);
+      relax(i, x, y, -1, 1, Math.SQRT2);
+    }
+  return depths;
+}
+
 function paintTypes(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame): DataTexture {
   const width = Math.round(frame.width * TYPES_PER_UNIT);
   const height = Math.round(frame.height * TYPES_PER_UNIT);
@@ -285,16 +347,18 @@ function paintTypes(regions: ReadonlyArray<DisplayedRegion>, frame: WorldFrame):
     for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4]!;
     return mask;
   });
-  const texture = new DataTexture(
-    codesFromMasks(masks, width * height),
-    width,
-    height,
-    RedFormat,
-    UnsignedByteType,
-  );
+  const codes = codesFromMasks(masks, width * height);
+  const depths = depthsFromCodes(codes, width, height);
+  // Code in red, read by texel; depth in green, read filtered so that its contours are smooth.
+  const texels = new Uint8Array(width * height * 2);
+  for (let i = 0; i < codes.length; i++) {
+    texels[i * 2] = codes[i]!;
+    texels[i * 2 + 1] = Math.min(255, Math.round((depths[i]! / TYPES_PER_UNIT) * DEPTH_PER_UNIT));
+  }
+  const texture = new DataTexture(texels, width, height, RGFormat, UnsignedByteType);
   texture.unpackAlignment = 1;
   texture.generateMipmaps = false;
-  texture.minFilter = texture.magFilter = NearestFilter;
+  texture.minFilter = texture.magFilter = LinearFilter;
   texture.needsUpdate = true;
   return texture;
 }
@@ -350,6 +414,13 @@ float hash(vec2 p) {
   return fract((p.x + p.y) * p.x);
 }
 
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = smoothstep(0.0, 1.0, fract(p));
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
+}
+
 // One grid of drawings: every other row shifted by half a cell, each cell asking the type map for
 // the type at its middle. The mountains have a grid of their own (\`mountains\`), the others share
 // one. The derivatives are said outright, since the cell edges cut the ones the hardware would
@@ -361,10 +432,18 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
   vec2 id = floor(q);
   vec2 inside = fract(q);
   vec2 middle = (id + 0.5 - vec2(shift, 0.0)) * cell;
-  float code = floor(textureLod(uTypes, middle / uWorld + 0.5, 0.0).r * 255.0 / ${CODE_STEP.toFixed(1)} + 0.5);
+  vec2 uv = middle / uWorld + 0.5;
+  ivec2 grid = textureSize(uTypes, 0);
+  ivec2 texel = clamp(ivec2(uv * vec2(grid)), ivec2(0), grid - 1);
+  float code = floor(texelFetch(uTypes, texel, 0).r * 255.0 / ${CODE_STEP.toFixed(1)} + 0.5);
   if (code < 0.5 || code > 5.5 || (code == ${MOUNTAIN_CODE}.0) != mountains) return 0.0;
+  // Dense at the massif's heart, thinning out to bare at its wobbled edge.
+  float depth = textureLod(uTypes, uv, 0.0).g * ${(255 / DEPTH_PER_UNIT).toFixed(4)};
+  depth += (noise(middle / ${EDGE_GRAIN.toFixed(2)}) - 0.5) * ${(2 * EDGE_WOBBLE).toFixed(2)};
   vec3 h = vec3(hash(id), hash(id + 7.7), hash(id + 19.1));
-  if (h.x > uKeep[int(code)]) return 0.0;
+  float dense = smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, depth);
+  dense *= mix(${CLEARING_KEEP.toFixed(2)}, 1.0, smoothstep(0.3, 0.7, noise(middle / ${CLEARING_GRAIN.toFixed(1)} + 17.0)));
+  if (h.x > uKeep[int(code)] * dense) return 0.0;
   // Each cell's own size, turn and drift, so the grid does not read as wallpaper.
   float turn = (hash(id + 3.3) - 0.5) * 0.42;
   float size = 0.85 + 0.3 * hash(id + 11.1);
@@ -373,9 +452,9 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
   vec2 at = d + 0.5;
   if (any(lessThan(at, vec2(0.0))) || any(greaterThan(at, vec2(1.0)))) return 0.0;
   vec2 atlas = vec2(${VARIANTS}.0, ${DRAWN.length}.0);
-  vec2 uv = (vec2(floor(fract(h.x * 7.13) * ${VARIANTS}.0), code - 1.0) + at) / atlas;
+  vec2 glyph = (vec2(floor(hash(id + 23.4) * ${VARIANTS}.0), code - 1.0) + at) / atlas;
   vec2 step = 1.0 / (cell * atlas);
-  return textureGrad(uAtlas, uv, dx * step, dy * step).r * uWeight[int(code)];
+  return textureGrad(uAtlas, glyph, dx * step, dy * step).r * uWeight[int(code)];
 }
 
 float level(vec2 p, float cell, vec2 dx, vec2 dy) {

@@ -16,6 +16,7 @@ import {
   NARVIK_UNLINKED_SHARE,
   LISTENING_STATION_RADIUS_KM,
   OUTPOST_REACH_KM_BY_LEVEL,
+  outpostReachKm,
   SINGAPORE_FUEL_DISCOUNT_PCT,
   sightingReachKm,
 } from '../../convex/constants';
@@ -4660,6 +4661,13 @@ export const fr = {
  */
 export function upgradeHoldText(hold: UpgradeHold): string {
   switch (hold.kind) {
+    case 'outOfReach':
+      return fr.errors.OUT_OF_OUTPOST_REACH({
+        reachKm: Math.max(...hold.outpostLevels.map(outpostReachKm), outpostReachKm(1)),
+        hasOutposts: hold.outpostLevels.length > 0,
+      });
+    case 'hqFirst':
+      return fr.errors.HQ_FIRST();
     case 'alreadyQueued':
       return fr.upgrade.alreadyQueued;
     case 'cappedByHq':

@@ -33,16 +33,21 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
 - **Code mort** : ce que le lot rend inutile se retire partout (constantes, refus, textes,
   tests, docs), dans un commit séparé.
 - **Périmètre** : ton issue, rien d'autre ; tu n'anticipes pas les suivantes.
-- **Décisions** : quand l'issue, les ADR et les fiches se taisent, prends l'option la plus simple
-  qui reste cohérente avec eux. Tout chiffre neuf porte `@a-mesurer`.
+- **Décisions de Pierre** : ce que tranchent l'issue, ses commentaires « Décisions », un ADR ou
+  la maquette choisie tient tel quel. Un conflit entre une décision et ce que tu vois dans le
+  code se rapporte, et tu attends la réponse.
+- **Décisions prises seul** : quand tout se tait, prends l'option la plus simple qui reste
+  cohérente avec eux, et note-la pour le rapport, même petite. Tout chiffre neuf porte
+  `@a-mesurer`.
 
 ## 3. Environnement
 
 - **Node** : si `npm --version` imprime plus d'une ligne (le Mac), préfixe chaque commande node
   par `unfunction node npm npx nvm 2>/dev/null; export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH";`.
-- **Un seul vérifieur à la fois** sur la machine : `ps -Ao command | grep -c "[v]erifier"` doit
-  rendre 0 avant `npm run verifier`. Des timeouts dans `convex/` qui changent d'un passage à
-  l'autre viennent de la charge : relance ces fichiers seuls.
+- **Un seul vérifieur à la fois** sur la machine : `ps -Ao pid,command | grep "[n]pm run verifier"`,
+  lancé dans une commande à part, doit ne rien rendre avant `npm run verifier`. Des timeouts
+  dans `convex/` qui changent d'un passage à l'autre viennent de la charge : relance ces
+  fichiers seuls.
 
 ## 4. Voir son rendu
 
@@ -59,9 +64,12 @@ section « Voir une partie Mondiale en local ».
 4. `PLAYWRIGHT_DIR=<dossier hors du dépôt> npm run capture -- '<route>' <sortie.png> …`, en
    1440×900 puis `--largeur 390 --hauteur 844`, avec `--geste` pour amener l'état voulu.
    Captures rangées hors du dépôt, dans ton dossier temporaire.
-5. Regarde chaque capture avec l'outil Read.
+5. Regarde chaque capture avec l'outil Read, à côté de sa référence : la maquette choisie, ou
+   la capture d'avant le lot. Un écart se corrige, ou se rapporte s'il vient d'une décision.
 
-Fini quand chaque puce de **Ce que le joueur voit** apparaît sur une capture, aux deux tailles.
+Fini quand chaque puce de **Ce que le joueur voit** apparaît sur une capture, aux deux tailles,
+au même cadrage que sa référence. Un état que la démo ne sait pas montrer devient une scène de
+`scripts/demo-mondiale.mjs`.
 
 ## 5. Git
 
@@ -70,16 +78,17 @@ Fini quand chaque puce de **Ce que le joueur voit** apparaît sur une capture, a
   `git log --oneline -15`, terminé par la ligne `Co-Authored-By` de ta consigne.
 - `git add <fichiers>` : seulement les tiens. `.claude/launch.json`, `WWS/prototypes/` et
   `WWS/GLBs/` sont à Pierre, un autre agent peut coder à côté de toi.
-- Le dernier commit porte `Closes #N`. Pousse (`git push`) sans fusionner, sauf si ta consigne
-  dit que Pierre pousse.
+- Le dernier commit porte `Closes #N`. L'orchestrateur pousse, ouvre la PR et fusionne : tes
+  commits restent locaux.
 
 ## 6. Fin
 
 1. `npm run verifier` vert sur ton dernier commit.
 2. Issue : ni `RESTE-A-CODER.md` ni GitHub, Pierre met l'issue à jour depuis ton rapport.
    Feature de la file : barre-la dans `WWS/docs/RESTE-A-CODER.md`.
-3. Rapport en français, 15 lignes au plus : commits ; ce que le joueur voit ; décisions prises ;
-   code retiré ; changements de schéma ; ce qui reste ou inquiète ; chemins des captures.
+3. Rapport en français, 15 lignes au plus : commits ; ce que le joueur voit ; **décisions prises
+   seul**, chacune ; code retiré ; changements de schéma ; ce qui reste ou inquiète ; chemins
+   des captures.
 
 **Règle d'arrêt** : si la même vérification échoue 3 fois, arrête-toi et rends un rapport
 d'échec, sans chercher de nouvelle stratégie.

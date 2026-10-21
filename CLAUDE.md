@@ -8,6 +8,8 @@ code (dépôt, paquet, Convex, domaine, clés de stockage).
 ## Instructions
 
 Travaille directement dans le dépôt : pas de worktree séparé sauf demande explicite de Pierre.
+Un retour, une idée ou un bug de Pierre suit le skill `orchestrer` : tri, issues, agents
+(`.claude/agents/`), revues, fusion et rétro.
 
 ## Commandes
 

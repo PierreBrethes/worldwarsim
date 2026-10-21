@@ -67,7 +67,7 @@ import {
 } from './constants';
 import { engagementsOf } from './combat';
 import { queueOf } from './constructions';
-import { sitesOf, type Site } from './sites';
+import { isReached, sitesOf, type Site, type Sites } from './sites';
 import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
@@ -578,6 +578,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelCost: buildCost(buildingCostKey(building), building.level + 1),
         nextLevelMinutes: worksMinutesAt(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
+        ...(isReachedBuilding(building, sites) ? {} : { unreached: true as const }),
         ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
         ...(building.capturedAt === undefined ? {} : { captured: true as const }),
       })),
@@ -1526,3 +1527,10 @@ async function neutralSitesOf(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: 
   }
   return served;
 }
+
+/** A building on ground no standing outpost (nor the home soil) reaches any more. An unknown
+ *  region says nothing here: `constructions.start` refuses it on its own. */
+const isReachedBuilding = (building: Doc<'buildings'>, sites: Sites): boolean => {
+  const region = regionFacts(building.regionId);
+  return region === null || isReached(pointOfBuilding(building), region, sites);
+};

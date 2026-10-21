@@ -1,5 +1,6 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
+import type { LonLat } from '../src/domain/geo';
 import { isStanding } from '../src/domain/outposts';
 import { siteOfPoint } from '../src/domain/economy';
 import { outpostReachKm } from './constants';
@@ -115,6 +116,17 @@ const standingOutpostsOf = async (
  */
 export const anchored = (site: Site | null): { outpostId?: Id<'outposts'> | null } =>
   site === null ? {} : site.kind === 'home' ? { outpostId: null } : { outpostId: site.outpostId };
+
+/**
+ * **Whether a point is reached**: national soil, or within the radius of a standing outpost.
+ * The one reading behind `OUT_OF_OUTPOST_REACH`, for the refusal and for the view's `unreached`.
+ */
+export const isReached = (
+  point: LonLat,
+  region: RegionFacts,
+  sites: Pick<Sites, 'outposts' | 'homeCountry'>,
+): boolean =>
+  siteOfPoint(point, region.country === sites.homeCountry, reachesOf(sites.outposts)) !== null;
 
 export type Sites = {
   readonly buildings: ReadonlyArray<Doc<'buildings'>>;

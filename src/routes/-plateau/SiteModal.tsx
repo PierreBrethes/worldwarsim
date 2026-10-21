@@ -12,7 +12,7 @@ import { Price } from '@/shell/Price';
 import { StatLines } from '@/shell/StatLines';
 import { buildingStatsOf } from '@/domain/stat-sheet';
 import { handleError } from '@/data/errors';
-import type { ResourceKey } from '@/emblems/ResourceIcon';
+import type { ResourceKey } from '@/domain/ids';
 import { BuildingPlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';

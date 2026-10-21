@@ -65,6 +65,7 @@ import {
   markersOf,
   stackOf,
   standingPilesOf,
+  type MaquetteAt,
 } from './-plateau/board-markers';
 import { handReachOf, movementReachOf } from '@/domain/board-reach';
 import { depositHolders } from '@/domain/construction';
@@ -435,6 +436,9 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
   /** De quoi nommer la région d'une pile, dès que la carte a chargé ses régions. */
   const [regionAt, setRegionAt] = useState<RegionAt | null>(null);
   const keepRegionAt = useCallback((lookup: RegionAt) => setRegionAt(() => lookup), []);
+  /** De quoi nommer la maquette sous un point, dès que la carte est prête (#205). */
+  const [maquetteAt, setMaquetteAt] = useState<MaquetteAt | null>(null);
+  const keepMaquetteAt = useCallback((lookup: MaquetteAt) => setMaquetteAt(() => lookup), []);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
@@ -2290,6 +2294,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                 onCountryHover={setHoveredCountry}
                 onRegionHover={setHoveredRegion}
                 onRegionsLoaded={keepRegionAt}
+                onMaquetteLookup={keepMaquetteAt}
                 onArcHover={setHoveredArc}
                 onLabelHover={setHoveredLabel}
                 poster={poster}
@@ -2652,6 +2657,7 @@ function BoardContent({ world, view, seat }: { world: World; view: PlayerView; s
                   onHoldTile={holdTile}
                   placing={placing?.key ?? null}
                   onPlaceTile={placeTile}
+                  maquetteAt={maquetteAt}
                   onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
                   cue={
                     stepCue?.kind === 'rack' && stepText !== null

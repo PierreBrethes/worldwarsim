@@ -19,8 +19,9 @@ Fini quand tu as la plage, l'issue et la liste des fichiers touchés (`git diff 
 
 ## 2. Lancer `code-review`
 
-Charge le skill `code-review` sur la plage : il rend les axes Standards et Spec. Garde ses
-findings pour l'étape 4.
+Sur un lot de plus de dix fichiers, charge le skill `code-review` sur la plage : il rend les
+axes Standards et Spec. Garde ses findings pour l'étape 4. Sur un lot plus petit, la grille
+suffit.
 
 ## 3. Passer la grille du jeu
 
@@ -50,6 +51,16 @@ Ce sont les défauts que les revues ont réellement trouvés.
 - **Code mort** : constantes, refus, textes de `src/i18n/fr.ts`, tests et docs que le lot rend
   inutiles sont retirés.
 - **Doublons** : la même logique, la même table ou le même texte dans deux fichiers.
+- **Décisions de Pierre** : le lot suit les « Décisions » de l'issue, l'ADR et la maquette
+  choisie. Compare les captures du lot à celles de la maquette, au même cadrage ; un écart pris
+  seul par l'agent (une valeur, un réglage, une couche retirée) est un finding.
+- **Ce qui s'affiche fait foi** : un état lu sur l'URL ou sur un compteur, alors que le composant
+  ne se monte pas (feuille d'un bâtiment tombé), laisse l'écran mentir.
+- **Rendu GPU** : regarde de loin comme de près. Un trait mangé par la feuille vient d'un
+  conflit de profondeur ; une épaisseur qui fond vient d'unités du monde au lieu de pixels
+  d'écran ; une donnée cuite peut mal se décoder (antialiasing d'un canvas lu comme un type).
+- **Coût** : si le lot touche la carte, `npm run banc:client` ; rien ne redessine en continu
+  au repos, et le téléphone ne régresse pas.
 
 ## 4. Vérifier et classer
 

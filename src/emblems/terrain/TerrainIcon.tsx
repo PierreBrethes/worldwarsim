@@ -2,7 +2,7 @@ import type { RegionType } from '@/domain/ids';
 import { TERRAIN_PICTOS } from './manifest';
 
 /** Un masque plutôt qu'un `<img>` : le picto prend l'encre de son conteneur (`currentColor`),
- *  comme `ResourceIcon`. */
+ *  comme `Glyph`. */
 export function TerrainIcon({ type, size = 16 }: { type: RegionType; size?: number }) {
   const mask = `url("${TERRAIN_PICTOS[type]}") center / contain no-repeat`;
   return (

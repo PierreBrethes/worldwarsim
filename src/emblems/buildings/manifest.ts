@@ -10,6 +10,7 @@ import listeningMaquette from './listening.glb';
 import mineMaquette from './mine.glb';
 import oilWellMaquette from './oilWell.glb';
 import portMaquette from './port.glb';
+import researchCenterMaquette from './researchCenter.glb';
 import warehouseMaquette from './warehouse.glb';
 import airfield from './airfield.webp';
 import arsenal from './arsenal.webp';
@@ -73,8 +74,7 @@ export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = 
   airfield: airfieldMaquette,
   port: portMaquette,
   listening: listeningMaquette,
-  // Pas encore de GLB (#123) : la planche tient sa place.
-  researchCenter: null,
+  researchCenter: researchCenterMaquette,
   warehouse: warehouseMaquette,
   depot: warehouseMaquette,
   city: cityMaquette,

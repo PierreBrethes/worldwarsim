@@ -5,7 +5,7 @@ import type { InkBurst } from '@/domain/ink-bursts';
 import { asClockTime } from '@/domain/duration';
 import type { MapMotion } from '@/domain/map-motion';
 import { fr } from '@/i18n/fr';
-import { resourceColor } from '@/emblems/ResourceIcon';
+import { resourceColor } from '@/emblems/resource-color';
 
 export type Point = { readonly x: number; readonly y: number };
 

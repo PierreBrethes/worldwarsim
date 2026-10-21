@@ -446,6 +446,11 @@ export function placementOf(
  * view is short of a field — the answer is to serve it, never to guess it.
  */
 export type UpgradeHold =
+  /** Ground no standing outpost of the player's reaches (`OUT_OF_OUTPOST_REACH`) — the levels
+   *  of the ones that stand, from which the text measures the widest reach. */
+  | { readonly kind: 'outOfReach'; readonly outpostLevels: ReadonlyArray<number> }
+  /** No headquarters yet: nothing rises before it (`HQ_FIRST`). */
+  | { readonly kind: 'hqFirst' }
   /** An order already stands on this point — one entry per point, running or queued. */
   | { readonly kind: 'alreadyQueued' }
   | { readonly kind: 'cappedByHq' }
@@ -477,13 +482,57 @@ export function availabilityOf(needed: number, held: Resource, stock: number): A
   return { kind: 'inMinutes', minutes: ((needed - stock) / held.ratePerHour) * 60 };
 }
 
+/** A raise as the rules read it — the facts both ends hold: `reached` (a standing outpost, or
+ *  the home soil, covers the point), the headquarters level, an entry already on the point,
+ *  and the headquarters ceiling. */
+export type RaiseFacts = {
+  readonly reached: boolean;
+  readonly hqLevel: number;
+  readonly queued: boolean;
+  readonly cappedByHq: boolean;
+};
+
+export type RaiseRefusal =
+  'OUT_OF_OUTPOST_REACH' | 'HQ_FIRST' | 'ALREADY_QUEUED_HERE' | 'CAPPED_BY_HQ';
+
+/**
+ * **The one rule for raising a building**, read by the tile in hand, the site sheet and
+ * `constructions.start` alike (ADR 0015): the refusal is the server's code, in the server's
+ * order. The bill is not here — it is the stock's, which only the screen reads live.
+ */
+export function raiseRefusalOf(facts: RaiseFacts): RaiseRefusal | null {
+  if (!facts.reached) return 'OUT_OF_OUTPOST_REACH';
+  if (facts.hqLevel === 0) return 'HQ_FIRST';
+  if (facts.queued) return 'ALREADY_QUEUED_HERE';
+  if (facts.cappedByHq) return 'CAPPED_BY_HQ';
+  return null;
+}
+
 export function upgradeHold(building: Building, view: PlayerView, now: number): UpgradeHold | null {
-  // A raise already queued on this very point is the one thing that still blocks a second
-  // order there: the server allows one entry per point (`ALREADY_QUEUED_HERE`).
-  if (pledgedBuildings(view).some((work) => samePoint(work.lonLat, building.point))) {
-    return { kind: 'alreadyQueued' };
+  const refusal = raiseRefusalOf({
+    reached: building.unreached !== true,
+    hqLevel: view.me.hqLevel,
+    // One entry per point: the server allows a single queued raise there.
+    queued: pledgedBuildings(view).some((work) => samePoint(work.lonLat, building.point)),
+    cappedByHq: building.cappedByHq,
+  });
+  switch (refusal) {
+    case 'OUT_OF_OUTPOST_REACH':
+      return {
+        kind: 'outOfReach',
+        outpostLevels: view.me.outposts
+          .filter((outpost) => outpost.standsAt === null)
+          .map((outpost) => outpost.level),
+      };
+    case 'HQ_FIRST':
+      return { kind: 'hqFirst' };
+    case 'ALREADY_QUEUED_HERE':
+      return { kind: 'alreadyQueued' };
+    case 'CAPPED_BY_HQ':
+      return { kind: 'cappedByHq' };
+    case null:
+      break;
   }
-  if (building.cappedByHq) return { kind: 'cappedByHq' };
 
   // The first shortfall in resource order, never a list: a bill is paid whole or not at all
   // (`debit` checks every cost before debiting any), so naming one is naming the blockage.
