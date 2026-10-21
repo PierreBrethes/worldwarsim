@@ -92,8 +92,9 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   géographique : `scripts/generate-atlas.mjs` le cuit depuis des sources hors du dépôt, épinglées
   par SHA-256. Le reste de `public/*.json` en sort par `scripts/generate-*.mjs` (ordre de la chaîne
   dans `deploiement/README.md`), sauf `engraved-map.json`, figé sans générateur. Rien n'y est
-  retouché à la main. `buildGrid` ne tourne jamais dans une query : la grille est cuite. Aucune règle de jeu ne lit `RegionType` sans ADR. Les districts
-  allemands (BKG) doivent l'attribution « © GeoBasis-DE / BKG », sans page de crédits à ce jour.
+  retouché à la main. `buildGrid` ne tourne jamais dans une query : la grille est cuite. Aucune
+  règle de jeu ne lit `RegionType` sans ADR. Les districts allemands (BKG) doivent l'attribution
+  « © GeoBasis-DE / BKG », tenue par la page `/credits`.
 - **Figurines GLB.** Textures en WebP avant commit
   (`npx @gltf-transform/cli webp <in.glb> <out.glb> --quality 90`, hors du dépôt) ; ni meshopt ni
   quantification. `glb.test.ts` tient triangles et noms de pièces.
