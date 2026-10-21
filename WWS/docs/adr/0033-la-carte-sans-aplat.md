@@ -76,11 +76,13 @@ en tirets à l'encre de chaque nation (`WWS/prototypes/carte-refonte/main.js`).
 
 ## Précisée le 21/10/2026 (#198) : la nuit éteint carte et pièces, un halo à chacune
 
-- **Une lune, pas un voile.** Le voile d'encre qui ne couvrait que la feuille disparaît : dans la
-  bande de nuit (`boardInstant`), la lampe devient une lune faible et froide, et le ciel descend à
-  0,3, pour la carte comme pour les pièces. La nuit se lit là où l'on regarde, à toute distance :
-  de loin, la carte n'a plus de terminateur, seules les villes allumées (`night.ts`) disent quel
-  côté du monde est dans le noir. L'accueil garde son voile (il est à refaire).
+- **Une lune pour les pièces, une bande de nuit au pixel pour la feuille.** Dans la bande de nuit
+  (`boardInstant`), la lampe devient une lune faible et froide au point regardé, et le ciel descend
+  à 0,3 : les pièces s'assombrissent avec la carte. Le voile reste (Q14 c, grilling du 20/10),
+  mais multiplie la feuille par le bleu de la lune au lieu de la couvrir d'encre : la bande de
+  nuit dit qui dort et où, de loin comme de près, et la lune n'est teintée qu'une fois. Les encres
+  des contours et les dessins de terrain lisent la même bande au pixel (`night-here.ts`). L'accueil
+  garde son ancien voile (il est à refaire).
 - **La lune est fixe.** L'azimut du soleil est singulier à l'antipode du point subsolaire, là où il
   fait nuit : les ombres y pivotaient de 90° pour un degré de carte et tournaient d'un battement à
   l'autre. La nuit, la lampe prend une direction fixe (`lampDirection`, `src/domain/daylight.ts`) ;

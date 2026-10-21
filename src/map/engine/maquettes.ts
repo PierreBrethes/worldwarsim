@@ -647,8 +647,8 @@ export class MaquetteLayer {
 
   /** Where the night lays a lamp's glow: under each maquette that stands, with its share of building. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
-    for (const { model, items } of this.lots.values()) {
-      if (model === null) continue;
+    for (const { model, items, group } of this.lots.values()) {
+      if (model === null || !group.visible) continue;
       const reach =
         Math.max(model.box.max.x - model.box.min.x, model.box.max.z - model.box.min.z) / 2;
       for (const item of items)

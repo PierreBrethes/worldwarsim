@@ -19,6 +19,7 @@ import {
 import type { RegionType } from '@/domain/ids';
 import type { DisplayedRegion } from '@/domain/world';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
+import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 import { spansTheFrame, TRAME_SCALE } from './regions';
 
 /**
@@ -335,10 +336,11 @@ void main() {
 }`;
 
 const FRAGMENT = `
+${NIGHT_HERE_GLSL}
 uniform sampler2D uTypes, uAtlas;
 uniform vec2 uWorld;
 uniform vec3 uInk;
-uniform float uOpacity, uMinCellPx, uPixelRatio, uNight;
+uniform float uOpacity, uMinCellPx, uPixelRatio;
 uniform float uKeep[6], uJitter[6], uWeight[6];
 varying vec2 vWorld;
 
@@ -395,23 +397,26 @@ void main() {
   ink *= 1.0 - smoothstep(${MAX_DOUBLINGS.toFixed(1)}, ${GONE_AT.toFixed(1)}, wanted);
   ink *= uOpacity;
   if (ink < 0.003) discard;
-  gl_FragColor = vec4(uInk * mix(1.0, ${NIGHT_INK.toFixed(2)}, uNight), min(ink, 1.0));
+  gl_FragColor = vec4(uInk * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), min(ink, 1.0));
   #include <colorspace_fragment>
 }`;
 
 const WASH_VERTEX = `
 attribute vec4 wash;
 varying vec4 vWash;
+varying vec2 vWorld;
 void main() {
   vWash = wash;
+  vWorld = position.xz;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 
 const WASH_FRAGMENT = `
-uniform float uNight;
+${NIGHT_HERE_GLSL}
 varying vec4 vWash;
+varying vec2 vWorld;
 void main() {
-  gl_FragColor = vec4(vWash.rgb * mix(1.0, ${NIGHT_INK.toFixed(2)}, uNight), vWash.a);
+  gl_FragColor = vec4(vWash.rgb * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), vWash.a);
   #include <colorspace_fragment>
 }`;
 
@@ -450,13 +455,13 @@ export class TerrainDrawings {
   private readonly wash: Mesh<BufferGeometry, ShaderMaterial>;
   private types: DataTexture | null = null;
   private readonly atlas = paintAtlas();
-  private readonly night = { value: 0 };
 
   constructor(
     private readonly frame: WorldFrame,
     anisotropy: number,
     /** At the finger the cell is read from nearer. */
     touch: boolean,
+    private readonly night: NightUniforms,
   ) {
     this.atlas.anisotropy = anisotropy;
     const byCode = (pick: (type: DrawnType) => number) => [0, ...DRAWN.map(pick)];
@@ -480,7 +485,7 @@ export class TerrainDrawings {
             uWorld: { value: new Vector2(frame.width, frame.height) },
             uInk: { value: new Color(INK) },
             uOpacity: { value: OPACITY },
-            uNight: this.night,
+            ...this.night,
             uMinCellPx: { value: touch ? MIN_CELL_PX_AT_THE_FINGER : MIN_CELL_PX },
             uPixelRatio: TRAME_SCALE,
             uKeep: { value: byCode((type) => GLYPHS[type].keep) },
@@ -499,7 +504,7 @@ export class TerrainDrawings {
           vertexShader: WASH_VERTEX,
           fragmentShader: WASH_FRAGMENT,
           side: DoubleSide,
-          uniforms: { uNight: this.night },
+          uniforms: { ...this.night },
         }),
       ),
     );
@@ -513,11 +518,6 @@ export class TerrainDrawings {
       this.object.add(mesh);
     }
     this.object.visible = false;
-  }
-
-  /** How dark it is where one looks, 0 to 1. */
-  set darkness(night: number) {
-    this.night.value = night;
   }
 
   /** Bakes the type map and the wash of the regions that came. */

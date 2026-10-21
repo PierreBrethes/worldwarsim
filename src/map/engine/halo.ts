@@ -36,9 +36,10 @@ const REACH = 2.3;
 const MIN_RADIUS = 0.3;
 /** Visible pieces on a board at once, far above what the regions' fade leaves in sight. */
 const CAPACITY = 1024;
-/** Just over the ground the pieces stand on; the pen and the contours are drawn after it. */
+/** Just over the ground the pieces stand on. Drawn over the moon's veil (rank 2, `night.ts`), which
+ *  would otherwise put the lamp out with the sheet. */
 const LIFT = 0.006;
-const RANK = 0.45;
+const RANK = 2.5;
 
 function glowTexture(): CanvasTexture {
   const size = 128;
@@ -105,7 +106,7 @@ export class Halos {
   /** `radius`: the footprint's, in board units; `near`: the piece's share of figurine, 0 to 1. */
   add(at: Vector3, radius: number, near: number): void {
     if (this.count >= CAPACITY || near <= 0) return;
-    const size = 2 * REACH * Math.max(radius, MIN_RADIUS);
+    const size = 2 * REACH * Math.max(radius, MIN_RADIUS * near);
     matrix.compose(position.set(at.x, at.y + LIFT, at.z), flat, scale.set(size, 1, size));
     this.object.setMatrixAt(this.count, matrix);
     this.object.setColorAt(this.count, weight.setScalar(near));
@@ -118,8 +119,20 @@ export class Halos {
     object.count = this.count;
     object.visible = night > 0.004 && this.count > 0;
     object.material.opacity = night * GROUND_GAIN;
+    // Only what was gathered goes up, not the whole capacity.
+    object.instanceMatrix.clearUpdateRanges();
+    object.instanceMatrix.addUpdateRange(0, this.count * 16);
     object.instanceMatrix.needsUpdate = true;
-    if (object.instanceColor) object.instanceColor.needsUpdate = true;
+    if (object.instanceColor) {
+      object.instanceColor.clearUpdateRanges();
+      object.instanceColor.addUpdateRange(0, this.count * 3);
+      object.instanceColor.needsUpdate = true;
+    }
+  }
+
+  /** By day there is nothing to light, and nothing to send. */
+  hide(): void {
+    this.object.visible = false;
   }
 
   dispose(): void {

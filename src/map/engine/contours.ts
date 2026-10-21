@@ -11,7 +11,7 @@ import { contourLines, DEFAULT_CONTOUR_WEIGHT, type ContourWeight } from '@/doma
 import type { DisplayedRegion } from '@/domain/world';
 import type { AmbientLayer } from './ambience';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
-import { MOON_TINT } from './palette';
+import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 
 type Point = readonly [number, number];
 
@@ -44,25 +44,29 @@ const VERTEX = `
 attribute vec2 aNormal; attribute float aSide, aArc;
 uniform float uPx, uHalf, uGap, uWidth, uCentered;
 varying float vArc, vSide;
+varying vec2 vWorld;
 void main() {
   float stroke = uHalf * uWidth;
   vec2 off = aNormal * ((uCentered > 0.5 ? 0.0 : stroke + uGap) + aSide * stroke) * uPx;
   vArc = aArc / uPx; vSide = aSide;
+  vWorld = position.xz + off;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position + vec3(off.x, 0.0, off.y), 1.0);
 }`;
 
 /**
- * La nuit, l'encre d'une nation s'éclaircit vers un bleu pâle pour rester lisible sur la lune ;
- * les fins traits gris, eux, s'assombrissent avec la carte (`uLift`, la maquette).
+ * La nuit, au pixel (`nightAtWorld`), l'encre d'une nation s'éclaircit vers un bleu pâle pour rester
+ * lisible sous le voile de la lune, qui multiplie tout ce qui est dessous ; les fins traits gris
+ * (`uLift` nul) ne font que subir le voile, et s'assombrissent avec la carte.
  */
 const FRAGMENT = `
-uniform vec3 uColor; uniform float uOpacity, uPeriod, uDuty, uOwnDuty, uSolid, uTime, uSpeed, uNight, uLift;
+${NIGHT_HERE_GLSL}
+uniform vec3 uColor; uniform float uOpacity, uPeriod, uDuty, uOwnDuty, uSolid, uTime, uSpeed, uLift;
 varying float vArc, vSide;
+varying vec2 vWorld;
 void main() {
   float duty = uOwnDuty > 0.0 ? uOwnDuty : uDuty;
   if (uSolid < 0.5 && fract((vArc - uTime * uSpeed) / uPeriod) > duty) discard;
-  vec3 moonTint = vec3(${MOON_TINT.map((c) => c.toFixed(2)).join(', ')});
-  vec3 ink = mix(uColor, mix(uColor * moonTint, uColor * 0.55 + vec3(0.2, 0.23, 0.34), uLift), uNight);
+  vec3 ink = mix(uColor, uColor * 0.55 + vec3(0.2, 0.23, 0.34), nightAtWorld(vWorld) * uLift);
   gl_FragColor = vec4(ink, (1.0 - smoothstep(0.55, 1.0, abs(vSide))) * uOpacity);
   #include <colorspace_fragment>
 }`;
@@ -84,14 +88,13 @@ export class ContourLayer implements AmbientLayer {
   readonly fx = 'contours' as const;
   readonly hz = DASH_HZ;
   readonly group = new Group();
-  private readonly shared: Record<string, IUniform<number>> = {
+  private readonly shared: Record<string, IUniform> = {
     uPx: { value: 0.02 },
     uHalf: { value: 0 },
     uGap: { value: 0 },
     uPeriod: { value: 0 },
     uDuty: { value: 0 },
     uTime: { value: 0 },
-    uNight: { value: 0 },
   };
   private moving = false;
 
@@ -99,13 +102,10 @@ export class ContourLayer implements AmbientLayer {
     private readonly world: WorldFrame,
     /** Au doigt, les tirets avancent avec les images que la carte dessine déjà, sans en demander. */
     readonly passive: boolean,
+    night: NightUniforms,
   ) {
+    Object.assign(this.shared, night);
     this.weight = DEFAULT_CONTOUR_WEIGHT;
-  }
-
-  /** How dark it is where one looks, 0 to 1: the inks lift to stay legible. */
-  set night(night: number) {
-    this.shared.uNight!.value = night;
   }
 
   set weight(weight: ContourWeight) {

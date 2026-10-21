@@ -9,7 +9,6 @@ import {
   type Scene,
 } from 'three';
 import { lampDirection, type SunLight } from '@/domain/daylight';
-import { MOON_TINT as MOON_TINT_RGB } from './palette';
 import { REGIONS_GONE_DISTANCE } from './regions';
 
 /**
@@ -34,8 +33,6 @@ const DUSK_DEG = 20;
  *  creusent (`night.ts`). @a-mesurer */
 const NIGHT_INTENSITY = 0.9;
 const MOON_COLOR = new Color('#a9bde6');
-const MOON_TINT = new Color(...MOON_TINT_RGB);
-const WHITE = new Color(1, 1, 1);
 /** Assez loin pour que tout le cadre d'ombre tienne devant elle, à n'importe quel zoom permis. */
 const LAMP_DISTANCE = 300;
 const SHADOW_MAP = 2048;
@@ -78,7 +75,6 @@ export class Lamp {
   private readonly right = new Vector3();
   private readonly up = new Vector3();
   private readonly aim = new Vector3();
-  private readonly tint = new Color();
 
   constructor(scene: Scene) {
     this.light.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
@@ -93,8 +89,7 @@ export class Lamp {
     this.light.color
       .copy(DAY_COLOR)
       .lerp(LOW_COLOR, MathUtils.clamp((LOW_SUN_DEG - sun.altitude) / LOW_SUN_DEG, 0, 1))
-      .lerp(MOON_COLOR, night)
-      .multiply(this.tint.copy(WHITE).lerp(MOON_TINT, night));
+      .lerp(MOON_COLOR, night);
     this.light.intensity = lampIntensity(sun, night);
   }
 

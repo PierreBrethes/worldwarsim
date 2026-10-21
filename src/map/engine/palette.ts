@@ -112,9 +112,8 @@ export const ARC_COLORS = {
 } as const;
 
 /**
- * Le bleu dont la maquette (`carte-refonte`) multiplie la lumière finale la nuit, en valeurs
- * linéaires. Une lumière diffuse se plie dans les couleurs des lampes : la lune et le ciel le
- * portent (`lamp.ts`, `night.ts`), les encres sans lumière le lisent (`contours.ts`).
+ * Le bleu dont la maquette (`carte-refonte`) multiplie la feuille la nuit, en valeurs linéaires :
+ * le voile de la lune le porte, une seule fois (`night.ts`).
  * @a-mesurer
  */
 export const MOON_TINT = [0.4, 0.5, 0.84] as const;

@@ -16,6 +16,7 @@ import { mulberry } from '@/domain/mulberry';
 import { type DisplayedRegion, type RegionsData } from '@/domain/world';
 import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
+import type { NightUniforms } from './night-here';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 
 export const REGIONS_FULL_DISTANCE = 30;
@@ -191,8 +192,9 @@ export class RegionLayer {
     private readonly frame: WorldFrame,
     /** At the finger: the dashes step only with the frames the map draws anyway. */
     touch: boolean,
+    night: NightUniforms,
   ) {
-    this.contours = new ContourLayer(frame, touch);
+    this.contours = new ContourLayer(frame, touch, night);
     this.lineMaterial = new LineDashedMaterial({
       color: PALETTE.border,
       transparent: true,

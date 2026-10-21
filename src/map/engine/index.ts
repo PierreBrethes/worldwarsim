@@ -317,6 +317,8 @@ export class MapEngine {
   private readonly lamp: Lamp;
   private readonly night: NightSky;
   private readonly halos: Halos;
+  /** The night the pieces were last warmed by. */
+  private warmed = 0;
   private readonly theatreFrame: TheatreFrame;
   private readonly veil: CarryVeil;
   private readonly forcedInstant = forcedInstant(location.search);
@@ -586,7 +588,7 @@ export class MapEngine {
       });
     }
     this.surface = board.surface;
-    this.night = new NightSky(this.scene, this.frame, this.sea);
+    this.night = new NightSky(this.scene, this.frame, this.sea, board.surface.geometry);
     this.halos = new Halos();
     this.scene.add(this.halos.object);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
@@ -595,9 +597,7 @@ export class MapEngine {
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    const wash = buildCoastalWash(world, this.frame);
-    this.night.dim(wash.material);
-    this.scene.add(wash);
+    this.scene.add(buildCoastalWash(world, this.frame));
 
     const { meshes, borders, coast } = buildCountries(world, this.frame);
     this.countries = meshes;
@@ -607,8 +607,6 @@ export class MapEngine {
       mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
-    this.night.dim(borders.material);
-    this.night.dim(coast.material);
     this.scene.add(borders);
     this.scene.add(coast);
 
@@ -671,7 +669,7 @@ export class MapEngine {
     this.scene.add(this.searchArea.object);
     this.scene.add(this.ghost.object);
 
-    this.regions = new RegionLayer(this.frame, this.touch);
+    this.regions = new RegionLayer(this.frame, this.touch, this.night.uniforms);
     this.ambience.add(this.regions.contours);
     this.labels = new LabelLayer(
       this.frame,
@@ -686,6 +684,7 @@ export class MapEngine {
       this.frame,
       this.renderer.capabilities.getMaxAnisotropy(),
       this.touch,
+      this.night.uniforms,
     );
     this.scene.add(this.drawings.object);
     this.scene.add(this.regions.lines);
@@ -2520,12 +2519,11 @@ export class MapEngine {
       looked.x + this.frame.centerX,
       looked.z + this.frame.centerY,
     );
-    // The moon lights the whole board and its pieces alike, from where one looks (#198).
+    // The moon lights the pieces and the sheet from where one looks; the band of night
+    // (`NightSky`'s veil) tells who sleeps where, per pixel, at every distance (#198).
     const sun = sunLightAt(instant, lookedAt);
     const night = nightOfAltitude(sun.altitude);
     this.night.apply(instant, night);
-    this.regions.contours.night = night;
-    this.drawings.darkness = night;
     // Only on whole frames: the shadow map is redrawn with them, and must fall from the same lamp.
     if (whole) this.lamp.shine(sun, night);
     this.lightCountries();
@@ -2564,27 +2562,21 @@ export class MapEngine {
     this.camps.orient(this.camera.position, yaw);
     this.clearReplayGround();
     this.renderer.shadowMap.needsUpdate = whole;
-    if (this.lamp.follow(this.controls.target, distance) && whole) {
-      for (const root of [
-        this.standing.group,
-        this.maquettes.group,
-        this.camps.group,
-        this.arcs.group,
-      ]) {
-        castShadows(root);
-        warmPieces(root, night);
-      }
-      if (this.replay) {
-        castShadows(this.replay.scene.object);
-        warmPieces(this.replay.scene.object, night);
-      }
-    }
+    const shadowed = this.lamp.follow(this.controls.target, distance);
+    const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
+    if (this.replay) pieces.push(this.replay.scene.object);
+    if (shadowed && whole) for (const root of pieces) castShadows(root);
     if (whole) {
-      this.halos.begin();
-      const lit = (at: Vector3, radius: number, near: number) => this.halos.add(at, radius, near);
-      this.standing.lights(lit);
-      this.maquettes.lights(lit);
-      this.halos.end(night);
+      // Warm by the same night as the halos, shadows or not: a piece must not keep a stale glow.
+      if (night > 0 || this.warmed > 0) for (const root of pieces) warmPieces(root, night);
+      this.warmed = night;
+      if (night > 0.004) {
+        this.halos.begin();
+        const lit = (at: Vector3, radius: number, near: number) => this.halos.add(at, radius, near);
+        this.standing.lights(lit);
+        this.maquettes.lights(lit);
+        this.halos.end(night);
+      } else this.halos.hide();
     }
     this.regions.animate(distance, this.unitsPerPixel(distance));
     this.sea?.fade(distance);
