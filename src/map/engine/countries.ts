@@ -21,6 +21,7 @@ import {
   geometryData,
   lineGeometry,
   type GeometryData,
+  offTheSeam,
 } from './atlas-geometry';
 import { buildCoastalWash, washGeometry } from './coastal-wash';
 
@@ -50,38 +51,15 @@ const PENCIL = `
   float lead = 0.10 * stroke * (0.5 + 0.5 * tooth) + 0.05 * step(0.86, tooth);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.29, 0.28, 0.26), lead);`;
 
-/** Within a hundredth of a unit of the sheet's edge, a point lies on the cut: the cut's own points
- *  sit within four thousandths, the nearest true shore (Fiji, Tuvalu) twenty. */
-const SEAM_TOLERANCE = 0.01;
-
-/**
- * **La côte sépare la terre de la mer** (ADR 0034), sauf là où la Tchoukotka et les Fidji sont
- * coupées à l'antiméridien : la coupe n'a la mer d'aucun côté, seulement le bord de la feuille, et
- * l'encre la plus grasse le soulignerait. Une coupe prolonge parfois la vraie côte dans le même
- * arc : c'est le segment qu'on retire, pas l'arc.
- */
+/** La côte sépare la terre de la mer (ADR 0034), hors de la coupe de l'antiméridien. */
 export function coastLines(
   atlas: Atlas,
   detail: Detail,
   frame: WorldFrame,
 ): { points: Float32Array }[] {
-  const onSeam = (x: number, y: number) => {
-    const { westX, eastX } = frame.edgeAtLatitude(frame.lonLatAt(x, y)[1]);
-    return Math.min(Math.abs(x - westX), Math.abs(x - eastX)) < SEAM_TOLERANCE;
-  };
-  const lines: { points: Float32Array }[] = [];
-  for (const { points } of atlas.borders((a, b) => !a !== !b, detail)) {
-    let start = 0;
-    for (let i = 2; i <= points.length; i += 2) {
-      const cut =
-        i === points.length ||
-        (onSeam(points[i - 2]!, points[i - 1]!) && onSeam(points[i]!, points[i + 1]!));
-      if (!cut) continue;
-      if (i - start >= 4) lines.push({ points: points.subarray(start, i) });
-      start = i;
-    }
-  }
-  return lines;
+  return atlas
+    .borders((a, b) => !a !== !b, detail)
+    .flatMap(({ points }) => offTheSeam(points, frame).map((run) => ({ points: run })));
 }
 
 /** Le plancher : de loin, la côte reste un trait gras et non le cheveu d'une ligne WebGL. */

@@ -14,6 +14,37 @@ import type { WorldFrame } from './frame';
  */
 type Sheet = Pick<WorldFrame, 'centerX' | 'centerY'>;
 
+/** Within a hundredth of a unit of the sheet's edge, a point lies on the cut: the cut's own points
+ *  sit within four thousandths, the nearest true shore (Fiji, Tuvalu) twenty. */
+const SEAM_TOLERANCE = 0.01;
+
+/**
+ * **La coupe de l'antiméridien n'est pas une frontière** (ADR 0034) : la Tchoukotka et les Fidji y
+ * sont coupées, et la coupe n'a, d'aucun côté, que le bord de la feuille. Une coupe prolonge
+ * parfois la vraie ligne dans le même arc : c'est le segment qu'on retire, pas l'arc. La côte et
+ * le contour la retirent par ce seul calcul.
+ */
+export function offTheSeam(
+  points: Float32Array,
+  frame: Pick<WorldFrame, 'edgeAtLatitude' | 'lonLatAt'>,
+): Float32Array[] {
+  const onSeam = (x: number, y: number) => {
+    const { westX, eastX } = frame.edgeAtLatitude(frame.lonLatAt(x, y)[1]);
+    return Math.min(Math.abs(x - westX), Math.abs(x - eastX)) < SEAM_TOLERANCE;
+  };
+  const runs: Float32Array[] = [];
+  let start = 0;
+  for (let i = 2; i <= points.length; i += 2) {
+    const cut =
+      i === points.length ||
+      (onSeam(points[i - 2]!, points[i - 1]!) && onSeam(points[i]!, points[i + 1]!));
+    if (!cut) continue;
+    if (i - start >= 4) runs.push(points.subarray(start, i));
+    start = i;
+  }
+  return runs;
+}
+
 /** Polylines as segment pairs, `[x, height, z]` twice per segment: what `LineSegments` and
  *  `LineSegmentsGeometry.setPositions` both read. */
 export function lineGeometry(
