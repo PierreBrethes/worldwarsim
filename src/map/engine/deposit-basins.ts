@@ -13,6 +13,7 @@ import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 import { TRAME_SCALE } from './regions';
+import { ADVERSE_INK } from './palette';
 
 /**
  * **Les bassins des gisements** (#239, maquette `WWS/prototypes/gisements/bassin.html`) : chaque
@@ -28,7 +29,9 @@ import { TRAME_SCALE } from './regions';
 
 /** The order of the textures in the fragment: the `aKind` of each basin. */
 const KINDS: ReadonlyArray<DepositKey> = ['coal', 'iron', 'food', 'oil'];
-/** The resource's own ink, the maquette's `RES_INK`: the wash only, never the pen. @a-mesurer */
+/** The resource's own ink, the maquette's `RES_INK`: the wash only, never the pen. The same
+ *  inks as `--res-*-paper` in `src/styles/tokens.css` (iron is `--res-steel-paper`), which the
+ *  woken names wear (`labels.css`): change one, change the other. @a-mesurer */
 const WASH: Record<DepositKey, string> = {
   food: '#6a7047',
   iron: '#627584',
@@ -50,8 +53,6 @@ const PEN_ALPHA = 0.5;
 /** The share of cells that bear a mark at the basin's heart. @a-mesurer */
 const KEEP = 0.85;
 const INK = '#2a2118';
-/** A woken basin the pose would refuse: the maquette's adverse red, dashed round it. */
-const REFUSED = '#8f3a2c';
 /** Woken (#239): the maquette's washes, near (open, refused) and far, and its dashes round. @a-mesurer */
 const WOKEN_NEAR = 0.15;
 const REFUSED_NEAR = 0.1;
@@ -215,7 +216,7 @@ export class DepositBasins {
       fragmentShader: FRAGMENT,
       uniforms: {
         uInk: { value: new Color(INK) },
-        uRefused: { value: new Color(REFUSED) },
+        uRefused: { value: new Color(ADVERSE_INK) },
         uWash: { value: KINDS.map((kind) => new Color(WASH[kind])) },
         uPixelRatio: TRAME_SCALE,
         uViewport: { value: new Vector2(1, 1) },

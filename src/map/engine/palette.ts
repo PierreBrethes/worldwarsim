@@ -1,5 +1,9 @@
 /** Literals, because the engine cannot read CSS. `src/styles/tokens.css` is the source and
  *  `src/styles/colors.test.ts` fails when the two drift. */
+/** **The adverse red** of the mockups: a refused pose, a pin, a woken basin out of reach, an
+ *  annotation (#239). One literal for every ink that says "refused here" on the board. */
+export const ADVERSE_INK = '#8f3a2c';
+
 export const PALETTE = {
   desk: '#171208',
   /** The wood under the board, past its edge (#187): close to `desk`, quieter than the sheet

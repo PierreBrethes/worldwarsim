@@ -97,6 +97,7 @@ import {
   type StandingPile,
   type SurveyedCamp,
 } from './engine';
+import { ADVERSE_INK } from './engine/palette';
 
 type Props = {
   /** The atlas at its far level; the near one is fetched after the board (ADR 0034). */
@@ -1734,7 +1735,7 @@ function PlacingLines({ placing, docked = false }: { placing: PlacingBuilding; d
 
 /** The maquette's inks of a thread (`bassin.html`): the designated ochre, the adverse red. */
 const THREAD_INK = 'var(--notable)';
-const THREAD_REFUSED_INK = '#8f3a2c';
+const THREAD_REFUSED_INK = ADVERSE_INK;
 
 /**
  * **Le fil de la pose** (#239, maquette « Bassin et fil ») : du fantôme au gisement prenable le

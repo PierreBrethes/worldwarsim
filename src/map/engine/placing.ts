@@ -12,6 +12,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import type { LonLat } from '@/domain/geo';
 import { faceCamera, textureOf } from './billboard';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { ADVERSE_INK } from './palette';
 
 /** The same share as a movement's pawn: the ghost is the piece the player is about to put
  *  down, and it must weigh what a piece weighs on this board. */
@@ -19,7 +20,7 @@ const GHOST_SHARE = 0.031;
 
 /** The pin's head: the maquette's blue-grey of a pose that holds, the red of one refused. */
 const PIN_TONE = '#627584';
-const PIN_REFUSED_TONE = '#8f3a2c';
+const PIN_REFUSED_TONE = ADVERSE_INK;
 const PIN_INK = '#2a2118';
 /** The paper ring outside the ink one: it lifts the pin off a night sea as off a day field. */
 const PIN_PAPER = '#f1e8d2';

@@ -18,7 +18,7 @@ import {
 import { stampAt } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import { wordedTexture } from '@/map/engine/ink';
-import { PALETTE } from '@/map/engine/palette';
+import { ADVERSE_INK, PALETTE } from '@/map/engine/palette';
 
 /** Everything on the sheet lies this far over it, so the paper does not swallow it. */
 export const SHEET_Y = 0.08;
@@ -302,7 +302,7 @@ export function surveyMark(hour: string, size: number): Mesh<PlaneGeometry, Mesh
     ctx.stroke();
     ctx.font = 'italic 700 74px "Bodoni Moda", serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#8f3a2c';
+    ctx.fillStyle = ADVERSE_INK;
     ctx.fillText('?', 58, -38);
     ctx.font = '500 26px "IBM Plex Mono", monospace';
     ctx.fillStyle = PALETTE.border;
