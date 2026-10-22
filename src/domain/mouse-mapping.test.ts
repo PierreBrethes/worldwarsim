@@ -11,6 +11,7 @@ import {
   cleanPressAt,
   dragRoleAt,
   isMouseMapping,
+  releaseOf,
   roleAt,
   withRole,
   type MouseMapping,
@@ -249,5 +250,34 @@ describe('l’aide-mémoire au doigt', () => {
     expect(notice).toContain('Le drapeau de la réglette ouvre le dossier de la nation');
     expect(notice).toContain('Toucher net sur un avant-poste à vous');
     expect(notice).not.toMatch(/clic|souris|molette|rail/);
+  });
+});
+
+describe('le relâchement d’un appui', () => {
+  /** Le bouton qui déplace tient `panning` dès l'appui : son clic net, pièce en main, la repose
+   *  quand même (#229). */
+  it('pièce en main, le clic net du bouton qui déplace repose la pièce, dans les deux réglages', () => {
+    for (const [mapping, index] of [
+      [WHEEL_ACTS_MAPPING, 2],
+      [CLASSIC_MAPPING, 1],
+    ] as const) {
+      const press = cleanPressAt(mapping, 'mouse', index, true);
+      expect(releaseOf({ panning: true, pastThreshold: false }, press)).toBe('cancel');
+    }
+  });
+
+  it('sans pièce en main, le clic net du bouton qui déplace ne fait rien', () => {
+    const press = cleanPressAt(WHEEL_ACTS_MAPPING, 'mouse', 2);
+    expect(releaseOf({ panning: true, pastThreshold: false }, press)).toBe('none');
+  });
+
+  it('un glisser ne repose rien', () => {
+    const press = cleanPressAt(WHEEL_ACTS_MAPPING, 'mouse', 2, true);
+    expect(releaseOf({ panning: true, pastThreshold: true }, press)).toBe('none');
+  });
+
+  it('un clic net qui n’a pas déplacé suit son appui', () => {
+    const press = cleanPressAt(CLASSIC_MAPPING, 'mouse', 2);
+    expect(releaseOf({ panning: false, pastThreshold: false }, press)).toBe('press');
   });
 });

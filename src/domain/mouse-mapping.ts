@@ -133,3 +133,17 @@ export function cleanPressAt(
     cancels,
   };
 }
+
+/**
+ * Ce que le relâchement d'un appui décide, avant toute lecture du clic. Le bouton qui déplace
+ * tient `panning` dès l'appui : net, il ne déplace rien, mais pièce en main il la repose quand
+ * même (#229) ; un glisser, lui, ne repose rien.
+ */
+export function releaseOf(
+  gesture: { readonly panning: boolean; readonly pastThreshold: boolean },
+  press: CleanPress,
+): 'none' | 'cancel' | 'press' {
+  if (gesture.pastThreshold) return 'none';
+  if (press.cancels) return 'cancel';
+  return gesture.panning ? 'none' : 'press';
+}

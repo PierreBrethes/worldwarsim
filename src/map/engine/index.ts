@@ -23,6 +23,7 @@ import {
   CLASSIC_MAPPING,
   buttonAt,
   cleanPressAt,
+  releaseOf,
   type CleanPress,
   dragRoleAt,
   type MouseButton,
@@ -1906,15 +1907,17 @@ export class MapEngine {
       return;
     }
     if (event.type !== 'pointerup' || gesture.fromLabel) return;
-    if (gesture.panning || gesture.pastThreshold) return;
     const press = cleanPressAt(
       this.mapping,
       gesture.pointerType,
       gesture.index,
       this.held !== null,
     );
-    // A piece in hand goes back home at the press that would have acted, like Escape (#229).
-    if (press.cancels) return this.onCarryCancel?.();
+    // A piece in hand goes back home at any clean press that does not put it down, the button
+    // that pans included, like Escape (#229).
+    const release = releaseOf(gesture, press);
+    if (release === 'cancel') return this.onCarryCancel?.();
+    if (release === 'none') return;
     // A finger has no hover to read from: the board is aimed where it lifted, now, so the
     // ghost of a placement and the country under it answer for this point and not the last.
     if (this.fingerOnBoard) {
