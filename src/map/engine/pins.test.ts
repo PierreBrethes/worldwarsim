@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { Pin } from '@/domain/pins';
@@ -102,5 +102,14 @@ describe('PinLayer — the pieces far away', () => {
     );
     expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'a' });
     expect(layer.under(...screenOf(eye, eastOfParis))).toEqual({ kind: 'pin', id: 'arc-1' });
+  });
+
+  it('redoes no cluster while the camera stands still', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = laidOut([mine('a', paris), mine('b', besideParis), mine('c', lyon)], eye);
+    const project = vi.spyOn(Vector3.prototype, 'project');
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(project).not.toHaveBeenCalled();
+    project.mockRestore();
   });
 });

@@ -6,6 +6,7 @@ import {
   Group,
   InstancedBufferAttribute,
   InstancedBufferGeometry,
+  Matrix4,
   Mesh,
   ShaderMaterial,
   Vector3,
@@ -145,7 +146,9 @@ export class PinLayer {
   private hovered: string | null = null;
   private carried: Vector3 | null = null;
   private dirty = true;
-  private readonly lastView = new Float32Array(18);
+  /** The eye and canvas the clusters were made for: a still camera redoes none. */
+  private readonly lastEye = new Matrix4();
+  private lastSize = '';
   private readonly shapes: InstancedDraw<typeof SHAPE_ATTRIBUTES>;
   private readonly glyphs: InstancedDraw<typeof GLYPH_ATTRIBUTES>;
 
@@ -206,15 +209,11 @@ export class PinLayer {
     aheads: ReadonlyMap<string, Vector3>,
     measuredFrom: Vector3 = eye.position,
   ): void {
-    const view = this.lastView;
-    const moved =
-      view[16] !== width ||
-      view[17] !== height ||
-      eye.matrixWorld.elements.some((value, k) => view[k] !== value);
+    const size = `${width}x${height}`;
+    const moved = size !== this.lastSize || !this.lastEye.equals(eye.matrixWorld);
     if (moved) {
-      view.set(eye.matrixWorld.elements);
-      view[16] = width;
-      view[17] = height;
+      this.lastEye.copy(eye.matrixWorld);
+      this.lastSize = size;
     }
     const screen = (at: Vector3): [number, number, boolean] => {
       const v = scratch.copy(at).project(eye);
