@@ -367,6 +367,18 @@ describe('where a troop stands decides what it eats', () => {
     expect(upkeep.foodPerHour).toBe(armyUpkeep(0, 1));
   });
 
+  /** **Malte** (#224) : la grille de 25 km la noie, l'atlas la rend à la terre — une garnison
+   *  posée là sous son propre point mange au tarif simple, comme sur le continent. */
+  it('feeds a garrison on Malta off the point it holds there', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const valletta = regionFacts('MLT-5949')!.point;
+    await plant(t, seat, valletta);
+    await form(t, seat, 'infantry', asPoint(valletta));
+
+    expect((await upkeepOf(t, seat)).unsupplied).toBe(0);
+  });
+
   it('charges the raised rate a step beyond that reach', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

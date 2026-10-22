@@ -35,12 +35,14 @@ import type { RegionType } from '@/domain/ids';
 import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import {
   decodeCoast,
+  groundOf,
+  isLandingShore,
   nearestCoast,
   onRegionCoast,
   COAST_REACH_KM,
   type Coast,
 } from '@/domain/coast';
-import { isCoastCell, groundAt, type Ground, type Medium, type RouteGrid } from '@/domain/routing';
+import type { Ground, Medium, RouteGrid } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
@@ -164,12 +166,13 @@ export type PlacingMagnet =
   | { readonly kind: 'coast' }
   | { readonly kind: 'points'; readonly points: ReadonlyArray<LonLat> };
 
-/** The point the ghost holds, with what the board knows of it: whose region, its coast. */
+/** The point the ghost holds, with what the board knows of it: whose region, its coast, land. */
 export type PlacingSpot = {
   readonly lonLat: LonLat;
   readonly region: RegionIdentity | null;
   /** `null` until `/coast.json` has landed: no verdict on a coast the board has not read. */
   readonly coastal: boolean | null;
+  readonly onLand: boolean;
 };
 
 export type MapActClick = {
@@ -549,6 +552,7 @@ export class MapEngine {
     shore: Shore,
   ) {
     this.routeGrid = shore.grid;
+    this.loadCoast();
     this.frame = new WorldFrame(PROJECTION);
     this.tourInk = new TourInk(this.frame);
 
@@ -2253,6 +2257,7 @@ export class MapEngine {
         this.coast === null
           ? null
           : region !== null && onRegionCoast(this.coast, lonLat, region.id),
+      onLand: this.landAt(lonLat),
     };
   }
 
@@ -2262,9 +2267,10 @@ export class MapEngine {
   private coastRetryAt = 0;
 
   /**
-   * La côte de mer ouverte (`public/coast.json`, 0,5 Mo gzip), lue au premier port tenu. Tant
-   * qu'elle n'est pas là le fantôme du port n'a pas de verdict (`coastal: null`) ; un échec se
-   * retente (`COAST_RETRY_MS`) au prochain point visé.
+   * La côte de mer ouverte et les régions sans cellule (`public/coast.json`, 0,55 Mo gzip), lues
+   * dès le plateau : la terre de Malte ou du centre de Naples en dépend (#224). Tant qu'elle n'est
+   * pas là le fantôme du port n'a pas de verdict (`coastal: null`) et la terre est celle de la
+   * grille ; un échec se retente (`COAST_RETRY_MS`) au prochain point visé.
    */
   private loadCoast(): void {
     if (this.coast !== null || this.coastLoading || performance.now() < this.coastRetryAt) return;
@@ -2288,22 +2294,23 @@ export class MapEngine {
   }
 
   /**
-   * **Cette cellule est-elle une côte ?** La même lecture que le serveur refuse avec
-   * (`coastAtPoint`), sur la même grille : ce que la visée offre au clic droit et ce que la
-   * mutation accepte sortent d'une seule fonction (ADR 0015). Un port ne la lit plus : il se
-   * pose sur la côte de l'atlas (#221).
+   * **Une coque accoste-t-elle ici ?** La même lecture que le serveur refuse avec
+   * (`coastAtPoint`), sur la même grille et la même côte : ce que la visée offre au clic droit et
+   * ce que la mutation accepte sortent d'une seule fonction (ADR 0015, `isLandingShore`). Un port
+   * ne la lit pas : il se pose sur la côte de l'atlas (#221).
    */
   coastAt(lonLat: LonLat): boolean {
-    return isCoastCell(this.routeGrid, lonLat);
+    return isLandingShore(this.routeGrid, this.coast, lonLat);
   }
 
   landAt(lonLat: LonLat): boolean {
     return this.groundAt(lonLat) === 'land';
   }
 
-  /** Terre, mer ou lac, sur la grille que le serveur lit avec `groundAtPoint`. */
+  /** Terre, mer ou lac, comme le serveur le lit avec `groundAtPoint` (`groundOf`, #224) : la
+   *  grille, puis la côte de l'atlas une fois `coast.json` arrivé. */
   groundAt(lonLat: LonLat): Ground {
-    return groundAt(this.routeGrid, lonLat);
+    return groundOf(this.routeGrid, this.coast, lonLat);
   }
 
   /**

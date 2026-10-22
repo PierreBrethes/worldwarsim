@@ -753,6 +753,7 @@ export const fr = {
     DEPOSIT_REQUIRED: (d) =>
       `${buildingName(d.building)} se pose sur un gisement de ${depositNames(d.expected)} — visez son point`,
     DEPOSIT_TAKEN: () => 'ce gisement porte déjà une exploitation',
+    NOT_ON_LAND: () => 'sur l’eau, seul un port se pose',
     NOT_COASTAL: () => 'un port se pose sur la côte de sa région',
     POINT_OUTSIDE_REGION: () => 'ce point n’est pas dans la région visée',
     /** « Trop près de l'usine : 30 km au moins » — le voisin nommé, et l'écart à tenir. */
@@ -4757,6 +4758,7 @@ export function aimRefusalText(
       return errors.ALREADY_BUILT({ building: key });
     case 'HQ_FIRST':
     case 'DEPOSIT_TAKEN':
+    case 'NOT_ON_LAND':
     case 'NOT_COASTAL':
     case 'UNKNOWN_BUILDING':
       return errors[refusal.code]();

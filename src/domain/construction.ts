@@ -253,14 +253,17 @@ export const PLACING_SNAP_KM = 60;
 /**
  * **The point under the pointer**, as the board reads it: where (`lonLat`, already snapped), on
  * whose ground (the region the map's polygons put it in, and its country), whether it lies on that
- * region's open-sea coast (`onRegionCoast`) — the server's own reading.
+ * region's open-sea coast (`onRegionCoast`) and on land (`groundOf`, the atlas's land where the
+ * grid drowns it, #224) — the server's own readings.
  * `region` is `null` at sea far from any coast, or while the region layer has not landed.
  */
 export type Aim = {
   readonly lonLat: LonLat;
   readonly region: { readonly id: string; readonly name: string; readonly country: string } | null;
-  /** `null`: the coast has not reached the board yet, so a port has no verdict (`COAST_PENDING`). */
+  /** `null`: the coast has not reached the board yet, so neither a port nor the water the grid
+   *  sees has a verdict (`COAST_PENDING`). */
   readonly coastal: boolean | null;
+  readonly onLand: boolean;
 };
 
 /** What the ghost says before the click: `null` refusal is a point the server takes. */
@@ -343,11 +346,13 @@ export function aimVerdict(
     settlesDebt(due, { key, deposit: deposit?.deposit ?? null }),
   );
   if (aim.region === null) return { refusal: { code: 'NO_GROUND' }, free };
-  if (key === 'port' && aim.coastal === null) return { refusal: { code: 'COAST_PENDING' }, free };
+  if (aim.coastal === null && (key === 'port' || !aim.onLand))
+    return { refusal: { code: 'COAST_PENDING' }, free };
   const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
   const around = aroundOf(view);
   const spot = {
     reached: siteOfPoint(aim.lonLat, aim.region.country === home, reaches) !== null,
+    onLand: aim.onLand,
     deposit:
       deposit === null
         ? null

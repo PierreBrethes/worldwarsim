@@ -31,7 +31,7 @@ import { withinTheatre } from '../../src/domain/blitz';
 import { isAirStop, onTourRefusalOf } from '../../src/domain/logistics';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
-import { regionAtRoutePoint } from '../regionGeometry';
+import { regionAtPoint } from '../regionGeometry';
 import { regionNameAt } from '../placeNames';
 import { pointOfBuilding, regionFacts } from '../regions';
 import { coastAtPoint, groundAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
@@ -389,7 +389,7 @@ export async function aimOf(
         lat: point[1],
         coastal: coastAtPoint(point),
         ground: groundAtPoint(point),
-        surveyed: await surveyedIn(ctx, playerId, regionAtRoutePoint(point)),
+        surveyed: await surveyedIn(ctx, playerId, regionAtPoint(point)?.id ?? null),
       },
       target: { kind: 'point', point: target.point },
       point,

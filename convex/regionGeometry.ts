@@ -14,7 +14,9 @@ import {
   type RegionRaster,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
+import { islandRegionOf, regionOf } from '../src/domain/coast';
 import type { Projection } from '../src/domain/world';
+import { coastOf } from './coast';
 import rasterAsset from '../public/region-grid.json';
 import projectionAsset from '../public/projection.json';
 
@@ -44,10 +46,26 @@ export const regionAtRoutePoint = (point: LonLat): string | null => regionAt(ras
 
 export const hostAtRoutePoint = (point: LonLat): string | null => hostAt(rasterOf(), point);
 
-export const pointInRouteRegion = (
+/**
+ * **La région sous un point et son pays, à la précision de l'atlas** (#224) : Malte, Singapour,
+ * un atoll ont la leur, quand la cellule de 25 km n'en a pas. Ce que la route lit reste la cellule
+ * (`regionAtRoutePoint`) ; ce qu'un joueur voit sous son point, c'est celle-ci.
+ */
+export const regionAtPoint = (point: LonLat) => regionOf(rasterOf(), coastOf(), point);
+
+/**
+ * **Le point est-il dans la région nommée avec lui ?** Une région sans cellule se recoupe sur son
+ * polygone, exactement ; une autre à la maille, ou sur la terre que l'atlas rend à la grille
+ * (Key West, la région de sa côte, #224).
+ */
+export function pointInRouteRegion(
   point: LonLat,
   region: { readonly id: string; readonly point: LonLat },
-): boolean => pointInRegion(rasterOf(), point, region);
+): boolean {
+  const island = islandRegionOf(coastOf(), point);
+  if (island !== null) return island === region.id;
+  return regionAtPoint(point)?.id === region.id || pointInRegion(rasterOf(), point, region);
+}
 
 export const hostAmongAtRoutePoint = (point: LonLat, adm0s: ReadonlySet<string>): string | null =>
   hostAmong(rasterOf(), point, adm0s);

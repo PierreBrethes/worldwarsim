@@ -6,8 +6,6 @@ import {
   computeRoute,
   computeRouteToAny,
   decodeGrid,
-  isCoastCell,
-  groundAt,
   isLandCell,
   extendRouteSearch,
   routeDistanceKmAt,
@@ -16,6 +14,8 @@ import {
   KM_PER_UNIT,
   mooringOf,
 } from '../src/domain/routing';
+import { groundOf, isLandingShore } from '../src/domain/coast';
+import { coastOf } from './coast';
 import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
 import projectionAsset from '../public/projection.json';
@@ -23,7 +23,7 @@ import {
   firstRouteEntryInRegion,
   goalCellsForRegions,
   hostAmongAtRoutePoint,
-  hostAtRoutePoint,
+  regionAtPoint,
   regionAtRoutePoint,
   pointInRouteRegion,
 } from './regionGeometry';
@@ -131,14 +131,14 @@ export function routeToRegions(
 }
 
 /**
- * **Is this a coast a hull can sail from?** The very grid a movement is computed on answers:
- * the departure, the posting and the aim of a hull read it, and the fan reads the same function
- * (`isCoastCell`). A port does not: it goes up on the atlas's open-sea coast (`convex/coast.ts`,
- * #221).
+ * **Is this a coast a hull can sail from?** A shore cell of the very grid a movement is computed
+ * on, or the atlas's land standing in its open water — Malta (#224, `isLandingShore`): the
+ * departure, the posting and the aim of a hull read it, and the fan reads the same function. A
+ * port does not: it goes up on the atlas's open-sea coast (`convex/coast.ts`, #221).
  */
 export function coastAtPoint(point: LonLat): boolean {
   grid ??= decodeGrid(gridAsset, projection);
-  return isCoastCell(grid, point);
+  return isLandingShore(grid, coastOf(), point);
 }
 
 /**
@@ -177,10 +177,11 @@ export function landAtPoint(point: LonLat): boolean {
   return groundAtPoint(point) === 'land';
 }
 
-/** Le sol que la visée a lu (`MapEngine.groundAt`), sur la même grille. */
+/** Le sol que la visée a lu (`MapEngine.groundAt`) : la grille, et l'atlas là où elle noie la
+ *  terre (#224, `groundOf`). */
 export function groundAtPoint(point: LonLat): Ground {
   grid ??= decodeGrid(gridAsset, projection);
-  return groundAt(grid, point);
+  return groundOf(grid, coastOf(), point);
 }
 
 /**
@@ -201,7 +202,7 @@ export function groundAtPoint(point: LonLat): Ground {
  * centre — so the answer is the polygon's, at the mesh of the grid the movement walks.
  */
 export function hostAtPoint(point: LonLat): string {
-  return hostAtRoutePoint(point) ?? '';
+  return regionAtPoint(point)?.country ?? '';
 }
 
 export function pointInRegion(

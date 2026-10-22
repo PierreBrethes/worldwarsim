@@ -919,6 +919,44 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** **Une colonne à Malte est à terre** (#224) : elle s'arrête où elle est, au siège irrégulier,
+   *  au lieu de sombrer comme au large — la grille de 25 km n'y voit que la mer. */
+  it('keeps the column of the fallen that stands on Malta, and hands it over', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const loser = await playerOf(t, guest);
+    const mosta = { lon: 14.421, lat: 35.906 };
+    const attard = { lon: 14.423, lat: 35.888 };
+    const column = await troop(t, guest, 'infantry', null);
+    await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId: loser.seasonId,
+        playerId: loser._id,
+        type: 'march',
+        fromBuildingId: null,
+        target: { kind: 'point', point: attard },
+        from: mosta,
+        to: attard,
+        hostCountry: 'MLT',
+        points: [mosta, attard],
+        legs: [{ medium: 'land', distanceUnits: 0.02 }],
+        distanceUnits: 0.02,
+        costUnits: 0.02,
+        troopIds: [column],
+        departedAt: MIDDAY,
+        arrivesAt: MIDDAY + 1000 * HOUR,
+      }),
+    );
+
+    await take(t, seat, hq);
+    await finish(t);
+
+    const kept = await t.run((ctx) => ctx.db.get(column));
+    expect(kept).not.toBeNull();
+    expect(kept!.playerId).not.toBe(loser._id);
+  });
+
   /** **Chacun peut piller ce que le siège irrégulier hérite** (M16), objectifs neutres posés ou
    *  non : le siège né à la chute a son plateau, que le pillage lit. */
   it('lets a third side plunder a warehouse the irregulars inherited', async () => {

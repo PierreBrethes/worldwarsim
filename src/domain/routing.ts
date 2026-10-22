@@ -871,6 +871,10 @@ export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
   return false;
 }
 
+/** **Open water under the point**: the sea a hull sails (`openWaterOf`), not a pond. */
+export const isOpenWaterCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
+  openWaterOf(grid)[projectOnGrid(grid, lonLat)] === 1;
+
 /**
  * **Where a hull bound for a quay ties up** (#221): the quay itself when it is open water or a
  * shore the grid's open water touches (a lake cell is neither: no route enters it), or else the

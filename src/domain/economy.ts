@@ -101,6 +101,7 @@ export type PlacementRefusal =
   | 'OUT_OF_REACH'
   | 'DEPOSIT_REQUIRED'
   | 'DEPOSIT_TAKEN'
+  | 'NOT_ON_LAND'
   | 'NOT_COASTAL'
   | 'TOO_CLOSE'
   | 'ALREADY_BUILT';
@@ -112,6 +113,8 @@ export type PlacementRefusal =
 export type Spot = {
   /** On the player's national soil, or within the reach of one of his standing outposts. */
   readonly reached: boolean;
+  /** Land as the atlas draws it (`groundOf`, #224): the water carries a port and nothing else. */
+  readonly onLand: boolean;
   /** The deposit under the point (`depositAt`), and whether a building already holds it. */
   readonly deposit: { readonly key: DepositKey; readonly taken: boolean } | null;
   /** Within `COAST_REACH_KM` of the open-sea coast of the region aimed at (`onRegionCoast`). */
@@ -158,6 +161,7 @@ export function placementRefusal(
   if (byKey !== null) return byKey;
   if (spot.already && UNIQUE_BUILDINGS.includes(key)) return 'ALREADY_BUILT';
   if (!spot.reached) return 'OUT_OF_REACH';
+  if (key !== 'port' && !spot.onLand) return 'NOT_ON_LAND';
   if (EXPLOITED_DEPOSITS[key] !== undefined) {
     if (!exploits(key, spot.deposit?.key ?? null)) return 'DEPOSIT_REQUIRED';
     if (spot.deposit?.taken === true) return 'DEPOSIT_TAKEN';

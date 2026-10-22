@@ -5,14 +5,15 @@ import coastAsset from '../public/coast.json';
 import projectionAsset from '../public/projection.json';
 
 /**
- * **La côte de mer ouverte, côté serveur** (#221, ADR 0023 amendée) : la seule géométrie de
- * l'atlas que l'isolat porte, cuite en base64 (1,5 Mo de chaîne à l'import, décodée à la première
- * demande). Un module à part : seuls ceux qui posent un port la paient, pas tout ce qui lit la
- * grille de routage.
+ * **La géométrie de l'atlas que le serveur porte** (#221, #224, ADR 0023 amendée) : la côte de mer
+ * ouverte et les régions sans cellule, cuites en base64 (1,6 Mo de chaîne à l'import), décodées à
+ * la première demande. La terre et la région d'un point la lisent (`routes.ts`,
+ * `regionGeometry.ts`), donc tout module qui lit le sol la paie.
  */
 let coast: Coast | null = null;
 
-export function isOnRegionCoast(point: LonLat, regionId: string): boolean {
-  coast ??= decodeCoast(coastAsset as CoastAsset, projectionAsset as unknown as Projection);
-  return onRegionCoast(coast, point, regionId);
-}
+export const coastOf = (): Coast =>
+  (coast ??= decodeCoast(coastAsset as CoastAsset, projectionAsset as unknown as Projection));
+
+export const isOnRegionCoast = (point: LonLat, regionId: string): boolean =>
+  onRegionCoast(coastOf(), point, regionId);
