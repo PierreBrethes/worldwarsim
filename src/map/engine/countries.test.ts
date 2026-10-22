@@ -11,7 +11,7 @@ import {
   coastWidthPx,
   levelAt,
 } from './countries';
-import { FULL_OPACITY } from './regions';
+import { REGION_BORDER_OPACITY } from './regions';
 import { WorldFrame } from './frame';
 
 describe('the coast', () => {
@@ -73,7 +73,7 @@ describe('levelAt', () => {
 
 describe('the borders', () => {
   it('keeps the country border darker than the region border, at rest and at its fullest', () => {
-    expect(COUNTRY_BORDER_REST).toBeGreaterThan(FULL_OPACITY);
+    expect(COUNTRY_BORDER_REST).toBeGreaterThan(REGION_BORDER_OPACITY);
     expect(COUNTRY_BORDER_MAX).toBeGreaterThanOrEqual(COUNTRY_BORDER_REST);
   });
 });
