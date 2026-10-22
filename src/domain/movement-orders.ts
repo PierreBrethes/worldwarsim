@@ -132,6 +132,9 @@ export type MovementAim =
        * no grid. Both ends fill it from the same function, so the fan and the server agree.
        */
       readonly coastal: boolean;
+      /** **Whether a route on foot can end here** (`isWalkableCell`, #224), filled by both ends
+       *  from the same grid. Absent, it can. */
+      readonly walkable?: boolean;
     }
   /**
    * **A building of one's own, entered as a garrison** (decision 64b, 01/09) — the one aim that
@@ -222,6 +225,9 @@ export type OrderRefusal =
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'LANDING_NEEDS_A_COAST'
   | 'LAND_TARGET_REQUIRED'
+  /** **Une terre qu'aucune route à pied n'atteint** (#224) : Malte, le centre de Naples — la terre
+   *  de l'atlas sur une cellule d'eau de la grille. On y débarque, on n'y marche pas. */
+  | 'NO_FOOTING'
   | 'SEA_TARGET_REQUIRED'
   /** **Un lac n'est ni la terre ni le large** (ADR 0034) : aucune coque n'en part, aucune botte
    *  ne s'y pose. Sans ce mot, la règle le prenait pour la mer et la route le refusait ensuite. */
@@ -690,6 +696,7 @@ const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | nu
     return 'AIRFIELD_TARGET_REQUIRED';
   if (mode !== 'air' && onLake(aim)) return 'LAKE_TARGET';
   if (mode === 'land' && atSea(aim)) return 'LAND_TARGET_REQUIRED';
+  if (mode === 'land' && aim.kind === 'point' && aim.walkable === false) return 'NO_FOOTING';
   if (mode === 'naval' && !atSea(aim) && !shore(aim)) return 'SEA_TARGET_REQUIRED';
   return mode === 'combined' && !atSea(aim) && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
 };

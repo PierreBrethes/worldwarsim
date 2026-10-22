@@ -706,6 +706,34 @@ describe('in aim', () => {
     });
   });
 
+  /** **Malte une fois la côte lue** (#224) : de la terre, mais aucune cellule de terre où la
+   *  route à pied aboutirait. La rose le dit avant le geste, du mot du serveur ; la colonne
+   *  embarquée, elle, y débarque. */
+  it('offers no walk to Malta, and keeps the landing of an embarked column', () => {
+    const malta = {
+      kind: 'point' as const,
+      lon: 14.42,
+      lat: 35.9,
+      regionId: null,
+      country: 'MLT',
+      name: 'Malte',
+      ground: 'land' as const,
+      coastal: true,
+      walkable: false,
+    };
+    const onFoot = compassOf(malta, view, column);
+    expect(onFoot?.actions.filter((action) => action.key === 'aim')).toEqual([]);
+    expect(onFoot?.refusal).toBe(fr.errors.NO_FOOTING());
+    const embarked = {
+      ...column,
+      roles: ['infantry' as const, 'cargo' as const],
+      departureBuildings: new Set<BuildingKey>(['port']),
+    };
+    expect(compassOf(malta, view, embarked)?.actions.some((action) => action.key === 'aim')).toBe(
+      true,
+    );
+  });
+
   it('opens the same fan for that column once a port stands there', () => {
     const naval = {
       ...column,

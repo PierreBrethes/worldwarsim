@@ -636,6 +636,10 @@ export function WorldMap({
     (lonLat: LonLat) => engine.current?.coastPendingAt(lonLat) ?? false,
     [],
   );
+  const walkableAt = useCallback(
+    (lonLat: LonLat) => engine.current?.walkableAt(lonLat) ?? true,
+    [],
+  );
 
   /** **La côte arrive, la rose se relit** (#224) : une visée en attente sur l'eau de la grille
    *  retrouve ses ordres sans qu'on la referme. */
@@ -685,6 +689,7 @@ export function WorldMap({
           point !== null && coastAt(point),
           point === null ? 'sea' : groundAt(point),
           point !== null && coastPendingAt(point),
+          point === null || walkableAt(point),
         );
         if (aimed === null) {
           setRose(null);
@@ -708,7 +713,7 @@ export function WorldMap({
     return () => {
       readyEngine.onAct = () => {};
     };
-  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt, coastPendingAt]);
+  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt, coastPendingAt, walkableAt]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -781,9 +786,10 @@ export function WorldMap({
         ground !== null && coastAt(ground),
         ground === null ? 'sea' : groundAt(ground),
         ground !== null && coastPendingAt(ground),
+        ground === null || walkableAt(ground),
       );
     },
-    [aiming, coastAt, groundAt, coastPendingAt, blitz, arcs],
+    [aiming, coastAt, groundAt, coastPendingAt, walkableAt, blitz, arcs],
   );
 
   const onLabelAct = useCallback(
@@ -958,6 +964,7 @@ export function WorldMap({
                 point !== null && coastAt(point),
                 point === null ? 'sea' : groundAt(point),
                 point !== null && coastPendingAt(point),
+                point === null || walkableAt(point),
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
@@ -977,6 +984,7 @@ export function WorldMap({
     coastAt,
     groundAt,
     coastPendingAt,
+    walkableAt,
     chosenOf,
     onDropRefused,
     onCarryEnd,
@@ -1036,6 +1044,7 @@ export function WorldMap({
                 coastAt(point),
                 groundAt(point),
                 coastPendingAt(point),
+                walkableAt(point),
               );
       /** La route du verbe choisi, celui que le lâcher donnerait. */
       const read = dropReadingOf(target === null ? null : compassOf(target));
@@ -1054,6 +1063,7 @@ export function WorldMap({
     coastAt,
     groundAt,
     coastPendingAt,
+    walkableAt,
     labels,
     labelTarget,
     chosenOf,
@@ -1669,6 +1679,7 @@ function pointTarget(
   coastal: boolean,
   ground: Ground,
   coastPending: boolean,
+  walkable: boolean,
 ): CompassTarget | null {
   if (point === null) return null;
   return {
@@ -1685,6 +1696,7 @@ function pointTarget(
     coastal,
     ground,
     coastPending,
+    walkable,
   };
 }
 

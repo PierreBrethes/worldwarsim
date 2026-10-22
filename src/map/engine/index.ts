@@ -46,6 +46,7 @@ import {
 import {
   groundAt,
   isOpenWaterCell,
+  isWalkableCell,
   type Ground,
   type Medium,
   type RouteGrid,
@@ -2315,6 +2316,11 @@ export class MapEngine {
   coastAt(lonLat: LonLat): boolean {
     if (this.coast === null) this.loadCoast();
     return isLandingShore(this.routeGrid, this.coast, lonLat);
+  }
+
+  /** Une route à pied aboutit-elle ici ? La cellule que le serveur lit (`isWalkableCell`). */
+  walkableAt(lonLat: LonLat): boolean {
+    return isWalkableCell(this.routeGrid, lonLat);
   }
 
   /** **L'eau ouverte de la grille avant la côte** : une coque n'y a pas de verdict, la côte est

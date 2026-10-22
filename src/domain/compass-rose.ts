@@ -171,6 +171,8 @@ export type CompassTarget =
       /** L'eau ouverte de la grille avant l'arrivée de `coast.json` : la terre de Malte n'y est
        *  pas encore lue, et un ordre de coque attend la côte plutôt que de se faire refuser. */
       readonly coastPending?: boolean;
+      /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
+      readonly walkable?: boolean;
     }
   | {
       /**
@@ -830,6 +832,7 @@ function aim(
       lat: target.lat,
       coastal: target.coastal,
       ground: target.ground,
+      ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
       /** **Ce que le joueur a relevé sous ce sol**, et la seule chose qui ouvre « attaquer »
        *  (ADR 0024 §4). Lu dans sa vue et nulle part ailleurs : demander au plateau dirait qu'il
        *  y a quelque chose là où il croyait viser du vide. */

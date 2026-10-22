@@ -34,7 +34,14 @@ import { movementCargoFields, takeStationedCargo } from '../cargo';
 import { regionAtPoint } from '../regionGeometry';
 import { regionNameAt } from '../placeNames';
 import { pointOfBuilding, regionFacts } from '../regions';
-import { coastAtPoint, groundAtPoint, hostAtPoint, landAtPoint, routeBetween } from '../routes';
+import {
+  coastAtPoint,
+  groundAtPoint,
+  hostAtPoint,
+  landAtPoint,
+  routeBetween,
+  walkableAtPoint,
+} from '../routes';
 import { surveyFromPoint } from '../surveys';
 import { collapseIfAbandoned } from '../outposts';
 import { reassessDetection } from './detection';
@@ -389,6 +396,7 @@ export async function aimOf(
         lat: point[1],
         coastal: coastAtPoint(point),
         ground: groundAtPoint(point),
+        walkable: walkableAtPoint(point),
         surveyed: await surveyedIn(ctx, playerId, regionAtPoint(point)?.id ?? null),
       },
       target: { kind: 'point', point: target.point },

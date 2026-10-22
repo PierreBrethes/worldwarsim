@@ -7,6 +7,7 @@ import {
   computeRouteToAny,
   decodeGrid,
   isLandCell,
+  isWalkableCell,
   extendRouteSearch,
   routeDistanceKmAt,
   routeDistanceKmField,
@@ -179,6 +180,12 @@ function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
 
 export function landAtPoint(point: LonLat): boolean {
   return groundAtPoint(point) === 'land';
+}
+
+/** Une route à pied y aboutit-elle ? La même cellule que `computeRoute` lit (#224). */
+export function walkableAtPoint(point: LonLat): boolean {
+  grid ??= decodeGrid(gridAsset, projection);
+  return isWalkableCell(grid, point);
 }
 
 /** Un sol où poser un bâtiment : la terre, ou la rive d'un lac (#224, `carriesBuilding`). */

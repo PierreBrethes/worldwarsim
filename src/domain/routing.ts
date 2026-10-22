@@ -438,8 +438,7 @@ export function computeRoute(
 
   // Snapping may find a neighboring water cell for a quay, never replace the destination
   // with another shore: the arrival records the point the player actually chose.
-  const allowed = ALLOWED_BY_MODE[mode];
-  if (mode === 'land' && !allowed.includes(grid.cells[projectOnGrid(grid, to)]!)) return null;
+  if (mode === 'land' && !isWalkableCell(grid, to)) return null;
   if (grid.cells[projectOnGrid(grid, to)] === LAKE) return null;
   if (mode === 'naval' && isLandCell(grid, to) && !isCoastCell(grid, to)) return null;
 
@@ -870,6 +869,14 @@ export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
   for (let i = 0; i < count; i++) if (open[around[i]!] === 1) return true;
   return false;
 }
+
+/**
+ * **A cell a column on foot can end on** — land, or a canal's bank. Malta, the centre of Naples
+ * and every land the atlas gives back to the 25 km mesh are not (#224): the route on foot stops at
+ * the cell, and the fan says so before the gesture (`NO_FOOTING`).
+ */
+export const isWalkableCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
+  ALLOWED_BY_MODE.land.includes(grid.cells[projectOnGrid(grid, lonLat)]!);
 
 /** **Open water under the point**: the sea a hull sails (`openWaterOf`), not a pond. */
 export const isOpenWaterCell = (grid: RouteGrid, lonLat: LonLat): boolean =>

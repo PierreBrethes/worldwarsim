@@ -4511,6 +4511,6 @@ describe('les petites îles', () => {
         troopIds: [infantry],
         point: AT_VALLETTA,
       }),
-    ).rejects.toThrow('NO_LAND_ROUTE');
+    ).rejects.toThrow('NO_FOOTING');
   });
 });

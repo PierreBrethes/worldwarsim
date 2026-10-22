@@ -888,6 +888,8 @@ export const fr = {
     NO_FOUNDING_AT_SEA: () => 'on ne fonde pas en mer — il n’y a pas de sol à ouvrir',
     LAND_TARGET_REQUIRED: () =>
       'une troupe terrestre doit viser la terre — embarquez-la pour traverser la mer',
+    /** Malte, le centre de Naples : la terre est là, la route à pied n'y aboutit pas (#224). */
+    NO_FOOTING: () => 'aucune route terrestre n’y mène — embarquez la colonne pour y débarquer',
     SEA_TARGET_REQUIRED: () => 'un navire doit viser la mer, une côte ou un port',
     /** Le lac se dit pour ce qu'il est : ni la terre d'une botte, ni le large d'une coque. */
     LAKE_TARGET: () => 'un lac ne se navigue pas et ne se foule pas — visez la terre ou la mer',
