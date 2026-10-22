@@ -92,10 +92,14 @@ export function usePlacing(
    * **Les gisements que la clé appelle** (#239) : tous ceux de son espèce que personne n'exploite
    * à sa connaissance s'éveillent ; seuls ceux que la pose prendrait attirent le fantôme et le fil.
    */
-  const liveCalls =
-    placing === null || kinds === undefined
-      ? null
-      : depositCalls(view, placing.key, kinds, reaches);
+  // Read once per view and key, never per aim: a verdict per deposit is the cost of the gesture.
+  const liveCalls = useMemo(
+    () =>
+      placing === null || kinds === undefined
+        ? null
+        : depositCalls(view, placing.key, kinds, stableReaches),
+    [view, placing, kinds, stableReaches],
+  );
   const callsKey =
     liveCalls?.map((call) => `${call.deposit.id}:${call.refusal?.code ?? ''}`).join(',') ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,10 +215,15 @@ export function usePlacing(
   const foundation = useMemo(
     () =>
       view.me.foundation.map((due) => ({
-        ...placementOf(view, due.key, due.deposit === null ? undefined : [due.deposit]),
+        ...placementOf(
+          view,
+          due.key,
+          stableReaches,
+          due.deposit === null ? undefined : [due.deposit],
+        ),
         deposit: due.deposit,
       })),
-    [view],
+    [view, stableReaches],
   );
 
   // The order disarms itself when its debt is paid off: `me.foundation` is what draws the card,

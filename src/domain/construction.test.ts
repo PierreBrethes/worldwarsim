@@ -329,35 +329,50 @@ describe('the point aimed at', () => {
     });
 
     it('names the research card a locked key waits on', () => {
-      expect(placementOf(view({ locked: 'aviation' }), 'airfield').condition).toEqual({
+      expect(placementOf(view({ locked: 'aviation' }), 'airfield', []).condition).toEqual({
         kind: 'locked',
         card: 'aviation',
       });
     });
 
-    it('names the deposit when no free one lies in the regions the player holds', () => {
-      expect(placementOf(view({}), 'mine').condition).toMatchObject({
+    /** Une règle, une fonction (#239) : la tuile s'ouvre si la pose prendrait un gisement, au
+     *  point même — la carte de la région n'en dit rien. */
+    it('opens a key when the pose would take a deposit of its kind, at its very point', () => {
+      expect(placementOf(view({}), 'mine', []).condition).toBeNull();
+      expect(placementOf(view({}), 'oilWell', []).condition).toMatchObject({
         kind: 'deposit',
-        deposits: ['coal', 'iron'],
+        deposits: ['oil'],
       });
-      expect(placementOf(view({ regions: [region(COAL.regionId)] }), 'mine').condition).toBeNull();
-      expect(
-        placementOf(view({ regions: [region(COAL.regionId)] }), 'mine', ['iron']).condition,
-      ).toMatchObject({ kind: 'deposit', deposits: ['iron'] });
+    });
+
+    it('stays shut when an outpost reaches the region of a deposit but not its point', () => {
+      const HAINAUT = DEPOSIT_POINTS.find((deposit) => deposit.id === 'coal-BEL-2')!;
+      const abroad = {
+        ...view({ regions: [region(HAINAUT.regionId)] }),
+        me: { ...view({}).me, nation: 'nowhere', regions: [region(HAINAUT.regionId)] },
+      } as unknown as PlayerView;
+      const biting = [{ id: 'o', lonLat: destinationPoint(HAINAUT.lonLat, 130, 90), reachKm: 120 }];
+      expect(placementOf(abroad, 'mine', biting, ['coal']).condition).toMatchObject({
+        kind: 'deposit',
+      });
+      const covering = [
+        { id: 'o', lonLat: destinationPoint(HAINAUT.lonLat, 100, 90), reachKm: 120 },
+      ];
+      expect(placementOf(abroad, 'mine', covering, ['coal']).condition).toBeNull();
     });
 
     /** #239 : la maquette nomme, sur la clé refusée, le plus proche des gisements libres. */
     it('names the nearest free deposit of the kind, from the headquarters', () => {
       const withHq = view({ buildings: [{ key: 'hq', point: PARIS }] });
-      const condition = placementOf(withHq, 'oilWell').condition;
+      const condition = placementOf(withHq, 'oilWell', []).condition;
       expect(condition?.kind === 'deposit' && condition.nearest?.country).toBe('ROU');
       expect(condition?.kind === 'deposit' && condition.nearest!.km).toBeGreaterThan(1500);
-      const without = placementOf(view({}), 'oilWell').condition;
+      const without = placementOf(view({}), 'oilWell', []).condition;
       expect(without?.kind === 'deposit' && without.nearest).toBeNull();
     });
 
     it('leaves anything else to the aim', () => {
-      expect(placementOf(view({}), 'barracks').condition).toBeNull();
+      expect(placementOf(view({}), 'barracks', []).condition).toBeNull();
     });
   });
 });

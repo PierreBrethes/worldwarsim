@@ -26,7 +26,8 @@ import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
 import { DryTag, ReserveCell, reserveReading, usePinning } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
-import { placementOf, upgradeHold } from '@/domain/construction';
+import { placementOf, reachesOf, upgradeHold } from '@/domain/construction';
+import { outpostReachKm } from '../../../convex/constants';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
   BUILDABLE_BUILDINGS,
@@ -736,7 +737,7 @@ function GaugeBin(props: BinProps & { compact?: boolean }) {
  */
 function tileRefusalOf(view: PlayerView, key: BuildingKey): string | null {
   if (view.me.buildings.some((building) => building.key === key)) return null;
-  const { condition } = placementOf(view, key);
+  const { condition } = placementOf(view, key, reachesOf({ me: view.me }, outpostReachKm));
   return condition === null ? null : conditionText(condition);
 }
 
