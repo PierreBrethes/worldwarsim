@@ -90,6 +90,8 @@ const pinsAt = process.argv.indexOf('--epingles');
 const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
 /** `--lisbonne` : Lisbonne tenue par la France, qui lit la nation de ses relevés (P11). */
 const lisbon = process.argv.includes('--lisbonne');
+/** `--trajets` : une colonne Paris → Berlin à pied, une escorte Brest → Marseille par Gibraltar (#231). */
+const threads = process.argv.includes('--trajets');
 /** `--passagers` : un camion chargé de deux fantassins en Beauce, un autre vide (#238). */
 const passengers = process.argv.includes('--passagers');
 
@@ -445,6 +447,34 @@ if (!bare) {
       troopIds: [runner.id],
       point: { lon: 5.2, lat: 47.5 },
     });
+  }
+  if (threads && scene.a !== null) {
+    const legs = [
+      { role: 'infantry', from: { lon: 2.4, lat: 48.9 }, to: { lon: 13.4, lat: 52.5 } },
+      { role: 'escort', from: { lon: -4.9, lat: 48.2 }, to: { lon: 5.3, lat: 43.1 }, fuel: 20 },
+    ];
+    for (const { role, from, fuel } of legs)
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, count: 1, fuel, ...from }),
+      ]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    for (const { role, from, to } of legs) {
+      const troop = me.troops.find(
+        (one) =>
+          one.role === role &&
+          one.stationedAt.kind === 'point' &&
+          Math.abs(one.stationedAt.lonLat[0] - from.lon) < 0.01,
+      );
+      await client.mutation(api.movements.marchTo, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'point', point: from },
+        troopIds: [troop.id],
+        point: to,
+      });
+    }
   }
   if (lisbon && scene.a !== null)
     cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key: 'lisbon' })]);
