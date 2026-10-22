@@ -42,7 +42,7 @@ import {
   COAST_REACH_KM,
   type Coast,
 } from '@/domain/coast';
-import type { Ground, Medium, RouteGrid } from '@/domain/routing';
+import { groundAt, type Ground, type Medium, type RouteGrid } from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
@@ -645,7 +645,8 @@ export class MapEngine {
       this.ambience.add(
         new RibbonLayer(this.scene, this.eye, this.renderer, this.frame, {
           ...CURRENT_RIBBONS,
-          afloat: (lonLat) => !this.landAt(lonLat),
+          // An ambience is no rule: the grid alone, not the atlas's 40 µs at sea (#224).
+          afloat: (lonLat) => groundAt(this.routeGrid, lonLat) !== 'land',
         }),
       );
     }

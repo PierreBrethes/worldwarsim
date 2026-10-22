@@ -3,7 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
- *       [--demarrage]
+ *       [--demarrage] [--repos]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -60,6 +60,9 @@ const heure = option('heure', null);
  *  longues jusqu'à la fin de l'attente, décodage de `coast.json` (`performance.measure` de la
  *  carte) — sans les gestes. */
 const bootOnly = args.includes('--demarrage');
+/** `--repos` : le démarrage, puis dix secondes de repos au cadrage d'arrivée (courants, vent),
+ *  sans les autres gestes. */
+const restOnly = args.includes('--repos');
 /** `--couches` : le temps GPU d'une image complète, de loin puis de près, chaque couche coupée à
  *  son tour (#199) ; l'écart à l'image entière est ce que la couche coûte. */
 const layered = args.includes('--couches');
@@ -740,6 +743,11 @@ async function play(profileName, pass) {
         ['nation', null, () => link(/fiche de nation/)],
         ['réglages', null, () => link(/^Réglages$/)],
       ];
+  if (restOnly) {
+    await gesture('repos 10 s', () => page.waitForTimeout(10000), 0);
+    await context.close();
+    return { boot, results };
+  }
   if (phone) await gesture('menu des surfaces', menu).then(close);
   for (const [name, before, target] of surfaces) {
     if (before) {
@@ -1248,6 +1256,12 @@ try {
     text += `\n== ${name} : démarrage ==\ncarte affichée ${boot.mapMs} ms ; ${boot.longTasks} tâches longues, ${boot.longTaskMs} ms (la plus longue ${boot.longestMs}) ; coast.json décodé en ${boot.coastDecodeMs} ms, prêt à ${boot.coastAtMs} ms\n`;
     if (bootOnly) {
       report.profiles[name] = { boot, runs };
+      continue;
+    }
+    if (restOnly) {
+      const { gestures } = merge(runs);
+      report.profiles[name] = { boot, gestures, runs };
+      text += `${table(gestures)}\n`;
       continue;
     }
     const merged = merge(runs);
