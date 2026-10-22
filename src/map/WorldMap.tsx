@@ -1325,6 +1325,10 @@ export function WorldMap({
   }, [readyEngine, pins]);
 
   useEffect(() => {
+    readyEngine?.selectPin(selectedLabel);
+  }, [readyEngine, selectedLabel]);
+
+  useEffect(() => {
     readyEngine?.displayMaquettes(maquettes);
   }, [readyEngine, maquettes]);
 

@@ -125,6 +125,7 @@ import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
 import { PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
 import type { Pin } from '@/domain/pins';
+import { nationInk } from '@/domain/nations';
 import { TheatreFrame } from './theatre';
 import { CarryVeil } from './veil';
 import type { Theatre } from '@/domain/theatres';
@@ -1044,6 +1045,12 @@ export class MapEngine {
   displayPins(pins: ReadonlyArray<Pin>): void {
     this.invalidate();
     this.pins.display(pins);
+  }
+
+  /** **The designated piece far away** — a pile checked, a site opened: a ring at my ink on its pin. */
+  selectPin(labelId: string | null): void {
+    this.invalidate();
+    this.pins.select(labelId, nationInk(this.playerNation));
   }
 
   setLabelAnchors(anchors: ReadonlyArray<NamedAnchor>): void {

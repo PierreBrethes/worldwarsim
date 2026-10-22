@@ -112,4 +112,13 @@ describe('PinLayer — the pieces far away', () => {
     expect(project).not.toHaveBeenCalled();
     project.mockRestore();
   });
+
+  it('keeps the selected piece out of its cluster, where its ring can be seen', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = new PinLayer(frame, () => null);
+    layer.display([mine('a', paris), mine('b', besideParis)]);
+    layer.select('a', '#2a5ba8');
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'a' });
+  });
 });

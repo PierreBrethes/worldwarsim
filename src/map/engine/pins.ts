@@ -43,7 +43,8 @@ const RANK = 20;
 const ELEVATION = COUNTRY_THICKNESS + 0.01;
 
 const STYLE = { filled: 0, hollow: 1, dotted: 2 } as const;
-const RING = { none: 0, hover: 1, held: 2 } as const;
+/** Hovered (a thin ring at its ink), in hand (amber, doubled), designated (at the player's ink). */
+const RING = { none: 0, hover: 1, held: 2, selected: 3 } as const;
 
 type Placed = { readonly pin: Pin; at: Vector3 | null };
 
@@ -151,6 +152,8 @@ export class PinLayer {
   private lastSize = '';
   /** The canvas size in CSS pixels, which every pin is measured in. */
   private readonly viewport: Viewport = { value: [1, 1] };
+  private readonly selectInk = { value: new Color(PALETTE.border) };
+  private selected: string | null = null;
   private readonly shapes: InstancedDraw<typeof SHAPE_ATTRIBUTES>;
   private readonly glyphs: InstancedDraw<typeof GLYPH_ATTRIBUTES>;
 
@@ -161,7 +164,7 @@ export class PinLayer {
     /** The font landed and the counts were painted again: the board owes a frame. */
     repainted: () => void = () => {},
   ) {
-    this.shapes = new InstancedDraw(SHAPE_ATTRIBUTES, shapeMaterial(this.viewport));
+    this.shapes = new InstancedDraw(SHAPE_ATTRIBUTES, shapeMaterial(this.viewport, this.selectInk));
     this.glyphs = new InstancedDraw(GLYPH_ATTRIBUTES, glyphMaterial(this.viewport, repainted));
     this.group.add(this.shapes.mesh, this.glyphs.mesh);
   }
@@ -190,6 +193,14 @@ export class PinLayer {
     if (id !== this.held) this.dirty = true;
     this.held = id;
     this.carried = carriedAt;
+  }
+
+  /** **The designated piece** — a pile checked, a site opened: its pin wears a ring at the
+   *  player's ink, out of any cluster, as its label once glowed. */
+  select(id: string | null, ink: string): void {
+    if (id !== this.selected) this.dirty = true;
+    this.selected = id;
+    this.selectInk.value.set(ink);
   }
 
   hover(id: string | null): void {
@@ -242,7 +253,7 @@ export class PinLayer {
         const [sx, sy, inside] = screen(placed.at);
         if (!inside) continue;
         const point = { placed, sx, sy, weight };
-        if (placed.pin.id === this.held) alone.push(point);
+        if (placed.pin.id === this.held || placed.pin.id === this.selected) alone.push(point);
         else points[placed.pin.side === 'mine' ? 'mine' : 'seen'].push(point);
       }
       const radius = this.touch ? CLUSTER_TOUCH_PX : CLUSTER_PX;
@@ -365,9 +376,11 @@ export class PinLayer {
       ring:
         single && first.id === this.held
           ? RING.held
-          : single && first.id === this.hovered
-            ? RING.hover
-            : RING.none,
+          : single && first.id === this.selected
+            ? RING.selected
+            : single && first.id === this.hovered
+              ? RING.hover
+              : RING.none,
       hour: single && first.side === 'lost' ? asClockTime(first.seenAt) : null,
     };
   }
@@ -513,12 +526,13 @@ const OVER = /* glsl */ `
 
 type Viewport = { value: [number, number] };
 
-function shapeMaterial(viewport: Viewport): ShaderMaterial {
+function shapeMaterial(viewport: Viewport, select: { value: Color }): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: {
       uViewport: viewport,
       uPaper: { value: new Color(PALETTE.paper) },
       uRing: { value: new Color(PALETTE.designated) },
+      uSelect: select,
     },
     vertexShader: /* glsl */ `
       attribute vec2 corner;
@@ -543,6 +557,7 @@ function shapeMaterial(viewport: Viewport): ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform vec3 uPaper;
       uniform vec3 uRing;
+      uniform vec3 uSelect;
       varying vec2 vPx;
       varying vec3 vColor;
       varying vec4 vShape;
@@ -579,9 +594,11 @@ function shapeMaterial(viewport: Viewport): ShaderMaterial {
         }
         float ring = vExtra.z;
         if (ring > 0.5) {
-          vec3 ink = ring > 1.5 ? uRing : vColor;
-          col = over(vec4(ink, fill(abs(length(p) - r - 5.0) - 0.9)), col);
-          if (ring > 1.5) col = over(vec4(ink, 0.5 * fill(abs(length(p) - r - 9.0) - 0.7)), col);
+          vec3 ink = ring > 2.5 ? uSelect : ring > 1.5 ? uRing : vColor;
+          float width = ring > 2.5 ? 1.3 : 0.9;
+          col = over(vec4(ink, fill(abs(length(p) - r - 5.0) - width)), col);
+          if (ring > 1.5 && ring < 2.5)
+            col = over(vec4(ink, 0.5 * fill(abs(length(p) - r - 9.0) - 0.7)), col);
         }
         col.a *= vShape.w;
         if (col.a < 0.004) discard;
