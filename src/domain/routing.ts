@@ -872,14 +872,16 @@ export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
 }
 
 /**
- * **Where a hull bound for a quay ties up** (#221): the quay itself when the grid's open water
- * touches it, or else the nearest open-water cell — the very snap a ship's ends take
- * (`nearestCell`). A port stands on the atlas's coast, which the 25 km mesh fills in an estuary or
- * a fjord: Hamburg moors at the mouth of the Elbe. `null` when no open water lies within reach.
+ * **Where a hull bound for a quay ties up** (#221): the quay itself when it is open water or a
+ * shore the grid's open water touches (a lake cell is neither: no route enters it), or else the
+ * nearest open-water cell — the very snap a ship's ends take (`nearestCell`). A port stands on the
+ * atlas's coast, which the 25 km mesh fills in an estuary or a fjord: Hamburg moors at the mouth
+ * of the Elbe. `null` when no open water lies within reach.
  */
 export function mooringOf(grid: RouteGrid, quay: LonLat): LonLat | null {
-  if (!isLandCell(grid, quay) || isCoastCell(grid, quay)) return quay;
-  const cell = nearestCell(grid, projectOnGrid(grid, quay), 'naval');
+  const at = projectOnGrid(grid, quay);
+  if (isCoastCell(grid, quay) || openWaterOf(grid)[at] === 1) return quay;
+  const cell = nearestCell(grid, at, 'naval');
   return cell === null ? null : unprojectCell(grid, cell);
 }
 

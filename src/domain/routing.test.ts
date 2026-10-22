@@ -12,6 +12,7 @@ import {
   computeRoute,
   type GridWorld,
   groundAt,
+  mooringOf,
   isCoastCell,
   isLandCell,
   landComponentCount,
@@ -132,6 +133,29 @@ describe('a coast cell', () => {
     expect(withLake.cells[25 * withLake.width + 17]).toBe(2);
     expect(isCoastCell(withLake, toLonLat(14.5, 25.5))).toBe(false);
     expect(coastCellsIn(withLake, [12, 23, 23, 26])).toEqual([]);
+  });
+
+  /** A quay the atlas puts on a lake the grid draws: the hull has no route into it, so it
+   *  moors at the nearest open water instead (#221). */
+  it('moors a hull bound for a lake quay at open water, never in the lake', () => {
+    const world = toyWorld();
+    const lake = [
+      [15, 23],
+      [20, 23],
+      [20, 27],
+      [15, 27],
+    ] as const;
+    const westland = world.countries[0]!;
+    const withLake = buildGrid(
+      { ...world, countries: [{ ...westland, rings: [...westland.rings, lake] }] },
+      1,
+    );
+    const quay = toLonLat(17.5, 25.5);
+    const moored = mooringOf(withLake, quay);
+    expect(moored).not.toBeNull();
+    expect(moored).not.toEqual(quay);
+    expect(isCoastCell(withLake, moored!) || groundAt(withLake, moored!) === 'sea').toBe(true);
+    expect(mooringOf(withLake, toLonLat(29.5, 25.5))).toEqual(toLonLat(29.5, 25.5));
   });
 
   /** A lagoon on the shore, cut out of the land as the atlas cuts it, would join the sea at this
