@@ -20,6 +20,8 @@ export type DepositBasin = {
 
 /** @a-mesurer — le rayon du bassin dessiné : plus étroit que l'aimant, c'est le terrain qu'on lit. */
 export const BASIN_KM = 24;
+
+/** Les sommets du contour : assez pour qu'il ondule sans facettes. */
 const RING_POINTS = 32;
 /** Le plus loin que le bord ondule, en part du rayon (`edge`). */
 const EDGE_MAX = 1.25;
