@@ -219,7 +219,8 @@ export function PersonalBoard({
   });
   const rackCue = cue !== null && cue.rack !== 'research' ? cue.text : null;
   const researchCue = cue?.rack === 'research' ? cue.text : null;
-  const unfoldCued = rackCue !== null && folded && !research;
+  // Une clé en main : la bulle couvrirait la fiche de pose, au pied de l'écran (#239).
+  const unfoldCued = rackCue !== null && folded && !research && placing === null;
 
   /** La poignée : sous le seuil une languette au-dessus de la barre, qui tire la bande — repliée,
    *  mi-hauteur, pleine, repliée ; au bureau le titre de la bande, qui la bascule. */
