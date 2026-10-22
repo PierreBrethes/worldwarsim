@@ -1496,10 +1496,9 @@ function GroupList({
   );
 }
 
-/** "stack" is the domain's word, "forces" the drawing's — the same thing from two sides. */
+/** What each sign a mast still carries draws. */
 const PICTOGRAM_OF_LABEL: Readonly<Record<LabelPictogram, PictogramName>> = {
   outpost: 'outpost',
-  stack: 'forces',
   construction: 'construction',
   /** Le tas de caisses : un objectif neutre *est* une réserve, et c'est ce que le mât dit tant
    *  que la planche de son archétype n'est pas dessinée. */

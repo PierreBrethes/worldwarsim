@@ -76,7 +76,7 @@ type Cluster = { sx: number; sy: number; points: Point[] };
  * of `radius` cells, then two clusters whose discs touch merge until none do. One pass costs
  * O(n) plus the clusters squared — computed when the camera moves, never at every frame.
  */
-export function clusterPoints<P extends { readonly sx: number; readonly sy: number }>(
+function clusterPoints<P extends { readonly sx: number; readonly sy: number }>(
   points: ReadonlyArray<P>,
   radius: number,
 ): Array<{ sx: number; sy: number; points: P[] }> {
@@ -149,6 +149,8 @@ export class PinLayer {
   /** The eye and canvas the clusters were made for: a still camera redoes none. */
   private readonly lastEye = new Matrix4();
   private lastSize = '';
+  /** The canvas size in CSS pixels, which every pin is measured in. */
+  private readonly viewport: Viewport = { value: [1, 1] };
   private readonly shapes: InstancedDraw<typeof SHAPE_ATTRIBUTES>;
   private readonly glyphs: InstancedDraw<typeof GLYPH_ATTRIBUTES>;
 
@@ -156,9 +158,11 @@ export class PinLayer {
     private readonly frame: WorldFrame,
     private readonly regionAnchor: (regionId: string) => Vector3 | null,
     private readonly touch = false,
+    /** The font landed and the counts were painted again: the board owes a frame. */
+    repainted: () => void = () => {},
   ) {
-    this.shapes = new InstancedDraw(SHAPE_ATTRIBUTES, shapeMaterial());
-    this.glyphs = new InstancedDraw(GLYPH_ATTRIBUTES, glyphMaterial());
+    this.shapes = new InstancedDraw(SHAPE_ATTRIBUTES, shapeMaterial(this.viewport));
+    this.glyphs = new InstancedDraw(GLYPH_ATTRIBUTES, glyphMaterial(this.viewport, repainted));
     this.group.add(this.shapes.mesh, this.glyphs.mesh);
   }
 
@@ -193,8 +197,8 @@ export class PinLayer {
     this.hovered = id;
   }
 
-  isPinned(id: string): boolean {
-    return this.placed.some((placed) => placed.pin.id === id);
+  resize(width: number, height: number): void {
+    this.viewport.value = [width, height];
   }
 
   /**
@@ -425,7 +429,7 @@ function inkOf(pin: Pin): string {
 }
 
 /** « 24 », « 519 », « 1,2 k » : a count past a thousand would outgrow its disc. */
-export const countText = (count: number): string =>
+const countText = (count: number): string =>
   count < 1000
     ? String(count)
     : `${(count / 1000).toFixed(1).replace('.', ',').replace(',0', '')} k`;
@@ -491,12 +495,6 @@ class InstancedDraw<A extends Readonly<Record<string, number>>> {
   }
 }
 
-const VIEWPORT = { value: [1, 1] as [number, number] };
-/** The canvas size in CSS pixels, which every pin is measured in; set at each resize. */
-export function setPinViewport(width: number, height: number): void {
-  VIEWPORT.value = [width, height];
-}
-
 const PROJECT = /* glsl */ `
   uniform vec2 uViewport;
   vec4 projectPin(vec3 center, vec2 px) {
@@ -513,10 +511,12 @@ const OVER = /* glsl */ `
   float fill(float d) { return clamp(0.5 - d, 0.0, 1.0); }
 `;
 
-function shapeMaterial(): ShaderMaterial {
+type Viewport = { value: [number, number] };
+
+function shapeMaterial(viewport: Viewport): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: {
-      uViewport: VIEWPORT,
+      uViewport: viewport,
       uPaper: { value: new Color(PALETTE.paper) },
       uRing: { value: new Color(PALETTE.designated) },
     },
@@ -602,7 +602,7 @@ const GLYPHS = ' 0123456789:,kh';
 const GLYPH_ASPECT = 0.62;
 const CELL = 48;
 
-function glyphAtlas(): CanvasTexture {
+function glyphAtlas(repainted: () => void): CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(CELL * GLYPH_ASPECT) * GLYPHS.length;
   canvas.height = CELL;
@@ -621,17 +621,21 @@ function glyphAtlas(): CanvasTexture {
   };
   paint();
   // The font may land after the board: the atlas is painted again in it.
-  void globalThis.document?.fonts
-    ?.load(`500 ${CELL * 0.8}px "IBM Plex Mono"`)
-    .then(paint, () => {});
+  void globalThis.document?.fonts?.load(`500 ${CELL * 0.8}px "IBM Plex Mono"`).then(
+    () => {
+      paint();
+      repainted();
+    },
+    () => {},
+  );
   return texture;
 }
 
-function glyphMaterial(): ShaderMaterial {
+function glyphMaterial(viewport: Viewport, repainted: () => void): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: {
-      uViewport: VIEWPORT,
-      uAtlas: { value: glyphAtlas() },
+      uViewport: viewport,
+      uAtlas: { value: glyphAtlas(repainted) },
       uPaper: { value: new Color(PALETTE.paper) },
     },
     vertexShader: /* glsl */ `

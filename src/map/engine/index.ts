@@ -123,7 +123,7 @@ import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
-import { PIN_APPROACH_DISTANCE, PinLayer, setPinViewport, type PinHit } from './pins';
+import { PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
 import type { Pin } from '@/domain/pins';
 import { TheatreFrame } from './theatre';
 import { CarryVeil } from './veil';
@@ -703,7 +703,12 @@ export class MapEngine {
     this.ambience.add(this.maquettes.smoke);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
-    this.pins = new PinLayer(this.frame, (regionId) => this.regions.anchorOf(regionId), this.touch);
+    this.pins = new PinLayer(
+      this.frame,
+      (regionId) => this.regions.anchorOf(regionId),
+      this.touch,
+      () => this.invalidate(),
+    );
     this.scene.add(this.pins.group);
     this.scene.add(this.ink.group);
     this.parachutes = new ParachuteLayer(this.frame);
@@ -1520,7 +1525,7 @@ export class MapEngine {
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
-    setPinViewport(clientWidth, clientHeight);
+    this.pins.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
 

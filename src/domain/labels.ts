@@ -251,7 +251,7 @@ export type MapMarker =
  * One outpost pictogram whatever the specialization: three drawings for a distinction the
  * label already spells out would cost one more vocabulary to learn, for nothing.
  */
-export type LabelPictogram = 'outpost' | 'stack' | 'construction' | 'objective' | 'strategic';
+export type LabelPictogram = 'outpost' | 'construction' | 'objective' | 'strategic';
 
 /**
  * **The ground a thing covers, in kilometres around a point** — a listening station's radius, a
@@ -432,7 +432,7 @@ export type MapLabel = {
   readonly offensive: boolean;
   /** A finished construction that nothing follows — the oversight the screen edge catches. */
   readonly idle: boolean;
-  /** The works a building's mast carries (`WorkSite`): a pennant far away, the poster's lines. */
+  /** The works on a building's site (`WorkSite`): its maquette's crane up close, the poster's lines. */
   readonly works: WorkSite | null;
   /** The country a click selects; `null` when the label is not clickable. */
   readonly hostCountry: string | null;
@@ -914,7 +914,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         ...common,
         type: 'stack',
         priority: PRIORITY.stack,
-        pictogram: 'stack',
+        pictogram: null,
         station: marker.station,
         hostCountry: null,
         ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),
