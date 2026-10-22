@@ -28,7 +28,7 @@ describe('drawnHit', () => {
     expect(drawnHit(down(0), piece())).toBeCloseTo(9);
   });
 
-  it('leaves its contact shadow to the board', () => {
+  it('leaves the shadow on the ground to the board', () => {
     expect(drawnHit(down(2), piece())).toBeNull();
   });
 

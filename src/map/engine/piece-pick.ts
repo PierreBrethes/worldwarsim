@@ -14,7 +14,7 @@ const inSight = (object: Object3D): boolean => {
 /**
  * How far along `ray` the drawn surfaces of `object` are met, `null` when they are not: its world
  * box first, so a pointer nowhere near costs one test and no triangle. What lies on the ground
- * under it — a contact shadow, a ring (`userData.ground`) — is the board's, not the piece's.
+ * under it — an altitude shadow, a ring (`userData.ground`) — is the board's, not the piece's.
  */
 export function drawnHit(ray: Raycaster, object: Object3D): number | null {
   if (!inSight(object) || !ray.ray.intersectsBox(box.setFromObject(object))) return null;

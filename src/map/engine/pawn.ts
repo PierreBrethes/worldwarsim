@@ -13,7 +13,7 @@ import type { UnitRole } from '@/domain/ids';
 import type { Medium } from '@/domain/routing';
 import type { MediumSprites } from '@/emblems/units/manifest';
 import { faceCamera, textureOf } from './billboard';
-import { contactShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
+import { altitudeShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 import { PLUME_BY_WEAR, Smoke, Wake, type Plume } from './smoke';
 import { gaitOf, swayOf, type Gait } from './sway';
@@ -94,7 +94,7 @@ export class Pawn {
   /** Full motion only: reduced and cut motion leave every piece upright and the road clear. */
   private lively = false;
   private readonly wake = new Wake();
-  private readonly shadow = contactShadow();
+  private readonly shadow = altitudeShadow();
   /** Height of the ground under the pawn, relative to it: zero, or below a plane. */
   private groundBelow = 0;
   private medium: Medium = 'land';

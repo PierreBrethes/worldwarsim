@@ -29,7 +29,7 @@ import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
 import { HOVER_ALTITUDE } from './thread';
-import { contactShadow, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
+import { altitudeShadow, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { InkRing, type RingState } from './ink-ring';
 import { playTableSound } from '../table-sound';
@@ -237,7 +237,7 @@ export function pileObject(
       target.position.y = HOVER_ALTITUDE;
       figurine.object.userData.aloft = true;
       target.userData.aloft = true;
-      const shadow = contactShadow();
+      const shadow = altitudeShadow();
       shadow.position.set(slot.x, 0, slot.z);
       object.add(shadow);
     }
@@ -560,9 +560,9 @@ export function takenCopies<C extends { readonly down: unknown }>(
   );
 }
 
-/** Its own copy of the contact disc: the board's is shared, and this one fades on its own. */
+/** Its own copy of the altitude disc: the board's is shared, and this one fades on its own. */
 function carriedShadow(): Carried['shadow'] {
-  const object = contactShadow();
+  const object = altitudeShadow();
   const materials: MeshBasicMaterial[] = [];
   object.traverse((part) => {
     if (!(part instanceof Mesh)) return;

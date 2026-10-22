@@ -209,9 +209,10 @@ export function figurineFor(
 }
 
 /**
- * The lamp's shadow falls aside (`lamp.ts`); what sets the piece down right under its feet is
- * this soft disc, the prototype's (`carte-refonte`): darkest at the centre, nothing at the rim.
- * The fall is in the vertices' alpha, so it builds without a canvas.
+ * A piece on the ground casts only the lamp's shadow (`lamp.ts`): a disc under its feet read as a
+ * round base (#232). This soft disc, the prototype's (`carte-refonte`), is for what is lifted — a
+ * plane or a carried pile — whose gap to its shadow says its height: darkest at the centre,
+ * nothing at the rim. The fall is in the vertices' alpha, so it builds without a canvas.
  */
 const SHADOW_RADIUS = 0.48;
 const SHADOW_CORE = 0.62;
@@ -235,12 +236,8 @@ SHADOW_DISC.setAttribute(
     4,
   ),
 );
-/** The name a carried copy finds its figurines' discs by: lifted, a disc would read as a base. */
-export const CONTACT = 'contact';
-
-export function contactShadow(): Group {
+export function altitudeShadow(): Group {
   const shadow = new Group();
-  shadow.name = CONTACT;
   const disc = new Mesh(SHADOW_DISC, SHADOW_MATERIAL);
   disc.rotation.x = -Math.PI / 2;
   disc.position.y = 0.004;
