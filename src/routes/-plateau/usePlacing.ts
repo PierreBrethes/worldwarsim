@@ -113,7 +113,6 @@ export function usePlacing(
     return {
       sprite: buildingSprite(placing.key),
       magnet,
-      at: placingAim?.lonLat ?? null,
       title: placingAim?.region?.name ?? placing.title,
       name: fr.buildings[placing.key],
       cost: spec.cost,

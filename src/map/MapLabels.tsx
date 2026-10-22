@@ -3,7 +3,6 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
-import type { LonLat } from '@/domain/geo';
 import { stationKeyOf } from '@/domain/troops';
 import type { TourAct } from '@/domain/cargo-tag';
 import { SupplyPictos } from '@/shell/SupplyPictos';
@@ -59,8 +58,6 @@ import {
 import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
-import { resourcePlate } from '@/emblems/resources/manifest';
-import { YIELD_OF } from '@/domain/economy';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import { posterPlacement, type PosterSpot } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
@@ -89,7 +86,7 @@ export type TakeDepot = (
  * - `label--urgent` — under five minutes left;
  * - `label--identified` — enemy movement pierced by intelligence;
  * - `label--clickable` — the click selects the host country;
- * - `label-block`, `label-bar`, `label-pictogram`, `label-deposit`, `label-lines`,
+ * - `label-block`, `label-bar`, `label-pictogram`, `label-lines`,
  *   `label-line--nature | --figures | --headcount | --countdown | --mention` — the anatomy.
  *
  * The caption is wrapped in `label-lines` rather than left bare: a folded building keeps its
@@ -133,7 +130,6 @@ export function MapLabels({
   onTour,
   cue = null,
   selectionBar = null,
-  pinAt = null,
   openStation = null,
 }: {
   /** **The bar over a selection** (#130): it stands above the labels of the piles taken. */
@@ -152,8 +148,6 @@ export function MapLabels({
   cargoAim?: CargoAim | null;
   /** The labels whose transport could take the hand: their tags hang while it is held. */
   availableLabels?: ReadonlySet<string>;
-  /** The point the placement pin stands on: the deposit chip there fades, the pin is its foot. */
-  pinAt?: LonLat | null;
   /** **The address whose garrison window is open** (`stationKeyOf`): the sheet of a transport
    *  stored there opens, though its label — a mast — is not the one selected. */
   openStation?: string | null;
@@ -986,7 +980,6 @@ export function MapLabels({
           key={label.id}
           label={label}
           selected={label.id === selected || label.id === secondarySelected}
-          underPin={isUnderPin(label, pinAt)}
           siteOpen={
             openStation !== null &&
             label.station !== null &&
@@ -1131,7 +1124,6 @@ type LabelGestures = {
 type LabelNodeProps = {
   readonly label: MapLabel;
   readonly selected: boolean;
-  readonly underPin: boolean;
   readonly siteOpen: boolean;
   readonly cue: string | null;
   readonly crawl: boolean;
@@ -1154,7 +1146,6 @@ type LabelNodeProps = {
 const LabelNode = memo(function LabelNode({
   label,
   selected,
-  underPin,
   siteOpen,
   cue,
   crawl,
@@ -1194,7 +1185,7 @@ const LabelNode = memo(function LabelNode({
         ref={(node) => {
           register(nodes.roots.current, label.id, node);
         }}
-        className={classesOf(label, selected, underPin)}
+        className={classesOf(label, selected)}
         role={label.lootSightingId === null ? undefined : 'button'}
         tabIndex={label.lootSightingId === null ? undefined : 0}
         aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
@@ -1239,11 +1230,6 @@ const LabelNode = memo(function LabelNode({
                 <path className="label-flag-pole" d="M2 1v21" />
                 <path className="label-flag-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
               </svg>
-            </span>
-          )}
-          {label.deposit !== null && (
-            <span className="label-deposit">
-              <img src={resourcePlate(YIELD_OF[label.deposit]) ?? undefined} alt="" />
             </span>
           )}
           {label.lootSightingId !== null && (
@@ -1614,21 +1600,10 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
   'intel',
 ]);
 
-/** A deposit chip is the centre of its deposit: where the magnet puts the pin's foot. */
 /** How long a transport's sheet waits before folding once the pointer has left. @a-mesurer */
 const SHEET_FOLD_MS = 300;
 
-function isUnderPin(label: MapLabel, pinAt: LonLat | null): boolean {
-  return (
-    pinAt !== null &&
-    label.type === 'deposit' &&
-    label.anchor.kind === 'ground' &&
-    label.anchor.lonLat[0] === pinAt[0] &&
-    label.anchor.lonLat[1] === pinAt[1]
-  );
-}
-
-function classesOf(label: MapLabel, selected: boolean, underPin: boolean): string {
+function classesOf(label: MapLabel, selected: boolean): string {
   return [
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
@@ -1641,7 +1616,6 @@ function classesOf(label: MapLabel, selected: boolean, underPin: boolean): strin
     label.washed ? 'label--washed' : '',
     label.seeking === true ? 'label--seek' : '',
     selected ? 'label--selected' : '',
-    underPin ? 'label--under-pin' : '',
     label.hostCountry === null &&
     label.building === null &&
     label.station === null &&

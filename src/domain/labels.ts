@@ -408,12 +408,6 @@ export type MapLabel = {
    * crane is what a building wears while it has no portrait to show yet.
    */
   readonly plate: string | null;
-  /**
-   * The resource lying under the region. The third and last face a label can wear, and the
-   * only one that belongs to the ground rather than to a nation — hence a marker that carries
-   * no ink beside it.
-   */
-  readonly deposit: DepositKey | null;
   /** A free deposit the held building would take: it lights up. */
   readonly seeking?: true;
   /** The private sighting a click opens; every other label carries null. */
@@ -653,7 +647,6 @@ function withCaptures(
       ink: null,
       pictogram: null,
       plate: null,
-      deposit: null,
       lootSightingId: null,
       lootCurrent: true,
       washed: false,
@@ -699,7 +692,6 @@ function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
     ink,
     pictogram: null,
     plate: null,
-    deposit: null,
     lootSightingId: null,
     lootCurrent: true,
     washed: false,
@@ -747,7 +739,6 @@ function markerLabel(marker: MapMarker): MapLabel {
         ? null
         : marker.ink,
     plate: null,
-    deposit: null,
     lootSightingId: null,
     lootCurrent: true,
     washed:
@@ -984,7 +975,6 @@ function markerLabel(marker: MapMarker): MapLabel {
         type: 'deposit',
         priority: PRIORITY.deposit,
         pictogram: null,
-        deposit: marker.deposit,
         // A click on a deposit says nothing the ground does not: the region's own click
         // already selects the country.
         hostCountry: null,
@@ -1056,7 +1046,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       ink: null,
       pictogram: null,
       plate: null,
-      deposit: null,
       lootSightingId: null,
       lootCurrent: true,
       identified: false,
@@ -1106,7 +1095,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       ink: null,
       pictogram: null,
       plate: null,
-      deposit: null,
       lootSightingId: null,
       lootCurrent: true,
       identified: false,
@@ -1145,7 +1133,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     ink: null,
     pictogram: null,
     plate: null,
-    deposit: null,
     lootSightingId: null,
     lootCurrent: true,
     identified: arc.identification.pierced,
