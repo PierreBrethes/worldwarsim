@@ -482,7 +482,13 @@ export function WorldMap({
           .then((near) => {
             if (!abandoned) instance.displayNearAtlas(near);
           })
-          .catch(() => {});
+          .catch(() => {})
+          // The coast at rest (#224), never racing the near level: Safari has no idle callback.
+          .finally(() =>
+            (window.requestIdleCallback ?? setTimeout)(() => {
+              if (!abandoned) instance.loadCoast();
+            }),
+          );
       });
     });
 

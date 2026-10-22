@@ -552,7 +552,6 @@ export class MapEngine {
     shore: Shore,
   ) {
     this.routeGrid = shore.grid;
-    this.loadCoast();
     this.frame = new WorldFrame(PROJECTION);
     this.tourInk = new TourInk(this.frame);
 
@@ -2249,7 +2248,7 @@ export class MapEngine {
       return regionId ? this.regions.identityOf(regionId) : null;
     };
     const region = this.regionAtLonLat(lonLat) ?? shore();
-    if (this.coast === null && this.placing?.magnet.kind === 'coast') this.loadCoast();
+    if (this.coast === null) this.loadCoast();
     return {
       lonLat,
       region,
@@ -2267,12 +2266,13 @@ export class MapEngine {
   private coastRetryAt = 0;
 
   /**
-   * La côte de mer ouverte et les régions sans cellule (`public/coast.json`, 0,55 Mo gzip), lues
-   * dès le plateau : la terre de Malte ou du centre de Naples en dépend (#224). Tant qu'elle n'est
-   * pas là le fantôme du port n'a pas de verdict (`coastal: null`) et la terre est celle de la
-   * grille ; un échec se retente (`COAST_RETRY_MS`) au prochain point visé.
+   * La côte de mer ouverte et les régions sans cellule (`public/coast.json`, 0,55 Mo gzip) : la
+   * terre de Malte ou du centre de Naples en dépend (#224). Le plateau la demande au repos, après
+   * le niveau près (`WorldMap`) ; un geste qui en a besoin avant la demande aussitôt (`groundAt`,
+   * `placingSpotAt`). Tant qu'elle n'est pas là le fantôme n'a pas de verdict sur l'eau de la
+   * grille (`coastal: null`) ; un échec se retente (`COAST_RETRY_MS`) au prochain point visé.
    */
-  private loadCoast(): void {
+  loadCoast(): void {
     if (this.coast !== null || this.coastLoading || performance.now() < this.coastRetryAt) return;
     this.coastLoading = true;
     fetch('/coast.json')
@@ -2281,7 +2281,9 @@ export class MapEngine {
         return response.json();
       })
       .then((asset) => {
+        const started = performance.now();
         this.coast = decodeCoast(asset, PROJECTION);
+        performance.measure('coast.json décodé', { start: started });
         const held = this.ghost.spot;
         if (this.placing !== null && held !== null) this.onPlacingAim(this.placingSpotAt(held));
         this.hoverDirty = true;
@@ -2300,17 +2302,24 @@ export class MapEngine {
    * ne la lit pas : il se pose sur la côte de l'atlas (#221).
    */
   coastAt(lonLat: LonLat): boolean {
+    if (this.coast === null) this.groundAt(lonLat);
     return isLandingShore(this.routeGrid, this.coast, lonLat);
   }
 
+  /** Le sol que le dessin lit (piles, maquettes) : il ne réclame pas la côte, il l'attend. */
   landAt(lonLat: LonLat): boolean {
-    return this.groundAt(lonLat) === 'land';
+    return groundOf(this.routeGrid, this.coast, lonLat) === 'land';
   }
 
-  /** Terre, mer ou lac, comme le serveur le lit avec `groundAtPoint` (`groundOf`, #224) : la
-   *  grille, puis la côte de l'atlas une fois `coast.json` arrivé. */
+  /**
+   * Terre, mer ou lac, comme le serveur le lit avec `groundAtPoint` (`groundOf`, #224) : la
+   * grille, puis la côte de l'atlas une fois `coast.json` arrivé. Un geste qui tombe sur l'eau de
+   * la grille avant elle la demande tout de suite, sans attendre le repos (`loadCoast`).
+   */
   groundAt(lonLat: LonLat): Ground {
-    return groundOf(this.routeGrid, this.coast, lonLat);
+    const ground = groundOf(this.routeGrid, this.coast, lonLat);
+    if (this.coast === null && ground === 'sea') this.loadCoast();
+    return ground;
   }
 
   /**
