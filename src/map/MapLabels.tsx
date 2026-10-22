@@ -3,6 +3,8 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import type { LonLat } from '@/domain/geo';
+import { stationKeyOf } from '@/domain/troops';
 import type { TourAct } from '@/domain/cargo-tag';
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { ChargeBar } from '@/shell/ChargeBar';
@@ -131,6 +133,8 @@ export function MapLabels({
   onTour,
   cue = null,
   selectionBar = null,
+  pinAt = null,
+  openStation = null,
 }: {
   /** **The bar over a selection** (#130): it stands above the labels of the piles taken. */
   selectionBar?: { readonly labelIds: ReadonlyArray<string>; readonly node: ReactNode } | null;
@@ -148,6 +152,11 @@ export function MapLabels({
   cargoAim?: CargoAim | null;
   /** The labels whose transport could take the hand: their tags hang while it is held. */
   availableLabels?: ReadonlySet<string>;
+  /** The point the placement pin stands on: the deposit chip there fades, the pin is its foot. */
+  pinAt?: LonLat | null;
+  /** **The address whose garrison window is open** (`stationKeyOf`): the sheet of a transport
+   *  stored there opens, though its label — a mast — is not the one selected. */
+  openStation?: string | null;
   /** The player's nation: the passengers on a transport's tag wear its plates. */
   nation?: string | null;
   /** **Débarquer depuis l'étiquette d'un transport** (POC du 16/10) ; absent, pas d'étiquette. */
@@ -276,6 +285,11 @@ export function MapLabels({
    */
   const over = useRef<{ label: string | null; piece: string | null }>({ label: null, piece: null });
   const hovered = useRef<string | null>(null);
+  const folding = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = folding.current;
+    return () => timers.forEach((timer) => clearTimeout(timer));
+  }, []);
   /** The labels that carry a transport's tag: only they look for their figurines each frame. */
   const cargoed = useRef<ReadonlySet<string>>(new Set());
   cargoed.current = new Set(
@@ -294,9 +308,18 @@ export function MapLabels({
       if (id === previous) return;
       hovered.current = id;
       // A transport's tag hangs while its piece is under the pointer (POC, `t.hover`).
-      if (previous !== null)
-        anchors.current.get(previous)?.classList.remove('label-anchor--hovered');
-      if (id !== null) anchors.current.get(id)?.classList.add('label-anchor--hovered');
+      // A transport's sheet folds a moment late: between the figurines and it there is only air.
+      if (previous !== null) {
+        const fold = () => anchors.current.get(previous)?.classList.remove('label-anchor--hovered');
+        if (cargoed.current.has(previous)) {
+          clearTimeout(folding.current.get(previous));
+          folding.current.set(previous, setTimeout(fold, SHEET_FOLD_MS));
+        } else fold();
+      }
+      if (id !== null) {
+        clearTimeout(folding.current.get(id));
+        anchors.current.get(id)?.classList.add('label-anchor--hovered');
+      }
       if (id !== pressed.current) pressed.current = null;
       const left = labels.find((candidate) => candidate.id === previous);
       if (left?.anchor.kind === 'movementHead') onMovementHover(null);
@@ -963,6 +986,12 @@ export function MapLabels({
           key={label.id}
           label={label}
           selected={label.id === selected || label.id === secondarySelected}
+          underPin={isUnderPin(label, pinAt)}
+          siteOpen={
+            openStation !== null &&
+            label.station !== null &&
+            stationKeyOf(label.station) === openStation
+          }
           cue={cue?.labelId === label.id ? cue.text : null}
           crawl={motion === 'full'}
           muted={muted}
@@ -1102,6 +1131,8 @@ type LabelGestures = {
 type LabelNodeProps = {
   readonly label: MapLabel;
   readonly selected: boolean;
+  readonly underPin: boolean;
+  readonly siteOpen: boolean;
   readonly cue: string | null;
   readonly crawl: boolean;
   readonly muted: boolean;
@@ -1123,6 +1154,8 @@ type LabelNodeProps = {
 const LabelNode = memo(function LabelNode({
   label,
   selected,
+  underPin,
+  siteOpen,
   cue,
   crawl,
   muted,
@@ -1161,7 +1194,7 @@ const LabelNode = memo(function LabelNode({
         ref={(node) => {
           register(nodes.roots.current, label.id, node);
         }}
-        className={classesOf(label, selected)}
+        className={classesOf(label, selected, underPin)}
         role={label.lootSightingId === null ? undefined : 'button'}
         tabIndex={label.lootSightingId === null ? undefined : 0}
         aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
@@ -1316,6 +1349,7 @@ const LabelNode = memo(function LabelNode({
               onDisembark={onDisembark}
               aim={cargoAim}
               available={available}
+              selected={selected || siteOpen}
               onTour={onTour}
             />
           )}
@@ -1580,7 +1614,21 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
   'intel',
 ]);
 
-function classesOf(label: MapLabel, selected: boolean): string {
+/** A deposit chip is the centre of its deposit: where the magnet puts the pin's foot. */
+/** How long a transport's sheet waits before folding once the pointer has left. @a-mesurer */
+const SHEET_FOLD_MS = 300;
+
+function isUnderPin(label: MapLabel, pinAt: LonLat | null): boolean {
+  return (
+    pinAt !== null &&
+    label.type === 'deposit' &&
+    label.anchor.kind === 'ground' &&
+    label.anchor.lonLat[0] === pinAt[0] &&
+    label.anchor.lonLat[1] === pinAt[1]
+  );
+}
+
+function classesOf(label: MapLabel, selected: boolean, underPin: boolean): string {
   return [
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
@@ -1593,6 +1641,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     label.washed ? 'label--washed' : '',
     label.seeking === true ? 'label--seek' : '',
     selected ? 'label--selected' : '',
+    underPin ? 'label--under-pin' : '',
     label.hostCountry === null &&
     label.building === null &&
     label.station === null &&

@@ -183,6 +183,8 @@ type Props = {
   onOpenStrategic?: (pointId: string, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
+  /** The address whose garrison window is open: the sheet of a transport stored there opens. */
+  openStation?: string | null;
   selectedLootLabel?: string | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
@@ -324,6 +326,8 @@ export type PlacingBuilding = {
   readonly free: boolean;
   readonly duration: string;
   readonly refusal: string | null;
+  /** The point the ghost holds, `null` before it has been on the board. */
+  readonly at: LonLat | null;
 };
 
 /** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
@@ -379,6 +383,7 @@ export function WorldMap({
   onOpenObjective,
   onOpenStrategic,
   selectedLabel = null,
+  openStation = null,
   selectedLootLabel = null,
   reach = null,
   onCountryHover,
@@ -1444,6 +1449,8 @@ export function WorldMap({
         onCancelHeld={() => onDropRefused?.()}
         onHoldOver={holdOver}
         muted={placing !== null}
+        pinAt={placing?.at ?? null}
+        openStation={openStation}
         groupFar={blitz !== null}
         nation={playerNation ?? null}
         onDisembark={onDisembark}

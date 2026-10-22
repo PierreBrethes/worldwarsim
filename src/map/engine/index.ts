@@ -698,7 +698,7 @@ export class MapEngine {
     );
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
-    this.ghost = new PlacingGhost(this.frame);
+    this.ghost = new PlacingGhost(this.frame, this.touch);
     this.standing = new StandingLayer(
       this.frame,
       () => this.landed(),
@@ -2265,6 +2265,7 @@ export class MapEngine {
     this.ink.motion = motion;
     this.parachutes.motion = motion;
     this.maquettes.motion = motion;
+    this.ghost.motion = motion;
   }
 
   /**
@@ -2321,6 +2322,7 @@ export class MapEngine {
     this.invalidate();
     if (refused === this.placingRefused) return;
     this.placingRefused = refused;
+    this.ghost.refuse(refused);
     this.refreshCursor();
   }
 
@@ -2344,7 +2346,11 @@ export class MapEngine {
       return;
     }
     if (placing.magnet.kind === 'coast') this.loadCoast();
-    this.ghost.arm(placing.sprite, (pointer) => this.snapFor(placing.magnet, pointer));
+    this.ghost.arm(
+      placing.sprite,
+      (pointer) => this.snapFor(placing.magnet, pointer),
+      placing.magnet.kind === 'points',
+    );
     this.hoverDirty = true;
     this.refreshCursor();
   }

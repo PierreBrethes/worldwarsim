@@ -2280,6 +2280,13 @@ function BoardContent({
                   highlight?.labelId ??
                   (selectedSite === null ? null : buildingLabelId(selectedSite))
                 }
+                openStation={
+                  garrison !== null
+                    ? stationKeyOf(garrison.station)
+                    : selectedSite === null
+                      ? null
+                      : stationKeyOf({ kind: 'building', buildingId: selectedSite.id })
+                }
                 selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
                 reach={handReach ?? movementReach}
                 onCountryHover={setHoveredCountry}
