@@ -178,3 +178,36 @@ describe('the thread on screen (#239)', () => {
     expect(path.to.y).toBe(450);
   });
 });
+
+/**
+ * **Under a finger, the aim stands above it only while a tile is carried** (#239): a press on
+ * the canvas puts the building under the finger at the release, so it must aim there too.
+ */
+describe('a building held under a finger', () => {
+  const moved = (gesture: object | null) => {
+    const aimed: Array<[number, number]> = [];
+    const engine = {
+      gesture,
+      placing: { magnet: { kind: 'free' } },
+      fingerOnBoard: false,
+      held: null,
+      pointerScreen: { x: 0, y: 0 },
+      lastPointer: { clientX: 0, clientY: 0 },
+      aimPointer: (x: number, y: number) => aimed.push([x, y]),
+      pointerMoved: () => {},
+    };
+    (MapEngine.prototype as unknown as { pointerMove: (event: object) => void }).pointerMove.call(
+      engine,
+      { pointerType: 'touch', clientX: 100, clientY: 400 },
+    );
+    return aimed[0]![1];
+  };
+
+  it('aims above the finger that carries a tile from the personal board', () => {
+    expect(moved(null)).toBeLessThan(400);
+  });
+
+  it('aims under the finger pressed on the canvas, where its release puts the building', () => {
+    expect(moved({ carrying: false })).toBe(400);
+  });
+});

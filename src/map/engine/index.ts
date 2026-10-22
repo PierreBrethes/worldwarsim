@@ -1692,26 +1692,7 @@ export class MapEngine {
       // The ground slid under a still pointer: the stop it was on is not the same place.
       if (this.pointer.x !== -2) this.pointerMoved();
     });
-    canvas.addEventListener('pointermove', (event) => {
-      if (this.gesture?.carrying === true) return;
-      this.fingerOnBoard = event.pointerType === 'touch';
-      // A building carried under a finger is aimed above it: the finger would hide the point.
-      const lift = this.placing !== null && this.fingerOnBoard ? PLACING_FINGER_LIFT_PX : 0;
-      this.aimPointer(event.clientX, event.clientY - lift);
-      this.placingFinger =
-        lift === 0 ? null : { x: this.pointerScreen.x, y: this.pointerScreen.y + lift };
-      this.lastPointer.clientX = event.clientX;
-      this.lastPointer.clientY = event.clientY;
-      this.restLabel = null;
-      if (!this.fingerOnBoard) this.pointerMoved();
-      // Lifted by a click, the piece reads its drop as a carried one does: the release is the click.
-      if (this.held !== null && !this.fingerOnBoard)
-        this.tellCarryOver(
-          this.carryTargetAt(event.clientX, event.clientY) ?? { kind: 'ground' },
-          event.clientX,
-          event.clientY,
-        );
-    });
+    canvas.addEventListener('pointermove', (event) => this.pointerMove(event));
     canvas.addEventListener('pointerleave', () => {
       this.pointer.set(-2, -2);
       this.hoverDirty = true;
@@ -2290,6 +2271,32 @@ export class MapEngine {
    */
   private roleOf(pointerType: string, index: number): MouseRole | null {
     return dragRoleAt(this.mapping, pointerType, index);
+  }
+
+  /** The pointer moved over the board: the aim, and what a piece held by a click reads. */
+  private pointerMove(event: PointerEvent): void {
+    if (this.gesture?.carrying === true) return;
+    this.fingerOnBoard = event.pointerType === 'touch';
+    // A tile carried under a finger is aimed above it: the finger would hide the point. A press
+    // on the canvas is put down under the finger at its release (`endGesture`), so aims there.
+    const lift =
+      this.placing !== null && this.fingerOnBoard && this.gesture === null
+        ? PLACING_FINGER_LIFT_PX
+        : 0;
+    this.aimPointer(event.clientX, event.clientY - lift);
+    this.placingFinger =
+      lift === 0 ? null : { x: this.pointerScreen.x, y: this.pointerScreen.y + lift };
+    this.lastPointer.clientX = event.clientX;
+    this.lastPointer.clientY = event.clientY;
+    this.restLabel = null;
+    if (!this.fingerOnBoard) this.pointerMoved();
+    // Lifted by a click, the piece reads its drop as a carried one does: the release is the click.
+    if (this.held !== null && !this.fingerOnBoard)
+      this.tellCarryOver(
+        this.carryTargetAt(event.clientX, event.clientY) ?? { kind: 'ground' },
+        event.clientX,
+        event.clientY,
+      );
   }
 
   private aimPointer(clientX: number, clientY: number): void {
