@@ -123,7 +123,7 @@ import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
-import { PinLayer, setPinViewport, type PinHit } from './pins';
+import { PIN_APPROACH_DISTANCE, PinLayer, setPinViewport, type PinHit } from './pins';
 import type { Pin } from '@/domain/pins';
 import { TheatreFrame } from './theatre';
 import { CarryVeil } from './veil';
@@ -2058,7 +2058,7 @@ export class MapEngine {
     if (!this.castAt(clientX, clientY)) return false;
     const pin = this.pinUnder(this.aim);
     if (pin?.kind !== 'cluster') return false;
-    this.journeyTo(pin.ids, [], 0, CLUSTER_APPROACH_DISTANCE);
+    this.journeyTo(pin.ids, [], 0, PIN_APPROACH_DISTANCE);
     return true;
   }
 
@@ -2924,9 +2924,6 @@ const EYE_FOV = 30;
 const halfTan = (fov: number): number => Math.tan((fov * Math.PI) / 360);
 /** How far the eye backs off along the camera's axis to frame the same plane at `EYE_FOV`. */
 const EYE_BACKOFF = halfTan(CAMERA_FOV) / halfTan(EYE_FOV);
-
-/** **Approcher une grappe** (#234) : jusqu'aux figurines pleines, ou ce qui cadre ses pièces. */
-const CLUSTER_APPROACH_DISTANCE = 28;
 
 /** Une marge au-dessus du plancher : la molette s'arrête rarement pile sur `minDistance`. */
 const ZOOM_FLOOR_SLACK = 1.15;

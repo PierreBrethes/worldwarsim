@@ -1,4 +1,5 @@
 import { pinsOf } from '@/domain/pins';
+import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
@@ -2421,6 +2422,16 @@ function BoardContent({
                   }
                   held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
                   troopIds={hand.troopIds}
+                  onApproach={() => {
+                    const marker = markerOfStation({ me: view.me }, hand.station);
+                    if (marker !== null)
+                      setFocus({
+                        ids: [marker],
+                        lift: sheetLift('half'),
+                        distance: PIN_APPROACH_DISTANCE,
+                        nonce: Date.now(),
+                      });
+                  }}
                   onCompose={compose}
                   onDisembark={(troopIds) =>
                     disembark({

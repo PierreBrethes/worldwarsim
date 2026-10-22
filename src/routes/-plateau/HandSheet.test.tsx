@@ -62,6 +62,7 @@ describe('HandSheet', () => {
         founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
+        onApproach={() => {}}
       />,
     );
     expect(screen.getByText(fr.hand.kicker('Saône-et-Loire'))).toBeTruthy();
@@ -91,6 +92,7 @@ describe('HandSheet', () => {
         founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
+        onApproach={() => {}}
       />,
     );
     const stat = (key: string) => container.querySelector(`[data-stat="${key}"]`);
@@ -120,6 +122,7 @@ describe('HandSheet in a Blitz', () => {
         founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
+        onApproach={() => {}}
       />,
     );
     expect(screen.getByText(fr.troops.strength(50, 50))).toBeTruthy();
@@ -149,6 +152,7 @@ describe('HandSheet in a Blitz', () => {
         founding={null}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
+        onApproach={() => {}}
       />,
     );
     act(() => screen.getByRole('button', { name: fr.hand.disembark }).click());
@@ -175,6 +179,7 @@ describe('HandSheet founding', () => {
         founding={founding}
         onOpenGunnery={() => {}}
         onDrop={() => {}}
+        onApproach={() => {}}
       />,
     );
 

@@ -27,6 +27,7 @@ export function HandSheet({
   founding,
   onOpenGunnery,
   onDrop,
+  onApproach,
 }: {
   view: PlayerView;
   station: MarchStation;
@@ -51,6 +52,8 @@ export function HandSheet({
   } | null;
   onOpenGunnery: () => void;
   onDrop: () => void;
+  /** La caméra descend sur la pile en main : au loin, au doigt, elle n'est qu'une épingle. */
+  onApproach: () => void;
 }) {
   const narrow = useNarrowScreen();
   const inHand = held.filter((troop) => troopIds.includes(troop.id));
@@ -149,6 +152,13 @@ export function HandSheet({
       {narrow && (
         <>
           {hint}
+          <button
+            type="button"
+            onClick={onApproach}
+            className="mt-[8px] min-h-[44px] cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+          >
+            {fr.hand.approach}
+          </button>
           {found}
         </>
       )}

@@ -28,6 +28,8 @@ const CLUSTER_PX = 11;
 const CLUSTER_TOUCH_PX = 13;
 /** A cluster's disc grows with the log of its count: 2 reads, 500 does not cover a country. */
 const clusterRadius = (count: number): number => 7 + 5.2 * Math.log10(count);
+/** **Approcher** (#234) : jusqu'aux figurines pleines, ou ce qui cadre les pièces d'une grappe. */
+export const PIN_APPROACH_DISTANCE = 28;
 /** What a single pin measures, in CSS pixels, by its shape and side. @a-mesurer */
 const SINGLE_RADIUS = { pile: 4, building: 4, outpost: 5.5 } as const;
 const SEEN_RADIUS = 4.6;
@@ -261,8 +263,7 @@ export class PinLayer {
       if (ahead !== undefined && ahead.distanceToSquared(head) > 0) {
         const [ax, ay] = screen(ahead);
         const length = Math.hypot(sx - ax, sy - ay);
-        if (length > 0)
-          trail = [((sx - ax) / length) * -TRAIL_PX, ((sy - ay) / length) * -TRAIL_PX];
+        if (length > 0) trail = [((sx - ax) / length) * TRAIL_PX, ((sy - ay) / length) * TRAIL_PX];
       }
       this.marks.push({
         ...this.markOf({
@@ -659,7 +660,8 @@ function glyphMaterial(): ShaderMaterial {
       varying vec2 vMeta;
       ${OVER}
       void main() {
-        vec4 col = over(vec4(vColor, texture2D(uAtlas, vUv).a), vec4(uPaper, 0.82 * vMeta.y));
+        float ink = smoothstep(0.2, 0.6, texture2D(uAtlas, vUv).a);
+        vec4 col = over(vec4(vColor, ink), vec4(uPaper, 0.82 * vMeta.y));
         col.a *= vMeta.x;
         if (col.a < 0.004) discard;
         gl_FragColor = col;

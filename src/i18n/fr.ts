@@ -2944,6 +2944,8 @@ export const fr = {
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
     hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
     found: 'fonder un avant-poste ici',
+    /** Au loin, la pile levée n'est qu'une épingle : on descend la voir (#234). */
+    approach: 'approcher',
     aboard: 'à bord',
     disembark: 'débarquer',
   },
