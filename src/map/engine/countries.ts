@@ -39,17 +39,20 @@ export type CountryMesh = Mesh<BufferGeometry, MeshStandardMaterial> & {
 const BORDER_LIFT = 0.004;
 
 /**
- * **Ce qu'on n'a jamais relevé est au crayon** (`table-etat-major.md`, ADR 0020 §5) : un grain de
- * graphite et un trait oblique à peine posé, en pixels d'écran comme la hachure des zones
- * suspendues. Il porte sur tout le sol, sans liste à tenir : depuis qu'aucun aplat ne le couvre
- * (ADR 0033), c'est le contour qui distingue une région connue d'une région vierge.
- * Couleur déjà encodée en sRGB à ce point du programme, d'où un graphite écrit en clair.
+ * **Le grain du papier** (#240), celui de la feuille des maquettes (`drawGrainAndNight`) : un
+ * bruit fin, pixel par pixel d'écran, noir ou blanc au hasard et à 0–6 % d'opacité. Sans trait
+ * oblique : depuis l'ADR 0033 le sol n'est plus distingué par sa trame, c'est le contour qui
+ * sépare une région connue d'une région vierge (les hachures qui ont un sens restent, `hatch`).
+ * Le hasard ne dépend que du pixel : rien ne bouge avec la caméra, rien ne moire au zoom.
+ * Couleur déjà encodée en sRGB à ce point du programme, d'où un mélange écrit en clair.
+ * @a-mesurer
  */
-const PENCIL = `
-  float tooth = fract(sin(dot(floor(trame), vec2(12.9898, 78.233))) * 43758.5453);
-  float stroke = 1.0 - smoothstep(0.5, 1.3, mod(trame.x - trame.y, 7.0));
-  float lead = 0.10 * stroke * (0.5 + 0.5 * tooth) + 0.05 * step(0.86, tooth);
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.29, 0.28, 0.26), lead);`;
+const GRAIN_OPACITY = 0.06;
+const PAPER_GRAIN = `
+  vec2 speck = floor(trame);
+  float tone = step(0.5, fract(sin(dot(speck, vec2(12.9898, 78.233))) * 43758.5453));
+  float weight = fract(sin(dot(speck, vec2(63.7264, 10.873))) * 24634.6345);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(tone), ${GRAIN_OPACITY.toFixed(3)} * weight);`;
 
 /** La côte sépare la terre de la mer (ADR 0034), hors de la coupe de l'antiméridien. */
 export function coastLines(
@@ -175,7 +178,7 @@ export function buildCountries(level: SheetLevel): CountrySheet {
         stencilRef: LAND_STENCIL,
         stencilZPass: ReplaceStencilOp,
       }),
-      PENCIL,
+      PAPER_GRAIN,
     );
     const mesh = new Mesh(geometry, material) as CountryMesh;
     mesh.userData = { adm0 };
