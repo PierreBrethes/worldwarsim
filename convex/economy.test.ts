@@ -46,6 +46,10 @@ import {
 import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
 import { clipToStorage, settle } from './resources';
 import schema from './schema';
+import { decodeCoast, nearestCoast, type CoastAsset } from '../src/domain/coast';
+import coastAsset from '../public/coast.json';
+import projectionAsset from '../public/projection.json';
+import type { Projection } from '../src/domain/world';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn, unclocked, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
@@ -63,9 +67,13 @@ const ARDENNES = 'FRA-5268'; // nothing at all
 const JURA = 'FRA-5312'; // food
 const RUHR = 'DEU-1572'; // German
 
-/** A shore cell of the Pas-de-Calais, as `isCoastCell` reads the routing grid — land with the
- *  Channel beside it, and French ground (`hostAtPoint`). */
-const CALAIS_SHORE = { lon: 2.31, lat: 50.63 };
+/** Calais harbour, 800 m from the Pas-de-Calais's open-sea coast (#221) — a sea cell of the
+ *  routing grid, as the real shore often is. The old point, forty kilometres inland, took a quay
+ *  off the grid's coarse coast. */
+const CALAIS_SHORE = { lon: 1.85, lat: 50.97 };
+/** The Channel off Calais, still claimed for the Pas-de-Calais (`pointInRegion`): water, and
+ *  3,7 km from the coast. */
+const OFF_CALAIS = { lon: 1.8, lat: 51.0 };
 /** The same, on the other side of the Channel: a legal coast, the wrong country. */
 const ENGLISH_SHORE = { lon: -1.95, lat: 50.85 };
 const MOSELLE_POINT = pointIn(MOSELLE);
@@ -538,6 +546,58 @@ describe('placement', () => {
         point: CALAIS_SHORE,
       });
     });
+
+    /** **Un port se pose à quai de la côte** (#221), pas au large. */
+    it('refuses a port off the coast', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'port',
+          regionId: PAS_DE_CALAIS,
+          point: OFF_CALAIS,
+        }),
+      ).rejects.toThrow('NOT_COASTAL');
+    });
+
+    /** **Une île est dans sa région** (#221) : sur le raster de 25 km, Lampedusa, Key West ou
+     *  Hachijō-jima n'ont pas de terre, mais leur côte est celle de leur région. Le siège de leur
+     *  nation y commande un port, la porte l'accepte et le chantier le bâtit dans cette région. */
+    it.each([
+      ['italy', 'ITA-5417', [12.6, 35.51]],
+      ['usa', 'USA-3542', [-81.8, 24.55]],
+      ['japan', 'JPN-1860', [139.79, 33.1]],
+    ] as const)(
+      'lets %s build a port on the island coast of %s',
+      async (nation, regionId, near) => {
+        const coast = decodeCoast(
+          coastAsset as CoastAsset,
+          projectionAsset as unknown as Projection,
+        );
+        const shore = nearestCoast(coast, [...near], 30, regionId)!.lonLat;
+        const t = boot();
+        const seat = await launchedSeason(t, nation);
+        await promoteHq(t, seat, 2);
+        await t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'port',
+          regionId,
+          point: { lon: shore[0], lat: shore[1] },
+        });
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+        const ports = await t.run(async (ctx) => {
+          const player = await seatIn(ctx, seat);
+          const held = await ctx.db
+            .query('buildings')
+            .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+            .collect();
+          return held.filter((building) => building.key === 'port').map((port) => port.regionId);
+        });
+        expect(ports).toEqual([regionId]);
+      },
+    );
 
     it('refuses a point that does not lie in the country of its region', async () => {
       const t = boot();

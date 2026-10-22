@@ -753,7 +753,7 @@ export const fr = {
     DEPOSIT_REQUIRED: (d) =>
       `${buildingName(d.building)} se pose sur un gisement de ${depositNames(d.expected)} — visez son point`,
     DEPOSIT_TAKEN: () => 'ce gisement porte déjà une exploitation',
-    NOT_COASTAL: () => 'un port se pose sur la côte',
+    NOT_COASTAL: () => 'un port se pose sur la côte de sa région',
     POINT_OUTSIDE_REGION: () => 'ce point n’est pas dans la région visée',
     /** « Trop près de l'usine : 30 km au moins » — le voisin nommé, et l'écart à tenir. */
     BUILDING_TOO_CLOSE: (d) => `trop près ${ofTheBuildingName(d.near)} : ${num(d.km)} km au moins`,
@@ -4498,6 +4498,7 @@ export const fr = {
   placing: {
     hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
+    coastPending: 'la côte arrive sur la carte — un instant',
   },
 
   construction: {
@@ -4739,6 +4740,8 @@ export function aimRefusalText(
   switch (refusal.code) {
     case 'NO_GROUND':
       return fr.placing.noGround;
+    case 'COAST_PENDING':
+      return fr.placing.coastPending;
     case 'OUT_OF_REACH':
       return errors.OUT_OF_OUTPOST_REACH({
         reachKm: reach.widestKm,

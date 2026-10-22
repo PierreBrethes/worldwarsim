@@ -114,7 +114,7 @@ export type Spot = {
   readonly reached: boolean;
   /** The deposit under the point (`depositAt`), and whether a building already holds it. */
   readonly deposit: { readonly key: DepositKey; readonly taken: boolean } | null;
-  /** A coast the routing can sail from (`isCoastCell`). */
+  /** Within `COAST_REACH_KM` of the open-sea coast of the region aimed at (`onRegionCoast`). */
   readonly coastal: boolean;
   /** The closest of the player's other buildings, standing or ordered, and how far. */
   readonly nearest: { readonly key: BuildingKey; readonly km: number } | null;

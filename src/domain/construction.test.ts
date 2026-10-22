@@ -416,6 +416,13 @@ describe('the point aimed at', () => {
     expect(refusalOf(surveyedBarracks, 'mine', aim(COAL.lonLat))).toBeNull();
   });
 
+  it('gives a port no verdict while the coast has not landed, and a barracks its own', () => {
+    expect(refusalOf(view({}), 'port', aim(PARIS, { coastal: null }))).toEqual({
+      code: 'COAST_PENDING',
+    });
+    expect(refusalOf(view({}), 'barracks', aim(PARIS, { coastal: null }))).toBeNull();
+  });
+
   it('wants a port on the coast', () => {
     expect(refusalOf(view({}), 'port', aim(PARIS))).toEqual({ code: 'NOT_COASTAL' });
     expect(refusalOf(view({}), 'port', aim(PARIS, { coastal: true }))).toBeNull();

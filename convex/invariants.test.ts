@@ -18,7 +18,6 @@ import {
   decodeGrid,
   isCoastCell,
   isLandCell,
-  lonLatAtProjected,
   projectLonLat,
 } from '../src/domain/routing';
 import type { LonLat } from '../src/domain/geo';
@@ -32,7 +31,9 @@ import rasterAsset from '../public/region-grid.json';
 import indexAsset from '../public/region-index.json';
 import { STARTING_KIT, buildCost, recruitmentCost } from './constants';
 import { capitalRegionOf, regionFacts } from './regions';
-import { coastAtPoint, pointInRegion } from './routes';
+import { isOnRegionCoast } from './coast';
+import { decodeCoast, nearestCoast, type CoastAsset } from '../src/domain/coast';
+import coastAsset from '../public/coast.json';
 
 /**
  * **Ce que la ligne de départ doit encore payer** (question 51, « le jour où l'on touche
@@ -434,6 +435,15 @@ describe('les régions nommées en dur', () => {
     ).toEqual([]);
   });
 
+  /** Un gisement posé sur une cellule de mer de la grille de routage (le canal de Suez, #221)
+   *  se ferait exploiter à flot : le générateur exige la terre de la grille. */
+  it('chaque gisement est sur une terre de la grille', () => {
+    const grid = decodeGrid(gridAsset, projection);
+    expect(
+      depositsAsset.filter(({ lon, lat }) => !isLandCell(grid, [lon, lat])).map(({ id }) => id),
+    ).toEqual([]);
+  });
+
   it('chaque gisement est dans la cellule de sa région', () => {
     const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
     expect(
@@ -510,57 +520,36 @@ describe('le point de chaque région', () => {
 });
 
 /**
- * **« Côtière » dit ce que le serveur accepte** : une région de l'index est côtière exactement
- * quand un point quelque part prend un quai pour elle — `coastAtPoint` et `pointInRegion`, les
- * deux contrôles d'un port. Le point est cherché sur les cellules de côte à portée de la région,
- * en 5 × 5 points par cellule. Malte n'a pas de port et Saint-Marin en a un : défauts anciens de
- * la maille (#221), que l'index dit tels quels.
+ * **Un quai se pose sur la côte de sa région, et jamais dans l'intérieur** (#221) : le serveur
+ * lit la côte de mer ouverte cuite depuis l'atlas (`convex/coast.ts`). Sur un échantillon de
+ * régions côtières — Malte, que la grille noie, et Singapour comprises —, le point de côte le
+ * plus proche de leur point est accepté, et à 1,5 km de là encore (la tolérance est de 2 km, dans
+ * tous les sens) ; Florence et Saint-Marin
+ * n'ont pas de côte, et celle de Livourne n'est pas celle de Florence.
  */
-describe('le drapeau côtier de l’index', () => {
-  const grid = decodeGrid(gridAsset, projection);
-  const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
-  const coastal = new Set(indexAsset.coastal);
-  const ids = Object.keys(indexAsset.point);
+describe('le quai sur la côte de sa région', () => {
+  const coast = decodeCoast(coastAsset as CoastAsset, projection);
+  const coastal = indexAsset.coastal;
   const sample = [
-    ...['SGP-4871', 'HKG-5153', 'IRL-5575', 'GBR-2023', 'NOR-921', 'MLT-5949', 'SMR-4884'],
-    ...['ITA-5441', 'EGY-1533', 'AZE-1689', 'RUS-2417', 'FRA-5333', 'DEU-1578', 'CHE-3426'],
-    ...ids.filter((_, rank) => rank % 60 === 0),
+    ...['MLT-5949', 'MLT-5950', 'SGP-4871', 'HKG-5153', 'BMU-5137', 'IRL-5575', 'NOR-921'],
+    ...['ITA-5417', 'USA-3542', 'JPN-1860'],
+    ...coastal.filter((_, rank) => rank % 40 === 0),
   ];
-  const OFFSETS = [-0.49, -0.245, 0, 0.245, 0.49];
 
-  const acceptsAQuay = (id: string): boolean => {
-    const facts = regionFacts(id)!;
-    const near = new Set<number>();
-    const add = (cell: number, reach: number) => {
-      const [column, row] = [cell % raster.width, Math.floor(cell / raster.width)];
-      for (let dy = -reach; dy <= reach; dy++)
-        for (let dx = -reach; dx <= reach; dx++) {
-          const r = row + dy;
-          if (r >= 0 && r < raster.height)
-            near.add(r * raster.width + ((column + dx + raster.width) % raster.width));
-        }
-    };
-    for (const cell of cellsOfRegion(raster, id)) add(cell, 2);
-    add(cellAt(raster, facts.point), 6);
-    for (const cell of near) {
-      const [cx, cy] = [
-        raster.sphere.minX + ((cell % raster.width) + 0.5) * raster.step,
-        raster.sphere.minY + (Math.floor(cell / raster.width) + 0.5) * raster.step,
-      ];
-      for (const dx of OFFSETS)
-        for (const dy of OFFSETS) {
-          const lonLat = lonLatAtProjected(raster.outline, raster.sphere, [
-            cx + dx * raster.step,
-            cy + dy * raster.step,
-          ]);
-          if (coastAtPoint(lonLat) && pointInRegion(lonLat, facts)) return true;
-        }
-    }
-    return false;
-  };
+  it('accepte un quai à moins de 2 km de la côte de la région', () => {
+    const refused = sample.filter((id) => {
+      const shore = nearestCoast(coast, regionFacts(id)!.point, 20_000, id)!.lonLat;
+      const nearby: LonLat = [shore[0], shore[1] + 1.5 / 111];
+      return !isOnRegionCoast(shore, id) || !isOnRegionCoast(nearby, id);
+    });
+    expect(refused).toEqual([]);
+  });
 
-  it('concorde avec le serveur sur un échantillon de régions', () => {
-    expect(grid.width).toBe(raster.width);
-    expect(sample.filter((id) => acceptsAQuay(id) !== coastal.has(id))).toEqual([]);
+  it('refuse un quai dans l’intérieur, et sur la côte d’une autre région', () => {
+    for (const inland of ['ITA-5386', 'SMR-4884'])
+      expect(isOnRegionCoast(regionFacts(inland)!.point, inland), inland).toBe(false);
+    const livorno = nearestCoast(coast, regionFacts('ITA-5380')!.point, 60, 'ITA-5380')!.lonLat;
+    expect(isOnRegionCoast(livorno, 'ITA-5380')).toBe(true);
+    expect(isOnRegionCoast(livorno, 'ITA-5386')).toBe(false);
   });
 });

@@ -855,14 +855,11 @@ export const isLandCell = (grid: RouteGrid, lonLat: LonLat): boolean =>
 
 /**
  * **A coast, as the routing knows one** — a land cell touching the open sea (`openWaterOf`), and
- * nothing else: the shore of a lake or of the Caspian is no quay, a hull could not leave it. A canal
- * counts as that water: Colón, Balboa, Port-Saïd and Suez are ports, and a hull sails from them
- * on this very grid. It is the only definition that can hold: a port is put up so that a ship leaves from it, and what a
- * ship knows of geography is this grid. A coastline read off another source would say "coastal"
- * where Dijkstra finds no water, and the first cargo formed there would leave by road.
- *
- * Both ends read it — the client magnets its ghost onto it, the server refuses whatever is not
- * on it. One function, so never two answers to one click.
+ * nothing else: the shore of a lake or of the Caspian is no beach, a hull could not leave it. A
+ * canal counts as that water: a hull sails from Colón, Balboa, Port-Saïd and Suez on this very
+ * grid. What a hull asks of a shore — to leave it, to land on it — is asked here, by the fan and
+ * by the server alike. A port is not: it goes up on the atlas's open-sea coast
+ * (`src/domain/coast.ts`, #221), which the 25 km mesh cannot draw around Malta.
  */
 export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
   const cell = projectOnGrid(grid, lonLat);
@@ -875,25 +872,36 @@ export function isCoastCell(grid: RouteGrid, lonLat: LonLat): boolean {
 }
 
 /**
+ * **Where a hull bound for a quay ties up** (#221): the quay itself when it is open water or a
+ * shore the grid's open water touches (a lake cell is neither: no route enters it), or else the
+ * nearest open-water cell — the very snap a ship's ends take (`nearestCell`). A port stands on the
+ * atlas's coast, which the 25 km mesh fills in an estuary or a fjord: Hamburg moors at the mouth
+ * of the Elbe. `null` when no open water lies within reach.
+ */
+export function mooringOf(grid: RouteGrid, quay: LonLat): LonLat | null {
+  const at = projectOnGrid(grid, quay);
+  if (isCoastCell(grid, quay) || openWaterOf(grid)[at] === 1) return quay;
+  const cell = nearestCell(grid, at, 'naval');
+  return cell === null ? null : unprojectCell(grid, cell);
+}
+
+/**
  * **Every coast cell of a projected box**, which is a region's box and never a region: the grid
  * knows nothing of admin-1 shapes and does not have to learn them for this. The caller is the
  * one that says which of these cells fall inside its polygons; plunder crossings use their own
  * cached contour reader.
- *
- * The projected coordinate travels beside the lon/lat because the magnet compares distances on
- * the board: reprojecting every candidate on every frame would cost the hover.
  */
 export function coastCellsIn(
   grid: RouteGrid,
   box: readonly [minX: number, minY: number, maxX: number, maxY: number],
-): ReadonlyArray<{ readonly x: number; readonly y: number; readonly lonLat: LonLat }> {
+): ReadonlyArray<LonLat> {
   const [minX, minY, maxX, maxY] = box;
   const firstColumn = Math.max(0, Math.floor((minX - grid.sphere.minX) / grid.step - 0.5));
   const lastColumn = Math.min(grid.width - 1, Math.ceil((maxX - grid.sphere.minX) / grid.step));
   const firstRow = Math.max(0, Math.floor((minY - grid.sphere.minY) / grid.step - 0.5));
   const lastRow = Math.min(grid.height - 1, Math.ceil((maxY - grid.sphere.minY) / grid.step));
 
-  const found: Array<{ x: number; y: number; lonLat: LonLat }> = [];
+  const found: LonLat[] = [];
   const open = openWaterOf(grid);
   const around: number[] = [];
   for (let row = firstRow; row <= lastRow; row++) {
@@ -904,11 +912,7 @@ export function coastCellsIn(
       let touchesSea = false;
       for (let i = 0; i < count && !touchesSea; i++) touchesSea = open[around[i]!] === 1;
       if (!touchesSea) continue;
-      found.push({
-        x: grid.sphere.minX + (column + 0.5) * grid.step,
-        y: grid.sphere.minY + (row + 0.5) * grid.step,
-        lonLat: unprojectCell(grid, cell),
-      });
+      found.push(unprojectCell(grid, cell));
     }
   }
   return found;

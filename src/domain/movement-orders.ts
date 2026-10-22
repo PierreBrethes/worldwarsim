@@ -709,6 +709,11 @@ const onLake = (aim: MovementAim): boolean => groundOf(aim) === 'lake';
 const pointOfAim = (aim: MovementAim): readonly [number, number] | null =>
   'lon' in aim ? [aim.lon, aim.lat] : null;
 
+/** **Un port ami est un quai** : une coque y entre, et s'amarre où l'eau ouverte l'atteint
+ *  (`mooringOf`, #221). */
+export const isQuay = (aim: MovementAim): boolean =>
+  aim.kind === 'building' && aim.key === PROJECTION_BY_DOMAIN.sea;
+
 const shore = (aim: MovementAim): boolean => {
   switch (aim.kind) {
     case 'point':
@@ -717,7 +722,7 @@ const shore = (aim: MovementAim): boolean => {
     case 'outpost':
       return aim.coastal;
     case 'building':
-      return aim.key === PROJECTION_BY_DOMAIN.sea;
+      return isQuay(aim);
     default:
       return false;
   }

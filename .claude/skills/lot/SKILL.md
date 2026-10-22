@@ -29,6 +29,9 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
 - **L'UX de la règle, des deux côtés** : comment le joueur la voit et la vit, qu'il agisse ou
   qu'il subisse (carte, fiche au survol, refus dit avant le geste, dépêches). Chaque puce de
   **Ce que le joueur voit** est obligatoire.
+- **Un bug** : le correctif suit sa reproduction. Un test ou le banc passe au rouge sur le
+  défaut avant la première ligne de correction. Sans rouge, rapporte la cause « à vérifier »
+  et ne corrige rien.
 - **Mondiale seule** sauf mention contraire : la Blitz garde ses règles (`modeOf`).
 - **Code mort** : ce que le lot rend inutile se retire partout (constantes, refus, textes,
   tests, docs), dans un commit séparé.

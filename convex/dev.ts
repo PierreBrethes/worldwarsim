@@ -822,6 +822,39 @@ export const neighbourScene = internalMutation({
 });
 
 /**
+ * **La scène des quais** (#221), pour la démo : trois avant-postes français, à La Valette, à
+ * Singapour et à Florence, d'où viser un port sur une île, sur une côte qui borde un voisin, et
+ * dans l'intérieur.
+ *
+ * `npx convex run dev:quaysScene '{"playerId":"…"}'`
+ */
+export const quaysScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const places = [
+      { lon: 14.45, lat: 35.9, hostCountry: 'MLT' },
+      { lon: 103.82, lat: 1.35, hostCountry: 'SGP' },
+      { lon: 11.25, lat: 43.77, hostCountry: 'ITA' },
+    ];
+    for (const { lon, lat, hostCountry } of places)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 3,
+        specialization: 'relay',
+        foundedAt: Date.now() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    await recordLinkage(ctx, player.seasonId);
+  },
+});
+
+/**
  * **La scène du navire** (#129), pour la démo : un port à Marseille, un cargo à quai, un avant-poste
  * côtier à Agde. Le cargo est de la démo, le départ et l'arrivée le long du quai se jouent à l'écran.
  *

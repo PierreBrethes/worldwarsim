@@ -351,6 +351,11 @@ export class RegionLayer {
     return this.atlas.regionAt([projectedX, projectedY], this.detail);
   }
 
+  identityOf(regionId: string): RegionIdentity | null {
+    if (this.types === null) return null;
+    return this.atlas.regions.find((region) => region.id === regionId) ?? null;
+  }
+
   hover(projectedX: number, projectedY: number): HoveredRegion | null {
     const region = this.regionAt(projectedX, projectedY);
     this.changeHighlight(region);

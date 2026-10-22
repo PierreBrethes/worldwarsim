@@ -45,7 +45,9 @@ const esbuild = requireDepuisConvex('esbuild');
 const BUDGET_MIO = 10;
 
 /**
- * **Les assets de géométrie que le serveur ne lit plus** (ADR 0023, 0034). L'espion est un grep et il suffit :
+ * **Les assets de géométrie que le serveur ne lit plus** (ADR 0023, 0034). La côte de mer ouverte
+ * (`public/coast.json`, #221) n'en est pas : c'est la seule géométrie de l'atlas qu'il garde.
+ * L'espion est un grep et il suffit :
  * la seule façon de repasser au-dessus du budget est de réimporter l'un d'eux, et une lecture de
  * polygone qui reviendrait côté serveur serait une frontière de plus que le raster.
  */
@@ -85,6 +87,13 @@ const ETAPES = [
              const toutes = allRegions();
              const pays = [...new Set(toutes.map((region) => region.country))];
              export const retenu = { toutes, pays: pays.map((code) => regionsOf(code)) };`,
+  },
+  {
+    titre: '6. + decodeCoast(coast.json)',
+    source: `import { decodeCoast } from ${abs('src/domain/coast.ts')};
+             import coastAsset from ${abs('public/coast.json')};
+             import projection from ${abs('public/projection.json')};
+             export const retenu = decodeCoast(coastAsset, projection);`,
   },
 ];
 

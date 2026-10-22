@@ -210,7 +210,7 @@ function regionNear(raster: RegionRaster, lonLat: LonLat, regionId: string, ring
  * takes 4597 region poles out of 4600), and for the regions the raster misses at that ring, the
  * region's own point within `REGION_POINT_SLACK_KM`. A region claimed hundreds of kilometres away
  * — to colour it, or to hide from a survey — is refused. The server reads it before a building
- * (`convex/routes.ts`), the region index before saying a region is coastal.
+ * (`convex/routes.ts`).
  */
 const REGION_RING = 2;
 const REGION_POINT_SLACK_KM = 60;

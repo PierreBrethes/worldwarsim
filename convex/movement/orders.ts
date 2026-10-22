@@ -13,6 +13,7 @@ import type { LonLat } from '../../src/domain/geo';
 import {
   captureOrderRefusalOf,
   isPlunderTarget,
+  isQuay,
   plunderOrderRefusalOf,
   maritimeCount,
   slotsAskedBy,
@@ -864,6 +865,7 @@ export async function march(
     aim.point,
     routeModeOf(column.roles),
     landCostOf(column.roles),
+    isQuay(aim.aim),
   );
   if (route === null) fail('NO_LAND_ROUTE', { from: departure.name, to: aim.name });
 

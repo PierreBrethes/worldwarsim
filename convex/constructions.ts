@@ -29,6 +29,7 @@ import {
   cappedByHq,
   levelOf,
   playerBuildings,
+  queueOf,
   samePoint,
   seasonBuildings,
 } from './buildingReads';
@@ -42,7 +43,8 @@ import {
   nominalStrength,
   settlesDebt,
 } from './constants';
-import { coastAtPoint, pointInRegion } from './routes';
+import { pointInRegion } from './routes';
+import { isOnRegionCoast } from './coast';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, isReached, sitesOf } from './sites';
@@ -623,9 +625,15 @@ async function refusalFor(
   /**
    * **The point lies in the region named with it** (`pointInRegion`): the region carries the
    * colour and the surveys, so a twisted client must not pick it. A raise is not asked: its
-   * point was checked once.
+   * point was checked once. For a port, the region's own open-sea coast is in it too: a quay on a
+   * small island (Lampedusa, Key West) sits where the 25 km raster has no land. Any other
+   * building on such an islet is #224's.
    */
-  if (standing === undefined && !pointInRegion(lonLat, region)) {
+  if (
+    standing === undefined &&
+    !pointInRegion(lonLat, region) &&
+    !(building === 'port' && isOnRegionCoast(lonLat, regionId))
+  ) {
     return { code: 'POINT_OUTSIDE_REGION', details: { regionId } };
   }
 
@@ -668,7 +676,7 @@ async function refusalFor(
     const lockedBy = buildingLockOf(building, player.researched ?? []);
     const refusal = placementRefusal(
       building,
-      await spotAt(ctx, player, building, lonLat, reached, buildings, pledged),
+      await spotAt(ctx, player, building, lonLat, regionId, reached, buildings, pledged),
       hqLevel,
       lockedBy,
     );
@@ -734,6 +742,7 @@ async function spotAt(
   player: Doc<'players'>,
   key: BuildingKey,
   lonLat: LonLat,
+  regionId: string,
   reached: boolean,
   buildings: ReadonlyArray<Doc<'buildings'>>,
   pledged: ReadonlyArray<Doc<'constructions'>>,
@@ -763,7 +772,7 @@ async function spotAt(
             key: deposit.deposit,
             taken: known.some((held) => exploitsAt(held.key, held.lonLat, deposit)),
           },
-    coastal: coastAtPoint(lonLat),
+    coastal: key === 'port' && isOnRegionCoast(lonLat, regionId),
     nearest: nearestBuilding(lonLat, aroundOf(buildings, pledged)),
     already:
       buildings.some((held) => held.key === key && held.capturedAt === undefined) ||
@@ -867,16 +876,4 @@ function placementRefusalOf(
         },
       };
   }
-}
-
-/** Everything a player has pledged to build, head first. */
-export async function queueOf(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-): Promise<Array<Doc<'constructions'>>> {
-  const entries = await ctx.db
-    .query('constructions')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
-  return entries.sort((a, b) => a.rank - b.rank);
 }

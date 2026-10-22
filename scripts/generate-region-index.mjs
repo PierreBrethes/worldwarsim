@@ -9,9 +9,8 @@
  * of `public/atlas.json` and `public/atlas-near.json`, so the index, the grids and the hover
  * agree on the same coast.
  *
- * **The coast is the server's own** (ADR 0034): a region is coastal when a quay is accepted for
- * it somewhere (`coastal` below). The sheet says « côtière » exactly where a port is accepted; a
- * lake shore, the Caspian's included, is neither.
+ * **The coast is the atlas's** (#221): a region is coastal when `generate-coast.mjs` baked it an
+ * open-sea coast, so run that one first. A lake shore, the Caspian's included, is none.
  *
  * **The point is a pole of inaccessibility, un-projected**: the largest shape of the region,
  * holes included, so that it stays inside the shape and outside its enclaves. It is what turns
@@ -31,24 +30,8 @@
 import isoCountries from 'i18n-iso-countries';
 import polylabel from 'polylabel';
 import { readFileSync, writeFileSync } from 'node:fs';
-import {
-  decodeGrid,
-  isCoastCell,
-  isLandCell,
-  lonLatAtProjected,
-  projectLonLat,
-} from '../src/domain/routing.ts';
-import { decodeRegionRaster, pointInRegion } from '../src/domain/region-raster.ts';
-import {
-  atlas,
-  DETAIL,
-  frame,
-  naturalEarth,
-  pairs,
-  regionGridAsset,
-  regionRaster,
-  STEP,
-} from './atlas-base.mjs';
+import { decodeGrid, isLandCell, lonLatAtProjected, projectLonLat } from '../src/domain/routing.ts';
+import { atlas, DETAIL, frame, naturalEarth, pairs, regionRaster, STEP } from './atlas-base.mjs';
 
 const rounded = (value) => Math.round(value * 1000) / 1000;
 
@@ -139,62 +122,11 @@ const pointless = Object.keys(country).filter((id) => !Number.isFinite(point[id]
 if (pointless.length > 0) throw new Error(`regions without a point: ${pointless.join(', ')}`);
 
 /**
- * **Coastal is what the server accepts**: a region is coastal when some point takes a quay for
- * it — `isCoastCell` there, and `pointInRegion` for the region, the two checks a port passes
- * (`convex/constructions.ts`). The points tried are a 5 × 5 lattice over each coast cell:
- * `isCoastCell` and the ring of `pointInRegion` answer per cell, only its 60 km slack around the
- * region's point moves within one, and the centres alone missed 56 regions it reaches.
+ * **Coastal is what the atlas says** (#221): a region is coastal when it has an open-sea coast in
+ * `public/coast.json`, the very file a port is measured against (`src/domain/coast.ts`). The
+ * sheet says « côtière » exactly where a port may go up.
  */
-const regionGrid = decodeRegionRaster(regionGridAsset(point).asset, frame);
-const anchoredAt = new Map();
-for (const [id, cell] of regionGrid.anchorOfRegion)
-  (anchoredAt.get(cell) ?? anchoredAt.set(cell, []).get(cell)).push(id);
-const pointsByLatitude = new Map();
-for (const [id, [, lat]] of Object.entries(point))
-  (
-    pointsByLatitude.get(Math.floor(lat)) ??
-    pointsByLatitude.set(Math.floor(lat), []).get(Math.floor(lat))
-  ).push(id);
-
-const nearRegions = (cell, lonLat) => {
-  const near = new Set();
-  const [column, row] = [cell % raster.width, Math.floor(cell / raster.width)];
-  for (let dy = -2; dy <= 2; dy++)
-    for (let dx = -2; dx <= 2; dx++) {
-      const r = row + dy;
-      if (r < 0 || r >= raster.height) continue;
-      const other = r * raster.width + ((column + dx + raster.width) % raster.width);
-      const code = regionGrid.regions[other];
-      if (code !== 0) near.add(regionGrid.ids[code - 1]);
-      for (const id of anchoredAt.get(other) ?? []) near.add(id);
-    }
-  for (let lat = Math.floor(lonLat[1]) - 1; lat <= Math.floor(lonLat[1]) + 1; lat++)
-    for (const id of pointsByLatitude.get(lat) ?? []) near.add(id);
-  return near;
-};
-
-const coastal = new Set();
-/** Where a quay is tried within a coast cell, in steps from its centre. */
-const OFFSETS = [-0.49, -0.245, 0, 0.245, 0.49];
-for (let cell = 0; cell < raster.width * raster.height; cell++) {
-  if (!isCoastCell(grid, lonLatOfCell(cell))) continue;
-  const [cx, cy] = centreOf(cell);
-  const samples = OFFSETS.flatMap((dx) =>
-    OFFSETS.map((dy) =>
-      lonLatAtProjected(frame.outline, frame.sphere, [cx + dx * STEP, cy + dy * STEP]),
-    ),
-  );
-  for (const id of nearRegions(cell, samples[12])) {
-    if (coastal.has(id)) continue;
-    const region = { id, point: point[id] };
-    if (
-      samples.some(
-        (lonLat) => isCoastCell(grid, lonLat) && pointInRegion(regionGrid, lonLat, region),
-      )
-    )
-      coastal.add(id);
-  }
-}
+const coastal = new Set(JSON.parse(readFileSync('public/coast.json', 'utf8')).ids);
 
 const output = {
   name,

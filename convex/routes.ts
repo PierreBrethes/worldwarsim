@@ -14,6 +14,7 @@ import {
   routeDistanceKmField,
   truncateRouteSearch,
   KM_PER_UNIT,
+  mooringOf,
 } from '../src/domain/routing';
 import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
@@ -57,14 +58,20 @@ let grid: ReturnType<typeof decodeGrid> | null = null;
  */
 export const GRID_STEP_KM = gridAsset.step * KM_PER_UNIT;
 
+/**
+ * `toQuay`: the destination is a port, and a hull bound for it moors where open water reaches
+ * (`mooringOf`) — the preview, the order and the way home read it alike (#221).
+ */
 export function routeBetween(
   from: LonLat,
   to: LonLat,
   mode: RouteMode,
   landCost?: number,
+  toQuay = false,
 ): ComputedRoute | null {
   grid ??= decodeGrid(gridAsset, projection);
-  return computeRoute(grid, from, to, mode, landCost);
+  const moored = toQuay && (mode === 'naval' || mode === 'combined') ? mooringOf(grid, to) : to;
+  return moored === null ? null : computeRoute(grid, from, moored, mode, landCost);
 }
 
 export function routeToRegions(
@@ -124,12 +131,10 @@ export function routeToRegions(
 }
 
 /**
- * **Is this a coast the routing can sail from?** The very grid a movement is computed on
- * answers, so a port accepted here is a port a cargo leaves from without a land leg. A port
- * refused here would have been a quay Dijkstra never found water beside.
- *
- * It is the client's own reading too (`isCoastCell`): the ghost snaps onto the cells this
- * returns true for, and the click that follows cannot be refused for the reason it was aimed at.
+ * **Is this a coast a hull can sail from?** The very grid a movement is computed on answers:
+ * the departure, the posting and the aim of a hull read it, and the fan reads the same function
+ * (`isCoastCell`). A port does not: it goes up on the atlas's open-sea coast (`convex/coast.ts`,
+ * #221).
  */
 export function coastAtPoint(point: LonLat): boolean {
   grid ??= decodeGrid(gridAsset, projection);
@@ -158,7 +163,7 @@ function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
   grid ??= decodeGrid(gridAsset, projection);
   const { minX, minY, maxX, maxY } = grid.sphere;
   const found = new Map<string, LonLat[]>();
-  for (const { lonLat } of coastCellsIn(grid, [minX, minY, maxX, maxY])) {
+  for (const lonLat of coastCellsIn(grid, [minX, minY, maxX, maxY])) {
     const regionId = regionAtRoutePoint(lonLat);
     if (regionId === null) continue;
     const list = found.get(regionId);

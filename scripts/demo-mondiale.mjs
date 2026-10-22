@@ -31,7 +31,8 @@
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
  * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
  * `--voisins` pose un avant-poste britannique en Hainaut, contre le Nord français : deux
- * contours côte à côte (#217).
+ * contours côte à côte (#217). `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * Singapour et à Florence : de quoi y viser un port (#221).
  *
  *     npm run demo:mondiale
  *
@@ -73,6 +74,8 @@ const navy = process.argv.includes('--navire');
 const logistics = tours || process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
+/** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
+const quays = process.argv.includes('--quais');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -318,6 +321,8 @@ if (!bare) {
   }
   if (neighbours && scene.b !== null)
     cli(['run', 'dev:neighbourScene', JSON.stringify({ playerId: scene.b })]);
+  if (quays && scene.a !== null)
+    cli(['run', 'dev:quaysScene', JSON.stringify({ playerId: scene.a })]);
   if (harvest)
     cli([
       'run',
