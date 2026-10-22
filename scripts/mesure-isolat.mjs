@@ -89,11 +89,15 @@ const ETAPES = [
              export const retenu = { toutes, pays: pays.map((code) => regionsOf(code)) };`,
   },
   {
-    titre: '6. + decodeCoast(coast.json)',
-    source: `import { decodeCoast } from ${abs('src/domain/coast.ts')};
+    titre: '6. + decodeCoast(coast.json) et son index',
+    source: `import { decodeCoast, groundOf } from ${abs('src/domain/coast.ts')};
+             import { decodeGrid } from ${abs('src/domain/routing.ts')};
              import coastAsset from ${abs('public/coast.json')};
+             import gridAsset from ${abs('public/grid.json')};
              import projection from ${abs('public/projection.json')};
-             export const retenu = decodeCoast(coastAsset, projection);`,
+             const coast = decodeCoast(coastAsset, projection);
+             groundOf(decodeGrid(gridAsset, projection), coast, [14.4, 35.9]);
+             export const retenu = coast;`,
   },
 ];
 

@@ -226,8 +226,107 @@ export const isLandingShore = (grid: RouteGrid, coast: Coast | null, lonLat: Lon
   isCoastCell(grid, lonLat) ||
   (isOpenWaterCell(grid, lonLat) && groundOf(grid, coast, lonLat) === 'land');
 
+/**
+ * **Ce qu'un point a autour de lui** (#224) : les segments de côte à moins de `reach` de chaque
+ * case de `BUCKET` unités, et les îles dont la boîte touche la case, rangés une fois à la
+ * première lecture. Sans lui, chaque lecture parcourait les 1 830 côtes et les 906 îles : 60 à
+ * 95 µs en mer, 13 sur la terre, payés quatre fois par troupe dans la vue.
+ */
+type ShoreIndex = {
+  readonly columns: number;
+  readonly rows: number;
+  /** `[ax, ay, bx, by]` per segment, and the region it is the coast of. */
+  readonly segments: Float32Array;
+  readonly segmentRegion: ReadonlyArray<string>;
+  readonly segmentStart: Int32Array;
+  readonly segmentRefs: Int32Array;
+  readonly islands: ReadonlyArray<readonly [string, RegionLines]>;
+  readonly islandStart: Int32Array;
+  readonly islandRefs: Int32Array;
+};
+
+/** Half a unit: a few dozen segments a case on a busy coast. */
+const BUCKET = 0.5;
+const indexes = new WeakMap<Coast, Map<number, ShoreIndex>>();
+
+function indexOf(coast: Coast, reach: number): ShoreIndex {
+  const known = indexes.get(coast) ?? indexes.set(coast, new Map()).get(coast)!;
+  const cached = known.get(reach);
+  if (cached !== undefined) return cached;
+  const { sphere } = coast.projection;
+  const columns = Math.ceil((sphere.maxX - sphere.minX) / BUCKET);
+  const rows = Math.ceil((sphere.maxY - sphere.minY) / BUCKET);
+  const caseOf = (x: number, y: number): readonly [number, number] => [
+    Math.min(columns - 1, Math.max(0, Math.floor((x - sphere.minX) / BUCKET))),
+    Math.min(rows - 1, Math.max(0, Math.floor((y - sphere.minY) / BUCKET))),
+  ];
+  /** Counting sort into `start`/`refs`: each item lands in every case its box covers. */
+  const bucket = (boxes: Float64Array, count: number, grow: number) => {
+    const counts = new Int32Array(columns * rows + 1);
+    const each = (k: number, visit: (cell: number) => void) => {
+      const [c0, r0] = caseOf(boxes[4 * k]! - grow, boxes[4 * k + 1]! - grow);
+      const [c1, r1] = caseOf(boxes[4 * k + 2]! + grow, boxes[4 * k + 3]! + grow);
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) visit(r * columns + c);
+    };
+    for (let k = 0; k < count; k++) each(k, (cell) => counts[cell + 1]!++);
+    for (let cell = 0; cell < columns * rows; cell++) counts[cell + 1]! += counts[cell]!;
+    const refs = new Int32Array(counts[columns * rows]!);
+    const fill = counts.slice();
+    for (let k = 0; k < count; k++) each(k, (cell) => (refs[fill[cell]!++] = k));
+    return { start: counts, refs };
+  };
+
+  const flat: number[] = [];
+  const segmentRegion: string[] = [];
+  for (const [id, { lines }] of coast.coastOf)
+    for (const line of lines)
+      for (let i = 0; i + 3 < line.length; i += 2) {
+        flat.push(line[i]!, line[i + 1]!, line[i + 2]!, line[i + 3]!);
+        segmentRegion.push(id);
+      }
+  const segments = Float32Array.from(flat);
+  const boxes = new Float64Array(segments.length);
+  for (let k = 0; k < segments.length; k += 4) {
+    boxes[k] = Math.min(segments[k]!, segments[k + 2]!);
+    boxes[k + 1] = Math.min(segments[k + 1]!, segments[k + 3]!);
+    boxes[k + 2] = Math.max(segments[k]!, segments[k + 2]!);
+    boxes[k + 3] = Math.max(segments[k + 1]!, segments[k + 3]!);
+  }
+  const shores = bucket(boxes, segmentRegion.length, reach);
+  const islands = [...coast.islandOf];
+  const islandBoxes = new Float64Array(islands.length * 4);
+  islands.forEach(([, { box }], k) => islandBoxes.set(box, 4 * k));
+  const isles = bucket(islandBoxes, islands.length, 0);
+  const index: ShoreIndex = {
+    columns,
+    rows,
+    segments,
+    segmentRegion,
+    segmentStart: shores.start,
+    segmentRefs: shores.refs,
+    islands,
+    islandStart: isles.start,
+    islandRefs: isles.refs,
+  };
+  known.set(reach, index);
+  return index;
+}
+
+function caseAt(coast: Coast, index: ShoreIndex, x: number, y: number): number | null {
+  const { sphere } = coast.projection;
+  const column = Math.floor((x - sphere.minX) / BUCKET);
+  const row = Math.floor((y - sphere.minY) / BUCKET);
+  return column < 0 || row < 0 || column >= index.columns || row >= index.rows
+    ? null
+    : row * index.columns + column;
+}
+
 function islandAt(coast: Coast, x: number, y: number): string | null {
-  for (const [id, { box, lines }] of coast.islandOf) {
+  const index = indexOf(coast, 0);
+  const at = caseAt(coast, index, x, y);
+  if (at === null) return null;
+  for (let ref = index.islandStart[at]!; ref < index.islandStart[at + 1]!; ref++) {
+    const [id, { box, lines }] = index.islands[index.islandRefs[ref]!]!;
     if (x < box[0]! || x > box[2]! || y < box[1]! || y > box[3]!) continue;
     let inside = false;
     for (const ring of lines) {
@@ -255,27 +354,32 @@ function shoreAt(
   step: number,
 ): { readonly land: boolean; readonly regionId: string } | null {
   const reach = step * Math.SQRT1_2;
+  const index = indexOf(coast, reach);
+  const at = caseAt(coast, index, x, y);
+  if (at === null) return null;
+  const { segments } = index;
   let best = reach * reach;
   let side = 0;
   let found: string | null = null;
-  for (const [id, { box, lines }] of coast.coastOf) {
-    if (x < box[0]! - reach || x > box[2]! + reach || y < box[1]! - reach || y > box[3]! + reach)
-      continue;
-    for (const line of lines) {
-      for (let i = 0; i + 3 < line.length; i += 2) {
-        const [ax, ay, bx, by] = [line[i]!, line[i + 1]!, line[i + 2]!, line[i + 3]!];
-        const [dx, dy] = [bx - ax, by - ay];
-        const length = dx * dx + dy * dy;
-        if (length === 0) continue;
-        const t = ((x - ax) * dx + (y - ay) * dy) / length;
-        const [nx, ny] = t <= 0 ? [ax, ay] : t >= 1 ? [bx, by] : [ax + t * dx, ay + t * dy];
-        const squared = (x - nx) ** 2 + (y - ny) ** 2;
-        if (squared > best) continue;
-        const across = (dx * (y - ay) - dy * (x - ax)) / Math.sqrt(length);
-        if (squared < best || found === null) [best, side, found] = [squared, across, id];
-        else side += across;
-      }
-    }
+  for (let ref = index.segmentStart[at]!; ref < index.segmentStart[at + 1]!; ref++) {
+    const k = index.segmentRefs[ref]!;
+    const [ax, ay, bx, by] = [
+      segments[4 * k]!,
+      segments[4 * k + 1]!,
+      segments[4 * k + 2]!,
+      segments[4 * k + 3]!,
+    ];
+    const [dx, dy] = [bx - ax, by - ay];
+    const length = dx * dx + dy * dy;
+    if (length === 0) continue;
+    const t = ((x - ax) * dx + (y - ay) * dy) / length;
+    const [nx, ny] = t <= 0 ? [ax, ay] : t >= 1 ? [bx, by] : [ax + t * dx, ay + t * dy];
+    const squared = (x - nx) ** 2 + (y - ny) ** 2;
+    if (squared > best) continue;
+    const across = (dx * (y - ay) - dy * (x - ax)) / Math.sqrt(length);
+    if (squared < best || found === null)
+      [best, side, found] = [squared, across, index.segmentRegion[k]!];
+    else side += across;
   }
   return found === null ? null : { land: side > 0, regionId: found };
 }
