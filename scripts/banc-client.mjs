@@ -1009,11 +1009,11 @@ async function play(profileName, pass) {
     await close();
     await page.waitForTimeout(800);
   }
-  // Le plateau tiré par un geste d'avant peut être déjà déplié : on ne le déplie qu'au besoin.
-  if (!(await page.getByText('Port', { exact: true }).first().isVisible()))
-    await (phone
-      ? tap(button(/déplier le plateau personnel/))
-      : button(/^Plateau personnel$/).click());
+  // Au téléphone, le plateau tiré par un geste d'avant peut être déjà déplié : on ne le déplie
+  // qu'au besoin. Au bureau, il est replié et sa tuile est dans le DOM, cachée : on le déplie.
+  if (!phone) await button(/^Plateau personnel$/).click();
+  else if (!(await page.getByText('Port', { exact: true }).first().isVisible()))
+    await tap(button(/déplier le plateau personnel/));
   await page.waitForTimeout(800);
   await gesture(
     'prendre un port',
