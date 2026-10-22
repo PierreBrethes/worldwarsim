@@ -90,6 +90,8 @@ const pinsAt = process.argv.indexOf('--epingles');
 const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
 /** `--lisbonne` : Lisbonne tenue par la France, qui lit la nation de ses relevés (P11). */
 const lisbon = process.argv.includes('--lisbonne');
+/** `--passagers` : un camion chargé de deux fantassins en Beauce, un autre vide (#238). */
+const passengers = process.argv.includes('--passagers');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -173,6 +175,15 @@ if (!bare) {
         lat: at[nation][1],
       }),
     ]);
+  }
+  if (passengers && scene.a !== null) {
+    const spawn = (args) =>
+      cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);
+    const [truck] = JSON.parse(
+      spawn({ role: 'landTransport', count: 1, lon: 1.6, lat: 48.2 }).match(/\[[^\]]*\]/)[0],
+    );
+    spawn({ role: 'infantry', count: 2, lon: 1.6, lat: 48.2, carriedBy: truck });
+    spawn({ role: 'landTransport', count: 1, lon: 3.4, lat: 47.6 });
   }
   /** Hors de tout ancrage : rien ne les recharge, elles vivent sur ce qu'elles portent. */
   if (steps && scene.a !== null)

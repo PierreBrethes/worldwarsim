@@ -943,11 +943,37 @@
     transform: rotate(1.5deg);
   }
 }
+/* At rest a loaded transport wears a small sign, not its sheet (#238): the sheet opens under the
+   pointer, under a finger, while selected, and under a drag that aims at it. */
+.cargo-tag-sign {
+  pointer-events: none;
+  min-width: 16px;
+  padding: 2px 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 10.5px/1 var(--font-mono);
+  text-align: center;
+  border: 1px solid var(--ink);
+}
+.cargo-tag-body {
+  display: none;
+}
+.cargo-tag--open .cargo-tag-body,
+.cargo-tag--selected .cargo-tag-body,
+.label-anchor--hovered .cargo-tag-body,
+.label--pointed .cargo-tag-body {
+  display: grid;
+}
+.cargo-tag--open .cargo-tag-sign,
+.cargo-tag--selected .cargo-tag-sign,
+.label-anchor--hovered .cargo-tag-sign,
+.label--pointed .cargo-tag-sign {
+  display: none;
+}
 .cargo-tag-body {
   position: relative;
   /* Only the paper takes the pointer: its string and the air round it are the board's. */
   pointer-events: auto;
-  display: grid;
   gap: 5px;
   min-width: 96px;
   padding: 6px 8px 7px 16px;

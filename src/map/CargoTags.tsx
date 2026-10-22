@@ -22,9 +22,9 @@ const slotWidth = (seats: number): number => 26 * seats + 4 * (seats - 1);
 
 /**
  * **A transport's tag** (POC « Manipuler les pions », `.tag`), hung over the pile by a string:
- * who rides, each on the seats it takes, the free seats, and the way out. It hangs while someone
- * rides, while the piece in hand could board, and under the pointer; under the hand it opens and
- * says in ochre the seats the drop would take — in red the ones missing. A rider is pulled out of
+ * who rides, each on the seats it takes, the free seats, and the way out. At rest it is only a
+ * small sign with the passenger count (#238); the sheet opens under the pointer or a finger
+ * (`labels.css`), while the transport is selected, and under the hand: it then says in ochre the seats the drop would take — in red the ones missing. A rider is pulled out of
  * the tag — or clicked — and steps down at its transport's feet. Where nobody can step down, the
  * tag says why (ADR 0015).
  */
@@ -34,6 +34,7 @@ export function CargoTags({
   onDisembark,
   aim = null,
   available = false,
+  selected = false,
   onTour,
 }: {
   /** **La tournée depuis l'étiquette** (ADR 0028) : la lancer ou l'effacer une fois tracée, la
@@ -44,6 +45,8 @@ export function CargoTags({
   onDisembark: (troopIds: ReadonlyArray<string>) => void;
   aim?: CargoAim | null;
   available?: boolean;
+  /** The transport's label is selected: its sheet stays open (hover and touch are CSS). */
+  selected?: boolean;
 }) {
   const [pulled, setPulled] = useState<{ id: string; x: number; y: number } | null>(null);
   /** Riders already on the tag: only one who climbs aboard under the eyes is stamped in. */
@@ -103,17 +106,26 @@ export function CargoTags({
     <div className="cargo-tags" onPointerDown={keep} onClick={keep} onContextMenu={keep}>
       {tags.map((tag) => {
         const free = tag.refusal === null;
-        const open = aim?.carrierId === tag.carrierId;
+        const aimed = aim?.carrierId === tag.carrierId;
+        const open = aimed;
         const empty = Math.max(0, tag.seats - tag.used);
-        const want = open ? aim.need : 0;
+        const want = aimed ? aim.need : 0;
         const loaded = loadTotal(tag.load) > 0;
         const shown = tag.riders.length > 0 || loaded || tag.tour !== null || available || open;
         return (
           <div
             key={tag.carrierId}
             data-carrier-id={tag.carrierId}
-            className={`cargo-tag${shown ? '' : ' cargo-tag--idle'}${open ? ' cargo-tag--open' : ''}`}
+            className={`cargo-tag${shown ? '' : ' cargo-tag--idle'}${open ? ' cargo-tag--open' : ''}${selected ? ' cargo-tag--selected' : ''}`}
           >
+            {tag.riders.length > 0 && (
+              <span
+                className="cargo-tag-sign float paper-grain"
+                title={fr.cargo.aboard(tag.riders.length)}
+              >
+                {tag.riders.length}
+              </span>
+            )}
             <div className="cargo-tag-body float paper-grain">
               <div className="cargo-tag-head">
                 <b>{roleLabel(tag.role, 1)}</b>
@@ -201,7 +213,7 @@ export function CargoTags({
                     className={`cargo-slot${k < want ? (aim?.fits === true ? ' cargo-slot--ghost' : ' cargo-slot--over') : ''}`}
                   />
                 ))}
-                {open && want > empty && (
+                {aimed && want > empty && (
                   <span className="cargo-slot cargo-slot--over cargo-slot--more">
                     +{want - empty}
                   </span>

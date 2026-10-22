@@ -1316,6 +1316,7 @@ const LabelNode = memo(function LabelNode({
               onDisembark={onDisembark}
               aim={cargoAim}
               available={available}
+              selected={selected}
               onTour={onTour}
             />
           )}

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapLabel } from '@/domain/labels';
 import { CLASSIC_MAPPING } from '@/domain/mouse-mapping';
 import { Pictogram } from '@/shell/IndicatorGlyph';
+import type { CargoTag } from '@/domain/cargo-tag';
+import type { CargoAim } from './CargoTags';
 import { MapLabels } from './MapLabels';
 
 vi.mock('@/shell/IndicatorGlyph', () => ({ Pictogram: vi.fn(() => null) }));
@@ -135,5 +138,91 @@ describe('MapLabels', () => {
     fireEvent.contextMenu(screen.getByText('Lille'), { button: 2 });
     expect(onAct).toHaveBeenCalledTimes(1);
     expect(onCancelHeld).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * **Les passagers d'un transport, au survol seulement** (#238) : au repos un petit signe dit leur
+ * nombre ; la fiche (planches, « tout débarquer ») s'ouvre au survol, à la sélection, au toucher
+ * (`label--pointed`) et sous un glisser qui la vise. Les règles sont celles de `labels.css`,
+ * chargées ici : jsdom les applique.
+ */
+describe('a loaded transport', () => {
+  const tag = (): CargoTag => ({
+    carrierId: 'truck',
+    role: 'landTransport',
+    seats: 4,
+    used: 1,
+    riders: [{ id: 'rider', role: 'infantry', tier: 1, seats: 1 }],
+    refusal: null,
+    load: { ammunition: 0, oil: 0, coal: 0 },
+    loadCapacity: 0,
+    tour: null,
+  });
+  const loaded = { ...outpost('truck', 'Camion'), cargo: [tag()] } as MapLabel;
+  const draw = (selected: string | null = null, cargoAim: CargoAim | null = null) => (
+    <MapLabels
+      labels={[loaded]}
+      engine={null}
+      selected={selected}
+      secondarySelected={null}
+      onMovementHover={noop}
+      onReachHover={noop}
+      poster={() => null}
+      onSelect={noop}
+      onOpenBuilding={noop}
+      onOpenStack={noop}
+      onOpenLoot={noop}
+      onOpenCamp={noop}
+      onOpenObjective={noop}
+      onOpenStrategic={noop}
+      onAct={noop}
+      onCancelHeld={noop}
+      mapping={CLASSIC_MAPPING}
+      holding={false}
+      onHoldOver={noop}
+      muted={false}
+      onDisembark={noop}
+      cargoAim={cargoAim}
+    />
+  );
+  const shown = (selector: string) =>
+    getComputedStyle(document.querySelector(selector)!).display !== 'none';
+
+  beforeEach(() => {
+    const style = document.createElement('style');
+    style.textContent = readFileSync('src/styles/labels.css', 'utf8');
+    document.head.append(style);
+  });
+  afterEach(() => document.head.querySelector('style')?.remove());
+
+  it('shows a small sign with the passenger count at rest, not the sheet', () => {
+    render(draw());
+    expect(document.querySelector('.cargo-tag-sign')?.textContent).toBe('1');
+    expect(shown('.cargo-tag-sign')).toBe(true);
+    expect(shown('.cargo-tag-body')).toBe(false);
+  });
+
+  it('opens the sheet under the pointer', () => {
+    render(draw());
+    document.querySelector('.label-anchor')!.classList.add('label-anchor--hovered');
+    expect(shown('.cargo-tag-body')).toBe(true);
+    expect(shown('.cargo-tag-sign')).toBe(false);
+  });
+
+  it('opens the sheet under a finger', () => {
+    render(draw());
+    document.querySelector('.label')!.classList.add('label--pointed');
+    expect(shown('.cargo-tag-body')).toBe(true);
+  });
+
+  it('opens the sheet once the transport is selected', () => {
+    render(draw('truck'));
+    expect(shown('.cargo-tag-body')).toBe(true);
+  });
+
+  it('opens the sheet under a drag that aims at it, to say the seats left', () => {
+    render(draw(null, { labelId: 'truck', carrierId: 'truck', need: 1, fits: true }));
+    expect(shown('.cargo-tag-body')).toBe(true);
   });
 });

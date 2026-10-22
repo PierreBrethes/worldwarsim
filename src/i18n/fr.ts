@@ -4273,6 +4273,7 @@ export const fr = {
   /** **L'étiquette d'un transport chargé** (POC « Manipuler les pions », 16/10). */
   cargo: {
     seats: (used: number, seats: number) => `${used}/${seats}`,
+    aboard: (count: number) => `${count} à bord`,
     pull: (role: string) => `${role} — tirer ou cliquer pour débarquer`,
     all: 'tout débarquer',
     release: 'débarquer',
