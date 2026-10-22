@@ -59,8 +59,9 @@ const DRAG_THRESHOLD_PX = 5;
 /** The air left between the band and what rises over it. */
 const MAT_GAP_PX = 8;
 
-/** The unfolded band's height at the desk: room for a site's troop cards and their refusals. */
-const BAND_HEIGHT = '170px';
+/** The unfolded band's height at the desk: 170px when a site is open, for its troop cards and
+ *  their refusals; the 156px it always had otherwise. */
+const BAND_HEIGHT = { site: '170px', rest: '156px' } as const;
 
 /** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
 const FULL_ROOM =
@@ -399,7 +400,15 @@ export function PersonalBoard({
         <div
           className={`mat-fold grid min-h-0 ${filled ? 'flex-1' : ''}`}
           style={{
-            gridTemplateRows: folded ? '0px' : narrow ? (filled ? '1fr' : 'auto') : BAND_HEIGHT,
+            gridTemplateRows: folded
+              ? '0px'
+              : narrow
+                ? filled
+                  ? '1fr'
+                  : 'auto'
+                : site === null
+                  ? BAND_HEIGHT.rest
+                  : BAND_HEIGHT.site,
           }}
           inert={folded}
         >
@@ -696,11 +705,11 @@ function GaugeBin(props: BinProps & { compact?: boolean }) {
         >
           {stock}
         </b>{' '}
-        {!compact && (
-          <small className="text-[9.5px] text-[var(--ink-soft)]">
-            {fr.personalBoard.ofCap(held.cap)}
-          </small>
-        )}
+        <small
+          className={`text-[9.5px] text-[var(--ink-soft)] ${compact ? 'mt-[3px] block text-center' : ''}`}
+        >
+          {fr.personalBoard.ofCap(held.cap)}
+        </small>
       </span>
       {alert === null ? (
         <small
