@@ -19,6 +19,7 @@ import type { Rect } from '@/domain/poster-placement';
 import { nearWeight } from './figurines/figurine';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
+import { REACH } from './halo';
 
 export type PinHit =
   | { readonly kind: 'pin'; readonly id: string }
@@ -36,6 +37,10 @@ const SINGLE_RADIUS = { pile: 4, building: 4, outpost: 5.5 } as const;
 const SEEN_RADIUS = 4.6;
 /** The trail behind a moving pin, in CSS pixels. */
 const TRAIL_PX = 16;
+/** The night's lamp around a pin of mine reaches three times its radius, a cluster's at most
+ *  34 px (maquette, `halo`). @a-mesurer */
+const GLOW_PER_RADIUS = 3;
+const GLOW_MAX_PX = 34;
 /** Past this share of figurine a pin is too faint to take the pointer from it. */
 const TAKES_POINTER = 0.5;
 /** Above the threads (13), the pawns and the annotations: a pin is the head of all of them. */
@@ -331,7 +336,12 @@ export class PinLayer {
   /** **La nuit, mes épingles prennent un halo de lampe** (#198), et les relevés non. */
   lights(emit: (at: Vector3, radius: number, near: number) => void, unitsPerPixel: number): void {
     for (const mark of this.marks)
-      if (mark.mine) emit(mark.center, mark.radius * 1.6 * unitsPerPixel, mark.weight);
+      if (mark.mine)
+        emit(
+          mark.center,
+          (Math.min(GLOW_PER_RADIUS * mark.radius, GLOW_MAX_PX) * unitsPerPixel) / REACH,
+          mark.weight,
+        );
   }
 
   dispose(): void {
@@ -418,7 +428,7 @@ export class PinLayer {
       };
       if (mark.ids.length > 1) {
         const text = countText(mark.ids.length);
-        const size = mark.radius > 12 ? 10 : 9;
+        const size = mark.ids.length > 99 ? 9.5 : 10.5;
         const ink = mark.style === STYLE.filled ? paper : color;
         write(text, (-(text.length - 1) / 2) * size * GLYPH_ASPECT, size, ink.clone(), 0);
       }

@@ -4,6 +4,7 @@ import type { LonLat } from '@/domain/geo';
 import type { Pin } from '@/domain/pins';
 import { PROJECTION, WorldFrame } from './frame';
 import { PinLayer } from './pins';
+import { REACH } from './halo';
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ width: 10 }) });
@@ -120,5 +121,13 @@ describe('PinLayer — the pieces far away', () => {
     layer.select('a', '#2a5ba8');
     layer.layout(eye, W, H, new Map(), new Map());
     expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'a' });
+  });
+
+  it('lights a lamp three times its pin at night, around mine only', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = laidOut([mine('a', paris), seen('camp', lyon)], eye);
+    const glows: number[] = [];
+    layer.lights((_, radius) => glows.push(radius * REACH), 1);
+    expect(glows).toEqual([3 * 4]);
   });
 });
