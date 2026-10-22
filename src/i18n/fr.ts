@@ -4221,7 +4221,7 @@ export const fr = {
         gesture: 'glisser une pile',
         effect: 'la porter ; la lâcher la pose — sur un transport, elle embarque',
       },
-      { gesture: 'échap', effect: 'reposer la pièce en main' },
+      { gesture: 'échap, ou tout autre clic net', effect: 'reposer la pièce en main' },
       {
         gesture: fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')],
         effect: 'déplacer la carte',
