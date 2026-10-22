@@ -28,6 +28,8 @@ export type CoastAsset = {
    * land on the left of whoever walks it.
    */
   readonly data: string;
+  /** **The shores of the lakes and of the holes of the land** (#224), the same layout. */
+  readonly lakes: string;
   /** **The regions no cell carries** (#224), the same layout, one closed ring per entry. */
   readonly islands: string;
 };
@@ -39,6 +41,8 @@ export type Coast = {
   /** The regions with an open-sea coast: what the sheet calls « côtière ». */
   readonly regions: ReadonlySet<string>;
   readonly coastOf: ReadonlyMap<string, RegionLines>;
+  /** The lake shores, land on the left: Cleveland, Lausanne, Baku (#224). */
+  readonly lakeOf: ReadonlyMap<string, RegionLines>;
   /** The rings of the 906 regions smaller than a cell: Malta, Singapore, the atolls (#224). */
   readonly islandOf: ReadonlyMap<string, RegionLines>;
   readonly countryOf: ReadonlyMap<string, string>;
@@ -53,6 +57,7 @@ export function decodeCoast(asset: CoastAsset, projection: Projection): Coast {
     projection,
     regions: new Set(coastOf.keys()),
     coastOf,
+    lakeOf: decodeLines(asset, asset.lakes),
     islandOf: decodeLines(asset, asset.islands),
     countryOf: new Map(asset.ids.map((id, rank) => [id, asset.countries[rank]!])),
   };
@@ -183,12 +188,21 @@ export const onRegionCoast = (coast: Coast, lonLat: LonLat, regionId: string): b
  */
 export function groundOf(grid: RouteGrid, coast: Coast | null, lonLat: LonLat): Ground {
   const ground = groundAt(grid, lonLat);
-  if (ground !== 'sea' || coast === null) return ground;
+  if (ground === 'land' || coast === null) return ground;
   const [x, y] = projectLonLat(coast.projection.outline, coast.projection.sphere, lonLat);
-  return islandAt(coast, x, y) !== null || shoreAt(coast, x, y, grid.step)?.land === true
+  const water = ground === 'sea' ? 'coast' : 'lake';
+  return islandAt(coast, x, y) !== null || shoreAt(coast, water, x, y, grid.step)?.land === true
     ? 'land'
-    : 'sea';
+    : ground;
 }
+
+/**
+ * **Un sol où poser un bâtiment** (#224) : la terre de `groundOf`, rives des lacs comprises —
+ * la maille noie Cleveland et Lausanne sous le lac Érié et le Léman, la côte des lacs les rend à la
+ * terre. Le large d'un lac reste de l'eau, comme la mer. Le fantôme et `spotAt` le lisent tous deux.
+ */
+export const carriesBuilding = (grid: RouteGrid, coast: Coast | null, lonLat: LonLat): boolean =>
+  groundOf(grid, coast, lonLat) === 'land';
 
 /**
  * **La région sous un point, et son pays** (#224) : le polygone d'une région sans cellule d'abord,
@@ -205,7 +219,7 @@ export function regionOf(
   if (island !== null) return { id: island, country: coast!.countryOf.get(island)! };
   const id = regionAt(raster, lonLat);
   if (id !== null) return { id, country: hostAt(raster, lonLat)! };
-  const shore = coast === null ? null : shoreAt(coast, x, y, raster.step);
+  const shore = coast === null ? null : shoreAt(coast, 'coast', x, y, raster.step);
   return shore?.land === true
     ? { id: shore.regionId, country: coast!.countryOf.get(shore.regionId)! }
     : null;
@@ -227,58 +241,77 @@ export const isLandingShore = (grid: RouteGrid, coast: Coast | null, lonLat: Lon
   (isOpenWaterCell(grid, lonLat) && groundOf(grid, coast, lonLat) === 'land');
 
 /**
- * **Ce qu'un point a autour de lui** (#224) : les segments de côte à moins de `reach` de chaque
- * case de `BUCKET` unités, et les îles dont la boîte touche la case, rangés une fois à la
- * première lecture. Sans lui, chaque lecture parcourait les 1 830 côtes et les 906 îles : 60 à
- * 95 µs en mer, 13 sur la terre, payés quatre fois par troupe dans la vue.
+ * **Ce qu'un point a autour de lui** (#224), rangé une fois à la première lecture : par case de
+ * `BUCKET` unités, les îles dont la boîte touche la case, et les segments de côte (ou de rive de
+ * lac) à moins de la portée de la case. Sans lui, chaque lecture parcourait les 1 830 côtes et
+ * les 906 îles : 60 à 95 µs en mer, 13 sur la terre, payés quatre fois par troupe dans la vue.
  */
-type ShoreIndex = {
-  readonly columns: number;
-  readonly rows: number;
-  /** `[ax, ay, bx, by]` per segment, and the region it is the coast of. */
+type CaseIndex = { readonly start: Int32Array; readonly refs: Int32Array };
+type SegmentIndex = CaseIndex & {
+  /** `[ax, ay, bx, by]` per segment, and the region it is the shore of. */
   readonly segments: Float32Array;
   readonly segmentRegion: ReadonlyArray<string>;
-  readonly segmentStart: Int32Array;
-  readonly segmentRefs: Int32Array;
+};
+type IslandIndex = CaseIndex & {
   readonly islands: ReadonlyArray<readonly [string, RegionLines]>;
-  readonly islandStart: Int32Array;
-  readonly islandRefs: Int32Array;
 };
 
 /** Half a unit: a few dozen segments a case on a busy coast. */
 const BUCKET = 0.5;
-const indexes = new WeakMap<Coast, Map<number, ShoreIndex>>();
+const islandIndexes = new WeakMap<Coast, IslandIndex>();
+const segmentIndexes = new WeakMap<Coast, Map<string, SegmentIndex>>();
 
-function indexOf(coast: Coast, reach: number): ShoreIndex {
-  const known = indexes.get(coast) ?? indexes.set(coast, new Map()).get(coast)!;
-  const cached = known.get(reach);
-  if (cached !== undefined) return cached;
+const gridOf = ({ projection: { sphere } }: Coast) => ({
+  columns: Math.ceil((sphere.maxX - sphere.minX) / BUCKET),
+  rows: Math.ceil((sphere.maxY - sphere.minY) / BUCKET),
+});
+
+/** Counting sort into `start`/`refs`: each item lands in every case its box, grown, covers. */
+function bucket(coast: Coast, boxes: Float64Array, grow: number): CaseIndex {
   const { sphere } = coast.projection;
-  const columns = Math.ceil((sphere.maxX - sphere.minX) / BUCKET);
-  const rows = Math.ceil((sphere.maxY - sphere.minY) / BUCKET);
-  const caseOf = (x: number, y: number): readonly [number, number] => [
-    Math.min(columns - 1, Math.max(0, Math.floor((x - sphere.minX) / BUCKET))),
-    Math.min(rows - 1, Math.max(0, Math.floor((y - sphere.minY) / BUCKET))),
-  ];
-  /** Counting sort into `start`/`refs`: each item lands in every case its box covers. */
-  const bucket = (boxes: Float64Array, count: number, grow: number) => {
-    const counts = new Int32Array(columns * rows + 1);
-    const each = (k: number, visit: (cell: number) => void) => {
-      const [c0, r0] = caseOf(boxes[4 * k]! - grow, boxes[4 * k + 1]! - grow);
-      const [c1, r1] = caseOf(boxes[4 * k + 2]! + grow, boxes[4 * k + 3]! + grow);
-      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) visit(r * columns + c);
-    };
-    for (let k = 0; k < count; k++) each(k, (cell) => counts[cell + 1]!++);
-    for (let cell = 0; cell < columns * rows; cell++) counts[cell + 1]! += counts[cell]!;
-    const refs = new Int32Array(counts[columns * rows]!);
-    const fill = counts.slice();
-    for (let k = 0; k < count; k++) each(k, (cell) => (refs[fill[cell]!++] = k));
-    return { start: counts, refs };
+  const { columns, rows } = gridOf(coast);
+  const at = (value: number, min: number, count: number) =>
+    Math.min(count - 1, Math.max(0, Math.floor((value - min) / BUCKET)));
+  const each = (k: number, visit: (cell: number) => void) => {
+    const [c0, r0] = [
+      at(boxes[4 * k]! - grow, sphere.minX, columns),
+      at(boxes[4 * k + 1]! - grow, sphere.minY, rows),
+    ];
+    const [c1, r1] = [
+      at(boxes[4 * k + 2]! + grow, sphere.minX, columns),
+      at(boxes[4 * k + 3]! + grow, sphere.minY, rows),
+    ];
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) visit(r * columns + c);
   };
+  const count = boxes.length / 4;
+  const start = new Int32Array(columns * rows + 1);
+  for (let k = 0; k < count; k++) each(k, (cell) => start[cell + 1]!++);
+  for (let cell = 0; cell < columns * rows; cell++) start[cell + 1]! += start[cell]!;
+  const refs = new Int32Array(start[columns * rows]!);
+  const fill = start.slice();
+  for (let k = 0; k < count; k++) each(k, (cell) => (refs[fill[cell]!++] = k));
+  return { start, refs };
+}
 
+function islandIndexOf(coast: Coast): IslandIndex {
+  const known = islandIndexes.get(coast);
+  if (known !== undefined) return known;
+  const islands = [...coast.islandOf];
+  const boxes = new Float64Array(islands.length * 4);
+  islands.forEach(([, { box }], k) => boxes.set(box, 4 * k));
+  const index = { ...bucket(coast, boxes, 0), islands };
+  islandIndexes.set(coast, index);
+  return index;
+}
+
+function segmentIndexOf(coast: Coast, water: 'coast' | 'lake', reach: number): SegmentIndex {
+  const known = segmentIndexes.get(coast) ?? segmentIndexes.set(coast, new Map()).get(coast)!;
+  const key = `${water}|${reach}`;
+  const cached = known.get(key);
+  if (cached !== undefined) return cached;
   const flat: number[] = [];
   const segmentRegion: string[] = [];
-  for (const [id, { lines }] of coast.coastOf)
+  for (const [id, { lines }] of water === 'coast' ? coast.coastOf : coast.lakeOf)
     for (const line of lines)
       for (let i = 0; i + 3 < line.length; i += 2) {
         flat.push(line[i]!, line[i + 1]!, line[i + 2]!, line[i + 3]!);
@@ -292,41 +325,25 @@ function indexOf(coast: Coast, reach: number): ShoreIndex {
     boxes[k + 2] = Math.max(segments[k]!, segments[k + 2]!);
     boxes[k + 3] = Math.max(segments[k + 1]!, segments[k + 3]!);
   }
-  const shores = bucket(boxes, segmentRegion.length, reach);
-  const islands = [...coast.islandOf];
-  const islandBoxes = new Float64Array(islands.length * 4);
-  islands.forEach(([, { box }], k) => islandBoxes.set(box, 4 * k));
-  const isles = bucket(islandBoxes, islands.length, 0);
-  const index: ShoreIndex = {
-    columns,
-    rows,
-    segments,
-    segmentRegion,
-    segmentStart: shores.start,
-    segmentRefs: shores.refs,
-    islands,
-    islandStart: isles.start,
-    islandRefs: isles.refs,
-  };
-  known.set(reach, index);
+  const index = { ...bucket(coast, boxes, reach), segments, segmentRegion };
+  known.set(key, index);
   return index;
 }
 
-function caseAt(coast: Coast, index: ShoreIndex, x: number, y: number): number | null {
+function caseAt(coast: Coast, x: number, y: number): number | null {
   const { sphere } = coast.projection;
+  const { columns, rows } = gridOf(coast);
   const column = Math.floor((x - sphere.minX) / BUCKET);
   const row = Math.floor((y - sphere.minY) / BUCKET);
-  return column < 0 || row < 0 || column >= index.columns || row >= index.rows
-    ? null
-    : row * index.columns + column;
+  return column < 0 || row < 0 || column >= columns || row >= rows ? null : row * columns + column;
 }
 
 function islandAt(coast: Coast, x: number, y: number): string | null {
-  const index = indexOf(coast, 0);
-  const at = caseAt(coast, index, x, y);
+  const at = caseAt(coast, x, y);
   if (at === null) return null;
-  for (let ref = index.islandStart[at]!; ref < index.islandStart[at + 1]!; ref++) {
-    const [id, { box, lines }] = index.islands[index.islandRefs[ref]!]!;
+  const index = islandIndexOf(coast);
+  for (let ref = index.start[at]!; ref < index.start[at + 1]!; ref++) {
+    const [id, { box, lines }] = index.islands[index.refs[ref]!]!;
     if (x < box[0]! || x > box[2]! || y < box[1]! || y > box[3]!) continue;
     let inside = false;
     for (const ring of lines) {
@@ -349,20 +366,21 @@ function islandAt(coast: Coast, x: number, y: number): string | null {
  */
 function shoreAt(
   coast: Coast,
+  water: 'coast' | 'lake',
   x: number,
   y: number,
   step: number,
 ): { readonly land: boolean; readonly regionId: string } | null {
   const reach = step * Math.SQRT1_2;
-  const index = indexOf(coast, reach);
-  const at = caseAt(coast, index, x, y);
+  const at = caseAt(coast, x, y);
   if (at === null) return null;
+  const index = segmentIndexOf(coast, water, reach);
   const { segments } = index;
   let best = reach * reach;
   let side = 0;
   let found: string | null = null;
-  for (let ref = index.segmentStart[at]!; ref < index.segmentStart[at + 1]!; ref++) {
-    const k = index.segmentRefs[ref]!;
+  for (let ref = index.start[at]!; ref < index.start[at + 1]!; ref++) {
+    const k = index.refs[ref]!;
     const [ax, ay, bx, by] = [
       segments[4 * k]!,
       segments[4 * k + 1]!,

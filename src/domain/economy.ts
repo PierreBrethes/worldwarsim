@@ -113,8 +113,8 @@ export type PlacementRefusal =
 export type Spot = {
   /** On the player's national soil, or within the reach of one of his standing outposts. */
   readonly reached: boolean;
-  /** Not the sea as the atlas draws it (`groundOf`, #224): the sea carries a port and nothing
-   *  else; a lake of the 25 km grid is often the shore of Cleveland or Lausanne. */
+  /** Land, or a lake's shore (`carriesBuilding`, #224): the water carries a port and nothing
+   *  else; a lake cell touching land is often the shore of Cleveland or Lausanne. */
   readonly onLand: boolean;
   /** The deposit under the point (`depositAt`), and whether a building already holds it. */
   readonly deposit: { readonly key: DepositKey; readonly taken: boolean } | null;

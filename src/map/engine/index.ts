@@ -34,6 +34,7 @@ import type { LonLat } from '@/domain/geo';
 import type { RegionType } from '@/domain/ids';
 import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import {
+  carriesBuilding,
   decodeCoast,
   groundOf,
   isLandingShore,
@@ -2263,7 +2264,7 @@ export class MapEngine {
         this.coast === null
           ? null
           : region !== null && onRegionCoast(this.coast, lonLat, region.id),
-      onLand: this.groundAt(lonLat) !== 'sea',
+      onLand: carriesBuilding(this.routeGrid, this.coast, lonLat),
     };
   }
 

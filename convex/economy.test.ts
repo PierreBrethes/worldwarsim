@@ -624,6 +624,22 @@ describe('placement', () => {
       });
     });
 
+    /** **Le large d'un lac reste l'eau** : seule la rive, une cellule de lac qui touche la terre,
+     *  porte une caserne. */
+    it('refuses a barracks in the middle of Lake Erie', async () => {
+      const t = boot();
+      const usa = await launchedSeason(t, 'usa');
+      await promoteHq(t, usa, 2);
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...usa,
+          building: 'barracks',
+          regionId: 'USA-3550',
+          point: { lon: -81.6, lat: 41.85 },
+        }),
+      ).rejects.toThrow('NOT_ON_LAND');
+    });
+
     it('refuses a barracks on the water, and says why', async () => {
       const t = boot();
       const seat = await launchedSeason(t, 'italy');

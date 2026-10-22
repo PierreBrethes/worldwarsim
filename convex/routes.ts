@@ -14,7 +14,7 @@ import {
   KM_PER_UNIT,
   mooringOf,
 } from '../src/domain/routing';
-import { groundOf, isLandingShore } from '../src/domain/coast';
+import { carriesBuilding, groundOf, isLandingShore } from '../src/domain/coast';
 import { coastOf } from './coast';
 import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
@@ -179,6 +179,12 @@ function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
 
 export function landAtPoint(point: LonLat): boolean {
   return groundAtPoint(point) === 'land';
+}
+
+/** Un sol où poser un bâtiment : la terre, ou la rive d'un lac (#224, `carriesBuilding`). */
+export function buildableAtPoint(point: LonLat): boolean {
+  grid ??= decodeGrid(gridAsset, projection);
+  return carriesBuilding(grid, coastOf(), point);
 }
 
 /** Le sol que la visée a lu (`MapEngine.groundAt`) : la grille, et l'atlas là où elle noie la

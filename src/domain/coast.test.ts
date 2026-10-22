@@ -84,6 +84,19 @@ describe('la terre exacte', () => {
     for (const point of [OPEN_SEA, OFF_MALTA]) expect(groundOf(grid, coast, point)).toBe('sea');
   });
 
+  it('rend la rive d’un lac à la terre, et laisse son large et la Caspienne à l’eau', () => {
+    for (const shore of [
+      [-81.69, 41.5],
+      [6.63, 46.52],
+    ] as const)
+      expect(groundOf(grid, coast, [...shore])).toBe('land');
+    for (const water of [
+      [-81.6, 41.85],
+      [50.2, 40.3],
+    ] as const)
+      expect(groundOf(grid, coast, [...water])).toBe('lake');
+  });
+
   it('nomme la région maltaise sous le point, et son pays', () => {
     expect(regionOf(raster, coast, VALLETTA)).toEqual({ id: 'MLT-5949', country: 'MLT' });
     expect(regionOf(raster, coast, NAPLES)?.country).toBe('ITA');

@@ -95,11 +95,19 @@ const write = (ints, regionId, run) => {
 };
 
 const coastInts = [];
+/** The shores of the lakes and of the holes of the land (#224), the land on their left too: the
+ *  grid files Cleveland and Lausanne under a lake cell. */
+const lakeInts = [];
+const coastal = new Set();
 for (const border of atlas.borders((left, right) => (left === null) !== (right === null), DETAIL)) {
-  if (border.lake || isInlandShore(border.points)) continue;
   const regionId = (border.left ?? border.right).id;
-  // The land on the left of every arc: which side of its nearest shore a point lies is land or sea.
+  // The land on the left of every arc: which side of its nearest shore a point lies is land or water.
   const points = border.left === null ? reversed(border.points) : border.points;
+  if (border.lake || isInlandShore(border.points)) {
+    write(lakeInts, regionId, points);
+    continue;
+  }
+  coastal.add(regionId);
   let run = [];
   for (let i = 0; i + 3 < points.length; i += 2) {
     if (onSeam(points[i], points[i + 1]) && onSeam(points[i + 2], points[i + 3])) {
@@ -112,7 +120,6 @@ for (const border of atlas.borders((left, right) => (left === null) !== (right =
   }
   if (run.length >= 4) write(coastInts, regionId, run);
 }
-const coastalCount = ids.length;
 const coastPoints = pointCount;
 
 function reversed(points) {
@@ -142,11 +149,12 @@ const output = JSON.stringify({
   ids,
   countries: ids.map((id) => countryOf.get(id)),
   data: base64(coastInts),
+  lakes: base64(lakeInts),
   islands: base64(islandInts),
 });
 writeFileSync('public/coast.json', output);
 console.log(
-  `${coastalCount} coastal regions, ${coastPoints} points; ` +
+  `${coastal.size} coastal regions, ${coastPoints} points with the lakes; ` +
     `${cellLess.size} regions without a cell, ${pointCount - coastPoints} points; ` +
     `${(output.length / 1024).toFixed(0)} Ko (${(gzipSync(output).length / 1024).toFixed(0)} Ko gzip)`,
 );

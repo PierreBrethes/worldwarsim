@@ -43,7 +43,7 @@ import {
   nominalStrength,
   settlesDebt,
 } from './constants';
-import { groundAtPoint, pointInRegion } from './routes';
+import { buildableAtPoint, pointInRegion } from './routes';
 import { isOnRegionCoast } from './coast';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
@@ -765,8 +765,7 @@ async function spotAt(
   ];
   return {
     reached,
-    /** A lake of the grid is no refusal: the map draws land around the Léman (#224). */
-    onLand: groundAtPoint(lonLat) !== 'sea',
+    onLand: buildableAtPoint(lonLat),
     deposit:
       deposit === null
         ? null
