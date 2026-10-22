@@ -584,6 +584,46 @@ describe('placement', () => {
       },
     );
 
+    /** **Un lac de la grille n'est pas l'eau du refus** : la maille range le centre de Cleveland
+     *  et Lausanne dans le lac Érié et le Léman, la carte les dessine à terre. Seule la mer
+     *  refuse. */
+    it('lets a barracks stand on the shore the grid files under a lake', async () => {
+      const t = boot();
+      const usa = await launchedSeason(t, 'usa');
+      await promoteHq(t, usa, 2);
+      await t.mutation(api.constructions.start, {
+        ...usa,
+        building: 'barracks',
+        regionId: 'USA-3550',
+        point: { lon: -81.69, lat: 41.5 },
+      });
+
+      const other = boot();
+      const france = await launchedSeason(other);
+      await promoteHq(other, france, 2);
+      const lausanne = { lon: 6.63, lat: 46.52 };
+      await other.run(async (ctx) => {
+        const player = await seatIn(ctx, france);
+        await ctx.db.insert('outposts', {
+          seasonId: player.seasonId,
+          playerId: player._id,
+          point: lausanne,
+          hostCountry: 'CHE',
+          level: 1,
+          specialization: 'relay',
+          foundedAt: Date.now(),
+          disabledUntil: null,
+          immuneUntil: null,
+        });
+      });
+      await other.mutation(api.constructions.start, {
+        ...france,
+        building: 'barracks',
+        regionId: 'CHE-3422',
+        point: lausanne,
+      });
+    });
+
     it('refuses a barracks on the water, and says why', async () => {
       const t = boot();
       const seat = await launchedSeason(t, 'italy');

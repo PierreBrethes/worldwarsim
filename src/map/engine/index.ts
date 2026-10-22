@@ -2256,7 +2256,7 @@ export class MapEngine {
         this.coast === null
           ? null
           : region !== null && onRegionCoast(this.coast, lonLat, region.id),
-      onLand: this.landAt(lonLat),
+      onLand: this.groundAt(lonLat) !== 'sea',
     };
   }
 
