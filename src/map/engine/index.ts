@@ -1640,12 +1640,7 @@ export class MapEngine {
         fromLabel: false,
         hold: null,
       };
-      this.armCarry(this.gesture, event, () => {
-        if (!this.castAt(event.clientX, event.clientY)) return null;
-        const pick = this.pieceToTake();
-        if (pick !== null) return pick.carried ? null : { kind: 'canvas', pick };
-        return this.pileOfPin(this.pinUnder(this.aim));
-      });
+      this.armCarry(this.gesture, event, () => this.carryFrom(event.clientX, event.clientY));
       this.armSelection(this.gesture, event);
       this.refreshCursor();
     });
@@ -1957,8 +1952,7 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
-    if (press.picks && this.held === null && this.approachClusterAt(event.clientX, event.clientY))
-      return;
+    if (press.picks && this.approachClusterAt(event.clientX, event.clientY)) return;
     if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt();
@@ -2058,6 +2052,14 @@ export class MapEngine {
     );
   }
 
+  /** **What a press on the canvas would carry**: the figurine under it, or far away its pin. */
+  private carryFrom(clientX: number, clientY: number): CarryTarget | null {
+    if (!this.castAt(clientX, clientY)) return null;
+    const pick = this.pieceToTake();
+    if (pick !== null) return pick.carried ? null : { kind: 'canvas', pick };
+    return this.pileOfPin(this.pinUnder(this.aim));
+  }
+
   /** A pin of one of my piles carries it, as its label does. */
   private pileOfPin(pin: PinHit | null): CarryTarget | null {
     return pin?.kind === 'pin' && this.standing.pileOfLabel(pin.id) !== null
@@ -2067,7 +2069,8 @@ export class MapEngine {
 
   /** **A cluster is not lifted, it is approached** (#234): the camera comes down until it opens. */
   private approachClusterAt(clientX: number, clientY: number): boolean {
-    if (!this.castAt(clientX, clientY)) return false;
+    // A piece in hand puts down on a cluster: it is a place like any other.
+    if (this.held !== null || !this.castAt(clientX, clientY)) return false;
     const pin = this.pinUnder(this.aim);
     if (pin?.kind !== 'cluster') return false;
     this.journeyTo(pin.ids, [], 0, PIN_APPROACH_DISTANCE);
