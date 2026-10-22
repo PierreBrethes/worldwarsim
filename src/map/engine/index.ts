@@ -2313,7 +2313,7 @@ export class MapEngine {
    * ne la lit pas : il se pose sur la côte de l'atlas (#221).
    */
   coastAt(lonLat: LonLat): boolean {
-    if (this.coast === null) this.groundAt(lonLat);
+    if (this.coast === null) this.loadCoast();
     return isLandingShore(this.routeGrid, this.coast, lonLat);
   }
 
