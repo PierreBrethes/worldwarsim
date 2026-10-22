@@ -7,12 +7,14 @@ import type { DepositKey } from './ids';
  * `public/deposit-basins.json` par `scripts/generate-deposit-basins.mjs`. Décor : la pose vise le
  * point, jamais le bassin, et aucune règle ne le lit.
  *
- * `ring` est `[lon, lat, lon, lat…]`, le contour fermé implicitement, étoilé autour du point :
+ * `ring` est `[lon, lat, lon, lat…]`, le contour fermé implicitement, étoilé autour de `at` :
  * le moteur le remplit en éventail depuis lui.
  */
 export type DepositBasin = {
   readonly id: string;
   readonly deposit: DepositKey;
+  /** Le point du gisement, d'où part l'éventail. */
+  readonly at: LonLat;
   readonly ring: ReadonlyArray<number>;
 };
 
@@ -57,6 +59,6 @@ export function basinsOf(
       );
       return [round(point[0]), round(point[1])];
     }).flat();
-    return { id, deposit, ring };
+    return { id, deposit, at: lonLat, ring };
   });
 }

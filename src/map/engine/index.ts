@@ -105,6 +105,7 @@ import {
 } from './countries';
 import { buildBoard } from './board';
 import { TerrainDrawings } from './terrain-drawings';
+import { DepositBasins } from './deposit-basins';
 import type { NearSheet } from './near-sheet';
 import { fromGeometryData } from './atlas-geometry';
 import {
@@ -404,6 +405,7 @@ export class MapEngine {
   private readonly labels: LabelLayer;
   private readonly regions: RegionLayer;
   private readonly drawings: TerrainDrawings;
+  private readonly basins: DepositBasins;
   private readonly countries: CountryMesh[];
   /** Land, ink, coast and wash, drawn at the far level of the atlas until the near one lands
    *  and the eye comes close enough to tell them apart (`levelAt`, ADR 0034); the region lines
@@ -759,6 +761,8 @@ export class MapEngine {
       this.night.uniforms,
     );
     this.scene.add(this.drawings.object);
+    this.basins = new DepositBasins(this.frame, this.night.uniforms);
+    this.scene.add(this.basins.object);
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
     this.scene.add(this.regions.contours.group);
@@ -1097,6 +1101,31 @@ export class MapEngine {
     });
     if (sheet.types !== null) this.drawings.display(sheet.types);
   }
+
+  /**
+   * **Les bassins des gisements** (#239) : la bascule des gisements les montre, en Mondiale
+   * seule. `public/deposit-basins.json` n'est demandé qu'à la première fois qu'on les montre ;
+   * un échec se retente à la prochaine.
+   */
+  setDepositBasins(shown: boolean): void {
+    this.invalidate();
+    this.basins.show(shown);
+    if (!this.basins.wanted || this.basinsLoading) return;
+    this.basinsLoading = true;
+    fetch('/deposit-basins.json')
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+      })
+      .then((basins) => {
+        this.basins.display(basins);
+        this.invalidate();
+      })
+      .catch(() => {})
+      .finally(() => (this.basinsLoading = false));
+  }
+
+  private basinsLoading = false;
 
   /** The regions' terrain and anchor points: the lines, the hover and the terrain wait for them. */
   displayRegions(
@@ -1588,6 +1617,7 @@ export class MapEngine {
     this.parachutes.dispose();
     this.regions.dispose();
     this.drawings.dispose();
+    this.basins.dispose();
     this.sea?.dispose();
     this.veil.dispose();
     this.halos.dispose();

@@ -507,6 +507,12 @@ export function WorldMap({
     };
   }, [atlas, shore]);
 
+  // La Blitz n'exploite rien : ses gisements ne diraient rien qu'on puisse en faire.
+  const basinsShown = indicators.deposits && blitz === null;
+  useEffect(() => {
+    readyEngine?.setDepositBasins(basinsShown);
+  }, [readyEngine, basinsShown]);
+
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;
   }, [onSelect]);
