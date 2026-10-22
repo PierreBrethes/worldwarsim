@@ -527,6 +527,18 @@ export class MapEngine {
    * off every piece. A finger has no hover, a press in course or a building held none either.
    */
   onPieceHover?: ((labelId: string | null) => void) | undefined;
+  /** **A cluster opened** (#234) — hovered, or touched — where its sheet hangs; `null` closes it. */
+  onClusterOpen?:
+    | ((
+        cluster: {
+          readonly ids: ReadonlyArray<string>;
+          readonly clientX: number;
+          readonly clientY: number;
+        } | null,
+      ) => void)
+    | undefined;
+  /** The cluster whose sheet is open, by its pieces: hovering it again opens nothing new. */
+  private openedCluster: string | null = null;
   /** A clean press on a piece the canvas drew: its label answers it as if it had been pressed
    *  itself, and says whether it did — `false` lets the board read the press. */
   onPiecePress?: ((press: PiecePress) => boolean) | undefined;
@@ -1587,6 +1599,8 @@ export class MapEngine {
     const canvas = this.renderer.domElement;
     this.controls.addEventListener('change', () => {
       this.invalidate();
+      // The camera moved: the sheet would hang where the cluster no longer stands.
+      this.closeCluster();
       this.hoverDirty = true;
       this.postponeRest();
       // The ground slid under a still pointer: the stop it was on is not the same place.
@@ -1952,7 +1966,9 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
-    if (press.picks && this.approachClusterAt(event.clientX, event.clientY)) return;
+    if (press.picks && this.approachClusterAt(event.clientX, event.clientY, gesture.pointerType))
+      return;
+    this.closeCluster();
     if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt();
@@ -2068,13 +2084,41 @@ export class MapEngine {
   }
 
   /** **A cluster is not lifted, it is approached** (#234): the camera comes down until it opens. */
-  private approachClusterAt(clientX: number, clientY: number): boolean {
+  approachCluster(ids: ReadonlyArray<string>): void {
+    this.invalidate();
+    this.closeCluster();
+    this.journeyTo(ids, [], 0, PIN_APPROACH_DISTANCE);
+  }
+
+  /** A click on a cluster approaches it; a finger, which has no hover, opens its sheet. */
+  private approachClusterAt(clientX: number, clientY: number, pointerType = 'mouse'): boolean {
     // A piece in hand puts down on a cluster: it is a place like any other.
     if (this.held !== null || !this.castAt(clientX, clientY)) return false;
     const pin = this.pinUnder(this.aim);
     if (pin?.kind !== 'cluster') return false;
-    this.journeyTo(pin.ids, [], 0, PIN_APPROACH_DISTANCE);
+    if (pointerType === 'touch') this.openCluster(pin);
+    else this.approachCluster(pin.ids);
     return true;
+  }
+
+  private openCluster(cluster: Extract<PinHit, { kind: 'cluster' }>): void {
+    const key = cluster.ids.join(' ');
+    if (key === this.openedCluster) return;
+    this.openedCluster = key;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    this.onClusterOpen?.({
+      ids: cluster.ids,
+      clientX: box.left + cluster.x,
+      clientY: box.top + cluster.y,
+    });
+  }
+
+  /** Its sheet closed: the next hover over the cluster opens it again. */
+  closeCluster(): void {
+    this.invalidate();
+    if (this.openedCluster === null) return;
+    this.openedCluster = null;
+    this.onClusterOpen?.(null);
   }
 
   /** Every piece the canvas draws, nearest first: they stand in front of the regions they are on. */
@@ -2635,6 +2679,9 @@ export class MapEngine {
     const pin = pointing ? this.pinUnder(this.pointer) : null;
     const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
     this.pins.hover(pin?.kind === 'pin' ? pin.id : null);
+    // Hovered, a cluster opens its sheet; another piece under the pointer closes it.
+    if (pin?.kind === 'cluster') this.openCluster(pin);
+    else if (pin !== null) this.closeCluster();
     if (label !== this.hoveredLabel) {
       this.hoveredLabel = label;
       this.onPieceHover?.(label);
@@ -2643,7 +2690,7 @@ export class MapEngine {
     // The piece stands in front of its region: the region is not what the pointer is on.
     if (!this.fingerOnBoard || this.regionTapped) {
       this.regionTapped = false;
-      this.updateRegionHover(label === null ? (hit?.point ?? null) : null);
+      this.updateRegionHover(label === null && pin === null ? (hit?.point ?? null) : null);
     }
 
     const take = !this.fingerOnBoard && onScreen ? this.pieceToTake() : null;
@@ -2695,7 +2742,9 @@ export class MapEngine {
 
     this.hovered = touched ?? null;
     const adm0 =
-      this.fingerOnBoard || label !== null ? null : (this.hovered?.userData.adm0 ?? null);
+      this.fingerOnBoard || label !== null || pin !== null
+        ? null
+        : (this.hovered?.userData.adm0 ?? null);
     if (adm0 !== this.hoveredCountry) {
       this.hoveredCountry = adm0;
       this.onCountryHover(adm0);

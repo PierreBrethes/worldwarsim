@@ -23,7 +23,13 @@ import { REACH } from './halo';
 
 export type PinHit =
   | { readonly kind: 'pin'; readonly id: string }
-  | { readonly kind: 'cluster'; readonly ids: ReadonlyArray<string> };
+  | {
+      readonly kind: 'cluster';
+      readonly ids: ReadonlyArray<string>;
+      /** Its middle on the canvas, in CSS pixels: where its sheet opens. */
+      readonly x: number;
+      readonly y: number;
+    };
 
 /** Pins closer than this on screen, in CSS pixels, range into one cluster (maquette, `R`). */
 const CLUSTER_PX = 11;
@@ -321,7 +327,7 @@ export class PinLayer {
       if (Math.hypot(mark.sx - x, mark.sy - y) > mark.radius + slop) continue;
       return mark.ids.length === 1
         ? { kind: 'pin', id: mark.ids[0]! }
-        : { kind: 'cluster', ids: mark.ids };
+        : { kind: 'cluster', ids: mark.ids, x: mark.sx, y: mark.sy };
     }
     return null;
   }

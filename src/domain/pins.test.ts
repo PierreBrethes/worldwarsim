@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MapMarker } from './labels';
 import type { ArcView } from './player-view';
-import { pinsOf } from './pins';
+import { clusterSheetOf, pinsOf } from './pins';
 
 const MY_INK = '#2a5ba8';
 
@@ -160,5 +160,25 @@ describe('pinsOf — what a pin far away says', () => {
     const site = { ...building, id: 'site-1', level: null } as unknown as MapMarker;
     const raised = { ...building, id: 'barracks-2', level: 2 } as unknown as MapMarker;
     expect(pinsOf([site, raised], [], MY_INK).map((pin) => 'works' in pin)).toEqual([true, false]);
+  });
+});
+
+describe('clusterSheetOf — what a cluster says when it is opened', () => {
+  it('counts my piles, buildings and outposts, and says a cluster is approached', () => {
+    expect(
+      clusterSheetOf(['stack', 'stack', 'stack', 'building', 'construction', 'outpost']),
+    ).toEqual({
+      kicker: 'grappe · 6 pièces à vous',
+      lines: ['3 piles posées', '2 bâtiments', '1 avant-poste'],
+      note: 'On ne lève pas une grappe : on approche, et elle s’ouvre en figurines.',
+    });
+  });
+
+  it('counts what was surveyed, and nothing of what it is', () => {
+    expect(clusterSheetOf(['camp', 'camp', 'intel', 'installation'])).toEqual({
+      kicker: 'grappe · 4 relevés',
+      lines: ['3 forces relevées', '1 bâtiment relevé'],
+      note: 'On ne lève pas une grappe : on approche, et elle s’ouvre en figurines.',
+    });
   });
 });

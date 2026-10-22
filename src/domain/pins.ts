@@ -1,4 +1,5 @@
-import { anchorOf, type LabelAnchor, type MapMarker } from './labels';
+import { fr } from '@/i18n/fr';
+import { anchorOf, type LabelAnchor, type LabelType, type MapMarker } from './labels';
 import type { ArcView } from './player-view';
 
 /**
@@ -106,4 +107,36 @@ function arcPin(arc: ArcView, ink: string): ReadonlyArray<Pin> {
     default:
       return [];
   }
+}
+
+export type ClusterSheet = {
+  readonly kicker: string;
+  readonly lines: ReadonlyArray<string>;
+  readonly note: string;
+};
+
+/**
+ * **What an opened cluster says** (#234, maquette « épingles »), from its pieces' label types:
+ * how many of each, and that it is approached rather than lifted. A survey is counted as a force
+ * or a building, never named — the labels carry nothing more.
+ */
+export function clusterSheetOf(types: ReadonlyArray<LabelType>): ClusterSheet {
+  const count = (...kinds: ReadonlyArray<LabelType>) =>
+    types.filter((type) => kinds.includes(type)).length;
+  const line = (n: number, say: (n: number) => string) => (n > 0 ? [say(n)] : []);
+  const mine = count('stack', 'building', 'construction', 'outpost', 'my-movement') > 0;
+  return {
+    kicker: mine ? fr.cluster.mine(types.length) : fr.cluster.seen(types.length),
+    lines: mine
+      ? [
+          ...line(count('stack', 'my-movement'), fr.cluster.piles),
+          ...line(count('building', 'construction'), fr.cluster.buildings),
+          ...line(count('outpost'), fr.cluster.outposts),
+        ]
+      : [
+          ...line(count('camp', 'intel', 'inbound-movement'), fr.cluster.forces),
+          ...line(count('installation'), fr.cluster.sites),
+        ],
+    note: fr.cluster.note,
+  };
 }

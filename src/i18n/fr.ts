@@ -2939,6 +2939,23 @@ export const fr = {
    * l'heure que la route du serveur rend quand le pointeur s'arrête. Le bouton qui lève et pose
    * est le gauche, qu'aucun mappage ne déplace.
    */
+  /** **Une grappe d'épingles, ouverte** (#234, maquette « épingles ») : ce qu'elle compte, jamais
+   *  ce qu'est un relevé. */
+  cluster: {
+    mine: (count: number) => `grappe · ${count} pièce${plural(count, '', 's')} à vous`,
+    seen: (count: number) => `grappe · ${count} relevé${plural(count, '', 's')}`,
+    piles: (count: number) =>
+      `${count} pile${plural(count, '', 's')} posée${plural(count, '', 's')}`,
+    buildings: (count: number) => `${count} bâtiment${plural(count, '', 's')}`,
+    outposts: (count: number) => `${count} avant-poste${plural(count, '', 's')}`,
+    forces: (count: number) =>
+      `${count} force${plural(count, '', 's')} relevée${plural(count, '', 's')}`,
+    sites: (count: number) =>
+      `${count} bâtiment${plural(count, '', 's')} relevé${plural(count, '', 's')}`,
+    note: 'On ne lève pas une grappe : on approche, et elle s’ouvre en figurines.',
+    approach: 'approcher',
+  },
+
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',

@@ -58,6 +58,7 @@ function engineOver(pins: ReadonlyArray<Pin>, figurine: string | null = null) {
       domElement: { getBoundingClientRect: () => ({ left: 0, top: 0, width: W, height: H }) },
     },
     syncEye: () => eye,
+    invalidate: () => {},
     standing: {
       under: () => hit,
       pick: () => null,
@@ -114,5 +115,20 @@ describe('a pin on the player’s path', () => {
     expect(journeyTo).toHaveBeenCalledWith(['a', 'b'], [], 0, expect.any(Number));
     Object.assign(engine, { held: { pileId: 'a', troopIds: [] } });
     expect(approach(...at(lyon))).toBe(false);
+  });
+
+  it('opens its sheet to a finger, which has no hover, rather than flying down', () => {
+    const { engine, at, call } = engineOver([mine('a', lyon), mine('b', besideLyon)]);
+    const journeyTo = vi.fn();
+    const onClusterOpen = vi.fn();
+    Object.assign(engine, { journeyTo, onClusterOpen });
+    expect(
+      call<(x: number, y: number, type: string) => boolean>('approachClusterAt')(
+        ...at(lyon),
+        'touch',
+      ),
+    ).toBe(true);
+    expect(journeyTo).not.toHaveBeenCalled();
+    expect(onClusterOpen).toHaveBeenCalledWith(expect.objectContaining({ ids: ['a', 'b'] }));
   });
 });

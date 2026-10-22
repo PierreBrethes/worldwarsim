@@ -3,7 +3,8 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
-import type { Pin } from '@/domain/pins';
+import { clusterSheetOf, type Pin } from '@/domain/pins';
+import { ClusterSheet } from './ClusterSheet';
 import type { TourAct } from '@/domain/cargo-tag';
 import {
   useCallback,
@@ -1328,6 +1329,36 @@ export function WorldMap({
     readyEngine?.selectPin(selectedLabel);
   }, [readyEngine, selectedLabel]);
 
+  /** **La grappe ouverte** (#234) : ses pièces, et où pend sa fiche dans la carte. */
+  const [cluster, setCluster] = useState<{
+    readonly ids: ReadonlyArray<string>;
+    readonly x: number;
+    readonly y: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!readyEngine) return;
+    readyEngine.onClusterOpen = (opened) => {
+      const box = container.current?.getBoundingClientRect();
+      setCluster(
+        opened === null
+          ? null
+          : {
+              ids: opened.ids,
+              x: opened.clientX - (box?.left ?? 0),
+              y: opened.clientY - (box?.top ?? 0),
+            },
+      );
+    };
+    return () => {
+      readyEngine.onClusterOpen = undefined;
+    };
+  }, [readyEngine]);
+  const clusterSheet = useMemo(() => {
+    if (cluster === null) return null;
+    const typeOf = new Map(labels.map((label) => [label.id, label.type] as const));
+    return clusterSheetOf(cluster.ids.flatMap((id) => typeOf.get(id) ?? []));
+  }, [cluster, labels]);
+
   useEffect(() => {
     readyEngine?.displayMaquettes(maquettes);
   }, [readyEngine, maquettes]);
@@ -1448,6 +1479,15 @@ export function WorldMap({
         <DropHintChip ref={hintNode} hint={hint} {...(dropNotes ? { notes: dropNotes } : {})} />
       )}
       {detaching !== null && <DetachRing {...detaching} />}
+      {cluster !== null && clusterSheet !== null && (
+        <ClusterSheet
+          sheet={clusterSheet}
+          x={cluster.x}
+          y={cluster.y}
+          onApproach={() => readyEngine?.approachCluster(cluster.ids)}
+          onClose={() => readyEngine?.closeCluster()}
+        />
+      )}
       {rose && (
         <CompassRose
           key={rose.opening}
