@@ -495,6 +495,7 @@ export function routeDistanceKmField(
     for (let i = 0; i < count; i++) {
       const neighbor = buffer[i]!;
       if (!allowed.includes(grid.cells[neighbor]!)) continue;
+      if (mode === 'land' && cutsCorner(grid, cell, neighbor)) continue;
       const candidate = cost + steps(cell, neighbor);
       if (candidate > maxKm || candidate >= kilometres[neighbor]!) continue;
       kilometres[neighbor] = candidate;
@@ -697,7 +698,6 @@ function routeSearchOf(
   mode: RouteMode,
   landCost: number,
 ): RouteSearch {
-  const rawPoints = path.map((cell) => unprojectCell(grid, cell));
   const steps: RouteStep[] = [];
   const search = mode === 'air' ? 'combined' : mode;
   let carried = carriedInto(grid, path[0]!, search, null);
@@ -715,12 +715,144 @@ function routeSearchOf(
     });
     carried = to === SEA ? 'sea' : to === LAND ? 'land' : medium;
   }
+  const thread = pullThread(grid, path, steps);
   return {
-    route: routeOf(mode, rawPoints, steps, landCost),
-    rawPoints,
-    steps,
+    route: routeOf(mode, thread.rawPoints, thread.steps, landCost),
+    rawPoints: thread.rawPoints,
+    steps: thread.steps,
     goalCell: path[path.length - 1]!,
   };
+}
+
+/**
+ * **How many cells a stretch of pulled thread spans at most** (#231). The server reads a segment
+ * linearly in lon/lat (`positionAt`, `firstRegionEntry`), which bends away from the straight line
+ * of the grid: undivided, seven land or sea routes in 294 left their medium. Eight cells kept
+ * every one on it; two keeps the vertices as dense as the staircase was, which is what
+ * `surveyStops` and `served` sample the corridor by.
+ *
+ * @a-mesurer measured against the medium on 340 routes (#231), not against a play need
+ */
+const THREAD_PIECE_CELLS = 2;
+
+/**
+ * **The thread pulled tight on the path Dijkstra found** (#231, ADR 0023). An eight-neighbour
+ * search only turns by multiples of 45°; along each stretch of one medium, the thread keeps a
+ * vertex only where the straight line to the next one would leave that medium. A transfer or a
+ * step round the world's edge is a vertex of its own: a quay stays where the search put it. The
+ * pulled thread is never longer than the path, so a route only gets shorter.
+ *
+ * `rawPoints` and `steps` are rewritten together, one step per segment, which is what
+ * `truncateRouteSearch` and `firstRegionEntry` walk.
+ */
+function pullThread(
+  grid: RouteGrid,
+  path: ReadonlyArray<number>,
+  steps: ReadonlyArray<RouteStep>,
+): { rawPoints: LonLat[]; steps: RouteStep[] } {
+  const rawPoints: LonLat[] = [unprojectCell(grid, path[0]!)];
+  const pulled: RouteStep[] = [];
+  const joins = (index: number) =>
+    !steps[index]!.transfer &&
+    Math.abs((path[index]! % grid.width) - (path[index + 1]! % grid.width)) <= 1;
+
+  let index = 0;
+  while (index < steps.length) {
+    if (!joins(index)) {
+      pulled.push(steps[index]!);
+      rawPoints.push(unprojectCell(grid, path[index + 1]!));
+      index += 1;
+      continue;
+    }
+    const medium = steps[index]!.medium;
+    let end = index;
+    while (end < steps.length && joins(end) && steps[end]!.medium === medium) end += 1;
+    for (let anchor = index; anchor < end;) {
+      let reach = anchor + 1;
+      while (reach < end && inSight(grid, path[anchor]!, path[reach + 1]!, medium)) reach += 1;
+      piecesOf(grid, path[anchor]!, path[reach]!, medium, rawPoints, pulled);
+      anchor = reach;
+    }
+    index = end;
+  }
+  return { rawPoints, steps: pulled };
+}
+
+/** The straight segment from cell to cell, cut every `THREAD_PIECE_CELLS` in the projected plane. */
+function piecesOf(
+  grid: RouteGrid,
+  from: number,
+  to: number,
+  medium: Medium,
+  rawPoints: LonLat[],
+  steps: RouteStep[],
+): void {
+  const [column, row] = [from % grid.width, Math.floor(from / grid.width)];
+  const [columnGap, rowGap] = [(to % grid.width) - column, Math.floor(to / grid.width) - row];
+  const length = Math.hypot(columnGap, rowGap);
+  const pieces = Math.max(1, Math.ceil(length / THREAD_PIECE_CELLS));
+  for (let piece = 1; piece <= pieces; piece += 1) {
+    const share = piece / pieces;
+    rawPoints.push(
+      piece === pieces
+        ? unprojectCell(grid, to)
+        : lonLatAtProjected(grid.outline, grid.sphere, [
+            grid.sphere.minX + (column + 0.5 + columnGap * share) * grid.step,
+            grid.sphere.minY + (row + 0.5 + rowGap * share) * grid.step,
+          ]),
+    );
+    steps.push({ medium, distanceUnits: (length / pieces) * grid.step, transfer: false });
+  }
+}
+
+/**
+ * **Does the straight line from cell to cell stay on its medium?** It walks every cell the line
+ * crosses, centre to centre; through an exact corner it takes the diagonal, which passes only
+ * where a step of the search would (`cutsCorner`).
+ */
+function inSight(grid: RouteGrid, from: number, to: number, medium: Medium): boolean {
+  const allowed = ALLOWED_BY_MODE[medium === 'sea' ? 'naval' : 'land'];
+  const width = grid.width;
+  const dx = (to % width) - (from % width);
+  const dy = Math.floor(to / width) - Math.floor(from / width);
+  const nx = Math.abs(dx);
+  const ny = Math.abs(dy);
+  const step = Math.sign(dx);
+  const rowStep = Math.sign(dy) * width;
+  let cell = from;
+  for (let ix = 0, iy = 0; ix < nx || iy < ny;) {
+    const toward = (1 + 2 * ix) * ny - (1 + 2 * iy) * nx;
+    const previous = cell;
+    if (toward <= 0) {
+      cell += step;
+      ix += 1;
+    }
+    if (toward >= 0) {
+      cell += rowStep;
+      iy += 1;
+    }
+    if (!allowed.includes(grid.cells[cell]!)) return false;
+    if (toward === 0 && medium === 'land' && cutsCorner(grid, previous, cell)) return false;
+  }
+  return true;
+}
+
+/**
+ * **A diagonal step squeezes between its two side cells** (#231): when neither lets its medium
+ * through, two seas touching by a corner would let a column walk across the water — Sicily to
+ * Calabria. The step passes when either side does.
+ *
+ * Only a column is held to it. Two lands touching by a corner are, at this mesh, the Gulf of
+ * Suez, the Danish straits and the Aegean: holding a hull to the rule shut twelve sea routes in
+ * 340 and sent Alexandria round the Cape to Aden.
+ */
+function cutsCorner(grid: RouteGrid, from: number, to: number): boolean {
+  const columnGap = (to % grid.width) - (from % grid.width);
+  const rowGap = Math.floor(to / grid.width) - Math.floor(from / grid.width);
+  if (Math.abs(columnGap) !== 1 || Math.abs(rowGap) !== 1) return false;
+  const side = grid.cells[from + columnGap]!;
+  const other = grid.cells[from + rowGap * grid.width]!;
+  return side !== LAND && side !== CANAL && other !== LAND && other !== CANAL;
 }
 
 function routeOf(
@@ -1276,6 +1408,8 @@ function dijkstra(
       const length = distanceBetweenCells(grid, cell, neighbor);
       const multiplier = medium === 'sea' ? COST_BY_MEDIUM.sea : landCost;
       const transfer = isTransfer(medium, carried, type) ? TRANSFER_COST : 0;
+      /** A quay is crossed where the search finds it, corner or not: only a transit squeezes. */
+      if (medium === 'land' && transfer === 0 && cutsCorner(grid, cell, neighbor)) continue;
       const candidate = cost + length * multiplier + transfer;
       if (candidate < costs[neighbor]!) {
         costs[neighbor] = candidate;

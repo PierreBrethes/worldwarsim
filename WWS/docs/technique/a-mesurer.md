@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : cc16922 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 9a61b62 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-80 valeurs marquées dans `convex/` et `src/domain/`.
+81 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -91,6 +91,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |
+| `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:737` | measured against the medium on 340 routes (#231), not against a play need |
 | `POINT_TRAITS` | `{ tangier: { family: 'economy', stars: 2 }, istanbul: { family: 'intel', stars: 2 }, rangoon: { family: 'diplomacy', stars: 1 }, hongKong: { family: 'intel', stars: 1 }, halifax: { family: 'sea', stars: 1 }, narvik: { family: 'economy', stars: 2 }, lisbon: { family: 'intel', stars: 2 }, baku: { family: 'supply', stars: 3 }, dakar: { family: 'economy', stars: 2 }, singapore: { family: 'supply', stars: 1 } } as const satisfies Record<StrategicPointKey, { family: PointFamily; stars: 1 \| 2 \| 3 }>` | `src/domain/strategic-points.ts:40` | familles et étoiles posées par jugement, aucune doc ne les fixait |
 | `TANGIER_LOT` | `{ give: 300, get: 100 } as const` | `src/domain/strategic-points.ts:146` | posé pour la saison test ; rien ne mesure ce que vaut un échange par édition |
 | `SURVEY_INK_FADED` | `0.2` | `src/domain/survey-ink.ts:4` | the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. |
