@@ -562,6 +562,98 @@ describe('placement', () => {
       ).rejects.toThrow('NOT_COASTAL');
     });
 
+    /** **Sur l'eau, seul un port se pose** (#224) : la terre se lit à la précision de l'atlas,
+     *  donc le centre de Naples, Venise et Calais, que la grille de 25 km noie, sont à terre ; le
+     *  golfe, lui, est de l'eau. */
+    it.each([
+      ['italy', 'ITA-5397', { lon: 14.25, lat: 40.85 }],
+      ['italy', 'ITA-5461', { lon: 12.3397, lat: 45.4341 }],
+      ['france', PAS_DE_CALAIS, { lon: 1.858, lat: 50.951 }],
+    ] as const)(
+      'lets %s raise a barracks on the land of %s the grid drowns',
+      async (nation, regionId, point) => {
+        const t = boot();
+        const seat = await launchedSeason(t, nation);
+        await promoteHq(t, seat, 2);
+        await t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'barracks',
+          regionId,
+          point,
+        });
+      },
+    );
+
+    /** **Un lac de la grille n'est pas l'eau du refus** : la maille range le centre de Cleveland
+     *  et Lausanne dans le lac Érié et le Léman, la carte les dessine à terre. Seule la mer
+     *  refuse. */
+    it('lets a barracks stand on the shore the grid files under a lake', async () => {
+      const t = boot();
+      const usa = await launchedSeason(t, 'usa');
+      await promoteHq(t, usa, 2);
+      await t.mutation(api.constructions.start, {
+        ...usa,
+        building: 'barracks',
+        regionId: 'USA-3550',
+        point: { lon: -81.69, lat: 41.5 },
+      });
+
+      const other = boot();
+      const france = await launchedSeason(other);
+      await promoteHq(other, france, 2);
+      const lausanne = { lon: 6.63, lat: 46.52 };
+      await other.run(async (ctx) => {
+        const player = await seatIn(ctx, france);
+        await ctx.db.insert('outposts', {
+          seasonId: player.seasonId,
+          playerId: player._id,
+          point: lausanne,
+          hostCountry: 'CHE',
+          level: 1,
+          specialization: 'relay',
+          foundedAt: Date.now(),
+          disabledUntil: null,
+          immuneUntil: null,
+        });
+      });
+      await other.mutation(api.constructions.start, {
+        ...france,
+        building: 'barracks',
+        regionId: 'CHE-3422',
+        point: lausanne,
+      });
+    });
+
+    /** **Le large d'un lac reste l'eau** : seule la rive, une cellule de lac qui touche la terre,
+     *  porte une caserne. */
+    it('refuses a barracks in the middle of Lake Erie', async () => {
+      const t = boot();
+      const usa = await launchedSeason(t, 'usa');
+      await promoteHq(t, usa, 2);
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...usa,
+          building: 'barracks',
+          regionId: 'USA-3550',
+          point: { lon: -81.6, lat: 41.85 },
+        }),
+      ).rejects.toThrow('NOT_ON_LAND');
+    });
+
+    it('refuses a barracks on the water, and says why', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t, 'italy');
+      await promoteHq(t, seat, 2);
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'barracks',
+          regionId: 'ITA-5397',
+          point: { lon: 14.3, lat: 40.7 },
+        }),
+      ).rejects.toThrow('NOT_ON_LAND');
+    });
+
     /** **Une île est dans sa région** (#221) : sur le raster de 25 km, Lampedusa, Key West ou
      *  Hachijō-jima n'ont pas de terre, mais leur côte est celle de leur région. Le siège de leur
      *  nation y commande un port, la porte l'accepte et le chantier le bâtit dans cette région. */

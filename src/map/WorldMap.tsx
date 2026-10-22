@@ -482,7 +482,13 @@ export function WorldMap({
           .then((near) => {
             if (!abandoned) instance.displayNearAtlas(near);
           })
-          .catch(() => {});
+          .catch(() => {})
+          // The coast at rest (#224), never racing the near level: Safari has no idle callback.
+          .finally(() =>
+            (window.requestIdleCallback ?? setTimeout)(() => {
+              if (!abandoned) instance.loadCoast();
+            }),
+          );
       });
     });
 
@@ -550,8 +556,11 @@ export function WorldMap({
 
   // One rose at a time, and the camera holds still while it is open: aiming at an action on
   // a map drifting under the pointer is aiming twice.
+  /** La dernière visée qui a ouvert la rose : relue quand la côte arrive (#224). */
+  const lastAim = useRef<{ target: CompassTarget; clientX: number; clientY: number } | null>(null);
   const openRose = useCallback(
     (target: CompassTarget, clientX: number, clientY: number) => {
+      lastAim.current = { target, clientX, clientY };
       let drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
       if (rect === undefined) return;
@@ -570,7 +579,9 @@ export function WorldMap({
        *  pastille montrait part tel quel ; au doigt, sans molette ni clavier, une rose réduite
        *  aux ordres de pièce laisse choisir quand il y en a plusieurs. */
       const reading = aiming ? dropReadingOf(drawn) : null;
-      if (reading !== null && reading.kind !== 'orders' && fromDrag) {
+      /** Une attente (la côte arrive) ouvre la rose sur son motif, pièce en main : la rose se
+       *  relit à l'arrivée de la côte (`onCoast`). */
+      if (reading !== null && reading.kind !== 'orders' && reading.kind !== 'pending' && fromDrag) {
         setRose(null);
         if (reading.kind === 'refused') engine.current?.refuseDrop();
         onDropRefused?.();
@@ -611,15 +622,49 @@ export function WorldMap({
   const closeRose = useCallback(() => setRose(null), []);
 
   /**
-   * **Une seule lecture de la côte, celle de la grille de routage** (décision 72a) : le moteur
-   * répond avec `isCoastCell`, la fonction même dont le serveur tire son refus. Le fan ne peut
-   * donc pas offrir une plage que la mutation renverrait (ADR 0015).
+   * **Une seule lecture de la plage** (décision 72a, #224) : le moteur répond avec
+   * `isLandingShore`, la fonction même dont le serveur tire son refus. Le fan ne peut donc pas
+   * offrir une plage que la mutation renverrait (ADR 0015).
    */
   const coastAt = useCallback((lonLat: LonLat) => engine.current?.coastAt(lonLat) ?? false, []);
   const groundAt = useCallback(
     (lonLat: LonLat): Ground => engine.current?.groundAt(lonLat) ?? 'sea',
     [],
   );
+  /** L'eau ouverte de la grille avant `coast.json` : une coque n'a pas encore de verdict (#224). */
+  const coastPendingAt = useCallback(
+    (lonLat: LonLat) => engine.current?.coastPendingAt(lonLat) ?? false,
+    [],
+  );
+  const walkableAt = useCallback(
+    (lonLat: LonLat) => engine.current?.walkableAt(lonLat) ?? true,
+    [],
+  );
+
+  /** **La côte arrive, la rose se relit** (#224) : une visée en attente sur l'eau de la grille
+   *  retrouve ses ordres sans qu'on la referme. */
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.onCoast = () => {
+      const aim = lastAim.current;
+      if (rose === null || aim === null || aim.target.kind !== 'point') return;
+      if (aim.target.coastPending !== true) return;
+      const lonLat: LonLat = [aim.target.lon, aim.target.lat];
+      openRose(
+        {
+          ...aim.target,
+          ground: groundAt(lonLat),
+          coastal: coastAt(lonLat),
+          coastPending: false,
+        },
+        aim.clientX,
+        aim.clientY,
+      );
+    };
+    return () => {
+      readyEngine.onCoast = undefined;
+    };
+  }, [readyEngine, rose, openRose, groundAt, coastAt]);
 
   useEffect(() => {
     if (!readyEngine) return;
@@ -643,6 +688,8 @@ export function WorldMap({
           point,
           point !== null && coastAt(point),
           point === null ? 'sea' : groundAt(point),
+          point !== null && coastPendingAt(point),
+          point === null || walkableAt(point),
         );
         if (aimed === null) {
           setRose(null);
@@ -666,7 +713,7 @@ export function WorldMap({
     return () => {
       readyEngine.onAct = () => {};
     };
-  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt]);
+  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt, coastPendingAt, walkableAt]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -696,7 +743,7 @@ export function WorldMap({
       /** La région dessinée sous le clic : c'est elle qui dit si le sol est déjà le mien, la
        *  seule chose qui sépare une fondation possible d'un `FRIENDLY_TARGET`. */
       const region = map?.regionAtPoint(clientX, clientY) ?? null;
-      const target = targetOfLabel(label, country, region, coastAt, groundAt);
+      const target = targetOfLabel(label, country, region, coastAt, groundAt, walkableAt);
       /**
        * **Aiming, a label hides nothing.** An outpost is a target one marches at and keeps its
        * own fan; every other pictogram — a column in flight, a construction — hands the aim back
@@ -729,6 +776,7 @@ export function WorldMap({
           country,
           ground: groundAt(ground),
           coastal: coastAt(ground),
+          walkable: walkableAt(ground),
           name: fr.compass.enemyColumn,
         };
       }
@@ -738,9 +786,11 @@ export function WorldMap({
         ground,
         ground !== null && coastAt(ground),
         ground === null ? 'sea' : groundAt(ground),
+        ground !== null && coastPendingAt(ground),
+        ground === null || walkableAt(ground),
       );
     },
-    [aiming, coastAt, groundAt, blitz, arcs],
+    [aiming, coastAt, groundAt, coastPendingAt, walkableAt, blitz, arcs],
   );
 
   const onLabelAct = useCallback(
@@ -914,6 +964,8 @@ export function WorldMap({
                 point,
                 point !== null && coastAt(point),
                 point === null ? 'sea' : groundAt(point),
+                point !== null && coastPendingAt(point),
+                point === null || walkableAt(point),
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
@@ -932,6 +984,8 @@ export function WorldMap({
     compassOf,
     coastAt,
     groundAt,
+    coastPendingAt,
+    walkableAt,
     chosenOf,
     onDropRefused,
     onCarryEnd,
@@ -966,9 +1020,9 @@ export function WorldMap({
       return;
     }
     const region = readyEngine?.regionAtLonLat(label.anchor.lonLat) ?? null;
-    const target = targetOfLabel(label, null, region, coastAt, groundAt);
+    const target = targetOfLabel(label, null, region, coastAt, groundAt, walkableAt);
     onHeldCompass(target === null ? null : compassOf(target));
-  }, [readyEngine, holding, labels, compassOf, coastAt, groundAt, onHeldCompass]);
+  }, [readyEngine, holding, labels, compassOf, coastAt, groundAt, walkableAt, onHeldCompass]);
 
   /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est ce que la pose lirait
    *  là — l'étiquette sous le pointeur ou le sol —, et l'ordre est le premier que la rose y
@@ -984,7 +1038,15 @@ export function WorldMap({
           ? labelTarget(label, clientX, clientY)
           : point === null
             ? null
-            : pointTarget(country, region, point, coastAt(point), groundAt(point));
+            : pointTarget(
+                country,
+                region,
+                point,
+                coastAt(point),
+                groundAt(point),
+                coastPendingAt(point),
+                walkableAt(point),
+              );
       /** La route du verbe choisi, celui que le lâcher donnerait. */
       const read = dropReadingOf(target === null ? null : compassOf(target));
       const verb = read.kind === 'orders' ? read.verbs[chosenOf(read.verbs)] : undefined;
@@ -995,7 +1057,18 @@ export function WorldMap({
       });
     };
     readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
-  }, [readyEngine, compassOf, onRestAim, coastAt, groundAt, labels, labelTarget, chosenOf]);
+  }, [
+    readyEngine,
+    compassOf,
+    onRestAim,
+    coastAt,
+    groundAt,
+    coastPendingAt,
+    walkableAt,
+    labels,
+    labelTarget,
+    chosenOf,
+  ]);
 
   /**
    * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord**, nommé (carte-lisible,
@@ -1606,6 +1679,8 @@ function pointTarget(
   point: LonLat | null,
   coastal: boolean,
   ground: Ground,
+  coastPending: boolean,
+  walkable: boolean,
 ): CompassTarget | null {
   if (point === null) return null;
   return {
@@ -1621,6 +1696,8 @@ function pointTarget(
         : (region?.name ?? (country === null ? fr.compass.openWater : countryLabel(country))),
     coastal,
     ground,
+    coastPending,
+    walkable,
   };
 }
 
@@ -1636,6 +1713,8 @@ export function targetOfLabel(
    *  déborde sa cellule, et une colonne embarquée débarque à l'ancre, pas là où on a cliqué. */
   coastAt: (lonLat: LonLat) => boolean,
   groundAt: (lonLat: LonLat) => Ground,
+  /** Une route à pied aboutit-elle au point du label (`isWalkableCell`, #224) ? */
+  walkableAt: (lonLat: LonLat) => boolean = () => true,
 ): CompassTarget | null {
   if (label.type === 'outpost' && label.hostCountry !== null && label.station?.kind === 'outpost') {
     return {
@@ -1725,6 +1804,7 @@ export function targetOfLabel(
        *  une flotte vise le mouillage relevé, pas le pixel cliqué. */
       ground: label.anchor.kind === 'ground' ? groundAt(label.anchor.lonLat) : 'sea',
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
+      walkable: label.anchor.kind !== 'ground' || walkableAt(label.anchor.lonLat),
       name: fr.camps.marker,
     };
   }

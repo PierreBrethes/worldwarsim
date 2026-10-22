@@ -674,6 +674,84 @@ describe('in aim', () => {
     expect(compass?.refusal).toBe('1 place à embarquer pour 0 à bord — il en manque 1');
   });
 
+  /** **Malte et Naples avant la côte** (#224) : la grille y voit l'eau ouverte, l'atlas pas
+   *  encore lu y verrait une plage ou la ville. Une coque comme une marche à pied attend la côte
+   *  au lieu d'être refusée. */
+  it('holds a hull order on open water until the coast is read', () => {
+    const malta = {
+      kind: 'point' as const,
+      lon: 14.42,
+      lat: 35.9,
+      regionId: null,
+      country: null,
+      name: 'Malte',
+      ground: 'sea' as const,
+      coastal: false,
+      coastPending: true,
+    };
+    const embarked = {
+      ...column,
+      roles: ['infantry' as const, 'cargo' as const],
+      departureBuildings: new Set<BuildingKey>(['port']),
+    };
+    const held = compassOf(malta, view, embarked);
+    expect(held?.actions).toEqual([]);
+    expect(held?.refusal).toBe(fr.placing.coastPending);
+    expect(held?.pending).toBe(true);
+    const naples = { ...malta, lon: 14.25, lat: 40.84, name: 'Naples' };
+    expect(compassOf(naples, view, column)).toMatchObject({
+      actions: [],
+      refusal: fr.placing.coastPending,
+      pending: true,
+    });
+  });
+
+  /** **Malte une fois la côte lue** (#224) : de la terre, mais aucune cellule de terre où la
+   *  route à pied aboutirait. La rose le dit avant le geste, du mot du serveur ; la colonne
+   *  embarquée, elle, y débarque. */
+  it('offers no walk to Malta, and keeps the landing of an embarked column', () => {
+    const malta = {
+      kind: 'point' as const,
+      lon: 14.42,
+      lat: 35.9,
+      regionId: null,
+      country: 'MLT',
+      name: 'Malte',
+      ground: 'land' as const,
+      coastal: true,
+      walkable: false,
+    };
+    const onFoot = compassOf(malta, view, column);
+    expect(onFoot?.actions.filter((action) => action.key === 'aim')).toEqual([]);
+    expect(onFoot?.refusal).toBe(fr.errors.NO_FOOTING());
+    const embarked = {
+      ...column,
+      roles: ['infantry' as const, 'cargo' as const],
+      departureBuildings: new Set<BuildingKey>(['port']),
+    };
+    expect(compassOf(malta, view, embarked)?.actions.some((action) => action.key === 'aim')).toBe(
+      true,
+    );
+  });
+
+  /** **Un camp relevé sur Malte** (#224) : la même cellule que la visée d'un point, le même
+   *  refus — une colonne à pied ne s'y voit offrir aucun ordre. */
+  it('offers a column on foot nothing against a camp on Malta', () => {
+    const camp = {
+      kind: 'camp' as const,
+      id: 'camp-malte',
+      point: [14.42, 35.9] as const,
+      country: 'MLT',
+      name: 'camp relevé',
+      ground: 'land' as const,
+      coastal: true,
+      walkable: false,
+    };
+    const onFoot = compassOf(camp, view, column);
+    expect(onFoot?.actions.filter((action) => action.key === 'aim')).toEqual([]);
+    expect(onFoot?.refusal).toBe(fr.errors.NO_FOOTING());
+  });
+
   it('opens the same fan for that column once a port stands there', () => {
     const naval = {
       ...column,

@@ -4,7 +4,7 @@ import { bombardFan, captureBranch, collectFan, plunderFan } from './compass-str
 import { fanOf, posted } from './compass-fan';
 import { fr } from '@/i18n/fr';
 import { bombardsWith } from './indirect-fire';
-import { type Column, type MovementAim, type PlunderAim } from './movement-orders';
+import { routeModeOf, type Column, type MovementAim, type PlunderAim } from './movement-orders';
 import { onTourRefusalOf } from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
@@ -88,6 +88,8 @@ export type CompassTarget =
        */
       readonly ground?: Ground;
       readonly coastal?: boolean;
+      /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
+      readonly walkable?: boolean;
       readonly name: string;
     }
   /**
@@ -102,6 +104,8 @@ export type CompassTarget =
       readonly country: string | null;
       readonly ground: Ground;
       readonly coastal: boolean;
+      /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
+      readonly walkable?: boolean;
       readonly name: string;
     }
   | {
@@ -165,9 +169,14 @@ export type CompassTarget =
       readonly ground: Ground;
       readonly country: string | null;
       readonly name: string;
-      /** Idem : la cellule visée est-elle une côte ? C'est ce qui sépare une plage d'un point
-       *  intérieur pour une colonne embarquée (`LANDING_NEEDS_A_COAST`). */
+      /** Idem : une coque y accoste-t-elle (`isLandingShore`) ? C'est ce qui sépare une plage
+       *  d'un point intérieur pour une colonne embarquée (`LANDING_NEEDS_A_COAST`). */
       readonly coastal: boolean;
+      /** L'eau ouverte de la grille avant l'arrivée de `coast.json` : la terre de Malte n'y est
+       *  pas encore lue, et un ordre de coque attend la côte plutôt que de se faire refuser. */
+      readonly coastPending?: boolean;
+      /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
+      readonly walkable?: boolean;
     }
   | {
       /**
@@ -575,6 +584,8 @@ type Fan = {
    * fan is not a refusal at all: there is nothing to do there, and the right click stays inert.
    */
   readonly refusal: string | null;
+  /** The refusal is only a wait: the coast has not reached the board yet (#224). */
+  readonly pending?: boolean;
 };
 
 export type Compass = Fan;
@@ -738,6 +749,7 @@ function aim(
         hostCountry: target.country ?? '',
         ground: target.ground ?? 'land',
         coastal: target.coastal ?? false,
+        ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
       },
     ]);
   }
@@ -751,6 +763,7 @@ function aim(
         hostCountry: target.country ?? '',
         ground: target.ground,
         coastal: target.coastal,
+        ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
       },
     ]);
   }
@@ -804,6 +817,15 @@ function aim(
     return { ...fan, actions, refusal: actions.length === 0 ? onto.refusal : null };
   }
   if (target.kind !== 'point') return null;
+  const mode = routeModeOf(column.roles);
+  if (target.coastPending === true && mode !== 'air')
+    return {
+      kicker: fr.compass.aiming(column.roles.length),
+      name: target.name,
+      actions: [],
+      refusal: fr.placing.coastPending,
+      pending: true,
+    };
   /**
    * The arrival reads what stands within `contactKm(theatre)` of where the column stopped
    * (`defenceNear`, `convex/movements.ts`), so the destination is the place the player pointed
@@ -816,6 +838,7 @@ function aim(
       lat: target.lat,
       coastal: target.coastal,
       ground: target.ground,
+      ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
       /** **Ce que le joueur a relevé sous ce sol**, et la seule chose qui ouvre « attaquer »
        *  (ADR 0024 §4). Lu dans sa vue et nulle part ailleurs : demander au plateau dirait qu'il
        *  y a quelque chose là où il croyait viser du vide. */

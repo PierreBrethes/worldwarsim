@@ -4,8 +4,6 @@ import {
   decodeRegionRaster,
   firstRegionEntry,
   goalCellsOfRegions,
-  hostAmong,
-  hostAt,
   isRegionBorderCell,
   regionAt,
   pointInRegion,
@@ -14,7 +12,9 @@ import {
   type RegionRaster,
   type RegionRasterAsset,
 } from '../src/domain/region-raster';
+import { islandRegionOf, regionOf } from '../src/domain/coast';
 import type { Projection } from '../src/domain/world';
+import { coastOf } from './coast';
 import rasterAsset from '../public/region-grid.json';
 import projectionAsset from '../public/projection.json';
 
@@ -42,15 +42,26 @@ const rasterOf = (): RegionRaster =>
 
 export const regionAtRoutePoint = (point: LonLat): string | null => regionAt(rasterOf(), point);
 
-export const hostAtRoutePoint = (point: LonLat): string | null => hostAt(rasterOf(), point);
+/**
+ * **La région sous un point et son pays, à la précision de l'atlas** (#224) : Malte, Singapour,
+ * un atoll ont la leur, quand la cellule de 25 km n'en a pas. Ce que la route lit reste la cellule
+ * (`regionAtRoutePoint`) ; ce qu'un joueur voit sous son point, c'est celle-ci.
+ */
+export const regionAtPoint = (point: LonLat) => regionOf(rasterOf(), coastOf(), point);
 
-export const pointInRouteRegion = (
+/**
+ * **Le point est-il dans la région nommée avec lui ?** Une région sans cellule se recoupe sur son
+ * polygone, exactement ; une autre à la maille, ou sur la terre que l'atlas rend à la grille
+ * (Key West, la région de sa côte, #224).
+ */
+export function pointInRouteRegion(
   point: LonLat,
   region: { readonly id: string; readonly point: LonLat },
-): boolean => pointInRegion(rasterOf(), point, region);
-
-export const hostAmongAtRoutePoint = (point: LonLat, adm0s: ReadonlySet<string>): string | null =>
-  hostAmong(rasterOf(), point, adm0s);
+): boolean {
+  const island = islandRegionOf(coastOf(), point);
+  if (island !== null) return island === region.id;
+  return regionAtPoint(point)?.id === region.id || pointInRegion(rasterOf(), point, region);
+}
 
 export const firstRouteEntryInRegion = (
   points: ReadonlyArray<LonLat>,
@@ -103,7 +114,11 @@ export function regionsWithinReach(point: LonLat, reachKm: number): ReadonlyMap<
   const key = `${point[0]}|${point[1]}|${reachKm}`;
   const known = coverage.get(key);
   if (known !== undefined) return known;
-  const covered = coveredByDisc(rasterOf(), point, reachKm);
+  const covered = new Map(coveredByDisc(rasterOf(), point, reachKm));
+  /** Malte n'a que des cellules d'ancrage, partagées et en mer : le sol sous le point y est à
+   *  distance nulle, comme celui d'une région qui a ses cellules (#224). */
+  const island = islandRegionOf(coastOf(), point);
+  if (island !== null) covered.set(island, 0);
   if (coverage.size >= REMEMBERED_DISCS) coverage.clear();
   coverage.set(key, covered);
   return covered;

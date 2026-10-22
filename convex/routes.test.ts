@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from '../src/domain/geo';
 import { homeCountryOf, pointOfBuilding, regionFacts } from './regions';
-import { goalCellsForRegions, regionAtRoutePoint } from './regionGeometry';
+import { goalCellsForRegions, regionAtPoint } from './regionGeometry';
 import {
   STRATEGIC_POINTS,
   STRATEGIC_POINT_KEYS,
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
-import { coastAtPoint, hostAtPoint, pointInRegion, routeBetween, routeToRegions } from './routes';
+import {
+  coastAtPoint,
+  hostAmongCountries,
+  hostAtPoint,
+  pointInRegion,
+  routeBetween,
+  routeToRegions,
+} from './routes';
 import { routeMinutes } from './constants';
 
 /**
@@ -179,6 +186,17 @@ describe('une route vers des régions', () => {
     expect(planned!.regionId).toBe('MLT-5950');
   });
 
+  /** **Malte par la mer** (#224) : la plage de l'atlas est un but de coque, et une colonne qui
+   *  s'y tient est déjà chez elle — le retour d'une caisse ramassée là. */
+  it('atteint Malte par la mer, et s’y sait arrivée', () => {
+    const TOULON: LonLat = [5.93, 43.1];
+    const sailed = routeToRegions(TOULON, [facts('MLT-5950')], 'combined');
+    expect(sailed?.regionId).toBe('MLT-5950');
+
+    const standing = routeToRegions([14.421, 35.906], [facts('MLT-5927')], 'land');
+    expect(standing).toMatchObject({ kind: 'standing', regionId: 'MLT-5927' });
+  });
+
   /**
    * **Un ancrage s'ajoute, il n'écrase pas.** Westminster n'a qu'une cellule, et GBR-2079 s'y
    * ancre : au départage par identifiant, le plus petit gagnait et la capitale du Royaume-Uni
@@ -229,11 +247,12 @@ describe('the strategic points of the test season', () => {
     lisbon: 'PRT',
     baku: 'AZE',
     dakar: 'SEN',
-    singapore: 'MYS',
+    /** L'île, et non plus sa rive de Johor : l'atlas lui rend sa terre (#224). */
+    singapore: 'SGP',
   };
 
   it.each(STRATEGIC_POINT_KEYS)('sets %s on land, in a region of its own country', (key) => {
-    const regionId = regionAtRoutePoint(STRATEGIC_POINTS[key]);
+    const regionId = regionAtPoint(STRATEGIC_POINTS[key])?.id ?? null;
     expect(regionId).not.toBeNull();
     expect(regionFacts(regionId!)!.country).toBe(COUNTRY[key]);
   });
@@ -257,5 +276,16 @@ describe('pointInRegion', () => {
     const [lon, lat] = regionFacts('FRA-5323')!.point;
     const away: LonLat = [lon + 2.75, lat];
     expect(pointInRegion(away, at('FRA-5323'))).toBe(false);
+  });
+});
+
+/** **Un sol, une lecture** (#224) : Monaco n'est pas la France pour l'entretien, il ne l'est pas
+ *  davantage pour le détecteur de territoire. */
+describe('le sol national au détecteur de territoire', () => {
+  it('lit Monaco comme l’entretien le lit', () => {
+    const MONACO: LonLat = [7.4215, 43.7355];
+    expect(hostAtPoint(MONACO)).toBe('MCO');
+    expect(hostAmongCountries(MONACO, new Set(['FRA']))).toBe('');
+    expect(hostAmongCountries(MONACO, new Set(['FRA', 'MCO']))).toBe('MCO');
   });
 });

@@ -3,6 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
+ *       [--demarrage] [--repos]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -55,6 +56,13 @@ const cpu = option('cpu', null) === null ? null : new RegExp(option('cpu'), 'i')
 const shadowless = args.includes('--sans-ombres');
 /** `--heure 2026-10-21T00:00Z` : le soleil tenu à cet instant (nuit, crépuscule), `?heure=` du build de banc. */
 const heure = option('heure', null);
+/** `--demarrage` : le démarrage seul — délai jusqu'à la première image de la carte, tâches
+ *  longues jusqu'à la fin de l'attente, décodage de `coast.json` (`performance.measure` de la
+ *  carte) — sans les gestes. */
+const bootOnly = args.includes('--demarrage');
+/** `--repos` : le démarrage, puis dix secondes de repos au cadrage d'arrivée (courants, vent),
+ *  sans les autres gestes. */
+const restOnly = args.includes('--repos');
 /** `--couches` : le temps GPU d'une image complète, de loin puis de près, chaque couche coupée à
  *  son tour (#199) ; l'écart à l'image entière est ce que la couche coûte. */
 const layered = args.includes('--couches');
@@ -171,6 +179,19 @@ function instrument() {
     renders: [],
   };
   window.__banc = B;
+  /** **Le démarrage** : la première image de la carte (son premier appel de dessin) et toutes les
+   *  tâches longues depuis l'ouverture du document, sans attendre que le banc mesure. */
+  B.boot = { firstDraw: null, longtasks: [] };
+  for (const name of ['drawElements', 'drawArrays']) {
+    const draw = WebGL2RenderingContext.prototype[name];
+    WebGL2RenderingContext.prototype[name] = function (...rest) {
+      if (B.boot.firstDraw === null) B.boot.firstDraw = performance.now();
+      return draw.apply(this, rest);
+    };
+  }
+  new PerformanceObserver((list) => {
+    for (const e of list.getEntries()) B.boot.longtasks.push([e.startTime, e.duration]);
+  }).observe({ type: 'longtask', buffered: true });
   /** **La mémoire des textures**, estimée : `renderer.info.memory` ne compte que des objets. Chaque
    *  téléversement de niveau 0 pèse largeur × hauteur × octets du format, une chaîne de mips un
    *  tiers de plus ; `texStorage2D` donne déjà toute la chaîne. */
@@ -563,6 +584,8 @@ async function play(profileName, pass) {
   await page.getByLabel('mot de passe').fill(accounts.a.password);
   await page.getByRole('button', { name: 'entrer' }).click();
   await page.waitForURL('**/accueil', { timeout: 15000 });
+  // Le ralenti avant le plateau : le démarrage se mesure au téléphone qu'il simule.
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
   await page.goto(
     `${origin}/plateau?season=${accounts.seasonId}${heure === null ? '' : `&heure=${heure}`}`,
   );
@@ -576,9 +599,25 @@ async function play(profileName, pass) {
     await understood.click();
   await page.waitForFunction(() => window.mapEngine !== undefined);
   if (shadowless) await page.evaluate(() => (window.mapEngine.renderer.shadowMap.enabled = false));
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
   const gpu = gpuProcesses().find((pid) => !foreignGpu.has(pid));
   await page.waitForTimeout(8000);
+  const boot = await page.evaluate(() => {
+    const { firstDraw, longtasks } = window.__banc.boot;
+    const decoded = performance.getEntriesByName('coast.json décodé')[0];
+    return {
+      mapMs: firstDraw === null ? null : Math.round(firstDraw),
+      longTasks: longtasks.length,
+      longTaskMs: Math.round(longtasks.reduce((sum, [, ms]) => sum + ms, 0)),
+      longestMs: Math.round(Math.max(0, ...longtasks.map(([, ms]) => ms))),
+      coastDecodeMs: decoded ? Math.round(decoded.duration * 10) / 10 : null,
+      coastAtMs: decoded ? Math.round(decoded.startTime + decoded.duration) : null,
+    };
+  });
+  console.log(`${profileName} : démarrage ${JSON.stringify(boot)}`);
+  if (bootOnly) {
+    await context.close();
+    return { boot };
+  }
   const { width, height } = profile.viewport;
   /** Le cadrage d'arrivée : celui du repos, et le « loin » des couches. */
   const home = await page.evaluate(() => {
@@ -704,6 +743,11 @@ async function play(profileName, pass) {
         ['nation', null, () => link(/fiche de nation/)],
         ['réglages', null, () => link(/^Réglages$/)],
       ];
+  if (restOnly) {
+    await gesture('repos 10 s', () => page.waitForTimeout(10000), 0);
+    await context.close();
+    return { boot, results };
+  }
   if (phone) await gesture('menu des surfaces', menu).then(close);
   for (const [name, before, target] of surfaces) {
     if (before) {
@@ -1061,7 +1105,7 @@ async function play(profileName, pass) {
     });
 
   await context.close();
-  return { statics, results, layers, geometry };
+  return { boot, statics, results, layers, geometry };
 }
 
 const BURST_MS = 150;
@@ -1206,8 +1250,22 @@ try {
       console.log(`${name} : passe ${k + 1}/${passes}`);
       runs.push(await play(name, k));
     }
+    const boot = Object.fromEntries(
+      Object.keys(runs[0].boot).map((key) => [key, median(runs.map((run) => run.boot[key]))]),
+    );
+    text += `\n== ${name} : démarrage ==\ncarte affichée ${boot.mapMs} ms ; ${boot.longTasks} tâches longues, ${boot.longTaskMs} ms (la plus longue ${boot.longestMs}) ; coast.json décodé en ${boot.coastDecodeMs} ms, prêt à ${boot.coastAtMs} ms\n`;
+    if (bootOnly) {
+      report.profiles[name] = { boot, runs };
+      continue;
+    }
+    if (restOnly) {
+      const { gestures } = merge(runs);
+      report.profiles[name] = { boot, gestures, runs };
+      text += `${table(gestures)}\n`;
+      continue;
+    }
     const merged = merge(runs);
-    report.profiles[name] = { ...merged, runs };
+    report.profiles[name] = { boot, ...merged, runs };
     const s = merged.statics;
     text += `\n== ${name} ==\ncarte : pixel ratio ${s.pixelRatio}, tampon ${s.buffer}, MSAA ${s.msaa}, ombres ${shadowless ? 'coupées' : `${s.shadowMap}²`}, ${s.programs} programmes, ${s.textures} textures (~${round(s.textureMB)} Mo : ${s.heaviest.join(', ')}), ${s.blurBands.length} bandes floues\n${table(merged.gestures)}\n`;
     const { levels, buffersMB } = merged.geometry;

@@ -65,6 +65,7 @@ export type ErrorCode =
   | 'UNKNOWN_REGION'
   | 'UNKNOWN_CAPITAL_REGION'
   | 'DEPOSIT_REQUIRED'
+  | 'NOT_ON_LAND'
   | 'NOT_COASTAL'
   | 'POINT_OUTSIDE_REGION'
   /** **Le placement libre** (ADR 0029) : un gisement déjà exploité, un voisin trop proche, une
@@ -129,6 +130,7 @@ export type ErrorCode =
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'LANDING_NEEDS_A_COAST'
   | 'LAND_TARGET_REQUIRED'
+  | 'NO_FOOTING'
   | 'SEA_TARGET_REQUIRED'
   | 'LAKE_TARGET'
   /** Rester en mer (18/09) : la pile en mer part par sa coque, et on ne fonde pas au large. */

@@ -6,9 +6,8 @@ import {
   computeRoute,
   computeRouteToAny,
   decodeGrid,
-  isCoastCell,
-  groundAt,
   isLandCell,
+  isWalkableCell,
   extendRouteSearch,
   routeDistanceKmAt,
   routeDistanceKmField,
@@ -16,14 +15,15 @@ import {
   KM_PER_UNIT,
   mooringOf,
 } from '../src/domain/routing';
+import { carriesBuilding, groundOf, isLandingShore } from '../src/domain/coast';
+import { coastOf } from './coast';
 import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
 import projectionAsset from '../public/projection.json';
 import {
   firstRouteEntryInRegion,
   goalCellsForRegions,
-  hostAmongAtRoutePoint,
-  hostAtRoutePoint,
+  regionAtPoint,
   regionAtRoutePoint,
   pointInRouteRegion,
 } from './regionGeometry';
@@ -89,7 +89,7 @@ export function routeToRegions(
     }
   | null {
   const regionIds = new Set(regions.map((region) => region.id));
-  const here = regionAtRoutePoint(from);
+  const here = regionAtPoint(from)?.id ?? null;
   if (here !== null && regionIds.has(here))
     return { kind: 'standing', regionId: here, point: from };
 
@@ -113,7 +113,12 @@ export function routeToRegions(
      * Chercher un franchissement dans le raster n'en trouverait aucun et refuserait la livraison.
      */
     if (goal.point !== undefined) {
-      if (mode !== 'air' && !isLandCell(grid, goal.point)) continue;
+      /** A hull reaches the beach the atlas gives an islet: Malta by sea (#224). */
+      const reachable =
+        mode === 'air' ||
+        isLandCell(grid, goal.point) ||
+        (mode !== 'land' && isLandingShore(grid, coastOf(), goal.point));
+      if (!reachable) continue;
       const completed = extendRouteSearch(grid, search, goal.point);
       return { kind: 'route', regionId: goal.regionId, point: goal.point, route: completed.route };
     }
@@ -131,14 +136,14 @@ export function routeToRegions(
 }
 
 /**
- * **Is this a coast a hull can sail from?** The very grid a movement is computed on answers:
- * the departure, the posting and the aim of a hull read it, and the fan reads the same function
- * (`isCoastCell`). A port does not: it goes up on the atlas's open-sea coast (`convex/coast.ts`,
- * #221).
+ * **Is this a coast a hull can sail from?** A shore cell of the very grid a movement is computed
+ * on, or the atlas's land standing in its open water — Malta (#224, `isLandingShore`): the
+ * departure, the posting and the aim of a hull read it, and the fan reads the same function. A
+ * port does not: it goes up on the atlas's open-sea coast (`convex/coast.ts`, #221).
  */
 export function coastAtPoint(point: LonLat): boolean {
   grid ??= decodeGrid(gridAsset, projection);
-  return isCoastCell(grid, point);
+  return isLandingShore(grid, coastOf(), point);
 }
 
 /**
@@ -177,10 +182,23 @@ export function landAtPoint(point: LonLat): boolean {
   return groundAtPoint(point) === 'land';
 }
 
-/** Le sol que la visée a lu (`MapEngine.groundAt`), sur la même grille. */
+/** Une route à pied y aboutit-elle ? La même cellule que `computeRoute` lit (#224). */
+export function walkableAtPoint(point: LonLat): boolean {
+  grid ??= decodeGrid(gridAsset, projection);
+  return isWalkableCell(grid, point);
+}
+
+/** Un sol où poser un bâtiment : la terre, ou la rive d'un lac (#224, `carriesBuilding`). */
+export function buildableAtPoint(point: LonLat): boolean {
+  grid ??= decodeGrid(gridAsset, projection);
+  return carriesBuilding(grid, coastOf(), point);
+}
+
+/** Le sol que la visée a lu (`MapEngine.groundAt`) : la grille, et l'atlas là où elle noie la
+ *  terre (#224, `groundOf`). */
 export function groundAtPoint(point: LonLat): Ground {
   grid ??= decodeGrid(gridAsset, projection);
-  return groundAt(grid, point);
+  return groundOf(grid, coastOf(), point);
 }
 
 /**
@@ -201,7 +219,7 @@ export function groundAtPoint(point: LonLat): Ground {
  * centre — so the answer is the polygon's, at the mesh of the grid the movement walks.
  */
 export function hostAtPoint(point: LonLat): string {
-  return hostAtRoutePoint(point) ?? '';
+  return regionAtPoint(point)?.country ?? '';
 }
 
 export function pointInRegion(
@@ -214,11 +232,12 @@ export function pointInRegion(
 /**
  * **Whose soil this is, asked only of the players' own** — the territory detector of design
  * sheet 04, which has no radius because it is not a thing standing on the ground: it *is* the
- * ground. A road is walked sample by sample against it, so the reading is restricted to the
- * countries that can answer rather than to the whole world.
+ * ground. A road is walked sample by sample against it, restricted to the countries that can
+ * answer; the soil is `hostAtPoint`'s, so Monaco is no more France here than for the upkeep (#224).
  */
 export function hostAmongCountries(point: LonLat, adm0s: ReadonlySet<string>): string {
-  return hostAmongAtRoutePoint(point, adm0s) ?? '';
+  const host = hostAtPoint(point);
+  return adm0s.has(host) ? host : '';
 }
 
 /**

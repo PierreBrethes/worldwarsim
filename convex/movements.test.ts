@@ -2873,13 +2873,17 @@ describe('the door of the sea, read on the pile', () => {
    * que la route, et cette bande de Sussex qui était britannique pour le polygone et de l'eau
    * pour la grille est de l'eau pour les deux. Le scénario reste — une coque s'y pose et doit en
    * repartir — mais ce qu'il vérifiait au premier chiffre est devenu l'accord des deux lectures.
+   *
+   * **Puis la terre de l'atlas revient** (#224) : la bande est britannique, à terre, et une plage
+   * où la coque accoste dans sa propre cellule d'eau ouverte. Les trois lectures disent toujours
+   * la même chose, et la coque repart.
    */
   it('lets a hull sail again from a shoreline the polygon calls land and the grid calls water', async () => {
     /** Sussex shore: inside the British polygon, in a cell whose centre is in the Channel. */
     const SUSSEX: LonLat = [0.1, 50.78];
-    expect(hostAtPoint(SUSSEX)).toBe('');
-    expect(landAtPoint(SUSSEX)).toBe(false);
-    expect(coastAtPoint(SUSSEX)).toBe(false);
+    expect(hostAtPoint(SUSSEX)).toBe('GBR');
+    expect(landAtPoint(SUSSEX)).toBe(true);
+    expect(coastAtPoint(SUSSEX)).toBe(true);
 
     const t = boot();
     const { seat } = await launchedSeason(t);
@@ -4397,5 +4401,132 @@ describe('le quai sur la vraie côte', () => {
     });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect((await t.run((ctx) => ctx.db.get(cargo)))!.stationedAt).toEqual(offshore);
+  });
+});
+
+/**
+ * **Malte et les petites îles** (#224, décisions de Pierre du 21/10) : la grille de 25 km les noie,
+ * l'atlas leur rend leur terre. Une colonne embarquée y débarque, y fonde, y tient garnison ; on
+ * n'y marche toujours pas depuis le continent, et le refus le dit.
+ */
+describe('les petites îles', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const VAR = 'FRA-5351';
+  const TOULON = { lon: 5.93, lat: 43.1 };
+  const VALLETTA = 'MLT-5949';
+  const AT_VALLETTA = pointIn(VALLETTA);
+  const YAREN = 'NRU-4983'; // Nauru, à 300 km de toute autre terre
+  const OFF_NAURU = { lon: 167.2, lat: -0.55 };
+
+  /** La traversée a mangé le stock : ce qui est sous test est le sol, pas la facture. */
+  const stockUp = async (t: ReturnType<typeof boot>, seat: Seat) => {
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect())
+        await ctx.db.patch(row._id, { stock: 10_000, updatedAt: Date.now() });
+    });
+  };
+
+  const embark = async (t: ReturnType<typeof boot>, seat: Seat) => {
+    const quay = await raise(t, seat, 'port', VAR, TOULON);
+    return {
+      infantry: await form(t, seat, 'infantry', quay),
+      cargo: await form(t, seat, 'cargo', quay),
+      quay,
+    };
+  };
+
+  it('lands a column on Malta, ashore, and founds an outpost there', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { infantry, cargo, quay } = await embark(t, seat);
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: quay },
+      troopIds: [infantry, cargo],
+      point: AT_VALLETTA,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const view = await t.query(api.view.playerView, seat);
+    const landed = view.me.troops.find((troop) => troop.id === infantry)!;
+    expect(landed.stationedAt).toMatchObject({ kind: 'point', afloat: false, coastal: true });
+
+    await t.run(async (ctx) => ctx.db.delete(cargo));
+    await stockUp(t, seat);
+    await t.mutation(api.movements.foundOutpostHere, {
+      ...seat,
+      point: AT_VALLETTA,
+      regionId: VALLETTA,
+      specialization: 'relay',
+      troopIds: [infantry],
+    });
+    const [outpost] = await outpostsOf(t, seat);
+    expect(outpost).toMatchObject({ hostCountry: 'MLT', regionId: VALLETTA });
+  });
+
+  it('opens an isolated atoll like any other island', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const infantry = await postAt(t, seat, 'infantry', OFF_NAURU);
+    const cargo = await postAt(t, seat, 'cargo', OFF_NAURU);
+    const atYaren = pointIn(YAREN);
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: OFF_NAURU },
+      troopIds: [infantry, cargo],
+      point: atYaren,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => ctx.db.delete(cargo));
+    await stockUp(t, seat);
+    await t.mutation(api.movements.foundOutpostHere, {
+      ...seat,
+      point: atYaren,
+      regionId: YAREN,
+      specialization: 'relay',
+      troopIds: [infantry],
+    });
+    expect((await outpostsOf(t, seat))[0]).toMatchObject({ hostCountry: 'NRU' });
+  });
+
+  it('sends nobody on foot against a camp on Malta, and says so', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const infantry = await postAt(t, seat, 'infantry', TOULON);
+    await postAt(t, guest, 'infantry', AT_VALLETTA);
+    const campId = await surveyCamp(t, seat, AT_VALLETTA);
+    await expect(
+      attacking(t, {
+        ...seat,
+        origin: { kind: 'point', point: TOULON },
+        troopIds: [infantry],
+        target: { kind: 'camp', campId },
+      }),
+    ).rejects.toThrow('NO_FOOTING');
+  });
+
+  it('still walks nobody to Malta from the mainland, and says so', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const infantry = await postAt(t, seat, 'infantry', TOULON);
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'point', point: TOULON },
+        troopIds: [infantry],
+        point: AT_VALLETTA,
+      }),
+    ).rejects.toThrow('NO_FOOTING');
   });
 });

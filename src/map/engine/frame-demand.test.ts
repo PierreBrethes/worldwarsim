@@ -168,6 +168,8 @@ describe('every public method of the engine asks for a frame', () => {
     'maquetteAtPoint',
     'regionAtLonLat',
     'coastAt',
+    'coastPendingAt',
+    'walkableAt',
     'landAt',
     'groundAt',
     'consumeCarry',

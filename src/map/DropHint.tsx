@@ -37,6 +37,8 @@ export function hintOfReading(
   if (reading.kind === 'none') return null;
   if (reading.kind === 'refused')
     return { icon: '✕', tone: 'refused', verb: reading.reason, detail: null };
+  if (reading.kind === 'pending')
+    return { icon: '…', tone: 'calm', verb: reading.reason, detail: null };
   const { verbs } = reading;
   const at = chosenOf(verbs);
   const verb = verbs[at]!;

@@ -76,6 +76,10 @@ de mer ouverte de l'atlas (`public/coast.json`, `generate-coast.mjs`, à lancer 
 `generate-region-index`) : 1 830 régions au lieu de 2 384. Florence, Cuneo et Konya ne sont plus
 côtières, Malte, Singapour et les Bermudes le sont, et un port s'y pose (ADR 0023 amendée).
 
+**Précisée le 22/10/2026 (#224).** Malte, Singapour et les atolls ont leur terre et leur région
+côté serveur : `generate-coast.mjs` cuit aussi les anneaux des régions sans cellule (ADR 0023
+amendée). Le refus « sur l'eau, seul un port se pose » (`NOT_ON_LAND`) lit cette terre.
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :

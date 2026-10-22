@@ -61,6 +61,8 @@ export type MovementAim =
        */
       readonly ground: Ground;
       readonly coastal: boolean;
+      /** @see the point's own `walkable` (#224). */
+      readonly walkable?: boolean;
     }
   /**
    * **Un objectif neutre**, et la seule cible du jeu qu'on attaque **sans l'avoir relevée** — c'est
@@ -125,13 +127,16 @@ export type MovementAim =
        */
       readonly surveyed: boolean;
       /**
-       * **Whether a hull can reach this exact spot** — `isCoastCell` on the routing grid and
-       * nothing else: a coastline read off another source would say "coast" where Dijkstra finds
-       * no water. It travels with the aim rather than being looked up here for the reason
+       * **Whether a hull can reach this exact spot** — `isLandingShore`: a shore cell of the
+       * routing grid, or the atlas's land standing in its open water (Malta, #224), never a
+       * coastline Dijkstra finds no water beside. It travels with the aim rather than being looked up here for the reason
        * `afloat` does — the rule must answer **without a route** (ADR 0015), and the domain holds
        * no grid. Both ends fill it from the same function, so the fan and the server agree.
        */
       readonly coastal: boolean;
+      /** **Whether a route on foot can end here** (`isWalkableCell`, #224), filled by both ends
+       *  from the same grid. Absent, it can. */
+      readonly walkable?: boolean;
     }
   /**
    * **A building of one's own, entered as a garrison** (decision 64b, 01/09) — the one aim that
@@ -157,6 +162,8 @@ export type MovementAim =
       readonly hostCountry: string;
       readonly ground: Ground;
       readonly coastal: boolean;
+      /** @see the point's own `walkable` (#224). */
+      readonly walkable?: boolean;
     };
 
 /**
@@ -222,6 +229,9 @@ export type OrderRefusal =
   | 'NO_AIRFIELD_AT_DEPARTURE'
   | 'LANDING_NEEDS_A_COAST'
   | 'LAND_TARGET_REQUIRED'
+  /** **Une terre qu'aucune route à pied n'atteint** (#224) : Malte, le centre de Naples — la terre
+   *  de l'atlas sur une cellule d'eau de la grille. On y débarque, on n'y marche pas. */
+  | 'NO_FOOTING'
   | 'SEA_TARGET_REQUIRED'
   /** **Un lac n'est ni la terre ni le large** (ADR 0034) : aucune coque n'en part, aucune botte
    *  ne s'y pose. Sans ce mot, la règle le prenait pour la mer et la route le refusait ensuite. */
@@ -690,6 +700,7 @@ const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | nu
     return 'AIRFIELD_TARGET_REQUIRED';
   if (mode !== 'air' && onLake(aim)) return 'LAKE_TARGET';
   if (mode === 'land' && atSea(aim)) return 'LAND_TARGET_REQUIRED';
+  if (mode === 'land' && 'walkable' in aim && aim.walkable === false) return 'NO_FOOTING';
   if (mode === 'naval' && !atSea(aim) && !shore(aim)) return 'SEA_TARGET_REQUIRED';
   return mode === 'combined' && !atSea(aim) && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
 };

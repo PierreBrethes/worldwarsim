@@ -753,6 +753,7 @@ export const fr = {
     DEPOSIT_REQUIRED: (d) =>
       `${buildingName(d.building)} se pose sur un gisement de ${depositNames(d.expected)} — visez son point`,
     DEPOSIT_TAKEN: () => 'ce gisement porte déjà une exploitation',
+    NOT_ON_LAND: () => 'sur l’eau, seul un port se pose',
     NOT_COASTAL: () => 'un port se pose sur la côte de sa région',
     POINT_OUTSIDE_REGION: () => 'ce point n’est pas dans la région visée',
     /** « Trop près de l'usine : 30 km au moins » — le voisin nommé, et l'écart à tenir. */
@@ -887,6 +888,8 @@ export const fr = {
     NO_FOUNDING_AT_SEA: () => 'on ne fonde pas en mer — il n’y a pas de sol à ouvrir',
     LAND_TARGET_REQUIRED: () =>
       'une troupe terrestre doit viser la terre — embarquez-la pour traverser la mer',
+    /** Malte, le centre de Naples : la terre est là, la route à pied n'y aboutit pas (#224). */
+    NO_FOOTING: () => 'aucune route terrestre n’y mène — embarquez la colonne pour y débarquer',
     SEA_TARGET_REQUIRED: () => 'un navire doit viser la mer, une côte ou un port',
     /** Le lac se dit pour ce qu'il est : ni la terre d'une botte, ni le large d'une coque. */
     LAKE_TARGET: () => 'un lac ne se navigue pas et ne se foule pas — visez la terre ou la mer',
@@ -4757,6 +4760,7 @@ export function aimRefusalText(
       return errors.ALREADY_BUILT({ building: key });
     case 'HQ_FIRST':
     case 'DEPOSIT_TAKEN':
+    case 'NOT_ON_LAND':
     case 'NOT_COASTAL':
     case 'UNKNOWN_BUILDING':
       return errors[refusal.code]();

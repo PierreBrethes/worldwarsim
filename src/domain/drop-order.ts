@@ -24,6 +24,8 @@ const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
 export type DropReading =
   | { readonly kind: 'none' }
   | { readonly kind: 'refused'; readonly reason: string }
+  /** **La côte n'est pas encore lue** (#224) : ni ordre ni refus, la pièce reste en main. */
+  | { readonly kind: 'pending'; readonly reason: string }
   | { readonly kind: 'orders'; readonly verbs: ReadonlyArray<CompassAction> };
 
 /**
@@ -34,6 +36,8 @@ export type DropReading =
 export function dropReadingOf(compass: Compass | null): DropReading {
   const verbs = compass?.actions.filter((action) => DROPPABLE.has(action.key)) ?? [];
   if (verbs.length > 0) return { kind: 'orders', verbs };
+  if (compass?.pending === true && compass.refusal)
+    return { kind: 'pending', reason: compass.refusal };
   return compass?.refusal ? { kind: 'refused', reason: compass.refusal } : { kind: 'none' };
 }
 

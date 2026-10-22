@@ -43,7 +43,7 @@ import {
   nominalStrength,
   settlesDebt,
 } from './constants';
-import { pointInRegion } from './routes';
+import { buildableAtPoint, pointInRegion } from './routes';
 import { isOnRegionCoast } from './coast';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
@@ -625,9 +625,9 @@ async function refusalFor(
   /**
    * **The point lies in the region named with it** (`pointInRegion`): the region carries the
    * colour and the surveys, so a twisted client must not pick it. A raise is not asked: its
-   * point was checked once. For a port, the region's own open-sea coast is in it too: a quay on a
-   * small island (Lampedusa, Key West) sits where the 25 km raster has no land. Any other
-   * building on such an islet is #224's.
+   * point was checked once. The land of an islet is in its region (#224); a port stands on the
+   * water's edge too, so the region's own open-sea coast is in it as well: a quay off Lampedusa or
+   * Key West, where neither the raster nor the land reaches.
    */
   if (
     standing === undefined &&
@@ -765,6 +765,7 @@ async function spotAt(
   ];
   return {
     reached,
+    onLand: buildableAtPoint(lonLat),
     deposit:
       deposit === null
         ? null
@@ -851,6 +852,7 @@ function placementRefusalOf(
 ): Refusal {
   switch (refusal) {
     case 'UNKNOWN_BUILDING':
+    case 'NOT_ON_LAND':
     case 'NOT_COASTAL':
     case 'DEPOSIT_TAKEN':
       return { code: refusal };

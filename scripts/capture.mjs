@@ -20,6 +20,7 @@
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
+ * `lieu=lon,lat,distance` vise un lieu de la carte au centre de l'écran, à cette distance.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -140,6 +141,21 @@ try {
         [x, y, distance, polar, azimuth],
       );
       await page.waitForTimeout(1500);
+    } else if (kind === 'lieu') {
+      const [, , distance = 30] = value.split(',').map(Number);
+      await page.evaluate(
+        ([lon, lat, d]) => {
+          const engine = globalThis.mapEngine;
+          const target = engine.frame.projectLonLat([lon, lat], 0);
+          const away = engine.camera.position.clone().sub(engine.controls.target).normalize();
+          engine.controls.target.copy(target);
+          engine.camera.position.copy(target).addScaledVector(away, d);
+          engine.controls.update();
+          engine.invalidate();
+        },
+        [x, y, distance],
+      );
+      await page.waitForTimeout(2500);
     } else if (kind === 'ralenti') {
       const devtools = await page.context().newCDPSession(page);
       await devtools.send('Animation.enable');

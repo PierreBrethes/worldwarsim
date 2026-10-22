@@ -24,7 +24,7 @@ import { emptyStocks } from '../src/domain/economy';
 import { creditToStorage, debit, economyOf, settle } from './resources';
 import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
 import { RESOURCE_KEY } from './validators';
-import { regionAtRoutePoint } from './regionGeometry';
+import { regionAtPoint } from './regionGeometry';
 import { reassessDetection } from './movement/detection';
 
 /**
@@ -59,7 +59,7 @@ export async function layPoint(
   const existing = (await seasonPoints(ctx, seasonId)).find((point) => point.key === key);
   if (existing !== undefined) return existing;
   const [lon, lat] = STRATEGIC_POINTS[key];
-  const regionId = regionAtRoutePoint([lon, lat]);
+  const regionId = regionAtPoint([lon, lat])?.id ?? null;
   if (regionId === null) return null;
   const id = await ctx.db.insert('strategicPoints', {
     seasonId,

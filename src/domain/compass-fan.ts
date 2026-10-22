@@ -134,6 +134,7 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
   /** Comme la plage : la carte montre le sol visé, pas qu'un avion chargé n'y descend pas. */
   'AIRFIELD_TARGET_REQUIRED',
   'LAND_TARGET_REQUIRED',
+  'NO_FOOTING',
   'SEA_TARGET_REQUIRED',
   'LAKE_TARGET',
   'INFANTRY_ONLY',

@@ -35,7 +35,7 @@ import {
   OUTPOST_IMMUNITY_HOURS,
 } from '../constants';
 import { reportChange, scheduleRestore, settleBeforeChange } from '../production';
-import { regionAtRoutePoint } from '../regionGeometry';
+import { regionAtPoint } from '../regionGeometry';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
 import {
@@ -155,7 +155,7 @@ const surveyedInstallationAt = async (
   movement: Doc<'movements'>,
 ): Promise<Doc<'buildings'>['key'] | undefined> => {
   const regionId =
-    regionAtRoutePoint(pointOf(movement.to)) ??
+    regionAtPoint(pointOf(movement.to))?.id ??
     (movement.target.kind === 'region' ? movement.target.regionId : null);
   if (regionId === null) return undefined;
   const surveyed = await ctx.db
