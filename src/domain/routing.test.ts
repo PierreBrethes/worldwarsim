@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { decodeAtlas } from './atlas';
 import { atlasWorld } from './atlas-world';
-import type { World } from './world';
+import type { Projection, World } from './world';
+import { bearingDegrees, distanceKm, type LonLat } from './geo';
+import gridAsset from '../../public/grid.json';
+import projectionAsset from '../../public/projection.json';
 import { refusalOf, type Column, type MovementAim } from './movement-orders';
 import {
   COST_BY_MEDIUM,
@@ -10,11 +13,14 @@ import {
   buildGrid,
   coastCellsIn,
   computeRoute,
+  decodeGrid,
   type GridWorld,
+  type RouteMode,
   groundAt,
   mooringOf,
   isCoastCell,
   isLandCell,
+  isWalkableCell,
   landComponentCount,
   landMaskOf,
   routeMedium,
@@ -315,8 +321,9 @@ describe('on the real world', () => {
   it('sails from Murmansk, whose nearest water is cut off from the sea', async () => {
     const route = computeRoute(buildGrid(await realWorld()), [33.0, 69.05], [-1.1, 50.8], 'naval');
     expect(route).not.toBeNull();
-    expect(route!.costUnits).toBeGreaterThan(45.32 * 0.99);
-    expect(route!.costUnits).toBeLessThan(45.32 * 1.01);
+    // 45.32 on the staircase; the pulled thread (#231) is shorter, never longer.
+    expect(route!.costUnits).toBeGreaterThan(44.03 * 0.99);
+    expect(route!.costUnits).toBeLessThan(44.03 * 1.01);
   });
 
   it('engraves the sea gates: Gibraltar stays open', async () => {
@@ -468,5 +475,97 @@ describe('routeMedium', () => {
 
   it('flies as soon as a leg is airborne', () => {
     expect(routeMedium([{ medium: 'air', distanceUnits: 40 }])).toBe('air');
+  });
+});
+
+/**
+ * **Un trajet va droit tant que rien ne le dévie** (#231). Le Dijkstra à huit voisins ne tourne
+ * que par multiples de 45° ; le fil tiré sur son chemin, dans les mêmes milieux, ne garde que les
+ * coudes que la côte impose.
+ */
+describe('the pulled thread', () => {
+  const baked = decodeGrid(gridAsset, projectionAsset as unknown as Projection);
+
+  /** The vertices where the thread turns by more than a few degrees, ends included. */
+  const usefulVertices = (points: ReadonlyArray<LonLat>): number => {
+    let turns = 0;
+    for (let i = 1; i < points.length - 1; i++) {
+      const before = bearingDegrees(points[i - 1]!, points[i]!);
+      const after = bearingDegrees(points[i]!, points[i + 1]!);
+      const turn = Math.abs(((after - before + 540) % 360) - 180);
+      if (turn > 3) turns++;
+    }
+    return turns + 2;
+  };
+
+  /** Two lands touching by a corner are a strait at this mesh, the Gulf of Suez among them: a
+   *  hull goes through. Shutting such corners sent Alexandria round the Cape to Aden (#231). */
+  it('sails a strait whose banks touch by a corner: Alexandria to Aden by Suez', () => {
+    const route = computeRoute(baked, [29.8, 31.3], [45.2, 12.6], 'naval');
+    expect(route).not.toBeNull();
+    // By Suez about thirty units; round the Cape more than two hundred.
+    expect(route!.distanceUnits).toBeLessThan(40);
+  });
+
+  it('goes straight from Paris to Berlin', () => {
+    const route = computeRoute(baked, [2.35, 48.85], [13.4, 52.5], 'land');
+    expect(route).not.toBeNull();
+    expect(usefulVertices(route!.points)).toBe(2);
+  });
+
+  /** Every segment as the server reads it, linear in lon/lat (`positionAt`), stays on its medium. */
+  it('never leaves its medium between two stored points', () => {
+    const named: Array<[RouteMode, LonLat, LonLat]> = [
+      ['naval', [-4.6, 48.3], [5.3, 43.2]],
+      ['naval', [4, 55], [18, 55.5]],
+      ['naval', [29.8, 31.3], [45.2, 12.6]],
+      ['naval', [12.6, 45.2], [8.8, 44.3]],
+      ['naval', [-1.6, 45.0], [4.0, 52.0]],
+      ['naval', [72.6, 18.9], [104.0, 1.2]],
+      ['naval', [140.0, 35.0], [122.5, 31.0]],
+      ['naval', [-123.0, 37.6], [-73.5, 40.4]],
+      ['naval', [-9.6, 38.6], [-43.0, -23.1]],
+      ['naval', [140.2, 35.0], [-118.6, 33.6]],
+      ['land', [12.5, 41.9], [23.7, 38.0]],
+      ['land', [13.4, 52.5], [18.1, 59.3]],
+      ['land', [49.9, 40.4], [58.4, 38.0]],
+      ['land', [2.35, 48.85], [-3.7, 40.4]],
+      ['land', [2.35, 48.85], [13.4, 52.5]],
+      ['land', [3.4, 6.5], [36.8, -1.3]],
+      ['land', [131.9, 43.1], [116.4, 39.9]],
+      ['land', [31.2, 30.0], [44.4, 33.3]],
+      ['land', [10.2, 36.8], [31.2, 30.0]],
+    ];
+    const strays: string[] = [];
+    for (const [mode, from, to] of named) {
+      const route = computeRoute(baked, from, to, mode);
+      expect(route).not.toBeNull();
+      const onCell = (point: LonLat) =>
+        mode === 'land' ? isWalkableCell(baked, point) : groundAt(baked, point) === 'sea';
+      /** A segment through a cell's exact corner grazes its neighbour by a sliver: two kilometres
+       *  of tolerance, a fifteenth of a cell, against the hundreds a lon/lat chord strays by. */
+      const onMedium = ([lon, lat]: LonLat) =>
+        [
+          [0, 0],
+          [0.02, 0],
+          [-0.02, 0],
+          [0, 0.02],
+          [0, -0.02],
+        ].some(([dLon, dLat]) => onCell([lon + dLon!, lat + dLat!]));
+      route!.points.forEach((a, index) => {
+        const b = route!.points[index + 1];
+        if (b === undefined || Math.abs(b[0] - a[0]) > 180) return;
+        const samples = Math.ceil((distanceKm(a, b) / 28) * 8) + 1;
+        for (let s = 1; s < samples; s++) {
+          const t = s / samples;
+          const point: LonLat = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+          if (!onMedium(point)) {
+            strays.push(`${mode} ${from} → ${to} at ${point}`);
+            return;
+          }
+        }
+      });
+    }
+    expect(strays).toEqual([]);
   });
 });

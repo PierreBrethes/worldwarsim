@@ -2,7 +2,7 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { distanceKm, type LonLat } from '../src/domain/geo';
+import { bearingDegrees, destinationPoint, distanceKm, type LonLat } from '../src/domain/geo';
 import {
   ARRIVAL_RADIUS_KM,
   buildCost,
@@ -3543,6 +3543,13 @@ describe('a posted troop sees what passes within its radius', () => {
   const road = () => routeBetween(regionFacts(MARNE)!.point, regionFacts(PRAHOVA)!.point, 'land')!;
   const nearestOn = (points: ReadonlyArray<LonLat>, point: LonLat) =>
     points.reduce((closest, step) => Math.min(closest, distanceKm(step, point)), Infinity);
+  /** A point off the road's halfway vertex, square to it: the pulled road runs east (#231). */
+  const abreastOfHalfway = (km: number): LonLat => {
+    const points = road().points;
+    const halfway = points[Math.floor(points.length / 2)]!;
+    const ahead = points[Math.floor(points.length / 2) + 1]!;
+    return destinationPoint(halfway, km, bearingDegrees(halfway, ahead) + 90);
+  };
 
   async function marchAcross(t: ReturnType<typeof boot>, seat: Seat) {
     const barracks = await raise(t, seat, 'barracks', MARNE);
@@ -3558,9 +3565,8 @@ describe('a posted troop sees what passes within its radius', () => {
   it('serves the thread of what walks past, and neither its type nor its composition', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    const halfway = road().points[Math.floor(road().points.length / 2)]!;
     // Forty kilometres off the road: inside the sentry's passive detection range.
-    const camp = eastOf(halfway, 40);
+    const camp = abreastOfHalfway(40);
     expect(nearestOn(road().points, camp)).toBeLessThan(DETECTION_RANGE_KM.infantry);
     await post(t, guest, camp);
 
@@ -3586,8 +3592,7 @@ describe('a posted troop sees what passes within its radius', () => {
   it('sees nothing of the same column from beyond the radius', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    const halfway = road().points[Math.floor(road().points.length / 2)]!;
-    const camp = eastOf(halfway, 150);
+    const camp = abreastOfHalfway(150);
     expect(nearestOn(road().points, camp)).toBeGreaterThan(DETECTION_RANGE_KM.infantry);
     await post(t, guest, camp);
 

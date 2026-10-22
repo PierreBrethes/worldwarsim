@@ -57,6 +57,9 @@ Ce sont les défauts que les revues ont réellement trouvés.
   seul par l'agent (une valeur, un réglage, une couche retirée) est un finding.
 - **Ce qui s'affiche fait foi** : un état lu sur l'URL ou sur un compteur, alors que le composant
   ne se monte pas (feuille d'un bâtiment tombé), laisse l'écran mentir.
+- **Ce qui ne s'affiche plus** : quand un lot masque une fiche, un cartouche ou un compteur, liste
+  tout ce qu'il disait (attente, plafond, cible d'un glisser, site ouvert) et où le joueur le
+  lit désormais. Ce qui n'est plus lu nulle part est un finding.
 - **Rendu GPU** : regarde de loin comme de près. Un trait mangé par la feuille vient d'un
   conflit de profondeur ; une épaisseur qui fond vient d'unités du monde au lieu de pixels
   d'écran ; une donnée cuite peut mal se décoder (antialiasing d'un canvas lu comme un type).
