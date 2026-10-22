@@ -946,7 +946,11 @@
 /* At rest a loaded transport wears a small sign, not its sheet (#238): the sheet opens under the
    pointer, under a finger, while selected, and under a drag that aims at it. */
 .cargo-tag-sign {
-  pointer-events: none;
+  /* Reachable: it is where the pointer goes from the figurines, and it opens the sheet. */
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   min-width: 16px;
   padding: 2px 5px;
   background: var(--paper);
@@ -958,12 +962,23 @@
 .cargo-tag-body {
   display: none;
 }
+.cargo-tag-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.cargo-tag:hover .cargo-tag-body,
+.cargo-tag--available .cargo-tag-body,
+.cargo-tag--pending .cargo-tag-body,
 .cargo-tag--open .cargo-tag-body,
 .cargo-tag--selected .cargo-tag-body,
 .label-anchor--hovered .cargo-tag-body,
 .label--pointed .cargo-tag-body {
   display: grid;
 }
+.cargo-tag:hover .cargo-tag-sign,
+.cargo-tag--available .cargo-tag-sign,
+.cargo-tag--pending .cargo-tag-sign,
 .cargo-tag--open .cargo-tag-sign,
 .cargo-tag--selected .cargo-tag-sign,
 .label-anchor--hovered .cargo-tag-sign,

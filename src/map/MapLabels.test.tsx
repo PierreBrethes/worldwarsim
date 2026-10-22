@@ -148,7 +148,7 @@ describe('MapLabels', () => {
  * chargées ici : jsdom les applique.
  */
 describe('a loaded transport', () => {
-  const tag = (): CargoTag => ({
+  const tag = (over: Partial<CargoTag> = {}): CargoTag => ({
     carrierId: 'truck',
     role: 'landTransport',
     seats: 4,
@@ -158,11 +158,21 @@ describe('a loaded transport', () => {
     load: { ammunition: 0, oil: 0, coal: 0 },
     loadCapacity: 0,
     tour: null,
+    ...over,
   });
-  const loaded = { ...outpost('truck', 'Camion'), cargo: [tag()] } as MapLabel;
-  const draw = (selected: string | null = null, cargoAim: CargoAim | null = null) => (
+  const draw = ({
+    cargo = tag(),
+    selected = null,
+    cargoAim = null,
+    carriersShown = false,
+  }: {
+    cargo?: CargoTag;
+    selected?: string | null;
+    cargoAim?: CargoAim | null;
+    carriersShown?: boolean;
+  } = {}) => (
     <MapLabels
-      labels={[loaded]}
+      labels={[{ ...outpost('truck', 'Camion'), cargo: [cargo] } as MapLabel]}
       engine={null}
       selected={selected}
       secondarySelected={null}
@@ -184,6 +194,7 @@ describe('a loaded transport', () => {
       muted={false}
       onDisembark={noop}
       cargoAim={cargoAim}
+      carriersShown={carriersShown}
     />
   );
   const shown = (selector: string) =>
@@ -194,11 +205,17 @@ describe('a loaded transport', () => {
     style.textContent = readFileSync('src/styles/labels.css', 'utf8');
     document.head.append(style);
   });
-  afterEach(() => document.head.querySelector('style')?.remove());
+  afterEach(() => {
+    document.head.querySelector('style')?.remove();
+    vi.useRealTimers();
+  });
 
-  it('shows a small sign with the passenger count at rest, not the sheet', () => {
+  it('shows a small sign with a rifleman mark and the count at rest, not the sheet', () => {
     render(draw());
-    expect(document.querySelector('.cargo-tag-sign')?.textContent).toBe('1');
+    const sign = document.querySelector('.cargo-tag-sign')!;
+    expect(sign.textContent).toContain('1');
+    expect(sign.querySelector('img, .cargo-tag-mark')).not.toBeNull();
+    expect(sign.getAttribute('title')).toBeTruthy();
     expect(shown('.cargo-tag-sign')).toBe(true);
     expect(shown('.cargo-tag-body')).toBe(false);
   });
@@ -217,13 +234,70 @@ describe('a loaded transport', () => {
   });
 
   it('opens the sheet once the transport is selected', () => {
-    render(draw('truck'));
+    render(draw({ selected: 'truck' }));
     expect(shown('.cargo-tag-body')).toBe(true);
   });
 
   it('opens the sheet under a drag that aims at it, to say the seats left', () => {
-    render(draw(null, { labelId: 'truck', carrierId: 'truck', need: 1, fits: true }));
+    render(draw({ cargoAim: { labelId: 'truck', carrierId: 'truck', need: 1, fits: true } }));
     expect(shown('.cargo-tag-body')).toBe(true);
+  });
+
+  /** **Charger des jetons** (ADR 0028 §4) : `TokenDrag` cherche `[data-carrier-id]` sous la main ;
+   *  le corps de l'étiquette est ce qu'il trouve, il doit donc être là. */
+  it('keeps its body under the hand while tokens are carried', () => {
+    render(draw({ carriersShown: true }));
+    expect(shown('.cargo-tag-body')).toBe(true);
+    expect(shown('.cargo-tag-sign')).toBe(false);
+  });
+
+  it('is still seen at rest when it only carries a tour or a load', () => {
+    const { unmount } = render(
+      draw({
+        cargo: tag({ riders: [], used: 0, tour: { state: 'running', stops: 2, waiting: null } }),
+      }),
+    );
+    expect(document.querySelector('.cargo-tag-sign')).not.toBeNull();
+    expect(shown('.cargo-tag-body')).toBe(false);
+    unmount();
+    render(
+      draw({
+        cargo: tag({
+          riders: [],
+          used: 0,
+          load: { ammunition: 10, oil: 0, coal: 0 },
+          loadCapacity: 50,
+        }),
+      }),
+    );
+    expect(document.querySelector('.cargo-tag-sign')).not.toBeNull();
+  });
+
+  it('keeps the sheet of a stuck tour open at rest: an order is waiting', () => {
+    render(
+      draw({
+        cargo: tag({
+          riders: [],
+          used: 0,
+          tour: { state: 'waiting', stops: 2, waiting: { why: 'full' } },
+        }),
+      }),
+    );
+    expect(shown('.cargo-tag-body')).toBe(true);
+  });
+
+  it('can be reached: the sign takes the pointer, and the sheet waits before it folds', () => {
+    vi.useFakeTimers();
+    render(draw());
+    expect(getComputedStyle(document.querySelector('.cargo-tag-sign')!).pointerEvents).toBe('auto');
+    const label = document.querySelector('.label')!;
+    const anchor = document.querySelector('.label-anchor')!;
+    fireEvent.pointerEnter(label);
+    expect(anchor.classList.contains('label-anchor--hovered')).toBe(true);
+    fireEvent.pointerLeave(label);
+    expect(anchor.classList.contains('label-anchor--hovered')).toBe(true);
+    vi.advanceTimersByTime(400);
+    expect(anchor.classList.contains('label-anchor--hovered')).toBe(false);
   });
 });
 

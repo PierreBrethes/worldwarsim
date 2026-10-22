@@ -280,6 +280,11 @@ export function MapLabels({
    */
   const over = useRef<{ label: string | null; piece: string | null }>({ label: null, piece: null });
   const hovered = useRef<string | null>(null);
+  const folding = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = folding.current;
+    return () => timers.forEach((timer) => clearTimeout(timer));
+  }, []);
   /** The labels that carry a transport's tag: only they look for their figurines each frame. */
   const cargoed = useRef<ReadonlySet<string>>(new Set());
   cargoed.current = new Set(
@@ -298,9 +303,18 @@ export function MapLabels({
       if (id === previous) return;
       hovered.current = id;
       // A transport's tag hangs while its piece is under the pointer (POC, `t.hover`).
-      if (previous !== null)
-        anchors.current.get(previous)?.classList.remove('label-anchor--hovered');
-      if (id !== null) anchors.current.get(id)?.classList.add('label-anchor--hovered');
+      // A transport's sheet folds a moment late: between the figurines and it there is only air.
+      if (previous !== null) {
+        const fold = () => anchors.current.get(previous)?.classList.remove('label-anchor--hovered');
+        if (cargoed.current.has(previous)) {
+          clearTimeout(folding.current.get(previous));
+          folding.current.set(previous, setTimeout(fold, SHEET_FOLD_MS));
+        } else fold();
+      }
+      if (id !== null) {
+        clearTimeout(folding.current.get(id));
+        anchors.current.get(id)?.classList.add('label-anchor--hovered');
+      }
       if (id !== pressed.current) pressed.current = null;
       const left = labels.find((candidate) => candidate.id === previous);
       if (left?.anchor.kind === 'movementHead') onMovementHover(null);
@@ -1589,6 +1603,9 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
 ]);
 
 /** A deposit chip is the centre of its deposit: where the magnet puts the pin's foot. */
+/** How long a transport's sheet waits before folding once the pointer has left. @a-mesurer */
+const SHEET_FOLD_MS = 300;
+
 function isUnderPin(label: MapLabel, pinAt: LonLat | null): boolean {
   return (
     pinAt !== null &&
