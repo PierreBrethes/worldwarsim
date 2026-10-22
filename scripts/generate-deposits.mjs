@@ -35,7 +35,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { geoNaturalEarth1 } from 'd3-geo';
 import polylabel from 'polylabel';
 import { distanceKm } from '../src/domain/geo.ts';
-import { lonLatAtProjected, projectLonLat } from '../src/domain/routing.ts';
+import { decodeGrid, isLandCell, lonLatAtProjected, projectLonLat } from '../src/domain/routing.ts';
 import { atlas } from './atlas-base.mjs';
 
 const WIDTH = 400;
@@ -667,6 +667,11 @@ const FOOD_TRIES = 500;
 const index = JSON.parse(readFileSync('public/region-index.json', 'utf8'));
 const { sphere, outline } = JSON.parse(readFileSync('public/projection.json', 'utf8'));
 const raster = JSON.parse(readFileSync('public/region-grid.json', 'utf8'));
+const grid = decodeGrid(JSON.parse(readFileSync('public/grid.json', 'utf8')), {
+  sphere,
+  outline,
+  countries: [],
+});
 
 const decode = (runs) => {
   const cells = new Uint16Array(raster.width * raster.height);
@@ -696,10 +701,12 @@ const rounded = ([lon, lat]) => [Math.round(lon * 1000) / 1000, Math.round(lat *
 /**
  * **A point is in its region twice over**: on the server's cell, and on the atlas the hover reads
  * (`regionAt`, near level). One without the other puts a deposit at sea under the pointer, or in
- * the neighbour's region, and the building there is refused (`NO_GROUND`).
+ * the neighbour's region, and the building there is refused (`NO_GROUND`). **And on land of the
+ * routing grid** (`isLandCell`): a canal of Suez on a sea cell would take a mine afloat.
  */
 const inRegion = (lonLat, regionId) =>
   regionId !== undefined &&
+  isLandCell(grid, lonLat) &&
   regionOfCell(cellOf(lonLat)) === regionId &&
   atlas.regionAt(projectLonLat(outline, sphere, lonLat), 'near')?.id === regionId;
 

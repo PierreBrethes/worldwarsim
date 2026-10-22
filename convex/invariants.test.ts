@@ -435,6 +435,15 @@ describe('les régions nommées en dur', () => {
     ).toEqual([]);
   });
 
+  /** Un gisement posé sur une cellule de mer de la grille de routage (le canal de Suez, #221)
+   *  se ferait exploiter à flot : le générateur exige la terre de la grille. */
+  it('chaque gisement est sur une terre de la grille', () => {
+    const grid = decodeGrid(gridAsset, projection);
+    expect(
+      depositsAsset.filter(({ lon, lat }) => !isLandCell(grid, [lon, lat])).map(({ id }) => id),
+    ).toEqual([]);
+  });
+
   it('chaque gisement est dans la cellule de sa région', () => {
     const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
     expect(
