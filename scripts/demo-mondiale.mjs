@@ -32,7 +32,10 @@
  * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
  * `--voisins` pose un avant-poste britannique en Hainaut, contre le Nord français : deux
  * contours côte à côte (#217). `--quais` pose pour la France trois avant-postes, à La Valette, à
- * Singapour et à Florence : de quoi y viser un port (#221).
+ * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
+ * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
+ * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
+ * Valette et une infanterie à Syracuse, d'où viser Malte à pied.
  *
  *     npm run demo:mondiale
  *
@@ -75,7 +78,9 @@ const logistics = tours || process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
 /** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
-const quays = process.argv.includes('--quais');
+/** `--iles` : `--quais`, plus Malte débarquée, fondée et son quai, et Syracuse en face (#224). */
+const islands = process.argv.includes('--iles');
+const quays = islands || process.argv.includes('--quais');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -323,6 +328,59 @@ if (!bare) {
     cli(['run', 'dev:neighbourScene', JSON.stringify({ playerId: scene.b })]);
   if (quays && scene.a !== null)
     cli(['run', 'dev:quaysScene', JSON.stringify({ playerId: scene.a })]);
+  if (islands && scene.a !== null) {
+    const valletta = { lon: 14.513, lat: 35.895 };
+    const offshore = { lon: 14.6, lat: 35.75 };
+    const paris = (
+      await client.query(api.view.playerView, { token: tokenA, seasonId })
+    ).me.regions.find((one) => one.id === 'FRA-5333');
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'hq',
+      regionId: paris.id,
+      point: { lon: paris.point[0], lat: paris.point[1] },
+    });
+    cli(['run', 'dev:promoteHq', JSON.stringify({ playerId: scene.a, level: 2 })]);
+    for (const [role, count, at] of [
+      ['infantry', 2, offshore],
+      ['cargo', 1, offshore],
+      ['infantry', 1, { lon: 15.28, lat: 37.07 }],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, count, lon: at.lon, lat: at.lat }),
+      ]);
+    const afloat = (await client.query(api.view.playerView, { token: tokenA, seasonId })).me.troops
+      .filter((troop) => troop.stationedAt.kind === 'point')
+      .filter((troop) => Math.abs(troop.stationedAt.lonLat[0] - offshore.lon) < 0.01);
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: offshore },
+      troopIds: afloat.map((troop) => troop.id),
+      point: valletta,
+    });
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+    await pause(3000);
+    const founder = afloat.find((troop) => troop.role === 'infantry');
+    await client.mutation(api.movements.foundOutpostHere, {
+      token: tokenA,
+      seasonId,
+      point: valletta,
+      regionId: 'MLT-5949',
+      specialization: 'relay',
+      troopIds: [founder.id],
+    });
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'port',
+      regionId: 'MLT-5949',
+      point: { lon: 14.5145, lat: 35.8998 },
+    });
+  }
   if (harvest)
     cli([
       'run',
