@@ -733,7 +733,7 @@ const exists = <T>(value: T | null): value is T => value !== null;
 
 /** Everything hangs from its coordinate — a deposit, a building, a surveyed installation —
  *  save a building the view serves without one. */
-function anchorOf(marker: MapMarker): LabelAnchor {
+export function anchorOf(marker: MapMarker): LabelAnchor {
   if (marker.kind === 'building') {
     return marker.lonLat === null
       ? { kind: 'region', regionId: marker.regionId }
