@@ -183,11 +183,6 @@
   color: var(--ink-soft);
 }
 
-/* From far the basin is a wash and says no more: its name waits for the close view. */
-.label-anchor--far .label--deposit .label-lines {
-  display: none;
-}
-
 /* Holding a building that takes it: the free deposits of its kind are named in ochre. */
 .label--seek .label-line--nature {
   color: var(--ochre, #c8913a);
