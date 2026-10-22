@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aimVerdict,
+  depositCalls,
   outpostRaiseHold,
   placementOf,
   raiseRefusalOf,
@@ -335,19 +336,75 @@ describe('the point aimed at', () => {
     });
 
     it('names the deposit when no free one lies in the regions the player holds', () => {
-      expect(placementOf(view({}), 'mine').condition).toEqual({
+      expect(placementOf(view({}), 'mine').condition).toMatchObject({
         kind: 'deposit',
         deposits: ['coal', 'iron'],
       });
       expect(placementOf(view({ regions: [region(COAL.regionId)] }), 'mine').condition).toBeNull();
       expect(
         placementOf(view({ regions: [region(COAL.regionId)] }), 'mine', ['iron']).condition,
-      ).toEqual({ kind: 'deposit', deposits: ['iron'] });
+      ).toMatchObject({ kind: 'deposit', deposits: ['iron'] });
+    });
+
+    /** #239 : la maquette nomme, sur la clé refusée, le plus proche des gisements libres. */
+    it('names the nearest free deposit of the kind, from the headquarters', () => {
+      const withHq = view({ buildings: [{ key: 'hq', point: PARIS }] });
+      const condition = placementOf(withHq, 'oilWell').condition;
+      expect(condition?.kind === 'deposit' && condition.nearest?.country).toBe('ROU');
+      expect(condition?.kind === 'deposit' && condition.nearest!.km).toBeGreaterThan(1500);
+      const without = placementOf(view({}), 'oilWell').condition;
+      expect(without?.kind === 'deposit' && without.nearest).toBeNull();
     });
 
     it('leaves anything else to the aim', () => {
       expect(placementOf(view({}), 'barracks').condition).toBeNull();
     });
+  });
+});
+
+/**
+ * **What a held key calls** (#239): the free deposits of its kinds, each with the verdict the
+ * pose would give on its very point — the maquette's Belgium, an outpost at Namur.
+ */
+describe('depositCalls', () => {
+  const byId = (id: string) => DEPOSIT_POINTS.find((deposit) => deposit.id === id)!;
+  const view = {
+    me: {
+      nation: 'france',
+      hqLevel: 1,
+      foundation: [],
+      construction: null,
+      constructionQueue: [],
+      buildings: [{ key: 'mine', point: byId('coal-FRA-5334').lonLat, level: 2 }],
+      outposts: [],
+      regions: [],
+    },
+    surveyedInstallations: [
+      { id: 's', key: 'mine', regionId: 'DEU-1581', point: byId('coal-DEU-1581').lonLat },
+    ],
+    buildCatalog: CATALOG,
+  } as unknown as PlayerView;
+  const NAMUR = [{ id: 'o', lonLat: [4.87, 50.47] as LonLat, reachKm: 120 }];
+  const calls = new Map(
+    depositCalls(view, 'mine', ['coal', 'iron'], NAMUR).map((call) => [
+      call.deposit.id,
+      call.refusal?.code ?? 'open',
+    ]),
+  );
+
+  it('opens a deposit an outpost reaches, and one on national soil', () => {
+    expect(calls.get('coal-BEL-2')).toBe('open');
+    expect(calls.get('iron-FRA-5325')).toBe('open');
+  });
+
+  it('calls a deposit out of reach, but says the pose would refuse it', () => {
+    expect(calls.get('coal-DEU-1572')).toBe('OUT_OF_REACH');
+  });
+
+  it('never calls a deposit known to be worked, mine or surveyed, nor another kind', () => {
+    expect(calls.has('coal-FRA-5334')).toBe(false);
+    expect(calls.has('coal-DEU-1581')).toBe(false);
+    expect(calls.has('food-BEL-3476')).toBe(false);
   });
 });
 

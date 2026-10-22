@@ -3746,8 +3746,16 @@ export const fr = {
         card === null
           ? 'posez d’abord votre quartier général'
           : `demande la recherche ${cardName(card)}`,
-      deposit: (deposits: ReadonlyArray<string>) =>
-        `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons`,
+      /** Le plus proche des libres, depuis le QG (#239), à dix kilomètres près. */
+      deposit: (
+        deposits: ReadonlyArray<string>,
+        nearest: { readonly place: string; readonly km: number } | null = null,
+      ) =>
+        `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons${
+          nearest === null
+            ? ''
+            : ` — le plus proche : ${nearest.place}, ${Math.round(nearest.km / 10) * 10} km`
+        }`,
       free: 'à poser — choisissez la clé, puis visez un lieu sur la carte',
     },
 
@@ -4521,6 +4529,23 @@ export const fr = {
     hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
     coastPending: 'la côte arrive sur la carte — un instant',
+    /** Au téléphone, la tuile se porte du doigt (#239). */
+    hintTouch: 'levez le doigt pour poser — glissez hors de la carte pour renoncer',
+    /** Le fil vers le gisement prenable le plus proche (#239), à cinq kilomètres près. */
+    thread: (deposit: DepositKey, place: string | null, km: number) =>
+      [fr.deposits[deposit], place, `${Math.round(km / 5) * 5} km`]
+        .filter((part) => part !== null)
+        .join(' · '),
+    /** Aucun gisement prenable : le plus proche des libres, à dix kilomètres près (#239). */
+    noneOpen: (
+      kinds: ReadonlyArray<DepositKey>,
+      nearest: { readonly place: string; readonly km: number } | null,
+    ) =>
+      `aucun gisement de ${depositNames(kinds)} libre à votre portée${
+        nearest === null
+          ? ''
+          : ` — le plus proche : ${nearest.place}, ${Math.round(nearest.km / 10) * 10} km`
+      }`,
   },
 
   construction: {
@@ -4574,10 +4599,16 @@ export const fr = {
     buildingLevel: (level: number) => `NIVEAU ${level}`,
     /** A deposit's name in ink beside its basin (#239), and who is known to work it: mine (a
      *  level once it stands), known held, or free — the fog has it free until surveyed. */
-    depositName: (deposit: DepositKey, held: { mine: boolean; level: number | null } | null) =>
+    depositName: (
+      deposit: DepositKey,
+      held: { mine: boolean; level: number | null } | null,
+      outOfReach = false,
+    ) =>
       `${fr.deposits[deposit]} · ${
         held === null
-          ? 'libre'
+          ? outOfReach
+            ? 'hors de portée'
+            : 'libre'
           : !held.mine
             ? 'exploité'
             : held.level === null

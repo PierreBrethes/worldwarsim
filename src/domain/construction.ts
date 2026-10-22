@@ -191,6 +191,55 @@ export function aimVerdict(
   return { refusal: { code: refusal as Exclude<PlacementRefusal, 'TOO_CLOSE'> }, free };
 }
 
+/** A free deposit a held key calls (#239), with what the pose would say on its very point. */
+export type DepositCall = {
+  readonly deposit: DepositPoint;
+  /** `null`: the pose takes it — the magnet pulls and the thread aims at it. */
+  readonly refusal: AimVerdict['refusal'];
+};
+
+/**
+ * **The deposits a held exploitation calls** (#239): every free one of its kinds wakes on the
+ * map, but only those `aimVerdict` would take attract — the very rule the server refuses with.
+ * The deposit's own region and country stand in for the polygons: they are baked with its point.
+ */
+export function depositCalls(
+  view: PlayerView,
+  key: BuildingKey,
+  kinds: ReadonlyArray<DepositKey>,
+  reaches: ReadonlyArray<Reach>,
+): DepositCall[] {
+  return freeDeposits(view)
+    .filter((deposit) => kinds.includes(deposit.deposit))
+    .map((deposit) => ({
+      deposit,
+      refusal: aimVerdict(
+        view,
+        key,
+        {
+          lonLat: deposit.lonLat,
+          region: { id: deposit.regionId, name: '', country: deposit.country },
+          coastal: false,
+          onLand: true,
+        },
+        reaches,
+      ).refusal,
+    }));
+}
+
+/** The nearest of some deposits to a point, and how far, `null` when there is none. */
+export function nearestDeposit<T extends { readonly deposit: DepositPoint }>(
+  calls: ReadonlyArray<T>,
+  from: LonLat,
+): { readonly call: T; readonly km: number } | null {
+  let best: { call: T; km: number } | null = null;
+  for (const call of calls) {
+    const km = distanceKm(from, call.deposit.lonLat);
+    if (best === null || km < best.km) best = { call, km };
+  }
+  return best;
+}
+
 /**
  * **Where the ghost leaps**: the closest of a list of points within `PLACING_SNAP_KM` of the
  * pointer, or the pointer itself.
@@ -216,7 +265,12 @@ export function snapTo(pointer: LonLat, magnets: ReadonlyArray<LonLat>): LonLat 
 export type PlacementCondition =
   /** `card: null` — rien ne se pose avant le QG ; sinon la carte de recherche qui la tient. */
   | { readonly kind: 'locked'; readonly card: ResearchCard | null }
-  | { readonly kind: 'deposit'; readonly deposits: ReadonlyArray<DepositKey> };
+  | {
+      readonly kind: 'deposit';
+      readonly deposits: ReadonlyArray<DepositKey>;
+      /** The nearest free one from the headquarters (#239), `null` before it or when none is. */
+      readonly nearest: { readonly country: string; readonly km: number } | null;
+    };
 
 export type Placement = {
   readonly key: BuildingKey;
@@ -255,7 +309,26 @@ export function placementOf(
   const open = freeDeposits(view).some(
     (deposit) => deposits.includes(deposit.deposit) && reachable.has(deposit.regionId),
   );
-  return { key, condition: open ? null : { kind: 'deposit', deposits }, free };
+  if (open) return { key, condition: null, free };
+  const hq = view.me.buildings.find((building) => building.key === 'hq')?.point;
+  const nearest =
+    hq === undefined
+      ? null
+      : nearestDeposit(
+          freeDeposits(view)
+            .filter((deposit) => deposits.includes(deposit.deposit))
+            .map((deposit) => ({ deposit })),
+          hq,
+        );
+  return {
+    key,
+    condition: {
+      kind: 'deposit',
+      deposits,
+      nearest: nearest === null ? null : { country: nearest.call.deposit.country, km: nearest.km },
+    },
+    free,
+  };
 }
 
 /**
