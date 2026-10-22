@@ -4531,6 +4531,8 @@ export const fr = {
     coastPending: 'la côte arrive sur la carte — un instant',
     /** Au téléphone, la tuile se porte du doigt (#239). */
     hintTouch: 'levez le doigt pour poser — glissez hors de la carte pour renoncer',
+    /** Au sommet du rayon d'un avant-poste, pendant la pose (#239). */
+    reach: (km: number) => `rayon de l’avant-poste · ${km} km`,
     /** Le fil vers le gisement prenable le plus proche (#239), à cinq kilomètres près. */
     thread: (deposit: DepositKey, place: string | null, km: number) =>
       [fr.deposits[deposit], place, `${Math.round(km / 5) * 5} km`]

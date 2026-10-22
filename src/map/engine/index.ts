@@ -31,7 +31,7 @@ import {
   type MouseRole,
 } from '@/domain/mouse-mapping';
 import type { Atlas, Detail } from '@/domain/atlas';
-import type { LonLat } from '@/domain/geo';
+import { destinationPoint, type LonLat } from '@/domain/geo';
 import type { RegionType } from '@/domain/ids';
 import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import {
@@ -175,6 +175,8 @@ const SELECTED_LIFT = 0.75;
 const COAST_RETRY_MS = 3000;
 /** Under a finger, the point a held building aims at stands this far above it (#239). @a-mesurer */
 const PLACING_FINGER_LIFT_PX = 64;
+/** Half the width of a reach's name (`fr.placing.reach`), in CSS pixels. */
+const RING_NAME_ROOM_PX = 80;
 /** Closer than this the pointer is on its pin, and no thread is drawn between them. */
 const TAUT_MIN_PX = 6;
 
@@ -220,6 +222,8 @@ export type PlacingThread = {
   } | null;
   readonly taut: { readonly from: ScreenPoint; readonly to: ScreenPoint } | null;
   readonly refused: boolean;
+  /** The top of each outpost's reach on screen, where its name stands, and how far it carries. */
+  readonly rings: ReadonlyArray<{ readonly top: ScreenPoint; readonly km: number }>;
 };
 
 /** The point the ghost holds, with what the board knows of it: whose region, its coast, land. */
@@ -2523,7 +2527,24 @@ export class MapEngine {
         Math.hypot(pointer.x - foot.x, pointer.y - foot.y) > TAUT_MIN_PX
           ? { from: pointer, to: foot }
           : null;
-      if (long !== null || taut !== null) thread = { long, taut, refused: this.placingRefused };
+      thread = {
+        long,
+        taut,
+        refused: this.placingRefused,
+        // A name whose top is off the screen would be cut by its edge: it stays unsaid.
+        rings: this.placing.reaches
+          .map(({ lonLat, reachKm }) => ({
+            top: this.mapPointOf(destinationPoint(lonLat, reachKm, 0)),
+            km: reachKm,
+          }))
+          .filter(
+            ({ top }) =>
+              top.x > RING_NAME_ROOM_PX &&
+              top.x < this.screenWidth - RING_NAME_ROOM_PX &&
+              top.y > 20 &&
+              top.y < this.screenHeight,
+          ),
+      };
     }
     const said = JSON.stringify(thread);
     if (said === this.threadSaid) return;

@@ -1494,8 +1494,7 @@ export function WorldMap({
         </div>
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
-      {placing && readyEngine && <PlacingThreadInk engine={readyEngine} />}
-      {placing && <PlacingCard placing={placing} container={container} />}
+      {placing && <PlacingOverlay engine={readyEngine} placing={placing} container={container} />}
       {/* Une rose ouverte dit déjà ce que la pastille disait. */}
       {hint !== null && rose === null && (
         <DropHintChip ref={hintNode} hint={hint} {...(dropNotes ? { notes: dropNotes } : {})} />
@@ -1641,9 +1640,11 @@ const HINT_MS = 7000;
 function PlacingCard({
   placing,
   container,
+  thread,
 }: {
   placing: PlacingBuilding;
   container: RefObject<HTMLDivElement | null>;
+  thread: PlacingThread | null;
 }) {
   const [at, setAt] = useState<{ x: number; y: number; flipX: boolean; flipY: boolean } | null>(
     null,
@@ -1684,14 +1685,17 @@ function PlacingCard({
       </div>
     );
   if (at === null) return null;
+  // Le carton se range de l'autre côté du fil : il en couvrirait le nom (#239).
+  const long = thread?.long ?? null;
+  const flipX = long === null ? at.flipX : long.to.x > long.from.x;
   /** Placé hors du `.hud`, qui porte un `zoom` : sa position serait zoomée avec lui. */
   return (
     <div
       className="pointer-events-none absolute z-[var(--z-band)]"
       style={{
-        left: at.x + (at.flipX ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
+        left: at.x + (flipX ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
         top: at.y + (at.flipY ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
-        transform: `translate(${at.flipX ? '-100%' : '0'}, ${at.flipY ? '-100%' : '0'})`,
+        transform: `translate(${flipX ? '-100%' : '0'}, ${at.flipY ? '-100%' : '0'})`,
       }}
     >
       <PlacingLines placing={placing} />
@@ -1737,26 +1741,78 @@ function PlacingLines({ placing, docked = false }: { placing: PlacingBuilding; d
 const THREAD_INK = 'var(--notable)';
 const THREAD_REFUSED_INK = ADVERSE_INK;
 
+/** The share of the thread, from the ghost, where its name stands: by the basin it names. */
+const THREAD_LABEL_AT = 2 / 3;
+
 /**
- * **Le fil de la pose** (#239, maquette « Bassin et fil ») : du fantôme au gisement prenable le
- * plus proche, en pointillé qui ploie, son nom et sa distance au milieu, une flèche au bord de
- * l'écran quand il est hors champ ; tendu, du pointeur — ou du doigt — à l'épingle. La carte en
- * donne le tracé à chaque image rendue (`onPlacingThread`) : rien ne bouge au repos.
+ * **What a held building draws over the map** (#239): its thread and its card. The thread comes
+ * from the map at each rendered frame (`onPlacingThread`), so nothing moves at rest; it is kept
+ * here and not in `WorldMap`, which would render again at each frame of the aim.
  */
-function PlacingThreadInk({ engine }: { engine: MapEngine }) {
+function PlacingOverlay({
+  engine,
+  placing,
+  container,
+}: {
+  engine: MapEngine | null;
+  placing: PlacingBuilding;
+  container: RefObject<HTMLDivElement | null>;
+}) {
   const [thread, setThread] = useState<PlacingThread | null>(null);
   useEffect(() => {
+    if (engine === null) return;
     engine.onPlacingThread = setThread;
     engine.invalidate();
     return () => {
       engine.onPlacingThread = undefined;
     };
   }, [engine]);
-  if (thread === null) return null;
-  const { long, taut } = thread;
+  return (
+    <>
+      {thread !== null && <PlacingThreadInk thread={thread} />}
+      <PlacingCard placing={placing} container={container} thread={thread} />
+    </>
+  );
+}
+
+/**
+ * **Le fil de la pose** (#239, maquette « Bassin et fil ») : du fantôme au gisement prenable le
+ * plus proche, en pointillé qui ploie, son nom et sa distance près du bassin, une flèche au bord
+ * de l'écran quand il est hors champ ; tendu, du pointeur — ou du doigt — à l'épingle. Au sommet
+ * de chaque rayon d'avant-poste, son nom.
+ */
+function PlacingThreadInk({ thread }: { thread: PlacingThread }) {
+  const { long, taut, rings } = thread;
   const label = long === null ? null : fr.placing.thread(long.deposit, long.place, long.km);
+  // The point of the quadratic at `THREAD_LABEL_AT`.
+  const t = THREAD_LABEL_AT;
+  const labelAt =
+    long === null
+      ? null
+      : {
+          x: (1 - t) ** 2 * long.from.x + 2 * (1 - t) * t * long.bend.x + t * t * long.to.x,
+          y: (1 - t) ** 2 * long.from.y + 2 * (1 - t) * t * long.bend.y + t * t * long.to.y,
+        };
   return (
     <svg className="pointer-events-none absolute inset-0 z-[var(--z-band)] h-full w-full overflow-visible">
+      {rings.map((ring) => (
+        <text
+          key={`${ring.top.x},${ring.top.y}`}
+          x={ring.top.x}
+          y={ring.top.y - 6}
+          textAnchor="middle"
+          className="font-(family-name:--font-display) text-[12px] italic"
+          // Le liseré papier des noms de la carte : lisible sur la feuille de nuit.
+          style={{
+            fill: 'var(--ink-soft)',
+            stroke: 'var(--paper)',
+            strokeWidth: 3,
+            paintOrder: 'stroke',
+          }}
+        >
+          {fr.placing.reach(ring.km)}
+        </text>
+      ))}
       {long !== null && (
         <g style={{ stroke: THREAD_INK }} fill="none">
           <path
@@ -1782,10 +1838,10 @@ function PlacingThreadInk({ engine }: { engine: MapEngine }) {
           strokeWidth={2}
         />
       )}
-      {long !== null && label !== null && (
+      {labelAt !== null && label !== null && (
         <foreignObject
-          x={Math.round((long.from.x + long.to.x) / 2) - 120}
-          y={long.bend.y - 24}
+          x={Math.round(labelAt.x) - 120}
+          y={Math.round(labelAt.y) - 24}
           width={240}
           height={20}
         >
