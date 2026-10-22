@@ -1,5 +1,9 @@
 # Annexe au contrat 04 — Jeu de données réel pour la rose sur bâtiment
 
+**Révisé le 22/10 (#228) : la rose du bâtiment n'hérite plus de « Bâtir ici »** — bâtir passe
+seulement par le plateau personnel (ADR 0029) ; les planches ci-dessous qui en parlent sont
+caduques.
+
 **Règle : ce fichier est la SEULE source de texte et de chiffres de la maquette.** Chaînes
 verbatim de `src/i18n/fr.ts`, chiffres de `convex/constants.ts`, régions réelles. Ce qui
 manque se demande, ne s'écrit pas ; **aucun état ne s'invente** — les états de la branche

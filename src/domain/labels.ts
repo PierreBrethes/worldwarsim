@@ -1001,7 +1001,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         pictogram: null,
         deposit: marker.deposit,
         // A click on a deposit says nothing the ground does not: the region's own click
-        // already selects the country, and the crane already opens on the right list.
+        // already selects the country.
         hostCountry: null,
         ...(marker.seek === true && marker.held === undefined ? { seeking: true as const } : {}),
         lines: [
