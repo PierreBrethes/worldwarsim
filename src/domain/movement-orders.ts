@@ -61,6 +61,8 @@ export type MovementAim =
        */
       readonly ground: Ground;
       readonly coastal: boolean;
+      /** @see the point's own `walkable` (#224). */
+      readonly walkable?: boolean;
     }
   /**
    * **Un objectif neutre**, et la seule cible du jeu qu'on attaque **sans l'avoir relevée** — c'est
@@ -160,6 +162,8 @@ export type MovementAim =
       readonly hostCountry: string;
       readonly ground: Ground;
       readonly coastal: boolean;
+      /** @see the point's own `walkable` (#224). */
+      readonly walkable?: boolean;
     };
 
 /**
@@ -696,7 +700,7 @@ const destinationRefusal = (aim: MovementAim, column: Column): OrderRefusal | nu
     return 'AIRFIELD_TARGET_REQUIRED';
   if (mode !== 'air' && onLake(aim)) return 'LAKE_TARGET';
   if (mode === 'land' && atSea(aim)) return 'LAND_TARGET_REQUIRED';
-  if (mode === 'land' && aim.kind === 'point' && aim.walkable === false) return 'NO_FOOTING';
+  if (mode === 'land' && 'walkable' in aim && aim.walkable === false) return 'NO_FOOTING';
   if (mode === 'naval' && !atSea(aim) && !shore(aim)) return 'SEA_TARGET_REQUIRED';
   return mode === 'combined' && !atSea(aim) && !shore(aim) ? 'LANDING_NEEDS_A_COAST' : null;
 };

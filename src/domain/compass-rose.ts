@@ -88,6 +88,8 @@ export type CompassTarget =
        */
       readonly ground?: Ground;
       readonly coastal?: boolean;
+      /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
+      readonly walkable?: boolean;
       readonly name: string;
     }
   /**
@@ -102,6 +104,8 @@ export type CompassTarget =
       readonly country: string | null;
       readonly ground: Ground;
       readonly coastal: boolean;
+      /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
+      readonly walkable?: boolean;
       readonly name: string;
     }
   | {
@@ -745,6 +749,7 @@ function aim(
         hostCountry: target.country ?? '',
         ground: target.ground ?? 'land',
         coastal: target.coastal ?? false,
+        ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
       },
     ]);
   }
@@ -758,6 +763,7 @@ function aim(
         hostCountry: target.country ?? '',
         ground: target.ground,
         coastal: target.coastal,
+        ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
       },
     ]);
   }

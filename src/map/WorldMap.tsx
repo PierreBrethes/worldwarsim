@@ -743,7 +743,7 @@ export function WorldMap({
       /** La région dessinée sous le clic : c'est elle qui dit si le sol est déjà le mien, la
        *  seule chose qui sépare une fondation possible d'un `FRIENDLY_TARGET`. */
       const region = map?.regionAtPoint(clientX, clientY) ?? null;
-      const target = targetOfLabel(label, country, region, coastAt, groundAt);
+      const target = targetOfLabel(label, country, region, coastAt, groundAt, walkableAt);
       /**
        * **Aiming, a label hides nothing.** An outpost is a target one marches at and keeps its
        * own fan; every other pictogram — a column in flight, a construction — hands the aim back
@@ -776,6 +776,7 @@ export function WorldMap({
           country,
           ground: groundAt(ground),
           coastal: coastAt(ground),
+          walkable: walkableAt(ground),
           name: fr.compass.enemyColumn,
         };
       }
@@ -1019,9 +1020,9 @@ export function WorldMap({
       return;
     }
     const region = readyEngine?.regionAtLonLat(label.anchor.lonLat) ?? null;
-    const target = targetOfLabel(label, null, region, coastAt, groundAt);
+    const target = targetOfLabel(label, null, region, coastAt, groundAt, walkableAt);
     onHeldCompass(target === null ? null : compassOf(target));
-  }, [readyEngine, holding, labels, compassOf, coastAt, groundAt, onHeldCompass]);
+  }, [readyEngine, holding, labels, compassOf, coastAt, groundAt, walkableAt, onHeldCompass]);
 
   /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est ce que la pose lirait
    *  là — l'étiquette sous le pointeur ou le sol —, et l'ordre est le premier que la rose y
@@ -1712,6 +1713,8 @@ export function targetOfLabel(
    *  déborde sa cellule, et une colonne embarquée débarque à l'ancre, pas là où on a cliqué. */
   coastAt: (lonLat: LonLat) => boolean,
   groundAt: (lonLat: LonLat) => Ground,
+  /** Une route à pied aboutit-elle au point du label (`isWalkableCell`, #224) ? */
+  walkableAt: (lonLat: LonLat) => boolean = () => true,
 ): CompassTarget | null {
   if (label.type === 'outpost' && label.hostCountry !== null && label.station?.kind === 'outpost') {
     return {
@@ -1801,6 +1804,7 @@ export function targetOfLabel(
        *  une flotte vise le mouillage relevé, pas le pixel cliqué. */
       ground: label.anchor.kind === 'ground' ? groundAt(label.anchor.lonLat) : 'sea',
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
+      walkable: label.anchor.kind !== 'ground' || walkableAt(label.anchor.lonLat),
       name: fr.camps.marker,
     };
   }

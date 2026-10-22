@@ -4500,6 +4500,22 @@ describe('les petites îles', () => {
     expect((await outpostsOf(t, seat))[0]).toMatchObject({ hostCountry: 'NRU' });
   });
 
+  it('sends nobody on foot against a camp on Malta, and says so', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const infantry = await postAt(t, seat, 'infantry', TOULON);
+    await postAt(t, guest, 'infantry', AT_VALLETTA);
+    const campId = await surveyCamp(t, seat, AT_VALLETTA);
+    await expect(
+      attacking(t, {
+        ...seat,
+        origin: { kind: 'point', point: TOULON },
+        troopIds: [infantry],
+        target: { kind: 'camp', campId },
+      }),
+    ).rejects.toThrow('NO_FOOTING');
+  });
+
   it('still walks nobody to Malta from the mainland, and says so', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

@@ -734,6 +734,24 @@ describe('in aim', () => {
     );
   });
 
+  /** **Un camp relevé sur Malte** (#224) : la même cellule que la visée d'un point, le même
+   *  refus — une colonne à pied ne s'y voit offrir aucun ordre. */
+  it('offers a column on foot nothing against a camp on Malta', () => {
+    const camp = {
+      kind: 'camp' as const,
+      id: 'camp-malte',
+      point: [14.42, 35.9] as const,
+      country: 'MLT',
+      name: 'camp relevé',
+      ground: 'land' as const,
+      coastal: true,
+      walkable: false,
+    };
+    const onFoot = compassOf(camp, view, column);
+    expect(onFoot?.actions.filter((action) => action.key === 'aim')).toEqual([]);
+    expect(onFoot?.refusal).toBe(fr.errors.NO_FOOTING());
+  });
+
   it('opens the same fan for that column once a port stands there', () => {
     const naval = {
       ...column,

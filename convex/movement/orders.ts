@@ -428,6 +428,7 @@ export async function aimOf(
          *  ne dit pas la côte — une seule géométrie répond aux deux. */
         ground: groundAtPoint(point),
         coastal: coastAtPoint(point),
+        walkable: walkableAtPoint(point),
       },
       target: { kind: 'point', point: camp.point },
       point,
@@ -449,6 +450,7 @@ export async function aimOf(
         hostCountry: country,
         ground: groundAtPoint(point),
         coastal: coastAtPoint(point),
+        walkable: walkableAtPoint(point),
       },
       target: { kind: 'point', point: asPoint(point) },
       point,
