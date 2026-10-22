@@ -62,6 +62,9 @@ Ce sont les défauts que les revues ont réellement trouvés.
   d'écran ; une donnée cuite peut mal se décoder (antialiasing d'un canvas lu comme un type).
 - **Coût** : si le lot touche la carte, `npm run banc:client` ; rien ne redessine en continu
   au repos, et le téléphone ne régresse pas.
+- **Chiffres écrits** : chaque coût, poids ou décompte qu'un ADR, `CLAUDE.md` ou un commentaire
+  annonce se remesure sur la pointe, avec tous les chemins qui le paient (premier appel, second
+  index, terre comme mer). Un chiffre faux est un finding.
 
 ## 4. Vérifier et classer
 

@@ -1093,7 +1093,7 @@ async function play(profileName, pass) {
   await page.waitForTimeout(2500);
   const land = await free([Math.round(width / 2), Math.round(height * 0.45)]);
   if (phone) {
-    // Le toucher pose la cible du sol (« bâtir ici ») : Échap la lève.
+    // Le toucher lit la région sous le doigt : Échap ferme ce qu'il ouvre.
     await gesture('toucher région', () => page.touchscreen.tap(...land));
     await page.keyboard.press('Escape');
   } else

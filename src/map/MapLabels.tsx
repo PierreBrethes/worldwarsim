@@ -117,6 +117,7 @@ export function MapLabels({
   onOpenObjective,
   onOpenStrategic,
   onAct,
+  onCancelHeld,
   mapping,
   holding,
   onHoldOver,
@@ -184,6 +185,8 @@ export function MapLabels({
   /** **Le geste qui agit, quel que soit le bouton qui le porte** (`mouseMapping`) : la rose
    *  s'ouvre sur l'étiquette comme elle s'ouvre sur le sol. */
   onAct: (label: MapLabel, clientX: number, clientY: number) => void;
+  /** **Pièce en main, le bouton qui agit la repose** au lieu d'ouvrir la rose (`CleanPress.cancels`). */
+  onCancelHeld: () => void;
   mapping: MouseMapping;
   /** **Une pièce en main**, et le clic gauche pose au lieu de lire — sauf sur une de mes piles,
    *  dont le clic dit lui-même s'il reprend, repose ou vise (`clickPile`). */
@@ -944,12 +947,14 @@ export function MapLabels({
       if (buttonAt(event.button) === 'middle') event.preventDefault();
     },
     auxClick: (label, event) => {
+      if (cleanPressAt(mapping, 'mouse', event.button, holding).cancels) return onCancelHeld();
       if (buttonAt(event.button) !== 'middle' || mapping.middle !== 'act') return;
       onAct(label, event.clientX, event.clientY);
     },
     contextMenu: (label, event) => {
       // Le menu du navigateur est coupé quel que soit le rôle du bouton droit.
       event.preventDefault();
+      if (cleanPressAt(mapping, 'mouse', event.button, holding).cancels) return onCancelHeld();
       if (mapping.right !== 'act') return;
       onAct(label, event.clientX, event.clientY);
     },

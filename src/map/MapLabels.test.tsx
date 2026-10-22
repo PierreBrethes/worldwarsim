@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapLabel } from '@/domain/labels';
 import { CLASSIC_MAPPING } from '@/domain/mouse-mapping';
@@ -60,7 +60,14 @@ const outpost = (id: string, text: string): MapLabel =>
   }) as MapLabel;
 
 const noop = () => {};
-const layer = (labels: ReadonlyArray<MapLabel>) => (
+const layer = (
+  labels: ReadonlyArray<MapLabel>,
+  held: { holding: boolean; onAct: () => void; onCancelHeld: () => void } = {
+    holding: false,
+    onAct: noop,
+    onCancelHeld: noop,
+  },
+) => (
   <MapLabels
     labels={labels}
     engine={null}
@@ -77,9 +84,10 @@ const layer = (labels: ReadonlyArray<MapLabel>) => (
     onOpenCamp={noop}
     onOpenObjective={noop}
     onOpenStrategic={noop}
-    onAct={noop}
+    onAct={held.onAct}
+    onCancelHeld={held.onCancelHeld}
     mapping={CLASSIC_MAPPING}
-    holding={false}
+    holding={held.holding}
     onHoldOver={noop}
     muted={false}
   />
@@ -111,5 +119,22 @@ describe('MapLabels', () => {
     vi.advanceTimersByTime(60_000);
     expect(screen.getByText(/il y a 00:06:00/)).toBeTruthy();
     vi.useRealTimers();
+  });
+
+  /** **Pièce en main, le clic droit sur une étiquette la repose** (#229) : aucune rose. Sans pièce
+   *  en main, il agit comme avant. */
+  it('puts a held piece back on a right click, and acts when none is held', () => {
+    const onAct = vi.fn();
+    const onCancelHeld = vi.fn();
+    const { rerender } = render(
+      layer([outpost('a', 'Lille')], { holding: true, onAct, onCancelHeld }),
+    );
+    fireEvent.contextMenu(screen.getByText('Lille'), { button: 2 });
+    expect(onCancelHeld).toHaveBeenCalledTimes(1);
+    expect(onAct).not.toHaveBeenCalled();
+    rerender(layer([outpost('a', 'Lille')], { holding: false, onAct, onCancelHeld }));
+    fireEvent.contextMenu(screen.getByText('Lille'), { button: 2 });
+    expect(onAct).toHaveBeenCalledTimes(1);
+    expect(onCancelHeld).toHaveBeenCalledTimes(1);
   });
 });

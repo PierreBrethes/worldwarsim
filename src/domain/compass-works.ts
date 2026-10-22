@@ -2,7 +2,6 @@ import { pileAt, posted } from './compass-fan';
 import { countryLabel, fr, noBuilding, raiseHoldText, upgradeHoldText } from '@/i18n/fr';
 import {
   availabilityOf,
-  buildOptionsAt,
   demolitionRefusalOf,
   foundationHold,
   outpostDismantleRefusalOf,
@@ -38,15 +37,6 @@ function countryAllegiance(country: string, view: PlayerView): Allegiance {
   return view.opponents.some((opponent) => opponent.nation === nation) ? 'enemy' : 'neutral';
 }
 
-/**
- * The crane, and the crane only where something can actually go up. **Nothing greyed out,
- * ever**: on enemy ground or out of reach it is simply not in the fan — what a player cannot
- * do teaches him nothing, and that is the fog's rule as much as the menu's.
- *
- * A ceiling reached does not withdraw it: that block is a circumstance, the panel keeps the
- * lines and names the remedy. A crane vanishing five minutes after it was there reads as a
- * bug, not as a rule.
- */
 /**
  * **La branche qui efface.** Elle ne porte ni prix ni facture : il n'y a rien à payer, et ce
  * qu'elle coûte — le niveau, le chantier, l'écrêtage — ne tient pas dans une bulle. C'est la
@@ -159,23 +149,13 @@ function outpostRaiseBranch(
   };
 }
 
-const buildOn = (regionId: string, regionName: string): CompassAction => ({
-  key: 'build',
-  pictogram: 'crane',
-  label: fr.compass.build,
-  cost: null,
-  consequence: fr.compass.buildConsequence(regionName),
-  regionId,
-  regionName,
-});
-
 export function build(
   target: CompassTarget,
   view: PlayerView,
   /** La composition en main si la cible est la pile tenue, sinon `null`. */
   composition: ReadonlyArray<string> | null,
 ): Compass {
-  /** **En Blitz on ne bâtit, n'élève, ne fonde ni ne rase rien** (`notInBlitz`) : au repos, ses
+  /** **En Blitz on n'élève, ne fonde ni ne rase rien** (`notInBlitz`) : au repos, ses
    *  mâts, ses points et ses piles n'ont aucune branche — le clic droit y reste inerte. */
   if (
     notInBlitz(view.mode) !== null &&
@@ -187,18 +167,10 @@ export function build(
     return { kicker: '', name: '', actions: [], refusal: null };
   }
   switch (target.kind) {
-    case 'region': {
-      // The country's fan, plus one branch. A region is the same land seen closer: taking
-      // away what the country offered would make zooming in cost the player actions.
-      const country = build({ kind: 'country', country: target.country }, view, null);
-      const buildable = buildOptionsAt(view, target.id, view.loadedAt).length > 0;
-      return {
-        kicker: fr.compass.region(country.name),
-        name: target.name,
-        actions: [...(buildable ? [buildOn(target.id, target.name)] : []), ...country.actions],
-        refusal: null,
-      };
-    }
+    /** A region is the same land seen closer: it offers what its country offers, which is
+     *  nothing at rest. Building left the rose for the personal board (22/10). */
+    case 'region':
+      return build({ kind: 'country', country: target.country }, view, null);
     /**
      * **Un pays ne se fait rien.** « Voir le pays » doublait le clic gauche, qui sélectionne déjà
      * ce qu'il touche (retrait demandé par Pierre, 31/08) — et une rose à une seule branche qui
@@ -268,8 +240,8 @@ export function build(
     }
     /**
      * **Le bâtiment porte l'élévation, et le sol sous lui garde la sienne** (décisions 54a et
-     * 56a). Deux branches au plus : monter ce mât-ci, et bâtir dans la région qu'il occupe —
-     * la seconde est celle de la région, mot pour mot, parce qu'un mât ne cache pas son sol.
+     * 56a). Deux branches au plus : monter ce mât-ci, et le raser. Bâtir ne passe plus par la
+     * rose (retour de Pierre, 22/10) : le plateau personnel est la seule porte.
      *
      * L'instance se relit dans la vue au lieu de voyager sur la cible : le coût, la durée et le
      * plafond du niveau suivant sont servis (`me.buildings`), et une rose qui les recopierait au
@@ -278,9 +250,6 @@ export function build(
     case 'building': {
       const standing = view.me.buildings.find((candidate) => candidate.id === target.id) ?? null;
       const raise = standing === null ? null : upgradeBranch(standing, view);
-      const region = view.me.regions.find((candidate) => candidate.id === target.regionId) ?? null;
-      const buildable =
-        region !== null && buildOptionsAt(view, target.regionId, view.loadedAt).length > 0;
       /**
        * **Raser vient en dernier** (demande du 15/09) : la plate se lit du nord dans le sens des
        * aiguilles, et ce qu'on efface n'est jamais ce qu'on cherche en ouvrant un menu. Le
@@ -294,7 +263,6 @@ export function build(
         name: standing?.name ?? fr.buildings[target.key],
         actions: [
           ...(raise?.action == null ? [] : [raise.action]),
-          ...(buildable && region !== null ? [buildOn(region.id, region.name)] : []),
           ...(razes && standing !== null ? [demolishOf(standing.id)] : []),
         ],
         refusal: raise?.refusal ?? null,

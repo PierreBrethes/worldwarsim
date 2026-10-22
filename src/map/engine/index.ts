@@ -23,6 +23,7 @@ import {
   CLASSIC_MAPPING,
   buttonAt,
   cleanPressAt,
+  releaseOf,
   type CleanPress,
   dragRoleAt,
   type MouseButton,
@@ -90,6 +91,8 @@ import { PALETTE } from './palette';
 import {
   buildCountries,
   coastWidthPx,
+  COUNTRY_BORDER_MAX,
+  COUNTRY_BORDER_REST,
   levelAt,
   levelOf,
   sheetData,
@@ -415,7 +418,6 @@ export class MapEngine {
   private carriedAt = -Infinity;
   private mapping: MouseMapping = CLASSIC_MAPPING;
   private spaceHeld = false;
-  private building = false;
   private aiming = false;
   /** The building held over the board, `null` when nothing is held. */
   private placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null = null;
@@ -529,7 +531,8 @@ export class MapEngine {
    *  when the press is over — the ring under the pointer fills meanwhile. */
   onDetach?:
     ((phase: 'start' | 'done' | 'end', clientX: number, clientY: number) => void) | undefined;
-  /** **The right button, pressed while a piece is carried**, takes the gesture back. */
+  /** **The right button, pressed while a piece is carried**, takes the gesture back; a clean
+   *  press of the acting button puts a held piece back too (#229). */
   onCarryCancel?: (() => void) | undefined;
   /** The drag is over, its drop told first: let go, put back or cancelled. */
   onCarryEnd?: (() => void) | undefined;
@@ -1904,13 +1907,17 @@ export class MapEngine {
       return;
     }
     if (event.type !== 'pointerup' || gesture.fromLabel) return;
-    if (gesture.panning || gesture.pastThreshold) return;
     const press = cleanPressAt(
       this.mapping,
       gesture.pointerType,
       gesture.index,
       this.held !== null,
     );
+    // A piece in hand goes back home at any clean press that does not put it down, the button
+    // that pans included, like Escape (#229).
+    const release = releaseOf(gesture, press);
+    if (release === 'cancel') return this.onCarryCancel?.();
+    if (release === 'none') return;
     // A finger has no hover to read from: the board is aimed where it lifted, now, so the
     // ghost of a placement and the country under it answer for this point and not the last.
     if (this.fingerOnBoard) {
@@ -2180,19 +2187,10 @@ export class MapEngine {
     else if (this.placing !== null)
       style.cursor =
         this.ghost.spot === null || this.placingRefused ? REFUSED_CURSOR : TROWEL_CURSOR;
-    else if (this.building) style.cursor = TROWEL_CURSOR;
     else if (this.held !== null) style.cursor = HOLDING_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
     else if (this.hoveredPiece !== null) style.cursor = this.hoveredPiece;
     else style.cursor = '';
-  }
-
-  /** The board wears the trowel while a construction panel is open, and only then. */
-  setBuilding(building: boolean): void {
-    this.invalidate();
-    if (building === this.building) return;
-    this.building = building;
-    this.refreshCursor();
   }
 
   /** The board is in aim: a column is armed and the next right click names its march. */
@@ -2800,8 +2798,11 @@ export class MapEngine {
     this.sea?.fade(distance);
     this.sheet.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
-        ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
-        : 0.62;
+        ? Math.min(
+            COUNTRY_BORDER_MAX,
+            COUNTRY_BORDER_REST + (REGIONS_GONE_DISTANCE - distance) * 0.006,
+          )
+        : COUNTRY_BORDER_REST;
     this.sheet.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
     const detail = this.nearLevel === null ? 'far' : levelAt(this.detail, distance);
     if (detail !== this.detail) {

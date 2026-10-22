@@ -72,6 +72,10 @@ export const coastWidthPx = (unitsPerPixel: number): number =>
   Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
 
 const COAST_OPACITY = 0.92;
+/** The country border's ink at rest and at its fullest, near: always darker than a region's
+ *  (`regions.ts`, 0.22), which Pierre wanted greyer still (#230). @a-mesurer */
+export const COUNTRY_BORDER_REST = 0.5;
+export const COUNTRY_BORDER_MAX = 0.8;
 
 /**
  * **Le niveau « près » quand l'écran peut le lire** (ADR 0034) : « loin » garde 6 % des points,
@@ -179,7 +183,11 @@ export function buildCountries(level: SheetLevel): CountrySheet {
   });
   const borders = new LineSegments(
     level.ink,
-    new LineBasicMaterial({ color: PALETTE.border, transparent: true, opacity: 0.62 }),
+    new LineBasicMaterial({
+      color: PALETTE.border,
+      transparent: true,
+      opacity: COUNTRY_BORDER_REST,
+    }),
   );
   const coast = new LineSegments2(
     level.coast,

@@ -127,37 +127,12 @@ describe('radial menu', () => {
     ).toBeNull();
   });
 
-  /** Le pays garde son nom et sa qualification : la région les lui emprunte pour son cartouche. */
-  it('names the nation when it is one, the country in French otherwise', () => {
-    expect(
-      compassOf({ kind: 'region', id: 'GBR-1', name: 'Kent', country: 'GBR' }, view),
-    ).toBeNull();
-    expect(
-      compassOf({ kind: 'region', id: 'FRA-5333', name: 'Paris', country: 'FRA' }, view)?.kicker,
-    ).toBe('région · France');
-  });
-
-  it('adds the crane on one of my regions, and it is the whole fan', () => {
-    const compass = compassOf(
-      { kind: 'region', id: 'FRA-5333', name: 'Paris', country: 'FRA' },
-      view,
-    );
-    expect(compass?.actions.map((action) => action.label)).toEqual(['Bâtir ici']);
-    expect(compass?.actions[0]).toMatchObject({ pictogram: 'crane', regionId: 'FRA-5333' });
-    expect(compass?.actions[0]?.cost).toBeNull();
-    expect(compass?.name).toBe('Paris');
-    expect(compass?.kicker).toBe('région · France');
-  });
-
-  it('withdraws the crane on an enemy region, and the fan closes with it', () => {
+  /** **Bâtir ne passe plus par la rose** (retour du 22/10) : sur une région à soi où il n'y a rien
+   *  d'autre à faire, la rose n'a aucune branche et ne s'ouvre pas. */
+  it('stays shut on one of my regions, whatever can go up there', () => {
+    expect(labelsOf({ kind: 'region', id: 'FRA-5333', name: 'Paris', country: 'FRA' })).toBeNull();
+    expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' })).toBeNull();
     expect(labelsOf({ kind: 'region', id: 'ITA-5422', name: 'Roma', country: 'ITA' })).toBeNull();
-  });
-
-  /** **Une région ne compte plus rien** (ADR 0029) : un bâtiment debout n'y retire pas la grue. */
-  it('keeps the crane where a building already stands — the place is aimed at, not the region', () => {
-    expect(labelsOf({ kind: 'region', id: 'FRA-9999', name: 'Nord', country: 'FRA' })).toEqual([
-      'Bâtir ici',
-    ]);
   });
 
   /** **Un point adverse ne se fait rien au repos** (décision du 31/08, inchangée le 16/09) : il
@@ -286,7 +261,7 @@ describe('in aim', () => {
     coastal: false,
   } as const;
 
-  it('shows the marches and nothing else — no crane, no "view"', () => {
+  it('shows the marches and nothing else — no "view"', () => {
     const compass = compassOf(aragon, view, column);
     expect(compass?.actions.map((action) => action.key)).toEqual(['aim', 'aim']);
     expect(compass?.actions.map((action) => action.label)).toEqual(['marche', 'attaque']);
@@ -1403,7 +1378,7 @@ describe('raising a level from the map', () => {
     const compass = compassOf(mast, standing({}));
     expect(compass?.kicker).toBe('bâtiment · niveau 1');
     expect(compass?.name).toBe('Mine');
-    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade', 'build', 'demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade', 'demolish']);
     expect(compass?.actions[0]).toMatchObject({
       pictogram: 'chevron',
       label: 'améliorer',
@@ -1420,18 +1395,6 @@ describe('raising a level from the map', () => {
 
   it('offers nothing on a mast in a Blitz, where nothing is built or raised', () => {
     expect(compassOf(mast, { ...standing({}), mode: 'blitz' })).toBeNull();
-  });
-
-  /** Le sol ne disparaît pas sous le mât : la région garde la branche qu'elle offrirait seule. */
-  it('keeps the crane of the region the building stands on', () => {
-    const empty = standing({ regionId: 'FRA-5333' });
-    const compass = compassOf({ ...mast, regionId: 'FRA-5333' }, empty);
-    expect(compass?.actions.map((action) => action.label)).toEqual([
-      'améliorer',
-      'Bâtir ici',
-      'raser',
-    ]);
-    expect(compass?.actions[1]).toMatchObject({ pictogram: 'crane', regionId: 'FRA-5333' });
   });
 
   /**
@@ -1455,7 +1418,7 @@ describe('raising a level from the map', () => {
       ),
     );
     /** Raser ne dépend d'aucune file : ce qu'on efface n'attend pas son tour. */
-    expect(compass?.actions.map((action) => action.key)).toEqual(['build', 'demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
     expect(compass?.refusal).toBe(
       'un chantier vise déjà ce bâtiment — annulez-le ou attendez son tour',
     );
@@ -1463,7 +1426,7 @@ describe('raising a level from the map', () => {
 
   it('withdraws it under the headquarters ceiling, with the ceiling’s own sentence', () => {
     const compass = compassOf(mast, standing({ cappedByHq: true }));
-    expect(compass?.actions.map((action) => action.key)).toEqual(['build', 'demolish']);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['demolish']);
     expect(compass?.refusal).toBe('plafonné par le QG — montez le quartier général d’abord');
   });
 
@@ -1531,8 +1494,8 @@ describe('raising a level from the map', () => {
 
   /**
    * **Un mât à soi est une destination en visée** (décisions 64b, 69a, 70b) : la colonne vient
-   * y entrer, la branche le dit, et la seule marche offerte est celle-là — ni « améliorer », ni
-   * la grue du sol, qui appartiennent à la rose au repos.
+   * y entrer, la branche le dit, et la seule marche offerte est celle-là — ni « améliorer », qui
+   * appartient à la rose au repos.
    */
   it('offers « entrer en garnison » to an armed infantry, and nothing else', () => {
     const armed = {

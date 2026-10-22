@@ -4068,7 +4068,7 @@ export const fr = {
                 `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
                 `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
-                `Une de vos piles : glissez-la et lâchez-la — l’ordre part au lâcher, la pastille sous le pointeur dit lequel (Tab ou 1, 2, 3 pour en changer). Appui long sur une escouade : une seule troupe. Lâchée sur un transport, elle embarque ; l’étiquette d’un transport chargé fait descendre. Échap ou ${fr.mapUi.mouse.button.right} annule. ${fr.mapUi.mouse.click.left} la lève aussi, un second la pose.`,
+                `Une de vos piles : glissez-la et lâchez-la — l’ordre part au lâcher, la pastille sous le pointeur dit lequel (Tab ou 1, 2, 3 pour en changer). Appui long sur une escouade : une seule troupe. Lâchée sur un transport, elle embarque ; l’étiquette d’un transport chargé fait descendre. Échap ou ${fr.mapUi.mouse.button.right} annule, pièce levée comprise. ${fr.mapUi.mouse.click.left} la lève aussi, un second la pose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
                 regions,
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
@@ -4221,7 +4221,7 @@ export const fr = {
         gesture: 'glisser une pile',
         effect: 'la porter ; la lâcher la pose — sur un transport, elle embarque',
       },
-      { gesture: 'échap', effect: 'reposer la pièce en main' },
+      { gesture: 'échap, ou tout autre clic net', effect: 'reposer la pièce en main' },
       {
         gesture: fr.mapUi.mouse.drag[buttonOfRole(mapping, 'pan')],
         effect: 'déplacer la carte',
@@ -4341,8 +4341,6 @@ export const fr = {
     bombard: 'bombarder',
     bombardConsequence: (km: number) =>
       `Tir indirect à ${km} km, sur-le-champ : la cible ne peut pas répondre. Puis la pièce recharge.`,
-    build: 'Bâtir ici',
-    buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
      *  c'est un ordre donné à une troupe sur la carte, pas une ligne d'un formulaire. */
     found: 'Fonder un avant-poste',
@@ -4505,22 +4503,6 @@ export const fr = {
   },
 
   construction: {
-    kicker: 'chantier',
-    offerHeader: 'à poser',
-    depositReason: (deposits: ReadonlyArray<string>) =>
-      `sur un gisement libre de ${deposits.join(' ou ')}`,
-    coastalReason: 'sur la côte',
-    // The blocking reason is written once, at the head of the panel — never as fifteen grey
-    // badges. A running site names nothing, since the queue takes
-    // everything the player can pay for (25/08).
-    heldByMaterials: 'Matières insuffisantes pour les lignes en rouge.',
-    /**
-     * A launched season whose foundation is not placed is a normal state — so it is said, and
-     * said where the placement happens. What the format takes back is the price and the wait;
-     * the region stays the player's, and the sentence has to make that difference audible.
-     */
-    foundationNotice: (owed: string) =>
-      `Socle de la saison : ${owed}. Pose gratuite et immédiate — le lieu reste votre choix.`,
     /** **L'effet se produit hors du champ où l'on a cliqué** : le panneau se referme sur la carte
      *  et le chantier part dans un bureau qui vit ailleurs. La phrase nomme les deux, sinon le
      *  joueur ne sait ni que ça a pris, ni où le retrouver. « Commandé » et non « mis en file » :
@@ -4528,21 +4510,6 @@ export const fr = {
     queued: (building: string) => `${building} : chantier commandé — voir le plateau personnel.`,
     free: 'offert',
     immediate: 'immédiat',
-    /** The rest of the catalogue, below the offer: what the nation cannot order yet. */
-    elsewhereHeader: 'pas encore',
-    /** After the name, never instead of it: what the nation already stands, all regions
-     *  together. Hidden at zero — a column of « 0 déjà bâti » is noise, not a count. */
-    built: (count: number) => `${count} déjà bâti${plural(count, '', 's')}`,
-    blocked: {
-      /** L'avant-poste qui couvrait cette région est détruit : ses bâtisses restent debout,
-       *  son ancre est morte (ADR 0020 §10). */
-      outOfReach: 'plus aucun avant-poste ne couvre cette région',
-      unique: 'un seul quartier général par nation',
-      locked: (card: ResearchCard | null) =>
-        card === null
-          ? 'posez d’abord votre quartier général'
-          : `demande la recherche ${cardName(card)}`,
-    },
   },
 
   /** **Les affiches au survol** (table d'état-major) : ce que la pièce survolée dit d'elle, en

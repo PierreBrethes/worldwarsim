@@ -129,7 +129,6 @@ import { notify } from '@/shell/notifications';
 import { binPoint, centreOf, flyFlows, mapPoint, spent as flySpent } from '@/shell/flights';
 import { useMapMotion } from '@/data/mapMotion';
 import { useSupplyFlights } from './-plateau/useSupplyFlights';
-import { ConstructionPanel } from './-plateau/ConstructionPanel';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
@@ -164,8 +163,6 @@ import { CampBadge } from './-plateau/CampBadge';
 import { ObjectiveBadge } from './-plateau/ObjectiveBadge';
 import { StrategicPointBadge } from './-plateau/StrategicPointBadge';
 import type { LootRumor } from './-plateau/JournalWindow';
-
-type BuildingSite = { regionId: string; x: number; y: number };
 
 /** **Le mât qu'on s'apprête à raser**, et l'endroit du geste. Un identifiant plutôt que la ligne
  *  de la vue : la vue se réinvalide sous la carte, et une copie prise au clic afficherait un
@@ -375,9 +372,6 @@ function BoardContent({
   const navigate = useNavigate({ from: Route.fullPath });
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
-  // Where the crane was clicked: the construction panel is anchored to the aimed point, since
-  // what it answers is "here", not "somewhere".
-  const [buildingSite, setBuildingSite] = useState<BuildingSite | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
@@ -1057,11 +1051,6 @@ function BoardContent({
         );
       };
       switch (action.key) {
-        case 'build':
-          setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
-          /** La feuille de construction couvre la moitié basse : le point visé remonte. */
-          if (narrow) setReveal({ ...at, floor: sheetHeight('half'), nonce: Date.now() });
-          return;
         /**
          * **L'élévation part de la carte, par la mutation d'`UpgradeControl` et pas une autre**
          * (décisions 54a et 57a). Le doublon est assumé — monter un niveau se fait ici et dans
@@ -1259,7 +1248,6 @@ function BoardContent({
       dropHand,
       column,
       seat,
-      narrow,
       sendOrder,
       afterSent,
       settle,
@@ -1335,7 +1323,6 @@ function BoardContent({
     const close = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setGarrison(null);
-      setBuildingSite(null);
       setDemolition(null);
       setDismantling(null);
       setSelectedLoot(null);
@@ -2219,7 +2206,6 @@ function BoardContent({
       onOpenSurface={openWindow}
       onOpenSite={openBuilding}
       onOpenOutpost={openOutpost}
-      shut={boardOpen}
       firstSteps={
         firstSteps === null || shownStepOf(view) === null ? null : (
           <FirstStepsList
@@ -2328,7 +2314,6 @@ function BoardContent({
                 onSelectHold={blitz || view.me.defeated ? undefined : startPicking}
                 selectionBar={selectionBar}
                 onTakeDepot={view.me.defeated ? undefined : takeDepot}
-                building={buildingSite !== null}
                 placing={placingCard}
                 onPlacePoint={placeAt}
                 onPlacingDismiss={dismissPlacing}
@@ -2377,24 +2362,6 @@ function BoardContent({
                   nations={view.opponents.map((opponent) => opponent.nation)}
                   at={selectedPoint}
                   onClose={() => setSelectedPoint(null)}
-                />
-              )}
-              {buildingSite && (
-                /* Keyed on where it was aimed: a panel opened at a second point is a second panel,
-             and it must not inherit the push the player gave the first (`Draggable`). */
-                <ConstructionPanel
-                  key={`${buildingSite.regionId}-${buildingSite.x}-${buildingSite.y}`}
-                  view={view}
-                  regionId={buildingSite.regionId}
-                  at={buildingSite}
-                  onClose={() => setBuildingSite(null)}
-                  onPlace={(option) =>
-                    hold({
-                      key: option.key,
-                      debt: null,
-                      title: regionName(view, buildingSite.regionId),
-                    })
-                  }
                 />
               )}
               {demolition !== null && razed !== undefined && (
@@ -2763,8 +2730,3 @@ function Loading() {
     </div>
   );
 }
-
-/** La région désignée, nommée — la carte de pose dit d'abord *où*, et le joueur vient de fermer
- *  le panneau qui portait ce nom en titre. */
-const regionName = (view: PlayerView, regionId: string): string =>
-  view.me.regions.find((region) => region.id === regionId)?.name ?? regionId;

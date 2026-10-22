@@ -10,7 +10,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
-import { DOMAIN_BY_ROLE, type UnitTier } from '@/domain/troops';
+import { type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { mergedByMaterial } from '../baking';
@@ -172,7 +172,6 @@ export function figurineFor(
   const model = new Group();
   model.scale.setScalar(FIGURINE_SCALE);
   object.add(model);
-  if (DOMAIN_BY_ROLE[role] !== 'air') object.add(contactShadow());
 
   const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {
@@ -210,9 +209,10 @@ export function figurineFor(
 }
 
 /**
- * The lamp's shadow falls aside (`lamp.ts`); what sets the piece down right under its feet is
- * this soft disc, the prototype's (`carte-refonte`): darkest at the centre, nothing at the rim.
- * The fall is in the vertices' alpha, so it builds without a canvas.
+ * A piece on the ground casts only the lamp's shadow (`lamp.ts`): a disc under its feet read as a
+ * round base (#232). This soft disc, the prototype's (`carte-refonte`), is for what is lifted — a
+ * plane or a carried pile — whose gap to its shadow says its height: darkest at the centre,
+ * nothing at the rim. The fall is in the vertices' alpha, so it builds without a canvas.
  */
 const SHADOW_RADIUS = 0.48;
 const SHADOW_CORE = 0.62;
@@ -236,16 +236,21 @@ SHADOW_DISC.setAttribute(
     4,
   ),
 );
-/** The name a carried copy finds its figurines' discs by: lifted, a disc would read as a base. */
-export const CONTACT = 'contact';
+/** The name a carried copy finds its planes' discs by: the copy has its own, under the whole pile. */
+const ALTITUDE = 'altitude';
 
-export function contactShadow(): Group {
+export function altitudeShadow(): Group {
   const shadow = new Group();
-  shadow.name = CONTACT;
+  shadow.name = ALTITUDE;
   const disc = new Mesh(SHADOW_DISC, SHADOW_MATERIAL);
   disc.rotation.x = -Math.PI / 2;
   disc.position.y = 0.004;
   disc.userData.ground = true;
   shadow.add(disc);
   return shadow;
+}
+
+/** A lifted pile already has its own disc: the ones of the planes aloft in it would be a second. */
+export function hideAltitudeShadows(root: Group): void {
+  for (const disc of root.getObjectsByProperty('name', ALTITUDE)) disc.visible = false;
 }

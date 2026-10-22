@@ -605,7 +605,7 @@ function placeFingerBubble(
 const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   cabin: <path d="M10 1.75 L18.5 8.5 H16.7 V18 H3.3 V8.5 H1.5 Z" />,
   /** L'élévation : le chevron sur ses deux assises — « un étage de plus » à quinze pixels, sans
-   *  reprendre un trait de la grue, qui reste à « Bâtir ici » (tranché le 01/09). */
+   *  reprendre un trait de la grue (tranché le 01/09). */
   chevron: (
     <path d="M10 1.4 L17.4 8.8 H13.2 V12.4 H6.8 V8.8 H2.6 Z M4.4 14.4 H15.6 V16.4 H4.4 Z M4.4 17.6 H15.6 V19.6 H4.4 Z" />
   ),
@@ -613,9 +613,6 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
    *  C'est là que la colonne s'arrête d'être une colonne. */
   post: (
     <path d="M6.6 7 H12.4 V17.4 H6.6 Z M4.2 17.4 H15.8 V19.2 H4.2 Z M9.4 1.2 H10.7 V7 H9.4 Z M11.4 1.6 H17.6 L15.2 3.8 L17.6 6 H11.4 Z" />
-  ),
-  crane: (
-    <path d="M2.3 2.5 H18.2 V5.4 H2.3 Z M6.2 5.4 H9.7 V17 H6.2 Z M14.3 5.4 H16.2 V10.2 H14.3 Z M13.2 10.2 H17.3 V13.2 H13.2 Z M3.1 17 H12.8 V19.5 H3.1 Z" />
   ),
   /** « Entrer en garnison » : la hutte de la marche, porte ouverte — le toit de `cabin`, deux
    *  murs, un linteau, et le vide entre eux par où la colonne entre. */

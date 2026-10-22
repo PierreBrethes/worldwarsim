@@ -112,6 +112,9 @@ export type CleanPress = {
   readonly picks: boolean;
   readonly reads: boolean;
   readonly acts: boolean;
+  /** **Pièce en main, tout clic net qui ne pose pas la repose** (#229), quel que soit le rôle de
+   *  son bouton : pas de rose, rien d'envoyé, comme Échap. Le gauche et le doigt posent. */
+  readonly cancels: boolean;
 };
 
 export function cleanPressAt(
@@ -121,9 +124,26 @@ export function cleanPressAt(
   holding = false,
 ): CleanPress {
   const picks = isFinger(pointerType) || buttonAt(index) === 'left';
+  const cancels = holding && !picks && buttonAt(index) !== null;
   return {
     picks,
     reads: picks && !holding,
-    acts: isFinger(pointerType) || roleAt(mapping, index) === 'act' || (holding && picks),
+    acts:
+      isFinger(pointerType) || (roleAt(mapping, index) === 'act' && !cancels) || (holding && picks),
+    cancels,
   };
+}
+
+/**
+ * Ce que le relâchement d'un appui décide, avant toute lecture du clic. Le bouton qui déplace
+ * tient `panning` dès l'appui : net, il ne déplace rien, mais pièce en main il la repose quand
+ * même (#229) ; un glisser, lui, ne repose rien.
+ */
+export function releaseOf(
+  gesture: { readonly panning: boolean; readonly pastThreshold: boolean },
+  press: CleanPress,
+): 'none' | 'cancel' | 'press' {
+  if (gesture.pastThreshold) return 'none';
+  if (press.cancels) return 'cancel';
+  return gesture.panning ? 'none' : 'press';
 }

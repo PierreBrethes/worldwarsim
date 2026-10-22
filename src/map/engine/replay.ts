@@ -21,7 +21,7 @@ import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { textureOf } from './billboard';
 import { blockFigurine } from './blocks';
-import { contactShadow, FIGURINE_SCALE, figurineFor } from './figurines/figurine';
+import { FIGURINE_SCALE, figurineFor } from './figurines/figurine';
 import { charred, PLUME_BY_WEAR, Smoke, type Plume } from './smoke';
 import { washedOf } from './standing';
 
@@ -335,7 +335,7 @@ export class ReplayScene {
         const plate = plateOf(spriteUrl(nation, seen.role, seen.tier));
         // Upright to the eye, whichever way the holder faces — a battery faces its target.
         plate.rotation.y = -holder.rotation.y;
-        built.body.add(plate, contactShadow());
+        built.body.add(plate);
       } else {
         built.body = figurine.object;
         // The models' markers are in model units: what hangs there drops the board scale.

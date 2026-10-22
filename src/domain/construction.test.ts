@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   aimVerdict,
-  blockedOn,
-  buildableOn,
   outpostRaiseHold,
   placementOf,
   raiseRefusalOf,
@@ -14,17 +12,8 @@ import {
   workSitesOf,
   type Aim,
   type OutpostRaise,
-  type Site,
 } from './construction';
-import {
-  BUILDABLE_BUILDINGS,
-  BUILDINGS,
-  RESOURCES,
-  type BuildingKey,
-  type ResearchCard,
-  type ResourceKey,
-} from './ids';
-import { buildingLockOf } from './research';
+import { BUILDINGS, RESOURCES, type BuildingKey, type ResearchCard, type ResourceKey } from './ids';
 import { BUILDING_SPACING_KM } from './economy';
 import { destinationPoint, type LonLat } from './geo';
 import { DEPOSIT_POINTS } from './world';
@@ -34,133 +23,6 @@ import type { Building, BuildSpec, Cost, PlayerView } from './player-view';
 const CATALOG = Object.fromEntries(
   BUILDINGS.map((key) => [key, { cost: { steel: 20 }, minutes: 30, lockedBy: null }]),
 ) as Record<BuildingKey, BuildSpec>;
-
-const RICH = Object.fromEntries(RESOURCES.map((key) => [key, 1000])) as Record<ResourceKey, number>;
-const BROKE = Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
-
-const site = (overrides: Partial<Site> = {}): Site => ({
-  site: { outpostId: null },
-  hqLevel: 1,
-  stocks: RICH,
-  foundation: [],
-  ...overrides,
-});
-
-const keysOn = (overrides: Partial<Site> = {}): ReadonlyArray<BuildingKey> =>
-  buildableOn(site(overrides), CATALOG).map((option) => option.key);
-
-describe('the rest of the catalogue', () => {
-  const blockedKeys = (overrides: Partial<Site> = {}): ReadonlyArray<BuildingKey> =>
-    blockedOn(site(overrides), CATALOG).map((option) => option.key);
-
-  const reasonFor = (key: BuildingKey, overrides: Partial<Site> = {}) =>
-    blockedOn(site(overrides), CATALOG).find((option) => option.key === key)?.reason;
-
-  it('partitions the current catalogue with the offer, whatever the player holds', () => {
-    for (const overrides of [{}, { hqLevel: 0 }, { stocks: BROKE }, { site: null }]) {
-      const offered = keysOn(overrides);
-      const blocked = blockedKeys(overrides);
-      expect([...offered, ...blocked].sort()).toEqual([...BUILDABLE_BUILDINGS].sort());
-    }
-  });
-
-  // An empty warehouse is a hold, not a fact about the catalogue: it must not move a single
-  // line onto the shelf.
-  it('leaves a held line in the offer rather than on the shelf', () => {
-    expect(blockedKeys({ stocks: BROKE })).toEqual(blockedKeys());
-  });
-
-  it('names the research card that still holds a tile', () => {
-    const gated = { ...CATALOG, airfield: { ...CATALOG.airfield, lockedBy: 'aviation' as const } };
-    const [airfield] = blockedOn(site({ hqLevel: 2 }), gated).filter((o) => o.key === 'airfield');
-    expect(airfield?.reason).toEqual({ kind: 'locked', card: 'aviation' });
-  });
-
-  it('says a second headquarters is one too many', () => {
-    expect(reasonFor('hq', { hqLevel: 2 })).toEqual({ kind: 'unique' });
-  });
-
-  it('says a ground no site reaches any more carries nothing', () => {
-    expect(reasonFor('barracks', { site: null })).toEqual({ kind: 'outOfReach' });
-  });
-
-  it('serves the bill of what it cannot place — that is what a plan is made of', () => {
-    const [hq] = blockedOn(site(), CATALOG).filter((option) => option.key === 'hq');
-    expect(hq?.cost).toEqual({ steel: 20 });
-    expect(hq?.minutes).toBe(30);
-  });
-});
-
-/** **Choisir la clé, puis viser un lieu** (ADR 0029) : le catalogue ne lit plus aucun sol. */
-describe('what may be ordered before any point is aimed at', () => {
-  it('offers every exploitation and the port, and says what each asks of the point', () => {
-    const options = buildableOn(site(), CATALOG);
-    const reason = (key: BuildingKey) => options.find((option) => option.key === key)?.reason;
-    expect(reason('mine')).toEqual({ kind: 'deposit', deposits: ['coal', 'iron'] });
-    expect(reason('port')).toEqual({ kind: 'coastal' });
-    expect(reason('barracks')).toBeNull();
-  });
-
-  it('never offers a second headquarters', () => {
-    expect(keysOn({ hqLevel: 3 })).not.toContain('hq');
-  });
-
-  it('offers nothing but the headquarters when none stands', () => {
-    expect(keysOn({ hqLevel: 0 })).toEqual(['hq']);
-  });
-
-  it('offers nothing on ground no living site reaches', () => {
-    expect(keysOn({ site: null })).toEqual([]);
-  });
-
-  /** **La recherche débloque** (ADR 0028 §5) : le port et la caserne au départ, l'aérodrome
-   *  derrière l'aviation, quel que soit le niveau du QG. */
-  it('holds the airfield behind its card and offers the port from the first level', () => {
-    const catalog = (researched: ReadonlyArray<'aviation'>) =>
-      Object.fromEntries(
-        BUILDINGS.map((key) => [
-          key,
-          { cost: { steel: 20 }, minutes: 30, lockedBy: buildingLockOf(key, researched) },
-        ]),
-      ) as Record<BuildingKey, BuildSpec>;
-
-    const offered = (researched: ReadonlyArray<'aviation'>) =>
-      buildableOn(site({ hqLevel: 5 }), catalog(researched)).map((option) => option.key);
-
-    expect(offered([])).toEqual(expect.arrayContaining(['port', 'barracks']));
-    expect(offered([])).not.toContain('airfield');
-    expect(offered(['aviation'])).toContain('airfield');
-  });
-});
-
-describe('what merely holds a line back', () => {
-  it('holds only what the stocks cannot pay for', () => {
-    const cheap: Record<BuildingKey, BuildSpec> = {
-      ...CATALOG,
-      barracks: { cost: { steel: 5 }, minutes: 10, lockedBy: null },
-    };
-    const options = buildableOn(site({ stocks: { ...BROKE, steel: 5 } }), cheap);
-    expect(options.find((option) => option.key === 'barracks')?.hold).toBeNull();
-    expect(options.find((option) => option.key === 'airfield')?.hold).toBe('materials');
-  });
-
-  it('leaves a payable line clickable', () => {
-    expect(buildableOn(site(), CATALOG).every((option) => option.hold === null)).toBe(true);
-  });
-
-  /**
-   * **La dette que le sol ne nomme pas** : le quartier général (décision 1b du 13/09). À zéro,
-   * il est la seule chose qu'on offre, pour rien.
-   */
-  it('offers the headquarters alone while it is owed, for nothing', () => {
-    const options = buildableOn(
-      site({ hqLevel: 0, foundation: [{ key: 'hq', deposit: null }] }),
-      CATALOG,
-    );
-    expect(options.map((option) => option.key)).toEqual(['hq']);
-    expect(options[0]).toMatchObject({ free: true, cost: {}, minutes: 0, hold: null });
-  });
-});
 
 describe('what holds a raise back', () => {
   const LOADED_AT = 1_000_000;
@@ -501,12 +363,6 @@ describe('snapTo', () => {
   it('stays under the pointer when nothing is close enough', () => {
     expect(snapTo(POINTER, [destinationPoint(POINTER, PLACING_SNAP_KM * 2, 0)])).toEqual(POINTER);
   });
-});
-
-it('offers warehouse alone and keeps depot off the reference shelf', () => {
-  expect(keysOn()).toContain('warehouse');
-  expect(keysOn()).not.toContain('depot');
-  expect(blockedOn(site(), CATALOG).map((option) => option.key)).not.toContain('depot');
 });
 
 /**

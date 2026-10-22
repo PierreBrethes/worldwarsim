@@ -4,6 +4,10 @@
 que pour les troupes, avec la branche **« Améliorer »** — le geste d'élévation rendu à la
 carte (décision 54a).
 
+**Révisé le 22/10 (#228) : la rose du bâtiment n'hérite plus de « Bâtir ici »** — bâtir passe
+seulement par le plateau personnel (ADR 0029) ; les passages ci-dessous qui en parlent sont
+caducs.
+
 **Statut : codé (02/09).** La cible `building` existe (`src/domain/compass-rose.ts`), le mât la
 rend au clic droit (`targetOfLabel`, `src/map/WorldMap.tsx`), la branche `upgrade` porte son coût
 à plat et son grisé (`src/map/CompassRose.tsx`), et le clic appelle `constructions.start` — la

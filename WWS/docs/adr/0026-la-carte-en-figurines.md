@@ -130,6 +130,13 @@ ailleurs, c'est poser, et la rose répond — « embarquer » sur un transport p
 qui monte en arrivant), « rejoindre » une autre de ses piles. Sous le pointeur, une puce dit ce
 que ferait le lâcher, places comprises, ou son motif en rouge. Le clic-clic reste.
 
+> **Précisée le 22/10/2026** (retour de Pierre, #229) : pièce en main, le clic net qui pose pose
+> (le gauche, ou le doigt), et **tout autre clic net la repose chez elle**, comme Échap, quel que
+> soit le rôle que le réglage donne à son bouton : rien n'est envoyé, aucune rose ne s'ouvre. Au
+> mappage par défaut le droit (agir) et la molette (déplacer) annulent ; au mappage « molette agit »,
+> la molette (agir) et le droit (déplacer). Un glisser garde le rôle de son bouton, pièce en main ou
+> non ; sans pièce en main, rien ne change.
+
 **La route est celle du serveur, jamais une courbe à part.** Tant que le pointeur bouge, aucun
 trait n'est montré. Quand il s'arrête un court instant, la route et l'heure de
 `movements.preview` s'affichent. Une seule demande est en vol, et une réponse périmée est
