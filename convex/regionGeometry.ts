@@ -4,7 +4,6 @@ import {
   decodeRegionRaster,
   firstRegionEntry,
   goalCellsOfRegions,
-  hostAmong,
   isRegionBorderCell,
   regionAt,
   pointInRegion,
@@ -63,9 +62,6 @@ export function pointInRouteRegion(
   if (island !== null) return island === region.id;
   return regionAtPoint(point)?.id === region.id || pointInRegion(rasterOf(), point, region);
 }
-
-export const hostAmongAtRoutePoint = (point: LonLat, adm0s: ReadonlySet<string>): string | null =>
-  hostAmong(rasterOf(), point, adm0s);
 
 export const firstRouteEntryInRegion = (
   points: ReadonlyArray<LonLat>,

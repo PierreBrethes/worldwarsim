@@ -130,15 +130,6 @@ export const regionAt = (raster: RegionRaster, lonLat: LonLat): string | null =>
 export const hostAt = (raster: RegionRaster, lonLat: LonLat): string | null =>
   raster.hosts[raster.countries[cellAt(raster, lonLat)]! - 1] ?? null;
 
-export function hostAmong(
-  raster: RegionRaster,
-  lonLat: LonLat,
-  adm0s: ReadonlySet<string>,
-): string | null {
-  const host = hostAt(raster, lonLat);
-  return host !== null && adm0s.has(host) ? host : null;
-}
-
 /**
  * **Les cellules d'une région, et la direction région → cellules est totale** (ADR 0023) : celles
  * du canal qui portent son code, ou — pour les neuf cent soixante-et-onze régions plus petites
