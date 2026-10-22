@@ -523,7 +523,8 @@ describe('le point de chaque région', () => {
  * **Un quai se pose sur la côte de sa région, et jamais dans l'intérieur** (#221) : le serveur
  * lit la côte de mer ouverte cuite depuis l'atlas (`convex/coast.ts`). Sur un échantillon de
  * régions côtières — Malte, que la grille noie, et Singapour comprises —, le point de côte le
- * plus proche de leur point est accepté, et à 1,5 km au large encore ; Florence et Saint-Marin
+ * plus proche de leur point est accepté, et à 1,5 km de là encore (la tolérance est de 2 km, dans
+ * tous les sens) ; Florence et Saint-Marin
  * n'ont pas de côte, et celle de Livourne n'est pas celle de Florence.
  */
 describe('le quai sur la côte de sa région', () => {
@@ -531,14 +532,15 @@ describe('le quai sur la côte de sa région', () => {
   const coastal = indexAsset.coastal;
   const sample = [
     ...['MLT-5949', 'MLT-5950', 'SGP-4871', 'HKG-5153', 'BMU-5137', 'IRL-5575', 'NOR-921'],
+    ...['ITA-5417', 'USA-3542', 'JPN-1860'],
     ...coastal.filter((_, rank) => rank % 40 === 0),
   ];
 
   it('accepte un quai à moins de 2 km de la côte de la région', () => {
     const refused = sample.filter((id) => {
       const shore = nearestCoast(coast, regionFacts(id)!.point, 20_000, id)!.lonLat;
-      const offshore: LonLat = [shore[0], shore[1] + 1.5 / 111];
-      return !isOnRegionCoast(shore, id) || !isOnRegionCoast(offshore, id);
+      const nearby: LonLat = [shore[0], shore[1] + 1.5 / 111];
+      return !isOnRegionCoast(shore, id) || !isOnRegionCoast(nearby, id);
     });
     expect(refused).toEqual([]);
   });

@@ -163,7 +163,7 @@ function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
   grid ??= decodeGrid(gridAsset, projection);
   const { minX, minY, maxX, maxY } = grid.sphere;
   const found = new Map<string, LonLat[]>();
-  for (const { lonLat } of coastCellsIn(grid, [minX, minY, maxX, maxY])) {
+  for (const lonLat of coastCellsIn(grid, [minX, minY, maxX, maxY])) {
     const regionId = regionAtRoutePoint(lonLat);
     if (regionId === null) continue;
     const list = found.get(regionId);

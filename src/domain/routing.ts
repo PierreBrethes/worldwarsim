@@ -888,21 +888,18 @@ export function mooringOf(grid: RouteGrid, quay: LonLat): LonLat | null {
  * knows nothing of admin-1 shapes and does not have to learn them for this. The caller is the
  * one that says which of these cells fall inside its polygons; plunder crossings use their own
  * cached contour reader.
- *
- * The projected coordinate travels beside the lon/lat because the magnet compares distances on
- * the board: reprojecting every candidate on every frame would cost the hover.
  */
 export function coastCellsIn(
   grid: RouteGrid,
   box: readonly [minX: number, minY: number, maxX: number, maxY: number],
-): ReadonlyArray<{ readonly x: number; readonly y: number; readonly lonLat: LonLat }> {
+): ReadonlyArray<LonLat> {
   const [minX, minY, maxX, maxY] = box;
   const firstColumn = Math.max(0, Math.floor((minX - grid.sphere.minX) / grid.step - 0.5));
   const lastColumn = Math.min(grid.width - 1, Math.ceil((maxX - grid.sphere.minX) / grid.step));
   const firstRow = Math.max(0, Math.floor((minY - grid.sphere.minY) / grid.step - 0.5));
   const lastRow = Math.min(grid.height - 1, Math.ceil((maxY - grid.sphere.minY) / grid.step));
 
-  const found: Array<{ x: number; y: number; lonLat: LonLat }> = [];
+  const found: LonLat[] = [];
   const open = openWaterOf(grid);
   const around: number[] = [];
   for (let row = firstRow; row <= lastRow; row++) {
@@ -913,11 +910,7 @@ export function coastCellsIn(
       let touchesSea = false;
       for (let i = 0; i < count && !touchesSea; i++) touchesSea = open[around[i]!] === 1;
       if (!touchesSea) continue;
-      found.push({
-        x: grid.sphere.minX + (column + 0.5) * grid.step,
-        y: grid.sphere.minY + (row + 0.5) * grid.step,
-        lonLat: unprojectCell(grid, cell),
-      });
+      found.push(unprojectCell(grid, cell));
     }
   }
   return found;

@@ -206,8 +206,9 @@ describe('a coast cell', () => {
   it('gathers the shores of a box, and only land ones', () => {
     const cells = coastCellsIn(grid, [8, 18, 32, 32]);
     expect(cells.length).toBeGreaterThan(0);
-    expect(cells.every((cell) => isCoastCell(grid, cell.lonLat))).toBe(true);
-    expect(cells.some((cell) => Math.round(cell.x) === 20 && Math.round(cell.y) === 25)).toBe(
+    expect(cells.every((cell) => isCoastCell(grid, cell))).toBe(true);
+    const inland = toLonLat(20.5, 25.5);
+    expect(cells.some((cell) => Math.hypot(cell[0] - inland[0], cell[1] - inland[1]) < 1e-6)).toBe(
       false,
     );
   });
