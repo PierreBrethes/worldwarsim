@@ -77,6 +77,7 @@ describe('le rôle d’un geste selon le pointeur', () => {
           picks: button === 'left',
           reads: button === 'left',
           acts: mapping[button] === 'act',
+          cancels: false,
         });
       }
     }
@@ -84,16 +85,19 @@ describe('le rôle d’un geste selon le pointeur', () => {
       picks: false,
       reads: false,
       acts: true,
+      cancels: false,
     });
     expect(cleanPressAt(WHEEL_ACTS_MAPPING, 'mouse', 1)).toEqual({
       picks: false,
       reads: false,
       acts: true,
+      cancels: false,
     });
     expect(cleanPressAt(LEFT_ACTS_MAPPING, 'mouse', 0)).toEqual({
       picks: true,
       reads: true,
       acts: true,
+      cancels: false,
     });
   });
 
@@ -103,12 +107,18 @@ describe('le rôle d’un geste selon le pointeur', () => {
       picks: true,
       reads: true,
       acts: false,
+      cancels: false,
     });
   });
 
   it('au doigt : un toucher net lit et agit, un glissé déplace — quel que soit le réglage', () => {
     for (const mapping of mappings) {
-      expect(cleanPressAt(mapping, 'touch', 0)).toEqual({ picks: true, reads: true, acts: true });
+      expect(cleanPressAt(mapping, 'touch', 0)).toEqual({
+        picks: true,
+        reads: true,
+        acts: true,
+        cancels: false,
+      });
       expect(dragRoleAt(mapping, 'touch', 0)).toBe('pan');
     }
   });
@@ -119,22 +129,45 @@ describe('le rôle d’un geste selon le pointeur', () => {
         picks: true,
         reads: false,
         acts: true,
+        cancels: false,
       });
       expect(cleanPressAt(mapping, 'touch', 0, true)).toEqual({
         picks: true,
         reads: false,
         acts: true,
+        cancels: false,
       });
     }
-    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 2, true)).toEqual({
-      picks: false,
-      reads: false,
+  });
+
+  /** **Pièce en main, tout clic net qui ne pose pas annule** (#229), quel que soit le rôle de son
+   *  bouton : comme Échap, rien n'est envoyé et aucune rose ne s'ouvre. Le clic gauche pose. */
+  it('pièce en main, tout clic net hors du gauche annule, sur les trois mappages', () => {
+    for (const mapping of mappings) {
+      for (const index of [1, 2]) {
+        expect(cleanPressAt(mapping, 'mouse', index, true)).toEqual({
+          picks: false,
+          reads: false,
+          acts: false,
+          cancels: true,
+        });
+      }
+    }
+    expect(cleanPressAt(WHEEL_ACTS_MAPPING, 'mouse', 2, true).cancels).toBe(true);
+    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 0, true)).toMatchObject({
       acts: true,
+      cancels: false,
     });
-    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 1, true)).toEqual({
-      picks: false,
-      reads: false,
-      acts: false,
+  });
+
+  it('ne change rien sans pièce en main, au doigt, ni quand c’est le gauche qui agit', () => {
+    expect(cleanPressAt(CLASSIC_MAPPING, 'mouse', 2)).toMatchObject({ acts: true, cancels: false });
+    for (const mapping of mappings) {
+      expect(cleanPressAt(mapping, 'touch', 0, true)).toMatchObject({ acts: true, cancels: false });
+    }
+    expect(cleanPressAt(LEFT_ACTS_MAPPING, 'mouse', 0, true)).toMatchObject({
+      acts: true,
+      cancels: false,
     });
   });
 });

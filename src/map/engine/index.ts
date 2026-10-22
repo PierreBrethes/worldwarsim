@@ -528,7 +528,8 @@ export class MapEngine {
    *  when the press is over — the ring under the pointer fills meanwhile. */
   onDetach?:
     ((phase: 'start' | 'done' | 'end', clientX: number, clientY: number) => void) | undefined;
-  /** **The right button, pressed while a piece is carried**, takes the gesture back. */
+  /** **The right button, pressed while a piece is carried**, takes the gesture back; a clean
+   *  press of the acting button puts a held piece back too (#229). */
   onCarryCancel?: (() => void) | undefined;
   /** The drag is over, its drop told first: let go, put back or cancelled. */
   onCarryEnd?: (() => void) | undefined;
@@ -1910,6 +1911,8 @@ export class MapEngine {
       gesture.index,
       this.held !== null,
     );
+    // A piece in hand goes back home at the press that would have acted, like Escape (#229).
+    if (press.cancels) return this.onCarryCancel?.();
     // A finger has no hover to read from: the board is aimed where it lifted, now, so the
     // ghost of a placement and the country under it answer for this point and not the last.
     if (this.fingerOnBoard) {

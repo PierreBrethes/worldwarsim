@@ -1401,6 +1401,7 @@ export function WorldMap({
         onAct={onLabelAct}
         mapping={mapping}
         holding={holding !== null}
+        onCancelHeld={() => onDropRefused?.()}
         onHoldOver={holdOver}
         muted={placing !== null}
         groupFar={blitz !== null}

@@ -4068,7 +4068,7 @@ export const fr = {
                 `Orienter et incliner la vue : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'orient')]}. Sélectionner le pays visé : clic gauche net.`,
                 `Zoomer : molette. Déplacer la carte : ${fr.mapUi.mouse.drag[buttonOfRole(hand.mapping, 'pan')]}, ou espace maintenu avec le clic gauche.`,
                 `La rose des vents : ${act} sur un point. Elle propose ce que ce point accepte, et rien d’autre.`,
-                `Une de vos piles : glissez-la et lâchez-la — l’ordre part au lâcher, la pastille sous le pointeur dit lequel (Tab ou 1, 2, 3 pour en changer). Appui long sur une escouade : une seule troupe. Lâchée sur un transport, elle embarque ; l’étiquette d’un transport chargé fait descendre. Échap ou ${fr.mapUi.mouse.button.right} annule. ${fr.mapUi.mouse.click.left} la lève aussi, un second la pose.`,
+                `Une de vos piles : glissez-la et lâchez-la — l’ordre part au lâcher, la pastille sous le pointeur dit lequel (Tab ou 1, 2, 3 pour en changer). Appui long sur une escouade : une seule troupe. Lâchée sur un transport, elle embarque ; l’étiquette d’un transport chargé fait descendre. Échap ou ${fr.mapUi.mouse.button.right} annule, pièce levée comprise. ${fr.mapUi.mouse.click.left} la lève aussi, un second la pose.`,
                 'Ces trois métiers — orienter, déplacer, agir — se permutent sur les trois boutons dans les Réglages.',
                 regions,
                 'Le « ? » en bas à droite rouvre les commandes à tout moment.',
