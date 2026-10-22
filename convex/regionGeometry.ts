@@ -114,7 +114,11 @@ export function regionsWithinReach(point: LonLat, reachKm: number): ReadonlyMap<
   const key = `${point[0]}|${point[1]}|${reachKm}`;
   const known = coverage.get(key);
   if (known !== undefined) return known;
-  const covered = coveredByDisc(rasterOf(), point, reachKm);
+  const covered = new Map(coveredByDisc(rasterOf(), point, reachKm));
+  /** Malte n'a que des cellules d'ancrage, partagées et en mer : le sol sous le point y est à
+   *  distance nulle, comme celui d'une région qui a ses cellules (#224). */
+  const island = islandRegionOf(coastOf(), point);
+  if (island !== null) covered.set(island, 0);
   if (coverage.size >= REMEMBERED_DISCS) coverage.clear();
   coverage.set(key, covered);
   return covered;

@@ -528,3 +528,17 @@ describe('a disabled outpost suspends its zone rather than erasing it', () => {
     }
   });
 });
+
+/** **Malte n'a pas de cellule** (#224) : ses régions se mesurent à leur cellule d'ancrage,
+ *  partagée et en mer. Un point fondé dans La Valette la tient : il y est, un rival mouillé
+ *  plus près du centre de la cellule n'y est pas. */
+describe('an outpost on Malta', () => {
+  it('holds the Maltese region it stands in against a rival nearer the anchor cell', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await plant(t, seat, [14.513, 35.895], 'MLT-5949', 'MLT');
+    await plant(t, guest, [14.513, 35.935], undefined, '');
+
+    expect(await knownOf(t, seat, 'MLT-5949')).toMatchObject({ holder: 'Pierre' });
+  });
+});
