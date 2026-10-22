@@ -61,7 +61,9 @@ Ce sont les défauts que les revues ont réellement trouvés.
   conflit de profondeur ; une épaisseur qui fond vient d'unités du monde au lieu de pixels
   d'écran ; une donnée cuite peut mal se décoder (antialiasing d'un canvas lu comme un type).
 - **Coût** : si le lot touche la carte, `npm run banc:client` ; rien ne redessine en continu
-  au repos, et le téléphone ne régresse pas.
+  au repos, et le téléphone ne régresse pas. Un avant/après ne se compare que si le geste a eu
+  lieu des deux côtés : même distance de caméra atteinte, appels de dessin du même ordre. Un
+  écart qui vient du banc n'est pas une régression.
 - **Chiffres écrits** : chaque coût, poids ou décompte qu'un ADR, `CLAUDE.md` ou un commentaire
   annonce se remesure sur la pointe, avec tous les chemins qui le paient (premier appel, second
   index, terre comme mer). Un chiffre faux est un finding.
