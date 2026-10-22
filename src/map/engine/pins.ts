@@ -104,9 +104,10 @@ export function clusterPoints<P extends { readonly sx: number; readonly sy: numb
   }
   const radiusOf = (group: (typeof groups)[number]) =>
     group.points.length > 1 ? clusterRadius(group.points.length) : radius / 2;
+  // A pass merges every touching pair it meets and carries on; passes repeat until none touch.
   for (let merged = true; merged;) {
     merged = false;
-    outer: for (let i = 0; i < groups.length; i++)
+    for (let i = 0; i < groups.length; i++)
       for (let j = i + 1; j < groups.length; j++) {
         const [a, b] = [groups[i]!, groups[j]!];
         if (Math.hypot(a.sx - b.sx, a.sy - b.sy) >= radiusOf(a) + radiusOf(b) + 2) continue;
@@ -115,8 +116,8 @@ export function clusterPoints<P extends { readonly sx: number; readonly sy: numb
         a.sy = (a.sy * a.points.length + b.sy * b.points.length) / n;
         a.points.push(...b.points);
         groups.splice(j, 1);
+        j -= 1;
         merged = true;
-        break outer;
       }
   }
   return groups;
