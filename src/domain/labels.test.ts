@@ -436,18 +436,20 @@ describe('buildLabels', () => {
     ]);
   });
 
-  it('wakes a deposit a held key calls, in its own ink, and says when it is out of reach (#239)', () => {
-    const woken = (wake: 'open' | 'outOfReach' | 'refused') =>
+  it('wakes a deposit a held key calls, in its own ink, and says why the pose would refuse it (#239)', () => {
+    const woken = (wake: NonNullable<(MapMarker & { kind: 'deposit' })['wake']>) =>
       buildLabels(viewWith([]), [
         { kind: 'deposit', id: 'deposit-FR-60', lonLat: [2.4, 49.4], deposit: 'coal', wake },
       ])[0];
     expect(woken('open')?.wake).toEqual({ deposit: 'coal', open: true });
     expect(woken('open')?.lines).toEqual([{ role: 'nature', text: 'charbon · libre' }]);
-    expect(woken('outOfReach')?.wake).toEqual({ deposit: 'coal', open: false });
-    expect(woken('outOfReach')?.lines).toEqual([
+    expect(woken({ code: 'OUT_OF_REACH' })?.wake).toEqual({ deposit: 'coal', open: false });
+    expect(woken({ code: 'OUT_OF_REACH' })?.lines).toEqual([
       { role: 'nature', text: 'charbon · hors de portée' },
     ]);
-    expect(woken('refused')?.lines).toEqual([{ role: 'nature', text: 'charbon · libre' }]);
+    expect(woken({ code: 'TOO_CLOSE', near: 'arsenal', km: 30 })?.lines).toEqual([
+      { role: 'nature', text: 'charbon · trop près de l’arsenal' },
+    ]);
   });
 
   it('counts down on a mast the battery of the gun garrisoned inside (B20)', () => {

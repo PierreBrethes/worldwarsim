@@ -4536,16 +4536,24 @@ export const fr = {
       [fr.deposits[deposit], place, `${Math.round(km / 5) * 5} km`]
         .filter((part) => part !== null)
         .join(' · '),
-    /** Aucun gisement prenable : le plus proche des libres, à dix kilomètres près (#239). */
+    /**
+     * Aucun gisement prenable : le plus proche des libres, à dix kilomètres près (#239). La portée
+     * n'est nommée que si c'est elle qui les refuse tous ; sinon la phrase dit le refus du plus
+     * proche (`refused`, `aimRefusalShort`).
+     */
     noneOpen: (
       kinds: ReadonlyArray<DepositKey>,
-      nearest: { readonly place: string; readonly km: number } | null,
-    ) =>
-      `aucun gisement de ${depositNames(kinds)} libre à votre portée${
+      nearest: { readonly place: string; readonly km: number; readonly refused: string } | null,
+      allOutOfReach: boolean,
+    ) => {
+      const where =
         nearest === null
           ? ''
-          : ` — le plus proche : ${nearest.place}, ${Math.round(nearest.km / 10) * 10} km`
-      }`,
+          : ` — le plus proche : ${nearest.place}, ${Math.round(nearest.km / 10) * 10} km`;
+      return allOutOfReach || nearest === null
+        ? `aucun gisement de ${depositNames(kinds)} libre${nearest === null ? '' : ' à votre portée'}${where}`
+        : `aucun gisement de ${depositNames(kinds)} ne se prend${where}, ${nearest.refused}`;
+    },
   },
 
   construction: {
@@ -4599,16 +4607,15 @@ export const fr = {
     buildingLevel: (level: number) => `NIVEAU ${level}`,
     /** A deposit's name in ink beside its basin (#239), and who is known to work it: mine (a
      *  level once it stands), known held, or free — the fog has it free until surveyed. */
+    /** `refused` : ce que la pose dirait sur son point, en court, quand une clé l'éveille (#239). */
     depositName: (
       deposit: DepositKey,
       held: { mine: boolean; level: number | null } | null,
-      outOfReach = false,
+      refused: string | null = null,
     ) =>
       `${fr.deposits[deposit]} · ${
         held === null
-          ? outOfReach
-            ? 'hors de portée'
-            : 'libre'
+          ? (refused ?? 'libre')
           : !held.mine
             ? 'exploité'
             : held.level === null
@@ -4792,6 +4799,29 @@ export function aimRefusalText(
     case 'NOT_COASTAL':
     case 'UNKNOWN_BUILDING':
       return errors[refusal.code]();
+  }
+}
+
+/**
+ * **The refusal of a point, in a few words** (#239): what a woken deposit's name says, and the
+ * card when no deposit is open — `aimRefusalText` says it whole on the card under the pointer.
+ */
+export function aimRefusalShort(refusal: NonNullable<AimVerdict['refusal']>): string {
+  switch (refusal.code) {
+    case 'OUT_OF_REACH':
+      return 'hors de portée';
+    case 'TOO_CLOSE':
+      return `trop près ${ofTheBuildingName(refusal.near)}`;
+    case 'DEPOSIT_TAKEN':
+      return 'exploité';
+    case 'RESEARCH_REQUIRED':
+      return 'recherche requise';
+    case 'HQ_FIRST':
+      return 'le QG d’abord';
+    case 'ALREADY_BUILT':
+      return 'déjà bâti';
+    default:
+      return 'refusé ici';
   }
 }
 

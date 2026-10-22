@@ -17,7 +17,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import type { PlayerView } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
 import { buildingSprite } from '@/emblems/buildings/manifest';
-import { aimRefusalText, countryLabel, fr } from '@/i18n/fr';
+import { aimRefusalShort, aimRefusalText, countryLabel, fr } from '@/i18n/fr';
 import type { PlacingMagnet, PlacingSpot } from '@/map/engine';
 import type { PlacingBuilding } from '@/map/WorldMap';
 import { handleError } from '@/data/errors';
@@ -265,6 +265,13 @@ function nearestLine(
   const nearest = nearestDeposit(calls, from);
   return fr.placing.noneOpen(
     kinds,
-    nearest === null ? null : { place: countryLabel(nearest.call.deposit.country), km: nearest.km },
+    nearest === null || nearest.call.refusal === null
+      ? null
+      : {
+          place: countryLabel(nearest.call.deposit.country),
+          km: nearest.km,
+          refused: aimRefusalShort(nearest.call.refusal),
+        },
+    calls.every((call) => call.refusal?.code === 'OUT_OF_REACH'),
   );
 }

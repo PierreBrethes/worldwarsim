@@ -64,14 +64,7 @@ export function markersOf(
    */
   /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
   const woken = new Map(
-    (calls ?? []).map((call) => [
-      call.deposit.id,
-      call.refusal === null
-        ? ('open' as const)
-        : call.refusal.code === 'OUT_OF_REACH'
-          ? ('outOfReach' as const)
-          : ('refused' as const),
-    ]),
+    (calls ?? []).map((call) => [call.deposit.id, call.refusal ?? ('open' as const)]),
   );
   const deposits: ReadonlyArray<MapMarker> =
     (toggles.deposits || calls !== null) && view.mode !== 'blitz'

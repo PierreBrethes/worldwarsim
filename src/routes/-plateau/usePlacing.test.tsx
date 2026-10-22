@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { BUILDINGS, type BuildingKey } from '@/domain/ids';
 import type { BuildSpec, PlayerView } from '@/domain/player-view';
+import { destinationPoint } from '@/domain/geo';
 import { DEPOSIT_POINTS } from '@/domain/world';
 import { usePlacing } from './usePlacing';
 
@@ -32,9 +33,9 @@ const view = {
   ) as Record<BuildingKey, BuildSpec>,
 } as unknown as PlayerView;
 
-const holding = (key: BuildingKey) => {
+const holding = (key: BuildingKey, seen: PlayerView = view) => {
   const hook = renderHook(() =>
-    usePlacing(view, { token: 't', seasonId: 's' } as never, 'full', () => {}),
+    usePlacing(seen, { token: 't', seasonId: 's' } as never, 'full', () => {}),
   );
   act(() => hook.result.current.hold({ key, debt: null, title: key }));
   return hook;
@@ -65,6 +66,30 @@ describe('a deposit key in hand (#239)', () => {
     );
     expect(result.current.placingCard?.nearest).toMatch(
       /^aucun gisement de pétrole libre à votre portée — le plus proche : Roumanie, 1[56]\d0 km$/,
+    );
+  });
+
+  it('says the true reason when the nearest free deposit is refused for something else than reach', () => {
+    const ploiesti = point('oil-ROU-310');
+    const crowded = {
+      ...view,
+      me: {
+        ...view.me,
+        outposts: [{ id: 'r', lonLat: ploiesti, level: 1, standsAt: null }],
+        buildings: [{ key: 'barracks', point: destinationPoint(ploiesti, 5, 0), level: 1 }],
+      },
+    } as unknown as PlayerView;
+    const { result } = holding('oilWell', crowded);
+    act(() =>
+      result.current.setPlacingAim({
+        lonLat: [5.9, 49.6],
+        region: { id: 'LUX-1', name: 'Luxembourg', country: 'LUX' },
+        coastal: false,
+        onLand: true,
+      }),
+    );
+    expect(result.current.placingCard?.nearest).toMatch(
+      /^aucun gisement de pétrole ne se prend — le plus proche : Roumanie, \d+ km, trop près de la caserne$/,
     );
   });
 });

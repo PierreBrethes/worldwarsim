@@ -2,7 +2,7 @@ import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
 import { asLocalTime } from '@/domain/duration';
-import { countryLabel, fr, nationLabel } from '@/i18n/fr';
+import { aimRefusalShort, countryLabel, fr, nationLabel } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
@@ -18,7 +18,7 @@ import {
   type UnitRole,
 } from './ids';
 import type { ArcView, CaptureView, PlayerView, Stack, TroopStation } from './player-view';
-import type { WorkSite } from './construction';
+import type { AimVerdict, WorkSite } from './construction';
 
 /**
  * What the map knows how to plant on the ground. A discriminated union rather than a marker
@@ -240,9 +240,9 @@ export type MapMarker =
       readonly deposit: DepositKey;
       /** Who is known to work it (`depositHolders`), absent while it is free. */
       readonly held?: { readonly mine: boolean; readonly level: number | null };
-      /** **Woken by a key in hand** (#239): the pose takes it (`open`), or would refuse it — out
-       *  of reach, or for another reason. */
-      readonly wake?: 'open' | 'outOfReach' | 'refused';
+      /** **Woken by a key in hand** (#239): the pose takes it (`open`), or the refusal it would
+       *  give on its point. */
+      readonly wake?: 'open' | NonNullable<AimVerdict['refusal']>;
     };
 
 /**
@@ -989,7 +989,9 @@ function markerLabel(marker: MapMarker): MapLabel {
             text: fr.labels.depositName(
               marker.deposit,
               marker.held ?? null,
-              marker.wake === 'outOfReach',
+              marker.wake === undefined || marker.wake === 'open'
+                ? null
+                : aimRefusalShort(marker.wake),
             ),
           },
         ],
