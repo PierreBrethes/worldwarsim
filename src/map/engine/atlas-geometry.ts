@@ -60,6 +60,22 @@ export function lineGeometry(
   return out;
 }
 
+/** Each segment's distance along its arc, a dash restarting at every vertex would stutter. Segment
+ *  pairs follow each other along an arc (`lineGeometry`): one that starts elsewhere begins a new
+ *  one. Two values per segment, as `lineDistance` reads them. */
+export function segmentDistances(position: Float32Array): Float32Array {
+  const out = new Float32Array((position.length / 6) * 2);
+  let along = 0;
+  for (let k = 0, i = 0; k < position.length; k += 6, i += 2) {
+    if (k > 0 && (position[k] !== position[k - 3] || position[k + 2] !== position[k - 1]))
+      along = 0;
+    out[i] = along;
+    along += Math.hypot(position[k + 3]! - position[k]!, position[k + 5]! - position[k + 2]!);
+    out[i + 1] = along;
+  }
+  return out;
+}
+
 /**
  * Polygons, holes included, triangulated flat on the sheet at `height`. Earcut on the flat rings,
  * without `Shape`: a `Vector2` per point and the curve walk doubled the time of the near level.

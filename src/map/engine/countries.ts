@@ -1,7 +1,7 @@
 import {
   BufferAttribute,
   BufferGeometry,
-  LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
@@ -22,6 +22,7 @@ import {
   lineGeometry,
   type GeometryData,
   offTheSeam,
+  segmentDistances,
 } from './atlas-geometry';
 import { buildCoastalWash, washGeometry } from './coastal-wash';
 
@@ -75,10 +76,14 @@ export const coastWidthPx = (unitsPerPixel: number): number =>
   Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
 
 const COAST_OPACITY = 0.92;
-/** The country border's ink at rest and at its fullest, near: always darker than a region's
- *  (`regions.ts`, 0.22), which Pierre wanted greyer still (#230). @a-mesurer */
-export const COUNTRY_BORDER_REST = 0.5;
-export const COUNTRY_BORDER_MAX = 0.8;
+/** The country border's ink far out (`REST`) and up close (`MAX`), as the mockups' sheet draws
+ *  it (`gisements/commun/table.js`): dotted, over a region's solid 0.2 (`regions.ts`), and under
+ *  the coast's 0.92. Always darker than a region's, at any distance (#236). @a-mesurer */
+export const COUNTRY_BORDER_REST = 0.3;
+export const COUNTRY_BORDER_MAX = 0.42;
+/** The dots' two inked for one blank, in screen pixels so the rhythm holds at any zoom. @a-mesurer */
+export const COUNTRY_DASH_PX = 3;
+export const COUNTRY_GAP_PX = 2.5;
 
 /**
  * **Le niveau « près » quand l'écran peut le lire** (ADR 0034) : « loin » garde 6 % des points,
@@ -138,6 +143,7 @@ export function sheetData(atlas: Atlas, detail: Detail, frame: WorldFrame): Shee
 export function levelOf(data: SheetData): SheetLevel {
   const ink = new BufferGeometry();
   ink.setAttribute('position', new BufferAttribute(data.ink, 3));
+  ink.setAttribute('lineDistance', new BufferAttribute(segmentDistances(data.ink), 1));
   const coast = new LineSegmentsGeometry();
   coast.setPositions(data.coast);
   return {
@@ -155,7 +161,7 @@ export function levelOf(data: SheetData): SheetLevel {
  */
 export type CountrySheet = {
   readonly meshes: CountryMesh[];
-  readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
+  readonly borders: LineSegments<BufferGeometry, LineDashedMaterial>;
   readonly coast: LineSegments2;
   readonly wash: Mesh<BufferGeometry, MeshBasicMaterial>;
 };
@@ -186,7 +192,7 @@ export function buildCountries(level: SheetLevel): CountrySheet {
   });
   const borders = new LineSegments(
     level.ink,
-    new LineBasicMaterial({
+    new LineDashedMaterial({
       color: PALETTE.border,
       transparent: true,
       opacity: COUNTRY_BORDER_REST,

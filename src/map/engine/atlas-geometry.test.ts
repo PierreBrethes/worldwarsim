@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillGeometry, lineGeometry } from './atlas-geometry';
+import { fillGeometry, lineGeometry, segmentDistances } from './atlas-geometry';
 
 const frame = { centerX: 200, centerY: 104 };
 type Point = readonly [number, number, number];
@@ -44,5 +44,16 @@ describe('lineGeometry', () => {
     expect([
       ...lineGeometry([{ points: Float32Array.of(200, 104, 201, 104, 201, 106) }], frame, 1),
     ]).toEqual([0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 2]);
+  });
+});
+
+describe('segmentDistances', () => {
+  it('runs along an arc and restarts with the next one', () => {
+    const lines = [
+      { points: Float32Array.of(200, 104, 203, 104, 203, 108) },
+      { points: Float32Array.of(210, 110, 212, 110) },
+    ];
+    const distances = segmentDistances(lineGeometry(lines, frame, 0));
+    expect([...distances]).toEqual([0, 3, 3, 7, 0, 2]);
   });
 });

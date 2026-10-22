@@ -93,6 +93,8 @@ import {
   coastWidthPx,
   COUNTRY_BORDER_MAX,
   COUNTRY_BORDER_REST,
+  COUNTRY_DASH_PX,
+  COUNTRY_GAP_PX,
   levelAt,
   levelOf,
   sheetData,
@@ -105,7 +107,13 @@ import { buildBoard } from './board';
 import { TerrainDrawings } from './terrain-drawings';
 import type { NearSheet } from './near-sheet';
 import { fromGeometryData } from './atlas-geometry';
-import { RegionLayer, REGIONS_GONE_DISTANCE, TRAME_SCALE, type HeldClaim } from './regions';
+import {
+  RegionLayer,
+  REGIONS_FULL_DISTANCE,
+  REGIONS_GONE_DISTANCE,
+  TRAME_SCALE,
+  type HeldClaim,
+} from './regions';
 import { PlacingGhost } from './placing';
 import { snapTo } from '@/domain/construction';
 import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
@@ -2926,13 +2934,19 @@ export class MapEngine {
     }
     this.regions.animate(distance, this.unitsPerPixel(distance));
     this.sea?.fade(distance);
-    this.sheet.borders.material.opacity =
-      distance < REGIONS_GONE_DISTANCE
-        ? Math.min(
-            COUNTRY_BORDER_MAX,
-            COUNTRY_BORDER_REST + (REGIONS_GONE_DISTANCE - distance) * 0.006,
-          )
-        : COUNTRY_BORDER_REST;
+    const borders = this.sheet.borders.material;
+    borders.opacity =
+      COUNTRY_BORDER_REST +
+      (COUNTRY_BORDER_MAX - COUNTRY_BORDER_REST) *
+        Math.min(
+          1,
+          Math.max(
+            0,
+            (REGIONS_GONE_DISTANCE - distance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
+          ),
+        );
+    borders.dashSize = COUNTRY_DASH_PX * this.unitsPerPixel(distance);
+    borders.gapSize = COUNTRY_GAP_PX * this.unitsPerPixel(distance);
     this.sheet.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
     const detail = this.nearLevel === null ? 'far' : levelAt(this.detail, distance);
     if (detail !== this.detail) {
