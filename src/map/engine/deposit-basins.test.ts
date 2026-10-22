@@ -88,3 +88,43 @@ describe('la couche des bassins (#239)', () => {
     expect(room.getX(ruhr * perBasin)).toBeGreaterThan(1);
   });
 });
+
+describe('l’éveil des bassins, clé en main (#239)', () => {
+  const at = (id: string) => ({ id });
+  const wakeOf = (drawn: DepositBasins, id: string) => {
+    const perBasin = 1 + basins[0]!.ring.length / 2;
+    const k = basins.findIndex((basin) => basin.id === id);
+    return drawn.mesh.geometry.getAttribute('aWake').getX(k * perBasin + 3);
+  };
+
+  it('éveille les bassins appelés, prenables ou refusés, et laisse dormir les autres', () => {
+    const drawn = layer();
+    drawn.display(basins);
+    drawn.wake([
+      { deposit: at('coal-BEL-2'), refusal: null },
+      { deposit: at('coal-DEU-1572'), refusal: { code: 'OUT_OF_REACH' } },
+    ]);
+    expect(wakeOf(drawn, 'coal-BEL-2')).toBe(1);
+    expect(wakeOf(drawn, 'coal-DEU-1572')).toBe(2);
+    expect(wakeOf(drawn, 'iron-FRA-5325')).toBe(0);
+    drawn.wake(null);
+    expect(wakeOf(drawn, 'coal-BEL-2')).toBe(0);
+  });
+
+  it('se montre clé en main même quand la bascule les cache', () => {
+    const drawn = layer();
+    drawn.display(basins);
+    drawn.show(false);
+    drawn.wake([{ deposit: at('coal-BEL-2'), refusal: null }]);
+    expect(drawn.object.visible).toBe(true);
+    drawn.wake(null);
+    expect(drawn.object.visible).toBe(false);
+  });
+
+  it('retient l’éveil demandé avant l’arrivée des bassins', () => {
+    const drawn = layer();
+    drawn.wake([{ deposit: at('coal-BEL-2'), refusal: null }]);
+    drawn.display(basins);
+    expect(wakeOf(drawn, 'coal-BEL-2')).toBe(1);
+  });
+});

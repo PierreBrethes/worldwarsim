@@ -183,9 +183,26 @@
   color: var(--ink-soft);
 }
 
-/* Holding a building that takes it: the free deposits of its kind are named in ochre. */
-.label--seek .label-line--nature {
-  color: var(--ochre, #c8913a);
+/* Woken by a key in hand (#239): a free deposit the pose takes is named in its resource's ink,
+   one it would refuse in red, as its basin is drawn. */
+.label--wake-coal .label-line--nature {
+  color: var(--res-coal-paper);
+}
+
+.label--wake-iron .label-line--nature {
+  color: var(--res-steel-paper);
+}
+
+.label--wake-food .label-line--nature {
+  color: var(--res-food-paper);
+}
+
+.label--wake-oil .label-line--nature {
+  color: var(--res-oil-paper);
+}
+
+.label--wake-refused .label-line--nature {
+  color: var(--critical);
 }
 
 /* A crate is a private observation, not a possession: no national mast and no ground shadow.

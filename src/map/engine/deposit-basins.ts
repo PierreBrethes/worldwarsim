@@ -7,6 +7,7 @@ import {
   ShaderMaterial,
   Vector2,
 } from 'three';
+import type { DepositCall } from '@/domain/construction';
 import type { DepositBasin } from '@/domain/deposit-basins';
 import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
@@ -49,6 +50,13 @@ const PEN_ALPHA = 0.5;
 /** The share of cells that bear a mark at the basin's heart. @a-mesurer */
 const KEEP = 0.85;
 const INK = '#2a2118';
+/** A woken basin the pose would refuse: the maquette's adverse red, dashed round it. */
+const REFUSED = '#8f3a2c';
+/** Woken (#239): the maquette's washes, near (open, refused) and far, and its dashes round. @a-mesurer */
+const WOKEN_NEAR = 0.15;
+const REFUSED_NEAR = 0.1;
+const WOKEN_FAR = 0.6;
+const DASHES = 60;
 /** As the terrain drawings' ink: it goes down with the moonlit sheet. */
 const NIGHT_INK = 0.25;
 /** Over the terrain drawings (0.0025), under the contours. */
@@ -65,10 +73,13 @@ attribute float aKind;
 attribute vec2 aCentre;
 attribute float aRadius;
 attribute float aRoom;
+attribute float aWake;
 uniform vec2 uViewport;
 varying vec2 vWorld;
+varying vec2 vCentre;
 varying float vEdge;
 varying float vKind;
+varying float vWake;
 vec2 onScreen(vec3 p) {
   vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   return clip.xy / clip.w * uViewport * 0.5;
@@ -79,19 +90,36 @@ void main() {
   float grow = clamp(${MIN_RADIUS_PX.toFixed(1)} / max(px, 0.001), 1.0, aRoom);
   vec3 grown = centre + (position - centre) * grow;
   vWorld = grown.xz;
+  vCentre = aCentre;
   vEdge = aEdge;
   vKind = aKind;
+  vWake = aWake;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(grown, 1.0);
 }`;
 
 const FRAGMENT = `
 ${NIGHT_HERE_GLSL}
 uniform vec3 uInk;
+uniform vec3 uRefused;
 uniform vec3 uWash[${KINDS.length}];
 uniform float uPixelRatio;
 varying vec2 vWorld;
+varying vec2 vCentre;
 varying float vEdge;
 varying float vKind;
+varying float vWake;
+
+// Straight-alpha "over".
+vec4 over(vec4 top, vec4 under) {
+  float a = top.a + under.a * (1.0 - top.a);
+  if (a < 0.0001) return vec4(0.0);
+  return vec4((top.rgb * top.a + under.rgb * under.a * (1.0 - top.a)) / a, a);
+}
+
+// The maquette's ink by night (inkAt): lifted toward the moon rather than darkened.
+vec3 moonlit(vec3 ink, float night) {
+  return mix(ink, (ink * 0.55 + vec3(0.2, 0.23, 0.34)) * 1.25, 0.75 * night);
+}
 
 float hash(vec2 p) {
   p = fract(p * vec2(0.1031, 0.1030));
@@ -131,21 +159,40 @@ void main() {
   float wanted = log2(${MIN_CELL_PX.toFixed(1)} * uPixelRatio * unitsPerPixel / ${CELL.toFixed(3)});
   float near = 1.0 - smoothstep(${MAX_DOUBLINGS.toFixed(1)}, ${GONE_AT.toFixed(1)}, wanted);
   int kind = int(vKind + 0.5);
-  float wash = mix(${FAR_WASH.toFixed(2)}, ${NEAR_WASH.toFixed(2)}, near) * (1.0 - smoothstep(0.8, 1.0, vEdge));
-  float ink = 0.0;
+  float pen = 0.0;
   if (near > 0.0) {
     float doublings = clamp(wanted, 0.0, ${MAX_DOUBLINGS.toFixed(1)});
     float whole = floor(doublings);
     float share = smoothstep(0.3, 0.7, doublings - whole);
     float cell = ${CELL.toFixed(3)} * exp2(whole);
-    ink = marks(kind, cell, unitsPerPixel) * (1.0 - share);
-    if (share > 0.001) ink += marks(kind, cell * 2.0, unitsPerPixel) * share;
-    ink = min(ink, 1.0) * ${PEN_ALPHA.toFixed(2)} * near;
+    pen = marks(kind, cell, unitsPerPixel) * (1.0 - share);
+    if (share > 0.001) pen += marks(kind, cell * 2.0, unitsPerPixel) * share;
+    pen = min(pen, 1.0) * near;
   }
-  float alpha = ink + wash * (1.0 - ink);
-  if (alpha < 0.003) discard;
-  vec3 color = (uInk * ink + uWash[kind] * wash * (1.0 - ink)) / alpha;
-  gl_FragColor = vec4(color * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), alpha);
+  float night = nightAtWorld(vWorld);
+  vec3 res = uWash[kind];
+  vec4 color;
+  if (vWake < 0.5) {
+    float dim = mix(1.0, ${NIGHT_INK.toFixed(2)}, night);
+    float wash = mix(${FAR_WASH.toFixed(2)}, ${NEAR_WASH.toFixed(2)}, near) * (1.0 - smoothstep(0.8, 1.0, vEdge));
+    color = over(vec4(uInk * dim, pen * ${PEN_ALPHA.toFixed(2)}), vec4(res * dim, wash));
+  } else {
+    // Woken by a key in hand (#239): the resource's own ink, a pen line round it — dashed red
+    // when the pose would refuse it.
+    bool open = vWake < 1.5;
+    vec3 ink = moonlit(res, night);
+    float wash = mix(${WOKEN_FAR.toFixed(2)}, open ? ${WOKEN_NEAR.toFixed(2)} : ${REFUSED_NEAR.toFixed(2)}, near);
+    float w = fwidth(vEdge);
+    float stroke = 1.0 - smoothstep(1.2 * w, 2.2 * w, 1.0 - vEdge);
+    if (!open) {
+      vec2 d = vWorld - vCentre;
+      stroke *= step(0.45, fract(atan(d.y, d.x) * ${(DASHES / (2 * Math.PI)).toFixed(4)}));
+    }
+    color = over(vec4(ink, pen * (open ? 1.0 : 0.55)), vec4(ink, wash));
+    color = over(vec4(open ? ink : moonlit(uRefused, night), stroke), color);
+  }
+  if (color.a < 0.003) discard;
+  gl_FragColor = color;
   #include <colorspace_fragment>
 }`;
 
@@ -154,6 +201,10 @@ export class DepositBasins {
   readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
   private shown = false;
   private loaded = false;
+  /** The ids in the mesh's order, each basin's first vertex, and what a key in hand woke. */
+  private ids: ReadonlyArray<string> = [];
+  private firsts: number[] = [];
+  private woken: ReadonlyMap<string, number> | null = null;
 
   constructor(
     private readonly frame: WorldFrame,
@@ -164,6 +215,7 @@ export class DepositBasins {
       fragmentShader: FRAGMENT,
       uniforms: {
         uInk: { value: new Color(INK) },
+        uRefused: { value: new Color(REFUSED) },
         uWash: { value: KINDS.map((kind) => new Color(WASH[kind])) },
         uPixelRatio: TRAME_SCALE,
         uViewport: { value: new Vector2(1, 1) },
@@ -191,8 +243,10 @@ export class DepositBasins {
     const kinds: number[] = [];
     const index: number[] = [];
     const radii: number[] = [];
+    const firsts: number[] = [];
     for (const { at, deposit, ring } of basins) {
       const first = positions.length / 3;
+      firsts.push(first);
       const count = ring.length / 2;
       const kind = KINDS.indexOf(deposit);
       const centre = this.frame.projectLonLat(at);
@@ -252,11 +306,43 @@ export class DepositBasins {
         1,
       ),
     );
+    geometry.setAttribute('aWake', new BufferAttribute(new Float32Array(edges.length), 1));
     geometry.setIndex(index);
     this.mesh.geometry.dispose();
     this.mesh.geometry = geometry;
+    this.ids = basins.map(({ id }) => id);
+    this.firsts = [...firsts, edges.length];
     this.loaded = true;
-    this.object.visible = this.shown;
+    this.refresh();
+  }
+
+  /**
+   * **A key in hand wakes the basins it calls** (#239), near and far, day and night: 1 where the
+   * pose would take it, 2 where it would refuse it; `null` puts them all back to sleep. Woken,
+   * the basins show even when the toggle hides them.
+   */
+  wake(
+    calls: ReadonlyArray<Pick<DepositCall, 'refusal'> & { deposit: { id: string } }> | null,
+  ): void {
+    this.woken =
+      calls === null
+        ? null
+        : new Map(calls.map((call) => [call.deposit.id, call.refusal === null ? 1 : 2]));
+    this.refresh();
+  }
+
+  private refresh(): void {
+    this.object.visible = this.loaded && (this.shown || this.woken !== null);
+    if (!this.loaded) return;
+    const wake = this.mesh.geometry.getAttribute('aWake') as BufferAttribute;
+    this.ids.forEach((id, k) =>
+      (wake.array as Float32Array).fill(
+        this.woken?.get(id) ?? 0,
+        this.firsts[k],
+        this.firsts[k + 1],
+      ),
+    );
+    wake.needsUpdate = true;
   }
 
   resize(width: number, height: number): void {
@@ -265,11 +351,11 @@ export class DepositBasins {
 
   show(shown: boolean): void {
     this.shown = shown;
-    this.object.visible = shown && this.loaded;
+    this.refresh();
   }
 
   get wanted(): boolean {
-    return this.shown && !this.loaded;
+    return (this.shown || this.woken !== null) && !this.loaded;
   }
 
   dispose(): void {

@@ -1145,7 +1145,8 @@ async function play(profileName, pass) {
   await page.waitForTimeout(2500);
   await gesture(
     'prendre une mine',
-    () => page.getByText('Mine', { exact: true }).first().click(),
+    // L'étiquette de la mine du Nord porte le même mot : la tuile est celle qu'on voit.
+    () => page.getByText('Mine', { exact: true }).filter({ visible: true }).first().click(),
     2500,
   );
   const coalfield = await free([Math.round(width / 2), Math.round(height * 0.35)]);

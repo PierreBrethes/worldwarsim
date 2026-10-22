@@ -1614,7 +1614,9 @@ function classesOf(label: MapLabel, selected: boolean): string {
     label.identified ? 'label--identified' : '',
     label.type === 'loot' && !label.lootCurrent ? 'label--loot-stale' : '',
     label.washed ? 'label--washed' : '',
-    label.seeking === true ? 'label--seek' : '',
+    label.wake === undefined
+      ? ''
+      : `label--wake label--wake-${label.wake.open ? label.wake.deposit : 'refused'}`,
     selected ? 'label--selected' : '',
     label.hostCountry === null &&
     label.building === null &&

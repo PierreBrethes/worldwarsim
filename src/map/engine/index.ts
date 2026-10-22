@@ -81,7 +81,7 @@ import { InkLayer } from './ink';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
-import { circleAround, ReachRing } from './reach';
+import { circleAround, ReachRing, ReachRings } from './reach';
 import { AimRibbon } from './aim';
 import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
@@ -115,8 +115,9 @@ import {
   TRAME_SCALE,
   type HeldClaim,
 } from './regions';
-import { PlacingGhost } from './placing';
-import { snapTo } from '@/domain/construction';
+import { depositAim, PlacingGhost, threadPath, type ScreenPoint } from './placing';
+import type { DepositCall } from '@/domain/construction';
+import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer, type Shore } from './sea';
@@ -172,6 +173,10 @@ const SELECTED_LIFT = 0.75;
 
 /** @a-mesurer Délai avant de redemander `/coast.json` après un échec. */
 const COAST_RETRY_MS = 3000;
+/** Under a finger, the point a held building aims at stands this far above it (#239). @a-mesurer */
+const PLACING_FINGER_LIFT_PX = 64;
+/** Closer than this the pointer is on its pin, and no thread is drawn between them. */
+const TAUT_MIN_PX = 6;
 
 /**
  * What picking reports from the acting click — whichever button the player put `act` on
@@ -187,7 +192,35 @@ const COAST_RETRY_MS = 3000;
 export type PlacingMagnet =
   | { readonly kind: 'free' }
   | { readonly kind: 'coast' }
-  | { readonly kind: 'points'; readonly points: ReadonlyArray<LonLat> };
+  /** The deposits a held exploitation calls (#239): all wake, those the pose takes attract. */
+  | { readonly kind: 'deposits'; readonly calls: ReadonlyArray<DepositCall> };
+
+/** What the board holds: its plate, its magnet, and the reach of the outposts it may go under. */
+export type HeldPlacing = {
+  readonly sprite: string | null;
+  readonly magnet: PlacingMagnet;
+  readonly reaches: ReadonlyArray<{ readonly lonLat: LonLat; readonly reachKm: number }>;
+};
+
+/**
+ * **The thread of a placement, on screen** (#239), in CSS pixels of the map: the long one from
+ * the ghost to the nearest deposit the pose takes (cut at the screen's edge when the deposit is
+ * off it), and the taut one from the pointer to the pin the magnet holds — or the finger's.
+ */
+export type PlacingThread = {
+  readonly long: {
+    readonly from: ScreenPoint;
+    readonly to: ScreenPoint;
+    readonly bend: ScreenPoint;
+    readonly off: boolean;
+    readonly angle: number;
+    readonly deposit: DepositKey;
+    readonly place: string | null;
+    readonly km: number;
+  } | null;
+  readonly taut: { readonly from: ScreenPoint; readonly to: ScreenPoint } | null;
+  readonly refused: boolean;
+};
 
 /** The point the ghost holds, with what the board knows of it: whose region, its coast, land. */
 export type PlacingSpot = {
@@ -436,7 +469,13 @@ export class MapEngine {
   private spaceHeld = false;
   private aiming = false;
   /** The building held over the board, `null` when nothing is held. */
-  private placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null = null;
+  private placing: HeldPlacing | null = null;
+  private readonly placingReach: ReachRings;
+  /** Under a finger the aim stands above it (#239): where the finger itself is, for the thread. */
+  private placingFinger: ScreenPoint | null = null;
+  private threadSaid = 'null';
+  /** The thread changed on screen: the board draws it (`WorldMap`). */
+  onPlacingThread?: ((thread: PlacingThread | null) => void) | undefined;
   private readonly ghost: PlacingGhost;
   private placingRefused = false;
   /**
@@ -699,6 +738,7 @@ export class MapEngine {
       this.endOf(medium, which, at, hint),
     );
     this.reach = new ReachRing(this.frame);
+    this.placingReach = new ReachRings(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame, this.touch);
     this.standing = new StandingLayer(
@@ -737,6 +777,7 @@ export class MapEngine {
     this.parachutes = new ParachuteLayer(this.frame);
     this.scene.add(this.parachutes.group);
     this.scene.add(this.reach.object);
+    this.scene.add(this.placingReach.object);
     this.scene.add(this.aimRibbon.group);
     this.scene.add(this.tourInk.group);
     this.standing.elsewhere = (id) => this.camps.positionOf(id);
@@ -1110,6 +1151,10 @@ export class MapEngine {
   setDepositBasins(shown: boolean): void {
     this.invalidate();
     this.basins.show(shown);
+    this.loadBasins();
+  }
+
+  private loadBasins(): void {
     if (!this.basins.wanted || this.basinsLoading) return;
     this.basinsLoading = true;
     fetch('/deposit-basins.json')
@@ -1581,6 +1626,7 @@ export class MapEngine {
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
+    this.placingReach.resize(clientWidth, clientHeight);
     this.pins.resize(clientWidth, clientHeight);
     this.basins.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
@@ -1604,6 +1650,7 @@ export class MapEngine {
     removeEventListener('blur', this.onFocusLost);
 
     this.reach.dispose();
+    this.placingReach.dispose();
     this.aimRibbon.dispose();
     this.tourInk.dispose();
     this.searchArea.dispose();
@@ -1648,7 +1695,11 @@ export class MapEngine {
     canvas.addEventListener('pointermove', (event) => {
       if (this.gesture?.carrying === true) return;
       this.fingerOnBoard = event.pointerType === 'touch';
-      this.aimPointer(event.clientX, event.clientY);
+      // A building carried under a finger is aimed above it: the finger would hide the point.
+      const lift = this.placing !== null && this.fingerOnBoard ? PLACING_FINGER_LIFT_PX : 0;
+      this.aimPointer(event.clientX, event.clientY - lift);
+      this.placingFinger =
+        lift === 0 ? null : { x: this.pointerScreen.x, y: this.pointerScreen.y + lift };
       this.lastPointer.clientX = event.clientX;
       this.lastPointer.clientY = event.clientY;
       this.restLabel = null;
@@ -2364,12 +2415,14 @@ export class MapEngine {
    * with) or onto one of a list of points — the free deposits. What the point is worth is not
    * decided here: the board reads it off `onPlacingAim`, through the placement rule.
    */
-  setPlacing(
-    placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null,
-  ): void {
+  setPlacing(placing: HeldPlacing | null): void {
     this.invalidate();
     if (placing === this.placing) return;
     this.placing = placing;
+    this.placingFinger = null;
+    this.basins.wake(placing?.magnet.kind === 'deposits' ? placing.magnet.calls : null);
+    this.loadBasins();
+    this.placingReach.show(placing?.reaches ?? []);
     if (placing === null) {
       this.ghost.disarm();
       this.onPlacingAim(null);
@@ -2380,7 +2433,7 @@ export class MapEngine {
     this.ghost.arm(
       placing.sprite,
       (pointer) => this.snapFor(placing.magnet, pointer),
-      placing.magnet.kind === 'points',
+      placing.magnet.kind === 'deposits',
     );
     this.hoverDirty = true;
     this.refreshCursor();
@@ -2393,7 +2446,7 @@ export class MapEngine {
    */
   private snapFor(magnet: PlacingMagnet, pointer: LonLat): LonLat {
     if (magnet.kind === 'free') return pointer;
-    if (magnet.kind === 'points') return snapTo(pointer, magnet.points);
+    if (magnet.kind === 'deposits') return depositAim(magnet.calls, pointer).spot;
     if (this.coast === null) return pointer;
     const region = this.regionAtLonLat(pointer)?.id ?? null;
     return nearestCoast(this.coast, pointer, PLACING_SNAP_KM, region)?.lonLat ?? pointer;
@@ -2417,6 +2470,58 @@ export class MapEngine {
           : region !== null && onRegionCoast(this.coast, lonLat, region.id),
       onLand: carriesBuilding(this.routeGrid, this.coast, lonLat),
     };
+  }
+
+  /** Where a point of the board falls on the map, in its own CSS pixels. */
+  private mapPointOf(lonLat: LonLat): ScreenPoint {
+    // ponytail: a point behind the eye mirrors; the board is looked at from above.
+    const ndc = this.frame.projectLonLat(lonLat, COUNTRY_THICKNESS).project(this.eye);
+    return {
+      x: Math.round(((ndc.x + 1) / 2) * this.screenWidth),
+      y: Math.round(((1 - ndc.y) / 2) * this.screenHeight),
+    };
+  }
+
+  /**
+   * **The thread of the held building** (#239), told to the board when it changes on screen —
+   * at a rendered frame only, so it moves with the aim and the camera, and never at rest.
+   */
+  private tellThread(): void {
+    const spot = this.placing === null ? null : this.ghost.spot;
+    let thread: PlacingThread | null = null;
+    if (this.placing !== null && spot !== null) {
+      const foot = this.mapPointOf(spot);
+      const pointer = this.placingFinger ?? {
+        x: Math.round(this.pointerScreen.x),
+        y: Math.round(this.pointerScreen.y),
+      };
+      const magnet = this.placing.magnet;
+      const target = magnet.kind === 'deposits' ? depositAim(magnet.calls, spot).target : null;
+      const long =
+        target === null || target.km < 1
+          ? null
+          : {
+              from: foot,
+              ...threadPath(
+                foot,
+                this.mapPointOf(target.call.deposit.lonLat),
+                this.screenWidth,
+                this.screenHeight,
+              ),
+              deposit: target.call.deposit.deposit,
+              place: this.regions.identityOf(target.call.deposit.regionId)?.name ?? null,
+              km: Math.round(target.km),
+            };
+      const taut =
+        Math.hypot(pointer.x - foot.x, pointer.y - foot.y) > TAUT_MIN_PX
+          ? { from: pointer, to: foot }
+          : null;
+      if (long !== null || taut !== null) thread = { long, taut, refused: this.placingRefused };
+    }
+    const said = JSON.stringify(thread);
+    if (said === this.threadSaid) return;
+    this.threadSaid = said;
+    this.onPlacingThread?.(thread);
   }
 
   private coast: Coast | null = null;
@@ -2919,6 +3024,7 @@ export class MapEngine {
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
+    this.tellThread();
     this.standing.orient(this.camera.position);
     const reading = this.standing.reading;
     const tone = this.verdict;

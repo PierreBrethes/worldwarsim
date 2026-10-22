@@ -436,6 +436,20 @@ describe('buildLabels', () => {
     ]);
   });
 
+  it('wakes a deposit a held key calls, in its own ink, and says when it is out of reach (#239)', () => {
+    const woken = (wake: 'open' | 'outOfReach' | 'refused') =>
+      buildLabels(viewWith([]), [
+        { kind: 'deposit', id: 'deposit-FR-60', lonLat: [2.4, 49.4], deposit: 'coal', wake },
+      ])[0];
+    expect(woken('open')?.wake).toEqual({ deposit: 'coal', open: true });
+    expect(woken('open')?.lines).toEqual([{ role: 'nature', text: 'charbon · libre' }]);
+    expect(woken('outOfReach')?.wake).toEqual({ deposit: 'coal', open: false });
+    expect(woken('outOfReach')?.lines).toEqual([
+      { role: 'nature', text: 'charbon · hors de portée' },
+    ]);
+    expect(woken('refused')?.lines).toEqual([{ role: 'nature', text: 'charbon · libre' }]);
+  });
+
   it('counts down on a mast the battery of the gun garrisoned inside (B20)', () => {
     const [barracks] = buildLabels(viewWith([]), [
       {
