@@ -1132,3 +1132,22 @@
 .label.label--pinned .label-block .label-lines * {
   pointer-events: auto;
 }
+
+/* **Au loin, un signe pèse ce que pèse une épingle** (#234) : le coffre d'un objectif, le drapeau
+   d'un point stratégique et celui d'une arrivée prennent la taille d'une épingle de bâtiment,
+   à l'encre, sans flaque ni mât. Lisibles, ils ne dominent plus les pièces. */
+/* The sign is a mask sized inline (`Pictogram`): only !important overrides an inline size. */
+.label-anchor--far :is(.label--objective, .label--strategic) .label-pictogram .picto {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+.label-anchor--far :is(.label--objective, .label--strategic)::before,
+.label-anchor--far :is(.label--objective, .label--strategic) .label-bar {
+  display: none;
+}
+
+.label-anchor--far .label--arrival .label-flag svg {
+  width: 9px;
+  height: 12px;
+}
