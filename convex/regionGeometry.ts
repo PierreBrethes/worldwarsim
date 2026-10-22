@@ -5,7 +5,6 @@ import {
   firstRegionEntry,
   goalCellsOfRegions,
   hostAmong,
-  hostAt,
   isRegionBorderCell,
   regionAt,
   pointInRegion,
@@ -43,8 +42,6 @@ const rasterOf = (): RegionRaster =>
   (raster ??= decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection));
 
 export const regionAtRoutePoint = (point: LonLat): string | null => regionAt(rasterOf(), point);
-
-export const hostAtRoutePoint = (point: LonLat): string | null => hostAt(rasterOf(), point);
 
 /**
  * **La région sous un point et son pays, à la précision de l'atlas** (#224) : Malte, Singapour,
