@@ -990,10 +990,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         hostCountry: null,
         ...(marker.seek === true && marker.held === undefined ? { seeking: true as const } : {}),
         lines: [
-          { role: 'nature', text: fr.deposits[marker.deposit] },
-          ...(marker.held === undefined
-            ? []
-            : [{ role: 'figures', text: fr.labels.depositHeld(marker.held) } as const]),
+          { role: 'nature', text: fr.labels.depositName(marker.deposit, marker.held ?? null) },
         ],
       };
   }

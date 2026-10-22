@@ -4572,9 +4572,18 @@ export const fr = {
     outpostUnderConstruction: 'avant-poste en chantier',
     outpostGarrison: (garrison: number) => `GARNISON ${garrison}`,
     buildingLevel: (level: number) => `NIVEAU ${level}`,
-    /** The holder of a deposit, as its map label says it: mine (a level once it stands), or known held. */
-    depositHeld: ({ mine, level }: { mine: boolean; level: number | null }) =>
-      !mine ? 'exploité' : level === null ? 'votre chantier' : `à vous · niveau ${level}`,
+    /** A deposit's name in ink beside its basin (#239), and who is known to work it: mine (a
+     *  level once it stands), known held, or free — the fog has it free until surveyed. */
+    depositName: (deposit: DepositKey, held: { mine: boolean; level: number | null } | null) =>
+      `${fr.deposits[deposit]} · ${
+        held === null
+          ? 'libre'
+          : !held.mine
+            ? 'exploité'
+            : held.level === null
+              ? 'votre chantier'
+              : `à vous · niveau ${held.level}`
+      }`,
     /** **Un cartouche par pile** (carte-lisible, 03/10) : le lieu et le compte, rien d'autre. */
     stackPlace: (place: string, troops: number) => `${place} · ${troops}`,
     /** Deux cartouches qui se chevauchent n'en font qu'un : les piles, puis les troupes. */

@@ -196,6 +196,8 @@
   object-fit: contain;
 }
 
+/* Its name in ink beside its basin (#239), as an atlas writes a massif: italic, no slip of
+   paper, centred under the basin's southern edge where its anchor stands. */
 .label--deposit .label-lines {
   padding: 0;
   background: none;
@@ -205,6 +207,16 @@
   text-shadow:
     0 0 3px var(--paper),
     0 0 3px var(--paper);
+}
+
+.label--deposit .label-line--nature {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: color-mix(in srgb, var(--ink) 60%, transparent);
 }
 
 /* Holding a building that takes it: the free deposits of its kind wear an ochre ring that beats.

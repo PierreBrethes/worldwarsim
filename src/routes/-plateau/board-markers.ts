@@ -12,7 +12,8 @@ import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation, nationInk } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import { lootWords } from '@/domain/journal';
-import type { LonLat } from '@/domain/geo';
+import { destinationPoint, type LonLat } from '@/domain/geo';
+import { BASIN_FLATTENING, BASIN_KM } from '@/domain/deposit-basins';
 import { DEPOSIT_POINTS } from '@/domain/world';
 import { workSitesOf, type depositHolders } from '@/domain/construction';
 import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
@@ -76,7 +77,8 @@ export function markersOf(
           return {
             kind: 'deposit' as const,
             id: `deposit-${point.id}`,
-            lonLat: point.lonLat,
+            // Its name is written below its basin, as a massif's (#239).
+            lonLat: destinationPoint(point.lonLat, BASIN_KM * BASIN_FLATTENING, 180),
             deposit: point.deposit,
             ...(holder === undefined ? {} : { held: holder }),
             ...(seeking?.includes(point.deposit) ? { seek: true as const } : {}),

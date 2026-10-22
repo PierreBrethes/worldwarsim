@@ -24,7 +24,7 @@ const RING_POINTS = 32;
 /** Le plus loin que le bord ondule, en part du rayon (`edge`). */
 const EDGE_MAX = 1.25;
 /** Un bassin s'aplatit du nord au sud, comme dans la maquette. */
-const FLATTENING = 0.8;
+export const BASIN_FLATTENING = 0.8;
 
 const seedOf = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 7);
 const edge = (seed: number, a: number) =>
@@ -51,7 +51,7 @@ export function basinsOf(
     const seed = seedOf(id);
     const ring = Array.from({ length: RING_POINTS }, (_, i) => {
       const a = (i / RING_POINTS) * Math.PI * 2;
-      const [dx, dy] = [Math.cos(a), Math.sin(a) * FLATTENING];
+      const [dx, dy] = [Math.cos(a), Math.sin(a) * BASIN_FLATTENING];
       const point = destinationPoint(
         lonLat,
         radius * edge(seed, a) * Math.hypot(dx, dy),
