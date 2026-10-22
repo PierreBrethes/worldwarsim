@@ -23,6 +23,28 @@ fjords). Une coque qui rentre à un tel port s'amarre à l'eau ouverte la plus p
 l'amarrage est loin du quai — 403 km sur le Saint-Laurent (Ontario, Québec), 283 au Nunavut,
 230 et 221 au Groenland, 212 au Labrador.
 
+**Amendée le 22/10/2026 (#224, décisions de Pierre du 21/10 : « ports et vraie terre sur les
+îles », « les îles isolées ouvertes comme les autres ») : la terre et la région d'un point se
+lisent à la précision de l'atlas.** `coast.json` porte, en plus de la côte, les anneaux des
+906 régions qu'aucune cellule ne porte (7 510 points, +70 Ko ; 1,6 Mo, 558 Ko gzip en tout), le
+pays de chaque région, et chaque arc de côte a la terre à sa gauche. Deux fonctions pures de
+`src/domain/coast.ts`, lues par le serveur et par la visée : `groundOf` (la grille dit la terre
+qu'elle porte ; sur une cellule de mer, un anneau de région sans cellule, ou le côté terre de la
+côte de mer ouverte la plus proche à une demi-diagonale de cellule, disent la terre) et
+`regionOf` (l'anneau, puis le raster, puis la région de cette côte). `isLandingShore` y ajoute la
+plage : une cellule côtière, ou une terre de l'atlas posée dans l'eau ouverte de la grille.
+`landAtPoint`, `groundAtPoint`, `coastAtPoint`, `hostAtPoint`, `regionAtPoint` et
+`pointInRouteRegion` les lisent : débarquement, fondation, entretien, capture, pose, nom d'un
+point. La route, la couleur et le relevé restent à la cellule (`regionAtRoutePoint`,
+`coveredByDisc`) : on ne marche toujours pas vers Malte depuis la Sicile (`NO_LAND_ROUTE`). Ce
+qu'on abandonne : « seuls ceux qui posent un port paient la côte » — tout module qui lit le sol
+la porte, 8,7 Mio à l'import au plus lourd (`dev.ts`), 9,8 Mio de tas pour un isolat qui a tout
+payé. Ce que ça coûte : sur 28 845 points tirés sur des cellules de mer, 99,94 % disent la terre
+comme l'atlas ; le cadre du serveur (`projection.json`, au centième) décale l'atlas de 0,4 km au
+plus, et un point au bord d'une île simplifiée peut tomber de l'autre côté. La grille ne perd
+jamais de terre : une caserne dans une baie sur une cellule de terre reste acceptée. 46 µs par
+lecture sur une cellule de mer, rien sur la terre.
+
 ## Contexte
 
 La production recyclait l'isolat Convex en boucle — `TooMuchMemoryCarryOver("~64 MiB", "99 MiB")`
