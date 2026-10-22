@@ -390,7 +390,6 @@ describe('a reserve emptied by a negative rate', () => {
 describe('placement at a point (ADR 0029)', () => {
   const free = {
     reached: true,
-    onLand: true,
     deposit: null,
     coastal: false,
     nearest: null,
@@ -427,16 +426,6 @@ describe('placement at a point (ADR 0029)', () => {
     expect(
       placementRefusal('mine', { ...free, deposit: { key: 'coal', taken: true } }, 2, null),
     ).toBe('DEPOSIT_TAKEN');
-  });
-
-  it('refuses anything but a port on the water, and a port beside it', () => {
-    const afloat = { ...free, onLand: false, coastal: true };
-    expect(placementRefusal('barracks', afloat, 2, null)).toBe('NOT_ON_LAND');
-    expect(placementRefusal('hq', afloat, 0, null)).toBe('NOT_ON_LAND');
-    expect(placementRefusal('port', afloat, 2, null)).toBeNull();
-    expect(placementRefusal('barracks', { ...afloat, reached: false }, 2, null)).toBe(
-      'OUT_OF_REACH',
-    );
   });
 
   it('wants a port on a coast', () => {

@@ -65,7 +65,6 @@ export type ErrorCode =
   | 'UNKNOWN_REGION'
   | 'UNKNOWN_CAPITAL_REGION'
   | 'DEPOSIT_REQUIRED'
-  | 'NOT_ON_LAND'
   | 'NOT_COASTAL'
   | 'POINT_OUTSIDE_REGION'
   /** **Le placement libre** (ADR 0029) : un gisement déjà exploité, un voisin trop proche, une

@@ -547,20 +547,19 @@ describe('placement', () => {
       });
     });
 
-    /** **La pose lit le sol** (#221) : l'eau ne porte qu'un port, et un port à quai de la côte. */
-    it('refuses a barracks on the water, and a port off the coast', async () => {
+    /** **Un port se pose à quai de la côte** (#221), pas au large. */
+    it('refuses a port off the coast', async () => {
       const t = boot();
       const seat = await launchedSeason(t);
       await promoteHq(t, seat, 2);
-      const order = (building: 'barracks' | 'port') =>
+      await expect(
         t.mutation(api.constructions.start, {
           ...seat,
-          building,
+          building: 'port',
           regionId: PAS_DE_CALAIS,
           point: OFF_CALAIS,
-        });
-      await expect(order('barracks')).rejects.toThrow('NOT_ON_LAND');
-      await expect(order('port')).rejects.toThrow('NOT_COASTAL');
+        }),
+      ).rejects.toThrow('NOT_COASTAL');
     });
 
     /** **Une île est dans sa région** (#221) : sur le raster de 25 km, Lampedusa, Key West ou

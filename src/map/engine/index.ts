@@ -161,12 +161,11 @@ export type PlacingMagnet =
   | { readonly kind: 'coast' }
   | { readonly kind: 'points'; readonly points: ReadonlyArray<LonLat> };
 
-/** The point the ghost holds, with what the board knows of it: whose region, its coast, land. */
+/** The point the ghost holds, with what the board knows of it: whose region, its coast. */
 export type PlacingSpot = {
   readonly lonLat: LonLat;
   readonly region: RegionIdentity | null;
   readonly coastal: boolean;
-  readonly onLand: boolean;
 };
 
 export type MapActClick = {
@@ -2247,7 +2246,6 @@ export class MapEngine {
       region,
       coastal:
         this.coast !== null && region !== null && onRegionCoast(this.coast, lonLat, region.id),
-      onLand: this.landAt(lonLat),
     };
   }
 

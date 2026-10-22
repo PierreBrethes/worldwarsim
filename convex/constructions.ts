@@ -42,7 +42,7 @@ import {
   nominalStrength,
   settlesDebt,
 } from './constants';
-import { landAtPoint, pointInRegion } from './routes';
+import { pointInRegion } from './routes';
 import { isOnRegionCoast } from './coast';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
@@ -763,7 +763,6 @@ async function spotAt(
   ];
   return {
     reached,
-    onLand: landAtPoint(lonLat),
     deposit:
       deposit === null
         ? null
@@ -850,7 +849,6 @@ function placementRefusalOf(
 ): Refusal {
   switch (refusal) {
     case 'UNKNOWN_BUILDING':
-    case 'NOT_ON_LAND':
     case 'NOT_COASTAL':
     case 'DEPOSIT_TAKEN':
       return { code: refusal };
