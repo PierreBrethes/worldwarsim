@@ -1,7 +1,7 @@
 import {
   BufferAttribute,
   BufferGeometry,
-  LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
@@ -22,6 +22,7 @@ import {
   lineGeometry,
   type GeometryData,
   offTheSeam,
+  segmentDistances,
 } from './atlas-geometry';
 import { buildCoastalWash, washGeometry } from './coastal-wash';
 
@@ -39,17 +40,20 @@ export type CountryMesh = Mesh<BufferGeometry, MeshStandardMaterial> & {
 const BORDER_LIFT = 0.004;
 
 /**
- * **Ce qu'on n'a jamais relevé est au crayon** (`table-etat-major.md`, ADR 0020 §5) : un grain de
- * graphite et un trait oblique à peine posé, en pixels d'écran comme la hachure des zones
- * suspendues. Il porte sur tout le sol, sans liste à tenir : depuis qu'aucun aplat ne le couvre
- * (ADR 0033), c'est le contour qui distingue une région connue d'une région vierge.
- * Couleur déjà encodée en sRGB à ce point du programme, d'où un graphite écrit en clair.
+ * **Le grain du papier** (#240), celui de la feuille des maquettes (`drawGrainAndNight`) : un
+ * bruit fin, pixel par pixel d'écran, plus clair ou plus sombre au hasard de 0 à 6 % de la couleur éclairée
+ * (multiplicatif : de nuit, sur un sol sombre, il reste sous le trait d'une région, comme dans la maquette où il passe avant le voile de nuit). Sans trait
+ * oblique : depuis l'ADR 0033 le sol n'est plus distingué par sa trame, c'est le contour qui
+ * sépare une région connue d'une région vierge (les hachures qui ont un sens restent, `hatch`).
+ * Le hasard ne dépend que du pixel : rien ne bouge avec la caméra, rien ne moire au zoom.
+ * @a-mesurer
  */
-const PENCIL = `
-  float tooth = fract(sin(dot(floor(trame), vec2(12.9898, 78.233))) * 43758.5453);
-  float stroke = 1.0 - smoothstep(0.5, 1.3, mod(trame.x - trame.y, 7.0));
-  float lead = 0.10 * stroke * (0.5 + 0.5 * tooth) + 0.05 * step(0.86, tooth);
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.29, 0.28, 0.26), lead);`;
+const GRAIN_OPACITY = 0.06;
+const PAPER_GRAIN = `
+  vec2 speck = floor(trame);
+  float tone = step(0.5, fract(sin(dot(speck, vec2(12.9898, 78.233))) * 43758.5453));
+  float weight = fract(sin(dot(speck, vec2(63.7264, 10.873))) * 24634.6345);
+  gl_FragColor.rgb *= 1.0 + (tone * 2.0 - 1.0) * ${GRAIN_OPACITY.toFixed(3)} * weight;`;
 
 /** La côte sépare la terre de la mer (ADR 0034), hors de la coupe de l'antiméridien. */
 export function coastLines(
@@ -72,10 +76,15 @@ export const coastWidthPx = (unitsPerPixel: number): number =>
   Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
 
 const COAST_OPACITY = 0.92;
-/** The country border's ink at rest and at its fullest, near: always darker than a region's
- *  (`regions.ts`, 0.22), which Pierre wanted greyer still (#230). @a-mesurer */
-export const COUNTRY_BORDER_REST = 0.5;
-export const COUNTRY_BORDER_MAX = 0.8;
+/** The country border's ink far out (`REST`) and up close (`MAX`), as the mockups' sheet draws
+ *  it (`gisements/commun/table.js`): dotted, over a region's solid 0.2 (`regions.ts`), and under
+ *  the coast's 0.92. Always darker than a region's, at any distance (#236). @a-mesurer */
+export const COUNTRY_BORDER_REST = 0.3;
+export const COUNTRY_BORDER_MAX = 0.42;
+/** The dots: 3 px inked for 2.5 px blank, the mockups' `setLineDash([3, 2.5])`, in screen pixels so
+ *  the rhythm holds at any zoom. @a-mesurer */
+export const COUNTRY_DASH_PX = 3;
+export const COUNTRY_GAP_PX = 2.5;
 
 /**
  * **Le niveau « près » quand l'écran peut le lire** (ADR 0034) : « loin » garde 6 % des points,
@@ -135,6 +144,7 @@ export function sheetData(atlas: Atlas, detail: Detail, frame: WorldFrame): Shee
 export function levelOf(data: SheetData): SheetLevel {
   const ink = new BufferGeometry();
   ink.setAttribute('position', new BufferAttribute(data.ink, 3));
+  ink.setAttribute('lineDistance', new BufferAttribute(segmentDistances(data.ink), 1));
   const coast = new LineSegmentsGeometry();
   coast.setPositions(data.coast);
   return {
@@ -152,7 +162,7 @@ export function levelOf(data: SheetData): SheetLevel {
  */
 export type CountrySheet = {
   readonly meshes: CountryMesh[];
-  readonly borders: LineSegments<BufferGeometry, LineBasicMaterial>;
+  readonly borders: LineSegments<BufferGeometry, LineDashedMaterial>;
   readonly coast: LineSegments2;
   readonly wash: Mesh<BufferGeometry, MeshBasicMaterial>;
 };
@@ -175,7 +185,7 @@ export function buildCountries(level: SheetLevel): CountrySheet {
         stencilRef: LAND_STENCIL,
         stencilZPass: ReplaceStencilOp,
       }),
-      PENCIL,
+      PAPER_GRAIN,
     );
     const mesh = new Mesh(geometry, material) as CountryMesh;
     mesh.userData = { adm0 };
@@ -183,7 +193,7 @@ export function buildCountries(level: SheetLevel): CountrySheet {
   });
   const borders = new LineSegments(
     level.ink,
-    new LineBasicMaterial({
+    new LineDashedMaterial({
       color: PALETTE.border,
       transparent: true,
       opacity: COUNTRY_BORDER_REST,

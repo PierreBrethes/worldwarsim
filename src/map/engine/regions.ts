@@ -3,7 +3,6 @@ import {
   Float32BufferAttribute,
   Group,
   LineBasicMaterial,
-  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshStandardMaterial,
@@ -24,15 +23,12 @@ type Sheet = Pick<WorldFrame, 'centerX' | 'centerY'>;
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
 /**
- * Well under the country borders' opacity (0.5 at rest, reinforced at zoom), and dotted as on
- * the prototype (`table-etat-major`, P:329): the hierarchy between country and region goes
- * through the ink and the dash, WebGL drawing both one pixel wide. Greyed to 0.22 on Pierre's
- * word (#230), to be judged on screen. @a-mesurer
+ * Well under the country borders' opacity, and solid where they are dotted (`countries.ts`), as
+ * on the mockups' sheet (`gisements/commun/table.js`): the hierarchy between country and region
+ * goes through the ink and the dash, WebGL drawing both one pixel wide. Pierre wanted them a
+ * sepia grey (#230, #236), and "the borders look good" before the mockup. @a-mesurer
  */
-export const REGION_BORDER_OPACITY = 0.22;
-/** The prototype's two inked for one blank, in screen pixels so the rhythm holds at any zoom. */
-const DASH_PX = 4;
-const GAP_PX = 2;
+export const REGION_BORDER_OPACITY = 0.2;
 
 /** Below this share of the fade, the layer is not on screen — so it is not aimable either. */
 const VISIBLE_SHARE = 0.01;
@@ -128,28 +124,17 @@ export const hatch = (material: MeshStandardMaterial): MeshStandardMaterial =>
     gl_FragColor.a *= ink;`,
   );
 
-/** The arcs between two regions of one country, each with its distance along its line: a dash
- *  restarting at every vertex would stutter. */
+/** The arcs between two regions of one country. */
 export function regionLines(atlas: Atlas, detail: Detail, frame: Sheet): BufferGeometry {
   const lines = atlas.borders(
     (a, b) => a !== null && b !== null && a.country === b.country && a.id !== b.id,
     detail,
   );
-  const distances: number[] = [];
-  for (const { points } of lines) {
-    let along = 0;
-    for (let i = 2; i < points.length; i += 2) {
-      const next = along + Math.hypot(points[i]! - points[i - 2]!, points[i + 1]! - points[i - 1]!);
-      distances.push(along, next);
-      along = next;
-    }
-  }
   const geometry = new BufferGeometry();
   geometry.setAttribute(
     'position',
     new Float32BufferAttribute(lineGeometry(lines, frame, COUNTRY_THICKNESS + STROKE_LIFT), 3),
   );
-  geometry.setAttribute('lineDistance', new Float32BufferAttribute(distances, 1));
   return geometry;
 }
 
@@ -166,7 +151,7 @@ export class RegionLayer {
   /** **Qui tient quoi, au contour** (ADR 0033). */
   readonly contours: ContourLayer;
   readonly hoverOutline: LineSegments;
-  private readonly lineMaterial: LineDashedMaterial;
+  private readonly lineMaterial: LineBasicMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
   /** The level the hover, the hatches and `regionAt` read: far at first, near once it has landed
    *  (`showAtlas`). The lines follow the sheet's level instead (`showLines`). */
@@ -194,7 +179,7 @@ export class RegionLayer {
     private atlas: Atlas,
   ) {
     this.contours = new ContourLayer(frame, touch, night);
-    this.lineMaterial = new LineDashedMaterial({
+    this.lineMaterial = new LineBasicMaterial({
       color: PALETTE.border,
       transparent: true,
       opacity: 0,
@@ -377,8 +362,6 @@ export class RegionLayer {
       ),
     );
     this.lineMaterial.opacity = this.share * REGION_BORDER_OPACITY;
-    this.lineMaterial.dashSize = DASH_PX * unitsPerPixel;
-    this.lineMaterial.gapSize = GAP_PX * unitsPerPixel;
     this.lines.visible = this.share > 0.01;
     this.contours.animate(unitsPerPixel);
     this.hoverMaterial.opacity = zoomFade(this.share) * PEN_OPACITY;
