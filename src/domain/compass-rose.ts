@@ -638,8 +638,9 @@ export function compassOf(
     stationKeyOf(posted(target)!) === stationKeyOf(origin);
   const fan = build(target, view, here ? heldTroopIds : null);
   /**
-   * **La pile qu'on tient monte dans un transport de sa propre pile** (15/10) : le clic droit sur
-   * elle le propose à côté de « fonder » — la voie clavier du glisser sur le transport.
+   * **La pile qu'on tient monte dans un transport de sa propre pile** (15/10) : la rose n'est plus
+   * offerte pièce en main (#229) — fonder passe par la fiche de la main (`heldCompass`), embarquer
+   * par le glisser sur le transport. Cette branche sert la pastille du survol.
    */
   const aboard =
     column !== null && here
