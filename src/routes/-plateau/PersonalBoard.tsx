@@ -59,6 +59,9 @@ const DRAG_THRESHOLD_PX = 5;
 /** The air left between the band and what rises over it. */
 const MAT_GAP_PX = 8;
 
+/** The unfolded band's height at the desk: room for a site's troop cards and their refusals. */
+const BAND_HEIGHT = '170px';
+
 /** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
 const FULL_ROOM =
   'calc((100dvh - var(--board-top) - var(--safe-bottom) - 26px) / var(--hud-scale))';
@@ -396,7 +399,7 @@ export function PersonalBoard({
         <div
           className={`mat-fold grid min-h-0 ${filled ? 'flex-1' : ''}`}
           style={{
-            gridTemplateRows: folded ? '0px' : narrow ? (filled ? '1fr' : 'auto') : '156px',
+            gridTemplateRows: folded ? '0px' : narrow ? (filled ? '1fr' : 'auto') : BAND_HEIGHT,
           }}
           inert={folded}
         >
@@ -404,12 +407,22 @@ export function PersonalBoard({
             className={`min-h-0 overflow-hidden ${
               narrow ? 'flex flex-col overflow-y-auto overscroll-contain' : 'grid'
             }`}
-            style={narrow ? undefined : { gridTemplateColumns: 'auto 1fr 236px' }}
+            style={
+              narrow
+                ? undefined
+                : { gridTemplateColumns: `auto 1fr ${site === null ? 236 : 160}px` }
+            }
           >
             {!narrow && (
-              <section className="grid grid-cols-[repeat(5,66px)] gap-[6px] px-3 py-[10px]">
+              <section
+                className={`grid py-[10px] ${
+                  site === null
+                    ? 'grid-cols-[repeat(5,66px)] gap-[6px] px-3'
+                    : 'grid-cols-[repeat(5,42px)] gap-[2px] px-2'
+                }`}
+              >
                 {RESOURCES.map((resource) => (
-                  <GaugeBin key={resource} {...bin(resource)} />
+                  <GaugeBin key={resource} {...bin(resource)} compact={site !== null} />
                 ))}
               </section>
             )}
@@ -641,8 +654,8 @@ type BinProps = {
 /** **Un bac en thermomètre** : l'icône, le tube, possédé / max, puis le débit net — ou l'étiquette
  *  « à sec » qui le remplace, la même que la ligne repliée —, centrés dans la hauteur de la bande
  *  pour que les marges du haut et du bas soient égales. */
-function GaugeBin(props: BinProps) {
-  const { resource, register, onTake } = props;
+function GaugeBin(props: BinProps & { compact?: boolean }) {
+  const { resource, register, onTake, compact = false } = props;
   const { view, now, shown } = props;
   const {
     reserve: held,
@@ -683,9 +696,11 @@ function GaugeBin(props: BinProps) {
         >
           {stock}
         </b>{' '}
-        <small className="text-[9.5px] text-[var(--ink-soft)]">
-          {fr.personalBoard.ofCap(held.cap)}
-        </small>
+        {!compact && (
+          <small className="text-[9.5px] text-[var(--ink-soft)]">
+            {fr.personalBoard.ofCap(held.cap)}
+          </small>
+        )}
       </span>
       {alert === null ? (
         <small
@@ -802,7 +817,7 @@ function Rail({
         aria-label={label}
         onPointerDown={(event) => pressRail(event, rail.current, NO_PICK, motion)}
         className={`flex h-full touch-pan-x touch-pan-y snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
-          narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'pt-[2px] pr-[30px] pb-[10px] pl-[2px]'
+          narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'mx-[22px] pt-[2px] pb-[10px] pl-[2px]'
         }`}
       >
         {children(gripOf(rail, motion))}
@@ -813,7 +828,7 @@ function Rail({
             type="button"
             aria-label={fr.personalBoard.previous}
             onClick={() => scroll(-1)}
-            className="paper-grain absolute top-[44px] -left-[4px] h-[40px] w-[22px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
+            className="paper-grain absolute top-[44px] left-0 h-[40px] w-[20px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
           >
             ‹
           </button>
@@ -821,7 +836,7 @@ function Rail({
             type="button"
             aria-label={fr.personalBoard.next}
             onClick={() => scroll(1)}
-            className="paper-grain absolute top-[44px] right-[4px] h-[40px] w-[22px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
+            className="paper-grain absolute top-[44px] right-0 h-[40px] w-[20px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
           >
             ›
           </button>
@@ -887,6 +902,7 @@ function TileFrame({
   lit,
   grip,
   lifts = true,
+  wide = false,
   picture,
   meta,
   price,
@@ -900,6 +916,8 @@ function TileFrame({
   /** A tile that lifts keeps the finger's upward gesture for itself (`touch-pan-x`); one that
    *  does not lets the column scroll under it. */
   lifts?: boolean;
+  /** A troop card of the site band: wide and tall enough to say its refusal whole. */
+  wide?: boolean;
   picture: ReactNode;
   meta: string;
   price: ReactNode;
@@ -915,7 +933,9 @@ function TileFrame({
       className={`grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
-          : 'h-[128px] w-[100px] px-[6px] pt-[5px] pb-[6px]'
+          : wide
+            ? 'h-[140px] w-[108px] px-[6px] pt-[5px] pb-[6px]'
+            : 'h-[128px] w-[100px] px-[6px] pt-[5px] pb-[6px]'
       } ${
         locked
           ? 'border-dashed bg-transparent'
@@ -929,7 +949,7 @@ function TileFrame({
       </b>
       <span className="grid place-items-center overflow-hidden">{picture}</span>
       <span
-        className={`line-clamp-2 leading-[1.1] ${
+        className={`${wide && !narrow ? 'line-clamp-3' : 'line-clamp-2'} leading-[1.1] ${
           locked
             ? 'font-semibold text-[var(--critical)]'
             : 'font-(family-name:--font-mono) text-[var(--ink-soft)]'
@@ -1082,7 +1102,7 @@ function SiteBand({
       className={
         narrow
           ? 'flex flex-wrap items-center gap-x-[10px] gap-y-[4px]'
-          : 'grid w-[132px] content-start gap-[5px] pr-1'
+          : 'grid w-[104px] content-start gap-[5px] pr-1'
       }
     >
       <span className="flex items-center gap-[6px]">
@@ -1135,6 +1155,7 @@ function SiteBand({
                   lit={false}
                   grip={grip(observing ? null : () => form(card), { lifts: false })}
                   lifts={false}
+                  wide
                   picture={
                     <UnitSprite
                       nation={view.me.nation}
