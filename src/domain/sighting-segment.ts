@@ -24,9 +24,8 @@ export type SeenSegment = {
   readonly legs: ReadonlyArray<RouteLeg>;
   readonly distanceUnits: number;
   readonly costUnits: number;
-  /** The column's direction **at the last point seen**, which is what leaving a radius reveals,
-   *  on the eight-point rose. The bearing from one end of the window to the other would flatten a
-   *  turn taken inside it. */
+  /** The column's direction **at the last point seen**, which is what leaving a radius reveals.
+   *  The bearing from one end of the window to the other would flatten a turn taken inside it. */
   readonly headingDegrees: number;
 };
 
@@ -67,17 +66,9 @@ export function seenSegment(force: MarchingForce, from: number, to: number): See
     costUnits:
       legs.reduce((sum, leg) => sum + legCost(leg, force.landCost), 0) +
       Math.max(0, legs.length - 1) * TRANSFER_COST,
-    headingDegrees: onTheRose(headingAtExit(points) ?? headingAround(force.points, end)),
+    headingDegrees: headingAtExit(points) ?? headingAround(force.points, end),
   };
 }
-
-/**
- * **A heading as a sentry tells it: one of the eight points of the compass** (#231). The pulled
- * thread aims straight at its destination, so a bearing to the degree would hand it to whoever
- * sights the column; the staircase only ever said one of eight, and that is what stays said.
- */
-const onTheRose = (degrees: number): number =>
-  (((Math.round(degrees / 45) * 45) % 360) + 360) % 360;
 
 /** The heading between the last two points of a stretch — `null` when a window narrow enough to
  *  hold a single instant left only one. */

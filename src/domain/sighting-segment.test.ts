@@ -170,27 +170,3 @@ describe('where a heading would take a column', () => {
     for (const point of ahead) expect(point[1]).toBeCloseTo(0, 6);
   });
 });
-
-/** **Le cap relevé se dit à la rose des vents** (#231) : un fil tiré vise droit sur sa
- *  destination, et un cap au degré près la livrerait au premier guetteur. */
-describe('the heading a sighting serves', () => {
-  it('is one of the eight points of the compass', () => {
-    const oblique: MarchingForce = {
-      id: 'oblique',
-      points: [
-        [0, 0],
-        [10, 3],
-      ],
-      legs: [{ medium: 'land', distanceUnits: 10.4 }],
-      distanceUnits: 10.4,
-      departedAt: 0,
-      arrivesAt: 10 * HOUR,
-    };
-    for (const [from, to] of [
-      [HOUR, 4 * HOUR],
-      [5 * HOUR, 5 * HOUR],
-    ] as const) {
-      expect(seenSegment(oblique, from, to).headingDegrees % 45).toBe(0);
-    }
-  });
-});
