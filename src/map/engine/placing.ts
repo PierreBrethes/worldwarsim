@@ -20,6 +20,8 @@ const GHOST_SHARE = 0.031;
 const PIN_TONE = '#627584';
 const PIN_REFUSED_TONE = '#8f3a2c';
 const PIN_INK = '#2a2118';
+/** The paper ring outside the ink one: it lifts the pin off a night sea as off a day field. */
+const PIN_PAPER = '#f1e8d2';
 
 /** Pin height in ghost-sides. A finger covers the first stretch of ground around it, so under
  *  one the head stands twice as high, clear above the fingertip. @a-mesurer */
@@ -55,6 +57,7 @@ export class PlacingGhost {
   private readonly pinStem: Mesh<PlaneGeometry, MeshBasicMaterial>;
   readonly pinHead: Mesh<CircleGeometry, MeshBasicMaterial>;
   /** The pen line round the head, as the maquette inks it. */
+  private readonly pinHalo: Mesh<CircleGeometry, MeshBasicMaterial>;
   private readonly pinRim: Mesh<CircleGeometry, MeshBasicMaterial>;
   private refused = false;
   private snappedAt = Number.NEGATIVE_INFINITY;
@@ -79,10 +82,15 @@ export class PlacingGhost {
       new CircleGeometry(0.25, 16),
       new MeshBasicMaterial({ color: PIN_INK, depthTest: false }),
     );
+    this.pinHalo = new Mesh(
+      new CircleGeometry(0.31, 16),
+      new MeshBasicMaterial({ color: PIN_PAPER, depthTest: false }),
+    );
+    this.pinHalo.renderOrder = 14.5;
     this.pinRim.renderOrder = 15;
     this.pinStem.renderOrder = 15;
     this.pinHead.renderOrder = 16;
-    this.pin.add(this.pinStem, this.pinRim, this.pinHead);
+    this.pin.add(this.pinStem, this.pinHalo, this.pinRim, this.pinHead);
     this.pin.visible = false;
     this.object.add(this.pin);
 
@@ -179,14 +187,14 @@ export class PlacingGhost {
       this.pinHeight +
       PIN_DROP_HEIGHT * this.pinDrop(performance.now() - this.snappedAt, this.motion);
     this.pinStem.scale.y = headY;
-    this.pinHead.position.y = this.pinRim.position.y = headY;
+    this.pinHead.position.y = this.pinRim.position.y = this.pinHalo.position.y = headY;
   }
 
   dispose(): void {
     this.object.removeFromParent();
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
-    for (const part of [this.pinStem, this.pinRim, this.pinHead]) {
+    for (const part of [this.pinStem, this.pinHalo, this.pinRim, this.pinHead]) {
       part.geometry.dispose();
       part.material.dispose();
     }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Vector3 } from 'three';
+import { type CircleGeometry, type Mesh, type MeshBasicMaterial, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { World } from '@/domain/world';
 import projectionAsset from '../../../public/projection.json';
@@ -36,6 +36,22 @@ describe('the pin of a placement', () => {
     const held = frame.projectLonLat(DEPOSIT);
     expect(foot.x).toBeCloseTo(held.x);
     expect(foot.z).toBeCloseTo(held.z);
+  });
+
+  /** The head is blue-grey on ink: on a night sea only the ink reads. A paper ring outside it
+   *  keeps the pin legible on day land and night sea alike. */
+  it('wears a paper ring round its ink ring, whatever the sky', () => {
+    const { ghost } = armed();
+    const ring = (hex: string) =>
+      ghost.pin.children.filter(
+        (part) =>
+          (part as Mesh<CircleGeometry, MeshBasicMaterial>).material.color.getHexString() === hex,
+      ) as Array<Mesh<CircleGeometry, MeshBasicMaterial>>;
+    const [paper] = ring('f1e8d2');
+    const ink = ring('2a2118').find((part) => part.geometry.type === 'CircleGeometry');
+    expect(paper).toBeDefined();
+    expect(paper!.geometry.parameters.radius).toBeGreaterThan(ink!.geometry.parameters.radius);
+    expect(paper!.renderOrder).toBeLessThan(ink!.renderOrder);
   });
 
   it('is not there before the pointer has been on the board', () => {
