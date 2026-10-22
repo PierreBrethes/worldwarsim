@@ -324,6 +324,8 @@ export type PlacingBuilding = {
   readonly free: boolean;
   readonly duration: string;
   readonly refusal: string | null;
+  /** The point the ghost holds, `null` before it has been on the board. */
+  readonly at: LonLat | null;
 };
 
 /** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
@@ -1444,6 +1446,7 @@ export function WorldMap({
         onCancelHeld={() => onDropRefused?.()}
         onHoldOver={holdOver}
         muted={placing !== null}
+        pinAt={placing?.at ?? null}
         groupFar={blitz !== null}
         nation={playerNation ?? null}
         onDisembark={onDisembark}

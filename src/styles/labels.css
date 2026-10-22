@@ -1177,3 +1177,8 @@
   width: 9px;
   height: 12px;
 }
+
+/* The pin of a placement stands on this deposit's centre: the chip steps aside (#237). */
+.label--under-pin {
+  opacity: 0.15;
+}

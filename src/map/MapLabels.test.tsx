@@ -226,3 +226,48 @@ describe('a loaded transport', () => {
     expect(shown('.cargo-tag-body')).toBe(true);
   });
 });
+
+/** **Le pied de l'épingle de pose n'est pas caché par la pastille du gisement** (#237) : DOM au
+ *  dessus de la toile, la pastille du gisement que tient l'aimant s'estompe. */
+describe('the deposit chip under the placement pin', () => {
+  const deposit = (id: string, lonLat: [number, number]) =>
+    ({
+      ...outpost(id, 'charbon'),
+      type: 'deposit',
+      anchor: { kind: 'ground', lonLat },
+    }) as MapLabel;
+  const draw = (aimed: [number, number] | null) => (
+    <MapLabels
+      labels={[deposit('held', [3, 50]), deposit('other', [4, 50])]}
+      engine={null}
+      selected={null}
+      secondarySelected={null}
+      onMovementHover={noop}
+      onReachHover={noop}
+      poster={() => null}
+      onSelect={noop}
+      onOpenBuilding={noop}
+      onOpenStack={noop}
+      onOpenLoot={noop}
+      onOpenCamp={noop}
+      onOpenObjective={noop}
+      onOpenStrategic={noop}
+      onAct={noop}
+      onCancelHeld={noop}
+      mapping={CLASSIC_MAPPING}
+      holding={false}
+      onHoldOver={noop}
+      muted
+      pinAt={aimed}
+    />
+  );
+
+  it('fades only the chip the pin stands on', () => {
+    const { container, rerender } = render(draw([3, 50]));
+    const faded = () => [...container.querySelectorAll('.label--under-pin')].length;
+    expect(faded()).toBe(1);
+    expect(container.querySelector('.label--under-pin')?.textContent).toContain('charbon');
+    rerender(draw(null));
+    expect(faded()).toBe(0);
+  });
+});

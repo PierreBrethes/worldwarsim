@@ -3,6 +3,7 @@
 // moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import type { LonLat } from '@/domain/geo';
 import type { TourAct } from '@/domain/cargo-tag';
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { ChargeBar } from '@/shell/ChargeBar';
@@ -131,6 +132,7 @@ export function MapLabels({
   onTour,
   cue = null,
   selectionBar = null,
+  pinAt = null,
 }: {
   /** **The bar over a selection** (#130): it stands above the labels of the piles taken. */
   selectionBar?: { readonly labelIds: ReadonlyArray<string>; readonly node: ReactNode } | null;
@@ -148,6 +150,8 @@ export function MapLabels({
   cargoAim?: CargoAim | null;
   /** The labels whose transport could take the hand: their tags hang while it is held. */
   availableLabels?: ReadonlySet<string>;
+  /** The point the placement pin stands on: the deposit chip there fades, the pin is its foot. */
+  pinAt?: LonLat | null;
   /** The player's nation: the passengers on a transport's tag wear its plates. */
   nation?: string | null;
   /** **Débarquer depuis l'étiquette d'un transport** (POC du 16/10) ; absent, pas d'étiquette. */
@@ -963,6 +967,7 @@ export function MapLabels({
           key={label.id}
           label={label}
           selected={label.id === selected || label.id === secondarySelected}
+          underPin={isUnderPin(label, pinAt)}
           cue={cue?.labelId === label.id ? cue.text : null}
           crawl={motion === 'full'}
           muted={muted}
@@ -1102,6 +1107,7 @@ type LabelGestures = {
 type LabelNodeProps = {
   readonly label: MapLabel;
   readonly selected: boolean;
+  readonly underPin: boolean;
   readonly cue: string | null;
   readonly crawl: boolean;
   readonly muted: boolean;
@@ -1123,6 +1129,7 @@ type LabelNodeProps = {
 const LabelNode = memo(function LabelNode({
   label,
   selected,
+  underPin,
   cue,
   crawl,
   muted,
@@ -1161,7 +1168,7 @@ const LabelNode = memo(function LabelNode({
         ref={(node) => {
           register(nodes.roots.current, label.id, node);
         }}
-        className={classesOf(label, selected)}
+        className={classesOf(label, selected, underPin)}
         role={label.lootSightingId === null ? undefined : 'button'}
         tabIndex={label.lootSightingId === null ? undefined : 0}
         aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
@@ -1581,7 +1588,18 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
   'intel',
 ]);
 
-function classesOf(label: MapLabel, selected: boolean): string {
+/** A deposit chip is the centre of its deposit: where the magnet puts the pin's foot. */
+function isUnderPin(label: MapLabel, pinAt: LonLat | null): boolean {
+  return (
+    pinAt !== null &&
+    label.type === 'deposit' &&
+    label.anchor.kind === 'ground' &&
+    label.anchor.lonLat[0] === pinAt[0] &&
+    label.anchor.lonLat[1] === pinAt[1]
+  );
+}
+
+function classesOf(label: MapLabel, selected: boolean, underPin: boolean): string {
   return [
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
@@ -1594,6 +1612,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     label.washed ? 'label--washed' : '',
     label.seeking === true ? 'label--seek' : '',
     selected ? 'label--selected' : '',
+    underPin ? 'label--under-pin' : '',
     label.hostCountry === null &&
     label.building === null &&
     label.station === null &&
