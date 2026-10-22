@@ -47,6 +47,7 @@ import {
   inService,
   levelOf,
   playerBuildings,
+  queueOf,
   totalLevelOf,
 } from './buildingReads';
 import {
@@ -66,7 +67,6 @@ import {
   LINE_KEYS,
 } from './constants';
 import { engagementsOf } from './combat';
-import { queueOf } from './constructions';
 import { isReached, sitesOf, type Site, type Sites } from './sites';
 import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';

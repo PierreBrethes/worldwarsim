@@ -114,3 +114,18 @@ export const buildingAt = (
  */
 export const cappedByHq = (key: BuildingKey, level: number, hqLevel: number): boolean =>
   key !== 'hq' && level >= hqLevel;
+
+/**
+ * Everything a player has pledged to build, head first. Here and not in `constructions.ts`, whose
+ * baked coast (#221, 1,5 Mo) a plain reading of the queue must not pay for (`mesure-isolat`).
+ */
+export async function queueOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<Array<Doc<'constructions'>>> {
+  const entries = await ctx.db
+    .query('constructions')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect();
+  return entries.sort((a, b) => a.rank - b.rank);
+}

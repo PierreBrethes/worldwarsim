@@ -9,11 +9,12 @@ régions de l'intérieur (Florence, Konya). Le serveur porte donc une géométri
 seule : la côte de mer ouverte de chaque région (ni lac, ni Caspienne, ni couture de
 l'antiméridien), cuite par `scripts/generate-coast.mjs` en `public/coast.json` — 1 830 régions,
 134 490 points, `Int32` en base64, 1,5 Mo (522 Ko gzip) — et décodée à la première pose de port
-(`convex/coast.ts`, module à part : +3,6 Mio de tas et +0,9 hors tas, 8,7 Mio pour le module le
-plus lourd). Un port se pose à 2 km au plus de la côte de **sa** région (`onRegionCoast`,
+(`convex/coast.ts`, module à part : +3,6 Mio de tas et +0,9 hors tas). Seul `constructions.ts` la
+paie (8,2 Mio à l'import, le plus lourd) : `queueOf` vit dans `buildingReads.ts` pour que `view.ts`,
+`replay.ts` et `dev.ts` restent à 7,1–7,2 Mio, et `spotAt` ne lit la côte que pour un port. Un port se pose à 2 km au plus de la côte de **sa** région (`onRegionCoast`,
 `src/domain/coast.ts`), lue par le serveur et par le fantôme ; 13 µs par appel en moyenne, 0,34 ms
 au pire (`CAN-634`). Le reste lit toujours la grille : l'embarquement, le débarquement, la visée
-d'une coque, l'hôte, la couleur. Et la pose lit son sol : l'eau de la grille ne porte qu'un port.
+d'une coque, l'hôte, la couleur.
 L'espion de `mesure-isolat.mjs` interdit toujours l'atlas ; `coast.json` n'en est pas.
 Ce qu'on abandonne : « le serveur ne lit plus un seul polygone ». Ce que ça coûte : 5 % des points
 de cette côte tombent sur une terre de la grille qu'aucune eau ouverte ne borde (estuaires,

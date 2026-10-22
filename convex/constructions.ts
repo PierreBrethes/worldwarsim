@@ -29,6 +29,7 @@ import {
   cappedByHq,
   levelOf,
   playerBuildings,
+  queueOf,
   samePoint,
   seasonBuildings,
 } from './buildingReads';
@@ -770,7 +771,7 @@ async function spotAt(
             key: deposit.deposit,
             taken: known.some((held) => exploitsAt(held.key, held.lonLat, deposit)),
           },
-    coastal: isOnRegionCoast(lonLat, regionId),
+    coastal: key === 'port' && isOnRegionCoast(lonLat, regionId),
     nearest: nearestBuilding(lonLat, aroundOf(buildings, pledged)),
     already:
       buildings.some((held) => held.key === key && held.capturedAt === undefined) ||
@@ -874,16 +875,4 @@ function placementRefusalOf(
         },
       };
   }
-}
-
-/** Everything a player has pledged to build, head first. */
-export async function queueOf(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-): Promise<Array<Doc<'constructions'>>> {
-  const entries = await ctx.db
-    .query('constructions')
-    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-    .collect();
-  return entries.sort((a, b) => a.rank - b.rank);
 }
