@@ -25,12 +25,14 @@ l'amarrage est loin du quai — 403 km sur le Saint-Laurent (Ontario, Québec), 
 
 **Amendée le 22/10/2026 (#224, décisions de Pierre du 21/10 : « ports et vraie terre sur les
 îles », « les îles isolées ouvertes comme les autres ») : la terre et la région d'un point se
-lisent à la précision de l'atlas.** `coast.json` porte, en plus de la côte, les anneaux des
-906 régions qu'aucune cellule ne porte (7 510 points, +70 Ko ; 1,6 Mo, 558 Ko gzip en tout), le
-pays de chaque région, et chaque arc de côte a la terre à sa gauche. Deux fonctions pures de
+lisent à la précision de l'atlas.** `coast.json` porte, en plus de la côte, les rives des lacs
+et des trous de la terre (33 666 points), les anneaux des 906 régions qu'aucune cellule ne porte
+(7 510 points), le pays de chaque région, et chaque arc a la terre à sa gauche : 1,96 Mo, 687 Ko
+gzip en tout. Deux fonctions pures de
 `src/domain/coast.ts`, lues par le serveur et par la visée : `groundOf` (la grille dit la terre
-qu'elle porte ; sur une cellule de mer, un anneau de région sans cellule, ou le côté terre de la
-côte de mer ouverte la plus proche à une demi-diagonale de cellule, disent la terre) et
+qu'elle porte ; sur une cellule de mer ou de lac, un anneau de région sans cellule, ou le côté
+terre de la côte de mer ouverte — de la rive, sur un lac — la plus proche à une demi-diagonale de
+cellule, disent la terre) et
 `regionOf` (l'anneau, puis le raster, puis la région de cette côte). `isLandingShore` y ajoute la
 plage : une cellule côtière, ou une terre de l'atlas posée dans l'eau ouverte de la grille.
 `landAtPoint`, `groundAtPoint`, `coastAtPoint`, `hostAtPoint`, `hostAmongCountries`,
@@ -39,8 +41,8 @@ pose, nom d'un point, détecteur de territoire, retour d'une caisse, points stra
 (Singapour est tenu dans SGP-4872, plus dans Johor ; les points déjà posés gardent leur région).
 Restent à la cellule la route (on ne marche toujours pas vers Malte depuis la Sicile,
 `NO_LAND_ROUTE`) et le disque de la couleur et du relevé, où l'île sous un avant-poste est à
-distance nulle. `NOT_ON_LAND` ne refuse que la mer : un lac de la grille est souvent la rive de
-Cleveland ou de Lausanne.
+distance nulle. `NOT_ON_LAND` refuse l'eau, mer ou lac, et accepte la rive que la grille noie :
+Cleveland, Lausanne ; le milieu du lac Érié et la Caspienne restent de l'eau.
 
 **La grille ne perd jamais de terre**, et c'est une décision : une troupe posée sur une cellule
 de terre y reste à terre, même dans une baie que la carte dessine en eau. Son prix : 16,8 % de la
@@ -48,12 +50,12 @@ mer visible à moins de 15 km d'une côte se lit comme de la terre pour les trou
 sont là où la maille et l'atlas se contredisent le plus : la Marmara et les Dardanelles, Djibouti,
 Suez, Panama, Gibraltar, le Gris-Nez près de FRA-5334 (1,877, 50,816).
 
-Les lectures sont rangées par un index bâti à la première demande (segments de côte à une
-demi-diagonale de chaque case de 0,5 u, boîtes d'île par case) : 0,4 µs par lecture en mer comme
-sur la terre, contre 60 à 95 µs et 13 µs en parcourant les 1 830 côtes et les 906 îles ; l'index
-coûte 29 ms à bâtir (Node). Ce qu'on abandonne : « seuls ceux qui posent un port paient la côte »
-— tout module qui lit le sol la porte, 8,7 Mio à l'import au plus lourd (`dev.ts`), 11,2 Mio de
-tas et 12,4 Mio hors tas pour un isolat qui a tout payé, index compris. Sur 28 845 points tirés
+Les lectures sont rangées par des index bâtis à la première demande, un pour les boîtes d'île et
+un par rive (côte, lacs), segments à une demi-diagonale de chaque case de 0,5 u : 0,5 µs par
+lecture en mer comme sur la terre, contre 60 à 95 µs et 13 µs en parcourant les 1 830 côtes et
+les 906 îles. Ce qu'on abandonne : « seuls ceux qui posent un port paient la côte » — tout module
+qui lit le sol la porte, 9,1 Mio à l'import au plus lourd (`dev.ts`, budget de 10), 12,3 Mio de
+tas et 15,8 Mio hors tas pour un isolat qui a tout payé, index compris. Sur 28 845 points tirés
 sur des cellules de mer, 99,94 % disent la terre comme l'atlas ; le cadre du serveur
 (`projection.json`, au centième) décale l'atlas de 0,4 km au plus, et un point au bord d'une île
 simplifiée peut tomber de l'autre côté. Le client lit `coast.json` au repos, une fois la carte
