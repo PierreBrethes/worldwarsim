@@ -178,7 +178,14 @@
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
-  color: color-mix(in srgb, var(--ink) 60%, transparent);
+  /* Solid, not a transparent ink: the paper halo would show through the letters, and blur them
+     on the moonlit sheet. */
+  color: var(--ink-soft);
+}
+
+/* From far the basin is a wash and says no more: its name waits for the close view. */
+.label-anchor--far .label--deposit .label-lines {
+  display: none;
 }
 
 /* Holding a building that takes it: the free deposits of its kind are named in ochre. */

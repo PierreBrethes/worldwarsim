@@ -26,11 +26,14 @@ const WASH: Record<DepositKey, string> = {
   coal: '#605a49',
   oil: '#584973',
 };
-/** The texture's grid, in board units (1 u ≈ 100 km): some ten pixels close in. @a-mesurer */
-const CELL = 0.04;
-/** Below `FAR_PX` a cell is grain and the texture is gone; from `NEAR_PX` it is whole. @a-mesurer */
-const FAR_PX = 4;
-const NEAR_PX = 7;
+/** The texture's grid close in, in board units (1 u ≈ 100 km). @a-mesurer */
+const CELL = 0.03;
+/** The smallest cell the pen is laid at, in CSS pixels: smaller, the grid doubles and the basin
+ *  holds fewer marks of the same size, as the massifs do. @a-mesurer */
+const MIN_CELL_PX = 8;
+/** At two doublings a basin holds a handful of marks; past them only its wash is left. */
+const MAX_DOUBLINGS = 2;
+const GONE_AT = MAX_DOUBLINGS + 1;
 /** The maquette's weights: a wash barely there close in, the whole basin from far. @a-mesurer */
 const NEAR_WASH = 0.09;
 const FAR_WASH = 0.26;
@@ -87,22 +90,32 @@ float mark(int kind, vec2 d, float aa) {
   return 1.0 - smoothstep(-aa, aa, sd);
 }
 
+// One grid of marks, every other row shifted by half a cell; dense at the heart, rare at the
+// edge, as the massifs.
+float marks(int kind, float cell, float unitsPerPixel) {
+  vec2 q = vWorld / cell;
+  q.x += mod(floor(q.y), 2.0) * 0.5;
+  vec2 id = floor(q);
+  vec3 h = vec3(hash(id), hash(id + 7.7), hash(id + 19.1));
+  if (h.x >= ${KEEP.toFixed(2)} * (1.0 - smoothstep(0.5, 0.95, vEdge))) return 0.0;
+  return mark(kind, fract(q) - 0.5 - (h.yz - 0.5) * 0.3, unitsPerPixel / cell);
+}
+
 void main() {
   float unitsPerPixel = max(length(dFdx(vWorld)), length(dFdy(vWorld)));
-  float near = smoothstep(${FAR_PX.toFixed(1)}, ${NEAR_PX.toFixed(1)}, ${CELL.toFixed(3)} / (unitsPerPixel * uPixelRatio));
+  float wanted = log2(${MIN_CELL_PX.toFixed(1)} * uPixelRatio * unitsPerPixel / ${CELL.toFixed(3)});
+  float near = 1.0 - smoothstep(${MAX_DOUBLINGS.toFixed(1)}, ${GONE_AT.toFixed(1)}, wanted);
   int kind = int(vKind + 0.5);
   float wash = mix(${FAR_WASH.toFixed(2)}, ${NEAR_WASH.toFixed(2)}, near) * (1.0 - smoothstep(0.8, 1.0, vEdge));
   float ink = 0.0;
   if (near > 0.0) {
-    vec2 q = vWorld / ${CELL.toFixed(3)};
-    q.x += mod(floor(q.y), 2.0) * 0.5;
-    vec2 id = floor(q);
-    vec3 h = vec3(hash(id), hash(id + 7.7), hash(id + 19.1));
-    // Dense at the heart, rare at the edge, as the massifs.
-    if (h.x < ${KEEP.toFixed(2)} * (1.0 - smoothstep(0.5, 0.95, vEdge))) {
-      vec2 d = fract(q) - 0.5 - (h.yz - 0.5) * 0.3;
-      ink = mark(kind, d, unitsPerPixel / ${CELL.toFixed(3)}) * ${PEN_ALPHA.toFixed(2)} * near;
-    }
+    float doublings = clamp(wanted, 0.0, ${MAX_DOUBLINGS.toFixed(1)});
+    float whole = floor(doublings);
+    float share = smoothstep(0.3, 0.7, doublings - whole);
+    float cell = ${CELL.toFixed(3)} * exp2(whole);
+    ink = marks(kind, cell, unitsPerPixel) * (1.0 - share);
+    if (share > 0.001) ink += marks(kind, cell * 2.0, unitsPerPixel) * share;
+    ink = min(ink, 1.0) * ${PEN_ALPHA.toFixed(2)} * near;
   }
   float alpha = ink + wash * (1.0 - ink);
   if (alpha < 0.003) discard;
