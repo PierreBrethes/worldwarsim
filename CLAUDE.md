@@ -76,6 +76,9 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   Le serveur ne croit aucune donnée géographique du client (région, point, cible) : il la recoupe
   sur sa grille. La terre et la région sous un point se lisent par `groundOf` et `regionOf`
   (`src/domain/coast.ts`), jamais par la grille seule : elle noie Malte et le centre de Naples.
+  Restent à la cellule la route (Dijkstra, `firstRegionEntry`, les quais de `quayOfRegion`) et
+  le disque de la couleur et du relevé (`coveredByDisc`, où seule l'île sous le point compte à
+  zéro). Une ambiance (courants) lit la grille seule : ce n'est pas une règle.
 - **Échéance.** Un état long (chantier, tournée, recherche, livraison, largage) relit sa règle à son
   échéance : la carte a pu changer depuis l'ordre.
 - **Deux modes.** `modeOf` dit le mode ; en Blitz, toute distance est une part du théâtre, lue par

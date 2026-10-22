@@ -125,9 +125,9 @@ export type MovementAim =
        */
       readonly surveyed: boolean;
       /**
-       * **Whether a hull can reach this exact spot** — `isCoastCell` on the routing grid and
-       * nothing else: a coastline read off another source would say "coast" where Dijkstra finds
-       * no water. It travels with the aim rather than being looked up here for the reason
+       * **Whether a hull can reach this exact spot** — `isLandingShore`: a shore cell of the
+       * routing grid, or the atlas's land standing in its open water (Malta, #224), never a
+       * coastline Dijkstra finds no water beside. It travels with the aim rather than being looked up here for the reason
        * `afloat` does — the rule must answer **without a route** (ADR 0015), and the domain holds
        * no grid. Both ends fill it from the same function, so the fan and the server agree.
        */
