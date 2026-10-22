@@ -165,14 +165,18 @@ describe('a loaded transport', () => {
     selected = null,
     cargoAim = null,
     carriersShown = false,
+    label = {},
+    openStation = null,
   }: {
+    label?: Partial<MapLabel>;
+    openStation?: string | null;
     cargo?: CargoTag;
     selected?: string | null;
     cargoAim?: CargoAim | null;
     carriersShown?: boolean;
   } = {}) => (
     <MapLabels
-      labels={[{ ...outpost('truck', 'Camion'), cargo: [cargo] } as MapLabel]}
+      labels={[{ ...outpost('truck', 'Camion'), cargo: [cargo], ...label } as MapLabel]}
       engine={null}
       selected={selected}
       secondarySelected={null}
@@ -195,6 +199,7 @@ describe('a loaded transport', () => {
       onDisembark={noop}
       cargoAim={cargoAim}
       carriersShown={carriersShown}
+      openStation={openStation}
     />
   );
   const shown = (selector: string) =>
@@ -283,6 +288,20 @@ describe('a loaded transport', () => {
         }),
       }),
     );
+    expect(shown('.cargo-tag-body')).toBe(true);
+  });
+
+  /** **Un transport rangé à un avant-poste** : son étiquette est celle de l'avant-poste, que rien
+   *  ne « sélectionne » ; la fiche s'ouvre avec la fenêtre de garnison de cette adresse. */
+  it('opens the sheet of a transport stored at a site while that site is open', () => {
+    const stored = { station: { kind: 'outpost', outpostId: 'o1' } } as Partial<MapLabel>;
+    const { unmount } = render(draw({ label: stored }));
+    expect(shown('.cargo-tag-body')).toBe(false);
+    unmount();
+    render(draw({ label: stored, openStation: 'outpost:o2' }));
+    expect(shown('.cargo-tag-body')).toBe(false);
+    cleanup();
+    render(draw({ label: stored, openStation: 'outpost:o1' }));
     expect(shown('.cargo-tag-body')).toBe(true);
   });
 

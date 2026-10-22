@@ -4,6 +4,7 @@
 'use no memo';
 
 import type { LonLat } from '@/domain/geo';
+import { stationKeyOf } from '@/domain/troops';
 import type { TourAct } from '@/domain/cargo-tag';
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { ChargeBar } from '@/shell/ChargeBar';
@@ -133,6 +134,7 @@ export function MapLabels({
   cue = null,
   selectionBar = null,
   pinAt = null,
+  openStation = null,
 }: {
   /** **The bar over a selection** (#130): it stands above the labels of the piles taken. */
   selectionBar?: { readonly labelIds: ReadonlyArray<string>; readonly node: ReactNode } | null;
@@ -152,6 +154,9 @@ export function MapLabels({
   availableLabels?: ReadonlySet<string>;
   /** The point the placement pin stands on: the deposit chip there fades, the pin is its foot. */
   pinAt?: LonLat | null;
+  /** **The address whose garrison window is open** (`stationKeyOf`): the sheet of a transport
+   *  stored there opens, though its label — a mast — is not the one selected. */
+  openStation?: string | null;
   /** The player's nation: the passengers on a transport's tag wear its plates. */
   nation?: string | null;
   /** **Débarquer depuis l'étiquette d'un transport** (POC du 16/10) ; absent, pas d'étiquette. */
@@ -982,6 +987,11 @@ export function MapLabels({
           label={label}
           selected={label.id === selected || label.id === secondarySelected}
           underPin={isUnderPin(label, pinAt)}
+          siteOpen={
+            openStation !== null &&
+            label.station !== null &&
+            stationKeyOf(label.station) === openStation
+          }
           cue={cue?.labelId === label.id ? cue.text : null}
           crawl={motion === 'full'}
           muted={muted}
@@ -1122,6 +1132,7 @@ type LabelNodeProps = {
   readonly label: MapLabel;
   readonly selected: boolean;
   readonly underPin: boolean;
+  readonly siteOpen: boolean;
   readonly cue: string | null;
   readonly crawl: boolean;
   readonly muted: boolean;
@@ -1144,6 +1155,7 @@ const LabelNode = memo(function LabelNode({
   label,
   selected,
   underPin,
+  siteOpen,
   cue,
   crawl,
   muted,
@@ -1337,7 +1349,7 @@ const LabelNode = memo(function LabelNode({
               onDisembark={onDisembark}
               aim={cargoAim}
               available={available}
-              selected={selected}
+              selected={selected || siteOpen}
               onTour={onTour}
             />
           )}
