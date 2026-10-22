@@ -12,6 +12,7 @@ import {
   type NextActionTarget,
 } from '@/domain/next-actions';
 import { SQUARE_FRAME } from '@/shell/SurfaceColumn';
+import { MAT_LIFT_HUD } from '@/shell/viewport';
 import { FoundationRows, type FoundationPlacement } from './FoundationRows';
 
 /**
@@ -75,12 +76,8 @@ export function NextActions({
   onOpenSite,
   onOpenOutpost,
   firstSteps = null,
-  shut = false,
 }: {
   view: PlayerView;
-  /** **Le plateau personnel ouvert au bureau** : la carte s'y couchait par-dessus, sur les gestes
-   *  mêmes qu'elle demande. Elle se range sur son carré le temps qu'il est ouvert. */
-  shut?: boolean;
   /** **Les premiers pas** (ADR 0027 §2), en tête de la carte tant qu'il en reste un à faire :
    *  ils comptent pour une attente, et la carte existe pour eux même quand rien d'autre n'attend. */
   firstSteps?: ReactNode;
@@ -187,11 +184,11 @@ export function NextActions({
     <>
       <button
         type="button"
-        aria-expanded={!folded && !shut}
+        aria-expanded={!folded}
         title={fr.nextActions.header}
         onClick={fold}
         className={`${SQUARE_FRAME} bg-[var(--ink)] text-[var(--paper)] ${
-          folded || shut ? '' : 'outline-2 outline-offset-[3px] outline-[var(--ink)]'
+          folded ? '' : 'outline-2 outline-offset-[3px] outline-[var(--ink)]'
         }`}
       >
         <span className="font-(family-name:--font-display) text-[21px] leading-none font-bold">
@@ -201,10 +198,16 @@ export function NextActions({
           {fr.rail.todo}
         </span>
       </button>
-      {!folded && !shut && (
+      {!folded && (
         <section
-          className="float paper-grain absolute top-0 left-full ml-[calc(var(--table-gap)/var(--hud-scale)/0.75)] max-h-full w-[300px] overflow-y-auto border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
-          style={{ zoom: CARD_ZOOM }}
+          className="float paper-grain absolute left-full ml-[calc(var(--table-gap)/var(--hud-scale)/0.75)] w-[300px] overflow-y-auto border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
+          style={{
+            zoom: CARD_ZOOM,
+            // Standing on the personal board, folded or open, never behind it (#226): its foot
+            // rests on the board's top edge, and what the room above cannot hold scrolls inside.
+            bottom: `calc(${MAT_LIFT_HUD} / ${CARD_ZOOM})`,
+            maxHeight: `calc((100dvh - var(--board-top) - max(var(--mat-rise, 0px), var(--table-margin)) - ${CARD_TOP_GAP}px) / var(--hud-scale) / ${CARD_ZOOM})`,
+          }}
         >
           <div className="flex items-end gap-2 border-b-2 border-[var(--ink)] px-[13px] pt-[9px] pb-2">
             <div className="grid min-w-0 flex-1 gap-[5px]">
@@ -235,6 +238,9 @@ export function NextActions({
 /** Three quarters of the HUD's scale on the desk (Pierre, 10/10): full size covered the board,
  *  half was too small to read. The column already carries the HUD's zoom. */
 const CARD_ZOOM = 0.75;
+
+/** Air kept between the card's top edge and the masthead. */
+const CARD_TOP_GAP = 8;
 
 const SURFACE_WORD: Readonly<Record<NextActionSurface, string>> = {
   personalBoard: fr.nextActions.toPersonalBoard,

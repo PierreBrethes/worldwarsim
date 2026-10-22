@@ -2206,7 +2206,6 @@ function BoardContent({
       onOpenSurface={openWindow}
       onOpenSite={openBuilding}
       onOpenOutpost={openOutpost}
-      shut={boardOpen}
       firstSteps={
         firstSteps === null || shownStepOf(view) === null ? null : (
           <FirstStepsList
