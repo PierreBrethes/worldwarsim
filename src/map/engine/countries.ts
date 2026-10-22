@@ -81,7 +81,8 @@ const COAST_OPACITY = 0.92;
  *  the coast's 0.92. Always darker than a region's, at any distance (#236). @a-mesurer */
 export const COUNTRY_BORDER_REST = 0.3;
 export const COUNTRY_BORDER_MAX = 0.42;
-/** The dots' two inked for one blank, in screen pixels so the rhythm holds at any zoom. @a-mesurer */
+/** The dots: 3 px inked for 2.5 px blank, the mockups' `setLineDash([3, 2.5])`, in screen pixels so
+ *  the rhythm holds at any zoom. @a-mesurer */
 export const COUNTRY_DASH_PX = 3;
 export const COUNTRY_GAP_PX = 2.5;
 
