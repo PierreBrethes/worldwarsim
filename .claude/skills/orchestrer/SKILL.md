@@ -13,7 +13,7 @@ fusions, les rapports, et l'entretien de ce processus.
 
 | Le retour est… | Chemin |
 |---|---|
-| un bug | issue courte, puis un agent `dev` qui le reproduit (`diagnosing-bugs`), écrit le test qui échoue, puis corrige |
+| un bug | issue courte, où une cause que personne n'a reproduite s'écrit « à vérifier » ; puis un agent `dev` qui le reproduit (`diagnosing-bugs`), écrit le test qui échoue, puis corrige |
 | un réglage précis (valeur, texte, position) | toi directement, ou un agent `dev` court |
 | une surface ou un rendu neuf | agent `designer` (2 ou 3 variantes), captures envoyées, choix de Pierre, puis les issues |
 | une règle de jeu ou un système | grilling (skill `grilling`), ADR, puis les issues découpées |
