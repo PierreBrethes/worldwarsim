@@ -18,6 +18,8 @@ export type Pin =
       readonly side: 'mine';
       readonly ink: string;
       readonly moving?: true;
+      /** A building still under the crane: nothing stands there yet. */
+      readonly works?: true;
     }
   | {
       readonly id: string;
@@ -55,8 +57,17 @@ function markerPin(marker: MapMarker): ReadonlyArray<Pin> {
     case 'stack':
       return [{ ...at, shape: 'pile', side: 'mine', ink: marker.ink }];
     case 'building':
+      return [
+        {
+          ...at,
+          shape: 'building',
+          side: 'mine',
+          ink: marker.ink,
+          ...(marker.level === null ? { works: true } : {}),
+        },
+      ];
     case 'construction':
-      return [{ ...at, shape: 'building', side: 'mine', ink: marker.ink }];
+      return [{ ...at, shape: 'building', side: 'mine', ink: marker.ink, works: true }];
     case 'outpost':
       return [{ ...at, shape: 'outpost', side: 'mine', ink: marker.ink }];
     case 'installation':

@@ -155,4 +155,10 @@ describe('pinsOf — what a pin far away says', () => {
       },
     ]);
   });
+
+  it('marks a building of mine still under the crane, and not one raising a level', () => {
+    const site = { ...building, id: 'site-1', level: null } as unknown as MapMarker;
+    const raised = { ...building, id: 'barracks-2', level: 2 } as unknown as MapMarker;
+    expect(pinsOf([site, raised], [], MY_INK).map((pin) => 'works' in pin)).toEqual([true, false]);
+  });
 });

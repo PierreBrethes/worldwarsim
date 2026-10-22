@@ -349,11 +349,12 @@ export class PinLayer {
       .divideScalar(cluster.points.length);
     const weight = Math.max(...cluster.points.map((point) => point.weight));
     const ids = pins.map((pin) => pin.id);
+    // Dotted is what is not there yet or no longer: a site under the crane, a last known position.
     const style =
-      first.side === 'mine'
-        ? STYLE.filled
-        : single && first.side === 'lost'
-          ? STYLE.dotted
+      single && (first.side === 'lost' || (first.side === 'mine' && first.works === true))
+        ? STYLE.dotted
+        : first.side === 'mine'
+          ? STYLE.filled
           : STYLE.hollow;
     return {
       ids,
