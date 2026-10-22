@@ -674,6 +674,32 @@ describe('in aim', () => {
     expect(compass?.refusal).toBe('1 place à embarquer pour 0 à bord — il en manque 1');
   });
 
+  /** **Malte avant la côte** (#224) : la grille y voit l'eau ouverte, l'atlas pas encore lu y
+   *  verrait une plage. Une coque attend la côte au lieu d'être refusée ; une marche à pied n'a
+   *  rien à attendre. */
+  it('holds a hull order on open water until the coast is read', () => {
+    const malta = {
+      kind: 'point' as const,
+      lon: 14.42,
+      lat: 35.9,
+      regionId: null,
+      country: null,
+      name: 'Malte',
+      ground: 'sea' as const,
+      coastal: false,
+      coastPending: true,
+    };
+    const embarked = {
+      ...column,
+      roles: ['infantry' as const, 'cargo' as const],
+      departureBuildings: new Set<BuildingKey>(['port']),
+    };
+    const held = compassOf(malta, view, embarked);
+    expect(held?.actions).toEqual([]);
+    expect(held?.refusal).toBe(fr.placing.coastPending);
+    expect(compassOf(malta, view, column)?.refusal).not.toBe(fr.placing.coastPending);
+  });
+
   it('opens the same fan for that column once a port stands there', () => {
     const naval = {
       ...column,

@@ -42,7 +42,13 @@ import {
   COAST_REACH_KM,
   type Coast,
 } from '@/domain/coast';
-import { groundAt, type Ground, type Medium, type RouteGrid } from '@/domain/routing';
+import {
+  groundAt,
+  isOpenWaterCell,
+  type Ground,
+  type Medium,
+  type RouteGrid,
+} from '@/domain/routing';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
@@ -2305,6 +2311,14 @@ export class MapEngine {
   coastAt(lonLat: LonLat): boolean {
     if (this.coast === null) this.groundAt(lonLat);
     return isLandingShore(this.routeGrid, this.coast, lonLat);
+  }
+
+  /** **L'eau ouverte de la grille avant la côte** : une coque n'y a pas de verdict, la côte est
+   *  demandée tout de suite (#224). */
+  coastPendingAt(lonLat: LonLat): boolean {
+    if (this.coast !== null || !isOpenWaterCell(this.routeGrid, lonLat)) return false;
+    this.loadCoast();
+    return true;
   }
 
   /** Le sol que le dessin lit (piles, maquettes) : il ne réclame pas la côte, il l'attend. */

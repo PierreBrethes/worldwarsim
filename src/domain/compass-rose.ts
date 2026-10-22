@@ -4,7 +4,7 @@ import { bombardFan, captureBranch, collectFan, plunderFan } from './compass-str
 import { fanOf, posted } from './compass-fan';
 import { fr } from '@/i18n/fr';
 import { bombardsWith } from './indirect-fire';
-import { type Column, type MovementAim, type PlunderAim } from './movement-orders';
+import { routeModeOf, type Column, type MovementAim, type PlunderAim } from './movement-orders';
 import { onTourRefusalOf } from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
@@ -165,9 +165,12 @@ export type CompassTarget =
       readonly ground: Ground;
       readonly country: string | null;
       readonly name: string;
-      /** Idem : la cellule visée est-elle une côte ? C'est ce qui sépare une plage d'un point
-       *  intérieur pour une colonne embarquée (`LANDING_NEEDS_A_COAST`). */
+      /** Idem : une coque y accoste-t-elle (`isLandingShore`) ? C'est ce qui sépare une plage
+       *  d'un point intérieur pour une colonne embarquée (`LANDING_NEEDS_A_COAST`). */
       readonly coastal: boolean;
+      /** L'eau ouverte de la grille avant l'arrivée de `coast.json` : la terre de Malte n'y est
+       *  pas encore lue, et un ordre de coque attend la côte plutôt que de se faire refuser. */
+      readonly coastPending?: boolean;
     }
   | {
       /**
@@ -804,6 +807,14 @@ function aim(
     return { ...fan, actions, refusal: actions.length === 0 ? onto.refusal : null };
   }
   if (target.kind !== 'point') return null;
+  const mode = routeModeOf(column.roles);
+  if (target.coastPending === true && (mode === 'naval' || mode === 'combined'))
+    return {
+      kicker: fr.compass.aiming(column.roles.length),
+      name: target.name,
+      actions: [],
+      refusal: fr.placing.coastPending,
+    };
   /**
    * The arrival reads what stands within `contactKm(theatre)` of where the column stopped
    * (`defenceNear`, `convex/movements.ts`), so the destination is the place the player pointed

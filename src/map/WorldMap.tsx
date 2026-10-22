@@ -617,13 +617,18 @@ export function WorldMap({
   const closeRose = useCallback(() => setRose(null), []);
 
   /**
-   * **Une seule lecture de la côte, celle de la grille de routage** (décision 72a) : le moteur
-   * répond avec `isCoastCell`, la fonction même dont le serveur tire son refus. Le fan ne peut
-   * donc pas offrir une plage que la mutation renverrait (ADR 0015).
+   * **Une seule lecture de la plage** (décision 72a, #224) : le moteur répond avec
+   * `isLandingShore`, la fonction même dont le serveur tire son refus. Le fan ne peut donc pas
+   * offrir une plage que la mutation renverrait (ADR 0015).
    */
   const coastAt = useCallback((lonLat: LonLat) => engine.current?.coastAt(lonLat) ?? false, []);
   const groundAt = useCallback(
     (lonLat: LonLat): Ground => engine.current?.groundAt(lonLat) ?? 'sea',
+    [],
+  );
+  /** L'eau ouverte de la grille avant `coast.json` : une coque n'a pas encore de verdict (#224). */
+  const coastPendingAt = useCallback(
+    (lonLat: LonLat) => engine.current?.coastPendingAt(lonLat) ?? false,
     [],
   );
 
@@ -649,6 +654,7 @@ export function WorldMap({
           point,
           point !== null && coastAt(point),
           point === null ? 'sea' : groundAt(point),
+          point !== null && coastPendingAt(point),
         );
         if (aimed === null) {
           setRose(null);
@@ -672,7 +678,7 @@ export function WorldMap({
     return () => {
       readyEngine.onAct = () => {};
     };
-  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt]);
+  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt, coastPendingAt]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -744,9 +750,10 @@ export function WorldMap({
         ground,
         ground !== null && coastAt(ground),
         ground === null ? 'sea' : groundAt(ground),
+        ground !== null && coastPendingAt(ground),
       );
     },
-    [aiming, coastAt, groundAt, blitz, arcs],
+    [aiming, coastAt, groundAt, coastPendingAt, blitz, arcs],
   );
 
   const onLabelAct = useCallback(
@@ -920,6 +927,7 @@ export function WorldMap({
                 point,
                 point !== null && coastAt(point),
                 point === null ? 'sea' : groundAt(point),
+                point !== null && coastPendingAt(point),
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
@@ -938,6 +946,7 @@ export function WorldMap({
     compassOf,
     coastAt,
     groundAt,
+    coastPendingAt,
     chosenOf,
     onDropRefused,
     onCarryEnd,
@@ -990,7 +999,14 @@ export function WorldMap({
           ? labelTarget(label, clientX, clientY)
           : point === null
             ? null
-            : pointTarget(country, region, point, coastAt(point), groundAt(point));
+            : pointTarget(
+                country,
+                region,
+                point,
+                coastAt(point),
+                groundAt(point),
+                coastPendingAt(point),
+              );
       /** La route du verbe choisi, celui que le lâcher donnerait. */
       const read = dropReadingOf(target === null ? null : compassOf(target));
       const verb = read.kind === 'orders' ? read.verbs[chosenOf(read.verbs)] : undefined;
@@ -1001,7 +1017,17 @@ export function WorldMap({
       });
     };
     readyEngine.onRestless = () => onRestAim?.(null, { x: 0, y: 0 });
-  }, [readyEngine, compassOf, onRestAim, coastAt, groundAt, labels, labelTarget, chosenOf]);
+  }, [
+    readyEngine,
+    compassOf,
+    onRestAim,
+    coastAt,
+    groundAt,
+    coastPendingAt,
+    labels,
+    labelTarget,
+    chosenOf,
+  ]);
 
   /**
    * **Hors champ, le drapeau d'un de mes mouvements s'annonce au bord**, nommé (carte-lisible,
@@ -1612,6 +1638,7 @@ function pointTarget(
   point: LonLat | null,
   coastal: boolean,
   ground: Ground,
+  coastPending: boolean,
 ): CompassTarget | null {
   if (point === null) return null;
   return {
@@ -1627,6 +1654,7 @@ function pointTarget(
         : (region?.name ?? (country === null ? fr.compass.openWater : countryLabel(country))),
     coastal,
     ground,
+    coastPending,
   };
 }
 
