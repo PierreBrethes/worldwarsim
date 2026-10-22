@@ -182,8 +182,6 @@ type Props = {
   onOpenStrategic?: (pointId: string, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
-  /** Le visage de la pile mise en avant — ce qui est coché, et non la majorité de la pile. */
-  selectedPlate?: string | null;
   selectedLootLabel?: string | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
@@ -380,7 +378,6 @@ export function WorldMap({
   onOpenObjective,
   onOpenStrategic,
   selectedLabel = null,
-  selectedPlate = null,
   selectedLootLabel = null,
   reach = null,
   onCountryHover,
@@ -1395,7 +1392,6 @@ export function WorldMap({
         labels={labels}
         engine={readyEngine}
         selected={selectedLabel}
-        selectedPlate={selectedPlate}
         secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}

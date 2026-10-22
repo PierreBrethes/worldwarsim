@@ -44,15 +44,12 @@ export function pinsOf(
   arcs: ReadonlyArray<ArcView>,
   ink: string,
 ): ReadonlyArray<Pin> {
-  return [
-    ...markers.flatMap((marker) => markerPin(marker, ink)),
-    ...arcs.flatMap((arc) => arcPin(arc, ink)),
-  ];
+  return [...markers.flatMap(markerPin), ...arcs.flatMap((arc) => arcPin(arc, ink))];
 }
 
 const nationOf = (nation: string | undefined) => (nation === undefined ? {} : { nation });
 
-function markerPin(marker: MapMarker, ink: string): ReadonlyArray<Pin> {
+function markerPin(marker: MapMarker): ReadonlyArray<Pin> {
   const at = { id: marker.id, anchor: anchorOf(marker) };
   switch (marker.kind) {
     case 'stack':

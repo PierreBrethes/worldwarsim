@@ -226,32 +226,10 @@ export const SPRITES_BY_NATION: Readonly<Partial<Record<Nation, NationSprites>>>
   japan: JAPAN,
 };
 
-/** One face per medium the route may cross — what the pawn wears leg by leg. */
-export type MediumSprites = Readonly<Record<UnitDomain, string | null>>;
-
 /**
- * A movement's faces on the map, **one per medium and each read on that medium's own units**.
- * A column shows its majority boots on the road, the hull that ferries it on the water, the
- * wing that lifts it in the sky — never the same drawing carried across a dock it just used.
- *
- * Only a `mine` arc has any: the fog means an enemy arc structurally has no stack, hence no
- * sprite, and the renderer falls back to its anonymous silhouettes without a single display
- * `if` able to leak a role. A medium the pile carries nothing for answers `null` the same way
- * — a pile with no hull never sails, so that face is never asked for.
- *
- * Tier MK1 by default: a movement's stack does not carry the tier yet.
- */
-export function movementSprites(arc: ArcView, playerNation: string | null): MediumSprites | null {
-  const roles = movementRoles(arc);
-  if (roles === null) return null;
-  const faceOf = (role: UnitRole | null): string | null =>
-    role === null ? null : spriteUrl(playerNation, role, 1);
-  return { land: faceOf(roles.land), sea: faceOf(roles.sea), air: faceOf(roles.air) };
-}
-
-/**
- * **The one place a movement's roles are read for display**, per medium: the plate and the
- * figurine both dress from it, so the fog is checked once — an enemy arc answers `null`.
+ * **The one place a movement's roles are read for display**, per medium: each medium is dressed
+ * by what crosses it (a column crosses the water aboard its hull), and the figurine reads it, so
+ * the fog is checked once — an enemy arc answers `null`.
  */
 export function movementRoles(arc: ArcView): Readonly<Record<UnitDomain, UnitRole | null>> | null {
   if (arc.state !== 'mine') return null;

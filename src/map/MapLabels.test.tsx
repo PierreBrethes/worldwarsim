@@ -72,7 +72,6 @@ const layer = (
     labels={labels}
     engine={null}
     selected={null}
-    selectedPlate={null}
     secondarySelected={null}
     onMovementHover={noop}
     onReachHover={noop}

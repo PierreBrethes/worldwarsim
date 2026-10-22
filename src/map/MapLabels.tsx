@@ -104,7 +104,6 @@ export function MapLabels({
   labels: served,
   engine,
   selected,
-  selectedPlate,
   secondarySelected,
   onMovementHover,
   onReachHover,
@@ -157,9 +156,6 @@ export function MapLabels({
   /** L'étiquette désignée — une troupe posée, cliquée seule : sa planche prend l'encre du joueur
    *  et rien d'autre ne bouge (décision du 29/08). */
   selected: string | null;
-  /** **La pile mise en avant prend le visage de ce qui est coché** (carte-lisible, 03/10) : un
-   *  char coché dans une garnison d'infanterie se voit char. `null` garde la planche de la pile. */
-  selectedPlate: string | null;
   /** A private crate card may coexist with the armed troop designation. */
   secondarySelected: string | null;
   onMovementHover: (id: string | null) => void;
@@ -387,24 +383,8 @@ export function MapLabels({
       const block = blocks.current.get(label.id);
       const state = states.current.get(label.id);
       if (!block || !state) return [];
-      const words = block.getBoundingClientRect();
-      widths.current.set(label.id, words.width);
-      // La planche d'un site est hors du flux du bloc, et c'est elle qui chevauche : au loin, ou
-      // quand ses mots se taisent, elle est tout ce qu'il montre — tant que la maquette ne l'a
-      // pas remplacée.
-      const plate =
-        groupFar && state.dressed < 1
-          ? block.querySelector('.label-pictogram')?.getBoundingClientRect()
-          : undefined;
-      const rect: ScreenBox =
-        plate === undefined
-          ? words
-          : {
-              left: Math.min(words.left, plate.left),
-              top: Math.min(words.top, plate.top),
-              right: Math.max(words.right, plate.right),
-              bottom: Math.max(words.bottom, plate.bottom),
-            };
+      const rect = block.getBoundingClientRect();
+      widths.current.set(label.id, rect.width);
       return [{ label, state, rect }];
     });
 
@@ -554,7 +534,6 @@ export function MapLabels({
             fade: 1,
             dressed: 0,
             drawn: '',
-            plateScale: 1,
             hang: '',
             x: 0,
             y: 0,
@@ -637,12 +616,6 @@ export function MapLabels({
           tether.style.display = drawn === '' ? 'none' : '';
           tether.style.width = span;
           tether.style.transform = `rotate(${turn})`;
-        }
-
-        const plate = Math.round(projection.plateScale * 20) / 20;
-        if (plate !== state.plateScale) {
-          state.plateScale = plate;
-          anchor.style.setProperty('--plate-scale', String(plate));
         }
 
         anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
@@ -795,7 +768,6 @@ export function MapLabels({
     cargoAim,
     holding,
     selected,
-    selectedPlate,
     secondarySelected,
     groupFar,
     muted,
@@ -1548,7 +1520,6 @@ type RenderState = {
   dressed: number;
   /** Where its piece is drawn off its point, as last written: `''` on it. */
   drawn: string;
-  plateScale: number;
   /** Where a transport's tag hangs from, over its figurines, as last written. */
   hang: string;
   x: number;

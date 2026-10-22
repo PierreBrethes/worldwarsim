@@ -522,7 +522,7 @@ body {
 
 /* **Le réglage d'animations de la carte vaut pour l'interface** : « coupées » fige la rose et le
    fondu des étiquettes, « réduites » et « coupées » arrêtent le battement d'alerte. */
-:root[data-motion='off'] :is(.rose-menu, .rose-tie, .rose-bubble, .label-block, .label-plate) {
+:root[data-motion='off'] :is(.rose-menu, .rose-tie, .rose-bubble, .label-block) {
   animation: none;
   transition: none;
 }

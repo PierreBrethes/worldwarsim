@@ -3,7 +3,7 @@ import { DOMAIN_BY_ROLE, TIERS_BY_ROLE } from '@/domain/troops';
 import { directRoute } from '@/domain/routing';
 import type { ArcView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
-import { SPRITES_BY_NATION, movementSprites, spriteUrl, type NationSprites } from './manifest';
+import { SPRITES_BY_NATION, movementRoles, spriteUrl, type NationSprites } from './manifest';
 
 const ROLES = Object.keys(DOMAIN_BY_ROLE) as ReadonlyArray<UnitRole>;
 
@@ -113,7 +113,7 @@ describe('unit sprite manifest', () => {
   });
 });
 
-describe('movementSprites', () => {
+describe('movementRoles', () => {
   const mine = {
     state: 'mine',
     id: 'MVT-1',
@@ -131,7 +131,7 @@ describe('movementSprites', () => {
   } as const satisfies ArcView;
 
   it('shows the dominant role of my stack on the ground it walks', () => {
-    expect(movementSprites(mine, 'france')?.land).toBe(spriteUrl('france', 'armor', 1));
+    expect(movementRoles(mine)?.land).toBe('armor');
   });
 
   /**
@@ -141,18 +141,16 @@ describe('movementSprites', () => {
    */
   it('dresses each medium with its own units', () => {
     const embarked = { ...mine, stack: { infantry: 8, armor: 2, cargo: 1, fighter: 1 } } as const;
-    const faces = movementSprites(embarked, 'france');
-    expect(faces?.land).toBe(spriteUrl('france', 'infantry', 1));
-    expect(faces?.air).toBe(spriteUrl('france', 'fighter', 1));
-    // Le cargo français emprunte la planche britannique, jamais un rôle d'un autre domaine.
-    expect(faces?.sea).toBe(spriteUrl('uk', 'cargo', 1));
-    expect(movementSprites(embarked, 'uk')?.sea).toBe(spriteUrl('uk', 'cargo', 1));
+    const roles = movementRoles(embarked);
+    expect(roles?.land).toBe('infantry');
+    expect(roles?.air).toBe('fighter');
+    expect(roles?.sea).toBe('cargo');
   });
 
   it('leaves a medium the pile carries nothing for bare', () => {
-    const faces = movementSprites(mine, 'france');
-    expect(faces?.sea).toBeNull();
-    expect(faces?.air).toBeNull();
+    const roles = movementRoles(mine);
+    expect(roles?.sea).toBeNull();
+    expect(roles?.air).toBeNull();
   });
 
   it('structurally shows nothing of an enemy arc', () => {
@@ -171,7 +169,7 @@ describe('movementSprites', () => {
       seenTo: 3_600_000,
       since: 0,
     };
-    expect(movementSprites(enemy, 'france')).toBeNull();
+    expect(movementRoles(enemy)).toBeNull();
   });
 
   /**
@@ -194,15 +192,10 @@ describe('movementSprites', () => {
       seenTo: 3_600_000,
       since: 0,
     };
-    expect(movementSprites(identified, 'france')).toBeNull();
+    expect(movementRoles(identified)).toBeNull();
   });
 
-  it('draws no face without a plate for the nation, nor on an empty stack', () => {
-    expect(movementSprites(mine, 'atlantis')).toEqual({ land: null, sea: null, air: null });
-    expect(movementSprites({ ...mine, stack: {} }, 'france')).toEqual({
-      land: null,
-      sea: null,
-      air: null,
-    });
+  it('reads no role on an empty stack', () => {
+    expect(movementRoles({ ...mine, stack: {} })).toEqual({ land: null, sea: null, air: null });
   });
 });

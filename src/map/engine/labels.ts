@@ -7,30 +7,10 @@ import { nearWeight } from './figurines/figurine';
 /**
  * Beyond this, a label falls back to the glyph alone. A single named threshold: it is the
  * only level-of-detail setting, and it can be tuned without reading the rest of the file.
- *
- * It governs the **plate as well as the text** — the building's picture hangs inside
- * `.label-block`, which is what the glyph level fades out. Raised from 110 to 220 so a nation
- * reads its own buildings without diving onto them: the plate keeps its 46 px whatever the
- * distance, so what a farther camera buys is more buildings on screen, not smaller ones. The
- * overlap degradation is what keeps the crowd readable, and it folds buildings first — they
- * are the lowest priority, being the only labels that never move.
+ * The overlap degradation is what keeps the crowd readable, and it folds buildings first —
+ * they are the lowest priority, being the only labels that never move.
  */
 export const LABEL_EXPANDED_DISTANCE = 220;
-
-const PLATE_FLOOR = 0.4;
-const PLATE_SHRINK_DISTANCE = 300;
-
-/**
- * A folded building keeps its plate at any distance, but the buildings of one nation fall within
- * a few pixels of each other at world scale: five plates of 46 px piled into one giant
- * building. Past the expanded threshold the plate shrinks with the camera's distance, so the
- * pile reads as a cluster of small marks.
- */
-export function plateScale(distance: number): number {
-  const t =
-    (distance - LABEL_EXPANDED_DISTANCE) / (PLATE_SHRINK_DISTANCE - LABEL_EXPANDED_DISTANCE);
-  return 1 - (1 - PLATE_FLOOR) * Math.min(1, Math.max(0, t));
-}
 
 /** The anchor sits on the crust, not above it: the callout must start from the ground it
  *  designates. */
@@ -65,8 +45,6 @@ export type LabelProjection = {
   drawnY: number;
   /** From the eye to the anchor, in world units — what "nearest" means at the edge. */
   distance: number;
-  /** `1` up close, shrinking beyond the expanded threshold — see `plateScale`. */
-  plateScale: number;
   /**
    * Off-frame: the anchor parks at the screen edge.
    */
@@ -156,7 +134,6 @@ export class LabelLayer {
         drawnX: 0,
         drawnY: 0,
         distance: 0,
-        plateScale: 1,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
@@ -217,7 +194,6 @@ export class LabelLayer {
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
-      projection.plateScale = plateScale(distance);
       projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
       const drawn = projection.dressed > 0 ? this.drawnAt(projection.id) : null;
       if (drawn === null) {

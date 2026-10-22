@@ -67,7 +67,6 @@ import {
   campsOf,
   markerOfStation,
   markersOf,
-  stackOf,
   standingPilesOf,
   type MaquetteAt,
 } from './-plateau/board-markers';
@@ -106,7 +105,6 @@ import {
   hasSiteSheet,
   isProjectionKey,
   marchingTroopIds,
-  representativeRole,
   stationAtCombat,
   stationKeyOf,
   troopsAt,
@@ -115,7 +113,6 @@ import {
 } from '@/domain/troops';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
-import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
@@ -1820,14 +1817,6 @@ function BoardContent({
       ),
     [column, garrison, garrisonPicked],
   );
-  const highlightPlate = useMemo(() => {
-    if (highlight === null) return null;
-    const chosen = view.me.troops.filter((troop) => highlight.troopIds.includes(troop.id));
-    const face = representativeRole(stackOf(chosen));
-    if (face === null) return null;
-    const tier = chosen.find((troop) => troop.role === face)?.tier ?? 1;
-    return spriteUrl(view.me.nation, face, tier);
-  }, [highlight, view.me]);
 
   /**
    * **Le cercle de détection de la pièce en main** (ADR 0019 §5) : le seul détecteur qui soit
@@ -2291,7 +2280,6 @@ function BoardContent({
                   highlight?.labelId ??
                   (selectedSite === null ? null : buildingLabelId(selectedSite))
                 }
-                selectedPlate={highlightPlate}
                 selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
                 reach={handReach ?? movementReach}
                 onCountryHover={setHoveredCountry}

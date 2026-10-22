@@ -11,8 +11,6 @@ import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation, nationInk } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
-import { objectiveSprite } from '@/emblems/objectives/manifest';
-import { spriteUrl } from '@/emblems/units/manifest';
 import { lootWords } from '@/domain/journal';
 import type { LonLat } from '@/domain/geo';
 import { DEPOSIT_POINTS } from '@/domain/world';
@@ -21,7 +19,7 @@ import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
 import type { PlayerView, Stack, TroopStation, TroopView } from '@/domain/player-view';
-import { PROJECTION_BY_DOMAIN, representativeRole, stationKeyOf, troopsAt } from '@/domain/troops';
+import { PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
 import { stackLabelId } from '@/domain/force-highlight';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { surveyedAt } from '@/domain/survey-ink';
@@ -193,7 +191,6 @@ export function markersOf(
       lonLat: objective.point,
       name: fr.objectives.names[objective.key] ?? objective.key,
       tier: fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '',
-      plate: objectiveSprite(objective.key),
       depot: lootWords(objective.depot),
       emptied: objective.status === 'taken',
     }),
@@ -227,7 +224,6 @@ export function markersOf(
       regionId: installation.regionId,
       lonLat: installation.point,
       name: fr.buildings[installation.key],
-      plate: buildingSprite(installation.key),
       washed: knownRegionById.get(installation.regionId)?.state !== 'current',
       neutral: null,
     }));
@@ -241,7 +237,6 @@ export function markersOf(
     regionId: site.regionId,
     lonLat: site.point,
     name: fr.buildings[site.key],
-    plate: buildingSprite(site.key),
     washed: false,
     neutral: { lonLat: site.point },
   }));
@@ -405,8 +400,6 @@ function postedStacks(
 
   return [...posts.values()].map(({ at, held }) => {
     const stack = stackOf(held);
-    const face = representativeRole(stack);
-    const tier = held.find((troop) => troop.role === face)?.tier ?? 1;
     return {
       kind: 'stack' as const,
       id: stackLabelId(at),
@@ -414,7 +407,6 @@ function postedStacks(
       station: at,
       stack,
       place: pilePlace(at, names, regionAt),
-      plate: face === null ? null : spriteUrl(me.nation, face, tier),
       pieces: pilePieces(held),
       cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
       ink: me.ink,

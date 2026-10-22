@@ -128,23 +128,6 @@
   transform: translateY(-50%);
 }
 
-/* The building's own plate, hung where a pictogram would be. All fifteen share one height and
-   there is no size hierarchy between them: an assumed decision, taken on the real plates at
-   the map's real scale (`WWS/sprites/README.md` §7). What tells an arsenal from a listening
-   post is the silhouette, never the pixels. Height is the pinned axis because the marker hangs
-   by its top; widths differ freely. Its reserve is thinner than the pictograms' — a full
-   illustration needs a rim, not a halo. */
-.label-plate {
-  display: block;
-  width: auto;
-  /* Preflight's `max-width: 100%` resolves against a wrapper that is itself shrink-to-fit and
-     pinned by `right`, so its available width is zero — the plate then computes to 0 px wide
-     and the building disappears while the image loads perfectly well. */
-  max-width: none;
-  height: 46px;
-  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1.5px rgb(38 30 20 / 45%));
-}
-
 /* A building is not centred on its text but stands on the mast's head: its base lands at the
    foot of the block, where the callout begins, and it grows upward. Centring a 46 px plate on
    two lines of text would sink half the building back down the stroke. The crane inherits the
@@ -537,13 +520,6 @@
   pointer-events: auto;
 }
 
-/* A surveyed or neutral installation is a building too: its plate shrinks the same way, or the
-   Blitz neutrals of one theatre pile into one giant building on the world map. */
-.label--building.label--glyph .label-plate,
-.label--installation.label--glyph .label-plate {
-  height: calc(46px * var(--plate-scale, 1));
-}
-
 .label--building.label--glyph .label-lines,
 .label--building.label--glyph .label-bar {
   display: none;
@@ -559,28 +535,8 @@
   transform: none;
 }
 
-.label--stack .label-plate {
-  height: 30px;
-}
-
-/* Up close my figurines stand where the plate hung (ADR 0026 §3): the plate fades by as much,
-   its box stays to take the hover and the click. The callout and its pool go with it — the
-   figurines stand on the point and cast their own shadow; the words stay, they name the pile.
-   A selected pile keeps its glow: it is what says, under the figurines, which one is held. */
-.label--stack .label-plate,
-.label--stack .label-bar,
-.label--stack:not(.label--selected)::before {
-  opacity: calc(1 - var(--dressed, 0));
-}
-
-/* The same for a building, a surveyed installation and an objective in maquette (ADR 0026 §1). */
-.label--building .label-plate,
-.label--building .label-bar,
-.label--building:not(.label--selected)::before,
-.label--installation .label-plate,
-.label--installation .label-bar,
-.label--installation:not(.label--selected)::before,
-.label--objective .label-plate,
+/* Up close an objective's maquette stands where its sign hung (ADR 0026 §1): its mast and pool
+   give way by as much, the words stay. */
 .label--objective .label-bar,
 .label--objective:not(.label--selected)::before {
   opacity: calc(1 - var(--dressed, 0));
@@ -625,7 +581,6 @@
 /* La troupe désignée. Sélectionner ne l'ouvre plus (décision du 29/08) : ce que le clic répond
    se lit sur la carte, et c'est ici que ça se dit. La planche prend l'encre du joueur en halo et
    sa flaque d'ombre passe à la même encre. */
-.label--selected .label-plate,
 .label--selected .label-pictogram {
   filter: drop-shadow(0 0 2px var(--label-ink)) drop-shadow(0 0 4px var(--label-ink))
     drop-shadow(0 0 1.4px var(--paper));
@@ -633,29 +588,6 @@
 
 .label--selected::before {
   background: radial-gradient(closest-side, var(--label-ink), rgb(38 30 20 / 0%));
-}
-
-/* **La troupe touchée ou cochée grossit de 30 %, cernée d'un filet d'encre** (carte-lisible,
-   03/10), et les autres gardent leur taille. La décision du 29/08 refusait de grossir parce que
-   la planche aurait déplacé la troupe sous le pointeur : elle grossit donc **depuis son pied
-   contre le mât** — le coin qui touche le point désigné ne bouge pas, seul le dessin s'étend
-   vers le haut et vers l'extérieur. Le halo cède la place au filet : les deux à la fois
-   faisaient une tache. */
-.label--stack.label--selected .label-plate {
-  transform: scale(1.3);
-  transform-origin: 100% 100%;
-  outline: 1.5px solid var(--label-ink);
-  outline-offset: 2px;
-  background: rgb(232 223 200 / 55%);
-  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1.5px rgb(38 30 20 / 45%));
-}
-
-.label--stack.label--selected .label-pictogram {
-  filter: none;
-}
-
-.label-plate {
-  transition: transform var(--dur-quick) var(--ease-out);
 }
 
 /* **Le drapeau planté au bout de mes mouvements** (carte-lisible, 03/10), à l'encre de ma
@@ -686,30 +618,6 @@
   fill: none;
   stroke: var(--ink);
   stroke-width: 1.6;
-}
-
-/* **Le fanion de chantier** (mode chantier) : le piquet que la maquette plante au pied d'un
-   site au travail, réduit à la planche au loin — sur son coin, ou seul sur le mât d'un plan en
-   file. Il s'efface avec la planche quand la maquette pousse. */
-.label-pennant {
-  display: block;
-  filter: drop-shadow(0 0 1.2px var(--paper)) drop-shadow(0 1px 1px rgb(38 30 20 / 40%));
-}
-
-.label-plate + .label-pennant {
-  position: absolute;
-  top: -8px;
-  right: -10px;
-}
-
-.label-pennant-cloth {
-  fill: var(--arc-mine);
-  stroke: var(--ink);
-  stroke-width: 0.8;
-}
-
-.label--building .label-pennant {
-  opacity: calc(1 - var(--dressed, 0));
 }
 
 .label-flag-cloth {
@@ -760,24 +668,8 @@
   }
 }
 
-/* **Une pile de mâts porte leurs planches** (refonte mobile, 1r) : deux, la seconde posée en
-   retrait sur la première, debout sur la tête du mât comme celle d'un bâtiment seul. Les
-   planches des siens s'effacent alors — la pile les montre, deux fois serait une pile de plus. */
-.label-group-plates {
-  display: flex;
-}
-
-.label-group-plates .label-plate {
-  height: 30px;
-}
-
-.label-group-plates .label-plate + .label-plate {
-  margin-left: -12px;
-}
-
-/* Up close the group's maquettes stand in a ring under the mast: its plates give way, the
+/* Up close the group's maquettes stand in a ring under the mast: its mast gives way, the
    cartouche stays to take the click. */
-.label--building-group .label-group-plates,
 .label--building-group .label-bar {
   opacity: calc(1 - var(--dressed, 0));
 }
