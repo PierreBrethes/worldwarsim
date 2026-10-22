@@ -17,7 +17,10 @@ d'une coque, l'hôte, la couleur. Et la pose lit son sol : l'eau de la grille ne
 L'espion de `mesure-isolat.mjs` interdit toujours l'atlas ; `coast.json` n'en est pas.
 Ce qu'on abandonne : « le serveur ne lit plus un seul polygone ». Ce que ça coûte : 5 % des points
 de cette côte tombent sur une terre de la grille qu'aucune eau ouverte ne borde (estuaires,
-fjords) ; un port y est accepté, une coque en repart, mais une route de mer n'y revient pas.
+fjords). Une coque qui rentre à un tel port s'amarre à l'eau ouverte la plus proche
+(`mooringOf`, l'aimantage des extrémités d'un navire) : Hambourg à l'embouchure de l'Elbe. Au pire
+l'amarrage est loin du quai — 403 km sur le Saint-Laurent (Ontario, Québec), 283 au Nunavut,
+230 et 221 au Groenland, 212 au Labrador.
 
 ## Contexte
 
