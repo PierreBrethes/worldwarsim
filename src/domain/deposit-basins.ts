@@ -18,7 +18,7 @@ export type DepositBasin = {
   readonly ring: ReadonlyArray<number>;
 };
 
-/** Le rayon du bassin dessiné : plus étroit que l'aimant, c'est le terrain qu'on lit. @a-mesurer */
+/** @a-mesurer — le rayon du bassin dessiné : plus étroit que l'aimant, c'est le terrain qu'on lit. */
 export const BASIN_KM = 24;
 const RING_POINTS = 32;
 /** Le plus loin que le bord ondule, en part du rayon (`edge`). */
