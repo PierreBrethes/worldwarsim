@@ -36,7 +36,8 @@ import {
  * rings and 11,5 MiB of isolate heap, for the one question `hostAtPoint` asks. That question is
  * answered off the baked region raster now, on the very cells this grid is made of, and what is
  * left of the world here is its frame — `projection.json`, 4 Ko, enough to project a lon/lat.
- * A Dijkstra pass still costs 13 ms from Paris to Berlin, 125 ms from Tokyo to Los Angeles.
+ * A route costs 2.3 ms from Paris to Berlin on foot, 143 ms from Tokyo to Los Angeles, and 112 ms
+ * to find there is none from Paris to New York on foot (measured 22/10/2026, #231).
  *
  * **The raster is no longer computed here — it is baked** (`scripts/generate-grid.mjs`, 65 Ko of
  * run-length pairs) and decoded at the first demand of the isolate. The 31 ms of `buildGrid` were
