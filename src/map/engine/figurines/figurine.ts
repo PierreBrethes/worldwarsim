@@ -10,7 +10,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
-import { DOMAIN_BY_ROLE, type UnitTier } from '@/domain/troops';
+import { type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { mergedByMaterial } from '../baking';
@@ -172,7 +172,6 @@ export function figurineFor(
   const model = new Group();
   model.scale.setScalar(FIGURINE_SCALE);
   object.add(model);
-  if (DOMAIN_BY_ROLE[role] !== 'air') object.add(contactShadow());
 
   const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {
