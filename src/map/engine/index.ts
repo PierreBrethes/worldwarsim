@@ -2269,6 +2269,8 @@ export class MapEngine {
   }
 
   private coast: Coast | null = null;
+  /** The coast has landed: a rose waiting on it reads itself again (#224). */
+  onCoast?: (() => void) | undefined;
   private coastLoading = false;
   /** Après un échec, le prochain essai attend ce délai : la visée le redemande à chaque pas. */
   private coastRetryAt = 0;
@@ -2292,6 +2294,7 @@ export class MapEngine {
         const started = performance.now();
         this.coast = decodeCoast(asset, PROJECTION);
         performance.measure('coast.json décodé', { start: started });
+        this.onCoast?.();
         const held = this.ghost.spot;
         if (this.placing !== null && held !== null) this.onPlacingAim(this.placingSpotAt(held));
         this.hoverDirty = true;

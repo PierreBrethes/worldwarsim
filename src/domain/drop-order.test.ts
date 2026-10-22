@@ -27,6 +27,13 @@ describe('dropReadingOf', () => {
     expect(dropReadingOf(fan([], 'Trop loin'))).toEqual({ kind: 'refused', reason: 'Trop loin' });
   });
 
+  it('holds a drop while the coast is on its way, rather than refuse it', () => {
+    expect(dropReadingOf({ ...fan([], 'un instant'), pending: true })).toEqual({
+      kind: 'pending',
+      reason: 'un instant',
+    });
+  });
+
   it('leaves a drop with nothing to do as nothing, not as a refusal', () => {
     expect(dropReadingOf(fan([branch('build'), branch('upgrade')]))).toEqual({ kind: 'none' });
     expect(dropReadingOf(null)).toEqual({ kind: 'none' });

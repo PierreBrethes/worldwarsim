@@ -578,6 +578,8 @@ type Fan = {
    * fan is not a refusal at all: there is nothing to do there, and the right click stays inert.
    */
   readonly refusal: string | null;
+  /** The refusal is only a wait: the coast has not reached the board yet (#224). */
+  readonly pending?: boolean;
 };
 
 export type Compass = Fan;
@@ -808,12 +810,13 @@ function aim(
   }
   if (target.kind !== 'point') return null;
   const mode = routeModeOf(column.roles);
-  if (target.coastPending === true && (mode === 'naval' || mode === 'combined'))
+  if (target.coastPending === true && mode !== 'air')
     return {
       kicker: fr.compass.aiming(column.roles.length),
       name: target.name,
       actions: [],
       refusal: fr.placing.coastPending,
+      pending: true,
     };
   /**
    * The arrival reads what stands within `contactKm(theatre)` of where the column stopped

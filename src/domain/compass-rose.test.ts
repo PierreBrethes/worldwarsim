@@ -674,9 +674,9 @@ describe('in aim', () => {
     expect(compass?.refusal).toBe('1 place à embarquer pour 0 à bord — il en manque 1');
   });
 
-  /** **Malte avant la côte** (#224) : la grille y voit l'eau ouverte, l'atlas pas encore lu y
-   *  verrait une plage. Une coque attend la côte au lieu d'être refusée ; une marche à pied n'a
-   *  rien à attendre. */
+  /** **Malte et Naples avant la côte** (#224) : la grille y voit l'eau ouverte, l'atlas pas
+   *  encore lu y verrait une plage ou la ville. Une coque comme une marche à pied attend la côte
+   *  au lieu d'être refusée. */
   it('holds a hull order on open water until the coast is read', () => {
     const malta = {
       kind: 'point' as const,
@@ -697,7 +697,13 @@ describe('in aim', () => {
     const held = compassOf(malta, view, embarked);
     expect(held?.actions).toEqual([]);
     expect(held?.refusal).toBe(fr.placing.coastPending);
-    expect(compassOf(malta, view, column)?.refusal).not.toBe(fr.placing.coastPending);
+    expect(held?.pending).toBe(true);
+    const naples = { ...malta, lon: 14.25, lat: 40.84, name: 'Naples' };
+    expect(compassOf(naples, view, column)).toMatchObject({
+      actions: [],
+      refusal: fr.placing.coastPending,
+      pending: true,
+    });
   });
 
   it('opens the same fan for that column once a port stands there', () => {

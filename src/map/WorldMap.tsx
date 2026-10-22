@@ -556,8 +556,11 @@ export function WorldMap({
 
   // One rose at a time, and the camera holds still while it is open: aiming at an action on
   // a map drifting under the pointer is aiming twice.
+  /** La dernière visée qui a ouvert la rose : relue quand la côte arrive (#224). */
+  const lastAim = useRef<{ target: CompassTarget; clientX: number; clientY: number } | null>(null);
   const openRose = useCallback(
     (target: CompassTarget, clientX: number, clientY: number) => {
+      lastAim.current = { target, clientX, clientY };
       let drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
       if (rect === undefined) return;
@@ -576,7 +579,9 @@ export function WorldMap({
        *  pastille montrait part tel quel ; au doigt, sans molette ni clavier, une rose réduite
        *  aux ordres de pièce laisse choisir quand il y en a plusieurs. */
       const reading = aiming ? dropReadingOf(drawn) : null;
-      if (reading !== null && reading.kind !== 'orders' && fromDrag) {
+      /** Une attente (la côte arrive) ouvre la rose sur son motif, pièce en main : la rose se
+       *  relit à l'arrivée de la côte (`onCoast`). */
+      if (reading !== null && reading.kind !== 'orders' && reading.kind !== 'pending' && fromDrag) {
         setRose(null);
         if (reading.kind === 'refused') engine.current?.refuseDrop();
         onDropRefused?.();
@@ -631,6 +636,31 @@ export function WorldMap({
     (lonLat: LonLat) => engine.current?.coastPendingAt(lonLat) ?? false,
     [],
   );
+
+  /** **La côte arrive, la rose se relit** (#224) : une visée en attente sur l'eau de la grille
+   *  retrouve ses ordres sans qu'on la referme. */
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.onCoast = () => {
+      const aim = lastAim.current;
+      if (rose === null || aim === null || aim.target.kind !== 'point') return;
+      if (aim.target.coastPending !== true) return;
+      const lonLat: LonLat = [aim.target.lon, aim.target.lat];
+      openRose(
+        {
+          ...aim.target,
+          ground: groundAt(lonLat),
+          coastal: coastAt(lonLat),
+          coastPending: false,
+        },
+        aim.clientX,
+        aim.clientY,
+      );
+    };
+    return () => {
+      readyEngine.onCoast = undefined;
+    };
+  }, [readyEngine, rose, openRose, groundAt, coastAt]);
 
   useEffect(() => {
     if (!readyEngine) return;
