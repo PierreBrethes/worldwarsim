@@ -822,6 +822,55 @@ export const neighbourScene = internalMutation({
 });
 
 /**
+ * **La scène des gisements** (#239), pour la démo, au cadrage de la maquette : un QG à Paris, une
+ * mine de niveau 2 sur le charbon du Nord, un avant-poste à Namur, et une mine adverse relevée sur
+ * le charbon de la Sarre. Une mine en main y trouve le Hainaut prenable, la Sarre prise, la Ruhr
+ * hors de portée ; un puits, aucun pétrole à sa portée.
+ *
+ * `npx convex run dev:depositsScene '{"playerId":"…","enemyId":"…"}'`
+ */
+export const depositsScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    const deposit = (id: string) => {
+      const point = DEPOSIT_POINTS.find((candidate) => candidate.id === id);
+      if (point === undefined) throw new Error(`no deposit ${id}`);
+      return { lon: point.lonLat[0], lat: point.lonLat[1] };
+    };
+    for (const [owner, key, regionId, point, level] of [
+      [playerId, 'hq', 'FRA-5333', pointOfRegion('FRA-5333'), 1],
+      [playerId, 'mine', 'FRA-5334', deposit('coal-FRA-5334'), 2],
+      [enemyId, 'mine', 'DEU-1581', deposit('coal-DEU-1581'), 1],
+    ] as const)
+      await ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        key,
+        regionId,
+        point,
+        level,
+      });
+    await ctx.db.insert('outposts', {
+      seasonId: player.seasonId,
+      playerId,
+      point: { lon: 4.87, lat: 50.47 },
+      hostCountry: 'BEL',
+      level: 1,
+      specialization: 'relay',
+      foundedAt: now - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+    });
+    const saar = deposit('coal-DEU-1581');
+    await fileSurvey(ctx, playerId, [{ point: [saar.lon, saar.lat], radiusKm: 1 }], now);
+    await recordLinkage(ctx, player.seasonId);
+  },
+});
+
+/**
  * **La scène des quais** (#221), pour la démo : trois avant-postes français, à La Valette, à
  * Singapour et à Florence, d'où viser un port sur une île, sur une côte qui borde un voisin, et
  * dans l'intérieur.

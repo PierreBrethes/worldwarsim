@@ -40,6 +40,9 @@
  * pose en face trois camps britanniques relevés en Sarre et en Alsace, un quatrième perdu de vue près de
  * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une
  * britannique à travers la Lorraine. `--lisbonne` donne Lisbonne à la France : elle lit la nation de ses relevés (P11).
+ * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
+ * avant-poste à Namur, et à l'adversaire une mine relevée sur la Sarre : une mine à poser, au
+ * cadrage de la maquette des gisements.
  *
  *     npm run demo:mondiale
  *
@@ -94,6 +97,8 @@ const lisbon = process.argv.includes('--lisbonne');
 const threads = process.argv.includes('--trajets');
 /** `--passagers` : un camion chargé de deux fantassins en Beauce, un autre vide (#238). */
 const passengers = process.argv.includes('--passagers');
+/** `--gisements` : une mine à poser, le Hainaut prenable, la Sarre prise, la Ruhr hors de portée (#239). */
+const depositsAt = process.argv.includes('--gisements');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -476,6 +481,8 @@ if (!bare) {
       });
     }
   }
+  if (depositsAt && scene.a !== null && scene.b !== null)
+    cli(['run', 'dev:depositsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
   if (lisbon && scene.a !== null)
     cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key: 'lisbon' })]);
   if (harvest)
