@@ -70,31 +70,32 @@ ne tournait que par multiples de 45° : 5 coudes en médiane, 5,4 % de plus que 
 sur chaque tronçon d'un seul milieu, le fil ne garde un sommet que là où la ligne droite vers le
 suivant quitterait ce milieu sur la grille (`inSight`) ; un transbordement et un pas par
 l'antiméridien restent des sommets, le quai est où la recherche l'a mis. Le fil n'est jamais plus
-long que le chemin : sur 339 trajets, le coût baisse de 4,3 % en médiane, 7,6 % au plus, sans
-retouche de l'allure. Paris → Berlin tient en une ligne.
+long que le chemin : sur 340 trajets, le coût baisse de 4,3 % en médiane, 7,6 % au plus, sans
+retouche de l'allure, et ne monte jamais. Paris → Berlin tient en une ligne.
 
 **Le fil est redécoupé tous les deux pas de grille** (`THREAD_PIECE_CELLS`). Le serveur lit un
 segment en lon/lat (`positionAt`, `firstRegionEntry`), qui s'écarte de la droite de la grille :
-non redécoupé, 7 trajets sur 294 (terre ou mer) sortaient de leur milieu ; huit pas suffisent à
+non redécoupé, 7 trajets sur 295 (terre ou mer) sortaient de leur milieu ; huit pas suffisent à
 les y tenir tous. Deux gardent les sommets aussi denses que l'escalier, ce que `surveyStops` et
 `served` échantillonnent. `rawPoints` et `steps` sont réécrits ensemble, un pas par segment.
 
-**Une colonne ne passe plus un bras d'eau par un coin** (`cutsCorner`) : un pas diagonal à terre
-entre deux cellules qui ne sont ni terre ni canal est refusé, à la recherche comme au fil, et au
-champ de distances à pied. La Sicile n'est plus reliée à pied à la Calabre ; sur l'échantillon, un
-trajet à pied y perd sa route et un autre s'allonge de 2,3 %. **Une coque, elle, garde le coin** :
-deux terres qui se touchent par un coin sont à cette maille le golfe de Suez, les détroits danois
-et l'Égée, et la règle appliquée aux coques fermait 12 trajets maritimes sur 340 et envoyait
-Alexandrie à Aden par le Cap.
+**Le coin reste ouvert, aux coques comme aux colonnes.** À cette maille, deux terres qui se
+touchent par un coin sont le golfe de Suez, les détroits danois ou l'Égée, et deux mers qui se
+touchent par un coin sont Messine ou Shimonoseki : refuser le pas diagonal fermait 12 trajets
+maritimes sur 340 (Alexandrie allait à Aden par le Cap), et à pied détachait la Sicile, Kyushu, le
+Sjælland, Terre-Neuve et Java. Le fil tiré traverse un coin exact comme le pas de la recherche :
+il n'en ouvre aucun qu'elle n'ouvrait pas. Les détroits auront leur propre chantier.
 
 **Un tronçon vu montre sa vraie ligne** (décision de Pierre du 22/10, revenant sur l'arrondi du
 cap à huit directions) : les points servis d'un tronçon portent déjà le cap exact du fil, et un cap
 arrondi n'en cachait rien. Le cap servi (`seenSegment`) et celui que relit `headingReachesMe`
 restent au degré. Les mouvements en cours gardent leurs points stockés ; aucune migration.
 
-Coût de `computeRoute` sur l'échantillon, au meilleur de trois : 6,6 ms en médiane et 158 ms au
-pire avant, 7,7 ms et 181 ms après (San Francisco → New York). Ce qu'on abandonne : Theta*, qui
-trouverait des chemins un peu plus courts encore pour 60 ms en médiane et 4 s au pire.
+Coût de `computeRoute`, mesuré le 22/10 au meilleur de trois sur 340 trajets : 6,6 ms en médiane
+et 158 ms au pire avant, 7,0 ms et 161 ms après. Une recherche sans route reste le cas lourd :
+Paris → New York à pied visite l'Eurasie et l'Afrique entières avant de rendre `null`, 112 ms.
+Ce qu'on abandonne : Theta*, qui trouverait des chemins un peu plus courts encore pour 60 ms en
+médiane et 4 s au pire.
 
 ## Contexte
 

@@ -560,32 +560,3 @@ describe('the pulled thread', () => {
     expect(strays).toEqual([]);
   });
 });
-
-/**
- * **Deux mers qui se touchent par un coin ne portent pas une colonne** (#231). Westland et
- * Eastland sont ici deux carrés de terre posés coin à coin : (19,19) touche (20,20).
- */
-describe('a diagonal step at a corner', () => {
-  const cornerWorld = (): World => {
-    const square = (x: number, y: number) =>
-      [
-        [x, y],
-        [x + 10, y],
-        [x + 10, y + 10],
-        [x, y + 10],
-      ] as const;
-    const world = toyWorld();
-    return {
-      ...world,
-      countries: [
-        { ...world.countries[0]!, rings: [square(10, 10)] },
-        { ...world.countries[1]!, rings: [square(20, 20)] },
-      ],
-    };
-  };
-  const corners = buildGrid(cornerWorld(), 1);
-
-  it('lets no column cross an arm of water diagonally', () => {
-    expect(computeRoute(corners, toLonLat(15.5, 15.5), toLonLat(25.5, 25.5), 'land')).toBeNull();
-  });
-});

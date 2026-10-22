@@ -495,7 +495,6 @@ export function routeDistanceKmField(
     for (let i = 0; i < count; i++) {
       const neighbor = buffer[i]!;
       if (!allowed.includes(grid.cells[neighbor]!)) continue;
-      if (mode === 'land' && cutsCorner(grid, cell, neighbor)) continue;
       const candidate = cost + steps(cell, neighbor);
       if (candidate > maxKm || candidate >= kilometres[neighbor]!) continue;
       kilometres[neighbor] = candidate;
@@ -727,7 +726,7 @@ function routeSearchOf(
 /**
  * **How many cells a stretch of pulled thread spans at most** (#231). The server reads a segment
  * linearly in lon/lat (`positionAt`, `firstRegionEntry`), which bends away from the straight line
- * of the grid: undivided, seven land or sea routes in 294 left their medium. Eight cells kept
+ * of the grid: undivided, seven land or sea routes in 295 left their medium. Eight cells kept
  * every one on it; two keeps the vertices as dense as the staircase was, which is what
  * `surveyStops` and `served` sample the corridor by.
  *
@@ -807,8 +806,8 @@ function piecesOf(
 
 /**
  * **Does the straight line from cell to cell stay on its medium?** It walks every cell the line
- * crosses, centre to centre; through an exact corner it takes the diagonal, which passes only
- * where a step of the search would (`cutsCorner`).
+ * crosses, centre to centre; through an exact corner it takes the diagonal, as a step of the
+ * search does.
  */
 function inSight(grid: RouteGrid, from: number, to: number, medium: Medium): boolean {
   const allowed = ALLOWED_BY_MODE[medium === 'sea' ? 'naval' : 'land'];
@@ -822,7 +821,6 @@ function inSight(grid: RouteGrid, from: number, to: number, medium: Medium): boo
   let cell = from;
   for (let ix = 0, iy = 0; ix < nx || iy < ny;) {
     const toward = (1 + 2 * ix) * ny - (1 + 2 * iy) * nx;
-    const previous = cell;
     if (toward <= 0) {
       cell += step;
       ix += 1;
@@ -832,27 +830,8 @@ function inSight(grid: RouteGrid, from: number, to: number, medium: Medium): boo
       iy += 1;
     }
     if (!allowed.includes(grid.cells[cell]!)) return false;
-    if (toward === 0 && medium === 'land' && cutsCorner(grid, previous, cell)) return false;
   }
   return true;
-}
-
-/**
- * **A diagonal step squeezes between its two side cells** (#231): when neither lets its medium
- * through, two seas touching by a corner would let a column walk across the water — Sicily to
- * Calabria. The step passes when either side does.
- *
- * Only a column is held to it. Two lands touching by a corner are, at this mesh, the Gulf of
- * Suez, the Danish straits and the Aegean: holding a hull to the rule shut twelve sea routes in
- * 340 and sent Alexandria round the Cape to Aden.
- */
-function cutsCorner(grid: RouteGrid, from: number, to: number): boolean {
-  const columnGap = (to % grid.width) - (from % grid.width);
-  const rowGap = Math.floor(to / grid.width) - Math.floor(from / grid.width);
-  if (Math.abs(columnGap) !== 1 || Math.abs(rowGap) !== 1) return false;
-  const side = grid.cells[from + columnGap]!;
-  const other = grid.cells[from + rowGap * grid.width]!;
-  return side !== LAND && side !== CANAL && other !== LAND && other !== CANAL;
 }
 
 function routeOf(
@@ -1408,8 +1387,6 @@ function dijkstra(
       const length = distanceBetweenCells(grid, cell, neighbor);
       const multiplier = medium === 'sea' ? COST_BY_MEDIUM.sea : landCost;
       const transfer = isTransfer(medium, carried, type) ? TRANSFER_COST : 0;
-      /** A quay is crossed where the search finds it, corner or not: only a transit squeezes. */
-      if (medium === 'land' && transfer === 0 && cutsCorner(grid, cell, neighbor)) continue;
       const candidate = cost + length * multiplier + transfer;
       if (candidate < costs[neighbor]!) {
         costs[neighbor] = candidate;
