@@ -16,7 +16,6 @@ import {
   placementRefusal,
   settlesDebt,
   siteOfPoint,
-  type FoundationDebt,
   type PlacementRefusal,
   type Reach,
 } from './economy';
@@ -27,156 +26,10 @@ import {
   type Cost,
   type PlayerView,
   type Resource,
-  type SiteRef,
 } from './player-view';
-import { notInBlitz } from './blitz';
 import { distanceKm, type LonLat } from './geo';
 import { DEPOSIT_POINTS, depositAt, type DepositPoint } from './world';
 import { ADM0_BY_NATION, isNation } from './nations';
-
-/**
- * What a key asks of the point it is aimed at — the sentence that teaches the map: a player who
- * reads "on a coal or iron deposit" under a mine knows where to aim before he aims.
- */
-export type BuildReason =
-  | { readonly kind: 'deposit'; readonly deposits: ReadonlyArray<DepositKey> }
-  | { readonly kind: 'coastal' };
-
-/**
- * What holds a line back **for now** — as opposed to what the catalogue refuses outright, which
- * is `BlockedReason` below. A hold is a remedy ("come back in twenty minutes"), a block a fact.
- */
-type BuildHold = 'materials';
-
-export type BuildOption = {
-  readonly key: BuildingKey;
-  readonly cost: Cost;
-  readonly minutes: number;
-  readonly reason: BuildReason | null;
-  readonly hold: BuildHold | null;
-  /** Owed by the format's foundation: placed for nothing, standing at once — on the deposit the
-   *  debt names, which the aim decides (`aimVerdict`). */
-  readonly free: boolean;
-};
-
-/** What the player is, as the catalogue reads it: no ground yet — a key is chosen, then a place
- *  is aimed at (ADR 0029). */
-export type Site = {
-  /**
-   * **The site the region the panel opened on hangs from** (ADR 0020 §10) — `null` is ground no
-   * living site of the player reaches any more, and nothing goes up there.
-   */
-  readonly site: SiteRef | null;
-  readonly hqLevel: number;
-  readonly stocks: Readonly<Record<ResourceKey, number>>;
-  /** What the season still owes (`me.foundation`), served — never re-derived here. */
-  readonly foundation: ReadonlyArray<FoundationDebt>;
-};
-
-/**
- * **What may be ordered, before any point is aimed at** (ADR 0029): the keys the headquarters
- * opens, with their bill and what they will ask of the ground. The rest of the rule — the deposit,
- * the coast, the reach, the spacing — is the point's, and the ghost says it under the pointer
- * (`aimVerdict`): the same `placementRefusal` the server refuses with.
- *
- * Raising a building is deliberately absent. Upgrading belongs to the nation sheet — one verb
- * per surface.
- */
-export function buildableOn(
-  site: Site,
-  catalog: Readonly<Record<BuildingKey, BuildSpec>>,
-): ReadonlyArray<BuildOption> {
-  if (site.site === null) return [];
-
-  return BUILDABLE_BUILDINGS.flatMap((key) => {
-    // Nothing rises above the headquarters, and a level-1 building needs one standing.
-    if (key === 'hq' ? site.hqLevel > 0 : site.hqLevel === 0) return [];
-    const spec = catalog[key];
-    if (keyRefusal(key, site.hqLevel, spec.lockedBy) !== null) return [];
-
-    /**
-     * A key the foundation still owes is placed for nothing and stands at once — so it carries
-     * no bill and no delay, and **nothing at all holds it back**. The debt of the format
-     * outranks the ambition of the player.
-     */
-    const free = site.foundation.some((due) => due.key === key);
-    const cost = free ? {} : spec.cost;
-
-    return [
-      {
-        key,
-        cost,
-        minutes: free ? 0 : spec.minutes,
-        reason: reasonFor(key),
-        free,
-        hold: holdOn(site, free, cost),
-      } satisfies BuildOption,
-    ];
-  });
-}
-
-/**
- * Why the catalogue never offers a key here — the *reference* half of the panel, under the offer.
- * It is only ever asked about a key `buildableOn` has already left out.
- */
-export type BlockedReason =
-  /** No living site of the player reaches this ground any more — a destroyed outpost leaves its
-   *  buildings standing and its anchor dead (ADR 0020 §10). */
-  | { readonly kind: 'outOfReach' }
-  | { readonly kind: 'unique' }
-  /** `card: null` — rien ne se bâtit avant le QG (`HQ_FIRST`). */
-  | { readonly kind: 'locked'; readonly card: ResearchCard | null };
-
-/** A catalogue line: the bill and the wait are served too, because they are what a player
- *  plans against — the reason says *not yet*, the price says *what it will take*. */
-export type BlockedOption = {
-  readonly key: BuildingKey;
-  readonly cost: Cost;
-  readonly minutes: number;
-  readonly reason: BlockedReason;
-};
-
-/**
- * **The rest of the catalogue**, in the order of `BUILDABLE_BUILDINGS` — every key the offer left
- * out, each carrying the requirement it fails. Together with `buildableOn` it partitions the
- * catalogue exactly once, by construction: the complement of a list, never a second reading.
- */
-export function blockedOn(
-  site: Site,
-  catalog: Readonly<Record<BuildingKey, BuildSpec>>,
-): ReadonlyArray<BlockedOption> {
-  const offered = new Set(buildableOn(site, catalog).map((option) => option.key));
-  return BUILDABLE_BUILDINGS.filter((key) => !offered.has(key)).map((key) => ({
-    key,
-    cost: catalog[key].cost,
-    minutes: catalog[key].minutes,
-    reason: blockedBecause(site, key, catalog[key]),
-  }));
-}
-
-function blockedBecause(site: Site, key: BuildingKey, spec: BuildSpec): BlockedReason {
-  if (site.site === null) return { kind: 'outOfReach' };
-  if (key === 'hq') return { kind: 'unique' };
-  return { kind: 'locked', card: site.hqLevel === 0 ? null : spec.lockedBy };
-}
-
-/**
- * What stands between a line and the click. **A running site holds nothing back any more** (the
- * queue is unbounded and paid at the enqueue), and **neither does a key the season owes**.
- */
-function holdOn(site: Site, free: boolean, cost: Cost): BuildHold | null {
-  if (free) return null;
-  return affordable(cost, site.stocks) ? null : 'materials';
-}
-
-const affordable = (cost: Cost, stocks: Readonly<Record<ResourceKey, number>>): boolean =>
-  Object.entries(cost).every(([key, amount]) => stocks[key as ResourceKey] >= (amount ?? 0));
-
-function reasonFor(key: BuildingKey): BuildReason | null {
-  const deposits = EXPLOITED_DEPOSITS[key];
-  if (deposits !== undefined) return { kind: 'deposit', deposits };
-  return key === 'port' ? { kind: 'coastal' } : null;
-}
 
 /**
  * **The whole construction queue as one list**, head first — the running site and everything
@@ -206,42 +59,6 @@ const pledgedBuildings = (view: Pick<PlayerView, 'me'>) =>
   );
 
 const samePoint = (a: LonLat, b: LonLat): boolean => a[0] === b[0] && a[1] === b[1];
-
-/**
- * The site a player's view describes for one region, or `null` when that region is none of
- * his business — the view only carries his own ground, so absence *is* the answer to "may I
- * build there".
- */
-export function siteOf(view: PlayerView, regionId: string, now: number): Site | null {
-  /** La Blitz n'a pas de chantier (`notInBlitz`) : aucune région n'y est un site où bâtir. */
-  if (notInBlitz(view.mode) !== null) return null;
-  const region = view.me.regions.find((candidate) => candidate.id === regionId);
-  if (region === undefined) return null;
-  return {
-    site: region.site,
-    hqLevel: view.me.hqLevel,
-    stocks: stocksNow(view, now),
-    foundation: view.me.foundation,
-  };
-}
-
-const stocksNow = (view: PlayerView, now: number): Record<ResourceKey, number> =>
-  Object.fromEntries(
-    Object.entries(view.me.resources).map(([key, resource]) => [
-      key,
-      currentStock(resource, view.loadedAt, now),
-    ]),
-  ) as Record<ResourceKey, number>;
-
-/** The panel's list, straight from a view. Empty means the region can carry nothing, ever. */
-export function buildOptionsAt(
-  view: PlayerView,
-  regionId: string,
-  now: number,
-): ReadonlyArray<BuildOption> {
-  const site = siteOf(view, regionId, now);
-  return site === null ? [] : buildableOn(site, view.buildCatalog);
-}
 
 /**
  * **How close the ghost leaps onto a deposit or a quay** (ADR 0029 §3) — a pointer this near a

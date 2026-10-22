@@ -210,8 +210,6 @@ type Props = {
   blitz?: { readonly theatre: Theatre } | null;
   /** `at` is the aimed point, in the map's own coordinates: what an action anchors a panel to. */
   onCompassAction: (action: CompassAction, at: { x: number; y: number }) => void;
-  /** The board wears the trowel while a construction panel is open. */
-  building?: boolean;
   /**
    * **A building held over the board, waiting for the point it goes down on** (ADR 0029). The
    * ghost follows the pointer and leaps onto what its magnet picks; the board hears every point
@@ -391,7 +389,6 @@ export function WorldMap({
   compassOf,
   blitz = null,
   onCompassAction,
-  building = false,
   placing = null,
   onPlacePoint,
   onPlacingDismiss,
@@ -1119,10 +1116,6 @@ export function WorldMap({
   useEffect(() => {
     engine.current?.setPlayerNation(playerNation);
   }, [playerNation]);
-
-  useEffect(() => {
-    readyEngine?.setBuilding(building);
-  }, [readyEngine, building]);
 
   useEffect(() => {
     readyEngine?.setAiming(aiming);

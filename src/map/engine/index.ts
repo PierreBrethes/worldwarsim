@@ -415,7 +415,6 @@ export class MapEngine {
   private carriedAt = -Infinity;
   private mapping: MouseMapping = CLASSIC_MAPPING;
   private spaceHeld = false;
-  private building = false;
   private aiming = false;
   /** The building held over the board, `null` when nothing is held. */
   private placing: { readonly sprite: string | null; readonly magnet: PlacingMagnet } | null = null;
@@ -2180,19 +2179,10 @@ export class MapEngine {
     else if (this.placing !== null)
       style.cursor =
         this.ghost.spot === null || this.placingRefused ? REFUSED_CURSOR : TROWEL_CURSOR;
-    else if (this.building) style.cursor = TROWEL_CURSOR;
     else if (this.held !== null) style.cursor = HOLDING_CURSOR;
     else if (this.aiming) style.cursor = AIM_CURSOR;
     else if (this.hoveredPiece !== null) style.cursor = this.hoveredPiece;
     else style.cursor = '';
-  }
-
-  /** The board wears the trowel while a construction panel is open, and only then. */
-  setBuilding(building: boolean): void {
-    this.invalidate();
-    if (building === this.building) return;
-    this.building = building;
-    this.refreshCursor();
   }
 
   /** The board is in aim: a column is armed and the next right click names its march. */
