@@ -62,6 +62,38 @@ simplifiée peut tomber de l'autre côté. Le client lit `coast.json` au repos, 
 affichée, et tout de suite si un geste en a besoin ; un ordre de coque vers l'eau ouverte de la
 grille attend la côte plutôt que d'être refusé.
 
+**Amendée le 22/10/2026 (#231, décisions de Pierre du 22/10 : « 1 : ok ; 2 : hum, oui comme
+la map est plate ; 3 : ok ») : le chemin du serveur est tiré droit.** Le Dijkstra à huit voisins
+ne tournait que par multiples de 45° : 5 coudes en médiane, 5,4 % de plus que le plus court chemin
+à tout angle. Le chemin qu'il trouve est désormais **tiré** (`pullThread`, `src/domain/routing.ts`) :
+sur chaque tronçon d'un seul milieu, le fil ne garde un sommet que là où la ligne droite vers le
+suivant quitterait ce milieu sur la grille (`inSight`) ; un transbordement et un pas par
+l'antiméridien restent des sommets, le quai est où la recherche l'a mis. Le fil n'est jamais plus
+long que le chemin : sur 339 trajets, le coût baisse de 4,3 % en médiane, 7,6 % au plus, sans
+retouche de l'allure. Paris → Berlin tient en une ligne.
+
+**Le fil est redécoupé tous les deux pas de grille** (`THREAD_PIECE_CELLS`). Le serveur lit un
+segment en lon/lat (`positionAt`, `firstRegionEntry`), qui s'écarte de la droite de la grille :
+non redécoupé, 7 trajets sur 294 (terre ou mer) sortaient de leur milieu ; huit pas suffisent à
+les y tenir tous. Deux gardent les sommets aussi denses que l'escalier, ce que `surveyStops` et
+`served` échantillonnent. `rawPoints` et `steps` sont réécrits ensemble, un pas par segment.
+
+**Une colonne ne passe plus un bras d'eau par un coin** (`cutsCorner`) : un pas diagonal à terre
+entre deux cellules qui ne sont ni terre ni canal est refusé, à la recherche comme au fil, et au
+champ de distances à pied. La Sicile n'est plus reliée à pied à la Calabre ; sur l'échantillon, un
+trajet à pied y perd sa route et un autre s'allonge de 2,3 %. **Une coque, elle, garde le coin** :
+deux terres qui se touchent par un coin sont à cette maille le golfe de Suez, les détroits danois
+et l'Égée, et la règle appliquée aux coques fermait 12 trajets maritimes sur 340 et envoyait
+Alexandrie à Aden par le Cap.
+
+**Le cap d'une force relevée se dit à la rose des vents** (8 directions, `seenSegment`), au
+serveur avant la vue : le fil tiré vise droit sur sa destination, et un cap au degré la livrerait.
+Les mouvements en cours gardent leurs points stockés ; aucune migration.
+
+Coût de `computeRoute` sur l'échantillon, au meilleur de trois : 6,6 ms en médiane et 158 ms au
+pire avant, 7,7 ms et 181 ms après (San Francisco → New York). Ce qu'on abandonne : Theta*, qui
+trouverait des chemins un peu plus courts encore pour 60 ms en médiane et 4 s au pire.
+
 ## Contexte
 
 La production recyclait l'isolat Convex en boucle — `TooMuchMemoryCarryOver("~64 MiB", "99 MiB")`
