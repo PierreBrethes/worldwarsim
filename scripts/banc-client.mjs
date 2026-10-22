@@ -1012,7 +1012,7 @@ async function play(profileName, pass) {
   // Au téléphone, le plateau tiré par un geste d'avant peut être déjà déplié : on ne le déplie
   // qu'au besoin. Au bureau, il est replié et sa tuile est dans le DOM, cachée : on le déplie.
   if (!phone) await button(/^Plateau personnel$/).click();
-  else if (!(await page.getByText('Port', { exact: true }).first().isVisible()))
+  else if (await button(/déplier le plateau personnel/).isVisible())
     await tap(button(/déplier le plateau personnel/));
   await page.waitForTimeout(800);
   await gesture(
