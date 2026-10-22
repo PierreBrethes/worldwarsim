@@ -41,11 +41,11 @@ const BORDER_LIFT = 0.004;
 
 /**
  * **Le grain du papier** (#240), celui de la feuille des maquettes (`drawGrainAndNight`) : un
- * bruit fin, pixel par pixel d'écran, noir ou blanc au hasard et à 0–6 % d'opacité. Sans trait
+ * bruit fin, pixel par pixel d'écran, plus clair ou plus sombre au hasard de 0 à 6 % de la couleur éclairée
+ * (multiplicatif : de nuit, sur un sol sombre, il reste sous le trait d'une région, comme dans la maquette où il passe avant le voile de nuit). Sans trait
  * oblique : depuis l'ADR 0033 le sol n'est plus distingué par sa trame, c'est le contour qui
  * sépare une région connue d'une région vierge (les hachures qui ont un sens restent, `hatch`).
  * Le hasard ne dépend que du pixel : rien ne bouge avec la caméra, rien ne moire au zoom.
- * Couleur déjà encodée en sRGB à ce point du programme, d'où un mélange écrit en clair.
  * @a-mesurer
  */
 const GRAIN_OPACITY = 0.06;
@@ -53,7 +53,7 @@ const PAPER_GRAIN = `
   vec2 speck = floor(trame);
   float tone = step(0.5, fract(sin(dot(speck, vec2(12.9898, 78.233))) * 43758.5453));
   float weight = fract(sin(dot(speck, vec2(63.7264, 10.873))) * 24634.6345);
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(tone), ${GRAIN_OPACITY.toFixed(3)} * weight);`;
+  gl_FragColor.rgb *= 1.0 + (tone * 2.0 - 1.0) * ${GRAIN_OPACITY.toFixed(3)} * weight;`;
 
 /** La côte sépare la terre de la mer (ADR 0034), hors de la coupe de l'antiméridien. */
 export function coastLines(
