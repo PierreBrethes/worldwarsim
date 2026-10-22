@@ -53,11 +53,14 @@ export class PlacingGhost {
    *  hung on it later. */
   readonly pin = new Group();
   private readonly pinStem: Mesh<PlaneGeometry, MeshBasicMaterial>;
-  private readonly pinHead: Mesh<CircleGeometry, MeshBasicMaterial>;
+  readonly pinHead: Mesh<CircleGeometry, MeshBasicMaterial>;
   /** The pen line round the head, as the maquette inks it. */
   private readonly pinRim: Mesh<CircleGeometry, MeshBasicMaterial>;
   private refused = false;
   private snappedAt = Number.NEGATIVE_INFINITY;
+  private snapped = false;
+  /** A list of deposits: each one is a new catch. A coast is one catch, however far it runs. */
+  private retargets = false;
   motion: MapMotion = 'full';
 
   constructor(
@@ -123,8 +126,10 @@ export class PlacingGhost {
     return this.held;
   }
 
-  arm(sprite: string | null, snap: (pointer: LonLat) => LonLat): void {
+  arm(sprite: string | null, snap: (pointer: LonLat) => LonLat, retargets = false): void {
     this.snap = snap;
+    this.retargets = retargets;
+    this.snapped = false;
     this.held = null;
     this.object.visible = false;
     this.pin.visible = false;
@@ -152,7 +157,10 @@ export class PlacingGhost {
     const spot = this.snap(pointer);
     if (this.held !== null && spot[0] === this.held[0] && spot[1] === this.held[1]) return;
     this.held = spot;
-    if (spot[0] !== pointer[0] || spot[1] !== pointer[1]) this.snappedAt = performance.now();
+    const snapped = spot[0] !== pointer[0] || spot[1] !== pointer[1];
+    /** The leap is dated when the magnet takes hold, not at each step along a coast it already holds. */
+    if (snapped && (!this.snapped || this.retargets)) this.snappedAt = performance.now();
+    this.snapped = snapped;
     this.object.position.copy(this.frame.projectLonLat(spot, GHOST_LIFT));
     this.object.visible = true;
     this.pin.visible = true;
@@ -164,9 +172,9 @@ export class PlacingGhost {
     faceCamera(this.object, cameraPosition);
     this.measure();
     const side = this.object.position.distanceTo(cameraPosition) * GHOST_SHARE;
+    this.pin.scale.setScalar(side);
     const height = side / Math.sqrt(this.aspect);
     this.mesh.scale.set(this.aspect * height, height, 1);
-    this.pin.scale.setScalar(distanceUnit(this.object.position, cameraPosition));
     const headY =
       this.pinHeight +
       PIN_DROP_HEIGHT * this.pinDrop(performance.now() - this.snappedAt, this.motion);
@@ -193,5 +201,3 @@ export class PlacingGhost {
     this.measured = true;
   }
 }
-
-const distanceUnit = (from: Vector3, eye: Vector3): number => from.distanceTo(eye) * GHOST_SHARE;

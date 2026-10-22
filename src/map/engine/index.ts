@@ -2346,7 +2346,11 @@ export class MapEngine {
       return;
     }
     if (placing.magnet.kind === 'coast') this.loadCoast();
-    this.ghost.arm(placing.sprite, (pointer) => this.snapFor(placing.magnet, pointer));
+    this.ghost.arm(
+      placing.sprite,
+      (pointer) => this.snapFor(placing.magnet, pointer),
+      placing.magnet.kind === 'points',
+    );
     this.hoverDirty = true;
     this.refreshCursor();
   }

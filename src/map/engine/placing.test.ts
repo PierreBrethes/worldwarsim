@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { World } from '@/domain/world';
 import projectionAsset from '../../../public/projection.json';
 import { WorldFrame } from './frame';
+import { MapEngine } from './index';
 import { PlacingGhost } from './placing';
 
 const world = {
@@ -45,12 +46,24 @@ describe('the pin of a placement', () => {
 
   it('turns red when the placement is refused, and back when it is not', () => {
     const { ghost } = armed();
-    const free = ghost.pinTone;
+    const free = ghost.pinHead.material.color.getHexString();
     ghost.refuse(true);
-    const refused = ghost.pinTone;
-    expect(refused).not.toBe(free);
+    expect(ghost.pinHead.material.color.getHexString()).toBe('8f3a2c');
     ghost.refuse(false);
-    expect(ghost.pinTone).toBe(free);
+    expect(ghost.pinHead.material.color.getHexString()).toBe(free);
+  });
+
+  /** The board says a point is refused through `MapEngine.setPlacingRefused`: the pin follows. */
+  it('is reddened by the engine when the board says the point is refused', () => {
+    const { ghost } = armed();
+    const engine = {
+      ghost,
+      placingRefused: false,
+      invalidate: () => {},
+      refreshCursor: () => {},
+    };
+    MapEngine.prototype.setPlacingRefused.call(engine as never, true);
+    expect(ghost.pinHead.material.color.getHexString()).toBe('8f3a2c');
   });
 
   it('drops onto the point when the magnet snaps, unless motion is reduced', () => {
@@ -58,6 +71,45 @@ describe('the pin of a placement', () => {
     expect(ghost.pinDrop(0, 'full')).toBeGreaterThan(0);
     expect(ghost.pinDrop(1000, 'full')).toBe(0);
     expect(ghost.pinDrop(0, 'reduced')).toBe(0);
+  });
+
+  describe('along a coast', () => {
+    afterEach(() => vi.useRealTimers());
+    const headOf = (ghost: PlacingGhost) => {
+      ghost.orient(new Vector3(0, 5, 0));
+      return ghost.pinHead.position.y;
+    };
+    /** The coast magnet hands back a new point at every step of the pointer. */
+    const along = () => {
+      vi.useFakeTimers({ now: 0 });
+      const frame = new WorldFrame(world);
+      const ghost = new PlacingGhost(frame);
+      ghost.arm(null, ([lon, lat]) => [lon + 0.01, lat + 0.01], false);
+      const aim = (lonLat: LonLat) => {
+        const at = frame.projectLonLat(lonLat);
+        ghost.aimAt(at.x + frame.centerX, at.z + frame.centerY);
+      };
+      return { ghost, aim };
+    };
+
+    it('drops once when the magnet takes hold, not at every step along the shore', () => {
+      const { ghost, aim } = along();
+      aim([2, 48]);
+      expect(headOf(ghost)).toBeGreaterThan(ghost.pinHeight);
+      vi.advanceTimersByTime(1000);
+      expect(headOf(ghost)).toBe(ghost.pinHeight);
+      aim([2.2, 48.1]);
+      expect(headOf(ghost)).toBe(ghost.pinHeight);
+    });
+
+    it('drops again when the magnet picks another deposit', () => {
+      const { ghost, aim } = along();
+      ghost.arm(null, ([lon, lat]) => [lon + 0.01, lat + 0.01], true);
+      aim([2, 48]);
+      vi.advanceTimersByTime(1000);
+      aim([5, 50]);
+      expect(headOf(ghost)).toBeGreaterThan(ghost.pinHeight);
+    });
   });
 
   it('holds its head higher under a finger, which hides what is just beneath it', () => {
