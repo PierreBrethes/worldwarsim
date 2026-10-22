@@ -22,7 +22,6 @@ import projectionAsset from '../public/projection.json';
 import {
   firstRouteEntryInRegion,
   goalCellsForRegions,
-  hostAmongAtRoutePoint,
   regionAtPoint,
   regionAtRoutePoint,
   pointInRouteRegion,
@@ -220,11 +219,12 @@ export function pointInRegion(
 /**
  * **Whose soil this is, asked only of the players' own** — the territory detector of design
  * sheet 04, which has no radius because it is not a thing standing on the ground: it *is* the
- * ground. A road is walked sample by sample against it, so the reading is restricted to the
- * countries that can answer rather than to the whole world.
+ * ground. A road is walked sample by sample against it, restricted to the countries that can
+ * answer; the soil is `hostAtPoint`'s, so Monaco is no more France here than for the upkeep (#224).
  */
 export function hostAmongCountries(point: LonLat, adm0s: ReadonlySet<string>): string {
-  return hostAmongAtRoutePoint(point, adm0s) ?? '';
+  const host = hostAtPoint(point);
+  return adm0s.has(host) ? host : '';
 }
 
 /**

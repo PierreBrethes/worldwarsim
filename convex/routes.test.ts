@@ -7,7 +7,14 @@ import {
   STRATEGIC_POINT_KEYS,
   type StrategicPointKey,
 } from '../src/domain/strategic-points';
-import { coastAtPoint, hostAtPoint, pointInRegion, routeBetween, routeToRegions } from './routes';
+import {
+  coastAtPoint,
+  hostAmongCountries,
+  hostAtPoint,
+  pointInRegion,
+  routeBetween,
+  routeToRegions,
+} from './routes';
 import { routeMinutes } from './constants';
 
 /**
@@ -268,5 +275,16 @@ describe('pointInRegion', () => {
     const [lon, lat] = regionFacts('FRA-5323')!.point;
     const away: LonLat = [lon + 2.75, lat];
     expect(pointInRegion(away, at('FRA-5323'))).toBe(false);
+  });
+});
+
+/** **Un sol, une lecture** (#224) : Monaco n'est pas la France pour l'entretien, il ne l'est pas
+ *  davantage pour le détecteur de territoire. */
+describe('le sol national au détecteur de territoire', () => {
+  it('lit Monaco comme l’entretien le lit', () => {
+    const MONACO: LonLat = [7.4215, 43.7355];
+    expect(hostAtPoint(MONACO)).toBe('MCO');
+    expect(hostAmongCountries(MONACO, new Set(['FRA']))).toBe('');
+    expect(hostAmongCountries(MONACO, new Set(['FRA', 'MCO']))).toBe('MCO');
   });
 });
