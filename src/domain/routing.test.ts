@@ -498,6 +498,15 @@ describe('the pulled thread', () => {
     return turns + 2;
   };
 
+  /** Two lands touching by a corner are a strait at this mesh, the Gulf of Suez among them: a
+   *  hull goes through. Shutting such corners sent Alexandria round the Cape to Aden (#231). */
+  it('sails a strait whose banks touch by a corner: Alexandria to Aden by Suez', () => {
+    const route = computeRoute(baked, [29.8, 31.3], [45.2, 12.6], 'naval');
+    expect(route).not.toBeNull();
+    // By Suez about thirty units; round the Cape more than two hundred.
+    expect(route!.distanceUnits).toBeLessThan(40);
+  });
+
   it('goes straight from Paris to Berlin', () => {
     const route = computeRoute(baked, [2.35, 48.85], [13.4, 52.5], 'land');
     expect(route).not.toBeNull();
