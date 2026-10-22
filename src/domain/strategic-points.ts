@@ -15,9 +15,9 @@ export const STRATEGIC_POINTS = {
   narvik: [17.43, 68.44],
   lisbon: [-9.14, 38.72],
   baku: [49.87, 40.41],
-  /** Posés sur la terre ferme que la grille de route connaît : le cap de Dakar tombe dans la mer
-   *  de la maille (20 km), et l'île de Singapour n'y est pas du tout — sa rive de Johor, à 21 km,
-   *  est la plus proche cellule qu'une colonne peut atteindre à pied. */
+  /** Le cap de Dakar tombe dans la mer de la maille (20 km) : le point est posé sur la terre
+   *  ferme. Singapour se lit sur l'atlas (#224) : le point est sur l'île, dans SGP-4872, et une
+   *  colonne n'y va pas à pied depuis Johor. */
   dakar: [-17.25, 14.7],
   singapore: [103.7, 1.4],
 } as const satisfies Record<string, LonLat>;

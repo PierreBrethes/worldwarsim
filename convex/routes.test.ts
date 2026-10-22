@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from '../src/domain/geo';
 import { homeCountryOf, pointOfBuilding, regionFacts } from './regions';
-import { goalCellsForRegions, regionAtRoutePoint } from './regionGeometry';
+import { goalCellsForRegions, regionAtPoint } from './regionGeometry';
 import {
   STRATEGIC_POINTS,
   STRATEGIC_POINT_KEYS,
@@ -247,11 +247,12 @@ describe('the strategic points of the test season', () => {
     lisbon: 'PRT',
     baku: 'AZE',
     dakar: 'SEN',
-    singapore: 'MYS',
+    /** L'île, et non plus sa rive de Johor : l'atlas lui rend sa terre (#224). */
+    singapore: 'SGP',
   };
 
   it.each(STRATEGIC_POINT_KEYS)('sets %s on land, in a region of its own country', (key) => {
-    const regionId = regionAtRoutePoint(STRATEGIC_POINTS[key]);
+    const regionId = regionAtPoint(STRATEGIC_POINTS[key])?.id ?? null;
     expect(regionId).not.toBeNull();
     expect(regionFacts(regionId!)!.country).toBe(COUNTRY[key]);
   });

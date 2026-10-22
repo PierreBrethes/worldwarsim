@@ -129,6 +129,14 @@ describe('the seven points of a Mondiale', () => {
     }
   });
 
+  /** **Singapour sur son île** (#224) : la région se lit sur l'atlas, et non sur la cellule de
+   *  Johor que la grille de 25 km lui prête. */
+  it('lays Singapore in the island state, not on the shore of Johor', async () => {
+    const t = boot();
+    await launched(t);
+    expect((await pointCalled(t, 'singapore')).regionId).toBe('SGP-4872');
+  });
+
   it('are not laid out in a Blitz', async () => {
     const t = boot();
     await launched(t, 'blitz');
