@@ -4498,6 +4498,7 @@ export const fr = {
   placing: {
     hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
+    coastPending: 'la côte arrive sur la carte — un instant',
   },
 
   construction: {
@@ -4739,6 +4740,8 @@ export function aimRefusalText(
   switch (refusal.code) {
     case 'NO_GROUND':
       return fr.placing.noGround;
+    case 'COAST_PENDING':
+      return fr.placing.coastPending;
     case 'OUT_OF_REACH':
       return errors.OUT_OF_OUTPOST_REACH({
         reachKm: reach.widestKm,

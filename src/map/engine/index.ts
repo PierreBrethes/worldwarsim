@@ -145,6 +145,9 @@ const SHORE_PROBES = 8;
 const HOVERED_LIFT = 0.35;
 const SELECTED_LIFT = 0.75;
 
+/** @a-mesurer Délai avant de redemander `/coast.json` après un échec. */
+const COAST_RETRY_MS = 3000;
+
 /**
  * What picking reports from the acting click — whichever button the player put `act` on
  * (`MouseMapping`). `country` is null on the open sea; `region` is null there too, and
@@ -165,7 +168,8 @@ export type PlacingMagnet =
 export type PlacingSpot = {
   readonly lonLat: LonLat;
   readonly region: RegionIdentity | null;
-  readonly coastal: boolean;
+  /** `null` until `/coast.json` has landed: no verdict on a coast the board has not read. */
+  readonly coastal: boolean | null;
 };
 
 export type MapActClick = {
@@ -2241,29 +2245,45 @@ export class MapEngine {
       return regionId ? this.regions.identityOf(regionId) : null;
     };
     const region = this.regionAtLonLat(lonLat) ?? shore();
+    if (this.coast === null && this.placing?.magnet.kind === 'coast') this.loadCoast();
     return {
       lonLat,
       region,
       coastal:
-        this.coast !== null && region !== null && onRegionCoast(this.coast, lonLat, region.id),
+        this.coast === null
+          ? null
+          : region !== null && onRegionCoast(this.coast, lonLat, region.id),
     };
   }
 
   private coast: Coast | null = null;
   private coastLoading = false;
+  /** Après un échec, le prochain essai attend ce délai : la visée le redemande à chaque pas. */
+  private coastRetryAt = 0;
 
-  /** La côte de mer ouverte (`public/coast.json`, 0,5 Mo gzip), lue au premier port tenu. */
+  /**
+   * La côte de mer ouverte (`public/coast.json`, 0,5 Mo gzip), lue au premier port tenu. Tant
+   * qu'elle n'est pas là le fantôme du port n'a pas de verdict (`coastal: null`) ; un échec se
+   * retente (`COAST_RETRY_MS`) au prochain point visé.
+   */
   private loadCoast(): void {
-    if (this.coast !== null || this.coastLoading) return;
+    if (this.coast !== null || this.coastLoading || performance.now() < this.coastRetryAt) return;
     this.coastLoading = true;
     fetch('/coast.json')
-      .then((response) => response.json())
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+      })
       .then((asset) => {
         this.coast = decodeCoast(asset, PROJECTION);
+        const held = this.ghost.spot;
+        if (this.placing !== null && held !== null) this.onPlacingAim(this.placingSpotAt(held));
         this.hoverDirty = true;
         this.invalidate();
       })
-      .catch(() => {})
+      .catch(() => {
+        this.coastRetryAt = performance.now() + COAST_RETRY_MS;
+      })
       .finally(() => (this.coastLoading = false));
   }
 

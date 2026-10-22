@@ -259,13 +259,14 @@ export const PLACING_SNAP_KM = 60;
 export type Aim = {
   readonly lonLat: LonLat;
   readonly region: { readonly id: string; readonly name: string; readonly country: string } | null;
-  readonly coastal: boolean;
+  /** `null`: the coast has not reached the board yet, so a port has no verdict (`COAST_PENDING`). */
+  readonly coastal: boolean | null;
 };
 
 /** What the ghost says before the click: `null` refusal is a point the server takes. */
 export type AimVerdict = {
   readonly refusal:
-    | { readonly code: 'NO_GROUND' }
+    | { readonly code: 'NO_GROUND' | 'COAST_PENDING' }
     | { readonly code: Exclude<PlacementRefusal, 'TOO_CLOSE'> }
     | { readonly code: 'TOO_CLOSE'; readonly near: BuildingKey; readonly km: number }
     | null;
@@ -342,6 +343,7 @@ export function aimVerdict(
     settlesDebt(due, { key, deposit: deposit?.deposit ?? null }),
   );
   if (aim.region === null) return { refusal: { code: 'NO_GROUND' }, free };
+  if (key === 'port' && aim.coastal === null) return { refusal: { code: 'COAST_PENDING' }, free };
   const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
   const around = aroundOf(view);
   const spot = {
@@ -350,7 +352,7 @@ export function aimVerdict(
       deposit === null
         ? null
         : { key: deposit.deposit, taken: !freeDeposits(view).includes(deposit) },
-    coastal: aim.coastal,
+    coastal: aim.coastal === true,
     nearest: nearestBuilding(aim.lonLat, around),
     already:
       view.me.buildings.some((building) => building.key === key && building.captured !== true) ||
