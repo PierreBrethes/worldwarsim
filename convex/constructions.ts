@@ -624,9 +624,14 @@ async function refusalFor(
   /**
    * **The point lies in the region named with it** (`pointInRegion`): the region carries the
    * colour and the surveys, so a twisted client must not pick it. A raise is not asked: its
-   * point was checked once.
+   * point was checked once. The region's own open-sea coast is in it too: a quay on a small
+   * island (Lampedusa, Key West) sits where the 25 km raster has no land.
    */
-  if (standing === undefined && !pointInRegion(lonLat, region)) {
+  if (
+    standing === undefined &&
+    !pointInRegion(lonLat, region) &&
+    !isOnRegionCoast(lonLat, regionId)
+  ) {
     return { code: 'POINT_OUTSIDE_REGION', details: { regionId } };
   }
 

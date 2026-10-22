@@ -46,6 +46,10 @@ import {
 import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
 import { clipToStorage, settle } from './resources';
 import schema from './schema';
+import { decodeCoast, nearestCoast, type CoastAsset } from '../src/domain/coast';
+import coastAsset from '../public/coast.json';
+import projectionAsset from '../public/projection.json';
+import type { Projection } from '../src/domain/world';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn, unclocked, pointIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
@@ -558,6 +562,39 @@ describe('placement', () => {
       await expect(order('barracks')).rejects.toThrow('NOT_ON_LAND');
       await expect(order('port')).rejects.toThrow('NOT_COASTAL');
     });
+
+    /** **Une île est dans sa région** (#221) : sur le raster de 25 km, Lampedusa, Key West ou
+     *  Hachijō-jima n'ont pas de terre, mais leur côte est celle de leur région. La porte ne dit
+     *  jamais `POINT_OUTSIDE_REGION` pour elles (la portée dit son mot, plus loin). */
+    it.each([
+      ['ITA-5417', [12.6, 35.51]],
+      ['USA-3542', [-81.8, 24.55]],
+      ['JPN-1860', [139.79, 33.1]],
+    ] as const)(
+      'does not call the island coast of %s outside its region',
+      async (regionId, near) => {
+        const coast = decodeCoast(
+          coastAsset as CoastAsset,
+          projectionAsset as unknown as Projection,
+        );
+        const shore = nearestCoast(coast, [...near], 30, regionId)!.lonLat;
+        const t = boot();
+        const seat = await launchedSeason(t);
+        await promoteHq(t, seat, 2);
+        const refusal = await t
+          .mutation(api.constructions.start, {
+            ...seat,
+            building: 'port',
+            regionId,
+            point: { lon: shore[0], lat: shore[1] },
+          })
+          .then(
+            () => '',
+            (error: Error) => error.message,
+          );
+        expect(refusal).not.toContain('POINT_OUTSIDE_REGION');
+      },
+    );
 
     it('refuses a point that does not lie in the country of its region', async () => {
       const t = boot();
