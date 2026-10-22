@@ -179,6 +179,17 @@ describe('une route vers des régions', () => {
     expect(planned!.regionId).toBe('MLT-5950');
   });
 
+  /** **Malte par la mer** (#224) : la plage de l'atlas est un but de coque, et une colonne qui
+   *  s'y tient est déjà chez elle — le retour d'une caisse ramassée là. */
+  it('atteint Malte par la mer, et s’y sait arrivée', () => {
+    const TOULON: LonLat = [5.93, 43.1];
+    const sailed = routeToRegions(TOULON, [facts('MLT-5950')], 'combined');
+    expect(sailed?.regionId).toBe('MLT-5950');
+
+    const standing = routeToRegions([14.421, 35.906], [facts('MLT-5927')], 'land');
+    expect(standing).toMatchObject({ kind: 'standing', regionId: 'MLT-5927' });
+  });
+
   /**
    * **Un ancrage s'ajoute, il n'écrase pas.** Westminster n'a qu'une cellule, et GBR-2079 s'y
    * ancre : au départage par identifiant, le plus petit gagnait et la capitale du Royaume-Uni

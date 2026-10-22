@@ -89,7 +89,7 @@ export function routeToRegions(
     }
   | null {
   const regionIds = new Set(regions.map((region) => region.id));
-  const here = regionAtRoutePoint(from);
+  const here = regionAtPoint(from)?.id ?? null;
   if (here !== null && regionIds.has(here))
     return { kind: 'standing', regionId: here, point: from };
 
@@ -113,7 +113,12 @@ export function routeToRegions(
      * Chercher un franchissement dans le raster n'en trouverait aucun et refuserait la livraison.
      */
     if (goal.point !== undefined) {
-      if (mode !== 'air' && !isLandCell(grid, goal.point)) continue;
+      /** A hull reaches the beach the atlas gives an islet: Malta by sea (#224). */
+      const reachable =
+        mode === 'air' ||
+        isLandCell(grid, goal.point) ||
+        (mode !== 'land' && isLandingShore(grid, coastOf(), goal.point));
+      if (!reachable) continue;
       const completed = extendRouteSearch(grid, search, goal.point);
       return { kind: 'route', regionId: goal.regionId, point: goal.point, route: completed.route };
     }
