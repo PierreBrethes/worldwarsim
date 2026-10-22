@@ -3,7 +3,15 @@ import { readFileSync } from 'node:fs';
 import { decodeAtlas } from '@/domain/atlas';
 import type { World } from '@/domain/world';
 import projection from '../../../public/projection.json';
-import { COAST_FLOOR_PX, coastLines, coastWidthPx, levelAt } from './countries';
+import {
+  COAST_FLOOR_PX,
+  COUNTRY_BORDER_MAX,
+  COUNTRY_BORDER_REST,
+  coastLines,
+  coastWidthPx,
+  levelAt,
+} from './countries';
+import { FULL_OPACITY } from './regions';
 import { WorldFrame } from './frame';
 
 describe('the coast', () => {
@@ -60,5 +68,12 @@ describe('levelAt', () => {
     expect(levelAt('far', 34)).toBe('near');
     expect(levelAt('near', 36)).toBe('near');
     expect(levelAt('near', 38)).toBe('far');
+  });
+});
+
+describe('the borders', () => {
+  it('keeps the country border darker than the region border, at rest and at its fullest', () => {
+    expect(COUNTRY_BORDER_REST).toBeGreaterThan(FULL_OPACITY);
+    expect(COUNTRY_BORDER_MAX).toBeGreaterThanOrEqual(COUNTRY_BORDER_REST);
   });
 });

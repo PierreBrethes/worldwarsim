@@ -90,6 +90,8 @@ import { PALETTE } from './palette';
 import {
   buildCountries,
   coastWidthPx,
+  COUNTRY_BORDER_MAX,
+  COUNTRY_BORDER_REST,
   levelAt,
   levelOf,
   sheetData,
@@ -2793,8 +2795,11 @@ export class MapEngine {
     this.sea?.fade(distance);
     this.sheet.borders.material.opacity =
       distance < REGIONS_GONE_DISTANCE
-        ? Math.min(0.95, 0.62 + (REGIONS_GONE_DISTANCE - distance) * 0.007)
-        : 0.62;
+        ? Math.min(
+            COUNTRY_BORDER_MAX,
+            COUNTRY_BORDER_REST + (REGIONS_GONE_DISTANCE - distance) * 0.006,
+          )
+        : COUNTRY_BORDER_REST;
     this.sheet.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
     const detail = this.nearLevel === null ? 'far' : levelAt(this.detail, distance);
     if (detail !== this.detail) {

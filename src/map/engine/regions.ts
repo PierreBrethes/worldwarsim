@@ -24,11 +24,12 @@ type Sheet = Pick<WorldFrame, 'centerX' | 'centerY'>;
 export const REGIONS_FULL_DISTANCE = 30;
 export const REGIONS_GONE_DISTANCE = 65;
 /**
- * Well under the country borders' opacity (0.62 at rest, reinforced at zoom), and dotted as on
+ * Well under the country borders' opacity (0.5 at rest, reinforced at zoom), and dotted as on
  * the prototype (`table-etat-major`, P:329): the hierarchy between country and region goes
  * through the ink and the dash, WebGL drawing both one pixel wide.
  */
-const FULL_OPACITY = 0.38;
+/** @a-mesurer */
+export const FULL_OPACITY = 0.22;
 /** The prototype's two inked for one blank, in screen pixels so the rhythm holds at any zoom. */
 const DASH_PX = 4;
 const GAP_PX = 2;
