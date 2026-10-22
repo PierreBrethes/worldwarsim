@@ -698,7 +698,7 @@ export class MapEngine {
     );
     this.reach = new ReachRing(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
-    this.ghost = new PlacingGhost(this.frame);
+    this.ghost = new PlacingGhost(this.frame, this.touch);
     this.standing = new StandingLayer(
       this.frame,
       () => this.landed(),
@@ -2265,6 +2265,7 @@ export class MapEngine {
     this.ink.motion = motion;
     this.parachutes.motion = motion;
     this.maquettes.motion = motion;
+    this.ghost.motion = motion;
   }
 
   /**
@@ -2321,6 +2322,7 @@ export class MapEngine {
     this.invalidate();
     if (refused === this.placingRefused) return;
     this.placingRefused = refused;
+    this.ghost.refuse(refused);
     this.refreshCursor();
   }
 
