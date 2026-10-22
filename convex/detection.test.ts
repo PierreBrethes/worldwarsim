@@ -964,13 +964,9 @@ describe('what a sighting serves of the thread', () => {
 
     const [seen] = (await t.query(api.view.playerView, guest)).detected;
     const served = seen!.points.map((point): LonLat => [point.lon, point.lat]);
-    expect(seen!.headingDegrees).toBeCloseTo(
-      bearingDegrees(served[served.length - 2]!, served[served.length - 1]!),
-      6,
-    );
-    // Due east, on a thread that runs due east.
-    expect(seen!.headingDegrees).toBeGreaterThan(80);
-    expect(seen!.headingDegrees).toBeLessThan(100);
+    // Due east, on a thread that runs due east — said on the eight-point rose (#231).
+    expect(bearingDegrees(served[served.length - 2]!, served[served.length - 1]!)).not.toBe(90);
+    expect(seen!.headingDegrees).toBe(90);
   });
 
   /** « Cap sur moi » sans destination : le cap prolongé sur ce qu'il reste à marcher tombe dans
