@@ -208,7 +208,6 @@ export type CompassTarget =
  */
 export type CompassPictogram =
   | 'cabin'
-  | 'crane'
   | 'anchor'
   | 'helmet'
   | 'propeller'
@@ -216,8 +215,7 @@ export type CompassPictogram =
   | 'pennant'
   | 'post'
   /** L'élévation : le chevron sur ses deux assises — « un étage de plus », lisible à quinze
-   *  pixels (tranché le 01/09). Le mât de la grue reste à « Bâtir ici » : poser et monter sont
-   *  deux verbes, et deux dessins. */
+   *  pixels (tranché le 01/09). */
   | 'chevron'
   /** « Entrer en garnison » (64b, 69a) : la hutte de la marche, **porte ouverte** — la même
    *  famille que `cabin`, et ce qui les sépare est exactement ce qui sépare les deux ordres :
@@ -229,7 +227,7 @@ export type CompassPictogram =
    *  le libellé change avec la nature du bâtiment visé. */
   | 'sabotage'
   /** « Raser » : le mur qui s'écroule, ses moellons en l'air. Rien de la torche du sabotage —
-   *  on n'incendie pas chez soi, on démonte — et rien de la grue, qui bâtit. */
+   *  on n'incendie pas chez soi, on démonte */
   | 'rubble'
   /** Le métier de relais : le mât et son onde qui part. C'est ce que le point *fait* — il
    *  relaie — et non ce qu'il est, que la hutte dit déjà. */
@@ -272,15 +270,6 @@ export type CompassAction =
       readonly boardNeed?: number;
       /** **Joining one of my piles**: `formed` when it stood alone — the squad is born. */
       readonly join?: { readonly formed: boolean; readonly pieces: number };
-    }
-  | {
-      readonly key: 'build';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly regionId: string;
-      readonly regionName: string;
     }
   /**
    * **Fonder, au clic droit sur la pile qui fonde** (décision Pierre, 29/08). Le geste a quitté la

@@ -49,7 +49,7 @@ describe('readsFirst', () => {
   });
 
   it('laisse agir au premier toucher, sous le seuil, celles qui ouvrent leur confirmation', () => {
-    for (const key of ['aim', 'plunder', 'collect', 'build', 'demolish', 'dismantle'] as const)
+    for (const key of ['aim', 'plunder', 'collect', 'demolish', 'dismantle'] as const)
       expect(readsFirst(of(key), true)).toBe(false);
   });
 

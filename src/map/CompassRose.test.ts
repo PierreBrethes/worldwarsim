@@ -50,9 +50,9 @@ describe('readsFirst', () => {
     },
   );
 
-  /** Viser, piller, ramasser ouvrent un aperçu qui confirme ; bâtir un panneau ; raser et
+  /** Viser, piller, ramasser ouvrent un aperçu qui confirme ; raser et
    *  démanteler leur carte : un second toucher n'y protégerait rien. */
-  it.each(['aim', 'plunder', 'collect', 'build', 'demolish', 'dismantle'] as const)(
+  it.each(['aim', 'plunder', 'collect', 'demolish', 'dismantle'] as const)(
     'laisse %s agir au premier toucher, sous le seuil',
     (key) => {
       expect(readsFirst(action(key), true)).toBe(false);

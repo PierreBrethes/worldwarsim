@@ -4341,8 +4341,6 @@ export const fr = {
     bombard: 'bombarder',
     bombardConsequence: (km: number) =>
       `Tir indirect à ${km} km, sur-le-champ : la cible ne peut pas répondre. Puis la pièce recharge.`,
-    build: 'Bâtir ici',
-    buildConsequence: (region: string) => `Ouvre ce qui peut se poser en ${region}.`,
     /** La fondation a quitté la fenêtre de garnison pour le clic droit (décision du 29/08) :
      *  c'est un ordre donné à une troupe sur la carte, pas une ligne d'un formulaire. */
     found: 'Fonder un avant-poste',

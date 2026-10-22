@@ -55,6 +55,12 @@ les exceptions déclarées.
 - **La capture et la frappe** visent un bâtiment par son point. Une région capturée l'est
   toujours par ce qui s'y tient.
 
+## Précisée le 22/10/2026
+
+Le clic droit ne propose plus « Bâtir ici », ni sur une région ni sur un mât (retour de Pierre,
+#228) : bâtir passe seulement par le plateau personnel. « Raser » et « démanteler » restent dans
+la rose.
+
 ## Ce qu'on abandonne
 
 - **Une bâtisse par région**, et avec elle la séparation géographique automatique de la mine et

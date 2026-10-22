@@ -1057,11 +1057,6 @@ function BoardContent({
         );
       };
       switch (action.key) {
-        case 'build':
-          setBuildingSite({ regionId: action.regionId, x: at.x, y: at.y });
-          /** La feuille de construction couvre la moitié basse : le point visé remonte. */
-          if (narrow) setReveal({ ...at, floor: sheetHeight('half'), nonce: Date.now() });
-          return;
         /**
          * **L'élévation part de la carte, par la mutation d'`UpgradeControl` et pas une autre**
          * (décisions 54a et 57a). Le doublon est assumé — monter un niveau se fait ici et dans

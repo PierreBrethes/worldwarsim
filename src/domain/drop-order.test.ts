@@ -14,7 +14,7 @@ const fan = (actions: CompassAction[], refusal: string | null = null): Compass =
 describe('dropReadingOf', () => {
   it('gives the orders a dropped pile can carry out, in the rose order', () => {
     const reading = dropReadingOf(
-      fan([branch('aim', 'marcher'), branch('build'), branch('found'), branch('capture')]),
+      fan([branch('aim', 'marcher'), branch('upgrade'), branch('found'), branch('capture')]),
     );
     expect(reading.kind === 'orders' && reading.verbs.map((verb) => verb.label)).toEqual([
       'marcher',
@@ -35,7 +35,7 @@ describe('dropReadingOf', () => {
   });
 
   it('leaves a drop with nothing to do as nothing, not as a refusal', () => {
-    expect(dropReadingOf(fan([branch('build'), branch('upgrade')]))).toEqual({ kind: 'none' });
+    expect(dropReadingOf(fan([branch('demolish'), branch('upgrade')]))).toEqual({ kind: 'none' });
     expect(dropReadingOf(null)).toEqual({ kind: 'none' });
   });
 });
