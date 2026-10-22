@@ -126,7 +126,6 @@ describe('a capture on the poster', () => {
       station: { kind: 'building', buildingId: 'b-mine' },
       stack: { infantry: 1 },
       place: 'Marne',
-      plate: null,
       pieces: { groups: [], troopIds: [], squad: false },
       ink: '#2f4f78',
     };
@@ -160,7 +159,6 @@ describe('posterOf', () => {
       station: { kind: 'building', buildingId: 'b-mine' },
       stack: { infantry: 1 },
       place: 'Marne',
-      plate: null,
       pieces: { groups: [], troopIds: [], squad: false },
       ink: '#2f4f78',
     };
@@ -224,7 +222,6 @@ describe('posterOf', () => {
       station: { kind: 'building', buildingId: 'b-mine' },
       stack: { infantry: 1 },
       place: 'Marne',
-      plate: null,
       pieces: { groups: [], troopIds: [], squad: false },
       ink: '#2f4f78',
     };
@@ -507,7 +504,6 @@ describe('posterOf', () => {
       lonLat: [0, 0],
       name: 'convoi immobilisé',
       tier: 'forces irrégulières légères',
-      plate: null,
       depot: '120 acier',
       emptied: false,
     };

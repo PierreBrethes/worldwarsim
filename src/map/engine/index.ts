@@ -123,6 +123,9 @@ import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
+import { PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
+import type { Pin } from '@/domain/pins';
+import { nationInk } from '@/domain/nations';
 import { TheatreFrame } from './theatre';
 import { CarryVeil } from './veil';
 import type { Theatre } from '@/domain/theatres';
@@ -365,6 +368,9 @@ export class MapEngine {
   private readonly standing: StandingLayer;
   private readonly maquettes: MaquetteLayer;
   private readonly camps: CampLayer;
+  private readonly pins: PinLayer;
+  /** Where the piece in hand is over the board: its pin follows it far away (#234). */
+  private heldGround: Vector3 | null = null;
   private readonly ink: InkLayer;
   private readonly parachutes: ParachuteLayer;
   private readonly reach: ReachRing;
@@ -521,6 +527,18 @@ export class MapEngine {
    * off every piece. A finger has no hover, a press in course or a building held none either.
    */
   onPieceHover?: ((labelId: string | null) => void) | undefined;
+  /** **A cluster opened** (#234) — hovered, or touched — where its sheet hangs; `null` closes it. */
+  onClusterOpen?:
+    | ((
+        cluster: {
+          readonly ids: ReadonlyArray<string>;
+          readonly clientX: number;
+          readonly clientY: number;
+        } | null,
+      ) => void)
+    | undefined;
+  /** The cluster whose sheet is open, by its pieces: hovering it again opens nothing new. */
+  private openedCluster: string | null = null;
   /** A clean press on a piece the canvas drew: its label answers it as if it had been pressed
    *  itself, and says whether it did — `false` lets the board read the press. */
   onPiecePress?: ((press: PiecePress) => boolean) | undefined;
@@ -698,6 +716,13 @@ export class MapEngine {
     this.ambience.add(this.maquettes.smoke);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
+    this.pins = new PinLayer(
+      this.frame,
+      (regionId) => this.regions.anchorOf(regionId),
+      this.touch,
+      () => this.invalidate(),
+    );
+    this.scene.add(this.pins.group);
     this.scene.add(this.ink.group);
     this.parachutes = new ParachuteLayer(this.frame);
     this.scene.add(this.parachutes.group);
@@ -1028,6 +1053,18 @@ export class MapEngine {
     this.camps.display(camps);
   }
 
+  /** **Au loin, chaque pièce est une épingle** (#234) : celles que la vue sert, par étiquette. */
+  displayPins(pins: ReadonlyArray<Pin>): void {
+    this.invalidate();
+    this.pins.display(pins);
+  }
+
+  /** **The designated piece far away** — a pile checked, a site opened: a ring at my ink on its pin. */
+  selectPin(labelId: string | null): void {
+    this.invalidate();
+    this.pins.select(labelId, nationInk(this.playerNation));
+  }
+
   setLabelAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
     this.invalidate();
     this.labels.setAnchors(anchors);
@@ -1065,6 +1102,7 @@ export class MapEngine {
     // this their labels would never find their footing.
     this.labels.rebuild();
     this.maquettes.rebuild();
+    this.pins.rebuild();
     // The regions land half a second after the map: without this, hovering only wakes up on
     // the next pointer move, over a layer that is already drawn.
     this.hoverDirty = true;
@@ -1506,6 +1544,7 @@ export class MapEngine {
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
+    this.pins.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
 
@@ -1534,6 +1573,7 @@ export class MapEngine {
     this.standing.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
+    this.pins.dispose();
     this.replay?.scene.dispose();
     this.arcs.dispose();
     this.ink.dispose();
@@ -1559,6 +1599,8 @@ export class MapEngine {
     const canvas = this.renderer.domElement;
     this.controls.addEventListener('change', () => {
       this.invalidate();
+      // The camera moved: the sheet would hang where the cluster no longer stands.
+      this.closeCluster();
       this.hoverDirty = true;
       this.postponeRest();
       // The ground slid under a still pointer: the stop it was on is not the same place.
@@ -1612,11 +1654,7 @@ export class MapEngine {
         fromLabel: false,
         hold: null,
       };
-      this.armCarry(this.gesture, event, () => {
-        if (!this.castAt(event.clientX, event.clientY)) return null;
-        const pick = this.pieceToTake();
-        return pick === null || pick.carried ? null : { kind: 'canvas', pick };
-      });
+      this.armCarry(this.gesture, event, () => this.carryFrom(event.clientX, event.clientY));
       this.armSelection(this.gesture, event);
       this.refreshCursor();
     });
@@ -1800,6 +1838,9 @@ export class MapEngine {
       ?.closest<HTMLElement>('[data-label-id]')?.dataset.labelId;
     if (label !== undefined) return { kind: 'label', labelId: label };
     if (!this.castAt(clientX, clientY)) return null;
+    // Far away a pin is what one drops on, as on its label.
+    const pin = this.pinUnder(this.aim);
+    if (pin?.kind === 'pin') return { kind: 'label', labelId: pin.id };
     const pick = this.standing.pick(this.ray, { under: true });
     // An enemy camp's annotation is aimed at by its label: the rose reads it there (POC, attack).
     const camp = this.camps.under(this.ray);
@@ -1925,6 +1966,9 @@ export class MapEngine {
       this.hoverDirty = false;
       this.updateHover();
     }
+    if (press.picks && this.approachClusterAt(event.clientX, event.clientY, gesture.pointerType))
+      return;
+    this.closeCluster();
     if (press.picks && this.pickAt(event, gesture.single === true)) return;
     if (this.pressPiece(event, press)) return;
     if (press.reads) this.readAt();
@@ -1983,7 +2027,7 @@ export class MapEngine {
   private pressPiece(event: PointerEvent, press: CleanPress): boolean {
     if (this.onPiecePress === undefined || this.placing !== null) return false;
     if (!this.castAt(event.clientX, event.clientY)) return false;
-    const labelId = this.pieceUnder()?.id;
+    const labelId = this.pieceUnder(this.aim)?.id;
     if (labelId === undefined) return false;
     return this.onPiecePress({
       labelId,
@@ -2012,12 +2056,75 @@ export class MapEngine {
       this.arcs.boxOf(labelId) ??
       this.maquettes.boxOf(labelId);
     return box === null || box.isEmpty()
-      ? null
+      ? this.pins.rectOf(labelId)
       : screenRect(box, this.eye, this.screenWidth, this.screenHeight);
   }
 
+  /** The pin under a point of the screen, in device coordinates; a pin is drawn over everything. */
+  private pinUnder(ndc: Vector2): PinHit | null {
+    return this.pins.under(
+      ((ndc.x + 1) / 2) * this.screenWidth,
+      ((1 - ndc.y) / 2) * this.screenHeight,
+    );
+  }
+
+  /** **What a press on the canvas would carry**: the figurine under it, or far away its pin. */
+  private carryFrom(clientX: number, clientY: number): CarryTarget | null {
+    if (!this.castAt(clientX, clientY)) return null;
+    const pick = this.pieceToTake();
+    if (pick !== null) return pick.carried ? null : { kind: 'canvas', pick };
+    return this.pileOfPin(this.pinUnder(this.aim));
+  }
+
+  /** A pin of one of my piles carries it, as its label does. */
+  private pileOfPin(pin: PinHit | null): CarryTarget | null {
+    return pin?.kind === 'pin' && this.standing.pileOfLabel(pin.id) !== null
+      ? { kind: 'label', labelId: pin.id }
+      : null;
+  }
+
+  /** **A cluster is not lifted, it is approached** (#234): the camera comes down until it opens. */
+  approachCluster(ids: ReadonlyArray<string>): void {
+    this.invalidate();
+    this.closeCluster();
+    this.journeyTo(ids, [], 0, PIN_APPROACH_DISTANCE);
+  }
+
+  /** A click on a cluster approaches it; a finger, which has no hover, opens its sheet. */
+  private approachClusterAt(clientX: number, clientY: number, pointerType = 'mouse'): boolean {
+    // A piece in hand puts down on a cluster: it is a place like any other.
+    if (this.held !== null || !this.castAt(clientX, clientY)) return false;
+    const pin = this.pinUnder(this.aim);
+    if (pin?.kind !== 'cluster') return false;
+    if (pointerType === 'touch') this.openCluster(pin);
+    else this.approachCluster(pin.ids);
+    return true;
+  }
+
+  private openCluster(cluster: Extract<PinHit, { kind: 'cluster' }>): void {
+    const key = cluster.ids.join(' ');
+    if (key === this.openedCluster) return;
+    this.openedCluster = key;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    this.onClusterOpen?.({
+      ids: cluster.ids,
+      clientX: box.left + cluster.x,
+      clientY: box.top + cluster.y,
+    });
+  }
+
+  /** Its sheet closed: the next hover over the cluster opens it again. */
+  closeCluster(): void {
+    this.invalidate();
+    if (this.openedCluster === null) return;
+    this.openedCluster = null;
+    this.onClusterOpen?.(null);
+  }
+
   /** Every piece the canvas draws, nearest first: they stand in front of the regions they are on. */
-  private pieceUnder(): PieceHit | null {
+  private pieceUnder(ndc: Vector2 = this.pointer): PieceHit | null {
+    const pin = this.pinUnder(ndc);
+    if (pin !== null) return pin.kind === 'pin' ? { id: pin.id, distance: 0 } : null;
     return [
       this.standing.under(this.ray),
       this.camps.under(this.ray),
@@ -2569,7 +2676,12 @@ export class MapEngine {
     const touched = hit?.country;
     const pointing =
       onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
+    const pin = pointing ? this.pinUnder(this.pointer) : null;
     const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
+    this.pins.hover(pin?.kind === 'pin' ? pin.id : null);
+    // Hovered, a cluster opens its sheet; another piece under the pointer closes it.
+    if (pin?.kind === 'cluster') this.openCluster(pin);
+    else if (pin !== null) this.closeCluster();
     if (label !== this.hoveredLabel) {
       this.hoveredLabel = label;
       this.onPieceHover?.(label);
@@ -2578,11 +2690,16 @@ export class MapEngine {
     // The piece stands in front of its region: the region is not what the pointer is on.
     if (!this.fingerOnBoard || this.regionTapped) {
       this.regionTapped = false;
-      this.updateRegionHover(label === null ? (hit?.point ?? null) : null);
+      this.updateRegionHover(label === null && pin === null ? (hit?.point ?? null) : null);
     }
 
     const take = !this.fingerOnBoard && onScreen ? this.pieceToTake() : null;
-    const piece = take !== null ? PIECE_CURSOR : label !== null ? 'pointer' : null;
+    const piece =
+      take !== null || this.pileOfPin(pin) !== null
+        ? PIECE_CURSOR
+        : label !== null || pin !== null
+          ? 'pointer'
+          : null;
     const hoveredPile =
       this.held !== null || take === null || take.carried === true ? null : take.pileId;
     if (hoveredPile !== this.hoveredPile) {
@@ -2596,6 +2713,7 @@ export class MapEngine {
     if (this.held !== null) {
       const ground = onScreen && !this.fingerOnBoard ? this.sheetPoint() : null;
       this.standing.carryTo(ground ?? null);
+      this.heldGround = ground ?? null;
     }
 
     const arc = this.fingerOnBoard || !onScreen ? null : this.arcs.hover(this.ray);
@@ -2624,7 +2742,9 @@ export class MapEngine {
 
     this.hovered = touched ?? null;
     const adm0 =
-      this.fingerOnBoard || label !== null ? null : (this.hovered?.userData.adm0 ?? null);
+      this.fingerOnBoard || label !== null || pin !== null
+        ? null
+        : (this.hovered?.userData.adm0 ?? null);
     if (adm0 !== this.hoveredCountry) {
       this.hoveredCountry = adm0;
       this.onCountryHover(adm0);
@@ -2776,6 +2896,15 @@ export class MapEngine {
     this.veil.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw);
+    this.pins.hold(this.held?.pileId ?? null, this.held === null ? null : this.heldGround);
+    this.pins.layout(
+      this.eye,
+      this.screenWidth,
+      this.screenHeight,
+      this.arcs.headPositions,
+      this.arcs.aheadPositions,
+      this.camera.position,
+    );
     this.clearReplayGround();
     this.renderer.shadowMap.needsUpdate = whole;
     const shadowed = this.lamp.follow(this.controls.target, distance);
@@ -2791,6 +2920,7 @@ export class MapEngine {
         const lit = (at: Vector3, radius: number, near: number) => this.halos.add(at, radius, near);
         this.standing.lights(lit);
         this.maquettes.lights(lit);
+        this.pins.lights(lit, this.unitsPerPixel(distance));
         this.halos.end(night);
       } else this.halos.hide();
     }

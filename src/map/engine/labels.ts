@@ -7,30 +7,10 @@ import { nearWeight } from './figurines/figurine';
 /**
  * Beyond this, a label falls back to the glyph alone. A single named threshold: it is the
  * only level-of-detail setting, and it can be tuned without reading the rest of the file.
- *
- * It governs the **plate as well as the text** — the building's picture hangs inside
- * `.label-block`, which is what the glyph level fades out. Raised from 110 to 220 so a nation
- * reads its own buildings without diving onto them: the plate keeps its 46 px whatever the
- * distance, so what a farther camera buys is more buildings on screen, not smaller ones. The
- * overlap degradation is what keeps the crowd readable, and it folds buildings first — they
- * are the lowest priority, being the only labels that never move.
+ * The overlap degradation is what keeps the crowd readable, and it folds buildings first —
+ * they are the lowest priority, being the only labels that never move.
  */
 export const LABEL_EXPANDED_DISTANCE = 220;
-
-const PLATE_FLOOR = 0.4;
-const PLATE_SHRINK_DISTANCE = 300;
-
-/**
- * A folded building keeps its plate at any distance, but the buildings of one nation fall within
- * a few pixels of each other at world scale: five plates of 46 px piled into one giant
- * building. Past the expanded threshold the plate shrinks with the camera's distance, so the
- * pile reads as a cluster of small marks.
- */
-export function plateScale(distance: number): number {
-  const t =
-    (distance - LABEL_EXPANDED_DISTANCE) / (PLATE_SHRINK_DISTANCE - LABEL_EXPANDED_DISTANCE);
-  return 1 - (1 - PLATE_FLOOR) * Math.min(1, Math.max(0, t));
-}
 
 /** The anchor sits on the crust, not above it: the callout must start from the ground it
  *  designates. */
@@ -59,14 +39,14 @@ export type LabelProjection = {
    * and the label stays where it is to take the pointer. `0` for anything not dressed.
    */
   dressed: number;
+  /** **Far away**: the figurines have mostly given way to the pins (`nearWeight` under ½). */
+  far: boolean;
   /** **From the anchor to where its piece is drawn**, in pixels, when a ring carried it off its
    *  point: the fanion stays on the point and a thread of ink runs there. `0, 0` otherwise. */
   drawnX: number;
   drawnY: number;
   /** From the eye to the anchor, in world units — what "nearest" means at the edge. */
   distance: number;
-  /** `1` up close, shrinking beyond the expanded threshold — see `plateScale`. */
-  plateScale: number;
   /**
    * Off-frame: the anchor parks at the screen edge.
    */
@@ -87,6 +67,9 @@ export type NamedAnchor = {
    * enough to build on it.
    */
   readonly withRegionLayer: boolean;
+  /** **A piece the board draws as a pin far away** (#234): there its label says nothing — the
+   *  pin is the piece, as in the mockup — and it parks at no edge either. */
+  readonly pinned?: boolean;
 };
 
 export type EdgeInsets = {
@@ -105,6 +88,7 @@ const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 export class LabelLayer {
   private readonly fixed = new Map<string, Vector3>();
   private readonly withRegions = new Set<string>();
+  private readonly pinned = new Set<string>();
   private readonly projections: LabelProjection[] = [];
   private readonly normalized = new Vector3();
   private readonly gaze = new Vector3();
@@ -134,8 +118,10 @@ export class LabelLayer {
     this.anchors = anchors;
     this.fixed.clear();
     this.withRegions.clear();
+    this.pinned.clear();
     this.projections.length = 0;
-    for (const { id, anchor, withRegionLayer } of anchors) {
+    for (const { id, anchor, withRegionLayer, pinned } of anchors) {
+      if (pinned === true) this.pinned.add(id);
       if (anchor.kind === 'ground') {
         this.fixed.set(id, this.frame.projectLonLat(anchor.lonLat, ANCHOR_ELEVATION));
       }
@@ -153,10 +139,10 @@ export class LabelLayer {
         lod: 'glyph',
         fade: withRegionLayer ? 0 : 1,
         dressed: 0,
+        far: false,
         drawnX: 0,
         drawnY: 0,
         distance: 0,
-        plateScale: 1,
         atEdge: false,
         edgeX: 0,
         edgeY: 0,
@@ -212,12 +198,17 @@ export class LabelLayer {
       const x = (this.normalized.x * 0.5 + 0.5) * width;
       const y = (-this.normalized.y * 0.5 + 0.5) * height;
 
+      projection.far = nearWeight(distance) < 0.5;
+      if (inFrame && projection.far && this.pinned.has(projection.id)) {
+        projection.visible = false;
+        projection.atEdge = false;
+        continue;
+      }
       projection.visible = inFrame;
       projection.distance = distance;
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
-      projection.plateScale = plateScale(distance);
       projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
       const drawn = projection.dressed > 0 ? this.drawnAt(projection.id) : null;
       if (drawn === null) {

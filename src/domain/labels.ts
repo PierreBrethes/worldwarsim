@@ -50,7 +50,6 @@ export type MapMarker =
        *  et la frappe visent. */
       readonly lonLat: LonLat;
       readonly name: string;
-      readonly plate: string | null;
       /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
       readonly washed: boolean;
       /** **Un neutre de la Blitz** (lot 4) : public et jamais délavé ; `null` hors Blitz. */
@@ -88,9 +87,6 @@ export type MapMarker =
       readonly lonLat: LonLat;
       readonly name: string;
       readonly tier: string;
-      /** La planche de l'archétype, `null` tant qu'elle manque — le cadre pointillé et son nom
-       *  prennent alors sa place, jamais une image cassée. */
-      readonly plate: string | null;
       readonly depot: string;
       readonly emptied: boolean;
     }
@@ -153,12 +149,6 @@ export type MapMarker =
       /** What the address is called on the map — `stationNames(view).place`, never a second
        *  naming: the cartouche reads « Piémont · 3 » as « à faire maintenant » does. */
       readonly place: string;
-      /**
-       * The pile's own portrait — the sprite of its majority role, the same plate the garrison
-       * panel shows. `null` for a role its nation has no drawing for; the pictogram stands in
-       * then, and nothing else changes.
-       */
-      readonly plate: string | null;
       /** Its groups of figurines (`pilePieces`), what the board stands up close in its place. */
       readonly pieces: PilePieces;
       /** **Ses transports chargés** (POC du 16/10) : l'étiquette qui pend sous la pile. */
@@ -261,7 +251,7 @@ export type MapMarker =
  * One outpost pictogram whatever the specialization: three drawings for a distinction the
  * label already spells out would cost one more vocabulary to learn, for nothing.
  */
-export type LabelPictogram = 'outpost' | 'stack' | 'construction' | 'objective' | 'strategic';
+export type LabelPictogram = 'outpost' | 'construction' | 'objective' | 'strategic';
 
 /**
  * **The ground a thing covers, in kilometres around a point** — a listening station's radius, a
@@ -442,7 +432,7 @@ export type MapLabel = {
   readonly offensive: boolean;
   /** A finished construction that nothing follows — the oversight the screen edge catches. */
   readonly idle: boolean;
-  /** The works a building's mast carries (`WorkSite`): a pennant far away, the poster's lines. */
+  /** The works on a building's site (`WorkSite`): its maquette's crane up close, the poster's lines. */
   readonly works: WorkSite | null;
   /** The country a click selects; `null` when the label is not clickable. */
   readonly hostCountry: string | null;
@@ -733,7 +723,7 @@ const exists = <T>(value: T | null): value is T => value !== null;
 
 /** Everything hangs from its coordinate — a deposit, a building, a surveyed installation —
  *  save a building the view serves without one. */
-function anchorOf(marker: MapMarker): LabelAnchor {
+export function anchorOf(marker: MapMarker): LabelAnchor {
   if (marker.kind === 'building') {
     return marker.lonLat === null
       ? { kind: 'region', regionId: marker.regionId }
@@ -812,7 +802,6 @@ function markerLabel(marker: MapMarker): MapLabel {
         type: 'installation',
         priority: PRIORITY.installation,
         pictogram: null,
-        plate: marker.plate,
         installation: {
           id: marker.buildingId,
           key: marker.key,
@@ -858,10 +847,9 @@ function markerLabel(marker: MapMarker): MapLabel {
         ...common,
         type: 'objective',
         priority: PRIORITY.objective,
-        /** La planche gagne sur le signe, comme sur un mât de bâtiment ; le pictogramme prend sa
-         *  place tant qu'aucune planche n'est dessinée. */
-        pictogram: marker.plate === null ? 'objective' : null,
-        plate: marker.plate,
+        /** Le signe, jamais la planche : les planches ont quitté la carte (#234). De près, sa
+         *  maquette. */
+        pictogram: 'objective',
         objective: {
           id: marker.objectiveId,
           name: marker.name,
@@ -926,10 +914,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         ...common,
         type: 'stack',
         priority: PRIORITY.stack,
-        // The portrait wins over the sign, exactly as on a building's mast: the plate says
-        // *what* stands there, the pictogram only that something does.
-        pictogram: marker.plate === null ? 'stack' : null,
-        plate: marker.plate,
+        pictogram: null,
         station: marker.station,
         hostCountry: null,
         ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),

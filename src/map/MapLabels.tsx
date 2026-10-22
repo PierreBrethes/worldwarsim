@@ -104,7 +104,6 @@ export function MapLabels({
   labels: served,
   engine,
   selected,
-  selectedPlate,
   secondarySelected,
   onMovementHover,
   onReachHover,
@@ -157,9 +156,6 @@ export function MapLabels({
   /** L'étiquette désignée — une troupe posée, cliquée seule : sa planche prend l'encre du joueur
    *  et rien d'autre ne bouge (décision du 29/08). */
   selected: string | null;
-  /** **La pile mise en avant prend le visage de ce qui est coché** (carte-lisible, 03/10) : un
-   *  char coché dans une garnison d'infanterie se voit char. `null` garde la planche de la pile. */
-  selectedPlate: string | null;
   /** A private crate card may coexist with the armed troop designation. */
   secondarySelected: string | null;
   onMovementHover: (id: string | null) => void;
@@ -387,24 +383,8 @@ export function MapLabels({
       const block = blocks.current.get(label.id);
       const state = states.current.get(label.id);
       if (!block || !state) return [];
-      const words = block.getBoundingClientRect();
-      widths.current.set(label.id, words.width);
-      // La planche d'un site est hors du flux du bloc, et c'est elle qui chevauche : au loin, ou
-      // quand ses mots se taisent, elle est tout ce qu'il montre — tant que la maquette ne l'a
-      // pas remplacée.
-      const plate =
-        groupFar && state.dressed < 1
-          ? block.querySelector('.label-pictogram')?.getBoundingClientRect()
-          : undefined;
-      const rect: ScreenBox =
-        plate === undefined
-          ? words
-          : {
-              left: Math.min(words.left, plate.left),
-              top: Math.min(words.top, plate.top),
-              right: Math.max(words.right, plate.right),
-              bottom: Math.max(words.bottom, plate.bottom),
-            };
+      const rect = block.getBoundingClientRect();
+      widths.current.set(label.id, rect.width);
       return [{ label, state, rect }];
     });
 
@@ -553,8 +533,8 @@ export function MapLabels({
             stagger: 0,
             fade: 1,
             dressed: 0,
+            far: false,
             drawn: '',
-            plateScale: 1,
             hang: '',
             x: 0,
             y: 0,
@@ -589,6 +569,7 @@ export function MapLabels({
         id,
         anchor,
         withRegionLayer: type === 'deposit',
+        pinned: PINNED.has(type),
       })),
     );
   }, [engine, labels]);
@@ -614,6 +595,11 @@ export function MapLabels({
           state.fade = fade;
           anchor.style.opacity = fade === 1 ? '' : String(fade);
         }
+        // Far away a sign weighs what a pin does (#234): the objective's, the point's, the flag's.
+        if (projection.far !== state.far) {
+          state.far = projection.far;
+          anchor.classList.toggle('label-anchor--far', projection.far);
+        }
         // The plate gives way to the figurines standing under it; the label stays to take the pointer.
         const dressed = Math.round(projection.dressed * 20) / 20;
         if (dressed !== state.dressed) {
@@ -637,12 +623,6 @@ export function MapLabels({
           tether.style.display = drawn === '' ? 'none' : '';
           tether.style.width = span;
           tether.style.transform = `rotate(${turn})`;
-        }
-
-        const plate = Math.round(projection.plateScale * 20) / 20;
-        if (plate !== state.plateScale) {
-          state.plateScale = plate;
-          anchor.style.setProperty('--plate-scale', String(plate));
         }
 
         anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
@@ -673,10 +653,10 @@ export function MapLabels({
       const poster = posterAnchor.current;
       const under = place === null ? undefined : states.current.get(place.id);
       if (place !== null && poster !== null && under !== undefined) {
-        poster.style.visibility = under.visible ? '' : 'hidden';
-        // A drawn piece (maquette, figurines, block, pawn) is cleared whole, from its projected
-        // box; far away, where the plate is the piece, the poster hangs from the label.
+        // A drawn piece (maquette, figurines, block, pawn, pin) is cleared whole, from its
+        // projected box; far away a pin's label is hidden, and the poster hangs from the pin.
         const drawn = engine.pieceRect(place.id);
+        poster.style.visibility = under.visible || drawn !== null ? '' : 'hidden';
         // A transport's tag hangs over its piece: the card clears the tag too (POC, `#card`).
         const tag = cargoed.current.has(place.id)
           ? anchors.current.get(place.id)?.querySelector('.cargo-tags')?.getBoundingClientRect()
@@ -795,7 +775,6 @@ export function MapLabels({
     cargoAim,
     holding,
     selected,
-    selectedPlate,
     secondarySelected,
     groupFar,
     muted,
@@ -984,7 +963,6 @@ export function MapLabels({
           key={label.id}
           label={label}
           selected={label.id === selected || label.id === secondarySelected}
-          plate={label.id === selected ? selectedPlate : null}
           cue={cue?.labelId === label.id ? cue.text : null}
           crawl={motion === 'full'}
           muted={muted}
@@ -1004,12 +982,6 @@ export function MapLabels({
           const label = labels.find((candidate) => candidate.id === member);
           return label === undefined ? [] : [label];
         });
-        /** **Une pile de mâts porte leurs planches** (refonte mobile, 1r) : deux, l'une sur
-         *  l'autre — on voit ce qui se tient là avant de compter. */
-        const plates =
-          group.kind === 'building'
-            ? members.flatMap((member) => (member.plate === null ? [] : [member.plate])).slice(0, 2)
-            : [];
         return (
           <div
             key={group.id}
@@ -1044,13 +1016,6 @@ export function MapLabels({
                     : separate(group)
                 }
               >
-                {plates.length > 0 && (
-                  <span className="label-pictogram label-group-plates">
-                    {plates.map((plate, rank) => (
-                      <img key={rank} className="label-plate" src={plate} alt="" />
-                    ))}
-                  </span>
-                )}
                 <span className="label-bar" />
                 <span className="label-lines">
                   <span className="label-line label-line--nature">
@@ -1137,8 +1102,6 @@ type LabelGestures = {
 type LabelNodeProps = {
   readonly label: MapLabel;
   readonly selected: boolean;
-  /** The face the highlighted pile wears in place of its plate; `null` keeps the plate. */
-  readonly plate: string | null;
   readonly cue: string | null;
   readonly crawl: boolean;
   readonly muted: boolean;
@@ -1160,7 +1123,6 @@ type LabelNodeProps = {
 const LabelNode = memo(function LabelNode({
   label,
   selected,
-  plate,
   cue,
   crawl,
   muted,
@@ -1238,21 +1200,6 @@ const LabelNode = memo(function LabelNode({
             register(nodes.blocks.current, label.id, node);
           }}
         >
-          {(label.plate !== null || label.works !== null) && (
-            <span className="label-pictogram">
-              {label.plate !== null && (
-                <img className="label-plate" src={plate ?? label.plate} alt="" />
-              )}
-              {/* Le mode chantier au loin : un fanion ocre sur la planche, ou seul sur le mât
-                  d'un plan en file. L'heure et la barre sont à l'affiche. */}
-              {label.works !== null && (
-                <svg className="label-pennant" viewBox="0 0 16 22" width="16" height="22">
-                  <path className="label-flag-pole" d="M2 1v21" />
-                  <path className="label-pennant-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
-                </svg>
-              )}
-            </span>
-          )}
           {label.type === 'arrival' && (
             <span className="label-flag" aria-hidden>
               <svg viewBox="0 0 16 22" width="16" height="22">
@@ -1556,10 +1503,9 @@ function GroupList({
   );
 }
 
-/** "stack" is the domain's word, "forces" the drawing's — the same thing from two sides. */
+/** What each sign a mast still carries draws. */
 const PICTOGRAM_OF_LABEL: Readonly<Record<LabelPictogram, PictogramName>> = {
   outpost: 'outpost',
-  stack: 'forces',
   construction: 'construction',
   /** Le tas de caisses : un objectif neutre *est* une réserve, et c'est ce que le mât dit tant
    *  que la planche de son archétype n'est pas dessinée. */
@@ -1572,15 +1518,15 @@ type RenderState = {
   visible: boolean;
   lod: DetailLevel;
   folded: boolean;
-  /** Ses mots sont passés dans un cartouche réuni ; sa planche reste. */
+  /** Ses mots sont passés dans un cartouche réuni. */
   grouped: boolean;
   /** De combien son cartouche monte dans l'éventail d'un groupe au plancher du zoom, en pixels. */
   stagger: number;
   fade: number;
   dressed: number;
+  far: boolean;
   /** Where its piece is drawn off its point, as last written: `''` on it. */
   drawn: string;
-  plateScale: number;
   /** Where a transport's tag hangs from, over its figurines, as last written. */
   hang: string;
   x: number;
@@ -1617,6 +1563,23 @@ function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement |
   else map.delete(id);
 }
 
+/**
+ * **Ce que la carte pose en pièce** (#234) : au loin une épingle, de près une figurine ou une
+ * maquette. Leur étiquette ne dessine plus rien à leur pied et laisse le pointeur à la toile ;
+ * seuls ses mots restent à elle.
+ */
+const PINNED: ReadonlySet<MapLabel['type']> = new Set([
+  'stack',
+  'building',
+  'construction',
+  'outpost',
+  'camp',
+  'installation',
+  'my-movement',
+  'inbound-movement',
+  'intel',
+]);
+
 function classesOf(label: MapLabel, selected: boolean): string {
   return [
     'label',
@@ -1624,6 +1587,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
     'label--glyph',
     `label--${label.type}`,
+    PINNED.has(label.type) ? 'label--pinned' : '',
     label.identified ? 'label--identified' : '',
     label.type === 'loot' && !label.lootCurrent ? 'label--loot-stale' : '',
     label.washed ? 'label--washed' : '',

@@ -1049,6 +1049,76 @@ export const benchFlights = internalMutation({
   },
 });
 
+/**
+ * **Les épingles au loin** (#234), pour la démo : `piles` piles d'une infanterie semées sur la
+ * France, une sur deux serrée en Lorraine, du semis `seed` — une mutation a une seconde, la démo
+ * l'appelle par lots. Le dernier appel (`piles: 0`) pose en face trois camps britanniques relevés en
+ * Sarre et en Alsace, un quatrième perdu de vue près de Metz (dernière position connue), et un entrepôt relevé.
+ *
+ * `npx convex run dev:pinsScene '{"playerId":"…","enemyId":"…","piles":100,"seed":1}'`
+ */
+export const pinsScene = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    enemyId: v.id('players'),
+    piles: v.number(),
+    seed: v.number(),
+  },
+  handler: async (ctx, { playerId, enemyId, piles, seed: start }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const { seasonId } = player;
+    const troop = (owner: Id<'players'>, at: { lon: number; lat: number }) =>
+      ctx.db.insert('troops', {
+        seasonId,
+        playerId: owner,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: at,
+      });
+    /** Un semis déterministe : la même démo d'une fois à l'autre. */
+    let seed = 7 + start * 7919;
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    let laid = 0;
+    while (laid < piles) {
+      const lorraine = laid % 2 === 0;
+      const at = lorraine
+        ? { lon: 5.6 + random() * 1.6, lat: 48.4 + random() * 1.0 }
+        : { lon: -1 + random() * 8, lat: 43.6 + random() * 6.4 };
+      if (!nearestRegion([at.lon, at.lat])?.id.startsWith('FRA-')) continue;
+      await troop(playerId, at);
+      laid += 1;
+    }
+    if (piles > 0) return;
+    const now = Date.now();
+    for (const at of [
+      { lon: 7.3, lat: 49.05 },
+      { lon: 7.45, lat: 48.6 },
+      { lon: 7.55, lat: 49.3 },
+    ])
+      await troop(enemyId, at);
+    const lost = await troop(enemyId, { lon: 6.6, lat: 49.3 });
+    const warehouse = nearestRegion([4.8, 50.8]);
+    if (warehouse === null) throw new Error('no region in Belgium');
+    await ctx.db.insert('buildings', {
+      seasonId,
+      playerId: enemyId,
+      key: 'warehouse',
+      regionId: warehouse.id,
+      point: pointOfRegion(warehouse.id),
+      level: 1,
+    });
+    await fileSurvey(ctx, playerId, [{ point: warehouse.point, radiusKm: 1 }], now);
+    await reassessDetection(ctx, seasonId, now - 2 * 3_600_000);
+    /** Parti hors de vue deux heures plus tard : son camp devient une dernière position connue. */
+    await ctx.db.patch(lost, { stationedAt: { lon: 9.5, lat: 52.5 } });
+    await reassessDetection(ctx, seasonId, now);
+    await recordLinkage(ctx, seasonId);
+  },
+});
+
 /** **Un point tenu par la porte du jeu** (`handOver`) : Rangoun au banc et à la démo (#176). */
 export const holdPoint = internalMutation({
   args: { playerId: v.id('players'), key: STRATEGIC_POINT_KEY },

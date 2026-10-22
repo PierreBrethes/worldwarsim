@@ -1,3 +1,5 @@
+import { pinsOf } from '@/domain/pins';
+import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
@@ -65,7 +67,6 @@ import {
   campsOf,
   markerOfStation,
   markersOf,
-  stackOf,
   standingPilesOf,
   type MaquetteAt,
 } from './-plateau/board-markers';
@@ -104,7 +105,6 @@ import {
   hasSiteSheet,
   isProjectionKey,
   marchingTroopIds,
-  representativeRole,
   stationAtCombat,
   stationKeyOf,
   troopsAt,
@@ -113,7 +113,6 @@ import {
 } from '@/domain/troops';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
-import { spriteUrl } from '@/emblems/units/manifest';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
 import { loadGame } from '@/data/loadGame';
@@ -1801,6 +1800,7 @@ function BoardContent({
     return maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me));
   }, [markers, view.objectives, view.me]);
   const camps = useMemo(() => campsOf(markers), [markers]);
+  const pins = useMemo(() => pinsOf(markers, arcs, ink), [markers, arcs, ink]);
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -1817,14 +1817,6 @@ function BoardContent({
       ),
     [column, garrison, garrisonPicked],
   );
-  const highlightPlate = useMemo(() => {
-    if (highlight === null) return null;
-    const chosen = view.me.troops.filter((troop) => highlight.troopIds.includes(troop.id));
-    const face = representativeRole(stackOf(chosen));
-    if (face === null) return null;
-    const tier = chosen.find((troop) => troop.role === face)?.tier ?? 1;
-    return spriteUrl(view.me.nation, face, tier);
-  }, [highlight, view.me]);
 
   /**
    * **Le cercle de détection de la pièce en main** (ADR 0019 §5) : le seul détecteur qui soit
@@ -2251,6 +2243,7 @@ function BoardContent({
                 labels={labels}
                 standing={standing}
                 camps={camps}
+                pins={pins}
                 maquettes={maquettes}
                 held={held}
                 outposts={reachedOutposts}
@@ -2287,7 +2280,6 @@ function BoardContent({
                   highlight?.labelId ??
                   (selectedSite === null ? null : buildingLabelId(selectedSite))
                 }
-                selectedPlate={highlightPlate}
                 selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
                 reach={handReach ?? movementReach}
                 onCountryHover={setHoveredCountry}
@@ -2418,6 +2410,16 @@ function BoardContent({
                   }
                   held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
                   troopIds={hand.troopIds}
+                  onApproach={() => {
+                    const marker = markerOfStation({ me: view.me }, hand.station);
+                    if (marker !== null)
+                      setFocus({
+                        ids: [marker],
+                        lift: sheetLift('half'),
+                        distance: PIN_APPROACH_DISTANCE,
+                        nonce: Date.now(),
+                      });
+                  }}
                   onCompose={compose}
                   onDisembark={(troopIds) =>
                     disembark({

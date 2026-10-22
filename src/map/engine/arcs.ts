@@ -8,7 +8,7 @@ import {
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
 import { movementWear } from '@/domain/pile-pieces';
-import { movementRoles, movementSprites } from '@/emblems/units/manifest';
+import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
 import { nearWeight } from './figurines/figurine';
@@ -47,6 +47,8 @@ type RenderedArc = {
   relic: Group | null;
   /** Rewritten in place every frame: it is the movement-head label's anchor. */
   headPosition: Vector3;
+  /** Just ahead of the head on its road: the pin's trail points away from it (#234). */
+  aheadPosition: Vector3;
   /** The ink a last known position was drawn in (`surveyInk`, two digits); `null` otherwise. */
   ink: string | null;
   /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
@@ -88,6 +90,7 @@ export class ArcLayer {
   readonly group = new Group();
   /** The head labels' screen positions read here: they move every frame. */
   readonly headPositions = new Map<string, Vector3>();
+  readonly aheadPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
   private readonly behindPoint = new Vector3();
   private readonly furtherPoint = new Vector3();
@@ -195,12 +198,14 @@ export class ArcLayer {
       rendered.arc = arc;
       rendered.loadingUntil = loadingUntilOf(arc);
       this.headPositions.set(arc.id, rendered.headPosition);
+      this.aheadPositions.set(arc.id, rendered.aheadPosition);
       this.targets.push(...rendered.thread.targets);
       this.rendered.push(rendered);
     }
     for (const gone of previous.values()) {
       release(gone);
       this.headPositions.delete(gone.arc.id);
+      this.aheadPositions.delete(gone.arc.id);
     }
     this.syncCrates();
     this.applyAccent();
@@ -239,7 +244,6 @@ export class ArcLayer {
     const figurineOf = (role: UnitRole | null) =>
       role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
     const pawn = new Pawn(
-      movementSprites(arc, this.playerNation),
       ARC_COLORS[arc.state].progress,
       // The fog serves an enemy no roles: up close it is an ink annotation, sliding along
       // its stretch (F2, ADR 0026 §4 révisé), dated by its first observation (H3).
@@ -291,6 +295,7 @@ export class ArcLayer {
       pawn,
       relic,
       headPosition: new Vector3(),
+      aheadPosition: new Vector3(),
       ink: lastKnownInk(arc, clock),
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
@@ -401,6 +406,7 @@ export class ArcLayer {
       rendered.pawn.step(this.motion === 'full' ? elapsed : null);
       rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
       rendered.headPosition.copy(this.pawnPoint);
+      rendered.aheadPosition.copy(this.aheadPoint);
 
       if (rendered.thread.tether !== null)
         stretchTether(rendered.thread.tether, this.pawnPoint, this.groundPoint);
@@ -479,6 +485,7 @@ export class ArcLayer {
     this.rendered = [];
     this.targets = [];
     this.headPositions.clear();
+    this.aheadPositions.clear();
   }
 }
 

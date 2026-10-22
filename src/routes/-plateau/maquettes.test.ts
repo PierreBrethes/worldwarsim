@@ -102,7 +102,6 @@ describe('maquettesOf', () => {
       regionId: 'DEU-DE21',
       lonLat: [11.5, 48.1],
       name: 'Ferme',
-      plate: 'farm.webp',
       washed: true,
       neutral: null,
     };
@@ -113,7 +112,6 @@ describe('maquettesOf', () => {
       lonLat: [10, 50],
       name: 'Dépôt',
       tier: 'facile',
-      plate: 'fuelDump.webp',
       depot: '',
       emptied: true,
     };
@@ -144,7 +142,6 @@ describe('maquettesOf', () => {
       lonLat: [10, 50],
       name: '',
       tier: '',
-      plate: null,
       depot: '',
       emptied: false,
     };

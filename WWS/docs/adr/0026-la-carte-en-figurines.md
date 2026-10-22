@@ -82,6 +82,19 @@ aujourd'hui.
 
 ### 3. Figurines au rapproché, silhouettes au loin
 
+> **Précisée le 22/10/2026 — « épingles au loin »** (#234, retour de Pierre, maquette
+> `WWS/prototypes/points-au-loin/epingles.html`, variante A). Au loin, plus aucune planche ni
+> silhouette : **chaque pièce est une épingle** (`PinLayer`, `src/map/engine/pins.ts`, lue par
+> `pinsOf`, `src/domain/pins.ts`). La forme dit ce que c'est — rond une pile, carré un bâtiment,
+> losange un avant-poste — ; plein à l'encre de sa nation ce qui est à soi, creux à l'encre adverse
+> ce qui est relevé, bâtiment compris, gris en pointillé avec son heure une dernière position
+> connue ; une traîne dit qu'une pile bouge, l'épingle en tête de son arc. Le relevé ne dit pas la
+> nation (§4), sauf au teneur de Lisbonne (P11). Les épingles qui se touchent se rangent en grappe
+> numérotée ; un clic sur la grappe approche la caméra. L'épingle monte quand la figurine s'efface,
+> par le même `nearWeight`. Une pile se lève et se pose au loin par le même geste qu'au rapproché
+> (§6) : anneau ambre, rose comprise. La nuit, ses épingles prennent le halo de lampe ; les relevés
+> non. Les planches restent au plateau personnel, à l'abaque et aux fiches.
+
 Les figurines sont pleines sous 30 unités de distance, absentes au-delà de 65, en fondu entre les
 deux — les seuils des régions admin-1. Au loin, la silhouette de domaine reste la lecture
 stratégique.

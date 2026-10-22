@@ -3,6 +3,8 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import { clusterSheetOf, type Pin } from '@/domain/pins';
+import { ClusterSheet } from './ClusterSheet';
 import type { TourAct } from '@/domain/cargo-tag';
 import {
   useCallback,
@@ -109,6 +111,8 @@ type Props = {
   standing: ReadonlyArray<StandingPile>;
   /** The enemy's surveyed camps, which the board annotates in ink up close. */
   camps: ReadonlyArray<SurveyedCamp>;
+  /** Every piece far away, a pin (#234): mine at my ink, what I surveyed hollow. */
+  pins: ReadonlyArray<Pin>;
   /** Buildings, surveyed installations and objectives, which the board stands as maquettes up close. */
   maquettes: ReadonlyArray<StandingMaquette>;
   /**
@@ -179,8 +183,6 @@ type Props = {
   onOpenStrategic?: (pointId: string, clientX: number, clientY: number) => void;
   /** L'étiquette désignée par le plateau : une troupe posée, cliquée seule. */
   selectedLabel?: string | null;
-  /** Le visage de la pile mise en avant — ce qui est coché, et non la majorité de la pile. */
-  selectedPlate?: string | null;
   selectedLootLabel?: string | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
@@ -349,6 +351,7 @@ export function WorldMap({
   labels: servedLabels,
   standing: servedStanding,
   camps: servedCamps,
+  pins: servedPins,
   maquettes,
   held,
   outposts,
@@ -376,7 +379,6 @@ export function WorldMap({
   onOpenObjective,
   onOpenStrategic,
   selectedLabel = null,
-  selectedPlate = null,
   selectedLootLabel = null,
   reach = null,
   onCountryHover,
@@ -424,6 +426,7 @@ export function WorldMap({
   const labels = useShared(servedLabels);
   const standing = useShared(servedStanding);
   const camps = useShared(servedCamps);
+  const pins = useShared(servedPins);
   const selectedPiles = useShared(servedSelection);
   const container = useRef<HTMLDivElement>(null);
   const insets = useBoardInsets();
@@ -1319,6 +1322,44 @@ export function WorldMap({
   }, [readyEngine, camps]);
 
   useEffect(() => {
+    readyEngine?.displayPins(pins);
+  }, [readyEngine, pins]);
+
+  useEffect(() => {
+    readyEngine?.selectPin(selectedLabel);
+  }, [readyEngine, selectedLabel]);
+
+  /** **La grappe ouverte** (#234) : ses pièces, et où pend sa fiche dans la carte. */
+  const [cluster, setCluster] = useState<{
+    readonly ids: ReadonlyArray<string>;
+    readonly x: number;
+    readonly y: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!readyEngine) return;
+    readyEngine.onClusterOpen = (opened) => {
+      const box = container.current?.getBoundingClientRect();
+      setCluster(
+        opened === null
+          ? null
+          : {
+              ids: opened.ids,
+              x: opened.clientX - (box?.left ?? 0),
+              y: opened.clientY - (box?.top ?? 0),
+            },
+      );
+    };
+    return () => {
+      readyEngine.onClusterOpen = undefined;
+    };
+  }, [readyEngine]);
+  const clusterSheet = useMemo(() => {
+    if (cluster === null) return null;
+    const typeOf = new Map(labels.map((label) => [label.id, label.type] as const));
+    return clusterSheetOf(cluster.ids.flatMap((id) => typeOf.get(id) ?? []));
+  }, [cluster, labels]);
+
+  useEffect(() => {
     readyEngine?.displayMaquettes(maquettes);
   }, [readyEngine, maquettes]);
 
@@ -1386,7 +1427,6 @@ export function WorldMap({
         labels={labels}
         engine={readyEngine}
         selected={selectedLabel}
-        selectedPlate={selectedPlate}
         secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}
@@ -1439,6 +1479,15 @@ export function WorldMap({
         <DropHintChip ref={hintNode} hint={hint} {...(dropNotes ? { notes: dropNotes } : {})} />
       )}
       {detaching !== null && <DetachRing {...detaching} />}
+      {cluster !== null && clusterSheet !== null && (
+        <ClusterSheet
+          sheet={clusterSheet}
+          x={cluster.x}
+          y={cluster.y}
+          onApproach={() => readyEngine?.approachCluster(cluster.ids)}
+          onClose={() => readyEngine?.closeCluster()}
+        />
+      )}
       {rose && (
         <CompassRose
           key={rose.opening}

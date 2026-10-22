@@ -3,7 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
- *       [--demarrage] [--repos]
+ *       [--demarrage] [--repos] [--epingles]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -66,6 +66,9 @@ const restOnly = args.includes('--repos');
 /** `--couches` : le temps GPU d'une image complète, de loin puis de près, chaque couche coupée à
  *  son tour (#199) ; l'écart à l'image entière est ce que la couche coûte. */
 const layered = args.includes('--couches');
+/** `--epingles` : le démarrage, puis les seuls gestes des épingles au loin (#234) — à jouer sur
+ *  `npm run demo:mondiale -- --epingles`, mille piles sur la France. */
+const pinsOnly = args.includes('--epingles');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -748,6 +751,57 @@ async function play(profileName, pass) {
     await context.close();
     return { boot, results };
   }
+  /**
+   * **Les épingles au loin** (#234) : la France vue de loin, où chaque pièce est une épingle et où
+   * les grappes se refont à chaque pas de la caméra ; puis la bascule, de loin jusqu'aux figurines
+   * et retour ; puis le repos, où la couche ne doit rien demander.
+   */
+  const pinGestures = async () => {
+    await page.evaluate(frameAt, [[2.5, 46.8], 90]);
+    await page.waitForTimeout(2500);
+    const [cx, cy] = [Math.round(width / 2), Math.round(height * 0.45)];
+    await gesture(
+      'épingles glisser',
+      async () => {
+        for (let k = 0; k < 2; k++)
+          if (phone) {
+            await fingers([[cx - 80, cy]], [[cx + 80, cy + 60]]);
+            await fingers([[cx + 80, cy + 60]], [[cx - 80, cy]]);
+          } else {
+            await drag('middle', [cx - 150, cy], [cx + 150, cy + 100]);
+            await drag('middle', [cx + 150, cy + 100], [cx - 150, cy]);
+          }
+      },
+      1700,
+    );
+    await gesture(
+      'épingles bascule',
+      async () => {
+        if (phone) {
+          const pair = (half) => [
+            [cx - half, cy],
+            [cx + half, cy],
+          ];
+          await fingers(pair(30), pair(140));
+          await fingers(pair(140), pair(30));
+          return;
+        }
+        await page.mouse.move(cx, cy);
+        for (const dy of [...Array(8).fill(-120), ...Array(8).fill(120)]) {
+          await page.mouse.wheel(0, dy);
+          await page.waitForTimeout(60);
+        }
+      },
+      1700,
+    );
+    await page.waitForTimeout(3000);
+    await gesture('épingles repos 5 s', () => page.waitForTimeout(5000), 0);
+  };
+  if (pinsOnly) {
+    await pinGestures();
+    await context.close();
+    return { boot, results };
+  }
   if (phone) await gesture('menu des surfaces', menu).then(close);
   for (const [name, before, target] of surfaces) {
     if (before) {
@@ -1022,6 +1076,7 @@ async function play(profileName, pass) {
   };
   await gesture('zoomer à fond', () => (phone ? pinches(30, 160, 4) : wheel(-120, 80)), 1700);
   await gesture('dézoomer à fond', () => (phone ? pinches(160, 30, 5) : wheel(120, 100)), 1700);
+  await pinGestures();
   // Le près et le loin ont tous deux été dessinés : chacun est sur le GPU.
   const geometry = await page.evaluate(geometryBytes);
 
@@ -1258,7 +1313,7 @@ try {
       report.profiles[name] = { boot, runs };
       continue;
     }
-    if (restOnly) {
+    if (restOnly || pinsOnly) {
       const { gestures } = merge(runs);
       report.profiles[name] = { boot, gestures, runs };
       text += `${table(gestures)}\n`;

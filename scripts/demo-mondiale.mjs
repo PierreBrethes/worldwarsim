@@ -36,6 +36,10 @@
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
  * Valette et une infanterie à Syracuse, d'où viser Malte à pied.
+ * `--epingles [N]` (#234) sème N piles sur la France (1000 par défaut, une sur deux en Lorraine),
+ * pose en face trois camps britanniques relevés en Sarre et en Alsace, un quatrième perdu de vue près de
+ * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une
+ * britannique à travers la Lorraine. `--lisbonne` donne Lisbonne à la France : elle lit la nation de ses relevés (P11).
  *
  *     npm run demo:mondiale
  *
@@ -81,6 +85,11 @@ const neighbours = process.argv.includes('--voisins');
 /** `--iles` : `--quais`, plus Malte débarquée, fondée et son quai, et Syracuse en face (#224). */
 const islands = process.argv.includes('--iles');
 const quays = islands || process.argv.includes('--quais');
+/** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
+const pinsAt = process.argv.indexOf('--epingles');
+const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
+/** `--lisbonne` : Lisbonne tenue par la France, qui lit la nation de ses relevés (P11). */
+const lisbon = process.argv.includes('--lisbonne');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -381,6 +390,53 @@ if (!bare) {
       point: { lon: 14.5145, lat: 35.8998 },
     });
   }
+  /** Mille pièces, des camps relevés, une dernière position, et deux mouvements (#234). */
+  if (pins !== null && scene.a !== null && scene.b !== null) {
+    for (let seed = 0, left = pins; ; seed++, left -= 100) {
+      const piles = Math.max(0, Math.min(100, left));
+      cli([
+        'run',
+        'dev:pinsScene',
+        JSON.stringify({ playerId: scene.a, enemyId: scene.b, piles, seed }),
+      ]);
+      if (piles === 0) break;
+    }
+    const lone = { lon: 0.2, lat: 44.2 };
+    const raider = { lon: 7.55, lat: 49.3 };
+    cli([
+      'run',
+      'dev:spawnTroops',
+      JSON.stringify({ playerId: scene.a, role: 'infantry', count: 1, ...lone }),
+    ]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const marcher = me.troops.find(
+      (troop) =>
+        troop.stationedAt.kind === 'point' &&
+        Math.abs(troop.stationedAt.lonLat[0] - lone.lon) < 0.01,
+    );
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: lone },
+      troopIds: [marcher.id],
+      point: { lon: -3.7, lat: 40.4 },
+    });
+    const theirs = (await client.query(api.view.playerView, { token: tokenB, seasonId })).me.troops;
+    const runner = theirs.find(
+      (troop) =>
+        troop.stationedAt.kind === 'point' &&
+        Math.abs(troop.stationedAt.lonLat[0] - raider.lon) < 0.01,
+    );
+    await client.mutation(api.movements.marchTo, {
+      token: tokenB,
+      seasonId,
+      origin: { kind: 'point', point: raider },
+      troopIds: [runner.id],
+      point: { lon: 5.2, lat: 47.5 },
+    });
+  }
+  if (lisbon && scene.a !== null)
+    cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key: 'lisbon' })]);
   if (harvest)
     cli([
       'run',
