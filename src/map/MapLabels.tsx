@@ -984,7 +984,6 @@ export function MapLabels({
           key={label.id}
           label={label}
           selected={label.id === selected || label.id === secondarySelected}
-          plate={label.id === selected ? selectedPlate : null}
           cue={cue?.labelId === label.id ? cue.text : null}
           crawl={motion === 'full'}
           muted={muted}
@@ -1004,12 +1003,6 @@ export function MapLabels({
           const label = labels.find((candidate) => candidate.id === member);
           return label === undefined ? [] : [label];
         });
-        /** **Une pile de mâts porte leurs planches** (refonte mobile, 1r) : deux, l'une sur
-         *  l'autre — on voit ce qui se tient là avant de compter. */
-        const plates =
-          group.kind === 'building'
-            ? members.flatMap((member) => (member.plate === null ? [] : [member.plate])).slice(0, 2)
-            : [];
         return (
           <div
             key={group.id}
@@ -1044,13 +1037,6 @@ export function MapLabels({
                     : separate(group)
                 }
               >
-                {plates.length > 0 && (
-                  <span className="label-pictogram label-group-plates">
-                    {plates.map((plate, rank) => (
-                      <img key={rank} className="label-plate" src={plate} alt="" />
-                    ))}
-                  </span>
-                )}
                 <span className="label-bar" />
                 <span className="label-lines">
                   <span className="label-line label-line--nature">
@@ -1137,8 +1123,6 @@ type LabelGestures = {
 type LabelNodeProps = {
   readonly label: MapLabel;
   readonly selected: boolean;
-  /** The face the highlighted pile wears in place of its plate; `null` keeps the plate. */
-  readonly plate: string | null;
   readonly cue: string | null;
   readonly crawl: boolean;
   readonly muted: boolean;
@@ -1160,7 +1144,6 @@ type LabelNodeProps = {
 const LabelNode = memo(function LabelNode({
   label,
   selected,
-  plate,
   cue,
   crawl,
   muted,
@@ -1238,21 +1221,6 @@ const LabelNode = memo(function LabelNode({
             register(nodes.blocks.current, label.id, node);
           }}
         >
-          {(label.plate !== null || label.works !== null) && (
-            <span className="label-pictogram">
-              {label.plate !== null && (
-                <img className="label-plate" src={plate ?? label.plate} alt="" />
-              )}
-              {/* Le mode chantier au loin : un fanion ocre sur la planche, ou seul sur le mât
-                  d'un plan en file. L'heure et la barre sont à l'affiche. */}
-              {label.works !== null && (
-                <svg className="label-pennant" viewBox="0 0 16 22" width="16" height="22">
-                  <path className="label-flag-pole" d="M2 1v21" />
-                  <path className="label-pennant-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
-                </svg>
-              )}
-            </span>
-          )}
           {label.type === 'arrival' && (
             <span className="label-flag" aria-hidden>
               <svg viewBox="0 0 16 22" width="16" height="22">
@@ -1617,6 +1585,23 @@ function register(map: Map<string, HTMLElement>, id: string, node: HTMLElement |
   else map.delete(id);
 }
 
+/**
+ * **Ce que la carte pose en pièce** (#234) : au loin une épingle, de près une figurine ou une
+ * maquette. Leur étiquette ne dessine plus rien à leur pied et laisse le pointeur à la toile ;
+ * seuls ses mots restent à elle.
+ */
+const PINNED: ReadonlySet<MapLabel['type']> = new Set([
+  'stack',
+  'building',
+  'construction',
+  'outpost',
+  'camp',
+  'installation',
+  'my-movement',
+  'inbound-movement',
+  'intel',
+]);
+
 function classesOf(label: MapLabel, selected: boolean): string {
   return [
     'label',
@@ -1624,6 +1609,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
     'label--glyph',
     `label--${label.type}`,
+    PINNED.has(label.type) ? 'label--pinned' : '',
     label.identified ? 'label--identified' : '',
     label.type === 'loot' && !label.lootCurrent ? 'label--loot-stale' : '',
     label.washed ? 'label--washed' : '',

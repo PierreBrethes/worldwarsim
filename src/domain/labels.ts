@@ -858,9 +858,9 @@ function markerLabel(marker: MapMarker): MapLabel {
         ...common,
         type: 'objective',
         priority: PRIORITY.objective,
-        /** La planche gagne sur le signe, comme sur un mât de bâtiment ; le pictogramme prend sa
-         *  place tant qu'aucune planche n'est dessinée. */
-        pictogram: marker.plate === null ? 'objective' : null,
+        /** Le signe, jamais la planche : les planches ont quitté la carte (#234). De près, sa
+         *  maquette. */
+        pictogram: 'objective',
         plate: marker.plate,
         objective: {
           id: marker.objectiveId,

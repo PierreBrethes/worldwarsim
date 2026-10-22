@@ -3,6 +3,7 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import type { Pin } from '@/domain/pins';
 import type { TourAct } from '@/domain/cargo-tag';
 import {
   useCallback,
@@ -109,6 +110,8 @@ type Props = {
   standing: ReadonlyArray<StandingPile>;
   /** The enemy's surveyed camps, which the board annotates in ink up close. */
   camps: ReadonlyArray<SurveyedCamp>;
+  /** Every piece far away, a pin (#234): mine at my ink, what I surveyed hollow. */
+  pins: ReadonlyArray<Pin>;
   /** Buildings, surveyed installations and objectives, which the board stands as maquettes up close. */
   maquettes: ReadonlyArray<StandingMaquette>;
   /**
@@ -349,6 +352,7 @@ export function WorldMap({
   labels: servedLabels,
   standing: servedStanding,
   camps: servedCamps,
+  pins: servedPins,
   maquettes,
   held,
   outposts,
@@ -424,6 +428,7 @@ export function WorldMap({
   const labels = useShared(servedLabels);
   const standing = useShared(servedStanding);
   const camps = useShared(servedCamps);
+  const pins = useShared(servedPins);
   const selectedPiles = useShared(servedSelection);
   const container = useRef<HTMLDivElement>(null);
   const insets = useBoardInsets();
@@ -1317,6 +1322,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.displayCamps(camps);
   }, [readyEngine, camps]);
+
+  useEffect(() => {
+    readyEngine?.displayPins(pins);
+  }, [readyEngine, pins]);
 
   useEffect(() => {
     readyEngine?.displayMaquettes(maquettes);

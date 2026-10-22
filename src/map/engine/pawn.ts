@@ -1,18 +1,8 @@
-import {
-  DoubleSide,
-  Group,
-  Mesh,
-  MeshBasicMaterial,
-  PlaneGeometry,
-  Shape,
-  ShapeGeometry,
-  Vector3,
-} from 'three';
+import { DoubleSide, Group, Mesh, MeshBasicMaterial, Shape, ShapeGeometry, Vector3 } from 'three';
 import type { Wear } from '@/domain/pile-pieces';
 import type { UnitRole } from '@/domain/ids';
 import type { Medium } from '@/domain/routing';
-import type { MediumSprites } from '@/emblems/units/manifest';
-import { faceCamera, textureOf } from './billboard';
+import { faceCamera } from './billboard';
 import { altitudeShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 import { PLUME_BY_WEAR, Smoke, Wake, type Plume } from './smoke';
@@ -21,19 +11,7 @@ import { blacken } from './standing';
 import { pieceScale } from './piece-scale';
 import { releaseInk } from './annotations';
 
-/**
- * A share of the camera distance: a pawn keeps its size on screen. At a fixed world size it
- * is a dust speck in orbit and covers the North Sea up close. The silhouette is narrower
- * than the sprite it replaces, but solid: at equal size it weighs more to the eye, and
- * eight movements out of the same port would make a blot.
- *
- * **It is a side, not a height** (see `orient`): the plates are not drawn to one frame — a
- * bomber is twice as wide as it is tall, a rifleman half. Scaling them all to the same height
- * gave every wing a generous span and left the infantry a sliver, the one plate a player looks
- * for most. The share now sets the square each plate covers, so the eye weighs them the same
- * whatever their shape.
- */
-const PAWN_SHARE = 0.031;
+/** A share of the camera distance: the silhouette keeps its size on screen. */
 const PAWN_SILHOUETTE_SHARE = 0.018;
 
 /** Below this gap a plane is on the ground: a shadow glued under it would say nothing. */
@@ -54,34 +32,17 @@ const DUST: Plume = {
 };
 const DUST_REAR = 1.1;
 
-/** A drawn costume and what its scaling needs: the ratio is only known once decoded. */
-type SpriteCostume = {
-  readonly mesh: Mesh<PlaneGeometry, MeshBasicMaterial>;
-  aspect: number;
-  measured: boolean;
-};
-
 /**
  * A movement's pawn: a single piece over the whole route, changing costume at the dock and
  * standing still during the transfer.
  *
- * **Each medium wears its own plate**, and each is read on the units that actually cross it
- * (`movementSprites`): the boots on the road, the hull that ferries them, the wing that lifts
- * them. Embarked infantry still travels on a ship rather than on foot — that rule moved into
- * the manifest, where the stack is, instead of being enforced here by showing nothing.
- *
- * A medium with no plate keeps the anonymous silhouette, and so does every enemy arc: the
- * manifest hands back `null` throughout for one (the fog leaves it no stack to read), so no
- * display `if` here can leak a role.
- *
- * **Close to the board a medium wears its figurine instead** (ADR 0026 §3), when it has one:
- * the plate shrinks away as the figurine grows from the ground, both by `nearWeight`. The
- * plate turns to face the eye; the figurine stands on the board and faces its road.
+ * **Up close each medium wears its figurine** (ADR 0026 §3), grown from the ground by
+ * `nearWeight`; a medium with none wears the anonymous silhouette in its place. **Far away the
+ * pawn is gone**: the movement's pin stands at its head (#234, `pins.ts`).
  */
 export class Pawn {
   readonly object = new Group();
   private readonly costumes = new Map<Medium, Group>();
-  private readonly sprites = new Map<Medium, SpriteCostume>();
   private readonly figurines = new Map<Medium, Figurine>();
   private readonly color: string;
   private readonly smokes = new Map<Medium, Smoke>();
@@ -104,7 +65,6 @@ export class Pawn {
   private clock = 0;
 
   constructor(
-    sprites: MediumSprites | null,
     color: string,
     figurines: Readonly<Record<Medium, Figurine | null>> | null = null,
     /** My movement's wear per medium (`movementWear`); `null` for anything not mine. */
@@ -115,13 +75,13 @@ export class Pawn {
   ) {
     this.color = color;
     for (const medium of ['land', 'sea', 'air'] as const) {
-      const url = sprites?.[medium] ?? null;
-      const costume = url === null ? this.buildSilhouette(medium) : this.buildSprite(medium, url);
-      costume.visible = medium === this.medium;
-      this.costumes.set(medium, costume);
-      this.object.add(costume);
       const figurine = figurines?.[medium] ?? null;
-      if (figurine !== null) {
+      if (figurine === null) {
+        const costume = this.buildSilhouette(medium);
+        costume.visible = medium === this.medium;
+        this.costumes.set(medium, costume);
+        this.object.add(costume);
+      } else {
         figurine.object.visible = false;
         this.figurines.set(medium, figurine);
         this.object.add(figurine.object);
@@ -240,24 +200,14 @@ export class Pawn {
         this.dust.object.visible =
           this.lively && this.moving && this.gaits.get(this.medium) === 'rolling';
     }
+    // A medium with no figurine wears its silhouette in its place, up close only: far away
+    // the pin is the piece (#234).
     const costume = this.costumes.get(this.medium);
     if (costume === undefined) return;
-    costume.visible = near < 1;
+    costume.visible = close > 0;
     faceCamera(costume, cameraPosition, this.object.position);
-    const sign = this.westward ? -1 : 1;
-    const far = 1 - near;
-    const worn = this.sprites.get(this.medium);
-    if (worn !== undefined) {
-      measureAspect(worn);
-      /** Equal area rather than equal height: the side of the square the plate is worth,
-       *  stretched into its own ratio. A wide plate keeps its span, a tall one its stature. */
-      const side = distance * PAWN_SHARE * far;
-      const height = side / Math.sqrt(worn.aspect);
-      worn.mesh.scale.set(worn.aspect * height * sign, height, 1);
-      return;
-    }
-    const size = distance * PAWN_SILHOUETTE_SHARE * far;
-    costume.scale.set(size * sign, size, size);
+    const size = distance * PAWN_SILHOUETTE_SHARE * close;
+    costume.scale.set(size * (this.westward ? -1 : 1), size, size);
   }
 
   dispose(): void {
@@ -265,38 +215,11 @@ export class Pawn {
     for (const figurine of this.figurines.values()) releaseInk(figurine.object);
     for (const costume of this.costumes.values()) {
       for (const child of costume.children) {
-        const mesh = child as Mesh<ShapeGeometry | PlaneGeometry, MeshBasicMaterial>;
+        const mesh = child as Mesh<ShapeGeometry, MeshBasicMaterial>;
         mesh.geometry.dispose();
         mesh.material.dispose();
       }
     }
-  }
-
-  /**
-   * The texture stays in the shared cache: two French armor columns point at the same
-   * bitmap, and freeing it here would burst the neighbor's.
-   */
-  private buildSprite(medium: Medium, url: string): Group {
-    const geometry = new PlaneGeometry(1, 1);
-    geometry.translate(0, 0.5, 0);
-    const mesh = new Mesh(
-      geometry,
-      new MeshBasicMaterial({
-        map: textureOf(url),
-        transparent: true,
-        alphaTest: 0.35,
-        side: DoubleSide,
-        /** Tipped flat under a vertical camera, the plate lies **in** the board's own plane
-         *  and would fight it for every pixel. It is the head of a movement and passes over
-         *  its thread already: it passes over the ground too, like the silhouettes. */
-        depthTest: false,
-      }),
-    );
-    mesh.renderOrder = 13;
-    this.sprites.set(medium, { mesh, aspect: 1, measured: false });
-    const group = new Group();
-    group.add(mesh);
-    return group;
   }
 
   private buildSilhouette(medium: Medium): Group {
@@ -324,16 +247,4 @@ export class Pawn {
     }
     return group;
   }
-}
-
-/**
- * The width/height ratio is only known once the image is decoded; rather than a load callback
- * per pawn, we look at each orientation while it is missing.
- */
-function measureAspect(costume: SpriteCostume): void {
-  if (costume.measured) return;
-  const image = costume.mesh.material.map?.image as { width?: number; height?: number } | undefined;
-  if (!image?.width || !image.height) return;
-  costume.aspect = image.width / image.height;
-  costume.measured = true;
 }

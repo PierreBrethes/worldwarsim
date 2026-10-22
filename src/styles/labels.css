@@ -1219,3 +1219,24 @@
 :root[data-motion='off'] .cargo-slot--stamp {
   animation: none;
 }
+
+/* **Une pièce que la carte pose** (#234) : au loin son épingle, de près sa figurine ou sa
+   maquette, toutes deux dans la toile. Son étiquette ne dessine plus rien à son pied — ni
+   pictogramme, ni silhouette, ni flaque, ni mât — et ne prend pas le pointeur : la toile le
+   prend, comme pour une pièce habillée. Ses mots restent à elle. */
+.label--pinned::before,
+.label--pinned .label-pictogram,
+.label--pinned .label-camp,
+.label--pinned .label-bar {
+  display: none;
+}
+
+.label.label--pinned .label-block,
+.label.label--pinned .label-block * {
+  pointer-events: none;
+}
+
+.label.label--pinned .label-block .label-lines,
+.label.label--pinned .label-block .label-lines * {
+  pointer-events: auto;
+}

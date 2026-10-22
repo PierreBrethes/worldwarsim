@@ -1,3 +1,4 @@
+import { pinsOf } from '@/domain/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
@@ -1801,6 +1802,7 @@ function BoardContent({
     return maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me));
   }, [markers, view.objectives, view.me]);
   const camps = useMemo(() => campsOf(markers), [markers]);
+  const pins = useMemo(() => pinsOf(markers, arcs, ink), [markers, arcs, ink]);
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -2251,6 +2253,7 @@ function BoardContent({
                 labels={labels}
                 standing={standing}
                 camps={camps}
+                pins={pins}
                 maquettes={maquettes}
                 held={held}
                 outposts={reachedOutposts}

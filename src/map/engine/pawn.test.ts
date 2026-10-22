@@ -24,12 +24,12 @@ const wornCostume = (pawn: Pawn): Medium | null => {
  */
 describe('the spriteless pawn', () => {
   it('holds the three medium silhouettes and only wears one', () => {
-    const pawn = new Pawn(null, '#000');
+    const pawn = new Pawn('#000');
     expect(wornCostume(pawn)).toBe('land');
   });
 
   it('changes costume at the dock crossing', () => {
-    const pawn = new Pawn(null, '#000');
+    const pawn = new Pawn('#000');
     pawn.wear('sea');
     expect(wornCostume(pawn)).toBe('sea');
     pawn.wear('land');
@@ -44,7 +44,7 @@ describe('the wake', () => {
   const wakeOf = (pawn: Pawn) => pawn.object.getObjectByName('wake')!;
 
   it('trails behind a hull at sea, in the axis of its road', () => {
-    const pawn = new Pawn(null, '#000');
+    const pawn = new Pawn('#000');
     pawn.wear('sea');
     pawn.place(new Vector3(0, 0, 0), new Vector3(1, 0, 0));
     pawn.orient(close, 0);
@@ -61,7 +61,7 @@ describe('the wake', () => {
   });
 
   it('is not drawn on land nor in the air', () => {
-    const pawn = new Pawn(null, '#000');
+    const pawn = new Pawn('#000');
     for (const medium of ['land', 'air'] as const) {
       pawn.wear(medium);
       pawn.orient(close, 0);
@@ -75,7 +75,7 @@ describe('the plane shadow', () => {
   const shadowOf = (pawn: Pawn) => pawn.object.getObjectByName('shadow')!;
 
   it('lies on the ground under a plane in flight, the gap its altitude', () => {
-    const pawn = new Pawn(null, '#000');
+    const pawn = new Pawn('#000');
     pawn.wear('air');
     pawn.place(new Vector3(0, 3, 0), new Vector3(1, 3, 0), 0.5);
     pawn.orient(close, 0);
@@ -86,7 +86,7 @@ describe('the plane shadow', () => {
   });
 
   it('is never stuck under a plane on the ground, nor under a hull or a column', () => {
-    const pawn = new Pawn(null, '#000');
+    const pawn = new Pawn('#000');
     pawn.wear('air');
     pawn.place(new Vector3(0, 0.5, 0), new Vector3(1, 0.5, 0), 0.5);
     pawn.orient(close, 0);
@@ -106,7 +106,6 @@ describe('the life of a piece of mine on its road', () => {
   const tank = (roles: boolean) => {
     const land = figurine();
     const pawn = new Pawn(
-      null,
       '#000',
       { land, sea: null, air: null },
       null,

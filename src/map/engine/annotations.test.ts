@@ -67,7 +67,7 @@ describe('the ink an annotation is drawn with', () => {
   it('is freed with the pawn of the enemy thread that wore it', () => {
     const figurine = annotationFigurine('sea', 5 * 3_600_000);
     const seen = freed(materialOf(figurine.object as ReturnType<typeof inkAnnotation>['object']));
-    const pawn = new Pawn(null, '#000', { land: null, sea: figurine, air: null });
+    const pawn = new Pawn('#000', { land: null, sea: figurine, air: null });
     pawn.dispose();
     expect(seen).toEqual({ material: true, map: true });
   });
