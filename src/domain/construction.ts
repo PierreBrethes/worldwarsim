@@ -158,6 +158,17 @@ export function aimVerdict(
   aim: Aim,
   reaches: ReadonlyArray<Reach>,
 ): AimVerdict {
+  return verdictAmong(view, key, aim, reaches, freeDeposits(view));
+}
+
+/** `aimVerdict`, the free deposits read once by a caller that asks about many points. */
+function verdictAmong(
+  view: PlayerView,
+  key: BuildingKey,
+  aim: Aim,
+  reaches: ReadonlyArray<Reach>,
+  open: ReadonlyArray<DepositPoint>,
+): AimVerdict {
   const deposit = depositAt(aim.lonLat);
   const free = view.me.foundation.some((due) =>
     settlesDebt(due, { key, deposit: deposit?.deposit ?? null }),
@@ -170,10 +181,7 @@ export function aimVerdict(
   const spot = {
     reached: siteOfPoint(aim.lonLat, aim.region.country === home, reaches) !== null,
     onLand: aim.onLand,
-    deposit:
-      deposit === null
-        ? null
-        : { key: deposit.deposit, taken: !freeDeposits(view).includes(deposit) },
+    deposit: deposit === null ? null : { key: deposit.deposit, taken: !open.includes(deposit) },
     coastal: aim.coastal === true,
     nearest: nearestBuilding(aim.lonLat, around),
     already:
@@ -189,6 +197,57 @@ export function aimVerdict(
     };
   }
   return { refusal: { code: refusal as Exclude<PlacementRefusal, 'TOO_CLOSE'> }, free };
+}
+
+/** A free deposit a held key calls (#239), with what the pose would say on its very point. */
+export type DepositCall = {
+  readonly deposit: DepositPoint;
+  /** `null`: the pose takes it — the magnet pulls and the thread aims at it. */
+  readonly refusal: AimVerdict['refusal'];
+};
+
+/**
+ * **The deposits a held exploitation calls** (#239): every free one of its kinds wakes on the
+ * map, but only those `aimVerdict` would take attract — the very rule the server refuses with.
+ * The deposit's own region and country stand in for the polygons: they are baked with its point.
+ */
+export function depositCalls(
+  view: PlayerView,
+  key: BuildingKey,
+  kinds: ReadonlyArray<DepositKey>,
+  reaches: ReadonlyArray<Reach>,
+): DepositCall[] {
+  const free = freeDeposits(view);
+  return free
+    .filter((deposit) => kinds.includes(deposit.deposit))
+    .map((deposit) => ({
+      deposit,
+      refusal: verdictAmong(
+        view,
+        key,
+        {
+          lonLat: deposit.lonLat,
+          region: { id: deposit.regionId, name: '', country: deposit.country },
+          coastal: false,
+          onLand: true,
+        },
+        reaches,
+        free,
+      ).refusal,
+    }));
+}
+
+/** The nearest of some deposits to a point, and how far, `null` when there is none. */
+export function nearestDeposit<T extends { readonly deposit: DepositPoint }>(
+  calls: ReadonlyArray<T>,
+  from: LonLat,
+): { readonly call: T; readonly km: number } | null {
+  let best: { call: T; km: number } | null = null;
+  for (const call of calls) {
+    const km = distanceKm(from, call.deposit.lonLat);
+    if (best === null || km < best.km) best = { call, km };
+  }
+  return best;
 }
 
 /**
@@ -216,7 +275,12 @@ export function snapTo(pointer: LonLat, magnets: ReadonlyArray<LonLat>): LonLat 
 export type PlacementCondition =
   /** `card: null` — rien ne se pose avant le QG ; sinon la carte de recherche qui la tient. */
   | { readonly kind: 'locked'; readonly card: ResearchCard | null }
-  | { readonly kind: 'deposit'; readonly deposits: ReadonlyArray<DepositKey> };
+  | {
+      readonly kind: 'deposit';
+      readonly deposits: ReadonlyArray<DepositKey>;
+      /** The nearest free one from the headquarters (#239), `null` before it or when none is. */
+      readonly nearest: { readonly country: string; readonly km: number } | null;
+    };
 
 export type Placement = {
   readonly key: BuildingKey;
@@ -228,12 +292,14 @@ export type Placement = {
 
 /**
  * **Whether a key can go down anywhere at all.** A key a research card still holds names the
- * card; an exploitation with no free deposit of its kind in a region the player holds names the
- * deposit. Everything else is a matter of aiming.
+ * card; an exploitation with no free deposit of its kind the pose would take (`depositCalls`)
+ * names the deposit, and the nearest free one. Everything else is a matter of aiming.
  */
 export function placementOf(
   view: PlayerView,
   key: BuildingKey,
+  /** The player's standing outposts (`reachesOf`): what the pose reads, point by point. */
+  reaches: ReadonlyArray<Reach>,
   /** The deposits a debt of the foundation names, when it names one. */
   only?: ReadonlyArray<DepositKey>,
 ): Placement {
@@ -249,13 +315,20 @@ export function placementOf(
   }
   const deposits = only ?? EXPLOITED_DEPOSITS[key];
   if (deposits === undefined) return { key, condition: null, free };
-  const reachable = new Set(
-    view.me.regions.filter((region) => region.site !== null).map((region) => region.id),
-  );
-  const open = freeDeposits(view).some(
-    (deposit) => deposits.includes(deposit.deposit) && reachable.has(deposit.regionId),
-  );
-  return { key, condition: open ? null : { kind: 'deposit', deposits }, free };
+  // Une règle, une fonction (#239): the key opens when the pose would take one of its deposits.
+  const calls = depositCalls(view, key, deposits, reaches);
+  if (calls.some((call) => call.refusal === null)) return { key, condition: null, free };
+  const hq = view.me.buildings.find((building) => building.key === 'hq')?.point;
+  const nearest = hq === undefined ? null : nearestDeposit(calls, hq);
+  return {
+    key,
+    condition: {
+      kind: 'deposit',
+      deposits,
+      nearest: nearest === null ? null : { country: nearest.call.deposit.country, km: nearest.km },
+    },
+    free,
+  };
 }
 
 /**

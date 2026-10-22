@@ -5,12 +5,14 @@ import {
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
-  type Vector3,
+  Vector3,
 } from 'three';
+import { nearestDeposit, snapTo, type DepositCall } from '@/domain/construction';
 import type { MapMotion } from '@/domain/map-motion';
 import type { LonLat } from '@/domain/geo';
 import { faceCamera, textureOf } from './billboard';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { ADVERSE_INK } from './palette';
 
 /** The same share as a movement's pawn: the ghost is the piece the player is about to put
  *  down, and it must weigh what a piece weighs on this board. */
@@ -18,7 +20,7 @@ const GHOST_SHARE = 0.031;
 
 /** The pin's head: the maquette's blue-grey of a pose that holds, the red of one refused. */
 const PIN_TONE = '#627584';
-const PIN_REFUSED_TONE = '#8f3a2c';
+const PIN_REFUSED_TONE = ADVERSE_INK;
 const PIN_INK = '#2a2118';
 /** The paper ring outside the ink one: it lifts the pin off a night sea as off a day field. */
 const PIN_PAPER = '#f1e8d2';
@@ -30,6 +32,58 @@ const PIN_HEIGHT_TOUCH = 1.8;
 /** The head falls onto the point when the magnet takes hold: the leap says "attracted there". */
 const PIN_DROP_MS = 180;
 const PIN_DROP_HEIGHT = 0.5;
+
+/** Pulled back by the thread, the ghost comes home in an elastic recall, longer than a leap. */
+const RECALL_MS = 480;
+const recall = (t: number) => (t >= 1 ? 1 : 1 - 2 ** (-10 * t) * Math.cos(t * 9));
+
+/**
+ * **Where the ghost of a deposit key stands, and what its thread aims at** (#239): it leaps onto
+ * a deposit the pose would take within `PLACING_SNAP_KM`, and the thread runs to the nearest of
+ * those from where it stands. A deposit out of reach wakes on the map, but neither attracts nor
+ * is aimed at: its pose would be refused anyway.
+ */
+export function depositAim(calls: ReadonlyArray<DepositCall>, pointer: LonLat) {
+  const open = calls.filter((call) => call.refusal === null);
+  const spot = snapTo(
+    pointer,
+    open.map((call) => call.deposit.lonLat),
+  );
+  return { spot, target: nearestDeposit(open, spot) };
+}
+
+export type ScreenPoint = { readonly x: number; readonly y: number };
+
+/** How far inside the screen's edge a thread to an unseen basin stops, in CSS pixels. */
+export const THREAD_MARGIN = 24;
+
+/**
+ * **The thread on screen** (maquette `bassin.html`): it sags between the ghost and its basin, and
+ * stops at the edge of the screen when the basin is off it — an arrow there points the way.
+ */
+export function threadPath(from: ScreenPoint, to: ScreenPoint, width: number, height: number) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const off = to.x < 0 || to.y < 0 || to.x > width || to.y > height;
+  const t = !off
+    ? 1
+    : Math.min(
+        dx > 0 ? (width - THREAD_MARGIN - from.x) / dx : dx < 0 ? (THREAD_MARGIN - from.x) / dx : 1,
+        dy > 0
+          ? (height - THREAD_MARGIN - from.y) / dy
+          : dy < 0
+            ? (THREAD_MARGIN - from.y) / dy
+            : 1,
+      );
+  const end = { x: Math.round(from.x + dx * t), y: Math.round(from.y + dy * t) };
+  const bend = {
+    x: Math.round((from.x + end.x) / 2),
+    y: Math.round(
+      (from.y + end.y) / 2 + Math.min(60, Math.hypot(end.x - from.x, end.y - from.y) * 0.12),
+    ),
+  };
+  return { to: end, bend, off, angle: Math.atan2(end.y - bend.y, end.x - bend.x) };
+}
 
 /** Just clear of the slab and of everything laid flat on it. */
 const GHOST_LIFT = COUNTRY_THICKNESS + 0.02;
@@ -62,6 +116,9 @@ export class PlacingGhost {
   private refused = false;
   private snappedAt = Number.NEGATIVE_INFINITY;
   private snapped = false;
+  /** Where the ghost stands, and where the thread pulled it from when the magnet took hold. */
+  private readonly at = new Vector3();
+  private readonly pulledFrom = new Vector3();
   /** A list of deposits: each one is a new catch. A coast is one catch, however far it runs. */
   private retargets = false;
   motion: MapMotion = 'full';
@@ -167,9 +224,13 @@ export class PlacingGhost {
     this.held = spot;
     const snapped = spot[0] !== pointer[0] || spot[1] !== pointer[1];
     /** The leap is dated when the magnet takes hold, not at each step along a coast it already holds. */
-    if (snapped && (!this.snapped || this.retargets)) this.snappedAt = performance.now();
+    if (snapped && (!this.snapped || this.retargets)) {
+      this.snappedAt = performance.now();
+      this.pulledFrom.copy(this.frame.projectLonLat(pointer, GHOST_LIFT));
+    }
     this.snapped = snapped;
-    this.object.position.copy(this.frame.projectLonLat(spot, GHOST_LIFT));
+    this.at.copy(this.frame.projectLonLat(spot, GHOST_LIFT));
+    this.object.position.copy(this.at);
     this.object.visible = true;
     this.pin.visible = true;
   }
@@ -177,6 +238,10 @@ export class PlacingGhost {
   /** Yaw and pitch on its foot, and a constant area on screen — the billboard rule of a pawn. */
   orient(cameraPosition: Vector3): void {
     if (!this.object.visible) return;
+    const pulled = (performance.now() - this.snappedAt) / RECALL_MS;
+    if (this.snapped && this.motion === 'full' && pulled < 1)
+      this.object.position.lerpVectors(this.pulledFrom, this.at, recall(pulled));
+    else this.object.position.copy(this.at);
     faceCamera(this.object, cameraPosition);
     this.measure();
     const side = this.object.position.distanceTo(cameraPosition) * GHOST_SHARE;

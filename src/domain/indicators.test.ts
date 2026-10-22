@@ -43,7 +43,6 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   ink: null,
   pictogram: null,
   plate: null,
-  deposit: null,
   lootSightingId: null,
   lootCurrent: true,
   lines: [],

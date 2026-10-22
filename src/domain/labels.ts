@@ -2,7 +2,7 @@ import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
 import { asLocalTime } from '@/domain/duration';
-import { countryLabel, fr, nationLabel } from '@/i18n/fr';
+import { aimRefusalShort, countryLabel, fr, nationLabel } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
@@ -18,7 +18,7 @@ import {
   type UnitRole,
 } from './ids';
 import type { ArcView, CaptureView, PlayerView, Stack, TroopStation } from './player-view';
-import type { WorkSite } from './construction';
+import type { AimVerdict, WorkSite } from './construction';
 
 /**
  * What the map knows how to plant on the ground. A discriminated union rather than a marker
@@ -240,8 +240,9 @@ export type MapMarker =
       readonly deposit: DepositKey;
       /** Who is known to work it (`depositHolders`), absent while it is free. */
       readonly held?: { readonly mine: boolean; readonly level: number | null };
-      /** A building that takes this deposit is in hand: the free ones light up. */
-      readonly seek?: true;
+      /** **Woken by a key in hand** (#239): the pose takes it (`open`), or the refusal it would
+       *  give on its point. */
+      readonly wake?: 'open' | NonNullable<AimVerdict['refusal']>;
     };
 
 /**
@@ -408,14 +409,9 @@ export type MapLabel = {
    * crane is what a building wears while it has no portrait to show yet.
    */
   readonly plate: string | null;
-  /**
-   * The resource lying under the region. The third and last face a label can wear, and the
-   * only one that belongs to the ground rather than to a nation — hence a marker that carries
-   * no ink beside it.
-   */
-  readonly deposit: DepositKey | null;
-  /** A free deposit the held building would take: it lights up. */
-  readonly seeking?: true;
+  /** **A deposit woken by a key in hand** (#239): written in its resource's ink, in red when the
+   *  pose would refuse it. */
+  readonly wake?: { readonly deposit: DepositKey; readonly open: boolean };
   /** The private sighting a click opens; every other label carries null. */
   readonly lootSightingId: string | null;
   /** False gives a known crate its stale, dashed treatment. */
@@ -653,7 +649,6 @@ function withCaptures(
       ink: null,
       pictogram: null,
       plate: null,
-      deposit: null,
       lootSightingId: null,
       lootCurrent: true,
       washed: false,
@@ -699,7 +694,6 @@ function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
     ink,
     pictogram: null,
     plate: null,
-    deposit: null,
     lootSightingId: null,
     lootCurrent: true,
     washed: false,
@@ -747,7 +741,6 @@ function markerLabel(marker: MapMarker): MapLabel {
         ? null
         : marker.ink,
     plate: null,
-    deposit: null,
     lootSightingId: null,
     lootCurrent: true,
     washed:
@@ -984,16 +977,23 @@ function markerLabel(marker: MapMarker): MapLabel {
         type: 'deposit',
         priority: PRIORITY.deposit,
         pictogram: null,
-        deposit: marker.deposit,
         // A click on a deposit says nothing the ground does not: the region's own click
         // already selects the country.
         hostCountry: null,
-        ...(marker.seek === true && marker.held === undefined ? { seeking: true as const } : {}),
+        ...(marker.wake === undefined || marker.held !== undefined
+          ? {}
+          : { wake: { deposit: marker.deposit, open: marker.wake === 'open' } }),
         lines: [
-          { role: 'nature', text: fr.deposits[marker.deposit] },
-          ...(marker.held === undefined
-            ? []
-            : [{ role: 'figures', text: fr.labels.depositHeld(marker.held) } as const]),
+          {
+            role: 'nature',
+            text: fr.labels.depositName(
+              marker.deposit,
+              marker.held ?? null,
+              marker.wake === undefined || marker.wake === 'open'
+                ? null
+                : aimRefusalShort(marker.wake),
+            ),
+          },
         ],
       };
   }
@@ -1059,7 +1059,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       ink: null,
       pictogram: null,
       plate: null,
-      deposit: null,
       lootSightingId: null,
       lootCurrent: true,
       identified: false,
@@ -1109,7 +1108,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       ink: null,
       pictogram: null,
       plate: null,
-      deposit: null,
       lootSightingId: null,
       lootCurrent: true,
       identified: false,
@@ -1148,7 +1146,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     ink: null,
     pictogram: null,
     plate: null,
-    deposit: null,
     lootSightingId: null,
     lootCurrent: true,
     identified: arc.identification.pierced,

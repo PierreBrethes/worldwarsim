@@ -5,7 +5,9 @@ import type { World } from '@/domain/world';
 import projectionAsset from '../../../public/projection.json';
 import { WorldFrame } from './frame';
 import { MapEngine } from './index';
-import { PlacingGhost } from './placing';
+import { depositAim, PlacingGhost, THREAD_MARGIN, threadPath } from './placing';
+import { destinationPoint } from '@/domain/geo';
+import { DEPOSIT_POINTS } from '@/domain/world';
 
 const world = {
   sphere: projectionAsset.sphere,
@@ -130,5 +132,82 @@ describe('the pin of a placement', () => {
 
   it('holds its head higher under a finger, which hides what is just beneath it', () => {
     expect(armed(true).ghost.pinHeight).toBeGreaterThan(armed(false).ghost.pinHeight);
+  });
+});
+
+describe('a deposit key in hand (#239)', () => {
+  const at = (id: string) => DEPOSIT_POINTS.find((deposit) => deposit.id === id)!;
+  const HAINAUT = { deposit: at('coal-BEL-2'), refusal: null };
+  const RUHR = { deposit: at('coal-DEU-1572'), refusal: { code: 'OUT_OF_REACH' as const } };
+  const calls = [HAINAUT, RUHR];
+
+  it('leaps onto a deposit the pose takes, and threads the pointer to it from afar', () => {
+    const near = destinationPoint(HAINAUT.deposit.lonLat, 20, 0);
+    expect(depositAim(calls, near).spot).toEqual(HAINAUT.deposit.lonLat);
+    const far: LonLat = [2.35, 48.86];
+    const aim = depositAim(calls, far);
+    expect(aim.spot).toEqual(far);
+    expect(aim.target?.call).toBe(HAINAUT);
+    expect(aim.target!.km).toBeGreaterThan(150);
+  });
+
+  it('neither leaps onto nor threads to a deposit out of reach, though it is the nearest', () => {
+    const onRuhr = destinationPoint(RUHR.deposit.lonLat, 10, 0);
+    const aim = depositAim(calls, onRuhr);
+    expect(aim.spot).toEqual(onRuhr);
+    expect(aim.target?.call).toBe(HAINAUT);
+  });
+
+  it('threads nowhere when no deposit is open', () => {
+    expect(depositAim([RUHR], [2.35, 48.86]).target).toBeNull();
+  });
+});
+
+describe('the thread on screen (#239)', () => {
+  it('sags between the ghost and its basin when both are on screen', () => {
+    const path = threadPath({ x: 100, y: 100 }, { x: 500, y: 100 }, 1440, 900);
+    expect(path.off).toBe(false);
+    expect(path.to).toEqual({ x: 500, y: 100 });
+    expect(path.bend.y).toBeGreaterThan(100);
+  });
+
+  it('stops at the edge of the screen, with an arrow, when the basin is off it', () => {
+    const path = threadPath({ x: 700, y: 450 }, { x: 3000, y: 450 }, 1440, 900);
+    expect(path.off).toBe(true);
+    expect(path.to.x).toBe(1440 - THREAD_MARGIN);
+    expect(path.to.y).toBe(450);
+  });
+});
+
+/**
+ * **Under a finger, the aim stands above it only while a tile is carried** (#239): a press on
+ * the canvas puts the building under the finger at the release, so it must aim there too.
+ */
+describe('a building held under a finger', () => {
+  const moved = (gesture: object | null) => {
+    const aimed: Array<[number, number]> = [];
+    const engine = {
+      gesture,
+      placing: { magnet: { kind: 'free' } },
+      fingerOnBoard: false,
+      held: null,
+      pointerScreen: { x: 0, y: 0 },
+      lastPointer: { clientX: 0, clientY: 0 },
+      aimPointer: (x: number, y: number) => aimed.push([x, y]),
+      pointerMoved: () => {},
+    };
+    (MapEngine.prototype as unknown as { pointerMove: (event: object) => void }).pointerMove.call(
+      engine,
+      { pointerType: 'touch', clientX: 100, clientY: 400 },
+    );
+    return aimed[0]![1];
+  };
+
+  it('aims above the finger that carries a tile from the personal board', () => {
+    expect(moved(null)).toBeLessThan(400);
+  });
+
+  it('aims under the finger pressed on the canvas, where its release puts the building', () => {
+    expect(moved({ carrying: false })).toBe(400);
   });
 });

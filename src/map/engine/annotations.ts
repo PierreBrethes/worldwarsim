@@ -22,13 +22,14 @@ import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
 import { SILHOUETTES } from './silhouettes';
 import { InkRing, type RingState } from './ink-ring';
 import type { MapMotion } from '@/domain/map-motion';
+import { ADVERSE_INK } from './palette';
 
 /** The annotation's side in model units — the landing's mark against a figurine. */
 const SIDE = 3.2;
 const PLANE = new PlaneGeometry(SIDE, SIDE).rotateX(-Math.PI / 2).translate(0, 0.03, 0);
 
 const INK = '#2a2118';
-const RED = '#8f3a2c';
+const RED = ADVERSE_INK;
 const PX = 256;
 /** Silhouettes are drawn around ±10 (`silhouettes.ts`); the domain takes the middle of the ring. */
 const DOMAIN_SCALE = 6.4;

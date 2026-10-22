@@ -299,3 +299,40 @@ class Ring {
     this.material.dispose();
   }
 }
+
+/** @a-mesurer */
+const PLACING_THICKNESS = 1.5;
+
+/**
+ * **The reach of the player's outposts, drawn while a building is in hand** (#239): where the
+ * pose is taken abroad. The detection ring's dashes, one ring per standing outpost.
+ */
+export class ReachRings {
+  readonly object = new Group();
+  private rings: Ring[] = [];
+  private size: readonly [number, number] = [1, 1];
+
+  constructor(private readonly frame: WorldFrame) {}
+
+  show(reaches: ReadonlyArray<{ readonly lonLat: LonLat; readonly reachKm: number }>): void {
+    for (const ring of this.rings) ring.dispose();
+    this.rings = reaches.map(({ lonLat, reachKm }) => {
+      // The board's ink, thin: the thread of the pose is the ochre on the sheet, not the reach.
+      const ring = new Ring(true, DEAD_INK, PLACING_THICKNESS);
+      ring.write(circleAround(this.frame, lonLat, reachKm));
+      ring.resize(...this.size);
+      this.object.add(ring.line);
+      return ring;
+    });
+  }
+
+  resize(width: number, height: number): void {
+    this.size = [width, height];
+    for (const ring of this.rings) ring.resize(width, height);
+  }
+
+  dispose(): void {
+    this.show([]);
+    this.object.removeFromParent();
+  }
+}

@@ -3746,8 +3746,16 @@ export const fr = {
         card === null
           ? 'posez d’abord votre quartier général'
           : `demande la recherche ${cardName(card)}`,
-      deposit: (deposits: ReadonlyArray<string>) =>
-        `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons`,
+      /** Le plus proche des libres, depuis le QG (#239), à dix kilomètres près. */
+      deposit: (
+        deposits: ReadonlyArray<string>,
+        nearest: { readonly place: string; readonly km: number } | null = null,
+      ) =>
+        `demande un gisement libre de ${deposits.join(' ou ')} sur votre sol ou dans vos rayons${
+          nearest === null
+            ? ''
+            : ` — le plus proche : ${nearest.place}, ${Math.round(nearest.km / 10) * 10} km`
+        }`,
       free: 'à poser — choisissez la clé, puis visez un lieu sur la carte',
     },
 
@@ -4521,6 +4529,33 @@ export const fr = {
     hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
     coastPending: 'la côte arrive sur la carte — un instant',
+    /** Au téléphone, la tuile se porte du doigt (#239). */
+    hintTouch: 'levez le doigt pour poser — glissez hors de la carte pour renoncer',
+    /** Au sommet du rayon d'un avant-poste, pendant la pose (#239). */
+    reach: (km: number) => `rayon de l’avant-poste · ${km} km`,
+    /** Le fil vers le gisement prenable le plus proche (#239), à cinq kilomètres près. */
+    thread: (deposit: DepositKey, place: string | null, km: number) =>
+      [fr.deposits[deposit], place, `${Math.round(km / 5) * 5} km`]
+        .filter((part) => part !== null)
+        .join(' · '),
+    /**
+     * Aucun gisement prenable : le plus proche des libres, à dix kilomètres près (#239). La portée
+     * n'est nommée que si c'est elle qui les refuse tous ; sinon la phrase dit le refus du plus
+     * proche (`refused`, `aimRefusalShort`).
+     */
+    noneOpen: (
+      kinds: ReadonlyArray<DepositKey>,
+      nearest: { readonly place: string; readonly km: number; readonly refused: string } | null,
+      allOutOfReach: boolean,
+    ) => {
+      const where =
+        nearest === null
+          ? ''
+          : ` — le plus proche : ${nearest.place}, ${Math.round(nearest.km / 10) * 10} km`;
+      return allOutOfReach || nearest === null
+        ? `aucun gisement de ${depositNames(kinds)} libre${nearest === null ? '' : ' à votre portée'}${where}`
+        : `aucun gisement de ${depositNames(kinds)} ne se prend${where}, ${nearest.refused}`;
+    },
   },
 
   construction: {
@@ -4572,9 +4607,23 @@ export const fr = {
     outpostUnderConstruction: 'avant-poste en chantier',
     outpostGarrison: (garrison: number) => `GARNISON ${garrison}`,
     buildingLevel: (level: number) => `NIVEAU ${level}`,
-    /** The holder of a deposit, as its map label says it: mine (a level once it stands), or known held. */
-    depositHeld: ({ mine, level }: { mine: boolean; level: number | null }) =>
-      !mine ? 'exploité' : level === null ? 'votre chantier' : `à vous · niveau ${level}`,
+    /** A deposit's name in ink beside its basin (#239), and who is known to work it: mine (a
+     *  level once it stands), known held, or free — the fog has it free until surveyed. */
+    /** `refused` : ce que la pose dirait sur son point, en court, quand une clé l'éveille (#239). */
+    depositName: (
+      deposit: DepositKey,
+      held: { mine: boolean; level: number | null } | null,
+      refused: string | null = null,
+    ) =>
+      `${fr.deposits[deposit]} · ${
+        held === null
+          ? (refused ?? 'libre')
+          : !held.mine
+            ? 'exploité'
+            : held.level === null
+              ? 'votre chantier'
+              : `à vous · niveau ${held.level}`
+      }`,
     /** **Un cartouche par pile** (carte-lisible, 03/10) : le lieu et le compte, rien d'autre. */
     stackPlace: (place: string, troops: number) => `${place} · ${troops}`,
     /** Deux cartouches qui se chevauchent n'en font qu'un : les piles, puis les troupes. */
@@ -4752,6 +4801,29 @@ export function aimRefusalText(
     case 'NOT_COASTAL':
     case 'UNKNOWN_BUILDING':
       return errors[refusal.code]();
+  }
+}
+
+/**
+ * **The refusal of a point, in a few words** (#239): what a woken deposit's name says, and the
+ * card when no deposit is open — `aimRefusalText` says it whole on the card under the pointer.
+ */
+export function aimRefusalShort(refusal: NonNullable<AimVerdict['refusal']>): string {
+  switch (refusal.code) {
+    case 'OUT_OF_REACH':
+      return 'hors de portée';
+    case 'TOO_CLOSE':
+      return `trop près ${ofTheBuildingName(refusal.near)}`;
+    case 'DEPOSIT_TAKEN':
+      return 'exploité';
+    case 'RESEARCH_REQUIRED':
+      return 'recherche requise';
+    case 'HQ_FIRST':
+      return 'le QG d’abord';
+    case 'ALREADY_BUILT':
+      return 'déjà bâti';
+    default:
+      return 'refusé ici';
   }
 }
 

@@ -49,3 +49,35 @@ describe('the label of a piece the board pins (#234)', () => {
     expect(shownAt(20).pile).toEqual({ visible: true, atEdge: false });
   });
 });
+
+/** **Le nom d'un gisement ne paraît qu'au rapproché** (#239, maquette `bassin.html`) : de loin,
+ *  le bassin est un lavis et ne dit rien ; il se nomme en fondu quand on s'approche. */
+describe('the name of a deposit', () => {
+  const nameAt = (distance: number) => {
+    const layer = new LabelLayer(
+      frame,
+      () => null,
+      () => 1,
+      () => false,
+    );
+    layer.setAnchors([
+      { id: 'deposit', anchor: { kind: 'ground', lonLat: paris }, withRegionLayer: true },
+    ]);
+    const [name] = layer.project(eyeOver(paris, distance), W, H, new Map());
+    return { visible: name!.visible, atEdge: name!.atEdge, fade: name!.fade };
+  };
+
+  it('says nothing from far, where the regions are still drawn', () => {
+    expect(nameAt(40)).toMatchObject({ visible: false, atEdge: false });
+  });
+
+  it('is written whole up close', () => {
+    expect(nameAt(4)).toEqual({ visible: true, atEdge: false, fade: 1 });
+  });
+
+  it('fades in between', () => {
+    const { fade } = nameAt(13);
+    expect(fade).toBeGreaterThan(0);
+    expect(fade).toBeLessThan(1);
+  });
+});

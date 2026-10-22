@@ -43,7 +43,6 @@ const outpost = (id: string, text: string): MapLabel =>
     ink: null,
     pictogram: 'outpost',
     plate: null,
-    deposit: null,
     lootSightingId: null,
     lootCurrent: true,
     washed: false,
@@ -320,16 +319,16 @@ describe('a loaded transport', () => {
   });
 });
 
-/** **Le pied de l'épingle de pose n'est pas caché par la pastille du gisement** (#237) : DOM au
- *  dessus de la toile, la pastille du gisement que tient l'aimant s'estompe. */
-describe('the deposit chip under the placement pin', () => {
+/** **Un gisement est son bassin et son nom à l'encre** (#239) : plus de pastille sur la carte,
+ *  rien donc à estomper sous l'épingle de pose (#237), qui reste lisible sur le bassin. */
+describe('a deposit on the map', () => {
   const deposit = (id: string, lonLat: [number, number]) =>
     ({
       ...outpost(id, 'charbon'),
       type: 'deposit',
       anchor: { kind: 'ground', lonLat },
     }) as MapLabel;
-  const draw = (aimed: [number, number] | null) => (
+  const draw = () => (
     <MapLabels
       labels={[deposit('held', [3, 50]), deposit('other', [4, 50])]}
       engine={null}
@@ -351,16 +350,13 @@ describe('the deposit chip under the placement pin', () => {
       holding={false}
       onHoldOver={noop}
       muted
-      pinAt={aimed}
     />
   );
 
-  it('fades only the chip the pin stands on', () => {
-    const { container, rerender } = render(draw([3, 50]));
-    const faded = () => [...container.querySelectorAll('.label--under-pin')].length;
-    expect(faded()).toBe(1);
-    expect(container.querySelector('.label--under-pin')?.textContent).toContain('charbon');
-    rerender(draw(null));
-    expect(faded()).toBe(0);
+  it('wears no chip that would hide the pin', () => {
+    const { container } = render(draw());
+    expect(container.querySelector('.label-deposit')).toBeNull();
+    expect(container.querySelector('.label--deposit img')).toBeNull();
+    expect(container.querySelector('.label--deposit')?.textContent).toContain('charbon');
   });
 });

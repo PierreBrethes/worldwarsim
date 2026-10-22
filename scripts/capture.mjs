@@ -17,11 +17,14 @@
  * `lacher` le relâche : entre les deux, des `survol` font un glisser (une tuile du plateau personnel
  * portée sur la carte), et une capture prise avant `lacher` montre la main pleine. `touche=H` presse
  * une touche ; `tenir=Shift` l'enfonce et `relever=Shift` la relâche (Maj + glisser : le lasso).
+ * `doigt=x,y` (avec `--tactile`) pose un doigt, puis le glisse à chaque `doigt` suivant, et
+ * `lever` le relève : une tuile portée du doigt, capturée main pleine avant `lever`.
  * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
- * `lieu=lon,lat,distance` vise un lieu de la carte au centre de l'écran, à cette distance.
+ * `lieu=lon,lat,distance[,pente°]` vise un lieu de la carte au centre de l'écran, à cette distance,
+ * et sous cette pente quand elle est donnée (0 = d'aplomb, regard vers le nord).
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -103,6 +106,8 @@ try {
     await understood.click();
   }
   await page.waitForTimeout(Number(option('attendre', 6000)));
+  /** Le doigt de `doigt=` : où il est, et s'il touche. */
+  let finger = null;
   for (const gesture of gestures) {
     const [kind, value = ''] = gesture.split(/=(.*)/s);
     const [x = 0, y = 0, dy = 0] = value.split(',').map(Number);
@@ -123,7 +128,23 @@ try {
     else if (kind === 'touche') await page.keyboard.press(value);
     else if (kind === 'tenir') await page.keyboard.down(value);
     else if (kind === 'relever') await page.keyboard.up(value);
-    else if (kind === 'photo') await page.screenshot({ path: value });
+    else if (kind === 'doigt' || kind === 'lever') {
+      finger ??= { cdp: await page.context().newCDPSession(page), down: false };
+      const type = kind === 'lever' ? 'touchEnd' : finger.down ? 'touchMove' : 'touchStart';
+      const steps = type === 'touchMove' ? 8 : 1;
+      for (let k = 1; k <= steps; k++) {
+        const at = {
+          x: finger.x + ((x - finger.x) * k) / steps,
+          y: finger.y + ((y - finger.y) * k) / steps,
+        };
+        await finger.cdp.send('Input.dispatchTouchEvent', {
+          type,
+          touchPoints: type === 'touchEnd' ? [] : [type === 'touchStart' ? { x, y } : at],
+        });
+        await page.waitForTimeout(30);
+      }
+      Object.assign(finger, { down: type !== 'touchEnd', x, y });
+    } else if (kind === 'photo') await page.screenshot({ path: value });
     else if (kind === 'pause') await page.waitForTimeout(x);
     else if (kind === 'camera') {
       // `mapEngine` n'est exposé qu'en dev (`WorldMap.tsx`).
@@ -144,18 +165,20 @@ try {
       );
       await page.waitForTimeout(1500);
     } else if (kind === 'lieu') {
-      const [, , distance = 30] = value.split(',').map(Number);
+      const [, , distance = 30, pitch = NaN] = value.split(',').map(Number);
       await page.evaluate(
-        ([lon, lat, d]) => {
+        ([lon, lat, d, p]) => {
           const engine = globalThis.mapEngine;
           const target = engine.frame.projectLonLat([lon, lat], 0);
           const away = engine.camera.position.clone().sub(engine.controls.target).normalize();
+          if (!Number.isNaN(p))
+            away.set(0, Math.cos((p * Math.PI) / 180), Math.sin((p * Math.PI) / 180));
           engine.controls.target.copy(target);
           engine.camera.position.copy(target).addScaledVector(away, d);
           engine.controls.update();
           engine.invalidate();
         },
-        [x, y, distance],
+        [x, y, distance, pitch],
       );
       await page.waitForTimeout(2500);
     } else if (kind === 'ralenti') {

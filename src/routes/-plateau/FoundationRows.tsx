@@ -1,4 +1,4 @@
-import { fr } from '@/i18n/fr';
+import { countryLabel, fr } from '@/i18n/fr';
 import type { DepositKey } from '@/domain/ids';
 import type { FoundationDebt } from '@/domain/economy';
 import type { Placement, PlacementCondition } from '@/domain/construction';
@@ -174,6 +174,11 @@ export function conditionText(condition: PlacementCondition): string {
     case 'locked':
       return said.locked(condition.card);
     case 'deposit':
-      return said.deposit(condition.deposits.map((deposit) => fr.deposits[deposit]));
+      return said.deposit(
+        condition.deposits.map((deposit) => fr.deposits[deposit]),
+        condition.nearest === null
+          ? null
+          : { place: countryLabel(condition.nearest.country), km: condition.nearest.km },
+      );
   }
 }

@@ -1300,6 +1300,7 @@ function BoardContent({
   const {
     placing,
     placingCard,
+    calls,
     setPlacingAim,
     hold,
     dismissPlacing,
@@ -1367,8 +1368,7 @@ function BoardContent({
     [view.me, view.surveyedInstallations],
   );
   const markers = useMemo<ReadonlyArray<MapMarker>>(
-    () =>
-      markersOf(view, { marching, trace, regionAt, toggles, placing, holders, knownRegionById }),
+    () => markersOf(view, { marching, trace, regionAt, toggles, calls, holders, knownRegionById }),
     // Les champs de `view` que les marqueurs lisent, pas la vue entière : elle se réinvalide sans cesse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
@@ -1387,7 +1387,7 @@ function BoardContent({
       knownRegionById,
       toggles.buildings,
       toggles.deposits,
-      placing,
+      calls,
       holders,
       view.mode,
       toggles.objectives,

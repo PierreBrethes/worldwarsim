@@ -58,7 +58,7 @@ import { useMapMotion } from '@/data/mapMotion';
 import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
-import { MAT_LIFT_HUD, useBoardInsets } from '@/shell/viewport';
+import { MAT_LIFT_HUD, useBoardInsets, useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
 import { Price } from '@/shell/Price';
 import type { Cost } from '@/domain/player-view';
 import { RouteScale } from './RouteScale';
@@ -88,13 +88,16 @@ import {
   type HeldClaim,
   type PieceClick,
   type PieceHold,
+  type HeldPlacing,
   type PlacingMagnet,
   type PlacingSpot,
+  type PlacingThread,
   type SearchArea,
   type StandingMaquette,
   type StandingPile,
   type SurveyedCamp,
 } from './engine';
+import { ADVERSE_INK } from './engine/palette';
 
 type Props = {
   /** The atlas at its far level; the near one is fetched after the board (ADR 0034). */
@@ -319,6 +322,8 @@ type Props = {
 export type PlacingBuilding = {
   readonly sprite: string | null;
   readonly magnet: PlacingMagnet;
+  /** The outposts' reach, drawn while the building is in hand (#239). */
+  readonly reaches: HeldPlacing['reaches'];
   readonly title: string;
   readonly name: string;
   readonly cost: Cost;
@@ -326,8 +331,8 @@ export type PlacingBuilding = {
   readonly free: boolean;
   readonly duration: string;
   readonly refusal: string | null;
-  /** The point the ghost holds, `null` before it has been on the board. */
-  readonly at: LonLat | null;
+  /** No deposit the pose takes (#239): the nearest free one, named. */
+  readonly nearest: string | null;
 };
 
 /** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
@@ -506,6 +511,12 @@ export function WorldMap({
       setReadyEngine(null);
     };
   }, [atlas, shore]);
+
+  // La Blitz n'exploite rien : ses gisements ne diraient rien qu'on puisse en faire.
+  const basinsShown = indicators.deposits && blitz === null;
+  useEffect(() => {
+    readyEngine?.setDepositBasins(basinsShown);
+  }, [readyEngine, basinsShown]);
 
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;
@@ -1133,9 +1144,13 @@ export function WorldMap({
    *  its point while the board re-reads the refusal under it. */
   const heldSprite = placing?.sprite ?? null;
   const heldMagnet = placing?.magnet ?? null;
+  const heldReaches = placing?.reaches ?? null;
   const heldPlacing = useMemo(
-    () => (heldMagnet === null ? null : { sprite: heldSprite, magnet: heldMagnet }),
-    [heldSprite, heldMagnet],
+    () =>
+      heldMagnet === null
+        ? null
+        : { sprite: heldSprite, magnet: heldMagnet, reaches: heldReaches ?? [] },
+    [heldSprite, heldMagnet, heldReaches],
   );
   useEffect(() => {
     readyEngine?.setPlacing(heldPlacing);
@@ -1449,7 +1464,6 @@ export function WorldMap({
         onCancelHeld={() => onDropRefused?.()}
         onHoldOver={holdOver}
         muted={placing !== null}
-        pinAt={placing?.at ?? null}
         openStation={openStation}
         groupFar={blitz !== null}
         nation={playerNation ?? null}
@@ -1480,7 +1494,7 @@ export function WorldMap({
         </div>
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
-      {placing && <PlacingCard placing={placing} container={container} />}
+      {placing && <PlacingOverlay engine={readyEngine} placing={placing} container={container} />}
       {/* Une rose ouverte dit déjà ce que la pastille disait. */}
       {hint !== null && rose === null && (
         <DropHintChip ref={hintNode} hint={hint} {...(dropNotes ? { notes: dropNotes } : {})} />
@@ -1626,13 +1640,17 @@ const HINT_MS = 7000;
 function PlacingCard({
   placing,
   container,
+  thread,
 }: {
   placing: PlacingBuilding;
   container: RefObject<HTMLDivElement | null>;
+  thread: PlacingThread | null;
 }) {
   const [at, setAt] = useState<{ x: number; y: number; flipX: boolean; flipY: boolean } | null>(
     null,
   );
+  const narrow = useNarrowScreen();
+  const insets = useBoardInsets();
 
   /** **Le carton ne sort pas de l'écran** : sur la moitié droite ou basse il passe de l'autre côté
    *  du pointeur, sinon un refus lu à la frontière se lirait hors champ. */
@@ -1655,15 +1673,29 @@ function PlacingCard({
     };
   }, [container]);
 
+  /** **Au téléphone, la fiche est le pied de l'écran** (#239) : le doigt couvrirait une fiche
+   *  qui le suit, et le point visé se tient au-dessus de lui. */
+  if (narrow)
+    return (
+      <div
+        className="pointer-events-none absolute inset-x-0 z-[var(--z-band)]"
+        style={{ bottom: insets.bottom }}
+      >
+        <PlacingLines placing={placing} docked />
+      </div>
+    );
   if (at === null) return null;
+  // Le carton se range de l'autre côté du fil : il en couvrirait le nom (#239).
+  const long = thread?.long ?? null;
+  const flipX = long === null ? at.flipX : long.to.x > long.from.x;
   /** Placé hors du `.hud`, qui porte un `zoom` : sa position serait zoomée avec lui. */
   return (
     <div
       className="pointer-events-none absolute z-[var(--z-band)]"
       style={{
-        left: at.x + (at.flipX ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
+        left: at.x + (flipX ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
         top: at.y + (at.flipY ? -PLACING_CARD_GAP : PLACING_CARD_GAP),
-        transform: `translate(${at.flipX ? '-100%' : '0'}, ${at.flipY ? '-100%' : '0'})`,
+        transform: `translate(${flipX ? '-100%' : '0'}, ${at.flipY ? '-100%' : '0'})`,
       }}
     >
       <PlacingLines placing={placing} />
@@ -1671,9 +1703,16 @@ function PlacingCard({
   );
 }
 
-function PlacingLines({ placing }: { placing: PlacingBuilding }) {
+function PlacingLines({ placing, docked = false }: { placing: PlacingBuilding; docked?: boolean }) {
+  const coarse = useCoarsePointer();
   return (
-    <div className="hud paper-grain float max-w-[240px] border border-[var(--ink)] px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)]">
+    <div
+      className={`hud paper-grain px-[10px] py-[7px] font-(family-name:--font-body) text-[12px] text-[var(--ink)] ${
+        docked
+          ? 'border-t border-[var(--ink)] px-[16px] pb-[12px]'
+          : 'float max-w-[240px] border border-[var(--ink)]'
+      }`}
+    >
       <span className="block font-semibold">{placing.title}</span>
       <span className="block text-[11.5px] text-[var(--ink-soft)]">{placing.name}</span>
       {/* Le prix sur sa propre ligne : ses pictos ne chevauchent rien, à 1440 comme à 390. */}
@@ -1681,14 +1720,139 @@ function PlacingLines({ placing }: { placing: PlacingBuilding }) {
         {placing.free ? fr.construction.free : <Price costs={placing.cost} size={11} />}
         <span>· {placing.duration}</span>
       </span>
-      {placing.refusal === null ? (
-        <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">{fr.placing.hint}</span>
-      ) : (
+      {placing.refusal !== null && (
         <span className="mt-[4px] block text-[11px] font-semibold text-[var(--critical)] first-letter:uppercase">
           {placing.refusal}
         </span>
       )}
+      {placing.nearest !== null && (
+        <span className="mt-[2px] block text-[11px] text-[var(--ink-soft)]">{placing.nearest}</span>
+      )}
+      {(placing.refusal === null || docked) && (
+        <span className="mt-[4px] block text-[11px] text-[var(--ink-soft)]">
+          {coarse ? fr.placing.hintTouch : fr.placing.hint}
+        </span>
+      )}
     </div>
+  );
+}
+
+/** The maquette's inks of a thread (`bassin.html`): the designated ochre, the adverse red. */
+const THREAD_INK = 'var(--notable)';
+const THREAD_REFUSED_INK = ADVERSE_INK;
+
+/** The share of the thread, from the ghost, where its name stands: by the basin it names. */
+const THREAD_LABEL_AT = 2 / 3;
+
+/**
+ * **What a held building draws over the map** (#239): its thread and its card. The thread comes
+ * from the map at each rendered frame (`onPlacingThread`), so nothing moves at rest; it is kept
+ * here and not in `WorldMap`, which would render again at each frame of the aim.
+ */
+function PlacingOverlay({
+  engine,
+  placing,
+  container,
+}: {
+  engine: MapEngine | null;
+  placing: PlacingBuilding;
+  container: RefObject<HTMLDivElement | null>;
+}) {
+  const [thread, setThread] = useState<PlacingThread | null>(null);
+  useEffect(() => {
+    if (engine === null) return;
+    engine.onPlacingThread = setThread;
+    engine.invalidate();
+    return () => {
+      engine.onPlacingThread = undefined;
+    };
+  }, [engine]);
+  return (
+    <>
+      {thread !== null && <PlacingThreadInk thread={thread} />}
+      <PlacingCard placing={placing} container={container} thread={thread} />
+    </>
+  );
+}
+
+/**
+ * **Le fil de la pose** (#239, maquette « Bassin et fil ») : du fantôme au gisement prenable le
+ * plus proche, en pointillé qui ploie, son nom et sa distance près du bassin, une flèche au bord
+ * de l'écran quand il est hors champ ; tendu, du pointeur — ou du doigt — à l'épingle. Au sommet
+ * de chaque rayon d'avant-poste, son nom.
+ */
+function PlacingThreadInk({ thread }: { thread: PlacingThread }) {
+  const { long, taut, rings } = thread;
+  const label = long === null ? null : fr.placing.thread(long.deposit, long.place, long.km);
+  // The point of the quadratic at `THREAD_LABEL_AT`.
+  const t = THREAD_LABEL_AT;
+  const labelAt =
+    long === null
+      ? null
+      : {
+          x: (1 - t) ** 2 * long.from.x + 2 * (1 - t) * t * long.bend.x + t * t * long.to.x,
+          y: (1 - t) ** 2 * long.from.y + 2 * (1 - t) * t * long.bend.y + t * t * long.to.y,
+        };
+  return (
+    <svg className="pointer-events-none absolute inset-0 z-[var(--z-band)] h-full w-full overflow-visible">
+      {rings.map((ring) => (
+        <text
+          key={`${ring.top.x},${ring.top.y}`}
+          x={ring.top.x}
+          y={ring.top.y - 6}
+          textAnchor="middle"
+          className="font-(family-name:--font-display) text-[12px] italic"
+          // Le liseré papier des noms de la carte : lisible sur la feuille de nuit.
+          style={{
+            fill: 'var(--ink-soft)',
+            stroke: 'var(--paper)',
+            strokeWidth: 3,
+            paintOrder: 'stroke',
+          }}
+        >
+          {fr.placing.reach(ring.km)}
+        </text>
+      ))}
+      {long !== null && (
+        <g style={{ stroke: THREAD_INK }} fill="none">
+          <path
+            d={`M${long.from.x} ${long.from.y}Q${long.bend.x} ${long.bend.y} ${long.to.x} ${long.to.y}`}
+            strokeWidth={1.6}
+            strokeDasharray="4 4"
+          />
+          {long.off && (
+            <path
+              d={`M${long.to.x} ${long.to.y}l${-Math.cos(long.angle - 0.4) * 10} ${-Math.sin(long.angle - 0.4) * 10}L${long.to.x - Math.cos(long.angle + 0.4) * 10} ${long.to.y - Math.sin(long.angle + 0.4) * 10}Z`}
+              style={{ fill: THREAD_INK }}
+            />
+          )}
+        </g>
+      )}
+      {taut !== null && (
+        <line
+          x1={taut.from.x}
+          y1={taut.from.y}
+          x2={taut.to.x}
+          y2={taut.to.y}
+          style={{ stroke: thread.refused ? THREAD_REFUSED_INK : THREAD_INK }}
+          strokeWidth={2}
+        />
+      )}
+      {labelAt !== null && label !== null && (
+        <foreignObject
+          x={Math.round(labelAt.x) - 120}
+          y={Math.round(labelAt.y) - 24}
+          width={240}
+          height={20}
+        >
+          <div className="flex justify-center">
+            <span className="border border-[var(--notable)] bg-[rgb(241_232_210/94%)] px-[5px] font-(family-name:--font-body) text-[11px] leading-[16px] font-semibold whitespace-nowrap text-[var(--ink)]">
+              {label}
+            </span>
+          </div>
+        </foreignObject>
+      )}
+    </svg>
   );
 }
 

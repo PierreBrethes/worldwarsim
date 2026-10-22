@@ -8,14 +8,13 @@ import { isRangoonColumn } from '@/domain/strategic-points';
 import type { StandingPile } from '@/map/engine';
 import { rangoonReachOf, type LabelLine, type MapMarker } from '@/domain/labels';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
-import type { BuildingKey } from '@/domain/ids';
 import { COUNTRY_BY_NATION, isNation, nationInk } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import { lootWords } from '@/domain/journal';
-import type { LonLat } from '@/domain/geo';
+import { destinationPoint, type LonLat } from '@/domain/geo';
+import { BASIN_FLATTENING, BASIN_KM } from '@/domain/deposit-basins';
 import { DEPOSIT_POINTS } from '@/domain/world';
-import { workSitesOf, type depositHolders } from '@/domain/construction';
-import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
+import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
 import type { PlayerView, Stack, TroopStation, TroopView } from '@/domain/player-view';
@@ -30,7 +29,7 @@ export function markersOf(
     trace,
     regionAt,
     toggles,
-    placing,
+    calls,
     holders,
     knownRegionById,
   }: {
@@ -38,7 +37,8 @@ export function markersOf(
     trace: TourTrace | null;
     regionAt: RegionAt | null;
     toggles: IndicatorToggles;
-    placing: { readonly key: BuildingKey; readonly debt: FoundationDebt | null } | null;
+    /** The deposits a key in hand calls (`usePlacing`): they wake (#239). */
+    calls: ReadonlyArray<DepositCall> | null;
     holders: ReturnType<typeof depositHolders>;
     knownRegionById: ReadonlyMap<string, { readonly state: string }>;
   },
@@ -63,23 +63,22 @@ export function markersOf(
    * au dézoom, rien ne pleut sur la carte.
    */
   /** **La Blitz n'exploite rien** : ses gisements ne diraient rien qu'on puisse en faire. */
-  const seeking =
-    placing === null
-      ? undefined
-      : placing.debt?.deposit != null
-        ? [placing.debt.deposit]
-        : EXPLOITED_DEPOSITS[placing.key];
+  const woken = new Map(
+    (calls ?? []).map((call) => [call.deposit.id, call.refusal ?? ('open' as const)]),
+  );
   const deposits: ReadonlyArray<MapMarker> =
-    toggles.deposits && view.mode !== 'blitz'
+    (toggles.deposits || calls !== null) && view.mode !== 'blitz'
       ? DEPOSIT_POINTS.map((point) => {
           const holder = holders.get(point.id);
+          const wake = woken.get(point.id);
           return {
             kind: 'deposit' as const,
             id: `deposit-${point.id}`,
-            lonLat: point.lonLat,
+            // Its name is written below its basin, as a massif's (#239).
+            lonLat: destinationPoint(point.lonLat, BASIN_KM * BASIN_FLATTENING, 180),
             deposit: point.deposit,
             ...(holder === undefined ? {} : { held: holder }),
-            ...(seeking?.includes(point.deposit) ? { seek: true as const } : {}),
+            ...(wake === undefined ? {} : { wake }),
           };
         })
       : [];

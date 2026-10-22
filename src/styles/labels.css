@@ -138,12 +138,12 @@
   transform: none;
 }
 
-/* A deposit designates a *potential*, a building a possession — so the deposit gets none of
-   the building's apparatus: no mast, no shadow pool, no words, and the resource's own ink
-   instead of the nation's. It sits flat on the ground point, slightly to the side, so the two
-   read together on a worked region without either fighting for the eye. Half the plate's
-   height and no relief: if they ever compete, the player stops knowing what he holds from what
-   he could take. */
+/* A deposit is its basin, drawn in the terrain by the engine (#239), and its name in ink below
+   it, as an atlas writes a massif: italic, no slip of paper, no mast, no shadow pool — a
+   potential, never a possession. Its anchor is the basin's southern edge; the name hangs
+   centred under it. Folded (far, or crowded out by a neighbour) the name goes and the basin
+   stays. The layer is read, never clicked: words catching the pointer would steal the right
+   click that opens the crane on the very region it marks. */
 .label--deposit::before {
   content: none;
 }
@@ -153,47 +153,11 @@
 }
 
 .label--deposit .label-block {
-  bottom: -8px;
-  left: 6px;
-  /* The layer is read, never clicked: a pictogram catching the pointer would steal the right
-     click that opens the crane on the very region it marks. */
+  top: 3px;
+  bottom: auto;
+  left: 0;
+  transform: translateX(-50%);
   pointer-events: none;
-  opacity: 0.85;
-}
-
-/* A deposit is the POC's tag: the resource's plate in a paper roundel, its name, and who works it.
-   Folded (far, or crowded out by a neighbour) the roundel stays alone. */
-.label--deposit.label--glyph .label-block {
-  opacity: 1;
-}
-
-.label--deposit.label--glyph .label-lines,
-.label--deposit .label-bar {
-  display: none;
-}
-
-.label--deposit .label-block {
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-}
-
-.label-deposit {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--paper) 80%, transparent);
-  box-shadow:
-    inset 0 0 0 2px var(--ink),
-    0 2px 0 rgb(42 33 24 / 40%);
-}
-
-.label-deposit img {
-  width: 15px;
-  height: 15px;
-  object-fit: contain;
 }
 
 .label--deposit .label-lines {
@@ -207,26 +171,38 @@
     0 0 3px var(--paper);
 }
 
-/* Holding a building that takes it: the free deposits of its kind wear an ochre ring that beats.
-   The ring stays when motion is reduced or off. */
-.label--seek .label-deposit {
-  box-shadow:
-    inset 0 0 0 2px var(--ink),
-    0 0 0 3px color-mix(in srgb, var(--ochre, #c8913a) 85%, transparent);
-  animation: deposit-seek 1s ease-in-out infinite;
+.label--deposit .label-line--nature {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  /* Solid, not a transparent ink: the paper halo would show through the letters, and blur them
+     on the moonlit sheet. */
+  color: var(--ink-soft);
 }
 
-@keyframes deposit-seek {
-  50% {
-    box-shadow:
-      inset 0 0 0 2px var(--ink),
-      0 0 0 6px color-mix(in srgb, var(--ochre, #c8913a) 60%, transparent);
-  }
+/* Woken by a key in hand (#239): a free deposit the pose takes is named in its resource's ink,
+   one it would refuse in red, as its basin is drawn. */
+.label--wake-coal .label-line--nature {
+  color: var(--res-coal-paper);
 }
 
-:root[data-motion='reduced'] .label--seek .label-deposit,
-:root[data-motion='off'] .label--seek .label-deposit {
-  animation: none;
+.label--wake-iron .label-line--nature {
+  color: var(--res-steel-paper);
+}
+
+.label--wake-food .label-line--nature {
+  color: var(--res-food-paper);
+}
+
+.label--wake-oil .label-line--nature {
+  color: var(--res-oil-paper);
+}
+
+.label--wake-refused .label-line--nature {
+  color: var(--critical);
 }
 
 /* A crate is a private observation, not a possession: no national mast and no ground shadow.
@@ -1191,9 +1167,4 @@
 .label-anchor--far .label--arrival .label-flag svg {
   width: 9px;
   height: 12px;
-}
-
-/* The pin of a placement stands on this deposit's centre: the chip steps aside (#237). */
-.label--under-pin {
-  opacity: 0.15;
 }

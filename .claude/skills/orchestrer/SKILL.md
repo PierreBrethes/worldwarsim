@@ -34,7 +34,7 @@ Pierre tranche seul :
 
 Pose-lui ces questions numérotées et groupées, chacune avec ta recommandation et des boutons.
 
-Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décisions prises seul » du rapport et de la PR. Dans ce projet, tu fusionnes toi-même un lot complet ; le `CLAUDE.md` global de Pierre vaut pour ses autres projets.
+Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décisions prises seul » du rapport et de la PR. Une décision à toi qui touche une règle de jeu ou le brouillard (pas une valeur ni un texte) se mesure avant d'entrer dans un lot : ce qu'elle ferme, ce qu'elle cache vraiment. Sans mesure, elle part à Pierre ou attend. Dans ce projet, tu fusionnes toi-même un lot complet ; le `CLAUDE.md` global de Pierre vaut pour ses autres projets.
 
 ## 3. Le pipeline d'un lot
 

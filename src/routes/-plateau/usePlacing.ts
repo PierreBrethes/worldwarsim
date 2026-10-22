@@ -2,15 +2,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { outpostReachKm } from '../../../convex/constants';
-import { aimVerdict, freeDeposits, placementOf, reachesOf } from '@/domain/construction';
+import {
+  aimVerdict,
+  depositCalls,
+  nearestDeposit,
+  placementOf,
+  reachesOf,
+  type DepositCall,
+} from '@/domain/construction';
 import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
-import type { BuildingKey } from '@/domain/ids';
+import type { BuildingKey, DepositKey } from '@/domain/ids';
+import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import type { PlayerView } from '@/domain/player-view';
-import { DEPOSIT_POINTS } from '@/domain/world';
 import { asDuration } from '@/domain/duration';
 import { buildingSprite } from '@/emblems/buildings/manifest';
-import { aimRefusalText, fr } from '@/i18n/fr';
+import { aimRefusalShort, aimRefusalText, countryLabel, fr } from '@/i18n/fr';
 import type { PlacingMagnet, PlacingSpot } from '@/map/engine';
 import type { PlacingBuilding } from '@/map/WorldMap';
 import { handleError } from '@/data/errors';
@@ -65,38 +72,49 @@ export function usePlacing(
     return () => document.removeEventListener('keydown', drop);
   }, [placing]);
 
-  /** Ce que le fantôme lit : les gisements que personne n'exploite à sa connaissance, et la
-   *  portée de ses avant-postes debout. */
-  /** **Keyed on the free deposits themselves, not on the view**: every Convex update brings a
-   *  new view, and a new list would re-arm the ghost under the pointer (`WorldMap`). */
-  const freeIds = freeDeposits(view)
-    .map((deposit) => deposit.id)
-    .join(',');
-  const freeDepositPoints = useMemo(() => {
-    const free = new Set(freeIds.split(','));
-    return DEPOSIT_POINTS.filter((deposit) => free.has(deposit.id));
-  }, [freeIds]);
   const reaches = useMemo(() => reachesOf({ me: view.me }, outpostReachKm), [view.me]);
+  /** Keyed on what they say, not on the view: every Convex update brings a new view, and a new
+   *  list would re-arm the ghost under the pointer (`WorldMap`). */
+  const reachKey = reaches.map((reach) => `${reach.lonLat.join(',')}:${reach.reachKm}`).join(';');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableReaches = useMemo(() => reaches, [reachKey]);
+
+  const kinds = useMemo(
+    () =>
+      placing === null
+        ? undefined
+        : placing.debt?.deposit != null
+          ? [placing.debt.deposit]
+          : EXPLOITED_DEPOSITS[placing.key],
+    [placing],
+  );
+  /**
+   * **Les gisements que la clé appelle** (#239) : tous ceux de son espèce que personne n'exploite
+   * à sa connaissance s'éveillent ; seuls ceux que la pose prendrait attirent le fantôme et le fil.
+   */
+  // Read once per view and key, never per aim: a verdict per deposit is the cost of the gesture.
+  const liveCalls = useMemo(
+    () =>
+      placing === null || kinds === undefined
+        ? null
+        : depositCalls(view, placing.key, kinds, stableReaches),
+    [view, placing, kinds, stableReaches],
+  );
+  const callsKey =
+    liveCalls?.map((call) => `${call.deposit.id}:${call.refusal?.code ?? ''}`).join(',') ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const calls = useMemo<ReadonlyArray<DepositCall> | null>(() => liveCalls, [callsKey]);
 
   /**
-   * **L'aimant de la clé tenue** : un extracteur saute sur un gisement libre de son espèce — celui
-   * que sa dette nomme, s'il en acquitte une —, un port sur un quai, le reste se pose sous le
-   * pointeur. Mémoïsé sur la clé et la liste : la carte ne réarme le fantôme qu'à leur changement.
+   * **L'aimant de la clé tenue** : un extracteur saute sur un gisement de son espèce que la pose
+   * prendrait — celui que sa dette nomme, s'il en acquitte une —, un port sur un quai, le reste
+   * se pose sous le pointeur. Mémoïsé : la carte ne réarme le fantôme qu'à son changement.
    */
   const magnet = useMemo<PlacingMagnet | null>(() => {
     if (placing === null) return null;
-    const kinds =
-      placing.debt?.deposit != null ? [placing.debt.deposit] : EXPLOITED_DEPOSITS[placing.key];
-    if (kinds !== undefined) {
-      return {
-        kind: 'points',
-        points: freeDepositPoints
-          .filter((deposit) => kinds.includes(deposit.deposit))
-          .map((deposit) => deposit.lonLat),
-      };
-    }
+    if (calls !== null) return { kind: 'deposits', calls };
     return placing.key === 'port' ? { kind: 'coast' } : { kind: 'free' };
-  }, [placing, freeDepositPoints]);
+  }, [placing, calls]);
 
   const verdict =
     placing === null || placingAim === null
@@ -113,7 +131,7 @@ export function usePlacing(
     return {
       sprite: buildingSprite(placing.key),
       magnet,
-      at: placingAim?.lonLat ?? null,
+      reaches: stableReaches,
       title: placingAim?.region?.name ?? placing.title,
       name: fr.buildings[placing.key],
       cost: spec.cost,
@@ -130,12 +148,11 @@ export function usePlacing(
                 hasOutposts: widest.length > 0,
               },
               spec.lockedBy,
-              placing.debt?.deposit != null
-                ? [placing.debt.deposit]
-                : (EXPLOITED_DEPOSITS[placing.key] ?? []),
+              kinds ?? [],
             ),
+      nearest: nearestLine(calls, kinds, placingAim?.lonLat ?? null),
     };
-  }, [placing, magnet, placingAim, verdict, reaches, view]);
+  }, [placing, magnet, placingAim, verdict, reaches, stableReaches, view, calls, kinds]);
 
   const hold = useCallback((held: HeldBuilding | null) => {
     setPlacingAim(null);
@@ -198,10 +215,15 @@ export function usePlacing(
   const foundation = useMemo(
     () =>
       view.me.foundation.map((due) => ({
-        ...placementOf(view, due.key, due.deposit === null ? undefined : [due.deposit]),
+        ...placementOf(
+          view,
+          due.key,
+          stableReaches,
+          due.deposit === null ? undefined : [due.deposit],
+        ),
         deposit: due.deposit,
       })),
-    [view],
+    [view, stableReaches],
   );
 
   // The order disarms itself when its debt is paid off: `me.foundation` is what draws the card,
@@ -215,6 +237,7 @@ export function usePlacing(
   return {
     placing,
     placingCard,
+    calls,
     setPlacingAim,
     hold,
     dismissPlacing,
@@ -226,4 +249,29 @@ export function usePlacing(
     mobilizeError,
     setMobilizeError,
   };
+}
+
+/**
+ * **Aucun gisement prenable** (#239) : la fiche nomme le plus proche des libres, et sa distance
+ * au point visé — le fil, lui, n'a rien à viser.
+ */
+function nearestLine(
+  calls: ReadonlyArray<DepositCall> | null,
+  kinds: ReadonlyArray<DepositKey> | undefined,
+  from: LonLat | null,
+): string | null {
+  if (calls === null || kinds === undefined || from === null) return null;
+  if (calls.some((call) => call.refusal === null)) return null;
+  const nearest = nearestDeposit(calls, from);
+  return fr.placing.noneOpen(
+    kinds,
+    nearest === null || nearest.call.refusal === null
+      ? null
+      : {
+          place: countryLabel(nearest.call.deposit.country),
+          km: nearest.km,
+          refused: aimRefusalShort(nearest.call.refusal),
+        },
+    calls.every((call) => call.refusal?.code === 'OUT_OF_REACH'),
+  );
 }

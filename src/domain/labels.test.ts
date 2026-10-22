@@ -408,10 +408,48 @@ describe('buildLabels', () => {
       },
     ]);
     expect(deposit?.anchor).toEqual({ kind: 'ground', lonLat: [2.4, 49.4] });
-    expect(deposit?.deposit).toBe('coal');
     expect(deposit?.ink).toBeNull();
-    expect(deposit?.lines).toEqual([{ role: 'nature', text: 'charbon' }]);
+    expect(deposit?.lines).toEqual([{ role: 'nature', text: 'charbon · libre' }]);
     expect(deposit?.priority).toBeLessThan(building?.priority ?? 0);
+  });
+
+  it('writes in one line who is known to work a deposit, what the fog lets it say (#239)', () => {
+    const said = (held?: { mine: boolean; level: number | null }) =>
+      buildLabels(viewWith([]), [
+        {
+          kind: 'deposit',
+          id: 'deposit-FR-60',
+          lonLat: [2.4, 49.4],
+          deposit: 'iron',
+          ...(held === undefined ? {} : { held }),
+        },
+      ])[0]?.lines;
+    expect(said()).toEqual([{ role: 'nature', text: 'fer · libre' }]);
+    expect(said({ mine: false, level: null })).toEqual([
+      { role: 'nature', text: 'fer · exploité' },
+    ]);
+    expect(said({ mine: true, level: null })).toEqual([
+      { role: 'nature', text: 'fer · votre chantier' },
+    ]);
+    expect(said({ mine: true, level: 2 })).toEqual([
+      { role: 'nature', text: 'fer · à vous · niveau 2' },
+    ]);
+  });
+
+  it('wakes a deposit a held key calls, in its own ink, and says why the pose would refuse it (#239)', () => {
+    const woken = (wake: NonNullable<(MapMarker & { kind: 'deposit' })['wake']>) =>
+      buildLabels(viewWith([]), [
+        { kind: 'deposit', id: 'deposit-FR-60', lonLat: [2.4, 49.4], deposit: 'coal', wake },
+      ])[0];
+    expect(woken('open')?.wake).toEqual({ deposit: 'coal', open: true });
+    expect(woken('open')?.lines).toEqual([{ role: 'nature', text: 'charbon · libre' }]);
+    expect(woken({ code: 'OUT_OF_REACH' })?.wake).toEqual({ deposit: 'coal', open: false });
+    expect(woken({ code: 'OUT_OF_REACH' })?.lines).toEqual([
+      { role: 'nature', text: 'charbon · hors de portée' },
+    ]);
+    expect(woken({ code: 'TOO_CLOSE', near: 'arsenal', km: 30 })?.lines).toEqual([
+      { role: 'nature', text: 'charbon · trop près de l’arsenal' },
+    ]);
   });
 
   it('counts down on a mast the battery of the gun garrisoned inside (B20)', () => {

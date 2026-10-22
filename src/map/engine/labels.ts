@@ -64,7 +64,8 @@ export type NamedAnchor = {
    * The label is part of the zoomed-in layer, not merely anchored on one of its regions: it
    * appears and fades with the admin-1 borders. A building says what a nation *holds* and is
    * worth seeing from orbit; what the ground *contains* is only useful once the eye is close
-   * enough to build on it.
+   * enough to build on it — and named only closer still (`NAMED_UP_TO`, #239): from far the
+   * deposit is a wash on the board, as in the mockup, and says nothing.
    */
   readonly withRegionLayer: boolean;
   /** **A piece the board draws as a pin far away** (#234): there its label says nothing — the
@@ -78,6 +79,12 @@ export type EdgeInsets = {
   readonly bottom: number;
   readonly left: number;
 };
+
+/** A deposit's name is whole up to `NAMED_UP_TO` from the eye and gone from `NAMED_GONE_AT`, in
+ *  board units, well inside the regions' layer (30 to 65): the mockup names its basins close in
+ *  and never from far. @a-mesurer */
+const NAMED_UP_TO = 10;
+const NAMED_GONE_AT = 16;
 
 const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -185,6 +192,18 @@ export class LabelLayer {
       }
 
       const distance = position.distanceTo(measuredFrom);
+      if (this.withRegions.has(projection.id)) {
+        const t = Math.min(
+          1,
+          Math.max(0, (NAMED_GONE_AT - distance) / (NAMED_GONE_AT - NAMED_UP_TO)),
+        );
+        projection.fade *= t * t * (3 - 2 * t);
+        if (projection.fade === 0) {
+          projection.visible = false;
+          projection.atEdge = false;
+          continue;
+        }
+      }
       // Behind the camera, the perspective projection returns the symmetric point: without
       // this straightening, an indicator would head to the edge opposite its entity.
       const behind = this.toward.copy(position).sub(camera.position).dot(this.gaze) < 0;

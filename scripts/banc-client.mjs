@@ -1139,6 +1139,24 @@ async function play(profileName, pass) {
     }
   });
   await page.keyboard.press('Escape');
+  // **La mine tenue** (#239) : les bassins de charbon et de fer s'éveillent, le fil vise le plus
+  // proche, puis l'aimant le prend au passage du bassin du Nord.
+  await page.evaluate(frameAt, [[2.9, 50.3], 12]);
+  await page.waitForTimeout(2500);
+  await gesture(
+    'prendre une mine',
+    // L'étiquette de la mine du Nord porte le même mot : la tuile est celle qu'on voit.
+    () => page.getByText('Mine', { exact: true }).filter({ visible: true }).first().click(),
+    2500,
+  );
+  const coalfield = await free([Math.round(width / 2), Math.round(height * 0.35)]);
+  await gesture('aimant de la mine', async () => {
+    for (let k = 0; k <= 40; k++) {
+      await page.mouse.move(coalfield[0] - 160 + k * 8, coalfield[1] - 40 + k * 2);
+      await page.waitForTimeout(35);
+    }
+  });
+  await page.keyboard.press('Escape');
   await (phone ? button(/replier le plateau personnel/) : button(/^Plateau personnel$/))
     .click({ timeout: 3000 })
     .catch(() => {});
