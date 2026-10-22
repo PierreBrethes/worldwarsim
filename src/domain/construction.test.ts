@@ -13,13 +13,7 @@ import {
   type Aim,
   type OutpostRaise,
 } from './construction';
-import {
-  BUILDINGS,
-  RESOURCES,
-  type BuildingKey,
-  type ResearchCard,
-  type ResourceKey,
-} from './ids';
+import { BUILDINGS, RESOURCES, type BuildingKey, type ResearchCard, type ResourceKey } from './ids';
 import { BUILDING_SPACING_KM } from './economy';
 import { destinationPoint, type LonLat } from './geo';
 import { DEPOSIT_POINTS } from './world';
@@ -29,7 +23,6 @@ import type { Building, BuildSpec, Cost, PlayerView } from './player-view';
 const CATALOG = Object.fromEntries(
   BUILDINGS.map((key) => [key, { cost: { steel: 20 }, minutes: 30, lockedBy: null }]),
 ) as Record<BuildingKey, BuildSpec>;
-
 
 describe('what holds a raise back', () => {
   const LOADED_AT = 1_000_000;
