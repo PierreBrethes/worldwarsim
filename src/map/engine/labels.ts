@@ -39,6 +39,8 @@ export type LabelProjection = {
    * and the label stays where it is to take the pointer. `0` for anything not dressed.
    */
   dressed: number;
+  /** **Far away**: the figurines have mostly given way to the pins (`nearWeight` under ½). */
+  far: boolean;
   /** **From the anchor to where its piece is drawn**, in pixels, when a ring carried it off its
    *  point: the fanion stays on the point and a thread of ink runs there. `0, 0` otherwise. */
   drawnX: number;
@@ -65,6 +67,9 @@ export type NamedAnchor = {
    * enough to build on it.
    */
   readonly withRegionLayer: boolean;
+  /** **A piece the board draws as a pin far away** (#234): there its label says nothing — the
+   *  pin is the piece, as in the mockup — and it parks at no edge either. */
+  readonly pinned?: boolean;
 };
 
 export type EdgeInsets = {
@@ -83,6 +88,7 @@ const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 export class LabelLayer {
   private readonly fixed = new Map<string, Vector3>();
   private readonly withRegions = new Set<string>();
+  private readonly pinned = new Set<string>();
   private readonly projections: LabelProjection[] = [];
   private readonly normalized = new Vector3();
   private readonly gaze = new Vector3();
@@ -112,8 +118,10 @@ export class LabelLayer {
     this.anchors = anchors;
     this.fixed.clear();
     this.withRegions.clear();
+    this.pinned.clear();
     this.projections.length = 0;
-    for (const { id, anchor, withRegionLayer } of anchors) {
+    for (const { id, anchor, withRegionLayer, pinned } of anchors) {
+      if (pinned === true) this.pinned.add(id);
       if (anchor.kind === 'ground') {
         this.fixed.set(id, this.frame.projectLonLat(anchor.lonLat, ANCHOR_ELEVATION));
       }
@@ -131,6 +139,7 @@ export class LabelLayer {
         lod: 'glyph',
         fade: withRegionLayer ? 0 : 1,
         dressed: 0,
+        far: false,
         drawnX: 0,
         drawnY: 0,
         distance: 0,
@@ -189,6 +198,12 @@ export class LabelLayer {
       const x = (this.normalized.x * 0.5 + 0.5) * width;
       const y = (-this.normalized.y * 0.5 + 0.5) * height;
 
+      projection.far = nearWeight(distance) < 0.5;
+      if (inFrame && projection.far && this.pinned.has(projection.id)) {
+        projection.visible = false;
+        projection.atEdge = false;
+        continue;
+      }
       projection.visible = inFrame;
       projection.distance = distance;
       projection.x = x;

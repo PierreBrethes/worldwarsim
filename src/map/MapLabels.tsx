@@ -533,6 +533,7 @@ export function MapLabels({
             stagger: 0,
             fade: 1,
             dressed: 0,
+            far: false,
             drawn: '',
             hang: '',
             x: 0,
@@ -568,6 +569,7 @@ export function MapLabels({
         id,
         anchor,
         withRegionLayer: type === 'deposit',
+        pinned: PINNED.has(type),
       })),
     );
   }, [engine, labels]);
@@ -592,6 +594,11 @@ export function MapLabels({
         if (fade !== state.fade) {
           state.fade = fade;
           anchor.style.opacity = fade === 1 ? '' : String(fade);
+        }
+        // Far away a sign weighs what a pin does (#234): the objective's, the point's, the flag's.
+        if (projection.far !== state.far) {
+          state.far = projection.far;
+          anchor.classList.toggle('label-anchor--far', projection.far);
         }
         // The plate gives way to the figurines standing under it; the label stays to take the pointer.
         const dressed = Math.round(projection.dressed * 20) / 20;
@@ -646,10 +653,10 @@ export function MapLabels({
       const poster = posterAnchor.current;
       const under = place === null ? undefined : states.current.get(place.id);
       if (place !== null && poster !== null && under !== undefined) {
-        poster.style.visibility = under.visible ? '' : 'hidden';
-        // A drawn piece (maquette, figurines, block, pawn) is cleared whole, from its projected
-        // box; far away, where the plate is the piece, the poster hangs from the label.
+        // A drawn piece (maquette, figurines, block, pawn, pin) is cleared whole, from its
+        // projected box; far away a pin's label is hidden, and the poster hangs from the pin.
         const drawn = engine.pieceRect(place.id);
+        poster.style.visibility = under.visible || drawn !== null ? '' : 'hidden';
         // A transport's tag hangs over its piece: the card clears the tag too (POC, `#card`).
         const tag = cargoed.current.has(place.id)
           ? anchors.current.get(place.id)?.querySelector('.cargo-tags')?.getBoundingClientRect()
@@ -1511,12 +1518,13 @@ type RenderState = {
   visible: boolean;
   lod: DetailLevel;
   folded: boolean;
-  /** Ses mots sont passés dans un cartouche réuni ; sa planche reste. */
+  /** Ses mots sont passés dans un cartouche réuni. */
   grouped: boolean;
   /** De combien son cartouche monte dans l'éventail d'un groupe au plancher du zoom, en pixels. */
   stagger: number;
   fade: number;
   dressed: number;
+  far: boolean;
   /** Where its piece is drawn off its point, as last written: `''` on it. */
   drawn: string;
   /** Where a transport's tag hangs from, over its figurines, as last written. */
