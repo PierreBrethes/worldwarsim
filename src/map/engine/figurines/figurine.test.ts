@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Group } from 'three';
-import { figurineFor, nearWeight, setNearFloor } from './figurine';
+import {
+  altitudeShadow,
+  figurineFor,
+  hideAltitudeShadows,
+  nearWeight,
+  setNearFloor,
+} from './figurine';
 import { squadOf } from './infantry';
 
 describe('nearWeight', () => {
@@ -47,5 +53,17 @@ describe('figurineFor', () => {
     expect(figurineFor('france', 'armor', [1])).not.toBeNull();
     expect(figurineFor('germany', 'airTransport', [1])).not.toBeNull();
     expect(figurineFor('japan', 'artillery', [1])).not.toBeNull();
+  });
+});
+
+describe('hideAltitudeShadows', () => {
+  it('hides the disc of a plane aloft in a copy that is carried, and nothing else', () => {
+    const copy = new Group();
+    const aloft = altitudeShadow();
+    const other = new Group();
+    copy.add(aloft, other);
+    hideAltitudeShadows(copy);
+    expect(aloft.visible).toBe(false);
+    expect(other.visible).toBe(true);
   });
 });

@@ -29,7 +29,13 @@ import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import type { AmbientLayer } from './ambience';
 import { HOVER_ALTITUDE } from './thread';
-import { altitudeShadow, figurineFor, nearWeight, type Figurine } from './figurines/figurine';
+import {
+  altitudeShadow,
+  figurineFor,
+  hideAltitudeShadows,
+  nearWeight,
+  type Figurine,
+} from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { InkRing, type RingState } from './ink-ring';
 import { playTableSound } from '../table-sound';
@@ -881,6 +887,7 @@ export class StandingLayer {
       this.shoreOf(entry.at),
     );
     if (copy === null) return;
+    hideAltitudeShadows(copy.object);
     const piece = new Group();
     piece.add(copy.object);
     const shadow = carriedShadow();

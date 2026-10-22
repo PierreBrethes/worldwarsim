@@ -236,12 +236,21 @@ SHADOW_DISC.setAttribute(
     4,
   ),
 );
+/** The name a carried copy finds its planes' discs by: the copy has its own, under the whole pile. */
+const ALTITUDE = 'altitude';
+
 export function altitudeShadow(): Group {
   const shadow = new Group();
+  shadow.name = ALTITUDE;
   const disc = new Mesh(SHADOW_DISC, SHADOW_MATERIAL);
   disc.rotation.x = -Math.PI / 2;
   disc.position.y = 0.004;
   disc.userData.ground = true;
   shadow.add(disc);
   return shadow;
+}
+
+/** A lifted pile already has its own disc: the ones of the planes aloft in it would be a second. */
+export function hideAltitudeShadows(root: Group): void {
+  for (const disc of root.getObjectsByProperty('name', ALTITUDE)) disc.visible = false;
 }
