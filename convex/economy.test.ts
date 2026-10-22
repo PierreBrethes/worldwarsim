@@ -563,35 +563,39 @@ describe('placement', () => {
     });
 
     /** **Une île est dans sa région** (#221) : sur le raster de 25 km, Lampedusa, Key West ou
-     *  Hachijō-jima n'ont pas de terre, mais leur côte est celle de leur région. La porte ne dit
-     *  jamais `POINT_OUTSIDE_REGION` pour elles (la portée dit son mot, plus loin). */
+     *  Hachijō-jima n'ont pas de terre, mais leur côte est celle de leur région. Le siège de leur
+     *  nation y commande un port, la porte l'accepte et le chantier le bâtit dans cette région. */
     it.each([
-      ['ITA-5417', [12.6, 35.51]],
-      ['USA-3542', [-81.8, 24.55]],
-      ['JPN-1860', [139.79, 33.1]],
+      ['italy', 'ITA-5417', [12.6, 35.51]],
+      ['usa', 'USA-3542', [-81.8, 24.55]],
+      ['japan', 'JPN-1860', [139.79, 33.1]],
     ] as const)(
-      'does not call the island coast of %s outside its region',
-      async (regionId, near) => {
+      'lets %s build a port on the island coast of %s',
+      async (nation, regionId, near) => {
         const coast = decodeCoast(
           coastAsset as CoastAsset,
           projectionAsset as unknown as Projection,
         );
         const shore = nearestCoast(coast, [...near], 30, regionId)!.lonLat;
         const t = boot();
-        const seat = await launchedSeason(t);
+        const seat = await launchedSeason(t, nation);
         await promoteHq(t, seat, 2);
-        const refusal = await t
-          .mutation(api.constructions.start, {
-            ...seat,
-            building: 'port',
-            regionId,
-            point: { lon: shore[0], lat: shore[1] },
-          })
-          .then(
-            () => '',
-            (error: Error) => error.message,
-          );
-        expect(refusal).not.toContain('POINT_OUTSIDE_REGION');
+        await t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'port',
+          regionId,
+          point: { lon: shore[0], lat: shore[1] },
+        });
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+        const ports = await t.run(async (ctx) => {
+          const player = await seatIn(ctx, seat);
+          const held = await ctx.db
+            .query('buildings')
+            .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+            .collect();
+          return held.filter((building) => building.key === 'port').map((port) => port.regionId);
+        });
+        expect(ports).toEqual([regionId]);
       },
     );
 
