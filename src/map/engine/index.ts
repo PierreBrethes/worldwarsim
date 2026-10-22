@@ -1582,6 +1582,7 @@ export class MapEngine {
     this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.pins.resize(clientWidth, clientHeight);
+    this.basins.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
   }
 

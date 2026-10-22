@@ -62,4 +62,29 @@ describe('la couche des bassins (#239)', () => {
     drawn.mesh.raycast({} as never, hits as never);
     expect(hits).toEqual([]);
   });
+
+  it('grandit de loin jusqu’à une tache lisible, sans jamais toucher son voisin', () => {
+    const drawn = layer();
+    drawn.display(basins);
+    const geometry = drawn.mesh.geometry;
+    const perBasin = 1 + basins[0]!.ring.length / 2;
+    const centre = geometry.getAttribute('aCentre');
+    const radius = geometry.getAttribute('aRadius');
+    const room = geometry.getAttribute('aRoom');
+    const at = (k: number) => new Vector2(centre.getX(k * perBasin), centre.getY(k * perBasin));
+    for (let k = 0; k < basins.length; k++) {
+      expect(room.getX(k * perBasin)).toBeGreaterThanOrEqual(1);
+      const own = radius.getX(k * perBasin);
+      const nearest = Math.min(
+        ...basins.map((_, j) => (j === k ? Infinity : at(k).distanceTo(at(j)))),
+      );
+      // Grown, it stops half way to its nearest neighbour, or at its own size if already there.
+      expect(own * room.getX(k * perBasin), basins[k]!.id).toBeLessThanOrEqual(
+        Math.max(own, nearest / 2) * 1.00001,
+      );
+    }
+    // Un bassin isolé a de quoi s'étendre : de loin, il reste une tache.
+    const ruhr = basins.findIndex((basin) => basin.id === 'coal-BEL-2');
+    expect(room.getX(ruhr * perBasin)).toBeGreaterThan(1);
+  });
 });

@@ -1,4 +1,12 @@
-import { BufferAttribute, BufferGeometry, Color, Group, Mesh, ShaderMaterial } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  Group,
+  Mesh,
+  ShaderMaterial,
+  Vector2,
+} from 'three';
 import type { DepositBasin } from '@/domain/deposit-basins';
 import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
@@ -34,9 +42,9 @@ const MIN_CELL_PX = 8;
 /** At two doublings a basin holds a handful of marks; past them only its wash is left. */
 const MAX_DOUBLINGS = 2;
 const GONE_AT = MAX_DOUBLINGS + 1;
-/** The maquette's weights: a wash barely there close in, the whole basin from far. @a-mesurer */
+/** A wash barely there close in, as the mockup; from far, darker than its 0.26, for our sheet carries the terrain washes under it. @a-mesurer */
 const NEAR_WASH = 0.09;
-const FAR_WASH = 0.26;
+const FAR_WASH = 0.36;
 const PEN_ALPHA = 0.5;
 /** The share of cells that bear a mark at the basin's heart. @a-mesurer */
 const KEEP = 0.85;
@@ -45,18 +53,35 @@ const INK = '#2a2118';
 const NIGHT_INK = 0.25;
 /** Over the terrain drawings (0.0025), under the contours. */
 const LIFT = 0.003;
+/** From far a basin grows to this radius on screen, in CSS pixels, so its wash stays a spot the
+ *  eye finds, as in the mockup's far view; close in it keeps its true size. @a-mesurer */
+const MIN_RADIUS_PX = 12;
 
+// From far, the basin swells about its point until its radius reads `MIN_RADIUS_PX` on screen —
+// never past `aRoom`, where it would reach half way to its nearest neighbour.
 const VERTEX = `
 attribute float aEdge;
 attribute float aKind;
+attribute vec2 aCentre;
+attribute float aRadius;
+attribute float aRoom;
+uniform vec2 uViewport;
 varying vec2 vWorld;
 varying float vEdge;
 varying float vKind;
+vec2 onScreen(vec3 p) {
+  vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  return clip.xy / clip.w * uViewport * 0.5;
+}
 void main() {
-  vWorld = position.xz;
+  vec3 centre = vec3(aCentre.x, position.y, aCentre.y);
+  float px = length(onScreen(centre + vec3(aRadius, 0.0, 0.0)) - onScreen(centre));
+  float grow = clamp(${MIN_RADIUS_PX.toFixed(1)} / max(px, 0.001), 1.0, aRoom);
+  vec3 grown = centre + (position - centre) * grow;
+  vWorld = grown.xz;
   vEdge = aEdge;
   vKind = aKind;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(grown, 1.0);
 }`;
 
 const FRAGMENT = `
@@ -141,6 +166,7 @@ export class DepositBasins {
         uInk: { value: new Color(INK) },
         uWash: { value: KINDS.map((kind) => new Color(WASH[kind])) },
         uPixelRatio: TRAME_SCALE,
+        uViewport: { value: new Vector2(1, 1) },
         ...night,
       },
     });
@@ -164,32 +190,77 @@ export class DepositBasins {
     const edges: number[] = [];
     const kinds: number[] = [];
     const index: number[] = [];
+    const radii: number[] = [];
     for (const { at, deposit, ring } of basins) {
       const first = positions.length / 3;
       const count = ring.length / 2;
       const kind = KINDS.indexOf(deposit);
+      const centre = this.frame.projectLonLat(at);
+      let radius = 0;
       for (let k = -1; k < count; k++) {
         const point = this.frame.projectLonLat(
           k < 0 ? at : [ring[2 * k]!, ring[2 * k + 1]!],
           COUNTRY_THICKNESS + LIFT,
         );
         positions.push(point.x, point.y, point.z);
+        radius = Math.max(radius, Math.hypot(point.x - centre.x, point.z - centre.z));
         edges.push(k < 0 ? 0 : 1);
         kinds.push(kind);
       }
       for (let k = 0; k < count; k++)
         // Counter-clockwise seen from above: the ring turns east to south, so its order reverses.
         index.push(first, first + 1 + ((k + 1) % count), first + 1 + k);
+      radii.push(radius);
     }
+    // Each vertex knows its basin's point, its widest radius, and how far it may swell.
+    const centres = basins.map(({ at }) => this.frame.projectLonLat(at));
+    const perBasin: number[][] = basins.map((basin, b) => {
+      const nearest = Math.min(
+        ...centres.map((other, o) =>
+          o === b ? Infinity : Math.hypot(other.x - centres[b]!.x, other.z - centres[b]!.z),
+        ),
+      );
+      const room = Math.max(1, nearest / 2 / radii[b]!);
+      return [centres[b]!.x, centres[b]!.z, radii[b]!, room, 1 + basin.ring.length / 2];
+    });
+    const attribute = (pick: (row: number[]) => number[]) =>
+      new Float32Array(
+        perBasin.flatMap((row) => Array.from({ length: row[4]! }, () => pick(row)).flat()),
+      );
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
     geometry.setAttribute('aEdge', new BufferAttribute(new Float32Array(edges), 1));
     geometry.setAttribute('aKind', new BufferAttribute(new Float32Array(kinds), 1));
+    geometry.setAttribute(
+      'aCentre',
+      new BufferAttribute(
+        attribute(([x, z]) => [x!, z!]),
+        2,
+      ),
+    );
+    geometry.setAttribute(
+      'aRadius',
+      new BufferAttribute(
+        attribute(([, , r]) => [r!]),
+        1,
+      ),
+    );
+    geometry.setAttribute(
+      'aRoom',
+      new BufferAttribute(
+        attribute(([, , , room]) => [room!]),
+        1,
+      ),
+    );
     geometry.setIndex(index);
     this.mesh.geometry.dispose();
     this.mesh.geometry = geometry;
     this.loaded = true;
     this.object.visible = this.shown;
+  }
+
+  resize(width: number, height: number): void {
+    this.mesh.material.uniforms.uViewport!.value.set(width, height);
   }
 
   show(shown: boolean): void {
