@@ -52,7 +52,14 @@ describe('SweepOverlay', () => {
     const [first, second] = engine.sweepDeposits.mock.calls[0]![0].targets as {
       id: string;
     }[];
-    const tag = (id: string): SweepTag => ({ id, x: 100, y: 100, off: false, angle: 0 });
+    const tag = (id: string): SweepTag => ({
+      id,
+      x: 100,
+      y: 100,
+      off: false,
+      angle: 0,
+      radius: 12,
+    });
     act(() => engine.onSweep!([tag(first!.id)]));
     act(() => void vi.advanceTimersByTime(2000));
     act(() => engine.onSweep!([tag(first!.id), tag(second!.id)]));

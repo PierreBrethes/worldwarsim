@@ -105,7 +105,8 @@ import {
 } from './countries';
 import { buildBoard } from './board';
 import { TerrainDrawings } from './terrain-drawings';
-import { DepositBasins, SWEEP_GLOW_MS } from './deposit-basins';
+import { BASIN_MIN_RADIUS_PX, DepositBasins, SWEEP_GLOW_MS } from './deposit-basins';
+import { BASIN_KM } from '@/domain/deposit-basins';
 import { SweepWave } from './deposit-sweep';
 import type { NearSheet } from './near-sheet';
 import { fromGeometryData } from './atlas-geometry';
@@ -250,6 +251,8 @@ export type SweepTag = {
   readonly y: number;
   readonly off: boolean;
   readonly angle: number;
+  /** The basin's radius on screen, as the map draws it: the card stands clear below it. */
+  readonly radius: number;
 };
 
 export type MapActClick = {
@@ -1279,9 +1282,11 @@ export class MapEngine {
           const at = this.mapPointOf(target.lonLat);
           const edge = threadPath(centre, { x: at.x - left, y: at.y - top }, width, height);
           const angle = Math.atan2(at.y - top - centre.y, at.x - left - centre.x);
+          const rim = this.mapPointOf(destinationPoint(target.lonLat, BASIN_KM, 90));
+          const radius = Math.max(BASIN_MIN_RADIUS_PX, Math.hypot(rim.x - at.x, rim.y - at.y));
           return edge.off
-            ? { id: target.id, x: edge.to.x + left, y: edge.to.y + top, off: true, angle }
-            : { id: target.id, x: at.x, y: at.y, off: false, angle: 0 };
+            ? { id: target.id, x: edge.to.x + left, y: edge.to.y + top, off: true, angle, radius }
+            : { id: target.id, x: at.x, y: at.y, off: false, angle: 0, radius };
         });
     }
     const said = JSON.stringify(tags);

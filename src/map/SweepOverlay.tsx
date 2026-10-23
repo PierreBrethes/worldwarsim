@@ -27,8 +27,12 @@ export type SweepRequest = {
 const TAG_MS = 12_000;
 const FADE_IN_MS = 250;
 const FADE_OUT_MS = 1200;
-/** Below the basin's point: clear of its drawn radius at the zoom one reads names at. */
-const TAG_GAP_PX = 20;
+/** The card stands clear of the basin's rim, which is flattened north to south (maquette). */
+const RIM_SHARE = 0.8;
+const TAG_GAP_PX = 6;
+const TAG_GAP_ABOVE_PX = 8;
+/** An edge arrow keeps this much room under it above the band at the foot. */
+const EDGE_ROOM_PX = 16;
 const MARGIN_PX = 8;
 
 /**
@@ -113,6 +117,7 @@ export function SweepOverlay({
             hit={hit}
             place={place}
             still={still}
+            bottomInset={insets.bottom}
             onGo={() => goTo(hit)}
           />
         );
@@ -153,14 +158,16 @@ export function SweepOverlay({
 function SweepTagCard({
   tag,
   hit,
-  place,
+  place: where,
   still,
+  bottomInset,
   onGo,
 }: {
   tag: SweepTag;
   hit: SweepHit;
   place: string;
   still: boolean;
+  bottomInset: number;
   onGo: () => void;
 }) {
   const species = hit.deposit.deposit;
@@ -176,25 +183,44 @@ function SweepTagCard({
       clearTimeout(gone);
     };
   }, []);
-  // Under its basin, the card is kept inside the map: by an edge it would be cut by it.
+  // Under its basin, clear of its drawn rim (maquette `radar.js`), and kept inside the map: by an
+  // edge it would be cut, and over the band at the foot it goes above the basin instead. An arrow
+  // at the foot of the map rises above the band with its card.
   const card = useRef<HTMLButtonElement>(null);
-  const [nudge, setNudge] = useState(0);
+  const [place, setPlace] = useState({ nudge: 0, dy: 0, lift: 0 });
   useLayoutEffect(() => {
     const node = card.current;
     const map = node?.offsetParent;
-    if (!node || !(map instanceof HTMLElement) || tag.off) return setNudge(0);
-    const left = tag.x - node.offsetWidth / 2;
-    setNudge(
-      Math.max(0, MARGIN_PX - left) +
-        Math.min(0, map.clientWidth - MARGIN_PX - left - node.offsetWidth),
+    if (!node || !(map instanceof HTMLElement)) return;
+    const box = map.getBoundingClientRect();
+    const covered = Math.max(
+      bottomInset,
+      pixelsOf('--mat-rise') - (window.innerHeight - box.bottom),
     );
-  }, [tag.x, tag.off]);
+    const floor = box.height - covered - MARGIN_PX;
+    if (tag.off)
+      return setPlace({ nudge: 0, dy: 0, lift: Math.max(0, tag.y + EDGE_ROOM_PX - floor) });
+    const left = tag.x - node.offsetWidth / 2;
+    const below = tag.radius * RIM_SHARE + TAG_GAP_PX;
+    const above = -(tag.radius * RIM_SHARE + TAG_GAP_ABOVE_PX + node.offsetHeight);
+    setPlace({
+      nudge:
+        Math.max(0, MARGIN_PX - left) +
+        Math.min(0, map.clientWidth - MARGIN_PX - left - node.offsetWidth),
+      // A basin under the band itself keeps its card just above the band.
+      dy:
+        tag.y + below + node.offsetHeight <= floor
+          ? below
+          : Math.min(above, floor - node.offsetHeight - tag.y),
+      lift: 0,
+    });
+  }, [tag.x, tag.y, tag.off, tag.radius, bottomInset]);
   const cos = Math.cos(tag.angle);
   const sin = Math.sin(tag.angle);
   // At the edge the card stands behind the arrow's tip, towards the middle of the map.
   const sideways = Math.abs(cos) > Math.abs(sin);
   const anchor = !tag.off
-    ? `translate(calc(-50% + ${nudge}px), ${TAG_GAP_PX}px)`
+    ? `translate(calc(-50% + ${place.nudge}px), ${place.dy}px)`
     : sideways
       ? `translate(${cos > 0 ? 'calc(-100% - 18px)' : '18px'}, -50%)`
       : `translate(-50%, ${sin > 0 ? 'calc(-100% - 18px)' : '18px'})`;
@@ -213,7 +239,7 @@ function SweepTagCard({
           className="absolute h-0 w-0"
           style={{
             left: tag.x,
-            top: tag.y,
+            top: tag.y - place.lift,
             transform: `rotate(${tag.angle}rad)`,
             ...fade,
           }}
@@ -225,12 +251,12 @@ function SweepTagCard({
       <button
         ref={card}
         type="button"
-        title={fr.sweep.goTo(species, place)}
+        title={fr.sweep.goTo(species, where)}
         onClick={onGo}
         className="group pointer-events-auto absolute w-max border border-(color:--ink)/60 bg-[rgb(241_232_210/95%)] px-[8px] pt-[3px] pb-[4px] text-left font-(family-name:--font-body) text-[var(--ink)] shadow-[0_4px_10px_rgb(20_14_6/25%)]"
         style={{
           left: tag.x,
-          top: tag.y,
+          top: tag.y - place.lift,
           transform: anchor,
           borderTop: `3px solid ${WASH[species]}`,
           ...fade,
@@ -239,7 +265,7 @@ function SweepTagCard({
         <span className="flex items-center gap-[5px] text-[12.5px] font-semibold whitespace-nowrap">
           {!tag.off && <ResourcePlate resource={YIELD_OF[species]} height={15} boxed={false} />}
           <span className="group-hover:underline">
-            {fr.sweep.species(species)} · {place}
+            {fr.sweep.species(species)} · {where}
           </span>
         </span>
         <span className="block font-(family-name:--font-mono) text-[11.5px] whitespace-nowrap tabular-nums">
@@ -255,3 +281,7 @@ function SweepTagCard({
     </>
   );
 }
+
+/** A length the board publishes on the root in pixels, `0` when it is not there. */
+const pixelsOf = (property: string): number =>
+  Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(property)) || 0;

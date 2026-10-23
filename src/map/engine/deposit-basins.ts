@@ -65,9 +65,9 @@ export const SWEEP_GLOW_MS = 6000;
 const LIFT = 0.003;
 /** From far a basin grows to this radius on screen, in CSS pixels, so its wash stays a spot the
  *  eye finds, as in the mockup's far view; close in it keeps its true size. @a-mesurer */
-const MIN_RADIUS_PX = 12;
+export const BASIN_MIN_RADIUS_PX = 12;
 
-// From far, the basin swells about its point until its radius reads `MIN_RADIUS_PX` on screen —
+// From far, the basin swells about its point until its radius reads `BASIN_MIN_RADIUS_PX` on screen —
 // never past `aRoom`, where it would reach half way to its nearest neighbour.
 const VERTEX = `
 attribute float aEdge;
@@ -91,7 +91,7 @@ vec2 onScreen(vec3 p) {
 void main() {
   vec3 centre = vec3(aCentre.x, position.y, aCentre.y);
   float px = length(onScreen(centre + vec3(aRadius, 0.0, 0.0)) - onScreen(centre));
-  float grow = clamp(${MIN_RADIUS_PX.toFixed(1)} / max(px, 0.001), 1.0, aRoom);
+  float grow = clamp(${BASIN_MIN_RADIUS_PX.toFixed(1)} / max(px, 0.001), 1.0, aRoom);
   vec3 grown = centre + (position - centre) * grow;
   vWorld = grown.xz;
   vCentre = aCentre;
