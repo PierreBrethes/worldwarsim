@@ -65,3 +65,9 @@ export const useBoardInsets = (): BoardInsets => useContext(BoardInsetsContext);
  */
 export const MAT_LIFT = 'max(0px, var(--mat-rise, 0px) - var(--table-margin))';
 export const MAT_LIFT_HUD = `calc(${MAT_LIFT} / var(--hud-scale))`;
+
+/**
+ * **La carte « à faire » dépliée se déclare à la coque** tant qu'elle est montée : posée à droite
+ * du carré de la colonne, hors de sa boîte, elle couvre la carte sans que la colonne le mesure.
+ */
+export const ColumnCardContext = createContext<(card: HTMLElement | null) => void>(() => {});

@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useContext, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { keepNextActionsFolded, readNextActionsFolded } from '@/data/settings';
 import { fr } from '@/i18n/fr';
 import { useSheetClose } from '@/shell/BottomSheet';
@@ -12,7 +12,7 @@ import {
   type NextActionTarget,
 } from '@/domain/next-actions';
 import { SQUARE_FRAME } from '@/shell/SurfaceColumn';
-import { MAT_LIFT_HUD } from '@/shell/viewport';
+import { ColumnCardContext, MAT_LIFT_HUD } from '@/shell/viewport';
 import { FoundationRows, type FoundationPlacement } from './FoundationRows';
 
 /**
@@ -107,6 +107,7 @@ export function NextActions({
   const [unfolded, setUnfolded] = useState(true);
   const [folded, setFolded] = useState(() => readNextActionsFolded(view.mode === 'blitz'));
   const closeSheet = useSheetClose();
+  const claimCard = useContext(ColumnCardContext);
   const actions = nextActionsOf(view);
   useRanks();
 
@@ -200,6 +201,7 @@ export function NextActions({
       </button>
       {!folded && (
         <section
+          ref={claimCard}
           className="float paper-grain absolute left-full ml-[calc(var(--table-gap)/var(--hud-scale)/0.75)] w-[300px] overflow-y-auto border border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]"
           style={{
             zoom: CARD_ZOOM,
