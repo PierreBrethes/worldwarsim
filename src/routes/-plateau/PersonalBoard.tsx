@@ -871,7 +871,7 @@ function TileFrame({
         className={`leading-[1.1] ${
           locked
             ? `${wide && !narrow ? 'line-clamp-3' : 'line-clamp-2'} font-semibold text-[var(--critical)]`
-            : 'truncate font-(family-name:--font-mono) text-[var(--ink-soft)]'
+            : `${narrow ? 'line-clamp-2' : 'truncate'} font-(family-name:--font-mono) text-[var(--ink-soft)]`
         } ${narrow ? 'text-[9px]' : 'text-[9.5px]'}`}
       >
         {meta}
