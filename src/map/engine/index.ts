@@ -1205,10 +1205,22 @@ export class MapEngine {
 
   private basinsLoading = false;
 
-  /** **Where the view looks**, on the ground: the sweep starts from there (#249). */
-  lookedAt(): LonLat {
+  /**
+   * **Where the sweep starts** (#249): the ground at the middle of the map left clear by the
+   * rule and the columns — the middle its edge arrows point from. Off the sheet, where the eye
+   * looks.
+   */
+  sweepOrigin(): LonLat {
+    const { top, right, bottom, left } = this.labels.edgeInsets;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const middle = this.pointAt(
+      rect.left + left + (rect.width - left - right) / 2,
+      rect.top + top + (rect.height - top - bottom) / 2,
+    );
     const looked = this.controls.target;
-    return this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY);
+    return (
+      middle ?? this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY)
+    );
   }
 
   /**

@@ -162,7 +162,7 @@ describe('every public method of the engine asks for a frame', () => {
     'screenOf',
     'subscribeRest',
     'cameraDistance',
-    'lookedAt',
+    'sweepOrigin',
     'atZoomFloor',
     'countryAtPoint',
     'pointAt',

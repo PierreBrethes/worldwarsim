@@ -48,7 +48,7 @@ export function SweepOverlay({
   const insets = useBoardInsets();
   const result = useMemo(() => {
     if (engine === null) return null;
-    const from = engine.lookedAt();
+    const from = engine.sweepOrigin();
     return { from, ...depositSweep(sweep.candidates, from) };
   }, [engine, sweep]);
   const [tags, setTags] = useState<ReadonlyArray<SweepTag> | null>(null);
