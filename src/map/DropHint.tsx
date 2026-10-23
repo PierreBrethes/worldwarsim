@@ -103,15 +103,22 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
   const cells = Array.from({ length: fuel.full }, (_, at) =>
     at >= fuel.held ? 'empty' : at >= kept ? 'eaten' : at >= kept - sparedIn ? 'spared' : 'kept',
   );
-  const label = fr.supplies.gauge(fuel.held, fuel.eaten, fuel.roundTrip);
+  /** Said whole to a screen reader and on hover; a finger reads the drawing. */
+  const said = [
+    fr.supplies.gauge(fuel.held, fuel.eaten, fuel.roundTrip),
+    ...(fuel.short > 0 ? [fr.supplies.lacking(fuel.short)] : []),
+    ...(fuel.spared > 0 ? [fr.supplies.spared(fuel.spared)] : []),
+  ].join(' — ');
   return (
     <span
       className="drop-chip-fuel"
-      title={fuel.spared > 0 ? `${label} — ${fr.supplies.spared(fuel.spared)}` : label}
-      aria-label={label}
+      title={said}
       style={{ ['--fuel-ink' as string]: `var(--res-${fuel.resource}-paper)` }}
     >
-      <ResourcePlate resource={fuel.resource} height={13} width={13} />
+      <span className="sr-only">{said}</span>
+      <span aria-hidden className="inline-flex">
+        <ResourcePlate resource={fuel.resource} height={13} width={13} />
+      </span>
       <span className="fuel-tube" aria-hidden>
         {cells.map((cell, at) => (
           <i key={at} className={`fuel-step fuel-step--${cell}`} />
