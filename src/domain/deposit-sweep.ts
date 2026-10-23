@@ -12,9 +12,11 @@ import type { DepositPoint } from './world';
  * un gisement exploité par un adversaire jamais relevé y paraît libre, comme partout ailleurs.
  */
 
-/** Jusqu'où court l'onde : au-delà, aucun n'est à portée. @a-mesurer */
+/** Jusqu'où court l'onde : au-delà, aucun n'est à portée.
+ *  @a-mesurer décisions du 23/10 sur #249 : l'Europe de l'Ouest d'un coup d'œil */
 export const SWEEP_RANGE_KM = 1000;
-/** Sa course, de zéro à `SWEEP_RANGE_KM`. @a-mesurer */
+/** Sa course, de zéro à `SWEEP_RANGE_KM`.
+ *  @a-mesurer décisions du 23/10 sur #249 : assez long pour suivre le front */
 export const SWEEP_MS = 3000;
 /** Combien de gisements elle nomme, les plus proches. */
 const SWEEP_FOUND = 3;
