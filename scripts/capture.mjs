@@ -2,7 +2,7 @@
  * **Une capture du jeu en local**, connecté avec un compte de démo (`npm run demo:mondiale`).
  *
  *     PLAYWRIGHT_DIR=/chemin/vers/pw npm run capture -- <url> <sortie.png> \
- *       [--compte a|b] [--largeur 390 --hauteur 844] [--attendre ms] [--geste … ]
+ *       [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
  *
  * `PLAYWRIGHT_DIR` : un dossier hors du dépôt où `npm i playwright-core@1.58` a été fait. L'URL
  * peut être un chemin (`/plateau`) pris sur http://localhost:5173 ; `{saison}` y devient
@@ -36,7 +36,7 @@ const option = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at < 0 ? fallback : args[at + 1];
 };
-const flags = new Set(['--compte', '--largeur', '--hauteur', '--attendre', '--geste']);
+const flags = new Set(['--compte', '--largeur', '--hauteur', '--densite', '--attendre', '--geste']);
 /** `--tactile` : un écran tactile, pour les gestes du doigt (`toucher=x,y`, la rose s'ouvre au toucher). */
 const touch = args.includes('--tactile');
 const gestures = args.flatMap((arg, k) => (args[k - 1] === '--geste' ? [arg] : []));
@@ -82,6 +82,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({
   viewport: { width: Number(option('largeur', 1440)), height: Number(option('hauteur', 900)) },
   hasTouch: touch,
+  deviceScaleFactor: Number(option('densite', 1)),
 });
 page.on('console', (message) => {
   if (message.type() === 'error') console.log(`[console.error] ${message.text()}`);
