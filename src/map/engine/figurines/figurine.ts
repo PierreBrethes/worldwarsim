@@ -31,6 +31,10 @@ export const LAID_OUT_FOR = 0.68;
  *  tank: the same for every enemy, so its size says nothing of what it is. */
 export const ANONYMOUS_SPAN = troopSpan('armor');
 
+/** **A tank's real span against the one the sizes around it were drawn for**: what a length
+ *  tuned for the former figurines is multiplied by at the common scale. */
+export const TANK_SHARE = ANONYMOUS_SPAN / LAID_OUT_FOR;
+
 /** Model units to board units for what has no role: the brief's tank is 2.6 long. */
 export const FIGURINE_SCALE = ANONYMOUS_SPAN / 2.6;
 

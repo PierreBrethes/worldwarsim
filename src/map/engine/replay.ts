@@ -21,8 +21,7 @@ import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { textureOf } from './billboard';
 import { blockFigurine } from './blocks';
-import { troopSpan } from '@/domain/piece-size';
-import { FIGURINE_SCALE, figurineFor, LAID_OUT_FOR } from './figurines/figurine';
+import { FIGURINE_SCALE, figurineFor, TANK_SHARE } from './figurines/figurine';
 import { pieceScale } from './piece-scale';
 import { charred, PLUME_BY_WEAR, Smoke, type Plume } from './smoke';
 import { washedOf } from './standing';
@@ -31,7 +30,7 @@ import { washedOf } from './standing';
  * **The scene is laid out for a tank of `LAID_OUT_FOR`**, and drawn at a tank's real span (ADR
  * 0035): every length below is in its units, and its figurines stand at their real size in it.
  */
-export const REPLAY_STAGE = troopSpan('armor') / LAID_OUT_FOR;
+export const REPLAY_STAGE = TANK_SHARE;
 /** Model units to the scene's: a tank sculpted 2.6 long stands `LAID_OUT_FOR` long in it. */
 const SCENE_FIGURE = FIGURINE_SCALE / REPLAY_STAGE;
 

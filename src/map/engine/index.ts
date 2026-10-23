@@ -55,7 +55,7 @@ import {
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
-import { ANONYMOUS_SPAN, LAID_OUT_FOR, setNearFloor } from './figurines/figurine';
+import { ANONYMOUS_SPAN, setNearFloor, TANK_SHARE } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -70,7 +70,7 @@ import {
 } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
-import { buildingSpan, troopSpan } from '@/domain/piece-size';
+import { buildingSpan } from '@/domain/piece-size';
 import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
@@ -167,7 +167,7 @@ export type { HeldClaim } from './regions';
 
 /** A shore is read around a pile's point this far out, in board units at full piece size —
  *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
-const SHORE_REACH = 0.6 * (troopSpan('armor') / LAID_OUT_FOR);
+const SHORE_REACH = 0.6 * TANK_SHARE;
 const SHORE_PROBES = 8;
 
 /** How much of its own colour a country gives off under the pointer, and once selected. */

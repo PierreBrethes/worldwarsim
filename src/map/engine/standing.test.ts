@@ -15,6 +15,7 @@ import {
 } from './standing';
 import { troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
+import { TANK_SHARE } from './figurines/figurine';
 
 const troop = (role: UnitRole, strength = 100) => ({
   id: role,
@@ -47,9 +48,10 @@ describe('a pile at the common scale', () => {
   it('keeps a small piece as easy to take as before: its target grows on screen, never shrinks', () => {
     pieceScale.pxPerUnit = 1172;
     // A tank pile at d = 6: some 20 px of tank, a target grown to the floor.
-    const near = targetGrowth(troopSpan('armor') / 0.68, 6);
+    const near = targetGrowth(TANK_SHARE, 6);
     expect(near).toBeGreaterThan(1);
-    expect(0.45 * (troopSpan('armor') / 0.68) * near * (1172 / 6)).toBeCloseTo(28, 6);
+    // A footprint is 0.45 of the pile's units wide: grown, 28 px.
+    expect(0.45 * TANK_SHARE * near * (1172 / 6)).toBeCloseTo(28, 6);
     expect(targetGrowth(1, 4)).toBe(1);
   });
 });

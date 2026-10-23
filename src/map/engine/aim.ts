@@ -7,8 +7,7 @@ import {
   MeshBasicMaterial,
   Vector3,
 } from 'three';
-import { troopSpan } from '@/domain/piece-size';
-import { LAID_OUT_FOR } from './figurines/figurine';
+import { TANK_SHARE } from './figurines/figurine';
 import { ARC_COLORS } from './palette';
 import { dashPitch, Ribbon, RibbonMaterial, ribbonWidth } from './route-ribbon';
 
@@ -18,7 +17,7 @@ export type AimTone = 'order' | 'fight' | 'refused';
 /** The prototype's preview road (`ribbon({ width: .22, dash: .7, flow: 2.2 })`) in our units:
  *  its piece is some three times a pile's (`PROTOTYPE_UNIT` in `standing.ts`), and a pile is
  *  drawn at a tank's span (ADR 0035). */
-const WIDTH = 0.066 * (troopSpan('armor') / LAID_OUT_FOR);
+const WIDTH = 0.066 * TANK_SHARE;
 const FLOOR_PX = 3.5;
 /** Its dashes run 2.2 units a second over a 0.7 dash: some three pitches a second. */
 const PITCHES_PER_SECOND = 3.1;
