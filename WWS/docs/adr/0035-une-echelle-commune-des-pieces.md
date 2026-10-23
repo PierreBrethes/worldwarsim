@@ -26,7 +26,10 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    restent liés entre eux, mais un port fait 168 km et un cargo 104 km au lieu de 340 et 210.
 3. **Deux distances d'épingle.** Une pièce devient épingle selon sa taille à l'écran, non plus à
    une distance commune : les troupes vers d ≈ 5 à 7, les bâtiments vers d ≈ 56 à 68. Le fondu des
-   régions et des ombres garde ses propres seuils.
+   régions et des ombres garde ses propres seuils. Mesuré dans le code (`pieceWeight`, 20 px lus
+   sur une fenêtre de 900 px de haut, quelle que soit la fenêtre) : de l'homme à d ≈ 5,1, le char
+   à 7,0, le chasseur à 12,7, la caserne à 58 et le hangar à 70, jusqu'au port à 122 et au
+   porte-avions à 145.
 4. **Le clic ne suit pas la taille dessinée.** La zone qu'on vise garde une taille minimale à
    l'écran ; une figurine petite reste facile à prendre.
 5. **Les bâtiments gardent leur disposition** en anneau autour d'un site, agrandie dans la même
