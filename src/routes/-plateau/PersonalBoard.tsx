@@ -562,7 +562,7 @@ function useUnfoldCascade(
         fill: 'backwards',
       }),
     );
-    [...node.querySelectorAll('.mat-tile')].slice(0, tile.most).forEach((one, rank) =>
+    [...node.querySelectorAll('.mat-cascade')].slice(0, tile.most).forEach((one, rank) =>
       one.animate(
         [
           { opacity: 0, translate: '0 10px' },
@@ -849,7 +849,7 @@ function TileFrame({
       {...grip}
       title={label}
       aria-label={label}
-      className={`group relative grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+      className={`group relative grid shrink-0 ${narrow ? '' : 'mat-cascade'} ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
           : wide
