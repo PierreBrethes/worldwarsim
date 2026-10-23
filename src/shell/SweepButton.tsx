@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { YIELD_OF } from '@/domain/economy';
 import type { DepositKey } from '@/domain/ids';
 import { ResourcePlate } from '@/emblems/Plate';
@@ -24,6 +24,18 @@ export function SweepButton({
   thumb?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  // A press anywhere else closes the list, as the rose: left open, a digit would both turn a
+  // lifted piece's verb and sweep.
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    return () => document.removeEventListener('pointerdown', onPointer);
+  }, [open]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -49,7 +61,7 @@ export function SweepButton({
     ? 'bg-[var(--paper)] shadow-[0_1px_0_var(--ink),0_8px_18px_rgb(0_0_0/45%)]'
     : '';
   return (
-    <div className="relative flex items-center">
+    <div ref={root} className="relative flex items-center">
       <button
         type="button"
         title={fr.sweep.launch(species)}

@@ -34,4 +34,21 @@ describe('SweepButton', () => {
     expect(onSweep).toHaveBeenLastCalledWith('coal');
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('closes its list at a press outside, so a digit goes back to the rose', () => {
+    const onSweep = vi.fn();
+    render(<SweepButton species="iron" onSweep={onSweep} />);
+    fireEvent.click(screen.getByLabelText(fr.sweep.choose));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.keyDown(window, { key: '2' });
+    expect(onSweep).not.toHaveBeenCalled();
+  });
+
+  it('keeps its list open at a press inside it', () => {
+    render(<SweepButton species="iron" onSweep={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText(fr.sweep.choose));
+    fireEvent.pointerDown(screen.getByRole('menu'));
+    expect(screen.getByRole('menu')).not.toBeNull();
+  });
 });
