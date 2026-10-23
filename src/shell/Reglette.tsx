@@ -1,4 +1,4 @@
-import { useMemo, type Ref } from 'react';
+import { useMemo, type ReactNode, type Ref } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork } from '@/domain/ids';
@@ -28,10 +28,13 @@ import { useClock } from './clock';
 export function Reglette({
   view,
   telegraphUnread,
+  sweep = null,
   ref,
 }: {
   view: PlayerView;
   telegraphUnread: number;
+  /** Le bouton « Sonder · espèce » (#249), que le plateau seul sait mener. */
+  sweep?: ReactNode;
   ref?: Ref<HTMLElement>;
 }) {
   const { me } = view;
@@ -125,6 +128,8 @@ export function Reglette({
           <HalifaxMark slots={me.slots} />
         </div>
       )}
+
+      {sweep !== null && <div className={CELL}>{sweep}</div>}
 
       <div className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px]">
         {me.funds !== null && <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} />}

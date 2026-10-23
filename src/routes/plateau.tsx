@@ -71,7 +71,11 @@ import {
   type MaquetteAt,
 } from './-plateau/board-markers';
 import { handReachOf, movementReachOf } from '@/domain/board-reach';
-import { depositHolders } from '@/domain/construction';
+import { depositHolders, reachesOf } from '@/domain/construction';
+import { sweepCandidates } from '@/domain/deposit-sweep';
+import type { DepositKey } from '@/domain/ids';
+import type { SweepRequest } from '@/map/SweepOverlay';
+import { SweepButton } from '@/shell/SweepButton';
 import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
 import {
   groupCompassOf,
@@ -435,6 +439,24 @@ function BoardContent({
   const [sent, setSent] = useState<SentOrder | null>(null);
   /** La carte ouverte au coin bas-droit — une seule à la fois, la colonne ne déborde pas. */
   const [corner, setCorner] = useState<Corner | null>(null);
+  /** **Sonder la carte** (#249) : la dernière espèce sondée, et l'onde en cours. La Blitz n'a pas
+   *  de gisements : ni bouton, ni onde. */
+  const [sweepSpecies, setSweepSpecies] = useState<DepositKey>('iron');
+  const [sweep, setSweep] = useState<SweepRequest | null>(null);
+  const launchSweep = useCallback(
+    (species: DepositKey) => {
+      setSweepSpecies(species);
+      setSweep({
+        nonce: Date.now(),
+        species,
+        candidates: sweepCandidates(view, species, reachesOf({ me: view.me }, outpostReachKm)),
+      });
+    },
+    [view],
+  );
+  const endSweep = useCallback(() => setSweep(null), []);
+  const sweepButton = (thumb: boolean) =>
+    blitz ? null : <SweepButton species={sweepSpecies} onSweep={launchSweep} thumb={thumb} />;
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
@@ -2219,6 +2241,7 @@ function BoardContent({
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
       onResumeSteps={resumeSteps}
+      sweep={sweepButton(false)}
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
         <SheetCount.Provider value={countSheet}>
@@ -2314,6 +2337,8 @@ function BoardContent({
                 selectionBar={selectionBar}
                 onTakeDepot={view.me.defeated ? undefined : takeDepot}
                 placing={placingCard}
+                sweep={sweep}
+                onSweepEnd={endSweep}
                 onPlacePoint={placeAt}
                 onPlacingDismiss={dismissPlacing}
                 onPlacingAim={setPlacingAim}
@@ -2597,6 +2622,14 @@ function BoardContent({
                     onRecenter={recenterOnHome}
                     onCorner={setCorner}
                   />
+                </div>
+              )}
+              {narrow && sent === null && replay === null && !blitz && (
+                <div
+                  className="absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)]"
+                  style={{ marginBottom: MAT_LIFT }}
+                >
+                  {sweepButton(true)}
                 </div>
               )}
               {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}

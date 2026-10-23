@@ -17,6 +17,7 @@ export function Shell({
   todo,
   onShowBriefing,
   onResumeSteps = null,
+  sweep = null,
   children,
 }: {
   view: PlayerView;
@@ -28,6 +29,9 @@ export function Shell({
   onShowBriefing: () => void;
   /** Reprendre les premiers pas repliés ou passés, depuis le dossier du téléphone. */
   onResumeSteps?: (() => void) | null;
+  /** Le bouton de la sonde, posé dans la réglette au bureau (#249) ; au téléphone, le plateau le
+   *  tient sous le pouce. */
+  sweep?: ReactNode;
   children: ReactNode;
 }) {
   /** **La table plein écran** (décision de Pierre, 13/10) : la carte prend tout l'écran, et la
@@ -94,7 +98,7 @@ export function Shell({
         <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
           <PinContext.Provider value={{ pinned, onPin: togglePin }}>
             {children}
-            <Reglette view={view} telegraphUnread={telegraphUnread} ref={top} />
+            <Reglette view={view} telegraphUnread={telegraphUnread} sweep={sweep} ref={top} />
             {tickets}
             <SurfaceColumn todo={todo} ref={side} />
           </PinContext.Provider>
