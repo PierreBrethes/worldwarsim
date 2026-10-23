@@ -88,6 +88,16 @@ export function DryTag({ label }: { label: string }) {
   );
 }
 
+/** L'étiquette d'une réserve au plafond : à encre pleine, elle prend la place du débit comme
+ *  « à sec », mais sans rouge — rien ne s'arrête, ce qui entre est perdu. */
+export function FullTag() {
+  return (
+    <span className="bg-[var(--ink)] px-[3px] py-[2px] text-[7px] leading-none font-semibold tracking-[.04em] whitespace-nowrap text-[var(--paper)] uppercase">
+      {fr.resourceBand.full}
+    </span>
+  );
+}
+
 /**
  * **La seule lecture d'une réserve** : le stock réel, ce qu'on en montre (`shown`, le chiffre que la
  * récolte rejoue, sinon le stock), la part du plafond que la jauge remplit, l'alerte — qui se dit
@@ -106,15 +116,15 @@ export function reserveReading(
   const share = reserve.cap > 0 ? Math.min(1, displayed / reserve.cap) : 0;
   const alert = dryLabelOf(stock, reserve.ratePerHour);
   const source = sourceOf(view, resource);
-  const full = marksOf(view, now)[resource];
+  const mark = marksOf(view, now)[resource];
   const title = [
     fr.resourceBand.tooltip(fr.resources[resource], stock, reserve.cap, reserve.ratePerHour),
     source === null ? null : fr.resourceBand.source(fr.buildings[source.by], source.level),
-    full?.diagnosis ?? null,
+    mark?.diagnosis ?? null,
   ]
     .filter((part) => part !== null)
     .join(' · ');
-  return { reserve, stock, displayed, share, alert, title };
+  return { reserve, stock, displayed, share, alert, full: mark !== null, title };
 }
 
 const PLATE = 16;
@@ -145,7 +155,14 @@ export function ReserveCell({
   onTake?: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
   register?: Ref<HTMLElement>;
 }) {
-  const { reserve, stock, share: fill, alert, title } = reserveReading(view, resource, now, shown);
+  const {
+    reserve,
+    stock,
+    share: fill,
+    alert,
+    full,
+    title,
+  } = reserveReading(view, resource, now, shown);
   const ink = alert === null ? 'var(--ink)' : 'var(--critical)';
   const motion = useMapMotion();
   const reduced = usePrefersReducedMotion();
@@ -188,7 +205,11 @@ export function ReserveCell({
           )}
         </span>
       </span>
-      {alert === null ? (
+      {alert !== null ? (
+        <DryTag label={alert} />
+      ) : full ? (
+        <FullTag />
+      ) : (
         <span
           aria-hidden
           className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
@@ -196,8 +217,6 @@ export function ReserveCell({
         >
           {fr.personalBoard.rateShort(reserve.ratePerHour)}
         </span>
-      ) : (
-        <DryTag label={alert} />
       )}
       <span aria-hidden className="block h-[3px] w-[calc(100%-10px)] bg-(--ink)/15">
         <span

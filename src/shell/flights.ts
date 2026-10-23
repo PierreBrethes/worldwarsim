@@ -50,7 +50,13 @@ const SIZE_PX = 18;
 export function flyPastille(
   layer: HTMLElement,
   resource: ResourceKey,
-  { from, to, rest = to, fade = true }: { from: Point; to: Point; rest?: Point; fade?: boolean },
+  {
+    from,
+    to,
+    rest = to,
+    fade = true,
+    bounce = false,
+  }: { from: Point; to: Point; rest?: Point; fade?: boolean; bounce?: boolean },
   motion: MapMotion,
   { delay }: { delay: number },
 ): Promise<void> {
@@ -63,6 +69,8 @@ export function flyPastille(
   const place = (point: Point, scale = 1) =>
     `translate(${point.x - half}px, ${point.y - half}px) scale(${scale})`;
   const arc = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 40 };
+  /** A full store refuses it: it bounces off the rim and fades, « perdu ». */
+  const off = { x: to.x + 26, y: to.y - 30 };
   const frames =
     motion === 'reduced'
       ? [
@@ -70,14 +78,22 @@ export function flyPastille(
           { transform: place(rest), opacity: 1, offset: 0.4 },
           { transform: place(rest), opacity: 0 },
         ]
-      : [
-          { transform: place(from), opacity: 1 },
-          { transform: place(arc, 1.25), offset: 0.5 },
-          { transform: place(to), opacity: fade ? 0 : 1 },
-        ];
+      : bounce
+        ? [
+            { transform: place(from), opacity: 1, offset: 0 },
+            { transform: place(arc, 1.25), offset: 0.38 },
+            { transform: place({ x: to.x, y: to.y - 6 }), offset: 0.62 },
+            { transform: place(off, 0.9), opacity: 0.9, offset: 0.82 },
+            { transform: place({ x: off.x + 10, y: off.y + 40 }, 0.6), opacity: 0, offset: 1 },
+          ]
+        : [
+            { transform: place(from), opacity: 1 },
+            { transform: place(arc, 1.25), offset: 0.5 },
+            { transform: place(to), opacity: fade ? 0 : 1 },
+          ];
   return pastille
     .animate(frames, {
-      duration: motion === 'reduced' ? 420 : 640,
+      duration: motion === 'reduced' ? 420 : bounce ? 900 : 640,
       delay,
       easing: 'cubic-bezier(.35,.1,.3,1)',
       fill: 'both',

@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
@@ -24,7 +23,7 @@ import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
-import { DryTag, ReserveCell, reserveReading, usePinning } from '@/shell/ReserveCell';
+import { ReserveCell } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
 import { placementOf, reachesOf, upgradeHold } from '@/domain/construction';
 import { outpostReachKm } from '../../../convex/constants';
@@ -42,12 +41,14 @@ import { projectionKeyOf, recruitRefusalOf, tierLabel, type RecruitRefusal } fro
 import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
-import { resourceColor } from '@/emblems/resource-color';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';
 import { LotControl } from './LotControl';
-import { pressRail } from './rail-gesture';
+import { useBandDensity } from './board-density';
+import { GaugeBin } from './GaugeBin';
+import { Rail, type Grab, type Grip } from './Rail';
+import { useOverflow } from './useOverflow';
 
 /** What the hand says over where it is: a verb with its bill, or the refusal in red. */
 type Hint = { readonly text: string; readonly refused: boolean; readonly cost?: Cost } | null;
@@ -176,6 +177,10 @@ export function PersonalBoard({
   useClaimFoot(narrow ? foot : null, board);
   const handleRef = useRef<HTMLButtonElement>(null);
   useMatRise(board, `${folded}-${filled}-${research}-${cue?.text ?? ''}`);
+  /** Un site ouvert resserre les bacs au plus juste : sa colonne a besoin de la place. */
+  const measured = useBandDensity(board);
+  const density = site === null ? measured : 'serre';
+  useUnfoldCascade(board, open && !research, narrow, motion);
 
   // Escape lets the selected site go, or folds the band, when no window stands in front of it.
   const selected = site !== null;
@@ -238,7 +243,10 @@ export function PersonalBoard({
       className={`cursor-pointer font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
         narrow
           ? 'paper-grain absolute -top-[16px] left-1/2 grid h-[16px] w-[64px] -translate-x-1/2 place-items-center border border-b-0 border-[var(--ink)] text-[10px]'
-          : 'relative self-stretch border-r border-[var(--ink)] px-3'
+          : `relative self-stretch border-r border-[var(--ink)] px-3 ${
+              // Dépliée, la poignée prend la colonne des bacs (+ son filet) : un seul trait vertical.
+              folded ? '' : 'mat-bins-width flex items-center justify-between'
+            }`
       } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
     >
       <span className={narrow ? 'sr-only' : undefined}>{fr.personalBoard.header}</span>
@@ -246,7 +254,7 @@ export function PersonalBoard({
         aria-hidden
         className={`font-(family-name:--font-body) text-[11px] ${narrow ? '' : 'ml-[6px]'}`}
       >
-        {filled ? '▾' : '▴'}
+        {(narrow ? filled : !folded) ? '▾' : '▴'}
       </span>
       {/* Au bureau, la carte « à faire » se tient juste au-dessus : un anneau, pas une bulle. */}
       {unfoldCued && narrow && (
@@ -289,7 +297,8 @@ export function PersonalBoard({
       <section
         ref={board}
         aria-label={fr.personalBoard.header}
-        className={`hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
+        data-density={density}
+        className={`mat-board hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
           narrow ? 'border-x-0 border-b-0' : ''
         }`}
         style={
@@ -365,36 +374,41 @@ export function PersonalBoard({
             <span className="min-w-0 truncate text-[12px] leading-[1.2] text-[var(--ink-soft)]">
               <WorkLine view={view} now={now} />
             </span>
-            <button
-              type="button"
-              title={`${fr.personalBoard.harvestReplay} — ${ledger}`}
-              onClick={replay}
-              className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-[8px] px-[6px] py-[4px] font-(family-name:--font-mono) text-[11px] font-semibold whitespace-nowrap"
-            >
-              {harvest === null ? (
+            {harvest === null ? (
+              <span className="ml-auto" />
+            ) : (
+              <button
+                type="button"
+                title={`${fr.personalBoard.harvestReplay} — ${ledger}`}
+                onClick={replay}
+                className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-[8px] px-[6px] py-[4px] font-(family-name:--font-mono) text-[11px] font-semibold whitespace-nowrap"
+              >
                 <em className="font-(family-name:--font-display) text-[12px] font-medium text-[var(--ink-soft)]">
-                  {fr.personalBoard.harvestHeader}
+                  {fr.personalBoard.harvestSince(harvest.hours)}
                 </em>
-              ) : (
-                <>
-                  <em className="font-(family-name:--font-display) text-[12px] font-medium text-[var(--ink-soft)]">
-                    {fr.personalBoard.harvestSince(harvest.hours)}
-                  </em>
-                  {harvest.deltas
-                    .filter(({ amount }) => amount !== 0)
-                    .map(({ resource, amount }) => (
-                      <span
-                        key={resource}
-                        className="inline-flex items-center gap-[2px]"
-                        style={amount < 0 ? { color: 'var(--critical)' } : undefined}
-                      >
-                        <ResourcePlate resource={resource} height={18} width={18} />
-                        {fr.personalBoard.delta(amount)}
-                      </span>
-                    ))}
-                </>
-              )}
-            </button>
+                {harvest.deltas
+                  .filter(({ amount, lost }) => amount !== 0 || lost > 0)
+                  .map(({ resource, amount, lost }) => (
+                    <span
+                      key={resource}
+                      className="inline-flex items-center gap-[2px]"
+                      style={amount < 0 ? { color: 'var(--critical)' } : undefined}
+                    >
+                      <ResourcePlate resource={resource} height={18} width={18} />
+                      {amount !== 0 && fr.personalBoard.delta(amount)}
+                      {lost > 0 && (
+                        <span
+                          aria-hidden
+                          title={fr.personalBoard.lost(lost)}
+                          className="ml-[2px] inline-grid h-[11px] w-[11px] place-items-center rounded-full bg-[var(--critical)] font-(family-name:--font-body) text-[8px] leading-none font-bold text-[var(--paper)]"
+                        >
+                          !
+                        </span>
+                      )}
+                    </span>
+                  ))}
+              </button>
+            )}
             {researchButton}
           </div>
         )}
@@ -421,19 +435,13 @@ export function PersonalBoard({
             style={
               narrow
                 ? undefined
-                : { gridTemplateColumns: `auto 1fr ${site === null ? 236 : 160}px` }
+                : { gridTemplateColumns: `auto 1fr ${site === null ? 'var(--works-w)' : '160px'}` }
             }
           >
             {!narrow && (
-              <section
-                className={`grid py-[10px] ${
-                  site === null
-                    ? 'grid-cols-[repeat(5,66px)] gap-[6px] px-3'
-                    : 'grid-cols-[repeat(5,42px)] gap-[2px] px-2'
-                }`}
-              >
+              <section className="grid grid-cols-[repeat(5,var(--bin-w))] gap-(--bin-gap) px-(--bin-pad) py-[10px]">
                 {RESOURCES.map((resource) => (
-                  <GaugeBin key={resource} {...bin(resource)} compact={site !== null} />
+                  <GaugeBin key={resource} {...bin(resource)} density={density} />
                 ))}
               </section>
             )}
@@ -520,6 +528,57 @@ function useMatRise(mat: { readonly current: HTMLElement | null }, shape: string
   }, [mat, shape]);
 }
 
+/** The gauges rise one after the other, then the tiles lift in a fade: the whole of it laid down
+ *  in 520ms (#251). */
+const CASCADE = {
+  gauge: { from: 60, step: 45, duration: 280 },
+  tile: { from: 80, step: 35, duration: 195, most: 8 },
+  easing: 'cubic-bezier(.2,.8,.2,1)',
+} as const;
+
+/**
+ * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre la bande — pas quand la main la
+ * replie le temps d'un geste —, les jauges montent l'une après l'autre et les tuiles se lèvent.
+ * « actives » seulement ; au bureau seulement, le téléphone tire sa feuille.
+ */
+function useUnfoldCascade(
+  board: { readonly current: HTMLElement | null },
+  unfolded: boolean,
+  narrow: boolean,
+  motion: MapMotion,
+) {
+  const was = useRef(unfolded);
+  useEffect(() => {
+    const opened = unfolded && !was.current;
+    was.current = unfolded;
+    const node = board.current;
+    if (!opened || node === null || narrow || motion !== 'full') return;
+    const { gauge, tile, easing } = CASCADE;
+    node.querySelectorAll('.mat-gauge').forEach((fill, rank) =>
+      fill.animate([{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], {
+        duration: gauge.duration,
+        delay: gauge.from + rank * gauge.step,
+        easing,
+        fill: 'backwards',
+      }),
+    );
+    [...node.querySelectorAll('.mat-tile')].slice(0, tile.most).forEach((one, rank) =>
+      one.animate(
+        [
+          { opacity: 0, translate: '0 10px' },
+          { opacity: 1, translate: '0 0' },
+        ],
+        {
+          duration: tile.duration,
+          delay: tile.from + rank * tile.step,
+          easing,
+          fill: 'backwards',
+        },
+      ),
+    );
+  }, [board, unfolded, narrow, motion]);
+}
+
 // ---------------------------------------------------------------------------------------
 // The stores and their harvest
 // ---------------------------------------------------------------------------------------
@@ -582,10 +641,12 @@ function useHarvest(
     setShown(before(latest.current, harvest));
     const layer = flightLayer();
     let live = true;
-    const flights = harvest.deltas.flatMap(({ resource, amount }, rank) =>
-      pastilleShares(amount).map((share, index) =>
+    const flights = harvest.deltas.flatMap(({ resource, amount, lost }, rank) =>
+      pastilleShares(amount).map((share, index, shares) =>
         flyToBin(layer, resource, bins.current.get(resource), amount > 0, motion, {
           delay: 250 + rank * 120 + index * 160,
+          // Un bac plein refuse la dernière : elle rebondit sur son bord, « perdu ».
+          spills: lost > 0 && amount > 0 && index === shares.length - 1,
         }).then(() => {
           if (!live) return;
           setShown(
@@ -634,7 +695,8 @@ const before = (view: PlayerView, harvest: Harvest): Record<ResourceKey, number>
 
 /**
  * **Une pastille qui tombe dans son bac, ou qui en sort** : elle arrive d'au-dessus de la bande
- * — de la table — en arc (`flyPastille`, partagé avec les échanges).
+ * — de la table — en arc (`flyPastille`, partagé avec les échanges). Le bac sursaute à son arrivée
+ * (« actives »), ou dit « perdu » quand le sien était plein.
  */
 function flyToBin(
   layer: HTMLElement,
@@ -642,89 +704,50 @@ function flyToBin(
   bin: HTMLElement | undefined,
   gain: boolean,
   motion: MapMotion,
-  { delay }: { delay: number },
+  { delay, spills }: { delay: number; spills: boolean },
 ): Promise<void> {
   if (bin === undefined) return Promise.resolve();
   const box = bin.getBoundingClientRect();
   const atBin = { x: box.left + box.width / 2, y: box.top + Math.min(18, box.height / 2) };
   const table = { x: atBin.x + (Math.random() - 0.5) * 120, y: Math.max(40, box.top - 220) };
   const [from, to] = gain ? [table, atBin] : [atBin, table];
-  return flyPastille(layer, resource, { from, to, rest: atBin, fade: !gain }, motion, { delay });
+  return flyPastille(
+    layer,
+    resource,
+    { from, to, rest: atBin, fade: !gain, bounce: spills },
+    motion,
+    { delay },
+  ).then(() => {
+    if (!gain) return;
+    if (spills) return say(bin, fr.personalBoard.spilled, motion);
+    if (motion === 'full')
+      bin.animate(
+        [
+          { transform: 'scale(1)' },
+          { transform: 'scale(1.07)', offset: 0.35 },
+          { transform: 'scale(1)' },
+        ],
+        {
+          duration: 260,
+          easing: 'ease-out',
+        },
+      );
+  });
 }
 
-type BinProps = {
-  resource: ResourceKey;
-  view: PlayerView;
-  now: number;
-  shown: number | null;
-  register: (node: HTMLElement | null) => void;
-  /** Munitions, pétrole et charbon se prennent ici pour charger un transport. */
-  onTake: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
-};
-
-/** **Un bac en thermomètre** : l'icône, le tube, possédé / max, puis le débit net — ou l'étiquette
- *  « à sec » qui le remplace, la même que la ligne repliée —, centrés dans la hauteur de la bande
- *  pour que les marges du haut et du bas soient égales. */
-function GaugeBin(props: BinProps & { compact?: boolean }) {
-  const { resource, register, onTake, compact = false } = props;
-  const { view, now, shown } = props;
-  const {
-    reserve: held,
-    displayed: stock,
-    share,
-    alert,
-    title,
-  } = reserveReading(view, resource, now, shown);
-  return (
-    <button
-      type="button"
-      ref={register as Ref<HTMLButtonElement>}
-      data-bin={resource}
-      title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
-      {...usePinning(resource, onTake)}
-      className={`grid touch-none content-center justify-items-center gap-[7px] select-none ${
-        onTake === null ? 'cursor-pointer' : 'cursor-grab hover:bg-(--arc-mine)/12'
-      }`}
-    >
-      <ResourcePlate resource={resource} height={22} />
-      <span
-        aria-hidden
-        className="relative h-[58px] w-[16px] overflow-hidden rounded-[8px_8px_3px_3px] border-[1.5px] border-[var(--ink)] bg-white/25"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(to top, transparent 0 14.5px, color-mix(in srgb, var(--ink) 35%, transparent) 14.5px 15.5px)',
-        }}
-      >
-        <i
-          className="mat-gauge absolute inset-x-0 bottom-0"
-          style={{ height: `${share * 100}%`, background: resourceColor(resource, true) }}
-        />
-      </span>
-      <span className="font-(family-name:--font-mono) text-[11px] leading-none whitespace-nowrap">
-        <b
-          className="text-[13px] font-semibold"
-          style={alert === null ? undefined : { color: 'var(--critical)' }}
-        >
-          {stock}
-        </b>{' '}
-        <small
-          className={`text-[9.5px] text-[var(--ink-soft)] ${compact ? 'mt-[3px] block text-center' : ''}`}
-        >
-          {fr.personalBoard.ofCap(held.cap)}
-        </small>
-      </span>
-      {alert === null ? (
-        <small
-          className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
-          style={{ color: held.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
-        >
-          {fr.personalBoard.rate(held.ratePerHour)}
-        </small>
-      ) : (
-        <DryTag label={alert} />
-      )}
-    </button>
-  );
+/** A word on the bin for a moment, in the tag the counters use. */
+function say(bin: HTMLElement, word: string, motion: MapMotion) {
+  const tag = document.createElement('span');
+  tag.className = `reserve-tag ${motion === 'reduced' ? 'reserve-tag--quiet' : ''}`;
+  tag.textContent = word;
+  Object.assign(tag.style, {
+    left: '50%',
+    top: '-4px',
+    transform: 'translateX(-50%)',
+    background: 'var(--critical)',
+  });
+  tag.addEventListener('animationend', () => tag.remove());
+  bin.append(tag);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -740,121 +763,6 @@ function tileRefusalOf(view: PlayerView, key: BuildingKey): string | null {
   if (view.me.buildings.some((building) => building.key === key)) return null;
   const { condition } = placementOf(view, key, reachesOf({ me: view.me }, outpostReachKm));
   return condition === null ? null : conditionText(condition);
-}
-
-/** Where a press starts: the element pressed, the pointer (`null` for Entrée), the point. */
-type Grab = {
-  readonly element: HTMLElement;
-  readonly pointerId: number | null;
-  readonly x: number;
-  readonly y: number;
-};
-
-type Take = (grab: Grab) => void;
-
-/**
- * **Une tuile de la bande est un bouton** (#162) : un clic, un toucher ou Entrée la met en main,
- * un geste vers le haut la prend sous le pointeur, un geste de côté fait défiler sa rangée
- * (`pressRail`). Le clic qu'un pointeur laisse derrière sa pression ne la reprend pas.
- */
-const gripOf =
-  (rail: { readonly current: HTMLElement | null }, motion: MapMotion) =>
-  (take: Take | null, { lifts = true }: { lifts?: boolean } = {}) =>
-    take === null
-      ? {}
-      : {
-          onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
-            event.stopPropagation();
-            const element = event.currentTarget;
-            pressRail(
-              event,
-              rail.current,
-              {
-                pick: () => take({ element, pointerId: null, x: 0, y: 0 }),
-                lift: lifts ? ({ x, y }, pointerId) => take({ element, pointerId, x, y }) : null,
-              },
-              motion,
-            );
-          },
-          onClick: (event: ReactMouseEvent<HTMLElement>) => {
-            if (event.detail === 0)
-              take({ element: event.currentTarget, pointerId: null, x: 0, y: 0 });
-          },
-        };
-
-type Grip = ReturnType<ReturnType<typeof gripOf>>;
-
-/** Between the tiles a press only scrolls. */
-const NO_PICK = { pick: null, lift: null } as const;
-
-/** **Un rang qu'on fait défiler** (#162) : glisser à la souris et au doigt, avec l'inertie que le
- *  réglage laisse ; flèches et molette au bureau. */
-function Rail({
-  narrow,
-  motion,
-  label,
-  children,
-}: {
-  narrow: boolean;
-  motion: MapMotion;
-  label: string;
-  children: (grip: ReturnType<typeof gripOf>) => ReactNode;
-}) {
-  const rail = useRef<HTMLDivElement>(null);
-
-  // The wheel turns the rail: a vertical wheel over a horizontal row means "the next ones".
-  useEffect(() => {
-    const node = rail.current;
-    if (node === null) return;
-    const wheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-      event.preventDefault();
-      node.scrollLeft += event.deltaY;
-    };
-    node.addEventListener('wheel', wheel, { passive: false });
-    return () => node.removeEventListener('wheel', wheel);
-  }, []);
-  const scroll = (direction: 1 | -1) =>
-    rail.current?.scrollBy({
-      left: direction * 324,
-      behavior: motion === 'full' ? 'smooth' : 'auto',
-    });
-
-  return (
-    <div className="relative min-w-0">
-      <div
-        ref={rail}
-        role="group"
-        aria-label={label}
-        onPointerDown={(event) => pressRail(event, rail.current, NO_PICK, motion)}
-        className={`flex h-full touch-pan-x touch-pan-y snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
-          narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'mx-[22px] pt-[2px] pb-[10px] pl-[2px]'
-        }`}
-      >
-        {children(gripOf(rail, motion))}
-      </div>
-      {!narrow && (
-        <>
-          <button
-            type="button"
-            aria-label={fr.personalBoard.previous}
-            onClick={() => scroll(-1)}
-            className="paper-grain absolute top-[44px] left-0 h-[40px] w-[20px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            aria-label={fr.personalBoard.next}
-            onClick={() => scroll(1)}
-            className="paper-grain absolute top-[44px] right-0 h-[40px] w-[20px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none"
-          >
-            ›
-          </button>
-        </>
-      )}
-    </div>
-  );
 }
 
 /** **Le rang des tuiles de bâtiments** : ce que la bande montre tant qu'aucun site n'est
@@ -941,7 +849,7 @@ function TileFrame({
       {...grip}
       title={label}
       aria-label={label}
-      className={`grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+      className={`group relative grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
           : wide
@@ -960,10 +868,10 @@ function TileFrame({
       </b>
       <span className="grid place-items-center overflow-hidden">{picture}</span>
       <span
-        className={`${wide && !narrow ? 'line-clamp-3' : 'line-clamp-2'} leading-[1.1] ${
+        className={`leading-[1.1] ${
           locked
-            ? 'font-semibold text-[var(--critical)]'
-            : 'font-(family-name:--font-mono) text-[var(--ink-soft)]'
+            ? `${wide && !narrow ? 'line-clamp-3' : 'line-clamp-2'} font-semibold text-[var(--critical)]`
+            : 'truncate font-(family-name:--font-mono) text-[var(--ink-soft)]'
         } ${narrow ? 'text-[9px]' : 'text-[9.5px]'}`}
       >
         {meta}
@@ -971,6 +879,16 @@ function TileFrame({
       <span className="mt-[2px] font-(family-name:--font-mono) text-[9.5px] whitespace-nowrap">
         {price}
       </span>
+      {/* Retenue, la carte dit son refus entier, au survol ou au focus (la tuile le porte déjà en
+          `aria-label`). */}
+      {locked && !narrow && (
+        <span
+          aria-hidden
+          className="mat-refusal paper-grain absolute inset-[20px_3px_3px] hidden overflow-hidden border-t border-[var(--critical)] p-[4px] text-[10px] leading-[1.25] font-semibold text-[var(--critical)] group-hover:block group-focus-visible:block"
+        >
+          {meta}
+        </span>
+      )}
     </button>
   );
 }
@@ -1013,7 +931,7 @@ function Tile({
         refusal ??
         (lowest === null
           ? time
-          : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level + 1)}`)
+          : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`)
       }
       price={
         free ? (
@@ -1070,6 +988,8 @@ function SiteBand({
 }) {
   const workshop = useQuery(api.troops.workshop, seat);
   const recruit = useMutation(api.troops.recruit);
+  const queue = useRef<HTMLElement>(null);
+  const more = useOverflow(queue, 'y');
   const facility = workshop?.facilities.find((one) => one.id === site.id) ?? null;
   const region = view.me.regions.find((one) => one.id === site.regionId)?.name ?? site.regionId;
   const siteName = fr.buildings[site.key];
@@ -1188,10 +1108,12 @@ function SiteBand({
         )}
       </section>
       <section
+        ref={queue}
+        data-after={more.after}
         className={
           narrow
             ? 'border-t border-[var(--ink)] px-[10px] py-[8px]'
-            : 'min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]'
+            : 'mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]'
         }
       >
         <div className="grid gap-[5px]">
@@ -1275,6 +1197,8 @@ function Works({
   onSpent: () => void;
 }) {
   const drop = useMutation(api.constructions.cancel);
+  const column = useRef<HTMLElement>(null);
+  const more = useOverflow(column, 'y');
   const [error, setError] = useState<string | null>(null);
   const [unfolded, setUnfolded] = useState(false);
   const head = view.me.construction;
@@ -1298,15 +1222,14 @@ function Works({
         return (
           <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
             <span className="flex items-baseline gap-2">
-              <span className="min-w-0 flex-1">
-                <b className="font-semibold">
-                  {fr.personalBoard.workRank(
-                    index + 1,
-                    fr.personalBoard.work(work.name, work.level),
-                  )}
-                </b>{' '}
-                <span className="text-[var(--ink-soft)]">{work.regionName}</span>
-              </span>
+              <b className="min-w-0 flex-1 truncate font-semibold">
+                {fr.personalBoard.workRank(index + 1, fr.personalBoard.work(work.name, work.level))}
+              </b>
+              {running && (
+                <small className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+                  {countdownLabel(left * 60_000)}
+                </small>
+              )}
               {!running && !observing && (
                 <button
                   type="button"
@@ -1318,7 +1241,7 @@ function Works({
                       (problem: unknown) => handleError(problem, setError),
                     );
                   }}
-                  className="cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 hover:text-[var(--critical)]"
+                  className="shrink-0 cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 opacity-55 hover:text-[var(--critical)] hover:opacity-100"
                 >
                   {fr.economy.queueCancel}
                 </button>
@@ -1334,10 +1257,10 @@ function Works({
                 />
               </span>
             )}
-            <small className="font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+            <small className="block truncate font-(family-name:--font-mono) text-[9.5px] leading-[1.2] text-[var(--ink-soft)]">
               {running
-                ? fr.personalBoard.left(countdownLabel(left * 60_000))
-                : fr.personalBoard.queuedLine(countdownLabel(total * 60_000))}
+                ? fr.personalBoard.runningAt(work.regionName)
+                : fr.personalBoard.queuedAt(work.regionName, countdownLabel(total * 60_000))}
             </small>
           </div>
         );
@@ -1377,7 +1300,11 @@ function Works({
   );
   if (!narrow)
     return (
-      <section className="min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]">
+      <section
+        ref={column}
+        data-after={more.after}
+        className="mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]"
+      >
         {list}
       </section>
     );
