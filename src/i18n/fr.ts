@@ -4575,7 +4575,7 @@ export const fr = {
     last: 'dernière',
     species: (deposit: DepositKey) =>
       fr.deposits[deposit].charAt(0).toUpperCase() + fr.deposits[deposit].slice(1),
-    /** À cinq kilomètres près sous la centaine, à dix au-delà, comme le fil de la pose. */
+    /** À cinq kilomètres près sous la centaine, à dix au-delà : une distance lue d'un coup d'œil. */
     km: (km: number) =>
       `${(km < 100 ? Math.round(km / 5) * 5 : Math.round(km / 10) * 10).toLocaleString('fr-FR')} km`,
     /** Le cap en mots : un chiffre en degrés ne se voit pas, huit points de la rose suffisent. */

@@ -66,7 +66,6 @@ export function SweepOverlay({
         hitMs: hit.hitMs,
       })),
     });
-    engine.invalidate();
     const last = still ? 0 : Math.max(SWEEP_MS, ...result.found.map((hit) => hit.hitMs));
     const ran = setTimeout(() => setRan(true), still ? 0 : SWEEP_MS);
     const ended = setTimeout(onEnd, last + TAG_MS);
