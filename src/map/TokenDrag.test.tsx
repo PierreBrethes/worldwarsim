@@ -16,6 +16,10 @@ function Bin() {
       <button data-bin="coal" onPointerDown={(event) => tokens.start('board', 'coal', event)}>
         charbon
       </button>
+      {/* The gauge a folded board hides: another bin of the same resource, later in the page. */}
+      <button data-bin="coal" id="hidden">
+        caché
+      </button>
       {tokens.chip}
     </>
   );
@@ -72,5 +76,17 @@ describe('the tokens taken from a bin', () => {
     moveTo(120, 120);
     release();
     expect(animate).not.toHaveBeenCalled();
+  });
+
+  it('flies home to the bin it came out of, not to another bin of the same resource', () => {
+    render(<Bin />);
+    const at = (left: number) => () => ({ left, width: 20, top: 100 }) as DOMRect;
+    bin().getBoundingClientRect = at(10);
+    document.getElementById('hidden')!.getBoundingClientRect = at(900);
+    press();
+    moveTo(120, 120);
+    release();
+    const [frames] = animate.mock.calls[0] as unknown as [Array<{ transform: string }>];
+    expect(frames.at(-1)!.transform).toContain('translate(20px');
   });
 });

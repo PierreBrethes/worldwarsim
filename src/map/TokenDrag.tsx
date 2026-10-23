@@ -93,7 +93,7 @@ export function useTokenDrag<From>({
       show();
     }, 100);
     const finish = (returns = false) => {
-      if (returns && moved) flyHome(node.current, bins.at(-1), at);
+      if (returns && moved) flyHome(node.current, element.closest<HTMLElement>('[data-bin]'), at);
       for (const bin of bins) delete bin.dataset.holding;
       window.clearInterval(grow);
       window.removeEventListener('pointermove', move);
@@ -176,8 +176,8 @@ export function useTokenDrag<From>({
  * **Les jetons rentrent au bac** : une copie de la main, sans son étiquette, glisse de l'endroit où
  * on les a lâchés jusqu'au bac et s'efface. « actives » seulement.
  */
-function flyHome(hand: HTMLElement | null, bin: HTMLElement | undefined, from: Point) {
-  if (hand === null || bin === undefined || motionNow() !== 'full') return;
+function flyHome(hand: HTMLElement | null, bin: HTMLElement | null, from: Point) {
+  if (hand === null || bin === null || motionNow() !== 'full') return;
   const box = bin.getBoundingClientRect();
   const ghost = hand.cloneNode(true) as HTMLElement;
   ghost.querySelector('[role="status"]')?.remove();
