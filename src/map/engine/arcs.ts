@@ -90,10 +90,12 @@ export class ArcLayer {
   readonly group = new Group();
   /** The head labels' screen positions read here: they move every frame. */
   readonly headPositions = new Map<string, Vector3>();
+  /** Each movement's pawn by its id: a label or a pin reads its span at every frame. */
+  private readonly pawnById = new Map<string, Pawn>();
 
   /** **The span a movement's pawn gives way to its pin by**, `null` for no movement of that id. */
   spanOf(id: string): number | null {
-    return this.rendered.find((rendered) => rendered.arc.id === id)?.pawn.span ?? null;
+    return this.pawnById.get(id)?.span ?? null;
   }
   readonly aheadPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
@@ -203,6 +205,7 @@ export class ArcLayer {
       rendered.arc = arc;
       rendered.loadingUntil = loadingUntilOf(arc);
       this.headPositions.set(arc.id, rendered.headPosition);
+      this.pawnById.set(arc.id, rendered.pawn);
       this.aheadPositions.set(arc.id, rendered.aheadPosition);
       this.targets.push(...rendered.thread.targets);
       this.rendered.push(rendered);
@@ -211,6 +214,7 @@ export class ArcLayer {
       release(gone);
       this.headPositions.delete(gone.arc.id);
       this.aheadPositions.delete(gone.arc.id);
+      this.pawnById.delete(gone.arc.id);
     }
     this.syncCrates();
     this.applyAccent();
@@ -495,6 +499,7 @@ export class ArcLayer {
     this.targets = [];
     this.headPositions.clear();
     this.aheadPositions.clear();
+    this.pawnById.clear();
   }
 }
 
