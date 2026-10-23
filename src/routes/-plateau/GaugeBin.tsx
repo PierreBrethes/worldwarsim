@@ -8,11 +8,10 @@ import { useMapMotion, usePrefersReducedMotion } from '@/data/mapMotion';
 import { ResourcePlate } from '@/emblems/Plate';
 import { resourceColor } from '@/emblems/resource-color';
 import {
-  DryTag,
-  FullTag,
   Odometer,
   reserveReading,
   ReserveTag,
+  StateTag,
   useAnnouncedStock,
   usePinning,
 } from '@/shell/ReserveCell';
@@ -111,9 +110,9 @@ export function GaugeBin({
         )}
       </span>
       {alert !== null ? (
-        <DryTag label={alert} />
+        <StateTag label={alert} tone="dry" />
       ) : full ? (
-        <FullTag />
+        <StateTag label={fr.resourceBand.full} tone="full" />
       ) : (
         <small
           aria-hidden

@@ -79,21 +79,17 @@ export function dryLabelOf(stock: number, netPerHour: number): string | null {
     : fr.resourceBand.drySoonShort(Math.max(1, Math.floor(dry.hoursLeft)));
 }
 
-/** L'étiquette rouge de l'alerte : elle prend la place du débit, jamais une ligne de plus. */
-export function DryTag({ label }: { label: string }) {
+/** L'étiquette d'une réserve, qui prend la place du débit, jamais une ligne de plus : rouge pour
+ *  l'alerte (« à sec »), à encre pleine pour un bac au plafond — rien ne s'arrête, ce qui entre
+ *  est perdu. */
+export function StateTag({ label, tone }: { label: string; tone: 'dry' | 'full' }) {
   return (
-    <span className="bg-[var(--critical)] px-[3px] py-[2px] text-[7px] leading-none font-semibold tracking-[.04em] whitespace-nowrap text-[var(--paper)] uppercase">
+    <span
+      className={`px-[3px] py-[2px] text-[7px] leading-none font-semibold tracking-[.04em] whitespace-nowrap text-[var(--paper)] uppercase ${
+        tone === 'dry' ? 'bg-[var(--critical)]' : 'bg-[var(--ink)]'
+      }`}
+    >
       {label}
-    </span>
-  );
-}
-
-/** L'étiquette d'une réserve au plafond : à encre pleine, elle prend la place du débit comme
- *  « à sec », mais sans rouge — rien ne s'arrête, ce qui entre est perdu. */
-export function FullTag() {
-  return (
-    <span className="bg-[var(--ink)] px-[3px] py-[2px] text-[7px] leading-none font-semibold tracking-[.04em] whitespace-nowrap text-[var(--paper)] uppercase">
-      {fr.resourceBand.full}
     </span>
   );
 }
@@ -206,9 +202,9 @@ export function ReserveCell({
         </span>
       </span>
       {alert !== null ? (
-        <DryTag label={alert} />
+        <StateTag label={alert} tone="dry" />
       ) : full ? (
-        <FullTag />
+        <StateTag label={fr.resourceBand.full} tone="full" />
       ) : (
         <span
           aria-hidden
