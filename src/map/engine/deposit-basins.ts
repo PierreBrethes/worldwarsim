@@ -11,7 +11,7 @@ import type { DepositCall } from '@/domain/construction';
 import type { DepositBasin } from '@/domain/deposit-basins';
 import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
-import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
+import { NIGHT_HERE_GLSL, NIGHT_INK, type NightUniforms } from './night-here';
 import { TRAME_SCALE } from './regions';
 import { ADVERSE_INK } from './palette';
 
@@ -58,8 +58,6 @@ const WOKEN_NEAR = 0.15;
 const REFUSED_NEAR = 0.1;
 const WOKEN_FAR = 0.6;
 const DASHES = 60;
-/** As the terrain drawings' ink: it goes down with the moonlit sheet. */
-const NIGHT_INK = 0.25;
 /** Over the terrain drawings (0.0025), under the contours. */
 const LIFT = 0.003;
 /** From far a basin grows to this radius on screen, in CSS pixels, so its wash stays a spot the
