@@ -63,6 +63,8 @@ export type StandingPile = {
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
 export type GarrisonAt = (
   maquetteId: string,
+  /** The span of the pile's largest piece: it stands that much further off. */
+  pile: number,
 ) => { at: Vector3; step: readonly [number, number]; facing: number } | null;
 
 /**
@@ -1112,7 +1114,7 @@ export class StandingLayer {
   orient(cameraPosition: Vector3): void {
     for (const { object, at, span, targets } of this.dressed.values()) {
       if ('beside' in at) {
-        const foot = this.garrisonAt(at.beside);
+        const foot = this.garrisonAt(at.beside, span);
         if (foot === null) {
           object.visible = false;
           continue;

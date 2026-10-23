@@ -13,8 +13,7 @@ import type { LonLat } from '@/domain/geo';
 import type { StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { buildingSpan } from '@/domain/piece-size';
-import { pieceWeight, sceneOf } from './figurines/figurine';
+import { ANONYMOUS_SPAN, pieceWeight, sceneOf } from './figurines/figurine';
 import { washedOf } from './standing';
 import { bakedParts, type Part } from './baking';
 import { pieceScale } from './piece-scale';
@@ -57,13 +56,6 @@ export type StandingMaquette = {
   /** One of my producers at work: a thread of smoke rises from its chimneys. */
   readonly smoking?: boolean;
 };
-
-/**
- * **The span a ring of maquettes is laid out by** (ADR 0035 §5): the ring keeps its layout, grown
- * as a barracks grew from the former 0.7 a maquette to a département, ×1.37. A hangar or a
- * warehouse, a little wider, still clears its neighbours at `RING_GAP`.
- */
-export const RING_SPAN = buildingSpan('barracks');
 
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */
 export function yawOf(id: string): number {
@@ -111,28 +103,26 @@ function modelOf(url: string): Promise<Model> {
 }
 
 /**
- * **Where the maquettes of one group stand**: on a ring around the point they share, one span
- * apart, so that none stands in another. Offsets in board units, in the order given.
+ * **The radius of a ring whose sites, in this order around it, keep their spacings** (ADR 0035
+ * §5): each takes a share of the round by its own spacing, so two neighbours stand half their
+ * two spacings apart — a port as wide as itself, a barracks as narrow as itself.
  */
-export function ringOffsets(
-  count: number,
-  span = RING_SPAN,
-): Array<readonly [x: number, z: number]> {
-  if (count < 2) return [[0, 0]];
-  const radius = ringRadius(count, span);
-  return Array.from({ length: count }, (_, k) => {
-    const angle = (2 * Math.PI * k) / count;
-    return [radius * Math.sin(angle), radius * Math.cos(angle)] as const;
-  });
+function ringRadius(spacings: ReadonlyArray<number>): number {
+  if (spacings.length < 2) return 0;
+  const round = spacings.reduce((sum, spacing) => sum + spacing, 0);
+  return Math.max(
+    ...spacings.map((spacing, k) => {
+      const pair = spacing + spacings[(k + 1) % spacings.length]!;
+      return pair / (4 * Math.sin((Math.PI * pair) / (2 * round)));
+    }),
+  );
 }
-
-const ringRadius = (count: number, span: number): number =>
-  count < 2 ? 0 : span / (2 * Math.sin(Math.PI / count));
 
 type Point = readonly [x: number, z: number];
 
-/** **What a placement may not do** (retours du 15/10): stray far from its own point, or step a
- *  site on land — or its garrison — off the land. */
+/** **What a placement may not do** (retours du 15/10): stray far from its own point — further
+ *  than `maxShift` times its ring's widest spacing —, or step a site on land, or its garrison,
+ *  off the land. */
 export type PlacementBounds = {
   readonly maxShift: number;
   readonly onLand: (x: number, z: number) => boolean;
@@ -151,10 +141,11 @@ const SHRINK_STEPS = [1, 0.85, 0.7, 0.55, 0.4];
 
 /**
  * **Maquettes clear one another on the board, not on the screen**: sites whose footprints — a
- * disc of radius `footprint`, half a span at least — overlap are gathered on a ring around their barycentre, and a ring that
- * grows into another site, or another ring, takes it in. Whether their labels fold into one
- * cartouche is the screen's affair: off screen, or before the labels touch, the maquettes
- * already do. Per site, in the order given (the caller sorts, so a ring keeps its order).
+ * disc of half its `spacings`, each its own — overlap are gathered on a ring around their
+ * barycentre, and a ring that grows into another site, or another ring, takes it in. Whether
+ * their labels fold into one cartouche is the screen's affair: off screen, or before the labels
+ * touch, the maquettes already do. Per site, in the order given (the caller sorts, so a ring
+ * keeps its order). `feet` are how far each garrison stands in front of its site.
  *
  * **Within `bounds`, a ring never carries a maquette far from its point** (the city of Coimbra
  * drawn in Porto, 15/10): a group that would spread past `maxShift`, or off the land, is ringed
@@ -162,17 +153,30 @@ const SHRINK_STEPS = [1, 0.85, 0.7, 0.55, 0.4];
  */
 export function clusterFootprints(
   points: ReadonlyArray<Point>,
-  span: number,
-  footprint = span / 2,
+  spacings: number | ReadonlyArray<number>,
+  feet?: number | ReadonlyArray<number>,
   bounds: PlacementBounds = { maxShift: Infinity, onLand: () => true },
 ): Placement[] {
+  const spacingOf = (k: number) => (typeof spacings === 'number' ? spacings : spacings[k]!);
+  // A footprint reaches its foot at least: half its spacing.
+  const footOf = (k: number) =>
+    feet === undefined ? spacingOf(k) / 2 : typeof feet === 'number' ? feet : feet[k]!;
   const placed = new Array<Placement>(points.length);
-  for (const members of ringed(points, span).clusters) {
+  for (const members of ringed(
+    points,
+    points.map((_, k) => spacingOf(k)),
+  ).clusters) {
     const own = members.map((k) => points[k]!);
+    const spaced = members.map(spacingOf);
+    const footed = members.map(footOf);
+    const within = { ...bounds, maxShift: bounds.maxShift * Math.max(...spaced) };
     let fitted: Placement[] | null = null;
     for (const scale of SHRINK_STEPS) {
-      const trial = ringed(own, span * scale).placed.map((place, r) =>
-        fitting(own[r]!, place, footprint * scale, span * scale, scale, bounds, points),
+      const trial = ringed(
+        own,
+        spaced.map((spacing) => spacing * scale),
+      ).placed.map((place, r) =>
+        fitting(own[r]!, place, footed[r]! * scale, spaced[r]! * scale, scale, within, points),
       );
       if (trial.every((place) => place !== null)) {
         fitted = trial as Placement[];
@@ -186,10 +190,10 @@ export function clusterFootprints(
         fitting(
           points[k]!,
           { at: points[k]!, ring: [0, 0] },
-          footprint * smallest,
-          span * smallest,
+          footed[r]! * smallest,
+          spaced[r]! * smallest,
           smallest,
-          { ...bounds, onLand: () => true },
+          { ...within, onLand: () => true },
           points,
         )!;
     });
@@ -251,20 +255,30 @@ const outwardOf = ([x, z]: Point): number => (x === 0 && z === 0 ? 0 : Math.atan
  */
 function ringed(
   points: ReadonlyArray<Point>,
-  span: number,
+  spacings: ReadonlyArray<number>,
 ): { placed: Array<{ at: Point; ring: Point }>; clusters: number[][] } {
-  type Cluster = { members: number[]; centre: Point; reach: number };
+  type Cluster = {
+    members: number[];
+    centre: Point;
+    /** Its members in the order they stand around it, from the first one's own bearing. */
+    around: Array<{ k: number; bearing: number; away: number }>;
+    radius: number;
+    reach: number;
+  };
   const clusterOf = (members: number[]): Cluster => {
     const sum = members.reduce<Point>(
       ([x, z], k) => [x + points[k]![0], z + points[k]![1]],
       [0, 0],
     );
     const centre: Point = [sum[0] / members.length, sum[1] / members.length];
-    const radius = Math.max(
-      members.length < 2 ? 0 : ringRadius(members.length, span),
-      ...members.map((k) => Math.hypot(points[k]![0] - centre[0], points[k]![1] - centre[1])),
-    );
-    return { members, centre, reach: radius + span / 2 };
+    const offsetOf = (k: number): Point => [points[k]![0] - centre[0], points[k]![1] - centre[1]];
+    const around = members
+      .map((k) => ({ k, bearing: outwardOf(offsetOf(k)), away: Math.hypot(...offsetOf(k)) }))
+      .sort((a, b) => a.bearing - b.bearing);
+    const radius = ringRadius(around.map(({ k }) => spacings[k]!));
+    const widest = Math.max(...members.map((k) => spacings[k]!));
+    const reach = Math.max(radius, ...around.map(({ away }) => away)) + widest / 2;
+    return { members, centre, around, radius, reach };
   };
   const clusters = points.map((_, k) => clusterOf([k]));
   const overlapping = (): [number, number] | null => {
@@ -283,20 +297,16 @@ function ringed(
     clusters[i] = clusterOf(members);
   }
   const placed = new Array<{ at: Point; ring: Point }>(points.length);
-  for (const { members, centre } of clusters) {
+  for (const { members, centre, around, radius } of clusters) {
     if (members.length < 2) {
       placed[members[0]!] = { at: points[members[0]!]!, ring: [0, 0] };
       continue;
     }
-    const radius = ringRadius(members.length, span);
-    const offsetOf = (k: number): Point => [points[k]![0] - centre[0], points[k]![1] - centre[1]];
-    // Round the ring in the order the sites stand around it, from the first one's own bearing.
-    const around = members
-      .map((k) => ({ k, bearing: outwardOf(offsetOf(k)), away: Math.hypot(...offsetOf(k)) }))
-      .sort((a, b) => a.bearing - b.bearing);
-    const start = around[0]!.bearing;
+    // Each site takes its share of the round by its spacing, its neighbours half their two apart.
+    const round = around.reduce((sum, { k }) => sum + spacings[k]!, 0);
+    let bearing = around[0]!.bearing;
     around.forEach(({ k, away }, rank) => {
-      const bearing = start + (2 * Math.PI * rank) / members.length;
+      if (rank > 0) bearing += (Math.PI * (spacings[around[rank - 1]!.k]! + spacings[k]!)) / round;
       const out = Math.max(radius, away);
       const ring: Point = [out * Math.sin(bearing), out * Math.cos(bearing)];
       placed[k] = { at: [centre[0] + ring[0], centre[1] + ring[1]], ring };
@@ -306,22 +316,23 @@ function ringed(
 }
 
 /**
- * **How far from its maquette a building's garrison stands**, in board units at full near
- * weight: a span and a seventh off its centre, so that its figurines clear the corner of a
- * square model turned any way — 0.8 for the former 0.7, grown with the ring. `@a-mesurer`
+ * **How far from its maquette a building's garrison stands**, in board units at full size: a
+ * span and a seventh of its site off its centre — 0.8 for the former 0.7 —, so that its back
+ * clears the corner of a model turned any way, and half the pile's largest piece more, so that a
+ * cargo stands off its port as a man off his barracks. `@a-mesurer`
  */
-export const GARRISON_FOOT = (8 / 7) * RING_SPAN;
+export const garrisonFoot = (site: number, pile: number): number => (8 / 7) * site + pile / 2;
 
 /**
- * **Two maquettes of a ring stand this many spans apart**, centre to centre: a model turned any
- * way reaches past half a span at its corners, and a span apart a headquarters and its barracks
- * still stood in one another (retours du 15/10). `@a-mesurer` on the board.
+ * **Two maquettes of a ring stand this many of their half spans apart**, centre to centre: a
+ * model turned any way reaches half its diagonal, a square's at worst — √2 —, and a little more
+ * (retours du 15/10 : un QG et sa caserne se dessinaient l'un dans l'autre). `@a-mesurer`
  */
-const RING_GAP = 1.25;
+export const RING_GAP = 1.45;
 
-/** **How far a ring may carry a maquette from its own point**, in board units at full piece
- *  size: under a span, so the site reads where it is — 0.55 for the former 0.7. `@a-mesurer` */
-const MAX_SHIFT = (0.55 / 0.7) * RING_SPAN;
+/** **How far a ring may carry a maquette from its own point**, in its widest spacings: under one,
+ *  so the site reads where it is — 0.55 for the former 0.875. `@a-mesurer` */
+export const MAX_SHIFT = 0.63;
 
 type Placed = {
   readonly id: string;
@@ -509,10 +520,11 @@ export class MaquetteLayer {
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
-      RING_SPAN * RING_GAP * pieceScale.size,
-      // A lone site's garrison stands this far in front: its footprint reaches it.
-      GARRISON_FOOT * pieceScale.size,
-      { maxShift: MAX_SHIFT * pieceScale.size, onLand: this.onLand },
+      items.map(({ span }) => span * RING_GAP * pieceScale.size),
+      // A lone site's garrison stands this far in front: its footprint reaches it. The pile is not
+      // known here: a tank's stands for it.
+      items.map(({ span }) => garrisonFoot(span, ANONYMOUS_SPAN) * pieceScale.size),
+      { maxShift: MAX_SHIFT, onLand: this.onLand },
     );
     items.forEach((item, k) => {
       const { at, facing, scale } = placed[k]!;
@@ -626,13 +638,16 @@ export class MaquetteLayer {
    * **Where the garrison of a maquette stands**, `null` while its model has not landed — a pile
    * beside a plate would stand beside nothing — or while a replay has cleared it away. Read at every frame, so that a ring or a region
    * that lands carries the pile along. The step follows the maquette as it is drawn now: it
-   * closes in as the maquette gives way to its pin.
+   * closes in as the maquette gives way to its pin. `pile` is the span of its largest piece.
    */
-  garrisonAt(id: string): { at: Vector3; step: readonly [number, number]; facing: number } | null {
+  garrisonAt(
+    id: string,
+    pile: number,
+  ): { at: Vector3; step: readonly [number, number]; facing: number } | null {
     const dressed = this.byId.get(id);
     if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
-    const { at, facing, scale, near } = dressed.item;
-    const foot = GARRISON_FOOT * pieceScale.size * scale * Math.max(near, 0);
+    const { at, facing, scale, near, span } = dressed.item;
+    const foot = garrisonFoot(span, pile) * pieceScale.size * scale * Math.max(near, 0);
     return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing };
   }
 
