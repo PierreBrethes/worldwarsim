@@ -17,10 +17,13 @@ const SPECIES: ReadonlyArray<DepositKey> = ['coal', 'iron', 'food', 'oil'];
 export function SweepButton({
   species,
   onSweep,
+  status = null,
   thumb = false,
 }: {
   species: DepositKey;
   onSweep: (species: DepositKey) => void;
+  /** What the wave is doing or found, beside the button; nothing when none runs. */
+  status?: string | null;
   thumb?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -62,6 +65,14 @@ export function SweepButton({
     : '';
   return (
     <div ref={root} className="relative flex items-center">
+      {thumb && status !== null && (
+        <span
+          role="status"
+          className="mr-[8px] border border-(color:--ink)/40 bg-[rgb(233_222_196/94%)] px-[7px] py-[3px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
+        >
+          {status}
+        </span>
+      )}
       <button
         type="button"
         title={fr.sweep.launch(species)}
@@ -90,6 +101,14 @@ export function SweepButton({
       >
         ▾
       </button>
+      {!thumb && status !== null && (
+        <span
+          role="status"
+          className="ml-[8px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
+        >
+          {status}
+        </span>
+      )}
       {open && (
         <div
           role="menu"

@@ -4584,6 +4584,14 @@ export const fr = {
         Math.round((((degrees % 360) + 360) % 360) / 45) % 8
       ]!,
     outOfReach: 'hors de portée',
+    /** La ligne d'état à côté du bouton : l'onde qui court et ce qu'elle a déjà atteint, puis ce
+     *  qu'elle a trouvé. */
+    running: (deposit: DepositKey, reached: number) =>
+      `l’onde court · ${fr.deposits[deposit]}${reached > 0 ? ` · ${reached}` : ''}`,
+    found: (deposit: DepositKey, count: number) =>
+      `${fr.deposits[deposit]} · ${count} relevé${count > 1 ? 's' : ''}`,
+    noneShort: (deposit: DepositKey, rangeKm: number) =>
+      `${fr.deposits[deposit]} · aucun à ${rangeKm.toLocaleString('fr-FR')} km`,
     goTo: (deposit: DepositKey, place: string) =>
       `Aller au gisement : ${fr.deposits[deposit]}, ${place}`,
     dispatch: 'Dépêche · sonde',

@@ -455,8 +455,16 @@ function BoardContent({
     [view],
   );
   const endSweep = useCallback(() => setSweep(null), []);
+  const [sweepStatus, setSweepStatus] = useState<string | null>(null);
   const sweepButton = (thumb: boolean) =>
-    blitz ? null : <SweepButton species={sweepSpecies} onSweep={launchSweep} thumb={thumb} />;
+    blitz ? null : (
+      <SweepButton
+        species={sweepSpecies}
+        onSweep={launchSweep}
+        status={sweepStatus}
+        thumb={thumb}
+      />
+    );
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
@@ -2339,6 +2347,7 @@ function BoardContent({
                 placing={placingCard}
                 sweep={sweep}
                 onSweepEnd={endSweep}
+                onSweepStatus={setSweepStatus}
                 onPlacePoint={placeAt}
                 onPlacingDismiss={dismissPlacing}
                 onPlacingAim={setPlacingAim}

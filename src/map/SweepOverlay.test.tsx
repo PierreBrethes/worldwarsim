@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sweepCandidates } from '@/domain/deposit-sweep';
+import { SWEEP_RANGE_KM, sweepCandidates } from '@/domain/deposit-sweep';
 import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
 import type { MapEngine, SweepTag } from './engine';
+import { fr } from '@/i18n/fr';
 import { SweepOverlay } from './SweepOverlay';
 
 vi.mock('@/data/mapMotion', () => ({ useMapMotion: () => 'full' }));
@@ -67,5 +68,37 @@ describe('SweepOverlay', () => {
     expect(screen.getAllByRole('button')).toHaveLength(1);
     act(() => void vi.advanceTimersByTime(2000));
     expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('says the wave running, each basin it reaches, then what it found', () => {
+    const engine = fakeEngine();
+    const said: (string | null)[] = [];
+    render(
+      <SweepOverlay
+        engine={engine as unknown as MapEngine}
+        sweep={{ nonce: 1, species: 'coal', candidates: sweepCandidates(view, 'coal', []) }}
+        onEnd={vi.fn()}
+        onStatus={(status) => said.push(status)}
+      />,
+    );
+    act(() => void vi.advanceTimersByTime(3100));
+    expect(said[0]).toBe(fr.sweep.running('coal', 0));
+    expect(said).toContain(fr.sweep.running('coal', 1));
+    expect(said.at(-1)).toBe(fr.sweep.found('coal', 3));
+  });
+
+  it('says none in range once the wave has run out', () => {
+    const engine = fakeEngine();
+    const said: (string | null)[] = [];
+    render(
+      <SweepOverlay
+        engine={engine as unknown as MapEngine}
+        sweep={{ nonce: 1, species: 'coal', candidates: [] }}
+        onEnd={vi.fn()}
+        onStatus={(status) => said.push(status)}
+      />,
+    );
+    act(() => void vi.advanceTimersByTime(3100));
+    expect(said.at(-1)).toBe(fr.sweep.noneShort('coal', SWEEP_RANGE_KM));
   });
 });

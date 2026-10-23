@@ -45,10 +45,13 @@ export function SweepOverlay({
   engine,
   sweep,
   onEnd,
+  onStatus,
 }: {
   engine: MapEngine | null;
   sweep: SweepRequest;
   onEnd: () => void;
+  /** The line beside the button: the wave running, then what it found; `null` once gone. */
+  onStatus?: ((status: string | null) => void) | undefined;
 }) {
   const motion = useMapMotion();
   const still = motion !== 'full';
@@ -79,11 +82,33 @@ export function SweepOverlay({
       : result.found.length === 0
         ? SWEEP_MS
         : Math.max(...result.found.map((hit) => hit.hitMs));
-    const ran = setTimeout(() => setRan(true), still ? 0 : SWEEP_MS);
+    const { species, found } = { species: sweep.species, found: result.found };
+    const done = () =>
+      onStatus?.(
+        found.length === 0
+          ? fr.sweep.noneShort(species, SWEEP_RANGE_KM)
+          : fr.sweep.found(species, found.length),
+      );
+    const said = still
+      ? []
+      : found.map((hit, rank) =>
+          setTimeout(() => onStatus?.(fr.sweep.running(species, rank + 1)), hit.hitMs),
+        );
+    if (still) done();
+    else onStatus?.(fr.sweep.running(species, 0));
+    const ran = setTimeout(
+      () => {
+        setRan(true);
+        if (!still) done();
+      },
+      still ? 0 : SWEEP_MS,
+    );
     const ended = setTimeout(onEnd, last + TAG_MS);
     return () => {
       clearTimeout(ran);
       clearTimeout(ended);
+      said.forEach(clearTimeout);
+      onStatus?.(null);
       engine.onSweep = undefined;
       engine.sweepDeposits(null);
     };
