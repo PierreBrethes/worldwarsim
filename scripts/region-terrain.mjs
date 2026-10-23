@@ -71,11 +71,22 @@ function reliefAround(relief, lon, lat) {
   return { altitude: valueAt(relief, lon, lat), drop: high - low };
 }
 
-function tally(tallies, at, rasters, lon, lat, code, weight) {
-  const { altitude, drop } = reliefAround(rasters.relief, lon, lat);
-  const mountainous =
-    drop >= MOUNTAIN_RELIEF_M || (altitude >= HIGHLAND_ALTITUDE_M && drop >= HIGHLAND_RELIEF_M);
-  if (mountainous) tallies[at + MOUNTAIN] += weight;
+/** A region's sample is mountainous on its drop, or on a lower drop up high. */
+const regionMountain = ({ altitude, drop }) =>
+  drop >= MOUNTAIN_RELIEF_M || (altitude >= HIGHLAND_ALTITUDE_M && drop >= HIGHLAND_RELIEF_M);
+
+/**
+ * **A cell's sample, on its drop alone** (#220). The highland rule fills a region's high plateau
+ * cut by valleys; a cell is small enough to fall between the ranges, and the rule would ink the
+ * floors of the Great Basin, 1 500 m up. The window stays the regions' 3 × 3: ETOPO's 0.1° step is
+ * the smallest there is. The Railroad Valley reads no drop at 600 m, the Sierra 0.67 of its cell.
+ * @a-mesurer
+ */
+const CELL_RELIEF_M = 600;
+const cellMountain = ({ drop }) => drop >= CELL_RELIEF_M;
+
+function tally(tallies, at, rasters, lon, lat, code, weight, isMountain = regionMountain) {
+  if (isMountain(reliefAround(rasters.relief, lon, lat))) tallies[at + MOUNTAIN] += weight;
   const climate = ARID.has(code)
     ? DRY
     : COLD_CODES.has(code)
@@ -198,7 +209,8 @@ export const CELL_TYPES = ['plain', 'forest', 'jungle', 'mountain', 'desert', 't
 const MIN_MASSIF_CELLS = 6;
 
 /**
- * **The terrain by cell** (#220): the regions' tallies and `terrainOf`, but over the cells of a
+ * **The terrain by cell** (#220): the regions' tallies and `terrainOf`, a sample's mountain read on
+ * its drop alone (`cellMountain`), over the cells of a
  * `width × height` grid of `perUnit` cells a plane unit, so that a massif follows the relief and
  * not a region's outline. A cell no land sample falls in is plain. Returns one `CELL_TYPES`
  * index a cell, rows from the plane's top.
@@ -216,7 +228,7 @@ export function classifyCells(rasters, { project, width, height, perUnit }) {
       const [x, y] = project(lon, lat);
       const [cx, cy] = [Math.floor(x * perUnit), Math.floor(y * perUnit)];
       if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
-      tally(tallies, (cy * width + cx) * TALLIES, rasters, lon, lat, code, weight);
+      tally(tallies, (cy * width + cx) * TALLIES, rasters, lon, lat, code, weight, cellMountain);
     }
   }
   const codes = new Uint8Array(width * height);
