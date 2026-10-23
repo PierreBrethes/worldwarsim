@@ -112,6 +112,11 @@ export function floorGrowth(distance: number, span: number): number {
   return Math.max(1, PIN_PX / pxOf(distance, span));
 }
 
+/** **The scale a troop is drawn at**, its span at 1: its weight, its floor and the player's size;
+ *  0 once it is its pin. */
+export const troopScale = (distance: number, span: number): number =>
+  troopWeight(distance, span) * floorGrowth(distance, span) * pieceScale.size;
+
 export type Figurine = {
   /** Origin on the ground at the pawn's point, front towards +z, already at board scale. */
   readonly object: Group;

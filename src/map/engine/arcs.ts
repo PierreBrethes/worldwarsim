@@ -11,7 +11,7 @@ import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
-import { ANONYMOUS_SPAN, floorGrowth, troopPinSpan, troopWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, troopPinSpan, troopScale } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
 import {
   buildThread,
@@ -32,7 +32,6 @@ import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
 import { arcProgressAt } from '@/domain/arc-timing';
 import { HEARTBEAT_MS } from './frame-demand';
-import { pieceScale } from './piece-scale';
 import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
 import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
@@ -369,12 +368,12 @@ export class ArcLayer {
 
     for (const rendered of this.rendered) {
       if (rendered.relic !== null) {
-        const distance = rendered.relic.position.distanceTo(this.cameraPosition);
-        const near = troopWeight(distance, ANONYMOUS_SPAN);
-        rendered.relic.visible = near > 0;
-        rendered.relic.scale.setScalar(
-          near * floorGrowth(distance, ANONYMOUS_SPAN) * pieceScale.size,
+        const scale = troopScale(
+          rendered.relic.position.distanceTo(this.cameraPosition),
+          ANONYMOUS_SPAN,
         );
+        rendered.relic.visible = scale > 0;
+        rendered.relic.scale.setScalar(scale);
         rendered.relic.rotation.set(0, this.cameraYaw, 0);
       }
       const inkedUntil = this.inking.get(rendered.arc.id);

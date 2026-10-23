@@ -15,15 +15,8 @@ import type { LonLat } from '@/domain/geo';
 import { asClockTime } from '@/domain/duration';
 import type { Medium } from '@/domain/routing';
 import { surveyInk } from '@/domain/survey-ink';
-import {
-  ANONYMOUS_SPAN,
-  FIGURINE_SCALE,
-  floorGrowth,
-  troopWeight,
-  type Figurine,
-} from './figurines/figurine';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, troopScale, type Figurine } from './figurines/figurine';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
-import { pieceScale } from './piece-scale';
 import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
 import { SILHOUETTES } from './silhouettes';
 import { InkRing, type RingState } from './ink-ring';
@@ -282,10 +275,9 @@ export class CampLayer {
   orient(cameraPosition: Vector3, yaw: number): void {
     const seconds = performance.now() / 1000;
     for (const [id, { object, ring }] of this.placed) {
-      const distance = object.position.distanceTo(cameraPosition);
-      const near = troopWeight(distance, ANONYMOUS_SPAN);
-      object.visible = near > 0;
-      object.scale.setScalar(near * floorGrowth(distance, ANONYMOUS_SPAN) * pieceScale.size);
+      const scale = troopScale(object.position.distanceTo(cameraPosition), ANONYMOUS_SPAN);
+      object.visible = scale > 0;
+      object.scale.setScalar(scale);
       object.rotation.set(0, yaw, 0);
       ring.style(
         this.marked?.id === id ? this.marked.state : null,

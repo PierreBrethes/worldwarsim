@@ -36,6 +36,7 @@ import {
   LAID_OUT_FOR,
   floorGrowth,
   troopPinSpan,
+  troopScale,
   troopWeight,
   type Figurine,
 } from './figurines/figurine';
@@ -1143,7 +1144,7 @@ export class StandingLayer {
       const near = troopWeight(distance, span);
       entry.near = near;
       object.visible = near > 0;
-      const scale = near * floorGrowth(distance, span) * pieceScale.size * pileUnitOf(span);
+      const scale = troopScale(distance, span) * pileUnitOf(span);
       object.scale.setScalar(scale);
       hover(object);
       const growth = targetGrowth(scale, distance);
@@ -1178,10 +1179,9 @@ export class StandingLayer {
     const { object, piece, down, back } = carried;
     const dt = Math.min(0.1, (now - carried.clock) / 1000);
     carried.clock = now;
-    const distance = object.position.distanceTo(cameraPosition);
-    const near = troopWeight(distance, carried.span);
     const scale =
-      near * floorGrowth(distance, carried.span) * pieceScale.size * pileUnitOf(carried.span);
+      troopScale(object.position.distanceTo(cameraPosition), carried.span) *
+      pileUnitOf(carried.span);
     const full = this.motion === 'full';
     let tilt = { x: 0, z: 0 };
     let turn = 0;
@@ -1201,7 +1201,7 @@ export class StandingLayer {
       piece.position.y = 0;
       carried.shadow.object.visible = false;
       carried.marks.plumb.visible = false;
-      object.visible = near > 0;
+      object.visible = scale > 0;
       object.scale.setScalar(scale);
       if (fading >= 1) {
         this.settling = this.settling.filter((each) => each !== carried);
@@ -1264,7 +1264,7 @@ export class StandingLayer {
     carried.shadow.object.scale.setScalar(carried.width * 0.6 * (0.8 + height * 0.3));
     const fade = Math.max(0, 0.42 - height * 0.1) / 0.42;
     for (const material of carried.shadow.materials) material.opacity = fade;
-    object.visible = near > 0 && (carried.pointer !== null || down !== null || back !== null);
+    object.visible = scale > 0 && (carried.pointer !== null || down !== null || back !== null);
     object.scale.setScalar(scale * shrink);
   }
 
