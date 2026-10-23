@@ -12,6 +12,14 @@ import infantry2 from './france/infantry-2.webp';
 import carrier from './france/carrier.webp';
 import airTransport from './france/airTransport.webp';
 import landTransport from './france/landTransport.webp';
+import artillery from './france/artillery.webp';
+import ukArtillery from './uk/artillery.webp';
+import usaArtillery from './usa/artillery.webp';
+import ussrArtillery from './ussr/artillery.webp';
+import germanyArtillery from './germany/artillery.webp';
+import chinaArtillery from './china/artillery.webp';
+import italyArtillery from './italy/artillery.webp';
+import japanArtillery from './japan/artillery.webp';
 import usaArmor1 from './usa/armor-1.webp';
 import usaArmor2 from './usa/armor-2.webp';
 import usaBomber from './usa/bomber.webp';
@@ -104,7 +112,7 @@ const FRANCE: NationSprites = {
   infantry: { kind: 'tiered', tiers: [infantry1, infantry2] },
   armor: { kind: 'tiered', tiers: [armor1, armor2] },
   landTransport: { kind: 'single', url: landTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: artillery },
   fighter: { kind: 'single', url: fighter },
   bomber: { kind: 'single', url: bomber },
   airTransport: { kind: 'single', url: airTransport },
@@ -119,7 +127,7 @@ const UK: NationSprites = {
   infantry: { kind: 'tiered', tiers: [ukInfantry1, ukInfantry2] },
   armor: { kind: 'tiered', tiers: [ukArmor1, ukArmor2] },
   landTransport: { kind: 'single', url: ukLandTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: ukArtillery },
   fighter: { kind: 'single', url: ukFighter },
   bomber: { kind: 'single', url: ukBomber },
   airTransport: { kind: 'single', url: ukAirTransport },
@@ -133,7 +141,7 @@ const USA: NationSprites = {
   infantry: { kind: 'tiered', tiers: [usaInfantry1, usaInfantry2] },
   armor: { kind: 'tiered', tiers: [usaArmor1, usaArmor2] },
   landTransport: { kind: 'single', url: usaLandTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: usaArtillery },
   fighter: { kind: 'single', url: usaFighter },
   bomber: { kind: 'single', url: usaBomber },
   airTransport: { kind: 'single', url: usaAirTransport },
@@ -147,7 +155,7 @@ const USSR: NationSprites = {
   infantry: { kind: 'tiered', tiers: [ussrInfantry1, ussrInfantry2] },
   armor: { kind: 'tiered', tiers: [ussrArmor1, ussrArmor2] },
   landTransport: { kind: 'single', url: ussrLandTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: ussrArtillery },
   fighter: { kind: 'single', url: ussrFighter },
   bomber: { kind: 'single', url: ussrBomber },
   airTransport: { kind: 'single', url: ussrAirTransport },
@@ -161,7 +169,7 @@ const GERMANY: NationSprites = {
   infantry: { kind: 'tiered', tiers: [germanyInfantry1, germanyInfantry2] },
   armor: { kind: 'tiered', tiers: [germanyArmor1, germanyArmor2] },
   landTransport: { kind: 'single', url: germanyLandTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: germanyArtillery },
   fighter: { kind: 'single', url: germanyFighter },
   bomber: { kind: 'single', url: germanyBomber },
   airTransport: null,
@@ -175,7 +183,7 @@ const CHINA: NationSprites = {
   infantry: { kind: 'tiered', tiers: [chinaInfantry1, chinaInfantry2] },
   armor: { kind: 'tiered', tiers: [chinaArmor1, chinaArmor2] },
   landTransport: { kind: 'single', url: chinaLandTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: chinaArtillery },
   fighter: { kind: 'single', url: chinaFighter },
   bomber: { kind: 'single', url: chinaBomber },
   airTransport: { kind: 'single', url: chinaAirTransport },
@@ -189,7 +197,7 @@ const ITALY: NationSprites = {
   infantry: { kind: 'tiered', tiers: [italyInfantry1, italyInfantry2] },
   armor: { kind: 'tiered', tiers: [italyArmor1, italyArmor2] },
   landTransport: { kind: 'single', url: italyLandTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: italyArtillery },
   fighter: { kind: 'single', url: italyFighter },
   bomber: { kind: 'single', url: italyBomber },
   airTransport: { kind: 'single', url: italyAirTransport },
@@ -206,7 +214,7 @@ const JAPAN: NationSprites = {
   infantry: { kind: 'tiered', tiers: [japanInfantry1, japanInfantry2] },
   armor: { kind: 'tiered', tiers: [japanArmor1, japanArmor2] },
   landTransport: { kind: 'single', url: japanLandTransport },
-  artillery: null,
+  artillery: { kind: 'single', url: japanArtillery },
   fighter: { kind: 'single', url: japanFighter },
   bomber: { kind: 'single', url: japanBomber },
   airTransport: null,
