@@ -1,6 +1,8 @@
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import {
+  CELL_TYPES,
+  classifyCells,
   classifyRegions,
   readEsriAscii,
   readKoppenZipMember,
@@ -319,5 +321,52 @@ describe('la règle de classification', () => {
 
   it('prend le climat de la terre la plus proche quand le point tombe en mer à 0,1°', () => {
     expect(islet(Uint8Array.of(15, 0, 0, 4))).toBe('desert');
+  });
+});
+
+/**
+ * Un monde de 10 × 10 échantillons de 1°, une cellule par échantillon (la projection est
+ * l'identité retournée) : chaque fait se fabrique par une fonction de (colonne, rang).
+ */
+function cellWorld({ elevation = () => 100, climate = () => 15, forest = () => 0.1 }) {
+  const raster = (valueOf) => ({
+    width: 10,
+    height: 10,
+    west: 0.5,
+    north: 9.5,
+    step: 1,
+    values: Float32Array.from({ length: 100 }, (_, i) => valueOf(i % 10, Math.floor(i / 10))),
+  });
+  const codes = classifyCells(
+    { relief: raster(elevation), climate: raster(climate), forest: raster(forest) },
+    { project: (lon, lat) => [lon, 10 - lat], width: 10, height: 10, perUnit: 1 },
+  );
+  return (column, row) => CELL_TYPES[codes[row * 10 + column]];
+}
+
+describe('le terrain par cellule', () => {
+  it('décide chaque cellule sur ses seuls échantillons, aux seuils des régions', () => {
+    const typeAt = cellWorld({
+      climate: (column) => (column < 5 ? 4 : 15),
+      forest: (column) => (column < 5 ? 0 : 0.6),
+      elevation: (column, row) => (row >= 7 && column >= 5 ? (column % 2) * 900 : 100),
+    });
+    expect(typeAt(1, 1)).toBe('desert');
+    expect(typeAt(8, 1)).toBe('forest');
+    expect(typeAt(7, 8)).toBe('mountain');
+  });
+
+  it('laisse nue la cellule où ne tombe aucun échantillon de terre', () => {
+    expect(cellWorld({ climate: (column) => (column < 5 ? 0 : 15) })(1, 1)).toBe('plain');
+  });
+
+  it("ne fait pas un massif d'une cellule isolée, mais garde un massif de neuf", () => {
+    const typeAt = cellWorld({
+      forest: () => 0.6,
+      climate: (column, row) =>
+        (column === 1 && row === 1) || (column >= 5 && column < 8 && row >= 5 && row < 8) ? 4 : 15,
+    });
+    expect(typeAt(1, 1)).toBe('forest');
+    expect(typeAt(6, 6)).toBe('desert');
   });
 });

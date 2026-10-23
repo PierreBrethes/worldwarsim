@@ -191,6 +191,86 @@ export function classifyRegions(regions, rasters, plane) {
   return types;
 }
 
+/** The codes `classifyCells` writes, by index: the client's type map maps them by name. */
+export const CELL_TYPES = ['plain', 'forest', 'jungle', 'mountain', 'desert', 'tundra'];
+/** A patch of one type smaller than this, in cells, is no massif: it takes its surroundings'
+ *  type, so the map is not sown salt and pepper. @a-mesurer */
+const MIN_MASSIF_CELLS = 6;
+
+/**
+ * **The terrain by cell** (#220): the regions' tallies and `terrainOf`, but over the cells of a
+ * `width × height` grid of `perUnit` cells a plane unit, so that a massif follows the relief and
+ * not a region's outline. A cell no land sample falls in is plain. Returns one `CELL_TYPES`
+ * index a cell, rows from the plane's top.
+ */
+export function classifyCells(rasters, { project, width, height, perUnit }) {
+  const tallies = new Float64Array(width * height * TALLIES);
+  const { climate } = rasters;
+  for (let row = 0; row < climate.height; row += 1) {
+    const lat = climate.north - row * climate.step;
+    const weight = Math.cos((lat * Math.PI) / 180);
+    for (let column = 0; column < climate.width; column += 1) {
+      const code = climate.values[row * climate.width + column];
+      if (code === 0) continue;
+      const lon = climate.west + column * climate.step;
+      const [x, y] = project(lon, lat);
+      const [cx, cy] = [Math.floor(x * perUnit), Math.floor(y * perUnit)];
+      if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
+      tally(tallies, (cy * width + cx) * TALLIES, rasters, lon, lat, code, weight);
+    }
+  }
+  const codes = new Uint8Array(width * height);
+  for (let cell = 0; cell < codes.length; cell += 1) {
+    const at = cell * TALLIES;
+    if (tallies[at + WEIGHT] === 0) continue;
+    const share = (field) => tallies[at + field] / tallies[at + WEIGHT];
+    const type = terrainOf({
+      mountain: share(MOUNTAIN),
+      dry: share(DRY),
+      cold: share(COLD),
+      hot: share(HOT),
+      other: share(OTHER),
+      forest: share(FOREST),
+    });
+    codes[cell] = CELL_TYPES.indexOf(type);
+  }
+  return withoutSpecks(codes, width, height);
+}
+
+/** Each patch of one code (4-connected) under `MIN_MASSIF_CELLS` takes the code most of its
+ *  neighbours bear. */
+function withoutSpecks(codes, width, height) {
+  const seen = new Uint8Array(codes.length);
+  for (let start = 0; start < codes.length; start += 1) {
+    if (seen[start]) continue;
+    const code = codes[start];
+    const patch = [start];
+    const around = new Map();
+    seen[start] = 1;
+    for (let k = 0; k < patch.length; k += 1) {
+      const cell = patch[k];
+      const x = cell % width;
+      for (const next of [
+        x > 0 ? cell - 1 : -1,
+        x < width - 1 ? cell + 1 : -1,
+        cell - width,
+        cell + width < codes.length ? cell + width : -1,
+      ]) {
+        if (next < 0) continue;
+        if (codes[next] !== code) around.set(codes[next], (around.get(codes[next]) ?? 0) + 1);
+        else if (!seen[next]) {
+          seen[next] = 1;
+          patch.push(next);
+        }
+      }
+    }
+    if (patch.length >= MIN_MASSIF_CELLS || around.size === 0) continue;
+    const [replacement] = [...around].reduce((best, entry) => (entry[1] > best[1] ? entry : best));
+    for (const cell of patch) codes[cell] = replacement;
+  }
+  return codes;
+}
+
 export function valueAt(raster, lon, lat) {
   const row = Math.round((raster.north - lat) / raster.step);
   if (row < 0 || row >= raster.height) return NaN;
