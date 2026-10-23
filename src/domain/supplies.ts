@@ -134,6 +134,48 @@ export function fuelRefusalOf(
   return short;
 }
 
+/** **La jauge qu'une route ronge** (#250) : le plein du moteur qui borne la route, les crans
+ *  qu'elle mange (Singapour déduit, `spared` dit combien il épargne) et ce qui manque. */
+export type FuelGauge = {
+  readonly held: number;
+  readonly full: number;
+  readonly resource: 'oil' | 'coal';
+  readonly eaten: number;
+  readonly spared: number;
+  readonly short: number;
+};
+
+/** Le moteur dont il reste le moins une fois la route payée, et le plus vide à égalité : celui
+ *  que `fuelRefusalOf` nomme quand un seul manque. `null` sans moteur (à pied, en Blitz). */
+export function fuelGaugeOf(
+  drivers: ReadonlyArray<Carrying>,
+  km: number,
+  holdsSingapore = false,
+): FuelGauge | null {
+  let gauge: FuelGauge | null = null;
+  for (const troop of drivers) {
+    const full = fullSupplies(troop.role).fuel;
+    if (full === 0) continue;
+    const held = suppliesOf(troop).fuel;
+    const eaten = fuelStepsOf(troop.role, km, holdsSingapore);
+    const left = held - eaten;
+    if (
+      gauge !== null &&
+      (gauge.held - gauge.eaten < left || (gauge.held - gauge.eaten === left && gauge.held <= held))
+    )
+      continue;
+    gauge = {
+      held,
+      full,
+      resource: fuelResourceOf(troop.role),
+      eaten,
+      spared: fuelStepsOf(troop.role, km) - eaten,
+      short: Math.max(0, -left),
+    };
+  }
+  return gauge;
+}
+
 /** **Sans coups, ni attaque ni riposte** : une colonne armée dont plus aucune troupe ne porte un
  *  coup n'attaque pas. Une colonne sans arme n'est pas « à sec ». */
 export function outOfRounds(troops: ReadonlyArray<Carrying>): boolean {

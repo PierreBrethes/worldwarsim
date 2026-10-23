@@ -994,10 +994,15 @@ describe('an airdrop, checked before and after', () => {
         ...(roundTrip === undefined ? {} : { roundTrip }),
       });
 
-    expect((await ask())!.fuel.short).toBeNull();
+    const there = (await ask())!.fuel;
+    expect(there.short).toBeNull();
     const back = (await ask(true))!.fuel;
     expect(back.short).toMatchObject({ held: 3 });
     expect(back.roundTrip).toBe(true);
+    // The gauge drains for the way back too, and spills what the plane lacks.
+    expect(back.gauge).toMatchObject({ held: 3, full: 3, resource: 'oil' });
+    expect(back.gauge!.eaten).toBeGreaterThan(there.gauge!.eaten);
+    expect(back.gauge!.short).toBe(back.gauge!.eaten - 3);
     await expect(
       t.mutation(api.logistics.airdrop, {
         ...seat,

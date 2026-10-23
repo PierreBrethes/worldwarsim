@@ -60,6 +60,7 @@ import {
 } from './forces';
 import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
 import {
+  fuelGaugeOf,
   fuelRefusalOf,
   fuelStepsOf,
   fullSupplies,
@@ -752,8 +753,8 @@ export function fuelBill(
     drivers,
     /** Les crans que chaque moteur paie, à son rôle. */
     stepsOf,
-    /** Le plus gros cran payé par la colonne : ce que la carte dit de la route. */
-    steps: Math.max(0, ...drivers.map(stepsOf)),
+    /** La jauge sous la main : le moteur qui borne la route, ce qu'elle mange (#250). */
+    gauge: fuelGaugeOf(drivers, km, holdsSingapore),
     /** Singapour a allégé au moins un moteur de cette colonne : la carte dit de combien. */
     eased:
       eased.length === 0

@@ -763,7 +763,7 @@ const fuelFacts = async (
   column: { readonly blitz?: unknown },
   roundTrip: boolean,
 ) => {
-  const { steps, short, km, eased } = fuelBill(
+  const { gauge, short, km, eased } = fuelBill(
     troops,
     route.distanceUnits,
     column.blitz !== undefined,
@@ -771,7 +771,7 @@ const fuelFacts = async (
     await holdsPoint(ctx, player, 'singapore'),
   );
   /** **Singapour** se dit à la carte : le plein des camions et cargos, de tant à tant de crans. */
-  return { steps, short, km, roundTrip, eased };
+  return { gauge, short, km, roundTrip, eased };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
