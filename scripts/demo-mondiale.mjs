@@ -5,7 +5,8 @@
  * `--crans` pose en plus, pour la France, une escouade en Rhénanie aux crans entamés : une
  * infanterie à sec et un blindé à un cran de plein (coups et plein, ADR 0028 §3). `--recolte`
  * date une visite du plateau personnel de neuf heures plus tôt : la prochaine ouverture montre la
- * récolte, des vivres et de l'acier entrés, du pétrole sorti (ADR 0028 §7). `--livraison` pose
+ * récolte, des vivres et de l'acier entrés, du pétrole sorti (ADR 0028 §7) ; avec `--bac-plein`, le
+ * charbon est au plafond de son bac : une part de la récolte y est perdue (#251). `--livraison` pose
  * pour la France un avant-poste près de Bruxelles, son dépôt entamé, un camion chargé au QG et un
  * autre au point (ADR 0028 §4). `--tournee` y ajoute Lille, au dépôt plein, et lance deux
  * tournées : le camion du QG par Lille, sautée, et Bruxelles ; celui de Bruxelles par Lille seule,
@@ -63,6 +64,8 @@ const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', impo
 const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
+/** `--bac-plein` : avec `--recolte`, le bac de charbon plein et sa mine qui tourne : du perdu. */
+const fullBin = process.argv.includes('--bac-plein');
 const tours = process.argv.includes('--tournee');
 /** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
 const held = process.argv.includes('--sans-depart');
@@ -485,12 +488,21 @@ if (!bare) {
     cli(['run', 'dev:depositsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
   if (lisbon && scene.a !== null)
     cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key: 'lisbon' })]);
-  if (harvest)
+  if (harvest) {
+    if (fullBin)
+      cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 400, only: 'coal' })]);
     cli([
       'run',
       'dev:pastVisit',
-      JSON.stringify({ seasonId, hours: 9, gains: { food: 108, steel: 72, oil: -30 } }),
+      JSON.stringify({
+        seasonId,
+        hours: 9,
+        gains: fullBin
+          ? { food: 72, steel: 72, coal: 36, oil: -36 }
+          : { food: 108, steel: 72, oil: -30 },
+      }),
     ]);
+  }
 }
 
 if (editions)

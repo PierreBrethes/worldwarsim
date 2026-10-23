@@ -135,11 +135,13 @@ export const reset = internalAction({
  * saison neuve n'a pas. Réglé d'abord, pour que l'écriture ne réécrive pas des heures dues.
  * Jamais pour une saison réelle : c'est une triche, et elle n'a pas de porte cliente.
  *
+ * `only` n'en remplit qu'une (`"coal"`) : un bac plein parmi des bacs entamés.
+ *
  * `npx convex run dev:fillStocks '{"seasonId":"…","stock":400}'`
  */
 export const fillStocks = internalMutation({
-  args: { seasonId: v.id('seasons'), stock: v.number() },
-  handler: async (ctx, { seasonId, stock }) => {
+  args: { seasonId: v.id('seasons'), stock: v.number(), only: v.optional(v.string()) },
+  handler: async (ctx, { seasonId, stock, only }) => {
     const now = Date.now();
     const players = await ctx.db
       .query('players')
@@ -151,7 +153,9 @@ export const fillStocks = internalMutation({
         .query('resources')
         .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
         .collect();
-      for (const row of rows) await ctx.db.patch(row._id, { stock, updatedAt: now });
+      for (const row of rows)
+        if (only === undefined || row.key === only)
+          await ctx.db.patch(row._id, { stock, updatedAt: now });
     }
   },
 });
