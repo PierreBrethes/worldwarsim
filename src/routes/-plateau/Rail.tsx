@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  type FocusEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -71,6 +72,25 @@ export function Rail({
 }) {
   const rail = useRef<HTMLDivElement>(null);
   const { before, after } = useOverflow(rail, 'x');
+  const box = useRef<HTMLDivElement>(null);
+  /** The arrow that holds the focus: when its side runs out it goes, and the focus must not fall. */
+  const focused = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const gone = focused.current;
+    if (gone === null || gone.isConnected) return;
+    focused.current = null;
+    const other = box.current?.querySelector<HTMLElement>(':scope > button');
+    const tiles = rail.current?.children;
+    const reached = gone.dataset.side === 'next' ? tiles?.[tiles.length - 1] : tiles?.[0];
+    const target = other ?? (reached as HTMLElement | undefined);
+    target?.focus({ preventScroll: true });
+  }, [before, after]);
+  const track = {
+    onFocus: (event: FocusEvent<HTMLElement>) => (focused.current = event.currentTarget),
+    onBlur: (event: FocusEvent<HTMLElement>) => {
+      if (event.currentTarget.isConnected) focused.current = null;
+    },
+  };
 
   // The wheel turns the rail: a vertical wheel over a horizontal row means "the next ones".
   useEffect(() => {
@@ -93,7 +113,7 @@ export function Rail({
     'paper-grain absolute top-1/2 h-[48px] w-[22px] -translate-y-[60%] cursor-pointer border border-[var(--ink)] text-[15px] leading-none hover:bg-[var(--ink)] hover:text-[var(--paper)]';
 
   return (
-    <div className="relative min-w-0">
+    <div ref={box} className="relative min-w-0">
       <div
         ref={rail}
         role="group"
@@ -111,6 +131,8 @@ export function Rail({
         <button
           type="button"
           aria-label={fr.personalBoard.previous}
+          data-side="previous"
+          {...track}
           onClick={() => scroll(-1)}
           className={`${arrow} left-0`}
         >
@@ -121,6 +143,8 @@ export function Rail({
         <button
           type="button"
           aria-label={fr.personalBoard.next}
+          data-side="next"
+          {...track}
           onClick={() => scroll(1)}
           className={`${arrow} right-0`}
         >

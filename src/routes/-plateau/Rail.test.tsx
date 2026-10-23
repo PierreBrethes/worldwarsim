@@ -75,4 +75,12 @@ describe('the rail of tiles', () => {
     rail(true);
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('hands the focus on when the arrow that held it goes', () => {
+    rail();
+    screen.getByLabelText(fr.personalBoard.next).focus();
+    group().scrollLeft = LENGTH - ROOM;
+    act(() => void fireEvent.scroll(group()));
+    expect(document.activeElement).toBe(screen.getByLabelText(fr.personalBoard.previous));
+  });
 });
