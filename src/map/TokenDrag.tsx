@@ -2,9 +2,15 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { createPortal } from 'react-dom';
 import { grabbedAfter, type SupplyLoad } from '@/domain/logistics';
 import { ResourcePlate } from '@/emblems/Plate';
+import { motionNow } from '@/shell/paper-motion';
 
 /** Under this travel the press is still growing the grab, not yet carrying it. */
 const MOVE_PX = 5;
+
+/** The tokens let go over nothing go back to their bin in this long (#251). */
+const HOME_MS = 280;
+
+type Point = { readonly x: number; readonly y: number };
 
 export type TokenHint = {
   readonly text: string;
@@ -51,6 +57,13 @@ export function useTokenDrag<From>({
     event.stopPropagation();
     cancel.current?.();
     const element = event.currentTarget;
+    /** The bin the tokens come out of, where there is one: it says what the hand holds. */
+    const bins = (() => {
+      const resourceOf = element.closest<HTMLElement>('[data-bin]')?.dataset.bin;
+      return resourceOf === undefined
+        ? []
+        : [...document.querySelectorAll<HTMLElement>(`[data-bin="${resourceOf}"]`)];
+    })();
     if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
     const pointerId = event.pointerId;
     const origin = { x: event.clientX, y: event.clientY };
@@ -66,6 +79,8 @@ export function useTokenDrag<From>({
       return null;
     };
     const show = () => {
+      for (const bin of bins)
+        if (moved || grabbed > grabbedAfter(0)) bin.dataset.holding = String(grabbed);
       const hint = moved
         ? latest.current.read(from, carrierAt(at.x, at.y), resource, grabbed)
         : null;
@@ -77,11 +92,13 @@ export function useTokenDrag<From>({
       grabbed = grabbedAfter(performance.now() - pressedAt);
       show();
     }, 100);
-    const finish = () => {
+    const finish = (returns = false) => {
+      if (returns && moved) flyHome(node.current, element.closest<HTMLElement>('[data-bin]'), at);
+      for (const bin of bins) delete bin.dataset.holding;
       window.clearInterval(grow);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', finish);
+      window.removeEventListener('pointercancel', cancelled);
       window.removeEventListener('keydown', escape);
       cancel.current = null;
       setCarry(null);
@@ -97,7 +114,8 @@ export function useTokenDrag<From>({
       if (step.pointerId !== pointerId) return;
       const carrierId = carrierAt(step.clientX, step.clientY);
       const hint = latest.current.read(from, carrierId, resource, grabbed);
-      finish();
+      const drops = moved && carrierId !== null && !hint.refused && hint.amount > 0;
+      finish(!drops);
       /** Le lâcher n'est pas un clic : l'étiquette dessous n'ouvre rien. */
       const swallow = (click: MouseEvent) => {
         click.stopPropagation();
@@ -105,15 +123,15 @@ export function useTokenDrag<From>({
       };
       window.addEventListener('click', swallow, { capture: true, once: true });
       setTimeout(() => window.removeEventListener('click', swallow, true), 0);
-      if (moved && carrierId !== null && !hint.refused && hint.amount > 0)
-        latest.current.drop(from, carrierId, resource, hint.amount);
+      if (drops) latest.current.drop(from, carrierId, resource, hint.amount);
     };
+    const cancelled = () => finish(true);
     const escape = (key: KeyboardEvent) => {
-      if (key.key === 'Escape') finish();
+      if (key.key === 'Escape') finish(true);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', finish);
+    window.addEventListener('pointercancel', cancelled);
     window.addEventListener('keydown', escape);
     cancel.current = finish;
     latest.current.onHold?.(true);
@@ -152,4 +170,31 @@ export function useTokenDrag<From>({
   );
 
   return { start, chip, carrying: carry !== null };
+}
+
+/**
+ * **Les jetons rentrent au bac** : une copie de la main, sans son étiquette, glisse de l'endroit où
+ * on les a lâchés jusqu'au bac et s'efface. « actives » seulement.
+ */
+function flyHome(hand: HTMLElement | null, bin: HTMLElement | null, from: Point) {
+  if (hand === null || bin === null || motionNow() !== 'full') return;
+  const box = bin.getBoundingClientRect();
+  const ghost = hand.cloneNode(true) as HTMLElement;
+  ghost.querySelector('[role="status"]')?.remove();
+  document.body.append(ghost);
+  ghost
+    .animate(
+      [
+        { transform: `translate(${from.x}px, ${from.y}px)`, opacity: 1 },
+        {
+          transform: `translate(${box.left + box.width / 2}px, ${box.top + 20}px)`,
+          opacity: 0.2,
+        },
+      ],
+      { duration: HOME_MS, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' },
+    )
+    .finished.then(
+      () => ghost.remove(),
+      () => ghost.remove(),
+    );
 }

@@ -79,10 +79,16 @@ export function dryLabelOf(stock: number, netPerHour: number): string | null {
     : fr.resourceBand.drySoonShort(Math.max(1, Math.floor(dry.hoursLeft)));
 }
 
-/** L'étiquette rouge de l'alerte : elle prend la place du débit, jamais une ligne de plus. */
-export function DryTag({ label }: { label: string }) {
+/** L'étiquette d'une réserve, qui prend la place du débit, jamais une ligne de plus : rouge pour
+ *  l'alerte (« à sec »), à encre pleine pour un bac au plafond — rien ne s'arrête, ce qui entre
+ *  est perdu. */
+export function StateTag({ label, tone }: { label: string; tone: 'dry' | 'full' }) {
   return (
-    <span className="bg-[var(--critical)] px-[3px] py-[2px] text-[7px] leading-none font-semibold tracking-[.04em] whitespace-nowrap text-[var(--paper)] uppercase">
+    <span
+      className={`px-[3px] py-[2px] text-[7px] leading-none font-semibold tracking-[.04em] whitespace-nowrap text-[var(--paper)] uppercase ${
+        tone === 'dry' ? 'bg-[var(--critical)]' : 'bg-[var(--ink)]'
+      }`}
+    >
       {label}
     </span>
   );
@@ -106,15 +112,15 @@ export function reserveReading(
   const share = reserve.cap > 0 ? Math.min(1, displayed / reserve.cap) : 0;
   const alert = dryLabelOf(stock, reserve.ratePerHour);
   const source = sourceOf(view, resource);
-  const full = marksOf(view, now)[resource];
+  const mark = marksOf(view, now)[resource];
   const title = [
     fr.resourceBand.tooltip(fr.resources[resource], stock, reserve.cap, reserve.ratePerHour),
     source === null ? null : fr.resourceBand.source(fr.buildings[source.by], source.level),
-    full?.diagnosis ?? null,
+    mark?.diagnosis ?? null,
   ]
     .filter((part) => part !== null)
     .join(' · ');
-  return { reserve, stock, displayed, share, alert, title };
+  return { reserve, stock, displayed, share, alert, full: mark !== null, title };
 }
 
 const PLATE = 16;
@@ -145,7 +151,14 @@ export function ReserveCell({
   onTake?: ((event: ReactPointerEvent<HTMLElement>) => void) | null;
   register?: Ref<HTMLElement>;
 }) {
-  const { reserve, stock, share: fill, alert, title } = reserveReading(view, resource, now, shown);
+  const {
+    reserve,
+    stock,
+    share: fill,
+    alert,
+    full,
+    title,
+  } = reserveReading(view, resource, now, shown);
   const ink = alert === null ? 'var(--ink)' : 'var(--critical)';
   const motion = useMapMotion();
   const reduced = usePrefersReducedMotion();
@@ -188,7 +201,11 @@ export function ReserveCell({
           )}
         </span>
       </span>
-      {alert === null ? (
+      {alert !== null ? (
+        <StateTag label={alert} tone="dry" />
+      ) : full ? (
+        <StateTag label={fr.resourceBand.full} tone="full" />
+      ) : (
         <span
           aria-hidden
           className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
@@ -196,8 +213,6 @@ export function ReserveCell({
         >
           {fr.personalBoard.rateShort(reserve.ratePerHour)}
         </span>
-      ) : (
-        <DryTag label={alert} />
       )}
       <span aria-hidden className="block h-[3px] w-[calc(100%-10px)] bg-(--ink)/15">
         <span

@@ -2082,6 +2082,8 @@ export const fr = {
     fullQuiet: (resource: string) => `${resource} au plafond — rien n’en produit`,
     /** L'étiquette d'une réserve à sec, seule encre rouge de la ligne, qui prend la place du débit. */
     dry: 'à sec',
+    /** Au plafond : l'étiquette prend la place du débit, ce qui y tombe est perdu. */
+    full: 'plein',
     /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
     slots: 'mouvements',
@@ -3635,6 +3637,8 @@ export const fr = {
     harvestReplay: 'revoir la récolte',
     harvestHeader: 'récolte',
     lost: (amount: number) => `${num(amount)} perdus : bac plein`,
+    /** Ce que dit un bac plein à la pastille en trop, un instant. */
+    spilled: 'perdu',
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
     tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
@@ -3665,10 +3669,11 @@ export const fr = {
       ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
     /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
-    left: (time: string) => `reste ${time}`,
-    queuedLine: (time: string) => `${time}, en file`,
+    /** Sous le nom d'un chantier, une ligne : où, et où il en est. */
+    runningAt: (region: string) => `${region} · en cours`,
+    queuedAt: (region: string, time: string) => `${region} · ${time}, en file`,
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
-    raiseTo: (level: number) => `élever au niv.\u00a0${level}`,
+    raiseTo: (from: number, to: number) => `niv.\u00a0${from} → ${to}`,
     starvedChain: (building: string, resource: string) =>
       `${building} à sec de ${lowerFirst(resource)}`,
   },
