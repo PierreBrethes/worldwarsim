@@ -37,7 +37,7 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    proportion (×1,37).
 6. **Un seul curseur de taille** remplace les deux du joueur (troupes, bâtiments) : régler l'un
    sans l'autre casserait le lien. Sa valeur par défaut est l'échelle de cet ADR (100 %), sa
-   plage 80 à 125 % : en dessous, l'infanterie n'est jamais figurine ; au-dessus, une caserne
+   plage 80 à 125 % : en dessous, le plancher (§10) porte presque seul les troupes et le curseur ne change plus rien qu'aux bâtiments ; au-dessus, une caserne
    dépasse 100 km.
 7. **Les avions volent à environ trois envergures** au-dessus du sol, au lieu d'une altitude fixe.
 8. **Ce qui appartient au bâtiment vit dans son modèle** (portes à battants nommées, remise de la
