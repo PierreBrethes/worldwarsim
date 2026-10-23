@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 68a9d65 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 3d8810e -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-84 valeurs marquées dans `convex/` et `src/domain/`.
+88 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -91,6 +91,10 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `DISBAND_SPREAD_DEG` | `0.05` | `src/domain/movement-orders.ts:865` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien |
 | `MONDIALE_DURATION_DAYS` | `[3, 5, 7, 10, 14] as const` | `src/domain/operation-order.ts:37` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `REMINDER_MINUTES` | `15` | `src/domain/operation-order.ts:38` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
+| `MIN_PIECE_SCALE` | `80` | `src/domain/piece-scale.ts:12` | plage du POC de lisibilité (23/10), à reprendre sur une partie jouée (Q3) |
+| `MAX_PIECE_SCALE` | `125` | `src/domain/piece-scale.ts:13` | plage du POC de lisibilité (23/10), à reprendre sur une partie jouée (Q3) |
+| `BUILDING_METRES` | `{ hq: 60, farm: 40, mine: 50, oilWell: 25, arsenal: 80, barracks: 50, airfield: 60, port: 210, listening: 30, researchCenter: 50, warehouse: 60, depot: 60, city: 50 }` | `src/domain/piece-size.ts:42` | la ville seule, un symbole sans mesure réelle ; le reste suit l'ADR 0035 |
+| `OBJECTIVE_METRES` | `{ abandonedStores: 40, stalledConvoy: 30, fuelDump: 40, irregularArsenal: 40 }` | `src/domain/piece-size.ts:62` | lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:89` | relative prices chosen for their ordering; only the foot pace behind them is measured |

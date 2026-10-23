@@ -27,6 +27,7 @@ import {
   MIN_PIECE_SCALE,
   PIECE_SCALE_STEP,
   parsePercent,
+  pieceScaleOf,
 } from '@/domain/piece-scale';
 import { MAP_MOTION_SETTINGS } from '@/domain/map-motion';
 import { setMouseMapping, useMouseMapping } from '@/data/mouseMapping';
@@ -301,32 +302,21 @@ export function SettingsWindow({
             <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
               {fr.settingsWindow.pieceScaleNote}
             </p>
-            {(['troops', 'buildings'] as const).map((kind) => {
-              const label =
-                kind === 'troops'
-                  ? fr.settingsWindow.pieceScaleTroops
-                  : fr.settingsWindow.pieceScaleBuildings;
-              return (
-                <label key={kind} className="mt-[8px] flex items-center gap-3 text-[11.5px]">
-                  <span className="w-[70px] text-[var(--ink)]">{label}</span>
-                  <input
-                    type="range"
-                    aria-label={label}
-                    min={MIN_PIECE_SCALE}
-                    max={MAX_PIECE_SCALE}
-                    step={PIECE_SCALE_STEP}
-                    value={pieces[kind]}
-                    onChange={(event) =>
-                      setPieceScale({ ...pieces, [kind]: parsePercent(event.target.value) })
-                    }
-                    className="min-w-0 flex-1 cursor-pointer accent-[var(--ink)]"
-                  />
-                  <span className="w-[44px] text-right tabular-nums text-[var(--ink-soft)]">
-                    {fr.settingsWindow.pieceScalePercent(pieces[kind])}
-                  </span>
-                </label>
-              );
-            })}
+            <label className="mt-[8px] flex items-center gap-3 text-[11.5px]">
+              <input
+                type="range"
+                aria-label={fr.settingsWindow.pieceScaleLabel}
+                min={MIN_PIECE_SCALE}
+                max={MAX_PIECE_SCALE}
+                step={PIECE_SCALE_STEP}
+                value={pieces.troops}
+                onChange={(event) => setPieceScale(pieceScaleOf(parsePercent(event.target.value)))}
+                className="min-w-0 flex-1 cursor-pointer accent-[var(--ink)]"
+              />
+              <span className="w-[44px] text-right tabular-nums text-[var(--ink-soft)]">
+                {fr.settingsWindow.pieceScalePercent(pieces.troops)}
+              </span>
+            </label>
           </div>
 
           <NotificationsSection seat={seat} blitz={blitz} />

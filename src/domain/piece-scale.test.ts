@@ -3,12 +3,12 @@ import { DEFAULT_PIECE_SCALE, parsePercent, parsePieceScale } from './piece-scal
 
 describe('parsePercent', () => {
   it('keeps a valid value and snaps to the step', () => {
-    expect(parsePercent(80)).toBe(80);
-    expect(parsePercent('87')).toBe(85);
+    expect(parsePercent(90)).toBe(90);
+    expect(parsePercent('107')).toBe(105);
   });
-  it('bounds to 50..150', () => {
-    expect(parsePercent(10)).toBe(50);
-    expect(parsePercent(900)).toBe(150);
+  it('bounds to 80..125', () => {
+    expect(parsePercent(10)).toBe(80);
+    expect(parsePercent(900)).toBe(125);
   });
   it('falls back on anything unreadable', () => {
     for (const bad of [null, undefined, '', 'abc', NaN, Infinity, {}])
@@ -17,8 +17,11 @@ describe('parsePercent', () => {
 });
 
 describe('parsePieceScale', () => {
-  it('reads each slider on its own', () => {
-    expect(parsePieceScale({ troops: 70, buildings: 'x' })).toEqual({ troops: 70, buildings: 100 });
+  it('reads one slider for troops and buildings alike (ADR 0035 §6)', () => {
+    expect(parsePieceScale({ troops: 110, buildings: 90 })).toEqual({
+      troops: 110,
+      buildings: 110,
+    });
   });
   it('defaults when nothing is kept', () => {
     expect(parsePieceScale(null)).toEqual(DEFAULT_PIECE_SCALE);
