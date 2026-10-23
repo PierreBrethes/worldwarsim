@@ -989,7 +989,7 @@ function SiteBand({
   const workshop = useQuery(api.troops.workshop, seat);
   const recruit = useMutation(api.troops.recruit);
   const queue = useRef<HTMLElement>(null);
-  const more = useOverflow(queue, 'y');
+  const more = useOverflow(queue, 'y', narrow);
   const facility = workshop?.facilities.find((one) => one.id === site.id) ?? null;
   const region = view.me.regions.find((one) => one.id === site.regionId)?.name ?? site.regionId;
   const siteName = fr.buildings[site.key];
@@ -1198,7 +1198,7 @@ function Works({
 }) {
   const drop = useMutation(api.constructions.cancel);
   const column = useRef<HTMLElement>(null);
-  const more = useOverflow(column, 'y');
+  const more = useOverflow(column, 'y', narrow);
   const [error, setError] = useState<string | null>(null);
   const [unfolded, setUnfolded] = useState(false);
   const head = view.me.construction;

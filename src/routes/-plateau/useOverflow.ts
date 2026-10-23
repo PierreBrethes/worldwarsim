@@ -11,6 +11,8 @@ const EDGE_PX = 2;
 export function useOverflow(
   ref: RefObject<HTMLElement | null>,
   axis: 'x' | 'y',
+  /** What makes the ref point at another node (the layout): the measure starts over with it. */
+  layout: unknown = null,
 ): { readonly before: boolean; readonly after: boolean } {
   const [edges, setEdges] = useState({ before: false, after: false });
   useEffect(() => {
@@ -33,6 +35,6 @@ export function useOverflow(
       node.removeEventListener('scroll', read);
       observer.disconnect();
     };
-  }, [ref, axis]);
+  }, [ref, axis, layout]);
   return edges;
 }
