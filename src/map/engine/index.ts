@@ -1236,6 +1236,8 @@ export class MapEngine {
             startedAt: now,
             still,
           };
+    // A new sweep tells its names afresh, even the very ones of the last at the same place.
+    this.sweepSaid = '';
     this.basins.sweep(this.sweeping?.targets ?? null, now, still);
     this.loadBasins();
     if (sweep === null || still) this.sweepWave.stop();
