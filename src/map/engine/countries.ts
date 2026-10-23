@@ -56,7 +56,9 @@ const BORDER_LIFT = 0.004;
  * Elles se fondent selon les pixels que couvre le fragment (`dFdx` : la pente et le pincement
  * sans uniforme ni image de plus). Le hasard d'une échelle ne dépend que de son rang absolu :
  * quand l'une passe le relais à la suivante, rien ne saute. Les cases bouclent tous les 1024 de
- * chaque côté, invisible, pour garder le hachage précis en virgule flottante. @a-mesurer
+ * chaque côté, invisible, pour garder le hachage précis en virgule flottante. Le hasard se fond
+ * d'un coin de case à l'autre (bruit de valeur) : tiré case par case, il se lisait en pixels
+ * carrés (Pierre, 23/10). @a-mesurer
  *
  * **Au loin, sous la pente**, le sol s'écrase dans la profondeur et pas en travers : une case
  * taillée sur l'axe écrasé s'étalait en pavé plat. La case se taille donc sur l'axe le moins
@@ -65,17 +67,26 @@ const BORDER_LIFT = 0.004;
  * `GRAIN_FLAT_FROM` à `GRAIN_FLAT_GONE`, avant de fourmiller : le loin rasant n'a plus de grain,
  * comme une brume. @a-mesurer
  */
-const GRAIN_OPACITY = 0.06;
+const GRAIN_OPACITY = 0.08;
 const GRAIN_PX = 0.5;
 const GRAIN_FLAT_FROM = 1.8;
 const GRAIN_FLAT_GONE = 3.5;
 const GRAIN_HEAD = `
 varying vec2 vGrain;
-float grainAt(float scale) {
-  vec2 cell = mod(floor(vGrain / exp2(scale)), 1024.0) + scale * vec2(17.0, 31.0);
-  vec3 p3 = fract(cell.xyx * 0.1031);
+float grainHash(vec2 cell, float scale) {
+  vec3 p3 = fract((mod(cell, 1024.0) + scale * vec2(17.0, 31.0)).xyx * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z) * 2.0 - 1.0;
+}
+float grainAt(float scale) {
+  vec2 at = vGrain / exp2(scale);
+  vec2 cell = floor(at);
+  vec2 f = fract(at);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(grainHash(cell, scale), grainHash(cell + vec2(1.0, 0.0), scale), f.x),
+    mix(grainHash(cell + vec2(0.0, 1.0), scale), grainHash(cell + vec2(1.0, 1.0), scale), f.x),
+    f.y);
 }
 uniform float trameScale;
 void main() {`;
