@@ -8,7 +8,8 @@ import {
   ANONYMOUS_SPAN,
   FIGURINE_SCALE,
   LAID_OUT_FOR,
-  pieceWeight,
+  floorGrowth,
+  troopWeight,
   type Figurine,
 } from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
@@ -44,7 +45,7 @@ const DUST_REAR = 1.1;
  * standing still during the transfer.
  *
  * **Up close each medium wears its figurine** (ADR 0026 §3), at its real size (ADR 0035), until
- * it is too small on screen (`pieceWeight`); a medium with none wears the anonymous silhouette
+ * it is too small on screen (`troopWeight`); a medium with none wears the anonymous silhouette
  * in its place. **Far away the
  * pawn is gone**: the movement's pin stands at its head (#234, `pins.ts`).
  */
@@ -194,9 +195,10 @@ export class Pawn {
     const distance = this.object.position.distanceTo(cameraPosition);
     const figurine = this.figurines.get(this.medium);
     const span = this.span;
-    const close = pieceWeight(distance, span);
+    const close = troopWeight(distance, span);
+    const grown = floorGrowth(distance, span) * pieceScale.size;
     // The wake and the altitude disc are drawn for a tank: they follow the piece's own size.
-    const around = close * pieceScale.size * (span / LAID_OUT_FOR);
+    const around = close * grown * (span / LAID_OUT_FOR);
     // Figurine or silhouette, a hull at sea up close stirs the water: the wake says « at sea ».
     this.wake.object.visible = this.medium === 'sea' && close > 0;
     this.wake.object.rotation.set(0, this.heading, 0);
@@ -208,7 +210,7 @@ export class Pawn {
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
-      const scale = near * pieceScale.size;
+      const scale = near * grown;
       const sway = swayOf(
         this.lively ? (this.gaits.get(this.medium) ?? null) : null,
         this.clock,

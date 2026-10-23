@@ -11,7 +11,7 @@ import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
-import { ANONYMOUS_SPAN, pieceWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, floorGrowth, troopPinSpan, troopWeight } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
 import {
   buildThread,
@@ -95,7 +95,8 @@ export class ArcLayer {
 
   /** **The span a movement's pawn gives way to its pin by**, `null` for no movement of that id. */
   spanOf(id: string): number | null {
-    return this.pawnById.get(id)?.span ?? null;
+    const pawn = this.pawnById.get(id);
+    return pawn === undefined ? null : troopPinSpan(pawn.span);
   }
   readonly aheadPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
@@ -368,12 +369,12 @@ export class ArcLayer {
 
     for (const rendered of this.rendered) {
       if (rendered.relic !== null) {
-        const near = pieceWeight(
-          rendered.relic.position.distanceTo(this.cameraPosition),
-          ANONYMOUS_SPAN,
-        );
+        const distance = rendered.relic.position.distanceTo(this.cameraPosition);
+        const near = troopWeight(distance, ANONYMOUS_SPAN);
         rendered.relic.visible = near > 0;
-        rendered.relic.scale.setScalar(near * pieceScale.size);
+        rendered.relic.scale.setScalar(
+          near * floorGrowth(distance, ANONYMOUS_SPAN) * pieceScale.size,
+        );
         rendered.relic.rotation.set(0, this.cameraYaw, 0);
       }
       const inkedUntil = this.inking.get(rendered.arc.id);

@@ -55,7 +55,7 @@ import {
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
-import { ANONYMOUS_SPAN, setNearFloor, TANK_SHARE } from './figurines/figurine';
+import { ANONYMOUS_SPAN, setNearFloor, TANK_SHARE, troopPinSpan } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -1161,14 +1161,14 @@ export class MapEngine {
 
   /**
    * **The span a label's piece gives way to its pin by** (ADR 0035 §3): what is drawn here, else a
-   * barracks for a building and a tank for the rest — what an enemy shows says nothing of what it
-   * is —; `null` for an outpost, which has no piece.
+   * barracks for a building and a tank on its floor for the rest (§10) — what an enemy shows says
+   * nothing of what it is —; `null` for an outpost, which has no piece.
    */
   private pieceSpanOf(id: string, shape = this.pinShapes.get(id)): number | null {
     const drawn = this.maquettes.spanOf(id) ?? this.standing.spanOf(id) ?? this.arcs.spanOf(id);
     if (drawn !== null) return drawn;
     if (shape === 'outpost') return null;
-    return shape === 'building' ? buildingSpan('barracks') : ANONYMOUS_SPAN;
+    return shape === 'building' ? buildingSpan('barracks') : troopPinSpan(ANONYMOUS_SPAN);
   }
 
   /** **The designated piece far away** — a pile checked, a site opened: a ring at my ink on its pin. */

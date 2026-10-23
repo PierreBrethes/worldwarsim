@@ -4,6 +4,7 @@ import { buildingSpan, troopSpan } from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { clusterFootprints, garrisonFoot, MAX_SHIFT, RING_GAP, yawOf } from './maquettes';
 import { pileLayout } from './standing';
+import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
 
 /** A spacing and a garrison's foot for the shapes of the ring alone, whatever the building. */
 const S = 1.2;
@@ -309,6 +310,31 @@ describe('the garrison foot', () => {
     const foot = garrisonFoot(port, cargo, true);
     expect(foot - cargo / 2).toBeGreaterThanOrEqual(port / 2);
     expect(foot - cargo / 2).toBeLessThan(port / Math.SQRT2);
+  });
+
+  it('keeps a garrison grown to its floor clear of the other maquettes of its ring, and of their garrisons', () => {
+    // At d ≈ 30 a pile is drawn as large as the floor's span (ADR 0035 §10), whatever it holds.
+    const pile = troopPinSpan(0);
+    const reach = (PILE_REACH * pile) / LAID_OUT_FOR;
+    const keys = ['barracks', 'hq', 'airfield', 'warehouse', 'port'] as const;
+    const spans = keys.map(buildingSpan);
+    const placed = clusterFootprints(
+      keys.map(() => [0, 0] as const),
+      spans.map((span) => span * RING_GAP),
+      spans.map((span) => garrisonFoot(span, ANONYMOUS_SPAN)),
+    );
+    const feet = placed.map((site, k) => footOf(site, garrisonFoot(spans[k]!, pile) * site.scale));
+    feet.forEach((foot, i) => {
+      // The row runs across the facing.
+      const [ax, az] = [Math.cos(foot.facing), -Math.sin(foot.facing)];
+      placed.forEach(({ at: [x, z] }, j) => {
+        if (j === i) return;
+        const along = Math.max(-reach, Math.min(reach, (x - foot.x) * ax + (z - foot.z) * az));
+        const nearest = Math.hypot(foot.x + along * ax - x, foot.z + along * az - z);
+        expect(nearest - pile / 2).toBeGreaterThan(spans[j]! / Math.SQRT2);
+        expect(Math.hypot(feet[j]!.x - foot.x, feet[j]!.z - foot.z)).toBeGreaterThan(2 * reach);
+      });
+    });
   });
 
   it('keeps every garrison clear of its own maquette at any turn, on land', () => {

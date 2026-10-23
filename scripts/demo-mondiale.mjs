@@ -47,7 +47,8 @@
  * `--echelle` (#265) pose pour la France l'aérodrome et le port de `--largage` et `--navire`, la
  * caserne de `--niveaux`, puis y fait entrer trois fantassins et deux chars : une garnison à
  * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
- * ne part d'un point sans piste.
+ * ne part d'un point sans piste. Deux chars restent seuls à Orléans : une pile hors garnison, pour la
+ * figurine plancher (#266).
  *
  *     npm run demo:mondiale
  *
@@ -515,6 +516,11 @@ if (!bare) {
         buildingId: barracks.id,
       });
     }
+    cli([
+      'run',
+      'dev:spawnTroops',
+      JSON.stringify({ playerId: scene.a, role: 'armor', count: 2, lon: 1.9, lat: 47.9 }),
+    ]);
     cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
   }
   if (depositsAt && scene.a !== null && scene.b !== null)

@@ -81,9 +81,34 @@ const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
  * fighter from 13, the carrier from 145.
  */
 export function pieceWeight(distance: number, span: number): number {
-  const px = (span * pieceScale.size * REFERENCE_PX_PER_UNIT) / Math.max(distance, nearFloor);
   const whole = PIN_PX - 0.5;
-  return eased((px - whole * (1 - PIN_FADE)) / (whole * PIN_FADE));
+  return eased((pxOf(distance, span) - whole * (1 - PIN_FADE)) / (whole * PIN_FADE));
+}
+
+const pxOf = (distance: number, span: number): number =>
+  (span * pieceScale.size * REFERENCE_PX_PER_UNIT) / Math.max(distance, nearFloor);
+
+/** **A troop holds its floor until here** (ADR 0035 §10), at 100 %: further at a larger size,
+ *  nearer at a smaller. `@a-mesurer` */
+const FLOOR_UNTIL = 30;
+/** What reads at the pin's size at `FLOOR_UNTIL`. */
+const FLOOR_SPAN = ((PIN_PX - 0.5) * FLOOR_UNTIL) / REFERENCE_PX_PER_UNIT;
+
+/** **The span a troop gives way to its pin by** (ADR 0035 §10): its own, or the floor's — a man
+ *  as late as a tank, a hull later. */
+export const troopPinSpan = (span: number): number => Math.max(span, FLOOR_SPAN);
+
+/** **How much of a troop stands, rather than its pin**: `pieceWeight` by its floor. */
+export const troopWeight = (distance: number, span: number): number =>
+  pieceWeight(distance, troopPinSpan(span));
+
+/**
+ * **How much larger than its span a troop is drawn** (the figurine floor, ADR 0035 §10): enough
+ * never to read under `PIN_PX`, 1 while it reads larger. Between d ≈ 5 and 30 a troop grows
+ * against its building; up close the two stay bound.
+ */
+export function floorGrowth(distance: number, span: number): number {
+  return Math.max(1, PIN_PX / pxOf(distance, span));
 }
 
 export type Figurine = {

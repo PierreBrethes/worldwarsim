@@ -34,7 +34,9 @@ import {
   figurineFor,
   hideAltitudeShadows,
   LAID_OUT_FOR,
-  pieceWeight,
+  floorGrowth,
+  troopPinSpan,
+  troopWeight,
   type Figurine,
 } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
@@ -434,6 +436,8 @@ type Dressed = {
   readonly object: Group;
   readonly span: number;
   ready: boolean;
+  /** How much of it stands rather than its pin, at the last `orient`. */
+  near: number;
   readonly smokes: ReadonlyArray<Smoke>;
   readonly targets: ReadonlyArray<Mesh>;
   /** What it is to the hand right now (POC, `ringStyle`), round its footprint. */
@@ -742,6 +746,7 @@ export class StandingLayer {
         object: built.object,
         span: built.span,
         ready: false,
+        near: 0,
         smokes: built.smokes,
         targets: built.targets,
         ring,
@@ -1101,25 +1106,32 @@ export class StandingLayer {
 
   /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
-    for (const { object, extent, ready, span } of this.dressed.values()) {
+    for (const { object, extent, ready, near } of this.dressed.values()) {
       if (!ready || !object.visible) continue;
-      emit(
-        object.position,
-        Math.max(extent.x, extent.z) * object.scale.x,
-        Math.min(1, object.scale.x / (pieceScale.size * pileUnitOf(span))),
-      );
+      emit(object.position, Math.max(extent.x, extent.z) * object.scale.x, near);
     }
   }
 
   /** **The span a label's pile is pinned by**, `null` for a pile not dressed here. */
   spanOf(id: string): number | null {
-    return this.dressed.get(id)?.span ?? null;
+    const span = this.dressed.get(id)?.span;
+    return span === undefined ? null : troopPinSpan(span);
   }
 
   orient(cameraPosition: Vector3): void {
-    for (const { object, at, span, targets } of this.dressed.values()) {
+    for (const entry of this.dressed.values()) {
+      const { object, at, span, targets } = entry;
       if ('beside' in at) {
-        const foot = this.garrisonAt(at.beside, span, at.quay !== undefined);
+        const quay = at.quay !== undefined;
+        const site = this.garrisonAt(at.beside, span, quay);
+        // A pile grown by its floor stands off its building by its grown size.
+        const foot =
+          site &&
+          this.garrisonAt(
+            at.beside,
+            span * floorGrowth(site.at.distanceTo(cameraPosition), span),
+            quay,
+          );
         if (foot === null) {
           object.visible = false;
           continue;
@@ -1128,9 +1140,10 @@ export class StandingLayer {
         object.rotation.y = at.quay === undefined ? foot.facing : 0;
       }
       const distance = object.position.distanceTo(cameraPosition);
-      const near = pieceWeight(distance, span);
+      const near = troopWeight(distance, span);
+      entry.near = near;
       object.visible = near > 0;
-      const scale = near * pieceScale.size * pileUnitOf(span);
+      const scale = near * floorGrowth(distance, span) * pieceScale.size * pileUnitOf(span);
       object.scale.setScalar(scale);
       hover(object);
       const growth = targetGrowth(scale, distance);
@@ -1165,8 +1178,10 @@ export class StandingLayer {
     const { object, piece, down, back } = carried;
     const dt = Math.min(0.1, (now - carried.clock) / 1000);
     carried.clock = now;
-    const near = pieceWeight(object.position.distanceTo(cameraPosition), carried.span);
-    const scale = near * pieceScale.size * pileUnitOf(carried.span);
+    const distance = object.position.distanceTo(cameraPosition);
+    const near = troopWeight(distance, carried.span);
+    const scale =
+      near * floorGrowth(distance, carried.span) * pieceScale.size * pileUnitOf(carried.span);
     const full = this.motion === 'full';
     let tilt = { x: 0, z: 0 };
     let turn = 0;

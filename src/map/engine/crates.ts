@@ -1,5 +1,5 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'three';
-import { ANONYMOUS_SPAN, FIGURINE_SCALE, pieceWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, floorGrowth, troopWeight } from './figurines/figurine';
 import { pieceScale } from './piece-scale';
 
 /** The prototype's crate (`table-etat-major.html`), in model units: a box and two slats. */
@@ -60,9 +60,13 @@ export class CratePile {
 
   place(ground: Vector3, cameraPosition: Vector3): void {
     this.object.position.copy(ground);
-    const near = pieceWeight(ground.distanceTo(cameraPosition), ANONYMOUS_SPAN);
+    // Beside its pawn, they grow with it by the floor (ADR 0035 §10), measured as a tank.
+    const distance = ground.distanceTo(cameraPosition);
+    const near = troopWeight(distance, ANONYMOUS_SPAN);
     this.object.visible = near > 0;
-    this.object.scale.setScalar(FIGURINE_SCALE * near * pieceScale.size);
+    this.object.scale.setScalar(
+      FIGURINE_SCALE * near * floorGrowth(distance, ANONYMOUS_SPAN) * pieceScale.size,
+    );
   }
 
   private fill(crates: number, since: number): void {
