@@ -2241,7 +2241,7 @@ function BoardContent({
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
       onResumeSteps={resumeSteps}
-      sweep={sweepButton(false)}
+      sweep={replay === null ? sweepButton(false) : null}
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
         <SheetCount.Provider value={countSheet}>
