@@ -399,6 +399,78 @@
 .drop-chip-detail--alarm {
   color: var(--critical);
 }
+/* **The fuel gauge under the verb** (#250): the personal board's tube, lying down and small. */
+.drop-chip-fuel {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 3px 0 1px;
+}
+.fuel-tube,
+.fuel-spill {
+  display: inline-flex;
+  height: 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px 5px 5px 3px;
+  background: rgb(255 255 255 / 25%);
+  overflow: hidden;
+}
+.fuel-step {
+  width: 9px;
+  height: 100%;
+}
+.fuel-step + .fuel-step {
+  border-left: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.fuel-step--kept {
+  background: var(--fuel-ink);
+}
+/* Singapore's step stays in ink, ringed in the ochre of the road. */
+.fuel-step--spared {
+  background: var(--fuel-ink);
+  box-shadow: inset 0 0 0 1.5px var(--arc-mine);
+}
+/* The ghost: what the road would eat, pale and hatched. */
+.fuel-step--eaten {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--fuel-ink) 55%, transparent) 0 1.5px,
+      transparent 1.5px 3.5px
+    ),
+    color-mix(in srgb, var(--fuel-ink) 22%, transparent);
+}
+/* What the fuel lacks spills past the tube, in red; what Singapore saved it from, in ochre. */
+.fuel-spill {
+  margin-left: -6px;
+  border-color: var(--arc-mine);
+  border-left-style: dashed;
+}
+.fuel-spill--short {
+  border-color: var(--critical);
+}
+.fuel-step--spared-out {
+  box-shadow: inset 0 0 0 1.5px var(--arc-mine);
+}
+.fuel-step--short {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--critical) 0 1.5px,
+    color-mix(in srgb, var(--critical) 35%, transparent) 1.5px 3.5px
+  );
+}
+.fuel-count {
+  font: 600 11px/1 var(--font-mono);
+  white-space: nowrap;
+}
+.fuel-count small {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.fuel-count--short {
+  color: var(--critical);
+}
 .drop-chip-keys {
   grid-column: 1 / -1;
   margin-top: 5px;

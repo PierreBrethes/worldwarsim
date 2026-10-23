@@ -6,7 +6,7 @@ import type { ArmedColumn } from '@/domain/armed-column';
 import { asLocalTime } from '@/domain/duration';
 import type { LonLat } from '@/domain/geo';
 import { fr } from '@/i18n/fr';
-import type { DropNote } from '@/map/DropHint';
+import type { DropFuel, DropNote } from '@/map/DropHint';
 import type { Seat } from '@/data/session';
 import {
   wireCaptureTarget,
@@ -107,10 +107,23 @@ export function useOrderPreview(
     [column, aimed, preview],
   );
 
-  return { preview, dropNotes, aimRoute };
+  /** **The fuel the road would eat, a gauge under the hand** (#250), on the server's road. */
+  const dropFuel = useMemo(
+    (): DropFuel | null =>
+      resting === null || !preview || preview.fuel.gauge === null
+        ? null
+        : {
+            ...preview.fuel.gauge,
+            roundTrip: 'roundTrip' in preview.fuel && preview.fuel.roundTrip,
+          },
+    [resting, preview],
+  );
+
+  return { preview, dropNotes, dropFuel, aimRoute };
 }
 
-/** **Le plein de la route, dit avant le clic** (ADR 0028 §3) : ce qu'elle coûte, ou le refus. */
+/** **Le refus du plein, dit avant le clic** (ADR 0028 §3) ; ce que la route mange, la jauge le
+ *  montre (`dropFuel`). */
 function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
   if (fuel.short !== null)
     return [
@@ -123,18 +136,8 @@ function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
         alarm: true,
       },
     ];
-  return [
-    ...(fuel.steps > 0
-      ? [
-          {
-            text: fr.supplies.route(fuel.steps, 'roundTrip' in fuel && fuel.roundTrip),
-            alarm: false,
-          },
-        ]
-      : []),
-    /** Singapour se dit là où l'on paie la route. */
-    ...(fuel.eased
-      ? [{ text: fr.supplies.easedBySingapore(fuel.eased.from, fuel.eased.to), alarm: false }]
-      : []),
-  ];
+  /** Singapour se dit là où l'on paie la route. */
+  return fuel.eased
+    ? [{ text: fr.supplies.easedBySingapore(fuel.eased.from, fuel.eased.to), alarm: false }]
+    : [];
 }

@@ -2113,7 +2113,7 @@ function BoardContent({
       ),
     [],
   );
-  const { preview, dropNotes, aimRoute } = useOrderPreview(seat, column, resting);
+  const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting);
   previewNow.current =
     resting === null || preview === undefined ? undefined : { aim: resting.aim, preview };
 
@@ -2331,6 +2331,7 @@ function BoardContent({
                 onCompassAction={actOnCompass}
                 onDropRefused={dropHand}
                 dropNotes={dropNotes}
+                dropFuel={dropFuel}
                 aimRoute={aimRoute}
                 availablePiles={availablePiles}
                 onCarryEnd={carryEnded}
