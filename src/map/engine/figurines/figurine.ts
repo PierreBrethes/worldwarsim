@@ -77,7 +77,8 @@ const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
 /**
  * **How much of a piece stands, rather than its pin, by its size on screen** (ADR 0035 §3): 1
  * while its `span` — board units, at the common scale — reads at `PIN_PX`, eased to 0 a little
- * below. A man gives way from d ≈ 5, a tank from 7, a barracks from 58, a hangar from 70 — the
+ * below. A man reads under it from d ≈ 3, a tank from 7 — both held by their floor until d ≈ 30
+ * (`troopWeight`) —, a barracks from 58, a hangar from 70 — the
  * fighter from 13, the carrier from 145.
  */
 export function pieceWeight(distance: number, span: number): number {
@@ -238,7 +239,8 @@ export function figurineFor(
   const object = new Group();
   const model = new Group();
   object.add(model);
-  const span = troopSpan(role);
+  // Its first mark's model: a pile of tanks led by an R35 is measured at 4 m.
+  const span = troopSpan(role, marks[0]);
 
   const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {

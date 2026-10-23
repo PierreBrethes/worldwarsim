@@ -1,5 +1,5 @@
 import type { BuildingKey, UnitRole } from './ids';
-import { DOMAIN_BY_ROLE } from './troops';
+import { DOMAIN_BY_ROLE, type UnitTier } from './troops';
 
 /**
  * **Une échelle commune des pièces** (ADR 0035) : chaque troupe et chaque bâtiment à sa taille
@@ -7,8 +7,8 @@ import { DOMAIN_BY_ROLE } from './troops';
  * sortant. Deux écarts déclarés : l'homme agrandi, la mer à demi-échelle.
  */
 const EXAGGERATION = 1600;
-/** L'homme ×2,5 (§2) : lisible au rapproché, et encore sous la porte de sa caserne. */
-const MAN_EXAGGERATION = 2.5;
+/** L'homme ×1,5 (§2, 2,6 m) : à hauteur du char, et sous la porte de sa caserne (3,4 m). */
+const MAN_EXAGGERATION = 1.5;
 /** La mer à demi-échelle (§2) : ports et navires liés entre eux, sans couvrir la côte. */
 const SEA_SHARE = 0.5;
 
@@ -31,6 +31,11 @@ const TROOP_METRES: Readonly<Record<UnitRole, number>> = {
   escort: 110,
   cargo: 130,
   carrier: 250,
+};
+
+/** **Un modèle qui n'a pas la mesure de son rôle** : le premier char, un R35, fait 4 m. */
+const TIER_METRES: Partial<Record<UnitRole, Partial<Record<UnitTier, number>>>> = {
+  armor: { 1: 4 },
 };
 
 /**
@@ -70,10 +75,10 @@ const onBoard = (metres: number, share = 1): number =>
   (metres * EXAGGERATION * share) / 1000 / BOARD_KM;
 
 /** **La mesure d'un rôle sur le plateau**, en unités : la taille de l'homme, la longueur ou
- *  l'envergure du reste (`TROOP_METRES`). */
-export const troopSpan = (role: UnitRole): number =>
+ *  l'envergure du reste (`TROOP_METRES`) ; d'un modèle quand son rang est dit (`TIER_METRES`). */
+export const troopSpan = (role: UnitRole, tier?: UnitTier): number =>
   onBoard(
-    TROOP_METRES[role],
+    (tier === undefined ? undefined : TIER_METRES[role]?.[tier]) ?? TROOP_METRES[role],
     (role === 'infantry' ? MAN_EXAGGERATION : 1) * (DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1),
   );
 

@@ -11,10 +11,16 @@ describe('one scale for every piece (ADR 0035)', () => {
     expect(km(troopSpan('fighter'))).toBeCloseTo(17.6, 6);
   });
 
-  it('stands the man at two and a half times his height', () => {
-    // 1.75 m × 2.5 × 1 600: 7 km, under his barracks door (4.9 m × 1 600 ≈ 7.8 km).
-    expect(km(troopSpan('infantry'))).toBeCloseTo(7, 6);
-    expect(km(troopSpan('infantry'))).toBeLessThan(4.9 * 1.6);
+  it("stands the man at one and a half times his height, about a tank's height", () => {
+    // 1.75 m × 1.5 × 1 600: 4.2 km, under his barracks door (3.4 m × 1 600 ≈ 5.4 km).
+    expect(km(troopSpan('infantry'))).toBeCloseTo(4.2, 6);
+    expect(km(troopSpan('infantry'))).toBeLessThan(3.4 * 1.6);
+  });
+
+  it('measures the first tank, an R35, at its real 4 m, and the second at 6 m', () => {
+    expect(km(troopSpan('armor', 1))).toBeCloseTo(6.4, 6);
+    expect(km(troopSpan('armor', 2))).toBeCloseTo(9.6, 6);
+    expect(troopSpan('infantry', 1)).toBe(troopSpan('infantry'));
   });
 
   it('draws the sea at half, its hulls and its ports alike', () => {

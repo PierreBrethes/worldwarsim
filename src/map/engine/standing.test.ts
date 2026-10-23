@@ -41,7 +41,8 @@ describe('a pile at the common scale', () => {
       pile.ready.catch(() => {});
       return pile.span;
     };
-    expect(span(['infantry', 'armor'])).toBe(troopSpan('armor'));
+    // The tanks lead with an R35 (`troop` is of the first tier): 4 m, still longer than a man.
+    expect(span(['infantry', 'armor'])).toBe(troopSpan('armor', 1));
     expect(span(['armor', 'cargo'])).toBe(troopSpan('cargo'));
   });
 
