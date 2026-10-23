@@ -16,7 +16,7 @@ const gauge = (fuel: Partial<DropFuel>): DropFuel => ({
 const spoken = (fuel: DropFuel) =>
   renderToStaticMarkup(<DropHintChip hint={hint} fuel={fuel} ref={null} />)
     .match(/<span class="sr-only">([^<]*)<\/span>/)?.[1]
-    .replaceAll('&#x27;', '’');
+    ?.replaceAll('&#x27;', '’');
 
 describe('the fuel gauge under the hand', () => {
   it('tells a screen reader what the road eats, what it lacks and what Singapore spares', () => {
