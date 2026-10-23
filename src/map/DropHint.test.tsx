@@ -29,4 +29,11 @@ describe('the fuel gauge under the hand', () => {
     );
   });
 
+  it('spills no more cells than the tube holds, the count says the rest', () => {
+    const markup = renderToStaticMarkup(
+      <DropHintChip hint={hint} fuel={gauge({ held: 6, eaten: 30, short: 24 })} ref={null} />,
+    );
+    expect(markup.match(/fuel-step--short/g)).toHaveLength(6);
+    expect(markup).toContain('manque 24');
+  });
 });

@@ -96,10 +96,11 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
   /** Singapore's steps stay in the tube when the fuel holds them; past it, they are the spill the
    *  plain price would have made, ringed and empty. */
   const sparedIn = Math.min(fuel.spared, kept);
+  /** No longer than the tube: past it, the count says the rest. */
   const spill = [
     ...Array<string>(fuel.short).fill('short'),
     ...Array<string>(fuel.spared - sparedIn).fill('spared-out'),
-  ];
+  ].slice(0, fuel.full);
   const cells = Array.from({ length: fuel.full }, (_, at) =>
     at >= fuel.held ? 'empty' : at >= kept ? 'eaten' : at >= kept - sparedIn ? 'spared' : 'kept',
   );
