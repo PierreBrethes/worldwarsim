@@ -32,7 +32,7 @@ const KINDS: ReadonlyArray<DepositKey> = ['coal', 'iron', 'food', 'oil'];
 /** The resource's own ink, the maquette's `RES_INK`: the wash only, never the pen. The same
  *  inks as `--res-*-paper` in `src/styles/tokens.css` (iron is `--res-steel-paper`), which the
  *  woken names wear (`labels.css`): change one, change the other. @a-mesurer */
-const WASH: Record<DepositKey, string> = {
+export const WASH: Record<DepositKey, string> = {
   food: '#6a7047',
   iron: '#627584',
   coal: '#605a49',
@@ -58,6 +58,9 @@ const WOKEN_NEAR = 0.15;
 const REFUSED_NEAR = 0.1;
 const WOKEN_FAR = 0.6;
 const DASHES = 60;
+/** Reached by the sweep (#249): its three beats, and how long it stays awake. @a-mesurer */
+const SWEEP_BEATS_MS = 2400;
+export const SWEEP_GLOW_MS = 6000;
 /** Over the terrain drawings (0.0025), under the contours. */
 const LIFT = 0.003;
 /** From far a basin grows to this radius on screen, in CSS pixels, so its wash stays a spot the
@@ -73,12 +76,14 @@ attribute vec2 aCentre;
 attribute float aRadius;
 attribute float aRoom;
 attribute float aWake;
+attribute float aSweep;
 uniform vec2 uViewport;
 varying vec2 vWorld;
 varying vec2 vCentre;
 varying float vEdge;
 varying float vKind;
 varying float vWake;
+varying float vSweep;
 vec2 onScreen(vec3 p) {
   vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   return clip.xy / clip.w * uViewport * 0.5;
@@ -93,6 +98,7 @@ void main() {
   vEdge = aEdge;
   vKind = aKind;
   vWake = aWake;
+  vSweep = aSweep;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(grown, 1.0);
 }`;
 
@@ -102,11 +108,15 @@ uniform vec3 uInk;
 uniform vec3 uRefused;
 uniform vec3 uWash[${KINDS.length}];
 uniform float uPixelRatio;
+uniform float uSweepAge;
+uniform float uSweepGlow;
+uniform float uSweepBeat;
 varying vec2 vWorld;
 varying vec2 vCentre;
 varying float vEdge;
 varying float vKind;
 varying float vWake;
+varying float vSweep;
 
 // Straight-alpha "over".
 vec4 over(vec4 top, vec4 under) {
@@ -190,6 +200,21 @@ void main() {
     color = over(vec4(ink, pen * (open ? 1.0 : 0.55)), vec4(ink, wash));
     color = over(vec4(open ? ink : moonlit(uRefused, night), stroke), color);
   }
+  // Reached by the sweep's front (#249, maquette radar-gisements): the basin wakes in its own
+  // ink, its pen line beats three times, then it goes back to rest.
+  float age = uSweepAge - vSweep;
+  if (vSweep >= 0.0 && age >= 0.0 && age <= uSweepGlow) {
+    float k = min(1.0, age / 220.0) * min(1.0, (uSweepGlow - age) / 1600.0);
+    float beat = age < ${SWEEP_BEATS_MS.toFixed(1)}
+      ? uSweepBeat * (0.5 - 0.5 * cos(age / ${(SWEEP_BEATS_MS / 3).toFixed(1)} * 6.2832))
+      : 0.0;
+    vec3 ink = moonlit(res, night);
+    float w = fwidth(vEdge);
+    float stroke = 1.0 - smoothstep((1.0 + beat) * w, (1.8 + 1.4 * beat) * w, 1.0 - vEdge);
+    vec4 woken = over(vec4(ink, pen), vec4(res, mix(${WOKEN_FAR.toFixed(2)}, 0.14 + 0.16 * beat, near)));
+    woken = over(vec4(ink, stroke), woken);
+    color = mix(color, woken, k);
+  }
   if (color.a < 0.003) discard;
   gl_FragColor = color;
   #include <colorspace_fragment>
@@ -204,6 +229,9 @@ export class DepositBasins {
   private ids: ReadonlyArray<string> = [];
   private firsts: number[] = [];
   private woken: ReadonlyMap<string, number> | null = null;
+  /** When the sweep's front reaches each basin it names, in ms from its start. */
+  private swept: ReadonlyMap<string, number> | null = null;
+  private sweptAt = 0;
 
   constructor(
     private readonly frame: WorldFrame,
@@ -217,6 +245,9 @@ export class DepositBasins {
         uRefused: { value: new Color(ADVERSE_INK) },
         uWash: { value: KINDS.map((kind) => new Color(WASH[kind])) },
         uPixelRatio: TRAME_SCALE,
+        uSweepAge: { value: 0 },
+        uSweepGlow: { value: SWEEP_GLOW_MS },
+        uSweepBeat: { value: 1 },
         uViewport: { value: new Vector2(1, 1) },
         ...night,
       },
@@ -306,6 +337,7 @@ export class DepositBasins {
       ),
     );
     geometry.setAttribute('aWake', new BufferAttribute(new Float32Array(edges.length), 1));
+    geometry.setAttribute('aSweep', new BufferAttribute(new Float32Array(edges.length), 1));
     geometry.setIndex(index);
     this.mesh.geometry.dispose();
     this.mesh.geometry = geometry;
@@ -330,9 +362,40 @@ export class DepositBasins {
     this.refresh();
   }
 
+  /**
+   * **The sweep wakes the basins it reaches** (#249), each at its `hitMs`; `still`, they light at
+   * once without beating and stay lit until the sweep is cleared (`null`).
+   */
+  sweep(
+    hits: ReadonlyArray<{ readonly id: string; readonly hitMs: number }> | null,
+    now: number,
+    still: boolean,
+  ): void {
+    this.swept = hits === null ? null : new Map(hits.map((hit) => [hit.id, still ? 0 : hit.hitMs]));
+    this.sweptAt = now;
+    const uniforms = this.mesh.material.uniforms;
+    uniforms.uSweepGlow!.value = still ? 1e9 : SWEEP_GLOW_MS;
+    uniforms.uSweepBeat!.value = still ? 0 : 1;
+    this.animate(now);
+    this.refresh();
+  }
+
+  animate(now: number): void {
+    this.mesh.material.uniforms.uSweepAge!.value = now - this.sweptAt;
+  }
+
   private refresh(): void {
-    this.object.visible = this.loaded && (this.shown || this.woken !== null);
+    this.object.visible = this.loaded && (this.shown || this.woken !== null || this.swept !== null);
     if (!this.loaded) return;
+    const swept = this.mesh.geometry.getAttribute('aSweep') as BufferAttribute;
+    this.ids.forEach((id, k) =>
+      (swept.array as Float32Array).fill(
+        this.swept?.get(id) ?? -1,
+        this.firsts[k],
+        this.firsts[k + 1],
+      ),
+    );
+    swept.needsUpdate = true;
     const wake = this.mesh.geometry.getAttribute('aWake') as BufferAttribute;
     this.ids.forEach((id, k) =>
       (wake.array as Float32Array).fill(
@@ -354,7 +417,7 @@ export class DepositBasins {
   }
 
   get wanted(): boolean {
-    return (this.shown || this.woken !== null) && !this.loaded;
+    return (this.shown || this.woken !== null || this.swept !== null) && !this.loaded;
   }
 
   dispose(): void {
