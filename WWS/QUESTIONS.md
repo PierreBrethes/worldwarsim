@@ -23,6 +23,15 @@ d'événements (ADR 0027 §7) ; la refonte du simulateur est abandonnée.
 
 ## 🟠 Structurantes
 
+**Ce qui montre une troupe entre la figurine et l'épingle (ADR 0035, Q1).** À l'échelle commune,
+une troupe n'est plus une figurine lisible au-delà de d ≈ 5 à 7. Un jeton (sa vignette debout sur le
+plateau) jusqu'à d ≈ 30, ou des cadrages de jeu ramenés au rapproché ? Pierre craint trois paliers
+de trop (figurine, vignette, épingle) ; POC en cours dans `prototypes/echelle-commune/`. Et la
+plage du curseur unique de taille (Q3) : valeur par défaut et bornes à fixer sur la maquette.
+
+*Ce que ça bloque :* le palier intermédiaire et les cadrages du lot fondation de l'échelle, pas
+le reste du lot.
+
 **Que devient un quartier général frappé ?** Le QG est la première dette du socle, posé **par
 le joueur** (1b du 13/09) ; il ancre le sol national et bâtit (son niveau accélère les chantiers, ADR 0030 et 0031) ;
 les emplacements par niveau (ADR 0020 §10) sont remplacés par l'espacement (ADR 0029), et la

@@ -42,3 +42,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0032](0032-les-points-moderent.md) | Les points modèrent | acceptée — précise la règle 1 (points stratégiques), révise les règles de Singapour, Bakou et Halifax |
 | [0033](0033-la-carte-sans-aplat.md) | La carte sans aplat : des contours en tirets par nation | acceptée — révise le rendu de 0020 (§1 aplat, §5 délavé) ; §2 amendé (#217) |
 | [0034](0034-un-seul-socle-geographique.md) | Un seul socle géographique : une topologie à arcs partagés, deux niveaux de détail | acceptée — le moteur et le serveur s'y branchent aux lots 2 à 5 de #209 |
+| [0035](0035-une-echelle-commune-des-pieces.md) | Une échelle commune des pièces : taille réelle × 1 600, l'homme ×2,5, la mer à demi | proposée (23/10) — précise 0026 ; Q1 (palier entre figurine et épingle) et Q3 (plage du curseur) ouvertes |
