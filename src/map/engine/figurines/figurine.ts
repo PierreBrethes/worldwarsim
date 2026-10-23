@@ -239,8 +239,8 @@ export function figurineFor(
   const object = new Group();
   const model = new Group();
   object.add(model);
-  // Its first mark's model: a pile of tanks led by an R35 is measured at 4 m.
-  const span = troopSpan(role, marks[0]);
+  // Its first mark's model: a French pile of tanks led by an R35 is measured at 4 m.
+  const span = troopSpan(role, nation, marks[0]);
 
   const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {

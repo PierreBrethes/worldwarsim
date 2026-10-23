@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NATIONS } from './ids';
 import { AIR_ALTITUDE, BOARD_KM, buildingSpan, objectiveSpan, troopSpan } from './piece-size';
 
 const km = (span: number) => span * BOARD_KM;
@@ -17,10 +18,17 @@ describe('one scale for every piece (ADR 0035)', () => {
     expect(km(troopSpan('infantry'))).toBeLessThan(3.4 * 1.6);
   });
 
-  it('measures the first tank, an R35, at its real 4 m, and the second at 6 m', () => {
-    expect(km(troopSpan('armor', 1))).toBeCloseTo(6.4, 6);
-    expect(km(troopSpan('armor', 2))).toBeCloseTo(9.6, 6);
-    expect(troopSpan('infantry', 1)).toBe(troopSpan('infantry'));
+  it("measures each nation's tank at its real length: the R35 at 4 m, the T-34 at 6.7", () => {
+    expect(km(troopSpan('armor', 'france', 1))).toBeCloseTo(4.02 * 1.6, 6);
+    expect(km(troopSpan('armor', 'ussr', 2))).toBeCloseTo(6.68 * 1.6, 6);
+    expect(troopSpan('infantry', 'france', 1)).toBe(troopSpan('infantry'));
+  });
+
+  it("never draws a nation's first tank longer than its second, but the Chinese Vickers over its T-26", () => {
+    for (const nation of NATIONS)
+      if (nation !== 'china')
+        expect(troopSpan('armor', nation, 1)).toBeLessThan(troopSpan('armor', nation, 2));
+    expect(troopSpan('armor', 'china', 1)).toBeGreaterThan(troopSpan('armor', 'china', 2));
   });
 
   it('draws the sea at half, its hulls and its ports alike', () => {

@@ -1,4 +1,4 @@
-import type { BuildingKey, UnitRole } from './ids';
+import type { BuildingKey, Nation, UnitRole } from './ids';
 import { DOMAIN_BY_ROLE, type UnitTier } from './troops';
 
 /**
@@ -33,9 +33,22 @@ const TROOP_METRES: Readonly<Record<UnitRole, number>> = {
   carrier: 250,
 };
 
-/** **Un modèle qui n'a pas la mesure de son rôle** : le premier char, un R35, fait 4 m. */
-const TIER_METRES: Partial<Record<UnitRole, Partial<Record<UnitTier, number>>>> = {
-  armor: { 1: 4 },
+/**
+ * **La longueur de caisse réelle des chars de chaque nation**, rang 1 puis rang 2, lus sur les
+ * modèles (`src/emblems/figurines/<nation>/armor-*.glb`) ; un char sans nation est mesuré à 6 m.
+ * En Chine le Vickers 6-Ton dépasse le T-26 qui le suit : l'ordre de leurs rangs n'est pas celui
+ * de leurs tailles.
+ * @a-mesurer longueurs de caisse publiées (fiches Wikipédia des modèles), sans canon ni garde-boue
+ */
+const ARMOR_METRES: Readonly<Record<Nation, readonly [number, number]>> = {
+  france: [4.02, 6.37], // Renault R35, Char B1 bis
+  uk: [3.96, 5.61], // Vickers Light Tank Mk VI, Matilda II
+  usa: [4.84, 5.84], // M5 Stuart, M4 Sherman
+  ussr: [5.66, 6.68], // BT-7, T-34 (1941)
+  germany: [4.81, 5.92], // Panzer II, Panzer IV
+  japan: [4.38, 5.52], // Type 95 Ha-Go, Type 97 Chi-Ha
+  italy: [3.17, 4.92], // L3/35, M13/40
+  china: [4.88, 4.62], // Vickers 6-Ton, T-26
 };
 
 /**
@@ -75,10 +88,13 @@ const onBoard = (metres: number, share = 1): number =>
   (metres * EXAGGERATION * share) / 1000 / BOARD_KM;
 
 /** **La mesure d'un rôle sur le plateau**, en unités : la taille de l'homme, la longueur ou
- *  l'envergure du reste (`TROOP_METRES`) ; d'un modèle quand son rang est dit (`TIER_METRES`). */
-export const troopSpan = (role: UnitRole, tier?: UnitTier): number =>
+ *  l'envergure du reste (`TROOP_METRES`) ; d'un char, celle du modèle de sa nation et de son rang
+ *  quand ils sont dits (`ARMOR_METRES`). */
+export const troopSpan = (role: UnitRole, nation?: Nation, tier?: UnitTier): number =>
   onBoard(
-    (tier === undefined ? undefined : TIER_METRES[role]?.[tier]) ?? TROOP_METRES[role],
+    (role === 'armor' && nation !== undefined && tier !== undefined
+      ? ARMOR_METRES[nation][tier - 1]
+      : undefined) ?? TROOP_METRES[role],
     (role === 'infantry' ? MAN_EXAGGERATION : 1) * (DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1),
   );
 
