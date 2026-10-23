@@ -360,6 +360,8 @@ const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
 /** How far above a finger the drop chip stands, clear of the fingertip (#250). @a-mesurer */
 const FINGER_LIFT_PX = 56;
+/** How far beside a finger it stands when the top leaves no room above. @a-mesurer */
+const FINGER_SIDE_PX = 36;
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 
 export function WorldMap({
@@ -887,19 +889,28 @@ export function WorldMap({
     const chip = hintNode.current;
     const width = chip?.offsetWidth ?? 0;
     const height = chip?.offsetHeight ?? 0;
-    const x = fingerHand.current
-      ? Math.min(clientX - width / 2, innerWidth - width - 8)
-      : clientX + 26 + width > innerWidth - 12
-        ? clientX - width - 22
-        : clientX + 26;
-    // Under a finger the hand hides what is below it: the chip, and its gauge, stand above.
-    const y = fingerHand.current
-      ? clientY - height - FINGER_LIFT_PX
-      : clientY + 22 + height > innerHeight - 12
-        ? clientY - height - 18
-        : clientY + 22;
+    // Under a finger the hand hides what is below it: the chip, and its gauge, stand above —
+    // or, too near the top for that, beside the finger, on the side with more room.
+    const above = clientY - height - FINGER_LIFT_PX;
+    const beside = fingerHand.current && above < 8;
+    const x = beside
+      ? clientX > innerWidth / 2
+        ? clientX - width - FINGER_SIDE_PX
+        : clientX + FINGER_SIDE_PX
+      : fingerHand.current
+        ? clientX - width / 2
+        : clientX + 26 + width > innerWidth - 12
+          ? clientX - width - 22
+          : clientX + 26;
+    const y = beside
+      ? clientY - height / 2
+      : fingerHand.current
+        ? above
+        : clientY + 22 + height > innerHeight - 12
+          ? clientY - height - 18
+          : clientY + 22;
     /** Ni retournée ni à droite elle ne tient sur un écran étroit : elle reste alors dans le cadre. */
-    hintAt.current = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
+    hintAt.current = `translate(${Math.max(8, Math.min(x, innerWidth - width - 8))}px, ${Math.max(8, y)}px)`;
     if (chip !== null) chip.style.transform = hintAt.current;
   };
   /** Née après le geste qui l'a demandée, la puce prend la dernière place connue du pointeur ;
