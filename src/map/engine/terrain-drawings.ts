@@ -56,6 +56,10 @@ const BARE_AT = 0.05;
 const FULL_AT = 0.4;
 const EDGE_WOBBLE = 0.3;
 const EDGE_GRAIN = 1.5;
+/** The wash reads its cells up to `WARP_CELLS` off the point, on a noise `WARP_GRAIN_CELLS`
+ *  cells wide: the grid's squares would show at every edge between two types. @a-mesurer */
+const WARP_CELLS = 0.7;
+const WARP_GRAIN_CELLS = 2.5;
 /** Even a massif's heart has its clearings, `CLEARING_GRAIN` wide, down to `CLEARING_KEEP` of its
  *  drawings: a forest of a thousand kilometres is not one wall of trees. @a-mesurer */
 const CLEARING_GRAIN = 4;
@@ -471,6 +475,10 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
 vec4 wash(vec2 p) {
   ivec2 grid = textureSize(uTypes, 0);
   vec2 at = (p / uWorld + 0.5) * vec2(grid) - 0.5;
+  // Read a cell or so off the point, by a noise of a few cells: every edge of the grid wobbles,
+  // between two types as at the plain's, so no cell's square shows.
+  vec2 warp = vec2(noise(at / ${WARP_GRAIN_CELLS.toFixed(1)}), noise(at / ${WARP_GRAIN_CELLS.toFixed(1)} + 41.3)) - 0.5;
+  at += warp * ${(2 * WARP_CELLS).toFixed(2)};
   float red = texelFetch(uTypes, clamp(ivec2(floor(at + 0.5)), ivec2(0), grid - 1), 0).r * 255.0;
   float only = floor(red / ${CODE_STEP.toFixed(1)} + 0.5);
   // Three cells from any other code, the four nearest share this one's.
