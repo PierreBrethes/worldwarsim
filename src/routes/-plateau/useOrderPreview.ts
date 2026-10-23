@@ -16,6 +16,21 @@ import {
   type Previewed,
 } from './order-wire';
 
+/** **Le refus que seul l'aperçu du serveur connaît** (#258) : pas de route, ou plein trop court.
+ *  Même fonction que le serveur (`fuelRefusalOf`) ; `null` tant que l'aperçu n'est pas là. */
+export function previewRefusalOf(preview: Previewed): string | null {
+  if (preview === undefined) return null;
+  if (preview === null) return fr.aim.noRoute;
+  const { fuel } = preview;
+  return fuel.short === null
+    ? null
+    : fr.errors.NOT_ENOUGH_FUEL({
+        ...fuel.short,
+        km: fuel.km,
+        roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
+      });
+}
+
 export function useOrderPreview(
   seat: Seat,
   column: ArmedColumn | null,
@@ -83,7 +98,7 @@ export function useOrderPreview(
       resting === null || preview === undefined
         ? []
         : preview === null
-          ? [{ text: fr.aim.noRoute, alarm: true }]
+          ? [{ text: fr.aim.noRoute, alarm: true, refusal: true }]
           : [
               { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
               ...(preview.holdUntil === null
@@ -124,18 +139,10 @@ export function useOrderPreview(
 
 /** **Le refus du plein, dit avant le clic** (ADR 0028 §3) ; ce que la route mange, la jauge le
  *  montre (`dropFuel`). */
-function fuelNotes({ fuel }: NonNullable<Previewed>): ReadonlyArray<DropNote> {
-  if (fuel.short !== null)
-    return [
-      {
-        text: fr.errors.NOT_ENOUGH_FUEL({
-          ...fuel.short,
-          km: fuel.km,
-          roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
-        }),
-        alarm: true,
-      },
-    ];
+function fuelNotes(preview: NonNullable<Previewed>): ReadonlyArray<DropNote> {
+  const refusal = previewRefusalOf(preview);
+  if (refusal !== null) return [{ text: refusal, alarm: true, refusal: true }];
+  const { fuel } = preview;
   /** Singapour se dit là où l'on paie la route. */
   return fuel.eased
     ? [{ text: fr.supplies.easedBySingapore(fuel.eased.from, fuel.eased.to), alarm: false }]

@@ -82,7 +82,12 @@ const strikeOf = (cost: string | null): string =>
 
 /** Ce que la route du serveur ajoute au pointeur arrêté : l'heure d'arrivée, la morsure du
  *  repos, ou l'absence de route — il n'y a plus de carte pour le dire avant l'ordre. */
-export type DropNote = { readonly text: string; readonly alarm: boolean };
+export type DropNote = {
+  readonly text: string;
+  readonly alarm: boolean;
+  /** Le serveur refusera cette route : la pastille prend le ton de refus et dit ce texte. */
+  readonly refusal?: boolean;
+};
 
 /** Le plein qu'une route mangerait (#250), lu sur l'aperçu du serveur. */
 export type DropFuel = FuelGauge & { readonly roundTrip: boolean };
@@ -153,6 +158,13 @@ export function DropHintChip({
   fuel?: DropFuel | null;
   ref: Ref<HTMLDivElement>;
 }) {
+  /** **A refusal only the server's preview knows** (#258) turns the sign, as a refusal read on
+   *  the client does; the gauge stays, the rest of the road is no longer worth saying. */
+  const refusal = hint.tone === 'refused' ? undefined : notes.find((note) => note.refusal);
+  if (refusal !== undefined) {
+    hint = { icon: '✕', tone: 'refused', verb: refusal.text, detail: null };
+    notes = [];
+  }
   return (
     <div ref={ref} role="status" className={`drop-chip paper-grain float drop-chip--${hint.tone}`}>
       {/* Keyed by what it says: a new verb pops its sign. */}
@@ -161,7 +173,9 @@ export function DropHintChip({
       </span>
       <span className="drop-chip-verb">{hint.verb}</span>
       {hint.detail !== null && <span className="drop-chip-detail">{hint.detail}</span>}
-      {hint.tone !== 'refused' && fuel !== null && <FuelGaugeLine fuel={fuel} />}
+      {(hint.tone !== 'refused' || refusal !== undefined) && fuel !== null && (
+        <FuelGaugeLine fuel={fuel} />
+      )}
       {hint.tone !== 'refused' &&
         notes.map((note) => (
           <span

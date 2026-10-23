@@ -25,7 +25,7 @@ import { forbiddenGroundOf } from '@/domain/drop-order';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { useHeldRegions } from './-plateau/useHeldRegions';
-import { useOrderPreview } from './-plateau/useOrderPreview';
+import { previewRefusalOf, useOrderPreview } from './-plateau/useOrderPreview';
 import { useTours } from './-plateau/useTours';
 import { usePlacing } from './-plateau/usePlacing';
 import { BoardWindows } from './-plateau/BoardWindows';
@@ -1228,6 +1228,18 @@ function BoardContent({
             return;
           }
           if (column === null) return;
+          const chosenAim = choiceOf(action).aim;
+          const seenNow = previewNow.current;
+          const refusal =
+            seenNow !== undefined && JSON.stringify(seenNow.aim) === JSON.stringify(chosenAim)
+              ? previewRefusalOf(seenNow.preview)
+              : null;
+          // The chip already said no (#258): nothing goes to the server, and the hand says why.
+          if (refusal !== null) {
+            setOrderError(refusal);
+            dropHand();
+            return;
+          }
           sendColumn(() => {
             const chosen = choiceOf(action);
             const seen = previewNow.current;
