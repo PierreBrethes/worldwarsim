@@ -7,13 +7,12 @@ import {
   type Detail,
   type NearFile,
 } from '@/domain/atlas';
-import type { RegionType } from '@/domain/ids';
 import type { Projection } from '@/domain/world';
 import { geometryData, type GeometryData } from './atlas-geometry';
 import { sheetData, type SheetData } from './countries';
 import { WorldFrame } from './frame';
 import { regionLines } from './regions';
-import { drawnOf, typeTexels, type CanvasOf, type TypesData } from './terrain-drawings';
+import { typesFromCells, type TerrainCells, type TypesData } from './terrain-drawings';
 
 /**
  * **Everything the near level costs, built off the main thread** (`near-sheet.worker.ts`): the
@@ -24,16 +23,15 @@ export type NearSheet = {
   readonly arcs: DecodedArcs;
   readonly sheet: SheetData;
   readonly lines: Record<Detail, GeometryData>;
-  /** The terrain's type map; `null` without an `OffscreenCanvas`: the main thread paints it then. */
-  readonly types: TypesData | null;
+  /** The terrain's type map. */
+  readonly types: TypesData;
 };
 
 export function buildNearSheet(
   file: AtlasFile,
   near: NearFile,
-  types: ReadonlyMap<string, RegionType>,
+  cells: TerrainCells,
   projection: Projection,
-  canvasOf: CanvasOf | null,
 ): NearSheet {
   const arcs = packArcs(decodeArcs(near.arcs, near.transform));
   const atlas = decodeAtlas(file, arcs);
@@ -45,7 +43,6 @@ export function buildNearSheet(
       far: geometryData(regionLines(atlas, 'far', frame)),
       near: geometryData(regionLines(atlas, 'near', frame)),
     },
-    types:
-      canvasOf === null ? null : typeTexels(atlas.shapes(drawnOf(types), 'far'), frame, canvasOf),
+    types: typesFromCells(cells, frame),
   };
 }

@@ -46,7 +46,7 @@ describe('depthsFromCodes', () => {
 describe('texelsOf', () => {
   // A forest, then a mountain, then twelve plain cells: one massif of two types.
   const codes = new Uint8Array([40, 40, 40, 120, 120, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-  const texels = texelsOf(codes, codes.length, 1);
+  const texels = texelsOf(codes, codes.length, 1, 5.12);
   const red = [...texels].filter((_, i) => i % 2 === 0);
   const green = [...texels].filter((_, i) => i % 2 === 1);
 

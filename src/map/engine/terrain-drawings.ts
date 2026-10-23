@@ -21,8 +21,9 @@ import { TRAME_SCALE } from './regions';
 /**
  * **Les dessins généraux de terrain** (#197, maquette `WWS/prototypes/carte-refonte/sheet.js`) :
  * la plume pâle d'un atlas — forêts, montagnes, déserts, toundra, jungle ; la plaine reste nue —,
- * posée sur toute la terre et jamais effacée. Décor pur : le type est cuit hors ligne et aucune
- * règle ne le lit.
+ * posée sur toute la terre et jamais effacée. Décor pur : le type de chaque cellule est cuit hors
+ * ligne depuis le relief et le climat (`terrain-cells.json`, #220), pas celui de sa région, et
+ * aucune règle ne le lit.
  *
  * **Cuit, pas dessiné** : la maquette grave ses dessins dans une feuille de 2560 à 4096 px (~22 Mo
  * à 2560) ; le monde entier à cette finesse ne tiendrait pas en mémoire. Deux petites textures à
@@ -325,6 +326,26 @@ export type TypesData = {
   readonly height: number;
 };
 
+/** The type of each cell, baked by `generate-region-types.mjs`: row-major `code, count` runs,
+ *  a code being an index of `types`. */
+export type TerrainCells = {
+  readonly width: number;
+  readonly height: number;
+  readonly types: ReadonlyArray<string>;
+  readonly runs: ReadonlyArray<number>;
+};
+
+export function typesFromCells(
+  { width, height, types, runs }: TerrainCells,
+  frame: WorldFrame,
+): TypesData {
+  const codeOf = types.map((type) => terrainCode(type as RegionType) * CODE_STEP);
+  const codes = new Uint8Array(width * height);
+  for (let i = 0, at = 0; i < runs.length; at += runs[i + 1]!, i += 2)
+    codes.fill(codeOf[runs[i]!]!, at, at + runs[i + 1]!);
+  return { texels: texelsOf(codes, width, height, width / frame.width), width, height };
+}
+
 /** A 2D canvas: an `OffscreenCanvas` in the worker, a page's canvas where there is none. */
 export type CanvasOf = (
   width: number,
@@ -372,7 +393,11 @@ export function typeTexels(massifs: Massifs, frame: WorldFrame, canvasOf: Canvas
     for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4]!;
     return mask;
   });
-  return { texels: texelsOf(codesFromMasks(masks, width * height), width, height), width, height };
+  return {
+    texels: texelsOf(codesFromMasks(masks, width * height), width, height, TYPES_PER_UNIT),
+    width,
+    height,
+  };
 }
 
 /** Under half a code step, a code byte still reads as its code. */
@@ -389,6 +414,7 @@ export function texelsOf(
   codes: Uint8Array<ArrayBuffer>,
   width: number,
   height: number,
+  cellsPerUnit: number,
 ): Uint8Array<ArrayBuffer> {
   const other = depthsFromCodes(codes, width, height);
   const inside = depthsFromCodes(
@@ -403,7 +429,7 @@ export function texelsOf(
   );
   const texels = new Uint8Array(width * height * 2);
   for (let i = 0; i < codes.length; i++) {
-    const depth = (inside[i]! - outside[i]!) / TYPES_PER_UNIT;
+    const depth = (inside[i]! - outside[i]!) / cellsPerUnit;
     // `depthsFromCodes` leaves the plain at 0: its own distance to another code is `outside`.
     const away = codes[i] === 0 ? outside[i]! : other[i]!;
     texels[i * 2] = codes[i]! + Math.min(OTHER_MAX, Math.round(away));
@@ -536,7 +562,7 @@ vec4 wash(vec2 p) {
   if (alone && only < 0.5) return vec4(0.0);
   float depth = depthAt((at + 0.5) / vec2(grid));
   float wobble = (noise(p / ${EDGE_GRAIN.toFixed(2)}) - 0.5) * ${(2 * EDGE_WOBBLE).toFixed(2)};
-  if (wobble > 0.0) wobble *= smoothstep(0.0, ${(1 / TYPES_PER_UNIT).toFixed(4)}, depth);
+  if (wobble > 0.0) wobble *= smoothstep(0.0, uWorld.x / float(grid.x), depth);
   float ramp = smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, depth + wobble);
   if (ramp <= 0.0) return vec4(0.0);
   if (alone) {
