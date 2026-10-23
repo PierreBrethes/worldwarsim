@@ -116,22 +116,35 @@ export type FuelShortfall = {
   readonly role: UnitRole;
 };
 
-/** **Une route plus longue que le plus petit plein de l'escouade est refusée** ; le refus dit
- *  qui manque, et de combien. Les troupes sans moteur ne comptent pas. */
+/** **Le moteur qui borne la route** : celui à qui il reste le moins une fois la route payée, le
+ *  plus vide à égalité. Le refus et la jauge lisent le même. `null` sans moteur. */
+function bindingEngineOf(
+  drivers: ReadonlyArray<Carrying>,
+  km: number,
+  holdsSingapore: boolean,
+): { readonly role: UnitRole; readonly held: number; readonly needed: number } | null {
+  let worst: { role: UnitRole; held: number; needed: number } | null = null;
+  for (const troop of drivers) {
+    if (fullSupplies(troop.role).fuel === 0) continue;
+    const held = suppliesOf(troop).fuel;
+    const needed = fuelStepsOf(troop.role, km, holdsSingapore);
+    const left = held - needed;
+    const worstLeft = worst === null ? Infinity : worst.held - worst.needed;
+    if (left < worstLeft || (left === worstLeft && held < worst!.held))
+      worst = { role: troop.role, held, needed };
+  }
+  return worst;
+}
+
+/** **Une route plus longue que le plein d'un moteur de l'escouade est refusée** ; le refus nomme
+ *  celui qui manque le plus, et de combien. Les troupes sans moteur ne comptent pas. */
 export function fuelRefusalOf(
   drivers: ReadonlyArray<Carrying>,
   km: number,
   holdsSingapore = false,
 ): FuelShortfall | null {
-  let short: FuelShortfall | null = null;
-  for (const troop of drivers) {
-    if (fullSupplies(troop.role).fuel === 0) continue;
-    const needed = fuelStepsOf(troop.role, km, holdsSingapore);
-    const held = suppliesOf(troop).fuel;
-    if (held < needed && (short === null || held < short.held))
-      short = { needed, held, role: troop.role };
-  }
-  return short;
+  const engine = bindingEngineOf(drivers, km, holdsSingapore);
+  return engine !== null && engine.held < engine.needed ? engine : null;
 }
 
 /** **La jauge qu'une route ronge** (#250) : le plein du moteur qui borne la route, les crans
@@ -145,35 +158,24 @@ export type FuelGauge = {
   readonly short: number;
 };
 
-/** Le moteur dont il reste le moins une fois la route payée, et le plus vide à égalité : celui
- *  que `fuelRefusalOf` nomme quand un seul manque. `null` sans moteur (à pied, en Blitz). */
+/** La jauge du moteur qui borne la route (`bindingEngineOf`). `null` sans moteur (à pied, en
+ *  Blitz). */
 export function fuelGaugeOf(
   drivers: ReadonlyArray<Carrying>,
   km: number,
   holdsSingapore = false,
 ): FuelGauge | null {
-  let gauge: FuelGauge | null = null;
-  for (const troop of drivers) {
-    const full = fullSupplies(troop.role).fuel;
-    if (full === 0) continue;
-    const held = suppliesOf(troop).fuel;
-    const eaten = fuelStepsOf(troop.role, km, holdsSingapore);
-    const left = held - eaten;
-    if (
-      gauge !== null &&
-      (gauge.held - gauge.eaten < left || (gauge.held - gauge.eaten === left && gauge.held <= held))
-    )
-      continue;
-    gauge = {
-      held,
-      full,
-      resource: fuelResourceOf(troop.role),
-      eaten,
-      spared: fuelStepsOf(troop.role, km) - eaten,
-      short: Math.max(0, -left),
-    };
-  }
-  return gauge;
+  const engine = bindingEngineOf(drivers, km, holdsSingapore);
+  if (engine === null) return null;
+  const { role, held, needed } = engine;
+  return {
+    held,
+    full: fullSupplies(role).fuel,
+    resource: fuelResourceOf(role),
+    eaten: needed,
+    spared: fuelStepsOf(role, km) - needed,
+    short: Math.max(0, needed - held),
+  };
 }
 
 /** **Sans coups, ni attaque ni riposte** : une colonne armée dont plus aucune troupe ne porte un

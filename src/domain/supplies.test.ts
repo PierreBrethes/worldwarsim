@@ -156,6 +156,20 @@ describe('the fuel a route asks', () => {
     });
   });
 
+  it('names the engine that lacks the most, whoever is emptiest', () => {
+    // At Singapore the escort pays 10 of its 6, the cargo 8 of its 5.
+    expect(
+      fuelRefusalOf(
+        [
+          { role: 'escort', fuel: 6 },
+          { role: 'cargo', fuel: 5 },
+        ],
+        5000,
+        true,
+      ),
+    ).toEqual({ needed: 10, held: 6, role: 'escort' });
+  });
+
   it('asks nothing of a troop without an engine', () => {
     expect(fuelRefusalOf([{ role: 'infantry' }], 5000)).toBeNull();
   });
@@ -210,6 +224,19 @@ describe('the gauge a route drains', () => {
         true,
       ),
     ).toMatchObject({ held: 6, eaten: 7, short: 1 });
+  });
+
+  it('reads the same engine as the refusal in a mixed column at Singapore', () => {
+    expect(
+      fuelGaugeOf(
+        [
+          { role: 'escort', fuel: 6 },
+          { role: 'cargo', fuel: 5 },
+        ],
+        5000,
+        true,
+      ),
+    ).toMatchObject({ held: 6, eaten: 10, short: 4, resource: 'coal' });
   });
 
   it('has no gauge for a pile without an engine', () => {
