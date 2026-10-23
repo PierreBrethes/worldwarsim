@@ -779,7 +779,7 @@ export class MapEngine {
     this.standing = new StandingLayer(
       this.frame,
       () => this.landed(),
-      (id, pile) => this.maquettes.garrisonAt(id, pile),
+      (id, pile, quay) => this.maquettes.garrisonAt(id, pile, quay),
       (lonLat) => this.seawardOf(lonLat),
     );
     this.ambience.add(this.standing.smoke);

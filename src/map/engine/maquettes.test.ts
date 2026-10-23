@@ -304,7 +304,14 @@ describe('the garrison foot', () => {
     }
   });
 
-  it('keeps every garrison clear of its own maquette at any turn, a cargo off its port', () => {
+  it('docks the hulls of a port along its quay, beside it and not a port away', () => {
+    const [port, cargo] = [buildingSpan('port'), troopSpan('cargo')];
+    const foot = garrisonFoot(port, cargo, true);
+    expect(foot - cargo / 2).toBeGreaterThanOrEqual(port / 2);
+    expect(foot - cargo / 2).toBeLessThan(port / Math.SQRT2);
+  });
+
+  it('keeps every garrison clear of its own maquette at any turn, on land', () => {
     // A model turned 45° reaches half its diagonal; the pile reaches back half its largest piece.
     const roles = Object.keys(DOMAIN_BY_ROLE) as UnitRole[];
     for (const key of BUILDINGS)

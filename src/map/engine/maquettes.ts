@@ -321,7 +321,12 @@ function ringed(
  * clears the corner of a model turned any way, and half the pile's largest piece more, so that a
  * cargo stands off its port as a man off his barracks. `@a-mesurer`
  */
-export const garrisonFoot = (site: number, pile: number): number => (8 / 7) * site + pile / 2;
+export const garrisonFoot = (site: number, pile: number, quay = false): number =>
+  (quay ? QUAY_SHARE : 8 / 7) * site + pile / 2;
+
+/** **The hulls of a port dock along its quay** (ADR 0035 §1, « un cargo qui tient le long de son
+ *  port »): half its span off its centre, its side, rather than clear of its corners. */
+const QUAY_SHARE = 0.5;
 
 /**
  * **Two maquettes of a ring stand this many of their half spans apart**, centre to centre: a
@@ -643,11 +648,12 @@ export class MaquetteLayer {
   garrisonAt(
     id: string,
     pile: number,
+    quay = false,
   ): { at: Vector3; step: readonly [number, number]; facing: number } | null {
     const dressed = this.byId.get(id);
     if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
     const { at, facing, scale, near, span } = dressed.item;
-    const foot = garrisonFoot(span, pile) * pieceScale.size * scale * Math.max(near, 0);
+    const foot = garrisonFoot(span, pile, quay) * pieceScale.size * scale * Math.max(near, 0);
     return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing };
   }
 
