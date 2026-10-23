@@ -103,7 +103,6 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
   const cells = Array.from({ length: fuel.full }, (_, at) =>
     at >= fuel.held ? 'empty' : at >= kept ? 'eaten' : at >= kept - sparedIn ? 'spared' : 'kept',
   );
-  const left = fuel.held - fuel.eaten;
   const label = fr.supplies.gauge(fuel.held, fuel.eaten, fuel.roundTrip);
   return (
     <span
@@ -126,7 +125,8 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
         </span>
       )}
       <span className={`fuel-count${fuel.short > 0 ? ' fuel-count--short' : ''}`} aria-hidden>
-        {fuel.held} → {left < 0 ? `−${-left}` : left}
+        {fuel.held} → {kept}
+        {fuel.short > 0 && ` · ${fr.supplies.lacking(fuel.short)}`}
         {fuel.roundTrip && <small> · {fr.supplies.roundTrip}</small>}
       </span>
     </span>

@@ -2869,6 +2869,8 @@ export const fr = {
     gauge: (held: number, eaten: number, roundTrip: boolean) =>
       `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} mange ${eaten} cran${plural(eaten, '', 's')} sur ${held}`,
     roundTrip: 'aller-retour',
+    /** Un plein ne descend pas sous zéro : ce qui manque se dit à part. */
+    lacking: (steps: number) => `manque ${steps}`,
     spared: (steps: number) => `Singapour épargne ${steps} cran${plural(steps, '', 's')}`,
   },
   /** **La logistique** (ADR 0028 §4) : dépôts, charge des transports, livraisons, tournées. */
