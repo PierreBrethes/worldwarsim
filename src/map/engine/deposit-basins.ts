@@ -61,6 +61,8 @@ const DASHES = 60;
 /** Reached by the sweep (#249): its three beats, and how long it stays awake. @a-mesurer */
 const SWEEP_BEATS_MS = 2400;
 export const SWEEP_GLOW_MS = 6000;
+/** The echo ring's widest reach past the rim, in CSS pixels (maquette: 3 + 9). */
+const ECHO_MAX_PX = 12;
 /** Over the terrain drawings (0.0025), under the contours. */
 const LIFT = 0.003;
 /** From far a basin grows to this radius on screen, in CSS pixels, so its wash stays a spot the
@@ -78,12 +80,16 @@ attribute float aRoom;
 attribute float aWake;
 attribute float aSweep;
 uniform vec2 uViewport;
+uniform float uSweepAge;
+uniform float uSweepBeat;
 varying vec2 vWorld;
 varying vec2 vCentre;
 varying float vEdge;
 varying float vKind;
 varying float vWake;
 varying float vSweep;
+varying float vSwell;
+varying float vRadiusPx;
 vec2 onScreen(vec3 p) {
   vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   return clip.xy / clip.w * uViewport * 0.5;
@@ -92,7 +98,12 @@ void main() {
   vec3 centre = vec3(aCentre.x, position.y, aCentre.y);
   float px = length(onScreen(centre + vec3(aRadius, 0.0, 0.0)) - onScreen(centre));
   float grow = clamp(${BASIN_MIN_RADIUS_PX.toFixed(1)} / max(px, 0.001), 1.0, aRoom);
-  vec3 grown = centre + (position - centre) * grow;
+  // While a swept basin beats, it swells past its rim to leave room for the echo ring (#249).
+  float age = uSweepAge - aSweep;
+  bool beating = aSweep >= 0.0 && age >= 0.0 && age < ${SWEEP_BEATS_MS.toFixed(1)} && uSweepBeat > 0.0;
+  vRadiusPx = max(px * grow, 1.0);
+  vSwell = beating ? 1.0 + ${(ECHO_MAX_PX + 3).toFixed(1)} / vRadiusPx : 1.0;
+  vec3 grown = centre + (position - centre) * grow * vSwell;
   vWorld = grown.xz;
   vCentre = aCentre;
   vEdge = aEdge;
@@ -117,6 +128,10 @@ varying float vEdge;
 varying float vKind;
 varying float vWake;
 varying float vSweep;
+varying float vSwell;
+varying float vRadiusPx;
+// The basin's own radial share, 1 on its rim, whatever the swell of a beat.
+float edge;
 
 // Straight-alpha "over".
 vec4 over(vec4 top, vec4 under) {
@@ -159,11 +174,29 @@ float marks(int kind, float cell, float unitsPerPixel) {
   q.x += mod(floor(q.y), 2.0) * 0.5;
   vec2 id = floor(q);
   vec3 h = vec3(hash(id), hash(id + 7.7), hash(id + 19.1));
-  if (h.x >= ${KEEP.toFixed(2)} * (1.0 - smoothstep(0.5, 0.95, vEdge))) return 0.0;
+  if (h.x >= ${KEEP.toFixed(2)} * (1.0 - smoothstep(0.5, 0.95, edge))) return 0.0;
   return mark(kind, fract(q) - 0.5 - (h.yz - 0.5) * 0.3, unitsPerPixel / cell);
 }
 
 void main() {
+  edge = vEdge * vSwell;
+  float age = uSweepAge - vSweep;
+  float k = min(1.0, age / 220.0) * min(1.0, (uSweepGlow - age) / 1600.0);
+  float beat = vSweep >= 0.0 && age >= 0.0 && age < ${SWEEP_BEATS_MS.toFixed(1)}
+    ? uSweepBeat * (0.5 - 0.5 * cos(age / ${(SWEEP_BEATS_MS / 3).toFixed(1)} * 6.2832))
+    : 0.0;
+  if (edge > 1.0) {
+    // Outside the rim, only the echo ring of a beat: it leaves the rim and fades as it goes
+    // (maquette: outline(r + 3 + 9 * beat)).
+    float ring = 1.0 + (3.0 + ${(ECHO_MAX_PX - 3).toFixed(1)} * beat) / vRadiusPx;
+    float line = 1.0 - smoothstep(0.5, 1.2, abs(edge - ring) / max(fwidth(edge), 1e-5));
+    float alpha = beat > 0.02 ? k * (1.0 - beat) * 0.6 * line : 0.0;
+    if (alpha < 0.003) discard;
+    vec3 res = uWash[int(vKind + 0.5)];
+    gl_FragColor = vec4(moonlit(res, nightAtWorld(vWorld)), alpha);
+    #include <colorspace_fragment>
+    return;
+  }
   float unitsPerPixel = max(length(dFdx(vWorld)), length(dFdy(vWorld)));
   float wanted = log2(${MIN_CELL_PX.toFixed(1)} * uPixelRatio * unitsPerPixel / ${CELL.toFixed(3)});
   float near = 1.0 - smoothstep(${MAX_DOUBLINGS.toFixed(1)}, ${GONE_AT.toFixed(1)}, wanted);
@@ -183,7 +216,7 @@ void main() {
   vec4 color;
   if (vWake < 0.5) {
     float dim = mix(1.0, ${NIGHT_INK.toFixed(2)}, night);
-    float wash = mix(${FAR_WASH.toFixed(2)}, ${NEAR_WASH.toFixed(2)}, near) * (1.0 - smoothstep(0.8, 1.0, vEdge));
+    float wash = mix(${FAR_WASH.toFixed(2)}, ${NEAR_WASH.toFixed(2)}, near) * (1.0 - smoothstep(0.8, 1.0, edge));
     color = over(vec4(uInk * dim, pen * ${PEN_ALPHA.toFixed(2)}), vec4(res * dim, wash));
   } else {
     // Woken by a key in hand (#239): the resource's own ink, a pen line round it — dashed red
@@ -191,8 +224,8 @@ void main() {
     bool open = vWake < 1.5;
     vec3 ink = moonlit(res, night);
     float wash = mix(${WOKEN_FAR.toFixed(2)}, open ? ${WOKEN_NEAR.toFixed(2)} : ${REFUSED_NEAR.toFixed(2)}, near);
-    float w = fwidth(vEdge);
-    float stroke = 1.0 - smoothstep(1.2 * w, 2.2 * w, 1.0 - vEdge);
+    float w = fwidth(edge);
+    float stroke = 1.0 - smoothstep(1.2 * w, 2.2 * w, 1.0 - edge);
     if (!open) {
       vec2 d = vWorld - vCentre;
       stroke *= step(0.45, fract(atan(d.y, d.x) * ${(DASHES / (2 * Math.PI)).toFixed(4)}));
@@ -202,15 +235,10 @@ void main() {
   }
   // Reached by the sweep's front (#249, maquette radar-gisements): the basin wakes in its own
   // ink, its pen line beats three times, then it goes back to rest.
-  float age = uSweepAge - vSweep;
   if (vSweep >= 0.0 && age >= 0.0 && age <= uSweepGlow) {
-    float k = min(1.0, age / 220.0) * min(1.0, (uSweepGlow - age) / 1600.0);
-    float beat = age < ${SWEEP_BEATS_MS.toFixed(1)}
-      ? uSweepBeat * (0.5 - 0.5 * cos(age / ${(SWEEP_BEATS_MS / 3).toFixed(1)} * 6.2832))
-      : 0.0;
     vec3 ink = moonlit(res, night);
-    float w = fwidth(vEdge);
-    float stroke = 1.0 - smoothstep((1.0 + beat) * w, (1.8 + 1.4 * beat) * w, 1.0 - vEdge);
+    float w = fwidth(edge);
+    float stroke = 1.0 - smoothstep((1.0 + beat) * w, (1.8 + 1.4 * beat) * w, 1.0 - edge);
     vec4 woken = over(vec4(ink, pen), vec4(res, mix(${WOKEN_FAR.toFixed(2)}, 0.14 + 0.16 * beat, near)));
     woken = over(vec4(ink, stroke), woken);
     color = mix(color, woken, k);
