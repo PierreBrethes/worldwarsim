@@ -1,9 +1,5 @@
-import projection from '../../public/projection.json';
 import { decodeAtlas, type Atlas, type AtlasFile } from '@/domain/atlas';
-import { loadRegionTypes, type Projection } from '@/domain/world';
-import { WorldFrame } from '@/map/engine/frame';
 import type { NearSheet } from '@/map/engine/near-sheet';
-import { drawnOf, pageCanvas, typeTexels } from '@/map/engine/terrain-drawings';
 
 /**
  * The atlas (ADR 0034), fetched once for the lifetime of the tab like the world: `atlas.json` with
@@ -35,16 +31,7 @@ export type NearAtlas = { readonly atlas: Atlas; readonly sheet: NearSheet };
 
 export const loadNearAtlas = once(async (): Promise<NearAtlas> => {
   const [file, sheet] = await Promise.all([farFile(), nearSheet()]);
-  const atlas = decodeAtlas(file, sheet.arcs);
-  if (sheet.types !== null) return { atlas, sheet };
-  // No `OffscreenCanvas` in the worker: the type map is painted here, once per tab.
-  const massifs = atlas.shapes(drawnOf(await loadRegionTypes()), 'far');
-  const types = typeTexels(
-    massifs,
-    new WorldFrame(projection as unknown as Projection),
-    pageCanvas,
-  );
-  return { atlas, sheet: { ...sheet, types } };
+  return { atlas: decodeAtlas(file, sheet.arcs), sheet };
 });
 
 function nearSheet(): Promise<NearSheet> {

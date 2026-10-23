@@ -234,12 +234,12 @@ export function classifyCells(rasters, { project, width, height, perUnit }) {
     });
     codes[cell] = CELL_TYPES.indexOf(type);
   }
-  return withoutSpecks(codes, width, height);
+  return withoutSpecks(codes, width);
 }
 
 /** Each patch of one code (4-connected) under `MIN_MASSIF_CELLS` takes the code most of its
  *  neighbours bear. */
-function withoutSpecks(codes, width, height) {
+function withoutSpecks(codes, width) {
   const seen = new Uint8Array(codes.length);
   for (let start = 0; start < codes.length; start += 1) {
     if (seen[start]) continue;

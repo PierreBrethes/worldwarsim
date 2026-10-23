@@ -12,7 +12,6 @@ import {
   UnsignedByteType,
   Vector2,
 } from 'three';
-import type { Atlas } from '@/domain/atlas';
 import type { RegionType } from '@/domain/ids';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
@@ -45,8 +44,6 @@ export const terrainCode = (type: RegionType): number => {
   return index < 0 ? 0 : index + 1;
 };
 
-/** Une cellule de la carte des types : 0,2 u, soit quelque vingt kilomètres. @a-mesurer */
-const TYPES_PER_UNIT = 5.12;
 /** The depth's byte: 1/32 u a step, so 8 u at most, far past where a massif is full. */
 const DEPTH_PER_UNIT = 32;
 /** The depth's byte at the land's turn from drawn to plain: below, the plain's side. */
@@ -250,26 +247,8 @@ function paintAtlas(): DataTexture {
 }
 
 /**
- * One byte a cell: the type's code × `CODE_STEP`. **One mask a type, thresholded**: the canvas
- * antialiases its edges, and a blend of two flat codes decodes as a third type (a mountain edge on
- * a plain read as jungle). Each mask is a coverage in [0, 255]; a cell is the type's only above
- * half. Masks come in the order of `DRAWN`.
- */
-export function codesFromMasks(
-  masks: ReadonlyArray<ArrayLike<number>>,
-  cells: number,
-): Uint8Array<ArrayBuffer> {
-  const codes = new Uint8Array(new ArrayBuffer(cells));
-  masks.forEach((mask, index) => {
-    for (let i = 0; i < cells; i++) if (mask[i]! >= 128) codes[i] = (index + 1) * CODE_STEP;
-  });
-  return codes;
-}
-
-/**
- * **The massifs** (#208): each cell's distance, in cells, to the nearest cell of another code. A
- * type's regions are one block in the codes, so the borders between them are gone: a forest is
- * deepest at its heart, whatever regions it spans. The grid's edge is no shore. Two chamfer passes,
+ * **The massifs** (#208): each cell's distance, in cells, to the nearest cell of another code: a
+ * forest is deepest at its heart. The grid's edge is no shore. Two chamfer passes,
  * a step straight 1 and aslant √2.
  */
 export function depthsFromCodes(
@@ -314,18 +293,6 @@ export function depthsFromCodes(
   return depths;
 }
 
-/** The regions of each drawn type merged (`Atlas.shapes`): a massif is one shape, its edge the
- *  arcs between two types. */
-type Massifs = ReturnType<Atlas['shapes']>;
-
-/** The type map's texels: the code in red, read by texel; the depth in green, read filtered so
- *  that its contours are smooth (`texelsOf`). */
-export type TypesData = {
-  readonly texels: Uint8Array<ArrayBuffer>;
-  readonly width: number;
-  readonly height: number;
-};
-
 /** The type of each cell, baked by `generate-region-types.mjs`: row-major `code, count` runs,
  *  a code being an index of `types`. */
 export type TerrainCells = {
@@ -333,6 +300,14 @@ export type TerrainCells = {
   readonly height: number;
   readonly types: ReadonlyArray<string>;
   readonly runs: ReadonlyArray<number>;
+};
+
+/** The type map's texels: the code in red, read by texel; the depth in green, read filtered so
+ *  that its contours are smooth (`texelsOf`). */
+export type TypesData = {
+  readonly texels: Uint8Array<ArrayBuffer>;
+  readonly width: number;
+  readonly height: number;
 };
 
 export function typesFromCells(
@@ -344,60 +319,6 @@ export function typesFromCells(
   for (let i = 0, at = 0; i < runs.length; at += runs[i + 1]!, i += 2)
     codes.fill(codeOf[runs[i]!]!, at, at + runs[i + 1]!);
   return { texels: texelsOf(codes, width, height, width / frame.width), width, height };
-}
-
-/** A 2D canvas: an `OffscreenCanvas` in the worker, a page's canvas where there is none. */
-export type CanvasOf = (
-  width: number,
-  height: number,
-) => { getContext(id: '2d', options: { willReadFrequently: boolean }): Paint | null };
-type Paint = Pick<
-  CanvasRenderingContext2D,
-  | 'setTransform'
-  | 'fillRect'
-  | 'beginPath'
-  | 'moveTo'
-  | 'lineTo'
-  | 'closePath'
-  | 'fill'
-  | 'getImageData'
-> & { fillStyle: string | CanvasGradient | CanvasPattern };
-
-export function typeTexels(massifs: Massifs, frame: WorldFrame, canvasOf: CanvasOf): TypesData {
-  const width = Math.round(frame.width * TYPES_PER_UNIT);
-  const height = Math.round(frame.height * TYPES_PER_UNIT);
-  const g = canvasOf(width, height).getContext('2d', { willReadFrequently: true })!;
-  const masks = DRAWN.map((type) => {
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = '#000';
-    g.fillRect(0, 0, width, height);
-    g.setTransform(
-      TYPES_PER_UNIT,
-      0,
-      0,
-      TYPES_PER_UNIT,
-      (frame.width / 2 - frame.centerX) * TYPES_PER_UNIT,
-      (frame.height / 2 - frame.centerY) * TYPES_PER_UNIT,
-    );
-    g.fillStyle = '#fff';
-    g.beginPath();
-    for (const { outer, holes } of massifs.get(type) ?? [])
-      for (const ring of [outer, ...holes]) {
-        g.moveTo(ring[0]!, ring[1]!);
-        for (let i = 2; i < ring.length; i += 2) g.lineTo(ring[i]!, ring[i + 1]!);
-        g.closePath();
-      }
-    g.fill('evenodd');
-    const pixels = g.getImageData(0, 0, width, height).data;
-    const mask = new Uint8Array(width * height);
-    for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4]!;
-    return mask;
-  });
-  return {
-    texels: texelsOf(codesFromMasks(masks, width * height), width, height, TYPES_PER_UNIT),
-    width,
-    height,
-  };
 }
 
 /** Under half a code step, a code byte still reads as its code. */
@@ -437,10 +358,6 @@ export function texelsOf(
   }
   return texels;
 }
-
-/** A page's canvas, where the worker had no `OffscreenCanvas`. */
-export const pageCanvas: CanvasOf = (width, height) =>
-  Object.assign(document.createElement('canvas'), { width, height });
 
 function typesTexture({ texels, width, height }: TypesData): DataTexture {
   const texture = new DataTexture(texels, width, height, RGFormat, UnsignedByteType);
@@ -614,11 +531,6 @@ void main() {
   gl_FragColor = vec4(color * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), alpha);
   #include <colorspace_fragment>
 }`;
-
-export const drawnOf = (types: ReadonlyMap<string, RegionType>) => (region: { id: string }) => {
-  const type = types.get(region.id) ?? 'plain';
-  return terrainCode(type) === 0 ? null : type;
-};
 
 export class TerrainDrawings {
   readonly object = new Group();
