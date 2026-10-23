@@ -1,8 +1,7 @@
-import { freeDeposits } from './construction';
-import { siteOfPoint, type Reach } from './economy';
+import { depositReached, freeDeposits } from './construction';
+import type { Reach } from './economy';
 import { bearingDegrees, distanceKm, type LonLat } from './geo';
 import type { DepositKey } from './ids';
-import { ADM0_BY_NATION, isNation } from './nations';
 import type { PlayerView } from './player-view';
 import type { DepositPoint } from './world';
 
@@ -35,13 +34,9 @@ export function sweepCandidates(
   species: DepositKey,
   reaches: ReadonlyArray<Reach>,
 ): SweepCandidate[] {
-  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
   return freeDeposits(view)
     .filter((deposit) => deposit.deposit === species)
-    .map((deposit) => ({
-      deposit,
-      reached: siteOfPoint(deposit.lonLat, deposit.country === home, reaches) !== null,
-    }));
+    .map((deposit) => ({ deposit, reached: depositReached(view, deposit, reaches) }));
 }
 
 /** Un gisement que l'onde nomme : à quelle distance, quel cap, et quand le front l'atteint. */

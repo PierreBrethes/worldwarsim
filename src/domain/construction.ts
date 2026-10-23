@@ -148,6 +148,19 @@ export const reachesOf = (
     }));
 
 /**
+ * **A point the player may build on**: on national soil, or within an outpost's reach — what the
+ * pose refuses as `OUT_OF_REACH`, and what the sweep (#249) says « hors de portée ».
+ */
+export function depositReached(
+  view: Pick<PlayerView, 'me'>,
+  point: Pick<DepositPoint, 'lonLat' | 'country'>,
+  reaches: ReadonlyArray<Reach>,
+): boolean {
+  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
+  return siteOfPoint(point.lonLat, point.country === home, reaches) !== null;
+}
+
+/**
  * **The placement rule, under the pointer** (ADR 0029). The facts are the view's and the map's;
  * the rule is `placementRefusal`, the very one `constructions.start` refuses with, so the ghost can
  * never offer a point the server sends back — save what the fog keeps from the player.
@@ -176,10 +189,9 @@ function verdictAmong(
   if (aim.region === null) return { refusal: { code: 'NO_GROUND' }, free };
   if (aim.coastal === null && (key === 'port' || !aim.onLand))
     return { refusal: { code: 'COAST_PENDING' }, free };
-  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
   const around = aroundOf(view);
   const spot = {
-    reached: siteOfPoint(aim.lonLat, aim.region.country === home, reaches) !== null,
+    reached: depositReached(view, { lonLat: aim.lonLat, country: aim.region.country }, reaches),
     onLand: aim.onLand,
     deposit: deposit === null ? null : { key: deposit.deposit, taken: !open.includes(deposit) },
     coastal: aim.coastal === true,
