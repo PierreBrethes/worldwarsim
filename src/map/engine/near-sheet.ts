@@ -23,14 +23,15 @@ export type NearSheet = {
   readonly arcs: DecodedArcs;
   readonly sheet: SheetData;
   readonly lines: Record<Detail, GeometryData>;
-  /** The terrain's type map. */
-  readonly types: TypesData;
+  /** The terrain's type map; `null` when its cells failed to load: the drawings are decor, the
+   *  near level goes on without them. */
+  readonly types: TypesData | null;
 };
 
 export function buildNearSheet(
   file: AtlasFile,
   near: NearFile,
-  cells: TerrainCells,
+  cells: TerrainCells | null,
   projection: Projection,
 ): NearSheet {
   const arcs = packArcs(decodeArcs(near.arcs, near.transform));
@@ -43,6 +44,6 @@ export function buildNearSheet(
       far: geometryData(regionLines(atlas, 'far', frame)),
       near: geometryData(regionLines(atlas, 'near', frame)),
     },
-    types: typesFromCells(cells, frame),
+    types: cells && typesFromCells(cells, frame),
   };
 }

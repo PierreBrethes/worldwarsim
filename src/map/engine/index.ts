@@ -1144,7 +1144,7 @@ export class MapEngine {
       far: fromGeometryData(sheet.lines.far),
       near: fromGeometryData(sheet.lines.near),
     });
-    this.drawings.display(sheet.types);
+    if (sheet.types !== null) this.drawings.display(sheet.types);
   }
 
   /**

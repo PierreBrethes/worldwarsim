@@ -29,8 +29,8 @@ describe('buildNearSheet', () => {
   // The code the drawings read under a place, as the fragment fetches its texel; a copy, since
   // the hand-over detaches the sheet's buffers.
   const frame = new WorldFrame(projection as unknown as Projection);
-  const { width, height } = sheet.types;
-  const texels = sheet.types.texels.slice();
+  const { width, height, texels: handed } = sheet.types!;
+  const texels = handed.slice();
   const codeAt = (lonLat: LonLat) => {
     const { x, z } = frame.projectLonLat(lonLat);
     const column = Math.floor((x / frame.width + 0.5) * width);
@@ -45,5 +45,20 @@ describe('buildNearSheet', () => {
     expect(codeAt([-103, 39])).toBe(terrainCode('plain'));
     expect(codeAt([-119.3, 37.5])).toBe(terrainCode('mountain'));
     expect(codeAt([-120.5, 37])).toBe(terrainCode('plain'));
+  });
+});
+
+describe('buildNearSheet without the terrain cells', () => {
+  it('still builds the near level: the cells are decor, their absence skips only the drawings', () => {
+    const read = (name: string) => JSON.parse(readFileSync(`public/${name}`, 'utf8'));
+    const sheet = buildNearSheet(
+      read('atlas.json'),
+      read('atlas-near.json'),
+      null,
+      projection as unknown as Projection,
+    );
+    expect(sheet.types).toBeNull();
+    expect(levelOf(sheet.sheet).lands.size).toBe(250);
+    expect(sheet.lines.near.attributes.position!.array.length).toBeGreaterThan(0);
   });
 });

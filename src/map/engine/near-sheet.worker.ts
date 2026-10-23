@@ -17,7 +17,7 @@ async function json<T>(url: string): Promise<T> {
 Promise.all([
   json<AtlasFile>('/atlas.json'),
   json<NearFile>('/atlas-near.json'),
-  json<TerrainCells>('/terrain-cells.json'),
+  json<TerrainCells>('/terrain-cells.json').catch(() => null),
 ])
   .then(([file, near, cells]) => {
     const sheet = buildNearSheet(file, near, cells, projection as unknown as Projection);
