@@ -65,7 +65,8 @@ section « Voir une partie Mondiale en local ».
 2. `grep CONVEX_SELF_HOSTED_URL .env.local` doit viser `127.0.0.1`, puis `npx convex deploy`.
    Pierre a autorisé ce déploiement local. Si le contrôle des permissions le refuse quand même,
    n'essaie pas une autre commande qui ferait la même chose (`convex dev --once`, script) :
-   capture ce qui est déjà déployé, et dis dans ton rapport que le déploiement manque.
+   capture ce qui est déjà déployé, et dis dans ton rapport que le déploiement manque :
+   l'orchestrateur déploie et te renvoie capturer.
 3. `npm run demo:mondiale`. Si le lot a besoin d'une scène, ajoute-la en option à
    `scripts/demo-mondiale.mjs`.
 4. `PLAYWRIGHT_DIR=<dossier hors du dépôt> npm run capture -- '<route>' <sortie.png> …`, en
