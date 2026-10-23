@@ -13,7 +13,7 @@
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { atlas, DETAIL, HEIGHT, naturalEarth, pairs, WIDTH } from './atlas-base.mjs';
+import { atlas, DETAIL, HEIGHT, naturalEarth, pairs, runsOf, WIDTH } from './atlas-base.mjs';
 import {
   CELL_TYPES,
   classifyCells,
@@ -88,13 +88,7 @@ const cells = {
   perUnit: CELLS_PER_UNIT,
 };
 const codes = classifyCells(rasters, cells);
-const runs = [];
-for (let i = 0; i < codes.length;) {
-  let end = i + 1;
-  while (end < codes.length && codes[end] === codes[i]) end += 1;
-  runs.push(codes[i], end - i);
-  i = end;
-}
+const runs = runsOf(codes);
 writeFileSync(
   'public/terrain-cells.json',
   JSON.stringify({ width: cells.width, height: cells.height, types: CELL_TYPES, runs }),

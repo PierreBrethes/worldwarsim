@@ -13,6 +13,7 @@ import {
   Vector2,
 } from 'three';
 import type { RegionType } from '@/domain/ids';
+import { fill } from '@/domain/region-raster';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 import { TRAME_SCALE } from './regions';
@@ -315,9 +316,7 @@ export function typesFromCells(
   frame: WorldFrame,
 ): TypesData {
   const codeOf = types.map((type) => terrainCode(type as RegionType) * CODE_STEP);
-  const codes = new Uint8Array(width * height);
-  for (let i = 0, at = 0; i < runs.length; at += runs[i + 1]!, i += 2)
-    codes.fill(codeOf[runs[i]!]!, at, at + runs[i + 1]!);
+  const codes = Uint8Array.from(fill(runs, width * height), (index) => codeOf[index]!);
   return { texels: texelsOf(codes, width, height, width / frame.width), width, height };
 }
 
