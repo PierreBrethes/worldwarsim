@@ -14,7 +14,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { Atlas, Detail } from '@/domain/atlas';
 import { PALETTE } from './palette';
 import { COUNTRY_THICKNESS, LAND_STENCIL, RECESSION, type WorldFrame } from './frame';
-import { screenTrame } from './regions';
+import { TRAME_SCALE } from './regions';
 import {
   fillGeometry,
   fromGeometryData,
@@ -25,6 +25,7 @@ import {
   segmentDistances,
 } from './atlas-geometry';
 import { buildCoastalWash, washGeometry } from './coastal-wash';
+import { inkDownAtNight, type NightUniforms } from './night-here';
 
 /** A country's sheet, by its Natural Earth `adm0_a3`: what a selection, a target, a label
  *  designate it with. */
@@ -41,19 +42,56 @@ const BORDER_LIFT = 0.004;
 
 /**
  * **Le grain du papier** (#240), celui de la feuille des maquettes (`drawGrainAndNight`) : un
- * bruit fin, pixel par pixel d'écran, plus clair ou plus sombre au hasard de 0 à 6 % de la couleur éclairée
- * (multiplicatif : de nuit, sur un sol sombre, il reste sous le trait d'une région, comme dans la maquette où il passe avant le voile de nuit). Sans trait
- * oblique : depuis l'ADR 0033 le sol n'est plus distingué par sa trame, c'est le contour qui
- * sépare une région connue d'une région vierge (les hachures qui ont un sens restent, `hatch`).
- * Le hasard ne dépend que du pixel : rien ne bouge avec la caméra, rien ne moire au zoom.
- * @a-mesurer
+ * bruit fin, plus clair ou plus sombre au hasard de 0 à 6 % de la couleur éclairée
+ * (multiplicatif : de nuit, sur un sol sombre, il reste sous le trait d'une région, comme dans la
+ * maquette où il passe avant le voile de nuit). Sans trait oblique : depuis l'ADR 0033 le sol
+ * n'est plus distingué par sa trame, c'est le contour qui sépare une région connue d'une région
+ * vierge (les hachures qui ont un sens restent à l'écran, `hatch`).
+ *
+ * **Collé à la carte** (#248) : fixe à l'écran, il faisait glisser la carte sous une vitre sale.
+ * Le hasard se tire donc par case du plateau, et la case garde une taille d'écran à peu près
+ * constante : deux échelles d'un facteur 2, de 0,7 à 2,8 pixels CSS (`GRAIN_PX`) : une case
+ * plus fine se remélange à chaque glissé de moins d'un pixel, une plus grosse se voit en pavés.
+ * Elles se fondent selon les pixels que couvre le fragment (`dFdx` : la pente et le pincement
+ * sans uniforme ni image de plus). Le hasard d'une échelle ne dépend que de son rang absolu :
+ * quand l'une passe le relais à la suivante, rien ne saute. Les cases bouclent tous les 1024 de
+ * chaque côté, invisible, pour garder le hachage précis en virgule flottante. @a-mesurer
  */
 const GRAIN_OPACITY = 0.06;
-const PAPER_GRAIN = `
-  vec2 speck = floor(trame);
-  float tone = step(0.5, fract(sin(dot(speck, vec2(12.9898, 78.233))) * 43758.5453));
-  float weight = fract(sin(dot(speck, vec2(63.7264, 10.873))) * 24634.6345);
-  gl_FragColor.rgb *= 1.0 + (tone * 2.0 - 1.0) * ${GRAIN_OPACITY.toFixed(3)} * weight;`;
+const GRAIN_PX = 0.7;
+const GRAIN_HEAD = `
+varying vec2 vGrain;
+float grainAt(float scale) {
+  vec2 cell = mod(floor(vGrain / exp2(scale)), 1024.0) + scale * vec2(17.0, 31.0);
+  vec3 p3 = fract(cell.xyx * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z) * 2.0 - 1.0;
+}
+uniform float trameScale;
+void main() {`;
+const GRAIN_BODY = `
+  float span = max(length(dFdx(vGrain)), length(dFdy(vGrain))) * trameScale * ${GRAIN_PX.toFixed(1)};
+  float scale = floor(log2(span)) + 1.0;
+  float share = fract(log2(span));
+  float speck = mix(grainAt(scale), grainAt(scale + 1.0), share) / length(vec2(1.0 - share, share));
+  gl_FragColor.rgb *= 1.0 + speck * ${GRAIN_OPACITY.toFixed(3)};`;
+
+function paperGrain(material: MeshStandardMaterial): MeshStandardMaterial {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.trameScale = TRAME_SCALE;
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'varying vec2 vGrain;\nvoid main() {')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvGrain = (modelMatrix * vec4(transformed, 1.0)).xz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', GRAIN_HEAD)
+      .replace('#include <dithering_fragment>', `#include <dithering_fragment>${GRAIN_BODY}`);
+  };
+  material.customProgramCacheKey = () => 'paper-grain';
+  return material;
+}
 
 /** La côte sépare la terre de la mer (ADR 0034), hors de la coupe de l'antiméridien. */
 export function coastLines(
@@ -76,11 +114,12 @@ export const coastWidthPx = (unitsPerPixel: number): number =>
   Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
 
 const COAST_OPACITY = 0.92;
-/** The country border's ink far out (`REST`) and up close (`MAX`), as the mockups' sheet draws
- *  it (`gisements/commun/table.js`): dotted, over a region's solid 0.2 (`regions.ts`), and under
- *  the coast's 0.92. Always darker than a region's, at any distance (#236). @a-mesurer */
-export const COUNTRY_BORDER_REST = 0.3;
-export const COUNTRY_BORDER_MAX = 0.42;
+/** The country border's sepia (`PALETTE.frontier`) far out (`REST`) and up close (`MAX`), dotted
+ *  as the mockups' sheet draws it (`gisements/commun/table.js`), over a region's solid stroke
+ *  (`regions.ts`) and under the coast's near-black. Always darker than a region's, at any
+ *  distance (#236); clearly lighter than the coast's ink it used to share (#248). @a-mesurer */
+export const COUNTRY_BORDER_REST = 0.45;
+export const COUNTRY_BORDER_MAX = 0.6;
 /** The dots: 3 px inked for 2.5 px blank, the mockups' `setLineDash([3, 2.5])`, in screen pixels so
  *  the rhythm holds at any zoom. @a-mesurer */
 export const COUNTRY_DASH_PX = 3;
@@ -167,13 +206,13 @@ export type CountrySheet = {
   readonly wash: Mesh<BufferGeometry, MeshBasicMaterial>;
 };
 
-export function buildCountries(level: SheetLevel): CountrySheet {
+export function buildCountries(level: SheetLevel, night: NightUniforms): CountrySheet {
   /**
    * **Une feuille, pas une dalle** (table d'état-major, 13/10/2026) : le pays est un aplat posé
    * sur la mer, sans paroi ni épaisseur — la côte est un trait d'encre, pas une falaise.
    */
   const meshes = [...level.lands].map(([adm0, geometry]) => {
-    const material = screenTrame(
+    const material = paperGrain(
       new MeshStandardMaterial({
         color: PALETTE.neutralLand,
         roughness: 0.97,
@@ -185,7 +224,6 @@ export function buildCountries(level: SheetLevel): CountrySheet {
         stencilRef: LAND_STENCIL,
         stencilZPass: ReplaceStencilOp,
       }),
-      PAPER_GRAIN,
     );
     const mesh = new Mesh(geometry, material) as CountryMesh;
     mesh.userData = { adm0 };
@@ -193,11 +231,14 @@ export function buildCountries(level: SheetLevel): CountrySheet {
   });
   const borders = new LineSegments(
     level.ink,
-    new LineDashedMaterial({
-      color: PALETTE.border,
-      transparent: true,
-      opacity: COUNTRY_BORDER_REST,
-    }),
+    inkDownAtNight(
+      new LineDashedMaterial({
+        color: PALETTE.frontier,
+        transparent: true,
+        opacity: COUNTRY_BORDER_REST,
+      }),
+      night,
+    ),
   );
   const coast = new LineSegments2(
     level.coast,

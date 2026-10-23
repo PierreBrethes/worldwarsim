@@ -15,7 +15,7 @@ import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import { fillGeometry, lineGeometry } from './atlas-geometry';
 import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
-import type { NightUniforms } from './night-here';
+import { inkDownAtNight, type NightUniforms } from './night-here';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 
 type Sheet = Pick<WorldFrame, 'centerX' | 'centerY'>;
@@ -25,10 +25,10 @@ export const REGIONS_GONE_DISTANCE = 65;
 /**
  * Well under the country borders' opacity, and solid where they are dotted (`countries.ts`), as
  * on the mockups' sheet (`gisements/commun/table.js`): the hierarchy between country and region
- * goes through the ink and the dash, WebGL drawing both one pixel wide. Pierre wanted them a
- * sepia grey (#230, #236), and "the borders look good" before the mockup. @a-mesurer
+ * goes through the opacity and the dash, WebGL drawing both one pixel wide, in the same sepia ink
+ * (`PALETTE.frontier`, #248). Pierre wanted them a sepia grey (#230, #236). @a-mesurer
  */
-export const REGION_BORDER_OPACITY = 0.2;
+export const REGION_BORDER_OPACITY = 0.25;
 
 /** Below this share of the fade, the layer is not on screen — so it is not aimable either. */
 const VISIBLE_SHARE = 0.01;
@@ -83,19 +83,20 @@ const HATCH_WIDTH = 3.4;
 const HATCH_EDGE = 0.9;
 
 /**
- * Le même procédé pour toutes les trames du sol : `trame` est la position du fragment en pixels
- * CSS, et le corps ne fait que moduler la couleur déjà éclairée. La clef de programme porte le
- * corps — sans elle, three.js reconnaît deux trames au même `onBeforeCompile` et leur sert le
- * premier programme compilé.
- */
-/**
  * **Les pixels du tampon par pixel CSS, tels que la carte les rend** (#189) : au doigt 1,5, et non
  * le `devicePixelRatio` de l'écran, sans quoi les trames se resserrent au téléphone. Un seul
- * uniforme, partagé par toutes les trames ; le moteur le règle avec son pixel ratio.
+ * uniforme, partagé par la hachure, le voile (`veil.ts`), les dessins de terrain et le grain du
+ * papier (`countries.ts`) ; le moteur le règle avec son pixel ratio.
  */
 export const TRAME_SCALE = { value: 1 };
 
-export function screenTrame<M extends MeshStandardMaterial>(material: M, body: string): M {
+/**
+ * Une trame à l'écran : `trame` est la position du fragment en pixels CSS, et le corps ne fait que
+ * moduler la couleur déjà éclairée. Le grain du papier n'en est plus une : il colle à la carte
+ * (#248, `countries.ts`). La clef de programme porte le corps — sans elle, three.js reconnaît deux
+ * trames au même `onBeforeCompile` et leur sert le premier programme compilé.
+ */
+function screenTrame<M extends MeshStandardMaterial>(material: M, body: string): M {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.trameScale = TRAME_SCALE;
     shader.fragmentShader = shader.fragmentShader
@@ -179,11 +180,14 @@ export class RegionLayer {
     private atlas: Atlas,
   ) {
     this.contours = new ContourLayer(frame, touch, night);
-    this.lineMaterial = new LineBasicMaterial({
-      color: PALETTE.border,
-      transparent: true,
-      opacity: 0,
-    });
+    this.lineMaterial = inkDownAtNight(
+      new LineBasicMaterial({
+        color: PALETTE.frontier,
+        transparent: true,
+        opacity: 0,
+      }),
+      night,
+    );
     this.lines = new LineSegments(new BufferGeometry(), this.lineMaterial);
     this.lines.visible = false;
 

@@ -17,6 +17,9 @@ export const PALETTE = {
   seaSheet: '#cfe6ec',
   neutralLand: '#d5c5a0',
   border: '#2a2118',
+  /** The ink of the country and region borders alone: a sepia grey, so a dotted border reads as
+   *  pencil and not as the coast's near-black at low opacity (#248). Engine-only. @a-mesurer */
+  frontier: '#6e5c46',
   plinthTop: '#c7b48e',
   plinthBottom: '#5f5039',
   worldRim: '#6b4a24',
