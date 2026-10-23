@@ -44,6 +44,10 @@
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
  * avant-poste à Namur, et à l'adversaire une mine relevée sur la Sarre : une mine à poser, au
  * cadrage de la maquette des gisements.
+ * `--echelle` (#265) pose pour la France l'aérodrome et le port de `--largage` et `--navire`, la
+ * caserne de `--niveaux`, puis y fait entrer trois fantassins et deux chars : une garnison à
+ * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
+ * ne part d'un point sans piste.
  *
  *     npm run demo:mondiale
  *
@@ -70,7 +74,7 @@ const tours = process.argv.includes('--tournee');
 /** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
 const held = process.argv.includes('--sans-depart');
 const rangoon = process.argv.includes('--rangoun');
-const airdrops = process.argv.includes('--largage');
+const airdrops = process.argv.includes('--largage') || process.argv.includes('--echelle');
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
 const research = idleCenter || process.argv.includes('--recherche');
@@ -81,9 +85,9 @@ const editions = process.argv.includes('--edition');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
 /** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 (ADR 0031). */
-const levels = process.argv.includes('--niveaux');
+const levels = process.argv.includes('--niveaux') || process.argv.includes('--echelle');
 const works = levels || process.argv.includes('--chantiers');
-const navy = process.argv.includes('--navire');
+const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
 const logistics = tours || process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
@@ -102,6 +106,8 @@ const threads = process.argv.includes('--trajets');
 const passengers = process.argv.includes('--passagers');
 /** `--gisements` : une mine à poser, le Hainaut prenable, la Sarre prise, la Ruhr hors de portée (#239). */
 const depositsAt = process.argv.includes('--gisements');
+/** `--echelle` : une garnison entière, caserne, aérodrome et port, pour l'échelle commune (#265). */
+const scale = process.argv.includes('--echelle');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -483,6 +489,33 @@ if (!bare) {
         point: to,
       });
     }
+  }
+  /** Les fantassins et les chars entrent dans la caserne (#265). */
+  if (scale && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const barracks = me.buildings.find((building) => building.key === 'barracks');
+    const from = { lon: 2.0, lat: 48.6 };
+    for (const [role, count] of [
+      ['infantry', 3],
+      ['armor', 2],
+    ]) {
+      const start = { lon: from.lon + count / 10, lat: from.lat };
+      const spawned = JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId: scene.a, role, count, ...start }),
+        ]).match(/\[[^\]]*\]/)[0],
+      );
+      await client.mutation(api.movements.enterGarrison, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'point', point: start },
+        troopIds: spawned,
+        buildingId: barracks.id,
+      });
+    }
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
   }
   if (depositsAt && scene.a !== null && scene.b !== null)
     cli(['run', 'dev:depositsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
