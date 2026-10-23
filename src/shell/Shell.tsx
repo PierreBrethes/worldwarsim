@@ -9,7 +9,12 @@ import { SurfaceKey } from './SurfaceKey';
 import { Reglette } from './Reglette';
 import { SoleSurfaceProvider } from './sole-surface';
 import { SurfaceColumn } from './SurfaceColumn';
-import { BoardInsetsContext, useNarrowScreen, type BoardInsets } from './viewport';
+import {
+  BoardInsetsContext,
+  ColumnCardContext,
+  useNarrowScreen,
+  type BoardInsets,
+} from './viewport';
 
 export function Shell({
   view,
@@ -42,7 +47,8 @@ export function Shell({
   const top = useRef<HTMLElement>(null);
   const side = useRef<HTMLElement>(null);
   const [bar, setBar] = useState<HTMLElement | null>(null);
-  const insets = usePublishedEdges(board, top, side, bar, narrow);
+  const [card, setCard] = useState<HTMLElement | null>(null);
+  const insets = usePublishedEdges(board, top, side, bar, narrow, card);
   /** **Les registres épinglés**, du plus ancien au plus récent (#121) : un clic sur une réserve du
    *  bandeau en pose ou en décroche le ticket ; au-delà de trois, le plus ancien part. */
   const [pinned, setPinned] = useState<ReadonlyArray<ResourceKey>>([]);
@@ -100,7 +106,9 @@ export function Shell({
             {children}
             <Reglette view={view} telegraphUnread={telegraphUnread} sweep={sweep} ref={top} />
             {tickets}
-            <SurfaceColumn todo={todo} ref={side} />
+            <ColumnCardContext.Provider value={setCard}>
+              <SurfaceColumn todo={todo} ref={side} />
+            </ColumnCardContext.Provider>
           </PinContext.Provider>
         </main>
       </div>
@@ -118,12 +126,13 @@ export function Shell({
  * Mesurés et non calculés, parce que l'échelle d'interface, l'encoche et la barre d'accueil s'y
  * ajoutent chacune de son côté.
  */
-function usePublishedEdges(
+export function usePublishedEdges(
   board: RefObject<HTMLElement | null>,
   top: RefObject<HTMLElement | null>,
   side: RefObject<HTMLElement | null>,
   foot: HTMLElement | null,
   narrow: boolean,
+  card: HTMLElement | null = null,
 ): BoardInsets {
   const [insets, setInsets] = useState<BoardInsets>({ top: 0, right: 0, bottom: 0, left: 0 });
   useEffect(() => {
@@ -139,14 +148,18 @@ function usePublishedEdges(
       );
       root.setProperty('--board-left', `${Math.round(column?.right ?? 0)}px`);
       const corner = foot?.getBoundingClientRect();
-      const left = Math.round(
+      // The unfolded « à faire » card stands out of the column's box (absolute, to its right):
+      // it covers the board as much as the column does (#256).
+      const covered = Math.max(column?.right ?? 0, card?.getBoundingClientRect().right ?? 0);
+      const left = Math.round(column === undefined || map === undefined ? 0 : covered - map.left);
+      const width = Math.round(
         column === undefined || map === undefined ? 0 : column.right - map.left,
       );
       // The map's buttons stand in the right corner with the column's square and margin: the
       // same width, measured once.
       const next = {
         top: Math.round(band === undefined || map === undefined ? 0 : band.bottom - map.top),
-        right: left,
+        right: width,
         bottom: Math.round(corner === undefined || map === undefined ? 0 : map.bottom - corner.top),
         left,
       };
@@ -163,6 +176,7 @@ function usePublishedEdges(
     const observer = new ResizeObserver(publish);
     for (const ref of [board, top, side]) if (ref.current) observer.observe(ref.current);
     if (foot) observer.observe(foot);
+    if (card) observer.observe(card);
     window.addEventListener('resize', publish);
     return () => {
       observer.disconnect();
@@ -171,6 +185,6 @@ function usePublishedEdges(
       root.removeProperty('--board-bottom');
       root.removeProperty('--board-left');
     };
-  }, [board, top, side, foot, narrow]);
+  }, [board, top, side, foot, narrow, card]);
   return insets;
 }
