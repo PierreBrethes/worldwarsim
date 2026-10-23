@@ -8,7 +8,8 @@ import {
   Raycaster,
   Vector3,
 } from 'three';
-import { drawnHit, nearer } from './piece-pick';
+import { drawnHit, leastHit, nearer } from './piece-pick';
+import { pieceScale } from './piece-scale';
 
 const down = (x: number) => new Raycaster(new Vector3(x, 10, 0), new Vector3(0, -1, 0));
 
@@ -46,5 +47,15 @@ describe('nearer', () => {
     expect(nearer({ id: 'a', distance: 3 }, { id: 'b', distance: 2 })?.id).toBe('b');
     expect(nearer(null, { id: 'b', distance: 2 })?.id).toBe('b');
     expect(nearer({ id: 'a', distance: 3 }, null)?.id).toBe('a');
+  });
+});
+
+/** A piece small on screen is taken within half the least target of its foot (ADR 0035 §4). */
+describe('leastHit', () => {
+  it('takes a pointer some ten pixels off a small piece, not thirty', () => {
+    pieceScale.pxPerUnit = 1000;
+    // Ten units away, a pixel is a hundredth of a unit.
+    expect(leastHit(down(0.1), new Vector3(0, 0, 0))).toBeCloseTo(10, 1);
+    expect(leastHit(down(0.3), new Vector3(0, 0, 0))).toBeNull();
   });
 });

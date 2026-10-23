@@ -43,7 +43,14 @@ import { playTableSound } from '../table-sound';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
-import { boxOfObject, drawnHit, footedHit, nearer, type PieceHit } from './piece-pick';
+import {
+  boxOfObject,
+  drawnHit,
+  footedHit,
+  LEAST_TARGET_PX,
+  nearer,
+  type PieceHit,
+} from './piece-pick';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -177,10 +184,6 @@ function footprint({ x, z }: Slot, grip: Grip): Mesh {
   target.userData.grip = grip;
   return target;
 }
-
-/** **The least width a footprint takes on screen**, in CSS pixels (ADR 0035 §4): a small piece
- *  stays easy to take. `@a-mesurer` */
-const LEAST_TARGET_PX = 28;
 
 /** **How much a pile's footprints grow** so as to take at least `LEAST_TARGET_PX` on screen, the
  *  pile drawn at `scale`, `distance` from the eye: never below 1. */

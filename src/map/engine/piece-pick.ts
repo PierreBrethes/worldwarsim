@@ -1,5 +1,6 @@
 import { Box3, type Camera, type Mesh, type Object3D, type Raycaster, Vector3 } from 'three';
 import type { Rect } from '@/domain/poster-placement';
+import { pieceScale } from './piece-scale';
 
 /** A piece the pointer is over: the label it answers to, and how far from the eye. */
 export type PieceHit = { readonly id: string; readonly distance: number };
@@ -34,6 +35,18 @@ export const footedHit = (
   footprints: ReadonlyArray<Object3D>,
 ): number | null =>
   drawnHit(ray, object) ?? ray.intersectObjects([...footprints], false)[0]?.distance ?? null;
+
+/** **The least width a piece takes on screen**, in CSS pixels (ADR 0035 §4): a small piece stays
+ *  easy to take. `@a-mesurer` */
+export const LEAST_TARGET_PX = 28;
+
+/** **A piece small on screen is taken within half `LEAST_TARGET_PX` of its foot**: how far along
+ *  `ray` that foot is, `null` when the ray passes further off. */
+export function leastHit(ray: Raycaster, at: Vector3): number | null {
+  const away = ray.ray.origin.distanceTo(at);
+  const reach = ((LEAST_TARGET_PX / 2) * away) / pieceScale.pxPerUnit;
+  return ray.ray.distanceToPoint(at) <= reach ? away : null;
+}
 
 export const nearer = (first: PieceHit | null, second: PieceHit | null): PieceHit | null =>
   first === null || (second !== null && second.distance < first.distance) ? second : first;

@@ -18,7 +18,7 @@ import { surveyInk } from '@/domain/survey-ink';
 import { ANONYMOUS_SPAN, FIGURINE_SCALE, pieceWeight, type Figurine } from './figurines/figurine';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
 import { pieceScale } from './piece-scale';
-import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
 import { SILHOUETTES } from './silhouettes';
 import { InkRing, type RingState } from './ink-ring';
 import type { MapMotion } from '@/domain/map-motion';
@@ -259,7 +259,7 @@ export class CampLayer {
     let best: PieceHit | null = null;
     for (const [id, { object, piece }] of this.placed) {
       if (!object.visible) continue;
-      const distance = drawnHit(ray, piece);
+      const distance = drawnHit(ray, piece) ?? leastHit(ray, object.position);
       if (distance !== null) best = nearer(best, { id, distance });
     }
     return best;

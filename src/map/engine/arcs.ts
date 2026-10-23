@@ -35,7 +35,7 @@ import { HEARTBEAT_MS } from './frame-demand';
 import { pieceScale } from './piece-scale';
 import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
-import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
 
 type RenderedArc = {
   readonly key: string;
@@ -333,7 +333,8 @@ export class ArcLayer {
   pawnUnder(ray: Raycaster): PieceHit | null {
     let best: PieceHit | null = null;
     for (const { arc, pawn } of this.rendered) {
-      const distance = drawnHit(ray, pawn.object);
+      const distance =
+        drawnHit(ray, pawn.object) ?? (pawn.standing ? leastHit(ray, pawn.object.position) : null);
       if (distance !== null) best = nearer(best, { id: arc.id, distance });
     }
     return best;

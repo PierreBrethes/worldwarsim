@@ -133,6 +133,12 @@ export class Pawn {
     this.object.visible = value;
   }
 
+  /** Its figurine or silhouette stands on the board, not yet given way to its pin. */
+  get standing(): boolean {
+    const worn = this.figurines.get(this.medium)?.object ?? this.costumes.get(this.medium);
+    return this.object.visible && worn?.visible === true;
+  }
+
   /** The span it gives way to its pin by: its worn figurine's, a tank's for a silhouette. */
   get span(): number {
     return this.figurines.get(this.medium)?.span ?? ANONYMOUS_SPAN;
