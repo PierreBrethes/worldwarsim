@@ -50,14 +50,15 @@ const BORDER_LIFT = 0.004;
  *
  * **Collé à la carte** (#248) : fixe à l'écran, il faisait glisser la carte sous une vitre sale.
  * Le hasard se tire donc par case du plateau, et la case garde une taille d'écran à peu près
- * constante : deux échelles d'un facteur 2, d'un demi-pixel CSS à deux (`GRAIN_PX`), se fondent
- * selon les pixels que couvre le fragment (`dFdx` : la pente et le pincement sans uniforme ni
- * image de plus). Le hasard d'une échelle ne dépend que de son rang absolu : quand l'une passe le relais à
- * la suivante, rien ne saute. Les cases bouclent tous les 1024 de chaque côté, invisible, pour
- * garder le hachage précis en virgule flottante. @a-mesurer
+ * constante : deux échelles d'un facteur 2, de 0,7 à 2,8 pixels CSS (`GRAIN_PX`) : une case
+ * plus fine se remélange à chaque glissé de moins d'un pixel, une plus grosse se voit en pavés.
+ * Elles se fondent selon les pixels que couvre le fragment (`dFdx` : la pente et le pincement
+ * sans uniforme ni image de plus). Le hasard d'une échelle ne dépend que de son rang absolu :
+ * quand l'une passe le relais à la suivante, rien ne saute. Les cases bouclent tous les 1024 de
+ * chaque côté, invisible, pour garder le hachage précis en virgule flottante. @a-mesurer
  */
 const GRAIN_OPACITY = 0.06;
-const GRAIN_PX = 0.5;
+const GRAIN_PX = 0.7;
 const GRAIN_HEAD = `
 varying vec2 vGrain;
 float grainAt(float scale) {
