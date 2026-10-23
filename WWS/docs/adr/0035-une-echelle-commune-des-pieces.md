@@ -3,7 +3,7 @@
 **Statut :** acceptée (23/10/2026). Pierre a choisi la variante D, tranché ses suites (Q2 à Q7),
 puis la figurine plancher (Q1, §10) et la plage du curseur (Q3, §6). **Précise l'ADR 0026** (la
 carte en figurines) sur la taille des pièces. Précisée le 23/10 sur le storyboard de la caserne :
-l'homme ×1,5 et le R35 à 4 m (§2).
+l'homme ×1,5 (§2), et chaque char à la longueur de son modèle (§1).
 
 ## Contexte
 
@@ -19,18 +19,20 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
 ## Décision
 
 1. **Une taille réelle, une seule exagération.** Chaque pièce, troupe ou bâtiment, est posée à sa
-   taille réelle (fantassin 1,75 m, char 6 m — le R35 du premier rang 4 m —, chasseur 11 m d'envergure, cargo 130 m, caserne
-   50 m, hangar 60 m…) multipliée par **E = 1 600**. Une caserne fait alors la largeur d'un
-   département (80 km), un char 9,6 km. Ce qui sort d'un bâtiment garde sa taille en sortant.
+   taille réelle (fantassin 1,75 m, char 6 m — chaque modèle à sa longueur, du L3/35 de 3,2 m au
+   T-34 de 6,7 m —, chasseur 11 m d'envergure, cargo 130 m, caserne 50 m, hangar 60 m…)
+   multipliée par **E = 1 600**. Une caserne fait alors la largeur d'un département (80 km), un
+   char 9,6 km. Ce qui sort d'un bâtiment garde sa taille en sortant.
 2. **Deux écarts déclarés.** L'homme est agrandi ×1,5 (2,6 m), à hauteur du char : il passe sous
-   la porte de sa caserne, régénérée à 3,4 m ; la figurine plancher (§10) le garde lisible. La mer est à demi-échelle : ports et navires
-   restent liés entre eux, mais un port fait 168 km et un cargo 104 km au lieu de 340 et 210.
+   la porte de sa caserne, à régénérer à 3,4 m (#268) ; la figurine plancher (§10) le garde
+   lisible. La mer est à demi-échelle : ports et navires restent liés entre eux, mais un port fait
+   168 km et un cargo 104 km au lieu de 340 et 210.
 3. **Deux distances d'épingle.** Une pièce devient épingle selon sa taille à l'écran, non plus à
-   une distance commune : les troupes vers d ≈ 3 à 7 (tenues jusqu'à d ≈ 30 par le plancher, §10), les bâtiments vers d ≈ 56 à 68. Le fondu des
-   régions et des ombres garde ses propres seuils. Mesuré dans le code (`pieceWeight`, 20 px lus
-   sur une fenêtre de 900 px de haut, quelle que soit la fenêtre) : de l'homme à d ≈ 3,1, le R35
-   à 4,7, le char à 7,0, le chasseur à 12,7, la caserne à 58 et le hangar à 70, jusqu'au port à 122 et au
-   porte-avions à 145.
+   une distance commune : les troupes vers d ≈ 3 à 7 (tenues jusqu'à d ≈ 30 par le plancher,
+   §10), les bâtiments vers d ≈ 56 à 68. Le fondu des régions et des ombres garde ses propres
+   seuils. Mesuré dans le code (`pieceWeight`, 20 px lus sur une fenêtre de 900 px de haut,
+   quelle que soit la fenêtre) : de l'homme à d ≈ 3,0, le R35 à 4,7, le char à 7,0, le chasseur à
+   12,7, la caserne à 58 et le hangar à 70, jusqu'au port à 122 et au porte-avions à 145.
 4. **Le clic ne suit pas la taille dessinée.** La zone qu'on vise garde une taille minimale à
    l'écran ; une figurine petite reste facile à prendre.
 5. **Les bâtiments gardent leur disposition** en anneau autour d'un site, agrandie dans la même
