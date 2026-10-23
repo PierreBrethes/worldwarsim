@@ -17,13 +17,14 @@ describe('parsePercent', () => {
 });
 
 describe('parsePieceScale', () => {
-  it('reads one slider for troops and buildings alike (ADR 0035 §6)', () => {
-    expect(parsePieceScale({ troops: 110, buildings: 90 })).toEqual({
-      troops: 110,
-      buildings: 110,
-    });
+  it('reads the one percentage kept (ADR 0035 §6)', () => {
+    expect(parsePieceScale(110)).toBe(110);
+  });
+  it("reads a former pair by its troops' slider", () => {
+    expect(parsePieceScale({ troops: 110, buildings: 90 })).toBe(110);
   });
   it('defaults when nothing is kept', () => {
-    expect(parsePieceScale(null)).toEqual(DEFAULT_PIECE_SCALE);
+    expect(parsePieceScale(null)).toBe(DEFAULT_PIECE_SCALE);
+    expect(DEFAULT_PIECE_SCALE).toBe(100);
   });
 });

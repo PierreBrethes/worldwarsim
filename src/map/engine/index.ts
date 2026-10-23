@@ -71,7 +71,6 @@ import {
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
 import { buildingSpan } from '@/domain/piece-size';
-import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
@@ -2489,9 +2488,9 @@ export class MapEngine {
   }
 
   /** The one percentage from the settings (ADR 0035 §6); the pieces re-measure on the next frame. */
-  setPieceScale(scale: PieceScale): void {
+  setPieceScale(percent: number): void {
     this.invalidate();
-    pieceScale.size = scale.troops / 100;
+    pieceScale.size = percent / 100;
     this.maquettes.resize();
     this.pins.rebuild();
   }

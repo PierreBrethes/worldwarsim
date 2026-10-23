@@ -27,7 +27,6 @@ import {
   MIN_PIECE_SCALE,
   PIECE_SCALE_STEP,
   parsePercent,
-  pieceScaleOf,
 } from '@/domain/piece-scale';
 import { MAP_MOTION_SETTINGS } from '@/domain/map-motion';
 import { setMouseMapping, useMouseMapping } from '@/data/mouseMapping';
@@ -309,12 +308,12 @@ export function SettingsWindow({
                 min={MIN_PIECE_SCALE}
                 max={MAX_PIECE_SCALE}
                 step={PIECE_SCALE_STEP}
-                value={pieces.troops}
-                onChange={(event) => setPieceScale(pieceScaleOf(parsePercent(event.target.value)))}
+                value={pieces}
+                onChange={(event) => setPieceScale(parsePercent(event.target.value))}
                 className="min-w-0 flex-1 cursor-pointer accent-[var(--ink)]"
               />
               <span className="w-[44px] text-right tabular-nums text-[var(--ink-soft)]">
-                {fr.settingsWindow.pieceScalePercent(pieces.troops)}
+                {fr.settingsWindow.pieceScalePercent(pieces)}
               </span>
             </label>
           </div>
