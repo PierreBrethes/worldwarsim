@@ -2865,8 +2865,13 @@ export const fr = {
     /** **Singapour** : le plein des camions et des cargos de la colonne, réduit de 20 %. */
     easedBySingapore: (from: number, to: number) =>
       `Singapour −${SINGAPORE_FUEL_DISCOUNT_PCT} % : ${to} cran${plural(to, '', 's')} au lieu de ${from}`,
-    route: (steps: number, roundTrip = false) =>
-      `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} coûte ${steps} cran${plural(steps, '', 's')}`,
+    /** **La jauge sous la main** (#250) : ce que la route mange du plus petit plein. */
+    gauge: (held: number, eaten: number, roundTrip: boolean) =>
+      `plein : ${roundTrip ? 'l’aller-retour' : 'la route'} mange ${eaten} cran${plural(eaten, '', 's')} sur ${held}`,
+    roundTrip: 'aller-retour',
+    /** Un plein ne descend pas sous zéro : ce qui manque se dit à part. */
+    lacking: (steps: number) => `manque ${steps}`,
+    spared: (steps: number) => `Singapour épargne ${steps} cran${plural(steps, '', 's')}`,
   },
   /** **La logistique** (ADR 0028 §4) : dépôts, charge des transports, livraisons, tournées. */
   logistics: {

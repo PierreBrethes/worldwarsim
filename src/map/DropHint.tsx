@@ -2,6 +2,8 @@ import type { Ref } from 'react';
 import type { CompassAction } from '@/domain/compass-rose';
 import { chipOf, type DropChip, type DropReading, type Forbidden } from '@/domain/drop-order';
 import { fr } from '@/i18n/fr';
+import type { FuelGauge } from '@/domain/supplies';
+import { ResourcePlate } from '@/emblems/Plate';
 import type { TroopStation } from '@/domain/player-view';
 import type { PieceClick } from './engine';
 import type { RingState } from './engine/ink-ring';
@@ -82,14 +84,73 @@ const strikeOf = (cost: string | null): string =>
  *  repos, ou l'absence de route — il n'y a plus de carte pour le dire avant l'ordre. */
 export type DropNote = { readonly text: string; readonly alarm: boolean };
 
+/** Le plein qu'une route mangerait (#250), lu sur l'aperçu du serveur. */
+export type DropFuel = FuelGauge & { readonly roundTrip: boolean };
+
+/** **The fuel gauge under the verb** (#250): one step a cell, those that would stay in ink, those
+ *  the road eats pale and hatched, those Singapore spares ringed, what is missing spilling red
+ *  past the tube. Drawn like the personal board's tubes, lying down. */
+function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
+  const eaten = Math.min(fuel.eaten, fuel.held);
+  const kept = fuel.held - eaten;
+  /** Singapore's steps stay in the tube when the fuel holds them; past it, they are the spill the
+   *  plain price would have made, ringed and empty. */
+  const sparedIn = Math.min(fuel.spared, kept);
+  /** No longer than the tube: past it, the count says the rest. */
+  const spill = [
+    ...Array<string>(fuel.short).fill('short'),
+    ...Array<string>(fuel.spared - sparedIn).fill('spared-out'),
+  ].slice(0, fuel.full);
+  const cells = Array.from({ length: fuel.full }, (_, at) =>
+    at >= fuel.held ? 'empty' : at >= kept ? 'eaten' : at >= kept - sparedIn ? 'spared' : 'kept',
+  );
+  /** Said whole to a screen reader and on hover; a finger reads the drawing. */
+  const said = [
+    fr.supplies.gauge(fuel.held, fuel.eaten, fuel.roundTrip),
+    ...(fuel.short > 0 ? [fr.supplies.lacking(fuel.short)] : []),
+    ...(fuel.spared > 0 ? [fr.supplies.spared(fuel.spared)] : []),
+  ].join(' — ');
+  return (
+    <span
+      className="drop-chip-fuel"
+      title={said}
+      style={{ ['--fuel-ink' as string]: `var(--res-${fuel.resource}-paper)` }}
+    >
+      <span className="sr-only">{said}</span>
+      <span aria-hidden className="inline-flex">
+        <ResourcePlate resource={fuel.resource} height={13} width={13} />
+      </span>
+      <span className="fuel-tube" aria-hidden>
+        {cells.map((cell, at) => (
+          <i key={at} className={`fuel-step fuel-step--${cell}`} />
+        ))}
+      </span>
+      {spill.length > 0 && (
+        <span className={`fuel-spill${fuel.short > 0 ? ' fuel-spill--short' : ''}`} aria-hidden>
+          {spill.map((cell, at) => (
+            <i key={at} className={`fuel-step fuel-step--${cell}`} />
+          ))}
+        </span>
+      )}
+      <span className={`fuel-count${fuel.short > 0 ? ' fuel-count--short' : ''}`} aria-hidden>
+        {fuel.held} → {kept}
+        {fuel.short > 0 && ` · ${fr.supplies.lacking(fuel.short)}`}
+        {fuel.roundTrip && <small> · {fr.supplies.roundTrip}</small>}
+      </span>
+    </span>
+  );
+}
+
 /** Collée au pointeur par le moteur (`onCarryOver`), qui la place sans repasser par React. */
 export function DropHintChip({
   hint,
   notes = [],
+  fuel = null,
   ref,
 }: {
   hint: DropHint;
   notes?: ReadonlyArray<DropNote>;
+  fuel?: DropFuel | null;
   ref: Ref<HTMLDivElement>;
 }) {
   return (
@@ -100,6 +161,7 @@ export function DropHintChip({
       </span>
       <span className="drop-chip-verb">{hint.verb}</span>
       {hint.detail !== null && <span className="drop-chip-detail">{hint.detail}</span>}
+      {hint.tone !== 'refused' && fuel !== null && <FuelGaugeLine fuel={fuel} />}
       {hint.tone !== 'refused' &&
         notes.map((note) => (
           <span

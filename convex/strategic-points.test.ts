@@ -772,17 +772,23 @@ describe('the rules the points break', () => {
         type: 'march',
       });
     // Two steps asked, one held: refused, for both.
-    expect((await preview(truck))!.fuel).toMatchObject({ steps: 2, eased: null });
+    expect((await preview(truck))!.fuel).toMatchObject({
+      gauge: { held: 1, eaten: 2, spared: 0, short: 1 },
+      eased: null,
+    });
     await expect(sail(t, seat, truck, FIELD, FAR)).rejects.toThrow('NOT_ENOUGH_FUEL');
 
     await holdPoint(t, seat, 'singapore');
     expect((await preview(truck))!.fuel).toMatchObject({
-      steps: 1,
+      gauge: { held: 1, eaten: 1, spared: 1, short: 0 },
       short: null,
       eased: { from: 2, to: 1 },
     });
     // The rule is for trucks and cargos: a tank still pays its road in full.
-    expect((await preview(tank))!.fuel).toMatchObject({ steps: 2, eased: null });
+    expect((await preview(tank))!.fuel).toMatchObject({
+      gauge: { eaten: 2, spared: 0 },
+      eased: null,
+    });
     await sail(t, seat, truck, FIELD, FAR);
     expect(await fuelOf(t, truck)).toBe(0);
     await expect(sail(t, seat, tank, FIELD, FAR)).rejects.toThrow('NOT_ENOUGH_FUEL');

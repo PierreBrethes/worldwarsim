@@ -39,7 +39,8 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
 - **Périmètre** : ton issue, rien d'autre ; tu n'anticipes pas les suivantes.
 - **Décisions de Pierre** : ce que tranchent l'issue, ses commentaires « Décisions », un ADR ou
   la maquette choisie tient tel quel. Un conflit entre une décision et ce que tu vois dans le
-  code se rapporte, et tu attends la réponse.
+  code se rapporte, et tu attends la réponse. Laisser de côté un élément de la maquette choisie
+  (une couche, une ligne d'état, un fondu) est un tel conflit, jamais une décision prise seul.
 - **Décisions prises seul** : quand tout se tait, prends l'option la plus simple qui reste
   cohérente avec eux, et note-la pour le rapport, même petite. Tout chiffre neuf porte
   `@a-mesurer`.

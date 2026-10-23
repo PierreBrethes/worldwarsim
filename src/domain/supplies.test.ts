@@ -3,6 +3,7 @@ import { BAKU_REFUEL_MS } from '../../convex/constants';
 import {
   bakuGainOf,
   bakuRefuel,
+  fuelGaugeOf,
   fuelRefusalOf,
   fuelStepsOf,
   outOfRounds,
@@ -155,8 +156,92 @@ describe('the fuel a route asks', () => {
     });
   });
 
+  it('names the engine that lacks the most, whoever is emptiest', () => {
+    // At Singapore the escort pays 10 of its 6, the cargo 8 of its 5.
+    expect(
+      fuelRefusalOf(
+        [
+          { role: 'escort', fuel: 6 },
+          { role: 'cargo', fuel: 5 },
+        ],
+        5000,
+        true,
+      ),
+    ).toEqual({ needed: 10, held: 6, role: 'escort' });
+  });
+
   it('asks nothing of a troop without an engine', () => {
     expect(fuelRefusalOf([{ role: 'infantry' }], 5000)).toBeNull();
+  });
+});
+
+describe('the gauge a route drains', () => {
+  it('shows the smallest fuel of the squad, the steps the route eats and none missing', () => {
+    expect(
+      fuelGaugeOf(
+        [
+          { role: 'armor', fuel: 3 },
+          { role: 'landTransport', fuel: 4 },
+        ],
+        1200,
+      ),
+    ).toEqual({ held: 3, full: 3, resource: 'oil', eaten: 3, spared: 0, short: 0 });
+  });
+
+  it('says what is missing when the route is longer than the fuel', () => {
+    expect(fuelGaugeOf([{ role: 'landTransport', fuel: 1 }], 1600)).toMatchObject({
+      held: 1,
+      eaten: 4,
+      short: 3,
+    });
+  });
+
+  it('reads coal for a ship', () => {
+    expect(fuelGaugeOf([{ role: 'cargo' }], 400)).toMatchObject({ resource: 'coal', full: 6 });
+  });
+
+  it('shows the step Singapore spares a truck', () => {
+    expect(fuelGaugeOf([{ role: 'landTransport', fuel: 2 }], 1000, true)).toMatchObject({
+      eaten: 2,
+      spared: 0,
+    });
+    expect(fuelGaugeOf([{ role: 'landTransport', fuel: 4 }], 2500, true)).toMatchObject({
+      eaten: 4,
+      spared: 1,
+      short: 0,
+    });
+  });
+
+  it('reads the engine the route binds, not only the emptiest one', () => {
+    // At Singapore the cargo pays 5 steps of 7 and holds them; the escort pays all 7 of its 6.
+    expect(
+      fuelGaugeOf(
+        [
+          { role: 'cargo', fuel: 5 },
+          { role: 'escort', fuel: 6 },
+        ],
+        3100,
+        true,
+      ),
+    ).toMatchObject({ held: 6, eaten: 7, short: 1 });
+  });
+
+  it('reads the same engine as the refusal in a mixed column at Singapore', () => {
+    expect(
+      fuelGaugeOf(
+        [
+          { role: 'escort', fuel: 6 },
+          { role: 'cargo', fuel: 5 },
+        ],
+        5000,
+        true,
+      ),
+    ).toMatchObject({ held: 6, eaten: 10, short: 4, resource: 'coal' });
+  });
+
+  it('has no gauge for a pile without an engine', () => {
+    expect(fuelGaugeOf([{ role: 'infantry' }], 900)).toBeNull();
+    expect(fuelGaugeOf([], 900)).toBeNull();
   });
 });
 

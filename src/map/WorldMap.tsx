@@ -72,6 +72,7 @@ import {
   hintOfReading,
   ringOfHint,
   type DropHint,
+  type DropFuel,
   type DropNote,
   type PieceFrom,
 } from './DropHint';
@@ -262,6 +263,8 @@ type Props = {
   onDropRefused?: () => void;
   /** L'arrivée lue au pointeur arrêté, que la pastille porte sous son verbe. */
   dropNotes?: ReadonlyArray<DropNote>;
+  /** Le plein que la route mangerait, en jauge sous le verbe (#250). */
+  dropFuel?: DropFuel | null;
   /** **The server's road under the resting pointer**: the ribbon of the piece in hand follows it. */
   aimRoute?: ReadonlyArray<LonLat> | null;
   /** My piles whose transport could take the hand: their rings beat while it is held. */
@@ -355,6 +358,10 @@ function useShared<T>(value: T): T {
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
+/** How far above a finger the drop chip stands, clear of the fingertip (#250). @a-mesurer */
+const FINGER_LIFT_PX = 56;
+/** How far beside a finger it stands when the top leaves no room above. @a-mesurer */
+const FINGER_SIDE_PX = 36;
 const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 
 export function WorldMap({
@@ -420,6 +427,7 @@ export function WorldMap({
   fingerRose = null,
   onDropRefused,
   dropNotes,
+  dropFuel = null,
   aimRoute = null,
   availablePiles = NO_PILES,
   onCarryEnd,
@@ -866,16 +874,43 @@ export function WorldMap({
   const hintNode = useRef<HTMLDivElement>(null);
   const hintAt = useRef('');
   const hintPointer = useRef<{ x: number; y: number } | null>(null);
+  /** Whether the last press was a finger's, read per event as the map does (`pointerType`). */
+  const fingerHand = useRef(false);
+  useEffect(() => {
+    const press = (event: PointerEvent) => {
+      fingerHand.current = event.pointerType === 'touch';
+    };
+    addEventListener('pointerdown', press, true);
+    return () => removeEventListener('pointerdown', press, true);
+  }, []);
   /** La place de la puce par rapport au pointeur : sous la main à droite, retournée contre les
    *  bords. Elle se mesure sur la puce telle qu'elle est — et se refait quand ses notes arrivent. */
   const placeHint = (clientX: number, clientY: number) => {
     const chip = hintNode.current;
     const width = chip?.offsetWidth ?? 0;
     const height = chip?.offsetHeight ?? 0;
-    const x = clientX + 26 + width > innerWidth - 12 ? clientX - width - 22 : clientX + 26;
-    const y = clientY + 22 + height > innerHeight - 12 ? clientY - height - 18 : clientY + 22;
+    // Under a finger the hand hides what is below it: the chip, and its gauge, stand above —
+    // or, too near the top for that, beside the finger, on the side with more room.
+    const above = clientY - height - FINGER_LIFT_PX;
+    const beside = fingerHand.current && above < 8;
+    const x = beside
+      ? clientX > innerWidth / 2
+        ? clientX - width - FINGER_SIDE_PX
+        : clientX + FINGER_SIDE_PX
+      : fingerHand.current
+        ? clientX - width / 2
+        : clientX + 26 + width > innerWidth - 12
+          ? clientX - width - 22
+          : clientX + 26;
+    const y = beside
+      ? clientY - height / 2
+      : fingerHand.current
+        ? above
+        : clientY + 22 + height > innerHeight - 12
+          ? clientY - height - 18
+          : clientY + 22;
     /** Ni retournée ni à droite elle ne tient sur un écran étroit : elle reste alors dans le cadre. */
-    hintAt.current = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
+    hintAt.current = `translate(${Math.max(8, Math.min(x, innerWidth - width - 8))}px, ${Math.max(8, y)}px)`;
     if (chip !== null) chip.style.transform = hintAt.current;
   };
   /** Née après le geste qui l'a demandée, la puce prend la dernière place connue du pointeur ;
@@ -885,7 +920,7 @@ export function WorldMap({
     if (hintPointer.current !== null && dropNotes !== undefined)
       placeHint(hintPointer.current.x, hintPointer.current.y);
     hintNode.current.style.transform = hintAt.current;
-  }, [hint, rose, dropNotes]);
+  }, [hint, rose, dropNotes, dropFuel]);
   useEffect(() => {
     if (!readyEngine) return;
     const read = (
@@ -1515,7 +1550,12 @@ export function WorldMap({
       )}
       {/* Une rose ouverte dit déjà ce que la pastille disait. */}
       {hint !== null && rose === null && (
-        <DropHintChip ref={hintNode} hint={hint} {...(dropNotes ? { notes: dropNotes } : {})} />
+        <DropHintChip
+          ref={hintNode}
+          hint={hint}
+          fuel={dropFuel}
+          {...(dropNotes ? { notes: dropNotes } : {})}
+        />
       )}
       {detaching !== null && <DetachRing {...detaching} />}
       {cluster !== null && clusterSheet !== null && (
