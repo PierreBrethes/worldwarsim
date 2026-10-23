@@ -414,7 +414,7 @@ describe('les cellules cuites, aux points nommés', () => {
   it('dessine les chaînes en montagne', () => {
     for (const [lon, lat] of [
       [-111.6, 40.6], // Wasatch
-      [-119.5, 37.8], // Sierra Nevada
+      [-119.3, 37.5], // Sierra Nevada
       [-105.6, 40], // Front Range
       [7.9, 46.5], // Alpes bernoises
       [8, 61.6], // Jotunheimen

@@ -79,7 +79,8 @@ const regionMountain = ({ altitude, drop }) =>
  * **A cell's sample, on its drop alone** (#220). The highland rule fills a region's high plateau
  * cut by valleys; a cell is small enough to fall between the ranges, and the rule would ink the
  * floors of the Great Basin, 1 500 m up. The window stays the regions' 3 × 3: ETOPO's 0.1° step is
- * the smallest there is. The Railroad Valley reads no drop at 600 m, the Sierra 0.67 of its cell.
+ * the smallest there is. At 600 m the cell of the Railroad Valley (115.8° W, 38.5° N) reads none
+ * of its area mountainous, the Sierra's at 119.3° W, 37.5° N all of it.
  * @a-mesurer
  */
 const CELL_RELIEF_M = 600;
