@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PARACHUTE_MS } from './parachute';
+import { SWEEP_MS } from '@/domain/deposit-sweep';
 import {
   FLOW_FULL_MS,
   FLOW_REDUCED_MS,
@@ -161,6 +162,7 @@ describe('every public method of the engine asks for a frame', () => {
     'screenOf',
     'subscribeRest',
     'cameraDistance',
+    'sweepOrigin',
     'atZoomFloor',
     'countryAtPoint',
     'pointAt',
@@ -216,5 +218,15 @@ describe('an airdrop longer than the settle window is declared to the loop', () 
     expect(burst.slice(0, burst.indexOf('\n  }\n'))).toMatch(
       /this\.invalidate\(\);[\s\S]*parachutes\.release/,
     );
+  });
+});
+
+describe('a sweep longer than the settle window is declared to the loop (#249)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps the frames coming while the front runs and a basin it reached beats', () => {
+    expect(SWEEP_MS).toBeGreaterThan(SETTLE_MS);
+    expect(source).toMatch(/this\.veil\.fading \|\|\s+this\.sweepMoving\(/);
   });
 });

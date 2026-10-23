@@ -3,6 +3,7 @@
 // mutation interdite. Exclusion volontaire : le moteur n'importe pas React (CLAUDE.md).
 'use no memo';
 
+import { SweepOverlay, type SweepRequest } from './SweepOverlay';
 import { clusterSheetOf, type Pin } from '@/domain/pins';
 import { ClusterSheet } from './ClusterSheet';
 import type { TourAct } from '@/domain/cargo-tag';
@@ -224,6 +225,11 @@ type Props = {
    * what refuses it and when it ends stay on the board.
    */
   placing?: PlacingBuilding | null;
+  /** **Sonder la carte** (#249) : l'onde, ses cartouches et sa dépêche, jusqu'à `onSweepEnd`. */
+  sweep?: SweepRequest | null;
+  onSweepEnd?: () => void;
+  /** The line the sweep's button says beside it (#249). */
+  onSweepStatus?: (status: string | null) => void;
   onPlacePoint?: (spot: PlacingSpot) => void;
   /** The acting button over the map while a building is held: it goes back (#162). */
   onPlacingDismiss?: () => void;
@@ -402,6 +408,9 @@ export function WorldMap({
   blitz = null,
   onCompassAction,
   placing = null,
+  sweep = null,
+  onSweepEnd = noSweepEnd,
+  onSweepStatus,
   onPlacePoint,
   onPlacingDismiss,
   onPlacingAim,
@@ -1495,6 +1504,15 @@ export function WorldMap({
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
       {placing && <PlacingOverlay engine={readyEngine} placing={placing} container={container} />}
+      {sweep && (
+        <SweepOverlay
+          key={sweep.nonce}
+          engine={readyEngine}
+          sweep={sweep}
+          onEnd={onSweepEnd}
+          onStatus={onSweepStatus}
+        />
+      )}
       {/* Une rose ouverte dit déjà ce que la pastille disait. */}
       {hint !== null && rose === null && (
         <DropHintChip ref={hintNode} hint={hint} {...(dropNotes ? { notes: dropNotes } : {})} />
@@ -1855,6 +1873,8 @@ function PlacingThreadInk({ thread }: { thread: PlacingThread }) {
     </svg>
   );
 }
+
+const noSweepEnd = () => {};
 
 /** Clear of the cursor's own drawing, which is twenty-nine pixels wide (`TROWEL_CURSOR`). */
 const PLACING_CARD_GAP = 22;

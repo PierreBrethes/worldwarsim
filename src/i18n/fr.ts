@@ -4563,6 +4563,44 @@ export const fr = {
     },
   },
 
+  /**
+   * **Sonder la carte** (#249) : le bouton de la réglette, son menu d'espèces, les cartouches que
+   * l'onde pose sur les gisements atteints, et la dépêche quand elle n'en trouve aucun.
+   */
+  sweep: {
+    button: 'Sonder',
+    launch: (deposit: DepositKey) => `Sonder la carte : ${fr.deposits[deposit]} (S)`,
+    choose: 'Choisir l’espèce',
+    menu: 'Sonder pour',
+    last: 'dernière',
+    species: (deposit: DepositKey) =>
+      fr.deposits[deposit].charAt(0).toUpperCase() + fr.deposits[deposit].slice(1),
+    /** À cinq kilomètres près sous la centaine, à dix au-delà : une distance lue d'un coup d'œil. */
+    km: (km: number) =>
+      `${(km < 100 ? Math.round(km / 5) * 5 : Math.round(km / 10) * 10).toLocaleString('fr-FR')} km`,
+    /** Le cap en mots : un chiffre en degrés ne se voit pas, huit points de la rose suffisent. */
+    heading: (degrees: number) =>
+      (['nord', 'nord-est', 'est', 'sud-est', 'sud', 'sud-ouest', 'ouest', 'nord-ouest'] as const)[
+        Math.round((((degrees % 360) + 360) % 360) / 45) % 8
+      ]!,
+    outOfReach: 'hors de portée',
+    /** La ligne d'état à côté du bouton : l'onde qui court et ce qu'elle a déjà atteint, puis ce
+     *  qu'elle a trouvé. */
+    running: (deposit: DepositKey, reached: number) =>
+      `l’onde court · ${fr.deposits[deposit]}${reached > 0 ? ` · ${reached}` : ''}`,
+    found: (deposit: DepositKey, count: number) =>
+      `${fr.deposits[deposit]} · ${count} relevé${count > 1 ? 's' : ''}`,
+    noneShort: (deposit: DepositKey, rangeKm: number) =>
+      `${fr.deposits[deposit]} · aucun à ${rangeKm.toLocaleString('fr-FR')} km`,
+    goTo: (deposit: DepositKey, place: string) =>
+      `Aller au gisement : ${fr.deposits[deposit]}, ${place}`,
+    dispatch: 'Dépêche · sonde',
+    none: (deposit: DepositKey, rangeKm: number) =>
+      `Aucun gisement de ${fr.deposits[deposit]} libre à moins de ${rangeKm.toLocaleString('fr-FR')} km du centre de la vue.`,
+    nearest: (place: string, km: string) => `Le plus proche : ${place}, à ${km}.`,
+    goThere: 'Y aller',
+  },
+
   construction: {
     /** **L'effet se produit hors du champ où l'on a cliqué** : le panneau se referme sur la carte
      *  et le chantier part dans un bureau qui vit ailleurs. La phrase nomme les deux, sinon le

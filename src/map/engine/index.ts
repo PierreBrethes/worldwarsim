@@ -105,7 +105,9 @@ import {
 } from './countries';
 import { buildBoard } from './board';
 import { TerrainDrawings } from './terrain-drawings';
-import { DepositBasins } from './deposit-basins';
+import { BASIN_MIN_RADIUS_PX, DepositBasins, SWEEP_GLOW_MS } from './deposit-basins';
+import { BASIN_KM } from '@/domain/deposit-basins';
+import { SweepWave } from './deposit-sweep';
 import type { NearSheet } from './near-sheet';
 import { fromGeometryData } from './atlas-geometry';
 import {
@@ -233,6 +235,24 @@ export type PlacingSpot = {
   /** `null` until `/coast.json` has landed: no verdict on a coast the board has not read. */
   readonly coastal: boolean | null;
   readonly onLand: boolean;
+};
+
+/** A deposit the sweep names (#249), and when its front reaches it, in ms from its start. */
+export type SweepTarget = { readonly id: string; readonly lonLat: LonLat; readonly hitMs: number };
+
+/**
+ * **Where the sweep's names stand on screen** (#249), in CSS pixels of the map: by the basin, or
+ * at the edge of the map towards it (`off`, `angle` the way it lies). Only those the front has
+ * reached.
+ */
+export type SweepTag = {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly off: boolean;
+  readonly angle: number;
+  /** The basin's radius on screen, as the map draws it: the card stands clear below it. */
+  readonly radius: number;
 };
 
 export type MapActClick = {
@@ -443,6 +463,16 @@ export class MapEngine {
   private readonly regions: RegionLayer;
   private readonly drawings: TerrainDrawings;
   private readonly basins: DepositBasins;
+  private readonly sweepWave: SweepWave;
+  /** The sweep under way (#249), `null` when none: what it names, from when, and in what motion. */
+  private sweeping: {
+    readonly targets: ReadonlyArray<SweepTarget>;
+    readonly startedAt: number;
+    readonly still: boolean;
+  } | null = null;
+  private sweepSaid = 'null';
+  /** The sweep's names moved on screen: the board draws them (`WorldMap`). */
+  onSweep?: ((tags: ReadonlyArray<SweepTag> | null) => void) | undefined;
   private readonly countries: CountryMesh[];
   /** Land, ink, coast and wash, drawn at the far level of the atlas until the near one lands
    *  and the eye comes close enough to tell them apart (`levelAt`, ADR 0034); the region lines
@@ -808,6 +838,8 @@ export class MapEngine {
     this.scene.add(this.drawings.object);
     this.basins = new DepositBasins(this.frame, this.night.uniforms);
     this.scene.add(this.basins.object);
+    this.sweepWave = new SweepWave(this.frame, this.night.uniforms);
+    this.scene.add(this.sweepWave.mesh);
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
     this.scene.add(this.regions.contours.group);
@@ -1175,6 +1207,93 @@ export class MapEngine {
   }
 
   private basinsLoading = false;
+
+  /**
+   * **Where the sweep starts** (#249): the ground at the middle of the map left clear by the
+   * rule and the columns — the middle its edge arrows point from. Off the sheet, where the eye
+   * looks.
+   */
+  sweepOrigin(): LonLat {
+    const { top, right, bottom, left } = this.labels.edgeInsets;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const middle = this.pointAt(
+      rect.left + left + (rect.width - left - right) / 2,
+      rect.top + top + (rect.height - top - bottom) / 2,
+    );
+    const looked = this.controls.target;
+    return (
+      middle ?? this.frame.lonLatAt(looked.x + this.frame.centerX, looked.z + this.frame.centerY)
+    );
+  }
+
+  /**
+   * **Sonder la carte** (#249) : l'onde part de `from` à l'encre de l'espèce et éveille chaque
+   * bassin nommé quand son front l'atteint. Hors des animations actives, ni onde ni battement :
+   * les bassins s'allument d'un coup, jusqu'à ce que le plateau efface la sonde (`null`).
+   */
+  sweepDeposits(
+    sweep: {
+      readonly from: LonLat;
+      readonly species: DepositKey;
+      readonly targets: ReadonlyArray<SweepTarget>;
+    } | null,
+  ): void {
+    this.invalidate();
+    const now = performance.now();
+    const still = this.ambience.motion !== 'full';
+    this.sweeping =
+      sweep === null
+        ? null
+        : {
+            targets: still
+              ? sweep.targets.map((target) => ({ ...target, hitMs: 0 }))
+              : sweep.targets,
+            startedAt: now,
+            still,
+          };
+    // A new sweep tells its names afresh, even the very ones of the last at the same place.
+    this.sweepSaid = '';
+    this.basins.sweep(this.sweeping?.targets ?? null, now, still);
+    this.loadBasins();
+    if (sweep === null || still) this.sweepWave.stop();
+    else this.sweepWave.start(sweep.from, sweep.species, now);
+  }
+
+  /** The front runs, or a basin it reached still beats: the loop draws each frame. */
+  private sweepMoving(now: number): boolean {
+    const sweeping = this.sweeping;
+    if (sweeping === null || sweeping.still) return false;
+    const last = Math.max(0, ...sweeping.targets.map((target) => target.hitMs));
+    return this.sweepWave.active || now - sweeping.startedAt <= last + SWEEP_GLOW_MS;
+  }
+
+  /** **The sweep's names**, told to the board at a rendered frame when they move on screen. */
+  private tellSweep(now: number): void {
+    const sweeping = this.sweeping;
+    let tags: SweepTag[] | null = null;
+    if (sweeping !== null) {
+      const { top, right, bottom, left } = this.labels.edgeInsets;
+      const width = this.screenWidth - left - right;
+      const height = this.screenHeight - top - bottom;
+      const centre = { x: width / 2, y: height / 2 };
+      tags = sweeping.targets
+        .filter((target) => now - sweeping.startedAt >= target.hitMs)
+        .map((target) => {
+          const at = this.mapPointOf(target.lonLat);
+          const edge = threadPath(centre, { x: at.x - left, y: at.y - top }, width, height);
+          const angle = Math.atan2(at.y - top - centre.y, at.x - left - centre.x);
+          const rim = this.mapPointOf(destinationPoint(target.lonLat, BASIN_KM, 90));
+          const radius = Math.max(BASIN_MIN_RADIUS_PX, Math.hypot(rim.x - at.x, rim.y - at.y));
+          return edge.off
+            ? { id: target.id, x: edge.to.x + left, y: edge.to.y + top, off: true, angle, radius }
+            : { id: target.id, x: at.x, y: at.y, off: false, angle: 0, radius };
+        });
+    }
+    const said = JSON.stringify(tags);
+    if (said === this.sweepSaid) return;
+    this.sweepSaid = said;
+    this.onSweep?.(tags);
+  }
 
   /** The regions' terrain and anchor points: the lines, the hover and the terrain wait for them. */
   displayRegions(
@@ -1670,6 +1789,7 @@ export class MapEngine {
     this.regions.dispose();
     this.drawings.dispose();
     this.basins.dispose();
+    this.sweepWave.dispose();
     this.sea?.dispose();
     this.veil.dispose();
     this.halos.dispose();
@@ -2998,7 +3118,8 @@ export class MapEngine {
       this.maquettes.settling ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
-      this.veil.fading
+      this.veil.fading ||
+      this.sweepMoving(performance.now())
     )
       this.invalidate();
     const now = performance.now();
@@ -3053,6 +3174,9 @@ export class MapEngine {
     this.reach.animate(this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.tellThread();
+    this.sweepWave.animate(now);
+    this.basins.animate(now);
+    this.tellSweep(now);
     this.standing.orient(this.camera.position);
     const reading = this.standing.reading;
     const tone = this.verdict;
