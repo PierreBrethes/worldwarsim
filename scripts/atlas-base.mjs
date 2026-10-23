@@ -122,6 +122,24 @@ export function regionRaster() {
   return { width, height, ids, hosts, codeOfRegion, regionCells, hostCells };
 }
 
+/** Row-major cells as `value, count` runs, as `fill` (`src/domain/region-raster.ts`) unrolls them. */
+export function runsOf(cells) {
+  const runs = [];
+  let value = cells[0];
+  let length = 0;
+  for (const cell of cells) {
+    if (cell === value) {
+      length += 1;
+      continue;
+    }
+    runs.push(value, length);
+    value = cell;
+    length = 1;
+  }
+  runs.push(value, length);
+  return runs;
+}
+
 /**
  * `public/region-grid.json` for a set of region points: the region and host runs, and the
  * anchors of the regions smaller than a cell, read off their points.
@@ -129,23 +147,6 @@ export function regionRaster() {
 export function regionGridAsset(points) {
   const world = frame;
   const { width, height, ids, hosts, codeOfRegion, regionCells, hostCells } = regionRaster();
-  const runsOf = (cells) => {
-    const runs = [];
-    let value = cells[0];
-    let length = 0;
-    for (const cell of cells) {
-      if (cell === value) {
-        length += 1;
-        continue;
-      }
-      runs.push(value, length);
-      value = cell;
-      length = 1;
-    }
-    runs.push(value, length);
-    return runs;
-  };
-
   /**
    * **Le troisième canal : l'ancrage** (ADR 0023). Neuf cent soixante-et-onze régions sont plus
    * petites qu'une cellule — aucun centre ne tombe dedans, donc aucune cellule ne porte leur code —

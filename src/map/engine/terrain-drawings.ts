@@ -12,8 +12,8 @@ import {
   UnsignedByteType,
   Vector2,
 } from 'three';
-import type { Atlas } from '@/domain/atlas';
 import type { RegionType } from '@/domain/ids';
+import { fill } from '@/domain/region-raster';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 import { TRAME_SCALE } from './regions';
@@ -21,8 +21,9 @@ import { TRAME_SCALE } from './regions';
 /**
  * **Les dessins généraux de terrain** (#197, maquette `WWS/prototypes/carte-refonte/sheet.js`) :
  * la plume pâle d'un atlas — forêts, montagnes, déserts, toundra, jungle ; la plaine reste nue —,
- * posée sur toute la terre et jamais effacée. Décor pur : le type est cuit hors ligne et aucune
- * règle ne le lit.
+ * posée sur toute la terre et jamais effacée. Décor pur : le type de chaque cellule est cuit hors
+ * ligne depuis le relief et le climat (`terrain-cells.json`, #220), pas celui de sa région, et
+ * aucune règle ne le lit.
  *
  * **Cuit, pas dessiné** : la maquette grave ses dessins dans une feuille de 2560 à 4096 px (~22 Mo
  * à 2560) ; le monde entier à cette finesse ne tiendrait pas en mémoire. Deux petites textures à
@@ -44,8 +45,6 @@ export const terrainCode = (type: RegionType): number => {
   return index < 0 ? 0 : index + 1;
 };
 
-/** Une cellule de la carte des types : 0,2 u, soit quelque vingt kilomètres. @a-mesurer */
-const TYPES_PER_UNIT = 5.12;
 /** The depth's byte: 1/32 u a step, so 8 u at most, far past where a massif is full. */
 const DEPTH_PER_UNIT = 32;
 /** The depth's byte at the land's turn from drawn to plain: below, the plain's side. */
@@ -57,6 +56,10 @@ const BARE_AT = 0.05;
 const FULL_AT = 0.4;
 const EDGE_WOBBLE = 0.3;
 const EDGE_GRAIN = 1.5;
+/** The wash reads its cells up to `WARP_CELLS` off the point, on a noise `WARP_GRAIN_CELLS`
+ *  cells wide: the grid's squares would show at every edge between two types. @a-mesurer */
+const WARP_CELLS = 0.7;
+const WARP_GRAIN_CELLS = 2.5;
 /** Even a massif's heart has its clearings, `CLEARING_GRAIN` wide, down to `CLEARING_KEEP` of its
  *  drawings: a forest of a thousand kilometres is not one wall of trees. @a-mesurer */
 const CLEARING_GRAIN = 4;
@@ -249,26 +252,8 @@ function paintAtlas(): DataTexture {
 }
 
 /**
- * One byte a cell: the type's code × `CODE_STEP`. **One mask a type, thresholded**: the canvas
- * antialiases its edges, and a blend of two flat codes decodes as a third type (a mountain edge on
- * a plain read as jungle). Each mask is a coverage in [0, 255]; a cell is the type's only above
- * half. Masks come in the order of `DRAWN`.
- */
-export function codesFromMasks(
-  masks: ReadonlyArray<ArrayLike<number>>,
-  cells: number,
-): Uint8Array<ArrayBuffer> {
-  const codes = new Uint8Array(new ArrayBuffer(cells));
-  masks.forEach((mask, index) => {
-    for (let i = 0; i < cells; i++) if (mask[i]! >= 128) codes[i] = (index + 1) * CODE_STEP;
-  });
-  return codes;
-}
-
-/**
- * **The massifs** (#208): each cell's distance, in cells, to the nearest cell of another code. A
- * type's regions are one block in the codes, so the borders between them are gone: a forest is
- * deepest at its heart, whatever regions it spans. The grid's edge is no shore. Two chamfer passes,
+ * **The massifs** (#208): each cell's distance, in cells, to the nearest cell of another code: a
+ * forest is deepest at its heart. The grid's edge is no shore. Two chamfer passes,
  * a step straight 1 and aslant √2.
  */
 export function depthsFromCodes(
@@ -313,9 +298,14 @@ export function depthsFromCodes(
   return depths;
 }
 
-/** The regions of each drawn type merged (`Atlas.shapes`): a massif is one shape, its edge the
- *  arcs between two types. */
-type Massifs = ReturnType<Atlas['shapes']>;
+/** The type of each cell, baked by `generate-region-types.mjs`: row-major `code, count` runs,
+ *  a code being an index of `types`. */
+export type TerrainCells = {
+  readonly width: number;
+  readonly height: number;
+  readonly types: ReadonlyArray<string>;
+  readonly runs: ReadonlyArray<number>;
+};
 
 /** The type map's texels: the code in red, read by texel; the depth in green, read filtered so
  *  that its contours are smooth (`texelsOf`). */
@@ -325,54 +315,13 @@ export type TypesData = {
   readonly height: number;
 };
 
-/** A 2D canvas: an `OffscreenCanvas` in the worker, a page's canvas where there is none. */
-export type CanvasOf = (
-  width: number,
-  height: number,
-) => { getContext(id: '2d', options: { willReadFrequently: boolean }): Paint | null };
-type Paint = Pick<
-  CanvasRenderingContext2D,
-  | 'setTransform'
-  | 'fillRect'
-  | 'beginPath'
-  | 'moveTo'
-  | 'lineTo'
-  | 'closePath'
-  | 'fill'
-  | 'getImageData'
-> & { fillStyle: string | CanvasGradient | CanvasPattern };
-
-export function typeTexels(massifs: Massifs, frame: WorldFrame, canvasOf: CanvasOf): TypesData {
-  const width = Math.round(frame.width * TYPES_PER_UNIT);
-  const height = Math.round(frame.height * TYPES_PER_UNIT);
-  const g = canvasOf(width, height).getContext('2d', { willReadFrequently: true })!;
-  const masks = DRAWN.map((type) => {
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = '#000';
-    g.fillRect(0, 0, width, height);
-    g.setTransform(
-      TYPES_PER_UNIT,
-      0,
-      0,
-      TYPES_PER_UNIT,
-      (frame.width / 2 - frame.centerX) * TYPES_PER_UNIT,
-      (frame.height / 2 - frame.centerY) * TYPES_PER_UNIT,
-    );
-    g.fillStyle = '#fff';
-    g.beginPath();
-    for (const { outer, holes } of massifs.get(type) ?? [])
-      for (const ring of [outer, ...holes]) {
-        g.moveTo(ring[0]!, ring[1]!);
-        for (let i = 2; i < ring.length; i += 2) g.lineTo(ring[i]!, ring[i + 1]!);
-        g.closePath();
-      }
-    g.fill('evenodd');
-    const pixels = g.getImageData(0, 0, width, height).data;
-    const mask = new Uint8Array(width * height);
-    for (let i = 0; i < mask.length; i++) mask[i] = pixels[i * 4]!;
-    return mask;
-  });
-  return { texels: texelsOf(codesFromMasks(masks, width * height), width, height), width, height };
+export function typesFromCells(
+  { width, height, types, runs }: TerrainCells,
+  frame: WorldFrame,
+): TypesData {
+  const codeOf = types.map((type) => terrainCode(type as RegionType) * CODE_STEP);
+  const codes = Uint8Array.from(fill(runs, width * height), (index) => codeOf[index]!);
+  return { texels: texelsOf(codes, width, height, width / frame.width), width, height };
 }
 
 /** Under half a code step, a code byte still reads as its code. */
@@ -389,6 +338,7 @@ export function texelsOf(
   codes: Uint8Array<ArrayBuffer>,
   width: number,
   height: number,
+  cellsPerUnit: number,
 ): Uint8Array<ArrayBuffer> {
   const other = depthsFromCodes(codes, width, height);
   const inside = depthsFromCodes(
@@ -403,7 +353,7 @@ export function texelsOf(
   );
   const texels = new Uint8Array(width * height * 2);
   for (let i = 0; i < codes.length; i++) {
-    const depth = (inside[i]! - outside[i]!) / TYPES_PER_UNIT;
+    const depth = (inside[i]! - outside[i]!) / cellsPerUnit;
     // `depthsFromCodes` leaves the plain at 0: its own distance to another code is `outside`.
     const away = codes[i] === 0 ? outside[i]! : other[i]!;
     texels[i * 2] = codes[i]! + Math.min(OTHER_MAX, Math.round(away));
@@ -411,10 +361,6 @@ export function texelsOf(
   }
   return texels;
 }
-
-/** A page's canvas, where the worker had no `OffscreenCanvas`. */
-export const pageCanvas: CanvasOf = (width, height) =>
-  Object.assign(document.createElement('canvas'), { width, height });
 
 function typesTexture({ texels, width, height }: TypesData): DataTexture {
   const texture = new DataTexture(texels, width, height, RGFormat, UnsignedByteType);
@@ -529,6 +475,10 @@ float layer(vec2 p, float cell, vec2 dx, vec2 dy, bool mountains) {
 vec4 wash(vec2 p) {
   ivec2 grid = textureSize(uTypes, 0);
   vec2 at = (p / uWorld + 0.5) * vec2(grid) - 0.5;
+  // Read a cell or so off the point, by a noise of a few cells: every edge of the grid wobbles,
+  // between two types as at the plain's, so no cell's square shows.
+  vec2 warp = vec2(noise(at / ${WARP_GRAIN_CELLS.toFixed(1)}), noise(at / ${WARP_GRAIN_CELLS.toFixed(1)} + 41.3)) - 0.5;
+  at += warp * ${(2 * WARP_CELLS).toFixed(2)};
   float red = texelFetch(uTypes, clamp(ivec2(floor(at + 0.5)), ivec2(0), grid - 1), 0).r * 255.0;
   float only = floor(red / ${CODE_STEP.toFixed(1)} + 0.5);
   // Three cells from any other code, the four nearest share this one's.
@@ -536,7 +486,7 @@ vec4 wash(vec2 p) {
   if (alone && only < 0.5) return vec4(0.0);
   float depth = depthAt((at + 0.5) / vec2(grid));
   float wobble = (noise(p / ${EDGE_GRAIN.toFixed(2)}) - 0.5) * ${(2 * EDGE_WOBBLE).toFixed(2)};
-  if (wobble > 0.0) wobble *= smoothstep(0.0, ${(1 / TYPES_PER_UNIT).toFixed(4)}, depth);
+  if (wobble > 0.0) wobble *= smoothstep(0.0, uWorld.x / float(grid.x), depth);
   float ramp = smoothstep(${BARE_AT.toFixed(2)}, ${FULL_AT.toFixed(2)}, depth + wobble);
   if (ramp <= 0.0) return vec4(0.0);
   if (alone) {
@@ -588,11 +538,6 @@ void main() {
   gl_FragColor = vec4(color * mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vWorld)), alpha);
   #include <colorspace_fragment>
 }`;
-
-export const drawnOf = (types: ReadonlyMap<string, RegionType>) => (region: { id: string }) => {
-  const type = types.get(region.id) ?? 'plain';
-  return terrainCode(type) === 0 ? null : type;
-};
 
 export class TerrainDrawings {
   readonly object = new Group();

@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
+import { geoNaturalEarth1 } from 'd3-geo';
 import { describe, expect, it } from 'vitest';
 import {
+  CELL_TYPES,
+  classifyCells,
   classifyRegions,
   readEsriAscii,
   readKoppenZipMember,
@@ -319,5 +323,104 @@ describe('la règle de classification', () => {
 
   it('prend le climat de la terre la plus proche quand le point tombe en mer à 0,1°', () => {
     expect(islet(Uint8Array.of(15, 0, 0, 4))).toBe('desert');
+  });
+});
+
+/**
+ * Un monde de 10 × 10 échantillons de 1°, une cellule par échantillon (la projection est
+ * l'identité retournée) : chaque fait se fabrique par une fonction de (colonne, rang).
+ */
+function cellWorld({ elevation = () => 100, climate = () => 15, forest = () => 0.1 }) {
+  const raster = (valueOf) => ({
+    width: 10,
+    height: 10,
+    west: 0.5,
+    north: 9.5,
+    step: 1,
+    values: Float32Array.from({ length: 100 }, (_, i) => valueOf(i % 10, Math.floor(i / 10))),
+  });
+  const codes = classifyCells(
+    { relief: raster(elevation), climate: raster(climate), forest: raster(forest) },
+    { project: (lon, lat) => [lon, 10 - lat], width: 10, height: 10, perUnit: 1 },
+  );
+  return (column, row) => CELL_TYPES[codes[row * 10 + column]];
+}
+
+describe('le terrain par cellule', () => {
+  it('décide chaque cellule sur ses seuls échantillons, aux seuils des régions', () => {
+    const typeAt = cellWorld({
+      climate: (column) => (column < 5 ? 4 : 15),
+      forest: (column) => (column < 5 ? 0 : 0.6),
+      elevation: (column, row) => (row >= 7 && column >= 5 ? (column % 2) * 900 : 100),
+    });
+    expect(typeAt(1, 1)).toBe('desert');
+    expect(typeAt(8, 1)).toBe('forest');
+    expect(typeAt(7, 8)).toBe('mountain');
+  });
+
+  it('laisse nue la cellule où ne tombe aucun échantillon de terre', () => {
+    expect(cellWorld({ climate: (column) => (column < 5 ? 0 : 15) })(1, 1)).toBe('plain');
+  });
+
+  it("ne fait pas un massif d'une cellule isolée, mais garde un massif de neuf", () => {
+    const typeAt = cellWorld({
+      forest: () => 0.6,
+      climate: (column, row) =>
+        (column === 1 && row === 1) || (column >= 5 && column < 8 && row >= 5 && row < 8) ? 4 : 15,
+    });
+    expect(typeAt(1, 1)).toBe('forest');
+    expect(typeAt(6, 6)).toBe('desert');
+  });
+});
+
+describe('le relief des cellules', () => {
+  it("ne fait pas une montagne d'un haut plateau : seul le dénivelé compte", () => {
+    const plateau = (column) => 1600 + (column % 2) * 400;
+    expect(classifyWorld({ elevation: plateau })).toBe('mountain');
+    expect(cellWorld({ elevation: plateau })(4, 4)).toBe('plain');
+    expect(cellWorld({ elevation: (column) => (column % 2) * 800 })(4, 4)).toBe('mountain');
+  });
+});
+
+describe('les cellules cuites, aux points nommés', () => {
+  const baked = JSON.parse(readFileSync('public/terrain-cells.json', 'utf8'));
+  const codes = new Uint8Array(baked.width * baked.height);
+  for (let i = 0, at = 0; i < baked.runs.length; at += baked.runs[i + 1], i += 2)
+    codes.fill(baked.runs[i], at, at + baked.runs[i + 1]);
+  const plane = geoNaturalEarth1().fitExtent(
+    [
+      [0, 0],
+      [400, 208],
+    ],
+    { type: 'Sphere' },
+  );
+  const typeAt = (lon, lat) => {
+    const [x, y] = plane([lon, lat]);
+    const perUnit = baked.width / 400;
+    return baked.types[codes[Math.floor(y * perUnit) * baked.width + Math.floor(x * perUnit)]];
+  };
+
+  it('laisse nus les fonds de bassin et les plaines', () => {
+    for (const [lon, lat] of [
+      [-113.5, 40.8], // désert du lac Salé
+      [-118.5, 39.8], // Carson Sink
+      [-115.8, 38.5], // Railroad Valley, à 1 500 m
+      [-120.5, 37], // Central Valley
+      [-103, 39], // Hautes Plaines du Colorado
+    ])
+      expect(['plain', 'desert']).toContain(typeAt(lon, lat));
+  });
+
+  it('dessine les chaînes en montagne', () => {
+    for (const [lon, lat] of [
+      [-111.6, 40.6], // Wasatch
+      [-119.3, 37.5], // Sierra Nevada
+      [-105.6, 40], // Front Range
+      [7.9, 46.5], // Alpes bernoises
+      [8, 61.6], // Jotunheimen
+      [86.9, 28], // Himalaya
+      [-70, -33], // Andes
+    ])
+      expect(typeAt(lon, lat)).toBe('mountain');
   });
 });

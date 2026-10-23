@@ -29,6 +29,12 @@ sur les formes de l'atlas (`generate-region-types.mjs`) ; `deposits.json` est re
 des régions de l'atlas, chaque gisement dans la cellule de sa région. Seuls les contours lisent
 encore `regions.json` (#217).
 
+**Précisée le 23/10/2026 (#220).** Les dessins et la teinte du terrain ne lisent plus
+`shapes(type)` : ils lisent le type de chaque cellule de 0,2 u dans `terrain-cells.json`, cuit
+par `generate-region-types.mjs` depuis les mêmes rasters, où une cellule est montagne sur son
+seul dénivelé (`cellMountain`, sans la règle des hauts plateaux). `RegionType`, la fiche d'une
+région et les règles restent à la région.
+
 **Précisée le 21/10/2026 : les grands lacs sont de l'eau** (décision de Pierre). Les 432 lacs de
 Natural Earth 10m de 400 km² et plus (Constance, 459 km², le plus petit qu'il ait nommé ;
 réservoirs compris, la carte est celle d'aujourd'hui) sont retirés des régions par mapshaper

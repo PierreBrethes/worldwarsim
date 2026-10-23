@@ -2,6 +2,9 @@
  * Classifies the regions of the atlas (ADR 0034) against the terrain rasters (ETOPO relief,
  * Köppen-Geiger climate, Hansen forest cover) and bakes `public/region-types.json`:
  * `{ [type]: regionId[] }`, the plain regions included. Decoration only — no rule reads it.
+ * From the same rasters it bakes `public/terrain-cells.json`, the type of each cell of the
+ * terrain drawings' map (#220): `{ width, height, types, runs }`, `runs` the row-major codes as
+ * `code, count` pairs, a code being an index of `types`.
  * The rasters live outside the repository; their SHA-256 are checked below. The shapes are the
  * atlas's, at its near level, the interior points those of `region-index.json`.
  *
@@ -10,8 +13,10 @@
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { atlas, DETAIL, naturalEarth, pairs, WIDTH } from './atlas-base.mjs';
+import { atlas, DETAIL, HEIGHT, naturalEarth, pairs, runsOf, WIDTH } from './atlas-base.mjs';
 import {
+  CELL_TYPES,
+  classifyCells,
   classifyRegions,
   readEsriAscii,
   readKoppenZipMember,
@@ -74,6 +79,21 @@ const byType = {};
 for (const [id, type] of types) (byType[type] ??= []).push(id);
 writeFileSync('public/region-types.json', JSON.stringify(byType));
 
+/** A cell of the terrain drawings' map: 0.2 u, some twenty kilometres. @a-mesurer */
+const CELLS_PER_UNIT = 5.12;
+const cells = {
+  project: (lon, lat) => naturalEarth([lon, lat]),
+  width: Math.round(WIDTH * CELLS_PER_UNIT),
+  height: Math.round(HEIGHT * CELLS_PER_UNIT),
+  perUnit: CELLS_PER_UNIT,
+};
+const codes = classifyCells(rasters, cells);
+const runs = runsOf(codes);
+writeFileSync(
+  'public/terrain-cells.json',
+  JSON.stringify({ width: cells.width, height: cells.height, types: CELL_TYPES, runs }),
+);
+
 const counts = {};
 for (const type of types.values()) counts[type] = (counts[type] ?? 0) + 1;
 console.log(
@@ -82,6 +102,7 @@ console.log(
       .sort((a, b) => b[1] - a[1])
       .map(([type, count]) => `${type} ${count}`)
       .join(' · ') +
+    `\n${cells.width} × ${cells.height} cells, ${runs.length / 2} runs` +
     `\nrasters ${((read - started) / 1000).toFixed(1)} s, ` +
     `classification ${((performance.now() - read) / 1000).toFixed(1)} s`,
 );

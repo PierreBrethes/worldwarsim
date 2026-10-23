@@ -89,7 +89,8 @@ function anchorsOf(asset: RegionRasterAsset): ReadonlyMap<string, number> {
   return anchored;
 }
 
-function fill(runs: ReadonlyArray<number>, cells: number): Uint16Array {
+/** Unrolls row-major `value, count` runs (`runsOf`, `scripts/atlas-base.mjs`) over `cells`. */
+export function fill(runs: ReadonlyArray<number>, cells: number): Uint16Array {
   const decoded = new Uint16Array(cells);
   let at = 0;
   for (let run = 0; run < runs.length; run += 2) {
@@ -98,7 +99,7 @@ function fill(runs: ReadonlyArray<number>, cells: number): Uint16Array {
     if (value !== 0) decoded.fill(value, at, at + length);
     at += length;
   }
-  if (at !== cells) throw new Error(`baked region raster covers ${at} cells, expected ${cells}`);
+  if (at !== cells) throw new Error(`baked runs cover ${at} cells, expected ${cells}`);
   return decoded;
 }
 

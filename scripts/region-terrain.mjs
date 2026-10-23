@@ -71,11 +71,23 @@ function reliefAround(relief, lon, lat) {
   return { altitude: valueAt(relief, lon, lat), drop: high - low };
 }
 
-function tally(tallies, at, rasters, lon, lat, code, weight) {
-  const { altitude, drop } = reliefAround(rasters.relief, lon, lat);
-  const mountainous =
-    drop >= MOUNTAIN_RELIEF_M || (altitude >= HIGHLAND_ALTITUDE_M && drop >= HIGHLAND_RELIEF_M);
-  if (mountainous) tallies[at + MOUNTAIN] += weight;
+/** A region's sample is mountainous on its drop, or on a lower drop up high. */
+const regionMountain = ({ altitude, drop }) =>
+  drop >= MOUNTAIN_RELIEF_M || (altitude >= HIGHLAND_ALTITUDE_M && drop >= HIGHLAND_RELIEF_M);
+
+/**
+ * **A cell's sample, on its drop alone** (#220). The highland rule fills a region's high plateau
+ * cut by valleys; a cell is small enough to fall between the ranges, and the rule would ink the
+ * floors of the Great Basin, 1 500 m up. The window stays the regions' 3 × 3: ETOPO's 0.1° step is
+ * the smallest there is. At 600 m the cell of the Railroad Valley (115.8° W, 38.5° N) reads none
+ * of its area mountainous, the Sierra's at 119.3° W, 37.5° N all of it.
+ * @a-mesurer
+ */
+const CELL_RELIEF_M = 600;
+const cellMountain = ({ drop }) => drop >= CELL_RELIEF_M;
+
+function tally(tallies, at, rasters, lon, lat, code, weight, isMountain = regionMountain) {
+  if (isMountain(reliefAround(rasters.relief, lon, lat))) tallies[at + MOUNTAIN] += weight;
   const climate = ARID.has(code)
     ? DRY
     : COLD_CODES.has(code)
@@ -189,6 +201,87 @@ export function classifyRegions(regions, rasters, plane) {
     types.set(id, terrainOf(shares));
   }
   return types;
+}
+
+/** The codes `classifyCells` writes, by index: the client's type map maps them by name. */
+export const CELL_TYPES = ['plain', 'forest', 'jungle', 'mountain', 'desert', 'tundra'];
+/** A patch of one type smaller than this, in cells, is no massif: it takes its surroundings'
+ *  type, so the map is not sown salt and pepper. @a-mesurer */
+const MIN_MASSIF_CELLS = 6;
+
+/**
+ * **The terrain by cell** (#220): the regions' tallies and `terrainOf`, a sample's mountain read on
+ * its drop alone (`cellMountain`), over the cells of a
+ * `width × height` grid of `perUnit` cells a plane unit, so that a massif follows the relief and
+ * not a region's outline. A cell no land sample falls in is plain. Returns one `CELL_TYPES`
+ * index a cell, rows from the plane's top.
+ */
+export function classifyCells(rasters, { project, width, height, perUnit }) {
+  const tallies = new Float64Array(width * height * TALLIES);
+  const { climate } = rasters;
+  for (let row = 0; row < climate.height; row += 1) {
+    const lat = climate.north - row * climate.step;
+    const weight = Math.cos((lat * Math.PI) / 180);
+    for (let column = 0; column < climate.width; column += 1) {
+      const code = climate.values[row * climate.width + column];
+      if (code === 0) continue;
+      const lon = climate.west + column * climate.step;
+      const [x, y] = project(lon, lat);
+      const [cx, cy] = [Math.floor(x * perUnit), Math.floor(y * perUnit)];
+      if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
+      tally(tallies, (cy * width + cx) * TALLIES, rasters, lon, lat, code, weight, cellMountain);
+    }
+  }
+  const codes = new Uint8Array(width * height);
+  for (let cell = 0; cell < codes.length; cell += 1) {
+    const at = cell * TALLIES;
+    if (tallies[at + WEIGHT] === 0) continue;
+    const share = (field) => tallies[at + field] / tallies[at + WEIGHT];
+    const type = terrainOf({
+      mountain: share(MOUNTAIN),
+      dry: share(DRY),
+      cold: share(COLD),
+      hot: share(HOT),
+      other: share(OTHER),
+      forest: share(FOREST),
+    });
+    codes[cell] = CELL_TYPES.indexOf(type);
+  }
+  return withoutSpecks(codes, width);
+}
+
+/** Each patch of one code (4-connected) under `MIN_MASSIF_CELLS` takes the code most of its
+ *  neighbours bear. */
+function withoutSpecks(codes, width) {
+  const seen = new Uint8Array(codes.length);
+  for (let start = 0; start < codes.length; start += 1) {
+    if (seen[start]) continue;
+    const code = codes[start];
+    const patch = [start];
+    const around = new Map();
+    seen[start] = 1;
+    for (let k = 0; k < patch.length; k += 1) {
+      const cell = patch[k];
+      const x = cell % width;
+      for (const next of [
+        x > 0 ? cell - 1 : -1,
+        x < width - 1 ? cell + 1 : -1,
+        cell - width,
+        cell + width < codes.length ? cell + width : -1,
+      ]) {
+        if (next < 0) continue;
+        if (codes[next] !== code) around.set(codes[next], (around.get(codes[next]) ?? 0) + 1);
+        else if (!seen[next]) {
+          seen[next] = 1;
+          patch.push(next);
+        }
+      }
+    }
+    if (patch.length >= MIN_MASSIF_CELLS || around.size === 0) continue;
+    const [replacement] = [...around].reduce((best, entry) => (entry[1] > best[1] ? entry : best));
+    for (const cell of patch) codes[cell] = replacement;
+  }
+  return codes;
 }
 
 export function valueAt(raster, lon, lat) {
