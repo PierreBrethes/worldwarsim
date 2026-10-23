@@ -56,9 +56,18 @@ const BORDER_LIFT = 0.004;
  * sans uniforme ni image de plus). Le hasard d'une échelle ne dépend que de son rang absolu :
  * quand l'une passe le relais à la suivante, rien ne saute. Les cases bouclent tous les 1024 de
  * chaque côté, invisible, pour garder le hachage précis en virgule flottante. @a-mesurer
+ *
+ * **Au loin, sous la pente**, le sol s'écrase dans la profondeur et pas en travers : une case
+ * taillée sur l'axe écrasé s'étalait en pavé plat. La case se taille donc sur l'axe le moins
+ * écrasé (l'aire du pixel sur le plateau, divisée par sa plus grande longueur : la caméra tourne,
+ * l'axe n'est pas celui du plateau), et le grain s'éteint quand l'écrasement passe de
+ * `GRAIN_FLAT_FROM` à `GRAIN_FLAT_GONE`, avant de fourmiller : le loin rasant n'a plus de grain,
+ * comme une brume. @a-mesurer
  */
 const GRAIN_OPACITY = 0.06;
 const GRAIN_PX = 0.7;
+const GRAIN_FLAT_FROM = 2.5;
+const GRAIN_FLAT_GONE = 5.0;
 const GRAIN_HEAD = `
 varying vec2 vGrain;
 float grainAt(float scale) {
@@ -70,11 +79,16 @@ float grainAt(float scale) {
 uniform float trameScale;
 void main() {`;
 const GRAIN_BODY = `
-  float span = max(length(dFdx(vGrain)), length(dFdy(vGrain))) * trameScale * ${GRAIN_PX.toFixed(1)};
+  vec2 gx = dFdx(vGrain);
+  vec2 gy = dFdy(vGrain);
+  float major = max(length(gx), length(gy));
+  float minor = abs(gx.x * gy.y - gx.y * gy.x) / max(major, 1e-6);
+  float span = max(minor, 1e-6) * trameScale * ${GRAIN_PX.toFixed(1)};
   float scale = floor(log2(span)) + 1.0;
   float share = fract(log2(span));
   float speck = mix(grainAt(scale), grainAt(scale + 1.0), share) / length(vec2(1.0 - share, share));
-  gl_FragColor.rgb *= 1.0 + speck * ${GRAIN_OPACITY.toFixed(3)};`;
+  float upright = 1.0 - smoothstep(${GRAIN_FLAT_FROM.toFixed(1)}, ${GRAIN_FLAT_GONE.toFixed(1)}, major / max(minor, 1e-6));
+  gl_FragColor.rgb *= 1.0 + speck * ${GRAIN_OPACITY.toFixed(3)} * upright;`;
 
 function paperGrain(material: MeshStandardMaterial): MeshStandardMaterial {
   material.onBeforeCompile = (shader) => {
