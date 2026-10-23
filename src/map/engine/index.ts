@@ -710,7 +710,7 @@ export class MapEngine {
     for (const object of board.decor) this.scene.add(object);
 
     this.farLevel = levelOf(sheetData(atlas, 'far', this.frame));
-    this.sheet = buildCountries(this.farLevel);
+    this.sheet = buildCountries(this.farLevel, this.night.uniforms);
     const { meshes, borders, coast, wash } = this.sheet;
     this.countries = meshes;
     this.scene.add(wash);

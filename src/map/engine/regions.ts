@@ -15,7 +15,7 @@ import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import { fillGeometry, lineGeometry } from './atlas-geometry';
 import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
-import type { NightUniforms } from './night-here';
+import { inkDownAtNight, type NightUniforms } from './night-here';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 
 type Sheet = Pick<WorldFrame, 'centerX' | 'centerY'>;
@@ -25,10 +25,10 @@ export const REGIONS_GONE_DISTANCE = 65;
 /**
  * Well under the country borders' opacity, and solid where they are dotted (`countries.ts`), as
  * on the mockups' sheet (`gisements/commun/table.js`): the hierarchy between country and region
- * goes through the ink and the dash, WebGL drawing both one pixel wide. Pierre wanted them a
- * sepia grey (#230, #236), and "the borders look good" before the mockup. @a-mesurer
+ * goes through the opacity and the dash, WebGL drawing both one pixel wide, in the same sepia ink
+ * (`PALETTE.frontier`, #248). Pierre wanted them a sepia grey (#230, #236). @a-mesurer
  */
-export const REGION_BORDER_OPACITY = 0.2;
+export const REGION_BORDER_OPACITY = 0.25;
 
 /** Below this share of the fade, the layer is not on screen — so it is not aimable either. */
 const VISIBLE_SHARE = 0.01;
@@ -180,11 +180,14 @@ export class RegionLayer {
     private atlas: Atlas,
   ) {
     this.contours = new ContourLayer(frame, touch, night);
-    this.lineMaterial = new LineBasicMaterial({
-      color: PALETTE.border,
-      transparent: true,
-      opacity: 0,
-    });
+    this.lineMaterial = inkDownAtNight(
+      new LineBasicMaterial({
+        color: PALETTE.frontier,
+        transparent: true,
+        opacity: 0,
+      }),
+      night,
+    );
     this.lines = new LineSegments(new BufferGeometry(), this.lineMaterial);
     this.lines.visible = false;
 

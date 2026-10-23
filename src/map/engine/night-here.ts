@@ -1,4 +1,4 @@
-import { DataTexture, FloatType, NearestFilter, RGBAFormat, Vector2 } from 'three';
+import { DataTexture, FloatType, type Material, NearestFilter, RGBAFormat, Vector2 } from 'three';
 import { DAY_ALTITUDE_DEG, NIGHT_ALTITUDE_DEG } from '@/domain/daylight';
 import type { WorldFrame } from './frame';
 
@@ -51,3 +51,32 @@ float nightAtWorld(vec2 xz) {
   float altitude = degrees(asin(clamp(sine, -1.0, 1.0)));
   return 1.0 - smoothstep(${degrees(NIGHT_ALTITUDE_DEG)}, ${degrees(DAY_ALTITUDE_DEG)}, altitude);
 }`;
+
+/** An ink laid on the sheet goes down with it: left at its day colour it would be lighter than a
+ *  moonlit page. @a-mesurer */
+export const NIGHT_INK = 0.25;
+
+/**
+ * **Un trait de la feuille s'assombrit avec elle, la nuit** (#248) : la frontière est sépia, plus
+ * claire que le sol éclairé par la lune, et une ligne three.js n'est pas éclairée. Elle lit la bande
+ * de nuit au pixel, comme les dessins de terrain.
+ */
+export function inkDownAtNight<M extends Material>(material: M, night: NightUniforms): M {
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, night);
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'varying vec2 vInkWorld;\nvoid main() {')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvInkWorld = (modelMatrix * vec4(transformed, 1.0)).xz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', `${NIGHT_HERE_GLSL}\nvarying vec2 vInkWorld;\nvoid main() {`)
+      .replace(
+        '#include <colorspace_fragment>',
+        `gl_FragColor.rgb *= mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vInkWorld));
+        #include <colorspace_fragment>`,
+      );
+  };
+  return material;
+}

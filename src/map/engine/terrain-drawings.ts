@@ -15,7 +15,7 @@ import {
 import type { RegionType } from '@/domain/ids';
 import { fill } from '@/domain/region-raster';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
-import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
+import { NIGHT_HERE_GLSL, NIGHT_INK, type NightUniforms } from './night-here';
 import { TRAME_SCALE } from './regions';
 
 /**
@@ -383,9 +383,6 @@ const GONE_AT = MAX_DOUBLINGS + 1.5;
 const INK = '#2a2118';
 /** The maquette's own weight (`uDrawAlpha`). @a-mesurer */
 const OPACITY = 0.36;
-/** The ink goes down with the sheet it is laid on: left at its day colour it would be lighter than a
- *  moonlit page, and vanish. @a-mesurer */
-const NIGHT_INK = 0.25;
 /** Over the washes and the hatch, under the contours and the hover's stroke. */
 const LIFT = 0.0025;
 /** The terrain's wash, under the drawings: the maquette's `TINT` (`sheet.js`), by type, whole at

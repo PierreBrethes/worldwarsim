@@ -25,6 +25,7 @@ import {
   segmentDistances,
 } from './atlas-geometry';
 import { buildCoastalWash, washGeometry } from './coastal-wash';
+import { inkDownAtNight, type NightUniforms } from './night-here';
 
 /** A country's sheet, by its Natural Earth `adm0_a3`: what a selection, a target, a label
  *  designate it with. */
@@ -112,11 +113,12 @@ export const coastWidthPx = (unitsPerPixel: number): number =>
   Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
 
 const COAST_OPACITY = 0.92;
-/** The country border's ink far out (`REST`) and up close (`MAX`), as the mockups' sheet draws
- *  it (`gisements/commun/table.js`): dotted, over a region's solid 0.2 (`regions.ts`), and under
- *  the coast's 0.92. Always darker than a region's, at any distance (#236). @a-mesurer */
-export const COUNTRY_BORDER_REST = 0.3;
-export const COUNTRY_BORDER_MAX = 0.42;
+/** The country border's sepia (`PALETTE.frontier`) far out (`REST`) and up close (`MAX`), dotted
+ *  as the mockups' sheet draws it (`gisements/commun/table.js`), over a region's solid stroke
+ *  (`regions.ts`) and under the coast's near-black. Always darker than a region's, at any
+ *  distance (#236); clearly lighter than the coast's ink it used to share (#248). @a-mesurer */
+export const COUNTRY_BORDER_REST = 0.45;
+export const COUNTRY_BORDER_MAX = 0.6;
 /** The dots: 3 px inked for 2.5 px blank, the mockups' `setLineDash([3, 2.5])`, in screen pixels so
  *  the rhythm holds at any zoom. @a-mesurer */
 export const COUNTRY_DASH_PX = 3;
@@ -203,7 +205,7 @@ export type CountrySheet = {
   readonly wash: Mesh<BufferGeometry, MeshBasicMaterial>;
 };
 
-export function buildCountries(level: SheetLevel): CountrySheet {
+export function buildCountries(level: SheetLevel, night: NightUniforms): CountrySheet {
   /**
    * **Une feuille, pas une dalle** (table d'état-major, 13/10/2026) : le pays est un aplat posé
    * sur la mer, sans paroi ni épaisseur — la côte est un trait d'encre, pas une falaise.
@@ -228,11 +230,14 @@ export function buildCountries(level: SheetLevel): CountrySheet {
   });
   const borders = new LineSegments(
     level.ink,
-    new LineDashedMaterial({
-      color: PALETTE.border,
-      transparent: true,
-      opacity: COUNTRY_BORDER_REST,
-    }),
+    inkDownAtNight(
+      new LineDashedMaterial({
+        color: PALETTE.frontier,
+        transparent: true,
+        opacity: COUNTRY_BORDER_REST,
+      }),
+      night,
+    ),
   );
   const coast = new LineSegments2(
     level.coast,
