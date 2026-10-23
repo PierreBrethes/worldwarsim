@@ -21,7 +21,10 @@ import {
 export function previewRefusalOf(preview: Previewed): string | null {
   if (preview === undefined) return null;
   if (preview === null) return fr.aim.noRoute;
-  const { fuel } = preview;
+  return fuelRefusalText(preview);
+}
+
+function fuelRefusalText({ fuel }: NonNullable<Previewed>): string | null {
   return fuel.short === null
     ? null
     : fr.errors.NOT_ENOUGH_FUEL({
@@ -29,6 +32,21 @@ export function previewRefusalOf(preview: Previewed): string | null {
         km: fuel.km,
         roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
       });
+}
+
+const sameOrder = (a: OrderChoice, b: OrderChoice) =>
+  JSON.stringify([a.aim, a.type, a.mission]) === JSON.stringify([b.aim, b.type, b.mission]);
+
+/** **Ce que le lâcher retient** (#258) : le refus de plein que la pastille vient de dire, sur
+ *  l'ordre même que l'aperçu a mesuré. Un aperçu `null` laisse partir : le serveur le rend
+ *  aussi pour une soute pleine ou une troupe déjà en marche, et dit sa raison exacte. */
+export function dropRefusalOf(
+  seen: { readonly choice: OrderChoice; readonly preview: Previewed } | undefined,
+  chosen: OrderChoice,
+): string | null {
+  return seen === undefined || !seen.preview || !sameOrder(seen.choice, chosen)
+    ? null
+    : fuelRefusalText(seen.preview);
 }
 
 export function useOrderPreview(

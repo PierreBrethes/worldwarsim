@@ -25,7 +25,7 @@ import { forbiddenGroundOf } from '@/domain/drop-order';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { useHeldRegions } from './-plateau/useHeldRegions';
-import { previewRefusalOf, useOrderPreview } from './-plateau/useOrderPreview';
+import { dropRefusalOf, useOrderPreview } from './-plateau/useOrderPreview';
 import { useTours } from './-plateau/useTours';
 import { usePlacing } from './-plateau/usePlacing';
 import { BoardWindows } from './-plateau/BoardWindows';
@@ -1058,7 +1058,7 @@ function BoardContent({
     [boardTransport, seat],
   );
   /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
-  const previewNow = useRef<{ aim: OrderChoice['aim']; preview: Previewed } | undefined>(undefined);
+  const previewNow = useRef<{ choice: OrderChoice; preview: Previewed } | undefined>(undefined);
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
       /** **Un ordre de colonne en vol, une fois** : le second lâcher n'envoie pas les mêmes troupes
@@ -1078,6 +1078,14 @@ function BoardContent({
             dropHand();
           },
         );
+      };
+      /** The chip already said no (#258): nothing goes to the server, and the hand says why. */
+      const heldAtDrop = (order: OrderAction) => {
+        const refusal = dropRefusalOf(previewNow.current, choiceOf(order));
+        if (refusal === null) return false;
+        setOrderError(refusal);
+        dropHand();
+        return true;
       };
       switch (action.key) {
         /**
@@ -1161,7 +1169,7 @@ function BoardContent({
          *  l'avion part de même, paie l'aller-retour et rentre seul. */
         case 'deliver':
         case 'airdrop': {
-          if (column === null) return;
+          if (column === null || heldAtDrop(action)) return;
           const order = {
             ...seat,
             origin: wireOrigin(column.station),
@@ -1219,6 +1227,7 @@ function BoardContent({
         case 'capture':
         case 'collect': {
           if (grouped) {
+            if (heldAtDrop(action)) return;
             // Never the lead alone: a group read that is gone is said, not half sent.
             const reads = groupReads.current.get(groupKeyOf(action));
             if (reads === undefined) {
@@ -1228,18 +1237,7 @@ function BoardContent({
             return;
           }
           if (column === null) return;
-          const chosenAim = choiceOf(action).aim;
-          const seenNow = previewNow.current;
-          const refusal =
-            seenNow !== undefined && JSON.stringify(seenNow.aim) === JSON.stringify(chosenAim)
-              ? previewRefusalOf(seenNow.preview)
-              : null;
-          // The chip already said no (#258): nothing goes to the server, and the hand says why.
-          if (refusal !== null) {
-            setOrderError(refusal);
-            dropHand();
-            return;
-          }
+          if (heldAtDrop(action)) return;
           sendColumn(() => {
             const chosen = choiceOf(action);
             const seen = previewNow.current;
@@ -1248,7 +1246,7 @@ function BoardContent({
               column.troopIds,
               chosen,
               // The stop the server measured may be another target than the one let go on.
-              seen !== undefined && JSON.stringify(seen.aim) === JSON.stringify(chosen.aim)
+              seen !== undefined && JSON.stringify(seen.choice.aim) === JSON.stringify(chosen.aim)
                 ? seen.preview
                 : undefined,
             );
@@ -2127,7 +2125,7 @@ function BoardContent({
   );
   const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting);
   previewNow.current =
-    resting === null || preview === undefined ? undefined : { aim: resting.aim, preview };
+    resting === null || preview === undefined ? undefined : { choice: resting, preview };
 
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
