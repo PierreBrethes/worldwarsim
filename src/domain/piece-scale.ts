@@ -6,7 +6,7 @@
 /**
  * 100 % is the common scale; below 80 a squad falls under its pin at the closest zoom, above
  * 125 a barracks spans more than a hundred kilometres.
- * @a-mesurer plage du POC de lisibilité (23/10), à reprendre sur une partie jouée (Q3)
+ * @a-mesurer recommandation du designer (POC de lisibilité, 23/10), Q3 ouverte à Pierre
  */
 export const MIN_PIECE_SCALE = 80;
 export const MAX_PIECE_SCALE = 125;
