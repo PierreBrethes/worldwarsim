@@ -89,7 +89,8 @@ const server = createServer((req, res) => {
   const path = decodeURIComponent(req.url.split('?')[0]);
   if (path === '/') return res.setHeader('content-type', 'text/html').end(page);
   const file = path.startsWith('/glb/') ? path.slice(4) : resolve(root, `.${path}`);
-  const ok = path.startsWith('/node_modules/three/') || path.startsWith('/glb/');
+  // Only the figurines being rendered, never any other file of the disk.
+  const ok = path.startsWith('/node_modules/three/') || jobs.some(([glb]) => path === `/glb${glb}`);
   if (!ok || !existsSync(file)) return res.writeHead(404).end();
   res.setHeader('content-type', types[extname(file)] ?? 'application/octet-stream');
   res.end(readFileSync(file));
