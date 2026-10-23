@@ -32,34 +32,38 @@ describe('nearWeight', () => {
   });
 });
 
-/** A piece gives way to its pin by its size on screen (ADR 0035 §3), here 900 px tall at 42°. */
+/** A piece gives way to its pin by its size on screen (ADR 0035 §3), measured at 900 px tall. */
 describe('pieceWeight', () => {
   afterEach(() => {
     setNearFloor(0);
     pieceScale.size = 1;
   });
-  pieceScale.pxPerUnit = 900 / (2 * Math.tan((21 * Math.PI) / 180));
 
-  it('pins the troops near d = 5 to 7 and the buildings near 56 to 68', () => {
-    expect(pieceWeight(4, troopSpan('infantry'))).toBe(1);
-    expect(pieceWeight(5, troopSpan('infantry'))).toBe(0);
-    expect(pieceWeight(5, troopSpan('armor'))).toBe(1);
-    expect(pieceWeight(7, troopSpan('armor'))).toBe(0);
-    expect(pieceWeight(30, buildingSpan('barracks'))).toBe(1);
-    expect(pieceWeight(57, buildingSpan('barracks'))).toBe(0);
-    expect(pieceWeight(57, buildingSpan('airfield'))).toBeGreaterThan(0);
-    expect(pieceWeight(68, buildingSpan('airfield'))).toBe(0);
+  it('pins the troops from d = 5 to 7 and the buildings from 58 to 70', () => {
+    expect(pieceWeight(5, troopSpan('infantry'))).toBe(1);
+    expect(pieceWeight(6, troopSpan('infantry'))).toBe(0);
+    expect(pieceWeight(6.9, troopSpan('armor'))).toBe(1);
+    expect(pieceWeight(8.2, troopSpan('armor'))).toBe(0);
+    expect(pieceWeight(57, buildingSpan('barracks'))).toBe(1);
+    expect(pieceWeight(68.3, buildingSpan('barracks'))).toBe(0);
+    expect(pieceWeight(69, buildingSpan('airfield'))).toBe(1);
   });
 
   it('shrinks into its pin over the last stretch, not at once', () => {
-    const between = pieceWeight(6.3, troopSpan('armor'));
+    const between = pieceWeight(7.5, troopSpan('armor'));
     expect(between).toBeGreaterThan(0);
     expect(between).toBeLessThan(1);
   });
 
   it('holds a bigger piece longer when the player grows them', () => {
     pieceScale.size = 1.25;
-    expect(pieceWeight(7, troopSpan('armor'))).toBeGreaterThan(0);
+    expect(pieceWeight(8.2, troopSpan('armor'))).toBeGreaterThan(0);
+  });
+
+  it('stands a whole man at the closest zoom and the smallest size, on a short window too', () => {
+    pieceScale.pxPerUnit = 650 / (2 * Math.tan((21 * Math.PI) / 180));
+    pieceScale.size = 0.8;
+    expect(pieceWeight(4, troopSpan('infantry'))).toBe(1);
   });
 
   it('measures a piece nearer than the target at the target distance', () => {

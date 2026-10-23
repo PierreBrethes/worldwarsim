@@ -65,20 +65,25 @@ const eased = (t: number): number => {
   return k * k * (3 - 2 * k);
 };
 
-/** **Under this size on screen, in CSS pixels, a piece gives way to its pin** (ADR 0035 §3).
- *  `@a-mesurer` */
+/** **Under this size on screen, in CSS pixels, a piece gives way to its pin** (ADR 0035 §3); a
+ *  pixel reads rounded, so a piece of 19.5 px still stands. `@a-mesurer` */
 const PIN_PX = 20;
-/** The share of the way to its pin over which a piece shrinks into it. `@a-mesurer` */
+/** The share of its size over which a piece shrinks into its pin, below `PIN_PX`. `@a-mesurer` */
 const PIN_FADE = 0.15;
+/** **Sizes on screen are read on a window 900 px tall** (`CAMERA_FOV` of 42°): a short window —
+ *  a laptop, a phone between its bars — pins its pieces at the same distances as the others. */
+const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
 
 /**
  * **How much of a piece stands, rather than its pin, by its size on screen** (ADR 0035 §3): 1
- * while its `span` — board units, at the common scale — reads over `PIN_PX`, 0 below, eased
- * over the last stretch. The troops give way near d = 5 to 7, the buildings near 56 to 68.
+ * while its `span` — board units, at the common scale — reads at `PIN_PX`, eased to 0 a little
+ * below. A man gives way from d ≈ 5, a tank from 7, a barracks from 58, a hangar from 70 — the
+ * fighter from 13, the carrier from 145.
  */
 export function pieceWeight(distance: number, span: number): number {
-  const pinned = (span * pieceScale.size * pieceScale.pxPerUnit) / PIN_PX;
-  return eased((pinned - Math.max(distance, nearFloor)) / (pinned * PIN_FADE));
+  const px = (span * pieceScale.size * REFERENCE_PX_PER_UNIT) / Math.max(distance, nearFloor);
+  const whole = PIN_PX - 0.5;
+  return eased((px - whole * (1 - PIN_FADE)) / (whole * PIN_FADE));
 }
 
 export type Figurine = {

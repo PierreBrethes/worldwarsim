@@ -1765,7 +1765,7 @@ export class MapEngine {
     this.sheet.coast.material.resolution.set(clientWidth, clientHeight);
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
-    // A piece's size on screen, seen from a unit away: what says when it gives way to its pin.
+    // A target's least width on screen is counted in this window's own pixels (`targetGrowth`).
     pieceScale.pxPerUnit = 1 / this.unitsPerPixel(1);
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
