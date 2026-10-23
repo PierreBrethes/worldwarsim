@@ -56,10 +56,16 @@ float nightAtWorld(vec2 xz) {
  *  moonlit page. @a-mesurer */
 export const NIGHT_INK = 0.25;
 
+/** Of its day colour, what a border keeps at night: under the moonlit land, as the coast's ink
+ *  was. @a-mesurer */
+const FRONTIER_NIGHT = 0.05;
+
 /**
  * **Un trait de la feuille s'assombrit avec elle, la nuit** (#248) : la frontière est sépia, plus
  * claire que le sol éclairé par la lune, et une ligne three.js n'est pas éclairée. Elle lit la bande
- * de nuit au pixel, comme les dessins de terrain.
+ * de nuit au pixel, comme les dessins de terrain, mais descend plus bas qu'eux (`FRONTIER_NIGHT`) :
+ * au quart de son sépia, elle valait le sol de nuit et ne se lisait plus, quand l'encre presque
+ * noire d'avant restait dessous.
  */
 export function inkDownAtNight<M extends Material>(material: M, night: NightUniforms): M {
   material.onBeforeCompile = (shader) => {
@@ -74,7 +80,7 @@ export function inkDownAtNight<M extends Material>(material: M, night: NightUnif
       .replace('void main() {', `${NIGHT_HERE_GLSL}\nvarying vec2 vInkWorld;\nvoid main() {`)
       .replace(
         '#include <colorspace_fragment>',
-        `gl_FragColor.rgb *= mix(1.0, ${NIGHT_INK.toFixed(2)}, nightAtWorld(vInkWorld));
+        `gl_FragColor.rgb *= mix(1.0, ${FRONTIER_NIGHT.toFixed(2)}, nightAtWorld(vInkWorld));
         #include <colorspace_fragment>`,
       );
   };
