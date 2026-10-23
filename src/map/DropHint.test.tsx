@@ -37,3 +37,27 @@ describe('the fuel gauge under the hand', () => {
     expect(markup).toContain('manque 24');
   });
 });
+
+describe('a road the server refuses', () => {
+  const refusal = { text: 'plein trop court', alarm: true, refusal: true };
+  const markup = renderToStaticMarkup(
+    <DropHintChip
+      hint={hint}
+      fuel={gauge({ held: 1, eaten: 3, short: 2 })}
+      notes={[refusal]}
+      ref={null}
+    />,
+  );
+
+  it('takes the refusal tone instead of the order tick, the refusal as its verb', () => {
+    expect(markup).toContain('drop-chip--refused');
+    expect(markup).not.toContain('drop-chip--order');
+    expect(markup).toContain('✕');
+    expect(markup).toMatch(/drop-chip-verb">plein trop court</);
+    expect(markup).not.toContain('relâcher pour ordonner');
+  });
+
+  it('keeps the fuel gauge under the verb', () => {
+    expect(markup).toContain('drop-chip-fuel');
+  });
+});
