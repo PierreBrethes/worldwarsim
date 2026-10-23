@@ -83,19 +83,20 @@ const HATCH_WIDTH = 3.4;
 const HATCH_EDGE = 0.9;
 
 /**
- * Le même procédé pour toutes les trames du sol : `trame` est la position du fragment en pixels
- * CSS, et le corps ne fait que moduler la couleur déjà éclairée. La clef de programme porte le
- * corps — sans elle, three.js reconnaît deux trames au même `onBeforeCompile` et leur sert le
- * premier programme compilé.
- */
-/**
  * **Les pixels du tampon par pixel CSS, tels que la carte les rend** (#189) : au doigt 1,5, et non
  * le `devicePixelRatio` de l'écran, sans quoi les trames se resserrent au téléphone. Un seul
- * uniforme, partagé par toutes les trames ; le moteur le règle avec son pixel ratio.
+ * uniforme, partagé par la hachure, le voile (`veil.ts`), les dessins de terrain et le grain du
+ * papier (`countries.ts`) ; le moteur le règle avec son pixel ratio.
  */
 export const TRAME_SCALE = { value: 1 };
 
-export function screenTrame<M extends MeshStandardMaterial>(material: M, body: string): M {
+/**
+ * Une trame à l'écran : `trame` est la position du fragment en pixels CSS, et le corps ne fait que
+ * moduler la couleur déjà éclairée. Le grain du papier n'en est plus une : il colle à la carte
+ * (#248, `countries.ts`). La clef de programme porte le corps — sans elle, three.js reconnaît deux
+ * trames au même `onBeforeCompile` et leur sert le premier programme compilé.
+ */
+function screenTrame<M extends MeshStandardMaterial>(material: M, body: string): M {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.trameScale = TRAME_SCALE;
     shader.fragmentShader = shader.fragmentShader
