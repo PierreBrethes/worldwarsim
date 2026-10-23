@@ -1,8 +1,9 @@
 # ADR 0035 — Une échelle commune des pièces
 
-**Statut :** proposée (23/10/2026). Pierre a choisi la variante D et tranché ses suites (Q2 à Q7)
-le 23/10 ; restent ouverts le palier entre figurine et épingle (Q1) et la plage du curseur de
-taille (Q3). **Précise l'ADR 0026** (la carte en figurines) sur la taille des pièces.
+**Statut :** acceptée (23/10/2026). Pierre a choisi la variante D, tranché ses suites (Q2 à Q7),
+puis la figurine plancher (Q1, §10) et la plage du curseur (Q3, §6). **Précise l'ADR 0026** (la
+carte en figurines) sur la taille des pièces. L'exagération de l'homme (§2) est en cours de
+réexamen sur le storyboard de la caserne.
 
 ## Contexte
 
@@ -35,19 +36,26 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
 5. **Les bâtiments gardent leur disposition** en anneau autour d'un site, agrandie dans la même
    proportion (×1,37).
 6. **Un seul curseur de taille** remplace les deux du joueur (troupes, bâtiments) : régler l'un
-   sans l'autre casserait le lien. Sa valeur par défaut est l'échelle de cet ADR.
+   sans l'autre casserait le lien. Sa valeur par défaut est l'échelle de cet ADR (100 %), sa
+   plage 80 à 125 % : en dessous, l'infanterie n'est jamais figurine ; au-dessus, une caserne
+   dépasse 100 km.
 7. **Les avions volent à environ trois envergures** au-dessus du sol, au lieu d'une altitude fixe.
 8. **Ce qui appartient au bâtiment vit dans son modèle** (portes à battants nommées, remise de la
    caserne, portes de hangar) ; **ce qui appartient au terrain est dessiné par le moteur** (piste
    d'aérodrome, môle du port). Une piste à la bonne proportion ferait plus de 1 000 km : elle est
    un symbole court.
 9. **La Blitz suit la même échelle.**
+10. **La figurine plancher.** Une troupe ne descend pas sous ~20 px à l'écran jusqu'à d ≈ 30, puis
+    devient épingle : ni jeton 2D, ni cadrage déplacé. Entre d ≈ 5 et 30 elle grandit donc par
+    rapport à son bâtiment ; le lien strict tient au rapproché, là où se jouent les sorties
+    (POC `WWS/prototypes/echelle-commune/lisibilite.html`, #266).
 
 ## Ce qu'on abandonne
 
-- **Des troupes en figurines aux distances de jeu.** Au-delà de d ≈ 5 à 7, une troupe n'est plus
-  une figurine lisible : ce qui la montre entre d ≈ 7 et 30 (un palier de plus, ou des cadrages
-  ramenés au rapproché) est la question Q1, ouverte.
+- **Le lien strict à toute distance.** Entre d ≈ 5 et 30, la figurine plancher (§10) garde une
+  troupe lisible au prix de sa proportion avec son bâtiment.
+- **Le jeton 2D entre figurine et épingle** (trois paliers à apprendre), et **des cadrages de jeu
+  ramenés au rapproché** (une garnison réduite à des points de 9 px à d = 10).
 - **Des bâtiments tous de la même taille** : un hangar est plus large qu'une caserne, un port
   plus grand que tous.
 - **Le réglage séparé des troupes et des bâtiments.**
