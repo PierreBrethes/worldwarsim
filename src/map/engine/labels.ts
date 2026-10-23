@@ -223,8 +223,10 @@ export class LabelLayer {
       projection.far = nearWeight(distance) < 0.5;
       const dressed = this.isDressed(projection.id);
       const span = dressed || this.pinned.has(projection.id) ? this.spanOf(projection.id) : 0;
-      const piece =
-        span === null ? nearWeight(distance) : span === 0 ? 0 : pieceWeight(distance, span);
+      // Its piece is measured where it is drawn, as the piece measures itself and its pin stands.
+      const drawn = span === 0 ? null : this.drawnAt(projection.id);
+      const from = drawn === null ? distance : drawn.distanceTo(measuredFrom);
+      const piece = span === null ? nearWeight(from) : span === 0 ? 0 : pieceWeight(from, span);
       // The pin is the piece once the piece is too small to read (ADR 0035 §3).
       if (inFrame && piece < 0.5 && this.pinned.has(projection.id)) {
         projection.visible = false;
@@ -237,8 +239,7 @@ export class LabelLayer {
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
       projection.dressed = dressed ? piece : 0;
-      const drawn = projection.dressed > 0 ? this.drawnAt(projection.id) : null;
-      if (drawn === null) {
+      if (drawn === null || projection.dressed === 0) {
         projection.drawnX = 0;
         projection.drawnY = 0;
       } else {

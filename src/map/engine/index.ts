@@ -789,7 +789,11 @@ export class MapEngine {
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
-      () => this.landed(),
+      () => {
+        this.landed();
+        // A maquette that lands off its point, on its ring, takes its pin there.
+        this.pins.rebuild();
+      },
       (at, words) =>
         this.inkBurst({
           kind: 'built',
@@ -808,6 +812,7 @@ export class MapEngine {
       this.touch,
       () => this.invalidate(),
       (pin) => this.pieceSpanOf(pin.id, pin.shape),
+      (id) => this.maquettes.drawnAt(id),
     );
     this.scene.add(this.pins.group);
     this.scene.add(this.ink.group);
@@ -1006,6 +1011,8 @@ export class MapEngine {
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
     this.invalidate();
+    // A ring may have carried a maquette elsewhere: its pin follows.
+    this.pins.rebuild();
     const runways = this.maquettes.runwaysKey();
     if (runways === this.runways) return;
     this.runways = runways;
@@ -2486,6 +2493,7 @@ export class MapEngine {
     this.invalidate();
     pieceScale.size = scale.troops / 100;
     this.maquettes.resize();
+    this.pins.rebuild();
   }
 
   setMapMotion(motion: MapMotion): void {

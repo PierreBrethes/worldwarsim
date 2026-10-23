@@ -177,6 +177,8 @@ export class PinLayer {
     /** The span its piece gives way to it by — a building's, a pile's, a tank's for what is not
      *  drawn —, `null` for what has no piece (an outpost): it rises with the regions' fade. */
     private readonly spanOf: (pin: Pin) => number | null = () => ANONYMOUS_SPAN,
+    /** Where its piece is drawn when a ring carried it off its point: the pin stands there. */
+    private readonly drawnAt: (id: string) => Vector3 | null = () => null,
   ) {
     this.shapes = new InstancedDraw(SHAPE_ATTRIBUTES, shapeMaterial(this.viewport, this.selectInk));
     this.glyphs = new InstancedDraw(GLYPH_ATTRIBUTES, glyphMaterial(this.viewport, repainted));
@@ -188,16 +190,20 @@ export class PinLayer {
     this.rebuild();
   }
 
-  /** The regions landed under a building's anchor, or the frame changed: anchors are re-read. */
+  /** The regions landed under a building's anchor, the frame changed, or a ring placed its
+   *  maquettes again: anchors are re-read. */
   rebuild(): void {
     for (const placed of this.placed) {
       const { anchor } = placed.pin;
+      const drawn = this.drawnAt(placed.pin.id);
       placed.at =
-        anchor.kind === 'ground'
-          ? this.frame.projectLonLat(anchor.lonLat, ELEVATION)
-          : anchor.kind === 'region'
-            ? this.regionAnchor(anchor.regionId)
-            : null;
+        drawn !== null
+          ? new Vector3(drawn.x, ELEVATION, drawn.z)
+          : anchor.kind === 'ground'
+            ? this.frame.projectLonLat(anchor.lonLat, ELEVATION)
+            : anchor.kind === 'region'
+              ? this.regionAnchor(anchor.regionId)
+              : null;
     }
     this.dirty = true;
   }

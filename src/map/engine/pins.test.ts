@@ -93,6 +93,22 @@ describe('PinLayer — the pieces far away', () => {
     expect(layer.under(...screenOf(eye, paris))).toBeNull();
   });
 
+  it('stands where a ring carried its maquette, not on the point the maquette left', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = new PinLayer(
+      frame,
+      () => null,
+      false,
+      () => {},
+      () => null,
+      (id) => (id === 'a' ? frame.projectLonLat(lyon) : null),
+    );
+    layer.display([mine('a', paris)]);
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(layer.under(...screenOf(eye, lyon))).toEqual({ kind: 'pin', id: 'a' });
+    expect(layer.under(...screenOf(eye, paris))).toBeNull();
+  });
+
   it('stands for a pile as soon as its piece is too small to read (ADR 0035)', () => {
     const eye = eyeOver(paris, 20);
     const layer = laidOut([mine('a', paris)], eye);
