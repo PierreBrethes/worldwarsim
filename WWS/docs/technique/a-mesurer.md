@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 107b993 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 68a9d65 -->
 
 # Les constantes à mesurer
 
@@ -82,8 +82,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:105` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `MOON_ELEVATION_DEG` | `53` | `src/domain/daylight.ts:106` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `BASIN_KM` | `24` | `src/domain/deposit-basins.ts:22` | le rayon du bassin dessiné : plus étroit que l'aimant, c'est le terrain qu'on lit. |
-| `SWEEP_RANGE_KM` | `1000` | `src/domain/deposit-sweep.ts:17` | décisions du 23/10 sur #249 : l'Europe de l'Ouest d'un coup d'œil |
-| `SWEEP_MS` | `3000` | `src/domain/deposit-sweep.ts:20` | décisions du 23/10 sur #249 : assez long pour suivre le front |
+| `SWEEP_RANGE_KM` | `1000` | `src/domain/deposit-sweep.ts:16` | décisions du 23/10 sur #249 : l'Europe de l'Ouest d'un coup d'œil |
+| `SWEEP_MS` | `3000` | `src/domain/deposit-sweep.ts:19` | décisions du 23/10 sur #249 : assez long pour suivre le front |
 | `BUILDING_SPACING_KM` | `30` | `src/domain/economy.ts:89` | l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
