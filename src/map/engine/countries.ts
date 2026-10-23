@@ -50,8 +50,9 @@ const BORDER_LIFT = 0.004;
  *
  * **Collé à la carte** (#248) : fixe à l'écran, il faisait glisser la carte sous une vitre sale.
  * Le hasard se tire donc par case du plateau, et la case garde une taille d'écran à peu près
- * constante : deux échelles d'un facteur 2, de 0,7 à 2,8 pixels CSS (`GRAIN_PX`) : une case
- * plus fine se remélange à chaque glissé de moins d'un pixel, une plus grosse se voit en pavés.
+ * constante : deux échelles d'un facteur 2, de 0,5 à 2 pixels CSS (`GRAIN_PX`), jamais moins
+ * d'un pixel du tampon : une case plus fine se remélange à chaque glissé de moins d'un pixel (sur
+ * un écran sans Retina, la case garde donc un pixel), une plus grosse se voit en pavés.
  * Elles se fondent selon les pixels que couvre le fragment (`dFdx` : la pente et le pincement
  * sans uniforme ni image de plus). Le hasard d'une échelle ne dépend que de son rang absolu :
  * quand l'une passe le relais à la suivante, rien ne saute. Les cases bouclent tous les 1024 de
@@ -65,9 +66,9 @@ const BORDER_LIFT = 0.004;
  * comme une brume. @a-mesurer
  */
 const GRAIN_OPACITY = 0.06;
-const GRAIN_PX = 0.7;
-const GRAIN_FLAT_FROM = 2.5;
-const GRAIN_FLAT_GONE = 5.0;
+const GRAIN_PX = 0.5;
+const GRAIN_FLAT_FROM = 1.8;
+const GRAIN_FLAT_GONE = 3.5;
 const GRAIN_HEAD = `
 varying vec2 vGrain;
 float grainAt(float scale) {
@@ -83,7 +84,7 @@ const GRAIN_BODY = `
   vec2 gy = dFdy(vGrain);
   float major = max(length(gx), length(gy));
   float minor = abs(gx.x * gy.y - gx.y * gy.x) / max(major, 1e-6);
-  float span = max(minor, 1e-6) * trameScale * ${GRAIN_PX.toFixed(1)};
+  float span = max(minor, 1e-6) * max(trameScale * ${GRAIN_PX.toFixed(2)}, 1.0);
   float scale = floor(log2(span)) + 1.0;
   float share = fract(log2(span));
   float speck = mix(grainAt(scale), grainAt(scale + 1.0), share) / length(vec2(1.0 - share, share));
