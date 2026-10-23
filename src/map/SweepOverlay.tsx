@@ -22,8 +22,11 @@ export type SweepRequest = {
   readonly candidates: ReadonlyArray<SweepCandidate>;
 };
 
-/** How long a name stays on the map after the front reached it. @a-mesurer */
+/** How long each name stays on the map from the moment the front reaches its basin, and its fades
+ *  in and out (maquette `radar.js`). @a-mesurer */
 const TAG_MS = 12_000;
+const FADE_IN_MS = 250;
+const FADE_OUT_MS = 1200;
 /** Below the basin's point: clear of its drawn radius at the zoom one reads names at. */
 const TAG_GAP_PX = 20;
 const MARGIN_PX = 8;
@@ -66,7 +69,12 @@ export function SweepOverlay({
         hitMs: hit.hitMs,
       })),
     });
-    const last = still ? 0 : Math.max(SWEEP_MS, ...result.found.map((hit) => hit.hitMs));
+    // The last name goes TAG_MS after its basin is reached; the dispatch, TAG_MS after the wave.
+    const last = still
+      ? 0
+      : result.found.length === 0
+        ? SWEEP_MS
+        : Math.max(...result.found.map((hit) => hit.hitMs));
     const ran = setTimeout(() => setRan(true), still ? 0 : SWEEP_MS);
     const ended = setTimeout(onEnd, last + TAG_MS);
     return () => {
@@ -99,7 +107,14 @@ export function SweepOverlay({
         if (hit === undefined) return null;
         const place = placeOf(hit);
         return (
-          <SweepTagCard key={tag.id} tag={tag} hit={hit} place={place} onGo={() => goTo(hit)} />
+          <SweepTagCard
+            key={tag.id}
+            tag={tag}
+            hit={hit}
+            place={place}
+            still={still}
+            onGo={() => goTo(hit)}
+          />
         );
       })}
       {ran && result.found.length === 0 && (
@@ -139,14 +154,28 @@ function SweepTagCard({
   tag,
   hit,
   place,
+  still,
   onGo,
 }: {
   tag: SweepTag;
   hit: SweepHit;
   place: string;
+  still: boolean;
   onGo: () => void;
 }) {
   const species = hit.deposit.deposit;
+  // Told when the front reaches its basin, the card lives TAG_MS from its own mount.
+  const [phase, setPhase] = useState<'entering' | 'held' | 'leaving' | 'gone'>('entering');
+  useEffect(() => {
+    const held = requestAnimationFrame(() => setPhase('held'));
+    const leaving = setTimeout(() => setPhase('leaving'), TAG_MS - FADE_OUT_MS);
+    const gone = setTimeout(() => setPhase('gone'), TAG_MS);
+    return () => {
+      cancelAnimationFrame(held);
+      clearTimeout(leaving);
+      clearTimeout(gone);
+    };
+  }, []);
   // Under its basin, the card is kept inside the map: by an edge it would be cut by it.
   const card = useRef<HTMLButtonElement>(null);
   const [nudge, setNudge] = useState(0);
@@ -169,13 +198,25 @@ function SweepTagCard({
     : sideways
       ? `translate(${cos > 0 ? 'calc(-100% - 18px)' : '18px'}, -50%)`
       : `translate(-50%, ${sin > 0 ? 'calc(-100% - 18px)' : '18px'})`;
+  if (phase === 'gone') return null;
+  const fade = {
+    opacity: phase === 'held' ? 1 : 0,
+    transition: still
+      ? 'none'
+      : `opacity ${phase === 'leaving' ? FADE_OUT_MS : FADE_IN_MS}ms linear`,
+  };
   return (
     <>
       {tag.off && (
         <span
           aria-hidden
           className="absolute h-0 w-0"
-          style={{ left: tag.x, top: tag.y, transform: `rotate(${tag.angle}rad)` }}
+          style={{
+            left: tag.x,
+            top: tag.y,
+            transform: `rotate(${tag.angle}rad)`,
+            ...fade,
+          }}
         >
           <span className="absolute top-[-0.75px] left-[-26px] w-[16px] border-t-[1.5px] border-[var(--ink)]" />
           <span className="absolute top-[-7px] left-[-12px] border-y-[7px] border-l-[12px] border-y-transparent border-l-[var(--ink)]" />
@@ -192,6 +233,7 @@ function SweepTagCard({
           top: tag.y,
           transform: anchor,
           borderTop: `3px solid ${WASH[species]}`,
+          ...fade,
         }}
       >
         <span className="flex items-center gap-[5px] text-[12.5px] font-semibold whitespace-nowrap">
