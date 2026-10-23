@@ -5,6 +5,7 @@ import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import type { StandingMaquette } from '@/map/engine';
 import { asClockTime } from '@/domain/duration';
+import { buildingSpan, objectiveSpan } from '@/domain/piece-size';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -24,6 +25,7 @@ export function maquettesOf(
     const standing = (
       at: StandingMaquette['at'],
       url: string | null,
+      span: number,
       washed = false,
       works?: StandingMaquette['works'],
       smoking = false,
@@ -35,6 +37,7 @@ export function maquettesOf(
               id: marker.id,
               at,
               url,
+              span,
               washed,
               ...(works && { works }),
               ...(smoking && { smoking }),
@@ -45,6 +48,7 @@ export function maquettesOf(
         return standing(
           marker.lonLat === null ? { regionId: marker.regionId } : { lonLat: marker.lonLat },
           buildingMaquette(marker.key, depositUnder(marker.lonLat)),
+          buildingSpan(marker.key),
           false,
           marker.works === null
             ? undefined
@@ -67,12 +71,15 @@ export function maquettesOf(
         return standing(
           { lonLat: marker.lonLat },
           buildingMaquette(marker.key, depositUnder(marker.lonLat)),
+          buildingSpan(marker.key),
           marker.washed,
         );
       case 'objective': {
         // Emptied, it stands whole as its plate does: the cartouche says it is empty.
         const key = objectiveKey(marker.objectiveId);
-        return key === undefined ? [] : standing({ lonLat: marker.lonLat }, objectiveMaquette(key));
+        return key === undefined
+          ? []
+          : standing({ lonLat: marker.lonLat }, objectiveMaquette(key), objectiveSpan(key));
       }
       default:
         return [];

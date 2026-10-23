@@ -5,9 +5,12 @@ import {
   figurineFor,
   hideAltitudeShadows,
   nearWeight,
+  pieceWeight,
   setNearFloor,
 } from './figurine';
 import { squadOf } from './infantry';
+import { pieceScale } from '../piece-scale';
+import { buildingSpan, troopSpan } from '@/domain/piece-size';
 
 describe('nearWeight', () => {
   afterEach(() => setNearFloor(0));
@@ -26,6 +29,42 @@ describe('nearWeight', () => {
     setNearFloor(20);
     expect(nearWeight(10)).toBe(1);
     expect(nearWeight(48)).toBeGreaterThan(0);
+  });
+});
+
+/** A piece gives way to its pin by its size on screen (ADR 0035 §3), here 900 px tall at 42°. */
+describe('pieceWeight', () => {
+  afterEach(() => {
+    setNearFloor(0);
+    pieceScale.size = 1;
+  });
+  pieceScale.pxPerUnit = 900 / (2 * Math.tan((21 * Math.PI) / 180));
+
+  it('pins the troops near d = 5 to 7 and the buildings near 56 to 68', () => {
+    expect(pieceWeight(4, troopSpan('infantry'))).toBe(1);
+    expect(pieceWeight(5, troopSpan('infantry'))).toBe(0);
+    expect(pieceWeight(5, troopSpan('armor'))).toBe(1);
+    expect(pieceWeight(7, troopSpan('armor'))).toBe(0);
+    expect(pieceWeight(30, buildingSpan('barracks'))).toBe(1);
+    expect(pieceWeight(57, buildingSpan('barracks'))).toBe(0);
+    expect(pieceWeight(57, buildingSpan('airfield'))).toBeGreaterThan(0);
+    expect(pieceWeight(68, buildingSpan('airfield'))).toBe(0);
+  });
+
+  it('shrinks into its pin over the last stretch, not at once', () => {
+    const between = pieceWeight(6.3, troopSpan('armor'));
+    expect(between).toBeGreaterThan(0);
+    expect(between).toBeLessThan(1);
+  });
+
+  it('holds a bigger piece longer when the player grows them', () => {
+    pieceScale.size = 1.25;
+    expect(pieceWeight(7, troopSpan('armor'))).toBeGreaterThan(0);
+  });
+
+  it('measures a piece nearer than the target at the target distance', () => {
+    setNearFloor(10);
+    expect(pieceWeight(4, troopSpan('armor'))).toBe(0);
   });
 });
 

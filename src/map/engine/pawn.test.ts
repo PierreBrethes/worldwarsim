@@ -1,3 +1,4 @@
+import { troopSpan } from '@/domain/piece-size';
 import { describe, expect, it } from 'vitest';
 import { Group, Vector3 } from 'three';
 import type { Medium } from '@/domain/routing';
@@ -97,7 +98,12 @@ describe('the plane shadow', () => {
 
 describe('the life of a piece of mine on its road', () => {
   const close = new Vector3(0, 5, 0);
-  const figurine = (): Figurine => ({ object: new Group(), ready: Promise.resolve(), spin() {} });
+  const figurine = (): Figurine => ({
+    object: new Group(),
+    span: troopSpan('armor'),
+    ready: Promise.resolve(),
+    spin() {},
+  });
   const tank = (roles: boolean) => {
     const land = figurine();
     const pawn = new Pawn(

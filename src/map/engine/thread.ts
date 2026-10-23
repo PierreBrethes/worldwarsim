@@ -5,6 +5,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import type { LonLat } from '@/domain/geo';
+import { AIR_ALTITUDE } from '@/domain/piece-size';
 import type { ComputedRoute, Medium } from '@/domain/routing';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { PALETTE } from './palette';
@@ -24,9 +25,10 @@ const SURFACE_ALTITUDE = COUNTRY_THICKNESS + 0.006;
 export const AIR_RISE_SHARE = 0.045;
 export const AIR_RISE_MAX = 6;
 
-/** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers at the shortest hop's
- *  cruise, and its thread leaves and stops at that height; also the air arc's rise floor. */
-export const HOVER_ALTITUDE = 1;
+/** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers some three wingspans
+ *  up (ADR 0035 §7), and its thread leaves and stops at that height; also the air arc's rise
+ *  floor. */
+export const HOVER_ALTITUDE = AIR_ALTITUDE;
 
 /**
  * Without the floor, a hundred-kilometer hop draws flat and can no longer be told from a

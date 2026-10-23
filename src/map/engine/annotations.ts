@@ -15,7 +15,7 @@ import type { LonLat } from '@/domain/geo';
 import { asClockTime } from '@/domain/duration';
 import type { Medium } from '@/domain/routing';
 import { surveyInk } from '@/domain/survey-ink';
-import { FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, pieceWeight, type Figurine } from './figurines/figurine';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
 import { pieceScale } from './piece-scale';
 import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
@@ -163,6 +163,7 @@ export function eraseAnnotation(object: Group): void {
 /** An enemy movement's « figurine »: its annotation slides along the stretch, upright to the eye. */
 export const annotationFigurine = (medium: Medium, seenAt: number): Figurine => ({
   object: inkAnnotation(medium, seenAt, null).object,
+  span: ANONYMOUS_SPAN,
   ready: Promise.resolve(),
   spin() {},
   facesEye: true,
@@ -275,9 +276,9 @@ export class CampLayer {
   orient(cameraPosition: Vector3, yaw: number): void {
     const seconds = performance.now() / 1000;
     for (const [id, { object, ring }] of this.placed) {
-      const near = nearWeight(object.position.distanceTo(cameraPosition));
+      const near = pieceWeight(object.position.distanceTo(cameraPosition), ANONYMOUS_SPAN);
       object.visible = near > 0;
-      object.scale.setScalar(near * pieceScale.troops);
+      object.scale.setScalar(near * pieceScale.size);
       object.rotation.set(0, yaw, 0);
       ring.style(
         this.marked?.id === id ? this.marked.state : null,

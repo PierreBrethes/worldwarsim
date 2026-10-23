@@ -13,7 +13,8 @@ import type { LonLat } from '@/domain/geo';
 import type { StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { nearWeight, sceneOf } from './figurines/figurine';
+import { buildingSpan } from '@/domain/piece-size';
+import { pieceWeight, sceneOf } from './figurines/figurine';
 import { washedOf } from './standing';
 import { bakedParts, type Part } from './baking';
 import { pieceScale } from './piece-scale';
@@ -24,9 +25,10 @@ import { groundFootprint, WorksDressing, type Works } from './works';
 
 /**
  * **A factory at work smokes** (`table-etat-major.html`, `fac.userData.stacks`): a slow grey
- * thread from each chimney, leaning downwind. In board units at full near weight — a maquette is
- * `MAQUETTE_SPAN` wide.
+ * thread from each chimney, leaning downwind. In board units for a maquette `SMOKE_SPAN` wide: it
+ * grows with its maquette.
  */
+const SMOKE_SPAN = 0.7;
 const FACTORY_SMOKE: Plume = {
   puffs: 9,
   life: 4.2,
@@ -46,6 +48,8 @@ export type StandingMaquette = {
   readonly id: string;
   readonly at: { readonly lonLat: LonLat } | { readonly regionId: string };
   readonly url: string;
+  /** Its widest side at the ground, in board units at the common scale (`buildingSpan`). */
+  readonly span: number;
   /** Known from a survey that has aged, or an emptied objective: a ghost of the building. */
   readonly washed: boolean;
   /** A site at work (mode chantier): its plan, its first level rising, or a raise. */
@@ -55,14 +59,11 @@ export type StandingMaquette = {
 };
 
 /**
- * **The widest side of a maquette's footprint, in board units.** Every model is brought to it:
- * a hangar and a well are the same size on the board, as their plates are on a mast. Half again
- * a tank's length (`FIGURINE_SCALE`), under the spacing two buildings keep (ADR 0029), so it
- * stands on its own ground without spilling on the next. `@a-mesurer` on the board.
+ * **The span a ring of maquettes is laid out by** (ADR 0035 §5): the ring keeps its layout, grown
+ * as a barracks grew from the former 0.7 a maquette to a département, ×1.37. A hangar or a
+ * warehouse, a little wider, still clears its neighbours at `RING_GAP`.
  */
-export const MAQUETTE_SPAN = 0.7;
-
-export const spanScale = (size: Vector3): number => MAQUETTE_SPAN / Math.max(size.x, size.z);
+export const RING_SPAN = buildingSpan('barracks');
 
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */
 export function yawOf(id: string): number {
@@ -73,6 +74,7 @@ export function yawOf(id: string): number {
 
 type Model = {
   readonly parts: ReadonlyArray<Part>;
+  /** Its own units to one board unit on its widest side at the ground: times its span, its size. */
   readonly scale: number;
   /** Its bounds in its own units, ground at zero: how high a site rises, where its scaffold stands. */
   readonly box: Box3;
@@ -98,7 +100,8 @@ function modelOf(url: string): Promise<Model> {
         const top = box.getCenter(new Vector3());
         chimneys.push(top.setY(box.max.y));
       }
-      return { parts, scale: spanScale(box.getSize(new Vector3())), box, chimneys };
+      const size = box.getSize(new Vector3());
+      return { parts, scale: 1 / Math.max(size.x, size.z), box, chimneys };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -113,7 +116,7 @@ function modelOf(url: string): Promise<Model> {
  */
 export function ringOffsets(
   count: number,
-  span = MAQUETTE_SPAN,
+  span = RING_SPAN,
 ): Array<readonly [x: number, z: number]> {
   if (count < 2) return [[0, 0]];
   const radius = ringRadius(count, span);
@@ -304,10 +307,10 @@ function ringed(
 
 /**
  * **How far from its maquette a building's garrison stands**, in board units at full near
- * weight: a span off its centre, so that its figurines clear the corner of a square model turned
- * any way. `@a-mesurer` on the board.
+ * weight: a span and a seventh off its centre, so that its figurines clear the corner of a
+ * square model turned any way — 0.8 for the former 0.7, grown with the ring. `@a-mesurer`
  */
-export const GARRISON_FOOT = 0.8;
+export const GARRISON_FOOT = (8 / 7) * RING_SPAN;
 
 /**
  * **Two maquettes of a ring stand this many spans apart**, centre to centre: a model turned any
@@ -317,11 +320,12 @@ export const GARRISON_FOOT = 0.8;
 const RING_GAP = 1.25;
 
 /** **How far a ring may carry a maquette from its own point**, in board units at full piece
- *  size: under a span, so the site reads where it is. `@a-mesurer` on the board. */
-const MAX_SHIFT = 0.55;
+ *  size: under a span, so the site reads where it is — 0.55 for the former 0.7. `@a-mesurer` */
+const MAX_SHIFT = (0.55 / 0.7) * RING_SPAN;
 
 type Placed = {
   readonly id: string;
+  readonly span: number;
   readonly ground: Vector3;
   /** The ground, or its place on the ring it clears its neighbours on. */
   readonly at: Vector3;
@@ -450,6 +454,7 @@ export class MaquetteLayer {
       }
       const item: Placed = {
         id: maquette.id,
+        span: maquette.span,
         ground,
         at: ground.clone(),
         facing: 0,
@@ -504,10 +509,10 @@ export class MaquetteLayer {
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
-      MAQUETTE_SPAN * RING_GAP * pieceScale.buildings,
+      RING_SPAN * RING_GAP * pieceScale.size,
       // A lone site's garrison stands this far in front: its footprint reaches it.
-      GARRISON_FOOT * pieceScale.buildings,
-      { maxShift: MAX_SHIFT * pieceScale.buildings, onLand: this.onLand },
+      GARRISON_FOOT * pieceScale.size,
+      { maxShift: MAX_SHIFT * pieceScale.size, onLand: this.onLand },
     );
     items.forEach((item, k) => {
       const { at, facing, scale } = placed[k]!;
@@ -577,11 +582,7 @@ export class MaquetteLayer {
     if (dressed === undefined || !model || dressed.item.near <= 0 || !dressed.lot.group.visible)
       return null;
     const { item } = dressed;
-    matrix.compose(
-      item.at,
-      item.turn,
-      scale.setScalar(item.near * model.scale * pieceScale.buildings * item.scale),
-    );
+    matrix.compose(item.at, item.turn, scale.setScalar(item.near * sizeOf(model, item)));
     placedBox.copy(model.box).applyMatrix4(matrix);
     // A rising site is drawn up to its cut only, a plan lies flat: the box the poster clears
     // stops there too.
@@ -624,15 +625,20 @@ export class MaquetteLayer {
   /**
    * **Where the garrison of a maquette stands**, `null` while its model has not landed — a pile
    * beside a plate would stand beside nothing — or while a replay has cleared it away. Read at every frame, so that a ring or a region
-   * that lands carries the pile along. The step is at full near weight: the caller scales it as
-   * the maquette is scaled.
+   * that lands carries the pile along. The step follows the maquette as it is drawn now: it
+   * closes in as the maquette gives way to its pin.
    */
   garrisonAt(id: string): { at: Vector3; step: readonly [number, number]; facing: number } | null {
     const dressed = this.byId.get(id);
     if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
-    const { at, facing, scale } = dressed.item;
-    const foot = GARRISON_FOOT * pieceScale.buildings * scale;
+    const { at, facing, scale, near } = dressed.item;
+    const foot = GARRISON_FOOT * pieceScale.size * scale * Math.max(near, 0);
     return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing };
+  }
+
+  /** **The span a label's maquette is pinned by**, `null` for none drawn here. */
+  spanOf(id: string): number | null {
+    return this.byId.get(id)?.item.span ?? null;
   }
 
   /** **Where a maquette is drawn when a ring carried it off its point** — the label's fanion stays
@@ -651,12 +657,7 @@ export class MaquetteLayer {
       if (model === null || !group.visible) continue;
       const reach =
         Math.max(model.box.max.x - model.box.min.x, model.box.max.z - model.box.min.z) / 2;
-      for (const item of items)
-        emit(
-          item.at,
-          reach * model.scale * pieceScale.buildings * item.scale * item.near,
-          item.near,
-        );
+      for (const item of items) emit(item.at, reach * sizeOf(model, item) * item.near, item.near);
     }
   }
 
@@ -673,7 +674,7 @@ export class MaquetteLayer {
         item.cleared = cleared !== null && item.at.distanceTo(cleared.center) < cleared.reach;
         const near = item.cleared
           ? 0
-          : Math.round(nearWeight(item.at.distanceTo(cameraPosition)) * 100) / 100;
+          : Math.round(pieceWeight(item.at.distanceTo(cameraPosition), item.span) * 100) / 100;
         const bounce = item.settledAt === null ? null : bounceAt(now - item.settledAt);
         // Its last bounce sets it back on its feet: one more placement, then still.
         const ending = item.settledAt !== null && bounce === null;
@@ -681,12 +682,14 @@ export class MaquetteLayer {
         if (near === item.near && item.settledAt === null && !ending) return;
         item.near = near;
         moved = true;
-        const size = near * lot.model!.scale * pieceScale.buildings * item.scale;
+        const size = near * sizeOf(lot.model!, item);
         matrix.compose(item.at, item.turn, scale.set(size, size * (bounce ?? 1), size));
         for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
         item.smokes.forEach((smoke, c) => {
           smoke.object.position.copy(lot.model!.chimneys[c]!).applyMatrix4(matrix);
-          smoke.object.scale.setScalar(near * pieceScale.buildings * item.scale);
+          smoke.object.scale.setScalar(
+            (near * pieceScale.size * item.scale * item.span) / SMOKE_SPAN,
+          );
         });
       });
       const site = lot.items[0];
@@ -694,7 +697,7 @@ export class MaquetteLayer {
         lot.atWork.dressing.place(
           site.at,
           site.turn,
-          Math.max(site.near, 0) * lot.model.scale * pieceScale.buildings * site.scale,
+          Math.max(site.near, 0) * sizeOf(lot.model, site),
           now,
         );
       if (!moved) continue;
@@ -738,6 +741,10 @@ export class MaquetteLayer {
     this.group.removeFromParent();
   }
 }
+
+/** **Its own units to the board** at full near weight: its span at the player's size, in its group's. */
+const sizeOf = (model: Model, item: Placed): number =>
+  model.scale * item.span * pieceScale.size * item.scale;
 
 /** Up a tenth, down a little, still: the vertical give of a site that just stood up. */
 const bounceAt = (elapsed: number): number | null =>

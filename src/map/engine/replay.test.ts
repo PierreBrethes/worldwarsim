@@ -28,7 +28,8 @@ const luxembourg: ReplayView = {
 
 /** The height of a piece's body: the block's wood and back, or the card of a figurine-less role. */
 const heightOf = (object: Object3D): number => {
-  object.updateMatrixWorld(true);
+  // From the scene's root: it draws the stage at a tank's real span (ADR 0035).
+  (object.parent ?? object).updateMatrixWorld(true);
   const box = new Box3();
   object.traverse((part) => {
     if (

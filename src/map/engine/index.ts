@@ -55,7 +55,7 @@ import {
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
-import { setNearFloor } from './figurines/figurine';
+import { ANONYMOUS_SPAN, LAID_OUT_FOR, setNearFloor } from './figurines/figurine';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -70,6 +70,7 @@ import {
 } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
+import { buildingSpan, troopSpan } from '@/domain/piece-size';
 import type { PieceScale } from '@/domain/piece-scale';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
@@ -136,12 +137,12 @@ import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
 import { PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
-import type { Pin } from '@/domain/pins';
+import type { Pin, PinShape } from '@/domain/pins';
 import { nationInk } from '@/domain/nations';
 import { TheatreFrame } from './theatre';
 import { CarryVeil } from './veil';
 import type { Theatre } from '@/domain/theatres';
-import { batteryAt, ReplayScene, replayReach, type ReplayFire } from './replay';
+import { batteryAt, REPLAY_STAGE, ReplayScene, replayReach, type ReplayFire } from './replay';
 import {
   REPLAY_MS,
   REPLAY_STEPS,
@@ -165,8 +166,8 @@ export type { SurveyedCamp } from './annotations';
 export type { HeldClaim } from './regions';
 
 /** A shore is read around a pile's point this far out, in board units at full piece size —
- *  about a pile's reach. */
-const SHORE_REACH = 0.6;
+ *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
+const SHORE_REACH = 0.6 * (troopSpan('armor') / LAID_OUT_FOR);
 const SHORE_PROBES = 8;
 
 /** How much of its own colour a country gives off under the pointer, and once selected. */
@@ -435,6 +436,7 @@ export class MapEngine {
   private readonly maquettes: MaquetteLayer;
   private readonly camps: CampLayer;
   private readonly pins: PinLayer;
+  private pinShapes = new Map<string, PinShape>();
   /** Where the piece in hand is over the board: its pin follows it far away (#234). */
   private heldGround: Vector3 | null = null;
   private readonly ink: InkLayer;
@@ -805,6 +807,7 @@ export class MapEngine {
       (regionId) => this.regions.anchorOf(regionId),
       this.touch,
       () => this.invalidate(),
+      (pin) => this.pieceSpanOf(pin.id, pin.shape),
     );
     this.scene.add(this.pins.group);
     this.scene.add(this.ink.group);
@@ -827,6 +830,7 @@ export class MapEngine {
       (id) =>
         this.standing.isDressed(id) || this.camps.isDressed(id) || this.maquettes.isDressed(id),
       (id) => this.maquettes.drawnAt(id),
+      (id) => this.pieceSpanOf(id),
     );
 
     this.drawings = new TerrainDrawings(
@@ -1145,7 +1149,20 @@ export class MapEngine {
   /** **Au loin, chaque pièce est une épingle** (#234) : celles que la vue sert, par étiquette. */
   displayPins(pins: ReadonlyArray<Pin>): void {
     this.invalidate();
+    this.pinShapes = new Map(pins.map((pin) => [pin.id, pin.shape]));
     this.pins.display(pins);
+  }
+
+  /**
+   * **The span a label's piece gives way to its pin by** (ADR 0035 §3): what is drawn here, else a
+   * barracks for a building and a tank for the rest — what an enemy shows says nothing of what it
+   * is —; `null` for an outpost, which has no piece.
+   */
+  private pieceSpanOf(id: string, shape = this.pinShapes.get(id)): number | null {
+    const drawn = this.maquettes.spanOf(id) ?? this.standing.spanOf(id) ?? this.arcs.spanOf(id);
+    if (drawn !== null) return drawn;
+    if (shape === 'outpost') return null;
+    return shape === 'building' ? buildingSpan('barracks') : ANONYMOUS_SPAN;
   }
 
   /** **The designated piece far away** — a pile checked, a site opened: a ring at my ink on its pin. */
@@ -1365,7 +1382,7 @@ export class MapEngine {
           );
     const yaw = Math.atan2(tilted.x, tilted.z);
     const fire = this.replayFire(view, center, yaw);
-    const reach = replayReach(view, fire);
+    const reach = replayReach(view, fire) * REPLAY_STAGE * pieceScale.size;
     // Fitted to the height left above `below`, and to the width on a portrait screen.
     const aspect = this.screenWidth / this.screenHeight;
     const distance = Math.max(
@@ -1415,7 +1432,9 @@ export class MapEngine {
       .projectLonLat([from.lon, from.lat], center.y)
       .sub(center)
       .applyAxisAngle(new Vector3(0, 1, 0), -yaw);
-    return { battery: batteryAt([battery.x, battery.z]) };
+    // In the scene's own units (`REPLAY_STAGE`).
+    const stage = REPLAY_STAGE * pieceScale.size;
+    return { battery: batteryAt([battery.x / stage, battery.z / stage]) };
   }
 
   /** Off, the step under way plays to its end and the replay holds there; on, it reads on to the end. */
@@ -1746,6 +1765,8 @@ export class MapEngine {
     this.sheet.coast.material.resolution.set(clientWidth, clientHeight);
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
+    // A piece's size on screen, seen from a unit away: what says when it gives way to its pin.
+    pieceScale.pxPerUnit = 1 / this.unitsPerPixel(1);
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
@@ -2460,11 +2481,10 @@ export class MapEngine {
     this.arcs.setAloft(theatre !== null);
   }
 
-  /** Percentages from the settings; the pieces re-measure on the next frame. */
+  /** The one percentage from the settings (ADR 0035 §6); the pieces re-measure on the next frame. */
   setPieceScale(scale: PieceScale): void {
     this.invalidate();
-    pieceScale.troops = scale.troops / 100;
-    pieceScale.buildings = scale.buildings / 100;
+    pieceScale.size = scale.troops / 100;
     this.maquettes.resize();
   }
 
@@ -2780,7 +2800,7 @@ export class MapEngine {
   private seawardOf(lonLat: LonLat): readonly [number, number] | null {
     const point = this.frame.projectLonLat(lonLat);
     // The pile is drawn at the troops' size: its blocks reach as far as that, and so does the probe.
-    const reach = SHORE_REACH * pieceScale.troops;
+    const reach = SHORE_REACH * pieceScale.size;
     let [x, z] = [0, 0];
     let wet = 0;
     for (let k = 0; k < SHORE_PROBES; k++) {
@@ -3177,6 +3197,8 @@ export class MapEngine {
     this.sweepWave.animate(now);
     this.basins.animate(now);
     this.tellSweep(now);
+    // The maquettes first: a garrison stands at its maquette's foot as drawn this frame.
+    this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.standing.orient(this.camera.position);
     const reading = this.standing.reading;
     const tone = this.verdict;
@@ -3197,7 +3219,6 @@ export class MapEngine {
     );
     this.lastFrame = now;
     this.veil.step(now);
-    this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.camps.orient(this.camera.position, yaw);
     this.pins.hold(this.held?.pileId ?? null, this.held === null ? null : this.heldGround);
     this.pins.layout(

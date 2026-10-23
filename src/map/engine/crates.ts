@@ -1,5 +1,6 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'three';
-import { FIGURINE_SCALE, nearWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, pieceWeight } from './figurines/figurine';
+import { pieceScale } from './piece-scale';
 
 /** The prototype's crate (`table-etat-major.html`), in model units: a box and two slats. */
 const SIDE = 0.5;
@@ -59,9 +60,9 @@ export class CratePile {
 
   place(ground: Vector3, cameraPosition: Vector3): void {
     this.object.position.copy(ground);
-    const near = nearWeight(ground.distanceTo(cameraPosition));
+    const near = pieceWeight(ground.distanceTo(cameraPosition), ANONYMOUS_SPAN);
     this.object.visible = near > 0;
-    this.object.scale.setScalar(FIGURINE_SCALE * near);
+    this.object.scale.setScalar(FIGURINE_SCALE * near * pieceScale.size);
   }
 
   private fill(crates: number, since: number): void {

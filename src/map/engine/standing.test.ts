@@ -11,7 +11,10 @@ import {
   pileObject,
   pickedIn,
   takenCopies,
+  targetGrowth,
 } from './standing';
+import { troopSpan } from '@/domain/piece-size';
+import { pieceScale } from './piece-scale';
 
 const troop = (role: UnitRole, strength = 100) => ({
   id: role,
@@ -26,6 +29,28 @@ describe('pileLayout', () => {
     expect(pileLayout(1)).toEqual([0]);
     expect(pileLayout(2)).toEqual([-0.25, 0.25]);
     expect(pileLayout(4)).toEqual([-0.75, -0.25, 0.25, 0.75]);
+  });
+});
+
+/** One scale for every piece (ADR 0035): a pile is laid out for its largest piece. */
+describe('a pile at the common scale', () => {
+  it('measures by its largest piece', () => {
+    const span = (roles: UnitRole[]) => {
+      const pile = pileObject('france', pilePieces(roles.map((role) => troop(role))))!;
+      pile.ready.catch(() => {});
+      return pile.span;
+    };
+    expect(span(['infantry', 'armor'])).toBe(troopSpan('armor'));
+    expect(span(['armor', 'cargo'])).toBe(troopSpan('cargo'));
+  });
+
+  it('keeps a small piece as easy to take as before: its target grows on screen, never shrinks', () => {
+    pieceScale.pxPerUnit = 1172;
+    // A tank pile at d = 6: some 20 px of tank, a target grown to the floor.
+    const near = targetGrowth(troopSpan('armor') / 0.68, 6);
+    expect(near).toBeGreaterThan(1);
+    expect(0.45 * (troopSpan('armor') / 0.68) * near * (1172 / 6)).toBeCloseTo(28, 6);
+    expect(targetGrowth(1, 4)).toBe(1);
   });
 });
 

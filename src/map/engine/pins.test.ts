@@ -88,9 +88,15 @@ describe('PinLayer — the pieces far away', () => {
   });
 
   it('gives way to the figurines up close: no pin under the pointer', () => {
-    const eye = eyeOver(paris, 20);
+    const eye = eyeOver(paris, 4);
     const layer = laidOut([mine('a', paris)], eye);
     expect(layer.under(...screenOf(eye, paris))).toBeNull();
+  });
+
+  it('stands for a pile as soon as its piece is too small to read (ADR 0035)', () => {
+    const eye = eyeOver(paris, 20);
+    const layer = laidOut([mine('a', paris)], eye);
+    expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'a' });
   });
 
   it('keeps a moving pile out of any cluster, at the head of its movement', () => {

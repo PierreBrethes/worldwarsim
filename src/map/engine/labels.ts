@@ -2,7 +2,7 @@ import { Vector3, type PerspectiveCamera } from 'three';
 import type { LabelAnchor } from '@/domain/labels';
 import { clampToEdge } from '@/domain/indicators';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { nearWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, nearWeight, pieceWeight } from './figurines/figurine';
 
 /**
  * Beyond this, a label falls back to the glyph alone. A single named threshold: it is the
@@ -39,7 +39,7 @@ export type LabelProjection = {
    * and the label stays where it is to take the pointer. `0` for anything not dressed.
    */
   dressed: number;
-  /** **Far away**: the figurines have mostly given way to the pins (`nearWeight` under ½). */
+  /** **Far away**: down from the country level, a sign weighs what a pin does (`nearWeight` under ½). */
   far: boolean;
   /** **From the anchor to where its piece is drawn**, in pixels, when a ring carried it off its
    *  point: the fanion stays on the point and a thread of ink runs there. `0, 0` otherwise. */
@@ -119,6 +119,9 @@ export class LabelLayer {
     private readonly isDressed: (id: string) => boolean,
     /** Where its piece is drawn when it stands off the label's point, `null` on it. */
     private readonly drawnAt: (id: string) => Vector3 | null = () => null,
+    /** The span its piece gives way to its pin by (`pieceWeight`), `null` for what has no piece:
+     *  it gives way with the regions' fade. */
+    private readonly spanOf: (id: string) => number | null = () => ANONYMOUS_SPAN,
   ) {}
 
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
@@ -218,7 +221,12 @@ export class LabelLayer {
       const y = (-this.normalized.y * 0.5 + 0.5) * height;
 
       projection.far = nearWeight(distance) < 0.5;
-      if (inFrame && projection.far && this.pinned.has(projection.id)) {
+      const dressed = this.isDressed(projection.id);
+      const span = dressed || this.pinned.has(projection.id) ? this.spanOf(projection.id) : 0;
+      const piece =
+        span === null ? nearWeight(distance) : span === 0 ? 0 : pieceWeight(distance, span);
+      // The pin is the piece once the piece is too small to read (ADR 0035 §3).
+      if (inFrame && piece < 0.5 && this.pinned.has(projection.id)) {
         projection.visible = false;
         projection.atEdge = false;
         continue;
@@ -228,7 +236,7 @@ export class LabelLayer {
       projection.x = x;
       projection.y = y;
       projection.lod = distance < LABEL_EXPANDED_DISTANCE ? 'expanded' : 'glyph';
-      projection.dressed = this.isDressed(projection.id) ? nearWeight(distance) : 0;
+      projection.dressed = dressed ? piece : 0;
       const drawn = projection.dressed > 0 ? this.drawnAt(projection.id) : null;
       if (drawn === null) {
         projection.drawnX = 0;

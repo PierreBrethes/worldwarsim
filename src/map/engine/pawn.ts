@@ -3,7 +3,14 @@ import type { Wear } from '@/domain/pile-pieces';
 import type { UnitRole } from '@/domain/ids';
 import type { Medium } from '@/domain/routing';
 import { faceCamera } from './billboard';
-import { altitudeShadow, FIGURINE_SCALE, nearWeight, type Figurine } from './figurines/figurine';
+import {
+  altitudeShadow,
+  ANONYMOUS_SPAN,
+  FIGURINE_SCALE,
+  LAID_OUT_FOR,
+  pieceWeight,
+  type Figurine,
+} from './figurines/figurine';
 import { PLATE_WIDTH, SILHOUETTES } from './silhouettes';
 import { PLUME_BY_WEAR, Smoke, Wake, type Plume } from './smoke';
 import { gaitOf, swayOf, type Gait } from './sway';
@@ -36,8 +43,9 @@ const DUST_REAR = 1.1;
  * A movement's pawn: a single piece over the whole route, changing costume at the dock and
  * standing still during the transfer.
  *
- * **Up close each medium wears its figurine** (ADR 0026 §3), grown from the ground by
- * `nearWeight`; a medium with none wears the anonymous silhouette in its place. **Far away the
+ * **Up close each medium wears its figurine** (ADR 0026 §3), at its real size (ADR 0035), until
+ * it is too small on screen (`pieceWeight`); a medium with none wears the anonymous silhouette
+ * in its place. **Far away the
  * pawn is gone**: the movement's pin stands at its head (#234, `pins.ts`).
  */
 export class Pawn {
@@ -125,6 +133,11 @@ export class Pawn {
     this.object.visible = value;
   }
 
+  /** The span it gives way to its pin by: its worn figurine's, a tank's for a silhouette. */
+  get span(): number {
+    return this.figurines.get(this.medium)?.span ?? ANONYMOUS_SPAN;
+  }
+
   /**
    * The pawn's costume follows the medium of the segment beneath it. For an enemy movement
    * it is a silhouette and nothing else — land, sea or air, never the type nor the
@@ -173,20 +186,23 @@ export class Pawn {
    */
   orient(cameraPosition: Vector3, yaw: number): void {
     const distance = this.object.position.distanceTo(cameraPosition);
-    const close = nearWeight(distance);
+    const figurine = this.figurines.get(this.medium);
+    const span = this.span;
+    const close = pieceWeight(distance, span);
+    // The wake and the altitude disc are drawn for a tank: they follow the piece's own size.
+    const around = close * pieceScale.size * (span / LAID_OUT_FOR);
     // Figurine or silhouette, a hull at sea up close stirs the water: the wake says « at sea ».
     this.wake.object.visible = this.medium === 'sea' && close > 0;
     this.wake.object.rotation.set(0, this.heading, 0);
-    this.wake.object.scale.setScalar(close * pieceScale.troops);
+    this.wake.object.scale.setScalar(around);
     // The gap between a plane and its shadow is its altitude: it opens at take-off and closes on landing.
     this.shadow.visible = this.medium === 'air' && close > 0 && -this.groundBelow > AIRBORNE_GAP;
     this.shadow.position.y = this.groundBelow;
-    this.shadow.scale.setScalar(close * pieceScale.troops);
-    const figurine = this.figurines.get(this.medium);
+    this.shadow.scale.setScalar(around);
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
-      const scale = near * pieceScale.troops;
+      const scale = near * pieceScale.size;
       const sway = swayOf(
         this.lively ? (this.gaits.get(this.medium) ?? null) : null,
         this.clock,

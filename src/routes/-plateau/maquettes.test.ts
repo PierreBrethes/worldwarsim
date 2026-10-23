@@ -6,6 +6,7 @@ import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import { maquettesOf } from './maquettes';
 import type { WorkSite } from '@/domain/construction';
 import { asClockTime } from '@/domain/duration';
+import { buildingSpan, objectiveSpan } from '@/domain/piece-size';
 
 const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}): MapMarker => ({
   kind: 'building',
@@ -26,7 +27,7 @@ const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}):
 });
 
 describe('maquettesOf', () => {
-  it('stands a building at its point, and a mine by the deposit under it', () => {
+  it('stands a building at its point and its own size, and a mine by the deposit under it', () => {
     const coal = DEPOSIT_POINTS.find((deposit) => deposit.regionId === 'FRA-5328')!.lonLat;
     const port = building({ id: 'p', key: 'port', lonLat: [2, 51], regionId: 'FRA-5262' });
     expect(maquettesOf([building({ lonLat: coal }), port], () => undefined)).toEqual([
@@ -34,9 +35,16 @@ describe('maquettesOf', () => {
         id: 'building-FRA-5328-mine',
         at: { lonLat: coal },
         url: buildingMaquette('mine', 'coal'),
+        span: buildingSpan('mine'),
         washed: false,
       },
-      { id: 'p', at: { lonLat: [2, 51] }, url: buildingMaquette('port', null), washed: false },
+      {
+        id: 'p',
+        at: { lonLat: [2, 51] },
+        url: buildingMaquette('port', null),
+        span: buildingSpan('port'),
+        washed: false,
+      },
     ]);
   });
 
@@ -123,12 +131,14 @@ describe('maquettesOf', () => {
         id: 'installation-x',
         at: { lonLat: [11.5, 48.1] },
         url: buildingMaquette('farm', null),
+        span: buildingSpan('farm'),
         washed: true,
       },
       {
         id: 'objective-o',
         at: { lonLat: [10, 50] },
         url: objectiveMaquette('fuelDump'),
+        span: objectiveSpan('fuelDump'),
         washed: false,
       },
     ]);

@@ -35,7 +35,8 @@ const TROOP_METRES: Readonly<Record<UnitRole, number>> = {
 
 /**
  * **Le plus grand côté au sol de chaque bâtiment, en mètres.** Une ville réelle ferait des
- * milliers de kilomètres : elle est un symbole, comme la piste (§8), à la taille d'un port.
+ * milliers de kilomètres : elle est un symbole, comme la piste (§8), à la taille d'une caserne —
+ * les villes d'une Blitz grandies du même ×1,37 que l'anneau.
  * @a-mesurer la ville seule, un symbole sans mesure réelle ; le reste suit l'ADR 0035
  */
 const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
@@ -51,7 +52,7 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
   researchCenter: 50,
   warehouse: 60,
   depot: 60,
-  city: 100,
+  city: 50,
 };
 
 /**

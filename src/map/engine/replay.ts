@@ -21,11 +21,21 @@ import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
 import { textureOf } from './billboard';
 import { blockFigurine } from './blocks';
-import { FIGURINE_SCALE, figurineFor } from './figurines/figurine';
+import { troopSpan } from '@/domain/piece-size';
+import { FIGURINE_SCALE, figurineFor, LAID_OUT_FOR } from './figurines/figurine';
+import { pieceScale } from './piece-scale';
 import { charred, PLUME_BY_WEAR, Smoke, type Plume } from './smoke';
 import { washedOf } from './standing';
 
-/** Board units. Each side stands in rows of three, its front rank facing the other across the gap. */
+/**
+ * **The scene is laid out for a tank of `LAID_OUT_FOR`**, and drawn at a tank's real span (ADR
+ * 0035): every length below is in its units, and its figurines stand at their real size in it.
+ */
+export const REPLAY_STAGE = troopSpan('armor') / LAID_OUT_FOR;
+/** Model units to the scene's: a tank sculpted 2.6 long stands `LAID_OUT_FOR` long in it. */
+const SCENE_FIGURE = FIGURINE_SCALE / REPLAY_STAGE;
+
+/** The scene's units. Each side stands in rows of three, its front rank facing the other across the gap. */
 const GAP = 0.6;
 const COLUMN = 0.8;
 const RANK = 0.6;
@@ -34,7 +44,7 @@ const PER_COLUMN = 3;
 const RETREAT = 0.9;
 const DROP = 1.2;
 /** A block's half thickness at board scale: it tips over its back bottom edge, not through the board. */
-const BLOCK_HALF = 0.3 * FIGURINE_SCALE;
+const BLOCK_HALF = 0.3 * SCENE_FIGURE;
 
 /**
  * **Where the `count` pieces of a side stand**, in the replay's frame: x across the screen, z
@@ -230,6 +240,14 @@ const FLASH_SIZE = 0.22;
 
 const ease = (k: number) => k * k * (3 - 2 * k);
 
+/** How much bigger a node's units are than `root`'s, by the scales between them. */
+function scaleWithin(node: Object3D, root: Object3D): number {
+  let scale = 1;
+  for (let at: Object3D | null = node; at !== null && at !== root; at = at.parent)
+    scale *= at.scale.x;
+  return scale;
+}
+
 /**
  * **A combat played on the table** (surface 4.7, ADR 0026 §7): my figurines by role on the
  * left, the enemy's on the right in its own nation's figurines (F1) — or one block per troop for
@@ -266,6 +284,7 @@ export class ReplayScene {
     );
     // After the holders, which keep the pieces' order.
     this.object.add(...this.pieces.map((piece) => piece.shot));
+    this.object.scale.setScalar(REPLAY_STAGE * pieceScale.size);
   }
 
   private stand(
@@ -278,7 +297,7 @@ export class ReplayScene {
     const pivot = new Group();
     const marker = new Group();
     const firing = new Smoke(FIRING);
-    firing.object.scale.setScalar(FIGURINE_SCALE);
+    firing.object.scale.setScalar(SCENE_FIGURE);
     const flashSprite = flash();
     marker.add(flashSprite, firing.object);
     holder.add(pivot);
@@ -304,17 +323,18 @@ export class ReplayScene {
     };
     if (built.burns) {
       built.burning = new Smoke(PLUME_BY_WEAR.burning!);
-      built.burning.object.scale.setScalar(FIGURINE_SCALE);
+      built.burning.object.scale.setScalar(SCENE_FIGURE);
       marker.add(built.burning.object);
     }
 
     if (seen === undefined) {
       built.body = blockFigurine(medium).object;
+      built.body.scale.setScalar(1 / REPLAY_STAGE);
       // It tips onto its back, away from the eye, its pictogram to the sky: tipped sideways, in
       // the eye's plane, a fallen block looked like a standing one.
       pivot.position.z = -BLOCK_HALF;
       built.body.position.z = BLOCK_HALF;
-      marker.position.set(-0.75 * FIGURINE_SCALE, 0.3, BLOCK_HALF);
+      marker.position.set(-0.75 * SCENE_FIGURE, 0.3, BLOCK_HALF);
     } else {
       // Its front, +z, towards the other line — or, a battery, towards its target.
       holder.rotation.y =
@@ -338,13 +358,14 @@ export class ReplayScene {
         built.body.add(plate);
       } else {
         built.body = figurine.object;
-        // The models' markers are in model units: what hangs there drops the board scale.
+        built.body.scale.setScalar(1 / REPLAY_STAGE);
+        // The models' markers are in model units: what hangs there drops the model's scale.
         void figurine.ready.then(
           () => {
             const muzzle = figurine.object.getObjectByName('fx_muzzle');
             if (muzzle) {
               muzzle.add(flashSprite);
-              built.flashSize = FLASH_SIZE / FIGURINE_SCALE;
+              built.flashSize = FLASH_SIZE / scaleWithin(muzzle, pivot);
             }
             // The model lands after its fate may have been drawn: dress it again next frame.
             built.look = 'whole';

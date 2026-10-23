@@ -11,7 +11,7 @@ import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
-import { nearWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, pieceWeight } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
 import {
   buildThread,
@@ -90,6 +90,11 @@ export class ArcLayer {
   readonly group = new Group();
   /** The head labels' screen positions read here: they move every frame. */
   readonly headPositions = new Map<string, Vector3>();
+
+  /** **The span a movement's pawn gives way to its pin by**, `null` for no movement of that id. */
+  spanOf(id: string): number | null {
+    return this.rendered.find((rendered) => rendered.arc.id === id)?.pawn.span ?? null;
+  }
   readonly aheadPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
   private readonly behindPoint = new Vector3();
@@ -358,9 +363,12 @@ export class ArcLayer {
 
     for (const rendered of this.rendered) {
       if (rendered.relic !== null) {
-        const near = nearWeight(rendered.relic.position.distanceTo(this.cameraPosition));
+        const near = pieceWeight(
+          rendered.relic.position.distanceTo(this.cameraPosition),
+          ANONYMOUS_SPAN,
+        );
         rendered.relic.visible = near > 0;
-        rendered.relic.scale.setScalar(near * pieceScale.troops);
+        rendered.relic.scale.setScalar(near * pieceScale.size);
         rendered.relic.rotation.set(0, this.cameraYaw, 0);
       }
       const inkedUntil = this.inking.get(rendered.arc.id);
