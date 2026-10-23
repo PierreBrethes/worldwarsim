@@ -3669,8 +3669,6 @@ export const fr = {
       ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
     /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
-    left: (time: string) => `reste ${time}`,
-    queuedLine: (time: string) => `${time}, en file`,
     /** Sous le nom d'un chantier, une ligne : où, et où il en est. */
     runningAt: (region: string) => `${region} · en cours`,
     queuedAt: (region: string, time: string) => `${region} · ${time}, en file`,
