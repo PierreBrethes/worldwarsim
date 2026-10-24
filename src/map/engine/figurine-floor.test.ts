@@ -85,7 +85,7 @@ describe('the figurine floor', () => {
         const box = drawnBox(pile);
         const length = box.max.z - box.min.z;
         const px = (length * REFERENCE) / pile.position.distanceTo(eye);
-        expect(px).toBeGreaterThanOrEqual(19.5);
+        expect(px).toBeGreaterThanOrEqual(19.49);
         // Grown, it still stands clear of its barracks turned any way (half its diagonal).
         expect(box.min.z).toBeGreaterThan(BARRACKS / Math.SQRT2);
       }
@@ -123,7 +123,8 @@ describe('the figurine floor', () => {
     expect((layer.spanOf('stack-paris')! * REFERENCE) / 30).toBeCloseTo(19.5, 1);
   });
 
-  it("stands a moving man at 20 px or more until d = 30, and his pin's beyond", () => {
+  /** A man of his span, standing on a pawn's point. */
+  const manPawn = () => {
     const span = troopSpan('infantry');
     const model = new Mesh(new BoxGeometry(span / 4, span, span / 4));
     model.position.y = span / 2;
@@ -132,11 +133,22 @@ describe('the figurine floor', () => {
     const man: Figurine = { object, span, ready: Promise.resolve(), spin() {} };
     const pawn = new Pawn('#000', { land: man, sea: null, air: null });
     pawn.place(new Vector3(0, 0, 0), new Vector3(1, 0, 0));
+    return { pawn, object, span };
+  };
+
+  it('draws the man at his own ×1.5 at the closest zoom, d = 3: no floor there', () => {
+    const { pawn, object, span } = manPawn();
+    pawn.orient(new Vector3(0, 3, 0), 0);
+    expect(new Box3().setFromObject(object).getSize(new Vector3()).y).toBeCloseTo(span, 9);
+  });
+
+  it("stands a moving man at 20 px or more until d = 30, and his pin's beyond", () => {
+    const { pawn, object } = manPawn();
     for (const d of DISTANCES) {
       pawn.orient(new Vector3(0, d, 0), 0);
       expect(object.visible).toBe(true);
       const height = new Box3().setFromObject(object).getSize(new Vector3()).y;
-      expect((height * REFERENCE) / d).toBeGreaterThanOrEqual(19.5);
+      expect((height * REFERENCE) / d).toBeGreaterThanOrEqual(19.49);
     }
     pawn.orient(new Vector3(0, 40, 0), 0);
     expect(object.visible).toBe(false);

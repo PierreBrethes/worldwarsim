@@ -48,9 +48,10 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    un symbole court.
 9. **La Blitz suit la même échelle.**
 10. **La figurine plancher.** Une troupe ne descend pas sous ~20 px à l'écran jusqu'à d ≈ 30, puis
-    devient épingle : ni jeton 2D, ni cadrage déplacé. Entre d ≈ 5 et 30 elle grandit donc par
+    devient épingle : ni jeton 2D, ni cadrage déplacé. Entre d ≈ 3 et 30 elle grandit donc par
     rapport à son bâtiment ; le lien strict tient au rapproché, là où se jouent les sorties
-    (POC `WWS/prototypes/echelle-commune/lisibilite.html`, #266).
+    (POC `WWS/prototypes/echelle-commune/lisibilite.html`, #266). Le zoom descend à d = 3 (24/10),
+    où l'homme ×1,5 se voit à sa proportion ; au-delà, le plancher.
 
 ## Ce qu'on abandonne
 

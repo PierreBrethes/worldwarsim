@@ -109,7 +109,8 @@ export const troopWeight = (distance: number, span: number): number =>
  * against its building; up close the two stay bound.
  */
 export function floorGrowth(distance: number, span: number): number {
-  return Math.max(1, PIN_PX / pxOf(distance, span));
+  // Read rounded like the pin's threshold: a man of 19.8 px at the closest zoom keeps his size.
+  return Math.max(1, (PIN_PX - 0.5) / pxOf(distance, span));
 }
 
 /** **The scale a troop is drawn at**, its span at 1: its weight, its floor and the player's size;

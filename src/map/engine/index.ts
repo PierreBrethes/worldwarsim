@@ -707,7 +707,8 @@ export class MapEngine {
      *  et la carte tourne sur elle-même au moindre tremblement de la main. */
     this.controls.minPolarAngle = 0.05;
     // Le plafond suit la distance, recalé à chaque tour de boucle (`steepestTiltAt`).
-    this.controls.minDistance = 4;
+    // Au plus près, l'homme se voit à sa proportion (ADR 0035 §10) ; au-delà, son plancher.
+    this.controls.minDistance = 3;
     this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
     this.controls.screenSpacePanning = false;
     // **Le doigt ne lit pas le réglage de la souris** (décision mobile-1c) : un doigt déplace,
