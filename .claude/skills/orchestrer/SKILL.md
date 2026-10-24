@@ -30,11 +30,12 @@ Pierre tranche seul :
 - une règle de jeu neuve ;
 - vider la pré-prod ;
 - un téléchargement ;
+- toute fusion ou poussée sur `main` (elle déploie la pré-prod) ;
 - la prod, les secrets et l'argent.
 
 Pose-lui ces questions numérotées et groupées, chacune avec ta recommandation et des boutons.
 
-Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décisions prises seul » du rapport et de la PR. Une décision à toi qui touche une règle de jeu ou le brouillard (pas une valeur ni un texte) se mesure avant d'entrer dans un lot : ce qu'elle ferme, ce qu'elle cache vraiment. Sans mesure, elle part à Pierre ou attend. Dans ce projet, tu fusionnes toi-même un lot complet ; le `CLAUDE.md` global de Pierre vaut pour ses autres projets.
+Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décisions prises seul » du rapport et de la PR. Une décision à toi qui touche une règle de jeu ou le brouillard (pas une valeur ni un texte) se mesure avant d'entrer dans un lot : ce qu'elle ferme, ce qu'elle cache vraiment. Sans mesure, elle part à Pierre ou attend. Une fusion sur `main` lance la CI et déploie la pré-prod : tu ne la fais jamais sans l'accord de Pierre (23/10), et tu la proposes groupée.
 
 ## 3. Le pipeline d'un lot
 
@@ -47,7 +48,7 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
    - la consigne d'un agent porte l'issue, ce qui a changé sur la branche, les décisions de Pierre, ce qui est propre au lot et la règle d'arrêt. Ce que disent déjà sa définition et le skill `lot` ne s'y recopie pas : vérifieur unique, fichiers de Pierre, commits locaux, format du rapport.
 4. **Revue** : un agent `relecteur` après chaque lot. Ses findings repartent au même `dev` (SendMessage), les bloquants d'abord.
 5. **Rendu** : tu regardes toi-même les captures, à côté de leur référence, avant de dire que c'est fait. Tu les envoies à Pierre (SendUserFile) quand le rendu change.
-6. **Fusion** : vérifieur vert sur la pointe (relance seuls les timeouts de `convex/`), PR (skill `pr`), puis fusion par toi. Exception : un lot qui exige de vider la pré-prod attend que Pierre l'ait vidée.
+6. **Fusion** : vérifieur vert sur la pointe (relance seuls les timeouts de `convex/`), PR (skill `pr`). Les lots prêts attendent en PR ; tu proposes à Pierre une fusion groupée (une seule poussée sur `main`) et tu fusionnes à son accord. Un lot qui exige de vider la pré-prod attend aussi qu'il l'ait vidée.
 
 | Le lot | Modèle, effort |
 |---|---|
