@@ -11,7 +11,7 @@ import { movementWear } from '@/domain/pile-pieces';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
-import { nearWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, troopPinSpan, troopScale } from './figurines/figurine';
 import type { Medium } from '@/domain/routing';
 import {
   buildThread,
@@ -32,10 +32,9 @@ import { CratePile } from './crates';
 import { loadingAt, loadingUntilOf } from '@/domain/loading';
 import { arcProgressAt } from '@/domain/arc-timing';
 import { HEARTBEAT_MS } from './frame-demand';
-import { pieceScale } from './piece-scale';
 import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
-import { boxOfObject, drawnHit, nearer, type PieceHit } from './piece-pick';
+import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
 
 type RenderedArc = {
   readonly key: string;
@@ -90,6 +89,14 @@ export class ArcLayer {
   readonly group = new Group();
   /** The head labels' screen positions read here: they move every frame. */
   readonly headPositions = new Map<string, Vector3>();
+  /** Each movement's pawn by its id: a label or a pin reads its span at every frame. */
+  private readonly pawnById = new Map<string, Pawn>();
+
+  /** **The span a movement's pawn gives way to its pin by**, `null` for no movement of that id. */
+  spanOf(id: string): number | null {
+    const pawn = this.pawnById.get(id);
+    return pawn === undefined ? null : troopPinSpan(pawn.span);
+  }
   readonly aheadPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
   private readonly behindPoint = new Vector3();
@@ -198,6 +205,7 @@ export class ArcLayer {
       rendered.arc = arc;
       rendered.loadingUntil = loadingUntilOf(arc);
       this.headPositions.set(arc.id, rendered.headPosition);
+      this.pawnById.set(arc.id, rendered.pawn);
       this.aheadPositions.set(arc.id, rendered.aheadPosition);
       this.targets.push(...rendered.thread.targets);
       this.rendered.push(rendered);
@@ -206,6 +214,7 @@ export class ArcLayer {
       release(gone);
       this.headPositions.delete(gone.arc.id);
       this.aheadPositions.delete(gone.arc.id);
+      this.pawnById.delete(gone.arc.id);
     }
     this.syncCrates();
     this.applyAccent();
@@ -328,7 +337,8 @@ export class ArcLayer {
   pawnUnder(ray: Raycaster): PieceHit | null {
     let best: PieceHit | null = null;
     for (const { arc, pawn } of this.rendered) {
-      const distance = drawnHit(ray, pawn.object);
+      const distance =
+        drawnHit(ray, pawn.object) ?? (pawn.standing ? leastHit(ray, pawn.object.position) : null);
       if (distance !== null) best = nearer(best, { id: arc.id, distance });
     }
     return best;
@@ -358,9 +368,12 @@ export class ArcLayer {
 
     for (const rendered of this.rendered) {
       if (rendered.relic !== null) {
-        const near = nearWeight(rendered.relic.position.distanceTo(this.cameraPosition));
-        rendered.relic.visible = near > 0;
-        rendered.relic.scale.setScalar(near * pieceScale.troops);
+        const scale = troopScale(
+          rendered.relic.position.distanceTo(this.cameraPosition),
+          ANONYMOUS_SPAN,
+        );
+        rendered.relic.visible = scale > 0;
+        rendered.relic.scale.setScalar(scale);
         rendered.relic.rotation.set(0, this.cameraYaw, 0);
       }
       const inkedUntil = this.inking.get(rendered.arc.id);
@@ -486,6 +499,7 @@ export class ArcLayer {
     this.targets = [];
     this.headPositions.clear();
     this.aheadPositions.clear();
+    this.pawnById.clear();
   }
 }
 

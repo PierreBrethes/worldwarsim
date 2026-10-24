@@ -9,7 +9,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { Medium } from '@/domain/routing';
-import { FIGURINE_SCALE, type Figurine } from './figurines/figurine';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, type Figurine } from './figurines/figurine';
 import { silhouettePaths } from './silhouettes';
 
 /** The prototype's block (`table-etat-major.html`, `block`), in model units. */
@@ -76,5 +76,5 @@ export function blockFigurine(medium: Medium): Figurine {
   piece.scale.setScalar(FIGURINE_SCALE);
   piece.add(new Mesh(BODY, WOOD), new Mesh(BACK, pictogramOf(medium)));
   object.add(piece);
-  return { object, ready: Promise.resolve(), spin() {}, facesEye: true };
+  return { object, span: ANONYMOUS_SPAN, ready: Promise.resolve(), spin() {}, facesEye: true };
 }

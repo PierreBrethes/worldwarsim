@@ -14,6 +14,7 @@ import {
   Vector3,
   type Object3D,
 } from 'three';
+import { TANK_SHARE } from './figurines/figurine';
 
 /**
  * **Un halo chaud autour de chaque pièce, la nuit** (#198) : comme un lampadaire dans la brume, la
@@ -32,8 +33,8 @@ const GROUND_GAIN = 0.5;
 const PIECE_GAIN = 0.32;
 /** Half the disc's side, in footprint radii: a gaussian reads nothing past two and a bit. */
 export const REACH = 2.3;
-/** A piece of any size still holds a lamp's worth of light. */
-const MIN_RADIUS = 0.3;
+/** A piece of any size still holds a lamp's worth of light: a tank's (ADR 0035). */
+const MIN_RADIUS = 0.3 * TANK_SHARE;
 /** Visible pieces on a board at once, far above what the regions' fade leaves in sight. */
 const CAPACITY = 1024;
 /** Just over the ground the pieces stand on. Drawn over the moon's veil (rank 2, `night.ts`), which

@@ -46,7 +46,11 @@ describe('the label of a piece the board pins (#234)', () => {
   });
 
   it('names its figurines up close', () => {
-    expect(shownAt(20).pile).toEqual({ visible: true, atEdge: false });
+    expect(shownAt(4).pile).toEqual({ visible: true, atEdge: false });
+  });
+
+  it('gives way as soon as its piece is too small to read: a tank under its pin from d = 7 (ADR 0035)', () => {
+    expect(shownAt(20).pile).toEqual({ visible: false, atEdge: false });
   });
 });
 

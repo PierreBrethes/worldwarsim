@@ -33,7 +33,11 @@ import {
   altitudeShadow,
   figurineFor,
   hideAltitudeShadows,
-  nearWeight,
+  LAID_OUT_FOR,
+  floorGrowth,
+  troopPinSpan,
+  troopScale,
+  troopWeight,
   type Figurine,
 } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
@@ -42,7 +46,14 @@ import { playTableSound } from '../table-sound';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
-import { boxOfObject, drawnHit, footedHit, nearer, type PieceHit } from './piece-pick';
+import {
+  boxOfObject,
+  drawnHit,
+  footedHit,
+  LEAST_TARGET_PX,
+  nearer,
+  type PieceHit,
+} from './piece-pick';
 
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
@@ -62,19 +73,30 @@ export type StandingPile = {
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
 export type GarrisonAt = (
   maquetteId: string,
+  /** The span of the pile's largest piece: it stands that much further off. */
+  pile: number,
+  /** Hulls docked along a port's quay. */
+  quay: boolean,
 ) => { at: Vector3; step: readonly [number, number]; facing: number } | null;
 
-/** Board units between two groups: a squad and a tank are both about a third of one wide. */
+/**
+ * **A pile is laid out in its own units** (ADR 0035): the spacings below were drawn for a tank
+ * of `LAID_OUT_FOR`, and the whole pile is drawn at its largest piece's span over that — a pile
+ * of men as tight as a pile of tanks, a pile with a cargo as wide as its hull.
+ */
+const pileUnitOf = (span: number): number => span / LAID_OUT_FOR;
+
+/** Between two groups, in the pile's units: a squad and a tank are both about a third of one wide. */
 const GROUP_SPACING = 0.5;
 /** **Where each piece stands in a row around the pile's point**, side by side and centred.
- *  Board units, before the near weight scales the whole pile. */
+ *  In the pile's units, before the near weight scales the whole pile. */
 export function pileLayout(pieces: number): ReadonlyArray<number> {
   return Array.from({ length: pieces }, (_, k) => (k - (pieces - 1) / 2) * GROUP_SPACING);
 }
 
 type Slot = { readonly x: number; readonly z: number };
 
-/** Board units between two ranks of a formation: a man's height seen at the board's tilt. */
+/** Between two ranks of a formation, in the pile's units: a man's height seen at the board's tilt. */
 const RANK_DEPTH = 0.85;
 /** Between two pieces of a squad: three men abreast fill a group's width, a gap stays between. */
 const SQUAD_SPACING = 0.62;
@@ -100,8 +122,8 @@ function block(count: number): Slot[] {
  * **Where each piece of a pile stands around its point** (retours du 15/10, POC du 16/10): a tight
  * formation, one piece per troop. **On a shore** — `seaward`, a unit vector toward the
  * water, `null` inland — hulls stand on the sea side and land troops on the land side, two
- * blocks: a troop on land never stands in the water. Board units, before the near weight scales
- * the whole pile, in the board's own axes.
+ * blocks: a troop on land never stands in the water. In the pile's units, before the near weight
+ * scales the whole pile, in the board's own axes.
  */
 export function formationOf(
   domains: ReadonlyArray<'land' | 'sea'>,
@@ -155,7 +177,8 @@ export function dressedGroups(nation: string | null, pieces: PilePieces): Figuri
 type Grip = number;
 
 /** A group is clicked by its footprint, not by its triangles: a rifle is a pixel wide. */
-const FOOTPRINT = new BoxGeometry(GROUP_SPACING * 0.9, 0.6, 0.75);
+const FOOTPRINT_WIDTH = GROUP_SPACING * 0.9;
+const FOOTPRINT = new BoxGeometry(FOOTPRINT_WIDTH, 0.6, 0.75);
 FOOTPRINT.translate(0, 0.3, 0);
 const UNSEEN = new MeshBasicMaterial();
 
@@ -165,6 +188,13 @@ function footprint({ x, z }: Slot, grip: Grip): Mesh {
   target.position.set(x, 0, z);
   target.userData.grip = grip;
   return target;
+}
+
+/** **How much a pile's footprints grow** so as to take at least `LEAST_TARGET_PX` on screen, the
+ *  pile drawn at `scale`, `distance` from the eye: never below 1. */
+export function targetGrowth(scale: number, distance: number): number {
+  const px = (FOOTPRINT_WIDTH * scale * pieceScale.pxPerUnit) / Math.max(distance, 1e-3);
+  return Math.max(1, LEAST_TARGET_PX / Math.max(px, 1e-6));
 }
 
 /** The troops of the piece a ray takes among `targets`. */
@@ -197,7 +227,7 @@ export function nearestGroup(
 }
 
 /** **A hovering plane holds its thread's height**, whatever the pile's scale: the plane shrinks
- *  with the pieces, its altitude does not. */
+ *  with the pieces, its altitude — three wingspans (ADR 0035 §7) — does not. */
 function hover(object: Object3D): void {
   const scale = Math.max(object.scale.y, 1e-3);
   for (const part of object.children)
@@ -213,6 +243,8 @@ export function pileObject(
   seaward: readonly [number, number] | null = null,
 ): {
   object: Group;
+  /** Its largest piece's span (`troopSpan`): what the pile is laid out and pinned by. */
+  span: number;
   /** Where its pieces stand round, and half their width and depth: its ring is drawn there. */
   center: { readonly x: number; readonly z: number };
   extent: { readonly x: number; readonly z: number };
@@ -229,9 +261,12 @@ export function pileObject(
   const object = new Group();
   const smokes: Smoke[] = [];
   const targets: Mesh[] = [];
+  const span = Math.max(...figurines.map((figurine) => figurine.span));
   figurines.forEach((figurine, k) => {
     const slot = layout[k]!;
     figurine.object.position.set(slot.x, 0, slot.z);
+    // At its real size inside a pile drawn at its largest piece's (`pileUnitOf`).
+    figurine.object.scale.setScalar(1 / pileUnitOf(span));
     object.add(figurine.object);
     const target = footprint(slot, k);
     object.add(target);
@@ -266,6 +301,7 @@ export function pileObject(
   const zs = layout.map(({ z }) => z);
   return {
     object,
+    span,
     // A pile on a shore stands inland of its point (`formationOf`): its ring is round its pieces.
     center: {
       x: (Math.min(...xs) + Math.max(...xs)) / 2,
@@ -399,7 +435,10 @@ type Dressed = {
   at: StandingPile['at'];
   pieces: PilePieces;
   readonly object: Group;
+  readonly span: number;
   ready: boolean;
+  /** How much of it stands rather than its pin, at the last `orient`. */
+  near: number;
   readonly smokes: ReadonlyArray<Smoke>;
   readonly targets: ReadonlyArray<Mesh>;
   /** What it is to the hand right now (POC, `ringStyle`), round its footprint. */
@@ -450,7 +489,7 @@ function wash(object: Object3D, washed: boolean): void {
   });
 }
 
-/** The prototype's lift (`LIFT_Y`, `lpHand` at 4.2), in board units at full near weight. */
+/** The prototype's lift (`LIFT_Y`, `lpHand` at 4.2), in the pile's units at full near weight. */
 const CARRIED_LIFT = 0.25;
 /** The prototype's scale: its piece is 1.35 long, a group here about 0.4 — its gestures in our units. */
 const PROTOTYPE_UNIT = 0.3;
@@ -472,6 +511,7 @@ type Carried = {
   readonly targets: ReadonlyArray<Mesh>;
   readonly object: Group;
   readonly piece: Group;
+  readonly span: number;
   readonly shadow: { readonly object: Group; readonly materials: MeshBasicMaterial[] };
   /** The ring on the ground where it would land, and the line that drops to it. */
   readonly marks: Marks;
@@ -705,7 +745,9 @@ export class StandingLayer {
         at: pile.at,
         pieces: pile.pieces,
         object: built.object,
+        span: built.span,
         ready: false,
+        near: 0,
         smokes: built.smokes,
         targets: built.targets,
         ring,
@@ -905,6 +947,7 @@ export class StandingLayer {
       targets: copy.targets,
       object,
       piece,
+      span: copy.span,
       shadow,
       marks,
       width,
@@ -1064,36 +1107,48 @@ export class StandingLayer {
 
   /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
-    for (const { object, extent, ready } of this.dressed.values()) {
+    for (const { object, extent, ready, near } of this.dressed.values()) {
       if (!ready || !object.visible) continue;
-      emit(
-        object.position,
-        Math.max(extent.x, extent.z) * object.scale.x,
-        Math.min(1, object.scale.x / pieceScale.troops),
-      );
+      emit(object.position, Math.max(extent.x, extent.z) * object.scale.x, near);
     }
   }
 
+  /** **The span a label's pile is pinned by**, `null` for a pile not dressed here. */
+  spanOf(id: string): number | null {
+    const span = this.dressed.get(id)?.span;
+    return span === undefined ? null : troopPinSpan(span);
+  }
+
   orient(cameraPosition: Vector3): void {
-    for (const { object, at } of this.dressed.values()) {
+    for (const entry of this.dressed.values()) {
+      const { object, at, span, targets } = entry;
       if ('beside' in at) {
-        const foot = this.garrisonAt(at.beside);
+        const quay = at.quay !== undefined;
+        const site = this.garrisonAt(at.beside, span, quay);
+        // A pile grown by its floor stands off its building by its grown size.
+        const foot =
+          site &&
+          this.garrisonAt(
+            at.beside,
+            span * floorGrowth(site.at.distanceTo(cameraPosition), span),
+            quay,
+          );
         if (foot === null) {
           object.visible = false;
           continue;
         }
-        const near = nearWeight(foot.at.distanceTo(cameraPosition));
-        object.position.set(
-          foot.at.x + foot.step[0] * near,
-          foot.at.y,
-          foot.at.z + foot.step[1] * near,
-        );
+        object.position.set(foot.at.x + foot.step[0], foot.at.y, foot.at.z + foot.step[1]);
         object.rotation.y = at.quay === undefined ? foot.facing : 0;
       }
-      const near = nearWeight(object.position.distanceTo(cameraPosition));
+      const distance = object.position.distanceTo(cameraPosition);
+      const near = troopWeight(distance, span);
+      entry.near = near;
       object.visible = near > 0;
-      object.scale.setScalar(near * pieceScale.troops);
+      const scale = troopScale(distance, span) * pileUnitOf(span);
+      object.scale.setScalar(scale);
       hover(object);
+      const growth = targetGrowth(scale, distance);
+      for (const target of targets) target.scale.setScalar(growth);
     }
     const now = performance.now();
     for (const [id, { ring, extent }] of this.dressed) {
@@ -1124,8 +1179,9 @@ export class StandingLayer {
     const { object, piece, down, back } = carried;
     const dt = Math.min(0.1, (now - carried.clock) / 1000);
     carried.clock = now;
-    const near = nearWeight(object.position.distanceTo(cameraPosition));
-    const scale = near * pieceScale.troops;
+    const scale =
+      troopScale(object.position.distanceTo(cameraPosition), carried.span) *
+      pileUnitOf(carried.span);
     const full = this.motion === 'full';
     let tilt = { x: 0, z: 0 };
     let turn = 0;
@@ -1145,7 +1201,7 @@ export class StandingLayer {
       piece.position.y = 0;
       carried.shadow.object.visible = false;
       carried.marks.plumb.visible = false;
-      object.visible = near > 0;
+      object.visible = scale > 0;
       object.scale.setScalar(scale);
       if (fading >= 1) {
         this.settling = this.settling.filter((each) => each !== carried);
@@ -1208,7 +1264,7 @@ export class StandingLayer {
     carried.shadow.object.scale.setScalar(carried.width * 0.6 * (0.8 + height * 0.3));
     const fade = Math.max(0, 0.42 - height * 0.1) / 0.42;
     for (const material of carried.shadow.materials) material.opacity = fade;
-    object.visible = near > 0 && (carried.pointer !== null || down !== null || back !== null);
+    object.visible = scale > 0 && (carried.pointer !== null || down !== null || back !== null);
     object.scale.setScalar(scale * shrink);
   }
 

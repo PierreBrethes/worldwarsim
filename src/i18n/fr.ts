@@ -3989,9 +3989,7 @@ export const fr = {
       'Le trait en tirets de chaque territoire connu, à l’encre de sa nation. Le vôtre reste le plus épais.',
     pieceScaleLabel: 'Taille des pièces',
     pieceScaleNote:
-      'Au rapproché seulement : les planches du lointain ne bougent pas. Se règle en direct.',
-    pieceScaleTroops: 'Troupes',
-    pieceScaleBuildings: 'Bâtiments',
+      'Troupes et bâtiments ensemble, à leur taille réelle à 100 % : un char tient dans sa remise. Plus grandes, elles restent figurines de plus loin.',
     pieceScalePercent: (value: number) => `${value} %`,
     soundLabel: 'Son du télégraphe',
     soundNote:

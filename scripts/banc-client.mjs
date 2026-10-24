@@ -1114,11 +1114,15 @@ async function play(profileName, pass) {
   else if (await button(/déplier le plateau personnel/).isVisible())
     await tap(button(/déplier le plateau personnel/));
   await page.waitForTimeout(800);
-  await gesture(
-    'prendre un port',
-    () => page.getByText('Port', { exact: true }).first().click(),
-    2500,
-  );
+  // Les étiquettes de la carte portent les mêmes mots (le port d'une garnison, la mine du Nord) :
+  // la tuile est celle du plateau, hors des étiquettes.
+  const tile = (name) =>
+    page
+      .getByText(name, { exact: true })
+      .and(page.locator(':not(.map-labels *)'))
+      .filter({ visible: true })
+      .first();
+  await gesture('prendre un port', () => tile('Port').click(), 2500);
   const coastFile = await page.evaluate(() =>
     performance
       .getEntriesByType('resource')
@@ -1143,12 +1147,7 @@ async function play(profileName, pass) {
   // proche, puis l'aimant le prend au passage du bassin du Nord.
   await page.evaluate(frameAt, [[2.9, 50.3], 12]);
   await page.waitForTimeout(2500);
-  await gesture(
-    'prendre une mine',
-    // L'étiquette de la mine du Nord porte le même mot : la tuile est celle qu'on voit.
-    () => page.getByText('Mine', { exact: true }).filter({ visible: true }).first().click(),
-    2500,
-  );
+  await gesture('prendre une mine', () => tile('Mine').click(), 2500);
   const coalfield = await free([Math.round(width / 2), Math.round(height * 0.35)]);
   await gesture('aimant de la mine', async () => {
     for (let k = 0; k <= 40; k++) {

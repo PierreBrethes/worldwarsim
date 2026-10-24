@@ -6,7 +6,7 @@ import {
   isMapMotionSetting,
   type MapMotionSetting,
 } from '@/domain/map-motion';
-import { type PieceScale, parsePieceScale } from '@/domain/piece-scale';
+import { parsePieceScale } from '@/domain/piece-scale';
 import { CLASSIC_MAPPING, isMouseMapping, type MouseMapping } from '@/domain/mouse-mapping';
 
 const HUD_SCALE_KEY = 'wws-hud-scale';
@@ -134,7 +134,7 @@ export const keepMapMotion = (setting: MapMotionSetting): void => {
 
 const PIECE_SCALE_KEY = 'wws-piece-scale';
 
-export function readPieceScale(): PieceScale {
+export function readPieceScale(): number {
   try {
     return parsePieceScale(JSON.parse(localStorage.getItem(PIECE_SCALE_KEY) ?? 'null'));
   } catch {
@@ -142,7 +142,7 @@ export function readPieceScale(): PieceScale {
   }
 }
 
-export function keepPieceScale(scale: PieceScale): void {
+export function keepPieceScale(scale: number): void {
   try {
     localStorage.setItem(PIECE_SCALE_KEY, JSON.stringify(scale));
   } catch {

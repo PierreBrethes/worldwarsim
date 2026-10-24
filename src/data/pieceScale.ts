@@ -1,11 +1,10 @@
 import { useSyncExternalStore } from 'react';
-import type { PieceScale } from '@/domain/piece-scale';
 import { keepPieceScale, readPieceScale } from './settings';
 
-let state: PieceScale | null = null;
+let state: number | null = null;
 const subscribers = new Set<() => void>();
 
-const snapshot = (): PieceScale => (state ??= readPieceScale());
+const snapshot = (): number => (state ??= readPieceScale());
 
 function subscribe(listener: () => void): () => void {
   subscribers.add(listener);
@@ -14,9 +13,9 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-export const usePieceScale = (): PieceScale => useSyncExternalStore(subscribe, snapshot);
+export const usePieceScale = (): number => useSyncExternalStore(subscribe, snapshot);
 
-export function setPieceScale(scale: PieceScale): void {
+export function setPieceScale(scale: number): void {
   state = scale;
   keepPieceScale(scale);
   for (const subscriber of subscribers) subscriber();

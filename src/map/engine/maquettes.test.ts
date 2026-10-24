@@ -1,21 +1,27 @@
-import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import {
-  clusterFootprints,
-  GARRISON_FOOT,
-  MAQUETTE_SPAN,
-  ringOffsets,
-  spanScale,
-  yawOf,
-} from './maquettes';
+import { BUILDINGS, type UnitRole } from '@/domain/ids';
+import { buildingSpan, troopSpan } from '@/domain/piece-size';
+import { DOMAIN_BY_ROLE } from '@/domain/troops';
+import { clusterFootprints, garrisonFoot, MAX_SHIFT, RING_GAP, yawOf } from './maquettes';
 import { pileLayout } from './standing';
+import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
 
-/** Where a placement's garrison stands: `GARRISON_FOOT` along its facing. */
-const footOf = ({ at, facing }: { at: readonly [number, number]; facing: number }) => ({
-  x: at[0] + GARRISON_FOOT * Math.sin(facing),
-  z: at[1] + GARRISON_FOOT * Math.cos(facing),
+/** A spacing and a garrison's foot for the shapes of the ring alone, whatever the building. */
+const S = 1.2;
+const FOOT = 1.1;
+
+/** Where a placement's garrison stands: `foot` along its facing. */
+const footOf = (
+  { at, facing }: { at: readonly [number, number]; facing: number },
+  foot = FOOT,
+) => ({
+  x: at[0] + foot * Math.sin(facing),
+  z: at[1] + foot * Math.cos(facing),
   facing,
 });
+
+const gap = (a: readonly [number, number], b: readonly [number, number]) =>
+  Math.hypot(a[0] - b[0], a[1] - b[1]);
 
 describe('yawOf', () => {
   it('turns a building the same way at every display, and two buildings apart', () => {
@@ -28,31 +34,68 @@ describe('yawOf', () => {
   });
 });
 
-describe('spanScale', () => {
-  it('brings the widest side of the footprint to the span, whatever the height', () => {
-    expect(spanScale(new Vector3(4, 9, 2)) * 4).toBeCloseTo(MAQUETTE_SPAN);
-    expect(spanScale(new Vector3(1, 0.5, 2)) * 2).toBeCloseTo(MAQUETTE_SPAN);
+/** Each site rings at its own size (ADR 0035 §5): a hangar and a port are wider than a barracks. */
+describe('the ring at the common scale', () => {
+  /** A footprint turned any way reaches half its diagonal: a square's, at worst. */
+  const clear = (keys: ReadonlyArray<Parameters<typeof buildingSpan>[0]>, points: Point[]) => {
+    const spans = keys.map(buildingSpan);
+    const placed = clusterFootprints(
+      points,
+      spans.map((span) => span * RING_GAP),
+    );
+    for (let i = 0; i < placed.length; i++)
+      for (let j = i + 1; j < placed.length; j++)
+        expect(gap(placed[i]!.at, placed[j]!.at)).toBeGreaterThan(
+          (spans[i]! + spans[j]!) / Math.SQRT2,
+        );
+    return placed;
+  };
+
+  it('stands a headquarters, an airfield and a port on one point, no turned footprint in another', () => {
+    clear(
+      ['hq', 'airfield', 'port'],
+      [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+      ],
+    );
+    clear(['barracks', 'hq', 'airfield', 'warehouse', 'port'], Array(5).fill([0.1, 0]));
+  });
+
+  it('rings two neighbouring ports, rather than drawing one in the other', () => {
+    const placed = clear(
+      ['port', 'port'],
+      [
+        [0, 0],
+        [buildingSpan('port'), 0],
+      ],
+    );
+    expect(placed[0]!.at).not.toEqual([0, 0]);
+  });
+
+  it('keeps a ring with a port at full size within its bound', () => {
+    const spans = (['hq', 'airfield', 'port'] as const).map((key) => buildingSpan(key) * RING_GAP);
+    const placed = clusterFootprints(
+      [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+      ],
+      spans,
+      1,
+      {
+        maxShift: MAX_SHIFT,
+        onLand: () => true,
+      },
+    );
+    for (const { scale } of placed) expect(scale).toBe(1);
   });
 });
 
-describe('ringOffsets', () => {
-  it('stands one maquette on its mast, and a group a span apart around it', () => {
-    expect(ringOffsets(1)).toEqual([[0, 0]]);
-    for (const count of [2, 3, 5]) {
-      const ring = ringOffsets(count);
-      expect(ring).toHaveLength(count);
-      const [ax, az] = ring[0]!;
-      const [bx, bz] = ring[1]!;
-      expect(Math.hypot(ax - bx, az - bz)).toBeCloseTo(MAQUETTE_SPAN);
-    }
-  });
-});
+type Point = readonly [number, number];
 
 describe('clusterFootprints', () => {
-  const S = MAQUETTE_SPAN;
-  const gap = (a: readonly [number, number], b: readonly [number, number]) =>
-    Math.hypot(a[0] - b[0], a[1] - b[1]);
-
   it('leaves a site whose footprint touches none where it stands', () => {
     expect(
       clusterFootprints(
@@ -94,7 +137,7 @@ describe('clusterFootprints', () => {
       ],
       S,
     );
-    const radius = Math.hypot(...ringOffsets(4)[0]!);
+    const radius = S / (2 * Math.sin(Math.PI / 4));
     const centre = placed.reduce((sum, { at }) => sum + at[0], 0) / placed.length;
     for (const { at } of placed)
       expect(Math.hypot(at[0] - centre, at[1])).toBeGreaterThanOrEqual(radius - 1e-9);
@@ -106,7 +149,7 @@ describe('clusterFootprints', () => {
       [0, 0],
       [1.4 * S, 0.3],
     ] as const;
-    const placed = clusterFootprints(points, S, GARRISON_FOOT);
+    const placed = clusterFootprints(points, S, FOOT);
     placed.forEach(({ at, scale }, k) => {
       expect(at).toEqual(points[k]);
       expect(scale).toBe(1);
@@ -142,10 +185,10 @@ describe('clusterFootprints', () => {
     const placed = clusterFootprints(
       [
         [0, 0],
-        [0, GARRISON_FOOT + S / 4],
+        [0, FOOT + S / 4],
       ],
       S,
-      GARRISON_FOOT,
+      FOOT,
     );
     for (const site of placed) {
       const foot = footOf(site);
@@ -156,7 +199,8 @@ describe('clusterFootprints', () => {
   });
 
   describe('within bounds', () => {
-    const everywhere = { maxShift: S / 2, onLand: () => true };
+    // The bound is a share of the ring's widest spacing.
+    const everywhere = { maxShift: 0.5, onLand: () => true };
 
     it('never stands a maquette further from its point than the bound, and shrinks the group instead', () => {
       const points = Array.from({ length: 6 }, (_, k) => [k * 0.1, 0] as const);
@@ -191,18 +235,18 @@ describe('clusterFootprints', () => {
           [0, 0.1],
         ],
         S,
-        GARRISON_FOOT,
-        { maxShift: S, onLand },
+        FOOT,
+        { maxShift: 1, onLand },
       );
       for (const { at, facing, scale } of bounded) {
         expect(onLand(at[0])).toBe(true);
-        expect(onLand(at[0] + GARRISON_FOOT * scale * Math.sin(facing))).toBe(true);
+        expect(onLand(at[0] + FOOT * scale * Math.sin(facing))).toBe(true);
       }
     });
 
     it('turns a lone garrison inland when its front is the sea', () => {
-      const [lone] = clusterFootprints([[0, 0]], S, GARRISON_FOOT, {
-        maxShift: S,
+      const [lone] = clusterFootprints([[0, 0]], S, FOOT, {
+        maxShift: 1,
         onLand: (_x, z) => z <= 1e-9,
       });
       expect(lone!.at).toEqual([0, 0]);
@@ -216,8 +260,8 @@ describe('clusterFootprints', () => {
           [3 * S, -1],
         ],
         S,
-        GARRISON_FOOT,
-        { maxShift: S, onLand: (_x, z) => z <= 1e-9 },
+        FOOT,
+        { maxShift: 1, onLand: (_x, z) => z <= 1e-9 },
       );
       expect(Math.sin(lone!.facing)).toBeLessThan(0);
     });
@@ -229,9 +273,9 @@ const PILE_REACH = pileLayout(4).at(-1)! + 0.1;
 
 describe('the garrison foot', () => {
   it('stands a lone garrison in front of its maquette, facing the front', () => {
-    expect(footOf(clusterFootprints([[0, 0]], MAQUETTE_SPAN)[0]!)).toEqual({
+    expect(footOf(clusterFootprints([[0, 0]], S, FOOT)[0]!)).toEqual({
       x: 0,
-      z: GARRISON_FOOT,
+      z: FOOT,
       facing: 0,
     });
   });
@@ -240,30 +284,66 @@ describe('the garrison foot', () => {
     for (let count = 2; count <= 8; count++) {
       const placed = clusterFootprints(
         Array.from({ length: count }, () => [0, 0] as const),
-        MAQUETTE_SPAN,
+        S,
+        FOOT,
       );
       const ring = placed.map(({ at }) => at);
       for (const site of placed) {
         const offset = site.at;
         const foot = footOf(site);
-        expect(Math.hypot(foot.x - offset[0], foot.z - offset[1])).toBeCloseTo(GARRISON_FOOT);
-        expect(foot.x - offset[0]).toBeCloseTo(GARRISON_FOOT * Math.sin(foot.facing));
+        expect(Math.hypot(foot.x - offset[0], foot.z - offset[1])).toBeCloseTo(FOOT);
+        expect(foot.x - offset[0]).toBeCloseTo(FOOT * Math.sin(foot.facing));
         // The row runs across the facing, its widest pile reaching the +N counter's edge.
+        const reach = PILE_REACH;
         const [ax, az] = [Math.cos(foot.facing), -Math.sin(foot.facing)];
         for (const [x, z] of ring) {
-          const along = Math.max(
-            -PILE_REACH,
-            Math.min(PILE_REACH, (x - foot.x) * ax + (z - foot.z) * az),
-          );
+          const along = Math.max(-reach, Math.min(reach, (x - foot.x) * ax + (z - foot.z) * az));
           const nearest = Math.hypot(foot.x + along * ax - x, foot.z + along * az - z);
-          expect(nearest).toBeGreaterThanOrEqual(GARRISON_FOOT - 1e-9);
+          expect(nearest).toBeGreaterThanOrEqual(FOOT - 1e-9);
         }
       }
     }
   });
 
-  it('keeps the garrison clear of its own maquette at any turn', () => {
-    // A square model turned 45° reaches half a diagonal; the pile reaches back a third of a span.
-    expect(GARRISON_FOOT - MAQUETTE_SPAN / 3).toBeGreaterThan((MAQUETTE_SPAN / 2) * Math.SQRT2);
+  it('docks the hulls of a port along its quay, beside it and not a port away', () => {
+    const [port, cargo] = [buildingSpan('port'), troopSpan('cargo')];
+    const foot = garrisonFoot(port, cargo, true);
+    expect(foot - cargo / 2).toBeGreaterThanOrEqual(port / 2);
+    expect(foot - cargo / 2).toBeLessThan(port / Math.SQRT2);
+  });
+
+  it('keeps a garrison grown to its floor clear of the other maquettes of its ring, and of their garrisons', () => {
+    // At d ≈ 30 a pile is drawn as large as the floor's span (ADR 0035 §10), whatever it holds.
+    const pile = troopPinSpan(0);
+    const reach = (PILE_REACH * pile) / LAID_OUT_FOR;
+    const keys = ['barracks', 'hq', 'airfield', 'warehouse', 'port'] as const;
+    const spans = keys.map(buildingSpan);
+    const placed = clusterFootprints(
+      keys.map(() => [0, 0] as const),
+      spans.map((span) => span * RING_GAP),
+      spans.map((span) => garrisonFoot(span, ANONYMOUS_SPAN)),
+    );
+    const feet = placed.map((site, k) => footOf(site, garrisonFoot(spans[k]!, pile) * site.scale));
+    feet.forEach((foot, i) => {
+      // The row runs across the facing.
+      const [ax, az] = [Math.cos(foot.facing), -Math.sin(foot.facing)];
+      placed.forEach(({ at: [x, z] }, j) => {
+        if (j === i) return;
+        const along = Math.max(-reach, Math.min(reach, (x - foot.x) * ax + (z - foot.z) * az));
+        const nearest = Math.hypot(foot.x + along * ax - x, foot.z + along * az - z);
+        expect(nearest - pile / 2).toBeGreaterThan(spans[j]! / Math.SQRT2);
+        expect(Math.hypot(feet[j]!.x - foot.x, feet[j]!.z - foot.z)).toBeGreaterThan(2 * reach);
+      });
+    });
+  });
+
+  it('keeps every garrison clear of its own maquette at any turn, on land', () => {
+    // A model turned 45° reaches half its diagonal; the pile reaches back half its largest piece.
+    const roles = Object.keys(DOMAIN_BY_ROLE) as UnitRole[];
+    for (const key of BUILDINGS)
+      for (const role of roles)
+        expect(
+          garrisonFoot(buildingSpan(key), troopSpan(role)) - troopSpan(role) / 2,
+        ).toBeGreaterThan(buildingSpan(key) / Math.SQRT2);
   });
 });

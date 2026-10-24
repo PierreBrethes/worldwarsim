@@ -1,4 +1,5 @@
 import {
+  Box3,
   CircleGeometry,
   Float32BufferAttribute,
   Group,
@@ -6,22 +7,36 @@ import {
   Mesh,
   MeshBasicMaterial,
   type Object3D,
+  Vector3,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
+import { troopSpan } from '@/domain/piece-size';
 import { type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { mergedByMaterial } from '../baking';
+import { pieceScale } from '../piece-scale';
 import { JOINTS, squadOf } from './infantry';
 
 /**
- * Model units to board units. The brief sizes a tank at 2.6, so it stands about two thirds of
- * a board unit long: a piece among the regions and the masts, not a monument over them — at
- * 0.4 a squad stood taller than a département at the closest zoom. `@a-mesurer` on the board.
+ * **The piece length the sizes drawn around a piece were tuned for** — a formation's spacing, an
+ * altitude disc, a wake, a replay's stage: a tank, 2.6 model units at the former 0.26 a unit.
+ * A piece at the common scale (ADR 0035) carries them at its span over this.
  */
-export const FIGURINE_SCALE = 0.26;
+export const LAID_OUT_FOR = 0.68;
+
+/** **What has no role of its own** — an enemy block, an annotation, a crate — is measured as a
+ *  tank: the same for every enemy, so its size says nothing of what it is. */
+export const ANONYMOUS_SPAN = troopSpan('armor');
+
+/** **A tank's real span against the one the sizes around it were drawn for**: what a length
+ *  tuned for the former figurines is multiplied by at the common scale. */
+export const TANK_SHARE = ANONYMOUS_SPAN / LAID_OUT_FOR;
+
+/** Model units to board units for what has no role: the brief's tank is 2.6 long. */
+export const FIGURINE_SCALE = ANONYMOUS_SPAN / 2.6;
 
 let nearFloor = 0;
 /**
@@ -39,16 +54,75 @@ export function setNearFloor(distance: number): void {
  * are down at the country » for both layers (ADR 0026 §3).
  */
 export function nearWeight(distance: number): number {
-  const t =
+  return eased(
     (REGIONS_GONE_DISTANCE - Math.max(distance, nearFloor)) /
-    (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE);
+      (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
+  );
+}
+
+const eased = (t: number): number => {
   const k = Math.min(1, Math.max(0, t));
   return k * k * (3 - 2 * k);
+};
+
+/** **Under this size on screen, in CSS pixels, a piece gives way to its pin** (ADR 0035 §3); a
+ *  pixel reads rounded, so a piece of 19.5 px still stands. `@a-mesurer` */
+const PIN_PX = 20;
+/** The share of its size over which a piece shrinks into its pin, below `PIN_PX`. `@a-mesurer` */
+const PIN_FADE = 0.15;
+/** **Sizes on screen are read on a window 900 px tall** (`CAMERA_FOV` of 42°): a short window —
+ *  a laptop, a phone between its bars — pins its pieces at the same distances as the others. */
+const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
+
+/**
+ * **How much of a piece stands, rather than its pin, by its size on screen** (ADR 0035 §3): 1
+ * while its `span` — board units, at the common scale — reads at `PIN_PX`, eased to 0 a little
+ * below. A man reads under it from d ≈ 3, a tank from 7 — both held by their floor until d ≈ 30
+ * (`troopWeight`) —, a barracks from 58, a hangar from 70 — the
+ * fighter from 13, the carrier from 145.
+ */
+export function pieceWeight(distance: number, span: number): number {
+  const whole = PIN_PX - 0.5;
+  return eased((pxOf(distance, span) - whole * (1 - PIN_FADE)) / (whole * PIN_FADE));
 }
+
+const pxOf = (distance: number, span: number): number =>
+  (span * pieceScale.size * REFERENCE_PX_PER_UNIT) / Math.max(distance, nearFloor);
+
+/** **A troop holds its floor until here** (ADR 0035 §10), at 100 %: further at a larger size,
+ *  nearer at a smaller. `@a-mesurer` */
+const FLOOR_UNTIL = 30;
+/** What reads at the pin's size at `FLOOR_UNTIL`. */
+const FLOOR_SPAN = ((PIN_PX - 0.5) * FLOOR_UNTIL) / REFERENCE_PX_PER_UNIT;
+
+/** **The span a troop gives way to its pin by** (ADR 0035 §10): its own, or the floor's — a man
+ *  as late as a tank, a hull later. */
+export const troopPinSpan = (span: number): number => Math.max(span, FLOOR_SPAN);
+
+/** **How much of a troop stands, rather than its pin**: `pieceWeight` by its floor. */
+export const troopWeight = (distance: number, span: number): number =>
+  pieceWeight(distance, troopPinSpan(span));
+
+/**
+ * **How much larger than its span a troop is drawn** (the figurine floor, ADR 0035 §10): enough
+ * never to read under `PIN_PX`, 1 while it reads larger. Between d ≈ 5 and 30 a troop grows
+ * against its building; up close the two stay bound.
+ */
+export function floorGrowth(distance: number, span: number): number {
+  // Read rounded like the pin's threshold: a man of 19.8 px at the closest zoom keeps his size.
+  return Math.max(1, (PIN_PX - 0.5) / pxOf(distance, span));
+}
+
+/** **The scale a troop is drawn at**, its span at 1: its weight, its floor and the player's size;
+ *  0 once it is its pin. */
+export const troopScale = (distance: number, span: number): number =>
+  troopWeight(distance, span) * floorGrowth(distance, span) * pieceScale.size;
 
 export type Figurine = {
   /** Origin on the ground at the pawn's point, front towards +z, already at board scale. */
   readonly object: Group;
+  /** Its role's measure on the board (`troopSpan`): what it is laid out and pinned by. */
+  readonly span: number;
   /** Settles once every sculpted file has landed in `object` — a piece that stands still asks
    *  for its frame then, where a flowing pawn would just show it. Rejects when a file fails. */
   readonly ready: Promise<void>;
@@ -170,8 +244,9 @@ export function figurineFor(
 
   const object = new Group();
   const model = new Group();
-  model.scale.setScalar(FIGURINE_SCALE);
   object.add(model);
+  // Its first mark's model: a French pile of tanks led by an R35 is measured at 4 m.
+  const span = troopSpan(role, nation, marks[0]);
 
   const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {
@@ -179,6 +254,8 @@ export function figurineFor(
         make: () => scene.clone(true),
         marches: marks[k] === 1,
       }));
+      // Each model brought to its role's real size, whatever it was sculpted at.
+      model.scale.setScalar(span / measureOf(scenes[0]!, role));
       model.add(role === 'infantry' ? squadOf(makers) : makers[0]!.make());
     },
     (error: unknown) => {
@@ -192,6 +269,7 @@ export function figurineFor(
   const spinning: Object3D[] = [];
   return {
     object,
+    span,
     ready,
     spin(elapsedSeconds) {
       // Only the hub turns: its blades and cone ride along, and turning them too would twist
@@ -206,6 +284,12 @@ export function figurineFor(
       for (const part of spinning) part.rotation.z += elapsedSeconds * 40;
     },
   };
+}
+
+/** **A model's measure in its own units**: a man's height, the widest side at the ground of the rest. */
+function measureOf(scene: Object3D, role: UnitRole): number {
+  const size = new Box3().setFromObject(scene).getSize(new Vector3());
+  return role === 'infantry' ? size.y : Math.max(size.x, size.z);
 }
 
 /**

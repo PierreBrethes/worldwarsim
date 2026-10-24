@@ -5,9 +5,13 @@ import {
   figurineFor,
   hideAltitudeShadows,
   nearWeight,
+  pieceWeight,
   setNearFloor,
+  troopWeight,
 } from './figurine';
 import { squadOf } from './infantry';
+import { pieceScale } from '../piece-scale';
+import { buildingSpan, troopSpan } from '@/domain/piece-size';
 
 describe('nearWeight', () => {
   afterEach(() => setNearFloor(0));
@@ -26,6 +30,49 @@ describe('nearWeight', () => {
     setNearFloor(20);
     expect(nearWeight(10)).toBe(1);
     expect(nearWeight(48)).toBeGreaterThan(0);
+  });
+});
+
+/** A piece gives way to its pin by its size on screen (ADR 0035 §3), measured at 900 px tall. */
+describe('pieceWeight', () => {
+  afterEach(() => {
+    setNearFloor(0);
+    pieceScale.size = 1;
+  });
+
+  it('reads a man under the pin from d ≈ 3, a tank from 7, and pins the buildings from 58 to 70', () => {
+    expect(pieceWeight(3, troopSpan('infantry'))).toBe(1);
+    expect(pieceWeight(3.7, troopSpan('infantry'))).toBe(0);
+    expect(pieceWeight(6.9, troopSpan('armor'))).toBe(1);
+    expect(pieceWeight(8.2, troopSpan('armor'))).toBe(0);
+    expect(pieceWeight(57, buildingSpan('barracks'))).toBe(1);
+    expect(pieceWeight(68.3, buildingSpan('barracks'))).toBe(0);
+    expect(pieceWeight(69, buildingSpan('airfield'))).toBe(1);
+  });
+
+  it('shrinks into its pin over the last stretch, not at once', () => {
+    const between = pieceWeight(7.5, troopSpan('armor'));
+    expect(between).toBeGreaterThan(0);
+    expect(between).toBeLessThan(1);
+  });
+
+  it('holds a bigger piece longer when the player grows them', () => {
+    pieceScale.size = 1.25;
+    expect(pieceWeight(8.2, troopSpan('armor'))).toBeGreaterThan(0);
+  });
+
+  it('stands a whole man from the closest zoom to d ≈ 30 by his floor, at the smallest size and on a short window too', () => {
+    pieceScale.pxPerUnit = 650 / (2 * Math.tan((21 * Math.PI) / 180));
+    expect(troopWeight(30, troopSpan('infantry'))).toBe(1);
+    expect(troopWeight(36, troopSpan('infantry'))).toBe(0);
+    pieceScale.size = 0.8;
+    expect(troopWeight(4, troopSpan('infantry'))).toBe(1);
+    expect(troopWeight(24, troopSpan('infantry'))).toBe(1);
+  });
+
+  it('measures a piece nearer than the target at the target distance', () => {
+    setNearFloor(10);
+    expect(pieceWeight(4, troopSpan('armor'))).toBe(0);
   });
 });
 

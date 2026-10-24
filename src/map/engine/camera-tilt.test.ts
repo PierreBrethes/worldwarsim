@@ -7,7 +7,7 @@ import { boardHoldOf, steepestTiltAt } from './camera-tilt';
  */
 describe('the tilt the table allows', () => {
   it('lets the eye lean right over the table up close', () => {
-    expect(steepestTiltAt(4)).toBeCloseTo(1.15);
+    expect(steepestTiltAt(3)).toBeCloseTo(1.15);
     expect(steepestTiltAt(30)).toBeCloseTo(1.15);
   });
 

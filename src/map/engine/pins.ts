@@ -16,7 +16,7 @@ import { asClockTime } from '@/domain/duration';
 import { nationInk } from '@/domain/nations';
 import type { Pin } from '@/domain/pins';
 import type { Rect } from '@/domain/poster-placement';
-import { nearWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, nearWeight, pieceWeight } from './figurines/figurine';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
 import { REACH } from './halo';
@@ -141,7 +141,7 @@ function clusterPoints<P extends { readonly sx: number; readonly sy: number }>(
  * carré pour un bâtiment, losange pour un avant-poste ; plein à l'encre de sa nation pour ce qui
  * est à soi, creux à l'encre adverse pour un relevé, gris en pointillé avec son heure pour une
  * dernière position connue. Les épingles qui se touchent se rangent en grappe numérotée. Elle
- * monte quand la figurine s'efface (`nearWeight`).
+ * monte quand sa pièce devient trop petite à l'écran (`pieceWeight`, ADR 0035 §3).
  *
  * Deux maillages instanciés, deux appels de dessin : les formes, tracées par leur distance signée
  * dans le shader, et les chiffres. Elle ne demande aucune image à elle seule (`frame-demand`) :
@@ -174,6 +174,11 @@ export class PinLayer {
     private readonly touch = false,
     /** The font landed and the counts were painted again: the board owes a frame. */
     repainted: () => void = () => {},
+    /** The span its piece gives way to it by — a building's, a pile's, a tank's for what is not
+     *  drawn —, `null` for what has no piece (an outpost): it rises with the regions' fade. */
+    private readonly spanOf: (pin: Pin) => number | null = () => ANONYMOUS_SPAN,
+    /** Where its piece is drawn when a ring carried it off its point: the pin stands there. */
+    private readonly drawnAt: (id: string) => Vector3 | null = () => null,
   ) {
     this.shapes = new InstancedDraw(SHAPE_ATTRIBUTES, shapeMaterial(this.viewport, this.selectInk));
     this.glyphs = new InstancedDraw(GLYPH_ATTRIBUTES, glyphMaterial(this.viewport, repainted));
@@ -185,16 +190,20 @@ export class PinLayer {
     this.rebuild();
   }
 
-  /** The regions landed under a building's anchor, or the frame changed: anchors are re-read. */
+  /** The regions landed under a building's anchor, the frame changed, or a ring placed its
+   *  maquettes again: anchors are re-read. */
   rebuild(): void {
     for (const placed of this.placed) {
       const { anchor } = placed.pin;
+      const drawn = this.drawnAt(placed.pin.id);
       placed.at =
-        anchor.kind === 'ground'
-          ? this.frame.projectLonLat(anchor.lonLat, ELEVATION)
-          : anchor.kind === 'region'
-            ? this.regionAnchor(anchor.regionId)
-            : null;
+        drawn !== null
+          ? new Vector3(drawn.x, ELEVATION, drawn.z)
+          : anchor.kind === 'ground'
+            ? this.frame.projectLonLat(anchor.lonLat, ELEVATION)
+            : anchor.kind === 'region'
+              ? this.regionAnchor(anchor.regionId)
+              : null;
     }
     this.dirty = true;
   }
@@ -248,7 +257,11 @@ export class PinLayer {
       const inside = v.z < 1 && sx > -40 && sy > -40 && sx < width + 40 && sy < height + 40;
       return [sx, sy, inside];
     };
-    const weightAt = (at: Vector3) => 1 - nearWeight(at.distanceTo(measuredFrom));
+    const weightAt = (at: Vector3, pin: Pin) => {
+      const span = this.spanOf(pin);
+      const distance = at.distanceTo(measuredFrom);
+      return 1 - (span === null ? nearWeight(distance) : pieceWeight(distance, span));
+    };
 
     if (moved || this.dirty) {
       this.dirty = false;
@@ -259,7 +272,7 @@ export class PinLayer {
         if (placed.pin.anchor.kind === 'movementHead' && !('moving' in placed.pin))
           placed.at = heads.get(placed.pin.id) ?? null;
         if (placed.at === null || 'moving' in placed.pin) continue;
-        const weight = weightAt(placed.at);
+        const weight = weightAt(placed.at, placed.pin);
         if (weight <= 0) continue;
         const [sx, sy, inside] = screen(placed.at);
         if (!inside) continue;
@@ -280,7 +293,7 @@ export class PinLayer {
       if (!('moving' in placed.pin)) continue;
       const head = heads.get(placed.pin.id);
       if (head === undefined) continue;
-      const weight = weightAt(head);
+      const weight = weightAt(head, placed.pin);
       if (weight <= 0) continue;
       const [sx, sy, inside] = screen(head);
       if (!inside) continue;
