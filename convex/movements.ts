@@ -19,9 +19,7 @@ import {
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
-import { COAST_REACH_KM, shoreCrossings } from '../src/domain/coast';
-import { distanceKm, type LonLat } from '../src/domain/geo';
-import { coastOf } from './coast';
+import type { LonLat } from '../src/domain/geo';
 import { isNation } from '../src/domain/nations';
 import { BOARD_KM, troopSpan } from '../src/domain/piece-size';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
@@ -87,7 +85,7 @@ import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
 import { surveyAlongRoute } from './surveys';
-import { hostAtPoint, landAtPoint, routeBetween } from './routes';
+import { hostAtPoint, landAtPoint, reachedOverGround, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
@@ -414,14 +412,10 @@ export const disband = mutation({
     const center = pointOf(point);
     const ashore = landAtPoint(center);
     const host = hostAtPoint(center);
-    /** On rejoint sa place sans passer l'eau (ou la terre, pour une coque) : à 22 km, un détroit
-     *  ou une île du même pays serait un passage sans bateau (#244). Un rivage coupé tout près du
-     *  point est le sien, que la grille met à terre et l'atlas au bord de l'eau. */
+    /** On rejoint sa place sans passer l'eau, ni la terre pour une coque : à 22 km, un détroit
+     *  ou une île du même pays serait un passage sans bateau (#244). */
     const reached = (spot: LonLat) =>
-      landAtPoint(spot) === ashore &&
-      shoreCrossings(coastOf(), center, spot).every(
-        (along) => along * distanceKm(center, spot) <= COAST_REACH_KM,
-      );
+      landAtPoint(spot) === ashore && reachedOverGround(center, spot, ashore);
     const nation = isNation(player.nation) ? player.nation : undefined;
     const largest = Math.max(
       ...pile

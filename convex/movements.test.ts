@@ -2723,34 +2723,31 @@ describe('the door of the sea, read on the pile', () => {
   });
 
   /** **La couronne ne passe pas l'eau** (#283) : à 22 km, la Sicile fait face à Villa San
-   *  Giovanni et l'île d'Elbe à Piombino ; une pièce n'y saute pas sans bateau (#244). */
+   *  Giovanni, l'île d'Elbe au Val di Cornia, l'Asie au Bosphore, la Crimée à Taman ; une pièce n'y saute
+   *  pas sans bateau (#244), et ne se pose pas dans le détroit. */
   it('sets no piece across a strait, on an island of its own country', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    for (const [field, roles, onIsland] of [
+    const three = ['landTransport', 'armor', 'infantry'] as const;
+    for (const [field, roles, across] of [
+      [{ lon: 15.64, lat: 38.22 }, three, ([lon]: LonLat) => lon < 15.6], // la Sicile en face
       [
-        { lon: 15.64, lat: 38.22 }, // Villa San Giovanni, la Sicile en face
-        ['landTransport', 'armor', 'infantry'],
-        ([lon]: LonLat) => lon < 15.6,
-      ],
-      [
-        { lon: 10.53, lat: 42.93 }, // Piombino, l'île d'Elbe au sud-ouest
-        ['landTransport', 'armor', 'infantry', 'infantry', 'infantry'],
+        { lon: 10.52, lat: 43.0 }, // le Val di Cornia, l'île d'Elbe au sud-ouest
+        [...three, 'infantry', 'infantry'],
         ([lon, lat]: LonLat) => lon < 10.45 && lat < 42.9,
       ],
+      [{ lon: 29.045, lat: 41.09 }, three.slice(0, 2), ([lon]: LonLat) => lon > 29.08], // l'Asie
+      [{ lon: 36.72, lat: 45.21 }, three, ([lon]: LonLat) => lon < 36.6], // le détroit de Kertch
     ] as const) {
       const pieces: Array<Id<'troops'>> = [];
       for (const role of roles) pieces.push(await postAt(t, seat, role, field));
-      // la place manque peut-être sur la côte, l'île jamais
-      await t
-        .mutation(api.movements.disband, { ...seat, point: field })
-        .catch((error) => expect(String(error)).toContain('NO_ROOM_TO_DISBAND'));
+      await t.mutation(api.movements.disband, { ...seat, point: field });
       const spots = await t.run(async (ctx) =>
         Promise.all(
           pieces.map(async (id) => pointOf((await ctx.db.get(id))!.stationedAt as typeof field)),
         ),
       );
-      expect(spots.filter(onIsland)).toEqual([]);
+      expect(spots.filter(across), `${field.lon}, ${field.lat}`).toEqual([]);
     }
   });
 

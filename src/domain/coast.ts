@@ -254,6 +254,37 @@ export function shoreCrossings(coast: Coast, from: LonLat, to: LonLat): number[]
   return crossings;
 }
 
+/**
+ * **Rejoindre une place sans changer de milieu** (#283) : la place est du côté de son milieu à
+ * l'atlas, et le trait n'y coupe aucun rivage. Un seul se tolère, tout près du point, quand l'atlas
+ * met le point lui-même de l'autre côté — la grille met Piombino à terre, l'atlas juste au large :
+ * ce rivage est le sien. Deux rivages, c'est un détroit traversé (le Bosphore).
+ */
+export function reachedAshore(
+  grid: RouteGrid,
+  coast: Coast,
+  from: LonLat,
+  to: LonLat,
+  ashore: boolean,
+): boolean {
+  if (atlasLandAt(grid, coast, to) === !ashore) return false;
+  const crossings = shoreCrossings(coast, from, to);
+  if (crossings.length === 0) return true;
+  return (
+    atlasLandAt(grid, coast, from) === !ashore &&
+    crossings.length === 1 &&
+    crossings[0]! * distanceKm(from, to) <= COAST_REACH_KM
+  );
+}
+
+/** De quel côté de l'atlas tombe un point près d'un rivage ; `undefined` loin de tout rivage. */
+function atlasLandAt(grid: RouteGrid, coast: Coast, lonLat: LonLat): boolean | undefined {
+  const [x, y] = projectLonLat(coast.projection.outline, coast.projection.sphere, lonLat);
+  if (islandAt(coast, x, y) !== null) return true;
+  return (shoreAt(coast, 'coast', x, y, grid.step) ?? shoreAt(coast, 'lake', x, y, grid.step))
+    ?.land;
+}
+
 /** **La région d'un point, si l'atlas la sait exactement** : celle d'une région sans cellule. */
 export function islandRegionOf(coast: Coast, lonLat: LonLat): string | null {
   const [x, y] = projectLonLat(coast.projection.outline, coast.projection.sphere, lonLat);
