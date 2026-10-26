@@ -395,6 +395,8 @@ export class LandingTable {
         const model = scene.clone(true);
         const size = new Box3().setFromObject(model).getSize(new Vector3());
         model.scale.setScalar(span / Math.max(size.x, size.z));
+        // Painted by the owner's colours (#279): a white one would read as a surrender.
+        model.getObjectByName('drapeau')?.removeFromParent();
         model.position.y -= new Box3().setFromObject(model).min.y;
         castShadows(model);
         model.traverse((part) => {

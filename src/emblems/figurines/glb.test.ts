@@ -4,7 +4,19 @@ import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { FIGURINE_FILES } from './manifest';
 
-/** The brief given to Claude Design, per role: its triangle ceiling and the parts the engine names. */
+const PLANE = [
+  'fuselage',
+  'gear_left',
+  'gear_right',
+  'wheel_left',
+  'wheel_right',
+  'tailwheel',
+  'fx_smoke',
+];
+
+/** The brief given to Claude Design, per role: its triangle ceiling and the parts the engine names.
+ *  A part ending in `*` is a family (`roue_left_*`). The moving parts of the regenerated roles
+ *  (#286) are copied from `EXPECT` of `WWS/prototypes/glb/prompts/verifier-glb.mjs`. */
 const BRIEF: Readonly<
   Record<UnitRole, { readonly triangles: number; readonly parts: ReadonlyArray<string> }>
 > = {
@@ -25,7 +37,22 @@ const BRIEF: Readonly<
     ],
   },
   armor: { triangles: 3000, parts: ['hull', 'turret', 'gun', 'fx_smoke', 'fx_muzzle'] },
-  landTransport: { triangles: 2500, parts: ['body', 'fx_smoke'] },
+  landTransport: {
+    triangles: 1500,
+    parts: [
+      'body',
+      'wheels_left',
+      'wheels_right',
+      'roue_left_*',
+      'roue_right_*',
+      'tailgate',
+      'tarp',
+      'fond_sombre',
+      'fx_smoke',
+      'fx_poussiere',
+      'fx_hayon',
+    ],
+  },
   artillery: {
     triangles: 3000,
     parts: [
@@ -40,11 +67,40 @@ const BRIEF: Readonly<
       'fx_smoke',
     ],
   },
-  fighter: { triangles: 2500, parts: ['fuselage', 'prop', 'fx_smoke'] },
-  bomber: { triangles: 3500, parts: ['fuselage', 'fx_smoke'] },
-  airTransport: { triangles: 3500, parts: ['fuselage', 'fx_smoke'] },
+  fighter: { triangles: 2500, parts: [...PLANE, 'prop', 'fx_muzzle'] },
+  bomber: { triangles: 1500, parts: [...PLANE, 'prop*', 'fx_muzzle'] },
+  airTransport: {
+    triangles: 1500,
+    parts: [
+      ...PLANE,
+      'prop_*',
+      'cabin_door',
+      'bay_door',
+      'fond_sombre',
+      'fond_sombre_soute',
+      'fx_porte',
+      'fx_parachute',
+    ],
+  },
   escort: { triangles: 4000, parts: ['hull', 'fx_smoke'] },
-  cargo: { triangles: 4000, parts: ['hull', 'fx_smoke'] },
+  cargo: {
+    triangles: 4000,
+    parts: [
+      'hull',
+      'mat_charge_*',
+      'hold_hatch_*',
+      'fond_sombre_*',
+      'boat_left',
+      'fx_charge_*',
+      'fx_smoke',
+      'fx_sillage',
+      'fx_passerelle',
+      'fx_amarre_avant_babord',
+      'fx_amarre_avant_tribord',
+      'fx_amarre_arriere_babord',
+      'fx_amarre_arriere_tribord',
+    ],
+  },
   carrier: { triangles: 4000, parts: ['hull', 'fx_smoke'] },
 };
 
@@ -72,7 +128,7 @@ const files = Object.entries(FIGURINE_FILES).flatMap(([nation, roles]) =>
 );
 
 describe.runIf(files.length > 0)('sculpted figurines', () => {
-  it.each(files)('%s keeps to the brief', (_, role, url, tier) => {
+  it.each(files)('%s keeps to the brief', (name, role, url, tier) => {
     const gltf = readGlb(url);
     const triangles = (gltf.meshes ?? [])
       .flatMap((mesh) => mesh.primitives)
@@ -83,6 +139,14 @@ describe.runIf(files.length > 0)('sculpted figurines', () => {
     const parts = BRIEF[role].parts.filter(
       (part) => !(role === 'infantry' && tier === 2 && part === 'rifle'),
     );
-    for (const part of parts) expect(names.has(part), part).toBe(true);
+    for (const part of parts)
+      expect(
+        part.endsWith('*')
+          ? [...names].some((node) => node?.startsWith(part.slice(0, -1)))
+          : names.has(part),
+        part,
+      ).toBe(true);
+    // The junk has no second boat; the other cargo ships carry both (`byNation` of `EXPECT`).
+    if (role === 'cargo' && !name.startsWith('china')) expect(names.has('boat_right')).toBe(true);
   });
 });

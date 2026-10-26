@@ -41,6 +41,8 @@
  * pose en face trois camps britanniques relevés en Sarre et en Alsace, un quatrième perdu de vue près de
  * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une
  * britannique à travers la Lorraine. `--lisbonne` donne Lisbonne à la France : elle lit la nation de ses relevés (P11).
+ * `--pile-mixte` (#286) pose un camion, un chasseur et deux fantassins sur un même point : une pile
+ * où les nouveaux modèles côtoient les anciens.
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
  * avant-poste à Namur, et à l'adversaire une mine relevée sur la Sarre : une mine à poser, au
  * cadrage de la maquette des gisements.
@@ -193,6 +195,18 @@ if (!bare) {
       }),
     ]);
   }
+  /** `--pile-mixte` : un camion, un chasseur et deux fantassins sur un même point (#286). */
+  if (process.argv.includes('--pile-mixte') && scene.a !== null)
+    for (const [role, count] of [
+      ['landTransport', 1],
+      ['fighter', 1],
+      ['infantry', 2],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, count, lon: 1.0, lat: 47.3 }),
+      ]);
   if (passengers && scene.a !== null) {
     const spawn = (args) =>
       cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);

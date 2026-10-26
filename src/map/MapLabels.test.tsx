@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapLabel } from '@/domain/labels';
 import { CLASSIC_MAPPING } from '@/domain/mouse-mapping';
@@ -358,5 +358,155 @@ describe('a deposit on the map', () => {
     expect(container.querySelector('.label-deposit')).toBeNull();
     expect(container.querySelector('.label--deposit img')).toBeNull();
     expect(container.querySelector('.label--deposit')?.textContent).toContain('charbon');
+  });
+});
+
+/**
+ * **Un anneau de bâtiments garde son « N sites » quand la pile au centre est en figurines**
+ * (#285). La figurine plancher laisse la pile lisible jusqu'à d ≈ 30 : son étiquette, qui
+ * passe avant celle des bâtiments, ne doit plus replier leur cartouche réuni.
+ */
+describe('a ring of buildings around a stack', () => {
+  const place = (id: string, type: 'stack' | 'building', priority: number) =>
+    ({
+      ...outpost(id, id),
+      type,
+      priority,
+      lines: [{ role: 'nature', text: id }],
+      force: type === 'stack' ? { headcount: 4 } : null,
+    }) as unknown as MapLabel;
+
+  const truck = {
+    ...place('truck', 'stack', 0),
+    type: 'outpost',
+    cargo: [
+      {
+        carrierId: 'truck',
+        role: 'landTransport',
+        seats: 4,
+        used: 1,
+        riders: [{ id: 'rider', role: 'infantry', tier: 1, seats: 1 }],
+        refusal: null,
+        load: { ammunition: 0, oil: 0, coal: 0 },
+        loadCapacity: 0,
+        tour: null,
+      },
+    ],
+  } as unknown as MapLabel;
+  const labels = [
+    place('stack', 'stack', 5),
+    place('hq', 'building', 1),
+    place('airfield', 'building', 1),
+    place('barracks', 'building', 1),
+    truck,
+  ];
+
+  const frame = (engine: Record<string, unknown>) => (
+    <MapLabels
+      labels={labels}
+      engine={engine as never}
+      selected={null}
+      secondarySelected={null}
+      onMovementHover={noop}
+      onReachHover={noop}
+      poster={() => null}
+      onSelect={noop}
+      onOpenBuilding={noop}
+      onOpenStack={noop}
+      onOpenLoot={noop}
+      onOpenCamp={noop}
+      onOpenObjective={noop}
+      onOpenStrategic={noop}
+      onAct={noop}
+      onCancelHeld={noop}
+      mapping={CLASSIC_MAPPING}
+      holding={false}
+      onHoldOver={noop}
+      muted={false}
+      onDisembark={noop}
+    />
+  );
+
+  /** Every label stands at the same screen point, as a region's stack and its buildings do. */
+  const lay = (cartouche: 'reading' | 'quiet', top = 100, sheet = false) => {
+    const engine: Record<string, unknown> = {
+      setLabelAnchors: () => {},
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      pieceRect: () => null,
+      cameraDistance: () => 20,
+    };
+    // A real DOMRect keeps its edges as prototype accessors, which `{ ...box }` drops. At rest a
+    // stack's cartouche is quiet: measured, it has no area.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      // A cargo sheet open over the ring's mast (`.cargo-tag-body`), when asked for.
+      if (this.matches('.cargo-tag-body'))
+        return sheet ? new DOMRect(90, top - 60, 100, 40) : new DOMRect(0, 0, 0, 0);
+      return new DOMRect(100, top, ...(cartouche === 'reading' ? [60, 20] : [0, 0]));
+    });
+    const frames: Array<() => void> = [];
+    vi.stubGlobal('requestAnimationFrame', (run: () => void) => frames.push(run));
+    render(frame(engine));
+    const project = (id: string, dressed: number) => ({
+      id,
+      visible: true,
+      x: 130,
+      y: 120,
+      lod: 'expanded',
+      fade: 1,
+      dressed,
+      far: false,
+      drawnX: 0,
+      drawnY: 0,
+      distance: 20,
+      atEdge: false,
+      edgeX: 0,
+      edgeY: 0,
+      heading: 0,
+    });
+    const onLabels = engine.onLabels as (projections: ReadonlyArray<unknown>) => void;
+    const projections = labels.map((label) => project(label.id, 1));
+    // One frame sets the states and asks for the degradation, the next one places the groups.
+    act(() => onLabels(projections));
+    act(() => frames.splice(0).forEach((run) => run()));
+    act(() => onLabels(projections));
+  };
+
+  const sites = () =>
+    [...document.querySelectorAll('.label--building-group')].find((node) =>
+      node.textContent?.includes('3 sites'),
+    );
+  const shownGroup = () => {
+    const anchor = sites()?.parentElement;
+    return anchor != null && anchor.style.display !== 'none';
+  };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('keeps its "3 sites" beside a quiet stack cartouche, with nothing to clear', () => {
+    lay('quiet');
+    expect(shownGroup()).toBe(true);
+    expect((sites() as HTMLElement).style.getPropertyValue('--label-stagger')).toBe('0px');
+  });
+
+  it('rises above a stack cartouche that reads, instead of covering it', () => {
+    lay('reading');
+    expect(shownGroup()).toBe(true);
+    const lift = (sites() as HTMLElement).style.getPropertyValue('--label-stagger');
+    // The stack's cartouche is 20 px high here: the ring's mast is longer by at least that.
+    expect(Number.parseInt(lift)).toBeGreaterThanOrEqual(20);
+  });
+
+  it('folds as before when the mast it needs would leave the screen', () => {
+    lay('reading', 5);
+    expect(shownGroup()).toBe(false);
+  });
+
+  it('folds as before when the mast it needs would land in a cargo sheet', () => {
+    lay('reading', 100, true);
+    expect(shownGroup()).toBe(false);
   });
 });

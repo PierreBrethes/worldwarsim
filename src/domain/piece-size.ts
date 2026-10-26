@@ -64,13 +64,34 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
   oilWell: 25,
   arsenal: 80,
   barracks: 50,
-  airfield: 60,
+  airfield: 50,
   port: 210,
   listening: 30,
   researchCenter: 50,
   warehouse: 60,
   depot: 60,
   city: 50,
+};
+
+/**
+ * **Le plus grand côté au sol de l'emprise réelle de chaque bâtiment, en mètres**, hampe et
+ * drapeau exclus : l'anneau espace les sites par elle, car la remise de la caserne la porte à
+ * 65 m quand ses `murs` en font 50. `maquettes.test.ts` la mesure sur les GLB.
+ */
+export const BUILDING_FOOTPRINT_METRES: Readonly<Record<BuildingKey, number>> = {
+  hq: 61,
+  farm: 41,
+  mine: 50,
+  oilWell: 25,
+  arsenal: 80,
+  barracks: 65,
+  airfield: 51,
+  port: 222,
+  listening: 31,
+  researchCenter: 50,
+  warehouse: 61,
+  depot: 61,
+  city: 51,
 };
 
 /**
@@ -98,9 +119,16 @@ export const troopSpan = (role: UnitRole, nation?: Nation, tier?: UnitTier): num
     (role === 'infantry' ? MAN_EXAGGERATION : 1) * (DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1),
   );
 
+/** **Le plus grand côté au sol d'un bâtiment, en mètres** : ce que son modèle, dessiné en mètres, mesure. */
+export const buildingMetres = (key: BuildingKey): number => BUILDING_METRES[key];
+
 /** **Le plus grand côté au sol d'un bâtiment sur le plateau**, en unités. */
 export const buildingSpan = (key: BuildingKey): number =>
   onBoard(BUILDING_METRES[key], key === 'port' ? SEA_SHARE : 1);
+
+/** **L'emprise d'un bâtiment sur le plateau**, en unités : ce dont l'anneau le sépare de ses voisins. */
+export const buildingFootprint = (key: BuildingKey): number =>
+  onBoard(BUILDING_FOOTPRINT_METRES[key], key === 'port' ? SEA_SHARE : 1);
 
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>

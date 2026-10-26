@@ -3,7 +3,8 @@
 **Statut :** acceptée (23/10/2026). Pierre a choisi la variante D, tranché ses suites (Q2 à Q7),
 puis la figurine plancher (Q1, §10) et la plage du curseur (Q3, §6). **Précise l'ADR 0026** (la
 carte en figurines) sur la taille des pièces. Précisée le 23/10 sur le storyboard de la caserne :
-l'homme ×1,5 (§2), et chaque char à la longueur de son modèle (§1).
+l'homme ×1,5 (§2), et chaque char à la longueur de son modèle (§1). Amendée le 26/10 (#286) : le
+hangar fait 50 m, celui du modèle neuf (§1) ; les deux hangars viendront au lot des kits de terrain.
 
 ## Contexte
 

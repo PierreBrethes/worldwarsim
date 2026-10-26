@@ -344,6 +344,16 @@ describe('seatLoose', () => {
     ).toEqual({ 'I-1': 'T', 'I-2': 'T', T: 'C', A: 'C' });
   });
 
+  it('seats no gun and no truck in a wing, whatever the places left', () => {
+    expect(
+      seats(
+        { id: 'W', role: 'airTransport' },
+        { id: 'G', role: 'artillery' },
+        { id: 'T', role: 'landTransport' },
+      ),
+    ).toEqual({});
+  });
+
   it('never flies a tank, and seats no more than a wing lifts', () => {
     expect(
       seats(
