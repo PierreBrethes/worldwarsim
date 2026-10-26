@@ -433,6 +433,10 @@ export const freeSlotsOf = (slots: { readonly total: number; readonly used: numb
  */
 export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
+/** The column as if it stood nowhere in particular: a delivery or an airdrop on the spot is no
+ *  march to oneself. */
+export const withoutOrigin = ({ originId: _origin, ...rest }: Column): Column => rest;
+
 /** The id of the address an aim enters as a garrison, if it is one. */
 const garrisonIdOf = (aim: MovementAim): string | undefined =>
   aim.kind === 'building' ? aim.buildingId : aim.kind === 'outpost' ? aim.outpostId : undefined;
