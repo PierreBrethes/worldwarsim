@@ -3,7 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
- *       [--demarrage] [--repos] [--epingles]
+ *       [--demarrage] [--repos] [--epingles] [--sequences]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -69,6 +69,9 @@ const layered = args.includes('--couches');
 /** `--epingles` : le démarrage, puis les seuls gestes des épingles au loin (#234) — à jouer sur
  *  `npm run demo:mondiale -- --epingles`, mille piles sur la France. */
 const pinsOnly = args.includes('--epingles');
+/** `--sequences` : le démarrage, puis la caserne de la démo cadrée au rapproché — son repos 5 s,
+ *  puis la sortie d'une recrue (`mapEngine.cue`, ADR 0036) : les appels de dessin de la copie. */
+const sequencesOnly = args.includes('--sequences');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -797,6 +800,31 @@ async function play(profileName, pass) {
     await page.waitForTimeout(3000);
     await gesture('épingles repos 5 s', () => page.waitForTimeout(5000), 0);
   };
+  /** La caserne de la démo, cadrée assez près pour que la séquence joue (`PLAY_PX`). */
+  const sequenceGestures = async () => {
+    const site = await page.evaluate(() => {
+      const E = window.mapEngine;
+      const [id, { item }] =
+        [...E.maquettes.byId].find(([key]) => key.startsWith('building-barracks')) ?? [];
+      return id === undefined
+        ? null
+        : [id, E.frame.lonLatAt(item.at.x + E.frame.centerX, item.at.z + E.frame.centerY)];
+    });
+    if (site === null) throw new Error('--sequences : aucune caserne dans la démo');
+    await page.evaluate(frameAt, [site[1], 2.2]);
+    await page.waitForTimeout(5000);
+    await gesture('caserne repos 5 s', () => page.waitForTimeout(5000), 0);
+    await gesture(
+      'sortie de caserne',
+      () => page.evaluate((siteId) => window.mapEngine.cue?.({ kind: 'sortie', siteId }), site[0]),
+      3000,
+    );
+  };
+  if (sequencesOnly) {
+    await sequenceGestures();
+    await context.close();
+    return { boot, results };
+  }
   if (pinsOnly) {
     await pinGestures();
     await context.close();
@@ -1330,7 +1358,7 @@ try {
       report.profiles[name] = { boot, runs };
       continue;
     }
-    if (restOnly || pinsOnly) {
+    if (restOnly || pinsOnly || sequencesOnly) {
       const { gestures } = merge(runs);
       report.profiles[name] = { boot, gestures, runs };
       text += `${table(gestures)}\n`;

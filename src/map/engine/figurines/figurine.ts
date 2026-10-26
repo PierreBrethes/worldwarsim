@@ -3,7 +3,6 @@ import {
   CircleGeometry,
   Float32BufferAttribute,
   Group,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   type Object3D,
@@ -16,7 +15,7 @@ import { troopSpan } from '@/domain/piece-size';
 import { type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
-import { mergedByMaterial } from '../baking';
+import { bakedRig } from '../baking';
 import { pieceScale } from '../piece-scale';
 import { JOINTS, squadOf } from './infantry';
 
@@ -72,7 +71,7 @@ const PIN_PX = 20;
 const PIN_FADE = 0.15;
 /** **Sizes on screen are read on a window 900 px tall** (`CAMERA_FOV` of 42°): a short window —
  *  a laptop, a phone between its bars — pins its pieces at the same distances as the others. */
-const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
+export const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
 
 /**
  * **How much of a piece stands, rather than its pin, by its size on screen** (ADR 0035 §3): 1
@@ -158,53 +157,7 @@ function movesOnItsOwn(node: Object3D): boolean {
  * call each and as many again for the lamp's shadow; his joints keep their names, their pivot
  * and what hangs from them, so `squadOf` poses him and `spin` turns his propellers as before.
  */
-export function bakedFigurine(scene: Object3D): Group {
-  scene.updateMatrixWorld(true);
-  const root = new Group();
-  root.name = scene.name;
-  const pivots = new Map<Object3D, { group: Group; meshes: Mesh[] }>([
-    [scene, { group: root, meshes: [] }],
-  ]);
-  const pivotOf = (node: Object3D): Object3D => {
-    let at = node;
-    while (!pivots.has(at)) at = at.parent!;
-    return at;
-  };
-  scene.traverse((node) => {
-    if (node === scene) return;
-    if (movesOnItsOwn(node)) {
-      const above = pivotOf(node.parent!);
-      // A pose replaces the joint's own rotation: what turned above it and is merged away (a
-      // leaning torso) rides on a carrier, or the arms would swing square to the hips.
-      let holder = pivots.get(above)!.group;
-      if (node.parent !== above) {
-        const carrier = new Group();
-        new Matrix4()
-          .copy(above.matrixWorld)
-          .invert()
-          .multiply(node.parent!.matrixWorld)
-          .decompose(carrier.position, carrier.quaternion, carrier.scale);
-        holder.add(carrier);
-        holder = carrier;
-      }
-      const group = new Group();
-      group.name = node.name;
-      group.position.copy(node.position);
-      group.quaternion.copy(node.quaternion);
-      group.scale.copy(node.scale);
-      holder.add(group);
-      pivots.set(node, { group, meshes: [] });
-    }
-    if ((node as Mesh).isMesh) pivots.get(pivotOf(node))!.meshes.push(node as Mesh);
-  });
-  for (const [node, { group, meshes }] of pivots)
-    for (const { geometry, material } of mergedByMaterial(
-      meshes,
-      new Matrix4().copy(node.matrixWorld).invert(),
-    ))
-      group.add(new Mesh(geometry, material));
-  return root;
-}
+export const bakedFigurine = (scene: Object3D): Group => bakedRig(scene, movesOnItsOwn);
 
 const baked = new Map<string, Promise<Group>>();
 /** Baked once per file, cloned per figurine: the clones share its geometry and materials. */

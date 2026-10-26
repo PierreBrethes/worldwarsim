@@ -2,6 +2,8 @@ import {
   ACESFilmicToneMapping,
   Color,
   Fog,
+  Frustum,
+  Matrix4,
   MOUSE,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -13,6 +15,7 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
+  type Box3,
   type Mesh,
   type MeshStandardMaterial,
   type Object3D,
@@ -55,7 +58,15 @@ import {
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
-import { ANONYMOUS_SPAN, setNearFloor, TANK_SHARE, troopPinSpan } from './figurines/figurine';
+import {
+  ANONYMOUS_SPAN,
+  REFERENCE_PX_PER_UNIT,
+  setNearFloor,
+  TANK_SHARE,
+  troopPinSpan,
+} from './figurines/figurine';
+import { type Cue, PLAY_PX, SequenceLayer } from './sequences';
+import { barracksDoors } from './timelines/barracks';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -433,6 +444,10 @@ export class MapEngine {
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
   private readonly maquettes: MaquetteLayer;
+  /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
+  private readonly sequences = new SequenceLayer((box) => this.seenBig(box));
+  private readonly eyeFrustum = new Frustum();
+  private readonly eyeMatrix = new Matrix4();
   private readonly camps: CampLayer;
   private readonly pins: PinLayer;
   private pinShapes = new Map<string, PinShape>();
@@ -1807,6 +1822,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
+    this.sequences.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
     this.pins.dispose();
@@ -2496,6 +2512,27 @@ export class MapEngine {
     this.pins.rebuild();
   }
 
+  /** **The map plays what the view has just learnt** (ADR 0036). */
+  cue(cue: Cue): void {
+    this.invalidate();
+    switch (cue.kind) {
+      case 'sortie':
+        this.sequences.play(this.maquettes, cue.siteId, barracksDoors(), performance.now());
+        break;
+    }
+  }
+
+  /** In the eye's field, and at least `PLAY_PX` tall on the 900 px reference window. */
+  private seenBig(box: Box3): boolean {
+    this.eyeFrustum.setFromProjectionMatrix(
+      this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
+    );
+    if (!this.eyeFrustum.intersectsBox(box)) return false;
+    const size = box.getSize(new Vector3());
+    const distance = this.eye.position.distanceTo(box.getCenter(new Vector3()));
+    return (Math.max(size.x, size.z) * REFERENCE_PX_PER_UNIT) / Math.max(distance, 1e-6) >= PLAY_PX;
+  }
+
   setMapMotion(motion: MapMotion): void {
     this.invalidate();
     this.ambience.motion = motion;
@@ -2506,6 +2543,7 @@ export class MapEngine {
     this.ink.motion = motion;
     this.parachutes.motion = motion;
     this.maquettes.motion = motion;
+    this.sequences.motion = motion;
     this.ghost.motion = motion;
   }
 
@@ -3144,6 +3182,7 @@ export class MapEngine {
       this.ink.active ||
       this.parachutes.active ||
       this.maquettes.settling ||
+      this.sequences.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -3206,6 +3245,7 @@ export class MapEngine {
     this.basins.animate(now);
     this.tellSweep(now);
     // The maquettes first: a garrison stands at its maquette's foot as drawn this frame.
+    this.sequences.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.standing.orient(this.camera.position);
     const reading = this.standing.reading;
