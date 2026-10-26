@@ -15,7 +15,7 @@ import {
   ROLE_ORDER,
   type StackRow,
 } from '@/domain/troops';
-import { liftOf, motorized, strandedIn } from '@/domain/movement-orders';
+import { liftOf, liftRefusalOf, motorized } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -90,7 +90,11 @@ export function GarrisonStack({
   const roles = useMemo(() => selected.map((troop) => troop.role), [selected]);
   const lift = useMemo(() => liftOf(roles), [roles]);
   /** Le refus du serveur, par transport et non par somme (ADR 0025 §2). */
-  const stranded = useMemo(() => lift.offered > 0 && strandedIn(roles), [lift, roles]);
+  const strandedRefusal = useMemo(
+    () => (lift.offered > 0 ? liftRefusalOf(roles) : null),
+    [lift, roles],
+  );
+  const stranded = strandedRefusal !== null;
   const carryCapacity = useMemo(
     () => carryCapacityOf(selected, CARRY_CAPACITY_BY_ROLE),
     [selected],
@@ -244,7 +248,7 @@ export function GarrisonStack({
           </span>
           {stranded && (
             <p className="mt-[3px] text-[11px] leading-[1.4] text-[var(--critical)]">
-              {fr.errors.NOT_ENOUGH_LIFT(lift)}
+              {fr.errors[strandedRefusal](lift)}
             </p>
           )}
         </div>
