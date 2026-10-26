@@ -5,7 +5,12 @@ import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import type { StandingMaquette } from '@/map/engine';
 import { asClockTime } from '@/domain/duration';
-import { buildingMetres, buildingSpan, objectiveSpan } from '@/domain/piece-size';
+import {
+  buildingFootprint,
+  buildingMetres,
+  buildingSpan,
+  objectiveSpan,
+} from '@/domain/piece-size';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -26,35 +31,20 @@ export function maquettesOf(
       at: StandingMaquette['at'],
       url: string | null,
       span: number,
-      washed = false,
-      works?: StandingMaquette['works'],
-      smoking = false,
-      metres?: number,
-    ) =>
-      url === null
-        ? []
-        : [
-            {
-              id: marker.id,
-              at,
-              url,
-              span,
-              washed,
-              ...(works && { works }),
-              ...(smoking && { smoking }),
-              ...(metres !== undefined && { metres }),
-            },
-          ];
+      more: Partial<Omit<StandingMaquette, 'id' | 'at' | 'url' | 'span'>> = {},
+    ): StandingMaquette[] =>
+      url === null ? [] : [{ id: marker.id, at, url, span, washed: false, ...more }];
     switch (marker.kind) {
       case 'building':
         return standing(
           marker.lonLat === null ? { regionId: marker.regionId } : { lonLat: marker.lonLat },
           buildingMaquette(marker.key, depositUnder(marker.lonLat)),
           buildingSpan(marker.key),
-          false,
-          marker.works === null
-            ? undefined
-            : {
+          {
+            metres: buildingMetres(marker.key),
+            footprint: buildingFootprint(marker.key),
+            ...(marker.works !== null && {
+              works: {
                 phase: marker.works.phase,
                 level: marker.works.level,
                 finishesAt:
@@ -67,18 +57,21 @@ export function maquettesOf(
                     ? null
                     : { word: fr.stamps.finished, hour: asClockTime(marker.works.finishesAt) },
               },
-          marker.buildingId !== null && producing.has(marker.buildingId),
-          buildingMetres(marker.key),
+            }),
+            ...(marker.buildingId !== null &&
+              producing.has(marker.buildingId) && { smoking: true }),
+          },
         );
       case 'installation':
         return standing(
           { lonLat: marker.lonLat },
           buildingMaquette(marker.key, depositUnder(marker.lonLat)),
           buildingSpan(marker.key),
-          marker.washed,
-          undefined,
-          false,
-          buildingMetres(marker.key),
+          {
+            washed: marker.washed,
+            metres: buildingMetres(marker.key),
+            footprint: buildingFootprint(marker.key),
+          },
         );
       case 'objective': {
         // Emptied, it stands whole as its plate does: the cartouche says it is empty.

@@ -52,6 +52,9 @@ export type StandingMaquette = {
   /** Its widest side in metres, for a model drawn in metres (`buildingMetres`): one scale per metre
    *  for all of them. Absent, the model is brought to its box. */
   readonly metres?: number;
+  /** Its widest side as built, flagpole left out, in board units: what the ring spaces it by.
+   *  Absent, its `span`. */
+  readonly footprint?: number;
   /** Known from a survey that has aged, or an emptied objective: a ghost of the building. */
   readonly washed: boolean;
   /** A site at work (mode chantier): its plan, its first level rising, or a raise. */
@@ -341,9 +344,11 @@ export const garrisonFoot = (site: number, pile: number, quay = false): number =
 const QUAY_SHARE = 0.5;
 
 /**
- * **Two maquettes of a ring stand this many of their half spans apart**, centre to centre: a
- * model turned any way reaches half its diagonal, a square's at worst — √2 —, and a little more
- * (retours du 15/10 : un QG et sa caserne se dessinaient l'un dans l'autre). `@a-mesurer`
+ * **Two maquettes of a ring stand this many of their half footprints apart**, centre to centre:
+ * a model turned any way reaches half its diagonal, a square's at worst — √2 —, and a little more
+ * (retours du 15/10 : un QG et sa caserne se dessinaient l'un dans l'autre). The footprint is the
+ * model as built (`buildingFootprint`), not its `span`: a barracks reaches 65 m with its shed
+ * when its walls make 50. `@a-mesurer`
  */
 export const RING_GAP = 1.45;
 
@@ -354,6 +359,8 @@ export const MAX_SHIFT = 0.63;
 type Placed = {
   readonly id: string;
   readonly span: number;
+  /** What the ring spaces it by (`StandingMaquette.footprint`, else its span). */
+  readonly footprint: number;
   readonly ground: Vector3;
   /** The ground, or its place on the ring it clears its neighbours on. */
   readonly at: Vector3;
@@ -483,6 +490,7 @@ export class MaquetteLayer {
       const item: Placed = {
         id: maquette.id,
         span: maquette.span,
+        footprint: maquette.footprint ?? maquette.span,
         ground,
         at: ground.clone(),
         facing: 0,
@@ -537,7 +545,7 @@ export class MaquetteLayer {
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
-      items.map(({ span }) => span * RING_GAP * pieceScale.size),
+      items.map(({ footprint }) => footprint * RING_GAP * pieceScale.size),
       // A lone site's garrison stands this far in front: its footprint reaches it. The pile is not
       // known here: a tank's stands for it.
       items.map(({ span }) => garrisonFoot(span, ANONYMOUS_SPAN) * pieceScale.size),

@@ -6,7 +6,12 @@ import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import { maquettesOf } from './maquettes';
 import type { WorkSite } from '@/domain/construction';
 import { asClockTime } from '@/domain/duration';
-import { buildingMetres, buildingSpan, objectiveSpan } from '@/domain/piece-size';
+import {
+  buildingFootprint,
+  buildingMetres,
+  buildingSpan,
+  objectiveSpan,
+} from '@/domain/piece-size';
 
 const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}): MapMarker => ({
   kind: 'building',
@@ -37,6 +42,7 @@ describe('maquettesOf', () => {
         url: buildingMaquette('mine', 'coal'),
         span: buildingSpan('mine'),
         metres: buildingMetres('mine'),
+        footprint: buildingFootprint('mine'),
         washed: false,
       },
       {
@@ -45,6 +51,7 @@ describe('maquettesOf', () => {
         url: buildingMaquette('port', null),
         span: buildingSpan('port'),
         metres: buildingMetres('port'),
+        footprint: buildingFootprint('port'),
         washed: false,
       },
     ]);
@@ -135,6 +142,7 @@ describe('maquettesOf', () => {
         url: buildingMaquette('farm', null),
         span: buildingSpan('farm'),
         metres: buildingMetres('farm'),
+        footprint: buildingFootprint('farm'),
         washed: true,
       },
       {

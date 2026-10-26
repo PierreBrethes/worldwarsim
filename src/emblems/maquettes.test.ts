@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Box3, Matrix4, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { BuildingKey } from '@/domain/ids';
+import { BUILDING_FOOTPRINT_METRES } from '@/domain/piece-size';
 import { BUILDING_MAQUETTES, buildingMaquette } from './buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from './objectives/manifest';
 
@@ -21,7 +22,7 @@ const FLAG = ['hampe', 'drapeau', 'fx_tete_hampe'];
  */
 const BRIEF: Readonly<
   Record<
-    BuildingKey,
+    Exclude<BuildingKey, 'depot'>,
     {
       readonly metres: number;
       readonly tolerance: number;
@@ -118,7 +119,6 @@ const BRIEF: Readonly<
       ...FLAG,
     ],
   },
-  depot: { metres: 60, tolerance: 0.04, of: 'murs', names: [] },
   hq: {
     metres: 60,
     tolerance: 0.05,
@@ -296,7 +296,7 @@ describe('maquettes', () => {
   });
 
   it.each(buildings)('%s keeps to the brief, in metres', (key, url) => {
-    const brief = key === 'mine (coal)' ? COAL_MINE : BRIEF[key as BuildingKey];
+    const brief = key === 'mine (coal)' ? COAL_MINE : BRIEF[key as keyof typeof BRIEF];
     const gltf = readGlb(url);
     expect(trianglesOf(gltf)).toBeLessThanOrEqual(TRIANGLES);
     for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
@@ -316,5 +316,14 @@ describe('maquettes', () => {
     expect(max.y).toBeGreaterThan(0.5);
     const whole = boundsOf(gltf);
     expect(whole.min.x < 0 && whole.max.x > 0 && whole.min.z < 0 && whole.max.z > 0).toBe(true);
+  });
+
+  it.each(buildings)('%s: the ring spaces it by its real footprint', (key, url) => {
+    const k = (key === 'mine (coal)' ? 'mine' : key) as BuildingKey;
+    // The flagpole is left out: the ring spaces what is built, not what flies.
+    const size = boundsOf(readGlb(url), undefined, ['hampe', 'drapeau']).getSize(new Vector3());
+    expect(Math.abs(Math.max(size.x, size.z) / BUILDING_FOOTPRINT_METRES[k] - 1)).toBeLessThan(
+      0.02,
+    );
   });
 });
