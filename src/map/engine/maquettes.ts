@@ -77,12 +77,16 @@ type Model = {
   /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
   readonly chimneys: ReadonlyArray<Vector3>;
 };
+/** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
 function modelOf(url: string, metres?: number): Promise<Model> {
-  let model = models.get(url);
+  const key = `${url} ${metres ?? ''}`;
+  let model = models.get(key);
   if (!model) {
-    model = sceneOf(url).then((scene) => {
-      // Its flag is painted by the owner's colours (#279): until then a white one would read as a surrender.
+    model = sceneOf(url).then((cached) => {
+      // A copy: `sceneOf` is shared, and the flag comes off this one only. It is painted by the
+      // owner's colours (#279): until then a white one would read as a surrender.
+      const scene = cached.clone(true);
       scene.getObjectByName('drapeau')?.removeFromParent();
       const parts = bakedParts(scene);
       const box = new Box3();
@@ -105,7 +109,7 @@ function modelOf(url: string, metres?: number): Promise<Model> {
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
-    models.set(url, model);
+    models.set(key, model);
   }
   return model;
 }
