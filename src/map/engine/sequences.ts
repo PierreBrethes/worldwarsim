@@ -96,7 +96,8 @@ export class SequenceLayer {
     if (this.motion !== 'full' || this.playing.length >= MAX_PLAYING) return;
     if (this.playing.some((p) => p.host === host && p.id === id)) return;
     const piece = host.pieceOf(id);
-    if (piece === null || piece.box === null || !this.sees(piece.box)) return;
+    // A box still unknown (a lot just rebuilt) is not judged now: `step` judges it once known.
+    if (piece === null || (piece.box !== null && !this.sees(piece.box))) return;
     const playing: Playing = {
       host,
       id,

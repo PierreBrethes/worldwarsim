@@ -34,12 +34,9 @@ class FakeHost implements SequenceHost {
   }
 }
 
-const layerOf = (sees = true) => {
+const layerOf = (sees = true, cook = () => Promise.resolve(rig())) => {
   const state = { sees };
-  const layer = new SequenceLayer(
-    () => state.sees,
-    () => Promise.resolve(rig()),
-  );
+  const layer = new SequenceLayer(() => state.sees, cook);
   return { layer, state };
 };
 const doorOf = (host: FakeHost, id: string) =>
@@ -61,8 +58,6 @@ describe('SequenceLayer', () => {
     const host = new FakeHost();
     host.gone.add('a');
     layer.play(host, 'a', turning, 0);
-    host.box = null;
-    layer.play(host, 'b', turning, 0);
     expect(layer.active).toBe(false);
     await flush();
     expect(host.calls).toEqual([]);
@@ -132,5 +127,42 @@ describe('SequenceLayer', () => {
     for (let k = 0; k < MAX_PLAYING + 2; k++) layer.play(host, `p${k}`, turning, 0);
     await flush();
     expect(host.copies.size).toBe(MAX_PLAYING);
+  });
+
+  it('keeps the others playing when a finished sequence\'s cooking fails', async () => {
+    let fail: () => void = () => {};
+    let first = true;
+    const { layer } = layerOf(true, () => {
+      if (!first) return Promise.resolve(rig());
+      first = false;
+      return new Promise((_, reject) => (fail = () => reject(new Error('cooking'))));
+    });
+    const host = new FakeHost();
+    layer.play(host, 'a', turning, 0);
+    layer.play(host, 'b', turning, 0);
+    await flush();
+    layer.motion = 'reduced';
+    layer.step(10);
+    expect(layer.active).toBe(false);
+    layer.motion = 'full';
+    layer.play(host, 'c', turning, 20);
+    await flush();
+    fail();
+    await flush();
+    expect(layer.active).toBe(true);
+    expect(host.copies.has('c')).toBe(true);
+  });
+
+  it('plays when the box is not known yet, and judges it once it is', async () => {
+    const { layer, state } = layerOf();
+    const host = new FakeHost();
+    host.box = null;
+    layer.play(host, 'a', turning, 0);
+    expect(layer.active).toBe(true);
+    await flush();
+    host.box = new Box3(new Vector3(), new Vector3(1, 1, 1));
+    state.sees = false;
+    layer.step(10);
+    expect(layer.active).toBe(false);
   });
 });
