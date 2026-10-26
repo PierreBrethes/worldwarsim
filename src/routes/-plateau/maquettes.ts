@@ -5,7 +5,7 @@ import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import type { StandingMaquette } from '@/map/engine';
 import { asClockTime } from '@/domain/duration';
-import { buildingSpan, objectiveSpan } from '@/domain/piece-size';
+import { buildingMetres, buildingSpan, objectiveSpan } from '@/domain/piece-size';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -29,6 +29,7 @@ export function maquettesOf(
       washed = false,
       works?: StandingMaquette['works'],
       smoking = false,
+      metres?: number,
     ) =>
       url === null
         ? []
@@ -41,6 +42,7 @@ export function maquettesOf(
               washed,
               ...(works && { works }),
               ...(smoking && { smoking }),
+              ...(metres !== undefined && { metres }),
             },
           ];
     switch (marker.kind) {
@@ -66,6 +68,7 @@ export function maquettesOf(
                     : { word: fr.stamps.finished, hour: asClockTime(marker.works.finishesAt) },
               },
           marker.buildingId !== null && producing.has(marker.buildingId),
+          buildingMetres(marker.key),
         );
       case 'installation':
         return standing(
@@ -73,6 +76,9 @@ export function maquettesOf(
           buildingMaquette(marker.key, depositUnder(marker.lonLat)),
           buildingSpan(marker.key),
           marker.washed,
+          undefined,
+          false,
+          buildingMetres(marker.key),
         );
       case 'objective': {
         // Emptied, it stands whole as its plate does: the cartouche says it is empty.

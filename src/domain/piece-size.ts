@@ -64,7 +64,7 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
   oilWell: 25,
   arsenal: 80,
   barracks: 50,
-  airfield: 60,
+  airfield: 50,
   port: 210,
   listening: 30,
   researchCenter: 50,
@@ -97,6 +97,9 @@ export const troopSpan = (role: UnitRole, nation?: Nation, tier?: UnitTier): num
       : undefined) ?? TROOP_METRES[role],
     (role === 'infantry' ? MAN_EXAGGERATION : 1) * (DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1),
   );
+
+/** **Le plus grand côté au sol d'un bâtiment, en mètres** : ce que son modèle, dessiné en mètres, mesure. */
+export const buildingMetres = (key: BuildingKey): number => BUILDING_METRES[key];
 
 /** **Le plus grand côté au sol d'un bâtiment sur le plateau**, en unités. */
 export const buildingSpan = (key: BuildingKey): number =>

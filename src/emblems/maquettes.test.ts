@@ -2,11 +2,210 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Box3, Matrix4, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
+import type { BuildingKey } from '@/domain/ids';
 import { BUILDING_MAQUETTES, buildingMaquette } from './buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from './objectives/manifest';
 
 /** The heaviest drawn on 13/10 is the shipyard, at 3 156. */
 const TRIANGLES = 3500;
+
+/** The flag, its pole and its marker: on every building (`FLAG` of `verifier-glb.mjs`). */
+const FLAG = ['hampe', 'drapeau', 'fx_tete_hampe'];
+
+/**
+ * **The named parts each regenerated building carries, and its width in metres** (#286), copied
+ * from `EXPECT` of `WWS/prototypes/glb/prompts/verifier-glb.mjs`: the board draws them at one
+ * scale per metre (ADR 0035), so a file that loses its measure is drawn wrong. `of` is the node
+ * measured on `x` (the whole model when absent), `tolerance` its share of slack, `below` the
+ * nodes allowed under the ground.
+ */
+const BRIEF: Readonly<
+  Record<
+    BuildingKey,
+    {
+      readonly metres: number;
+      readonly tolerance: number;
+      readonly of?: string;
+      readonly axis?: 'x' | 'z';
+      readonly below?: ReadonlyArray<string>;
+      readonly names: ReadonlyArray<string>;
+    }
+  >
+> = {
+  barracks: {
+    metres: 50,
+    tolerance: 0.04,
+    of: 'murs',
+    names: [
+      'murs',
+      'porte_gauche',
+      'porte_droite',
+      'fond_sombre',
+      'remise_murs',
+      'remise_toit',
+      'remise_porte_gauche',
+      'remise_porte_droite',
+      'remise_fond_sombre',
+      'fx_entree',
+      'fx_sortie',
+      'fx_entree_remise',
+      'fx_sortie_remise',
+      'fx_smoke',
+      ...FLAG,
+    ],
+  },
+  airfield: {
+    metres: 50,
+    tolerance: 0.05,
+    names: [
+      'rail_porte',
+      'porte_gauche_1',
+      'porte_gauche_2',
+      'porte_droite_1',
+      'porte_droite_2',
+      'fond_sombre',
+      'fx_entree',
+      'fx_sortie',
+      ...FLAG,
+    ],
+  },
+  port: {
+    metres: 210,
+    tolerance: 0.05,
+    axis: 'z',
+    below: ['avant_cale'],
+    names: [
+      'coque_cale',
+      'ber_1',
+      'ber_2',
+      'ber_3',
+      'accore_1',
+      'accore_2',
+      'accore_3',
+      'accore_4',
+      'accore_5',
+      'accore_6',
+      'avant_cale',
+      'grue',
+      'grue_couronne',
+      'fleche',
+      'cable',
+      'crochet',
+      'fx_bord_eau',
+      'fx_smoke',
+      ...FLAG,
+    ],
+  },
+  warehouse: {
+    metres: 60,
+    tolerance: 0.04,
+    of: 'murs',
+    names: [
+      'murs',
+      'porte',
+      'rail',
+      'galet',
+      'galet_2',
+      'fond_sombre',
+      'caisse_1',
+      'caisse_2',
+      'caisse_3',
+      'caisse_4',
+      'caisse_5',
+      'fx_quai',
+      'fx_entree',
+      'fx_sortie',
+      ...FLAG,
+    ],
+  },
+  depot: { metres: 60, tolerance: 0.04, of: 'murs', names: [] },
+  hq: {
+    metres: 60,
+    tolerance: 0.05,
+    names: [
+      'porte_gauche',
+      'porte_droite',
+      'fond_sombre',
+      'porte_service',
+      'fond_sombre_service',
+      'fx_entree',
+      'fx_sortie',
+      'fx_quai',
+      'fx_smoke',
+      ...FLAG,
+    ],
+  },
+  arsenal: {
+    metres: 80,
+    tolerance: 0.05,
+    names: [
+      'murs',
+      'porte',
+      'rail_porte',
+      'fond_sombre',
+      'fx_quai',
+      'fx_sortie',
+      'fx_smoke',
+      ...FLAG,
+    ],
+  },
+  farm: {
+    metres: 40,
+    tolerance: 0.06,
+    names: ['eolienne_tete', 'eolienne_roue', 'fx_smoke', ...FLAG],
+  },
+  mine: {
+    metres: 50,
+    tolerance: 0.06,
+    names: [
+      'molette_1',
+      'molette_2',
+      'wagonnet',
+      'wagonnet_caisse',
+      'rail',
+      'fx_smoke',
+      'fx_sortie',
+      ...FLAG,
+    ],
+  },
+  oilWell: {
+    metres: 25,
+    tolerance: 0.06,
+    names: [
+      'balancier',
+      'tete_de_cheval',
+      'manivelle',
+      'contrepoids',
+      'bielle',
+      'tige',
+      'fx_smoke',
+      ...FLAG,
+    ],
+  },
+  researchCenter: {
+    metres: 50,
+    tolerance: 0.06,
+    names: [
+      'coupole',
+      'volet_coupole',
+      'lunette',
+      'porte_gauche',
+      'porte_droite',
+      'fond_sombre',
+      'fx_sortie',
+      'fx_smoke',
+      ...FLAG,
+    ],
+  },
+  listening: {
+    metres: 30,
+    tolerance: 0.06,
+    names: ['cadre_gonio', 'porte', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG],
+  },
+  city: { metres: 50, tolerance: 0.05, names: ['fx_smoke', ...FLAG] },
+};
+/** The coal mine is a second file for the same key, with the same parts and width as the mine. */
+const COAL_MINE = BRIEF.mine;
 
 type Node = {
   name?: string;
@@ -37,11 +236,14 @@ function readGlb(url: string): Gltf {
   return JSON.parse(bytes.subarray(20, 20 + length).toString('utf8')) as Gltf;
 }
 
-/** The scene's bounds, node transforms applied to each primitive's own box. */
-function boundsOf(gltf: Gltf): Box3 {
+/** The scene's bounds, node transforms applied to each primitive's own box. `only` keeps the
+ *  subtree of the node of that name; `without` leaves out those of the nodes it lists. */
+function boundsOf(gltf: Gltf, only?: string, without: ReadonlyArray<string> = []): Box3 {
   const box = new Box3();
-  const visit = (index: number, parent: Matrix4) => {
+  const visit = (index: number, parent: Matrix4, inside: boolean) => {
     const node = gltf.nodes[index]!;
+    if (without.includes(node.name ?? '')) return;
+    inside ||= only === undefined || node.name === only;
     const local = node.matrix
       ? new Matrix4().fromArray(node.matrix)
       : new Matrix4().compose(
@@ -50,34 +252,38 @@ function boundsOf(gltf: Gltf): Box3 {
           new Vector3(...(node.scale ?? [1, 1, 1])),
         );
     const world = parent.clone().multiply(local);
-    for (const primitive of node.mesh === undefined ? [] : gltf.meshes[node.mesh]!.primitives) {
+    for (const primitive of node.mesh === undefined || !inside
+      ? []
+      : gltf.meshes[node.mesh]!.primitives) {
       const { min, max } = gltf.accessors[primitive.attributes.POSITION]!;
       for (const x of [min![0]!, max![0]!])
         for (const y of [min![1]!, max![1]!])
           for (const z of [min![2]!, max![2]!])
             box.expandByPoint(new Vector3(x, y, z).applyMatrix4(world));
     }
-    for (const child of node.children ?? []) visit(child, world);
+    for (const child of node.children ?? []) visit(child, world, inside);
   };
-  for (const root of gltf.scenes[gltf.scene ?? 0]!.nodes) visit(root, new Matrix4());
+  for (const root of gltf.scenes[gltf.scene ?? 0]!.nodes) visit(root, new Matrix4(), false);
   return box;
 }
 
-const files = [
-  ...new Set([
-    ...Object.values(BUILDING_MAQUETTES),
-    buildingMaquette('mine', 'coal'),
-    ...Object.values(OBJECTIVE_MAQUETTES),
-  ]),
-].flatMap((url) => (url === null ? [] : [url]));
+const buildings = [
+  ...Object.entries(BUILDING_MAQUETTES).filter(([key]) => key !== 'depot'),
+  ['mine (coal)', buildingMaquette('mine', 'coal')],
+].flatMap(([key, url]) => (url === null ? [] : [[key!, url!] as const]));
+const objectives = [...new Set(Object.values(OBJECTIVE_MAQUETTES))].flatMap((url) =>
+  url === null ? [] : [url],
+);
+
+const trianglesOf = (gltf: Gltf): number =>
+  gltf.meshes
+    .flatMap((mesh) => mesh.primitives)
+    .reduce((sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3, 0);
 
 describe('maquettes', () => {
-  it.each(files)('%s keeps to the brief', (url) => {
+  it.each(objectives)('%s keeps to the brief', (url) => {
     const gltf = readGlb(url);
-    const triangles = gltf.meshes
-      .flatMap((mesh) => mesh.primitives)
-      .reduce((sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3, 0);
-    expect(triangles).toBeLessThanOrEqual(TRIANGLES);
+    expect(trianglesOf(gltf)).toBeLessThanOrEqual(TRIANGLES);
     // One material per primitive, named: the board merges by material (`bakedParts`), and a
     // primitive without one would wear the loader's grey default.
     for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
@@ -87,5 +293,28 @@ describe('maquettes', () => {
     expect(Math.abs(min.y)).toBeLessThan(0.02);
     expect(max.y).toBeGreaterThan(0.5);
     expect(min.x < 0 && max.x > 0 && min.z < 0 && max.z > 0).toBe(true);
+  });
+
+  it.each(buildings)('%s keeps to the brief, in metres', (key, url) => {
+    const brief = key === 'mine (coal)' ? COAL_MINE : BRIEF[key as BuildingKey];
+    const gltf = readGlb(url);
+    expect(trianglesOf(gltf)).toBeLessThanOrEqual(TRIANGLES);
+    for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
+      expect(primitive.material).toBeTypeOf('number');
+    const names = new Set(gltf.nodes.map((node) => node.name));
+    for (const part of brief.names) expect(names.has(part), part).toBe(true);
+    // Drawn at one scale per metre (ADR 0035): the file's own width is the building's.
+    // The flagpole and the slipway are left out of the measure, as `verifier-glb.mjs` does.
+    const size = boundsOf(gltf, brief.of, ['hampe', 'drapeau', ...(brief.below ?? [])]).getSize(
+      new Vector3(),
+    );
+    expect(Math.abs(size[brief.axis ?? 'x'] / brief.metres - 1)).toBeLessThan(brief.tolerance);
+    // Y up, origin on the ground — but the port's slipway, which goes under the water — and
+    // inside the footprint: the point stands under the building.
+    const { min, max } = boundsOf(gltf, undefined, brief.below);
+    expect(Math.abs(min.y)).toBeLessThan(0.02);
+    expect(max.y).toBeGreaterThan(0.5);
+    const whole = boundsOf(gltf);
+    expect(whole.min.x < 0 && whole.max.x > 0 && whole.min.z < 0 && whole.max.z > 0).toBe(true);
   });
 });

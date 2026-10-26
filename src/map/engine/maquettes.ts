@@ -49,6 +49,9 @@ export type StandingMaquette = {
   readonly url: string;
   /** Its widest side at the ground, in board units at the common scale (`buildingSpan`). */
   readonly span: number;
+  /** Its widest side in metres, for a model drawn in metres (`buildingMetres`): one scale per metre
+   *  for all of them. Absent, the model is brought to its box. */
+  readonly metres?: number;
   /** Known from a survey that has aged, or an emptied objective: a ghost of the building. */
   readonly washed: boolean;
   /** A site at work (mode chantier): its plan, its first level rising, or a raise. */
@@ -66,7 +69,8 @@ export function yawOf(id: string): number {
 
 type Model = {
   readonly parts: ReadonlyArray<Part>;
-  /** Its own units to one board unit on its widest side at the ground: times its span, its size. */
+  /** Its own units to one board unit, times its span, its size: on its widest side at the ground,
+   *  or, for a model drawn in metres, per metre — then `span` is its metres on the board. */
   readonly scale: number;
   /** Its bounds in its own units, ground at zero: how high a site rises, where its scaffold stands. */
   readonly box: Box3;
@@ -74,10 +78,12 @@ type Model = {
   readonly chimneys: ReadonlyArray<Vector3>;
 };
 const models = new Map<string, Promise<Model>>();
-function modelOf(url: string): Promise<Model> {
+function modelOf(url: string, metres?: number): Promise<Model> {
   let model = models.get(url);
   if (!model) {
     model = sceneOf(url).then((scene) => {
+      // Its flag is painted by the owner's colours (#279): until then a white one would read as a surrender.
+      scene.getObjectByName('drapeau')?.removeFromParent();
       const parts = bakedParts(scene);
       const box = new Box3();
       for (const { geometry } of parts) {
@@ -93,7 +99,9 @@ function modelOf(url: string): Promise<Model> {
         chimneys.push(top.setY(box.max.y));
       }
       const size = box.getSize(new Vector3());
-      return { parts, scale: 1 / Math.max(size.x, size.z), box, chimneys };
+      // A model in metres is drawn at one constant scale (ADR 0035): its box, bent by a flagpole
+      // or a shed, no longer sets the size of its walls.
+      return { parts, scale: 1 / (metres ?? Math.max(size.x, size.z)), box, chimneys };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -463,7 +471,7 @@ export class MaquetteLayer {
         this.group.add(lot.group);
         const landing = lot;
         // A model that fails to load leaves the plates; `modelOf` has said why.
-        modelOf(maquette.url).then(
+        modelOf(maquette.url, maquette.metres).then(
           (model) => this.landed(landing, model, maquette.washed),
           () => {},
         );
