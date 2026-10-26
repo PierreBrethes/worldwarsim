@@ -409,7 +409,7 @@ describe('a ring of buildings around a stack', () => {
   );
 
   /** Every label stands at the same screen point, as a region's stack and its buildings do. */
-  const lay = (stackDressed: number | 'pin') => {
+  const lay = (cartouche: 'reading' | 'quiet', top = 100) => {
     const engine: Record<string, unknown> = {
       setLabelAnchors: () => {},
       subscribeRest: () => () => {},
@@ -418,23 +418,17 @@ describe('a ring of buildings around a stack', () => {
       pieceRect: () => null,
       cameraDistance: () => 20,
     };
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      left: 100,
-      right: 160,
-      top: 100,
-      bottom: 120,
-      x: 100,
-      y: 100,
-      width: 60,
-      height: 20,
-      toJSON: () => ({}),
-    });
+    // A real DOMRect keeps its edges as prototype accessors, which `{ ...box }` drops. At rest a
+    // stack's cartouche is quiet: measured, it has no area.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      () => new DOMRect(100, top, ...(cartouche === 'reading' ? [60, 20] : [0, 0])),
+    );
     const frames: Array<() => void> = [];
     vi.stubGlobal('requestAnimationFrame', (run: () => void) => frames.push(run));
     render(frame(engine));
     const project = (id: string, dressed: number) => ({
       id,
-      visible: !(id === 'stack' && stackDressed === 'pin'),
+      visible: true,
       x: 130,
       y: 120,
       lod: 'expanded',
@@ -450,9 +444,7 @@ describe('a ring of buildings around a stack', () => {
       heading: 0,
     });
     const onLabels = engine.onLabels as (projections: ReadonlyArray<unknown>) => void;
-    const projections = labels.map((label) =>
-      project(label.id, label.id === 'stack' && stackDressed !== 'pin' ? stackDressed : 1),
-    );
+    const projections = labels.map((label) => project(label.id, 1));
     // One frame sets the states and asks for the degradation, the next one places the groups.
     act(() => onLabels(projections));
     act(() => frames.splice(0).forEach((run) => run()));
@@ -470,20 +462,22 @@ describe('a ring of buildings around a stack', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it('keeps its "3 sites" with the stack in figurines', () => {
-    lay(1);
+  it('keeps its "3 sites" beside a quiet stack cartouche, with nothing to clear', () => {
+    lay('quiet');
     expect(shownGroup()).toBe(true);
+    expect((sites() as HTMLElement).style.getPropertyValue('--label-stagger')).toBe('0px');
   });
 
-  it('rises above the stack cartouche instead of covering it', () => {
-    lay(1);
+  it('rises above a stack cartouche that reads, instead of covering it', () => {
+    lay('reading');
+    expect(shownGroup()).toBe(true);
     const lift = (sites() as HTMLElement).style.getPropertyValue('--label-stagger');
     // The stack's cartouche is 20 px high here: the ring's mast is longer by at least that.
     expect(Number.parseInt(lift)).toBeGreaterThanOrEqual(20);
   });
 
-  it('keeps its "3 sites" with the stack as a pin', () => {
-    lay('pin');
-    expect(shownGroup()).toBe(true);
+  it('folds as before when the mast it needs would leave the screen', () => {
+    lay('reading', 5);
+    expect(shownGroup()).toBe(false);
   });
 });
