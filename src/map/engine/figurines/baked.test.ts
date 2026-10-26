@@ -1,7 +1,7 @@
 import { Box3, type Object3D, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
-import { meshesOf, sceneOfFile, sweptVolume } from '../gltf-scene';
+import { meshesOf, sceneOfFile, sweptVolume } from '../gltf-scene.fixture';
 import { bakedFigurine } from './figurine';
 import { JOINTS, squadOf, stride } from './infantry';
 

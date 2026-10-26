@@ -24,6 +24,20 @@ import {
 import { pileLayout } from './standing';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
 
+// The dressing of a site paints a canvas: a stub, this file has no DOM.
+vi.mock('./works', async (original) => ({
+  ...(await original<typeof import('./works')>()),
+  WorksDressing: class {
+    object = new Group();
+    cut = null;
+    place() {}
+    pick() {
+      return null;
+    }
+    dispose() {}
+  },
+}));
+
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),
   // A box of a metre for every file: the loader wants a DOM.
@@ -445,5 +459,28 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     expect((await layer()).pieceOf(ID)?.url).toBe('lent.glb');
     expect((await layer()).pieceOf('building-hq@0,0')).toBeNull();
     expect((await layer(true)).pieceOf(ID)).toBeNull();
+    const atWork = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    atWork.display([
+      {
+        ...stand(),
+        works: {
+          phase: 'rising',
+          level: 1,
+          finishesAt: null,
+          minutes: 5,
+          pennant: null,
+          stamp: null,
+        },
+      },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    atWork.orient(eye, null, 0);
+    expect(atWork.pieceOf(ID)).toBeNull();
   });
 });

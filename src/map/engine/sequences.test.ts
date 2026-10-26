@@ -129,7 +129,7 @@ describe('SequenceLayer', () => {
     expect(host.copies.size).toBe(MAX_PLAYING);
   });
 
-  it('keeps the others playing when a finished sequence\'s cooking fails', async () => {
+  it("keeps the others playing when a finished sequence's cooking fails", async () => {
     let fail: () => void = () => {};
     let first = true;
     const { layer } = layerOf(true, () => {

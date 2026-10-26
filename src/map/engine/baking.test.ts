@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import { RIG_PARTS } from '@/emblems/rigs';
 import { bakedParts, bakedRig } from './baking';
-import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene';
+import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene.fixture';
 
 describe('bakedParts', () => {
   it('merges the meshes of one material into one part, their placement baked in', () => {
