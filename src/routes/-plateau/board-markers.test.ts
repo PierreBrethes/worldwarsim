@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildingsOfMaquette } from './board-markers';
+import { stationKeyOf } from '@/domain/troops';
+import { buildingsOfMaquette, standingPilesOf } from './board-markers';
 
 const mine = (id: string, point: [number, number]) => ({ id, key: 'mine' as const, point });
 
@@ -14,5 +15,36 @@ describe('buildingsOfMaquette', () => {
     const north = mine('b1', [3.1, 50.4]);
     expect(buildingsOfMaquette([north], null)).toEqual([]);
     expect(buildingsOfMaquette([north], 'stack-FRA-5333')).toEqual([]);
+  });
+});
+
+describe('standingPilesOf', () => {
+  const troop = (id: string, stationedAt: unknown) => ({
+    id,
+    role: 'infantry',
+    tier: 1,
+    strength: 100,
+    nominalStrength: 100,
+    stationedAt,
+  });
+  const meWith = (troops: unknown[]) =>
+    ({ buildings: [], outposts: [{ id: 'o1' }], troops }) as never;
+
+  it('draws an outpost garrison at the outpost point, raised or still under works (#296)', () => {
+    const station = { kind: 'outpost', outpostId: 'o1' } as const;
+    const piles = standingPilesOf(
+      meWith([troop('a', station), troop('b', { kind: 'point', lonLat: [1, 2] })]),
+      [],
+      new Set(),
+      false,
+    );
+    expect(piles.map((pile) => [pile.id, pile.pieces.troopIds, pile.label])).toEqual([
+      [stationKeyOf(station), ['a'], 'outpost-o1'],
+    ]);
+  });
+
+  it('leaves a marching troop out of the garrison it left', () => {
+    const station = { kind: 'outpost', outpostId: 'o1' } as const;
+    expect(standingPilesOf(meWith([troop('a', station)]), [], new Set(['a']), false)).toEqual([]);
   });
 });

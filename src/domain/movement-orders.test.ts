@@ -1077,3 +1077,19 @@ describe('disbanding a squad', () => {
     expect(disbandPointsOf([10, 50], 3, TRUCK_KM, () => false)).toBeNull();
   });
 });
+
+describe('a march to where the column already stands (#296)', () => {
+  const here = column(['infantry'], { myOutpostIds: new Set(['op1']), originId: 'op1' });
+
+  it('refuses to enter the garrison it already is', () => {
+    expect(refusalOf('march', outpost, here)).toBe('ALREADY_HERE');
+    const barracks: MovementAim = { kind: 'building', buildingId: 'b1', key: 'barracks' } as never;
+    expect(refusalOf('march', barracks, column(['infantry'], { originId: 'b1' }))).toBe(
+      'ALREADY_HERE',
+    );
+  });
+
+  it('still lets a column at another address enter it', () => {
+    expect(refusalOf('march', outpost, { ...here, originId: 'op2' })).toBeNull();
+  });
+});

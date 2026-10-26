@@ -143,6 +143,8 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
    *  not what the player asked — he asked to enter, and the door is what he cannot see. */
   'NOT_A_GARRISON_FOR',
   'BUILDING_OCCUPIED',
+  /** Before the friendly refusal: the column asked to enter the very garrison it is. */
+  'ALREADY_HERE',
   'FRIENDLY_TARGET',
   'OUTPOST_TARGET_ONLY',
   'POINT_TARGET_ONLY',

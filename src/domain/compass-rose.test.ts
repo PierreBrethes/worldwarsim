@@ -417,6 +417,19 @@ describe('in aim', () => {
       coastal: false,
     } as const;
 
+    it('delivers on the spot from its own garrison, and no longer offers to enter it (#296)', () => {
+      const here = { ...trucking, originId: 'AP-01' };
+      const compass = compassOf(target, withTruck(0), here, null, 0, ['T1']);
+      expect(compass?.actions.map((action) => action.key)).toEqual(['deliver']);
+    });
+
+    it('says it is already there when nothing is left to do on the spot', () => {
+      const here = { ...column, originId: 'AP-01' };
+      const compass = compassOf(target, withTruck(0), here, null, 0, []);
+      expect(compass?.actions).toEqual([]);
+      expect(compass?.refusal).toBe(fr.errors.ALREADY_HERE());
+    });
+
     it('offers to deliver before the garrison', () => {
       const compass = compassOf(target, withTruck(0), trucking, null, 0, ['T1']);
       expect(compass?.actions.map((action) => action.key)).toEqual(['deliver', 'aim']);

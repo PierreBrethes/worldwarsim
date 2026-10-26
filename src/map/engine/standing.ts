@@ -58,6 +58,9 @@ import {
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
   readonly id: string;
+  /** The label this pile hangs its tags from and is dropped on, when it is not its own: an
+   *  outpost's garrison stands at its point, and the outpost has no maquette to stand beside. */
+  readonly label?: string;
   /**
    * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. It is
    * lifted by its figurines like any pile; the maquette itself opens its site.
@@ -69,6 +72,11 @@ export type StandingPile = {
     | { readonly beside: string; readonly quay?: LonLat };
   readonly pieces: PilePieces;
 };
+
+/** **The label a standing pile is aimed at by**: the mast it stands beside, the label it hangs
+ *  from (an outpost's), or its own. The one place a pile and its label are tied. */
+export const labelOfPile = (pile: StandingPile | undefined, id: string): string =>
+  pile === undefined ? id : 'beside' in pile.at ? pile.at.beside : (pile.label ?? id);
 
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
 export type GarrisonAt = (
@@ -834,8 +842,16 @@ export class StandingLayer {
 
   /** The world box of the figurines a dressed pile stands in, `null` when it is not drawn. */
   boxOf(id: string): Box3 | null {
-    const entry = this.dressed.get(id);
+    const entry = this.dressed.get(this.pileOfLabel(id) ?? '');
     return entry?.ready === true && entry.object.visible ? boxOfObject(entry.object) : null;
+  }
+
+  /** The label a pile under the pointer answers to (`labelOfPile`). */
+  labelOfPile(pileId: string): string {
+    return labelOfPile(
+      this.piles.find((pile) => pile.id === pileId),
+      pileId,
+    );
   }
 
   /** The pile under `ray`, by its figurines or the footprints it is taken by — a garrison beside
@@ -1046,11 +1062,14 @@ export class StandingLayer {
     };
   }
 
-  /** The pile a label stands for: a pile's own, or the garrison at a mast's foot. */
+  /** The pile a label stands for: a pile's own, the garrison at a mast's foot, or the one hung
+   *  from it (`StandingPile.label`). */
   pileOfLabel(labelId: string): string | null {
     if (this.dressed.has(labelId)) return labelId;
-    for (const [id, { at }] of this.dressed) if ('beside' in at && at.beside === labelId) return id;
-    return null;
+    const owned = this.piles.find(
+      (pile) => this.dressed.has(pile.id) && labelOfPile(pile, pile.id) === labelId,
+    );
+    return owned?.id ?? null;
   }
 
   /** A ring turns or pulses: the frames must keep coming. */

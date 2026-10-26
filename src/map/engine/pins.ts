@@ -16,10 +16,15 @@ import { asClockTime } from '@/domain/duration';
 import { nationInk } from '@/domain/nations';
 import type { Pin } from '@/domain/pins';
 import type { Rect } from '@/domain/poster-placement';
-import { ANONYMOUS_SPAN, nearWeight, pieceWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, pieceWeight } from './figurines/figurine';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
 import { REACH } from './halo';
+
+/** Whether the hit is the pin of this label: a pile yields to its own pin only, never to the pin
+ *  of a neighbour a few pixels off. */
+export const isPinOf = (hit: PinHit | null, labelId: string): boolean =>
+  hit?.kind === 'pin' && hit.id === labelId;
 
 export type PinHit =
   | { readonly kind: 'pin'; readonly id: string }
@@ -175,7 +180,7 @@ export class PinLayer {
     /** The font landed and the counts were painted again: the board owes a frame. */
     repainted: () => void = () => {},
     /** The span its piece gives way to it by — a building's, a pile's, a tank's for what is not
-     *  drawn —, `null` for what has no piece (an outpost): it rises with the regions' fade. */
+     *  drawn —, `null` for what has no piece (an outpost): its pin stands at every distance. */
     private readonly spanOf: (pin: Pin) => number | null = () => ANONYMOUS_SPAN,
     /** Where its piece is drawn when a ring carried it off its point: the pin stands there. */
     private readonly drawnAt: (id: string) => Vector3 | null = () => null,
@@ -260,7 +265,7 @@ export class PinLayer {
     const weightAt = (at: Vector3, pin: Pin) => {
       const span = this.spanOf(pin);
       const distance = at.distanceTo(measuredFrom);
-      return 1 - (span === null ? nearWeight(distance) : pieceWeight(distance, span));
+      return span === null ? 1 : 1 - pieceWeight(distance, span);
     };
 
     if (moved || this.dirty) {

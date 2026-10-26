@@ -938,6 +938,7 @@ export const fr = {
       d.region === undefined
         ? 'on ne marche pas sur les siens'
         : `${str(d.region)} porte déjà un de vos bâtiments`,
+    ALREADY_HERE: () => 'cette pile y est déjà en garnison',
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
