@@ -155,6 +155,7 @@ export class SequenceLayer {
   }
 
   private finish(playing: Playing): void {
+    if (playing.over) return;
     playing.over = true;
     this.playing.splice(this.playing.indexOf(playing), 1);
     if (playing.copy !== null) playing.host.standIn(playing.id, null);
