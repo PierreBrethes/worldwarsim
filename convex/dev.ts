@@ -245,6 +245,37 @@ export const backfillSeasonPreview = internalMutation({
 });
 
 /**
+ * **Plus de canon ni de camion à bord d'un avion de transport** (#284) : l'aile n'assoit que
+ * l'infanterie, mais une troupe embarquée avant cette règle y est restée, et bloquait son avion.
+ * La troupe garde son point, elle repart à pied. Idempotente.
+ *
+ * Par pages, la suivante planifiée par la précédente : toute la table `troops` dépasse ce
+ * qu'une mutation peut lire (vu sur la base locale le 26/10). `freed` compte la première page.
+ *
+ * `npx convex run dev:backfillAirTransportInfantryOnly`
+ */
+export const backfillAirTransportInfantryOnly = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db.query('troops').paginate({ cursor: cursor ?? null, numItems: 500 });
+    let freed = 0;
+    for (const troop of page.page) {
+      if (troop.role === 'infantry' || troop.carriedBy === undefined) continue;
+      const carrier = await ctx.db.get(troop.carriedBy);
+      if (carrier?.role !== 'airTransport') continue;
+      await ctx.db.patch(troop._id, { carriedBy: undefined });
+      freed += 1;
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.dev.backfillAirTransportInfantryOnly, {
+        cursor: page.continueCursor,
+      });
+    }
+    return { freed };
+  },
+});
+
+/**
  * **Rallumer la presse là où elle s'est tue.** La chaîne des éditions n'a pas de planificateur
  * au-dessus d'elle — chaque `press:publish` prend le rendez-vous du suivant (ADR 0020 §4) — donc
  * une saison dont le maillon est tombé ne publie plus jamais, et rien ne le dit. C'est arrivé le

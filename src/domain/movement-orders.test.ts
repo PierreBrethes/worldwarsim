@@ -537,7 +537,16 @@ describe('the places aboard', () => {
     ).toBe('NOT_ENOUGH_LIFT');
     expect(
       refusalOf('march', airfield, quay(['armor', 'airTransport', 'airTransport', 'airTransport'])),
-    ).toBe('NOT_ENOUGH_LIFT');
+    ).toBe('AIR_TRANSPORT_SEATS_INFANTRY');
+  });
+
+  it('never flies a gun or a truck either: two places would fit them, the wing does not seat them', () => {
+    expect(refusalOf('march', airfield, quay(['artillery', 'airTransport']))).toBe(
+      'AIR_TRANSPORT_SEATS_INFANTRY',
+    );
+    expect(refusalOf('march', airfield, quay(['landTransport', 'airTransport']))).toBe(
+      'AIR_TRANSPORT_SEATS_INFANTRY',
+    );
   });
 
   it('asks nothing of a pile that never leaves its own medium', () => {
@@ -829,23 +838,33 @@ describe('boarding a transport', () => {
 
   it('weighs a loaded truck with its riflemen', () => {
     const truck: Seat = { id: 'T', role: 'landTransport' };
-    const wing: Seat = { id: 'W', role: 'airTransport' };
-    expect(board([truck], wing, [rifle('I', 'T')], true)).toBe('NOT_ENOUGH_LIFT');
+    const cargoShip: Seat = { id: 'C2', role: 'cargo' };
     expect(
       boardingRefusalDetails({
         riders: [truck],
-        carrier: wing,
-        pile: [wing, truck, rifle('I', 'T')],
-        atAirfield: true,
+        carrier: cargoShip,
+        pile: [cargoShip, truck, rifle('I', 'T')],
+        atAirfield: false,
       }),
-    ).toEqual({ needed: 3, offered: 2 });
+    ).toEqual({ needed: 3, offered: 12 });
   });
 
-  it('boards an air transport only on an aerodrome, and never an armour', () => {
+  it('seats only riflemen in an air transport: a truck, a gun or a tank is refused before the gesture', () => {
+    const wing: Seat = { id: 'W', role: 'airTransport' };
+    const truck: Seat = { id: 'T', role: 'landTransport' };
+    const gun: Seat = { id: 'G', role: 'artillery' };
+    expect(board([truck], wing, [], true)).toBe('AIR_TRANSPORT_SEATS_INFANTRY');
+    expect(board([gun], wing, [], true)).toBe('AIR_TRANSPORT_SEATS_INFANTRY');
+    expect(board([armor('A')], wing, [], true)).toBe('AIR_TRANSPORT_SEATS_INFANTRY');
+    // the kind is refused before the airfield is asked: the tag never offers a wing to a gun
+    expect(board([gun], wing)).toBe('AIR_TRANSPORT_SEATS_INFANTRY');
+    expect(board([rifle('I-1'), rifle('I-2')], wing, [], true)).toBeNull();
+  });
+
+  it('boards an air transport only on an aerodrome', () => {
     const wing: Seat = { id: 'W', role: 'airTransport' };
     expect(board([rifle('I-1'), rifle('I-2')], wing, [], true)).toBeNull();
     expect(board([rifle('I-1')], wing)).toBe('AIRFIELD_BOARDING_ONLY');
-    expect(board([armor('A')], wing, [], true)).toBe('NOT_ENOUGH_LIFT');
   });
 
   it('seats only riflemen in a truck, two of them', () => {

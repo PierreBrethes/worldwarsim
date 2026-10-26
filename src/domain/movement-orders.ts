@@ -247,6 +247,8 @@ export type OrderRefusal =
    *  possède, donc il passait la seule condition que la fondation posait. */
   | 'NO_FOUNDING_AT_SEA'
   | 'NOT_ENOUGH_LIFT'
+  /** Une aile n'assoit que l'infanterie : sans coque dans la colonne, le motif n'est pas les places. */
+  | 'AIR_TRANSPORT_SEATS_INFANTRY'
   /** **On ne descend d'un avion que dans un de ses aérodromes** (ADR 0025 §4). */
   | 'AIRFIELD_TARGET_REQUIRED'
   | 'OUTPOST_TARGET_ONLY'
@@ -759,10 +761,21 @@ export function liftOf(roles: ReadonlyArray<UnitRole>): {
   };
 }
 
+/** Le refus d'une colonne qui traverse sans place pour tous, et son motif : sans coque, ce qui ne
+ *  tient pas dans l'aile, c'est ce qu'elle n'assoit pas — pas le compte des places. */
+export function liftRefusalOf(
+  roles: ReadonlyArray<UnitRole>,
+): 'NOT_ENOUGH_LIFT' | 'AIR_TRANSPORT_SEATS_INFANTRY' | null {
+  if (!strandedIn(roles)) return null;
+  const hull = roles.some((role) => role === 'cargo' || role === 'carrier');
+  const heavy = roles.some((role) => DOMAIN_BY_ROLE[role] === 'land' && role !== 'infantry');
+  return !hull && heavy ? 'AIR_TRANSPORT_SEATS_INFANTRY' : 'NOT_ENOUGH_LIFT';
+}
+
 const overloaded = (column: Column): OrderRefusal | null => {
   const domains = new Set(column.roles.map((role) => DOMAIN_BY_ROLE[role]));
   if (!domains.has('land') || (!domains.has('sea') && !domains.has('air'))) return null;
-  return strandedIn(column.roles) ? 'NOT_ENOUGH_LIFT' : null;
+  return liftRefusalOf(column.roles);
 };
 
 /**
@@ -783,6 +796,7 @@ export type BoardingRefusal =
   | 'NO_TRANSPORT_HERE'
   | 'AIRFIELD_BOARDING_ONLY'
   | 'TRUCK_SEATS_INFANTRY'
+  | 'AIR_TRANSPORT_SEATS_INFANTRY'
   | 'NOT_ENOUGH_LIFT';
 
 /** Un embarquement tel que la rose et le serveur le lisent, chacun de son côté : ces troupes,
@@ -808,9 +822,13 @@ export function boardingRefusalOf(boarding: Boarding): BoardingRefusal | null {
   if (riders.length === 0) return 'EMPTY_MOVEMENT';
   if (riders.some((rider) => DOMAIN_BY_ROLE[rider.role] !== 'land')) return 'LAND_TROOPS_ONLY';
   if (fareOf(carrier.role, { id: '', role: 'infantry' }, pile) === null) return 'NO_TRANSPORT_HERE';
+  // La sorte de la troupe se lit avant l'aérodrome : un canon n'a pas à apprendre qu'il lui
+  // faudrait un aérodrome pour une aile qui ne le prendra jamais.
+  if (faresOf(boarding).some((fare) => fare === null))
+    return carrier.role === 'airTransport'
+      ? 'AIR_TRANSPORT_SEATS_INFANTRY'
+      : 'TRUCK_SEATS_INFANTRY';
   if (carrier.role === 'airTransport' && !atAirfield) return 'AIRFIELD_BOARDING_ONLY';
-  const fares = faresOf(boarding);
-  if (fares.some((fare) => fare === null)) return 'TRUCK_SEATS_INFANTRY';
   return boardingRefusalDetails(boarding).needed > seatsLeft(carrier, pile)
     ? 'NOT_ENOUGH_LIFT'
     : null;

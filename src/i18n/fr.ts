@@ -910,6 +910,8 @@ export const fr = {
     NO_TRANSPORT_HERE: () => 'aucun cargo ni porte-avions ici pour vous prendre à bord',
     AIRFIELD_BOARDING_ONLY: () => 'un avion n’embarque personne hors d’un aérodrome',
     TRUCK_SEATS_INFANTRY: () => 'un camion ne porte que l’infanterie',
+    AIR_TRANSPORT_SEATS_INFANTRY: () =>
+      'un avion de transport ne prend que l’infanterie — ni camion, ni canon, ni blindé',
     NOT_ABOARD: () => 'cette troupe n’est à bord d’aucun transport',
     DISEMBARK_AT_SEA: () => 'on ne débarque pas au large — gagnez une côte ou un port',
     NOT_A_SQUAD: () => 'une escouade, ce sont plusieurs pièces au même point du plateau',
@@ -4722,7 +4724,7 @@ export const fr = {
     },
     airTransport: {
       kind: 'support',
-      contribution: `Vitesse maximale, capacité minimale : ${LIFT_CAPACITY.airTransport} places, jamais un blindé. Embarque et débarque dans un aérodrome.`,
+      contribution: `Vitesse maximale, capacité minimale : ${LIFT_CAPACITY.airTransport} places, de l’infanterie seule. Embarque et débarque dans un aérodrome.`,
     },
     escort: {
       kind: 'combat',

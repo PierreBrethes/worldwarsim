@@ -1164,6 +1164,18 @@ describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)',
     );
   });
 
+  it('seats only infantry in an air transport, and says so before the gesture', () => {
+    expect(aim(at('airTransport', 0, { held: 'armor' }), blitz)?.refusal).toBe(
+      fr.errors.AIR_TRANSPORT_SEATS_INFANTRY(),
+    );
+    expect(aim(at('airTransport', 0, { held: 'artillery' }), blitz)?.refusal).toBe(
+      fr.errors.AIR_TRANSPORT_SEATS_INFANTRY(),
+    );
+    // Mondiale: the gun may still march to join the pile, but no wing is offered to board
+    for (const held of ['artillery', 'landTransport', 'armor'])
+      expect(anchor(at('airTransport', 0, { held }))).toBeUndefined();
+  });
+
   it('boards nothing on an escort nor on a transport already moving', () => {
     expect(anchor(at('escort'))).toBeUndefined();
     const moving = {
