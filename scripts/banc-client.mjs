@@ -802,17 +802,27 @@ async function play(profileName, pass) {
   };
   /** La caserne de la démo, cadrée assez près pour que la séquence joue (`PLAY_PX`). */
   const sequenceGestures = async () => {
-    const site = await page.evaluate(() => {
-      const E = window.mapEngine;
-      const [id, { item }] =
-        [...E.maquettes.byId].find(([key]) => key.startsWith('building-barracks')) ?? [];
-      return id === undefined
-        ? null
-        : [id, E.frame.lonLatAt(item.at.x + E.frame.centerX, item.at.z + E.frame.centerY)];
-    });
-    if (site === null) throw new Error('--sequences : aucune caserne dans la démo');
+    // Son id est celui de son étiquette (`building-barracks@lon,lat`) : le point s'y lit.
+    const id = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('[data-label-id^="building-barracks"]')][0]?.dataset
+          .labelId ?? null,
+    );
+    if (id === null) throw new Error('--sequences : aucune caserne dans la démo');
+    const site = [id, id.split('@')[1].split(',').map(Number)];
     await page.evaluate(frameAt, [site[1], 2.2]);
     await page.waitForTimeout(5000);
+    // La maquette est bien dessinée là : le rayon du moteur la trouve sous l'écran.
+    const drawn = await page.evaluate(
+      ([siteId, w, h]) => {
+        for (const fx of [0.3, 0.4, 0.5, 0.6, 0.7])
+          for (const fy of [0.3, 0.4, 0.5, 0.6, 0.7])
+            if (window.mapEngine.maquetteAtPoint(w * fx, h * fy) === siteId) return true;
+        return false;
+      },
+      [site[0], width, height],
+    );
+    if (!drawn) throw new Error(`--sequences : ${site[0]} n'est pas dessinée au rapproché`);
     await gesture('caserne repos 5 s', () => page.waitForTimeout(5000), 0);
     await gesture(
       'sortie de caserne',
