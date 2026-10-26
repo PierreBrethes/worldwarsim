@@ -24,6 +24,7 @@ import {
   type Column,
   type MovementAim,
 } from './movement-orders';
+import { distanceKm } from './geo';
 import { COST_BY_MEDIUM } from './routing';
 import { theatreById } from './theatres';
 
@@ -1017,13 +1018,44 @@ describe('disbanding a squad', () => {
     expect(off({ loaded: true })).toBe('SQUAD_CARRIES_LOOT');
   });
 
-  it('keeps the first piece on the point and rings the others around it', () => {
-    const points = disbandPointsOf([10, 0], 3);
-    expect(points[0]).toEqual([10, 0]);
-    expect(points).toHaveLength(3);
-    const distances = points.slice(1).map(([lon, lat]) => Math.hypot(lon - 10, lat));
-    expect(distances[0]).toBeCloseTo(distances[1]!);
-    expect(distances[0]).toBeGreaterThan(0);
-    expect(points[1]).not.toEqual(points[2]);
+  const km = distanceKm;
+  const TRUCK_KM = 10.4; // 6,5 m à l'échelle commune (ADR 0035)
+
+  it('keeps the first piece on the point and rings the others some 22 km around a truck', () => {
+    const points = disbandPointsOf([10, 50], 4, TRUCK_KM)!;
+    expect(points[0]).toEqual([10, 50]);
+    expect(points).toHaveLength(4);
+    for (const point of points.slice(1)) {
+      expect(km([10, 50], point)).toBeGreaterThan(20);
+      expect(km([10, 50], point)).toBeLessThan(24);
+    }
+  });
+
+  it('reads the ring off the largest piece: a pile of riflemen rings tighter', () => {
+    const [, rifle] = disbandPointsOf([10, 50], 3, 4.2)!;
+    const [, truck] = disbandPointsOf([10, 50], 3, TRUCK_KM)!;
+    expect(km([10, 50], rifle!)).toBeLessThan(km([10, 50], truck!));
+  });
+
+  it('never sets a piece on another, however many there are', () => {
+    for (const count of [2, 3, 6, 12, 20]) {
+      const points = disbandPointsOf([10, 50], count, TRUCK_KM)!;
+      for (const [i, a] of points.entries())
+        for (const b of points.slice(i + 1)) expect(km(a, b)).toBeGreaterThan(TRUCK_KM * 0.99);
+    }
+  });
+
+  it('keeps every piece on the ground the point stands on, side by side', () => {
+    // la mer à l'est du méridien 10 : rien ne s'y pose
+    const fits = ([lon]: readonly [number, number]) => lon <= 10.0001;
+    const points = disbandPointsOf([10, 50], 6, TRUCK_KM, fits)!;
+    expect(points).toHaveLength(6);
+    expect(points.every(fits)).toBe(true);
+    for (const [i, a] of points.entries())
+      for (const b of points.slice(i + 1)) expect(km(a, b)).toBeGreaterThan(TRUCK_KM * 0.99);
+  });
+
+  it('finds no room where the ring has none', () => {
+    expect(disbandPointsOf([10, 50], 3, TRUCK_KM, () => false)).toBeNull();
   });
 });

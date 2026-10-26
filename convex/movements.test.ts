@@ -2683,11 +2683,43 @@ describe('the door of the sea, read on the pile', () => {
     expect(aboard!.stationedAt).toEqual(field);
     expect(aboard!.carriedBy).toBe(truck);
     expect(apart!.stationedAt).not.toEqual(field);
+    // la couronne se lit sur le camion, la plus grande pièce (#283) : quelque 22 km
+    const ring = distanceKm(pointOf(field), pointOf(apart!.stationedAt as typeof field));
+    expect(ring).toBeGreaterThan(20);
+    expect(ring).toBeLessThan(24);
     expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toEqual([]);
 
     await expect(t.mutation(api.movements.disband, { ...seat, point: field })).rejects.toThrow(
       'NOT_A_SQUAD',
     );
+  });
+
+  /** **La couronne reste sur le sol du point** (#283) : à 22 km, le Cotentin touche la mer et
+   *  l'Alsace l'Allemagne ; les pièces se rangent sur ce qui reste de leur pays, sans refus. */
+  it('sets a squad’s pieces on its own country’s land, by the sea and by a border', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    for (const field of [
+      { lon: -1.6, lat: 49.4 }, // le Cotentin, la mer à l'ouest
+      { lon: 7.5, lat: 47.65 }, // l'Alsace, le Rhin à l'est
+    ]) {
+      const pieces = [
+        await postAt(t, seat, 'landTransport', field),
+        await postAt(t, seat, 'armor', field),
+        await postAt(t, seat, 'infantry', field),
+      ];
+      await t.mutation(api.movements.disband, { ...seat, point: field });
+      const spots = await t.run(async (ctx) =>
+        Promise.all(
+          pieces.map(async (id) => pointOf((await ctx.db.get(id))!.stationedAt as typeof field)),
+        ),
+      );
+      for (const spot of spots) {
+        expect(landAtPoint(spot)).toBe(true);
+        expect(hostAtPoint(spot)).toBe('FRA');
+      }
+      expect(distanceKm(spots[1]!, spots[2]!)).toBeGreaterThan(10.4 * 0.99);
+    }
   });
 
   /** **Les passagers suivent leur transport** : il part avec sa cargaison, et un passager ne

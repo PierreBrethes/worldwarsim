@@ -6,7 +6,7 @@ import { bombardsWith } from './indirect-fire';
 import type { BuildingKey, MovementType, ResearchCard, UnitRole } from './ids';
 import { slotCardsOf } from './research';
 import type { Ground, RouteMode } from './routing';
-import { COST_BY_MEDIUM } from './routing';
+import { COST_BY_MEDIUM, KM_PER_UNIT } from './routing';
 import type { UnitDomain } from './troops';
 import {
   boardedAll,
@@ -877,26 +877,58 @@ export function disbandRefusalOf({
 }
 
 /**
- * L'écart des pièces d'une escouade dissoute à son point, en degrés de latitude.
+ * **Le rayon de la couronne, en plus grandes pièces** (#283, décision du 26/10) : deux pas de pile
+ * et un demi-camion, soit quelque 22 km autour d'un camion de 10,4 km.
  * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien
  */
-const DISBAND_SPREAD_DEG = 0.05;
+const DISBAND_RING_SPANS = 2.1;
+/** Les places essayées sur la couronne quand une partie tombe hors du sol du point. */
+const DISBAND_RING_SAMPLES = 72;
 
-/** **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
- *  autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. */
+/**
+ * **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
+ * autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. Le rayon se lit sur la plus
+ * grande pièce (`spanKm`, son plus grand côté au sol) ; deux voisines restent au moins à cette
+ * distance, aussi nombreuses soient-elles. Une place que `fits` refuse (la mer, un autre pays) est
+ * laissée : les pièces se rangent côte à côte sur ce qui reste de la couronne, et `null` dit qu'il
+ * n'y reste pas leur place.
+ */
 export function disbandPointsOf(
   [lon, lat]: readonly [number, number],
   count: number,
-): Array<[number, number]> {
+  spanKm: number,
+  fits: (point: readonly [number, number]) => boolean = () => true,
+): Array<[number, number]> | null {
+  const ring = count - 1;
+  const radiusKm = Math.max(
+    DISBAND_RING_SPANS * spanKm,
+    ring < 2 ? 0 : spanKm / (2 * Math.sin(Math.PI / ring)),
+  );
+  const step = 2 * Math.asin(Math.min(1, spanKm / (2 * radiusKm)));
+  const degrees = radiusKm / KM_PER_UNIT;
   const stretch = 1 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
-  return Array.from({ length: count }, (_, index): [number, number] => {
-    if (index === 0) return [lon, lat];
-    const turn = (2 * Math.PI * (index - 1)) / (count - 1);
-    return [
-      lon + Math.cos(turn) * DISBAND_SPREAD_DEG * stretch,
-      lat + Math.sin(turn) * DISBAND_SPREAD_DEG,
-    ];
-  });
+  const at = (turn: number): [number, number] => [
+    lon + Math.cos(turn) * degrees * stretch,
+    lat + Math.sin(turn) * degrees,
+  ];
+  const even = Array.from({ length: ring }, (_, index) => (2 * Math.PI * index) / ring);
+  if (even.every((turn) => fits(at(turn)))) return [[lon, lat], ...even.map(at)];
+  const open = Array.from(
+    { length: DISBAND_RING_SAMPLES },
+    (_, index) => (2 * Math.PI * index) / DISBAND_RING_SAMPLES,
+  ).filter((turn) => fits(at(turn)));
+  // ponytail: un départ par place libre, chaque pièce à la première place à un pas de la précédente
+  for (const [start, first] of open.entries()) {
+    const turns = [first];
+    for (const turn of [
+      ...open.slice(start + 1),
+      ...open.slice(0, start).map((t) => t + 2 * Math.PI),
+    ])
+      if (turns.length < ring && turn - turns.at(-1)! >= step - 1e-9) turns.push(turn);
+    if (turns.length === ring && first + 2 * Math.PI - turns.at(-1)! >= step - 1e-9)
+      return [[lon, lat], ...turns.map(at)];
+  }
+  return null;
 }
 
 /** Ce que la phrase du refus nomme, et ce que le geste montre : les places demandées, et
