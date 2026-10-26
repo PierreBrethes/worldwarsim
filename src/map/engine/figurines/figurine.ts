@@ -131,6 +131,9 @@ export type Figurine = {
   /** A copy takes the place of the model it is drawn with, until `null` gives it back
    *  (ADR 0036 §5). Asked before `ready`, it takes its place when the model lands. */
   standIn?(copy: Object3D | null): void;
+  /** A clone of the model as drawn — the whole squad — once it has landed: the copy of a
+   *  sequence that moves the piece whole. */
+  copy?(): Object3D | null;
   /** What wears on the model — a plume on its `fx_smoke`, a charred hull — is put by `fn` on the
    *  model drawn once it lands (`origin`), and on every copy that stands in for it. The plume's
    *  own parent follows the copy, whatever `fn` does (`standIn`). */
@@ -269,6 +272,12 @@ export function figurineFor(
     ready,
     ...(role === 'infantry' ? {} : { url: files[0]! }),
     standIn,
+    copy: () => {
+      const copy = drawn?.clone(true) ?? null;
+      // What hangs on a marker (a plume) is carried over by `standIn`, not cloned twice.
+      if (copy !== null) for (const marker of markers(copy).values()) marker.clear();
+      return copy;
+    },
     dress(fn) {
       dressers.push(fn);
       if (drawn !== null) fn(drawn, true);

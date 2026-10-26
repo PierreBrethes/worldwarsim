@@ -69,8 +69,9 @@ const layered = args.includes('--couches');
 /** `--epingles` : le démarrage, puis les seuls gestes des épingles au loin (#234) — à jouer sur
  *  `npm run demo:mondiale -- --epingles`, mille piles sur la France. */
 const pinsOnly = args.includes('--epingles');
-/** `--sequences` : le démarrage, puis la caserne de la démo cadrée au rapproché — son repos 5 s,
- *  puis la sortie d'une recrue (`mapEngine.cue`, ADR 0036) : les appels de dessin de la copie ;
+/** `--sequences` (`npm run demo:mondiale -- --echelle --passagers`) : le démarrage, puis la
+ *  caserne de la démo cadrée au rapproché — son repos 5 s,
+ *  puis le dernier de sa garnison qui sort de la porte et va au rang (`mapEngine.cue`, #268) ;
  *  puis le camion de `npm run demo:mondiale -- --passagers`, au plus près que le zoom permet : son
  *  repos 5 s, puis la chute de son hayon (`descente`). */
 const sequencesOnly = args.includes('--sequences');
@@ -813,7 +814,20 @@ async function play(profileName, pass) {
     if (id === null) throw new Error('--sequences : aucune caserne dans la démo');
     const site = [id, id.split('@')[1].split(',').map(Number)];
     await page.evaluate(frameAt, [site[1], 2.2]);
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(3000);
+    // Un anneau a pu l'écarter de son point (une garnison entière, `--echelle`) : on la cadre où
+    // elle est dessinée.
+    await page.evaluate((siteId) => {
+      const E = window.mapEngine;
+      const drawn = E.maquettes.drawnAt(siteId);
+      if (drawn === null) return;
+      const away = E.camera.position.clone().sub(E.controls.target);
+      E.controls.target.set(drawn.x, 0, drawn.z);
+      E.camera.position.copy(E.controls.target).add(away);
+      E.controls.update();
+      E.invalidate();
+    }, site[0]);
+    await page.waitForTimeout(3000);
     // La maquette est bien dessinée là : le rayon du moteur la trouve sous l'écran.
     const drawn = await page.evaluate(
       ([siteId, w, h]) => {
@@ -826,10 +840,23 @@ async function play(profileName, pass) {
     );
     if (!drawn) throw new Error(`--sequences : ${site[0]} n'est pas dessinée au rapproché`);
     await gesture('caserne repos 5 s', () => page.waitForTimeout(5000), 0);
+    // Sa garnison (`--echelle`) : son dernier groupe sort de la porte et va se ranger (#268).
+    const garrison = await page.evaluate((siteId) => {
+      for (const [id, entry] of window.mapEngine.standing.dressed)
+        if (entry.at.beside === siteId) return { pileId: id, last: entry.pieces.groups.length - 1 };
+      return null;
+    }, site[0]);
+    if (garrison === null)
+      throw new Error('--sequences : la caserne sans garnison (demo --echelle)');
     await gesture(
       'sortie de caserne',
-      () => page.evaluate((siteId) => window.mapEngine.cue?.({ kind: 'sortie', siteId }), site[0]),
-      3000,
+      () =>
+        page.evaluate(
+          ([siteId, { pileId, last }]) =>
+            window.mapEngine.cue?.({ kind: 'sortie', siteId, pileId, groups: [last] }),
+          [site[0], garrison],
+        ),
+      4000,
     );
     // Le camion chargé de la démo (`--passagers`) : sa pile, et le groupe qui est le camion.
     const truck = await page.evaluate(() => {

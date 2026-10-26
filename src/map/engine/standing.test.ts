@@ -293,8 +293,29 @@ describe('a pile lent to a sequence', () => {
     expect(meshes(layer)).toHaveLength(1);
   });
 
-  it('lends no man: a squad has no file of its own', async () => {
-    expect((await standing('infantry')).pieceOf(TRUCK)).toBeNull();
+  it('lends a squad of men moved whole: no file to cook, a clone of the men drawn', async () => {
+    const layer = await standing('infantry');
+    const piece = layer.pieceOf('p/0');
+    expect(piece?.url).toBeUndefined();
+    expect(piece?.box?.isEmpty()).toBe(false);
+    const drawn = meshes(layer);
+    const copy = layer.copyOf('p/0')!;
+    const cloned: Mesh[] = [];
+    copy.traverse((node) => (node as Mesh).isMesh && cloned.push(node as Mesh));
+    expect(cloned).toHaveLength(drawn.length);
+    expect(cloned.some((mesh) => drawn.includes(mesh))).toBe(false);
+    expect(layer.copyOf('p/9')).toBeNull();
+  });
+
+  it('says where a group stands on the board, and the way it faces', async () => {
+    const layer = await standing('infantry', 'armor');
+    const [first, second] = [layer.placeOf('p/0')!, layer.placeOf('p/1')!];
+    // Side by side, the pile at the origin of the board, facing as the pile does.
+    expect(first.at.x).toBeLessThan(0);
+    expect(second.at.x).toBeCloseTo(-first.at.x);
+    expect(first.at.z).toBeCloseTo(0);
+    expect(second.front.toArray()).toEqual([0, 0, 1]);
+    expect(layer.placeOf('p/9')).toBeNull();
   });
 
   it("stands the copy in the clone's place, at its matrix, and gives the clone back", async () => {
@@ -346,6 +367,42 @@ describe('a pile lent to a sequence', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     layer.orient(eye);
     expect(layer.pieceOf(TRUCK)).toBeNull();
+  });
+
+  describe('a pile that grows by a troop walking to its rank', () => {
+    const grown = async (claim: boolean) => {
+      const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+      const layer = await standing('infantry');
+      const was = layer.placeOf('p/0')!.at.x;
+      layer.display([pileOf('infantry', 'armor')]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(eye);
+      if (claim) layer.arrive('p', 1000);
+      layer.orient(eye);
+      const at = (ms: number) => {
+        clock.mockReturnValue(ms);
+        layer.orient(eye);
+        return layer.placeOf('p/0')!.at.x;
+      };
+      return { was, at, clock };
+    };
+
+    it('holds the rank as it stood until the newcomer arrives, then glides it in half a second', async () => {
+      const { was, at, clock } = await grown(true);
+      expect(at(500)).toBeCloseTo(was);
+      const gliding = at(1250);
+      const settled = at(1600);
+      expect(settled).toBeLessThan(was);
+      expect(gliding).toBeLessThan(was);
+      expect(gliding).toBeGreaterThan(settled);
+      clock.mockRestore();
+    });
+
+    it('stands the rank at once in its new places when no walk claims it', async () => {
+      const { was, at, clock } = await grown(false);
+      expect(at(10)).toBeLessThan(was);
+      clock.mockRestore();
+    });
   });
 
   describe('what wears on the model', () => {

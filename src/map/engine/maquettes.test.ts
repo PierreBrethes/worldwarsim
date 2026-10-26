@@ -41,10 +41,14 @@ vi.mock('./works', async (original) => ({
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),
   // A box of a metre for every file: the loader wants a DOM.
-  sceneOf: () =>
-    Promise.resolve(
-      new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial())),
-    ),
+  sceneOf: () => {
+    const door = new Group();
+    door.name = 'fx_sortie';
+    door.position.set(0, 0.1, 0.5);
+    return Promise.resolve(
+      new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()), door),
+    );
+  },
 }));
 
 /** A spacing and a garrison's foot for the shapes of the ring alone, whatever the building. */
@@ -453,6 +457,19 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     expect(copy.parent).toBe(maquettes.group);
     expect(instance(maquettes).determinant()).toBe(0);
     expect(copy.matrix.determinant()).toBeGreaterThan(0);
+  });
+
+  it('lays its markers on the board as it is drawn: where a recruit comes out', async () => {
+    const maquettes = await layer();
+    const drawn = instance(maquettes);
+    const site = maquettes.siteOf(ID)!;
+    const door = site.marker('fx_sortie')!;
+    expect(door.toArray()).toEqual([0, 0.1, 0.5]);
+    const onBoard = site.toBoard(door);
+    expect(onBoard.distanceTo(door.clone().applyMatrix4(drawn))).toBeLessThan(1e-6);
+    expect(site.toModel(onBoard).distanceTo(door)).toBeLessThan(1e-9);
+    expect(site.marker('fx_nowhere')).toBeNull();
+    expect(maquettes.siteOf('building-hq@0,0')).toBeNull();
   });
 
   it('lends only what is drawn whole: not a ghost, not an unknown id', async () => {

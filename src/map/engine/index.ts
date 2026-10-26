@@ -65,8 +65,10 @@ import {
   TANK_SHARE,
   troopPinSpan,
 } from './figurines/figurine';
-import { type Cue, SequenceLayer } from './sequences';
-import { barracksDoors } from './timelines/barracks';
+import { type Cue, type Sequence, SequenceLayer } from './sequences';
+import { barracksDoors, wayOut } from './timelines/barracks';
+import { ease } from './timelines/curves';
+import { walkOut } from './timelines/walk';
 import { tailgateDrop } from './timelines/truck';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -415,6 +417,24 @@ type Gesture = {
  */
 type Landing = { readonly point: Vector3; readonly country: CountryMesh };
 
+type SortieCue = Extract<Cue, { kind: 'sortie' }>;
+
+/** The door waits a little once the last is through (`T.closeAfter` du storyboard). */
+const CLOSE_AFTER_MS = 150;
+/** A pile that does not stand within this time has its recruits in place, unwalked. */
+const SORTIE_WAIT_MS = 2000;
+
+/** **The pace of each recruit** (`T.men`, `T.vehicle` of the storyboard): what it waits behind
+ *  its door (`lead`), how long it walks to its rank (`roll`), how far behind the one before it
+ *  through the same door (`gap`, `@a-mesurer`). */
+type Pace = { lead: number; roll: number; gap: number; curve: (k: number) => number };
+const PACES: Readonly<Record<'infantry' | 'armor' | 'landTransport' | 'artillery', Pace>> = {
+  infantry: { lead: 300, roll: 3000, gap: 1000, curve: ease.march },
+  armor: { lead: 550, roll: 3200, gap: 1500, curve: ease.drive },
+  landTransport: { lead: 450, roll: 2800, gap: 1500, curve: ease.drive },
+  artillery: { lead: 600, roll: 3400, gap: 1500, curve: ease.push },
+};
+
 export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
@@ -447,6 +467,15 @@ export class MapEngine {
   private readonly maquettes: MaquetteLayer;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
+  /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
+  private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
+  /** The recruits on their way, whose pin follows the path when they are pinned (#268). */
+  private walks: Array<{
+    readonly pileId: string;
+    readonly alone: boolean;
+    readonly walk: Sequence<never>;
+    readonly since: number;
+  }> = [];
   private readonly eyeFrustum = new Frustum();
   private readonly eyeMatrix = new Matrix4();
   private readonly camps: CampLayer;
@@ -2518,12 +2547,83 @@ export class MapEngine {
     this.invalidate();
     switch (cue.kind) {
       case 'sortie':
-        this.sequences.play(this.maquettes, cue.siteId, barracksDoors(), performance.now());
+        // Its pile was just drawn again: the walk is laid out once the pile stands (`walkOut`).
+        this.sorties.push({ cue, since: performance.now() });
+        this.standing.inkArrival(cue.pileId);
         break;
       case 'descente':
         this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
         break;
     }
+  }
+
+  /**
+   * **The recruits of a barracks walk out** (#268): each new group from its door — a man by the
+   * door, a vehicle by the shed — to its place in the rank, the doors held open until the last
+   * has passed, the rank recentred at the arrival. Laid out once the pile stands; `false` until.
+   */
+  private walkOutOf({ cue, since }: (typeof this.sorties)[number], now: number): boolean {
+    const site = this.maquettes.siteOf(cue.siteId);
+    const pieces = this.standing.piecesOf(cue.pileId);
+    const ids = cue.groups.map((k) => `${cue.pileId}/${k}`);
+    const places = ids.map((id) => this.standing.placeOf(id));
+    if (site === null || pieces === null || places.some((place) => place === null)) return false;
+    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+    const box = { min: site.box.min.toArray(), max: site.box.max.toArray() };
+    const closing: { caserne?: number; remise?: number; motor?: number } = {};
+    const queued = { caserne: 0, remise: 0 };
+    const walks = ids.flatMap((id, n) => {
+      const place = places[n]!;
+      const role = pieces.groups[cue.groups[n]!]?.role;
+      const man = role === 'infantry';
+      const door = man ? 'caserne' : 'remise';
+      const [inside, out] = man
+        ? [site.marker('fx_entree'), site.marker('fx_sortie')]
+        : [site.marker('fx_entree_remise'), site.marker('fx_sortie_remise')];
+      const drawn = this.standing.pieceOf(id)?.box;
+      if (role === undefined || inside === null || out === null || !drawn) return [];
+      const size = drawn.getSize(new Vector3());
+      const rank = site.toModel(place.at);
+      const front = site.toModel(place.at.clone().add(place.front)).sub(rank).setY(0).normalize();
+      const path = wayOut({
+        inside: inside.toArray(),
+        out: out.toArray(),
+        rank: rank.toArray(),
+        front: front.toArray(),
+        length: Math.max(size.x, size.z) / metre,
+        box,
+      }).map((point) =>
+        site
+          .toBoard(new Vector3(...point))
+          .sub(place.at)
+          .toArray(),
+      );
+      const pace = PACES[role as keyof typeof PACES] ?? PACES.armor;
+      const start = pace.lead + queued[door]++ * pace.gap;
+      // A gun has no motor: it is pushed out.
+      if (!man && role !== 'artillery') closing.motor = Math.min(closing.motor ?? start, start);
+      const walk = walkOut({
+        path,
+        start,
+        ms: pace.roll,
+        curve: pace.curve,
+        stride: man,
+      });
+      // The door shuts once the last through it is at the foot of the steps, clear of the shed.
+      closing[door] = Math.max(closing[door] ?? 0, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
+      return [{ id, walk }];
+    });
+    if (walks.length > 0)
+      this.sequences.play(this.maquettes, cue.siteId, barracksDoors(closing), since, now);
+    let arrival = -1;
+    for (const { id, walk } of walks) {
+      if (!this.sequences.play(this.standing, id, walk, since, now)) continue;
+      const alone = pieces.groups.length === 1;
+      this.walks.push({ pileId: cue.pileId, alone, walk, since });
+      arrival = Math.max(arrival, since + walk.ms - now);
+    }
+    if (arrival >= 0) this.standing.arrive(cue.pileId, arrival);
+    return true;
   }
 
   /** In the eye's field, and at least `px` tall on the 900 px reference window. */
@@ -3187,6 +3287,7 @@ export class MapEngine {
       this.parachutes.active ||
       this.maquettes.settling ||
       this.sequences.active ||
+      this.walks.length > 0 ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -3252,6 +3353,17 @@ export class MapEngine {
     this.sequences.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.standing.orient(this.camera.position);
+    // A pile that never stands (a view gone, its pin far away) does not keep its recruits waiting.
+    this.sorties = this.sorties.filter(
+      (sortie) => !this.walkOutOf(sortie, now) && now - sortie.since < SORTIE_WAIT_MS,
+    );
+    this.walks = this.walks.filter(({ walk, since }) => now - since < walk.ms);
+    this.pins.walk(
+      this.walks.flatMap(({ pileId, alone, walk, since }) => {
+        const travel = walk.at(now - since).root?.travel;
+        return travel ? [{ id: pileId, alone, travel: new Vector3(...travel) }] : [];
+      }),
+    );
     const reading = this.standing.reading;
     const tone = this.verdict;
     this.aimRibbon.show(

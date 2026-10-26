@@ -203,6 +203,27 @@ describe('SequenceLayer', () => {
     expect(doorOf(host, 'a').rotation.y).toBeCloseTo(0.5);
   });
 
+  it("hangs a motor's breath on a marker while the pose asks for it", async () => {
+    const withMarker = rig();
+    const marker = new Group();
+    marker.name = 'fx_sortie_remise';
+    withMarker.add(marker);
+    const breathing: Sequence<'barracks'> = {
+      family: 'barracks',
+      ms: 1000,
+      at: (t) => (t < 1000 ? { fx_sortie_remise: { exhaust: [t / 1000, 1] } } : {}),
+    };
+    const { layer } = layerOf(true, () => Promise.resolve(withMarker));
+    const host = new FakeHost();
+    layer.play(host, 'a', breathing, 0);
+    await flush();
+    layer.step(500);
+    const puffs = host.copies.get('a')!.getObjectByName('fx_sortie_remise')!.children[0]!;
+    expect(puffs.children.some((puff) => puff.visible)).toBe(true);
+    layer.step(600);
+    expect(host.copies.get('a')!.getObjectByName('fx_sortie_remise')!.children).toHaveLength(1);
+  });
+
   describe('the whole copy', () => {
     const shared = new MeshStandardMaterial({ opacity: 0.8 });
     const withBody = (): Group => {
@@ -259,6 +280,74 @@ describe('SequenceLayer', () => {
       await flush();
       layer.step(500);
       expect(meshOf(host).material).toBe(shared);
+    });
+  });
+
+  describe('a piece that moves whole', () => {
+    /** The host draws its pieces in a pile turned a quarter, twice their size, off the origin. */
+    class PileHost extends FakeHost {
+      readonly pile = new Group();
+      drawn: Group | null = new Group();
+      constructor() {
+        super();
+        this.pile.position.set(10, 0, 0);
+        this.pile.rotation.y = Math.PI / 2;
+        this.pile.scale.setScalar(2);
+      }
+      copyOf() {
+        return this.drawn?.clone(true) ?? null;
+      }
+      override standIn(id: string, copy: Object3D | null) {
+        super.standIn(id, copy);
+        if (copy) this.pile.add(copy);
+      }
+    }
+    const walking: Sequence<never> = {
+      ms: 1000,
+      at: (t) => (t < 1000 ? { root: { travel: [0, 0, 4], heading: Math.PI, fade: 1 } } : {}),
+    };
+    const worldOf = (host: PileHost) =>
+      host.copies.get('a')!.children[0]!.getWorldPosition(new Vector3());
+
+    it('stands a clone of what the host draws in at once, posed at its time, without cooking', () => {
+      const cooked: string[] = [];
+      const layer = new SequenceLayer(
+        () => true,
+        (url) => (cooked.push(url), Promise.resolve(rig())),
+      );
+      const host = new PileHost();
+      layer.play(host, 'a', walking, 0, 500);
+      expect(cooked).toEqual([]);
+      expect(
+        worldOf(host)
+          .toArray()
+          .map((v) => +v.toFixed(6)),
+      ).toEqual([10, 0, 4]);
+    });
+
+    it('travels along the world axes and faces a world heading, whatever the pile turn and size', () => {
+      const { layer } = layerOf();
+      const host = new PileHost();
+      layer.play(host, 'a', walking, 0);
+      layer.step(500);
+      expect(
+        worldOf(host)
+          .toArray()
+          .map((v) => +v.toFixed(6)),
+      ).toEqual([10, 0, 4]);
+      const front = new Vector3(0, 0, 1).transformDirection(
+        host.copies.get('a')!.children[0]!.matrixWorld,
+      );
+      expect(front.x).toBeCloseTo(0);
+      expect(front.z).toBeCloseTo(-1);
+    });
+
+    it('does not play while the host has nothing drawn to clone', () => {
+      const { layer } = layerOf();
+      const host = new PileHost();
+      host.drawn = null;
+      layer.play(host, 'a', walking, 0);
+      expect(layer.active).toBe(false);
     });
   });
 });

@@ -237,8 +237,10 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');
 
   it('keeps the frames coming while a copy plays, and a cue starts from a stirring method', () => {
-    expect(barracksDoors().ms).toBeGreaterThan(SETTLE_MS);
-    expect(source).toMatch(/this\.maquettes\.settling \|\|\s+this\.sequences\.active/);
+    expect(barracksDoors({ caserne: 2000 }).ms).toBeGreaterThan(SETTLE_MS);
+    expect(source).toMatch(
+      /this\.maquettes\.settling \|\|\s+this\.sequences\.active \|\|\s+this\.walks\.length > 0/,
+    );
     const cue = source.slice(source.indexOf('  cue(cue: Cue)'));
     expect(cue.slice(0, cue.indexOf('\n  }\n'))).toMatch(
       /this\.invalidate\(\);[\s\S]*sequences\.play/,

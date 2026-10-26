@@ -1445,13 +1445,14 @@ export function WorldMap({
     for (const { at, km } of raisedReaches(before, outposts)) readyEngine?.inkReach(at, km);
   }, [outposts, readyEngine]);
 
-  // A recruit steps out of a barracks: its doors swing (ADR 0036). Nothing on the first view.
+  // A recruit steps out of its barracks' door and walks to its rank (#268). Nothing on the first view.
   const troopsKnown = useRef<ReadonlySet<string> | null>(null);
   useEffect(() => {
     const known = troopsKnown.current;
     troopsKnown.current = new Set(troops.map((troop) => troop.id));
     if (known === null) return;
-    for (const siteId of sortiesOf(known, standing)) readyEngine?.cue({ kind: 'sortie', siteId });
+    for (const sortie of sortiesOf(known, standing))
+      readyEngine?.cue({ kind: 'sortie', ...sortie });
   }, [troops, standing, readyEngine]);
 
   // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.

@@ -12,9 +12,31 @@ const pile = (id: string, at: StandingPile['at'], ...troopIds: string[]): Standi
 const barracks = { beside: 'building-barracks@2,48' };
 
 describe('sortiesOf', () => {
-  it('names the barracks a new troop stands at', () => {
-    expect(sortiesOf(new Set(['t1']), [pile('p', barracks, 't1', 't2')])).toEqual([
-      'building-barracks@2,48',
+  const grouped = (...groups: string[][]): StandingPile => ({
+    id: 'p',
+    at: barracks,
+    pieces: {
+      groups: groups.map((troopIds) => ({
+        role: 'infantry' as UnitRole,
+        troops: troopIds.length,
+        troopIds,
+        figures: [1],
+        wear: 'whole',
+      })),
+      troopIds: groups.flat(),
+      squad: groups.length > 1,
+    },
+  });
+
+  it('names the barracks a new troop stands at, its pile, and the groups that walk out', () => {
+    expect(sortiesOf(new Set(['t1']), [grouped(['t1'], ['t2'])])).toEqual([
+      { siteId: 'building-barracks@2,48', pileId: 'p', groups: [1] },
+    ]);
+  });
+
+  it('walks out no group a known troop is drawn in: the squad drawn whole by role', () => {
+    expect(sortiesOf(new Set(['t1']), [grouped(['t1', 't2'])])).toEqual([
+      { siteId: 'building-barracks@2,48', pileId: 'p', groups: [] },
     ]);
   });
 

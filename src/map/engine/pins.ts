@@ -59,6 +59,10 @@ const RING = { none: 0, hover: 1, held: 2, selected: 3 } as const;
 
 type Placed = { readonly pin: Pin; at: Vector3 | null };
 
+/** A pile pinned in the middle of a walk: how far its walker stands from its pin, on the board,
+ *  and whether it is the whole pile. */
+export type Walking = { readonly id: string; readonly travel: Vector3; readonly alone: boolean };
+
 type Mark = {
   readonly ids: ReadonlyArray<string>;
   readonly shape: Pin['shape'];
@@ -157,6 +161,7 @@ export class PinLayer {
   private held: string | null = null;
   private hovered: string | null = null;
   private carried: Vector3 | null = null;
+  private walking: ReadonlyArray<Walking> = [];
   private dirty = true;
   /** The eye and canvas the clusters were made for: a still camera redoes none. */
   private readonly lastEye = new Matrix4();
@@ -213,6 +218,12 @@ export class PinLayer {
     if (id !== this.held) this.dirty = true;
     this.held = id;
     this.carried = carriedAt;
+  }
+
+  /** **A recruit walks from its door to its rank under its pin** (#268, décision de Pierre du
+   *  23/10) : set at every frame of the walk, `[]` once done. */
+  walk(walking: ReadonlyArray<Walking>): void {
+    this.walking = walking;
   }
 
   /** **The designated piece** — a pile checked, a site opened: its pin wears a ring at the
@@ -312,6 +323,17 @@ export class PinLayer {
         }),
         trail,
       });
+    }
+    for (const { id, travel, alone } of this.walking) {
+      const k = this.marks.findIndex((mark) => mark.ids.length === 1 && mark.ids[0] === id);
+      if (k < 0) continue;
+      const home = this.marks[k]!;
+      const center = home.center.clone().add(travel);
+      const [sx, sy, inside] = screen(center);
+      if (!inside) continue;
+      // Alone, the pile is the walker; into a rank that stands, it walks beside its pin.
+      if (alone) this.marks[k] = { ...home, center, sx, sy };
+      else this.marks.push({ ...home, ids: [], center, sx, sy, ring: RING.none });
     }
     if (this.held !== null && this.carried !== null) {
       const [sx, sy, inside] = screen(this.carried);

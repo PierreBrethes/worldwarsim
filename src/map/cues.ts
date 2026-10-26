@@ -1,24 +1,39 @@
 import type { StandingPile } from './engine';
 
+/** **Une sortie de caserne** : où, dans quelle pile, et les groupes de la pile qui en sortent. */
+export type Sortie = {
+  readonly siteId: string;
+  readonly pileId: string;
+  /** Les groupes (`pieces.groups`) dont toutes les troupes sont neuves : ce qui marche de la
+   *  porte au rang. Une recrue fondue dans un groupe connu (une escouade dessinée par rôle) n'en
+   *  donne pas : la pile se pose comme elle est. */
+  readonly groups: ReadonlyArray<number>;
+};
+
 /**
- * **Les casernes dont sort une recrue** : l'id de maquette (`beside`) de chaque pile de caserne
- * qui porte une troupe que `known` ne connaissait pas. Une troupe connue qui rentre d'une marche
- * n'est pas une recrue ; en Blitz la recrue se pose sur un point, sans pile `beside`, et ne
- * donne rien.
+ * **Les casernes dont sort une recrue** : chaque pile de caserne (`beside`) qui porte une troupe
+ * que `known` ne connaissait pas. Une troupe connue qui rentre d'une marche n'est pas une recrue ;
+ * en Blitz la recrue se pose sur un point, sans pile `beside`, et ne donne rien.
  */
 export function sortiesOf(
   known: ReadonlySet<string>,
   piles: ReadonlyArray<StandingPile>,
-): ReadonlyArray<string> {
-  const sites = new Set<string>();
-  for (const { at, pieces } of piles)
-    if (
-      'beside' in at &&
-      at.beside.startsWith('building-barracks') &&
-      pieces.troopIds.some((id) => !known.has(id))
-    )
-      sites.add(at.beside);
-  return [...sites];
+): ReadonlyArray<Sortie> {
+  return piles.flatMap(({ id, at, pieces }) =>
+    'beside' in at &&
+    at.beside.startsWith('building-barracks') &&
+    pieces.troopIds.some((troop) => !known.has(troop))
+      ? [
+          {
+            siteId: at.beside,
+            pileId: id,
+            groups: pieces.groups.flatMap(({ troopIds }, k) =>
+              troopIds.every((troop) => !known.has(troop)) ? [k] : [],
+            ),
+          },
+        ]
+      : [],
+  );
 }
 
 type Seated = { readonly id: string; readonly carriedBy?: string | undefined };

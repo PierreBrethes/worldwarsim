@@ -13,6 +13,15 @@ Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur
 > ses modèles : prêtée sans boîte tant qu'elle n'est pas posée à l'échelle du plateau, la copie
 > prend la place du modèle à son arrivée.
 
+> **Précisée le 26/10/2026, au codage de la sortie de caserne** (#268) : une séquence sans
+> `family` déplace la pièce entière ; sa copie est un clone de ce que l'hôte dessine (`copyOf`,
+> l'escouade de trois hommes comprise), posé dès le signal, sans cuisson. La pose `root` y gagne
+> `travel` et `heading`, lus sur le plateau quel que soit le tour ou la taille de la pile, et
+> `stride`, la marche des hommes ; un marqueur `fx_*` porte `exhaust`, l'haleine d'un moteur. La
+> marche joue tant que la figurine se tient (`minPx` 0, le plancher la garde jusqu'à d ≈ 30) ;
+> passée à l'épingle en chemin, l'épingle suit le même chemin à la même heure (décision de Pierre
+> du 23/10), hors d'une grappe.
+
 ## Contexte
 
 Les modèles neufs portent leurs pièces mobiles nommées, à leur pivot : battants de la caserne,

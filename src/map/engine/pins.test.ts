@@ -109,6 +109,22 @@ describe('PinLayer — the pieces far away', () => {
     expect(layer.under(...screenOf(eye, paris))).toBeNull();
   });
 
+  it('walks a recruit pinned in the middle of its walk along the path (#268)', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = new PinLayer(frame, () => null);
+    layer.display([mine('a', paris), mine('b', lyon)]);
+    const travel = frame.projectLonLat(eastOfParis).sub(frame.projectLonLat(paris));
+    layer.walk([{ id: 'a', travel, alone: true }]);
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(layer.under(...screenOf(eye, eastOfParis))).toEqual({ kind: 'pin', id: 'a' });
+    expect(layer.under(...screenOf(eye, paris))).toBeNull();
+    // Into a rank that already stands: the rank keeps its pin, the walker has its own.
+    layer.walk([{ id: 'b', travel, alone: false }]);
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(layer.under(...screenOf(eye, lyon))).toEqual({ kind: 'pin', id: 'b' });
+    expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'a' });
+  });
+
   it('stands for a pile as soon as its piece is too small to read (ADR 0035)', () => {
     const eye = eyeOver(paris, 20);
     const layer = laidOut([mine('a', paris)], eye);

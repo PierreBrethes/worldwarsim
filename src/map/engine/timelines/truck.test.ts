@@ -24,7 +24,8 @@ describe('tailgateDrop', () => {
   });
 
   it('names only parts of its family, and outlasts the settle window', () => {
-    for (const name of Object.keys(drop.at(300))) expect(isRigPart(drop.family, name)).toBe(true);
+    for (const name of Object.keys(drop.at(300)))
+      expect(isRigPart('landTransport', name)).toBe(true);
     expect(drop.ms).toBeGreaterThan(1500);
   });
 });

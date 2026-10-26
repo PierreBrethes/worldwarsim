@@ -81,6 +81,8 @@ type Model = {
   readonly box: Box3;
   /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
   readonly chimneys: ReadonlyArray<Vector3>;
+  /** Every `fx_*` marker, in its own units: a door a recruit comes out of (`markersOf`). */
+  readonly markers: ReadonlyMap<string, Vector3>;
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
@@ -97,8 +99,11 @@ function modelOf(url: string, metres?: number): Promise<Model> {
         box.union(geometry.boundingBox!);
       }
       const chimneys: Vector3[] = [];
+      const markers = new Map<string, Vector3>();
       scene.traverse((node) => {
-        if (node.name.startsWith('fx_smoke')) chimneys.push(node.getWorldPosition(new Vector3()));
+        if (!node.name.startsWith('fx_')) return;
+        markers.set(node.name, node.getWorldPosition(new Vector3()));
+        if (node.name.startsWith('fx_smoke')) chimneys.push(markers.get(node.name)!.clone());
       });
       if (chimneys.length === 0) {
         const top = box.getCenter(new Vector3());
@@ -107,7 +112,7 @@ function modelOf(url: string, metres?: number): Promise<Model> {
       const size = box.getSize(new Vector3());
       // A model in metres is drawn at one constant scale (ADR 0035): its box, bent by a flagpole
       // or a shed, no longer sets the size of its walls.
-      return { parts, scale: 1 / (metres ?? Math.max(size.x, size.z)), box, chimneys };
+      return { parts, scale: 1 / (metres ?? Math.max(size.x, size.z)), box, chimneys, markers };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -679,6 +684,33 @@ export class MaquetteLayer implements SequenceHost {
     )
       return null;
     return { url: dressed.lot.url, box: this.boxOf(id)?.clone() ?? null };
+  }
+
+  /** **A maquette's own frame on the board**, drawn whole: its markers (`fx_sortie`…) and
+   *  bounds in its model's units — metres, for a model in metres —, and the way between the two.
+   *  What a recruit's way out of its door is laid on (#268). */
+  siteOf(id: string): {
+    marker(name: string): Vector3 | null;
+    readonly box: Box3;
+    toBoard(point: Vector3): Vector3;
+    toModel(point: Vector3): Vector3;
+  } | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    if (dressed === undefined || !model) return null;
+    const { item } = dressed;
+    const placed = new Matrix4().compose(
+      item.at,
+      item.turn,
+      new Vector3().setScalar(sizeOf(model, item)),
+    );
+    const back = placed.clone().invert();
+    return {
+      marker: (name) => model.markers.get(name)?.clone() ?? null,
+      box: model.box,
+      toBoard: (point) => point.clone().applyMatrix4(placed),
+      toModel: (point) => point.clone().applyMatrix4(back),
+    };
   }
 
   /** The copy takes the instance's place: the instance shrinks to nothing at its own point, the
