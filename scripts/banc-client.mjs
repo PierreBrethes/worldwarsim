@@ -70,7 +70,9 @@ const layered = args.includes('--couches');
  *  `npm run demo:mondiale -- --epingles`, mille piles sur la France. */
 const pinsOnly = args.includes('--epingles');
 /** `--sequences` : le démarrage, puis la caserne de la démo cadrée au rapproché — son repos 5 s,
- *  puis la sortie d'une recrue (`mapEngine.cue`, ADR 0036) : les appels de dessin de la copie. */
+ *  puis la sortie d'une recrue (`mapEngine.cue`, ADR 0036) : les appels de dessin de la copie ;
+ *  puis le camion de `npm run demo:mondiale -- --passagers`, au plus près que le zoom permet : son
+ *  repos 5 s, puis la chute de son hayon (`descente`). */
 const sequencesOnly = args.includes('--sequences');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
@@ -827,6 +829,35 @@ async function play(profileName, pass) {
     await gesture(
       'sortie de caserne',
       () => page.evaluate((siteId) => window.mapEngine.cue?.({ kind: 'sortie', siteId }), site[0]),
+      3000,
+    );
+    // Le camion chargé de la démo (`--passagers`) : sa pile, et le groupe qui est le camion.
+    const truck = await page.evaluate(() => {
+      for (const [id, entry] of window.mapEngine.standing.dressed) {
+        const k = entry.pieces.groups.findIndex((g) => g.role === 'landTransport' && g.aboard);
+        if (k >= 0 && 'lonLat' in entry.at)
+          return { groupId: `${id}/${k}`, lonLat: entry.at.lonLat };
+      }
+      return null;
+    });
+    if (truck === null) throw new Error('--sequences : aucun camion chargé (demo --passagers)');
+    await page.evaluate(frameAt, [truck.lonLat, 3]);
+    await page.waitForTimeout(5000);
+    const lent = await page.evaluate(
+      (id) => window.mapEngine.standing.pieceOf(id) !== null,
+      truck.groupId,
+    );
+    if (!lent) throw new Error(`--sequences : ${truck.groupId} n'est pas dessiné au rapproché`);
+    await gesture('camion repos 5 s', () => page.waitForTimeout(5000), 0);
+    await gesture(
+      'hayon',
+      async () => {
+        const playing = await page.evaluate((groupId) => {
+          window.mapEngine.cue?.({ kind: 'descente', groupId });
+          return window.mapEngine.sequences.playing.length;
+        }, truck.groupId);
+        if (playing === 0) throw new Error('--sequences : le hayon ne joue pas');
+      },
       3000,
     );
   };
