@@ -1,6 +1,14 @@
-import { Box3, Group, type Object3D, Vector3 } from 'three';
+import {
+  Box3,
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  type Object3D,
+  Vector3,
+} from 'three';
 import { describe, expect, it } from 'vitest';
-import { MAX_PLAYING, type Sequence, SequenceLayer, type SequenceHost } from './sequences';
+import { MAX_PLAYING, PLAY_PX, type Sequence, SequenceLayer, type SequenceHost } from './sequences';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -119,6 +127,17 @@ describe('SequenceLayer', () => {
     expect(host.calls).toEqual([]);
   });
 
+  it("judges the size on screen by the sequence's own least size, the buildings' by default", () => {
+    const asked: number[] = [];
+    const layer = new SequenceLayer(
+      (_, px) => (asked.push(px), true),
+      () => Promise.resolve(rig()),
+    );
+    layer.play(new FakeHost(), 'a', turning, 0);
+    layer.play(new FakeHost(), 'b', { ...turning, minPx: 30 }, 0);
+    expect(asked).toEqual([PLAY_PX, 30]);
+  });
+
   it('plays a piece once at a time, and at most MAX_PLAYING pieces', async () => {
     const { layer } = layerOf();
     const host = new FakeHost();
@@ -164,5 +183,64 @@ describe('SequenceLayer', () => {
     state.sees = false;
     layer.step(10);
     expect(layer.active).toBe(false);
+  });
+
+  describe('the whole copy', () => {
+    const shared = new MeshStandardMaterial({ opacity: 0.8 });
+    const withBody = (): Group => {
+      const root = rig();
+      root.add(new Mesh(new BoxGeometry(), shared));
+      return root;
+    };
+    const leaving: Sequence<'barracks'> = {
+      family: 'barracks',
+      ms: 1000,
+      at: (t) => (t < 1000 ? { root: { shift: [0, 0, t / 100], turn: [0, 1, 0], fade: 0.5 } } : {}),
+    };
+    const meshOf = (host: FakeHost) => {
+      let found: Mesh | null = null;
+      host.copies.get('a')!.traverse((node) => (node as Mesh).isMesh && (found = node as Mesh));
+      return found!;
+    };
+
+    it('moves and turns the rig, not the holder the host places', async () => {
+      const { layer } = layerOf(true, () => Promise.resolve(withBody()));
+      const host = new FakeHost();
+      layer.play(host, 'a', leaving, 0);
+      await flush();
+      layer.step(500);
+      const holder = host.copies.get('a')!;
+      expect(holder.position.z).toBe(0);
+      const rigged = holder.children[0]!;
+      expect(rigged.position.z).toBeCloseTo(5);
+      expect(rigged.rotation.y).toBeCloseTo(1);
+    });
+
+    it('fades on materials of its own, and frees them at the end', async () => {
+      const { layer } = layerOf(true, () => Promise.resolve(withBody()));
+      const host = new FakeHost();
+      layer.play(host, 'a', leaving, 0);
+      await flush();
+      layer.step(500);
+      const own = meshOf(host).material as MeshStandardMaterial;
+      expect(own).not.toBe(shared);
+      expect(own.transparent).toBe(true);
+      expect(own.opacity).toBeCloseTo(0.4);
+      expect(shared.opacity).toBe(0.8);
+      expect(shared.transparent).toBe(false);
+      let disposed = false;
+      own.addEventListener('dispose', () => (disposed = true));
+      layer.step(1000);
+      expect(disposed).toBe(true);
+    });
+
+    it('leaves the materials alone when nothing fades', async () => {
+      const { layer } = layerOf(true, () => Promise.resolve(withBody()));
+      const host = new FakeHost();
+      layer.play(host, 'a', turning, 0);
+      await flush();
+      layer.step(500);
+      expect(meshOf(host).material).toBe(shared);
+    });
   });
 });

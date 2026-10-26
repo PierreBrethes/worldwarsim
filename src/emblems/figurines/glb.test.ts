@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
+import { RIG_PARTS, type RigFamily } from '../rigs';
 import { FIGURINE_FILES } from './manifest';
 
 const PLANE = [
@@ -148,5 +149,27 @@ describe.runIf(files.length > 0)('sculpted figurines', () => {
       ).toBe(true);
     // The junk has no second boat; the other cargo ships carry both (`byNation` of `EXPECT`).
     if (role === 'cargo' && !name.startsWith('china')) expect(names.has('boat_right')).toBe(true);
+  });
+
+  const rigged = files.filter(([, role]) => role in RIG_PARTS);
+  /** What an articulated copy keeps (ADR 0036 §11): each name of `RIG_PARTS` is in the file, and
+   *  one node carries it — a name twice would move one of the two. */
+  it.each(rigged)('%s carries each name of its articulated copy once', (_, role, url) => {
+    const names = (readGlb(url).nodes ?? []).map((node) => node.name);
+    for (const part of RIG_PARTS[role as RigFamily]) {
+      const found = names.filter((name) =>
+        part.endsWith('*') ? name?.startsWith(part.slice(0, -1)) : name === part,
+      );
+      expect(found.length, part).toBeGreaterThan(0);
+      expect(new Set(found).size, part).toBe(found.length);
+    }
+  });
+
+  it('unrolls the patterns by file: 4 hatches, 5 in the American ship, 1 in the junk', () => {
+    const hatches = (nation: string) =>
+      (readGlb(`src/emblems/figurines/${nation}/cargo.glb`).nodes ?? []).filter((node) =>
+        node.name?.startsWith('hold_hatch_'),
+      ).length;
+    expect([hatches('france'), hatches('usa'), hatches('china')]).toEqual([4, 5, 1]);
   });
 });

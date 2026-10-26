@@ -328,7 +328,8 @@ describe('maquettes', () => {
     );
   });
 
-  it.each(Object.entries(RIG_PARTS))(
+  // The vehicles' parts are held by `glb.test.ts`.
+  it.each(Object.entries(RIG_PARTS).filter(([family]) => family in BUILDING_MAQUETTES))(
     '%s: each rig part is carried by one node',
     (family, parts) => {
       const gltf = readGlb(BUILDING_MAQUETTES[family as BuildingKey]!);

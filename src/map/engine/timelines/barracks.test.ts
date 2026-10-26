@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RIG_PARTS } from '@/emblems/rigs';
+import { isRigPart } from '@/emblems/rigs';
 import { barracksDoors } from './barracks';
 
 describe('barracksDoors', () => {
@@ -26,7 +26,7 @@ describe('barracksDoors', () => {
   });
 
   it('names only parts of its family, and outlasts the settle window', () => {
-    for (const name of Object.keys(doors.at(300))) expect(RIG_PARTS[doors.family]).toContain(name);
+    for (const name of Object.keys(doors.at(300))) expect(isRigPart(doors.family, name)).toBe(true);
     expect(doors.ms).toBeGreaterThan(1500);
   });
 });
