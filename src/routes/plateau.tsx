@@ -419,8 +419,7 @@ function BoardContent({
     [view, hand],
   );
   /** Ce que le moteur porte sous le pointeur : la pile posée ou la garnison d'où la main l'a
-   *  prise, par l'identifiant que porte sa pile ; un avant-poste n'a pas de figurines, la main y
-   *  est seule. */
+   *  prise, par l'identifiant que porte sa pile. */
   const forbidden = forbiddenGroundOf(column?.rule.roles ?? []);
   const holding = useMemo(
     () =>
@@ -871,7 +870,7 @@ function BoardContent({
 
   /**
    * **L'étiquette d'une adresse à moi** : une pile posée se lève entière (ADR 0026 §6) ; un
-   * avant-poste, qui n'a pas de figurines, ouvre sa garnison, d'où « préparer » met la pile en
+   * avant-poste ouvre sa garnison (ses figurines, elles, lèvent la pile), d'où « préparer » met la pile en
    * main. **Un observateur ne lève rien** (décision du 31/08) : il lit la pile au panneau.
    */
   const openStack = useCallback(
@@ -1451,8 +1450,8 @@ function BoardContent({
   }, [arcs, loadedAt, captures, mode, ink, markers, knownRegionById]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
-   *  longuement (POC du 16/10). La garnison d'un bâtiment se lève par ses figurines comme une
-   *  pile posée. */
+   *  longuement (POC du 16/10). La garnison d'un bâtiment ou d'un avant-poste se lève par ses
+   *  figurines comme une pile posée. */
   const pileOf = useCallback(
     (pileId: string) => {
       const pile = markers.find(
@@ -1462,11 +1461,16 @@ function BoardContent({
       const building = view.me.buildings.find(
         (candidate) => stationKeyOf({ kind: 'building', buildingId: candidate.id }) === pileId,
       );
+      const outpost = view.me.outposts.find(
+        (candidate) => stationKeyOf({ kind: 'outpost', outpostId: candidate.id }) === pileId,
+      );
       const station: TroopStation | undefined =
-        pile?.station ?? (building && { kind: 'building', buildingId: building.id });
+        pile?.station ??
+        (building && { kind: 'building', buildingId: building.id }) ??
+        (outpost && { kind: 'outpost', outpostId: outpost.id });
       return station === undefined || station.kind === 'home' ? null : { station, pile };
     },
-    [markers, view.me.buildings],
+    [markers, view.me.buildings, view.me.outposts],
   );
   const pileClickOf = useCallback(
     (hit: PieceClick, single = false): PileClick | null => {

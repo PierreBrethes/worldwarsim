@@ -450,31 +450,34 @@ function reloadOf(held: ReadonlyArray<TroopView>): { reloadUntil?: number } {
 }
 
 /**
- * **Les garnisons de mes bâtiments, au pied de leur maquette** (ADR 0026 §5). Mes troupes
- * seulement : la garnison d'un autre ne sort jamais du serveur. Une maquette qui n'est pas debout
- * — chantier, bâtiments masqués — n'en porte aucune, et le moteur ne la pose pas.
+ * **Les garnisons de mes bâtiments et de mes avant-postes** (ADR 0026 §5). Mes troupes
+ * seulement : la garnison d'un autre ne sort jamais du serveur. Un bâtiment se garnit au pied de
+ * sa maquette, et n'en porte aucune quand elle n'est pas debout — chantier, bâtiments masqués ;
+ * un avant-poste n'a pas de maquette, sa garnison se dresse à son point, chantier compris.
  */
 function garrisonPiles(
   me: PlayerView['me'],
   marching: ReadonlySet<string>,
 ): ReadonlyArray<StandingPile> {
-  return me.buildings.flatMap((building) => {
+  const pile = (station: TroopStation, at: StandingPile['at']): ReadonlyArray<StandingPile> => {
     // The station's key, as `holding` names the pile a hand was taken from.
-    const id = stationKeyOf({ kind: 'building', buildingId: building.id });
+    const id = stationKeyOf(station);
     const troops = troopsAt(me, id, marching);
-    return troops.length === 0
-      ? []
-      : [
-          {
-            id,
-            at:
-              building.key === PROJECTION_BY_DOMAIN.sea
-                ? { beside: buildingLabelId(building), quay: building.point }
-                : { beside: buildingLabelId(building) },
-            pieces: pilePieces(troops),
-          },
-        ];
-  });
+    return troops.length === 0 ? [] : [{ id, at, pieces: pilePieces(troops) }];
+  };
+  return [
+    ...me.buildings.flatMap((building) =>
+      pile(
+        { kind: 'building', buildingId: building.id },
+        building.key === PROJECTION_BY_DOMAIN.sea
+          ? { beside: buildingLabelId(building), quay: building.point }
+          : { beside: buildingLabelId(building) },
+      ),
+    ),
+    ...me.outposts.flatMap((outpost) =>
+      pile({ kind: 'outpost', outpostId: outpost.id }, { lonLat: outpost.lonLat }),
+    ),
+  ];
 }
 
 function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {

@@ -93,6 +93,23 @@ describe('PinLayer — the pieces far away', () => {
     expect(layer.under(...screenOf(eye, paris))).toBeNull();
   });
 
+  it('keeps an outpost by its pin at every distance: it has no piece to give way to (#296)', () => {
+    const outpost: Pin = { ...mine('o', paris), shape: 'outpost' };
+    for (const distance of [3, 10, 30, 80]) {
+      const eye = eyeOver(paris, distance);
+      const layer = new PinLayer(
+        frame,
+        () => null,
+        false,
+        () => {},
+        () => null,
+      );
+      layer.display([outpost]);
+      layer.layout(eye, W, H, new Map(), new Map());
+      expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'o' });
+    }
+  });
+
   it('stands where a ring carried its maquette, not on the point the maquette left', () => {
     const eye = eyeOver(paris, 120);
     const layer = new PinLayer(
