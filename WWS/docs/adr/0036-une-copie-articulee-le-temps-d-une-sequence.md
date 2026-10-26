@@ -5,8 +5,9 @@ appartient au bâtiment vit dans son modèle) et le contrat « Carte à la deman
 Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur pivot, drapeau masqué.
 
 > **Précisée le 26/10/2026, au codage des piles** (#289) : le seuil du rapproché (§8) est celui de
-> la séquence, `Sequence.minPx`, `PLAY_PX` à défaut. Le zoom s'arrête à d = 3, où un camion ne lit
-> que 34 px : à 150 px, son hayon ne jouerait jamais. `@a-mesurer` : 30 px pour le hayon. La
+> la séquence, `Sequence.minPx`, `PLAY_PX` à défaut. Le zoom s'arrête à d = 3, où un camion lit
+> quelque 50 px à l'écran (34 selon `seenBig`, qui lit la distance de l'œil reculé sur la fenêtre de
+> référence) : à 150 px, son hayon ne jouerait jamais. `@a-mesurer` : 30 px pour le hayon. La
 > pose `root` déplace la copie dans un support que l'hôte place (la matrice d'un bâtiment est écrite
 > par l'hôte à chaque image). Une pile qu'une vue vient de redessiner (une troupe descend) charge
 > ses modèles : prêtée sans boîte tant qu'elle n'est pas posée à l'échelle du plateau, la copie
