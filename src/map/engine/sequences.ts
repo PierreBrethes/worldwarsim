@@ -72,7 +72,9 @@ function articulatedOf(url: string, family: RigFamily): Promise<Group> {
   const key = `${url} ${family}`;
   let rig = cooked.get(key);
   if (!rig) {
-    rig = sceneOf(url).then((scene) => bakedRig(scene, (node) => isRigPart(family, node.name) || movesOnItsOwn(node)));
+    rig = sceneOf(url).then((scene) =>
+      bakedRig(scene, (node) => isRigPart(family, node.name) || movesOnItsOwn(node)),
+    );
     cooked.set(key, rig);
   }
   return rig;
