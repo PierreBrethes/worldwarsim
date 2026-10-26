@@ -290,13 +290,11 @@ export function pileObject(
     if (plume === null) return;
     const smoke = new Smoke(plume);
     smokes.push(smoke);
-    void figurine.ready.then(
-      () => {
-        figurine.object.getObjectByName('fx_smoke')?.add(smoke.object);
-        if (group.wear === 'burning') blacken(figurine.object);
-      },
-      () => {},
-    );
+    // On the model drawn, and on any copy a sequence stands in for it: the plume follows.
+    figurine.dress?.((model, origin) => {
+      if (origin) model.getObjectByName('fx_smoke')?.add(smoke.object);
+      if (group.wear === 'burning') blacken(model);
+    });
   });
   if (pieces.squad) object.add(squadMarks(layout, nation, pieces.count));
   const margin = GROUP_SPACING * 0.62;
@@ -847,6 +845,15 @@ export class StandingLayer implements SequenceHost {
     this.changed();
   }
 
+  /** Takes back every copy stood in the groups of a pile: its sequence ends on its next step. */
+  private recall(pileId: string): void {
+    for (const [id, figurine] of this.stoodIn)
+      if (id.slice(0, id.lastIndexOf('/')) === pileId) {
+        figurine.standIn?.(null);
+        this.stoodIn.delete(id);
+      }
+  }
+
   /** The troops of the piece under `ray`, among the piles standing in sight. */
   pick(ray: Raycaster, { under = false }: { under?: boolean } = {}): PiecePick | null {
     let copy: { distance: number; pick: PieceHold } | null = null;
@@ -973,6 +980,8 @@ export class StandingLayer implements SequenceHost {
     }
     const entry = this.dressed.get(held.pileId);
     if (entry === undefined) return;
+    // A sequence's copy gives the model back first: the model is what is washed out.
+    this.recall(held.pileId);
     if (entry.ready) wash(entry.object, true);
     const copy = pileObject(
       this.nation,

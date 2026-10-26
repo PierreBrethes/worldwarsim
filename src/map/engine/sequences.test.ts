@@ -185,6 +185,24 @@ describe('SequenceLayer', () => {
     expect(layer.active).toBe(false);
   });
 
+  it('leaves what is not a rig part to its own: a hub that spins, a marker with smoke under it', async () => {
+    const withHub = rig();
+    const hub = new Group();
+    hub.name = 'prop';
+    const marker = new Group();
+    marker.name = 'fx_smoke';
+    marker.add(new Group().add(new Group()));
+    withHub.add(hub, marker);
+    const { layer } = layerOf(true, () => Promise.resolve(withHub));
+    const host = new FakeHost();
+    layer.play(host, 'a', turning, 0);
+    await flush();
+    host.copies.get('a')!.getObjectByName('prop')!.rotation.z = 2;
+    layer.step(500);
+    expect(host.copies.get('a')!.getObjectByName('prop')!.rotation.z).toBe(2);
+    expect(doorOf(host, 'a').rotation.y).toBeCloseTo(0.5);
+  });
+
   describe('the whole copy', () => {
     const shared = new MeshStandardMaterial({ opacity: 0.8 });
     const withBody = (): Group => {

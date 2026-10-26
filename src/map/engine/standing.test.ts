@@ -24,7 +24,10 @@ vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
   GLTFLoader: class {
     loadAsync() {
       return Promise.resolve({
-        scene: new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial())),
+        scene: new Group().add(
+          new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()),
+          Object.assign(new Group(), { name: 'fx_smoke' }),
+        ),
       });
     }
   },
@@ -332,6 +335,7 @@ describe('a pile lent to a sequence', () => {
     expect(layer.pieceOf(TRUCK)).toBeNull();
     layer.hold(null);
     expect(layer.pieceOf(TRUCK)).not.toBeNull();
+    layer.standIn(TRUCK, new Group());
     // A truck gone from burning to smoking is drawn again: other figurines, the loan is over.
     layer.display([
       {
@@ -342,5 +346,82 @@ describe('a pile lent to a sequence', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     layer.orient(eye);
     expect(layer.pieceOf(TRUCK)).toBeNull();
+  });
+
+  describe('what wears on the model', () => {
+    const smoking = (pieces = pilePieces([{ ...troop('landTransport'), strength: 50 }])) => ({
+      ...pileOf('landTransport'),
+      pieces,
+    });
+    const burning = () => smoking(pilePieces([{ ...troop('landTransport'), strength: 10 }]));
+    const copyWithMarker = () =>
+      new Group().add(
+        new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()),
+        Object.assign(new Group(), { name: 'fx_smoke' }),
+      );
+    const dressed = (layer: StandingLayer) =>
+      (layer as unknown as { dressed: Map<string, { smokes: Array<{ object: Group }> }> }).dressed;
+    const fresh = (pile: ReturnType<typeof smoking>) => {
+      const layer = new StandingLayer(
+        frame,
+        () => {},
+        () => null,
+      );
+      layer.setNation('france');
+      layer.display([pile]);
+      return layer;
+    };
+
+    it('lets the plume follow the copy, and come back with the model', async () => {
+      const layer = fresh(smoking());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(eye);
+      const plume = dressed(layer).get('p')!.smokes[0]!.object;
+      const home = plume.parent;
+      const copy = copyWithMarker();
+      layer.standIn(TRUCK, copy);
+      expect(plume.parent).toBe(copy.getObjectByName('fx_smoke'));
+      layer.standIn(TRUCK, null);
+      expect(plume.parent).toBe(home);
+    });
+
+    it('puts the plume and the char on the model drawn, not on a copy that came first', async () => {
+      const layer = fresh(burning());
+      const copy = copyWithMarker();
+      layer.standIn(TRUCK, copy);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(eye);
+      const plume = dressed(layer).get('p')!.smokes[0]!.object;
+      layer.standIn(TRUCK, null);
+      const model = layer.group.getObjectByName('fx_smoke')!.parent!;
+      expect(plume.parent).toBe(model.getObjectByName('fx_smoke'));
+      const hull = (root: Group) =>
+        (root.children.find((c) => (c as Mesh).isMesh) as Mesh).material;
+      const [origin, plain] = [hull(model as Group), copy.children[0] as Mesh];
+      expect(origin).toBeDefined();
+      // The copy was charred as well while it stood in.
+      expect(plain.material).not.toBe(origin);
+    });
+
+    it('gives the washed-out model back washed when the pile is taken mid-sequence', async () => {
+      const layer = fresh(smoking());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(eye);
+      const copy = copyWithMarker();
+      layer.standIn(TRUCK, copy);
+      layer.hold({ pileId: 'p', troopIds: ['landTransport'] });
+      expect(copy.parent).toBeNull();
+      const meshOf = () => {
+        const found: Mesh[] = [];
+        layer.group.traverse((n) => (n as Mesh).isMesh && found.push(n as Mesh));
+        return found.find(
+          (m) => m.geometry.type === 'BoxGeometry' && m.userData.grip === undefined,
+        )!;
+      };
+      expect(meshOf().userData.unwashed).toBeDefined();
+      // The sequence finishes on its next step: nothing to give back twice.
+      layer.standIn(TRUCK, null);
+      expect(meshOf().userData.unwashed).toBeDefined();
+    });
   });
 });

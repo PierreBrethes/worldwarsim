@@ -131,6 +131,10 @@ export type Figurine = {
   /** A copy takes the place of the model it is drawn with, until `null` gives it back
    *  (ADR 0036 §5). Asked before `ready`, it takes its place when the model lands. */
   standIn?(copy: Object3D | null): void;
+  /** What wears on the model — a plume on its `fx_smoke`, a charred hull — is put by `fn` on the
+   *  model drawn once it lands (`origin`), and on every copy that stands in for it. The plume's
+   *  own parent follows the copy, whatever `fn` does (`standIn`). */
+  dress?(fn: (model: Object3D, origin: boolean) => void): void;
   /** Turns whatever spins on the model (`prop*`), and nothing else. */
   spin(elapsedSeconds: number): void;
   /** Turns its back to the eye rather than its front to the road: an enemy block (ADR 0026 §4). */
@@ -152,7 +156,7 @@ export function sceneOf(url: string): Promise<Object3D> {
 const MOVING = new Set<string>(JOINTS);
 
 /** What the code turns, poses or hangs on by name: a joint, a hub, a marker (`fx_smoke`…). */
-function movesOnItsOwn(node: Object3D): boolean {
+export function movesOnItsOwn(node: Object3D): boolean {
   if (MOVING.has(node.name) || node.name.startsWith('fx_')) return true;
   return node.name.startsWith('prop') && !node.parent?.name.startsWith('prop');
 }
@@ -210,12 +214,29 @@ export function figurineFor(
   /** The clone a lone model is drawn with, kept to be set back where a copy stood in. */
   let drawn: Object3D | null = null;
   let standing: Object3D | null = null;
+  const dressers: Array<(model: Object3D, origin: boolean) => void> = [];
+  const spinning: Object3D[] = [];
+  const markers = (root: Object3D): Map<string, Object3D> => {
+    const found = new Map<string, Object3D>();
+    root.traverse((part) => part.name.startsWith('fx_') && found.set(part.name, part));
+    return found;
+  };
+  /** What hangs on a marker (smoke) goes to the marker of the same name on the other model. */
+  const carry = (from: Object3D, to: Object3D): void => {
+    const into = markers(to);
+    for (const [name, marker] of markers(from))
+      for (const hung of [...marker.children]) into.get(name)?.add(hung);
+  };
   const standIn = (copy: Object3D | null): void => {
+    if (standing !== null && drawn !== null) carry(standing, drawn);
     standing?.removeFromParent();
     standing = copy;
+    spinning.length = 0;
     if (drawn === null) return;
     if (copy === null) model.add(drawn);
     else {
+      for (const fn of dressers) fn(copy, false);
+      carry(drawn, copy);
       drawn.removeFromParent();
       model.add(copy);
     }
@@ -230,6 +251,7 @@ export function figurineFor(
       model.scale.setScalar(span / measureOf(scenes[0]!, role));
       drawn = role === 'infantry' ? squadOf(makers) : makers[0]!.make();
       model.add(drawn);
+      for (const fn of dressers) fn(drawn, true);
       // A copy asked for while the file was loading takes its place now.
       if (standing !== null) standIn(standing);
     },
@@ -241,13 +263,17 @@ export function figurineFor(
   // A moving pawn never waits on `ready`: its failure is logged above, not left unhandled.
   ready.catch(() => undefined);
 
-  const spinning: Object3D[] = [];
   return {
     object,
     span,
     ready,
     ...(role === 'infantry' ? {} : { url: files[0]! }),
     standIn,
+    dress(fn) {
+      dressers.push(fn);
+      if (drawn !== null) fn(drawn, true);
+      if (standing !== null) fn(standing, false);
+    },
     spin(elapsedSeconds) {
       // Only the hub turns: its blades and cone ride along, and turning them too would twist
       // each on its own axis.

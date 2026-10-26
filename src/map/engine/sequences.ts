@@ -11,7 +11,7 @@ import {
 import type { MapMotion } from '@/domain/map-motion';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
 import { bakedRig } from './baking';
-import { sceneOf } from './figurines/figurine';
+import { movesOnItsOwn, sceneOf } from './figurines/figurine';
 
 type Vec3 = readonly [x: number, y: number, z: number];
 
@@ -72,7 +72,7 @@ function articulatedOf(url: string, family: RigFamily): Promise<Group> {
   const key = `${url} ${family}`;
   let rig = cooked.get(key);
   if (!rig) {
-    rig = sceneOf(url).then((scene) => bakedRig(scene, (node) => isRigPart(family, node.name)));
+    rig = sceneOf(url).then((scene) => bakedRig(scene, (node) => isRigPart(family, node.name) || movesOnItsOwn(node)));
     cooked.set(key, rig);
   }
   return rig;
@@ -139,11 +139,15 @@ export class SequenceLayer {
       (rig) => {
         if (playing.over) return;
         const posed = rig.clone(true);
-        posed.traverse((node) =>
-          playing.rests.set(node, {
-            position: node.position.clone(),
-            quaternion: node.quaternion.clone(),
-          }),
+        // Only what a pose moves has a rest: a hub that `spin` turns, a marker that hangs smoke,
+        // are left to their own.
+        posed.traverse(
+          (node) =>
+            (node === posed || isRigPart(sequence.family, node.name)) &&
+            playing.rests.set(node, {
+              position: node.position.clone(),
+              quaternion: node.quaternion.clone(),
+            }),
         );
         const copy = new Group().add(posed);
         playing.rig = posed;
@@ -192,12 +196,14 @@ export class SequenceLayer {
 
   private pose(playing: Playing, pose: Record<string, PartPose | undefined>): void {
     const walk = (node: Object3D, fade: number): void => {
-      const rest = playing.rests.get(node)!;
-      node.position.copy(rest.position);
-      node.quaternion.copy(rest.quaternion);
-      const own = pose[node === playing.rig ? 'root' : node.name];
-      if (own?.shift) node.position.add(new Vector3(...own.shift));
-      if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+      const rest = playing.rests.get(node);
+      const own = rest && pose[node === playing.rig ? 'root' : node.name];
+      if (rest !== undefined) {
+        node.position.copy(rest.position);
+        node.quaternion.copy(rest.quaternion);
+        if (own?.shift) node.position.add(new Vector3(...own.shift));
+        if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+      }
       const seen = fade * (own?.fade ?? 1);
       if ((node as Mesh).isMesh) this.fadeMesh(playing, node as Mesh, seen);
       for (const child of node.children) walk(child, seen);
