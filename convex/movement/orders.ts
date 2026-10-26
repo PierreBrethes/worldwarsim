@@ -20,6 +20,7 @@ import {
   movementSlots,
   refusalDetails,
   refusalOf,
+  withoutOrigin,
   landCostOf,
   routeModeOf,
   type Column,
@@ -620,6 +621,7 @@ export async function columnOf(
     roles: troops.map((troop) => troop.role),
     myRegionIds: new Set(buildings.map((building) => building.regionId)),
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
+    ...(typeof departure.stationId === 'string' ? { originId: departure.stationId } : {}),
     departureBuildings: new Set([
       ...buildings
         .filter((building) => building.regionId === departure.regionId)
@@ -854,7 +856,14 @@ export async function march(
 
   /** **The refusal comes before the route**: nothing in it reads a trip any more (design sheet
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
-  const column = boardingInto(await columnOf(ctx, playerId, troops, departure), aim.aim, boardsOn);
+  /** **A delivery or an airdrop on the spot is no march to oneself**: `ALREADY_HERE` refuses the
+   *  pure movement only. */
+  const base = await columnOf(ctx, playerId, troops, departure);
+  const column = boardingInto(
+    delivery === undefined && airdrop === undefined ? base : withoutOrigin(base),
+    aim.aim,
+    boardsOn,
+  );
   const refusal =
     capture !== undefined
       ? captureOrderRefusalOf(aim.aim, column, false)

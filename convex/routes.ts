@@ -15,7 +15,7 @@ import {
   KM_PER_UNIT,
   mooringOf,
 } from '../src/domain/routing';
-import { carriesBuilding, groundOf, isLandingShore } from '../src/domain/coast';
+import { carriesBuilding, groundOf, isLandingShore, reachedAshore } from '../src/domain/coast';
 import { coastOf } from './coast';
 import type { Projection } from '../src/domain/world';
 import gridAsset from '../public/grid.json';
@@ -181,6 +181,12 @@ function quaysByRegion(): ReadonlyMap<string, ReadonlyArray<LonLat>> {
 
 export function landAtPoint(point: LonLat): boolean {
   return groundAtPoint(point) === 'land';
+}
+
+/** On rejoint `to` depuis `from` sans changer de milieu, à la côte de l'atlas (#283, `reachedAshore`). */
+export function reachedOverGround(from: LonLat, to: LonLat, ashore: boolean): boolean {
+  grid ??= decodeGrid(gridAsset, projection);
+  return reachedAshore(grid, coastOf(), from, to, ashore);
 }
 
 /** Une route à pied y aboutit-elle ? La même cellule que `computeRoute` lit (#224). */

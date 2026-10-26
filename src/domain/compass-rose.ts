@@ -4,7 +4,13 @@ import { bombardFan, captureBranch, collectFan, plunderFan } from './compass-str
 import { fanOf, posted } from './compass-fan';
 import { fr } from '@/i18n/fr';
 import { bombardsWith } from './indirect-fire';
-import { routeModeOf, type Column, type MovementAim, type PlunderAim } from './movement-orders';
+import {
+  routeModeOf,
+  withoutOrigin,
+  type Column,
+  type MovementAim,
+  type PlunderAim,
+} from './movement-orders';
 import { onTourRefusalOf } from './logistics';
 import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
@@ -686,8 +692,22 @@ function aim(
       hostCountry: target.hostCountry,
       coastal: target.coastal,
     };
-    const fan = fanOf(target.name, view, column, [aimed]);
     const isMine = view.me.outposts.some((outpost) => outpost.id === target.id);
+    /** **Sur son propre point, seule la livraison ou le largage reste** : la marche vers soi est
+     *  refusée (`ALREADY_HERE`), mais livrer ou larguer sur place n'est pas marcher. */
+    const here = isMine && column.originId === target.id;
+    const fan = fanOf(target.name, view, here ? withoutOrigin(column) : column, [aimed]);
+    if (here) {
+      const onSpot = withDelivery(fan, target.id, view, heldTroopIds ?? []);
+      const actions = onSpot.actions.filter(
+        (action) => !(action.key === 'aim' && action.type === 'march'),
+      );
+      return {
+        ...onSpot,
+        actions,
+        refusal: actions.length > 0 ? null : (onSpot.refusal ?? fr.errors.ALREADY_HERE()),
+      };
+    }
     if (isMine) return withDelivery(fan, target.id, view, heldTroopIds ?? []);
     const capture = captureBranch(
       { kind: 'outpost' },

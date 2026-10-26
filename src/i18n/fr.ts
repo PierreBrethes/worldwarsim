@@ -918,7 +918,7 @@ export const fr = {
     NO_SQUADS_IN_BLITZ: () => 'pas d’escouade en Blitz : une pièce par unité',
     SQUAD_CARRIES_LOOT: () => 'l’escouade porte un butin posé : elle le garde, et reste ensemble',
     NO_ROOM_TO_DISBAND: () =>
-      'trop près de la côte pour se disperser — éloignez l’escouade du rivage',
+      'pas la place de se disperser entre la côte et la frontière — éloignez l’escouade du bord',
     STILL_ABOARD: () => 'cette troupe est à bord : débarquez-la d’abord',
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
@@ -938,6 +938,7 @@ export const fr = {
       d.region === undefined
         ? 'on ne marche pas sur les siens'
         : `${str(d.region)} porte déjà un de vos bâtiments`,
+    ALREADY_HERE: () => 'cette pile y est déjà en garnison',
     EMPTY_MOVEMENT: () => 'un mouvement part avec au moins une troupe',
     OUTPOST_TARGET_ONLY: () => 'un raid marche sur un avant-poste et sur rien d’autre',
     POINT_TARGET_ONLY: () => 'une marche va sur un point de la carte et sur rien d’autre',
