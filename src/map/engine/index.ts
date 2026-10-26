@@ -2272,6 +2272,11 @@ export class MapEngine {
     };
   }
 
+  /** Whether a pile hangs from this label (`StandingPile.label`). */
+  ownsPile(labelId: string): boolean {
+    return this.standing.pileOwning(labelId) !== null;
+  }
+
   pieceRect(labelId: string): Rect | null {
     const box =
       this.standing.boxOf(labelId) ??
@@ -3003,7 +3008,8 @@ export class MapEngine {
     const pointing =
       onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
     const pin = pointing ? this.pinUnder(this.pointer) : null;
-    const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
+    const under = pointing ? (this.pieceUnder()?.id ?? null) : null;
+    const label = under === null ? null : this.standing.labelOfPile(under);
     this.pins.hover(pin?.kind === 'pin' ? pin.id : null);
     // Hovered, a cluster opens its sheet; another piece under the pointer closes it.
     if (pin?.kind === 'cluster') this.openCluster(pin);

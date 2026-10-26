@@ -1498,7 +1498,7 @@ function BoardContent({
   const clickOfFrom = useCallback(
     (from: PieceFrom, single = false): PileClick | null => {
       if (from.kind === 'piece') return pileClickOf(from.hit, single);
-      if (from.station.kind !== 'point') return null;
+      if (from.station.kind !== 'point' && from.station.kind !== 'outpost') return null;
       const troopIds = troopsAt(view.me, stationKeyOf(from.station), marching).map(
         (troop) => troop.id,
       );

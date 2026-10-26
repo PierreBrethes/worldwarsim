@@ -719,7 +719,10 @@ export function MapLabels({
         state.y = projection.y;
         // A transport's tag hangs over its figurines, not its point: on a shore they stand inland.
         if (cargoed.current.has(projection.id)) {
-          const rect = state.dressed >= 0.5 ? engine.pieceRect(projection.id) : null;
+          const rect =
+            state.dressed >= 0.5 || engine.ownsPile(projection.id)
+              ? engine.pieceRect(projection.id)
+              : null;
           const hang =
             rect === null
               ? ''

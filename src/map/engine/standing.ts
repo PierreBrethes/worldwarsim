@@ -58,6 +58,9 @@ import {
 export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
   readonly id: string;
+  /** The label this pile hangs its tags from and is dropped on, when it is not its own: an
+   *  outpost's garrison stands at its point, and the outpost has no maquette to stand beside. */
+  readonly label?: string;
   /**
    * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. It is
    * lifted by its figurines like any pile; the maquette itself opens its site.
@@ -834,8 +837,18 @@ export class StandingLayer {
 
   /** The world box of the figurines a dressed pile stands in, `null` when it is not drawn. */
   boxOf(id: string): Box3 | null {
-    const entry = this.dressed.get(id);
+    const entry = this.dressed.get(id) ?? this.dressed.get(this.pileOwning(id) ?? '');
     return entry?.ready === true && entry.object.visible ? boxOfObject(entry.object) : null;
+  }
+
+  /** The pile that hangs from a label of its own (`StandingPile.label`). */
+  pileOwning(labelId: string): string | null {
+    return this.piles.find((pile) => pile.label === labelId)?.id ?? null;
+  }
+
+  /** The label a pile under the pointer answers to: its own, or the one it hangs from. */
+  labelOfPile(pileId: string): string {
+    return this.piles.find((pile) => pile.id === pileId)?.label ?? pileId;
   }
 
   /** The pile under `ray`, by its figurines or the footprints it is taken by — a garrison beside

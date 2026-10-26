@@ -82,6 +82,10 @@ import type { TakeDepot } from './MapLabels';
 import type { TourLoop } from './engine/tour-ink';
 export type { TourLoop };
 
+/** The label a standing pile is aimed at by: its building's mast, its outpost's, or its own. */
+const labelOfPile = (pile: StandingPile | undefined, id: string): string =>
+  pile === undefined ? id : 'beside' in pile.at ? pile.at.beside : (pile.label ?? id);
+
 const NO_LOOPS: ReadonlyArray<TourLoop> = [];
 import {
   DETACH_MS,
@@ -855,10 +859,12 @@ export function WorldMap({
   const availableLabels = useMemo(
     () =>
       new Set(
-        availablePiles.map((id) => {
-          const at = standing.find((pile) => pile.id === id)?.at;
-          return at !== undefined && 'beside' in at ? at.beside : id;
-        }),
+        availablePiles.map((id) =>
+          labelOfPile(
+            standing.find((pile) => pile.id === id),
+            id,
+          ),
+        ),
       ),
     [availablePiles, standing],
   );
@@ -930,8 +936,10 @@ export function WorldMap({
     ): { from: PieceFrom | null; label: MapLabel | undefined } => {
       if (target.kind === 'canvas') {
         // A garrison is aimed at by its building's mast.
-        const at = standing.find((pile) => pile.id === target.pick.pileId)?.at;
-        const labelId = at !== undefined && 'beside' in at ? at.beside : target.pick.pileId;
+        const labelId = labelOfPile(
+          standing.find((pile) => pile.id === target.pick.pileId),
+          target.pick.pileId,
+        );
         return {
           from: { kind: 'piece', hit: { ...target.pick, clientX, clientY } },
           label: labels.find((candidate) => candidate.id === labelId),
@@ -940,7 +948,7 @@ export function WorldMap({
       const label = labels.find((candidate) => candidate.id === target.labelId);
       return {
         from:
-          label?.type === 'stack' && label.station !== null
+          (label?.type === 'stack' || label?.type === 'outpost') && label.station !== null
             ? { kind: 'stack', station: label.station }
             : null,
         label,

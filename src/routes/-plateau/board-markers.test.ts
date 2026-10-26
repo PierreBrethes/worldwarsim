@@ -38,8 +38,8 @@ describe('standingPilesOf', () => {
       new Set(),
       false,
     );
-    expect(piles.map((pile) => [pile.id, pile.pieces.troopIds])).toEqual([
-      [stationKeyOf(station), ['a']],
+    expect(piles.map((pile) => [pile.id, pile.pieces.troopIds, pile.label])).toEqual([
+      [stationKeyOf(station), ['a'], 'outpost-o1'],
     ]);
   });
 

@@ -459,11 +459,17 @@ function garrisonPiles(
   me: PlayerView['me'],
   marching: ReadonlySet<string>,
 ): ReadonlyArray<StandingPile> {
-  const pile = (station: TroopStation, at: StandingPile['at']): ReadonlyArray<StandingPile> => {
+  const pile = (
+    station: TroopStation,
+    at: StandingPile['at'],
+    label?: string,
+  ): ReadonlyArray<StandingPile> => {
     // The station's key, as `holding` names the pile a hand was taken from.
     const id = stationKeyOf(station);
     const troops = troopsAt(me, id, marching);
-    return troops.length === 0 ? [] : [{ id, at, pieces: pilePieces(troops) }];
+    return troops.length === 0
+      ? []
+      : [{ id, ...(label === undefined ? {} : { label }), at, pieces: pilePieces(troops) }];
   };
   return [
     ...me.buildings.flatMap((building) =>
@@ -475,7 +481,11 @@ function garrisonPiles(
       ),
     ),
     ...me.outposts.flatMap((outpost) =>
-      pile({ kind: 'outpost', outpostId: outpost.id }, { lonLat: outpost.lonLat }),
+      pile(
+        { kind: 'outpost', outpostId: outpost.id },
+        { lonLat: outpost.lonLat },
+        `outpost-${outpost.id}`,
+      ),
     ),
   ];
 }
