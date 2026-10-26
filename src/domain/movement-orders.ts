@@ -180,6 +180,9 @@ export type Column = {
   /** The regions carrying one of my buildings: marching on one of them is marching on myself. */
   readonly myRegionIds: ReadonlySet<string>;
   readonly myOutpostIds: ReadonlySet<string>;
+  /** **The building or outpost the column garrisons**, by id: a march to it goes nowhere
+   *  (`ALREADY_HERE`). Absent on a plain point. */
+  readonly originId?: string;
   readonly departureBuildings: ReadonlySet<BuildingKey>;
   /**
    * **Whether the column is already in the water it would be asked to embark on.** Read off the
@@ -251,6 +254,7 @@ export type OrderRefusal =
   | 'AIR_TRANSPORT_SEATS_INFANTRY'
   /** **On ne descend d'un avion que dans un de ses aérodromes** (ADR 0025 §4). */
   | 'AIRFIELD_TARGET_REQUIRED'
+  | 'ALREADY_HERE'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
   | 'NOTHING_TO_ATTACK'
@@ -429,6 +433,10 @@ export const freeSlotsOf = (slots: { readonly total: number; readonly used: numb
  */
 export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
+/** The id of the address an aim enters as a garrison, if it is one. */
+const garrisonIdOf = (aim: MovementAim): string | undefined =>
+  aim.kind === 'building' ? aim.buildingId : aim.kind === 'outpost' ? aim.outpostId : undefined;
+
 export function refusalOf(
   type: MovementType,
   aim: MovementAim,
@@ -451,6 +459,8 @@ export function refusalOf(
      * which role may end there.
      */
     case 'march':
+      if (column.originId !== undefined && column.originId === garrisonIdOf(aim))
+        return 'ALREADY_HERE';
       if (aim.kind === 'building' && column.blitz?.occupiedBuildingIds.has(aim.buildingId))
         return 'BUILDING_OCCUPIED';
       if (aim.kind === 'building') {

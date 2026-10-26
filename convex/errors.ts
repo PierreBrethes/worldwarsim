@@ -185,6 +185,7 @@ export type ErrorCode =
    *  allure est déjà payée — on ne retire pas la route sous ses pieds. */
   | 'OUTPOST_SERVING'
   | 'FRIENDLY_TARGET'
+  | 'ALREADY_HERE'
   | 'EMPTY_MOVEMENT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'

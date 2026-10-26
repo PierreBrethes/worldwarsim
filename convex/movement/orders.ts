@@ -620,6 +620,7 @@ export async function columnOf(
     roles: troops.map((troop) => troop.role),
     myRegionIds: new Set(buildings.map((building) => building.regionId)),
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
+    ...(typeof departure.stationId === 'string' ? { originId: departure.stationId } : {}),
     departureBuildings: new Set([
       ...buildings
         .filter((building) => building.regionId === departure.regionId)

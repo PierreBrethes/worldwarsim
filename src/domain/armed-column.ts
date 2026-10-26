@@ -74,6 +74,11 @@ export function armedColumn(
       roles,
       myRegionIds: new Set(view.me.buildings.map((building) => building.regionId)),
       myOutpostIds: new Set(view.me.outposts.map((outpost) => outpost.id)),
+      ...(station.kind === 'building'
+        ? { originId: station.buildingId }
+        : station.kind === 'outpost'
+          ? { originId: station.outpostId }
+          : {}),
       /** An outpost and a plain point carry no region, so a column standing on one finds no gate
        *  under it and walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
       departureBuildings: new Set([
