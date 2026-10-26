@@ -376,11 +376,29 @@ describe('a ring of buildings around a stack', () => {
       force: type === 'stack' ? { headcount: 4 } : null,
     }) as unknown as MapLabel;
 
+  const truck = {
+    ...place('truck', 'stack', 0),
+    type: 'outpost',
+    cargo: [
+      {
+        carrierId: 'truck',
+        role: 'landTransport',
+        seats: 4,
+        used: 1,
+        riders: [{ id: 'rider', role: 'infantry', tier: 1, seats: 1 }],
+        refusal: null,
+        load: { ammunition: 0, oil: 0, coal: 0 },
+        loadCapacity: 0,
+        tour: null,
+      },
+    ],
+  } as unknown as MapLabel;
   const labels = [
     place('stack', 'stack', 5),
     place('hq', 'building', 1),
     place('airfield', 'building', 1),
     place('barracks', 'building', 1),
+    truck,
   ];
 
   const frame = (engine: Record<string, unknown>) => (
@@ -405,11 +423,12 @@ describe('a ring of buildings around a stack', () => {
       holding={false}
       onHoldOver={noop}
       muted={false}
+      onDisembark={noop}
     />
   );
 
   /** Every label stands at the same screen point, as a region's stack and its buildings do. */
-  const lay = (cartouche: 'reading' | 'quiet', top = 100) => {
+  const lay = (cartouche: 'reading' | 'quiet', top = 100, sheet = false) => {
     const engine: Record<string, unknown> = {
       setLabelAnchors: () => {},
       subscribeRest: () => () => {},
@@ -420,9 +439,14 @@ describe('a ring of buildings around a stack', () => {
     };
     // A real DOMRect keeps its edges as prototype accessors, which `{ ...box }` drops. At rest a
     // stack's cartouche is quiet: measured, it has no area.
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
-      () => new DOMRect(100, top, ...(cartouche === 'reading' ? [60, 20] : [0, 0])),
-    );
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      // A cargo sheet open over the ring's mast (`.cargo-tag-body`), when asked for.
+      if (this.matches('.cargo-tag-body'))
+        return sheet ? new DOMRect(90, top - 60, 100, 40) : new DOMRect(0, 0, 0, 0);
+      return new DOMRect(100, top, ...(cartouche === 'reading' ? [60, 20] : [0, 0]));
+    });
     const frames: Array<() => void> = [];
     vi.stubGlobal('requestAnimationFrame', (run: () => void) => frames.push(run));
     render(frame(engine));
@@ -478,6 +502,11 @@ describe('a ring of buildings around a stack', () => {
 
   it('folds as before when the mast it needs would leave the screen', () => {
     lay('reading', 5);
+    expect(shownGroup()).toBe(false);
+  });
+
+  it('folds as before when the mast it needs would land in a cargo sheet', () => {
+    lay('reading', 100, true);
     expect(shownGroup()).toBe(false);
   });
 });

@@ -481,6 +481,14 @@ export function MapLabels({
     // Un cartouche réuni se place au rang de son premier membre, et cède comme une étiquette :
     // replié, il rend leurs mots à personne et ses membres retombent tous au glyphe.
     const kept: ScreenBox[] = [];
+    /** Les feuilles de cargaison ouvertes : posées sur la carte, elles ne sont pas des étiquettes
+     *  que `degrade` replie, et un anneau hissé ne doit pas y tomber. */
+    const sheets: ScreenBox[] = [];
+    for (const id of cargoed.current)
+      for (const node of anchors.current.get(id)?.querySelectorAll('.cargo-tag-body') ?? []) {
+        const { left, top, right, bottom } = node.getBoundingClientRect();
+        if (right > left && bottom > top) sheets.push({ left, top, right, bottom });
+      }
     /** Les cartouches de piles posés : un anneau de sites ne leur cède pas, il se hisse au-dessus. */
     const stacks: ScreenBox[] = [];
     const lifted = new Map<string, number>();
@@ -515,7 +523,10 @@ export function MapLabels({
             );
             if (lift > 0) {
               box = { ...group.box, top: group.box.top - lift, bottom: group.box.bottom - lift };
-              standing = (groupFar || against(box)) && box.top >= 0;
+              standing =
+                (groupFar || against(box)) &&
+                box.top >= 0 &&
+                !sheets.some((sheet) => boxesOverlap(sheet, box, OVERLAP_MARGIN));
               if (standing) lifted.set(group.id, lift);
             }
           }
