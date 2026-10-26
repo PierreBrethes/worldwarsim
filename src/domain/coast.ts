@@ -225,6 +225,66 @@ export function regionOf(
     : null;
 }
 
+/**
+ * **Où un trait coupe les rivages** (#283), en parts de sa longueur : côtes de mer ouverte, rives
+ * des lacs et îles sans cellule. La grille de 28 km soude Messine à la Calabre ; l'atlas, lui, voit
+ * le détroit — deux rivages entre la Calabre et la Sicile, aucun d'un champ de Bourgogne à l'autre.
+ */
+export function shoreCrossings(coast: Coast, from: LonLat, to: LonLat): number[] {
+  const { outline, sphere } = coast.projection;
+  const [ax, ay] = projectLonLat(outline, sphere, from);
+  const [bx, by] = projectLonLat(outline, sphere, to);
+  const [ux, uy] = [bx - ax, by - ay];
+  const crossings: number[] = [];
+  for (const shores of [coast.coastOf, coast.lakeOf, coast.islandOf])
+    for (const { box, lines } of shores.values()) {
+      if (box[0]! > Math.max(ax, bx) || box[2]! < Math.min(ax, bx)) continue;
+      if (box[1]! > Math.max(ay, by) || box[3]! < Math.min(ay, by)) continue;
+      for (const line of lines)
+        for (let i = 0; i + 3 < line.length; i += 2) {
+          const [cx, cy] = [line[i]!, line[i + 1]!];
+          const [vx, vy] = [line[i + 2]! - cx, line[i + 3]! - cy];
+          const cross = ux * vy - uy * vx;
+          if (cross === 0) continue;
+          const t = ((cx - ax) * vy - (cy - ay) * vx) / cross;
+          const s = ((cx - ax) * uy - (cy - ay) * ux) / cross;
+          if (t >= 0 && t <= 1 && s >= 0 && s <= 1) crossings.push(t);
+        }
+    }
+  return crossings;
+}
+
+/**
+ * **Rejoindre une place sans changer de milieu** (#283) : la place est du côté de son milieu à
+ * l'atlas, et le trait n'y coupe aucun rivage. Un seul se tolère, tout près du point, quand l'atlas
+ * met le point lui-même de l'autre côté — la grille met Piombino à terre, l'atlas juste au large :
+ * ce rivage est le sien. Deux rivages, c'est un détroit traversé (le Bosphore).
+ */
+export function reachedAshore(
+  grid: RouteGrid,
+  coast: Coast,
+  from: LonLat,
+  to: LonLat,
+  ashore: boolean,
+): boolean {
+  if (atlasLandAt(grid, coast, to) === !ashore) return false;
+  const crossings = shoreCrossings(coast, from, to);
+  if (crossings.length === 0) return true;
+  return (
+    atlasLandAt(grid, coast, from) === !ashore &&
+    crossings.length === 1 &&
+    crossings[0]! * distanceKm(from, to) <= COAST_REACH_KM
+  );
+}
+
+/** De quel côté de l'atlas tombe un point près d'un rivage ; `undefined` loin de tout rivage. */
+function atlasLandAt(grid: RouteGrid, coast: Coast, lonLat: LonLat): boolean | undefined {
+  const [x, y] = projectLonLat(coast.projection.outline, coast.projection.sphere, lonLat);
+  if (islandAt(coast, x, y) !== null) return true;
+  return (shoreAt(coast, 'coast', x, y, grid.step) ?? shoreAt(coast, 'lake', x, y, grid.step))
+    ?.land;
+}
+
 /** **La région d'un point, si l'atlas la sait exactement** : celle d'une région sans cellule. */
 export function islandRegionOf(coast: Coast, lonLat: LonLat): string | null {
   const [x, y] = projectLonLat(coast.projection.outline, coast.projection.sphere, lonLat);
