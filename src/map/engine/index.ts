@@ -2242,6 +2242,8 @@ export class MapEngine {
   private pieceToTake(): PiecePick | null {
     const piece = this.standing.pick(this.ray);
     if (piece === null || piece.carried) return piece;
+    // A pin is drawn over everything: an outpost's stands over its own garrison, and opens it.
+    if (this.pinUnder(this.aim)?.kind === 'pin') return null;
     const maquette = this.maquettes.under(this.ray);
     return maquette !== null && maquette.distance < piece.distance ? null : piece;
   }
