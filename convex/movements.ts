@@ -19,6 +19,9 @@ import {
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
+import { COAST_REACH_KM, shoreCrossings } from '../src/domain/coast';
+import { distanceKm, type LonLat } from '../src/domain/geo';
+import { coastOf } from './coast';
 import { isNation } from '../src/domain/nations';
 import { BOARD_KM, troopSpan } from '../src/domain/piece-size';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
@@ -408,8 +411,17 @@ export const disband = mutation({
       loaded,
     });
     if (refusal !== null) fail(refusal);
-    const ashore = landAtPoint(pointOf(point));
-    const host = hostAtPoint(pointOf(point));
+    const center = pointOf(point);
+    const ashore = landAtPoint(center);
+    const host = hostAtPoint(center);
+    /** On rejoint sa place sans passer l'eau (ou la terre, pour une coque) : à 22 km, un détroit
+     *  ou une île du même pays serait un passage sans bateau (#244). Un rivage coupé tout près du
+     *  point est le sien, que la grille met à terre et l'atlas au bord de l'eau. */
+    const reached = (spot: LonLat) =>
+      landAtPoint(spot) === ashore &&
+      shoreCrossings(coastOf(), center, spot).every(
+        (along) => along * distanceKm(center, spot) <= COAST_REACH_KM,
+      );
     const nation = isNation(player.nation) ? player.nation : undefined;
     const largest = Math.max(
       ...pile
@@ -417,10 +429,10 @@ export const disband = mutation({
         .map((troop) => troopSpan(troop.role, nation, troop.tier)),
     );
     const spots = disbandPointsOf(
-      pointOf(point),
+      center,
       pieces.length,
       largest * BOARD_KM,
-      (spot) => landAtPoint(spot) === ashore && hostAtPoint(spot) === host,
+      (spot) => hostAtPoint(spot) === host && reached(spot),
     );
     if (spots === null) fail('NO_ROOM_TO_DISBAND');
     for (const [index, piece] of pieces.entries()) {
