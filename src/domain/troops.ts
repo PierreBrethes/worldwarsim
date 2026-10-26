@@ -168,7 +168,7 @@ export const garrisons = (role: UnitRole, key: BuildingKey): boolean =>
  *
  * **Révisé par l'ADR 0025** : la **capacité** d'un transport et l'**encombrement** d'une troupe,
  * en places. Une troupe s'assoit dans **un seul** transport (`stackRows`) — les capacités ne
- * s'additionnent pas, ce qui garde vraie la phrase « un blindé ne vole jamais ».
+ * s'additionnent pas ; que l'aile n'assoit que l'infanterie, c'est `seatsKind` (#284).
  *
  * @a-mesurer assumed against the troop ceiling alone — two cargos lift a whole infantry
  */
@@ -404,10 +404,10 @@ export function troopsAt(
  */
 export type StackRow<T> = { readonly troop: T; readonly carrier: T | null };
 
-/** Une aile n'assoit que l'infanterie (porte latérale, pas de rampe : #284) ; une coque, tout ce
- *  qui marche. Le tarif d'un camion à bord (`fareOf`) est une autre question. */
+/** Une aile (porte latérale, pas de rampe : #284) et un camion n'assoient que l'infanterie ; une
+ *  coque, tout ce qui marche. */
 const seatsKind = (carrier: UnitRole | undefined, rider: UnitRole): boolean =>
-  carrier !== 'airTransport' || rider === 'infantry';
+  (carrier !== 'airTransport' && carrier !== 'landTransport') || rider === 'infantry';
 
 export function stackRows<T extends { readonly id: string; readonly role: UnitRole }>(
   troops: ReadonlyArray<T>,
@@ -490,9 +490,8 @@ export function fareOf<T extends Seated>(
   rider: T,
   pile: ReadonlyArray<T>,
 ): number | null {
-  if (carrier === 'landTransport')
-    return rider.role === 'infantry' ? (LIFT_COST.infantry ?? 0) : null;
   if (!seatsKind(carrier, rider.role)) return null;
+  if (carrier === 'landTransport') return LIFT_COST.infantry ?? 0;
   if (seatsOf(carrier) === 0 || (LIFT_COST[rider.role] ?? 0) === 0) return null;
   return [rider, ...cargoOf(rider, pile)].reduce(
     (sum, troop) => sum + (LIFT_COST[troop.role] ?? 0),
