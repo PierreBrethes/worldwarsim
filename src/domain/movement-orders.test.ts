@@ -25,6 +25,7 @@ import {
   type MovementAim,
 } from './movement-orders';
 import { distanceKm } from './geo';
+import { BOARD_KM, troopSpan } from './piece-size';
 import { COST_BY_MEDIUM } from './routing';
 import { theatreById } from './theatres';
 
@@ -1042,6 +1043,17 @@ describe('disbanding a squad', () => {
       const points = disbandPointsOf([10, 50], count, TRUCK_KM)!;
       for (const [i, a] of points.entries())
         for (const b of points.slice(i + 1)) expect(km(a, b)).toBeGreaterThan(TRUCK_KM * 0.99);
+    }
+  });
+
+  it('caps the ring at a truck’s, however large the hull, unless the count asks for more', () => {
+    for (const role of ['cargo', 'escort', 'carrier'] as const) {
+      const hull = troopSpan(role) * BOARD_KM;
+      for (const point of disbandPointsOf([10, 50], 4, hull)!.slice(1))
+        expect(km([10, 50], point)).toBeLessThanOrEqual(22);
+      const many = disbandPointsOf([10, 50], 20, hull)!;
+      expect(km([10, 50], many[1]!)).toBeGreaterThan(22);
+      expect(km(many[1]!, many[2]!)).toBeGreaterThan(TRUCK_KM * 0.99);
     }
   });
 

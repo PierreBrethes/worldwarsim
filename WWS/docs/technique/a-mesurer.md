@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : c09698d -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 4f6a674 -->
 
 # Les constantes à mesurer
 
@@ -87,8 +87,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `BUILDING_SPACING_KM` | `30` | `src/domain/economy.ts:89` | l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
-| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:349` | deux, d'après la décision du 19/10, jamais joué |
-| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:884` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien |
+| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:350` | deux, d'après la décision du 19/10, jamais joué |
+| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:886` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
 | `MONDIALE_DURATION_DAYS` | `[3, 5, 7, 10, 14] as const` | `src/domain/operation-order.ts:37` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `REMINDER_MINUTES` | `15` | `src/domain/operation-order.ts:38` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `MIN_PIECE_SCALE` | `80` | `src/domain/piece-scale.ts:11` | recommandation du designer (POC de lisibilité, 23/10), Q3 ouverte à Pierre |

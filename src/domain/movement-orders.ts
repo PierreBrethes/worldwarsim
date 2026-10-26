@@ -6,6 +6,7 @@ import { bombardsWith } from './indirect-fire';
 import type { BuildingKey, MovementType, ResearchCard, UnitRole } from './ids';
 import { slotCardsOf } from './research';
 import type { Ground, RouteMode } from './routing';
+import { BOARD_KM, troopSpan } from './piece-size';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from './routing';
 import type { UnitDomain } from './troops';
 import {
@@ -878,18 +879,21 @@ export function disbandRefusalOf({
 
 /**
  * **Le rayon de la couronne, en plus grandes pièces** (#283, décision du 26/10) : deux pas de pile
- * et un demi-camion, soit quelque 22 km autour d'un camion de 10,4 km.
- * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien
+ * et un demi-camion, soit quelque 22 km autour d'un camion de 10,4 km — et jamais plus que pour un
+ * camion : un porte-avions de 200 km mettrait sa couronne à 420, et U deviendrait un déplacement.
+ * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines
  */
 const DISBAND_RING_SPANS = 2.1;
+/** La plus grande pièce que la couronne lit : le camion, en kilomètres. */
+const DISBAND_LARGEST_KM = troopSpan('landTransport') * BOARD_KM;
 /** Les places essayées sur la couronne quand une partie tombe hors du sol du point. */
 const DISBAND_RING_SAMPLES = 72;
 
 /**
  * **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
  * autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. Le rayon se lit sur la plus
- * grande pièce (`spanKm`, son plus grand côté au sol) ; deux voisines restent au moins à cette
- * distance, aussi nombreuses soient-elles. Une place que `fits` refuse (la mer, un autre pays) est
+ * grande pièce (`spanKm`, son plus grand côté au sol), un camion au plus ; deux voisines restent au
+ * moins à cette distance, aussi nombreuses soient-elles : le nombre passe avant le plafond. Une place que `fits` refuse (la mer, un autre pays) est
  * laissée : les pièces se rangent côte à côte sur ce qui reste de la couronne, et `null` dit qu'il
  * n'y reste pas leur place.
  */
@@ -900,6 +904,7 @@ export function disbandPointsOf(
   fits: (point: readonly [number, number]) => boolean = () => true,
 ): Array<[number, number]> | null {
   const ring = count - 1;
+  spanKm = Math.min(spanKm, DISBAND_LARGEST_KM);
   const radiusKm = Math.max(
     DISBAND_RING_SPANS * spanKm,
     ring < 2 ? 0 : spanKm / (2 * Math.sin(Math.PI / ring)),
