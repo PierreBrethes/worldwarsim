@@ -82,10 +82,6 @@ import type { TakeDepot } from './MapLabels';
 import type { TourLoop } from './engine/tour-ink';
 export type { TourLoop };
 
-/** The label a standing pile is aimed at by: its building's mast, its outpost's, or its own. */
-const labelOfPile = (pile: StandingPile | undefined, id: string): string =>
-  pile === undefined ? id : 'beside' in pile.at ? pile.at.beside : (pile.label ?? id);
-
 const NO_LOOPS: ReadonlyArray<TourLoop> = [];
 import {
   DETACH_MS,
@@ -100,6 +96,7 @@ import {
   type PlacingThread,
   type SearchArea,
   type StandingMaquette,
+  labelOfPile,
   type StandingPile,
   type SurveyedCamp,
 } from './engine';

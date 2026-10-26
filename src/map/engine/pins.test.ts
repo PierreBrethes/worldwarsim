@@ -3,7 +3,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { Pin } from '@/domain/pins';
 import { PROJECTION, WorldFrame } from './frame';
-import { PinLayer } from './pins';
+import { isPinOf, PinLayer } from './pins';
 import { REACH } from './halo';
 
 beforeAll(() => {
@@ -168,5 +168,15 @@ describe('PinLayer — the pieces far away', () => {
     const glows: number[] = [];
     layer.lights((_, radius) => glows.push(radius * REACH), 1);
     expect(glows).toEqual([3 * 4]);
+  });
+});
+
+describe('isPinOf', () => {
+  it('yields only to the pin of the pile, not to a neighbour outpost’s (#296)', () => {
+    const hit = { kind: 'pin', id: 'outpost-near' } as const;
+    expect(isPinOf(hit, 'outpost-near')).toBe(true);
+    expect(isPinOf(hit, 'outpost:mine')).toBe(false);
+    expect(isPinOf({ kind: 'cluster', ids: ['a'], x: 0, y: 0 }, 'a')).toBe(false);
+    expect(isPinOf(null, 'a')).toBe(false);
   });
 });

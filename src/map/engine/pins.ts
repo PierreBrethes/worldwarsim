@@ -21,6 +21,11 @@ import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
 import { REACH } from './halo';
 
+/** Whether the hit is the pin of this label: a pile yields to its own pin only, never to the pin
+ *  of a neighbour a few pixels off. */
+export const isPinOf = (hit: PinHit | null, labelId: string): boolean =>
+  hit?.kind === 'pin' && hit.id === labelId;
+
 export type PinHit =
   | { readonly kind: 'pin'; readonly id: string }
   | {

@@ -135,7 +135,7 @@ import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
-import { PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
+import { isPinOf, PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
 import type { Pin, PinShape } from '@/domain/pins';
 import { nationInk } from '@/domain/nations';
 import { TheatreFrame } from './theatre';
@@ -154,6 +154,7 @@ import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
 export type { DropVerdict, PieceHold, PiecePick, StandingPile } from './standing';
+export { labelOfPile } from './standing';
 export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './annotations';
 
@@ -2242,8 +2243,8 @@ export class MapEngine {
   private pieceToTake(): PiecePick | null {
     const piece = this.standing.pick(this.ray);
     if (piece === null || piece.carried) return piece;
-    // A pin is drawn over everything: an outpost's stands over its own garrison, and opens it.
-    if (this.pinUnder(this.aim)?.kind === 'pin') return null;
+    // An outpost's pin is drawn over its own garrison and opens it; a pile beside it stays takable.
+    if (isPinOf(this.pinUnder(this.aim), this.standing.labelOfPile(piece.pileId))) return null;
     const maquette = this.maquettes.under(this.ray);
     return maquette !== null && maquette.distance < piece.distance ? null : piece;
   }
@@ -2276,7 +2277,8 @@ export class MapEngine {
 
   /** Whether a pile hangs from this label (`StandingPile.label`). */
   ownsPile(labelId: string): boolean {
-    return this.standing.pileOwning(labelId) !== null;
+    const pile = this.standing.pileOfLabel(labelId);
+    return pile !== null && pile !== labelId;
   }
 
   pieceRect(labelId: string): Rect | null {
