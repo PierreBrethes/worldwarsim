@@ -49,6 +49,12 @@ export type StandingMaquette = {
   readonly url: string;
   /** Its widest side at the ground, in board units at the common scale (`buildingSpan`). */
   readonly span: number;
+  /** Its widest side in metres, for a model drawn in metres (`buildingMetres`): one scale per metre
+   *  for all of them. Absent, the model is brought to its box. */
+  readonly metres?: number;
+  /** Its widest side as built, flagpole left out, in board units: what the ring spaces it by.
+   *  Absent, its `span`. */
+  readonly footprint?: number;
   /** Known from a survey that has aged, or an emptied objective: a ghost of the building. */
   readonly washed: boolean;
   /** A site at work (mode chantier): its plan, its first level rising, or a raise. */
@@ -66,18 +72,25 @@ export function yawOf(id: string): number {
 
 type Model = {
   readonly parts: ReadonlyArray<Part>;
-  /** Its own units to one board unit on its widest side at the ground: times its span, its size. */
+  /** Its own units to one board unit, times its span, its size: on its widest side at the ground,
+   *  or, for a model drawn in metres, per metre — then `span` is its metres on the board. */
   readonly scale: number;
   /** Its bounds in its own units, ground at zero: how high a site rises, where its scaffold stands. */
   readonly box: Box3;
   /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
   readonly chimneys: ReadonlyArray<Vector3>;
 };
+/** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
-function modelOf(url: string): Promise<Model> {
-  let model = models.get(url);
+function modelOf(url: string, metres?: number): Promise<Model> {
+  const key = `${url} ${metres ?? ''}`;
+  let model = models.get(key);
   if (!model) {
-    model = sceneOf(url).then((scene) => {
+    model = sceneOf(url).then((cached) => {
+      // A copy: `sceneOf` is shared, and the flag comes off this one only. It is painted by the
+      // owner's colours (#279): until then a white one would read as a surrender.
+      const scene = cached.clone(true);
+      scene.getObjectByName('drapeau')?.removeFromParent();
       const parts = bakedParts(scene);
       const box = new Box3();
       for (const { geometry } of parts) {
@@ -93,11 +106,13 @@ function modelOf(url: string): Promise<Model> {
         chimneys.push(top.setY(box.max.y));
       }
       const size = box.getSize(new Vector3());
-      return { parts, scale: 1 / Math.max(size.x, size.z), box, chimneys };
+      // A model in metres is drawn at one constant scale (ADR 0035): its box, bent by a flagpole
+      // or a shed, no longer sets the size of its walls.
+      return { parts, scale: 1 / (metres ?? Math.max(size.x, size.z)), box, chimneys };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
-    models.set(url, model);
+    models.set(key, model);
   }
   return model;
 }
@@ -329,9 +344,11 @@ export const garrisonFoot = (site: number, pile: number, quay = false): number =
 const QUAY_SHARE = 0.5;
 
 /**
- * **Two maquettes of a ring stand this many of their half spans apart**, centre to centre: a
- * model turned any way reaches half its diagonal, a square's at worst — √2 —, and a little more
- * (retours du 15/10 : un QG et sa caserne se dessinaient l'un dans l'autre). `@a-mesurer`
+ * **Two maquettes of a ring stand this many of their half footprints apart**, centre to centre:
+ * a model turned any way reaches half its diagonal, a square's at worst — √2 —, and a little more
+ * (retours du 15/10 : un QG et sa caserne se dessinaient l'un dans l'autre). The footprint is the
+ * model as built (`buildingFootprint`), not its `span`: a barracks reaches 65 m with its shed
+ * when its walls make 50. `@a-mesurer`
  */
 export const RING_GAP = 1.45;
 
@@ -342,6 +359,8 @@ export const MAX_SHIFT = 0.63;
 type Placed = {
   readonly id: string;
   readonly span: number;
+  /** What the ring spaces it by (`StandingMaquette.footprint`, else its span). */
+  readonly footprint: number;
   readonly ground: Vector3;
   /** The ground, or its place on the ring it clears its neighbours on. */
   readonly at: Vector3;
@@ -463,7 +482,7 @@ export class MaquetteLayer {
         this.group.add(lot.group);
         const landing = lot;
         // A model that fails to load leaves the plates; `modelOf` has said why.
-        modelOf(maquette.url).then(
+        modelOf(maquette.url, maquette.metres).then(
           (model) => this.landed(landing, model, maquette.washed),
           () => {},
         );
@@ -471,6 +490,7 @@ export class MaquetteLayer {
       const item: Placed = {
         id: maquette.id,
         span: maquette.span,
+        footprint: maquette.footprint ?? maquette.span,
         ground,
         at: ground.clone(),
         facing: 0,
@@ -525,7 +545,7 @@ export class MaquetteLayer {
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
-      items.map(({ span }) => span * RING_GAP * pieceScale.size),
+      items.map(({ footprint }) => footprint * RING_GAP * pieceScale.size),
       // A lone site's garrison stands this far in front: its footprint reaches it. The pile is not
       // known here: a tank's stands for it.
       items.map(({ span }) => garrisonFoot(span, ANONYMOUS_SPAN) * pieceScale.size),

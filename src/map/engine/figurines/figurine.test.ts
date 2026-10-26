@@ -47,7 +47,7 @@ describe('pieceWeight', () => {
     expect(pieceWeight(8.2, troopSpan('armor'))).toBe(0);
     expect(pieceWeight(57, buildingSpan('barracks'))).toBe(1);
     expect(pieceWeight(68.3, buildingSpan('barracks'))).toBe(0);
-    expect(pieceWeight(69, buildingSpan('airfield'))).toBe(1);
+    expect(pieceWeight(69, buildingSpan('hq'))).toBe(1);
   });
 
   it('shrinks into its pin over the last stretch, not at once', () => {

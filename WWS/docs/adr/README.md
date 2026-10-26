@@ -43,3 +43,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0033](0033-la-carte-sans-aplat.md) | La carte sans aplat : des contours en tirets par nation | acceptée — révise le rendu de 0020 (§1 aplat, §5 délavé) ; §2 amendé (#217) |
 | [0034](0034-un-seul-socle-geographique.md) | Un seul socle géographique : une topologie à arcs partagés, deux niveaux de détail | acceptée — le moteur et le serveur s'y branchent aux lots 2 à 5 de #209 |
 | [0035](0035-une-echelle-commune-des-pieces.md) | Une échelle commune des pièces : taille réelle × 1 600, l'homme ×2,5, la mer à demi | acceptée (23/10) — précise 0026 ; figurine plancher entre le rapproché et l'épingle |
+| [0036](0036-une-copie-articulee-le-temps-d-une-sequence.md) | Une copie articulée, le temps d'une séquence | proposée (26/10) — précise 0035 §8 et « Carte à la demande » ; l'ombre des boucles attend Pierre |

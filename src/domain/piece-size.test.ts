@@ -37,8 +37,8 @@ describe('one scale for every piece (ADR 0035)', () => {
     expect(troopSpan('cargo')).toBeLessThan(buildingSpan('port'));
   });
 
-  it('keeps a hangar wider than a barracks, and every site a size of its own', () => {
-    expect(buildingSpan('airfield')).toBeGreaterThan(buildingSpan('barracks'));
+  it('keeps a hangar as wide as a barracks (50 m, #286), and every site a size of its own', () => {
+    expect(buildingSpan('airfield')).toBe(buildingSpan('barracks'));
     expect(buildingSpan('depot')).toBe(buildingSpan('warehouse'));
     expect(objectiveSpan('fuelDump')).toBeGreaterThan(0);
     expect(objectiveSpan('unknown')).toBeGreaterThan(0);
