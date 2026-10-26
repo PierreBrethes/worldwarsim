@@ -4029,7 +4029,7 @@ describe('a column enters a garrison of its own', () => {
     expect(refusalOf('march', aim, column)).toBe('NOT_A_GARRISON_FOR');
   });
 
-  it('refuses to enter the garrison the column already is, and the rose says the same (#296)', async () => {
+  it('refuses to enter the garrison the column already is (#296)', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', NORD);
