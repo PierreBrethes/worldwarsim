@@ -65,8 +65,9 @@ import {
   TANK_SHARE,
   troopPinSpan,
 } from './figurines/figurine';
-import { type Cue, PLAY_PX, SequenceLayer } from './sequences';
+import { type Cue, SequenceLayer } from './sequences';
 import { barracksDoors } from './timelines/barracks';
+import { tailgateDrop } from './timelines/truck';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -445,7 +446,7 @@ export class MapEngine {
   private readonly standing: StandingLayer;
   private readonly maquettes: MaquetteLayer;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
-  private readonly sequences = new SequenceLayer((box) => this.seenBig(box));
+  private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   private readonly eyeFrustum = new Frustum();
   private readonly eyeMatrix = new Matrix4();
   private readonly camps: CampLayer;
@@ -2519,18 +2520,21 @@ export class MapEngine {
       case 'sortie':
         this.sequences.play(this.maquettes, cue.siteId, barracksDoors(), performance.now());
         break;
+      case 'descente':
+        this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
+        break;
     }
   }
 
-  /** In the eye's field, and at least `PLAY_PX` tall on the 900 px reference window. */
-  private seenBig(box: Box3): boolean {
+  /** In the eye's field, and at least `px` tall on the 900 px reference window. */
+  private seenBig(box: Box3, px: number): boolean {
     this.eyeFrustum.setFromProjectionMatrix(
       this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
     );
     if (!this.eyeFrustum.intersectsBox(box)) return false;
     const size = box.getSize(new Vector3());
     const distance = this.eye.position.distanceTo(box.getCenter(new Vector3()));
-    return (Math.max(size.x, size.z) * REFERENCE_PX_PER_UNIT) / Math.max(distance, 1e-6) >= PLAY_PX;
+    return (Math.max(size.x, size.z) * REFERENCE_PX_PER_UNIT) / Math.max(distance, 1e-6) >= px;
   }
 
   setMapMotion(motion: MapMotion): void {

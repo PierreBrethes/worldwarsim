@@ -50,7 +50,7 @@ import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
-import { sortiesOf } from './cues';
+import { aboardOf, descentesOf, sortiesOf } from './cues';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { shareUnchanged } from '@/data/shareUnchanged';
@@ -1452,6 +1452,16 @@ export function WorldMap({
     troopsKnown.current = new Set(troops.map((troop) => troop.id));
     if (known === null) return;
     for (const siteId of sortiesOf(known, standing)) readyEngine?.cue({ kind: 'sortie', siteId });
+  }, [troops, standing, readyEngine]);
+
+  // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.
+  const aboardKnown = useRef<ReadonlyMap<string, string> | null>(null);
+  useEffect(() => {
+    const known = aboardKnown.current;
+    aboardKnown.current = aboardOf(troops);
+    if (known === null) return;
+    for (const groupId of descentesOf(known, troops, standing))
+      readyEngine?.cue({ kind: 'descente', groupId });
   }, [troops, standing, readyEngine]);
 
   const cutBefore = useRef<ReadonlyArray<string> | null>(null);

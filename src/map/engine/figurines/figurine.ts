@@ -125,6 +125,12 @@ export type Figurine = {
   /** Settles once every sculpted file has landed in `object` — a piece that stands still asks
    *  for its frame then, where a flowing pawn would just show it. Rejects when a file fails. */
   readonly ready: Promise<void>;
+  /** The file of its model, what a sequence cooks its copy from; absent for a squad (several
+   *  files, none articulated) and for what is not a role's model (a block, an annotation). */
+  readonly url?: string;
+  /** A copy takes the place of the model it is drawn with, until `null` gives it back
+   *  (ADR 0036 §5). Asked before `ready`, it takes its place when the model lands. */
+  standIn?(copy: Object3D | null): void;
   /** Turns whatever spins on the model (`prop*`), and nothing else. */
   spin(elapsedSeconds: number): void;
   /** Turns its back to the eye rather than its front to the road: an enemy block (ADR 0026 §4). */
@@ -201,6 +207,19 @@ export function figurineFor(
   // Its first mark's model: a French pile of tanks led by an R35 is measured at 4 m.
   const span = troopSpan(role, nation, marks[0]);
 
+  /** The clone a lone model is drawn with, kept to be set back where a copy stood in. */
+  let drawn: Object3D | null = null;
+  let standing: Object3D | null = null;
+  const standIn = (copy: Object3D | null): void => {
+    standing?.removeFromParent();
+    standing = copy;
+    if (drawn === null) return;
+    if (copy === null) model.add(drawn);
+    else {
+      drawn.removeFromParent();
+      model.add(copy);
+    }
+  };
   const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {
       const makers = scenes.map((scene, k) => ({
@@ -209,7 +228,10 @@ export function figurineFor(
       }));
       // Each model brought to its role's real size, whatever it was sculpted at.
       model.scale.setScalar(span / measureOf(scenes[0]!, role));
-      model.add(role === 'infantry' ? squadOf(makers) : makers[0]!.make());
+      drawn = role === 'infantry' ? squadOf(makers) : makers[0]!.make();
+      model.add(drawn);
+      // A copy asked for while the file was loading takes its place now.
+      if (standing !== null) standIn(standing);
     },
     (error: unknown) => {
       console.error(`figurine ${nation}/${role}`, error);
@@ -224,6 +246,8 @@ export function figurineFor(
     object,
     span,
     ready,
+    ...(role === 'infantry' ? {} : { url: files[0]! }),
+    standIn,
     spin(elapsedSeconds) {
       // Only the hub turns: its blades and cone ride along, and turning them too would twist
       // each on its own axis.

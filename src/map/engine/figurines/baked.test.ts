@@ -1,6 +1,8 @@
 import { Box3, type Object3D, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
+import { isRigPart, type RigFamily, RIG_PARTS } from '@/emblems/rigs';
+import { bakedRig } from '../baking';
 import { meshesOf, sceneOfFile, sweptVolume } from '../gltf-scene.fixture';
 import { bakedFigurine } from './figurine';
 import { JOINTS, squadOf, stride } from './infantry';
@@ -74,5 +76,43 @@ describe.runIf(files.length > 0)('baked figurines', () => {
         expect(man.getObjectByName(joint), joint).toBeDefined();
       expect(man.getObjectByName('leg_left')!.rotation.x).not.toBe(0);
     }
+  });
+});
+
+/** The articulated copy of a regenerated vehicle (ADR 0036 §11) is the resting figurine, parts apart. */
+describe.runIf(files.length > 0)('articulated copies of the figurines', () => {
+  const rigged = files.filter(([, role]) => role in RIG_PARTS);
+  const triangles = (object: Object3D) =>
+    meshesOf(object).reduce(
+      (sum, { geometry }) => sum + (geometry.index ?? geometry.attributes.position!).count,
+      0,
+    );
+
+  it.each(rigged)('%s draws at rest what the resting figurine does', (_, role, url) => {
+    const scene = sceneOfFile(url);
+    const rig = bakedRig(scene, (node) => isRigPart(role as RigFamily, node.name));
+    const rest = bakedFigurine(sceneOfFile(url));
+    for (const made of [rig, rest]) made.updateMatrixWorld(true);
+    const [a, b] = [rig, rest].map((made) => new Box3().setFromObject(made, true));
+    expect(a!.min.distanceTo(b!.min)).toBeLessThan(1e-4);
+    expect(a!.max.distanceTo(b!.max)).toBeLessThan(1e-4);
+    expect(triangles(rig)).toBe(triangles(rest));
+    expect(sweptVolume(rig)).toBeCloseTo(sweptVolume(rest), 3);
+    // A truck has as many meshes as primitives: the parts apart may merge nothing.
+    expect(meshesOf(rig).length).toBeLessThanOrEqual(meshesOf(scene).length);
+  });
+
+  it.each(rigged)('%s keeps each part where it was, by name', (_, role, url) => {
+    const scene = sceneOfFile(url);
+    scene.updateMatrixWorld(true);
+    const rig = bakedRig(scene, (node) => isRigPart(role as RigFamily, node.name));
+    rig.updateMatrixWorld(true);
+    scene.traverse((node) => {
+      if (!isRigPart(role as RigFamily, node.name)) return;
+      const kept = rig.getObjectByName(node.name);
+      expect(kept, node.name).toBeDefined();
+      const was = node.getWorldPosition(new Vector3());
+      expect(kept!.getWorldPosition(new Vector3()).distanceTo(was), node.name).toBeLessThan(1e-5);
+    });
   });
 });

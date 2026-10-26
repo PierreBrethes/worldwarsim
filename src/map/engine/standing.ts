@@ -42,6 +42,7 @@ import {
 } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { InkRing, type RingState } from './ink-ring';
+import type { SequenceHost } from './sequences';
 import { playTableSound } from '../table-sound';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
@@ -249,6 +250,8 @@ export function pileObject(
   center: { readonly x: number; readonly z: number };
   extent: { readonly x: number; readonly z: number };
   ready: Promise<unknown>;
+  /** One per group of the pile, in its order. */
+  figurines: ReadonlyArray<Figurine>;
   smokes: ReadonlyArray<Smoke>;
   targets: ReadonlyArray<Mesh>;
 } | null {
@@ -312,6 +315,7 @@ export function pileObject(
       z: (Math.max(...zs) - Math.min(...zs)) / 2 + margin,
     },
     ready: Promise.all(figurines.map((figurine) => figurine.ready)),
+    figurines,
     smokes,
     targets,
   };
@@ -439,6 +443,9 @@ type Dressed = {
   ready: boolean;
   /** How much of it stands rather than its pin, at the last `orient`. */
   near: number;
+  /** Its first `orient` has run: before, it stands at the size of its models, not the board's. */
+  placed: boolean;
+  readonly figurines: ReadonlyArray<Figurine>;
   readonly smokes: ReadonlyArray<Smoke>;
   readonly targets: ReadonlyArray<Mesh>;
   /** What it is to the hand right now (POC, `ringStyle`), round its footprint. */
@@ -659,7 +666,7 @@ export const drawnKey = (nation: string | null, { groups, count }: PilePieces): 
  * reduced or cut — the smoke stays, the wear is information. A model or a counter face that
  * lands late asks for its frame through `changed`.
  */
-export class StandingLayer {
+export class StandingLayer implements SequenceHost {
   readonly group = new Group();
   private time = 0;
   private nation: string | null = null;
@@ -748,6 +755,8 @@ export class StandingLayer {
         span: built.span,
         ready: false,
         near: 0,
+        placed: false,
+        figurines: built.figurines,
         smokes: built.smokes,
         targets: built.targets,
         ring,
@@ -794,6 +803,48 @@ export class StandingLayer {
 
   isDressed(id: string): boolean {
     return this.dressed.get(id)?.ready === true;
+  }
+
+  /** The figurines a sequence has stood a copy in, by `${pileId}/${group}`: a pile dressed again
+   *  has other figurines, and the sequence on the old ones is over. */
+  private readonly stoodIn = new Map<string, Figurine>();
+
+  private figurineOf(id: string): { figurine: Figurine; placed: boolean } | null {
+    const at = id.lastIndexOf('/');
+    const pileId = id.slice(0, at);
+    const entry = this.dressed.get(pileId);
+    // A pile in hand is washed out in place: a copy would stand there unwashed.
+    if (entry === undefined || this.held?.pileId === pileId) return null;
+    // A pile drawn again after a view (a troop stepped down) is loading, then waits for its
+    // first `orient`: it is lent unmeasured until then, and `visible` is read once placed.
+    const placed = entry.ready && entry.placed;
+    if (placed && !entry.object.visible) return null;
+    const figurine = entry.figurines[Number(id.slice(at + 1))];
+    return figurine === undefined ? null : { figurine, placed };
+  }
+
+  /** **What a sequence may borrow** (`SequenceHost`): a group of a pile that stands, is not in
+   *  hand, and has the one file a copy is cooked from. */
+  pieceOf(id: string): { url: string; box: Box3 | null } | null {
+    const lent = this.figurineOf(id);
+    const stood = this.stoodIn.get(id);
+    if (lent === null || lent.figurine.url === undefined || (stood && stood !== lent.figurine))
+      return null;
+    if (!lent.placed) return { url: lent.figurine.url, box: null };
+    // A copy just stood in has not been placed yet: its meshes would read at the origin.
+    lent.figurine.object.updateMatrixWorld(true);
+    return { url: lent.figurine.url, box: boxOfObject(lent.figurine.object).clone() };
+  }
+
+  /** The copy takes the group's model's place, at its scale: it is drawn under the same
+   *  `model` group. The pile's feet, which a click takes, do not change. */
+  standIn(id: string, copy: Object3D | null): void {
+    const figurine = copy === null ? this.stoodIn.get(id) : this.figurineOf(id)?.figurine;
+    if (figurine === undefined) return;
+    figurine.standIn?.(copy);
+    if (copy === null) this.stoodIn.delete(id);
+    else this.stoodIn.set(id, figurine);
+    this.changed();
   }
 
   /** The troops of the piece under `ray`, among the piles standing in sight. */
@@ -1143,6 +1194,7 @@ export class StandingLayer {
       const distance = object.position.distanceTo(cameraPosition);
       const near = troopWeight(distance, span);
       entry.near = near;
+      entry.placed = true;
       object.visible = near > 0;
       const scale = troopScale(distance, span) * pileUnitOf(span);
       object.scale.setScalar(scale);
