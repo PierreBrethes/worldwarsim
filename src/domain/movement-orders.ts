@@ -922,7 +922,7 @@ export function disbandPointsOf(
     { length: DISBAND_RING_SAMPLES },
     (_, index) => (2 * Math.PI * index) / DISBAND_RING_SAMPLES,
   ).filter((turn) => fits(at(turn)));
-  // ponytail: un départ par place libre, chaque pièce à la première place à un pas de la précédente
+  // Le premier départ qui loge toutes les pièces suffit : aucune couronne n'y vaut mieux qu'une autre.
   for (const [start, first] of open.entries()) {
     const turns = [first];
     for (const turn of [
