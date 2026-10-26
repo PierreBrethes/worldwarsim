@@ -1067,6 +1067,12 @@ describe('disbanding a squad', () => {
       for (const b of points.slice(i + 1)) expect(km(a, b)).toBeGreaterThan(TRUCK_KM * 0.99);
   });
 
+  it('wraps a ring across the antimeridian back onto the map', () => {
+    const points = disbandPointsOf([179.95, 65], 4, TRUCK_KM)!;
+    for (const [lon] of points) expect(Math.abs(lon)).toBeLessThanOrEqual(180);
+    for (const point of points.slice(1)) expect(km([179.95, 65], point)).toBeLessThan(24);
+  });
+
   it('finds no room where the ring has none', () => {
     expect(disbandPointsOf([10, 50], 3, TRUCK_KM, () => false)).toBeNull();
   });

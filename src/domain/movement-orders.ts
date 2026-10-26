@@ -912,8 +912,9 @@ export function disbandPointsOf(
   const step = 2 * Math.asin(Math.min(1, spanKm / (2 * radiusKm)));
   const degrees = radiusKm / KM_PER_UNIT;
   const stretch = 1 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  // Au bord de l'antiméridien, la couronne revient sur la carte de l'autre côté.
   const at = (turn: number): [number, number] => [
-    lon + Math.cos(turn) * degrees * stretch,
+    ((((lon + Math.cos(turn) * degrees * stretch + 180) % 360) + 360) % 360) - 180,
     lat + Math.sin(turn) * degrees,
   ];
   const even = Array.from({ length: ring }, (_, index) => (2 * Math.PI * index) / ring);
