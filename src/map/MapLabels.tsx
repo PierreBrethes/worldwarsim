@@ -220,6 +220,24 @@ export function MapLabels({
   /** The members of each group that hang a plate — a site under the crane has none to fade. */
   const platedNow = useRef<ReadonlyMap<string, ReadonlyArray<string>>>(new Map());
   const groupAnchors = useRef(new Map<string, HTMLElement>());
+  /** How far a ring's cartouche rises to clear the cartouche of the stack standing in it. */
+  const groupLifts = useRef<ReadonlyMap<string, number>>(new Map());
+  /** What each ring's mast was last written as, so the interface `zoom` is read only on a change. */
+  const liftWritten = useRef(new Map<string, { raw: number; text: string }>());
+  const writeLift = useCallback((groupId: string) => {
+    const label = groupAnchors.current.get(groupId)?.querySelector<HTMLElement>('.label');
+    if (!label) return;
+    const raw = groupLifts.current.get(groupId) ?? 0;
+    let written = liftWritten.current.get(groupId);
+    if (written?.raw !== raw) {
+      // Mesuré en pixels d'écran, posé sous le `zoom` de l'interface : on le défait (`apply`).
+      const zoom = raw === 0 ? 1 : Number(getComputedStyle(label).zoom) || 1;
+      written = { raw, text: `${Math.round(raw / zoom)}px` };
+      liftWritten.current.set(groupId, written);
+    }
+    if (label.style.getPropertyValue('--label-stagger') !== written.text)
+      label.style.setProperty('--label-stagger', written.text);
+  }, []);
   /** La largeur mesurée de chaque cartouche, pour savoir de combien rapprocher la caméra. */
   const widths = useRef(new Map<string, number>());
   /** `click` does not say which pointer made it everywhere Safari runs: the press does. */
@@ -400,8 +418,16 @@ export function MapLabels({
       const block = blocks.current.get(label.id);
       const state = states.current.get(label.id);
       if (!block || !state) return [];
-      const rect = block.getBoundingClientRect();
-      widths.current.set(label.id, rect.width);
+      const measure = block.getBoundingClientRect();
+      widths.current.set(label.id, measure.width);
+      // Un DOMRect porte ses bords en accesseurs du prototype : une boîte copiée par `{ ...box }`
+      // les perdrait (`fanOffsets`). On la pose en objet simple.
+      const rect: ScreenBox = {
+        left: measure.left,
+        top: measure.top,
+        right: measure.right,
+        bottom: measure.bottom,
+      };
       return [{ label, state, rect }];
     });
 
@@ -455,6 +481,17 @@ export function MapLabels({
     // Un cartouche réuni se place au rang de son premier membre, et cède comme une étiquette :
     // replié, il rend leurs mots à personne et ses membres retombent tous au glyphe.
     const kept: ScreenBox[] = [];
+    /** Les feuilles de cargaison ouvertes : posées sur la carte, elles ne sont pas des étiquettes
+     *  que `degrade` replie, et un anneau hissé ne doit pas y tomber. */
+    const sheets: ScreenBox[] = [];
+    for (const id of cargoed.current)
+      for (const node of anchors.current.get(id)?.querySelectorAll('.cargo-tag-body') ?? []) {
+        const { left, top, right, bottom } = node.getBoundingClientRect();
+        if (right > left && bottom > top) sheets.push({ left, top, right, bottom });
+      }
+    /** Les cartouches de piles posés : un anneau de sites ne leur cède pas, il se hisse au-dessus. */
+    const stacks: ScreenBox[] = [];
+    const lifted = new Map<string, number>();
     const placedGroups = new Map<string, boolean>();
     for (const { label, state, rect } of measured) {
       const group = groupOf.get(label.id);
@@ -462,22 +499,56 @@ export function MapLabels({
         let standing = placedGroups.get(group.id);
         if (standing === undefined) {
           // Des planches de sites réunies ne se replient pas devant une pile : repliées, elles
-          // restaient l'amas qu'elles devaient résumer.
-          standing =
-            (groupFar && group.kind === 'building') ||
-            !kept.some((other) => boxesOverlap(other, group.box, OVERLAP_MARGIN));
+          // restaient l'amas qu'elles devaient résumer. Depuis la figurine plancher (ADR 0035
+          // §10) la pile garde son étiquette jusqu'à d ≈ 30, et l'anneau son « N sites » avec
+          // elle (#285) : la pile n'est pas ce qui le replie.
+          const against = (box: ScreenBox) =>
+            !kept.some(
+              (other) =>
+                !(group.kind === 'building' && stacks.includes(other)) &&
+                boxesOverlap(other, box, OVERLAP_MARGIN),
+            );
+          standing = (groupFar && group.kind === 'building') || against(group.box);
+          let box = group.box;
+          if (standing && group.kind === 'building') {
+            // Une pile qui se lit (son cartouche a une hauteur) est dégagée par un mât plus
+            // long ; une pile muette n'a rien à dégager. L'anneau hissé se confronte comme
+            // n'importe quel cartouche : s'il sort de l'écran ou en couvre un autre, il se
+            // replie comme avant.
+            const lift = Math.max(
+              0,
+              ...stacks
+                .filter((other) => other.bottom > other.top)
+                .map((other) => fanOffsets([other, group.box])[1] ?? 0),
+            );
+            if (lift > 0) {
+              box = { ...group.box, top: group.box.top - lift, bottom: group.box.bottom - lift };
+              standing =
+                (groupFar || against(box)) &&
+                box.top >= 0 &&
+                !sheets.some((sheet) => boxesOverlap(sheet, box, OVERLAP_MARGIN));
+              if (standing) lifted.set(group.id, lift);
+            }
+          }
           placedGroups.set(group.id, standing);
-          if (standing) kept.push(group.box);
+          if (standing) {
+            kept.push(box);
+            if (group.kind === 'stack') stacks.push(box);
+          }
         }
         state.grouped = standing && !fans(group);
         state.folded = !standing;
         if (standing && fans(group)) state.stagger = lifts.get(label.id) ?? 0;
       } else if (state.lod === 'expanded') {
         state.folded = kept.some((other) => boxesOverlap(other, rect, OVERLAP_MARGIN));
-        if (!state.folded) kept.push(rect);
+        if (!state.folded) {
+          kept.push(rect);
+          if (label.type === 'stack') stacks.push(rect);
+        }
       }
       apply(label.id, state);
     }
+    groupLifts.current = lifted;
 
     const shown = formed.filter((group) => !fans(group));
     const plated = new Set(
@@ -488,8 +559,9 @@ export function MapLabels({
     );
     groupsNow.current = shown;
     setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
+    for (const group of shown) writeLift(group.id);
     point(held);
-  }, [labels, apply, engine, point, groupFar]);
+  }, [labels, apply, engine, point, groupFar, writeLift]);
 
   /**
    * One degradation per frame at most, and only when something asked for it. Crossing the
@@ -754,6 +826,7 @@ export function MapLabels({
         anchor.style.display = shown ? '' : 'none';
         if (!shown) continue;
         anchor.style.transform = `translate3d(${lead.x}px, ${lead.y}px, 0)`;
+        writeLift(group.id);
         // Its plates give way as its members' do: the maquettes stand in a ring under it.
         const plated = platedNow.current.get(group.id) ?? [];
         const dressed =
@@ -771,7 +844,7 @@ export function MapLabels({
       if (pendingDegrade.current !== 0) cancelAnimationFrame(pendingDegrade.current);
       pendingDegrade.current = 0;
     };
-  }, [engine, apply, degrade, scheduleDegrade, layerSize]);
+  }, [engine, apply, degrade, scheduleDegrade, layerSize, writeLift]);
 
   // Les nœuds posés ici naissent cachés et c'est la prochaine image qui les place. La carte ne
   // rend plus sans raison (`engine/frame-demand.ts`) : ce qui fait naître ou change un nœud en
