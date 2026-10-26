@@ -2593,6 +2593,22 @@ describe('the door of the sea, read on the pile', () => {
     expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toEqual([]);
   });
 
+  it('refuses a gun or a truck aboard an air transport, at an airfield, and keeps the infantry', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const field = await raise(t, seat, 'airfield', NORD);
+    const wing = await form(t, seat, 'airTransport', field);
+    for (const role of ['artillery', 'landTransport'] as const) {
+      const heavy = await form(t, seat, role, field);
+      await expect(
+        t.mutation(api.movements.board, { ...seat, troopIds: [heavy], carrierId: wing }),
+      ).rejects.toThrow('AIR_TRANSPORT_SEATS_INFANTRY');
+    }
+    const rifle = await form(t, seat, 'infantry', field);
+    await t.mutation(api.movements.board, { ...seat, troopIds: [rifle], carrierId: wing });
+    expect((await t.run((ctx) => ctx.db.get(rifle)))!.carriedBy).toBe(wing);
+  });
+
   it('boards nobody who stands at another address', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

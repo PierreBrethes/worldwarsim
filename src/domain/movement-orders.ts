@@ -783,6 +783,7 @@ export type BoardingRefusal =
   | 'NO_TRANSPORT_HERE'
   | 'AIRFIELD_BOARDING_ONLY'
   | 'TRUCK_SEATS_INFANTRY'
+  | 'AIR_TRANSPORT_SEATS_INFANTRY'
   | 'NOT_ENOUGH_LIFT';
 
 /** Un embarquement tel que la rose et le serveur le lisent, chacun de son côté : ces troupes,
@@ -808,9 +809,13 @@ export function boardingRefusalOf(boarding: Boarding): BoardingRefusal | null {
   if (riders.length === 0) return 'EMPTY_MOVEMENT';
   if (riders.some((rider) => DOMAIN_BY_ROLE[rider.role] !== 'land')) return 'LAND_TROOPS_ONLY';
   if (fareOf(carrier.role, { id: '', role: 'infantry' }, pile) === null) return 'NO_TRANSPORT_HERE';
+  // La sorte de la troupe se lit avant l'aérodrome : un canon n'a pas à apprendre qu'il lui
+  // faudrait un aérodrome pour une aile qui ne le prendra jamais.
+  if (faresOf(boarding).some((fare) => fare === null))
+    return carrier.role === 'airTransport'
+      ? 'AIR_TRANSPORT_SEATS_INFANTRY'
+      : 'TRUCK_SEATS_INFANTRY';
   if (carrier.role === 'airTransport' && !atAirfield) return 'AIRFIELD_BOARDING_ONLY';
-  const fares = faresOf(boarding);
-  if (fares.some((fare) => fare === null)) return 'TRUCK_SEATS_INFANTRY';
   return boardingRefusalDetails(boarding).needed > seatsLeft(carrier, pile)
     ? 'NOT_ENOUGH_LIFT'
     : null;

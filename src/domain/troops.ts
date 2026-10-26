@@ -404,6 +404,11 @@ export function troopsAt(
  */
 export type StackRow<T> = { readonly troop: T; readonly carrier: T | null };
 
+/** Une aile n'assoit que l'infanterie (porte latérale, pas de rampe : #284) ; une coque, tout ce
+ *  qui marche. Le tarif d'un camion à bord (`fareOf`) est une autre question. */
+const seatsKind = (carrier: UnitRole | undefined, rider: UnitRole): boolean =>
+  carrier !== 'airTransport' || rider === 'infantry';
+
 export function stackRows<T extends { readonly id: string; readonly role: UnitRole }>(
   troops: ReadonlyArray<T>,
   picked: ReadonlySet<string>,
@@ -430,7 +435,10 @@ export function stackRows<T extends { readonly id: string; readonly role: UnitRo
   for (const rider of byWeight) {
     seat(
       rider,
-      free.findIndex((seats) => seats >= (LIFT_COST[rider.role] ?? 0)),
+      free.findIndex(
+        (seats, berth) =>
+          seats >= (LIFT_COST[rider.role] ?? 0) && seatsKind(carriers[berth]?.role, rider.role),
+      ),
     );
   }
 
@@ -476,7 +484,7 @@ export const seatsOf = (role: UnitRole): number =>
   role === 'landTransport' ? LAND_SEATS_PER_TRANSPORT : (LIFT_CAPACITY[role] ?? 0);
 
 /** Ce que coûte une troupe à bord de ce transport, sa propre cargaison comprise ; `null` quand il
- *  ne la prend pas — un camion ne porte que l'infanterie, une coque que ce qui marche. */
+ *  ne la prend pas — un camion ou un avion ne portent que l'infanterie, une coque que ce qui marche. */
 export function fareOf<T extends Seated>(
   carrier: UnitRole,
   rider: T,
@@ -484,6 +492,7 @@ export function fareOf<T extends Seated>(
 ): number | null {
   if (carrier === 'landTransport')
     return rider.role === 'infantry' ? (LIFT_COST.infantry ?? 0) : null;
+  if (!seatsKind(carrier, rider.role)) return null;
   if (seatsOf(carrier) === 0 || (LIFT_COST[rider.role] ?? 0) === 0) return null;
   return [rider, ...cargoOf(rider, pile)].reduce(
     (sum, troop) => sum + (LIFT_COST[troop.role] ?? 0),
