@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapLabel } from '@/domain/labels';
 import { CLASSIC_MAPPING } from '@/domain/mouse-mapping';
@@ -358,5 +358,132 @@ describe('a deposit on the map', () => {
     expect(container.querySelector('.label-deposit')).toBeNull();
     expect(container.querySelector('.label--deposit img')).toBeNull();
     expect(container.querySelector('.label--deposit')?.textContent).toContain('charbon');
+  });
+});
+
+/**
+ * **Un anneau de bâtiments garde son « N sites » quand la pile au centre est en figurines**
+ * (#285). La figurine plancher laisse la pile lisible jusqu'à d ≈ 30 : son étiquette, qui
+ * passe avant celle des bâtiments, ne doit plus replier leur cartouche réuni.
+ */
+describe('a ring of buildings around a stack', () => {
+  const place = (id: string, type: 'stack' | 'building', priority: number) =>
+    ({
+      ...outpost(id, id),
+      type,
+      priority,
+      lines: [{ role: 'nature', text: id }],
+      force: type === 'stack' ? { headcount: 4 } : null,
+    }) as unknown as MapLabel;
+
+  const labels = [
+    place('stack', 'stack', 5),
+    place('hq', 'building', 1),
+    place('airfield', 'building', 1),
+    place('barracks', 'building', 1),
+  ];
+
+  const frame = (engine: Record<string, unknown>) => (
+    <MapLabels
+      labels={labels}
+      engine={engine as never}
+      selected={null}
+      secondarySelected={null}
+      onMovementHover={noop}
+      onReachHover={noop}
+      poster={() => null}
+      onSelect={noop}
+      onOpenBuilding={noop}
+      onOpenStack={noop}
+      onOpenLoot={noop}
+      onOpenCamp={noop}
+      onOpenObjective={noop}
+      onOpenStrategic={noop}
+      onAct={noop}
+      onCancelHeld={noop}
+      mapping={CLASSIC_MAPPING}
+      holding={false}
+      onHoldOver={noop}
+      muted={false}
+    />
+  );
+
+  /** Every label stands at the same screen point, as a region's stack and its buildings do. */
+  const lay = (stackDressed: number | 'pin') => {
+    const engine: Record<string, unknown> = {
+      setLabelAnchors: () => {},
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      pieceRect: () => null,
+      cameraDistance: () => 20,
+    };
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      right: 160,
+      top: 100,
+      bottom: 120,
+      x: 100,
+      y: 100,
+      width: 60,
+      height: 20,
+      toJSON: () => ({}),
+    });
+    const frames: Array<() => void> = [];
+    vi.stubGlobal('requestAnimationFrame', (run: () => void) => frames.push(run));
+    render(frame(engine));
+    const project = (id: string, dressed: number) => ({
+      id,
+      visible: !(id === 'stack' && stackDressed === 'pin'),
+      x: 130,
+      y: 120,
+      lod: 'expanded',
+      fade: 1,
+      dressed,
+      far: false,
+      drawnX: 0,
+      drawnY: 0,
+      distance: 20,
+      atEdge: false,
+      edgeX: 0,
+      edgeY: 0,
+      heading: 0,
+    });
+    const onLabels = engine.onLabels as (projections: ReadonlyArray<unknown>) => void;
+    const projections = labels.map((label) =>
+      project(label.id, label.id === 'stack' && stackDressed !== 'pin' ? stackDressed : 1),
+    );
+    // One frame sets the states and asks for the degradation, the next one places the groups.
+    act(() => onLabels(projections));
+    act(() => frames.splice(0).forEach((run) => run()));
+    act(() => onLabels(projections));
+  };
+
+  const sites = () =>
+    [...document.querySelectorAll('.label--building-group')].find((node) =>
+      node.textContent?.includes('3 sites'),
+    );
+  const shownGroup = () => {
+    const anchor = sites()?.parentElement;
+    return anchor != null && anchor.style.display !== 'none';
+  };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('keeps its "3 sites" with the stack in figurines', () => {
+    lay(1);
+    expect(shownGroup()).toBe(true);
+  });
+
+  it('rises above the stack cartouche instead of covering it', () => {
+    lay(1);
+    const lift = (sites() as HTMLElement).style.getPropertyValue('--label-stagger');
+    // The stack's cartouche is 20 px high here: the ring's mast is longer by at least that.
+    expect(Number.parseInt(lift)).toBeGreaterThanOrEqual(20);
+  });
+
+  it('keeps its "3 sites" with the stack as a pin', () => {
+    lay('pin');
+    expect(shownGroup()).toBe(true);
   });
 });

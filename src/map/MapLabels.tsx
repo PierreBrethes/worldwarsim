@@ -220,6 +220,8 @@ export function MapLabels({
   /** The members of each group that hang a plate — a site under the crane has none to fade. */
   const platedNow = useRef<ReadonlyMap<string, ReadonlyArray<string>>>(new Map());
   const groupAnchors = useRef(new Map<string, HTMLElement>());
+  /** How far a ring's cartouche rises to clear the cartouche of the stack standing in it. */
+  const groupLifts = useRef<ReadonlyMap<string, number>>(new Map());
   /** La largeur mesurée de chaque cartouche, pour savoir de combien rapprocher la caméra. */
   const widths = useRef(new Map<string, number>());
   /** `click` does not say which pointer made it everywhere Safari runs: the press does. */
@@ -455,6 +457,9 @@ export function MapLabels({
     // Un cartouche réuni se place au rang de son premier membre, et cède comme une étiquette :
     // replié, il rend leurs mots à personne et ses membres retombent tous au glyphe.
     const kept: ScreenBox[] = [];
+    /** Les cartouches de piles posés : un anneau de sites ne leur cède pas, il se hisse au-dessus. */
+    const stacks: ScreenBox[] = [];
+    const lifted = new Map<string, number>();
     const placedGroups = new Map<string, boolean>();
     for (const { label, state, rect } of measured) {
       const group = groupOf.get(label.id);
@@ -462,22 +467,45 @@ export function MapLabels({
         let standing = placedGroups.get(group.id);
         if (standing === undefined) {
           // Des planches de sites réunies ne se replient pas devant une pile : repliées, elles
-          // restaient l'amas qu'elles devaient résumer.
+          // restaient l'amas qu'elles devaient résumer. Depuis la figurine plancher (ADR 0035
+          // §10) la pile garde son étiquette jusqu'à d ≈ 30, et l'anneau son « N sites » avec
+          // elle (#285) : la pile n'est pas ce qui le replie.
           standing =
             (groupFar && group.kind === 'building') ||
-            !kept.some((other) => boxesOverlap(other, group.box, OVERLAP_MARGIN));
+            !kept.some(
+              (other) =>
+                !(group.kind === 'building' && stacks.includes(other)) &&
+                boxesOverlap(other, group.box, OVERLAP_MARGIN),
+            );
           placedGroups.set(group.id, standing);
-          if (standing) kept.push(group.box);
+          if (standing) {
+            kept.push(group.box);
+            if (group.kind === 'stack') stacks.push(group.box);
+            else {
+              // Une pile qui se lit (son cartouche a une hauteur) est dégagée par un mât plus
+              // long ; une pile muette n'a rien à dégager.
+              const reading = stacks.filter((other) => other.bottom > other.top);
+              const lift = Math.max(
+                0,
+                ...reading.map((other) => fanOffsets([other, group.box])[1] ?? 0),
+              );
+              if (lift > 0) lifted.set(group.id, lift);
+            }
+          }
         }
         state.grouped = standing && !fans(group);
         state.folded = !standing;
         if (standing && fans(group)) state.stagger = lifts.get(label.id) ?? 0;
       } else if (state.lod === 'expanded') {
         state.folded = kept.some((other) => boxesOverlap(other, rect, OVERLAP_MARGIN));
-        if (!state.folded) kept.push(rect);
+        if (!state.folded) {
+          kept.push(rect);
+          if (label.type === 'stack') stacks.push(rect);
+        }
       }
       apply(label.id, state);
     }
+    groupLifts.current = lifted;
 
     const shown = formed.filter((group) => !fans(group));
     const plated = new Set(
@@ -754,6 +782,12 @@ export function MapLabels({
         anchor.style.display = shown ? '' : 'none';
         if (!shown) continue;
         anchor.style.transform = `translate3d(${lead.x}px, ${lead.y}px, 0)`;
+        const label = anchor.querySelector<HTMLElement>('.label');
+        // Mesuré en pixels d'écran, posé sous le `zoom` de l'interface : on le défait (`apply`).
+        const zoom = label === null ? 1 : Number(getComputedStyle(label).zoom) || 1;
+        const lift = `${Math.round((groupLifts.current.get(group.id) ?? 0) / zoom)}px`;
+        if (label !== null && label.style.getPropertyValue('--label-stagger') !== lift)
+          label.style.setProperty('--label-stagger', lift);
         // Its plates give way as its members' do: the maquettes stand in a ring under it.
         const plated = platedNow.current.get(group.id) ?? [];
         const dressed =
