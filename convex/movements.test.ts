@@ -2609,6 +2609,27 @@ describe('the door of the sea, read on the pile', () => {
     expect((await t.run((ctx) => ctx.db.get(rifle)))!.carriedBy).toBe(wing);
   });
 
+  it('backfills a gun or a truck aboard a wing back onto the ground, and keeps the infantry', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const field = await raise(t, seat, 'airfield', NORD);
+    const wing = await form(t, seat, 'airTransport', field);
+    const gun = await form(t, seat, 'artillery', field);
+    const rifle = await form(t, seat, 'infantry', field);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(gun, { carriedBy: wing });
+      await ctx.db.patch(rifle, { carriedBy: wing });
+    });
+
+    expect(await t.mutation(internal.dev.backfillAirTransportInfantryOnly, {})).toEqual({
+      freed: 1,
+    });
+    const [freed, kept] = await t.run((ctx) => Promise.all([ctx.db.get(gun), ctx.db.get(rifle)]));
+    expect(freed!.carriedBy).toBeUndefined();
+    expect(freed!.stationedAt).toEqual(kept!.stationedAt);
+    expect(kept!.carriedBy).toBe(wing);
+  });
+
   it('boards nobody who stands at another address', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
