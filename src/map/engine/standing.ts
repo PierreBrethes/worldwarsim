@@ -1235,32 +1235,44 @@ export class StandingLayer implements SequenceHost {
     return span === undefined ? null : troopPinSpan(span);
   }
 
-  /** **The newcomer reaches its rank in `delay` ms** (#268): the rest of the pile holds where it
-   *  stood, then glides to its new places in `GLIDE_MS`, and the pile says it grew. */
-  arrive(pileId: string, delay: number): void {
+  /**
+   * **Each newcomer reaches the rank in its `delays` ms** (#268, décision de Pierre du 23/10): the
+   * rest of the pile holds where it stood, then glides its share of the way in `GLIDE_MS` at each
+   * arrival, and the pile says it grew each time. Out of full motion, it stands at once.
+   */
+  arrive(pileId: string, delays: ReadonlyArray<number>): void {
     const entry = this.dressed.get(pileId);
     if (entry === undefined) return;
     const { held } = entry;
     entry.held = [];
     const grown = this.grown.delete(pileId);
     const bases = held.map(({ figurine, by }) => figurine.object.position.clone().sub(by));
-    let told = !grown;
-    const seconds = (delay + GLIDE_MS) / 1000;
+    const stand = (left: number) =>
+      held.forEach(({ figurine, by }, n) =>
+        figurine.object.position.copy(bases[n]!).addScaledVector(by, left),
+      );
+    if (this.motion !== 'full' || delays.length === 0) {
+      stand(0);
+      if (grown) this.merged(pileId);
+      return;
+    }
+    let told = 0;
+    const seconds = (Math.max(...delays) + GLIDE_MS) / 1000;
     this.effects.push({
       since: performance.now(),
       seconds,
       step: (k) => {
-        const elapsed = k * seconds * 1000;
-        const left = 1 - ease.inOut(Math.min(1, Math.max(0, (elapsed - delay) / GLIDE_MS)));
-        held.forEach(({ figurine, by }, n) =>
-          figurine.object.position.copy(bases[n]!).addScaledVector(by, left),
+        // A setting changed on the way: the rank stands where it ends.
+        const elapsed = this.motion === 'full' ? k * seconds * 1000 : Infinity;
+        const gone = delays.reduce(
+          (sum, delay) => sum + ease.inOut(Math.min(1, Math.max(0, (elapsed - delay) / GLIDE_MS))),
+          0,
         );
-        if (!told && elapsed >= delay) {
-          told = true;
-          this.merged(pileId);
-        }
+        stand(1 - gone / delays.length);
+        const arrived = delays.filter((delay) => elapsed >= delay).length;
+        for (; grown && told < arrived; told++) this.merged(pileId);
       },
-      end: () => held.forEach(({ figurine }, n) => figurine.object.position.copy(bases[n]!)),
+      end: () => stand(0),
     });
   }
 

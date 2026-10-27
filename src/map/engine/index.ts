@@ -471,6 +471,8 @@ export class MapEngine {
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
   /** The recruits on their way, whose pin follows the path when they are pinned (#268). */
   private walks: Array<{
+    /** The walker, `${pileId}/${group}`. */
+    readonly id: string;
     readonly pileId: string;
     readonly alone: boolean;
     readonly walk: Sequence<never>;
@@ -2615,14 +2617,15 @@ export class MapEngine {
     });
     if (walks.length > 0)
       this.sequences.play(this.maquettes, cue.siteId, barracksDoors(closing), since, now);
-    let arrival = -1;
+    // The rank recentres at each arrival, half a step each (décision de Pierre du 23/10).
+    const arrivals: number[] = [];
     for (const { id, walk } of walks) {
       if (!this.sequences.play(this.standing, id, walk, since, now)) continue;
       const alone = pieces.groups.length === 1;
-      this.walks.push({ pileId: cue.pileId, alone, walk, since });
-      arrival = Math.max(arrival, since + walk.ms - now);
+      this.walks.push({ id, pileId: cue.pileId, alone, walk, since });
+      arrivals.push(since + walk.ms - now);
     }
-    if (arrival >= 0) this.standing.arrive(cue.pileId, arrival);
+    if (arrivals.length > 0) this.standing.arrive(cue.pileId, arrivals);
     return true;
   }
 

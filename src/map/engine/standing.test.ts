@@ -1,6 +1,7 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
+import type { MapMotion } from '@/domain/map-motion';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import type { WorldFrame } from './frame';
 import {
@@ -370,14 +371,15 @@ describe('a pile lent to a sequence', () => {
   });
 
   describe('a pile that grows by a troop walking to its rank', () => {
-    const grown = async (claim: boolean) => {
+    const grown = async (claim: ReadonlyArray<number> | null, motion: MapMotion = 'full') => {
       const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
       const layer = await standing('infantry');
       const was = layer.placeOf('p/0')!.at.x;
       layer.display([pileOf('infantry', 'armor')]);
       await new Promise((resolve) => setTimeout(resolve, 0));
       layer.orient(eye);
-      if (claim) layer.arrive('p', 1000);
+      layer.motion = motion;
+      if (claim) layer.arrive('p', claim);
       layer.orient(eye);
       const at = (ms: number) => {
         clock.mockReturnValue(ms);
@@ -388,7 +390,7 @@ describe('a pile lent to a sequence', () => {
     };
 
     it('holds the rank as it stood until the newcomer arrives, then glides it in half a second', async () => {
-      const { was, at, clock } = await grown(true);
+      const { was, at, clock } = await grown([1000]);
       expect(at(500)).toBeCloseTo(was);
       const gliding = at(1250);
       const settled = at(1600);
@@ -408,15 +410,32 @@ describe('a pile lent to a sequence', () => {
       layer.orient(eye);
       await new Promise((resolve) => setTimeout(resolve, 0));
       layer.orient(eye);
-      layer.arrive('p', 1000);
+      layer.arrive('p', [1000]);
       clock.mockReturnValue(500);
       layer.orient(eye);
       expect(layer.placeOf('p/0')!.at.x).toBeCloseTo(was);
       clock.mockRestore();
     });
 
+    it('glides a part of the way at each arrival, half a second each', async () => {
+      const { was, at, clock } = await grown([1000, 2000]);
+      expect(at(900)).toBeCloseTo(was);
+      const half = at(1600);
+      const settled = at(2600);
+      expect(half).toBeLessThan(was);
+      expect(half).toBeGreaterThan(settled);
+      expect(half).toBeCloseTo((was + settled) / 2);
+      clock.mockRestore();
+    });
+
+    it('stands the rank at once out of full motion, walks or not', async () => {
+      const { was, at, clock } = await grown([1000], 'off');
+      expect(at(10)).toBeLessThan(was);
+      clock.mockRestore();
+    });
+
     it('stands the rank at once in its new places when no walk claims it', async () => {
-      const { was, at, clock } = await grown(false);
+      const { was, at, clock } = await grown(null);
       expect(at(10)).toBeLessThan(was);
       clock.mockRestore();
     });
