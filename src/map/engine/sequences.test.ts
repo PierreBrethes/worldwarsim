@@ -117,6 +117,17 @@ describe('SequenceLayer', () => {
     expect(host.calls.filter(([, standing]) => !standing)).toHaveLength(1);
   });
 
+  it('says which piece it plays, until it ends', async () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    layer.play(host, 'a', turning, 0);
+    expect(layer.playsOn(host, 'a')).toBe(true);
+    expect(layer.playsOn(host, 'b')).toBe(false);
+    expect(layer.playsOn(new FakeHost(), 'a')).toBe(false);
+    layer.step(1000);
+    expect(layer.playsOn(host, 'a')).toBe(false);
+  });
+
   it('puts nothing in place when it ends before the cooking does', async () => {
     const { layer } = layerOf();
     const host = new FakeHost();

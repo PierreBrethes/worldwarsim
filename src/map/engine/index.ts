@@ -3360,7 +3360,15 @@ export class MapEngine {
     this.sorties = this.sorties.filter(
       (sortie) => !this.walkOutOf(sortie, now) && now - sortie.since < SORTIE_WAIT_MS,
     );
-    this.walks = this.walks.filter(({ walk, since }) => now - since < walk.ms);
+    // A walk ends with its copy — taken in hand, motion changed, out of the field —, unless its
+    // pile went to its pin on the way: the pin walks on (décision de Pierre du 23/10).
+    this.walks = this.walks.filter(
+      ({ id, pileId, walk, since }) =>
+        now - since < walk.ms &&
+        this.sequences.motion === 'full' &&
+        this.held?.pileId !== pileId &&
+        (this.sequences.playsOn(this.standing, id) || this.standing.placeOf(id) === null),
+    );
     this.pins.walk(
       this.walks.flatMap(({ pileId, alone, walk, since }) => {
         const travel = walk.at(now - since).root?.travel;

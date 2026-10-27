@@ -166,7 +166,7 @@ export class SequenceLayer {
     at = now,
   ): boolean {
     if (this.motion !== 'full' || this.playing.length >= MAX_PLAYING) return false;
-    if (this.playing.some((p) => p.host === host && p.id === id)) return false;
+    if (this.playsOn(host, id)) return false;
     const piece = host.pieceOf(id);
     // A box still unknown (a lot just rebuilt) is not judged now: `step` judges it once known.
     if (piece === null || (piece.box !== null && !this.sees(piece.box, sequence.minPx ?? PLAY_PX)))
@@ -241,6 +241,11 @@ export class SequenceLayer {
       if (playing.copy !== null)
         this.pose(playing, playing.sequence.at(t) as Record<string, PartPose | undefined>);
     }
+  }
+
+  /** Whether the piece `id` of `host` plays a sequence now. */
+  playsOn(host: SequenceHost, id: string): boolean {
+    return this.playing.some((p) => p.host === host && p.id === id);
   }
 
   get active(): boolean {
