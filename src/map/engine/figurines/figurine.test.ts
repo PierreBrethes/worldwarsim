@@ -83,14 +83,14 @@ describe('figurineFor', () => {
     expect(figurineFor('france', 'infantry', [])).toBeNull();
   });
 
-  it('stands one man per figure, the first in front', () => {
+  it('stands one man per figure, the first in front, each named by his place: a sortie walks them in file', () => {
     const squad = squadOf(
-      [1, 2].map((k) => ({
-        make: () => Object.assign(new Group(), { name: `man${k}` }),
+      [1, 2].map(() => ({
+        make: () => new Group(),
         marches: true,
       })),
     );
-    expect(squad.children.map((man) => man.name)).toEqual(['man1', 'man2']);
+    expect(squad.children.map((man) => man.name)).toEqual(['man_0', 'man_1']);
     expect(squad.children[0]!.position.z).toBeGreaterThan(squad.children[1]!.position.z);
   });
 

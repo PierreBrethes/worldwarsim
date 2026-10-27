@@ -371,6 +371,25 @@ describe('SequenceLayer', () => {
       expect(front.z).toBeCloseTo(-1);
     });
 
+    it('walks the men of a squad each on his own, the squad staying put', () => {
+      const { layer } = layerOf();
+      const host = new PileHost();
+      const man = new Group();
+      man.name = 'man_1';
+      man.position.set(1, 0, 0);
+      host.drawn!.add(man);
+      const file: Sequence<never> = {
+        ms: 1000,
+        at: (t) => (t < 1000 ? { man_1: { travel: [0, 0, 4] } } : {}),
+      };
+      layer.play(host, 'a', file, 0, 500);
+      const copy = host.copies.get('a')!;
+      const rest = new Vector3(1, 0, 0).applyMatrix4(host.pile.matrixWorld);
+      const walked = copy.getObjectByName('man_1')!.getWorldPosition(new Vector3());
+      expect(walked.distanceTo(rest.add(new Vector3(0, 0, 4)))).toBeLessThan(1e-6);
+      expect(copy.children[0]!.getWorldPosition(new Vector3()).toArray()).toEqual([10, 0, 0]);
+    });
+
     it('does not play while the host has nothing drawn to clone', () => {
       const { layer } = layerOf();
       const host = new PileHost();

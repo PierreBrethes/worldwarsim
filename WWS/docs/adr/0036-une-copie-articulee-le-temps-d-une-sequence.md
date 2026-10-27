@@ -14,8 +14,8 @@ Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur
 > prend la place du modèle à son arrivée.
 
 > **Précisée le 26/10/2026, au codage de la sortie de caserne** (#268) : une séquence sans
-> `family` déplace la pièce entière ; sa copie est un clone de ce que l'hôte dessine (`copyOf`,
-> l'escouade de trois hommes comprise), posé dès le signal, sans cuisson. La pose `root` y gagne
+> `family` déplace la pièce, ou chacun des hommes d'une escouade (`man_*`) ; sa copie est un clone
+> de ce que l'hôte dessine (`copyOf`), posé dès le signal, sans cuisson. Ces poses y gagnent
 > `travel` et `heading`, lus sur le plateau quel que soit le tour ou la taille de la pile, et
 > `stride`, la marche des hommes ; un marqueur `fx_*` porte `exhaust`, l'haleine d'un moteur. La
 > marche joue tant que la figurine se tient (`minPx` 0, le plancher la garde jusqu'à d ≈ 30) ;

@@ -43,7 +43,7 @@ export type PartPose = {
 
 /** `root` is the whole copy: a troop that walks from the door to its rank (#268). */
 export type Pose<F extends RigFamily> = Partial<
-  Record<RigPart<F> | 'root' | `fx_${string}`, PartPose>
+  Record<RigPart<F> | 'root' | `man_${number}` | `fx_${string}`, PartPose>
 >;
 
 /**
@@ -126,6 +126,8 @@ type Playing = {
 
 const turn = new Quaternion();
 const euler = new Euler();
+/** A man of a squad (`squadOf`): a piece that moves whole walks its men in file. */
+const MAN = /^man_\d+$/;
 const up = new Vector3(0, 1, 0);
 const parentTurn = new Quaternion();
 
@@ -211,7 +213,8 @@ export class SequenceLayer {
     // left to their own.
     posed.traverse(
       (node) =>
-        (node === posed || (family !== undefined && isRigPart(family, node.name))) &&
+        (node === posed ||
+          (family === undefined ? MAN.test(node.name) : isRigPart(family, node.name))) &&
         playing.rests.set(node, {
           position: node.position.clone(),
           quaternion: node.quaternion.clone(),

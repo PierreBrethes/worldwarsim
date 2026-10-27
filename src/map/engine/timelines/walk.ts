@@ -23,6 +23,8 @@ export type WalkOut = {
   readonly curve: (k: number) => number;
   /** A man marches, arms and legs (`stride`); a vehicle rolls. */
   readonly stride: boolean;
+  /** What walks: the whole piece (`root`), or one man of a squad, in file with the others. */
+  readonly part?: 'root' | `man_${number}`;
 };
 
 /**
@@ -33,7 +35,7 @@ export type WalkOut = {
  * close.
  */
 export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number): number } {
-  const { path, start, ms, curve, stride } = walk;
+  const { path, start, ms, curve, stride, part = 'root' } = walk;
   const legs = path.slice(1).map((to, k) => distance(path[k]!, to));
   const length = lengthOf(path);
   const end = start + ms;
@@ -62,7 +64,7 @@ export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number
       const ahead = TURN_SHARE * length;
       const [from, to] = [pointAt(Math.min(s, length - ahead) - ahead), pointAt(s + ahead)];
       return {
-        root: {
+        [part]: {
           travel: pointAt(s),
           heading: Math.atan2(to[0] - from[0], to[2] - from[2]),
           fade: Math.min(1, s / (legs[0] || 1)),
@@ -83,3 +85,14 @@ const distance = (a: Point, b: Point): number => Math.hypot(b[0] - a[0], b[1] - 
 /** **A path's length**, leg by leg: a walk lasts it over its pace. */
 export const lengthOf = (path: ReadonlyArray<Point>): number =>
   path.slice(1).reduce((sum, to, k) => sum + distance(path[k]!, to), 0);
+
+/** **Several walks of one piece as one sequence**: the men of a squad in file, each on his own
+ *  path and at his own hour (`T.men.gap`). */
+export function together(walks: ReadonlyArray<Sequence<never>>): Sequence<never> {
+  const ms = Math.max(0, ...walks.map((walk) => walk.ms));
+  return {
+    ms,
+    minPx: WALK_MIN_PX,
+    at: (t) => (t <= 0 || t >= ms ? {} : Object.assign({}, ...walks.map((walk) => walk.at(t)))),
+  };
+}

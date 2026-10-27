@@ -876,16 +876,21 @@ export class StandingLayer implements SequenceHost {
     return lent?.placed ? (lent.figurine.copy?.() ?? null) : null;
   }
 
-  /** **Where a group stands on the board**, and the way it faces: what a walk ends on. `null`
-   *  until placed, or once it is its pin. */
-  placeOf(id: string): { at: Vector3; front: Vector3 } | null {
+  /** **Where a group stands on the board**, the way it faces, and each man of a squad, front
+   *  first: what a walk ends on. `null` until placed, or once it is its pin. */
+  placeOf(id: string): { at: Vector3; front: Vector3; men: Vector3[] } | null {
     const lent = this.figurineOf(id);
     if (!lent?.placed) return null;
     const { object } = lent.figurine;
-    object.updateWorldMatrix(true, false);
+    object.updateWorldMatrix(true, true);
+    const men: Object3D[] = [];
+    object.traverse((node) => /^man_\d+$/.test(node.name) && men.push(node));
     return {
       at: object.getWorldPosition(new Vector3()),
       front: new Vector3(0, 0, 1).transformDirection(object.matrixWorld),
+      men: men
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
+        .map((man) => man.getWorldPosition(new Vector3())),
     };
   }
 

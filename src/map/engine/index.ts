@@ -68,7 +68,7 @@ import {
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
-import { lengthOf, walkOut } from './timelines/walk';
+import { lengthOf, together, walkOut } from './timelines/walk';
 import { tailgateDrop } from './timelines/truck';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -419,6 +419,8 @@ type Landing = { readonly point: Vector3; readonly country: CountryMesh };
 
 type SortieCue = Extract<Cue, { kind: 'sortie' }>;
 
+/** **The men of a squad come out in file** (`T.men.gap` of the storyboard), each to his place. */
+const MEN_GAP_MS = 400;
 /** The door waits a little once the last is through (`T.closeAfter` du storyboard). */
 const CLOSE_AFTER_MS = 150;
 /** A pile that does not stand within this time has its recruits in place, unwalked. */
@@ -2592,34 +2594,48 @@ export class MapEngine {
       const drawn = this.standing.pieceOf(id)?.box;
       if (role === undefined || inside === null || out === null || !drawn) return [];
       const size = drawn.getSize(new Vector3());
-      const rank = site.toModel(place.at);
-      const front = site.toModel(place.at.clone().add(place.front)).sub(rank).setY(0).normalize();
-      const path = wayOut({
-        inside: inside.toArray(),
-        out: out.toArray(),
-        rank: rank.toArray(),
-        front: front.toArray(),
-        length: Math.max(size.x, size.z) / metre,
-        box,
-      }).map((point) =>
-        site
-          .toBoard(new Vector3(...point))
-          .sub(place.at)
-          .toArray(),
-      );
+      const length = Math.max(size.x, size.z) / metre;
+      const front = site
+        .toModel(place.at.clone().add(place.front))
+        .sub(site.toModel(place.at))
+        .setY(0)
+        .normalize();
       const pace = PACES[role as keyof typeof PACES] ?? PACES.armor;
       const start = pace.lead + queued[door]++ * pace.gap;
       // A gun has no motor: it is pushed out.
       if (!man && role !== 'artillery') motors.push(start);
-      const walk = walkOut({
-        path,
-        start,
-        ms: (lengthOf(path) / metre / pace.mps) * 1000,
-        curve: pace.curve,
-        stride: man,
-      });
-      // The door shuts once the last through it is at the foot of the steps, clear of the shed.
-      shuts[door] = Math.max(shuts[door] ?? 0, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
+      /** One walk from the door to `to` on the board, `from` in the piece: a man of a squad
+       *  walks to his own place, in file behind the one before him. */
+      const walkTo = (to: Vector3, part: 'root' | `man_${number}`, after: number) => {
+        const path = wayOut({
+          inside: inside.toArray(),
+          out: out.toArray(),
+          rank: site.toModel(to).toArray(),
+          front: front.toArray(),
+          length,
+          box,
+        }).map((point) =>
+          site
+            .toBoard(new Vector3(...point))
+            .sub(to)
+            .toArray(),
+        );
+        const walk = walkOut({
+          path,
+          start: start + after,
+          ms: (lengthOf(path) / metre / pace.mps) * 1000,
+          curve: pace.curve,
+          stride: man,
+          part,
+        });
+        // The door shuts once the last through it is at the foot of the steps, clear of the shed.
+        shuts[door] = Math.max(shuts[door] ?? 0, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
+        return walk;
+      };
+      const walk =
+        place.men.length > 0
+          ? together(place.men.map((at, k) => walkTo(at, `man_${k}`, k * MEN_GAP_MS)))
+          : walkTo(place.at, 'root', 0);
       return [{ id, walk }];
     });
     if (walks.length > 0) this.passDoors(cue.siteId, shuts, motors, since, now);
@@ -3400,7 +3416,9 @@ export class MapEngine {
     );
     this.pins.walk(
       this.walks.flatMap(({ pileId, alone, walk, since }) => {
-        const travel = walk.at(now - since).root?.travel;
+        // A squad's pin walks with its first man.
+        const pose = walk.at(now - since);
+        const travel = (pose.root ?? pose.man_0)?.travel;
         return travel ? [{ id: pileId, alone, travel: new Vector3(...travel) }] : [];
       }),
     );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ease } from './curves';
-import { lengthOf, walkOut } from './walk';
+import { lengthOf, together, walkOut } from './walk';
 
 /** From inside the door (2 back, faded), through it, down the steps, then left to the rank. */
 const path = [
@@ -74,5 +74,33 @@ describe('lengthOf', () => {
   it('measures a path leg by leg: what its walk lasts at its pace', () => {
     expect(lengthOf(path)).toBeCloseTo(3 + Math.SQRT2);
     expect(lengthOf([[1, 2, 3]])).toBe(0);
+  });
+});
+
+describe('together', () => {
+  it('walks several men of one piece, each by his own path and hour, as one sequence', () => {
+    const first = walkOut({
+      path,
+      start: 0,
+      ms: 1000,
+      curve: (k) => k,
+      stride: true,
+      part: 'man_0',
+    });
+    const second = walkOut({
+      path,
+      start: 400,
+      ms: 1000,
+      curve: (k) => k,
+      stride: true,
+      part: 'man_1',
+    });
+    const file = together([first, second]);
+    expect(file.ms).toBe(1400);
+    expect(file.at(200).man_0?.travel).toBeDefined();
+    expect(file.at(200).man_1?.fade).toBe(0);
+    expect(file.at(200).root).toBeUndefined();
+    expect(file.at(1200)).toEqual({ man_1: second.at(1200).man_1 });
+    expect(file.at(1400)).toEqual({});
   });
 });

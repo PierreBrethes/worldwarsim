@@ -317,6 +317,10 @@ describe('a pile lent to a sequence', () => {
     expect(first.at.z).toBeCloseTo(0);
     expect(second.front.toArray()).toEqual([0, 0, 1]);
     expect(layer.placeOf('p/9')).toBeNull();
+    // The three men of the squad, front first: where each walks to, in file.
+    expect(first.men).toHaveLength(3);
+    expect(first.men[0]!.z).toBeGreaterThan(first.men[1]!.z);
+    expect(second.men).toEqual([]);
   });
 
   it("stands the copy in the clone's place, at its matrix, and gives the clone back", async () => {
