@@ -1,5 +1,6 @@
 import type { Pose, Sequence } from '../sequences';
 import { ease, span } from './curves';
+import { WALK_MIN_PX } from './walk';
 
 /** Ouverts vers l'extérieur, à 110° (décision de Pierre, #268, 23/10). */
 const OUT = (110 * Math.PI) / 180;
@@ -35,6 +36,8 @@ export function barracksDoors(closing: DoorsClosing): Sequence<'barracks'> {
   return {
     family: 'barracks',
     ms,
+    // A recruit never walks out through a shut door: the doors play as far off as the walk.
+    minPx: WALK_MIN_PX,
     at(t) {
       if (t <= 0 || t >= ms) return {};
       const pose: Pose<'barracks'> = {};

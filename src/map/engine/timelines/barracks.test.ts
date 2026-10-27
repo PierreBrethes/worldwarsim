@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isRigPart } from '@/emblems/rigs';
 import { barracksDoors, wayOut } from './barracks';
+import { WALK_MIN_PX } from './walk';
 
 const DEG = Math.PI / 180;
 type Leaf = 'porte_gauche' | 'porte_droite' | 'remise_porte_gauche' | 'remise_porte_droite';
@@ -39,6 +40,10 @@ describe('barracksDoors', () => {
     expect(seconds).toBeCloseTo(0.45);
     expect(fade).toBe(1);
     expect(shed.at(2600).fx_sortie_remise).toBeUndefined();
+  });
+
+  it('opens as far off as its recruits walk out: never through a shut door', () => {
+    expect(barracksDoors({ caserne: 600 }).minPx).toBe(WALK_MIN_PX);
   });
 
   it('leaves a door no piece passes shut', () => {

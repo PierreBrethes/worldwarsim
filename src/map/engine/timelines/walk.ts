@@ -7,6 +7,10 @@ type Point = readonly [x: number, y: number, z: number];
  *  corner rather than snapping to the next leg. `@a-mesurer` */
 const TURN_SHARE = 0.04;
 
+/** **A walk plays as long as its piece stands** (`minPx` 0): the figurine's floor holds it up to
+ *  d ≈ 30, its pin walks on beyond. The doors it passes play as far off (#268). */
+export const WALK_MIN_PX = 0;
+
 export type WalkOut = {
   /** World offsets from the piece's rest, in board units: from inside the door, through it, to
    *  the rest (`[0, 0, 0]`), its last leg along the rest's own front. */
@@ -51,7 +55,7 @@ export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number
 
   return {
     ms: end,
-    minPx: 0,
+    minPx: WALK_MIN_PX,
     at(t) {
       if (t <= 0 || t >= end) return {};
       const s = travelled(t);
