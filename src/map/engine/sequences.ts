@@ -110,7 +110,7 @@ function articulatedOf(url: string, family: RigFamily): Promise<Group> {
 type Playing = {
   readonly host: SequenceHost;
   readonly id: string;
-  readonly sequence: Sequence;
+  sequence: Sequence;
   readonly start: number;
   /** What the host places; `rig` is inside it, so that `root` moves the rig, not the host's matrix. */
   copy: Object3D | null;
@@ -241,6 +241,15 @@ export class SequenceLayer {
       if (playing.copy !== null)
         this.pose(playing, playing.sequence.at(t) as Record<string, PartPose | undefined>);
     }
+  }
+
+  /** **The piece plays on with `sequence`, on the clock it started on**: what its doors do for a
+   *  second recruit cued while the first walks. `false` when it plays nothing. */
+  retime<F extends RigFamily>(host: SequenceHost, id: string, sequence: Sequence<F>): boolean {
+    const playing = this.playing.find((p) => p.host === host && p.id === id);
+    if (playing === undefined) return false;
+    playing.sequence = sequence as Sequence;
+    return true;
   }
 
   /** Whether the piece `id` of `host` plays a sequence now. */

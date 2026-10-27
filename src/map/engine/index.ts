@@ -66,7 +66,7 @@ import {
   troopPinSpan,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
-import { barracksDoors, wayOut } from './timelines/barracks';
+import { barracksDoors, type DoorsPassing, joinedDoors, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
 import { walkOut } from './timelines/walk';
 import { tailgateDrop } from './timelines/truck';
@@ -469,6 +469,8 @@ export class MapEngine {
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
+  /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
+  private readonly doors = new Map<string, { since: number; passing: DoorsPassing }>();
   /** The recruits on their way, whose pin follows the path when they are pinned (#268). */
   private walks: Array<{
     /** The walker, `${pileId}/${group}`. */
@@ -2572,7 +2574,8 @@ export class MapEngine {
     if (site === null || pieces === null || places.some((place) => place === null)) return false;
     const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
     const box = { min: site.box.min.toArray(), max: site.box.max.toArray() };
-    const closing: { caserne?: number; remise?: number; motor?: number } = {};
+    const shuts: { caserne?: number; remise?: number } = {};
+    const motors: number[] = [];
     const queued = { caserne: 0, remise: 0 };
     const walks = ids.flatMap((id, n) => {
       const place = places[n]!;
@@ -2603,7 +2606,7 @@ export class MapEngine {
       const pace = PACES[role as keyof typeof PACES] ?? PACES.armor;
       const start = pace.lead + queued[door]++ * pace.gap;
       // A gun has no motor: it is pushed out.
-      if (!man && role !== 'artillery') closing.motor = Math.min(closing.motor ?? start, start);
+      if (!man && role !== 'artillery') motors.push(start);
       const walk = walkOut({
         path,
         start,
@@ -2612,11 +2615,10 @@ export class MapEngine {
         stride: man,
       });
       // The door shuts once the last through it is at the foot of the steps, clear of the shed.
-      closing[door] = Math.max(closing[door] ?? 0, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
+      shuts[door] = Math.max(shuts[door] ?? 0, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
       return [{ id, walk }];
     });
-    if (walks.length > 0)
-      this.sequences.play(this.maquettes, cue.siteId, barracksDoors(closing), since, now);
+    if (walks.length > 0) this.passDoors(cue.siteId, shuts, motors, since, now);
     // The rank recentres at each arrival, half a step each (décision de Pierre du 23/10).
     const arrivals: number[] = [];
     for (const { id, walk } of walks) {
@@ -2627,6 +2629,29 @@ export class MapEngine {
     }
     if (arrivals.length > 0) this.standing.arrive(cue.pileId, arrivals);
     return true;
+  }
+
+  /** **The doors of a barracks open for its recruits**; a second sortie while they still play
+   *  joins the first, on its clock: the door reopens or holds for the newcomer. */
+  private passDoors(
+    siteId: string,
+    shuts: { caserne?: number; remise?: number },
+    motors: ReadonlyArray<number>,
+    since: number,
+    now: number,
+  ): void {
+    const passing: DoorsPassing = {
+      ...(shuts.caserne === undefined ? {} : { caserne: [[0, shuts.caserne]] }),
+      ...(shuts.remise === undefined ? {} : { remise: [[0, shuts.remise]] }),
+      motors,
+    };
+    const before = this.doors.get(siteId);
+    if (before !== undefined && this.sequences.playsOn(this.maquettes, siteId)) {
+      const joined = joinedDoors(before.passing, passing, since - before.since);
+      this.sequences.retime(this.maquettes, siteId, barracksDoors(joined));
+      this.doors.set(siteId, { since: before.since, passing: joined });
+    } else if (this.sequences.play(this.maquettes, siteId, barracksDoors(passing), since, now))
+      this.doors.set(siteId, { since, passing });
   }
 
   /** In the eye's field, and at least `px` tall on the 900 px reference window. */

@@ -117,6 +117,24 @@ describe('SequenceLayer', () => {
     expect(host.calls.filter(([, standing]) => !standing)).toHaveLength(1);
   });
 
+  it('plays a piece on with a new sequence on the same clock, which a longer one lengthens', async () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    layer.play(host, 'a', turning, 0);
+    await flush();
+    const slower: Sequence<'barracks'> = {
+      family: 'barracks',
+      ms: 3000,
+      at: (t) => (t < 3000 ? { porte_gauche: { turn: [0, t / 2000, 0] } } : {}),
+    };
+    expect(layer.retime(host, 'a', slower)).toBe(true);
+    layer.step(1000);
+    expect(doorOf(host, 'a').rotation.y).toBeCloseTo(0.5);
+    layer.step(2500);
+    expect(layer.active).toBe(true);
+    expect(layer.retime(host, 'b', slower)).toBe(false);
+  });
+
   it('says which piece it plays, until it ends', async () => {
     const { layer } = layerOf();
     const host = new FakeHost();

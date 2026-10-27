@@ -10,29 +10,57 @@ const BOUNCE = (4 * Math.PI) / 180;
 /** Les vantaux lourds de la remise : 750 ms à l'ouverture comme à la fermeture (`inOut`). */
 const REMISE = { open: 750, close: 750 } as const;
 
-/** **Quand chaque porte se referme**, en ms : quand la dernière pièce qui la passe l'a passée
- *  (`walkOut.passed`). Une porte absente reste fermée. */
-export type DoorsClosing = {
-  readonly caserne?: number;
-  readonly remise?: number;
-  /** When the first vehicle's motor starts in the shed: its breath comes out of the door. */
-  readonly motor?: number;
+/** **Quand chaque porte s'ouvre et se referme**, en ms : une fois par recrue ou par file de
+ *  recrues, ouverte au signal et refermée quand la dernière l'a passée (`walkOut.passed`). Une
+ *  porte absente reste fermée. */
+export type DoorsPassing = {
+  readonly caserne?: ReadonlyArray<readonly [opens: number, shuts: number]>;
+  readonly remise?: ReadonlyArray<readonly [opens: number, shuts: number]>;
+  /** When a vehicle's motor starts in the shed: its breath comes out of the door. */
+  readonly motors?: ReadonlyArray<number>;
 };
 /** A motor's breath: 1 s whole, gone over 0.6 s more. `@a-mesurer` */
 const BREATH = { whole: 1000, gone: 600 } as const;
 
+/** **The same passings, `ms` later**, joined to what the doors already do: a second recruit
+ *  cued while the first still walks (`SequenceLayer.retime`). */
+export function joinedDoors(before: DoorsPassing, after: DoorsPassing, ms: number): DoorsPassing {
+  const later = (spans: DoorsPassing['caserne']) =>
+    (spans ?? []).map(([opens, shuts]) => [opens + ms, shuts + ms] as const);
+  return {
+    caserne: [...(before.caserne ?? []), ...later(after.caserne)],
+    remise: [...(before.remise ?? []), ...later(after.remise)],
+    motors: [...(before.motors ?? []), ...(after.motors ?? []).map((motor) => motor + ms)],
+  };
+}
+
+const caserneAngle = (t: number, [opens, shuts]: readonly [number, number]): number => {
+  const shut = shuts + CASERNE.close;
+  return (
+    OUT * ease.out3(span(t, opens, opens + CASERNE.open)) * (1 - ease.in2(span(t, shuts, shut))) +
+    Math.sin(span(t, shut, shut + CASERNE.bounce) * Math.PI) * BOUNCE
+  );
+};
+const remiseAngle = (t: number, [opens, shuts]: readonly [number, number]): number =>
+  OUT *
+  ease.inOut(span(t, opens, opens + REMISE.open)) *
+  (1 - ease.inOut(span(t, shuts, shuts + REMISE.close)));
+
 /**
  * **Les portes de la caserne laissent passer ses recrues** (`T.caserne` et `T.remise` du
- * storyboard) : chaque porte que passe une pièce s'ouvre au signal, tient, et se referme quand la
- * dernière l'a passée. Le battant de gauche a son gond à droite du plan (+x) : les deux battants
- * d'une porte tournent en sens contraires.
+ * storyboard) : chaque porte s'ouvre pour qui la passe, tient, et se referme quand le dernier l'a
+ * passée ; une recrue qui vient après l'a rouverte. Le battant de gauche a son gond à droite du
+ * plan (+x) : les deux battants d'une porte tournent en sens contraires.
  */
-export function barracksDoors(closing: DoorsClosing): Sequence<'barracks'> {
-  const ends = [
-    closing.caserne === undefined ? 0 : closing.caserne + CASERNE.close + CASERNE.bounce,
-    closing.remise === undefined ? 0 : closing.remise + REMISE.close,
-  ];
-  const ms = Math.max(...ends, CASERNE.open);
+export function barracksDoors(passing: DoorsPassing): Sequence<'barracks'> {
+  const caserne = passing.caserne ?? [];
+  const remise = passing.remise ?? [];
+  const motors = passing.motors ?? [];
+  const ms = Math.max(
+    CASERNE.open,
+    ...caserne.map(([, shuts]) => shuts + CASERNE.close + CASERNE.bounce),
+    ...remise.map(([, shuts]) => shuts + REMISE.close),
+  );
   return {
     family: 'barracks',
     ms,
@@ -41,29 +69,24 @@ export function barracksDoors(closing: DoorsClosing): Sequence<'barracks'> {
     at(t) {
       if (t <= 0 || t >= ms) return {};
       const pose: Pose<'barracks'> = {};
-      const { caserne, remise } = closing;
-      if (caserne !== undefined) {
-        const shut = caserne + CASERNE.close;
-        const angle =
-          OUT * ease.out3(span(t, 0, CASERNE.open)) * (1 - ease.in2(span(t, caserne, shut))) +
-          Math.sin(span(t, shut, shut + CASERNE.bounce) * Math.PI) * BOUNCE;
+      if (caserne.length > 0) {
+        const angle = Math.max(...caserne.map((span) => caserneAngle(t, span)));
         Object.assign(pose, {
           porte_gauche: { turn: [0, angle, 0] },
           porte_droite: { turn: [0, -angle, 0] },
         });
       }
-      if (remise !== undefined) {
-        const angle =
-          OUT *
-          ease.inOut(span(t, 0, REMISE.open)) *
-          (1 - ease.inOut(span(t, remise, remise + REMISE.close)));
+      if (remise.length > 0) {
+        const angle = Math.max(...remise.map((span) => remiseAngle(t, span)));
         Object.assign(pose, {
           remise_porte_gauche: { turn: [0, angle, 0] },
           remise_porte_droite: { turn: [0, -angle, 0] },
         });
       }
-      const { motor } = closing;
-      if (motor !== undefined && t >= motor && t < motor + BREATH.whole + BREATH.gone)
+      const motor = [...motors]
+        .reverse()
+        .find((at) => t >= at && t < at + BREATH.whole + BREATH.gone);
+      if (motor !== undefined)
         pose.fx_sortie_remise = {
           exhaust: [
             (t - motor) / 1000,

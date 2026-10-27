@@ -7,7 +7,7 @@ const DEG = Math.PI / 180;
 type Leaf = 'porte_gauche' | 'porte_droite' | 'remise_porte_gauche' | 'remise_porte_droite';
 
 describe('barracksDoors', () => {
-  const doors = barracksDoors({ caserne: 2000, remise: 3000 });
+  const doors = barracksDoors({ caserne: [[0, 2000]], remise: [[0, 3000]] });
   const angle = (t: number, name: Leaf) => doors.at(t)[name]?.turn?.[1] ?? 0;
 
   it('rests on the model: nothing at the start, nothing at the end or after', () => {
@@ -34,7 +34,7 @@ describe('barracksDoors', () => {
   });
 
   it('breathes a motor out of the shed as its first vehicle starts, and stops', () => {
-    const shed = barracksDoors({ remise: 2500, motor: 450 });
+    const shed = barracksDoors({ remise: [[0, 2500]], motors: [450] });
     expect(shed.at(300).fx_sortie_remise).toBeUndefined();
     const [seconds, fade] = shed.at(900).fx_sortie_remise!.exhaust!;
     expect(seconds).toBeCloseTo(0.45);
@@ -43,18 +43,34 @@ describe('barracksDoors', () => {
   });
 
   it('opens as far off as its recruits walk out: never through a shut door', () => {
-    expect(barracksDoors({ caserne: 600 }).minPx).toBe(WALK_MIN_PX);
+    expect(barracksDoors({ caserne: [[0, 600]] }).minPx).toBe(WALK_MIN_PX);
+  });
+
+  it('opens a door again for a recruit that comes after it shut, and holds it for one that comes before', () => {
+    const twice = barracksDoors({
+      caserne: [
+        [0, 1000],
+        [3000, 4000],
+        [3500, 4500],
+      ],
+    });
+    const at = (t: number) => twice.at(t).porte_gauche?.turn?.[1] ?? 0;
+    expect(at(800)).toBeCloseTo(110 * DEG);
+    expect(at(2200)).toBeCloseTo(0);
+    expect(at(3800)).toBeCloseTo(110 * DEG);
+    expect(at(4300)).toBeCloseTo(110 * DEG);
+    expect(twice.ms).toBe(4500 + 450 + 80);
   });
 
   it('leaves a door no piece passes shut', () => {
-    const remise = barracksDoors({ remise: 1500 });
+    const remise = barracksDoors({ remise: [[0, 1500]] });
     expect(remise.at(600).porte_gauche).toBeUndefined();
     expect(remise.at(600).remise_porte_gauche?.turn?.[1]).toBeGreaterThan(0);
   });
 
   it('names only parts of its family, and outlasts the settle window', () => {
     for (const name of Object.keys(doors.at(300))) expect(isRigPart('barracks', name)).toBe(true);
-    expect(barracksDoors({ caserne: 600 }).ms).toBeGreaterThan(1000);
+    expect(barracksDoors({ caserne: [[0, 600]] }).ms).toBeGreaterThan(1000);
   });
 });
 
