@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ease } from './curves';
-import { walkOut } from './walk';
+import { lengthOf, walkOut } from './walk';
 
 /** From inside the door (2 back, faded), through it, down the steps, then left to the rank. */
 const path = [
@@ -69,3 +69,10 @@ function findK(f: (k: number) => number, value: number): number {
   }
   return low;
 }
+
+describe('lengthOf', () => {
+  it('measures a path leg by leg: what its walk lasts at its pace', () => {
+    expect(lengthOf(path)).toBeCloseTo(3 + Math.SQRT2);
+    expect(lengthOf([[1, 2, 3]])).toBe(0);
+  });
+});

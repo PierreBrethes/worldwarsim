@@ -35,7 +35,7 @@ export type WalkOut = {
 export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number): number } {
   const { path, start, ms, curve, stride } = walk;
   const legs = path.slice(1).map((to, k) => distance(path[k]!, to));
-  const length = legs.reduce((sum, leg) => sum + leg, 0);
+  const length = lengthOf(path);
   const end = start + ms;
   const travelled = (t: number) => length * curve(span(t, start, end));
 
@@ -79,3 +79,7 @@ export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number
 }
 
 const distance = (a: Point, b: Point): number => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+
+/** **A path's length**, leg by leg: a walk lasts it over its pace. */
+export const lengthOf = (path: ReadonlyArray<Point>): number =>
+  path.slice(1).reduce((sum, to, k) => sum + distance(path[k]!, to), 0);

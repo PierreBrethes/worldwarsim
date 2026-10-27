@@ -68,7 +68,7 @@ import {
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
-import { walkOut } from './timelines/walk';
+import { lengthOf, walkOut } from './timelines/walk';
 import { tailgateDrop } from './timelines/truck';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -424,15 +424,19 @@ const CLOSE_AFTER_MS = 150;
 /** A pile that does not stand within this time has its recruits in place, unwalked. */
 const SORTIE_WAIT_MS = 2000;
 
-/** **The pace of each recruit** (`T.men`, `T.vehicle` of the storyboard): what it waits behind
- *  its door (`lead`), how long it walks to its rank (`roll`), how far behind the one before it
- *  through the same door (`gap`, `@a-mesurer`). */
-type Pace = { lead: number; roll: number; gap: number; curve: (k: number) => number };
+/**
+ * **The pace of each recruit** (`T.men`, `T.vehicle` of the storyboard): what it waits behind its
+ * door (`lead`), its speed in metres of the model a second (`mps`) — the storyboard's, whose way
+ * from the door to a rank 57 m off is some 52 m for a man in 3 s, 65 m for a tank in 3.2 s —, how
+ * far behind the one before it through the same door (`gap`, `@a-mesurer`). A walk lasts its
+ * path over its pace: a rank beside the gable is walked to, not run to.
+ */
+type Pace = { lead: number; mps: number; gap: number; curve: (k: number) => number };
 const PACES: Readonly<Record<'infantry' | 'armor' | 'landTransport' | 'artillery', Pace>> = {
-  infantry: { lead: 300, roll: 3000, gap: 1000, curve: ease.march },
-  armor: { lead: 550, roll: 3200, gap: 1500, curve: ease.drive },
-  landTransport: { lead: 450, roll: 2800, gap: 1500, curve: ease.drive },
-  artillery: { lead: 600, roll: 3400, gap: 1500, curve: ease.push },
+  infantry: { lead: 300, mps: 17, gap: 1000, curve: ease.march },
+  armor: { lead: 550, mps: 20, gap: 1500, curve: ease.drive },
+  landTransport: { lead: 450, mps: 23, gap: 1500, curve: ease.drive },
+  artillery: { lead: 600, mps: 19, gap: 1500, curve: ease.push },
 };
 
 export class MapEngine {
@@ -2610,7 +2614,7 @@ export class MapEngine {
       const walk = walkOut({
         path,
         start,
-        ms: pace.roll,
+        ms: (lengthOf(path) / metre / pace.mps) * 1000,
         curve: pace.curve,
         stride: man,
       });
