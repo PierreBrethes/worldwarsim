@@ -465,6 +465,9 @@ type Dressed = {
   near: number;
   /** Its first `orient` has run: before, it stands at the size of its models, not the board's. */
   placed: boolean;
+  /** It has stood, landed and placed, at a whole `orient`: what no walk claimed by then stands
+   *  at once (`arrive`). */
+  stood: boolean;
   /** Its groups held where the pile drawn before stood them, by how far from their new places
    *  (pile units), until `arrive` glides them or the next `orient` stands them there. */
   held: ReadonlyArray<{ readonly figurine: Figurine; readonly by: Vector3 }>;
@@ -779,6 +782,7 @@ export class StandingLayer implements SequenceHost {
         ready: false,
         near: 0,
         placed: false,
+        stood: false,
         held: kept === undefined ? [] : heldWhereTheyStood(kept, pile.pieces, built.figurines),
         figurines: built.figurines,
         smokes: built.smokes,
@@ -1275,13 +1279,13 @@ export class StandingLayer implements SequenceHost {
   }
 
   orient(cameraPosition: Vector3): void {
-    // What no walk claimed by the frame after its pile was placed stands at once (`arrive`).
+    // What no walk claimed by the frame after its pile first stood stands at once (`arrive`).
     for (const [id, entry] of this.dressed) {
-      if (!entry.placed) continue;
+      if (!entry.stood) continue;
       for (const { figurine, by } of entry.held) figurine.object.position.sub(by);
       entry.held = [];
-      if (entry.ready && this.grown.delete(id)) this.merged(id);
-      if (entry.ready && this.inked.delete(id)) {
+      if (this.grown.delete(id)) this.merged(id);
+      if (this.inked.delete(id)) {
         const foot = this.footOf(id);
         if (foot !== null) this.ripple(foot.at, foot.radius * 0.9, false, true);
       }
@@ -1310,6 +1314,7 @@ export class StandingLayer implements SequenceHost {
       const near = troopWeight(distance, span);
       entry.near = near;
       entry.placed = true;
+      entry.stood ||= entry.ready;
       object.visible = near > 0;
       const scale = troopScale(distance, span) * pileUnitOf(span);
       object.scale.setScalar(scale);

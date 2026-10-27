@@ -398,6 +398,23 @@ describe('a pile lent to a sequence', () => {
       clock.mockRestore();
     });
 
+    it("holds the rank while the newcomer's model is still loading, for its walk to claim", async () => {
+      const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+      const layer = await standing('infantry');
+      const was = layer.placeOf('p/0')!.at.x;
+      layer.display([pileOf('infantry', 'armor')]);
+      // Two frames before the tank's file lands: placed, not ready.
+      layer.orient(eye);
+      layer.orient(eye);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(eye);
+      layer.arrive('p', 1000);
+      clock.mockReturnValue(500);
+      layer.orient(eye);
+      expect(layer.placeOf('p/0')!.at.x).toBeCloseTo(was);
+      clock.mockRestore();
+    });
+
     it('stands the rank at once in its new places when no walk claims it', async () => {
       const { was, at, clock } = await grown(false);
       expect(at(10)).toBeLessThan(was);
