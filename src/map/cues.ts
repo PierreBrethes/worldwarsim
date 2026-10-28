@@ -1,4 +1,5 @@
 import type { LonLat } from '@/domain/geo';
+import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import type { StandingPile } from './engine';
 
 /** **Une sortie de caserne** : où, dans quelle pile, et les groupes de la pile qui en sortent. */
@@ -129,9 +130,9 @@ type Column = {
 
 /**
  * **Les colonnes entrées en garnison** (décision de Pierre du 28/10) : chaque garnison
- * (`beside`) dont un groupe porte une troupe qu'une de mes colonnes d'avant portait. La pièce
- * marche de la fin de sa route à sa place au rang, sans porte ni fondu. Une garnison de quai n'en
- * donne pas : une coque n'y marche pas à travers la terre.
+ * (`beside`) dont un groupe terrestre ne porte que des troupes qu'une de mes colonnes d'avant
+ * portait. La pièce marche de la fin de sa route à sa place au rang, sans porte ni fondu. Une
+ * garnison de quai n'en donne pas : une coque n'y marche pas à travers la terre.
  */
 export function entreesOf(
   before: ReadonlyArray<Column>,
@@ -144,9 +145,10 @@ export function entreesOf(
     const carried = new Set(column.troopIds);
     return piles.flatMap(({ id, at: where, pieces }) => {
       if (!('beside' in where) || where.quay !== undefined) return [];
-      const groups = pieces.groups.flatMap(({ troopIds }, k) =>
-        // A figurine that also carries troops already there (a squad drawn by role) stands.
-        troopIds.every((troop) => carried.has(troop)) ? [k] : [],
+      const groups = pieces.groups.flatMap(({ role, troopIds }, k) =>
+        // A figurine that also carries troops already there (a squad drawn by role) stands; a
+        // plane lands by its airfield's own storyboard (#269), not on foot.
+        DOMAIN_BY_ROLE[role] === 'land' && troopIds.every((troop) => carried.has(troop)) ? [k] : [],
       );
       const toward = points.at(-2);
       return groups.length === 0
