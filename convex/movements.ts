@@ -883,6 +883,7 @@ export const previewCapture = query({
       aimed.point,
       routeModeOf(column.roles),
       landCostOf(column.roles),
+      isQuay(aimed.aim),
     );
     if (route === null) return null;
     const now = Date.now();
