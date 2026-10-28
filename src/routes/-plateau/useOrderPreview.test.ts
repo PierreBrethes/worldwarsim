@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropRefusalOf } from './useOrderPreview';
+import { distanceNotesOf, dropRefusalOf } from './useOrderPreview';
 import type { OrderChoice, Previewed } from './order-wire';
 
 const choice = (lon: number, extra: Partial<OrderChoice> = {}): OrderChoice => ({
@@ -32,5 +32,32 @@ describe('what letting go refuses before the server is asked (#258)', () => {
   it('lets a valid road go, and a missing one too: the server says its exact reason', () => {
     expect(dropRefusalOf({ choice: choice(8), preview: preview(null) }, choice(8))).toBeNull();
     expect(dropRefusalOf({ choice: choice(8), preview: null }, choice(8))).toBeNull();
+  });
+});
+
+describe('the length of the road, said under the hand (#302)', () => {
+  const road = (land: number, sea: number, minutes: number) =>
+    ({
+      minutes,
+      route: {
+        distanceUnits: land + sea,
+        legs: [
+          ...(land > 0 ? [{ medium: 'land', distanceUnits: land }] : []),
+          ...(sea > 0 ? [{ medium: 'sea', distanceUnits: sea }] : []),
+        ],
+      },
+    }) as unknown as NonNullable<Previewed>;
+  const said = (preview: NonNullable<Previewed>) => distanceNotesOf(preview).map((n) => n.text);
+
+  it('writes the kilometres the server counts for its fuel, and the time', () => {
+    expect(said(road(5.77, 0, 200))).toEqual(['≈ 640 km · 3 h 20']);
+  });
+
+  it('adds the share of the sea when land and sea share the road', () => {
+    expect(said(road(3.7, 2.07, 200))).toEqual(['≈ 640 km · 3 h 20', 'dont 230 km de mer']);
+  });
+
+  it('does not repeat the total as a share when the whole road is at sea', () => {
+    expect(said(road(0, 2.6, 130))).toEqual(['≈ 289 km · 2 h 10']);
   });
 });

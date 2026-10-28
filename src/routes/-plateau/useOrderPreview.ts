@@ -3,7 +3,8 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { ArmedColumn } from '@/domain/armed-column';
-import { asLocalTime } from '@/domain/duration';
+import { asLocalTime, asSpan } from '@/domain/duration';
+import { KM_PER_UNIT } from '@/domain/routing';
 import type { LonLat } from '@/domain/geo';
 import { fr } from '@/i18n/fr';
 import type { DropFuel, DropNote } from '@/map/DropHint';
@@ -32,6 +33,23 @@ function fuelRefusalText({ fuel }: NonNullable<Previewed>): string | null {
         km: fuel.km,
         roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
       });
+}
+
+/** **La longueur de la route sous la main** (#302), lue sur la route même que le serveur a
+ *  calculée et dont il tire le plein : même `distanceUnits`, même `KM_PER_UNIT`, aucun calcul de
+ *  route de plus au client. La part de mer ne se dit que d'un trajet qui mêle terre et mer : une
+ *  traversée toute en mer l'a déjà dite en disant le total. */
+export function distanceNotesOf(preview: NonNullable<Previewed>): ReadonlyArray<DropNote> {
+  const { route, minutes } = preview;
+  const km = (units: number) => Math.round(units * KM_PER_UNIT);
+  const total = km(route.distanceUnits);
+  const sea = km(
+    route.legs.reduce((sum, leg) => sum + (leg.medium === 'sea' ? leg.distanceUnits : 0), 0),
+  );
+  return [
+    { text: fr.aim.distance(total, asSpan(minutes)), alarm: false },
+    ...(sea > 0 && sea < total ? [{ text: fr.aim.distanceSea(sea), alarm: false }] : []),
+  ];
 }
 
 const sameOrder = (a: OrderChoice, b: OrderChoice) =>
@@ -118,6 +136,7 @@ export function useOrderPreview(
         : preview === null
           ? [{ text: fr.aim.noRoute, alarm: true, refusal: true }]
           : [
+              ...distanceNotesOf(preview),
               { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
               ...(preview.holdUntil === null
                 ? []
