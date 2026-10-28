@@ -183,10 +183,11 @@ export class SequenceLayer {
     if (this.motion !== 'full' || this.playing.length >= MAX_PLAYING) return false;
     if (this.playsOn(host, id)) return false;
     const piece = host.pieceOf(id);
-    // A box still unknown (a lot just rebuilt) is not judged now: `step` judges it once known.
-    if (piece === null || (piece.box !== null && !this.sees(piece.box, sequence.minPx ?? PLAY_PX)))
-      return false;
     const { family } = sequence;
+    const seen = (box: Box3 | null) => box === null || this.sees(box, sequence.minPx ?? PLAY_PX);
+    // A box still unknown (a lot just rebuilt) is not judged now: `step` judges it once known. A
+    // piece that moves whole is judged once posed: where its walk starts counts as its rank.
+    if (piece === null || (family !== undefined && !seen(piece.box))) return false;
     // A piece that moves whole is its own drawn clone: nothing to cook, it stands in now, posed,
     // and the frame drawn next shows it at its door, never at its rest.
     const whole = family === undefined ? (host.copyOf?.(id) ?? null) : null;
@@ -207,7 +208,9 @@ export class SequenceLayer {
     if (whole !== null) {
       this.standIn(playing, whole);
       this.pose(playing, sequence.at(at - now) as Record<string, PartPose | undefined>);
-      return true;
+      if (seen(host.pieceOf(id)?.box ?? null)) return true;
+      this.finish(playing);
+      return false;
     }
     // Cooking is the first signal's cost: the clock already runs, so it eats the start of the
     // sequence, never its end.

@@ -414,6 +414,29 @@ describe('SequenceLayer', () => {
       expect(host.copies.get('a')!.getObjectByName('leg_left')!.rotation.x).toBeCloseTo(standing);
     });
 
+    it('judges a walk where it starts as well as where it ends: a door in sight, a rank off it', () => {
+      // The rank is off the screen; the door the walk starts from is on it.
+      const sees = (box: Box3) => box.max.z > 2;
+      const layer = new SequenceLayer(sees, () => Promise.resolve(rig()));
+      const host = new PileHost();
+      host.box = new Box3(new Vector3(9, 0, -1), new Vector3(11, 1, 1));
+      host.pieceOf = (id: string) => {
+        const copy = host.copies.get(id);
+        if (copy === undefined) return { url: 'x.glb', box: host.box };
+        copy.updateMatrixWorld(true);
+        return { url: 'x.glb', box: host.box!.clone().union(new Box3().setFromObject(copy)) };
+      };
+      host.drawn!.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial()));
+      expect(layer.play(host, 'a', walking, 0, 500)).toBe(true);
+      expect(layer.active).toBe(true);
+      const nowhere: Sequence<never> = {
+        ms: 1000,
+        at: (t) => (t < 1000 ? { root: { travel: [0, 0, -9] } } : {}),
+      };
+      expect(layer.play(host, 'b', nowhere, 0, 500)).toBe(false);
+      expect(host.copies.has('b')).toBe(false);
+    });
+
     it('does not play while the host has nothing drawn to clone', () => {
       const { layer } = layerOf();
       const host = new PileHost();
