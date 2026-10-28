@@ -149,7 +149,7 @@ import { PointerRest } from './pointer-rest';
 import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
-import { PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
+import { isPinOf, PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
 import type { Pin, PinShape } from '@/domain/pins';
 import { nationInk } from '@/domain/nations';
 import { TheatreFrame } from './theatre';
@@ -168,6 +168,7 @@ import type { ReplayView } from '@/domain/player-view';
 
 export type { SearchArea } from './search-area';
 export type { DropVerdict, PieceHold, PiecePick, StandingPile } from './standing';
+export { labelOfPile } from './standing';
 export type { StandingMaquette } from './maquettes';
 export type { SurveyedCamp } from './annotations';
 
@@ -1224,7 +1225,7 @@ export class MapEngine {
   /**
    * **The span a label's piece gives way to its pin by** (ADR 0035 §3): what is drawn here, else a
    * barracks for a building and a tank on its floor for the rest (§10) — what an enemy shows says
-   * nothing of what it is —; `null` for an outpost, which has no piece.
+   * nothing of what it is —; `null` for an outpost, which has no piece: its pin stands at every distance, its label up close.
    */
   private pieceSpanOf(id: string, shape = this.pinShapes.get(id)): number | null {
     const drawn = this.maquettes.spanOf(id) ?? this.standing.spanOf(id) ?? this.arcs.spanOf(id);
@@ -2304,6 +2305,8 @@ export class MapEngine {
   private pieceToTake(): PiecePick | null {
     const piece = this.standing.pick(this.ray);
     if (piece === null || piece.carried) return piece;
+    // An outpost's pin is drawn over its own garrison and opens it; a pile beside it stays takable.
+    if (isPinOf(this.pinUnder(this.aim), this.standing.labelOfPile(piece.pileId))) return null;
     const maquette = this.maquettes.under(this.ray);
     return maquette !== null && maquette.distance < piece.distance ? null : piece;
   }
@@ -2332,6 +2335,12 @@ export class MapEngine {
       x: box.left + ((point.x + 1) / 2) * box.width,
       y: box.top + ((1 - point.y) / 2) * box.height,
     };
+  }
+
+  /** Whether a pile hangs from this label (`StandingPile.label`). */
+  ownsPile(labelId: string): boolean {
+    const pile = this.standing.pileOfLabel(labelId);
+    return pile !== null && pile !== labelId;
   }
 
   pieceRect(labelId: string): Rect | null {
@@ -3229,7 +3238,8 @@ export class MapEngine {
     const pointing =
       onScreen && !this.fingerOnBoard && this.gesture === null && this.placing === null;
     const pin = pointing ? this.pinUnder(this.pointer) : null;
-    const label = pointing ? (this.pieceUnder()?.id ?? null) : null;
+    const under = pointing ? (this.pieceUnder()?.id ?? null) : null;
+    const label = under === null ? null : this.standing.labelOfPile(under);
     this.pins.hover(pin?.kind === 'pin' ? pin.id : null);
     // Hovered, a cluster opens its sheet; another piece under the pointer closes it.
     if (pin?.kind === 'cluster') this.openCluster(pin);

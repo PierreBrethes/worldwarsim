@@ -128,6 +128,7 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
    *  l'eau, elle ne montre pas qu'il ne reste rien dessous qui flotte (règle 3 du 18/09). */
   'NO_HULL_AT_SEA',
   'NOT_ENOUGH_LIFT',
+  'AIR_TRANSPORT_SEATS_INFANTRY',
   /** Après les portes de départ et avant l'allégeance : la carte montre bien une côte, mais pas
    *  la cellule que la grille de routage tient pour telle — le joueur ne peut pas la lire. */
   'LANDING_NEEDS_A_COAST',
@@ -142,6 +143,8 @@ const REFUSAL_PRIORITY: ReadonlyArray<OrderRefusal> = [
    *  not what the player asked — he asked to enter, and the door is what he cannot see. */
   'NOT_A_GARRISON_FOR',
   'BUILDING_OCCUPIED',
+  /** Before the friendly refusal: the column asked to enter the very garrison it is. */
+  'ALREADY_HERE',
   'FRIENDLY_TARGET',
   'OUTPOST_TARGET_ONLY',
   'POINT_TARGET_ONLY',

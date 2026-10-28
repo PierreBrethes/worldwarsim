@@ -197,3 +197,28 @@ describe('entreesOf', () => {
     expect(entreesOf([], [garrison(barracks, ['t1'], ['t2'])])).toEqual([]);
   });
 });
+
+describe("an outpost's garrison (#299)", () => {
+  it('walks out of no barracks and into none: it hangs from its label, not beside a building', () => {
+    const outpost: StandingPile = {
+      id: 'o',
+      label: 'outpost-1',
+      at: { lonLat: [2, 48] },
+      pieces: pilePieces([
+        { id: 't2', role: 'infantry', tier: 1, strength: 10, nominalStrength: 10 },
+      ]),
+    };
+    const column = {
+      state: 'mine',
+      troopIds: ['t2'],
+      route: {
+        points: [
+          [1, 47],
+          [2, 48],
+        ] as Array<[number, number]>,
+      },
+    };
+    expect(sortiesOf(new Set(), [outpost])).toEqual([]);
+    expect(entreesOf([column], [outpost])).toEqual([]);
+  });
+});

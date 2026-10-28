@@ -2593,6 +2593,43 @@ describe('the door of the sea, read on the pile', () => {
     expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toEqual([]);
   });
 
+  it('refuses a gun or a truck aboard an air transport, at an airfield, and keeps the infantry', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const field = await raise(t, seat, 'airfield', NORD);
+    const wing = await form(t, seat, 'airTransport', field);
+    for (const role of ['artillery', 'landTransport'] as const) {
+      const heavy = await form(t, seat, role, field);
+      await expect(
+        t.mutation(api.movements.board, { ...seat, troopIds: [heavy], carrierId: wing }),
+      ).rejects.toThrow('AIR_TRANSPORT_SEATS_INFANTRY');
+    }
+    const rifle = await form(t, seat, 'infantry', field);
+    await t.mutation(api.movements.board, { ...seat, troopIds: [rifle], carrierId: wing });
+    expect((await t.run((ctx) => ctx.db.get(rifle)))!.carriedBy).toBe(wing);
+  });
+
+  it('backfills a gun or a truck aboard a wing back onto the ground, and keeps the infantry', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const field = await raise(t, seat, 'airfield', NORD);
+    const wing = await form(t, seat, 'airTransport', field);
+    const gun = await form(t, seat, 'artillery', field);
+    const rifle = await form(t, seat, 'infantry', field);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(gun, { carriedBy: wing });
+      await ctx.db.patch(rifle, { carriedBy: wing });
+    });
+
+    expect(await t.mutation(internal.dev.backfillAirTransportInfantryOnly, {})).toEqual({
+      freed: 1,
+    });
+    const [freed, kept] = await t.run((ctx) => Promise.all([ctx.db.get(gun), ctx.db.get(rifle)]));
+    expect(freed!.carriedBy).toBeUndefined();
+    expect(freed!.stationedAt).toEqual(kept!.stationedAt);
+    expect(kept!.carriedBy).toBe(wing);
+  });
+
   it('boards nobody who stands at another address', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
@@ -2646,11 +2683,72 @@ describe('the door of the sea, read on the pile', () => {
     expect(aboard!.stationedAt).toEqual(field);
     expect(aboard!.carriedBy).toBe(truck);
     expect(apart!.stationedAt).not.toEqual(field);
+    // la couronne se lit sur le camion, la plus grande pièce (#283) : quelque 22 km
+    const ring = distanceKm(pointOf(field), pointOf(apart!.stationedAt as typeof field));
+    expect(ring).toBeGreaterThan(20);
+    expect(ring).toBeLessThan(24);
     expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toEqual([]);
 
     await expect(t.mutation(api.movements.disband, { ...seat, point: field })).rejects.toThrow(
       'NOT_A_SQUAD',
     );
+  });
+
+  /** **La couronne reste sur le sol du point** (#283) : à 22 km, le Cotentin touche la mer et
+   *  l'Alsace l'Allemagne ; les pièces se rangent sur ce qui reste de leur pays, sans refus. */
+  it('sets a squad’s pieces on its own country’s land, by the sea and by a border', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    for (const field of [
+      { lon: -1.6, lat: 49.4 }, // le Cotentin, la mer à l'ouest
+      { lon: 7.5, lat: 47.65 }, // l'Alsace, le Rhin à l'est
+    ]) {
+      const pieces = [
+        await postAt(t, seat, 'landTransport', field),
+        await postAt(t, seat, 'armor', field),
+        await postAt(t, seat, 'infantry', field),
+      ];
+      await t.mutation(api.movements.disband, { ...seat, point: field });
+      const spots = await t.run(async (ctx) =>
+        Promise.all(
+          pieces.map(async (id) => pointOf((await ctx.db.get(id))!.stationedAt as typeof field)),
+        ),
+      );
+      for (const spot of spots) {
+        expect(landAtPoint(spot)).toBe(true);
+        expect(hostAtPoint(spot)).toBe('FRA');
+      }
+      expect(distanceKm(spots[1]!, spots[2]!)).toBeGreaterThan(10.4 * 0.99);
+    }
+  });
+
+  /** **La couronne ne passe pas l'eau** (#283) : à 22 km, la Sicile fait face à Villa San
+   *  Giovanni, l'île d'Elbe au Val di Cornia, l'Asie au Bosphore, la Crimée à Taman ; une pièce n'y saute
+   *  pas sans bateau (#244), et ne se pose pas dans le détroit. */
+  it('sets no piece across a strait, on an island of its own country', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const three = ['landTransport', 'armor', 'infantry'] as const;
+    for (const [field, roles, across] of [
+      [{ lon: 15.64, lat: 38.22 }, three, ([lon]: LonLat) => lon < 15.6], // la Sicile en face
+      [
+        { lon: 10.52, lat: 43.0 }, // le Val di Cornia, l'île d'Elbe au sud-ouest
+        [...three, 'infantry', 'infantry'],
+        ([lon, lat]: LonLat) => lon < 10.45 && lat < 42.9,
+      ],
+      [{ lon: 29.045, lat: 41.09 }, three.slice(0, 2), ([lon]: LonLat) => lon > 29.08], // l'Asie
+      [{ lon: 36.72, lat: 45.21 }, three, ([lon]: LonLat) => lon < 36.6], // le détroit de Kertch
+    ] as const) {
+      const pieces: Array<Id<'troops'>> = [];
+      for (const role of roles) pieces.push(await postAt(t, seat, role, field));
+      await t.mutation(api.movements.disband, { ...seat, point: field });
+      const spots = await t.run(async (ctx) =>
+        Promise.all(
+          pieces.map(async (id) => pointOf((await ctx.db.get(id))!.stationedAt as typeof field)),
+        ),
+      );
+      expect(spots.filter(across), `${field.lon}, ${field.lat}`).toEqual([]);
+    }
   });
 
   /** **Les passagers suivent leur transport** : il part avec sa cargaison, et un passager ne
@@ -3990,6 +4088,26 @@ describe('a column enters a garrison of its own', () => {
     const aim: MovementAim = { kind: 'building', buildingId: mine, key: 'mine' };
     expect(legalMovementTypes(aim, column)).toEqual([]);
     expect(refusalOf('march', aim, column)).toBe('NOT_A_GARRISON_FOR');
+  });
+
+  it('refuses to enter the garrison the column already is (#296)', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', NORD);
+    const held = await form(t, seat, 'infantry', barracks);
+
+    const refused = await t
+      .mutation(api.movements.enterGarrison, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [held],
+        buildingId: barracks,
+      })
+      .catch((problem: unknown) => problem);
+    expect(refused).toBeInstanceOf(ConvexError);
+    expect((refused as ConvexError<{ code: string }>).data).toMatchObject({
+      code: 'ALREADY_HERE',
+    });
   });
 
   it('stands the column on the point when the building fell during the march', async () => {

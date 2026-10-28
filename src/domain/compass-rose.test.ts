@@ -417,6 +417,19 @@ describe('in aim', () => {
       coastal: false,
     } as const;
 
+    it('delivers on the spot from its own garrison, and no longer offers to enter it (#296)', () => {
+      const here = { ...trucking, originId: 'AP-01' };
+      const compass = compassOf(target, withTruck(0), here, null, 0, ['T1']);
+      expect(compass?.actions.map((action) => action.key)).toEqual(['deliver']);
+    });
+
+    it('says it is already there when nothing is left to do on the spot', () => {
+      const here = { ...column, originId: 'AP-01' };
+      const compass = compassOf(target, withTruck(0), here, null, 0, []);
+      expect(compass?.actions).toEqual([]);
+      expect(compass?.refusal).toBe(fr.errors.ALREADY_HERE());
+    });
+
     it('offers to deliver before the garrison', () => {
       const compass = compassOf(target, withTruck(0), trucking, null, 0, ['T1']);
       expect(compass?.actions.map((action) => action.key)).toEqual(['deliver', 'aim']);
@@ -1162,6 +1175,18 @@ describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)',
     expect(aim(at('landTransport', 0, { held: 'armor' }), blitz)?.refusal).toBe(
       'un camion ne porte que l’infanterie',
     );
+  });
+
+  it('seats only infantry in an air transport, and says so before the gesture', () => {
+    expect(aim(at('airTransport', 0, { held: 'armor' }), blitz)?.refusal).toBe(
+      fr.errors.AIR_TRANSPORT_SEATS_INFANTRY(),
+    );
+    expect(aim(at('airTransport', 0, { held: 'artillery' }), blitz)?.refusal).toBe(
+      fr.errors.AIR_TRANSPORT_SEATS_INFANTRY(),
+    );
+    // Mondiale: the gun may still march to join the pile, but no wing is offered to board
+    for (const held of ['artillery', 'landTransport', 'armor'])
+      expect(anchor(at('airTransport', 0, { held }))).toBeUndefined();
   });
 
   it('boards nothing on an escort nor on a transport already moving', () => {

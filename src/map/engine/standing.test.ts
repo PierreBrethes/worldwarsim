@@ -8,6 +8,7 @@ import {
   drawnKey,
   dressedGroups,
   formationOf,
+  labelOfPile,
   nearestGroup,
   pileLayout,
   pileObject,
@@ -531,5 +532,19 @@ describe('a pile lent to a sequence', () => {
       layer.standIn(TRUCK, null);
       expect(meshOf().userData.unwashed).toBeDefined();
     });
+  });
+});
+
+describe('labelOfPile', () => {
+  const pieces = pilePieces([troop('infantry')]);
+  it('names the mast a garrison stands beside, the label it hangs from, or its own', () => {
+    expect(labelOfPile({ id: 'b', at: { beside: 'building-hq' }, pieces }, 'b')).toBe(
+      'building-hq',
+    );
+    expect(labelOfPile({ id: 'o', label: 'outpost-1', at: { lonLat: [0, 0] }, pieces }, 'o')).toBe(
+      'outpost-1',
+    );
+    expect(labelOfPile({ id: 'p', at: { lonLat: [0, 0] }, pieces }, 'p')).toBe('p');
+    expect(labelOfPile(undefined, 'p')).toBe('p');
   });
 });

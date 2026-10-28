@@ -32,6 +32,9 @@ mer (révision du 18/09), le noyé, `LANDING_NEEDS_A_COAST`, et l'allure du tran
 > transport porte aussi des jetons de ravitaillement, dans une capacité séparée de ses places. Les
 > places et l'encombrement ne changent pas.
 
+> **Précisée le 25/10/2026 (#284)** : l'avion de transport n'assoit que l'infanterie (porte latérale,
+> pas de rampe). Camion, canon et blindé y sont refusés avant le geste (`AIR_TRANSPORT_SEATS_INFANTRY`).
+
 ## Contexte
 
 Audit du 08/10/2026 sur une partie locale : le Royaume-Uni, deux blindés à la caserne, un cargo

@@ -6,7 +6,8 @@ import { bombardsWith } from './indirect-fire';
 import type { BuildingKey, MovementType, ResearchCard, UnitRole } from './ids';
 import { slotCardsOf } from './research';
 import type { Ground, RouteMode } from './routing';
-import { COST_BY_MEDIUM } from './routing';
+import { BOARD_KM, troopSpan } from './piece-size';
+import { COST_BY_MEDIUM, KM_PER_UNIT } from './routing';
 import type { UnitDomain } from './troops';
 import {
   boardedAll,
@@ -180,6 +181,9 @@ export type Column = {
   /** The regions carrying one of my buildings: marching on one of them is marching on myself. */
   readonly myRegionIds: ReadonlySet<string>;
   readonly myOutpostIds: ReadonlySet<string>;
+  /** **The building or outpost the column garrisons**, by id: a march to it goes nowhere
+   *  (`ALREADY_HERE`). Absent on a plain point. */
+  readonly originId?: string;
   readonly departureBuildings: ReadonlySet<BuildingKey>;
   /**
    * **Whether the column is already in the water it would be asked to embark on.** Read off the
@@ -247,8 +251,11 @@ export type OrderRefusal =
    *  possède, donc il passait la seule condition que la fondation posait. */
   | 'NO_FOUNDING_AT_SEA'
   | 'NOT_ENOUGH_LIFT'
+  /** Une aile n'assoit que l'infanterie : sans coque dans la colonne, le motif n'est pas les places. */
+  | 'AIR_TRANSPORT_SEATS_INFANTRY'
   /** **On ne descend d'un avion que dans un de ses aérodromes** (ADR 0025 §4). */
   | 'AIRFIELD_TARGET_REQUIRED'
+  | 'ALREADY_HERE'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
   | 'NOTHING_TO_ATTACK'
@@ -427,6 +434,14 @@ export const freeSlotsOf = (slots: { readonly total: number; readonly used: numb
  */
 export const ORDERABLE_TYPES: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
+/** The column as if it stood nowhere in particular: a delivery or an airdrop on the spot is no
+ *  march to oneself. */
+export const withoutOrigin = ({ originId: _origin, ...rest }: Column): Column => rest;
+
+/** The id of the address an aim enters as a garrison, if it is one. */
+const garrisonIdOf = (aim: MovementAim): string | undefined =>
+  aim.kind === 'building' ? aim.buildingId : aim.kind === 'outpost' ? aim.outpostId : undefined;
+
 export function refusalOf(
   type: MovementType,
   aim: MovementAim,
@@ -449,6 +464,8 @@ export function refusalOf(
      * which role may end there.
      */
     case 'march':
+      if (column.originId !== undefined && column.originId === garrisonIdOf(aim))
+        return 'ALREADY_HERE';
       if (aim.kind === 'building' && column.blitz?.occupiedBuildingIds.has(aim.buildingId))
         return 'BUILDING_OCCUPIED';
       if (aim.kind === 'building') {
@@ -759,10 +776,21 @@ export function liftOf(roles: ReadonlyArray<UnitRole>): {
   };
 }
 
+/** Le refus d'une colonne qui traverse sans place pour tous, et son motif : sans coque, ce qui ne
+ *  tient pas dans l'aile, c'est ce qu'elle n'assoit pas — pas le compte des places. */
+export function liftRefusalOf(
+  roles: ReadonlyArray<UnitRole>,
+): 'NOT_ENOUGH_LIFT' | 'AIR_TRANSPORT_SEATS_INFANTRY' | null {
+  if (!strandedIn(roles)) return null;
+  const hull = roles.some((role) => role === 'cargo' || role === 'carrier');
+  const heavy = roles.some((role) => DOMAIN_BY_ROLE[role] === 'land' && role !== 'infantry');
+  return !hull && heavy ? 'AIR_TRANSPORT_SEATS_INFANTRY' : 'NOT_ENOUGH_LIFT';
+}
+
 const overloaded = (column: Column): OrderRefusal | null => {
   const domains = new Set(column.roles.map((role) => DOMAIN_BY_ROLE[role]));
   if (!domains.has('land') || (!domains.has('sea') && !domains.has('air'))) return null;
-  return strandedIn(column.roles) ? 'NOT_ENOUGH_LIFT' : null;
+  return liftRefusalOf(column.roles);
 };
 
 /**
@@ -783,6 +811,7 @@ export type BoardingRefusal =
   | 'NO_TRANSPORT_HERE'
   | 'AIRFIELD_BOARDING_ONLY'
   | 'TRUCK_SEATS_INFANTRY'
+  | 'AIR_TRANSPORT_SEATS_INFANTRY'
   | 'NOT_ENOUGH_LIFT';
 
 /** Un embarquement tel que la rose et le serveur le lisent, chacun de son côté : ces troupes,
@@ -808,9 +837,13 @@ export function boardingRefusalOf(boarding: Boarding): BoardingRefusal | null {
   if (riders.length === 0) return 'EMPTY_MOVEMENT';
   if (riders.some((rider) => DOMAIN_BY_ROLE[rider.role] !== 'land')) return 'LAND_TROOPS_ONLY';
   if (fareOf(carrier.role, { id: '', role: 'infantry' }, pile) === null) return 'NO_TRANSPORT_HERE';
+  // La sorte de la troupe se lit avant l'aérodrome : un canon n'a pas à apprendre qu'il lui
+  // faudrait un aérodrome pour une aile qui ne le prendra jamais.
+  if (faresOf(boarding).some((fare) => fare === null))
+    return carrier.role === 'airTransport'
+      ? 'AIR_TRANSPORT_SEATS_INFANTRY'
+      : 'TRUCK_SEATS_INFANTRY';
   if (carrier.role === 'airTransport' && !atAirfield) return 'AIRFIELD_BOARDING_ONLY';
-  const fares = faresOf(boarding);
-  if (fares.some((fare) => fare === null)) return 'TRUCK_SEATS_INFANTRY';
   return boardingRefusalDetails(boarding).needed > seatsLeft(carrier, pile)
     ? 'NOT_ENOUGH_LIFT'
     : null;
@@ -859,26 +892,63 @@ export function disbandRefusalOf({
 }
 
 /**
- * L'écart des pièces d'une escouade dissoute à son point, en degrés de latitude.
- * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien
+ * **Le rayon de la couronne, en plus grandes pièces** (#283, décision du 26/10) : deux pas de pile
+ * et un demi-camion, soit quelque 22 km autour d'un camion de 10,4 km — et jamais plus que pour un
+ * camion : un porte-avions de 200 km mettrait sa couronne à 420, et U deviendrait un déplacement.
+ * @a-mesurer assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines
  */
-const DISBAND_SPREAD_DEG = 0.05;
+const DISBAND_RING_SPANS = 2.1;
+/** La plus grande pièce que la couronne lit : le camion, en kilomètres. */
+const DISBAND_LARGEST_KM = troopSpan('landTransport') * BOARD_KM;
+/** Les places essayées sur la couronne quand une partie tombe hors du sol du point. */
+const DISBAND_RING_SAMPLES = 72;
 
-/** **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
- *  autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. */
+/**
+ * **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
+ * autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. Le rayon se lit sur la plus
+ * grande pièce (`spanKm`, son plus grand côté au sol), un camion au plus ; deux voisines restent au
+ * moins à cette distance, aussi nombreuses soient-elles : le nombre passe avant le plafond. Une place que `fits` refuse (la mer, un autre pays) est
+ * laissée : les pièces se rangent côte à côte sur ce qui reste de la couronne, et `null` dit qu'il
+ * n'y reste pas leur place.
+ */
 export function disbandPointsOf(
   [lon, lat]: readonly [number, number],
   count: number,
-): Array<[number, number]> {
+  spanKm: number,
+  fits: (point: readonly [number, number]) => boolean = () => true,
+): Array<[number, number]> | null {
+  const ring = count - 1;
+  spanKm = Math.min(spanKm, DISBAND_LARGEST_KM);
+  const radiusKm = Math.max(
+    DISBAND_RING_SPANS * spanKm,
+    ring < 2 ? 0 : spanKm / (2 * Math.sin(Math.PI / ring)),
+  );
+  const step = 2 * Math.asin(Math.min(1, spanKm / (2 * radiusKm)));
+  const degrees = radiusKm / KM_PER_UNIT;
   const stretch = 1 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
-  return Array.from({ length: count }, (_, index): [number, number] => {
-    if (index === 0) return [lon, lat];
-    const turn = (2 * Math.PI * (index - 1)) / (count - 1);
-    return [
-      lon + Math.cos(turn) * DISBAND_SPREAD_DEG * stretch,
-      lat + Math.sin(turn) * DISBAND_SPREAD_DEG,
-    ];
-  });
+  // Au bord de l'antiméridien, la couronne revient sur la carte de l'autre côté.
+  const at = (turn: number): [number, number] => [
+    ((((lon + Math.cos(turn) * degrees * stretch + 180) % 360) + 360) % 360) - 180,
+    lat + Math.sin(turn) * degrees,
+  ];
+  const even = Array.from({ length: ring }, (_, index) => (2 * Math.PI * index) / ring);
+  if (even.every((turn) => fits(at(turn)))) return [[lon, lat], ...even.map(at)];
+  const open = Array.from(
+    { length: DISBAND_RING_SAMPLES },
+    (_, index) => (2 * Math.PI * index) / DISBAND_RING_SAMPLES,
+  ).filter((turn) => fits(at(turn)));
+  // Le premier départ qui loge toutes les pièces suffit : aucune couronne n'y vaut mieux qu'une autre.
+  for (const [start, first] of open.entries()) {
+    const turns = [first];
+    for (const turn of [
+      ...open.slice(start + 1),
+      ...open.slice(0, start).map((t) => t + 2 * Math.PI),
+    ])
+      if (turns.length < ring && turn - turns.at(-1)! >= step - 1e-9) turns.push(turn);
+    if (turns.length === ring && first + 2 * Math.PI - turns.at(-1)! >= step - 1e-9)
+      return [[lon, lat], ...turns.map(at)];
+  }
+  return null;
 }
 
 /** Ce que la phrase du refus nomme, et ce que le geste montre : les places demandées, et

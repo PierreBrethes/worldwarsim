@@ -327,6 +327,23 @@ describe('delivering to an outpost', () => {
     expect(notices).toMatchObject([{ delivered: { ammunition: 100 }, kept: { ammunition: 50 } }]);
   });
 
+  it('delivers on the spot from its own garrison: the march to oneself is refused, the delivery is not (#296)', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { truck } = await loadedTruck(t, seat, 100);
+    const outpost = await plant(t, seat, ESSEN, 1, GERMANY);
+    await t.run(async (ctx) => ctx.db.patch(truck, { stationedAt: outpost }));
+
+    await expect(
+      t.mutation(api.logistics.deliver, {
+        ...seat,
+        origin: { kind: 'outpost', outpostId: outpost },
+        troopIds: [truck],
+        outpostId: outpost,
+      }),
+    ).resolves.toBeDefined();
+  });
+
   /** **Un avant-poste côtier est une côte** : un cargo s'y charge à son dépôt et en repart. */
   it('loads a cargo at a coastal outpost and sails it to another', async () => {
     const t = boot();

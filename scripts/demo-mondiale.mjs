@@ -42,7 +42,8 @@
  * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une
  * britannique à travers la Lorraine. `--lisbonne` donne Lisbonne à la France : elle lit la nation de ses relevés (P11).
  * `--pile-mixte` (#286) pose un camion, un chasseur et deux fantassins sur un même point : une pile
- * où les nouveaux modèles côtoient les anciens.
+ * où les nouveaux modèles côtoient les anciens. `--escouade` (#283) pose un camion, un char et deux
+ * fantassins en Essonne et dans le Cotentin, et les dissout : la couronne, puis contre la mer.
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
  * avant-poste à Namur, et à l'adversaire une mine relevée sur la Sarre : une mine à poser, au
  * cadrage de la maquette des gisements.
@@ -207,6 +208,28 @@ if (!bare) {
         'dev:spawnTroops',
         JSON.stringify({ playerId: scene.a, role, count, lon: 1.0, lat: 47.3 }),
       ]);
+  /** `--escouade` : un camion, un char et deux fantassins, en Essonne (sous le regard de la caméra)
+   *  et dans le Cotentin, que la France dissout (#283) : la couronne au large de tout, puis contre
+   *  la mer. */
+  if (process.argv.includes('--escouade') && scene.a !== null)
+    for (const [lon, lat] of [
+      [2.35, 48.55],
+      [-1.6, 49.4],
+    ]) {
+      for (const [role, count] of [
+        ['landTransport', 1],
+        ['armor', 1],
+        ['infantry', 2],
+      ])
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId: scene.a, role, count, lon, lat }),
+        ]);
+      await client
+        .mutation(api.movements.disband, { token: tokenA, seasonId, point: { lon, lat } })
+        .catch((error) => console.log(`Dissoudre en ${lon}, ${lat} : ${error.message}`));
+    }
   if (passengers && scene.a !== null) {
     const spawn = (args) =>
       cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);

@@ -3,7 +3,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { Pin } from '@/domain/pins';
 import { PROJECTION, WorldFrame } from './frame';
-import { PinLayer } from './pins';
+import { isPinOf, PinLayer } from './pins';
 import { REACH } from './halo';
 
 beforeAll(() => {
@@ -93,6 +93,23 @@ describe('PinLayer — the pieces far away', () => {
     expect(layer.under(...screenOf(eye, paris))).toBeNull();
   });
 
+  it('keeps an outpost by its pin at every distance: it has no piece to give way to (#296)', () => {
+    const outpost: Pin = { ...mine('o', paris), shape: 'outpost' };
+    for (const distance of [3, 10, 30, 80]) {
+      const eye = eyeOver(paris, distance);
+      const layer = new PinLayer(
+        frame,
+        () => null,
+        false,
+        () => {},
+        () => null,
+      );
+      layer.display([outpost]);
+      layer.layout(eye, W, H, new Map(), new Map());
+      expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'o' });
+    }
+  });
+
   it('stands where a ring carried its maquette, not on the point the maquette left', () => {
     const eye = eyeOver(paris, 120);
     const layer = new PinLayer(
@@ -167,5 +184,15 @@ describe('PinLayer — the pieces far away', () => {
     const glows: number[] = [];
     layer.lights((_, radius) => glows.push(radius * REACH), 1);
     expect(glows).toEqual([3 * 4]);
+  });
+});
+
+describe('isPinOf', () => {
+  it('yields only to the pin of the pile, not to a neighbour outpost’s (#296)', () => {
+    const hit = { kind: 'pin', id: 'outpost-near' } as const;
+    expect(isPinOf(hit, 'outpost-near')).toBe(true);
+    expect(isPinOf(hit, 'outpost:mine')).toBe(false);
+    expect(isPinOf({ kind: 'cluster', ids: ['a'], x: 0, y: 0 }, 'a')).toBe(false);
+    expect(isPinOf(null, 'a')).toBe(false);
   });
 });

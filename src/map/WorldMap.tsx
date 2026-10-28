@@ -97,6 +97,7 @@ import {
   type PlacingThread,
   type SearchArea,
   type StandingMaquette,
+  labelOfPile,
   type StandingPile,
   type SurveyedCamp,
 } from './engine';
@@ -867,10 +868,12 @@ export function WorldMap({
   const availableLabels = useMemo(
     () =>
       new Set(
-        availablePiles.map((id) => {
-          const at = standing.find((pile) => pile.id === id)?.at;
-          return at !== undefined && 'beside' in at ? at.beside : id;
-        }),
+        availablePiles.map((id) =>
+          labelOfPile(
+            standing.find((pile) => pile.id === id),
+            id,
+          ),
+        ),
       ),
     [availablePiles, standing],
   );
@@ -942,8 +945,10 @@ export function WorldMap({
     ): { from: PieceFrom | null; label: MapLabel | undefined } => {
       if (target.kind === 'canvas') {
         // A garrison is aimed at by its building's mast.
-        const at = standing.find((pile) => pile.id === target.pick.pileId)?.at;
-        const labelId = at !== undefined && 'beside' in at ? at.beside : target.pick.pileId;
+        const labelId = labelOfPile(
+          standing.find((pile) => pile.id === target.pick.pileId),
+          target.pick.pileId,
+        );
         return {
           from: { kind: 'piece', hit: { ...target.pick, clientX, clientY } },
           label: labels.find((candidate) => candidate.id === labelId),
@@ -952,7 +957,7 @@ export function WorldMap({
       const label = labels.find((candidate) => candidate.id === target.labelId);
       return {
         from:
-          label?.type === 'stack' && label.station !== null
+          (label?.type === 'stack' || label?.type === 'outpost') && label.station !== null
             ? { kind: 'stack', station: label.station }
             : null,
         label,

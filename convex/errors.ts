@@ -144,6 +144,7 @@ export type ErrorCode =
   /** Les transports à bord (15/10) : on embarque dans un transport, on en débarque, et un
    *  passager ne part pas sans lui. */
   | 'TRUCK_SEATS_INFANTRY'
+  | 'AIR_TRANSPORT_SEATS_INFANTRY'
   | 'NOT_ABOARD'
   | 'DISEMBARK_AT_SEA'
   | 'NOT_A_SQUAD'
@@ -184,6 +185,7 @@ export type ErrorCode =
    *  allure est déjà payée — on ne retire pas la route sous ses pieds. */
   | 'OUTPOST_SERVING'
   | 'FRIENDLY_TARGET'
+  | 'ALREADY_HERE'
   | 'EMPTY_MOVEMENT'
   | 'OUTPOST_TARGET_ONLY'
   | 'POINT_TARGET_ONLY'
