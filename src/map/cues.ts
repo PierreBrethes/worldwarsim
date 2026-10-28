@@ -67,3 +67,47 @@ export function descentesOf(
     ),
   );
 }
+
+/**
+ * **A newcomer stands at the end of the pieces of its role** (décision de Pierre du 28/10): the
+ * piles keep their order by role, and within a role the pieces that stood there before keep their
+ * places — a recruit out of its barracks, a troop entering its garrison, take the last one. The
+ * view serves troops by birth, so an older troop entering would otherwise walk into the middle.
+ * `before` is what this returned last; a pile seen for the first time stands as served.
+ */
+export function rankKept(
+  before: ReadonlyArray<StandingPile> | null,
+  piles: ReadonlyArray<StandingPile>,
+): ReadonlyArray<StandingPile> {
+  if (before === null) return piles;
+  const was = new Map(
+    before.map(({ id, pieces }) => [id, pieces.groups.map(({ troopIds }) => troopIds[0])]),
+  );
+  return piles.map((pile) => {
+    const order = was.get(pile.id);
+    if (order === undefined) return pile;
+    const rankOf = (troopId: string | undefined) => {
+      const k = order.indexOf(troopId);
+      return k < 0 ? Infinity : k;
+    };
+    const groups: Array<StandingPile['pieces']['groups'][number]> = [];
+    for (const group of pile.pieces.groups) {
+      // Runs of one role: a stable sort within each.
+      const run = groups.length > 0 && groups.at(-1)!.role === group.role;
+      if (!run) groups.push(group);
+      else {
+        let k = groups.length;
+        while (
+          k > 0 &&
+          groups[k - 1]!.role === group.role &&
+          rankOf(groups[k - 1]!.troopIds[0]) > rankOf(group.troopIds[0])
+        )
+          k -= 1;
+        groups.splice(k, 0, group);
+      }
+    }
+    return groups.every((group, k) => group === pile.pieces.groups[k])
+      ? pile
+      : { ...pile, pieces: { ...pile.pieces, groups } };
+  });
+}

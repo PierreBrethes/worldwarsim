@@ -50,7 +50,7 @@ import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
-import { aboardOf, descentesOf, sortiesOf } from './cues';
+import { aboardOf, descentesOf, rankKept, sortiesOf } from './cues';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { shareUnchanged } from '@/data/shareUnchanged';
@@ -356,6 +356,17 @@ function useShared<T>(value: T): T {
   return shared;
 }
 
+/** **A newcomer stands at the end of its role's pieces** (`rankKept`): each pile keeps the order
+ *  it was last drawn in. */
+function useRankKept(piles: ReadonlyArray<StandingPile>): ReadonlyArray<StandingPile> {
+  const last = useRef<ReadonlyArray<StandingPile> | null>(null);
+  const kept = rankKept(last.current, piles);
+  useLayoutEffect(() => {
+    last.current = kept;
+  });
+  return kept;
+}
+
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
@@ -452,7 +463,7 @@ export function WorldMap({
   // joueur, le plateau rebâtit piles, camps, sélection et étiquettes à l'identique, et chaque effet
   // qui les lit réveillait la carte une seconde et demie à soixante images.
   const labels = useShared(servedLabels);
-  const standing = useShared(servedStanding);
+  const standing = useShared(useRankKept(servedStanding));
   const camps = useShared(servedCamps);
   const pins = useShared(servedPins);
   const selectedPiles = useShared(servedSelection);

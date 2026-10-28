@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
-import { aboardOf, descentesOf, sortiesOf } from './cues';
+import { aboardOf, descentesOf, rankKept, sortiesOf } from './cues';
 import type { StandingPile } from './engine';
 
 const pile = (id: string, at: StandingPile['at'], ...troopIds: string[]): StandingPile => ({
@@ -84,5 +84,39 @@ describe('descentesOf', () => {
     const ship = { id: 'ship', role: 'cargo' as const, tier: 1 as const };
     const now = view(ship, man('a'));
     expect(descentesOf(aboardOf(view(ship, man('a', 'ship'))), now, pilesOf(now))).toEqual([]);
+  });
+});
+
+describe('rankKept', () => {
+  const troop = (id: string, role: UnitRole) => ({
+    id,
+    role,
+    tier: 1 as const,
+    strength: 10,
+    nominalStrength: 10,
+  });
+  const rank = (...troops: ReturnType<typeof troop>[]): StandingPile => ({
+    id: 'p',
+    at: barracks,
+    pieces: pilePieces(troops),
+  });
+  const order = (pile: StandingPile) => pile.pieces.groups.map(({ troopIds }) => troopIds[0]);
+
+  it('puts a newcomer at the end of the pieces of its role, never in their middle (Pierre, 28/10)', () => {
+    const before = [rank(troop('a', 'infantry'), troop('c', 'infantry'), troop('x', 'armor'))];
+    // The view serves the troops by their birth: an older troop entering the garrison comes first.
+    const now = rank(
+      troop('b', 'infantry'),
+      troop('a', 'infantry'),
+      troop('c', 'infantry'),
+      troop('x', 'armor'),
+    );
+    expect(order(rankKept(before, [now])[0]!)).toEqual(['a', 'c', 'b', 'x']);
+  });
+
+  it('keeps the order by role, and a pile seen for the first time as served', () => {
+    const now = rank(troop('b', 'infantry'), troop('x', 'armor'));
+    expect(order(rankKept(null, [now])[0]!)).toEqual(['b', 'x']);
+    expect(order(rankKept([], [now])[0]!)).toEqual(['b', 'x']);
   });
 });
