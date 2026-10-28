@@ -1,6 +1,6 @@
 import type { Pose, Sequence } from '../sequences';
 import { ease, span } from './curves';
-import { WALK_MIN_PX } from './walk';
+import { lengthOf, WALK_MIN_PX } from './walk';
 
 /** Ouverts vers l'extérieur, à 110° (décision de Pierre, #268, 23/10). */
 const OUT = (110 * Math.PI) / 180;
@@ -251,10 +251,10 @@ export function wayIn({
     const points = [start, ...way, approach];
     return points.slice(1).map((p, k) => [points[k]!, p] as const);
   };
-  const lengthOf = (way: Flat[]) =>
-    legsOf(way).reduce((sum, [a, b]) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
+  const walked = (way: Flat[]) =>
+    lengthOf([start, ...way, approach].map(([x, z]): Point => [x, 0, z]));
   const clear = ways.filter((way) => legsOf(way).every(([a, b]) => !crosses(a, b, blocked)));
-  const best = [...clear].sort((a, b) => lengthOf(a) - lengthOf(b))[0] ?? [];
+  const best = [...clear].sort((a, b) => walked(a) - walked(b))[0] ?? [];
   return [
     [start[0], y, start[1]],
     ...best.map(([x, z]): Point => [x, y, z]),
