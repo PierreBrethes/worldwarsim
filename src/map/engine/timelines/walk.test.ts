@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ease } from './curves';
-import { lengthOf, together, walkOut } from './walk';
+import { lengthOf, paceMs, together, walkOut } from './walk';
 
 /** From inside the door (2 back, faded), through it, down the steps, then left to the rank. */
 const path = [
@@ -102,5 +102,18 @@ describe('together', () => {
     expect(file.at(200).root).toBeUndefined();
     expect(file.at(1200)).toEqual({ man_1: second.at(1200).man_1 });
     expect(file.at(1400)).toEqual({});
+  });
+});
+
+describe('paceMs', () => {
+  const man = { mps: 17, roll: 3000 };
+  it("lasts its path at its pace, near the storyboard's own length", () => {
+    expect(paceMs(51, man)).toBeCloseTo(3000);
+    expect(paceMs(60, man)).toBeCloseTo((60 / 17) * 1000);
+  });
+
+  it('never runs nor crawls: between 0.7 and 1.5 times the storyboard, whatever the floor lengthens', () => {
+    expect(paceMs(500, man)).toBe(4500);
+    expect(paceMs(5, man)).toBe(2100);
   });
 });

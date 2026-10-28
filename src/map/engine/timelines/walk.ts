@@ -96,3 +96,11 @@ export function together(walks: ReadonlyArray<Sequence<never>>): Sequence<never>
     at: (t) => (t <= 0 || t >= ms ? {} : Object.assign({}, ...walks.map((walk) => walk.at(t)))),
   };
 }
+
+/** A walk lasts between these shares of the storyboard's: the floor that grows a far rank
+ *  lengthens its path, never its hour. `@a-mesurer` */
+const PACE_BOUNDS = [0.7, 1.5] as const;
+
+/** **How long a walk of `metres` lasts**, at `mps`, bounded round the storyboard's `roll` (ms). */
+export const paceMs = (metres: number, { mps, roll }: { mps: number; roll: number }): number =>
+  Math.min(roll * PACE_BOUNDS[1], Math.max(roll * PACE_BOUNDS[0], (metres / mps) * 1000));
