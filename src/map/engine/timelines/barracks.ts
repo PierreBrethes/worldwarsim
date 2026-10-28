@@ -157,3 +157,112 @@ export function wayOut({
         ];
   return [inside, out, ...door, [foot[0], rank[1], street], ...around, approach, rank];
 }
+
+type Flat = readonly [x: number, z: number];
+type Rect = { readonly min: Flat; readonly max: Flat };
+
+/** Whether the segment `a`→`b` crosses the inside of `rect` (Liang–Barsky, on the ground). */
+function crosses(a: Flat, b: Flat, { min, max }: Rect): boolean {
+  let [enter, leave] = [0, 1];
+  for (const axis of [0, 1] as const) {
+    const d = b[axis] - a[axis];
+    for (const [edge, sign] of [
+      [min[axis], -1],
+      [max[axis], 1],
+    ] as const) {
+      const gap = sign * (edge - a[axis]);
+      const toward = sign * d;
+      if (toward === 0) {
+        if (gap < 0) return false;
+      } else if (toward > 0) leave = Math.min(leave, gap / toward);
+      else enter = Math.max(enter, gap / toward);
+    }
+  }
+  return enter < leave;
+}
+
+const grown = ({ min, max }: { readonly min: Point; readonly max: Point }, by: number): Rect => ({
+  min: [min[0] - by, min[2] - by],
+  max: [max[0] + by, max[2] + by],
+});
+
+/**
+ * **The way into a garrison** (décision de Pierre du 28/10): from where the column stood at the
+ * end of its route — out of the walls, the way it came, when its route ended in the building —
+ * round the building by its corners when it stands between, to come to the rank from behind,
+ * along its front. No door: the piece walks to its place.
+ */
+export function wayIn({
+  at,
+  toward,
+  rank,
+  front,
+  length,
+  box,
+}: {
+  readonly at: Point;
+  /** Where it came from: the point before `at` on its route. */
+  readonly toward: Point;
+  readonly rank: Point;
+  readonly front: Point;
+  readonly length: number;
+  readonly box: { readonly min: Point; readonly max: Point };
+}): Point[] {
+  const margin = WAY.gable + length / 2;
+  const around = grown(box, margin);
+  const blocked = grown(box, margin / 2);
+  const y = rank[1];
+  let start: Flat = [at[0], at[2]];
+  const inside = (p: Flat) =>
+    p[0] > blocked.min[0] &&
+    p[0] < blocked.max[0] &&
+    p[1] > blocked.min[1] &&
+    p[1] < blocked.max[1];
+  if (inside(start)) {
+    // Out of the walls, back the way it came: where the ray leaves the way round.
+    const d: Flat = [toward[0] - at[0], toward[2] - at[2]];
+    const t = Math.min(
+      ...([0, 1] as const)
+        .filter((axis) => d[axis] !== 0)
+        .map(
+          (axis) => ((d[axis] > 0 ? around.max[axis] : around.min[axis]) - start[axis]) / d[axis],
+        ),
+    );
+    if (Number.isFinite(t)) start = [start[0] + d[0] * t, start[1] + d[1] * t];
+  }
+  const approach: Flat = [
+    rank[0] - front[0] * APPROACH * length,
+    rank[2] - front[2] * APPROACH * length,
+  ];
+  const corners: Flat[] = [
+    [around.min[0], around.min[1]],
+    [around.max[0], around.min[1]],
+    [around.max[0], around.max[1]],
+    [around.min[0], around.max[1]],
+  ];
+  const ways: Flat[][] = [
+    [],
+    ...corners.map((corner) => [corner]),
+    ...corners.flatMap((corner, k) => {
+      const next = corners[(k + 1) % 4]!;
+      return [
+        [corner, next],
+        [next, corner],
+      ];
+    }),
+  ];
+  const legsOf = (way: Flat[]) => {
+    const points = [start, ...way, approach];
+    return points.slice(1).map((p, k) => [points[k]!, p] as const);
+  };
+  const lengthOf = (way: Flat[]) =>
+    legsOf(way).reduce((sum, [a, b]) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
+  const clear = ways.filter((way) => legsOf(way).every(([a, b]) => !crosses(a, b, blocked)));
+  const best = [...clear].sort((a, b) => lengthOf(a) - lengthOf(b))[0] ?? [];
+  return [
+    [start[0], y, start[1]],
+    ...best.map(([x, z]): Point => [x, y, z]),
+    [approach[0], y, approach[1]],
+    rank,
+  ];
+}

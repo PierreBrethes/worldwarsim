@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
-import { aboardOf, descentesOf, rankKept, sortiesOf } from './cues';
+import { aboardOf, descentesOf, entreesOf, rankKept, sortiesOf } from './cues';
 import type { StandingPile } from './engine';
 
 const pile = (id: string, at: StandingPile['at'], ...troopIds: string[]): StandingPile => ({
@@ -118,5 +118,61 @@ describe('rankKept', () => {
     const now = rank(troop('b', 'infantry'), troop('x', 'armor'));
     expect(order(rankKept(null, [now])[0]!)).toEqual(['b', 'x']);
     expect(order(rankKept([], [now])[0]!)).toEqual(['b', 'x']);
+  });
+});
+
+describe('entreesOf', () => {
+  const arc = (troopIds: string[], points: Array<[number, number]>) => ({
+    state: 'mine' as const,
+    troopIds,
+    route: { points },
+  });
+  const garrison = (at: StandingPile['at'], ...groups: string[][]): StandingPile => ({
+    id: 'g',
+    at,
+    pieces: {
+      groups: groups.map((troopIds) => ({
+        role: 'infantry' as UnitRole,
+        troops: 1,
+        troopIds,
+        figures: [1],
+        wear: 'whole',
+      })),
+      troopIds: groups.flat(),
+      squad: groups.length > 1,
+    },
+  });
+  const column = arc(
+    ['t2'],
+    [
+      [1, 47],
+      [1.5, 47.5],
+      [2, 48],
+    ],
+  );
+
+  it('walks a column that arrived in a garrison from where it arrived, coming the way it came', () => {
+    expect(entreesOf([column], [garrison(barracks, ['t1'], ['t2'])])).toEqual([
+      {
+        siteId: 'building-barracks@2,48',
+        pileId: 'g',
+        groups: [1],
+        at: [2, 48],
+        toward: [1.5, 47.5],
+      },
+    ]);
+  });
+
+  it('enters any building of mine, but no quay and no pile on a point', () => {
+    const hq = { beside: 'building-hq@2,48' };
+    expect(entreesOf([column], [garrison(hq, ['t2'])])).toHaveLength(1);
+    expect(
+      entreesOf([column], [garrison({ beside: 'building-port@2,48', quay: [2, 48] }, ['t2'])]),
+    ).toEqual([]);
+    expect(entreesOf([column], [garrison({ lonLat: [2, 48] }, ['t2'])])).toEqual([]);
+  });
+
+  it('names nothing for a garrison that stood there already, or a recruit', () => {
+    expect(entreesOf([], [garrison(barracks, ['t1'], ['t2'])])).toEqual([]);
   });
 });

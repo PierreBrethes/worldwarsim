@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isRigPart } from '@/emblems/rigs';
-import { barracksDoors, wayOut } from './barracks';
+import { barracksDoors, wayIn, wayOut } from './barracks';
 import { WALK_MIN_PX } from './walk';
 
 const DEG = Math.PI / 180;
@@ -126,4 +126,50 @@ describe('wayOut', () => {
       expect(crossesWalls(path)).toBe(false);
     },
   );
+});
+
+describe('wayIn', () => {
+  const box = { min: [-25.3, 0, -8.3], max: [39.4, 19.75, 12.35] } as const;
+  type P = readonly [number, number, number];
+  const inBox = ([x, , z]: P) =>
+    x > box.min[0] && x < box.max[0] && z > box.min[2] && z < box.max[2];
+  const crossesBox = (path: ReadonlyArray<P>) =>
+    path.slice(1).some((to, k) => {
+      const from = path[k]!;
+      const steps = Math.ceil(Math.hypot(to[0] - from[0], to[2] - from[2]));
+      return Array.from({ length: steps + 1 }, (_, s) => s / Math.max(steps, 1)).some((f) =>
+        inBox([from[0] + (to[0] - from[0]) * f, 0, from[2] + (to[2] - from[2]) * f]),
+      );
+    });
+  const cases: ReadonlyArray<[string, P, P, P, P]> = [
+    ['from behind, to a rank in front', [0, 0, 0], [0, 0, -100], [0, 0, 40], [0, 0, 1]],
+    ['from the west, to a rank beside the shed', [5, 0, 2], [-100, 0, 2], [57, 0, 6], [1, 0, 0]],
+    ['from the front, to a rank in front', [0, 0, 60], [0, 0, 100], [10, 0, 40], [0, 0, 1]],
+  ];
+
+  it.each(cases)(
+    'walks a column in %s, round the building, to its place along its front',
+    (_, at, toward, rank, front) => {
+      const path = wayIn({ at, toward, rank, front, length: 2.6, box });
+      expect(crossesBox(path)).toBe(false);
+      expect(path.at(-1)).toEqual(rank);
+      const [a, b] = [path.at(-2)!, path.at(-1)!];
+      const leg = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      expect((b[0] - a[0]) / leg).toBeCloseTo(front[0]);
+      expect((b[2] - a[2]) / leg).toBeCloseTo(front[2]);
+    },
+  );
+
+  it('starts where the column stood when it stood outside the building', () => {
+    expect(
+      wayIn({
+        at: [0, 0, 60],
+        toward: [0, 0, 100],
+        rank: [10, 0, 40],
+        front: [0, 0, 1],
+        length: 2.6,
+        box,
+      })[0],
+    ).toEqual([0, 0, 60]);
+  });
 });

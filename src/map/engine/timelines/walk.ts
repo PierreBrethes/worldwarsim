@@ -25,6 +25,9 @@ export type WalkOut = {
   readonly stride: boolean;
   /** What walks: the whole piece (`root`), or one man of a squad, in file with the others. */
   readonly part?: 'root' | `man_${number}`;
+  /** It comes out of the dark of a door over its first leg; `false`, it stands whole from its
+   *  start — a column walking into its garrison (décision de Pierre du 28/10). */
+  readonly emerges?: boolean;
 };
 
 /**
@@ -35,7 +38,7 @@ export type WalkOut = {
  * close.
  */
 export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number): number } {
-  const { path, start, ms, curve, stride, part = 'root' } = walk;
+  const { path, start, ms, curve, stride, part = 'root', emerges = true } = walk;
   const legs = path.slice(1).map((to, k) => distance(path[k]!, to));
   const length = lengthOf(path);
   const end = start + ms;
@@ -67,7 +70,7 @@ export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number
         [part]: {
           travel: pointAt(s),
           heading: Math.atan2(to[0] - from[0], to[2] - from[2]),
-          fade: Math.min(1, s / (legs[0] || 1)),
+          ...(emerges ? { fade: Math.min(1, s / (legs[0] || 1)) } : {}),
           ...(stride && t > start ? { stride: (t - start) / 1000 } : {}),
         },
       };

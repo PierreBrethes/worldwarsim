@@ -1,3 +1,4 @@
+import type { LonLat } from '@/domain/geo';
 import type { StandingPile } from './engine';
 
 /** **Une sortie de caserne** : où, dans quelle pile, et les groupes de la pile qui en sortent. */
@@ -109,5 +110,47 @@ export function rankKept(
     return groups.every((group, k) => group === pile.pieces.groups[k])
       ? pile
       : { ...pile, pieces: { ...pile.pieces, groups } };
+  });
+}
+
+/** **Une colonne entrée en garnison** : où, dans quelle pile, quels groupes, d'où elle arrive. */
+export type Entree = Sortie & {
+  /** The end of its route: where its pawn stood when the movement closed. */
+  readonly at: LonLat;
+  /** The point before it on the route: the way it came. */
+  readonly toward?: LonLat;
+};
+
+type Column = {
+  readonly state: string;
+  readonly troopIds?: ReadonlyArray<string>;
+  readonly route?: { readonly points: ReadonlyArray<LonLat> };
+};
+
+/**
+ * **Les colonnes entrées en garnison** (décision de Pierre du 28/10) : chaque garnison
+ * (`beside`) dont un groupe porte une troupe qu'une de mes colonnes d'avant portait. La pièce
+ * marche de la fin de sa route à sa place au rang, sans porte ni fondu. Une garnison de quai n'en
+ * donne pas : une coque n'y marche pas à travers la terre.
+ */
+export function entreesOf(
+  before: ReadonlyArray<Column>,
+  piles: ReadonlyArray<StandingPile>,
+): ReadonlyArray<Entree> {
+  return before.flatMap((column) => {
+    const points = column.route?.points ?? [];
+    const at = points.at(-1);
+    if (column.state !== 'mine' || at === undefined) return [];
+    const carried = new Set(column.troopIds);
+    return piles.flatMap(({ id, at: where, pieces }) => {
+      if (!('beside' in where) || where.quay !== undefined) return [];
+      const groups = pieces.groups.flatMap(({ troopIds }, k) =>
+        troopIds.some((troop) => carried.has(troop)) ? [k] : [],
+      );
+      const toward = points.at(-2);
+      return groups.length === 0
+        ? []
+        : [{ siteId: where.beside, pileId: id, groups, at, ...(toward ? { toward } : {}) }];
+    });
   });
 }

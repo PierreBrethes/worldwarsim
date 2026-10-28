@@ -117,3 +117,18 @@ describe('paceMs', () => {
     expect(paceMs(5, man)).toBe(2100);
   });
 });
+
+describe('a walk that does not come out of a door', () => {
+  it('stands whole from its start: a column walks into its garrison, no fade', () => {
+    const walk = walkOut({
+      path,
+      start: 300,
+      ms: 3000,
+      curve: ease.march,
+      stride: true,
+      emerges: false,
+    });
+    expect(walk.at(100).root?.fade).toBeUndefined();
+    expect(walk.at(400).root?.fade).toBeUndefined();
+  });
+});

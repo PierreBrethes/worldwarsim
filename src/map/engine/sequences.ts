@@ -8,6 +8,7 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
+import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
 import { bakedRig } from './baking';
@@ -89,6 +90,16 @@ export type Cue =
       readonly siteId: string;
       readonly pileId: string;
       readonly groups: ReadonlyArray<number>;
+    }
+  /** A column entered a garrison: `groups` of `pileId` walk from `at`, coming from `toward`, to
+   *  their rank (décision de Pierre du 28/10). */
+  | {
+      readonly kind: 'entree';
+      readonly siteId: string;
+      readonly pileId: string;
+      readonly groups: ReadonlyArray<number>;
+      readonly at: LonLat;
+      readonly toward?: LonLat;
     }
   /** A troop steps down from a truck: `groupId` is `${pileId}/${group}` (`StandingLayer`). */
   | { readonly kind: 'descente'; readonly groupId: string };

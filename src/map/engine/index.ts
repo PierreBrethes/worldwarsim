@@ -66,7 +66,7 @@ import {
   troopPinSpan,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
-import { barracksDoors, type DoorsPassing, joinedDoors, wayOut } from './timelines/barracks';
+import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut } from './timelines/walk';
 import { tailgateDrop } from './timelines/truck';
@@ -417,7 +417,7 @@ type Gesture = {
  */
 type Landing = { readonly point: Vector3; readonly country: CountryMesh };
 
-type SortieCue = Extract<Cue, { kind: 'sortie' }>;
+type SortieCue = Extract<Cue, { kind: 'sortie' | 'entree' }>;
 
 /** **The men of a squad come out in file** (`T.men.gap` of the storyboard), each to his place. */
 const MEN_GAP_MS = 400;
@@ -2563,6 +2563,7 @@ export class MapEngine {
     this.invalidate();
     switch (cue.kind) {
       case 'sortie':
+      case 'entree':
         // Its pile was just drawn again: the walk is laid out once the pile stands (`walkOut`).
         this.sorties.push({ cue, since: performance.now() });
         this.standing.inkArrival(cue.pileId);
@@ -2576,7 +2577,9 @@ export class MapEngine {
   /**
    * **The recruits of a barracks walk out** (#268): each new group from its door — a man by the
    * door, a vehicle by the shed — to its place in the rank, the doors held open until the last
-   * has passed, the rank recentred at the arrival. Laid out once the pile stands; `false` until.
+   * has passed, the rank recentred at the arrival. **A column entering a garrison** walks from the
+   * end of its route to its place, round the building, no door (décision de Pierre du 28/10).
+   * Laid out once the pile stands; `false` until.
    */
   private walkOutOf({ cue, since }: (typeof this.sorties)[number], now: number): boolean {
     const site = this.maquettes.siteOf(cue.siteId);
@@ -2587,6 +2590,9 @@ export class MapEngine {
     const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
     const box = { min: site.box.min.toArray(), max: site.box.max.toArray() };
     const queued = { caserne: 0, remise: 0 };
+    const entering = cue.kind === 'entree';
+    const arrived = entering ? site.toModel(this.frame.projectLonLat(cue.at)) : null;
+    const came = entering && cue.toward ? site.toModel(this.frame.projectLonLat(cue.toward)) : null;
     const walks = ids.flatMap((id, n) => {
       const place = places[n]!;
       const role = pieces.groups[cue.groups[n]!]?.role;
@@ -2596,7 +2602,8 @@ export class MapEngine {
         ? [site.marker('fx_entree'), site.marker('fx_sortie')]
         : [site.marker('fx_entree_remise'), site.marker('fx_sortie_remise')];
       const drawn = this.standing.pieceOf(id)?.box;
-      if (role === undefined || inside === null || out === null || !drawn) return [];
+      if (role === undefined || (!entering && (inside === null || out === null)) || !drawn)
+        return [];
       const size = drawn.getSize(new Vector3());
       const length = Math.max(size.x, size.z) / metre;
       const front = site
@@ -2605,19 +2612,31 @@ export class MapEngine {
         .setY(0)
         .normalize();
       const pace = PACES[role as keyof typeof PACES] ?? PACES.armor;
-      const start = pace.lead + queued[door]++ * pace.gap;
+      const start = (entering ? 0 : pace.lead) + queued[door]++ * pace.gap;
       let shut = 0;
       /** One walk from the door to `to` on the board, `from` in the piece: a man of a squad
        *  walks to his own place, in file behind the one before him. */
       const walkTo = (to: Vector3, part: 'root' | `man_${number}`, after: number) => {
-        const path = wayOut({
-          inside: inside.toArray(),
-          out: out.toArray(),
-          rank: site.toModel(to).toArray(),
-          front: front.toArray(),
-          length,
-          box,
-        }).map((point) =>
+        const rank = site.toModel(to).toArray();
+        const path = (
+          arrived !== null
+            ? wayIn({
+                at: arrived.toArray(),
+                toward: (came ?? site.toModel(to)).toArray(),
+                rank,
+                front: front.toArray(),
+                length,
+                box,
+              })
+            : wayOut({
+                inside: inside!.toArray(),
+                out: out!.toArray(),
+                rank,
+                front: front.toArray(),
+                length,
+                box,
+              })
+        ).map((point) =>
           site
             .toBoard(new Vector3(...point))
             .sub(to)
@@ -2630,6 +2649,7 @@ export class MapEngine {
           curve: pace.curve,
           stride: man,
           part,
+          emerges: !entering,
         });
         // The door shuts once the last through it is at the foot of the steps, clear of the shed.
         shut = Math.max(shut, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
@@ -2640,7 +2660,7 @@ export class MapEngine {
           ? together(place.men.map((at, k) => walkTo(at, `man_${k}`, k * MEN_GAP_MS)))
           : walkTo(place.at, 'root', 0);
       // A gun has no motor: it is pushed out.
-      const motor = !man && role !== 'artillery' ? [start] : [];
+      const motor = !entering && !man && role !== 'artillery' ? [start] : [];
       return [{ id, walk, door, shut, motor }];
     });
     // The rank recentres at each arrival, half a step each (décision de Pierre du 23/10).
@@ -2658,7 +2678,7 @@ export class MapEngine {
       arrivals.push(since + walk.ms - now);
     }
     if (arrivals.length > 0) {
-      this.passDoors(cue.siteId, shuts, motors, since, now);
+      if (!entering) this.passDoors(cue.siteId, shuts, motors, since, now);
       this.standing.arrive(cue.pileId, arrivals);
     }
     return true;

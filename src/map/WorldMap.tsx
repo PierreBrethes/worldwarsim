@@ -50,7 +50,7 @@ import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
-import { aboardOf, descentesOf, rankKept, sortiesOf } from './cues';
+import { aboardOf, descentesOf, entreesOf, rankKept, sortiesOf } from './cues';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { shareUnchanged } from '@/data/shareUnchanged';
@@ -1465,6 +1465,17 @@ export function WorldMap({
     for (const sortie of sortiesOf(known, standing))
       readyEngine?.cue({ kind: 'sortie', ...sortie });
   }, [troops, standing, readyEngine]);
+
+  // A column entered a garrison: it walks from the end of its route to its rank (décision de
+  // Pierre du 28/10). Its columns of the view before say who came; nothing on the first view.
+  const columnsKnown = useRef<ReadonlyArray<ArcView> | null>(null);
+  useEffect(() => {
+    const before = columnsKnown.current;
+    columnsKnown.current = arcs;
+    if (before === null) return;
+    for (const entree of entreesOf(before, standing))
+      readyEngine?.cue({ kind: 'entree', ...entree });
+  }, [arcs, standing, readyEngine]);
 
   // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.
   const aboardKnown = useRef<ReadonlyMap<string, string> | null>(null);
