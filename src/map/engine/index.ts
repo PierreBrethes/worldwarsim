@@ -2586,14 +2586,12 @@ export class MapEngine {
     if (site === null || pieces === null || places.some((place) => place === null)) return false;
     const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
     const box = { min: site.box.min.toArray(), max: site.box.max.toArray() };
-    const shuts: { caserne?: number; remise?: number } = {};
-    const motors: number[] = [];
     const queued = { caserne: 0, remise: 0 };
     const walks = ids.flatMap((id, n) => {
       const place = places[n]!;
       const role = pieces.groups[cue.groups[n]!]?.role;
       const man = role === 'infantry';
-      const door = man ? 'caserne' : 'remise';
+      const door: 'caserne' | 'remise' = man ? 'caserne' : 'remise';
       const [inside, out] = man
         ? [site.marker('fx_entree'), site.marker('fx_sortie')]
         : [site.marker('fx_entree_remise'), site.marker('fx_sortie_remise')];
@@ -2608,8 +2606,7 @@ export class MapEngine {
         .normalize();
       const pace = PACES[role as keyof typeof PACES] ?? PACES.armor;
       const start = pace.lead + queued[door]++ * pace.gap;
-      // A gun has no motor: it is pushed out.
-      if (!man && role !== 'artillery') motors.push(start);
+      let shut = 0;
       /** One walk from the door to `to` on the board, `from` in the piece: a man of a squad
        *  walks to his own place, in file behind the one before him. */
       const walkTo = (to: Vector3, part: 'root' | `man_${number}`, after: number) => {
@@ -2635,25 +2632,35 @@ export class MapEngine {
           part,
         });
         // The door shuts once the last through it is at the foot of the steps, clear of the shed.
-        shuts[door] = Math.max(shuts[door] ?? 0, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
+        shut = Math.max(shut, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
         return walk;
       };
       const walk =
         place.men.length > 0
           ? together(place.men.map((at, k) => walkTo(at, `man_${k}`, k * MEN_GAP_MS)))
           : walkTo(place.at, 'root', 0);
-      return [{ id, walk }];
+      // A gun has no motor: it is pushed out.
+      const motor = !man && role !== 'artillery' ? [start] : [];
+      return [{ id, walk, door, shut, motor }];
     });
-    if (walks.length > 0) this.passDoors(cue.siteId, shuts, motors, since, now);
     // The rank recentres at each arrival, half a step each (décision de Pierre du 23/10).
     const arrivals: number[] = [];
-    for (const { id, walk } of walks) {
+    // The doors open only for whom walks through them: a walk refused (out of the field, too
+    // many at once) has its piece in the rank already.
+    const shuts: { caserne?: number; remise?: number } = {};
+    const motors: number[] = [];
+    for (const { id, walk, door, shut, motor } of walks) {
       if (!this.sequences.play(this.standing, id, walk, since, now)) continue;
+      shuts[door] = Math.max(shuts[door] ?? 0, shut);
+      motors.push(...motor);
       const alone = pieces.groups.length === 1;
       this.walks.push({ id, pileId: cue.pileId, alone, walk, since });
       arrivals.push(since + walk.ms - now);
     }
-    if (arrivals.length > 0) this.standing.arrive(cue.pileId, arrivals);
+    if (arrivals.length > 0) {
+      this.passDoors(cue.siteId, shuts, motors, since, now);
+      this.standing.arrive(cue.pileId, arrivals);
+    }
     return true;
   }
 
