@@ -133,6 +133,17 @@ describe('HandSheet, a lone troop', () => {
     expect(screen.getByText(roleLabel('landTransport', 1))).toBeTruthy();
   });
 
+  it('offers no box to a transport carrying its passenger, who can still step ashore', () => {
+    render(
+      sheet([
+        troop('truck', 'landTransport'),
+        { ...troop('rifle', 'infantry'), carriedBy: 'truck' },
+      ]),
+    );
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: fr.hand.disembark })).toBeTruthy();
+  });
+
   it('gets its boxes back when a second troop joins', () => {
     render(sheet([troop('truck', 'landTransport'), troop('inf', 'infantry')]));
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
