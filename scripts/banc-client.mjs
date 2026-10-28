@@ -3,7 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
- *       [--demarrage] [--repos] [--epingles]
+ *       [--demarrage] [--repos] [--epingles] [--sequences]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -69,6 +69,12 @@ const layered = args.includes('--couches');
 /** `--epingles` : le démarrage, puis les seuls gestes des épingles au loin (#234) — à jouer sur
  *  `npm run demo:mondiale -- --epingles`, mille piles sur la France. */
 const pinsOnly = args.includes('--epingles');
+/** `--sequences` (`npm run demo:mondiale -- --echelle --passagers`) : le démarrage, puis la
+ *  caserne de la démo cadrée au rapproché — son repos 5 s,
+ *  puis le dernier de sa garnison qui sort de la porte et va au rang (`mapEngine.cue`, #268) ;
+ *  puis le camion de `npm run demo:mondiale -- --passagers`, au plus près que le zoom permet : son
+ *  repos 5 s, puis la chute de son hayon (`descente`). */
+const sequencesOnly = args.includes('--sequences');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -797,6 +803,96 @@ async function play(profileName, pass) {
     await page.waitForTimeout(3000);
     await gesture('épingles repos 5 s', () => page.waitForTimeout(5000), 0);
   };
+  /** La caserne de la démo, cadrée assez près pour que la séquence joue (`PLAY_PX`). */
+  const sequenceGestures = async () => {
+    // Son id est celui de son étiquette (`building-barracks@lon,lat`) : le point s'y lit.
+    const id = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('[data-label-id^="building-barracks"]')][0]?.dataset
+          .labelId ?? null,
+    );
+    if (id === null) throw new Error('--sequences : aucune caserne dans la démo');
+    const site = [id, id.split('@')[1].split(',').map(Number)];
+    await page.evaluate(frameAt, [site[1], 2.2]);
+    await page.waitForTimeout(3000);
+    // Un anneau a pu l'écarter de son point (une garnison entière, `--echelle`) : on la cadre où
+    // elle est dessinée.
+    await page.evaluate((siteId) => {
+      const E = window.mapEngine;
+      const drawn = E.maquettes.drawnAt(siteId);
+      if (drawn === null) return;
+      const away = E.camera.position.clone().sub(E.controls.target);
+      E.controls.target.set(drawn.x, 0, drawn.z);
+      E.camera.position.copy(E.controls.target).add(away);
+      E.controls.update();
+      E.invalidate();
+    }, site[0]);
+    await page.waitForTimeout(3000);
+    // La maquette est bien dessinée là : le rayon du moteur la trouve sous l'écran.
+    const drawn = await page.evaluate(
+      ([siteId, w, h]) => {
+        for (const fx of [0.3, 0.4, 0.5, 0.6, 0.7])
+          for (const fy of [0.3, 0.4, 0.5, 0.6, 0.7])
+            if (window.mapEngine.maquetteAtPoint(w * fx, h * fy) === siteId) return true;
+        return false;
+      },
+      [site[0], width, height],
+    );
+    if (!drawn) throw new Error(`--sequences : ${site[0]} n'est pas dessinée au rapproché`);
+    await gesture('caserne repos 5 s', () => page.waitForTimeout(5000), 0);
+    // Sa garnison (`--echelle`) : son dernier groupe sort de la porte et va se ranger (#268).
+    const garrison = await page.evaluate((siteId) => {
+      for (const [id, entry] of window.mapEngine.standing.dressed)
+        if (entry.at.beside === siteId) return { pileId: id, last: entry.pieces.groups.length - 1 };
+      return null;
+    }, site[0]);
+    if (garrison === null)
+      throw new Error('--sequences : la caserne sans garnison (demo --echelle)');
+    await gesture(
+      'sortie de caserne',
+      () =>
+        page.evaluate(
+          ([siteId, { pileId, last }]) =>
+            window.mapEngine.cue?.({ kind: 'sortie', siteId, pileId, groups: [last] }),
+          [site[0], garrison],
+        ),
+      4000,
+    );
+    // Le camion chargé de la démo (`--passagers`) : sa pile, et le groupe qui est le camion.
+    const truck = await page.evaluate(() => {
+      for (const [id, entry] of window.mapEngine.standing.dressed) {
+        const k = entry.pieces.groups.findIndex((g) => g.role === 'landTransport' && g.aboard);
+        if (k >= 0 && 'lonLat' in entry.at)
+          return { groupId: `${id}/${k}`, lonLat: entry.at.lonLat };
+      }
+      return null;
+    });
+    if (truck === null) throw new Error('--sequences : aucun camion chargé (demo --passagers)');
+    await page.evaluate(frameAt, [truck.lonLat, 3]);
+    await page.waitForTimeout(5000);
+    const lent = await page.evaluate(
+      (id) => window.mapEngine.standing.pieceOf(id) !== null,
+      truck.groupId,
+    );
+    if (!lent) throw new Error(`--sequences : ${truck.groupId} n'est pas dessiné au rapproché`);
+    await gesture('camion repos 5 s', () => page.waitForTimeout(5000), 0);
+    await gesture(
+      'hayon',
+      async () => {
+        const playing = await page.evaluate((groupId) => {
+          window.mapEngine.cue?.({ kind: 'descente', groupId });
+          return window.mapEngine.sequences.playing.length;
+        }, truck.groupId);
+        if (playing === 0) throw new Error('--sequences : le hayon ne joue pas');
+      },
+      3000,
+    );
+  };
+  if (sequencesOnly) {
+    await sequenceGestures();
+    await context.close();
+    return { boot, results };
+  }
   if (pinsOnly) {
     await pinGestures();
     await context.close();
@@ -1330,7 +1426,7 @@ try {
       report.profiles[name] = { boot, runs };
       continue;
     }
-    if (restOnly || pinsOnly) {
+    if (restOnly || pinsOnly || sequencesOnly) {
       const { gestures } = merge(runs);
       report.profiles[name] = { boot, gestures, runs };
       text += `${table(gestures)}\n`;

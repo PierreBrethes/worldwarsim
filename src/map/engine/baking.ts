@@ -1,4 +1,4 @@
-import { type BufferGeometry, type Material, Matrix4, type Mesh, type Object3D } from 'three';
+import { type BufferGeometry, Group, type Material, Matrix4, Mesh, type Object3D } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export type Part = { readonly geometry: BufferGeometry; readonly material: Material };
@@ -11,10 +11,77 @@ export type Part = { readonly geometry: BufferGeometry; readonly material: Mater
 export function bakedParts(scene: Object3D): Part[] {
   scene.updateMatrixWorld(true);
   const meshes: Mesh[] = [];
-  scene.traverse((object) => {
+  walk(scene, (object) => {
     if ((object as Mesh).isMesh) meshes.push(object as Mesh);
   });
   return mergedByMaterial(meshes, new Matrix4());
+}
+
+/**
+ * **What neither bake draws**: the flag, painted by its owner's colours later (#279) — until
+ * then a white one would read as a surrender. Both bakes read it, so that a copy stood in for a
+ * resting maquette has no flag either.
+ */
+export const isDrawn = (node: Object3D): boolean => node.name !== 'drapeau';
+
+/** Pre-order walk that does not enter what is not drawn. */
+function walk(node: Object3D, visit: (node: Object3D) => void): void {
+  if (!isDrawn(node)) return;
+  visit(node);
+  for (const child of node.children) walk(child, visit);
+}
+
+/**
+ * **A scene baked around the nodes that move** (ADR 0036 §1): each node `keeps` retains keeps
+ * its name, its pivot and what hangs from it; the meshes under it merge per material; every
+ * other node is gone. At rest it draws exactly what `bakedParts` does. A pose replaces a kept
+ * node's own rotation: what turned above it and is merged away (a leaning torso) rides on a
+ * carrier, or an arm would swing square to the hips.
+ */
+export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): Group {
+  scene.updateMatrixWorld(true);
+  const root = new Group();
+  root.name = scene.name;
+  const pivots = new Map<Object3D, { group: Group; meshes: Mesh[] }>([
+    [scene, { group: root, meshes: [] }],
+  ]);
+  const pivotOf = (node: Object3D): Object3D => {
+    let at = node;
+    while (!pivots.has(at)) at = at.parent!;
+    return at;
+  };
+  walk(scene, (node) => {
+    if (node === scene) return;
+    if (keeps(node)) {
+      const above = pivotOf(node.parent!);
+      let holder = pivots.get(above)!.group;
+      if (node.parent !== above) {
+        const carrier = new Group();
+        new Matrix4()
+          .copy(above.matrixWorld)
+          .invert()
+          .multiply(node.parent!.matrixWorld)
+          .decompose(carrier.position, carrier.quaternion, carrier.scale);
+        holder.add(carrier);
+        holder = carrier;
+      }
+      const group = new Group();
+      group.name = node.name;
+      group.position.copy(node.position);
+      group.quaternion.copy(node.quaternion);
+      group.scale.copy(node.scale);
+      holder.add(group);
+      pivots.set(node, { group, meshes: [] });
+    }
+    if ((node as Mesh).isMesh) pivots.get(pivotOf(node))!.meshes.push(node as Mesh);
+  });
+  for (const [node, { group, meshes }] of pivots)
+    for (const { geometry, material } of mergedByMaterial(
+      meshes,
+      new Matrix4().copy(node.matrixWorld).invert(),
+    ))
+      group.add(new Mesh(geometry, material));
+  return root;
 }
 
 /** `meshes` merged per material, placed in the frame `fromWorld` brings the world into. */

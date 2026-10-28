@@ -112,6 +112,10 @@ const passengers = process.argv.includes('--passagers');
 const depositsAt = process.argv.includes('--gisements');
 /** `--echelle` : une garnison entière, caserne, aérodrome et port, pour l'échelle commune (#265). */
 const scale = process.argv.includes('--echelle');
+/** `--troupe-seule` : avec `--echelle`, un camion et un char seuls sur un point (#301). */
+const lone = process.argv.includes('--troupe-seule');
+/** `--chargee` : avec `--troupe-seule`, le camion du point porte un fantassin à son bord. */
+const loaded = process.argv.includes('--chargee');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -259,6 +263,17 @@ if (!bare) {
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
     cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
+  /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
+   *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
+   *  donne des traversées toutes en mer, jamais un trajet terre puis mer (aucune marche avant
+   *  l'eau). Ce trajet-là attend une scène qui embarque des fantassins à quai (`dev:navyScene`). */
+  if (process.argv.includes('--trajet-mixte') && scene.a !== null) {
+    const spawn = (args) =>
+      cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);
+    const at = { lon: 1.6, lat: 50.72 };
+    const [cargo] = JSON.parse(spawn({ role: 'cargo', count: 1, ...at }).match(/\[[^\]]*\]/)[0]);
+    spawn({ role: 'infantry', count: 2, ...at, carriedBy: cargo });
+  }
   /** Un Centre de recherche, deux cartes acquises, une troisième en cours (#123). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a, idle: idleCenter })]);
@@ -558,6 +573,23 @@ if (!bare) {
       'dev:spawnTroops',
       JSON.stringify({ playerId: scene.a, role: 'armor', count: 2, lon: 1.9, lat: 47.9 }),
     ]);
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+  }
+  /** Des unités seules (#301) : le camion du QG, l'avion de l'aérodrome et la coque du port sont
+   *  chacun seuls dans leur garnison ; un camion seul sur un point (avec `--chargee`, il porte un
+   *  fantassin), et un char seul sur un autre. */
+  if (scale && lone && scene.a !== null) {
+    const spawn = (role, lon, lat, carriedBy) =>
+      JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId: scene.a, role, count: 1, lon, lat, carriedBy }),
+        ]).match(/\[[^\]]*\]/)[0],
+      );
+    const [truck] = spawn('landTransport', 2.4, 47.2);
+    if (loaded) spawn('infantry', 2.4, 47.2, truck);
+    spawn('armor', 3.1, 47.6);
     cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
   }
   if (depositsAt && scene.a !== null && scene.b !== null)

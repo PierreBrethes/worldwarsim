@@ -2,6 +2,8 @@ import {
   ACESFilmicToneMapping,
   Color,
   Fog,
+  Frustum,
+  Matrix4,
   MOUSE,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -13,6 +15,7 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
+  type Box3,
   type Mesh,
   type MeshStandardMaterial,
   type Object3D,
@@ -55,7 +58,18 @@ import {
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
-import { ANONYMOUS_SPAN, setNearFloor, TANK_SHARE, troopPinSpan } from './figurines/figurine';
+import {
+  ANONYMOUS_SPAN,
+  REFERENCE_PX_PER_UNIT,
+  setNearFloor,
+  TANK_SHARE,
+  troopPinSpan,
+} from './figurines/figurine';
+import { type Cue, type Sequence, SequenceLayer } from './sequences';
+import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
+import { ease } from './timelines/curves';
+import { lengthOf, paceMs, together, walkOut } from './timelines/walk';
+import { tailgateDrop } from './timelines/truck';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -404,6 +418,36 @@ type Gesture = {
  */
 type Landing = { readonly point: Vector3; readonly country: CountryMesh };
 
+type SortieCue = Extract<Cue, { kind: 'sortie' | 'entree' }>;
+
+/** **The men of a squad come out in file** (`T.men.gap` of the storyboard), each to his place. */
+const MEN_GAP_MS = 400;
+/** The door waits a little once the last is through (`T.closeAfter` du storyboard). */
+const CLOSE_AFTER_MS = 150;
+/** A pile that does not stand within this time has its recruits in place, unwalked. */
+const SORTIE_WAIT_MS = 2000;
+
+/**
+ * **The pace of each recruit** (`T.men`, `T.vehicle` of the storyboard): what it waits behind its
+ * door (`lead`), its speed in metres of the model a second (`mps`) — the storyboard's, whose way
+ * from the door to a rank 57 m off is some 52 m for a man in 3 s, 65 m for a tank in 3.2 s —, the
+ * storyboard's own hour (`roll`), how far behind the one before it through the same door (`gap`,
+ * `@a-mesurer`). A walk lasts its path over its pace, bounded round `roll` (`paceMs`).
+ */
+type Pace = {
+  lead: number;
+  mps: number;
+  roll: number;
+  gap: number;
+  curve: (k: number) => number;
+};
+const PACES: Readonly<Record<'infantry' | 'armor' | 'landTransport' | 'artillery', Pace>> = {
+  infantry: { lead: 300, mps: 17, roll: 3000, gap: 1000, curve: ease.march },
+  armor: { lead: 550, mps: 20, roll: 3200, gap: 1500, curve: ease.drive },
+  landTransport: { lead: 450, mps: 23, roll: 2800, gap: 1500, curve: ease.drive },
+  artillery: { lead: 600, mps: 19, roll: 3400, gap: 1500, curve: ease.push },
+};
+
 export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
@@ -434,6 +478,23 @@ export class MapEngine {
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
   private readonly maquettes: MaquetteLayer;
+  /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
+  private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
+  /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
+  private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
+  /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
+  private readonly doors = new Map<string, { since: number; passing: DoorsPassing }>();
+  /** The recruits on their way, whose pin follows the path when they are pinned (#268). */
+  private walks: Array<{
+    /** The walker, `${pileId}/${group}`. */
+    readonly id: string;
+    readonly pileId: string;
+    readonly alone: boolean;
+    readonly walk: Sequence<never>;
+    readonly since: number;
+  }> = [];
+  private readonly eyeFrustum = new Frustum();
+  private readonly eyeMatrix = new Matrix4();
   private readonly camps: CampLayer;
   private readonly pins: PinLayer;
   private pinShapes = new Map<string, PinShape>();
@@ -1808,6 +1869,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
+    this.sequences.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
     this.pins.dispose();
@@ -2505,6 +2567,169 @@ export class MapEngine {
     this.pins.rebuild();
   }
 
+  /** **The map plays what the view has just learnt** (ADR 0036). */
+  cue(cue: Cue): void {
+    this.invalidate();
+    switch (cue.kind) {
+      case 'sortie':
+      case 'entree':
+        // Its pile was just drawn again: the walk is laid out once the pile stands (`walkOut`).
+        this.sorties.push({ cue, since: performance.now() });
+        this.standing.inkArrival(cue.pileId);
+        break;
+      case 'descente':
+        this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
+        break;
+    }
+  }
+
+  /**
+   * **The recruits of a barracks walk out** (#268): each new group from its door — a man by the
+   * door, a vehicle by the shed — to its place in the rank, the doors held open until the last
+   * has passed, the rank recentred at the arrival. **A column entering a garrison** walks from the
+   * end of its route to its place, round the building, no door (décision de Pierre du 28/10).
+   * Laid out once the pile stands; `false` until.
+   */
+  private walkOutOf({ cue, since }: (typeof this.sorties)[number], now: number): boolean {
+    const site = this.maquettes.siteOf(cue.siteId);
+    const pieces = this.standing.piecesOf(cue.pileId);
+    const ids = cue.groups.map((k) => `${cue.pileId}/${k}`);
+    const places = ids.map((id) => this.standing.placeOf(id));
+    if (site === null || pieces === null || places.some((place) => place === null)) return false;
+    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+    const box = { min: site.box.min.toArray(), max: site.box.max.toArray() };
+    const queued = { caserne: 0, remise: 0 };
+    const entering = cue.kind === 'entree';
+    const arrived = entering ? site.toModel(this.frame.projectLonLat(cue.at)) : null;
+    const came = entering && cue.toward ? site.toModel(this.frame.projectLonLat(cue.toward)) : null;
+    const walks = ids.flatMap((id, n) => {
+      const place = places[n]!;
+      const role = pieces.groups[cue.groups[n]!]?.role;
+      const man = role === 'infantry';
+      const door: 'caserne' | 'remise' = man ? 'caserne' : 'remise';
+      const [inside, out] = man
+        ? [site.marker('fx_entree'), site.marker('fx_sortie')]
+        : [site.marker('fx_entree_remise'), site.marker('fx_sortie_remise')];
+      const drawn = this.standing.pieceOf(id)?.box;
+      if (role === undefined || (!entering && (inside === null || out === null)) || !drawn)
+        return [];
+      const size = drawn.getSize(new Vector3());
+      const length = Math.max(size.x, size.z) / metre;
+      const front = site
+        .toModel(place.at.clone().add(place.front))
+        .sub(site.toModel(place.at))
+        .setY(0)
+        .normalize();
+      const pace = PACES[role as keyof typeof PACES] ?? PACES.armor;
+      const start = (entering ? 0 : pace.lead) + queued[door]++ * pace.gap;
+      let shut = 0;
+      /** One walk from the door to `to` on the board, `from` in the piece: a man of a squad
+       *  walks to his own place, in file behind the one before him. */
+      const walkTo = (to: Vector3, part: 'root' | `man_${number}`, after: number) => {
+        const rank = site.toModel(to).toArray();
+        const path = (
+          arrived !== null
+            ? wayIn({
+                at: arrived.toArray(),
+                toward: (came ?? site.toModel(to)).toArray(),
+                rank,
+                front: front.toArray(),
+                length,
+                box,
+              })
+            : wayOut({
+                inside: inside!.toArray(),
+                out: out!.toArray(),
+                rank,
+                front: front.toArray(),
+                length,
+                box,
+              })
+        ).map((point) =>
+          site
+            .toBoard(new Vector3(...point))
+            .sub(to)
+            .toArray(),
+        );
+        const walk = walkOut({
+          path,
+          start: start + after,
+          ms: paceMs(lengthOf(path) / metre, pace),
+          curve: pace.curve,
+          stride: man && pace.mps * metre,
+          part,
+          emerges: !entering,
+        });
+        // The door shuts once the last through it is at the foot of the steps, clear of the shed.
+        shut = Math.max(shut, walk.passed(man ? 3 : 2) + CLOSE_AFTER_MS);
+        return walk;
+      };
+      const walk =
+        place.men.length > 0
+          ? together(place.men.map((at, k) => walkTo(at, `man_${k}`, k * MEN_GAP_MS)))
+          : walkTo(place.at, 'root', 0);
+      // A gun has no motor: it is pushed out.
+      const motor = !entering && !man && role !== 'artillery' ? [start] : [];
+      return [{ id, walk, door, shut, motor }];
+    });
+    // The rank recentres at each arrival, half a step each (décision de Pierre du 23/10).
+    const arrivals: number[] = [];
+    // The doors open only for whom walks through them: a walk refused (out of the field, too
+    // many at once) has its piece in the rank already.
+    const shuts: { caserne?: number; remise?: number } = {};
+    const motors: number[] = [];
+    // A sortie keeps a place for its doors: no recruit walks out through a shut door (ADR 0036).
+    const keep = !entering && !this.sequences.playsOn(this.maquettes, cue.siteId) ? 1 : 0;
+    for (const { id, walk, door, shut, motor } of walks) {
+      if (this.sequences.room <= keep) break;
+      if (!this.sequences.play(this.standing, id, walk, since, now)) continue;
+      shuts[door] = Math.max(shuts[door] ?? 0, shut);
+      motors.push(...motor);
+      const alone = pieces.groups.length === 1;
+      this.walks.push({ id, pileId: cue.pileId, alone, walk, since });
+      arrivals.push(since + walk.ms - now);
+    }
+    if (arrivals.length > 0) {
+      if (!entering) this.passDoors(cue.siteId, shuts, motors, since, now);
+      this.standing.arrive(cue.pileId, arrivals);
+    }
+    return true;
+  }
+
+  /** **The doors of a barracks open for its recruits**; a second sortie while they still play
+   *  joins the first, on its clock: the door reopens or holds for the newcomer. */
+  private passDoors(
+    siteId: string,
+    shuts: { caserne?: number; remise?: number },
+    motors: ReadonlyArray<number>,
+    since: number,
+    now: number,
+  ): void {
+    const passing: DoorsPassing = {
+      ...(shuts.caserne === undefined ? {} : { caserne: [[0, shuts.caserne]] }),
+      ...(shuts.remise === undefined ? {} : { remise: [[0, shuts.remise]] }),
+      motors,
+    };
+    const before = this.doors.get(siteId);
+    if (before !== undefined && this.sequences.playsOn(this.maquettes, siteId)) {
+      const joined = joinedDoors(before.passing, passing, since - before.since);
+      this.sequences.retime(this.maquettes, siteId, barracksDoors(joined));
+      this.doors.set(siteId, { since: before.since, passing: joined });
+    } else if (this.sequences.play(this.maquettes, siteId, barracksDoors(passing), since, now))
+      this.doors.set(siteId, { since, passing });
+  }
+
+  /** In the eye's field, and at least `px` tall on the 900 px reference window. */
+  private seenBig(box: Box3, px: number): boolean {
+    this.eyeFrustum.setFromProjectionMatrix(
+      this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
+    );
+    if (!this.eyeFrustum.intersectsBox(box)) return false;
+    const size = box.getSize(new Vector3());
+    const distance = this.eye.position.distanceTo(box.getCenter(new Vector3()));
+    return (Math.max(size.x, size.z) * REFERENCE_PX_PER_UNIT) / Math.max(distance, 1e-6) >= px;
+  }
+
   setMapMotion(motion: MapMotion): void {
     this.invalidate();
     this.ambience.motion = motion;
@@ -2515,6 +2740,7 @@ export class MapEngine {
     this.ink.motion = motion;
     this.parachutes.motion = motion;
     this.maquettes.motion = motion;
+    this.sequences.motion = motion;
     this.ghost.motion = motion;
   }
 
@@ -3154,6 +3380,8 @@ export class MapEngine {
       this.ink.active ||
       this.parachutes.active ||
       this.maquettes.settling ||
+      this.sequences.active ||
+      this.walks.length > 0 ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -3216,8 +3444,30 @@ export class MapEngine {
     this.basins.animate(now);
     this.tellSweep(now);
     // The maquettes first: a garrison stands at its maquette's foot as drawn this frame.
+    this.sequences.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.standing.orient(this.camera.position);
+    // A pile that never stands (a view gone, its pin far away) does not keep its recruits waiting.
+    this.sorties = this.sorties.filter(
+      (sortie) => !this.walkOutOf(sortie, now) && now - sortie.since < SORTIE_WAIT_MS,
+    );
+    // A walk ends with its copy — taken in hand, motion changed, out of the field —, unless its
+    // pile went to its pin on the way: the pin walks on (décision de Pierre du 23/10).
+    this.walks = this.walks.filter(
+      ({ id, pileId, walk, since }) =>
+        now - since < walk.ms &&
+        this.sequences.motion === 'full' &&
+        this.held?.pileId !== pileId &&
+        (this.sequences.playsOn(this.standing, id) || this.standing.placeOf(id) === null),
+    );
+    this.pins.walk(
+      this.walks.flatMap(({ pileId, alone, walk, since }) => {
+        // A squad's pin walks with its first man.
+        const pose = walk.at(now - since);
+        const travel = (pose.root ?? pose.man_0)?.travel;
+        return travel ? [{ id: pileId, alone, travel: new Vector3(...travel) }] : [];
+      }),
+    );
     const reading = this.standing.reading;
     const tone = this.verdict;
     this.aimRibbon.show(

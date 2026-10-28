@@ -4,6 +4,25 @@
 appartient au bâtiment vit dans son modèle) et le contrat « Carte à la demande » de `CLAUDE.md`.
 Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur pivot, drapeau masqué.
 
+> **Précisée le 26/10/2026, au codage des piles** (#289) : le seuil du rapproché (§8) est celui de
+> la séquence, `Sequence.minPx`, `PLAY_PX` à défaut. Le zoom s'arrête à d = 3, où un camion lit
+> quelque 50 px à l'écran (34 selon `seenBig`, qui lit la distance de l'œil reculé sur la fenêtre de
+> référence) : à 150 px, son hayon ne jouerait jamais. `@a-mesurer` : 30 px pour le hayon. La
+> pose `root` déplace la copie dans un support que l'hôte place (la matrice d'un bâtiment est écrite
+> par l'hôte à chaque image). Une pile qu'une vue vient de redessiner (une troupe descend) charge
+> ses modèles : prêtée sans boîte tant qu'elle n'est pas posée à l'échelle du plateau, la copie
+> prend la place du modèle à son arrivée.
+
+> **Précisée le 26/10/2026, au codage de la sortie de caserne** (#268) : une séquence sans
+> `family` déplace la pièce, ou chacun des hommes d'une escouade (`man_*`) ; sa copie est un clone
+> de ce que l'hôte dessine (`copyOf`), posé dès le signal, sans cuisson. Ces poses y gagnent
+> `travel` et `heading`, lus sur le plateau quel que soit le tour ou la taille de la pile, et
+> `stride`, la marche des hommes ; un marqueur `fx_*` porte `exhaust`, l'haleine d'un moteur. La
+> marche joue tant que la figurine se tient (`WALK_MIN_PX`, 0 : le plancher la garde jusqu'à
+> d ≈ 30), et les portes d'une sortie jouent aussi loin qu'elle, au lieu de `PLAY_PX` : une recrue
+> ne sort jamais par une porte fermée. Passée à l'épingle en chemin, l'épingle suit le même chemin
+> à la même heure (décision de Pierre du 23/10), hors d'une grappe.
+
 ## Contexte
 
 Les modèles neufs portent leurs pièces mobiles nommées, à leur pivot : battants de la caserne,

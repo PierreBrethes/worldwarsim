@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PARACHUTE_MS } from './parachute';
+import { barracksDoors } from './timelines/barracks';
 import { SWEEP_MS } from '@/domain/deposit-sweep';
 import {
   FLOW_FULL_MS,
@@ -229,5 +230,21 @@ describe('a sweep longer than the settle window is declared to the loop (#249)',
   it('keeps the frames coming while the front runs and a basin it reached beats', () => {
     expect(SWEEP_MS).toBeGreaterThan(SETTLE_MS);
     expect(source).toMatch(/this\.veil\.fading \|\|\s+this\.sweepMoving\(/);
+  });
+});
+
+describe('a sequence longer than the settle window is declared to the loop (ADR 0036)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps the frames coming while a copy plays, and a cue starts from a stirring method', () => {
+    expect(barracksDoors({ caserne: [[0, 2000]] }).ms).toBeGreaterThan(SETTLE_MS);
+    expect(source).toMatch(
+      /this\.maquettes\.settling \|\|\s+this\.sequences\.active \|\|\s+this\.walks\.length > 0/,
+    );
+    const cue = source.slice(source.indexOf('  cue(cue: Cue)'));
+    expect(cue.slice(0, cue.indexOf('\n  }\n'))).toMatch(
+      /this\.invalidate\(\);[\s\S]*sequences\.play/,
+    );
   });
 });

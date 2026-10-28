@@ -26,7 +26,7 @@ import {
 } from '../src/domain/movement-orders';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { foundationMinutes } from '../src/domain/level-speed';
-import { regionFacts } from './regions';
+import { nearestRegion, regionFacts } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
@@ -2491,6 +2491,35 @@ describe('the door of the sea, read on the pile', () => {
       target: { kind: 'point', point: { lon: KENT[0], lat: KENT[1] } },
     });
   };
+
+  /** **L'aperçu d'une capture dit les kilomètres que le mouvement facturera** (#302) : une
+   *  colonne mixte vise un port adverse, et le départ amarre au quai (`mooringOf`) de l'un comme
+   *  de l'autre. */
+  it('previews the capture of a port on the very road the movement is filed on', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await raise(t, seat, 'barracks', NORD);
+    const quay = await raise(t, seat, 'port', NORD, NORD_QUAY);
+    const troopIds = [await form(t, seat, 'infantry', quay), await form(t, seat, 'cargo', quay)];
+    /** Hambourg : un port que le maillage de 25 km noie, amarré à l'embouchure de l'Elbe. */
+    const hamburg = { lon: 9.99, lat: 53.55 };
+    const region = nearestRegion([hamburg.lon, hamburg.lat])!.id;
+    const enemyPort = await raise(t, guest, 'port', region, hamburg);
+    await surveyRegion(t, seat, region);
+    const order = {
+      ...seat,
+      origin: { kind: 'building' as const, buildingId: quay },
+      troopIds,
+      target: { kind: 'building' as const, buildingId: enemyPort },
+    };
+
+    const preview = await t.query(api.movements.previewCapture, order);
+    await t.mutation(api.movements.capture, order);
+    const [filed] = await movementsOf(t, seat);
+
+    expect(preview).not.toBeNull();
+    expect(preview!.route.distanceUnits).toBeCloseTo(filed!.distanceUnits, 9);
+  });
 
   /**
    * **The stranding this closes.** A fleet that reached the open sea had its address written on

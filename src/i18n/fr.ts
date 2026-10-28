@@ -3293,6 +3293,10 @@ export const fr = {
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
     arrival: (time: string) => `arrivée ${time}`,
+    /** **La longueur de la route**, en kilomètres du serveur (#302) : la durée si elle est datée,
+     *  la part de mer quand le trajet en a une. */
+    distance: (km: number, span: string) => `≈ ${km} km · ${span}`,
+    distanceSea: (km: number) => `dont ${km} km de mer`,
     pursuit: 'poursuite',
     /**
      * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à

@@ -1,10 +1,55 @@
-import { describe, expect, it } from 'vitest';
+import {
+  BoxGeometry,
+  Group,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  MeshStandardMaterial,
+  Raycaster,
+  Vector3,
+} from 'three';
+import { describe, expect, it, vi } from 'vitest';
+import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingSpan, troopSpan } from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
-import { clusterFootprints, garrisonFoot, MAX_SHIFT, RING_GAP, yawOf } from './maquettes';
+import {
+  clusterFootprints,
+  garrisonFoot,
+  MaquetteLayer,
+  MAX_SHIFT,
+  RING_GAP,
+  yawOf,
+} from './maquettes';
 import { pileLayout } from './standing';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
+
+// The dressing of a site paints a canvas: a stub, this file has no DOM.
+vi.mock('./works', async (original) => ({
+  ...(await original<typeof import('./works')>()),
+  WorksDressing: class {
+    object = new Group();
+    cut = null;
+    place() {}
+    pick() {
+      return null;
+    }
+    dispose() {}
+  },
+}));
+
+vi.mock('./figurines/figurine', async (original) => ({
+  ...(await original<typeof import('./figurines/figurine')>()),
+  // A box of a metre for every file: the loader wants a DOM.
+  sceneOf: () => {
+    const door = new Group();
+    door.name = 'fx_sortie';
+    door.position.set(0, 0.1, 0.5);
+    return Promise.resolve(
+      new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()), door),
+    );
+  },
+}));
 
 /** A spacing and a garrison's foot for the shapes of the ring alone, whatever the building. */
 const S = 1.2;
@@ -345,5 +390,114 @@ describe('the garrison foot', () => {
         expect(
           garrisonFoot(buildingSpan(key), troopSpan(role)) - troopSpan(role) / 2,
         ).toBeGreaterThan(buildingSpan(key) / Math.SQRT2);
+  });
+});
+
+describe('a maquette lent to a sequence (ADR 0036)', () => {
+  const ID = 'building-barracks@2,48';
+  const frame = { projectLonLat: () => new Vector3(0, 0, 0) } as unknown as WorldFrame;
+  const stand = (washed = false) => ({
+    id: ID,
+    at: { lonLat: [2, 48] as const },
+    url: washed ? 'washed.glb' : 'lent.glb',
+    span: 1,
+    washed,
+  });
+  const eye = new Vector3(0, 2, 2);
+  const layer = async (washed = false) => {
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    maquettes.display([stand(washed)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    maquettes.orient(eye, null, 0);
+    return maquettes;
+  };
+  const instance = (maquettes: MaquetteLayer) => {
+    let found: InstancedMesh | undefined;
+    maquettes.group.traverse((node) => {
+      if ((node as InstancedMesh).isInstancedMesh) found = node as InstancedMesh;
+    });
+    return new Matrix4().fromArray(found!.instanceMatrix.array);
+  };
+  const same = (a: Matrix4, b: Matrix4) =>
+    a.elements.forEach((value, k) => expect(value).toBeCloseTo(b.elements[k]!, 5));
+  const copyOf = () =>
+    new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()));
+
+  it('shrinks the instance to nothing and hands the copy its matrix', async () => {
+    const maquettes = await layer();
+    const was = instance(maquettes);
+    expect(was.determinant()).toBeGreaterThan(0);
+    const copy = copyOf();
+    maquettes.standIn(ID, copy);
+    maquettes.orient(eye, null, 0);
+    expect(instance(maquettes).determinant()).toBe(0);
+    same(copy.matrix, was);
+    maquettes.standIn(ID, null);
+    maquettes.orient(eye, null, 0);
+    same(instance(maquettes), was);
+    expect(copy.parent).toBeNull();
+  });
+
+  it('is picked through the copy, and keeps it over a rebuild', async () => {
+    const maquettes = await layer();
+    const copy = copyOf();
+    maquettes.standIn(ID, copy);
+    maquettes.orient(eye, null, 0);
+    const down = new Raycaster(new Vector3(0, 5, 0), new Vector3(0, -1, 0));
+    expect(maquettes.under(down)?.id).toBe(ID);
+    maquettes.rebuild();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    maquettes.orient(eye, null, 0);
+    expect(copy.parent).toBe(maquettes.group);
+    expect(instance(maquettes).determinant()).toBe(0);
+    expect(copy.matrix.determinant()).toBeGreaterThan(0);
+  });
+
+  it('lays its markers on the board as it is drawn: where a recruit comes out', async () => {
+    const maquettes = await layer();
+    const drawn = instance(maquettes);
+    const site = maquettes.siteOf(ID)!;
+    const door = site.marker('fx_sortie')!;
+    expect(door.toArray()).toEqual([0, 0.1, 0.5]);
+    const onBoard = site.toBoard(door);
+    expect(onBoard.distanceTo(door.clone().applyMatrix4(drawn))).toBeLessThan(1e-6);
+    expect(site.toModel(onBoard).distanceTo(door)).toBeLessThan(1e-9);
+    expect(site.marker('fx_nowhere')).toBeNull();
+    expect(maquettes.siteOf('building-hq@0,0')).toBeNull();
+  });
+
+  it('lends only what is drawn whole: not a ghost, not an unknown id', async () => {
+    expect((await layer()).pieceOf(ID)?.url).toBe('lent.glb');
+    expect((await layer()).pieceOf('building-hq@0,0')).toBeNull();
+    expect((await layer(true)).pieceOf(ID)).toBeNull();
+    const atWork = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    atWork.display([
+      {
+        ...stand(),
+        works: {
+          phase: 'rising',
+          level: 1,
+          finishesAt: null,
+          minutes: 5,
+          pennant: null,
+          stamp: null,
+        },
+      },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    atWork.orient(eye, null, 0);
+    expect(atWork.pieceOf(ID)).toBeNull();
   });
 });

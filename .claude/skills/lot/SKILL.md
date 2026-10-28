@@ -74,6 +74,8 @@ section « Voir une partie Mondiale en local ».
    Captures rangées hors du dépôt, dans ton dossier temporaire.
 5. Regarde chaque capture avec l'outil Read, à côté de sa référence : la maquette choisie, ou
    la capture d'avant le lot. Un écart se corrige, ou se rapporte s'il vient d'une décision.
+   La capture ou le banc d'avant se prend dans un clone du scratchpad (`git clone --shared`,
+   `node_modules` en lien symbolique, `.env.local` copié), jamais dans un worktree.
 
 Fini quand chaque puce de **Ce que le joueur voit** apparaît sur une capture, aux deux tailles,
 au même cadrage que sa référence. Un état que la démo ne sait pas montrer devient une scène de

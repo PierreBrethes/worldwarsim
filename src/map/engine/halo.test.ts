@@ -37,4 +37,15 @@ describe('the glow on the pieces themselves', () => {
     expect(material.emissiveMap).toBe(print);
     expect(material.emissive.getHex()).toBe(0xffffff);
   });
+
+  it('lights the dark of a doorway by night, far brighter than its own dark colour', () => {
+    const doorway = new MeshStandardMaterial({ color: '#1a1410', name: 'fond_sombre' });
+    const wall = new MeshStandardMaterial({ color: '#1a1410' });
+    warmPieces(piece(doorway), 0);
+    expect(doorway.emissive.getHex()).toBe(0);
+    warmPieces(piece(doorway), 1);
+    warmPieces(piece(wall), 1);
+    expect(doorway.emissive.r).toBeGreaterThan(0.5);
+    expect(doorway.emissive.r).toBeGreaterThan(10 * wall.emissive.r);
+  });
 });

@@ -4,6 +4,7 @@ import { Box3, Matrix4, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { BuildingKey } from '@/domain/ids';
 import { BUILDING_FOOTPRINT_METRES } from '@/domain/piece-size';
+import { RIG_PARTS } from './rigs';
 import { BUILDING_MAQUETTES, buildingMaquette } from './buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from './objectives/manifest';
 
@@ -326,4 +327,14 @@ describe('maquettes', () => {
       0.02,
     );
   });
+
+  // The vehicles' parts are held by `glb.test.ts`.
+  it.each(Object.entries(RIG_PARTS).filter(([family]) => family in BUILDING_MAQUETTES))(
+    '%s: each rig part is carried by one node',
+    (family, parts) => {
+      const gltf = readGlb(BUILDING_MAQUETTES[family as BuildingKey]!);
+      for (const part of parts)
+        expect(gltf.nodes.filter((node) => node.name === part).length, part).toBe(1);
+    },
+  );
 });
