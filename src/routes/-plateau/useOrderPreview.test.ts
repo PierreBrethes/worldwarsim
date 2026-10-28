@@ -36,9 +36,12 @@ describe('what letting go refuses before the server is asked (#258)', () => {
 });
 
 describe('the length of the road, said under the hand (#302)', () => {
-  const road = (land: number, sea: number, minutes: number) =>
+  const alone = { grouped: false, blitz: false };
+  const road = (land: number, sea: number, minutes: number, fuelKm = 0) =>
     ({
       minutes,
+      /** What the server's fuel bill counts on the same road, round trip aside. */
+      fuel: { km: fuelKm },
       route: {
         distanceUnits: land + sea,
         legs: [
@@ -47,10 +50,13 @@ describe('the length of the road, said under the hand (#302)', () => {
         ],
       },
     }) as unknown as NonNullable<Previewed>;
-  const said = (preview: NonNullable<Previewed>) => distanceNotesOf(preview).map((n) => n.text);
+  const said = (preview: NonNullable<Previewed>, on = alone) =>
+    distanceNotesOf(preview, on).map((n) => n.text);
 
   it('writes the kilometres the server counts for its fuel, and the time', () => {
-    expect(said(road(5.77, 0, 200))).toEqual(['≈ 640 km · 3 h 20']);
+    const preview = road(5.77, 0, 200, 640);
+    expect(said(preview)).toEqual(['≈ 640 km · 3 h 20']);
+    expect(said(preview)[0]).toContain(`${preview.fuel.km} km`);
   });
 
   it('adds the share of the sea when land and sea share the road', () => {
@@ -59,5 +65,13 @@ describe('the length of the road, said under the hand (#302)', () => {
 
   it('does not repeat the total as a share when the whole road is at sea', () => {
     expect(said(road(0, 2.6, 130))).toEqual(['≈ 289 km · 2 h 10']);
+  });
+
+  it('says nothing for a grouped order: the line would hold for the pile in hand only', () => {
+    expect(said(road(5.77, 0, 200), { grouped: true, blitz: false })).toEqual([]);
+  });
+
+  it('says nothing in a blitz, which reads its distances as a share of the theatre', () => {
+    expect(said(road(5.77, 0, 200), { grouped: false, blitz: true })).toEqual([]);
   });
 });
