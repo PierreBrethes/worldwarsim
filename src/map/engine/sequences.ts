@@ -29,19 +29,21 @@ export type PartPose = {
   /** 1 whole, 0 gone: the part and what hangs from it. The copy takes materials of its own to
    *  fade, drawn last, and gives them back at the end. */
   readonly fade?: number;
-  /** `root` only: the whole piece moved from its rest, in board units along the world's axes —
-   *  the path from a door to a rank is drawn on the board, whatever the pile's turn and size. */
+  /** `root` or a man (`man_*`): the piece, or the man, moved from its rest, in board units along
+   *  the world's axes — the path from a door to a rank is drawn on the board, whatever the pile's
+   *  turn and size. */
   readonly travel?: Vec3;
-  /** `root` only: the way the piece faces, a turn about the world's up from +z. */
+  /** `root` or a man: the way it faces, a turn about the world's up from +z. */
   readonly heading?: number;
-  /** `root` only: the men march, at this many seconds of their stride (`stride`). */
+  /** `root` or a man: the men march, at this many seconds of their stride (`stride`); a man
+   *  without it stands as his squad stands him. */
   readonly stride?: number;
   /** A marker (`fx_*`) only: a motor's breath (`EXHAUST`) there, at this many seconds and this
    *  share of its strength. */
   readonly exhaust?: readonly [seconds: number, fade: number];
 };
 
-/** `root` is the whole copy: a troop that walks from the door to its rank (#268). */
+/** `root` is the whole copy, `man_*` a man of a squad: a troop that walks to its rank (#268). */
 export type Pose<F extends RigFamily> = Partial<
   Record<RigPart<F> | 'root' | `man_${number}` | `fx_${string}`, PartPose>
 >;

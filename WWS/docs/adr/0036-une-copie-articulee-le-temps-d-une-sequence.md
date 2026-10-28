@@ -18,9 +18,10 @@ Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur
 > de ce que l'hôte dessine (`copyOf`), posé dès le signal, sans cuisson. Ces poses y gagnent
 > `travel` et `heading`, lus sur le plateau quel que soit le tour ou la taille de la pile, et
 > `stride`, la marche des hommes ; un marqueur `fx_*` porte `exhaust`, l'haleine d'un moteur. La
-> marche joue tant que la figurine se tient (`minPx` 0, le plancher la garde jusqu'à d ≈ 30) ;
-> passée à l'épingle en chemin, l'épingle suit le même chemin à la même heure (décision de Pierre
-> du 23/10), hors d'une grappe.
+> marche joue tant que la figurine se tient (`WALK_MIN_PX`, 0 : le plancher la garde jusqu'à
+> d ≈ 30), et les portes d'une sortie jouent aussi loin qu'elle, au lieu de `PLAY_PX` : une recrue
+> ne sort jamais par une porte fermée. Passée à l'épingle en chemin, l'épingle suit le même chemin
+> à la même heure (décision de Pierre du 23/10), hors d'une grappe.
 
 ## Contexte
 
