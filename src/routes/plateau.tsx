@@ -701,6 +701,63 @@ function BoardContent({
     setOrderError(null);
   }, []);
 
+  const dropHand = useCallback(() => {
+    setHand(EMPTY_HAND);
+    setResting(null);
+  }, []);
+
+  /**
+   * **Maj + clic, ou au doigt un toucher pendant qu'on choisit** (#130) : la pile entre dans la
+   * sélection ou en sort, avec celle qu'on tenait. Sans Maj, un clic hors de la sélection la défait
+   * et lève comme toujours ; sur une pile choisie, il lève le groupe.
+   */
+  const selectClick = useCallback(
+    (click: PileClick): boolean => {
+      if (blitz || view.me.defeated || click.kind !== 'pile') return false;
+      if (shifted.current || picking) {
+        const held = hand.kind === 'held' ? hand.station : null;
+        choose((was) =>
+          toggleIn(
+            held === null || holds(was, held) || stationKeyOf(held) === stationKeyOf(click.station)
+              ? was
+              : [...was, held],
+            click.station,
+          ),
+        );
+        if (hand.kind === 'held') dropHand();
+        return true;
+      }
+      if (chosen.length > 0 && !holds(chosen, click.station)) clearSelection();
+      return false;
+    },
+    [blitz, view.me.defeated, picking, hand, chosen, choose, dropHand, clearSelection],
+  );
+
+  /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
+   *  plateau rend vrai quand la pile cliquée devient la destination. */
+  const applyPileClick = useCallback(
+    (click: PileClick, clientX: number, clientY: number): boolean => {
+      const move = clickPile(hand, click, unitsAt(click.station));
+      if (move.kind === 'pose') return true;
+      if (move.kind === 'drop') dropHand();
+      else {
+        // Une troupe de la pile déployée compose la main : la fiche, remontée sur la main, en
+        // reprend les cases — et la caméra ne bouge pas sous le doigt qui coche.
+        liftHand(move.hand);
+        /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
+         *  toucher qui la repose tomberait sur la feuille. */
+        if (narrow && click.kind === 'pile')
+          setReveal({
+            ...boardPoint(clientX, clientY),
+            floor: sheetHeight('peek'),
+            nonce: Date.now(),
+          });
+      }
+      return false;
+    },
+    [hand, liftHand, dropHand, narrow, boardPoint, unitsAt],
+  );
+
   /**
    * **Un clic sur un mât ouvre ce à quoi ce bâtiment sert**, et il n'y a plus qu'une réponse par
    * bâtiment (61a). Pour un site de projection c'est sa modale — ce qu'il forme et ce qu'il tient
@@ -768,7 +825,24 @@ function BoardContent({
          *  bâtiment, et ses troupes se lisent où elles se lisent déjà pour tous — la fenêtre
          *  Nation, une ligne par station (`stationGroups`). */
         const station: TroopStation = { kind: 'building', buildingId };
-        if (troopsAt(view.me, stationKeyOf(station), marching).length > 0) {
+        const garrison = troopsAt(view.me, stationKeyOf(station), marching);
+        /** **Une garnison d'une unité est une troupe seule** (#301) : son mât la lève comme le
+         *  clic sur une pile, au lieu d'ouvrir une fenêtre d'une ligne. */
+        if (unitsOf(garrison).length === 1) {
+          const click: PileClick = {
+            kind: 'pile',
+            station,
+            troopIds: garrison.map((troop) => troop.id),
+          };
+          if (selectClick(click)) return;
+          applyPileClick(
+            click,
+            clientX ?? window.innerWidth / 2,
+            clientY ?? window.innerHeight / 2,
+          );
+          return;
+        }
+        if (garrison.length > 0) {
           openGarrison(station, [], boardPoint(clientX, clientY));
           return;
         }
@@ -794,6 +868,8 @@ function BoardContent({
       blitz,
       liftHand,
       unitsAt,
+      selectClick,
+      applyPileClick,
     ],
   );
 
@@ -809,63 +885,6 @@ function BoardContent({
       openGarrison(station, [], { x: window.innerWidth / 2, y: window.innerHeight / 2 });
     },
     [openGarrison],
-  );
-
-  const dropHand = useCallback(() => {
-    setHand(EMPTY_HAND);
-    setResting(null);
-  }, []);
-
-  /**
-   * **Maj + clic, ou au doigt un toucher pendant qu'on choisit** (#130) : la pile entre dans la
-   * sélection ou en sort, avec celle qu'on tenait. Sans Maj, un clic hors de la sélection la défait
-   * et lève comme toujours ; sur une pile choisie, il lève le groupe.
-   */
-  const selectClick = useCallback(
-    (click: PileClick): boolean => {
-      if (blitz || view.me.defeated || click.kind !== 'pile') return false;
-      if (shifted.current || picking) {
-        const held = hand.kind === 'held' ? hand.station : null;
-        choose((was) =>
-          toggleIn(
-            held === null || holds(was, held) || stationKeyOf(held) === stationKeyOf(click.station)
-              ? was
-              : [...was, held],
-            click.station,
-          ),
-        );
-        if (hand.kind === 'held') dropHand();
-        return true;
-      }
-      if (chosen.length > 0 && !holds(chosen, click.station)) clearSelection();
-      return false;
-    },
-    [blitz, view.me.defeated, picking, hand, chosen, choose, dropHand, clearSelection],
-  );
-
-  /** **Un clic sur une de mes piles** : il lève, repose, ou vise — `clickPile` décide, et le
-   *  plateau rend vrai quand la pile cliquée devient la destination. */
-  const applyPileClick = useCallback(
-    (click: PileClick, clientX: number, clientY: number): boolean => {
-      const move = clickPile(hand, click, unitsAt(click.station));
-      if (move.kind === 'pose') return true;
-      if (move.kind === 'drop') dropHand();
-      else {
-        // Une troupe de la pile déployée compose la main : la fiche, remontée sur la main, en
-        // reprend les cases — et la caméra ne bouge pas sous le doigt qui coche.
-        liftHand(move.hand);
-        /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
-         *  toucher qui la repose tomberait sur la feuille. */
-        if (narrow && click.kind === 'pile')
-          setReveal({
-            ...boardPoint(clientX, clientY),
-            floor: sheetHeight('peek'),
-            nonce: Date.now(),
-          });
-      }
-      return false;
-    },
-    [hand, liftHand, dropHand, narrow, boardPoint, unitsAt],
   );
 
   /**

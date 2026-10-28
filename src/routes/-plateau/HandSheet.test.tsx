@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fr } from '@/i18n/fr';
+import { fr, roleLabel } from '@/i18n/fr';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import { HandSheet } from './HandSheet';
 
@@ -100,6 +100,53 @@ describe('HandSheet', () => {
     expect(stat('detection')?.textContent).toContain('60 km');
     expect(stat('fuel')?.textContent).toContain('marche');
     expect(container.textContent).not.toContain(fr.garrison.paces.foot);
+  });
+});
+
+/** **Une pile réduite à une troupe est une troupe seule** (#301) : il n'y a rien à cocher, la
+ *  fiche la lit sans case, sans raccourci. Dès qu'une deuxième la rejoint, les cases reviennent. */
+describe('HandSheet, a lone troop', () => {
+  const sheet = (held: ReadonlyArray<TroopView>) => (
+    <HandSheet
+      view={
+        {
+          me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 1 } },
+        } as unknown as PlayerView
+      }
+      station={station}
+      place="Saône-et-Loire"
+      held={held}
+      troopIds={held.map((one) => one.id)}
+      onCompose={() => {}}
+      onDisembark={() => {}}
+      founding={null}
+      onOpenGunnery={() => {}}
+      onDrop={() => {}}
+      onApproach={() => {}}
+    />
+  );
+
+  it('offers no box to tick when the pile is one troop', () => {
+    render(sheet([troop('truck', 'landTransport')]));
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryByText(fr.garrison.pickAll)).toBeNull();
+    expect(screen.getByText(roleLabel('landTransport', 1))).toBeTruthy();
+  });
+
+  it('offers no box to a transport carrying its passenger, who can still step ashore', () => {
+    render(
+      sheet([
+        troop('truck', 'landTransport'),
+        { ...troop('rifle', 'infantry'), carriedBy: 'truck' },
+      ]),
+    );
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: fr.hand.disembark })).toBeTruthy();
+  });
+
+  it('gets its boxes back when a second troop joins', () => {
+    render(sheet([troop('truck', 'landTransport'), troop('inf', 'infantry')]));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
   });
 });
 

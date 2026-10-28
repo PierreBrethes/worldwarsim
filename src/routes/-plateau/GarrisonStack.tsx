@@ -65,7 +65,14 @@ export function GarrisonStack({
   const narrow = useNarrowScreen();
   /** The step the army stands on: what the last troop pays, so what shedding one saves. */
   const stepRate = upkeepStep(Math.max(0, view.me.troops.length - 1)).rate;
-  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
+  const [ticked, setPicked] = useState<ReadonlySet<string>>(() => new Set(preselect));
+  /** **Une unité seule n'a rien à cocher** (#301) : une troupe, ou un transport et ses passagers,
+   *  est tout ce que la pile peut envoyer — « préparer » l'envoie entière. */
+  const alone = unitsOf(held).length === 1;
+  const picked = useMemo<ReadonlySet<string>>(
+    () => (alone ? new Set(held.map((troop) => troop.id)) : ticked),
+    [alone, held, ticked],
+  );
   /** La coche reste ici ; la carte n'en reçoit que l'écho, pour mettre en avant ce qui est
    *  coché — jamais un second état qu'elle pourrait modifier. */
   useEffect(() => {
@@ -108,6 +115,7 @@ export function GarrisonStack({
   const onLand = useMemo(() => roles.some((role) => DOMAIN_BY_ROLE[role] === 'land'), [roles]);
 
   const composes = canPrepare && !observing;
+  const ticking = composes && !alone;
   const cargoGroups = useMemo(
     () =>
       (view.me.stationedCargo ?? []).filter(
@@ -138,7 +146,7 @@ export function GarrisonStack({
 
   return (
     <>
-      {composes && <RoleShortcuts held={held} picked={picked} onPick={setPicked} />}
+      {ticking && <RoleShortcuts held={held} picked={picked} onPick={setPicked} />}
       {narrow ? (
         <>
           <TroopCards
@@ -147,7 +155,7 @@ export function GarrisonStack({
             upkeepRate={stepRate}
             rows={rows}
             picked={picked}
-            composes={composes}
+            composes={ticking}
             onToggle={toggle}
           />
         </>
@@ -156,7 +164,7 @@ export function GarrisonStack({
           {rows.map(({ troop, carrier }) => {
             const on = picked.has(troop.id);
             /** Un passager suit son transport : il se lit, il ne se coche pas seul. */
-            const ticks = composes && carrier === null;
+            const ticks = ticking && carrier === null;
             return (
               <div
                 key={troop.id}
@@ -263,7 +271,7 @@ export function GarrisonStack({
         <div className="paper-grain sticky bottom-0 -mx-3 mt-[11px] flex flex-col gap-[8px] border-t-2 border-[var(--ink)] px-3 pt-[9px] pb-[2px]">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
-              {fr.garrison.picked(picked.size)}
+              {alone ? '' : fr.garrison.picked(picked.size)}
             </span>
             {!statsBelow && (
               <span
@@ -291,9 +299,11 @@ export function GarrisonStack({
       ) : composes ? (
         <div className="mt-[11px] flex flex-wrap items-center justify-between gap-3">
           <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
-            {picked.size === 0
-              ? fr.garrison.noColumn
-              : fr.garrison.column(picked.size, view.mode !== 'blitz')}
+            {alone
+              ? ''
+              : picked.size === 0
+                ? fr.garrison.noColumn
+                : fr.garrison.column(picked.size, view.mode !== 'blitz')}
           </span>
           {onPrepare && (
             <button
