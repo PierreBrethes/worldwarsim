@@ -136,6 +136,14 @@ describe('SequenceLayer', () => {
     expect(layer.retime(host, 'b', slower)).toBe(false);
   });
 
+  it('says how many more pieces it may play: what a sortie keeps for its doors', () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    expect(layer.room).toBe(MAX_PLAYING);
+    layer.play(host, 'a', turning, 0);
+    expect(layer.room).toBe(MAX_PLAYING - 1);
+  });
+
   it('says which piece it plays, until it ends', async () => {
     const { layer } = layerOf();
     const host = new FakeHost();

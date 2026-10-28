@@ -276,6 +276,11 @@ export class SequenceLayer {
     return this.playing.some((p) => p.host === host && p.id === id);
   }
 
+  /** How many more pieces may play now (`MAX_PLAYING`). */
+  get room(): number {
+    return MAX_PLAYING - this.playing.length;
+  }
+
   get active(): boolean {
     return this.playing.length > 0;
   }

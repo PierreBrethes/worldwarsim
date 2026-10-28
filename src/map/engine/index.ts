@@ -2669,7 +2669,10 @@ export class MapEngine {
     // many at once) has its piece in the rank already.
     const shuts: { caserne?: number; remise?: number } = {};
     const motors: number[] = [];
+    // A sortie keeps a place for its doors: no recruit walks out through a shut door (ADR 0036).
+    const keep = !entering && !this.sequences.playsOn(this.maquettes, cue.siteId) ? 1 : 0;
     for (const { id, walk, door, shut, motor } of walks) {
+      if (this.sequences.room <= keep) break;
       if (!this.sequences.play(this.standing, id, walk, since, now)) continue;
       shuts[door] = Math.max(shuts[door] ?? 0, shut);
       motors.push(...motor);
