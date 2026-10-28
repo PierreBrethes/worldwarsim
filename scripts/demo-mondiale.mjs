@@ -259,8 +259,10 @@ if (!bare) {
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
     cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
-  /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302) : la
-   *  colonne rejoint l'eau puis traverse la Manche, un trajet qui mêle terre et mer. */
+  /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
+   *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
+   *  donne des traversées toutes en mer, jamais un trajet terre puis mer (aucune marche avant
+   *  l'eau). Ce trajet-là attend une scène qui embarque des fantassins à quai (`dev:navyScene`). */
   if (process.argv.includes('--trajet-mixte') && scene.a !== null) {
     const spawn = (args) =>
       cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);
