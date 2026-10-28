@@ -150,7 +150,8 @@ export function entreesOf(
         // plane lands by its airfield's own storyboard (#269), not on foot.
         DOMAIN_BY_ROLE[role] === 'land' && troopIds.every((troop) => carried.has(troop)) ? [k] : [],
       );
-      const toward = points.at(-2);
+      // The way it came: the last point of its route that is not where it stands.
+      const toward = [...points].reverse().find(([lon, lat]) => lon !== at[0] || lat !== at[1]);
       return groups.length === 0
         ? []
         : [{ siteId: where.beside, pileId: id, groups, at, ...(toward ? { toward } : {}) }];

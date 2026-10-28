@@ -160,16 +160,49 @@ describe('wayIn', () => {
     },
   );
 
-  it('starts where the column stood when it stood outside the building', () => {
-    expect(
-      wayIn({
-        at: [0, 0, 60],
+  /** Its first point, on the way round the building (3 m and half its length off its box). */
+  const onTheWayRound = ([x, , z]: P) => {
+    const off = 3 + 2.6 / 2;
+    const [minX, maxX, minZ, maxZ] = [
+      box.min[0] - off,
+      box.max[0] + off,
+      box.min[2] - off,
+      box.max[2] + off,
+    ];
+    const within = x >= minX - 1e-6 && x <= maxX + 1e-6 && z >= minZ - 1e-6 && z <= maxZ + 1e-6;
+    const edge = [x - minX, maxX - x, z - minZ, maxZ - z].some((d) => Math.abs(d) < 1e-6);
+    return within && edge;
+  };
+
+  it('starts at the edge of the building the way it came, wherever its route ended (a cell off)', () => {
+    for (const at of [
+      [0, 0, 60],
+      [3, 0, 1],
+      [-40, 0, 30],
+    ] as const) {
+      const start = wayIn({
+        at,
         toward: [0, 0, 100],
         rank: [10, 0, 40],
         front: [0, 0, 1],
         length: 2.6,
         box,
-      })[0],
-    ).toEqual([0, 0, 60]);
+      })[0]!;
+      expect(onTheWayRound(start)).toBe(true);
+      expect(start[2]).toBeGreaterThan(box.max[2]);
+    }
+  });
+
+  it('comes from the rank side when its route gives no way it came: a doubled last point', () => {
+    const path = wayIn({
+      at: [0, 0, 0],
+      toward: [0, 0, 0],
+      rank: [0, 0, 40],
+      front: [0, 0, 1],
+      length: 2.6,
+      box,
+    });
+    expect(crossesBox(path)).toBe(false);
+    expect(onTheWayRound(path[0]!)).toBe(true);
   });
 });

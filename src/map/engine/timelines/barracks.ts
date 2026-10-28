@@ -187,10 +187,10 @@ const grown = ({ min, max }: { readonly min: Point; readonly max: Point }, by: n
 });
 
 /**
- * **The way into a garrison** (décision de Pierre du 28/10): from where the column stood at the
- * end of its route — out of the walls, the way it came, when its route ended in the building —
- * round the building by its corners when it stands between, to come to the rank from behind,
- * along its front. No door: the piece walks to its place.
+ * **The way into a garrison** (décision de Pierre du 28/10): from the edge of the building on
+ * the side the column came from (`at` coming from `toward`), round it by its corners when it
+ * stands between, to come to the rank from behind, along its front. No door: the piece walks to
+ * its place.
  */
 export function wayIn({
   at,
@@ -212,24 +212,20 @@ export function wayIn({
   const around = grown(box, margin);
   const blocked = grown(box, margin / 2);
   const y = rank[1];
-  let start: Flat = [at[0], at[2]];
-  const inside = (p: Flat) =>
-    p[0] > blocked.min[0] &&
-    p[0] < blocked.max[0] &&
-    p[1] > blocked.min[1] &&
-    p[1] < blocked.max[1];
-  if (inside(start)) {
-    // Out of the walls, back the way it came: where the ray leaves the way round.
-    const d: Flat = [toward[0] - at[0], toward[2] - at[2]];
-    const t = Math.min(
-      ...([0, 1] as const)
-        .filter((axis) => d[axis] !== 0)
-        .map(
-          (axis) => ((d[axis] > 0 ? around.max[axis] : around.min[axis]) - start[axis]) / d[axis],
-        ),
-    );
-    if (Number.isFinite(t)) start = [start[0] + d[0] * t, start[1] + d[1] * t];
-  }
+  // A route ends on a cell's centre, kilometres off the building (`computeRoute`): the walk starts
+  // on the way round the building, the side the column came from — the rank's side when the
+  // route gives no way (its last two points the same).
+  const centre: Flat = [(box.min[0] + box.max[0]) / 2, (box.min[2] + box.max[2]) / 2];
+  const came: Flat = [toward[0] - at[0], toward[2] - at[2]];
+  const d: Flat = Math.hypot(...came) > 1e-9 ? came : [rank[0] - centre[0], rank[2] - centre[1]];
+  const out = Math.min(
+    ...([0, 1] as const)
+      .filter((axis) => Math.abs(d[axis]) > 1e-9)
+      .map(
+        (axis) => ((d[axis] > 0 ? around.max[axis] : around.min[axis]) - centre[axis]) / d[axis],
+      ),
+  );
+  const start: Flat = [centre[0] + d[0] * out, centre[1] + d[1] * out];
   const approach: Flat = [
     rank[0] - front[0] * APPROACH * length,
     rank[2] - front[2] * APPROACH * length,

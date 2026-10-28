@@ -163,6 +163,18 @@ describe('entreesOf', () => {
     ]);
   });
 
+  it('reads the way it came on the last point of its route that is not where it stands', () => {
+    const doubled = arc(
+      ['t2'],
+      [
+        [1.5, 47.5],
+        [2, 48],
+        [2, 48],
+      ],
+    );
+    expect(entreesOf([doubled], [garrison(barracks, ['t2'])])[0]?.toward).toEqual([1.5, 47.5]);
+  });
+
   it('walks no figurine that carries troops of the garrison already: a squad drawn by role', () => {
     expect(entreesOf([column], [garrison(barracks, ['t1', 't2'])])).toEqual([]);
   });
