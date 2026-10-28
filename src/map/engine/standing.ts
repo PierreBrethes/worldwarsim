@@ -861,8 +861,13 @@ export class StandingLayer implements SequenceHost {
     const file = url === undefined ? {} : { url };
     if (!lent.placed) return { ...file, box: null };
     // A copy just stood in has not been placed yet: its meshes would read at the origin.
-    lent.figurine.object.updateMatrixWorld(true);
-    return { ...file, box: boxOfObject(lent.figurine.object).clone() };
+    const { object } = lent.figurine;
+    object.updateMatrixWorld(true);
+    // With the place it stands at: a walk off the screen to a rank on it goes on (#268).
+    return {
+      ...file,
+      box: boxOfObject(object).clone().expandByPoint(object.getWorldPosition(new Vector3())),
+    };
   }
 
   /** What a pile stands, as dressed here. */

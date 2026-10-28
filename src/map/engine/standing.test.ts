@@ -271,6 +271,17 @@ describe('a pile lent to a sequence', () => {
     expect(layer.pieceOf(TRUCK)!.box!.min.x).toBeGreaterThan(40);
   });
 
+  it('measures a walking copy with the rank it walks to: a walk seen at either end goes on', async () => {
+    const layer = await standing('landTransport');
+    const rank = layer.placeOf(TRUCK)!.at;
+    const copy = new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()));
+    copy.children[0]!.position.set(500, 0, 0);
+    layer.standIn(TRUCK, copy);
+    const box = layer.pieceOf(TRUCK)!.box!;
+    expect(box.containsPoint(rank)).toBe(true);
+    expect(box.max.x).toBeGreaterThan(rank.x + 1);
+  });
+
   it('lends a group still loading, unmeasured, and stands the copy in when it lands', async () => {
     const layer = new StandingLayer(
       frame,
