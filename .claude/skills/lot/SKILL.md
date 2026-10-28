@@ -33,6 +33,9 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   première ligne de code, et le rapport cite ce rouge. Le test vise le chemin que prend le
   joueur (moteur, rose, porte serveur), pas seulement la fonction pure. Un bug sans rouge :
   rapporte la cause « à vérifier » et ne corrige rien.
+- **Banc** : avant et après au même cadrage, sur secteur, machine au repos. Les appels de dessin
+  sont la colonne « appels », pas « proc GPU ». Arrête chaque serveur et chaque Chromium que tu
+  as lancés avant ton rapport : la machine de Pierre chauffe.
 - **Mondiale seule** sauf mention contraire : la Blitz garde ses règles (`modeOf`).
 - **Code mort** : ce que le lot rend inutile se retire partout (constantes, refus, textes,
   tests, docs), dans un commit séparé.
