@@ -2647,7 +2647,7 @@ export class MapEngine {
           start: start + after,
           ms: paceMs(lengthOf(path) / metre, pace),
           curve: pace.curve,
-          stride: man,
+          stride: man && pace.mps * metre,
           part,
           emerges: !entering,
         });

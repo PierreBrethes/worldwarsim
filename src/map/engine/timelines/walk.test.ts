@@ -10,7 +10,7 @@ const path = [
   [-1, 0, -1],
   [0, 0, 0],
 ] as const;
-const walk = walkOut({ path, start: 300, ms: 3000, curve: ease.march, stride: true });
+const walk = walkOut({ path, start: 300, ms: 3000, curve: ease.march, stride: 1 });
 
 describe('walkOut', () => {
   it('rests on the model at the start and once arrived', () => {
@@ -84,7 +84,7 @@ describe('together', () => {
       start: 0,
       ms: 1000,
       curve: (k) => k,
-      stride: true,
+      stride: 1,
       part: 'man_0',
     });
     const second = walkOut({
@@ -92,7 +92,7 @@ describe('together', () => {
       start: 400,
       ms: 1000,
       curve: (k) => k,
-      stride: true,
+      stride: 1,
       part: 'man_1',
     });
     const file = together([first, second]);
@@ -125,10 +125,20 @@ describe('a walk that does not come out of a door', () => {
       start: 300,
       ms: 3000,
       curve: ease.march,
-      stride: true,
+      stride: 1,
       emerges: false,
     });
     expect(walk.at(100).root?.fade).toBeUndefined();
     expect(walk.at(400).root?.fade).toBeUndefined();
+  });
+});
+
+describe('the stride of a man who walks', () => {
+  it('follows the way he has walked, not the clock: his feet never slide', () => {
+    // A path of 3 + √2 walked in 1 s at a constant pace, a stride of 2 units a second.
+    const even = walkOut({ path, start: 0, ms: 1000, curve: (k) => k, stride: 2 });
+    const length = 3 + Math.SQRT2;
+    expect(even.at(500).root?.stride).toBeCloseTo(length / 2 / 2);
+    expect(even.at(250).root?.stride).toBeCloseTo(length / 4 / 2);
   });
 });

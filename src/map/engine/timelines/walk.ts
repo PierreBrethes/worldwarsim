@@ -21,8 +21,10 @@ export type WalkOut = {
   readonly ms: number;
   /** Its pace (`ease.march`, `drive`, `push`). */
   readonly curve: (k: number) => number;
-  /** A man marches, arms and legs (`stride`); a vehicle rolls. */
-  readonly stride: boolean;
+  /** A man marches, arms and legs (`stride`), one second of his stride for so many board units
+   *  walked — his pace: the feet follow the ground, whatever the walk's hour. `false`, a vehicle
+   *  rolls. */
+  readonly stride: number | false;
   /** What walks: the whole piece (`root`), or one man of a squad, in file with the others. */
   readonly part?: 'root' | `man_${number}`;
   /** It comes out of the dark of a door over its first leg; `false`, it stands whole from its
@@ -71,7 +73,7 @@ export function walkOut(walk: WalkOut): Sequence<never> & { passed(point: number
           travel: pointAt(s),
           heading: Math.atan2(to[0] - from[0], to[2] - from[2]),
           ...(emerges ? { fade: Math.min(1, s / (legs[0] || 1)) } : {}),
-          ...(stride && t > start ? { stride: (t - start) / 1000 } : {}),
+          ...(stride !== false && t > start ? { stride: s / stride } : {}),
         },
       };
     },
