@@ -50,6 +50,7 @@ import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
+import { aboardOf, descentesOf, entreesOf, rankKept, sortiesOf } from './cues';
 import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { shareUnchanged } from '@/data/shareUnchanged';
@@ -356,6 +357,17 @@ function useShared<T>(value: T): T {
   return shared;
 }
 
+/** **A newcomer stands at the end of its role's pieces** (`rankKept`): each pile keeps the order
+ *  it was last drawn in. */
+function useRankKept(piles: ReadonlyArray<StandingPile>): ReadonlyArray<StandingPile> {
+  const last = useRef<ReadonlyArray<StandingPile> | null>(null);
+  const kept = rankKept(last.current, piles);
+  useLayoutEffect(() => {
+    last.current = kept;
+  });
+  return kept;
+}
+
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
@@ -452,7 +464,7 @@ export function WorldMap({
   // joueur, le plateau rebâtit piles, camps, sélection et étiquettes à l'identique, et chaque effet
   // qui les lit réveillait la carte une seconde et demie à soixante images.
   const labels = useShared(servedLabels);
-  const standing = useShared(servedStanding);
+  const standing = useShared(useRankKept(servedStanding));
   const camps = useShared(servedCamps);
   const pins = useShared(servedPins);
   const selectedPiles = useShared(servedSelection);
@@ -1448,6 +1460,37 @@ export function WorldMap({
     if (before === null) return;
     for (const { at, km } of raisedReaches(before, outposts)) readyEngine?.inkReach(at, km);
   }, [outposts, readyEngine]);
+
+  // A recruit steps out of its barracks' door and walks to its rank (#268). Nothing on the first view.
+  const troopsKnown = useRef<ReadonlySet<string> | null>(null);
+  useEffect(() => {
+    const known = troopsKnown.current;
+    troopsKnown.current = new Set(troops.map((troop) => troop.id));
+    if (known === null) return;
+    for (const sortie of sortiesOf(known, standing))
+      readyEngine?.cue({ kind: 'sortie', ...sortie });
+  }, [troops, standing, readyEngine]);
+
+  // A column entered a garrison: it walks from the end of its route to its rank (décision de
+  // Pierre du 28/10). Its columns of the view before say who came; nothing on the first view.
+  const columnsKnown = useRef<ReadonlyArray<ArcView> | null>(null);
+  useEffect(() => {
+    const before = columnsKnown.current;
+    columnsKnown.current = arcs;
+    if (before === null) return;
+    for (const entree of entreesOf(before, standing))
+      readyEngine?.cue({ kind: 'entree', ...entree });
+  }, [arcs, standing, readyEngine]);
+
+  // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.
+  const aboardKnown = useRef<ReadonlyMap<string, string> | null>(null);
+  useEffect(() => {
+    const known = aboardKnown.current;
+    aboardKnown.current = aboardOf(troops);
+    if (known === null) return;
+    for (const groupId of descentesOf(known, troops, standing))
+      readyEngine?.cue({ kind: 'descente', groupId });
+  }, [troops, standing, readyEngine]);
 
   const cutBefore = useRef<ReadonlyArray<string> | null>(null);
   useEffect(() => {

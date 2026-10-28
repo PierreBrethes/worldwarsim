@@ -3,7 +3,6 @@ import {
   CircleGeometry,
   Float32BufferAttribute,
   Group,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   type Object3D,
@@ -16,7 +15,7 @@ import { troopSpan } from '@/domain/piece-size';
 import { type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
-import { mergedByMaterial } from '../baking';
+import { bakedRig } from '../baking';
 import { pieceScale } from '../piece-scale';
 import { JOINTS, squadOf } from './infantry';
 
@@ -72,7 +71,7 @@ const PIN_PX = 20;
 const PIN_FADE = 0.15;
 /** **Sizes on screen are read on a window 900 px tall** (`CAMERA_FOV` of 42°): a short window —
  *  a laptop, a phone between its bars — pins its pieces at the same distances as the others. */
-const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
+export const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
 
 /**
  * **How much of a piece stands, rather than its pin, by its size on screen** (ADR 0035 §3): 1
@@ -126,6 +125,19 @@ export type Figurine = {
   /** Settles once every sculpted file has landed in `object` — a piece that stands still asks
    *  for its frame then, where a flowing pawn would just show it. Rejects when a file fails. */
   readonly ready: Promise<void>;
+  /** The file of its model, what a sequence cooks its copy from; absent for a squad (several
+   *  files, none articulated) and for what is not a role's model (a block, an annotation). */
+  readonly url?: string;
+  /** A copy takes the place of the model it is drawn with, until `null` gives it back
+   *  (ADR 0036 §5). Asked before `ready`, it takes its place when the model lands. */
+  standIn?(copy: Object3D | null): void;
+  /** A clone of the model as drawn — the whole squad — once it has landed: the copy of a
+   *  sequence that moves the piece whole. */
+  copy?(): Object3D | null;
+  /** What wears on the model — a plume on its `fx_smoke`, a charred hull — is put by `fn` on the
+   *  model drawn once it lands (`origin`), and on every copy that stands in for it. The plume's
+   *  own parent follows the copy, whatever `fn` does (`standIn`). */
+  dress?(fn: (model: Object3D, origin: boolean) => void): void;
   /** Turns whatever spins on the model (`prop*`), and nothing else. */
   spin(elapsedSeconds: number): void;
   /** Turns its back to the eye rather than its front to the road: an enemy block (ADR 0026 §4). */
@@ -147,7 +159,7 @@ export function sceneOf(url: string): Promise<Object3D> {
 const MOVING = new Set<string>(JOINTS);
 
 /** What the code turns, poses or hangs on by name: a joint, a hub, a marker (`fx_smoke`…). */
-function movesOnItsOwn(node: Object3D): boolean {
+export function movesOnItsOwn(node: Object3D): boolean {
   if (MOVING.has(node.name) || node.name.startsWith('fx_')) return true;
   return node.name.startsWith('prop') && !node.parent?.name.startsWith('prop');
 }
@@ -158,53 +170,7 @@ function movesOnItsOwn(node: Object3D): boolean {
  * call each and as many again for the lamp's shadow; his joints keep their names, their pivot
  * and what hangs from them, so `squadOf` poses him and `spin` turns his propellers as before.
  */
-export function bakedFigurine(scene: Object3D): Group {
-  scene.updateMatrixWorld(true);
-  const root = new Group();
-  root.name = scene.name;
-  const pivots = new Map<Object3D, { group: Group; meshes: Mesh[] }>([
-    [scene, { group: root, meshes: [] }],
-  ]);
-  const pivotOf = (node: Object3D): Object3D => {
-    let at = node;
-    while (!pivots.has(at)) at = at.parent!;
-    return at;
-  };
-  scene.traverse((node) => {
-    if (node === scene) return;
-    if (movesOnItsOwn(node)) {
-      const above = pivotOf(node.parent!);
-      // A pose replaces the joint's own rotation: what turned above it and is merged away (a
-      // leaning torso) rides on a carrier, or the arms would swing square to the hips.
-      let holder = pivots.get(above)!.group;
-      if (node.parent !== above) {
-        const carrier = new Group();
-        new Matrix4()
-          .copy(above.matrixWorld)
-          .invert()
-          .multiply(node.parent!.matrixWorld)
-          .decompose(carrier.position, carrier.quaternion, carrier.scale);
-        holder.add(carrier);
-        holder = carrier;
-      }
-      const group = new Group();
-      group.name = node.name;
-      group.position.copy(node.position);
-      group.quaternion.copy(node.quaternion);
-      group.scale.copy(node.scale);
-      holder.add(group);
-      pivots.set(node, { group, meshes: [] });
-    }
-    if ((node as Mesh).isMesh) pivots.get(pivotOf(node))!.meshes.push(node as Mesh);
-  });
-  for (const [node, { group, meshes }] of pivots)
-    for (const { geometry, material } of mergedByMaterial(
-      meshes,
-      new Matrix4().copy(node.matrixWorld).invert(),
-    ))
-      group.add(new Mesh(geometry, material));
-  return root;
-}
+export const bakedFigurine = (scene: Object3D): Group => bakedRig(scene, movesOnItsOwn);
 
 const baked = new Map<string, Promise<Group>>();
 /** Baked once per file, cloned per figurine: the clones share its geometry and materials. */
@@ -248,6 +214,36 @@ export function figurineFor(
   // Its first mark's model: a French pile of tanks led by an R35 is measured at 4 m.
   const span = troopSpan(role, nation, marks[0]);
 
+  /** The clone a lone model is drawn with, kept to be set back where a copy stood in. */
+  let drawn: Object3D | null = null;
+  let standing: Object3D | null = null;
+  const dressers: Array<(model: Object3D, origin: boolean) => void> = [];
+  const spinning: Object3D[] = [];
+  const markers = (root: Object3D): Map<string, Object3D> => {
+    const found = new Map<string, Object3D>();
+    root.traverse((part) => part.name.startsWith('fx_') && found.set(part.name, part));
+    return found;
+  };
+  /** What hangs on a marker (smoke) goes to the marker of the same name on the other model. */
+  const carry = (from: Object3D, to: Object3D): void => {
+    const into = markers(to);
+    for (const [name, marker] of markers(from))
+      for (const hung of [...marker.children]) into.get(name)?.add(hung);
+  };
+  const standIn = (copy: Object3D | null): void => {
+    if (standing !== null && drawn !== null) carry(standing, drawn);
+    standing?.removeFromParent();
+    standing = copy;
+    spinning.length = 0;
+    if (drawn === null) return;
+    if (copy === null) model.add(drawn);
+    else {
+      for (const fn of dressers) fn(copy, false);
+      carry(drawn, copy);
+      drawn.removeFromParent();
+      model.add(copy);
+    }
+  };
   const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
     (scenes) => {
       const makers = scenes.map((scene, k) => ({
@@ -256,7 +252,11 @@ export function figurineFor(
       }));
       // Each model brought to its role's real size, whatever it was sculpted at.
       model.scale.setScalar(span / measureOf(scenes[0]!, role));
-      model.add(role === 'infantry' ? squadOf(makers) : makers[0]!.make());
+      drawn = role === 'infantry' ? squadOf(makers) : makers[0]!.make();
+      model.add(drawn);
+      for (const fn of dressers) fn(drawn, true);
+      // A copy asked for while the file was loading takes its place now.
+      if (standing !== null) standIn(standing);
     },
     (error: unknown) => {
       console.error(`figurine ${nation}/${role}`, error);
@@ -266,11 +266,23 @@ export function figurineFor(
   // A moving pawn never waits on `ready`: its failure is logged above, not left unhandled.
   ready.catch(() => undefined);
 
-  const spinning: Object3D[] = [];
   return {
     object,
     span,
     ready,
+    ...(role === 'infantry' ? {} : { url: files[0]! }),
+    standIn,
+    copy: () => {
+      const copy = drawn?.clone(true) ?? null;
+      // What hangs on a marker (a plume) is carried over by `standIn`, not cloned twice.
+      if (copy !== null) for (const marker of markers(copy).values()) marker.clear();
+      return copy;
+    },
+    dress(fn) {
+      dressers.push(fn);
+      if (drawn !== null) fn(drawn, true);
+      if (standing !== null) fn(standing, false);
+    },
     spin(elapsedSeconds) {
       // Only the hub turns: its blades and cone ride along, and turning them too would twist
       // each on its own axis.

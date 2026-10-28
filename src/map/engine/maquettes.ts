@@ -6,6 +6,7 @@ import {
   Matrix4,
   type Plane,
   Quaternion,
+  type Object3D,
   type Raycaster,
   Vector3,
 } from 'three';
@@ -19,6 +20,7 @@ import { bakedParts, type Part } from './baking';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
+import type { SequenceHost } from './sequences';
 import { Smoke, type Plume } from './smoke';
 import { groundFootprint, WorksDressing, type Works } from './works';
 
@@ -79,6 +81,8 @@ type Model = {
   readonly box: Box3;
   /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
   readonly chimneys: ReadonlyArray<Vector3>;
+  /** Every `fx_*` marker, in its own units: a door a recruit comes out of (`markersOf`). */
+  readonly markers: ReadonlyMap<string, Vector3>;
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
@@ -87,10 +91,7 @@ function modelOf(url: string, metres?: number): Promise<Model> {
   let model = models.get(key);
   if (!model) {
     model = sceneOf(url).then((cached) => {
-      // A copy: `sceneOf` is shared, and the flag comes off this one only. It is painted by the
-      // owner's colours (#279): until then a white one would read as a surrender.
-      const scene = cached.clone(true);
-      scene.getObjectByName('drapeau')?.removeFromParent();
+      const scene = cached;
       const parts = bakedParts(scene);
       const box = new Box3();
       for (const { geometry } of parts) {
@@ -98,8 +99,11 @@ function modelOf(url: string, metres?: number): Promise<Model> {
         box.union(geometry.boundingBox!);
       }
       const chimneys: Vector3[] = [];
+      const markers = new Map<string, Vector3>();
       scene.traverse((node) => {
-        if (node.name.startsWith('fx_smoke')) chimneys.push(node.getWorldPosition(new Vector3()));
+        if (!node.name.startsWith('fx_')) return;
+        markers.set(node.name, node.getWorldPosition(new Vector3()));
+        if (node.name.startsWith('fx_smoke')) chimneys.push(markers.get(node.name)!.clone());
       });
       if (chimneys.length === 0) {
         const top = box.getCenter(new Vector3());
@@ -108,7 +112,7 @@ function modelOf(url: string, metres?: number): Promise<Model> {
       const size = box.getSize(new Vector3());
       // A model in metres is drawn at one constant scale (ADR 0035): its box, bent by a flagpole
       // or a shed, no longer sets the size of its walls.
-      return { parts, scale: 1 / (metres ?? Math.max(size.x, size.z)), box, chimneys };
+      return { parts, scale: 1 / (metres ?? Math.max(size.x, size.z)), box, chimneys, markers };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -384,6 +388,8 @@ type AtWork = { readonly works: Works; dressing: WorksDressing | null };
 
 /** The exemplars of one model in one ink, drawn as instances: one draw call per material. */
 type Lot = {
+  readonly url: string;
+  readonly washed: boolean;
   readonly items: Placed[];
   readonly group: Group;
   model: Model | null;
@@ -397,6 +403,7 @@ const RUNWAY_TOLERANCE = 0.05;
 /** A site that stands under the eyes gives a little: up, down, still. */
 const BOUNCE_MS = 450;
 const matrix = new Matrix4();
+const shrunk = new Matrix4();
 const scale = new Vector3();
 const placedBox = new Box3();
 
@@ -406,8 +413,10 @@ const placedBox = new Box3();
  * beyond the region fade: far away the label's plate is the building. A lot appears once its
  * model has landed and asks for its frame through `changed`; until then the plate stays.
  */
-export class MaquetteLayer {
+export class MaquetteLayer implements SequenceHost {
   readonly group = new Group();
+  /** A sequence's articulated copy, standing in for its instance, by the maquette's id. */
+  private readonly copies = new Map<string, Object3D>();
   private lots = new Map<string, Lot>();
   private byId = new Map<string, { item: Placed; lot: Lot }>();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
@@ -472,6 +481,8 @@ export class MaquetteLayer {
       let lot = this.lots.get(key);
       if (lot === undefined) {
         lot = {
+          url: maquette.url,
+          washed: maquette.washed,
           items: [],
           group: new Group(),
           model: null,
@@ -650,7 +661,71 @@ export class MaquetteLayer {
           best = nearer(best, { id: item.id, distance: hit.distance });
       }
     }
+    for (const [id, copy] of this.copies) {
+      const item = this.byId.get(id)?.item;
+      if (item === undefined || item.near <= 0 || item.cleared) continue;
+      const [hit] = ray.intersectObject(copy, true);
+      if (hit !== undefined) best = nearer(best, { id, distance: hit.distance });
+    }
     return best;
+  }
+
+  /** **What a sequence may borrow** (`SequenceHost`): not a ghost, a site at work, a pin or a
+   *  piece a replay has cleared. Its box is `null` until its lot has been placed. */
+  pieceOf(id: string): { url: string; box: Box3 | null } | null {
+    const dressed = this.byId.get(id);
+    if (
+      dressed === undefined ||
+      dressed.lot.model === null ||
+      dressed.lot.washed ||
+      dressed.lot.atWork !== null ||
+      dressed.item.cleared ||
+      dressed.item.near === 0
+    )
+      return null;
+    return { url: dressed.lot.url, box: this.boxOf(id)?.clone() ?? null };
+  }
+
+  /** **A maquette's own frame on the board**, drawn whole: its markers (`fx_sortie`…) and
+   *  bounds in its model's units — metres, for a model in metres —, and the way between the two.
+   *  What a recruit's way out of its door is laid on (#268). */
+  siteOf(id: string): {
+    marker(name: string): Vector3 | null;
+    readonly box: Box3;
+    toBoard(point: Vector3): Vector3;
+    toModel(point: Vector3): Vector3;
+  } | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    if (dressed === undefined || !model) return null;
+    const { item } = dressed;
+    const placed = new Matrix4().compose(
+      item.at,
+      item.turn,
+      new Vector3().setScalar(sizeOf(model, item)),
+    );
+    const back = placed.clone().invert();
+    return {
+      marker: (name) => model.markers.get(name)?.clone() ?? null,
+      box: model.box,
+      toBoard: (point) => point.clone().applyMatrix4(placed),
+      toModel: (point) => point.clone().applyMatrix4(back),
+    };
+  }
+
+  /** The copy takes the instance's place: the instance shrinks to nothing at its own point, the
+   *  copy gets the matrix it would have had. The next `orient` writes both. */
+  standIn(id: string, copy: Object3D | null): void {
+    const old = this.copies.get(id);
+    if (old !== undefined) old.removeFromParent();
+    if (copy === null) this.copies.delete(id);
+    else {
+      copy.matrixAutoUpdate = false;
+      this.copies.set(id, copy);
+      this.group.add(copy);
+    }
+    const dressed = this.byId.get(id);
+    if (dressed !== undefined) dressed.item.near = -1;
   }
 
   /** Its maquette stands, so its plate gives way — not while a replay has cleared it away. */
@@ -725,7 +800,14 @@ export class MaquetteLayer {
         moved = true;
         const size = near * sizeOf(lot.model!, item);
         matrix.compose(item.at, item.turn, scale.set(size, size * (bounce ?? 1), size));
-        for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
+        const copy = this.copies.get(item.id);
+        if (copy === undefined) for (const mesh of lot.meshes) mesh.setMatrixAt(k, matrix);
+        else {
+          copy.matrix.copy(matrix);
+          copy.matrixWorldNeedsUpdate = true;
+          const away = shrunk.compose(item.at, item.turn, scale.setScalar(0));
+          for (const mesh of lot.meshes) mesh.setMatrixAt(k, away);
+        }
         item.smokes.forEach((smoke, c) => {
           smoke.object.position.copy(lot.model!.chimneys[c]!).applyMatrix4(matrix);
           smoke.object.scale.setScalar(
@@ -779,6 +861,8 @@ export class MaquetteLayer {
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
     this.byId.clear();
+    for (const copy of this.copies.values()) copy.removeFromParent();
+    this.copies.clear();
     this.group.removeFromParent();
   }
 }

@@ -62,6 +62,8 @@ export function squadOf(
   soldiers.slice(0, SLOTS.length).forEach((soldier, k) => {
     const [x, z] = SLOTS[k]!;
     const man = soldier.make();
+    // By his place, front first: a sortie walks the men in file (`walkOut`, `part`).
+    man.name = `man_${k}`;
     if (soldier.marches) {
       man.userData.stride = k * 1.8 + 0.6;
       pose(man, marching(man.userData.stride as number));

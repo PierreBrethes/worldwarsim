@@ -36,6 +36,18 @@ export const PLUME_BY_WEAR: Readonly<Record<Wear, Plume | null>> = {
   burning: { puffs: 8, life: 3.6, rise: 3.8, size: [0.5, 2.3], opacity: 0.75, color: '#2b2722' },
 };
 
+/** **A motor starting in a shed** (`storyboard-caserne`, `W.exhaust`): a short grey breath out of
+ *  its door, in metres of the building it comes out of. `@a-mesurer` */
+export const EXHAUST: Plume = {
+  puffs: 7,
+  life: 1.4,
+  rise: 4,
+  size: [1.5, 4],
+  opacity: 0.7,
+  color: '#6b665e',
+  lean: 0.2,
+};
+
 /**
  * **A puff is a function of the time, not a particle that lives**: each loops on the plume's
  * life, staggered by its rank. A time that stops — reduced or cut motion — leaves a still
