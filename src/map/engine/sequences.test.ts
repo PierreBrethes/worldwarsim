@@ -8,6 +8,7 @@ import {
   Vector3,
 } from 'three';
 import { describe, expect, it } from 'vitest';
+import { stride } from './figurines/infantry';
 import { MAX_PLAYING, PLAY_PX, type Sequence, SequenceLayer, type SequenceHost } from './sequences';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -388,6 +389,29 @@ describe('SequenceLayer', () => {
       const walked = copy.getObjectByName('man_1')!.getWorldPosition(new Vector3());
       expect(walked.distanceTo(rest.add(new Vector3(0, 0, 4)))).toBeLessThan(1e-6);
       expect(copy.children[0]!.getWorldPosition(new Vector3()).toArray()).toEqual([10, 0, 0]);
+    });
+
+    it('stands a man who has arrived as the squad stands him, not in his last stride', () => {
+      const { layer } = layerOf();
+      const host = new PileHost();
+      const man = new Group();
+      man.name = 'man_0';
+      man.userData.stride = 0.6;
+      const leg = new Group();
+      leg.name = 'leg_left';
+      man.add(leg);
+      stride(man, 0);
+      const standing = leg.rotation.x;
+      host.drawn!.add(man);
+      const file: Sequence<never> = {
+        ms: 1000,
+        at: (t) => (t < 500 ? { man_0: { travel: [0, 0, 1], stride: 0.15 } } : {}),
+      };
+      layer.play(host, 'a', file, 0, 100);
+      const walking = host.copies.get('a')!.getObjectByName('leg_left')!.rotation.x;
+      expect(walking).not.toBeCloseTo(standing);
+      layer.step(700);
+      expect(host.copies.get('a')!.getObjectByName('leg_left')!.rotation.x).toBeCloseTo(standing);
     });
 
     it('does not play while the host has nothing drawn to clone', () => {

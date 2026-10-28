@@ -291,6 +291,8 @@ export class SequenceLayer {
         if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
         if (own?.travel || own?.heading !== undefined) onTheBoard(node, rest, own);
         if (own?.stride !== undefined) stride(node, own.stride);
+        // A man arrived before the rest of his squad stands as `squadOf` stood him.
+        else if (MAN.test(node.name)) stride(node, 0);
       }
       const seen = fade * (own?.fade ?? 1);
       if ((node as Mesh).isMesh) this.fadeMesh(playing, node as Mesh, seen);
