@@ -107,7 +107,9 @@ export function GarrisonStack({
    */
   const onLand = useMemo(() => roles.some((role) => DOMAIN_BY_ROLE[role] === 'land'), [roles]);
 
-  const composes = canPrepare && !observing;
+  /** **Une troupe seule dans une pile déjà en main n'a rien à cocher** (#301) : la fiche la lit. */
+  const alone = onPrepare === undefined && held.length === 1;
+  const composes = canPrepare && !observing && !alone;
   const cargoGroups = useMemo(
     () =>
       (view.me.stationedCargo ?? []).filter(
@@ -169,7 +171,7 @@ export function GarrisonStack({
                 }
                 style={{ marginLeft: carrier === null ? undefined : 18 }}
                 className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left ${
-                  ticks ? 'cursor-pointer' : composes ? '' : 'opacity-70'
+                  ticks ? 'cursor-pointer' : composes || alone ? '' : 'opacity-70'
                 } ${on ? 'border-[var(--ink)] bg-(--ink)/7' : 'border-(color:--ink)/32'}`}
               >
                 {ticks && (

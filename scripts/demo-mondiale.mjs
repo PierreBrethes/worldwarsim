@@ -112,6 +112,8 @@ const passengers = process.argv.includes('--passagers');
 const depositsAt = process.argv.includes('--gisements');
 /** `--echelle` : une garnison entière, caserne, aérodrome et port, pour l'échelle commune (#265). */
 const scale = process.argv.includes('--echelle');
+/** `--troupe-seule` : avec `--echelle`, un camion seul dans la seconde caserne et un char seul sur un point (#301). */
+const lone = process.argv.includes('--troupe-seule');
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -557,6 +559,32 @@ if (!bare) {
       'run',
       'dev:spawnTroops',
       JSON.stringify({ playerId: scene.a, role: 'armor', count: 2, lon: 1.9, lat: 47.9 }),
+    ]);
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+  }
+  /** Une garnison réduite à un camion, et un char seul sur un point (#301). */
+  if (scale && lone && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const barracks = me.buildings.filter((building) => building.key === 'barracks').at(-1);
+    const from = { lon: 2.4, lat: 48.6 };
+    const truck = JSON.parse(
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role: 'landTransport', count: 1, ...from }),
+      ]).match(/\[[^\]]*\]/)[0],
+    );
+    await client.mutation(api.movements.enterGarrison, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: truck,
+      buildingId: barracks.id,
+    });
+    cli([
+      'run',
+      'dev:spawnTroops',
+      JSON.stringify({ playerId: scene.a, role: 'armor', count: 1, lon: 3.1, lat: 47.6 }),
     ]);
     cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
   }

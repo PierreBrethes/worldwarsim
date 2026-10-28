@@ -768,7 +768,14 @@ function BoardContent({
          *  bâtiment, et ses troupes se lisent où elles se lisent déjà pour tous — la fenêtre
          *  Nation, une ligne par station (`stationGroups`). */
         const station: TroopStation = { kind: 'building', buildingId };
-        if (troopsAt(view.me, stationKeyOf(station), marching).length > 0) {
+        const garrison = troopsAt(view.me, stationKeyOf(station), marching);
+        /** **Une garnison d'une troupe est une troupe seule** (#301) : son mât la lève, il n'ouvre
+         *  pas une fenêtre d'une ligne. */
+        if (garrison.length === 1) {
+          liftHand({ kind: 'held', station, troopIds: [garrison[0]!.id] });
+          return;
+        }
+        if (garrison.length > 0) {
           openGarrison(station, [], boardPoint(clientX, clientY));
           return;
         }
