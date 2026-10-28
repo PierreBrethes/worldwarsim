@@ -3,7 +3,8 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { ArmedColumn } from '@/domain/armed-column';
-import { asLocalTime } from '@/domain/duration';
+import { asLocalTime, asSpan } from '@/domain/duration';
+import { kmOf } from '@/domain/routing';
 import type { LonLat } from '@/domain/geo';
 import { fr } from '@/i18n/fr';
 import type { DropFuel, DropNote } from '@/map/DropHint';
@@ -34,6 +35,28 @@ function fuelRefusalText({ fuel }: NonNullable<Previewed>): string | null {
       });
 }
 
+/** **La longueur de la route sous la main** (#302), lue sur la route même que le serveur a
+ *  calculée et dont il tire le plein : même `distanceUnits`, même `KM_PER_UNIT`, aucun calcul de
+ *  route de plus au client. La part de mer ne se dit que d'un trajet qui mêle terre et mer : une
+ *  traversée toute en mer l'a déjà dite en disant le total. */
+export function distanceNotesOf(
+  preview: NonNullable<Previewed>,
+  { grouped, blitz }: { readonly grouped: boolean; readonly blitz: boolean },
+): ReadonlyArray<DropNote> {
+  /** Un ordre groupé : la route est celle de la pile en main, la ligne mentirait aux autres. La
+   *  Blitz lit ses distances en part du théâtre et ne paie pas de plein. */
+  if (grouped || blitz) return [];
+  const { route, minutes } = preview;
+  const total = kmOf(route.distanceUnits);
+  const sea = kmOf(
+    route.legs.reduce((sum, leg) => sum + (leg.medium === 'sea' ? leg.distanceUnits : 0), 0),
+  );
+  return [
+    { text: fr.aim.distance(total, asSpan(minutes)), alarm: false },
+    ...(sea > 0 && sea < total ? [{ text: fr.aim.distanceSea(sea), alarm: false }] : []),
+  ];
+}
+
 const sameOrder = (a: OrderChoice, b: OrderChoice) =>
   JSON.stringify([a.aim, a.type, a.mission]) === JSON.stringify([b.aim, b.type, b.mission]);
 
@@ -53,6 +76,8 @@ export function useOrderPreview(
   seat: Seat,
   column: ArmedColumn | null,
   resting: OrderChoice | null,
+  /** Ce qui fait taire la ligne de distance (#302) : un ordre groupé, une Blitz. */
+  { grouped, blitz }: { readonly grouped: boolean; readonly blitz: boolean },
 ) {
   /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
@@ -118,6 +143,7 @@ export function useOrderPreview(
         : preview === null
           ? [{ text: fr.aim.noRoute, alarm: true, refusal: true }]
           : [
+              ...distanceNotesOf(preview, { grouped, blitz }),
               { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
               ...(preview.holdUntil === null
                 ? []
@@ -127,7 +153,7 @@ export function useOrderPreview(
                 : []),
               ...fuelNotes(preview),
             ],
-    [resting, preview],
+    [resting, preview, grouped, blitz],
   );
 
   /** **The server's road, a ribbon under the hand** (POC « Manipuler les pions »): no preview arc

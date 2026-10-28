@@ -263,6 +263,17 @@ if (!bare) {
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
     cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
+  /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
+   *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
+   *  donne des traversées toutes en mer, jamais un trajet terre puis mer (aucune marche avant
+   *  l'eau). Ce trajet-là attend une scène qui embarque des fantassins à quai (`dev:navyScene`). */
+  if (process.argv.includes('--trajet-mixte') && scene.a !== null) {
+    const spawn = (args) =>
+      cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);
+    const at = { lon: 1.6, lat: 50.72 };
+    const [cargo] = JSON.parse(spawn({ role: 'cargo', count: 1, ...at }).match(/\[[^\]]*\]/)[0]);
+    spawn({ role: 'infantry', count: 2, ...at, carriedBy: cargo });
+  }
   /** Un Centre de recherche, deux cartes acquises, une troisième en cours (#123). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a, idle: idleCenter })]);

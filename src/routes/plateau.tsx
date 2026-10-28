@@ -2146,7 +2146,10 @@ function BoardContent({
       ),
     [],
   );
-  const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting);
+  const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting, {
+    grouped,
+    blitz,
+  });
   previewNow.current =
     resting === null || preview === undefined ? undefined : { choice: resting, preview };
 
