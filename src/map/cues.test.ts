@@ -163,6 +163,10 @@ describe('entreesOf', () => {
     ]);
   });
 
+  it('walks no figurine that carries troops of the garrison already: a squad drawn by role', () => {
+    expect(entreesOf([column], [garrison(barracks, ['t1', 't2'])])).toEqual([]);
+  });
+
   it('enters any building of mine, but no quay and no pile on a point', () => {
     const hq = { beside: 'building-hq@2,48' };
     expect(entreesOf([column], [garrison(hq, ['t2'])])).toHaveLength(1);

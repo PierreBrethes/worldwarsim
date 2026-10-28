@@ -145,7 +145,8 @@ export function entreesOf(
     return piles.flatMap(({ id, at: where, pieces }) => {
       if (!('beside' in where) || where.quay !== undefined) return [];
       const groups = pieces.groups.flatMap(({ troopIds }, k) =>
-        troopIds.some((troop) => carried.has(troop)) ? [k] : [],
+        // A figurine that also carries troops already there (a squad drawn by role) stands.
+        troopIds.every((troop) => carried.has(troop)) ? [k] : [],
       );
       const toward = points.at(-2);
       return groups.length === 0
