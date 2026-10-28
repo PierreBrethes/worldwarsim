@@ -68,7 +68,7 @@ import {
   outOfRounds,
   suppliesOf,
 } from '../../src/domain/supplies';
-import { KM_PER_UNIT } from '../../src/domain/routing';
+import { kmOf } from '../../src/domain/routing';
 import { resupply } from '../supplies';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
@@ -747,7 +747,7 @@ export function fuelBill(
           carrierIn(seatedOf(troop), column) === null &&
           !seated.has(troop._id),
       );
-  const km = Math.round(distanceUnits * (roundTrip ? 2 : 1) * KM_PER_UNIT);
+  const km = kmOf(distanceUnits * (roundTrip ? 2 : 1));
   const stepsOf = (troop: Doc<'troops'>) => fuelStepsOf(troop.role, km, holdsSingapore);
   const plain = (troop: Doc<'troops'>) => fuelStepsOf(troop.role, km);
   const eased = drivers.filter((troop) => stepsOf(troop) < plain(troop));

@@ -71,6 +71,10 @@ export function routeMedium(legs: ReadonlyArray<RouteLeg>): RouteMedium {
  */
 export const KM_PER_UNIT = 111;
 
+/** **Les kilomètres d'une distance projetée**, comptés d'une seule façon : le plein que le serveur
+ *  débite (`fuelBill`) et la longueur que la visée écrit (#302) lisent cette fonction. */
+export const kmOf = (units: number): number => Math.round(units * KM_PER_UNIT);
+
 /**
  * **The price of a unit of ground, and of a unit of water.** Arbitrary, never simulated — ADR
  * 0012 says so of the first two, and `landMotorized` joins them on the same footing.
