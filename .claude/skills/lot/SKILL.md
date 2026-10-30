@@ -74,7 +74,8 @@ section « Voir une partie Mondiale en local ».
 3. `npm run demo:mondiale`. Si le lot a besoin d'une scène, ajoute-la en option à
    `scripts/demo-mondiale.mjs`.
 4. `PLAYWRIGHT_DIR=<dossier hors du dépôt> npm run capture -- '<route>' <sortie.png> …`, en
-   1440×900 puis `--largeur 390 --hauteur 844`, avec `--geste` pour amener l'état voulu.
+   1440×900 puis `--largeur 390 --hauteur 844 --tactile` (un téléphone se touche : ses gestes sont
+   `toucher=` et `doigt=`), avec `--geste` pour amener l'état voulu.
    Captures rangées hors du dépôt, dans ton dossier temporaire.
 5. Regarde chaque capture avec l'outil Read, à côté de sa référence : la maquette choisie, ou
    la capture d'avant le lot. Un écart se corrige, ou se rapporte s'il vient d'une décision.
