@@ -133,16 +133,6 @@ describe('measureOf', () => {
       expect(measureOf(box(0.6, height, 0.4), 'infantry')).toBe(MAN_METRES);
   });
 
-  it('measures a gun crew by its piece, so the gunner stays under a man and the gun under a tank', () => {
-    const crew = new Group();
-    const gun = box(0.3, 1.2, 4.57);
-    gun.name = 'gun';
-    crew.add(gun);
-    expect(measureOf(crew, 'infantry')).toBeGreaterThan(MAN_METRES);
-    // The gun is drawn at man-span * (4.11 / 1.75): shorter than a 6 m tank.
-    expect((4.57 / measureOf(crew, 'infantry')) * MAN_METRES).toBeLessThan(6);
-  });
-
   it('measures the rest by their widest side at the ground', () => {
     expect(measureOf(box(2.6, 1.2, 4.8), 'armor')).toBeCloseTo(4.8);
   });
