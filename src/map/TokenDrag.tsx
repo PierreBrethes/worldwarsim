@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { grabbedAfter, type SupplyLoad } from '@/domain/logistics';
+import { grabbedAfter, grabbedWithin, type SupplyLoad } from '@/domain/logistics';
 import { ResourcePlate } from '@/emblems/Plate';
 import { motionNow } from '@/shell/paper-motion';
 
@@ -20,15 +20,18 @@ export type TokenHint = {
 
 /**
  * **Glisser des jetons sur un transport** (ADR 0028 §4, prototype v3) : le geste de
- * l'embarquement. La prise vaut 10 ; tenue sans bouger, elle grossit (`grabbedAfter`). Sous la
+ * l'embarquement. La prise vaut 10, ou ce que la source tient si c'est moins ; tenue sans bouger, elle grossit (`grabbedAfter`). Sous la
  * main, l'étiquette d'un transport (`[data-carrier-id]`) ; la pastille dit ce que le lâcher
  * chargerait, ou le refus en rouge, et les jetons rentrent.
  */
 export function useTokenDrag<From>({
   read,
+  stock,
   drop,
   onHold,
 }: {
+  /** Ce que la source tient : la prise ne le dépasse pas, sous la main comme au lâcher. */
+  stock: (from: From, resource: keyof SupplyLoad) => number;
   /** Ce que le lâcher ferait sur ce transport (`null` : rien sous la main), pour cette prise. */
   read: (
     from: From,
@@ -46,13 +49,15 @@ export function useTokenDrag<From>({
     hint: TokenHint | null;
   } | null>(null);
   const node = useRef<HTMLDivElement>(null);
-  const latest = useRef({ read, drop, onHold });
-  latest.current = { read, drop, onHold };
+  const latest = useRef({ read, stock, drop, onHold });
+  latest.current = { read, stock, drop, onHold };
   const cancel = useRef<(() => void) | null>(null);
   useEffect(() => () => cancel.current?.(), []);
 
   const start = (from: From, resource: keyof SupplyLoad, event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
+    // A bin that is empty is not taken from: the tap that pins it goes its own way.
+    if (grabbedWithin(grabbedAfter(0), latest.current.stock(from, resource)) === 0) return;
     event.preventDefault();
     event.stopPropagation();
     cancel.current?.();
@@ -69,7 +74,9 @@ export function useTokenDrag<From>({
     const origin = { x: event.clientX, y: event.clientY };
     const pressedAt = performance.now();
     let moved = false;
-    let grabbed = grabbedAfter(0);
+    const held = (ms: number) =>
+      grabbedWithin(grabbedAfter(ms), latest.current.stock(from, resource));
+    let grabbed = held(0);
     let at = origin;
     const carrierAt = (x: number, y: number): string | null => {
       for (const under of document.elementsFromPoint(x, y)) {
@@ -79,8 +86,8 @@ export function useTokenDrag<From>({
       return null;
     };
     const show = () => {
-      for (const bin of bins)
-        if (moved || grabbed > grabbedAfter(0)) bin.dataset.holding = String(grabbed);
+      grabbed = grabbedWithin(grabbed, latest.current.stock(from, resource));
+      for (const bin of bins) if (moved || grabbed > held(0)) bin.dataset.holding = String(grabbed);
       const hint = moved
         ? latest.current.read(from, carrierAt(at.x, at.y), resource, grabbed)
         : null;
@@ -89,7 +96,7 @@ export function useTokenDrag<From>({
     };
     const grow = window.setInterval(() => {
       if (moved) return;
-      grabbed = grabbedAfter(performance.now() - pressedAt);
+      grabbed = held(performance.now() - pressedAt);
       show();
     }, 100);
     const finish = (returns = false) => {
