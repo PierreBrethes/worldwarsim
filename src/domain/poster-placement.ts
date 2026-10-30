@@ -72,3 +72,38 @@ export function posterPlacement(
     stem: horizontal.stem,
   };
 }
+
+/**
+ * **The card beside a selection stands clear of its bar too** (#308): the bar hangs over the piles
+ * taken and the card over the piece, so placed on the piece alone the card lands on the bar's first
+ * lines. Placing it around both boxes keeps the bar within reach of the piles and both readable.
+ */
+export function posterPlacementClearing(
+  piece: Rect,
+  bar: Rect,
+  ...rest: [Size, Size, Parameters<typeof posterPlacement>[3], PosterSpot['side']?]
+): PosterSpot {
+  const around = {
+    left: Math.min(piece.left, bar.left),
+    right: Math.max(piece.right, bar.right),
+    top: Math.min(piece.top, bar.top),
+    bottom: Math.max(piece.bottom, bar.bottom),
+  };
+  return posterPlacement(around, ...rest);
+}
+
+/**
+ * **Where a bar goes when the card has no side left** (#308, a phone): the card then sits at the
+ * foot of the screen, over its piece, and the bar's natural place under it. The bar rises to just
+ * over the card instead: its new bottom edge, or `null` when it already clears the card or would
+ * leave the board by the top.
+ */
+export function barOverCard(bar: Rect, card: Rect, top: number, margin: number): number | null {
+  const meets =
+    bar.left < card.right &&
+    card.left < bar.right &&
+    bar.top < card.bottom &&
+    card.top < bar.bottom;
+  const bottom = card.top - margin;
+  return !meets || bottom - (bar.bottom - bar.top) < top ? null : bottom;
+}

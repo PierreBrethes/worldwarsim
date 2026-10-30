@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { posterPlacement } from './poster-placement';
+import {
+  posterPlacement,
+  posterPlacementClearing,
+  barOverCard,
+  type PosterSpot,
+  type Rect,
+} from './poster-placement';
 
 const viewport = { width: 1200, height: 800 };
 const insets = { top: 60, bottom: 0, margin: 8, stem: 18 };
@@ -85,5 +91,74 @@ describe('posterPlacement', () => {
     expect(posterPlacement(near, poster, viewport, insets, 'above').side).toBe('above');
     const far = { ...near, top: 160 };
     expect(posterPlacement(far, poster, viewport, insets, 'above').side).toBe('right');
+  });
+});
+
+describe('posterPlacementClearing (#308)', () => {
+  // The scene of the issue: a pile on the Irish coast, its selection bar hung over it.
+  const pile = { left: 650, right: 730, top: 440, bottom: 520 };
+  const bar = { left: 532, right: 843, top: 283, bottom: 415 };
+  const sheet = { width: 395, height: 450 };
+  const big = { width: 1440, height: 900 };
+  const hud = { top: 80, bottom: 90, margin: 8, stem: 18 };
+  /** The box a spot gives the card (`poster.css`: 15px of stem, centred on the point it touches). */
+  const boxOf = (spot: PosterSpot, size: typeof sheet): Rect => {
+    const { x, y } = spot;
+    if (spot.side === 'right')
+      return {
+        left: x + 15,
+        right: x + 15 + size.width,
+        top: y - size.height / 2,
+        bottom: y + size.height / 2,
+      };
+    if (spot.side === 'left')
+      return {
+        left: x - 15 - size.width,
+        right: x - 15,
+        top: y - size.height / 2,
+        bottom: y + size.height / 2,
+      };
+    if (spot.side === 'above')
+      return {
+        left: x - size.width / 2,
+        right: x + size.width / 2,
+        top: y - 15 - size.height,
+        bottom: y - 15,
+      };
+    return {
+      left: x - size.width / 2,
+      right: x + size.width / 2,
+      top: y + 15,
+      bottom: y + 15 + size.height,
+    };
+  };
+  const meets = (a: Rect, b: Rect) =>
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+  it('covers the bar when placed on the piece alone', () => {
+    expect(meets(boxOf(posterPlacement(pile, sheet, big, hud), sheet), bar)).toBe(true);
+  });
+
+  it('stands clear of the bar', () => {
+    const spot = posterPlacementClearing(pile, bar, sheet, big, hud);
+    expect(meets(boxOf(spot, sheet), bar)).toBe(false);
+    expect(meets(boxOf(spot, sheet), pile)).toBe(false);
+  });
+});
+
+describe('barOverCard (#308)', () => {
+  const card = { left: 20, right: 370, top: 260, bottom: 700 };
+  const bar = { left: 10, right: 320, top: 253, bottom: 387 };
+
+  it('lifts a bar the card covers to just over it', () => {
+    expect(barOverCard(bar, card, 70, 8)).toBe(252);
+  });
+
+  it('leaves a bar that already clears the card', () => {
+    expect(barOverCard({ ...bar, top: 100, bottom: 200 }, card, 70, 8)).toBeNull();
+  });
+
+  it('leaves it where it is when it would leave the board by the top', () => {
+    expect(barOverCard(bar, { ...card, top: 150 }, 70, 8)).toBeNull();
   });
 });

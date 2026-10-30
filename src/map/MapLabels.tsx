@@ -59,7 +59,13 @@ import { Pictogram, type PictogramName } from '@/shell/IndicatorGlyph';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from './engine/silhouettes';
 import type { DetailLevel, LabelProjection } from './engine/labels';
-import { posterPlacement, type PosterSpot } from '@/domain/poster-placement';
+import {
+  posterPlacement,
+  barOverCard,
+  posterPlacementClearing,
+  type PosterSpot,
+  type Rect,
+} from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
 
 /** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
@@ -741,6 +747,42 @@ export function MapLabels({
         }
       }
 
+      // La barre d'une sélection se tient au-dessus de ses piles, au milieu (POC, `#actions`).
+      // Sa boîte est relue plus bas : l'affiche d'une pile choisie s'écarte d'elle (#308).
+      const bar = barAnchor.current;
+      let barRect: Rect | null = null;
+      let barLeft = 0;
+      if (bar !== null) {
+        const seen = barLabels.current
+          .map((id) => states.current.get(id))
+          .filter((state) => state?.visible === true);
+        // Nothing chosen yet (a finger that has just started): the bar waits at the top.
+        const waiting = barLabels.current.length === 0;
+        bar.style.display = seen.length === 0 && !waiting ? 'none' : '';
+        if (seen.length > 0 || waiting) {
+          const x = waiting
+            ? layerSize.current.width / 2
+            : seen.reduce((sum, state) => sum + state!.x, 0) / seen.length;
+          const y = waiting ? 0 : Math.min(...seen.map((state) => state!.y));
+          // The anchor is a point: the bar is its absolutely placed child.
+          const box = bar.firstElementChild as HTMLElement | null;
+          const width = box?.offsetWidth ?? 0;
+          const height = box?.offsetHeight ?? 0;
+          const half = width / 2 + 8;
+          const left = Math.min(Math.max(x, half), layerSize.current.width - half);
+          const bottom = Math.max(height + 8, y - 64);
+          bar.style.transform = `translate3d(${left}px, ${bottom}px, 0)`;
+          barLeft = left;
+          if (!waiting)
+            barRect = {
+              left: left - width / 2,
+              right: left + width / 2,
+              top: bottom - height,
+              bottom,
+            };
+        }
+      }
+
       const place = posterPlace.current;
       const poster = posterAnchor.current;
       const under = place === null ? undefined : states.current.get(place.id);
@@ -762,19 +804,35 @@ export function MapLabels({
         let y: number;
         let stem = 0;
         if (rect !== null) {
-          const spot = posterPlacement(
-            rect,
-            { width: place.width, height: place.height },
-            layerSize.current,
-            {
-              top: place.insetTop,
-              bottom: place.insetBottom,
-              margin: POSTER_MARGIN_PX,
-              stem: POSTER_STEM_PX,
-            },
-            posterSide.current?.id === place.id ? posterSide.current.side : undefined,
-          );
+          const size = { width: place.width, height: place.height };
+          const insets = {
+            top: place.insetTop,
+            bottom: place.insetBottom,
+            margin: POSTER_MARGIN_PX,
+            stem: POSTER_STEM_PX,
+          };
+          const held = posterSide.current?.id === place.id ? posterSide.current.side : undefined;
+          const withBar = barRect !== null && barLabels.current.includes(place.id);
+          const spot = withBar
+            ? posterPlacementClearing(rect, barRect!, size, layerSize.current, insets, held)
+            : posterPlacement(rect, size, layerSize.current, insets, held);
           ({ side, x, y, stem } = spot);
+          // No side left (a phone): the card sits at the foot of the screen and the bar rises over it.
+          if (withBar && side === 'below') {
+            const top = y + POSTER_STEM_PX;
+            const bottom = barOverCard(
+              barRect!,
+              {
+                left: x - size.width / 2,
+                right: x + size.width / 2,
+                top,
+                bottom: top + size.height,
+              },
+              place.insetTop,
+              POSTER_MARGIN_PX,
+            );
+            if (bottom !== null) bar!.style.transform = `translate3d(${barLeft}px, ${bottom}px, 0)`;
+          }
           posterSide.current = { id: place.id, side };
         } else {
           const top = under.y - place.lift;
@@ -797,26 +855,6 @@ export function MapLabels({
           poster.classList.toggle(`map-poster-anchor--${each}`, each === side);
         poster.style.setProperty('--stem', `${stem}px`);
         poster.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      }
-
-      // La barre d'une sélection se tient au-dessus de ses piles, au milieu (POC, `#actions`).
-      const bar = barAnchor.current;
-      if (bar !== null) {
-        const seen = barLabels.current
-          .map((id) => states.current.get(id))
-          .filter((state) => state?.visible === true);
-        // Nothing chosen yet (a finger that has just started): the bar waits at the top.
-        const waiting = barLabels.current.length === 0;
-        bar.style.display = seen.length === 0 && !waiting ? 'none' : '';
-        if (seen.length > 0 || waiting) {
-          const x = waiting
-            ? layerSize.current.width / 2
-            : seen.reduce((sum, state) => sum + state!.x, 0) / seen.length;
-          const y = waiting ? 0 : Math.min(...seen.map((state) => state!.y));
-          const half = bar.offsetWidth / 2 + 8;
-          const left = Math.min(Math.max(x, half), layerSize.current.width - half);
-          bar.style.transform = `translate3d(${left}px, ${Math.max(bar.offsetHeight + 8, y - 64)}px, 0)`;
-        }
       }
 
       // Le cartouche réuni se tient au pied du premier des siens — le plus prioritaire, celui
