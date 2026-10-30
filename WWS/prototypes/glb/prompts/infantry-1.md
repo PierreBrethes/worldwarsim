@@ -56,7 +56,7 @@ Aucun `fx_smoke` sur l'homme.
   ou à insigne d'arme.
 - Lisible de haut à 30° sous la verticale, de 20 à 60 px à l'écran : **le casque d'abord** (c'est
   lui qui dit la nation en silhouette), puis la couleur de l'uniforme, puis le fusil.
-- **Moins de 800 triangles** : jambes, bras et tête articulés gardés ; boutons, poches, bretelles
+- **Entre 1 000 et 1 200 triangles** : jambes, bras et tête articulés gardés ; boutons, poches, bretelles
   et petits équipements peints, pas sculptés.
 
 ## Ce que le modèle doit permettre
@@ -105,4 +105,4 @@ Couleurs et marquages cités ici sont indicatifs : en cas d’écart, la planche
   pied, en marche le fusil sur l'épaule, à genou en joue. Le fusil suit la main sans se décrocher.
 - 1 unité = 1 m ; 1,75 m de haut ; pieds sur y = 0 ; regard vers +z ; left = +x.
 - Les onze noms présents à l'identique ; `rifle` enfant de `forearm_right` ; un seul
-  `fx_muzzle` ; moins de 800 triangles.
+  `fx_muzzle` ; entre 1 000 et 1 200 triangles.

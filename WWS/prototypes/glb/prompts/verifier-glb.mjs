@@ -99,11 +99,11 @@ const EXPECT = {
     pivots: { 'roue_left_*': 'centre', 'roue_right_*': 'centre', tailgate: 'arete-basse' },
   },
   'infantry-1': {
-    measure: [null, 'y', 1.75, 0.06], triangles: 800,
+    measure: [null, 'y', 1.75, 0.06], triangles: 1200,
     names: [...MAN, 'rifle', 'fx_muzzle'], pivots: MAN_PIVOTS, parents: { rifle: 'forearm_right' },
   },
   'infantry-2': {
-    triangles: per([800, 800, 800, 800, 800, 1200, 800, 800]),
+    triangles: per([1200, 1200, 1200, 1200, 1200, 1500, 1200, 1200]),
     names: [...MAN, 'rifle|weapon|gun', 'fx_muzzle'], pivots: MAN_PIVOTS,
     byNation: { japan: ['gun', 'wheels_left', 'wheels_right', 'trail_left', 'trail_right', 'fx_smoke'] },
   },

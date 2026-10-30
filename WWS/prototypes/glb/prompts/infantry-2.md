@@ -52,7 +52,7 @@ Un seul `fx_muzzle` et au plus un `fx_smoke` dans le fichier.
 - Figurine peinte, contours nets, couleurs d'époque désaturées d'après la planche. **Aucun
   symbole de régime** : ni croix gammée, ni aigle, ni faisceau ; les autres marques suivent la planche.
 - Lisible de haut à 30° sous la verticale, de 20 à 60 px : le casque, puis l'arme.
-- **Moins de 800 triangles** (Japon : 1 200 pour la pièce et son servant).
+- **Entre 1 000 et 1 200 triangles** (Japon : 1 500 pour la pièce et son servant).
 
 ## Ce que le modèle doit permettre
 
@@ -87,7 +87,7 @@ Couleurs et marquages cités ici sont indicatifs : en cas d’écart, la planche
   pièce a ses propres groupes : `gun` (tube et berceau, origine aux tourillons, hausse autour de
   x, recul le long du tube), `wheels_left`, `wheels_right` (origine au moyeu, autour de x),
   `trail_left`, `trail_right` (origine à leur charnière, autour de y). `fx_muzzle` à la bouche
-  du tube, `fx_smoke` à la culasse ; le servant n'a aucun repère. 1 200 triangles en tout.
+  du tube, `fx_smoke` à la culasse ; le servant n'a aucun repère. 1 500 triangles en tout.
 
 ## À vérifier avant de livrer
 
@@ -98,4 +98,4 @@ Couleurs et marquages cités ici sont indicatifs : en cas d’écart, la planche
   groupes ; l'arme suit la main.
 - 1 unité = 1 m ; l'homme fait 1,75 m debout ; rien sous y = 0 ; regard vers +z ; left = +x.
 - Les dix groupes de l'homme et le nom de l'arme présents à l'identique ; un seul `fx_muzzle` ;
-  moins de 800 triangles (Japon 1 200).
+  entre 1 000 et 1 200 triangles (Japon 1 500).

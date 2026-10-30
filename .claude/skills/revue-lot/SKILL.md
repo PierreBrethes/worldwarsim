@@ -66,7 +66,12 @@ Ce sont les défauts que les revues ont réellement trouvés.
 - **Coût** : si le lot touche la carte, `npm run banc:client` ; rien ne redessine en continu
   au repos, et le téléphone ne régresse pas. Un avant/après ne se compare que si le geste a eu
   lieu des deux côtés : même distance de caméra atteinte, appels de dessin du même ordre. Un
-  écart qui vient du banc n'est pas une régression.
+  écart qui vient du banc n'est pas une régression. Les appels de dessin sont la colonne
+  « appels », pas « proc GPU » ; un temps d'image ne se compare que machine au repos (délai au
+  repos près de 15 ms), jamais sur batterie.
+- **Test vide** : un test qui passe sans la correction ne protège rien. Un mock qui rend un
+  objet simple là où le navigateur rend un `DOMRect`, ou un `.catch` qui avale le refus attendu,
+  en sont les formes vues ; retire la correction en pensée et dis si le test tombe.
 - **Chiffres écrits** : chaque coût, poids ou décompte qu'un ADR, `CLAUDE.md` ou un commentaire
   annonce se remesure sur la pointe, avec tous les chemins qui le paient (premier appel, second
   index, terre comme mer). Un chiffre faux est un finding.
