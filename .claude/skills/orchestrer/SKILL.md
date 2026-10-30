@@ -40,15 +40,16 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
 ## 3. Le pipeline d'un lot
 
 1. **Issue** : skill `ticket`. Les décisions de Pierre vont en commentaire « Décisions » de l'issue.
-2. **Branche** depuis `main` à jour. Les lots d'un même thème partagent une branche et une seule PR, pour économiser les minutes de CI.
-3. **Agents** (définis dans `.claude/agents/`) :
+2. **Relecture à froid** d'une issue qui pose une règle neuve ou touche plusieurs fichiers ; un bug ou un réglage passe directement à la branche. Un agent `enqueteur` reçoit le seul numéro de l'issue, sans ce que tu sais, la lit puis lit le code qu'elle cite, et rend en un passage chaque point ambigu, manquant ou contredit par le code (une donnée que le client n'a pas, un cas que l'issue tait), avec fichier:ligne. Ce qui se tranche sans Pierre corrige l'issue ; le reste part à Pierre avec ta recommandation. Fini quand l'agent `dev` n'a plus rien à deviner.
+3. **Branche** depuis `main` à jour. Les lots d'un même thème partagent une branche et une seule PR, pour économiser les minutes de CI.
+4. **Agents** (définis dans `.claude/agents/`) :
    - un agent `dev` par issue ;
    - **un seul agent qui écrit à la fois** dans le checkout ;
    - `enqueteur`, `relecteur` et `designer` tournent en parallèle ;
    - la consigne d'un agent porte l'issue, ce qui a changé sur la branche, les décisions de Pierre, ce qui est propre au lot et la règle d'arrêt. Ce que disent déjà sa définition et le skill `lot` ne s'y recopie pas : vérifieur unique, fichiers de Pierre, commits locaux, format du rapport.
-4. **Revue** : un agent `relecteur` après chaque lot. Ses findings repartent au même `dev` (SendMessage), les bloquants d'abord.
-5. **Rendu** : tu regardes toi-même les captures, à côté de leur référence, avant de dire que c'est fait. Tu les envoies à Pierre (SendUserFile) quand le rendu change.
-6. **Fusion** : vérifieur vert sur la pointe (relance seuls les timeouts de `convex/`), PR (skill `pr`). Les lots prêts attendent en PR ; tu proposes à Pierre une fusion groupée (une seule poussée sur `main`) et tu fusionnes à son accord. Un lot qui exige de vider la pré-prod attend aussi qu'il l'ait vidée.
+5. **Revue** : un agent `relecteur` après chaque lot. Ses findings repartent au même `dev` (SendMessage), les bloquants d'abord.
+6. **Rendu** : tu regardes toi-même les captures, à côté de leur référence, avant de dire que c'est fait. Tu les envoies à Pierre (SendUserFile) quand le rendu change.
+7. **Fusion** : vérifieur vert sur la pointe (relance seuls les timeouts de `convex/`), PR (skill `pr`). Les lots prêts attendent en PR ; tu proposes à Pierre une fusion groupée (une seule poussée sur `main`) et tu fusionnes à son accord. Un lot qui exige de vider la pré-prod attend aussi qu'il l'ait vidée.
 
 | Le lot | Modèle, effort |
 |---|---|
