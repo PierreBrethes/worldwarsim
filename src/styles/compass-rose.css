@@ -587,6 +587,9 @@
   opacity: 0.6;
 }
 .selection-bar-refusal {
+  /* Un refus passe à la ligne dans la largeur de la barre, sans l'élargir. */
+  width: 0;
+  min-width: 100%;
   margin: 0;
   padding: 5px 10px 6px;
   border-top: 1px solid var(--critical);

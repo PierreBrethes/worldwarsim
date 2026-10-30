@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { BuildingKey, UnitRole } from './ids';
 import {
   barredFrom,
@@ -6,6 +6,7 @@ import {
   boardingRefusalOf,
   disbandPointsOf,
   disbandRefusalOf,
+  disbandSpotsAt,
   disembarkRefusalOf,
   foundingRefusal,
   landCostOf,
@@ -24,7 +25,15 @@ import {
   type Column,
   type MovementAim,
 } from './movement-orders';
-import { distanceKm } from './geo';
+import { decodeCoast, groundOf, reachedAshore, regionOf, type CoastAsset } from './coast';
+import { distanceKm, type LonLat } from './geo';
+import { decodeRegionRaster, type RegionRasterAsset } from './region-raster';
+import { decodeGrid } from './routing';
+import type { Projection } from './world';
+import coastAsset from '../../public/coast.json';
+import gridAsset from '../../public/grid.json';
+import projectionAsset from '../../public/projection.json';
+import rasterAsset from '../../public/region-grid.json';
 import { BOARD_KM, troopSpan } from './piece-size';
 import { COST_BY_MEDIUM } from './routing';
 import { theatreById } from './theatres';
@@ -1006,7 +1015,14 @@ describe('a Blitz order (lot 5)', () => {
 /** **Dissoudre une escouade** (#130) : chacune de ses pièces se pose à part, autour du point. */
 describe('disbanding a squad', () => {
   const off = (held: Partial<Parameters<typeof disbandRefusalOf>[0]> = {}) =>
-    disbandRefusalOf({ onPoint: true, pieces: 3, blitz: false, loaded: false, ...held });
+    disbandRefusalOf({
+      onPoint: true,
+      pieces: 3,
+      blitz: false,
+      loaded: false,
+      room: () => true,
+      ...held,
+    });
 
   it('spreads a squad standing on the board', () => {
     expect(off()).toBeNull();
@@ -1017,6 +1033,29 @@ describe('disbanding a squad', () => {
     expect(off({ pieces: 1 })).toBe('NOT_A_SQUAD');
     expect(off({ blitz: true })).toBe('NO_SQUADS_IN_BLITZ');
     expect(off({ loaded: true })).toBe('SQUAD_CARRIES_LOOT');
+  });
+
+  it('refuses a squad whose ring has no room, and asks only once the squad is a squad', () => {
+    expect(off({ room: () => false })).toBe('NO_ROOM_TO_DISBAND');
+    const ask = vi.fn(() => false);
+    expect(off({ pieces: 1, room: ask })).toBe('NOT_A_SQUAD');
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  /** **La géographie cuite, pas une fixture** : le refus tient à la côte et à la frontière. */
+  it('finds no room for eight pieces on the Irish coast, and room inland', () => {
+    const projection = projectionAsset as unknown as Projection;
+    const grid = decodeGrid(gridAsset, projection);
+    const coast = decodeCoast(coastAsset as CoastAsset, projection);
+    const raster = decodeRegionRaster(rasterAsset as unknown as RegionRasterAsset, projection);
+    const ground = {
+      landAt: (p: LonLat) => groundOf(grid, coast, p) === 'land',
+      hostAt: (p: LonLat) => regionOf(raster, coast, p)?.country ?? '',
+      reached: (from: LonLat, to: LonLat, ashore: boolean) =>
+        reachedAshore(grid, coast, from, to, ashore),
+    };
+    expect(disbandSpotsAt([-9.75, 51.75], 8, 10.4, ground)).toBeNull();
+    expect(disbandSpotsAt([4.8, 46.5], 8, 10.4, ground)).not.toBeNull();
   });
 
   const km = distanceKm;

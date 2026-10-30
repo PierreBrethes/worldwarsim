@@ -1,36 +1,27 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'three';
-import { ANONYMOUS_SPAN, FIGURINE_SCALE, troopScale } from './figurines/figurine';
+import { Group, MeshStandardMaterial, type Vector3 } from 'three';
+import { CRATE_METRES, CRATE_SLATS, CRATE_WOOD, crateOf } from './crate';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, TANK_MODEL_UNITS, troopScale } from './figurines/figurine';
 
-/** The prototype's crate (`table-etat-major.html`), in model units: a box and two slats. */
-const SIDE = 0.5;
-const BOX = new BoxGeometry(SIDE, SIDE, SIDE);
-BOX.translate(0, SIDE / 2, 0);
-const SLAT = new BoxGeometry(0.52, 0.06, 0.52);
-const WOOD = new MeshStandardMaterial({ color: '#8a6a3e', roughness: 0.8 });
-const SLATS = new MeshStandardMaterial({ color: '#5e4526', roughness: 0.8 });
+const WOOD = new MeshStandardMaterial({ color: CRATE_WOOD, roughness: 0.8 });
+const SLATS = new MeshStandardMaterial({ color: CRATE_SLATS, roughness: 0.8 });
+/** Where this layer converts the crate's metres: a tank is 6 m and 2.6 model units long. */
+const METRES_PER_UNIT = 6 / TANK_MODEL_UNITS;
+const CRATE_UNITS = CRATE_METRES / METRES_PER_UNIT;
 
 /** Beside the piece, three on the ground and the fourth on top: what the quarters stack up. */
 const SPOTS: ReadonlyArray<readonly [number, number, number]> = [
   [-1.5, 0, 0.3],
   [-1.5, 0, 1.0],
   [-0.85, 0, 0.65],
-  [-1.2, SIDE, 0.65],
+  [-1.2, CRATE_UNITS, 0.65],
 ];
 const DROP_FROM = 1.6;
 /** Well under `SETTLE_MS`, and a thread on screen keeps the frames coming anyway. */
 const FALL_MS = 260;
 
 function crate(turn: number): Group {
-  const object = new Group();
-  const box = new Mesh(BOX, WOOD);
-  box.castShadow = true;
-  object.add(box);
-  for (const y of [0.1, 0.4]) {
-    const slat = new Mesh(SLAT, SLATS);
-    slat.position.y = y;
-    slat.castShadow = true;
-    object.add(slat);
-  }
+  const object = crateOf(WOOD, SLATS, true);
+  object.scale.setScalar(1 / METRES_PER_UNIT);
   object.rotation.y = turn * 0.4;
   return object;
 }

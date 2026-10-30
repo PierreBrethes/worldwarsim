@@ -25,6 +25,7 @@ import {
   type RegionIdentity,
 } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
+import type { DisbandGround } from '@/domain/movement-orders';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
 import type { Shore } from './engine/sea';
@@ -207,6 +208,8 @@ type Props = {
    * au plateau, pas ici.
    */
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
+  /** Absent en Blitz : le raster n'est alors pas demandé. La côte et le raster des pays sont là : de quoi dire le refus de U avant le geste (#295). */
+  onDisbandGround?: ((ground: DisbandGround) => void) | undefined;
   /** **La carte prête** tend au plateau de quoi nommer la maquette sous un point : une
    *  tuile du plateau personnel se lâche sur une maquette (#205). */
   onMaquetteLookup?: (maquetteAt: (clientX: number, clientY: number) => string | null) => void;
@@ -420,6 +423,7 @@ export function WorldMap({
   onCountryHover,
   onRegionHover,
   onRegionsLoaded,
+  onDisbandGround,
   onMaquetteLookup,
   onArcHover,
   onLabelHover,
@@ -472,6 +476,11 @@ export function WorldMap({
   const insets = useBoardInsets();
   /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
    *  callback that changed identity. */
+  const disbandGround = useRef(onDisbandGround);
+  useEffect(() => {
+    disbandGround.current = onDisbandGround;
+  }, [onDisbandGround]);
+  const wantsDisbandGround = onDisbandGround !== undefined;
   const regionsLoaded = useRef(onRegionsLoaded);
   useEffect(() => {
     regionsLoaded.current = onRegionsLoaded;
@@ -686,6 +695,14 @@ export function WorldMap({
     (lonLat: LonLat) => engine.current?.walkableAt(lonLat) ?? true,
     [],
   );
+
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.watchDisbandGround(
+      wantsDisbandGround ? (ground) => disbandGround.current?.(ground) : undefined,
+    );
+    return () => readyEngine.watchDisbandGround(undefined);
+  }, [readyEngine, wantsDisbandGround]);
 
   /** **La côte arrive, la rose se relit** (#224) : une visée en attente sur l'eau de la grille
    *  retrouve ses ordres sans qu'on la referme. */

@@ -34,8 +34,10 @@ export const ANONYMOUS_SPAN = troopSpan('armor');
  *  tuned for the former figurines is multiplied by at the common scale. */
 export const TANK_SHARE = ANONYMOUS_SPAN / LAID_OUT_FOR;
 
-/** Model units to board units for what has no role: the brief's tank is 2.6 long. */
-export const FIGURINE_SCALE = ANONYMOUS_SPAN / 2.6;
+/** The brief's tank, in model units. */
+export const TANK_MODEL_UNITS = 2.6;
+/** Model units to board units for what has no role. */
+export const FIGURINE_SCALE = ANONYMOUS_SPAN / TANK_MODEL_UNITS;
 
 let nearFloor = 0;
 /**
