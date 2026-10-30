@@ -9,8 +9,13 @@ import { useTokenDrag } from './TokenDrag';
  */
 const hint = { text: 'rentre', refused: true, amount: 0 };
 
-function Bin() {
-  const tokens = useTokenDrag<'board'>({ read: () => hint, drop: () => {} });
+function Bin({ stock = 1000, onHold }: { stock?: number; onHold?: (holding: boolean) => void }) {
+  const tokens = useTokenDrag<'board'>({
+    ...(onHold ? { onHold } : {}),
+    stock: () => stock,
+    read: () => hint,
+    drop: () => {},
+  });
   return (
     <>
       <button data-bin="coal" onPointerDown={(event) => tokens.start('board', 'coal', event)}>
@@ -88,5 +93,43 @@ describe('the tokens taken from a bin', () => {
     release();
     const [frames] = animate.mock.calls[0] as unknown as [Array<{ transform: string }>];
     expect(frames.at(-1)!.transform).toContain('translate(20px');
+  });
+});
+
+describe('a grab held over a nearly empty bin', () => {
+  it('grows to the stock and stops there', () => {
+    vi.useFakeTimers();
+    try {
+      render(<Bin stock={23} />);
+      press();
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(bin().dataset.holding).toBe('23');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('a bin with nothing in it', () => {
+  it('is not taken from: no chip, no mark, no carrier labels', () => {
+    const onHold = vi.fn();
+    render(<Bin stock={0} onHold={onHold} />);
+    press();
+    moveTo(120, 120);
+    expect(bin().dataset.holding).toBeUndefined();
+    expect(document.body.textContent).not.toContain('×0');
+    expect(onHold).not.toHaveBeenCalled();
+  });
+});
+
+describe('a stock that falls while the hand is carrying', () => {
+  it('lowers the grab with it', () => {
+    const { rerender } = render(<Bin stock={100} />);
+    press();
+    moveTo(120, 120);
+    expect(bin().dataset.holding).toBe('10');
+    rerender(<Bin stock={4} />);
+    moveTo(130, 130);
+    expect(bin().dataset.holding).toBe('4');
   });
 });

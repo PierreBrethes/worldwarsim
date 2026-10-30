@@ -1,7 +1,7 @@
 import { pinsOf } from '@/domain/pins';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
-import { loadReadingOf, type TokenSource } from './-plateau/load-reading';
+import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useConvex, useMutation, useQuery } from 'convex/react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -1002,6 +1002,7 @@ function BoardContent({
    *  transport ; la main montre alors toutes les étiquettes de transport. */
   const [carryingTokens, setCarryingTokens] = useState(false);
   const tokens = useTokenDrag<TokenSource>({
+    stock: (from, resource) => sourceStockOf(view, from, resource, Date.now()),
     read: (from, carrierId, resource, grabbed) =>
       loadReadingOf(view, carrierId, from, resource, grabbed, Date.now()),
     drop: (_from, carrierId, resource, amount) => {

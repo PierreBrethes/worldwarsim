@@ -4,6 +4,7 @@ import {
   onTourRefusalOf,
   tourRefusalOf,
   grabbedAfter,
+  grabbedWithin,
   deliverRefusalOf,
   deliveryOf,
   airdropOnSquad,
@@ -149,6 +150,13 @@ describe('dismantling a depot', () => {
 describe('a grab of tokens', () => {
   it('takes ten, then ten by ten while held, then fifty by fifty', () => {
     expect([0, 199, 200, 800, 1000, 1200].map(grabbedAfter)).toEqual([10, 10, 20, 50, 100, 150]);
+  });
+});
+
+describe('a grab held over a nearly empty bin', () => {
+  it('stops at what the source holds, and never counts a fraction of a token', () => {
+    expect([10, 150].map((grabbed) => grabbedWithin(grabbed, 23.7))).toEqual([10, 23]);
+    expect(grabbedWithin(150, 0)).toBe(0);
   });
 });
 
