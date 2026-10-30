@@ -13,6 +13,7 @@ import {
 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
+import { CRATE_METRES, CRATE_SLATS, CRATE_WOOD, crateOf } from './crate';
 import type { WorldFrame } from './frame';
 
 /** The descent, the rest on the ground, and the fade: a packet is a moment, never ambience. */
@@ -61,6 +62,10 @@ const LINES = (() => {
   geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
   return geometry;
 })();
+/** The crate's side in canopy units (the one place this layer converts its metres), and how far
+ *  its foot hangs under the canopy's origin. */
+const CRATE_SIDE = 0.16;
+const HANG = 0.45 + CRATE_SIDE;
 const SHADOW = new CircleGeometry(0.22, 16);
 
 type Packet = {
@@ -94,13 +99,15 @@ export class ParachuteLayer {
     const paint = (color: string, opacity = 1) =>
       new MeshBasicMaterial({ color, transparent: true, opacity, toneMapped: false });
     const paper = paint('#efe6cf');
-    const wood = paint('#8a6a3e');
+    const wood = paint(CRATE_WOOD);
+    const slats = paint(CRATE_SLATS);
     const dark = paint('#000000', 0.25);
     const rope = new LineBasicMaterial({ color: '#5e4526', transparent: true, toneMapped: false });
     const canopy = new Mesh(CANOPY, paper);
     canopy.position.y = 0.2;
-    const crate = new Mesh(CRATE, wood);
-    crate.position.y = -0.53;
+    const crate = crateOf(wood, slats, false);
+    crate.scale.setScalar(CRATE_SIDE / CRATE_METRES);
+    crate.position.y = -HANG;
     const shadow = new Mesh(SHADOW, dark);
     shadow.rotation.x = -Math.PI / 2;
     const object = new Group();
@@ -110,7 +117,7 @@ export class ParachuteLayer {
       object,
       shadow,
       canopy,
-      materials: [paper, wood, dark, rope],
+      materials: [paper, wood, dark, rope, slats],
       start: now,
       ground: this.frame.projectLonLat(at),
     });
@@ -131,11 +138,11 @@ export class ParachuteLayer {
     const size = CANOPY_PX * unitsPerPixel;
     const landed = state.height === 0;
     object.scale.setScalar(size * (landed ? 0.7 : 1));
-    // The pack hangs 0.53 under the origin: resting, it sits on the sheet.
+    // The crate's foot hangs `HANG` under the origin: resting, it stands on the sheet.
     const sway = landed || this.motion !== 'full' ? 0 : Math.sin((now - start) / 340) * 0.12;
     object.position.set(
       ground.x + size * sway * state.height,
-      ground.y + 0.53 * object.scale.x + state.height * HEIGHT_PX * unitsPerPixel,
+      ground.y + HANG * object.scale.x + state.height * HEIGHT_PX * unitsPerPixel,
       ground.z,
     );
     object.rotation.z = landed ? 0 : Math.sin((now - start) / 420) * 0.12 * state.height;
