@@ -31,7 +31,7 @@ import { washedOf } from './standing';
  * 0035): every length below is in its units, and its figurines stand at their real size in it.
  */
 export const REPLAY_STAGE = TANK_SHARE;
-/** Model units to the scene's: a tank sculpted 2.6 long stands `LAID_OUT_FOR` long in it. */
+/** Model units to the scene's: a tank sculpted `TANK_MODEL_UNITS` long stands `LAID_OUT_FOR` long in it. */
 const SCENE_FIGURE = FIGURINE_SCALE / REPLAY_STAGE;
 
 /** The scene's units. Each side stands in rows of three, its front rank facing the other across the gap. */
