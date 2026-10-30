@@ -44,6 +44,8 @@
  * `--pile-mixte` (#286) pose un camion, un chasseur et deux fantassins sur un même point : une pile
  * où les nouveaux modèles côtoient les anciens. `--escouade` (#283) pose un camion, un char et deux
  * fantassins en Essonne et dans le Cotentin, et les dissout : la couronne, puis contre la mer.
+ * `--sans-place` (#295) pose huit pièces au bord de la côte irlandaise : U y est refusé, la barre
+ * de sélection le dit avant le geste.
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
  * avant-poste à Namur, et à l'adversaire une mine relevée sur la Sarre : une mine à poser, au
  * cadrage de la maquette des gisements.
@@ -234,6 +236,19 @@ if (!bare) {
         .mutation(api.movements.disband, { token: tokenA, seasonId, point: { lon, lat } })
         .catch((error) => console.log(`Dissoudre en ${lon}, ${lat} : ${error.message}`));
     }
+  /** `--sans-place` (#295) : huit pièces au bord de la côte irlandaise, que U ne peut pas ranger :
+   *  la barre de sélection dit son refus avant le geste. */
+  if (process.argv.includes('--sans-place') && scene.a !== null)
+    for (const [role, count] of [
+      ['landTransport', 1],
+      ['armor', 1],
+      ['infantry', 6],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, count, lon: -9.75, lat: 51.75 }),
+      ]);
   if (passengers && scene.a !== null) {
     const spawn = (args) =>
       cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);
