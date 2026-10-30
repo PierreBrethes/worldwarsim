@@ -1,12 +1,7 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'three';
+import { Group, MeshStandardMaterial, type Vector3 } from 'three';
 import { CRATE_METRES, CRATE_SLATS, CRATE_WOOD, crateOf } from './crate';
 import { ANONYMOUS_SPAN, FIGURINE_SCALE, troopScale } from './figurines/figurine';
 
-/** The prototype's crate (`table-etat-major.html`), in model units: a box and two slats. */
-const SIDE = 0.5;
-const BOX = new BoxGeometry(SIDE, SIDE, SIDE);
-BOX.translate(0, SIDE / 2, 0);
-const SLAT = new BoxGeometry(0.52, 0.06, 0.52);
 const WOOD = new MeshStandardMaterial({ color: CRATE_WOOD, roughness: 0.8 });
 const SLATS = new MeshStandardMaterial({ color: CRATE_SLATS, roughness: 0.8 });
 /** Where this layer converts the crate's metres: a tank is 6 m and 2.6 model units long. */

@@ -1,5 +1,4 @@
 import {
-  BoxGeometry,
   CircleGeometry,
   Group,
   LineBasicMaterial,
@@ -48,7 +47,6 @@ export function parachuteAt(
 }
 
 const CANOPY = new SphereGeometry(0.5, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2);
-const CRATE = new BoxGeometry(0.16, 0.16, 0.16);
 const FOUR_CORNERS: ReadonlyArray<readonly [number, number]> = [
   [-0.4, -0.1],
   [0.4, -0.1],
