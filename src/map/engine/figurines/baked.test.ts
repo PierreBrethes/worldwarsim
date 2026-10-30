@@ -5,10 +5,10 @@ import { isRigPart, type RigFamily, RIG_PARTS } from '@/emblems/rigs';
 import { bakedRig } from '../baking';
 import { meshesOf, sceneOfFile, sweptVolume } from '../gltf-scene.fixture';
 import { bakedFigurine } from './figurine';
-import { JOINTS, squadOf, stride } from './infantry';
+import { JOINTS, POSED, squadOf, stride } from './infantry';
 
 const readByName = (name: string) =>
-  (JOINTS as ReadonlyArray<string>).includes(name) ||
+  (POSED as ReadonlyArray<string>).includes(name) ||
   name.startsWith('fx_') ||
   name.startsWith('prop');
 
@@ -47,13 +47,16 @@ describe.runIf(files.length > 0)('baked figurines', () => {
       );
     expect(triangles(baked)).toBe(triangles(scene));
     expect(sweptVolume(baked)).toBeCloseTo(sweptVolume(scene), 3);
-    expect(meshesOf(baked).length).toBeLessThan(meshesOf(scene).length);
+    // The infantry of #316 is already one mesh per material and joint: baking has nothing left to merge.
+    if (role === 'infantry')
+      expect(meshesOf(baked).length).toBeLessThanOrEqual(meshesOf(scene).length);
+    else expect(meshesOf(baked).length).toBeLessThan(meshesOf(scene).length);
 
     if (role === 'infantry') {
       // A joint's pose replaces its own rotation: whatever turns above it (a leaning torso)
       // must still turn it once baked.
       const marchers = [scene, baked].map((made) =>
-        squadOf([{ make: () => made.clone(true), marches: true }]),
+        squadOf([{ make: () => made.clone(true), sculpted: false }]),
       );
       for (const seconds of [0, 0.13]) {
         for (const squad of marchers) {
@@ -70,12 +73,32 @@ describe.runIf(files.length > 0)('baked figurines', () => {
         }
       }
 
-      const squad = squadOf([{ make: () => baked.clone(true), marches: true }]);
+      const squad = squadOf([{ make: () => baked.clone(true), sculpted: false }]);
       const man = squad.children[0]!;
       for (const joint of JOINTS.filter((joint) => scene.getObjectByName(joint)))
         expect(man.getObjectByName(joint), joint).toBeDefined();
       expect(man.getObjectByName('leg_left')!.rotation.x).not.toBe(0);
     }
+  });
+});
+
+/** A mark 2 leaves his knee to march: his feet stay on the ground, and he goes back as he was. */
+describe.runIf(files.length > 0)('a sculpted mark 2 marching', () => {
+  const rank2 = files.filter(([, role, url]) => role === 'infantry' && url.includes('infantry-2'));
+  it.each(rank2)('%s keeps its feet on the plateau', (_, __, url) => {
+    const squad = squadOf([{ make: () => bakedFigurine(sceneOfFile(url)), sculpted: true }]);
+    const bottom = () => {
+      squad.updateMatrixWorld(true);
+      return new Box3().setFromObject(squad, true).min.y;
+    };
+    const resting = bottom();
+    // Japan's crew rests on its gun carriage: the file is its own floor.
+    for (const seconds of [0, 0.2, 0.4, 0.7, 1.1]) {
+      stride(squad, seconds);
+      expect(bottom(), `${seconds}s`).toBeGreaterThanOrEqual(-0.02);
+    }
+    stride(squad, null);
+    expect(bottom()).toBeCloseTo(resting, 5);
   });
 });
 

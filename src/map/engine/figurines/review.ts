@@ -122,6 +122,9 @@ if (kind === 'buildings') {
   for (const [caption, troops] of [
     ['pile · 1 infanterie', [troop('infantry')]],
     ['pile · 3 infanteries à 50 %', [1, 2, 3].map(() => troop('infantry', 50))],
+    // The mark 2 stands in front: the Japanese gun takes the squad's room (#316).
+    ['pile · MK2 et 2 MK1', [troop('infantry', 100, 2), troop('infantry'), troop('infantry')]],
+    ['pile · 3 MK2', [1, 2, 3].map(() => troop('infantry', 100, 2))],
     [
       'pile · 4 rôles',
       [troop('infantry'), troop('armor'), troop('landTransport'), troop('fighter')],
