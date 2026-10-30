@@ -2694,6 +2694,7 @@ function BoardContent({
             cartouche « transmis » le temps qu'il se lit. */}
               {narrow && sent === null && replay === null && (
                 <div
+                  data-poster-floor
                   className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]"
                   style={{ marginBottom: MAT_LIFT }}
                 >
@@ -2707,6 +2708,7 @@ function BoardContent({
               )}
               {narrow && sent === null && replay === null && !blitz && (
                 <div
+                  data-poster-floor
                   className="absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)]"
                   style={{ marginBottom: MAT_LIFT }}
                 >
