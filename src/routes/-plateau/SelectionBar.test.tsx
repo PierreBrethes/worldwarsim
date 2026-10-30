@@ -6,13 +6,13 @@ import { SelectionBar } from './SelectionBar';
 
 afterEach(cleanup);
 
-const bar = (disbandRefusal: string | null) =>
+const bar = (disbandRefusal: string | null, refusal: string | null = null) =>
   render(
     <SelectionBar
       piles={1}
       roles={['infantry', 'armor']}
       picking={false}
-      refusal={null}
+      refusal={refusal}
       disbandRefusal={disbandRefusal}
       onForm={() => {}}
       onDisband={() => {}}
@@ -32,5 +32,11 @@ describe('SelectionBar, U', () => {
     bar(why);
     expect(screen.getByText(why)).toBeTruthy();
     expect(screen.queryByRole('button', { name: new RegExp(fr.selection.disband) })).toBeNull();
+  });
+
+  it('writes a refusal already said once, even when U was pressed on it', () => {
+    const why = fr.errors.SQUAD_CARRIES_LOOT();
+    bar(why, why);
+    expect(screen.getAllByText(why)).toHaveLength(1);
   });
 });

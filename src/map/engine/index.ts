@@ -2979,8 +2979,21 @@ export class MapEngine {
   }
 
   private raster: RegionRaster | null = null;
+  private rasterLoading = false;
   /** Coast and raster are both here: the squad bar can say U's refusal before the gesture (#295). */
-  onDisbandGround?: ((ground: DisbandGround) => void) | undefined;
+  private onDisbandGround: ((ground: DisbandGround) => void) | undefined;
+
+  /**
+   * Whoever says U's refusal asks for the raster (Mondiale only: Blitz has no squads, and the
+   * 123 Ko would be for nothing). `undefined` withdraws; the callback fires once both files are here.
+   */
+  watchDisbandGround(callback: ((ground: DisbandGround) => void) | undefined): void {
+    this.onDisbandGround = callback;
+    if (callback === undefined || this.coast === null) return;
+    const ground = this.disbandGround();
+    if (ground === null) this.loadRaster();
+    else callback(ground);
+  }
 
   /**
    * Le raster des régions et des pays (`public/region-grid.json`, 123 Ko gzip), demandé après la
@@ -2988,7 +3001,8 @@ export class MapEngine {
    * après un échec), U reste offert et le serveur tranche.
    */
   private loadRaster(): void {
-    if (this.raster !== null) return;
+    if (this.raster !== null || this.rasterLoading || this.onDisbandGround === undefined) return;
+    this.rasterLoading = true;
     fetch('/region-grid.json')
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status));
@@ -3001,7 +3015,8 @@ export class MapEngine {
         const ground = this.disbandGround();
         if (ground !== null) this.onDisbandGround?.(ground);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => (this.rasterLoading = false));
   }
 
   /** **La géographie de la couronne, comme le serveur la lit** (`disbandSpotsAt`) ; `null`

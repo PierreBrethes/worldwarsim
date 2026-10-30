@@ -208,8 +208,8 @@ type Props = {
    * au plateau, pas ici.
    */
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
-  /** La côte et le raster des pays sont là : de quoi dire le refus de U avant le geste (#295). */
-  onDisbandGround?: (ground: DisbandGround) => void;
+  /** Absent en Blitz : le raster n'est alors pas demandé. La côte et le raster des pays sont là : de quoi dire le refus de U avant le geste (#295). */
+  onDisbandGround?: ((ground: DisbandGround) => void) | undefined;
   /** **La carte prête** tend au plateau de quoi nommer la maquette sous un point : une
    *  tuile du plateau personnel se lâche sur une maquette (#205). */
   onMaquetteLookup?: (maquetteAt: (clientX: number, clientY: number) => string | null) => void;
@@ -480,6 +480,7 @@ export function WorldMap({
   useEffect(() => {
     disbandGround.current = onDisbandGround;
   }, [onDisbandGround]);
+  const wantsDisbandGround = onDisbandGround !== undefined;
   const regionsLoaded = useRef(onRegionsLoaded);
   useEffect(() => {
     regionsLoaded.current = onRegionsLoaded;
@@ -506,7 +507,6 @@ export function WorldMap({
     if (!container.current) return;
     const instance = new MapEngine(container.current, atlas, shore);
     engine.current = instance;
-    instance.onDisbandGround = (ground) => disbandGround.current?.(ground);
     setReadyEngine(instance);
     if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
       (window as unknown as { mapEngine?: MapEngine }).mapEngine = instance;
@@ -695,6 +695,14 @@ export function WorldMap({
     (lonLat: LonLat) => engine.current?.walkableAt(lonLat) ?? true,
     [],
   );
+
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.watchDisbandGround(
+      wantsDisbandGround ? (ground) => disbandGround.current?.(ground) : undefined,
+    );
+    return () => readyEngine.watchDisbandGround(undefined);
+  }, [readyEngine, wantsDisbandGround]);
 
   /** **La côte arrive, la rose se relit** (#224) : une visée en attente sur l'eau de la grille
    *  retrouve ses ordres sans qu'on la referme. */

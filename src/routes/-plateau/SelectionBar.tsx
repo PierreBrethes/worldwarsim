@@ -69,7 +69,7 @@ export function SelectionBar({
           {disbandRefusal}
         </p>
       )}
-      {refusal !== null && (
+      {refusal !== null && refusal !== disbandRefusal && (
         <p className="selection-bar-refusal" role="status">
           {refusal}
         </p>

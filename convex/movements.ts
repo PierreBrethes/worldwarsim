@@ -412,8 +412,14 @@ export const disband = mutation({
     const center = pointOf(point);
     const nation = isNation(player.nation) ? player.nation : undefined;
     const pieceTroops = pile.filter((troop) => pieces.some((piece) => piece.id === troop._id));
+    let cached: ReturnType<typeof disbandSpotsAt> | undefined;
     const ring = () =>
-      disbandSpotsAt(center, pieces.length, disbandSpanKm(pieceTroops, nation), serverGround);
+      (cached ??= disbandSpotsAt(
+        center,
+        pieces.length,
+        disbandSpanKm(pieceTroops, nation),
+        serverGround,
+      ));
     const refusal = disbandRefusalOf({
       onPoint: true,
       pieces: pieces.length,
@@ -422,7 +428,8 @@ export const disband = mutation({
       room: () => ring() !== null,
     });
     if (refusal !== null) fail(refusal);
-    const spots = ring()!;
+    const spots = ring();
+    if (spots === null) fail('NO_ROOM_TO_DISBAND');
     for (const [index, piece] of pieces.entries()) {
       if (index === 0) continue;
       const at = asPoint(spots[index]!);
