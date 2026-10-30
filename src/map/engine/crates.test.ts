@@ -56,10 +56,9 @@ describe('one crate, from the loading to the drop', () => {
   it('keeps the standing crate the size it had, within 5 %', () => {
     const pile = new CratePile(4);
     const side = boxOf(pile.object).getSize(new Vector3()).y;
-    expect(side / (0.5 * FIGURINE_SCALE)).toBeCloseTo(1, 1);
     expect(Math.abs(side / (0.5 * FIGURINE_SCALE) - 1)).toBeLessThan(0.05);
     // the fourth rests on the first three, not above nor sunk
-    expect(pile.object.children[3]!.position.y).toBeCloseTo(0.5, 1);
+    expect(pile.object.children[3]!.position.y).toBeCloseTo(side / FIGURINE_SCALE, 5);
   });
 
   it('keeps the packet the size it had, falling and landed, and sets it on the sheet', () => {
@@ -74,5 +73,12 @@ describe('one crate, from the loading to the drop', () => {
       0.05,
     );
     expect(landed.min.y).toBeCloseTo(0, 3);
+    // the collapsed canopy lies at the crate's foot: the crate shows above it
+    layer.group.updateMatrixWorld(true);
+    const canopy = new Box3();
+    layer.group.traverse((node) => {
+      if ((node as Mesh).geometry?.type === 'SphereGeometry') canopy.setFromObject(node);
+    });
+    expect(landed.max.y).toBeGreaterThan(canopy.max.y);
   });
 });

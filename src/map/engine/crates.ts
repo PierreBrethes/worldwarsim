@@ -1,11 +1,11 @@
 import { Group, MeshStandardMaterial, type Vector3 } from 'three';
 import { CRATE_METRES, CRATE_SLATS, CRATE_WOOD, crateOf } from './crate';
-import { ANONYMOUS_SPAN, FIGURINE_SCALE, troopScale } from './figurines/figurine';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, TANK_MODEL_UNITS, troopScale } from './figurines/figurine';
 
 const WOOD = new MeshStandardMaterial({ color: CRATE_WOOD, roughness: 0.8 });
 const SLATS = new MeshStandardMaterial({ color: CRATE_SLATS, roughness: 0.8 });
 /** Where this layer converts the crate's metres: a tank is 6 m and 2.6 model units long. */
-const METRES_PER_UNIT = 6 / 2.6;
+const METRES_PER_UNIT = 6 / TANK_MODEL_UNITS;
 const CRATE_UNITS = CRATE_METRES / METRES_PER_UNIT;
 
 /** Beside the piece, three on the ground and the fourth on top: what the quarters stack up. */
