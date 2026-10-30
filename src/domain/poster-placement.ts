@@ -2,6 +2,9 @@ export type Rect = { left: number; right: number; top: number; bottom: number };
 /** The stem keeps this far from the corners of the card it hangs from. */
 const STEM_CORNER = 10;
 
+/** How far the card stands from the point its stem touches (`poster.css`, 15px). */
+export const TIP = 15;
+
 /** How far past its own limit the side already held is kept. */
 const HYSTERESIS = 12;
 
@@ -68,15 +71,34 @@ export function posterPlacement(
   return {
     side: 'below',
     x: horizontal.at,
-    y: Math.min(piece.bottom, lowest),
+    // …and under the HUD at the top: a card taller than the room keeps its title in view.
+    y: Math.max(insets.top + margin - TIP, Math.min(piece.bottom, lowest)),
     stem: horizontal.stem,
   };
+}
+
+/** The box a spot gives the card: `TIP` from its point, centred on it across the stem's axis. */
+export function posterBox(spot: PosterSpot, size: Size): Rect {
+  const { x, y } = spot;
+  const across = { left: x - size.width / 2, right: x + size.width / 2 };
+  const along = { top: y - size.height / 2, bottom: y + size.height / 2 };
+  switch (spot.side) {
+    case 'above':
+      return { ...across, top: y - TIP - size.height, bottom: y - TIP };
+    case 'below':
+      return { ...across, top: y + TIP, bottom: y + TIP + size.height };
+    case 'left':
+      return { ...along, left: x - TIP - size.width, right: x - TIP };
+    case 'right':
+      return { ...along, left: x + TIP, right: x + TIP + size.width };
+  }
 }
 
 /**
  * **The card beside a selection stands clear of its bar too** (#308): the bar hangs over the piles
  * taken and the card over the piece, so placed on the piece alone the card lands on the bar's first
- * lines. Placing it around both boxes keeps the bar within reach of the piles and both readable.
+ * lines. The side is chosen around both boxes, which keeps the bar within reach of the piles; the
+ * stem still points at the piece, since the card is about it.
  */
 export function posterPlacementClearing(
   piece: Rect,
@@ -89,21 +111,36 @@ export function posterPlacementClearing(
     top: Math.min(piece.top, bar.top),
     bottom: Math.max(piece.bottom, bar.bottom),
   };
-  return posterPlacement(around, ...rest);
+  const spot = posterPlacement(around, ...rest);
+  const poster = rest[0];
+  const across = spot.side === 'above' || spot.side === 'below';
+  const reach = (across ? poster.width : poster.height) / 2 - STEM_CORNER;
+  const want = across
+    ? (piece.left + piece.right) / 2 - spot.x
+    : (piece.top + piece.bottom) / 2 - spot.y;
+  return { ...spot, stem: Math.round(Math.min(reach, Math.max(-reach, want))) };
 }
 
 /**
- * **Where a bar goes when the card has no side left** (#308, a phone): the card then sits at the
- * foot of the screen, over its piece, and the bar's natural place under it. The bar rises to just
- * over the card instead: its new bottom edge, or `null` when it already clears the card or would
- * leave the board by the top.
+ * **Where a bar goes when the card has no side left** (#308, a phone): the card then sits over
+ * its piece, and the bar's natural place under it. The bar goes to just over the card, else just
+ * under it: its new bottom edge, or `null` when it already clears the card or fits on neither
+ * side (it then stays over the card).
  */
-export function barOverCard(bar: Rect, card: Rect, top: number, margin: number): number | null {
+export function barClearOfCard(
+  bar: Rect,
+  card: Rect,
+  room: { top: number; bottom: number; margin: number },
+): number | null {
   const meets =
     bar.left < card.right &&
     card.left < bar.right &&
     bar.top < card.bottom &&
     card.top < bar.bottom;
-  const bottom = card.top - margin;
-  return !meets || bottom - (bar.bottom - bar.top) < top ? null : bottom;
+  if (!meets) return null;
+  const height = bar.bottom - bar.top;
+  const over = card.top - room.margin;
+  if (over - height >= room.top) return over;
+  const under = card.bottom + room.margin + height;
+  return under <= room.bottom ? under : null;
 }

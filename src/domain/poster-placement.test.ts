@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   posterPlacement,
   posterPlacementClearing,
-  barOverCard,
-  type PosterSpot,
+  barClearOfCard,
+  posterBox,
   type Rect,
 } from './poster-placement';
 
@@ -101,64 +101,45 @@ describe('posterPlacementClearing (#308)', () => {
   const sheet = { width: 395, height: 450 };
   const big = { width: 1440, height: 900 };
   const hud = { top: 80, bottom: 90, margin: 8, stem: 18 };
-  /** The box a spot gives the card (`poster.css`: 15px of stem, centred on the point it touches). */
-  const boxOf = (spot: PosterSpot, size: typeof sheet): Rect => {
-    const { x, y } = spot;
-    if (spot.side === 'right')
-      return {
-        left: x + 15,
-        right: x + 15 + size.width,
-        top: y - size.height / 2,
-        bottom: y + size.height / 2,
-      };
-    if (spot.side === 'left')
-      return {
-        left: x - 15 - size.width,
-        right: x - 15,
-        top: y - size.height / 2,
-        bottom: y + size.height / 2,
-      };
-    if (spot.side === 'above')
-      return {
-        left: x - size.width / 2,
-        right: x + size.width / 2,
-        top: y - 15 - size.height,
-        bottom: y - 15,
-      };
-    return {
-      left: x - size.width / 2,
-      right: x + size.width / 2,
-      top: y + 15,
-      bottom: y + 15 + size.height,
-    };
-  };
   const meets = (a: Rect, b: Rect) =>
     a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
   it('covers the bar when placed on the piece alone', () => {
-    expect(meets(boxOf(posterPlacement(pile, sheet, big, hud), sheet), bar)).toBe(true);
+    expect(meets(posterBox(posterPlacement(pile, sheet, big, hud), sheet), bar)).toBe(true);
   });
 
-  it('stands clear of the bar', () => {
+  it('stands clear of the bar and the piece', () => {
+    const box = posterBox(posterPlacementClearing(pile, bar, sheet, big, hud), sheet);
+    expect(meets(box, bar)).toBe(false);
+    expect(meets(box, pile)).toBe(false);
+  });
+
+  it('keeps its stem on the piece, not on the bar', () => {
     const spot = posterPlacementClearing(pile, bar, sheet, big, hud);
-    expect(meets(boxOf(spot, sheet), bar)).toBe(false);
-    expect(meets(boxOf(spot, sheet), pile)).toBe(false);
+    expect(spot.side).toBe('right');
+    // The card is centred on the middle of the union (y 283-520); the pile's middle is lower.
+    expect(spot.stem).toBe(Math.round(480 - spot.y));
   });
 });
 
-describe('barOverCard (#308)', () => {
+describe('barClearOfCard (#308)', () => {
   const card = { left: 20, right: 370, top: 260, bottom: 700 };
   const bar = { left: 10, right: 320, top: 253, bottom: 387 };
+  const room = { top: 70, bottom: 780, margin: 8 };
 
   it('lifts a bar the card covers to just over it', () => {
-    expect(barOverCard(bar, card, 70, 8)).toBe(252);
+    expect(barClearOfCard(bar, card, room)).toBe(252);
   });
 
   it('leaves a bar that already clears the card', () => {
-    expect(barOverCard({ ...bar, top: 100, bottom: 200 }, card, 70, 8)).toBeNull();
+    expect(barClearOfCard({ ...bar, top: 100, bottom: 200 }, card, room)).toBeNull();
   });
 
-  it('leaves it where it is when it would leave the board by the top', () => {
-    expect(barOverCard(bar, { ...card, top: 150 }, 70, 8)).toBeNull();
+  it('drops it under the card when the top has no room', () => {
+    expect(barClearOfCard(bar, { ...card, top: 150, bottom: 500 }, room)).toBe(642);
+  });
+
+  it('stays put when it fits neither over nor under the card', () => {
+    expect(barClearOfCard(bar, { ...card, top: 150, bottom: 700 }, room)).toBeNull();
   });
 });

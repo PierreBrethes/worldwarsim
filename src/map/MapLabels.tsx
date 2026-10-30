@@ -61,7 +61,8 @@ import { silhouettePaths } from './engine/silhouettes';
 import type { DetailLevel, LabelProjection } from './engine/labels';
 import {
   posterPlacement,
-  barOverCard,
+  barClearOfCard,
+  posterBox,
   posterPlacementClearing,
   type PosterSpot,
   type Rect,
@@ -805,32 +806,27 @@ export function MapLabels({
         let stem = 0;
         if (rect !== null) {
           const size = { width: place.width, height: place.height };
+          const withBar = barRect !== null && barLabels.current.includes(place.id);
+          // With a bar the buttons are not counted: card and bar together cannot clear them.
           const insets = {
             top: place.insetTop,
-            bottom: place.insetBottom,
+            bottom: withBar ? place.insetBottom : place.insetFloor,
             margin: POSTER_MARGIN_PX,
             stem: POSTER_STEM_PX,
           };
           const held = posterSide.current?.id === place.id ? posterSide.current.side : undefined;
-          const withBar = barRect !== null && barLabels.current.includes(place.id);
           const spot = withBar
             ? posterPlacementClearing(rect, barRect!, size, layerSize.current, insets, held)
             : posterPlacement(rect, size, layerSize.current, insets, held);
           ({ side, x, y, stem } = spot);
-          // No side left (a phone): the card sits at the foot of the screen and the bar rises over it.
+          // No side left (a phone): the card keeps the foot of the screen and the bar goes over it,
+          // else under it.
           if (withBar && side === 'below') {
-            const top = y + POSTER_STEM_PX;
-            const bottom = barOverCard(
-              barRect!,
-              {
-                left: x - size.width / 2,
-                right: x + size.width / 2,
-                top,
-                bottom: top + size.height,
-              },
-              place.insetTop,
-              POSTER_MARGIN_PX,
-            );
+            const bottom = barClearOfCard(barRect!, posterBox(spot, size), {
+              top: place.insetTop,
+              bottom: layerSize.current.height - place.insetBottom,
+              margin: POSTER_MARGIN_PX,
+            });
             if (bottom !== null) bar!.style.transform = `translate3d(${barLeft}px, ${bottom}px, 0)`;
           }
           posterSide.current = { id: place.id, side };
@@ -843,7 +839,7 @@ export function MapLabels({
           // statistics, is taller than what remains under it.
           const lowest =
             layerSize.current.height -
-            place.insetBottom -
+            place.insetFloor -
             POSTER_MARGIN_PX -
             place.height -
             POSTER_STEM_PX;
@@ -1478,6 +1474,8 @@ type PosterPlace = {
   /** The strip of the HUD over the board, in the layer's pixels: nothing stands under it. */
   readonly insetTop: number;
   readonly insetBottom: number;
+  /** …and the phone's floating buttons too, which a card alone stands above. */
+  readonly insetFloor: number;
 };
 
 const POSTER_SIDES = ['above', 'below', 'left', 'right'] as const;
@@ -1544,6 +1542,16 @@ function PosterLayer({
     const origin = root?.getBoundingClientRect();
     const card = anchor.current?.firstElementChild?.getBoundingClientRect();
     const drawn = face !== undefined && origin !== undefined && face.height > 0;
+    // Both bottom edges are in window pixels: brought back to the layer like the other one.
+    const layerBottom =
+      anchor.current?.parentElement?.getBoundingClientRect().bottom ?? window.innerHeight;
+    const pixelsOf = (name: string) =>
+      Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
+    const band = Math.max(
+      0,
+      Math.max(pixelsOf('--mat-rise'), pixelsOf('--board-bottom')) -
+        (window.innerHeight - layerBottom),
+    );
     place.current = {
       id: shown,
       lift: drawn ? Math.max(POSTER_MIN_LIFT_PX, origin.top - face.top) : POSTER_MIN_LIFT_PX,
@@ -1551,19 +1559,13 @@ function PosterLayer({
       width: card?.width ?? 0,
       height: card?.height ?? 0,
       // The personal board's band covers the map: a tall poster stands above it, not under it.
-      // Both bottom edges are in window pixels: brought back to the layer like the other one.
-      insetBottom: Math.max(
-        0,
-        Math.max(
-          Number.parseFloat(
-            getComputedStyle(document.documentElement).getPropertyValue('--mat-rise'),
-          ) || 0,
-          Number.parseFloat(
-            getComputedStyle(document.documentElement).getPropertyValue('--board-bottom'),
-          ) || 0,
-        ) -
-          (window.innerHeight -
-            (anchor.current?.parentElement?.getBoundingClientRect().bottom ?? window.innerHeight)),
+      insetBottom: band,
+      // The phone's floating buttons stand over the board's foot: a card alone ends above them.
+      insetFloor: Math.max(
+        band,
+        ...Array.from(document.querySelectorAll('[data-poster-floor]'), (node) =>
+          Math.max(0, layerBottom - node.getBoundingClientRect().top),
+        ),
       ),
       insetTop: Math.max(
         0,
