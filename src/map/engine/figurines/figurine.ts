@@ -300,12 +300,21 @@ export function figurineFor(
   };
 }
 
+/** The length a gun crew's piece is drawn at, in metres of a pile piece.
+ *  @a-mesurer chosen so the gunner reads at 0.9 man */
+const GUN_CREW_METRES = 4.11;
+
 /** **A model's measure in its own units**: a man's height in metres, the widest side at the ground of the rest. */
 export function measureOf(scene: Object3D, role: UnitRole): number {
   // A man is measured in metres, not by his box: the mark 2 kneels or raises an arm, and a squad
   // led by him would be drawn at another size.
-  if (role === 'infantry') return MAN_METRES;
   const size = new Box3().setFromObject(scene).getSize(new Vector3());
+  if (role === 'infantry')
+    // The Japanese gun crew (4.57 m long) is measured by its piece, brought to a pile piece's
+    // length: its gunner stands at 0.9 man rather than the gun overflowing a tank (#316).
+    return scene.getObjectByName('gun')
+      ? (Math.max(size.x, size.z) * MAN_METRES) / GUN_CREW_METRES
+      : MAN_METRES;
   return Math.max(size.x, size.z);
 }
 
