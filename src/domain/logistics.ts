@@ -226,6 +226,12 @@ export function grabbedAfter(heldMs: number): number {
   return steps <= 4 ? GRAB_STEP * (1 + steps) : 50 * (steps - 3);
 }
 
+/** **La prise bornée par sa source** : le compte sous la main et le lâcher (`loadReadingOf`) lisent
+ *  la même borne, en jetons entiers. */
+export function grabbedWithin(grabbed: number, store: number): number {
+  return Math.max(0, Math.min(grabbed, Math.floor(store)));
+}
+
 /**
  * **Un dépôt démantelé revient au plateau personnel** dans la limite de l'entrepôt (`room`, la
  * place libre de chaque bac) ; le surplus est perdu. La carte de démantèlement le dit avant le

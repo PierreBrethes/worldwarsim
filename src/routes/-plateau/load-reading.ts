@@ -1,5 +1,6 @@
 import {
   emptyLoad,
+  grabbedWithin,
   loadCapacityOf,
   loadRefusalOf,
   loadTotal,
@@ -18,6 +19,20 @@ export type LoadReading = {
   /** Ce que le lâcher chargerait : la prise, bornée par la réserve et la place à bord. */
   readonly amount: number;
 };
+
+/** Ce que la source tient de cette ressource : un bac du plateau (au présent) ou un dépôt. */
+export function sourceStockOf(
+  view: PlayerView,
+  source: TokenSource,
+  resource: keyof SupplyLoad,
+  now: number,
+): number {
+  if (source !== 'board')
+    return Math.floor(
+      view.me.outposts.find((one) => one.id === source.outpostId)?.depot[resource] ?? 0,
+    );
+  return Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now));
+}
 
 /**
  * **Ce que la main lit au-dessus d'un transport** (ADR 0028 §4) : la règle de `logistics.load`
@@ -52,13 +67,9 @@ export function loadReadingOf(
         : { kind: 'elsewhere' };
   const held = troop.load ?? emptyLoad();
   const capacity = loadCapacityOf(troop.role);
-  const store = Math.floor(
-    outpost !== undefined
-      ? outpost.depot[resource]
-      : currentStock(view.me.resources[resource], view.loadedAt, now),
-  );
+  const store = sourceStockOf(view, source, resource, now);
   const marching = view.arcs.some((arc) => arc.state === 'mine' && arc.troopIds.includes(troop.id));
-  const amount = Math.max(0, Math.min(grabbed, store, capacity - loadTotal(held)));
+  const amount = Math.min(grabbedWithin(grabbed, store), Math.max(0, capacity - loadTotal(held)));
   const refusal = loadRefusalOf({
     role: troop.role,
     place,

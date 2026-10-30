@@ -119,6 +119,9 @@ export const troopSpan = (role: UnitRole, nation?: Nation, tier?: UnitTier): num
     (role === 'infantry' ? MAN_EXAGGERATION : 1) * (DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1),
   );
 
+/** **La taille d'un homme debout, en mètres** : ce que mesure un fantassin dessiné en mètres, quelle que soit sa pose. */
+export const MAN_METRES = TROOP_METRES.infantry;
+
 /** **Le plus grand côté au sol d'un bâtiment, en mètres** : ce que son modèle, dessiné en mètres, mesure. */
 export const buildingMetres = (key: BuildingKey): number => BUILDING_METRES[key];
 

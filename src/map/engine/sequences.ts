@@ -13,7 +13,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
 import { bakedRig } from './baking';
 import { movesOnItsOwn, sceneOf } from './figurines/figurine';
-import { stride } from './figurines/infantry';
+import { stand, stride } from './figurines/infantry';
 import { EXHAUST, Smoke } from './smoke';
 
 /** A motor's breath leaves a door low under its lintel, in metres of the building. `@a-mesurer` */
@@ -313,7 +313,7 @@ export class SequenceLayer {
         if (own?.travel || own?.heading !== undefined) onTheBoard(node, rest, own);
         if (own?.stride !== undefined) stride(node, own.stride);
         // A man arrived before the rest of his squad stands as `squadOf` stood him.
-        else if (MAN.test(node.name)) stride(node, 0);
+        else if (MAN.test(node.name)) stand(node);
       }
       const seen = fade * (own?.fade ?? 1);
       if ((node as Mesh).isMesh) this.fadeMesh(playing, node as Mesh, seen);
