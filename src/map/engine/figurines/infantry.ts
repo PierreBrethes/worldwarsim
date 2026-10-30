@@ -16,9 +16,19 @@ export const JOINTS = [
   'shin_left',
   'shin_right',
   'rifle',
+  // The mark 2's bazooka or rifle, hung from its forearm like the mark 1's rifle.
+  'weapon',
 ] as const;
 type Joint = (typeof JOINTS)[number];
 type Rotations = Partial<Record<Joint, readonly [number, number, number]>>;
+type Vec3 = readonly [number, number, number];
+/** A man's stance: his joints' rotations and where his body hangs (the kneeling mark 2's sits lower). */
+type Stance = { readonly joints: Rotations; readonly body: Vec3 };
+
+/** Where `body` stands in a standing man of the file (the mark 1's, in metres). */
+const STANDING_BODY: Vec3 = [0, 0.95, 0];
+/** The nodes a pose moves: the joints, and the body that a kneeling man lowers. */
+export const POSED = [...JOINTS, 'body'] as const;
 
 /** On the road: arms and legs swinging, the rifle on the shoulder. `phase` keeps three men out of step. */
 function marching(phase: number): Rotations {
@@ -33,12 +43,16 @@ function marching(phase: number): Rotations {
     arm_left: [-0.35, 0, 0.12],
     forearm_left: [-0.7, 0, 0],
     rifle: [-0.45, 0, -0.04],
+    weapon: [-0.45, 0, -0.04],
   };
 }
 
-function pose(soldier: Object3D, rotations: Rotations): void {
-  for (const [name, [x, y, z]] of Object.entries(rotations))
+const walking = (phase: number): Stance => ({ joints: marching(phase), body: STANDING_BODY });
+
+function pose(soldier: Object3D, { joints, body }: Stance): void {
+  for (const [name, [x, y, z]] of Object.entries(joints))
     soldier.getObjectByName(name)?.rotation.set(x, y, z);
+  soldier.getObjectByName('body')?.position.set(...body);
 }
 
 const SLOTS = [
@@ -47,14 +61,15 @@ const SLOTS = [
   [0.55, -0.6],
 ] as const;
 
-/** The pose the file gives a man, joint by joint: the kneeling rank 2 is in these rotations. */
-function sculptedOf(man: Object3D): Rotations {
+/** The stance the file gives a man: the kneeling rank 2 is in these rotations and this body height. */
+function sculptedOf(man: Object3D): Stance {
   const found: Rotations = {};
   for (const name of JOINTS) {
     const joint = man.getObjectByName(name);
     if (joint) found[name] = [joint.rotation.x, joint.rotation.y, joint.rotation.z];
   }
-  return found;
+  const body = man.getObjectByName('body')?.position ?? { x: 0, y: 0, z: 0 };
+  return { joints: found, body: [body.x, body.y, body.z] };
 }
 
 /**
@@ -74,7 +89,7 @@ export function squadOf(
     man.name = `man_${k}`;
     man.userData.stride = k * 1.8 + 0.6;
     if (soldier.sculpted) man.userData.sculpted = sculptedOf(man);
-    else pose(man, marching(man.userData.stride as number));
+    else pose(man, walking(man.userData.stride as number));
     man.position.set(x, 0, z);
     squad.add(man);
   });
@@ -85,13 +100,14 @@ export function squadOf(
 export function stand(man: Object3D): void {
   const phase = man.userData.stride as number | undefined;
   if (phase !== undefined)
-    pose(man, (man.userData.sculpted as Rotations | undefined) ?? marching(phase));
+    pose(man, (man.userData.sculpted as Stance | undefined) ?? walking(phase));
 }
 
 /**
  * **Les hommes qui marchent, au pas** (page publique) : chaque marcheur reprend sa foulée à
- * `seconds`, décalé des autres ; `null` les arrête jambes droites. Le plateau ne s'en sert pas —
- * ses pièces gardent la pose où `squadOf` les a mises.
+ * `seconds`, décalé des autres ; `null` les arrête, jambes droites, sauf l'homme `sculpted` qui
+ * reprend la pose de son fichier (à genoux, le corps abaissé). Le plateau s'en sert pour la sortie
+ * de caserne (`sequences.ts`).
  */
 export function stride(root: Object3D, seconds: number | null): void {
   root.traverse((man) => {
@@ -100,8 +116,8 @@ export function stride(root: Object3D, seconds: number | null): void {
     pose(
       man,
       seconds === null
-        ? ((man.userData.sculpted as Rotations | undefined) ?? marching(0))
-        : marching(phase + seconds * 9),
+        ? ((man.userData.sculpted as Stance | undefined) ?? walking(0))
+        : walking(phase + seconds * 9),
     );
   });
 }

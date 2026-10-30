@@ -17,7 +17,7 @@ import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { bakedRig } from '../baking';
 import { pieceScale } from '../piece-scale';
-import { JOINTS, squadOf } from './infantry';
+import { POSED, squadOf } from './infantry';
 
 /**
  * **The piece length the sizes drawn around a piece were tuned for** — a formation's spacing, an
@@ -158,7 +158,7 @@ export function sceneOf(url: string): Promise<Object3D> {
   return scene;
 }
 
-const MOVING = new Set<string>(JOINTS);
+const MOVING = new Set<string>(POSED);
 
 /** What the code turns, poses or hangs on by name: a joint, a hub, a marker (`fx_smoke`…). */
 export function movesOnItsOwn(node: Object3D): boolean {
