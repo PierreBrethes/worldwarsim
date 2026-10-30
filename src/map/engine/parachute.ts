@@ -146,7 +146,7 @@ export class ParachuteLayer {
     object.rotation.z = landed ? 0 : Math.sin((now - start) / 420) * 0.12 * state.height;
     // Down, the canopy collapses onto the ground and the lines go slack.
     canopy.scale.y = landed ? 0.15 : 1;
-    canopy.position.y = landed ? -0.5 : 0.2;
+    canopy.position.y = landed ? -HANG : 0.2;
     shadow.position.set(ground.x, ground.y + 0.001, ground.z);
     shadow.scale.setScalar(size * (1 + state.height * 0.4));
     for (const material of materials)
