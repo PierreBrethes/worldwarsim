@@ -1,17 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { Group } from 'three';
+import { BoxGeometry, Group, Mesh } from 'three';
 import {
   altitudeShadow,
   figurineFor,
   hideAltitudeShadows,
+  measureOf,
   nearWeight,
   pieceWeight,
   setNearFloor,
   troopWeight,
 } from './figurine';
-import { squadOf } from './infantry';
+import { squadOf, stand, stride } from './infantry';
 import { pieceScale } from '../piece-scale';
-import { buildingSpan, troopSpan } from '@/domain/piece-size';
+import { buildingSpan, MAN_METRES, troopSpan } from '@/domain/piece-size';
 
 describe('nearWeight', () => {
   afterEach(() => setNearFloor(0));
@@ -87,11 +88,32 @@ describe('figurineFor', () => {
     const squad = squadOf(
       [1, 2].map(() => ({
         make: () => new Group(),
-        marches: true,
+        sculpted: false,
       })),
     );
     expect(squad.children.map((man) => man.name)).toEqual(['man_0', 'man_1']);
     expect(squad.children[0]!.position.z).toBeGreaterThan(squad.children[1]!.position.z);
+  });
+
+  it('stands a kneeling mark 2 up to march and sets him back on his knee when he stops', () => {
+    const kneeler = () => {
+      const man = new Group();
+      const leg = new Group();
+      leg.name = 'leg_left';
+      leg.rotation.x = -Math.PI / 2;
+      man.add(leg);
+      return man;
+    };
+    const squad = squadOf([{ make: kneeler, sculpted: true }]);
+    const leg = squad.getObjectByName('leg_left')!;
+    expect(leg.rotation.x).toBeCloseTo(-Math.PI / 2);
+    stride(squad, 1);
+    expect(leg.rotation.x).not.toBeCloseTo(-Math.PI / 2);
+    stride(squad, null);
+    expect(leg.rotation.x).toBeCloseTo(-Math.PI / 2);
+    stride(squad, 1);
+    stand(squad.children[0]!);
+    expect(leg.rotation.x).toBeCloseTo(-Math.PI / 2);
   });
 
   it('answers a figurine wherever every mark has a sculpted file', () => {
@@ -100,6 +122,19 @@ describe('figurineFor', () => {
     expect(figurineFor('france', 'armor', [1])).not.toBeNull();
     expect(figurineFor('germany', 'airTransport', [1])).not.toBeNull();
     expect(figurineFor('japan', 'artillery', [1])).not.toBeNull();
+  });
+});
+
+describe('measureOf', () => {
+  const box = (x: number, y: number, z: number): Mesh => new Mesh(new BoxGeometry(x, y, z));
+
+  it('measures a man in metres, standing, kneeling or arm raised: a squad keeps its size whoever leads it', () => {
+    for (const height of [1.75, 1.43, 2.16])
+      expect(measureOf(box(0.6, height, 0.4), 'infantry')).toBe(MAN_METRES);
+  });
+
+  it('measures the rest by their widest side at the ground', () => {
+    expect(measureOf(box(2.6, 1.2, 4.8), 'armor')).toBeCloseTo(4.8);
   });
 });
 

@@ -18,9 +18,10 @@ export const JOINTS = [
   'rifle',
 ] as const;
 type Joint = (typeof JOINTS)[number];
+type Rotations = Partial<Record<Joint, readonly [number, number, number]>>;
 
 /** On the road: arms and legs swinging, the rifle on the shoulder. `phase` keeps three men out of step. */
-function marching(phase: number): Partial<Record<Joint, readonly [number, number, number]>> {
+function marching(phase: number): Rotations {
   const swing = Math.sin(phase) * 0.32;
   return {
     leg_left: [-swing, 0, 0],
@@ -35,10 +36,7 @@ function marching(phase: number): Partial<Record<Joint, readonly [number, number
   };
 }
 
-function pose(
-  soldier: Object3D,
-  rotations: Partial<Record<Joint, readonly [number, number, number]>>,
-): void {
+function pose(soldier: Object3D, rotations: Rotations): void {
   for (const [name, [x, y, z]] of Object.entries(rotations))
     soldier.getObjectByName(name)?.rotation.set(x, y, z);
 }
@@ -49,14 +47,24 @@ const SLOTS = [
   [0.55, -0.6],
 ] as const;
 
+/** The pose the file gives a man, joint by joint: the kneeling rank 2 is in these rotations. */
+function sculptedOf(man: Object3D): Rotations {
+  const found: Rotations = {};
+  for (const name of JOINTS) {
+    const joint = man.getObjectByName(name);
+    if (joint) found[name] = [joint.rotation.x, joint.rotation.y, joint.rotation.z];
+  }
+  return found;
+}
+
 /**
  * Up to three men to a troop (ADR 0026 §5), one per figure, the first in front: a whole squad
- * has the footprint of a tank, a worn one stands fewer in the same slots. A man who does not
- * march keeps the stance he was sculpted in — the French mark 2 kneels behind his bazooka, and
- * swinging his legs would stand him up.
+ * has the footprint of a tank, a worn one stands fewer in the same slots. Every man can march,
+ * and a man `sculpted` rests in the stance of his file — the mark 2 kneels behind his bazooka —
+ * which he leaves to march and takes back when he stops (`stand`, `stride`).
  */
 export function squadOf(
-  soldiers: ReadonlyArray<{ readonly make: () => Object3D; readonly marches: boolean }>,
+  soldiers: ReadonlyArray<{ readonly make: () => Object3D; readonly sculpted: boolean }>,
 ): Group {
   const squad = new Group();
   soldiers.slice(0, SLOTS.length).forEach((soldier, k) => {
@@ -64,14 +72,20 @@ export function squadOf(
     const man = soldier.make();
     // By his place, front first: a sortie walks the men in file (`walkOut`, `part`).
     man.name = `man_${k}`;
-    if (soldier.marches) {
-      man.userData.stride = k * 1.8 + 0.6;
-      pose(man, marching(man.userData.stride as number));
-    }
+    man.userData.stride = k * 1.8 + 0.6;
+    if (soldier.sculpted) man.userData.sculpted = sculptedOf(man);
+    else pose(man, marching(man.userData.stride as number));
     man.position.set(x, 0, z);
     squad.add(man);
   });
   return squad;
+}
+
+/** A man back in the stance `squadOf` stood him in: a recruit who arrived before his squad. */
+export function stand(man: Object3D): void {
+  const phase = man.userData.stride as number | undefined;
+  if (phase !== undefined)
+    pose(man, (man.userData.sculpted as Rotations | undefined) ?? marching(phase));
 }
 
 /**
@@ -82,6 +96,12 @@ export function squadOf(
 export function stride(root: Object3D, seconds: number | null): void {
   root.traverse((man) => {
     const phase = man.userData.stride as number | undefined;
-    if (phase !== undefined) pose(man, marching(seconds === null ? 0 : phase + seconds * 9));
+    if (phase === undefined) return;
+    pose(
+      man,
+      seconds === null
+        ? ((man.userData.sculpted as Rotations | undefined) ?? marching(0))
+        : marching(phase + seconds * 9),
+    );
   });
 }

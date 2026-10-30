@@ -47,13 +47,14 @@ describe.runIf(files.length > 0)('baked figurines', () => {
       );
     expect(triangles(baked)).toBe(triangles(scene));
     expect(sweptVolume(baked)).toBeCloseTo(sweptVolume(scene), 3);
-    expect(meshesOf(baked).length).toBeLessThan(meshesOf(scene).length);
+    // The infantry of #316 is already one mesh per material and joint: baking has nothing left to merge.
+    expect(meshesOf(baked).length).toBeLessThanOrEqual(meshesOf(scene).length);
 
     if (role === 'infantry') {
       // A joint's pose replaces its own rotation: whatever turns above it (a leaning torso)
       // must still turn it once baked.
       const marchers = [scene, baked].map((made) =>
-        squadOf([{ make: () => made.clone(true), marches: true }]),
+        squadOf([{ make: () => made.clone(true), sculpted: false }]),
       );
       for (const seconds of [0, 0.13]) {
         for (const squad of marchers) {
@@ -70,7 +71,7 @@ describe.runIf(files.length > 0)('baked figurines', () => {
         }
       }
 
-      const squad = squadOf([{ make: () => baked.clone(true), marches: true }]);
+      const squad = squadOf([{ make: () => baked.clone(true), sculpted: false }]);
       const man = squad.children[0]!;
       for (const joint of JOINTS.filter((joint) => scene.getObjectByName(joint)))
         expect(man.getObjectByName(joint), joint).toBeDefined();

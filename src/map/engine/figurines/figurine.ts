@@ -11,7 +11,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
-import { troopSpan } from '@/domain/piece-size';
+import { MAN_METRES, troopSpan } from '@/domain/piece-size';
 import { type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
@@ -250,7 +250,7 @@ export function figurineFor(
     (scenes) => {
       const makers = scenes.map((scene, k) => ({
         make: () => scene.clone(true),
-        marches: marks[k] === 1,
+        sculpted: marks[k] !== 1,
       }));
       // Each model brought to its role's real size, whatever it was sculpted at.
       model.scale.setScalar(span / measureOf(scenes[0]!, role));
@@ -300,10 +300,13 @@ export function figurineFor(
   };
 }
 
-/** **A model's measure in its own units**: a man's height, the widest side at the ground of the rest. */
-function measureOf(scene: Object3D, role: UnitRole): number {
+/** **A model's measure in its own units**: a man's height in metres, the widest side at the ground of the rest. */
+export function measureOf(scene: Object3D, role: UnitRole): number {
+  // A man is measured in metres, not by his box: the mark 2 kneels or raises an arm, and a squad
+  // led by him would be drawn at another size.
+  if (role === 'infantry') return MAN_METRES;
   const size = new Box3().setFromObject(scene).getSize(new Vector3());
-  return role === 'infantry' ? size.y : Math.max(size.x, size.z);
+  return Math.max(size.x, size.z);
 }
 
 /**
