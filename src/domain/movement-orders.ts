@@ -869,10 +869,7 @@ export function disembarkRefusalOf({
 }
 
 export type DisbandRefusal =
-  | 'NOT_A_SQUAD'
-  | 'NO_SQUADS_IN_BLITZ'
-  | 'SQUAD_CARRIES_LOOT'
-  | 'NO_ROOM_TO_DISBAND';
+  'NOT_A_SQUAD' | 'NO_SQUADS_IN_BLITZ' | 'SQUAD_CARRIES_LOOT' | 'NO_ROOM_TO_DISBAND';
 
 /**
  * **Dissoudre une escouade** (#130) : une escouade, ce sont plusieurs pièces au même point
@@ -1055,4 +1052,5 @@ export function disbandSpotsAt(
 export const disbandSpanKm = (
   pieces: ReadonlyArray<{ readonly role: UnitRole; readonly tier?: UnitTier }>,
   nation?: Nation,
-): number => Math.max(...pieces.map((piece) => troopSpan(piece.role, nation, piece.tier) * BOARD_KM));
+): number =>
+  Math.max(...pieces.map((piece) => troopSpan(piece.role, nation, piece.tier) * BOARD_KM));
