@@ -42,6 +42,8 @@ import {
   decodeCoast,
   groundOf,
   isLandingShore,
+  reachedAshore,
+  regionOf,
   nearestCoast,
   onRegionCoast,
   COAST_REACH_KM,
@@ -55,6 +57,8 @@ import {
   type Medium,
   type RouteGrid,
 } from '@/domain/routing';
+import { decodeRegionRaster, type RegionRaster } from '@/domain/region-raster';
+import type { DisbandGround } from '@/domain/movement-orders';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
@@ -2962,6 +2966,7 @@ export class MapEngine {
         this.coast = decodeCoast(asset, PROJECTION);
         performance.measure('coast.json décodé', { start: started });
         this.onCoast?.();
+        this.loadRaster();
         const held = this.ghost.spot;
         if (this.placing !== null && held !== null) this.onPlacingAim(this.placingSpotAt(held));
         this.hoverDirty = true;
@@ -2971,6 +2976,59 @@ export class MapEngine {
         this.coastRetryAt = performance.now() + COAST_RETRY_MS;
       })
       .finally(() => (this.coastLoading = false));
+  }
+
+  private raster: RegionRaster | null = null;
+  private rasterLoading = false;
+  /** Coast and raster are both here: the squad bar can say U's refusal before the gesture (#295). */
+  private onDisbandGround: ((ground: DisbandGround) => void) | undefined;
+
+  /**
+   * Whoever says U's refusal asks for the raster (Mondiale only: Blitz has no squads, and the
+   * 123 Ko would be for nothing). `undefined` withdraws; the callback fires once both files are here.
+   */
+  watchDisbandGround(callback: ((ground: DisbandGround) => void) | undefined): void {
+    this.onDisbandGround = callback;
+    if (callback === undefined || this.coast === null) return;
+    const ground = this.disbandGround();
+    if (ground === null) this.loadRaster();
+    else callback(ground);
+  }
+
+  /**
+   * Le raster des régions et des pays (`public/region-grid.json`, 123 Ko gzip), demandé après la
+   * côte : le pays sous un point est ce que `disband` recoupe (#295). Tant qu'il manque (ou
+   * après un échec), U reste offert et le serveur tranche.
+   */
+  private loadRaster(): void {
+    if (this.raster !== null || this.rasterLoading || this.onDisbandGround === undefined) return;
+    this.rasterLoading = true;
+    fetch('/region-grid.json')
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+      })
+      .then((asset) => {
+        const started = performance.now();
+        this.raster = decodeRegionRaster(asset, PROJECTION);
+        performance.measure('region-grid.json décodé', { start: started });
+        const ground = this.disbandGround();
+        if (ground !== null) this.onDisbandGround?.(ground);
+      })
+      .catch(() => {})
+      .finally(() => (this.rasterLoading = false));
+  }
+
+  /** **La géographie de la couronne, comme le serveur la lit** (`disbandSpotsAt`) ; `null`
+   *  tant que la côte ou le raster manquent. */
+  disbandGround(): DisbandGround | null {
+    const { coast, raster, routeGrid } = this;
+    if (coast === null || raster === null) return null;
+    return {
+      landAt: (point) => groundOf(routeGrid, coast, point) === 'land',
+      hostAt: (point) => regionOf(raster, coast, point)?.country ?? '',
+      reached: (from, to, ashore) => reachedAshore(routeGrid, coast, from, to, ashore),
+    };
   }
 
   /**

@@ -6,8 +6,10 @@ import type { QueryCtx } from './_generated/server';
 import {
   boardingRefusalDetails,
   boardingRefusalOf,
-  disbandPointsOf,
   disbandRefusalOf,
+  disbandSpanKm,
+  disbandSpotsAt,
+  type DisbandGround,
   disembarkRefusalOf,
   foundingRefusal,
   isQuay,
@@ -19,9 +21,7 @@ import {
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
-import type { LonLat } from '../src/domain/geo';
 import { isNation } from '../src/domain/nations';
-import { BOARD_KM, troopSpan } from '../src/domain/piece-size';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { cargoOf, carrierIn } from '../src/domain/troops';
 import type { ComputedRoute } from '../src/domain/routing';
@@ -385,6 +385,13 @@ export const disembark = mutation({
   },
 });
 
+/** La géographie de la couronne : celle que la barre lit aussi (`disbandSpotsAt`, #295). */
+const serverGround: DisbandGround = {
+  landAt: landAtPoint,
+  hostAt: hostAtPoint,
+  reached: reachedOverGround,
+};
+
 /**
  * **Dissoudre une escouade** (#130) : ses pièces se posent à part, en couronne autour du point,
  * sur-le-champ — aucun mouvement, aucun slot, comme débarquer. La première reste au point ; un
@@ -402,32 +409,26 @@ export const disband = mutation({
     const loaded = (await lootPointsOf(ctx, player._id)).some(
       (spot) => spot.lon === point.lon && spot.lat === point.lat,
     );
+    const center = pointOf(point);
+    const nation = isNation(player.nation) ? player.nation : undefined;
+    const pieceTroops = pile.filter((troop) => pieces.some((piece) => piece.id === troop._id));
+    let cached: ReturnType<typeof disbandSpotsAt> | undefined;
+    const ring = () =>
+      (cached ??= disbandSpotsAt(
+        center,
+        pieces.length,
+        disbandSpanKm(pieceTroops, nation),
+        serverGround,
+      ));
     const refusal = disbandRefusalOf({
       onPoint: true,
       pieces: pieces.length,
       blitz: modeOf(season.mode) === 'blitz',
       loaded,
+      room: () => ring() !== null,
     });
     if (refusal !== null) fail(refusal);
-    const center = pointOf(point);
-    const ashore = landAtPoint(center);
-    const host = hostAtPoint(center);
-    /** On rejoint sa place sans passer l'eau, ni la terre pour une coque : à 22 km, un détroit
-     *  ou une île du même pays serait un passage sans bateau (#244). */
-    const reached = (spot: LonLat) =>
-      landAtPoint(spot) === ashore && reachedOverGround(center, spot, ashore);
-    const nation = isNation(player.nation) ? player.nation : undefined;
-    const largest = Math.max(
-      ...pile
-        .filter((troop) => pieces.some((piece) => piece.id === troop._id))
-        .map((troop) => troopSpan(troop.role, nation, troop.tier)),
-    );
-    const spots = disbandPointsOf(
-      center,
-      pieces.length,
-      largest * BOARD_KM,
-      (spot) => hostAtPoint(spot) === host && reached(spot),
-    );
+    const spots = ring();
     if (spots === null) fail('NO_ROOM_TO_DISBAND');
     for (const [index, piece] of pieces.entries()) {
       if (index === 0) continue;

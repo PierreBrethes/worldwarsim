@@ -44,7 +44,7 @@ import {
 } from '@/domain/labels';
 import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
-import { nationInk } from '@/domain/nations';
+import { isNation, nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
@@ -94,6 +94,9 @@ import {
   boardingRefusalDetails,
   boardingRefusalOf,
   disbandRefusalOf,
+  disbandSpanKm,
+  disbandSpotsAt,
+  type DisbandGround,
 } from '@/domain/movement-orders';
 import {
   type CombatReport,
@@ -1657,25 +1660,51 @@ function BoardContent({
   }, [chosen, view.me, marching, readGroup, sendGroup]);
 
   const disbandMutation = useMutation(api.movements.disband);
-  /** **U : dissoudre l'escouade choisie** — ses pièces se posent à part, autour de son point. */
-  const disbandSquad = useCallback(() => {
+  /** La côte et le raster des pays, une fois arrivés : avant eux U reste offert, le serveur tranche. */
+  const [disbandGround, setDisbandGround] = useState<DisbandGround | null>(null);
+  /** La pile choisie, lue pour U : son point, ses pièces, sa plus grande taille (#295). */
+  const squad = useMemo(() => {
     const [only] = chosen;
     const pile =
       only === undefined || chosen.length !== 1
         ? []
         : troopsAt(view.me, stationKeyOf(only), marching);
-    const refusal = disbandRefusalOf({
-      onPoint: only?.kind === 'point' && chosen.length === 1,
-      pieces: pile.filter((troop) => carrierIn(troop, pile) === null).length,
-      blitz,
-      loaded:
-        only?.kind === 'point' &&
-        view.me.lootPoints.some(
-          (spot) => spot.lon === only.lonLat[0] && spot.lat === only.lonLat[1],
-        ),
-    });
-    if (refusal !== null || only?.kind !== 'point') {
-      setBarRefusal(fr.errors[refusal ?? 'NOT_A_SQUAD']());
+    const pieces = pile.filter((troop) => carrierIn(troop, pile) === null);
+    return {
+      point: only?.kind === 'point' && chosen.length === 1 ? only.lonLat : null,
+      count: pieces.length,
+      spanKm: disbandSpanKm(pieces, isNation(view.me.nation) ? view.me.nation : undefined),
+    };
+  }, [chosen, view.me, marching]);
+  const [pointLon, pointLat] = squad.point ?? [NaN, NaN];
+  /** La couronne ne se recalcule que pour un autre point, un autre nombre ou une autre taille :
+   *  pas à chaque mise à jour de la vue. */
+  const hasRoom = useMemo(
+    () =>
+      disbandGround === null ||
+      Number.isNaN(pointLon) ||
+      disbandSpotsAt([pointLon, pointLat], squad.count, squad.spanKm, disbandGround) !== null,
+    [disbandGround, pointLon, pointLat, squad.count, squad.spanKm],
+  );
+  /** **Le refus de U, dit avant le geste** (#295) : la fonction même que la porte serveur lit. */
+  const disbandRefusal = useMemo(
+    () =>
+      disbandRefusalOf({
+        onPoint: squad.point !== null,
+        pieces: squad.count,
+        blitz,
+        loaded:
+          squad.point !== null &&
+          view.me.lootPoints.some((spot) => spot.lon === pointLon && spot.lat === pointLat),
+        room: () => hasRoom,
+      }),
+    [squad, blitz, view.me.lootPoints, pointLon, pointLat, hasRoom],
+  );
+  /** **U : dissoudre l'escouade choisie** — ses pièces se posent à part, autour de son point. */
+  const disbandSquad = useCallback(() => {
+    const [only] = chosen;
+    if (disbandRefusal !== null || only?.kind !== 'point') {
+      setBarRefusal(fr.errors[disbandRefusal ?? 'NOT_A_SQUAD']());
       return;
     }
     setBarRefusal(null);
@@ -1683,7 +1712,7 @@ function BoardContent({
       clearSelection,
       (problem: unknown) => handleError(problem, setBarRefusal),
     );
-  }, [chosen, view.me, marching, blitz, disbandMutation, seat, clearSelection]);
+  }, [chosen, disbandRefusal, disbandMutation, seat, clearSelection]);
 
   /** Échap lâche la sélection une fois la main vide ; G et U parlent à la sélection. */
   useEffect(() => {
@@ -1759,6 +1788,11 @@ function BoardContent({
         )}
         picking={picking}
         refusal={barRefusal}
+        disbandRefusal={
+          disbandRefusal === 'NO_ROOM_TO_DISBAND' || disbandRefusal === 'SQUAD_CARRIES_LOOT'
+            ? fr.errors[disbandRefusal]()
+            : null
+        }
         onForm={formSquad}
         onDisband={disbandSquad}
         onClear={clearSelection}
@@ -2359,6 +2393,7 @@ function BoardContent({
                 onCountryHover={setHoveredCountry}
                 onRegionHover={setHoveredRegion}
                 onRegionsLoaded={keepRegionAt}
+                onDisbandGround={blitz ? undefined : setDisbandGround}
                 onMaquetteLookup={keepMaquetteAt}
                 onArcHover={setHoveredArc}
                 onLabelHover={setHoveredLabel}
