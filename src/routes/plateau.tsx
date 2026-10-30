@@ -44,7 +44,7 @@ import {
 } from '@/domain/labels';
 import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
-import { nationInk } from '@/domain/nations';
+import { isNation, nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
 import { producingSites } from '@/domain/producing';
@@ -94,6 +94,9 @@ import {
   boardingRefusalDetails,
   boardingRefusalOf,
   disbandRefusalOf,
+  disbandSpanKm,
+  disbandSpotsAt,
+  type DisbandGround,
 } from '@/domain/movement-orders';
 import {
   type CombatReport,
@@ -1657,25 +1660,41 @@ function BoardContent({
   }, [chosen, view.me, marching, readGroup, sendGroup]);
 
   const disbandMutation = useMutation(api.movements.disband);
-  /** **U : dissoudre l'escouade choisie** — ses pièces se posent à part, autour de son point. */
-  const disbandSquad = useCallback(() => {
+  /** La côte et le raster des pays, une fois arrivés : avant eux U reste offert, le serveur tranche. */
+  const [disbandGround, setDisbandGround] = useState<DisbandGround | null>(null);
+  /** **Le refus de U, dit avant le geste** (#295) : la fonction même que la porte serveur lit. */
+  const disbandRefusal = useMemo(() => {
     const [only] = chosen;
     const pile =
       only === undefined || chosen.length !== 1
         ? []
         : troopsAt(view.me, stationKeyOf(only), marching);
-    const refusal = disbandRefusalOf({
+    const pieces = pile.filter((troop) => carrierIn(troop, pile) === null);
+    return disbandRefusalOf({
       onPoint: only?.kind === 'point' && chosen.length === 1,
-      pieces: pile.filter((troop) => carrierIn(troop, pile) === null).length,
+      pieces: pieces.length,
       blitz,
       loaded:
         only?.kind === 'point' &&
         view.me.lootPoints.some(
           (spot) => spot.lon === only.lonLat[0] && spot.lat === only.lonLat[1],
         ),
+      room: () =>
+        only?.kind !== 'point' ||
+        disbandGround === null ||
+        disbandSpotsAt(
+          only.lonLat,
+          pieces.length,
+          disbandSpanKm(pieces, isNation(view.me.nation) ? view.me.nation : undefined),
+          disbandGround,
+        ) !== null,
     });
-    if (refusal !== null || only?.kind !== 'point') {
-      setBarRefusal(fr.errors[refusal ?? 'NOT_A_SQUAD']());
+  }, [chosen, view.me, marching, blitz, disbandGround]);
+  /** **U : dissoudre l'escouade choisie** — ses pièces se posent à part, autour de son point. */
+  const disbandSquad = useCallback(() => {
+    const [only] = chosen;
+    if (disbandRefusal !== null || only?.kind !== 'point') {
+      setBarRefusal(fr.errors[disbandRefusal ?? 'NOT_A_SQUAD']());
       return;
     }
     setBarRefusal(null);
@@ -1683,7 +1702,7 @@ function BoardContent({
       clearSelection,
       (problem: unknown) => handleError(problem, setBarRefusal),
     );
-  }, [chosen, view.me, marching, blitz, disbandMutation, seat, clearSelection]);
+  }, [chosen, disbandRefusal, disbandMutation, seat, clearSelection]);
 
   /** Échap lâche la sélection une fois la main vide ; G et U parlent à la sélection. */
   useEffect(() => {
@@ -1759,6 +1778,9 @@ function BoardContent({
         )}
         picking={picking}
         refusal={barRefusal}
+        disbandRefusal={
+          disbandRefusal === 'NO_ROOM_TO_DISBAND' ? fr.errors.NO_ROOM_TO_DISBAND() : null
+        }
         onForm={formSquad}
         onDisband={disbandSquad}
         onClear={clearSelection}
@@ -2359,6 +2381,7 @@ function BoardContent({
                 onCountryHover={setHoveredCountry}
                 onRegionHover={setHoveredRegion}
                 onRegionsLoaded={keepRegionAt}
+                onDisbandGround={setDisbandGround}
                 onMaquetteLookup={keepMaquetteAt}
                 onArcHover={setHoveredArc}
                 onLabelHover={setHoveredLabel}

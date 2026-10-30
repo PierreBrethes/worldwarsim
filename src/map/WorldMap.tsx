@@ -25,6 +25,7 @@ import {
   type RegionIdentity,
 } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
+import type { DisbandGround } from '@/domain/movement-orders';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
 import type { Shore } from './engine/sea';
@@ -207,6 +208,8 @@ type Props = {
    * au plateau, pas ici.
    */
   onRegionsLoaded?: (regionAt: (lonLat: LonLat) => RegionIdentity | null) => void;
+  /** La côte et le raster des pays sont là : de quoi dire le refus de U avant le geste (#295). */
+  onDisbandGround?: (ground: DisbandGround) => void;
   /** **La carte prête** tend au plateau de quoi nommer la maquette sous un point : une
    *  tuile du plateau personnel se lâche sur une maquette (#205). */
   onMaquetteLookup?: (maquetteAt: (clientX: number, clientY: number) => string | null) => void;
@@ -420,6 +423,7 @@ export function WorldMap({
   onCountryHover,
   onRegionHover,
   onRegionsLoaded,
+  onDisbandGround,
   onMaquetteLookup,
   onArcHover,
   onLabelHover,
@@ -472,6 +476,10 @@ export function WorldMap({
   const insets = useBoardInsets();
   /** Read when the regions land, a beat after mount: a ref, so the engine is not rebuilt for a
    *  callback that changed identity. */
+  const disbandGround = useRef(onDisbandGround);
+  useEffect(() => {
+    disbandGround.current = onDisbandGround;
+  }, [onDisbandGround]);
   const regionsLoaded = useRef(onRegionsLoaded);
   useEffect(() => {
     regionsLoaded.current = onRegionsLoaded;
@@ -498,6 +506,7 @@ export function WorldMap({
     if (!container.current) return;
     const instance = new MapEngine(container.current, atlas, shore);
     engine.current = instance;
+    instance.onDisbandGround = (ground) => disbandGround.current?.(ground);
     setReadyEngine(instance);
     if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
       (window as unknown as { mapEngine?: MapEngine }).mapEngine = instance;

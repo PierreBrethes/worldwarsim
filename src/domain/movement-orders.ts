@@ -3,12 +3,13 @@ import type { Theatre } from './theatres';
 import { captureRefusalOf, type CaptureRefusal } from './capture';
 import { produces } from './economy';
 import { bombardsWith } from './indirect-fire';
-import type { BuildingKey, MovementType, ResearchCard, UnitRole } from './ids';
+import type { LonLat } from './geo';
+import type { BuildingKey, MovementType, Nation, ResearchCard, UnitRole } from './ids';
 import { slotCardsOf } from './research';
 import type { Ground, RouteMode } from './routing';
 import { BOARD_KM, troopSpan } from './piece-size';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from './routing';
-import type { UnitDomain } from './troops';
+import type { UnitDomain, UnitTier } from './troops';
 import {
   boardedAll,
   DOMAIN_BY_ROLE,
@@ -867,28 +868,38 @@ export function disembarkRefusalOf({
   return carrier === 'airTransport' && !atAirfield ? 'AIRFIELD_TARGET_REQUIRED' : null;
 }
 
-export type DisbandRefusal = 'NOT_A_SQUAD' | 'NO_SQUADS_IN_BLITZ' | 'SQUAD_CARRIES_LOOT';
+export type DisbandRefusal =
+  | 'NOT_A_SQUAD'
+  | 'NO_SQUADS_IN_BLITZ'
+  | 'SQUAD_CARRIES_LOOT'
+  | 'NO_ROOM_TO_DISBAND';
 
 /**
  * **Dissoudre une escouade** (#130) : une escouade, ce sont plusieurs pièces au même point
  * (ADR 0028 §6) — une garnison n'en est pas une, la Blitz n'en a pas. Un butin posé est porté
- * par le groupe qui l'a pris : il le garde, l'escouade aussi.
+ * par le groupe qui l'a pris : il le garde, l'escouade aussi. Sans place pour la couronne
+ * (#295), le refus est le même avant le geste et à la porte : `room` n'est demandée qu'en dernier,
+ * car la lire coûte la géographie.
  */
 export function disbandRefusalOf({
   onPoint,
   pieces,
   blitz,
   loaded,
+  room,
 }: {
   readonly onPoint: boolean;
   /** Ses pièces : un passager part avec son transport. */
   readonly pieces: number;
   readonly blitz: boolean;
   readonly loaded: boolean;
+  /** La couronne a-t-elle de quoi ranger les pièces ? (`disbandSpotsAt` ne rend pas `null`) */
+  readonly room: () => boolean;
 }): DisbandRefusal | null {
   if (blitz) return 'NO_SQUADS_IN_BLITZ';
   if (!onPoint || pieces < 2) return 'NOT_A_SQUAD';
-  return loaded ? 'SQUAD_CARRIES_LOOT' : null;
+  if (loaded) return 'SQUAD_CARRIES_LOOT';
+  return room() ? null : 'NO_ROOM_TO_DISBAND';
 }
 
 /**
@@ -1007,3 +1018,41 @@ export function routeModeOf(roles: ReadonlyArray<UnitRole>): RouteMode {
   if (!domains.has('sea')) return 'land';
   return domains.has('land') ? 'combined' : 'naval';
 }
+
+/** **Ce que la géographie dit d'un point**, côté serveur (grille, côte, raster) comme côté écran :
+ *  la terre, le pays, et si l'on rejoint une place sans changer de milieu (#283). */
+export type DisbandGround = {
+  readonly landAt: (point: LonLat) => boolean;
+  readonly hostAt: (point: LonLat) => string;
+  readonly reached: (from: LonLat, to: LonLat, ashore: boolean) => boolean;
+};
+
+/**
+ * **Les places de la couronne sur le sol du point** (#283, #295) : le même milieu, le même pays,
+ * sans passer l'eau. Le serveur la lit pour ranger les pièces, la barre pour dire le refus avant
+ * le geste : une seule fonction, deux lecteurs (ADR 0015).
+ */
+export function disbandSpotsAt(
+  center: LonLat,
+  count: number,
+  spanKm: number,
+  ground: DisbandGround,
+): Array<[number, number]> | null {
+  const ashore = ground.landAt(center);
+  const host = ground.hostAt(center);
+  return disbandPointsOf(
+    center,
+    count,
+    spanKm,
+    (spot) =>
+      ground.hostAt(spot) === host &&
+      ground.landAt(spot) === ashore &&
+      ground.reached(center, spot, ashore),
+  );
+}
+
+/** La plus grande pièce de la couronne, en kilomètres : ce que `disbandPointsOf` lit. */
+export const disbandSpanKm = (
+  pieces: ReadonlyArray<{ readonly role: UnitRole; readonly tier?: UnitTier }>,
+  nation?: Nation,
+): number => Math.max(...pieces.map((piece) => troopSpan(piece.role, nation, piece.tier) * BOARD_KM));

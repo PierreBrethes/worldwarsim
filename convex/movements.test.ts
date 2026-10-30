@@ -2751,6 +2751,20 @@ describe('the door of the sea, read on the pile', () => {
     }
   });
 
+  /** **Sans place, le refus** (#295) : huit pièces sur la côte irlandaise n'ont ni mer ni voisin
+   *  où se ranger ; le serveur dit le motif que la barre dit avant le geste. */
+  it('refuses a squad of eight on the Irish coast, its pieces left where they stand', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const field = { lon: -9.75, lat: 51.75 };
+    const roles = ['landTransport', 'armor', ...Array(6).fill('infantry')] as const;
+    const pieces: Array<Id<'troops'>> = [];
+    for (const role of roles) pieces.push(await postAt(t, seat, role, field));
+    await expect(t.mutation(api.movements.disband, { ...seat, point: field })).rejects.toThrow(
+      'NO_ROOM_TO_DISBAND',
+    );
+  });
+
   /** **La couronne ne passe pas l'eau** (#283) : à 22 km, la Sicile fait face à Villa San
    *  Giovanni, l'île d'Elbe au Val di Cornia, l'Asie au Bosphore, la Crimée à Taman ; une pièce n'y saute
    *  pas sans bateau (#244), et ne se pose pas dans le détroit. */

@@ -11,6 +11,7 @@ export function SelectionBar({
   roles,
   picking,
   refusal,
+  disbandRefusal,
   onForm,
   onDisband,
   onClear,
@@ -21,6 +22,8 @@ export function SelectionBar({
   /** Au doigt, les touchers ajoutent : « Terminer » rend le toucher qui lève. */
   picking: boolean;
   refusal: string | null;
+  /** Pourquoi U n'est pas offert, dit avant le geste (#295) ; `null`, U est offert. */
+  disbandRefusal: string | null;
   onForm: () => void;
   onDisband: () => void;
   onClear: () => void;
@@ -46,7 +49,7 @@ export function SelectionBar({
             {selection.form} <kbd>G</kbd>
           </button>
         )}
-        {piles === 1 && (
+        {piles === 1 && disbandRefusal === null && (
           <button type="button" onClick={onDisband} aria-keyshortcuts="U">
             {selection.disband} <kbd>U</kbd>
           </button>
@@ -61,6 +64,11 @@ export function SelectionBar({
           </button>
         )}
       </div>
+      {piles === 1 && disbandRefusal !== null && (
+        <p className="selection-bar-refusal" role="status">
+          {disbandRefusal}
+        </p>
+      )}
       {refusal !== null && (
         <p className="selection-bar-refusal" role="status">
           {refusal}

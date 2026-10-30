@@ -169,6 +169,7 @@ describe('every public method of the engine asks for a frame', () => {
     'countryAtPoint',
     'pointAt',
     'regionAtPoint',
+    'disbandGround',
     'maquetteAtPoint',
     'regionAtLonLat',
     'coastAt',
