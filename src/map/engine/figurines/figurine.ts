@@ -17,7 +17,7 @@ import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { bakedRig } from '../baking';
 import { pieceScale } from '../piece-scale';
-import { POSED, squadOf } from './infantry';
+import { crewOf, hasGun, POSED, squadOf } from './infantry';
 
 /**
  * **The piece length the sizes drawn around a piece were tuned for** — a formation's spacing, an
@@ -205,9 +205,8 @@ export function figurineFor(
   marks: ReadonlyArray<UnitTier>,
 ): Figurine | null {
   if (nation === null || !isNation(nation) || marks.length === 0) return null;
-  const files = (role === 'infantry' ? marks : marks.slice(0, 1)).map((tier) =>
-    fileOf(nation, role, tier),
-  );
+  const crew = role === 'infantry' ? crewOf(nation, marks) : marks.slice(0, 1);
+  const files = crew.map((tier) => fileOf(nation, role, tier));
   if (files.some((file) => file === null)) return null;
 
   const object = new Group();
@@ -250,7 +249,8 @@ export function figurineFor(
     (scenes) => {
       const makers = scenes.map((scene, k) => ({
         make: () => scene.clone(true),
-        sculpted: marks[k] !== 1,
+        sculpted: crew[k] !== 1,
+        gun: hasGun(nation, crew[k]!),
       }));
       // Each model brought to its role's real size, whatever it was sculpted at.
       model.scale.setScalar(span / measureOf(scenes[0]!, role));

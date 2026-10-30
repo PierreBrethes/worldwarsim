@@ -1,4 +1,5 @@
 import { Group, type Object3D } from 'three';
+import type { UnitTier } from '@/domain/troops';
 
 /**
  * **A soldier is posed by name.** The groups below are those the Claude Design model exports
@@ -72,6 +73,24 @@ function sculptedOf(man: Object3D): Stance {
   return { joints: found, body: [body.x, body.y, body.z] };
 }
 
+/** A Japanese mark 2 is a gun and its gunner (4.57 m): the file carries both. */
+export const hasGun = (nation: string, tier: UnitTier): boolean => nation === 'japan' && tier === 2;
+
+/**
+ * **The marks a squad draws**: a Japanese squad shows one gun whatever the number of its mark 2 —
+ * `[2,2,2]` is the gun alone, `[2,2,1]` a gun and a rifleman (#316).
+ */
+export function crewOf(nation: string, marks: ReadonlyArray<UnitTier>): UnitTier[] {
+  const first = marks.findIndex((tier) => hasGun(nation, tier));
+  return marks.filter((tier, k) => !hasGun(nation, tier) || k === first);
+}
+
+/** Where the riflemen stand beside the gun, which spans x -1.53 to 0.29 from the first man's place. */
+const BESIDE_GUN = [
+  [1, -0.4],
+  [1, -1.3],
+] as const;
+
 /**
  * Up to three men to a troop (ADR 0026 §5), one per figure, the first in front: a whole squad
  * has the footprint of a tank, a worn one stands fewer in the same slots. Every man can march,
@@ -79,11 +98,18 @@ function sculptedOf(man: Object3D): Stance {
  * which he leaves to march and takes back when he stops (`stand`, `stride`).
  */
 export function squadOf(
-  soldiers: ReadonlyArray<{ readonly make: () => Object3D; readonly sculpted: boolean }>,
+  soldiers: ReadonlyArray<{
+    readonly make: () => Object3D;
+    readonly sculpted: boolean;
+    /** The gun crew's man: his piece stands in the first place, the others beside it. */
+    readonly gun?: boolean;
+  }>,
 ): Group {
   const squad = new Group();
+  const gun = soldiers.findIndex((soldier) => soldier.gun);
+  const beside = [...BESIDE_GUN];
   soldiers.slice(0, SLOTS.length).forEach((soldier, k) => {
-    const [x, z] = SLOTS[k]!;
+    const [x, z] = gun < 0 ? SLOTS[k]! : k === gun ? SLOTS[0] : beside.shift()!;
     const man = soldier.make();
     // By his place, front first: a sortie walks the men in file (`walkOut`, `part`).
     man.name = `man_${k}`;

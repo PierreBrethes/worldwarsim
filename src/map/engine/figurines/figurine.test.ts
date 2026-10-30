@@ -10,7 +10,7 @@ import {
   setNearFloor,
   troopWeight,
 } from './figurine';
-import { squadOf, stand, stride } from './infantry';
+import { crewOf, squadOf, stand, stride } from './infantry';
 import { pieceScale } from '../piece-scale';
 import { buildingSpan, MAN_METRES, troopSpan } from '@/domain/piece-size';
 
@@ -125,9 +125,9 @@ describe('figurineFor', () => {
   });
 });
 
-describe('measureOf', () => {
-  const box = (x: number, y: number, z: number): Mesh => new Mesh(new BoxGeometry(x, y, z));
+const box = (x: number, y: number, z: number): Mesh => new Mesh(new BoxGeometry(x, y, z));
 
+describe('measureOf', () => {
   it('measures a man in metres, standing, kneeling or arm raised: a squad keeps its size whoever leads it', () => {
     for (const height of [1.75, 1.43, 2.16])
       expect(measureOf(box(0.6, height, 0.4), 'infantry')).toBe(MAN_METRES);
@@ -135,6 +135,32 @@ describe('measureOf', () => {
 
   it('measures the rest by their widest side at the ground', () => {
     expect(measureOf(box(2.6, 1.2, 4.8), 'armor')).toBeCloseTo(4.8);
+  });
+});
+
+describe('the Japanese gun crew', () => {
+  it('draws one gun however many mark 2 stand: [2,2,2] is the gun alone, [2,2,1] a gun and a rifleman', () => {
+    expect(crewOf('japan', [2, 2, 2])).toEqual([2]);
+    expect(crewOf('japan', [2, 2, 1])).toEqual([2, 1]);
+    expect(crewOf('japan', [2, 1, 1])).toEqual([2, 1, 1]);
+    expect(crewOf('japan', [1, 1, 1])).toEqual([1, 1, 1]);
+    expect(crewOf('germany', [2, 2, 2])).toEqual([2, 2, 2]);
+  });
+
+  it('keeps the same man scale led by a gun or by a rifleman', () => {
+    const gun = new Group();
+    const piece = box(1.81, 1.2, 4.57);
+    gun.add(piece);
+    expect(measureOf(gun, 'infantry')).toBe(measureOf(box(0.6, 1.75, 0.4), 'infantry'));
+  });
+
+  it('stands the riflemen clear of the gun, which is 1.81 m wide at x -0.62 and reaches z 3.10', () => {
+    const squad = squadOf(
+      [true, false, false].map((gun) => ({ make: () => new Group(), sculpted: gun, gun })),
+    );
+    for (const man of squad.children.slice(1))
+      expect(man.position.x - 0.3).toBeGreaterThan(-0.62 + 1.81 / 2);
+    expect(squad.children[0]!.position.x).toBe(0);
   });
 });
 
