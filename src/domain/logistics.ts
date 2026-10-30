@@ -216,18 +216,7 @@ export function visitPlan<T extends string>(
   return { visit, skipped };
 }
 
-/** **Une prise de jetons** (prototype v3) : glisser prend 10 ; l'appui maintenu accélère, 10 par
- *  10 jusqu'à 50, puis 50 par 50. */
-const GRAB_STEP = 10;
-const GRAB_STEP_MS = 200;
-
-export function grabbedAfter(heldMs: number): number {
-  const steps = Math.max(0, Math.floor(heldMs / GRAB_STEP_MS));
-  return steps <= 4 ? GRAB_STEP * (1 + steps) : 50 * (steps - 3);
-}
-
-/** **La prise bornée par sa source** : le compte sous la main et le lâcher (`loadReadingOf`) lisent
- *  la même borne, en jetons entiers. */
+/** **La prise bornée par sa source** : la main prend le bac entier, en jetons entiers. */
 export function grabbedWithin(grabbed: number, store: number): number {
   return Math.max(0, Math.min(grabbed, Math.floor(store)));
 }

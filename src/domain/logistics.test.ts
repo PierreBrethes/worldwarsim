@@ -3,7 +3,6 @@ import {
   depotRefundOf,
   onTourRefusalOf,
   tourRefusalOf,
-  grabbedAfter,
   grabbedWithin,
   deliverRefusalOf,
   deliveryOf,
@@ -144,12 +143,6 @@ describe('dismantling a depot', () => {
       returned: load(60, 50, 0),
       lost: load(40, 0, 30),
     });
-  });
-});
-
-describe('a grab of tokens', () => {
-  it('takes ten, then ten by ten while held, then fifty by fifty', () => {
-    expect([0, 199, 200, 800, 1000, 1200].map(grabbedAfter)).toEqual([10, 10, 20, 50, 100, 150]);
   });
 });
 
