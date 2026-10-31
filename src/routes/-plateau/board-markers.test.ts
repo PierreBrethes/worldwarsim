@@ -122,7 +122,7 @@ describe('marchingPiecesOf (#276)', () => {
 
   it('lays out nothing for a movement with no land leg, nor for what is not mine', () => {
     const pieces = marchingPiecesOf(
-      [arc('sea', ['i1'], ['sea']), arc('enemy', [], ['land'], 'enemyDetected')],
+      [arc('sea', ['i1'], ['sea']), arc('enemy', ['i1'], ['land'], 'enemyDetected')],
       troops,
       false,
     );

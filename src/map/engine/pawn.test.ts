@@ -182,8 +182,12 @@ describe('my column on the road', () => {
     pawn.orient(close.clone().setX(x), 0);
   };
 
-  it('steps its men and jolts its vehicles at full motion', () => {
+  /** Its men are found once their files land (`figurine.ready`). */
+  const landed = () => new Promise((resolve) => setTimeout(resolve));
+
+  it('steps its men and jolts its vehicles at full motion', async () => {
     const { pawn, leg, armor } = column();
+    await landed();
     go(pawn, 0.01, 0.1);
     const first = leg();
     go(pawn, 0.02, 0.1);
@@ -191,15 +195,25 @@ describe('my column on the road', () => {
     expect(armor.object.rotation.x).not.toBe(0);
   });
 
-  it('holds its men mid-stride in reduced motion, its vehicles level', () => {
+  it('holds its men mid-stride in reduced motion, its vehicles level', async () => {
     const { pawn, leg, armor } = column();
+    await landed();
     go(pawn, 0.01, null, true);
     expect(leg()).toBeCloseTo(-Math.sin(0.6 + 1.2) * 0.32, 6);
     expect(armor.object.rotation.x).toBe(0);
   });
 
-  it('stands its men without a stride when motion is cut', () => {
+  it('stands its men without a stride when motion is cut', async () => {
     const { pawn, leg } = column();
+    await landed();
+    go(pawn, 0.01, null);
+    expect(leg()).toBeCloseTo(0, 6);
+  });
+
+  it('stands men whose files land after the column stopped', async () => {
+    const { pawn, leg } = column();
+    go(pawn, 0.01, null);
+    await landed();
     go(pawn, 0.01, null);
     expect(leg()).toBeCloseTo(0, 6);
   });

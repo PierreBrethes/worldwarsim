@@ -1,9 +1,10 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { Group, Vector3, type Camera, type Object3D } from 'three';
+import { Frustum, Group, Matrix4, PerspectiveCamera, Vector3, type Object3D } from 'three';
 import type { PilePieces } from '@/domain/pile-pieces';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { World } from '@/domain/world';
 import { directRoute } from '@/domain/routing';
+import { unrollRoute } from '@/domain/route-timing';
 import { ArcLayer, lastKnownMedium } from './arcs';
 import { figurineFor } from './figurines/figurine';
 import { WorldFrame } from './frame';
@@ -12,9 +13,10 @@ import { Pawn } from './pawn';
 
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),
-  figurineFor: vi.fn(() => ({
+  // A gun is drawn longer than a tank: a mixed file spaces its ranks by their lengths.
+  figurineFor: vi.fn((_nation: unknown, role: unknown) => ({
     object: new Group(),
-    span: 0.006,
+    span: role === 'artillery' ? 0.012 : 0.006,
     ready: Promise.resolve(),
     spin() {},
   })),
@@ -229,44 +231,91 @@ describe('ArcLayer.veil (#272)', () => {
 
 /** **Sur la route, la pile marche en file** (#276) : ses pièces au repos, l'une derrière l'autre. */
 describe('ArcLayer: the column on the road (#276)', () => {
-  const tanks = (count: number, wear: 'whole' | 'smoking' = 'whole'): PilePieces => ({
-    groups: Array.from({ length: count }, (_, k) => ({
-      role: 'armor' as const,
+  type Role = 'armor' | 'artillery';
+  const pile = (roles: ReadonlyArray<Role>, wear: 'whole' | 'smoking' = 'whole'): PilePieces => ({
+    groups: roles.map((role, k) => ({
+      role,
       troops: 1,
       troopIds: [`t${k}`],
       figures: [1 as const],
       wear,
     })),
-    troopIds: Array.from({ length: count }, (_, k) => `t${k}`),
-    squad: count > 1,
+    troopIds: roles.map((_, k) => `t${k}`),
+    squad: roles.length > 1,
   });
+  const tanks = (count: number, wear: 'whole' | 'smoking' = 'whole') =>
+    pile(Array<Role>(count).fill('armor'), wear);
 
-  /** Each piece's distance behind the head along the road, and to its side, mid-route seen up close. */
-  const walk = (count: number, at = 1_800_000) => {
+  /** Landed from the sea: a crossing, then the road. */
+  const landing: ArcView = {
+    ...mine('a'),
+    route: {
+      mode: 'naval',
+      points: [
+        [0, 0],
+        [5, 2],
+        [10, 5],
+      ],
+      distanceUnits: 10,
+      costUnits: 10,
+      legs: [
+        { medium: 'sea', distanceUnits: 5 },
+        { medium: 'land', distanceUnits: 5 },
+      ],
+      landCost: 1.6,
+    },
+  };
+  /** The instant halfway through its transfer at the quay. */
+  const atQuay = (): number => {
+    const segments = unrollRoute(landing.route);
+    let start = 0;
+    for (const segment of segments) {
+      if (segment.kind === 'dock') return (start + segment.share / 2) * 3_600_000;
+      start += segment.share;
+    }
+    throw new Error('no quay');
+  };
+
+  /** Each piece's distance behind the head along the road, and to its side, seen up close —
+   *  or, `away`, with the eye turned from it. */
+  const walk = (column: PilePieces, { at = 1_800_000, arc = mine('a'), away = false } = {}) => {
     vi.useFakeTimers({ now: at });
     const arcs = layer();
     arcs.setPlayerNation('france');
-    arcs.columns = new Map([['a', tanks(count)]]);
+    arcs.columns = new Map([['a', column]]);
+    // Seen from afar first, where the file is its pin: nothing laid out yet.
+    arcs.animate({ position: new Vector3(0, 1e4, 0) } as PerspectiveCamera);
     const calls = vi.mocked(figurineFor).mock.results.length;
-    arcs.display([mine('a')]);
+    arcs.display([arc]);
     const pieces = vi
       .mocked(figurineFor)
       .mock.results.slice(calls)
       .map(({ value }) => (value as { object: Object3D }).object);
-    arcs.animate();
     const head = arcs.headPositions.get('a')!.clone();
     const ahead = arcs.aheadPositions.get('a')!.clone().sub(head).setY(0).normalize();
     const side = new Vector3(ahead.z, 0, -ahead.x);
-    arcs.animate({ position: head.clone().add(new Vector3(0, 0.05, 0)) } as Camera);
+    const eye = new PerspectiveCamera(30, 1, 0.001, 100);
+    eye.position.copy(head).add(new Vector3(0, 0.5, 0.2));
+    eye.lookAt(away ? head.clone().add(new Vector3(0, 0.5, 2)) : head);
+    eye.updateMatrixWorld();
+    const field = new Frustum().setFromProjectionMatrix(
+      new Matrix4().multiplyMatrices(eye.projectionMatrix, eye.matrixWorldInverse),
+    );
+    arcs.animate(eye, undefined, undefined, field);
     vi.useRealTimers();
     return pieces.map((piece) => {
       const offset = piece.getWorldPosition(new Vector3()).sub(head).setY(0);
-      return { back: -offset.dot(ahead), side: offset.dot(side), visible: piece.visible };
+      return {
+        back: -offset.dot(ahead),
+        side: offset.dot(side),
+        gap: offset.length(),
+        visible: piece.visible,
+      };
     });
   };
 
   it('walks up to four pieces in single file, in the order of the pile at rest', () => {
-    const file = walk(4);
+    const file = walk(tanks(4));
     expect(file).toHaveLength(4);
     expect(file.every(({ visible }) => visible)).toBe(true);
     expect(file[0]!.back).toBeCloseTo(0, 6);
@@ -277,7 +326,7 @@ describe('ArcLayer: the column on the road (#276)', () => {
   });
 
   it('doubles the file beyond four pieces, two abreast', () => {
-    const file = walk(6);
+    const file = walk(tanks(6));
     for (const rank of [0, 2, 4]) {
       const [left, right] = [file[rank]!, file[rank + 1]!];
       expect(left.back).toBeCloseTo(right.back, 6);
@@ -288,10 +337,35 @@ describe('ArcLayer: the column on the road (#276)', () => {
     expect(file[4]!.back).toBeGreaterThan(file[2]!.back);
   });
 
+  /** The storyboard's `fileLen` (`marche.js:162`): half of each rank's length, plus a gap. */
+  it('leaves the same gap between two ranks, whatever their lengths', () => {
+    const file = walk(pile(['armor', 'armor', 'artillery']));
+    const lengths = [0.006, 0.006, 0.012];
+    const gap = (k: number) =>
+      (file[k + 1]!.back - file[k]!.back) / (lengths[k]! + lengths[k + 1]!);
+    const clear = (k: number) =>
+      file[k + 1]!.back - file[k]!.back - (lengths[k]! + lengths[k + 1]!) / 2;
+    expect(gap(0)).not.toBeCloseTo(gap(1), 3);
+    expect(clear(0)).toBeCloseTo(clear(1), 6);
+  });
+
   it('holds a piece that would fall before the start of its leg at its end', () => {
-    const file = walk(4, 1);
+    const file = walk(tanks(4), { at: 1 });
     expect(file[3]!.back).toBeCloseTo(file[2]!.back, 6);
     expect(file[1]!.back).toBeCloseTo(file[3]!.back, 6);
+  });
+
+  it('gathers a column landed at the quay on the shore, not on the water behind it', () => {
+    const file = walk(tanks(4), { at: atQuay(), arc: landing });
+    for (const { gap, visible } of file) {
+      expect(visible).toBe(true);
+      expect(gap).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('leaves the file where it stood while the eye looks away from its head', () => {
+    const file = walk(tanks(4), { away: true });
+    for (const { gap } of file) expect(gap).toBeCloseTo(0, 9);
   });
 
   it('keeps the column served again unchanged, and redraws it when a piece wears', () => {
@@ -305,5 +379,15 @@ describe('ArcLayer: the column on the road (#276)', () => {
     arcs.columns = new Map([['a', tanks(3, 'smoking')]]);
     arcs.display([mine('a')]);
     expect(arcs.pawns[0]).not.toBe(drawn);
+  });
+
+  it('dresses no file for a column it only sighted: the fog serves it no roles', () => {
+    const arcs = layer();
+    arcs.setPlayerNation('france');
+    arcs.columns = new Map([['e', tanks(3)]]);
+    const calls = vi.mocked(figurineFor).mock.calls.length;
+    arcs.display([sighted('enemyDetected')]);
+    expect(vi.mocked(figurineFor).mock.calls.length).toBe(calls);
+    expect(arcs.pawns).toHaveLength(1);
   });
 });

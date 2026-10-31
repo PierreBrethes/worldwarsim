@@ -1,9 +1,10 @@
 import type { LonLat } from '@/domain/geo';
-import { type Box3, Group, Vector3, type Camera, type Raycaster } from 'three';
+import { type Box3, type Frustum, Group, Vector3, type Camera, type Raycaster } from 'three';
 import {
   pawnTarget,
   temporalPosition,
   unrollRoute,
+  type TemporalPosition,
   type UnrolledSegment,
 } from '@/domain/route-timing';
 import type { ArcView, TroopView } from '@/domain/player-view';
@@ -21,9 +22,10 @@ import {
   stretchTether,
   type EndsOf,
   type Thread,
+  type ThreadLeg,
 } from './thread';
 import type { Ribbon } from './route-ribbon';
-import { Pawn, type ColumnPiece } from './pawn';
+import { Pawn, type ColumnPiece, type Road } from './pawn';
 import { dressedGroups } from './standing';
 import { bendAround } from './sway';
 import { ARC_COLORS } from './palette';
@@ -107,6 +109,8 @@ export class ArcLayer {
   private readonly groundPoint = new Vector3();
   private readonly cameraPosition = new Vector3();
   private cameraYaw = 0;
+  /** The eye's field at the last frame: a file out of it is not laid out. */
+  private inView: Frustum | null = null;
   private playerNation: string | null = null;
   private rendered: RenderedArc[] = [];
 
@@ -395,8 +399,9 @@ export class ArcLayer {
    * The position comes from time, not distance: a movement straddling three mediums does
    * not cross the sea at road speed, and it stops at the dock.
    */
-  animate(camera?: Camera, unitsPerPixel?: number, yaw?: number): void {
+  animate(camera?: Camera, unitsPerPixel?: number, yaw?: number, inView?: Frustum): void {
     if (camera) this.cameraPosition.copy(camera.position);
+    if (inView !== undefined) this.inView = inView;
     if (yaw !== undefined) this.cameraYaw = yaw;
     if (unitsPerPixel !== undefined) this.unitsPerPixel = unitsPerPixel;
 
@@ -460,10 +465,10 @@ export class ArcLayer {
         this.aheadPoint,
         this.groundPoint.y,
         turn,
-        leg !== undefined && position.kind === 'leg' ? { leg, local } : null,
+        roadOf(rendered.thread.legs, position, leg, local),
       );
       rendered.pawn.step(this.motion === 'full' ? elapsed : null, this.motion === 'reduced');
-      rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
+      rendered.pawn.orient(this.cameraPosition, this.cameraYaw, this.inView);
       rendered.headPosition.copy(this.pawnPoint);
       rendered.aheadPosition.copy(this.aheadPoint);
 
@@ -581,6 +586,22 @@ function drawnKey(
     arc.state === 'enemyDetected' ? asClockTime(arc.since) : null,
     arc.state === 'lastKnown' ? [asClockTime(arc.lastSeenAt), lastKnownInk(arc, clock)] : null,
   ]);
+}
+
+/**
+ * **The leg a file is laid out on**: the one the head walks, or at a quay the land leg that
+ * begins there — a column landed waits gathered on the shore, never strung out on the water
+ * behind it. `null` at a quay toward the sea or the sky: the file is not worn there.
+ */
+function roadOf(
+  legs: ReadonlyArray<ThreadLeg>,
+  position: TemporalPosition,
+  leg: ThreadLeg | undefined,
+  local: number,
+): Road | null {
+  if (position.kind === 'leg') return leg === undefined ? null : { leg, local };
+  const next = legs[position.legIndex];
+  return next?.medium === 'land' ? { leg: next, local: 0 } : null;
 }
 
 const minutesSince = (at: number, clock: number): number => Math.max(0, clock - at) / 60_000;

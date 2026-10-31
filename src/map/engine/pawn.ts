@@ -1,4 +1,15 @@
-import { DoubleSide, Group, Mesh, MeshBasicMaterial, Shape, ShapeGeometry, Vector3 } from 'three';
+import {
+  DoubleSide,
+  type Frustum,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  type Object3D,
+  Shape,
+  ShapeGeometry,
+  Sphere,
+  Vector3,
+} from 'three';
 import type { Wear } from '@/domain/pile-pieces';
 import type { UnitRole } from '@/domain/ids';
 import type { Medium } from '@/domain/routing';
@@ -17,7 +28,7 @@ import { PLUME_BY_WEAR, Smoke, Wake, type Plume } from './smoke';
 import { gaitOf, swayOf, type Gait } from './sway';
 import { blacken } from './standing';
 import { releaseInk } from './annotations';
-import { stride } from './figurines/infantry';
+import { strideOf } from './figurines/infantry';
 import { pointOnLeg, type ThreadLeg } from './thread';
 
 /** A share of the camera distance: the silhouette keeps its size on screen. */
@@ -51,25 +62,63 @@ export type ColumnPiece = {
 /** The leg the head walks and its share of it: the file is sampled behind it on the same leg. */
 export type Road = { readonly leg: ThreadLeg; readonly local: number };
 
+/** How a man stands in the file: once posed still, he is not posed again until he walks. */
+type Posed = 'walking' | 'held' | 'still' | null;
+
 type Marcher = {
   readonly figurine: Figurine;
   readonly gait: Gait | null;
-  readonly infantry: boolean;
   readonly smoke: Smoke | null;
-  /** Behind the head and to its right, in the pile's units (`pileUnitOf`). */
-  readonly back: number;
+  /** To the right of the file's axis, in board units at the figurine's own size. */
   readonly side: number;
+  /** Its men, found once their files have landed; none for a vehicle. */
+  men: ReadonlyArray<Object3D>;
+  posed: Posed;
 };
 
-/**
- * **The file's spacing**, in the pile's units — its largest piece is `LAID_OUT_FOR` long in them:
- * the storyboard's rank step and lane offset, 1.47 and 0.57 of the longest piece
- * (`storyboard-marche/commun/marche.js`, `plan`). @a-mesurer
- */
-const FILE_STEP = 1;
-const LANE_SIDE = 0.4;
+/** A rank of the file, and how far behind the head it walks at the figurines' own size. */
+type Rank = { readonly back: number; readonly marchers: ReadonlyArray<Marcher> };
+
 /** **Au-delà de quatre pièces, la file se double** (storyboard, 31/10). */
 const SINGLE_FILE = 4;
+/**
+ * **The file's spacing** (`storyboard-marche/commun/marche.js`, `plan`): between two ranks, half
+ * of each one's length and `RANK_GAP` of `g`, itself `GAP_PER_LONGEST` of the longest piece; a
+ * lane `LANE_SIDE` of `g` off the axis.
+ */
+const RANK_GAP = 0.35;
+const GAP_PER_LONGEST = 1.35;
+const LANE_SIDE = 0.42;
+/** A squad keeps its triangle on the road (`squadOf`): this deep, in its men's height.
+ *  @a-mesurer */
+const SQUAD_DEPTH = 0.8;
+/** The storyboard reckons men 1.92 of their height long against `g` (`1.6 × manH × 1.2`). */
+const SQUAD_REACH = 1.92;
+
+/** **Where each piece walks behind the head**, by its length: ranks of one, or two abreast
+ *  beyond `SINGLE_FILE`; in board units at the figurines' own size. */
+export function fileOf(
+  pieces: ReadonlyArray<{ readonly span: number; readonly infantry: boolean }>,
+): ReadonlyArray<{ readonly back: number; readonly side: number; readonly rank: number }> {
+  const lanes = pieces.length > SINGLE_FILE ? 2 : 1;
+  const lengthOf = ({ span, infantry }: (typeof pieces)[number]) =>
+    infantry ? SQUAD_DEPTH * span : span;
+  const g =
+    GAP_PER_LONGEST *
+    Math.max(...pieces.map(({ span, infantry }) => (infantry ? SQUAD_REACH * span : span)));
+  const ranks = Math.ceil(pieces.length / lanes);
+  const lengths = Array.from({ length: ranks }, (_, r) =>
+    Math.max(...pieces.slice(r * lanes, (r + 1) * lanes).map(lengthOf)),
+  );
+  const backs = [0];
+  for (let r = 1; r < ranks; r++)
+    backs.push(backs[r - 1]! + (lengths[r - 1]! + lengths[r]!) / 2 + RANK_GAP * g);
+  return pieces.map((_, k) => ({
+    back: backs[Math.floor(k / lanes)]!,
+    side: lanes === 1 ? 0 : (k % 2 === 0 ? -1 : 1) * LANE_SIDE * g,
+    rank: Math.floor(k / lanes),
+  }));
+}
 /** **En réduites, les hommes tenus en mi-foulée** : the storyboard's frozen phase, 1.2 rad on
  *  each man's own, in seconds of `stride` (9 rad/s). */
 const HELD_STRIDE_S = 1.2 / 9;
@@ -79,6 +128,8 @@ const WALKING_MS = 250;
 
 const AT = new Vector3();
 const AHEAD = new Vector3();
+const BEFORE = new Vector3();
+const REACH = new Sphere();
 
 /** A vehicle's dust on the road, thrown back behind it. */
 function dustOn(figurine: Figurine): Smoke {
@@ -143,8 +194,11 @@ export class Pawn {
   private held = false;
   /** **My column on land** (#276), in the order of the pile at rest; `null` wears one figurine. */
   private readonly file: Group | null = null;
+  private readonly ranks: ReadonlyArray<Rank> = [];
   private readonly marchers: ReadonlyArray<Marcher> = [];
   private readonly fileSpan: number = ANONYMOUS_SPAN;
+  /** From the head to its last piece's far side, at the figurines' own size. */
+  private readonly fileReach: number = 0;
   private road: Road | null = null;
   private movedAt = -Infinity;
 
@@ -187,23 +241,47 @@ export class Pawn {
       this.object.add(file);
       this.file = file;
       this.fileSpan = Math.max(...column.map(({ figurine }) => figurine.span));
-      const lanes = column.length > SINGLE_FILE ? 2 : 1;
+      const places = fileOf(
+        column.map(({ figurine, role }) => ({
+          span: figurine.span,
+          infantry: role === 'infantry',
+        })),
+      );
       this.marchers = column.map(({ figurine, role, wear: worn }, k) => {
         figurine.object.rotation.order = 'YXZ';
         file.add(figurine.object);
         const gait = gaitOf(role);
         // One dust for the column, raised by its first vehicle: a plume each would cost a call a puff.
         if (gait === 'rolling' && this.dust === null) this.dust = dustOn(figurine);
-        return {
+        const marcher: Marcher = {
           figurine,
           gait,
-          infantry: role === 'infantry',
           // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
           smoke: role === 'infantry' ? null : smokeOn(figurine, worn),
-          back: Math.floor(k / lanes) * FILE_STEP,
-          side: lanes === 1 ? 0 : (k % 2 === 0 ? -1 : 1) * LANE_SIDE,
+          side: places[k]!.side,
+          men: [],
+          posed: null,
         };
+        if (role === 'infantry')
+          void figurine.ready.then(
+            () => {
+              const men: Object3D[] = [];
+              figurine.object.traverse((node) => {
+                if (node.userData.stride !== undefined) men.push(node);
+              });
+              marcher.men = men;
+              marcher.posed = null;
+            },
+            () => {},
+          );
+        return marcher;
       });
+      this.ranks = [...new Set(places.map(({ rank }) => rank))].map((rank) => ({
+        back: places.find((place) => place.rank === rank)!.back,
+        marchers: this.marchers.filter((_, k) => places[k]!.rank === rank),
+      }));
+      this.fileReach =
+        places.at(-1)!.back + Math.max(...places.map(({ side }) => Math.abs(side))) + this.fileSpan;
     }
     this.wake.object.name = 'wake';
     this.wake.object.visible = false;
@@ -291,7 +369,12 @@ export class Pawn {
    * neither the same screen share nor the same frame — one hangs under its point, the other
    * stands on it — and a common scale would make the pawn's size jump at the dock.
    */
-  orient(cameraPosition: Vector3, yaw: number): void {
+  orient(
+    cameraPosition: Vector3,
+    yaw: number,
+    /** The eye's field: a file wholly outside it is not laid out again. */
+    inView: Frustum | null = null,
+  ): void {
     const distance = this.object.position.distanceTo(cameraPosition);
     const figurine = this.figurines.get(this.medium);
     const span = this.span;
@@ -310,7 +393,12 @@ export class Pawn {
     this.shadow.scale.setScalar(around);
     if (this.file !== null) {
       this.file.visible = this.medium === 'land' && close > 0;
-      if (this.file.visible) this.march(drawn);
+      if (
+        this.file.visible &&
+        (inView === null ||
+          inView.intersectsSphere(REACH.set(this.object.position, this.fileReach * drawn)))
+      )
+        this.march(drawn);
     }
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
@@ -340,41 +428,57 @@ export class Pawn {
   }
 
   /**
-   * **The file behind the head** (#276): each piece sampled on its leg at its distance back,
-   * spaced by the floor (`troopScale` × `pileUnitOf`); one that would fall before the leg's start
-   * waits at its end. The men step on the pawn's clock (`stride`), each vehicle sways (`swayOf`).
+   * **The file behind the head** (#276): each rank sampled on its leg at its distance back, by
+   * the figurines' own size (`troopScale`); one that would fall before the leg's start waits at
+   * its end. A rank faces the rank ahead of it, the first the road. The men step on the pawn's
+   * clock, each vehicle sways (`swayOf`).
    */
   private march(drawn: number): void {
-    const unit = (drawn * this.fileSpan) / LAID_OUT_FOR;
     const head = this.object.position;
-    const road = this.road;
+    const road = this.road !== null && this.road.leg.length > 0 ? this.road : null;
     const going = performance.now() - this.movedAt < WALKING_MS;
-    for (const marcher of this.marchers) {
-      const back = marcher.back * unit;
-      let heading = this.heading;
+    let heading = this.heading;
+    if (road !== null) {
+      pointOnLeg(road.leg, Math.max(0, road.local), AT);
+      pointOnLeg(road.leg, Math.max(0, road.local) + 0.01, AHEAD);
+      if (AHEAD.x !== AT.x || AHEAD.z !== AT.z)
+        heading = Math.atan2(AHEAD.x - AT.x, AHEAD.z - AT.z);
+    }
+    for (const [r, { back: rankBack, marchers }] of this.ranks.entries()) {
+      const back = rankBack * drawn;
       let walking = going;
-      if (road !== null && road.leg.length > 0) {
+      if (road !== null) {
         const local = road.local - back / road.leg.length;
         walking &&= local > 0;
         pointOnLeg(road.leg, local, AT);
-        pointOnLeg(road.leg, Math.max(0, local) + 0.01, AHEAD);
-        if (AHEAD.x !== AT.x || AHEAD.z !== AT.z)
-          heading = Math.atan2(AHEAD.x - AT.x, AHEAD.z - AT.z);
       } else AT.set(head.x - Math.sin(heading) * back, head.y, head.z - Math.cos(heading) * back);
-      const side = marcher.side * unit;
-      AT.x += Math.cos(heading) * side;
-      AT.z -= Math.sin(heading) * side;
-      const { object } = marcher.figurine;
-      const sway = swayOf(this.lively ? marcher.gait : null, this.clock, walking);
-      object.position.copy(AT).sub(head);
-      object.position.y += sway.lift * FIGURINE_SCALE * drawn;
-      object.rotation.set(sway.pitch, heading, sway.roll);
-      object.scale.setScalar(drawn);
-      if (marcher.infantry)
-        stride(
-          object,
-          !walking ? null : this.lively ? this.clock : this.held ? HELD_STRIDE_S : null,
+      if (r > 0 && (BEFORE.x !== AT.x || BEFORE.z !== AT.z))
+        heading = Math.atan2(BEFORE.x - AT.x, BEFORE.z - AT.z);
+      BEFORE.copy(AT);
+      const posed: Posed = !walking
+        ? 'still'
+        : this.lively
+          ? 'walking'
+          : this.held
+            ? 'held'
+            : 'still';
+      for (const marcher of marchers) {
+        const { object } = marcher.figurine;
+        const side = marcher.side * drawn;
+        const sway = swayOf(this.lively ? marcher.gait : null, this.clock, walking);
+        object.position.set(
+          AT.x + Math.cos(heading) * side - head.x,
+          AT.y - head.y + sway.lift * FIGURINE_SCALE * drawn,
+          AT.z - Math.sin(heading) * side - head.z,
         );
+        object.rotation.set(sway.pitch, heading, sway.roll);
+        object.scale.setScalar(drawn);
+        // A still or held pose is put once, when the man comes to it.
+        if (posed === marcher.posed && posed !== 'walking') continue;
+        marcher.posed = posed;
+        const seconds = posed === 'walking' ? this.clock : posed === 'held' ? HELD_STRIDE_S : null;
+        for (const man of marcher.men) strideOf(man, seconds);
+      }
     }
     if (this.dust !== null) this.dust.object.visible = this.lively && going;
   }

@@ -1123,7 +1123,7 @@ export class MapEngine {
     arcs: ReadonlyArray<ArcView>,
     troops: ReadonlyArray<TroopView>,
     /** What each movement of mine shows on land, by its id (#276): the route lays it out. */
-    columns: ReadonlyMap<string, PilePieces> = new Map(),
+    columns: ReadonlyMap<string, PilePieces>,
   ): void {
     this.invalidate();
     this.arcs.troops = troops;
@@ -3695,7 +3695,10 @@ export class MapEngine {
     // At zoom, the stroke hierarchy flips ink: country borders darken while regions appear
     // beneath. The coast is the one fat stroke, a ribbon with a pixel floor.
     const yaw = cameraYaw(this.camera.position, this.controls.target);
-    this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw);
+    this.eyeFrustum.setFromProjectionMatrix(
+      this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
+    );
+    this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw, this.eyeFrustum);
     this.ink.animate(now, this.unitsPerPixel(distance));
     this.parachutes.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
