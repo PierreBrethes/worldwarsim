@@ -3642,6 +3642,7 @@ export class MapEngine {
         const lit = (at: Vector3, radius: number, near: number) => this.halos.add(at, radius, near);
         this.standing.lights(lit);
         this.maquettes.lights(lit);
+        this.combats.lights(lit);
         this.pins.lights(lit, this.unitsPerPixel(distance));
         this.halos.end(night);
       } else this.halos.hide();

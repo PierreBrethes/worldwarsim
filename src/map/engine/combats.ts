@@ -122,6 +122,12 @@ export class CombatLayer {
     return due;
   }
 
+  /** At night a combat glows like a pile (`StandingLayer.lights`): it stood in the dark. */
+  lights(emit: (at: Vector3, radius: number, near: number) => void): void {
+    for (const { scene, reach } of this.played)
+      if (scene.object.visible) emit(scene.object.position, reach * scene.object.scale.x, 1);
+  }
+
   dispose(): void {
     for (const each of this.played) each.scene.dispose();
     this.played = [];
