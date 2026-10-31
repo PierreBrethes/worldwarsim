@@ -118,7 +118,7 @@ type Rest = { readonly position: Vector3; readonly quaternion: Quaternion };
 
 const cooked = new Map<string, Promise<Group>>();
 /** Cuite une fois par fichier, au premier signal ; les copies en partagent géométries et matériaux. */
-function articulatedOf(url: string, family: RigFamily): Promise<Group> {
+export function articulatedOf(url: string, family: RigFamily): Promise<Group> {
   const key = `${url} ${family}`;
   let rig = cooked.get(key);
   if (!rig) {

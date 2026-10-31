@@ -72,6 +72,8 @@ import {
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { CombatLayer } from './combats';
+import { HeldBursts } from './held-bursts';
+import { stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut } from './timelines/walk';
@@ -488,6 +490,8 @@ export class MapEngine {
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   /** The combats played at their point (#272), on a budget of their own. */
   private readonly combats = new CombatLayer();
+  /** « Terrain tenu » of a combat the map may play: the report stamp says it when it does. */
+  private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
   /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
@@ -684,6 +688,16 @@ export class MapEngine {
   /** **A combat has shown itself on the map** (#272): its scene ended, or it did not play. Its
    *  dispatch waits for this. */
   onCombatSettled?: ((id: string) => void) | undefined;
+  /** **A combat's account begins on the map** (#327): its outcome is stamped over it. */
+  onCombatReport?: ((view: ReplayView) => void) | undefined;
+  /** **The first hand on the board, or the camera leaving** (#327): the stamps lift — all but
+   *  those `stays` says a journey ends by. */
+  onReportsLift?: ((stays?: (point: LonLat) => boolean) => void) | undefined;
+  /** **A press that begins on a report stamp** (#327) is not a press on the board: a tap on it
+   *  selects nothing. */
+  pressedOnStamp?: (() => boolean) | undefined;
+  /** **A whole frame is drawn** (#327): the report stamps follow the map to where it now is. */
+  onReportsFrame?: (() => void) | undefined;
   /** **A cluster opened** (#234) — hovered, or touched — where its sheet hangs; `null` closes it. */
   onClusterOpen?:
     | ((
@@ -861,7 +875,9 @@ export class MapEngine {
     this.scene.add(this.standing.group);
     this.scene.add(this.combats.group);
     this.combats.phone = this.touch;
-    this.combats.onSettled = (id) => this.onCombatSettled?.(id);
+    this.combats.onSettled = (id) => this.settleCombat(id);
+    this.combats.onShown = (id) => this.groundWords.shown(id);
+    this.combats.onReport = (view) => this.onCombatReport?.(view);
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -1018,6 +1034,7 @@ export class MapEngine {
 
   inkBurst(burst: InkBurst): void {
     this.invalidate();
+    if (burst.kind === 'held' && burst.combatId !== undefined) return this.groundWords.hold(burst);
     /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis
      *  levé comme le cercle d'un point — la même plume. */
     if (burst.from !== undefined) {
@@ -1445,6 +1462,7 @@ export class MapEngine {
     this.invalidate();
     // A combat played on the map would play twice: the replay is the one looked at.
     this.combats.clear();
+    this.onReportsLift?.();
     const saved = this.replay?.saved ?? {
       target: this.controls.target.clone(),
       position: this.camera.position.clone(),
@@ -1887,6 +1905,7 @@ export class MapEngine {
     this.standing.dispose();
     this.sequences.dispose();
     this.combats.dispose();
+    this.groundWords.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
     this.pins.dispose();
@@ -1933,6 +1952,7 @@ export class MapEngine {
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
+      this.onReportsLift?.();
       this.fingerOnBoard = event.pointerType === 'touch';
       // A second finger makes it a pinch: the press it joins can no longer be a clean one.
       if (this.gesture !== null && this.fingerOnBoard) {
@@ -1954,7 +1974,7 @@ export class MapEngine {
         pastThreshold: false,
         carry: null,
         carrying: false,
-        fromLabel: false,
+        fromLabel: this.pressedOnStamp?.() === true,
         hold: null,
       };
       this.armCarry(this.gesture, event, () => this.carryFrom(event.clientX, event.clientY));
@@ -1963,6 +1983,7 @@ export class MapEngine {
     });
     canvas.addEventListener('wheel', () => {
       this.journey = null;
+      this.onReportsLift?.();
     });
     // The browser's autoscroll arms on the middle button and plants itself over the map.
     // It is only cut here: pointer events give no purchase on it.
@@ -2617,7 +2638,7 @@ export class MapEngine {
       !this.landAt(cue.point) ||
       (!this.combats.waits(cue.id) && !this.seenWhole(point))
     ) {
-      this.onCombatSettled?.(cue.id);
+      this.settleCombat(cue.id);
       return;
     }
     if (cue.view === null) {
@@ -2634,6 +2655,13 @@ export class MapEngine {
         cue.view.side === 'attacker' ? Math.atan2(away.z, -away.x) : Math.atan2(-away.z, away.x);
     }
     this.combats.play(cue.view, this.playerNation, point, yaw, now);
+  }
+
+  /** A combat has done showing itself: « terrain tenu » stands if no scene did, and its dispatch
+   *  may come — unless a stamp holds it until it lifts. */
+  private settleCombat(id: string): void {
+    this.groundWords.abandon(id);
+    this.onCombatSettled?.(id);
   }
 
   /** In the field, and near enough for a troop to stand rather than its pin. */
@@ -3536,6 +3564,15 @@ export class MapEngine {
       this.invalidate();
     const now = performance.now();
     this.advanceReplay(now);
+    if (this.journey !== null) {
+      const { arrival, arrivalDistance } = this.journey;
+      this.onReportsLift?.((point) =>
+        stampStays(
+          this.frame.projectLonLat(point, COUNTRY_THICKNESS).distanceTo(arrival),
+          arrivalDistance,
+        ),
+      );
+    }
     if (this.combats.advance(now, (at) => this.combatScaleAt(at))) this.demand.whole();
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
@@ -3706,6 +3743,7 @@ export class MapEngine {
       this.camera.position,
     );
     this.onLabels(this.outsideReplay(projections, distance));
+    this.onReportsFrame?.();
     // An arrow at the edge would lead out of a replay the veil does not let one leave.
     this.onEdges(
       this.replay === null

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { STAMP_MS, inkBursts, stampAt } from './ink-bursts';
 import type { CombatReport, JournalDispatch } from './player-view';
 
-const combat = { point: { lon: 2, lat: 49 }, won: false } as CombatReport;
+const combat = { id: 'c1', point: { lon: 2, lat: 49 }, won: false } as CombatReport;
 const hour = (at: number) =>
   new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const dispatch = (
@@ -77,6 +77,15 @@ describe('inkBursts', () => {
         delayMs: STAMP_MS,
       },
     ]);
+  });
+
+  it('names the combat on « terrain tenu » when the map may play it, an arrival only (#327)', () => {
+    const arrival = { ...combat, won: true, cause: 'arrival' } as CombatReport;
+    const [, held] = inkBursts([dispatch(20, 'assault', arrival)], 10, [], true);
+    expect(held).toMatchObject({ kind: 'held', combatId: 'c1' });
+    const sea = { ...arrival, cause: 'interception' } as CombatReport;
+    const [, other] = inkBursts([dispatch(20, 'assault', sea)], 10, [], true);
+    expect(other).not.toHaveProperty('combatId');
   });
 
   it('stamps an arrival at the end of the thread that vanished', () => {

@@ -19,10 +19,22 @@ import type { Medium } from '@/domain/ids';
 import { STEP_MS, VOLLEY_SHARE, type ReplayFrame, type ReplayPiece } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
+import {
+  Guns,
+  GUNS,
+  readyOf,
+  recoilAt,
+  smooth as ease,
+  turretLimitOf,
+  wrap,
+  type GunKind,
+} from './articulation';
 import { textureOf } from './billboard';
 import { blockFigurine } from './blocks';
 import { FIGURINE_SCALE, figurineFor, TANK_SHARE } from './figurines/figurine';
+import { shoulder } from './figurines/infantry';
 import { pieceScale } from './piece-scale';
+import { articulatedOf } from './sequences';
 import { charred, PLUME_BY_WEAR, Smoke, type Plume } from './smoke';
 import { washedOf } from './standing';
 
@@ -147,13 +159,30 @@ export function salvoTarget(k: number, mine: number, theirs: number): number | n
   return mine === 0 ? null : ((k - mine) * 2) % mine;
 }
 
-/** A shot's share of its flight through the volley, staggered by its rank; `null` before it
+/** **How much of the volley lies between two departures** (storyboard `JITTER`). `@a-mesurer` */
+const SHOT_SPREAD = 0.15;
+/** Where in the volley the shot of a line's `rank`th piece leaves, 0..1: its flash, smoke, ink
+ *  and recoil all start there. The rank counts in its own line (storyboard `i % 3`). */
+const departureOf = (rank: number): number => (rank % 3) * SHOT_SPREAD;
+const rankOf = (k: number, mine: number): number => (k < mine ? k : k - mine);
+
+/** A shot's share of its flight through the volley, from its departure; `null` before it
  *  leaves and after it lands. Reduced motion holds every shot halfway across. */
 export function shotShare(progress: number, k: number, still: boolean): number | null {
   if (still) return 0.5;
-  const jitter = (k % 3) * 0.05;
+  const jitter = departureOf(k);
   const share = (progress - jitter) / (1 - jitter);
   return share > 0 && share < 1 ? share : null;
+}
+
+/**
+ * **How long since piece `k`'s shot left**, in ms — negative before — in a fire step; `null`
+ * outside one. The one source of the flash, the smoke, the ink and the recoil of a shot.
+ */
+export function sinceDeparture(frame: ReplayFrame, k: number): number | null {
+  if (frame.firing === null) return null;
+  const volleyMs = STEP_MS[frame.step] * VOLLEY_SHARE;
+  return frame.progress * STEP_MS[frame.step] - departureOf(k) * volleyMs;
 }
 
 /** The volley's share of a fire step, `null` once the shots have landed or outside one. */
@@ -181,6 +210,9 @@ export function shakeOf(frame: ReplayFrame, still: boolean): number {
 const LINGER_MS = 900;
 /** ...and fades over the last of it, rather than being cut. */
 const LINGER_FADE_MS = 400;
+
+/** How long a muzzle flash lasts. */
+const FLASH_MS = 160;
 
 const SHOT_LENGTH = 0.24;
 const SHOT = new BoxGeometry(0.02, 0.02, SHOT_LENGTH);
@@ -245,11 +277,21 @@ type Piece = {
   readonly shot: Mesh;
   burning: Smoke | null;
   look: Look;
+  /** A tank or a gun, drawn as a figurine: its articulated copy aims and recoils (#331). */
+  gunKind: GunKind | null;
+  /** Its length in the scene's units, what its whole recoil is a share of. */
+  length: number;
+  /** The tower of its articulated copy, once that has landed. */
+  guns: Guns | null;
+  /** Its men, once the squad has landed. */
+  men: ReadonlyArray<Object3D>;
+  /** How far its turret may turn, when it is not free to. */
+  turretLimit: number | null;
 };
 
+/** How long after the first man the next ones of a squad fire. @a-mesurer */
+const SQUAD_LAG_MS = 40;
 const FLASH_SIZE = 0.22;
-
-const ease = (k: number) => k * k * (3 - 2 * k);
 
 /** How much bigger a node's units are than `root`'s, by the scales between them. */
 function scaleWithin(node: Object3D, root: Object3D): number {
@@ -335,6 +377,11 @@ export class ReplayScene {
       shot: new Mesh(SHOT, SHOT_INK),
       burning: null,
       look: 'whole',
+      gunKind: null,
+      length: 0,
+      guns: null,
+      men: [],
+      turretLimit: null,
     };
     if (built.burns) {
       built.burning = new Smoke(PLUME_BY_WEAR.burning!);
@@ -374,9 +421,29 @@ export class ReplayScene {
       } else {
         built.body = figurine.object;
         built.body.scale.setScalar(1 / REPLAY_STAGE);
+        built.length = figurine.span / REPLAY_STAGE;
+        // A tank turns its turret and a gun draws back its barrel: an articulated copy stands in
+        // for the model for the scene, the resting board keeping its own (ADR 0036 §5).
+        const rig = Object.hasOwn(GUNS, seen.role) ? (seen.role as GunKind) : undefined;
+        if (rig !== undefined && figurine.url !== undefined) {
+          built.gunKind = rig;
+          built.turretLimit = turretLimitOf(nation, seen.tier);
+          articulatedOf(figurine.url, rig).then(
+            (cooked) => {
+              const copy = cooked.clone(true);
+              figurine.standIn?.(copy);
+              built.guns = new Guns(copy, rig, built.turretLimit);
+              built.look = 'whole';
+            },
+            () => {},
+          );
+        }
         // The models' markers are in model units: what hangs there drops the model's scale.
         void figurine.ready.then(
           () => {
+            const men: Object3D[] = [];
+            built.body.traverse((part) => part.name.startsWith('man_') && men.push(part));
+            built.men = men;
             const muzzle = figurine.object.getObjectByName('fx_muzzle');
             if (muzzle) {
               muzzle.add(flashSprite);
@@ -418,6 +485,7 @@ export class ReplayScene {
     if (heard !== null && heard !== this.heard) playTableSound('fire');
     this.heard = heard;
     const count = this.pieces.length;
+    const mineCount = frame.pieces.filter((piece) => piece.side === 'mine').length;
     this.pieces.forEach((piece, k) => {
       const state = frame.pieces[k]!;
       const { holder, pivot } = piece;
@@ -433,24 +501,23 @@ export class ReplayScene {
       holder.position.y = DROP * (1 - ease(Math.min(1, Math.max(0, down)))) ** 2;
 
       const fires = frame.firing === piece.side && state.fate !== 'fallen';
-      const volley = volleyOf(frame);
+      // One instant for the flash, the smoke, the ink and the recoil: this piece's departure.
+      const since = fires ? sinceDeparture(frame, rankOf(k, mineCount)) : null;
       const salvo = !fires
         ? 0
         : still
           ? 1
-          : volley === null
+          : since === null || since < 0 || since >= FLASH_MS
             ? 0
-            : Math.sin(Math.PI * Math.min(1, volley / 0.35));
+            : Math.sin((Math.PI * since) / FLASH_MS);
       piece.flash.visible = salvo > 0.02;
       piece.flash.scale.setScalar(piece.flashSize * salvo);
-      const since = sinceImpact(frame) ?? Infinity;
-      const lingering = since >= 0 && since < LINGER_MS;
-      const fade = lingering ? Math.min(1, (LINGER_MS - since) / LINGER_FADE_MS) : 1;
-      piece.firing.object.visible = fires && (still || volley !== null || lingering);
-      piece.firing.frame(
-        still ? 0.4 : (progress * STEP_MS[step]) / 1000 + (frame.firing === null ? 0 : 0.05),
-        fade,
-      );
+      const sinceLanded = sinceImpact(frame) ?? Infinity;
+      const lingering = sinceLanded >= 0 && sinceLanded < LINGER_MS;
+      const fade = lingering ? Math.min(1, (LINGER_MS - sinceLanded) / LINGER_FADE_MS) : 1;
+      piece.firing.object.visible =
+        fires && (still || (since !== null && since >= 0 && (sinceLanded < 0 || lingering)));
+      piece.firing.frame(still ? 0.4 : (since ?? 0) / 1000 + 0.03, fade);
 
       const fall = state.fate === 'fallen' ? ease(state.progress) : 0;
       const retreat = state.fate === 'routed' ? ease(state.progress) : 0;
@@ -463,7 +530,11 @@ export class ReplayScene {
       if (turns !== null) holder.rotation.y = piece.yaw + Math.PI * ease(turns[k] ?? 0);
       holder.rotation.z = shakeOf(frame, still);
       if (piece.burns) {
-        pivot.rotation.set(0, 0, 0);
+        // A tank rears and a gun slides back as its shot leaves (`since`); nothing at reduced motion.
+        const gun = piece.gunKind === null ? null : GUNS[piece.gunKind];
+        const recoil = still ? 0 : recoilAt(since);
+        pivot.rotation.set(gun === null ? 0 : ((gun.rock * Math.PI) / 180) * recoil, 0, 0);
+        if (gun !== null) piece.body.position.z = -gun.piece * piece.length * recoil;
       } else if (piece.card) {
         // Away from the eye: mine's +x is the scene's -z, theirs' is its +z.
         pivot.rotation.set(0, 0, (piece.side === 'mine' ? -1 : 1) * (Math.PI / 2) * fall);
@@ -491,7 +562,9 @@ export class ReplayScene {
       if (this.fire === 'unseen') {
         this.fall(
           piece,
-          frame.firing === 'theirs' && volley !== null ? shotShare(volley, k, still) : null,
+          frame.firing === 'theirs' && volley !== null
+            ? shotShare(volley, rankOf(k, mineCount), still)
+            : null,
         );
         return;
       }
@@ -506,7 +579,7 @@ export class ReplayScene {
             ? 1
             : volley
           : fires && (still || volley !== null)
-            ? shotShare(volley ?? 0, k, still)
+            ? shotShare(volley ?? 0, rankOf(k, mine), still)
             : null;
       piece.shot.visible = share !== null && target !== undefined;
       if (!piece.shot.visible) return;
@@ -519,6 +592,44 @@ export class ReplayScene {
       } else piece.shot.position.lerpVectors(muzzle, aim, share!);
       // In the scene's own frame: `lookAt` would read `to` as a world point.
       piece.shot.quaternion.setFromUnitVectors(FORWARD, aim.sub(muzzle).normalize());
+    });
+    this.articulate(frame, still);
+  }
+
+  /**
+   * **Les pièces en joue** (#331) : chaque tourelle pivote vers sa cible au plus court, chaque
+   * tube recule à son départ, l'homme de rang 1 s'agenouille et épaule. Tenu à `readyOf`, qui
+   * rend la pose de repos exacte à la fin du compte-rendu.
+   */
+  private articulate(frame: ReplayFrame, still: boolean): void {
+    const mine = frame.pieces.filter((piece) => piece.side === 'mine').length;
+    const ready = readyOf(frame);
+    this.pieces.forEach((piece, k) => {
+      if (piece.guns === null && piece.men.length === 0) return;
+      const state = frame.pieces[k]!;
+      const rout = state.fate === 'routed' ? state.progress : 0;
+      const fires = frame.firing === piece.side && state.fate !== 'fallen';
+      const since = fires && !still ? sinceDeparture(frame, rankOf(k, mine)) : null;
+      if (piece.guns !== null) {
+        const target = this.pieces[salvoTarget(k, mine, this.pieces.length - mine) ?? -1];
+        const aim =
+          target === undefined
+            ? 0
+            : wrap(
+                Math.atan2(
+                  target.holder.position.x - piece.holder.position.x,
+                  target.holder.position.z - piece.holder.position.z,
+                ) - piece.holder.rotation.y,
+              );
+        piece.guns.point(aim, ready, ready * (1 - Math.min(1, rout / 0.25)), recoilAt(since));
+      }
+      piece.men.forEach((man, j) =>
+        shoulder(
+          man,
+          ready * (1 - Math.min(1, rout / 0.2)),
+          recoilAt(since === null ? null : since - SQUAD_LAG_MS * j),
+        ),
+      );
     });
   }
 

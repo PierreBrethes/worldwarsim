@@ -12,7 +12,7 @@ import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { type MapCombat, WorldMap } from '@/map/WorldMap';
-import { freshCombats, homewardOf } from '@/domain/combat-on-map';
+import { freshCombats, homewardOf, REPORT_HOLD_MS } from '@/domain/combat-on-map';
 import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
 import {
@@ -156,6 +156,7 @@ import { CombatToasts } from './-plateau/CombatToasts';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
 import { REPLAY_MS, type ReplayStep } from '@/domain/replay';
+import { WAIT_MS } from '@/map/engine/combats';
 import { NextActions } from './-plateau/NextActions';
 import { FootBar } from '@/shell/foot';
 import { debtKey } from './-plateau/FoundationRows';
@@ -2225,6 +2226,15 @@ function BoardContent({
     },
     [convex, seat, windows, markJournalRead, closeWindow, dropHand],
   );
+  const openReport = useCallback(
+    (combatId: string) => {
+      const dispatch = view.journal.find((each) => each.combat?.id === combatId);
+      if (dispatch === undefined) return;
+      // A refusal is said as the dispatch's own button says it (ADR 0015).
+      void launchReplay(dispatch).then((said) => said !== null && notify(said));
+    },
+    [view.journal, launchReplay],
+  );
   const replayStep = useCallback(
     (step: ReplayStep, ended: boolean) =>
       setReplay(
@@ -2465,6 +2475,8 @@ function BoardContent({
                 cue={mapCue}
                 combats={mapCombats}
                 onCombatSettled={releaseDispatch}
+                onOpenReport={openReport}
+                onReportLifted={releaseDispatch}
                 selectedPiles={selectedPiles}
                 onLasso={blitz ? undefined : lasso}
                 onSelectHold={blitz || view.me.defeated ? undefined : startPicking}
@@ -2888,7 +2900,7 @@ const DISPATCH_VIEW_DISTANCE = 20;
 const NO_IDS: ReadonlySet<string> = new Set();
 /** **A combat's dispatch waits for its scene at most this long** (#272): a map that never tells
  *  does not keep it. @a-mesurer : un combat de dix secondes, l'attente de sa vue, une marge. */
-const DISPATCH_HOLD_MAX_MS = REPLAY_MS + 6_000;
+const DISPATCH_HOLD_MAX_MS = REPLAY_MS + WAIT_MS + REPORT_HOLD_MS;
 
 /** **À l'ouverture d'une Mondiale, la carte se cadre sur la nation** : assez près pour qu'elle
  *  tienne l'écran, sans fond de table. @a-mesurer */

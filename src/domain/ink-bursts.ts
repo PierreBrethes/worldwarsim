@@ -18,6 +18,9 @@ export type InkBurst = {
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;
+  /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
+   *  compte-rendu le remplace, et celui-ci ne se pose pas. */
+  readonly combatId?: string;
   /** **D'où ma batterie a tiré** (B20) : le trait d'encre du coup, jusqu'au tampon. */
   readonly from?: LonLat;
 };
@@ -60,6 +63,8 @@ export function inkBursts(
   journal: ReadonlyArray<JournalDispatch>,
   seenAt: number,
   vanishedEnds: ReadonlyArray<LonLat>,
+  /** The map plays the combats that arrive (#327): « terrain tenu » is then the stamp's to say. */
+  mapPlays = false,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
   const combats = fresh.flatMap((dispatch): InkBurst[] => {
@@ -81,6 +86,7 @@ export function inkBursts(
             at,
             words: stamped(fr.replay.held, dispatch.at),
             delayMs: STAMP_MS,
+            ...(mapPlays && cause === 'arrival' ? { combatId: dispatch.combat.id } : {}),
           },
         ]
       : [engaged];

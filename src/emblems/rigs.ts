@@ -8,6 +8,10 @@ const PLANE_GEAR = ['gear_left', 'gear_right', 'wheel_left', 'wheel_right', 'tai
  * file (`hold_hatch_*` is 4 hatches, 5 in the American ship, 1 in the junk).
  */
 export const RIG_PARTS = {
+  // The combat's guns (#331): the turret turns, the barrel — the tank's `gun`, with its mantlet —
+  // draws back. Not `gun_hull`, the B1 bis' hull 75: it does not aim.
+  armor: ['turret', 'gun'],
+  artillery: ['barrel'],
   barracks: ['porte_gauche', 'porte_droite', 'remise_porte_gauche', 'remise_porte_droite'],
   landTransport: ['body', 'tailgate', 'roue_left_*', 'roue_right_*'],
   fighter: PLANE_GEAR,

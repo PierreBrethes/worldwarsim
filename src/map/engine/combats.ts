@@ -18,6 +18,10 @@ type Played = {
   readonly since: number;
   /** The step last drawn: a held step asks one whole frame as it changes. */
   step: string | null;
+  /** Its ink stamp has been asked: once, as the account begins (#327). */
+  reported: boolean;
+  /** It has stood at a scale above zero: the map showed it. */
+  shown: boolean;
 };
 
 /** A point waits this long for its view before it shows again. @a-mesurer: a slow `replayOf`
@@ -40,6 +44,12 @@ export class CombatLayer {
   /** A phone plays fewer and smaller combats (`COMBAT_LIMITS`). */
   phone = false;
   onSettled: (id: string) => void = () => {};
+  /** **The account begins** (#327) — at the last step of a scene, or with the final pose — on a
+   *  combat the player can see: the stamp that reads its outcome goes up. */
+  onReport: (view: ReplayView) => void = () => {};
+  /** **The map showed this combat's scene** (#327), from the first image above the floor. */
+  onShown: (id: string) => void = () => {};
+  private readonly seen = new Set<string>();
   private played: Played[] = [];
   private readonly waiting = new Map<string, { readonly point: Vector3; readonly since: number }>();
   /** What the scenes cover on the board, as of the last `advance`: the ground there is hidden. */
@@ -57,6 +67,11 @@ export class CombatLayer {
 
   waits(id: string): boolean {
     return this.waiting.has(id);
+  }
+
+  /** A scene of this combat stood on the board: « terrain tenu » is the stamp's now. */
+  shown(id: string): boolean {
+    return this.seen.has(id);
   }
 
   /** `yaw` turns the scene on the board; `nation` is mine. */
@@ -89,8 +104,9 @@ export class CombatLayer {
       plays,
       since: now,
       step: null,
+      reported: false,
+      shown: false,
     });
-    if (!plays) this.onSettled(view.combatId);
   }
 
   /**
@@ -112,6 +128,15 @@ export class CombatLayer {
       const object = each.scene.object;
       object.visible = scale > 0;
       if (scale === 0) return true;
+      if (!each.shown) {
+        each.shown = true;
+        this.seen.add(each.view.combatId);
+        this.onShown(each.view.combatId);
+      }
+      if (!each.reported && shown.frame.step === 'compte-rendu') {
+        each.reported = true;
+        this.onReport(each.view);
+      }
       object.scale.setScalar(scale);
       const yaw = object.rotation.y;
       object.position
@@ -159,6 +184,7 @@ export class CombatLayer {
 
   private end(each: Played): void {
     each.scene.dispose();
-    if (each.plays) this.onSettled(each.view.combatId);
+    // A stamp up carries the dispatch with it: its lifting settles the combat.
+    if (!each.reported) this.onSettled(each.view.combatId);
   }
 }
