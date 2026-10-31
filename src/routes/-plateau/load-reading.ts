@@ -1,6 +1,5 @@
 import {
   emptyLoad,
-  grabbedWithin,
   loadCapacityOf,
   loadRefusalOf,
   loadTotal,
@@ -8,17 +7,27 @@ import {
   type SupplyLoad,
 } from '@/domain/logistics';
 import { currentStock, type PlayerView } from '@/domain/player-view';
-import { fr } from '@/i18n/fr';
+import { chosenLoadOf, fullLoadOf, loadWordOf } from '@/domain/load-gauge';
+import type { TokenHint } from '@/map/TokenDrag';
+import { fr, roleLabel } from '@/i18n/fr';
 
 /** D'où viennent les jetons : le plateau personnel, ou le dépôt d'un de mes avant-postes. */
 export type TokenSource = 'board' | { readonly outpostId: string };
 
-export type LoadReading = {
-  readonly text: string;
-  readonly refused: boolean;
-  /** Ce que le lâcher chargerait : la prise, bornée par la réserve et la place à bord. */
-  readonly amount: number;
-};
+export type LoadReading = TokenHint;
+
+const refusedReading = (text: string): LoadReading => ({
+  text,
+  refused: true,
+  amount: 0,
+  held: 0,
+  capacity: 0,
+  max: 0,
+  bound: 'room',
+  load: emptyLoad(),
+  title: '',
+  word: null,
+});
 
 /** Ce que la source tient de cette ressource : un bac du plateau (au présent) ou un dépôt. */
 export function sourceStockOf(
@@ -44,19 +53,19 @@ export function loadReadingOf(
   carrierId: string | null,
   source: TokenSource,
   resource: keyof SupplyLoad,
-  grabbed: number,
+  /** La charge que la main a réglée dans la jauge ; `null` : le plein. */
+  picked: number | null,
   now: number,
 ): LoadReading {
   const troop =
     carrierId === null ? undefined : view.me.troops.find((candidate) => candidate.id === carrierId);
-  if (troop === undefined) return { text: fr.logistics.dropOnTransport, refused: true, amount: 0 };
+  if (troop === undefined) return refusedReading(fr.logistics.dropOnTransport);
   const at = troop.stationedAt;
   const outpost =
     at.kind === 'outpost' ? view.me.outposts.find((one) => one.id === at.outpostId) : undefined;
-  if (source === 'board' && outpost !== undefined)
-    return { text: fr.logistics.fromDepot, refused: true, amount: 0 };
+  if (source === 'board' && outpost !== undefined) return refusedReading(fr.logistics.fromDepot);
   if (source !== 'board' && outpost?.id !== source.outpostId)
-    return { text: fr.logistics.atThisDepot, refused: true, amount: 0 };
+    return refusedReading(fr.logistics.atThisDepot);
   const building =
     at.kind === 'building' ? view.me.buildings.find((one) => one.id === at.buildingId) : undefined;
   const place: LoadingPlace =
@@ -69,23 +78,37 @@ export function loadReadingOf(
   const capacity = loadCapacityOf(troop.role);
   const store = sourceStockOf(view, source, resource, now);
   const marching = view.arcs.some((arc) => arc.state === 'mine' && arc.troopIds.includes(troop.id));
-  const amount = Math.min(grabbedWithin(grabbed, store), Math.max(0, capacity - loadTotal(held)));
+  const { max, bound } = fullLoadOf(store, capacity - loadTotal(held));
+  const amount = chosenLoadOf(max, picked);
+  // 0 n'est pas un refus : les jetons rentrent. La règle se lit sur le plein, pas sur la valeur.
   const refusal = loadRefusalOf({
     role: troop.role,
     place,
-    busy: marching ? 'underway' : null,
+    busy: troop.tour !== undefined ? 'touring' : marching ? 'underway' : null,
     held,
     resource,
-    amount: Math.max(amount, 1),
+    amount: Math.max(max, 1),
     store,
   });
   if (refusal !== null) {
     const { code, ...details } = refusal;
-    return { text: fr.errors[code](details), refused: true, amount: 0 };
+    return refusedReading(fr.errors[code](details));
   }
+  const aboard = loadTotal(held);
   return {
-    text: fr.logistics.loadHint(amount, fr.resources[resource], loadTotal(held) + amount, capacity),
+    // The gauge says the load; the pastille only says refusals.
+    text: '',
     refused: false,
     amount,
+    held: aboard,
+    capacity,
+    max,
+    bound,
+    load: held,
+    title: `${roleLabel(troop.role, 1)} — ${fr.resources[resource]}`,
+    word: fr.logistics.gaugeWord(
+      loadWordOf({ held: aboard, amount, capacity, max, bound }),
+      source === 'board',
+    ),
   };
 }
