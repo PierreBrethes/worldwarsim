@@ -85,7 +85,7 @@ export function FloatingWindow(props: FrameProps) {
  */
 export const SheetCount = createContext<((delta: 1 | -1) => void) | null>(null);
 
-function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
+function WindowSheet({ name, onClose, rank, inFront, children }: FrameProps) {
   const container = useRef<HTMLDivElement>(null);
   const count = useContext(SheetCount);
   useEffect(() => {
@@ -112,6 +112,7 @@ function WindowSheet({ onClose, rank, inFront, children }: FrameProps) {
       ref={container}
       tabIndex={-1}
       role="dialog"
+      data-surface={name}
       className={`hud board-window sheet-rise @container flex flex-col overflow-hidden outline-none ${
         pull > 0 ? '' : 'sheet-return'
       }`}
@@ -268,6 +269,7 @@ function DeskWindow({
         ref={container}
         tabIndex={-1}
         role="dialog"
+        data-surface={name}
         onPointerDown={inFront ? undefined : onBringForward}
         className="float hud paper-unfold @container pointer-events-auto relative flex max-h-full shrink-0 flex-col outline-none"
         style={{
