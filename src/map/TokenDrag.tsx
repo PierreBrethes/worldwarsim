@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { grabbedWithin, type SupplyLoad } from '@/domain/logistics';
-import { fineLoadOf, railLoadOf, wheelLoadOf, type LoadBound } from '@/domain/load-gauge';
+import {
+  fineLoadOf,
+  gaugeSpotOf,
+  railLoadOf,
+  wheelLoadOf,
+  type LoadBound,
+} from '@/domain/load-gauge';
 import { ResourcePlate } from '@/emblems/Plate';
 import { motionNow } from '@/shell/paper-motion';
 import { GAUGE_H, GAUGE_W, LoadGauge, type GaugeLayout } from './LoadGauge';
@@ -19,6 +25,9 @@ const FINGER_LIFT_PX = 64;
 const SIDE_PX = 40;
 const FINE_BAND_PX = 150;
 const TAG_BAND_PX = 16;
+/** The gauge keeps this far from the tag it opens on, and from the edges of the free map. */
+const GAUGE_GAP_PX = 8;
+const GAUGE_EDGE_PX = 8;
 
 /** The view moves under a held hand (a transport leaves, a stock falls): the gauge reads it again. */
 const RESYNC_MS = 200;
@@ -123,34 +132,56 @@ export function useTokenDrag<From>({
       return null;
     };
     const tagOf = (id: string) => document.querySelector<HTMLElement>(`[data-carrier-id="${id}"]`);
-    /** Where the gauge stands: over the whole column of tags of the pile, or under it at the top of the screen. */
+    const pixelsOf = (name: string) =>
+      Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
+    /** The free map: under the strip at the top, over the personal board and the phone's buttons. */
+    const freeMap = () => ({
+      top: pixelsOf('--board-top') + GAUGE_EDGE_PX,
+      bottom:
+        window.innerHeight -
+        GAUGE_EDGE_PX -
+        Math.max(
+          pixelsOf('--mat-rise'),
+          pixelsOf('--board-bottom'),
+          ...Array.from(document.querySelectorAll('[data-poster-floor]'), (node) =>
+            Math.max(0, window.innerHeight - node.getBoundingClientRect().top),
+          ),
+        ),
+    });
+    /** Where the gauge stands: just over the tag under the hand, or under it where there is no room. */
     const layoutOf = (id: string) => {
-      const tag = tagOf(id);
-      if (tag === null) return null;
-      const column = (tag.closest('.cargo-tags') ?? tag).getBoundingClientRect();
+      const element = tagOf(id);
+      if (element === null) return null;
+      const tag = element.getBoundingClientRect();
       const width = Math.min(GAUGE_W, window.innerWidth - 16);
-      const below = column.top - GAUGE_H - 8 < 8;
+      const { below, top } = gaugeSpotOf({
+        tag,
+        height: GAUGE_H,
+        gap: GAUGE_GAP_PX,
+        limits: freeMap(),
+      });
       const layout: GaugeLayout = {
-        left: within(column.left + column.width / 2 - width / 2, 8, window.innerWidth - width - 8),
-        top: below ? column.bottom + 8 : column.top - GAUGE_H - 8,
+        left: within(tag.left + tag.width / 2 - width / 2, 8, window.innerWidth - width - 8),
+        top,
         width,
       };
-      return { column, below, layout };
+      return { tag, below, layout };
     };
     /** Three bands: the tag (the full load, or the one set), the gauge (the hand sets it), past
-     *  the gauge (the fine step). Outside the three the gauge folds. */
+     *  the gauge (the fine step). Outside the three the gauge folds; a tag the gauge covers is
+     *  reached by leaving and entering it again. */
     const bandOf = (found: NonNullable<ReturnType<typeof layoutOf>>): Band | null => {
-      const { column, below, layout } = found;
+      const { tag, below, layout } = found;
       const near = (left: number, right: number) =>
         at.x >= left - SIDE_PX && at.x <= right + SIDE_PX;
       const bottom = layout.top + GAUGE_H;
       if (near(layout.left, layout.left + layout.width) && at.y >= layout.top && at.y < bottom)
         return 'rail';
-      if (near(column.left, column.right)) {
+      if (near(tag.left, tag.right)) {
         if (
           below
-            ? at.y >= column.top - TAG_BAND_PX && at.y < layout.top
-            : at.y >= bottom && at.y <= column.bottom + TAG_BAND_PX
+            ? at.y >= tag.top - TAG_BAND_PX && at.y < layout.top
+            : at.y >= bottom && at.y <= tag.bottom + TAG_BAND_PX
         )
           return 'tag';
       }

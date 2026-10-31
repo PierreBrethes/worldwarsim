@@ -92,3 +92,27 @@ export function loadWordOf({
   if (held + amount === capacity) return 'full';
   return amount === max && bound === 'stock' ? 'whole' : null;
 }
+
+/**
+ * **Où la jauge se déplie** (#319) : juste au-dessus de l'étiquette survolée, dans la carte libre —
+ * sous la réglette du haut (`limits.top`) et au-dessus du plateau personnel (`limits.bottom`) ; sans
+ * la place au-dessus, dessous.
+ */
+export function gaugeSpotOf({
+  tag,
+  height,
+  gap,
+  limits,
+}: {
+  tag: { top: number; bottom: number };
+  height: number;
+  gap: number;
+  limits: { top: number; bottom: number };
+}): { below: boolean; top: number } {
+  const above = tag.top - gap - height;
+  if (above >= limits.top) return { below: false, top: above };
+  return {
+    below: true,
+    top: Math.min(tag.bottom + gap, Math.max(limits.top, limits.bottom - height)),
+  };
+}

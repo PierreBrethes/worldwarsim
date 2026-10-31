@@ -166,6 +166,7 @@ describe('the gauge of a transport under the hand', () => {
     column.getBoundingClientRect = rect(100, 300, 100, 30);
     const tag = document.createElement('div');
     tag.dataset.carrierId = 'c1';
+    tag.getBoundingClientRect = rect(100, 300, 100, 30);
     column.append(tag);
     document.body.append(column);
     document.elementsFromPoint = (_x, y) => (y >= 300 && y <= 330 ? [tag] : []);
@@ -215,6 +216,24 @@ describe('the gauge of a transport under the hand', () => {
     expect(wheel.defaultPrevented).toBe(false);
   });
 
+  it('stands over the tag, under the strip of the board, and under the tag where there is no room', () => {
+    aboard();
+    render(<Bin read={read} drop={drop} />);
+    press();
+    moveTo(150, 320);
+    expect(gauge()?.getAttribute('style')).toContain('top: 168px');
+    cleanup();
+    document.documentElement.style.setProperty('--board-top', '200px');
+    try {
+      render(<Bin read={read} drop={drop} />);
+      press();
+      moveTo(150, 320);
+      expect(gauge()?.getAttribute('style')).toContain('top: 338px');
+    } finally {
+      document.documentElement.style.removeProperty('--board-top');
+    }
+  });
+
   it('keeps what the wheel set while the hand rests in the rail', () => {
     aboard();
     drop.mockClear();
@@ -240,9 +259,10 @@ describe('the gauge of a transport under the hand', () => {
     const column = document.createElement('div');
     column.className = 'cargo-tags';
     column.getBoundingClientRect = rect(100, 300, 100, 30);
-    const [first, second] = ['c1', 'c2'].map((id) => {
+    const [first, second] = ['c1', 'c2'].map((id, k) => {
       const tag = document.createElement('div');
       tag.dataset.carrierId = id;
+      tag.getBoundingClientRect = rect(100, 300 + 15 * k, 100, 15);
       column.append(tag);
       return tag;
     });

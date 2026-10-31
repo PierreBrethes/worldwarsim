@@ -3,6 +3,7 @@ import {
   chosenLoadOf,
   fineLoadOf,
   fullLoadOf,
+  gaugeSpotOf,
   loadWordOf,
   railLoadOf,
   wheelLoadOf,
@@ -53,5 +54,26 @@ describe('the word under the load', () => {
     );
     expect(loadWordOf({ held: 0, amount: 20, capacity: 200, max: 23, bound: 'stock' })).toBeNull();
     expect(loadWordOf({ held: 0, amount: 0, capacity: 200, max: 0, bound: 'stock' })).toBeNull();
+  });
+});
+
+describe('where the gauge unfolds', () => {
+  const limits = { top: 100, bottom: 700 };
+  it('stands just over the tag, in the free map', () => {
+    expect(gaugeSpotOf({ tag: { top: 400, bottom: 500 }, height: 124, gap: 8, limits })).toEqual({
+      below: false,
+      top: 268,
+    });
+  });
+  it('goes under the tag when the strip over the board leaves no room above', () => {
+    expect(gaugeSpotOf({ tag: { top: 150, bottom: 250 }, height: 124, gap: 8, limits })).toEqual({
+      below: true,
+      top: 258,
+    });
+  });
+  it('stays over the personal board when under the tag would run into it', () => {
+    expect(gaugeSpotOf({ tag: { top: 150, bottom: 650 }, height: 124, gap: 8, limits }).top).toBe(
+      576,
+    );
   });
 });
