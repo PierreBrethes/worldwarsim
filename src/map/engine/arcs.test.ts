@@ -207,3 +207,16 @@ describe('ArcLayer.display', () => {
     expect(fresh!.parent).toBeNull();
   });
 });
+
+describe('ArcLayer.veil (#272)', () => {
+  it('hides the thread of a column leaving a combat played on the map, and shows it again', () => {
+    const arcs = layer();
+    arcs.display([mine('home'), { ...mine('far'), from: [20, 20] }]);
+    const shown = () => arcs.group.children.filter((child) => child.visible).length;
+    const before = shown();
+    arcs.veil((from) => from[0] === 0 && from[1] === 0);
+    expect(shown()).toBe(before - 1);
+    arcs.veil(null);
+    expect(shown()).toBe(before);
+  });
+});

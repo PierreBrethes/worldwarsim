@@ -10,6 +10,7 @@ import {
 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
+import type { ReplayView } from '@/domain/player-view';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
 import { bakedRig } from './baking';
 import { movesOnItsOwn, sceneOf } from './figurines/figurine';
@@ -102,7 +103,16 @@ export type Cue =
       readonly toward?: LonLat;
     }
   /** A troop steps down from a truck: `groupId` is `${pileId}/${group}` (`StandingLayer`). */
-  | { readonly kind: 'descente'; readonly groupId: string };
+  | { readonly kind: 'descente'; readonly groupId: string }
+  /** **A combat at its point** (#272): first without its view, to hide the point while it is
+   *  asked for, then with it. `toward` is where the attacker came from, when it is known. */
+  | {
+      readonly kind: 'combat';
+      readonly id: string;
+      readonly point: LonLat;
+      readonly view: ReplayView | null;
+      readonly toward: LonLat | null;
+    };
 
 type Rest = { readonly position: Vector3; readonly quaternion: Quaternion };
 

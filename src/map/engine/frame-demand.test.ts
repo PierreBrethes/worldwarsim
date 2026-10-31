@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { PARACHUTE_MS } from './parachute';
 import { barracksDoors } from './timelines/barracks';
 import { SWEEP_MS } from '@/domain/deposit-sweep';
+import { REPLAY_MS } from '@/domain/replay';
 import {
   FLOW_FULL_MS,
   FLOW_REDUCED_MS,
@@ -143,6 +144,15 @@ describe('FrameDemand', () => {
     expect(demand.due(lifted + SETTLE_MS - 16)).toBe('stirred');
   });
 
+  it('draws one whole frame on demand, without opening the window (#272, reduced motion)', () => {
+    const demand = new FrameDemand(0);
+    demand.due(SETTLE_MS);
+    expect(demand.due(SETTLE_MS + 16)).toBeNull();
+    demand.whole();
+    expect(demand.due(SETTLE_MS + 32)).toBe('heartbeat');
+    expect(demand.due(SETTLE_MS + 48)).toBeNull();
+  });
+
   it('renders a stirred frame whole even when the ambience asked for it too', () => {
     const demand = new FrameDemand(0);
     demand.request();
@@ -247,6 +257,26 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
     const cue = source.slice(source.indexOf('  cue(cue: Cue)'));
     expect(cue.slice(0, cue.indexOf('\n  }\n'))).toMatch(
       /this\.invalidate\(\);[\s\S]*sequences\.play/,
+    );
+  });
+});
+
+describe('a combat on the map is declared to the loop (#272)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps the frames coming while one plays, asks a whole frame per held step, and starts from a stirring method', () => {
+    expect(REPLAY_MS).toBeGreaterThan(SETTLE_MS);
+    expect(source).toMatch(/this\.walks\.length > 0 \|\|\s+this\.combats\.active \|\|/);
+    expect(source).toMatch(/if \(this\.combats\.advance\(.*\)\) this\.demand\.whole\(\);/);
+    const cue = source.slice(source.indexOf('  cue(cue: Cue)'));
+    expect(cue.slice(0, cue.indexOf('\n  }\n'))).toMatch(/this\.invalidate\(\);[\s\S]*playCombat/);
+  });
+
+  it('clears the combats on the map as a replay opens: the same combat would play twice', () => {
+    const replay = source.slice(source.indexOf('  playReplay('));
+    expect(replay.slice(0, replay.indexOf('\n  }\n'))).toMatch(
+      /this\.invalidate\(\);\s+(\/\/.*\s+)*this\.combats\.clear\(\);/,
     );
   });
 });

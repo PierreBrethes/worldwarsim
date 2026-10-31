@@ -20,15 +20,19 @@ type Toast = {
  * **Le combat qui arrive pendant qu'on regarde la carte** (ADR 0026 §7). Ce que le plateau a
  * ouvert avec se lit au journal ; seul ce qui arrive ensuite s'imprime ici, au plus trois, le plus
  * ancien sortant le premier. `quiet` — un rejeu à l'écran, un joueur défait — tait l'encart et
- * vide la pile : ce qui arrive alors attend au journal, il ne ressort pas après coup.
+ * vide la pile : ce qui arrive alors attend au journal, il ne ressort pas après coup. `held` : les
+ * combats qui se jouent encore sur la carte (#272) — leur encart attend la fin de la scène, son
+ * temps de lecture ne court qu'une fois paru.
  */
 export function CombatToasts({
   journal,
   quiet,
+  held,
   onShow,
 }: {
   journal: ReadonlyArray<JournalDispatch>;
   quiet: boolean;
+  held: ReadonlySet<string>;
   onShow: (combat: CombatReport) => void;
 }) {
   const narrow = useNarrowScreen();
@@ -70,11 +74,12 @@ export function CombatToasts({
     [animated, remove],
   );
 
-  if (toasts.length === 0) return null;
+  const out = toasts.filter((toast) => !held.has(idOf(toast)));
+  if (out.length === 0) return null;
   /* Au téléphone, un seul à la fois et au pied de la carte, comme l'avis d'envoi : trois encarts
      en haut couvraient la colonne « en cours » et la moitié du plateau. Les suivants attendent
      que le premier parte. */
-  const shown = narrow ? toasts.slice(-1) : [...toasts].reverse();
+  const shown = narrow ? out.slice(-1) : [...out].reverse();
   return (
     <div
       style={narrow ? { marginBottom: MAT_LIFT_HUD } : undefined}
