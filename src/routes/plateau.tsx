@@ -155,7 +155,7 @@ import { GroundPanel } from './-plateau/GroundPanel';
 import { CombatToasts } from './-plateau/CombatToasts';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
-import type { ReplayStep } from '@/domain/replay';
+import { REPLAY_MS, type ReplayStep } from '@/domain/replay';
 import { NextActions } from './-plateau/NextActions';
 import { FootBar } from '@/shell/foot';
 import { debtKey } from './-plateau/FoundationRows';
@@ -2155,36 +2155,52 @@ function BoardContent({
   /**
    * **Un combat nouveau se joue sur la carte** (#272) : le point se masque dès qu'on l'apprend,
    * puis la carte joue la vue que `replayOf` rend. Rien à la première vue, rien en Blitz : la
-   * Mondiale seule.
+   * Mondiale seule. **Sa dépêche attend la fin de la scène** : elle disait l'issue avant
+   * l'animation. Sans scène, la carte le dit aussitôt (`onCombatSettled`) et elle paraît.
    */
   const combatsKnown = useRef<ReadonlySet<string> | null>(null);
   const [mapCombats, setMapCombats] = useState<ReadonlyArray<MapCombat>>([]);
+  const [heldDispatches, setHeldDispatches] = useState<ReadonlySet<string>>(NO_IDS);
+  const releaseDispatch = useCallback(
+    (id: string) =>
+      setHeldDispatches((current) => {
+        if (!current.has(id)) return current;
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      }),
+    [],
+  );
   useEffect(() => {
     const reports = view.journal.flatMap((dispatch) => dispatch.combat ?? []);
-    const fresh = blitz ? [] : freshCombats(combatsKnown.current, reports);
+    const fresh = blitz ? [] : freshCombats(combatsKnown.current, reports, Date.now());
     combatsKnown.current = new Set(reports.map((report) => report.id));
     if (fresh.length === 0) return;
-    setMapCombats(
-      fresh.map((report) => ({
+    setHeldDispatches((current) => new Set([...current, ...fresh.map((report) => report.id)]));
+    // Kept until the map says so — or past any scene, a map that never answered.
+    for (const report of fresh) setTimeout(() => releaseDispatch(report.id), DISPATCH_HOLD_MAX_MS);
+    setMapCombats((current) => [
+      ...current,
+      ...fresh.map((report) => ({
         id: report.id,
         point: [report.point.lon, report.point.lat] as const,
         view: null,
-        toward: homewardOf(report.point, view.arcs),
+        toward: homewardOf(report.point, view.arcs, report.side),
       })),
-    );
+    ]);
     for (const report of fresh)
       convex
         .query(api.replay.replayOf, { ...seat, combatId: report.id })
         .then((served) => {
-          if ('refusal' in served) return;
+          if ('refusal' in served) return releaseDispatch(report.id);
           setMapCombats((current) =>
             current.map((combat) =>
               combat.id === report.id ? { ...combat, view: served } : combat,
             ),
           );
         })
-        .catch(() => undefined);
-  }, [view.journal, view.arcs, convex, seat, blitz]);
+        .catch(() => releaseDispatch(report.id));
+  }, [view.journal, view.arcs, convex, seat, blitz, releaseDispatch]);
   const launchReplay = useCallback(
     async (dispatch: JournalDispatch): Promise<string | null> => {
       if (dispatch.combat === null) return null;
@@ -2448,6 +2464,7 @@ function BoardContent({
                 tourLoops={tourLoops}
                 cue={mapCue}
                 combats={mapCombats}
+                onCombatSettled={releaseDispatch}
                 selectedPiles={selectedPiles}
                 onLasso={blitz ? undefined : lasso}
                 onSelectHold={blitz || view.me.defeated ? undefined : startPicking}
@@ -2605,6 +2622,7 @@ function BoardContent({
               <CombatToasts
                 journal={view.journal}
                 quiet={replay !== null || view.me.defeated}
+                held={heldDispatches}
                 onShow={showCombat}
               />
               {openedDispatch !== null && openedCombat !== null && (
@@ -2867,6 +2885,10 @@ function BoardContent({
  * les régions et les mâts autour — la place d'une passe est un lieu, pas un continent.
  */
 const DISPATCH_VIEW_DISTANCE = 20;
+const NO_IDS: ReadonlySet<string> = new Set();
+/** **A combat's dispatch waits for its scene at most this long** (#272): a map that never tells
+ *  does not keep it. @a-mesurer : un combat de dix secondes, l'attente de sa vue, une marge. */
+const DISPATCH_HOLD_MAX_MS = REPLAY_MS + 6_000;
 
 /** **À l'ouverture d'une Mondiale, la carte se cadre sur la nation** : assez près pour qu'elle
  *  tienne l'écran, sans fond de table. @a-mesurer */

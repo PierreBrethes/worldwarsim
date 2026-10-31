@@ -19,9 +19,10 @@ Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur
 > (`CombatLayer`, `src/map/engine/combats.ts`). Elle joue **aussi en réduites** : les six temps
 > figés de `replayAt(view, t, 'reduced')`, une image complète à chaque changement de temps
 > (`FrameDemand.whole`) ; en coupées, la pose finale. Elle joue tant que la figurine se tient
-> (plancher, d ≈ 30), dans le champ au signal, jusqu'à trois combats à la fois sur un budget à
-> part (`COMBATS_AT_ONCE`) ; `MAX_PLAYING` reste aux copies. Au-delà, ou passé douze pièces par
-> camp, la pose finale.
+> (plancher, d ≈ 30), dans le champ au signal, sur un budget à part (`COMBAT_LIMITS`) : trois
+> combats et douze pièces par camp au bureau, un combat et six pièces au téléphone (décision de
+> Pierre du 31/10, au banc) ; `MAX_PLAYING` reste aux copies. Au-delà, la pose finale. Un rejeu
+> ouvert retire les scènes, et la dépêche d'un combat joué attend la fin de sa scène.
 
 > **Précisée le 26/10/2026, au codage de la sortie de caserne** (#268) : une séquence sans
 > `family` déplace la pièce, ou chacun des hommes d'une escouade (`man_*`) ; sa copie est un clone

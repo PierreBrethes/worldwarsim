@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  COMBATS_AT_ONCE,
+  COMBAT_LIMITS,
   combatAt,
   FINAL_POSE_MS,
   freshCombats,
@@ -11,8 +11,9 @@ import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
 import { REPLAY_MS, stepBounds } from './replay';
 import type { ArcView, CombatReport, ReplayView } from './player-view';
 
-const report = (id: string, cause: CombatReport['cause'] = 'arrival') =>
-  ({ id, cause, point: { lon: 4.9, lat: 49.7 } }) as CombatReport;
+const NOW = 1_800_000_000_000;
+const report = (id: string, cause: CombatReport['cause'] = 'arrival', at = NOW - 1000) =>
+  ({ id, cause, at, point: { lon: 4.9, lat: 49.7 } }) as CombatReport;
 
 const view: ReplayView = {
   combatId: 'c1',
@@ -29,26 +30,36 @@ const view: ReplayView = {
 
 describe('freshCombats', () => {
   it('plays nothing on the first view', () => {
-    expect(freshCombats(null, [report('a')])).toEqual([]);
+    expect(freshCombats(null, [report('a')], NOW)).toEqual([]);
   });
 
   it('plays the reports the view before did not have, a land arrival only', () => {
-    const fresh = freshCombats(new Set(['a']), [
-      report('a'),
-      report('b'),
-      report('c', 'interception'),
-      report('d', 'bombardment'),
-    ]);
+    const fresh = freshCombats(
+      new Set(['a']),
+      [report('a'), report('b'), report('c', 'interception'), report('d', 'bombardment')],
+      NOW,
+    );
     expect(fresh.map((each) => each.id)).toEqual(['b']);
+  });
+
+  it('plays no combat older than a replay and its margin: a laptop woken an hour later', () => {
+    const fresh = freshCombats(
+      new Set(),
+      [report('old', 'arrival', NOW - 3_600_000), report('new', 'arrival', NOW - 2000)],
+      NOW,
+    );
+    expect(fresh.map((each) => each.id)).toEqual(['new']);
   });
 });
 
 describe('playsWhole', () => {
-  it('plays up to twelve pieces a side, and beyond only the final pose', () => {
+  it('plays up to twelve pieces a side at the desk, six on a phone, and beyond only the final pose', () => {
     expect(SQUAD_DRAWN_WHOLE).toBe(12);
     const theirs = (troops: number) => ({ ...view, theirs: { ...view.theirs, troops } });
-    expect(playsWhole(theirs(12))).toBe(true);
-    expect(playsWhole(theirs(13))).toBe(false);
+    expect(playsWhole(theirs(12), false)).toBe(true);
+    expect(playsWhole(theirs(13), false)).toBe(false);
+    expect(playsWhole(theirs(6), true)).toBe(true);
+    expect(playsWhole(theirs(7), true)).toBe(false);
     const mine: ReplayView = {
       ...view,
       mine: [
@@ -56,11 +67,12 @@ describe('playsWhole', () => {
         { role: 'armor', tier: 1, troops: 6, lost: 0, routed: 0, destroyed: 0 },
       ],
     };
-    expect(playsWhole(mine)).toBe(false);
+    expect(playsWhole(mine, false)).toBe(false);
   });
 
-  it('keeps three combats at once', () => {
-    expect(COMBATS_AT_ONCE).toBe(3);
+  it('keeps three combats at once at the desk, one on a phone (décision de Pierre du 31/10)', () => {
+    expect(COMBAT_LIMITS.desk.atOnce).toBe(3);
+    expect(COMBAT_LIMITS.phone.atOnce).toBe(1);
   });
 });
 
@@ -101,14 +113,28 @@ describe('combatAt', () => {
 });
 
 describe('homewardOf', () => {
-  const arc = (from: readonly [number, number], next: readonly [number, number]) =>
-    ({ from, to: next, route: { points: [from, next] } }) as unknown as ArcView;
+  const arc = (
+    from: readonly [number, number],
+    next: readonly [number, number],
+    state: ArcView['state'] = 'mine',
+  ) => ({ state, from, to: next, route: { points: [from, next] } }) as unknown as ArcView;
+  const point = { lon: 4.9, lat: 49.7 };
 
   it('reads home off the column that walks back from the point', () => {
-    const point = { lon: 4.9, lat: 49.7 };
-    expect(homewardOf(point, [arc([10, 50], [11, 50]), arc([4.9, 49.7], [3, 49])])).toEqual([
-      3, 49,
-    ]);
-    expect(homewardOf(point, [arc([10, 50], [11, 50])])).toBeNull();
+    expect(
+      homewardOf(point, [arc([10, 50], [11, 50]), arc([4.9, 49.7], [3, 49])], 'attacker'),
+    ).toEqual([3, 49]);
+    expect(homewardOf(point, [arc([10, 50], [11, 50])], 'attacker')).toBeNull();
+  });
+
+  it("reads the attacker's way home, never the routed defender's", () => {
+    // Both columns walk back from the point: the defender routs east, the attacker goes west.
+    const mineEast = arc([4.9, 49.7], [6, 50]);
+    const theirsWest = arc([4.9, 49.7], [3, 49], 'enemyDetected');
+    // The defender's own rout first: the defender reads the attacker's column, not his own.
+    expect(homewardOf(point, [mineEast, theirsWest], 'defender')).toEqual([3, 49]);
+    const mineWest = arc([4.9, 49.7], [3, 49]);
+    const theirsEast = arc([4.9, 49.7], [6, 50], 'enemyDetected');
+    expect(homewardOf(point, [theirsEast, mineWest], 'attacker')).toEqual([3, 49]);
   });
 });

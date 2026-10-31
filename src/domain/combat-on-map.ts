@@ -9,30 +9,47 @@ import type { ArcView, CombatReport, ReplayView } from './player-view';
  * temps du rejeu (`replayAt`), le même sort pour chaque pièce. Le rejeu reste pour revoir.
  */
 
-/** **Trois combats à la fois** (décision de Pierre du 31/10), sur un budget à part des sorties de
- *  caserne ; au-delà, la pose finale. */
-export const COMBATS_AT_ONCE = 3;
+/** **Combien de combats jouent à la fois, et jusqu'à combien de pièces par camp** (décisions de
+ *  Pierre du 31/10, au banc) : au bureau trois et douze — une escouade dessinée entière —, au
+ *  téléphone un et six, où douze contre douze tombait à trente images par seconde. Au-delà, la
+ *  pose finale. Un budget à part des sorties de caserne. */
+export const COMBAT_LIMITS = {
+  desk: { atOnce: 3, pieces: SQUAD_DRAWN_WHOLE },
+  phone: { atOnce: 1, pieces: 6 },
+} as const;
+
+/** How late a combat is still news when the view brings it, past its own length. @a-mesurer : un
+ *  aller-retour du serveur et un onglet qui se réveille, sans rejouer le combat d'il y a une heure. */
+export const STALE_MARGIN_MS = 30_000;
 
 /** **Ce que tient la pose finale**, quand rien ne joue (coupées, plus de douze pièces, budget
  *  plein). @a-mesurer : le temps du compte-rendu, assez pour lire qui reste debout ? */
 export const FINAL_POSE_MS = STEP_MS['compte-rendu'];
 
 /** **Les combats qu'une vue apporte et que la précédente n'avait pas** — jamais à la première
- *  vue (`known` nul), et seulement l'arrivée : l'interception, la mer et le bombardement sont
- *  d'autres lots (#323 à #327). */
+ *  vue (`known` nul), jamais un combat fini depuis longtemps (un portable qui sort de veille), et
+ *  seulement l'arrivée : l'interception, la mer et le bombardement sont d'autres lots (#323 à
+ *  #327). */
 export function freshCombats(
   known: ReadonlySet<string> | null,
   reports: ReadonlyArray<CombatReport>,
+  now: number,
 ): ReadonlyArray<CombatReport> {
   if (known === null) return [];
-  return reports.filter((report) => report.cause === 'arrival' && !known.has(report.id));
+  return reports.filter(
+    (report) =>
+      report.cause === 'arrival' &&
+      !known.has(report.id) &&
+      report.at >= now - REPLAY_MS - STALE_MARGIN_MS,
+  );
 }
 
-/** **Au-delà de douze pièces par camp, le combat ne joue pas** (décision de Pierre du 31/10) : la
- *  pose finale, la dépêche et le rejeu. Le seuil est celui d'une escouade dessinée entière. */
-export function playsWhole(view: ReplayView): boolean {
+/** **Au-delà de `COMBAT_LIMITS` pièces par camp, le combat ne joue pas** : la pose finale, la
+ *  dépêche et le rejeu. */
+export function playsWhole(view: ReplayView, phone: boolean): boolean {
+  const { pieces } = COMBAT_LIMITS[phone ? 'phone' : 'desk'];
   const mine = view.mine.reduce((sum, entry) => sum + entry.troops, 0);
-  return mine <= SQUAD_DRAWN_WHOLE && view.theirs.troops <= SQUAD_DRAWN_WHOLE;
+  return mine <= pieces && view.theirs.troops <= pieces;
 }
 
 export type CombatShown = {
@@ -76,15 +93,19 @@ export function combatAt(
 const AT_POINT_DEGREES = 0.01;
 
 /**
- * **D'où l'attaquant est venu** : le pion qui repart du point, le retour par `walkHome`, montre
- * le chemin de chez lui. `null` quand personne n'en repart, ou qu'on ne le voit pas.
+ * **D'où l'attaquant est venu** : son pion qui repart du point, le retour par `walkHome`, montre
+ * le chemin de chez lui — le mien quand j'attaque, celui d'en face quand je défends ; le défenseur
+ * en déroute repart aussi du point, et ce n'est pas le bon chemin. `null` quand personne n'en
+ * repart, ou qu'on ne le voit pas.
  */
 export function homewardOf(
   point: { readonly lon: number; readonly lat: number },
   arcs: ReadonlyArray<ArcView>,
+  side: ReplayView['side'],
 ): LonLat | null {
   const leaving = arcs.find(
     (arc) =>
+      (arc.state === 'mine') === (side === 'attacker') &&
       Math.abs(arc.from[0] - point.lon) < AT_POINT_DEGREES &&
       Math.abs(arc.from[1] - point.lat) < AT_POINT_DEGREES,
   );

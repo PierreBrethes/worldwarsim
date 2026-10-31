@@ -45,9 +45,15 @@ const opened = journalDispatches([battle('old', NOON)], null);
 const later = journalDispatches([battle('old', NOON), battle('new', NOON + 60_000)], null);
 const fresh = later.find((dispatch) => dispatch.combat?.id === 'new')!;
 
-const board = (journal: typeof later, quiet = false, onShow = vi.fn()) => (
+const NONE: ReadonlySet<string> = new Set();
+const board = (
+  journal: typeof later,
+  quiet = false,
+  onShow = vi.fn(),
+  held: ReadonlySet<string> = NONE,
+) => (
   <ReplayLaunch.Provider value={async () => null}>
-    <CombatToasts journal={journal} quiet={quiet} onShow={onShow} />
+    <CombatToasts journal={journal} quiet={quiet} held={held} onShow={onShow} />
   </ReplayLaunch.Provider>
 );
 
@@ -107,4 +113,17 @@ it('au téléphone, un seul à la fois : le plus récent, puis le suivant', () =
   screen.getByText(timeOf('b4'));
   act(() => screen.getByRole('button', { name: fr.combatToast.close }).click());
   screen.getByText(timeOf('b3'));
+});
+
+it('attend la fin du combat joué sur la carte, puis reste son temps de lecture (#272)', () => {
+  vi.useFakeTimers();
+  const playing = new Set(['new']);
+  const { rerender } = render(board(opened, false, vi.fn(), playing));
+  rerender(board(later, false, vi.fn(), playing));
+  expect(screen.queryByText(fresh.text)).toBeNull();
+  act(() => vi.advanceTimersByTime(10_000));
+  rerender(board(later, false, vi.fn(), NONE));
+  screen.getByText(fresh.text);
+  act(() => vi.advanceTimersByTime(7_000));
+  screen.getByText(fresh.text);
 });
