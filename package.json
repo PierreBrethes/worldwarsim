@@ -22,7 +22,8 @@
     "demo:mondiale": "node scripts/demo-mondiale.mjs",
     "banc:mondiale": "node scripts/banc-mondiale.mjs",
     "banc:client": "node scripts/banc-client.mjs",
-    "capture": "node scripts/capture.mjs"
+    "capture": "node scripts/capture.mjs",
+    "gestes": "node scripts/gestes.mjs"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.41",
