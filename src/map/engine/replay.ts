@@ -257,7 +257,8 @@ function dress(object: Object3D, copy: ((material: Material) => Material) | null
   });
 }
 
-type Look = 'whole' | 'burnt' | 'washed';
+/** What a piece wears: `bare` is the models' own materials, shared, not yet swapped for the scene's. */
+type Look = 'bare' | 'whole' | 'burnt' | 'washed';
 
 type Piece = {
   readonly side: 'mine' | 'theirs';
@@ -314,6 +315,9 @@ export class ReplayScene {
   private heard: string | null = null;
   readonly object = new Group();
   private readonly pieces: Piece[];
+  /** **The scene's own materials** (#332): the models' are shared by every piece of their file, and
+   *  the night's glow beats per scene (`warmPieces`), so each wears copies, given back at `dispose`. */
+  private readonly own = new Map<Material, Material>();
 
   /** `medium` is the point's: an enemy block — an account from before the fire was seen — wears
    *  its pictogram, never a role. `foe` is the nation faced at the fire (F1). */
@@ -379,7 +383,7 @@ export class ReplayScene {
       firing,
       shot: new Mesh(SHOT, SHOT_INK),
       burning: null,
-      look: 'whole',
+      look: 'bare',
       gunKind: null,
       length: 0,
       guns: null,
@@ -436,7 +440,7 @@ export class ReplayScene {
               const copy = cooked.clone(true);
               figurine.standIn?.(copy);
               built.guns = new Guns(copy, rig, built.turretLimit);
-              built.look = 'whole';
+              built.look = 'bare';
             },
             () => {},
           );
@@ -453,7 +457,7 @@ export class ReplayScene {
               built.flashSize = FLASH_SIZE / scaleWithin(muzzle, pivot);
             }
             // The model lands after its fate may have been drawn: dress it again next frame.
-            built.look = 'whole';
+            built.look = 'bare';
             const smoke = figurine.object.getObjectByName('fx_smoke');
             if (smoke && built.burning) {
               smoke.add(built.burning.object);
@@ -563,7 +567,8 @@ export class ReplayScene {
       const look: Look = burnt ? 'burnt' : retreat > 0 ? 'washed' : 'whole';
       if (look !== piece.look) {
         piece.look = look;
-        dress(piece.body, look === 'burnt' ? charred : look === 'washed' ? washedOf : null);
+        const worn = look === 'burnt' ? charred : look === 'washed' ? washedOf : null;
+        dress(piece.body, (material) => this.ownOf(worn === null ? material : worn(material)));
       }
     });
     // Aimed once every holder stands where this frame puts it.
@@ -661,8 +666,16 @@ export class ReplayScene {
     return this.pieces.some((piece) => piece.burning?.object.visible === true);
   }
 
+  private ownOf(material: Material): Material {
+    let copy = this.own.get(material);
+    if (!copy) this.own.set(material, (copy = material.clone()));
+    return copy;
+  }
+
   dispose(): void {
     for (const piece of this.pieces) dress(piece.body, null);
+    for (const copy of this.own.values()) copy.dispose();
+    this.own.clear();
     this.object.removeFromParent();
   }
 }

@@ -1,9 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Box3, Mesh, type Object3D } from 'three';
+import { Box3, Mesh, MeshStandardMaterial, type Material, type Object3D } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, type ReplayStep } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { FIGURINE_SCALE } from './figurines/figurine';
+import { warmPieces } from './halo';
 import { BATTERY_REACH, batteryAt, ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
 
 // The scene draws its pictograms and flashes on a canvas: a node run has none, a stub does.
@@ -199,5 +200,39 @@ describe('the battery on a wide theatre (A2)', () => {
     const [x, z] = batteryAt([-24, 18]);
     expect(Math.hypot(x, z)).toBeCloseTo(BATTERY_REACH);
     expect(Math.atan2(z, x)).toBeCloseTo(Math.atan2(18, -24));
+  });
+});
+
+describe('the glow of a scene is its own (#332)', () => {
+  const sceneOf = () => {
+    const scene = new ReplayScene(null, replayAt(luxembourg, 0).pieces, 'land');
+    scene.show(replayAt(luxembourg, 0), 0, true);
+    return scene;
+  };
+  const standard = (root: Object3D): MeshStandardMaterial[] => {
+    const found: MeshStandardMaterial[] = [];
+    root.traverse((part) => {
+      const material = (part as Mesh).material as Material | undefined;
+      if (material instanceof MeshStandardMaterial) found.push(material);
+    });
+    return found;
+  };
+
+  it("wears copies of the models' materials, so no other piece shares what it warms", () => {
+    const first = sceneOf();
+    const second = sceneOf();
+    const mine = standard(first.object);
+    expect(mine.length).toBeGreaterThan(0);
+    for (const material of standard(second.object)) expect(mine).not.toContain(material);
+  });
+
+  it('beats in the scene that fires and leaves another of the same models at rest', () => {
+    const first = sceneOf();
+    const second = sceneOf();
+    warmPieces(first.object, 1, 1);
+    warmPieces(second.object, 1, 0);
+    const [lit] = standard(first.object);
+    const [rest] = standard(second.object);
+    expect(lit!.emissive.r).toBeGreaterThan(rest!.emissive.r);
   });
 });
