@@ -14,6 +14,7 @@ import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import {
   availabilityOf,
   outpostRaiseHold,
+  outpostDismantleRefusalOf,
   pledgedOutposts,
   type OutpostRaiseHold,
 } from '@/domain/construction';
@@ -57,6 +58,7 @@ export function GarrisonPanel({
   onClose,
   onPrepare,
   onPickedChange,
+  onDismantle,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -69,6 +71,9 @@ export function GarrisonPanel({
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
   /** Ce qui est coché, pour la carte : la troupe cochée y grossit (carte-lisible, 03/10). */
   onPickedChange?: (troopIds: ReadonlyArray<string>) => void;
+  /** **Démanteler, depuis la feuille** (#343) : au doigt, le toucher qui ouvre cette feuille
+   *  referme la rose qui portait l'ordre. Le plateau pose alors la carte de confirmation. */
+  onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
 }) {
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
   const stationKey = stationKeyOf(station);
@@ -300,8 +305,45 @@ export function GarrisonPanel({
             )}
           </div>
         )}
+        {outpost !== null && !view.me.defeated && (
+          <OutpostDismantle outpost={outpost} onDismantle={onDismantle} />
+        )}
       </Panel>
     </Draggable>
+  );
+}
+
+/**
+ * **Démanteler, en dernier et en encre rouge** (#343), la porte du doigt (sous le seuil seulement,
+ * au bureau la rose suffit) : la rose du bureau porte
+ * le même ordre, mais le toucher qui ouvre cette feuille la referme. Même fonction de refus que la
+ * rose et la mutation (`outpostDismantleRefusalOf`) : un point qui sert un mouvement dit pourquoi
+ * il ne se démantèle pas, au lieu d'offrir un bouton éteint (ADR 0015). La carte de confirmation
+ * est celle de la rose.
+ */
+function OutpostDismantle({
+  outpost,
+  onDismantle,
+}: {
+  outpost: OutpostView;
+  onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
+}) {
+  const refusal = outpostDismantleRefusalOf({ mine: true, serving: outpost.specializationLocked });
+  return (
+    <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px] md:hidden">
+      {refusal === null ? (
+        <button
+          type="button"
+          title={fr.compass.dismantleConsequence}
+          onClick={(event) => onDismantle(outpost.id, { x: event.clientX, y: event.clientY })}
+          className="min-h-[44px] w-full cursor-pointer border border-[var(--critical)] px-[10px] py-[4px] text-[10px] tracking-[.16em] text-[var(--critical)] uppercase"
+        >
+          {fr.compass.dismantle}
+        </button>
+      ) : (
+        <p className="text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">{fr.errors[refusal]()}</p>
+      )}
+    </div>
   );
 }
 
