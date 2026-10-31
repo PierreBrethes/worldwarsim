@@ -3276,6 +3276,7 @@ export const fr = {
     report: {
       attacker: { won: 'position enlevée', lost: 'attaque repoussée' },
       defender: { won: 'position tenue', lost: 'position perdue' },
+      ours: 'nos pièces',
       noLoss: 'aucune perte',
       destroyed: (n: number) => `${n} détruite${n > 1 ? 's' : ''}`,
       routed: (n: number) => `${n} en déroute`,

@@ -127,29 +127,36 @@ describe('CombatLayer, after the review', () => {
     expect(settled.sort()).toEqual(['a', 'b']);
   });
 
-  it('settles a combat as its scene ends, and at once one that only holds its final pose', () => {
+  it('leaves the dispatch to the stamp when one went up, and settles it when none did (#327)', () => {
     const layer = new CombatLayer();
     const settled: string[] = [];
     layer.onSettled = (id) => settled.push(id);
     layer.play(combat('a'), null, at, 0, 0);
     layer.play(combat('big', 13), null, at, 0, 0);
-    expect(settled).toEqual(['big']);
-    layer.advance(REPLAY_MS - 1, scale);
-    expect(settled).toEqual(['big']);
+    // Not at once: the final pose's stamp is not born yet.
+    expect(settled).toEqual([]);
+    layer.advance(0, scale);
+    layer.advance(stepBounds('compte-rendu').start + 1, scale);
     layer.advance(REPLAY_MS, scale);
-    expect(settled).toEqual(['big', 'a']);
+    // Both stamped: the stamp lifting releases each dispatch, not the layer.
+    expect(settled).toEqual([]);
+    layer.play(combat('far'), null, at, 0, 0);
+    layer.play(combat('far-big', 13), null, at, 0, 0);
+    layer.advance(1000, () => 0);
+    layer.advance(1000 + REPLAY_MS, () => 0);
+    expect(settled.sort()).toEqual(['far', 'far-big']);
   });
 
   it('plays one combat of six pieces a side at most on a phone (décision de Pierre du 31/10)', () => {
     const layer = new CombatLayer();
     layer.phone = true;
-    const settled: string[] = [];
-    layer.onSettled = (id) => settled.push(id);
     layer.play(combat('seven', 7), null, at, 0, 0);
     expect(layer.active).toBe(false);
     layer.play(combat('a'), null, at, 0, 0);
     layer.play(combat('b'), null, at, 0, 0);
-    expect(settled).toEqual(['seven', 'b']);
+    expect(layer.group.children).toHaveLength(3);
+    layer.advance(0, scale);
+    expect(layer.active).toBe(true);
   });
 
   it('is silent past the floor, where nothing shows', () => {
@@ -200,12 +207,19 @@ describe('CombatLayer, the report stamp (#327)', () => {
     expect(ids).toEqual([]);
   });
 
-  it('knows the combats it has shown, for the ground that « terrain tenu » no longer stamps', () => {
+  it('knows a combat shown from the first image it stands at a scale above zero', () => {
     const layer = new CombatLayer();
+    const told: string[] = [];
+    layer.onShown = (id) => told.push(id);
     layer.play(combat('a'), null, at, 0, 0);
     layer.wait('w', at, 0);
+    expect(layer.shown('a')).toBe(false);
+    layer.advance(0, () => 0);
+    expect(layer.shown('a')).toBe(false);
+    layer.advance(10, scale);
+    layer.advance(20, scale);
     expect(layer.shown('a')).toBe(true);
     expect(layer.shown('w')).toBe(false);
-    expect(layer.shown('z')).toBe(false);
+    expect(told).toEqual(['a']);
   });
 });

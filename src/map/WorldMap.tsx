@@ -294,6 +294,8 @@ type Props = {
   onCombatSettled?: (id: string) => void;
   /** Un toucher sur le tampon d'un combat joué : le rejeu de ce combat (#327). */
   onOpenReport?: (combatId: string) => void;
+  /** Un tampon s'est levé, quelle qu'en soit la raison : la dépêche de ce combat peut paraître. */
+  onReportLifted?: (combatId: string) => void;
   /** **Mes piles prises ensemble** (#130), chacune cerclée comme la pièce en main. */
   selectedPiles?: ReadonlyArray<string>;
   /** **Le lasso** (Maj + glisser sur le plateau) : les piles qu'il entoure, à chaque pas. */
@@ -473,6 +475,7 @@ export function WorldMap({
   combats = NO_COMBATS,
   onCombatSettled,
   onOpenReport,
+  onReportLifted,
   selectedPiles: servedSelection = NO_PILES,
   onLasso,
   onSelectHold,
@@ -1527,22 +1530,94 @@ export function WorldMap({
     };
   }, [readyEngine, onCombatSettled]);
 
-  // The stamps of the accounts begun on the map (#327): they lift at the first hand on the board.
+  // The stamps of the accounts begun on the map (#327): they lift at the first hand on the board,
+  // and each one that goes tells the plateau, whose dispatch of that combat waited for it.
   const [reports, setReports] = useState<ReadonlyArray<ReplayView>>([]);
+  const reportsNow = useRef<ReadonlyArray<ReplayView>>([]);
+  const lifted = useRef(onReportLifted);
+  const pressed = useRef<{ id: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    lifted.current = onReportLifted;
+  }, [onReportLifted]);
+  const dropReports = useCallback((keep: (view: ReplayView) => boolean) => {
+    const gone = reportsNow.current.filter((view) => !keep(view));
+    if (gone.length === 0) return;
+    reportsNow.current = reportsNow.current.filter(keep);
+    setReports(reportsNow.current);
+    for (const view of gone) lifted.current?.(view.combatId);
+  }, []);
   useEffect(() => {
     if (!readyEngine) return;
-    readyEngine.onCombatReport = (view) =>
-      setReports((current) => [...current.filter((one) => one.combatId !== view.combatId), view]);
-    readyEngine.onReportsLift = () => setReports((current) => (current.length > 0 ? [] : current));
+    readyEngine.onCombatReport = (view) => {
+      reportsNow.current = [
+        ...reportsNow.current.filter((one) => one.combatId !== view.combatId),
+        view,
+      ];
+      setReports(reportsNow.current);
+    };
+    // A press that began on a stamp acts on no country: it opens the replay, or it is a drag.
+    readyEngine.pressedOnStamp = () => pressed.current !== null;
+    readyEngine.onReportsLift = (stays) => {
+      // A press that began on a stamp is a tap until it moves: it does not lift what it presses.
+      if (pressed.current !== null) return;
+      dropReports((view) => stays?.([view.point.lon, view.point.lat]) === true);
+    };
     return () => {
       readyEngine.onCombatReport = undefined;
       readyEngine.onReportsLift = undefined;
+      readyEngine.pressedOnStamp = undefined;
     };
-  }, [readyEngine]);
+  }, [readyEngine, dropReports]);
   const liftReport = useCallback(
-    (id: string) => setReports((current) => current.filter((one) => one.combatId !== id)),
-    [],
+    (id: string) => dropReports((view) => view.combatId !== id),
+    [dropReports],
   );
+  // The stamp is drawn over the board but the board is what takes the press: a tap or a click on
+  // it opens the replay, a drag or the wheel is the map's and lifts it.
+  const openReport = useRef(onOpenReport);
+  useEffect(() => {
+    openReport.current = onOpenReport;
+  }, [onOpenReport]);
+  useEffect(() => {
+    const root = container.current;
+    if (!root) return;
+    const down = (event: PointerEvent) => {
+      pressed.current = null;
+      if (!(event.target instanceof HTMLCanvasElement)) return;
+      for (const node of root.querySelectorAll<HTMLElement>('[data-report]')) {
+        const box = node.getBoundingClientRect();
+        if (
+          event.clientX >= box.left &&
+          event.clientX <= box.right &&
+          event.clientY >= box.top &&
+          event.clientY <= box.bottom
+        )
+          pressed.current = { id: node.dataset.report!, x: event.clientX, y: event.clientY };
+      }
+    };
+    const move = (event: PointerEvent) => {
+      const press = pressed.current;
+      if (press === null || Math.hypot(event.clientX - press.x, event.clientY - press.y) < 8)
+        return;
+      pressed.current = null;
+      dropReports(() => false);
+    };
+    const up = (event: PointerEvent) => {
+      const press = pressed.current;
+      pressed.current = null;
+      if (press !== null && event.type === 'pointerup') openReport.current?.(press.id);
+    };
+    root.addEventListener('pointerdown', down, true);
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+    return () => {
+      root.removeEventListener('pointerdown', down, true);
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+    };
+  }, [dropReports]);
 
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());
@@ -1590,9 +1665,9 @@ export function WorldMap({
     const vanished = before.arcs.flatMap((arc) =>
       arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
-    for (const burst of inkBursts(journal, before.seenAt, vanished))
+    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null))
       engine.current?.inkBurst(burst);
-  }, [arcs, journal]);
+  }, [arcs, journal, blitz]);
 
   useEffect(() => {
     engine.current?.showHeldRegions(held);
@@ -1649,7 +1724,6 @@ export function WorldMap({
       <CombatReports
         reports={reports}
         engine={readyEngine}
-        labels={labels}
         onOpen={onOpenReport ?? (() => {})}
         onLift={liftReport}
       />

@@ -63,6 +63,8 @@ export function inkBursts(
   journal: ReadonlyArray<JournalDispatch>,
   seenAt: number,
   vanishedEnds: ReadonlyArray<LonLat>,
+  /** The map plays the combats that arrive (#327): « terrain tenu » is then the stamp's to say. */
+  mapPlays = false,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
   const combats = fresh.flatMap((dispatch): InkBurst[] => {
@@ -84,7 +86,7 @@ export function inkBursts(
             at,
             words: stamped(fr.replay.held, dispatch.at),
             delayMs: STAMP_MS,
-            combatId: dispatch.combat.id,
+            ...(mapPlays && cause === 'arrival' ? { combatId: dispatch.combat.id } : {}),
           },
         ]
       : [engaged];

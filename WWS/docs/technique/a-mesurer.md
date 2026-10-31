@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : fdbb58b -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 9e2d675 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-92 valeurs marquées dans `convex/` et `src/domain/`.
+93 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -81,6 +81,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:24` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:28` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:125` | le temps de lire « nos pièces » et de l'ouvrir. |
+| `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:152` | « voir » |
 | `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:68` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:105` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `MOON_ELEVATION_DEG` | `53` | `src/domain/daylight.ts:106` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |

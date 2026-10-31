@@ -75,9 +75,17 @@ describe('inkBursts', () => {
         at: [2, 49],
         words: { word: 'terrain tenu', hour: hour(20) },
         delayMs: STAMP_MS,
-        combatId: 'c1',
       },
     ]);
+  });
+
+  it('names the combat on « terrain tenu » when the map may play it, an arrival only (#327)', () => {
+    const arrival = { ...combat, won: true, cause: 'arrival' } as CombatReport;
+    const [, held] = inkBursts([dispatch(20, 'assault', arrival)], 10, [], true);
+    expect(held).toMatchObject({ kind: 'held', combatId: 'c1' });
+    const sea = { ...arrival, cause: 'interception' } as CombatReport;
+    const [, other] = inkBursts([dispatch(20, 'assault', sea)], 10, [], true);
+    expect(other).not.toHaveProperty('combatId');
   });
 
   it('stamps an arrival at the end of the thread that vanished', () => {

@@ -7,6 +7,7 @@ import {
   homewardOf,
   playsWhole,
   reportOf,
+  stampStays,
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
 import { REPLAY_MS, stepBounds } from './replay';
@@ -167,20 +168,27 @@ describe('reportOf', () => {
       { role: 'infantry', tier: 1, troops: 3, lost: 5, routed: 1, destroyed: 2 },
       { role: 'armor', tier: 1, troops: 2, lost: 5, routed: 1, destroyed: 1 },
     ] as const;
-    expect(reportOf(lose(mine)).losses).toBe('3 détruites, 2 en déroute');
+    expect(reportOf(lose(mine)).losses).toBe('nos pièces : 3 détruites, 2 en déroute');
   });
 
   it('agrees in number, and drops the part that is zero', () => {
     const one = (destroyed: number, routed: number) =>
       lose([{ role: 'infantry', tier: 1, troops: 3, lost: 1, routed, destroyed }]);
-    expect(reportOf(one(1, 0)).losses).toBe('1 détruite');
-    expect(reportOf(one(0, 2)).losses).toBe('2 en déroute');
+    expect(reportOf(one(1, 0)).losses).toBe('nos pièces : 1 détruite');
+    expect(reportOf(one(0, 2)).losses).toBe('nos pièces : 2 en déroute');
   });
 
   it('says no loss when nothing fell nor fled', () => {
     expect(
       reportOf(lose([{ role: 'infantry', tier: 1, troops: 3, lost: 0, routed: 0, destroyed: 0 }]))
         .losses,
-    ).toBe('aucune perte');
+    ).toBe('nos pièces : aucune perte');
+  });
+});
+
+describe('stampStays', () => {
+  it('stays when the camera arrives by the combat, goes when it arrives far from it', () => {
+    expect(stampStays(2, 10)).toBe(true);
+    expect(stampStays(30, 10)).toBe(false);
   });
 });

@@ -142,7 +142,17 @@ export function reportOf(view: ReplayView): {
   ];
   return {
     title: words[view.side][view.won ? 'won' : 'lost'],
-    losses: lost.length > 0 ? lost.join(', ') : words.noLoss,
+    losses: `${words.ours} : ${lost.length > 0 ? lost.join(', ') : words.noLoss}`,
     won: view.won,
   };
+}
+
+/** A journey ends « by the combat » within this share of its camera distance. @a-mesurer : « voir »
+ *  centre le combat, et un voyage ailleurs en est à plusieurs fois cette distance. */
+const STAMP_NEAR_SHARE = 0.5;
+
+/** **Le tampon reste quand la caméra arrive près de son point** : le « voir » de sa dépêche ne le
+ *  lève pas ; un voyage ailleurs, si. `gap` et `cameraDistance` sont dans la même unité. */
+export function stampStays(gap: number, cameraDistance: number): boolean {
+  return gap <= cameraDistance * STAMP_NEAR_SHARE;
 }

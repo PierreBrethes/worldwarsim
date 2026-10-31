@@ -24,14 +24,11 @@ const TOUCH_PX = 44;
 export function CombatReports({
   reports,
   engine,
-  labels,
   onOpen,
   onLift,
 }: {
   reports: ReadonlyArray<ReplayView>;
   engine: MapEngine | null;
-  /** Nothing is read from it: it changes with every whole frame, and the stamps follow the map. */
-  labels: ReadonlyArray<unknown>;
   onOpen: (combatId: string) => void;
   onLift: (combatId: string) => void;
 }) {
@@ -42,36 +39,47 @@ export function CombatReports({
   // Nodes are born hidden: the next whole frame is the one that places them.
   useEffect(() => engine?.invalidate(), [engine, reports]);
 
+  // The stamps follow the map: placed at every whole frame the engine draws, which a drag, its
+  // inertia, a resize and a turn all ask for — and as they are born.
   useLayoutEffect(() => {
-    const parent = layer.current?.getBoundingClientRect();
-    if (engine === null || parent === undefined) return;
-    for (const view of reports) {
-      const node = nodes.current.get(view.combatId);
-      const at = engine.screenOf([view.point.lon, view.point.lat]);
-      if (!node) continue;
-      const inside =
-        at !== null &&
-        at.x >= parent.left &&
-        at.x <= parent.right &&
-        at.y >= parent.top &&
-        at.y <= parent.bottom;
-      node.style.visibility = inside ? 'visible' : 'hidden';
-      if (!inside) continue;
-      const wrap = node.parentElement!;
-      wrap.style.transform = `translate(${at.x - parent.left}px, ${at.y - parent.top}px)`;
-      // Kept in the free map: clear of the band at the top, the mat at the foot, the columns.
-      const box = node.getBoundingClientRect();
-      const free = {
-        left: parent.left + insets.left + MARGIN_PX,
-        right: parent.right - insets.right - MARGIN_PX,
-        top: parent.top + insets.top + MARGIN_PX,
-        bottom: parent.bottom - insets.bottom - MARGIN_PX,
-      };
-      const dx = Math.max(0, free.left - box.left) + Math.min(0, free.right - box.right);
-      const dy = Math.max(0, free.top - box.top) + Math.min(0, free.bottom - box.bottom);
-      wrap.style.transform = `translate(${at.x - parent.left + dx}px, ${at.y - parent.top + dy}px)`;
-    }
-  }, [engine, reports, labels, insets]);
+    if (engine === null) return;
+    const place = () => {
+      const parent = layer.current?.getBoundingClientRect();
+      if (parent === undefined) return;
+      for (const view of reports) {
+        const node = nodes.current.get(view.combatId);
+        const at = engine.screenOf([view.point.lon, view.point.lat]);
+        if (!node) continue;
+        const inside =
+          at !== null &&
+          at.x >= parent.left &&
+          at.x <= parent.right &&
+          at.y >= parent.top &&
+          at.y <= parent.bottom;
+        node.style.visibility = inside ? 'visible' : 'hidden';
+        if (!inside) continue;
+        const wrap = node.parentElement!;
+        wrap.style.transform = `translate(${at.x - parent.left}px, ${at.y - parent.top}px)`;
+        // Kept in the free map: clear of the band at the top, the mat at the foot, the columns.
+        const box = node.getBoundingClientRect();
+        const { left, right, top, bottom } = insets;
+        const free = {
+          left: parent.left + left + MARGIN_PX,
+          right: parent.right - right - MARGIN_PX,
+          top: parent.top + top + MARGIN_PX,
+          bottom: parent.bottom - bottom - MARGIN_PX,
+        };
+        const dx = Math.max(0, free.left - box.left) + Math.min(0, free.right - box.right);
+        const dy = Math.max(0, free.top - box.top) + Math.min(0, free.bottom - box.bottom);
+        wrap.style.transform = `translate(${at.x - parent.left + dx}px, ${at.y - parent.top + dy}px)`;
+      }
+    };
+    engine.onReportsFrame = place;
+    place();
+    return () => {
+      engine.onReportsFrame = undefined;
+    };
+  }, [engine, reports, insets]);
 
   return (
     <div ref={layer} className="pointer-events-none absolute inset-0 z-[var(--z-band)]">
@@ -126,12 +134,16 @@ function ReportStamp({
 
   return (
     <div className="absolute top-0 left-0">
+      {/* Touchable by the map's own press (`WorldMap`): a drag or the wheel that starts on the
+          stamp is the map's, and only a tap or a click opens the replay. The button stays for the
+          keyboard and the screen reader. */}
       <button
         ref={register}
         type="button"
+        data-report={view.combatId}
         aria-label={`${title}. ${fr.replay.report.open}`}
         onClick={onOpen}
-        className="hud pointer-events-auto flex cursor-pointer flex-col items-center justify-center bg-transparent p-0"
+        className="hud pointer-events-none flex flex-col items-center justify-center bg-transparent p-0"
         style={{
           visibility: 'hidden',
           minWidth: `calc(${TOUCH_PX}px / var(--hud-scale))`,
