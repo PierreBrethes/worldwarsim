@@ -367,12 +367,14 @@ const DEFAULT_MAX_DISTANCE = 300;
  *  @a-mesurer */
 const BOARD_HOLD_RATE = 0.12;
 /** Development and the bench only: `?heure=2026-01-15T23:00Z` holds the sun at that instant, to judge it now. */
-function forcedInstant(search: string): number | null {
+export function forcedInstant(search: string): number | null {
   const raw =
     import.meta.env.DEV || import.meta.env.VITE_BANC === '1'
       ? new URLSearchParams(search).get('heure')
       : null;
-  return raw === null ? null : Date.parse(raw);
+  // An unreadable hour is no hour: `NaN` would slip past the `??` and put the whole map out.
+  const instant = raw === null ? Number.NaN : Date.parse(raw);
+  return Number.isNaN(instant) ? null : instant;
 }
 
 /**

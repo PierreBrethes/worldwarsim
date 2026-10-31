@@ -2,7 +2,7 @@
  * **Une capture du jeu en local**, connecté avec un compte de démo (`npm run demo:mondiale`).
  *
  *     PLAYWRIGHT_DIR=/chemin/vers/pw npm run capture -- <url> <sortie.png> \
- *       [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
+ *       [--heure 2026-10-21T12:00Z] [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
  *
  * `PLAYWRIGHT_DIR` : un dossier hors du dépôt où `npm i playwright-core@1.58` a été fait. L'URL
  * peut être un chemin (`/plateau`) pris sur http://localhost:5173 ; `{saison}` y devient
@@ -23,6 +23,12 @@
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
+ * `--heure` tient le soleil à cet instant ISO (avec Z ; midi UTC sans l'option) : il s'ajoute à l'URL
+ * et toute autre écriture est refusée. `lieu=@<id>[,distance[,pente°]]` cadre une pile
+ * (`stack-point:lon,lat`) ou un bâtiment (`building-<clé>@lon,lat`) là où elle est dessinée, à 3 par
+ * défaut, et attend ses figurines ; `lieu=@<nom>` lit un lieu de la démo (`places` de
+ * `demo-mondiale.accounts.json` : `combat`, `camion`, `valette`, `paris`). `toucher=@<id>`,
+ * `doigt=@<id>`, `clic=@<id>`… visent l'étiquette `[data-label-id]` de l'id, sinon son point.
  * `lieu=lon,lat,distance[,pente°]` vise un lieu de la carte au centre de l'écran, à cette distance,
  * et sous cette pente quand elle est donnée (0 = d'aplomb, regard vers le nord).
  */
@@ -30,13 +36,22 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { hourOf, splitSpot, spotOf } from './capture-cible.mjs';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at < 0 ? fallback : args[at + 1];
 };
-const flags = new Set(['--compte', '--largeur', '--hauteur', '--densite', '--attendre', '--geste']);
+const flags = new Set([
+  '--compte',
+  '--largeur',
+  '--hauteur',
+  '--densite',
+  '--attendre',
+  '--geste',
+  '--heure',
+]);
 /** `--tactile` : un écran tactile, pour les gestes du doigt (`toucher=x,y`, la rose s'ouvre au toucher). */
 const touch = args.includes('--tactile');
 /** `--reduit` : le système demande moins de mouvement, le réglage « auto » de la carte passe en réduites. */
@@ -61,13 +76,19 @@ if (!existsSync(accountsFile))
   throw new Error('Pas de comptes de démo : lance `npm run demo:mondiale`.');
 const accounts = JSON.parse(readFileSync(accountsFile, 'utf8'));
 const account = accounts[option('compte', 'a')];
-if (!account?.nickname) throw new Error('--compte : a ou b');
+if (!account?.nickname) {
+  const keys = Object.keys(accounts).filter((key) => accounts[key]?.nickname);
+  throw new Error(`--compte : ${keys.join(', ')} (les comptes de ${accountsFile})`);
+}
 
 const origin = 'http://localhost:5173';
-const url = (target.startsWith('/') ? origin + target : target).replace(
+const heure = hourOf(option('heure'));
+const base = (target.startsWith('/') ? origin + target : target).replace(
   '{saison}',
   accounts.seasonId,
 );
+/** Le soleil tenu à `heure` (`forcedInstant`, en dev) : sans elle, une capture sur deux tombe de nuit. */
+const url = `${base}${base.includes('?') ? '&' : '?'}heure=${encodeURIComponent(heure)}`;
 if (!['localhost', '127.0.0.1'].includes(new URL(url).hostname))
   throw new Error(`Refus : ${url} n'est pas local.`);
 
@@ -112,9 +133,29 @@ try {
   await page.waitForTimeout(Number(option('attendre', 6000)));
   /** Le doigt de `doigt=` : où il est, et s'il touche. */
   let finger = null;
+  /** `@id` : où la pièce est à l'écran — son étiquette, sinon son point de la carte. */
+  const screenPointOf = async (spec) => {
+    const spot = spotOf(spec, accounts.places);
+    const at = await page.evaluate(
+      ([id, lonLat]) => {
+        const node =
+          id && globalThis.document.querySelector(`[data-label-id="${globalThis.CSS.escape(id)}"]`);
+        const box = node?.getBoundingClientRect();
+        return box
+          ? { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+          : globalThis.mapEngine.screenOf(lonLat);
+      },
+      [spot.id, spot.lonLat],
+    );
+    if (!at) throw new Error(`${spec} : hors de l'écran`);
+    return [at.x, at.y];
+  };
   for (const gesture of gestures) {
     const [kind, value = ''] = gesture.split(/=(.*)/s);
-    const [x = 0, y = 0, dy = 0] = value.split(',').map(Number);
+    const aimed = value.startsWith('@') && !['lieu', 'texte', 'domclic'].includes(kind);
+    const [x = 0, y = 0, dy = 0] = aimed
+      ? await screenPointOf(value)
+      : value.split(',').map(Number);
     if (kind === 'texte') await page.getByText(value).first().click();
     else if (kind === 'domclic') await page.locator(value).first().dispatchEvent('click');
     else if (kind === 'molette') {
@@ -169,22 +210,56 @@ try {
       );
       await page.waitForTimeout(1500);
     } else if (kind === 'lieu') {
-      const [, , distance = 30, pitch = NaN] = value.split(',').map(Number);
-      await page.evaluate(
-        ([lon, lat, d, p]) => {
-          const engine = globalThis.mapEngine;
-          const target = engine.frame.projectLonLat([lon, lat], 0);
-          const away = engine.camera.position.clone().sub(engine.controls.target).normalize();
-          if (!Number.isNaN(p))
-            away.set(0, Math.cos((p * Math.PI) / 180), Math.sin((p * Math.PI) / 180));
-          engine.controls.target.copy(target);
-          engine.camera.position.copy(target).addScaledVector(away, d);
-          engine.controls.update();
-          engine.invalidate();
-        },
-        [x, y, distance, pitch],
-      );
+      // `lieu=@id[,distance[,pente]]` : là où la pièce est dessinée, à 3 par défaut.
+      const aimedAt = value.startsWith('@') ? splitSpot(value) : null;
+      const spot = aimedAt ? spotOf(aimedAt.spec, accounts.places) : null;
+      const numbers = aimedAt ? aimedAt.rest : value.split(',').map(Number);
+      const [lon, lat] = spot ? spot.lonLat : numbers.splice(0, 2);
+      const [distance = spot ? 3 : 30, pitch = NaN] = numbers;
+      const frameAt = () =>
+        page.evaluate(
+          ([lon, lat, d, p, id]) => {
+            const engine = globalThis.mapEngine;
+            let target = engine.frame.projectLonLat([lon, lat], 0);
+            if (id) {
+              // La garnison se dessine au pied de sa maquette, pas au point de la carte.
+              const box = engine.standing.boxOf(id);
+              const drawn = box ? box.getCenter(target.clone()) : engine.maquettes.drawnAt(id);
+              if (drawn) target = drawn.clone().setY(0);
+            }
+            const away = engine.camera.position.clone().sub(engine.controls.target).normalize();
+            if (!Number.isNaN(p))
+              away.set(0, Math.cos((p * Math.PI) / 180), Math.sin((p * Math.PI) / 180));
+            engine.controls.target.copy(target);
+            engine.camera.position.copy(target).addScaledVector(away, d);
+            engine.controls.update();
+            engine.invalidate();
+          },
+          [lon, lat, distance, pitch, spot?.id ?? null],
+        );
+      await frameAt();
       await page.waitForTimeout(2500);
+      if (spot?.id) {
+        // Les figurines ne se chargent qu'une fois près : on attend la pièce, puis on la recadre.
+        const stood = await page
+          .waitForFunction(
+            (id) => {
+              const E = globalThis.mapEngine;
+              return E.standing.boxOf(id) !== null || E.maquettes.drawnAt(id) !== null;
+            },
+            spot.id,
+            { timeout: 10000 },
+          )
+          .then(
+            () => true,
+            () => false,
+          );
+        if (!stood) console.log(`[lieu] ${spot.id} n'est pas dessinée : cadrée sur son point`);
+        else {
+          await frameAt();
+          await page.waitForTimeout(1000);
+        }
+      }
     } else if (kind === 'ralenti') {
       const devtools = await page.context().newCDPSession(page);
       await devtools.send('Animation.enable');
