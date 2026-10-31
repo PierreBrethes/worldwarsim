@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
+import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
 import { outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
 import { razeBuilding } from './buildings';
@@ -11,7 +11,7 @@ import { fail } from './errors';
 import { homeGroundsOf, occupationsOf, recordLinkage, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
 import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
-import { allRegions } from './regions';
+import { allRegions, regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
@@ -179,6 +179,9 @@ export const dismantle = mutation({
 
     const now = Date.now();
     const anchored = await anchoredBuildings(ctx, player._id, outpost, now);
+    /** **Ce que le point tenait seul**, lu tant qu'il est debout : c'est tout ce que le relevé
+     *  d'après dit. Un chantier n'a rien coloré. */
+    const held = isStanding(outpost, now) ? await soleHoldIds(ctx, player._id, outpost, now) : [];
 
     /** **Régler à l'ancienne couleur avant d'écrire la nouvelle** (ADR 0020 §6) : le point tient
      *  encore ses régions à la seconde où le règlement se fait, et les mâts qu'il ancre tombent
@@ -197,16 +200,19 @@ export const dismantle = mutation({
     await creditToStorage(ctx, player._id, { food: 0, steel: 0, ...returned }, now);
     await ctx.db.delete(outpost._id);
     await reportChange(ctx, season._id, before, now);
-    /** **Le sol du joueur est relevé au point** (décision (a) du 31/10), à la portée même du
-     *  point qui vient de tomber : la région qu'il ne tient plus sort de sa carte au lieu de
-     *  rester un souvenir daté. L'adversaire n'est pas relevé : sa carte ne change qu'en
-     *  regardant. */
-    await fileSurvey(
-      ctx,
-      player._id,
-      [{ point: pointOf(outpost.point), radiusKm: outpostReachKm(outpost.level) }],
-      now,
-    );
+    /** **Le sol du joueur est relevé au point** (décision (a) du 31/10), mais des seules régions
+     *  que le point tenait seul : la région qu'il ne tient plus sort de sa carte au lieu de rester
+     *  un souvenir daté. Plus large, le relevé lui donnerait les tenants et les mâts adverses du
+     *  disque : fonder puis démanteler suffirait à espionner. L'adversaire n'est pas relevé : sa
+     *  carte ne change qu'en regardant. */
+    if (held.length > 0)
+      await fileSurvey(
+        ctx,
+        player._id,
+        [{ point: pointOf(outpost.point), radiusKm: outpostReachKm(outpost.level) }],
+        now,
+        held.flatMap((id) => regionFacts(id) ?? []),
+      );
 
     await ctx.db.insert('notices', {
       playerId: player._id,
@@ -225,6 +231,22 @@ export const dismantle = mutation({
   },
 });
 
+/** Les régions que ce point tient à lui seul : la lecture de la couleur (`soleHoldOf`). */
+const soleHoldIds = async (
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  outpost: Doc<'outposts'>,
+  now: number,
+): Promise<ReadonlyArray<string>> =>
+  soleHoldOf({
+    regions: allRegions(),
+    outposts: await outpostsOf(ctx, playerId),
+    outpost,
+    homeGrounds: await homeGroundsOf(ctx, outpost.seasonId),
+    occupations: await occupationsOf(ctx, outpost.seasonId),
+    now,
+  });
+
 /**
  * **Ce que ce point ancre.** L'ancrage est un champ écrit à la pose et jamais recalculé
  * (ADR 0020 §10) : c'est la seule lecture juste, parce qu'un mât posé sous un point y reste quoi
@@ -236,7 +258,7 @@ export const dismantle = mutation({
  * bonne réponse : un mât chez soi ne dépend d'aucun avant-poste.
  */
 async function anchoredBuildings(
-  ctx: MutationCtx,
+  ctx: QueryCtx,
   playerId: Id<'players'>,
   outpost: Doc<'outposts'>,
   now: number,
@@ -246,16 +268,7 @@ async function anchoredBuildings(
   const orphans = buildings.filter((building) => building.outpostId === undefined);
   if (orphans.length === 0) return anchored;
 
-  const held = new Set(
-    soleHoldOf({
-      regions: allRegions(),
-      outposts: await outpostsOf(ctx, playerId),
-      outpost,
-      homeGrounds: await homeGroundsOf(ctx, outpost.seasonId),
-      occupations: await occupationsOf(ctx, outpost.seasonId),
-      now,
-    }),
-  );
+  const held = new Set(await soleHoldIds(ctx, playerId, outpost, now));
   return [...anchored, ...orphans.filter((building) => held.has(building.regionId))];
 }
 
@@ -313,18 +326,18 @@ export async function cancelRaisesOf(
 export const soleHold = query({
   args: { token: v.string(), seasonId: v.id('seasons'), outpostId: v.id('outposts') },
   handler: async (ctx, { token, seasonId, outpostId }) => {
-    const { player, season } = await playerOf(ctx, token, seasonId);
+    const { player } = await playerOf(ctx, token, seasonId);
     const outpost = await ctx.db.get(outpostId);
-    if (outpost === null || outpost.playerId !== player._id) return { regions: 0 };
+    if (outpost === null || outpost.playerId !== player._id) return { regions: 0, anchored: [] };
+    const now = Date.now();
     return {
-      regions: soleHoldOf({
-        regions: allRegions(),
-        outposts: await outpostsOf(ctx, player._id),
-        outpost,
-        homeGrounds: await homeGroundsOf(ctx, season._id),
-        occupations: await occupationsOf(ctx, season._id),
-        now: Date.now(),
-      }).length,
+      /** Un chantier n'a rien coloré : `soleHoldOf` le tient pour en service, pas la carte. */
+      regions: isStanding(outpost, now) ? (await soleHoldIds(ctx, player._id, outpost, now)).length : 0,
+      /** Les mâts qui tombent avec lui : la fiche les nomme et la carte les affaisse. */
+      anchored: (await anchoredBuildings(ctx, player._id, outpost, now)).map((building) => ({
+        key: building.key,
+        point: [building.point.lon, building.point.lat] as [number, number],
+      })),
     };
   },
 });
