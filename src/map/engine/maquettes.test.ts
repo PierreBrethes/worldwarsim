@@ -472,6 +472,21 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     expect(maquettes.siteOf('building-hq@0,0')).toBeNull();
   });
 
+  it('hands what it draws of a maquette, and where, for a raze to outlive it (#326)', async () => {
+    const maquettes = await layer();
+    const was = instance(maquettes);
+    const drawn = maquettes.drawnOf(ID)!;
+    same(drawn.matrix, was);
+    expect(drawn.parts).toHaveLength(1);
+    expect(drawn.box.max.y).toBeCloseTo(0.5);
+    maquettes.display([]);
+    same(drawn.matrix, was);
+    expect(maquettes.drawnOf(ID)).toBeNull();
+    const far = await layer();
+    far.orient(new Vector3(0, 900, 0), null, 0);
+    expect(far.drawnOf(ID)).toBeNull();
+  });
+
   it('lends only what is drawn whole: not a ghost, not an unknown id', async () => {
     expect((await layer()).pieceOf(ID)?.url).toBe('lent.glb');
     expect((await layer()).pieceOf('building-hq@0,0')).toBeNull();

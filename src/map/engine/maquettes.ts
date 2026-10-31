@@ -686,6 +686,36 @@ export class MaquetteLayer implements SequenceHost {
     return { url: dressed.lot.url, box: this.boxOf(id)?.clone() ?? null };
   }
 
+  /** **What a maquette is drawn as now, and where** (#326): its parts as its lot draws them — a
+   *  rising site's cut with it —, its placement, its model's bounds in its own units. `null` when
+   *  nothing of it is drawn. Read before the view that lost it is displayed: a raze outlives it. */
+  drawnOf(
+    id: string,
+  ): { readonly parts: ReadonlyArray<Part>; readonly matrix: Matrix4; readonly box: Box3 } | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    if (
+      dressed === undefined ||
+      !model ||
+      dressed.item.near <= 0 ||
+      dressed.lot.meshes.length === 0
+    )
+      return null;
+    const { item, lot } = dressed;
+    return {
+      parts: lot.meshes.map((mesh) => ({
+        geometry: mesh.geometry,
+        material: mesh.material as Material,
+      })),
+      matrix: new Matrix4().compose(
+        item.at,
+        item.turn,
+        new Vector3().setScalar(item.near * sizeOf(model, item)),
+      ),
+      box: model.box,
+    };
+  }
+
   /** **A maquette's own frame on the board**, drawn whole: its markers (`fx_sortie`…) and
    *  bounds in its model's units — metres, for a model in metres —, and the way between the two.
    *  What a recruit's way out of its door is laid on (#268). */
