@@ -80,6 +80,24 @@ export type StandingPile = {
 export const labelOfPile = (pile: StandingPile | undefined, id: string): string =>
   pile === undefined ? id : 'beside' in pile.at ? pile.at.beside : (pile.label ?? id);
 
+/**
+ * **A pile posted at a maquette's point stands at its foot, not under it** (#341): a garrison
+ * handed back to the ground by a razed site is a pile at a point, and the point is where the
+ * maquette of its neighbour — or the one still falling — stands. The first site found takes it.
+ */
+export const besideSites = (
+  piles: ReadonlyArray<StandingPile>,
+  sites: ReadonlyArray<{ readonly id: string; readonly at: LonLat }>,
+): ReadonlyArray<StandingPile> =>
+  sites.length === 0
+    ? piles
+    : piles.map((pile) => {
+        if (!('lonLat' in pile.at)) return pile;
+        const [lon, lat] = pile.at.lonLat;
+        const site = sites.find(({ at }) => Math.abs(at[0] - lon) + Math.abs(at[1] - lat) < 1e-9);
+        return site === undefined ? pile : { ...pile, at: { beside: site.id } };
+      });
+
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
 export type GarrisonAt = (
   maquetteId: string,
@@ -1331,8 +1349,10 @@ export class StandingLayer implements SequenceHost {
         if (foot !== null) this.ripple(foot.at, foot.radius * 0.9, false, true);
       }
     }
+    // How far along a site's foot its piles already stand: a second garrison there stands abreast.
+    const abreast = new Map<string, number>();
     for (const entry of this.dressed.values()) {
-      const { object, at, span, targets } = entry;
+      const { object, at, span, targets, extent } = entry;
       if ('beside' in at) {
         const quay = at.quay !== undefined;
         const site = this.garrisonAt(at.beside, span, quay);
@@ -1348,7 +1368,15 @@ export class StandingLayer implements SequenceHost {
           object.visible = false;
           continue;
         }
-        object.position.set(foot.at.x + foot.step[0], foot.at.y, foot.at.z + foot.step[1]);
+        const half = Math.max(extent.x, extent.z) * object.scale.x;
+        const taken = abreast.get(at.beside) ?? 0;
+        const aside = taken === 0 ? 0 : taken + half;
+        abreast.set(at.beside, aside + half);
+        object.position.set(
+          foot.at.x + foot.step[0] + aside * Math.cos(foot.facing),
+          foot.at.y,
+          foot.at.z + foot.step[1] - aside * Math.sin(foot.facing),
+        );
         object.rotation.y = at.quay === undefined ? foot.facing : 0;
       }
       const distance = object.position.distanceTo(cameraPosition);

@@ -154,3 +154,21 @@ describe('the figurine floor', () => {
     expect(object.visible).toBe(false);
   });
 });
+
+describe('two piles at the foot of one site (#341)', () => {
+  it('stand abreast, not on one another', async () => {
+    const { layer } = await garrison();
+    layer.display([
+      { id: 'a', at: { beside: 'site' }, pieces: pilePieces([troop(1), troop(2)]) },
+      { id: 'b', at: { beside: 'site' }, pieces: pilePieces([troop(3), troop(4)]) },
+    ]);
+    await vi.waitFor(() =>
+      expect(layer.group.children.filter((c) => c instanceof Group).length).toBe(2),
+    );
+    const eye = new Vector3(0, 6, 1);
+    layer.orient(eye);
+    layer.orient(eye);
+    const [a, b] = layer.group.children.filter((child) => child instanceof Group);
+    expect(a!.position.distanceTo(b!.position)).toBeGreaterThan(0.1);
+  });
+});

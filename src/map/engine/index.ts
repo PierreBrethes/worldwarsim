@@ -148,6 +148,7 @@ import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer, type Shore } from './sea';
 import { MaquetteLayer, type StandingMaquette } from './maquettes';
 import {
+  besideSites,
   StandingLayer,
   type DropVerdict,
   type PieceHold,
@@ -495,7 +496,7 @@ export class MapEngine {
   private readonly razes = new RazeLayer();
   /** The razed maquettes still falling, whose place is held (`MaquetteLayer.hold`). */
   private readonly falling = new Set<string>();
-  /** The piles as last served: a garrison of a falling site is drawn beside it (`besideFalling`). */
+  /** The piles as last served: a garrison of a falling site is drawn beside it (`besideSites`). */
   private piles: ReadonlyArray<StandingPile> = [];
   /** « Terrain tenu » of a combat the map may play: the report stamp says it when it does. */
   private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
@@ -891,7 +892,7 @@ export class MapEngine {
     this.razes.onEnded = (id) => {
       this.falling.delete(id);
       this.maquettes.release(id);
-      this.standing.display(this.besideFalling(this.piles));
+      this.standing.display(this.besideSites(this.piles));
       this.standing.rebuild();
       this.pins.rebuild();
       this.invalidate();
@@ -1127,23 +1128,17 @@ export class MapEngine {
   displayStanding(piles: ReadonlyArray<StandingPile>): void {
     this.invalidate();
     this.piles = piles;
-    this.standing.display(this.besideFalling(piles));
+    this.standing.display(this.besideSites(piles));
   }
 
-  /** **The garrison of a razed site stays at its foot while it falls** (#326): served at the
-   *  site's point now, it stands where it stood until the place is given back. */
-  private besideFalling(piles: ReadonlyArray<StandingPile>): ReadonlyArray<StandingPile> {
-    if (this.falling.size === 0) return piles;
-    const sites = [...this.falling].flatMap((id) => {
+  /** **A garrison stands at the foot of the maquette at its point** (#341): that of a razed site
+   *  stays where it stood while the site falls (#326), then at the foot of its neighbour's. */
+  private besideSites(piles: ReadonlyArray<StandingPile>): ReadonlyArray<StandingPile> {
+    const falling = [...this.falling].flatMap((id) => {
       const at = this.maquettes.heldAt(id);
       return at === null ? [] : [{ id, at }];
     });
-    return piles.map((pile) => {
-      if (!('lonLat' in pile.at)) return pile;
-      const [lon, lat] = pile.at.lonLat;
-      const site = sites.find(({ at }) => Math.abs(at[0] - lon) + Math.abs(at[1] - lat) < 1e-9);
-      return site === undefined ? pile : { ...pile, at: { beside: site.id } };
-    });
+    return besideSites(piles, [...falling, ...this.maquettes.pointsOf()]);
   }
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
@@ -1162,11 +1157,13 @@ export class MapEngine {
     }
     if (fell) {
       this.invalidate();
-      this.standing.display(this.besideFalling(this.piles));
+      this.standing.display(this.besideSites(this.piles));
     }
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
     this.invalidate();
+    // A pile posted at the point of a maquette that comes or goes stands at its foot, or not.
+    this.standing.display(this.besideSites(this.piles));
     // A ring may have carried a maquette elsewhere: its pin follows.
     this.pins.rebuild();
     const runways = this.maquettes.runwaysKey();

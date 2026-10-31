@@ -5,6 +5,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import { pilePieces, unitPieces } from '@/domain/pile-pieces';
 import type { WorldFrame } from './frame';
 import {
+  besideSites,
   drawnKey,
   dressedGroups,
   formationOf,
@@ -546,5 +547,21 @@ describe('labelOfPile', () => {
     );
     expect(labelOfPile({ id: 'p', at: { lonLat: [0, 0] }, pieces }, 'p')).toBe('p');
     expect(labelOfPile(undefined, 'p')).toBe('p');
+  });
+});
+
+describe('besideSites (#341)', () => {
+  const pieces = pilePieces([troop('infantry')]);
+  const ground = { id: 'g', at: { lonLat: [2.35, 48.85] as const }, pieces };
+
+  it('stands a pile posted at the point of a maquette beside it, not under it', () => {
+    const [moved] = besideSites([ground], [{ id: 'building-hq@2.35,48.85', at: [2.35, 48.85] }]);
+    expect(moved!.at).toEqual({ beside: 'building-hq@2.35,48.85' });
+  });
+
+  it('leaves a pile elsewhere, and a garrison already beside its own, where they are', () => {
+    const beside = { id: 'b', at: { beside: 'building-hq' }, pieces };
+    const sites = [{ id: 'building-hq@2,48', at: [2, 48] as const }];
+    expect(besideSites([ground, beside], sites)).toEqual([ground, beside]);
   });
 });

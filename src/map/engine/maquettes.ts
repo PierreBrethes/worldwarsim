@@ -592,6 +592,11 @@ export class MaquetteLayer implements SequenceHost {
     return this.held.get(id)?.lonLat ?? null;
   }
 
+  /** **The points the served maquettes stand on**: a pile posted at one stands at its foot. */
+  pointsOf(): ReadonlyArray<{ readonly id: string; readonly at: LonLat }> {
+    return this.maquettes.flatMap(({ id, at }) => ('lonLat' in at ? [{ id, at: at.lonLat }] : []));
+  }
+
   private place(): void {
     const items = [...this.byId.values(), ...this.held.values()]
       .map(({ item }) => item)
