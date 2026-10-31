@@ -2884,10 +2884,15 @@ export const fr = {
     dropOnTransport: 'Lâchez les jetons sur un camion, un cargo ou un avion de transport',
     fromDepot: 'À un avant-poste, le transport se charge à son dépôt : glissez depuis le dépôt',
     atThisDepot: 'Ce dépôt charge les transports qui se tiennent à son point',
-    loadHint: (amount: number, resource: string, after: number, capacity: number) =>
-      `Charger ${amount} ${resource} · ${after} sur ${capacity}`,
     loaded: (amount: number, resource: string) => `${amount} ${resource} à bord`,
-    grab: 'Glisser sur un transport : 10, l’appui maintenu en prend davantage',
+    grab: 'Glisser sur un transport : tout le bac, puis on règle la charge dans sa jauge',
+    gaugeLoad: (amount: number) => (amount === 0 ? 'Rien' : `Charger ${amount}`),
+    gaugeAfter: (after: number, capacity: number) => `${after} sur ${capacity}`,
+    gaugeWord: (word: 'full' | 'whole' | null, board: boolean) =>
+      word === null ? null : word === 'full' ? 'plein' : board ? 'tout le bac' : 'tout le dépôt',
+    gaugeZero: 'Lâcher ici ne charge rien : les jetons rentrent',
+    gaugeFine: 'plus haut : pas fin',
+    gaugeFineOn: 'pas fin',
     tourLine: (tour: TagTour): string =>
       `${fr.logistics.tourState(tour)}${tour.veiled === true ? ' · relevée à mi-portée, Rangoun' : ''}`,
     tourState: ({ state, stops, waiting }: TagTour): string =>

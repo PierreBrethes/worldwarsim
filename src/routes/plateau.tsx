@@ -1003,8 +1003,8 @@ function BoardContent({
   const [carryingTokens, setCarryingTokens] = useState(false);
   const tokens = useTokenDrag<TokenSource>({
     stock: (from, resource) => sourceStockOf(view, from, resource, Date.now()),
-    read: (from, carrierId, resource, grabbed) =>
-      loadReadingOf(view, carrierId, from, resource, grabbed, Date.now()),
+    read: (from, carrierId, resource, picked) =>
+      loadReadingOf(view, carrierId, from, resource, picked, Date.now()),
     drop: (_from, carrierId, resource, amount) => {
       setOrderError(null);
       const carrier = document.querySelector(`[data-carrier-id="${carrierId}"]`);

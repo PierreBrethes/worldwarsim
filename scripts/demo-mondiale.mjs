@@ -94,7 +94,9 @@ const mines = process.argv.includes('--exploitations');
 const levels = process.argv.includes('--niveaux') || process.argv.includes('--echelle');
 const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
-const logistics = tours || process.argv.includes('--livraison');
+/** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
+const twinTrucks = process.argv.includes('--deux-camions');
+const logistics = tours || twinTrucks || process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
 /** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
@@ -271,7 +273,11 @@ if (!bare) {
       ]);
   /** Un avant-poste et son dépôt, un camion chargé au QG, un autre au point (ADR 0028 §4). */
   if (logistics && scene.a !== null)
-    cli(['run', 'dev:logisticsScene', JSON.stringify({ playerId: scene.a, fullDepot: tours })]);
+    cli([
+      'run',
+      'dev:logisticsScene',
+      JSON.stringify({ playerId: scene.a, fullDepot: tours, twin: twinTrucks }),
+    ]);
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
   if (airdrops && scene.a !== null)
     cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a })]);
