@@ -65,6 +65,7 @@ import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
   buildingLabelId,
+  razingStill,
   campsOf,
   markerOfStation,
   markersOf,
@@ -2257,10 +2258,7 @@ function BoardContent({
   const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
   // After the map's own effects: it has read the list on the view that lost the maquette.
   useEffect(() => {
-    const standing = new Set(view.me.buildings.map(buildingLabelId));
-    setRazing((ids) =>
-      ids.every((id) => standing.has(id)) ? ids : ids.filter((id) => standing.has(id)),
-    );
+    setRazing((ids) => razingStill(ids, view.me.buildings));
   }, [view.me.buildings]);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 

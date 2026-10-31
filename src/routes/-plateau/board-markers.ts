@@ -500,6 +500,16 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
 export const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
   point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
 
+/** **Les maquettes rasées que la vue sert encore** (#326) : la carte joue l'affaissement de celle
+ *  que la vue perd, puis l'id s'oublie. La même liste quand rien n'est parti. */
+export const razingStill = (
+  razing: ReadonlyArray<string>,
+  buildings: ReadonlyArray<{ key: string; point: LonLat | null }>,
+): ReadonlyArray<string> => {
+  const served = new Set(buildings.map(buildingLabelId));
+  return razing.every((id) => served.has(id)) ? razing : razing.filter((id) => served.has(id));
+};
+
 /** La maquette sous un point de l'écran, par l'id de son étiquette (`MapEngine.maquetteAtPoint`). */
 export type MaquetteAt = (clientX: number, clientY: number) => string | null;
 
