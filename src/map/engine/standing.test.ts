@@ -553,15 +553,27 @@ describe('labelOfPile', () => {
 describe('besideSites (#341)', () => {
   const pieces = pilePieces([troop('infantry')]);
   const ground = { id: 'g', at: { lonLat: [2.35, 48.85] as const }, pieces };
+  const hq = { id: 'building-hq@2.35,48.85', at: [2.35, 48.85] as const };
 
-  it('stands a pile posted at the point of a maquette beside it, not under it', () => {
-    const [moved] = besideSites([ground], [{ id: 'building-hq@2.35,48.85', at: [2.35, 48.85] }]);
-    expect(moved!.at).toEqual({ beside: 'building-hq@2.35,48.85' });
+  it('stands a pile posted at the point of a site beside it, not under it, and remembers its point', () => {
+    const [moved] = besideSites([ground], [hq]);
+    expect(moved!.at).toEqual({ beside: hq.id, from: [2.35, 48.85] });
+  });
+
+  it('keeps the pile its own label: the site it stands at is not what it answers to', () => {
+    const [moved] = besideSites([ground], [hq]);
+    expect(labelOfPile(moved, 'g')).toBe('g');
+    expect(labelOfPile({ ...ground, label: 'outpost-1' }, 'g')).toBe('outpost-1');
   });
 
   it('leaves a pile elsewhere, and a garrison already beside its own, where they are', () => {
     const beside = { id: 'b', at: { beside: 'building-hq' }, pieces };
     const sites = [{ id: 'building-hq@2,48', at: [2, 48] as const }];
     expect(besideSites([ground, beside], sites)).toEqual([ground, beside]);
+  });
+
+  it('leaves a fleet at its point: its hulls dock along the quay of a port, not on land', () => {
+    const fleet = { id: 'f', at: ground.at, pieces: pilePieces([troop('escort')]) };
+    expect(besideSites([fleet], [hq])).toEqual([fleet]);
   });
 });

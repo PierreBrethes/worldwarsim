@@ -496,7 +496,8 @@ export class MapEngine {
   private readonly razes = new RazeLayer();
   /** The razed maquettes still falling, whose place is held (`MaquetteLayer.hold`). */
   private readonly falling = new Set<string>();
-  /** The piles as last served: a garrison of a falling site is drawn beside it (`besideSites`). */
+  /** The piles as last served: a garrison handed back to the ground is drawn at the foot of the
+   *  building at its point, standing or falling (`besideSites`). */
   private piles: ReadonlyArray<StandingPile> = [];
   /** « Terrain tenu » of a combat the map may play: the report stamp says it when it does. */
   private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
@@ -1138,7 +1139,7 @@ export class MapEngine {
       const at = this.maquettes.heldAt(id);
       return at === null ? [] : [{ id, at }];
     });
-    return besideSites(piles, [...falling, ...this.maquettes.pointsOf()]);
+    return besideSites(piles, [...falling, ...this.maquettes.buildingPoints()]);
   }
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close

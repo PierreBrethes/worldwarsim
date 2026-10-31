@@ -71,20 +71,30 @@ export type StandingPile = {
     | { readonly lonLat: LonLat }
     /** `quay` : la garnison d'un port, dont les coques **accostent le long du quai**, côté mer,
      *  en rangs le long de la côte (ADR 0028) — et non tournées comme la maquette. */
-    | { readonly beside: string; readonly quay?: LonLat };
+    | {
+        readonly beside: string;
+        readonly quay?: LonLat;
+        /** Set by `besideSites`: the point this pile was served at, which it falls back to. */
+        readonly from?: LonLat;
+      };
   readonly pieces: PilePieces;
 };
 
 /** **The label a standing pile is aimed at by**: the mast it stands beside, the label it hangs
  *  from (an outpost's), or its own. The one place a pile and its label are tied. */
 export const labelOfPile = (pile: StandingPile | undefined, id: string): string =>
-  pile === undefined ? id : 'beside' in pile.at ? pile.at.beside : (pile.label ?? id);
+  pile === undefined ? id : (pile.label ?? ('beside' in pile.at ? pile.at.beside : id));
 
 /**
  * **A pile posted at a maquette's point stands at its foot, not under it** (#341): a garrison
  * handed back to the ground by a razed site is a pile at a point, and the point is where the
  * maquette of its neighbour — or the one still falling — stands. The first site found takes it.
+ * It keeps its own label (what hovers, drops and carries it is the pile, not the site), and a
+ * fleet stays at its point: its hulls dock along a quay, which is no land's foot.
  */
+const isNaval = ({ role }: { role: keyof typeof DOMAIN_BY_ROLE }): boolean =>
+  DOMAIN_BY_ROLE[role] === 'sea';
+
 export const besideSites = (
   piles: ReadonlyArray<StandingPile>,
   sites: ReadonlyArray<{ readonly id: string; readonly at: LonLat }>,
@@ -92,10 +102,16 @@ export const besideSites = (
   sites.length === 0
     ? piles
     : piles.map((pile) => {
-        if (!('lonLat' in pile.at)) return pile;
+        if (!('lonLat' in pile.at) || pile.pieces.groups.some(isNaval)) return pile;
         const [lon, lat] = pile.at.lonLat;
         const site = sites.find(({ at }) => Math.abs(at[0] - lon) + Math.abs(at[1] - lat) < 1e-9);
-        return site === undefined ? pile : { ...pile, at: { beside: site.id } };
+        return site === undefined
+          ? pile
+          : {
+              ...pile,
+              label: pile.label ?? pile.id,
+              at: { beside: site.id, from: pile.at.lonLat },
+            };
       });
 
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
@@ -1351,7 +1367,11 @@ export class StandingLayer implements SequenceHost {
     }
     // How far along a site's foot its piles already stand: a second garrison there stands abreast.
     const abreast = new Map<string, number>();
-    for (const entry of this.dressed.values()) {
+    // The garrisons the server attached stand first: a pile handed back to the ground stands
+    // abreast of them, whatever the order served.
+    const attached = (entry: Dressed) =>
+      'beside' in entry.at && entry.at.from !== undefined ? 1 : 0;
+    for (const entry of [...this.dressed.values()].sort((a, b) => attached(a) - attached(b))) {
       const { object, at, span, targets, extent } = entry;
       if ('beside' in at) {
         const quay = at.quay !== undefined;
@@ -1364,20 +1384,24 @@ export class StandingLayer implements SequenceHost {
             span * floorGrowth(site.at.distanceTo(cameraPosition), span),
             quay,
           );
-        if (foot === null) {
+        if (foot !== null) {
+          const half = Math.max(extent.x, extent.z) * object.scale.x;
+          const taken = abreast.get(at.beside) ?? 0;
+          const aside = taken === 0 ? 0 : taken + half;
+          abreast.set(at.beside, aside + half);
+          object.position.set(
+            foot.at.x + foot.step[0] + aside * Math.cos(foot.facing),
+            foot.at.y,
+            foot.at.z + foot.step[1] - aside * Math.sin(foot.facing),
+          );
+          object.rotation.y = at.quay === undefined ? foot.facing : 0;
+        } else if (at.from === undefined) {
           object.visible = false;
           continue;
+        } else {
+          // A pile handed back to the ground waits at its own point: it is not the site's to hide.
+          object.position.copy(this.frame.projectLonLat(at.from, COUNTRY_THICKNESS));
         }
-        const half = Math.max(extent.x, extent.z) * object.scale.x;
-        const taken = abreast.get(at.beside) ?? 0;
-        const aside = taken === 0 ? 0 : taken + half;
-        abreast.set(at.beside, aside + half);
-        object.position.set(
-          foot.at.x + foot.step[0] + aside * Math.cos(foot.facing),
-          foot.at.y,
-          foot.at.z + foot.step[1] - aside * Math.sin(foot.facing),
-        );
-        object.rotation.y = at.quay === undefined ? foot.facing : 0;
       }
       const distance = object.position.distanceTo(cameraPosition);
       const near = troopWeight(distance, span);

@@ -172,3 +172,49 @@ describe('two piles at the foot of one site (#341)', () => {
     expect(a!.position.distanceTo(b!.position)).toBeGreaterThan(0.1);
   });
 });
+
+describe('a garrison handed back to the ground, attached to a site (#341)', () => {
+  type Inner = { dressed: Map<string, { object: Group }> };
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const objectOf = (layer: StandingLayer, id: string) =>
+    (layer as unknown as Inner).dressed.get(id)!.object;
+  const standing = async (garrisonAt: ConstructorParameters<typeof StandingLayer>[2]) => {
+    const layer = new StandingLayer(frame, () => {}, garrisonAt);
+    layer.setNation('france');
+    return layer;
+  };
+  const foot = () => ({ at: new Vector3(0, 0, 0), step: [0, 2] as const, facing: 0 });
+
+  it('leaves the garrison the server attached where it stands, whatever the order served', async () => {
+    const layer = await standing(foot);
+    layer.display([
+      {
+        id: 'razed',
+        at: { beside: 'site', from: [3, 4] },
+        pieces: pilePieces([troop(1), troop(2)]),
+      },
+      { id: 'own', at: { beside: 'site' }, pieces: pilePieces([troop(3), troop(4)]) },
+    ]);
+    await vi.waitFor(() => expect((layer as unknown as Inner).dressed.size).toBe(2));
+    await vi.waitFor(() => expect(layer.group.children.length).toBe(2));
+    layer.orient(new Vector3(0, 6, 1));
+    layer.orient(new Vector3(0, 6, 1));
+    expect(objectOf(layer, 'own').position.x).toBe(0);
+    expect(objectOf(layer, 'razed').position.x).not.toBe(0);
+  });
+
+  it('falls back to its own point while its site has no ground to stand beside', async () => {
+    const layer = await standing(() => null);
+    layer.display([
+      { id: 'razed', at: { beside: 'site', from: [3, 4] }, pieces: pilePieces([troop(1)]) },
+      { id: 'own', at: { beside: 'site' }, pieces: pilePieces([troop(2)]) },
+    ]);
+    await vi.waitFor(() => expect(layer.group.children.length).toBe(2));
+    layer.orient(new Vector3(0, 6, 1));
+    expect(objectOf(layer, 'razed').visible).toBe(true);
+    expect(objectOf(layer, 'razed').position.x).toBe(3);
+    expect(objectOf(layer, 'own').visible).toBe(false);
+  });
+});
