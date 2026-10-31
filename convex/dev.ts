@@ -15,13 +15,14 @@ import { viewOf } from './view';
 import { reassessDetection } from './movement/detection';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
-import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE } from './validators';
+import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
 import { nominalStrength, outpostReachKm } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { DEPOSIT_POINTS } from '../src/domain/world';
 import { isNation } from '../src/domain/nations';
+import type { ResearchCard } from '../src/domain/ids';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
 /**
@@ -361,16 +362,21 @@ export const spawnTroops = internalMutation({
     lon: v.number(),
     lat: v.number(),
     carriedBy: v.optional(v.id('troops')),
+    /** Son rang : seuls l'infanterie et le blindé en ont un second (`NOMINAL_STRENGTH`) ; absent, le premier. */
+    tier: v.optional(UNIT_TIER),
     /** Ses crans déjà entamés (coups et plein, ADR 0028 §3) ; absents, pleins. */
     rounds: v.optional(v.number()),
     fuel: v.optional(v.number()),
     /** **En tournée depuis ce dépôt**, à l'arrêt : la pile de Rangoun d'une démo (#176). */
     tourBase: v.optional(v.id('outposts')),
   },
-  handler: async (ctx, { playerId, role, count, lon, lat, carriedBy, rounds, fuel, tourBase }) => {
+  handler: async (
+    ctx,
+    { playerId, role, count, lon, lat, carriedBy, tier = 1, rounds, fuel, tourBase },
+  ) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
-    const strength = nominalStrength(role, 1);
+    const strength = nominalStrength(role, tier);
     const ids: Id<'troops'>[] = [];
     for (let k = 0; k < count; k++)
       ids.push(
@@ -378,7 +384,7 @@ export const spawnTroops = internalMutation({
           seasonId: player.seasonId,
           playerId,
           role,
-          tier: 1,
+          tier,
           nominalStrength: strength,
           currentStrength: strength,
           stationedAt: { lon, lat },
@@ -536,6 +542,137 @@ export const arriveNow = internalMutation({
 });
 
 /**
+ * **Les recrues en file sortent tout de suite** : chaque lot daté (la tête de file de sa caserne)
+ * est livré maintenant, ou dans `afterMs`, au lieu d'attendre sa formation — le temps d'ouvrir la
+ * carte sur la caserne, comme `arriveNow` pour une marche. La livraison est celle du jeu
+ * (`troops.deliver`) : la recrue sort au rang commandé.
+ *
+ * `npx convex run dev:finishRecruitments '{"playerId":"…"}'`
+ */
+export const finishRecruitments = internalMutation({
+  args: { playerId: v.id('players'), afterMs: v.optional(v.number()) },
+  handler: async (ctx, { playerId, afterMs }) => {
+    const batches = (
+      await ctx.db
+        .query('recruitments')
+        .filter((q) => q.eq(q.field('playerId'), playerId))
+        .collect()
+    ).filter((batch) => batch.finishesAt !== null);
+    for (const batch of batches)
+      await ctx.scheduler.runAfter(afterMs ?? 0, internal.troops.deliver, {
+        recruitmentId: batch._id,
+      });
+    return batches.length;
+  },
+});
+
+/** Des cartes de recherche acquises d'un coup, sans Centre : celles qu'une scène suppose. */
+export const grantCards = internalMutation({
+  args: { playerId: v.id('players'), cards: v.array(RESEARCH_CARD) },
+  handler: async (ctx, { playerId, cards }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    await ctx.db.patch(playerId, {
+      researched: [...new Set([...(player.researched ?? []), ...cards])],
+    });
+  },
+});
+
+/**
+ * **Une revue à chaque capitale** (`--huit`) : deux fantassins et un blindé de chaque nation de la
+ * saison, posés au point de sa capitale. Rend le point de chacune, pour les lieux de la démo.
+ */
+export const reviewScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const capitals: Record<string, [number, number]> = {};
+    for (const player of players) {
+      if (!isNation(player.nation)) continue;
+      const { lon, lat } = pointOfRegion(capitalRegionOf(player.nation));
+      capitals[player.nation] = [lon, lat];
+      for (const [role, count] of [
+        ['infantry', 2],
+        ['armor', 1],
+      ] as const)
+        for (let k = 0; k < count; k++)
+          await ctx.db.insert('troops', {
+            seasonId,
+            playerId: player._id,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: { lon, lat },
+          });
+    }
+    return capitals;
+  },
+});
+
+/**
+ * **Une mine qu'aucun avant-poste ne couvre** (`--hors-portee`) : le QG à Paris, et une mine sur le
+ * charbon de la Ruhr, en sol étranger où le joueur n'a posé aucun point. La fiche de la mine lit
+ * `unreached` : la montée y est refusée, et dite. Rend le point de la mine.
+ */
+export const unreachedMineScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const ruhr = DEPOSIT_POINTS.find((point) => point.id === 'coal-DEU-1572');
+    if (ruhr === undefined) throw new Error('no deposit coal-DEU-1572');
+    await headquartersOf(ctx, player);
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'mine',
+      regionId: ruhr.regionId,
+      point: { lon: ruhr.lonLat[0], lat: ruhr.lonLat[1] },
+      level: 1,
+    });
+    return ruhr.lonLat;
+  },
+});
+
+/**
+ * **Une présence de pillage déjà entamée** (`--pillage`) : les colonnes en phase de présence
+ * sont reculées de `hours` heures, de sorte que les caisses tombées à chaque quart de la présence
+ * (`loadingAt`) se voient déjà ; la fin de présence est replanifiée à sa nouvelle date.
+ */
+export const pastPresence = internalMutation({
+  args: { playerId: v.id('players'), hours: v.number() },
+  handler: async (ctx, { playerId, hours }) => {
+    const movements = await ctx.db
+      .query('movements')
+      .filter((q) => q.eq(q.field('playerId'), playerId))
+      .collect();
+    const now = Date.now();
+    let moved = 0;
+    for (const movement of movements) {
+      if (movement.plunder?.phase !== 'presence') continue;
+      /** Never past now: a deadline in the past would replan a job the clock has already missed. */
+      const back = Math.min(hours * 3_600_000, movement.plunder.until - now);
+      const until = movement.plunder.until - back;
+      await ctx.db.patch(movement._id, {
+        departedAt: movement.departedAt - back,
+        arrivesAt: until,
+        plunder: { ...movement.plunder, until },
+      });
+      await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
+        movementId: movement._id,
+        expectedAt: until,
+      });
+      moved++;
+    }
+    return moved;
+  },
+});
+
+/**
  * **La scène du largage** (ADR 0028 §4), pour la démo : un aérodrome à la capitale, un avion
  * chargé, un avant-poste de niveau 1 près de Bruxelles — une escale n'est pas requise — au dépôt
  * entamé, et une escouade isolée en Rhénanie, à sec.
@@ -668,7 +805,13 @@ export const levelsScene = internalMutation({
       level: 3,
     });
     await ctx.db.patch(playerId, {
-      researched: ['transmissions1', 'transmissions2'],
+      researched: [
+        ...new Set<ResearchCard>([
+          ...(player.researched ?? []),
+          'transmissions1',
+          'transmissions2',
+        ]),
+      ],
     });
   },
 });

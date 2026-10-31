@@ -118,7 +118,7 @@ dossier hors du dépôt (`PLAYWRIGHT_DIR`).
 
 ```bash
 npm run demo:mondiale   # deux comptes, une Mondiale lancée, stocks pleins, troupes posées
-PLAYWRIGHT_DIR=/chemin/pw npm run capture -- '/plateau?season={saison}' plateau.png [--compte a|b] [--largeur 390 --hauteur 844] [--attendre ms]
+PLAYWRIGHT_DIR=/chemin/pw npm run capture -- '/plateau?season={saison}' plateau.png [--heure 2026-10-21T12:00Z] [--lieu …] [--compte a|b] [--largeur 390 --hauteur 844] [--attendre ms]
 ```
 
 Le premier écrit `scripts/demo-mondiale.accounts.json` (ignoré par git : comptes, code et saison) et
@@ -127,6 +127,14 @@ et relève les erreurs de console. `--nu` au premier saute stocks et troupes. `-
 `texte=…`, `clic=x,y`, `survol=x,y`, `molette=x,y,dy`, `pause=ms`, `ralenti=10` pour voir une animation à mi-course) provoque un état avant la
 capture — par exemple `--geste 'clic=1392,660' --geste 'texte=Mine — charbon' --geste 'survol=995,425'`
 pour voir le fantôme d'une pose.
+
+Toujours `--heure` (un instant ISO avec Z ; midi UTC sans elle) : le cycle de deux heures fait sinon
+tomber une capture sur deux de nuit, et une heure illisible est refusée. Et viser par id, pas à
+l'œil : `--geste 'lieu=@stack-point:4.94,49.7'` cadre la pile là où elle est dessinée (3 par défaut,
+`,distance,pente` pour changer) et attend ses figurines ; `lieu=@combat`, `@camion`, `@valette`,
+`@paris` lisent les lieux que la démo écrit dans le fichier des comptes ; `toucher=@id`,
+`doigt=@id`, `clic=@id` visent l'étiquette de l'id (`building-barracks@lon,lat`). `--compte` prend
+toute clé du fichier des comptes.
 
 ## Banc de charge de la Mondiale (#143)
 

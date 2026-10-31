@@ -459,6 +459,46 @@ describe('plunder presence', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it('ends a presence the demo has set back at its new deadline, by the job it replanned', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    const movementId = await plunderArrival(t, seat, warehouseId, [infantry], barracks);
+    const playerId = (await playerOf(t, seat))._id;
+    const phase = async () => (await t.run((ctx) => ctx.db.get(movementId)))?.plunder?.phase;
+
+    expect(await t.mutation(internal.dev.pastPresence, { playerId, hours: 1.5 })).toBe(1);
+
+    const until = MIDDAY + 0.5 * HOUR;
+    const movement = await t.run((ctx) => ctx.db.get(movementId));
+    expect(movement?.plunder).toMatchObject({ phase: 'presence', until });
+    expect(movement?.arrivesAt).toBe(until);
+    await vi.advanceTimersByTimeAsync(0.5 * HOUR - 1);
+    await t.finishInProgressScheduledFunctions();
+    expect(await phase()).toBe('presence');
+    await vi.advanceTimersByTimeAsync(2);
+    await t.finishInProgressScheduledFunctions();
+    expect(await phase()).not.toBe('presence');
+  });
+
+  it('never sets a presence back past now, whatever the hours asked', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    const movementId = await plunderArrival(t, seat, warehouseId, [infantry], barracks);
+    const playerId = (await playerOf(t, seat))._id;
+
+    await t.mutation(internal.dev.pastPresence, { playerId, hours: 10 });
+
+    const movement = await t.run((ctx) => ctx.db.get(movementId));
+    expect(movement?.plunder).toMatchObject({ phase: 'presence', until: MIDDAY });
+    expect(movement?.arrivesAt).toBe(MIDDAY);
+  });
+
   it('holds an infantry column on an undefended warehouse until the presence deadline', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
