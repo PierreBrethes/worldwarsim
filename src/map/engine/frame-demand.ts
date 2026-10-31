@@ -74,6 +74,12 @@ export class FrameDemand {
     this.covered = covered;
   }
 
+  /** **Une image complète, sans ouvrir la fenêtre** : un combat en réduites change de temps
+   *  (#272), et `stir` lui aurait donné une seconde et demie d'images pour une seule. */
+  whole(): void {
+    this.fullAt = Number.NEGATIVE_INFINITY;
+  }
+
   /** Une image seule, sans ouvrir la fenêtre : l'ambiance la demande à chaque pas. */
   request(): void {
     this.requested = true;

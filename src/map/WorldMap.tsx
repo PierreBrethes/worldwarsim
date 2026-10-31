@@ -286,6 +286,11 @@ type Props = {
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   /** La bulle des premiers pas, sur la pièce à lever. */
   cue?: { readonly labelId: string; readonly text: string } | null;
+  /** **Les combats appris d'une vue à l'autre** (#272), joués à leur point : sans leur vue tant
+   *  que `replayOf` ne l'a pas rendue. */
+  combats?: ReadonlyArray<MapCombat>;
+  /** Un combat a fini de se montrer sur la carte, ou ne s'y joue pas : sa dépêche peut paraître. */
+  onCombatSettled?: (id: string) => void;
   /** **Mes piles prises ensemble** (#130), chacune cerclée comme la pièce en main. */
   selectedPiles?: ReadonlyArray<string>;
   /** **Le lasso** (Maj + glisser sur le plateau) : les piles qu'il entoure, à chaque pas. */
@@ -374,6 +379,15 @@ function useRankKept(piles: ReadonlyArray<StandingPile>): ReadonlyArray<Standing
 /** A stable empty list: a fresh `[]` default would rebuild the highlight on every render. */
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
+const NO_COMBATS: ReadonlyArray<MapCombat> = [];
+
+/** A combat the map plays at its point (#272), as the board tells it (`Cue`, `combat`). */
+export type MapCombat = {
+  readonly id: string;
+  readonly point: LonLat;
+  readonly view: ReplayView | null;
+  readonly toward: LonLat | null;
+};
 /** How far above a finger the drop chip stands, clear of the fingertip (#250). @a-mesurer */
 const FINGER_LIFT_PX = 56;
 /** How far beside a finger it stands when the top leaves no room above. @a-mesurer */
@@ -453,6 +467,8 @@ export function WorldMap({
   onTakeDepot,
   onTour,
   cue = null,
+  combats = NO_COMBATS,
+  onCombatSettled,
   selectedPiles: servedSelection = NO_PILES,
   onLasso,
   onSelectHold,
@@ -1498,6 +1514,30 @@ export function WorldMap({
     for (const entree of entreesOf(before, standing))
       readyEngine?.cue({ kind: 'entree', ...entree });
   }, [arcs, standing, readyEngine]);
+
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.onCombatSettled = onCombatSettled;
+    return () => {
+      readyEngine.onCombatSettled = undefined;
+    };
+  }, [readyEngine, onCombatSettled]);
+
+  // A combat plays at its point (#272): told once without its view, once with it.
+  const combatsCued = useRef(new Map<string, boolean>());
+  useEffect(() => {
+    if (readyEngine === null) return;
+    for (const combat of combats) {
+      const withView = combat.view !== null;
+      if (
+        combatsCued.current.get(combat.id) === true ||
+        (!withView && combatsCued.current.has(combat.id))
+      )
+        continue;
+      combatsCued.current.set(combat.id, withView);
+      readyEngine.cue({ kind: 'combat', ...combat });
+    }
+  }, [combats, readyEngine]);
 
   // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.
   const aboardKnown = useRef<ReadonlyMap<string, string> | null>(null);

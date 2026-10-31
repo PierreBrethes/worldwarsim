@@ -168,6 +168,8 @@ export class PinLayer {
   private carried: Vector3 | null = null;
   private walking: ReadonlyArray<Walking> = [];
   private dirty = true;
+  /** What a combat played on the map covers (#272): no pin there tells the state after it. */
+  private covered: ((at: Vector3) => boolean) | null = null;
   /** The eye and canvas the clusters were made for: a still camera redoes none. */
   private readonly lastEye = new Matrix4();
   private lastSize = '';
@@ -244,6 +246,12 @@ export class PinLayer {
     this.hovered = id;
   }
 
+  /** Lays no pin where `covered` says, until it is lifted with `null`. */
+  veil(covered: ((at: Vector3) => boolean) | null): void {
+    if (covered !== null || this.covered !== null) this.dirty = true;
+    this.covered = covered;
+  }
+
   resize(width: number, height: number): void {
     this.viewport.value = [width, height];
   }
@@ -288,6 +296,7 @@ export class PinLayer {
         if (placed.pin.anchor.kind === 'movementHead' && !('moving' in placed.pin))
           placed.at = heads.get(placed.pin.id) ?? null;
         if (placed.at === null || 'moving' in placed.pin) continue;
+        if (this.covered?.(placed.at)) continue;
         const weight = weightAt(placed.at, placed.pin);
         if (weight <= 0) continue;
         const [sx, sy, inside] = screen(placed.at);
@@ -308,7 +317,7 @@ export class PinLayer {
     for (const placed of this.placed) {
       if (!('moving' in placed.pin)) continue;
       const head = heads.get(placed.pin.id);
-      if (head === undefined) continue;
+      if (head === undefined || this.covered?.(head)) continue;
       const weight = weightAt(head, placed.pin);
       if (weight <= 0) continue;
       const [sx, sy, inside] = screen(head);
