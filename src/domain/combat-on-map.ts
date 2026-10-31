@@ -1,3 +1,4 @@
+import { fr } from '@/i18n/fr';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
 import { REPLAY_MS, STEP_MS, replayAt, type ReplayFrame } from './replay';
 import type { LonLat } from './geo';
@@ -117,4 +118,31 @@ export function homewardOf(
         Math.abs(at[1] - point.lat) >= AT_POINT_DEGREES,
     ) ?? leaving.to
   );
+}
+
+/** **Combien de temps le tampon du compte-rendu reste posé**, de son apparition : le reste du
+ *  compte-rendu, puis six secondes. @a-mesurer : le temps de lire « nos pièces » et de l'ouvrir. */
+export const REPORT_HOLD_MS = STEP_MS['compte-rendu'] + 6000;
+
+/**
+ * **Ce que dit le tampon du compte-rendu** (#327) : l'issue vue du lecteur, et ses propres pertes
+ * en pièces — la dépêche garde les hommes. `won` fait l'encre : rouge quand on gagne.
+ */
+export function reportOf(view: ReplayView): {
+  readonly title: string;
+  readonly losses: string;
+  readonly won: boolean;
+} {
+  const words = fr.replay.report;
+  const destroyed = view.mine.reduce((sum, entry) => sum + entry.destroyed, 0);
+  const routed = view.mine.reduce((sum, entry) => sum + entry.routed, 0);
+  const lost = [
+    ...(destroyed > 0 ? [words.destroyed(destroyed)] : []),
+    ...(routed > 0 ? [words.routed(routed)] : []),
+  ];
+  return {
+    title: words[view.side][view.won ? 'won' : 'lost'],
+    losses: lost.length > 0 ? lost.join(', ') : words.noLoss,
+    won: view.won,
+  };
 }

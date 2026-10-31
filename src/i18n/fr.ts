@@ -3272,6 +3272,15 @@ export const fr = {
     columns: { troops: 'troupes', lost: 'pertes', routed: 'déroutées', destroyed: 'détruites' },
     /** Qui tire, accolé à « la frappe » et « la riposte » : l'étape se lit depuis son camp. */
     whose: (ours: boolean) => (ours ? 'la nôtre' : 'la leur'),
+    /** **Le tampon du compte-rendu sur la carte** (#327), lu depuis le camp du lecteur. */
+    report: {
+      attacker: { won: 'position enlevée', lost: 'attaque repoussée' },
+      defender: { won: 'position tenue', lost: 'position perdue' },
+      noLoss: 'aucune perte',
+      destroyed: (n: number) => `${n} détruite${n > 1 ? 's' : ''}`,
+      routed: (n: number) => `${n} en déroute`,
+      open: 'ouvrir le rejeu',
+    },
   },
 
   /** **Le combat qui arrive pendant qu'on regarde la carte** (ADR 0026 §7) : la phrase de la

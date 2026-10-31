@@ -66,6 +66,7 @@ import { Price } from '@/shell/Price';
 import type { Cost } from '@/domain/player-view';
 import { RouteScale } from './RouteScale';
 import type { CargoAim } from './CargoTags';
+import { CombatReports } from './CombatReports';
 import { MapLabels } from './MapLabels';
 import { EdgeIndicators } from './EdgeIndicators';
 import { CompassRose } from './CompassRose';
@@ -291,6 +292,8 @@ type Props = {
   combats?: ReadonlyArray<MapCombat>;
   /** Un combat a fini de se montrer sur la carte, ou ne s'y joue pas : sa dépêche peut paraître. */
   onCombatSettled?: (id: string) => void;
+  /** Un toucher sur le tampon d'un combat joué : le rejeu de ce combat (#327). */
+  onOpenReport?: (combatId: string) => void;
   /** **Mes piles prises ensemble** (#130), chacune cerclée comme la pièce en main. */
   selectedPiles?: ReadonlyArray<string>;
   /** **Le lasso** (Maj + glisser sur le plateau) : les piles qu'il entoure, à chaque pas. */
@@ -469,6 +472,7 @@ export function WorldMap({
   cue = null,
   combats = NO_COMBATS,
   onCombatSettled,
+  onOpenReport,
   selectedPiles: servedSelection = NO_PILES,
   onLasso,
   onSelectHold,
@@ -1523,6 +1527,23 @@ export function WorldMap({
     };
   }, [readyEngine, onCombatSettled]);
 
+  // The stamps of the accounts begun on the map (#327): they lift at the first hand on the board.
+  const [reports, setReports] = useState<ReadonlyArray<ReplayView>>([]);
+  useEffect(() => {
+    if (!readyEngine) return;
+    readyEngine.onCombatReport = (view) =>
+      setReports((current) => [...current.filter((one) => one.combatId !== view.combatId), view]);
+    readyEngine.onReportsLift = () => setReports((current) => (current.length > 0 ? [] : current));
+    return () => {
+      readyEngine.onCombatReport = undefined;
+      readyEngine.onReportsLift = undefined;
+    };
+  }, [readyEngine]);
+  const liftReport = useCallback(
+    (id: string) => setReports((current) => current.filter((one) => one.combatId !== id)),
+    [],
+  );
+
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());
   useEffect(() => {
@@ -1624,6 +1645,13 @@ export function WorldMap({
         cargoAim={cargoAim}
         availableLabels={availableLabels}
         selectionBar={bar}
+      />
+      <CombatReports
+        reports={reports}
+        engine={readyEngine}
+        labels={labels}
+        onOpen={onOpenReport ?? (() => {})}
+        onLift={liftReport}
       />
       <EdgeIndicators
         labels={labels}

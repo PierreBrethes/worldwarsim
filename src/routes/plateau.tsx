@@ -2225,6 +2225,13 @@ function BoardContent({
     },
     [convex, seat, windows, markJournalRead, closeWindow, dropHand],
   );
+  const openReport = useCallback(
+    (combatId: string) => {
+      const dispatch = view.journal.find((each) => each.combat?.id === combatId);
+      if (dispatch !== undefined) void launchReplay(dispatch);
+    },
+    [view.journal, launchReplay],
+  );
   const replayStep = useCallback(
     (step: ReplayStep, ended: boolean) =>
       setReplay(
@@ -2465,6 +2472,7 @@ function BoardContent({
                 cue={mapCue}
                 combats={mapCombats}
                 onCombatSettled={releaseDispatch}
+                onOpenReport={openReport}
                 selectedPiles={selectedPiles}
                 onLasso={blitz ? undefined : lasso}
                 onSelectHold={blitz || view.me.defeated ? undefined : startPicking}

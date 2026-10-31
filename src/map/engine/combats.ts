@@ -18,6 +18,8 @@ type Played = {
   readonly since: number;
   /** The step last drawn: a held step asks one whole frame as it changes. */
   step: string | null;
+  /** Its ink stamp has been asked: once, as the account begins (#327). */
+  reported: boolean;
 };
 
 /** A point waits this long for its view before it shows again. @a-mesurer: a slow `replayOf`
@@ -40,6 +42,10 @@ export class CombatLayer {
   /** A phone plays fewer and smaller combats (`COMBAT_LIMITS`). */
   phone = false;
   onSettled: (id: string) => void = () => {};
+  /** **The account begins** (#327) — at the last step of a scene, or with the final pose — on a
+   *  combat the player can see: the stamp that reads its outcome goes up. */
+  onReport: (view: ReplayView) => void = () => {};
+  private readonly seen = new Set<string>();
   private played: Played[] = [];
   private readonly waiting = new Map<string, { readonly point: Vector3; readonly since: number }>();
   /** What the scenes cover on the board, as of the last `advance`: the ground there is hidden. */
@@ -59,9 +65,15 @@ export class CombatLayer {
     return this.waiting.has(id);
   }
 
+  /** The map has put this combat's scene on the board: « terrain tenu » is the stamp's now. */
+  shown(id: string): boolean {
+    return this.seen.has(id);
+  }
+
   /** `yaw` turns the scene on the board; `nation` is mine. */
   play(view: ReplayView, nation: string | null, point: Vector3, yaw: number, now: number): void {
     this.waiting.delete(view.combatId);
+    this.seen.add(view.combatId);
     const attacker = view.side === 'attacker' ? 'mine' : 'theirs';
     const defender = attacker === 'mine' ? 'theirs' : 'mine';
     const pieces = replayAt(view, 0).pieces;
@@ -89,6 +101,7 @@ export class CombatLayer {
       plays,
       since: now,
       step: null,
+      reported: false,
     });
     if (!plays) this.onSettled(view.combatId);
   }
@@ -112,6 +125,10 @@ export class CombatLayer {
       const object = each.scene.object;
       object.visible = scale > 0;
       if (scale === 0) return true;
+      if (!each.reported && shown.frame.step === 'compte-rendu') {
+        each.reported = true;
+        this.onReport(each.view);
+      }
       object.scale.setScalar(scale);
       const yaw = object.rotation.y;
       object.position

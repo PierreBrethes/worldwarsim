@@ -162,3 +162,50 @@ describe('CombatLayer, after the review', () => {
     expect(heard).toEqual(['fire']);
   });
 });
+
+describe('CombatLayer, the report stamp (#327)', () => {
+  const reported = (layer: CombatLayer) => {
+    const ids: string[] = [];
+    layer.onReport = (view) => ids.push(view.combatId);
+    return ids;
+  };
+
+  it('reports a played combat once, as its account begins', () => {
+    const layer = new CombatLayer();
+    const ids = reported(layer);
+    layer.play(combat('a'), null, at, 0, 0);
+    layer.advance(stepBounds('compte-rendu').start - 1, scale);
+    expect(ids).toEqual([]);
+    layer.advance(stepBounds('compte-rendu').start + 1, scale);
+    layer.advance(stepBounds('compte-rendu').start + 500, scale);
+    expect(ids).toEqual(['a']);
+  });
+
+  it('reports a combat that holds its final pose with it, cut or too big', () => {
+    const layer = new CombatLayer();
+    const ids = reported(layer);
+    layer.play(combat('big', 13), null, at, 0, 0);
+    layer.advance(0, scale);
+    expect(ids).toEqual(['big']);
+  });
+
+  it('reports nothing past the floor, nor for a scene a replay cleared', () => {
+    const layer = new CombatLayer();
+    const ids = reported(layer);
+    layer.play(combat('far', 13), null, at, 0, 0);
+    layer.advance(0, () => 0);
+    layer.play(combat('gone'), null, at, 0, 0);
+    layer.clear();
+    layer.advance(REPLAY_MS, scale);
+    expect(ids).toEqual([]);
+  });
+
+  it('knows the combats it has shown, for the ground that « terrain tenu » no longer stamps', () => {
+    const layer = new CombatLayer();
+    layer.play(combat('a'), null, at, 0, 0);
+    layer.wait('w', at, 0);
+    expect(layer.shown('a')).toBe(true);
+    expect(layer.shown('w')).toBe(false);
+    expect(layer.shown('z')).toBe(false);
+  });
+});

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { STAMP_MS, inkBursts, stampAt } from './ink-bursts';
 import type { CombatReport, JournalDispatch } from './player-view';
 
-const combat = { point: { lon: 2, lat: 49 }, won: false } as CombatReport;
+const combat = { id: 'c1', point: { lon: 2, lat: 49 }, won: false } as CombatReport;
 const hour = (at: number) =>
   new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const dispatch = (
@@ -75,6 +75,7 @@ describe('inkBursts', () => {
         at: [2, 49],
         words: { word: 'terrain tenu', hour: hour(20) },
         delayMs: STAMP_MS,
+        combatId: 'c1',
       },
     ]);
   });

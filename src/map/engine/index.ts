@@ -488,6 +488,7 @@ export class MapEngine {
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   /** The combats played at their point (#272), on a budget of their own. */
   private readonly combats = new CombatLayer();
+  private readonly pendingBursts = new Set<ReturnType<typeof setTimeout>>();
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
   /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
@@ -684,6 +685,10 @@ export class MapEngine {
   /** **A combat has shown itself on the map** (#272): its scene ended, or it did not play. Its
    *  dispatch waits for this. */
   onCombatSettled?: ((id: string) => void) | undefined;
+  /** **A combat's account begins on the map** (#327): its outcome is stamped over it. */
+  onCombatReport?: ((view: ReplayView) => void) | undefined;
+  /** **The first hand on the board, or the camera leaving** (#327): the stamps lift. */
+  onReportsLift?: (() => void) | undefined;
   /** **A cluster opened** (#234) — hovered, or touched — where its sheet hangs; `null` closes it. */
   onClusterOpen?:
     | ((
@@ -862,6 +867,7 @@ export class MapEngine {
     this.scene.add(this.combats.group);
     this.combats.phone = this.touch;
     this.combats.onSettled = (id) => this.onCombatSettled?.(id);
+    this.combats.onReport = (view) => this.onCombatReport?.(view);
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -1018,6 +1024,17 @@ export class MapEngine {
 
   inkBurst(burst: InkBurst): void {
     this.invalidate();
+    // « Terrain tenu » says the outcome of a combat the map played: its report stamp is that word
+    // now. It waits its turn to learn whether the map showed the scene, else it stands as ever.
+    if (burst.kind === 'held' && burst.combatId !== undefined) {
+      const { combatId, ...rest } = burst;
+      const timer = setTimeout(() => {
+        this.pendingBursts.delete(timer);
+        if (!this.combats.shown(combatId)) this.inkBurst({ ...rest, delayMs: 0 });
+      }, burst.delayMs ?? 0);
+      this.pendingBursts.add(timer);
+      return;
+    }
     /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis
      *  levé comme le cercle d'un point — la même plume. */
     if (burst.from !== undefined) {
@@ -1445,6 +1462,7 @@ export class MapEngine {
     this.invalidate();
     // A combat played on the map would play twice: the replay is the one looked at.
     this.combats.clear();
+    this.onReportsLift?.();
     const saved = this.replay?.saved ?? {
       target: this.controls.target.clone(),
       position: this.camera.position.clone(),
@@ -1887,6 +1905,7 @@ export class MapEngine {
     this.standing.dispose();
     this.sequences.dispose();
     this.combats.dispose();
+    for (const timer of this.pendingBursts) clearTimeout(timer);
     this.maquettes.dispose();
     this.camps.dispose();
     this.pins.dispose();
@@ -1933,6 +1952,7 @@ export class MapEngine {
     });
     canvas.addEventListener('pointerdown', (event) => {
       this.journey = null;
+      this.onReportsLift?.();
       this.fingerOnBoard = event.pointerType === 'touch';
       // A second finger makes it a pinch: the press it joins can no longer be a clean one.
       if (this.gesture !== null && this.fingerOnBoard) {
@@ -1963,6 +1983,7 @@ export class MapEngine {
     });
     canvas.addEventListener('wheel', () => {
       this.journey = null;
+      this.onReportsLift?.();
     });
     // The browser's autoscroll arms on the middle button and plants itself over the map.
     // It is only cut here: pointer events give no purchase on it.
@@ -3536,6 +3557,7 @@ export class MapEngine {
       this.invalidate();
     const now = performance.now();
     this.advanceReplay(now);
+    if (this.journey !== null) this.onReportsLift?.();
     if (this.combats.advance(now, (at) => this.combatScaleAt(at))) this.demand.whole();
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
