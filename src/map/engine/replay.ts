@@ -15,11 +15,20 @@ import {
   type Object3D,
   Vector3,
 } from 'three';
-import type { Medium, UnitRole } from '@/domain/ids';
+import type { Medium } from '@/domain/ids';
 import { STEP_MS, VOLLEY_SHARE, type ReplayFrame, type ReplayPiece } from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
-import { Guns, GUNS, readyOf, recoilAt, turretLimitOf, wrap, type GunKind } from './articulation';
+import {
+  Guns,
+  GUNS,
+  readyOf,
+  recoilAt,
+  smooth as ease,
+  turretLimitOf,
+  wrap,
+  type GunKind,
+} from './articulation';
 import { textureOf } from './billboard';
 import { blockFigurine } from './blocks';
 import { FIGURINE_SCALE, figurineFor, TANK_SHARE } from './figurines/figurine';
@@ -152,8 +161,10 @@ export function salvoTarget(k: number, mine: number, theirs: number): number | n
 
 /** **How much of the volley lies between two departures** (storyboard `JITTER`). `@a-mesurer` */
 const SHOT_SPREAD = 0.15;
-/** Where in the volley piece `k`'s shot leaves, 0..1: its flash, smoke, ink and recoil all start there. */
-const departureOf = (k: number): number => (k % 3) * SHOT_SPREAD;
+/** Where in the volley the shot of a line's `rank`th piece leaves, 0..1: its flash, smoke, ink
+ *  and recoil all start there. The rank counts in its own line (storyboard `i % 3`). */
+const departureOf = (rank: number): number => (rank % 3) * SHOT_SPREAD;
+const rankOf = (k: number, mine: number): number => (k < mine ? k : k - mine);
 
 /** A shot's share of its flight through the volley, from its departure; `null` before it
  *  leaves and after it lands. Reduced motion holds every shot halfway across. */
@@ -281,11 +292,6 @@ type Piece = {
 /** How long after the first man the next ones of a squad fire. @a-mesurer */
 const SQUAD_LAG_MS = 40;
 const FLASH_SIZE = 0.22;
-
-/** The roles whose figurine has an articulated copy for the scene. */
-const RIG_OF: Partial<Record<UnitRole, GunKind>> = { armor: 'armor', artillery: 'artillery' };
-
-const ease = (k: number) => k * k * (3 - 2 * k);
 
 /** How much bigger a node's units are than `root`'s, by the scales between them. */
 function scaleWithin(node: Object3D, root: Object3D): number {
@@ -418,7 +424,7 @@ export class ReplayScene {
         built.length = figurine.span / REPLAY_STAGE;
         // A tank turns its turret and a gun draws back its barrel: an articulated copy stands in
         // for the model for the scene, the resting board keeping its own (ADR 0036 §5).
-        const rig = RIG_OF[seen.role];
+        const rig = Object.hasOwn(GUNS, seen.role) ? (seen.role as GunKind) : undefined;
         if (rig !== undefined && figurine.url !== undefined) {
           built.gunKind = rig;
           built.turretLimit = turretLimitOf(nation, seen.tier);
@@ -479,6 +485,7 @@ export class ReplayScene {
     if (heard !== null && heard !== this.heard) playTableSound('fire');
     this.heard = heard;
     const count = this.pieces.length;
+    const mineCount = frame.pieces.filter((piece) => piece.side === 'mine').length;
     this.pieces.forEach((piece, k) => {
       const state = frame.pieces[k]!;
       const { holder, pivot } = piece;
@@ -495,7 +502,7 @@ export class ReplayScene {
 
       const fires = frame.firing === piece.side && state.fate !== 'fallen';
       // One instant for the flash, the smoke, the ink and the recoil: this piece's departure.
-      const since = fires ? sinceDeparture(frame, k) : null;
+      const since = fires ? sinceDeparture(frame, rankOf(k, mineCount)) : null;
       const salvo = !fires
         ? 0
         : still
@@ -555,7 +562,9 @@ export class ReplayScene {
       if (this.fire === 'unseen') {
         this.fall(
           piece,
-          frame.firing === 'theirs' && volley !== null ? shotShare(volley, k, still) : null,
+          frame.firing === 'theirs' && volley !== null
+            ? shotShare(volley, rankOf(k, mineCount), still)
+            : null,
         );
         return;
       }
@@ -570,7 +579,7 @@ export class ReplayScene {
             ? 1
             : volley
           : fires && (still || volley !== null)
-            ? shotShare(volley ?? 0, k, still)
+            ? shotShare(volley ?? 0, rankOf(k, mine), still)
             : null;
       piece.shot.visible = share !== null && target !== undefined;
       if (!piece.shot.visible) return;
@@ -600,7 +609,7 @@ export class ReplayScene {
       const state = frame.pieces[k]!;
       const rout = state.fate === 'routed' ? state.progress : 0;
       const fires = frame.firing === piece.side && state.fate !== 'fallen';
-      const since = fires && !still ? sinceDeparture(frame, k) : null;
+      const since = fires && !still ? sinceDeparture(frame, rankOf(k, mine)) : null;
       if (piece.guns !== null) {
         const target = this.pieces[salvoTarget(k, mine, this.pieces.length - mine) ?? -1];
         const aim =

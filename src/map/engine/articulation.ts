@@ -30,7 +30,7 @@ export const turretLimitOf = (nation: string | null, tier: UnitTier): number | n
   nation === 'italy' && tier === 1 ? MOUNT_ARC : null;
 
 const clamp01 = (k: number) => Math.min(1, Math.max(0, k));
-const smooth = (k: number) => k * k * (3 - 2 * k);
+export const smooth = (k: number) => k * k * (3 - 2 * k);
 const span = (t: number, from: number, to: number) => clamp01((t - from) / (to - from));
 
 /** Le tube part en 80 ms, revient en 0,5 s. */

@@ -81,4 +81,16 @@ describe('shouldering', () => {
     shoulder(man, 0, 0);
     expect(man.getObjectByName('arm_right')!.rotation.x).toBeCloseTo(-0.4);
   });
+
+  it('does not shake the arm of a servant who holds no rifle: his hand stays on the gun', () => {
+    const servant = () => {
+      const man = soldier();
+      man.remove(man.getObjectByName('rifle')!);
+      man.getObjectByName('arm_right')!.rotation.x = -0.4;
+      return man;
+    };
+    const man = squadOf([{ make: servant, sculpted: true }]).children[0]!;
+    shoulder(man, 1, 1);
+    expect(man.getObjectByName('arm_right')!.rotation.x).toBeCloseTo(-0.4);
+  });
 });

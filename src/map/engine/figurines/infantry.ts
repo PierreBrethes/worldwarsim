@@ -192,9 +192,11 @@ export function shoulder(man: Object3D, ready: number, kick: number): void {
   const rest = sculpted ?? walking(phase!);
   if (sculpted !== undefined) {
     const joints: Rotations = { ...rest.joints };
-    for (const name of ['arm_right', 'rifle', 'weapon'] as const) {
-      const at = joints[name];
-      if (at) joints[name] = [at[0] + (name === 'arm_right' ? 0.08 : -0.06) * kick, at[1], at[2]];
+    // A servant has no rifle to shake: his hand stays on the gun.
+    const held = (['rifle', 'weapon'] as const).filter((name) => joints[name]);
+    for (const name of held.length > 0 ? (['arm_right', ...held] as const) : []) {
+      const at = joints[name]!;
+      joints[name] = [at[0] + (name === 'arm_right' ? 0.08 : -0.06) * kick, at[1], at[2]];
     }
     pose(man, { joints, body: rest.body });
     return;

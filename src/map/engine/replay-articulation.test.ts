@@ -237,3 +237,24 @@ describe('a shot has one instant', () => {
     expect(flash()).toBe(false);
   });
 });
+
+describe('the departures of a line', () => {
+  it('count from its own first piece: with two of mine, the first of theirs leaves with the riposte', async () => {
+    const forces = [
+      { role: 'armor' as const, tier: 1 as const, troops: 2, lost: 0, routed: 0, destroyed: 0 },
+    ];
+    const two: ReplayView = {
+      ...view('armor'),
+      mine: forces,
+      theirs: { troops: 2, lost: 0, routed: 0, destroyed: 0 },
+      faced: { nation: 'germany', forces: forces.map((f) => ({ ...f, strength: 100 })) },
+    };
+    const scene = new ReplayScene('france', replayAt(two, 0).pieces, 'land', null, null, null);
+    await landed();
+    scene.show(replayAt(two, stepBounds('riposte').start + 20), 0, false);
+    // Pieces 0, 1 are mine; 2 is the first of theirs.
+    const flash = (k: number) =>
+      scene.object.children[k]!.children[0]!.children[1]!.children[0]!.visible;
+    expect(flash(2)).toBe(true);
+  });
+});
