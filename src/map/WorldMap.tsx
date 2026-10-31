@@ -292,6 +292,9 @@ type Props = {
   combats?: ReadonlyArray<MapCombat>;
   /** Un combat a fini de se montrer sur la carte, ou ne s'y joue pas : sa dépêche peut paraître. */
   onCombatSettled?: (id: string) => void;
+  /** **Les maquettes que le joueur vient de raser** (#326), par id : celle que la vue suivante
+   *  perd s'affaisse à sa place. */
+  razing?: ReadonlyArray<string>;
   /** Un toucher sur le tampon d'un combat joué : le rejeu de ce combat (#327). */
   onOpenReport?: (combatId: string) => void;
   /** Un tampon s'est levé, quelle qu'en soit la raison : la dépêche de ce combat peut paraître. */
@@ -385,6 +388,7 @@ function useRankKept(piles: ReadonlyArray<StandingPile>): ReadonlyArray<Standing
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
 const NO_COMBATS: ReadonlyArray<MapCombat> = [];
+const NO_RAZING: ReadonlyArray<string> = [];
 
 /** A combat the map plays at its point (#272), as the board tells it (`Cue`, `combat`). */
 export type MapCombat = {
@@ -474,6 +478,7 @@ export function WorldMap({
   cue = null,
   combats = NO_COMBATS,
   onCombatSettled,
+  razing = NO_RAZING,
   onOpenReport,
   onReportLifted,
   selectedPiles: servedSelection = NO_PILES,
@@ -1479,6 +1484,11 @@ export function WorldMap({
     const typeOf = new Map(labels.map((label) => [label.id, label.type] as const));
     return clusterSheetOf(cluster.ids.flatMap((id) => typeOf.get(id) ?? []));
   }, [cluster, labels]);
+
+  // Before the maquettes: a view that loses a razed one finds it listed.
+  useEffect(() => {
+    if (readyEngine !== null) readyEngine.razing = new Set(razing);
+  }, [readyEngine, razing]);
 
   useEffect(() => {
     readyEngine?.displayMaquettes(maquettes);

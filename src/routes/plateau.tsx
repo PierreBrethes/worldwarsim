@@ -65,6 +65,7 @@ import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
   buildingLabelId,
+  razingStill,
   campsOf,
   markerOfStation,
   markersOf,
@@ -381,6 +382,9 @@ function BoardContent({
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
+  /** Les maquettes confirmées au rasage (#326) : la carte joue l'affaissement de celle que la vue
+   *  suivante perd. */
+  const [razing, setRazing] = useState<ReadonlyArray<string>>([]);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
   // label. They are separate because the render loop announces "nothing under the pointer" on
@@ -2252,6 +2256,10 @@ function BoardContent({
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
   const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
+  // After the map's own effects: it has read the list on the view that lost the maquette.
+  useEffect(() => {
+    setRazing((ids) => razingStill(ids, view.me.buildings));
+  }, [view.me.buildings]);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 
   /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
@@ -2475,6 +2483,7 @@ function BoardContent({
                 cue={mapCue}
                 combats={mapCombats}
                 onCombatSettled={releaseDispatch}
+                razing={razing}
                 onOpenReport={openReport}
                 onReportLifted={releaseDispatch}
                 selectedPiles={selectedPiles}
@@ -2544,6 +2553,8 @@ function BoardContent({
                   view={view}
                   building={razed}
                   at={demolition}
+                  onRazing={() => setRazing((ids) => [...ids, buildingLabelId(razed)])}
+                  onRefused={() => setRazing([])}
                   onClose={() => setDemolition(null)}
                 />
               )}

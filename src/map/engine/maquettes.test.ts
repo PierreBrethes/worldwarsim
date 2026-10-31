@@ -472,6 +472,28 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     expect(maquettes.siteOf('building-hq@0,0')).toBeNull();
   });
 
+  it('hands what it draws of a maquette, and where, for a raze to outlive it (#326)', async () => {
+    const maquettes = await layer();
+    const was = instance(maquettes);
+    const drawn = maquettes.drawnOf(ID)!;
+    same(drawn.matrix, was);
+    expect(drawn.parts).toHaveLength(1);
+    expect(drawn.box.max.y).toBeCloseTo(0.5);
+    maquettes.display([]);
+    same(drawn.matrix, was);
+    expect(maquettes.drawnOf(ID)).toBeNull();
+    const far = await layer();
+    far.orient(new Vector3(0, 900, 0), null, 0);
+    expect(far.drawnOf(ID)).toBeNull();
+  });
+
+  it('hands it still when a second view comes before any frame drew the first (#326)', async () => {
+    const maquettes = await layer();
+    maquettes.display([{ ...stand(), smoking: true }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(maquettes.drawnOf(ID)).not.toBeNull();
+  });
+
   it('lends only what is drawn whole: not a ghost, not an unknown id', async () => {
     expect((await layer()).pieceOf(ID)?.url).toBe('lent.glb');
     expect((await layer()).pieceOf('building-hq@0,0')).toBeNull();
@@ -499,5 +521,54 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     atWork.orient(eye, null, 0);
     expect(atWork.pieceOf(ID)).toBeNull();
+  });
+});
+
+describe('a razed maquette holds its place while it falls (#326)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const RAZED = 'building-barracks@0,0';
+  const HQ = 'building-hq@0.1,0';
+  const site = (id: string, lon: number) => ({
+    id,
+    at: { lonLat: [lon, 0] as const },
+    url: `${id}.glb`,
+    span: 1,
+    washed: false,
+  });
+  const eye = new Vector3(0, 2, 2);
+  const landed = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('keeps the ring its neighbour stands on until it is released, drawn by nobody', async () => {
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    maquettes.display([site(RAZED, 0), site(HQ, 0.1)]);
+    await landed();
+    maquettes.orient(eye, null, 0);
+    expect(maquettes.drawnAt(HQ)).not.toBeNull();
+    maquettes.hold(RAZED);
+    expect(maquettes.drawnOf(RAZED)).toBeNull();
+    maquettes.display([site(HQ, 0.1)]);
+    await landed();
+    maquettes.orient(eye, null, 0);
+    expect(maquettes.drawnAt(HQ)).not.toBeNull();
+    expect(maquettes.isDressed(RAZED)).toBe(false);
+    expect(maquettes.drawnOf(RAZED)).toBeNull();
+    // Its garrison, served at its point now, stands where it stood: at the foot of its place.
+    const foot = maquettes.garrisonAt(RAZED, 0.1);
+    expect(foot).not.toBeNull();
+    expect(Math.hypot(...foot!.step)).toBeGreaterThan(0);
+    expect(maquettes.heldAt(RAZED)).toEqual([0, 0]);
+    maquettes.release(RAZED);
+    maquettes.orient(eye, null, 0);
+    expect(maquettes.drawnAt(HQ)).toBeNull();
+    expect(maquettes.garrisonAt(RAZED, 0.1)).toBeNull();
+    expect(maquettes.heldAt(RAZED)).toBeNull();
   });
 });

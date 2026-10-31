@@ -27,12 +27,17 @@ export function DemolitionCard({
   view,
   building,
   at,
+  onRazing,
+  onRefused,
   onClose,
 }: {
   seat: Seat;
   view: PlayerView;
   building: Building;
   at: { x: number; y: number };
+  /** Said before the server is asked: the map plays the fall on the view that loses it (#326). */
+  onRazing: () => void;
+  onRefused: () => void;
   onClose: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +66,10 @@ export function DemolitionCard({
   const raze = () => {
     setError(null);
     setRazing(true);
+    onRazing();
     demolish({ ...seat, buildingId: building.id as Id<'buildings'> }).then(onClose, (problem) => {
       setRazing(false);
+      onRefused();
       handleError(problem, setError);
     });
   };

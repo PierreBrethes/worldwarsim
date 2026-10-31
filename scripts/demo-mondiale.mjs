@@ -54,6 +54,8 @@
  * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
  * ne part d'un point sans piste. Deux chars restent seuls à Orléans : une pile hors garnison, pour la
  * figurine plancher (#266).
+ * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
+ * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--combat [s]` (#272) pose une garnison britannique à Sedan, deux fantassins et un char, et
  * lance sur elle une colonne française de même force, qui arrive dans `s` secondes (25 par
  * défaut) : le temps d'ouvrir la carte, où le combat se joue à son point.
@@ -94,7 +96,9 @@ const editions = process.argv.includes('--edition');
 const oilLine = process.argv.includes('--petrole');
 const mines = process.argv.includes('--exploitations');
 /** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 (ADR 0031). */
-const levels = process.argv.includes('--niveaux') || process.argv.includes('--echelle');
+/** `--raser` (#326) : la caserne de `--niveaux` et la garnison de `--echelle`, à raser. */
+const razing = process.argv.includes('--raser');
+const levels = razing || process.argv.includes('--niveaux') || process.argv.includes('--echelle');
 const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
@@ -599,7 +603,7 @@ if (!bare) {
     cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a, afterMs: combatIn * 1000 })]);
   }
   /** Les fantassins et les chars entrent dans la caserne (#265). */
-  if (scale && scene.a !== null) {
+  if ((scale || razing) && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const barracks = me.buildings.find((building) => building.key === 'barracks');
     const from = { lon: 2.0, lat: 48.6 };
