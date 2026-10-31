@@ -56,6 +56,8 @@
  * figurine plancher (#266).
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
+ * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
+ * garnison : un point à démanteler dans l'interface.
  * `--combat [s]` (#272) pose une garnison britannique à Sedan, deux fantassins et un char, et
  * lance sur elle une colonne française de même force, qui arrive dans `s` secondes (25 par
  * défaut) : le temps d'ouvrir la carte, où le combat se joue à son point.
@@ -103,7 +105,10 @@ const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
 const twinTrucks = process.argv.includes('--deux-camions');
-const logistics = tours || twinTrucks || process.argv.includes('--livraison');
+/** `--demanteler` (#340) : l'avant-poste de `--livraison` près de Bruxelles, à démanteler dans
+ *  l'interface : son épingle, l'aire qu'il colore, un camion en garnison. */
+const dismantling = process.argv.includes('--demanteler');
+const logistics = dismantling || tours || twinTrucks || process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
 /** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
