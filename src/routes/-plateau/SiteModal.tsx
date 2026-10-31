@@ -40,6 +40,7 @@ import { GunneryButton } from './GunneryButton';
 import { GarrisonStack } from './GarrisonStack';
 import { FloatingWindow, useWindowSized, type WindowProps, WindowHead } from './Window';
 import { useNarrowScreen } from '@/shell/viewport';
+import { RazeButton } from './RazeButton';
 import type { Seat } from '@/data/session';
 
 /**
@@ -101,6 +102,7 @@ export function SiteModal({
             onClose={onClose}
           />
         )}
+        <RazeButton building={building} className="px-[10px] pb-[9px]" />
       </div>
     </FloatingWindow>
   );

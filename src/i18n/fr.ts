@@ -4465,6 +4465,9 @@ export const fr = {
     /** **Raser** (demande du 15/09) : en dernière position et en encre rouge, parce que c'est
      *  la seule branche de la rose dont rien ne revient. La confirmation dit le détail. */
     demolish: 'raser',
+    /** Au doigt le bouton est dans la fiche d'un bâtiment parmi d'autres : il dit lequel (#347). */
+    razeNamed: (name: string, region?: string) =>
+      region === undefined ? `raser · ${name}` : `raser · ${name} · ${region}`,
     demolishConsequence: 'Efface ce bâtiment. Rien de l’acier payé n’est rendu.',
     /**
      * **Un point à soi se commande au clic droit** (décision de Pierre, 16/09, Registre 27). La

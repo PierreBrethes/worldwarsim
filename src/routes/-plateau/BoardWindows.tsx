@@ -140,7 +140,9 @@ export function BoardWindows({
           />
         );
       case 'research':
-        return <ResearchWindow key={name} view={view} seat={seat} {...windowProps} />;
+        return (
+          <ResearchWindow key={name} view={view} seat={seat} focused={focused} {...windowProps} />
+        );
       case 'settings':
         return (
           <SettingsWindow

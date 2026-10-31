@@ -49,6 +49,7 @@ import { useBandDensity } from './board-density';
 import { GaugeBin } from './GaugeBin';
 import { Rail, type Grab, type Grip } from './Rail';
 import { useOverflow } from './useOverflow';
+import { RazeButton } from './RazeButton';
 
 /** What the hand says over where it is: a verb with its bill, or the refusal in red. */
 type Hint = { readonly text: string; readonly refused: boolean; readonly cost?: Cost } | null;
@@ -206,7 +207,8 @@ export function PersonalBoard({
       handleRef.current?.focus({ preventScroll: true });
   }, [folded, away]);
 
-  const focusedKey = view.me.buildings.find((building) => building.id === focused)?.key ?? null;
+  const focusedBuilding = view.me.buildings.find((building) => building.id === focused) ?? null;
+  const focusedKey = focusedBuilding?.key ?? null;
 
   const bin = (resource: ResourceKey) => ({
     resource,
@@ -447,6 +449,9 @@ export function PersonalBoard({
             )}
             {site === null ? (
               <>
+                {narrow && focusedBuilding !== null && (
+                  <FocusedBuilding building={focusedBuilding} view={view} />
+                )}
                 <Tiles
                   view={view}
                   narrow={narrow}
@@ -944,6 +949,23 @@ function Tile({
         )
       }
     />
+  );
+}
+
+/**
+ * **Le bâtiment dont le mât a ouvert la bande, nommé** (#347) : au doigt, la bande n'a pas de ligne
+ * par bâtiment, et le mât touché est le seul qu'on désigne. « Raser » y dit lequel il rase.
+ */
+function FocusedBuilding({ building, view }: { building: Building; view: PlayerView }) {
+  const region = view.me.regions.find((one) => one.id === building.regionId)?.name;
+  return (
+    <section className="border-b border-(color:--ink)/32">
+      <p className="px-[10px] pt-[6px] text-[11px] leading-[1.3] text-[var(--ink-soft)]">
+        <b className="font-semibold text-[var(--ink)]">{building.name}</b>
+        {region === undefined ? '' : ` · ${region}`}
+      </p>
+      <RazeButton building={building} className="px-[10px] pb-[9px]" />
+    </section>
   );
 }
 
