@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carry, clickPile, composeHand, dropOn, type Hand } from './hand';
+import { aimAt, boardingDropOf, carry, clickPile, composeHand, dropOn, type Hand } from './hand';
 import type { MarchStation } from './troops';
 
 const A: MarchStation = { kind: 'building', buildingId: 'a' as never };
@@ -28,6 +28,50 @@ describe('clickPile', () => {
   it('puts the piece back on a click on its pile, whatever part of it is in hand', () => {
     expect(clickPile(held(['t1', 't2']), pile(['t1', 't2']))).toEqual({ kind: 'drop' });
     expect(clickPile(held(['t1']), pile(['t1', 't2']))).toEqual({ kind: 'drop' });
+  });
+
+  it('takes the transport that has room, not the first of the pile', () => {
+    const crowded = [
+      { id: 't1', role: 'infantry' as const },
+      { id: 'c1', role: 'landTransport' as const },
+      { id: 'r1', role: 'infantry' as const, carriedBy: 'c1' },
+      { id: 'r2', role: 'infantry' as const, carriedBy: 'c1' },
+      { id: 'c2', role: 'landTransport' as const },
+    ];
+    expect(dropOn(held(['t1']), pile(['c1', 'r1', 'r2', 'c2']), crowded)).toEqual({
+      kind: 'board',
+      carrierId: 'c2',
+    });
+  });
+
+  it('takes the transport the piece aimed at, in the order aimed', () => {
+    const ship = [
+      { id: 't1', role: 'infantry' as const },
+      { id: 's', role: 'cargo' as const },
+      { id: 'k', role: 'landTransport' as const, carriedBy: 's' },
+    ];
+    expect(dropOn(held(['t1']), pile(['k']), ship)).toEqual({ kind: 'board', carrierId: 'k' });
+  });
+
+  it('says the refusal of a boarding with the drop, so a refused one is never sent', () => {
+    const mixed = [
+      { id: 'f', role: 'fighter' as const },
+      { id: 'c', role: 'landTransport' as const },
+    ];
+    expect(boardingDropOf(held(['f']), pile(['c']), mixed, false)).toMatchObject({
+      kind: 'board',
+      refusal: 'LAND_TROOPS_ONLY',
+    });
+    const tank = [{ id: 'a', role: 'armor' as const }, mixed[1]!];
+    expect(boardingDropOf(held(['a']), pile(['c']), tank, false)).toMatchObject({
+      refusal: 'TRUCK_SEATS_INFANTRY',
+    });
+    const fit = [{ id: 't1', role: 'infantry' as const }, mixed[1]!];
+    expect(boardingDropOf(held(['t1']), pile(['c']), fit, false)).toMatchObject({
+      kind: 'board',
+      refusal: null,
+    });
+    expect(boardingDropOf(held(['t1']), pile(['t1']), fit, false)).toEqual({ kind: 'putBack' });
   });
 
   it('poses on another address', () => {
@@ -144,6 +188,16 @@ describe('carrying and dropping the piece', () => {
   it('puts the piece back on itself, or on a troop that carries nobody', () => {
     expect(dropOn(held(['t1']), pile(['t1', 't2', 'c', 'r']), at)).toEqual({ kind: 'putBack' });
     expect(dropOn(held(['t1']), troop('t2'), at)).toEqual({ kind: 'putBack' });
+  });
+
+  it('boards the transport aimed at, though its pile holds the piece in hand', () => {
+    const whole = pile(['t1', 't2', 'c', 'r']);
+    expect(dropOn(held(['t1']), whole, at)).toEqual({ kind: 'putBack' });
+    expect(dropOn(held(['t1']), aimAt(whole, ['c', 'r']), at)).toEqual({
+      kind: 'board',
+      carrierId: 'c',
+    });
+    expect(dropOn(held(['t1']), aimAt(whole, ['t1']), at)).toEqual({ kind: 'putBack' });
   });
 
   it('poses on another address', () => {

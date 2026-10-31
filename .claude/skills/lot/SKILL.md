@@ -96,7 +96,8 @@ au même cadrage que sa référence. Un état que la démo ne sait pas montrer d
 
 ## 5. Git
 
-- Branche courante (`git branch --show-current`) : tu n'en changes pas.
+- Branche courante (`git branch --show-current`) : tu n'en changes pas, et l'historique se garde
+  tel quel : ni `stash`, ni `rebase` (son `--autostash` remue les fichiers de Pierre).
 - Un commit par étape logique terminée et vérifiée ; message en anglais au style de
   `git log --oneline -15`, terminé par la ligne `Co-Authored-By` de ta consigne.
 - `git add <fichiers>` : seulement les tiens. `.claude/launch.json`, `WWS/prototypes/` et

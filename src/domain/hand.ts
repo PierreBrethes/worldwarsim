@@ -1,6 +1,15 @@
 // The hand is the lifted piece (ADR 0026 §6): a click either takes, puts back, or names a
 // destination, so the map and the side sheet agree on one rule.
-import { cargoOf, seatsOf, stationKeyOf, type MarchStation, type Seated } from './troops';
+import { hullsAmong } from './logistics';
+import { boardingRefusalOf, type Boarding, type BoardingRefusal } from './movement-orders';
+import {
+  cargoOf,
+  seatsLeft,
+  seatsOf,
+  stationKeyOf,
+  type MarchStation,
+  type Seated,
+} from './troops';
 
 export type Hand =
   | { readonly kind: 'empty' }
@@ -73,6 +82,11 @@ export type HandDrop =
   | { readonly kind: 'putBack' }
   | { readonly kind: 'pose' };
 
+/** **The piece aimed at**: a pile click names the whole pile, but a drop lands on one drawn piece. */
+export function aimAt(click: PileClick, pieceIds: ReadonlyArray<string>): PileClick {
+  return click.kind === 'pile' && pieceIds.length > 0 ? { ...click, troopIds: pieceIds } : click;
+}
+
 /**
  * **Where the dragged piece lands** (15/10): on a transport of its own address it boards, on
  * itself or on a troop that carries nobody it is put back, and anywhere else it is set down —
@@ -83,8 +97,39 @@ export function dropOn(hand: Hand, click: PileClick, pile: ReadonlyArray<Seated>
   if (stationKeyOf(hand.station) !== stationKeyOf(click.station)) return { kind: 'pose' };
   const aimed = click.kind === 'pile' ? click.troopIds : [click.troopId];
   if (aimed.some((id) => hand.troopIds.includes(id))) return { kind: 'putBack' };
-  const carrier = pile.find((troop) => aimed.includes(troop.id) && seatsOf(troop.role) > 0);
+  // In the order aimed, the first transport with room; a full one only when none has.
+  const carriers = aimed.flatMap((id) => {
+    const troop = pile.find((one) => one.id === id);
+    return troop !== undefined && seatsOf(troop.role) > 0 ? [troop] : [];
+  });
+  const carrier = carriers.find((one) => seatsLeft(one, pile) > 0) ?? carriers[0];
   return carrier === undefined ? { kind: 'putBack' } : { kind: 'board', carrierId: carrier.id };
+}
+
+export type BoardingDrop<T extends Seated> =
+  | { readonly kind: 'pose' }
+  | { readonly kind: 'putBack' }
+  | {
+      readonly kind: 'board';
+      readonly boarding: Boarding<T>;
+      /** The rule's refusal, the one the preview says: a refused boarding is never sent. */
+      readonly refusal: BoardingRefusal | null;
+    };
+
+/** **The drop and its boarding, read once**: what the preview says and what the drop does. */
+export function boardingDropOf<T extends Seated>(
+  hand: Hand,
+  click: PileClick,
+  pile: ReadonlyArray<T>,
+  atAirfield: boolean,
+): BoardingDrop<T> {
+  const drop = dropOn(hand, click, pile);
+  if (drop.kind === 'pose' || drop.kind === 'putBack') return drop;
+  if (hand.kind !== 'held') return { kind: 'putBack' };
+  const carrier = pile.find((troop) => troop.id === drop.carrierId)!;
+  const riders = hullsAmong(pile.filter((troop) => hand.troopIds.includes(troop.id)));
+  const boarding = { riders, carrier, pile, atAirfield };
+  return { kind: 'board', boarding, refusal: boardingRefusalOf(boarding) };
 }
 
 /** The ticked troops are the hand; in a Blitz, the last one ticked says the unit (`tickedUnit`). */
