@@ -425,6 +425,26 @@ async function runProfile(profile) {
           const rider = pieces.find((one) => one.role === 'infantry' && one.at);
           const truck = pieces.find((one) => one.role === 'landTransport' && one.at);
           assert.ok(rider && truck, `${pileId} : fantassin ou camion caché`);
+          if (phone) {
+            // Un doigt porte la pile entière : pour n'en poser qu'un fantassin, on lève la pile d'un
+            // toucher, on ne garde coché que lui dans la feuille, on rabaisse la feuille sur la
+            // pile, et l'appui long garde la main (`carry`, `hand.ts`).
+            await touch('touchStart', [rider.at]);
+            await touch('touchEnd', []);
+            const sheet = page.getByRole('dialog').first();
+            await sheet.waitFor({ timeout: 5000 });
+            for (const k of [3, 2, 1]) {
+              await page.getByRole('checkbox').nth(k).tap();
+              await page.waitForTimeout(600);
+            }
+            const grip = await sheet.boundingBox();
+            assert.ok(grip, 'la feuille de la main est hors de l’écran');
+            const top = [grip.x + grip.width / 2, grip.y + 6];
+            await touch('touchStart', [top]);
+            await fingers([top], [[top[0], top[1] + 400]], 300);
+            await touch('touchEnd', []);
+            await page.waitForTimeout(1500);
+          }
           await carry(rider.at, truck.at, { hold: 650 });
           const truckId = start.me.troops.find(
             (troop) =>

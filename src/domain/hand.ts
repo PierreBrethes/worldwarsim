@@ -73,6 +73,11 @@ export type HandDrop =
   | { readonly kind: 'putBack' }
   | { readonly kind: 'pose' };
 
+/** **The piece aimed at**: a pile click names the whole pile, but a drop lands on one drawn piece. */
+export function aimAt(click: PileClick, pieceIds: ReadonlyArray<string>): PileClick {
+  return click.kind === 'pile' && pieceIds.length > 0 ? { ...click, troopIds: pieceIds } : click;
+}
+
 /**
  * **Where the dragged piece lands** (15/10): on a transport of its own address it boards, on
  * itself or on a troop that carries nobody it is put back, and anywhere else it is set down —

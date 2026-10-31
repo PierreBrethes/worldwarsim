@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carry, clickPile, composeHand, dropOn, type Hand } from './hand';
+import { aimAt, carry, clickPile, composeHand, dropOn, type Hand } from './hand';
 import type { MarchStation } from './troops';
 
 const A: MarchStation = { kind: 'building', buildingId: 'a' as never };
@@ -144,6 +144,16 @@ describe('carrying and dropping the piece', () => {
   it('puts the piece back on itself, or on a troop that carries nobody', () => {
     expect(dropOn(held(['t1']), pile(['t1', 't2', 'c', 'r']), at)).toEqual({ kind: 'putBack' });
     expect(dropOn(held(['t1']), troop('t2'), at)).toEqual({ kind: 'putBack' });
+  });
+
+  it('boards the transport aimed at, though its pile holds the piece in hand', () => {
+    const whole = pile(['t1', 't2', 'c', 'r']);
+    expect(dropOn(held(['t1']), whole, at)).toEqual({ kind: 'putBack' });
+    expect(dropOn(held(['t1']), aimAt(whole, ['c', 'r']), at)).toEqual({
+      kind: 'board',
+      carrierId: 'c',
+    });
+    expect(dropOn(held(['t1']), aimAt(whole, ['t1']), at)).toEqual({ kind: 'putBack' });
   });
 
   it('poses on another address', () => {

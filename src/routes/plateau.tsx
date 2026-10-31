@@ -79,7 +79,15 @@ import { sweepCandidates } from '@/domain/deposit-sweep';
 import type { DepositKey } from '@/domain/ids';
 import type { SweepRequest } from '@/map/SweepOverlay';
 import { SweepButton } from '@/shell/SweepButton';
-import { carry, clickPile, composeHand, dropOn, type Hand, type PileClick } from '@/domain/hand';
+import {
+  aimAt,
+  carry,
+  clickPile,
+  composeHand,
+  dropOn,
+  type Hand,
+  type PileClick,
+} from '@/domain/hand';
 import {
   groupCompassOf,
   groupSlotsOf,
@@ -1810,11 +1818,21 @@ function BoardContent({
       />
     );
 
+  /** Ce que le lâcher vise : la pièce dessinée sous le pointeur, non la pile entière qui contient
+   *  aussi la pièce tenue. */
+  const aimOf = useCallback(
+    (on: PieceFrom): PileClick | null => {
+      const click = clickOfFrom(on);
+      return click !== null && on.kind === 'piece' ? aimAt(click, on.hit.troopIds) : click;
+    },
+    [clickOfFrom],
+  );
+
   /** **La pièce lâchée sur une de mes piles** (15/10) : sur un transport de son adresse elle
    *  embarque, sur elle-même elle se repose ; ailleurs c'est poser, et la rose s'ouvre. */
   const dropPiece = useCallback(
     (on: PieceFrom): 'pose' | 'board' | 'back' => {
-      const click = clickOfFrom(on);
+      const click = aimOf(on);
       if (click === null || hand.kind !== 'held') return 'pose';
       const drop = dropOn(hand, click, unitsAt(click.station).pile);
       if (drop.kind === 'pose') return 'pose';
@@ -1836,7 +1854,7 @@ function BoardContent({
       );
       return 'board';
     },
-    [clickOfFrom, hand, unitsAt, dropHand, boardHand, settle],
+    [aimOf, hand, unitsAt, dropHand, boardHand, settle],
   );
 
   /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is
@@ -1862,7 +1880,7 @@ function BoardContent({
    *  places d'après, ou le motif. Ailleurs, la rose le dit (`undefined`). */
   const dropHintOf = useCallback(
     (on: PieceFrom): DropHint | null | undefined => {
-      const click = clickOfFrom(on);
+      const click = aimOf(on);
       if (click === null || hand.kind !== 'held') return undefined;
       const { pile } = unitsAt(click.station);
       const drop = dropOn(hand, click, pile);
@@ -1894,7 +1912,7 @@ function BoardContent({
             detail: fr.errors[refusal](boardingRefusalDetails(boarding)),
           };
     },
-    [clickOfFrom, hand, unitsAt, view.me.buildings],
+    [aimOf, hand, unitsAt, view.me.buildings],
   );
   /** **Une pile de Blitz se dessine en unités** (15/10) : une pièce chacune, et rien ne se
    *  déploie — la pièce est déjà l'unité. */
