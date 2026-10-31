@@ -36,8 +36,9 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   rouge en neutralisant la ligne qu'il garde, et le rapport cite ce rouge-là.
 - **Banc** : avant et après au même cadrage et au même état (même `--heure`, même base Convex,
   mêmes fichiers non suivis comme `public/media`), sur secteur, machine au repos. Les appels de dessin
-  sont la colonne « appels », pas « proc GPU ». Arrête chaque serveur et chaque Chromium que tu
-  as lancés avant ton rapport : la machine de Pierre chauffe.
+  sont la colonne « appels », pas « proc GPU ». Arrête chaque serveur, chaque Chromium et chaque
+  tâche en arrière-plan que tu as lancés avant ton rapport : la machine de Pierre chauffe, et
+  l'orchestrateur attend ton rapport.
 - **Mondiale seule** sauf mention contraire : la Blitz garde ses règles (`modeOf`).
 - **Code mort** : ce que le lot rend inutile se retire partout (constantes, refus, textes,
   tests, docs), dans un commit séparé.
@@ -48,7 +49,8 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   (une couche, une ligne d'état, un fondu) est un tel conflit, jamais une décision prise seul.
 - **Décisions prises seul** : quand tout se tait, prends l'option la plus simple qui reste
   cohérente avec eux, et note-la pour le rapport, même petite. Tout chiffre neuf porte
-  `@a-mesurer`.
+  `@a-mesurer`. Ce qu'un joueur apprend de l'autre (relevé, vue, rayon d'un relevé) ne se
+  tranche pas seul : prends le plus étroit, et dis dans le rapport ce que l'autre choix révélerait.
 
 ## 3. Environnement
 
