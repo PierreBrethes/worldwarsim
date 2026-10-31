@@ -1,3 +1,4 @@
+import type { LonLat } from '@/domain/geo';
 import { type Box3, Group, Vector3, type Camera, type Raycaster } from 'three';
 import {
   pawnTarget,
@@ -107,6 +108,24 @@ export class ArcLayer {
   private cameraYaw = 0;
   private playerNation: string | null = null;
   private rendered: RenderedArc[] = [];
+
+  /** The threads a combat played on the map hides (`veil`). */
+  private readonly veiled = new Set<string>();
+
+  /**
+   * **A combat played on the map hides the thread of a column leaving its point** (#272): its
+   * return (`walkHome`) would tell the outcome before the scene does. `null` lifts it.
+   */
+  veil(leaving: ((from: LonLat) => boolean) | null): void {
+    const now = performance.now();
+    for (const { arc, thread } of this.rendered) {
+      if (leaving !== null && leaving(arc.from)) {
+        this.veiled.add(arc.id);
+        thread.object.visible = false;
+      } else if (this.veiled.delete(arc.id))
+        thread.object.visible = (this.inking.get(arc.id) ?? 0) <= now;
+    }
+  }
 
   /** The pawns on the threads, which a replay hides where they would stand in its scene. */
   get pawns(): ReadonlyArray<Group> {

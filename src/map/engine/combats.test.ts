@@ -1,9 +1,12 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { Vector3 } from 'three';
 import { FINAL_POSE_MS } from '@/domain/combat-on-map';
 import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, stepBounds } from '@/domain/replay';
-import { CombatLayer } from './combats';
+import { CombatLayer, WAIT_MS } from './combats';
+
+const heard = vi.hoisted(() => [] as string[]);
+vi.mock('../table-sound', () => ({ playTableSound: (sound: string) => heard.push(sound) }));
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ addColorStop() {} }) });
@@ -93,5 +96,69 @@ describe('CombatLayer', () => {
     layer.advance(0, () => 0);
     expect(layer.group.children[0]!.visible).toBe(false);
     expect(layer.veils).toHaveLength(0);
+  });
+});
+
+describe('CombatLayer, after the review', () => {
+  it('drops a waiting point after WAIT_MS, with a whole frame to show the board again', () => {
+    const layer = new CombatLayer();
+    const settled: string[] = [];
+    layer.onSettled = (id) => settled.push(id);
+    layer.wait('a', at, 0);
+    expect(layer.advance(10, scale)).toBe(false);
+    expect(layer.veils).toHaveLength(1);
+    expect(layer.advance(WAIT_MS + 1, scale)).toBe(true);
+    expect(layer.veils).toHaveLength(0);
+    expect(settled).toEqual(['a']);
+  });
+
+  it('clears every scene and every wait, settling each (a replay opens)', () => {
+    const layer = new CombatLayer();
+    const settled: string[] = [];
+    layer.onSettled = (id) => settled.push(id);
+    layer.play(combat('a'), null, at, 0, 0);
+    layer.wait('b', at, 0);
+    layer.advance(0, scale);
+    layer.clear();
+    expect(layer.group.children).toHaveLength(0);
+    expect(layer.active).toBe(false);
+    layer.advance(1, scale);
+    expect(layer.veils).toHaveLength(0);
+    expect(settled.sort()).toEqual(['a', 'b']);
+  });
+
+  it('settles a combat as its scene ends, and at once one that only holds its final pose', () => {
+    const layer = new CombatLayer();
+    const settled: string[] = [];
+    layer.onSettled = (id) => settled.push(id);
+    layer.play(combat('a'), null, at, 0, 0);
+    layer.play(combat('big', 13), null, at, 0, 0);
+    expect(settled).toEqual(['big']);
+    layer.advance(REPLAY_MS - 1, scale);
+    expect(settled).toEqual(['big']);
+    layer.advance(REPLAY_MS, scale);
+    expect(settled).toEqual(['big', 'a']);
+  });
+
+  it('plays one combat of six pieces a side at most on a phone (décision de Pierre du 31/10)', () => {
+    const layer = new CombatLayer();
+    layer.phone = true;
+    const settled: string[] = [];
+    layer.onSettled = (id) => settled.push(id);
+    layer.play(combat('seven', 7), null, at, 0, 0);
+    expect(layer.active).toBe(false);
+    layer.play(combat('a'), null, at, 0, 0);
+    layer.play(combat('b'), null, at, 0, 0);
+    expect(settled).toEqual(['seven', 'b']);
+  });
+
+  it('is silent past the floor, where nothing shows', () => {
+    const layer = new CombatLayer();
+    layer.play(combat('a'), null, at, 0, 0);
+    heard.length = 0;
+    layer.advance(stepBounds('frappe').start + 10, () => 0);
+    expect(heard).toEqual([]);
+    layer.advance(stepBounds('frappe').start + 20, scale);
+    expect(heard).toEqual(['fire']);
   });
 });

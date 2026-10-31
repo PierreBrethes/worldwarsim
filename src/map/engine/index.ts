@@ -681,6 +681,9 @@ export class MapEngine {
    * off every piece. A finger has no hover, a press in course or a building held none either.
    */
   onPieceHover?: ((labelId: string | null) => void) | undefined;
+  /** **A combat has shown itself on the map** (#272): its scene ended, or it did not play. Its
+   *  dispatch waits for this. */
+  onCombatSettled?: ((id: string) => void) | undefined;
   /** **A cluster opened** (#234) — hovered, or touched — where its sheet hangs; `null` closes it. */
   onClusterOpen?:
     | ((
@@ -857,6 +860,8 @@ export class MapEngine {
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
     this.scene.add(this.combats.group);
+    this.combats.phone = this.touch;
+    this.combats.onSettled = (id) => this.onCombatSettled?.(id);
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -1438,6 +1443,8 @@ export class MapEngine {
     below = 0,
   ): void {
     this.invalidate();
+    // A combat played on the map would play twice: the replay is the one looked at.
+    this.combats.clear();
     const saved = this.replay?.saved ?? {
       target: this.controls.target.clone(),
       position: this.camera.position.clone(),
@@ -2603,10 +2610,16 @@ export class MapEngine {
    * l'attaquant en face, du côté d'où il est venu (`toward`), sinon à gauche, comme au rejeu.
    */
   private playCombat(cue: Extract<Cue, { kind: 'combat' }>): void {
-    if (this.replay !== null || !this.landAt(cue.point)) return;
     const point = this.frame.projectLonLat(cue.point, COUNTRY_THICKNESS);
     const now = performance.now();
-    if (!this.combats.waits(cue.id) && !this.seenWhole(point)) return;
+    if (
+      this.replay !== null ||
+      !this.landAt(cue.point) ||
+      (!this.combats.waits(cue.id) && !this.seenWhole(point))
+    ) {
+      this.onCombatSettled?.(cue.id);
+      return;
+    }
     if (cue.view === null) {
       this.combats.wait(cue.id, point, now);
       return;
@@ -3242,11 +3255,16 @@ export class MapEngine {
     return this.replay === null ? this.combats.veils : [this.replay, ...this.combats.veils];
   }
 
+  private veiled(at: Vector3, veils = this.veils): boolean {
+    return veils.some((veil) => at.distanceTo(veil.center) < veil.reach);
+  }
+
   /** What stands at the point would stand inside the replay — or a combat played on the map
-   *  (#272), its return pawn (`walkHome`) included: piles, blocks, passing pawns. */
+   *  (#272), its return pawn (`walkHome`) included: piles, blocks, passing pawns. Its thread
+   *  and the pins there are veiled before the pins are laid out (`loop`). */
   private clearReplayGround(): void {
     const veils = this.veils;
-    const covered = (at: Vector3) => veils.some((veil) => at.distanceTo(veil.center) < veil.reach);
+    const covered = (at: Vector3) => this.veiled(at, veils);
     // A pawn a combat hid shows again once its scene is gone; a replay's, when it is left.
     for (const pawn of this.replayHidden)
       if (!covered(pawn.position)) {
@@ -3618,6 +3636,13 @@ export class MapEngine {
     this.veil.step(now);
     this.camps.orient(this.camera.position, yaw);
     this.pins.hold(this.held?.pileId ?? null, this.held === null ? null : this.heldGround);
+    const veils = this.veils;
+    this.pins.veil(veils.length === 0 ? null : (at) => this.veiled(at, veils));
+    this.arcs.veil(
+      veils.length === 0
+        ? null
+        : (from) => this.veiled(this.frame.projectLonLat(from, COUNTRY_THICKNESS), veils),
+    );
     this.pins.layout(
       this.eye,
       this.screenWidth,

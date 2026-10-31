@@ -196,3 +196,22 @@ describe('isPinOf', () => {
     expect(isPinOf(null, 'a')).toBe(false);
   });
 });
+
+describe('PinLayer — under a combat played on the map (#272)', () => {
+  const paris: LonLat = [2.35, 48.85];
+  const lyon: LonLat = [4.85, 45.76];
+
+  it('lays out no pin inside a veil: the state after the combat waits for its end', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = new PinLayer(frame, () => null);
+    layer.display([seen('pile-paris', paris), mine('pile-lyon', lyon)]);
+    const veiled = frame.projectLonLat(paris);
+    layer.veil((at) => at.distanceTo(veiled) < 0.1);
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(layer.under(...screenOf(eye, paris))).toBeNull();
+    expect(layer.under(...screenOf(eye, lyon))).toEqual({ kind: 'pin', id: 'pile-lyon' });
+    layer.veil(null);
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'pile-paris' });
+  });
+});

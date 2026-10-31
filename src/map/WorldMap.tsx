@@ -289,6 +289,8 @@ type Props = {
   /** **Les combats appris d'une vue à l'autre** (#272), joués à leur point : sans leur vue tant
    *  que `replayOf` ne l'a pas rendue. */
   combats?: ReadonlyArray<MapCombat>;
+  /** Un combat a fini de se montrer sur la carte, ou ne s'y joue pas : sa dépêche peut paraître. */
+  onCombatSettled?: (id: string) => void;
   /** **Mes piles prises ensemble** (#130), chacune cerclée comme la pièce en main. */
   selectedPiles?: ReadonlyArray<string>;
   /** **Le lasso** (Maj + glisser sur le plateau) : les piles qu'il entoure, à chaque pas. */
@@ -466,6 +468,7 @@ export function WorldMap({
   onTour,
   cue = null,
   combats = NO_COMBATS,
+  onCombatSettled,
   selectedPiles: servedSelection = NO_PILES,
   onLasso,
   onSelectHold,
@@ -1511,6 +1514,14 @@ export function WorldMap({
     for (const entree of entreesOf(before, standing))
       readyEngine?.cue({ kind: 'entree', ...entree });
   }, [arcs, standing, readyEngine]);
+
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.onCombatSettled = onCombatSettled;
+    return () => {
+      readyEngine.onCombatSettled = undefined;
+    };
+  }, [readyEngine, onCombatSettled]);
 
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());

@@ -272,4 +272,11 @@ describe('a combat on the map is declared to the loop (#272)', () => {
     const cue = source.slice(source.indexOf('  cue(cue: Cue)'));
     expect(cue.slice(0, cue.indexOf('\n  }\n'))).toMatch(/this\.invalidate\(\);[\s\S]*playCombat/);
   });
+
+  it('clears the combats on the map as a replay opens: the same combat would play twice', () => {
+    const replay = source.slice(source.indexOf('  playReplay('));
+    expect(replay.slice(0, replay.indexOf('\n  }\n'))).toMatch(
+      /this\.invalidate\(\);\s+(\/\/.*\s+)*this\.combats\.clear\(\);/,
+    );
+  });
 });
