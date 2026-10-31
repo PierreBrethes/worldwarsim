@@ -17,6 +17,8 @@ import { PLUME_BY_WEAR, Smoke, Wake, type Plume } from './smoke';
 import { gaitOf, swayOf, type Gait } from './sway';
 import { blacken } from './standing';
 import { releaseInk } from './annotations';
+import { stride } from './figurines/infantry';
+import { pointOnLeg, type ThreadLeg } from './thread';
 
 /** A share of the camera distance: the silhouette keeps its size on screen. */
 const PAWN_SILHOUETTE_SHARE = 0.018;
@@ -38,6 +40,72 @@ const DUST: Plume = {
   color: '#b9a684',
 };
 const DUST_REAR = 1.1;
+
+/** **One piece of my column on the road** (#276): a group of the pile at rest, dressed. */
+export type ColumnPiece = {
+  readonly figurine: Figurine;
+  readonly role: UnitRole;
+  readonly wear: Wear;
+};
+
+/** The leg the head walks and its share of it: the file is sampled behind it on the same leg. */
+export type Road = { readonly leg: ThreadLeg; readonly local: number };
+
+type Marcher = {
+  readonly figurine: Figurine;
+  readonly gait: Gait | null;
+  readonly infantry: boolean;
+  readonly smoke: Smoke | null;
+  /** Behind the head and to its right, in the pile's units (`pileUnitOf`). */
+  readonly back: number;
+  readonly side: number;
+};
+
+/**
+ * **The file's spacing**, in the pile's units — its largest piece is `LAID_OUT_FOR` long in them:
+ * the storyboard's rank step and lane offset, 1.47 and 0.57 of the longest piece
+ * (`storyboard-marche/commun/marche.js`, `plan`). @a-mesurer
+ */
+const FILE_STEP = 1;
+const LANE_SIDE = 0.4;
+/** **Au-delà de quatre pièces, la file se double** (storyboard, 31/10). */
+const SINGLE_FILE = 4;
+/** **En réduites, les hommes tenus en mi-foulée** : the storyboard's frozen phase, 1.2 rad on
+ *  each man's own, in seconds of `stride` (9 rad/s). */
+const HELD_STRIDE_S = 1.2 / 9;
+/** A piece still walks this long after its head last moved: two views served in one instant
+ *  must not snap its men upright for a frame. */
+const WALKING_MS = 250;
+
+const AT = new Vector3();
+const AHEAD = new Vector3();
+
+/** A vehicle's dust on the road, thrown back behind it. */
+function dustOn(figurine: Figurine): Smoke {
+  const dust = new Smoke(DUST);
+  dust.object.scale.setScalar(FIGURINE_SCALE);
+  dust.object.position.set(0, 0.1 * FIGURINE_SCALE, -DUST_REAR * FIGURINE_SCALE);
+  // A puff leans along its +x: turned, it is thrown back behind the vehicle.
+  dust.object.rotation.y = Math.PI / 2;
+  dust.object.visible = false;
+  figurine.object.add(dust.object);
+  return dust;
+}
+
+/** A worn vehicle smokes on the move as it does standing (ADR 0026 §5); `null` for none. */
+function smokeOn(figurine: Figurine, worn: Wear): Smoke | null {
+  const plume = PLUME_BY_WEAR[worn];
+  if (plume === null) return null;
+  const smoke = new Smoke(plume);
+  void figurine.ready.then(
+    () => {
+      figurine.object.getObjectByName('fx_smoke')?.add(smoke.object);
+      if (worn === 'burning') blacken(figurine.object);
+    },
+    () => {},
+  );
+  return smoke;
+}
 
 /**
  * A movement's pawn: a single piece over the whole route, changing costume at the dock and
@@ -71,6 +139,14 @@ export class Pawn {
   private heading = 0;
   /** The effects' clock: it only runs while `step` is called, so reduced motion stills them. */
   private clock = 0;
+  /** Reduced motion: the men hold mid-stride rather than standing. */
+  private held = false;
+  /** **My column on land** (#276), in the order of the pile at rest; `null` wears one figurine. */
+  private readonly file: Group | null = null;
+  private readonly marchers: ReadonlyArray<Marcher> = [];
+  private readonly fileSpan: number = ANONYMOUS_SPAN;
+  private road: Road | null = null;
+  private movedAt = -Infinity;
 
   constructor(
     color: string,
@@ -80,9 +156,13 @@ export class Pawn {
     /** My movement's roles per medium (`movementRoles`), what says how each rides; `null` for
      *  anything not mine — an enemy block neither jolts nor banks. */
     roles: Readonly<Record<Medium, UnitRole | null>> | null = null,
+    /** My column's pieces on land (#276), dressed; `null` or empty wears the land figurine. */
+    column: ReadonlyArray<ColumnPiece> | null = null,
   ) {
     this.color = color;
+    const marching = column !== null && column.length > 0;
     for (const medium of ['land', 'sea', 'air'] as const) {
+      if (medium === 'land' && marching) continue;
       const figurine = figurines?.[medium] ?? null;
       if (figurine === null) {
         const costume = this.buildSilhouette(medium);
@@ -96,30 +176,34 @@ export class Pawn {
         figurine.object.rotation.order = 'YXZ';
         const gait = gaitOf(roles?.[medium] ?? null);
         if (gait !== null) this.gaits.set(medium, gait);
-        if (gait === 'rolling') {
-          this.dust = new Smoke(DUST);
-          this.dust.object.scale.setScalar(FIGURINE_SCALE);
-          this.dust.object.position.set(0, 0.1 * FIGURINE_SCALE, -DUST_REAR * FIGURINE_SCALE);
-          // A puff leans along its +x: turned, it is thrown back behind the vehicle.
-          this.dust.object.rotation.y = Math.PI / 2;
-          this.dust.object.visible = false;
-          figurine.object.add(this.dust.object);
-        }
-        const worn = wear?.[medium] ?? 'whole';
-        const plume = PLUME_BY_WEAR[worn];
-        if (plume !== null) {
-          // A worn vehicle on the move smokes as it does standing (ADR 0026 §5).
-          const smoke = new Smoke(plume);
-          this.smokes.set(medium, smoke);
-          void figurine.ready.then(
-            () => {
-              figurine.object.getObjectByName('fx_smoke')?.add(smoke.object);
-              if (worn === 'burning') blacken(figurine.object);
-            },
-            () => {},
-          );
-        }
+        if (gait === 'rolling') this.dust = dustOn(figurine);
+        const smoke = smokeOn(figurine, wear?.[medium] ?? 'whole');
+        if (smoke !== null) this.smokes.set(medium, smoke);
       }
+    }
+    if (marching) {
+      const file = new Group();
+      file.visible = false;
+      this.object.add(file);
+      this.file = file;
+      this.fileSpan = Math.max(...column.map(({ figurine }) => figurine.span));
+      const lanes = column.length > SINGLE_FILE ? 2 : 1;
+      this.marchers = column.map(({ figurine, role, wear: worn }, k) => {
+        figurine.object.rotation.order = 'YXZ';
+        file.add(figurine.object);
+        const gait = gaitOf(role);
+        // One dust for the column, raised by its first vehicle: a plume each would cost a call a puff.
+        if (gait === 'rolling' && this.dust === null) this.dust = dustOn(figurine);
+        return {
+          figurine,
+          gait,
+          infantry: role === 'infantry',
+          // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
+          smoke: role === 'infantry' ? null : smokeOn(figurine, worn),
+          back: Math.floor(k / lanes) * FILE_STEP,
+          side: lanes === 1 ? 0 : (k % 2 === 0 ? -1 : 1) * LANE_SIDE,
+        };
+      });
     }
     this.wake.object.name = 'wake';
     this.wake.object.visible = false;
@@ -135,12 +219,16 @@ export class Pawn {
 
   /** Its figurine or silhouette stands on the board, not yet given way to its pin. */
   get standing(): boolean {
-    const worn = this.figurines.get(this.medium)?.object ?? this.costumes.get(this.medium);
+    const worn =
+      this.medium === 'land' && this.file !== null
+        ? this.file
+        : (this.figurines.get(this.medium)?.object ?? this.costumes.get(this.medium));
     return this.object.visible && worn?.visible === true;
   }
 
   /** The span it gives way to its pin by: its worn figurine's, a tank's for a silhouette. */
   get span(): number {
+    if (this.medium === 'land' && this.file !== null) return this.fileSpan;
     return this.figurines.get(this.medium)?.span ?? ANONYMOUS_SPAN;
   }
 
@@ -156,14 +244,24 @@ export class Pawn {
     if (leaving) leaving.visible = false;
     const leavingFigurine = this.figurines.get(this.medium);
     if (leavingFigurine) leavingFigurine.object.visible = false;
+    if (this.medium === 'land' && this.file !== null) this.file.visible = false;
     this.medium = medium;
     const entering = this.costumes.get(medium);
     if (entering) entering.visible = true;
   }
 
   /** `groundY` is the board's height under the point: a plane flies above it (`flightAltitude`). */
-  place(position: Vector3, pointAhead: Vector3, groundY = position.y, turn = 0): void {
+  place(
+    position: Vector3,
+    pointAhead: Vector3,
+    groundY = position.y,
+    turn = 0,
+    /** The leg under the head, for the file behind it; `null` at a dock or on site. */
+    road: Road | null = null,
+  ): void {
     this.moving = !position.equals(this.object.position);
+    if (this.moving) this.movedAt = performance.now();
+    this.road = road;
     this.turn = turn;
     this.object.position.copy(position);
     this.groundBelow = groundY - position.y;
@@ -174,10 +272,13 @@ export class Pawn {
     if (dx !== 0 || dz !== 0) this.heading = Math.atan2(dx, dz);
   }
 
-  /** What spins, sways and smokes on the worn figurine; `null` is motion not full — all still. */
-  step(elapsedSeconds: number | null): void {
+  /** What spins, sways and smokes on the worn figurine; `null` is motion not full — all still,
+   *  the men `held` mid-stride in reduced motion. */
+  step(elapsedSeconds: number | null, held = false): void {
     this.lively = elapsedSeconds !== null;
+    this.held = held;
     if (elapsedSeconds === null) return;
+    for (const { smoke } of this.marchers) smoke?.frame(this.clock);
     this.figurines.get(this.medium)?.spin(elapsedSeconds);
     this.clock += elapsedSeconds;
     if (this.wake.object.visible) this.wake.frame(this.clock);
@@ -207,6 +308,10 @@ export class Pawn {
     this.shadow.visible = this.medium === 'air' && close > 0 && -this.groundBelow > AIRBORNE_GAP;
     this.shadow.position.y = this.groundBelow;
     this.shadow.scale.setScalar(around);
+    if (this.file !== null) {
+      this.file.visible = this.medium === 'land' && close > 0;
+      if (this.file.visible) this.march(drawn);
+    }
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
       figurine.object.visible = near > 0;
@@ -232,6 +337,46 @@ export class Pawn {
     faceCamera(costume, cameraPosition, this.object.position);
     const size = distance * PAWN_SILHOUETTE_SHARE * close;
     costume.scale.set(size * (this.westward ? -1 : 1), size, size);
+  }
+
+  /**
+   * **The file behind the head** (#276): each piece sampled on its leg at its distance back,
+   * spaced by the floor (`troopScale` × `pileUnitOf`); one that would fall before the leg's start
+   * waits at its end. The men step on the pawn's clock (`stride`), each vehicle sways (`swayOf`).
+   */
+  private march(drawn: number): void {
+    const unit = (drawn * this.fileSpan) / LAID_OUT_FOR;
+    const head = this.object.position;
+    const road = this.road;
+    const going = performance.now() - this.movedAt < WALKING_MS;
+    for (const marcher of this.marchers) {
+      const back = marcher.back * unit;
+      let heading = this.heading;
+      let walking = going;
+      if (road !== null && road.leg.length > 0) {
+        const local = road.local - back / road.leg.length;
+        walking &&= local > 0;
+        pointOnLeg(road.leg, local, AT);
+        pointOnLeg(road.leg, Math.max(0, local) + 0.01, AHEAD);
+        if (AHEAD.x !== AT.x || AHEAD.z !== AT.z)
+          heading = Math.atan2(AHEAD.x - AT.x, AHEAD.z - AT.z);
+      } else AT.set(head.x - Math.sin(heading) * back, head.y, head.z - Math.cos(heading) * back);
+      const side = marcher.side * unit;
+      AT.x += Math.cos(heading) * side;
+      AT.z -= Math.sin(heading) * side;
+      const { object } = marcher.figurine;
+      const sway = swayOf(this.lively ? marcher.gait : null, this.clock, walking);
+      object.position.copy(AT).sub(head);
+      object.position.y += sway.lift * FIGURINE_SCALE * drawn;
+      object.rotation.set(sway.pitch, heading, sway.roll);
+      object.scale.setScalar(drawn);
+      if (marcher.infantry)
+        stride(
+          object,
+          !walking ? null : this.lively ? this.clock : this.held ? HELD_STRIDE_S : null,
+        );
+    }
+    if (this.dust !== null) this.dust.object.visible = this.lively && going;
   }
 
   dispose(): void {

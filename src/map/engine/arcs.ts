@@ -8,7 +8,7 @@ import {
 } from '@/domain/route-timing';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
-import { movementWear } from '@/domain/pile-pieces';
+import { movementWear, type PilePieces } from '@/domain/pile-pieces';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
@@ -23,7 +23,8 @@ import {
   type Thread,
 } from './thread';
 import type { Ribbon } from './route-ribbon';
-import { Pawn } from './pawn';
+import { Pawn, type ColumnPiece } from './pawn';
+import { dressedGroups } from './standing';
 import { bendAround } from './sway';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
@@ -155,6 +156,9 @@ export class ArcLayer {
   private aloft = false;
   /** My troops, read for the strength my movements carry: the arc does not serve it. */
   troops: ReadonlyArray<TroopView> = [];
+  /** **What each movement of mine shows on land** (#276), by its id: the route lays it out as its
+   *  pile at rest, and the engine never reads the mode. */
+  columns: ReadonlyMap<string, PilePieces> = new Map();
 
   /** Ids on screen at the last real display; `null` until the first, which is no appearance. */
   private known: ReadonlySet<string> | null = null;
@@ -214,7 +218,14 @@ export class ArcLayer {
     this.rendered = [];
     this.targets = [];
     for (const arc of arcs) {
-      const key = drawnKey(arc, this.playerNation, this.troops, this.motion !== 'off', clock);
+      const key = drawnKey(
+        arc,
+        this.playerNation,
+        this.troops,
+        this.columns.get(arc.id) ?? null,
+        this.motion !== 'off',
+        clock,
+      );
       let rendered = previous.get(arc.id);
       previous.delete(arc.id);
       if (rendered?.key !== key) {
@@ -269,6 +280,7 @@ export class ArcLayer {
     for (const target of thread.targets) target.userData.arc = arc.id;
 
     const roles = movementRoles(arc);
+    const column = arc.state === 'mine' ? this.columnOf(arc.id) : null;
     const figurineOf = (role: UnitRole | null) =>
       role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
     const pawn = new Pawn(
@@ -282,12 +294,13 @@ export class ArcLayer {
             air: annotationFigurine('air', arc.since),
           }
         : roles && {
-            land: figurineOf(roles.land),
+            land: column === null ? figurineOf(roles.land) : null,
             sea: figurineOf(roles.sea),
             air: figurineOf(roles.air),
           },
       movementWear(arc, this.troops),
       roles,
+      column,
     );
     pawn.visible = !stale;
     this.group.add(pawn.object);
@@ -328,6 +341,14 @@ export class ArcLayer {
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
     };
+  }
+
+  /** My movement's pieces on land, dressed whole or not at all (`dressedGroups`). */
+  private columnOf(id: string): ReadonlyArray<ColumnPiece> | null {
+    const pieces = this.columns.get(id);
+    const figurines = pieces === undefined ? null : dressedGroups(this.playerNation, pieces);
+    if (pieces === undefined || figurines === null) return null;
+    return pieces.groups.map(({ role, wear }, k) => ({ figurine: figurines[k]!, role, wear }));
   }
 
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
@@ -434,8 +455,14 @@ export class ArcLayer {
         this.aheadPoint.copy(rendered.rest);
       } else continue;
       projectOnGround(this.pawnPoint, this.groundPoint);
-      rendered.pawn.place(this.pawnPoint, this.aheadPoint, this.groundPoint.y, turn);
-      rendered.pawn.step(this.motion === 'full' ? elapsed : null);
+      rendered.pawn.place(
+        this.pawnPoint,
+        this.aheadPoint,
+        this.groundPoint.y,
+        turn,
+        leg !== undefined && position.kind === 'leg' ? { leg, local } : null,
+      );
+      rendered.pawn.step(this.motion === 'full' ? elapsed : null, this.motion === 'reduced');
       rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
       rendered.headPosition.copy(this.pawnPoint);
       rendered.aheadPosition.copy(this.aheadPoint);
@@ -537,6 +564,7 @@ function drawnKey(
   arc: ArcView,
   nation: string | null,
   troops: ReadonlyArray<TroopView>,
+  column: PilePieces | null,
   lead: boolean,
   clock: number,
 ): string {
@@ -548,6 +576,8 @@ function drawnKey(
     arc.route,
     movementRoles(arc),
     movementWear(arc, troops),
+    // What rides aboard does not show: the file draws its standing pieces only.
+    column?.groups.map(({ role, figures, wear }) => [role, figures, wear]) ?? null,
     arc.state === 'enemyDetected' ? asClockTime(arc.since) : null,
     arc.state === 'lastKnown' ? [asClockTime(arc.lastSeenAt), lastKnownInk(arc, clock)] : null,
   ]);

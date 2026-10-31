@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { Group } from 'three';
+import { Group, Vector3, type Camera, type Object3D } from 'three';
+import type { PilePieces } from '@/domain/pile-pieces';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { World } from '@/domain/world';
 import { directRoute } from '@/domain/routing';
@@ -11,7 +12,12 @@ import { Pawn } from './pawn';
 
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),
-  figurineFor: vi.fn(() => ({ object: new Group(), ready: Promise.resolve(), spin() {} })),
+  figurineFor: vi.fn(() => ({
+    object: new Group(),
+    span: 0.006,
+    ready: Promise.resolve(),
+    spin() {},
+  })),
 }));
 
 const arc = (state: ArcView['state'], mediums: ReadonlyArray<string>) =>
@@ -218,5 +224,86 @@ describe('ArcLayer.veil (#272)', () => {
     expect(shown()).toBe(before - 1);
     arcs.veil(null);
     expect(shown()).toBe(before);
+  });
+});
+
+/** **Sur la route, la pile marche en file** (#276) : ses pièces au repos, l'une derrière l'autre. */
+describe('ArcLayer: the column on the road (#276)', () => {
+  const tanks = (count: number, wear: 'whole' | 'smoking' = 'whole'): PilePieces => ({
+    groups: Array.from({ length: count }, (_, k) => ({
+      role: 'armor' as const,
+      troops: 1,
+      troopIds: [`t${k}`],
+      figures: [1 as const],
+      wear,
+    })),
+    troopIds: Array.from({ length: count }, (_, k) => `t${k}`),
+    squad: count > 1,
+  });
+
+  /** Each piece's distance behind the head along the road, and to its side, mid-route seen up close. */
+  const walk = (count: number, at = 1_800_000) => {
+    vi.useFakeTimers({ now: at });
+    const arcs = layer();
+    arcs.setPlayerNation('france');
+    arcs.columns = new Map([['a', tanks(count)]]);
+    const calls = vi.mocked(figurineFor).mock.results.length;
+    arcs.display([mine('a')]);
+    const pieces = vi
+      .mocked(figurineFor)
+      .mock.results.slice(calls)
+      .map(({ value }) => (value as { object: Object3D }).object);
+    arcs.animate();
+    const head = arcs.headPositions.get('a')!.clone();
+    const ahead = arcs.aheadPositions.get('a')!.clone().sub(head).setY(0).normalize();
+    const side = new Vector3(ahead.z, 0, -ahead.x);
+    arcs.animate({ position: head.clone().add(new Vector3(0, 0.05, 0)) } as Camera);
+    vi.useRealTimers();
+    return pieces.map((piece) => {
+      const offset = piece.getWorldPosition(new Vector3()).sub(head).setY(0);
+      return { back: -offset.dot(ahead), side: offset.dot(side), visible: piece.visible };
+    });
+  };
+
+  it('walks up to four pieces in single file, in the order of the pile at rest', () => {
+    const file = walk(4);
+    expect(file).toHaveLength(4);
+    expect(file.every(({ visible }) => visible)).toBe(true);
+    expect(file[0]!.back).toBeCloseTo(0, 6);
+    for (let k = 1; k < 4; k++) {
+      expect(file[k]!.back).toBeGreaterThan(file[k - 1]!.back);
+      expect(file[k]!.side).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('doubles the file beyond four pieces, two abreast', () => {
+    const file = walk(6);
+    for (const rank of [0, 2, 4]) {
+      const [left, right] = [file[rank]!, file[rank + 1]!];
+      expect(left.back).toBeCloseTo(right.back, 6);
+      expect(Math.sign(left.side)).toBe(-Math.sign(right.side));
+      expect(Math.abs(left.side)).toBeGreaterThan(0);
+    }
+    expect(file[2]!.back).toBeGreaterThan(file[0]!.back);
+    expect(file[4]!.back).toBeGreaterThan(file[2]!.back);
+  });
+
+  it('holds a piece that would fall before the start of its leg at its end', () => {
+    const file = walk(4, 1);
+    expect(file[3]!.back).toBeCloseTo(file[2]!.back, 6);
+    expect(file[1]!.back).toBeCloseTo(file[3]!.back, 6);
+  });
+
+  it('keeps the column served again unchanged, and redraws it when a piece wears', () => {
+    const arcs = layer();
+    arcs.columns = new Map([['a', tanks(3)]]);
+    arcs.display([mine('a')]);
+    const [drawn] = arcs.pawns;
+    arcs.columns = new Map([['a', tanks(3)]]);
+    arcs.display([mine('a')]);
+    expect(arcs.pawns[0]).toBe(drawn);
+    arcs.columns = new Map([['a', tanks(3, 'smoking')]]);
+    arcs.display([mine('a')]);
+    expect(arcs.pawns[0]).not.toBe(drawn);
   });
 });

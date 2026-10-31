@@ -61,6 +61,7 @@ import { decodeRegionRaster, type RegionRaster } from '@/domain/region-raster';
 import type { DisbandGround } from '@/domain/movement-orders';
 import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
+import type { PilePieces } from '@/domain/pile-pieces';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
 import {
   ANONYMOUS_SPAN,
@@ -1118,9 +1119,15 @@ export class MapEngine {
     );
   }
 
-  displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {
+  displayArcs(
+    arcs: ReadonlyArray<ArcView>,
+    troops: ReadonlyArray<TroopView>,
+    /** What each movement of mine shows on land, by its id (#276): the route lays it out. */
+    columns: ReadonlyMap<string, PilePieces> = new Map(),
+  ): void {
     this.invalidate();
     this.arcs.troops = troops;
+    this.arcs.columns = columns;
     this.arcs.display(arcs);
     // New pick targets under an unmoved pointer: the hover must be recomputed even though
     // nothing on screen moved.

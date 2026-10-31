@@ -71,6 +71,7 @@ import {
   markerOfStation,
   markersOf,
   standingPilesOf,
+  marchingPiecesOf,
   type MaquetteAt,
 } from './-plateau/board-markers';
 import { handReachOf, movementReachOf } from '@/domain/board-reach';
@@ -1932,6 +1933,10 @@ function BoardContent({
     return maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me));
   }, [markers, view.objectives, view.me]);
   const camps = useMemo(() => campsOf(markers), [markers]);
+  const columns = useMemo(
+    () => marchingPiecesOf(view.arcs, view.me.troops, blitz),
+    [view.arcs, view.me.troops, blitz],
+  );
   const pins = useMemo(() => pinsOf(markers, arcs, ink), [markers, arcs, ink]);
 
   /**
@@ -2449,6 +2454,7 @@ function BoardContent({
                   shore={shore}
                   arcs={view.arcs}
                   troops={view.me.troops}
+                  columns={columns}
                   journal={view.journal}
                   labels={labels}
                   standing={standing}
