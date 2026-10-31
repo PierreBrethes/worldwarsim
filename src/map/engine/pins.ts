@@ -20,6 +20,8 @@ import { ANONYMOUS_SPAN, pieceWeight } from './figurines/figurine';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
 import { REACH } from './halo';
+import type { MapMotion } from '@/domain/map-motion';
+import { pinFallAt, PIN_FALL_MS } from './timelines/dismantle';
 
 /** Whether the hit is the pin of this label: a pile yields to its own pin only, never to the pin
  *  of a neighbour a few pixels off. */
@@ -82,6 +84,8 @@ type Mark = {
   readonly trail: readonly [number, number];
   readonly ring: number;
   readonly hour: string | null;
+  /** How far it has tipped onto its low point, in radians (a dismantled outpost's pin). */
+  readonly tilt: number;
 };
 
 type Point = {
@@ -167,6 +171,8 @@ export class PinLayer {
   private hovered: string | null = null;
   private carried: Vector3 | null = null;
   private walking: ReadonlyArray<Walking> = [];
+  /** The pins whose piece the server took (#340): they stay, tipping, until their fall is over. */
+  private leaving: Array<{ readonly placed: Placed; readonly since: number }> = [];
   private dirty = true;
   /** What a combat played on the map covers (#272): no pin there tells the state after it. */
   private covered: ((at: Vector3) => boolean) | null = null;
@@ -200,6 +206,24 @@ export class PinLayer {
   display(pins: ReadonlyArray<Pin>): void {
     this.placed = pins.map((pin) => ({ pin, at: null }));
     this.rebuild();
+  }
+
+  /** Frames are due every image while a pin tips. */
+  get active(): boolean {
+    return this.leaving.length > 0;
+  }
+
+  /**
+   * **A pin the next `display` drops is let fall** (#340): call before it, with the motion of the
+   * moment. Only full motion tips it. It answers where it stood when it does not (reduced: the
+   * caller rings the place with ink), `null` when it was not laid out or motion is cut.
+   */
+  leave(id: string, now: number, motion: MapMotion): Vector3 | null {
+    const placed = this.placed.find(({ pin }) => pin.id === id);
+    if (placed === undefined || placed.at === null || motion === 'off') return null;
+    if (motion === 'reduced') return placed.at.clone();
+    this.leaving.push({ placed: { pin: placed.pin, at: placed.at.clone() }, since: now });
+    return null;
   }
 
   /** The regions landed under a building's anchor, the frame changed, or a ring placed its
@@ -267,6 +291,7 @@ export class PinLayer {
     heads: ReadonlyMap<string, Vector3>,
     aheads: ReadonlyMap<string, Vector3>,
     measuredFrom: Vector3 = eye.position,
+    now: number = performance.now(),
   ): void {
     const size = `${width}x${height}`;
     const moved = size !== this.lastSize || !this.lastEye.equals(eye.matrixWorld);
@@ -336,6 +361,19 @@ export class PinLayer {
           points: [{ placed: { pin: placed.pin, at: head }, sx, sy, weight }],
         }),
         trail,
+      });
+    }
+    this.leaving = this.leaving.filter(({ since }) => now - since < PIN_FALL_MS);
+    for (const { placed, since } of this.leaving) {
+      const weight = weightAt(placed.at!, placed.pin);
+      const [sx, sy, inside] = screen(placed.at!);
+      if (weight <= 0 || !inside) continue;
+      const { tilt, opacity } = pinFallAt(now - since);
+      // No ids: it is nothing to point at, as the copy in hand.
+      this.marks.push({
+        ...this.markOf({ sx, sy, points: [{ placed, sx, sy, weight: weight * opacity }] }),
+        ids: [],
+        tilt,
       });
     }
     for (const { id, travel, alone } of this.walking) {
@@ -448,6 +486,7 @@ export class PinLayer {
               ? RING.hover
               : RING.none,
       hour: single && first.side === 'lost' ? asClockTime(first.seenAt) : null,
+      tilt: 0,
     };
   }
 
@@ -467,7 +506,7 @@ export class PinLayer {
       shapes.aCenter.set([mark.center.x, mark.center.y, mark.center.z], k * 3);
       shapes.aColor.set([color.r, color.g, color.b], k * 3);
       shapes.aShape.set([SHAPE_INDEX[mark.shape], mark.style, mark.radius, mark.weight], k * 4);
-      shapes.aExtra.set([mark.trail[0], mark.trail[1], mark.ring, 0], k * 4);
+      shapes.aExtra.set([mark.trail[0], mark.trail[1], mark.ring, mark.tilt], k * 4);
       const write = (text: string, x: number, size: number, ink: Color, background: number) => {
         const advance = size * GLYPH_ASPECT;
         [...text].forEach((char, i) => {
@@ -637,6 +676,12 @@ function shapeMaterial(viewport: Viewport, select: { value: Color }): ShaderMate
       void main() {
         vec2 p = vPx;
         float shape = vShape.x, style = vShape.y, r = vShape.z;
+        // A dismantled pin tips about its low point (screen y runs down): the plane turns it.
+        if (vExtra.w > 0.0) {
+          vec2 q = p - vec2(0.0, r);
+          float c = cos(vExtra.w), s = sin(vExtra.w);
+          p = vec2(0.0, r) + vec2(c * q.x - s * q.y, s * q.x + c * q.y);
+        }
         vec4 col = vec4(0.0);
         float trail = length(vExtra.xy);
         if (trail > 0.5) {

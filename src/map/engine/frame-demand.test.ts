@@ -307,3 +307,23 @@ describe('a combat on the map is declared to the loop (#272)', () => {
     );
   });
 });
+
+describe('a dismantling is declared to the loop (#340)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps whole frames coming while a pin tips and an area is erased', () => {
+    expect(source).toMatch(/this\.razes\.active \|\|\s+this\.pins\.active \|\|/);
+  });
+
+  it('copies the pin a dismantled point leaves before the list drops it, and erases its area from a stirring method', () => {
+    const pins = source.slice(source.indexOf('  displayPins('));
+    expect(pins.slice(0, pins.indexOf('\n  }\n'))).toMatch(
+      /razedOf\(this\.dismantling, pins\)[\s\S]*this\.pins\.leave\([\s\S]*this\.pins\.display\(pins\)/,
+    );
+    const erase = source.slice(source.indexOf('  eraseReach('));
+    expect(erase.slice(0, erase.indexOf('\n  }\n'))).toMatch(
+      /this\.invalidate\(\);[\s\S]*this\.ink\.eraseReach/,
+    );
+  });
+});
