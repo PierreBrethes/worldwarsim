@@ -170,7 +170,7 @@ type Props = {
   onPieceCarry?: ((from: PieceFrom, single: boolean) => boolean) | undefined;
   /** **La pièce portée, lâchée sur une pile à moi** : poser — la rose s'ouvre alors sur sa
    *  cible —, embarquer, ou reposer. */
-  onPieceDrop?: ((on: PieceFrom) => 'pose' | 'board' | 'back') | undefined;
+  onPieceDrop?: ((on: PieceFrom) => 'pose' | 'board' | 'back' | 'refused') | undefined;
   /** Ce que le lâcher ferait sur une pièce de la même adresse ; `undefined` ailleurs, où la rose
    *  le dit. */
   dropHintOf?: ((on: PieceFrom) => DropHint | null | undefined) | undefined;
@@ -1045,6 +1045,7 @@ export function WorldMap({
         const { from, label } = read(target, clientX, clientY);
         const outcome = from === null ? 'pose' : onPieceDrop(from);
         if (outcome === 'board') readyEngine.boardInto(clientX, clientY);
+        if (outcome === 'refused') readyEngine.refuseDrop();
         if (outcome === 'pose' && label !== undefined) onLabelAct(label, clientX, clientY);
       });
     readyEngine.onCarryCancel = onDropRefused;

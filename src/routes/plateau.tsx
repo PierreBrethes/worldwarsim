@@ -60,7 +60,7 @@ import {
   type OrderAction,
   isOrder,
 } from '@/domain/compass-rose';
-import { boardPlacesOf, boardingOf, traceCompass } from '@/domain/compass-logistics';
+import { atAirfieldOf, boardPlacesOf, traceCompass } from '@/domain/compass-logistics';
 import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
@@ -84,7 +84,7 @@ import {
   carry,
   clickPile,
   composeHand,
-  dropOn,
+  boardingDropOf,
   type Hand,
   type PileClick,
 } from '@/domain/hand';
@@ -103,7 +103,6 @@ import type { DropHint, PieceFrom } from '@/map/DropHint';
 import { openingFrameOf, playedTheatre } from '@/domain/theatres';
 import {
   boardingRefusalDetails,
-  boardingRefusalOf,
   disbandRefusalOf,
   disbandSpanKm,
   disbandSpotsAt,
@@ -1831,18 +1830,24 @@ function BoardContent({
   /** **La pièce lâchée sur une de mes piles** (15/10) : sur un transport de son adresse elle
    *  embarque, sur elle-même elle se repose ; ailleurs c'est poser, et la rose s'ouvre. */
   const dropPiece = useCallback(
-    (on: PieceFrom): 'pose' | 'board' | 'back' => {
+    (on: PieceFrom): 'pose' | 'board' | 'back' | 'refused' => {
       const click = aimOf(on);
       if (click === null || hand.kind !== 'held') return 'pose';
-      const drop = dropOn(hand, click, unitsAt(click.station).pile);
+      const drop = boardingDropOf(
+        hand,
+        click,
+        unitsAt(click.station).pile,
+        atAirfieldOf(view.me.buildings, click.station),
+      );
       if (drop.kind === 'pose') return 'pose';
-      if (drop.kind === 'putBack') {
+      // What the preview refused is refused here, as the rose does: nothing goes to the server.
+      if (drop.kind === 'putBack' || drop.refusal !== null) {
         dropHand();
-        return 'back';
+        return drop.kind === 'putBack' ? 'back' : 'refused';
       }
       if (inFlight.current) return 'board';
       inFlight.current = true;
-      boardHand(hand.troopIds, drop.carrierId).then(
+      boardHand(hand.troopIds, drop.boarding.carrier.id).then(
         () => {
           settle();
           dropHand();
@@ -1854,7 +1859,7 @@ function BoardContent({
       );
       return 'board';
     },
-    [aimOf, hand, unitsAt, dropHand, boardHand, settle],
+    [aimOf, hand, unitsAt, view.me.buildings, dropHand, boardHand, settle],
   );
 
   /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is
@@ -1882,15 +1887,17 @@ function BoardContent({
     (on: PieceFrom): DropHint | null | undefined => {
       const click = aimOf(on);
       if (click === null || hand.kind !== 'held') return undefined;
-      const { pile } = unitsAt(click.station);
-      const drop = dropOn(hand, click, pile);
+      const drop = boardingDropOf(
+        hand,
+        click,
+        unitsAt(click.station).pile,
+        atAirfieldOf(view.me.buildings, click.station),
+      );
       if (drop.kind === 'pose') return undefined;
       if (drop.kind === 'putBack')
         return { icon: '↺', tone: 'calm', verb: fr.drop.putBack, detail: fr.drop.putBackDetail };
-      const carrier = pile.find((troop) => troop.id === drop.carrierId)!;
-      const held = pile.filter((troop) => hand.troopIds.includes(troop.id));
-      const boarding = boardingOf(view.me.buildings, click.station, carrier, held, pile);
-      const refusal = boardingRefusalOf(boarding);
+      const { boarding, refusal } = drop;
+      const { carrier } = boarding;
       const seated = {
         carrierId: carrier.id,
         need: boardingRefusalDetails(boarding).needed,

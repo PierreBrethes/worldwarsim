@@ -160,6 +160,41 @@ async function runProfile(profile) {
       await page.waitForTimeout(200);
       await page.mouse.up();
     };
+    /**
+     * **Au doigt, la main d'une seule troupe** : un doigt porte la pile entière, alors on lève la
+     * pile d'un toucher, on ne garde coché dans la feuille que la première ligne dont le nom
+     * commence par `label`, on rabaisse la feuille sur la pile, et l'appui long garde la main
+     * (`carry`, `hand.ts`). La main lue dans la feuille doit tenir une troupe, pas une autre.
+     */
+    const soloHand = async (at, label) => {
+      await touch('touchStart', [at]);
+      await touch('touchEnd', []);
+      const sheet = page.getByRole('dialog').first();
+      await sheet.waitFor({ timeout: 5000 });
+      const rows = page.getByRole('checkbox');
+      const names = await rows.evaluateAll((all) => all.map((row) => row.textContent ?? ''));
+      const keep = names.findIndex((name) => name.toLowerCase().startsWith(label));
+      assert.ok(keep >= 0, `la feuille de la main n'a pas de ligne « ${label} » : ${names}`);
+      for (let k = names.length - 1; k >= 0; k--) {
+        if (k === keep) continue;
+        await rows.nth(k).tap();
+        await page.waitForTimeout(600);
+      }
+      const checked = await rows.evaluateAll((all) =>
+        all
+          .filter((row) => row.getAttribute('aria-checked') === 'true')
+          .map((row) => row.textContent),
+      );
+      assert.equal(checked.length, 1, `la main tient ${checked.length} troupes, une attendue`);
+      assert.ok(checked[0].toLowerCase().startsWith(label), `la main tient « ${checked[0]} »`);
+      const grip = await sheet.boundingBox();
+      assert.ok(grip, 'la feuille de la main est hors de l’écran');
+      const top = [grip.x + grip.width / 2, grip.y + 6];
+      await touch('touchStart', [top]);
+      await fingers([top], [[top[0], top[1] + 400]], 300);
+      await touch('touchEnd', []);
+      await page.waitForTimeout(1500);
+    };
     const tap = (locator) => (phone ? locator.tap() : locator.click());
     const centreOf = async (locator) => {
       const box = await locator.boundingBox();
@@ -425,26 +460,7 @@ async function runProfile(profile) {
           const rider = pieces.find((one) => one.role === 'infantry' && one.at);
           const truck = pieces.find((one) => one.role === 'landTransport' && one.at);
           assert.ok(rider && truck, `${pileId} : fantassin ou camion caché`);
-          if (phone) {
-            // Un doigt porte la pile entière : pour n'en poser qu'un fantassin, on lève la pile d'un
-            // toucher, on ne garde coché que lui dans la feuille, on rabaisse la feuille sur la
-            // pile, et l'appui long garde la main (`carry`, `hand.ts`).
-            await touch('touchStart', [rider.at]);
-            await touch('touchEnd', []);
-            const sheet = page.getByRole('dialog').first();
-            await sheet.waitFor({ timeout: 5000 });
-            for (const k of [3, 2, 1]) {
-              await page.getByRole('checkbox').nth(k).tap();
-              await page.waitForTimeout(600);
-            }
-            const grip = await sheet.boundingBox();
-            assert.ok(grip, 'la feuille de la main est hors de l’écran');
-            const top = [grip.x + grip.width / 2, grip.y + 6];
-            await touch('touchStart', [top]);
-            await fingers([top], [[top[0], top[1] + 400]], 300);
-            await touch('touchEnd', []);
-            await page.waitForTimeout(1500);
-          }
+          if (phone) await soloHand(rider.at, 'infanterie');
           await carry(rider.at, truck.at, { hold: 650 });
           const truckId = start.me.troops.find(
             (troop) =>
@@ -461,6 +477,32 @@ async function runProfile(profile) {
           assert.ok(
             after.some((one) => one.role === 'landTransport' && one.aboard > 0),
             'écran : le camion de la pile ne dit aucun passager',
+          );
+        },
+      },
+      {
+        name: 'embarquer une troupe que le camion refuse',
+        run: async () => {
+          // Le chasseur de la même pile, lâché sur son camion : l'aperçu refuse, rien ne part.
+          const pileId = 'stack-point:1,47.3';
+          await frame([1, 47.3], 3);
+          const pieces = await piecesOf(pileId);
+          const fighter = pieces.find((one) => one.role === 'fighter' && one.at);
+          const truck = pieces.find((one) => one.role === 'landTransport' && one.at);
+          assert.ok(fighter && truck, `${pileId} : chasseur ou camion caché`);
+          if (phone) await soloHand(fighter.at, 'chasseur');
+          await carry(fighter.at, truck.at, { hold: 650 });
+          await page.waitForTimeout(2000);
+          const view = await client.query(api.view.playerView, seat);
+          assert.ok(
+            !view.me.troops.some((troop) => troop.role === 'fighter' && troop.carriedBy),
+            'serveur : le chasseur est à bord',
+          );
+          // L'écran : la main est retombée, aucun avis ne la garde.
+          assert.equal(
+            await page.getByText(/en main ·/i).count(),
+            0,
+            'écran : la main du chasseur est encore tenue',
           );
         },
       },

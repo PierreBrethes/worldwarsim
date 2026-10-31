@@ -260,16 +260,24 @@ export function boardingOf(
   held: ReadonlyArray<TroopView>,
   pile: ReadonlyArray<TroopView>,
 ): Boarding {
-  const site =
-    station.kind === 'building'
-      ? buildings.find((building) => building.id === station.buildingId)
-      : undefined;
   return {
     carrier,
     riders: hullsAmong(held),
     pile,
-    atAirfield: site?.key === PROJECTION_BY_DOMAIN.air,
+    atAirfield: atAirfieldOf(buildings, station),
   };
+}
+
+/** Le point où l'on embarque est un aérodrome. */
+export function atAirfieldOf(
+  buildings: PlayerView['me']['buildings'],
+  station: TroopStation,
+): boolean {
+  const site =
+    station.kind === 'building'
+      ? buildings.find((building) => building.id === station.buildingId)
+      : undefined;
+  return site?.key === PROJECTION_BY_DOMAIN.air;
 }
 
 /** **Les places d'après**, dites : ce que l'embarquement laisse sur les sièges du transport. */
