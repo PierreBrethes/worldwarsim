@@ -515,19 +515,22 @@ export const logisticsScene = internalMutation({
 
 /**
  * **Fait arriver sur-le-champ les mouvements d'un joueur**, pour voir une livraison ou une
- * tournée se dénouer sans attendre la route (#128).
+ * tournée se dénouer sans attendre la route (#128). `afterMs` les fait arriver plus tard : le
+ * temps d'ouvrir la carte, où le combat de `--combat` se joue (#272).
  *
  * `npx convex run dev:arriveNow '{"playerId":"…"}'`
  */
 export const arriveNow = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+  args: { playerId: v.id('players'), afterMs: v.optional(v.number()) },
+  handler: async (ctx, { playerId, afterMs }) => {
     const moving = await ctx.db
       .query('movements')
       .filter((q) => q.eq(q.field('playerId'), playerId))
       .collect();
     for (const movement of moving)
-      await ctx.scheduler.runAfter(0, internal.movements.arrive, { movementId: movement._id });
+      await ctx.scheduler.runAfter(afterMs ?? 0, internal.movements.arrive, {
+        movementId: movement._id,
+      });
     return moving.length;
   },
 });

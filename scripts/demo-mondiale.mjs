@@ -54,6 +54,9 @@
  * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
  * ne part d'un point sans piste. Deux chars restent seuls à Orléans : une pile hors garnison, pour la
  * figurine plancher (#266).
+ * `--combat [s]` (#272) pose une garnison britannique à Sedan, deux fantassins et un char, et
+ * lance sur elle une colonne française de même force, qui arrive dans `s` secondes (25 par
+ * défaut) : le temps d'ouvrir la carte, où le combat se joue à son point.
  *
  *     npm run demo:mondiale
  *
@@ -120,6 +123,9 @@ const scale = process.argv.includes('--echelle');
 const lone = process.argv.includes('--troupe-seule');
 /** `--chargee` : avec `--troupe-seule`, le camion du point porte un fantassin à son bord. */
 const loaded = process.argv.includes('--chargee');
+/** `--combat [s]` : une colonne française sur une garnison britannique, arrivée dans s secondes (#272). */
+const combatAt = process.argv.indexOf('--combat');
+const combatIn = combatAt < 0 ? null : Number(process.argv[combatAt + 1]) || 25;
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -563,6 +569,34 @@ if (!bare) {
         point: to,
       });
     }
+  }
+  if (combatIn !== null && scene.a !== null && scene.b !== null) {
+    const garrison = { lon: 4.94, lat: 49.7 };
+    const from = { lon: 4.72, lat: 49.66 };
+    const spawn = (playerId, role, count, at) =>
+      JSON.parse(
+        cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId, role, count, ...at })]).match(
+          /\[[^\]]*\]/,
+        )[0],
+      );
+    for (const [role, count] of [
+      ['infantry', 2],
+      ['armor', 1],
+    ])
+      spawn(scene.b, role, count, garrison);
+    const column = [...spawn(scene.a, 'infantry', 2, from), ...spawn(scene.a, 'armor', 1, from)];
+    // A garrison is attacked once seen: the column relieves it first.
+    cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+    const { camps } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const camp = camps.find((one) => Math.abs(one.point[0] - garrison.lon) < 0.05);
+    await client.mutation(api.movements.attack, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: column,
+      target: { kind: 'camp', campId: camp.id },
+    });
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a, afterMs: combatIn * 1000 })]);
   }
   /** Les fantassins et les chars entrent dans la caserne (#265). */
   if (scale && scene.a !== null) {
