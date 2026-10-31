@@ -34,7 +34,7 @@ export function LoadGauge({
   let at = 0;
   return (
     <div
-      aria-hidden
+      role="status"
       className="load-gauge paper-grain"
       style={{ left: layout.left, top: layout.top, width: layout.width, height: GAUGE_H }}
     >

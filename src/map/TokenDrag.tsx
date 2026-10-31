@@ -175,7 +175,7 @@ export function useTokenDrag<From>({
       marked = [];
     };
     /** Read the hand again: the view, the stock, the carriers and the hand itself may all have moved. */
-    const update = (dx: number) => {
+    const update = (dx: number, fromHand = false) => {
       const grabbed = grabbedWithin(WHOLE_BIN, latest.current.stock(from, resource));
       for (const bin of bins) if (moved) bin.dataset.holding = String(grabbed);
       unmark();
@@ -200,14 +200,15 @@ export function useTokenDrag<From>({
       if (open !== null && found !== null) {
         const bar = rail.current?.getBoundingClientRect();
         const held = latest.current.read(from, open, resource, null);
-        if (band === 'rail' && bar !== undefined && bar.width > 0)
+        // The wheel and the clock read the view again: only the hand moves the load.
+        if (fromHand && band === 'rail' && bar !== undefined && bar.width > 0)
           picked = railLoadOf({
             fraction: within((at.x - bar.left) / bar.width, 0, 1),
             held: held.held,
             capacity: held.capacity,
             max: held.max,
           });
-        else if (band === 'fine' && bar !== undefined && bar.width > 0)
+        else if (fromHand && band === 'fine' && bar !== undefined && bar.width > 0)
           picked = fineLoadOf({
             value: picked ?? held.max,
             dx,
@@ -276,7 +277,7 @@ export function useTokenDrag<From>({
       const before = at;
       at = { x: step.clientX, y: step.clientY };
       moved ||= Math.hypot(at.x - origin.x, at.y - origin.y) > MOVE_PX;
-      update(at.x - before.x);
+      update(at.x - before.x, true);
     };
     /** The gauge owns the wheel while it is open: it sets the load, the map does not zoom. */
     const wheel = (turn: WheelEvent) => {
@@ -296,7 +297,8 @@ export function useTokenDrag<From>({
       if (step.pointerId !== pointerId) return;
       const before = at;
       at = { x: step.clientX, y: step.clientY };
-      if (moved) update(at.x - before.x);
+      // A release where the hand already was keeps what the wheel set.
+      if (moved) update(at.x - before.x, at.x !== before.x || at.y !== before.y);
       const carrierId = open;
       const hint = reading;
       const drops =

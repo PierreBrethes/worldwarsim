@@ -96,7 +96,8 @@ export function loadReadingOf(
   }
   const aboard = loadTotal(held);
   return {
-    text: fr.logistics.loadHint(amount, fr.resources[resource], aboard + amount, capacity),
+    // The gauge says the load; the pastille only says refusals.
+    text: '',
     refused: false,
     amount,
     held: aboard,

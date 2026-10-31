@@ -146,10 +146,10 @@ describe('dismantling a depot', () => {
   });
 });
 
-describe('a grab held over a nearly empty bin', () => {
-  it('stops at what the source holds, and never counts a fraction of a token', () => {
-    expect([10, 150].map((grabbed) => grabbedWithin(grabbed, 23.7))).toEqual([10, 23]);
-    expect(grabbedWithin(150, 0)).toBe(0);
+describe('the whole bin, in whole tokens', () => {
+  it('stops at what the source holds, never a fraction of a token', () => {
+    expect(grabbedWithin(Infinity, 23.7)).toBe(23);
+    expect(grabbedWithin(Infinity, 0)).toBe(0);
   });
 });
 

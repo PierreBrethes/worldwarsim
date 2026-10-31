@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, createEvent, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyLoad } from '@/domain/logistics';
 import { useTokenDrag, type TokenHint } from './TokenDrag';
@@ -62,6 +62,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  document.querySelectorAll('.cargo-tags').forEach((column) => column.remove());
   animate.mockClear();
   delete document.documentElement.dataset.motion;
 });
@@ -211,5 +212,94 @@ describe('the gauge of a transport under the hand', () => {
     const wheel = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
     act(() => void window.dispatchEvent(wheel));
     expect(wheel.defaultPrevented).toBe(false);
+  });
+
+  it('keeps what the wheel set while the hand rests in the rail', () => {
+    aboard();
+    drop.mockClear();
+    render(<Bin read={read} drop={drop} />);
+    press();
+    moveTo(150, 320);
+    // The rail is 280 px wide from x = 18: the hand at its middle sets 100 of 200, 60 aboard.
+    document.querySelector<HTMLElement>('.load-gauge-rail')!.getBoundingClientRect = rect(
+      18,
+      250,
+      280,
+      26,
+    );
+    moveTo(158, 262);
+    act(
+      () => void window.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, cancelable: true })),
+    );
+    act(() => void fireEvent.pointerUp(window, { pointerId: 1, clientX: 158, clientY: 262 }));
+    expect(drop).toHaveBeenCalledWith('board', 'c1', 'coal', 41);
+  });
+
+  it('passes from one tag of the column to the next without folding, and drops on it', () => {
+    const column = document.createElement('div');
+    column.className = 'cargo-tags';
+    column.getBoundingClientRect = rect(100, 300, 100, 30);
+    const [first, second] = ['c1', 'c2'].map((id) => {
+      const tag = document.createElement('div');
+      tag.dataset.carrierId = id;
+      column.append(tag);
+      return tag;
+    });
+    document.body.append(column);
+    document.elementsFromPoint = (_x, y) => (y < 315 ? [first!] : [second!]);
+    drop.mockClear();
+    render(<Bin read={read} drop={drop} />);
+    press();
+    moveTo(150, 305);
+    expect(gauge()).not.toBeNull();
+    moveTo(150, 325);
+    expect(gauge()).not.toBeNull();
+    act(() => void fireEvent.pointerUp(window, { pointerId: 1, clientX: 150, clientY: 325 }));
+    expect(drop).toHaveBeenCalledWith('board', 'c2', 'coal', 140);
+  });
+
+  it('folds when the view refuses the transport, or the tag goes', () => {
+    vi.useFakeTimers();
+    try {
+      let refused = false;
+      const aware = (from: 'board', id: string | null, r: string, picked: number | null) =>
+        refused ? hint : read(from, id, r, picked);
+      const tag = aboard();
+      render(<Bin read={aware} drop={drop} />);
+      press();
+      moveTo(150, 320);
+      expect(gauge()).not.toBeNull();
+      refused = true;
+      act(() => void vi.advanceTimersByTime(200));
+      expect(gauge()).toBeNull();
+      refused = false;
+      moveTo(150, 322);
+      expect(gauge()).not.toBeNull();
+      tag.parentElement!.remove();
+      act(() => void vi.advanceTimersByTime(200));
+      expect(gauge()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('hides the hand of a finger while the gauge reads for it, but not at the fine step', () => {
+    aboard();
+    render(<Bin read={read} drop={drop} />);
+    const down = createEvent.pointerDown(bin(), {
+      pointerId: 1,
+      clientX: 50,
+      clientY: 50,
+      button: 0,
+    });
+    Object.defineProperty(down, 'pointerType', { value: 'touch' });
+    fireEvent(bin(), down);
+    const hand = () => document.querySelector<HTMLElement>('div[aria-hidden]')!;
+    moveTo(150, 320);
+    expect(gauge()).not.toBeNull();
+    expect(hand().style.display).toBe('none');
+    // Above the gauge (it stands over y 168 to 292): the fine step, where the thumb hides the count.
+    moveTo(150, 120);
+    expect(hand().style.display).toBe('block');
   });
 });
