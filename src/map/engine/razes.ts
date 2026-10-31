@@ -45,6 +45,7 @@ type Razing = {
     readonly from: Color;
     readonly to: Color;
   }>;
+  /** The building's own copies, faded with it. */
   readonly materials: ReadonlyArray<Material>;
   readonly footprint: Mesh<CircleGeometry, MeshBasicMaterial> | null;
   readonly ring: InkRing | null;
@@ -107,12 +108,10 @@ export class RazeLayer {
       footprint.position.copy(centre);
       footprint.scale.set(FOOTPRINT * size.x, 1, FOOTPRINT * size.z);
       footprint.userData.ground = true;
-      materials.push(footprint.material);
       object.add(body, footprint);
     } else {
       ring = new InkRing();
       ring.position.copy(centre);
-      materials.push(ring.material);
       object.add(ring);
     }
     this.group.add(object);
@@ -153,7 +152,6 @@ export class RazeLayer {
         for (const { material, from, to } of each.tints)
           material.color.lerpColors(from, to, pose.char);
         for (const material of each.materials) {
-          if (material === each.footprint?.material) continue;
           material.transparent = pose.opacity < 0.999;
           material.opacity = pose.opacity;
           material.depthWrite = pose.opacity > 0.5;
@@ -184,7 +182,10 @@ export class RazeLayer {
 
   private end(each: Razing): void {
     each.object.removeFromParent();
-    for (const material of each.materials) material.dispose();
+    // The building's copies are not `dispose()`d: they share their programs with the models', and
+    // the renderer's release of them cost a long task on a phone (#332). They go with the garbage.
+    each.footprint?.material.dispose();
+    each.ring?.material.dispose();
     for (const burst of each.dust) burst?.dispose();
   }
 }

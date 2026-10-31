@@ -47,12 +47,9 @@ describe('RazeLayer', () => {
     });
     // Toward its charred colour, a third of its own: 0.7 of the way at 1.2 s.
     expect(worn!.color.r).toBeCloseTo(source.color.r * 0.51, 3);
-    let disposed = false;
-    worn!.addEventListener('dispose', () => (disposed = true));
     layer.advance(RAZE_MS);
     expect(layer.group.children).toHaveLength(0);
     expect(layer.active).toBe(false);
-    expect(disposed).toBe(true);
   });
 
   it('plays at most MAX_PLAYING at once: beyond, the maquette goes as it did', () => {
