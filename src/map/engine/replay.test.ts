@@ -112,6 +112,10 @@ describe('the strike and the riposte', () => {
     expect(shotShare(0.05, 2, false)).toBeNull();
     expect(shotShare(1, 0, false)).toBeNull();
     expect(shotShare(0, 1, true)).toBe(0.5);
+    // 15 % of the volley between two departures (#331): the third leaves at 0.3, halfway at 0.65.
+    expect(shotShare(0.3, 2, false)).toBeNull();
+    expect(shotShare(0.65, 2, false)).toBeCloseTo(0.5);
+    expect(shotShare(0.2, 1, false)).toBeCloseTo(0.05 / 0.85);
   });
 
   it('shake both lines as a volley lands, briefly, and never at reduced motion', () => {

@@ -1,4 +1,5 @@
 import { Group, type Object3D } from 'three';
+import { MAN_METRES } from '@/domain/piece-size';
 import type { UnitTier } from '@/domain/troops';
 
 /**
@@ -146,4 +147,66 @@ export function stride(root: Object3D, seconds: number | null): void {
         : walking(phase + seconds * 9),
     );
   });
+}
+
+/** **Le genou à terre, en joue** (storyboard `commun/scene.js:240-253`, une série pour toutes les
+ *  nations) : le bras droit avance, l'avant-bras ramène la main sous l'épaule, le fusil monte à
+ *  l'horizontale. `kick` (0..1) est la secousse du coup. */
+function kneeling(kick: number): Rotations {
+  const arm = -0.9 + 0.08 * kick;
+  const forearm = -0.6;
+  const rifle: Vec3 = [Math.PI / 2 - arm - forearm - 0.06 * kick, 0, 0];
+  return {
+    leg_left: [-1.35, 0, 0],
+    shin_left: [1.35, 0, 0],
+    leg_right: [0.2, 0, 0],
+    shin_right: [1.8, 0, 0],
+    arm_right: [arm, 0, -0.12],
+    forearm_right: [forearm, 0, 0],
+    arm_left: [-1.25, 0, -0.35],
+    forearm_left: [-0.45, 0, 0],
+    rifle,
+    weapon: rifle,
+  };
+}
+
+/** La hauteur que perd l'homme à genou, en part de sa taille. @a-mesurer */
+const KNEEL_DROP = 0.24;
+
+const lerp3 = (from: Vec3, to: Vec3, k: number): Vec3 => [
+  from[0] + (to[0] - from[0]) * k,
+  from[1] + (to[1] - from[1]) * k,
+  from[2] + (to[2] - from[2]) * k,
+];
+
+/**
+ * **L'homme passe de sa pose de repos au genou à terre, en joue** (`ready` 0..1), la secousse du
+ * coup en plus. À `ready` 0 il est exactement dans sa pose de repos : le plateau le reprend sans
+ * saut. Le mark 2 garde la pose de son fichier — il épaule déjà, ou tient son arme — et ne
+ * reçoit que la secousse sur son bras et son arme.
+ */
+export function shoulder(man: Object3D, ready: number, kick: number): void {
+  const sculpted = man.userData.sculpted as Stance | undefined;
+  const phase = man.userData.stride as number | undefined;
+  if (sculpted === undefined && phase === undefined) return;
+  const rest = sculpted ?? walking(phase!);
+  if (sculpted !== undefined) {
+    const joints: Rotations = { ...rest.joints };
+    for (const name of ['arm_right', 'rifle', 'weapon'] as const) {
+      const at = joints[name];
+      if (at) joints[name] = [at[0] + (name === 'arm_right' ? 0.08 : -0.06) * kick, at[1], at[2]];
+    }
+    pose(man, { joints, body: rest.body });
+    return;
+  }
+  const target = kneeling(kick);
+  const joints: Rotations = {};
+  for (const name of JOINTS) {
+    const from = rest.joints[name];
+    const to = target[name];
+    if (from && to) joints[name] = lerp3(from, to, ready);
+  }
+  pose(man, { joints, body: rest.body });
+  // A man's file is `MAN_METRES` tall in its own units (`measureOf`).
+  man.position.y = 0 - KNEEL_DROP * MAN_METRES * ready;
 }
