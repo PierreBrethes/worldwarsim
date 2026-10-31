@@ -329,6 +329,15 @@ export function useTokenDrag<From>({
   const hidden = carry !== null && carry.touch && carry.gauge !== null && !carry.gauge.fine;
   const chip = createPortal(
     <>
+      {carry?.gauge && carry.hint && (
+        <LoadGauge
+          reading={carry.hint}
+          resource={carry.resource}
+          layout={carry.gauge.layout}
+          fine={carry.gauge.fine}
+          railRef={rail}
+        />
+      )}
       <div
         ref={node}
         aria-hidden
@@ -358,15 +367,6 @@ export function useTokenDrag<From>({
           </div>
         )}
       </div>
-      {carry?.gauge && carry.hint && (
-        <LoadGauge
-          reading={carry.hint}
-          resource={carry.resource}
-          layout={carry.gauge.layout}
-          fine={carry.gauge.fine}
-          railRef={rail}
-        />
-      )}
     </>,
     document.body,
   );

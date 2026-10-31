@@ -433,8 +433,13 @@ async function headquartersOf(ctx: MutationCtx, player: Doc<'players'>) {
  * `npx convex run dev:logisticsScene '{"playerId":"…"}'`
  */
 export const logisticsScene = internalMutation({
-  args: { playerId: v.id('players'), fullDepot: v.optional(v.boolean()) },
-  handler: async (ctx, { playerId, fullDepot }) => {
+  args: {
+    playerId: v.id('players'),
+    fullDepot: v.optional(v.boolean()),
+    /** A second, empty truck at the headquarters: two transports on one pile (#319). */
+    twin: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { playerId, fullDepot, twin }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const now = Date.now();
@@ -476,6 +481,7 @@ export const logisticsScene = internalMutation({
         ...(load === undefined ? {} : { load }),
       });
     if (hq !== undefined) await truck(hq._id, { ammunition: 90, oil: 50, coal: 20 });
+    if (hq !== undefined && twin === true) await truck(hq._id, undefined);
     await truck(outpostId, { ammunition: 30, oil: 0, coal: 0 });
     /** Deux points côtiers, Marseille et Agde, et un cargo chargé au premier. */
     const coast = async (lon: number, lat: number, depot: Doc<'outposts'>['depot']) =>
