@@ -26,6 +26,7 @@ import { Price } from '@/shell/Price';
 import { Stamp } from '@/shell/Stamp';
 import { useNarrowScreen } from '@/shell/viewport';
 import { FloatingWindow, type WindowProps, WindowHead } from './Window';
+import { RazeButton } from './RazeButton';
 
 /**
  * **Où chaque carte tient dans l'arbre** (maquette A, « l'éventail ») : sa colonne et sa
@@ -96,6 +97,8 @@ export function ResearchWindow({
   const dequeue = useMutation(api.research.dequeue);
   const level = searcherLevel(view.me.buildings);
   const center = searcherOf(view.me.buildings) ?? undefined;
+  /** Le Centre, capturé ou non : la rose offre « raser » sur tout mât à soi. */
+  const razable = view.me.buildings.find((building) => building.key === 'researchCenter');
   const place = view.me.regions.find((region) => region.id === center?.regionId)?.name;
   const situation = {
     researched: view.me.research.researched,
@@ -176,6 +179,7 @@ export function ResearchWindow({
             </div>
           </main>
         </div>
+        {razable !== undefined && <RazeButton building={razable} />}
       </div>
     </FloatingWindow>
   );

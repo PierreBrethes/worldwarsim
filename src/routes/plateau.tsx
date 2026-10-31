@@ -4,7 +4,17 @@ import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useConvex, useMutation, useQuery } from 'convex/react';
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ContextType,
+  type ReactNode,
+} from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
@@ -141,6 +151,7 @@ import { useSupplyFlights } from './-plateau/useSupplyFlights';
 import { GarrisonPanel } from './-plateau/GarrisonPanel';
 import { DemolitionCard } from './-plateau/DemolitionCard';
 import { DismantleCard } from './-plateau/DismantleCard';
+import { RazeContext } from './-plateau/RazeButton';
 import {
   useSendOrder,
   wireOrigin,
@@ -2398,7 +2409,15 @@ function BoardContent({
     >
       <SelectionSheetReport.Provider value={setSelectionSheet}>
         <SheetCount.Provider value={countSheet}>
-          <ReplayLaunch.Provider value={launchReplay}>
+          <ReplayAndRaze
+            launch={launchReplay}
+            raze={(buildingId, at) => {
+              setGarrison(null);
+              setOrderError(null);
+              /* Comme « démanteler » : sous le seuil la carte s'ancre au bord droit de l'écran. */
+              setDemolition({ buildingId, x: window.innerWidth, y: at.y });
+            }}
+          >
             <div ref={board} className="relative min-w-0 flex-1">
               {blitzTheatre !== null && view.me.hqLevel === 0 && !view.me.defeated && (
                 <div
@@ -2918,7 +2937,7 @@ function BoardContent({
               className="pointer-events-none fixed inset-0 z-[var(--z-veil)] bg-[var(--desk)]"
               style={{ animation: 'curtain-rise .9s ease forwards' }}
             />
-          </ReplayLaunch.Provider>
+          </ReplayAndRaze>
         </SheetCount.Provider>
       </SelectionSheetReport.Provider>
     </Shell>
@@ -2951,6 +2970,23 @@ const SENT_NOTICE_MS = 6000;
 /** En visée sous le seuil, toucher nomme une destination : la sélection du pays n'en est pas
  *  une, et la feuille du sol reviendrait sous le pouce une fois l'ordre parti. */
 const keepSelection = (): void => {};
+
+/** Deux fournisseurs en une balise : la rose d'ordres du plateau n'a pas à réindenter la carte. */
+function ReplayAndRaze({
+  launch,
+  raze,
+  children,
+}: {
+  launch: ContextType<typeof ReplayLaunch>;
+  raze: NonNullable<ContextType<typeof RazeContext>>;
+  children: ReactNode;
+}) {
+  return (
+    <ReplayLaunch.Provider value={launch}>
+      <RazeContext.Provider value={raze}>{children}</RazeContext.Provider>
+    </ReplayLaunch.Provider>
+  );
+}
 
 function Loading() {
   return (
