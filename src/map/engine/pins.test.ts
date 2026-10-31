@@ -5,6 +5,7 @@ import type { Pin } from '@/domain/pins';
 import { PROJECTION, WorldFrame } from './frame';
 import { isPinOf, PinLayer } from './pins';
 import { REACH } from './halo';
+import { PIN_FALL_MS } from './timelines/dismantle';
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ width: 10 }) });
@@ -213,5 +214,60 @@ describe('PinLayer — under a combat played on the map (#272)', () => {
     layer.veil(null);
     layer.layout(eye, W, H, new Map(), new Map());
     expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'pile-paris' });
+  });
+});
+
+describe('PinLayer — a dismantled outpost’s pin leaves (#340)', () => {
+  const paris: LonLat = [2.35, 48.85];
+  const outpost: Pin = { ...mine('outpost-o', paris), shape: 'outpost' };
+  const lit = (layer: PinLayer) => {
+    let lamps = 0;
+    layer.lights(() => (lamps += 1), 1);
+    return lamps;
+  };
+  const leaving = () => {
+    const eye = eyeOver(paris, 30);
+    const layer = new PinLayer(
+      frame,
+      () => null,
+      false,
+      () => {},
+      () => null,
+    );
+    layer.display([outpost]);
+    layer.leave('outpost-o', 1000, 'full');
+    layer.display([]);
+    return { eye, layer };
+  };
+
+  it('is still drawn while it tips, takes no pointer, and asks for frames', () => {
+    const { eye, layer } = leaving();
+    layer.layout(eye, W, H, new Map(), new Map(), eye.position, 1200);
+    expect(layer.active).toBe(true);
+    expect(lit(layer)).toBe(1);
+    expect(layer.under(...screenOf(eye, paris))).toBeNull();
+  });
+
+  it('is gone once its fall is over', () => {
+    const { eye, layer } = leaving();
+    layer.layout(eye, W, H, new Map(), new Map(), eye.position, 1000 + PIN_FALL_MS);
+    expect(layer.active).toBe(false);
+    expect(lit(layer)).toBe(0);
+  });
+
+  it('does not play when motion is cut: the pin is simply gone', () => {
+    const eye = eyeOver(paris, 30);
+    const layer = new PinLayer(
+      frame,
+      () => null,
+      false,
+      () => {},
+      () => null,
+    );
+    layer.display([outpost]);
+    layer.leave('outpost-o', 1000, 'off');
+    layer.display([]);
+    layer.layout(eye, W, H, new Map(), new Map(), eye.position, 1100);
+    expect(layer.active).toBe(false);
   });
 });

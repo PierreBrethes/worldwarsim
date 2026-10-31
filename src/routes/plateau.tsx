@@ -11,7 +11,7 @@ import { contactKm, outpostReachKm } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { type MapCombat, WorldMap } from '@/map/WorldMap';
+import { type Dismantled, type MapCombat, WorldMap } from '@/map/WorldMap';
 import { freshCombats, homewardOf, REPORT_HOLD_MS } from '@/domain/combat-on-map';
 import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
@@ -66,6 +66,7 @@ import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
   buildingLabelId,
   razingStill,
+  leavingStill,
   campsOf,
   markerOfStation,
   markersOf,
@@ -385,6 +386,7 @@ function BoardContent({
   /** Les maquettes confirmées au rasage (#326) : la carte joue l'affaissement de celle que la vue
    *  suivante perd. */
   const [razing, setRazing] = useState<ReadonlyArray<string>>([]);
+  const [leaving, setLeaving] = useState<ReadonlyArray<Dismantled>>([]);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
   // label. They are separate because the render loop announces "nothing under the pointer" on
@@ -2260,6 +2262,9 @@ function BoardContent({
   useEffect(() => {
     setRazing((ids) => razingStill(ids, view.me.buildings));
   }, [view.me.buildings]);
+  useEffect(() => {
+    setLeaving((points) => leavingStill(points, view.me.outposts));
+  }, [view.me.outposts]);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 
   /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
@@ -2484,6 +2489,7 @@ function BoardContent({
                 combats={mapCombats}
                 onCombatSettled={releaseDispatch}
                 razing={razing}
+                dismantling={leaving}
                 onOpenReport={openReport}
                 onReportLifted={releaseDispatch}
                 selectedPiles={selectedPiles}
@@ -2567,6 +2573,14 @@ function BoardContent({
                   view={view}
                   outpost={dismantled}
                   at={dismantling}
+                  onDismantling={({ area, buildings }) => {
+                    setLeaving((points) => [...points, { id: dismantled.id, area }]);
+                    setRazing((ids) => [...ids, ...buildings]);
+                  }}
+                  onRefused={() => {
+                    setLeaving([]);
+                    setRazing([]);
+                  }}
                   onClose={() => setDismantling(null)}
                 />
               )}

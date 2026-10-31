@@ -9,6 +9,9 @@ import type { ArcView } from './player-view';
  * dernière position connue n'a jamais de nation, seulement son heure. La forme est la garantie :
  * `seen` et `lost` n'ont pas de champ `ink`.
  */
+/** The id an outpost's marker, label and pin share on the board. */
+export const outpostPinId = (outpostId: string): string => `outpost-${outpostId}`;
+
 export type PinShape = 'pile' | 'building' | 'outpost';
 
 export type Pin =

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { stationKeyOf } from '@/domain/troops';
-import { buildingsOfMaquette, razingStill, standingPilesOf } from './board-markers';
+import { buildingsOfMaquette, leavingStill, razingStill, standingPilesOf } from './board-markers';
 
 const mine = (id: string, point: [number, number]) => ({ id, key: 'mine' as const, point });
 
@@ -61,5 +61,17 @@ describe('razingStill', () => {
 
   it('forgets it once the view has lost it: the map has played its fall', () => {
     expect(razingStill([razed], [farm])).toEqual([]);
+  });
+});
+
+describe('leavingStill', () => {
+  const leaving = [{ id: 'o1', area: true }];
+
+  it('keeps a confirmed dismantling while its point is served, the same list when nothing went (#340)', () => {
+    expect(leavingStill(leaving, [{ id: 'o1' }, { id: 'o2' }])).toBe(leaving);
+  });
+
+  it('forgets it once the view has lost the point: the map has played its fall', () => {
+    expect(leavingStill(leaving, [{ id: 'o2' }])).toEqual([]);
   });
 });

@@ -698,6 +698,9 @@ export class MapEngine {
   /** **The maquettes the player has just confirmed to raze**, by id (#326): the one the next view
    *  loses falls where it stood. Another device, an opponent's survey, never has it. */
   razing: ReadonlySet<string> = new Set();
+  /** **The pins of the outposts the player just dismantled** (#340): the next view that loses one
+   *  lets it tip. */
+  dismantling: ReadonlySet<string> = new Set();
   /** **A combat's account begins on the map** (#327): its outcome is stamped over it. */
   onCombatReport?: ((view: ReplayView) => void) | undefined;
   /** **The first hand on the board, or the camera leaving** (#327): the stamps lift — all but
@@ -1102,6 +1105,17 @@ export class MapEngine {
     this.ink.traceReach(vertices, performance.now());
   }
 
+  /** **The area a dismantled point coloured goes** (#340): its circle is erased, turning. */
+  eraseReach(at: LonLat, km: number): void {
+    this.invalidate();
+    const ring = circleAround(this.frame, at, km).positions;
+    const vertices = Array.from(
+      { length: ring.length / 3 },
+      (_, i) => new Vector3(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2]),
+    );
+    this.ink.eraseReach(vertices, performance.now());
+  }
+
   displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {
     this.invalidate();
     this.arcs.troops = troops;
@@ -1301,6 +1315,10 @@ export class MapEngine {
   displayPins(pins: ReadonlyArray<Pin>): void {
     this.invalidate();
     this.pinShapes = new Map(pins.map((pin) => [pin.id, pin.shape]));
+    // The pin a dismantled outpost leaves is copied as it stands before the list drops it.
+    const now = performance.now();
+    for (const id of razedOf(this.dismantling, pins))
+      this.pins.leave(id, now, this.ambience.motion);
     this.pins.display(pins);
   }
 
@@ -3610,6 +3628,7 @@ export class MapEngine {
       this.walks.length > 0 ||
       this.combats.active ||
       this.razes.active ||
+      this.pins.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||

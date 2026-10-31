@@ -16,6 +16,7 @@ import { stampAt, type InkBurst, type StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
+import { dismantleSweepAt, DISMANTLE_SWEEP_MS } from './timelines/dismantle';
 import { Ribbon, RibbonMaterial } from './route-ribbon';
 import { threadWidth, type ThreadLeg } from './thread';
 
@@ -143,6 +144,7 @@ export class InkLayer {
   /** A delayed stamp is heard as it lands: the board gone, it is not. */
   private readonly heard = new Set<ReturnType<typeof setTimeout>>();
   private reaches: PenStroke[] = [];
+  private erasures: Array<{ readonly stroke: PenStroke; readonly motion: MapMotion }> = [];
   private viewHeight = 1;
   private readonly geometries = {
     arrival: new ShapeGeometry(stampShapes()),
@@ -155,7 +157,7 @@ export class InkLayer {
   ) {}
 
   get active(): boolean {
-    return this.traces.length + this.stamps.length + this.reaches.length > 0;
+    return this.traces.length + this.stamps.length + this.reaches.length + this.erasures.length > 0;
   }
 
   resize(_width: number, height: number): void {
@@ -181,6 +183,17 @@ export class InkLayer {
   traceReach(stroke: ReadonlyArray<Vector3>, now: number): void {
     if (!this.enabled || this.motion === 'off') return;
     this.reaches.push(this.penStroke([stroke], now, this.motion === 'full' ? TRACE_MS : 0));
+  }
+
+  /** **The area a dismantled point coloured goes** (#340): its circle is erased turning from the
+   *  north when motion is full, and fades where it stands when it is reduced. */
+  eraseReach(stroke: ReadonlyArray<Vector3>, now: number): void {
+    if (!this.enabled || this.motion === 'off') return;
+    const erased = this.penStroke([stroke], now, 0);
+    // What lies before the cut is what is gone.
+    erased.material.coveredOpacity = 0;
+    erased.material.cut = 0;
+    this.erasures.push({ stroke: erased, motion: this.motion });
   }
 
   /** A worded burst is the prototype's stamp; a combat keeps its splash under it, an arrival
@@ -246,11 +259,14 @@ export class InkLayer {
     this.traces = this.traces.filter((trace) => this.draw(trace, now));
     this.stamps = this.stamps.filter((stamp) => this.age(stamp, now, unitsPerPixel));
     this.reaches = this.reaches.filter((reach) => this.drawReach(reach, now));
+    this.erasures = this.erasures.filter((erasure) => this.drawErasure(erasure, now));
   }
 
   dispose(): void {
     for (const timer of this.heard) clearTimeout(timer);
-    for (const stroke of [...this.traces, ...this.reaches]) wipe(stroke);
+    for (const stroke of [...this.traces, ...this.reaches, ...this.erasures.map((e) => e.stroke)])
+      wipe(stroke);
+    this.erasures = [];
     for (const stamp of this.stamps) unstamp(stamp);
     this.reaches = [];
     this.traces = [];
@@ -307,6 +323,17 @@ export class InkLayer {
     reach.material.coveredOpacity = fading > 0 ? 1 - fading / REACH_FADE_MS : 1;
     reach.material.end =
       elapsed < reach.pen ? penEase(elapsed / reach.pen) * reach.length : reach.length;
+    return true;
+  }
+
+  private drawErasure({ stroke, motion }: (typeof this.erasures)[number], now: number): boolean {
+    const elapsed = now - stroke.start;
+    if (elapsed >= DISMANTLE_SWEEP_MS) {
+      wipe(stroke);
+      return false;
+    }
+    if (motion === 'full') stroke.material.cut = dismantleSweepAt(elapsed) * stroke.length;
+    else stroke.material.remainingOpacity = 1 - elapsed / DISMANTLE_SWEEP_MS;
     return true;
   }
 

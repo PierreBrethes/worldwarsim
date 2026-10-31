@@ -8,6 +8,7 @@ import { fr } from '@/i18n/fr';
 import { pledgedWork } from '@/domain/construction';
 import { currentStock, type OutpostView, type PlayerView } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
+import { buildingLabelId } from './board-markers';
 import type { Seat } from '@/data/session';
 
 /**
@@ -29,12 +30,18 @@ export function DismantleCard({
   view,
   outpost,
   at,
+  onDismantling,
+  onRefused,
   onClose,
 }: {
   seat: Seat;
   view: PlayerView;
   outpost: OutpostView;
   at: { x: number; y: number };
+  /** Said before the server is asked: the map plays the fall on the view that loses the point —
+   *  its pin, the area it colours if any, the maquettes it anchors (#340). */
+  onDismantling: (fall: { area: boolean; buildings: ReadonlyArray<string> }) => void;
+  onRefused: () => void;
   onClose: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +85,13 @@ export function DismantleCard({
   const raze = () => {
     setError(null);
     setRazing(true);
+    onDismantling({
+      area: (colour?.regions ?? 0) > 0,
+      buildings: anchored.map(buildingLabelId),
+    });
     dismantle({ ...seat, outpostId: outpost.id as Id<'outposts'> }).then(onClose, (problem) => {
       setRazing(false);
+      onRefused();
       handleError(problem, setError);
     });
   };
