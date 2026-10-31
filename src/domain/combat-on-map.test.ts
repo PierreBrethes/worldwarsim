@@ -6,6 +6,8 @@ import {
   freshCombats,
   homewardOf,
   playsWhole,
+  reportOf,
+  stampStays,
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
 import { REPLAY_MS, stepBounds } from './replay';
@@ -136,5 +138,57 @@ describe('homewardOf', () => {
     const mineWest = arc([4.9, 49.7], [3, 49]);
     const theirsEast = arc([4.9, 49.7], [6, 50], 'enemyDetected');
     expect(homewardOf(point, [theirsEast, mineWest], 'attacker')).toEqual([3, 49]);
+  });
+});
+
+describe('reportOf', () => {
+  const lose = (mine: ReplayView['mine'], over: Partial<ReplayView> = {}): ReplayView => ({
+    ...view,
+    mine,
+    ...over,
+  });
+
+  it('reads the attacker who wins, then who loses', () => {
+    expect(reportOf(view).title).toBe('position enlevée');
+    expect(reportOf({ ...view, won: false }).title).toBe('attaque repoussée');
+  });
+
+  it('reads the defender who wins, then who loses', () => {
+    expect(reportOf({ ...view, side: 'defender' }).title).toBe('position tenue');
+    expect(reportOf({ ...view, side: 'defender', won: false }).title).toBe('position perdue');
+  });
+
+  it('is red when the reader wins, black when he loses', () => {
+    expect(reportOf(view).won).toBe(true);
+    expect(reportOf({ ...view, won: false }).won).toBe(false);
+  });
+
+  it('counts our own pieces lost, summed over the kinds, destroyed then routed', () => {
+    const mine = [
+      { role: 'infantry', tier: 1, troops: 3, lost: 5, routed: 1, destroyed: 2 },
+      { role: 'armor', tier: 1, troops: 2, lost: 5, routed: 1, destroyed: 1 },
+    ] as const;
+    expect(reportOf(lose(mine)).losses).toBe('nos pièces : 3 détruites, 2 en déroute');
+  });
+
+  it('agrees in number, and drops the part that is zero', () => {
+    const one = (destroyed: number, routed: number) =>
+      lose([{ role: 'infantry', tier: 1, troops: 3, lost: 1, routed, destroyed }]);
+    expect(reportOf(one(1, 0)).losses).toBe('nos pièces : 1 détruite');
+    expect(reportOf(one(0, 2)).losses).toBe('nos pièces : 2 en déroute');
+  });
+
+  it('says no loss when nothing fell nor fled', () => {
+    expect(
+      reportOf(lose([{ role: 'infantry', tier: 1, troops: 3, lost: 0, routed: 0, destroyed: 0 }]))
+        .losses,
+    ).toBe('nos pièces : aucune perte');
+  });
+});
+
+describe('stampStays', () => {
+  it('stays when the camera arrives by the combat, goes when it arrives far from it', () => {
+    expect(stampStays(2, 10)).toBe(true);
+    expect(stampStays(30, 10)).toBe(false);
   });
 });
