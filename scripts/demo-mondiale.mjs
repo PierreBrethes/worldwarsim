@@ -62,6 +62,18 @@
  * lance sur elle une colonne française de même force, qui arrive dans `s` secondes (25 par
  * défaut) : le temps d'ouvrir la carte, où le combat se joue à son point.
  *
+ * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
+ * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
+ * `capitale-<nation>`. `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
+ * rangs et une artillerie, et une escorte et un porte-avions en golfe de Gascogne (`rangs-mer`).
+ * `--recrue [s]` forme une infanterie de rang 2 à la caserne de `--niveaux` et la fait sortir dans
+ * `s` secondes (25 par défaut) : lieu `recrue`. `--rejeu` joue le combat de `--combat` tout de
+ * suite et attend son compte rendu : un combat passé, à rejouer (`combat`). `--hors-portee` pose
+ * un QG à Paris et une mine sur le charbon de la Ruhr, sans avant-poste (`hors-portee`).
+ * `--pillage` pose la scène de `--points` sans y envoyer l'escorte, fait marcher deux fantassins
+ * français sur l'entrepôt adverse relevé en Pologne, et recule leur présence d'une heure et demie :
+ * trois caisses sur quatre sont tombées (`pillage`).
+ *
  *     npm run demo:mondiale
  *
  * Refuse toute URL qui n'est pas 127.0.0.1 ou localhost. Les comptes (mot de passe compris) vont
@@ -95,6 +107,19 @@ const idleCenter = process.argv.includes('--centre');
 const research = idleCenter || process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
+/** `--pillage` (#211) : `--points`, sans l'escorte en mer, plus un pillage en phase de présence. */
+const pillaging = process.argv.includes('--pillage');
+/** `--huit` (#211) : huit comptes, une nation chacun, une revue à chaque capitale. */
+const eight = process.argv.includes('--huit');
+/** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
+const ranks = process.argv.includes('--rangs');
+/** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
+const recruitAt = process.argv.indexOf('--recrue');
+const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
+/** `--rejeu` (#211) : le combat de `--combat`, joué tout de suite : un compte rendu à rejouer. */
+const replaying = process.argv.includes('--rejeu');
+/** `--hors-portee` (#211) : une mine qu'aucun avant-poste ne couvre. */
+const unreached = process.argv.includes('--hors-portee');
 /** `--edition` : deux éditions de presse tout de suite, la seconde avec ses variations (#180). */
 const editions = process.argv.includes('--edition');
 const oilLine = process.argv.includes('--petrole');
@@ -102,7 +127,11 @@ const mines = process.argv.includes('--exploitations');
 /** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 (ADR 0031). */
 /** `--raser` (#326) : la caserne de `--niveaux` et la garnison de `--echelle`, à raser. */
 const razing = process.argv.includes('--raser');
-const levels = razing || process.argv.includes('--niveaux') || process.argv.includes('--echelle');
+const levels =
+  razing ||
+  recruitIn !== null ||
+  process.argv.includes('--niveaux') ||
+  process.argv.includes('--echelle');
 const works = levels || process.argv.includes('--chantiers');
 const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
@@ -156,10 +185,20 @@ if (cliUrl !== url)
   throw new Error(`CONVEX_SELF_HOSTED_URL (${cliUrl}) ≠ VITE_CONVEX_URL (${url})`);
 
 const saved = existsSync(accountsFile) ? JSON.parse(readFileSync(accountsFile, 'utf8')) : {};
-const accounts = {
-  a: saved.a ?? { nickname: 'DemoAlpha', password: randomBytes(9).toString('base64url') },
-  b: saved.b ?? { nickname: 'DemoBravo', password: randomBytes(9).toString('base64url') },
-};
+/** L'ordre des nations est celui de `scripts/banc-mondiale.mjs` ; a et b restent la France et le Royaume-Uni. */
+const NATIONS = ['france', 'uk', 'germany', 'italy', 'ussr', 'usa', 'japan', 'china'];
+const NICKNAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'];
+const KEYS = 'abcdefgh'.split('');
+const seats = eight ? 8 : 2;
+const accounts = Object.fromEntries(
+  KEYS.slice(0, seats).map((key, k) => [
+    key,
+    saved[key] ?? {
+      nickname: `Demo${NICKNAMES[k]}`,
+      password: randomBytes(9).toString('base64url'),
+    },
+  ]),
+);
 const client = new ConvexHttpClient(url);
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -174,20 +213,21 @@ async function signIn({ nickname, password }) {
 
 const cli = (args) => execFileSync('npx', ['convex', ...args], { cwd: root, encoding: 'utf8' });
 
-const tokenA = await signIn(accounts.a);
-await pause(400);
-const tokenB = await signIn(accounts.b);
+const tokens = [];
+for (const key of KEYS.slice(0, seats)) {
+  if (tokens.length > 0) await pause(400);
+  tokens.push(await signIn(accounts[key]));
+}
+const [tokenA, tokenB] = tokens;
 
 const { code, seasonId } = await client.mutation(api.seasons.create, {
   token: tokenA,
   compensation: 0,
   mode: 'mondiale',
 });
-await client.mutation(api.seasons.join, { token: tokenB, code });
-for (const [token, nation] of [
-  [tokenA, 'france'],
-  [tokenB, 'uk'],
-]) {
+for (const token of tokens.slice(1)) await client.mutation(api.seasons.join, { token, code });
+for (const [k, token] of tokens.entries()) {
+  const nation = NATIONS[k];
   await client.mutation(api.players.reserveNation, { token, seasonId, nation });
   await client.mutation(api.players.declareReady, { token, seasonId, ready: true });
 }
@@ -221,6 +261,42 @@ if (!bare) {
         lat: at[nation][1],
       }),
     ]);
+  }
+  /** `--huit` : une revue à chaque capitale, et son lieu `capitale-<nation>`. */
+  if (eight) {
+    const capitals = JSON.parse(
+      cli(['run', 'dev:reviewScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
+    );
+    for (const [nation, point] of Object.entries(capitals)) places[`capitale-${nation}`] = point;
+  }
+  /** `--rangs` : les deux rangs, une artillerie à côté de Paris ; une flotte au large de la Bretagne. */
+  if (ranks && scene.a !== null) {
+    const beside = { lon: 2.47, lat: 48.85 };
+    const offshore = { lon: -6, lat: 47.5 };
+    places.rangs = [beside.lon, beside.lat];
+    places['rangs-mer'] = [offshore.lon, offshore.lat];
+    for (const [role, tier, at] of [
+      ['infantry', 1, beside],
+      ['infantry', 2, beside],
+      ['armor', 1, beside],
+      ['armor', 2, beside],
+      ['artillery', 1, beside],
+      ['escort', 1, offshore],
+      ['carrier', 1, offshore],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, tier, count: 1, ...at }),
+      ]);
+  }
+  /** `--hors-portee` : le QG de Paris et une mine de la Ruhr, que nul avant-poste ne couvre. */
+  if (unreached && scene.a !== null) {
+    const ruhr = JSON.parse(readFileSync(`${root}public/deposits.json`, 'utf8')).find(
+      (deposit) => deposit.id === 'coal-DEU-1572',
+    );
+    places['hors-portee'] = [ruhr.lon, ruhr.lat];
+    cli(['run', 'dev:unreachedMineScene', JSON.stringify({ playerId: scene.a })]);
   }
   /** `--pile-mixte` : un camion, un chasseur et deux fantassins sur un même point (#286). */
   if (process.argv.includes('--pile-mixte') && scene.a !== null)
@@ -391,11 +467,32 @@ if (!bare) {
       });
     }
   }
+  /** `--recrue` : une infanterie de rang 2 formée à la caserne, qui sort dans `recruitIn` secondes. */
+  if (recruitIn !== null && scene.a !== null) {
+    cli(['run', 'dev:grantCards', JSON.stringify({ playerId: scene.a, cards: ['infantryMk2'] })]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const barracks = me.buildings.find((building) => building.key === 'barracks');
+    places.recrue = barracks.point;
+    await client.mutation(api.troops.recruit, {
+      token: tokenA,
+      seasonId,
+      buildingId: barracks.id,
+      role: 'infantry',
+      tier: 2,
+    });
+    cli([
+      'run',
+      'dev:finishRecruitments',
+      JSON.stringify({ playerId: scene.a, afterMs: recruitIn * 1000 }),
+    ]);
+  }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
   /** Bakou, Narvik, Singapour et Halifax tenus par la France, Dakar par l'adversaire, de quoi lire leurs règles. */
-  if (points && scene.a !== null && scene.b !== null) {
+  if ((points || pillaging) && scene.a !== null && scene.b !== null) {
     cli(['run', 'dev:pointsScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+  }
+  if (points && scene.a !== null && scene.b !== null) {
     /** L'escorte prend la mer : sous Halifax, ce mouvement maritime ne prend pas de slot. */
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const fleet = me.troops.find((troop) => troop.role === 'escort');
@@ -406,6 +503,44 @@ if (!bare) {
       troopIds: [fleet.id],
       point: { lon: -34, lat: 47 },
     });
+  }
+  /** Deux fantassins marchent sur l'entrepôt relevé, arrivent, et leur présence est déjà entamée :
+   *  trois caisses sur quatre sont tombées (`loadingAt`). */
+  if (pillaging && scene.a !== null && scene.b !== null) {
+    const warehouse = (
+      await client.query(api.view.playerView, { token: tokenA, seasonId })
+    ).surveyedInstallations.find((one) => one.key === 'warehouse');
+    if (warehouse === undefined) throw new Error('scène du pillage : aucun entrepôt relevé');
+    const [lon, lat] = warehouse.point;
+    places.pillage = [lon, lat];
+    const from = { lon: lon - 0.4, lat };
+    cli([
+      'run',
+      'dev:spawnTroops',
+      JSON.stringify({ playerId: scene.a, role: 'infantry', count: 2, ...from }),
+    ]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const column = me.troops.filter(
+      (troop) =>
+        troop.role === 'infantry' &&
+        troop.stationedAt.kind === 'point' &&
+        Math.abs(troop.stationedAt.lonLat[0] - from.lon) < 0.01,
+    );
+    await client.mutation(api.movements.plunder, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: column.map((troop) => troop.id),
+      buildingId: warehouse.id,
+    });
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+    await pause(4000);
+    const moved = cli([
+      'run',
+      'dev:pastPresence',
+      JSON.stringify({ playerId: scene.a, hours: 1.5 }),
+    ]);
+    if (!/\b1\b/.test(moved)) throw new Error('scène du pillage : aucune présence en cours');
   }
   /** Rangoun à la France, et deux guetteurs de l'adversaire de part et d'autre de la mi-portée. */
   if (tours && rangoon && scene.a !== null && scene.b !== null) {
@@ -584,7 +719,7 @@ if (!bare) {
       });
     }
   }
-  if (combatIn !== null && scene.a !== null && scene.b !== null) {
+  if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
     const garrison = { lon: 4.94, lat: 49.7 };
     places.combat = [garrison.lon, garrison.lat];
     const from = { lon: 4.72, lat: 49.66 };
@@ -611,7 +746,20 @@ if (!bare) {
       troopIds: column,
       target: { kind: 'camp', campId: camp.id },
     });
-    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a, afterMs: combatIn * 1000 })]);
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: replaying ? 0 : combatIn * 1000 }),
+    ]);
+    /** `--rejeu` : le combat est passé quand le compte rendu paraît dans la vue. */
+    if (replaying) {
+      for (let tries = 0; tries < 30; tries++) {
+        await pause(1000);
+        const { reports } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+        if (reports.length > 0) break;
+        if (tries === 29) throw new Error('scène du rejeu : aucun combat résolu en 30 s');
+      }
+    }
   }
   /** Les fantassins et les chars entrent dans la caserne (#265). */
   if ((scale || razing) && scene.a !== null) {
