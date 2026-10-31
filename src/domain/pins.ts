@@ -2,6 +2,11 @@ import { fr } from '@/i18n/fr';
 import { anchorOf, type LabelAnchor, type LabelType, type MapMarker } from './labels';
 import type { ArcView } from './player-view';
 
+/** The id an outpost's marker, label and pin share on the board. */
+export const outpostPinId = (outpostId: string): string => `outpost-${outpostId}`;
+
+export type PinShape = 'pile' | 'building' | 'outpost';
+
 /**
  * **Ce qu'une épingle dit au loin** (#234) : sa forme dit ce que c'est, son côté à qui. Elle ne
  * lit que ce que la vue sert déjà : l'encre de ma nation pour ce qui est à moi ; pour un relevé,
@@ -9,11 +14,6 @@ import type { ArcView } from './player-view';
  * dernière position connue n'a jamais de nation, seulement son heure. La forme est la garantie :
  * `seen` et `lost` n'ont pas de champ `ink`.
  */
-/** The id an outpost's marker, label and pin share on the board. */
-export const outpostPinId = (outpostId: string): string => `outpost-${outpostId}`;
-
-export type PinShape = 'pile' | 'building' | 'outpost';
-
 export type Pin =
   | {
       readonly id: string;

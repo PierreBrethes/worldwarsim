@@ -1498,7 +1498,8 @@ export function WorldMap({
     if (readyEngine !== null) readyEngine.razing = new Set(razing);
   }, [readyEngine, razing]);
 
-  // Before the pins and the points: a view that loses a dismantled one finds it listed.
+  // Said when the player confirms, long before the view that loses the point arrives: the next
+  // `displayPins` and the points' effect below find it listed.
   const dismantled = useRef(dismantling);
   dismantled.current = dismantling;
   useEffect(() => {

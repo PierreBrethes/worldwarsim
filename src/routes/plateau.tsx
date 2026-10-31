@@ -1,4 +1,4 @@
-import { pinsOf } from '@/domain/pins';
+import { outpostPinId, pinsOf } from '@/domain/pins';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
@@ -2328,7 +2328,7 @@ function BoardContent({
       const { place } = line;
       if (place.kind === 'movement') setFocus({ ids: [place.arcId], nonce: Date.now() });
       else if (place.kind === 'outpost')
-        setFocus({ ids: [`outpost-${place.outpostId}`], nonce: Date.now() });
+        setFocus({ ids: [outpostPinId(place.outpostId)], nonce: Date.now() });
       else focusBuilding(place);
     },
     [focusBuilding],
@@ -2560,7 +2560,9 @@ function BoardContent({
                   building={razed}
                   at={demolition}
                   onRazing={() => setRazing((ids) => [...ids, buildingLabelId(razed)])}
-                  onRefused={() => setRazing([])}
+                  onRefused={() =>
+                    setRazing((ids) => ids.filter((id) => id !== buildingLabelId(razed)))
+                  }
                   onClose={() => setDemolition(null)}
                 />
               )}
@@ -2577,9 +2579,9 @@ function BoardContent({
                     setLeaving((points) => [...points, { id: dismantled.id, area }]);
                     setRazing((ids) => [...ids, ...buildings]);
                   }}
-                  onRefused={() => {
-                    setLeaving([]);
-                    setRazing([]);
+                  onRefused={(buildings) => {
+                    setLeaving((points) => points.filter(({ id }) => id !== dismantled.id));
+                    setRazing((ids) => ids.filter((id) => !buildings.includes(id)));
                   }}
                   onClose={() => setDismantling(null)}
                 />

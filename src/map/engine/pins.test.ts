@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Vector3, type BufferGeometry } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { Pin } from '@/domain/pins';
 import { PROJECTION, WorldFrame } from './frame';
 import { isPinOf, PinLayer } from './pins';
 import { REACH } from './halo';
-import { PIN_FALL_MS } from './timelines/dismantle';
+import { PIN_FALL_MS, PIN_TILT_MS } from './timelines/dismantle';
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ width: 10 }) });
@@ -253,6 +253,32 @@ describe('PinLayer — a dismantled outpost’s pin leaves (#340)', () => {
     layer.layout(eye, W, H, new Map(), new Map(), eye.position, 1000 + PIN_FALL_MS);
     expect(layer.active).toBe(false);
     expect(lit(layer)).toBe(0);
+  });
+
+  it('writes how far it has tipped into the shader’s fourth component', () => {
+    const { eye, layer } = leaving();
+    layer.layout(eye, W, H, new Map(), new Map(), eye.position, 1000 + PIN_TILT_MS);
+    const extra = (
+      layer as unknown as { shapes: { mesh: { geometry: BufferGeometry } } }
+    ).shapes.mesh.geometry.getAttribute('aExtra');
+    expect(extra.getW(0)).toBeCloseTo(1.52);
+  });
+
+  it('does not tip when motion is reduced: it says where it stood, for a ring of ink', () => {
+    const eye = eyeOver(paris, 30);
+    const layer = new PinLayer(
+      frame,
+      () => null,
+      false,
+      () => {},
+      () => null,
+    );
+    layer.display([outpost]);
+    const stood = layer.leave('outpost-o', 1000, 'reduced');
+    layer.display([]);
+    layer.layout(eye, W, H, new Map(), new Map(), eye.position, 1100);
+    expect(stood).not.toBeNull();
+    expect(layer.active).toBe(false);
   });
 
   it('does not play when motion is cut: the pin is simply gone', () => {

@@ -39,6 +39,10 @@ describe('leftReaches', () => {
     ).toEqual([{ at: [2, 49], km: 120 }]);
   });
 
+  it('names nothing for a site still under works: it never coloured an area', () => {
+    expect(leftReaches([point('a', 120, 500)], [], new Set(['a']))).toEqual([]);
+  });
+
   it('names nothing for a point the view still serves, or one nobody dismantled', () => {
     expect(leftReaches([point('a', 120, null)], [point('a', 120, null)], new Set(['a']))).toEqual(
       [],

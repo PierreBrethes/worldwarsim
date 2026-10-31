@@ -210,7 +210,13 @@ describe('démanteler un avant-poste', () => {
     const point = await plant(t, seat);
     await t.run(async (ctx) => ctx.db.patch(point, { standsAt: Date.now() + 3_600_000 }));
     const near = [...regionsWithinReach(regionFacts(PRAHOVA)!.point, outpostReachKm(1)).keys()];
-    await anchor(t, guest, 'listening', near.find((id) => id !== PRAHOVA)!, null);
+    await anchor(
+      t,
+      guest,
+      'listening',
+      near.find((id) => id !== PRAHOVA)!,
+      null,
+    );
     const rows = () =>
       t.run(async (ctx) => {
         const player = await seatIn(ctx, seat);

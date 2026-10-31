@@ -1,7 +1,13 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from './_generated/server';
 import { outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
 import { razeBuilding } from './buildings';
@@ -332,7 +338,9 @@ export const soleHold = query({
     const now = Date.now();
     return {
       /** Un chantier n'a rien coloré : `soleHoldOf` le tient pour en service, pas la carte. */
-      regions: isStanding(outpost, now) ? (await soleHoldIds(ctx, player._id, outpost, now)).length : 0,
+      regions: isStanding(outpost, now)
+        ? (await soleHoldIds(ctx, player._id, outpost, now)).length
+        : 0,
       /** Les mâts qui tombent avec lui : la fiche les nomme et la carte les affaisse. */
       anchored: (await anchoredBuildings(ctx, player._id, outpost, now)).map((building) => ({
         key: building.key,

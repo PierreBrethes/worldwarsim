@@ -1097,23 +1097,21 @@ export class MapEngine {
   /** A point of mine now holds this far: its reach is inked once around it. */
   inkReach(at: LonLat, km: number): void {
     this.invalidate();
-    const ring = circleAround(this.frame, at, km).positions;
-    const vertices = Array.from(
-      { length: ring.length / 3 },
-      (_, i) => new Vector3(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2]),
-    );
-    this.ink.traceReach(vertices, performance.now());
+    this.ink.traceReach(this.circleVertices(at, km), performance.now());
   }
 
   /** **The area a dismantled point coloured goes** (#340): its circle is erased, turning. */
   eraseReach(at: LonLat, km: number): void {
     this.invalidate();
+    this.ink.eraseReach(this.circleVertices(at, km), performance.now());
+  }
+
+  private circleVertices(at: LonLat, km: number): Vector3[] {
     const ring = circleAround(this.frame, at, km).positions;
-    const vertices = Array.from(
+    return Array.from(
       { length: ring.length / 3 },
       (_, i) => new Vector3(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2]),
     );
-    this.ink.eraseReach(vertices, performance.now());
   }
 
   displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {

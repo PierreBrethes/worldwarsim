@@ -172,11 +172,7 @@ export class PinLayer {
   private carried: Vector3 | null = null;
   private walking: ReadonlyArray<Walking> = [];
   /** The pins whose piece the server took (#340): they stay, tipping, until their fall is over. */
-  private leaving: Array<{
-    readonly placed: Placed;
-    readonly since: number;
-    readonly motion: MapMotion;
-  }> = [];
+  private leaving: Array<{ readonly placed: Placed; readonly since: number }> = [];
   private dirty = true;
   /** What a combat played on the map covers (#272): no pin there tells the state after it. */
   private covered: ((at: Vector3) => boolean) | null = null;
@@ -217,12 +213,17 @@ export class PinLayer {
     return this.leaving.length > 0;
   }
 
-  /** **A pin the next `display` drops is let fall** (#340): call before it, with the motion of
-   *  the moment. Cut motion lets none: it is simply gone. */
-  leave(id: string, now: number, motion: MapMotion): void {
+  /**
+   * **A pin the next `display` drops is let fall** (#340): call before it, with the motion of the
+   * moment. Only full motion tips it. It answers where it stood when it does not (reduced: the
+   * caller rings the place with ink), `null` when it was not laid out or motion is cut.
+   */
+  leave(id: string, now: number, motion: MapMotion): Vector3 | null {
     const placed = this.placed.find(({ pin }) => pin.id === id);
-    if (placed === undefined || placed.at === null || motion === 'off') return;
-    this.leaving.push({ placed: { pin: placed.pin, at: placed.at.clone() }, since: now, motion });
+    if (placed === undefined || placed.at === null || motion === 'off') return null;
+    if (motion === 'reduced') return placed.at.clone();
+    this.leaving.push({ placed: { pin: placed.pin, at: placed.at.clone() }, since: now });
+    return null;
   }
 
   /** The regions landed under a building's anchor, the frame changed, or a ring placed its
@@ -363,11 +364,11 @@ export class PinLayer {
       });
     }
     this.leaving = this.leaving.filter(({ since }) => now - since < PIN_FALL_MS);
-    for (const { placed, since, motion } of this.leaving) {
+    for (const { placed, since } of this.leaving) {
       const weight = weightAt(placed.at!, placed.pin);
       const [sx, sy, inside] = screen(placed.at!);
       if (weight <= 0 || !inside) continue;
-      const { tilt, opacity } = pinFallAt(now - since, motion);
+      const { tilt, opacity } = pinFallAt(now - since);
       // No ids: it is nothing to point at, as the copy in hand.
       this.marks.push({
         ...this.markOf({ sx, sy, points: [{ placed, sx, sy, weight: weight * opacity }] }),

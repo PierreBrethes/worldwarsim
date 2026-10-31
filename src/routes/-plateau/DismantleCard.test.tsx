@@ -10,7 +10,9 @@ const dismantle = vi.fn(() => {
   calls.push('dismantle');
   return Promise.resolve();
 });
-let colour: { regions: number } | undefined = { regions: 2 };
+type Told = { regions: number; anchored: Array<{ key: string; point: [number, number] }> };
+const told = (): Told => ({ regions: 2, anchored: [{ key: 'listening', point: [2, 48] }] });
+let colour: Told | undefined = told();
 vi.mock('convex/react', () => ({ useMutation: () => dismantle, useQuery: () => colour }));
 vi.mock('../../../convex/_generated/api', () => ({
   api: { outposts: { dismantle: 'dismantle', soleHold: 'soleHold' } },
@@ -25,7 +27,7 @@ afterEach(() => {
   cleanup();
   calls.length = 0;
   dismantle.mockClear();
-  colour = { regions: 2 };
+  colour = told();
 });
 
 const outpost = {
@@ -37,10 +39,11 @@ const outpost = {
   standsAt: null,
 } as unknown as OutpostView;
 const mast = { id: 'b1', key: 'listening', point: [2, 48], regionId: 'r2', name: 'Écoute' };
+const other = { id: 'b2', key: 'farm', point: [5, 45], regionId: 'r3', name: 'Ferme' };
 const view = {
   me: {
-    regions: [{ id: 'r2', site: { outpostId: 'o1' } }],
-    buildings: [mast],
+    regions: [],
+    buildings: [mast, other],
     troops: [],
     resources: { ammunition: { cap: 0 }, oil: { cap: 0 }, coal: { cap: 0 } },
   },
@@ -49,7 +52,7 @@ const view = {
 
 const card = (
   onDismantling: (fall: { area: boolean; buildings: ReadonlyArray<string> }) => void,
-  onRefused = () => {},
+  onRefused: (buildings: ReadonlyArray<string>) => void = () => {},
 ) =>
   render(
     <DismantleCard
@@ -70,11 +73,14 @@ describe('DismantleCard', () => {
     fireEvent.click(screen.getByText(fr.dismantle.submit));
     await waitFor(() => expect(dismantle).toHaveBeenCalled());
     expect(calls).toEqual(['dismantling', 'dismantle']);
+    // Only the masts the server names: the farm of another site is not told to fall.
     expect(said).toHaveBeenCalledWith({ area: true, buildings: ['building-listening@2,48'] });
+    expect(screen.getByText(/Écoute/)).toBeTruthy();
+    expect(screen.queryByText(/Ferme/)).toBeNull();
   });
 
   it('sweeps no area when no region loses its colour, or the count has not come yet', async () => {
-    colour = { regions: 0 };
+    colour = { regions: 0, anchored: [] };
     const said = vi.fn();
     card(said);
     fireEvent.click(screen.getByText(fr.dismantle.submit));
@@ -87,6 +93,6 @@ describe('DismantleCard', () => {
     const refused = vi.fn();
     card(() => {}, refused);
     fireEvent.click(screen.getByText(fr.dismantle.submit));
-    await waitFor(() => expect(refused).toHaveBeenCalled());
+    await waitFor(() => expect(refused).toHaveBeenCalledWith(['building-listening@2,48']));
   });
 });

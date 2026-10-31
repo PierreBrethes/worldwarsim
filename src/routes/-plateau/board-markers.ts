@@ -485,7 +485,7 @@ function garrisonPiles(
       pile(
         { kind: 'outpost', outpostId: outpost.id },
         { lonLat: outpost.lonLat },
-        `outpost-${outpost.id}`,
+        outpostPinId(outpost.id),
       ),
     ),
   ];
@@ -550,7 +550,7 @@ export function markerOfStation(
   if (station.kind === 'point') return stackLabelId(station);
   if (station.kind === 'outpost') {
     return view.me.outposts.some((candidate) => candidate.id === station.outpostId)
-      ? `outpost-${station.outpostId}`
+      ? outpostPinId(station.outpostId)
       : null;
   }
   if (station.kind !== 'building') return null;

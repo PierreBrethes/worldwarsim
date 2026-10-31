@@ -29,7 +29,7 @@ export function raisedReaches(
 /**
  * **The area a dismantled point coloured** (#340): the points of the previous view that this one
  * no longer serves and that the player confirmed dismantling with an area to lose. The server
- * serves the view; the map only plays what it was told.
+ * serves the view; the map only plays what it was told. A site still under works coloured nothing.
  */
 export function leftReaches(
   before: ReadonlyArray<ReachedOutpost>,
@@ -38,7 +38,7 @@ export function leftReaches(
 ): ReadonlyArray<{ readonly at: LonLat; readonly km: number }> {
   const kept = new Set(now.map(({ id }) => id));
   return before.flatMap((point) =>
-    dismantled.has(point.id) && !kept.has(point.id)
+    dismantled.has(point.id) && point.standsAt === null && !kept.has(point.id)
       ? [{ at: point.lonLat, km: point.reachKm }]
       : [],
   );

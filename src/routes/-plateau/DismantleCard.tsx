@@ -41,7 +41,7 @@ export function DismantleCard({
   /** Said before the server is asked: the map plays the fall on the view that loses the point —
    *  its pin, the area it colours if any, the maquettes it anchors (#340). */
   onDismantling: (fall: { area: boolean; buildings: ReadonlyArray<string> }) => void;
-  onRefused: () => void;
+  onRefused: (buildings: ReadonlyArray<string>) => void;
   onClose: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -57,14 +57,11 @@ export function DismantleCard({
 
   const regionName =
     view.me.regions.find((region) => region.id === outpost.regionId)?.name ?? outpost.hostCountry;
-  /** Ce que ce point ancre, tel que la vue rattache les régions à leur site : les mâts d'avant
-   *  le champ se replacent côté serveur par le sol, donc la carte peut en annoncer un de moins —
-   *  jamais un de trop, et c'est le sens de la précaution. */
-  const anchored = view.me.buildings.filter(
-    (building) =>
-      view.me.regions.find((region) => region.id === building.regionId)?.site?.outpostId ===
-      outpost.id,
-  );
+  /** **Les mâts qui tombent avec lui, dits par le serveur** (`anchoredBuildings`) : l'ancrage est
+   *  un champ écrit à la pose, que la vue ne rattache à aucune région. On les retrouve sur la vue
+   *  par leur clé et leur point, l'identité que la carte leur donne. */
+  const falling = new Set((colour?.anchored ?? []).map(buildingLabelId));
+  const anchored = view.me.buildings.filter((building) => falling.has(buildingLabelId(building)));
   const queued = pledgedWork(view).find((work) => work.outpostId === outpost.id);
   /** Une entrée qui court a déjà consommé son tour : c'est la règle de la file, et le
    *  démantèlement ne l'assouplit pas (`constructions.cancel`). */
@@ -87,11 +84,11 @@ export function DismantleCard({
     setRazing(true);
     onDismantling({
       area: (colour?.regions ?? 0) > 0,
-      buildings: anchored.map(buildingLabelId),
+      buildings: [...falling],
     });
     dismantle({ ...seat, outpostId: outpost.id as Id<'outposts'> }).then(onClose, (problem) => {
       setRazing(false);
-      onRefused();
+      onRefused([...falling]);
       handleError(problem, setError);
     });
   };
@@ -121,9 +118,9 @@ export function DismantleCard({
 
           <ul className="font-(family-name:--font-mono) text-[11.5px] leading-[1.7]">
             {colour !== undefined && <li>{fr.dismantle.colour(colour.regions)}</li>}
-            {anchored.length > 0 && (
+            {falling.size > 0 && (
               <li>
-                {fr.dismantle.anchored(anchored.length)} —{' '}
+                {fr.dismantle.anchored(falling.size)} —{' '}
                 {anchored.map((building) => building.name).join(', ')}
               </li>
             )}
