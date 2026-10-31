@@ -3,7 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
- *       [--demarrage] [--repos] [--epingles] [--sequences] [--combats]
+ *       [--demarrage] [--repos] [--epingles] [--sequences] [--combats] [--files]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -79,6 +79,10 @@ const sequencesOnly = args.includes('--sequences');
  *  (#272), signalés au moteur avec leur vue (`mapEngine.cue`) : un de trois pièces par camp, trois
  *  à la fois, puis un de douze par camp — le seuil au-delà duquel le combat ne joue plus. */
 const combatsOnly = args.includes('--combats');
+/** `--files` (`npm run demo:mondiale -- --files`, une quinzaine de minutes après) : le démarrage,
+ *  puis les trois colonnes de douze troupes cadrées au rapproché, au milieu de leurs têtes, dix
+ *  secondes de marche (#276). */
+const filesOnly = args.includes('--files');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -941,6 +945,25 @@ async function play(profileName, pass) {
     );
     await gesture('un combat, 12 contre 12', () => play([['banc-5', ...around, 12]]), 10500);
   };
+  if (filesOnly) {
+    await page.evaluate(() => {
+      const E = window.mapEngine;
+      const heads = [...E.arcs.headPositions.values()];
+      const middle = heads
+        .reduce((sum, head) => sum.add(head), heads[0].clone().set(0, 0, 0))
+        .divideScalar(heads.length)
+        .setY(0);
+      const away = E.camera.position.clone().sub(E.controls.target).normalize();
+      E.controls.target.copy(middle);
+      E.camera.position.copy(middle).addScaledVector(away, 3);
+      E.controls.update();
+      E.invalidate();
+    });
+    await page.waitForTimeout(5000);
+    await gesture('trois files au pas 10 s', () => page.waitForTimeout(10000), 0);
+    await context.close();
+    return { boot, results };
+  }
   if (combatsOnly) {
     await combatGestures();
     await context.close();
@@ -1484,7 +1507,7 @@ try {
       report.profiles[name] = { boot, runs };
       continue;
     }
-    if (restOnly || pinsOnly || sequencesOnly || combatsOnly) {
+    if (restOnly || pinsOnly || sequencesOnly || combatsOnly || filesOnly) {
       const { gestures } = merge(runs);
       report.profiles[name] = { boot, gestures, runs };
       text += `${table(gestures)}\n`;

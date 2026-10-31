@@ -44,6 +44,9 @@
  * `--pile-mixte` (#286) pose un camion, un chasseur et deux fantassins sur un même point : une pile
  * où les nouveaux modèles côtoient les anciens. `--escouade` (#283) pose un camion, un char et deux
  * fantassins en Essonne et dans le Cotentin, et les dissout : la couronne, puis contre la mer.
+ * `--files` (#276) fait partir de Champagne vers la Hesse trois colonnes françaises de douze
+ * troupes à pied (six fantassins, trois chars, trois canons) : la file à mi-route, une
+ * quinzaine de minutes après, et `lieu=@files` cadre la première où elle est dessinée.
  * `--sans-place` (#295) pose huit pièces au bord de la côte irlandaise : U y est refusé, la barre
  * de sélection le dit avant le geste.
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
@@ -153,6 +156,8 @@ const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
 const lisbon = process.argv.includes('--lisbonne');
 /** `--trajets` : une colonne Paris → Berlin à pied, une escorte Brest → Marseille par Gibraltar (#231). */
 const threads = process.argv.includes('--trajets');
+/** `--files` : trois colonnes de douze troupes de terre en route vers l'est (#276). */
+const files = process.argv.includes('--files');
 /** `--passagers` : un camion chargé de deux fantassins en Beauce, un autre vide (#238). */
 const passengers = process.argv.includes('--passagers');
 /** `--gisements` : une mine à poser, le Hainaut prenable, la Sarre prise, la Ruhr hors de portée (#239). */
@@ -725,6 +730,48 @@ if (!bare) {
         point: to,
       });
     }
+  }
+  if (files && scene.a !== null) {
+    // Trois colonnes à la fois : un slot de mouvement de plus que les deux du départ.
+    cli([
+      'run',
+      'dev:grantCards',
+      JSON.stringify({ playerId: scene.a, cards: ['transmissions1'] }),
+    ]);
+    const columns = [49.6, 49.1, 48.6].map((lat) => ({
+      from: { lon: 3.2, lat },
+      to: { lon: 9.5, lat: lat + 0.8 },
+    }));
+    for (const { from } of columns)
+      for (const [role, count] of [
+        ['infantry', 6],
+        ['armor', 3],
+        ['artillery', 3],
+      ])
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId: scene.a, role, count, fuel: 20, ...from }),
+        ]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    for (const { from, to } of columns)
+      await client.mutation(api.movements.marchTo, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'point', point: from },
+        troopIds: me.troops
+          .filter(
+            (one) =>
+              one.stationedAt.kind === 'point' &&
+              Math.abs(one.stationedAt.lonLat[0] - from.lon) < 0.01 &&
+              Math.abs(one.stationedAt.lonLat[1] - from.lat) < 0.01,
+          )
+          .map((one) => one.id),
+        point: to,
+      });
+    const { movements } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const first = movements.find((one) => Math.abs(one.from.lat - columns[0].from.lat) < 0.01);
+    places.files = { id: first.id, lonLat: [first.from.lon, first.from.lat] };
   }
   if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
     const garrison = { lon: 4.94, lat: 49.7 };

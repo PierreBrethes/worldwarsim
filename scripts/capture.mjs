@@ -223,7 +223,13 @@ try {
             let target = engine.frame.projectLonLat([lon, lat], 0);
             if (id) {
               // La garnison se dessine au pied de sa maquette, pas au point de la carte.
-              const box = engine.standing.boxOf(id);
+              // A movement walks off its point: its head is aimed at, then its drawn pieces —
+              // whose box is empty while it is its pin.
+              const head = engine.arcs.headPositions.get(id);
+              if (head) target = head.clone().setY(0);
+              const box = [engine.standing.boxOf(id), engine.arcs.boxOf(id)].find(
+                (found) => found && !found.isEmpty(),
+              );
               const drawn = box ? box.getCenter(target.clone()) : engine.maquettes.drawnAt(id);
               if (drawn) target = drawn.clone().setY(0);
             }
@@ -245,7 +251,11 @@ try {
           .waitForFunction(
             (id) => {
               const E = globalThis.mapEngine;
-              return E.standing.boxOf(id) !== null || E.maquettes.drawnAt(id) !== null;
+              return (
+                E.standing.boxOf(id) !== null ||
+                E.arcs.boxOf(id)?.isEmpty() === false ||
+                E.maquettes.drawnAt(id) !== null
+              );
             },
             spot.id,
             { timeout: 10000 },

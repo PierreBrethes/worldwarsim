@@ -25,6 +25,10 @@ describe('lieu=@…', () => {
     });
     expect(spotOf('@building-barracks@1.5,47', places).lonLat).toEqual([1.5, 47]);
   });
+  it('keeps the movement a demo place names, to frame its head (#276)', () => {
+    const started = { files: { id: 'm1', lonLat: [3.2, 49.6] } };
+    expect(spotOf('@files', started)).toEqual({ id: 'm1', lonLat: [3.2, 49.6] });
+  });
   it('says which places exist when the name is unknown', () => {
     expect(() => spotOf('@nulle-part', places)).toThrow(/combat/);
   });

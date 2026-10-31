@@ -22,7 +22,9 @@ export function hourOf(raw) {
  */
 export function spotOf(spec, places = {}) {
   const name = spec.replace(/^@/, '');
-  if (places[name]) return { id: null, lonLat: places[name] };
+  // A place is a point, or a movement the demo started (`{ id, lonLat }`): its head is framed.
+  const place = places[name];
+  if (place) return Array.isArray(place) ? { id: null, lonLat: place } : place;
   const point = name.match(/[:@](-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
   if (point) return { id: name, lonLat: [Number(point[1]), Number(point[2])] };
   const known = Object.keys(places).join(', ') || 'aucun (relance `npm run demo:mondiale`)';
