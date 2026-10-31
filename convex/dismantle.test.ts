@@ -178,24 +178,22 @@ describe('démanteler un avant-poste', () => {
   });
 
   /**
-   * **La couleur part avec le point, et le relevé en garde le souvenir** (ADR 0020 §5). Le point
-   * tenait la région à jour ; démantelé, plus rien du joueur ne la couvre et elle retombe à ce
-   * qu'elle est désormais — un relevé daté, qui peut être faux dès demain. C'est exactement ce
-   * que perdre une couleur veut dire de ce côté-ci du brouillard.
+   * **La couleur part avec le point, et le sol du joueur est relevé** (décision (a) du 31/10). Le
+   * point tenait la région à jour ; démantelé, le serveur relève le sol au point : la région
+   * n'est plus à lui et sort de sa carte, au lieu de rester un souvenir daté.
    */
-  it('rend la région à son dernier relevé, faute de la tenir encore', async () => {
+  it('relève le sol au démantèlement : la région sort de la carte du joueur', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const point = await plant(t, seat);
-    const seen = (region: { state: string } | undefined) => region?.state;
     const readOf = async () =>
       (await t.query(api.control.held, seat))
         .find((holder) => holder.nickname === 'Pierre')
         ?.regions.find((region) => region.id === PRAHOVA);
 
-    expect(seen(await readOf())).toBe('current');
+    expect((await readOf())?.state).toBe('current');
     await t.mutation(api.outposts.dismantle, { ...seat, outpostId: point });
-    expect(seen(await readOf())).toBe('surveyed');
+    expect(await readOf()).toBeUndefined();
   });
 
   /** Un mât sur le sol national ne dépend d'aucun point : il reste debout. */

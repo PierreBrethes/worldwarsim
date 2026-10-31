@@ -18,7 +18,7 @@ import { journalUrl, push } from '../src/domain/push';
 import { credit, creditToStorage, economyOf } from './resources';
 import { depotRefundOf, emptyLoad } from '../src/domain/logistics';
 import { playerOf, requirePlayable } from './seats';
-import { surveyFoundation } from './surveys';
+import { fileSurvey, surveyFoundation } from './surveys';
 
 /**
  * **Le chantier, entre l'ordre et le point** (révision du 15/09 de l'ADR 0020 §10). Fonder se
@@ -197,6 +197,16 @@ export const dismantle = mutation({
     await creditToStorage(ctx, player._id, { food: 0, steel: 0, ...returned }, now);
     await ctx.db.delete(outpost._id);
     await reportChange(ctx, season._id, before, now);
+    /** **Le sol du joueur est relevé au point** (décision (a) du 31/10), à la portée même du
+     *  point qui vient de tomber : la région qu'il ne tient plus sort de sa carte au lieu de
+     *  rester un souvenir daté. L'adversaire n'est pas relevé : sa carte ne change qu'en
+     *  regardant. */
+    await fileSurvey(
+      ctx,
+      player._id,
+      [{ point: pointOf(outpost.point), radiusKm: outpostReachKm(outpost.level) }],
+      now,
+    );
 
     await ctx.db.insert('notices', {
       playerId: player._id,
