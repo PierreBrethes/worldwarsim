@@ -572,3 +572,33 @@ describe('a razed maquette holds its place while it falls (#326)', () => {
     expect(maquettes.heldAt(RAZED)).toBeNull();
   });
 });
+
+describe('the sites a garrison stands at the foot of (#341)', () => {
+  it('are my buildings by their points: no installation, no objective, no region anchor', () => {
+    const maquettes = new MaquetteLayer(
+      { projectLonLat: () => new Vector3() } as unknown as WorldFrame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    const at = (lon: number) => ({ lonLat: [lon, 0] as const });
+    const site = (
+      id: string,
+      where: { lonLat: readonly [number, number] } | { regionId: string },
+    ) => ({
+      id,
+      at: where,
+      url: `${id}.glb`,
+      span: 1,
+      washed: false,
+    });
+    maquettes.display([
+      site('building-hq@1,0', at(1)),
+      site('installation-x', at(2)),
+      site('objective-y', at(3)),
+      site('building-mine', { regionId: 'r' }),
+    ]);
+    expect(maquettes.buildingPoints()).toEqual([{ id: 'building-hq@1,0', at: [1, 0] }]);
+  });
+});

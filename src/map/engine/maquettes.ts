@@ -592,6 +592,14 @@ export class MaquetteLayer implements SequenceHost {
     return this.held.get(id)?.lonLat ?? null;
   }
 
+  /** **The points my buildings' maquettes stand on**: a garrison handed back to the ground there
+   *  stands at their foot. An installation or an objective is not mine to garrison. */
+  buildingPoints(): ReadonlyArray<{ readonly id: string; readonly at: LonLat }> {
+    return this.maquettes.flatMap(({ id, at }) =>
+      id.startsWith('building-') && 'lonLat' in at ? [{ id, at: at.lonLat }] : [],
+    );
+  }
+
   private place(): void {
     const items = [...this.byId.values(), ...this.held.values()]
       .map(({ item }) => item)
