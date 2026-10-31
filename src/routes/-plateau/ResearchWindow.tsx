@@ -88,17 +88,24 @@ const stocksOf = (view: PlayerView, now: number) =>
 export function ResearchWindow({
   view,
   seat,
+  focused,
   onClose,
   ...windowProps
-}: WindowProps & { view: PlayerView; seat: Seat }) {
+}: WindowProps & {
+  view: PlayerView;
+  seat: Seat;
+  /** Le mât touché : le Centre qu'on rase est celui-là, jamais « le premier » de la liste. */
+  focused?: string | undefined;
+}) {
   const narrow = useNarrowScreen();
   const now = useClock(30_000);
   const start = useMutation(api.research.start);
   const dequeue = useMutation(api.research.dequeue);
   const level = searcherLevel(view.me.buildings);
   const center = searcherOf(view.me.buildings) ?? undefined;
-  /** Le Centre, capturé ou non : la rose offre « raser » sur tout mât à soi. */
-  const razable = view.me.buildings.find((building) => building.key === 'researchCenter');
+  const razable = view.me.buildings.find(
+    (building) => building.key === 'researchCenter' && building.id === focused,
+  );
   const place = view.me.regions.find((region) => region.id === center?.regionId)?.name;
   const situation = {
     researched: view.me.research.researched,
@@ -179,7 +186,13 @@ export function ResearchWindow({
             </div>
           </main>
         </div>
-        {razable !== undefined && <RazeButton building={razable} />}
+        {razable !== undefined && (
+          <RazeButton
+            building={razable}
+            region={view.me.regions.find((one) => one.id === razable.regionId)?.name}
+            className="px-[10px] pb-[9px]"
+          />
+        )}
       </div>
     </FloatingWindow>
   );

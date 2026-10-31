@@ -449,7 +449,7 @@ export function PersonalBoard({
             )}
             {site === null ? (
               <>
-                {narrow && focusedBuilding !== null && !observing && (
+                {narrow && focusedBuilding !== null && (
                   <FocusedBuilding building={focusedBuilding} view={view} />
                 )}
                 <Tiles
@@ -964,7 +964,7 @@ function FocusedBuilding({ building, view }: { building: Building; view: PlayerV
         <b className="font-semibold text-[var(--ink)]">{building.name}</b>
         {region === undefined ? '' : ` · ${region}`}
       </p>
-      <RazeButton building={building} />
+      <RazeButton building={building} className="px-[10px] pb-[9px]" />
     </section>
   );
 }

@@ -102,7 +102,7 @@ export function SiteModal({
             onClose={onClose}
           />
         )}
-        <RazeButton building={building} />
+        <RazeButton building={building} className="px-[10px] pb-[9px]" />
       </div>
     </FloatingWindow>
   );

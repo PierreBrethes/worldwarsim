@@ -4,11 +4,14 @@ import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
+import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
 import { DemolitionCard } from './DemolitionCard';
 import { GarrisonPanel } from './GarrisonPanel';
-import { RazeContext } from './RazeButton';
+import { RazeContext, razeOf } from './RazeButton';
+import { PersonalBoard } from './PersonalBoard';
+import { ResearchWindow } from './ResearchWindow';
 import { SiteModal } from './SiteModal';
 
 /**
@@ -36,6 +39,7 @@ const client = {
 } as unknown as ConvexReactClient;
 
 beforeEach(() => {
+  Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: query.includes('max-width'),
     media: query,
@@ -80,6 +84,24 @@ const view = {
     resources: {},
     regions: [{ id: 'FR-NOR', name: 'Nord', linked: true }],
     buildings: [standing('B-1', 'barracks', 'Caserne'), standing('B-2', 'hq', 'Quartier général')],
+  },
+} as unknown as PlayerView;
+
+const boardView = {
+  ...view,
+  buildCatalog: new Proxy({}, { get: () => ({ minutes: 1, cost: {} }) }),
+  boardRead: null,
+  me: {
+    ...view.me,
+    foundation: [],
+    outposts: [],
+    chains: [],
+    hqLevel: 1,
+    upkeep: {},
+    research: { researched: [], running: null, queue: [] },
+    resources: Object.fromEntries(
+      RESOURCES.map((key) => [key, { stock: 500, ratePerHour: 0, cap: 1000 }]),
+    ),
   },
 } as unknown as PlayerView;
 
@@ -151,5 +173,139 @@ describe('the site sheet of one of my buildings, under a finger', () => {
   it('offers « raser » on the garrison sheet of another building', () => {
     render(garrisonOf('B-1'));
     expect(screen.getByRole('button', { name: fr.compass.razeNamed('Caserne') })).toBeTruthy();
+  });
+});
+
+/** Ce que le plateau fournit au contexte : rien en Blitz ni pour un vaincu, comme la rose. */
+describe('what the board lends to the sheets', () => {
+  const open = vi.fn();
+  it('lends nothing in Blitz: the server answers NOT_IN_BLITZ', () => {
+    expect(razeOf({ blitz: true, defeated: false }, open)).toBeNull();
+  });
+  it('lends nothing to a defeated player', () => {
+    expect(razeOf({ blitz: false, defeated: true }, open)).toBeNull();
+  });
+  it('lends the order otherwise', () => {
+    expect(razeOf({ blitz: false, defeated: false }, open)).toBe(open);
+  });
+  it('shows no button on a site sheet when nothing is lent', () => {
+    render(
+      <ConvexProvider client={client}>
+        <RazeContext.Provider value={razeOf({ blitz: true, defeated: false }, open)}>
+          <SiteModal
+            view={view}
+            seat={SEAT}
+            buildingId="B-1"
+            rank={0}
+            inFront
+            onBringForward={() => {}}
+            onOpenGunnery={() => {}}
+            onPrepare={() => {}}
+            onClose={() => {}}
+          />
+        </RazeContext.Provider>
+      </ConvexProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /raser/ })).toBeNull();
+  });
+});
+
+describe('the research window, with two centres', () => {
+  const centres = {
+    ...view,
+    me: {
+      ...view.me,
+      research: { researched: [], running: null, queue: [] },
+      resources: Object.fromEntries(
+        RESOURCES.map((key) => [key, { stock: 500, ratePerHour: 0, cap: 1000 }]),
+      ),
+      regions: [
+        { id: 'FR-NOR', name: 'Nord', linked: true },
+        { id: 'BE-1', name: 'Bruxelles', linked: true },
+      ],
+      buildings: [
+        { ...standing('C-mine', 'researchCenter', 'Centre de recherche'), regionId: 'FR-NOR' },
+        { ...standing('C-taken', 'researchCenter', 'Centre de recherche'), regionId: 'BE-1' },
+      ],
+    },
+  } as unknown as PlayerView;
+  const mount = (focused: string | undefined, onRaze = vi.fn()) => {
+    render(
+      <ConvexProvider client={client}>
+        <RazeContext.Provider value={onRaze}>
+          <ResearchWindow
+            view={centres}
+            seat={SEAT}
+            focused={focused}
+            rank={0}
+            inFront
+            onBringForward={() => {}}
+            onClose={() => {}}
+          />
+        </RazeContext.Provider>
+      </ConvexProvider>,
+    );
+    return onRaze;
+  };
+
+  it('razes the centre that was touched, and names its region', () => {
+    const onRaze = mount('C-taken');
+    act(() =>
+      screen
+        .getByRole('button', { name: fr.compass.razeNamed('Centre de recherche', 'Bruxelles') })
+        .click(),
+    );
+    expect(onRaze).toHaveBeenCalledWith('C-taken', expect.any(Object));
+  });
+
+  it('razes none when no mast was touched', () => {
+    mount(undefined);
+    expect(screen.queryByRole('button', { name: /raser/ })).toBeNull();
+  });
+});
+
+describe('the personal board, opened on a mast', () => {
+  const mount = (focused: string | null) => {
+    const onRaze = vi.fn();
+    render(
+      <ConvexProvider client={client}>
+        <RazeContext.Provider value={onRaze}>
+          <PersonalBoard
+            view={boardView}
+            seat={SEAT}
+            open
+            onOpen={() => {}}
+            research={false}
+            onResearch={() => {}}
+            front
+            focused={focused}
+            site={null}
+            onDeselectSite={() => {}}
+            onOpenSiteSheet={() => {}}
+            onHoldTile={() => {}}
+            onPlaceTile={() => false}
+            maquetteAt={null}
+            placing={null}
+          />
+        </RazeContext.Provider>
+      </ConvexProvider>,
+    );
+    return onRaze;
+  };
+
+  it('razes the building of that mast, and says which', () => {
+    const onRaze = mount('B-1');
+    act(() => screen.getByRole('button', { name: fr.compass.razeNamed('Caserne') }).click());
+    expect(onRaze).toHaveBeenCalledWith('B-1', expect.any(Object));
+  });
+
+  it('says why the headquarters cannot be razed', () => {
+    mount('B-2');
+    expect(screen.getByText(fr.errors.HQ_NEVER_DEMOLISHED())).toBeTruthy();
+  });
+
+  it('offers nothing when no mast opened it', () => {
+    mount(null);
+    expect(screen.queryByRole('button', { name: /raser/ })).toBeNull();
   });
 });
