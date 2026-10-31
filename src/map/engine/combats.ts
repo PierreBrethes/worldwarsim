@@ -3,6 +3,7 @@ import { COMBAT_LIMITS, combatAt, playsWhole } from '@/domain/combat-on-map';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { replayAt } from '@/domain/replay';
+import { warmPieces, type Flash } from './halo';
 import { lineCentre, ReplayScene, replayReach } from './replay';
 
 type Played = {
@@ -95,6 +96,7 @@ export class CombatLayer {
       playsWhole(view, this.phone) &&
       this.motion !== 'off' &&
       playing < COMBAT_LIMITS[this.phone ? 'phone' : 'desk'].atOnce;
+    scene.sharesMaterials = !plays;
     this.played.push({
       view,
       scene,
@@ -165,6 +167,21 @@ export class CombatLayer {
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
     for (const { scene, reach } of this.played)
       if (scene.object.visible) emit(scene.object.position, reach * scene.object.scale.x, 1);
+  }
+
+  /** **The shots that light the night** (#332): each shown scene's most vivid flash (cut
+   *  motion holds the final pose, where nobody fires). */
+  flashes(): Flash[] {
+    return this.played.flatMap(({ scene, reach }) => {
+      const lit = scene.object.visible ? scene.brightestFlash() : null;
+      return lit === null ? [] : [{ ...lit, reach: reach * scene.object.scale.x }];
+    });
+  }
+
+  /** The pieces' glow by `night`, each scene swelling with its own flash (#332). */
+  warm(night: number): void {
+    for (const { scene } of this.played)
+      warmPieces(scene.object, night, scene.brightestFlash()?.strength ?? 0);
   }
 
   /** Every scene and every wait goes — a replay opens: the board is left as it stands. */

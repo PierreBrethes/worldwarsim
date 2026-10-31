@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { Vector3 } from 'three';
+import { MeshStandardMaterial, Vector3, type Mesh } from 'three';
 import { FINAL_POSE_MS } from '@/domain/combat-on-map';
 import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, stepBounds } from '@/domain/replay';
@@ -221,5 +221,64 @@ describe('CombatLayer, the report stamp (#327)', () => {
     expect(layer.shown('a')).toBe(true);
     expect(layer.shown('w')).toBe(false);
     expect(told).toEqual(['a']);
+  });
+});
+
+describe('CombatLayer, the flashes that light the night (#332)', () => {
+  /** The strongest flash the layer shows over the whole account, sampled every 50 ms. */
+  const peak = (motion: 'full' | 'reduced' | 'off'): number => {
+    const layer = new CombatLayer();
+    layer.motion = motion;
+    layer.play(combat('a'), null, new Vector3(3, 0, 4), 0, 0);
+    let best = 0;
+    for (let t = 0; t < REPLAY_MS; t += 50) {
+      layer.advance(t, scale);
+      for (const flash of layer.flashes()) best = Math.max(best, flash.strength);
+    }
+    return best;
+  };
+
+  it('lights during the volleys, from a scene standing at its point', () => {
+    expect(peak('full')).toBeGreaterThan(0.9);
+    const layer = new CombatLayer();
+    layer.play(combat('a'), null, new Vector3(3, 0, 4), 0, 0);
+    for (let t = 0; t < REPLAY_MS && layer.flashes().length === 0; t += 50) layer.advance(t, scale);
+    const [flash] = layer.flashes();
+    expect(flash!.at.distanceTo(new Vector3(3, 0, 4))).toBeLessThan(flash!.reach);
+  });
+
+  it('holds a steady flash when reduced, and none when cut', () => {
+    expect(peak('reduced')).toBe(1);
+    expect(peak('off')).toBe(0);
+  });
+
+  it('lights nothing past the floor, where the scene is not shown', () => {
+    const layer = new CombatLayer();
+    layer.play(combat('a'), null, at, 0, 0);
+    for (let t = 0; t < REPLAY_MS; t += 50) {
+      layer.advance(t, () => 0);
+      expect(layer.flashes()).toHaveLength(0);
+    }
+  });
+
+  it("keeps the models' own materials in a final pose, where nobody fires", () => {
+    const materials = (layer: CombatLayer, k: number): unknown[] => {
+      const found: unknown[] = [];
+      layer.group.children[k]!.traverse((part) => {
+        const material = (part as Mesh).material;
+        if (material instanceof MeshStandardMaterial) found.push(material);
+      });
+      return found;
+    };
+    const held = new CombatLayer();
+    held.play(combat('a', 13), null, at, 0, 0);
+    held.play(combat('b', 13), null, at, 0, 0);
+    held.advance(0, scale);
+    expect(materials(held, 0).some((m) => materials(held, 1).includes(m))).toBe(true);
+    const playing = new CombatLayer();
+    playing.play(combat('a'), null, at, 0, 0);
+    playing.play(combat('b'), null, at, 0, 0);
+    playing.advance(0, scale);
+    expect(materials(playing, 0).some((m) => materials(playing, 1).includes(m))).toBe(false);
   });
 });
