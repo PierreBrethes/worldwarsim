@@ -98,7 +98,7 @@ import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
 import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
-import { Halos, warmPieces } from './halo';
+import { brightest, Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
@@ -3697,7 +3697,15 @@ export class MapEngine {
     if (shadowed && whole) for (const root of pieces) castShadows(root);
     if (whole) {
       // Warm by the same night as the halos, shadows or not: a piece must not keep a stale glow.
-      if (night > 0 || this.warmed > 0) for (const root of pieces) warmPieces(root, night);
+      // A shot lights the night (#332); cut motion holds the final pose, where nobody fires.
+      const shot = this.replay?.scene.brightestFlash() ?? null;
+      if (night > 0 || this.warmed > 0) {
+        // The scenes swell with their own shots.
+        for (const root of pieces)
+          if (root !== this.combats.group)
+            warmPieces(root, night, root === this.replay?.scene.object ? (shot?.strength ?? 0) : 0);
+        this.combats.warm(night);
+      }
       this.warmed = night;
       if (night > 0.004) {
         this.halos.begin();
@@ -3706,6 +3714,11 @@ export class MapEngine {
         this.maquettes.lights(lit);
         this.combats.lights(lit);
         this.pins.lights(lit, this.unitsPerPixel(distance));
+        const flare = brightest([
+          ...this.combats.flashes(),
+          ...(this.replay && shot ? [{ ...shot, reach: this.replay.reach }] : []),
+        ]);
+        if (flare !== null) this.halos.flare(flare);
         this.halos.end(night);
       } else this.halos.hide();
     }

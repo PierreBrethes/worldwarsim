@@ -46,6 +46,23 @@ const CAPACITY = 1024;
 const LIFT = 0.006;
 const RANK = 2.5;
 
+/** **A shot's flash lights the board** (#332): a lamp imitated, one more disc over the veil, no
+ *  light in the scene. Its reach as a share of the scene's, how much brighter than a pile's halo
+ *  at its peak, and how much a piece's own glow swells with it. All `@a-mesurer`. */
+const FLARE_SPAN = 0.7;
+const FLARE_GAIN = 1.6;
+const BEAT_GAIN = 1.5;
+
+/** A muzzle flash standing now: where, how lively (0 to 1), and how far its scene reaches. */
+export type Flash = { readonly at: Vector3; readonly strength: number; readonly reach: number };
+
+/** The most vivid of the flashes of every scene: the one the board is lit by this frame. */
+export function brightest(flashes: ReadonlyArray<Flash>): Flash | null {
+  let best: Flash | null = null;
+  for (const flash of flashes) if (flash.strength > (best?.strength ?? 0)) best = flash;
+  return best;
+}
+
 function glowTexture(): CanvasTexture {
   const size = 128;
   const canvas = document.createElement('canvas');
@@ -110,11 +127,20 @@ export class Halos {
 
   /** `radius`: the footprint's, in board units; `near`: the piece's share of figurine, 0 to 1. */
   add(at: Vector3, radius: number, near: number): void {
-    if (this.count >= CAPACITY || near <= 0) return;
-    const size = 2 * REACH * Math.max(radius, MIN_RADIUS * near);
+    if (near <= 0) return;
+    this.put(at, 2 * REACH * Math.max(radius, MIN_RADIUS * near), near);
+  }
+
+  /** The flash of a shot (#332), at the night's share `end` gives: nothing by day. */
+  flare(flash: Flash): void {
+    this.put(flash.at, 2 * REACH * flash.reach * FLARE_SPAN, flash.strength * FLARE_GAIN);
+  }
+
+  private put(at: Vector3, size: number, brightness: number): void {
+    if (this.count >= CAPACITY) return;
     matrix.compose(position.set(at.x, at.y + LIFT, at.z), flat, scale.set(size, 1, size));
     this.object.setMatrixAt(this.count, matrix);
-    this.object.setColorAt(this.count, weight.setScalar(near));
+    this.object.setColorAt(this.count, weight.setScalar(brightness));
     this.count += 1;
   }
 
@@ -154,8 +180,9 @@ export class Halos {
  * to what the lamp lit, and an emission through the map is the same sum. A material that already
  * carries its own emission (the flag's print) keeps it.
  */
-export function warmPieces(root: Object3D, night: number): void {
-  const strength = PIECE_GAIN * MathUtils.clamp(night, 0, 1);
+export function warmPieces(root: Object3D, night: number, beat = 0): void {
+  // `beat`, 0 to 1: a shot's flash standing in the scene swells the glow of its pieces (#332).
+  const strength = PIECE_GAIN * MathUtils.clamp(night, 0, 1) * (1 + BEAT_GAIN * beat);
   root.traverse((object) => {
     const material = (object as Mesh).material as MeshStandardMaterial | undefined;
     if (!material?.isMeshStandardMaterial) return;

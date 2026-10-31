@@ -273,6 +273,8 @@ type Piece = {
   body: Object3D;
   readonly flash: Sprite;
   flashSize: number;
+  /** How lively its flash is at the frame drawn, 0 to 1 (#332). */
+  salvo: number;
   readonly firing: Smoke;
   readonly shot: Mesh;
   burning: Smoke | null;
@@ -373,6 +375,7 @@ export class ReplayScene {
       body: new Group(),
       flash: flashSprite,
       flashSize: FLASH_SIZE,
+      salvo: 0,
       firing,
       shot: new Mesh(SHOT, SHOT_INK),
       burning: null,
@@ -469,6 +472,15 @@ export class ReplayScene {
     return built;
   }
 
+  /** The most vivid muzzle flash standing now, in the world, 0 to 1 (#332); `null` in the dark. */
+  brightestFlash(): { readonly at: Vector3; readonly strength: number } | null {
+    let best: Piece | null = null;
+    for (const piece of this.pieces) if (piece.salvo > (best?.salvo ?? 0.02)) best = piece;
+    if (best === null) return null;
+    best.flash.updateWorldMatrix(true, false);
+    return { at: best.flash.getWorldPosition(new Vector3()), strength: best.salvo };
+  }
+
   /**
    * Draws `frame`. `seconds` is the smoke's clock, `still` the reduced motion: no drop from
    * above, a steady flash rather than a pulse.
@@ -510,6 +522,7 @@ export class ReplayScene {
           : since === null || since < 0 || since >= FLASH_MS
             ? 0
             : Math.sin((Math.PI * since) / FLASH_MS);
+      piece.salvo = salvo;
       piece.flash.visible = salvo > 0.02;
       piece.flash.scale.setScalar(piece.flashSize * salvo);
       const sinceLanded = sinceImpact(frame) ?? Infinity;
