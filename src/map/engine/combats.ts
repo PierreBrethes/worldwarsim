@@ -96,6 +96,7 @@ export class CombatLayer {
       playsWhole(view, this.phone) &&
       this.motion !== 'off' &&
       playing < COMBAT_LIMITS[this.phone ? 'phone' : 'desk'].atOnce;
+    scene.sharesMaterials = !plays;
     this.played.push({
       view,
       scene,

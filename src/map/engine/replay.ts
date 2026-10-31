@@ -316,8 +316,11 @@ export class ReplayScene {
   readonly object = new Group();
   private readonly pieces: Piece[];
   /** **The scene's own materials** (#332): the models' are shared by every piece of their file, and
-   *  the night's glow beats per scene (`warmPieces`), so each wears copies, given back at `dispose`. */
+   *  the night's glow beats per scene (`warmPieces`), so each wears copies, left to the garbage at `dispose`. */
   private readonly own = new Map<Material, Material>();
+  /** A scene that never fires (the final pose) keeps the models' own materials: copies are paid
+   *  for by what beats. Set before the first `show`. */
+  sharesMaterials = false;
 
   /** `medium` is the point's: an enemy block — an account from before the fire was seen — wears
    *  its pictogram, never a role. `foe` is the nation faced at the fire (F1). */
@@ -568,7 +571,10 @@ export class ReplayScene {
       if (look !== piece.look) {
         piece.look = look;
         const worn = look === 'burnt' ? charred : look === 'washed' ? washedOf : null;
-        dress(piece.body, (material) => this.ownOf(worn === null ? material : worn(material)));
+        dress(piece.body, (material) => {
+          const dressed = worn === null ? material : worn(material);
+          return this.sharesMaterials ? dressed : this.ownOf(dressed);
+        });
       }
     });
     // Aimed once every holder stands where this frame puts it.
@@ -674,7 +680,8 @@ export class ReplayScene {
 
   dispose(): void {
     for (const piece of this.pieces) dress(piece.body, null);
-    for (const copy of this.own.values()) copy.dispose();
+    // Not `dispose()`d: the copies share their programs and textures with the models', and the
+    // renderer's release of twelve of them cost a long task on a phone. They go with the garbage.
     this.own.clear();
     this.object.removeFromParent();
   }
