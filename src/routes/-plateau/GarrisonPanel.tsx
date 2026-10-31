@@ -29,6 +29,7 @@ import { Stamp } from '@/shell/Stamp';
 import { Draggable } from './Draggable';
 import { GarrisonStack } from './GarrisonStack';
 import { Panel } from './Panel';
+import { RazeButton } from './RazeButton';
 import type { Seat } from '@/data/session';
 
 const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
@@ -305,6 +306,7 @@ export function GarrisonPanel({
             )}
           </div>
         )}
+        {building !== null && <RazeButton building={building} className="mt-[11px]" />}
         {outpost !== null && !view.me.defeated && (
           <OutpostDismantle outpost={outpost} onDismantle={onDismantle} />
         )}
