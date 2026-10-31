@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildLabels, type MapMarker } from '@/domain/labels';
 import type { PlayerView } from '@/domain/player-view';
@@ -37,5 +40,24 @@ describe('targetOfLabel', () => {
     );
 
     expect(target).toMatchObject({ kind: 'outpost', id: 'o1' });
+  });
+});
+
+describe('WorldMap tells the engine what the player dismantled (#340)', () => {
+  const source = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), 'WorldMap.tsx'),
+    'utf-8',
+  );
+
+  it('hands over the pins by the id the board gives an outpost', () => {
+    expect(source).toMatch(
+      /readyEngine\.dismantling = new Set\(dismantling\.map\(\(\{ id \}\) => outpostPinId\(id\)\)\)/,
+    );
+  });
+
+  it('erases an area only for the points that confirmed one', () => {
+    expect(source).toMatch(
+      /dismantled\.current\.filter\(\(\{ area \}\) => area\)[\s\S]*leftReaches\(before, outposts, erased\)[\s\S]*readyEngine\?\.eraseReach/,
+    );
   });
 });

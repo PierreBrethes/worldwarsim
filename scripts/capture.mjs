@@ -39,6 +39,8 @@ const option = (name, fallback) => {
 const flags = new Set(['--compte', '--largeur', '--hauteur', '--densite', '--attendre', '--geste']);
 /** `--tactile` : un écran tactile, pour les gestes du doigt (`toucher=x,y`, la rose s'ouvre au toucher). */
 const touch = args.includes('--tactile');
+/** `--reduit` : le système demande moins de mouvement, le réglage « auto » de la carte passe en réduites. */
+const reduced = args.includes('--reduit');
 const gestures = args.flatMap((arg, k) => (args[k - 1] === '--geste' ? [arg] : []));
 const positional = args.filter((arg, k) => !arg.startsWith('--') && !flags.has(args[k - 1]));
 const [target, out] = positional;
@@ -82,6 +84,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({
   viewport: { width: Number(option('largeur', 1440)), height: Number(option('hauteur', 900)) },
   hasTouch: touch,
+  reducedMotion: reduced ? 'reduce' : 'no-preference',
   deviceScaleFactor: Number(option('densite', 1)),
 });
 page.on('console', (message) => {

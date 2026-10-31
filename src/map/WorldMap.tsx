@@ -4,7 +4,7 @@
 'use no memo';
 
 import { SweepOverlay, type SweepRequest } from './SweepOverlay';
-import { clusterSheetOf, type Pin } from '@/domain/pins';
+import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
 import { ClusterSheet } from './ClusterSheet';
 import type { TourAct } from '@/domain/cargo-tag';
 import {
@@ -52,7 +52,7 @@ import { inkBursts } from '@/domain/ink-bursts';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
 import { aboardOf, descentesOf, entreesOf, rankKept, sortiesOf } from './cues';
-import { raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
+import { leftReaches, raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { shareUnchanged } from '@/data/shareUnchanged';
 import { useDayCycle } from '@/data/dayCycle';
@@ -292,6 +292,12 @@ type Props = {
   combats?: ReadonlyArray<MapCombat>;
   /** Un combat a fini de se montrer sur la carte, ou ne s'y joue pas : sa dépêche peut paraître. */
   onCombatSettled?: (id: string) => void;
+  /** **Les maquettes que le joueur vient de raser** (#326), par id : celle que la vue suivante
+   *  perd s'affaisse à sa place. */
+  razing?: ReadonlyArray<string>;
+  /** **Les avant-postes que le joueur vient de démanteler** (#340), par id : l'épingle de celui
+   *  que la vue suivante perd bascule, et son aire s'efface en tournant si `area`. */
+  dismantling?: ReadonlyArray<Dismantled>;
   /** Un toucher sur le tampon d'un combat joué : le rejeu de ce combat (#327). */
   onOpenReport?: (combatId: string) => void;
   /** Un tampon s'est levé, quelle qu'en soit la raison : la dépêche de ce combat peut paraître. */
@@ -343,6 +349,9 @@ type Props = {
  * card's lines arrive written (ADR 0016): the map prices nothing, names nothing and refuses
  * nothing — `refusal` is the placement rule's sentence for the point the ghost holds.
  */
+/** An outpost the player confirmed dismantling: its id, and whether it takes an area with it. */
+export type Dismantled = { readonly id: string; readonly area: boolean };
+
 export type PlacingBuilding = {
   readonly sprite: string | null;
   readonly magnet: PlacingMagnet;
@@ -385,6 +394,8 @@ function useRankKept(piles: ReadonlyArray<StandingPile>): ReadonlyArray<Standing
 const NO_REGIONS: ReadonlyArray<string> = [];
 const NO_PILES: ReadonlyArray<string> = [];
 const NO_COMBATS: ReadonlyArray<MapCombat> = [];
+const NO_RAZING: ReadonlyArray<string> = [];
+const NO_DISMANTLING: ReadonlyArray<Dismantled> = [];
 
 /** A combat the map plays at its point (#272), as the board tells it (`Cue`, `combat`). */
 export type MapCombat = {
@@ -474,6 +485,8 @@ export function WorldMap({
   cue = null,
   combats = NO_COMBATS,
   onCombatSettled,
+  razing = NO_RAZING,
+  dismantling = NO_DISMANTLING,
   onOpenReport,
   onReportLifted,
   selectedPiles: servedSelection = NO_PILES,
@@ -1480,6 +1493,20 @@ export function WorldMap({
     return clusterSheetOf(cluster.ids.flatMap((id) => typeOf.get(id) ?? []));
   }, [cluster, labels]);
 
+  // Before the maquettes: a view that loses a razed one finds it listed.
+  useEffect(() => {
+    if (readyEngine !== null) readyEngine.razing = new Set(razing);
+  }, [readyEngine, razing]);
+
+  // Said when the player confirms, long before the view that loses the point arrives: the next
+  // `displayPins` and the points' effect below find it listed.
+  const dismantled = useRef(dismantling);
+  dismantled.current = dismantling;
+  useEffect(() => {
+    if (readyEngine !== null)
+      readyEngine.dismantling = new Set(dismantling.map(({ id }) => outpostPinId(id)));
+  }, [readyEngine, dismantling]);
+
   useEffect(() => {
     readyEngine?.displayMaquettes(maquettes);
   }, [readyEngine, maquettes]);
@@ -1499,6 +1526,8 @@ export function WorldMap({
     reachedBefore.current = outposts;
     if (before === null) return;
     for (const { at, km } of raisedReaches(before, outposts)) readyEngine?.inkReach(at, km);
+    const erased = new Set(dismantled.current.filter(({ area }) => area).map(({ id }) => id));
+    for (const { at, km } of leftReaches(before, outposts, erased)) readyEngine?.eraseReach(at, km);
   }, [outposts, readyEngine]);
 
   // A recruit steps out of its barracks' door and walks to its rank (#268). Nothing on the first view.

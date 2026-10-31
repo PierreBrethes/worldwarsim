@@ -19,6 +19,7 @@ import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
 import type { PlayerView, Stack, TroopStation, TroopView } from '@/domain/player-view';
 import { PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
+import { outpostPinId } from '@/domain/pins';
 import { stackLabelId } from '@/domain/force-highlight';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { surveyedAt } from '@/domain/survey-ink';
@@ -92,7 +93,7 @@ export function markersOf(
    */
   const outposts: ReadonlyArray<MapMarker> = view.me.outposts.map((outpost) => ({
     kind: 'outpost' as const,
-    id: `outpost-${outpost.id}`,
+    id: outpostPinId(outpost.id),
     lonLat: outpost.lonLat,
     hostCountry: outpost.hostCountry,
     /** **Le mât ouvre la garnison** : la colonne qui a fondé stationne là (ADR 0019 §1), et
@@ -484,7 +485,7 @@ function garrisonPiles(
       pile(
         { kind: 'outpost', outpostId: outpost.id },
         { lonLat: outpost.lonLat },
-        `outpost-${outpost.id}`,
+        outpostPinId(outpost.id),
       ),
     ),
   ];
@@ -499,6 +500,28 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
  *  deux mines d'une même région sont deux mâts. */
 export const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
   point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
+
+/** **Les maquettes rasées que la vue sert encore** (#326) : la carte joue l'affaissement de celle
+ *  que la vue perd, puis l'id s'oublie. La même liste quand rien n'est parti. */
+export const razingStill = (
+  razing: ReadonlyArray<string>,
+  buildings: ReadonlyArray<{ key: string; point: LonLat | null }>,
+): ReadonlyArray<string> => {
+  const served = new Set(buildings.map(buildingLabelId));
+  return razing.every((id) => served.has(id)) ? razing : razing.filter((id) => served.has(id));
+};
+
+/** **Les points confirmés au démantèlement que la vue sert encore** (#340), par id : la carte
+ *  joue la chute de celui que la vue perd, puis l'id s'oublie. */
+export const leavingStill = <T extends { readonly id: string }>(
+  leaving: ReadonlyArray<T>,
+  outposts: ReadonlyArray<{ readonly id: string }>,
+): ReadonlyArray<T> => {
+  const served = new Set(outposts.map(({ id }) => id));
+  return leaving.every(({ id }) => served.has(id))
+    ? leaving
+    : leaving.filter(({ id }) => served.has(id));
+};
 
 /** La maquette sous un point de l'écran, par l'id de son étiquette (`MapEngine.maquetteAtPoint`). */
 export type MaquetteAt = (clientX: number, clientY: number) => string | null;
@@ -527,7 +550,7 @@ export function markerOfStation(
   if (station.kind === 'point') return stackLabelId(station);
   if (station.kind === 'outpost') {
     return view.me.outposts.some((candidate) => candidate.id === station.outpostId)
-      ? `outpost-${station.outpostId}`
+      ? outpostPinId(station.outpostId)
       : null;
   }
   if (station.kind !== 'building') return null;

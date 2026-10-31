@@ -16,6 +16,9 @@ import { stampAt, type InkBurst, type StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
+import { InkRing } from './ink-ring';
+import { dismantleSweepAt, DISMANTLE_SWEEP_MS } from './timelines/dismantle';
+import { RAZE_RING_MS, razeRingAt } from './timelines/raze';
 import { Ribbon, RibbonMaterial } from './route-ribbon';
 import { threadWidth, type ThreadLeg } from './thread';
 
@@ -34,6 +37,9 @@ const WORDED_PX = 170;
 /** Beside the point, not on it: the piece stays readable under its stamp (`+3.5, +2.5` of 6). */
 const WORDED_ASIDE = [0.95, 0.7] as const;
 const STAMP_RED = '#9d4638';
+
+/** The ring of ink a dismantled pin leaves, in CSS pixels. @a-mesurer */
+const PIN_RING_PX = 14;
 
 const REACH_HOLD_MS = 600;
 const REACH_FADE_MS = 600;
@@ -143,6 +149,9 @@ export class InkLayer {
   /** A delayed stamp is heard as it lands: the board gone, it is not. */
   private readonly heard = new Set<ReturnType<typeof setTimeout>>();
   private reaches: PenStroke[] = [];
+  private erasures: PenStroke[] = [];
+  /** The rings of ink where a dismantled pin stood, when motion is reduced (#340). */
+  private rings: Array<{ readonly ring: InkRing; readonly start: number }> = [];
   private viewHeight = 1;
   private readonly geometries = {
     arrival: new ShapeGeometry(stampShapes()),
@@ -155,7 +164,14 @@ export class InkLayer {
   ) {}
 
   get active(): boolean {
-    return this.traces.length + this.stamps.length + this.reaches.length > 0;
+    return (
+      this.traces.length +
+        this.stamps.length +
+        this.reaches.length +
+        this.erasures.length +
+        this.rings.length >
+      0
+    );
   }
 
   resize(_width: number, height: number): void {
@@ -181,6 +197,27 @@ export class InkLayer {
   traceReach(stroke: ReadonlyArray<Vector3>, now: number): void {
     if (!this.enabled || this.motion === 'off') return;
     this.reaches.push(this.penStroke([stroke], now, this.motion === 'full' ? TRACE_MS : 0));
+  }
+
+  /** **The area a dismantled point coloured goes** (#340): its circle is erased turning from the
+   *  north. Reduced motion draws nothing: the area is gone with the next view. */
+  eraseReach(stroke: ReadonlyArray<Vector3>, now: number): void {
+    if (!this.enabled || this.motion !== 'full') return;
+    const erased = this.penStroke([stroke], now, 0);
+    // What lies before the cut is what is gone.
+    erased.material.coveredOpacity = 0;
+    erased.material.cut = 0;
+    this.erasures.push(erased);
+  }
+
+  /** **A ring of ink where a dismantled pin stood**, opening and fading (reduced motion, #340). */
+  ringAt(at: Vector3, now: number): void {
+    if (!this.enabled || this.motion !== 'reduced') return;
+    const ring = new InkRing();
+    ring.position.copy(at);
+    ring.userData.ground = true;
+    this.group.add(ring);
+    this.rings.push({ ring, start: now });
   }
 
   /** A worded burst is the prototype's stamp; a combat keeps its splash under it, an arrival
@@ -246,11 +283,16 @@ export class InkLayer {
     this.traces = this.traces.filter((trace) => this.draw(trace, now));
     this.stamps = this.stamps.filter((stamp) => this.age(stamp, now, unitsPerPixel));
     this.reaches = this.reaches.filter((reach) => this.drawReach(reach, now));
+    this.erasures = this.erasures.filter((erasure) => this.drawErasure(erasure, now));
+    this.rings = this.rings.filter((each) => this.drawRing(each, now, unitsPerPixel));
   }
 
   dispose(): void {
     for (const timer of this.heard) clearTimeout(timer);
-    for (const stroke of [...this.traces, ...this.reaches]) wipe(stroke);
+    for (const stroke of [...this.traces, ...this.reaches, ...this.erasures]) wipe(stroke);
+    for (const { ring } of this.rings) endRing(ring);
+    this.erasures = [];
+    this.rings = [];
     for (const stamp of this.stamps) unstamp(stamp);
     this.reaches = [];
     this.traces = [];
@@ -310,6 +352,33 @@ export class InkLayer {
     return true;
   }
 
+  private drawErasure(stroke: PenStroke, now: number): boolean {
+    const elapsed = now - stroke.start;
+    if (elapsed >= DISMANTLE_SWEEP_MS) {
+      wipe(stroke);
+      return false;
+    }
+    stroke.material.cut = dismantleSweepAt(elapsed) * stroke.length;
+    return true;
+  }
+
+  private drawRing(
+    { ring, start }: { ring: InkRing; start: number },
+    now: number,
+    perPixel: number,
+  ): boolean {
+    const elapsed = now - start;
+    if (elapsed >= RAZE_RING_MS) {
+      endRing(ring);
+      return false;
+    }
+    const { size, opacity } = razeRingAt(elapsed);
+    ring.style('ripple', 0, true);
+    ring.opacity = opacity;
+    ring.scale.setScalar(size * PIN_RING_PX * perPixel);
+    return true;
+  }
+
   private age(stamp: Stamp, now: number, unitsPerPixel: number): boolean {
     const { mesh, start } = stamp;
     const age = now - start;
@@ -343,6 +412,11 @@ export class InkLayer {
     );
     return true;
   }
+}
+
+function endRing(ring: InkRing): void {
+  ring.removeFromParent();
+  ring.material.dispose();
 }
 
 function unstamp({ mesh }: Stamp): void {

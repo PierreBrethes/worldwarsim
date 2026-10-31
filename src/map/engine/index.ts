@@ -72,6 +72,7 @@ import {
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { CombatLayer } from './combats';
+import { razedOf, RazeLayer } from './razes';
 import { HeldBursts } from './held-bursts';
 import { stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
@@ -490,6 +491,12 @@ export class MapEngine {
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   /** The combats played at their point (#272), on a budget of their own. */
   private readonly combats = new CombatLayer();
+  /** The maquettes I razed, falling where they stood (#326). */
+  private readonly razes = new RazeLayer();
+  /** The razed maquettes still falling, whose place is held (`MaquetteLayer.hold`). */
+  private readonly falling = new Set<string>();
+  /** The piles as last served: a garrison of a falling site is drawn beside it (`besideFalling`). */
+  private piles: ReadonlyArray<StandingPile> = [];
   /** « Terrain tenu » of a combat the map may play: the report stamp says it when it does. */
   private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
@@ -688,6 +695,12 @@ export class MapEngine {
   /** **A combat has shown itself on the map** (#272): its scene ended, or it did not play. Its
    *  dispatch waits for this. */
   onCombatSettled?: ((id: string) => void) | undefined;
+  /** **The maquettes the player has just confirmed to raze**, by id (#326): the one the next view
+   *  loses falls where it stood. Another device, an opponent's survey, never has it. */
+  razing: ReadonlySet<string> = new Set();
+  /** **The pins of the outposts the player just dismantled** (#340): the next view that loses one
+   *  lets it tip. */
+  dismantling: ReadonlySet<string> = new Set();
   /** **A combat's account begins on the map** (#327): its outcome is stamped over it. */
   onCombatReport?: ((view: ReplayView) => void) | undefined;
   /** **The first hand on the board, or the camera leaving** (#327): the stamps lift — all but
@@ -874,6 +887,15 @@ export class MapEngine {
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
     this.scene.add(this.combats.group);
+    this.scene.add(this.razes.group);
+    this.razes.onEnded = (id) => {
+      this.falling.delete(id);
+      this.maquettes.release(id);
+      this.standing.display(this.besideFalling(this.piles));
+      this.standing.rebuild();
+      this.pins.rebuild();
+      this.invalidate();
+    };
     this.combats.phone = this.touch;
     this.combats.onSettled = (id) => this.settleCombat(id);
     this.combats.onShown = (id) => this.groundWords.shown(id);
@@ -1075,12 +1097,21 @@ export class MapEngine {
   /** A point of mine now holds this far: its reach is inked once around it. */
   inkReach(at: LonLat, km: number): void {
     this.invalidate();
+    this.ink.traceReach(this.circleVertices(at, km), performance.now());
+  }
+
+  /** **The area a dismantled point coloured goes** (#340): its circle is erased, turning. */
+  eraseReach(at: LonLat, km: number): void {
+    this.invalidate();
+    this.ink.eraseReach(this.circleVertices(at, km), performance.now());
+  }
+
+  private circleVertices(at: LonLat, km: number): Vector3[] {
     const ring = circleAround(this.frame, at, km).positions;
-    const vertices = Array.from(
+    return Array.from(
       { length: ring.length / 3 },
       (_, i) => new Vector3(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2]),
     );
-    this.ink.traceReach(vertices, performance.now());
   }
 
   displayArcs(arcs: ReadonlyArray<ArcView>, troops: ReadonlyArray<TroopView>): void {
@@ -1095,12 +1126,44 @@ export class MapEngine {
   /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
   displayStanding(piles: ReadonlyArray<StandingPile>): void {
     this.invalidate();
-    this.standing.display(piles);
+    this.piles = piles;
+    this.standing.display(this.besideFalling(piles));
+  }
+
+  /** **The garrison of a razed site stays at its foot while it falls** (#326): served at the
+   *  site's point now, it stands where it stood until the place is given back. */
+  private besideFalling(piles: ReadonlyArray<StandingPile>): ReadonlyArray<StandingPile> {
+    if (this.falling.size === 0) return piles;
+    const sites = [...this.falling].flatMap((id) => {
+      const at = this.maquettes.heldAt(id);
+      return at === null ? [] : [{ id, at }];
+    });
+    return piles.map((pile) => {
+      if (!('lonLat' in pile.at)) return pile;
+      const [lon, lat] = pile.at.lonLat;
+      const site = sites.find(({ at }) => Math.abs(at[0] - lon) + Math.abs(at[1] - lat) < 1e-9);
+      return site === undefined ? pile : { ...pile, at: { beside: site.id } };
+    });
   }
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
    *  (ADR 0026 §1). */
   displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
+    // A razed maquette is copied as it is drawn before its lot is rebuilt without it, and its
+    // place held while it falls: its neighbours on a ring stay where they stand.
+    const now = performance.now();
+    let fell = false;
+    for (const id of razedOf(this.razing, maquettes)) {
+      const drawn = this.maquettes.drawnOf(id);
+      if (drawn === null || !this.razes.play(id, drawn, now)) continue;
+      this.maquettes.hold(id);
+      this.falling.add(id);
+      fell = true;
+    }
+    if (fell) {
+      this.invalidate();
+      this.standing.display(this.besideFalling(this.piles));
+    }
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
     this.invalidate();
@@ -1250,6 +1313,10 @@ export class MapEngine {
   displayPins(pins: ReadonlyArray<Pin>): void {
     this.invalidate();
     this.pinShapes = new Map(pins.map((pin) => [pin.id, pin.shape]));
+    // The pin a dismantled outpost leaves is copied as it stands before the list drops it.
+    const now = performance.now();
+    for (const id of razedOf(this.dismantling, pins))
+      this.pins.leave(id, now, this.ambience.motion);
     this.pins.display(pins);
   }
 
@@ -1905,6 +1972,7 @@ export class MapEngine {
     this.standing.dispose();
     this.sequences.dispose();
     this.combats.dispose();
+    this.razes.dispose();
     this.groundWords.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
@@ -2834,6 +2902,7 @@ export class MapEngine {
     this.maquettes.motion = motion;
     this.sequences.motion = motion;
     this.combats.motion = motion;
+    this.razes.motion = motion;
     this.ghost.motion = motion;
   }
 
@@ -3556,6 +3625,8 @@ export class MapEngine {
       this.sequences.active ||
       this.walks.length > 0 ||
       this.combats.active ||
+      this.razes.active ||
+      this.pins.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -3574,6 +3645,7 @@ export class MapEngine {
       );
     }
     if (this.combats.advance(now, (at) => this.combatScaleAt(at))) this.demand.whole();
+    this.razes.advance(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
     // Un fil affiché coule (tirets, pion qui marche), un anneau bat : une image complète au pas
@@ -3693,7 +3765,7 @@ export class MapEngine {
     const shadowed = this.lamp.follow(this.controls.target, distance);
     const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
     if (this.replay) pieces.push(this.replay.scene.object);
-    pieces.push(this.combats.group);
+    pieces.push(this.combats.group, this.razes.group);
     if (shadowed && whole) for (const root of pieces) castShadows(root);
     if (whole) {
       // Warm by the same night as the halos, shadows or not: a piece must not keep a stale glow.
@@ -3702,7 +3774,7 @@ export class MapEngine {
       if (night > 0 || this.warmed > 0) {
         // The scenes swell with their own shots.
         for (const root of pieces)
-          if (root !== this.combats.group)
+          if (root !== this.combats.group && root !== this.razes.group)
             warmPieces(root, night, root === this.replay?.scene.object ? (shot?.strength ?? 0) : 0);
         this.combats.warm(night);
       }
@@ -3713,6 +3785,7 @@ export class MapEngine {
         this.standing.lights(lit);
         this.maquettes.lights(lit);
         this.combats.lights(lit);
+        this.razes.lights(lit);
         this.pins.lights(lit, this.unitsPerPixel(distance));
         const flare = brightest([
           ...this.combats.flashes(),

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PARACHUTE_MS } from './parachute';
 import { barracksDoors } from './timelines/barracks';
+import { RAZE_MS } from './timelines/raze';
 import { SWEEP_MS } from '@/domain/deposit-sweep';
 import { REPLAY_MS } from '@/domain/replay';
 import {
@@ -261,6 +262,32 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
   });
 });
 
+describe('a raze is declared to the loop, and copies its maquette before it goes (#326)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps whole frames coming while one plays, and advances it at every image', () => {
+    expect(RAZE_MS).toBeGreaterThan(SETTLE_MS);
+    expect(source).toMatch(/this\.combats\.active \|\|\s+this\.razes\.active \|\|/);
+    expect(source).toMatch(/this\.razes\.advance\(now\);/);
+  });
+
+  it('takes the copy of a razed maquette before the view that lost it rebuilds the lot, holds its place and asks a frame', () => {
+    const display = source.slice(source.indexOf('  displayMaquettes('));
+    expect(display.slice(0, display.indexOf('\n  }\n'))).toMatch(
+      /razedOf\(this\.razing, maquettes\)[\s\S]*this\.razes\.play\([\s\S]*this\.maquettes\.hold\([\s\S]*this\.invalidate\(\);[\s\S]*this\.maquettes\.display\(maquettes\)/,
+    );
+  });
+
+  it('gives its place back when it has fallen, and keeps its pool of light, not its glow, by night', () => {
+    expect(source).toMatch(
+      /this\.razes\.onEnded = \(id\) => \{[\s\S]*?this\.maquettes\.release\(id\);[\s\S]*?this\.invalidate\(\);/,
+    );
+    expect(source).toMatch(/this\.combats\.lights\(lit\);\s+this\.razes\.lights\(lit\);/);
+    expect(source).toMatch(/root !== this\.combats\.group && root !== this\.razes\.group/);
+  });
+});
+
 describe('a combat on the map is declared to the loop (#272)', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');
@@ -277,6 +304,26 @@ describe('a combat on the map is declared to the loop (#272)', () => {
     const replay = source.slice(source.indexOf('  playReplay('));
     expect(replay.slice(0, replay.indexOf('\n  }\n'))).toMatch(
       /this\.invalidate\(\);\s+(\/\/.*\s+)*this\.combats\.clear\(\);/,
+    );
+  });
+});
+
+describe('a dismantling is declared to the loop (#340)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps whole frames coming while a pin tips and an area is erased', () => {
+    expect(source).toMatch(/this\.razes\.active \|\|\s+this\.pins\.active \|\|/);
+  });
+
+  it('copies the pin a dismantled point leaves before the list drops it, and erases its area from a stirring method', () => {
+    const pins = source.slice(source.indexOf('  displayPins('));
+    expect(pins.slice(0, pins.indexOf('\n  }\n'))).toMatch(
+      /razedOf\(this\.dismantling, pins\)[\s\S]*this\.pins\.leave\([\s\S]*this\.pins\.display\(pins\)/,
+    );
+    const erase = source.slice(source.indexOf('  eraseReach('));
+    expect(erase.slice(0, erase.indexOf('\n  }\n'))).toMatch(
+      /this\.invalidate\(\);[\s\S]*this\.ink\.eraseReach/,
     );
   });
 });

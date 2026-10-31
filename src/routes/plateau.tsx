@@ -1,4 +1,4 @@
-import { pinsOf } from '@/domain/pins';
+import { outpostPinId, pinsOf } from '@/domain/pins';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
@@ -11,7 +11,7 @@ import { contactKm, outpostReachKm } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { type MapCombat, WorldMap } from '@/map/WorldMap';
+import { type Dismantled, type MapCombat, WorldMap } from '@/map/WorldMap';
 import { freshCombats, homewardOf, REPORT_HOLD_MS } from '@/domain/combat-on-map';
 import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
@@ -65,6 +65,8 @@ import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
   buildingLabelId,
+  razingStill,
+  leavingStill,
   campsOf,
   markerOfStation,
   markersOf,
@@ -381,6 +383,10 @@ function BoardContent({
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [hoveredRegion, setHoveredRegion] = useState<HoveredRegion | null>(null);
   const [demolition, setDemolition] = useState<Demolition | null>(null);
+  /** Les maquettes confirmées au rasage (#326) : la carte joue l'affaissement de celle que la vue
+   *  suivante perd. */
+  const [razing, setRazing] = useState<ReadonlyArray<string>>([]);
+  const [leaving, setLeaving] = useState<ReadonlyArray<Dismantled>>([]);
   const [dismantling, setDismantling] = useState<Dismantling | null>(null);
   // Two sources for one accent: a thread caught anywhere along its length, and the pawn's own
   // label. They are separate because the render loop announces "nothing under the pointer" on
@@ -2252,6 +2258,13 @@ function BoardContent({
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
   const razed = view.me.buildings.find((building) => building.id === demolition?.buildingId);
+  // After the map's own effects: it has read the list on the view that lost the maquette.
+  useEffect(() => {
+    setRazing((ids) => razingStill(ids, view.me.buildings));
+  }, [view.me.buildings]);
+  useEffect(() => {
+    setLeaving((points) => leavingStill(points, view.me.outposts));
+  }, [view.me.outposts]);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 
   /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
@@ -2315,7 +2328,7 @@ function BoardContent({
       const { place } = line;
       if (place.kind === 'movement') setFocus({ ids: [place.arcId], nonce: Date.now() });
       else if (place.kind === 'outpost')
-        setFocus({ ids: [`outpost-${place.outpostId}`], nonce: Date.now() });
+        setFocus({ ids: [outpostPinId(place.outpostId)], nonce: Date.now() });
       else focusBuilding(place);
     },
     [focusBuilding],
@@ -2475,6 +2488,8 @@ function BoardContent({
                 cue={mapCue}
                 combats={mapCombats}
                 onCombatSettled={releaseDispatch}
+                razing={razing}
+                dismantling={leaving}
                 onOpenReport={openReport}
                 onReportLifted={releaseDispatch}
                 selectedPiles={selectedPiles}
@@ -2544,6 +2559,10 @@ function BoardContent({
                   view={view}
                   building={razed}
                   at={demolition}
+                  onRazing={() => setRazing((ids) => [...ids, buildingLabelId(razed)])}
+                  onRefused={() =>
+                    setRazing((ids) => ids.filter((id) => id !== buildingLabelId(razed)))
+                  }
                   onClose={() => setDemolition(null)}
                 />
               )}
@@ -2556,6 +2575,14 @@ function BoardContent({
                   view={view}
                   outpost={dismantled}
                   at={dismantling}
+                  onDismantling={({ area, buildings }) => {
+                    setLeaving((points) => [...points, { id: dismantled.id, area }]);
+                    setRazing((ids) => [...ids, ...buildings]);
+                  }}
+                  onRefused={(buildings) => {
+                    setLeaving((points) => points.filter(({ id }) => id !== dismantled.id));
+                    setRazing((ids) => ids.filter((id) => !buildings.includes(id)));
+                  }}
                   onClose={() => setDismantling(null)}
                 />
               )}

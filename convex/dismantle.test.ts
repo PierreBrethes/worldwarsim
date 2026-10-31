@@ -4,7 +4,10 @@ import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { RESOURCES, type BuildingKey } from '../src/domain/ids';
 import { buildCost, outpostReachKm } from './constants';
-import { regionFacts } from './regions';
+import { allRegions, regionFacts } from './regions';
+import { regionsWithinReach } from './regionGeometry';
+import { homeGroundsOf, occupationsOf, soleHoldOf } from './holding';
+import { outpostsOf as outpostsOfPlayer } from './movement/forces';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -178,24 +181,107 @@ describe('démanteler un avant-poste', () => {
   });
 
   /**
-   * **La couleur part avec le point, et le relevé en garde le souvenir** (ADR 0020 §5). Le point
-   * tenait la région à jour ; démantelé, plus rien du joueur ne la couvre et elle retombe à ce
-   * qu'elle est désormais — un relevé daté, qui peut être faux dès demain. C'est exactement ce
-   * que perdre une couleur veut dire de ce côté-ci du brouillard.
+   * **La couleur part avec le point, et le sol du joueur est relevé** (décision (a) du 31/10). Le
+   * point tenait la région à jour ; démantelé, le serveur relève le sol au point : la région
+   * n'est plus à lui et sort de sa carte, au lieu de rester un souvenir daté.
    */
-  it('rend la région à son dernier relevé, faute de la tenir encore', async () => {
+  it('relève le sol au démantèlement : la région sort de la carte du joueur', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const point = await plant(t, seat);
-    const seen = (region: { state: string } | undefined) => region?.state;
     const readOf = async () =>
       (await t.query(api.control.held, seat))
         .find((holder) => holder.nickname === 'Pierre')
         ?.regions.find((region) => region.id === PRAHOVA);
 
-    expect(seen(await readOf())).toBe('current');
+    expect((await readOf())?.state).toBe('current');
     await t.mutation(api.outposts.dismantle, { ...seat, outpostId: point });
-    expect(seen(await readOf())).toBe('surveyed');
+    expect(await readOf()).toBeUndefined();
+  });
+
+  /**
+   * **Le relevé ne dit que ce que le point tenait seul** (revue de #340). Au rayon du point, il
+   * écrirait les tenants et les bâtiments adverses de 120 à 240 km : un joueur fonderait un
+   * avant-poste pour le démanteler aussitôt, et espionnerait.
+   */
+  it('n’écrit aucun relevé pour un chantier : il n’a rien coloré', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const point = await plant(t, seat);
+    await t.run(async (ctx) => ctx.db.patch(point, { standsAt: Date.now() + 3_600_000 }));
+    const near = [...regionsWithinReach(regionFacts(PRAHOVA)!.point, outpostReachKm(1)).keys()];
+    await anchor(
+      t,
+      guest,
+      'listening',
+      near.find((id) => id !== PRAHOVA)!,
+      null,
+    );
+    const rows = () =>
+      t.run(async (ctx) => {
+        const player = await seatIn(ctx, seat);
+        return ctx.db
+          .query('regionSightings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect();
+      });
+    const planted = await rows();
+    await t.run(async (ctx) => {
+      for (const row of planted) await ctx.db.delete(row._id);
+    });
+    await t.mutation(api.outposts.dismantle, { ...seat, outpostId: point });
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('ne relève pas le mât adverse d’une région que le point ne tenait pas seul', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const point = await plant(t, seat);
+    const reach = outpostReachKm(1);
+    const disc = [...regionsWithinReach(regionFacts(PRAHOVA)!.point, reach).keys()];
+    // A second point of the same player, close by: the regions it takes first are not held alone.
+    const twin = disc.find((id) => id !== PRAHOVA)!;
+    await plant(t, seat, twin);
+    const alone = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      const outpost = (await ctx.db.get(point))!;
+      return soleHoldOf({
+        regions: allRegions(),
+        outposts: await outpostsOfPlayer(ctx, player._id),
+        outpost,
+        homeGrounds: await homeGroundsOf(ctx, player.seasonId),
+        occupations: await occupationsOf(ctx, player.seasonId),
+        now: Date.now(),
+      });
+    });
+    const shared = disc.find((id) => !alone.includes(id));
+    expect(shared, 'a region of the disc the point does not hold alone').toBeDefined();
+    await anchor(t, guest, 'listening', shared!, null);
+
+    await t.mutation(api.outposts.dismantle, { ...seat, outpostId: point });
+    const seen = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db
+        .query('regionSightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect();
+    });
+    expect(seen.find((row) => row.regionId === shared)?.installations ?? []).toEqual([]);
+  });
+
+  /** La fiche annonce ce que la règle fera : rien pour un chantier, et les mâts qui tombent. */
+  it('dit à la fiche : aucune couleur pour un chantier, et les mâts ancrés au point', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = await plant(t, seat);
+    const mast = await anchor(t, seat, 'listening', PRAHOVA, point);
+    const told = await t.query(api.outposts.soleHold, { ...seat, outpostId: point });
+    expect(told.regions).toBeGreaterThan(0);
+    const place = await t.run(async (ctx) => (await ctx.db.get(mast))!.point);
+    expect(told.anchored).toEqual([{ key: 'listening', point: [place.lon, place.lat] }]);
+
+    await t.run(async (ctx) => ctx.db.patch(point, { standsAt: Date.now() + 3_600_000 }));
+    expect((await t.query(api.outposts.soleHold, { ...seat, outpostId: point })).regions).toBe(0);
   });
 
   /** Un mât sur le sol national ne dépend d'aucun point : il reste debout. */
