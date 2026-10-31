@@ -42,7 +42,8 @@ const PER_COLUMN = 3;
 /** How far a routed piece backs off, and how high a piece is let go above the board. */
 const RETREAT = 0.9;
 const DROP = 1.2;
-/** How far the attacker walks in over the voyage, on the map. @a-mesurer */
+/** How far the attacker walks in over the voyage, on the map. @a-mesurer: its last steps read
+ *  as an arrival, not a slide? */
 const ARRIVAL = 0.5;
 /** A block's half thickness at board scale: it tips over its back bottom edge, not through the board. */
 const BLOCK_HALF = 0.3 * SCENE_FIGURE;

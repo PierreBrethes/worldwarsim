@@ -14,7 +14,7 @@ import type { ArcView, CombatReport, ReplayView } from './player-view';
 export const COMBATS_AT_ONCE = 3;
 
 /** **Ce que tient la pose finale**, quand rien ne joue (coupées, plus de douze pièces, budget
- *  plein) : le temps du compte-rendu. @a-mesurer */
+ *  plein). @a-mesurer : le temps du compte-rendu, assez pour lire qui reste debout ? */
 export const FINAL_POSE_MS = STEP_MS['compte-rendu'];
 
 /** **Les combats qu'une vue apporte et que la précédente n'avait pas** — jamais à la première

@@ -20,9 +20,11 @@ type Played = {
   step: string | null;
 };
 
-/** A point waits this long for its view before it shows again. @a-mesurer */
+/** A point waits this long for its view before it shows again. @a-mesurer: a slow `replayOf`
+ *  on a phone still lands inside it? */
 const WAIT_MS = 4000;
-/** What a point waiting for its view veils around it, in the scene's units. @a-mesurer */
+/** What a point waiting for its view veils around it, in the scene's units. @a-mesurer: the
+ *  reach of a combat of three pieces a side, about. */
 const WAITING_REACH = 3;
 
 /**

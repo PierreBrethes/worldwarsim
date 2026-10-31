@@ -2154,13 +2154,14 @@ function BoardContent({
 
   /**
    * **Un combat nouveau se joue sur la carte** (#272) : le point se masque dès qu'on l'apprend,
-   * puis la carte joue la vue que `replayOf` rend. Rien à la première vue.
+   * puis la carte joue la vue que `replayOf` rend. Rien à la première vue, rien en Blitz : la
+   * Mondiale seule.
    */
   const combatsKnown = useRef<ReadonlySet<string> | null>(null);
   const [mapCombats, setMapCombats] = useState<ReadonlyArray<MapCombat>>([]);
   useEffect(() => {
     const reports = view.journal.flatMap((dispatch) => dispatch.combat ?? []);
-    const fresh = freshCombats(combatsKnown.current, reports);
+    const fresh = blitz ? [] : freshCombats(combatsKnown.current, reports);
     combatsKnown.current = new Set(reports.map((report) => report.id));
     if (fresh.length === 0) return;
     setMapCombats(
@@ -2183,7 +2184,7 @@ function BoardContent({
           );
         })
         .catch(() => undefined);
-  }, [view.journal, view.arcs, convex, seat]);
+  }, [view.journal, view.arcs, convex, seat, blitz]);
   const launchReplay = useCallback(
     async (dispatch: JournalDispatch): Promise<string | null> => {
       if (dispatch.combat === null) return null;
