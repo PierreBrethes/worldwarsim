@@ -277,7 +277,8 @@ export function useTokenDrag<From>({
       const before = at;
       at = { x: step.clientX, y: step.clientY };
       moved ||= Math.hypot(at.x - origin.x, at.y - origin.y) > MOVE_PX;
-      update(at.x - before.x, true);
+      // A move that goes nowhere (a wheel turned under a still hand) keeps what the wheel set.
+      update(at.x - before.x, at.x !== before.x || at.y !== before.y);
     };
     /** The gauge owns the wheel while it is open: it sets the load, the map does not zoom. */
     const wheel = (turn: WheelEvent) => {

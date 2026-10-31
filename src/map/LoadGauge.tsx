@@ -46,12 +46,11 @@ export function LoadGauge({
       </div>
       <div className="load-gauge-read">
         <b>{fr.logistics.gaugeLoad(amount)}</b>
-        <span>
-          {fr.logistics.gaugeAfter(held + amount, capacity)}
-          {reading.word === null ? '' : ` · ${reading.word}`}
-        </span>
+        <span>{fr.logistics.gaugeAfter(held + amount, capacity)}</span>
       </div>
-      <div className="load-gauge-note">{amount === 0 ? fr.logistics.gaugeZero : ''}</div>
+      <div className="load-gauge-note">
+        {amount === 0 ? fr.logistics.gaugeZero : (reading.word ?? '')}
+      </div>
       <div ref={railRef} className="load-gauge-rail">
         {SUPPLY_KEYS.map((key) => {
           const left = at;

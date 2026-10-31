@@ -184,6 +184,7 @@ describe('the gauge of a transport under the hand', () => {
     moveTo(150, 320);
     expect(gauge()?.textContent).toContain('Camion — Charbon');
     expect(gauge()?.textContent).toContain('Charger 140');
+    expect(gauge()?.textContent).toContain('plein');
     act(() => void fireEvent.pointerUp(window, { pointerId: 1, clientX: 150, clientY: 320 }));
     expect(drop).toHaveBeenCalledWith('board', 'c1', 'coal', 140);
     expect(gauge()).toBeNull();
