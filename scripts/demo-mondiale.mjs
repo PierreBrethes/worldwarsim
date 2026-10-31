@@ -480,11 +480,13 @@ if (!bare) {
       role: 'infantry',
       tier: 2,
     });
-    cli([
+    const finishing = cli([
       'run',
       'dev:finishRecruitments',
       JSON.stringify({ playerId: scene.a, afterMs: recruitIn * 1000 }),
     ]);
+    if (Number(finishing.trim().split('\n').pop()) < 1)
+      throw new Error('scène de la recrue : aucun lot daté');
   }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
@@ -534,7 +536,12 @@ if (!bare) {
       buildingId: warehouse.id,
     });
     cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
-    await pause(4000);
+    for (let tries = 0; ; tries++) {
+      await pause(500);
+      const { movements } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+      if (movements.some((one) => one.mission?.phase === 'presence')) break;
+      if (tries === 59) throw new Error('scène du pillage : la colonne n’est pas arrivée en 30 s');
+    }
     const moved = cli([
       'run',
       'dev:pastPresence',
@@ -839,7 +846,7 @@ if (editions)
 
 writeFileSync(
   accountsFile,
-  `${JSON.stringify({ ...accounts, code, seasonId, places }, null, 2)}\n`,
+  `${JSON.stringify({ ...saved, ...accounts, code, seasonId, places }, null, 2)}\n`,
 );
 console.log(`Mondiale lancée : code ${code}, saison ${seasonId}`);
 console.log(`Comptes : ${accounts.a.nickname} (a), ${accounts.b.nickname} (b) → ${accountsFile}`);

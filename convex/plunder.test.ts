@@ -14,7 +14,6 @@ import { regionFacts, pointOfRegion } from './regions';
 import { sparedPerResourceOf } from '../src/domain/loot';
 import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
-import { loadingAt } from '../src/domain/loading';
 import { fileSurvey } from './surveys';
 import { modules } from './test.setup';
 import { attacking, foundSeat, holdPoint, joinSeat, placeHq, seatIn } from './seats.fixture';
@@ -460,7 +459,31 @@ describe('plunder presence', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('shows the crates of a presence the demo has set back, and still ends it', async () => {
+  it('ends a presence the demo has set back at its new deadline, by the job it replanned', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    const movementId = await plunderArrival(t, seat, warehouseId, [infantry], barracks);
+    const playerId = (await playerOf(t, seat))._id;
+    const phase = async () => (await t.run((ctx) => ctx.db.get(movementId)))?.plunder?.phase;
+
+    expect(await t.mutation(internal.dev.pastPresence, { playerId, hours: 1.5 })).toBe(1);
+
+    const until = MIDDAY + 0.5 * HOUR;
+    const movement = await t.run((ctx) => ctx.db.get(movementId));
+    expect(movement?.plunder).toMatchObject({ phase: 'presence', until });
+    expect(movement?.arrivesAt).toBe(until);
+    await vi.advanceTimersByTimeAsync(0.5 * HOUR - 1);
+    await t.finishInProgressScheduledFunctions();
+    expect(await phase()).toBe('presence');
+    await vi.advanceTimersByTimeAsync(2);
+    await t.finishInProgressScheduledFunctions();
+    expect(await phase()).not.toBe('presence');
+  });
+
+  it('never sets a presence back past now, whatever the hours asked', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const barracks = await building(t, seat, 'barracks', undefined, MARNE);
@@ -469,16 +492,11 @@ describe('plunder presence', () => {
     const movementId = await plunderArrival(t, seat, warehouseId, [infantry], barracks);
     const playerId = (await playerOf(t, seat))._id;
 
-    expect(await t.mutation(internal.dev.pastPresence, { playerId, hours: 1.5 })).toBe(1);
+    await t.mutation(internal.dev.pastPresence, { playerId, hours: 10 });
 
-    const until = MIDDAY + 0.5 * HOUR;
     const movement = await t.run((ctx) => ctx.db.get(movementId));
-    expect(movement?.plunder).toMatchObject({ phase: 'presence', until });
-    expect(movement?.arrivesAt).toBe(until);
-    // The arc the interface reads: three of the four crates are down at the loading's clock.
-    expect(loadingAt(until, MIDDAY).crates).toBe(3);
-    await completePresence(t, movementId);
-    expect((await t.run((ctx) => ctx.db.get(movementId)))?.plunder?.phase).not.toBe('presence');
+    expect(movement?.plunder).toMatchObject({ phase: 'presence', until: MIDDAY });
+    expect(movement?.arrivesAt).toBe(MIDDAY);
   });
 
   it('holds an infantry column on an undefended warehouse until the presence deadline', async () => {

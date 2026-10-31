@@ -650,23 +650,22 @@ export const pastPresence = internalMutation({
       .query('movements')
       .filter((q) => q.eq(q.field('playerId'), playerId))
       .collect();
+    const now = Date.now();
     let moved = 0;
     for (const movement of movements) {
       if (movement.plunder?.phase !== 'presence') continue;
-      const until = movement.plunder.until - hours * 3_600_000;
+      /** Never past now: a deadline in the past would replan a job the clock has already missed. */
+      const back = Math.min(hours * 3_600_000, movement.plunder.until - now);
+      const until = movement.plunder.until - back;
       await ctx.db.patch(movement._id, {
-        departedAt: movement.departedAt - hours * 3_600_000,
+        departedAt: movement.departedAt - back,
         arrivesAt: until,
         plunder: { ...movement.plunder, until },
       });
-      await ctx.scheduler.runAt(
-        Math.max(until, Date.now()),
-        internal.movements.completePlunderPresence,
-        {
-          movementId: movement._id,
-          expectedAt: until,
-        },
-      );
+      await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
+        movementId: movement._id,
+        expectedAt: until,
+      });
       moved++;
     }
     return moved;

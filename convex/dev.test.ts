@@ -177,3 +177,15 @@ describe('dev scenes read by the capture', () => {
     expect(view.me.buildings.find((building) => building.key === 'hq')?.unreached).toBeUndefined();
   });
 });
+
+describe('dev.levelsScene', () => {
+  it('keeps the cards the player already holds', async () => {
+    const { t, playerId } = await twoNations();
+    await t.mutation(internal.dev.grantCards, { playerId, cards: ['infantryMk2'] });
+
+    await t.mutation(internal.dev.levelsScene, { playerId });
+
+    const { researched } = (await t.run((ctx) => ctx.db.get(playerId)))!;
+    expect(researched).toEqual(['infantryMk2', 'transmissions1', 'transmissions2']);
+  });
+});
