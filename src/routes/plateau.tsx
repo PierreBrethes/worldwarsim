@@ -2600,6 +2600,12 @@ function BoardContent({
                   onClose={() => setGarrison(null)}
                   onPrepare={prepareColumn}
                   onPickedChange={setGarrisonPicked}
+                  onDismantle={(outpostId, at) => {
+                    setGarrison(null);
+                    setOrderError(null);
+                    /* Sous le seuil la carte tient la largeur de l'écran : elle s'ancre à son bord droit. */
+                    setDismantling({ outpostId, x: window.innerWidth, y: at.y });
+                  }}
                 />
               )}
               {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
