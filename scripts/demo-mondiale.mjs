@@ -78,6 +78,8 @@ import { api } from '../convex/_generated/api.js';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', import.meta.url));
 /** `--tutoriel` : une place neuve, au début des premiers pas (ADR 0027 §2) — rien de posé. */
+/** Les lieux des scènes posées, écrits dans le fichier des comptes : `lieu=@camion` de `capture.mjs`. */
+const places = {};
 const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
@@ -200,6 +202,7 @@ if (!bare) {
     .map((line) => JSON.parse(line))
     .filter((row) => row.seasonId === seasonId);
   const at = { france: [2.35, 48.85], uk: [-0.12, 51.5] };
+  places.paris = at.france;
   for (const [key, nation] of [
     ['a', 'france'],
     ['b', 'uk'],
@@ -267,6 +270,7 @@ if (!bare) {
         JSON.stringify({ playerId: scene.a, role, count, lon: -9.75, lat: 51.75 }),
       ]);
   if (passengers && scene.a !== null) {
+    places.camion = [1.6, 48.2];
     const spawn = (args) =>
       cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]);
     const [truck] = JSON.parse(
@@ -455,6 +459,7 @@ if (!bare) {
     cli(['run', 'dev:quaysScene', JSON.stringify({ playerId: scene.a })]);
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };
+    places.valette = [valletta.lon, valletta.lat];
     const offshore = { lon: 14.6, lat: 35.75 };
     const paris = (
       await client.query(api.view.playerView, { token: tokenA, seasonId })
@@ -581,6 +586,7 @@ if (!bare) {
   }
   if (combatIn !== null && scene.a !== null && scene.b !== null) {
     const garrison = { lon: 4.94, lat: 49.7 };
+    places.combat = [garrison.lon, garrison.lat];
     const from = { lon: 4.72, lat: 49.66 };
     const spawn = (playerId, role, count, at) =>
       JSON.parse(
@@ -683,6 +689,9 @@ if (editions)
     cli(['run', 'press:writeEditionJob', JSON.stringify({ seasonId })]);
   }
 
-writeFileSync(accountsFile, `${JSON.stringify({ ...accounts, code, seasonId }, null, 2)}\n`);
+writeFileSync(
+  accountsFile,
+  `${JSON.stringify({ ...accounts, code, seasonId, places }, null, 2)}\n`,
+);
 console.log(`Mondiale lancée : code ${code}, saison ${seasonId}`);
 console.log(`Comptes : ${accounts.a.nickname} (a), ${accounts.b.nickname} (b) → ${accountsFile}`);
