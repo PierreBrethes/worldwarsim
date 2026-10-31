@@ -72,7 +72,7 @@ import {
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { CombatLayer } from './combats';
-import { RazeLayer } from './razes';
+import { razedOf, RazeLayer } from './razes';
 import { HeldBursts } from './held-bursts';
 import { stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
@@ -493,6 +493,10 @@ export class MapEngine {
   private readonly combats = new CombatLayer();
   /** The maquettes I razed, falling where they stood (#326). */
   private readonly razes = new RazeLayer();
+  /** The razed maquettes still falling, whose place is held (`MaquetteLayer.hold`). */
+  private readonly falling = new Set<string>();
+  /** The piles as last served: a garrison of a falling site is drawn beside it (`besideFalling`). */
+  private piles: ReadonlyArray<StandingPile> = [];
   /** « Terrain tenu » of a combat the map may play: the report stamp says it when it does. */
   private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
@@ -881,6 +885,14 @@ export class MapEngine {
     this.scene.add(this.standing.group);
     this.scene.add(this.combats.group);
     this.scene.add(this.razes.group);
+    this.razes.onEnded = (id) => {
+      this.falling.delete(id);
+      this.maquettes.release(id);
+      this.standing.display(this.besideFalling(this.piles));
+      this.standing.rebuild();
+      this.pins.rebuild();
+      this.invalidate();
+    };
     this.combats.phone = this.touch;
     this.combats.onSettled = (id) => this.settleCombat(id);
     this.combats.onShown = (id) => this.groundWords.shown(id);
@@ -1102,18 +1114,43 @@ export class MapEngine {
   /** My piles standing at a point, dressed in figurines up close (ADR 0026 §5). */
   displayStanding(piles: ReadonlyArray<StandingPile>): void {
     this.invalidate();
-    this.standing.display(piles);
+    this.piles = piles;
+    this.standing.display(this.besideFalling(piles));
+  }
+
+  /** **The garrison of a razed site stays at its foot while it falls** (#326): served at the
+   *  site's point now, it stands where it stood until the place is given back. */
+  private besideFalling(piles: ReadonlyArray<StandingPile>): ReadonlyArray<StandingPile> {
+    if (this.falling.size === 0) return piles;
+    const sites = [...this.falling].flatMap((id) => {
+      const at = this.maquettes.heldAt(id);
+      return at === null ? [] : [{ id, at }];
+    });
+    return piles.map((pile) => {
+      if (!('lonLat' in pile.at)) return pile;
+      const [lon, lat] = pile.at.lonLat;
+      const site = sites.find(({ at }) => Math.abs(at[0] - lon) + Math.abs(at[1] - lat) < 1e-9);
+      return site === undefined ? pile : { ...pile, at: { beside: site.id } };
+    });
   }
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
    *  (ADR 0026 §1). */
   displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
-    // A razed maquette is copied as it is drawn before its lot is rebuilt without it.
-    const kept = new Set(maquettes.map(({ id }) => id));
+    // A razed maquette is copied as it is drawn before its lot is rebuilt without it, and its
+    // place held while it falls: its neighbours on a ring stay where they stand.
     const now = performance.now();
-    for (const id of this.razing) {
-      const drawn = kept.has(id) ? null : this.maquettes.drawnOf(id);
-      if (drawn !== null) this.razes.play(drawn, now);
+    let fell = false;
+    for (const id of razedOf(this.razing, maquettes)) {
+      const drawn = this.maquettes.drawnOf(id);
+      if (drawn === null || !this.razes.play(id, drawn, now)) continue;
+      this.maquettes.hold(id);
+      this.falling.add(id);
+      fell = true;
+    }
+    if (fell) {
+      this.invalidate();
+      this.standing.display(this.besideFalling(this.piles));
     }
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
@@ -3720,7 +3757,7 @@ export class MapEngine {
       if (night > 0 || this.warmed > 0) {
         // The scenes swell with their own shots.
         for (const root of pieces)
-          if (root !== this.combats.group)
+          if (root !== this.combats.group && root !== this.razes.group)
             warmPieces(root, night, root === this.replay?.scene.object ? (shot?.strength ?? 0) : 0);
         this.combats.warm(night);
       }
@@ -3731,6 +3768,7 @@ export class MapEngine {
         this.standing.lights(lit);
         this.maquettes.lights(lit);
         this.combats.lights(lit);
+        this.razes.lights(lit);
         this.pins.lights(lit, this.unitsPerPixel(distance));
         const flare = brightest([
           ...this.combats.flashes(),

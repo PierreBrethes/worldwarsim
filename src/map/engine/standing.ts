@@ -599,7 +599,7 @@ const SHAKE_S = 0.28;
 const SHAKE_TURN = 0.22;
 /** A refusal is announced before the hand empties, like a boarding. */
 const REFUSAL_MS = 1000;
-const RETICLE_LIFT = 0.006;
+export const RETICLE_LIFT = 0.006;
 
 function carriedMarks(): Marks {
   const reticle = new InkRing();

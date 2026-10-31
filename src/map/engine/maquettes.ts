@@ -72,6 +72,13 @@ export function yawOf(id: string): number {
   return ((hash >>> 0) / 2 ** 32) * 2 * Math.PI;
 }
 
+/** **What a maquette is drawn as, and where** (`drawnOf`): what a raze outlives it by (#326). */
+export type Drawn = {
+  readonly parts: ReadonlyArray<Part>;
+  readonly matrix: Matrix4;
+  readonly box: Box3;
+};
+
 type Model = {
   readonly parts: ReadonlyArray<Part>;
   /** Its own units to one board unit, times its span, its size: on its widest side at the ground,
@@ -376,6 +383,9 @@ type Placed = {
   /** Inside a replay's ground: it steps aside, and its plate with it. */
   cleared: boolean;
   near: number;
+  /** The weight it was last drawn at (`orient`), kept over a rebuild: a view that loses it
+   *  before the next frame still finds it drawn (#326). */
+  drawnNear: number;
   readonly smoking: boolean;
   /** One per chimney once the model has landed, empty for a site that does not produce. */
   smokes: Smoke[];
@@ -419,6 +429,12 @@ export class MaquetteLayer implements SequenceHost {
   private readonly copies = new Map<string, Object3D>();
   private lots = new Map<string, Lot>();
   private byId = new Map<string, { item: Placed; lot: Lot }>();
+  /** **Razed, still falling** (#326): its place on the ring is kept — its neighbours stay — and
+   *  nothing of it is drawn, until `release`. */
+  private held = new Map<
+    string,
+    { readonly item: Placed; readonly model: Model; readonly lonLat: LonLat | null }
+  >();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
   motion: MapMotion = 'full';
@@ -465,10 +481,12 @@ export class MaquetteLayer implements SequenceHost {
   /** Every maquette set back on its point — the regions landed under the region anchors. A
    *  region anchor that has not landed stands nothing yet. */
   rebuild(): void {
+    const drawnNear = new Map([...this.byId].map(([id, { item }]) => [id, item.drawnNear]));
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
     this.byId.clear();
     for (const maquette of this.maquettes) {
+      this.held.delete(maquette.id);
       const ground =
         'lonLat' in maquette.at
           ? this.frame.projectLonLat(maquette.at.lonLat, COUNTRY_THICKNESS)
@@ -509,6 +527,7 @@ export class MaquetteLayer implements SequenceHost {
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         near: -1,
+        drawnNear: drawnNear.get(maquette.id) ?? 0,
         // A site at work and a ghost of a survey do not produce.
         smoking: maquette.smoking === true && !maquette.works && !maquette.washed,
         smokes: [],
@@ -550,8 +569,31 @@ export class MaquetteLayer implements SequenceHost {
     this.place();
   }
 
+  /** **The razed maquette keeps its place** until `release` (#326): read before the view that
+   *  lost it is displayed. */
+  hold(id: string): void {
+    const dressed = this.byId.get(id);
+    if (dressed === undefined || dressed.lot.model === null) return;
+    const at = this.maquettes.find((maquette) => maquette.id === id)?.at;
+    this.held.set(id, {
+      item: dressed.item,
+      model: dressed.lot.model,
+      lonLat: at !== undefined && 'lonLat' in at ? at.lonLat : null,
+    });
+  }
+
+  /** Its fall is over: its neighbours close in, on the next `orient`. */
+  release(id: string): void {
+    if (this.held.delete(id)) this.place();
+  }
+
+  /** **The point a held maquette stood on**: its garrison is served there now. */
+  heldAt(id: string): LonLat | null {
+    return this.held.get(id)?.lonLat ?? null;
+  }
+
   private place(): void {
-    const items = [...this.byId.values()]
+    const items = [...this.byId.values(), ...this.held.values()]
       .map(({ item }) => item)
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
@@ -689,15 +731,14 @@ export class MaquetteLayer implements SequenceHost {
   /** **What a maquette is drawn as now, and where** (#326): its parts as its lot draws them — a
    *  rising site's cut with it —, its placement, its model's bounds in its own units. `null` when
    *  nothing of it is drawn. Read before the view that lost it is displayed: a raze outlives it. */
-  drawnOf(
-    id: string,
-  ): { readonly parts: ReadonlyArray<Part>; readonly matrix: Matrix4; readonly box: Box3 } | null {
+  drawnOf(id: string): Drawn | null {
     const dressed = this.byId.get(id);
     const model = dressed?.lot.model;
     if (
       dressed === undefined ||
       !model ||
-      dressed.item.near <= 0 ||
+      this.held.has(id) ||
+      dressed.item.drawnNear <= 0 ||
       dressed.lot.meshes.length === 0
     )
       return null;
@@ -710,7 +751,7 @@ export class MaquetteLayer implements SequenceHost {
       matrix: new Matrix4().compose(
         item.at,
         item.turn,
-        new Vector3().setScalar(item.near * sizeOf(model, item)),
+        new Vector3().setScalar(item.drawnNear * sizeOf(model, item)),
       ),
       box: model.box,
     };
@@ -775,9 +816,14 @@ export class MaquetteLayer implements SequenceHost {
     pile: number,
     quay = false,
   ): { at: Vector3; step: readonly [number, number]; facing: number } | null {
+    const held = this.held.get(id);
     const dressed = this.byId.get(id);
-    if (dressed === undefined || dressed.lot.model === null || dressed.item.cleared) return null;
-    const { at, facing, scale, near, span } = dressed.item;
+    if (held === undefined && (dressed === undefined || dressed.lot.model === null)) return null;
+    const item = held?.item ?? dressed!.item;
+    if (item.cleared) return null;
+    const { at, facing, scale, span } = item;
+    // A held site is not oriented any more: its garrison keeps the weight it was drawn at.
+    const near = held === undefined ? item.near : item.drawnNear;
     const foot = garrisonFoot(span, pile, quay) * pieceScale.size * scale * Math.max(near, 0);
     return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing };
   }
@@ -827,6 +873,7 @@ export class MaquetteLayer implements SequenceHost {
         if (ending) item.settledAt = null;
         if (near === item.near && item.settledAt === null && !ending) return;
         item.near = near;
+        item.drawnNear = near;
         moved = true;
         const size = near * sizeOf(lot.model!, item);
         matrix.compose(item.at, item.turn, scale.set(size, size * (bounce ?? 1), size));
