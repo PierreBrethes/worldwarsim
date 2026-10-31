@@ -42,6 +42,8 @@ const PER_COLUMN = 3;
 /** How far a routed piece backs off, and how high a piece is let go above the board. */
 const RETREAT = 0.9;
 const DROP = 1.2;
+/** How far the attacker walks in over the voyage, on the map. @a-mesurer */
+const ARRIVAL = 0.5;
 /** A block's half thickness at board scale: it tips over its back bottom edge, not through the board. */
 const BLOCK_HALF = 0.3 * SCENE_FIGURE;
 
@@ -57,6 +59,13 @@ function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[number, nu
     const rank = k % PER_COLUMN;
     return [sign * (GAP + column * COLUMN), (rank - (inColumn - 1) / 2) * RANK];
   });
+}
+
+/** **Where a side's line stands across the scene**, its middle on x: on the map, the
+ *  defender's is set on its pile's place (#272). */
+export function lineCentre(count: number, side: 'mine' | 'theirs'): number {
+  const columns = Math.max(1, Math.ceil(count / PER_COLUMN));
+  return (side === 'mine' ? -1 : 1) * (GAP + ((columns - 1) * COLUMN) / 2);
 }
 
 /**
@@ -224,6 +233,8 @@ type Piece = {
   /** A card faces the eye: it goes down onto its back, as a block does, never in its own plane. */
   card: boolean;
   readonly home: readonly [number, number];
+  /** Its yaw in the scene, facing the other line: what a turn about starts from. */
+  yaw: number;
   readonly holder: Group;
   readonly pivot: Group;
   body: Object3D;
@@ -267,6 +278,9 @@ export class ReplayScene {
     medium: Medium,
     private readonly fire: ReplayFire = null,
     foe: string | null = null,
+    /** **Sur la carte** (#272), le camp qui arrive : il fait ses derniers pas au voyage, rien ne
+     *  tombe du ciel, et la déroute est un demi-tour sur place (`turns` de `show`). */
+    private readonly onMap: 'mine' | 'theirs' | null = null,
   ) {
     const mine = pieces.filter((piece) => piece.side === 'mine').length;
     const spots = {
@@ -310,6 +324,7 @@ export class ReplayScene {
       burns: seen !== undefined && seen.role !== 'infantry',
       card: false,
       home,
+      yaw: 0,
       holder,
       pivot,
       body: new Group(),
@@ -379,6 +394,7 @@ export class ReplayScene {
       }
     }
     pivot.add(built.body, marker);
+    built.yaw = holder.rotation.y;
     built.shot.visible = false;
     built.shot.userData.ground = true;
     this.object.add(holder);
@@ -389,7 +405,12 @@ export class ReplayScene {
    * Draws `frame`. `seconds` is the smoke's clock, `still` the reduced motion: no drop from
    * above, a steady flash rather than a pulse.
    */
-  show(frame: ReplayFrame, seconds: number, still: boolean): void {
+  show(
+    frame: ReplayFrame,
+    seconds: number,
+    still: boolean,
+    turns: ReadonlyArray<number> | null = null,
+  ): void {
     const { step, progress } = frame;
     // Each volley is heard once, as it leaves (POC, `fire`).
     const heard = frame.firing === null ? null : `${step}:${frame.firing}`;
@@ -400,7 +421,13 @@ export class ReplayScene {
       const state = frame.pieces[k]!;
       const { holder, pivot } = piece;
       const down =
-        step === 'voyage' ? -1 : step === 'pose' && !still ? progress * 1.6 - k / count : 1;
+        this.onMap !== null
+          ? 1
+          : step === 'voyage'
+            ? -1
+            : step === 'pose' && !still
+              ? progress * 1.6 - k / count
+              : 1;
       holder.visible = down >= 0;
       holder.position.y = DROP * (1 - ease(Math.min(1, Math.max(0, down)))) ** 2;
 
@@ -427,7 +454,12 @@ export class ReplayScene {
       const fall = state.fate === 'fallen' ? ease(state.progress) : 0;
       const retreat = state.fate === 'routed' ? ease(state.progress) : 0;
       const sign = piece.side === 'mine' ? -1 : 1;
-      holder.position.x = piece.home[0] + sign * RETREAT * retreat;
+      // On the map the attacker walks its last steps in over the voyage, and a rout turns about.
+      const arriving =
+        this.onMap === piece.side && step === 'voyage' && !still ? 1 - ease(progress) : 0;
+      holder.position.x =
+        piece.home[0] + sign * (this.onMap === null ? RETREAT * retreat : ARRIVAL * arriving);
+      if (turns !== null) holder.rotation.y = piece.yaw + Math.PI * ease(turns[k] ?? 0);
       holder.rotation.z = shakeOf(frame, still);
       if (piece.burns) {
         pivot.rotation.set(0, 0, 0);

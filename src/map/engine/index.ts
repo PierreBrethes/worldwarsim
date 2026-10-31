@@ -68,8 +68,10 @@ import {
   setNearFloor,
   TANK_SHARE,
   troopPinSpan,
+  troopScale,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
+import { CombatLayer } from './combats';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut } from './timelines/walk';
@@ -484,6 +486,8 @@ export class MapEngine {
   private readonly maquettes: MaquetteLayer;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
+  /** The combats played at their point (#272), on a budget of their own. */
+  private readonly combats = new CombatLayer();
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
   /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
@@ -852,6 +856,7 @@ export class MapEngine {
     this.ambience.add(this.standing.smoke);
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
+    this.scene.add(this.combats.group);
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -1874,6 +1879,7 @@ export class MapEngine {
     this.ghost.dispose();
     this.standing.dispose();
     this.sequences.dispose();
+    this.combats.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
     this.pins.dispose();
@@ -2584,7 +2590,48 @@ export class MapEngine {
       case 'descente':
         this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
         break;
+      case 'combat':
+        this.playCombat(cue);
+        break;
     }
+  }
+
+  /**
+   * **Un combat se joue à son point** (#272) : sur terre, s'il est dans le champ et ses figurines
+   * dessinées au signal, et qu'aucun rejeu n'est ouvert ; sinon rien, la dépêche suffit. Sans sa
+   * vue encore, le point se masque en l'attendant. La ligne du défenseur se tient sur sa pile,
+   * l'attaquant en face, du côté d'où il est venu (`toward`), sinon à gauche, comme au rejeu.
+   */
+  private playCombat(cue: Extract<Cue, { kind: 'combat' }>): void {
+    if (this.replay !== null || !this.landAt(cue.point)) return;
+    const point = this.frame.projectLonLat(cue.point, COUNTRY_THICKNESS);
+    const now = performance.now();
+    if (!this.combats.waits(cue.id) && !this.seenWhole(point)) return;
+    if (cue.view === null) {
+      this.combats.wait(cue.id, point, now);
+      return;
+    }
+    let yaw: number;
+    if (cue.toward === null) {
+      const eye = this.camera.position.clone().sub(this.controls.target);
+      yaw = Math.atan2(eye.x, eye.z);
+    } else {
+      const away = this.frame.projectLonLat(cue.toward, COUNTRY_THICKNESS).sub(point);
+      yaw =
+        cue.view.side === 'attacker' ? Math.atan2(away.z, -away.x) : Math.atan2(-away.z, away.x);
+    }
+    this.combats.play(cue.view, this.playerNation, point, yaw, now);
+  }
+
+  /** In the field, and near enough for a troop to stand rather than its pin. */
+  private seenWhole(point: Vector3): boolean {
+    this.eyeFrustum.setFromProjectionMatrix(
+      this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
+    );
+    return (
+      this.eyeFrustum.containsPoint(point) &&
+      troopScale(this.camera.position.distanceTo(point), ANONYMOUS_SPAN) > 0
+    );
   }
 
   /**
@@ -2745,6 +2792,7 @@ export class MapEngine {
     this.parachutes.motion = motion;
     this.maquettes.motion = motion;
     this.sequences.motion = motion;
+    this.combats.motion = motion;
     this.ghost.motion = motion;
   }
 
@@ -3184,15 +3232,32 @@ export class MapEngine {
       this.invalidate();
   }
 
-  /** What stands at the point would stand inside the replay: piles, blocks, passing pawns. */
+  /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile. */
+  private combatScaleAt(at: Vector3): number {
+    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), ANONYMOUS_SPAN);
+  }
+
+  /** What the replay and the combats on the map cover: the board there would show the after. */
+  private get veils(): ReadonlyArray<{ readonly center: Vector3; readonly reach: number }> {
+    return this.replay === null ? this.combats.veils : [this.replay, ...this.combats.veils];
+  }
+
+  /** What stands at the point would stand inside the replay — or a combat played on the map
+   *  (#272), its return pawn (`walkHome`) included: piles, blocks, passing pawns. */
   private clearReplayGround(): void {
-    const replay = this.replay;
-    if (replay === null) return;
+    const veils = this.veils;
+    const covered = (at: Vector3) => veils.some((veil) => at.distanceTo(veil.center) < veil.reach);
+    // A pawn a combat hid shows again once its scene is gone; a replay's, when it is left.
+    for (const pawn of this.replayHidden)
+      if (!covered(pawn.position)) {
+        pawn.visible = true;
+        this.replayHidden.delete(pawn);
+      }
+    if (veils.length === 0) return;
     for (const layer of [this.standing.group, this.camps.group])
-      for (const object of layer.children)
-        if (object.position.distanceTo(replay.center) < replay.reach) object.visible = false;
+      for (const object of layer.children) if (covered(object.position)) object.visible = false;
     for (const pawn of this.arcs.pawns)
-      if (pawn.visible && pawn.position.distanceTo(replay.center) < replay.reach) {
+      if (pawn.visible && covered(pawn.position)) {
         pawn.visible = false;
         this.replayHidden.add(pawn);
       }
@@ -3203,14 +3268,18 @@ export class MapEngine {
     projections: ReadonlyArray<LabelProjection>,
     distance: number,
   ): ReadonlyArray<LabelProjection> {
-    const replay = this.replay;
-    if (replay === null) return projections;
-    const center = replay.center.clone().project(this.eye);
-    const x = ((center.x + 1) / 2) * this.screenWidth;
-    const y = ((1 - center.y) / 2) * this.screenHeight;
-    const radius = replay.reach / this.unitsPerPixel(distance);
+    const veils = this.veils.map((veil) => {
+      const center = veil.center.clone().project(this.eye);
+      return {
+        x: ((center.x + 1) / 2) * this.screenWidth,
+        y: ((1 - center.y) / 2) * this.screenHeight,
+        radius: veil.reach / this.unitsPerPixel(distance),
+      };
+    });
+    if (veils.length === 0) return projections;
     return projections.map((label) =>
-      label.visible && Math.hypot(label.x - x, label.y - y) < radius
+      label.visible &&
+      veils.some((veil) => Math.hypot(label.x - veil.x, label.y - veil.y) < veil.radius)
         ? { ...label, visible: false }
         : label,
     );
@@ -3440,6 +3509,7 @@ export class MapEngine {
       this.maquettes.settling ||
       this.sequences.active ||
       this.walks.length > 0 ||
+      this.combats.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -3448,6 +3518,7 @@ export class MapEngine {
       this.invalidate();
     const now = performance.now();
     this.advanceReplay(now);
+    if (this.combats.advance(now, (at) => this.combatScaleAt(at))) this.demand.whole();
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
     // Un fil affiché coule (tirets, pion qui marche), un anneau bat : une image complète au pas
@@ -3560,6 +3631,7 @@ export class MapEngine {
     const shadowed = this.lamp.follow(this.controls.target, distance);
     const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
     if (this.replay) pieces.push(this.replay.scene.object);
+    pieces.push(this.combats.group);
     if (shadowed && whole) for (const root of pieces) castShadows(root);
     if (whole) {
       // Warm by the same night as the halos, shadows or not: a piece must not keep a stale glow.

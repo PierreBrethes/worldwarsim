@@ -11,7 +11,8 @@ import { contactKm, outpostReachKm } from '../../convex/constants';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { WorldMap } from '@/map/WorldMap';
+import { type MapCombat, WorldMap } from '@/map/WorldMap';
+import { freshCombats, homewardOf } from '@/domain/combat-on-map';
 import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
 import {
@@ -2150,6 +2151,39 @@ function BoardContent({
    */
   const convex = useConvex();
   const markJournalRead = useMutation(api.journal.markRead);
+
+  /**
+   * **Un combat nouveau se joue sur la carte** (#272) : le point se masque dès qu'on l'apprend,
+   * puis la carte joue la vue que `replayOf` rend. Rien à la première vue.
+   */
+  const combatsKnown = useRef<ReadonlySet<string> | null>(null);
+  const [mapCombats, setMapCombats] = useState<ReadonlyArray<MapCombat>>([]);
+  useEffect(() => {
+    const reports = view.journal.flatMap((dispatch) => dispatch.combat ?? []);
+    const fresh = freshCombats(combatsKnown.current, reports);
+    combatsKnown.current = new Set(reports.map((report) => report.id));
+    if (fresh.length === 0) return;
+    setMapCombats(
+      fresh.map((report) => ({
+        id: report.id,
+        point: [report.point.lon, report.point.lat] as const,
+        view: null,
+        toward: homewardOf(report.point, view.arcs),
+      })),
+    );
+    for (const report of fresh)
+      convex
+        .query(api.replay.replayOf, { ...seat, combatId: report.id })
+        .then((served) => {
+          if ('refusal' in served) return;
+          setMapCombats((current) =>
+            current.map((combat) =>
+              combat.id === report.id ? { ...combat, view: served } : combat,
+            ),
+          );
+        })
+        .catch(() => undefined);
+  }, [view.journal, view.arcs, convex, seat]);
   const launchReplay = useCallback(
     async (dispatch: JournalDispatch): Promise<string | null> => {
       if (dispatch.combat === null) return null;
@@ -2412,6 +2446,7 @@ function BoardContent({
                 onTour={view.me.defeated ? undefined : onTour}
                 tourLoops={tourLoops}
                 cue={mapCue}
+                combats={mapCombats}
                 selectedPiles={selectedPiles}
                 onLasso={blitz ? undefined : lasso}
                 onSelectHold={blitz || view.me.defeated ? undefined : startPicking}
