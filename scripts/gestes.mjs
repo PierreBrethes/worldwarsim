@@ -18,11 +18,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api.js';
+import { chromiumPath } from './chromium.mjs';
 import { hourOf } from './capture-cible.mjs';
 
 const args = process.argv.slice(2);
@@ -41,11 +42,7 @@ const dir = process.env.PLAYWRIGHT_DIR;
 if (!dir)
   throw new Error('PLAYWRIGHT_DIR absent : dossier hors dépôt où `npm i playwright-core@1.58`');
 const { chromium } = createRequire(`${dir}/`)('playwright-core');
-const cache = `${homedir()}/Library/Caches/ms-playwright/chromium-1243`;
-const app = 'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
-const executablePath = existsSync(`${cache}/chrome-mac-arm64/${app}`)
-  ? `${cache}/chrome-mac-arm64/${app}`
-  : `${cache}/chrome-mac/${app}`;
+const executablePath = chromiumPath();
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -299,7 +296,7 @@ async function runProfile(profile) {
                 ['abaque', () => link(/^Abaque de tir/).click(), 'gunnery'],
                 ['recherche', () => button(/^recherche$/).click(), 'research'],
                 ['nation', () => link(/fiche de nation/).click(), 'nation'],
-                ['réglages', () => link(/^Réglages$/).click(), 'settings'],
+                ['réglages', () => link(/^Réglages( · bulletin non lu)?$/).click(), 'settings'],
               ];
           const missed = [];
           for (const [what, open, surface] of surfaces) {

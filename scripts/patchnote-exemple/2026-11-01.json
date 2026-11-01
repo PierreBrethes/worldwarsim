@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-01",
+  "from": "2026-10-30",
+  "dispatchCount": 16,
+  "lead": {
+    "kicker": "la marche",
+    "title": "Les colonnes marchent en file, au pas, et se déploient à l'arrivée",
+    "chapo": "Fini la figurine seule qui glissait le long de l'arc : toute la pile prend la route.",
+    "images": [
+      {
+        "src": "img/file.jpg",
+        "alt": "Une colonne mêlée de chars, d'un canon et de fantassins en file sur la route, son fil d'encre derrière elle",
+        "caption": "En route : la file se double au-delà de quatre, l'escouade garde son triangle."
+      },
+      {
+        "src": "img/arrivee.jpg",
+        "alt": "Une pile qui se déploie dans son anneau à côté d'un tampon ARRIVÉ",
+        "caption": "À l'arrivée : chaque pièce rejoint sa place, tournée vers l'avant."
+      }
+    ],
+    "bullets": [
+      {
+        "text": "Les hommes marchent au pas, les véhicules tanguent ; au quai, la file se masse avant d'embarquer.",
+        "refs": [276]
+      },
+      {
+        "text": "Au point visé, chaque pièce quitte la file pour sa place et se tourne vers le front. La pile garde ce cap au repos, même après un rechargement, et vous seul le voyez.",
+        "refs": [362]
+      },
+      {
+        "text": "Le fil d'un mouvement finit enfin sous la pile, plus une quinzaine de kilomètres au-delà.",
+        "refs": [364]
+      }
+    ]
+  },
+  "dispatches": [
+    {
+      "kicker": "Combat",
+      "title": "Le combat se joue sur la carte",
+      "image": {
+        "src": "img/nuit.jpg",
+        "alt": "La carte de nuit, des lueurs chaudes autour des combats en cours",
+        "caption": "De nuit, une lueur éclaire chaque combat."
+      },
+      "text": "Les pièces s'affrontent sur place, en six temps, et le compte-rendu se tamponne sur la carte. Tourelles et servants s'animent.",
+      "refs": [272, 327, 331, 332]
+    },
+    {
+      "kicker": "Ruines",
+      "title": "Raser, démanteler",
+      "image": {
+        "src": "img/rasage.jpg",
+        "alt": "Une caserne rasée de nuit qui s'affaisse, éclairée par les braises",
+        "caption": "Le bâtiment rasé s'affaisse sur sa place."
+      },
+      "text": "Un avant-poste démantelé voit son épingle basculer et sa zone s'effacer. Au téléphone, chaque ordre a son bouton.",
+      "refs": [326, 340, 343, 347]
+    },
+    {
+      "kicker": "Arsenal",
+      "title": "De nouvelles figurines",
+      "image": {
+        "src": "img/canon.jpg",
+        "alt": "Un canon japonais et son servant, nouvelle figurine",
+        "caption": "Le canon japonais et son servant."
+      },
+      "text": "Chars, canons, navires d'escorte, porte-avions et fantassins changent de modèle pour chacune des huit nations. L'homme mesure 1,75 m, à l'échelle de tout le reste.",
+      "refs": [316]
+    }
+  ],
+  "also": [
+    { "text": "Lâcher une troupe sur le camion de sa pile la fait monter à bord.", "refs": [358] },
+    { "text": "La jauge du transport règle la charge au plus juste.", "refs": [319] },
+    { "text": "La barre de sélection et la fiche de pile ne se chevauchent plus.", "refs": [308] },
+    { "text": "La garnison libérée ne se cache plus sous la maquette.", "refs": [341] }
+  ],
+  "bench": {
+    "image": {
+      "src": "img/socle.jpg",
+      "alt": "Une caserne d'essai posée sur un socle papier, cerclée d'un liseré bleu"
+    },
+    "entries": [
+      {
+        "title": "Chaque bâtiment sur son socle",
+        "text": "Une maquette posée sur sa base de wargame, cerclée de l'encre de son camp. Le signe planté dans la cour dit le bâtiment de loin, et la garnison s'y range. Les nouveaux modèles sont en préparation."
+      },
+      {
+        "title": "Magasin, Guet ou Fort",
+        "text": "Au niveau 2, l'avant-poste choisit son métier. Il ravitaille les colonnes, lit ce qu'il relève ou retient l'ennemi, et ses liaisons accélèrent les marches."
+      }
+    ]
+  }
+}

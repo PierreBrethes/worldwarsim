@@ -15,6 +15,8 @@ import { Pictogram } from './IndicatorGlyph';
 import { LayersSheet } from './LayersSheet';
 import { BlitzClock, EditionMark, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
+import { UnreadDot } from './UnreadDot';
+import { useUnreadPatchnotes } from '@/data/patchnotes';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
 
@@ -43,6 +45,7 @@ export function NarrowBand({
   const search = useSearch({ strict: false }) as BoardSearch;
   const [surface, setSurface] = useState<'dossier' | 'layers' | null>(null);
   const { me } = view;
+  const unread = useUnreadPatchnotes();
 
   return (
     <header
@@ -56,9 +59,12 @@ export function NarrowBand({
           aria-expanded={surface === 'dossier'}
           title={fr.dossier.open(nationLabel(me.nation))}
           onClick={() => setSurface((open) => (open === 'dossier' ? null : 'dossier'))}
-          className="-ml-[6px] flex min-h-[40px] min-w-0 cursor-pointer items-center gap-[10px] px-[6px]"
+          className="relative -ml-[6px] flex min-h-[40px] min-w-0 cursor-pointer items-center gap-[10px] px-[6px]"
         >
           <Flag nation={me.nation} width={27} onPaper />
+          {surface !== 'dossier' && unread.size > 0 && (
+            <UnreadDot className="top-[2px] left-[28px]" />
+          )}
           <span className="min-w-0 truncate font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
             {nationLabel(me.nation)}
           </span>
@@ -142,6 +148,7 @@ function NationDossier({
   onClose: () => void;
 }) {
   useSoleSurface(onClose);
+  const unread = useUnreadPatchnotes();
   const search = useSearch({ strict: false }) as BoardSearch;
   const toggles = useIndicatorToggles();
   const { me, press } = view;
@@ -208,7 +215,10 @@ function NationDossier({
         )}
         {toWindow(
           'settings',
-          <SettingsGlyph size={24} />,
+          <span className="relative">
+            <SettingsGlyph size={24} />
+            {unread.size > 0 && <UnreadDot />}
+          </span>,
           fr.dossier.settings,
           fr.dossier.settingsNote,
         )}
