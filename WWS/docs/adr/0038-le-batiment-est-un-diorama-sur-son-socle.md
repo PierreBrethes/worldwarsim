@@ -2,7 +2,8 @@
 
 **Statut :** acceptée (01/11/2026). Pierre a retenu la piste B+ le 30/10
 (`WWS/prototypes/batiments-caractere/b-plus.html`) et validé ses sept points et le budget le
-01/11 (« Oui, toutes »). **Précise l'ADR 0035** (§8 : le socle et la cour n'ont pas de mètres
+01/11 (« Oui, toutes »). Les §3, §5 et §7 sont précisés le 01/11 après la relecture à froid de
+#365–#367 (pris seul, sur les options qui n'ouvrent rien au brouillard ; Pierre peut les rouvrir). **Précise l'ADR 0035** (§8 : le socle et la cour n'ont pas de mètres
 réels) et le rendu de l'ADR 0026 (la carte en figurines).
 
 ## Contexte
@@ -32,9 +33,13 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    (`INK_BY_NATION`, comme le drapeau). Elle est pleine, jamais en tirets : le tiret des contours
    (ADR 0033) dit « territoire », le trait plein dit « pièce ».
 
-3. **Un site adverse relevé a un liseré creux**, à l'encre adverse, comme l'épingle d'un relevé.
-   Sa cour ne montre que ce que la vue sert à ce joueur : niveau et état relevés, et aucune
-   garnison qui n'ait été relevée (brouillard, `PlayerView`).
+3. **Un site adverse relevé a un liseré creux**, à l'encre du relevé, comme son épingle
+   (`ARC_COLORS.enemyDetected.trace`) : le relevé d'une installation ne sert ni sa nation, ni son
+   niveau, ni son état (`src/domain/labels.ts:38-42`), et le liseré n'en ouvre aucun. « Creux » :
+   la même bande, son encre mêlée à 60 % au papier du socle. Sa cour montre `niveau_1` seul, et
+   aucune garnison qui n'ait été relevée. Un site neutre de Blitz a le liseré creux à l'encre des
+   frontières ; un relevé vieilli (`washed`) se délave, liseré compris. Un site pris ne change pas
+   d'encre : il quitte mes maquettes et reparaît en relevé creux s'il est relevé, ou l'inverse.
 
 4. **Le signe porte le caractère.** Chaque site plante dans sa cour un élément haut qui lui est
    propre, `signe` : il dépasse le bâtiment d'au moins un quart de sa hauteur et le dit en
@@ -50,21 +55,29 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
 5. **La cour raconte le niveau et l'état.** Ses sols (gravier, béton, labours) sont peints dans
    l'atlas sur 4 cm au plus, à 20 points de L\* du socle au plus. Des groupes d'accessoires,
    `niveau_1`, `niveau_2`, `niveau_3` (qui s'ajoutent), `chantier` et `ruines`, sont masqués ou
-   montrés par le moteur selon le niveau et l'état ; un chantier coupe le bâtiment par le plan de
-   montée qui existe déjà (`cutOf`). Aucun accessoire ne ressemble à une pièce du jeu. La garnison
+   montrés par le moteur selon le niveau et l'état : `niveau_2` dès le niveau 2, `niveau_3` dès le
+   niveau 3 ; un chantier montre `niveau_1` et `chantier`, une montée le niveau d'avant et
+   `chantier`. Un chantier coupe le bâtiment seul par le plan de montée qui existe déjà (`cutOf`),
+   depuis `SOCLE_TOP`. Les ruines ne sont pas un état du jeu (un site rasé disparaît) : elles sont
+   la fin de la séquence de rasage (#326), où la cour montre `ruines` seul avant l'affaissement.
+   Aucun accessoire ne ressemble à une pièce du jeu. La garnison
    se range sur la cour, à partir du repère `fx_rang` (premier homme, +z vers le rang), dans un
    rectangle libre de 30 × 14 m, au lieu du pied des murs (`garrisonFoot`).
 
-6. **Deux sites voisins ne se touchent jamais.** L'emprise d'un site est la boîte de son socle,
+6. **Deux sites voisins ne se touchent pas.** L'emprise d'un site est la boîte de son socle,
    lue sur le GLB (`BUILDING_FOOTPRINT_METRES`, tenue par `maquettes.test.ts`) ; l'anneau espace
    les sites par elle, avec 4 m d'écart au moins. Pas de socle commun : chaque site garde son
-   liseré, car il peut changer de mains seul.
+   liseré, car il peut changer de mains seul. Seul le repli de l’anneau trop serré (chaque site
+   à son point, à 0,4) peut les faire se toucher.
 
-7. **La lecture par distance.** Jusqu'à d = 28 (`PIN_APPROACH_DISTANCE`), tout le diorama ; de 28
-   à 65 (`REGIONS_GONE_DISTANCE`), seuls le socle, le liseré et le signe, ce dernier grandi
-   jusqu'à ×2 pour garder 12 px de haut, comme la figurine plancher ; au-delà, l'épingle carrée
-   d'aujourd'hui. Chaque passage est un fondu, qui suit le réglage `actives / réduites / coupées`
-   (`src/domain/map-motion.ts`) et le contrat « Carte à la demande ».
+7. **La lecture par distance**, en pixels du socle, pour garder la règle de l'ADR 0035 §3 (chaque
+   pièce pesée par sa taille à l'écran, `pieceWeight`) : tout le diorama tant que le socle fait
+   64 px ou plus ; jusqu'à 28 px, seuls le socle, le liseré et le signe, ce dernier grandi jusqu'à
+   ×2 pour garder 12 px de haut, comme la figurine plancher ; en dessous, l'épingle carrée
+   d'aujourd'hui. Pour la caserne, cela tombe à d ≈ 28 et d ≈ 65 ; un puits passe plus tôt, un port
+   plus tard. Maquette, épingle et plaque lisent leurs seuils dans la même fonction, sans trou ni
+   recouvrement. Le passage suit la caméra, comme aujourd'hui : le bâtiment et la cour rétrécissent
+   sur leur pied pendant que le signe grandit, sans transparence.
 
 8. **Le socle et la cour n'ont pas de mètres réels** (écart à l'ADR 0035, accepté) : ils
    agrandissent l'emprise d'un site de 30 à 60 % au sol (la caserne passe de 65 à 80 m), pas le
