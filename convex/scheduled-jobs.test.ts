@@ -83,12 +83,12 @@ describe('scheduled jobs', () => {
     await setCoal(t, playerId, 50);
 
     const seasonId = guest.seasonId;
-    await t.run((ctx) => reassessDetection(ctx, seasonId));
+    await t.run((ctx) => reassessDetection(ctx, seasonId, Date.now(), playerId));
     expect(await pendingOf(t, 'listening:reassess')).toHaveLength(1);
     const [first] = await pendingOf(t, 'listening:reassess');
 
     vi.setSystemTime(MIDDAY.getTime() + HOUR);
-    await t.run((ctx) => reassessDetection(ctx, seasonId));
+    await t.run((ctx) => reassessDetection(ctx, seasonId, Date.now(), playerId));
     const after = await pendingOf(t, 'listening:reassess');
     expect(after).toHaveLength(1);
     expect(after[0]!._id).toBe(first!._id);
@@ -101,18 +101,18 @@ describe('scheduled jobs', () => {
     await station(t, playerId);
     await setCoal(t, playerId, 50);
     const seasonId = guest.seasonId;
-    await t.run((ctx) => reassessDetection(ctx, seasonId));
+    await t.run((ctx) => reassessDetection(ctx, seasonId, Date.now(), playerId));
     const [first] = await pendingOf(t, 'listening:reassess');
 
     await setCoal(t, playerId, 5);
-    await t.run((ctx) => reassessDetection(ctx, seasonId));
+    await t.run((ctx) => reassessDetection(ctx, seasonId, Date.now(), playerId));
     const moved = await pendingOf(t, 'listening:reassess');
     expect(moved).toHaveLength(1);
     expect(moved[0]!._id).not.toBe(first!._id);
     expect(moved[0]!.scheduledTime).toBeLessThan(first!.scheduledTime);
 
     await setCoal(t, playerId, 0);
-    await t.run((ctx) => reassessDetection(ctx, seasonId));
+    await t.run((ctx) => reassessDetection(ctx, seasonId, Date.now(), playerId));
     expect(await pendingOf(t, 'listening:reassess')).toHaveLength(0);
   });
 

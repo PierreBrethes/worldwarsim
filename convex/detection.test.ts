@@ -23,6 +23,7 @@ import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
 import { lookoutKmOf } from '../src/domain/outposts';
 import { pacedMinutes } from './movement/pace';
+import { settle } from './resources';
 import { forgetMovement } from './movement/arrival';
 import { handOver } from './strategicPoints';
 import { neutralPoint } from './seats.fixture';
@@ -164,7 +165,8 @@ async function outpost(
   });
 }
 
-/** Le stock national de charbon à zéro, sous un débit qui brûle encore. */
+/** Le stock national de charbon à zéro, sous un débit qui brûle encore — et le réveil que le jeu
+ *  aurait pris à cet instant (`players.dryJob`), puisque le stock est écrit à la main. */
 async function dryCoal(t: ReturnType<typeof boot>, seat: Seat) {
   const playerId = await playerOf(t, seat);
   await t.run(async (ctx) => {
@@ -178,6 +180,7 @@ async function dryCoal(t: ReturnType<typeof boot>, seat: Seat) {
       });
     }
   });
+  await t.mutation(internal.listening.reassess, { playerId });
 }
 
 async function sightingsOf(t: ReturnType<typeof boot>, seat: Seat) {
@@ -357,6 +360,23 @@ describe('what sees a movement go past', () => {
 
     expect(await sightingsOf(t, guest)).toEqual([]);
     expect((await t.query(api.view.playerView, guest)).me.upkeep.listeningSilent).toBe(true);
+  });
+
+  /** **Le verdict se tient sur la ligne du joueur**, écrit par sa seule réévaluation et seulement
+   *  quand il change : une écriture sur `players` refait toutes les vues de la saison. */
+  it('writes a player’s silence on his row when it changes, and only then', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    await outpost(t, guest, pointOf(PRAHOVA));
+    const guestId = await playerOf(t, guest);
+    const row = () => t.run(async (ctx) => (await ctx.db.get(guestId))!);
+
+    await dryCoal(t, guest);
+    const silent = await row();
+    expect(silent.listeningSilent).toBe(true);
+
+    await t.mutation(internal.listening.reassess, { playerId: guestId });
+    expect(await row()).toEqual(silent);
   });
 
   /** Le siège irrégulier ne tient aucun stock : les points qu'il hérite d'une chute sont aveugles. */
@@ -842,6 +862,89 @@ describe('two columns crossing in flight', () => {
  * rien. L'aperçu et le départ passent par la même fonction, donc ils datent l'arrivée à la même
  * minute, et l'aperçu dit ce que les liaisons ont pris.
  */
+/**
+ * **Les vigies s'aveuglent à l'heure où le charbon tombe à zéro** (ADR 0037 §2), chaînes de
+ * l'usine comprises : un réveil calé sur le seul entretien partirait trop tard, et une colonne
+ * passée entre-temps serait servie par une vigie qui n'a plus de quoi brûler.
+ */
+describe('the instant the coal runs dry', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const HOUR = 3_600_000;
+
+  /** Dix charbons, deux points de niveau 1 (2/h) et un lot de munitions à l'arsenal (3/h). */
+  async function burning(t: ReturnType<typeof boot>) {
+    const { seat, guest } = await launchedSeason(t);
+    const guestId = await playerOf(t, guest);
+    await outpost(t, guest, pointOf(PRAHOVA));
+    await outpost(t, guest, eastOf(pointOf(PRAHOVA), 400));
+    await t.run(async (ctx) => {
+      await ctx.db.insert('buildings', {
+        seasonId: guest.seasonId,
+        playerId: guestId,
+        key: 'arsenal',
+        regionId: 'RUS-2335',
+        point: pointOfRegion('RUS-2335'),
+        level: 1,
+      });
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', guestId))
+        .collect())
+        await ctx.db.patch(row._id, {
+          stock: row.key === 'coal' ? 10 : row.stock,
+          updatedAt: Date.now(),
+        });
+    });
+    await t.mutation(api.industry.order, { ...guest, chain: 'arsenal', quantity: 10 });
+    const reassess = () =>
+      t.run((ctx) => reassessDetection(ctx, guest.seasonId, Date.now(), guestId));
+    const dryJob = () => t.run(async (ctx) => (await ctx.db.get(guestId))!.dryJob);
+    return { seat, guest, reassess, dryJob };
+  }
+
+  it('wakes the lookouts at two hours, the arsenal burning its share', async () => {
+    const t = boot();
+    const { reassess, dryJob } = await burning(t);
+    await reassess();
+
+    const job = await dryJob();
+    expect(job).toBeDefined();
+    expect(job!.at - MIDDAY.getTime()).toBeGreaterThan(2 * HOUR - 60_000);
+    expect(job!.at - MIDDAY.getTime()).toBeLessThan(2 * HOUR + 60_000);
+  });
+
+  /** **Le règlement recale le réveil lui-même** : une couleur changée par un autre joueur règle
+   *  celui-ci (`reportChange`) sans toucher ses détecteurs, et c'est ce réveil qui viendra à temps. */
+  it('sets the wake-up from the settlement that changed the burn, with no reassessment', async () => {
+    const t = boot();
+    const { guest, dryJob } = await burning(t);
+    const guestId = await playerOf(t, guest);
+    await t.run((ctx) => settle(ctx, guestId, Date.now()).then(() => undefined));
+
+    const job = await dryJob();
+    expect(job).toBeDefined();
+    expect(job!.at - MIDDAY.getTime()).toBeLessThan(2 * HOUR + 60_000);
+  });
+
+  /** Le réveil en attente qui tombe à temps reste : le joueur n'est réécrit que s'il change. */
+  it('keeps the pending wake-up across a later reassessment that does not need an earlier one', async () => {
+    const t = boot();
+    const { reassess, dryJob } = await burning(t);
+    await reassess();
+    const first = await dryJob();
+
+    vi.advanceTimersByTime(10 * 60_000);
+    await reassess();
+
+    expect(await dryJob()).toEqual(first);
+  });
+});
+
 describe('what liaisons do to a departure', () => {
   beforeEach(() => {
     vi.useFakeTimers();

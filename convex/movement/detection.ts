@@ -29,7 +29,7 @@ import { isNation } from '../../src/domain/nations';
 import { isStanding, lookoutKmOf } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
-import { economyOf } from '../resources';
+import { coalDryAt, economyOf, keepDryWakeUp } from '../resources';
 import { holdsPoint } from '../strategicPoints';
 import { isRangoonColumn } from '../../src/domain/strategic-points';
 import {
@@ -99,7 +99,7 @@ export async function reassessDetection(
     season.status === 'launched' && season.concludedAt === null
       ? movements.filter((movement) => movement.arrivesAt > now)
       : [];
-  const board = await detectionBoard(ctx, seasonId, active, now);
+  const board = await detectionBoard(ctx, seasonId, active, now, touched);
   const ledgers = await observerLedgers(ctx, board, movements, touched);
 
   for (const target of movements) {
@@ -226,47 +226,13 @@ export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   arrivesAt: movement.arrivesAt,
 });
 
-/**
- * **Un seul réveil de charbon par joueur** (#146). Le même état redonne la même heure (à l'arrondi
- * près) : le job en attente la couvre déjà et reste. Une autre heure, ou plus de charbon qui brûle,
- * l'annule d'abord. La tolérance reste sous la seconde de marge que porte l'heure, pour que le
- * réveil ne parte jamais avant que le charbon soit à sec.
- */
-const DRY_TOLERANCE_MS = 500;
-
-async function keepDryWakeUp(
-  ctx: MutationCtx,
-  player: Doc<'players'> | undefined,
-  dryAt: number | null,
-): Promise<void> {
-  if (player === undefined) return;
-  const kept = player.dryJob;
-  if (
-    kept !== undefined &&
-    dryAt !== null &&
-    Math.abs(kept.at - dryAt) <= DRY_TOLERANCE_MS &&
-    (await isPending(ctx, kept.jobId))
-  )
-    return;
-  if (kept === undefined && dryAt === null) return;
-  if (kept !== undefined) await cancelJob(ctx, kept.jobId);
-  const dryJob =
-    dryAt === null
-      ? undefined
-      : {
-          jobId: await ctx.scheduler.runAt(dryAt, internal.listening.reassess, {
-            playerId: player._id,
-          }),
-          at: dryAt,
-        };
-  await ctx.db.patch(player._id, { dryJob });
-}
-
 async function detectionBoard(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   movements: ReadonlyArray<Doc<'movements'>>,
   now: number,
+  /** The players whose economy this event may have moved; `null` reads every verdict off its row. */
+  touched: ReadonlySet<Id<'players'>> | null = null,
 ) {
   const theatre = seasonTheatre(await ctx.db.get(seasonId));
   const [troops, buildings, outposts, players] = await Promise.all([
@@ -365,23 +331,26 @@ async function detectionBoard(
         ];
   });
 
-  /** A post with no coal hears nothing (ADR 0028 §1): one economy read per owner, not per post. */
+  /**
+   * **A post with no coal hears nothing** (ADR 0028 §1, ADR 0037 §2). Only a player this event
+   * touched has his economy settled here, once, and his verdict written on his row when it
+   * changes; every other player is read off that row (`players.listeningSilent`), which his own
+   * events keep: the wake-up at the instant his coal runs dry and the one his settlements post
+   * (`listening.reassess`, `writeStocks`). Settling every owner of a lookout on every departure
+   * would cost the whole board for one column.
+   */
   const silent = new Map<Id<'players'>, boolean>();
   const isSilent = async (playerId: Id<'players'>): Promise<boolean> => {
+    const player = playerById.get(playerId);
     /** The irregular seat keeps no stock, so the stations it inherits at a fall have no coal. */
-    if (playerById.get(playerId)?.irregular === true) return true;
+    if (player?.irregular === true) return true;
+    if (touched === null || !touched.has(playerId)) return player?.listeningSilent === true;
     if (!silent.has(playerId)) {
       const economy = await economyOf(ctx, playerId, now);
       silent.set(playerId, economy.listeningSilent);
-      // The coal is burning down: wake the ears at the instant it runs out, since nothing else will.
-      const burning = !economy.listeningSilent && economy.ratePerHour.coal < 0;
-      await keepDryWakeUp(
-        ctx,
-        playerById.get(playerId),
-        burning
-          ? now + (economy.stocks.coal / -economy.ratePerHour.coal) * 3_600_000 + 1_000
-          : null,
-      );
+      if (player !== undefined && (player.listeningSilent === true) !== economy.listeningSilent)
+        await ctx.db.patch(playerId, { listeningSilent: economy.listeningSilent });
+      await keepDryWakeUp(ctx, player, coalDryAt(economy, economy.stocks.coal, now));
     }
     return silent.get(playerId)!;
   };

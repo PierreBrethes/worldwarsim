@@ -1337,6 +1337,9 @@ describe('a headquarters falling at a full table', () => {
             }
           }
         });
+        /** Les stocks sont écrits à la main : le réveil que le jeu aurait pris à sec relit le
+         *  capteur et inscrit son silence sur sa ligne (`players.listeningSilent`). */
+        await t.mutation(internal.listening.reassess, { playerId: capturerId });
         await holdPoint(t, seats[1]!, 'rangoon');
       }
       await reassess(t, seat.seasonId);

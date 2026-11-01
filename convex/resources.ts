@@ -35,7 +35,7 @@ import {
   type Costs,
 } from './constants';
 import { fail } from './errors';
-import { isPending } from './scheduledJobs';
+import { cancelJob, isPending } from './scheduledJobs';
 import { heldOver } from './holding';
 import { holdsPoint } from './strategicPoints';
 import { pointOfBuilding, regionFacts } from './regions';
@@ -500,17 +500,76 @@ async function writeStocks(
   /**
    * **The ears follow the coal.** Sightings are only re-read by mutations, so a post going silent
    * (or hearing again) needs one: now when the state before or after the write is silent. The
-   * instant the coal runs dry is scheduled by the detection itself (`detectionBoard`).
+   * instant the coal will run dry is set here too, on the stock just written: a colour another
+   * player changed may speed this one's burn without touching his detectors (`reportChange`
+   * settles every belligerent), and only his own wake-up would then come in time.
    */
   if (owner !== undefined && economy.upkeep.listeningCoalPerHour > 0) {
     const coal = stocks.coal;
-    const rate = economy.ratePerHour.coal;
-    if (economy.listeningSilent || (coal <= 0 && rate < 0)) {
+    if (economy.listeningSilent || (coal <= 0 && economy.netRatePerHour.coal < 0)) {
       await wakeOnce(ctx, owner, 'reassessJobId', (playerId) =>
         ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId }),
       );
     }
+    await keepDryWakeUp(ctx, await ctx.db.get(owner), coalDryAt(economy, coal, now));
   }
+}
+
+/**
+ * **L'heure où le charbon tombe à zéro, au train où il brûle maintenant** (ADR 0037 §2) : l'entretien
+ * (`ratePerHour`) et, en plus, chaque chaîne qui tourne à son débit nominal. Le débit net de
+ * `netRatePerHour` est une moyenne sur l'horizon : il compte la chaîne affamée après le zéro et
+ * donne une heure trop tardive. Celle-ci pèche par avance, jamais par retard — un réveil un peu
+ * tôt relit et replanifie, un réveil en retard sert un relevé que la vigie n'a pas payé. `null`
+ * quand rien ne ronge le charbon ou que les vigies sont déjà muettes.
+ */
+export function coalDryAt(economy: Economy, coal: number, now: number): number | null {
+  if (economy.listeningSilent || economy.upkeep.listeningCoalPerHour <= 0) return null;
+  const chains = economy.chains
+    .filter((chain) => chain.made > 0)
+    .reduce(
+      (sum, { conversion }) =>
+        sum + conversion.perHour * (conversion.inputs.find(([key]) => key === 'coal')?.[1] ?? 0),
+      0,
+    );
+  const drain = chains - economy.ratePerHour.coal;
+  return drain > 0 ? now + (Math.max(0, coal) / drain) * 3_600_000 + 1_000 : null;
+}
+
+/**
+ * **Un seul réveil de charbon par joueur** (#146). Le job en attente qui part au plus tard à
+ * l'heure dite reste : parti un peu tôt, il relit et replanifie, et la ligne `players`, que toutes
+ * les vues de la saison lisent, n'est réécrite que si le réveil change. Un job qui partirait trop
+ * tard, ou plus de charbon qui brûle, l'annule d'abord.
+ */
+const DRY_TOLERANCE_MS = 500;
+
+export async function keepDryWakeUp(
+  ctx: MutationCtx,
+  player: Doc<'players'> | undefined | null,
+  dryAt: number | null,
+): Promise<void> {
+  if (player === undefined || player === null) return;
+  const kept = player.dryJob;
+  if (
+    kept !== undefined &&
+    dryAt !== null &&
+    kept.at <= dryAt + DRY_TOLERANCE_MS &&
+    (await isPending(ctx, kept.jobId))
+  )
+    return;
+  if (kept === undefined && dryAt === null) return;
+  if (kept !== undefined) await cancelJob(ctx, kept.jobId);
+  const dryJob =
+    dryAt === null
+      ? undefined
+      : {
+          jobId: await ctx.scheduler.runAt(dryAt, internal.listening.reassess, {
+            playerId: player._id,
+          }),
+          at: dryAt,
+        };
+  await ctx.db.patch(player._id, { dryJob });
 }
 
 /** **Un réveil à la fois** (#146) : deux règlements de suite sont couverts par le même job, qui

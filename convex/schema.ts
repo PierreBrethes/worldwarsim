@@ -205,6 +205,13 @@ export default defineSchema({
      * immédiats d'un règlement (oreilles muettes, file de recrues affamée).
      */
     dryJob: v.optional(v.object({ jobId: v.id('_scheduled_functions'), at: v.number() })),
+    /**
+     * **Ses vigies et ses stations sont-elles muettes ?** (ADR 0037 §2) Le verdict de son économie,
+     * écrit par la seule réévaluation qui le touche (`isSilent`, `listening.reassess`) et
+     * seulement quand il change : les autres réévaluations le lisent ici plutôt que de régler
+     * son économie. Absent vaut « elles entendent ».
+     */
+    listeningSilent: v.optional(v.boolean()),
     reassessJobId: v.optional(v.id('_scheduled_functions')),
     resumeJobId: v.optional(v.id('_scheduled_functions')),
     /**

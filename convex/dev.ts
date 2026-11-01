@@ -1469,7 +1469,8 @@ export const benchWakeups = internalMutation({
       }
     }
     await settle(ctx, silent, Date.now());
-    await reassessDetection(ctx, seasonId, Date.now());
+    /** Les deux joueurs dont le charbon a bougé : seuls eux règlent leur silence et leur réveil. */
+    await reassessDetection(ctx, seasonId, Date.now(), [burning, silent]);
   },
 });
 
