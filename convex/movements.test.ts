@@ -2061,6 +2061,45 @@ describe('a march goes to a point and the column stays there', () => {
     expect(await engagementsIn(t)).toHaveLength(0);
   });
 
+  /** **La pile garde le cap de son arrivée** (#362) : celui de la fin de sa route, servi à son seul
+   *  propriétaire ; une colonne qui la rejoint prend le sien. */
+  it('keeps the heading it came by, told to its owner only, and lends it to a column joining it', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [first],
+      point: asPoint(AIMED),
+    });
+    const [sent] = await movementsOf(t, seat);
+    const end = sent!.points.at(-1)!;
+    const before = [...sent!.points]
+      .reverse()
+      .find(({ lon, lat }) => lon !== end.lon || lat !== end.lat)!;
+    const heading = bearingDegrees([before.lon, before.lat], [end.lon, end.lat]);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const mine = await t.query(api.view.playerView, seat);
+    expect(mine.me.troops.find((troop) => troop.id === first)!.facing).toBeCloseTo(heading, 6);
+    expect(JSON.stringify(await t.query(api.view.playerView, guest))).not.toContain('facing');
+
+    // A cap the second route could not give: the pile's own.
+    await t.run((ctx) => ctx.db.patch(first, { facing: 7 }));
+    const second = await form(t, seat, 'infantry', barracks);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [second],
+      point: asPoint(AIMED),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const joined = await t.query(api.view.playerView, seat);
+    expect(joined.me.troops.find((troop) => troop.id === second)!.facing).toBe(7);
+  });
+
   it('refuses a point the map does not carry', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

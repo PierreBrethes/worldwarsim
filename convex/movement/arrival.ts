@@ -15,6 +15,7 @@ import { isNation } from '../../src/domain/nations';
 import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { firesIndirect } from '../../src/domain/indirect-fire';
+import { arrivalFacing } from '../../src/domain/pile-facing';
 import {
   cargoTotal,
   movementCargoFields,
@@ -387,7 +388,14 @@ export async function standAt(
   /** What the troops ate until now, they ate where they stood: settle before the address
    *  changes the upkeep, or the new rate is charged backwards over the whole march. */
   await settle(ctx, movement.playerId, Date.now());
-  for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address });
+  const facing =
+    address !== null && typeof address !== 'string'
+      ? arrivalFacing(
+          movement.points.map(pointOf),
+          await standingPile(ctx, movement.playerId, address),
+        )
+      : undefined;
+  for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address, facing });
   await stationMovementLoot(ctx, movement, address);
   if (movement.boardsOn !== undefined)
     await boardOnArrival(ctx, movement.boardsOn, marching, address);

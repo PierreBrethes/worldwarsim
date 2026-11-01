@@ -486,6 +486,10 @@ export default defineSchema({
      *  a embarqué, plus parce qu'on se tient au point d'un transport. Absent, à pied. Il ne vaut
      *  qu'à la même adresse que son transport (`carrierIn`). */
     carriedBy: v.optional(v.id('troops')),
+    /** **Le cap de sa pile posée** (#362), en degrés depuis le nord : posé à l'arrivée sur un
+     *  point (`arrivalFacing`), servi à son seul propriétaire. Absent, la pile regarde le sud du
+     *  plateau. */
+    facing: v.optional(v.number()),
     /** **Coups et plein, en crans** (ADR 0028 §3, Mondiale) : ce qu'elle porte encore. Absents,
      *  pleins — elle n'a rien dépensé depuis sa formation (`SUPPLY_BY_ROLE`). */
     rounds: v.optional(v.number()),
