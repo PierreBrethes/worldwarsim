@@ -35,7 +35,8 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   rapporte la cause « à vérifier » et ne corrige rien. Un test écrit après son code se voit
   rouge en neutralisant la ligne qu'il garde, et le rapport cite ce rouge-là.
 - **Banc** : avant et après au même cadrage et au même état (même `--heure`, même base Convex,
-  mêmes fichiers non suivis comme `public/media`), sur secteur, machine au repos. Les appels de dessin
+  mêmes fichiers non suivis comme `public/media` et `scripts/demo-mondiale.accounts.json`, donc la
+  même saison), sur secteur, machine au repos. Les appels de dessin
   sont la colonne « appels », pas « proc GPU ». Arrête chaque serveur, chaque Chromium et chaque
   tâche en arrière-plan que tu as lancés avant ton rapport : la machine de Pierre chauffe, et
   l'orchestrateur attend ton rapport.
