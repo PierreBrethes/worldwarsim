@@ -913,6 +913,8 @@ export async function march(
     await ctx.db.patch(troop._id, {
       ...(paying.has(troop._id) ? { fuel: suppliesOf(troop).fuel - fuel.stepsOf(troop) } : {}),
       fuelAt: arrivesAt,
+      /** On the road it faces nothing: only `standAt` gives a pile its heading (#362). */
+      facing: undefined,
     });
   const cargo = await takeStationedCargo(ctx, {
     seasonId: season._id,

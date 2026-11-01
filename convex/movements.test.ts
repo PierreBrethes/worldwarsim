@@ -305,6 +305,25 @@ const eastOf = (point: LonLat, km: number): LonLat => [
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 
 describe('a posted column founds an outpost where it stands', () => {
+  it('leaves the heading of its pile behind: a garrison does not turn (#362)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = regionFacts(PRAHOVA)!.point;
+    const posted = await post(t, seat, point);
+    await t.run((ctx) => ctx.db.patch(posted, { facing: 90 }));
+    await t.mutation(api.movements.foundOutpostHere, {
+      regionId: null,
+      ...seat,
+      point: { lon: point[0], lat: point[1] },
+      specialization: 'relay',
+      troopIds: [posted],
+    });
+    expect((await t.run(async (ctx) => ctx.db.get(posted)))!.facing).toBeUndefined();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
@@ -2084,7 +2103,11 @@ describe('a march goes to a point and the column stays there', () => {
 
     const mine = await t.query(api.view.playerView, seat);
     expect(mine.me.troops.find((troop) => troop.id === first)!.facing).toBeCloseTo(heading, 6);
-    expect(JSON.stringify(await t.query(api.view.playerView, guest))).not.toContain('facing');
+    // The guest has surveyed the pile: he sees it stand, never the way it faces.
+    await surveyCamp(t, guest, asPoint(AIMED));
+    const theirs = await t.query(api.view.playerView, guest);
+    expect(theirs.camps.length).toBeGreaterThan(0);
+    expect(JSON.stringify(theirs)).not.toContain('facing');
 
     // A cap the second route could not give: the pile's own.
     await t.run((ctx) => ctx.db.patch(first, { facing: 7 }));
@@ -2098,6 +2121,15 @@ describe('a march goes to a point and the column stays there', () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const joined = await t.query(api.view.playerView, seat);
     expect(joined.me.troops.find((troop) => troop.id === second)!.facing).toBe(7);
+
+    // On the road again, it faces nothing: a capture or a return home would stand it backwards.
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(AIMED) },
+      troopIds: [first],
+      point: asPoint([25.6, 44.4]),
+    });
+    expect((await t.run(async (ctx) => ctx.db.get(first)))!.facing).toBeUndefined();
   });
 
   it('refuses a point the map does not carry', async () => {

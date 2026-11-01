@@ -1,5 +1,6 @@
 import type { LonLat } from '@/domain/geo';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
+import { cameFrom } from '@/domain/pile-facing';
 import type { StandingPile } from './engine';
 
 /** **Une sortie de caserne** : où, dans quelle pile, et les groupes de la pile qui en sortent. */
@@ -154,8 +155,7 @@ export function entreesOf(
         // plane lands by its airfield's own storyboard (#269), not on foot.
         DOMAIN_BY_ROLE[role] === 'land' && troopIds.every((troop) => carried.has(troop)) ? [k] : [],
       );
-      // The way it came: the last point of its route that is not where it stands.
-      const toward = [...points].reverse().find(([lon, lat]) => lon !== at[0] || lat !== at[1]);
+      const toward = cameFrom(points);
       return groups.length === 0
         ? []
         : [

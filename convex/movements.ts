@@ -220,7 +220,8 @@ export const foundOutpostHere = mutation({
       stationedAt: point,
       troops,
     });
-    for (const troop of troops) await ctx.db.patch(troop._id, { stationedAt: outpostId });
+    for (const troop of troops)
+      await ctx.db.patch(troop._id, { stationedAt: outpostId, facing: undefined });
     await stationCargoLoads(ctx, {
       seasonId: season._id,
       playerId: player._id,

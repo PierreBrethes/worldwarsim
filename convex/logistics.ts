@@ -213,7 +213,11 @@ export async function unloadAt(
   await ctx.db.patch(outpost._id, { depot });
   const riders = troops.filter((troop) => !carriers.some((carrier) => carrier._id === troop._id));
   for (const rider of riders)
-    await ctx.db.patch(rider._id, { stationedAt: outpost._id, carriedBy: undefined });
+    await ctx.db.patch(rider._id, {
+      stationedAt: outpost._id,
+      carriedBy: undefined,
+      facing: undefined,
+    });
   await forgetMovement(ctx, movement._id, now);
   const ids = (list: ReadonlyArray<Doc<'troops'>>) => list.map((one) => one._id);
   await resupply(
