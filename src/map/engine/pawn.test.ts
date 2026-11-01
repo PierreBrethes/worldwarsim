@@ -214,14 +214,19 @@ describe('my column on the road', () => {
     const { pawn } = column();
     await landed();
     go(pawn, 0.01, 0.1);
-    const file = pawn.lastFile();
+    const { road, pieces: file } = pawn.lastFile()!;
     expect(file.map(({ troopId }) => troopId)).toEqual(['t1', 't2']);
     expect(file[0]!.at.x).toBeCloseTo(0.01, 6);
     // Going east (+x): the tank walks behind, and faces the way.
     expect(file[1]!.at.x).toBeLessThan(0.01);
     expect(file[1]!.heading).toBeCloseTo(Math.PI / 2, 6);
+    expect(file[1]!.back).toBeGreaterThan(0);
+    expect(file[1]!.at.x).toBeCloseTo(0.01 - file[1]!.back, 6);
+    // The road it came by, from the head back west, past its last piece.
+    expect(road[0]!.x).toBeCloseTo(0.01, 6);
+    expect(road.at(-1)!.x).toBeLessThan(file[1]!.at.x);
     pawn.orient(new Vector3(0.01, 1e4, 0), 0);
-    expect(pawn.lastFile()).toEqual([]);
+    expect(pawn.lastFile()).toBeNull();
   });
 
   it('stands men whose files land after the column stopped', async () => {

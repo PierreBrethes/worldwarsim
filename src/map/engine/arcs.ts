@@ -25,7 +25,7 @@ import {
   type ThreadLeg,
 } from './thread';
 import type { Ribbon } from './route-ribbon';
-import { Pawn, type ColumnPiece, type Road } from './pawn';
+import { Pawn, type ColumnPiece, type FilePiece, type Road } from './pawn';
 import { dressedGroups } from './standing';
 import { bendAround } from './sway';
 import { ARC_COLORS } from './palette';
@@ -172,9 +172,9 @@ export class ArcLayer {
    *  rest deploys from there. */
   private readonly left = new Map<
     string,
-    { readonly at: Vector3; readonly heading: number; readonly since: number }
+    FilePiece & { readonly road: ReadonlyArray<Vector3>; readonly since: number }
   >();
-  fileLeftBy(troopId: string): { readonly at: Vector3; readonly heading: number } | null {
+  fileLeftBy(troopId: string): (FilePiece & { readonly road: ReadonlyArray<Vector3> }) | null {
     return this.left.get(troopId) ?? null;
   }
   /** Kept across displays, which come at every step of any column: a crate falls once. */
@@ -256,8 +256,9 @@ export class ArcLayer {
     for (const [troopId, { since }] of this.left)
       if (now - since > LEFT_MS) this.left.delete(troopId);
     for (const gone of previous.values()) {
-      for (const { troopId, at, heading } of gone.pawn.lastFile())
-        this.left.set(troopId, { at, heading, since: now });
+      const file = gone.pawn.lastFile();
+      for (const piece of file?.pieces ?? [])
+        this.left.set(piece.troopId, { ...piece, road: file!.road, since: now });
       release(gone);
       this.headPositions.delete(gone.arc.id);
       this.aheadPositions.delete(gone.arc.id);

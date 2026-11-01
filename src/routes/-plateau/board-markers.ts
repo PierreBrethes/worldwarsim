@@ -516,8 +516,10 @@ export function marchingPiecesOf(
   );
 }
 
-/** **Le cap de la pile** (#362) : celui de ses troupes, qu'une arrivée leur donne à toutes. */
+/** **Le cap de la pile** (#362) : celui de ses troupes, qu'une arrivée leur donne à toutes ; une
+ *  pile de point seulement — une garnison d'avant-poste pend à son étiquette et ne se tourne pas. */
 function withFacing(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
+  if (!('lonLat' in pile.at) || pile.label !== undefined) return pile;
   const here = new Set(pile.pieces.troopIds);
   const facing = troops.find((troop) => here.has(troop.id) && troop.facing !== undefined)?.facing;
   return facing === undefined ? pile : { ...pile, facing };

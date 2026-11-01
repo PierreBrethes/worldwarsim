@@ -82,6 +82,17 @@ type Marcher = {
 /** A rank of the file, and how far behind the head it walks at the figurines' own size. */
 type Rank = { readonly back: number; readonly marchers: ReadonlyArray<Marcher> };
 
+/** **A piece of my file as last laid out** (#362), on the board (`lastFile`). */
+export type FilePiece = {
+  readonly troopId: string;
+  readonly at: Vector3;
+  readonly heading: number;
+  readonly back: number;
+  readonly side: number;
+};
+/** The road a closed file leaves, sampled from its head to its last piece. */
+const ROAD_SAMPLES = 24;
+
 /** **Au-delà de quatre pièces, la file se double** (storyboard, 31/10). */
 const SINGLE_FILE = 4;
 /**
@@ -206,6 +217,8 @@ export class Pawn {
   private movedAt = -Infinity;
   /** Its file was laid out at the last `orient`: in the field, and not yet its pin. */
   private laidOut = false;
+  /** The figurines' size on the board at that `orient` (`troopScale`). */
+  private drawn = 1;
 
   constructor(
     color: string,
@@ -439,6 +452,7 @@ export class Pawn {
    * clock, each vehicle sways (`swayOf`).
    */
   private march(drawn: number): void {
+    this.drawn = drawn;
     const head = this.object.position;
     const road = this.road !== null && this.road.leg.length > 0 ? this.road : null;
     const going = performance.now() - this.movedAt < WALKING_MS;
@@ -489,14 +503,39 @@ export class Pawn {
   }
 
   /** **Where each piece of my file stood when last laid out** (#362), by its group's first troop,
-   *  on the board: what the pile at rest deploys from. Nothing when it was not laid out. */
-  lastFile(): ReadonlyArray<{ troopId: string; at: Vector3; heading: number }> {
-    if (!this.laidOut || !this.object.visible) return [];
-    return this.marchers.map(({ figurine, troopId }) => ({
-      troopId,
-      at: figurine.object.getWorldPosition(new Vector3()),
-      heading: figurine.object.rotation.y,
-    }));
+   *  how far behind the head and to the right of its road, and the road it came by from the head
+   *  back, on the board: what the pile at rest deploys from. `null` when it was not laid out. */
+  lastFile(): {
+    readonly road: ReadonlyArray<Vector3>;
+    readonly pieces: ReadonlyArray<FilePiece>;
+  } | null {
+    if (!this.laidOut || !this.object.visible) return null;
+    const drawn = this.drawn;
+    const reach = this.fileReach * drawn;
+    const head = this.object.getWorldPosition(new Vector3());
+    const road = this.road !== null && this.road.leg.length > 0 ? this.road : null;
+    const behind = (d: number) =>
+      road === null
+        ? head.clone().add(new Vector3(-Math.sin(this.heading) * d, 0, -Math.cos(this.heading) * d))
+        : (() => {
+            const at = new Vector3();
+            pointOnLeg(road.leg, road.local - d / road.leg.length, at);
+            return at;
+          })();
+    return {
+      road: Array.from({ length: ROAD_SAMPLES + 1 }, (_, k) =>
+        k === 0 ? head : behind((reach * k) / ROAD_SAMPLES),
+      ),
+      pieces: this.ranks.flatMap(({ back, marchers }) =>
+        marchers.map(({ figurine, troopId, side }) => ({
+          troopId,
+          at: figurine.object.getWorldPosition(new Vector3()),
+          heading: figurine.object.rotation.y,
+          back: back * drawn,
+          side: side * drawn,
+        })),
+      ),
+    };
   }
 
   dispose(): void {

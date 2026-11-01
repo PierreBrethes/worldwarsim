@@ -202,6 +202,8 @@ describe('SequenceLayer', () => {
     await flush();
     expect(host.copies.size).toBe(MAX_PLAYING + MAX_DEPLOYING);
     expect(layer.room).toBe(0);
+    expect(layer.roomFor('deployment')).toBe(0);
+    expect(layerOf().layer.roomFor('deployment')).toBe(MAX_DEPLOYING);
     const reduced = layerOf().layer;
     reduced.motion = 'reduced';
     expect(reduced.play(new FakeHost(), 'h', { ...deploying, reduced: true }, 0)).toBe(true);

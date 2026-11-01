@@ -49,6 +49,38 @@ describe('standingPilesOf', () => {
     ]);
   });
 
+  it('turns a pile on a point to its heading, never an outpost garrison (#362)', () => {
+    const station = { kind: 'outpost', outpostId: 'o1' } as const;
+    const piles = standingPilesOf(
+      meWith([{ ...troop('a', station), facing: 90 }]),
+      [
+        {
+          kind: 'stack',
+          id: 'p',
+          lonLat: [1, 2],
+          pieces: { groups: [], troopIds: ['b'], squad: false },
+        } as never,
+      ],
+      new Set(),
+      false,
+    );
+    expect(piles.map((pile) => pile.facing)).toEqual([undefined, undefined]);
+    const facing = standingPilesOf(
+      meWith([{ ...troop('b', { kind: 'point', lonLat: [1, 2] }), facing: 90 }]),
+      [
+        {
+          kind: 'stack',
+          id: 'p',
+          lonLat: [1, 2],
+          pieces: { groups: [], troopIds: ['b'], squad: false },
+        } as never,
+      ],
+      new Set(),
+      false,
+    );
+    expect(facing.map((pile) => pile.facing)).toEqual([90]);
+  });
+
   it('leaves a marching troop out of the garrison it left', () => {
     const station = { kind: 'outpost', outpostId: 'o1' } as const;
     expect(standingPilesOf(meWith([troop('a', station)]), [], new Set(['a']), false)).toEqual([]);

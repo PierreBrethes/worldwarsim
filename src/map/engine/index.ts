@@ -2900,13 +2900,18 @@ export class MapEngine {
         ? []
         : [{ id, place: places[n]!, left, infantry: group.role === 'infantry', box }];
     });
-    if (file.length === 0) return true;
+    // A file longer than the room left stands whole at once: half a column deploying would read
+    // as half a column.
+    if (file.length === 0 || file.length > this.sequences.roomFor('deployment')) return true;
     const size = new Vector3();
     const deploying = {
       span: Math.max(...file.map(({ box }) => Math.max(box.getSize(size).x, size.z))),
+      road: file[0]!.left.road.map(({ x, z }) => [x, z] as const),
       pieces: file.map(({ place, left, infantry }) => ({
         from: [left.at.x, left.at.z] as const,
         heading: left.heading,
+        back: left.back,
+        side: left.side,
         to: [place.at.x, place.at.z] as const,
         infantry,
       })),

@@ -87,8 +87,9 @@ export type SequenceHost = {
 export const PLAY_PX = 150;
 /** **Au plus tant de copies à la fois** ; au-delà, la pose finale. `@a-mesurer` */
 export const MAX_PLAYING = 4;
-/** **Au plus tant de pièces qui se déploient à la fois** (#362), la file d'une pile au plus.
- *  `@a-mesurer` */
+/** **Au plus tant de pièces qui se déploient à la fois** (#362). Une file plus longue — une
+ *  colonne Blitz de neuf unités ou plus (`unitPieces`) — ne se déploie pas du tout : elle se pose
+ *  d'un coup. `@a-mesurer` */
 export const MAX_DEPLOYING = 8;
 
 /** **Un signal** : ce que la vue vient d'apprendre et que la carte joue. Grandit par lot. */
@@ -308,7 +309,12 @@ export class SequenceLayer {
 
   /** How many more pieces may play now (`MAX_PLAYING`), a deployment aside. */
   get room(): number {
-    return MAX_PLAYING - this.playingIn(undefined);
+    return this.roomFor(undefined);
+  }
+
+  /** How many more pieces of `pool` may play now (`MAX_DEPLOYING` for a deployment). */
+  roomFor(pool: Sequence['pool']): number {
+    return ceilingOf(pool) - this.playingIn(pool);
   }
 
   private plays({ reduced }: Sequence): boolean {
