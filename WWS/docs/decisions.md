@@ -157,6 +157,7 @@ Les codes `1a` (terrain) et `2a` (retranchement) du 16/09 et le `2a` du 17/09 so
 | `pierre-2026-10-20-points-moderent` | 2026-10-20 | Un point stratégique donne un avantage mesuré (−20 % de plein à Singapour, 1 cran de plein par 12 h à Bakou, un mouvement maritime hors slot à Halifax), jamais une règle annulée ; additif, sans boule de neige. | en vigueur | [ADR 0032](adr/0032-les-points-moderent.md) |
 | `pierre-2026-10-21-carte-sans-aplat` | 2026-10-21 | Plus d'aplat de nation : chaque territoire connu a un contour en tirets à l'encre de sa nation, le sien plus épais ; relevé pâle et immobile ; réglage « Contours : fins / épais ». | en vigueur | [ADR 0033](adr/0033-la-carte-sans-aplat.md), #196 |
 | `pierre-2026-10-21-contour-sur-la-frontiere` | 2026-10-21 | Le contour d'un territoire est posé sur la frontière face à la mer, au vide ou au non-tenu ; côte à côte, en retrait, seulement entre deux territoires. Il suit les arcs de l'atlas. | en vigueur | [ADR 0033](adr/0033-la-carte-sans-aplat.md) amendée, #209, #217 |
+| `pierre-2026-11-01-diorama-sur-socle` | 2026-11-01 | Chaque bâtiment est une maquette sur un socle papier à liseré plein de sa nation (creux chez l'adversaire relevé), avec un signe haut qui porte son caractère et une cour qui montre niveau, état et garnison ; 3 500 triangles par site. | en vigueur | [ADR 0038](adr/0038-le-batiment-est-un-diorama-sur-son-socle.md) |
 
 ## Les ADR et leurs révisions
 
