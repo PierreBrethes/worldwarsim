@@ -1,5 +1,7 @@
 # ADR 0019 — Mouvement libre, troupes posées, et l'avant-poste qui ravitaille
 
+> ⚠️ **Révision (01/11/2026, [ADR 0037](0037-un-avant-poste-qui-stocke-et-guette.md), non codée).** §4 précisé : le Magasin ravitaille aussi la colonne de son propriétaire qui traverse son rayon (2 munitions et 2 de pétrole par minute, relus à l'arrivée) ; la recharge des troupes posées ne change pas.
+
 **Statut :** acceptée (18/08/2026). Remplace une première version du 0019 (« l'avant-poste ouvre
 le terrain, il ne projette pas ») qui n'a jamais été acceptée et que cette décision rend sans
 objet. **§5 et les conséquences de détection sont révisées le 08/09/2026 par

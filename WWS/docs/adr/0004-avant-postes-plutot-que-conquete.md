@@ -1,5 +1,7 @@
 # ADR 0004 — Avant-postes ponctuels plutôt que conquête de provinces
 
+> ⚠️ **Révision (01/11/2026, [ADR 0037](0037-un-avant-poste-qui-stocke-et-guette.md), non codée).** La spécialisation exclusive (relais / écoute) ne vaut plus : tout avant-poste guette, et prend au niveau 2 une spécialisation parmi trois (Magasin, Guet, Fort), qui se change par un chantier.
+
 **Statut :** acceptée
 
 ## Contexte

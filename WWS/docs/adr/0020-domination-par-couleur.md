@@ -1,5 +1,7 @@
 # ADR 0020 — Domination par couleur : le territoire devient le score
 
+> ⚠️ **Révision (01/11/2026, [ADR 0037](0037-un-avant-poste-qui-stocke-et-guette.md), non codée).** §8 précisé : le Fort ralentit les colonnes adverses dans sa vigie et la ronde relève qui franchit sa ligne ; ni l'un ni l'autre ne bloque.
+
 **Statut :** acceptée (31/08/2026) — **révise l'[ADR 0005](0005-brouillard-par-defaut.md)**,
 tient la promesse non tenue de l'[ADR 0004](0004-avant-postes-plutot-que-conquete.md),
 retire les doctrines de la [fiche 05](../design/05-doctrines.md) — **§10 et §11 révisés par

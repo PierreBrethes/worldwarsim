@@ -1,5 +1,7 @@
 # ADR 0028 — L'économie de la Mondiale : cinq ressources, la logistique par les pièces
 
+> ⚠️ **Révision (01/11/2026, [ADR 0037](0037-un-avant-poste-qui-stocke-et-guette.md), non codée).** §1 : le charbon de l'écoute devient celui de la vigie, 1/h par niveau sur tout point, au stock national. « Ce qu'on abandonne » : le relais revient, attaché aux liaisons entre avant-postes dont les rayons se touchent.
+
 **Statut :** acceptée (18/10/2026, grilling de la proposition
 [Mondiale : économie, logistique, escouades](../design/propositions/mondiale-economie-logistique-escouades.md)
 avec Pierre). Elle donne une forme à l'[ADR 0027](0027-la-mondiale-au-centre.md) §5. Elle **révise
