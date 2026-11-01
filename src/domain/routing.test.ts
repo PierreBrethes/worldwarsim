@@ -13,6 +13,7 @@ import {
   buildGrid,
   coastCellsIn,
   computeRoute,
+  computeRouteToAny,
   decodeGrid,
   type GridWorld,
   type RouteMode,
@@ -25,6 +26,7 @@ import {
   landMaskOf,
   routeMedium,
   kmOf,
+  projectLonLat,
 } from './routing';
 
 /**
@@ -90,6 +92,12 @@ describe('landMaskOf', () => {
     expect(mask.includes(0)).toBe(true);
   });
 });
+
+/** The grid cell a point falls in, as the router reads it. */
+const cellKey = (grid: ReturnType<typeof decodeGrid>, point: LonLat): string => {
+  const [x, y] = projectLonLat(grid.outline, grid.sphere, point);
+  return `${Math.floor((x - grid.sphere.minX) / grid.step)},${Math.floor((y - grid.sphere.minY) / grid.step)}`;
+};
 
 /** Le monde cuit, tel que le serveur le lit : l'atlas (ADR 0034), ce que le jouet ne peut pas
  *  dire — un isthme. */
@@ -486,6 +494,7 @@ describe('routeMedium', () => {
  */
 describe('the pulled thread', () => {
   const baked = decodeGrid(gridAsset, projectionAsset as unknown as Projection);
+  const sameCell = (end: LonLat, point: LonLat) => cellKey(baked, end) === cellKey(baked, point);
 
   /** The vertices where the thread turns by more than a few degrees, ends included. */
   const usefulVertices = (points: ReadonlyArray<LonLat>): number => {
@@ -586,6 +595,8 @@ describe('the pulled thread', () => {
           [0, 0.02],
           [0, -0.02],
         ].some(([dLon, dLat]) => onCell([lon + dLon!, lat + dLat!]));
+      /** A hull's pile on a coast stands in a land cell: the leg that joins it crosses that cell. */
+      const ends = [route!.points[0]!, route!.points[route!.points.length - 1]!];
       route!.points.forEach((a, index) => {
         const b = route!.points[index + 1];
         if (b === undefined || Math.abs(b[0] - a[0]) > 180) return;
@@ -593,6 +604,7 @@ describe('the pulled thread', () => {
         for (let s = 1; s < samples; s++) {
           const t = s / samples;
           const point: LonLat = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+          if (mode === 'naval' && ends.some((end) => sameCell(end, point))) continue;
           if (!onMedium(point)) {
             strays.push(`${mode} ${from} → ${to} at ${point}`);
             return;
@@ -601,5 +613,253 @@ describe('the pulled thread', () => {
       });
     }
     expect(strays).toEqual([]);
+  });
+});
+
+/**
+ * **The thread and the pile are one place** (#381): a pawn's pile stands on the point the player
+ * gave, so the drawn thread leaves `from` and ends at `to` — not at the centre of a cell, nor, for
+ * a fleet aimed at a coast, at the sea beside it. What the column is billed is the thread drawn.
+ */
+describe('the thread follows the pile', () => {
+  const baked = decodeGrid(gridAsset, projectionAsset as unknown as Projection);
+  const next = ((seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  })(381);
+  const randomPoint = (): LonLat => [next() * 360 - 180, next() * 140 - 70];
+  const onWrap = (a: LonLat, b: LonLat) => Math.abs(a[0] - b[0]) > 180;
+
+  /** Random pairs on the right medium, snapped nowhere: where they stand is where they are. */
+  const pairs = (mode: RouteMode, count: number): Array<[LonLat, LonLat]> => {
+    const fits = (point: LonLat) =>
+      mode === 'land' ? isWalkableCell(baked, point) : groundAt(baked, point) === 'sea';
+    const found: Array<[LonLat, LonLat]> = [];
+    while (found.length < count) {
+      const [a, b] = [randomPoint(), randomPoint()];
+      if (fits(a) && fits(b) && distanceKm(a, b) > 100 && distanceKm(a, b) < 4000)
+        found.push([a, b]);
+    }
+    return found;
+  };
+
+  const gaps = (mode: RouteMode) => {
+    const stray: string[] = [];
+    for (const [from, to] of pairs(mode, 60)) {
+      const route = computeRoute(baked, from, to, mode);
+      if (route === null) continue;
+      const first = route.points[0]!;
+      const second = route.points[1]!;
+      if (!onWrap(first, second) && distanceKm(first, from) > 0.01)
+        stray.push(`${mode} from ${from}`);
+      const last = route.points[route.points.length - 1]!;
+      const before = route.points[route.points.length - 2]!;
+      if (!onWrap(last, before) && distanceKm(last, to) > 0.01) stray.push(`${mode} to ${to}`);
+    }
+    return stray;
+  };
+
+  it('leaves the point the pile stands on', () => {
+    expect(gaps('land').filter((s) => s.includes(' from '))).toEqual([]);
+    expect(gaps('naval').filter((s) => s.includes(' from '))).toEqual([]);
+  });
+
+  it('bills the thread it draws', () => {
+    const drawn = (points: ReadonlyArray<LonLat>) =>
+      points.slice(1).reduce((sum, point, i) => {
+        const [ax, ay] = projectLonLat(baked.outline, baked.sphere, points[i]!);
+        const [bx, by] = projectLonLat(baked.outline, baked.sphere, point);
+        return sum + Math.hypot(bx - ax, by - ay);
+      }, 0);
+    for (const mode of ['land', 'naval'] as const)
+      for (const [from, to] of pairs(mode, 40)) {
+        const route = computeRoute(baked, from, to, mode);
+        if (route === null || route.points.some((p, i) => i > 0 && onWrap(route.points[i - 1]!, p)))
+          continue;
+        expect(route.distanceUnits / drawn(route.points), `${mode} ${from} → ${to}`).toBeCloseTo(
+          1,
+          1,
+        );
+      }
+  });
+
+  const coastPoint = (): LonLat => {
+    for (;;) {
+      const point = randomPoint();
+      if (isLandCell(baked, point) && isCoastCell(baked, point)) return point;
+    }
+  };
+  const seaPoint = (near: LonLat): LonLat => {
+    for (;;) {
+      const point = randomPoint();
+      const km = distanceKm(point, near);
+      if (groundAt(baked, point) === 'sea' && km > 150 && km < 4000) return point;
+    }
+  };
+
+  /**
+   * The grounds met along a segment, a sample every half kilometre, one letter each. With a
+   * `shore`, the only land allowed is that point's own cell ('l'); any other land is 'X'. The
+   * sample on an end that is not the shore (a sea centre, a corner vertex) is not read.
+   */
+  const groundsAlong = (
+    a: LonLat,
+    b: LonLat,
+    shore?: LonLat,
+    shoreAt?: 'start' | 'end',
+  ): string => {
+    const samples = Math.ceil(distanceKm(a, b) / 0.5) + 1;
+    let letters = '';
+    for (let s = 0; s <= samples; s++) {
+      if (
+        shore !== undefined &&
+        ((s === 0 && shoreAt === 'end') || (s === samples && shoreAt === 'start'))
+      )
+        continue;
+      const t = s / samples;
+      const point: LonLat = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+      const ground = groundAt(baked, point);
+      const letter =
+        ground === 'sea'
+          ? 's'
+          : shore === undefined || cellKey(baked, point) === cellKey(baked, shore)
+            ? 'l'
+            : 'X';
+      if (letters[letters.length - 1] !== letter) letters += letter;
+    }
+    return letters;
+  };
+  /** Water, then land to the end, the shore's own cell only: once on land the leg stays there. */
+  const seaThenLand = (a: LonLat, b: LonLat) =>
+    ['s', 'sl', 'l'].includes(groundsAlong(a, b, b, 'end'));
+  const landThenSea = (a: LonLat, b: LonLat) =>
+    ['s', 'ls', 'l'].includes(groundsAlong(a, b, a, 'start'));
+  const lastLeg = (route: { points: ReadonlyArray<LonLat> }): [LonLat, LonLat] => [
+    route.points[route.points.length - 2]!,
+    route.points[route.points.length - 1]!,
+  ];
+
+  /** A fleet's pile stands on the coast it aimed at (`standAt`): the thread goes there, by water. */
+  it('carries a fleet to the coast point it aimed at, the last leg water then land', () => {
+    const coasts: Array<[LonLat, LonLat]> = [
+      [
+        [-4.6, 48.3],
+        [5.37, 43.3],
+      ],
+      [
+        [4, 55],
+        [12.1, 54.1],
+      ],
+      [
+        [-9.6, 38.6],
+        [-43.17, -22.9],
+      ],
+      [
+        [140.0, 35.0],
+        [139.9, 35.6],
+      ],
+      // Banten, by Jakarta: the straight leg from the sea cell cuts a corner of land.
+      [
+        [105.0, -6.0],
+        [106.081, -6.375],
+      ],
+    ];
+    for (const [from, to] of coasts) {
+      expect(isCoastCell(baked, to), `${to} is a coast`).toBe(true);
+      const route = computeRoute(baked, from, to, 'naval')!;
+      expect(route.points[route.points.length - 1]).toEqual(to);
+      expect(seaThenLand(...lastLeg(route)), `${from} → ${to}`).toBe(true);
+    }
+  });
+
+  /** Where the leg from the nearest sea cell is not free, another sea cell is: no fleet stops at sea. */
+  it('brings nearly every fleet aimed at a coast to it', { timeout: 60000 }, () => {
+    let short = 0;
+    let bent = 0;
+    const count = 300;
+    for (let i = 0; i < count; i++) {
+      const to = coastPoint();
+      const route = computeRoute(baked, seaPoint(to), to, 'naval');
+      if (route === null) continue;
+      const [a, b] = lastLeg(route);
+      if (b[0] !== to[0] || b[1] !== to[1]) short++;
+      else if (!onWrap(a, b) && !seaThenLand(a, b)) bent++;
+    }
+    expect(short, 'ended at sea').toBeLessThanOrEqual(count / 100);
+    expect(bent, 'leg over land').toBe(0);
+  });
+
+  it('sets a fleet standing on a coast out from it, by water', { timeout: 60000 }, () => {
+    let short = 0;
+    let bent = 0;
+    const count = 300;
+    for (let i = 0; i < count; i++) {
+      const from = coastPoint();
+      const route = computeRoute(baked, from, seaPoint(from), 'naval');
+      if (route === null) continue;
+      const [a, b] = [route.points[0]!, route.points[1]!];
+      if (a[0] !== from[0] || a[1] !== from[1]) short++;
+      else if (!onWrap(a, b) && !landThenSea(a, b)) bent++;
+    }
+    expect(short, 'left from the sea').toBeLessThanOrEqual(count / 100);
+    expect(bent, 'leg over land').toBe(0);
+  });
+
+  it('never cuts a corner of land on its first and last legs', { timeout: 60000 }, () => {
+    for (const mode of ['land', 'naval'] as const)
+      for (const [from, to] of pairs(mode, 150)) {
+        const route = computeRoute(baked, from, to, mode);
+        if (route === null) continue;
+        const wanted = mode === 'land' ? 'l' : 's';
+        const legs: Array<[LonLat, LonLat]> = [
+          [route.points[0]!, route.points[1]!],
+          lastLeg(route),
+        ];
+        for (const [a, b] of legs)
+          if (!onWrap(a, b))
+            expect(
+              groundsAlong(a, b).replace(mode === 'land' ? /s/g : /l/g, ''),
+              `${from} → ${to}`,
+            ).toBe(wanted);
+      }
+    // The cases a leg sampled eight times a cell let through.
+    for (const [from, to] of [
+      [
+        [105.0, -6.0],
+        [106.081, -6.375],
+      ],
+      [
+        [104.2, 54.6],
+        [103.185, 54.145],
+      ],
+    ] as Array<[LonLat, LonLat]>)
+      for (const mode of ['land', 'naval'] as const) {
+        const route = computeRoute(baked, from, to, mode);
+        if (route === null) continue;
+        for (const leg of [[route.points[0]!, route.points[1]!], lastLeg(route)] as Array<
+          [LonLat, LonLat]
+        >)
+          expect(groundsAlong(...leg).length, `${mode} ${from} → ${to}`).toBeLessThan(3);
+      }
+  });
+
+  it('pins an end over the antimeridian too', () => {
+    const out = computeRoute(baked, [179.95, 10], [-175, 10], 'naval')!;
+    expect(out.points[0]).toEqual([179.95, 10]);
+    const back = computeRoute(baked, [-175, 10], [179.95, 10], 'naval')!;
+    expect(back.points[back.points.length - 1]).toEqual([179.95, 10]);
+    expect(
+      kmOf(computeRoute(baked, [179.95, 10], [-179.9, 10], 'naval')!.distanceUnits),
+    ).toBeLessThan(60);
+  });
+
+  it('pins the start of a search towards any of several cells (a cargo going home)', () => {
+    const from: LonLat = [-4.6, 48.3];
+    const [x, y] = projectLonLat(baked.outline, baked.sphere, [5.0, 42.0]);
+    const goal =
+      Math.floor((y - baked.sphere.minY) / baked.step) * baked.width +
+      Math.floor((x - baked.sphere.minX) / baked.step);
+    const search = computeRouteToAny(baked, from, new Set([goal]), 'naval')!;
+    expect(search.rawPoints[0]).toEqual(from);
   });
 });

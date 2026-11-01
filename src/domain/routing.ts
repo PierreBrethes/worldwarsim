@@ -453,39 +453,243 @@ export function computeRoute(
   const path = dijkstra(grid, start, (cell) => cell === goal, mode, landCost);
   if (path === null) return null;
   const search = routeSearchOf(grid, path, mode, landCost);
-  return projectOnGrid(grid, to) === goal ? endAt(grid, search, to) : search.route;
+  return pinEnd(grid, pinStart(grid, search, from, start), to, goal);
 }
 
 /**
- * **The thread ends where the pile settles** (#364): the last vertex is the centre of the goal
- * cell, up to half a cell's diagonal (about twenty kilometres) from the aimed point, and the pawn
- * used to go on past its pile. The vertex moves to `to` — no new vertex, no new leg — inside that
- * one cell, and the last step is measured again. It stays put where the move would leave the
- * step's medium (a gulf's chord) or wrap the world's edge, and a quay's neighbouring water cell
- * is not `to`'s cell: both keep the centre.
+ * **The thread joins the pile at both ends** (#364, #381): a pawn's pile stands on the point the
+ * player gave, and the grid's thread starts and ends at cell centres, up to half a cell's diagonal
+ * (about twenty kilometres) from it. The first vertex moves to `from` (`pinStart`) and the last to
+ * `to` (`pinEnd`) — no new vertex inside a cell — and the step is measured again, so the distance
+ * billed is the thread drawn. A fleet whose pile stands on a coast (`standAt`) has the search
+ * stopped in the sea beside it: a leg of water joins the two (`shoreChain`), as Malta's does
+ * (`extendRouteSearch`). An end stays put where the move would leave the step's medium (a gulf's
+ * chord, `reaches`); the world's edge is crossed like any other line.
+ *
+ * **Limit**: `reaches` reads the 25 km mesh, not the atlas's shores — a leg can still cut two of
+ * them in a fjord. `reachedAshore` (`coast.ts`) would say so, but it needs the `Coast`, which
+ * `computeRoute` is not given and `coast.ts` itself imports this module.
  */
-function endAt(grid: RouteGrid, search: RouteSearch, to: LonLat): ComputedRoute {
-  const { rawPoints, steps, route } = search;
-  const last = steps.length - 1;
-  const before = rawPoints[last];
-  if (before === undefined || Math.abs(to[0] - before[0]) > 180) return route;
-  const medium = steps[last]!.medium;
-  const onMedium = ([lon, lat]: LonLat) =>
-    medium === 'land' ? isWalkableCell(grid, [lon, lat]) : groundAt(grid, [lon, lat]) === 'sea';
-  const chord = distanceKm(before, to);
-  const samples = Math.ceil((chord / (grid.step * KM_PER_UNIT)) * 8) + 1;
-  for (let s = 1; s < samples; s++) {
-    const t = s / samples;
-    if (!onMedium([before[0] + (to[0] - before[0]) * t, before[1] + (to[1] - before[1]) * t]))
-      return route;
+function pinStart(grid: RouteGrid, search: RouteSearch, from: LonLat, start: number): RouteSearch {
+  if (search.steps.length === 0) return search;
+  const rawPoints = [...search.rawPoints];
+  const steps = [...search.steps];
+  if (projectOnGrid(grid, from) === start) {
+    if (reaches(grid, steps[0]!.medium, from, rawPoints[1]!)) {
+      steps[0] = { ...steps[0]!, distanceUnits: gapBetween(grid, from, rawPoints[1]!) };
+      rawPoints[0] = from;
+    }
+  } else if (search.route.mode === 'naval') {
+    // The chain is built from the shore outwards by walking the thread backwards.
+    rawPoints.reverse();
+    steps.reverse();
+    shoreChain(grid, from, rawPoints, steps);
+    rawPoints.reverse();
+    steps.reverse();
   }
-  const closing = { ...steps[last]!, distanceUnits: projectedDistance(grid, before, to) };
-  return routeOf(
-    route.mode,
-    [...rawPoints.slice(0, -1), to],
-    [...steps.slice(0, last), closing],
-    route.landCost,
-  );
+  return {
+    ...search,
+    rawPoints,
+    steps,
+    route: routeOf(search.route.mode, rawPoints, steps, search.route.landCost),
+  };
+}
+
+function pinEnd(grid: RouteGrid, search: RouteSearch, to: LonLat, goal: number): ComputedRoute {
+  if (search.steps.length === 0) return search.route;
+  const rawPoints = [...search.rawPoints];
+  const steps = [...search.steps];
+  if (projectOnGrid(grid, to) === goal) {
+    // The last vertex moves to `to`: the step it closes is measured from the one before.
+    const closing = steps[steps.length - 1]!;
+    const before = rawPoints[rawPoints.length - 2]!;
+    if (reaches(grid, closing.medium, before, to)) {
+      steps[steps.length - 1] = { ...closing, distanceUnits: gapBetween(grid, before, to) };
+      rawPoints[rawPoints.length - 1] = to;
+    }
+  } else if (search.route.mode === 'naval') {
+    shoreChain(grid, to, rawPoints, steps);
+  }
+  return routeOf(search.route.mode, rawPoints, steps, search.route.landCost);
+}
+
+/**
+ * **A hull's last leg, by water, to the coast its pile stands on.** The search stopped at the
+ * centre of the nearest open sea cell, whose straight line to the shore is not always free: the
+ * leg is tried from there, then from the vertex before it (the last one is dropped), then through
+ * each open-water cell around the shore — and, for one that touches the shore's cell by a corner
+ * only, through that corner. The first chain whose every hop stays at sea — the shore's own cell
+ * excepted, at the end — replaces the thread's tail. None: the thread stays in the sea.
+ */
+function shoreChain(grid: RouteGrid, shore: LonLat, rawPoints: LonLat[], steps: RouteStep[]): void {
+  const n = rawPoints.length;
+  const via: Array<Vertex[]> = [[]];
+  for (const cell of openWaterAround(grid, shore)) {
+    via.push([{ at: cell.centre }]);
+    if (cell.corner !== undefined) via.push([{ at: cell.centre }, cell.corner]);
+  }
+  for (const keep of n >= 2 ? [n, n - 1] : [n]) {
+    for (const vertices of via) {
+      const chain: Vertex[] = [{ at: rawPoints[keep - 1]! }, ...vertices, { at: shore }];
+      const free = chain.every(
+        (vertex, i) =>
+          i === 0 ||
+          reaches(
+            grid,
+            'sea',
+            chain[i - 1]!.leaving ?? chain[i - 1]!.at,
+            vertex.arriving ?? vertex.at,
+            i === chain.length - 1 ? shore : undefined,
+          ),
+      );
+      if (!free) continue;
+      rawPoints.length = keep;
+      steps.length = keep - 1;
+      for (let i = 1; i < chain.length; i++) {
+        rawPoints.push(chain[i]!.at);
+        steps.push({
+          medium: 'sea',
+          distanceUnits: gapBetween(grid, chain[i - 1]!.at, chain[i]!.at),
+          transfer: false,
+        });
+      }
+      return;
+    }
+  }
+}
+
+/**
+ * A vertex of a leg. A corner shared by two cells is on neither side of the line: it is checked
+ * from `arriving`, a hair inside the cell the leg comes from, and `leaving`, a hair inside the one
+ * it goes to, and drawn at `at`.
+ */
+interface Vertex {
+  readonly at: LonLat;
+  readonly arriving?: LonLat;
+  readonly leaving?: LonLat;
+}
+
+/**
+ * The open-water cells within two of a point's cell, nearest first, as centres. A cell that
+ * touches the point's cell by a corner also gives that corner.
+ */
+function openWaterAround(
+  grid: RouteGrid,
+  point: LonLat,
+): Array<{ centre: LonLat; corner?: Vertex | undefined }> {
+  const open = openWaterOf(grid);
+  const origin = projectOnGrid(grid, point);
+  const [column0, row0] = [origin % grid.width, Math.floor(origin / grid.width)];
+  const at = (u: number, v: number) =>
+    lonLatAtProjected(grid.outline, grid.sphere, [
+      grid.sphere.minX + u * grid.step,
+      grid.sphere.minY + v * grid.step,
+    ]);
+  const found: Array<[number, { centre: LonLat; corner?: Vertex | undefined }]> = [];
+  for (let dr = -2; dr <= 2; dr++)
+    for (let dc = -2; dc <= 2; dc++) {
+      const [column, row] = [column0 + dc, row0 + dr];
+      if (column < 0 || row < 0 || column >= grid.width || row >= grid.height) continue;
+      const cell = row * grid.width + column;
+      if (open[cell] !== 1 || grid.cells[cell] === CANAL) continue;
+      const corner =
+        Math.abs(dc) === 1 && Math.abs(dr) === 1
+          ? ((): Vertex => {
+              const [u, v] = [column0 + (dc > 0 ? 1 : 0), row0 + (dr > 0 ? 1 : 0)];
+              const hair = 0.02;
+              return {
+                at: at(u, v),
+                arriving: at(u + dc * hair, v + dr * hair),
+                leaving: at(u - dc * hair, v - dr * hair),
+              };
+            })()
+          : undefined;
+      found.push([dr * dr + dc * dc, { centre: unprojectCell(grid, cell), corner }]);
+    }
+  return found.sort((a, b) => a[0] - b[0]).map(([, around]) => around);
+}
+
+/** `b` with its longitude carried by 360° to the side of `a` it is nearest to. */
+const nearSide = (a: LonLat, b: LonLat): LonLat => [
+  b[0] + 360 * Math.round((a[0] - b[0]) / 360),
+  b[1],
+];
+
+/** The projected length of a segment, across the world's edge when that is the short way. */
+const gapBetween = (grid: RouteGrid, a: LonLat, b: LonLat): number =>
+  projectedDistance(grid, a, nearSide(a, b));
+
+/**
+ * **Does the straight segment stay on its medium?** It walks, exactly, every cell the segment
+ * crosses (the line is straight in lon/lat as the server reads it, `positionAt`; it is cut in
+ * pieces of an eighth of a cell, each a straight run in the grid, so a corner of land is not cut
+ * unseen). `ashore` is the land point a hull's leg starts or ends on: its cell is the only land
+ * the segment may touch. A segment over the world's edge is cut there and walked in two.
+ */
+function reaches(grid: RouteGrid, medium: Medium, a: LonLat, b: LonLat, ashore?: LonLat): boolean {
+  const shore = ashore === undefined ? -1 : projectOnGrid(grid, ashore);
+  const allowed = ALLOWED_BY_MODE[medium === 'land' ? 'land' : 'naval'];
+  const free = (cell: number) =>
+    cell === shore ||
+    (medium === 'land'
+      ? allowed.includes(grid.cells[cell]!)
+      : grid.cells[cell] !== LAND && grid.cells[cell] !== LAKE);
+  const walk = (p: LonLat, q: LonLat): boolean => {
+    const [x0, y0] = projectLonLat(grid.outline, grid.sphere, p);
+    const [x1, y1] = projectLonLat(grid.outline, grid.sphere, q);
+    const u0 = (x0 - grid.sphere.minX) / grid.step;
+    const v0 = (y0 - grid.sphere.minY) / grid.step;
+    const u1 = (x1 - grid.sphere.minX) / grid.step;
+    const v1 = (y1 - grid.sphere.minY) / grid.step;
+    const pieces = Math.max(1, Math.ceil(Math.hypot(u1 - u0, v1 - v0) * 8));
+    for (let piece = 0; piece < pieces; piece++)
+      if (
+        !cellsCrossed(
+          [u0 + ((u1 - u0) * piece) / pieces, v0 + ((v1 - v0) * piece) / pieces],
+          [u0 + ((u1 - u0) * (piece + 1)) / pieces, v0 + ((v1 - v0) * (piece + 1)) / pieces],
+          (column, row) =>
+            free(
+              Math.min(grid.height - 1, Math.max(0, row)) * grid.width +
+                Math.min(grid.width - 1, Math.max(0, column)),
+            ),
+        )
+      )
+        return false;
+    return true;
+  };
+  const target = nearSide(a, b);
+  if (target[0] <= 180 && target[0] >= -180) return walk(a, target);
+  const edge = target[0] > 180 ? 180 : -180;
+  const crossing = a[1] + ((target[1] - a[1]) * (edge - a[0])) / (target[0] - a[0]);
+  return walk(a, [edge, crossing]) && walk([-edge, crossing], [target[0] - 2 * edge, target[1]]);
+}
+
+/** The cells a straight run crosses, in order, in cell units; stops at the first the visitor refuses. */
+function cellsCrossed(
+  [u0, v0]: readonly [number, number],
+  [u1, v1]: readonly [number, number],
+  visit: (column: number, row: number) => boolean,
+): boolean {
+  let column = Math.floor(u0);
+  let row = Math.floor(v0);
+  const [endColumn, endRow] = [Math.floor(u1), Math.floor(v1)];
+  if (!visit(column, row)) return false;
+  const [du, dv] = [u1 - u0, v1 - v0];
+  const [stepColumn, stepRow] = [Math.sign(du), Math.sign(dv)];
+  let nextColumn = du === 0 ? Infinity : ((stepColumn > 0 ? column + 1 : column) - u0) / du;
+  let nextRow = dv === 0 ? Infinity : ((stepRow > 0 ? row + 1 : row) - v0) / dv;
+  const [everyColumn, everyRow] = [Math.abs(1 / du), Math.abs(1 / dv)];
+  for (let left = Math.abs(endColumn - column) + Math.abs(endRow - row); left > 0; left--) {
+    if (nextColumn < nextRow) {
+      column += stepColumn;
+      nextColumn += everyColumn;
+    } else {
+      row += stepRow;
+      nextRow += everyRow;
+    }
+    if (!visit(column, row)) return false;
+  }
+  return true;
 }
 
 /**
@@ -661,7 +865,9 @@ export function computeRouteToAny(
   const start = nearestCell(grid, projectOnGrid(grid, from), mode);
   if (start === null) return null;
   const path = dijkstra(grid, start, (cell) => usableGoals.has(cell), mode, landCost);
-  return path === null ? null : routeSearchOf(grid, path, mode, landCost);
+  return path === null
+    ? null
+    : pinStart(grid, routeSearchOf(grid, path, mode, landCost), from, start);
 }
 
 /** Reprices the exact prefix rather than prorating totals detached from their route legs. */
