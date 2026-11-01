@@ -363,11 +363,11 @@ export type OutpostView = {
   readonly disabledMinutesLeft: number | null;
   readonly isMine: boolean;
   /**
-   * **Un mouvement est-il passé dans son rayon depuis la fondation ?** (`specializationServed`,
+   * **Un mouvement est-il passé dans son rayon depuis la fondation ?** (`outpostServed`,
    * `convex/movement/forces.ts`). Servi plutôt que redérivé : le démantèlement que l'écran refuse
    * et celui que le serveur refuse lisent la même réponse (`OUTPOST_SERVING`).
    */
-  readonly specializationLocked: boolean;
+  readonly serving: boolean;
   /**
    * **Ce que monter ce point coûterait**, servi comme celui d'un bâtiment (`Building`) et pour
    * la même raison : les nombres d'équilibrage ont une seule maison, `convex/constants.ts`. Un

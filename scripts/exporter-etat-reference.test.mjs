@@ -140,7 +140,7 @@ const snapshot = {
           garrison: 2,
           disabledMinutesLeft: null,
           isMine: true,
-          specializationLocked: false,
+          serving: false,
         },
       ],
       armyPresent: { infantry: 3 },

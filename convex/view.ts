@@ -68,7 +68,7 @@ import {
 } from './constants';
 import { engagementsOf } from './combat';
 import { isReached, sitesOf, type Site, type Sites } from './sites';
-import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, outpostsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
 import { regionNameAt } from './placeNames';
@@ -206,10 +206,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const recruiting = await recruitmentsOf(ctx, player._id);
 
-  const locked = await specializationsServed(ctx, season._id, outposts);
-  const sealed = outposts.map((outpost) => ({
+  const served = await outpostsServed(ctx, season._id, outposts);
+  const outpostRows = outposts.map((outpost) => ({
     outpost,
-    specializationLocked: locked.has(outpost._id),
+    serving: served.has(outpost._id),
   }));
   const movements = await movementsOf(ctx, player._id);
   const surveyed = (
@@ -756,7 +756,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * until something else can move one. It is an address and nothing more: what a garrison
        * *does* when attacked is the combat pass's to say.
        */
-      outposts: sealed.map(({ outpost, specializationLocked }) => ({
+      outposts: outpostRows.map(({ outpost, serving }) => ({
         id: outpost._id,
         hostCountry: outpost.hostCountry,
         lonLat: [outpost.point.lon, outpost.point.lat] as [number, number],
@@ -778,10 +778,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
             ? (outpost.disabledUntil - now) / 60_000
             : null,
         isMine: true,
-        /** Un mouvement est passé dans son rayon depuis la fondation (`specializationServed`) :
+        /** Un mouvement est passé dans son rayon depuis la fondation (`outpostServed`) :
          *  servi plutôt que redérivé, le refus de démantèlement de l'écran et celui du serveur
          *  lisent la même réponse. */
-        specializationLocked,
+        serving,
         /** **Ce qu'une élévation coûterait**, servi comme celui d'un bâtiment : les nombres
          *  d'équilibrage ont une seule maison (précision du 15/09). Au dernier niveau il n'y a
          *  pas de suivant — la facture est vide et le panneau dit « niveau maximal ». */

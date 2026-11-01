@@ -201,7 +201,7 @@ export function build(
       const raise = standing ? outpostRaiseBranch(mine, view) : { action: null, refusal: null };
       const dismantles = outpostDismantleRefusalOf({
         mine: true,
-        serving: mine.specializationLocked,
+        serving: mine.serving,
       });
       return {
         kicker: fr.compass.myOutpost(mine.level),

@@ -570,7 +570,7 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
  *
  * **Servir un mouvement retient, en revanche.** Un point dans la portée duquel une colonne
  * marche a pu chiffrer son allure : le retirer sous ses pieds ferait bouger un horaire déjà
- * annoncé. La lecture est `specializationsServed`, servie au client par `specializationLocked`,
+ * annoncé. La lecture est `outpostsServed`, servie au client par `serving`,
  * et il n'y en a pas deux.
  */
 export type OutpostDismantleRefusal = 'NOT_YOURS' | 'OUTPOST_SERVING';

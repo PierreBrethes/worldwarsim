@@ -18,7 +18,7 @@ const view = {
         hostCountry: 'NOR',
         lonLat: [0, 0],
         regionId: 'NOR-1',
-        specializationLocked: false,
+        serving: false,
         level: 1,
         standsAt: null,
         garrison: 4,
@@ -176,7 +176,7 @@ describe('my own outpost, unarmed', () => {
   /** **Servir une colonne retient aussi le démantèlement** : on ne retire pas la route sous les
    *  pieds d'une marche dont l'allure est déjà payée. */
   it('withdraws the dismantling while a column leans on the point', () => {
-    const sealed = compassOf(mine, withOutpost({ specializationLocked: true }));
+    const sealed = compassOf(mine, withOutpost({ serving: true }));
     expect(sealed?.actions.some((action) => action.key === 'dismantle')).toBe(false);
     expect(sealed?.refusal).toBe(
       'une colonne marche dans la portée de ce point — il ne se démantèle pas sous elle',

@@ -30,14 +30,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const station = { kind: 'outpost', outpostId: 'O-1' } as const;
-const outpostOf = (specializationLocked: boolean) => ({
+const outpostOf = (serving: boolean) => ({
   id: 'O-1',
   level: 1,
   hostCountry: 'Belgique',
   regionId: 'BEL-1',
   standsAt: 1,
   disabledMinutesLeft: null,
-  specializationLocked,
+  serving,
   nextLevelCost: {},
   nextLevelMinutes: 0,
   depot: {},

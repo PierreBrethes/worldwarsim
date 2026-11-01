@@ -34,7 +34,7 @@ const outpostOf = (disabledMinutesLeft: number | null) => ({
   specialty: 'general',
   standsAt: null,
   disabledMinutesLeft,
-  specializationLocked: false,
+  serving: false,
   nextLevelCost: {},
   nextLevelMinutes: 0,
   atMaxLevel: false,

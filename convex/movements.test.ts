@@ -3953,7 +3953,7 @@ describe('a manifest names each troop once', () => {
 });
 
 /**
- * **Un point a servi dès qu'un départ passe à portée** (`specializationServed`) : c'est ce que
+ * **Un point a servi dès qu'un départ passe à portée** (`outpostServed`) : c'est ce que
  * le refus de démantèlement lit (`OUTPOST_SERVING`). Il n'y a plus de métier à sceller (ADR 0037
  * §7) : tout point d'avant se lit généraliste.
  */
@@ -3973,7 +3973,7 @@ describe('an outpost serves once a departure passes within its reach', () => {
 
     expect((await t.query(api.view.playerView, seat)).me.outposts[0]).toMatchObject({
       specialty: 'general',
-      specializationLocked: false,
+      serving: false,
     });
   });
 
@@ -3992,7 +3992,7 @@ describe('an outpost serves once a departure passes within its reach', () => {
     });
 
     expect((await t.query(api.view.playerView, seat)).me.outposts[0]).toMatchObject({
-      specializationLocked: true,
+      serving: true,
     });
   });
 
@@ -4012,7 +4012,7 @@ describe('an outpost serves once a departure passes within its reach', () => {
     });
 
     expect((await t.query(api.view.playerView, seat)).me.outposts[0]).toMatchObject({
-      specializationLocked: false,
+      serving: false,
     });
   });
 });

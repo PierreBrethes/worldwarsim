@@ -406,10 +406,7 @@ export async function recognises(
  * avant-poste dans la minute suivant sa fondation. Les sommets de la polyligne suffisent —
  * contre la portée du point, une maille de grille est un détail.
  */
-export async function specializationServed(
-  ctx: QueryCtx,
-  outpost: Doc<'outposts'>,
-): Promise<boolean> {
+export async function outpostServed(ctx: QueryCtx, outpost: Doc<'outposts'>): Promise<boolean> {
   return served(outpost, await seasonMovements(ctx, outpost.seasonId));
 }
 
@@ -418,7 +415,7 @@ export async function specializationServed(
  * avant-poste du joueur, et une par point relisait la saison entière autant de fois qu'il en tient
  * — le prix d'un point fondé était payé sur tous les autres, à chaque chargement du plateau.
  */
-export async function specializationsServed(
+export async function outpostsServed(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
   outposts: ReadonlyArray<Doc<'outposts'>>,

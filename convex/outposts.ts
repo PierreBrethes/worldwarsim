@@ -16,7 +16,7 @@ import { buildCost, outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
 import { homeGroundsOf, occupationsOf, recordLinkage, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
-import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, outpostServed } from './movement/forces';
 import { allRegions, regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { notifyPlayer } from './notifications';
@@ -178,7 +178,7 @@ export const dismantle = mutation({
     const outpost = await ctx.db.get(outpostId);
     const refusal = outpostDismantleRefusalOf({
       mine: outpost !== null && outpost.playerId === player._id,
-      serving: outpost !== null && (await specializationServed(ctx, outpost)),
+      serving: outpost !== null && (await outpostServed(ctx, outpost)),
     });
     if (refusal !== null || outpost === null) fail(refusal ?? 'NOT_YOURS');
 

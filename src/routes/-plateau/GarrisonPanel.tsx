@@ -296,7 +296,7 @@ function OutpostDismantle({
   outpost: OutpostView;
   onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
 }) {
-  const refusal = outpostDismantleRefusalOf({ mine: true, serving: outpost.specializationLocked });
+  const refusal = outpostDismantleRefusalOf({ mine: true, serving: outpost.serving });
   return (
     <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px] md:hidden">
       {refusal === null ? (
