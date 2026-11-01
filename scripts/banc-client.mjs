@@ -946,9 +946,12 @@ async function play(profileName, pass) {
     await gesture('un combat, 12 contre 12', () => play([['banc-5', ...around, 12]]), 10500);
   };
   if (filesOnly) {
-    await page.evaluate(() => {
+    // The landing of `--trajet-mixte`, if the demo has it, is not one of the three files.
+    await page.evaluate((landing) => {
       const E = window.mapEngine;
-      const heads = [...E.arcs.headPositions.values()];
+      const heads = [...E.arcs.headPositions]
+        .filter(([id]) => id !== landing)
+        .map(([, head]) => head);
       const middle = heads
         .reduce((sum, head) => sum.add(head), heads[0].clone().set(0, 0, 0))
         .divideScalar(heads.length)
@@ -958,9 +961,19 @@ async function play(profileName, pass) {
       E.camera.position.copy(middle).addScaledVector(away, 3);
       E.controls.update();
       E.invalidate();
-    });
+    }, accounts.places?.['trajet-mixte']?.id ?? null);
     await page.waitForTimeout(5000);
     await gesture('trois files au pas 10 s', () => page.waitForTimeout(10000), 0);
+    // Turned a board unit aside, the files near enough to stand but out of the field.
+    await page.evaluate(() => {
+      const E = window.mapEngine;
+      E.controls.target.x += 1;
+      E.camera.position.x += 1;
+      E.controls.update();
+      E.invalidate();
+    });
+    await page.waitForTimeout(3000);
+    await gesture('files hors du champ 10 s', () => page.waitForTimeout(10000), 0);
     await context.close();
     return { boot, results };
   }

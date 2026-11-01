@@ -47,6 +47,10 @@
  * `--files` (#276) fait partir de Champagne vers la Hesse trois colonnes françaises de douze
  * troupes à pied (six fantassins, trois chars, trois canons) : la file à mi-route, une
  * quinzaine de minutes après, et `lieu=@files` cadre la première où elle est dessinée.
+ * `--trajet-mixte` (#276) embarque en baie de Seine, sur deux cargos, une pile mêlée (trois
+ * fantassins, deux chars, deux canons) pour Ouistreham, et `lieu=@trajet-mixte` la cadre à son
+ * arrivée. La route d'une colonne embarquée vers une côte finit en mer (`routeBetween`,
+ * `combined`) : la pile y touche terre dans sa coque, sans tronçon de terre après le quai.
  * `--sans-place` (#295) pose huit pièces au bord de la côte irlandaise : U y est refusé, la barre
  * de sélection le dit avant le geste.
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
@@ -158,6 +162,8 @@ const lisbon = process.argv.includes('--lisbonne');
 const threads = process.argv.includes('--trajets');
 /** `--files` : trois colonnes de douze troupes de terre en route vers l'est (#276). */
 const files = process.argv.includes('--files');
+/** `--trajet-mixte` : une pile mêlée débarquée en baie de Seine, au quai d'arrivée (#276). */
+const mixedLanding = process.argv.includes('--trajet-mixte');
 /** `--passagers` : un camion chargé de deux fantassins en Beauce, un autre vide (#238). */
 const passengers = process.argv.includes('--passagers');
 /** `--gisements` : une mine à poser, le Hainaut prenable, la Sarre prise, la Ruhr hors de portée (#239). */
@@ -772,6 +778,44 @@ if (!bare) {
     const { movements } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const first = movements.find((one) => Math.abs(one.from.lat - columns[0].from.lat) < 0.01);
     places.files = { id: first.id, lonLat: [first.from.lon, first.from.lat] };
+  }
+  if (mixedLanding && scene.a !== null) {
+    // Un slot de plus, à côté des colonnes de `--files`.
+    cli([
+      'run',
+      'dev:grantCards',
+      JSON.stringify({ playerId: scene.a, cards: ['transmissions1', 'transmissions2'] }),
+    ]);
+    const offshore = { lon: -0.45, lat: 49.42 };
+    for (const [role, count] of [
+      ['cargo', 2],
+      ['infantry', 3],
+      ['armor', 2],
+      ['artillery', 2],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, count, fuel: 20, ...offshore }),
+      ]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: offshore },
+      troopIds: me.troops
+        .filter(
+          (one) =>
+            one.stationedAt.kind === 'point' &&
+            Math.abs(one.stationedAt.lonLat[0] - offshore.lon) < 0.01 &&
+            Math.abs(one.stationedAt.lonLat[1] - offshore.lat) < 0.01,
+        )
+        .map((one) => one.id),
+      point: { lon: -0.26, lat: 49.27 },
+    });
+    const { movements } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const landing = movements.find((one) => Math.abs(one.from.lon - offshore.lon) < 0.01);
+    places['trajet-mixte'] = { id: landing.id, lonLat: [landing.from.lon, landing.from.lat] };
   }
   if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
     const garrison = { lon: 4.94, lat: 49.7 };
