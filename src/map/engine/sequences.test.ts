@@ -9,7 +9,14 @@ import {
 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { stride } from './figurines/infantry';
-import { MAX_PLAYING, PLAY_PX, type Sequence, SequenceLayer, type SequenceHost } from './sequences';
+import {
+  MAX_DEPLOYING,
+  MAX_PLAYING,
+  PLAY_PX,
+  type Sequence,
+  SequenceLayer,
+  type SequenceHost,
+} from './sequences';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -184,6 +191,22 @@ describe('SequenceLayer', () => {
     for (let k = 0; k < MAX_PLAYING + 2; k++) layer.play(host, `p${k}`, turning, 0);
     await flush();
     expect(host.copies.size).toBe(MAX_PLAYING);
+  });
+
+  it('plays a deployment on a ceiling of its own, and a held pose at reduced motion (#362)', async () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    for (let k = 0; k < MAX_PLAYING; k++) layer.play(host, `p${k}`, turning, 0);
+    const deploying = { ...turning, pool: 'deployment' as const };
+    for (let k = 0; k < MAX_DEPLOYING + 1; k++) layer.play(host, `d${k}`, deploying, 0);
+    await flush();
+    expect(host.copies.size).toBe(MAX_PLAYING + MAX_DEPLOYING);
+    expect(layer.room).toBe(0);
+    const reduced = layerOf().layer;
+    reduced.motion = 'reduced';
+    expect(reduced.play(new FakeHost(), 'h', { ...deploying, reduced: true }, 0)).toBe(true);
+    reduced.step(10);
+    expect(reduced.active).toBe(true);
   });
 
   it("keeps the others playing when a finished sequence's cooking fails", async () => {

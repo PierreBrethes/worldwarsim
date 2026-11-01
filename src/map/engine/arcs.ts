@@ -168,6 +168,15 @@ export class ArcLayer {
   private known: ReadonlySet<string> | null = null;
   /** Threads whose pen stroke is still being laid: hidden until this instant, whatever rebuilds. */
   private readonly inking = new Map<string, number>();
+  /** **Where the files of my movements just closed last stood** (#362), by troop: the pile at
+   *  rest deploys from there. */
+  private readonly left = new Map<
+    string,
+    { readonly at: Vector3; readonly heading: number; readonly since: number }
+  >();
+  fileLeftBy(troopId: string): { readonly at: Vector3; readonly heading: number } | null {
+    return this.left.get(troopId) ?? null;
+  }
   /** Kept across displays, which come at every step of any column: a crate falls once. */
   private readonly crates = new Map<string, CratePile>();
 
@@ -244,7 +253,11 @@ export class ArcLayer {
       this.targets.push(...rendered.thread.targets);
       this.rendered.push(rendered);
     }
+    for (const [troopId, { since }] of this.left)
+      if (now - since > LEFT_MS) this.left.delete(troopId);
     for (const gone of previous.values()) {
+      for (const { troopId, at, heading } of gone.pawn.lastFile())
+        this.left.set(troopId, { at, heading, since: now });
       release(gone);
       this.headPositions.delete(gone.arc.id);
       this.aheadPositions.delete(gone.arc.id);
@@ -352,7 +365,12 @@ export class ArcLayer {
     const pieces = this.columns.get(id);
     const figurines = pieces === undefined ? null : dressedGroups(this.playerNation, pieces);
     if (pieces === undefined || figurines === null) return null;
-    return pieces.groups.map(({ role, wear }, k) => ({ figurine: figurines[k]!, role, wear }));
+    return pieces.groups.map(({ role, wear, troopIds }, k) => ({
+      figurine: figurines[k]!,
+      role,
+      wear,
+      troopId: troopIds[0]!,
+    }));
   }
 
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
@@ -553,6 +571,9 @@ export class ArcLayer {
     this.pawnById.clear();
   }
 }
+
+/** A closed file waits this long for its pile to stand (`SORTIE_WAIT_MS` and a beat). */
+const LEFT_MS = 3000;
 
 function release({ thread, pawn, relic }: RenderedArc): void {
   thread.dispose();

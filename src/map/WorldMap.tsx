@@ -1546,14 +1546,18 @@ export function WorldMap({
   }, [troops, standing, readyEngine]);
 
   // A column entered a garrison: it walks from the end of its route to its rank (décision de
-  // Pierre du 28/10). Its columns of the view before say who came; nothing on the first view.
+  // Pierre du 28/10); stood on a point, it deploys there (#362). Its columns of the view before say who came; nothing on the first view.
   const columnsKnown = useRef<ReadonlyArray<ArcView> | null>(null);
   useEffect(() => {
     const before = columnsKnown.current;
     columnsKnown.current = arcs;
     if (before === null) return;
-    for (const entree of entreesOf(before, standing))
-      readyEngine?.cue({ kind: 'entree', ...entree });
+    for (const { siteId, ...entree } of entreesOf(before, standing))
+      readyEngine?.cue(
+        siteId === undefined
+          ? { kind: 'deploiement', pileId: entree.pileId, groups: entree.groups }
+          : { kind: 'entree', siteId, ...entree },
+      );
   }, [arcs, standing, readyEngine]);
 
   useEffect(() => {

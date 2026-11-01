@@ -78,7 +78,8 @@ import { HeldBursts } from './held-bursts';
 import { stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
-import { lengthOf, paceMs, together, walkOut } from './timelines/walk';
+import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
+import { deployAt, deployMs } from './timelines/deploy';
 import { tailgateDrop } from './timelines/truck';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
@@ -439,6 +440,8 @@ const MEN_GAP_MS = 400;
 const CLOSE_AFTER_MS = 150;
 /** A pile that does not stand within this time has its recruits in place, unwalked. */
 const SORTIE_WAIT_MS = 2000;
+/** **En réduites, la file tient 0,6 s**, puis la pile se pose (storyboard de la marche, #362). */
+const FILE_HOLD_MS = 600;
 
 /**
  * **The pace of each recruit** (`T.men`, `T.vehicle` of the storyboard): what it waits behind its
@@ -506,6 +509,13 @@ export class MapEngine {
   private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
+  /** Columns waiting for their pile to stand before they deploy (#362). */
+  private deployments: Array<{
+    readonly cue: Extract<Cue, { kind: 'deploiement' }>;
+    readonly since: number;
+  }> = [];
+  /** Piles owed their ring of ink once their file has held, at reduced motion (#362). */
+  private inkDue: Array<{ readonly pileId: string; readonly at: number }> = [];
   /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
   private readonly doors = new Map<string, { since: number; passing: DoorsPassing }>();
   /** The recruits on their way, whose pin follows the path when they are pinned (#268). */
@@ -2690,6 +2700,9 @@ export class MapEngine {
         this.sorties.push({ cue, since: performance.now() });
         this.standing.inkArrival(cue.pileId);
         break;
+      case 'deploiement':
+        this.deployments.push({ cue, since: performance.now() });
+        break;
       case 'descente':
         this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
         break;
@@ -2860,6 +2873,81 @@ export class MapEngine {
       if (!entering) this.passDoors(cue.siteId, shuts, motors, since, now);
       this.standing.arrive(cue.pileId, arrivals);
     }
+    return true;
+  }
+
+  /**
+   * **A column deploys at its point** (#362, storyboard de la marche): each piece leaves the file
+   * where the pawn left it for its own place in the pile, and turns to the pile's front
+   * (`deployAt`). At reduced motion the file holds, then the pile stands with its ring of ink.
+   * Nothing plays under a combat at the point (#272), out of the field or beyond the floor.
+   * Laid out once the pile stands; `false` until.
+   */
+  private deployOf({ cue, since }: (typeof this.deployments)[number], now: number): boolean {
+    const pieces = this.standing.piecesOf(cue.pileId);
+    const ids = cue.groups.map((k) => `${cue.pileId}/${k}`);
+    const places = ids.map((id) => this.standing.placeOf(id));
+    if (pieces === null || places.some((place) => place === null)) return false;
+    const point = places[0]!.at;
+    const motion = this.sequences.motion;
+    if (motion === 'off' || this.veiled(point) || !this.seenWhole(point)) return true;
+    if (motion === 'reduced') this.inkDue.push({ pileId: cue.pileId, at: since + FILE_HOLD_MS });
+    const file = ids.flatMap((id, n) => {
+      const group = pieces.groups[cue.groups[n]!];
+      const left = group === undefined ? null : this.arcs.fileLeftBy(group.troopIds[0]!);
+      const box = this.standing.pieceOf(id)?.box;
+      return left === null || group === undefined || !box
+        ? []
+        : [{ id, place: places[n]!, left, infantry: group.role === 'infantry', box }];
+    });
+    if (file.length === 0) return true;
+    const size = new Vector3();
+    const deploying = {
+      span: Math.max(...file.map(({ box }) => Math.max(box.getSize(size).x, size.z))),
+      pieces: file.map(({ place, left, infantry }) => ({
+        from: [left.at.x, left.at.z] as const,
+        heading: left.heading,
+        to: [place.at.x, place.at.z] as const,
+        infantry,
+      })),
+    };
+    const { front } = places[0]!;
+    const facing = Math.atan2(front.x, front.z);
+    const ms = motion === 'reduced' ? FILE_HOLD_MS : deployMs(deploying);
+    const arrivals: number[] = [];
+    file.forEach(({ id, place }, j) => {
+      const sequence: Sequence<never> = {
+        ms,
+        minPx: WALK_MIN_PX,
+        pool: 'deployment',
+        ...(motion === 'reduced' ? { reduced: true as const } : {}),
+        at: (t) => {
+          if (t < 0 || t >= ms) return {};
+          const piece = deployAt(deploying, facing, motion === 'reduced' ? 0 : t)[j]!;
+          const stride = piece.walking ? { stride: t / 1000 } : {};
+          return {
+            root: {
+              travel: [piece.at[0] - place.at.x, 0, piece.at[1] - place.at.z],
+              heading: piece.heading,
+            },
+            man_0: stride,
+            man_1: stride,
+            man_2: stride,
+          };
+        },
+      };
+      if (!this.sequences.play(this.standing, id, sequence, since, now)) return;
+      arrivals.push(since + ms - now);
+      if (motion === 'full')
+        this.walks.push({
+          id,
+          pileId: cue.pileId,
+          alone: pieces.groups.length === 1,
+          walk: sequence,
+          since,
+        });
+    });
+    if (arrivals.length > 0) this.standing.arrive(cue.pileId, arrivals);
     return true;
   }
 
@@ -3717,6 +3805,15 @@ export class MapEngine {
     this.sorties = this.sorties.filter(
       (sortie) => !this.walkOutOf(sortie, now) && now - sortie.since < SORTIE_WAIT_MS,
     );
+    this.deployments = this.deployments.filter(
+      (deployment) => !this.deployOf(deployment, now) && now - deployment.since < SORTIE_WAIT_MS,
+    );
+    this.inkDue = this.inkDue.filter(({ pileId, at }) => {
+      if (now < at) return true;
+      this.standing.inkArrival(pileId);
+      this.invalidate();
+      return false;
+    });
     // A walk ends with its copy — taken in hand, motion changed, out of the field —, unless its
     // pile went to its pin on the way: the pin walks on (décision de Pierre du 23/10).
     this.walks = this.walks.filter(

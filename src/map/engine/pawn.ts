@@ -57,6 +57,8 @@ export type ColumnPiece = {
   readonly figurine: Figurine;
   readonly role: UnitRole;
   readonly wear: Wear;
+  /** Its group's first troop: what the pile at rest finds it by at the arrival (#362). */
+  readonly troopId: string;
 };
 
 /** The leg the head walks and its share of it: the file is sampled behind it on the same leg. */
@@ -67,6 +69,7 @@ type Posed = 'walking' | 'held' | 'still' | null;
 
 type Marcher = {
   readonly figurine: Figurine;
+  readonly troopId: string;
   readonly gait: Gait | null;
   readonly smoke: Smoke | null;
   /** To the right of the file's axis, in board units at the figurine's own size. */
@@ -201,6 +204,8 @@ export class Pawn {
   private readonly fileReach: number = 0;
   private road: Road | null = null;
   private movedAt = -Infinity;
+  /** Its file was laid out at the last `orient`: in the field, and not yet its pin. */
+  private laidOut = false;
 
   constructor(
     color: string,
@@ -247,7 +252,7 @@ export class Pawn {
           infantry: role === 'infantry',
         })),
       );
-      this.marchers = column.map(({ figurine, role, wear: worn }, k) => {
+      this.marchers = column.map(({ figurine, role, wear: worn, troopId }, k) => {
         figurine.object.rotation.order = 'YXZ';
         file.add(figurine.object);
         const gait = gaitOf(role);
@@ -255,6 +260,7 @@ export class Pawn {
         if (gait === 'rolling' && this.dust === null) this.dust = dustOn(figurine);
         const marcher: Marcher = {
           figurine,
+          troopId,
           gait,
           // Infantry says its strength by its men (`figuresOf`): only a vehicle smokes.
           smoke: role === 'infantry' ? null : smokeOn(figurine, worn),
@@ -393,12 +399,11 @@ export class Pawn {
     this.shadow.scale.setScalar(around);
     if (this.file !== null) {
       this.file.visible = this.medium === 'land' && close > 0;
-      if (
+      this.laidOut =
         this.file.visible &&
         (inView === null ||
-          inView.intersectsSphere(REACH.set(this.object.position, this.fileReach * drawn)))
-      )
-        this.march(drawn);
+          inView.intersectsSphere(REACH.set(this.object.position, this.fileReach * drawn)));
+      if (this.laidOut) this.march(drawn);
     }
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
@@ -481,6 +486,17 @@ export class Pawn {
       }
     }
     if (this.dust !== null) this.dust.object.visible = this.lively && going;
+  }
+
+  /** **Where each piece of my file stood when last laid out** (#362), by its group's first troop,
+   *  on the board: what the pile at rest deploys from. Nothing when it was not laid out. */
+  lastFile(): ReadonlyArray<{ troopId: string; at: Vector3; heading: number }> {
+    if (!this.laidOut || !this.object.visible) return [];
+    return this.marchers.map(({ figurine, troopId }) => ({
+      troopId,
+      at: figurine.object.getWorldPosition(new Vector3()),
+      heading: figurine.object.rotation.y,
+    }));
   }
 
   dispose(): void {
