@@ -277,5 +277,9 @@ export function readPatchnotesRead(): ReadonlySet<string> {
 }
 
 export const keepPatchnotesRead = (dates: ReadonlySet<string>): void => {
-  localStorage.setItem(PATCHNOTES_READ_KEY, JSON.stringify([...dates]));
+  try {
+    localStorage.setItem(PATCHNOTES_READ_KEY, JSON.stringify([...dates]));
+  } catch {
+    // Un magasin plein ou fermé : le lu ne survit pas au rechargement, la liseuse marche quand même.
+  }
 };

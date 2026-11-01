@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { limitOf, monthsOf, parsePatchnotes, turnOf, unreadOf } from './patchnotes';
 
-const row = (date: string) => ({ date, title: `t ${date}`, image: `${date}.webp`, summary: 's' });
+const row = (date: string) => ({
+  date,
+  title: `t ${date}`,
+  image: `${date}.webp`,
+  thumb: `${date}-thumb.webp`,
+  summary: 's',
+});
 
 describe('l’index des bulletins', () => {
   it('range le plus récent d’abord et écarte ce qui n’est pas un bulletin', () => {

@@ -6,18 +6,21 @@ export type Patchnote = {
   date: string;
   title: string;
   image: string;
+  /** Une vignette d'environ 400 px : la liste des Réglages ne décode pas la feuille entière. */
+  thumb: string;
   /** Ce que dit la feuille, en texte : son texte alternatif, et sous elle au téléphone. */
   summary: string;
 };
 
 const isPatchnote = (row: unknown): row is Patchnote => {
   if (typeof row !== 'object' || row === null) return false;
-  const { date, title, image, summary } = row as Record<string, unknown>;
+  const { date, title, image, thumb, summary } = row as Record<string, unknown>;
   return (
     typeof date === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
     typeof title === 'string' &&
     typeof image === 'string' &&
+    typeof thumb === 'string' &&
     typeof summary === 'string'
   );
 };
