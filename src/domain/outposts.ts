@@ -97,6 +97,13 @@ export const outpostShelters = (
 export const lookoutKmOf = (outpost: { readonly level: number }): number =>
   outpostReachKm(outpost.level) * LOOKOUT_REACH_SHARE;
 
+/** **Un point guette debout et en service** (ADR 0037 §2), lu sur la vue : un chantier ou un
+ *  point désactivé n'a ni vigie ni liaison. */
+export const isOnWatch = (outpost: {
+  readonly standsAt: number | null;
+  readonly disabledMinutesLeft: number | null;
+}): boolean => outpost.standsAt === null && outpost.disabledMinutesLeft === null;
+
 /** Le charbon que la vigie brûle, au stock national (ADR 0037 §2). */
 export const lookoutCoalPerHour = (level: number): number =>
   LOOKOUT_COAL_PER_HOUR_PER_LEVEL * level;

@@ -3126,6 +3126,9 @@ export const fr = {
       count === 0
         ? `Aucune liaison : un autre de vos points dont le rayon touche le sien accélérerait vos colonnes de ×${decimal(multiplier, 1)}.`
         : `En liaison avec ${count} de vos points : vos colonnes vont ×${decimal(multiplier, 1)} plus vite dans son rayon, à terre et en mer.`,
+    /** Désactivé par un raid, le point ne guette pas et n'est en liaison avec rien. */
+    lookoutCut:
+      'Désactivé : sa vigie et ses liaisons sont coupées jusqu’à la fin de la désactivation.',
     /** À court de charbon, toutes les vigies d'un coup — et rien d'autre ne s'arrête. */
     blind:
       'Toutes vos vigies sont aveugles, stations d’écoute comprises — plus de charbon. Le dépôt, la recharge et la couleur continuent.',

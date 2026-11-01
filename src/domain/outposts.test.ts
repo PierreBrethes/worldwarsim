@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from './geo';
 import {
+  isOnWatch,
   liaisonsOf,
   linkedRelays,
   lookoutCoalPerHour,
@@ -49,6 +50,13 @@ describe('outpost reach', () => {
 describe('the lookout of an outpost', () => {
   it('watches half its reach: 60, 90 and 120 km', () => {
     expect([1, 2, 3].map((level) => lookoutKmOf({ level }))).toEqual([60, 90, 120]);
+  });
+
+  /** Un chantier ou un point désactivé ne guette pas : pas de cercle, pas de liaison. */
+  it('keeps watch only standing and in service', () => {
+    expect(isOnWatch({ standsAt: null, disabledMinutesLeft: null })).toBe(true);
+    expect(isOnWatch({ standsAt: null, disabledMinutesLeft: 120 })).toBe(false);
+    expect(isOnWatch({ standsAt: 5, disabledMinutesLeft: null })).toBe(false);
   });
 
   it('burns one coal an hour per level', () => {

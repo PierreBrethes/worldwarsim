@@ -7,7 +7,7 @@ import {
   OUTPOST_MAX_LEVEL,
   RELAY_SPEED_MULTIPLIER,
 } from '../../../convex/constants';
-import { liaisonsOf, lookoutCoalPerHour, lookoutKmOf } from '@/domain/outposts';
+import { isOnWatch, liaisonsOf, lookoutCoalPerHour, lookoutKmOf } from '@/domain/outposts';
 import { fr, noBuilding, raiseHoldText } from '@/i18n/fr';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -248,15 +248,23 @@ export function GarrisonPanel({
                 {fr.specialties[outpost.specialty]}
               </span>
             </div>
-            <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-              {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
-            </p>
-            <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-              {fr.garrison.liaisons(
-                liaisonCountOf(view.me.outposts, outpost.id),
-                RELAY_SPEED_MULTIPLIER,
-              )}
-            </p>
+            {isOnWatch(outpost) ? (
+              <>
+                <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                  {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
+                </p>
+                <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                  {fr.garrison.liaisons(
+                    liaisonCountOf(view.me.outposts, outpost.id),
+                    RELAY_SPEED_MULTIPLIER,
+                  )}
+                </p>
+              </>
+            ) : (
+              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                {fr.garrison.lookoutCut}
+              </p>
+            )}
             {view.me.upkeep.listeningSilent && (
               <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
                 {fr.garrison.blind} {fr.economy.listeningSilentFix}
@@ -442,12 +450,10 @@ function RaiseAvailability({
 /** **Ses liaisons, lues comme la règle les lit** (ADR 0037 §8) : ses points debout et en
  *  service, toutes les paires dont les rayons se touchent. */
 function liaisonCountOf(outposts: ReadonlyArray<OutpostView>, id: string): number {
-  const standing = outposts
-    .filter((outpost) => outpost.standsAt === null && outpost.disabledMinutesLeft === null)
-    .map((outpost) => ({
-      id: outpost.id,
-      point: outpost.lonLat,
-      reachKm: outpostReachKm(outpost.level),
-    }));
+  const standing = outposts.filter(isOnWatch).map((outpost) => ({
+    id: outpost.id,
+    point: outpost.lonLat,
+    reachKm: outpostReachKm(outpost.level),
+  }));
   return liaisonsOf(standing).filter((pair) => pair.includes(id)).length;
 }
