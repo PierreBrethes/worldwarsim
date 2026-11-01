@@ -6,6 +6,8 @@ import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import { api } from './_generated/api';
+import { outpostReachKm } from './constants';
+import { liaisonsOf } from '../src/domain/outposts';
 
 describe('dev.reset', () => {
   it('empties every game table, however many documents, and cancels pending jobs', async () => {
@@ -203,5 +205,14 @@ describe('dev.liaisonsScene', () => {
     ]);
     expect(me.upkeep.listeningCoalPerHour).toBe(3);
     expect(me.upkeep.listeningSilent).toBe(true);
+    const points = me.outposts.map((outpost) => ({
+      id: outpost.id,
+      point: outpost.lonLat,
+      reachKm: outpostReachKm(outpost.level),
+    }));
+    const pairs = liaisonsOf(points);
+    expect(pairs).toHaveLength(1);
+    const alone = points.find((point) => !pairs[0]!.includes(point.id));
+    expect(alone!.point).toEqual([7.59, 47.56]);
   });
 });

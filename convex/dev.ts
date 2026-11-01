@@ -1096,7 +1096,7 @@ export const quaysScene = internalMutation({
 
 /**
  * **La scène des liaisons** (#370), pour la démo : deux avant-postes français en liaison, Namur et
- * Liège, un troisième seul à Luxembourg, et une pile à Charleroi d'où viser Aix-la-Chapelle à
+ * Liège, un troisième seul à Bâle, à plus de 240 km des deux, et une pile à Charleroi d'où viser Aix-la-Chapelle à
  * travers les deux rayons. Avec `dryCoal`, le charbon national tombe à zéro : toutes les vigies
  * aveugles.
  *
@@ -1111,7 +1111,7 @@ export const liaisonsScene = internalMutation({
     for (const [lon, lat, hostCountry] of [
       [4.87, 50.47, 'BEL'],
       [5.57, 50.63, 'BEL'],
-      [6.13, 49.61, 'LUX'],
+      [7.59, 47.56, 'CHE'],
     ] as const)
       await ctx.db.insert('outposts', {
         seasonId: player.seasonId,
