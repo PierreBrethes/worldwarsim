@@ -68,6 +68,9 @@
  * `--combat [s]` (#272) pose une garnison britannique à Sedan, deux fantassins et un char, et
  * lance sur elle une colonne française de même force, qui arrive dans `s` secondes (25 par
  * défaut) : le temps d'ouvrir la carte, où le combat se joue à son point.
+ * `--arrivee [s]` (#362) fait marcher de Reims vers l'est-nord-est une pile mêlée française (trois
+ * fantassins, deux chars, un canon) qui arrive sur un point vide dans `s` secondes (25 par
+ * défaut) : la colonne s'y déploie, et `lieu=@arrivee` cadre son point.
  *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
@@ -177,6 +180,9 @@ const loaded = process.argv.includes('--chargee');
 /** `--combat [s]` : une colonne française sur une garnison britannique, arrivée dans s secondes (#272). */
 const combatAt = process.argv.indexOf('--combat');
 const combatIn = combatAt < 0 ? null : Number(process.argv[combatAt + 1]) || 25;
+/** `--arrivee [s]` : une pile mêlée française qui arrive sur un point vide dans s secondes (#362). */
+const arrivalAt = process.argv.indexOf('--arrivee');
+const arrivalIn = arrivalAt < 0 ? null : Number(process.argv[arrivalAt + 1]) || 25;
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -816,6 +822,36 @@ if (!bare) {
     const { movements } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const landing = movements.find((one) => Math.abs(one.from.lon - offshore.lon) < 0.01);
     places['trajet-mixte'] = { id: landing.id, lonLat: [landing.from.lon, landing.from.lat] };
+  }
+  if (arrivalIn !== null && scene.a !== null) {
+    const from = { lon: 4.1, lat: 49.25 };
+    const to = { lon: 4.9, lat: 49.5 };
+    places.arrivee = [to.lon, to.lat];
+    const column = [
+      ['infantry', 3],
+      ['armor', 2],
+      ['artillery', 1],
+    ].flatMap(([role, count]) =>
+      JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId: scene.a, role, count, fuel: 20, ...from }),
+        ]).match(/\[[^\]]*\]/)[0],
+      ),
+    );
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: column,
+      point: to,
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: arrivalIn * 1000, onTime: true }),
+    ]);
   }
   if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
     const garrison = { lon: 4.94, lat: 49.7 };
