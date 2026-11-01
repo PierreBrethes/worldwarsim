@@ -4,37 +4,79 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export type Part = { readonly geometry: BufferGeometry; readonly material: Material };
 
 /**
- * **A sculpted scene flattened into one geometry per material**, every node's placement baked
- * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
- * draw calls. Meshes whose attributes do not match stay apart.
+ * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
+ * is cut by its works. The rest of the scene is the building.
  */
-export function bakedParts(scene: Object3D): Part[] {
-  scene.updateMatrixWorld(true);
-  const meshes: Mesh[] = [];
-  walk(scene, (object) => {
-    if ((object as Mesh).isMesh) meshes.push(object as Mesh);
-  });
-  return mergedByMaterial(meshes, new Matrix4());
+const DRESSING = new Set([
+  'socle',
+  'lisere',
+  'cour',
+  'signe',
+  'niveau_1',
+  'niveau_2',
+  'niveau_3',
+  'chantier',
+  'ruines',
+]);
+
+/** The accessories of a later level or state: hidden until their switch comes (#366). */
+const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
+
+/** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one — a
+ *  port has a slip named `chantier` of its own. */
+const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
+
+/**
+ * **What no bake of `scene` draws**: the flag, painted by its owner's colours later (#279) —
+ * until then a white one would read as a surrender —, and on a socle the accessories of a later
+ * level or state. Every bake reads it, so that a copy stood in for a resting maquette has neither.
+ */
+export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
+  const later = onSocle(scene) ? LATER : new Set<string>();
+  return (node) => node.name !== 'drapeau' && !later.has(node.name);
 }
 
 /**
- * **What neither bake draws**: the flag, painted by its owner's colours later (#279) — until
- * then a white one would read as a surrender. Both bakes read it, so that a copy stood in for a
- * resting maquette has no flag either.
+ * **A sculpted scene flattened into one geometry per material**, every node's placement baked
+ * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
+ * draw calls. Meshes whose attributes do not match stay apart. A site is baked in two (ADR
+ * 0038): its building, and the dressing it stands on — socle, liseré, yard, sign and the
+ * accessories drawn. A model without a socle is all building.
  */
-export const isDrawn = (node: Object3D): boolean => node.name !== 'drapeau';
+export function bakedSite(scene: Object3D): { building: Part[]; dressing: Part[] } {
+  scene.updateMatrixWorld(true);
+  const building: Mesh[] = [];
+  const dressing: Mesh[] = [];
+  const drawn = drawnIn(scene);
+  const site = onSocle(scene) ? DRESSING : new Set<string>();
+  const visit = (node: Object3D, dressed: boolean) => {
+    if (!drawn(node)) return;
+    const inDressing = dressed || site.has(node.name);
+    if ((node as Mesh).isMesh) (inDressing ? dressing : building).push(node as Mesh);
+    for (const child of node.children) visit(child, inDressing);
+  };
+  visit(scene, false);
+  return {
+    building: mergedByMaterial(building, new Matrix4()),
+    dressing: mergedByMaterial(dressing, new Matrix4()),
+  };
+}
 
-/** Pre-order walk that does not enter what is not drawn. */
-function walk(node: Object3D, visit: (node: Object3D) => void): void {
-  if (!isDrawn(node)) return;
+/** Pre-order walk that does not enter what is not `drawn`. */
+function walk(
+  node: Object3D,
+  drawn: (node: Object3D) => boolean,
+  visit: (node: Object3D) => void,
+): void {
+  if (!drawn(node)) return;
   visit(node);
-  for (const child of node.children) walk(child, visit);
+  for (const child of node.children) walk(child, drawn, visit);
 }
 
 /**
  * **A scene baked around the nodes that move** (ADR 0036 §1): each node `keeps` retains keeps
  * its name, its pivot and what hangs from it; the meshes under it merge per material; every
- * other node is gone. At rest it draws exactly what `bakedParts` does. A pose replaces a kept
+ * other node is gone. At rest it draws exactly what `bakedSite` does. A pose replaces a kept
  * node's own rotation: what turned above it and is merged away (a leaning torso) rides on a
  * carrier, or an arm would swing square to the hips.
  */
@@ -50,7 +92,7 @@ export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): G
     while (!pivots.has(at)) at = at.parent!;
     return at;
   };
-  walk(scene, (node) => {
+  walk(scene, drawnIn(scene), (node) => {
     if (node === scene) return;
     if (keeps(node)) {
       const above = pivotOf(node.parent!);

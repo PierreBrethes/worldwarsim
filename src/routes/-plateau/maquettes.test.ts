@@ -44,6 +44,8 @@ describe('maquettesOf', () => {
         metres: buildingMetres('mine'),
         footprint: buildingFootprint('mine'),
         washed: false,
+        side: 'mine',
+        ink: '#000',
       },
       {
         id: 'p',
@@ -53,6 +55,8 @@ describe('maquettesOf', () => {
         metres: buildingMetres('port'),
         footprint: buildingFootprint('port'),
         washed: false,
+        side: 'mine',
+        ink: '#000',
       },
     ]);
   });
@@ -144,6 +148,7 @@ describe('maquettesOf', () => {
         metres: buildingMetres('farm'),
         footprint: buildingFootprint('farm'),
         washed: true,
+        side: 'seen',
       },
       {
         id: 'objective-o',
@@ -152,6 +157,29 @@ describe('maquettesOf', () => {
         span: objectiveSpan('fuelDump'),
         washed: false,
       },
+    ]);
+  });
+
+  it('rings a neutral of the Blitz as neutral, and a survey as seen, with no ink of a nation', () => {
+    const survey = (neutral: { lonLat: [number, number] } | null): MapMarker => ({
+      kind: 'installation',
+      id: `installation-${neutral === null ? 'seen' : 'neutral'}`,
+      buildingId: 'x',
+      key: 'barracks',
+      regionId: 'DEU-DE21',
+      lonLat: [11.5, 48.1],
+      name: 'Caserne',
+      washed: false,
+      neutral,
+    });
+    expect(
+      maquettesOf([survey(null), survey({ lonLat: [11.5, 48.1] })], () => undefined).map((m) => [
+        m.side,
+        m.ink,
+      ]),
+    ).toEqual([
+      ['seen', undefined],
+      ['neutral', undefined],
     ]);
   });
 

@@ -5,6 +5,7 @@ import {
   Group,
   InterleavedBuffer,
   InterleavedBufferAttribute,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Quaternion,
@@ -13,10 +14,12 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { RIG_PARTS } from '@/emblems/rigs';
-import { bakedParts, bakedRig } from './baking';
+import { BUILDING_MAQUETTES, buildingMaquette } from '@/emblems/buildings/manifest';
+import { OBJECTIVE_MAQUETTES } from '@/emblems/objectives/manifest';
+import { bakedRig, bakedSite, mergedByMaterial, type Part } from './baking';
 import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene.fixture';
 
-describe('bakedParts', () => {
+describe('bakedSite, as one geometry per material', () => {
   it('merges the meshes of one material into one part, their placement baked in', () => {
     const stone = new MeshStandardMaterial();
     const slate = new MeshStandardMaterial();
@@ -28,7 +31,7 @@ describe('bakedParts', () => {
     const roof = new Mesh(new BoxGeometry(1, 1, 1), slate);
     scene.add(wall, tower, roof);
 
-    const parts = bakedParts(scene);
+    const parts = bakedSite(scene).building;
     expect(parts.map((part) => part.material)).toEqual([stone, slate]);
     const walls = parts[0]!.geometry;
     walls.computeBoundingBox();
@@ -41,7 +44,7 @@ describe('bakedParts', () => {
     scene.quaternion.copy(new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2));
     const mesh = new Mesh(new BoxGeometry(2, 1, 1), new MeshStandardMaterial());
     scene.add(mesh);
-    const [part] = bakedParts(scene);
+    const [part] = bakedSite(scene).building;
     part!.geometry.computeBoundingBox();
     const size = part!.geometry.boundingBox!.getSize(new Vector3());
     expect(size.x).toBeCloseTo(1);
@@ -53,7 +56,7 @@ describe('bakedParts', () => {
     const mesh = new Mesh(geometry, new MeshStandardMaterial());
     mesh.scale.set(-1, 1, 1);
     const scene = new Group().add(mesh);
-    const [part] = bakedParts(scene);
+    const [part] = bakedSite(scene).building;
     const index = part!.geometry.index!;
     expect([index.getX(0), index.getX(1), index.getX(2)]).toEqual([
       geometry.index!.getX(0),
@@ -74,7 +77,7 @@ describe('bakedParts', () => {
     geometry.setAttribute('uv', new InterleavedBufferAttribute(buffer, 2, 6));
     const mesh = new Mesh(geometry, new MeshStandardMaterial());
     mesh.scale.set(-1, 1, 1);
-    const [part] = bakedParts(new Group().add(mesh));
+    const [part] = bakedSite(new Group().add(mesh)).building;
     const { position, normal, uv } = part!.geometry.attributes;
     expect([0, 1, 2].map((k) => [position!.getX(k) + 0, position!.getY(k)])).toEqual([
       [0, 0],
@@ -90,6 +93,95 @@ describe('bakedParts', () => {
   });
 });
 
+describe('bakedSite (ADR 0038)', () => {
+  const SOCLE = 'src/emblems/fixtures/barracks-socle.glb';
+  const trianglesOf = (parts: ReadonlyArray<Part>) =>
+    parts.reduce(
+      (sum, { geometry }) => sum + (geometry.index ?? geometry.attributes.position!).count / 3,
+      0,
+    );
+  const triangleCount = (object: Parameters<typeof meshesOf>[0]) =>
+    meshesOf(object).reduce(
+      (sum, { geometry }) => sum + (geometry.index ?? geometry.attributes.position!).count / 3,
+      0,
+    );
+  const boxOf = (parts: ReadonlyArray<Part>) => {
+    const box = new Box3();
+    for (const { geometry } of parts) {
+      geometry.computeBoundingBox();
+      box.union(geometry.boundingBox!);
+    }
+    return box;
+  };
+
+  /** Every file the board draws today, none of them on a socle yet. */
+  const files = [
+    ...new Set([
+      ...Object.values(BUILDING_MAQUETTES),
+      buildingMaquette('mine', 'coal'),
+      ...Object.values(OBJECTIVE_MAQUETTES),
+    ]),
+  ].flatMap((url) => (url === null ? [] : [url]));
+
+  /** What the board drew before ADR 0038: every mesh but the flag's, merged per material. */
+  const before = (url: string): Part[] => {
+    const scene = sceneOfFile(url);
+    scene.updateMatrixWorld(true);
+    const meshes: Mesh[] = [];
+    const walk = (node: (typeof scene)['children'][number]) => {
+      if (node.name === 'drapeau') return;
+      if ((node as Mesh).isMesh) meshes.push(node as Mesh);
+      node.children.forEach(walk);
+    };
+    walk(scene);
+    return mergedByMaterial(meshes, new Matrix4());
+  };
+
+  it.each(files)('bakes %s, which has no socle, as before: all building', (url) => {
+    const { building, dressing } = bakedSite(sceneOfFile(url));
+    const today = before(url);
+    expect(dressing).toEqual([]);
+    expect(building.map((part) => part.material.name)).toEqual(
+      today.map((part) => part.material.name),
+    );
+    expect(trianglesOf(building)).toBe(trianglesOf(today));
+    expect(boxOf(building).equals(boxOf(today))).toBe(true);
+    // A copy stood in for it draws the same, a `chantier` of its own included (the port's slip).
+    expect(triangleCount(bakedRig(sceneOfFile(url), () => false))).toBe(trianglesOf(today));
+  });
+
+  it('bakes the building apart from its socle, liseré, yard and sign', () => {
+    const { building, dressing } = bakedSite(sceneOfFile(SOCLE));
+    const names = dressing.map((part) => part.material.name);
+    expect(names).toContain('socle');
+    expect(names).toContain('lisere');
+    expect(building.map((part) => part.material.name)).not.toContain('lisere');
+    expect(building.map((part) => part.material.name)).not.toContain('socle');
+    // The building stands on the socle's top; the socle on the ground.
+    expect(boxOf(building).min.y).toBeCloseTo(2.2, 3);
+    expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
+    // Its flagpole went to the sign: the building keeps its walls and roofs alone.
+    expect(trianglesOf(building)).toBe(1855);
+  });
+
+  it('draws the first level of a yard, and none of the accessories that come later', () => {
+    const scene = new Group();
+    const socle = new Mesh(new BoxGeometry(4, 1, 4), new MeshStandardMaterial({ name: 'socle' }));
+    socle.name = 'socle';
+    const walls = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name: 'murs' }));
+    scene.add(socle, walls);
+    for (const name of ['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines']) {
+      const group = new Group();
+      group.name = name;
+      group.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name })));
+      scene.add(group);
+    }
+    const { building, dressing } = bakedSite(scene);
+    expect(building.map((part) => part.material.name)).toEqual(['murs']);
+    expect(dressing.map((part) => part.material.name).sort()).toEqual(['niveau_1', 'socle']);
+  });
+});
+
 describe('bakedRig', () => {
   const barracks = () => sceneOfFile('src/emblems/buildings/barracks.glb');
   const keeping = (names: ReadonlyArray<string>) => (node: { name: string }) =>
@@ -101,11 +193,12 @@ describe('bakedRig', () => {
     );
   const drawn = (scene: Parameters<typeof bakedRig>[0]) => {
     const group = new Group();
-    for (const { geometry, material } of bakedParts(scene)) group.add(new Mesh(geometry, material));
+    for (const { geometry, material } of bakedSite(scene).building)
+      group.add(new Mesh(geometry, material));
     return group;
   };
 
-  it('draws at rest what bakedParts draws: same box, triangles and oriented volume', () => {
+  it('draws at rest what bakedSite draws: same box, triangles and oriented volume', () => {
     const rig = bakedRig(barracks(), keeping(RIG_PARTS.barracks));
     const rest = drawn(barracks());
     rig.updateMatrixWorld(true);

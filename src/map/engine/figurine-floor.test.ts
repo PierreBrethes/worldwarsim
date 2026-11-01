@@ -42,6 +42,7 @@ async function garrison(): Promise<{ layer: StandingLayer; object: () => Group }
       at: new Vector3(0, 0, 0),
       step: [0, garrisonFoot(BARRACKS, pile) * pieceScale.size],
       facing: 0,
+      rank: false,
     }),
   );
   layer.setNation('france');
@@ -173,6 +174,36 @@ describe('two piles at the foot of one site (#341)', () => {
   });
 });
 
+describe('a garrison ranked on the yard of a socle (ADR 0038 §5)', () => {
+  it('starts at the first man, on the socle top, and stands the next pile along the rank', async () => {
+    const rank = () => ({
+      at: new Vector3(0, 0.5, 0),
+      step: [1, 2] as const,
+      facing: 0,
+      rank: true,
+    });
+    const ranked = new StandingLayer({} as WorldFrame, () => {}, rank);
+    ranked.setNation('france');
+    ranked.display([
+      { id: 'a', at: { beside: 'site' }, pieces: pilePieces([troop(1), troop(2)]) },
+      { id: 'b', at: { beside: 'site' }, pieces: pilePieces([troop(3), troop(4)]) },
+    ]);
+    await vi.waitFor(() =>
+      expect(ranked.group.children.filter((c) => c instanceof Group).length).toBe(2),
+    );
+    const eye = new Vector3(1, 6, 3);
+    ranked.orient(eye);
+    ranked.orient(eye);
+    const [a, b] = ranked.group.children.filter((child) => child instanceof Group);
+    // Facing +z, the rank runs along +x from the first man at (1, 2).
+    expect(a!.position.y).toBe(0.5);
+    expect(a!.position.z).toBeCloseTo(2);
+    expect(a!.position.x).toBeGreaterThan(1);
+    expect(b!.position.z).toBeCloseTo(2);
+    expect(b!.position.x).toBeGreaterThan(a!.position.x);
+  });
+});
+
 describe('a garrison handed back to the ground, attached to a site (#341)', () => {
   type Inner = { dressed: Map<string, { object: Group }> };
   const frame = {
@@ -185,7 +216,12 @@ describe('a garrison handed back to the ground, attached to a site (#341)', () =
     layer.setNation('france');
     return layer;
   };
-  const foot = () => ({ at: new Vector3(0, 0, 0), step: [0, 2] as const, facing: 0 });
+  const foot = () => ({
+    at: new Vector3(0, 0, 0),
+    step: [0, 2] as const,
+    facing: 0,
+    rank: false,
+  });
 
   it('leaves the garrison the server attached where it stands, whatever the order served', async () => {
     const layer = await standing(foot);
