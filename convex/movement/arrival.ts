@@ -29,7 +29,7 @@ import {
 import { resolveContact } from '../combat';
 import { collapseIfAbandoned } from '../outposts';
 import { seenSegment } from '../../src/domain/sighting-segment';
-import { marchingForce, reassessDetection } from './detection';
+import { marchingForce } from './detection';
 import {
   CARRY_CAPACITY_BY_ROLE,
   OUTPOST_DISABLED_HOURS,
@@ -489,9 +489,9 @@ async function deactivate(
     at: now,
   });
   await reportChange(ctx, outpost.seasonId, before, now);
-  /** **La vigie s'éteint avec le point** (invariant Brouillard) : la réévaluation se fait ici, pas
-   *  à la suivante. Seuls les détecteurs de son propriétaire changent. */
-  await reassessDetection(ctx, outpost.seasonId, now, outpost.playerId);
+  /** **La vigie s'éteint avec le point** (invariant Brouillard) : `arrive`, le seul chemin qui
+   *  désactive (`engageAt`), réévalue tout après un raid ou un assaut ; une seconde ici doublerait
+   *  le coût. */
   /** La couleur reviendra seule : le rendez-vous se prend ici, à la seconde où le raid l'a fixé.
    *  Personne n'ordonne cet événement-là, et rien ne bat pour le constater. */
   await scheduleRestore(ctx, outpost.seasonId, disabledUntil);
