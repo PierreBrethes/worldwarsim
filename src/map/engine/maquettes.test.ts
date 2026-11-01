@@ -689,6 +689,10 @@ describe('a site on its socle (ADR 0038)', () => {
     expect(worn).not.toBe(shared);
     expect(worn.color.getHex()).toBe(new Color('#2a5ba8').getHex());
     expect(shared.color.getHex()).toBe(0xffffff);
+    const disposed = vi.fn();
+    worn.addEventListener('dispose', disposed);
+    layer.standIn(MINE, null);
+    expect(disposed).toHaveBeenCalled();
   });
 
   it('ranks my garrison on the yard from fx_rang, on the socle top, along the rank', async () => {
@@ -736,6 +740,23 @@ describe('a site on its socle (ADR 0038)', () => {
       all.filter((mesh) => (nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise') && cut(mesh)),
     );
     expect(all.some((mesh) => nameOf(mesh) === 'ardoise' && cut(mesh))).toBe(true);
+  });
+
+  it('is picked by its socle while its building rises, the cut above the ground', async () => {
+    const works = {
+      phase: 'rising' as const,
+      level: 1,
+      finishesAt: null,
+      minutes: 5,
+      pennant: null,
+      stamp: null,
+    };
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', works })]);
+    const drawn = layer.drawnOf(MINE)!;
+    // Down onto the yard, clear of the building: the cut, at the ground here, cuts no socle.
+    const yard = new Vector3(-25, 0, 25).applyMatrix4(drawn.matrix);
+    const down = new Raycaster(yard.clone().setY(5), new Vector3(0, -1, 0));
+    expect(layer.under(down)?.id).toBe(MINE);
   });
 
   it('stands a plan in the queue on its socle, the building not yet risen', async () => {

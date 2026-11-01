@@ -776,8 +776,11 @@ export class MaquetteLayer implements SequenceHost {
       const cut = dressing?.cut ?? null;
       for (const hit of ray.intersectObjects(lot.meshes, false)) {
         const item = hit.instanceId === undefined ? undefined : lot.items[hit.instanceId];
-        // A rising site is drawn up to its cut: above it there is nothing to point at.
-        const built = cut === null || hit.point.y <= cut.constant;
+        // A rising site is drawn up to its cut: above it there is nothing to point at — but its
+        // socle's sign, which stands whole.
+        const whole = (hit.object as InstancedMesh).material as Material;
+        const built =
+          cut === null || !whole.clippingPlanes?.includes(cut) || hit.point.y <= cut.constant;
         if (item !== undefined && item.near > 0 && !item.cleared && built)
           best = nearer(best, { id: item.id, distance: hit.distance });
       }
@@ -867,7 +870,12 @@ export class MaquetteLayer implements SequenceHost {
    *  copy gets the matrix it would have had. The next `orient` writes both. */
   standIn(id: string, copy: Object3D | null): void {
     const old = this.copies.get(id);
-    if (old !== undefined) old.removeFromParent();
+    if (old !== undefined && old !== copy) {
+      old.removeFromParent();
+      old.traverse((node) => {
+        if (node.userData.ownLisere === true) ((node as Mesh).material as Material).dispose();
+      });
+    }
     if (copy === null) this.copies.delete(id);
     else {
       copy.matrixAutoUpdate = false;
@@ -884,6 +892,7 @@ export class MaquetteLayer implements SequenceHost {
         const own = (mesh.material as MeshStandardMaterial).clone();
         own.color.copy(lisere);
         mesh.material = own;
+        mesh.userData.ownLisere = true;
       });
     if (dressed !== undefined) dressed.item.near = -1;
   }
