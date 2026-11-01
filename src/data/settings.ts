@@ -262,3 +262,20 @@ export const keepContourWeight = (weight: ContourWeight): void => {
     // Private mode: the choice lasts the session only.
   }
 };
+
+const PATCHNOTES_READ_KEY = 'wws-patchnotes-read';
+
+/** Les bulletins des mises à jour déjà ouverts, par date : le « non lu » est une habitude du
+ *  navigateur, comme le reste des réglages. */
+export function readPatchnotesRead(): ReadonlySet<string> {
+  try {
+    const kept: unknown = JSON.parse(localStorage.getItem(PATCHNOTES_READ_KEY) ?? '[]');
+    return new Set(Array.isArray(kept) ? kept.filter((date) => typeof date === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export const keepPatchnotesRead = (dates: ReadonlySet<string>): void => {
+  localStorage.setItem(PATCHNOTES_READ_KEY, JSON.stringify([...dates]));
+};
