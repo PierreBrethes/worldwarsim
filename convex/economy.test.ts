@@ -1,6 +1,7 @@
 import { DEPOSIT_POINTS } from '../src/domain/world';
 import { worksMinutes } from '../src/domain/level-speed';
 import { convexTest } from 'convex-test';
+import { lookoutCoalPerHour } from '../src/domain/outposts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
@@ -610,7 +611,6 @@ describe('placement', () => {
           point: lausanne,
           hostCountry: 'CHE',
           level: 1,
-          specialization: 'relay',
           foundedAt: Date.now(),
           disabledUntil: null,
           immuneUntil: null,
@@ -2024,7 +2024,6 @@ describe('the ground a site reaches', () => {
         point,
         hostCountry: 'DZA',
         level,
-        specialization: 'relay',
         foundedAt: Date.now(),
         disabledUntil: null,
         immuneUntil: null,
@@ -2160,7 +2159,7 @@ describe('the ground a site reaches', () => {
    * la révision du 15/09 de l'ADR 0020 avait retiré). Un avant-poste debout mange des vivres
    * selon son niveau, et ne touche aucun autre taux.
    */
-  it('eats food by its level and touches no other rate', async () => {
+  it('eats food and burns coal by its level, and touches no other rate', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
     const before = await t.query(api.view.playerView, seat);
@@ -2169,10 +2168,17 @@ describe('the ground a site reaches', () => {
     await plantOutpost(t, seat, EL_TARF, 3);
     const after = await t.query(api.view.playerView, seat);
     expect(after.me.upkeep.outposts).toBe(1);
-    /** The point eats food by its level (ADR 0028 §2), and touches no other rate. */
+    /** The point eats food by its level (ADR 0028 §2), its lookout burns coal by its level
+     *  (ADR 0037 §2), and it touches no other rate. */
     expect(after.me.upkeep.outpostFoodPerHour).toBe(3 * OUTPOST_FOOD_PER_HOUR_PER_LEVEL);
+    expect(after.me.upkeep.listeningCoalPerHour).toBe(lookoutCoalPerHour(3));
     for (const key of RESOURCES) {
-      const eaten = key === 'food' ? after.me.upkeep.outpostFoodPerHour : 0;
+      const eaten =
+        key === 'food'
+          ? after.me.upkeep.outpostFoodPerHour
+          : key === 'coal'
+            ? after.me.upkeep.listeningCoalPerHour
+            : 0;
       expect(after.me.resources[key].ratePerHour).toBe(
         before.me.resources[key].ratePerHour - eaten,
       );
@@ -2641,7 +2647,6 @@ describe('raising an outpost', () => {
         hostCountry: 'ROU',
         regionId: PRAHOVA,
         level,
-        specialization: 'relay',
         foundedAt: Date.now(),
         disabledUntil: null,
         immuneUntil: null,

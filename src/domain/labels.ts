@@ -14,7 +14,7 @@ import {
   type BuildingKey,
   type DepositKey,
   type MovementType,
-  type Specialization,
+  type Specialty,
   type UnitRole,
 } from './ids';
 import type { ArcView, CaptureView, PlayerView, Stack, TroopStation } from './player-view';
@@ -116,7 +116,7 @@ export type MapMarker =
        * droit garde la rose du point.
        */
       readonly station: Extract<TroopStation, { kind: 'outpost' }>;
-      readonly specialization: Specialization;
+      readonly specialty: Specialty;
       readonly level: number;
       /**
        * **En chantier jusqu'à cette heure-là**, `null` pour un point debout (révision du 15/09
@@ -883,7 +883,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         lines:
           marker.standsAt === null
             ? [
-                { role: 'nature', text: fr.specializations[marker.specialization] },
+                { role: 'nature', text: fr.specialties[marker.specialty] },
                 {
                   role: 'figures',
                   text: fr.labels.levelAndGarrison(marker.level, marker.garrison),

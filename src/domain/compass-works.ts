@@ -14,7 +14,7 @@ import {
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
 import { PRODUCER_OF } from './economy';
-import { DEPOSITS, RESOURCES, SPECIALIZATIONS } from './ids';
+import { DEPOSITS, RESOURCES } from './ids';
 import { foundingRefusal, type OrderRefusal } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
 import type { ResourceKey } from './ids';
@@ -64,27 +64,6 @@ const dismantleOf = (outpostId: string): CompassAction => ({
   consequence: fr.compass.dismantleConsequence,
   outpostId,
 });
-
-/**
- * **Les deux métiers, toujours les deux** (décision du 16/09). Le point en exerce un ; la plate
- * les montre tous les deux et marque celui-là. Une seule branche « changer de métier » aurait
- * caché l'état derrière le geste, et c'est l'état qui décide du geste.
- */
-const specializationBranches = (outpost: OutpostView): ReadonlyArray<CompassAction> =>
-  SPECIALIZATIONS.map((specialization) => ({
-    key: 'specialize' as const,
-    pictogram: specialization === 'relay' ? ('aerial' as const) : ('ear' as const),
-    label: fr.specializations[specialization],
-    cost: null,
-    consequence:
-      outpost.specialization === specialization
-        ? fr.compass.specializationHeld
-        : fr.compass.specializeConsequence(fr.specializations[specialization]),
-    outpostId: outpost.id,
-    specialization,
-    current: outpost.specialization === specialization,
-    sealed: outpost.specializationLocked ? fr.errors.SPECIALIZATION_SEALED() : null,
-  }));
 
 /** La facture d'une dépense, une ligne par matière due ; `lacking` nomme celle qui manque. */
 const billOf = (cost: Cost, view: PlayerView, lacking?: ResourceKey): ReadonlyArray<BillLine> =>
@@ -229,12 +208,11 @@ export function build(
         name: target.name,
         actions: [
           ...(raise.action === null ? [] : [raise.action]),
-          ...(standing ? specializationBranches(mine) : []),
           ...(dismantles === null ? [dismantleOf(mine.id)] : []),
         ],
         /** Le motif de l'élévation d'abord : c'est la seule branche que le joueur cherche et ne
          *  trouve pas. Le démantèlement retenu se lit sur le point lui-même — une colonne y
-         *  marche — et la branche du métier le dit déjà en toutes lettres. */
+         *  marche. */
         refusal: raise.refusal ?? (dismantles === null ? null : fr.errors[dismantles]()),
       };
     }

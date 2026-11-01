@@ -16,7 +16,7 @@ import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
 import { type LonLat } from './geo';
 import type { Ground } from './routing';
-import type { BuildingKey, MovementType, ResourceKey, Specialization } from './ids';
+import type { BuildingKey, MovementType, ResourceKey } from './ids';
 import { type Cost, type PlayerView, type TroopStation } from './player-view';
 
 /**
@@ -399,32 +399,6 @@ export type CompassAction =
         readonly reason: string;
         readonly availability: string | null;
       } | null;
-    }
-  /**
-   * **Le métier du point, sur la plate** (décision de Pierre, 16/09). Deux branches et pas une
-   * bascule : la rose se lit au pictogramme, et un interrupteur qui change de sens au clic ne se
-   * lit pas. Celle en cours est **marquée** — le même état que l'`aria-pressed` du panneau — et
-   * elle ne se grise pas : le joueur doit voir ce que le point fait avant de voir ce qu'il
-   * pourrait faire.
-   *
-   * **Scellée, la branche reste et dit pourquoi.** Un relais qu'une colonne utilise ne change
-   * plus de métier (`SPECIALIZATION_SEALED`) ; retirer la branche laisserait le joueur chercher
-   * une porte qui existe, et la griser serait une seconde exception à l'ADR 0015.
-   */
-  | {
-      readonly key: 'specialize';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly outpostId: string;
-      readonly specialization: Specialization;
-      /** Le métier que le point exerce déjà : la branche est marquée et le clic ne fait rien —
-       *  il n'y a rien à changer. */
-      readonly current: boolean;
-      /** La phrase du serveur quand le métier est scellé, `null` sinon. Elle remplace la
-       *  conséquence dans la bulle, et le clic reste sans effet. */
-      readonly sealed: string | null;
     }
   /**
    * **Démanteler son propre avant-poste** (décision de Pierre, 16/09). Jumelle de « raser » et

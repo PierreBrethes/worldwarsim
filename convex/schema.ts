@@ -30,6 +30,7 @@ import {
   RESOURCE_KEY,
   SEASON_STATUS,
   SPECIALIZATION,
+  SPECIALTY,
   SURVEYED_INSTALLATION,
   STRIKE,
   TROOP_STATE,
@@ -862,7 +863,11 @@ export default defineSchema({
      */
     regionId: v.optional(v.string()),
     level: v.number(),
-    specialization: SPECIALIZATION,
+    /** L'ancien métier (ADR 0004), plus lu ni écrit : il part au prochain vidage (ADR 0037 §11). */
+    specialization: v.optional(SPECIALIZATION),
+    /** **Sa spécialisation** (ADR 0037 §3), lue `?? 'general'` : un point d'avant se lit
+     *  généraliste. */
+    specialty: v.optional(SPECIALTY),
     foundedAt: v.number(),
     /**
      * **L'heure où le chantier devient un point** (révision du 15/09 de l'ADR 0020 §10). Tant

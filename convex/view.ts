@@ -764,7 +764,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  du 04/09). Servi plutôt que redeviné : le client n'a ni polygone ni index, et le
          *  repli des points d'avant le champ est une lecture du serveur. */
         regionId: regionOfOutpost(outpost),
-        specialization: outpost.specialization,
+        specialty: outpost.specialty ?? 'general',
         level: outpost.level,
         /** **L'heure où le chantier devient un point**, `null` pour un point debout (révision
          *  du 15/09). Une date plutôt qu'un compte à rebours : le cachet du mât et la ligne du
@@ -778,9 +778,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
             ? (outpost.disabledUntil - now) / 60_000
             : null,
         isMine: true,
-        /** Le métier se règle sur le panneau du point tant qu'aucune passe ne l'a lu
-         *  (`specializationServed`) — servi plutôt que redérivé : l'écran et le refus du
-         *  serveur lisent la même réponse. */
+        /** Un mouvement est passé dans son rayon depuis la fondation (`specializationServed`) :
+         *  servi plutôt que redérivé, le refus de démantèlement de l'écran et celui du serveur
+         *  lisent la même réponse. */
         specializationLocked,
         /** **Ce qu'une élévation coûterait**, servi comme celui d'un bâtiment : les nombres
          *  d'équilibrage ont une seule maison (précision du 15/09). Au dernier niveau il n'y a

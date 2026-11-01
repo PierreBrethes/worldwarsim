@@ -12,6 +12,7 @@ export const reassess = internalMutation({
   args: { playerId: v.id('players') },
   handler: async (ctx, { playerId }) => {
     const season = await playingSeason(ctx, playerId);
-    if (season !== null) await reassessDetection(ctx, season._id);
+    /** Le charbon d'un joueur ne tait que ses propres vigies. */
+    if (season !== null) await reassessDetection(ctx, season._id, Date.now(), playerId);
   },
 });

@@ -817,7 +817,6 @@ describe('scrapping a season', () => {
         regionId: null,
         ...creator,
         point: asPoint(desert),
-        specialization: 'relay',
         troopIds: [await form(t, creator, asPoint(desert))],
       });
 

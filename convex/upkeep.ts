@@ -3,6 +3,7 @@ import type { QueryCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
 import {
   isStanding,
+  lookoutCoalPerHour,
   reachingOutpost,
   withinReach,
   type OutpostReach,
@@ -210,21 +211,23 @@ export async function upkeepOf(
 
   const plain = troops.length - unsuppliedTroopIds.length;
   const standing = outposts.filter((outpost) => isStanding(outpost, now));
-  /** A post out of service is silent, so it burns nothing. */
-  const listening =
-    activeBuildings(await playerBuildings(ctx, playerId), now).filter(
-      (building) => building.key === 'listening',
-    ).length +
-    standing.filter(
-      (outpost) => outpost.specialization === 'listening' && inService(outpost.disabledUntil, now),
-    ).length;
+  /** A post out of service is silent, so it burns nothing. Every standing outpost keeps a
+   *  lookout, priced by its level (ADR 0037 §2). */
+  const listeningCoalPerHour =
+    LISTENING_COAL_PER_HOUR *
+      activeBuildings(await playerBuildings(ctx, playerId), now).filter(
+        (building) => building.key === 'listening',
+      ).length +
+    standing
+      .filter((outpost) => inService(outpost.disabledUntil, now))
+      .reduce((sum, outpost) => sum + lookoutCoalPerHour(outpost.level), 0);
   return {
     troops: troops.length,
     unsupplied: unsuppliedTroopIds.length,
     foodPerHour: armyUpkeep(plain, unsuppliedTroopIds.length),
     outpostFoodPerHour:
       OUTPOST_FOOD_PER_HOUR_PER_LEVEL * standing.reduce((sum, outpost) => sum + outpost.level, 0),
-    listeningCoalPerHour: LISTENING_COAL_PER_HOUR * listening,
+    listeningCoalPerHour,
     unsuppliedTroopIds,
     outposts: standing.length,
     storeOf,

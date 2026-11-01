@@ -120,7 +120,7 @@ export function GroundPanel({
       <>
         <Line
           label={fr.selectedCountry.outpost}
-          value={`${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${fr.specializations[outpost.specialization]}`}
+          value={`${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${fr.specialties[outpost.specialty]}`}
         />
         <Line label={fr.selectedCountry.garrison} value={`${outpost.garrison}`} />
       </>

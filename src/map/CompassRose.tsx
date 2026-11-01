@@ -194,10 +194,6 @@ export function CompassRose({
              *  parce que la rose se lit au pictogramme et que celui-là ne se clique pas par
              *  inadvertance. */
             const grave = candidate.key === 'demolish' || candidate.key === 'dismantle';
-            /** **Le métier en cours se marque, il ne se grise pas** (décision du 16/09) : c'est
-             *  l'état du point, pas une branche empêchée — le même signal que l'`aria-pressed`
-             *  du panneau de garnison, qui dit *ceci est vrai* et non *ceci est interdit*. */
-            const marked = candidate.key === 'specialize' && candidate.current;
             return (
               <Fragment key={rank}>
                 {/* **Le seul chiffre à plat de la rose** (décision 54a) : le coût d'une élévation
@@ -218,8 +214,7 @@ export function CompassRose({
                   type="button"
                   aria-label={candidate.label}
                   aria-disabled={held}
-                  aria-pressed={candidate.key === 'specialize' ? candidate.current : undefined}
-                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${marked ? ' rose-medallion--marked' : ''}${lead ? ' rose-medallion--lead' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
+                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${lead ? ' rose-medallion--lead' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
                   style={{ left, top }}
                   onPointerDown={(event) => {
                     pressedWith.current = event.pointerType;
@@ -295,13 +290,6 @@ export function CompassRose({
                     </>
                   ) : action.key === 'upgrade' || action.key === 'raiseOutpost' ? (
                     <Upgrade action={action} />
-                  ) : action.key === 'specialize' && action.sealed !== null ? (
-                    <>
-                      <div className="rose-bubble-label">{action.label}</div>
-                      <div className="rose-bubble-consequence rose-bubble-consequence--refused">
-                        {action.sealed}
-                      </div>
-                    </>
                   ) : action.key === 'found' ? (
                     <Found action={action} />
                   ) : (
@@ -410,7 +398,7 @@ function Found({ action }: { action: Extract<CompassAction, { key: 'found' }> })
 
 /**
  * **Les branches qui paient sans carte de confirmation se touchent deux fois** (sous le seuil).
- * Élever, monter un point, fonder, changer de métier partent au serveur dès l'action, et la
+ * Élever, monter un point, fonder partent au serveur dès l'action, et la
  * facture n'est écrite que dans la bulle : le premier toucher la montre — prix, refus éventuel —,
  * le second agit, un toucher ailleurs annule (la rose se referme). Les autres gardent le toucher
  * unique : viser, piller et ramasser ouvrent un aperçu qui confirme, bâtir ouvre un panneau, raser
@@ -420,7 +408,6 @@ const CONFIRMED_BY_SECOND_TOUCH: ReadonlyArray<CompassAction['key']> = [
   'upgrade',
   'raiseOutpost',
   'found',
-  'specialize',
 ];
 
 /**

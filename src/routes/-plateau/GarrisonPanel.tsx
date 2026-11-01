@@ -7,6 +7,7 @@ import {
   OUTPOST_MAX_LEVEL,
   RELAY_SPEED_MULTIPLIER,
 } from '../../../convex/constants';
+import { liaisonsOf, lookoutCoalPerHour, lookoutKmOf } from '@/domain/outposts';
 import { fr, noBuilding, raiseHoldText } from '@/i18n/fr';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration, asLocalTime } from '@/domain/duration';
@@ -82,8 +83,6 @@ export function GarrisonPanel({
     () => troopsAt(view.me, stationKey, marching),
     [view.me, stationKey, marching],
   );
-  const [error, setError] = useState<string | null>(null);
-  const respecialize = useMutation(api.movements.respecialize);
   const disembark = useMutation(api.movements.disembark);
   const [ashoreError, setAshoreError] = useState<string | null>(null);
 
@@ -235,74 +234,33 @@ export function GarrisonPanel({
         )}
 
         {/**
-         * **Le métier du point se règle sur le point, une fois planté** (décision Pierre, 29/08).
-         * Il se choisissait au départ d'une colonne, puis sur la pile qui allait fonder — deux
-         * fois à l'aveugle, sur deux mots. Ici le terrain est sous les pieds de la garnison et
-         * l'avant-poste est déjà debout : c'est le dernier moment où le choix veut encore dire
-         * quelque chose.
-         *
-         * Le serveur exige un mot à la fondation, alors le clic droit pose « relais » et ce
-         * panneau rattrape. Scellé, il ne montre pas deux boutons éteints : il dit ce que le
-         * point fait, et pourquoi il ne change plus (ADR 0015).
+         * **Ce que le point fait, en chiffres** (ADR 0037 §1, §2, §8) : il n'y a plus de métier à
+         * choisir. Sa spécialisation, sa vigie et son prix, ses liaisons ; et, à court de
+         * charbon, ce qui s'arrête et ce qui continue.
          */}
         {outpost !== null && outpost.standsAt === null && (
           <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px]">
             <div className="flex items-center gap-2">
               <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
-                {fr.garrison.foundSpecialization}
+                {fr.garrison.specialty}
               </span>
-              {outpost.specializationLocked || view.me.defeated ? (
-                <span className="text-[11px] text-[var(--ink)]">
-                  {fr.specializations[outpost.specialization]}
-                </span>
-              ) : (
-                (['relay', 'listening'] as const).map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={outpost.specialization === key}
-                    onClick={() => {
-                      setError(null);
-                      if (outpost.specialization === key) return;
-                      respecialize({
-                        ...seat,
-                        outpostId: outpost.id as Id<'outposts'>,
-                        specialization: key,
-                      }).catch((problem: unknown) => handleError(problem, setError));
-                    }}
-                    className={`cursor-pointer border px-[7px] py-[3px] text-[10px] ${
-                      outpost.specialization === key
-                        ? 'border-[var(--ink)] bg-(--ink)/7 text-[var(--ink)]'
-                        : 'border-(color:--ink)/32 text-[var(--ink-soft)]'
-                    }`}
-                  >
-                    {fr.specializations[key]}
-                  </button>
-                ))
-              )}
+              <span className="text-[11px] text-[var(--ink)]">
+                {fr.specialties[outpost.specialty]}
+              </span>
             </div>
-            {/* **Le choix se faisait à l'aveugle** : deux mots, aucun chiffre, aucun effet. Le
-                rayon est la seule donnée qui dise ce que le point rapporte. */}
             <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-              {outpost.specialization === 'relay'
-                ? fr.specializationEffects.relay(
-                    outpostReachKm(outpost.level),
-                    RELAY_SPEED_MULTIPLIER,
-                  )
-                : fr.specializationEffects.listening(outpostReachKm(outpost.level))}
+              {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
             </p>
-            {outpost.specialization === 'listening' && view.me.upkeep.listeningSilent && (
+            <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+              {fr.garrison.liaisons(
+                liaisonCountOf(view.me.outposts, outpost.id),
+                RELAY_SPEED_MULTIPLIER,
+              )}
+            </p>
+            {view.me.upkeep.listeningSilent && (
               <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
-                {fr.economy.listeningSilent} — {fr.economy.listeningSilentFix}
+                {fr.garrison.blind} {fr.economy.listeningSilentFix}
               </p>
-            )}
-            {outpost.specializationLocked && (
-              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
-                {fr.garrison.specializationSealed}
-              </p>
-            )}
-            {error !== null && (
-              <p className="mt-[6px] text-[11px] text-[var(--critical)]">{error}</p>
             )}
           </div>
         )}
@@ -479,4 +437,17 @@ function RaiseAvailability({
         : fr.upgrade.never(noBuilding(PRODUCER_OF[hold.resource]))}
     </p>
   );
+}
+
+/** **Ses liaisons, lues comme la règle les lit** (ADR 0037 §8) : ses points debout et en
+ *  service, toutes les paires dont les rayons se touchent. */
+function liaisonCountOf(outposts: ReadonlyArray<OutpostView>, id: string): number {
+  const standing = outposts
+    .filter((outpost) => outpost.standsAt === null && outpost.disabledMinutesLeft === null)
+    .map((outpost) => ({
+      id: outpost.id,
+      point: outpost.lonLat,
+      reachKm: outpostReachKm(outpost.level),
+    }));
+  return liaisonsOf(standing).filter((pair) => pair.includes(id)).length;
 }

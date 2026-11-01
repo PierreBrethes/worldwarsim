@@ -1009,7 +1009,6 @@ function BoardContent({
   const foundHere = useMutation(api.movements.foundOutpostHere);
   const startConstruction = useMutation(api.constructions.start);
   const raiseOutpost = useMutation(api.constructions.raiseOutpost);
-  const respecialize = useMutation(api.movements.respecialize);
   const boardTransport = useMutation(api.movements.board);
   const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
@@ -1175,20 +1174,6 @@ function BoardContent({
           );
           return;
         /**
-         * **Le métier en cours ne se reclique pas** : la branche est marquée, elle dit l'état, et
-         * il n'y a rien à changer. Scellée, elle part au serveur quand même — la bulle a déjà dit
-         * pourquoi il refusera, et rien n'est grisé (ADR 0015).
-         */
-        case 'specialize':
-          if (action.current) return;
-          setOrderError(null);
-          respecialize({
-            ...seat,
-            outpostId: action.outpostId as Id<'outposts'>,
-            specialization: action.specialization,
-          }).catch((problem: unknown) => handleError(problem, setOrderError));
-          return;
-        /**
          * **Démanteler demande la même confirmation que raser**, et elle en dit davantage : un
          * point emporte la couleur de son sol et les mâts qu'il ancre, ce qu'aucune bulle
          * n'aurait la place d'énumérer.
@@ -1294,10 +1279,8 @@ function BoardContent({
           return;
         }
         /**
-         * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Elle
-         * pose « relais » : le serveur exige un mot à l'insertion et la carte n'est pas le lieu
-         * d'un formulaire — c'est le panneau du point, une fois planté, qui rattrape ce choix
-         * tant qu'aucune passe ne l'a lu (`movements.respecialize`).
+         * **La fondation, depuis le clic droit sur la pile qui fonde** (décision du 29/08). Le
+         * point naît généraliste : il n'y a rien à choisir (ADR 0037 §1).
          */
         case 'found':
           setOrderError(null);
@@ -1308,7 +1291,6 @@ function BoardContent({
              *  polygones et ne peut que vérifier le pays. Au dézoom il n'y a pas de région, et
              *  `null` laisse le repli répondre. */
             regionId: action.regionId,
-            specialization: 'relay',
             troopIds: action.troopIds.map((troopId) => troopId as Id<'troops'>),
           }).then(dropHand, (problem: unknown) => handleError(problem, setOrderError));
       }
@@ -1319,7 +1301,6 @@ function BoardContent({
       foundHere,
       startConstruction,
       raiseOutpost,
-      respecialize,
       boardHand,
       bombard,
       deliver,

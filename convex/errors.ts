@@ -180,7 +180,6 @@ export type ErrorCode =
   | 'UNKNOWN_OBJECTIVE'
   | 'OUTPOST_DISABLED'
   | 'OUTPOST_RAISE_QUEUED'
-  | 'SPECIALIZATION_SEALED'
   /** Démanteler (décision du 16/09) : une colonne marche dans la portée de ce relais, et son
    *  allure est déjà payée — on ne retire pas la route sous ses pieds. */
   | 'OUTPOST_SERVING'

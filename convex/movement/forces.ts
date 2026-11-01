@@ -398,12 +398,11 @@ export async function recognises(
 
 /**
  * **Une passe s'est-elle déjà servie de ce point ?** — c'est-à-dire un départ postérieur à la
- * fondation dont la route passe à portée. Le relais est chiffré au départ et un poste d'écoute
- * entre dans la réévaluation événementielle. Tant que la réponse est non, le métier du point se change encore
- * (`movements.respecialize`) ; après, il est scellé.
+ * fondation dont la route passe à portée. Tant que la réponse est oui, le point ne se démantèle
+ * pas (`OUTPOST_SERVING`) : on ne retire pas la liaison sous une colonne qui l'a chiffrée.
  *
  * La portée est le critère plutôt que le simple fait qu'un mouvement soit parti : un départ à
- * l'autre bout du monde n'a rien lu de ce point-là, et sceller sur lui scellerait chaque
+ * l'autre bout du monde n'a rien lu de ce point-là, et retenir sur lui retiendrait chaque
  * avant-poste dans la minute suivant sa fondation. Les sommets de la polyligne suffisent —
  * contre la portée du point, une maille de grille est un détail.
  */

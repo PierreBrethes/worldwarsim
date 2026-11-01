@@ -26,7 +26,7 @@ import {
 import { seenSegment } from '../../src/domain/sighting-segment';
 import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
-import { isStanding } from '../../src/domain/outposts';
+import { isStanding, lookoutKmOf } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
 import { economyOf } from '../resources';
@@ -36,7 +36,6 @@ import {
   detectionRangeOf,
   LAST_KNOWN_HOURS,
   LISTENING_STATION_RADIUS_KM,
-  outpostReachKm,
   sightingReachKm,
 } from '../constants';
 import { seasonTheatre } from './theatre';
@@ -405,16 +404,16 @@ async function detectionBoard(
     });
   }
 
+  /** **Tout avant-poste debout guette** (ADR 0037 §1, §2), à mi-rayon, sur le charbon national. */
   for (const outpost of outposts) {
-    if (outpost.specialization !== 'listening') continue;
-    if (await isSilent(outpost.playerId)) continue;
-    /** Un chantier n'écoute pas : le point n'existe pas encore (révision du 15/09). */
+    /** Un chantier ne guette pas : le point n'existe pas encore (révision du 15/09). */
     if (!isStanding(outpost, now)) continue;
     if (outpost.disabledUntil !== null && outpost.disabledUntil > now) continue;
+    if (await isSilent(outpost.playerId)) continue;
     watchers.push({
       id: `outpost:${outpost._id}`,
       point: pointOf(outpost.point),
-      radiusKm: outpostReachKm(outpost.level),
+      radiusKm: lookoutKmOf(outpost),
       playerId: outpost.playerId,
       detector: 'outpost',
       detectorId: outpost._id,

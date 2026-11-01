@@ -466,7 +466,8 @@ async function finishRaise(
     regionId: ground,
     level: construction.level,
   });
-  await reassessDetection(ctx, seasonId);
+  /** Une vigie plus large : seuls les détecteurs de son propriétaire changent. */
+  await reassessDetection(ctx, seasonId, at, construction.playerId);
   await startHead(ctx, construction.playerId, at);
 }
 

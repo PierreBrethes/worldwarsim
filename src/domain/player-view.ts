@@ -16,7 +16,7 @@ import type {
   MovementType,
   ResearchCard,
   ResourceKey,
-  Specialization,
+  Specialty,
   UnitRole,
   UnitTier,
 } from './ids';
@@ -348,7 +348,7 @@ export type OutpostView = {
    * — `null` est un point que même ce repli ne place pas.
    */
   readonly regionId: string | null;
-  readonly specialization: Specialization;
+  readonly specialty: Specialty;
   readonly level: number;
   /**
    * **En chantier jusqu'à cette heure-là**, `null` pour un point debout (révision du 15/09 de
@@ -363,11 +363,9 @@ export type OutpostView = {
   readonly disabledMinutesLeft: number | null;
   readonly isMine: boolean;
   /**
-   * **Le métier du point est-il scellé ?** La fondation part du clic droit et pose « relais » —
-   * le serveur exige un mot à l'insertion — et le panneau de l'avant-poste permet d'en changer
-   * tant qu'aucune passe ne l'a lu (`specializationServed`, `convex/movement/forces.ts`). Servi
-   * plutôt que redérivé : l'écran qui montre les deux boutons et le serveur qui les refuse
-   * lisent la même réponse.
+   * **Un mouvement est-il passé dans son rayon depuis la fondation ?** (`specializationServed`,
+   * `convex/movement/forces.ts`). Servi plutôt que redérivé : le démantèlement que l'écran refuse
+   * et celui que le serveur refuse lisent la même réponse (`OUTPOST_SERVING`).
    */
   readonly specializationLocked: boolean;
   /**
@@ -813,25 +811,21 @@ type NoticeBody =
       readonly kind: 'outpostFounded';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   | {
       readonly kind: 'outpostStands';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   | {
       readonly kind: 'foundationLost';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   | {
       readonly kind: 'outpostDisabled';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   /**
    * **Ce que le large a pris** (règle 4 du 18/09). Le lieu est un point : au large il n'y a pas

@@ -55,7 +55,6 @@ async function plant(
       playerId: player._id,
       ...ground,
       level,
-      specialization: 'relay',
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,
@@ -344,9 +343,8 @@ describe('démanteler un avant-poste', () => {
   });
 
   /**
-   * **On ne retire pas la route sous une colonne** : un relais dans la portée duquel un mouvement
-   * marche a déjà payé son allure. C'est la lecture qui scelle le métier du point, et il n'y en a
-   * pas deux (`specializationsServed`).
+   * **On ne retire pas la route sous une colonne** : un point dans la portée duquel un mouvement
+   * marche a pu chiffrer son allure. Il n'y a qu'une lecture (`specializationsServed`).
    */
   it('refuse tant qu’une colonne s’appuie sur le point', async () => {
     const t = boot();

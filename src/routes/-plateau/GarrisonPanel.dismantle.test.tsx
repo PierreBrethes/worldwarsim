@@ -37,7 +37,6 @@ const outpostOf = (specializationLocked: boolean) => ({
   regionId: 'BEL-1',
   standsAt: 1,
   disabledMinutesLeft: null,
-  specialization: 'relay',
   specializationLocked,
   nextLevelCost: {},
   nextLevelMinutes: 0,

@@ -1,7 +1,7 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
-import type { Doc, Id } from './_generated/dataModel';
+import type { Id } from './_generated/dataModel';
 import { bearingDegrees, distanceKm, type LonLat } from '../src/domain/geo';
 import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
 import type { UnitRole } from '../src/domain/ids';
@@ -21,6 +21,8 @@ import {
 import { allRegions, regionFacts, pointOfRegion } from './regions';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
+import { lookoutKmOf } from '../src/domain/outposts';
+import { pacedMinutes } from './movement/pace';
 import { forgetMovement } from './movement/arrival';
 import { handOver } from './strategicPoints';
 import { neutralPoint } from './seats.fixture';
@@ -140,7 +142,6 @@ async function outpost(
   t: ReturnType<typeof boot>,
   seat: Seat,
   at: LonLat,
-  specialization: Doc<'outposts'>['specialization'],
   disabledUntil: number | null = null,
   /** **En chantier jusque-là** (révision du 15/09) : un point qui n'est pas levé n'écoute pas.
    *  Omis, le point est debout — le repli de `isStanding` est `foundedAt`. */
@@ -155,12 +156,27 @@ async function outpost(
       point: asPoint(at),
       hostCountry: 'ROU',
       level: 1,
-      specialization,
       foundedAt: Date.now(),
       ...(standsAt === undefined ? {} : { standsAt }),
       disabledUntil,
       immuneUntil: null,
     });
+  });
+}
+
+/** Le stock national de charbon à zéro, sous un débit qui brûle encore. */
+async function dryCoal(t: ReturnType<typeof boot>, seat: Seat) {
+  const playerId = await playerOf(t, seat);
+  await t.run(async (ctx) => {
+    for (const row of await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()) {
+      await ctx.db.patch(row._id, {
+        stock: row.key === 'coal' ? 0 : row.stock,
+        updatedAt: Date.now(),
+      });
+    }
   });
 }
 
@@ -264,18 +280,7 @@ describe('what sees a movement go past', () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     await station(t, guest, PRAHOVA);
-    const playerId = await playerOf(t, guest);
-    await t.run(async (ctx) => {
-      for (const row of await ctx.db
-        .query('resources')
-        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-        .collect()) {
-        await ctx.db.patch(row._id, {
-          stock: row.key === 'coal' ? 0 : row.stock,
-          updatedAt: Date.now(),
-        });
-      }
-    });
+    await dryCoal(t, guest);
 
     const here = pointOf(PRAHOVA);
     const from = eastOf(northOf(here, 100), -150);
@@ -296,21 +301,20 @@ describe('what sees a movement go past', () => {
   });
 
   /**
-   * **Ce qu'un avant-poste ravitaille, il l'écoute** : son rayon de détection est son rayon
-   * d'action — cent vingt kilomètres pour un point de niveau 1 depuis le 31/08, et non plus
-   * quatre cents. Et **un détecteur désactivé n'écoute pas** — c'est le second sens du raid
-   * (ADR 0018 §6).
+   * **Tout avant-poste guette, à mi-rayon** (ADR 0037 §1, §2) : soixante kilomètres pour un point
+   * de niveau 1, sans métier à choisir. Et **un détecteur désactivé ne guette pas** — c'est le
+   * second sens du raid (ADR 0018 §6).
    */
-  it('files a sighting for a listening outpost the road passes inside of', async () => {
+  it('files a sighting for any standing outpost whose lookout the road passes inside of', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const here = pointOf(PRAHOVA);
-    await outpost(t, guest, here, 'listening');
+    await outpost(t, guest, here);
 
-    const from = eastOf(northOf(here, 60), -150);
-    const to = eastOf(northOf(here, 60), 150);
+    const from = eastOf(northOf(here, 30), -150);
+    const to = eastOf(northOf(here, 30), 150);
     expect(nearestApproach(routeBetween(from, to, 'land')!.points, here)).toBeLessThan(
-      outpostReachKm(1),
+      lookoutKmOf({ level: 1 }),
     );
 
     const { troopIds, origin } = await column(t, seat, from);
@@ -319,12 +323,65 @@ describe('what sees a movement go past', () => {
     expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'outpost' }]);
   });
 
+  it('files nothing for a road inside the reach of an outpost but outside its lookout', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = pointOf(PRAHOVA);
+    await outpost(t, guest, here);
+
+    const from = eastOf(northOf(here, 90), -150);
+    const to = eastOf(northOf(here, 90), 150);
+    const approach = nearestApproach(routeBetween(from, to, 'land')!.points, here);
+    expect(approach).toBeGreaterThan(lookoutKmOf({ level: 1 }));
+    expect(approach).toBeLessThan(outpostReachKm(1));
+
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
+
+    expect(await sightingsOf(t, guest)).toEqual([]);
+  });
+
+  /** **À court de charbon, toutes les vigies se taisent ensemble** (ADR 0037 §2) : le stock est
+   *  national, le silence aussi. */
+  it('blinds an outpost lookout when the national coal runs dry, and serves it silent', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = pointOf(PRAHOVA);
+    await outpost(t, guest, here);
+    await dryCoal(t, guest);
+
+    const from = eastOf(northOf(here, 30), -150);
+    const to = eastOf(northOf(here, 30), 150);
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
+
+    expect(await sightingsOf(t, guest)).toEqual([]);
+    expect((await t.query(api.view.playerView, guest)).me.upkeep.listeningSilent).toBe(true);
+  });
+
+  /** Le siège irrégulier ne tient aucun stock : les points qu'il hérite d'une chute sont aveugles. */
+  it('files nothing for an outpost held by the irregular seat', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = pointOf(PRAHOVA);
+    await outpost(t, guest, here);
+    const irregular = await playerOf(t, guest);
+    await t.run(async (ctx) => ctx.db.patch(irregular, { irregular: true }));
+
+    const from = eastOf(northOf(here, 30), -150);
+    const to = eastOf(northOf(here, 30), 150);
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
+
+    expect(await sightingsOf(t, guest)).toEqual([]);
+  });
+
   /** Un chantier n'écoute pas : le point n'existe pas encore (révision du 15/09). */
   it('files nothing for a listening outpost still under construction', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const here = pointOf(PRAHOVA);
-    await outpost(t, guest, here, 'listening', null, Date.now() + 3_600_000);
+    await outpost(t, guest, here, null, Date.now() + 3_600_000);
 
     const from = eastOf(northOf(here, 60), -150);
     const to = eastOf(northOf(here, 60), 150);
@@ -339,7 +396,7 @@ describe('what sees a movement go past', () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const here = pointOf(PRAHOVA);
-    await outpost(t, guest, here, 'listening', Date.now() + 6 * 3_600_000);
+    await outpost(t, guest, here, Date.now() + 6 * 3_600_000);
 
     const from = eastOf(northOf(here, 60), -150);
     const to = eastOf(northOf(here, 60), 150);
@@ -391,7 +448,7 @@ describe('what sees a movement go past', () => {
       await station(t, guest, PRAHOVA);
       if (holdsRangoon) await holdPoint(t, seat, 'rangoon');
       const here = pointOf(PRAHOVA);
-      const base = await outpost(t, seat, eastOf(here, -600), 'relay');
+      const base = await outpost(t, seat, eastOf(here, -600));
       const truck = await form(t, seat, 'landTransport', null);
       await t.run((ctx) =>
         ctx.db.patch(truck, {
@@ -463,9 +520,9 @@ describe('what sees a movement go past', () => {
         const t = boot();
         const { seat, guest } = await launchedSeason(t);
         const here = pointOf(PRAHOVA);
-        await outpost(t, guest, here, 'listening');
+        await outpost(t, guest, here);
         const at = northOf(here, km);
-        const base = await outpost(t, seat, at, 'relay');
+        const base = await outpost(t, seat, at);
         const truck = await form(t, seat, 'landTransport', null);
         await t.run((ctx) =>
           ctx.db.patch(truck, {
@@ -478,7 +535,7 @@ describe('what sees a movement go past', () => {
           .run((ctx) => ctx.db.query('campSightings').collect())
           .then((rows) => rows.filter((row) => row.until === null));
       };
-      const reach = outpostReachKm(1);
+      const reach = lookoutKmOf({ level: 1 });
       expect(await camps(reach * 0.75)).toEqual([]);
       expect(await camps(reach * 0.25)).toHaveLength(1);
     });
@@ -490,7 +547,7 @@ describe('what sees a movement go past', () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const here = pointOf(PRAHOVA);
-    await outpost(t, seat, here, 'listening');
+    await outpost(t, seat, here);
 
     const from = eastOf(northOf(here, 100), -150);
     const { troopIds, origin } = await column(t, seat, from);
@@ -623,7 +680,7 @@ describe('what sees a camp standing', () => {
     const { seat, guest } = await launchedSeason(t);
     const here = NEUTRAL();
     await station(t, guest, PRAHOVA);
-    const outpostId = await outpost(t, seat, northOf(here, 100), 'relay');
+    const outpostId = await outpost(t, seat, northOf(here, 100));
     const troopId = await form(t, seat, 'infantry', null);
     await t.run(async (ctx) => {
       await ctx.db.patch(troopId, { stationedAt: outpostId });
@@ -640,14 +697,7 @@ describe('what sees a camp standing', () => {
     const { seat, guest } = await launchedSeason(t);
     const here = NEUTRAL();
     await station(t, guest, PRAHOVA);
-    const siteId = await outpost(
-      t,
-      seat,
-      northOf(here, 100),
-      'relay',
-      null,
-      Date.now() + 3_600_000,
-    );
+    const siteId = await outpost(t, seat, northOf(here, 100), null, Date.now() + 3_600_000);
     const troopId = await form(t, seat, 'infantry', null);
     await t.run(async (ctx) => {
       await ctx.db.patch(troopId, { stationedAt: siteId });
@@ -787,11 +837,12 @@ describe('two columns crossing in flight', () => {
 });
 
 /**
- * **Le relais logistique fait ce qu'il vend** (fiche 03) : la route de son propriétaire qui
- * passe dans son rayon se parcourt plus vite. L'aperçu et le départ passent par la même
- * fonction, donc ils datent l'arrivée à la même minute — c'est tout l'objet du partage.
+ * **Les liaisons font ce que faisait le relais** (ADR 0037 §8) : la route de son propriétaire qui
+ * passe dans le rayon d'un point **en liaison** se parcourt plus vite ; un point seul n'accélère
+ * rien. L'aperçu et le départ passent par la même fonction, donc ils datent l'arrivée à la même
+ * minute, et l'aperçu dit ce que les liaisons ont pris.
  */
-describe('what a logistics relay does to a departure', () => {
+describe('what liaisons do to a departure', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
@@ -803,17 +854,11 @@ describe('what a logistics relay does to a departure', () => {
     const to = pointOf(PRAHOVA);
     return { from, to, route: routeBetween(from, to, 'land')! };
   };
+  /** Standing on the road itself, and a neighbour 150 km off it: their reaches touch. */
+  const onRoad = (route: { points: ReadonlyArray<LonLat> }) =>
+    route.points[Math.floor(route.points.length / 2)]!;
 
-  it('shortens a march whose road it covers, and the preview says the same minute', async () => {
-    const t = boot();
-    const { seat } = await launchedSeason(t);
-    const { from, to, route } = road();
-    const plain = routeMinutes(route.costUnits);
-
-    /** Standing on the road itself: what a relay covers is measured on the polyline, so a point
-     *  the column actually walks past is the honest way to say "this road is watched". */
-    await outpost(t, seat, route.points[Math.floor(route.points.length / 2)]!, 'relay');
-
+  async function marched(t: ReturnType<typeof boot>, seat: Seat, from: LonLat, to: LonLat) {
     const { troopIds, origin } = await column(t, seat, from);
     const previewed = await t.query(api.movements.preview, {
       ...seat,
@@ -828,55 +873,80 @@ describe('what a logistics relay does to a departure', () => {
       troopIds,
       point: asPoint(to),
     });
+    return { previewed: previewed!, sent };
+  }
+
+  it('shortens a march under two points in liaison, and the preview says the same minute', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { from, to, route } = road();
+    const plain = routeMinutes(route.costUnits);
+    await outpost(t, seat, onRoad(route));
+    await outpost(t, seat, northOf(onRoad(route), 150));
+
+    const { previewed, sent } = await marched(t, seat, from, to);
 
     expect(sent.minutes).toBeLessThan(plain);
     expect(sent.minutes).toBeGreaterThan(plain / RELAY_SPEED_MULTIPLIER - 1);
-    expect(previewed!.minutes).toBe(sent.minutes);
-    expect(previewed!.relayed).toBe(plain - sent.minutes);
+    expect(previewed.minutes).toBe(sent.minutes);
+    expect(previewed.relayed).toBe(plain - sent.minutes);
   });
 
-  it('leaves a march no relay of its owner watches at the ordinary pace', async () => {
+  it('leaves a march under a lone point at the ordinary pace', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { from, to, route } = road();
+    await outpost(t, seat, onRoad(route));
+
+    const { previewed, sent } = await marched(t, seat, from, to);
+
+    expect(sent.minutes).toBe(routeMinutes(route.costUnits));
+    expect(previewed.relayed).toBe(0);
+  });
+
+  it('leaves a march no liaison of its owner watches at the ordinary pace', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const { from, to, route } = road();
 
-    /** An opponent's relay carries nobody but him, and one of the mover's own standing far off
-     *  the road carries nothing at all. */
-    await outpost(t, guest, route.points[Math.floor(route.points.length / 2)]!, 'relay');
-    await outpost(t, seat, [0, 40], 'relay');
+    /** An opponent's liaison carries nobody but him, and the mover's own far off the road carry
+     *  nothing at all. */
+    await outpost(t, guest, onRoad(route));
+    await outpost(t, guest, northOf(onRoad(route), 150));
+    await outpost(t, seat, [0, 40]);
+    await outpost(t, seat, [1, 40]);
 
-    const { troopIds, origin } = await column(t, seat, from);
-    const sent = await t.mutation(api.movements.marchTo, {
-      ...seat,
-      origin,
-      troopIds,
-      point: asPoint(to),
-    });
+    const { sent } = await marched(t, seat, from, to);
 
     expect(sent.minutes).toBe(routeMinutes(route.costUnits));
   });
 
-  it('does not speed up a march a relay out of service was covering', async () => {
+  it('breaks the liaison of a point out of service: its neighbour stands alone', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const { from, to, route } = road();
-    await outpost(
-      t,
-      seat,
-      route.points[Math.floor(route.points.length / 2)]!,
-      'relay',
-      Date.now() + 6 * 3_600_000,
-    );
+    await outpost(t, seat, onRoad(route));
+    await outpost(t, seat, northOf(onRoad(route), 150), Date.now() + 6 * 3_600_000);
 
-    const { troopIds, origin } = await column(t, seat, from);
-    const sent = await t.mutation(api.movements.marchTo, {
-      ...seat,
-      origin,
-      troopIds,
-      point: asPoint(to),
-    });
+    const { sent } = await marched(t, seat, from, to);
 
     expect(sent.minutes).toBe(routeMinutes(route.costUnits));
+  });
+
+  /** **Une liaison n'accélère pas l'air** (Pierre, 01/11) : un vol garde sa durée pleine. */
+  it('leaves a flight under two points in liaison at its full length', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const from = pointOf(MARNE);
+    const to = eastOf(from, 300);
+    await outpost(t, seat, eastOf(from, 150));
+    await outpost(t, seat, northOf(eastOf(from, 150), 150));
+    const flight = routeBetween(from, to, 'air')!;
+    const playerId = await playerOf(t, seat);
+    /** The one road to a duration every order takes, flights included (`movement/orders.ts`). */
+    const minutes = await t.run((ctx) => pacedMinutes(ctx, playerId, flight, Date.now()));
+
+    expect(minutes).toBe(routeMinutes(flight.costUnits));
   });
 });
 
@@ -981,7 +1051,7 @@ describe('what a sighting serves of the thread', () => {
   it('turns critical when the prolonged heading reaches ground of mine', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    await outpost(t, guest, eastOf(pointOf(MARNE), 800), 'relay');
+    await outpost(t, guest, eastOf(pointOf(MARNE), 800));
     await watchedMarch(t, seat, guest);
 
     const [seen] = (await t.query(api.view.playerView, guest)).detected;
@@ -991,7 +1061,7 @@ describe('what a sighting serves of the thread', () => {
   it('stays quiet for a column that passes beside me and points elsewhere', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    await outpost(t, guest, northOf(eastOf(pointOf(MARNE), 800), 400), 'relay');
+    await outpost(t, guest, northOf(eastOf(pointOf(MARNE), 800), 400));
     await watchedMarch(t, seat, guest);
 
     const [seen] = (await t.query(api.view.playerView, guest)).detected;
@@ -1220,7 +1290,7 @@ describe('a one-player event reassesses what the whole pass would', () => {
           }),
         );
       }
-      /** Une station d'écoute anglaise sur sol allemand, un avant-poste écouteur italien, une
+      /** Une station d'écoute anglaise sur sol allemand, un avant-poste italien qui guette, une
        *  caserne française pour la recrue — posés à la main, donc relus une fois en entier. */
       const german = allRegions()
         .filter((region) => region.country === 'DEU')
@@ -1239,8 +1309,8 @@ describe('a one-player event reassesses what the whole pass would', () => {
           playerId: players[3]!,
           point: near(0.5),
           hostCountry: 'DEU',
-          level: 1,
-          specialization: 'listening',
+          /** Niveau 2 : sa vigie porte à 90 km, la portée que la tournée doit croiser. */
+          level: 2,
           foundedAt: Date.now() - 1,
           disabledUntil: null,
           immuneUntil: null,

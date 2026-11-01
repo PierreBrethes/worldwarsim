@@ -693,7 +693,6 @@ if (!bare) {
       seasonId,
       point: valletta,
       regionId: 'MLT-5949',
-      specialization: 'relay',
       troopIds: [founder.id],
     });
     await client.mutation(api.constructions.start, {

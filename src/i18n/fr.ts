@@ -49,7 +49,7 @@ import type {
   RegionType,
   ResearchCard,
   ResourceKey,
-  Specialization,
+  Specialty,
   UnitRole,
 } from '../domain/ids';
 
@@ -460,10 +460,14 @@ export const fr = {
     tundra: 'toundra',
   } satisfies Record<RegionType, string>,
 
-  specializations: {
-    relay: 'relais logistique',
-    listening: 'écoute',
-  } satisfies Record<Specialization, string>,
+  /** **Ce qu'un avant-poste devient au niveau 2** (ADR 0037 §3) ; « Magasin », jamais
+   *  « Entrepôt », qui nomme déjà le stockage national. */
+  specialties: {
+    general: 'généraliste',
+    store: 'magasin',
+    lookout: 'guet',
+    fort: 'fort',
+  } satisfies Record<Specialty, string>,
 
   /** **La capture** (décision du 14/10) — jamais « prise ». */
   capture: {
@@ -651,18 +655,6 @@ export const fr = {
   },
 
   /**
-   * **Ce que fait une spécialisation, en une phrase et avec son rayon.** L'invité choisissait à
-   * l'aveugle : deux mots sur une carte, aucun chiffre, aucun effet. Le rayon est écrit ici
-   * plutôt que deviné parce que c'est le seul chiffre qui décide où l'on plante l'avant-poste.
-   */
-  specializationEffects: {
-    relay: (reachKm: number, multiplier: number) =>
-      `accélère de ×${multiplier} la part de vos routes qui passe à moins de ${num(reachKm)} km`,
-    listening: (reachKm: number) =>
-      `relève les mouvements adverses qui passent à moins de ${num(reachKm)} km`,
-  } satisfies Record<Specialization, (...args: never[]) => string>,
-
-  /**
    * **Qui a relevé le fil** (fiche 04). Le détecteur est un fait du plateau de l'observateur :
    * le nommer ne dit rien de la colonne, et c'est ce qui transforme un relevé en raison d'avoir
    * bâti la chose qui l'a fait.
@@ -670,7 +662,7 @@ export const fr = {
   detectors: {
     territory: 'notre sol',
     station: 'station d’écoute',
-    outpost: 'avant-poste d’écoute',
+    outpost: 'vigie d’avant-poste',
     troop: 'nos guetteurs',
   } satisfies Record<Detector, string>,
 
@@ -794,8 +786,6 @@ export const fr = {
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
     QUEUE_FULL: () => 'la file de ce site est pleine',
     UNKNOWN_BATCH: () => 'lot inconnu',
-    SPECIALIZATION_SEALED: () =>
-      'une passe s’est déjà servie de cet avant-poste — sa spécialisation ne change plus',
     BATCH_ALREADY_STARTED: () => 'ce lot a déjà commencé — il ne s’annule plus',
     CHAIN_NOT_COMMANDED: (d) => `${buildingName(d.chain)} tourne seule — elle ne se commande pas`,
     CHAIN_NOT_STANDING: (d) => `aucun ${buildingName(d.building)} debout`,
@@ -2118,14 +2108,14 @@ export const fr = {
       buildings: 'Bâtiments',
       troops: 'Troupes',
       outposts: 'Avant-postes',
-      listening: 'Écoutes',
+      listening: 'Vigies et écoutes',
       factory: 'Usine',
     },
     empty: {
       buildings: 'Aucun gisement exploité.',
       troops: 'Aucune troupe à nourrir.',
       outposts: 'Aucun avant-poste debout.',
-      listening: 'Aucune écoute ne brûle.',
+      listening: 'Aucune vigie ne brûle.',
       factory: 'Aucune chaîne n’y touche.',
     },
     site: (building: string, region: string, level: number, linked: boolean, share: number) =>
@@ -2144,14 +2134,14 @@ export const fr = {
     outpost: (region: string | null, level: number) =>
       `${region === null ? 'Avant-poste' : `Avant-poste ${ofName(region)}`} · niv. ${level}`,
     station: (region: string | null, outpost: boolean) =>
-      `${outpost ? 'Avant-poste d’écoute' : 'Station d’écoute'}${region === null ? '' : ` ${ofName(region)}`}`,
+      `${outpost ? 'Vigie d’avant-poste' : 'Station d’écoute'}${region === null ? '' : ` ${ofName(region)}`}`,
     /** Ce qui arrête une réserve, et ce qui la répare (`ledgerNotesOf`). */
     starving:
       'À sec : les files de recrutement sont à l’arrêt. Rien n’est perdu, aucune troupe ne meurt — elles repartent dès que les vivres reviennent.',
     starvedChain: (building: string, resource: string, a: string) =>
       `${building} à sec de ${lowerFirst(resource)} — bâtissez ou élevez ${a}.`,
     listeningSilent:
-      'Écoutes muettes — plus de charbon. Une mine sur du charbon, ou du charbon livré, les fera entendre de nouveau.',
+      'Vigies aveugles, stations d’écoute comprises — plus de charbon. Le dépôt, la recharge et la couleur continuent. Une mine sur du charbon, ou du charbon livré, leur rendra la vue.',
     noProducer: (none: string) =>
       `${none.charAt(0).toUpperCase()}${none.slice(1)} : rien ne remplit cette réserve.`,
     allSupplied: 'Toutes ravitaillées : sol national ou rayon d’un avant-poste.',
@@ -2703,16 +2693,15 @@ export const fr = {
         `Une colonne de ${troops} troupe${plural(troops, '', 's')} est entrée en garnison à ${building} · ${region}.`,
       movementStalled: (country: string) =>
         `Une colonne attend à la frontière — ${country} : la plage de repos y interdit toute arrivée.`,
-      outpostFounded: (specialization: string, country: string) =>
-        `Un ${specialization} a été mis en chantier — ${country}.`,
-      outpostStands: (specialization: string, country: string) =>
-        `Notre ${specialization} est debout — ${country} : le sol autour prend nos couleurs.`,
+      outpostFounded: (country: string) => `Un avant-poste a été mis en chantier — ${country}.`,
+      outpostStands: (country: string) =>
+        `Notre avant-poste est debout — ${country} : le sol autour prend nos couleurs.`,
       /** La phrase dit la cause, parce que c'est la seule chose que le joueur peut corriger la
        *  prochaine fois : un chantier tient tant que sa garnison tient. */
-      foundationLost: (specialization: string, country: string) =>
-        `Notre ${specialization} en chantier est perdu — ${country} : sa garnison n’y est plus, rien n’est remboursé.`,
-      outpostDisabled: (specialization: string, country: string) =>
-        `Notre ${specialization} a été désactivé par un raid — ${country}.`,
+      foundationLost: (country: string) =>
+        `Notre avant-poste en chantier est perdu — ${country} : sa garnison n’y est plus, rien n’est remboursé.`,
+      outpostDisabled: (country: string) =>
+        `Notre avant-poste a été désactivé par un raid — ${country}.`,
       /**
        * **Le prix de rester en mer** (règle 4 du 18/09). La phrase dit la cause parce que c'est
        * la seule perte du jeu qu'aucun tir n'explique : on ne lit nulle part ailleurs qu'une
@@ -3128,19 +3117,19 @@ export const fr = {
     pickNone: 'aucune',
     pickRole: (role: string, count: number) => `${role} ×${count}`,
     prepare: 'préparer un mouvement',
-    /** Founding is what a column does where it stands (ADR 0019 §1) — the terrain is under its
-     *  feet when the specialisation is chosen, which is why the choice lives here. */
-    found: 'fonder un avant-poste',
-    foundSpecialization: 'spécialisation',
-    foundHere: 'fonder ici',
-    /**
-     * **La spécialisation se règle sur le point, une fois planté** (décision du 29/08). Le serveur
-     * exige un mot à la fondation : le clic droit pose « relais » et c'est ici qu'on en change,
-     * tant qu'aucune passe ne l'a servi. Après quoi la phrase dit pourquoi les deux boutons ne
-     * sont plus là — plutôt que de les montrer éteints.
-     */
-    specializationSealed:
-      'Scellée : une passe s’en est déjà servie — un avant-poste ne change plus de métier.',
+    specialty: 'spécialisation',
+    /** **Tout avant-poste guette** (ADR 0037 §2) : le rayon et le prix, les deux seuls chiffres
+     *  qui décident où on le plante. */
+    lookout: (km: number, coalPerHour: number) =>
+      `Vigie à ${num(km)} km : relève ce qui passe dans ce rayon · ${num(coalPerHour)} charbon/h, pris au stock national.`,
+    /** **Les liaisons** (ADR 0037 §8) : jamais « route », qui est le chemin ; jamais « relié ». */
+    liaisons: (count: number, multiplier: number) =>
+      count === 0
+        ? `Aucune liaison : un autre de vos points dont le rayon touche le sien accélérerait vos colonnes de ×${decimal(multiplier, 1)}.`
+        : `En liaison avec ${count} de vos points : vos colonnes vont ×${decimal(multiplier, 1)} plus vite dans son rayon, à terre et en mer.`,
+    /** À court de charbon, toutes les vigies d'un coup — et rien d'autre ne s'arrête. */
+    blind:
+      'Toutes vos vigies sont aveugles, stations d’écoute comprises — plus de charbon. Le dépôt, la recharge et la couleur continuent.',
     // A garrison abroad has no barracks to leave from: the server only marches from a
     // projection building (ADR 0013), and saying so beats a refusal after the click.
     /** La seule adresse d'où rien ne part : le bâtiment qui logeait ces troupes n'est plus là,
@@ -3320,10 +3309,11 @@ export const fr = {
     distanceSea: (km: number) => `dont ${km} km de mer`,
     pursuit: 'poursuite',
     /**
-     * **Ce que les relais ont pris sur le trajet.** Une route plus courte que prévu sans rien à
-     * l'écran pour l'expliquer se lit comme une panne, pas comme une récompense — et c'est
-     * précisément ce qu'on a acheté en spécialisant l'avant-poste.
+     * **Ce que les liaisons ont pris sur le trajet** (ADR 0037 §8). Une route plus courte que
+     * prévu sans rien à l'écran pour l'expliquer se lit comme une panne, pas comme une récompense.
      */
+    relayed: (multiplier: number, span: string) =>
+      `×${decimal(multiplier, 1)} par vos liaisons — ${span} de gagné`,
     /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
      *  joueur décide, et elle se dit avant qu'il paie le slot. */
     capture: (duration: string) => `capture — ${duration} à la force de la pile`,
@@ -4509,10 +4499,6 @@ export const fr = {
     myOutpost: (level: number) => `mon avant-poste · niveau ${level}`,
     raiseConsequence: (level: number) =>
       `Ouvre un chantier : ce point passe au niveau ${level}, avec le rayon qui va avec.`,
-    /** Le métier en cours : la branche est marquée, et cliquer ne change rien — il n'y a rien
-     *  à changer. La phrase le dit plutôt que de laisser croire à un geste sans effet. */
-    specializationHeld: 'Le métier que ce point exerce déjà.',
-    specializeConsequence: (name: string) => `Change le métier de ce point : ${name}.`,
     /** **Démanteler** (décision du 16/09) : jumelle de « raser », en dernier et en encre rouge.
      *  Ce qu'elle emporte en plus — la couleur du sol et les bâtiments ancrés — se lit sur la
      *  confirmation, qui a la place de le dire en chiffres. */

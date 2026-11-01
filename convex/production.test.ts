@@ -1,4 +1,5 @@
 import { convexTest } from 'convex-test';
+import { lookoutCoalPerHour } from '../src/domain/outposts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -127,7 +128,6 @@ async function plant(
       playerId: player._id,
       ...ground,
       level,
-      specialization: 'relay',
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,
@@ -356,7 +356,6 @@ describe('a building only produces when its region carries its colour', () => {
         playerId: rival._id,
         ...ground,
         level: 1,
-        specialization: 'relay',
         foundedAt: Date.now(),
         disabledUntil: null,
         immuneUntil: null,
@@ -517,7 +516,7 @@ describe('a building only produces when its region carries its colour', () => {
    * **Un avant-poste debout mange des vivres, selon son niveau** (ADR 0028 §2) : le frein du
    * tapis d'avant-postes, en plus du prix. Le charbon, lui, n'est jamais touché.
    */
-  it('eats food by its level for a standing outpost, and no coal', async () => {
+  it('eats food and burns coal by its level for a standing outpost', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const outpostId = await plant(t, seat, PRAHOVA_POINT, PRAHOVA);
@@ -530,7 +529,8 @@ describe('a building only produces when its region carries its colour', () => {
       food - 10 * 3 * OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
       5,
     );
-    expect(await stockOf(t, seat, 'coal')).toBeCloseTo(coal, 5);
+    /** Sa vigie brûle un charbon par heure et par niveau (ADR 0037 §2). */
+    expect(await stockOf(t, seat, 'coal')).toBeCloseTo(coal - 10 * lookoutCoalPerHour(3), 5);
 
     const player = await seatOf(t, seat);
     const upkeep = await t.run(async (ctx) => (await economyOf(ctx, player._id, MIDDAY)).upkeep);

@@ -568,10 +568,10 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
  * autres, et ce qui est en file s'annule selon la règle de la file. Ce qu'on retire là est une
  * promesse, pas une bâtisse.
  *
- * **Servir un mouvement retient, en revanche.** Un relais dans la portée duquel une colonne
- * marche a déjà payé son allure : le retirer sous ses pieds ferait bouger un horaire déjà
- * annoncé. C'est exactement la lecture qui scelle le métier du point (`specializationsServed`,
- * servie au client par `specializationLocked`), et il n'y en a pas deux.
+ * **Servir un mouvement retient, en revanche.** Un point dans la portée duquel une colonne
+ * marche a pu chiffrer son allure : le retirer sous ses pieds ferait bouger un horaire déjà
+ * annoncé. La lecture est `specializationsServed`, servie au client par `specializationLocked`,
+ * et il n'y en a pas deux.
  */
 export type OutpostDismantleRefusal = 'NOT_YOURS' | 'OUTPOST_SERVING';
 

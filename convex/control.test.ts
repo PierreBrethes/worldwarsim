@@ -83,7 +83,6 @@ async function plant(
       playerId: player._id,
       ...ground,
       level: 1,
-      specialization: 'relay',
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,

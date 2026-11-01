@@ -1,4 +1,5 @@
 import { convexTest } from 'convex-test';
+import { lookoutKmOf } from '../src/domain/outposts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -7,7 +8,7 @@ import { distanceKm, type LonLat } from '../src/domain/geo';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { reassessDetection } from './movement/detection';
 import { hostAtPoint } from './routes';
-import { BAKU_REFUEL_MS, outpostReachKm } from './constants';
+import { BAKU_REFUEL_MS } from './constants';
 import { regionFacts } from './regions';
 import { handOver } from './strategicPoints';
 import { drawPoints } from '../src/domain/strategic-points';
@@ -492,7 +493,6 @@ describe('the rules the points break', () => {
         point: { lon: FIELD[0], lat: FIELD[1] },
         hostCountry: 'ROU',
         level: 1,
-        specialization: 'listening',
         foundedAt: Date.now(),
         disabledUntil: null,
         immuneUntil: null,
@@ -530,9 +530,9 @@ describe('the rules the points break', () => {
     for (const who of [seat, guest, third]) await placeHq(t, who);
     const players = [await playerOf(t, seat), await playerOf(t, guest)];
     const listener = await playerOf(t, third);
-    /** Chacun écoute d'un avant-poste, et la tournée de l'autre passe aux trois quarts de sa
-     *  portée : vue à portée pleine, pas à mi-portée. Le tiers écoute aux deux mêmes endroits. */
-    const reach = outpostReachKm(1);
+    /** Chacun guette d'un avant-poste, et la tournée de l'autre passe aux trois quarts de sa
+     *  vigie : vue à portée pleine, pas à mi-portée. Le tiers guette aux deux mêmes endroits. */
+    const reach = lookoutKmOf({ level: 1 });
     const ears: ReadonlyArray<LonLat> = [
       [24, 50],
       [20, 47],
@@ -547,7 +547,6 @@ describe('the rules the points break', () => {
             point: { lon: ear[0], lat: ear[1] },
             hostCountry: hostAtPoint(ear),
             level: 1,
-            specialization: 'listening',
             foundedAt: Date.now() - 1,
             disabledUntil: null,
             immuneUntil: null,
@@ -562,7 +561,6 @@ describe('the rules the points break', () => {
           point: { lon: from[0], lat: from[1] },
           hostCountry: hostAtPoint(from),
           level: 1,
-          specialization: 'relay',
           foundedAt: Date.now() - 1,
           disabledUntil: null,
           immuneUntil: null,

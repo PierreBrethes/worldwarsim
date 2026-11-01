@@ -18,7 +18,6 @@ const view = {
         hostCountry: 'NOR',
         lonLat: [0, 0],
         regionId: 'NOR-1',
-        specialization: 'relay',
         specializationLocked: false,
         level: 1,
         standsAt: null,
@@ -166,43 +165,12 @@ describe('my own outpost, unarmed', () => {
       me: { ...view.me, outposts: [{ ...view.me.outposts[0], ...changes }] },
     }) as unknown as PlayerView;
 
-  it('carries the raise, both trades and the dismantling, in that order', () => {
+  /** Plus de métier à choisir (ADR 0037 §1) : la plate porte l'élévation et le démantèlement. */
+  it('carries the raise and the dismantling, and no trade to choose', () => {
     const compass = compassOf(mine, view);
-    expect(compass?.actions.map((action) => action.key)).toEqual([
-      'raiseOutpost',
-      'specialize',
-      'specialize',
-      'dismantle',
-    ]);
-    expect(compass?.actions.map((action) => action.label)).toEqual([
-      'monter',
-      'relais logistique',
-      'écoute',
-      'démanteler',
-    ]);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['raiseOutpost', 'dismantle']);
+    expect(compass?.actions.map((action) => action.label)).toEqual(['monter', 'démanteler']);
     expect(compass?.kicker).toBe('mon avant-poste · niveau 1');
-  });
-
-  /** Le métier en cours est **marqué**, jamais retiré ni grisé : c'est l'état du point, et c'est
-   *  ce qui décide du geste suivant. */
-  it('marks the trade the point already works', () => {
-    const trades = (compassOf(mine, view)?.actions ?? []).filter(
-      (action) => action.key === 'specialize',
-    );
-    expect(trades.map((trade) => trade.current)).toEqual([true, false]);
-    expect(trades.map((trade) => trade.specialization)).toEqual(['relay', 'listening']);
-    expect(trades.every((trade) => trade.sealed === null)).toBe(true);
-  });
-
-  /** Scellé, rien ne disparaît et rien ne se grise : la branche porte la phrase du serveur, et
-   *  le joueur lit pourquoi avant de cliquer (ADR 0015). */
-  it('keeps both trades when the point serves a column, and says why it refuses', () => {
-    const sealed = compassOf(mine, withOutpost({ specializationLocked: true }));
-    const trades = (sealed?.actions ?? []).filter((action) => action.key === 'specialize');
-    expect(trades).toHaveLength(2);
-    expect(trades[1]?.sealed).toBe(
-      'une passe s’est déjà servie de cet avant-poste — sa spécialisation ne change plus',
-    );
   });
 
   /** **Servir une colonne retient aussi le démantèlement** : on ne retire pas la route sous les
@@ -217,11 +185,7 @@ describe('my own outpost, unarmed', () => {
 
   it('draws no raise at the maximum level, and keeps the rest', () => {
     const topped = compassOf(mine, withOutpost({ level: 3, atMaxLevel: true }));
-    expect(topped?.actions.map((action) => action.key)).toEqual([
-      'specialize',
-      'specialize',
-      'dismantle',
-    ]);
+    expect(topped?.actions.map((action) => action.key)).toEqual(['dismantle']);
     expect(topped?.refusal).toBe('Niveau maximal atteint (3).');
   });
 

@@ -135,7 +135,7 @@ const snapshot = {
           hostCountry: 'Mongolia',
           lonLat: [109.1, 44.5],
           regionId: 'MNG.4',
-          specialization: 'extraction',
+          specialty: 'general',
           level: 1,
           garrison: 2,
           disabledMinutesLeft: null,

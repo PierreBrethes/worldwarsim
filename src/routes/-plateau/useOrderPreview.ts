@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
+import { RELAY_SPEED_MULTIPLIER } from '../../../convex/constants';
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { ArmedColumn } from '@/domain/armed-column';
 import { asLocalTime, asSpan } from '@/domain/duration';
@@ -54,6 +55,10 @@ export function distanceNotesOf(
   return [
     { text: fr.aim.distance(total, asSpan(minutes)), alarm: false },
     ...(sea > 0 && sea < total ? [{ text: fr.aim.distanceSea(sea), alarm: false }] : []),
+    /** **Pourquoi la durée est courte** (ADR 0037 §8) : servi par chaque aperçu. */
+    ...(preview.relayed > 0
+      ? [{ text: fr.aim.relayed(RELAY_SPEED_MULTIPLIER, asSpan(preview.relayed)), alarm: false }]
+      : []),
   ];
 }
 

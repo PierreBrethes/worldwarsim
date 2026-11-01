@@ -23,7 +23,6 @@ describe('dev.reset', () => {
           kind: 'outpostFounded',
           hostCountry: 'BEL',
           point: { lon: 4, lat: 50 },
-          specialization: 'relay',
         });
       await ctx.scheduler.runAfter(60_000, internal.press.publish, { playerId: player!._id });
     });

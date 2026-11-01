@@ -910,9 +910,9 @@ export const UPKEEP_STEPS: ReadonlyArray<{ readonly upTo: number; readonly rate:
 export const OUTPOST_FOOD_PER_HOUR_PER_LEVEL = 3;
 
 /**
- * **A listening post burns coal as long as it listens** (ADR 0028 §2, R17): a station, and an
- * outpost given the listening specialization, each. Flat per post and not per level, since the
- * radius is what a level buys.
+ * **A listening station burns coal as long as it listens** (ADR 0028 §2, R17): flat, since the
+ * radius is what a level buys. An outpost's lookout burns by its level instead
+ * (`LOOKOUT_COAL_PER_HOUR_PER_LEVEL`, ADR 0037 §2).
  *
  * @a-mesurer set by eye: a post against the twelve an hour of a coal mine at level one
  */
@@ -925,6 +925,14 @@ export const LISTENING_COAL_PER_HOUR = 1;
  * @a-mesurer 1, 2, 3 par heure : un point contre les douze d'une mine de charbon au niveau 1
  */
 export const LOOKOUT_COAL_PER_HOUR_PER_LEVEL = 1;
+
+/**
+ * **Jusqu'où guette la vigie d'un avant-poste**, en part de son rayon de contrôle (ADR 0037 §2) :
+ * 60, 90 et 120 km. Le Guet portera au rayon entier (#371).
+ *
+ * @a-mesurer la moitié : ce que le POC a montré lisible, une vigie qui ne couvre pas tout ce qu'elle tient
+ */
+export const LOOKOUT_REACH_SHARE = 0.5;
 
 /**
  * What a troop eats **outside every anchor of its own** (ADR 0019 §4). Without it, "at its own
@@ -1043,11 +1051,11 @@ export const outpostReachKm = (level: number): number =>
   OUTPOST_REACH_KM_BY_LEVEL[Math.min(Math.max(Math.trunc(level), 1), MAX_REACH_LEVEL)]!;
 
 /**
- * **What a logistics relay does to the stretch of road that passes it** (design sheet 03) — the
- * only specialization that touches travel time, and with it the arbitration the sheet names: an
- * army, or the means to project it.
+ * **What a liaison does to the stretch of road that passes it** (ADR 0037 §8): the ground and the
+ * water inside the reach of an outpost in liaison go this much faster for its owner, never a
+ * flight (Pierre, 01/11).
  *
- * One and a half is shaped so the relay reads as a decision rather than a rounding: on a route
+ * One and a half is shaped so the liaison reads as a decision rather than a rounding: on a route
  * entirely under its reach it turns fourteen minutes per thousand kilometres into a little over
  * nine. Nothing simulates it. **It never touches an opponent**, and the reading is made at
  * departure like every other timing of the game.

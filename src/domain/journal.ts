@@ -213,10 +213,7 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'outpostFounded',
-        text: said.outpostFounded(
-          fr.specializations[notice.specialization],
-          countryLabel(notice.hostCountry),
-        ),
+        text: said.outpostFounded(countryLabel(notice.hostCountry)),
       };
     /** Le lever : ce que la fondation avait seulement commandé. Encre normale — c'est une
      *  nouvelle du joueur, à l'heure exacte où le sol prend sa couleur. */
@@ -225,10 +222,7 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'outpostStands',
-        text: said.outpostStands(
-          fr.specializations[notice.specialization],
-          countryLabel(notice.hostCountry),
-        ),
+        text: said.outpostStands(countryLabel(notice.hostCountry)),
       };
     /** Encre rouge : un chantier perdu est de l'acier dépensé qui ne rend rien, et rien
      *  d'autre sur le plateau ne le dira. */
@@ -237,10 +231,7 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'critical',
         kind: 'foundationLost',
-        text: said.foundationLost(
-          fr.specializations[notice.specialization],
-          countryLabel(notice.hostCountry),
-        ),
+        text: said.foundationLost(countryLabel(notice.hostCountry)),
       };
     /** Encre normale : un point qui monte est une nouvelle du joueur, pas un événement qu'il
      *  subit — et personne d'autre ne la lit. */
@@ -287,10 +278,7 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'critical',
         kind: 'outpostDisabled',
-        text: said.outpostDisabled(
-          fr.specializations[notice.specialization],
-          countryLabel(notice.hostCountry),
-        ),
+        text: said.outpostDisabled(countryLabel(notice.hostCountry)),
       };
     /**
      * **Une alarme, au même titre qu'un avant-poste désactivé** (ADR 0020 §6) : le stock cesse de

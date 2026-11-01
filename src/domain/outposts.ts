@@ -1,4 +1,8 @@
-import { LOOKOUT_COAL_PER_HOUR_PER_LEVEL, outpostReachKm } from '../../convex/constants';
+import {
+  LOOKOUT_COAL_PER_HOUR_PER_LEVEL,
+  LOOKOUT_REACH_SHARE,
+  outpostReachKm,
+} from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
 
 /**
@@ -89,12 +93,9 @@ export const outpostShelters = (
   now: number,
 ): boolean => isStanding(outpost, now) && (outpost.disabledUntil ?? 0) <= now;
 
-/**
- * **Tout avant-poste debout guette** (ADR 0037 §1, §2) : sa vigie porte à la moitié de son rayon
- * de contrôle. `@a-mesurer` avec le rayon. Le Guet portera au rayon entier (#371).
- */
+/** **Tout avant-poste debout guette** (ADR 0037 §1, §2), à une part de son rayon de contrôle. */
 export const lookoutKmOf = (outpost: { readonly level: number }): number =>
-  outpostReachKm(outpost.level) / 2;
+  outpostReachKm(outpost.level) * LOOKOUT_REACH_SHARE;
 
 /** Le charbon que la vigie brûle, au stock national (ADR 0037 §2). */
 export const lookoutCoalPerHour = (level: number): number =>

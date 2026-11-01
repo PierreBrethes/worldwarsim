@@ -29,7 +29,7 @@ import {
 import { resolveContact } from '../combat';
 import { collapseIfAbandoned } from '../outposts';
 import { seenSegment } from '../../src/domain/sighting-segment';
-import { marchingForce } from './detection';
+import { marchingForce, reassessDetection } from './detection';
 import {
   CARRY_CAPACITY_BY_ROLE,
   OUTPOST_DISABLED_HOURS,
@@ -481,7 +481,6 @@ async function deactivate(
     kind: 'outpostDisabled',
     hostCountry: outpost.hostCountry,
     point: outpost.point,
-    specialization: outpost.specialization,
   });
   await notifyPlayer(ctx, outpost.playerId, {
     type: 'outpost',
@@ -490,6 +489,9 @@ async function deactivate(
     at: now,
   });
   await reportChange(ctx, outpost.seasonId, before, now);
+  /** **La vigie s'éteint avec le point** (invariant Brouillard) : la réévaluation se fait ici, pas
+   *  à la suivante. Seuls les détecteurs de son propriétaire changent. */
+  await reassessDetection(ctx, outpost.seasonId, now, outpost.playerId);
   /** La couleur reviendra seule : le rendez-vous se prend ici, à la seconde où le raid l'a fixé.
    *  Personne n'ordonne cet événement-là, et rien ne bat pour le constater. */
   await scheduleRestore(ctx, outpost.seasonId, disabledUntil);

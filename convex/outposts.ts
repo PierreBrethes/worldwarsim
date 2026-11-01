@@ -76,9 +76,9 @@ export const standOutpost = internalMutation({
       kind: 'outpostStands',
       hostCountry: outpost.hostCountry,
       point: outpost.point,
-      specialization: outpost.specialization,
     });
-    await reassessDetection(ctx, outpost.seasonId, at);
+    /** Le point levé guette, et sa garnison se tient sous un toit : seul son joueur change. */
+    await reassessDetection(ctx, outpost.seasonId, at, outpost.playerId);
   },
 });
 
@@ -120,7 +120,6 @@ export async function collapseIfAbandoned(
     kind: 'foundationLost',
     hostCountry: outpost.hostCountry,
     point: outpost.point,
-    specialization: outpost.specialization,
   });
   await notifyPlayer(ctx, outpost.playerId, {
     type: 'outpost',
@@ -232,7 +231,7 @@ export const dismantle = mutation({
     /** La file repart derrière les entrées disparues, et la détection se réévalue : un point
      *  retiré est une portée de moins, et une garnison passée au sol un détecteur qui a bougé. */
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: player._id });
-    await reassessDetection(ctx, season._id, now);
+    await reassessDetection(ctx, season._id, now, player._id);
     return { buildings: anchored.length, refunded };
   },
 });
