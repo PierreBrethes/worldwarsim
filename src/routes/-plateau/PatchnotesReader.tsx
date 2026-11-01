@@ -13,11 +13,13 @@ const ZOOM_STEP = { desk: 2, phone: 2.5 };
 /** Au-delà de cette part de la largeur, ou de cette vitesse, un glissé tourne la feuille. @a-mesurer */
 const DRAG_TURN = 0.15;
 const DRAG_FLICK = 0.5;
+/** @a-mesurer */
 const DOUBLE_TAP_MS = 320;
+/** Le retour d'une feuille lâchée avant le seuil. @a-mesurer */
 const SNAP_MS = 220;
 const KBD =
   'border border-[rgba(228,216,189,.4)] px-[5px] py-px font-[inherit] text-[var(--paper)]';
-const MUTED = '#b9aa8a';
+const MUTED = 'var(--paper-dim-2)';
 
 type Pt = { x: number; y: number };
 type Pan = { z: number; px: number; py: number };
@@ -48,7 +50,8 @@ export function PatchnotesReader({
       chrono.findIndex((n) => n.date === startDate),
     ),
   );
-  const [turning, setTurning] = useState<-1 | 1 | null>(null);
+  const [turn, setTurn] = useState<{ dir: -1 | 1; to: number } | null>(null);
+  const turning = turn?.dir ?? null;
   const [fade, setFade] = useState<'out' | 'hold' | 'in' | null>(null);
   const [drag, setDrag] = useState(0);
   const [zoom, setZoom] = useState<Pan>({ z: 1, px: 0, py: 0 });
@@ -58,17 +61,24 @@ export function PatchnotesReader({
   const stage = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const sheet = useRef<HTMLImageElement>(null);
-  const busy = turning !== null || fade !== null;
+  const busy = turn !== null || fade !== null;
   const note = chrono[at]!;
 
-  useEffect(() => closeButton.current?.focus({ preventScroll: true }), []);
+  const dialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement;
+    closeButton.current?.focus({ preventScroll: true });
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus({ preventScroll: true });
+    };
+  }, []);
   useEffect(() => markPatchnoteRead(note.date), [note.date]);
 
   const go = (target: number) => {
     if (busy || target < 0 || target >= count || target === at) return;
     const commit = () => {
       setAt(target);
-      setTurning(null);
+      setTurn(null);
       setDrag(0);
       setZoom({ z: 1, px: 0, py: 0 });
     };
@@ -83,7 +93,7 @@ export function PatchnotesReader({
       }, motion.ms);
       return;
     }
-    setTurning(target > at ? 1 : -1);
+    setTurn({ dir: target > at ? 1 : -1, to: target });
     setTimeout(commit, motion.ms + 10);
   };
   const step = (d: -1 | 1) => go(at + d);
@@ -93,6 +103,9 @@ export function PatchnotesReader({
   keys.current = { step, onClose };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') return trapFocus(event, dialog.current);
+      // Le jeu derrière a ses raccourcis (G, U, H, ?, Espace) : aucun ne passe, seuls ← → Échap agissent.
+      event.stopPropagation();
       const act =
         event.key === 'ArrowLeft'
           ? () => keys.current.step(-1)
@@ -102,7 +115,6 @@ export function PatchnotesReader({
               ? () => keys.current.onClose()
               : null;
       if (act === null) return;
-      event.stopPropagation();
       event.preventDefault();
       act();
     };
@@ -276,9 +288,10 @@ export function PatchnotesReader({
   const fading = fade === 'out' || fade === 'hold';
   return createPortal(
     <div
+      ref={dialog}
       role="dialog"
       aria-modal="true"
-      aria-label={fr.patchnotes.reader}
+      aria-label={fr.patchnotes.label}
       className="fixed inset-0 z-[var(--z-notice)] flex flex-col bg-[var(--desk)] text-[var(--paper)]"
     >
       <div className="flex items-center gap-4 border-b border-[rgba(228,216,189,.18)] px-5 py-[14px] max-md:gap-[10px] max-md:px-4 max-md:py-[10px]">
@@ -287,7 +300,7 @@ export function PatchnotesReader({
             className="text-[9px] leading-[1.2] font-semibold tracking-[.18em] uppercase"
             style={{ color: MUTED }}
           >
-            {fr.patchnotes.reader} · {fr.patchnotes.dateLong(note.date)}
+            {fr.patchnotes.label} · {fr.patchnotes.dateLong(note.date)}
           </div>
           <h1 className="mt-1 font-(family-name:--font-display) text-[19px] leading-[1.15] font-bold max-md:text-[16px]">
             {note.title}
@@ -358,7 +371,8 @@ export function PatchnotesReader({
           }}
         >
           {([-1, 0, 1] as const).map((k) => {
-            const n = chrono[at + k];
+            // Pendant un tour, la feuille qui entre est la visée : un saut de la frise ne montre pas sa voisine.
+            const n = turn !== null && k === turn.dir ? chrono[turn.to] : chrono[at + k];
             if (n === undefined) return null;
             const top = k === 0;
             return (
@@ -372,6 +386,7 @@ export function PatchnotesReader({
                   src={n.image}
                   alt={top && !narrow ? n.summary : ''}
                   draggable={false}
+                  decoding="async"
                   className="block max-h-full max-w-full min-h-0 min-w-0 origin-top-left cursor-zoom-in bg-[var(--paper)] object-contain select-none"
                   style={{
                     boxShadow: top
@@ -418,7 +433,7 @@ export function PatchnotesReader({
           ) : (
             <>
               <kbd className={KBD}>←</kbd> <kbd className={KBD}>→</kbd> {fr.patchnotes.keys} ·{' '}
-              <kbd className={KBD}>Échap</kbd> {fr.patchnotes.keysClose} · {fr.patchnotes.keysLoupe}
+              <kbd className={KBD}>Échap</kbd> {fr.patchnotes.close} · {fr.patchnotes.keysLoupe}
             </>
           )}
         </span>
@@ -427,4 +442,19 @@ export function PatchnotesReader({
     </div>,
     document.body,
   );
+}
+
+/** Tab et Maj+Tab tournent dans la liseuse : le reste de la page n'est pas à portée. */
+function trapFocus(event: KeyboardEvent, root: HTMLElement | null): void {
+  const focusable = [...(root?.querySelectorAll<HTMLElement>('button') ?? [])];
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (first === undefined || last === undefined) return;
+  const leaving = event.shiftKey
+    ? document.activeElement === first
+    : document.activeElement === last;
+  if (!root?.contains(document.activeElement) || leaving) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  }
 }

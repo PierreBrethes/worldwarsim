@@ -96,7 +96,9 @@ export function MapButtons({
           to="/plateau"
           search={toggleWindow(search, 'settings')}
           title={fr.rail.settings}
-          aria-label={fr.rail.settings}
+          aria-label={
+            unread.size > 0 ? fr.patchnotes.settingsUnread(fr.rail.settings) : fr.rail.settings
+          }
           aria-current={windowOpen(search, 'settings') ? 'true' : undefined}
           className={`${SQUARE} relative`}
         >

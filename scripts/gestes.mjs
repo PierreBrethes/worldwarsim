@@ -299,7 +299,7 @@ async function runProfile(profile) {
                 ['abaque', () => link(/^Abaque de tir/).click(), 'gunnery'],
                 ['recherche', () => button(/^recherche$/).click(), 'research'],
                 ['nation', () => link(/fiche de nation/).click(), 'nation'],
-                ['réglages', () => link(/^Réglages$/).click(), 'settings'],
+                ['réglages', () => link(/^Réglages( · bulletin non lu)?$/).click(), 'settings'],
               ];
           const missed = [];
           for (const [what, open, surface] of surfaces) {

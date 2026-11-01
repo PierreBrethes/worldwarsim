@@ -3983,7 +3983,8 @@ export const fr = {
     note: 'Le dernier bulletin sur le dessus de la liasse, les précédents sur la frise. Touchez-en un pour feuilleter.',
     empty: 'Aucun bulletin n’a encore paru. Le premier viendra avec la prochaine mise à jour.',
     unread: 'non lu',
-    reader: 'Mises à jour',
+    /** Le bouton des Réglages quand un bulletin attend : le point rouge ne se lit pas à l'oreille. */
+    settingsUnread: (label: string) => `${label} · bulletin non lu`,
     close: 'fermer',
     position: (at: number, count: number) => `${at} / ${count}`,
     older: 'plus ancien',
@@ -3992,7 +3993,6 @@ export const fr = {
     firstLimit: 'Premier numéro, rien avant lui',
     lastLimit: 'Le dernier paru',
     keys: 'feuilleter',
-    keysClose: 'fermer',
     keysLoupe: 'un clic sur la feuille : la loupe',
     touchHint: 'glissez pour feuilleter · pincez pour lire',
     loupe: (zoom: number, coarse: boolean) =>

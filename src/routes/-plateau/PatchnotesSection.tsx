@@ -34,8 +34,9 @@ export function PatchnotesSection() {
             className="mt-[10px] grid w-full cursor-pointer grid-cols-[132px_1fr] items-start gap-3 text-left"
           >
             <img
-              src={top.image}
+              src={top.thumb}
               alt=""
+              decoding="async"
               className="block aspect-[297/210] w-[132px] border border-[var(--ink)] object-cover"
               style={{
                 boxShadow:
