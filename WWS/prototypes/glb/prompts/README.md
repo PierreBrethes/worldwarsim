@@ -58,6 +58,8 @@ reste dans l'ordre des lots qui s'en servent.
 | 27 | Station d'écoute | [listening.md](listening.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs listening.glb listening` |
 | 28 | Ville (Blitz) | [city.md](city.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs city.glb city` |
 
+**ADR 0038 (01/11/2026) : les treize bâtiments sont à régénérer** (le bâtiment sur son socle). La section « Le socle, la cour, le signe » de chaque prompt s'ajoute à la conversation Claude Design existante du bâtiment : la consigne dit « Le bâtiment lui-même ne change pas ». `verifier-glb.mjs` attend désormais `socle`, `lisere`, `cour`, `signe`, `fx_rang` et les groupes d'accessoires, et 3 500 triangles par état visible.
+
 Treize bâtiments, douze rôles de figurines (96 conversations) et trois kits de terrain. Le dépôt
 historique (`depot`) prend le modèle de l'entrepôt.
 

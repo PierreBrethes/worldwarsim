@@ -38,6 +38,26 @@ porte, marche et fenêtre se dessine pour lui. Les modèles précédents se trom
   3 × 2 m (proportion 3:2 exacte).
 - **Lanternes** : une au-dessus de chaque porte, à 0,4 m au-dessus du linteau.
 
+## Le socle, la cour, le signe
+
+Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site tient sur le socle ; le bâtiment, ses portes et ses pièces nommées gardent leurs mètres et leurs pivots, simplement rehaussés de 2,2 m (le dessus du socle). **Le bâtiment lui-même ne change pas.** Les x et z des tableaux qui suivent restent vrais.
+
+**Rehausse.** L'origine du fichier reste au même (x, z), au pied du socle (y = 0) ; le dessus du socle est à y = 2,2. Toute cote y des tableaux ci-dessous se lit **+2,2 m** : un pivot ou un repère donné à y = 0 passe à 2,2. En particulier : seuil et battants du corps à 3,0 m, remise et ses vantaux à 2,2 m, perron de 2,2 à 3,0 m, `fx_sortie` (0 ; 3,0 ; +7,9), `fx_sortie_remise` (+32 ; 2,2 ; +7,9), `fx_entree` et `fx_entree_remise` de même, `fx_smoke` +2,2 m. Seul le socle descend jusqu'à y = 0.
+
+- `socle`, fixe : rectangle aux coins arrondis (rayon 6 m), dessus à y = 2,2 m, biseau de 0,8 m à 45° sur tout le tour. Couleur papier, à peine plus claire que la feuille (#ebe1c8, L* 90), flanc et biseau plus sombres (#bfae8a). Ici 80 × 45 m : x de −33 à 47, z de −15,5 à 29,5. Il enveloppe le corps, la remise et leur perron : 6 à 9 m de débord, 22 m devant la façade pour la place d'armes. Rien du site ne dépasse le socle sauf le drapeau au vent.
+- `lisere`, fixe, matériau `lisere` à part (le jeu le teint à l'encre de la nation) : une bande de 3 m de large sur le bord du dessus du socle, 6 cm au-dessus, blanc neutre dans le GLB.
+- `cour`, fixe : les sols peints sur le socle, 4 cm d'épaisseur au plus ; les rangs, tirets, joints et sillons sont peints dans l'atlas, pas modelés. Valeurs proches du socle : 10 à 20 points de L* plus sombres au plus, jamais saturées. Ici : gravier clair de la place d'armes devant la façade (z de +11 à +28), dallage du perron à la remise ; allée de gravier du perron au rectangle du rang.
+- `signe`, fixe : le mât de la place d'armes : mât d'acier de 24 m planté en (−22 ; 2,2 ; +17), sur un massif de pierre de 3 × 3 m et 0,6 m de haut, avec une vergue à 21 m ; et deux guérites rayées rouge et blanc de 1,4 × 1,4 × 2,8 m, en (±6 ; 2,2 ; +9,5), de part et d'autre du perron. Il dépasse le bâtiment d'au moins un quart de sa hauteur (le bâtiment monte à 18 m, le signe à 23 m au moins au-dessus du socle) et le dit en silhouette noire de 40 px. Il porte seul la couleur chaude du site, une matière désaturée (brique, rayures, cuivre, minium), pas une couleur de jeu.
+- `hampe` et `drapeau` passent sur le signe (mêmes noms, mêmes pivots : pied de la hampe, coin haut de la toile). La hampe (6 m, au lieu de 12) est plantée au sommet du mât : pied en (−22 ; 26,2 ; +17), le drapeau de 3 × 2 m à son bout. `fx_tete_hampe` les suit, au sommet de la hampe.
+- `fx_rang` : repère vide sur la cour, en (12 ; 2,2 ; 12,5), au milieu du bord du rectangle côté bâtiment ; +z vers le rang. La cour laisse libre le rectangle de 30 m (x de −3 à 27) sur 14 m (z de 12,5 à 26,5) devant lui pour la garnison (le jeu y pose ses figurines), et le chemin libre de `fx_sortie` à ce rectangle. Aucun accessoire ni signe n'y entre, et la cour n'y est pas plus sombre que le socle de plus de 20 points de L*.
+- Accessoires par niveau et par état, chacun un groupe fixe, tous masqués sauf un par le jeu : `niveau_1` (toujours : le minimum d'un site vivant, deux bornes peintes et un petit fanal de 2 m), `niveau_2` et `niveau_3` (ils s'ajoutent), `chantier`, `ruines`. 20 à 80 triangles par objet, 150 par groupe au plus ; aucun ne ressemble à une pièce du jeu (ni soldat, ni véhicule, ni avion, ni canon, ni bateau).
+  - `niveau_2` : quatre tentes de toile coniques de 4 m de diamètre alignées au bord arrière (z ≈ −11), x de −24 à −6.
+  - `niveau_3` : une butte de tir de 14 m de long et 3 m de haut au bord arrière côté +x (x de +26 à +40, z ≈ −12), avec ses trois cibles de planches ; un parc de caisses (neuf caisses de 1 m en pile, sans lien avec les caisses du jeu) contre le flanc de la remise.
+  - `chantier` : échafaudage de tubes et de planches sur la façade et le pignon du corps (jusqu'à l'égout), une grue-mât rouge de 16 m en (+8 ; 2,2 ; +20), deux tas de sable, une pile de madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
+  - `ruines` : gravats sombres au pied du corps et de la remise, pans de mur arasés à 3 m, trois poutres noircies en travers, trace de feu sur le sol de la cour devant la façade.
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
+
 ## Pièces nommées
 
 Chaque pièce qui bouge est un nœud à part, jamais fusionné au reste, son origine au point où elle
@@ -86,8 +106,7 @@ Object3D sans géométrie, orientés : leur +z est la direction indiquée.
   les nations : aucun drapeau peint, aucun insigne.
 - Lisible de haut, caméra à 30° sous la verticale, de 20 à 400 px de haut à l'écran : la porte,
   le perron et la remise se lisent avant les détails.
-- **Moins de 3 500 triangles.** Le relief de façade (corniche, bandeau, encadrements) a sa place
-  dans ce budget.
+- **Budget : 3 500 triangles par site**, dans n'importe quel état : 2 500 au plus pour le bâtiment, 700 pour le socle, le liseré, la cour et le signe, 150 par groupe d'accessoires (section « Le socle, la cour, le signe »).
 
 ## Ce que le modèle doit permettre
 
@@ -107,10 +126,13 @@ Object3D sans géométrie, orientés : leur +z est la direction indiquée.
   quarts haute) avec un bouton « Exporter en GLB » (GLTFExporter, binaire). Exporter **le seul
   groupe du modèle** : ni lumière, ni caméra, ni sol dans le fichier. Ni meshopt, ni quantification.
 - Texture : WebP si l'exporteur sait l'écrire (EXT_texture_webp), sinon PNG (je la convertirai).
-- 1 unité = 1 m ; `murs` mesure 50 m en x ; égout à 12,5 m ; rien sous y = 0.
+- 1 unité = 1 m ; `murs` mesure 50 m en x ; égout à 12,5 m ; le dessus du socle à y = 2,2 et le bâtiment posé dessus, rien sous y = 0.
 - Origine au centre de `murs`, façade vers +z, remise côté +x.
 - Tous les noms ci-dessus présents, écrits à l'identique ; chaque battant tourne autour de son
   gond sans se détacher du mur (essayer 0°, 90° et 110° dans la page).
 - Un homme de 2,6 m passe sous la porte (3,4 m) ; un bloc de 3 × 2,8 × 6 m passe la remise.
 - `fond_sombre` et `remise_fond_sombre` présents, noirs, derrière les battants fermés.
-- Matériau `vitres` sur toutes les vitres ; moins de 3 500 triangles.
+- Matériau `vitres` sur toutes les vitres ; budget de 3 500 triangles par état (bâtiment ≤ 2 500).
+- Le socle (dessus à y = 2,2 m, rayon de coin 6 m, biseau 0,8 m), `lisere` (matériau `lisere`), `cour`, `signe`, `fx_rang`, `niveau_1`, `niveau_2`, `niveau_3`, `chantier` et `ruines` présents, écrits à l'identique ; `hampe`, `drapeau` et `fx_tete_hampe` sur le signe, mêmes noms, mêmes pivots.
+- Le bâtiment inchangé et rehaussé de 2,2 m ; la cour libre du rectangle de 30 × 14 m devant `fx_rang` ; aucun accessoire ne ressemble à une pièce du jeu.
+- Dans la page, des cases pour montrer un seul groupe (`niveau_2`, `niveau_3`, `chantier`, `ruines`) et compter les triangles de chaque état : moins de 3 500 dans tous.

@@ -11,6 +11,10 @@ const NATIONS = ['france', 'uk', 'usa', 'ussr', 'germany', 'japan', 'italy', 'ch
 const per = (values) => Object.fromEntries(NATIONS.map((n, k) => [n, values[k]]));
 const AMARRES = ['avant_babord', 'avant_tribord', 'arriere_babord', 'arriere_tribord'].map((s) => `fx_amarre_${s}`);
 const FLAG = { names: ['hampe', 'drapeau', 'fx_tete_hampe'], pivots: { hampe: 'pied', drapeau: 'coin-haut' } };
+// ADR 0038 : le diorama sur son socle, attendu des treize bâtiments.
+const SITE = { names: ['socle', 'lisere', 'cour', 'signe', 'fx_rang', 'niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'], materials: ['lisere'] };
+const SITE_PARTS = ['socle', 'lisere', 'cour', 'signe', 'niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'];
+const SITE_BUDGET = { site: 3500, building: 2500, fixed: 700, group: 150 };
 const MAN = ['body', 'head', 'arm_left', 'forearm_left', 'arm_right', 'forearm_right', 'leg_left', 'shin_left', 'leg_right', 'shin_right'];
 const MAN_PIVOTS = { head: 'bas', arm_left: 'haut', arm_right: 'haut', forearm_left: 'haut', forearm_right: 'haut', leg_left: 'haut', leg_right: 'haut', shin_left: 'haut', shin_right: 'haut' };
 const TRACKED = ['hull', 'turret', 'gun', 'hatch', 'tracks_left', 'tracks_right', 'wheels_left', 'wheels_right', 'barbotin_left', 'barbotin_right', 'roue_folle_left', 'roue_folle_right', 'galet_left_*|galets_left', 'galet_right_*|galets_right', 'fx_muzzle', 'fx_smoke', 'fx_poussiere'];
@@ -21,75 +25,88 @@ const PLANE_PIVOTS = { 'prop*': 'moyeu', gear_left: 'haut', gear_right: 'haut', 
 // measure : [nœud ou null pour tout le modèle, axe 'x' | 'y' | 'z', mètres (ou valeurs par nation), tolérance]
 const EXPECT = {
   barracks: {
-    measure: ['murs', 'x', 50, 0.04], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: ['murs', 'x', 50, 0.04], materials: ['vitres'],
     names: ['murs', 'porte_gauche', 'porte_droite', 'fond_sombre', 'remise_murs', 'remise_toit', 'remise_porte_gauche', 'remise_porte_droite', 'remise_fond_sombre', 'fx_entree', 'fx_sortie', 'fx_entree_remise', 'fx_sortie_remise', 'fx_smoke', ...FLAG.names],
     pivots: { porte_gauche: 'gond', porte_droite: 'gond', remise_porte_gauche: 'gond', remise_porte_droite: 'gond', ...FLAG.pivots },
     absent: ['porte'],
   },
   airfield: {
-    measure: [null, 'x', 50, 0.05], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 50, 0.05], materials: ['vitres'],
     names: ['rail_porte', 'porte_gauche_1', 'porte_gauche_2', 'porte_droite_1', 'porte_droite_2', 'fond_sombre', 'fx_entree', 'fx_sortie', ...FLAG.names],
     pivots: { porte_gauche_1: 'bout-haut', porte_gauche_2: 'bout-haut', porte_droite_1: 'bout-haut', porte_droite_2: 'bout-haut', ...FLAG.pivots },
     absent: ['porte', 'mat_manche', 'manche_cerceau', 'windsock'],
   },
   port: {
-    measure: [null, 'z', 210, 0.05], except: ['avant_cale'], below: ['avant_cale'], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'z', 210, 0.05], except: ['avant_cale'], below: ['avant_cale'], materials: ['vitres'],
     names: ['coque_cale', 'ber_1', 'ber_2', 'ber_3', 'accore_1', 'accore_2', 'accore_3', 'accore_4', 'accore_5', 'accore_6', 'avant_cale', 'grue', 'grue_couronne', 'fleche', 'cable', 'crochet', 'fx_bord_eau', 'fx_smoke', ...FLAG.names],
     pivots: { coque_cale: 'zmax-bas', 'ber_*': 'pied', 'accore_*': 'pied', grue_couronne: 'axe-y', fleche: 'bout', cable: 'haut', crochet: 'haut', ...FLAG.pivots },
     markers: { fx_bord_eau: 'zmax' },
     absent: ['coque', 'door_left', 'door_right', 'vantail', 'moufle', 'cable_crochet'],
   },
   warehouse: {
-    measure: ['murs', 'x', 60, 0.04], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: ['murs', 'x', 60, 0.04], materials: ['vitres'],
     names: ['murs', 'porte', 'rail', 'galet', 'galet_2', 'fond_sombre', 'caisse_1', 'caisse_2', 'caisse_3', 'caisse_4', 'caisse_5', 'fx_quai', 'fx_entree', 'fx_sortie', ...FLAG.names],
     pivots: { porte: 'bout-haut', galet: 'centre', galet_2: 'centre', 'caisse_*': 'pied', ...FLAG.pivots },
   },
   hq: {
-    measure: [null, 'x', 60, 0.05], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 60, 0.05], materials: ['vitres'],
     names: ['porte_gauche', 'porte_droite', 'fond_sombre', 'porte_service', 'fond_sombre_service', 'fx_entree', 'fx_sortie', 'fx_quai', 'fx_smoke', ...FLAG.names],
     pivots: { porte_gauche: 'gond', porte_droite: 'gond', porte_service: 'gond', ...FLAG.pivots },
     absent: ['flag', 'fanion'],
   },
   arsenal: {
-    measure: [null, 'x', 80, 0.05], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 80, 0.05], materials: ['vitres'],
     names: ['murs', 'porte', 'rail_porte', 'fond_sombre', 'fx_quai', 'fx_sortie', 'fx_smoke', ...FLAG.names],
     pivots: { porte: 'bout-haut', ...FLAG.pivots },
   },
   farm: {
-    measure: [null, 'x', 40, 0.06], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 40, 0.06], materials: ['vitres'],
     names: ['eolienne_tete', 'eolienne_roue', 'fx_smoke', ...FLAG.names],
     pivots: { eolienne_roue: 'centre', ...FLAG.pivots },
   },
   mine: {
-    measure: [null, 'x', 50, 0.06], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 50, 0.06], materials: ['vitres'],
     names: ['molette_1', 'molette_2', 'wagonnet', 'wagonnet_caisse', 'rail', 'fx_smoke', 'fx_sortie', ...FLAG.names],
     pivots: { molette_1: 'centre', molette_2: 'centre', wagonnet: 'pied', ...FLAG.pivots },
     absent: ['sheave_1', 'sheave_2'],
   },
   coalMine: {
-    measure: [null, 'x', 50, 0.06], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 50, 0.06], materials: ['vitres'],
     names: ['molette_1', 'molette_2', 'wagonnet', 'wagonnet_caisse', 'rail', 'fx_smoke', 'fx_sortie', ...FLAG.names],
     pivots: { molette_1: 'centre', molette_2: 'centre', wagonnet: 'pied', ...FLAG.pivots },
     absent: ['sheave_1', 'sheave_2'],
   },
   oilWell: {
-    measure: [null, 'x', 25, 0.06], triangles: 3500,
+    site: true,
+    measure: [null, 'x', 25, 0.06], 
     names: ['balancier', 'tete_de_cheval', 'manivelle', 'contrepoids', 'bielle', 'tige', 'fx_smoke', ...FLAG.names],
     pivots: { balancier: 'interieur', manivelle: 'interieur', bielle: 'bout', tige: 'haut', ...FLAG.pivots },
     absent: ['walking_beam', 'crank'],
   },
   researchCenter: {
-    measure: [null, 'x', 50, 0.06], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 50, 0.06], materials: ['vitres'],
     names: ['coupole', 'volet_coupole', 'lunette', 'porte_gauche', 'porte_droite', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
     pivots: { coupole: 'pied', porte_gauche: 'gond', porte_droite: 'gond', ...FLAG.pivots },
   },
   listening: {
-    measure: [null, 'x', 30, 0.06], triangles: 3500, materials: ['vitres', 'feux'],
+    site: true,
+    measure: [null, 'x', 30, 0.06], materials: ['vitres', 'feux'],
     names: ['cadre_gonio', 'porte', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
     pivots: { cadre_gonio: 'axe-y', porte: 'gond', ...FLAG.pivots },
   },
   city: {
-    measure: [null, 'x', 50, 0.05], triangles: 3500, materials: ['vitres'],
+    site: true,
+    measure: [null, 'x', 50, 0.05], materials: ['vitres'],
     names: ['fx_smoke', ...FLAG.names], pivots: { ...FLAG.pivots },
   },
 
@@ -266,8 +283,9 @@ function pivotOk(rule, b) {
 }
 
 function verify(path, key, nation) {
-  const spec = EXPECT[key];
-  if (!spec) throw new Error(`modèle inconnu : ${key} (connus : ${Object.keys(EXPECT).join(', ')})`);
+  const base = EXPECT[key];
+  if (!base) throw new Error(`modèle inconnu : ${key} (connus : ${Object.keys(EXPECT).join(', ')})`);
+  const spec = base.site ? { ...base, names: [...base.names, ...SITE.names], materials: [...(base.materials ?? []), ...SITE.materials] } : base;
   const valueOf = (v) => (typeof v === 'object' ? v[nation] : v);
   const { gltf, bin } = readGlb(path);
   const report = [];
@@ -319,13 +337,13 @@ function verify(path, key, nation) {
     }
 
   // Boîte, sol, repères liés à la boîte.
-  const except = new Set(['hampe', 'drapeau', ...(spec.except ?? [])]);
+  const except = new Set(['hampe', 'drapeau', ...(spec.site ? SITE_PARTS : []), ...(spec.except ?? [])]);
   const below = new Set(spec.below ?? []);
   const all = emptyBox(), measured = emptyBox(), aboveFloor = emptyBox();
   for (const r of roots) {
     const add = (box, stop) => { const b = boxUnder(gltf, r, stop, localOf(nodes[r])); for (let k = 0; k < 3; k++) { box.min[k] = Math.min(box.min[k], b.min[k]); box.max[k] = Math.max(box.max[k], b.max[k]); } };
     add(all, () => false);
-    add(measured, (i) => except.has(nodes[i].name));
+    if (!except.has(nodes[r].name)) add(measured, (i) => except.has(nodes[i].name));
     add(aboveFloor, (i) => below.has(nodes[i].name));
   }
   const s = size(measured);
@@ -371,6 +389,18 @@ function verify(path, key, nation) {
       const n = trianglesUnder(i);
       check(n <= max, `${root} : ${n} triangles ≤ ${max}`);
     }
+  } else if (spec.site) {
+    // ADR 0038 : 3 500 par état visible ; bâtiment 2 500 ; socle, liseré, cour et signe 700 ; 150 par groupe d'accessoires.
+    const under = (name) => named.filter(([n]) => n === name).reduce((sum, [, i]) => sum + trianglesUnder(i), 0);
+    const total = roots.reduce((sum, r) => sum + trianglesUnder(r), 0);
+    const fixed = ['socle', 'lisere', 'cour', 'signe'].reduce((sum, n) => sum + under(n), 0);
+    const groups = Object.fromEntries(['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'].map((n) => [n, under(n)]));
+    const building = total - fixed - Object.values(groups).reduce((a, b) => a + b, 0);
+    check(building <= SITE_BUDGET.building, `bâtiment : ${building} triangles ≤ ${SITE_BUDGET.building}`);
+    check(fixed <= SITE_BUDGET.fixed, `socle, liseré, cour, signe : ${fixed} triangles ≤ ${SITE_BUDGET.fixed}`);
+    for (const [g, n] of Object.entries(groups)) check(n <= SITE_BUDGET.group, `${g} : ${n} triangles ≤ ${SITE_BUDGET.group}`);
+    const states = { 'niveau 3': building + fixed + groups.niveau_1 + groups.niveau_2 + groups.niveau_3, chantier: building + fixed + groups.niveau_1 + groups.chantier, ruines: building + fixed + groups.ruines };
+    for (const [s, n] of Object.entries(states)) check(n <= SITE_BUDGET.site, `état ${s} : ${n} triangles ≤ ${SITE_BUDGET.site}`);
   } else {
     const n = roots.reduce((sum, r) => sum + trianglesUnder(r), 0);
     const max = valueOf(spec.triangles);
@@ -402,7 +432,8 @@ function verify(path, key, nation) {
 function coherence() {
   const here = dirname(fileURLToPath(import.meta.url));
   let failures = 0;
-  for (const [key, spec] of Object.entries(EXPECT)) {
+  for (const [key, base] of Object.entries(EXPECT)) {
+    const spec = base.site ? { ...base, names: [...base.names, ...SITE.names], materials: [...(base.materials ?? []), ...SITE.materials] } : base;
     const text = readFileSync(join(here, `${key}.md`), 'utf8');
     const names = [...spec.names, ...Object.values(spec.byNation ?? {}).flat(), ...Object.keys(spec.pivots ?? {}), ...(spec.materials ?? [])];
     const missing = [...new Set(names)].filter((p) => !p.split('|').some((n) => text.includes(n.replace(/\*$/, '').replace(/_\d+$/, '_'))));
