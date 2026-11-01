@@ -966,6 +966,12 @@ export class MaquetteLayer implements SequenceHost {
         mesh.material = own;
         mesh.userData.ownLisere = true;
       });
+    // The rig has `niveau_1` in its base, not the groups of the levels above it (`drawnIn`).
+    const { lot } = dressed ?? {};
+    if (copy !== null && lot?.model)
+      for (const name of lot.shown.filter((each) => each === 'niveau_2' || each === 'niveau_3'))
+        for (const { geometry, material } of lot.model.accessories.get(name) ?? [])
+          copy.add(new Mesh(geometry, material));
     if (dressed !== undefined) dressed.item.near = -1;
   }
 

@@ -26,7 +26,8 @@
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
  * ajoute une caserne de niveau 3. `--caserne-chantier` (#365) met en chantier une caserne dans
- * l'Aube, en tête de file : son premier niveau monte.
+ * l'Aube, en tête de file : son premier niveau monte. `--caserne-montee` (#366) élève la caserne
+ * de niveau 3 du QG au niveau 4, en tête de file.
  * `--edition` publie tout de suite deux éditions de presse : le classement et ses variations.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
  * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
@@ -147,6 +148,9 @@ const works = levels || process.argv.includes('--chantiers');
 /** `--caserne-chantier` (#365) : une caserne seule en chantier dans l'Aube, son premier niveau
  *  qui monte — avec `?socle`, le bâtiment coupé sur son socle entier. */
 const risingBarracks = process.argv.includes('--caserne-chantier');
+/** `--caserne-montee` (#366) : la caserne de niveau 3 du QG, tête de file d'une montée au niveau 4
+ *  (le QG est élevé au niveau 5 pour la permettre) : sa cour montre les trois niveaux et le chantier. */
+const raisingBarracks = process.argv.includes('--caserne-montee');
 const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
 const twinTrucks = process.argv.includes('--deux-camions');
@@ -468,6 +472,20 @@ if (!bare) {
       building: 'barracks',
       regionId: 'FRA-5270',
       point: { lon: point[0], lat: point[1] },
+    });
+  }
+  if (raisingBarracks && scene.a !== null) {
+    cli(['run', 'dev:promoteHq', JSON.stringify({ playerId: scene.a, level: 5 })]);
+    cli(['run', 'dev:levelsScene', JSON.stringify({ playerId: scene.a })]);
+    const paris = (
+      await client.query(api.view.playerView, { token: tokenA, seasonId })
+    ).me.regions.find((one) => one.id === 'FRA-5333');
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'barracks',
+      regionId: paris.id,
+      point: { lon: paris.point[0], lat: paris.point[1] },
     });
   }
   if (works && scene.a !== null) {

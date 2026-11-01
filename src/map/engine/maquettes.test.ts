@@ -848,6 +848,18 @@ describe('a site on its socle (ADR 0038)', () => {
       expect(drawn.parts.length).toBeLessThan(meshes(layer).length);
     });
 
+    it('keeps the yard of its level on the copy a sequence stands in for it', async () => {
+      const layer = await layerOf([site(MINE, { level: 3, side: 'mine', ink: '#2a5ba8' })]);
+      const copy = new Group();
+      layer.standIn(MINE, copy);
+      // The rig bakes niveau_1 into its base: the two groups that come later stand with it.
+      expect(copy.children).toHaveLength(2);
+      const low = await layerOf([site(MINE, { level: 1, side: 'mine', ink: '#2a5ba8' })]);
+      const bare = new Group();
+      low.standIn(MINE, bare);
+      expect(bare.children).toHaveLength(0);
+    });
+
     it('hands no ruins without a ruines group', async () => {
       const layer = await layerOf([site('building-hq@5,0', { url: 'plain.glb' })]);
       expect(layer.drawnOf('building-hq@5,0')!.ruins).toBeUndefined();
