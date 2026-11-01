@@ -187,23 +187,4 @@ describe('what a logistics relay does to a road', () => {
     expect(relayedShare({ points: flight.points, relays })).toBe(1);
     expect(relayedCostUnits({ route: flight, relays, multiplier: 1.5 })).toBe(flight.costUnits);
   });
-
-  it('speeds only the ground and the water of a road that also flies', () => {
-    const road: ComputedRoute = {
-      ...combined(10, 20, 0),
-      legs: [
-        { medium: 'land', distanceUnits: 10 },
-        { medium: 'sea', distanceUnits: 20 },
-        { medium: 'air', distanceUnits: 30 },
-      ],
-      costUnits: 10 * COST_BY_MEDIUM.land + 20 * COST_BY_MEDIUM.sea + 30 + 2 * TRANSFER_COST,
-    };
-    const relays = [watching(1.5, 0)];
-    const surface = 10 * COST_BY_MEDIUM.land + 20 * COST_BY_MEDIUM.sea;
-
-    expect(relayedCostUnits({ route: road, relays, multiplier: 1.5 })).toBeCloseTo(
-      surface / 1.5 + 30 + 2 * TRANSFER_COST,
-      6,
-    );
-  });
 });

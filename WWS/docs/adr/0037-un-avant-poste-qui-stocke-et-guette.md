@@ -281,7 +281,7 @@ payé son élévation, et c'est le seul cas où un niveau 2 sans spécialisation
 divisait tous les tronçons que compte `legCost`, air compris, et `pacedMinutes` chiffre aussi les
 vols ; le §8 aurait gardé l'air quand le §6 le retire au Fort. `relayedCostUnits`
 (`src/domain/route-timing.ts`) ne divise plus que les tronçons de terre et de mer : un vol garde
-sa durée pleine, une route mixte n'accélère que sa part de surface. Registre :
+sa durée pleine. Registre :
 `pierre-2026-11-01-liaisons-sans-air`.
 
 ## Ce qu'on abandonne
