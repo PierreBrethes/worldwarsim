@@ -4,6 +4,8 @@ import { fr } from '@/i18n/fr';
 import { isTyping } from '@/map/typing';
 import { Glyph, LayersGlyph, SettingsGlyph } from '@/shell/Glyph';
 import { SQUARE } from '@/shell/SurfaceColumn';
+import { UnreadDot } from '@/shell/UnreadDot';
+import { useUnreadPatchnotes } from '@/data/patchnotes';
 import { toggleWindow, windowOpen, type BoardSearch } from './board-search';
 
 export type Corner = 'layers' | 'controls';
@@ -26,6 +28,7 @@ export function MapButtons({
   onRecenter: () => void;
   onCorner: Dispatch<SetStateAction<Corner | null>>;
 }) {
+  const unread = useUnreadPatchnotes();
   const toggle = (card: Corner) => onCorner((open) => (open === card ? null : card));
 
   useEffect(() => {
@@ -95,9 +98,10 @@ export function MapButtons({
           title={fr.rail.settings}
           aria-label={fr.rail.settings}
           aria-current={windowOpen(search, 'settings') ? 'true' : undefined}
-          className={SQUARE}
+          className={`${SQUARE} relative`}
         >
           <SettingsGlyph size={18} />
+          {unread.size > 0 && <UnreadDot />}
           <span className="text-[7.5px] leading-none font-semibold tracking-[.1em] uppercase">
             {fr.rail.settingsShort}
           </span>

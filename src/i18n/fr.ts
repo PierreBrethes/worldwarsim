@@ -220,6 +220,12 @@ const facedWords = (faced: Faced): string => {
 const facedNation = (nation: string | null): string =>
   nation !== null && isNation(nation) ? fr.nations[nation] : 'garnison irrégulière';
 
+const longDate = (date: string, options: Intl.DateTimeFormatOptions): string =>
+  new Date(`${date}T12:00Z`)
+    .toLocaleDateString('fr-FR', { timeZone: 'UTC', ...options })
+    .replace(/^1 /, '1er ')
+    .replace(/ 1 /, ' 1er ');
+
 export const fr = {
   nations: {
     france: 'France',
@@ -3971,6 +3977,32 @@ export const fr = {
     yesterday: 'hier',
   },
 
+  /** Le bulletin des mises à jour : des feuilles imprimées, feuilletées dans un carrousel. */
+  patchnotes: {
+    label: 'Mises à jour',
+    note: 'Le dernier bulletin sur le dessus de la liasse, les précédents sur la frise. Touchez-en un pour feuilleter.',
+    empty: 'Aucun bulletin n’a encore paru. Le premier viendra avec la prochaine mise à jour.',
+    unread: 'non lu',
+    reader: 'Mises à jour',
+    close: 'fermer',
+    position: (at: number, count: number) => `${at} / ${count}`,
+    older: 'plus ancien',
+    newer: 'plus récent',
+    /** La limite écrite au bout de la liasse, à la place d'une flèche grisée. */
+    firstLimit: 'Premier numéro, rien avant lui',
+    lastLimit: 'Le dernier paru',
+    keys: 'feuilleter',
+    keysClose: 'fermer',
+    keysLoupe: 'un clic sur la feuille : la loupe',
+    touchHint: 'glissez pour feuilleter · pincez pour lire',
+    loupe: (zoom: number, coarse: boolean) =>
+      `loupe ×${zoom.toFixed(1).replace('.', ',')} · ${coarse ? 'touchez deux fois' : 'un clic'} pour revenir`,
+    /** « dimanche 1er novembre » : le jour du mois ordinal pour le premier, comme la presse. */
+    dateLong: (date: string) => longDate(date, { weekday: 'long', day: 'numeric', month: 'long' }),
+    dateShort: (date: string) => longDate(date, { day: 'numeric', month: 'short' }),
+    dateDots: (date: string) => `${date.slice(8)}·${date.slice(5, 7)}`,
+    month: (month: string) => longDate(`${month}-01`, { month: 'long' }),
+  },
   settingsWindow: {
     header: 'réglages',
     scaleLabel: 'Échelle de l’interface',
