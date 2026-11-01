@@ -79,7 +79,9 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
 10. **Ce qui reste hors du socle.** La piste (#269) et le môle (#270) sont des kits que le moteur
     pose à côté du site, parce qu'ils portent des pièces qui le quittent : la piste se pose devant
     le socle de l'aérodrome, le môle part du bord de celui du chantier naval, côté grue. La manche
-    à air reste le kit que le moteur pose sur la cour de l'aérodrome. Le chantier naval garde son
+    à air reste le kit que le moteur pose sur la cour de l'aérodrome. L'aérodrome est un site, donc
+    un socle : il porte ses deux hangars (storyboard du 23/10, « deux hangars un peu plus petits »,
+    #269), le second aux pièces suffixées `_b`. Le chantier naval garde son
     socle sur sa part de terre : le bord côté mer est son quai.
 
 11. **L'avant-poste** (#298) prend le même liseré sur un socle rond, son cercle de sacs de sable
