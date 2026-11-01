@@ -38,6 +38,12 @@ const dayMonth = (iso, html) => {
   return `${day}${ord} ${MONTHS[month - 1]}`;
 };
 
+/** Les familles de la feuille : le rendu refuse de sortir si l'une ne s'est pas chargée. */
+export const FONT_FAMILIES = ['Archivo Narrow', 'Bodoni Moda', 'IBM Plex Mono', 'Source Serif 4'];
+
+/** Le nom du jeu est `fr.masthead` (src/i18n/fr.ts), que Node ne charge pas : `patchnote.test.mjs` garde cette copie. */
+const MASTHEAD = { article: 'la', word: 'Manchette', title: 'La Manchette' };
+
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
 
 /** « dimanche 1er novembre », le jour de la semaine tiré de la date. */
@@ -54,7 +60,7 @@ const esc = (text) =>
   );
 
 const refsOf = (refs = []) =>
-  refs.length ? ` <span class="ref">${refs.map((n) => `#${n}`).join(' ')}</span>` : '';
+  refs.length ? ` <span class="ref">${refs.map((n) => `#${esc(n)}`).join(' ')}</span>` : '';
 
 const figure = ({ src, alt, caption }, images) =>
   `<figure><img src="${esc(images[src] ?? src)}" alt="${esc(alt)}">${
@@ -84,15 +90,15 @@ export const sheetHtml = (content, css, images = {}) => {
 <title>Bulletin du ${esc(dayMonth(content.date))}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..800;1,6..96,500..700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..600;1,8..60,400&display=swap">
 <style>${css}</style></head><body>
-<main class="sheet" aria-label="Bulletin des mises à jour de La Manchette">
+<main class="sheet" aria-label="Bulletin des mises à jour de ${MASTHEAD.title}">
   <div class="inner">
     <header class="mast">
       <div class="left"><b>Bulletin des mises à jour</b><br>Mondiale · édition de guerre</div>
       <div>
-        <div class="title"><i>la</i>Manchette</div>
+        <div class="title"><i>${MASTHEAD.article}</i>${MASTHEAD.word}</div>
         <div class="dateline">Ce qui a changé sur la carte, ${periodOf(content, true)}</div>
       </div>
-      <div class="right"><b>${capital(longDate(content.date, true))}</b><br>${content.dispatchCount} dépêches au front</div>
+      <div class="right"><b>${capital(longDate(content.date, true))}</b><br>${esc(content.dispatchCount)} dépêches au front</div>
     </header>
 
     <div class="stamp" aria-hidden="true"><div>MIS<br>À JOUR<small>${String(partsOf(content.date).day).padStart(2, '0')} · ${String(partsOf(content.date).month).padStart(2, '0')}</small></div></div>
@@ -143,6 +149,7 @@ ${bench.entries
 `;
 };
 
+const lowerFirst = (text) => text[0].toLowerCase() + text.slice(1);
 const sentence = (text) => (/[.!?…]$/.test(text) ? text : `${text}.`);
 
 /** Ce que dit la feuille en texte : son texte alternatif, et sous elle au téléphone. */
@@ -151,12 +158,12 @@ export const summaryOf = (content) => {
   const captions = lead.images.map((i) => i.caption).filter(Boolean);
   const parts = [
     `Bulletin des mises à jour, ${longDate(content.date)}, édition de guerre de la Mondiale : ce qui a changé sur la carte, ${periodOf(content, false)}.`,
-    `À la une, ${lead.kicker} : ${lead.title}.`,
+    `À la une, ${lead.kicker} : ${lowerFirst(lead.title)}.`,
     sentence(lead.chapo),
     ...captions.map(sentence),
     ...lead.bullets.map((x) => sentence(x.text)),
     ...dispatches.flatMap((d) => [
-      `${d.kicker} : ${d.title}.`,
+      `${d.kicker} : ${lowerFirst(d.title)}.`,
       ...(d.image.caption ? [sentence(d.image.caption)] : []),
       sentence(d.text),
     ]),
@@ -178,3 +185,54 @@ export const indexRowOf = (content) => ({
 /** L'index avec cette ligne ajoutée, ou remplaçant celle de la même date ; le plus récent en tête. */
 export const withRow = (index, row) =>
   [...index.filter((r) => r.date !== row.date), row].sort((x, y) => y.date.localeCompare(x.date));
+
+/** Les arguments de `generate-patchnote.mjs` : le contenu, et `--a-blanc <feuille.webp>` ; sinon un refus. */
+export const argsOf = (argv) => {
+  const usage = 'Usage : generate-patchnote.mjs <contenu.json> [--a-blanc <feuille.webp>]';
+  const blank = argv.indexOf('--a-blanc');
+  if (blank >= 0 && (argv[blank + 1] === undefined || argv[blank + 1].startsWith('--')))
+    return { refusal: usage };
+  const stray = argv.find((arg) => arg.startsWith('--') && arg !== '--a-blanc');
+  if (stray) return { refusal: `Option inconnue : ${stray}. ${usage}` };
+  const rest = argv.filter((_, k) => (k !== blank && k !== blank + 1) || blank < 0);
+  if (rest.length !== 1) return { refusal: usage };
+  return { contentPath: rest[0], blankPath: blank < 0 ? null : argv[blank + 1] };
+};
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const IMAGE_EXTENSION = /\.(jpg|jpeg|png|webp)$/;
+const isCount = (n) => Number.isInteger(n) && n >= 0;
+
+/**
+ * Ce qui, dans un contenu, ferait mal rendre, ou écrire hors de `public/patchnotes/` (la date est
+ * un nom de fichier) : le premier champ fautif, nommé, ou `null`. `srcExists` dit si une image existe.
+ */
+export const contentRefusalOf = (content, srcExists) => {
+  if (!DATE.test(content.date ?? '')) return 'date : AAAA-MM-JJ attendu';
+  if (!DATE.test(content.from ?? '')) return 'from : AAAA-MM-JJ attendu';
+  if (content.from > content.date) return 'from : doit précéder date';
+  if (!isCount(content.dispatchCount)) return 'dispatchCount : entier attendu';
+  const { lead, dispatches, also, bench } = content;
+  if (lead?.images?.length !== 2) return 'lead.images : exactement 2 images';
+  if (![2, 3].includes(dispatches?.length)) return 'dispatches : 2 ou 3 dépêches';
+  if (![1, 2].includes(bench?.entries?.length)) return 'bench.entries : 1 ou 2 entrées';
+  const lists = {
+    'lead.bullets': lead.bullets,
+    also,
+    ...Object.fromEntries(dispatches.map((d, k) => [`dispatches[${k}]`, [d]])),
+  };
+  for (const [field, rows] of Object.entries(lists))
+    for (const row of rows ?? [])
+      if (!(row.refs ?? []).every(isCount)) return `${field}.refs : numéros entiers attendus`;
+  const images = [
+    ...lead.images,
+    ...dispatches.map((d) => d.image),
+    ...(bench.image ? [bench.image] : []),
+  ];
+  for (const { src } of images) {
+    if (typeof src !== 'string' || !IMAGE_EXTENSION.test(src))
+      return `image ${src} : extension jpg, jpeg, png ou webp (minuscules) attendue`;
+    if (!srcExists(src)) return `image ${src} : fichier introuvable`;
+  }
+  return null;
+};

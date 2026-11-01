@@ -11,30 +11,46 @@
  * chemin donné, sans toucher `public/`. Les polices viennent de Google Fonts : il faut le réseau.
  * `PLAYWRIGHT_DIR` : comme pour `capture.mjs`.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { indexRowOf, sheetHtml, withRow } from './patchnote.mjs';
+import { chromiumPath } from './chromium.mjs';
+import {
+  FONT_FAMILIES,
+  argsOf,
+  contentRefusalOf,
+  indexRowOf,
+  sheetHtml,
+  withRow,
+} from './patchnote.mjs';
 
-const args = process.argv.slice(2);
-const blank = args.indexOf('--a-blanc');
-const blankPath = blank < 0 ? null : args[blank + 1];
-const contentPath = args.find((arg, k) => !arg.startsWith('--') && k !== blank + 1);
-if (!contentPath || (blank >= 0 && !blankPath)) {
-  console.error('Usage : generate-patchnote.mjs <contenu.json> [--a-blanc <feuille.webp>]');
-  process.exit(2);
-}
+/** Un échec dit sa cause et sort non nul ; rien n'est écrit avant que tout soit rendu. */
+const refuse = (message, code = 1) => {
+  console.error(`generate-patchnote : ${message}`);
+  process.exit(code);
+};
+
+const parsed = argsOf(process.argv.slice(2));
+if (parsed.refusal) refuse(parsed.refusal, 2);
+const { contentPath, blankPath } = parsed;
 
 const dir = process.env.PLAYWRIGHT_DIR;
 if (!dir)
-  throw new Error('PLAYWRIGHT_DIR absent : dossier hors dépôt où `npm i playwright-core@1.58`');
+  refuse('PLAYWRIGHT_DIR absent : dossier hors dépôt où `npm i playwright-core@1.58` a été fait');
 const { chromium } = createRequire(`${dir}/`)('playwright-core');
 
 const here = (path) => fileURLToPath(new URL(path, import.meta.url));
-const content = JSON.parse(readFileSync(contentPath, 'utf8'));
+if (!existsSync(contentPath)) refuse(`contenu introuvable : ${contentPath}`, 2);
+let content;
+try {
+  content = JSON.parse(readFileSync(contentPath, 'utf8'));
+} catch (error) {
+  refuse(`${contentPath} n'est pas du JSON : ${error.message}`, 2);
+}
 const base = dirname(resolve(contentPath));
+const contentRefusal = contentRefusalOf(content, (src) => existsSync(resolve(base, src)));
+if (contentRefusal) refuse(`contenu refusé, ${contentRefusal}`, 2);
 
 /** Chaque image du contenu, lue à côté du JSON et glissée dans la page en `data:`. */
 const imagesOf = () => {
@@ -52,13 +68,15 @@ const imagesOf = () => {
   );
 };
 
-const cache = `${homedir()}/Library/Caches/ms-playwright/chromium-1243`;
-const app = 'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
-const executablePath = existsSync(`${cache}/chrome-mac-arm64/${app}`)
-  ? `${cache}/chrome-mac-arm64/${app}`
-  : `${cache}/chrome-mac/${app}`;
+const out = here('../public/patchnotes/');
+const indexFile = `${out}index.json`;
+/** Tout est lu et calculé avant le navigateur : une ligne d'index illisible ne coûte pas un rendu. */
+const index =
+  blankPath || !existsSync(indexFile) ? [] : JSON.parse(readFileSync(indexFile, 'utf8'));
+const nextIndex = withRow(index, indexRowOf(content));
 
-const browser = await chromium.launch({ executablePath });
+const browser = await chromium.launch({ executablePath: chromiumPath() });
+let sheet, thumb;
 try {
   // 1400 × 990 px CSS à densité 2 : 2800 × 1980, le A4 paysage (297 × 210).
   const page = await browser.newPage({
@@ -67,14 +85,33 @@ try {
   });
   await page.setContent(
     sheetHtml(content, readFileSync(here('./patchnote.css'), 'utf8'), imagesOf()),
-    {
-      waitUntil: 'networkidle',
-    },
+    { waitUntil: 'networkidle' },
   );
   await page.evaluate(() => document.fonts.ready);
+  // `fonts.check()` est vrai sans police déclarée : seule une réponse vide de `fonts.load` dit qu'elle manque.
+  const missing = await page.evaluate(
+    async (families) =>
+      (
+        await Promise.all(
+          families.map(async (family) => [
+            family,
+            (await document.fonts.load(`16px "${family}"`)).length,
+          ]),
+        )
+      )
+        .filter(([, loaded]) => loaded === 0)
+        .map(([family]) => family),
+    FONT_FAMILIES,
+  );
+  if (missing.length)
+    refuse(`polices non chargées (Google Fonts injoignable ?) : ${missing.join(', ')}`);
+  const broken = await page.evaluate(
+    () => [...document.images].filter((i) => !i.complete || i.naturalWidth === 0).length,
+  );
+  if (broken) refuse(`${broken} image(s) du contenu illisible(s) par le navigateur`);
   const png = (await page.screenshot({ type: 'png' })).toString('base64');
   // Le WebP sort du canvas de Chromium (comme `render-unit-sprite.mjs`) : aucune dépendance de plus.
-  const [sheet, thumb] = await page.evaluate(async (data) => {
+  [sheet, thumb] = await page.evaluate(async (data) => {
     const img = new Image();
     img.src = `data:image/png;base64,${data}`;
     await img.decode();
@@ -93,20 +130,30 @@ try {
     };
     return [await webp(img.naturalWidth), await webp(400)];
   }, png);
-
-  if (blankPath) {
-    mkdirSync(dirname(resolve(blankPath)), { recursive: true });
-    writeFileSync(blankPath, Buffer.from(sheet, 'base64'));
-    console.log(`À blanc : ${resolve(blankPath)}`);
-  } else {
-    const out = here('../public/patchnotes/');
-    const indexFile = `${out}index.json`;
-    writeFileSync(`${out}${content.date}.webp`, Buffer.from(sheet, 'base64'));
-    writeFileSync(`${out}${content.date}-thumb.webp`, Buffer.from(thumb, 'base64'));
-    const index = existsSync(indexFile) ? JSON.parse(readFileSync(indexFile, 'utf8')) : [];
-    writeFileSync(indexFile, `${JSON.stringify(withRow(index, indexRowOf(content)), null, 2)}\n`);
-    console.log(`Bulletin du ${content.date} écrit dans public/patchnotes/`);
-  }
+} catch (error) {
+  refuse(`rendu échoué : ${error.message}`);
 } finally {
   await browser.close();
+}
+
+/** Écrit chaque fichier en `.tmp` dans son dossier, puis les renomme : tout, ou rien. */
+const writeAll = (files) => {
+  const temps = files.map(([path, data]) => {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(`${path}.tmp`, data);
+    return [`${path}.tmp`, path];
+  });
+  for (const [temp, path] of temps) renameSync(temp, path);
+};
+
+if (blankPath) {
+  writeAll([[resolve(blankPath), Buffer.from(sheet, 'base64')]]);
+  console.log(`À blanc : ${resolve(blankPath)}`);
+} else {
+  writeAll([
+    [`${out}${content.date}.webp`, Buffer.from(sheet, 'base64')],
+    [`${out}${content.date}-thumb.webp`, Buffer.from(thumb, 'base64')],
+    [indexFile, `${JSON.stringify(nextIndex, null, 2)}\n`],
+  ]);
+  console.log(`Bulletin du ${content.date} écrit dans public/patchnotes/`);
 }

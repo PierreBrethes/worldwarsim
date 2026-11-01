@@ -1,6 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { indexRowOf, longDate, sheetHtml, summaryOf, withRow } from './patchnote.mjs';
+import { fr } from '../src/i18n/fr';
+import {
+  argsOf,
+  contentRefusalOf,
+  indexRowOf,
+  longDate,
+  sheetHtml,
+  summaryOf,
+  withRow,
+} from './patchnote.mjs';
 
 const content = JSON.parse(
   readFileSync(new URL('./patchnote-exemple/2026-11-01.json', import.meta.url), 'utf8'),
@@ -22,8 +31,9 @@ describe('summaryOf', () => {
     );
   });
   it('dit la une, chaque dépêche, « Et aussi » et l’établi, sans numéros d’issue', () => {
-    expect(summary).toContain('À la une, la marche : Les colonnes marchent');
-    for (const d of content.dispatches) expect(summary).toContain(`${d.kicker} : ${d.title}.`);
+    expect(summary).toContain('À la une, la marche : les colonnes marchent');
+    for (const d of content.dispatches)
+      expect(summary).toContain(`${d.kicker} : ${d.title[0].toLowerCase()}${d.title.slice(1)}.`);
     expect(summary).toContain('Et aussi : Lâcher une troupe');
     expect(summary).toContain("Sur l'établi : chaque bâtiment sur son socle");
     expect(summary).not.toMatch(/#\d/);
@@ -70,5 +80,70 @@ describe('sheetHtml', () => {
     );
     expect(html).toContain('A &lt;b&gt; &amp; B');
     expect(html).toContain('grid-template-columns: auto 1fr 1fr');
+  });
+});
+
+describe('the masthead', () => {
+  it('reads the name the game displays (`fr.masthead`), which this Node script cannot import', () => {
+    const html = sheetHtml(content, '');
+    expect(html).toContain(`<i>${fr.masthead.article}</i>${fr.masthead.word}`);
+    expect(html).toContain(`aria-label="Bulletin des mises à jour de ${fr.masthead.title}"`);
+  });
+});
+
+describe('argsOf', () => {
+  it('takes the content first or last, with or without --a-blanc', () => {
+    expect(argsOf(['c.json'])).toEqual({ contentPath: 'c.json', blankPath: null });
+    expect(argsOf(['c.json', '--a-blanc', 'f.webp'])).toEqual({
+      contentPath: 'c.json',
+      blankPath: 'f.webp',
+    });
+    expect(argsOf(['--a-blanc', 'f.webp', 'c.json'])).toEqual({
+      contentPath: 'c.json',
+      blankPath: 'f.webp',
+    });
+  });
+  it('refuses a missing content, a missing blank path and a stray option', () => {
+    expect(argsOf([]).refusal).toMatch(/Usage/);
+    expect(argsOf(['c.json', '--a-blanc']).refusal).toMatch(/Usage/);
+    expect(argsOf(['c.json', '--blanc']).refusal).toMatch(/--blanc/);
+  });
+});
+
+describe('contentRefusalOf', () => {
+  const present = () => true;
+  const refusal = (change, exists = present) =>
+    contentRefusalOf(structuredClone({ ...content, ...change }), exists);
+  it('accepts the example', () => {
+    expect(contentRefusalOf(content, present)).toBeNull();
+  });
+  it('names the date when it could leave public/patchnotes/', () => {
+    expect(refusal({ date: '../../src/x' })).toMatch(/date/);
+    expect(refusal({ from: '30/10/2026' })).toMatch(/from/);
+    expect(refusal({ from: '2026-11-02' })).toMatch(/from/);
+  });
+  it('counts images, dispatches and bench entries', () => {
+    expect(refusal({ lead: { ...content.lead, images: [content.lead.images[0]] } })).toMatch(
+      /lead\.images/,
+    );
+    expect(refusal({ dispatches: content.dispatches.slice(0, 1) })).toMatch(/dispatches/);
+    expect(refusal({ bench: { entries: [] } })).toMatch(/bench\.entries/);
+  });
+  it('wants whole numbers for the count and the issue numbers', () => {
+    expect(refusal({ dispatchCount: '16' })).toMatch(/dispatchCount/);
+    expect(refusal({ also: [{ text: 'x', refs: ['<b>'] }] })).toMatch(/also/);
+  });
+  it('wants every image to exist, with a known lowercase extension', () => {
+    expect(refusal({}, (src) => src !== 'img/nuit.jpg')).toMatch(/img\/nuit\.jpg/);
+    const lead = structuredClone(content.lead);
+    lead.images[0].src = 'img/FILE.JPG';
+    expect(refusal({ lead })).toMatch(/FILE\.JPG/);
+  });
+});
+
+describe('escaping', () => {
+  it('escapes the issue numbers and the count too', () => {
+    const html = sheetHtml({ ...content, dispatchCount: '<i>' }, '');
+    expect(html).toContain('&lt;i&gt; dépêches');
   });
 });
