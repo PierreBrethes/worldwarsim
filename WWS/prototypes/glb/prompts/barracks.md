@@ -55,7 +55,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
   - `niveau_3` : une butte de tir de 14 m de long et 3 m de haut au bord arrière côté +x (x de +26 à +40, z ≈ −12), avec ses trois cibles de planches ; un parc de caisses (neuf caisses de 1 m en pile, sans lien avec les caisses du jeu) contre le flanc de la remise.
   - `chantier` : échafaudage de tubes et de planches sur la façade et le pignon du corps (jusqu'à l'égout), une grue-mât rouge de 16 m en (+8 ; 2,2 ; +20), deux tas de sable, une pile de madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
   - `ruines` : gravats sombres au pied du corps et de la remise, pans de mur arasés à 3 m, trois poutres noircies en travers, trace de feu sur le sol de la cour devant la façade.
-- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
 - Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
 
 ## Pièces nommées
@@ -96,7 +96,7 @@ Object3D sans géométrie, orientés : leur +z est la direction indiquée.
 ## Matériaux et texture
 
 - Plusieurs matériaux nommés (un par matière : `enduit`, `pierre`, `ardoise`, `bois_porte`…),
-  qui partagent **une seule texture atlas de 1 024 px au plus**, peinte sur canvas, aucune
+  qui partagent **une seule texture atlas de 512 px au plus**, peinte sur canvas, aucune
   texture externe. Chaque primitive a son matériau.
 - `vitres` : toutes les vitres des fenêtres et les deux lanternes (le jeu les allume la nuit).
 - `fond_sombre` : matériau à part, noir mat, pour `fond_sombre` et `remise_fond_sombre` (le jeu

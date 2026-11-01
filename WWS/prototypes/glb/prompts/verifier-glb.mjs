@@ -15,6 +15,8 @@ const FLAG = { names: ['hampe', 'drapeau', 'fx_tete_hampe'], pivots: { hampe: 'p
 const SITE = { names: ['socle', 'lisere', 'cour', 'signe', 'fx_rang', 'niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'], materials: ['lisere'] };
 const SITE_PARTS = ['socle', 'lisere', 'cour', 'signe', 'niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'];
 const SITE_BUDGET = { site: 3500, building: 2500, fixed: 700, group: 150 };
+const AIRFIELD_HANGAR = ['rail_porte', 'porte_gauche_1', 'porte_gauche_2', 'porte_droite_1', 'porte_droite_2', 'fond_sombre', 'fx_entree', 'fx_sortie'];
+const AIRFIELD_PIVOTS = { porte_gauche_1: 'bout-haut', porte_gauche_2: 'bout-haut', porte_droite_1: 'bout-haut', porte_droite_2: 'bout-haut' };
 const MAN = ['body', 'head', 'arm_left', 'forearm_left', 'arm_right', 'forearm_right', 'leg_left', 'shin_left', 'leg_right', 'shin_right'];
 const MAN_PIVOTS = { head: 'bas', arm_left: 'haut', arm_right: 'haut', forearm_left: 'haut', forearm_right: 'haut', leg_left: 'haut', leg_right: 'haut', shin_left: 'haut', shin_right: 'haut' };
 const TRACKED = ['hull', 'turret', 'gun', 'hatch', 'tracks_left', 'tracks_right', 'wheels_left', 'wheels_right', 'barbotin_left', 'barbotin_right', 'roue_folle_left', 'roue_folle_right', 'galet_left_*|galets_left', 'galet_right_*|galets_right', 'fx_muzzle', 'fx_smoke', 'fx_poussiere'];
@@ -33,9 +35,10 @@ const EXPECT = {
   },
   airfield: {
     site: true,
-    measure: [null, 'x', 50, 0.05], materials: ['vitres'],
-    names: ['rail_porte', 'porte_gauche_1', 'porte_gauche_2', 'porte_droite_1', 'porte_droite_2', 'fond_sombre', 'fx_entree', 'fx_sortie', ...FLAG.names],
-    pivots: { porte_gauche_1: 'bout-haut', porte_gauche_2: 'bout-haut', porte_droite_1: 'bout-haut', porte_droite_2: 'bout-haut', ...FLAG.pivots },
+    // deux hangars à l'échelle 0,85, à 10 m l'un de l'autre : 2 × 42,5 + 10 = 95 m. Le hangar B porte les mêmes pièces suffixées `_b`.
+    measure: [null, 'x', 95, 0.05], materials: ['vitres'],
+    names: [...AIRFIELD_HANGAR, ...AIRFIELD_HANGAR.map((n) => `${n}_b`), ...FLAG.names],
+    pivots: { ...AIRFIELD_PIVOTS, ...Object.fromEntries(Object.entries(AIRFIELD_PIVOTS).map(([n, r]) => [`${n}_b`, r])), ...FLAG.pivots },
     absent: ['porte', 'mat_manche', 'manche_cerceau', 'windsock'],
   },
   port: {
@@ -413,12 +416,13 @@ function verify(path, key, nation) {
   const unnamed = (gltf.meshes ?? []).flatMap((m) => m.primitives).filter((p) => p.material === undefined).length;
   check(unnamed === 0, `chaque primitive a son matériau${unnamed ? ` (${unnamed} sans)` : ''}`);
   const images = gltf.images ?? [];
+  const maxTexture = spec.site ? 512 : 1024; // ADR 0038 §9 : 512² pour les bâtiments
   check(images.length <= 1, `une seule texture (${images.length})`);
   for (const [k, img] of images.entries()) {
     const view = gltf.bufferViews[img.bufferView];
     const buf = img.bufferView === undefined ? null : bin.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength);
     const dims = buf && imageSize(buf);
-    if (dims) check(Math.max(...dims) <= 1024, `texture ${k} : ${dims.join(' × ')} px ≤ 1 024`);
+    if (dims) check(Math.max(...dims) <= maxTexture, `texture ${k} : ${dims.join(' × ')} px ≤ ${maxTexture}`);
     check(img.mimeType === 'image/webp', `texture ${k} en WebP (${img.mimeType ?? 'uri'})${img.mimeType === 'image/webp' ? '' : ' — npx @gltf-transform/cli webp in.glb out.glb --quality 90'}`);
   }
   const used = gltf.extensionsUsed ?? [];

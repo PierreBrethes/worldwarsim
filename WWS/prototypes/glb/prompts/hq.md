@@ -51,7 +51,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
   - `niveau_3` : deux massifs de buis de 1,5 m, un bassin rond de 5 m de diamètre au milieu de la cour (z ≈ +24, hors du rang) et une rangée de poteaux à chaîne.
   - `chantier` : échafaudage sur la façade et les deux ailes, une grue-mât rouge de 18 m en (+8 ; 2,2 ; +26), tas de sable, madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
   - `ruines` : gravats de pierre de taille, murs arasés à 3 m, ailes éventrées, poutres noircies, trace de feu sur la cour ; le campanile reste debout.
-- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
 - Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
 
 ## Pièces nommées
@@ -82,7 +82,7 @@ drapeau du teneur. Plus de `flag` ni de `fanion`.
 ## Matériaux et texture
 
 - Matériaux nommés par matière (`pierre_taille`, `ardoise`, `menuiserie`, `sac_sable`…), une
-  seule texture atlas de 1 024 px au plus, peinte sur canvas.
+  seule texture atlas de 512 px au plus, peinte sur canvas.
 - `vitres` : toutes les fenêtres, le cadran de l'horloge et les lanternes.
 - `fond_sombre` : matériau à part, noir mat (les deux fonds).
 - Figurine peinte, contours nets, couleurs d'époque désaturées (pierre blonde, ardoise, volets gris).

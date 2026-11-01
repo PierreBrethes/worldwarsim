@@ -45,7 +45,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
   - `niveau_3` : un bâtiment annexe bas à toit de tôle de 12 × 8 m derrière l'atelier, une antenne en treillis de 10 m et un bassin rond de 4 m de diamètre.
   - `chantier` : échafaudage sur la façade du pavillon et le pan de l'atelier, une grue-mât rouge de 16 m, tas de sable, madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
   - `ruines` : gravats de brique claire, murs arasés à 3 m, verre brisé en éclats peints, poutres noircies, trace de feu ; l'observatoire reste debout.
-- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
 - Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
 
 ## Pièces nommées
@@ -74,7 +74,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 ## Matériaux et texture
 
 - Matériaux nommés par matière (`brique_claire`, `pierre`, `cuivre_coupole`, `acier`…), une seule
-  texture atlas de 1 024 px au plus, peinte sur canvas.
+  texture atlas de 512 px au plus, peinte sur canvas.
 - `vitres` : fenêtres, sheds de l'atelier. `fond_sombre` : noir mat, aussi à l'intérieur de la
   fente de la coupole.
 - Figurine peinte, contours nets, couleurs d'époque désaturées (brique blonde, coupole gris-vert

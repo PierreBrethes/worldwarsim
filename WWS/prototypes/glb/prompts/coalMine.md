@@ -46,7 +46,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
   - `niveau_3` : un bâtiment bas du treuil de 10 × 8 m derrière la recette (z ≈ −14), et une pile de bois de mine (poteaux de 4 m en tas).
   - `chantier` : échafaudage sur la recette et la chaufferie, une chèvre de levage rouge de 12 m, tas de sable et de madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
   - `ruines` : gravats de brique, murs arasés à 3 m, cheminée de la chaufferie ébréchée à 8 m (le `fx_smoke` reste à son poste), poutres noircies ; le chevalement d'aérage reste debout.
-- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
 - Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
 
 ## Pièces nommées
@@ -74,7 +74,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 ## Matériaux et texture
 
 - Matériaux nommés par matière (`brique`, `beton`, `acier`, `houille`, `schiste`, `bois`…), une
-  seule texture atlas de 1 024 px au plus, peinte sur canvas.
+  seule texture atlas de 512 px au plus, peinte sur canvas.
 - `vitres` : les fenêtres.
 - Figurine peinte, contours nets, couleurs d'époque désaturées. Aucun drapeau peint, aucun insigne.
 - **Budget : 3 500 triangles par site**, dans n'importe quel état : 2 500 au plus pour le bâtiment, 700 pour le socle, le liseré, la cour et le signe, 150 par groupe d'accessoires (section « Le socle, la cour, le signe »).

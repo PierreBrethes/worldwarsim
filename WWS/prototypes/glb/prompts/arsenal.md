@@ -44,7 +44,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
   - `niveau_3` : un bâtiment annexe bas (chaufferie, 10 × 8 m, toit de tôle) contre le flanc −x de la halle, et un tas de houille de 6 m de haut ; un second quai bas de 12 m.
   - `chantier` : échafaudage sur la façade du pavillon et un pan de la halle, une grue-mât rouge de 18 m, tas de sable, madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
   - `ruines` : gravats de brique, sheds effondrés et arasés à 3 m, poutres noircies, trace de feu sur le béton ; les cheminées du signe restent debout.
-- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
 - Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
 
 ## Pièces nommées
@@ -72,7 +72,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 ## Matériaux et texture
 
 - Matériaux nommés par matière (`brique`, `beton`, `tole`, `fer`, `caisse_olive`…), une seule
-  texture atlas de 1 024 px au plus, peinte sur canvas.
+  texture atlas de 512 px au plus, peinte sur canvas.
 - `vitres` : vitrages des sheds, fenêtres, bureaux. `fond_sombre` : noir mat.
 - Figurine peinte, contours nets, couleurs d'époque désaturées. Aucun drapeau peint, aucun insigne.
 - **Budget : 3 500 triangles par site**, dans n'importe quel état : 2 500 au plus pour le bâtiment, 700 pour le socle, le liseré, la cour et le signe, 150 par groupe d'accessoires (section « Le socle, la cour, le signe »).

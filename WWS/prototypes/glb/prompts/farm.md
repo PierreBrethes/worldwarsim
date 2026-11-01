@@ -31,7 +31,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 
 **Rehausse.** L'origine du fichier reste au même (x, z), au pied du socle (y = 0) ; le dessus du socle est à y = 2,2. Toute cote y des tableaux ci-dessous se lit **+2,2 m** : un pivot ou un repère donné à y = 0 passe à 2,2. En particulier : `eolienne_tete` pivote à y = 14,2, `fx_smoke` +2,2 m, marche du logis à 2,4 m, grande porte de la grange à 2,2 m. Seul le socle descend jusqu'à y = 0.
 
-- `socle`, fixe : rectangle aux coins arrondis (rayon 6 m), dessus à y = 2,2 m, biseau de 0,8 m à 45° sur tout le tour. Couleur papier, à peine plus claire que la feuille (#ebe1c8, L* 90), flanc et biseau plus sombres (#bfae8a). Ici 64 × 62 m : x de −32 à 32, z de −22 à 40. Les 64 × 62 m de la maquette validée : 12 m de débord sur les côtés (la ferme est basse), 8 m derrière, 26 m devant le logis pour la cour de ferme. Rien du site ne dépasse le socle sauf le drapeau au vent.
+- `socle`, fixe : rectangle aux coins arrondis (rayon 6 m), dessus à y = 2,2 m, biseau de 0,8 m à 45° sur tout le tour. Couleur papier, à peine plus claire que la feuille (#ebe1c8, L* 90), flanc et biseau plus sombres (#bfae8a). Ici 64 × 62 m : x de −32 à 32, z de −22 à 40. Les 64 × 62 m de la maquette validée : 12 m de débord sur les côtés (la ferme est basse), 8 m derrière, 26 m devant le logis pour la cour de ferme. **Ce débord de 12 m, hors de la fourchette habituelle de 6 à 9 m, est voulu et validé (64 × 62 m) : ne pas le « corriger ».** Rien du site ne dépasse le socle sauf le drapeau au vent.
 - `lisere`, fixe, matériau `lisere` à part (le jeu le teint à l'encre de la nation) : une bande de 3 m de large sur le bord du dessus du socle, 6 cm au-dessus, blanc neutre dans le GLB.
 - `cour`, fixe : les sols peints sur le socle, 4 cm d'épaisseur au plus ; les rangs, tirets, joints et sillons sont peints dans l'atlas, pas modelés. Valeurs proches du socle : 10 à 20 points de L* plus sombres au plus, jamais saturées. Ici : terre battue et gravier de la cour de ferme devant le logis et la grange (z de +14 à +38) ; quatre rangs de labours peints sur le bord arrière et le côté −x (sillons dans l'atlas, pas modelés) ; un abreuvoir de pierre contre l'éolienne (déjà au bâtiment).
 - `signe`, fixe : le silo de brique à dôme : cylindre de brique rouge sourde de Ø 6 m et 22 m, cerclé de bandes d'acier tous les 3 m, dôme de zinc, échelle à crinoline, en (+27 ; 2,2 ; −2). Ce n'est pas le silo de 12 m accolé à la grange, qui reste au bâtiment. Il dépasse le bâtiment d'au moins un quart de sa hauteur (le bâtiment monte à 14 m, le signe à 18 m au moins au-dessus du socle) et le dit en silhouette noire de 40 px. Il porte seul la couleur chaude du site, une matière désaturée (brique, rayures, cuivre, minium), pas une couleur de jeu.
@@ -42,7 +42,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
   - `niveau_3` : un second abri à toit de chaume de 12 × 6 m le long du bord arrière, une pile de tonneaux et un petit verger de quatre pommiers de 5 m en (−22 ; 2,2 ; +30), hors du rang.
   - `chantier` : échafaudage sur la façade du logis et le pignon de la grange, une grue-mât rouge de 16 m, tas de sable et de moellons, madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
   - `ruines` : gravats et poutres noircies, murs du logis et de la grange arasés à 3 m, silo accolé ébréché à 4 m, trace de feu dans la cour.
-- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
 - Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
 
 ## Pièces nommées
@@ -66,7 +66,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 ## Matériaux et texture
 
 - Matériaux nommés par matière (`moellon`, `tuile`, `planches`, `zinc`, `fer`…), une seule texture
-  atlas de 1 024 px au plus, peinte sur canvas.
+  atlas de 512 px au plus, peinte sur canvas.
 - `vitres` : les fenêtres du logis.
 - Figurine peinte, contours nets, couleurs d'époque désaturées (moellon blond, tuile brune, bois
   gris). Aucun drapeau peint, aucun insigne.

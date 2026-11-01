@@ -46,7 +46,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
   - `niveau_3` : un second quai bas en bout de façade côté −x, avec trois piles de sacs de jute (pas de caisses : les `caisse_*` du bâtiment sont les seules) ; une baraque de contremaître de 5 × 4 m.
   - `chantier` : échafaudage sur la façade et le pignon, une grue-mât rouge de 16 m en (−34 ; 2,2 ; +40), tas de sable, madriers. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
   - `ruines` : gravats de brique et de tôle autour du quai, murs arasés à 3 m, poutres noircies et tôles tordues, trace de feu sur le béton ; le portique reste debout.
-- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP (512² visé, 1 024 au plus) : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
 - Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
 
 ## Pièces nommées
@@ -76,7 +76,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 ## Matériaux et texture
 
 - Matériaux nommés par matière (`brique`, `beton`, `tole`, `fer`, `bois_caisse`…), une seule
-  texture atlas de 1 024 px au plus, peinte sur canvas.
+  texture atlas de 512 px au plus, peinte sur canvas.
 - `vitres` : les fenêtres et la lanterne. `fond_sombre` : matériau à part, noir mat.
 - Figurine peinte, contours nets, couleurs d'époque désaturées (brique sourde, tôle rouillée,
   vantail de planches gris-vert, caisses vert olive). Aucun drapeau peint, aucun insigne.
