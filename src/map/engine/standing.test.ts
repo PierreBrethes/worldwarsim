@@ -246,6 +246,30 @@ describe('a pile lent to a sequence', () => {
   // The group order is the pile's: the truck is the only group of this one.
   const TRUCK = 'p/0';
 
+  it('faces the heading it arrived by, and the board on a shore (#362)', async () => {
+    const flat = {
+      projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, -lat),
+    } as unknown as WorldFrame;
+    const frontOf = async (seaward: readonly [number, number] | null) => {
+      const layer = new StandingLayer(
+        flat,
+        () => {},
+        () => null,
+        () => seaward,
+      );
+      layer.setNation('france');
+      layer.display([{ ...pileOf('landTransport'), facing: 90 }]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(new Vector3(2, 3, -45));
+      return layer.placeOf(TRUCK)!.front;
+    };
+    const east = await frontOf(null);
+    expect(east.x).toBeCloseTo(1, 2);
+    expect(east.z).toBeCloseTo(0, 2);
+    const shore = await frontOf([0, 1]);
+    expect(shore.z).toBeCloseTo(1, 6);
+  });
+
   it('lends a group that stands, with its file and its box', async () => {
     const layer = await standing('landTransport');
     const piece = layer.pieceOf(TRUCK);

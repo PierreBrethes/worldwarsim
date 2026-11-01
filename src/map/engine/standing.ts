@@ -20,7 +20,7 @@ import {
   Vector3,
 } from 'three';
 import type { Forbidden } from '@/domain/drop-order';
-import type { LonLat } from '@/domain/geo';
+import { destinationPoint, type LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PilePieces } from '@/domain/pile-pieces';
@@ -78,6 +78,9 @@ export type StandingPile = {
         readonly from?: LonLat;
       };
   readonly pieces: PilePieces;
+  /** **The heading it arrived by** (#362), in degrees from north; a pile at a point faces it,
+   *  absent it faces the board's south. */
+  readonly facing?: number;
 };
 
 /** **The label a standing pile is aimed at by**: the mast it stands beside, the label it hangs
@@ -129,6 +132,9 @@ export type GarrisonAt = (
  * of men as tight as a pile of tanks, a pile with a cargo as wide as its hull.
  */
 const pileUnitOf = (span: number): number => span / LAID_OUT_FOR;
+
+/** How far ahead a pile's heading is read on the board: its point's own scale. */
+const FACING_KM = 10;
 
 /** Between two groups, in the pile's units: a squad and a tank are both about a third of one wide. */
 const GROUP_SPACING = 0.5;
@@ -499,6 +505,7 @@ export function blacken(figurine: Object3D): void {
 type Dressed = {
   readonly key: string;
   at: StandingPile['at'];
+  facing: number | undefined;
   pieces: PilePieces;
   readonly object: Group;
   readonly span: number;
@@ -803,6 +810,7 @@ export class StandingLayer implements SequenceHost {
         this.grown.add(pile.id);
       if (kept?.key === key) {
         kept.at = pile.at;
+        kept.facing = pile.facing;
         kept.pieces = pile.pieces;
         this.dressed.delete(pile.id);
         next.set(pile.id, kept);
@@ -818,6 +826,7 @@ export class StandingLayer implements SequenceHost {
       const entry: Dressed = {
         key,
         at: pile.at,
+        facing: pile.facing,
         pieces: pile.pieces,
         object: built.object,
         span: built.span,
@@ -1113,6 +1122,7 @@ export class StandingLayer implements SequenceHost {
     const object = new Group();
     object.add(piece, shadow.object, marks.reticle, marks.plumb);
     object.position.copy(entry.object.position);
+    copy.object.rotation.y = entry.object.rotation.y;
     object.visible = false;
     for (const smoke of copy.smokes) smoke.frame(this.time);
     const now = performance.now();
@@ -1277,11 +1287,21 @@ export class StandingLayer implements SequenceHost {
     return point === undefined ? null : this.seaward(point);
   }
 
-  /** Every dressed pile set back on its point; a garrison is set at its maquette's foot by `orient`. */
+  /** Every dressed pile set back on its point, facing the way it came — on a shore, the board's
+   *  axes: land on one side, water on the other (#362); a garrison is set at its maquette's foot
+   *  by `orient`. */
   rebuild(): void {
-    for (const { at, object } of this.dressed.values())
-      if ('lonLat' in at)
-        object.position.copy(this.frame.projectLonLat(at.lonLat, COUNTRY_THICKNESS));
+    for (const { at, facing, object } of this.dressed.values()) {
+      if (!('lonLat' in at)) continue;
+      object.position.copy(this.frame.projectLonLat(at.lonLat, COUNTRY_THICKNESS));
+      const ahead =
+        facing === undefined || this.seaward(at.lonLat) !== null
+          ? null
+          : this.frame
+              .projectLonLat(destinationPoint(at.lonLat, FACING_KM, facing), COUNTRY_THICKNESS)
+              .sub(object.position);
+      object.rotation.y = ahead === null ? 0 : Math.atan2(ahead.x, ahead.z);
+    }
   }
 
   /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */

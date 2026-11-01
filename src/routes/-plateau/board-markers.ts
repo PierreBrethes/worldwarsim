@@ -355,7 +355,7 @@ export function standingPilesOf(
         : [],
     ),
     ...garrisonPiles(me, marching),
-  ].map((pile) => (blitz ? blitzPile(pile, me.troops) : pile));
+  ].map((pile) => withFacing(blitz ? blitzPile(pile, me.troops) : pile, me.troops));
 }
 
 export const campsOf = (markers: ReadonlyArray<MapMarker>) =>
@@ -514,6 +514,13 @@ export function marchingPiecesOf(
         : [[arc.id, blitz ? unitPieces(walking) : pilePieces(walking)] as const];
     }),
   );
+}
+
+/** **Le cap de la pile** (#362) : celui de ses troupes, qu'une arrivée leur donne à toutes. */
+function withFacing(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
+  const here = new Set(pile.pieces.troopIds);
+  const facing = troops.find((troop) => here.has(troop.id) && troop.facing !== undefined)?.facing;
+  return facing === undefined ? pile : { ...pile, facing };
 }
 
 function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
