@@ -657,7 +657,7 @@ describe('a site on its socle (ADR 0038)', () => {
     return found;
   };
   const nameOf = (mesh: InstancedMesh) => (mesh.material as MeshStandardMaterial).name;
-  const hollow = (ink: string) => new Color(ink).lerp(new Color('#ebe1c8'), 0.6);
+  const hollow = (ink: string) => new Color(ink).lerp(new Color('#ebe1c8'), 0.4);
 
   it('inks the liseré alone, by the side of each site, in one lot', async () => {
     const layer = await layerOf([

@@ -79,8 +79,9 @@ export const SOCLE_TOP = 2.2;
 
 /** The socle's paper (ADR 0038 §1): a hollow liseré is its ink mixed into it. */
 const SOCLE_PAPER = new Color('#ebe1c8');
-/** **How much of the paper a hollow liseré takes** (ADR 0038 §3). */
-const HOLLOW = 0.6;
+/** **How much of the paper a hollow liseré takes** (ADR 0038 §3: « son encre mêlée à 60 % au
+ *  papier »): its ink at 60 %, the paper at 40 — at 60 % of paper it read as the socle's edge. */
+const HOLLOW = 0.4;
 
 /** **The ink of a site's liseré** (ADR 0038 §2-§3): mine full in my ink; a survey hollow in a
  *  survey's ink, as its pin; a neutral of the Blitz hollow in the borders'. `null` for none. */
