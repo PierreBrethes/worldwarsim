@@ -458,29 +458,35 @@ export function computeRoute(
 
 /**
  * **The thread ends where the pile settles** (#364): the last vertex is the centre of the goal
- * cell, up to ten kilometres from the aimed point, and the pawn used to go on past its pile. The
- * vertex moves to `to` — no new vertex, no new leg — inside that one cell, and the last step is
- * measured again. A quay's neighbouring water cell is not `to`'s cell: it keeps its centre.
+ * cell, up to half a cell's diagonal (about twenty kilometres) from the aimed point, and the pawn
+ * used to go on past its pile. The vertex moves to `to` — no new vertex, no new leg — inside that
+ * one cell, and the last step is measured again. It stays put where the move would leave the
+ * step's medium (a gulf's chord) or wrap the world's edge, and a quay's neighbouring water cell
+ * is not `to`'s cell: both keep the centre.
  */
 function endAt(grid: RouteGrid, search: RouteSearch, to: LonLat): ComputedRoute {
   const { rawPoints, steps, route } = search;
   const last = steps.length - 1;
-  if (last < 0) return route;
-  const points = [...rawPoints.slice(0, -1), to];
-  const closing = { ...steps[last]!, distanceUnits: closingDistance(grid, steps[last]!, points) };
-  return routeOf(route.mode, points, [...steps.slice(0, last), closing], route.landCost);
+  const before = rawPoints[last];
+  if (before === undefined || Math.abs(to[0] - before[0]) > 180) return route;
+  const medium = steps[last]!.medium;
+  const onMedium = ([lon, lat]: LonLat) =>
+    medium === 'land' ? isWalkableCell(grid, [lon, lat]) : groundAt(grid, [lon, lat]) === 'sea';
+  const chord = distanceKm(before, to);
+  const samples = Math.ceil((chord / (grid.step * KM_PER_UNIT)) * 8) + 1;
+  for (let s = 1; s < samples; s++) {
+    const t = s / samples;
+    if (!onMedium([before[0] + (to[0] - before[0]) * t, before[1] + (to[1] - before[1]) * t]))
+      return route;
+  }
+  const closing = { ...steps[last]!, distanceUnits: projectedDistance(grid, before, to) };
+  return routeOf(
+    route.mode,
+    [...rawPoints.slice(0, -1), to],
+    [...steps.slice(0, last), closing],
+    route.landCost,
+  );
 }
-
-const closingDistance = (
-  grid: RouteGrid,
-  step: RouteStep,
-  points: ReadonlyArray<LonLat>,
-): number => {
-  const [from, to] = points.slice(-2) as [LonLat, LonLat];
-  return step.medium === 'air'
-    ? airRoute(grid, from, to).distanceUnits
-    : projectedDistance(grid, from, to);
-};
 
 /**
  * **Combien de kilomètres de route séparent un point de chaque cellule du monde**, en une seule

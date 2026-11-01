@@ -24,6 +24,7 @@ import {
   landComponentCount,
   landMaskOf,
   routeMedium,
+  kmOf,
 } from './routing';
 
 /**
@@ -508,7 +509,7 @@ describe('the pulled thread', () => {
   });
 
   /** The pile settles at `to` (#364): the thread that carries its pawn ends there, not at the
-   *  centre of the cell that holds it — up to ten kilometres further on at this mesh. */
+   *  centre of the cell that holds it — up to half a cell's diagonal (about twenty kilometres) further on. */
   it('ends at the aimed point, not at the centre of its cell', () => {
     const aimed: Array<[RouteMode, LonLat, LonLat]> = [
       ['land', [2.35, 48.85], [13.4, 52.5]],
@@ -519,6 +520,22 @@ describe('the pulled thread', () => {
     for (const [mode, from, to] of aimed) {
       const points = computeRoute(baked, from, to, mode)!.points;
       expect(points[points.length - 1]).toEqual(to);
+    }
+  });
+
+  it('keeps the centre of its cell where the move would wrap the world', () => {
+    // Across the antimeridian a fleet is billed for a few hundred kilometres, not the whole globe.
+    for (const [from, to] of [
+      [
+        [178, 0],
+        [-179.95, 0],
+      ],
+      [
+        [-179.95, 0],
+        [178, 0],
+      ],
+    ] as Array<[LonLat, LonLat]>) {
+      expect(kmOf(computeRoute(baked, from, to, 'naval')!.distanceUnits)).toBeLessThan(400);
     }
   });
 
@@ -550,6 +567,8 @@ describe('the pulled thread', () => {
       ['land', [131.9, 43.1], [116.4, 39.9]],
       ['land', [31.2, 30.0], [44.4, 33.3]],
       ['land', [10.2, 36.8], [31.2, 30.0]],
+      // The Gulf of Gabès: the chord to the aimed point strays off the walkable cells (#364).
+      ['land', [14.909, 30.982], [10.233, 34.334]],
     ];
     const strays: string[] = [];
     for (const [mode, from, to] of named) {
