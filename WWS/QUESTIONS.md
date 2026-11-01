@@ -120,8 +120,8 @@ ami — et c'est précisément ce que le tarif majoré empêche aujourd'hui.
 - La clôture quand le fondateur est parti → 1a du 06/09, codée (`FOUNDER_ABSENCE_HOURS`).
 - Le plafond de bâtiments → ADR 0020 §10 (emplacements par site) ; le frein d'expansion est
   le **prix par niveau** depuis le 15/09, l'entretien a disparu.
-- Le centre logistique → dissous : le relais est une spécialisation d'avant-poste
-  (`SPECIALIZATION`, fiche 03), pas un bâtiment.
+- Le centre logistique → dissous : l'accélération tient aux **liaisons** entre avant-postes
+  (ADR 0037 §8), pas à un bâtiment.
 - Granularité et régénération de l'occupation → sans objet : il n'y a pas d'occupation, la
   couleur suit l'avant-poste (ADR 0004, ADR 0020 §1).
 - La file de recrutement comme entrepôt à l'abri du pillage → D5 acquise le 09/09 : limite

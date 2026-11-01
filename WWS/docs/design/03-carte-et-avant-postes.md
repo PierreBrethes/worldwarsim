@@ -53,29 +53,29 @@ polygone.
 
 **Il se fonde sur place** (ADR 0019, 18/08) : une colonne posée, entièrement composée
 d'infanterie, plante le point là où elle se tient et en devient la garnison. Fonder n'est plus un
-type de mouvement — le joueur voit le terrain avant de choisir la spécialisation, il ne nomme
+type de mouvement — le joueur voit le terrain où il plante, il ne nomme
 plus à des heures de marche un sol qu'il n'a pas vu. C'est ce qui donne une couche territoriale contestée sans jamais toucher au découpage
 administratif — la carte se colore, le front avance, et le coût en données reste nul.
 
-### Spécialisation unique, choisie à la construction, irréversible
+### Un avant-poste qui guette, ses liaisons, et trois spécialisations au niveau 2
 
-| Spécialisation | Effet |
-|---|---|
-| **Relais logistique** | les mouvements passant dans son rayon accélèrent |
-| **Écoute** | révèle les arcs ennemis passant dans son rayon |
+> **Révisé par l'ADR 0037 (01/11).** Plus de métier exclusif relais / écoute, ni de choix à la
+> fondation : tout avant-poste debout est **généraliste** et **guette**.
 
-**Et toute spécialisation ravitaille** (ADR 0019 §4) : une troupe posée dans le rayon d'un de
+- **La vigie** : chaque point debout et en service relève ce qui passe à la moitié de son rayon
+  de contrôle (60, 90, 120 km), et brûle 1 charbon/h par niveau, au stock national. À court de
+  charbon, toutes les vigies du joueur sont aveugles ensemble, stations d'écoute comprises ; le
+  dépôt, la recharge et la couleur continuent.
+- **Les liaisons** : deux points d'un même joueur dont les rayons se touchent sont en liaison,
+  sans geste. Un mouvement du propriétaire va ×1,5 sur la part de sa route, terre et mer, qui
+  passe dans le rayon d'un point en liaison ; jamais un vol. Un point seul n'accélère rien.
+- **Au niveau 2**, une spécialisation parmi Magasin, Guet et Fort (ADR 0037 §3 à §7, lots à venir).
+
+**Et tout avant-poste ravitaille** (ADR 0019 §4) : une troupe posée dans le rayon d'un de
 ses avant-postes s'entretient au tarif domestique ; partout ailleurs, l'entretien est majoré
 (`UPKEEP_UNSUPPLIED_MULTIPLIER`). L'avant-poste ne projette pas la force — il la nourrit. C'est ce
 qui donne au raid son second sens : désactiver un avant-poste, c'est aussi affamer l'armée qui
 campe autour.
-
-Le relais logistique est le porteur des deux. C'est le seul qui interagit avec le cœur du jeu — le
-temps de déplacement — et il crée immédiatement l'arbitrage central : est-ce que j'investis dans une
-armée, ou dans ma capacité à la projeter ?
-
-D'autres spécialisations viendront (une pharmacie de campagne a été évoquée) ; le type les accueille
-sans migration, c'est tout ce qu'on leur doit aujourd'hui.
 
 > **L'Extraction a disparu de cette liste (décision du 18/08).** Un avant-poste ne remplace aucun
 > bâtiment : ce qui extrait à l'étranger, ce sont les **vrais bâtiments de l'économie v2**
