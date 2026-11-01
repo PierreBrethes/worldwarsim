@@ -48,7 +48,7 @@ import type { UnitTier } from '@/domain/troops';
 import { BUILDING_MAQUETTES } from '@/emblems/buildings/manifest';
 import { fr } from '@/i18n/fr';
 import { figurineFor, nearWeight, sceneOf, type Figurine } from '@/map/engine/figurines/figurine';
-import { isDrawn } from '@/map/engine/baking';
+import { drawnIn } from '@/map/engine/baking';
 import { stride } from '@/map/engine/figurines/infantry';
 import { SEA_LEVEL, WorldFrame } from '@/map/engine/frame';
 import { castShadows, Lamp } from '@/map/engine/lamp';
@@ -396,10 +396,11 @@ export class LandingTable {
         const model = scene.clone(true);
         const size = new Box3().setFromObject(model).getSize(new Vector3());
         model.scale.setScalar(span / Math.max(size.x, size.z));
-        // What neither bake draws (the flag, #279) goes from this copy too: `isDrawn` is the one filter.
+        // What no bake draws (the flag, #279) goes from this copy too: `drawnIn` is the one filter.
+        const drawn = drawnIn(model);
         const undrawn: Object3D[] = [];
         model.traverse((node) => {
-          if (!isDrawn(node)) undrawn.push(node);
+          if (!drawn(node)) undrawn.push(node);
         });
         for (const node of undrawn) node.removeFromParent();
         model.position.y -= new Box3().setFromObject(model).min.y;

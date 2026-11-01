@@ -126,6 +126,36 @@ describe('wayOut', () => {
       expect(crossesWalls(path)).toBe(false);
     },
   );
+
+  it("tells a man from a vehicle by the building's foot, on a socle too (ADR 0038)", () => {
+    const up = (point: P): P => [point[0], point[1] + 2.2, point[2]];
+    const raised = { min: up(box.min), max: up(box.max) };
+    const rank: P = [0, 2.2, 30];
+    const front: P = [0, 0, 1];
+    const truck = wayOut({
+      inside: up(shed.inside),
+      out: up(shed.out),
+      rank,
+      front,
+      length: 4,
+      box: raised,
+    });
+    const soldier = wayOut({
+      inside: up(man.inside),
+      out: up(man.out),
+      rank,
+      front,
+      length: 2.6,
+      box: raised,
+    });
+    // The way from the ground: a vehicle leaves its door once, a man by the landing and the steps.
+    const ground = {
+      truck: wayOut({ ...shed, rank, front, length: 4, box }),
+      man: wayOut({ ...man, rank, front, length: 2.6, box }),
+    };
+    expect(truck).toHaveLength(ground.truck.length);
+    expect(soldier).toHaveLength(ground.man.length);
+  });
 });
 
 describe('wayIn', () => {

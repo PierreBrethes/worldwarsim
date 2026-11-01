@@ -60,6 +60,8 @@ export function maquettesOf(
             }),
             ...(marker.buildingId !== null &&
               producing.has(marker.buildingId) && { smoking: true }),
+            side: 'mine',
+            ink: marker.ink,
           },
         );
       case 'installation':
@@ -71,6 +73,7 @@ export function maquettesOf(
             washed: marker.washed,
             metres: buildingMetres(marker.key),
             footprint: buildingFootprint(marker.key),
+            side: marker.neutral === null ? 'seen' : 'neutral',
           },
         );
       case 'objective': {

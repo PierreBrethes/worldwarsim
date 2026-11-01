@@ -8,8 +8,17 @@ import { RIG_PARTS } from './rigs';
 import { BUILDING_MAQUETTES, buildingMaquette } from './buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from './objectives/manifest';
 
-/** The heaviest drawn on 13/10 is the shipyard, at 3 156. */
+/** The heaviest drawn on 13/10 is the shipyard, at 3 156; a site on its socle, in any one state
+ *  it shows (ADR 0038 §9). */
 const TRIANGLES = 3500;
+
+/** **The accessory groups of a diorama**, and its fixed parts (`SITE` of `verifier-glb.mjs`). */
+const GROUPS = ['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'] as const;
+const FIXED = ['socle', 'lisere', 'cour', 'signe'];
+
+/** **Today's barracks on a procedural socle** (`scripts/fixture-socle.mjs`): a test file, never
+ *  in a manifest, until Pierre's GLBs come (#368). */
+const SOCLE_FIXTURE = 'src/emblems/fixtures/barracks-socle.glb';
 
 /** The flag, its pole and its marker: on every building (`FLAG` of `verifier-glb.mjs`). */
 const FLAG = ['hampe', 'drapeau', 'fx_tete_hampe'];
@@ -229,6 +238,7 @@ type Gltf = {
     }>;
   }>;
   accessors: ReadonlyArray<{ count: number; min?: number[]; max?: number[] }>;
+  materials?: ReadonlyArray<{ name?: string }>;
 };
 
 function readGlb(url: string): Gltf {
@@ -281,11 +291,54 @@ const trianglesOf = (gltf: Gltf): number =>
     .flatMap((mesh) => mesh.primitives)
     .reduce((sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3, 0);
 
+/**
+ * **The triangles of each state a site shows** (ADR 0038 §9, as `verifier-glb.mjs` counts them):
+ * at level 3 the building, its fixed parts and `niveau_1` to `niveau_3`; at work `niveau_1` and
+ * `chantier`; in ruins `ruines` alone. A file without a socle shows one state, all of it.
+ */
+function trianglesByState(gltf: Gltf): number[] {
+  const under = (index: number): number => {
+    const node = gltf.nodes[index]!;
+    const own =
+      node.mesh === undefined
+        ? 0
+        : gltf.meshes[node.mesh]!.primitives.reduce(
+            (sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3,
+            0,
+          );
+    return own + (node.children ?? []).reduce((sum, child) => sum + under(child), 0);
+  };
+  const named = (name: string) =>
+    gltf.nodes.reduce((sum, node, k) => sum + (node.name === name ? under(k) : 0), 0);
+  const total = trianglesOf(gltf);
+  if (!gltf.nodes.some((node) => node.name === 'socle')) return [total];
+  const [one, two, three, works, ruins] = GROUPS.map(named) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const fixedAndBuilding = total - one - two - three - works - ruins;
+  return [
+    fixedAndBuilding + one + two + three,
+    fixedAndBuilding + one + works,
+    fixedAndBuilding + ruins,
+  ];
+}
+
+/** What the ring spaces a site by: its socle's box, else the model as built, its flag left out. */
+const footprintOf = (gltf: Gltf): Vector3 =>
+  (gltf.nodes.some((node) => node.name === 'socle')
+    ? boundsOf(gltf, 'socle')
+    : boundsOf(gltf, undefined, ['hampe', 'drapeau'])
+  ).getSize(new Vector3());
+
 describe('maquettes', () => {
   it.each(objectives)('%s keeps to the brief', (url) => {
     const gltf = readGlb(url);
     expect(trianglesOf(gltf)).toBeLessThanOrEqual(TRIANGLES);
-    // One material per primitive, named: the board merges by material (`bakedParts`), and a
+    // One material per primitive, named: the board merges by material (`bakedSite`), and a
     // primitive without one would wear the loader's grey default.
     for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
       expect(primitive.material).toBeTypeOf('number');
@@ -299,7 +352,7 @@ describe('maquettes', () => {
   it.each(buildings)('%s keeps to the brief, in metres', (key, url) => {
     const brief = key === 'mine (coal)' ? COAL_MINE : BRIEF[key as keyof typeof BRIEF];
     const gltf = readGlb(url);
-    expect(trianglesOf(gltf)).toBeLessThanOrEqual(TRIANGLES);
+    for (const state of trianglesByState(gltf)) expect(state).toBeLessThanOrEqual(TRIANGLES);
     for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
       expect(primitive.material).toBeTypeOf('number');
     const names = new Set(gltf.nodes.map((node) => node.name));
@@ -322,10 +375,37 @@ describe('maquettes', () => {
   it.each(buildings)('%s: the ring spaces it by its real footprint', (key, url) => {
     const k = (key === 'mine (coal)' ? 'mine' : key) as BuildingKey;
     // The flagpole is left out: the ring spaces what is built, not what flies.
-    const size = boundsOf(readGlb(url), undefined, ['hampe', 'drapeau']).getSize(new Vector3());
+    const size = footprintOf(readGlb(url));
     expect(Math.abs(Math.max(size.x, size.z) / BUILDING_FOOTPRINT_METRES[k] - 1)).toBeLessThan(
       0.02,
     );
+  });
+
+  describe('the barracks on its socle (fixture, ADR 0038)', () => {
+    const gltf = readGlb(SOCLE_FIXTURE);
+
+    it('carries the diorama, its liseré in a material of its own, and its building whole', () => {
+      const names = new Set(gltf.nodes.map((node) => node.name));
+      for (const part of [...BRIEF.barracks.names, ...FIXED, 'fx_rang', ...GROUPS])
+        expect(names.has(part), part).toBe(true);
+      const materials = (gltf.materials ?? []).map((m) => m.name);
+      expect(materials).toContain('lisere');
+      // The flag rides on the sign, so that the animations reading it are not lost.
+      const signe = gltf.nodes.find((node) => node.name === 'signe')!;
+      const carried = (signe.children ?? []).map((k) => gltf.nodes[k]!.name);
+      expect(carried).toEqual(expect.arrayContaining(['hampe', 'drapeau']));
+    });
+
+    it('keeps each state it shows to its budget', () => {
+      const states = trianglesByState(gltf);
+      expect(states).toHaveLength(3);
+      for (const state of states) expect(state).toBeLessThanOrEqual(TRIANGLES);
+    });
+
+    it('is spaced by its socle, 80 m: what BUILDING_FOOTPRINT_METRES reads once it replaces barracks.glb', () => {
+      const size = footprintOf(gltf);
+      expect(Math.max(size.x, size.z)).toBeCloseTo(80, 1);
+    });
   });
 
   // The vehicles' parts are held by `glb.test.ts`.

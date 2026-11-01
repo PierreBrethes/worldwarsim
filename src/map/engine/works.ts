@@ -219,11 +219,12 @@ const scale = new Vector3();
  * Posts every bay, a ledger every lift, a brace across each bay — the prototype's scaffold, as
  * lines of ink rather than lit bars. Around the box a little wide, from the ground to `height`.
  */
-function scaffoldPositions(box: Box3, span: number, height: number): number[] {
+function scaffoldPositions(box: Box3, span: number, base: number, height: number): number[] {
   const pad = span * 0.056;
   const [x0, x1, z0, z1] = [box.min.x - pad, box.max.x + pad, box.min.z - pad, box.max.z + pad];
-  const lifts = Math.max(2, Math.round(height / (span * 0.13)));
-  const step = height / lifts;
+  const rise = height - base;
+  const lifts = Math.max(2, Math.round(rise / (span * 0.13)));
+  const step = rise / lifts;
   const out: number[] = [];
   const line = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
     out.push(ax, ay, az, bx, by, bz);
@@ -238,16 +239,42 @@ function scaffoldPositions(box: Box3, span: number, height: number): number[] {
     const at = (t: number) => [ax + (bx - ax) * t, az + (bz - az) * t] as const;
     for (let i = 0; i <= bays; i++) {
       const [x, z] = at(i / bays);
-      line(x, 0, z, x, height + span * 0.03, z);
+      line(x, base, z, x, height + span * 0.03, z);
     }
-    for (let j = 1; j <= lifts; j++) line(ax, j * step, az, bx, j * step, bz);
+    for (let j = 1; j <= lifts; j++) line(ax, base + j * step, az, bx, base + j * step, bz);
     for (let i = 0; i < bays; i++) {
       const [[px, pz], [qx, qz]] = [at(i / bays), at((i + 1) / bays)];
       const [j, flip] = [i % lifts, i % 2];
-      line(px, (j + flip) * step, pz, qx, (j + 1 - flip) * step, qz);
+      line(px, base + (j + flip) * step, pz, qx, base + (j + 1 - flip) * step, qz);
     }
   }
   return out;
+}
+
+/** **The top of a socle, in metres** (ADR 0038 §1): what a building on one stands on. */
+export const SOCLE_TOP = 2.2;
+
+/** **How far inside its socle's edge a site's stake stands**, in metres. `@a-mesurer` */
+const STAKE_MARGIN = 2;
+
+/**
+ * **Where the works of a site stand**, in its model's units: on the ground, or on the top of its
+ * socle (`socle`, its box) — never on its building's lowest point, which a port's slip takes under
+ * the water. The stake by the building's front corner, kept on the socle when there is one.
+ */
+export function worksGround(
+  building: Box3,
+  socle: Box3 | null,
+): { readonly base: number; readonly stake: readonly [number, number] } {
+  const span = Math.max(building.max.x - building.min.x, building.max.z - building.min.z);
+  const x = building.max.x + span * 0.13;
+  const z = building.max.z + span * 0.09;
+  return socle === null
+    ? { base: 0, stake: [x, z] }
+    : {
+        base: SOCLE_TOP,
+        stake: [Math.min(x, socle.max.x - STAKE_MARGIN), Math.min(z, socle.max.z - STAKE_MARGIN)],
+      };
 }
 
 /**
@@ -259,6 +286,8 @@ export class WorksDressing {
   /** The plane a rising site is cut at; `null` when nothing is cut. */
   readonly cut: Plane | null;
   private readonly span: number;
+  /** Its building's foot: the ground, or its socle's top. */
+  private readonly base: number;
   private scaffold: LineSegments | null = null;
   private scaffoldHeight = -1;
   private readonly cap: Mesh | null = null;
@@ -269,8 +298,12 @@ export class WorksDressing {
     readonly works: Works,
     private readonly box: Box3,
     footprint: ReadonlyArray<Loop>,
+    /** Its socle's box, `null` for a building on the ground. */
+    socle: Box3 | null = null,
   ) {
     this.object.matrixAutoUpdate = false;
+    const { base, stake } = worksGround(box, socle);
+    this.base = base;
     this.span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
     this.cut = works.phase === 'rising' ? new Plane(new Vector3(0, -1, 0), 0) : null;
     if (works.phase === 'queued') {
@@ -287,7 +320,7 @@ export class WorksDressing {
           polygonOffsetFactor: -2,
         }),
       );
-      this.plan.position.set(cx, this.span * 0.004, cz);
+      this.plan.position.set(cx, base + this.span * 0.004, cz);
       this.object.add(this.plan);
       return;
     }
@@ -298,7 +331,7 @@ export class WorksDressing {
     const flag = new Mesh(new PlaneGeometry(width, width * 0.625), flagMaterial(works.pennant));
     flag.position.set(width / 2, this.span * 0.45 - width * 0.3125, 0);
     this.stake.add(pole, flag);
-    this.stake.position.set(box.max.x + this.span * 0.13, 0, box.max.z + this.span * 0.09);
+    this.stake.position.set(stake[0], base, stake[1]);
     this.object.add(this.stake);
     if (this.cut !== null) {
       const outer = footprint.filter((loop) => signedArea(loop) > 0);
@@ -325,14 +358,15 @@ export class WorksDressing {
         ? 1
         : riseOf((this.works.finishesAt - now) / 60_000, this.works.minutes);
     if (this.works.phase === 'queued') return;
-    const height = this.cut === null ? this.box.max.y : this.box.max.y * share;
+    const { max } = this.box;
+    const height = this.cut === null ? max.y : this.base + (max.y - this.base) * share;
     if (this.cut !== null) {
       this.cut.constant = at.y + height * size;
       this.cap!.position.y = height;
       this.cap!.visible = share < 1;
       this.stake!.visible = share < 1;
     }
-    this.scaffoldTo(Math.max(height, this.span * 0.05), share < 1 || this.cut === null);
+    this.scaffoldTo(Math.max(height, this.base + this.span * 0.05), share < 1 || this.cut === null);
   }
 
   private scaffoldTo(height: number, shown: boolean): void {
@@ -343,7 +377,7 @@ export class WorksDressing {
       const geometry = new BufferGeometry();
       geometry.setAttribute(
         'position',
-        new Float32BufferAttribute(scaffoldPositions(this.box, this.span, height), 3),
+        new Float32BufferAttribute(scaffoldPositions(this.box, this.span, this.base, height), 3),
       );
       this.scaffold = new LineSegments(geometry, SCAFFOLD_INK);
       this.object.add(this.scaffold);

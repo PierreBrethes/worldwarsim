@@ -124,7 +124,13 @@ export type GarrisonAt = (
   pile: number,
   /** Hulls docked along a port's quay. */
   quay: boolean,
-) => { at: Vector3; step: readonly [number, number]; facing: number } | null;
+) => {
+  at: Vector3;
+  step: readonly [number, number];
+  facing: number;
+  /** Ranked on a socle's yard from its first man: the first pile starts there. */
+  rank: boolean;
+} | null;
 
 /**
  * **A pile is laid out in its own units** (ADR 0035): the spacings below were drawn for a tank
@@ -1407,7 +1413,8 @@ export class StandingLayer implements SequenceHost {
         if (foot !== null) {
           const half = Math.max(extent.x, extent.z) * object.scale.x;
           const taken = abreast.get(at.beside) ?? 0;
-          const aside = taken === 0 ? 0 : taken + half;
+          // At a site's foot the first pile stands square to it; on a rank, from its first man.
+          const aside = taken === 0 && !foot.rank ? 0 : taken + half;
           abreast.set(at.beside, aside + half);
           object.position.set(
             foot.at.x + foot.step[0] + aside * Math.cos(foot.facing),

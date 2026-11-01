@@ -132,7 +132,8 @@ export function wayOut({
   /** The model's bounds, in metres: its walls, its shed, its flagpole. */
   readonly box: { readonly min: Point; readonly max: Point };
 }): Point[] {
-  const man = out[1] > 0;
+  // A man's door is up its steps, a vehicle's at the building's foot — the ground, or a socle.
+  const man = out[1] > box.min[1] + 0.05;
   const along = (by: number, y: number): Point => [out[0], y, out[2] + by];
   const door = man
     ? [along(WAY.landing, out[1]), along(WAY.steps, rank[1])]

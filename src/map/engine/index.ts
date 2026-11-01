@@ -2777,7 +2777,8 @@ export class MapEngine {
     const places = ids.map((id) => this.standing.placeOf(id));
     if (site === null || pieces === null || places.some((place) => place === null)) return false;
     const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
-    const box = { min: site.box.min.toArray(), max: site.box.max.toArray() };
+    // The way goes round the building, on its socle's yard when it stands on one.
+    const box = { min: site.building.min.toArray(), max: site.building.max.toArray() };
     const queued = { caserne: 0, remise: 0 };
     const entering = cue.kind === 'entree';
     const arrived = entering ? site.toModel(this.frame.projectLonLat(cue.at)) : null;
