@@ -152,7 +152,7 @@ describe('bakedSite (ADR 0038)', () => {
     expect(triangleCount(bakedRig(sceneOfFile(url), () => false))).toBe(trianglesOf(today));
   });
 
-  it('bakes the building apart from its socle, liseré, yard and sign', () => {
+  it('bakes the building apart from its socle and liseré', () => {
     const { building, dressing } = bakedSite(sceneOfFile(SOCLE));
     const names = dressing.map((part) => part.material.name);
     expect(names).toContain('socle');

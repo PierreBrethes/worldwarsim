@@ -998,6 +998,22 @@ describe('a site on its socle (ADR 0038)', () => {
       for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBe(0);
     });
 
+    it('hands a raze from afar its socle alone, without its shrunk building or ruins', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 20);
+      const named = (drawn: ReturnType<MaquetteLayer['drawnOf']>) =>
+        drawn!.parts.map((part) => part.material.name);
+      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
+      seenFrom(layer, 45);
+      // Read over a rebuild, before any frame: the weights it was drawn at.
+      layer.display([socled({ smoking: true })]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const far = layer.drawnOf(MINE)!;
+      expect(named(far)).not.toContain('ardoise');
+      expect(named(far)).toContain('lisere');
+      expect(far.ruins).toBeUndefined();
+    });
+
     it('hands the pin and the plate its socle, and a site without one its span', async () => {
       const layer = await layerOf([socled(), site('building-hq@5,0', { url: 'plain.glb' })]);
       expect(layer.spanOf(MINE)).toEqual({ socle: 1.6 });

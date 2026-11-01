@@ -621,7 +621,7 @@ export class MaquetteLayer implements SequenceHost {
   /** Every maquette set back on its point — the regions landed under the region anchors. A
    *  region anchor that has not landed stands nothing yet. */
   rebuild(): void {
-    const drawnNear = new Map([...this.byId].map(([id, { item }]) => [id, item.drawnNear]));
+    const drawn = new Map([...this.byId].map(([id, { item }]) => [id, item]));
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
     this.byId.clear();
@@ -680,9 +680,10 @@ export class MaquetteLayer implements SequenceHost {
         cleared: false,
         socle: maquette.socle === true ? (maquette.footprint ?? maquette.span) : null,
         near: -1,
-        diorama: -1,
+        // Kept over a rebuild with the weight it was drawn at, for a raze that reads it (#326).
+        diorama: drawn.get(maquette.id)?.diorama ?? -1,
         signGrowth: 1,
-        drawnNear: drawnNear.get(maquette.id) ?? 0,
+        drawnNear: drawn.get(maquette.id)?.drawnNear ?? 0,
         // A site at work and a ghost of a survey do not produce.
         smoking: maquette.smoking === true && !maquette.works && !maquette.washed,
         smokes: [],
@@ -941,10 +942,16 @@ export class MaquetteLayer implements SequenceHost {
       inked.color.copy(item.lisere);
       return { geometry: mesh.geometry, material: inked };
     };
+    // Seen from afar on its socle, its building and yard have shrunk away (ADR 0038 §7): the
+    // socle falls alone, without ruins.
+    const far = item.diorama < item.drawnNear;
     // On a socle that has ruins, the yard of the level falls away and the ruins stand in its place.
-    const ruins = model.accessories.get('ruines');
-    const kept =
-      ruins === undefined ? lot.meshes : lot.meshes.filter((m) => !lot.accessories.includes(m));
+    const ruins = far ? undefined : model.accessories.get('ruines');
+    const kept = far
+      ? lot.meshes.filter((m) => !lot.diorama.includes(m))
+      : ruins === undefined
+        ? lot.meshes
+        : lot.meshes.filter((m) => !lot.accessories.includes(m));
     const parts = kept.map(partOf);
     const shell = parts.filter((_, k) => lot.shell.includes(kept[k]!));
     return {
