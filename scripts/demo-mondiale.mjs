@@ -73,6 +73,9 @@
  * `--arrivee [s]` (#362) fait marcher de Reims vers l'est-nord-est une pile mêlée française (trois
  * fantassins, deux chars, un canon) qui arrive sur un point vide dans `s` secondes (25 par
  * défaut) : la colonne s'y déploie, et `lieu=@arrivee` cadre son point.
+ * `--flotte-cote [s]` (#395) pose la scène de `--navire` et envoie le cargo de Marseille vers un
+ * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
+ * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
  *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
@@ -151,7 +154,11 @@ const risingBarracks = process.argv.includes('--caserne-chantier');
 /** `--caserne-montee` (#366) : la caserne de niveau 3 du QG, tête de file d'une montée au niveau 4
  *  (le QG est élevé au niveau 5 pour la permettre) : sa cour montre les trois niveaux et le chantier. */
 const raisingBarracks = process.argv.includes('--caserne-montee');
-const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
+/** `--flotte-cote [s]` : une flotte partie de Marseille vise la côte d'Agde, arrivée dans s secondes (#395). */
+const coastAt = process.argv.indexOf('--flotte-cote');
+const coastIn = coastAt < 0 ? null : Number(process.argv[coastAt + 1]) || 25;
+const navy =
+  coastIn !== null || process.argv.includes('--navire') || process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
 const twinTrucks = process.argv.includes('--deux-camions');
 /** `--demanteler` (#340) : l'avant-poste de `--livraison` près de Bruxelles, à démanteler dans
@@ -885,6 +892,27 @@ if (!bare) {
       'run',
       'dev:arriveNow',
       JSON.stringify({ playerId: scene.a, afterMs: arrivalIn * 1000, onTime: true }),
+    ]);
+  }
+  if (coastIn !== null && scene.a !== null) {
+    const to = { lon: 3.47, lat: 43.31 };
+    places['flotte-cote'] = [to.lon, to.lat];
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const port = me.buildings.find((building) => building.key === 'port');
+    const fleet = me.troops.filter(
+      (one) => one.role === 'cargo' && one.stationedAt.kind === 'building',
+    );
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'building', buildingId: port.id },
+      troopIds: fleet.map((one) => one.id),
+      point: to,
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: coastIn * 1000, onTime: true }),
     ]);
   }
   if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
