@@ -88,7 +88,11 @@ function lisereOf({ side, ink }: StandingMaquette): Color | null {
   if (side === 'mine') return ink === undefined ? null : new Color(ink);
   if (side === undefined) return null;
   const pen = side === 'seen' ? ARC_COLORS.enemyDetected.trace : PALETTE.border;
-  return new Color(pen).lerp(SOCLE_PAPER, HOLLOW);
+  // Mixed in sRGB, as ink on paper reads: in linear, 60 % of ink looks like a third.
+  return new Color(pen)
+    .convertLinearToSRGB()
+    .lerp(SOCLE_PAPER.clone().convertLinearToSRGB(), HOLLOW)
+    .convertSRGBToLinear();
 }
 
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */

@@ -15,7 +15,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingFootprint, buildingSpan, troopSpan } from '@/domain/piece-size';
-import { ARC_COLORS, PALETTE } from './palette';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
   clusterFootprints,
@@ -657,7 +656,6 @@ describe('a site on its socle (ADR 0038)', () => {
     return found;
   };
   const nameOf = (mesh: InstancedMesh) => (mesh.material as MeshStandardMaterial).name;
-  const hollow = (ink: string) => new Color(ink).lerp(new Color('#ebe1c8'), 0.4);
 
   it('inks the liseré alone, by the side of each site, in one lot', async () => {
     const layer = await layerOf([
@@ -675,8 +673,9 @@ describe('a site on its socle (ADR 0038)', () => {
       return color;
     };
     expect(colorAt(0).getHex()).toBe(new Color('#2a5ba8').getHex());
-    expect(colorAt(1).getHex()).toBe(hollow(ARC_COLORS.enemyDetected.trace).getHex());
-    expect(colorAt(2).getHex()).toBe(hollow(PALETTE.border).getHex());
+    // Mixed on the paper as a printer would, in sRGB: 60 % of the ink, 40 % of the socle's paper.
+    expect(colorAt(1).getHexString()).toBe('b48675');
+    expect(colorAt(2).getHexString()).toBe('776e5e');
     for (const mesh of all.filter((each) => each !== lisere)) expect(mesh.instanceColor).toBeNull();
   });
 
