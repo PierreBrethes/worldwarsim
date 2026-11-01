@@ -176,15 +176,15 @@ export function build(
     }
     /**
      * **Un point à soi se commande comme un mât** (décision de Pierre, 16/09, Registre 27). Le
-     * clic droit y était inerte : l'élévation et le métier vivaient dans le seul panneau de
-     * garnison, c'est-à-dire derrière un clic gauche que rien n'annonçait. Quatre branches, du
-     * nord dans le sens des aiguilles — élever, les deux métiers, démanteler — et le panneau
-     * garde les siennes : la rose ajoute une porte, elle n'en ferme aucune.
+     * clic droit y était inerte : l'élévation vivait dans le seul panneau de garnison,
+     * c'est-à-dire derrière un clic gauche que rien n'annonçait. Deux branches, élever puis
+     * démanteler — plus de métier à choisir depuis l'ADR 0037 — et le panneau garde les siennes :
+     * la rose ajoute une porte, elle n'en ferme aucune.
      *
      * **Un point adverse ne change pas.** Il n'est pas à nous, il n'y a rien à y faire au repos,
      * et le clic droit y reste inerte comme sur un pays (décision du 31/08).
      *
-     * **Un chantier n'a ni niveau à monter ni métier à régler** : il a une heure à attendre, et
+     * **Un chantier n'a pas de niveau à monter** : il a une heure à attendre, et
      * le panneau la porte. Il se démantèle pourtant — ce qu'on retire alors est une promesse.
      */
     case 'outpost': {

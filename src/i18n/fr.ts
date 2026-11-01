@@ -919,8 +919,7 @@ export const fr = {
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     UNKNOWN_OBJECTIVE: () => 'objectif inconnu',
-    /** **La même lecture que le métier scellé** : une colonne s'appuie sur ce relais, son allure
-     *  est déjà comptée, et le point ne peut ni changer de métier ni disparaître sous elle. */
+    /** Une colonne a chiffré son allure sous ce point : il ne disparaît pas sous elle. */
     OUTPOST_SERVING: () =>
       'une colonne marche dans la portée de ce point — il ne se démantèle pas sous elle',
     /** **On ne rénove pas sous le feu** (décision 3a du 15/09). Le refus dit l'état, pas une
@@ -3407,7 +3406,7 @@ export const fr = {
     notes: {
       strength:
         'La vie de la troupe : la part de l’abaque se prend sur elle, et une troupe entamée tire au prorata de ce qui lui reste.',
-      pace: 'Le temps d’un mouvement de 1 000 km. Une pile va au pas de son élément le plus lent ; un relais d’avant-poste l’accélère.',
+      pace: 'Le temps d’un mouvement de 1 000 km. Une pile va au pas de son élément le plus lent ; les liaisons de vos avant-postes l’accélèrent, à terre et en mer.',
       fuel: 'Les crans de plein : ce que ses moteurs couvrent encore. Un cran couvre une part de route et se refait à l’ancre.',
       detection:
         'Ce que la troupe relève autour d’elle. Une pile voit aussi loin que son meilleur détecteur, jamais la somme.',
@@ -4171,7 +4170,7 @@ export const fr = {
               : [
                   `Un avant-poste ouvre ${outpostReachKm} km autour de son point : on y bâtit comme chez soi. Un raid le désactive ; seule l’infanterie le capture.`,
                   'Un avant-poste se monte, jusqu’au niveau 3 : son panneau porte l’élévation — le rayon suivant, payé dans la file de chantier.',
-                  `${upperFirst(act)} sur un avant-poste à vous : l’élever, choisir son métier — relais ou écoute — ou le démanteler. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
+                  `${upperFirst(act)} sur un avant-poste à vous : l’élever ou le démanteler. Tout avant-poste debout guette à mi-rayon, et deux points dont les rayons se touchent sont en liaison : vos colonnes y vont plus vite. Le démantèlement emporte le sol qu’il colore et les bâtiments qu’il ancre.`,
                 ]),
           ],
         },
