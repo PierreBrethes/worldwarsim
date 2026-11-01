@@ -26,7 +26,9 @@ import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
 import type { SequenceHost } from './sequences';
 import { Smoke, type Plume } from './smoke';
-import { groundFootprint, WorksDressing, type Works } from './works';
+import { groundFootprint, SOCLE_TOP, WorksDressing, type Works } from './works';
+
+export { SOCLE_TOP };
 
 /**
  * **A factory at work smokes** (`table-etat-major.html`, `fac.userData.stacks`): a slow grey
@@ -73,9 +75,6 @@ export type StandingMaquette = {
   /** My ink (`marker.ink`), for a site that is `mine` alone: a survey serves no nation. */
   readonly ink?: string;
 };
-
-/** **The top of a socle, in metres** (ADR 0038 §1): what a garrison on the yard stands on. */
-export const SOCLE_TOP = 2.2;
 
 /** The socle's paper (ADR 0038 §1): a hollow liseré is its ink mixed into it. */
 const SOCLE_PAPER = new Color('#ebe1c8');
@@ -696,6 +695,7 @@ export class MaquetteLayer implements SequenceHost {
           model.parts.map(({ geometry }) => geometry),
           model.building,
         ),
+        model.dressing.length > 0 ? model.box : null,
       );
       lot.group.add(atWork.dressing.object);
     }
