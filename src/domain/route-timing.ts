@@ -187,7 +187,12 @@ export function relayedCostUnits({
   const share = relayedShare({ points: route.points, relays, samples });
   if (share <= 0 || multiplier <= 0) return route.costUnits;
 
-  const legs = route.legs.reduce((sum, leg) => sum + legCost(leg, route.landCost), 0);
-  const docks = Math.max(0, route.costUnits - legs);
-  return legs * (1 - share + share / multiplier) + docks;
+  const cost = (air: boolean) =>
+    route.legs
+      .filter((leg) => (leg.medium === 'air') === air)
+      .reduce((sum, leg) => sum + legCost(leg, route.landCost), 0);
+  const surface = cost(false);
+  const flown = cost(true);
+  const docks = Math.max(0, route.costUnits - surface - flown);
+  return surface * (1 - share + share / multiplier) + flown + docks;
 }
