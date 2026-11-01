@@ -701,6 +701,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         /** **Bakou** : l'heure du prochain cran de plein, tant qu'il en manque. */
         ...(bakuGain(troop)?.nextAt == null ? {} : { refuelAt: bakuGain(troop)!.nextAt! }),
         ...(troop.carriedBy === undefined ? {} : { carriedBy: troop.carriedBy }),
+        ...(troop.facing === undefined ? {} : { facing: troop.facing }),
         /** **Ancrée** (ADR 0028 §3) : elle se recharge à son ancre ; sinon c'est une escouade
          *  isolée, que seul un largage ravitaille. */
         ...(blitz || economy.upkeep.storeOf[troop._id] === undefined

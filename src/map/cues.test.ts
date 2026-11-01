@@ -179,7 +179,7 @@ describe('entreesOf', () => {
     expect(entreesOf([column], [garrison(barracks, ['t1', 't2'])])).toEqual([]);
   });
 
-  it('enters any building of mine on foot or on tracks, but no plane, no quay, no pile on a point', () => {
+  it('enters any building of mine on foot or on tracks, but no plane, no quay', () => {
     const hq = { beside: 'building-hq@2,48' };
     expect(entreesOf([column], [garrison(hq, ['t2'])])).toHaveLength(1);
     const hangar = garrison({ beside: 'building-airfield@2,48' }, ['t2']);
@@ -190,7 +190,12 @@ describe('entreesOf', () => {
     expect(
       entreesOf([column], [garrison({ beside: 'building-port@2,48', quay: [2, 48] }, ['t2'])]),
     ).toEqual([]);
-    expect(entreesOf([column], [garrison({ lonLat: [2, 48] }, ['t2'])])).toEqual([]);
+  });
+
+  it('deploys a column that stood on a point, with no site (#362)', () => {
+    expect(entreesOf([column], [garrison({ lonLat: [2, 48] }, ['t1'], ['t2'])])).toEqual([
+      { pileId: 'g', groups: [1], at: [2, 48], toward: [1.5, 47.5] },
+    ]);
   });
 
   it('names nothing for a garrison that stood there already, or a recruit', () => {

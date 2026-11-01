@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { stationKeyOf } from '@/domain/troops';
-import { buildingsOfMaquette, leavingStill, razingStill, standingPilesOf } from './board-markers';
+import {
+  buildingsOfMaquette,
+  leavingStill,
+  marchingPiecesOf,
+  razingStill,
+  standingPilesOf,
+} from './board-markers';
 
 const mine = (id: string, point: [number, number]) => ({ id, key: 'mine' as const, point });
 
@@ -43,6 +49,38 @@ describe('standingPilesOf', () => {
     ]);
   });
 
+  it('turns a pile on a point to its heading, never an outpost garrison (#362)', () => {
+    const station = { kind: 'outpost', outpostId: 'o1' } as const;
+    const piles = standingPilesOf(
+      meWith([{ ...troop('a', station), facing: 90 }]),
+      [
+        {
+          kind: 'stack',
+          id: 'p',
+          lonLat: [1, 2],
+          pieces: { groups: [], troopIds: ['b'], squad: false },
+        } as never,
+      ],
+      new Set(),
+      false,
+    );
+    expect(piles.map((pile) => pile.facing)).toEqual([undefined, undefined]);
+    const facing = standingPilesOf(
+      meWith([{ ...troop('b', { kind: 'point', lonLat: [1, 2] }), facing: 90 }]),
+      [
+        {
+          kind: 'stack',
+          id: 'p',
+          lonLat: [1, 2],
+          pieces: { groups: [], troopIds: ['b'], squad: false },
+        } as never,
+      ],
+      new Set(),
+      false,
+    );
+    expect(facing.map((pile) => pile.facing)).toEqual([90]);
+  });
+
   it('leaves a marching troop out of the garrison it left', () => {
     const station = { kind: 'outpost', outpostId: 'o1' } as const;
     expect(standingPilesOf(meWith([troop('a', station)]), [], new Set(['a']), false)).toEqual([]);
@@ -73,5 +111,53 @@ describe('leavingStill', () => {
 
   it('forgets it once the view has lost the point: the map has played its fall', () => {
     expect(leavingStill(leaving, [{ id: 'o2' }])).toEqual([]);
+  });
+});
+
+describe('marchingPiecesOf (#276)', () => {
+  const troop = (id: string, role: string, carriedBy?: string) => ({
+    id,
+    role,
+    tier: 1,
+    strength: 100,
+    nominalStrength: 100,
+    ...(carriedBy === undefined ? {} : { carriedBy }),
+  });
+  const arc = (id: string, troopIds: string[], mediums = ['land'], state = 'mine') =>
+    ({ id, state, troopIds, route: { legs: mediums.map((medium) => ({ medium })) } }) as never;
+  const troops = [
+    troop('i1', 'infantry'),
+    troop('i2', 'infantry', 'truck'),
+    troop('truck', 'landTransport'),
+    troop('tank', 'armor'),
+    troop('hull', 'cargo'),
+  ] as never[];
+  const roles = (pieces: { groups: ReadonlyArray<{ role: string }> } | undefined) =>
+    pieces?.groups.map(({ role }) => role);
+
+  it('lays my land movement out as its pile at rest, riders hidden, hulls and wings left out', () => {
+    const pieces = marchingPiecesOf(
+      [arc('m', ['i1', 'i2', 'truck', 'tank', 'hull'], ['land', 'sea'])],
+      troops,
+      false,
+    );
+    expect(roles(pieces.get('m'))).toEqual(['infantry', 'armor', 'landTransport']);
+  });
+
+  it('draws a Blitz movement in units, its truck carrying its rider', () => {
+    const pieces = marchingPiecesOf([arc('m', ['i1', 'i2', 'truck'])], troops, true);
+    expect(pieces.get('m')?.groups.map(({ role, aboard }) => [role, aboard ?? 0])).toEqual([
+      ['infantry', 0],
+      ['landTransport', 1],
+    ]);
+  });
+
+  it('lays out nothing for a movement with no land leg, nor for what is not mine', () => {
+    const pieces = marchingPiecesOf(
+      [arc('sea', ['i1'], ['sea']), arc('enemy', ['i1'], ['land'], 'enemyDetected')],
+      troops,
+      false,
+    );
+    expect(pieces.size).toBe(0);
   });
 });

@@ -527,16 +527,28 @@ export const logisticsScene = internalMutation({
  * `npx convex run dev:arriveNow '{"playerId":"…"}'`
  */
 export const arriveNow = internalMutation({
-  args: { playerId: v.id('players'), afterMs: v.optional(v.number()) },
-  handler: async (ctx, { playerId, afterMs }) => {
+  args: {
+    playerId: v.id('players'),
+    afterMs: v.optional(v.number()),
+    /** Its whole way slid forward too: the pawn reaches the end of its route at the arrival (#362). */
+    onTime: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { playerId, afterMs, onTime }) => {
     const moving = await ctx.db
       .query('movements')
       .filter((q) => q.eq(q.field('playerId'), playerId))
       .collect();
-    for (const movement of moving)
+    const arrivesAt = Date.now() + (afterMs ?? 0);
+    for (const movement of moving) {
+      if (onTime)
+        await ctx.db.patch(movement._id, {
+          arrivesAt,
+          departedAt: arrivesAt - (movement.arrivesAt - movement.departedAt),
+        });
       await ctx.scheduler.runAfter(afterMs ?? 0, internal.movements.arrive, {
         movementId: movement._id,
       });
+    }
     return moving.length;
   },
 });

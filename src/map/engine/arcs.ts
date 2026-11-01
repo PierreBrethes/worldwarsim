@@ -1,14 +1,15 @@
 import type { LonLat } from '@/domain/geo';
-import { type Box3, Group, Vector3, type Camera, type Raycaster } from 'three';
+import { type Box3, type Frustum, Group, Vector3, type Camera, type Raycaster } from 'three';
 import {
   pawnTarget,
   temporalPosition,
   unrollRoute,
+  type TemporalPosition,
   type UnrolledSegment,
 } from '@/domain/route-timing';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
-import { movementWear } from '@/domain/pile-pieces';
+import { movementWear, type PilePieces } from '@/domain/pile-pieces';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
@@ -21,9 +22,11 @@ import {
   stretchTether,
   type EndsOf,
   type Thread,
+  type ThreadLeg,
 } from './thread';
 import type { Ribbon } from './route-ribbon';
-import { Pawn } from './pawn';
+import { Pawn, type ColumnPiece, type FilePiece, type Road } from './pawn';
+import { dressedGroups } from './standing';
 import { bendAround } from './sway';
 import { ARC_COLORS } from './palette';
 import type { MapMotion } from '@/domain/map-motion';
@@ -106,6 +109,8 @@ export class ArcLayer {
   private readonly groundPoint = new Vector3();
   private readonly cameraPosition = new Vector3();
   private cameraYaw = 0;
+  /** The eye's field at the last frame: a file out of it is not laid out. */
+  private inView: Frustum | null = null;
   private playerNation: string | null = null;
   private rendered: RenderedArc[] = [];
 
@@ -155,11 +160,23 @@ export class ArcLayer {
   private aloft = false;
   /** My troops, read for the strength my movements carry: the arc does not serve it. */
   troops: ReadonlyArray<TroopView> = [];
+  /** **What each movement of mine shows on land** (#276), by its id: the route lays it out as its
+   *  pile at rest, and the engine never reads the mode. */
+  columns: ReadonlyMap<string, PilePieces> = new Map();
 
   /** Ids on screen at the last real display; `null` until the first, which is no appearance. */
   private known: ReadonlySet<string> | null = null;
   /** Threads whose pen stroke is still being laid: hidden until this instant, whatever rebuilds. */
   private readonly inking = new Map<string, number>();
+  /** **Where the files of my movements just closed last stood** (#362), by troop: the pile at
+   *  rest deploys from there. */
+  private readonly left = new Map<
+    string,
+    FilePiece & { readonly road: ReadonlyArray<Vector3>; readonly since: number }
+  >();
+  fileLeftBy(troopId: string): (FilePiece & { readonly road: ReadonlyArray<Vector3> }) | null {
+    return this.left.get(troopId) ?? null;
+  }
   /** Kept across displays, which come at every step of any column: a crate falls once. */
   private readonly crates = new Map<string, CratePile>();
 
@@ -214,7 +231,14 @@ export class ArcLayer {
     this.rendered = [];
     this.targets = [];
     for (const arc of arcs) {
-      const key = drawnKey(arc, this.playerNation, this.troops, this.motion !== 'off', clock);
+      const key = drawnKey(
+        arc,
+        this.playerNation,
+        this.troops,
+        this.columns.get(arc.id) ?? null,
+        this.motion !== 'off',
+        clock,
+      );
       let rendered = previous.get(arc.id);
       previous.delete(arc.id);
       if (rendered?.key !== key) {
@@ -229,7 +253,12 @@ export class ArcLayer {
       this.targets.push(...rendered.thread.targets);
       this.rendered.push(rendered);
     }
+    for (const [troopId, { since }] of this.left)
+      if (now - since > LEFT_MS) this.left.delete(troopId);
     for (const gone of previous.values()) {
+      const file = gone.pawn.lastFile();
+      for (const piece of file?.pieces ?? [])
+        this.left.set(piece.troopId, { ...piece, road: file!.road, since: now });
       release(gone);
       this.headPositions.delete(gone.arc.id);
       this.aheadPositions.delete(gone.arc.id);
@@ -269,6 +298,7 @@ export class ArcLayer {
     for (const target of thread.targets) target.userData.arc = arc.id;
 
     const roles = movementRoles(arc);
+    const column = arc.state === 'mine' ? this.columnOf(arc.id) : null;
     const figurineOf = (role: UnitRole | null) =>
       role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
     const pawn = new Pawn(
@@ -282,12 +312,13 @@ export class ArcLayer {
             air: annotationFigurine('air', arc.since),
           }
         : roles && {
-            land: figurineOf(roles.land),
+            land: column === null ? figurineOf(roles.land) : null,
             sea: figurineOf(roles.sea),
             air: figurineOf(roles.air),
           },
       movementWear(arc, this.troops),
       roles,
+      column,
     );
     pawn.visible = !stale;
     this.group.add(pawn.object);
@@ -328,6 +359,19 @@ export class ArcLayer {
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
     };
+  }
+
+  /** My movement's pieces on land, dressed whole or not at all (`dressedGroups`). */
+  private columnOf(id: string): ReadonlyArray<ColumnPiece> | null {
+    const pieces = this.columns.get(id);
+    const figurines = pieces === undefined ? null : dressedGroups(this.playerNation, pieces);
+    if (pieces === undefined || figurines === null) return null;
+    return pieces.groups.map(({ role, wear, troopIds }, k) => ({
+      figurine: figurines[k]!,
+      role,
+      wear,
+      troopId: troopIds[0]!,
+    }));
   }
 
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
@@ -374,8 +418,9 @@ export class ArcLayer {
    * The position comes from time, not distance: a movement straddling three mediums does
    * not cross the sea at road speed, and it stops at the dock.
    */
-  animate(camera?: Camera, unitsPerPixel?: number, yaw?: number): void {
+  animate(camera?: Camera, unitsPerPixel?: number, yaw?: number, inView?: Frustum): void {
     if (camera) this.cameraPosition.copy(camera.position);
+    if (inView !== undefined) this.inView = inView;
     if (yaw !== undefined) this.cameraYaw = yaw;
     if (unitsPerPixel !== undefined) this.unitsPerPixel = unitsPerPixel;
 
@@ -434,9 +479,15 @@ export class ArcLayer {
         this.aheadPoint.copy(rendered.rest);
       } else continue;
       projectOnGround(this.pawnPoint, this.groundPoint);
-      rendered.pawn.place(this.pawnPoint, this.aheadPoint, this.groundPoint.y, turn);
-      rendered.pawn.step(this.motion === 'full' ? elapsed : null);
-      rendered.pawn.orient(this.cameraPosition, this.cameraYaw);
+      rendered.pawn.place(
+        this.pawnPoint,
+        this.aheadPoint,
+        this.groundPoint.y,
+        turn,
+        roadOf(rendered.thread.legs, position, leg, local),
+      );
+      rendered.pawn.step(this.motion === 'full' ? elapsed : null, this.motion === 'reduced');
+      rendered.pawn.orient(this.cameraPosition, this.cameraYaw, this.inView);
       rendered.headPosition.copy(this.pawnPoint);
       rendered.aheadPosition.copy(this.aheadPoint);
 
@@ -522,6 +573,9 @@ export class ArcLayer {
   }
 }
 
+/** A closed file waits this long for its pile to stand (`SORTIE_WAIT_MS` and a beat). */
+const LEFT_MS = 3000;
+
 function release({ thread, pawn, relic }: RenderedArc): void {
   thread.dispose();
   pawn.dispose();
@@ -537,6 +591,7 @@ function drawnKey(
   arc: ArcView,
   nation: string | null,
   troops: ReadonlyArray<TroopView>,
+  column: PilePieces | null,
   lead: boolean,
   clock: number,
 ): string {
@@ -548,9 +603,27 @@ function drawnKey(
     arc.route,
     movementRoles(arc),
     movementWear(arc, troops),
+    // What rides aboard does not show: the file draws its standing pieces only.
+    column?.groups.map(({ role, figures, wear }) => [role, figures, wear]) ?? null,
     arc.state === 'enemyDetected' ? asClockTime(arc.since) : null,
     arc.state === 'lastKnown' ? [asClockTime(arc.lastSeenAt), lastKnownInk(arc, clock)] : null,
   ]);
+}
+
+/**
+ * **The leg a file is laid out on**: the one the head walks, or at a quay the land leg that
+ * begins there — a column landed waits gathered on the shore, never strung out on the water
+ * behind it. `null` at a quay toward the sea or the sky: the file is not worn there.
+ */
+function roadOf(
+  legs: ReadonlyArray<ThreadLeg>,
+  position: TemporalPosition,
+  leg: ThreadLeg | undefined,
+  local: number,
+): Road | null {
+  if (position.kind === 'leg') return leg === undefined ? null : { leg, local };
+  const next = legs[position.legIndex];
+  return next?.medium === 'land' ? { leg: next, local: 0 } : null;
 }
 
 const minutesSince = (at: number, clock: number): number => Math.max(0, clock - at) / 60_000;

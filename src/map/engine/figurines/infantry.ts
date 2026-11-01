@@ -137,16 +137,20 @@ export function stand(man: Object3D): void {
  * de caserne (`sequences.ts`).
  */
 export function stride(root: Object3D, seconds: number | null): void {
-  root.traverse((man) => {
-    const phase = man.userData.stride as number | undefined;
-    if (phase === undefined) return;
-    pose(
-      man,
-      seconds === null
-        ? ((man.userData.sculpted as Stance | undefined) ?? walking(0))
-        : walking(phase + seconds * 9),
-    );
-  });
+  root.traverse((man) => strideOf(man, seconds));
+}
+
+/** **One man's stride** (`stride`), for a caller that keeps its men rather than finding them
+ *  again at every frame; nothing for a node that is not a man. */
+export function strideOf(man: Object3D, seconds: number | null): void {
+  const phase = man.userData.stride as number | undefined;
+  if (phase === undefined) return;
+  pose(
+    man,
+    seconds === null
+      ? ((man.userData.sculpted as Stance | undefined) ?? walking(0))
+      : walking(phase + seconds * 9),
+  );
 }
 
 /** **Le genou à terre, en joue** (storyboard `commun/scene.js:240-253`, une série pour toutes les

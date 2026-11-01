@@ -1,5 +1,7 @@
 # ADR 0024 — L'engagement est intentionnel, et une force posée se voit dans la portée
 
+> ⚠️ **Révision (01/11/2026, [ADR 0037](0037-un-avant-poste-qui-stocke-et-guette.md), non codée).** §1 : tout avant-poste debout est un détecteur (sa vigie, à mi-rayon), plus le seul avant-poste d'écoute ; et « jamais la composition » cède pour le Guet, dont les relevés la livrent.
+
 **Statut :** acceptée (13/09/2026), **§4 précisé le 17/09/2026** (l'objectif neutre, public par
 nature, est l'exception nommée du relevé préalable) — **révise l'[ADR 0008](0008-combat-par-interception.md)**
 (le contact automatique), **l'[ADR 0019](0019-mouvement-libre-et-troupes-posees.md) §3 et §6**

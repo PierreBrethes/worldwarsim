@@ -145,3 +145,95 @@ describe('the life of a piece of mine on its road', () => {
     expect(land.object.children).toHaveLength(0);
   });
 });
+
+/** **Au pas sur la route** (#276) : les hommes de ma file marchent sur l'horloge du pion. */
+describe('my column on the road', () => {
+  const close = new Vector3(0, 0.05, 0);
+  const squad = (): Figurine => {
+    const object = new Group();
+    const man = new Group();
+    man.userData.stride = 0.6;
+    const leg = new Group();
+    leg.name = 'leg_left';
+    // Mid-stride, as `squadOf` stands a man: cut motion must set him upright.
+    leg.rotation.x = 0.3;
+    man.add(leg);
+    object.add(man);
+    return { object, span: troopSpan('infantry'), ready: Promise.resolve(), spin() {} };
+  };
+  const tank = (): Figurine => ({
+    object: new Group(),
+    span: troopSpan('armor'),
+    ready: Promise.resolve(),
+    spin() {},
+  });
+  const column = () => {
+    const [men, armor] = [squad(), tank()];
+    const pawn = new Pawn('#000', null, null, null, [
+      { figurine: men, role: 'infantry', wear: 'whole', troopId: 't1' },
+      { figurine: armor, role: 'armor', wear: 'whole', troopId: 't2' },
+    ]);
+    const leg = () => men.object.getObjectByName('leg_left')!.rotation.x;
+    return { pawn, leg, armor };
+  };
+  const go = (pawn: Pawn, x: number, elapsed: number | null, held = false) => {
+    pawn.place(new Vector3(x, 0, 0), new Vector3(x + 1, 0, 0));
+    pawn.step(elapsed, held);
+    pawn.orient(close.clone().setX(x), 0);
+  };
+
+  /** Its men are found once their files land (`figurine.ready`). */
+  const landed = () => new Promise((resolve) => setTimeout(resolve));
+
+  it('steps its men and jolts its vehicles at full motion', async () => {
+    const { pawn, leg, armor } = column();
+    await landed();
+    go(pawn, 0.01, 0.1);
+    const first = leg();
+    go(pawn, 0.02, 0.1);
+    expect(leg()).not.toBeCloseTo(first, 3);
+    expect(armor.object.rotation.x).not.toBe(0);
+  });
+
+  it('holds its men mid-stride in reduced motion, its vehicles level', async () => {
+    const { pawn, leg, armor } = column();
+    await landed();
+    go(pawn, 0.01, null, true);
+    expect(leg()).toBeCloseTo(-Math.sin(0.6 + 1.2) * 0.32, 6);
+    expect(armor.object.rotation.x).toBe(0);
+  });
+
+  it('stands its men without a stride when motion is cut', async () => {
+    const { pawn, leg } = column();
+    await landed();
+    go(pawn, 0.01, null);
+    expect(leg()).toBeCloseTo(0, 6);
+  });
+
+  it('leaves its file where it was last laid out, by troop, for the pile to deploy from (#362)', async () => {
+    const { pawn } = column();
+    await landed();
+    go(pawn, 0.01, 0.1);
+    const { road, pieces: file } = pawn.lastFile()!;
+    expect(file.map(({ troopId }) => troopId)).toEqual(['t1', 't2']);
+    expect(file[0]!.at.x).toBeCloseTo(0.01, 6);
+    // Going east (+x): the tank walks behind, and faces the way.
+    expect(file[1]!.at.x).toBeLessThan(0.01);
+    expect(file[1]!.heading).toBeCloseTo(Math.PI / 2, 6);
+    expect(file[1]!.back).toBeGreaterThan(0);
+    expect(file[1]!.at.x).toBeCloseTo(0.01 - file[1]!.back, 6);
+    // The road it came by, from the head back west, past its last piece.
+    expect(road[0]!.x).toBeCloseTo(0.01, 6);
+    expect(road.at(-1)!.x).toBeLessThan(file[1]!.at.x);
+    pawn.orient(new Vector3(0.01, 1e4, 0), 0);
+    expect(pawn.lastFile()).toBeNull();
+  });
+
+  it('stands men whose files land after the column stopped', async () => {
+    const { pawn, leg } = column();
+    go(pawn, 0.01, null);
+    await landed();
+    go(pawn, 0.01, null);
+    expect(leg()).toBeCloseTo(0, 6);
+  });
+});

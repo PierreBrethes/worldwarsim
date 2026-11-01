@@ -15,6 +15,7 @@ import { isNation } from '../../src/domain/nations';
 import { RESOURCES } from '../../src/domain/ids';
 import { nearestOutpost } from '../../src/domain/outposts';
 import { firesIndirect } from '../../src/domain/indirect-fire';
+import { arrivalFacing } from '../../src/domain/pile-facing';
 import {
   cargoTotal,
   movementCargoFields,
@@ -387,7 +388,18 @@ export async function standAt(
   /** What the troops ate until now, they ate where they stood: settle before the address
    *  changes the upkeep, or the new rate is charged backwards over the whole march. */
   await settle(ctx, movement.playerId, Date.now());
-  for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address });
+  const facing =
+    address !== null && typeof address !== 'string'
+      ? arrivalFacing(
+          movement.points.map(pointOf),
+          await standingPile(ctx, movement.playerId, address),
+          // Stopped on the way (a pursuit): the way it was going there, not at its route's end.
+          address.lon === movement.to.lon && address.lat === movement.to.lat
+            ? undefined
+            : pointOf(address),
+        )
+      : undefined;
+  for (const troop of marching) await ctx.db.patch(troop._id, { stationedAt: address, facing });
   await stationMovementLoot(ctx, movement, address);
   if (movement.boardsOn !== undefined)
     await boardOnArrival(ctx, movement.boardsOn, marching, address);
@@ -495,7 +507,7 @@ export async function attachHome(
   await settle(ctx, movement.playerId, Date.now());
   for (const troopId of movement.troopIds) {
     const troop = await ctx.db.get(troopId);
-    if (troop) await ctx.db.patch(troopId, { stationedAt: home });
+    if (troop) await ctx.db.patch(troopId, { stationedAt: home, facing: undefined });
   }
   return home;
 }
@@ -705,7 +717,7 @@ export async function walkHome(
       continue;
     }
     if (home.kind === 'stays') {
-      await ctx.db.patch(troop._id, { stationedAt: home.address });
+      await ctx.db.patch(troop._id, { stationedAt: home.address, facing: undefined });
       const address = home.address;
       const key =
         address === null
@@ -779,7 +791,7 @@ export async function walkHome(
     });
     if (plan === null) {
       const stationedAt = asPoint(from);
-      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt });
+      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt, facing: undefined });
       await stationCargoLoads(ctx, {
         seasonId: first.seasonId,
         playerId: first.playerId,
@@ -791,7 +803,7 @@ export async function walkHome(
     }
     if (plan.kind === 'standing') {
       const stationedAt = asPoint(from);
-      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt });
+      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt, facing: undefined });
       const credited = await creditToStorage(ctx, first.playerId, cargoTotal(load.loads), now);
       await recordCargoDelivery(ctx, load.loads, credited.delivered, credited.lost, {
         playerId: first.playerId,
@@ -851,7 +863,8 @@ export async function walkHome(
     const route = routeBetween(from, home.point, routeModeOf(roles), landCostOf(roles), home.quay);
     /** No road home — a landing whose transports sank, and nothing else. */
     if (route === null) {
-      for (const troop of group) await ctx.db.patch(troop._id, { stationedAt: home.stranded });
+      for (const troop of group)
+        await ctx.db.patch(troop._id, { stationedAt: home.stranded, facing: undefined });
       if (load !== undefined && !attachedCargo.has(load) && group[0]?.playerId === load.playerId) {
         await stationCargoLoads(ctx, {
           seasonId: group[0].seasonId,

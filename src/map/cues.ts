@@ -1,5 +1,6 @@
 import type { LonLat } from '@/domain/geo';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
+import { cameFrom } from '@/domain/pile-facing';
 import type { StandingPile } from './engine';
 
 /** **Une sortie de caserne** : où, dans quelle pile, et les groupes de la pile qui en sortent. */
@@ -114,8 +115,10 @@ export function rankKept(
   });
 }
 
-/** **Une colonne entrée en garnison** : où, dans quelle pile, quels groupes, d'où elle arrive. */
-export type Entree = Sortie & {
+/** **Une colonne entrée en garnison**, ou posée sur un point (#362, sans `siteId`) : où, dans
+ *  quelle pile, quels groupes, d'où elle arrive. */
+export type Entree = Omit<Sortie, 'siteId'> & {
+  readonly siteId?: string;
   /** The end of its route: where its pawn stood when the movement closed. */
   readonly at: LonLat;
   /** The point before it on the route: the way it came. */
@@ -132,7 +135,8 @@ type Column = {
  * **Les colonnes entrées en garnison** (décision de Pierre du 28/10) : chaque garnison
  * (`beside`) dont un groupe terrestre ne porte que des troupes qu'une de mes colonnes d'avant
  * portait. La pièce marche de la fin de sa route à sa place au rang, sans porte ni fondu. Une
- * garnison de quai n'en donne pas : une coque n'y marche pas à travers la terre.
+ * garnison de quai n'en donne pas : une coque n'y marche pas à travers la terre. Une pile posée
+ * sur un point (pas un avant-poste) en donne une sans bâtiment : la colonne s'y déploie (#362).
  */
 export function entreesOf(
   before: ReadonlyArray<Column>,
@@ -143,18 +147,26 @@ export function entreesOf(
     const at = points.at(-1);
     if (column.state !== 'mine' || at === undefined) return [];
     const carried = new Set(column.troopIds);
-    return piles.flatMap(({ id, at: where, pieces }) => {
-      if (!('beside' in where) || where.quay !== undefined) return [];
+    return piles.flatMap(({ id, at: where, pieces, label }) => {
+      // An outpost's garrison hangs from its label: no building, no front to deploy to (#299).
+      if ('beside' in where ? where.quay !== undefined : label !== undefined) return [];
       const groups = pieces.groups.flatMap(({ role, troopIds }, k) =>
         // A figurine that also carries troops already there (a squad drawn by role) stands; a
         // plane lands by its airfield's own storyboard (#269), not on foot.
         DOMAIN_BY_ROLE[role] === 'land' && troopIds.every((troop) => carried.has(troop)) ? [k] : [],
       );
-      // The way it came: the last point of its route that is not where it stands.
-      const toward = [...points].reverse().find(([lon, lat]) => lon !== at[0] || lat !== at[1]);
+      const toward = cameFrom(points);
       return groups.length === 0
         ? []
-        : [{ siteId: where.beside, pileId: id, groups, at, ...(toward ? { toward } : {}) }];
+        : [
+            {
+              ...('beside' in where ? { siteId: where.beside } : {}),
+              pileId: id,
+              groups,
+              at,
+              ...(toward ? { toward } : {}),
+            },
+          ];
     });
   });
 }

@@ -299,6 +299,8 @@ export type TroopView = {
   /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
    *  qu'à la même adresse que lui (`carrierIn`). */
   readonly carriedBy?: string;
+  /** **Le cap de sa pile posée** (#362), en degrés depuis le nord ; absent, le sud du plateau. */
+  readonly facing?: number;
   /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
   readonly load?: SupplyLoad;
   /** **Ancrée** (ADR 0028 §3) : elle se recharge à l'ancre. Absent en Mondiale, c'est une

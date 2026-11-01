@@ -44,6 +44,28 @@ l'imiter.
   dans l'eau).
 - **Hampe** : mât de 12 m au sol à x = −30, z = +100 ; drapeau de 3 × 2 m (3:2 exact).
 
+## Le socle, la cour, le signe
+
+Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site tient sur le socle ; le bâtiment, ses portes et ses pièces nommées gardent leurs mètres et leurs pivots, simplement rehaussés de 2,2 m (le dessus du socle). **Le bâtiment lui-même ne change pas.** Les x et z des tableaux qui suivent restent vrais.
+
+**Rehausse.** L'origine du fichier reste au même (x, z), au pied du socle (y = 0) ; le dessus du socle est à y = 2,2. Toute cote y des tableaux ci-dessous se lit **+2,2 m** : un pivot ou un repère donné à y = 0 passe à 2,2. En particulier : toute la cale, le hall, les bers et accores (pieds à y = 2,2 + la pente), la grue portique (pied du portique à 2,2, `grue_couronne` à y = 24,2), la pile de bois ; `coque_cale` à (0 ; 4,2 ; +85) ; `fx_bord_eau` en (0 ; 2,2 ; +105) ; le chemin de glissement va de y = 6,95 au fond à y = 2,2 en tête. Seul le socle descend jusqu'à y = 0, et `avant_cale` jusqu'à y = −1,5.
+
+- `socle`, fixe : rectangle aux coins arrondis (rayon 6 m), dessus à y = 2,2 m, biseau de 0,8 m à 45° sur tout le tour. Couleur papier, à peine plus claire que la feuille (#ebe1c8, L* 90), flanc et biseau plus sombres (#bfae8a). Ici 133 × 219 m : x de −44 à 89, z de −114 à 105. Le socle tient la part de terre du chantier : hall, cale, bers, pile de bois et pied de la grue portique. Son bord +z, en tête de cale (z = +105), est le quai : le socle s'arrête là, sans biseau ni liseré sur ce bord-là, et l'eau commence. 8 à 9 m de débord sur les trois autres côtés, 25 m de quai devant le hall (z de +80 à +105) pour la cour. Rien du site ne dépasse le socle, hormis `avant_cale` qui plonge dans l'eau, sauf le drapeau au vent.
+- `lisere`, fixe, matériau `lisere` à part (le jeu le teint à l'encre de la nation) : une bande de 3 m de large sur le bord du dessus du socle, 6 cm au-dessus, blanc neutre dans le GLB, sur les trois côtés de terre ; le bord du quai (z = +105) n'en porte pas.
+- `cour`, fixe : les sols peints sur le socle, 4 cm d'épaisseur au plus ; les rangs, tirets, joints et sillons sont peints dans l'atlas, pas modelés. Valeurs proches du socle : 10 à 20 points de L* plus sombres au plus, jamais saturées. Ici : dalles de béton du quai devant le hall (z de +80 à +105), gravier et traverses de bois ailleurs ; rails de la grue portique peints le long de x = +70 ; la pente de la cale (coulisses de bois) reste une pièce du bâtiment.
+- `signe`, fixe : la grue de chantier : grue à tour de treillis rouge minium, fixe, mât de 5 × 5 m et 44 m, flèche horizontale de 25 m portant un contrepoids, plantée en (−39 ; 2,2 ; +98) sur le quai côté terre. Elle ne bouge pas et ne se confond pas avec `grue`, le portique à flèche relevable qui reste au bâtiment. Il dépasse le bâtiment d'au moins un quart de sa hauteur (le bâtiment monte à 34 m, le signe à 43 m au moins au-dessus du socle) et le dit en silhouette noire de 40 px. Il porte seul la couleur chaude du site, une matière désaturée (brique, rayures, cuivre, minium), pas une couleur de jeu.
+- `hampe` et `drapeau` passent sur le signe (mêmes noms, mêmes pivots : pied de la hampe, coin haut de la toile). La hampe (6 m, au lieu de 12) est plantée au sommet du mât de la grue : pied en (−39 ; 46,2 ; +98). `fx_tete_hampe` les suit, au sommet de la hampe.
+- `fx_rang` : repère vide sur la cour, en (35 ; 2,2 ; 85), au milieu du bord du rectangle côté bâtiment ; +z vers le rang. La cour laisse libre le rectangle de 30 m (x de 20 à 50) sur 14 m (z de 85 à 99) devant lui pour la garnison (le jeu y pose ses figurines), et le chemin libre de `fx_sortie` à ce rectangle. Aucun accessoire ni signe n'y entre, et la cour n'y est pas plus sombre que le socle de plus de 20 points de L*.
+- **La mer et l'avant-cale.** Le socle est le quai : son dessus est à 2,2 m, la surface de la mer reste à y = 0 et lèche le flanc du socle. `avant_cale` ne change pas de forme ni de nom : il part de la tête de cale (z = +105, y = 2,2) et descend sous l'eau jusqu'à y = −1,5 (z = +117), donc plus raide qu'avant ; c'est la seule pièce qui dépasse le socle et passe sous y = 0.
+- **Le môle** part du bord +x du socle, côté grue (kit `mole.glb`, posé par le jeu) : le socle n'en dessine rien.
+- Accessoires par niveau et par état, chacun un groupe fixe, tous masqués sauf un par le jeu : `niveau_1` (toujours : le minimum d'un site vivant, deux bornes peintes et un petit fanal de 2 m), `niveau_2` et `niveau_3` (ils s'ajoutent), `chantier`, `ruines`. 20 à 80 triangles par objet, 150 par groupe au plus ; aucun ne ressemble à une pièce du jeu (ni soldat, ni véhicule, ni avion, ni canon, ni bateau).
+  - `niveau_2` : une pile de madriers supplémentaire et un baraquement de tôle de 10 × 5 m sur le terre-plein, près de la pile de bois, en (−30 ; 2,2 ; +50).
+  - `niveau_3` : un atelier de forge ouvert à toit de tôle de 12 × 6 m et quatre cuves à rivets ; un réservoir d'eau sur pylône de 8 m côté terre, en (−38 ; 2,2 ; −90).
+  - `chantier` : échafaudage de tubes sur les flancs du hall, une chèvre de levage rouge de 12 m, tas de sable, madriers et rivets en tas. Le jeu coupe le bâtiment par un plan qui monte ; l'échafaudage ne dépasse pas le bâtiment et n'a besoin d'aucune pièce nommée.
+  - `ruines` : gravats et poutres tordues autour du hall, charpente métallique effondrée à mi-hauteur, pans de brique arasés à 3 m, trace de feu sur le quai ; le chemin de glissement reste sain.
+- Budget : le bâtiment 2 500 triangles au plus ; socle, liseré, cour et signe 700 au total ; chaque groupe d'accessoires 150 ; **total sous 3 500 dans n'importe quel état**. Atlas WebP 512² au plus : cinq cases de plus (papier du socle, gravier, béton d'aire, labours, toile de tente).
+- Contrôle : vu de haut à 45°, socle de 64 px de large, le site se reconnaît à son signe ; à 25 px, socle, liseré et signe seuls le disent encore. Le socle fait partie du modèle : ce n'est pas un « sol » à retirer à l'export.
+
 ## Pièces nommées
 
 | Nœud | Origine (pivot) | Axe et mouvement | Taille |
@@ -75,14 +97,13 @@ UV 0 → 1 sur toute la toile.
 ## Matériaux et texture
 
 - Matériaux nommés par matière (`tole`, `brique`, `acier`, `bois_neuf`, `beton`, `interieur`…),
-  une seule texture atlas de 1 024 px au plus, peinte sur canvas.
+  une seule texture atlas de 512 px au plus, peinte sur canvas.
 - `vitres` : les bandes vitrées du hall et le lanterneau.
 - `interieur` : le dedans du hall, sombre, visible par le bout ouvert.
 - Figurine peinte, contours nets, couleurs d'époque désaturées (tôle grise, brique, acier minium
   sur la coque, bois clair des bers). Aucun drapeau peint, aucun insigne.
 - Lisible de haut à 30° sous la verticale : la coque sur sa cale et la grue se lisent d'abord.
-- **Moins de 3 500 triangles** : les membrures se dessinent par la texture plus que par la
-  géométrie.
+- **Budget : 3 500 triangles par site**, dans n'importe quel état : 2 500 au plus pour le bâtiment, 700 pour le socle, le liseré, la cour et le signe, 150 par groupe d'accessoires (section « Le socle, la cour, le signe »).
 
 ## Ce que le modèle doit permettre
 
@@ -105,9 +126,12 @@ UV 0 → 1 sur toute la toile.
   caméra, ni eau, ni sol. Ni meshopt, ni quantification. Texture en WebP si possible, sinon PNG.
 - Dans la page, un curseur qui joue le lancement (coque et bers qui glissent, accores qui
   tombent) et un autre qui tourne la grue et relève sa flèche.
-- 1 unité = 1 m ; 210 m de long en z ; la coque fait 130 m, étrave côté terre ; rien sous y = 0
+- 1 unité = 1 m ; 210 m de long en z ; la coque fait 130 m, étrave côté terre ; le dessus du socle à y = 2,2 et le bâtiment posé dessus, rien sous y = 0
   sauf `avant_cale`.
 - `fx_bord_eau` exactement en tête de cale, orienté +z.
 - Tous les noms ci-dessus présents à l'identique (les anciens `coque`, `door_left`,
   `door_right`, `vantail`, `moufle`, `cable_crochet` disparaissent).
-- Moins de 3 500 triangles.
+- Budget de 3 500 triangles par état (bâtiment ≤ 2 500).
+- Le socle (dessus à y = 2,2 m, rayon de coin 6 m, biseau 0,8 m), `lisere` (matériau `lisere`), `cour`, `signe`, `fx_rang`, `niveau_1`, `niveau_2`, `niveau_3`, `chantier` et `ruines` présents, écrits à l'identique ; `hampe`, `drapeau` et `fx_tete_hampe` sur le signe, mêmes noms, mêmes pivots.
+- Le bâtiment inchangé et rehaussé de 2,2 m ; la cour libre du rectangle de 30 × 14 m devant `fx_rang` ; aucun accessoire ne ressemble à une pièce du jeu.
+- Dans la page, des cases pour montrer un seul groupe (`niveau_2`, `niveau_3`, `chantier`, `ruines`) et compter les triangles de chaque état : moins de 3 500 dans tous.

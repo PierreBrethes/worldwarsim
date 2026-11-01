@@ -62,6 +62,11 @@ export type Sequence<F extends RigFamily = RigFamily> = {
   /** The least size of the piece on screen for it to play, in px on the 900 px reference window;
    *  `PLAY_PX` when absent. A truck never reads at a building's size: the zoom stops short. */
   readonly minPx?: number;
+  /** **A column deploying at its arrival** (#362) plays on a ceiling of its own
+   *  (`MAX_DEPLOYING`): a file of six must not wait on the barracks' doors, nor shut them. */
+  readonly pool?: 'deployment';
+  /** It plays at reduced motion too: a held pose, nothing moves (the file that holds, #362). */
+  readonly reduced?: true;
   at(t: number): Pose<F>;
 };
 
@@ -82,6 +87,10 @@ export type SequenceHost = {
 export const PLAY_PX = 150;
 /** **Au plus tant de copies à la fois** ; au-delà, la pose finale. `@a-mesurer` */
 export const MAX_PLAYING = 4;
+/** **Au plus tant de pièces qui se déploient à la fois** (#362). Une file plus longue — une
+ *  colonne Blitz de neuf unités ou plus (`unitPieces`) — ne se déploie pas du tout : elle se pose
+ *  d'un coup. `@a-mesurer` */
+export const MAX_DEPLOYING = 8;
 
 /** **Un signal** : ce que la vue vient d'apprendre et que la carte joue. Grandit par lot. */
 export type Cue =
@@ -102,6 +111,13 @@ export type Cue =
       readonly at: LonLat;
       readonly toward?: LonLat;
     }
+  /** **A column deploys at its point** (#362): `groups` of `pileId` leave the file the pawn
+   *  left (`ArcLayer.fileLeftBy`) for their places in the pile. */
+  | {
+      readonly kind: 'deploiement';
+      readonly pileId: string;
+      readonly groups: ReadonlyArray<number>;
+    }
   /** A troop steps down from a truck: `groupId` is `${pileId}/${group}` (`StandingLayer`). */
   | { readonly kind: 'descente'; readonly groupId: string }
   /** **A combat at its point** (#272): first without its view, to hide the point while it is
@@ -113,6 +129,9 @@ export type Cue =
       readonly view: ReplayView | null;
       readonly toward: LonLat | null;
     };
+
+const ceilingOf = (pool: Sequence['pool']): number =>
+  pool === 'deployment' ? MAX_DEPLOYING : MAX_PLAYING;
 
 type Rest = { readonly position: Vector3; readonly quaternion: Quaternion };
 
@@ -170,7 +189,8 @@ function onTheBoard(node: Object3D, rest: Rest, { travel, heading }: PartPose): 
 }
 
 export class SequenceLayer {
-  /** `full` seul joue ; tout autre réglage finit les séquences en cours à la prochaine image. */
+  /** `full` seul joue, et `reduced` une pose tenue (`Sequence.reduced`) ; tout autre réglage
+   *  finit les séquences en cours à la prochaine image. */
   motion: MapMotion = 'full';
   private readonly playing: Playing[] = [];
 
@@ -190,7 +210,8 @@ export class SequenceLayer {
     now: number,
     at = now,
   ): boolean {
-    if (this.motion !== 'full' || this.playing.length >= MAX_PLAYING) return false;
+    if (!this.plays(sequence) || this.playingIn(sequence.pool) >= ceilingOf(sequence.pool))
+      return false;
     if (this.playsOn(host, id)) return false;
     const piece = host.pieceOf(id);
     const { family } = sequence;
@@ -259,7 +280,7 @@ export class SequenceLayer {
       const t = now - playing.start;
       const piece = playing.host.pieceOf(playing.id);
       if (
-        this.motion !== 'full' ||
+        !this.plays(playing.sequence) ||
         t >= playing.sequence.ms ||
         piece === null ||
         (piece.box !== null && !this.sees(piece.box, playing.sequence.minPx ?? PLAY_PX))
@@ -286,9 +307,22 @@ export class SequenceLayer {
     return this.playing.some((p) => p.host === host && p.id === id);
   }
 
-  /** How many more pieces may play now (`MAX_PLAYING`). */
+  /** How many more pieces may play now (`MAX_PLAYING`), a deployment aside. */
   get room(): number {
-    return MAX_PLAYING - this.playing.length;
+    return this.roomFor(undefined);
+  }
+
+  /** How many more pieces of `pool` may play now (`MAX_DEPLOYING` for a deployment). */
+  roomFor(pool: Sequence['pool']): number {
+    return ceilingOf(pool) - this.playingIn(pool);
+  }
+
+  private plays({ reduced }: Sequence): boolean {
+    return this.motion === 'full' || (this.motion === 'reduced' && reduced === true);
+  }
+
+  private playingIn(pool: Sequence['pool']): number {
+    return this.playing.filter(({ sequence }) => sequence.pool === pool).length;
   }
 
   get active(): boolean {

@@ -305,6 +305,25 @@ const eastOf = (point: LonLat, km: number): LonLat => [
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 
 describe('a posted column founds an outpost where it stands', () => {
+  it('leaves the heading of its pile behind: a garrison does not turn (#362)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const point = regionFacts(PRAHOVA)!.point;
+    const posted = await post(t, seat, point);
+    await t.run((ctx) => ctx.db.patch(posted, { facing: 90 }));
+    await t.mutation(api.movements.foundOutpostHere, {
+      regionId: null,
+      ...seat,
+      point: { lon: point[0], lat: point[1] },
+      specialization: 'relay',
+      troopIds: [posted],
+    });
+    expect((await t.run(async (ctx) => ctx.db.get(posted)))!.facing).toBeUndefined();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
@@ -2059,6 +2078,58 @@ describe('a march goes to a point and the column stays there', () => {
     expect((await t.run(async (ctx) => ctx.db.get(troop)))!.stationedAt).toEqual(asPoint(AIMED));
     expect(await movementsOf(t, seat)).toHaveLength(0);
     expect(await engagementsIn(t)).toHaveLength(0);
+  });
+
+  /** **La pile garde le cap de son arrivée** (#362) : celui de la fin de sa route, servi à son seul
+   *  propriétaire ; une colonne qui la rejoint prend le sien. */
+  it('keeps the heading it came by, told to its owner only, and lends it to a column joining it', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [first],
+      point: asPoint(AIMED),
+    });
+    const [sent] = await movementsOf(t, seat);
+    const end = sent!.points.at(-1)!;
+    const before = [...sent!.points]
+      .reverse()
+      .find(({ lon, lat }) => lon !== end.lon || lat !== end.lat)!;
+    const heading = bearingDegrees([before.lon, before.lat], [end.lon, end.lat]);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const mine = await t.query(api.view.playerView, seat);
+    expect(mine.me.troops.find((troop) => troop.id === first)!.facing).toBeCloseTo(heading, 6);
+    // The guest has surveyed the pile: he sees it stand, never the way it faces.
+    await surveyCamp(t, guest, asPoint(AIMED));
+    const theirs = await t.query(api.view.playerView, guest);
+    expect(theirs.camps.length).toBeGreaterThan(0);
+    expect(JSON.stringify(theirs)).not.toContain('facing');
+
+    // A cap the second route could not give: the pile's own.
+    await t.run((ctx) => ctx.db.patch(first, { facing: 7 }));
+    const second = await form(t, seat, 'infantry', barracks);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [second],
+      point: asPoint(AIMED),
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const joined = await t.query(api.view.playerView, seat);
+    expect(joined.me.troops.find((troop) => troop.id === second)!.facing).toBe(7);
+
+    // On the road again, it faces nothing: a capture or a return home would stand it backwards.
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(AIMED) },
+      troopIds: [first],
+      point: asPoint([25.6, 44.4]),
+    });
+    expect((await t.run(async (ctx) => ctx.db.get(first)))!.facing).toBeUndefined();
   });
 
   it('refuses a point the map does not carry', async () => {

@@ -64,6 +64,7 @@ import type { MouseMapping } from '@/domain/mouse-mapping';
 import { MAT_LIFT_HUD, useBoardInsets, useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
 import { Price } from '@/shell/Price';
 import type { Cost } from '@/domain/player-view';
+import type { PilePieces } from '@/domain/pile-pieces';
 import { RouteScale } from './RouteScale';
 import type { CargoAim } from './CargoTags';
 import { CombatReports } from './CombatReports';
@@ -113,6 +114,8 @@ type Props = {
   arcs: ReadonlyArray<ArcView>;
   /** My troops: a movement's wear is read on them, the arc does not carry strength. */
   troops: ReadonlyArray<TroopView>;
+  /** What each movement of mine shows on land, by its id (#276, `marchingPiecesOf`). */
+  columns: ReadonlyMap<string, PilePieces>;
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
   labels: ReadonlyArray<MapLabel>;
@@ -415,6 +418,7 @@ export function WorldMap({
   shore,
   arcs,
   troops,
+  columns,
   journal,
   labels: servedLabels,
   standing: servedStanding,
@@ -1389,8 +1393,8 @@ export function WorldMap({
   const designatedArc = arcs.find((arc) => arc.id === accentedMovement) ?? null;
 
   useEffect(() => {
-    engine.current?.displayArcs(arcs, troops);
-  }, [arcs, troops]);
+    engine.current?.displayArcs(arcs, troops, columns);
+  }, [arcs, troops, columns]);
 
   useEffect(() => {
     readyEngine?.displayStanding(standing);
@@ -1542,14 +1546,18 @@ export function WorldMap({
   }, [troops, standing, readyEngine]);
 
   // A column entered a garrison: it walks from the end of its route to its rank (décision de
-  // Pierre du 28/10). Its columns of the view before say who came; nothing on the first view.
+  // Pierre du 28/10); stood on a point, it deploys there (#362). Its columns of the view before say who came; nothing on the first view.
   const columnsKnown = useRef<ReadonlyArray<ArcView> | null>(null);
   useEffect(() => {
     const before = columnsKnown.current;
     columnsKnown.current = arcs;
     if (before === null) return;
-    for (const entree of entreesOf(before, standing))
-      readyEngine?.cue({ kind: 'entree', ...entree });
+    for (const { siteId, ...entree } of entreesOf(before, standing))
+      readyEngine?.cue(
+        siteId === undefined
+          ? { kind: 'deploiement', pileId: entree.pileId, groups: entree.groups }
+          : { kind: 'entree', siteId, ...entree },
+      );
   }, [arcs, standing, readyEngine]);
 
   useEffect(() => {

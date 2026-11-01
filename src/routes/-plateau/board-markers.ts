@@ -7,7 +7,7 @@ import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
 import { isRangoonColumn } from '@/domain/strategic-points';
 import type { StandingPile } from '@/map/engine';
 import { rangoonReachOf, type LabelLine, type MapMarker } from '@/domain/labels';
-import { pilePieces, unitPieces } from '@/domain/pile-pieces';
+import { pilePieces, unitPieces, type PilePieces } from '@/domain/pile-pieces';
 import { COUNTRY_BY_NATION, isNation, nationInk } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import { lootWords } from '@/domain/journal';
@@ -17,8 +17,8 @@ import { DEPOSIT_POINTS } from '@/domain/world';
 import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
-import type { PlayerView, Stack, TroopStation, TroopView } from '@/domain/player-view';
-import { PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
+import type { ArcView, PlayerView, Stack, TroopStation, TroopView } from '@/domain/player-view';
+import { DOMAIN_BY_ROLE, PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
 import { outpostPinId } from '@/domain/pins';
 import { stackLabelId } from '@/domain/force-highlight';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
@@ -355,7 +355,7 @@ export function standingPilesOf(
         : [],
     ),
     ...garrisonPiles(me, marching),
-  ].map((pile) => (blitz ? blitzPile(pile, me.troops) : pile));
+  ].map((pile) => withFacing(blitz ? blitzPile(pile, me.troops) : pile, me.troops));
 }
 
 export const campsOf = (markers: ReadonlyArray<MapMarker>) =>
@@ -489,6 +489,40 @@ function garrisonPiles(
       ),
     ),
   ];
+}
+
+/**
+ * **Ce que chacun de mes mouvements de terre montre sur la route** (#276), par son id : ses
+ * troupes de terre comme au repos — en Mondiale la pile (`pilePieces`), en Blitz ses unités —,
+ * dans le même ordre. Rien pour ce qui n'est pas à moi : la file ne se lit que sur mes troupes.
+ */
+export function marchingPiecesOf(
+  arcs: ReadonlyArray<ArcView>,
+  troops: ReadonlyArray<TroopView>,
+  blitz: boolean,
+): ReadonlyMap<string, PilePieces> {
+  return new Map(
+    arcs.flatMap((arc) => {
+      if (arc.state !== 'mine' || !arc.route.legs.some(({ medium }) => medium === 'land'))
+        return [];
+      const carried = new Set(arc.troopIds);
+      const walking = troops.filter(
+        (troop) => carried.has(troop.id) && DOMAIN_BY_ROLE[troop.role] === 'land',
+      );
+      return walking.length === 0
+        ? []
+        : [[arc.id, blitz ? unitPieces(walking) : pilePieces(walking)] as const];
+    }),
+  );
+}
+
+/** **Le cap de la pile** (#362) : celui de ses troupes, qu'une arrivée leur donne à toutes ; une
+ *  pile de point seulement — une garnison d'avant-poste pend à son étiquette et ne se tourne pas. */
+function withFacing(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
+  if (!('lonLat' in pile.at) || pile.label !== undefined) return pile;
+  const here = new Set(pile.pieces.troopIds);
+  const facing = troops.find((troop) => here.has(troop.id) && troop.facing !== undefined)?.facing;
+  return facing === undefined ? pile : { ...pile, facing };
 }
 
 function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
