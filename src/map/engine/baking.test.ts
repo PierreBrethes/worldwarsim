@@ -138,9 +138,11 @@ describe('bakedSite (ADR 0038)', () => {
   };
 
   it.each(files)('bakes %s, which has no socle, as before: all building', (url) => {
-    const { building, dressing } = bakedSite(sceneOfFile(url));
+    const { building, dressing, yard, sign } = bakedSite(sceneOfFile(url));
     const today = before(url);
     expect(dressing).toEqual([]);
+    expect(yard).toEqual([]);
+    expect(sign).toBeNull();
     expect(building.map((part) => part.material.name)).toEqual(
       today.map((part) => part.material.name),
     );
@@ -162,6 +164,20 @@ describe('bakedSite (ADR 0038)', () => {
     expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
     // Its flagpole went to the sign: the building keeps its walls and roofs alone.
     expect(trianglesOf(building)).toBe(1855);
+  });
+
+  it('bakes the yard and the sign apart, the sign with its foot (ADR 0038 §7)', () => {
+    const { dressing, yard, sign } = bakedSite(sceneOfFile(SOCLE));
+    // The socle and its liseré stand to the pin; the yard shrinks with the building.
+    expect(dressing.map((part) => part.material.name).sort()).toEqual(['lisere', 'socle']);
+    expect(boxOf(dressing).max.y).toBeLessThan(2.5);
+    expect(yard.map((part) => part.material.name)).toEqual(['socle']);
+    expect(boxOf(yard).min.y).toBeGreaterThan(2.2);
+    // The sign grows on its foot, the signe node's place on the socle top; its mast and pole in it.
+    expect(sign!.foot.toArray()).toEqual([18, 2.2, 22]);
+    expect(boxOf(sign!.parts).min.y).toBeCloseTo(2.2, 3);
+    expect(sign!.height).toBeGreaterThan(24);
+    expect(sign!.height).toBeLessThan(30);
   });
 
   it('draws the first level of a yard, and none of the accessories that come later', () => {

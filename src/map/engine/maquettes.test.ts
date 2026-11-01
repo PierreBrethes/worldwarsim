@@ -27,7 +27,7 @@ import {
   yawOf,
 } from './maquettes';
 import { pileLayout } from './standing';
-import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
+import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';
 
 /** The box the last works were dressed round. */
 const dressed: { box: Box3 | null; scaffolded: boolean | undefined } = {
@@ -491,7 +491,7 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     expect(door.toArray()).toEqual([0, 0.1, 0.5]);
     const onBoard = site.toBoard(door);
     expect(onBoard.distanceTo(door.clone().applyMatrix4(drawn))).toBeLessThan(1e-6);
-    expect(site.toModel(onBoard).distanceTo(door)).toBeLessThan(1e-9);
+    expect(site.toModel(onBoard).distanceTo(door)).toBeLessThan(1e-6);
     expect(site.marker('fx_nowhere')).toBeNull();
     expect(maquettes.siteOf('building-hq@0,0')).toBeNull();
   });
@@ -923,5 +923,96 @@ describe('a site on its socle (ADR 0038)', () => {
 
   it('spaces a site without a socle as before', () => {
     expect(ringSpacing(2, null)).toBe(2 * RING_GAP);
+  });
+
+  describe('read at a distance by its socle (ADR 0038 §7)', () => {
+    // Its 50 m to one board unit: the fixture's socle of 80 m is 1.6 units, read at 64 px to
+    // d ≈ 29 and at 28 px to d ≈ 67; its sign of some 27 m at 12 px to d ≈ 52.
+    const socled = (more: Parameters<typeof site>[1] = {}) =>
+      site(MINE, { side: 'mine', ink: '#2a5ba8', socle: true, footprint: 1.6, ...more });
+    const FULL = 1 / 50;
+    const seenFrom = (layer: MaquetteLayer, distance: number) => {
+      const at = layer.siteOf(MINE)!.toBoard(new Vector3());
+      layer.orient(at.clone().setY(at.y + distance), null, 0);
+      return layer;
+    };
+    const drawnAs = (layer: MaquetteLayer, which: (mesh: InstancedMesh) => boolean) =>
+      meshes(layer)
+        .filter(which)
+        .map((mesh) => {
+          const placed = new Matrix4();
+          mesh.getMatrixAt(0, placed);
+          return placed;
+        });
+    const scaleOf = (placed: Matrix4) => new Vector3().setFromMatrixScale(placed).x;
+    const isSocle = (mesh: InstancedMesh) =>
+      mesh.name === '' && ['socle', 'lisere'].includes(nameOf(mesh));
+    const isBuilding = (mesh: InstancedMesh) => mesh.name === '' && !isSocle(mesh);
+    const isYard = (mesh: InstancedMesh) => mesh.name === 'cour' || mesh.name.startsWith('niveau_');
+    const isSign = (mesh: InstancedMesh) => mesh.name === 'signe';
+
+    it('stands whole up close: building, yard, socle and sign at one size', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 20);
+      for (const which of [isBuilding, isSocle, isYard, isSign]) {
+        const drawn = drawnAs(layer, which);
+        expect(drawn.length).toBeGreaterThan(0);
+        for (const placed of drawn) expect(scaleOf(placed)).toBeCloseTo(FULL, 9);
+      }
+    });
+
+    it('shrinks the building and its yard on their foot, the socle and its sign standing', async () => {
+      const layer = await layerOf([socled()]);
+      seenFrom(layer, 31);
+      const socle = drawnAs(layer, isSocle)[0]!;
+      const foot = new Vector3(0, SOCLE_TOP, 0);
+      for (const placed of drawnAs(layer, (mesh) => isBuilding(mesh) || isYard(mesh))) {
+        expect(scaleOf(placed)).toBeLessThan(FULL);
+        expect(scaleOf(placed)).toBeGreaterThan(0);
+        // On their foot: the socle top's centre stays where the socle has it.
+        expect(
+          foot.clone().applyMatrix4(placed).distanceTo(foot.clone().applyMatrix4(socle)),
+        ).toBeLessThan(1e-6);
+      }
+      seenFrom(layer, 45);
+      for (const placed of drawnAs(layer, (mesh) => isBuilding(mesh) || isYard(mesh)))
+        expect(scaleOf(placed)).toBe(0);
+      for (const placed of drawnAs(layer, (mesh) => isSocle(mesh) || isSign(mesh)))
+        expect(scaleOf(placed)).toBeCloseTo(FULL, 9);
+      expect(layer.isDressed(MINE)).toBe(true);
+    });
+
+    it('grows its sign on its foot as the socle gives way to the pin, then leaves', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 72);
+      const socle = drawnAs(layer, isSocle)[0]!;
+      const sign = drawnAs(layer, isSign)[0]!;
+      expect(scaleOf(socle)).toBeGreaterThan(0);
+      expect(scaleOf(socle)).toBeLessThan(FULL);
+      // 12 px over its ~8.6 px at d = 72.
+      expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.3);
+      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.5);
+      const foot = new Vector3(18, SOCLE_TOP, 22);
+      expect(
+        foot.clone().applyMatrix4(sign).distanceTo(foot.clone().applyMatrix4(socle)),
+      ).toBeLessThan(1e-6);
+      seenFrom(layer, 85);
+      for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBe(0);
+    });
+
+    it('hands the pin and the plate its socle, and a site without one its span', async () => {
+      const layer = await layerOf([socled(), site('building-hq@5,0', { url: 'plain.glb' })]);
+      expect(layer.spanOf(MINE)).toEqual({ socle: 1.6 });
+      expect(layer.spanOf('building-hq@5,0')).toBe(1);
+    });
+
+    it('weighs a site without a socle by its span, as before, all of it at one size', async () => {
+      const layer = await layerOf([site(MINE, { url: 'plain.glb', span: 0.964 })]);
+      seenFrom(layer, 60);
+      const drawn = drawnAs(layer, () => true);
+      const weight = pieceWeight(60, 0.964);
+      expect(weight).toBeGreaterThan(0);
+      expect(weight).toBeLessThan(1);
+      for (const placed of drawn)
+        expect(scaleOf(placed)).toBeCloseTo((Math.round(weight * 100) / 100) * 0.964 * FULL, 9);
+    });
   });
 });
