@@ -63,6 +63,11 @@ export type StandingMaquette = {
   readonly works?: Works;
   /** One of my producers at work: a thread of smoke rises from its chimneys. */
   readonly smoking?: boolean;
+  /** **Who its socle's liseré says holds it** (ADR 0038 §2-§3): mine in my ink, a survey and a
+   *  neutral of the Blitz hollow in the board's ink. Absent for an objective: no liseré. */
+  readonly side?: 'mine' | 'seen' | 'neutral';
+  /** My ink (`marker.ink`), for a site that is `mine` alone: a survey serves no nation. */
+  readonly ink?: string;
 };
 
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */
