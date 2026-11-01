@@ -338,7 +338,7 @@ describe('maquettes', () => {
   it.each(objectives)('%s keeps to the brief', (url) => {
     const gltf = readGlb(url);
     expect(trianglesOf(gltf)).toBeLessThanOrEqual(TRIANGLES);
-    // One material per primitive, named: the board merges by material (`bakedParts`), and a
+    // One material per primitive, named: the board merges by material (`bakedSite`), and a
     // primitive without one would wear the loader's grey default.
     for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
       expect(primitive.material).toBeTypeOf('number');

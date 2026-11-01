@@ -12,7 +12,6 @@ import {
   BufferAttribute,
   Color,
   ConeGeometry,
-  CylinderGeometry,
   ExtrudeGeometry,
   Shape,
   ShapeGeometry,

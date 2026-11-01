@@ -13,7 +13,9 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { RIG_PARTS } from '@/emblems/rigs';
-import { bakedParts, bakedRig, bakedSite, type Part } from './baking';
+import { bakedRig, bakedSite, type Part } from './baking';
+
+const bakedParts = (scene: Parameters<typeof bakedSite>[0]) => bakedSite(scene).building;
 import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene.fixture';
 
 describe('bakedParts', () => {

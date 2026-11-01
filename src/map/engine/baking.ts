@@ -4,20 +4,6 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export type Part = { readonly geometry: BufferGeometry; readonly material: Material };
 
 /**
- * **A sculpted scene flattened into one geometry per material**, every node's placement baked
- * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
- * draw calls. Meshes whose attributes do not match stay apart.
- */
-export function bakedParts(scene: Object3D): Part[] {
-  scene.updateMatrixWorld(true);
-  const meshes: Mesh[] = [];
-  walk(scene, (object) => {
-    if ((object as Mesh).isMesh) meshes.push(object as Mesh);
-  });
-  return mergedByMaterial(meshes, new Matrix4());
-}
-
-/**
  * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
  * is cut by its works. The rest of the scene is the building.
  */
@@ -45,9 +31,11 @@ export const isDrawn = (node: Object3D): boolean =>
   node.name !== 'drapeau' && !LATER.has(node.name);
 
 /**
- * **A site baked in two** (ADR 0038): its building, and the dressing it stands on — socle,
- * liseré, yard, sign and the accessories drawn. A model without a socle is all building, baked
- * as `bakedParts` bakes it.
+ * **A sculpted scene flattened into one geometry per material**, every node's placement baked
+ * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
+ * draw calls. Meshes whose attributes do not match stay apart. A site is baked in two (ADR
+ * 0038): its building, and the dressing it stands on — socle, liseré, yard, sign and the
+ * accessories drawn. A model without a socle is all building.
  */
 export function bakedSite(scene: Object3D): { building: Part[]; dressing: Part[] } {
   scene.updateMatrixWorld(true);
@@ -76,7 +64,7 @@ function walk(node: Object3D, visit: (node: Object3D) => void): void {
 /**
  * **A scene baked around the nodes that move** (ADR 0036 §1): each node `keeps` retains keeps
  * its name, its pivot and what hangs from it; the meshes under it merge per material; every
- * other node is gone. At rest it draws exactly what `bakedParts` does. A pose replaces a kept
+ * other node is gone. At rest it draws exactly what `bakedSite` does. A pose replaces a kept
  * node's own rotation: what turned above it and is merged away (a leaning torso) rides on a
  * carrier, or an arm would swing square to the hips.
  */
