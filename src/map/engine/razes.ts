@@ -129,6 +129,12 @@ export class RazeLayer {
           emissive: standard?.emissive.clone() ?? null,
         });
         const mesh = new Mesh(part.geometry, material);
+        // A sign grown on its foot, a building shrunk on its socle (`Drawn.parts`).
+        (part as Drawn['parts'][number]).within?.decompose(
+          mesh.position,
+          mesh.quaternion,
+          mesh.scale,
+        );
         mesh.userData.building = true;
         body.add(mesh);
       }

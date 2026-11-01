@@ -116,7 +116,9 @@ export function yawOf(id: string): number {
 
 /** **What a maquette is drawn as, and where** (`drawnOf`): what a raze outlives it by (#326). */
 export type Drawn = {
-  readonly parts: ReadonlyArray<Part>;
+  /** Each part placed in its own units by `within` when it is not drawn at the matrix alone: a
+   *  sign grown on its foot, a building shrunk on its socle (ADR 0038 §7). */
+  readonly parts: ReadonlyArray<Part & { readonly within?: Matrix4 }>;
   readonly matrix: Matrix4;
   readonly box: Box3;
   /** **How a site on a socle ends** (ADR 0038 §5): its yard's `ruines` stand in place of the level
@@ -550,6 +552,8 @@ const BOUNCE_MS = 450;
 const matrix = new Matrix4();
 const shrunk = new Matrix4();
 const signMatrix = new Matrix4();
+/** The building's, its yard's and its accessories' placement (`dioramaMatrix`). */
+const standing = new Matrix4();
 const grown = new Matrix4();
 const lifted = new Vector3();
 const scale = new Vector3();
@@ -682,7 +686,7 @@ export class MaquetteLayer implements SequenceHost {
         near: -1,
         // Kept over a rebuild with the weight it was drawn at, for a raze that reads it (#326).
         diorama: drawn.get(maquette.id)?.diorama ?? -1,
-        signGrowth: 1,
+        signGrowth: drawn.get(maquette.id)?.signGrowth ?? 1,
         drawnNear: drawn.get(maquette.id)?.drawnNear ?? 0,
         // A site at work and a ghost of a survey do not produce.
         smoking: maquette.smoking === true && !maquette.works && !maquette.washed,
@@ -942,17 +946,33 @@ export class MaquetteLayer implements SequenceHost {
       inked.color.copy(item.lisere);
       return { geometry: mesh.geometry, material: inked };
     };
-    // Seen from afar on its socle, its building and yard have shrunk away (ADR 0038 §7): the
-    // socle falls alone, without ruins.
-    const far = item.diorama < item.drawnNear;
+    // Seen from afar on its socle, its building and yard shrink on it, and are gone below
+    // 64 px; its sign grows (ADR 0038 §7). Shrunk, it falls without ruins.
+    const shrinking = item.diorama < item.drawnNear;
+    const gone = item.diorama <= 0;
     // On a socle that has ruins, the yard of the level falls away and the ruins stand in its place.
-    const ruins = far ? undefined : model.accessories.get('ruines');
-    const kept = far
+    const ruins = shrinking ? undefined : model.accessories.get('ruines');
+    const kept = gone
       ? lot.meshes.filter((m) => !lot.diorama.includes(m))
       : ruins === undefined
         ? lot.meshes
         : lot.meshes.filter((m) => !lot.accessories.includes(m));
-    const parts = kept.map(partOf);
+    const sunk =
+      shrinking && !gone
+        ? grownOn(new Vector3(0, SOCLE_TOP, 0), item.diorama / item.drawnNear).clone()
+        : undefined;
+    const grownSign =
+      model.sign !== null && item.signGrowth !== 1
+        ? grownOn(model.sign.foot, item.signGrowth).clone()
+        : undefined;
+    const parts = kept.map((mesh) => {
+      const within = lot.sign.includes(mesh)
+        ? grownSign
+        : lot.diorama.includes(mesh)
+          ? sunk
+          : undefined;
+      return within === undefined ? partOf(mesh) : { ...partOf(mesh), within };
+    });
     const shell = parts.filter((_, k) => lot.shell.includes(kept[k]!));
     return {
       parts,
@@ -1084,9 +1104,8 @@ export class MaquetteLayer implements SequenceHost {
   /** **What a label's maquette is pinned by** — its socle, or its span —, `null` for none
    *  drawn here. */
   spanOf(id: string): PinnedBy | null {
-    const item = this.byId.get(id)?.item;
-    if (item === undefined) return null;
-    return item.socle === null ? item.span : { socle: item.socle };
+    const dressed = this.byId.get(id);
+    return dressed === undefined ? null : pinnedBy(dressed.lot.model, dressed.item);
   }
 
   /** **Where a maquette is drawn when a ring carried it off its point** — the label's fanion stays
@@ -1140,7 +1159,7 @@ export class MaquetteLayer implements SequenceHost {
         moved = true;
         const size = near * sizeOf(lot.model!, item);
         matrix.compose(item.at, item.turn, scale.set(size, size * (bounce ?? 1), size));
-        dioramaMatrix(lot.model!, item, bounce);
+        dioramaMatrix(standing, lot.model!, item, bounce);
         if (lot.model!.sign !== null)
           signMatrix.copy(matrix).multiply(grownOn(lot.model!.sign.foot, signGrowth));
         const copy = this.copies.get(item.id);
@@ -1148,7 +1167,7 @@ export class MaquetteLayer implements SequenceHost {
           for (const mesh of lot.meshes)
             mesh.setMatrixAt(
               k,
-              lot.diorama.includes(mesh) ? shrunk : lot.sign.includes(mesh) ? signMatrix : matrix,
+              lot.diorama.includes(mesh) ? standing : lot.sign.includes(mesh) ? signMatrix : matrix,
             );
         else {
           copy.matrix.copy(matrix);
@@ -1157,9 +1176,7 @@ export class MaquetteLayer implements SequenceHost {
           for (const mesh of lot.meshes) mesh.setMatrixAt(k, away);
         }
         item.smokes.forEach((smoke, c) => {
-          smoke.object.position
-            .copy(lot.model!.chimneys[c]!)
-            .applyMatrix4(dioramaAt(lot.model!, item));
+          smoke.object.position.copy(lot.model!.chimneys[c]!).applyMatrix4(standing);
           smoke.object.scale.setScalar(
             (diorama * pieceScale.size * item.scale * item.span) / SMOKE_SPAN,
           );
@@ -1193,11 +1210,12 @@ export class MaquetteLayer implements SequenceHost {
     fx: 'smoke',
     hz: 8,
     idle: () =>
-      ![...this.byId.values()].some(({ item }) => item.smokes.length > 0 && item.near > 0),
+      ![...this.byId.values()].some(({ item }) => item.smokes.length > 0 && item.diorama > 0),
     frame: (time, motion) => {
       for (const { item } of this.byId.values())
         for (const smoke of item.smokes) {
-          smoke.object.visible = item.near > 0 && motion !== 'off';
+          // Its chimneys are its building's: they shrink away with it on a socle.
+          smoke.object.visible = item.diorama > 0 && motion !== 'off';
           if (smoke.object.visible) smoke.frame(time);
         }
     },
@@ -1226,13 +1244,21 @@ const hundredths = (weight: number): number => Math.round(weight * 100) / 100;
 /** **What of a maquette stands at `distance`** (ADR 0038 §7): on a socle, by its socle
  *  (`siteReading`); without, all of it by its span (`pieceWeight`, ADR 0035 §3). */
 function readingOf(model: Model, item: Placed, distance: number): SiteReading {
-  if (item.socle === null || model.dressing.length === 0) {
-    const weight = pieceWeight(distance, item.span);
+  const by = pinnedBy(model, item);
+  if (typeof by === 'number') {
+    const weight = pieceWeight(distance, by);
     return { diorama: weight, socle: weight, signGrowth: 1 };
   }
   const sign = model.sign === null ? 0 : model.sign.height * model.scale * item.span;
-  return siteReading(distance, item.socle, sign);
+  return siteReading(distance, by.socle, sign);
 }
+
+/** **What a site gives way to its pin by** — its socle when it is flagged on one and its file,
+ *  once landed, has one; else its span —: what its maquette is read by and its pin and plate. */
+const pinnedBy = (model: Model | null, item: Placed): PinnedBy =>
+  item.socle !== null && (model === null || model.dressing.length > 0)
+    ? { socle: item.socle }
+    : item.span;
 
 /** **Where the building of a maquette stands on the board**: its point, raised to the socle top
  *  it shrinks on — the building and its yard keep their foot on the socle, which stands taller. */
@@ -1242,17 +1268,11 @@ function footOf(model: Model, item: Placed): Vector3 {
   return lifted.copy(item.at).setY(item.at.y + Math.max(below, 0));
 }
 
-/** **The matrix of what shrinks with the building**, into `shrunk`: on its foot (`footOf`), at
- *  its weight. */
-function dioramaMatrix(model: Model, item: Placed, bounce: number | null): void {
+/** **The matrix of what shrinks with the building**, into `out`: on its foot (`footOf`), at its
+ *  weight, giving with its bounce. */
+function dioramaMatrix(out: Matrix4, model: Model, item: Placed, bounce: number | null): void {
   const size = item.diorama * sizeOf(model, item);
-  shrunk.compose(footOf(model, item), item.turn, scale.set(size, size * (bounce ?? 1), size));
-}
-
-/** The building's matrix as last placed, for what rides on it. */
-function dioramaAt(model: Model, item: Placed): Matrix4 {
-  dioramaMatrix(model, item, null);
-  return shrunk;
+  out.compose(footOf(model, item), item.turn, scale.set(size, size * (bounce ?? 1), size));
 }
 
 /** **A scale by `growth` about `foot`**, in its model's units: what a sign grows on. */

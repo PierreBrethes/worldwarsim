@@ -491,7 +491,7 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     expect(door.toArray()).toEqual([0, 0.1, 0.5]);
     const onBoard = site.toBoard(door);
     expect(onBoard.distanceTo(door.clone().applyMatrix4(drawn))).toBeLessThan(1e-6);
-    expect(site.toModel(onBoard).distanceTo(door)).toBeLessThan(1e-6);
+    expect(site.toModel(onBoard).distanceTo(door)).toBeLessThan(1e-9);
     expect(site.marker('fx_nowhere')).toBeNull();
     expect(maquettes.siteOf('building-hq@0,0')).toBeNull();
   });
@@ -1012,6 +1012,43 @@ describe('a site on its socle (ADR 0038)', () => {
       expect(named(far)).not.toContain('ardoise');
       expect(named(far)).toContain('lisere');
       expect(far.ruins).toBeUndefined();
+      // Back up close and rebuilt before any frame: whole again, ruins and all.
+      seenFrom(layer, 20);
+      layer.display([socled()]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
+    });
+
+    it('hands a raze its sign grown, and its building at the size it shrank to', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 72);
+      const within = (part: { within?: Matrix4 }) =>
+        part.within === undefined ? 1 : new Vector3().setFromMatrixScale(part.within).x;
+      // 12 px over its ~8.6 px at d = 72, as the instance draws it.
+      const grown = layer.drawnOf(MINE)!.parts.filter((part) => within(part) > 1);
+      expect(grown.length).toBeGreaterThan(0);
+      for (const part of grown) expect(within(part)).toBeGreaterThan(1.3);
+      seenFrom(layer, 31);
+      const drawn = layer.drawnOf(MINE)!;
+      const walls = drawn.parts.filter((part) => part.material.name === 'ardoise');
+      expect(walls).toHaveLength(1);
+      expect(within(walls[0]!)).toBeGreaterThan(0);
+      expect(within(walls[0]!)).toBeLessThan(1);
+      // On its foot: the socle top's centre does not move.
+      const foot = new Vector3(0, SOCLE_TOP, 0);
+      expect(foot.clone().applyMatrix4(walls[0]!.within!).distanceTo(foot)).toBeLessThan(1e-9);
+    });
+
+    it('lets the smoke rest once its building has shrunk away', async () => {
+      const layer = seenFrom(await layerOf([socled({ smoking: true })]), 20);
+      expect(layer.smoke.idle!()).toBe(false);
+      seenFrom(layer, 45);
+      expect(layer.smoke.idle!()).toBe(true);
+    });
+
+    it('pins a site flagged on a socle whose file has none by its span, as it draws it', async () => {
+      const layer = await layerOf([socled({ url: 'plain.glb' })]);
+      expect(layer.spanOf(MINE)).toBe(1);
     });
 
     it('hands the pin and the plate its socle, and a site without one its span', async () => {
