@@ -16,7 +16,7 @@ import { asClockTime } from '@/domain/duration';
 import { nationInk } from '@/domain/nations';
 import type { Pin } from '@/domain/pins';
 import type { Rect } from '@/domain/poster-placement';
-import { ANONYMOUS_SPAN, pieceWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, pieceStands, type PinnedBy } from './figurines/figurine';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
 import { REACH } from './halo';
@@ -154,7 +154,7 @@ function clusterPoints<P extends { readonly sx: number; readonly sy: number }>(
  * carré pour un bâtiment, losange pour un avant-poste ; plein à l'encre de sa nation pour ce qui
  * est à soi, creux à l'encre adverse pour un relevé, gris en pointillé avec son heure pour une
  * dernière position connue. Les épingles qui se touchent se rangent en grappe numérotée. Elle
- * monte quand sa pièce devient trop petite à l'écran (`pieceWeight`, ADR 0035 §3).
+ * monte quand sa pièce devient trop petite à l'écran (`pieceStands`, ADR 0035 §3, ADR 0038 §7).
  *
  * Deux maillages instanciés, deux appels de dessin : les formes, tracées par leur distance signée
  * dans le shader, et les chiffres. Elle ne demande aucune image à elle seule (`frame-demand`) :
@@ -194,7 +194,7 @@ export class PinLayer {
     repainted: () => void = () => {},
     /** The span its piece gives way to it by — a building's, a pile's, a tank's for what is not
      *  drawn —, `null` for what has no piece (an outpost): its pin stands at every distance. */
-    private readonly spanOf: (pin: Pin) => number | null = () => ANONYMOUS_SPAN,
+    private readonly spanOf: (pin: Pin) => PinnedBy | null = () => ANONYMOUS_SPAN,
     /** Where its piece is drawn when a ring carried it off its point: the pin stands there. */
     private readonly drawnAt: (id: string) => Vector3 | null = () => null,
   ) {
@@ -309,7 +309,7 @@ export class PinLayer {
     const weightAt = (at: Vector3, pin: Pin) => {
       const span = this.spanOf(pin);
       const distance = at.distanceTo(measuredFrom);
-      return span === null ? 1 : 1 - pieceWeight(distance, span);
+      return span === null ? 1 : 1 - pieceStands(distance, span);
     };
 
     if (moved || this.dirty) {

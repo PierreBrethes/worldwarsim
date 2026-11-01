@@ -4,6 +4,8 @@ import { DEFAULT_TOGGLES } from '@/domain/indicators';
 import {
   keepIndicatorToggles,
   keepMouseMapping,
+  keepPatchnotesRead,
+  readPatchnotesRead,
   readIndicatorToggles,
   readMouseMapping,
 } from './settings';
@@ -49,5 +51,18 @@ describe('les bascules gardées par le navigateur', () => {
   it('garde les gisements masqués quand le joueur les masque', () => {
     keepIndicatorToggles({ ...DEFAULT_TOGGLES, deposits: false });
     expect(readIndicatorToggles().deposits).toBe(false);
+  });
+});
+
+describe('les bulletins lus par le navigateur', () => {
+  it('part de rien, et rend ce qu’on a lu', () => {
+    expect(readPatchnotesRead().size).toBe(0);
+    keepPatchnotesRead(new Set(['2026-11-01']));
+    expect(readPatchnotesRead()).toEqual(new Set(['2026-11-01']));
+  });
+
+  it('ignore un magasin abîmé', () => {
+    kept.set('wws-patchnotes-read', '{oops');
+    expect(readPatchnotesRead().size).toBe(0);
   });
 });

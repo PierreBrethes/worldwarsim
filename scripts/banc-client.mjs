@@ -33,9 +33,10 @@
 /* global window, document, requestAnimationFrame, WebGL2RenderingContext, addEventListener, getComputedStyle, innerWidth, innerHeight -- les fonctions passées à `page.evaluate` tournent dans la page. */
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { chromiumPath } from './chromium.mjs';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => {
@@ -182,12 +183,8 @@ const cpuTimeMs = (pid) => {
   return (Number(minutes) * 60 + Number(seconds)) * 1000;
 };
 const foreignGpu = new Set(gpuProcesses());
-const cache = `${homedir()}/Library/Caches/ms-playwright/chromium-1243`;
-const app = 'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
 const browser = await chromium.launch({
-  executablePath: existsSync(`${cache}/chrome-mac-arm64/${app}`)
-    ? `${cache}/chrome-mac-arm64/${app}`
-    : `${cache}/chrome-mac/${app}`,
+  executablePath: chromiumPath(),
   args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=metal'],
 });
 

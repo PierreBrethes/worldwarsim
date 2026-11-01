@@ -6,13 +6,15 @@ import {
   hideAltitudeShadows,
   measureOf,
   nearWeight,
+  pieceStands,
   pieceWeight,
   setNearFloor,
+  siteReading,
   troopWeight,
 } from './figurine';
 import { crewOf, squadOf, stand, stride } from './infantry';
 import { pieceScale } from '../piece-scale';
-import { buildingSpan, MAN_METRES, troopSpan } from '@/domain/piece-size';
+import { buildingFootprint, buildingSpan, MAN_METRES, troopSpan } from '@/domain/piece-size';
 
 describe('nearWeight', () => {
   afterEach(() => setNearFloor(0));
@@ -74,6 +76,55 @@ describe('pieceWeight', () => {
   it('measures a piece nearer than the target at the target distance', () => {
     setNearFloor(10);
     expect(pieceWeight(4, troopSpan('armor'))).toBe(0);
+  });
+});
+
+/** A site on its socle reads by its socle's pixels (ADR 0038 §7): the barracks' socle of 80 m. */
+describe('siteReading', () => {
+  const socle = (buildingFootprint('barracks') * 80) / 65;
+  // The fixture's sign: its mast stands some 27 m over the socle top.
+  const sign = (buildingSpan('barracks') * 27) / 50;
+  afterEach(() => {
+    setNearFloor(0);
+    pieceScale.size = 1;
+  });
+
+  it('stands the whole diorama while its socle reads at 64 px, until d ≈ 28 for the barracks', () => {
+    expect(siteReading(28, socle, sign)).toEqual({ diorama: 1, socle: 1, signGrowth: 1 });
+    expect(siteReading(30, socle, sign).diorama).toBeLessThan(1);
+    expect(siteReading(30, socle, sign).diorama).toBeGreaterThan(0);
+    expect(siteReading(34, socle, sign).diorama).toBe(0);
+  });
+
+  it('keeps the socle and its sign alone down to 28 px, until d ≈ 65, then shrinks the socle', () => {
+    expect(siteReading(45, socle, sign)).toMatchObject({ diorama: 0, socle: 1 });
+    expect(siteReading(64, socle, sign).socle).toBe(1);
+    expect(siteReading(70, socle, sign).socle).toBeLessThan(1);
+    expect(siteReading(70, socle, sign).socle).toBeGreaterThan(0);
+    expect(siteReading(77, socle, sign).socle).toBe(0);
+  });
+
+  it('grows the sign to keep 12 px tall, twice its height at most', () => {
+    expect(siteReading(45, socle, sign).signGrowth).toBe(1);
+    // Its 27 m read 610 px over d: 8.7 px at d = 70, grown by 12 / 8.7.
+    expect(siteReading(70, socle, sign).signGrowth).toBeCloseTo(1.377, 2);
+    expect(siteReading(200, socle, sign).signGrowth).toBe(2);
+  });
+
+  it('hands the pin what the socle gives up: never both, never neither', () => {
+    for (let d = 20; d < 90; d += 0.5) {
+      const pin = 1 - pieceStands(d, { socle });
+      expect(pin + siteReading(d, socle, sign).socle).toBeCloseTo(1, 9);
+    }
+    // A piece without a socle gives way as it always did.
+    expect(pieceStands(57, buildingSpan('barracks'))).toBe(
+      pieceWeight(57, buildingSpan('barracks')),
+    );
+  });
+
+  it('measures at the player size, as pieceWeight does', () => {
+    pieceScale.size = 1.25;
+    expect(siteReading(34, socle, sign).diorama).toBeGreaterThan(0);
   });
 });
 

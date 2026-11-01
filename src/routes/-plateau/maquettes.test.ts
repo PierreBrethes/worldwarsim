@@ -46,6 +46,7 @@ describe('maquettesOf', () => {
         washed: false,
         side: 'mine',
         ink: '#000',
+        level: 1,
       },
       {
         id: 'p',
@@ -57,6 +58,7 @@ describe('maquettesOf', () => {
         washed: false,
         side: 'mine',
         ink: '#000',
+        level: 1,
       },
     ]);
   });
@@ -149,6 +151,7 @@ describe('maquettesOf', () => {
         footprint: buildingFootprint('farm'),
         washed: true,
         side: 'seen',
+        level: 1,
       },
       {
         id: 'objective-o',
@@ -180,6 +183,52 @@ describe('maquettesOf', () => {
     ).toEqual([
       ['seen', undefined],
       ['neutral', undefined],
+    ]);
+  });
+
+  it('serves the level a site stands at: mine, the one before a raise, and 1 for a survey', () => {
+    const works = (phase: WorkSite['phase'], level: number): WorkSite => ({
+      phase,
+      key: 'mine',
+      regionId: 'FRA-5328',
+      regionName: 'Nord',
+      point: null,
+      level,
+      rank: 0,
+      finishesAt: null,
+      minutes: 40,
+    });
+    const survey = (washed: boolean): MapMarker => ({
+      kind: 'installation',
+      id: `installation-${washed}`,
+      buildingId: 'x',
+      key: 'barracks',
+      regionId: 'DEU-DE21',
+      lonLat: [11.5, 48.1],
+      name: 'Caserne',
+      washed,
+      neutral: null,
+    });
+    const levels = maquettesOf(
+      [
+        building({ id: 'l3', level: 3 }),
+        building({ id: 'l7', level: 7 }),
+        building({ id: 'up', level: 2, works: works('raising', 3) }),
+        building({ id: 'first', buildingId: null, level: null, works: works('rising', 1) }),
+        building({ id: 'q', buildingId: null, level: null, works: works('queued', 1) }),
+        survey(false),
+        survey(true),
+      ],
+      () => undefined,
+    ).map((m) => [m.id, m.level]);
+    expect(levels).toEqual([
+      ['l3', 3],
+      ['l7', 7],
+      ['up', 2],
+      ['first', 1],
+      ['q', 1],
+      ['installation-false', 1],
+      ['installation-true', 1],
     ]);
   });
 

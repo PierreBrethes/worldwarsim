@@ -42,6 +42,7 @@ import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { forgetSession, type Seat } from '@/data/session';
 import { currentPushEndpoint } from '@/data/pushDevice';
 import { NotificationsSection } from './NotificationsSection';
+import { PatchnotesSection } from './PatchnotesSection';
 
 export function SettingsWindow({
   seat,
@@ -86,6 +87,7 @@ export function SettingsWindow({
         <WindowHead title={fr.settingsWindow.header} onClose={onClose} />
 
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 py-[14px]">
+          <PatchnotesSection />
           <div className="flex items-baseline justify-between">
             <span className="text-[13.5px] text-[var(--ink)]">{fr.settingsWindow.scaleLabel}</span>
             <span className="font-(family-name:--font-mono) text-[15px] text-[var(--ink)]">

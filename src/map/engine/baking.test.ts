@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { RIG_PARTS } from '@/emblems/rigs';
 import { BUILDING_MAQUETTES, buildingMaquette } from '@/emblems/buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from '@/emblems/objectives/manifest';
-import { bakedRig, bakedSite, mergedByMaterial, type Part } from './baking';
+import { accessoriesShown, bakedRig, bakedSite, mergedByMaterial, type Part } from './baking';
 import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene.fixture';
 
 describe('bakedSite, as one geometry per material', () => {
@@ -138,9 +138,11 @@ describe('bakedSite (ADR 0038)', () => {
   };
 
   it.each(files)('bakes %s, which has no socle, as before: all building', (url) => {
-    const { building, dressing } = bakedSite(sceneOfFile(url));
+    const { building, dressing, yard, sign } = bakedSite(sceneOfFile(url));
     const today = before(url);
     expect(dressing).toEqual([]);
+    expect(yard).toEqual([]);
+    expect(sign).toBeNull();
     expect(building.map((part) => part.material.name)).toEqual(
       today.map((part) => part.material.name),
     );
@@ -150,7 +152,7 @@ describe('bakedSite (ADR 0038)', () => {
     expect(triangleCount(bakedRig(sceneOfFile(url), () => false))).toBe(trianglesOf(today));
   });
 
-  it('bakes the building apart from its socle, liseré, yard and sign', () => {
+  it('bakes the building apart from its socle and liseré', () => {
     const { building, dressing } = bakedSite(sceneOfFile(SOCLE));
     const names = dressing.map((part) => part.material.name);
     expect(names).toContain('socle');
@@ -162,6 +164,20 @@ describe('bakedSite (ADR 0038)', () => {
     expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
     // Its flagpole went to the sign: the building keeps its walls and roofs alone.
     expect(trianglesOf(building)).toBe(1855);
+  });
+
+  it('bakes the yard and the sign apart, the sign with its foot (ADR 0038 §7)', () => {
+    const { dressing, yard, sign } = bakedSite(sceneOfFile(SOCLE));
+    // The socle and its liseré stand to the pin; the yard shrinks with the building.
+    expect(dressing.map((part) => part.material.name).sort()).toEqual(['lisere', 'socle']);
+    expect(boxOf(dressing).max.y).toBeLessThan(2.5);
+    expect(yard.map((part) => part.material.name)).toEqual(['socle']);
+    expect(boxOf(yard).min.y).toBeGreaterThan(2.2);
+    // The sign grows on its foot, the signe node's place on the socle top; its mast and pole in it.
+    expect(sign!.foot.toArray()).toEqual([18, 2.2, 22]);
+    expect(boxOf(sign!.parts).min.y).toBeCloseTo(2.2, 3);
+    expect(sign!.height).toBeGreaterThan(24);
+    expect(sign!.height).toBeLessThan(30);
   });
 
   it('draws the first level of a yard, and none of the accessories that come later', () => {
@@ -178,7 +194,62 @@ describe('bakedSite (ADR 0038)', () => {
     }
     const { building, dressing } = bakedSite(scene);
     expect(building.map((part) => part.material.name)).toEqual(['murs']);
-    expect(dressing.map((part) => part.material.name).sort()).toEqual(['niveau_1', 'socle']);
+    expect(dressing.map((part) => part.material.name)).toEqual(['socle']);
+  });
+
+  it('bakes each accessory group apart, by name, on a socle alone', () => {
+    const scene = new Group();
+    const socle = new Mesh(new BoxGeometry(4, 1, 4), new MeshStandardMaterial({ name: 'socle' }));
+    socle.name = 'socle';
+    scene.add(socle);
+    for (const name of ['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines']) {
+      const group = new Group();
+      group.name = name;
+      group.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name })));
+      scene.add(group);
+    }
+    const { accessories } = bakedSite(scene);
+    expect([...accessories.keys()].sort()).toEqual([
+      'chantier',
+      'niveau_1',
+      'niveau_2',
+      'niveau_3',
+      'ruines',
+    ]);
+    expect(accessories.get('niveau_2')!.map((part) => part.material.name)).toEqual(['niveau_2']);
+    // A port's slip named `chantier` is a part of the port, not an accessory.
+    const port = new Group();
+    const slip = new Group();
+    slip.name = 'chantier';
+    slip.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()));
+    port.add(slip);
+    expect(bakedSite(port).accessories.size).toBe(0);
+  });
+
+  it('gives the fixture a yard per level, a works site and ruins, within 150 triangles each', () => {
+    const { accessories } = bakedSite(sceneOfFile(SOCLE));
+    expect([...accessories.keys()].sort()).toEqual([
+      'chantier',
+      'niveau_1',
+      'niveau_2',
+      'niveau_3',
+      'ruines',
+    ]);
+    for (const [name, parts] of accessories) {
+      expect(trianglesOf(parts), name).toBeGreaterThan(0);
+      expect(trianglesOf(parts), name).toBeLessThanOrEqual(150);
+    }
+  });
+
+  it('names what each level and state of a yard shows', () => {
+    expect(accessoriesShown(1, undefined)).toEqual(['niveau_1']);
+    expect(accessoriesShown(2, undefined)).toEqual(['niveau_1', 'niveau_2']);
+    expect(accessoriesShown(3, undefined)).toEqual(['niveau_1', 'niveau_2', 'niveau_3']);
+    // The HQ goes past 3: the three groups are all there are.
+    expect(accessoriesShown(5, undefined)).toEqual(['niveau_1', 'niveau_2', 'niveau_3']);
+    expect(accessoriesShown(1, 'rising')).toEqual(['niveau_1', 'chantier']);
+    expect(accessoriesShown(2, 'raising')).toEqual(['niveau_1', 'niveau_2', 'chantier']);
+    expect(accessoriesShown(1, 'queued')).toEqual([]);
   });
 });
 

@@ -27,10 +27,13 @@ import {
   yawOf,
 } from './maquettes';
 import { pileLayout } from './standing';
-import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
+import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';
 
 /** The box the last works were dressed round. */
-const dressed: { box: Box3 | null } = { box: null };
+const dressed: { box: Box3 | null; scaffolded: boolean | undefined } = {
+  box: null,
+  scaffolded: undefined,
+};
 
 // The dressing of a site paints a canvas: a stub, this file has no DOM.
 vi.mock('./works', async (original) => ({
@@ -38,9 +41,16 @@ vi.mock('./works', async (original) => ({
   WorksDressing: class {
     object = new Group();
     cut: Plane | null;
-    constructor(works: { phase: string }, box: Box3) {
+    constructor(
+      works: { phase: string },
+      box: Box3,
+      _footprint: unknown,
+      _socle: unknown,
+      scaffolded?: boolean,
+    ) {
       this.cut = works.phase === 'rising' ? new Plane(new Vector3(0, -1, 0), 0) : null;
       dressed.box = box;
+      dressed.scaffolded = scaffolded;
     }
     place() {}
     pick() {
@@ -739,7 +749,9 @@ describe('a site on its socle (ADR 0038)', () => {
     const cut = (mesh: InstancedMesh) =>
       ((mesh.material as MeshStandardMaterial).clippingPlanes ?? []).length > 0;
     for (const name of ['socle', 'lisere'])
-      expect(all.filter((mesh) => nameOf(mesh) === name && !cut(mesh))).toHaveLength(1);
+      expect(
+        all.filter((mesh) => nameOf(mesh) === name && !cut(mesh) && mesh.name === ''),
+      ).toHaveLength(1);
     expect(all.filter((mesh) => nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise')).toEqual(
       all.filter((mesh) => (nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise') && cut(mesh)),
     );
@@ -761,6 +773,106 @@ describe('a site on its socle (ADR 0038)', () => {
     const yard = new Vector3(-25, 0, 25).applyMatrix4(drawn.matrix);
     const down = new Raycaster(yard.clone().setY(5), new Vector3(0, -1, 0));
     expect(layer.under(down)?.id).toBe(MINE);
+  });
+
+  describe('its yard, by level and state (#366)', () => {
+    const works = (phase: 'queued' | 'rising' | 'raising', level: number) => ({
+      phase,
+      level,
+      finishesAt: null,
+      minutes: 5,
+      pennant: null,
+      stamp: null,
+    });
+    const groupsOf = (layer: MaquetteLayer) =>
+      meshes(layer)
+        .map((mesh) => mesh.name)
+        .filter((name) => name.startsWith('niveau_') || name === 'chantier' || name === 'ruines')
+        .sort();
+    const stood = async (more: Parameters<typeof site>[1]) =>
+      groupsOf(await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', ...more })]));
+
+    it('shows niveau_1 alone at level 1, a group more each level, three at most', async () => {
+      expect(await stood({ level: 1 })).toEqual(['niveau_1']);
+      expect(await stood({ level: 2 })).toEqual(['niveau_1', 'niveau_2']);
+      expect(await stood({ level: 3 })).toEqual(['niveau_1', 'niveau_2', 'niveau_3']);
+      expect(await stood({ level: 6 })).toEqual(['niveau_1', 'niveau_2', 'niveau_3']);
+      expect(await stood({})).toEqual(['niveau_1']);
+    });
+
+    it('shows a first rise as niveau_1 and chantier, and a raise as the level before and chantier', async () => {
+      expect(await stood({ level: 1, works: works('rising', 1) })).toEqual([
+        'chantier',
+        'niveau_1',
+      ]);
+      expect(await stood({ level: 2, works: works('raising', 3) })).toEqual([
+        'chantier',
+        'niveau_1',
+        'niveau_2',
+      ]);
+      expect(await stood({ level: 1, works: works('queued', 1) })).toEqual([]);
+    });
+
+    it('keeps two barracks of two levels apart, each with its own groups', async () => {
+      const layer = await layerOf([
+        site(MINE, { level: 1 }),
+        site('building-barracks@5,0', { level: 3 }),
+      ]);
+      const count = (name: string) =>
+        meshes(layer)
+          .filter((mesh) => mesh.name === name)
+          .reduce((sum, mesh) => sum + mesh.count, 0);
+      expect(count('niveau_1')).toBe(2);
+      expect(count('niveau_3')).toBe(1);
+    });
+
+    it('draws no ink scaffold when the file brings its chantier, and keeps it for one without', async () => {
+      await layerOf([site(MINE, { level: 1, works: works('rising', 1) })]);
+      expect(dressed.scaffolded).toBe(false);
+    });
+
+    it('keeps the ink scaffold for a file with no chantier of its own', async () => {
+      dressed.scaffolded = undefined;
+      await layerOf([site('building-hq@5,0', { url: 'plain.glb', works: works('rising', 1) })]);
+      expect(dressed.scaffolded).toBe(true);
+    });
+
+    it('hands the raze a liseré in the ink of its holder, not the file’s white', async () => {
+      const layer = await layerOf([site(MINE, { level: 1, side: 'mine', ink: '#2a5ba8' })]);
+      const lisere = layer.drawnOf(MINE)!.parts.find((part) => part.material.name === 'lisere')!;
+      expect((lisere.material as MeshStandardMaterial).color.getHex()).toBe(
+        new Color('#2a5ba8').getHex(),
+      );
+    });
+
+    it('hands the ruins, and the building to cut, for a raze to end on', async () => {
+      const layer = await layerOf([site(MINE, { level: 3, side: 'mine', ink: '#2a5ba8' })]);
+      const drawn = layer.drawnOf(MINE)!;
+      expect(drawn.ruins).toBeDefined();
+      expect(drawn.ruins!.stump).toBeCloseTo(SOCLE_TOP + 3, 6);
+      expect(drawn.ruins!.parts.length).toBeGreaterThan(0);
+      // The yard of the level it stood at falls away: ruins alone stand in its place.
+      expect(drawn.ruins!.shell.length).toBeGreaterThan(0);
+      for (const part of drawn.ruins!.shell) expect(drawn.parts).toContain(part);
+      expect(drawn.parts.length).toBeLessThan(meshes(layer).length);
+    });
+
+    it('keeps the yard of its level on the copy a sequence stands in for it', async () => {
+      const layer = await layerOf([site(MINE, { level: 3, side: 'mine', ink: '#2a5ba8' })]);
+      const copy = new Group();
+      layer.standIn(MINE, copy);
+      // The rig bakes niveau_1 into its base: the two groups that come later stand with it.
+      expect(copy.children).toHaveLength(2);
+      const low = await layerOf([site(MINE, { level: 1, side: 'mine', ink: '#2a5ba8' })]);
+      const bare = new Group();
+      low.standIn(MINE, bare);
+      expect(bare.children).toHaveLength(0);
+    });
+
+    it('hands no ruins without a ruines group', async () => {
+      const layer = await layerOf([site('building-hq@5,0', { url: 'plain.glb' })]);
+      expect(layer.drawnOf('building-hq@5,0')!.ruins).toBeUndefined();
+    });
   });
 
   it('stands a plan in the queue on its socle, the building not yet risen', async () => {
@@ -811,5 +923,149 @@ describe('a site on its socle (ADR 0038)', () => {
 
   it('spaces a site without a socle as before', () => {
     expect(ringSpacing(2, null)).toBe(2 * RING_GAP);
+  });
+
+  describe('read at a distance by its socle (ADR 0038 §7)', () => {
+    // Its 50 m to one board unit: the fixture's socle of 80 m is 1.6 units, read at 64 px to
+    // d ≈ 29 and at 28 px to d ≈ 67; its sign of some 27 m at 12 px to d ≈ 52.
+    const socled = (more: Parameters<typeof site>[1] = {}) =>
+      site(MINE, { side: 'mine', ink: '#2a5ba8', socle: true, footprint: 1.6, ...more });
+    const FULL = 1 / 50;
+    const seenFrom = (layer: MaquetteLayer, distance: number) => {
+      const at = layer.siteOf(MINE)!.toBoard(new Vector3());
+      layer.orient(at.clone().setY(at.y + distance), null, 0);
+      return layer;
+    };
+    const drawnAs = (layer: MaquetteLayer, which: (mesh: InstancedMesh) => boolean) =>
+      meshes(layer)
+        .filter(which)
+        .map((mesh) => {
+          const placed = new Matrix4();
+          mesh.getMatrixAt(0, placed);
+          return placed;
+        });
+    const scaleOf = (placed: Matrix4) => new Vector3().setFromMatrixScale(placed).x;
+    const isSocle = (mesh: InstancedMesh) =>
+      mesh.name === '' && ['socle', 'lisere'].includes(nameOf(mesh));
+    const isBuilding = (mesh: InstancedMesh) => mesh.name === '' && !isSocle(mesh);
+    const isYard = (mesh: InstancedMesh) => mesh.name === 'cour' || mesh.name.startsWith('niveau_');
+    const isSign = (mesh: InstancedMesh) => mesh.name === 'signe';
+
+    it('stands whole up close: building, yard, socle and sign at one size', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 20);
+      for (const which of [isBuilding, isSocle, isYard, isSign]) {
+        const drawn = drawnAs(layer, which);
+        expect(drawn.length).toBeGreaterThan(0);
+        for (const placed of drawn) expect(scaleOf(placed)).toBeCloseTo(FULL, 9);
+      }
+    });
+
+    it('shrinks the building and its yard on their foot, the socle and its sign standing', async () => {
+      const layer = await layerOf([socled()]);
+      seenFrom(layer, 31);
+      const socle = drawnAs(layer, isSocle)[0]!;
+      const foot = new Vector3(0, SOCLE_TOP, 0);
+      for (const placed of drawnAs(layer, (mesh) => isBuilding(mesh) || isYard(mesh))) {
+        expect(scaleOf(placed)).toBeLessThan(FULL);
+        expect(scaleOf(placed)).toBeGreaterThan(0);
+        // On their foot: the socle top's centre stays where the socle has it.
+        expect(
+          foot.clone().applyMatrix4(placed).distanceTo(foot.clone().applyMatrix4(socle)),
+        ).toBeLessThan(1e-6);
+      }
+      seenFrom(layer, 45);
+      for (const placed of drawnAs(layer, (mesh) => isBuilding(mesh) || isYard(mesh)))
+        expect(scaleOf(placed)).toBe(0);
+      for (const placed of drawnAs(layer, (mesh) => isSocle(mesh) || isSign(mesh)))
+        expect(scaleOf(placed)).toBeCloseTo(FULL, 9);
+      expect(layer.isDressed(MINE)).toBe(true);
+    });
+
+    it('grows its sign on its foot as the socle gives way to the pin, then leaves', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 72);
+      const socle = drawnAs(layer, isSocle)[0]!;
+      const sign = drawnAs(layer, isSign)[0]!;
+      expect(scaleOf(socle)).toBeGreaterThan(0);
+      expect(scaleOf(socle)).toBeLessThan(FULL);
+      // 12 px over its ~8.6 px at d = 72.
+      expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.3);
+      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.5);
+      const foot = new Vector3(18, SOCLE_TOP, 22);
+      expect(
+        foot.clone().applyMatrix4(sign).distanceTo(foot.clone().applyMatrix4(socle)),
+      ).toBeLessThan(1e-6);
+      seenFrom(layer, 85);
+      for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBe(0);
+    });
+
+    it('hands a raze from afar its socle alone, without its shrunk building or ruins', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 20);
+      const named = (drawn: ReturnType<MaquetteLayer['drawnOf']>) =>
+        drawn!.parts.map((part) => part.material.name);
+      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
+      seenFrom(layer, 45);
+      // Read over a rebuild, before any frame: the weights it was drawn at.
+      layer.display([socled({ smoking: true })]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const far = layer.drawnOf(MINE)!;
+      expect(named(far)).not.toContain('ardoise');
+      expect(named(far)).toContain('lisere');
+      expect(far.ruins).toBeUndefined();
+      // Back up close and rebuilt before any frame: whole again, ruins and all.
+      seenFrom(layer, 20);
+      layer.display([socled()]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
+    });
+
+    it('hands a raze its sign grown, and its building at the size it shrank to', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 72);
+      const within = (part: { within?: Matrix4 }) =>
+        part.within === undefined ? 1 : new Vector3().setFromMatrixScale(part.within).x;
+      // 12 px over its ~8.6 px at d = 72, as the instance draws it.
+      const grown = layer.drawnOf(MINE)!.parts.filter((part) => within(part) > 1);
+      expect(grown.length).toBeGreaterThan(0);
+      for (const part of grown) expect(within(part)).toBeGreaterThan(1.3);
+      seenFrom(layer, 31);
+      const drawn = layer.drawnOf(MINE)!;
+      const walls = drawn.parts.filter((part) => part.material.name === 'ardoise');
+      expect(walls).toHaveLength(1);
+      expect(within(walls[0]!)).toBeGreaterThan(0);
+      expect(within(walls[0]!)).toBeLessThan(1);
+      // On its foot: the socle top's centre does not move.
+      const foot = new Vector3(0, SOCLE_TOP, 0);
+      expect(foot.clone().applyMatrix4(walls[0]!.within!).distanceTo(foot)).toBeLessThan(1e-9);
+    });
+
+    it('lets the smoke rest once its building has shrunk away', async () => {
+      const layer = seenFrom(await layerOf([socled({ smoking: true })]), 20);
+      expect(layer.smoke.idle!()).toBe(false);
+      seenFrom(layer, 45);
+      expect(layer.smoke.idle!()).toBe(true);
+    });
+
+    it('pins a site flagged on a socle whose file has none by its span, as it draws it', async () => {
+      const layer = await layerOf([socled({ url: 'plain.glb' })]);
+      expect(layer.spanOf(MINE)).toBe(1);
+    });
+
+    it('hands the pin and the plate its socle, and a site without one its span', async () => {
+      const layer = await layerOf([socled(), site('building-hq@5,0', { url: 'plain.glb' })]);
+      expect(layer.spanOf(MINE)).toEqual({ socle: 1.6 });
+      expect(layer.spanOf('building-hq@5,0')).toBe(1);
+    });
+
+    it('weighs a site without a socle by its span, as before, all of it at one size', async () => {
+      const layer = await layerOf([site(MINE, { url: 'plain.glb', span: 0.964 })]);
+      seenFrom(layer, 60);
+      const drawn = drawnAs(layer, () => true);
+      const weight = pieceWeight(60, 0.964);
+      expect(weight).toBeGreaterThan(0);
+      expect(weight).toBeLessThan(1);
+      for (const placed of drawn)
+        expect(scaleOf(placed)).toBeCloseTo((Math.round(weight * 100) / 100) * 0.964 * FULL, 9);
+    });
   });
 });

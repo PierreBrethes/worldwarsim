@@ -12,6 +12,7 @@ import {
   BufferAttribute,
   Color,
   ConeGeometry,
+  CylinderGeometry,
   ExtrudeGeometry,
   Shape,
   ShapeGeometry,
@@ -35,6 +36,11 @@ const C = {
   chaud: '#b5523b',
   noir: '#24221e',
   laiton: '#b08a3c',
+  toile: '#a99a6e',
+  bois: '#8a6a3f',
+  ocre: '#c9a14a',
+  gravats: '#6b6457',
+  suie: '#3b3631',
 };
 
 const bytes = readFileSync(SOURCE);
@@ -218,7 +224,57 @@ const rang = node('fx_rang', {
   translation: [-25, SOCLE_TOP, 17.4],
   rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2],
 });
-const groups = ['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'].map((name) => node(name));
+// The accessories, each a recognisable handful on the yard's free ground (x 6 to 41, z 12 to 30),
+// none of them a piece of the game, each within 150 triangles: crates, a tent and barrels, a
+// guard hut, the works' poles and planks, the ruins' rubble and fallen beams.
+const barrel = (x, z) => new CylinderGeometry(1, 1, 2, 8).translate(x, 1, z);
+const GROUPS = {
+  niveau_1: [
+    [box(3, 2, 3, 28, 0, 15), C.bois],
+    [box(3, 2, 3, 31.4, 0, 15.4), C.bois],
+    [box(3, 2, 3, 29.7, 2, 15.2), C.bois],
+    [box(2.4, 1.6, 2.4, 34, 0, 16), C.bois],
+  ],
+  niveau_2: [
+    [new ConeGeometry(Math.SQRT1_2 * 6, 4, 4).rotateY(Math.PI / 4).translate(8.5, 2, 24), C.toile],
+    [barrel(13, 18), C.pierre],
+    [barrel(15.4, 18.4), C.pierre],
+    [barrel(13.6, 20.4), C.pierre],
+  ],
+  niveau_3: [
+    [box(8, 4, 6, 33, 0, 25), C.blanc],
+    [
+      new ConeGeometry(Math.SQRT1_2 * 9, 3, 4).rotateY(Math.PI / 4).translate(33, 4 + 1.5, 25),
+      C.chaud,
+    ],
+    [box(1.4, 2.4, 0.3, 33, 0, 28.1), C.noir],
+  ],
+  chantier: [
+    ...[0, 1, 2, 3].map((k) => [box(0.5, 12, 0.5, 26 + (k % 2) * 8, 0, 14 + (k >> 1) * 8), C.ocre]),
+    [box(8.5, 0.4, 0.8, 30, 4, 14), C.bois],
+    [box(8.5, 0.4, 0.8, 30, 8, 14), C.bois],
+    [box(8.5, 0.4, 0.8, 30, 8, 22), C.bois],
+    [new ConeGeometry(2.4, 2, 10).translate(37, 1, 18), C.gravier],
+  ],
+  ruines: [
+    ...Array.from({ length: 9 }, (_, k) => [
+      box(
+        2 + (k % 4),
+        1 + (k % 3),
+        2 + (k % 5) * 0.6,
+        -22 + ((k * 37) % 100) * 0.6,
+        0,
+        -6 + ((k * 61) % 100) * 0.16,
+      ),
+      k % 3 ? C.gravats : C.suie,
+    ]),
+    [box(0.6, 0.6, 9, 12, 1, 0), C.suie],
+    [box(7, 0.6, 0.6, 26, 0.6, 3), C.suie],
+  ],
+};
+const groups = Object.entries(GROUPS).map(([name, pieces]) =>
+  node(name, { mesh: mesh(pieces), translation: [0, SOCLE_TOP, 0] }),
+);
 const root = node('barracks', {
   children: [
     building,

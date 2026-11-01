@@ -69,6 +69,7 @@ import {
   setNearFloor,
   TANK_SHARE,
   troopPinSpan,
+  type PinnedBy,
   troopScale,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
@@ -1338,11 +1339,11 @@ export class MapEngine {
   }
 
   /**
-   * **The span a label's piece gives way to its pin by** (ADR 0035 §3): what is drawn here, else a
+   * **What a label's piece gives way to its pin by** (ADR 0035 §3): its socle on one (ADR 0038 §7), what is drawn here, else a
    * barracks for a building and a tank on its floor for the rest (§10) — what an enemy shows says
    * nothing of what it is —; `null` for an outpost, which has no piece: its pin stands at every distance, its label up close.
    */
-  private pieceSpanOf(id: string, shape = this.pinShapes.get(id)): number | null {
+  private pieceSpanOf(id: string, shape = this.pinShapes.get(id)): PinnedBy | null {
     const drawn = this.maquettes.spanOf(id) ?? this.standing.spanOf(id) ?? this.arcs.spanOf(id);
     if (drawn !== null) return drawn;
     if (shape === 'outpost') return null;

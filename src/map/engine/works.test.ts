@@ -1,6 +1,37 @@
-import { Box3, Vector3 } from 'three';
-import { describe, expect, it } from 'vitest';
-import { SOCLE_TOP, worksGround } from './works';
+import { Box3, Quaternion, Vector3 } from 'three';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { SOCLE_TOP, WorksDressing, worksGround, type Works } from './works';
+
+beforeAll(() => {
+  // The pennant is painted on a canvas: this file has no DOM.
+  const ctx = new Proxy({}, { get: () => () => ({ addColorStop() {} }) });
+  Object.assign(globalThis, { document: { createElement: () => ({ getContext: () => ctx }) } });
+});
+
+describe('WorksDressing scaffold', () => {
+  const raising: Works = {
+    phase: 'raising',
+    level: 2,
+    finishesAt: null,
+    minutes: 5,
+    pennant: 'niv. 2',
+    stamp: null,
+  };
+  const box = new Box3(new Vector3(-10, 0, -10), new Vector3(10, 20, 10));
+  const linesOf = (scaffolded?: boolean) => {
+    const dressing = new WorksDressing(raising, box, [], null, scaffolded);
+    dressing.place(new Vector3(), new Quaternion(), 1, 0);
+    return dressing.object.children.filter(
+      (child) => (child as { isLineSegments?: boolean }).isLineSegments,
+    ).length;
+  };
+
+  it('draws its scaffold in ink, unless the model brings its own chantier', () => {
+    expect(linesOf()).toBe(1);
+    expect(linesOf(true)).toBe(1);
+    expect(linesOf(false)).toBe(0);
+  });
+});
 
 describe('worksGround', () => {
   // The port's slip goes 2.5 m under the water: its works stand on the ground all the same.

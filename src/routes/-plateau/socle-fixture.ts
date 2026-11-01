@@ -18,6 +18,9 @@ export function withSocleFixture(maquettes: StandingMaquette[]): StandingMaquett
   const flag = new URLSearchParams(location.search).get('socle');
   if (flag === null) return maquettes;
   const barracks = buildingMaquette('barracks', null);
+  // `?niveau=1` to `3` (#366) stands my barracks at that level, to see each yard without waiting
+  // for the works: the demo has one level 3 barracks and no finished level 1.
+  const level = Number(new URLSearchParams(location.search).get('niveau'));
   const swapped = maquettes.map((maquette) =>
     maquette.url !== barracks
       ? maquette
@@ -25,6 +28,7 @@ export function withSocleFixture(maquettes: StandingMaquette[]): StandingMaquett
           ...maquette,
           url: FIXTURE,
           socle: true,
+          ...(level >= 1 && maquette.side === 'mine' && !maquette.works && { level }),
           footprint:
             ((maquette.footprint ?? maquette.span) * SOCLE_METRES) /
             BUILDING_FOOTPRINT_METRES.barracks,
@@ -36,6 +40,8 @@ export function withSocleFixture(maquettes: StandingMaquette[]): StandingMaquett
   const { ink: _mine, ...survey } = mine;
   const shown = (id: string, more: Partial<StandingMaquette>): StandingMaquette => ({
     ...survey,
+    // A survey serves no level: the first yard, as `maquettesOf` serves it.
+    level: 1,
     id: `installation-vitrine-${id}`,
     smoking: false,
     ...more,
