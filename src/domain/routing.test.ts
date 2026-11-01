@@ -93,6 +93,12 @@ describe('landMaskOf', () => {
   });
 });
 
+/** The grid cell a point falls in, as the router reads it. */
+const cellKey = (grid: ReturnType<typeof decodeGrid>, point: LonLat): string => {
+  const [x, y] = projectLonLat(grid.outline, grid.sphere, point);
+  return `${Math.floor((x - grid.sphere.minX) / grid.step)},${Math.floor((y - grid.sphere.minY) / grid.step)}`;
+};
+
 /** Le monde cuit, tel que le serveur le lit : l'atlas (ADR 0034), ce que le jouet ne peut pas
  *  dire — un isthme. */
 const realWorld = async () => {
@@ -488,8 +494,7 @@ describe('routeMedium', () => {
  */
 describe('the pulled thread', () => {
   const baked = decodeGrid(gridAsset, projectionAsset as unknown as Projection);
-  const sameCell = (a: LonLat, b: LonLat) =>
-    isLandCell(baked, a) && isLandCell(baked, b) && distanceKm(a, b) < 40;
+  const sameCell = (end: LonLat, point: LonLat) => cellKey(baked, end) === cellKey(baked, point);
 
   /** The vertices where the thread turns by more than a few degrees, ends included. */
   const usefulVertices = (points: ReadonlyArray<LonLat>): number => {
@@ -692,25 +697,43 @@ describe('the thread follows the pile', () => {
     }
   };
 
-  /** The grounds met along a segment, a sample every half kilometre, one letter each. */
-  const groundsAlong = (a: LonLat, b: LonLat): string => {
+  /**
+   * The grounds met along a segment, a sample every half kilometre, one letter each. With a
+   * `shore`, the only land allowed is that point's own cell ('l'); any other land is 'X'. The
+   * sample on an end that is not the shore (a sea centre, a corner vertex) is not read.
+   */
+  const groundsAlong = (
+    a: LonLat,
+    b: LonLat,
+    shore?: LonLat,
+    shoreAt?: 'start' | 'end',
+  ): string => {
     const samples = Math.ceil(distanceKm(a, b) / 0.5) + 1;
     let letters = '';
     for (let s = 0; s <= samples; s++) {
+      if (
+        shore !== undefined &&
+        ((s === 0 && shoreAt === 'end') || (s === samples && shoreAt === 'start'))
+      )
+        continue;
       const t = s / samples;
-      const ground = groundAt(baked, [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
-      const letter = ground === 'sea' ? 's' : 'l';
+      const point: LonLat = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+      const ground = groundAt(baked, point);
+      const letter =
+        ground === 'sea'
+          ? 's'
+          : shore === undefined || cellKey(baked, point) === cellKey(baked, shore)
+            ? 'l'
+            : 'X';
       if (letters[letters.length - 1] !== letter) letters += letter;
     }
     return letters;
   };
-  /** Water, then land to the end: once on land the leg stays there. */
+  /** Water, then land to the end, the shore's own cell only: once on land the leg stays there. */
   const seaThenLand = (a: LonLat, b: LonLat) =>
-    ['s', 'sl'].includes(groundsAlong(a, b)) ||
-    (groundsAlong(a, b) === 'l' && distanceKm(a, b) < 40);
+    ['s', 'sl', 'l'].includes(groundsAlong(a, b, b, 'end'));
   const landThenSea = (a: LonLat, b: LonLat) =>
-    ['s', 'ls'].includes(groundsAlong(a, b)) ||
-    (groundsAlong(a, b) === 'l' && distanceKm(a, b) < 40);
+    ['s', 'ls', 'l'].includes(groundsAlong(a, b, a, 'start'));
   const lastLeg = (route: { points: ReadonlyArray<LonLat> }): [LonLat, LonLat] => [
     route.points[route.points.length - 2]!,
     route.points[route.points.length - 1]!,
