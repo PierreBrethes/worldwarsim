@@ -18,11 +18,53 @@ export function bakedParts(scene: Object3D): Part[] {
 }
 
 /**
- * **What neither bake draws**: the flag, painted by its owner's colours later (#279) — until
- * then a white one would read as a surrender. Both bakes read it, so that a copy stood in for a
- * resting maquette has no flag either.
+ * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
+ * is cut by its works. The rest of the scene is the building.
  */
-export const isDrawn = (node: Object3D): boolean => node.name !== 'drapeau';
+const DRESSING = new Set([
+  'socle',
+  'lisere',
+  'cour',
+  'signe',
+  'niveau_1',
+  'niveau_2',
+  'niveau_3',
+  'chantier',
+  'ruines',
+]);
+
+/** The accessories of a later level or state: hidden until their switch comes (#366). */
+const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
+
+/**
+ * **What neither bake draws**: the flag, painted by its owner's colours later (#279) — until
+ * then a white one would read as a surrender —, and the accessories of a later level or state.
+ * Both bakes read it, so that a copy stood in for a resting maquette has neither.
+ */
+export const isDrawn = (node: Object3D): boolean =>
+  node.name !== 'drapeau' && !LATER.has(node.name);
+
+/**
+ * **A site baked in two** (ADR 0038): its building, and the dressing it stands on — socle,
+ * liseré, yard, sign and the accessories drawn. A model without a socle is all building, baked
+ * as `bakedParts` bakes it.
+ */
+export function bakedSite(scene: Object3D): { building: Part[]; dressing: Part[] } {
+  scene.updateMatrixWorld(true);
+  const building: Mesh[] = [];
+  const dressing: Mesh[] = [];
+  const visit = (node: Object3D, dressed: boolean) => {
+    if (!isDrawn(node)) return;
+    const inDressing = dressed || DRESSING.has(node.name);
+    if ((node as Mesh).isMesh) (inDressing ? dressing : building).push(node as Mesh);
+    for (const child of node.children) visit(child, inDressing);
+  };
+  visit(scene, false);
+  return {
+    building: mergedByMaterial(building, new Matrix4()),
+    dressing: mergedByMaterial(dressing, new Matrix4()),
+  };
+}
 
 /** Pre-order walk that does not enter what is not drawn. */
 function walk(node: Object3D, visit: (node: Object3D) => void): void {

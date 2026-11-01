@@ -40,6 +40,7 @@ type Gltf = {
     componentType: number;
   }>;
   bufferViews: ReadonlyArray<{ byteOffset?: number; byteStride?: number }>;
+  materials?: ReadonlyArray<{ name?: string }>;
 };
 
 /**
@@ -79,7 +80,8 @@ export function sceneOfFile(url: string): Object3D {
   };
   const materials = new Map<number, MeshStandardMaterial>();
   const materialOf = (k = -1) => {
-    if (!materials.has(k)) materials.set(k, new MeshStandardMaterial());
+    if (!materials.has(k))
+      materials.set(k, new MeshStandardMaterial({ name: gltf.materials?.[k]?.name ?? '' }));
     return materials.get(k)!;
   };
   const build = (k: number): Object3D => {

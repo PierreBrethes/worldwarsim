@@ -13,7 +13,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { RIG_PARTS } from '@/emblems/rigs';
-import { bakedParts, bakedRig } from './baking';
+import { bakedParts, bakedRig, bakedSite, type Part } from './baking';
 import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene.fixture';
 
 describe('bakedParts', () => {
@@ -87,6 +87,66 @@ describe('bakedParts', () => {
       [0, 1],
       [1, 0],
     ]);
+  });
+});
+
+describe('bakedSite (ADR 0038)', () => {
+  const SOCLE = 'src/emblems/fixtures/barracks-socle.glb';
+  const trianglesOf = (parts: ReadonlyArray<Part>) =>
+    parts.reduce(
+      (sum, { geometry }) => sum + (geometry.index ?? geometry.attributes.position!).count / 3,
+      0,
+    );
+  const boxOf = (parts: ReadonlyArray<Part>) => {
+    const box = new Box3();
+    for (const { geometry } of parts) {
+      geometry.computeBoundingBox();
+      box.union(geometry.boundingBox!);
+    }
+    return box;
+  };
+
+  it('bakes a building without a socle as today: all building, no dressing', () => {
+    const scene = sceneOfFile('src/emblems/buildings/barracks.glb');
+    const { building, dressing } = bakedSite(scene);
+    const today = bakedParts(sceneOfFile('src/emblems/buildings/barracks.glb'));
+    expect(dressing).toEqual([]);
+    expect(building.map((part) => part.material.name)).toEqual(
+      today.map((part) => part.material.name),
+    );
+    expect(trianglesOf(building)).toBe(trianglesOf(today));
+    expect(boxOf(building).equals(boxOf(today))).toBe(true);
+  });
+
+  it('bakes the building apart from its socle, liseré, yard and sign', () => {
+    const { building, dressing } = bakedSite(sceneOfFile(SOCLE));
+    const names = dressing.map((part) => part.material.name);
+    expect(names).toContain('socle');
+    expect(names).toContain('lisere');
+    expect(building.map((part) => part.material.name)).not.toContain('lisere');
+    expect(building.map((part) => part.material.name)).not.toContain('socle');
+    // The building stands on the socle's top; the socle on the ground.
+    expect(boxOf(building).min.y).toBeCloseTo(2.2, 3);
+    expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
+    // Its flagpole went to the sign: the building keeps its walls and roofs alone.
+    expect(trianglesOf(building)).toBe(1855);
+  });
+
+  it('draws the first level of a yard, and none of the accessories that come later', () => {
+    const scene = new Group();
+    const socle = new Mesh(new BoxGeometry(4, 1, 4), new MeshStandardMaterial({ name: 'socle' }));
+    socle.name = 'socle';
+    const walls = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name: 'murs' }));
+    scene.add(socle, walls);
+    for (const name of ['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines']) {
+      const group = new Group();
+      group.name = name;
+      group.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name })));
+      scene.add(group);
+    }
+    const { building, dressing } = bakedSite(scene);
+    expect(building.map((part) => part.material.name)).toEqual(['murs']);
+    expect(dressing.map((part) => part.material.name).sort()).toEqual(['niveau_1', 'socle']);
   });
 });
 
