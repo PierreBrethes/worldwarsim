@@ -3312,7 +3312,7 @@ export const fr = {
      * prévu sans rien à l'écran pour l'expliquer se lit comme une panne, pas comme une récompense.
      */
     relayed: (multiplier: number, span: string) =>
-      `×${decimal(multiplier, 1)} par vos liaisons — ${span} de gagné`,
+      `×${decimal(multiplier, 1)} dans le rayon de vos liaisons — ${span} de gagnées`,
     /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
      *  joueur décide, et elle se dit avant qu'il paie le slot. */
     capture: (duration: string) => `capture — ${duration} à la force de la pile`,
