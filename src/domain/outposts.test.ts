@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { LonLat } from './geo';
-import { nearestOutpost, reachingOutpost, withinReach } from './outposts';
+import {
+  liaisonsOf,
+  linkedRelays,
+  lookoutCoalPerHour,
+  lookoutKmOf,
+  nearestOutpost,
+  reachingOutpost,
+  withinReach,
+} from './outposts';
 
 const BUCHAREST: LonLat = [26.1, 44.43];
 const PRAHOVA: LonLat = [26.01, 45.1];
@@ -34,5 +42,48 @@ describe('outpost reach', () => {
     const long = { point: BUCHAREST, reachKm: 240, name: 'bucarest' };
     expect(reachingOutpost(PRAHOVA, [short, long])?.nearest.name).toBe('bucarest');
     expect(reachingOutpost(PRAHOVA, [{ ...long, reachKm: 60 }])).toBeNull();
+  });
+});
+
+/** **Tout avant-poste guette** (ADR 0037 §2) : à mi-rayon, pour un charbon par heure et par niveau. */
+describe('the lookout of an outpost', () => {
+  it('watches half its reach: 60, 90 and 120 km', () => {
+    expect([1, 2, 3].map((level) => lookoutKmOf({ level }))).toEqual([60, 90, 120]);
+  });
+
+  it('burns one coal an hour per level', () => {
+    expect([1, 2, 3].map(lookoutCoalPerHour)).toEqual([1, 2, 3]);
+  });
+});
+
+/** **Des rayons qui se touchent se relient d'eux-mêmes** (ADR 0037 §8) : distance ≤ somme. */
+describe('the liaisons between outposts', () => {
+  const east = (km: number): LonLat => [26 + km / (111.32 * Math.cos((45 * Math.PI) / 180)), 45];
+  const at = (id: string, km: number, reachKm = 120) => ({ id, point: east(km), reachKm });
+
+  it('links two points whose reaches touch, and not two that miss by a little', () => {
+    expect(liaisonsOf([at('a', 0), at('b', 239)])).toEqual([['a', 'b']]);
+    expect(liaisonsOf([at('a', 0), at('b', 241)])).toEqual([]);
+  });
+
+  it('reads each reach on its own: a level-three point reaches farther', () => {
+    expect(liaisonsOf([at('a', 0, 240), at('b', 350)])).toEqual([['a', 'b']]);
+  });
+
+  it('keeps every pair that touches, the long side of a triangle too', () => {
+    expect(liaisonsOf([at('a', 0), at('b', 100), at('c', 200)])).toEqual([
+      ['a', 'b'],
+      ['a', 'c'],
+      ['b', 'c'],
+    ]);
+  });
+
+  it('hands the timing only the points in liaison: a lone point speeds nothing', () => {
+    const relays = linkedRelays([at('a', 0), at('b', 200), at('alone', 2000)]);
+    expect(relays).toEqual([
+      { point: east(0), reachKm: 120 },
+      { point: east(200), reachKm: 120 },
+    ]);
+    expect(linkedRelays([at('alone', 0)])).toEqual([]);
   });
 });

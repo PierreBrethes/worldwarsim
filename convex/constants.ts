@@ -919,6 +919,14 @@ export const OUTPOST_FOOD_PER_HOUR_PER_LEVEL = 3;
 export const LISTENING_COAL_PER_HOUR = 1;
 
 /**
+ * **Ce que brûle la vigie d'un avant-poste** (ADR 0037 §2) : par niveau, parce que le rayon
+ * qu'elle guette monte avec lui. Pris au stock national, comme la station d'écoute.
+ *
+ * @a-mesurer 1, 2, 3 par heure : un point contre les douze d'une mine de charbon au niveau 1
+ */
+export const LOOKOUT_COAL_PER_HOUR_PER_LEVEL = 1;
+
+/**
  * What a troop eats **outside every anchor of its own** (ADR 0019 §4). Without it, "at its own
  * risk and peril" names no risk: a plain rate plus "nothing dies when dry" (D3) would make twenty
  * free sentinels the cheapest way to empty the fog (ADR 0005).

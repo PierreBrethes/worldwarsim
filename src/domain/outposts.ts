@@ -1,3 +1,4 @@
+import { LOOKOUT_COAL_PER_HOUR_PER_LEVEL, outpostReachKm } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
 
 /**
@@ -87,3 +88,40 @@ export const outpostShelters = (
   outpost: OutpostStanding & { readonly disabledUntil: number | null },
   now: number,
 ): boolean => isStanding(outpost, now) && (outpost.disabledUntil ?? 0) <= now;
+
+/**
+ * **Tout avant-poste debout guette** (ADR 0037 §1, §2) : sa vigie porte à la moitié de son rayon
+ * de contrôle. `@a-mesurer` avec le rayon. Le Guet portera au rayon entier (#371).
+ */
+export const lookoutKmOf = (outpost: { readonly level: number }): number =>
+  outpostReachKm(outpost.level) / 2;
+
+/** Le charbon que la vigie brûle, au stock national (ADR 0037 §2). */
+export const lookoutCoalPerHour = (level: number): number =>
+  LOOKOUT_COAL_PER_HOUR_PER_LEVEL * level;
+
+type LiaisonPoint<Id> = OutpostReach & { readonly id: Id };
+
+/**
+ * **Deux avant-postes dont les rayons se touchent sont en liaison**, sans geste (ADR 0037 §8) :
+ * toutes les paires, sans élaguer — le dessin épure (#375), la règle non, sinon un point neuf
+ * ferait perdre l'accélération à un trajet qui passait par une liaison retirée. L'appelant ne
+ * passe que ses points debout et en service : il est seul à savoir quelle heure il lit.
+ */
+export function liaisonsOf<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): Array<[Id, Id]> {
+  return points.flatMap((a, index) =>
+    points
+      .slice(index + 1)
+      .filter((b) => distanceKm(a.point, b.point) <= a.reachKm + b.reachKm)
+      .map((b): [Id, Id] => [a.id, b.id]),
+  );
+}
+
+/** **Les points qui accélèrent** (ADR 0037 §8) : ceux qui ont au moins une liaison. Un point
+ *  seul n'accélère rien ; un point à un seul voisin autant qu'un nœud. */
+export function linkedRelays<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): OutpostReach[] {
+  const linked = new Set(liaisonsOf(points).flat());
+  return points
+    .filter((point) => linked.has(point.id))
+    .map(({ point, reachKm }) => ({ point, reachKm }));
+}
