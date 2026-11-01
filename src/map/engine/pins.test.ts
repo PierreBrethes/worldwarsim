@@ -5,6 +5,8 @@ import type { Pin } from '@/domain/pins';
 import { PROJECTION, WorldFrame } from './frame';
 import { isPinOf, PinLayer } from './pins';
 import { REACH } from './halo';
+import { type PinnedBy } from './figurines/figurine';
+import { buildingFootprint, buildingSpan } from '@/domain/piece-size';
 import { PIN_FALL_MS, PIN_TILT_MS } from './timelines/dismantle';
 
 beforeAll(() => {
@@ -109,6 +111,28 @@ describe('PinLayer — the pieces far away', () => {
       layer.layout(eye, W, H, new Map(), new Map());
       expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'o' });
     }
+  });
+
+  it('gives way to a site on its socle while the socle reads at 28 px (ADR 0038 §7)', () => {
+    const building: Pin = { ...mine('b', paris), shape: 'building' };
+    const socle = (buildingFootprint('barracks') * 80) / 65;
+    const pinAt = (distance: number, by: PinnedBy) => {
+      const eye = eyeOver(paris, distance);
+      const layer = new PinLayer(
+        frame,
+        () => null,
+        false,
+        () => {},
+        () => by,
+      );
+      layer.display([building]);
+      layer.layout(eye, W, H, new Map(), new Map());
+      return layer.under(...screenOf(eye, paris));
+    };
+    // Its walls alone give way by d = 68; its socle still reads at 28 px at d = 62.
+    expect(pinAt(68, buildingSpan('barracks'))).toEqual({ kind: 'pin', id: 'b' });
+    expect(pinAt(62, { socle })).toBeNull();
+    expect(pinAt(80, { socle })).toEqual({ kind: 'pin', id: 'b' });
   });
 
   it('stands where a ring carried its maquette, not on the point the maquette left', () => {

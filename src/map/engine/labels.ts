@@ -2,7 +2,7 @@ import { Vector3, type PerspectiveCamera } from 'three';
 import type { LabelAnchor } from '@/domain/labels';
 import { clampToEdge } from '@/domain/indicators';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { ANONYMOUS_SPAN, nearWeight, pieceWeight } from './figurines/figurine';
+import { ANONYMOUS_SPAN, nearWeight, pieceStands, type PinnedBy } from './figurines/figurine';
 
 /**
  * Beyond this, a label falls back to the glyph alone. A single named threshold: it is the
@@ -119,9 +119,9 @@ export class LabelLayer {
     private readonly isDressed: (id: string) => boolean,
     /** Where its piece is drawn when it stands off the label's point, `null` on it. */
     private readonly drawnAt: (id: string) => Vector3 | null = () => null,
-    /** The span its piece gives way to its pin by (`pieceWeight`), `null` for what has no piece:
+    /** What its piece gives way to its pin by (`pieceStands`): a span or a socle, `null` for what has no piece:
      *  it gives way with the regions' fade. */
-    private readonly spanOf: (id: string) => number | null = () => ANONYMOUS_SPAN,
+    private readonly spanOf: (id: string) => PinnedBy | null = () => ANONYMOUS_SPAN,
   ) {}
 
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
@@ -226,7 +226,7 @@ export class LabelLayer {
       // Its piece is measured where it is drawn, as the piece measures itself and its pin stands.
       const drawn = span === 0 ? null : this.drawnAt(projection.id);
       const from = drawn === null ? distance : drawn.distanceTo(measuredFrom);
-      const piece = span === null ? nearWeight(from) : span === 0 ? 0 : pieceWeight(from, span);
+      const piece = span === null ? nearWeight(from) : span === 0 ? 0 : pieceStands(from, span);
       // The pin is the piece once the piece is too small to read (ADR 0035 §3).
       if (inFrame && piece < 0.5 && this.pinned.has(projection.id)) {
         projection.visible = false;

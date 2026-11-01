@@ -83,9 +83,56 @@ export const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
  * fighter from 13, the carrier from 145.
  */
 export function pieceWeight(distance: number, span: number): number {
-  const whole = PIN_PX - 0.5;
-  return eased((pxOf(distance, span) - whole * (1 - PIN_FADE)) / (whole * PIN_FADE));
+  return standsAbove(pxOf(distance, span), PIN_PX - 0.5);
 }
+
+/** 1 at `px` of `whole` and more, eased to 0 over the last `PIN_FADE` of it. */
+const standsAbove = (px: number, whole: number): number =>
+  eased((px - whole * (1 - PIN_FADE)) / (whole * PIN_FADE));
+
+/** **Down to this, in CSS pixels of its socle, a site stands as its whole diorama** (ADR 0038 §7). */
+const DIORAMA_PX = 64;
+/** **Down to this, its socle, liseré and sign alone**; below, its pin (ADR 0038 §7). */
+const SOCLE_PX = 28;
+/** **The sign grows to keep this many pixels tall** (ADR 0038 §7)… */
+const SIGN_PX = 12;
+/** …twice its height at most. */
+const SIGN_GROWTH = 2;
+
+/** **How a site on its socle reads at this distance** (ADR 0038 §7): its diorama's weight
+ *  (building, yard, accessories), its socle's (the socle, its liseré and its sign: 1 − its pin's),
+ *  and how much its sign grows on its foot. */
+export type SiteReading = {
+  readonly diorama: number;
+  readonly socle: number;
+  readonly signGrowth: number;
+};
+
+/**
+ * **What of a site on its socle stands, by its socle's size on screen** (ADR 0038 §7, keeping the
+ * ADR 0035 §3): its whole diorama while the socle — `socle`, its widest side in board units —
+ * reads at `DIORAMA_PX`; its socle and sign alone down to `SOCLE_PX`, the sign — `sign` tall —
+ * grown to keep `SIGN_PX`; then its pin. Measured as `pieceWeight` is: a barracks' socle of 80 m
+ * gives up its diorama from d ≈ 28 and its socle from d ≈ 65.
+ */
+export function siteReading(distance: number, socle: number, sign: number): SiteReading {
+  const px = pxOf(distance, socle);
+  return {
+    diorama: standsAbove(px, DIORAMA_PX),
+    socle: standsAbove(px, SOCLE_PX),
+    signGrowth: Math.min(SIGN_GROWTH, Math.max(1, SIGN_PX / pxOf(distance, sign))),
+  };
+}
+
+/** **What a piece gives way to its pin by**: its span, or the widest side of its socle. */
+export type PinnedBy = number | { readonly socle: number };
+
+/** **How much of a piece stands, rather than its pin**: `pieceWeight` by its span, or its socle's
+ *  weight in `siteReading` — what the pin and the plate read, as the maquette does. */
+export const pieceStands = (distance: number, by: PinnedBy): number =>
+  typeof by === 'number'
+    ? pieceWeight(distance, by)
+    : standsAbove(pxOf(distance, by.socle), SOCLE_PX);
 
 const pxOf = (distance: number, span: number): number =>
   (span * pieceScale.size * REFERENCE_PX_PER_UNIT) / Math.max(distance, nearFloor);
