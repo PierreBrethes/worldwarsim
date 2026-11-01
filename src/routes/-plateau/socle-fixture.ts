@@ -40,6 +40,8 @@ export function withSocleFixture(maquettes: StandingMaquette[]): StandingMaquett
   const { ink: _mine, ...survey } = mine;
   const shown = (id: string, more: Partial<StandingMaquette>): StandingMaquette => ({
     ...survey,
+    // A survey serves no level: the first yard, as `maquettesOf` serves it.
+    level: 1,
     id: `installation-vitrine-${id}`,
     smoking: false,
     ...more,

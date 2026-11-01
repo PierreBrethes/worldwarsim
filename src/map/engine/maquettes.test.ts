@@ -813,11 +813,6 @@ describe('a site on its socle (ADR 0038)', () => {
       expect(await stood({ level: 1, works: works('queued', 1) })).toEqual([]);
     });
 
-    it('shows a survey, aged or not, niveau_1 alone, never chantier', async () => {
-      expect(await stood({ side: 'seen' })).toEqual(['niveau_1']);
-      expect(await stood({ side: 'seen', washed: true })).toEqual(['niveau_1']);
-    });
-
     it('keeps two barracks of two levels apart, each with its own groups', async () => {
       const layer = await layerOf([
         site(MINE, { level: 1 }),
@@ -834,6 +829,20 @@ describe('a site on its socle (ADR 0038)', () => {
     it('draws no ink scaffold when the file brings its chantier, and keeps it for one without', async () => {
       await layerOf([site(MINE, { level: 1, works: works('rising', 1) })]);
       expect(dressed.scaffolded).toBe(false);
+    });
+
+    it('keeps the ink scaffold for a file with no chantier of its own', async () => {
+      dressed.scaffolded = undefined;
+      await layerOf([site('building-hq@5,0', { url: 'plain.glb', works: works('rising', 1) })]);
+      expect(dressed.scaffolded).toBe(true);
+    });
+
+    it('hands the raze a liseré in the ink of its holder, not the file’s white', async () => {
+      const layer = await layerOf([site(MINE, { level: 1, side: 'mine', ink: '#2a5ba8' })]);
+      const lisere = layer.drawnOf(MINE)!.parts.find((part) => part.material.name === 'lisere')!;
+      expect((lisere.material as MeshStandardMaterial).color.getHex()).toBe(
+        new Color('#2a5ba8').getHex(),
+      );
     });
 
     it('hands the ruins, and the building to cut, for a raze to end on', async () => {

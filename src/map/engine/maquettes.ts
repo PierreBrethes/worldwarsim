@@ -886,10 +886,15 @@ export class MaquetteLayer implements SequenceHost {
     )
       return null;
     const { item, lot } = dressed;
-    const partOf = (mesh: InstancedMesh): Part => ({
-      geometry: mesh.geometry,
-      material: mesh.material as Material,
-    });
+    // The liseré is white in its file and inked per instance: the copy carries its holder's ink.
+    const partOf = (mesh: InstancedMesh): Part => {
+      const material = mesh.material as Material;
+      if (material.name !== 'lisere' || item.lisere === null)
+        return { geometry: mesh.geometry, material };
+      const inked = material.clone() as MeshStandardMaterial;
+      inked.color.copy(item.lisere);
+      return { geometry: mesh.geometry, material: inked };
+    };
     // On a socle that has ruins, the yard of the level falls away and the ruins stand in its place.
     const ruins = model.accessories.get('ruines');
     const kept =

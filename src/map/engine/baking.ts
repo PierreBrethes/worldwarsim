@@ -29,7 +29,7 @@ export function accessoriesShown(level: number, phase: WorkPhase | undefined): s
   return phase === undefined ? levels : [...levels, 'chantier'];
 }
 
-/** The accessories of a later level or state: hidden until their switch comes (#366). */
+/** The accessories of a later level or state: `bakedSite` bakes them apart, the engine shows them. */
 const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 
 /** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one — a
@@ -39,12 +39,16 @@ const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !==
 /**
  * **What no bake of `scene` draws**: the flag, painted by its owner's colours later (#279) —
  * until then a white one would read as a surrender —, and on a socle the accessories of a later
- * level or state. Every bake reads it, so that a copy stood in for a resting maquette has neither.
+ * level or state. The rigs read it, so that a copy stood in for a resting maquette has neither
+ * (`standIn` puts the levels back).
  */
 export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
   const later = onSocle(scene) ? LATER : new Set<string>();
-  return (node) => node.name !== 'drapeau' && !later.has(node.name);
+  return (node) => flagless(node) && !later.has(node.name);
 }
+
+/** The flag is painted by its owner's colours later (#279): no bake draws it. */
+const flagless = (node: Object3D): boolean => node.name !== 'drapeau';
 
 /**
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
@@ -66,7 +70,7 @@ export function bakedSite(scene: Object3D): {
   const socle = onSocle(scene);
   const site = socle ? DRESSING : new Set<string>();
   const visit = (node: Object3D, dressed: boolean, accessory: string | null) => {
-    if (node.name === 'drapeau') return;
+    if (!flagless(node)) return;
     const group = accessory ?? (socle && ACCESSORIES.has(node.name) ? node.name : null);
     const inDressing = dressed || site.has(node.name);
     if ((node as Mesh).isMesh) {
