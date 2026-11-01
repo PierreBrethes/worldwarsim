@@ -1,5 +1,7 @@
 # ADR 0021 — Portées passives et comportement dérivé de l’ordre
 
+> ⚠️ **Révision (01/11/2026, [ADR 0037](0037-un-avant-poste-qui-stocke-et-guette.md), non codée).** §1 : « la simple présence d'un avant-poste n'ajoute aucun bonus » ne vaut plus pour la vigie, que porte tout avant-poste debout. §4 : le changement de spécialisation devient la fin d'un chantier.
+
 > **Révisée par l'[ADR 0030](0030-le-qg-batit-la-recherche-transmet.md)** (source des slots) : le nombre de slots de mouvement ne suit plus le niveau du QG (« QG 5 », ci-dessous) mais la recherche ; les bornes de coût citées sont historiques.
 
 **Statut :** acceptée (31/08/2026), **révisée le 08/09/2026**, **§2 et §3 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md)** (plus de rencontre en route ni de riposte au rayon d'arrivée sans ordre ; une force posée se voit dans la portée) — révise l’[ADR 0008](0008-combat-par-interception.md), les §3 et §5 de l’[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md) et la conséquence du §5 de l’ADR 0019 selon laquelle un détecteur arrivé après un départ ne voit jamais ce mouvement. Le calcul de la passe (ADR 0014, ADR 0018 §1-2-4) reste fermé.
