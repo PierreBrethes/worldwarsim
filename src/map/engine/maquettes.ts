@@ -72,6 +72,8 @@ export type StandingMaquette = {
   /** **Who its socle's liseré says holds it** (ADR 0038 §2-§3): mine in my ink, a survey and a
    *  neutral of the Blitz hollow in the board's ink. Absent for an objective: no liseré. */
   readonly side?: 'mine' | 'seen' | 'neutral';
+  /** Its file stands on a socle (ADR 0038): the ring spaces it by its socle turned any way. */
+  readonly socle?: boolean;
   /** My ink (`marker.ink`), for a site that is `mine` alone: a survey serves no nation. */
   readonly ink?: string;
 };
@@ -425,6 +427,17 @@ const QUAY_SHARE = 0.5;
  */
 export const RING_GAP = 1.45;
 
+/** **Two socles never stand nearer than this**, in metres (ADR 0038 §6). */
+const SOCLE_GAP = 4;
+
+/**
+ * **What the ring spaces a site by**, centre to centre with a neighbour like it: its footprint by
+ * `RING_GAP`, or on a socle (`socleMetre`, board units per metre) a square socle turned at worst —
+ * half its diagonal each — and `SOCLE_GAP` between the two.
+ */
+export const ringSpacing = (footprint: number, socleMetre: number | null): number =>
+  socleMetre === null ? footprint * RING_GAP : footprint * Math.SQRT2 + SOCLE_GAP * socleMetre;
+
 /** **How far a ring may carry a maquette from its own point**, in its widest spacings: under one,
  *  so the site reads where it is — 0.55 for the former 0.875. `@a-mesurer` */
 export const MAX_SHIFT = 0.63;
@@ -432,8 +445,8 @@ export const MAX_SHIFT = 0.63;
 type Placed = {
   readonly id: string;
   readonly span: number;
-  /** What the ring spaces it by (`StandingMaquette.footprint`, else its span). */
-  readonly footprint: number;
+  /** What the ring spaces it by, at the player's size 1 (`ringSpacing`). */
+  readonly spacing: number;
   readonly ground: Vector3;
   /** The ground, or its place on the ring it clears its neighbours on. */
   readonly at: Vector3;
@@ -584,7 +597,12 @@ export class MaquetteLayer implements SequenceHost {
       const item: Placed = {
         id: maquette.id,
         span: maquette.span,
-        footprint: maquette.footprint ?? maquette.span,
+        spacing: ringSpacing(
+          maquette.footprint ?? maquette.span,
+          maquette.socle === true && maquette.metres !== undefined
+            ? maquette.span / maquette.metres
+            : null,
+        ),
         ground,
         at: ground.clone(),
         facing: 0,
@@ -672,7 +690,7 @@ export class MaquetteLayer implements SequenceHost {
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
-      items.map(({ footprint }) => footprint * RING_GAP * pieceScale.size),
+      items.map(({ spacing }) => spacing * pieceScale.size),
       // A lone site's garrison stands this far in front: its footprint reaches it. The pile is not
       // known here: a tank's stands for it.
       items.map(({ span }) => garrisonFoot(span, ANONYMOUS_SPAN) * pieceScale.size),

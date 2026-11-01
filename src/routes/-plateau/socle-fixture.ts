@@ -24,6 +24,7 @@ export function withSocleFixture(maquettes: StandingMaquette[]): StandingMaquett
       : {
           ...maquette,
           url: FIXTURE,
+          socle: true,
           footprint:
             ((maquette.footprint ?? maquette.span) * SOCLE_METRES) /
             BUILDING_FOOTPRINT_METRES.barracks,

@@ -22,6 +22,7 @@ import {
   MaquetteLayer,
   MAX_SHIFT,
   RING_GAP,
+  ringSpacing,
   SOCLE_TOP,
   yawOf,
 } from './maquettes';
@@ -778,10 +779,10 @@ describe('a site on its socle (ADR 0038)', () => {
   });
 
   it('spaces two socles 4 m apart at least, turned any way, wherever their points fall', () => {
-    // The fixture's socle, 80 × 48 m: what the ring spaces it by is its widest side.
+    // A square socle 80 m wide turned at worst reaches half its diagonal (ADR 0038 §6).
     const metre = buildingFootprint('barracks') / 65;
-    const reach = Math.hypot(40, 24) * metre;
-    const spacing = 80 * metre * RING_GAP;
+    const reach = (Math.SQRT2 * 80 * metre) / 2;
+    const spacing = ringSpacing(80 * metre, metre);
     for (const points of [
       [
         [0, 0],
@@ -802,7 +803,13 @@ describe('a site on its socle (ADR 0038)', () => {
       const placed = clusterFootprints(points, spacing);
       for (let i = 0; i < placed.length; i++)
         for (let j = i + 1; j < placed.length; j++)
-          expect(gap(placed[i]!.at, placed[j]!.at)).toBeGreaterThanOrEqual(2 * reach + 4 * metre);
+          expect(gap(placed[i]!.at, placed[j]!.at)).toBeGreaterThanOrEqual(
+            2 * reach + 4 * metre - 1e-9,
+          );
     }
+  });
+
+  it('spaces a site without a socle as before', () => {
+    expect(ringSpacing(2, null)).toBe(2 * RING_GAP);
   });
 });
