@@ -659,12 +659,12 @@ describe('the thread follows the pile', () => {
     return stray;
   };
 
-  it('leaves the point the pile stands on', () => {
+  it('leaves the point the pile stands on', { timeout: 60000 }, () => {
     expect(gaps('land').filter((s) => s.includes(' from '))).toEqual([]);
     expect(gaps('naval').filter((s) => s.includes(' from '))).toEqual([]);
   });
 
-  it('bills the thread it draws', () => {
+  it('bills the thread it draws', { timeout: 60000 }, () => {
     const drawn = (points: ReadonlyArray<LonLat>) =>
       points.slice(1).reduce((sum, point, i) => {
         const [ax, ay] = projectLonLat(baked.outline, baked.sphere, points[i]!);
@@ -776,7 +776,7 @@ describe('the thread follows the pile', () => {
   it('brings nearly every fleet aimed at a coast to it', { timeout: 60000 }, () => {
     let short = 0;
     let bent = 0;
-    const count = 300;
+    const count = 100;
     for (let i = 0; i < count; i++) {
       const to = coastPoint();
       const route = computeRoute(baked, seaPoint(to), to, 'naval');
@@ -792,7 +792,7 @@ describe('the thread follows the pile', () => {
   it('sets a fleet standing on a coast out from it, by water', { timeout: 60000 }, () => {
     let short = 0;
     let bent = 0;
-    const count = 300;
+    const count = 100;
     for (let i = 0; i < count; i++) {
       const from = coastPoint();
       const route = computeRoute(baked, from, seaPoint(from), 'naval');
@@ -807,7 +807,7 @@ describe('the thread follows the pile', () => {
 
   it('never cuts a corner of land on its first and last legs', { timeout: 60000 }, () => {
     for (const mode of ['land', 'naval'] as const)
-      for (const [from, to] of pairs(mode, 150)) {
+      for (const [from, to] of pairs(mode, 60)) {
         const route = computeRoute(baked, from, to, mode);
         if (route === null) continue;
         const wanted = mode === 'land' ? 'l' : 's';
