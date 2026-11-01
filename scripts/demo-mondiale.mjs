@@ -25,7 +25,8 @@
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
- * ajoute une caserne de niveau 3.
+ * ajoute une caserne de niveau 3. `--caserne-chantier` (#365) met en chantier une caserne dans
+ * l'Aube, en tête de file : son premier niveau monte.
  * `--edition` publie tout de suite deux éditions de presse : le classement et ses variations.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
  * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
@@ -143,6 +144,9 @@ const levels =
   process.argv.includes('--niveaux') ||
   process.argv.includes('--echelle');
 const works = levels || process.argv.includes('--chantiers');
+/** `--caserne-chantier` (#365) : une caserne seule en chantier dans l'Aube, son premier niveau
+ *  qui monte — avec `?socle`, le bâtiment coupé sur son socle entier. */
+const risingBarracks = process.argv.includes('--caserne-chantier');
 const navy = process.argv.includes('--navire') || process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
 const twinTrucks = process.argv.includes('--deux-camions');
@@ -453,6 +457,18 @@ if (!bare) {
         point: { lon: site.lon, lat: site.lat },
       });
     }
+  }
+  if (risingBarracks && scene.a !== null) {
+    const point = (
+      await client.query(api.view.playerView, { token: tokenA, seasonId })
+    ).me.regions.find((one) => one.id === 'FRA-5270').point;
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'barracks',
+      regionId: 'FRA-5270',
+      point: { lon: point[0], lat: point[1] },
+    });
   }
   if (works && scene.a !== null) {
     const paris = (
