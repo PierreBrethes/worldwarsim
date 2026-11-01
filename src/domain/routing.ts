@@ -453,39 +453,80 @@ export function computeRoute(
   const path = dijkstra(grid, start, (cell) => cell === goal, mode, landCost);
   if (path === null) return null;
   const search = routeSearchOf(grid, path, mode, landCost);
-  return projectOnGrid(grid, to) === goal ? endAt(grid, search, to) : search.route;
+  return pinned(grid, search, from, to, start, goal);
 }
 
 /**
- * **The thread ends where the pile settles** (#364): the last vertex is the centre of the goal
- * cell, up to half a cell's diagonal (about twenty kilometres) from the aimed point, and the pawn
- * used to go on past its pile. The vertex moves to `to` — no new vertex, no new leg — inside that
- * one cell, and the last step is measured again. It stays put where the move would leave the
- * step's medium (a gulf's chord) or wrap the world's edge, and a quay's neighbouring water cell
- * is not `to`'s cell: both keep the centre.
+ * **The thread joins the pile at both ends** (#364, #381): a pawn's pile stands on the point the
+ * player gave, and the grid's thread starts and ends at cell centres, up to half a cell's diagonal
+ * (about twenty kilometres) from it. The first vertex moves to `from` and the last to `to` — no
+ * new vertex inside a cell — and the step is measured again, so the distance billed is the thread
+ * drawn. A fleet aimed at a coast, whose search stopped in the sea beside it, gets one last leg
+ * of water to that coast (`standAt` puts its pile there), as Malta's does (`extendRouteSearch`).
+ * An end stays put where the move would leave the step's medium (a gulf's chord) or wrap the
+ * world's edge.
  */
-function endAt(grid: RouteGrid, search: RouteSearch, to: LonLat): ComputedRoute {
-  const { rawPoints, steps, route } = search;
+function pinned(
+  grid: RouteGrid,
+  search: RouteSearch,
+  from: LonLat,
+  to: LonLat,
+  start: number,
+  goal: number,
+): ComputedRoute {
+  const rawPoints = [...search.rawPoints];
+  const steps = [...search.steps];
+  const naval = search.route.mode === 'naval';
   const last = steps.length - 1;
-  const before = rawPoints[last];
-  if (before === undefined || Math.abs(to[0] - before[0]) > 180) return route;
-  const medium = steps[last]!.medium;
-  const onMedium = ([lon, lat]: LonLat) =>
-    medium === 'land' ? isWalkableCell(grid, [lon, lat]) : groundAt(grid, [lon, lat]) === 'sea';
-  const chord = distanceKm(before, to);
-  const samples = Math.ceil((chord / (grid.step * KM_PER_UNIT)) * 8) + 1;
+  if (last < 0) return search.route;
+
+  if (projectOnGrid(grid, from) === start) {
+    if (reaches(grid, steps[0]!.medium, from, rawPoints[1]!)) {
+      steps[0] = { ...steps[0]!, distanceUnits: projectedDistance(grid, from, rawPoints[1]!) };
+      rawPoints[0] = from;
+    }
+  }
+
+  if (projectOnGrid(grid, to) === goal) {
+    // The last vertex moves to `to`: the step it closes is measured from the one before.
+    const closing = steps[steps.length - 1]!;
+    const before = rawPoints[rawPoints.length - 2]!;
+    if (reaches(grid, closing.medium, before, to)) {
+      steps[steps.length - 1] = { ...closing, distanceUnits: projectedDistance(grid, before, to) };
+      rawPoints[rawPoints.length - 1] = to;
+    }
+  } else if (naval && isLandCell(grid, to)) {
+    const before = rawPoints[rawPoints.length - 1]!;
+    if (reaches(grid, 'sea', before, to, to)) {
+      steps.push({
+        medium: 'sea',
+        distanceUnits: projectedDistance(grid, before, to),
+        transfer: false,
+      });
+      rawPoints.push(to);
+    }
+  }
+  return routeOf(search.route.mode, rawPoints, steps, search.route.landCost);
+}
+
+/**
+ * **Does the straight segment stay on its medium?** Sampled eight times a cell, as the server
+ * reads it (`positionAt`), linear in lon/lat. A segment that wraps the world's edge never does.
+ * `ashore` is the land point a hull's leg starts or ends on: the cell around it is the only land
+ * the segment may touch.
+ */
+function reaches(grid: RouteGrid, medium: Medium, a: LonLat, b: LonLat, ashore?: LonLat): boolean {
+  if (Math.abs(b[0] - a[0]) > 180) return false;
+  const shore = ashore === undefined ? -1 : projectOnGrid(grid, ashore);
+  const onMedium = (point: LonLat) =>
+    projectOnGrid(grid, point) === shore ||
+    (medium === 'land' ? isWalkableCell(grid, point) : groundAt(grid, point) === 'sea');
+  const samples = Math.ceil((distanceKm(a, b) / (grid.step * KM_PER_UNIT)) * 8) + 1;
   for (let s = 1; s < samples; s++) {
     const t = s / samples;
-    if (!onMedium([before[0] + (to[0] - before[0]) * t, before[1] + (to[1] - before[1]) * t]))
-      return route;
+    if (!onMedium([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])) return false;
   }
-  const closing = { ...steps[last]!, distanceUnits: projectedDistance(grid, before, to) };
-  return routeOf(
-    route.mode,
-    [...rawPoints.slice(0, -1), to],
-    [...steps.slice(0, last), closing],
-    route.landCost,
-  );
+  return true;
 }
 
 /**

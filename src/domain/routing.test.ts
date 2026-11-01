@@ -25,6 +25,7 @@ import {
   landMaskOf,
   routeMedium,
   kmOf,
+  projectLonLat,
 } from './routing';
 
 /**
@@ -601,5 +602,110 @@ describe('the pulled thread', () => {
       });
     }
     expect(strays).toEqual([]);
+  });
+});
+
+/**
+ * **The thread and the pile are one place** (#381): a pawn's pile stands on the point the player
+ * gave, so the drawn thread leaves `from` and ends at `to` — not at the centre of a cell, nor, for
+ * a fleet aimed at a coast, at the sea beside it. What the column is billed is the thread drawn.
+ */
+describe('the thread follows the pile', () => {
+  const baked = decodeGrid(gridAsset, projectionAsset as unknown as Projection);
+  const next = ((seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  })(381);
+  const randomPoint = (): LonLat => [next() * 360 - 180, next() * 140 - 70];
+  const onWrap = (a: LonLat, b: LonLat) => Math.abs(a[0] - b[0]) > 180;
+
+  /** Random pairs on the right medium, snapped nowhere: where they stand is where they are. */
+  const pairs = (mode: RouteMode, count: number): Array<[LonLat, LonLat]> => {
+    const fits = (point: LonLat) =>
+      mode === 'land' ? isWalkableCell(baked, point) : groundAt(baked, point) === 'sea';
+    const found: Array<[LonLat, LonLat]> = [];
+    while (found.length < count) {
+      const [a, b] = [randomPoint(), randomPoint()];
+      if (fits(a) && fits(b) && distanceKm(a, b) > 100 && distanceKm(a, b) < 4000)
+        found.push([a, b]);
+    }
+    return found;
+  };
+
+  const gaps = (mode: RouteMode) => {
+    const stray: string[] = [];
+    for (const [from, to] of pairs(mode, 60)) {
+      const route = computeRoute(baked, from, to, mode);
+      if (route === null) continue;
+      const first = route.points[0]!;
+      const second = route.points[1]!;
+      if (!onWrap(first, second) && distanceKm(first, from) > 0.01)
+        stray.push(`${mode} from ${from}`);
+      const last = route.points[route.points.length - 1]!;
+      const before = route.points[route.points.length - 2]!;
+      if (!onWrap(last, before) && distanceKm(last, to) > 0.01) stray.push(`${mode} to ${to}`);
+    }
+    return stray;
+  };
+
+  it('leaves the point the pile stands on', () => {
+    expect(gaps('land').filter((s) => s.includes(' from '))).toEqual([]);
+    expect(gaps('naval').filter((s) => s.includes(' from '))).toEqual([]);
+  });
+
+  it('bills the thread it draws', () => {
+    const drawn = (points: ReadonlyArray<LonLat>) =>
+      points.slice(1).reduce((sum, point, i) => {
+        const [ax, ay] = projectLonLat(baked.outline, baked.sphere, points[i]!);
+        const [bx, by] = projectLonLat(baked.outline, baked.sphere, point);
+        return sum + Math.hypot(bx - ax, by - ay);
+      }, 0);
+    for (const mode of ['land', 'naval'] as const)
+      for (const [from, to] of pairs(mode, 40)) {
+        const route = computeRoute(baked, from, to, mode);
+        if (route === null || route.points.some((p, i) => i > 0 && onWrap(route.points[i - 1]!, p)))
+          continue;
+        expect(route.distanceUnits / drawn(route.points), `${mode} ${from} → ${to}`).toBeCloseTo(
+          1,
+          1,
+        );
+      }
+  });
+
+  /** A fleet's pile stands on the coast it aimed at (`standAt`): the thread goes there, by water. */
+  it('carries a fleet to the coast point it aimed at, the last segment touching land only there', () => {
+    const coasts: Array<[LonLat, LonLat]> = [
+      [
+        [-4.6, 48.3],
+        [5.37, 43.3],
+      ],
+      [
+        [4, 55],
+        [12.1, 54.1],
+      ],
+      [
+        [-9.6, 38.6],
+        [-43.17, -22.9],
+      ],
+      [
+        [140.0, 35.0],
+        [139.9, 35.6],
+      ],
+    ];
+    for (const [from, to] of coasts) {
+      expect(isCoastCell(baked, to), `${to} is a coast`).toBe(true);
+      const route = computeRoute(baked, from, to, 'naval')!;
+      const points = route.points;
+      expect(points[points.length - 1]).toEqual(to);
+      const a = points[points.length - 2]!;
+      const b = points[points.length - 1]!;
+      const samples = Math.ceil((distanceKm(a, b) / 28) * 8) + 1;
+      for (let s = 1; s < samples; s++) {
+        const t = s / samples;
+        const here: LonLat = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        if (isLandCell(baked, here)) continue;
+        expect(groundAt(baked, here), `${to} at ${here}`).toBe('sea');
+      }
+    }
   });
 });
