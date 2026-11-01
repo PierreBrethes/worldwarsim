@@ -640,44 +640,6 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   rubble: (
     <path d="M2.8 13.4 H17.2 V15.6 H2.8 Z M2.8 16.8 H17.2 V19 H2.8 Z M3.4 9.2 H8.2 V12.4 H3.4 Z M10.6 6.6 L14.4 4.9 L15.7 7.7 L11.9 9.4 Z M8.6 1.3 H12 V4 H8.6 Z" />
   ),
-  /** Le métier de relais : le mât sur son socle et l'onde qui part — deux arcs ouverts vers la
-   *  droite. Ce que le point *fait*, jamais ce qu'il est : la hutte dit déjà le point. */
-  aerial: (
-    <>
-      <path d="M4.6 1.4 H6.7 V16.6 H4.6 Z M2.2 17.2 H9.1 V19.2 H2.2 Z" />
-      <path
-        d="M10.6 5.4 A6.2 6.2 0 0 1 10.6 14.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-      <path
-        d="M13.9 2.6 A9.8 9.8 0 0 1 13.9 17.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-    </>
-  ),
-  /** Le métier d'écoute : le pavillon tendu — le cornet et l'onde qui arrive. Même famille que
-   *  l'antenne, et ce qui les sépare est le sens de l'onde. */
-  ear: (
-    <>
-      <path d="M2.2 7.4 H6.4 V12.6 H2.2 Z M6.4 4.2 L11.4 1.6 V18.4 L6.4 15.8 Z" />
-      <path
-        d="M14.1 6.2 A5 5 0 0 1 14.1 13.8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-      <path
-        d="M17 3.4 A8.6 8.6 0 0 1 17 16.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-    </>
-  ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */
   /** « Bombarder » : l'obus debout sur son culot, la ceinture marquée. */

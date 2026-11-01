@@ -235,12 +235,6 @@ export type CompassPictogram =
   /** « Raser » : le mur qui s'écroule, ses moellons en l'air. Rien de la torche du sabotage —
    *  on n'incendie pas chez soi, on démonte */
   | 'rubble'
-  /** Le métier de relais : le mât et son onde qui part. C'est ce que le point *fait* — il
-   *  relaie — et non ce qu'il est, que la hutte dit déjà. */
-  | 'aerial'
-  /** Le métier d'écoute : le pavillon tendu, l'oreille du point. Même famille que l'antenne,
-   *  et ce qui les sépare est le sens de l'onde : l'une part, l'autre arrive. */
-  | 'ear'
   /** « Bombarder » (B20) : l'obus debout sur son culot — un tir qui part, rien de la colonne. */
   | 'shell';
 
