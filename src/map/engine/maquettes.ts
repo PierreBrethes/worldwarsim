@@ -1,9 +1,12 @@
 import {
   Box3,
+  Color,
   Group,
   InstancedMesh,
   type Material,
   Matrix4,
+  Mesh,
+  MeshStandardMaterial,
   type Plane,
   Quaternion,
   type Object3D,
@@ -16,7 +19,8 @@ import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ANONYMOUS_SPAN, pieceWeight, sceneOf } from './figurines/figurine';
 import { washedOf } from './standing';
-import { bakedParts, type Part } from './baking';
+import { bakedSite, type Part } from './baking';
+import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
@@ -70,6 +74,23 @@ export type StandingMaquette = {
   readonly ink?: string;
 };
 
+/** **The top of a socle, in metres** (ADR 0038 §1): what a garrison on the yard stands on. */
+export const SOCLE_TOP = 2.2;
+
+/** The socle's paper (ADR 0038 §1): a hollow liseré is its ink mixed into it. */
+const SOCLE_PAPER = new Color('#ebe1c8');
+/** **How much of the paper a hollow liseré takes** (ADR 0038 §3). */
+const HOLLOW = 0.6;
+
+/** **The ink of a site's liseré** (ADR 0038 §2-§3): mine full in my ink; a survey hollow in a
+ *  survey's ink, as its pin; a neutral of the Blitz hollow in the borders'. `null` for none. */
+function lisereOf({ side, ink }: StandingMaquette): Color | null {
+  if (side === 'mine') return ink === undefined ? null : new Color(ink);
+  if (side === undefined) return null;
+  const pen = side === 'seen' ? ARC_COLORS.enemyDetected.trace : PALETTE.border;
+  return new Color(pen).lerp(SOCLE_PAPER, HOLLOW);
+}
+
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */
 export function yawOf(id: string): number {
   let hash = 2166136261;
@@ -85,12 +106,19 @@ export type Drawn = {
 };
 
 type Model = {
+  /** Its building: what a site at work cuts, and a plan in the queue does not stand yet. */
   readonly parts: ReadonlyArray<Part>;
+  /** Its socle, liseré, yard and sign (ADR 0038): whole in every state. Empty without a socle. */
+  readonly dressing: ReadonlyArray<Part>;
   /** Its own units to one board unit, times its span, its size: on its widest side at the ground,
    *  or, for a model drawn in metres, per metre — then `span` is its metres on the board. */
   readonly scale: number;
-  /** Its bounds in its own units, ground at zero: how high a site rises, where its scaffold stands. */
+  /** Its bounds in its own units, ground at zero: its socle's, when it stands on one. */
   readonly box: Box3;
+  /** Its building's bounds: how high a site rises, where its scaffold stands, what a raze marks. */
+  readonly building: Box3;
+  /** Its `fx_rang` on a socle — the first man, and the way the rank runs —, `null` without. */
+  readonly rank: { readonly at: Vector3; readonly along: Vector3 } | null;
   /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
   readonly chimneys: ReadonlyArray<Vector3>;
   /** Every `fx_*` marker, in its own units: a door a recruit comes out of (`markersOf`). */
@@ -104,12 +132,17 @@ function modelOf(url: string, metres?: number): Promise<Model> {
   if (!model) {
     model = sceneOf(url).then((cached) => {
       const scene = cached;
-      const parts = bakedParts(scene);
-      const box = new Box3();
-      for (const { geometry } of parts) {
-        geometry.computeBoundingBox();
-        box.union(geometry.boundingBox!);
-      }
+      const { building: parts, dressing } = bakedSite(scene);
+      const boundsOf = (of: ReadonlyArray<Part>) => {
+        const bounds = new Box3();
+        for (const { geometry } of of) {
+          geometry.computeBoundingBox();
+          bounds.union(geometry.boundingBox!);
+        }
+        return bounds;
+      };
+      const building = boundsOf(parts);
+      const box = building.clone().union(boundsOf(dressing));
       const chimneys: Vector3[] = [];
       const markers = new Map<string, Vector3>();
       scene.traverse((node) => {
@@ -121,10 +154,29 @@ function modelOf(url: string, metres?: number): Promise<Model> {
         const top = box.getCenter(new Vector3());
         chimneys.push(top.setY(box.max.y));
       }
-      const size = box.getSize(new Vector3());
+      const ranked = dressing.length > 0 ? scene.getObjectByName('fx_rang') : undefined;
+      const rank =
+        ranked === undefined
+          ? null
+          : {
+              at: markers.get('fx_rang')!,
+              along: new Vector3(0, 0, 1).applyQuaternion(
+                ranked.getWorldQuaternion(new Quaternion()),
+              ),
+            };
+      const size = building.getSize(new Vector3());
       // A model in metres is drawn at one constant scale (ADR 0035): its box, bent by a flagpole
       // or a shed, no longer sets the size of its walls.
-      return { parts, scale: 1 / (metres ?? Math.max(size.x, size.z)), box, chimneys, markers };
+      return {
+        parts,
+        dressing,
+        scale: 1 / (metres ?? Math.max(size.x, size.z)),
+        box,
+        building,
+        chimneys,
+        markers,
+        rank,
+      };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
     model.catch((error: unknown) => console.error(`maquette ${url}`, error));
@@ -394,6 +446,8 @@ type Placed = {
   readonly smoking: boolean;
   /** One per chimney once the model has landed, empty for a site that does not produce. */
   smokes: Smoke[];
+  /** The ink of its liseré (`lisereOf`), `null` for none. */
+  readonly lisere: Color | null;
   /** When it stood up under the eyes (`Date.now()`): it bounces once. */
   settledAt: number | null;
 };
@@ -413,6 +467,7 @@ type Lot = {
 };
 
 const UP = new Vector3(0, 1, 0);
+const WHITE = new Color(1, 1, 1);
 /** How near a thread's end must be to an airfield's point to be its runway's. */
 const RUNWAY_TOLERANCE = 0.05;
 /** A site that stands under the eyes gives a little: up, down, still. */
@@ -537,6 +592,7 @@ export class MaquetteLayer implements SequenceHost {
         smoking: maquette.smoking === true && !maquette.works && !maquette.washed,
         smokes: [],
         settledAt: null,
+        lisere: lisereOf(maquette),
       };
       lot.items.push(item);
       this.byId.set(maquette.id, { item, lot });
@@ -631,30 +687,38 @@ export class MaquetteLayer implements SequenceHost {
     lot.model = model;
     const atWork = lot.atWork;
     if (atWork !== null) {
+      // The building alone is at work: its socle stands whole (ADR 0038 §5).
       atWork.dressing = new WorksDressing(
         atWork.works,
-        model.box,
+        model.building,
         groundFootprint(
           model.parts.map(({ geometry }) => geometry),
-          model.box,
+          model.building,
         ),
       );
       lot.group.add(atWork.dressing.object);
     }
     const cut = atWork?.dressing?.cut ?? null;
-    // A plan in the queue has no volume yet.
-    const parts = atWork?.works.phase === 'queued' ? [] : model.parts;
-    lot.meshes = parts.map(({ geometry, material }) => {
+    const instanced = ({ geometry, material }: Part, cutHere: boolean) => {
       const mesh = new InstancedMesh(
         geometry,
-        cut !== null ? cutOf(material, cut) : washed ? washedOf(material) : material,
+        cutHere && cut !== null ? cutOf(material, cut) : washed ? washedOf(material) : material,
         lot.items.length,
       );
       mesh.matrixAutoUpdate = false;
       // Instances spread over a continent: one sphere around them all would cull nothing.
       mesh.frustumCulled = false;
       return mesh;
-    });
+    };
+    // A plan in the queue has no volume yet.
+    const building = atWork?.works.phase === 'queued' ? [] : model.parts;
+    const dressing = model.dressing.map((part) => instanced(part, false));
+    // One lot for every side: its liseré is inked per instance (ADR 0038 §2).
+    for (const mesh of dressing) {
+      if ((mesh.material as Material).name !== 'lisere') continue;
+      lot.items.forEach((item, k) => mesh.setColorAt(k, item.lisere ?? WHITE));
+    }
+    lot.meshes = [...building.map((part) => instanced(part, true)), ...dressing];
     if (lot.meshes.length > 0) lot.group.add(...lot.meshes);
     for (const item of lot.items) {
       if (!item.smoking) continue;
@@ -673,7 +737,8 @@ export class MaquetteLayer implements SequenceHost {
     const cut = lot.atWork?.dressing?.cut ?? null;
     for (const mesh of lot.meshes) {
       mesh.dispose();
-      if (cut !== null) (mesh.material as Material).dispose();
+      if (cut !== null && (mesh.material as Material).clippingPlanes?.includes(cut))
+        (mesh.material as Material).dispose();
     }
     lot.atWork?.dressing?.dispose();
   }
@@ -688,8 +753,8 @@ export class MaquetteLayer implements SequenceHost {
     matrix.compose(item.at, item.turn, scale.setScalar(item.near * sizeOf(model, item)));
     placedBox.copy(model.box).applyMatrix4(matrix);
     // A rising site is drawn up to its cut only, a plan lies flat: the box the poster clears
-    // stops there too.
-    const atWork = dressed.lot.atWork;
+    // stops there too — but on a socle, whose sign stands whole and above the building.
+    const atWork = model.dressing.length > 0 ? null : dressed.lot.atWork;
     const cut = atWork?.dressing?.cut ?? null;
     if (atWork?.works.phase === 'queued') placedBox.max.y = placedBox.min.y;
     else if (cut !== null)
@@ -766,7 +831,7 @@ export class MaquetteLayer implements SequenceHost {
         item.turn,
         new Vector3().setScalar(item.drawnNear * sizeOf(model, item)),
       ),
-      box: model.box,
+      box: model.building,
     };
   }
 
@@ -809,6 +874,16 @@ export class MaquetteLayer implements SequenceHost {
       this.group.add(copy);
     }
     const dressed = this.byId.get(id);
+    const lisere = dressed?.item.lisere ?? null;
+    // Its file's materials are shared by every copy: its liseré wears its own (ADR 0038 §2).
+    if (copy !== null && lisere !== null)
+      copy.traverse((node) => {
+        const mesh = node as Mesh;
+        if (!mesh.isMesh || (mesh.material as Material).name !== 'lisere') return;
+        const own = (mesh.material as MeshStandardMaterial).clone();
+        own.color.copy(lisere);
+        mesh.material = own;
+      });
     if (dressed !== undefined) dressed.item.near = -1;
   }
 
@@ -828,7 +903,13 @@ export class MaquetteLayer implements SequenceHost {
     id: string,
     pile: number,
     quay = false,
-  ): { at: Vector3; step: readonly [number, number]; facing: number } | null {
+  ): {
+    at: Vector3;
+    step: readonly [number, number];
+    facing: number;
+    /** On a socle's yard (ADR 0038 §5): the first pile starts at `fx_rang`, the next along. */
+    rank: boolean;
+  } | null {
     const held = this.held.get(id);
     const dressed = this.byId.get(id);
     if (held === undefined && (dressed === undefined || dressed.lot.model === null)) return null;
@@ -836,9 +917,22 @@ export class MaquetteLayer implements SequenceHost {
     if (item.cleared) return null;
     const { at, facing, scale, span } = item;
     // A held site is not oriented any more: its garrison keeps the weight it was drawn at.
-    const near = held === undefined ? item.near : item.drawnNear;
-    const foot = garrisonFoot(span, pile, quay) * pieceScale.size * scale * Math.max(near, 0);
-    return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing };
+    const near = Math.max(held === undefined ? item.near : item.drawnNear, 0);
+    const rank = (held?.model ?? dressed!.lot.model)!.rank;
+    // The hulls of a port keep its quay.
+    if (rank !== null && !quay) {
+      const size = near * sizeOf((held?.model ?? dressed!.lot.model)!, item);
+      const first = rank.at.clone().setY(0).applyQuaternion(item.turn).multiplyScalar(size);
+      const along = rank.along.clone().applyQuaternion(item.turn);
+      return {
+        at: at.clone().setY(at.y + SOCLE_TOP * size),
+        step: [first.x, first.z],
+        facing: Math.atan2(-along.z, along.x),
+        rank: true,
+      };
+    }
+    const foot = garrisonFoot(span, pile, quay) * pieceScale.size * scale * near;
+    return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing, rank: false };
   }
 
   /** **The span a label's maquette is pinned by**, `null` for none drawn here. */

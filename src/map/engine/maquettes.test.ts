@@ -1,17 +1,21 @@
 import {
+  type Box3,
   BoxGeometry,
+  Color,
   Group,
   InstancedMesh,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
+  Plane,
   Raycaster,
   Vector3,
 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
-import { buildingSpan, troopSpan } from '@/domain/piece-size';
+import { buildingFootprint, buildingSpan, troopSpan } from '@/domain/piece-size';
+import { ARC_COLORS, PALETTE } from './palette';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
   clusterFootprints,
@@ -19,17 +23,25 @@ import {
   MaquetteLayer,
   MAX_SHIFT,
   RING_GAP,
+  SOCLE_TOP,
   yawOf,
 } from './maquettes';
 import { pileLayout } from './standing';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
+
+/** The box the last works were dressed round. */
+const dressed: { box: Box3 | null } = { box: null };
 
 // The dressing of a site paints a canvas: a stub, this file has no DOM.
 vi.mock('./works', async (original) => ({
   ...(await original<typeof import('./works')>()),
   WorksDressing: class {
     object = new Group();
-    cut = null;
+    cut: Plane | null;
+    constructor(works: { phase: string }, box: Box3) {
+      this.cut = works.phase === 'rising' ? new Plane(new Vector3(0, -1, 0), 0) : null;
+      dressed.box = box;
+    }
     place() {}
     pick() {
       return null;
@@ -40,14 +52,16 @@ vi.mock('./works', async (original) => ({
 
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),
-  // A box of a metre for every file: the loader wants a DOM.
-  sceneOf: () => {
+  // A box of a metre for every file but the barracks on its socle: the loader wants a DOM.
+  sceneOf: async (url: string) => {
+    if (url === 'socle.glb')
+      return (await import('./gltf-scene.fixture')).sceneOfFile(
+        'src/emblems/fixtures/barracks-socle.glb',
+      );
     const door = new Group();
     door.name = 'fx_sortie';
     door.position.set(0, 0.1, 0.5);
-    return Promise.resolve(
-      new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()), door),
-    );
+    return new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()), door);
   },
 }));
 
@@ -600,5 +614,171 @@ describe('the sites a garrison stands at the foot of (#341)', () => {
       site('building-mine', { regionId: 'r' }),
     ]);
     expect(maquettes.buildingPoints()).toEqual([{ id: 'building-hq@1,0', at: [1, 0] }]);
+  });
+});
+
+describe('a site on its socle (ADR 0038)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const MINE = 'building-barracks@0,0';
+  const eye = new Vector3(0, 0.3, 0.3);
+  const site = (
+    id: string,
+    more: Partial<Parameters<MaquetteLayer['display']>[0][number]> = {},
+  ) => ({
+    id,
+    at: { lonLat: [Number(id.length % 7) * 10, 0] as const },
+    url: 'socle.glb',
+    span: 1,
+    metres: 50,
+    washed: false,
+    ...more,
+  });
+  const layerOf = async (maquettes: Parameters<MaquetteLayer['display']>[0]) => {
+    const layer = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    layer.display(maquettes);
+    // The file is read from disk: it lands in its own time.
+    await vi.waitFor(() => expect(maquettes.every(({ id }) => layer.isDressed(id))).toBe(true));
+    layer.orient(eye, null, 0);
+    return layer;
+  };
+  const meshes = (layer: MaquetteLayer) => {
+    const found: InstancedMesh[] = [];
+    layer.group.traverse((node) => {
+      if ((node as InstancedMesh).isInstancedMesh) found.push(node as InstancedMesh);
+    });
+    return found;
+  };
+  const nameOf = (mesh: InstancedMesh) => (mesh.material as MeshStandardMaterial).name;
+  const hollow = (ink: string) => new Color(ink).lerp(new Color('#ebe1c8'), 0.6);
+
+  it('inks the liseré alone, by the side of each site, in one lot', async () => {
+    const layer = await layerOf([
+      site(MINE, { side: 'mine', ink: '#2a5ba8' }),
+      site('installation-seen', { side: 'seen' }),
+      site('installation-neutral', { side: 'neutral' }),
+    ]);
+    const all = meshes(layer);
+    const liseres = all.filter((mesh) => nameOf(mesh) === 'lisere');
+    expect(liseres).toHaveLength(1);
+    const [lisere] = liseres;
+    const colorAt = (k: number) => {
+      const color = new Color();
+      lisere!.getColorAt(k, color);
+      return color;
+    };
+    expect(colorAt(0).getHex()).toBe(new Color('#2a5ba8').getHex());
+    expect(colorAt(1).getHex()).toBe(hollow(ARC_COLORS.enemyDetected.trace).getHex());
+    expect(colorAt(2).getHex()).toBe(hollow(PALETTE.border).getHex());
+    for (const mesh of all.filter((each) => each !== lisere)) expect(mesh.instanceColor).toBeNull();
+  });
+
+  it('inks the copy a sequence stands in for it, and no other maquette of the file', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8' })]);
+    const shared = new MeshStandardMaterial({ name: 'lisere' });
+    const copy = new Group().add(new Mesh(new BoxGeometry(1, 1, 1), shared));
+    layer.standIn(MINE, copy);
+    const worn = (copy.children[0] as Mesh).material as MeshStandardMaterial;
+    expect(worn).not.toBe(shared);
+    expect(worn.color.getHex()).toBe(new Color('#2a5ba8').getHex());
+    expect(shared.color.getHex()).toBe(0xffffff);
+  });
+
+  it('ranks my garrison on the yard from fx_rang, on the socle top, along the rank', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8' })]);
+    const drawn = layer.drawnOf(MINE)!;
+    const rank = layer.garrisonAt(MINE, 0.1)!;
+    expect(rank.rank).toBe(true);
+    const first = new Vector3(-25, SOCLE_TOP, 17.4).applyMatrix4(drawn.matrix);
+    expect(rank.at.x + rank.step[0]).toBeCloseTo(first.x, 6);
+    expect(rank.at.z + rank.step[1]).toBeCloseTo(first.z, 6);
+    expect(rank.at.y).toBeCloseTo(first.y, 6);
+    expect(rank.at.y).toBeGreaterThan(0);
+    // The rank runs along the marker's +z, the model's +x, turned as the maquette is.
+    const along = new Vector3(1, 0, 0).applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
+    expect(Math.cos(rank.facing)).toBeCloseTo(along.x, 6);
+    expect(-Math.sin(rank.facing)).toBeCloseTo(along.z, 6);
+  });
+
+  it('keeps the foot and its facing without a socle, and for the hulls of a quay', async () => {
+    const layer = await layerOf([
+      site(MINE, { side: 'mine', ink: '#2a5ba8' }),
+      site('building-hq@5,0', { url: 'plain.glb' }),
+    ]);
+    expect(layer.garrisonAt('building-hq@5,0', 0.1)!.rank).toBe(false);
+    expect(layer.garrisonAt(MINE, 0.1, true)!.rank).toBe(false);
+  });
+
+  it('cuts the building alone at work, from the socle top, and stands the rest whole', async () => {
+    const works = {
+      phase: 'rising' as const,
+      level: 1,
+      finishesAt: null,
+      minutes: 5,
+      pennant: null,
+      stamp: null,
+    };
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', works })]);
+    expect(dressed.box!.min.y).toBeCloseTo(SOCLE_TOP, 3);
+    const all = meshes(layer);
+    const cut = (mesh: InstancedMesh) =>
+      ((mesh.material as MeshStandardMaterial).clippingPlanes ?? []).length > 0;
+    for (const name of ['socle', 'lisere'])
+      expect(all.filter((mesh) => nameOf(mesh) === name && !cut(mesh))).toHaveLength(1);
+    expect(all.filter((mesh) => nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise')).toEqual(
+      all.filter((mesh) => (nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise') && cut(mesh)),
+    );
+    expect(all.some((mesh) => nameOf(mesh) === 'ardoise' && cut(mesh))).toBe(true);
+  });
+
+  it('stands a plan in the queue on its socle, the building not yet risen', async () => {
+    const works = {
+      phase: 'queued' as const,
+      level: 1,
+      finishesAt: null,
+      minutes: 5,
+      pennant: null,
+      stamp: null,
+    };
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', works })]);
+    const names = meshes(layer).map(nameOf);
+    expect(names).toContain('socle');
+    expect(names).not.toContain('ardoise');
+  });
+
+  it('spaces two socles 4 m apart at least, turned any way, wherever their points fall', () => {
+    // The fixture's socle, 80 × 48 m: what the ring spaces it by is its widest side.
+    const metre = buildingFootprint('barracks') / 65;
+    const reach = Math.hypot(40, 24) * metre;
+    const spacing = 80 * metre * RING_GAP;
+    for (const points of [
+      [
+        [0, 0],
+        [0, 0],
+      ],
+      [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+      ],
+      [
+        [0, 0],
+        [30 * metre, 10 * metre],
+        [-20 * metre, 40 * metre],
+        [5 * metre, -5 * metre],
+      ],
+    ] as Point[][]) {
+      const placed = clusterFootprints(points, spacing);
+      for (let i = 0; i < placed.length; i++)
+        for (let j = i + 1; j < placed.length; j++)
+          expect(gap(placed[i]!.at, placed[j]!.at)).toBeGreaterThanOrEqual(2 * reach + 4 * metre);
+    }
   });
 });

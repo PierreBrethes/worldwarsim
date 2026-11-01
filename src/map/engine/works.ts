@@ -222,8 +222,11 @@ const scale = new Vector3();
 function scaffoldPositions(box: Box3, span: number, height: number): number[] {
   const pad = span * 0.056;
   const [x0, x1, z0, z1] = [box.min.x - pad, box.max.x + pad, box.min.z - pad, box.max.z + pad];
-  const lifts = Math.max(2, Math.round(height / (span * 0.13)));
-  const step = height / lifts;
+  // From the building's foot: the top of its socle, when it stands on one.
+  const base = box.min.y;
+  const rise = height - base;
+  const lifts = Math.max(2, Math.round(rise / (span * 0.13)));
+  const step = rise / lifts;
   const out: number[] = [];
   const line = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
     out.push(ax, ay, az, bx, by, bz);
@@ -238,13 +241,13 @@ function scaffoldPositions(box: Box3, span: number, height: number): number[] {
     const at = (t: number) => [ax + (bx - ax) * t, az + (bz - az) * t] as const;
     for (let i = 0; i <= bays; i++) {
       const [x, z] = at(i / bays);
-      line(x, 0, z, x, height + span * 0.03, z);
+      line(x, base, z, x, height + span * 0.03, z);
     }
-    for (let j = 1; j <= lifts; j++) line(ax, j * step, az, bx, j * step, bz);
+    for (let j = 1; j <= lifts; j++) line(ax, base + j * step, az, bx, base + j * step, bz);
     for (let i = 0; i < bays; i++) {
       const [[px, pz], [qx, qz]] = [at(i / bays), at((i + 1) / bays)];
       const [j, flip] = [i % lifts, i % 2];
-      line(px, (j + flip) * step, pz, qx, (j + 1 - flip) * step, qz);
+      line(px, base + (j + flip) * step, pz, qx, base + (j + 1 - flip) * step, qz);
     }
   }
   return out;
@@ -287,7 +290,7 @@ export class WorksDressing {
           polygonOffsetFactor: -2,
         }),
       );
-      this.plan.position.set(cx, this.span * 0.004, cz);
+      this.plan.position.set(cx, box.min.y + this.span * 0.004, cz);
       this.object.add(this.plan);
       return;
     }
@@ -298,7 +301,7 @@ export class WorksDressing {
     const flag = new Mesh(new PlaneGeometry(width, width * 0.625), flagMaterial(works.pennant));
     flag.position.set(width / 2, this.span * 0.45 - width * 0.3125, 0);
     this.stake.add(pole, flag);
-    this.stake.position.set(box.max.x + this.span * 0.13, 0, box.max.z + this.span * 0.09);
+    this.stake.position.set(box.max.x + this.span * 0.13, box.min.y, box.max.z + this.span * 0.09);
     this.object.add(this.stake);
     if (this.cut !== null) {
       const outer = footprint.filter((loop) => signedArea(loop) > 0);
@@ -325,14 +328,15 @@ export class WorksDressing {
         ? 1
         : riseOf((this.works.finishesAt - now) / 60_000, this.works.minutes);
     if (this.works.phase === 'queued') return;
-    const height = this.cut === null ? this.box.max.y : this.box.max.y * share;
+    const { min, max } = this.box;
+    const height = this.cut === null ? max.y : min.y + (max.y - min.y) * share;
     if (this.cut !== null) {
       this.cut.constant = at.y + height * size;
       this.cap!.position.y = height;
       this.cap!.visible = share < 1;
       this.stake!.visible = share < 1;
     }
-    this.scaffoldTo(Math.max(height, this.span * 0.05), share < 1 || this.cut === null);
+    this.scaffoldTo(Math.max(height, min.y + this.span * 0.05), share < 1 || this.cut === null);
   }
 
   private scaffoldTo(height: number, shown: boolean): void {
