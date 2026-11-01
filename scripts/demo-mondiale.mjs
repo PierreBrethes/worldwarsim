@@ -34,7 +34,9 @@
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
  * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
  * `--voisins` pose un avant-poste britannique en Hainaut, contre le Nord français : deux
- * contours côte à côte (#217). `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * contours côte à côte (#217). `--liaisons` (#370) pose pour la France deux avant-postes en liaison,
+ * Namur et Liège, un seul à Luxembourg, et une pile à Charleroi (`@liaisons`, `@charleroi`, `@aix`) ;
+ * `--sans-charbon` y met le charbon national à zéro. `--quais` pose pour la France trois avant-postes, à La Valette, à
  * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
@@ -164,6 +166,10 @@ const neighbours = process.argv.includes('--voisins');
 /** `--iles` : `--quais`, plus Malte débarquée, fondée et son quai, et Syracuse en face (#224). */
 const islands = process.argv.includes('--iles');
 const quays = islands || process.argv.includes('--quais');
+/** `--liaisons` (#370) : deux avant-postes français en liaison en Belgique, un seul au Luxembourg,
+ *  une pile à Charleroi ; `--sans-charbon` met le charbon national à zéro (vigies aveugles). */
+const liaisons = process.argv.includes('--liaisons');
+const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
 const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
@@ -650,6 +656,12 @@ if (!bare) {
     cli(['run', 'dev:neighbourScene', JSON.stringify({ playerId: scene.b })]);
   if (quays && scene.a !== null)
     cli(['run', 'dev:quaysScene', JSON.stringify({ playerId: scene.a })]);
+  if (liaisons && scene.a !== null) {
+    cli(['run', 'dev:liaisonsScene', JSON.stringify({ playerId: scene.a, dryCoal })]);
+    places.liaisons = [4.87, 50.47];
+    places.charleroi = [4.44, 50.41];
+    places.aix = [6.08, 50.78];
+  }
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };
     places.valette = [valletta.lon, valletta.lat];

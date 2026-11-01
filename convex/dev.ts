@@ -1095,6 +1095,60 @@ export const quaysScene = internalMutation({
 });
 
 /**
+ * **La scène des liaisons** (#370), pour la démo : deux avant-postes français en liaison, Namur et
+ * Liège, un troisième seul à Luxembourg, et une pile à Charleroi d'où viser Aix-la-Chapelle à
+ * travers les deux rayons. Avec `dryCoal`, le charbon national tombe à zéro : toutes les vigies
+ * aveugles.
+ *
+ * `npx convex run dev:liaisonsScene '{"playerId":"…","dryCoal":false}'`
+ */
+export const liaisonsScene = internalMutation({
+  args: { playerId: v.id('players'), dryCoal: v.boolean() },
+  handler: async (ctx, { playerId, dryCoal }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [lon, lat, hostCountry] of [
+      [4.87, 50.47, 'BEL'],
+      [5.57, 50.63, 'BEL'],
+      [6.13, 49.61, 'LUX'],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    for (let count = 0; count < 2; count += 1)
+      await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: { lon: 4.44, lat: 50.41 },
+      });
+    if (dryCoal) {
+      await settle(ctx, playerId, now);
+      const coal = await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect();
+      for (const row of coal.filter((one) => one.key === 'coal'))
+        await ctx.db.patch(row._id, { stock: 0, updatedAt: now });
+    }
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
  * **La scène du navire** (#129), pour la démo : un port à Marseille, un cargo à quai, un avant-poste
  * côtier à Agde. Le cargo est de la démo, le départ et l'arrivée le long du quai se jouent à l'écran.
  *

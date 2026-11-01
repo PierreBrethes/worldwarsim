@@ -188,3 +188,20 @@ describe('dev.levelsScene', () => {
     expect(researched).toEqual(['infantryMk2', 'transmissions1', 'transmissions2']);
   });
 });
+
+describe('dev.liaisonsScene', () => {
+  /** La scène de #370 : deux points en liaison, un seul, et, sans charbon, des vigies aveugles. */
+  it('sets two outposts in liaison, one alone, and blinds the lookouts without coal', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.mutation(internal.dev.liaisonsScene, { playerId, dryCoal: true });
+
+    const { me } = await t.query(api.view.playerView, seat);
+    expect(me.outposts.map((outpost) => outpost.specialty)).toEqual([
+      'general',
+      'general',
+      'general',
+    ]);
+    expect(me.upkeep.listeningCoalPerHour).toBe(3);
+    expect(me.upkeep.listeningSilent).toBe(true);
+  });
+});
