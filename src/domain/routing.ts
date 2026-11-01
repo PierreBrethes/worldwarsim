@@ -452,8 +452,35 @@ export function computeRoute(
 
   const path = dijkstra(grid, start, (cell) => cell === goal, mode, landCost);
   if (path === null) return null;
-  return routeSearchOf(grid, path, mode, landCost).route;
+  const search = routeSearchOf(grid, path, mode, landCost);
+  return projectOnGrid(grid, to) === goal ? endAt(grid, search, to) : search.route;
 }
+
+/**
+ * **The thread ends where the pile settles** (#364): the last vertex is the centre of the goal
+ * cell, up to ten kilometres from the aimed point, and the pawn used to go on past its pile. The
+ * vertex moves to `to` — no new vertex, no new leg — inside that one cell, and the last step is
+ * measured again. A quay's neighbouring water cell is not `to`'s cell: it keeps its centre.
+ */
+function endAt(grid: RouteGrid, search: RouteSearch, to: LonLat): ComputedRoute {
+  const { rawPoints, steps, route } = search;
+  const last = steps.length - 1;
+  if (last < 0) return route;
+  const points = [...rawPoints.slice(0, -1), to];
+  const closing = { ...steps[last]!, distanceUnits: closingDistance(grid, steps[last]!, points) };
+  return routeOf(route.mode, points, [...steps.slice(0, last), closing], route.landCost);
+}
+
+const closingDistance = (
+  grid: RouteGrid,
+  step: RouteStep,
+  points: ReadonlyArray<LonLat>,
+): number => {
+  const [from, to] = points.slice(-2) as [LonLat, LonLat];
+  return step.medium === 'air'
+    ? airRoute(grid, from, to).distanceUnits
+    : projectedDistance(grid, from, to);
+};
 
 /**
  * **Combien de kilomètres de route séparent un point de chaque cellule du monde**, en une seule

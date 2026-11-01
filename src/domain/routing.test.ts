@@ -507,6 +507,21 @@ describe('the pulled thread', () => {
     expect(route!.distanceUnits).toBeLessThan(40);
   });
 
+  /** The pile settles at `to` (#364): the thread that carries its pawn ends there, not at the
+   *  centre of the cell that holds it — up to ten kilometres further on at this mesh. */
+  it('ends at the aimed point, not at the centre of its cell', () => {
+    const aimed: Array<[RouteMode, LonLat, LonLat]> = [
+      ['land', [2.35, 48.85], [13.4, 52.5]],
+      ['land', [2.35, 48.85], [8.9, 47.3]],
+      ['land', [12.5, 41.9], [11.2, 43.7]],
+      ['naval', [-4.6, 48.3], [5.3, 43.2]],
+    ];
+    for (const [mode, from, to] of aimed) {
+      const points = computeRoute(baked, from, to, mode)!.points;
+      expect(points[points.length - 1]).toEqual(to);
+    }
+  });
+
   it('goes straight from Paris to Berlin', () => {
     const route = computeRoute(baked, [2.35, 48.85], [13.4, 52.5], 'land');
     expect(route).not.toBeNull();
