@@ -30,7 +30,10 @@ import { pileLayout } from './standing';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, troopPinSpan } from './figurines/figurine';
 
 /** The box the last works were dressed round. */
-const dressed: { box: Box3 | null } = { box: null };
+const dressed: { box: Box3 | null; scaffolded: boolean | undefined } = {
+  box: null,
+  scaffolded: undefined,
+};
 
 // The dressing of a site paints a canvas: a stub, this file has no DOM.
 vi.mock('./works', async (original) => ({
@@ -38,9 +41,16 @@ vi.mock('./works', async (original) => ({
   WorksDressing: class {
     object = new Group();
     cut: Plane | null;
-    constructor(works: { phase: string }, box: Box3) {
+    constructor(
+      works: { phase: string },
+      box: Box3,
+      _footprint: unknown,
+      _socle: unknown,
+      scaffolded?: boolean,
+    ) {
       this.cut = works.phase === 'rising' ? new Plane(new Vector3(0, -1, 0), 0) : null;
       dressed.box = box;
+      dressed.scaffolded = scaffolded;
     }
     place() {}
     pick() {
@@ -739,7 +749,9 @@ describe('a site on its socle (ADR 0038)', () => {
     const cut = (mesh: InstancedMesh) =>
       ((mesh.material as MeshStandardMaterial).clippingPlanes ?? []).length > 0;
     for (const name of ['socle', 'lisere'])
-      expect(all.filter((mesh) => nameOf(mesh) === name && !cut(mesh))).toHaveLength(1);
+      expect(
+        all.filter((mesh) => nameOf(mesh) === name && !cut(mesh) && mesh.name === ''),
+      ).toHaveLength(1);
     expect(all.filter((mesh) => nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise')).toEqual(
       all.filter((mesh) => (nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise') && cut(mesh)),
     );
@@ -761,6 +773,85 @@ describe('a site on its socle (ADR 0038)', () => {
     const yard = new Vector3(-25, 0, 25).applyMatrix4(drawn.matrix);
     const down = new Raycaster(yard.clone().setY(5), new Vector3(0, -1, 0));
     expect(layer.under(down)?.id).toBe(MINE);
+  });
+
+  describe('its yard, by level and state (#366)', () => {
+    const works = (phase: 'queued' | 'rising' | 'raising', level: number) => ({
+      phase,
+      level,
+      finishesAt: null,
+      minutes: 5,
+      pennant: null,
+      stamp: null,
+    });
+    const groupsOf = (layer: MaquetteLayer) =>
+      meshes(layer)
+        .map((mesh) => mesh.name)
+        .filter((name) => name.startsWith('niveau_') || name === 'chantier' || name === 'ruines')
+        .sort();
+    const stood = async (more: Parameters<typeof site>[1]) =>
+      groupsOf(await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', ...more })]));
+
+    it('shows niveau_1 alone at level 1, a group more each level, three at most', async () => {
+      expect(await stood({ level: 1 })).toEqual(['niveau_1']);
+      expect(await stood({ level: 2 })).toEqual(['niveau_1', 'niveau_2']);
+      expect(await stood({ level: 3 })).toEqual(['niveau_1', 'niveau_2', 'niveau_3']);
+      expect(await stood({ level: 6 })).toEqual(['niveau_1', 'niveau_2', 'niveau_3']);
+      expect(await stood({})).toEqual(['niveau_1']);
+    });
+
+    it('shows a first rise as niveau_1 and chantier, and a raise as the level before and chantier', async () => {
+      expect(await stood({ level: 1, works: works('rising', 1) })).toEqual([
+        'chantier',
+        'niveau_1',
+      ]);
+      expect(await stood({ level: 2, works: works('raising', 3) })).toEqual([
+        'chantier',
+        'niveau_1',
+        'niveau_2',
+      ]);
+      expect(await stood({ level: 1, works: works('queued', 1) })).toEqual([]);
+    });
+
+    it('shows a survey, aged or not, niveau_1 alone, never chantier', async () => {
+      expect(await stood({ side: 'seen' })).toEqual(['niveau_1']);
+      expect(await stood({ side: 'seen', washed: true })).toEqual(['niveau_1']);
+    });
+
+    it('keeps two barracks of two levels apart, each with its own groups', async () => {
+      const layer = await layerOf([
+        site(MINE, { level: 1 }),
+        site('building-barracks@5,0', { level: 3 }),
+      ]);
+      const count = (name: string) =>
+        meshes(layer)
+          .filter((mesh) => mesh.name === name)
+          .reduce((sum, mesh) => sum + mesh.count, 0);
+      expect(count('niveau_1')).toBe(2);
+      expect(count('niveau_3')).toBe(1);
+    });
+
+    it('draws no ink scaffold when the file brings its chantier, and keeps it for one without', async () => {
+      await layerOf([site(MINE, { level: 1, works: works('rising', 1) })]);
+      expect(dressed.scaffolded).toBe(false);
+    });
+
+    it('hands the ruins, and the building to cut, for a raze to end on', async () => {
+      const layer = await layerOf([site(MINE, { level: 3, side: 'mine', ink: '#2a5ba8' })]);
+      const drawn = layer.drawnOf(MINE)!;
+      expect(drawn.ruins).toBeDefined();
+      expect(drawn.ruins!.stump).toBeCloseTo(SOCLE_TOP + 3, 6);
+      expect(drawn.ruins!.parts.length).toBeGreaterThan(0);
+      // The yard of the level it stood at falls away: ruins alone stand in its place.
+      expect(drawn.ruins!.shell.length).toBeGreaterThan(0);
+      for (const part of drawn.ruins!.shell) expect(drawn.parts).toContain(part);
+      expect(drawn.parts.length).toBeLessThan(meshes(layer).length);
+    });
+
+    it('hands no ruins without a ruines group', async () => {
+      const layer = await layerOf([site('building-hq@5,0', { url: 'plain.glb' })]);
+      expect(layer.drawnOf('building-hq@5,0')!.ruins).toBeUndefined();
+    });
   });
 
   it('stands a plan in the queue on its socle, the building not yet risen', async () => {

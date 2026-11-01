@@ -1,5 +1,6 @@
 import {
   CircleGeometry,
+  Plane,
   Color,
   Group,
   type Material,
@@ -33,6 +34,8 @@ const FOOTPRINT_INK = 0.18;
 const SOOT = new Color('#1b1610');
 /** How far it blackens at most (`razeAt`): its glow is gone there. */
 const CHARRED = 0.85;
+/** How dark the walls left standing are (`bplus.js`, `ruines`). */
+const RUINED = 0.45;
 /** A puff's grain against the building's widest side on the board. `@a-mesurer` */
 const DUST_GRAIN = 0.35;
 const DUST_PUFFS = [14, 10] as const;
@@ -101,9 +104,24 @@ export class RazeLayer {
     let ring: InkRing | null = null;
     if (this.motion === 'full') {
       body = new Group();
-      for (const part of drawn.parts) {
+      // On a socle, the walls are cut a little over it and darkened, the yard's ruins at their foot
+      // (ADR 0038 §5): the cut is read in the world, where the copy stands now.
+      const ruins = drawn.ruins;
+      const stump =
+        ruins === undefined
+          ? null
+          : new Plane(
+              new Vector3(0, -1, 0),
+              new Vector3().setFromMatrixPosition(drawn.matrix).y + ruins.stump * scale,
+            );
+      for (const part of [...drawn.parts, ...(ruins?.parts ?? [])]) {
         // Its own copy: one raze blackens and fades nobody else's maquette.
         const material = part.material.clone();
+        if (stump !== null && ruins!.shell.includes(part)) {
+          material.clippingPlanes = [...(material.clippingPlanes ?? []), stump];
+          material.clipShadows = true;
+          if (material instanceof MeshStandardMaterial) material.color.multiplyScalar(RUINED);
+        }
         const standard = material instanceof MeshStandardMaterial ? material : null;
         worn.push({
           material,

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Box3, BoxGeometry, Color, Matrix4, MeshStandardMaterial, Vector3 } from 'three';
+import { Box3, BoxGeometry, Color, Matrix4, type Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { MAX_PLAYING } from './sequences';
 import { RAZE_MS, RAZE_RING_MS } from './timelines/raze';
 import { razedOf, RazeLayer } from './razes';
@@ -78,6 +78,49 @@ describe('RazeLayer', () => {
     expect(layer.group.children).toHaveLength(0);
     expect(layer.active).toBe(false);
     expect(ended).toEqual(['a']);
+  });
+
+  it('ends on the ruins: the building cut 3 m over the socle and darkened, the yard replaced', () => {
+    const wall = new MeshStandardMaterial({ color: '#c8b48c' });
+    const socle = new MeshStandardMaterial({ color: '#ebe1c8' });
+    const rubble = new MeshStandardMaterial({ color: '#6b6457' });
+    const shell = { geometry, material: wall };
+    const withRuins = {
+      ...drawn(),
+      matrix: new Matrix4().makeTranslation(3, 1, 2).scale(new Vector3(2, 2, 2)),
+      parts: [shell, { geometry, material: socle }],
+      ruins: { parts: [{ geometry, material: rubble }], stump: 5.2, shell: [shell] },
+    };
+    const layer = new RazeLayer();
+    layer.play('a', withRuins, 0);
+    layer.advance(0);
+    const meshes: Mesh[] = [];
+    layer.group.traverse((node) => {
+      if (node.userData.building) meshes.push(node as Mesh);
+    });
+    expect(meshes).toHaveLength(3);
+    const byColour = (hex: number) =>
+      meshes.find((mesh) => (mesh.material as MeshStandardMaterial).color.getHex() === hex)
+        ?.material as MeshStandardMaterial | undefined;
+    // The building: darkened to 0.45, cut at the socle top and 3 m, in the board's units.
+    const cutWall = meshes
+      .map((mesh) => mesh.material as MeshStandardMaterial)
+      .find((m) => m.clippingPlanes?.length === 1)!;
+    expect(cutWall.color.r).toBeCloseTo(new Color('#c8b48c').r * 0.45, 4);
+    expect(cutWall.clippingPlanes![0]!.constant).toBeCloseTo(1 + 5.2 * 2, 6);
+    // The rest of the yard is not cut, and the source is untouched.
+    expect(byColour(new Color('#ebe1c8').getHex())?.clippingPlanes ?? []).toHaveLength(0);
+    expect(wall.color.getHexString()).toBe('c8b48c');
+    expect(wall.clippingPlanes ?? []).toHaveLength(0);
+  });
+
+  it('draws no ruins when reduced: the ring alone', () => {
+    const shell = { geometry, material: new MeshStandardMaterial() };
+    const layer = new RazeLayer();
+    layer.motion = 'reduced';
+    layer.play('a', { ...drawn(), ruins: { parts: [shell], stump: 5.2, shell: [] } }, 0);
+    layer.advance(0);
+    expect(heightOf(layer)).toBe(0);
   });
 
   it('glows no more by night once blackened, though its model did', () => {

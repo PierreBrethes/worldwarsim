@@ -300,6 +300,8 @@ export class WorksDressing {
     footprint: ReadonlyArray<Loop>,
     /** Its socle's box, `null` for a building on the ground. */
     socle: Box3 | null = null,
+    /** Whether the ink scaffold goes up: not when the model has a `chantier` of its own. */
+    private readonly scaffolded = true,
   ) {
     this.object.matrixAutoUpdate = false;
     const { base, stake } = worksGround(box, socle);
@@ -366,7 +368,11 @@ export class WorksDressing {
       this.cap!.visible = share < 1;
       this.stake!.visible = share < 1;
     }
-    this.scaffoldTo(Math.max(height, this.base + this.span * 0.05), share < 1 || this.cut === null);
+    if (this.scaffolded)
+      this.scaffoldTo(
+        Math.max(height, this.base + this.span * 0.05),
+        share < 1 || this.cut === null,
+      );
   }
 
   private scaffoldTo(height: number, shown: boolean): void {

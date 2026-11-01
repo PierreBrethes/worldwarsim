@@ -62,6 +62,8 @@ export function maquettesOf(
               producing.has(marker.buildingId) && { smoking: true }),
             side: 'mine',
             ink: marker.ink,
+            // What stands: the level served, or the one before a raise; a first rise has none yet.
+            level: marker.works?.phase === 'raising' ? marker.works.level - 1 : (marker.level ?? 1),
           },
         );
       case 'installation':
@@ -74,6 +76,8 @@ export function maquettesOf(
             metres: buildingMetres(marker.key),
             footprint: buildingFootprint(marker.key),
             side: marker.neutral === null ? 'seen' : 'neutral',
+            // A survey serves neither level nor state: the first yard, never a works site.
+            level: 1,
           },
         );
       case 'objective': {

@@ -7,17 +7,27 @@ export type Part = { readonly geometry: BufferGeometry; readonly material: Mater
  * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
  * is cut by its works. The rest of the scene is the building.
  */
-const DRESSING = new Set([
-  'socle',
-  'lisere',
-  'cour',
-  'signe',
-  'niveau_1',
-  'niveau_2',
-  'niveau_3',
-  'chantier',
-  'ruines',
-]);
+const DRESSING = new Set(['socle', 'lisere', 'cour', 'signe']);
+
+/** **The accessory groups of the yard** (ADR 0038 §5), baked apart: the engine shows them by
+ *  level and state (`accessoriesShown`). */
+const ACCESSORIES = new Set(['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines']);
+
+/** Which work a site is at: a plan in the queue, a first level rising, a level raised. */
+export type WorkPhase = 'queued' | 'rising' | 'raising';
+
+/**
+ * **The accessory groups a site shows** (ADR 0038 §5): `niveau_1`, then one more per level up to
+ * three — the HQ goes beyond, the groups do not. A first rise adds `chantier` to `niveau_1`; a
+ * raise adds it to the groups of the level it stands at (`level`); a plan in the queue has
+ * none, only its dashed outline. A site known from a survey is served as level 1.
+ */
+export function accessoriesShown(level: number, phase: WorkPhase | undefined): string[] {
+  if (phase === 'queued') return [];
+  const stood = phase === 'rising' ? 1 : Math.min(3, Math.max(1, level));
+  const levels = [1, 2, 3].filter((each) => each <= stood).map((each) => `niveau_${each}`);
+  return phase === undefined ? levels : [...levels, 'chantier'];
+}
 
 /** The accessories of a later level or state: hidden until their switch comes (#366). */
 const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
@@ -39,26 +49,39 @@ export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
 /**
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
  * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
- * draw calls. Meshes whose attributes do not match stay apart. A site is baked in two (ADR
- * 0038): its building, and the dressing it stands on — socle, liseré, yard, sign and the
- * accessories drawn. A model without a socle is all building.
+ * draw calls. Meshes whose attributes do not match stay apart. A site is baked in three (ADR
+ * 0038): its building, the dressing it stands on — socle, liseré, yard, sign —, and each
+ * accessory group apart, for the engine to show by level and state. A model without a socle is
+ * all building.
  */
-export function bakedSite(scene: Object3D): { building: Part[]; dressing: Part[] } {
+export function bakedSite(scene: Object3D): {
+  building: Part[];
+  dressing: Part[];
+  accessories: Map<string, Part[]>;
+} {
   scene.updateMatrixWorld(true);
   const building: Mesh[] = [];
   const dressing: Mesh[] = [];
-  const drawn = drawnIn(scene);
-  const site = onSocle(scene) ? DRESSING : new Set<string>();
-  const visit = (node: Object3D, dressed: boolean) => {
-    if (!drawn(node)) return;
+  const accessories = new Map<string, Mesh[]>();
+  const socle = onSocle(scene);
+  const site = socle ? DRESSING : new Set<string>();
+  const visit = (node: Object3D, dressed: boolean, accessory: string | null) => {
+    if (node.name === 'drapeau') return;
+    const group = accessory ?? (socle && ACCESSORIES.has(node.name) ? node.name : null);
     const inDressing = dressed || site.has(node.name);
-    if ((node as Mesh).isMesh) (inDressing ? dressing : building).push(node as Mesh);
-    for (const child of node.children) visit(child, inDressing);
+    if ((node as Mesh).isMesh) {
+      if (group !== null) accessories.set(group, [...(accessories.get(group) ?? []), node as Mesh]);
+      else (inDressing ? dressing : building).push(node as Mesh);
+    }
+    for (const child of node.children) visit(child, inDressing, group);
   };
-  visit(scene, false);
+  visit(scene, false, null);
   return {
     building: mergedByMaterial(building, new Matrix4()),
     dressing: mergedByMaterial(dressing, new Matrix4()),
+    accessories: new Map(
+      [...accessories].map(([name, meshes]) => [name, mergedByMaterial(meshes, new Matrix4())]),
+    ),
   };
 }
 

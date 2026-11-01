@@ -19,7 +19,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ANONYMOUS_SPAN, pieceWeight, sceneOf } from './figurines/figurine';
 import { washedOf } from './standing';
-import { bakedSite, type Part } from './baking';
+import { accessoriesShown, bakedSite, type Part } from './baking';
 import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
@@ -74,6 +74,9 @@ export type StandingMaquette = {
   readonly side?: 'mine' | 'seen' | 'neutral';
   /** Its file stands on a socle (ADR 0038): the ring spaces it by its socle turned any way. */
   readonly socle?: boolean;
+  /** **The level its yard shows** (ADR 0038 §5): mine as served, the level before a raise, 1 for a
+   *  survey. Absent for an objective, and read as 1. */
+  readonly level?: number;
   /** My ink (`marker.ink`), for a site that is `mine` alone: a survey serves no nation. */
   readonly ink?: string;
 };
@@ -109,13 +112,27 @@ export type Drawn = {
   readonly parts: ReadonlyArray<Part>;
   readonly matrix: Matrix4;
   readonly box: Box3;
+  /** **How a site on a socle ends** (ADR 0038 §5): its yard's `ruines` stand in place of the level
+   *  it had; its `shell` — the building's own parts, among `parts` — is cut at `stump`, in its own
+   *  units, and darkened. Absent for a file without `ruines`: it falls as it drew. */
+  readonly ruins?: {
+    readonly parts: ReadonlyArray<Part>;
+    readonly stump: number;
+    readonly shell: ReadonlyArray<Part>;
+  };
 };
+
+/** **How high the walls of a razed site stand over its socle**, in metres (ADR 0038 §5). */
+const STUMP = 3;
 
 type Model = {
   /** Its building: what a site at work cuts, and a plan in the queue does not stand yet. */
   readonly parts: ReadonlyArray<Part>;
   /** Its socle, liseré, yard and sign (ADR 0038): whole in every state. Empty without a socle. */
   readonly dressing: ReadonlyArray<Part>;
+  /** Its accessory groups by name (`niveau_1`…`ruines`), shown by level and state; none without
+   *  a socle. */
+  readonly accessories: ReadonlyMap<string, ReadonlyArray<Part>>;
   /** Its own units to one board unit, times its span, its size: on its widest side at the ground,
    *  or, for a model drawn in metres, per metre — then `span` is its metres on the board. */
   readonly scale: number;
@@ -138,7 +155,7 @@ function modelOf(url: string, metres?: number): Promise<Model> {
   if (!model) {
     model = sceneOf(url).then((cached) => {
       const scene = cached;
-      const { building: parts, dressing } = bakedSite(scene);
+      const { building: parts, dressing, accessories } = bakedSite(scene);
       const boundsOf = (of: ReadonlyArray<Part>) => {
         const bounds = new Box3();
         for (const { geometry } of of) {
@@ -177,6 +194,7 @@ function modelOf(url: string, metres?: number): Promise<Model> {
       return {
         parts,
         dressing,
+        accessories,
         scale: 1 / (metres ?? Math.max(size.x, size.z)),
         box,
         building,
@@ -481,6 +499,12 @@ type Lot = {
   readonly group: Group;
   model: Model | null;
   meshes: InstancedMesh[];
+  /** The building's own meshes, among `meshes`: what a raze cuts. */
+  shell: InstancedMesh[];
+  /** The accessory groups it shows, by `accessoriesShown`: its level and its state. */
+  readonly shown: ReadonlyArray<string>;
+  /** The meshes of those groups, among `meshes`. */
+  accessories: InstancedMesh[];
   readonly atWork: AtWork | null;
 };
 
@@ -571,9 +595,11 @@ export class MaquetteLayer implements SequenceHost {
           : this.groundOfRegion(maquette.at.regionId);
       if (ground === null) continue;
       ground.setY(COUNTRY_THICKNESS);
+      // The level and the state: two barracks of two levels do not share their meshes.
+      const shown = accessoriesShown(maquette.level ?? 1, maquette.works?.phase);
       const key = maquette.works
         ? `${maquette.url} works ${maquette.id}`
-        : `${maquette.url} ${maquette.washed}`;
+        : `${maquette.url} ${maquette.washed} ${shown.join()}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
         lot = {
@@ -583,6 +609,9 @@ export class MaquetteLayer implements SequenceHost {
           group: new Group(),
           model: null,
           meshes: [],
+          shell: [],
+          shown,
+          accessories: [],
           atWork: maquette.works ? { works: maquette.works, dressing: null } : null,
         };
         this.lots.set(key, lot);
@@ -719,16 +748,19 @@ export class MaquetteLayer implements SequenceHost {
           model.building,
         ),
         model.dressing.length > 0 ? model.box : null,
+        // Its file brings its own works: the ink scaffold gives way.
+        !model.accessories.has('chantier'),
       );
       lot.group.add(atWork.dressing.object);
     }
     const cut = atWork?.dressing?.cut ?? null;
-    const instanced = ({ geometry, material }: Part, cutHere: boolean) => {
+    const instanced = ({ geometry, material }: Part, cutHere: boolean, name = '') => {
       const mesh = new InstancedMesh(
         geometry,
         cutHere && cut !== null ? cutOf(material, cut) : washed ? washedOf(material) : material,
         lot.items.length,
       );
+      mesh.name = name;
       mesh.matrixAutoUpdate = false;
       // Instances spread over a continent: one sphere around them all would cull nothing.
       mesh.frustumCulled = false;
@@ -742,7 +774,13 @@ export class MaquetteLayer implements SequenceHost {
       if ((mesh.material as Material).name !== 'lisere') continue;
       lot.items.forEach((item, k) => mesh.setColorAt(k, item.lisere ?? WHITE));
     }
-    lot.meshes = [...building.map((part) => instanced(part, true)), ...dressing];
+    // Its yard (ADR 0038 §5): the groups of its level and state, whole like the rest of it.
+    const accessories = lot.shown.flatMap((name) =>
+      (model.accessories.get(name) ?? []).map((part) => instanced(part, false, name)),
+    );
+    lot.shell = building.map((part) => instanced(part, true));
+    lot.accessories = accessories;
+    lot.meshes = [...lot.shell, ...dressing, ...accessories];
     if (lot.meshes.length > 0) lot.group.add(...lot.meshes);
     for (const item of lot.items) {
       if (!item.smoking) continue;
@@ -848,11 +886,19 @@ export class MaquetteLayer implements SequenceHost {
     )
       return null;
     const { item, lot } = dressed;
+    const partOf = (mesh: InstancedMesh): Part => ({
+      geometry: mesh.geometry,
+      material: mesh.material as Material,
+    });
+    // On a socle that has ruins, the yard of the level falls away and the ruins stand in its place.
+    const ruins = model.accessories.get('ruines');
+    const kept =
+      ruins === undefined ? lot.meshes : lot.meshes.filter((m) => !lot.accessories.includes(m));
+    const parts = kept.map(partOf);
+    const shell = parts.filter((_, k) => lot.shell.includes(kept[k]!));
     return {
-      parts: lot.meshes.map((mesh) => ({
-        geometry: mesh.geometry,
-        material: mesh.material as Material,
-      })),
+      parts,
+      ...(ruins !== undefined && { ruins: { parts: ruins, stump: SOCLE_TOP + STUMP, shell } }),
       matrix: new Matrix4().compose(
         item.at,
         item.turn,
