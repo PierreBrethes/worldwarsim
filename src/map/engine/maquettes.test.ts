@@ -699,6 +699,10 @@ describe('a site on its socle (ADR 0038)', () => {
     const drawn = layer.drawnOf(MINE)!;
     const rank = layer.garrisonAt(MINE, 0.1)!;
     expect(rank.rank).toBe(true);
+    // A recruit's way goes round the building, on the socle: its frame says both.
+    const frame = layer.siteOf(MINE)!;
+    expect(frame.box.min.y).toBeCloseTo(0, 3);
+    expect(frame.building.min.y).toBeCloseTo(SOCLE_TOP, 3);
     const first = new Vector3(-25, SOCLE_TOP, 17.4).applyMatrix4(drawn.matrix);
     expect(rank.at.x + rank.step[0]).toBeCloseTo(first.x, 6);
     expect(rank.at.z + rank.step[1]).toBeCloseTo(first.z, 6);

@@ -154,9 +154,10 @@ function modelOf(url: string, metres?: number): Promise<Model> {
         markers.set(node.name, node.getWorldPosition(new Vector3()));
         if (node.name.startsWith('fx_smoke')) chimneys.push(markers.get(node.name)!.clone());
       });
+      // Without a marker, from the top of the building — not of its socle's sign.
       if (chimneys.length === 0) {
-        const top = box.getCenter(new Vector3());
-        chimneys.push(top.setY(box.max.y));
+        const top = building.getCenter(new Vector3());
+        chimneys.push(top.setY(building.max.y));
       }
       const ranked = dressing.length > 0 ? scene.getObjectByName('fx_rang') : undefined;
       const rank =
@@ -849,6 +850,8 @@ export class MaquetteLayer implements SequenceHost {
   siteOf(id: string): {
     marker(name: string): Vector3 | null;
     readonly box: Box3;
+    /** Its building's bounds, its socle left out. */
+    readonly building: Box3;
     toBoard(point: Vector3): Vector3;
     toModel(point: Vector3): Vector3;
   } | null {
@@ -865,6 +868,7 @@ export class MaquetteLayer implements SequenceHost {
     return {
       marker: (name) => model.markers.get(name)?.clone() ?? null,
       box: model.box,
+      building: model.building,
       toBoard: (point) => point.clone().applyMatrix4(placed),
       toModel: (point) => point.clone().applyMatrix4(back),
     };
