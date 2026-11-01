@@ -22,13 +22,19 @@ const DRESSING = new Set([
 /** The accessories of a later level or state: hidden until their switch comes (#366). */
 const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 
+/** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one — a
+ *  port has a slip named `chantier` of its own. */
+const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
+
 /**
- * **What neither bake draws**: the flag, painted by its owner's colours later (#279) — until
- * then a white one would read as a surrender —, and the accessories of a later level or state.
- * Both bakes read it, so that a copy stood in for a resting maquette has neither.
+ * **What no bake of `scene` draws**: the flag, painted by its owner's colours later (#279) —
+ * until then a white one would read as a surrender —, and on a socle the accessories of a later
+ * level or state. Every bake reads it, so that a copy stood in for a resting maquette has neither.
  */
-export const isDrawn = (node: Object3D): boolean =>
-  node.name !== 'drapeau' && !LATER.has(node.name);
+export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
+  const later = onSocle(scene) ? LATER : new Set<string>();
+  return (node) => node.name !== 'drapeau' && !later.has(node.name);
+}
 
 /**
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
@@ -41,9 +47,11 @@ export function bakedSite(scene: Object3D): { building: Part[]; dressing: Part[]
   scene.updateMatrixWorld(true);
   const building: Mesh[] = [];
   const dressing: Mesh[] = [];
+  const drawn = drawnIn(scene);
+  const site = onSocle(scene) ? DRESSING : new Set<string>();
   const visit = (node: Object3D, dressed: boolean) => {
-    if (!isDrawn(node)) return;
-    const inDressing = dressed || DRESSING.has(node.name);
+    if (!drawn(node)) return;
+    const inDressing = dressed || site.has(node.name);
     if ((node as Mesh).isMesh) (inDressing ? dressing : building).push(node as Mesh);
     for (const child of node.children) visit(child, inDressing);
   };
@@ -54,11 +62,15 @@ export function bakedSite(scene: Object3D): { building: Part[]; dressing: Part[]
   };
 }
 
-/** Pre-order walk that does not enter what is not drawn. */
-function walk(node: Object3D, visit: (node: Object3D) => void): void {
-  if (!isDrawn(node)) return;
+/** Pre-order walk that does not enter what is not `drawn`. */
+function walk(
+  node: Object3D,
+  drawn: (node: Object3D) => boolean,
+  visit: (node: Object3D) => void,
+): void {
+  if (!drawn(node)) return;
   visit(node);
-  for (const child of node.children) walk(child, visit);
+  for (const child of node.children) walk(child, drawn, visit);
 }
 
 /**
@@ -80,7 +92,7 @@ export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): G
     while (!pivots.has(at)) at = at.parent!;
     return at;
   };
-  walk(scene, (node) => {
+  walk(scene, drawnIn(scene), (node) => {
     if (node === scene) return;
     if (keeps(node)) {
       const above = pivotOf(node.parent!);
