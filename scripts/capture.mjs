@@ -33,9 +33,9 @@
  * et sous cette pente quand elle est donnée (0 = d'aplomb, regard vers le nord).
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { chromiumPath } from './chromium.mjs';
 import { hourOf, splitSpot, spotOf } from './capture-cible.mjs';
 
 const args = process.argv.slice(2);
@@ -92,11 +92,7 @@ const url = `${base}${base.includes('?') ? '&' : '?'}heure=${encodeURIComponent(
 if (!['localhost', '127.0.0.1'].includes(new URL(url).hostname))
   throw new Error(`Refus : ${url} n'est pas local.`);
 
-const cache = `${homedir()}/Library/Caches/ms-playwright/chromium-1243`;
-const app = 'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
-const executablePath = existsSync(`${cache}/chrome-mac-arm64/${app}`)
-  ? `${cache}/chrome-mac-arm64/${app}`
-  : `${cache}/chrome-mac/${app}`;
+const executablePath = chromiumPath();
 
 const browser = await chromium.launch({
   executablePath,
