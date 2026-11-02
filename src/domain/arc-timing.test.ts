@@ -89,6 +89,15 @@ describe('arcProgressAt', () => {
     expect(arcProgressAt(watched, NOW + 2 * HOUR)).toBe(1);
   });
 
+  /** **Le relevé d'une colonne retenue sous les yeux** (ADR 0037 §6) : le pion ne recule pas, il
+   *  ralentit à l'entrée, la part du tronçon déjà vue à cet instant. */
+  it('paces a sighting held by a Fort in its window in two paces', () => {
+    const held = { ...watched, seenTo: NOW + 5 * HOUR, resumed: { at: NOW, share: 0.25 } };
+    expect(arcProgressAt(held, NOW - HOUR / 2)).toBeCloseTo(0.125, 9);
+    expect(arcProgressAt(held, NOW)).toBeCloseTo(0.25, 9);
+    expect(arcProgressAt(held, NOW + 2.5 * HOUR)).toBeCloseTo(0.625, 9);
+  });
+
   it('keeps a last known position at the end of its stretch', () => {
     const lost = {
       state: 'lastKnown',

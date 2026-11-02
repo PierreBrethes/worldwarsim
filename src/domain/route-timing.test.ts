@@ -222,6 +222,11 @@ describe('what a Fort does to an enemy road', () => {
     expect(entry! / HOUR).toBeCloseTo(7, 1);
   });
 
+  /** Un Fort qui ne couvre que l'arrivée ne retient rien : la colonne est arrivée. */
+  it('opens no hold at the arrival itself', () => {
+    expect(fortEntryOf(marching(straight(0, 10)), [lookout(10.3, 34)])).toBeNull();
+  });
+
   it('never holds a flight, nor a road no lookout covers', () => {
     expect(fortEntryOf(marching(straight(0, 10, 'air')), [lookout(5)])).toBeNull();
     expect(fortEntryOf(marching(straight(0, 10)), [lookout(40)])).toBeNull();

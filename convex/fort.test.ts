@@ -45,13 +45,18 @@ async function launchedSeason(t: Bench) {
 
 const playerOf = (t: Bench, seat: Seat) => t.run(async (ctx) => (await seatIn(ctx, seat))._id);
 
-async function fort(t: Bench, seat: Seat, specialty: 'fort' | 'general' = 'fort') {
+async function fort(
+  t: Bench,
+  seat: Seat,
+  specialty: 'fort' | 'general' = 'fort',
+  at: LonLat = HERE,
+) {
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
-      point: asPoint(HERE),
+      point: asPoint(at),
       hostCountry: 'ROU',
       level: 2,
       specialty,
@@ -62,7 +67,7 @@ async function fort(t: Bench, seat: Seat, specialty: 'fort' | 'general' = 'fort'
   );
 }
 
-async function march(t: Bench, seat: Seat) {
+async function march(t: Bench, seat: Seat, from: LonLat = FROM) {
   const playerId = await playerOf(t, seat);
   const strength = nominalStrength('infantry', 1);
   const troopId = await t.run(async (ctx) =>
@@ -73,17 +78,22 @@ async function march(t: Bench, seat: Seat) {
       tier: 1,
       nominalStrength: strength,
       currentStrength: strength,
-      stationedAt: asPoint(FROM),
+      stationedAt: asPoint(from),
     }),
   );
   const { movementId } = await t.mutation(api.movements.marchTo, {
     ...seat,
-    origin: { kind: 'point', point: asPoint(FROM) },
+    origin: { kind: 'point', point: asPoint(from) },
     troopIds: [troopId],
     point: asPoint(TO),
   });
   return movementId;
 }
+
+const atEntry = (point: LonLat) => ({
+  lon: expect.closeTo(point[0], 6),
+  lat: expect.closeTo(point[1], 6),
+});
 
 const movementOf = (t: Bench, id: Id<'movements'>) => t.run(async (ctx) => ctx.db.get(id));
 
@@ -173,6 +183,7 @@ describe('a Fort holding the enemy column it sees (ADR 0037 §6)', () => {
     const told = await noticesOf(t, guest);
     expect(told.map((notice) => notice.kind)).toEqual(['fortHeld']);
     expect(told[0]).toMatchObject({ hostCountry: 'ROU', arrivesAt: after.arrivesAt });
+    expect(told[0]).toMatchObject({ point: atEntry(entryPoint) });
 
     /** Le compte à rebours de l'attaquant s'allonge et son pion repart de l'entrée ; le
      *  défenseur lit l'arrivée rechiffrée sur l'arc relevé, rien de la reprise. */
@@ -217,6 +228,59 @@ describe('a Fort holding the enemy column it sees (ADR 0037 §6)', () => {
     const seats = await launchedSeason(other);
     await fort(other, seats.guest, 'general');
     expect((await movementOf(other, await march(other, seats.seat)))!.fortEntry).toBeUndefined();
+  });
+
+  /** **Une colonne partie dans la vigie** : le rendez-vous est posé avant que son relevé ne
+   *  s'ouvre, et le défenseur ne reçoit que la dépêche du Fort. */
+  it('tells the defender once of a column that leaves from inside the lookout', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await fort(t, guest);
+    const movementId = await march(t, seat, eastOf(northOf(HERE, 30), -40));
+
+    await enter(t, guest, movementId);
+
+    expect((await noticesOf(t, guest)).map((notice) => notice.kind)).toEqual(['fortHeld']);
+  });
+
+  /** **Vu avant l'entrée**, le relevé reçoit une reprise à lui : son pion ralentit, sans reculer. */
+  it('serves the reprise on a sighting whose window spans the entry', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await fort(t, guest);
+    await fort(t, guest, 'general', FROM);
+    const movementId = await march(t, seat);
+    const before = (await movementOf(t, movementId))!;
+    const entryPoint = positionAt(marchingForce(before), before.fortEntry!.at);
+
+    const at = await enter(t, guest, movementId);
+
+    /** La dépêche du Fort pointe l'entrée dans sa vigie, pas l'ouverture du relevé. */
+    expect(await noticesOf(t, guest)).toContainEqual(
+      expect.objectContaining({ kind: 'fortHeld', point: atEntry(entryPoint) }),
+    );
+    const [seen] = (await t.query(api.view.playerView, guest)).detected!;
+    expect(seen!.seenFrom).toBeLessThan(at);
+    expect(seen!.resumed!.at).toBe(at);
+    expect(seen!.resumed!.share).toBeGreaterThan(0);
+    expect(seen!.resumed!.share).toBeLessThan(1);
+  });
+
+  /** **Arrêtée à la frontière** par un repos, la colonne ne marche plus : aucun Fort ne l'attend. */
+  it('drops the rendezvous of a column the rest window holds', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const outpost = await fort(t, guest);
+    const movementId = await march(t, seat);
+    const { jobId } = (await movementOf(t, movementId))!.fortEntry!;
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(movementId, { heldAt: Date.now() });
+      await reassessDetection(ctx, (await ctx.db.get(outpost))!.seasonId);
+    });
+
+    expect((await movementOf(t, movementId))!.fortEntry).toBeUndefined();
+    expect((await t.run(async (ctx) => ctx.db.system.get(jobId)))!.state.kind).toBe('canceled');
   });
 
   /** **Un Fort qui tombe après le départ** : le rendez-vous s'annule, et rien n'est retenu. */

@@ -106,6 +106,10 @@ export async function reassessDetection(
       ? movements.filter((movement) => movement.arrivesAt > now)
       : [];
   const board = await detectionBoard(ctx, seasonId, active, now, touched);
+  /** **Le rendez-vous au Fort avant les relevés** : un relevé qui s'ouvre tout de suite (une
+   *  colonne partie dans la vigie) doit trouver l'entrée posée, sinon il part en dépêche à côté de
+   *  celle du Fort (`heldByFort`). */
+  await reassessForts(ctx, board, now);
   const ledgers = await observerLedgers(ctx, board, movements, touched);
 
   for (const target of movements) {
@@ -127,7 +131,6 @@ export async function reassessDetection(
     await syncCampSightings(ctx, seasonId, board, now, camps);
     await syncLootCrateSightings(ctx, seasonId, board, now);
     await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
-    await reassessForts(ctx, board, now);
     /** **La capture se relit aux mêmes événements que le brouillard** : un départ, une arrivée,
      *  une passe — exactement ce qui peut retirer, tuer ou entamer l'infanterie qui capture. */
     await reassessCaptures(ctx, seasonId, now);

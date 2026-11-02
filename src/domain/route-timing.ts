@@ -219,7 +219,9 @@ export function fortEntryOf(
 ): number | null {
   if (forts.length === 0 || force.legs?.every((leg) => leg.medium === 'air')) return null;
   const windows = sightingsAlong({ mine: force, watchers: forts, after });
-  return windows.length === 0 ? null : Math.min(...windows.map((window) => window.from));
+  const entry = Math.min(...windows.map((window) => window.from));
+  /** Un Fort qui ne couvre que l'arrivée ne retient rien : la colonne est arrivée. */
+  return entry < force.arrivesAt ? entry : null;
 }
 
 /**

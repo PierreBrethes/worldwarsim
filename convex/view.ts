@@ -17,7 +17,7 @@ import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { emptyLoad } from '../src/domain/logistics';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
-import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
+import { distanceProgressAt, timeShareAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
 import { effectiveSpecialty, isStanding, type OutpostReach } from '../src/domain/outposts';
 import {
@@ -1452,6 +1452,7 @@ async function detectedArcs(
       ),
       seenFrom: sighting.from,
       seenTo: sighting.to,
+      ...seenReprise(force, sighting),
       /** **Ce que le joueur a de lui-même**, jamais de la colonne : le détecteur est une ligne
        *  de son propre plateau, et la station se nomme par sa région parce que c'est la seule
        *  qu'il puisse montrer du doigt sur sa carte. Deux stations sinon se lisent pareil. */
@@ -1464,6 +1465,20 @@ async function detectedArcs(
 }
 
 const coordsOf = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+
+/**
+ * **Une colonne retenue par un Fort sous les yeux de l'observateur** (ADR 0037 §6) : la reprise
+ * du tronçon vu, quand la fenêtre couvre l'entrée — la part du tronçon déjà marchée alors. Elle
+ * ne dit rien de plus que le saut d'`arrivesAt` déjà servi : la colonne ralentit sous ses yeux.
+ */
+function seenReprise(force: MarchingForce, sighting: Doc<'sightings'>) {
+  const at = force.resumed?.at;
+  if (at === undefined || at <= sighting.from || at >= sighting.to) return {};
+  const [from, entry, to] = [sighting.from, at, sighting.to].map((instant) =>
+    timeShareAt(force, instant),
+  ) as [number, number, number];
+  return { resumed: { at, share: to > from ? (entry - from) / (to - from) : 0 } };
+}
 
 /**
  * **« Cap sur moi », estimated** (rule 5 of decision 4a). Without a destination the question is

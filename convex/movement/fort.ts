@@ -20,12 +20,14 @@ import { fortWatches, lookoutKmOf } from '../../src/domain/outposts';
 import { fortEntryOf, heldMinutes } from '../../src/domain/route-timing';
 import { COST_BY_MEDIUM } from '../../src/domain/routing';
 import { seenSegment } from '../../src/domain/sighting-segment';
+import { isRangoonColumn } from '../../src/domain/strategic-points';
 import { journalUrl, push } from '../../src/domain/push';
 import { sightingReachKm } from '../constants';
 import { notifyPlayer } from '../notifications';
 import { hostAtPoint } from '../routes';
 import { cancelJob } from '../scheduledJobs';
 import { seasonStillPlays } from '../seats';
+import { holdsPoint } from '../strategicPoints';
 import { marchingForce, reassessDetection } from './detection';
 import { asPoint, pointOf, seasonOutposts } from './forces';
 import { liaisonRelaysOf } from './pace';
@@ -55,7 +57,14 @@ export async function reassessForts(
   now: number,
 ): Promise<void> {
   for (const { movement, force, rangoonTour } of board.mobileById.values()) {
-    if (movement.resumed !== undefined || movement.heldAt !== undefined) continue;
+    if (movement.resumed !== undefined) continue;
+    /** Arrêtée à la frontière par un repos, la colonne ne marche plus : rien ne l'attend. */
+    if (movement.heldAt !== undefined) {
+      if (movement.fortEntry === undefined) continue;
+      await cancelJob(ctx, movement.fortEntry.jobId);
+      await ctx.db.patch(movement._id, { fortEntry: undefined });
+      continue;
+    }
     const forts = board.forts
       .filter((fort) => fort.playerId !== movement.playerId)
       .map((fort) => ({ ...fort, radiusKm: sightingReachKm(fort.radiusKm, rangoonTour) }));
@@ -147,7 +156,7 @@ export async function holdAtFort(
       at: now,
       kind: 'fortHeld',
       hostCountry: holders.find((fort) => fort.playerId === owner)!.hostCountry,
-      point: asPoint(seen.points[0] ?? here),
+      point: asPoint(here),
       headingDegrees: seen.headingDegrees,
       arrivesAt,
     });
@@ -164,8 +173,9 @@ export async function holdAtFort(
   }
 }
 
-/** Les Forts adverses qui guettent à cet instant, debout, en service, leur maître au charbon. */
+/** Les Forts adverses qui guettent à cet instant, à la portée où ils relèvent cette colonne. */
 async function fortsOnWatch(ctx: MutationCtx, movement: Doc<'movements'>, now: number) {
+  const rangoonTour = await onRangoonTour(ctx, movement);
   const silent = new Map<Id<'players'>, boolean>();
   const forts: Array<Fort & { readonly hostCountry: string }> = [];
   for (const outpost of await seasonOutposts(ctx, movement.seasonId)) {
@@ -178,10 +188,20 @@ async function fortsOnWatch(ctx: MutationCtx, movement: Doc<'movements'>, now: n
     forts.push({
       id: outpost._id,
       point: pointOf(outpost.point),
-      radiusKm: lookoutKmOf(outpost),
+      radiusKm: sightingReachKm(lookoutKmOf(outpost), rangoonTour),
       playerId: outpost.playerId,
       hostCountry: outpost.hostCountry,
     });
   }
   return forts;
+}
+
+/** **Rangoun** : une tournée de son teneur ne se relève qu'à une part de portée, comme sur le
+ *  plateau du brouillard (`allOnRangoonTour`). */
+async function onRangoonTour(ctx: MutationCtx, movement: Doc<'movements'>): Promise<boolean> {
+  const troops = await Promise.all(movement.troopIds.map((troopId) => ctx.db.get(troopId)));
+  return (
+    isRangoonColumn(troops, (troop) => troop?.tour !== undefined) &&
+    (await holdsPoint(ctx, { _id: movement.playerId, seasonId: movement.seasonId }, 'rangoon'))
+  );
 }

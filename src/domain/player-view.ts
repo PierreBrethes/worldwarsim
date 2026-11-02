@@ -5,6 +5,7 @@ import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
+import type { Resumed } from './interception';
 import type { Ground } from './routing';
 import type { RunningResearch } from './research';
 import type { StrategicPointKey } from './strategic-points';
@@ -143,6 +144,8 @@ export type ArcView =
       readonly seenTo: number;
       /** L'instant de sa première observation, l'heure qu'il porte tant qu'il est en vue (H3). */
       readonly since: number;
+      /** **Retenue par un Fort dans la fenêtre** (ADR 0037 §6) : la reprise du tronçon vu. */
+      readonly resumed?: Resumed;
     }
   | {
       readonly state: 'lastKnown';

@@ -345,6 +345,7 @@ function asDetectedArc(
     arrivesAt: seen.arrivesAt,
     seenTo: seen.seenTo,
     since: seen.seenFrom,
+    ...(seen.resumed === undefined ? {} : { resumed: seen.resumed }),
   };
 }
 

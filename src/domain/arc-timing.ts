@@ -19,9 +19,6 @@ export type ArcSchedule = {
   readonly resumed?: Resumed;
 };
 
-const share = (from: number, to: number, now: number): number =>
-  to <= from ? 1 : Math.min(1, Math.max(0, (now - from) / (to - from)));
-
 /** The share of my column's thread walked at `now`; a column held at the border is at its end. */
 export const shareWalked = (schedule: ArcSchedule, now: number): number =>
   schedule.heldAt !== null ? 1 : timeShareAt(schedule, now);
@@ -42,7 +39,14 @@ export function arcProgressAt(arc: ArcView, now: number): number {
     case 'mine':
       return shareWalked(arc.schedule, now);
     case 'enemyDetected':
-      return share(arc.since, arc.seenTo, now);
+      return timeShareAt(
+        {
+          departedAt: arc.since,
+          arrivesAt: arc.seenTo,
+          ...(arc.resumed === undefined ? {} : { resumed: arc.resumed }),
+        },
+        now,
+      );
     case 'lastKnown':
       return 1;
     case 'seaControl':
