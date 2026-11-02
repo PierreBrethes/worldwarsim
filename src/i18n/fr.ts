@@ -2356,6 +2356,13 @@ export const fr = {
     briefingNote: 'les gestes, le terrain, vos bureaux',
   },
 
+  /** **Les kilomètres du compas d'un avant-poste** (#375), au survol et en main seulement. */
+  outpostZones: {
+    reach: (km: number) => `${km} km`,
+    lookout: (km: number) => `vigie ${km} km`,
+    whole: 'vigie au rayon entier',
+  },
+
   indicatorCategories: {
     buildings: 'bâtiments',
     deposits: 'gisements',

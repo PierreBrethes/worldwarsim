@@ -1183,6 +1183,54 @@ export const liaisonsScene = internalMutation({
 });
 
 /**
+ * **La scène des zones** (#375), pour la démo : un réseau français en Lorraine. Metz au centre
+ * (niveau 2), Luxembourg et Nancy (niveau 1), Sarrebruck en Guet (niveau 2) — des triangles dont
+ * la carte retire le côté long —, Strasbourg désactivé (ni lavis ni liaison), et une pile à
+ * Thionville à soulever.
+ *
+ * `npx convex run dev:zonesScene '{"playerId":"…"}'`
+ */
+export const zonesScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [lon, lat, hostCountry, level, more] of [
+      [6.13, 49.61, 'LUX', 1, {}],
+      [6.18, 49.12, 'FRA', 2, {}],
+      [6.18, 48.69, 'FRA', 1, {}],
+      [7.0, 49.23, 'DEU', 2, { specialty: 'lookout' }],
+      [7.75, 48.58, 'FRA', 1, { disabledUntil: now + 3 * 60 * 60 * 1000 }],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        ...more,
+      });
+    for (let count = 0; count < 2; count += 1)
+      await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: { lon: 6.17, lat: 49.36 },
+      });
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
  * **La scène des métiers** (#371), pour la démo : quatre avant-postes français entre Arlon et
  * Sarrebruck. À Arlon un point de niveau 1, dont l'élévation offre Magasin, Guet et Fort ; à
  * Luxembourg un point d'avant la refonte, généraliste au niveau 2, qui choisit gratuitement ; à

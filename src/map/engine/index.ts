@@ -108,6 +108,7 @@ import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing, ReachRings } from './reach';
+import { OutpostZones, type ZoneFocus, type ZoneLabel, type ZonePoint } from './outpost-zones';
 import { AimRibbon } from './aim';
 import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
@@ -191,6 +192,7 @@ export type { SurveyedCamp } from './annotations';
  * of the served data, not on a display test (ADR 0005).
  */
 export type { HeldClaim } from './regions';
+export type { ZoneFocus, ZonePoint } from './outpost-zones';
 
 /** A shore is read around a pile's point this far out, in board units at full piece size —
  *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
@@ -254,6 +256,13 @@ export type PlacingThread = {
   readonly refused: boolean;
   /** The top of each outpost's reach on screen, where its name stands, and how far it carries. */
   readonly rings: ReadonlyArray<{ readonly top: ScreenPoint; readonly km: number }>;
+};
+
+/** A km label of a compass, in CSS pixels of the map. */
+export type ZoneLabelOnScreen = {
+  readonly at: ScreenPoint;
+  readonly km: number;
+  readonly kind: ZoneLabel['kind'];
 };
 
 /** The point the ghost holds, with what the board knows of it: whose region, its coast, land. */
@@ -538,6 +547,11 @@ export class MapEngine {
   private readonly ink: InkLayer;
   private readonly parachutes: ParachuteLayer;
   private readonly reach: ReachRing;
+  /** My outposts' reaches and liaisons (#375). */
+  private readonly zones: OutpostZones;
+  private zoneLabelsSaid = '[]';
+  /** The km of the rings under the hand moved on screen: the board writes them (`WorldMap`). */
+  onZoneLabels?: ((labels: ReadonlyArray<ZoneLabelOnScreen>) => void) | undefined;
   /** The road the piece in hand would take (POC « Manipuler les pions »). */
   private readonly aimRibbon = new AimRibbon();
   private readonly tourInk: TourInk;
@@ -890,6 +904,7 @@ export class MapEngine {
       this.endOf(medium, which, at, hint),
     );
     this.reach = new ReachRing(this.frame);
+    this.zones = new OutpostZones(this.frame);
     this.placingReach = new ReachRings(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame, this.touch);
@@ -949,6 +964,7 @@ export class MapEngine {
     this.parachutes = new ParachuteLayer(this.frame);
     this.scene.add(this.parachutes.group);
     this.scene.add(this.reach.object);
+    this.scene.add(this.zones.object);
     this.scene.add(this.placingReach.object);
     this.scene.add(this.aimRibbon.group);
     this.scene.add(this.tourInk.group);
@@ -1941,6 +1957,46 @@ export class MapEngine {
     this.reach.show(reach);
   }
 
+  /** **Mes avant-postes en service et leurs liaisons tracées** (#375), redessinés à chaque vue. */
+  showOutpostZones(
+    points: ReadonlyArray<ZonePoint>,
+    liaisons: ReadonlyArray<readonly [string, string]>,
+  ): void {
+    this.invalidate();
+    this.zones.show(points, liaisons);
+  }
+
+  /** Ce que la main tient sur les zones : le compas d'un point, de tous, ou rien. */
+  focusOutpostZones(focus: ZoneFocus): void {
+    this.invalidate();
+    this.zones.focus(focus);
+  }
+
+  /** **Une liaison qui naît se trace à la plume** (#375), en mouvement actif seulement. */
+  inkLiaison(from: LonLat, to: LonLat): void {
+    this.invalidate();
+    if (this.ambience.motion !== 'full') return;
+    const line = this.zones.segment(from, to);
+    this.ink.traceReach(
+      Array.from({ length: line.length / 3 }, (_, i) => new Vector3().fromArray(line, 3 * i)),
+      performance.now(),
+    );
+  }
+
+  /** The km labels of the compasses, told when they move on screen, at a rendered frame only. */
+  private tellZoneLabels(): void {
+    const labels = this.zones
+      .labels()
+      .map(({ lonLat, km, kind }) => ({ at: this.mapPointOf(lonLat), km, kind }))
+      .filter(
+        ({ at }) => at.x > 0 && at.x < this.screenWidth && at.y > 20 && at.y < this.screenHeight,
+      );
+    const said = JSON.stringify(labels);
+    if (said === this.zoneLabelsSaid) return;
+    this.zoneLabelsSaid = said;
+    this.onZoneLabels?.(labels);
+  }
+
   resize(): void {
     this.invalidate();
     const { clientWidth, clientHeight } = this.container;
@@ -1958,6 +2014,7 @@ export class MapEngine {
     this.arcs.resize(clientWidth, clientHeight);
     this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
+    this.zones.resize(clientWidth, clientHeight);
     this.placingReach.resize(clientWidth, clientHeight);
     this.pins.resize(clientWidth, clientHeight);
     this.basins.resize(clientWidth, clientHeight);
@@ -1982,6 +2039,7 @@ export class MapEngine {
     removeEventListener('blur', this.onFocusLost);
 
     this.reach.dispose();
+    this.zones.dispose();
     this.placingReach.dispose();
     this.aimRibbon.dispose();
     this.tourInk.dispose();
@@ -3799,8 +3857,10 @@ export class MapEngine {
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
+    this.zones.animate(now, this.ambience.motion);
     this.ghost.orient(this.camera.position);
     this.tellThread();
+    this.tellZoneLabels();
     this.sweepWave.animate(now);
     this.basins.animate(now);
     this.tellSweep(now);

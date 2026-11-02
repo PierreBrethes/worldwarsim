@@ -19,10 +19,10 @@ import { hatch } from './regions';
  * Fine enough that four hundred kilometres read as a circle rather than as a polygon, coarse
  * enough that rebuilding it on every hover costs nothing.
  */
-const SEGMENTS = 96;
+export const SEGMENTS = 96;
 
 /** Just above the land, so the ring is not swallowed by the ground it lies on. */
-const LIFT = 0.04;
+export const LIFT = 0.04;
 
 /**
  * **The ring is a fat line, like a thread, and for the same reason**: a `LineBasicMaterial`
@@ -68,7 +68,7 @@ const DASHES = 56;
  */
 const MIN_CONTACT_PIXELS = 6;
 
-const KM_PER_DEGREE = 111.32;
+export const KM_PER_DEGREE = 111.32;
 
 /**
  * **The ground a station hears, or an outpost reaches, drawn only while the pointer asks for
@@ -203,17 +203,22 @@ export class ReachRing {
   }
 }
 
-export function circleAround(frame: WorldFrame, [lon, lat]: LonLat, km: number): Circle {
+/** The point `km` from `at` on a bearing (radians from north), on the local flat the rings are
+ *  walked on: the lavis of the outposts' zones reads its discs by the same measure. */
+export function lonLatAround([lon, lat]: LonLat, km: number, angle: number): LonLat {
   const perDegreeEast = KM_PER_DEGREE * Math.max(0.05, Math.cos((lat * Math.PI) / 180));
+  return [
+    lon + (km / perDegreeEast) * Math.sin(angle),
+    Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
+  ];
+}
+
+export function circleAround(frame: WorldFrame, at: LonLat, km: number): Circle {
   const positions: number[] = [];
   let perimeter = 0;
 
   for (let step = 0; step <= SEGMENTS; step += 1) {
-    const angle = (step / SEGMENTS) * Math.PI * 2;
-    const around: LonLat = [
-      lon + (km / perDegreeEast) * Math.sin(angle),
-      Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
-    ];
+    const around = lonLatAround(at, km, (step / SEGMENTS) * Math.PI * 2);
     const vertex = frame.projectLonLat(around, COUNTRY_THICKNESS + LIFT);
     if (step > 0) {
       perimeter += Math.hypot(

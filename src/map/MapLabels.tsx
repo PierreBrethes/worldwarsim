@@ -113,6 +113,7 @@ export function MapLabels({
   secondarySelected,
   onMovementHover,
   onReachHover,
+  onOutpostHover,
   poster,
   onSelect,
   onOpenBuilding,
@@ -171,6 +172,8 @@ export function MapLabels({
   onMovementHover: (id: string | null) => void;
   /** What the label covers on the ground, while the pointer is on it and no longer. */
   onReachHover: (reach: Reach | null) => void;
+  /** The outpost under the pointer, by its station key: its compass shows (#375). */
+  onOutpostHover?: ((station: string | null) => void) | undefined;
   /** **The press card a hovered piece wears** (`PosterLayer`), `null` for a piece that has none. */
   poster: (label: MapLabel) => ReactNode;
   onSelect: (name: string | null) => void;
@@ -346,11 +349,12 @@ export function MapLabels({
       point(label?.id ?? null);
       if (label?.anchor.kind === 'movementHead') onMovementHover(label.anchor.arc);
       onReachHover(label?.reach ?? null);
+      onOutpostHover?.(label?.station?.kind === 'outpost' ? stationKeyOf(label.station) : null);
       showPoster.current(
         poster && label !== undefined && label.id !== pressed.current ? label.id : null,
       );
     },
-    [labels, point, onMovementHover, onReachHover],
+    [labels, point, onMovementHover, onReachHover, onOutpostHover],
   );
 
   useEffect(() => {
