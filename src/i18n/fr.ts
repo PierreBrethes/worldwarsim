@@ -13,7 +13,6 @@ import {
   BASE_CAP,
   depotCapacity,
   FORT_SLOWDOWN_MULTIPLIER,
-  LOOKOUT_REACH_SHARE,
   DAKAR_SPARED_PER_RESOURCE,
   DETECTION_RANGE_KM,
   NARVIK_UNLINKED_SHARE,
@@ -26,6 +25,7 @@ import {
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
+import { lookoutKmOf } from '../domain/outposts';
 import type {
   AimVerdict,
   OutpostRaiseHold,
@@ -4879,10 +4879,7 @@ export function specialtyEffectText(specialty: ChosenSpecialty, level: number): 
     case 'lookout':
       return fr.specialtyEffects.lookout(outpostReachKm(level));
     case 'fort':
-      return fr.specialtyEffects.fort(
-        outpostReachKm(level) * LOOKOUT_REACH_SHARE,
-        FORT_SLOWDOWN_MULTIPLIER,
-      );
+      return fr.specialtyEffects.fort(lookoutKmOf({ level }), FORT_SLOWDOWN_MULTIPLIER);
   }
 }
 
