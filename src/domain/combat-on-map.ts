@@ -21,7 +21,7 @@ export const COMBAT_LIMITS = {
 
 /** How late a combat is still news when the view brings it, past its own length. @a-mesurer : un
  *  aller-retour du serveur et un onglet qui se réveille, sans rejouer le combat d'il y a une heure. */
-export const STALE_MARGIN_MS = 30_000;
+const STALE_MARGIN_MS = 30_000;
 
 /** **Ce que tient la pose finale**, quand rien ne joue (coupées, plus de douze pièces, budget
  *  plein). @a-mesurer : le temps du compte-rendu, assez pour lire qui reste debout ? */

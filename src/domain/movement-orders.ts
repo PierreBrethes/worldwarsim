@@ -799,7 +799,7 @@ const overloaded = (column: Column): OrderRefusal | null => {
  * that draws the pile and decides who drowns, never off a sum: two air transports offer four
  * places and still no seat for a three-place armour.
  */
-export function strandedIn(roles: ReadonlyArray<UnitRole>): boolean {
+function strandedIn(roles: ReadonlyArray<UnitRole>): boolean {
   const pile = roles.map((role, rank) => ({ id: String(rank), role }));
   return stackRows(pile, new Set(pile.map((troop) => troop.id))).some(
     (row) => row.carrier === null && (LIFT_COST[row.troop.role] ?? 0) > 0,

@@ -256,8 +256,6 @@ describe('posterOf', () => {
       from: [0, 0],
       to: [1, 1],
       route,
-      originCountry: 'France',
-      destinationCountry: 'Belgium',
       originLabel: 'Marne',
       destinationLabel: 'Meuse',
       type: 'march',

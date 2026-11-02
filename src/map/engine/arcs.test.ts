@@ -49,8 +49,6 @@ const mine = (id: string, to: readonly [number, number] = [10, 5]): ArcView => (
   from: [0, 0],
   to,
   route: directRoute([0, 0], to, 'land', 10),
-  originCountry: 'A',
-  destinationCountry: 'B',
   originLabel: 'A',
   destinationLabel: 'B',
   type: 'march',

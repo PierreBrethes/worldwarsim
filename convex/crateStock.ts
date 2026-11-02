@@ -1,22 +1,17 @@
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
-import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import type { SupplyLoad } from '../src/domain/logistics';
-import { trimLootToCapacity, type ResourceAmounts } from '../src/domain/loot';
+import {
+  difference,
+  emptyAmounts,
+  hasLoot,
+  trimLootToCapacity,
+  type ResourceAmounts,
+} from '../src/domain/loot';
 import { LOOT_CRATE_HOURS } from './constants';
 import { reassessLootCrateDetection, reassessLootCrateSightings } from './movement/detection';
 import { ensureLootRumor } from './lootRumors';
-
-const emptyAmounts = (): Record<ResourceKey, number> =>
-  Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
-
-const difference = (before: ResourceAmounts, after: ResourceAmounts): Record<ResourceKey, number> =>
-  Object.fromEntries(
-    RESOURCES.map((key) => [key, Math.max(0, before[key] - after[key])]),
-  ) as Record<ResourceKey, number>;
-
-const hasLoot = (loot: ResourceAmounts): boolean => RESOURCES.some((key) => loot[key] > 0);
 
 async function cancelExpiration(
   ctx: MutationCtx,

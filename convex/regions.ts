@@ -2,7 +2,7 @@ import type { LonLat } from '../src/domain/geo';
 import { distanceKm } from '../src/domain/geo';
 import type { BuildingKey, DepositKey, Nation } from '../src/domain/ids';
 import { foundationFor, settlesDebt, type FoundationDebt } from './constants';
-import { ADM0_BY_NATION, NATION_BY_COUNTRY, isNation } from '../src/domain/nations';
+import { ADM0_BY_NATION, isNation } from '../src/domain/nations';
 import { DEPOSIT_POINTS, depositAt } from '../src/domain/world';
 import indexAsset from '../public/region-index.json';
 import { fail } from './errors';
@@ -255,18 +255,6 @@ const lonLatOf = (point: { readonly lon: number; readonly lat: number }): LonLat
   point.lon,
   point.lat,
 ];
-
-/**
- * **The board names a country in English, every rule keys on its `adm0_a3`, and this bridges
- * the two — for the eight playable nations only.** It answers the empty string everywhere else,
- * which is why it must never be asked about a point: a point in Arabia is not a point in no
- * country. `hostAtPoint` in `routes.ts` is the function for that, and it reads the code off the
- * polygon the point falls in rather than off a table of eight.
- */
-export const adm0Of = (worldCountry: string | null): string => {
-  const nation = worldCountry === null ? undefined : NATION_BY_COUNTRY.get(worldCountry);
-  return nation === undefined ? '' : ADM0_BY_NATION[nation];
-};
 
 /**
  * **La capitale de 1940**, comme code admin-1 de `region-index.json`. Elle ne porte plus aucun

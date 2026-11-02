@@ -129,7 +129,7 @@ function adaptedView(server: ServerView): PlayerView {
         level: entry.level,
       })),
       armyPresent: server.me.armyPresent ?? {},
-      armyInTransit: {},
+      armyInTransit: server.me.armyInTransit ?? {},
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
       troops: server.me.troops.map((troop) => ({
@@ -234,8 +234,6 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     from: [movement.from.lon, movement.from.lat],
     to: [movement.to.lon, movement.to.lat],
     route: routeOf(movement),
-    originCountry: movement.originCountry,
-    destinationCountry: movement.destinationCountry,
     originLabel: placeLabel(movement.originName),
     destinationLabel: placeLabel(movement.destinationName),
     type: movement.type,

@@ -19,7 +19,7 @@ import {
 
 /** **Le refus que seul l'aperçu du serveur connaît** (#258) : pas de route, ou plein trop court.
  *  Même fonction que le serveur (`fuelRefusalOf`) ; `null` tant que l'aperçu n'est pas là. */
-export function previewRefusalOf(preview: Previewed): string | null {
+function previewRefusalOf(preview: Previewed): string | null {
   if (preview === undefined) return null;
   if (preview === null) return fr.aim.noRoute;
   return fuelRefusalText(preview);

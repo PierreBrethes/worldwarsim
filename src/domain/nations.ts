@@ -70,21 +70,14 @@ export const ADM0_BY_NATION: Readonly<Record<Nation, string>> = {
 };
 
 /**
- * The same seam as `NATION_BY_COUNTRY`, read from the code rather than from the English name.
- * It is the one the server, the regions and the outposts all speak, so it is the one a label
- * goes through (`countryLabel`).
+ * The nation behind an `adm0_a3` code. It is the seam the server, the regions and the outposts
+ * all speak, so it is the one a label goes through (`countryLabel`).
  */
 export const NATION_BY_ADM0: ReadonlyMap<string, Nation> = new Map(
   (Object.entries(ADM0_BY_NATION) as ReadonlyArray<[Nation, string]>).map(([nation, code]) => [
     code,
     nation,
   ]),
-);
-
-export const NATION_BY_COUNTRY: ReadonlyMap<string, Nation> = new Map(
-  (Object.entries(COUNTRY_BY_NATION) as ReadonlyArray<[Nation, string]>).map(
-    ([nation, country]) => [country, nation],
-  ),
 );
 
 export const isNation = (value: unknown): value is Nation =>
