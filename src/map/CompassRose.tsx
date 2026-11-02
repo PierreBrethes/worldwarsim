@@ -646,6 +646,27 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   shell: (
     <path d="M10 1.2 C12.7 3.6 13.6 6.5 13.6 9.2 V11.2 H6.4 V9.2 C6.4 6.5 7.3 3.6 10 1.2 Z M6.4 12.6 H13.6 V16.4 H6.4 Z M5.6 17.2 H14.4 V19.2 H5.6 Z" />
   ),
+  /** Le Magasin : deux caisses posées, une troisième dessus — le stock, sans la bande en
+   *  diagonale de la caisse de butin (`crate`). */
+  store: (
+    <path d="M1.6 11.4 H9.4 V18.6 H1.6 Z M10.6 11.4 H18.4 V18.6 H10.6 Z M6.1 3.4 H13.9 V10.2 H6.1 Z M3.4 14.4 H7.6 V15.6 H3.4 Z M12.4 14.4 H16.6 V15.6 H12.4 Z M7.9 6.2 H12.1 V7.4 H7.9 Z" />
+  ),
+  /** Le Guet : le mât et l'onde qui part de sa tête — il voit loin. */
+  lookout: (
+    <>
+      <path d="M8.9 4.4 H11.1 V17 H8.9 Z M5.4 17 H14.6 V19 H5.4 Z M10 1.4 A1.8 1.8 0 1 1 9.99 1.4 Z" />
+      <path
+        d="M5.6 1.8 A6 6 0 0 0 5.6 8.6 M14.4 1.8 A6 6 0 0 1 14.4 8.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+    </>
+  ),
+  /** Le Fort : les sacs empilés en quinconce — il retient, il ne bloque pas. */
+  fort: (
+    <path d="M1.4 14.6 H6.6 V18.8 H1.4 Z M7.4 14.6 H12.6 V18.8 H7.4 Z M13.4 14.6 H18.6 V18.8 H13.4 Z M4.4 9.8 H9.6 V14 H4.4 Z M10.4 9.8 H15.6 V14 H10.4 Z M7.4 5 H12.6 V9.2 H7.4 Z" />
+  ),
   pennant: <path d="M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z" />,
   rifles: (
     <>

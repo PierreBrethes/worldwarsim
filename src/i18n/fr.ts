@@ -11,6 +11,9 @@ import type { ErrorCode } from '../../convex/errors';
 import {
   BAKU_REFUEL_MS,
   BASE_CAP,
+  depotCapacity,
+  FORT_SLOWDOWN_MULTIPLIER,
+  LOOKOUT_REACH_SHARE,
   DAKAR_SPARED_PER_RESOURCE,
   DETECTION_RANGE_KM,
   NARVIK_UNLINKED_SHARE,
@@ -23,7 +26,12 @@ import {
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
-import type { AimVerdict, OutpostRaiseHold, UpgradeHold } from '../domain/construction';
+import type {
+  AimVerdict,
+  OutpostRaiseHold,
+  SpecialtyRefusal,
+  UpgradeHold,
+} from '../domain/construction';
 import type { DispatchKind, Faced, TourEnd } from '../domain/player-view';
 import type { TagTour } from '../domain/cargo-tag';
 import type { SeasonMode } from '../domain/season-mode';
@@ -935,7 +943,7 @@ export const fr = {
       'une colonne marche dans la portée de ce point — il ne se démantèle pas sous elle',
     /** **On ne rénove pas sous le feu** (décision 3a du 15/09). Le refus dit l'état, pas une
      *  perte : le point revient, et un chantier déjà en file l'attend sans s'annuler. */
-    OUTPOST_DISABLED: () => 'avant-poste hors service — il ne se monte pas tant qu’il l’est',
+    OUTPOST_DISABLED: () => 'avant-poste hors service — aucun chantier n’y part tant qu’il l’est',
     OUTPOST_WORK_QUEUED: () => 'un chantier de cet avant-poste est déjà en file',
     SPECIALTY_REQUIRED: () =>
       'au niveau 2, l’avant-poste choisit sa spécialisation : magasin, guet ou fort',
@@ -4862,6 +4870,31 @@ export function upgradeHoldText(hold: UpgradeHold): string {
  * même `outpostRaiseHold`. Le panneau tait la facture (il l'affiche déjà en chiffres rouges
  * au-dessus) ; la rose la dit, faute de place pour deux lectures.
  */
+/** **Ce que la spécialisation fera de ce point, à ce niveau** : la phrase de l'offre, dans la
+ *  fiche comme dans la rose. */
+export function specialtyEffectText(specialty: ChosenSpecialty, level: number): string {
+  switch (specialty) {
+    case 'store':
+      return fr.specialtyEffects.store(depotCapacity(level, 'store'));
+    case 'lookout':
+      return fr.specialtyEffects.lookout(outpostReachKm(level));
+    case 'fort':
+      return fr.specialtyEffects.fort(
+        outpostReachKm(level) * LOOKOUT_REACH_SHARE,
+        FORT_SLOWDOWN_MULTIPLIER,
+      );
+  }
+}
+
+/** **Le refus du choix ou du changement de spécialisation**, dans les mots du serveur. */
+export function specialtyRefusalText(refusal: SpecialtyRefusal): string {
+  if (refusal.kind === 'levelOne') return fr.errors.SPECIALTY_AT_LEVEL_TWO();
+  if (refusal.kind === 'held') return fr.errors.SPECIALTY_HELD();
+  if (refusal.kind === 'disabled') return fr.errors.OUTPOST_DISABLED();
+  if (refusal.kind === 'alreadyQueued') return fr.errors.OUTPOST_WORK_QUEUED();
+  return raiseHoldText(refusal);
+}
+
 export function raiseHoldText(hold: OutpostRaiseHold): string {
   switch (hold.kind) {
     case 'maxLevel':

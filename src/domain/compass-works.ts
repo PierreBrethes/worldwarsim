@@ -1,5 +1,12 @@
 import { pileAt, posted } from './compass-fan';
-import { countryLabel, fr, noBuilding, raiseHoldText, upgradeHoldText } from '@/i18n/fr';
+import {
+  countryLabel,
+  fr,
+  noBuilding,
+  raiseHoldText,
+  specialtyEffectText,
+  upgradeHoldText,
+} from '@/i18n/fr';
 import {
   availabilityOf,
   demolitionRefusalOf,
@@ -14,7 +21,7 @@ import {
 import { asDuration } from './duration';
 import { notInBlitz } from './blitz';
 import { PRODUCER_OF } from './economy';
-import { DEPOSITS, RESOURCES } from './ids';
+import { CHOSEN_SPECIALTIES, DEPOSITS, RESOURCES, type ChosenSpecialty } from './ids';
 import { foundingRefusal, type OrderRefusal } from './movement-orders';
 import { NATION_BY_ADM0 } from './nations';
 import type { ResourceKey } from './ids';
@@ -86,10 +93,10 @@ const billOf = (cost: Cost, view: PlayerView, lacking?: ResourceKey): ReadonlyAr
  * à la règle est « ce niveau-ci » quand il n'y a plus de marche et « le suivant » sinon. Un
  * chiffre d'équilibrage de moins à faire voyager jusqu'au domaine.
  */
-function outpostRaiseBranch(
+function outpostRaiseBranches(
   outpost: OutpostView,
   view: PlayerView,
-): { readonly action: CompassAction | null; readonly refusal: string | null } {
+): { readonly actions: ReadonlyArray<CompassAction>; readonly refusal: string | null } {
   const hold = outpostRaiseHold(
     {
       level: outpost.level,
@@ -106,24 +113,31 @@ function outpostRaiseBranch(
     outpost.atMaxLevel ? outpost.level : outpost.level + 1,
   );
   if (hold !== null && hold.kind !== 'materials')
-    return { action: null, refusal: raiseHoldText(hold) };
+    return { actions: [], refusal: raiseHoldText(hold) };
 
+  const branch = (specialty: ChosenSpecialty | null): CompassAction => ({
+    key: 'raiseOutpost',
+    pictogram: specialty ?? 'chevron',
+    label:
+      specialty === null ? fr.garrison.raiseAction : fr.garrison.raiseAs(fr.specialties[specialty]),
+    cost: null,
+    consequence:
+      specialty === null
+        ? fr.compass.raiseConsequence(outpost.level + 1)
+        : fr.compass.raiseAsConsequence(specialtyEffectText(specialty, 2)),
+    outpostId: outpost.id,
+    specialty,
+    figure: outpost.nextLevelCost,
+    bill: billOf(outpost.nextLevelCost, view, hold?.resource),
+    duration: asDuration(outpost.nextLevelMinutes),
+    hold:
+      hold === null
+        ? null
+        : { reason: raiseHoldText(hold), availability: whenAffordable(hold, view) },
+  });
+  /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : trois branches, un geste. */
   return {
-    action: {
-      key: 'raiseOutpost',
-      pictogram: 'chevron',
-      label: fr.garrison.raiseAction,
-      cost: null,
-      consequence: fr.compass.raiseConsequence(outpost.level + 1),
-      outpostId: outpost.id,
-      figure: outpost.nextLevelCost,
-      bill: billOf(outpost.nextLevelCost, view, hold?.resource),
-      duration: asDuration(outpost.nextLevelMinutes),
-      hold:
-        hold === null
-          ? null
-          : { reason: raiseHoldText(hold), availability: whenAffordable(hold, view) },
-    },
+    actions: outpost.level === 1 ? CHOSEN_SPECIALTIES.map(branch) : [branch(null)],
     refusal: null,
   };
 }
@@ -177,9 +191,10 @@ export function build(
     /**
      * **Un point à soi se commande comme un mât** (décision de Pierre, 16/09, Registre 27). Le
      * clic droit y était inerte : l'élévation vivait dans le seul panneau de garnison,
-     * c'est-à-dire derrière un clic gauche que rien n'annonçait. Deux branches, élever puis
-     * démanteler — plus de métier à choisir depuis l'ADR 0037 — et le panneau garde les siennes :
-     * la rose ajoute une porte, elle n'en ferme aucune.
+     * c'est-à-dire derrière un clic gauche que rien n'annonçait. Élever puis démanteler ; au
+     * niveau 1, l'élévation s'ouvre en trois branches, une par spécialisation (ADR 0037 §3). Le
+     * changement de spécialisation vit dans le panneau : la rose ajoute une porte, elle n'en
+     * ferme aucune.
      *
      * **Un point adverse ne change pas.** Il n'est pas à nous, il n'y a rien à y faire au repos,
      * et le clic droit y reste inerte comme sur un pays (décision du 31/08).
@@ -198,7 +213,7 @@ export function build(
         };
       }
       const standing = mine.standsAt === null;
-      const raise = standing ? outpostRaiseBranch(mine, view) : { action: null, refusal: null };
+      const raise = standing ? outpostRaiseBranches(mine, view) : { actions: [], refusal: null };
       const dismantles = outpostDismantleRefusalOf({
         mine: true,
         serving: mine.serving,
@@ -206,10 +221,7 @@ export function build(
       return {
         kicker: fr.compass.myOutpost(mine.level),
         name: target.name,
-        actions: [
-          ...(raise.action === null ? [] : [raise.action]),
-          ...(dismantles === null ? [dismantleOf(mine.id)] : []),
-        ],
+        actions: [...raise.actions, ...(dismantles === null ? [dismantleOf(mine.id)] : [])],
         /** Le motif de l'élévation d'abord : c'est la seule branche que le joueur cherche et ne
          *  trouve pas. Le démantèlement retenu se lit sur le point lui-même — une colonne y
          *  marche. */

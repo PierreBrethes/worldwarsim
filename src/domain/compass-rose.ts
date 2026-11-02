@@ -16,7 +16,7 @@ import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
 import { type LonLat } from './geo';
 import type { Ground } from './routing';
-import type { BuildingKey, MovementType, ResourceKey } from './ids';
+import type { BuildingKey, ChosenSpecialty, MovementType, ResourceKey } from './ids';
 import { type Cost, type PlayerView, type TroopStation } from './player-view';
 
 /**
@@ -236,7 +236,12 @@ export type CompassPictogram =
    *  on n'incendie pas chez soi, on démonte */
   | 'rubble'
   /** « Bombarder » (B20) : l'obus debout sur son culot — un tir qui part, rien de la colonne. */
-  | 'shell';
+  | 'shell'
+  /** Les trois spécialisations (ADR 0037 §3), aux accessoires qu'elles poseront au pied du mât
+   *  (#298) : les caisses du Magasin, l'antenne du Guet, les sacs empilés du Fort. */
+  | 'store'
+  | 'lookout'
+  | 'fort';
 
 /** One resource of a bill: its sentence, its picto's resource, and whether it is the one short. */
 export type BillLine = {
@@ -386,6 +391,9 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly outpostId: string;
+      /** **Le métier que l'élévation au niveau 2 choisit** (ADR 0037 §3) : trois branches, un
+       *  geste ; `null` au passage au niveau 3, qui garde le sien. */
+      readonly specialty: ChosenSpecialty | null;
       readonly figure: Cost;
       readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;

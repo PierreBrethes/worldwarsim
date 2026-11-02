@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
+import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import { GarrisonPanel } from './GarrisonPanel';
 
@@ -32,12 +33,15 @@ const outpostOf = (disabledMinutesLeft: number | null) => ({
   regionId: 'BEL-1',
   lonLat: [4.87, 50.47],
   specialty: 'general',
+  changingTo: null,
   standsAt: null,
   disabledMinutesLeft,
   serving: false,
   nextLevelCost: {},
   nextLevelMinutes: 0,
   atMaxLevel: false,
+  respecialtyCost: {},
+  respecialtyMinutes: 0,
   depot: {},
 });
 const mount = (disabledMinutesLeft: number | null) =>
@@ -53,7 +57,11 @@ const mount = (disabledMinutesLeft: number | null) =>
             regions: [],
             buildings: [],
             outposts: [outpostOf(disabledMinutesLeft)],
-            resources: {},
+            resources: Object.fromEntries(
+              RESOURCES.map((key) => [key, { stock: 0, ratePerHour: 0, cap: 0 }]),
+            ),
+            construction: null,
+            constructionQueue: [],
             upkeep: { listeningSilent: false },
           },
           arcs: [],

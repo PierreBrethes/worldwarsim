@@ -1169,9 +1169,11 @@ function BoardContent({
          */
         case 'raiseOutpost':
           setOrderError(null);
-          raiseOutpost({ ...seat, outpostId: action.outpostId as Id<'outposts'> }).catch(
-            (problem: unknown) => handleError(problem, setOrderError),
-          );
+          raiseOutpost({
+            ...seat,
+            outpostId: action.outpostId as Id<'outposts'>,
+            ...(action.specialty === null ? {} : { specialty: action.specialty }),
+          }).catch((problem: unknown) => handleError(problem, setOrderError));
           return;
         /**
          * **Démanteler demande la même confirmation que raser**, et elle en dit davantage : un

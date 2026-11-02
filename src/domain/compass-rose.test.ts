@@ -165,12 +165,32 @@ describe('my own outpost, unarmed', () => {
       me: { ...view.me, outposts: [{ ...view.me.outposts[0], ...changes }] },
     }) as unknown as PlayerView;
 
-  /** Plus de métier à choisir (ADR 0037 §1) : la plate porte l'élévation et le démantèlement. */
-  it('carries the raise and the dismantling, and no trade to choose', () => {
+  /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : trois branches, un geste, un
+   *  chantier ; puis le démantèlement. */
+  it('offers the raise to level 2 as three specialties, then the dismantling', () => {
     const compass = compassOf(mine, view);
-    expect(compass?.actions.map((action) => action.key)).toEqual(['raiseOutpost', 'dismantle']);
-    expect(compass?.actions.map((action) => action.label)).toEqual(['monter', 'démanteler']);
+    expect(compass?.actions.map((action) => action.key)).toEqual([
+      'raiseOutpost',
+      'raiseOutpost',
+      'raiseOutpost',
+      'dismantle',
+    ]);
+    expect(compass?.actions.map((action) => action.label)).toEqual([
+      'monter · magasin',
+      'monter · guet',
+      'monter · fort',
+      'démanteler',
+    ]);
+    expect(
+      compass?.actions.map((action) => (action.key === 'raiseOutpost' ? action.specialty : null)),
+    ).toEqual(['store', 'lookout', 'fort', null]);
     expect(compass?.kicker).toBe('mon avant-poste · niveau 1');
+  });
+
+  /** Au niveau 2 le métier est choisi : le niveau 3 le garde, une seule branche le monte. */
+  it('raises a level-2 point by a single branch, keeping its specialty', () => {
+    const compass = compassOf(mine, withOutpost({ level: 2, specialty: 'store' }));
+    expect(compass?.actions.map((action) => action.label)).toEqual(['monter', 'démanteler']);
   });
 
   /** **Servir une colonne retient aussi le démantèlement** : on ne retire pas la route sous les

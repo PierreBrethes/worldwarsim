@@ -953,6 +953,14 @@ export const LOOKOUT_COAL_PER_HOUR_PER_LEVEL = 1;
 export const LOOKOUT_REACH_SHARE = 0.5;
 
 /**
+ * **Le Fort retient** (ADR 0037 §6) : une colonne adverse va d'autant plus lentement sur la part de
+ * sa route qui passe dans la vigie du Fort, à terre et en mer. La fiche le dit avant le choix.
+ *
+ * @a-mesurer ×1,5 : le pendant de l'accélération des liaisons, aucune partie ne l'a joué
+ */
+export const FORT_SLOWDOWN_MULTIPLIER = 1.5;
+
+/**
  * What a troop eats **outside every anchor of its own** (ADR 0019 §4). Without it, "at its own
  * risk and peril" names no risk: a plain rate plus "nothing dies when dry" (D3) would make twenty
  * free sentinels the cheapest way to empty the fog (ADR 0005).
