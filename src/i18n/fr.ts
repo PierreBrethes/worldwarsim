@@ -2356,10 +2356,18 @@ export const fr = {
     briefingNote: 'les gestes, le terrain, vos bureaux',
   },
 
+  /** **Les kilomètres du compas d'un avant-poste** (#375), au survol et en main seulement. */
+  outpostZones: {
+    reach: (km: number) => `${km} km`,
+    lookout: (km: number) => `vigie ${km} km`,
+    whole: 'vigie au rayon entier',
+  },
+
   indicatorCategories: {
     buildings: 'bâtiments',
     deposits: 'gisements',
     outposts: 'avant-postes',
+    'outpost-zones': 'zones et liaisons des avant-postes',
     objectives: 'objectifs neutres',
     constructions: 'chantiers',
     forces: 'forces',
@@ -4651,8 +4659,6 @@ export const fr = {
     coastPending: 'la côte arrive sur la carte — un instant',
     /** Au téléphone, la tuile se porte du doigt (#239). */
     hintTouch: 'levez le doigt pour poser — glissez hors de la carte pour renoncer',
-    /** Au sommet du rayon d'un avant-poste, pendant la pose (#239). */
-    reach: (km: number) => `rayon de l’avant-poste · ${km} km`,
     /** Le fil vers le gisement prenable le plus proche (#239), à cinq kilomètres près. */
     thread: (deposit: DepositKey, place: string | null, km: number) =>
       [fr.deposits[deposit], place, `${Math.round(km / 5) * 5} km`]

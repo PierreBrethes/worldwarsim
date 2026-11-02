@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { IndicatorCategory } from '@/domain/indicators';
+import type { EdgeCategory } from '@/domain/indicators';
 import { Glyph } from './Glyph';
 
 /**
@@ -75,13 +75,7 @@ export function IndustryGlyph({ size = 19 }: { size?: number }) {
  * Categories of things carry their pictogram; the two movement marks stay drawn strokes,
  * whose arrow says a direction where a pictogram would only say a nature.
  */
-export function IndicatorGlyph({
-  category,
-  size = 19,
-}: {
-  category: IndicatorCategory;
-  size?: number;
-}) {
+export function IndicatorGlyph({ category, size = 19 }: { category: EdgeCategory; size?: number }) {
   const mark = MARK[category];
   return 'pictogram' in mark ? (
     <Pictogram pictogram={mark.pictogram} weight={20} size={size} />
@@ -92,7 +86,7 @@ export function IndicatorGlyph({
 
 type Mark = { readonly pictogram: PictogramName } | { readonly stroke: ReactNode };
 
-const MARK: Readonly<Record<IndicatorCategory, Mark>> = {
+const MARK: Readonly<Record<EdgeCategory, Mark>> = {
   /**
    * A drawn stroke, not a pictogram: the fifteen buildings share no silhouette, and picking
    * one of them — the arsenal, the port — would say a nature where the bascule speaks of all

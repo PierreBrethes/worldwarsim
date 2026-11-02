@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { depotCapacity } from '../../convex/constants';
 import type { LonLat } from './geo';
 import {
+  drawnLiaisonsOf,
   isOnWatch,
   liaisonsOf,
   linkedRelays,
@@ -93,6 +94,22 @@ describe('the liaisons between outposts', () => {
       ['a', 'b'],
       ['a', 'c'],
       ['b', 'c'],
+    ]);
+  });
+
+  /** **Le dessin épure, la règle non** (ADR 0037 §8, #375) : sans le côté long d'un triangle. */
+  it('draws a triangle without its long side', () => {
+    expect(drawnLiaisonsOf([at('a', 0), at('b', 100), at('c', 200)])).toEqual([
+      ['a', 'b'],
+      ['b', 'c'],
+    ]);
+  });
+
+  it('keeps the long side when the nearer point is in liaison with one end only', () => {
+    // c sits nearer to both, but its small reach does not touch b's.
+    expect(drawnLiaisonsOf([at('a', 0, 240), at('b', 350), at('c', 100, 1)])).toEqual([
+      ['a', 'b'],
+      ['a', 'c'],
     ]);
   });
 

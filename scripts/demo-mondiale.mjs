@@ -39,7 +39,9 @@
  * `--sans-charbon` y met le charbon national à zéro. `--metiers` (#371) pose pour la France quatre
  * avant-postes : un niveau 1 à élever à Arlon (`@arlon`), un généraliste d'avant la refonte au
  * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
- * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--guet` (#373) pose pour la
+ * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--zones` (#375) pose pour la
+ * France un réseau lorrain (Luxembourg, Metz, Nancy, un Guet à Sarrebruck), Strasbourg désactivé et
+ * une pile à Thionville (`@zones`, `@metz`, `@thionville`). `--guet` (#373) pose pour la
  * France un Guet à Kaiserslautern et un généraliste à Berne, et en face une colonne britannique
  * lue en route vers Munich, un camp lu à Francfort, une dernière position lue à Mayence et un camp
  * que le généraliste relève sans le lire près de Berne (`@guet`, `@francfort`, `@mayence`, `@berne`). `--magasin` (#372) pose pour la France un
@@ -188,6 +190,8 @@ const quays = islands || process.argv.includes('--quais');
 /** `--liaisons` (#370) : deux avant-postes français en liaison en Belgique, un seul à Bâle,
  *  une pile à Charleroi ; `--sans-charbon` met le charbon national à zéro (vigies aveugles). */
 const liaisons = process.argv.includes('--liaisons');
+/** `--zones` (#375) : un réseau lorrain à triangles, un Guet, un point désactivé, une pile. */
+const zones = process.argv.includes('--zones');
 /** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
 const specialties = process.argv.includes('--metiers');
 /** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
@@ -689,6 +693,13 @@ if (!bare) {
     places.liaisons = [4.87, 50.47];
     places.charleroi = [4.44, 50.41];
     places.aix = [6.08, 50.78];
+  }
+  if (zones && scene.a !== null) {
+    cli(['run', 'dev:zonesScene', JSON.stringify({ playerId: scene.a })]);
+    places.zones = [6.5, 49.1];
+    places.metz = [6.18, 49.12];
+    places.sarrebruck = [7.0, 49.23];
+    places.thionville = [6.17, 49.36];
   }
   if (specialties && scene.a !== null) {
     cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);

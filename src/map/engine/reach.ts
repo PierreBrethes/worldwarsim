@@ -19,10 +19,10 @@ import { hatch } from './regions';
  * Fine enough that four hundred kilometres read as a circle rather than as a polygon, coarse
  * enough that rebuilding it on every hover costs nothing.
  */
-const SEGMENTS = 96;
+export const SEGMENTS = 96;
 
 /** Just above the land, so the ring is not swallowed by the ground it lies on. */
-const LIFT = 0.04;
+export const LIFT = 0.04;
 
 /**
  * **The ring is a fat line, like a thread, and for the same reason**: a `LineBasicMaterial`
@@ -68,7 +68,7 @@ const DASHES = 56;
  */
 const MIN_CONTACT_PIXELS = 6;
 
-const KM_PER_DEGREE = 111.32;
+export const KM_PER_DEGREE = 111.32;
 
 /**
  * **The ground a station hears, or an outpost reaches, drawn only while the pointer asks for
@@ -203,17 +203,22 @@ export class ReachRing {
   }
 }
 
-export function circleAround(frame: WorldFrame, [lon, lat]: LonLat, km: number): Circle {
+/** The point `km` from `at` on a bearing (radians from north), on the local flat the rings are
+ *  walked on: the lavis of the outposts' zones reads its discs by the same measure. */
+export function lonLatAround([lon, lat]: LonLat, km: number, angle: number): LonLat {
   const perDegreeEast = KM_PER_DEGREE * Math.max(0.05, Math.cos((lat * Math.PI) / 180));
+  return [
+    lon + (km / perDegreeEast) * Math.sin(angle),
+    Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
+  ];
+}
+
+export function circleAround(frame: WorldFrame, at: LonLat, km: number): Circle {
   const positions: number[] = [];
   let perimeter = 0;
 
   for (let step = 0; step <= SEGMENTS; step += 1) {
-    const angle = (step / SEGMENTS) * Math.PI * 2;
-    const around: LonLat = [
-      lon + (km / perDegreeEast) * Math.sin(angle),
-      Math.max(-89, Math.min(89, lat + (km / KM_PER_DEGREE) * Math.cos(angle))),
-    ];
+    const around = lonLatAround(at, km, (step / SEGMENTS) * Math.PI * 2);
     const vertex = frame.projectLonLat(around, COUNTRY_THICKNESS + LIFT);
     if (step > 0) {
       perimeter += Math.hypot(
@@ -297,42 +302,5 @@ class Ring {
     this.line.removeFromParent();
     this.geometry.dispose();
     this.material.dispose();
-  }
-}
-
-/** @a-mesurer */
-const PLACING_THICKNESS = 1.5;
-
-/**
- * **The reach of the player's outposts, drawn while a building is in hand** (#239): where the
- * pose is taken abroad. The detection ring's dashes, one ring per standing outpost.
- */
-export class ReachRings {
-  readonly object = new Group();
-  private rings: Ring[] = [];
-  private size: readonly [number, number] = [1, 1];
-
-  constructor(private readonly frame: WorldFrame) {}
-
-  show(reaches: ReadonlyArray<{ readonly lonLat: LonLat; readonly reachKm: number }>): void {
-    for (const ring of this.rings) ring.dispose();
-    this.rings = reaches.map(({ lonLat, reachKm }) => {
-      // The board's ink, thin: the thread of the pose is the ochre on the sheet, not the reach.
-      const ring = new Ring(true, DEAD_INK, PLACING_THICKNESS);
-      ring.write(circleAround(this.frame, lonLat, reachKm));
-      ring.resize(...this.size);
-      this.object.add(ring.line);
-      return ring;
-    });
-  }
-
-  resize(width: number, height: number): void {
-    this.size = [width, height];
-    for (const ring of this.rings) ring.resize(width, height);
-  }
-
-  dispose(): void {
-    this.show([]);
-    this.object.removeFromParent();
   }
 }

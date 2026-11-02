@@ -1,5 +1,12 @@
 [
   {
+    "date": "2026-11-02",
+    "title": "Les bulletins se rangent dans les Réglages",
+    "image": "/patchnotes/2026-11-02.webp",
+    "thumb": "/patchnotes/2026-11-02-thumb.webp",
+    "summary": "Bulletin des mises à jour, lundi 2 novembre, édition de guerre de la Mondiale : ce qui a changé sur la carte, du 1er novembre au 2 novembre. À la une, Réglages : les bulletins se rangent dans les Réglages. Celui-ci compris : chaque numéro reste à portée de main, du plus récent au plus ancien. Le dernier numéro sur le dessus, marqué tant qu'il n'est pas lu. Un clic ouvre la liseuse, la feuille entière. Une section « Mises à jour » liste les bulletins par date, chacun avec son titre de une. La liseuse feuillette d'un numéro à l'autre : flèches, clavier ou frise. Échap la referme. Un bulletin pas encore ouvert porte son tampon « non lu ». Marine : la flotte finit sur la côte visée. De Marseille à Agde, le fil touche le point visé. Une flotte qui vise un point de côte voit son fil finir là où elle se posera, et non plus au large. Le fil part aussi de la pile, même quand une poursuite le recalcule. Au téléphone : la feuille dans la main. La feuille tient la largeur de l'écran. Au téléphone, on glisse du doigt pour feuilleter et on pince pour lire de près. Et aussi : La fiche de nation compte à part les troupes en route : une colonne en marche n'est plus « présente ». Sur l'établi : les bâtiments sur leur socle, Le socle, sa cour et son signe sont prêts ; ils paraîtront bâtiment par bâtiment, à mesure que les nouveaux modèles arrivent ; des avant-postes qui guettent, Bientôt, tout avant-poste guettera autour de lui, et ses voisins en liaison accéléreront ses colonnes."
+  },
+  {
     "date": "2026-11-01",
     "title": "Les colonnes marchent en file, au pas, et se déploient à l’arrivée",
     "image": "/patchnotes/2026-11-01.webp",

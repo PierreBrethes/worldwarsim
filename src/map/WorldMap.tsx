@@ -52,7 +52,12 @@ import { inkBursts } from '@/domain/ink-bursts';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
 import { aboardOf, descentesOf, entreesOf, rankKept, sortiesOf } from './cues';
-import { leftReaches, raisedReaches, type ReachedOutpost } from '@/domain/outpost-reach-ink';
+import {
+  bornLiaisons,
+  leftReaches,
+  raisedReaches,
+  type ReachedOutpost,
+} from '@/domain/outpost-reach-ink';
 import { markGestureHintSeen, readHudScale, gestureHintSeen } from '@/data/settings';
 import { shareUnchanged } from '@/data/shareUnchanged';
 import { useDayCycle } from '@/data/dayCycle';
@@ -92,9 +97,9 @@ import {
   MapEngine,
   type CarryTarget,
   type HeldClaim,
+  type HeldPlacing,
   type PieceClick,
   type PieceHold,
-  type HeldPlacing,
   type PlacingMagnet,
   type PlacingSpot,
   type PlacingThread,
@@ -103,6 +108,9 @@ import {
   labelOfPile,
   type StandingPile,
   type SurveyedCamp,
+  type ZoneFocus,
+  type ZoneLabelOnScreen,
+  type ZonePoint,
 } from './engine';
 import { ADVERSE_INK } from './engine/palette';
 
@@ -134,6 +142,11 @@ type Props = {
   held: ReadonlyArray<HeldClaim>;
   /** My outposts: when one stands up or is raised, the map inks the reach it now holds. */
   outposts: ReadonlyArray<ReachedOutpost>;
+  /**
+   * **Mes avant-postes en service et leurs liaisons tracées** (#375, `drawnLiaisonsOf`) ; `null`
+   * en Blitz, où le calque ne dessine rien.
+   */
+  outpostZones?: OutpostZonesView | null;
   /**
    * **My regions that lost their colour** (ADR 0020 §6), and those where something of mine
    * produces: a region that loses it under a producer is stamped « hors réseau » beside its
@@ -352,13 +365,18 @@ type Props = {
  * card's lines arrive written (ADR 0016): the map prices nothing, names nothing and refuses
  * nothing — `refusal` is the placement rule's sentence for the point the ghost holds.
  */
+export type OutpostZonesView = {
+  readonly points: ReadonlyArray<ZonePoint>;
+  readonly liaisons: ReadonlyArray<readonly [string, string]>;
+};
+
 /** An outpost the player confirmed dismantling: its id, and whether it takes an area with it. */
 export type Dismantled = { readonly id: string; readonly area: boolean };
 
 export type PlacingBuilding = {
   readonly sprite: string | null;
   readonly magnet: PlacingMagnet;
-  /** The outposts' reach, drawn while the building is in hand (#239). */
+  /** The outposts' reach the pose reads, graduated while the building is held (#239). */
   readonly reaches: HeldPlacing['reaches'];
   readonly title: string;
   readonly name: string;
@@ -452,6 +470,7 @@ export function WorldMap({
   onOpenStrategic,
   selectedLabel = null,
   openStation = null,
+  outpostZones = null,
   selectedLootLabel = null,
   reach = null,
   onCountryHover,
@@ -530,6 +549,7 @@ export function WorldMap({
   /** Une rose rouverte est une autre rose : elle se mesure et se recale à son tour. */
   const openings = useRef(0);
   const [hoveredReach, setHoveredReach] = useState<Reach | null>(null);
+  const [hoveredOutpost, setHoveredOutpost] = useState<string | null>(null);
   const [gestureHint, setGestureHint] = useState(false);
   const mapping = useMouseMapping();
   const motion = useMapMotion();
@@ -1535,6 +1555,38 @@ export function WorldMap({
     for (const { at, km } of leftReaches(before, outposts, erased)) readyEngine?.eraseReach(at, km);
   }, [outposts, readyEngine]);
 
+  const zonesShown = indicators['outpost-zones'];
+  useEffect(() => {
+    readyEngine?.showOutpostZones(
+      zonesShown ? (outpostZones?.points ?? []) : [],
+      zonesShown ? (outpostZones?.liaisons ?? []) : [],
+    );
+  }, [readyEngine, outpostZones, zonesShown]);
+  // A liaison born since the view before is traced once; nothing on the first view (#375).
+  const liaisonsBefore = useRef<OutpostZonesView['liaisons'] | null>(null);
+  useEffect(() => {
+    const before = liaisonsBefore.current;
+    liaisonsBefore.current = outpostZones?.liaisons ?? [];
+    if (before === null || outpostZones === null || !zonesShown) return;
+    const at = new Map(outpostZones.points.map((point) => [point.id, point.lonLat] as const));
+    for (const [a, b] of bornLiaisons(before, outpostZones.liaisons))
+      readyEngine?.inkLiaison(at.get(a)!, at.get(b)!);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a view's liaisons, not the toggle
+  }, [outpostZones, readyEngine]);
+  /** **Ce que la main tient** (décisions du 02/11) : une pile soulevée gradue tous mes points et
+   *  leur vigie, le survol et la garnison ouverte leur point ; seuls ces deux-là disent leurs km.
+   *  Le bâtiment tenu lit son rayon hors du calque (`HeldPlacing.reaches`). */
+  const zoneFocus = useMemo<ZoneFocus>(() => {
+    const labelled = [hoveredOutpost, openStation].filter(
+      (station): station is string => station?.startsWith('outpost:') === true,
+    );
+    if (holding !== null) return { points: 'all', lookout: true, labelled };
+    return labelled.length === 0 ? null : { points: labelled, lookout: true, labelled };
+  }, [holding, hoveredOutpost, openStation]);
+  useEffect(() => {
+    readyEngine?.focusOutpostZones(zoneFocus);
+  }, [readyEngine, zoneFocus]);
+
   // A recruit steps out of its barracks' door and walks to its rank (#268). Nothing on the first view.
   const troopsKnown = useRef<ReadonlySet<string> | null>(null);
   useEffect(() => {
@@ -1733,6 +1785,7 @@ export function WorldMap({
         secondarySelected={selectedLootLabel}
         onMovementHover={onLabelHover ?? (() => {})}
         onReachHover={setHoveredReach}
+        onOutpostHover={setHoveredOutpost}
         poster={poster ?? noPoster}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
@@ -1783,6 +1836,7 @@ export function WorldMap({
         </div>
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
+      {(zoneFocus !== null || placing) && <ZoneLabels engine={readyEngine} />}
       {placing && <PlacingOverlay engine={readyEngine} placing={placing} container={container} />}
       {sweep && (
         <SweepOverlay
@@ -2040,6 +2094,48 @@ function PlacingLines({ placing, docked = false }: { placing: PlacingBuilding; d
   );
 }
 
+/**
+ * **Les kilomètres du compas** (#375) : au sommet de chaque rayon sous la main, sa portée, et
+ * celle de sa vigie. Placés depuis la carte à chaque image rendue (`onZoneLabels`).
+ */
+function ZoneLabels({ engine }: { engine: MapEngine | null }) {
+  const [labels, setLabels] = useState<ReadonlyArray<ZoneLabelOnScreen>>([]);
+  useEffect(() => {
+    if (engine === null) return;
+    engine.onZoneLabels = setLabels;
+    engine.invalidate();
+    return () => {
+      engine.onZoneLabels = undefined;
+    };
+  }, [engine]);
+  return (
+    <svg className="pointer-events-none absolute inset-0 z-[var(--z-band)] h-full w-full overflow-visible">
+      {labels.map(({ at, km, kind }) => (
+        <text
+          key={`${kind}:${at.x},${at.y}`}
+          x={at.x}
+          y={kind === 'whole' ? at.y + 14 : at.y - 6}
+          textAnchor="middle"
+          className="font-(family-name:--font-mono) text-[10.5px]"
+          // Le liseré papier des noms de la carte : lisible sur la feuille de nuit.
+          style={{
+            fill: 'var(--ink)',
+            stroke: 'var(--paper)',
+            strokeWidth: 3,
+            paintOrder: 'stroke',
+          }}
+        >
+          {kind === 'reach'
+            ? fr.outpostZones.reach(km)
+            : kind === 'lookout'
+              ? fr.outpostZones.lookout(km)
+              : fr.outpostZones.whole}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
 /** The maquette's inks of a thread (`bassin.html`): the designated ochre, the adverse red. */
 const THREAD_INK = 'var(--notable)';
 const THREAD_REFUSED_INK = ADVERSE_INK;
@@ -2081,11 +2177,10 @@ function PlacingOverlay({
 /**
  * **Le fil de la pose** (#239, maquette « Bassin et fil ») : du fantôme au gisement prenable le
  * plus proche, en pointillé qui ploie, son nom et sa distance près du bassin, une flèche au bord
- * de l'écran quand il est hors champ ; tendu, du pointeur — ou du doigt — à l'épingle. Au sommet
- * de chaque rayon d'avant-poste, son nom.
+ * de l'écran quand il est hors champ ; tendu, du pointeur — ou du doigt — à l'épingle.
  */
 function PlacingThreadInk({ thread }: { thread: PlacingThread }) {
-  const { long, taut, rings } = thread;
+  const { long, taut } = thread;
   const label = long === null ? null : fr.placing.thread(long.deposit, long.place, long.km);
   // The point of the quadratic at `THREAD_LABEL_AT`.
   const t = THREAD_LABEL_AT;
@@ -2098,24 +2193,6 @@ function PlacingThreadInk({ thread }: { thread: PlacingThread }) {
         };
   return (
     <svg className="pointer-events-none absolute inset-0 z-[var(--z-band)] h-full w-full overflow-visible">
-      {rings.map((ring) => (
-        <text
-          key={`${ring.top.x},${ring.top.y}`}
-          x={ring.top.x}
-          y={ring.top.y - 6}
-          textAnchor="middle"
-          className="font-(family-name:--font-display) text-[12px] italic"
-          // Le liseré papier des noms de la carte : lisible sur la feuille de nuit.
-          style={{
-            fill: 'var(--ink-soft)',
-            stroke: 'var(--paper)',
-            strokeWidth: 3,
-            paintOrder: 'stroke',
-          }}
-        >
-          {fr.placing.reach(ring.km)}
-        </text>
-      ))}
       {long !== null && (
         <g style={{ stroke: THREAD_INK }} fill="none">
           <path

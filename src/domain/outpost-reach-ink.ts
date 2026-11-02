@@ -43,3 +43,14 @@ export function leftReaches(
       : [],
   );
 }
+
+/** **The liaisons this view adds** (#375), whichever way round a pair is written: the map traces
+ *  them once. One that went is simply no longer drawn. */
+export function bornLiaisons<Id>(
+  before: ReadonlyArray<readonly [Id, Id]>,
+  now: ReadonlyArray<readonly [Id, Id]>,
+): ReadonlyArray<readonly [Id, Id]> {
+  return now.filter(
+    ([a, b]) => !before.some(([p, q]) => (p === a && q === b) || (p === b && q === a)),
+  );
+}

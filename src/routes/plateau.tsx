@@ -8,6 +8,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
+import { drawnLiaisonsOf, effectiveSpecialty, isOnWatch, lookoutKmOf } from '@/domain/outposts';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
@@ -1423,6 +1424,24 @@ function BoardContent({
     [view.me.outposts],
   );
 
+  /** **Mes avant-postes en service et leurs liaisons tracées** (#375) : un chantier ou un point
+   *  désactivé n'a ni lavis ni liaison ; sans charbon, pas de vigie. Rien en Blitz. */
+  const outpostZones = useMemo(() => {
+    if (blitz) return null;
+    const silent = view.me.upkeep.listeningSilent;
+    const points = view.me.outposts.filter(isOnWatch).map((outpost) => ({
+      id: stationKeyOf({ kind: 'outpost', outpostId: outpost.id }),
+      lonLat: outpost.lonLat,
+      reachKm: outpostReachKm(outpost.level),
+      lookoutKm: silent ? null : lookoutKmOf(outpost),
+      wholeLookout: effectiveSpecialty(outpost) === 'lookout',
+    }));
+    const liaisons = drawnLiaisonsOf(
+      points.map(({ id, lonLat, reachKm }) => ({ id, point: lonLat, reachKm })),
+    );
+    return { points, liaisons };
+  }, [blitz, view.me.outposts, view.me.upkeep.listeningSilent]);
+
   // Every building stands at the point written at its placement (ADR 0029), and so does the
   // work that will raise it; an outpost carries its own point, because it *is* a point and
   // colours no ground (fiche 03).
@@ -2447,6 +2466,7 @@ function BoardContent({
                   maquettes={maquettes}
                   held={held}
                   outposts={reachedOutposts}
+                  outpostZones={outpostZones}
                   cut={cut}
                   selectedCountry={country ?? null}
                   playerNation={view.me.nation}

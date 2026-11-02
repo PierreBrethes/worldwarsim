@@ -1,9 +1,11 @@
 import { isCountdown, type LabelType, type MapLabel } from './labels';
 
 /**
- * An off-screen entity does not vanish: it parks at the screen edge. The categories are
- * exactly the label types — an indicator invents nothing, it folds to the edge what the map
- * was showing on the ground, same pictogram, same priority.
+ * An off-screen entity does not vanish: it parks at the screen edge. The categories are the
+ * label types' (`CATEGORY_BY_TYPE`) — an indicator invents nothing, it folds to the edge what the
+ * map was showing on the ground, same pictogram, same priority — and one layer that no label
+ * carries: `outpost-zones`, the reaches and liaisons of my outposts drawn on the ground (ADR 0037
+ * §9), which has nothing to fold to an edge.
  *
  * `buildings` are what stands, `constructions` what is being raised: two states of the same
  * object, but one is an economy read on the map and the other a duration to watch. Merging
@@ -18,6 +20,7 @@ export type IndicatorCategory =
   | 'buildings'
   | 'deposits'
   | 'outposts'
+  | 'outpost-zones'
   | 'objectives'
   | 'constructions'
   | 'forces'
@@ -25,8 +28,11 @@ export type IndicatorCategory =
   | 'inbound'
   | 'intel';
 
+/** What folds to an edge: every layer a label carries. */
+export type EdgeCategory = Exclude<IndicatorCategory, 'outpost-zones'>;
+
 /** Private loot stays on the board only; it does not create a new global edge inventory. */
-export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, IndicatorCategory>>> = {
+export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, EdgeCategory>>> = {
   building: 'buildings',
   deposit: 'deposits',
   outpost: 'outposts',
@@ -68,6 +74,9 @@ export const DEFAULT_TOGGLES: IndicatorToggles = {
   buildings: true,
   deposits: true,
   outposts: true,
+  /** Allumé par défaut, indépendant du calque des mâts (#375) : le réseau est ce qui dit où un
+   *  point de plus prolonge l'accélération. */
+  'outpost-zones': true,
   /** Allumée pour la même raison que les avant-postes : une réserve annoncée par dépêche qui ne
    *  se tient nulle part sur la carte ne ferait converger personne. */
   objectives: true,
@@ -82,6 +91,7 @@ export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
   'buildings',
   'deposits',
   'outposts',
+  'outpost-zones',
   'objectives',
   'constructions',
   'forces',
@@ -135,7 +145,7 @@ export function clampToEdge(
 
 export type RawIndicator = {
   readonly id: string;
-  readonly category: IndicatorCategory;
+  readonly category: EdgeCategory;
   readonly priority: number;
   /** The point folded onto the inner rectangle (`clampToEdge`). */
   readonly x: number;
@@ -149,7 +159,7 @@ export type EdgeSide = 'top' | 'right' | 'bottom' | 'left';
 
 export type IndicatorGroup = {
   readonly id: string;
-  readonly category: IndicatorCategory;
+  readonly category: EdgeCategory;
   readonly side: EdgeSide;
   readonly priority: number;
   readonly members: ReadonlyArray<string>;
