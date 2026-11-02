@@ -1136,12 +1136,9 @@ async function writeReading(
 > {
   const patch = readingPatch(row, next);
   const at = readingTransition(next, now);
-  if (
-    row.readJobId !== undefined &&
-    at === readingTransition(row, now) &&
-    (await isPending(ctx, row.readJobId))
-  )
-    return patch;
+  /** Le job d'une ligne la réécrit quand il court : tant qu'il y est noté, il attend encore. Le
+   *  relire au système coûterait une lecture par ligne et par réévaluation. */
+  if (row.readJobId !== undefined && at === readingTransition(row, now)) return patch;
   if (row.readJobId !== undefined) await cancelJob(ctx, row.readJobId);
   if (at === null) return row.readJobId === undefined ? patch : { ...patch, readJobId: undefined };
   const readJobId = await ctx.scheduler.runAt(at, internal.listening.readPile, {
