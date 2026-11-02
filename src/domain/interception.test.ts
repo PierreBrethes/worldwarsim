@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { distanceKm, type LonLat } from './geo';
 import {
   INTERCEPTION_SAMPLES,
+  lineCrossingOf,
   mediumAt,
   mobileSighting,
   passesAlong,
@@ -308,3 +309,95 @@ describe('the pruned walk answers what the full walk answers', () => {
     });
   }
 });
+
+/** **La ligne de guet** (ADR 0037 §10, #377) : le premier franchissement d'un segment, à l'heure
+ *  d'un échantillon de la grille du trajet, jamais affinée. */
+describe('a column crossing a watch line', () => {
+  const march = column('mine', 0, 10);
+  const sampleAt = (index: number) => (10 * HOUR * index) / INTERCEPTION_SAMPLES;
+
+  it('is caught at the first sample past the line, where the line stands', () => {
+    const crossing = lineCrossingOf(march, [[5.1, -1], [5.1, 1]], 0);
+    /** 24 samples a degree: 5.1° falls between samples 122 and 123. */
+    expect(crossing?.at).toBe(sampleAt(123));
+    expect(crossing?.point[0]).toBeCloseTo(5.1, 9);
+    expect(crossing?.point[1]).toBeCloseTo(0, 9);
+  });
+
+  it('is not caught past either end of the line, nor by a line it never reaches', () => {
+    expect(lineCrossingOf(march, [[5.1, 0.5], [5.1, 2]], 0)).toBeNull();
+    expect(lineCrossingOf(march, [[12, -1], [12, 1]], 0)).toBeNull();
+    expect(lineCrossingOf(march, [[0, 1], [10, 1]], 0)).toBeNull();
+  });
+
+  it('keeps its hour when read again before it, and forgets a crossing already past', () => {
+    expect(lineCrossingOf(march, [[5.1, -1], [5.1, 1]], sampleAt(122) + 1)?.at).toBe(sampleAt(123));
+    expect(lineCrossingOf(march, [[5.1, -1], [5.1, 1]], sampleAt(123) + 1)).toBeNull();
+  });
+
+  it('answers only the first crossing still ahead', () => {
+    const outAndBack: MarchingForce = {
+      id: 'loop',
+      points: [
+        [0, 0],
+        [10, 0],
+        [0, 0],
+      ],
+      departedAt: 0,
+      arrivesAt: 20 * HOUR,
+    };
+    const line: [LonLat, LonLat] = [[5.1, -1], [5.1, 1]];
+    const first = lineCrossingOf(outAndBack, line, 0)!;
+    const second = lineCrossingOf(outAndBack, line, first.at + 1)!;
+    expect(first.at).toBeLessThan(10 * HOUR);
+    expect(second.at).toBeGreaterThan(10 * HOUR);
+    expect(second.point[0]).toBeCloseTo(5.1, 9);
+  });
+
+  it('answers what a walk of every sample answers, on random scenes', () => {
+    let seed = 7;
+    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    let caught = 0;
+    for (let scene = 0; scene < 200; scene += 1) {
+      const force: MarchingForce = {
+        id: `f${scene}`,
+        points: Array.from({ length: 2 + Math.floor(random() * 6) }, () => [
+          random() * 40 - 20,
+          random() * 40 - 20,
+        ]) as ReadonlyArray<LonLat>,
+        departedAt: 0,
+        arrivesAt: 10 * HOUR,
+      };
+      const a: LonLat = [random() * 40 - 20, random() * 40 - 20];
+      const line: [LonLat, LonLat] = [a, [a[0] + random() * 10 - 5, a[1] + random() * 10 - 5]];
+      const after = random() * 5 * HOUR;
+      const expected = walkedCrossing(force, line, after);
+      const crossing = lineCrossingOf(force, line, after);
+      expect(crossing?.at).toBe(expected?.at);
+      if (expected === null) continue;
+      caught += 1;
+      expect(crossing!.point[0]).toBeCloseTo(expected.point[0], 9);
+      expect(crossing!.point[1]).toBeCloseTo(expected.point[1], 9);
+    }
+    expect(caught).toBeGreaterThan(20);
+  });
+});
+
+/** Every pair of samples, in order, with no box: the reference the pruned walk must match. */
+function walkedCrossing(force: MarchingForce, [a, b]: [LonLat, LonLat], after: number) {
+  const side = (p: LonLat, q: LonLat, r: LonLat) =>
+    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const sampleAt = (index: number) =>
+    force.departedAt + ((force.arrivesAt - force.departedAt) * index) / INTERCEPTION_SAMPLES;
+  for (let index = 1; index <= INTERCEPTION_SAMPLES; index += 1) {
+    const at = sampleAt(index);
+    if (at < after) continue;
+    const p = positionAt(force, sampleAt(index - 1));
+    const q = positionAt(force, at);
+    if (side(a, b, p) >= 0 === side(a, b, q) >= 0) continue;
+    if (side(p, q, a) * side(p, q, b) > 0) continue;
+    const t = side(a, b, p) / (side(a, b, p) - side(a, b, q));
+    return { at, point: [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t] as LonLat };
+  }
+  return null;
+}

@@ -470,3 +470,64 @@ export function passesAlong({
   walk(first, samples, watchers);
   return passes;
 }
+
+/**
+ * **La ligne de guet d'une ronde** (ADR 0037 §10, #377) : le premier franchissement du segment
+ * `line` encore devant `after`, à l'heure du premier échantillon passé de l'autre côté, sur la
+ * grille de `passesAlong`. **Jamais affinée** : une heure entre deux échantillons bougerait avec
+ * chaque relecture, et `replaceSighting` replanifierait la dépêche à chaque réévaluation.
+ * Franchir, c'est changer de côté — un échantillon sur la ligne compte du côté gauche — entre
+ * deux échantillons dont la corde coupe le segment, en lon/lat linéaire comme le trait de la
+ * liaison (`outpost-zones.ts`). Le point est celui où la corde coupe le segment.
+ */
+export function lineCrossingOf(
+  force: MarchingForce,
+  line: readonly [LonLat, LonLat],
+  after: number,
+): { readonly at: number; readonly point: LonLat } | null {
+  const startedAt = force.departedAt;
+  const span = force.arrivesAt - startedAt;
+  if (span <= 0) return null;
+  const [a, b] = line;
+  const step = span / INTERCEPTION_SAMPLES;
+  const sampleAt = (index: number) => startedAt + index * step;
+  const first = Math.max(
+    1,
+    firstSampleFrom(sampleAt, INTERCEPTION_SAMPLES, startedAt, force.arrivesAt, after),
+  );
+  const lineBox = {
+    south: Math.min(a[1], b[1]),
+    north: Math.max(a[1], b[1]),
+    west: Math.min(a[0], b[0]),
+    east: Math.max(a[0], b[0]),
+  };
+  const side = (p: LonLat, q: LonLat, r: LonLat) =>
+    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  /** Chaque paire d'échantillons `(index - 1, index)` de `first` à `last` ; la boîte du tronçon
+   *  part de l'échantillon d'avant, pour que toute corde du tronçon y tienne. */
+  const walk = (first: number, last: number): { at: number; point: LonLat } | null => {
+    if (first > last) return null;
+    if (last - first >= PRUNED_STRETCH) {
+      const box = stretchBox(force, sampleAt(first - 1), sampleAt(last));
+      if (boxGapKm(box, lineBox) > PRUNE_SLACK_KM) return null;
+      const middle = (first + last) >> 1;
+      return walk(first, middle) ?? walk(middle + 1, last);
+    }
+    let p = positionAt(force, sampleAt(first - 1));
+    for (let index = first; index <= last; index += 1) {
+      const at = sampleAt(index);
+      const here = positionAt(force, at);
+      const q: LonLat = [p[0] + shortestLongitudeGap(p[0], here[0]), here[1]];
+      const fromP = side(a, b, p);
+      const fromQ = side(a, b, q);
+      if (fromP >= 0 !== fromQ >= 0 && side(p, q, a) * side(p, q, b) <= 0) {
+        const t = fromP / (fromP - fromQ);
+        const lon = p[0] + (q[0] - p[0]) * t;
+        return { at, point: [((lon + 540) % 360) - 180, p[1] + (q[1] - p[1]) * t] };
+      }
+      p = here;
+    }
+    return null;
+  };
+  return walk(first, INTERCEPTION_SAMPLES);
+}
