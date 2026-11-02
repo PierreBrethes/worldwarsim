@@ -3,10 +3,13 @@ import { fr, cardinalLabel } from '@/i18n/fr';
 import { asClockTime } from '@/domain/duration';
 import { frontChangesOf, type DistanceStep, type FrontNature } from '@/domain/front-sound';
 import type { PlayerView } from '@/domain/player-view';
+import { useConvexConnectionState } from 'convex/react';
+import { soundNow, subscribeSound } from '@/data/audio';
 import {
+  enterFront,
   hearFront,
+  leaveFront,
   replay,
-  resetFront,
   subscribeTape,
   tapeNow,
   type TapeLine,
@@ -14,32 +17,39 @@ import {
 
 /**
  * **Le front s'entend au plateau** (#405) : chaque nouvelle vue se compare à la précédente, et ce
- * qui a changé fait une phrase. La première vue d'une saison amorce seulement, en silence, comme
- * le télégraphe sur l'arriéré ; une reconnexion se traite comme un retour d'onglet.
+ * qui a changé fait une phrase. La première vue amorce seulement, en silence, comme le télégraphe
+ * sur l'arriéré. Une coupure — une query en erreur ou le websocket tombé — fait de la vue suivante
+ * un retour d'onglet. Le plateau démonté, plus rien ne sonne.
  */
 export function useFrontSound(
   view: PlayerView | null,
   seasonId: string,
   interrupted: boolean,
 ): void {
-  const previous = useRef<{ readonly season: string; readonly view: PlayerView } | null>(null);
+  const previous = useRef<PlayerView | null>(null);
   const cut = useRef(false);
+  const up = useRef(true);
+  const linked = useConvexConnectionState().isWebSocketConnected;
   useEffect(() => {
-    if (interrupted) cut.current = true;
-  }, [interrupted]);
+    up.current = linked && !interrupted;
+    if (!up.current) cut.current = true;
+  }, [interrupted, linked]);
+  useEffect(() => {
+    enterFront(seasonId);
+    previous.current = null;
+  }, [seasonId]);
+  useEffect(() => leaveFront, []);
   useEffect(() => {
     if (view === null) return;
     const before = previous.current;
-    previous.current = { season: seasonId, view };
-    if (before === null) return;
-    if (before.season !== seasonId) {
-      resetFront();
-      return;
-    }
-    if (before.view === view) return;
-    hearFront(frontChangesOf(before.view, view), cut.current);
-    cut.current = false;
-  }, [view, seasonId]);
+    previous.current = view;
+    if (before === null || before === view) return;
+    const changes = frontChangesOf(before, view);
+    if (changes.length === 0) return;
+    hearFront(changes, cut.current);
+    // La coupure se clôt sur la première vue qui rapporte des changements, ligne rétablie.
+    if (up.current) cut.current = false;
+  }, [view]);
 }
 
 const ROW: Record<DistanceStep, number> = { near: 9, mid: 27, far: 45 };
@@ -60,7 +70,8 @@ const ICON: Record<FrontNature, string> = {
  * chaque phrase y laisse son picto et une légende. Toucher une ligne la rejoue.
  */
 export function FrontTape() {
-  const lines = useSyncExternalStore(subscribeTape, tapeNow);
+  const { lines, live } = useSyncExternalStore(subscribeTape, tapeNow);
+  const muted = useSyncExternalStore(subscribeSound, soundNow) === 'off';
   const strip = useRef<HTMLDivElement>(null);
   // La dernière phrase est à droite, toujours visible : les plus anciennes se déroulent à gauche.
   useLayoutEffect(() => {
@@ -76,7 +87,7 @@ export function FrontTape() {
       }}
     >
       <div className="w-[58px] shrink-0 border-r border-[var(--ink)] bg-[var(--paper)] pt-[6px] pl-2 text-[8.5px] leading-[18px] font-semibold tracking-[.1em] whitespace-pre text-[var(--ink-soft)] uppercase max-md:w-[44px] max-md:pl-[5px] max-md:text-[7.5px] max-md:leading-[15px]">
-        {fr.frontTape.steps.join('\n')}
+        {Object.values(fr.frontTape.step).join('\n')}
       </div>
       <div ref={strip} className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
         {lines.length === 0 ? (
@@ -86,7 +97,7 @@ export function FrontTape() {
         ) : (
           <span className="ml-auto flex">
             {lines.map((line) => (
-              <Phrase key={line.id} line={line} />
+              <Phrase key={line.id} line={line} live={line.id === live} muted={muted} />
             ))}
           </span>
         )}
@@ -95,7 +106,7 @@ export function FrontTape() {
   );
 }
 
-function Phrase({ line }: { line: TapeLine }) {
+function Phrase({ line, live, muted }: { line: TapeLine; live: boolean; muted: boolean }) {
   const { change } = line;
   const y = ROW[change.step];
   const width = change.inbound ? 40 : 20;
@@ -112,9 +123,12 @@ function Phrase({ line }: { line: TapeLine }) {
   return (
     <button
       type="button"
-      title={fr.frontTape.replay}
+      title={muted ? fr.frontTape.soundOff : fr.frontTape.replay}
+      aria-label={`${legend} — ${muted ? fr.frontTape.soundOff : fr.frontTape.replay}`}
       onClick={() => replay(line)}
-      className="grid flex-none cursor-pointer grid-rows-[54px_auto] border-l border-dashed border-(color:--ink)/35 px-3 text-left hover:bg-(--arc-mine)/14 max-md:grid-rows-[46px_auto] max-md:px-2"
+      className={`grid flex-none cursor-pointer grid-rows-[54px_auto] border-l border-dashed border-(color:--ink)/35 px-3 text-left max-md:grid-rows-[46px_auto] max-md:px-2 ${
+        live ? 'bg-(--arc-mine)/28' : 'hover:bg-(--arc-mine)/14'
+      }`}
     >
       <svg
         viewBox={`0 0 ${width} 54`}

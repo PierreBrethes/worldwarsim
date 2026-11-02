@@ -1,4 +1,4 @@
-import { sharedAudio, soundNow } from '@/data/audio';
+import { sharedAudio, soundNow, ticTac } from '@/data/audio';
 import {
   onReturn,
   PHRASE_GAP_MS,
@@ -196,26 +196,6 @@ const VOICES: Readonly<Record<FrontChange['nature'], Voice>> = {
   },
 };
 
-/** Le tic-tac du télégraphe : c'est la ligne qui parle, il ouvre chaque phrase. */
-function tictac(c: AudioContext, out: Out, t: number, level: number): number {
-  burst(c, out, t, {
-    type: 'bandpass',
-    f0: 2400,
-    q: 1.6,
-    a: 0.001,
-    peak: 0.09 * level,
-    rel: 0.012,
-  });
-  return burst(c, out, t + 0.085, {
-    type: 'bandpass',
-    f0: 1700,
-    q: 1.6,
-    a: 0.001,
-    peak: 0.06 * level,
-    rel: 0.01,
-  });
-}
-
 function signe(
   c: AudioContext,
   out: Out,
@@ -293,16 +273,22 @@ const panOf = (change: FrontChange): number =>
     ? 0
     : Math.sin((change.bearing * Math.PI) / 180) * 0.8;
 
-/** Joue une phrase ; rend sa durée en secondes, 0 si rien n'a sonné. */
+/**
+ * Joue une phrase ; rend sa durée en secondes, 0 si rien n'a sonné. Le tic du télégraphe l'ouvre :
+ * c'est la ligne qui parle, il reste net. Safari laisse un contexte `interrupted` au retour
+ * d'arrière-plan : on le relance, et la phrase qui le trouve encore arrêté s'imprime sans son.
+ */
 function speak(change: FrontChange): number {
   const sound = soundNow();
   if (sound === 'off') return 0;
   try {
     const c = sharedAudio();
-    if (c.state === 'suspended') void c.resume();
+    const state: string = c.state;
+    if (state === 'suspended' || state === 'interrupted') void c.resume();
+    if (state !== 'running') return 0;
     const t = c.currentTime + 0.03;
     const pan = panOf(change);
-    const tic = tictac(c, lane(c, pan, 0, sound === 'reduced' ? 0.7 : 0.9), t, 0.9);
+    const tic = ticTac(c, lane(c, pan, 0, sound === 'reduced' ? 0.7 : 0.9), t, 0.9);
     if (sound === 'reduced') return tic - t;
     const { step } = change;
     const voice = lane(c, pan, MUFFLE[step], GAIN[step]);
@@ -327,17 +313,20 @@ export type TapeLine = {
   readonly id: number;
   readonly at: number;
   readonly change: FrontChange;
-  /** Imprimée sans son : onglet masqué, ou avant le premier geste. */
+  /** Imprimée sans son : onglet masqué, son coupé, contexte arrêté, ou avant le premier geste. */
   readonly silent: boolean;
 };
 
 /** @a-mesurer ce que la bande garde */
 const TAPE_MAX = 40;
-let tape: ReadonlyArray<TapeLine> = [];
+/** La bande et ce qui parle, un seul instantané : la ligne qui parle se marque tant qu'elle sonne. */
+type Tape = { readonly lines: ReadonlyArray<TapeLine>; readonly live: number | null };
+let tape: Tape = { lines: [], live: null };
 let printed = 0;
+let liveTimer: ReturnType<typeof setTimeout> | null = null;
 const readers = new Set<() => void>();
 
-export const tapeNow = (): ReadonlyArray<TapeLine> => tape;
+export const tapeNow = (): Tape => tape;
 export function subscribeTape(reader: () => void): () => void {
   readers.add(reader);
   return () => {
@@ -345,14 +334,33 @@ export function subscribeTape(reader: () => void): () => void {
   };
 }
 
-function print(change: FrontChange, silent: boolean): void {
-  printed += 1;
-  tape = [...tape, { id: printed, at: Date.now(), change, silent }].slice(-TAPE_MAX);
+function write(next: Tape): void {
+  tape = next;
   for (const reader of readers) reader();
 }
 
-/** Toucher une ligne la rejoue. */
-export const replay = (line: TapeLine): void => void speak(line.change);
+function print(change: FrontChange, silent: boolean): TapeLine {
+  printed += 1;
+  const line = { id: printed, at: Date.now(), change, silent };
+  write({ ...tape, lines: [...tape.lines, line].slice(-TAPE_MAX) });
+  return line;
+}
+
+function speakOn(line: TapeLine, seconds: number): void {
+  if (seconds <= 0) return;
+  if (liveTimer !== null) clearTimeout(liveTimer);
+  write({ ...tape, live: line.id });
+  liveTimer = setTimeout(
+    () => {
+      liveTimer = null;
+      write({ ...tape, live: null });
+    },
+    seconds * 1000 + 100,
+  );
+}
+
+/** Toucher une ligne la rejoue ; son coupé, la bande dit pourquoi rien ne sonne. */
+export const replay = (line: TapeLine): void => speakOn(line, speak(line.change));
 
 // ---------- la file ----------
 
@@ -360,6 +368,8 @@ let queue: ReadonlyArray<FrontChange> = [];
 let missed: FrontChange[] = [];
 let nextAt = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
+/** La saison que la bande raconte : une autre la remet à blanc. */
+let season: string | null = null;
 
 /** Un navigateur ne joue rien avant le premier geste : la phrase s'imprime alors sans son. */
 const mayPlay = () => navigator.userActivation?.hasBeenActive ?? true;
@@ -374,9 +384,8 @@ function pump(): void {
   }
   const [change, ...rest] = queue;
   queue = rest;
-  const playing = mayPlay();
-  if (playing) speak(change!);
-  print(change!, !playing);
+  const seconds = mayPlay() ? speak(change!) : 0;
+  speakOn(print(change!, seconds <= 0), seconds);
   nextAt = Date.now() + PHRASE_GAP_MS;
   if (queue.length > 0) timer = setTimeout(pump, PHRASE_GAP_MS);
 }
@@ -388,7 +397,8 @@ const say = (changes: ReadonlyArray<FrontChange>) => {
 
 /** Le retour : les trois plus chaudes à l'oreille, le reste imprimé sans son. */
 function comeBack(changes: ReadonlyArray<FrontChange>): void {
-  const { heard, printed: rest } = onReturn(changes);
+  const { heard, printed: rest } = onReturn([...queue, ...changes]);
+  queue = [];
   for (const change of rest) print(change, true);
   say(heard);
 }
@@ -404,12 +414,22 @@ export function hearFront(changes: ReadonlyArray<FrontChange>, returning: boolea
   else say(changes);
 }
 
-/** Une saison neuve : la bande et la file repartent de rien. */
-export function resetFront(): void {
+/** **Le plateau s'ouvre sur une saison** : une autre que la dernière entendue remet la bande à
+ *  blanc. */
+export function enterFront(seasonId: string): void {
+  if (season === seasonId) return;
+  season = seasonId;
+  printed = 0;
+  write({ lines: [], live: null });
+}
+
+/** **Le plateau se démonte** (le salon, une autre route) : plus rien n'attend son tour. */
+export function leaveFront(): void {
   queue = [];
   missed = [];
-  tape = [];
-  for (const reader of readers) reader();
+  nextAt = 0;
+  if (timer !== null) clearTimeout(timer);
+  timer = null;
 }
 
 if (typeof document !== 'undefined')

@@ -2363,7 +2363,7 @@ export const fr = {
     layersNote: (lit: number, total: number) =>
       `${lit} sur ${total} allumé${plural(lit, '', 's')} — aussi sur la carte`,
     settings: 'Réglages',
-    settingsNote: 'son du télégraphe, notifications, échelle',
+    settingsNote: 'son, notifications, échelle',
     briefingNote: 'les gestes, le terrain, vos bureaux',
   },
 
@@ -4118,9 +4118,10 @@ export const fr = {
   /** **La bande du front** (#405) : chaque phrase sonore s'y imprime, au-dessus du fil. */
   frontTape: {
     label: 'bande du front',
-    steps: ['proche', 'moyen', 'loin'] as const,
     empty: 'La bande est vierge : rien de relevé n’a changé.',
     replay: 'Réentendre',
+    /** Le rejeu refusé dit pourquoi (ADR 0015) : un bouton muet passerait pour une panne. */
+    soundOff: 'Son coupé — il se rallume dans les Réglages',
     silent: 'sans son',
     inbound: 'vers vous',
     nature: {
