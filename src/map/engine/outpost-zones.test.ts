@@ -44,3 +44,15 @@ describe('the km of the outposts’ zones', () => {
     ]);
   });
 });
+
+describe('a liaison across the antimeridian', () => {
+  it('is drawn the short way, its stroke never running back over the world', () => {
+    const stroke = layer().segment([175, 49], [-175, 49]);
+    const xs = stroke.filter((_, i) => i % 3 === 0);
+    const steps = xs.slice(1).map((x, i) => x - xs[i]!);
+    expect(Math.abs(xs.at(-1)! - xs[0]!)).toBeLessThan(
+      Math.abs(frame.projectLonLat([175, 49], 0).x - frame.projectLonLat([-175, 49], 0).x) / 2,
+    );
+    expect(new Set(steps.map(Math.sign)).size).toBe(1);
+  });
+});

@@ -13,7 +13,7 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
-import type { LonLat } from '@/domain/geo';
+import { shortestLongitudeGap, type LonLat } from '@/domain/geo';
 import { sameLiaison } from '@/domain/outposts';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
@@ -204,7 +204,13 @@ export class OutpostZones {
     /** Le dehors du réseau : à l'opposé du centre de mes points. */
     const middle = this.frame.projectLonLat(
       [
-        points.reduce((sum, point) => sum + point.lonLat[0], 0) / Math.max(1, points.length),
+        points.reduce(
+          (sum, point) =>
+            sum +
+            points[0]!.lonLat[0] +
+            shortestLongitudeGap(points[0]!.lonLat[0], point.lonLat[0]),
+          0,
+        ) / Math.max(1, points.length),
         points.reduce((sum, point) => sum + point.lonLat[1], 0) / Math.max(1, points.length),
       ],
       0,
@@ -299,10 +305,11 @@ export class OutpostZones {
 
   /** A liaison's straight stroke on the board, for the pen that traces a newborn one. */
   segment(from: LonLat, to: LonLat): ReadonlyArray<number> {
+    const reach = shortestLongitudeGap(from[0], to[0]);
     return Array.from({ length: 25 }, (_, i) =>
       this.frame
         .projectLonLat(
-          [from[0] + ((to[0] - from[0]) * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
+          [from[0] + (reach * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
           COUNTRY_THICKNESS + LIFT,
         )
         .toArray(),
