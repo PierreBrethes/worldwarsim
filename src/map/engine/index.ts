@@ -107,7 +107,7 @@ import { InkLayer } from './ink';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
-import { circleAround, ReachRing, ReachRings } from './reach';
+import { circleAround, ReachRing } from './reach';
 import { OutpostZones, type ZoneFocus, type ZoneLabel, type ZonePoint } from './outpost-zones';
 import { AimRibbon } from './aim';
 import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
@@ -207,8 +207,6 @@ const SELECTED_LIFT = 0.75;
 const COAST_RETRY_MS = 3000;
 /** Under a finger, the point a held building aims at stands this far above it (#239). @a-mesurer */
 const PLACING_FINGER_LIFT_PX = 64;
-/** Half the width of a reach's name (`fr.placing.reach`), in CSS pixels. */
-const RING_NAME_ROOM_PX = 80;
 /** Closer than this the pointer is on its pin, and no thread is drawn between them. */
 const TAUT_MIN_PX = 6;
 
@@ -233,7 +231,6 @@ export type PlacingMagnet =
 export type HeldPlacing = {
   readonly sprite: string | null;
   readonly magnet: PlacingMagnet;
-  readonly reaches: ReadonlyArray<{ readonly lonLat: LonLat; readonly reachKm: number }>;
 };
 
 /**
@@ -254,8 +251,6 @@ export type PlacingThread = {
   } | null;
   readonly taut: { readonly from: ScreenPoint; readonly to: ScreenPoint } | null;
   readonly refused: boolean;
-  /** The top of each outpost's reach on screen, where its name stands, and how far it carries. */
-  readonly rings: ReadonlyArray<{ readonly top: ScreenPoint; readonly km: number }>;
 };
 
 /** A km label of a compass, in CSS pixels of the map. */
@@ -616,7 +611,6 @@ export class MapEngine {
   private aiming = false;
   /** The building held over the board, `null` when nothing is held. */
   private placing: HeldPlacing | null = null;
-  private readonly placingReach: ReachRings;
   /** Under a finger the aim stands above it (#239): where the finger itself is, for the thread. */
   private placingFinger: ScreenPoint | null = null;
   private threadSaid = 'null';
@@ -905,7 +899,6 @@ export class MapEngine {
     );
     this.reach = new ReachRing(this.frame);
     this.zones = new OutpostZones(this.frame);
-    this.placingReach = new ReachRings(this.frame);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame, this.touch);
     this.standing = new StandingLayer(
@@ -965,7 +958,6 @@ export class MapEngine {
     this.scene.add(this.parachutes.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.zones.object);
-    this.scene.add(this.placingReach.object);
     this.scene.add(this.aimRibbon.group);
     this.scene.add(this.tourInk.group);
     this.standing.elsewhere = (id) => this.camps.positionOf(id);
@@ -2015,7 +2007,6 @@ export class MapEngine {
     this.ink.resize(clientWidth, clientHeight);
     this.reach.resize(clientWidth, clientHeight);
     this.zones.resize(clientWidth, clientHeight);
-    this.placingReach.resize(clientWidth, clientHeight);
     this.pins.resize(clientWidth, clientHeight);
     this.basins.resize(clientWidth, clientHeight);
     this.hoverDirty = true;
@@ -2040,7 +2031,6 @@ export class MapEngine {
 
     this.reach.dispose();
     this.zones.dispose();
-    this.placingReach.dispose();
     this.aimRibbon.dispose();
     this.tourInk.dispose();
     this.searchArea.dispose();
@@ -3138,7 +3128,6 @@ export class MapEngine {
     this.placingFinger = null;
     this.basins.wake(placing?.magnet.kind === 'deposits' ? placing.magnet.calls : null);
     this.loadBasins();
-    this.placingReach.show(placing?.reaches ?? []);
     if (placing === null) {
       this.ghost.disarm();
       this.onPlacingAim(null);
@@ -3236,19 +3225,6 @@ export class MapEngine {
         long,
         taut,
         refused: this.placingRefused,
-        // A name whose top is off the screen would be cut by its edge: it stays unsaid.
-        rings: this.placing.reaches
-          .map(({ lonLat, reachKm }) => ({
-            top: this.mapPointOf(destinationPoint(lonLat, reachKm, 0)),
-            km: reachKm,
-          }))
-          .filter(
-            ({ top }) =>
-              top.x > RING_NAME_ROOM_PX &&
-              top.x < this.screenWidth - RING_NAME_ROOM_PX &&
-              top.y > 20 &&
-              top.y < this.screenHeight,
-          ),
       };
     }
     const said = JSON.stringify(thread);

@@ -7,7 +7,6 @@ import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
 import { isRangoonColumn } from '@/domain/strategic-points';
 import type { StandingPile } from '@/map/engine';
 import { rangoonReachOf, type LabelLine, type MapMarker } from '@/domain/labels';
-import { isOnWatch, lookoutKmOf } from '@/domain/outposts';
 import { pilePieces, unitPieces, type PilePieces } from '@/domain/pile-pieces';
 import { COUNTRY_BY_NATION, isNation, nationInk } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
@@ -111,22 +110,14 @@ export function markersOf(
     level: outpost.level,
     standsAt: outpost.standsAt,
     garrison: outpost.garrison,
-    /** **Tout point debout et en service guette** (ADR 0037 §2) : le cercle de survol est celui
-     *  de sa vigie. Un chantier ou un point désactivé ne guette pas : pas de cercle. */
+    /** Son rayon et sa vigie au survol sont son cercle gradué (#375, `OutpostZones`) ; reste ici
+     *  l'anneau d'une tournée de Rangoun qui y stationne. */
     reach: withRangoonPile(
       view.me,
       { kind: 'outpost', outpostId: outpost.id },
       marching,
       outpost.lonLat,
-      isOnWatch(outpost)
-        ? {
-            lonLat: outpost.lonLat,
-            detectionKm: lookoutKmOf(outpost),
-            /** Un point n'engage rien : il relève, et le cercle de contact est celui d'une
-             *  pile (décisions 4a et 3a du 16/09). */
-            contactKm: null,
-          }
-        : null,
+      null,
     ),
     ink: view.me.ink,
     ...(view.mode === 'blitz' || outpost.standsAt !== null

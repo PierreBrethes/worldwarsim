@@ -99,7 +99,6 @@ import {
   type HeldClaim,
   type PieceClick,
   type PieceHold,
-  type HeldPlacing,
   type PlacingMagnet,
   type PlacingSpot,
   type PlacingThread,
@@ -376,8 +375,6 @@ export type Dismantled = { readonly id: string; readonly area: boolean };
 export type PlacingBuilding = {
   readonly sprite: string | null;
   readonly magnet: PlacingMagnet;
-  /** The outposts' reach, drawn while the building is in hand (#239). */
-  readonly reaches: HeldPlacing['reaches'];
   readonly title: string;
   readonly name: string;
   readonly cost: Cost;
@@ -1283,13 +1280,9 @@ export function WorldMap({
    *  its point while the board re-reads the refusal under it. */
   const heldSprite = placing?.sprite ?? null;
   const heldMagnet = placing?.magnet ?? null;
-  const heldReaches = placing?.reaches ?? null;
   const heldPlacing = useMemo(
-    () =>
-      heldMagnet === null
-        ? null
-        : { sprite: heldSprite, magnet: heldMagnet, reaches: heldReaches ?? [] },
-    [heldSprite, heldMagnet, heldReaches],
+    () => (heldMagnet === null ? null : { sprite: heldSprite, magnet: heldMagnet }),
+    [heldSprite, heldMagnet],
   );
   useEffect(() => {
     readyEngine?.setPlacing(heldPlacing);
@@ -2178,11 +2171,10 @@ function PlacingOverlay({
 /**
  * **Le fil de la pose** (#239, maquette « Bassin et fil ») : du fantôme au gisement prenable le
  * plus proche, en pointillé qui ploie, son nom et sa distance près du bassin, une flèche au bord
- * de l'écran quand il est hors champ ; tendu, du pointeur — ou du doigt — à l'épingle. Au sommet
- * de chaque rayon d'avant-poste, son nom.
+ * de l'écran quand il est hors champ ; tendu, du pointeur — ou du doigt — à l'épingle.
  */
 function PlacingThreadInk({ thread }: { thread: PlacingThread }) {
-  const { long, taut, rings } = thread;
+  const { long, taut } = thread;
   const label = long === null ? null : fr.placing.thread(long.deposit, long.place, long.km);
   // The point of the quadratic at `THREAD_LABEL_AT`.
   const t = THREAD_LABEL_AT;
@@ -2195,24 +2187,6 @@ function PlacingThreadInk({ thread }: { thread: PlacingThread }) {
         };
   return (
     <svg className="pointer-events-none absolute inset-0 z-[var(--z-band)] h-full w-full overflow-visible">
-      {rings.map((ring) => (
-        <text
-          key={`${ring.top.x},${ring.top.y}`}
-          x={ring.top.x}
-          y={ring.top.y - 6}
-          textAnchor="middle"
-          className="font-(family-name:--font-display) text-[12px] italic"
-          // Le liseré papier des noms de la carte : lisible sur la feuille de nuit.
-          style={{
-            fill: 'var(--ink-soft)',
-            stroke: 'var(--paper)',
-            strokeWidth: 3,
-            paintOrder: 'stroke',
-          }}
-        >
-          {fr.placing.reach(ring.km)}
-        </text>
-      ))}
       {long !== null && (
         <g style={{ stroke: THREAD_INK }} fill="none">
           <path
