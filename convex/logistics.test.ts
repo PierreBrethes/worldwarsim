@@ -99,7 +99,6 @@ async function plant(
       point: { lon: point[0], lat: point[1] },
       ...where,
       level,
-      specialization: 'relay',
       foundedAt: Date.now() - 1,
       disabledUntil: null,
       immuneUntil: null,

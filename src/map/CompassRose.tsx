@@ -194,10 +194,6 @@ export function CompassRose({
              *  parce que la rose se lit au pictogramme et que celui-là ne se clique pas par
              *  inadvertance. */
             const grave = candidate.key === 'demolish' || candidate.key === 'dismantle';
-            /** **Le métier en cours se marque, il ne se grise pas** (décision du 16/09) : c'est
-             *  l'état du point, pas une branche empêchée — le même signal que l'`aria-pressed`
-             *  du panneau de garnison, qui dit *ceci est vrai* et non *ceci est interdit*. */
-            const marked = candidate.key === 'specialize' && candidate.current;
             return (
               <Fragment key={rank}>
                 {/* **Le seul chiffre à plat de la rose** (décision 54a) : le coût d'une élévation
@@ -218,8 +214,7 @@ export function CompassRose({
                   type="button"
                   aria-label={candidate.label}
                   aria-disabled={held}
-                  aria-pressed={candidate.key === 'specialize' ? candidate.current : undefined}
-                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${marked ? ' rose-medallion--marked' : ''}${lead ? ' rose-medallion--lead' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
+                  className={`rose-medallion${grave ? ' rose-medallion--grave' : ''}${lead ? ' rose-medallion--lead' : ''}${held ? ' rose-medallion--held' : hovered === rank ? ' rose-medallion--wet' : ''}`}
                   style={{ left, top }}
                   onPointerDown={(event) => {
                     pressedWith.current = event.pointerType;
@@ -295,13 +290,6 @@ export function CompassRose({
                     </>
                   ) : action.key === 'upgrade' || action.key === 'raiseOutpost' ? (
                     <Upgrade action={action} />
-                  ) : action.key === 'specialize' && action.sealed !== null ? (
-                    <>
-                      <div className="rose-bubble-label">{action.label}</div>
-                      <div className="rose-bubble-consequence rose-bubble-consequence--refused">
-                        {action.sealed}
-                      </div>
-                    </>
                   ) : action.key === 'found' ? (
                     <Found action={action} />
                   ) : (
@@ -410,7 +398,7 @@ function Found({ action }: { action: Extract<CompassAction, { key: 'found' }> })
 
 /**
  * **Les branches qui paient sans carte de confirmation se touchent deux fois** (sous le seuil).
- * Élever, monter un point, fonder, changer de métier partent au serveur dès l'action, et la
+ * Élever, monter un point, fonder partent au serveur dès l'action, et la
  * facture n'est écrite que dans la bulle : le premier toucher la montre — prix, refus éventuel —,
  * le second agit, un toucher ailleurs annule (la rose se referme). Les autres gardent le toucher
  * unique : viser, piller et ramasser ouvrent un aperçu qui confirme, bâtir ouvre un panneau, raser
@@ -420,7 +408,6 @@ const CONFIRMED_BY_SECOND_TOUCH: ReadonlyArray<CompassAction['key']> = [
   'upgrade',
   'raiseOutpost',
   'found',
-  'specialize',
 ];
 
 /**
@@ -653,49 +640,32 @@ const PICTOGRAM_PATHS: Readonly<Record<CompassPictogram, ReactNode>> = {
   rubble: (
     <path d="M2.8 13.4 H17.2 V15.6 H2.8 Z M2.8 16.8 H17.2 V19 H2.8 Z M3.4 9.2 H8.2 V12.4 H3.4 Z M10.6 6.6 L14.4 4.9 L15.7 7.7 L11.9 9.4 Z M8.6 1.3 H12 V4 H8.6 Z" />
   ),
-  /** Le métier de relais : le mât sur son socle et l'onde qui part — deux arcs ouverts vers la
-   *  droite. Ce que le point *fait*, jamais ce qu'il est : la hutte dit déjà le point. */
-  aerial: (
-    <>
-      <path d="M4.6 1.4 H6.7 V16.6 H4.6 Z M2.2 17.2 H9.1 V19.2 H2.2 Z" />
-      <path
-        d="M10.6 5.4 A6.2 6.2 0 0 1 10.6 14.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-      <path
-        d="M13.9 2.6 A9.8 9.8 0 0 1 13.9 17.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-    </>
-  ),
-  /** Le métier d'écoute : le pavillon tendu — le cornet et l'onde qui arrive. Même famille que
-   *  l'antenne, et ce qui les sépare est le sens de l'onde. */
-  ear: (
-    <>
-      <path d="M2.2 7.4 H6.4 V12.6 H2.2 Z M6.4 4.2 L11.4 1.6 V18.4 L6.4 15.8 Z" />
-      <path
-        d="M14.1 6.2 A5 5 0 0 1 14.1 13.8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-      <path
-        d="M17 3.4 A8.6 8.6 0 0 1 17 16.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-      />
-    </>
-  ),
   /** The raid's pennant, from the mockup's departures board — a raid is a flag planted for a
    *  while, never a place taken (ADR 0004). */
   /** « Bombarder » : l'obus debout sur son culot, la ceinture marquée. */
   shell: (
     <path d="M10 1.2 C12.7 3.6 13.6 6.5 13.6 9.2 V11.2 H6.4 V9.2 C6.4 6.5 7.3 3.6 10 1.2 Z M6.4 12.6 H13.6 V16.4 H6.4 Z M5.6 17.2 H14.4 V19.2 H5.6 Z" />
+  ),
+  /** Le Magasin : deux caisses posées, une troisième dessus — le stock, sans la bande en
+   *  diagonale de la caisse de butin (`crate`). */
+  store: (
+    <path d="M1.6 11.4 H9.4 V18.6 H1.6 Z M10.6 11.4 H18.4 V18.6 H10.6 Z M6.1 3.4 H13.9 V10.2 H6.1 Z M3.4 14.4 H7.6 V15.6 H3.4 Z M12.4 14.4 H16.6 V15.6 H12.4 Z M7.9 6.2 H12.1 V7.4 H7.9 Z" />
+  ),
+  /** Le Guet : le mât et l'onde qui part de sa tête — il voit loin. */
+  lookout: (
+    <>
+      <path d="M8.9 4.4 H11.1 V17 H8.9 Z M5.4 17 H14.6 V19 H5.4 Z M10 1.4 A1.8 1.8 0 1 1 9.99 1.4 Z" />
+      <path
+        d="M5.6 1.8 A6 6 0 0 0 5.6 8.6 M14.4 1.8 A6 6 0 0 1 14.4 8.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+    </>
+  ),
+  /** Le Fort : les sacs empilés en quinconce — il retient, il ne bloque pas. */
+  fort: (
+    <path d="M1.4 14.6 H6.6 V18.8 H1.4 Z M7.4 14.6 H12.6 V18.8 H7.4 Z M13.4 14.6 H18.6 V18.8 H13.4 Z M4.4 9.8 H9.6 V14 H4.4 Z M10.4 9.8 H15.6 V14 H10.4 Z M7.4 5 H12.6 V9.2 H7.4 Z" />
   ),
   pennant: <path d="M2.5 2.6 H4.6 V17.6 H2.5 Z M5.6 3 H16.4 L13.6 7.2 L16.4 11.4 H5.6 Z" />,
   rifles: (

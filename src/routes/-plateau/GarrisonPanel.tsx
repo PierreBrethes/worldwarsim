@@ -7,13 +7,28 @@ import {
   OUTPOST_MAX_LEVEL,
   RELAY_SPEED_MULTIPLIER,
 } from '../../../convex/constants';
-import { fr, noBuilding, raiseHoldText } from '@/i18n/fr';
+import { isOnWatch, liaisonsOf, lookoutCoalPerHour, lookoutKmOf } from '@/domain/outposts';
+import {
+  fr,
+  noBuilding,
+  raiseHoldText,
+  specialtyEffectText,
+  specialtyRefusalText,
+} from '@/i18n/fr';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration, asLocalTime } from '@/domain/duration';
-import { RESOURCES, type ResourceKey } from '@/domain/ids';
+import {
+  CHOSEN_SPECIALTIES,
+  RESOURCES,
+  type ChosenSpecialty,
+  type ResourceKey,
+} from '@/domain/ids';
 import {
   availabilityOf,
+  choosesFreely,
   outpostRaiseHold,
+  raiseChoosesSpecialty,
+  specialtyRefusalOf,
   outpostDismantleRefusalOf,
   pledgedOutposts,
   type OutpostRaiseHold,
@@ -82,8 +97,6 @@ export function GarrisonPanel({
     () => troopsAt(view.me, stationKey, marching),
     [view.me, stationKey, marching],
   );
-  const [error, setError] = useState<string | null>(null);
-  const respecialize = useMutation(api.movements.respecialize);
   const disembark = useMutation(api.movements.disembark);
   const [ashoreError, setAshoreError] = useState<string | null>(null);
 
@@ -235,74 +248,39 @@ export function GarrisonPanel({
         )}
 
         {/**
-         * **Le métier du point se règle sur le point, une fois planté** (décision Pierre, 29/08).
-         * Il se choisissait au départ d'une colonne, puis sur la pile qui allait fonder — deux
-         * fois à l'aveugle, sur deux mots. Ici le terrain est sous les pieds de la garnison et
-         * l'avant-poste est déjà debout : c'est le dernier moment où le choix veut encore dire
-         * quelque chose.
-         *
-         * Le serveur exige un mot à la fondation, alors le clic droit pose « relais » et ce
-         * panneau rattrape. Scellé, il ne montre pas deux boutons éteints : il dit ce que le
-         * point fait, et pourquoi il ne change plus (ADR 0015).
+         * **Ce que le point fait, en chiffres** (ADR 0037 §1, §2, §8) : il n'y a plus de métier à
+         * choisir. Sa spécialisation, sa vigie et son prix, ses liaisons ; et, à court de
+         * charbon, ce qui s'arrête et ce qui continue.
          */}
         {outpost !== null && outpost.standsAt === null && (
           <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px]">
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
-                {fr.garrison.foundSpecialization}
-              </span>
-              {outpost.specializationLocked || view.me.defeated ? (
-                <span className="text-[11px] text-[var(--ink)]">
-                  {fr.specializations[outpost.specialization]}
-                </span>
-              ) : (
-                (['relay', 'listening'] as const).map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={outpost.specialization === key}
-                    onClick={() => {
-                      setError(null);
-                      if (outpost.specialization === key) return;
-                      respecialize({
-                        ...seat,
-                        outpostId: outpost.id as Id<'outposts'>,
-                        specialization: key,
-                      }).catch((problem: unknown) => handleError(problem, setError));
-                    }}
-                    className={`cursor-pointer border px-[7px] py-[3px] text-[10px] ${
-                      outpost.specialization === key
-                        ? 'border-[var(--ink)] bg-(--ink)/7 text-[var(--ink)]'
-                        : 'border-(color:--ink)/32 text-[var(--ink-soft)]'
-                    }`}
-                  >
-                    {fr.specializations[key]}
-                  </button>
-                ))
-              )}
-            </div>
-            {/* **Le choix se faisait à l'aveugle** : deux mots, aucun chiffre, aucun effet. Le
-                rayon est la seule donnée qui dise ce que le point rapporte. */}
-            <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-              {outpost.specialization === 'relay'
-                ? fr.specializationEffects.relay(
-                    outpostReachKm(outpost.level),
+            <OutpostSpecialty
+              view={view}
+              seat={seat}
+              outpost={outpost}
+              observing={view.me.defeated}
+            />
+            {isOnWatch(outpost) ? (
+              <>
+                <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                  {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
+                </p>
+                <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                  {fr.garrison.liaisons(
+                    liaisonCountOf(view.me.outposts, outpost.id),
                     RELAY_SPEED_MULTIPLIER,
-                  )
-                : fr.specializationEffects.listening(outpostReachKm(outpost.level))}
-            </p>
-            {outpost.specialization === 'listening' && view.me.upkeep.listeningSilent && (
+                  )}
+                </p>
+              </>
+            ) : (
+              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                {fr.garrison.lookoutCut}
+              </p>
+            )}
+            {view.me.upkeep.listeningSilent && (
               <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
-                {fr.economy.listeningSilent} — {fr.economy.listeningSilentFix}
+                {fr.garrison.blind} {fr.economy.listeningSilentFix}
               </p>
-            )}
-            {outpost.specializationLocked && (
-              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
-                {fr.garrison.specializationSealed}
-              </p>
-            )}
-            {error !== null && (
-              <p className="mt-[6px] text-[11px] text-[var(--critical)]">{error}</p>
             )}
           </div>
         )}
@@ -330,7 +308,7 @@ function OutpostDismantle({
   outpost: OutpostView;
   onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
 }) {
-  const refusal = outpostDismantleRefusalOf({ mine: true, serving: outpost.specializationLocked });
+  const refusal = outpostDismantleRefusalOf({ mine: true, serving: outpost.serving });
   return (
     <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px] md:hidden">
       {refusal === null ? (
@@ -392,6 +370,14 @@ function OutpostRaise({
     OUTPOST_MAX_LEVEL,
   );
   const held = hold === null ? null : raiseHeld(hold);
+  const raiseAs = (specialty: ChosenSpecialty | null) => {
+    setError(null);
+    raise({
+      ...seat,
+      outpostId: outpost.id as Id<'outposts'>,
+      ...(specialty === null ? {} : { specialty }),
+    }).catch((problem: unknown) => handleError(problem, setError));
+  };
 
   return (
     <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px]">
@@ -417,21 +403,33 @@ function OutpostRaise({
             </span>
           </>
         )}
-        <button
-          type="button"
-          disabled={held !== null}
-          title={fr.garrison.raiseTitle(next)}
-          onClick={() => {
-            setError(null);
-            raise({ ...seat, outpostId: outpost.id as Id<'outposts'> }).catch((problem: unknown) =>
-              handleError(problem, setError),
-            );
-          }}
-          className="ml-auto cursor-pointer border border-[var(--ink)] px-[10px] py-[4px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)]"
-        >
-          {fr.garrison.raiseAction} {fr.garrison.raiseToLevel(next)}
-        </button>
+        {!raiseChoosesSpecialty(outpost.level) && (
+          <button
+            type="button"
+            disabled={held !== null}
+            title={fr.garrison.raiseTitle(next)}
+            onClick={() => raiseAs(null)}
+            className={`ml-auto ${ORDER_BUTTON}`}
+          >
+            {fr.garrison.raiseAction} {fr.garrison.raiseToLevel(next)}
+          </button>
+        )}
       </div>
+      {/** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : un geste, un chantier. */}
+      {raiseChoosesSpecialty(outpost.level) && hold?.kind !== 'maxLevel' && (
+        <>
+          <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+            {fr.garrison.raiseChoose}
+          </p>
+          <SpecialtyChoices
+            offered={CHOSEN_SPECIALTIES}
+            level={2}
+            label={fr.garrison.raiseAs}
+            held={held !== null}
+            onChoose={raiseAs}
+          />
+        </>
+      )}
       {/* Ce que le niveau ouvre, en chiffres : le rayon suivant. Sans
           eux « monter au niveau 2 » n'achète rien de lisible. */}
       {hold?.kind !== 'maxLevel' && (
@@ -478,5 +476,170 @@ function RaiseAvailability({
         ? fr.upgrade.availableIn(asDuration(when.minutes))
         : fr.upgrade.never(noBuilding(PRODUCER_OF[hold.resource]))}
     </p>
+  );
+}
+
+/** **Ses liaisons, lues comme la règle les lit** (ADR 0037 §8) : ses points debout et en
+ *  service, toutes les paires dont les rayons se touchent. */
+function liaisonCountOf(outposts: ReadonlyArray<OutpostView>, id: string): number {
+  const standing = outposts.filter(isOnWatch).map((outpost) => ({
+    id: outpost.id,
+    point: outpost.lonLat,
+    reachKm: outpostReachKm(outpost.level),
+  }));
+  return liaisonsOf(standing).filter((pair) => pair.includes(id)).length;
+}
+
+const ORDER_BUTTON =
+  'cursor-pointer border border-[var(--ink)] px-[10px] py-[4px] text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--ink)] max-md:min-h-[44px]';
+
+/** **Les métiers offerts, chacun avec ce qu'il fait et ses chiffres** (ADR 0037 §3) : on choisit
+ *  sur ce que le point fera, pas sur un nom. */
+function SpecialtyChoices({
+  offered,
+  level,
+  label,
+  held,
+  onChoose,
+}: {
+  offered: ReadonlyArray<ChosenSpecialty>;
+  level: number;
+  label: (specialty: string) => string;
+  held: boolean;
+  onChoose: (specialty: ChosenSpecialty) => void;
+}) {
+  return (
+    <ul className="mt-[6px] flex flex-col gap-[6px]">
+      {offered.map((specialty) => (
+        <li key={specialty} className="flex items-center gap-[10px]">
+          <button
+            type="button"
+            disabled={held}
+            onClick={() => onChoose(specialty)}
+            className={`shrink-0 ${ORDER_BUTTON}`}
+          >
+            {label(fr.specialties[specialty])}
+          </button>
+          <span className="text-[10.5px] leading-[1.35] text-[var(--ink-soft)]">
+            {specialtyEffectText(specialty, level)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * **Le métier du point, et la porte pour le choisir ou en changer** (ADR 0037 §3, §7, §11). Au
+ * niveau 1 l'élévation porte le choix, et la ligne le dit. Un point d'avant la refonte choisit une
+ * fois, gratuitement ; un point spécialisé change par un chantier dont la durée et l'acier se
+ * lisent avant le geste ; pendant ce chantier, il agit en généraliste. Le refus sort de la même
+ * fonction que la mutation (`specialtyRefusalOf`).
+ */
+function OutpostSpecialty({
+  view,
+  seat,
+  outpost,
+  observing,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  outpost: OutpostView;
+  observing: boolean;
+}) {
+  const now = useClock();
+  const respecialize = useMutation(api.constructions.respecializeOutpost);
+  const [error, setError] = useState<string | null>(null);
+  const stocks = Object.fromEntries(
+    RESOURCES.map((key) => [key, currentStock(view.me.resources[key], view.loadedAt, now)]),
+  ) as Record<ResourceKey, number>;
+  const facts = {
+    level: outpost.level,
+    specialty: outpost.specialty,
+    disabled: outpost.disabledMinutesLeft !== null,
+    queued: pledgedOutposts(view).has(outpost.id),
+    stocks,
+  };
+  const free = choosesFreely(facts);
+  const offered = CHOSEN_SPECIALTIES.filter((specialty) => specialty !== outpost.specialty);
+  /** Les métiers offerts partagent leurs retenues : seul « déjà le sien » les distingue, et il
+   *  n'est pas offert. */
+  const refusal =
+    offered[0] === undefined
+      ? null
+      : specialtyRefusalOf(facts, offered[0], outpost.respecialtyCost);
+  /** **Le métier qu'une élévation en file lui donnera** : le choix est fait, il se lit avant la
+   *  fin du chantier (ADR 0037 §3). */
+  const queuedChoice =
+    [view.me.construction, ...view.me.constructionQueue].find(
+      (work) => work?.outpostId === outpost.id && !work.respecialize,
+    )?.specialty ?? null;
+  const choose = (specialty: ChosenSpecialty) => {
+    setError(null);
+    respecialize({ ...seat, outpostId: outpost.id as Id<'outposts'>, specialty }).catch(
+      (problem: unknown) => handleError(problem, setError),
+    );
+  };
+  const note = 'mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]';
+
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+          {fr.garrison.specialty}
+        </span>
+        <span className="text-[11px] text-[var(--ink)]">{fr.specialties[outpost.specialty]}</span>
+      </div>
+      {outpost.changingTo !== null ? (
+        <>
+          <p className={note}>{fr.garrison.changing(fr.specialties[outpost.changingTo])}</p>
+          {outpost.specialty === 'store' && <p className={note}>{fr.garrison.storeSurplus}</p>}
+        </>
+      ) : refusal?.kind === 'levelOne' ? (
+        <p className={note}>
+          {queuedChoice === null
+            ? specialtyRefusalText(refusal)
+            : fr.garrison.raiseQueuedAs(fr.specialties[queuedChoice])}
+        </p>
+      ) : observing ? null : (
+        <div className="mt-[7px]">
+          {free ? (
+            <p className={note}>{fr.garrison.chooseFree}</p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-[10px] gap-y-[4px]">
+              <span className="text-[9px] tracking-[.16em] text-[var(--ink-soft)] uppercase">
+                {fr.garrison.changeHeader}
+              </span>
+              <span
+                className="flex items-center gap-[10px] font-(family-name:--font-mono) text-[12.5px]"
+                style={{
+                  color: refusal?.kind === 'materials' ? 'var(--critical)' : 'var(--ink)',
+                }}
+              >
+                {RESOURCES.filter((key) => (outpost.respecialtyCost[key] ?? 0) > 0).map((key) => (
+                  <span key={key} className="flex items-center gap-[4px]">
+                    <ResourcePlate resource={key} height={18} />
+                    {outpost.respecialtyCost[key]}
+                  </span>
+                ))}
+              </span>
+              <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+                {asDuration(outpost.respecialtyMinutes)}
+              </span>
+            </div>
+          )}
+          {!free && <p className={note}>{fr.garrison.changeConsequence}</p>}
+          <SpecialtyChoices
+            offered={offered}
+            level={outpost.level}
+            label={free ? fr.garrison.chooseAs : fr.garrison.changeAs}
+            held={refusal !== null}
+            onChoose={choose}
+          />
+          {refusal !== null && <p className={note}>{specialtyRefusalText(refusal)}</p>}
+          {error !== null && <p className="mt-[6px] text-[11px] text-[var(--critical)]">{error}</p>}
+        </div>
+      )}
+    </>
   );
 }

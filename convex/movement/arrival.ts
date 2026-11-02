@@ -481,7 +481,6 @@ async function deactivate(
     kind: 'outpostDisabled',
     hostCountry: outpost.hostCountry,
     point: outpost.point,
-    specialization: outpost.specialization,
   });
   await notifyPlayer(ctx, outpost.playerId, {
     type: 'outpost',
@@ -490,6 +489,9 @@ async function deactivate(
     at: now,
   });
   await reportChange(ctx, outpost.seasonId, before, now);
+  /** **La vigie s'éteint avec le point** (invariant Brouillard) : `arrive`, le seul chemin qui
+   *  désactive (`engageAt`), réévalue tout après un raid ou un assaut ; une seconde ici doublerait
+   *  le coût. */
   /** La couleur reviendra seule : le rendez-vous se prend ici, à la seconde où le raid l'a fixé.
    *  Personne n'ordonne cet événement-là, et rien ne bat pour le constater. */
   await scheduleRestore(ctx, outpost.seasonId, disabledUntil);

@@ -30,6 +30,7 @@ import {
   RESOURCE_KEY,
   SEASON_STATUS,
   SPECIALIZATION,
+  SPECIALTY,
   SURVEYED_INSTALLATION,
   STRIKE,
   TROOP_STATE,
@@ -204,6 +205,13 @@ export default defineSchema({
      * immédiats d'un règlement (oreilles muettes, file de recrues affamée).
      */
     dryJob: v.optional(v.object({ jobId: v.id('_scheduled_functions'), at: v.number() })),
+    /**
+     * **Ses vigies et ses stations sont-elles muettes ?** (ADR 0037 §2) Le verdict de son économie,
+     * écrit par la seule réévaluation qui le touche (`isSilent`, `listening.reassess`) et
+     * seulement quand il change : les autres réévaluations le lisent ici plutôt que de régler
+     * son économie. Absent vaut « elles entendent ».
+     */
+    listeningSilent: v.optional(v.boolean()),
     reassessJobId: v.optional(v.id('_scheduled_functions')),
     resumeJobId: v.optional(v.id('_scheduled_functions')),
     /**
@@ -862,7 +870,15 @@ export default defineSchema({
      */
     regionId: v.optional(v.string()),
     level: v.number(),
-    specialization: SPECIALIZATION,
+    /** L'ancien métier (ADR 0004), plus lu ni écrit : il part au prochain vidage (ADR 0037 §11). */
+    specialization: v.optional(SPECIALIZATION),
+    /** **Sa spécialisation** (ADR 0037 §3), lue `?? 'general'` : un point d'avant se lit
+     *  généraliste. */
+    specialty: v.optional(SPECIALTY),
+    /** **Le métier qu'un chantier de changement lui donnera** (ADR 0037 §7), posé au départ du
+     *  chantier et effacé à sa fin ou à son annulation : tant qu'il est là, le point agit en
+     *  généraliste (`effectiveSpecialty`). */
+    changingTo: v.optional(SPECIALTY),
     foundedAt: v.number(),
     /**
      * **L'heure où le chantier devient un point** (révision du 15/09 de l'ADR 0020 §10). Tant
@@ -1062,6 +1078,13 @@ export default defineSchema({
      * règle « une entrée par point » ne la voient (`constructions.ts`).
      */
     outpostId: v.optional(v.id('outposts')),
+    /** **La spécialisation que la ligne donne au point** (ADR 0037 §3, §7) : choisie à l'élévation
+     *  au niveau 2, ou la cible d'un changement. Absente : une élévation au niveau 3, ou une
+     *  ligne d'avant le champ. */
+    specialty: v.optional(SPECIALTY),
+    /** **Un changement de spécialisation**, pas une élévation : `level` y vaut le niveau du point,
+     *  donc sa durée est celle de la dernière élévation, et sa facture `respecialtyBill`. */
+    respecialize: v.optional(v.literal(true)),
     level: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),

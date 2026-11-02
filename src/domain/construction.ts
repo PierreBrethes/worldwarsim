@@ -7,6 +7,8 @@ import {
   type DepositKey,
   type ResearchCard,
   type ResourceKey,
+  type ChosenSpecialty,
+  type Specialty,
 } from './ids';
 import {
   BUILDING_SPACING_KM,
@@ -495,16 +497,57 @@ export function outpostRaiseHold(
   if (outpost.level >= maximum) return { kind: 'maxLevel', maximum };
   if (outpost.disabled) return { kind: 'disabled' };
   if (outpost.queued) return { kind: 'alreadyQueued' };
+  return shortfallOf(outpost.stocks, cost);
+}
 
-  // Le premier manque dans l'ordre des ressources, jamais une liste : une facture se paie
-  // entière ou pas du tout (`debit`), donc en nommer une est nommer le blocage.
+/** Le premier manque dans l'ordre des ressources, jamais une liste : une facture se paie
+ *  entière ou pas du tout (`debit`), donc en nommer une est nommer le blocage. */
+function shortfallOf(
+  stocks: Readonly<Record<ResourceKey, number>>,
+  cost: Cost,
+): Extract<OutpostRaiseHold, { kind: 'materials' }> | null {
   for (const resource of RESOURCES) {
     const needed = cost[resource] ?? 0;
     if (needed === 0) continue;
-    const available = outpost.stocks[resource];
+    const available = stocks[resource];
     if (available < needed) return { kind: 'materials', resource, needed, available };
   }
   return null;
+}
+
+/**
+ * **Ce qui empêche de choisir ou de changer de spécialisation** (ADR 0037 §3, §7, §11), lu par
+ * la fiche, la rose et la mutation. Au niveau 1 le choix passe par l'élévation ; un point d'avant
+ * la refonte, généraliste au niveau 2 ou 3, choisit une fois sans chantier ni acier — rien ne le
+ * retient alors. Un point spécialisé change par un chantier : il doit être en service, sans autre
+ * chantier en file, et payer sa facture (`respecialtyBill`).
+ */
+export type SpecialtyRefusal =
+  | { readonly kind: 'levelOne' }
+  | { readonly kind: 'held' }
+  | Exclude<OutpostRaiseHold, { kind: 'maxLevel' }>;
+
+export type SpecialtyChange = OutpostRaise & { readonly specialty: Specialty };
+
+/** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : un geste, un chantier. Lu par la
+ *  mutation, la rose et la fiche ; le niveau 3 garde la spécialisation du niveau 2. */
+export const raiseChoosesSpecialty = (level: number): boolean => level === 1;
+
+/** **Le choix gratuit** (ADR 0037 §11) : le seul cas où un niveau 2 sans spécialisation existe. */
+export const choosesFreely = (outpost: Pick<SpecialtyChange, 'level' | 'specialty'>): boolean =>
+  outpost.level >= 2 && outpost.specialty === 'general';
+
+export function specialtyRefusalOf(
+  outpost: SpecialtyChange,
+  specialty: ChosenSpecialty,
+  bill: Cost,
+): SpecialtyRefusal | null {
+  if (outpost.level < 2) return { kind: 'levelOne' };
+  if (outpost.specialty === specialty) return { kind: 'held' };
+  if (choosesFreely(outpost)) return null;
+  if (outpost.disabled) return { kind: 'disabled' };
+  if (outpost.queued) return { kind: 'alreadyQueued' };
+  return shortfallOf(outpost.stocks, bill);
 }
 
 /**
@@ -568,10 +611,10 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
  * autres, et ce qui est en file s'annule selon la règle de la file. Ce qu'on retire là est une
  * promesse, pas une bâtisse.
  *
- * **Servir un mouvement retient, en revanche.** Un relais dans la portée duquel une colonne
- * marche a déjà payé son allure : le retirer sous ses pieds ferait bouger un horaire déjà
- * annoncé. C'est exactement la lecture qui scelle le métier du point (`specializationsServed`,
- * servie au client par `specializationLocked`), et il n'y en a pas deux.
+ * **Servir un mouvement retient, en revanche.** Un point dans la portée duquel une colonne
+ * marche a pu chiffrer son allure : le retirer sous ses pieds ferait bouger un horaire déjà
+ * annoncé. La lecture est `outpostsServed`, servie au client par `serving`,
+ * et il n'y en a pas deux.
  */
 export type OutpostDismantleRefusal = 'NOT_YOURS' | 'OUTPOST_SERVING';
 

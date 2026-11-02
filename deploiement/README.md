@@ -56,6 +56,19 @@ aucun `press:publish` en attente ou en cours, donc la lancer deux fois ne double
 et ne double pas les lignes d'une édition. Le symptôme à surveiller est la page Presse figée sur
 une édition vieille de plus de trois heures.
 
+### Vigies — après le déploiement de #370
+
+Le silence des vigies et des stations d'écoute se tient sur la ligne du joueur
+(`players.listeningSilent`, ADR 0037 §2), lu « entend » quand il manque. Une fois, juste après
+la poussée qui l'apporte, sur chaque déploiement qui a des saisons lancées :
+
+```bash
+npx convex run dev:backfillListeningSilent
+```
+
+Elle rend `{ "players": N }` et planifie un `listening.reassess` par belligérant, qui règle son
+économie et écrit son verdict. **Idempotente** : la relancer ne fait que relire.
+
 ### Comptes — récupération administrateur
 
 Après un déploiement autorisé, un administrateur du backend peut exécuter la fonction

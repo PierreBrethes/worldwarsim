@@ -34,7 +34,12 @@
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
  * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
  * `--voisins` pose un avant-poste britannique en Hainaut, contre le Nord français : deux
- * contours côte à côte (#217). `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * contours côte à côte (#217). `--liaisons` (#370) pose pour la France deux avant-postes en liaison,
+ * Namur et Liège, un seul à Bâle, et une pile à Charleroi (`@liaisons`, `@charleroi`, `@aix`) ;
+ * `--sans-charbon` y met le charbon national à zéro. `--metiers` (#371) pose pour la France quatre
+ * avant-postes : un niveau 1 à élever à Arlon (`@arlon`), un généraliste d'avant la refonte au
+ * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
+ * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--quais` pose pour la France trois avant-postes, à La Valette, à
  * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
@@ -164,6 +169,12 @@ const neighbours = process.argv.includes('--voisins');
 /** `--iles` : `--quais`, plus Malte débarquée, fondée et son quai, et Syracuse en face (#224). */
 const islands = process.argv.includes('--iles');
 const quays = islands || process.argv.includes('--quais');
+/** `--liaisons` (#370) : deux avant-postes français en liaison en Belgique, un seul à Bâle,
+ *  une pile à Charleroi ; `--sans-charbon` met le charbon national à zéro (vigies aveugles). */
+const liaisons = process.argv.includes('--liaisons');
+/** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
+const specialties = process.argv.includes('--metiers');
+const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
 const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
@@ -650,6 +661,20 @@ if (!bare) {
     cli(['run', 'dev:neighbourScene', JSON.stringify({ playerId: scene.b })]);
   if (quays && scene.a !== null)
     cli(['run', 'dev:quaysScene', JSON.stringify({ playerId: scene.a })]);
+  if (liaisons && scene.a !== null) {
+    cli(['run', 'dev:liaisonsScene', JSON.stringify({ playerId: scene.a, dryCoal })]);
+    places.liaisons = [4.87, 50.47];
+    places.charleroi = [4.44, 50.41];
+    places.aix = [6.08, 50.78];
+  }
+  if (specialties && scene.a !== null) {
+    cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);
+    places.metiers = [6.4, 49.55];
+    places.arlon = [5.81, 49.68];
+    places.luxembourg = [6.13, 49.61];
+    places.treves = [6.64, 49.75];
+    places.sarrebruck = [7.0, 49.23];
+  }
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };
     places.valette = [valletta.lon, valletta.lat];
@@ -693,7 +718,6 @@ if (!bare) {
       seasonId,
       point: valletta,
       regionId: 'MLT-5949',
-      specialization: 'relay',
       troopIds: [founder.id],
     });
     await client.mutation(api.constructions.start, {

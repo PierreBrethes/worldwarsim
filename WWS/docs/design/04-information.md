@@ -33,8 +33,8 @@ C'est le cœur du jeu, pas une couche annexe. Cf.
 ## Le brouillard
 
 **Par défaut, tu ne vois que tes propres arcs.** Les mouvements adverses ne sont visibles que dans
-une fenêtre écrite par ton territoire, ta station d'écoute, tes avant-postes d'écoute ou une de tes
-troupes posées ou en mouvement.
+une fenêtre écrite par ton territoire, ta station d'écoute, la vigie de tes avant-postes (tout point
+debout guette à mi-rayon, ADR 0037 §2) ou une de tes troupes posées ou en mouvement.
 
 C'est la décision la plus importante du design. Elle transforme d'un coup :
 
@@ -71,7 +71,7 @@ ne dit pas qu'un adversaire est là, et surtout pas qu'un sol reconnu serait sû
 chose : *rien à moi ne regarde ce sol*.
 
 **Elle voit en revanche ce qui bouge.** Une troupe posée est la **quatrième source de détection**,
-après le territoire, la station d'écoute et l'avant-poste d'écoute — et la seule qui existe dans le
+après le territoire, la station d'écoute et la vigie d'avant-poste — et la seule qui existe dans le
 code à ce jour. Portée propre à son rôle (`DETECTION_RANGE_KM`, maximum pour une pile), un fil, un cap, un horaire estimé, un
 domaine, **jamais le type ni la composition**, jamais la nation. Elle ne perce rien :
 l'identification reste l'affaire de l'agent et des bâtiments.

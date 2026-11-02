@@ -100,7 +100,6 @@ async function plant(
       point: { lon: at[0], lat: at[1] },
       hostCountry: 'XXX',
       level: 1,
-      specialization: 'relay',
       foundedAt: Date.now(),
       disabledUntil: extra.disabledUntil ?? null,
       immuneUntil: null,
@@ -330,7 +329,6 @@ describe('la vue rend la couleur de la vérité, partie après partie (#144)', (
         point: { lon: point(BUZAU)[0], lat: point(BUZAU)[1] },
         hostCountry: 'ROU',
         level: 1,
-        specialization: 'relay',
         foundedAt: Date.now(),
         disabledUntil: null,
         immuneUntil: null,
@@ -367,7 +365,6 @@ describe('la vue rend la couleur de la vérité, partie après partie (#144)', (
       ...seat,
       regionId: null,
       point: { lon: at[0], lat: at[1] },
-      specialization: 'relay',
       troopIds: [troopId],
     });
     expect((await seatDoc(t, seat)).linkage?.until).toBe(standsAt);

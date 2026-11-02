@@ -184,6 +184,9 @@ export function relayedCostUnits({
   multiplier: number;
   samples?: number;
 }): number {
+  /** **Une liaison n'accélère pas l'air** (Pierre, 01/11) ; le routeur ne mêle jamais un vol à la
+   *  terre ou à la mer (`routeMedium`), donc une route est aérienne de bout en bout ou pas du tout. */
+  if (route.mode === 'air') return route.costUnits;
   const share = relayedShare({ points: route.points, relays, samples });
   if (share <= 0 || multiplier <= 0) return route.costUnits;
 

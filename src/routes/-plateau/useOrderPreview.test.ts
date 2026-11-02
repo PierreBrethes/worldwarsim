@@ -67,6 +67,16 @@ describe('the length of the road, said under the hand (#302)', () => {
     expect(said(road(0, 2.6, 130))).toEqual(['≈ 289 km · 2 h 10']);
   });
 
+  /** **Le chip dit pourquoi la durée est courte** (ADR 0037 §8) : ce que les liaisons ont pris. */
+  it('says what the liaisons took off the road, and nothing when they took nothing', () => {
+    const fast = { ...road(5.77, 0, 200, 640), relayed: 40 } as NonNullable<Previewed>;
+    expect(said(fast)).toEqual([
+      '≈ 640 km · 3 h 20',
+      '×1,5 dans le rayon de vos liaisons — 40 min de gagné',
+    ]);
+    expect(said({ ...fast, relayed: 0 } as NonNullable<Previewed>)).toEqual(['≈ 640 km · 3 h 20']);
+  });
+
   it('says nothing for a grouped order: the line would hold for the pile in hand only', () => {
     expect(said(road(5.77, 0, 200), { grouped: true, blitz: false })).toEqual([]);
   });

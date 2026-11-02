@@ -40,7 +40,6 @@ const view = {
         standsAt: null,
         level: 1,
         regionId: 'r1',
-        specialization: 'relay',
         disabledMinutesLeft: null,
       },
       {
@@ -48,7 +47,6 @@ const view = {
         standsAt: null,
         level: 2,
         regionId: null,
-        specialization: 'listening',
         disabledMinutesLeft: null,
       },
       {
@@ -56,7 +54,6 @@ const view = {
         standsAt: 9_999,
         level: 3,
         regionId: null,
-        specialization: 'listening',
         disabledMinutesLeft: null,
       },
       {
@@ -64,14 +61,13 @@ const view = {
         standsAt: null,
         level: 3,
         regionId: null,
-        specialization: 'relay',
         disabledMinutesLeft: null,
       },
     ],
-    upkeep: { ...army, foodPerHour: food, outpostFoodPerHour: 9, listeningCoalPerHour: 2 },
+    upkeep: { ...army, foodPerHour: food, outpostFoodPerHour: 9, listeningCoalPerHour: 4 },
     resources: {
       food: { ratePerHour: 32 - food - 9 },
-      coal: { ratePerHour: 12 - 6 - 2 },
+      coal: { ratePerHour: 12 - 6 - 4 },
       steel: { ratePerHour: 14 - 6 },
       oil: { ratePerHour: 0 },
       ammunition: { ratePerHour: 6 },
@@ -103,10 +99,12 @@ describe('the ledger', () => {
     ]);
   });
 
-  it('counts only my standing outposts, and the listening ones that are in service', () => {
+  /** Tout point debout guette, et sa vigie se paie au niveau (ADR 0037 §2). */
+  it('counts only my standing outposts, every lookout among them by its level', () => {
     const sections = (resource: 'food' | 'coal') => ledgerOf(view, resource).sections;
     expect(sections('food').find((s) => s.id === 'outposts')!.rows).toHaveLength(2);
-    expect(sections('coal').find((s) => s.id === 'listening')!.rows).toHaveLength(2);
+    const lookouts = sections('coal').find((s) => s.id === 'listening')!.rows;
+    expect(lookouts.map((row) => row.perHour)).toEqual([-1, -1, -2]);
   });
 
   it('leaves a raided listening post out of the ticket', () => {
@@ -121,14 +119,14 @@ describe('the ledger', () => {
       },
     } as unknown as PlayerView;
     expect(ledgerOf(raided, 'coal').sections.find((s) => s.id === 'listening')!.rows).toHaveLength(
-      1,
+      2,
     );
   });
 
   it('keeps the production out of consumption', () => {
     const coal = ledgerOf(view, 'coal');
     expect(coal.production).toBe(12);
-    expect(coal.consumption).toBe(-8);
+    expect(coal.consumption).toBe(-10);
   });
 });
 

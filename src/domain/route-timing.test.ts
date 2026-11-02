@@ -178,4 +178,13 @@ describe('what a logistics relay does to a road', () => {
       6,
     );
   });
+
+  /** **Une liaison n'accélère pas l'air** (Pierre, 01/11, ADR 0037) : la terre et la mer seules. */
+  it('leaves a flight under the relays at its full length', () => {
+    const flight = directRoute([0, 0], [2, 0], 'air', 2);
+    const relays = [watching(1, 0)];
+
+    expect(relayedShare({ points: flight.points, relays })).toBe(1);
+    expect(relayedCostUnits({ route: flight, relays, multiplier: 1.5 })).toBe(flight.costUnits);
+  });
 });

@@ -18,8 +18,7 @@ const view = {
         hostCountry: 'NOR',
         lonLat: [0, 0],
         regionId: 'NOR-1',
-        specialization: 'relay',
-        specializationLocked: false,
+        serving: false,
         level: 1,
         standsAt: null,
         garrison: 4,
@@ -166,49 +165,38 @@ describe('my own outpost, unarmed', () => {
       me: { ...view.me, outposts: [{ ...view.me.outposts[0], ...changes }] },
     }) as unknown as PlayerView;
 
-  it('carries the raise, both trades and the dismantling, in that order', () => {
+  /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : trois branches, un geste, un
+   *  chantier ; puis le démantèlement. */
+  it('offers the raise to level 2 as three specialties, then the dismantling', () => {
     const compass = compassOf(mine, view);
     expect(compass?.actions.map((action) => action.key)).toEqual([
       'raiseOutpost',
-      'specialize',
-      'specialize',
+      'raiseOutpost',
+      'raiseOutpost',
       'dismantle',
     ]);
     expect(compass?.actions.map((action) => action.label)).toEqual([
-      'monter',
-      'relais logistique',
-      'écoute',
+      'monter · magasin',
+      'monter · guet',
+      'monter · fort',
       'démanteler',
     ]);
+    expect(
+      compass?.actions.map((action) => (action.key === 'raiseOutpost' ? action.specialty : null)),
+    ).toEqual(['store', 'lookout', 'fort', null]);
     expect(compass?.kicker).toBe('mon avant-poste · niveau 1');
   });
 
-  /** Le métier en cours est **marqué**, jamais retiré ni grisé : c'est l'état du point, et c'est
-   *  ce qui décide du geste suivant. */
-  it('marks the trade the point already works', () => {
-    const trades = (compassOf(mine, view)?.actions ?? []).filter(
-      (action) => action.key === 'specialize',
-    );
-    expect(trades.map((trade) => trade.current)).toEqual([true, false]);
-    expect(trades.map((trade) => trade.specialization)).toEqual(['relay', 'listening']);
-    expect(trades.every((trade) => trade.sealed === null)).toBe(true);
-  });
-
-  /** Scellé, rien ne disparaît et rien ne se grise : la branche porte la phrase du serveur, et
-   *  le joueur lit pourquoi avant de cliquer (ADR 0015). */
-  it('keeps both trades when the point serves a column, and says why it refuses', () => {
-    const sealed = compassOf(mine, withOutpost({ specializationLocked: true }));
-    const trades = (sealed?.actions ?? []).filter((action) => action.key === 'specialize');
-    expect(trades).toHaveLength(2);
-    expect(trades[1]?.sealed).toBe(
-      'une passe s’est déjà servie de cet avant-poste — sa spécialisation ne change plus',
-    );
+  /** Au niveau 2 le métier est choisi : le niveau 3 le garde, une seule branche le monte. */
+  it('raises a level-2 point by a single branch, keeping its specialty', () => {
+    const compass = compassOf(mine, withOutpost({ level: 2, specialty: 'store' }));
+    expect(compass?.actions.map((action) => action.label)).toEqual(['monter', 'démanteler']);
   });
 
   /** **Servir une colonne retient aussi le démantèlement** : on ne retire pas la route sous les
    *  pieds d'une marche dont l'allure est déjà payée. */
   it('withdraws the dismantling while a column leans on the point', () => {
-    const sealed = compassOf(mine, withOutpost({ specializationLocked: true }));
+    const sealed = compassOf(mine, withOutpost({ serving: true }));
     expect(sealed?.actions.some((action) => action.key === 'dismantle')).toBe(false);
     expect(sealed?.refusal).toBe(
       'une colonne marche dans la portée de ce point — il ne se démantèle pas sous elle',
@@ -217,11 +205,7 @@ describe('my own outpost, unarmed', () => {
 
   it('draws no raise at the maximum level, and keeps the rest', () => {
     const topped = compassOf(mine, withOutpost({ level: 3, atMaxLevel: true }));
-    expect(topped?.actions.map((action) => action.key)).toEqual([
-      'specialize',
-      'specialize',
-      'dismantle',
-    ]);
+    expect(topped?.actions.map((action) => action.key)).toEqual(['dismantle']);
     expect(topped?.refusal).toBe('Niveau maximal atteint (3).');
   });
 

@@ -196,8 +196,27 @@ export const SEASON_STATUS = v.union(
 
 export const SEASON_MODE = v.union(v.literal('blitz'), v.literal('mondiale'));
 
-/** Extraction is gone from the list (fiche 03, 18/08): an outpost replaces no building. */
+/**
+ * **L'ancien métier exclusif, relais ou écoute** (ADR 0004), révisé par l'ADR 0037 : plus lu ni
+ * écrit, gardé `v.optional` sur les lignes d'avant pour que la poussée passe sans vider la base.
+ * Le littéral part au prochain vidage, sur le modèle de `regionId`.
+ */
 export const SPECIALIZATION = v.union(v.literal('relay'), v.literal('listening'));
+
+/** **Ce qu'un avant-poste devient au niveau 2** (ADR 0037 §3) ; `general` à la fondation. */
+export const SPECIALTY = v.union(
+  v.literal('general'),
+  v.literal('store'),
+  v.literal('lookout'),
+  v.literal('fort'),
+);
+
+/** **Ce qui se choisit** (`CHOSEN_SPECIALTIES`) : jamais `general`. */
+export const CHOSEN_SPECIALTY = v.union(
+  v.literal('store'),
+  v.literal('lookout'),
+  v.literal('fort'),
+);
 
 /**
  * **What saw a movement go past** (design sheet 04). Four detectors, in the order the sheet
@@ -317,6 +336,8 @@ export const NOTICE = v.union(
     /** **Perdu à la fin du chantier** (ADR 0029) : le gisement pris par un autre — relevé du même
      *  coup —, ou un bâtiment à soi venu trop près. Absent : le droit perdu avant son tour. */
     reason: v.optional(v.union(v.literal('depositTaken'), v.literal('tooClose'))),
+    /** **Un changement de spécialisation**, et sa cible : la ligne ne dit pas « élévation ». */
+    respecialty: v.optional(SPECIALTY),
   }),
   /** **Un bâtiment rasé par son propriétaire** (demande du 15/09). Chez lui seul : ce que la
    *  démolition change chez les autres se relève, il ne s'annonce pas (ADR 0005). */
@@ -382,7 +403,7 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     /** Where it happened, for the journal's locate button; absent on rows written before. */
     point: v.optional(LON_LAT),
-    specialization: SPECIALIZATION,
+    specialization: v.optional(SPECIALIZATION),
   }),
   v.object({
     ...NOTICE_HEAD,
@@ -390,7 +411,7 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     /** Where it happened, for the journal's locate button; absent on rows written before. */
     point: v.optional(LON_LAT),
-    specialization: SPECIALIZATION,
+    specialization: v.optional(SPECIALIZATION),
   }),
   /**
    * **La production reliée qui mord, et qui lâche** (ADR 0020 §6). Le compte, jamais la liste :
@@ -513,6 +534,18 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     regionId: v.union(v.string(), v.null()),
     level: v.number(),
+    /** **La spécialisation choisie avec le niveau 2** (ADR 0037 §3) ; absente au niveau 3. */
+    specialty: v.optional(SPECIALTY),
+  }),
+  /** **Le point a changé de spécialisation** (ADR 0037 §7). Chez son seul propriétaire, comme
+   *  l'élévation : l'adversaire n'en sait rien. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('outpostRespecialized'),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    regionId: v.union(v.string(), v.null()),
+    specialty: SPECIALTY,
   }),
   /**
    * **Le point démantelé par son propriétaire** (décision de Pierre, 16/09). Chez lui seul, comme
@@ -542,7 +575,7 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     /** Where it happened, for the journal's locate button; absent on rows written before. */
     point: v.optional(LON_LAT),
-    specialization: SPECIALIZATION,
+    specialization: v.optional(SPECIALIZATION),
   }),
   /**
    * **Le chantier est mort avec sa garnison** — partie entière ou détruite avant le lever. Rien
@@ -555,7 +588,7 @@ export const NOTICE = v.union(
     hostCountry: v.string(),
     /** Where it happened, for the journal's locate button; absent on rows written before. */
     point: v.optional(LON_LAT),
-    specialization: SPECIALIZATION,
+    specialization: v.optional(SPECIALIZATION),
   }),
   /**
    * **Ce que le large a pris** (règle 4 du 18/09). Chez le seul propriétaire : ce qu'un

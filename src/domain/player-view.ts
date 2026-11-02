@@ -16,7 +16,7 @@ import type {
   MovementType,
   ResearchCard,
   ResourceKey,
-  Specialization,
+  Specialty,
   UnitRole,
   UnitTier,
 } from './ids';
@@ -348,7 +348,10 @@ export type OutpostView = {
    * — `null` est un point que même ce repli ne place pas.
    */
   readonly regionId: string | null;
-  readonly specialization: Specialization;
+  readonly specialty: Specialty;
+  /** **Le métier qu'un chantier de changement lui donnera**, posé au départ du chantier : jusqu'à
+   *  sa fin le point agit en généraliste (`effectiveSpecialty`, ADR 0037 §7). */
+  readonly changingTo: Specialty | null;
   readonly level: number;
   /**
    * **En chantier jusqu'à cette heure-là**, `null` pour un point debout (révision du 15/09 de
@@ -363,13 +366,11 @@ export type OutpostView = {
   readonly disabledMinutesLeft: number | null;
   readonly isMine: boolean;
   /**
-   * **Le métier du point est-il scellé ?** La fondation part du clic droit et pose « relais » —
-   * le serveur exige un mot à l'insertion — et le panneau de l'avant-poste permet d'en changer
-   * tant qu'aucune passe ne l'a lu (`specializationServed`, `convex/movement/forces.ts`). Servi
-   * plutôt que redérivé : l'écran qui montre les deux boutons et le serveur qui les refuse
-   * lisent la même réponse.
+   * **Un mouvement est-il passé dans son rayon depuis la fondation ?** (`outpostServed`,
+   * `convex/movement/forces.ts`). Servi plutôt que redérivé : le démantèlement que l'écran refuse
+   * et celui que le serveur refuse lisent la même réponse (`OUTPOST_SERVING`).
    */
-  readonly specializationLocked: boolean;
+  readonly serving: boolean;
   /**
    * **Ce que monter ce point coûterait**, servi comme celui d'un bâtiment (`Building`) et pour
    * la même raison : les nombres d'équilibrage ont une seule maison, `convex/constants.ts`. Un
@@ -379,6 +380,10 @@ export type OutpostView = {
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
   readonly atMaxLevel: boolean;
+  /** **Ce qu'un changement de spécialisation coûterait** (ADR 0037 §7), servi comme le niveau
+   *  suivant : la moitié de l'acier et la durée de la dernière élévation, au QG d'aujourd'hui. */
+  readonly respecialtyCost: Cost;
+  readonly respecialtyMinutes: number;
   /** **Son dépôt** (ADR 0028 §4) : munitions, pétrole et charbon, et la charge maximale qu'ils
    *  se partagent (`depotCapacity`). Le point est à moi : le brouillard ne sert rien d'autre. */
   readonly depot: SupplyLoad;
@@ -653,6 +658,11 @@ type RunningWork = {
   readonly minutes?: number;
   /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
   readonly level: number;
+  /** **Le métier que la ligne donne au point** (ADR 0037 §3, §7) : choisi à l'élévation au
+   *  niveau 2, ou cible d'un changement ; `null` sur toute autre ligne. */
+  readonly specialty: Specialty | null;
+  /** **Un changement de spécialisation**, pas une élévation : `level` y est le niveau du point. */
+  readonly respecialize: boolean;
 };
 
 type QueuedWork = {
@@ -665,6 +675,8 @@ type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
+  readonly specialty: Specialty | null;
+  readonly respecialize: boolean;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
@@ -694,6 +706,7 @@ export type DispatchKind =
   | 'outpostStands'
   | 'foundationLost'
   | 'outpostRaised'
+  | 'outpostRespecialized'
   /** Le point que son propriétaire a démantelé (décision du 16/09) — la seule fin d'un
    *  avant-poste que personne ne subit. */
   | 'outpostDismantled'
@@ -763,6 +776,8 @@ type NoticeBody =
       readonly building: BuildCostKey;
       readonly regionName: string;
       readonly reason?: 'depositTaken' | 'tooClose';
+      /** Un changement de spécialisation remboursé, et sa cible : la ligne ne dit pas « élévation ». */
+      readonly respecialty?: Specialty;
     }
   | {
       readonly kind: 'constructionFinished';
@@ -813,25 +828,21 @@ type NoticeBody =
       readonly kind: 'outpostFounded';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   | {
       readonly kind: 'outpostStands';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   | {
       readonly kind: 'foundationLost';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   | {
       readonly kind: 'outpostDisabled';
       readonly at: number;
       readonly hostCountry: string;
-      readonly specialization: Specialization;
     }
   /**
    * **Ce que le large a pris** (règle 4 du 18/09). Le lieu est un point : au large il n'y a pas
@@ -855,6 +866,16 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly regionName: string | null;
       readonly level: number;
+      /** La spécialisation choisie avec le niveau 2 (ADR 0037 §3). */
+      readonly specialty?: Specialty;
+    }
+  /** **Le point a changé de spécialisation** (ADR 0037 §7). Chez le seul propriétaire. */
+  | {
+      readonly kind: 'outpostRespecialized';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly regionName: string | null;
+      readonly specialty: Specialty;
     }
   /**
    * **Le point démantelé** (décision du 16/09). Chez lui seul : ce qu'un adversaire en apprend,

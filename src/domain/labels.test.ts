@@ -72,8 +72,9 @@ const OUTPOST: MapMarker = {
   id: 'ap-1',
   lonLat: [8.5, 61.4],
   hostCountry: 'Norway',
+  specialty: 'general',
+  changingTo: null,
   station: { kind: 'outpost', outpostId: 'ap-1' },
-  specialization: 'relay',
   level: 2,
   standsAt: null,
   garrison: 40,
@@ -382,6 +383,19 @@ describe('buildLabels', () => {
    * ne l'ouvrait — le seul marqueur cliquable était la pile posée sur un point. L'adresse
    * voyage sur l'étiquette, comme celle d'une pile : c'est elle que le clic gauche ouvre.
    */
+  /** **Pendant un changement, le point agit en généraliste** (ADR 0037 §7) : le mât le dit, et dit
+   *  ce qu'il deviendra. */
+  it('names the trade an outpost acts on, and the one a change is giving it', () => {
+    const [store] = buildLabels(viewWith([]), [
+      { ...OUTPOST, specialty: 'store', changingTo: null },
+    ]);
+    expect(store?.lines[0]).toEqual({ role: 'nature', text: 'magasin' });
+    const [changing] = buildLabels(viewWith([]), [
+      { ...OUTPOST, specialty: 'store', changingTo: 'fort' },
+    ]);
+    expect(changing?.lines[0]).toEqual({ role: 'nature', text: 'généraliste → fort, en chantier' });
+  });
+
   it('carries the address a click opens the garrison of', () => {
     const [label] = buildLabels(viewWith([]), [OUTPOST]);
     expect(label?.station).toEqual({ kind: 'outpost', outpostId: 'ap-1' });

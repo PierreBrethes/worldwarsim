@@ -19,6 +19,7 @@ import type {
   DepositKey,
   ResearchCard,
   ResourceKey,
+  Specialty,
   UnitRole,
 } from '../src/domain/ids';
 import type { CombatRules, DamageTable } from '../src/domain/combat';
@@ -260,6 +261,19 @@ export function buildCost(key: BuildCostKey, level: number): Costs {
   );
 }
 
+/**
+ * **Changer de spécialisation coûte une part de l'acier de la dernière élévation** (ADR 0037 §7).
+ *
+ * @a-mesurer la moitié : tranchée au grilling (Q13), aucune partie ne l'a jouée
+ */
+export const RESPECIALTY_STEEL_SHARE = 0.5;
+
+/** La facture d'un changement de spécialisation : l'acier seul ; sa durée est celle de la
+ *  dernière élévation (`worksMinutes('outpost', level)`). */
+export const respecialtyBill = (level: number): Costs => ({
+  steel: Math.round((buildCost('outpost', level).steel ?? 0) * RESPECIALTY_STEEL_SHARE),
+});
+
 export function buildMinutes(key: BuildCostKey, level: number): number {
   return Math.round(COST_SPEC[key].minutes * LEVEL_COST_FACTOR ** (level - 1));
 }
@@ -475,8 +489,20 @@ export const BAKU_REFUEL_MS = 12 * 3_600_000;
  */
 export const DEPOT_CAPACITY_PER_LEVEL = 400;
 
-export const depotCapacity = (level: number): number =>
-  DEPOT_CAPACITY_PER_LEVEL * Math.max(1, Math.trunc(level));
+/**
+ * **Le Magasin double son dépôt** (ADR 0037 §3, erratum du 01/11).
+ *
+ * @a-mesurer le double : ce que le POC a pris (`WWS/prototypes/avant-postes/commun/rules.js`)
+ */
+export const STORE_DEPOT_FACTOR = 2;
+
+/** L'appelant passe la spécialisation **agissante** (`effectiveSpecialty`) : un Magasin qui change
+ *  de métier reprend la capacité simple, garde son surplus, et rien n'y entre tant qu'il dépasse
+ *  (`deliveryOf`). */
+export const depotCapacity = (level: number, specialty: Specialty): number =>
+  DEPOT_CAPACITY_PER_LEVEL *
+  Math.max(1, Math.trunc(level)) *
+  (specialty === 'store' ? STORE_DEPOT_FACTOR : 1);
 
 /**
  * **Une seule charge par transport** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon
@@ -910,13 +936,37 @@ export const UPKEEP_STEPS: ReadonlyArray<{ readonly upTo: number; readonly rate:
 export const OUTPOST_FOOD_PER_HOUR_PER_LEVEL = 3;
 
 /**
- * **A listening post burns coal as long as it listens** (ADR 0028 §2, R17): a station, and an
- * outpost given the listening specialization, each. Flat per post and not per level, since the
- * radius is what a level buys.
+ * **A listening station burns coal as long as it listens** (ADR 0028 §2, R17): flat, since the
+ * radius is what a level buys. An outpost's lookout burns by its level instead
+ * (`LOOKOUT_COAL_PER_HOUR_PER_LEVEL`, ADR 0037 §2).
  *
  * @a-mesurer set by eye: a post against the twelve an hour of a coal mine at level one
  */
 export const LISTENING_COAL_PER_HOUR = 1;
+
+/**
+ * **Ce que brûle la vigie d'un avant-poste** (ADR 0037 §2) : par niveau, parce que le rayon
+ * qu'elle guette monte avec lui. Pris au stock national, comme la station d'écoute.
+ *
+ * @a-mesurer 1, 2, 3 par heure : un point contre les douze d'une mine de charbon au niveau 1
+ */
+export const LOOKOUT_COAL_PER_HOUR_PER_LEVEL = 1;
+
+/**
+ * **Jusqu'où guette la vigie d'un avant-poste**, en part de son rayon de contrôle (ADR 0037 §2) :
+ * 60, 90 et 120 km ; le Guet porte au rayon entier (`lookoutKmOf`).
+ *
+ * @a-mesurer la moitié : ce que le POC a montré lisible, une vigie qui ne couvre pas tout ce qu'elle tient
+ */
+export const LOOKOUT_REACH_SHARE = 0.5;
+
+/**
+ * **Le Fort retient** (ADR 0037 §6) : une colonne adverse va d'autant plus lentement sur la part de
+ * sa route qui passe dans la vigie du Fort, à terre et en mer. La fiche le dit avant le choix.
+ *
+ * @a-mesurer ×1,5 : le pendant de l'accélération des liaisons, aucune partie ne l'a joué
+ */
+export const FORT_SLOWDOWN_MULTIPLIER = 1.5;
 
 /**
  * What a troop eats **outside every anchor of its own** (ADR 0019 §4). Without it, "at its own
@@ -1035,11 +1085,11 @@ export const outpostReachKm = (level: number): number =>
   OUTPOST_REACH_KM_BY_LEVEL[Math.min(Math.max(Math.trunc(level), 1), MAX_REACH_LEVEL)]!;
 
 /**
- * **What a logistics relay does to the stretch of road that passes it** (design sheet 03) — the
- * only specialization that touches travel time, and with it the arbitration the sheet names: an
- * army, or the means to project it.
+ * **What a liaison does to the stretch of road that passes it** (ADR 0037 §8): the ground and the
+ * water inside the reach of an outpost in liaison go this much faster for its owner, never a
+ * flight (Pierre, 01/11).
  *
- * One and a half is shaped so the relay reads as a decision rather than a rounding: on a route
+ * One and a half is shaped so the liaison reads as a decision rather than a rounding: on a route
  * entirely under its reach it turns fourteen minutes per thousand kilometres into a little over
  * nine. Nothing simulates it. **It never touches an opponent**, and the reading is made at
  * departure like every other timing of the game.

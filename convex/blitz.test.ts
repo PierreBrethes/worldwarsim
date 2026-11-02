@@ -607,6 +607,37 @@ describe('le soin et l’absence de chantier', () => {
     expect((await t.run((ctx) => ctx.db.get(wounded!._id)))!.currentStrength).toBe(20);
   });
 
+  /** **La Blitz n'a pas d'avant-postes** (ADR 0037) : ni fondation, ni vigie, ni charbon, même
+   *  pour un point posé à la main. */
+  it('refuse de fonder, et un point posé à la main ne brûle aucun charbon', async () => {
+    const t = boot();
+    const { seat } = await blitzLaunched(t);
+    const me = await playerOf(t, seat);
+    const [troop] = await troopsOf(t, me._id);
+    const point = { lon: 2.35, lat: 48.85 };
+    await expect(
+      t.mutation(api.movements.foundOutpostHere, {
+        ...seat,
+        point,
+        regionId: null,
+        troopIds: [troop!._id],
+      }),
+    ).rejects.toThrow(/NOT_IN_BLITZ/);
+    await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: seat.seasonId,
+        playerId: me._id,
+        point,
+        hostCountry: 'FRA',
+        level: 3,
+        foundedAt: Date.now() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+    expect((await t.query(api.view.playerView, seat)).me.upkeep.listeningCoalPerHour).toBe(0);
+  });
+
   it('refuse de démolir : en Blitz on ne bâtit rien', async () => {
     const t = boot();
     const { seat } = await blitzLaunched(t);

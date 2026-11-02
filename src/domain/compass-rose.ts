@@ -16,7 +16,7 @@ import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
 import { type LonLat } from './geo';
 import type { Ground } from './routing';
-import type { BuildingKey, MovementType, ResourceKey, Specialization } from './ids';
+import type { BuildingKey, ChosenSpecialty, MovementType, ResourceKey } from './ids';
 import { type Cost, type PlayerView, type TroopStation } from './player-view';
 
 /**
@@ -235,14 +235,13 @@ export type CompassPictogram =
   /** « Raser » : le mur qui s'écroule, ses moellons en l'air. Rien de la torche du sabotage —
    *  on n'incendie pas chez soi, on démonte */
   | 'rubble'
-  /** Le métier de relais : le mât et son onde qui part. C'est ce que le point *fait* — il
-   *  relaie — et non ce qu'il est, que la hutte dit déjà. */
-  | 'aerial'
-  /** Le métier d'écoute : le pavillon tendu, l'oreille du point. Même famille que l'antenne,
-   *  et ce qui les sépare est le sens de l'onde : l'une part, l'autre arrive. */
-  | 'ear'
   /** « Bombarder » (B20) : l'obus debout sur son culot — un tir qui part, rien de la colonne. */
-  | 'shell';
+  | 'shell'
+  /** Les trois spécialisations (ADR 0037 §3), aux accessoires qu'elles poseront au pied du mât
+   *  (#298) : les caisses du Magasin, l'antenne du Guet, les sacs empilés du Fort. */
+  | 'store'
+  | 'lookout'
+  | 'fort';
 
 /** One resource of a bill: its sentence, its picto's resource, and whether it is the one short. */
 export type BillLine = {
@@ -392,6 +391,9 @@ export type CompassAction =
       readonly cost: string | null;
       readonly consequence: string;
       readonly outpostId: string;
+      /** **Le métier que l'élévation au niveau 2 choisit** (ADR 0037 §3) : trois branches, un
+       *  geste ; `null` au passage au niveau 3, qui garde le sien. */
+      readonly specialty: ChosenSpecialty | null;
       readonly figure: Cost;
       readonly bill: ReadonlyArray<BillLine>;
       readonly duration: string;
@@ -399,32 +401,6 @@ export type CompassAction =
         readonly reason: string;
         readonly availability: string | null;
       } | null;
-    }
-  /**
-   * **Le métier du point, sur la plate** (décision de Pierre, 16/09). Deux branches et pas une
-   * bascule : la rose se lit au pictogramme, et un interrupteur qui change de sens au clic ne se
-   * lit pas. Celle en cours est **marquée** — le même état que l'`aria-pressed` du panneau — et
-   * elle ne se grise pas : le joueur doit voir ce que le point fait avant de voir ce qu'il
-   * pourrait faire.
-   *
-   * **Scellée, la branche reste et dit pourquoi.** Un relais qu'une colonne utilise ne change
-   * plus de métier (`SPECIALIZATION_SEALED`) ; retirer la branche laisserait le joueur chercher
-   * une porte qui existe, et la griser serait une seconde exception à l'ADR 0015.
-   */
-  | {
-      readonly key: 'specialize';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly outpostId: string;
-      readonly specialization: Specialization;
-      /** Le métier que le point exerce déjà : la branche est marquée et le clic ne fait rien —
-       *  il n'y a rien à changer. */
-      readonly current: boolean;
-      /** La phrase du serveur quand le métier est scellé, `null` sinon. Elle remplace la
-       *  conséquence dans la bulle, et le clic reste sans effet. */
-      readonly sealed: string | null;
     }
   /**
    * **Démanteler son propre avant-poste** (décision de Pierre, 16/09). Jumelle de « raser » et

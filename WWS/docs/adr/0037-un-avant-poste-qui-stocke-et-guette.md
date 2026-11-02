@@ -3,8 +3,10 @@
 **Statut :** acceptée (01/11/2026). Tranchée par Pierre en quatre manches de grilling (28/10 au
 30/10, Q1 à Q22), après un POC (`WWS/prototypes/avant-postes/`) ; les onze points restés ouverts
 ont été tranchés le 01/11 (« je valide toutes tes recos ») et sont écrits ci-dessous à leur place.
-Non codée : les lots suivent (#370 à #377). **Mondiale seule** : la Blitz n'a pas d'avant-postes
-(`refuseInBlitz` dans `foundOutpostHere` et `raiseOutpost`), et rien ici ne lui en donne.
+La vigie et les liaisons (§1, §2, §8) sont codées par #370, les spécialisations, leur choix et
+leur changement (§3, §7, §11) par #371 ; les lots suivants (#372 à #377) codent le reste.
+**Mondiale seule** : la Blitz n'a pas d'avant-postes (`refuseInBlitz` dans `foundOutpostHere` et
+`raiseOutpost`), et rien ici ne lui en donne.
 
 **Révise** l'ADR 0004 (la spécialisation exclusive relais / écoute), l'ADR 0021 §1 (« la simple
 présence d'un avant-poste n'ajoute aucun bonus ») et §4 (le changement de spécialisation),
@@ -37,7 +39,7 @@ munitions, le pétrole et le charbon. Les rayons : `OUTPOST_REACH_KM_BY_LEVEL` =
 
 Le client fonde toujours en `'relay'`, en dur (`src/routes/plateau.tsx`). On change ensuite par
 `respecialize` (`convex/movements.ts`) tant que le point n'est pas **scellé** :
-`specializationServed` (`convex/movement/forces.ts`) répond vrai dès qu'un mouvement de n'importe
+`outpostServed` (`convex/movement/forces.ts`) répond vrai dès qu'un mouvement de n'importe
 quel joueur est parti après la fondation en passant dans le rayon. Le même critère interdit le
 démantèlement (`OUTPOST_SERVING`, `outpostDismantleRefusalOf`, `src/domain/construction.ts`).
 
@@ -90,10 +92,13 @@ trois. (Q4, Q5) Chacune ajoute à ce que fait le généraliste ; aucune ne retir
 
 | Spécialisation | Ce qu'elle fait | Chiffres (`@a-mesurer`) |
 |---|---|---|
-| **Magasin** | Dépôt doublé, et ravitaille au passage (§4) | 800 au niveau 2, 1 200 au niveau 3 |
+| **Magasin** | Dépôt doublé, et ravitaille au passage (§4) | 1 600 au niveau 2, 2 400 au niveau 3 |
 | **Guet** | Vigie au rayon entier, et ses relevés livrent la composition (§5) | 180 km au niveau 2, 240 au niveau 3 |
 | **Fort** | Ralentit les colonnes adverses dans le rayon de sa vigie (§6) | ×1,5 sur la durée, dans 90 ou 120 km |
 
+- **Erratum (01/11)** : la capacité du Magasin vaut `depotCapacity(level)` × 2, soit
+  400 × niveau × 2 : 1 600 au niveau 2 et 2 400 au niveau 3. La première ligne du tableau
+  écrivait 800 et 1 200, la capacité du généraliste. #371 code cette capacité.
 - **« Magasin », pas « Entrepôt »** : l'entrepôt est déjà le seul stockage national
   (`WWS/CONTEXT.md`), et un refus qui dit « entrepôt plein » doit désigner une seule chose. (01/11)
 - **Une spécialisation est ce que fait le bâtiment, pas un bonus.** La règle 1 vaut pour les
@@ -150,7 +155,7 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
   Fort ne retient donc que ce qu'il voit.
 - **Il retient sur terre et sur mer, pas dans l'air** : un vol passe au-dessus. La part retenue se
   lit sur les tronçons de terre et de mer de la route, par le même échantillonnage que les
-  liaisons (`relayedShare`). (01/11 ; voir « Écart au code », 1)
+  liaisons (`relayedShare`). (01/11 ; voir « L'air sous une liaison »)
 - **Elle le découvre en route** : son arrivée, chiffrée au départ sans le Fort, est rechiffrée
   quand elle entre dans le rayon, et une dépêche le lui dit. (Q11)
 - **Le propriétaire reçoit une dépêche** quand son Fort retient une colonne. (Q15)
@@ -166,8 +171,15 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
   (dépôt simple, vigie à mi-rayon, liaisons). Le dépôt d'un Magasin qui change garde son surplus
   au-delà de la capacité simple, et **rien n'y entre tant qu'il dépasse** : un changement de
   spécialisation ne doit rien brûler. (Q13, 01/11)
-- **Le scellement disparaît** : `SPECIALIZATION_SEALED`, `specializationLocked` et le blocage de
-  `respecialize` partent. (Q13)
+- **L'effet se coupe au départ du chantier, pas à sa mise en file** : une ligne en file est une
+  promesse qui s'annule et se rembourse ; un Guet qui part en chantier guette à mi-rayon dès ce
+  départ. (Pierre, 01/11)
+- **Un point spécialisé capturé garde son métier chez le preneur**, comme son niveau et son dépôt ;
+  un changement en cours est annulé et l'ancien métier reste ; les liaisons se recalculent, la
+  ronde s'arrête. (Pierre, 01/11)
+- **Le scellement disparaît** : `SPECIALIZATION_SEALED` et le blocage de `respecialize` partent ;
+  `specializationLocked` est **renommé `serving`**, puisqu'il ne garde plus que le démantèlement
+  (`outpostServed`, `convex/movement/forces.ts`). (Q13, #371)
 - **Le démantèlement garde sa garde** : `OUTPOST_SERVING` reste, sur le critère d'aujourd'hui
   (un mouvement est passé dans le rayon depuis la fondation). (Q13)
 
@@ -179,8 +191,8 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
   ne dit pas « relié », qui nomme un bâtiment dont la région porte sa couleur. (01/11)
 - **L'accélération du relais passe aux liaisons** : un mouvement du propriétaire va **÷1,5**
   (`RELAY_SPEED_MULTIPLIER`, `@a-mesurer`) sur la part de sa route qui passe **dans le rayon d'un
-  avant-poste en liaison**, sur les mêmes tronçons que l'ancien relais (`relayedCostUnits`).
-  (Q6, Q14, Q16) La règle ne dépend pas de la forme du réseau : un point en liaison avec un seul
+  avant-poste en liaison**, sur la terre et la mer, transbordements exceptés, jamais dans l'air
+  (`relayedCostUnits` ; voir « L'air sous une liaison »). (Q6, Q14, Q16) La règle ne dépend pas de la forme du réseau : un point en liaison avec un seul
   voisin accélère autant qu'un nœud. Un point seul n'accélère rien.
 - Chiffrée au départ, comme aujourd'hui (ADR 0018 §3).
 - **Le dessin est épuré, la règle ne l'est pas** (Q16) : la carte trace les liaisons sans le
@@ -244,6 +256,8 @@ n'est utile.
 Un point d'avant la refonte se lit généraliste. **Celui qui est déjà au niveau 2 ou 3 choisit sa
 spécialisation une fois, sans chantier ni acier**, et agit en généraliste jusque-là : il a déjà
 payé son élévation, et c'est le seul cas où un niveau 2 sans spécialisation existe. (01/11)
+**Ce point ancien monte au niveau 3 sans choisir**, et le choix gratuit lui reste ouvert ensuite.
+(Pierre, 01/11)
 
 ## Conséquences
 
@@ -271,13 +285,14 @@ payé son élévation, et c'est le seul cas où un niveau 2 sans spécialisation
   `src/routes/-plateau/GarrisonPanel.tsx`, `src/domain/compass-works.ts` et les seeds de
   `convex/dev.ts` (dix `'relay'`).
 
-## Écart au code, non tranché
+## L'air sous une liaison (tranché le 01/11)
 
-1. **Le relais accélère aussi l'air.** `relayedCostUnits` divise tous les tronçons que compte
-   `legCost` (`src/domain/route-timing.ts:46`), air compris, et `pacedMinutes` chiffre aussi les
-   vols (`convex/movement/orders.ts:908`). Le §8 garde « les mêmes tronçons que l'ancien relais »,
-   donc l'air, quand le §6 retire l'air au Fort au nom d'une règle symétrique. Reste à dire si les
-   liaisons accélèrent les vols ; #370 ne change pas ce comportement sans réponse.
+**Les liaisons n'accélèrent que la terre et la mer, jamais un vol** (Pierre, 01/11). Le relais
+divisait tous les tronçons que compte `legCost`, air compris, et `pacedMinutes` chiffre aussi les
+vols ; le §8 aurait gardé l'air quand le §6 le retire au Fort. `relayedCostUnits`
+(`src/domain/route-timing.ts`) ne divise plus que les tronçons de terre et de mer : un vol garde
+sa durée pleine. Registre :
+`pierre-2026-11-01-liaisons-sans-air`.
 
 ## Ce qu'on abandonne
 
