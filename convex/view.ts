@@ -347,10 +347,15 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   //
   // A garrison is left out: it is reported on its outpost's own line, and counting it here
   // too would show the same column twice in the inventory — once at home, once in Arabia.
+  //
+  // A troop inside a running movement is in transit, never present: `marching` is the set the
+  // arcs of the view are made of.
   const armyPresent: Record<string, number> = {};
+  const armyInTransit: Record<string, number> = {};
   for (const troop of troops) {
     if (stationOf(troop).kind === 'outpost') continue;
-    armyPresent[troop.role] = (armyPresent[troop.role] ?? 0) + 1;
+    const count = marching.has(troop._id) ? armyInTransit : armyPresent;
+    count[troop.role] = (count[troop.role] ?? 0) + 1;
   }
 
   const buildCatalog = Object.fromEntries(
@@ -665,6 +670,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           ...specialtyOfWork(entry),
         })),
       armyPresent,
+      armyInTransit,
       /**
        * What the army costs to hold, and how much of it is standing where nobody feeds it
        * (ADR 0019 §4). The food rate in `resources` is already net of `foodPerHour`; this is
@@ -953,9 +959,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           landCost: movement.landCost,
           /** Une colonne partie d'un point n'a pas de caserne : elle se nomme par la région et le
            *  pays de ce point, et non par le pays d'arrivée, que ce repli écrivait faute de mieux. */
-          originCountry: origin?.country ?? hostAtPoint(departurePoint),
           originName: origin?.name ?? regionNameAt(departurePoint) ?? hostAtPoint(departurePoint),
-          destinationCountry: movement.hostCountry,
           /** Une marche vers un point nu prend le nom de la région sous lui, et le code du pays
            *  seulement en mer — un code que le client traduit (ADR 0016). */
           destinationName:

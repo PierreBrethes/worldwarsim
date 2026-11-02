@@ -1,10 +1,18 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
-import { carryCapacityOf, trimLootToCapacity, type ResourceAmounts } from '../src/domain/loot';
+import {
+  amountTotal,
+  carryCapacityOf,
+  difference,
+  emptyAmounts,
+  hasLoot,
+  trimLootToCapacity,
+  type ResourceAmounts,
+} from '../src/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE } from './constants';
 import { materializeRecoveryRemainder } from './crateStock';
-import type { TroopAddress } from './movement/forces';
+import { sameStation, type TroopAddress } from './movement/forces';
 import { creditToStorage } from './resources';
 import { planCargoReturn, startCargoReturn } from './movement/cargoReturn';
 import { hostAtPoint } from './routes';
@@ -50,29 +58,14 @@ export type CombatCargoSettlement = {
   readonly destroyed: ReadonlyArray<CombatCargoSnapshot>;
 };
 
-const emptyAmounts = (): Record<ResourceKey, number> =>
-  Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
-
 const addAmounts = (left: ResourceAmounts, right: ResourceAmounts): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, left[key] + right[key]])) as Record<
     ResourceKey,
     number
   >;
 
-const difference = (before: ResourceAmounts, after: ResourceAmounts): Record<ResourceKey, number> =>
-  Object.fromEntries(
-    RESOURCES.map((key) => [key, Math.max(0, before[key] - after[key])]),
-  ) as Record<ResourceKey, number>;
-
-const hasLoot = (loot: ResourceAmounts): boolean => RESOURCES.some((key) => loot[key] > 0);
 const sameAmounts = (left: ResourceAmounts, right: ResourceAmounts): boolean =>
   RESOURCES.every((key) => left[key] === right[key]);
-
-const sameStation = (left: TroopAddress, right: TroopAddress): boolean => {
-  if (left === null || right === null) return left === right;
-  if (typeof left === 'string' || typeof right === 'string') return left === right;
-  return left.lon === right.lon && left.lat === right.lat;
-};
 
 export const cargoTotal = (loads: ReadonlyArray<CargoLoad>): Record<ResourceKey, number> =>
   loads.reduce((total, load) => addAmounts(total, load.loot), emptyAmounts());
@@ -212,7 +205,7 @@ async function addCargoLoss(ctx: MutationCtx, load: CargoLoad, lost: ResourceAmo
   }
 }
 
-const capacityOf = (troops: ReadonlyArray<Doc<'troops'>>): number =>
+export const capacityOf = (troops: ReadonlyArray<Doc<'troops'>>): number =>
   carryCapacityOf(
     troops.map((troop) => ({
       role: troop.role,
@@ -665,9 +658,6 @@ type RecoveryCarrierGroup = {
   readonly movement?: Doc<'movements'>;
   readonly stationedAt?: TroopAddress;
 };
-
-const amountTotal = (amounts: ResourceAmounts): number =>
-  RESOURCES.reduce((sum, key) => sum + amounts[key], 0);
 
 async function recoveryCarrierGroups(
   ctx: MutationCtx,

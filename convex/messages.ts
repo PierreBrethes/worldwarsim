@@ -13,7 +13,7 @@ import { fail } from './errors';
 import { notifyPlayer } from './notifications';
 import { telegraphUrl, push } from '../src/domain/push';
 import { readMarksOf, stampReadMark } from './readMarks';
-import { playerOf, seatsOf } from './seats';
+import { everySeatOf, playerOf, seatsOf } from './seats';
 
 /**
  * **On se chambre aussi en attendant le lancement.** The channel opens with the lobby and closes
@@ -102,10 +102,7 @@ export const recent = query({
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     const thread = isLobby(season) ? true : undefined;
-    const seats = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
-      .collect();
+    const seats = await everySeatOf(ctx, season._id);
     const byId = new Map(seats.map((seat) => [seat._id, seat]));
     const marks = await readMarksOf(ctx, player);
 

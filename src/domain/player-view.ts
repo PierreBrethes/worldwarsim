@@ -84,8 +84,6 @@ export type ArcView =
       // country on the map. `…Label` is what gets printed, in French. Both exist because
       // Natural Earth has no translations while the screen is French; mixing them up would
       // put "United Kingdom" back on a card.
-      readonly originCountry: string;
-      readonly destinationCountry: string;
       readonly originLabel: string;
       readonly destinationLabel: string;
       readonly type: MovementType;
@@ -515,7 +513,7 @@ type UpkeepView = {
  * outpost (ADR 0020 §10). The two forms are exclusive in a single field, so nothing here needs
  * a tag: a site is an outpost or it is home, and there is no third answer.
  */
-export type SiteRef = { readonly outpostId: string | null };
+type SiteRef = { readonly outpostId: string | null };
 
 export type Resource = {
   readonly stock: number;

@@ -1,89 +1,30 @@
-import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { THEATRES, theatreById } from '../src/domain/theatres';
-import { blitzMapRulesOf } from '../src/domain/blitz-placement';
 import { BLITZ, CAPTURE_MINUTES } from './constants';
 import { captureAimOf } from './movement/orders';
-import { pointOfBuilding, regionFacts } from './regions';
-import { routeKmFrom } from './routes';
-import { regionAtRoutePoint } from './regionGeometry';
+import { pointOfBuilding } from './regions';
 import { surveyFromPoint } from './surveys';
-import schema from './schema';
-import { modules } from './test.setup';
-import { joinSeat, seatIn, signIn, TEST_SEASON_SEED, type Seat } from './seats.fixture';
+import { THEATRES } from '../src/domain/theatres';
+import { joinSeat, signIn, type Seat } from './seats.fixture';
+import {
+  boot,
+  buildingsOf,
+  type Bench,
+  blitzLaunchedOn,
+  MIDDAY,
+  NATIONS,
+  neutralOf,
+  playerOf,
+  troopsOf,
+} from './blitz.fixture';
 
-const boot = () => convexTest({ schema, modules, transactionLimits: true });
-/** La pose mesure des routes sur la grille : quelques secondes sous `convex-test`. */
-vi.setConfig({ testTimeout: 30_000 });
-type Bench = ReturnType<typeof boot>;
-const MIDDAY = Date.UTC(2026, 9, 14, 12);
 const MINUTE = 60_000;
-
-const NATIONS = ['france', 'ussr', 'japan', 'usa'] as const;
-/** Les graines du plafond de chaque théâtre (T1) : un plafond tient sur les six, ou il descend. */
-const SIX_SEEDS = [7919, 15838, 23757, 31676, 39595, 47514];
-
-async function blitzLaunchedOn(
-  t: Bench,
-  theatre: string,
-  players: number,
-  seed = TEST_SEASON_SEED,
-) {
-  const token = await signIn(t, 'Pierre');
-  const { code, seasonId } = await t.mutation(api.seasons.create, {
-    token,
-    compensation: 0.5,
-    mode: 'blitz',
-    theatre,
-  });
-  await t.run((ctx) => ctx.db.patch(seasonId, { seed }));
-  const seat: Seat = { token, seasonId };
-  const seats = [seat];
-  for (let rank = 1; rank < players; rank += 1) {
-    seats.push(await joinSeat(t, code, `Joueur ${String(rank)}`));
-  }
-  for (const [rank, who] of seats.entries()) {
-    await t.mutation(api.players.reserveNation, { ...who, nation: NATIONS[rank]! });
-    await t.mutation(api.players.declareReady, { ...who, ready: true });
-  }
-  await t.mutation(api.seasons.launch, seat);
-  await t.action(internal.blitz.place, { seasonId });
-  return seats;
-}
 
 async function blitzLaunched(t: Bench) {
   const [seat, guest] = await blitzLaunchedOn(t, 'europe', 2);
   return { seat: seat!, guest: guest! };
 }
-
-const playerOf = (t: Bench, seat: Seat) => t.run((ctx) => seatIn(ctx, seat));
-
-const buildingsOf = (t: Bench, playerId: Id<'players'>) =>
-  t.run((ctx) =>
-    ctx.db
-      .query('buildings')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect(),
-  );
-
-const troopsOf = (t: Bench, playerId: Id<'players'>) =>
-  t.run((ctx) =>
-    ctx.db
-      .query('troops')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect(),
-  );
-
-const neutralOf = (t: Bench, seasonId: Id<'seasons'>) =>
-  t.run(async (ctx) => {
-    const seats = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-      .collect();
-    return seats.find((candidate) => candidate.irregular === true)!;
-  });
 
 /** Sort la garnison d'un bâtiment à quelques kilomètres : il redevient libre (U6). */
 const vacate = (t: Bench, building: { _id: Id<'buildings'>; regionId: string; point?: unknown }) =>
@@ -101,6 +42,14 @@ const vacate = (t: Bench, building: { _id: Id<'buildings'>; regionId: string; po
 
 const fundsServed = async (t: Bench, seat: Seat) =>
   (await t.query(api.view.playerView, seat)).me.funds;
+
+/** Each theatre is posed in its own `blitz-<id>.test.ts`, so vitest runs them side by side. */
+it('pose chaque théâtre dans son propre fichier', () => {
+  const posed = Object.keys(import.meta.glob('./blitz-*.test.ts')).map((path) =>
+    path.slice('./blitz-'.length, -'.test.ts'.length),
+  );
+  expect(posed.sort()).toEqual(THEATRES.map((theatre) => theatre.id).sort());
+});
 
 describe('la carte de départ de la Blitz', () => {
   beforeEach(() => {
@@ -225,84 +174,6 @@ describe('la carte de départ de la Blitz', () => {
     expect(view.me.foundation).toEqual([]);
     expect(Object.values(view.me.resources).every((resource) => resource.stock === 0)).toBe(true);
   });
-});
-
-describe('la carte de départ, théâtre par théâtre', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(MIDDAY);
-  });
-  afterEach(() => vi.useRealTimers());
-
-  /** **Chaque théâtre se pose à son plafond, sur six graines** (T1) ; mesuré le 14/10 après A2
-   *  (distances en part du théâtre, QG tirés sur la terre) : le Pacifique à 4 échoue sur les six,
-   *  d'où les fourchettes de `THEATRES`. */
-  for (const { id: theatre, players: range } of THEATRES) {
-    it(`se pose sur six graines à son plafond — ${theatre} à ${String(range.max)}`, async () => {
-      const refused = [];
-      const astray: string[] = [];
-      for (const seed of SIX_SEEDS) {
-        const t = boot();
-        const [seat] = await blitzLaunchedOn(t, theatre, range.max, seed);
-        const season = (await t.run((ctx) => ctx.db.get(seat!.seasonId)))!;
-        if (season.status !== 'launched') refused.push(seed);
-        /** **Un port est dans sa région** : son quai est lu sur la grille, chez elle. */
-        const ports = await t.run((ctx) =>
-          ctx.db
-            .query('buildings')
-            .withIndex('bySeason', (q) => q.eq('seasonId', seat!.seasonId))
-            .filter((q) => q.eq(q.field('key'), 'port'))
-            .collect(),
-        );
-        for (const port of ports) {
-          const at = regionAtRoutePoint([port.point!.lon, port.point!.lat]);
-          if (at !== port.regionId) astray.push(`${String(seed)} ${port.regionId} → ${String(at)}`);
-        }
-      }
-      expect(refused).toEqual([]);
-      expect(astray).toEqual([]);
-    }, 180_000);
-
-    const players = range.max;
-    it(`pose à pied dans la tolérance — ${theatre} à ${String(players)}`, async () => {
-      const t = boot();
-      const seats = await blitzLaunchedOn(t, theatre, players);
-      const season = (await t.run((ctx) => ctx.db.get(seats[0]!.seasonId)))!;
-      expect(season.status).toBe('launched');
-      const neutral = await neutralOf(t, season._id);
-      const neutrals = await buildingsOf(t, neutral._id);
-      const ports = neutrals.filter((building) => building.key === 'port');
-      expect(ports.length).toBeGreaterThanOrEqual(players);
-      for (const port of ports) expect(port.point).toBeDefined();
-      for (const who of seats) {
-        const me = await playerOf(t, who);
-        const held = await buildingsOf(t, me._id);
-        const hq = held.find((building) => building.key === 'hq')!;
-        const others = [...held.filter((building) => building.key !== 'hq'), ...neutrals];
-        const onFoot = routeKmFrom(
-          pointOfBuilding(hq)!,
-          others.map((building) => ({
-            id: building._id as string,
-            point: regionFacts(building.regionId)!.point,
-          })),
-          'land',
-        );
-        const barracks = held.find((building) => building.key === 'barracks')!;
-        const rules = blitzMapRulesOf(theatreById(theatre)!, BLITZ.map);
-        const target = rules.starting[0]!.km;
-        expect(Math.abs(onFoot.get(barracks._id)! - target)).toBeLessThanOrEqual(
-          target * BLITZ.map.tolerance,
-        );
-        const cities = neutrals.filter(
-          (building) =>
-            building.key === 'city' &&
-            Math.abs((onFoot.get(building._id) ?? Infinity) - rules.near[0]!.km) <=
-              rules.near[0]!.km * BLITZ.map.tolerance,
-        );
-        expect(cities.length).toBeGreaterThan(0);
-      }
-    });
-  }
 });
 
 describe('les fonds de la Blitz', () => {

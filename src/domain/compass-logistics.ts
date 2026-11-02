@@ -253,7 +253,7 @@ export function boardingAt(
 
 /** **Le mouvement d'embarquement que la règle lit** : mes coques hors bord, le transport visé, la
  *  pile où il se tient, et si l'on est à l'aérodrome. */
-export function boardingOf(
+function boardingOf(
   buildings: PlayerView['me']['buildings'],
   station: TroopStation,
   carrier: TroopView,

@@ -40,8 +40,6 @@ const answer = (loadedAt: number): ServerView =>
       {
         ...thread,
         id: 'mine',
-        originCountry: 'France',
-        destinationCountry: 'France',
         originName: 'Paris',
         destinationName: 'Lyon',
         type: 'march',

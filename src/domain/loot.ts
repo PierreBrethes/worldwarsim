@@ -20,8 +20,21 @@ export function carryCapacityOf(
   }, 0);
 }
 
-const emptyAmounts = (): Record<ResourceKey, number> =>
+export const emptyAmounts = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
+
+export const difference = (
+  before: ResourceAmounts,
+  after: ResourceAmounts,
+): Record<ResourceKey, number> =>
+  Object.fromEntries(
+    RESOURCES.map((key) => [key, Math.max(0, before[key] - after[key])]),
+  ) as Record<ResourceKey, number>;
+
+export const hasLoot = (loot: ResourceAmounts): boolean => RESOURCES.some((key) => loot[key] > 0);
+
+export const amountTotal = (amounts: ResourceAmounts): number =>
+  RESOURCES.reduce((sum, key) => sum + amounts[key], 0);
 
 /**
  * Shares one total limit without rounding each resource independently. The last positive entry

@@ -1024,8 +1024,6 @@ export const fr = {
   common: {
     close: 'fermer',
     noNation: 'sans nation',
-    players: (count: number) => `${count} joueur${plural(count, '', 's')}`,
-    slot: '1 slot',
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
     levelShort: (level: number) => `niv ${level}`,
@@ -2077,8 +2075,6 @@ export const fr = {
             ? ' Halifax : un mouvement maritime en vol ne compte pas.'
             : ' Halifax : votre premier mouvement maritime ne prendra pas de slot.'
       }`,
-    counter: (label: string, stock: number, cap: number, rate: number) =>
-      `${label} — ${stock} / ${cap} · ${rate >= 0 ? '+' : ''}${Math.round(rate)}/h`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
     site: 'chantier',
     siteTitle: (name: string, region: string) => `${name} — ${region}`,
@@ -2116,7 +2112,6 @@ export const fr = {
    */
   ledger: {
     title: (resource: string) => `Registre : ${resource}`,
-    pin: (resource: string) => `Épingler le registre : ${resource}`,
     unpin: 'Décrocher',
     production: 'Production',
     consumption: 'Consommation',
@@ -2242,7 +2237,7 @@ export const fr = {
     /** L'onglet « prod. » est mort avec la fenêtre Production (59a) ; l'abaque prend sa place
      *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
     gunnery: { title: 'Abaque de tir — qui bat qui', label: 'abaque' },
-    research: { title: 'Centre de recherche — l’arbre des cartes', label: 'rech.' },
+    research: { title: 'Centre de recherche — l’arbre des cartes' },
     nation: { title: 'Ma nation — fiche de lecture', label: 'nation' },
     press: { title: 'Presse — le classement au dernier relevé', label: 'presse' },
     telegraph: { title: 'Télégraphe — canal général de la saison', label: 'télég.' },
@@ -2444,7 +2439,6 @@ export const fr = {
       ].filter((piece): piece is string => piece !== null);
       return `${opening} — ${forces} ${toll} · ${after.join(' · ')}`;
     },
-    disabledUntil: (time: string) => `désactivé — retour à ${time}`,
     beats: combatBeats,
     faced: facedWords,
     facedNation,
@@ -2562,8 +2556,6 @@ export const fr = {
     captured: 'capturé',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
     finished: 'achevé',
-    /** Une force relevée dont le brouillard n'a pas rendu la composition (fiche 04). */
-    unidentified: 'non identifié',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */
     seasonClosed: 'saison close',
     /** Au bandeau, pour celui qui a déposé les armes. À l'encre du support et non au rouge : la
@@ -2872,7 +2864,6 @@ export const fr = {
   supplies: {
     rounds: 'coups',
     fuel: 'plein',
-    steps: (count: number) => `${count} cran${plural(count, '', 's')}`,
     roundsTitle: (held: number, full: number) =>
       `Coups : ${held} sur ${full} — un cran par passe tirée ; à sec, ni attaque ni riposte`,
     fuelTitle: (held: number, full: number, km: number, coal: boolean) =>
@@ -2902,7 +2893,6 @@ export const fr = {
   logistics: {
     chargeTitle: (said: string, total: number, capacity: number) =>
       `${said === '' ? 'Vide' : said} — ${total} sur ${capacity}, une seule charge partagée`,
-    depot: 'Dépôt',
     dropOnTransport: 'Lâchez les jetons sur un camion, un cargo ou un avion de transport',
     fromDepot: 'À un avant-poste, le transport se charge à son dépôt : glissez depuis le dépôt',
     atThisDepot: 'Ce dépôt charge les transports qui se tiennent à son point',
@@ -3367,9 +3357,6 @@ export const fr = {
      */
     relayed: (multiplier: number, span: string) =>
       `×${decimal(multiplier, 1)} dans le rayon de vos liaisons — ${span} de gagné`,
-    /** Ce que l'expédition tient sur place avant de repartir : la seule durée du pillage que le
-     *  joueur décide, et elle se dit avant qu'il paie le slot. */
-    capture: (duration: string) => `capture — ${duration} à la force de la pile`,
     /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
      *  et c'est le sujet. */
     /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */
@@ -3582,7 +3569,6 @@ export const fr = {
   },
 
   production: {
-    header: 'production',
     opening: 'Ouverture du site…',
     domains: { land: 'terre', air: 'air', sea: 'mer' },
     queueHeader: 'files de production',
@@ -3837,12 +3823,10 @@ export const fr = {
             ? ''
             : ` — le plus proche : ${nearest.place}, ${Math.round(nearest.km / 10) * 10} km`
         }`,
-      free: 'à poser — choisissez la clé, puis visez un lieu sur la carte',
     },
 
     /** The lot, in its four readings: awaiting an order, being sized, running, delivered. */
     lot: {
-      awaiting: 'en attente d’ordre',
       keepsAvailable: (resource: string) =>
         `${startsWithVowel(resource) ? 'L’' : 'Le '}${resource} reste disponible pour les bâtiments et les troupes.`,
       commandsItself: 'se commande',
@@ -3856,7 +3840,6 @@ export const fr = {
       empty: 'un lot de zéro ne se lance pas — tirez la réglette',
       cancel: 'annuler le lot',
       close: 'refermer',
-      quantity: (output: string) => output,
       maxOf: (maximum: number, resource: string) => `max ${maximum} — le stock d’${resource}`,
       costs: 'coûte',
       costOf: (quantity: number, resource: string) => `${quantity} ${resource}`,
@@ -3917,8 +3900,6 @@ export const fr = {
      *  coup : rien d'affiché sans sa condition. */
     wants: {
       deposit: (deposits: ReadonlyArray<string>) => `gisement de ${deposits.join(' ou ')} requis`,
-      coastal: 'côte requise',
-      any: 'tout lieu tenu',
       home: 'n’importe où sur votre sol',
     },
   },
@@ -4491,9 +4472,6 @@ export const fr = {
       'Marche jusqu’à cette pile et s’y pose à son point exact : les deux n’en font plus qu’une.',
     /** **En Blitz, pas de groupe d'unités de combat** (règle de Pierre, 15/10). */
     noSquad: 'pas de groupe d’unités de combat — seul un transport en porte d’autres',
-    /** **Embarquer** (révision de l'ADR 0025, 15/10) : au point du transport, sur-le-champ et
-     *  sans slot ; de plus loin, une marche qui monte à bord en arrivant. */
-    board: 'embarquer',
     boardOnto: (transport: string) => `embarquer · ${transport}`,
     boardNow: 'immédiat · sans slot',
     boardOnArrival: 'Marche jusqu’au transport et monte à bord en arrivant, s’il y est encore.',
@@ -4719,7 +4697,6 @@ export const fr = {
     route: (from: string, to: string) => `${from} → ${to}`,
     site: (region: string) => `site · ${region}`,
     building: (name: string, level: number) => `${name}, niv. ${level}`,
-    perHour: (amount: string) => `+${amount} / h`,
     network: 'réseau',
     linked: 'relié',
     /** **Le mode chantier** : le nom, le niveau, le reste et la barre ne se lisent qu'ici. */
