@@ -8,8 +8,14 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
-import { drawnLiaisonsOf, effectiveSpecialty, isOnWatch, lookoutKmOf } from '@/domain/outposts';
-import { holdsPatrolTroop, outpostNameIn, patrolLineOf, withoutPatrols } from '@/domain/patrol';
+import { effectiveSpecialty, isOnWatch, lookoutKmOf } from '@/domain/outposts';
+import {
+  drawnLiaisonsIn,
+  holdsPatrolTroop,
+  outpostNameIn,
+  patrolLineOf,
+  withoutPatrols,
+} from '@/domain/patrol';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
@@ -1472,8 +1478,9 @@ function BoardContent({
       lookoutKm: silent ? null : lookoutKmOf(outpost),
       wholeLookout: effectiveSpecialty(outpost) === 'lookout',
     }));
-    const liaisons = drawnLiaisonsOf(
-      points.map(({ id, lonLat, reachKm }) => ({ id, point: lonLat, reachKm })),
+    const station = (outpostId: string) => stationKeyOf({ kind: 'outpost', outpostId });
+    const liaisons = drawnLiaisonsIn({ outposts: view.me.outposts }).map(
+      ([a, b]) => [station(a), station(b)] as [string, string],
     );
     return { points, liaisons };
   }, [blitz, view.me.outposts, view.me.upkeep.listeningSilent]);

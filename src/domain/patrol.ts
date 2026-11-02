@@ -8,7 +8,7 @@ export type Liaison = readonly [string, string];
 
 /** **Les liaisons que ma carte trace** (#375) : mes points en service, l'épure de
  *  `drawnLiaisonsOf` — celles où une ronde peut tourner (#376). */
-const drawnLiaisonsIn = (me: PlayerView['me']): Liaison[] =>
+export const drawnLiaisonsIn = (me: Pick<PlayerView['me'], 'outposts'>): Liaison[] =>
   drawnLiaisonsOf(
     me.outposts.filter(isOnWatch).map((outpost) => ({
       id: outpost.id,
