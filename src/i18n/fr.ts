@@ -3020,6 +3020,22 @@ export const fr = {
         ? `attend sa route à ${here} · nouvel essai à ${at}`
         : `halte à ${here} jusqu’à ${at}`;
     },
+    /** Sa ligne dans la garnison de son point : la halte s'y lit, le point va de soi. */
+    inGarrison: ({
+      haltUntil,
+      waiting,
+    }: {
+      readonly haltUntil: number | null;
+      readonly waiting: 'road' | null;
+    }): string => {
+      if (haltUntil === null) return 'en ronde';
+      const at = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(
+        new Date(haltUntil),
+      );
+      return waiting === 'road'
+        ? `en ronde · attend sa route · nouvel essai à ${at}`
+        : `en ronde · halte jusqu’à ${at}`;
+    },
   },
   troops: {
     atHome: 'à domicile',

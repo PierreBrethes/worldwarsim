@@ -204,6 +204,7 @@ export function GarrisonStack({
                   {carrier === null && (
                     <Upkeep troop={troop} blitz={view.mode === 'blitz'} rate={stepRate} />
                   )}
+                  <PatrolLine troop={troop} />
                   <span className="block text-[10.5px] text-[var(--ink-soft)]">
                     <SupplyPictos supplies={pileSupplies([troop])} />
                   </span>
@@ -412,6 +413,16 @@ function RoleShortcuts({
   );
 }
 
+/** **Une ronde en halte se dit sur sa ligne** (#376) : la garnison ne la montre pas ordinaire. */
+function PatrolLine({ troop }: { troop: TroopView }) {
+  if (troop.patrol === undefined) return null;
+  return (
+    <span className="block text-[11px] font-semibold text-[var(--ink)]">
+      {fr.patrol.inGarrison(troop.patrol)}
+    </span>
+  );
+}
+
 /**
  * **Une pile se compose en cartes qu'on coche d'un toucher** (refonte mobile, 1e) : deux par
  * ligne, la planche, le rôle et sa marque, l'entretien, l'effectif sur sa barre et la case au
@@ -458,6 +469,7 @@ function TroopCards({
               <span className="text-[14.5px] leading-[1.1] font-bold break-words hyphens-auto">
                 {`${roleLabel(troop.role, 1)} · ${tierLabel(troop.tier)}`}
               </span>
+              <PatrolLine troop={troop} />
               {carrier === null ? (
                 <Upkeep troop={troop} blitz={blitz} rate={upkeepRate} />
               ) : (
