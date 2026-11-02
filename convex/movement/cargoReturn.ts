@@ -7,6 +7,7 @@ import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
 import { heldOver } from '../holding';
 import { allRegions, regionFacts } from '../regions';
 import { routeToRegions } from '../routes';
+import { storesCrossed } from '../supplies';
 import { asPoint } from './forces';
 import { pacedMinutes } from './pace';
 
@@ -127,6 +128,7 @@ export async function startCargoReturn(
     lootDelivery: { regionId: plan.regionId, point: plan.point },
     ...cargoFields,
   });
+  await storesCrossed(ctx, movementId);
   /** Le plein de Bakou se recompte depuis l'arrivée du retour. */
   for (const troopId of troopIds) await ctx.db.patch(troopId, { fuelAt: arrivesAt });
   await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });

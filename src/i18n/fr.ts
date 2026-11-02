@@ -139,6 +139,14 @@ type RefusalContext = {
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
 
+/** **Ce qu'un Magasin verse en passant**, en crans (ADR 0037 §4) ; `null` quand rien. */
+const resupplyWords = (rounds: number, fuel: number): string | null => {
+  const steps = (count: number) => `${count} cran${plural(count, '', 's')}`;
+  if (rounds > 0 && fuel > 0) return `${steps(rounds)} de coups et ${fuel} de plein`;
+  if (rounds > 0) return `${steps(rounds)} de coups`;
+  return fuel > 0 ? `${steps(fuel)} de plein` : null;
+};
+
 /** **Dakar** : ce que le pillage laisse par ressource chez son teneur — la phrase de la rose, de
  *  l'aperçu et de la dépêche du pillé. */
 const sparedAtDakarWords = (spared: number): string =>
@@ -2704,6 +2712,31 @@ export const fr = {
           return `Une colonne de ${column} a reflué sur ses arrières — ${country}.`;
         return `Une colonne de ${column} a pris position — ${country}.`;
       },
+      /** **Le Magasin traversé** (ADR 0037 §4) : ce qu'il a versé, ou pourquoi rien. */
+      storeResupplied: (
+        outcome: 'served' | 'short' | 'captured' | 'closed',
+        rounds: number,
+        fuel: number,
+        country: string,
+      ) => {
+        const taken = resupplyWords(rounds, fuel);
+        if (outcome === 'served')
+          return `Le Magasin — ${country} a ravitaillé la colonne au passage : ${taken}.`;
+        if (outcome === 'short')
+          return taken === null
+            ? `Le Magasin — ${country} était à sec : la colonne n’y a rien repris.`
+            : `Le Magasin — ${country} s’est vidé : la colonne n’y a repris que ${taken}.`;
+        return outcome === 'captured'
+          ? `Le Magasin — ${country} a été capturé pendant la marche : la colonne n’y a rien repris.`
+          : `Le Magasin — ${country} était hors service au passage : la colonne n’y a rien repris.`;
+      },
+      /** **Le Fort adverse retient sans bloquer** (ADR 0037 §6) : l'attaquant sait où il est
+       *  entré et quand il arrivera, jamais où se tient le Fort. */
+      fortSlowed: (country: string, arrival: string) =>
+        `Une colonne a été ralentie par un fort — ${country} : arrivée repoussée à ${arrival}.`,
+      /** **Notre Fort a retenu une colonne** : le relevé de l'entrée, et l'heure rechiffrée. */
+      fortHeld: (country: string, cardinal: string, arrival: string) =>
+        `Notre fort a retenu une colonne inconnue — ${country}, cap ${cardinal} : arrivée estimée à ${arrival}.`,
       /** L'adresse en toutes lettres (décision 64b) : « a pris position — France » ne dirait
        *  pas quel port tient maintenant l'infanterie que le cargo attend. */
       garrisonEntered: (troops: number, building: string, region: string) =>
@@ -3357,6 +3390,9 @@ export const fr = {
      */
     relayed: (multiplier: number, span: string) =>
       `×${decimal(multiplier, 1)} dans le rayon de vos liaisons — ${span} de gagné`,
+    /** **Ce que ses Magasins verseront en route** (ADR 0037 §4), à l'estimation du départ. */
+    storeResupply: (rounds: number, fuel: number) =>
+      `vos Magasins en route : ${resupplyWords(rounds, fuel) ?? ''}`,
     /** Une estimation depuis le relevé possédé, jamais un stock adverse : la caisse a pu bouger,
      *  et c'est le sujet. */
     /** L'initiative (B16), en tête du bloc qui dit ce que la cible rendra. */

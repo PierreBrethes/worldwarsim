@@ -195,6 +195,36 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    case 'storeResupplied':
+      return {
+        at: notice.at,
+        severity: notice.outcome === 'served' ? 'routine' : 'notable',
+        kind: 'column',
+        text: said.storeResupplied(
+          notice.outcome,
+          notice.rounds,
+          notice.fuel,
+          countryLabel(notice.hostCountry),
+        ),
+      };
+    case 'fortSlowed':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'column',
+        text: said.fortSlowed(countryLabel(notice.hostCountry), asLocalTime(notice.arrivesAt)),
+      };
+    case 'fortHeld':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'sighting',
+        text: said.fortHeld(
+          countryLabel(notice.hostCountry),
+          cardinalLabel(notice.headingDegrees),
+          asLocalTime(notice.arrivesAt),
+        ),
+      };
     case 'garrisonEntered':
       return {
         at: notice.at,

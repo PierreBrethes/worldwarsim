@@ -274,6 +274,7 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
       arrivesAt: movement.arrivesAt,
       heldAt: movement.heldAt,
       holdUntil: movement.holdUntil,
+      ...(movement.resumed === undefined ? {} : { resumed: movement.resumed }),
     },
   };
 }
@@ -342,6 +343,7 @@ function asDetectedArc(
     arrivesAt: seen.arrivesAt,
     seenTo: seen.seenTo,
     since: seen.seenFrom,
+    ...(seen.resumed === undefined ? {} : { resumed: seen.resumed }),
   };
 }
 

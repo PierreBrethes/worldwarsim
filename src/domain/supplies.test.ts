@@ -7,6 +7,7 @@ import {
   fuelRefusalOf,
   fuelStepsOf,
   outOfRounds,
+  passingResupply,
   pileSupplies,
   suppliesOf,
   topUp,
@@ -298,5 +299,83 @@ describe('who gets Baku’s steps back', () => {
     expect(bakuGainOf(tank, { ...idle, anchored: true }, 9 * day)).toBeNull();
     expect(bakuGainOf(tank, { ...idle, heldSince: null }, 9 * day)).toBeNull();
     expect(bakuGainOf({ ...tank, role: 'infantry' }, idle, 9 * day)).toBeNull();
+  });
+});
+
+describe('the resupply in passing at a Magasin (ADR 0037 §4)', () => {
+  /** A straight road along the equator, 445 km; the Magasin's reach covers 240 km of its middle. */
+  const road = (
+    minutes: number,
+    legs?: ReadonlyArray<{ medium: 'land' | 'sea' | 'air'; distanceUnits: number }>,
+  ) => ({
+    id: 'column',
+    points: [
+      [0, 0],
+      [4, 0],
+    ] as ReadonlyArray<readonly [number, number]>,
+    ...(legs === undefined ? {} : { legs, distanceUnits: 1 }),
+    departedAt: 0,
+    arrivesAt: minutes * 60_000,
+  });
+  const store = (id: string, depot = STOCKS) => ({
+    id,
+    point: [2, 0] as const,
+    reachKm: 120,
+    depot,
+  });
+  const column = [
+    { id: 'b', role: 'infantry' as const, rounds: 0 },
+    { id: 'a', role: 'infantry' as const, rounds: 0 },
+    { id: 'truck', role: 'landTransport' as const, fuel: 0 },
+  ];
+
+  it('pours two of each a minute spent in the reach, step by step, by identifier', () => {
+    // ~24 of the 44.5 minutes inside: 48 ammunition and 48 oil, four steps of each.
+    const [take] = passingResupply(road(44.5), [store('m')], column);
+    expect(take!.supplies.get('a')).toEqual({ rounds: 3, fuel: 0 });
+    expect(take!.supplies.get('b')).toEqual({ rounds: 1, fuel: 0 });
+    expect(take!.supplies.get('truck')).toEqual({ rounds: 0, fuel: 4 });
+    expect(take!.cost).toEqual({ ammunition: 40, oil: 40, coal: 0 });
+    expect(take!.short).toBe(false);
+  });
+
+  it('measures the reach in time: a slower crossing takes more', () => {
+    const [take] = passingResupply(road(15), [store('m')], column);
+    // ~8 minutes inside: 16 of each, one step.
+    expect(take!.cost).toEqual({ ammunition: 10, oil: 10, coal: 0 });
+  });
+
+  it('counts a minute once, at the nearest Magasin that covers it', () => {
+    const takes = passingResupply(road(44.5), [store('m'), store('n')], column);
+    const poured = takes.reduce((sum, take) => sum + take.cost.ammunition, 0);
+    expect(poured).toBe(40);
+  });
+
+  it('floors at the depot and says it ran short', () => {
+    const [take] = passingResupply(
+      road(44.5),
+      [store('m', { ammunition: 25, oil: 0, coal: 0 })],
+      column,
+    );
+    expect(take!.cost).toEqual({ ammunition: 20, oil: 0, coal: 0 });
+    expect(take!.short).toBe(true);
+  });
+
+  it('fills a ship with coal', () => {
+    const [take] = passingResupply(
+      road(44.5),
+      [store('m')],
+      [{ id: 'ship', role: 'cargo', fuel: 0 }],
+    );
+    expect(take!.cost).toEqual({ ammunition: 0, oil: 0, coal: 40 });
+  });
+
+  it('gives nothing to a flight that passes over', () => {
+    const takes = passingResupply(
+      road(44.5, [{ medium: 'air', distanceUnits: 1 }]),
+      [store('m')],
+      [{ id: 'plane', role: 'fighter', fuel: 0 }],
+    );
+    expect(takes.every((take) => take.cost.oil === 0)).toBe(true);
   });
 });

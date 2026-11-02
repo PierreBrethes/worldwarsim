@@ -59,6 +59,14 @@ export function distanceNotesOf(
     ...(preview.relayed > 0
       ? [{ text: fr.aim.relayed(RELAY_SPEED_MULTIPLIER, asSpan(preview.relayed)), alarm: false }]
       : []),
+    ...(preview.fuel.resupply.rounds + preview.fuel.resupply.fuel > 0
+      ? [
+          {
+            text: fr.aim.storeResupply(preview.fuel.resupply.rounds, preview.fuel.resupply.fuel),
+            alarm: false,
+          },
+        ]
+      : []),
   ];
 }
 

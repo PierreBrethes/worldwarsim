@@ -5,6 +5,7 @@ import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
 import type { VerdictReason } from './blitz';
 import type { LonLat } from './geo';
+import type { Resumed } from './interception';
 import type { Ground } from './routing';
 import type { RunningResearch } from './research';
 import type { StrategicPointKey } from './strategic-points';
@@ -152,6 +153,8 @@ export type ArcView =
       readonly seenTo: number;
       /** L'instant de sa première observation, l'heure qu'il porte tant qu'il est en vue (H3). */
       readonly since: number;
+      /** **Retenue par un Fort dans la fenêtre** (ADR 0037 §6) : la reprise du tronçon vu. */
+      readonly resumed?: Resumed;
     }
   | {
       readonly state: 'lastKnown';
@@ -823,6 +826,30 @@ type NoticeBody =
       readonly movementType: 'march' | 'return';
       readonly hostCountry: string;
       readonly troops: number;
+    }
+  /** **Ce qu'un Magasin a versé à la colonne qui le traversait** (ADR 0037 §4), en crans. */
+  | {
+      readonly kind: 'storeResupplied';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly outcome: 'served' | 'short' | 'captured' | 'closed';
+      readonly rounds: number;
+      readonly fuel: number;
+    }
+  /** **Retenue par un Fort adverse** (ADR 0037 §6) : le point d'entrée, l'arrivée repoussée. */
+  | {
+      readonly kind: 'fortSlowed';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly arrivesAt: number;
+    }
+  /** **Notre Fort a retenu une colonne** (ADR 0037 §6) : le relevé, et l'arrivée rechiffrée. */
+  | {
+      readonly kind: 'fortHeld';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly headingDegrees: number;
+      readonly arrivesAt: number;
     }
   /** A march that ended inside one of the player's own buildings (decision 64b). */
   | {

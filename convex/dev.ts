@@ -562,11 +562,17 @@ export const arriveNow = internalMutation({
       .collect();
     const arrivesAt = Date.now() + (afterMs ?? 0);
     for (const movement of moving) {
-      if (onTime)
-        await ctx.db.patch(movement._id, {
-          arrivesAt,
-          departedAt: arrivesAt - (movement.arrivesAt - movement.departedAt),
-        });
+      /** `arrive` ne part pas avant l'heure (le Fort repousse une arrivée en route) : l'heure se
+       *  ramène, et une reprise glisse avec la route ou se perd avec elle. */
+      const shift = arrivesAt - movement.arrivesAt;
+      await ctx.db.patch(movement._id, {
+        arrivesAt,
+        ...(onTime ? { departedAt: movement.departedAt + shift } : {}),
+        resumed:
+          onTime && movement.resumed !== undefined
+            ? { ...movement.resumed, at: movement.resumed.at + shift }
+            : undefined,
+      });
       await ctx.scheduler.runAfter(afterMs ?? 0, internal.movements.arrive, {
         movementId: movement._id,
       });
@@ -1246,6 +1252,163 @@ export const specialtiesScene = internalMutation({
       await ctx.db.patch(row._id, { stock: 1000, updatedAt: now });
     await recordLinkage(ctx, player.seasonId);
     await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **La scène des Magasins** (#372), pour la démo : deux Magasins français de niveau 2, plein à
+ * Berne, presque vide à Innsbruck. Une pile à sec à Turin, d'où viser Stuttgart à travers Berne, et
+ * une à Vérone, d'où viser Nuremberg à travers Innsbruck : le chip dit ce qu'elles y reprendront.
+ * Deux colonnes à sec font ces deux routes et arrivent vingt secondes après la scène : le journal
+ * dit ce que chaque Magasin a versé, et le dépôt d'Innsbruck tombe à zéro.
+ *
+ * `npx convex run dev:storesScene '{"playerId":"…"}'`
+ */
+export const storesScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [lon, lat, hostCountry, depot] of [
+      [7.45, 46.95, 'CHE', { ammunition: 800, oil: 600, coal: 200 }],
+      [11.4, 47.27, 'AUT', { ammunition: 15, oil: 10, coal: 0 }],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 2,
+        specialty: 'store',
+        depot,
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    const dryPile = async (at: { lon: number; lat: number }) => {
+      const ids: Array<Id<'troops'>> = [];
+      for (const role of ['infantry', 'infantry', 'landTransport'] as const)
+        ids.push(
+          await ctx.db.insert('troops', {
+            seasonId: player.seasonId,
+            playerId,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: at,
+            rounds: 0,
+            fuel: role === 'landTransport' ? 3 : 0,
+          }),
+        );
+      return ids;
+    };
+    const routes = [
+      { from: { lon: 7.68, lat: 45.07 }, to: { lon: 9.18, lat: 48.78 } },
+      { from: { lon: 10.99, lat: 45.44 }, to: { lon: 11.08, lat: 49.45 } },
+    ];
+    for (const { from, to } of routes) {
+      await dryPile(from);
+      const { movementId, arrivesAt } = await march(ctx, {
+        playerId,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds: await dryPile(from),
+        aim: await aimOf(ctx, playerId, { kind: 'point', point: to }),
+      });
+      /** Partie il y a le temps de sa route, elle arrive tout de suite : la dépêche se lit à la
+       *  capture. Le rendez-vous d'origine trouvera la colonne déjà arrivée. */
+      const soon = now + 20_000;
+      await ctx.db.patch(movementId, { departedAt: soon - (arrivesAt - now), arrivesAt: soon });
+      await ctx.scheduler.runAt(soon, internal.movements.arrive, { movementId });
+    }
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **La scène des Forts** (#374), pour la démo : un Fort français de niveau 2 à Namur, au charbon,
+ * et un Fort adverse à Luxembourg, son maître sans charbon. Une colonne adverse part de Gand vers
+ * Liège : elle entre dans la vigie de Namur trente secondes après la scène, et l'arrivée s'y
+ * rechiffre (`@namur`, `@gand`). Une colonne française part de Nancy vers Liège à côté du Fort
+ * sans charbon, qui ne la retient pas (`@luxembourg`).
+ *
+ * `npx convex run dev:fortScene '{"playerId":"…","enemyId":"…"}'`
+ */
+export const fortScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [owner, lon, lat, hostCountry] of [
+      [playerId, 4.87, 50.47, 'BEL'],
+      [enemyId, 6.13, 49.61, 'LUX'],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        point: { lon, lat },
+        hostCountry,
+        level: 2,
+        specialty: 'fort',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    await settle(ctx, enemyId, now);
+    for (const row of await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', enemyId))
+      .collect())
+      if (row.key === 'coal') await ctx.db.patch(row._id, { stock: 0, updatedAt: now });
+    await reassessDetection(ctx, player.seasonId, now, enemyId);
+
+    const columnOf = async (
+      owner: Id<'players'>,
+      from: { lon: number; lat: number },
+      to: { lon: number; lat: number },
+    ) => {
+      const troopId = await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: from,
+      });
+      const { movementId } = await march(ctx, {
+        playerId: owner,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds: [troopId],
+        aim: await aimOf(ctx, owner, { kind: 'point', point: to }),
+      });
+      return movementId;
+    };
+    const held = await columnOf(enemyId, { lon: 3.72, lat: 51.05 }, { lon: 5.57, lat: 50.63 });
+    await columnOf(playerId, { lon: 6.18, lat: 48.69 }, { lon: 5.57, lat: 50.63 });
+
+    /** Partie plus tôt, elle entre dans la vigie de Namur dans trente secondes : la réévaluation
+     *  replace le rendez-vous, l'ancien job d'arrivée passe sans rien faire. */
+    const movement = (await ctx.db.get(held))!;
+    if (movement.fortEntry === undefined) throw new Error('the column misses the Fort');
+    const shift = movement.fortEntry.at - (now + 30_000);
+    await ctx.db.patch(held, {
+      departedAt: movement.departedAt - shift,
+      arrivesAt: movement.arrivesAt - shift,
+    });
+    await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
+      movementId: held,
+    });
+    await reassessDetection(ctx, player.seasonId, now, enemyId);
   },
 });
 

@@ -12,7 +12,29 @@ export type MarchingForce = {
   readonly createdAt?: number;
   readonly departedAt: number;
   readonly arrivesAt: number;
+  readonly resumed?: Resumed;
 };
+
+/**
+ * **La reprise au Fort** (ADR 0037 §6, décision du 02/11) : à l'instant `at`, la colonne avait
+ * marché `share` de son temps ; elle repart de là vers son arrivée repoussée. Une marche, deux
+ * allures, et le pion ne recule pas.
+ */
+export type Resumed = { readonly at: number; readonly share: number };
+
+const clampedShare = (from: number, to: number, at: number): number =>
+  to <= from ? 1 : Math.min(1, Math.max(0, (at - from) / (to - from)));
+
+/** The share of its time a column has walked at an instant, its reprise read in two segments. */
+export function timeShareAt(
+  force: { readonly departedAt: number; readonly arrivesAt: number; readonly resumed?: Resumed },
+  at: number,
+): number {
+  const { departedAt, arrivesAt, resumed } = force;
+  if (resumed === undefined) return clampedShare(departedAt, arrivesAt, at);
+  if (at <= resumed.at) return resumed.share * clampedShare(departedAt, resumed.at, at);
+  return resumed.share + (1 - resumed.share) * clampedShare(resumed.at, arrivesAt, at);
+}
 
 /**
  * How finely the two paths are walked. A closed form on two piecewise great-circle paths is a
@@ -88,9 +110,8 @@ function measured(points: ReadonlyArray<LonLat>) {
  * made a detector see the column in the wrong medium and at the wrong hour.
  */
 export function distanceProgressAt(force: MarchingForce, at: number): number {
-  const span = force.arrivesAt - force.departedAt;
-  if (span <= 0) return 1;
-  const temporal = Math.min(1, Math.max(0, (at - force.departedAt) / span));
+  if (force.arrivesAt - force.departedAt <= 0) return 1;
+  const temporal = timeShareAt(force, at);
   const legs = force.legs;
   const distanceUnits = force.distanceUnits;
   if (
@@ -128,7 +149,7 @@ export function mediumAt(force: MarchingForce, at: number): Medium | null {
   const span = force.arrivesAt - force.departedAt;
   const legs = force.legs;
   if (span <= 0 || legs === undefined || legs.length === 0) return null;
-  const temporal = Math.min(1, Math.max(0, (at - force.departedAt) / span));
+  const temporal = timeShareAt(force, at);
   const { costs, total } = legCostsOf(force, legs);
   let left = temporal * total;
   for (const [index, leg] of legs.entries()) {
