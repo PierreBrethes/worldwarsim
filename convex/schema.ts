@@ -1274,14 +1274,18 @@ export default defineSchema({
       }),
     ),
     /**
-     * **Ce qu'un Guet a lu de la pile** (ADR 0037 §5) : un rôle par troupe, sans effectif, sans
-     * tier, sans cargaison, et jamais l'ordre. `readFrom` ouvre la plus tôt des fenêtres de Guet,
-     * qui n'est pas forcément celle de la ligne : la ligne nomme le premier détecteur, et la vue
-     * ne sert la pile qu'à partir de là. Écrite au niveau de la ligne, hors de `frozen`, elle
-     * survit au souvenir. Absentes, aucun Guet ne l'a lue.
+     * **Ce qu'un Guet a lu de la pile** (ADR 0037 §5, `src/domain/lookout-reading.ts`) : un rôle
+     * par troupe, sans effectif, sans tier, sans cargaison, et jamais l'ordre. `readFrom` et
+     * `readTo` bornent la fenêtre de Guet en cours ou la prochaine, qui n'est pas forcément celle
+     * de la ligne : la ligne nomme le premier détecteur. La pile ne s'écrit que sous un Guet qui
+     * voit ; figée, `readAt` date sa dernière lecture. `readJobId` réveille la ligne à la
+     * prochaine borne. Écrite au niveau de la ligne, hors de `frozen`, elle survit au souvenir.
      */
     readFrom: v.optional(v.number()),
+    readTo: v.optional(v.number()),
     stack: v.optional(v.array(UNIT_ROLE)),
+    readAt: v.optional(v.number()),
+    readJobId: v.optional(v.id('_scheduled_functions')),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
@@ -1325,8 +1329,9 @@ export default defineSchema({
     /** Une dépêche par ligne, à l'ouverture : une réouverture ne rejoue pas la nouvelle. */
     noticeFiled: v.boolean(),
     /** **La dernière pile qu'un Guet a lue** (ADR 0037 §5), un rôle par troupe ; seul un Guet
-     *  l'écrit, et elle reste quand il la perd de vue. Absente, aucun Guet ne l'a lue. */
+     *  l'écrit, et elle reste datée (`readAt`) quand il la perd de vue. */
     stack: v.optional(v.array(UNIT_ROLE)),
+    readAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byStation', ['stationKey']),

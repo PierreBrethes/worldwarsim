@@ -27,6 +27,7 @@ import { credit, debit, settle } from './resources';
 import { forgetMovement } from './movement/arrival';
 import { handOver } from './strategicPoints';
 import { neutralPoint } from './seats.fixture';
+import { irregularSeat } from './objectives';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, holdPoint, joinSeat, pointIn, seatIn } from './seats.fixture';
@@ -1833,6 +1834,7 @@ describe('what a Guet reads of what it relève', () => {
     expect(view.detected[0]!.identification).toEqual({
       pierced: true,
       stack: { infantry: 2, armor: 1 },
+      readAt: null,
     });
     expect(JSON.stringify(view.detected)).not.toMatch(LEAKS);
     expect(view.detected[0]).not.toHaveProperty('nation');
@@ -1858,13 +1860,14 @@ describe('what a Guet reads of what it relève', () => {
     const [first, second] = await pile(t, seat, at, ['infantry', 'infantry']);
     const campOf = async () => (await t.query(api.view.playerView, guest)).camps;
     expect(await campOf()).toMatchObject([
-      { lastKnown: false, identification: { pierced: true, stack: { infantry: 2 } } },
+      { lastKnown: false, identification: { pierced: true, stack: { infantry: 2 }, readAt: null } },
     ]);
 
     const [armor] = await pile(t, seat, at, ['armor']);
     expect((await campOf())[0]!.identification).toEqual({
       pierced: true,
       stack: { infantry: 2, armor: 1 },
+      readAt: null,
     });
 
     await t.mutation(api.movements.marchTo, {
@@ -1876,6 +1879,7 @@ describe('what a Guet reads of what it relève', () => {
     expect((await campOf())[0]!.identification).toEqual({
       pierced: true,
       stack: { infantry: 1, armor: 1 },
+      readAt: null,
     });
 
     await t.mutation(api.movements.marchTo, {
@@ -1888,6 +1892,7 @@ describe('what a Guet reads of what it relève', () => {
     expect(camps.find((camp) => camp.lastKnown)!.identification).toEqual({
       pierced: true,
       stack: { infantry: 1, armor: 1 },
+      readAt: Date.now(),
     });
   });
 
@@ -1909,9 +1914,15 @@ describe('what a Guet reads of what it relève', () => {
       { identification: { pierced: false } },
     ]);
 
+    expect(row!.stack).toBeUndefined();
+
+    /** Un réveil à l'ouverture lit la pile sur la ligne : une vue en cache se relit alors. */
     vi.advanceTimersByTime(row!.readFrom! - Date.now());
+    await t.finishInProgressScheduledFunctions();
+    const [read] = await sightingsOf(t, guest);
+    expect(read!.stack).toEqual(['armor']);
     expect((await t.query(api.view.playerView, guest)).detected).toMatchObject([
-      { identification: { pierced: true, stack: { armor: 1 } } },
+      { identification: { pierced: true, stack: { armor: 1 }, readAt: null } },
     ]);
   });
 
@@ -1954,6 +1965,7 @@ describe('what a Guet reads of what it relève', () => {
     expect(served.identification).toEqual({
       pierced: true,
       stack: { infantry: standing.length },
+      readAt: null,
     });
     expect(standing.every((troop) => troop.role === 'infantry')).toBe(true);
   });
@@ -1979,6 +1991,143 @@ describe('what a Guet reads of what it relève', () => {
     expect(detected).toHaveLength(2);
     expect(
       detected.map((arc) => arc.identification).sort((a, b) => +a.pierced - +b.pierced),
-    ).toEqual([{ pierced: false }, { pierced: true, stack: { infantry: 1, armor: 1 } }]);
+    ).toEqual([
+      { pierced: false },
+      { pierced: true, stack: { infantry: 1, armor: 1 }, readAt: MIDDAY.getTime() + HOUR },
+    ]);
+  });
+  const kill = async (t: ReturnType<typeof boot>, troopId: Id<'troops'>, seat: Seat) => {
+    const playerId = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(troopId))!.seasonId;
+      await ctx.db.delete(troopId);
+      await reassessDetection(ctx, seasonId, Date.now(), playerId);
+    });
+  };
+
+  /** **Sous le Guet, la pile d'une colonne suit ses pertes ; hors de sa vue, elle se fige**, datée
+   *  de la fin de sa fenêtre, et un réveil la fige sans attendre un événement. */
+  it('follows the pile of a column under the Guet, and freezes it at the close of its window', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await guet(t, guest, 'lookout');
+    const { from, to } = road();
+    const movementId = await column(t, seat, ['infantry', 'infantry', 'armor'], from, to);
+    const troopIds = (await t.run(async (ctx) => ctx.db.get(movementId)))!.troopIds;
+
+    vi.advanceTimersByTime(HOUR);
+    await kill(t, troopIds[0]!, seat);
+    const arcOf = async () => (await t.query(api.view.playerView, guest)).detected[0]!;
+    expect((await arcOf()).identification).toEqual({
+      pierced: true,
+      stack: { infantry: 1, armor: 1 },
+      readAt: null,
+    });
+
+    const [row] = await sightingsOf(t, guest);
+    vi.advanceTimersByTime(row!.readTo! - Date.now() + 1);
+    await t.finishInProgressScheduledFunctions();
+    await kill(t, troopIds[1]!, seat);
+    expect((await arcOf()).identification).toEqual({
+      pierced: true,
+      stack: { infantry: 1, armor: 1 },
+      readAt: row!.readTo,
+    });
+  });
+
+  /** **Entre deux Guets, rien ne se lit** : les pertes du jour 2 attendent le second. */
+  it('reads nothing between two Guet windows, and reads again when the second opens', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await guet(t, guest, 'lookout');
+    const far = await outpost(t, guest, eastOf(here(), 1200));
+    await t.run(async (ctx) => ctx.db.patch(far, { level: 2, specialty: 'lookout' }));
+    const from = eastOf(northOf(here(), 150), -50);
+    const to = eastOf(northOf(here(), 150), 1400);
+    const movementId = await column(
+      t,
+      seat,
+      ['infantry', 'infantry', 'armor'],
+      from,
+      to,
+      24 * HOUR,
+    );
+    const troopIds = (await t.run(async (ctx) => ctx.db.get(movementId)))!.troopIds;
+    const [first] = await sightingsOf(t, guest);
+    const closes = first!.readTo!;
+
+    vi.advanceTimersByTime(closes - Date.now() + HOUR);
+    await t.finishInProgressScheduledFunctions();
+    await kill(t, troopIds[0]!, seat);
+    const [between] = await sightingsOf(t, guest);
+    expect(between!.stack).toEqual(['armor', 'infantry', 'infantry']);
+    expect(between!.readAt).toBe(closes);
+    expect(between!.readFrom).toBeGreaterThan(Date.now());
+
+    vi.advanceTimersByTime(between!.readFrom! - Date.now());
+    await t.finishInProgressScheduledFunctions();
+    const [again] = await sightingsOf(t, guest);
+    expect(again!.stack).toEqual(['armor', 'infantry']);
+    expect(again!.readAt).toBeUndefined();
+  });
+
+  /** **Hors du Guet, la pile d'un camp se date** ; une ligne fermée qui rouvre sans lui l'oublie. */
+  it('dates the pile of a camp a generalist still sees, and forgets it on a reopening', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const point = await guet(t, guest, 'lookout');
+    const at = eastOf(here(), 50);
+    const troopIds = await pile(t, seat, at, ['infantry', 'armor']);
+    const campOf = async () => (await t.query(api.view.playerView, guest)).camps[0]!;
+    expect((await campOf()).identification).toMatchObject({ pierced: true, readAt: null });
+
+    vi.advanceTimersByTime(HOUR);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(point, { specialty: undefined });
+      await reassessDetection(ctx, (await ctx.db.get(point))!.seasonId);
+    });
+    expect((await campOf()).identification).toEqual({
+      pierced: true,
+      stack: { infantry: 1, armor: 1 },
+      readAt: Date.now(),
+    });
+
+    /** La pile part, et une autre force se pose au même point, qu'aucun Guet ne lit. */
+    await t.run(async (ctx) => {
+      for (const troopId of troopIds) {
+        await ctx.db.patch(troopId, { stationedAt: asPoint(eastOf(at, 900)) });
+      }
+      await reassessDetection(ctx, (await ctx.db.get(point))!.seasonId);
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(troopIds[0]!, { stationedAt: asPoint(at) });
+      await reassessDetection(ctx, (await ctx.db.get(point))!.seasonId);
+    });
+    const camps = (await t.query(api.view.playerView, guest)).camps;
+    expect(camps.find((camp) => !camp.lastKnown)!.identification).toEqual({ pierced: false });
+  });
+
+  /** **La garnison d'un objectif ne se lit pas** (`WWS/CONTEXT.md`, « la composition, jamais »). */
+  it('reads nothing of the irregular garrison of an objective', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    await guet(t, guest, 'lookout');
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, guest);
+      const irregular = await irregularSeat(ctx, player.seasonId);
+      await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId: irregular,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: asPoint(eastOf(here(), 50)),
+      });
+      await reassessDetection(ctx, player.seasonId);
+    });
+    const camps = (await t.query(api.view.playerView, guest)).camps;
+    expect(camps).toHaveLength(1);
+    expect(camps[0]!.identification).toEqual({ pierced: false });
   });
 });

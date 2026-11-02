@@ -58,6 +58,8 @@ import { notifyPlayer } from '../notifications';
 import { journalUrl, push } from '../../src/domain/push';
 import { pacedMinutes } from './pace';
 import { creditToStorage, settle } from '../resources';
+import { lostReading } from '../../src/domain/lookout-reading';
+import { cancelJob } from '../scheduledJobs';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
 
 /**
@@ -83,6 +85,8 @@ export async function forgetMovement(
     .withIndex('byMovement', (q) => q.eq('movementId', movementId))
     .collect();
   for (const sighting of seen) {
+    /** Un réveil de Guet n'a plus de colonne à lire : la pile se fige ici, ou part avec la ligne. */
+    if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
     if (sighting.from > now || movement === null) {
       if (sighting.revealJobId !== undefined) {
         try {
@@ -96,8 +100,13 @@ export async function forgetMovement(
     }
     const closedAt = Math.min(sighting.to, now);
     const segment = seenSegment(marchingForce(movement), sighting.from, closedAt);
+    const { readAt } = lostReading(sighting, closedAt);
     await ctx.db.patch(sighting._id, {
       to: closedAt,
+      readJobId: undefined,
+      readFrom: undefined,
+      readTo: undefined,
+      ...(readAt === undefined ? {} : { readAt }),
       frozen: {
         points: segment.points.map(asPoint),
         legs: [...segment.legs],

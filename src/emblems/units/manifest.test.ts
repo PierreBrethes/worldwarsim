@@ -199,7 +199,7 @@ describe('movementRoles', () => {
       route: directRoute([0, 0], [1, 1], 'land', 10),
       headingDegrees: 90,
       headingAtMe: true,
-      identification: { pierced: true, stack: { armor: 9 } },
+      identification: { pierced: true, stack: { armor: 9 }, readAt: null },
       arrivesAt: 3_600_000,
       seenTo: 3_600_000,
       since: 0,

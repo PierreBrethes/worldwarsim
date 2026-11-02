@@ -4737,7 +4737,8 @@ export const fr = {
     standing: 'force posée',
     moving: 'force en mouvement',
     unknown: 'composition inconnue, nation inconnue',
-    pierced: (composition: string) => `${composition}, nation inconnue`,
+    pierced: (composition: string, readAt: string | null) =>
+      `${composition}, nation inconnue${readAt === null ? '' : `, lue à ${readAt}`}`,
     estimatedArrival: 'arrivée estimée',
     estimatedTime: (time: string) => `~${time}`,
     heading: 'cap',
@@ -4782,6 +4783,8 @@ export const fr = {
     /** Le fanion du piquet de chantier d'une élévation : le niveau qui monte. */
     pennant: (level: number) => `niv. ${level}`,
     estimated: 'estimé',
+    /** **Une pile figée se date** (ADR 0037 §5) : hors de la vue du Guet, elle a pu changer. */
+    readAt: (time: string) => `lu à ${time}`,
     /** La colonne est au bout du fil et n'avance plus : ce qui reste à dire est l'heure de la
      *  passe, jamais un compte à rebours de marche. */
     arrivalHeld: (time: string) => `arrivée retenue · résolution à ${time}`,

@@ -11,7 +11,7 @@ import {
 } from './labels';
 import type { ArcView, Composition, PlayerView } from './player-view';
 import { directRoute } from './routing';
-import { asLocalTime } from './duration';
+import { asClockTime, asLocalTime } from './duration';
 
 const LOADED_AT = 1_700_000_000_000;
 const MINUTE = 60_000;
@@ -191,7 +191,7 @@ describe('buildLabels', () => {
       viewWith([
         detectedArc({
           headingAtMe: true,
-          identification: { pierced: true, stack: { infantry: 3, armor: 1 } },
+          identification: { pierced: true, stack: { infantry: 3, armor: 1 }, readAt: null },
         }),
       ]),
       [],
@@ -215,11 +215,39 @@ describe('buildLabels', () => {
       identification,
     });
     const [read] = buildLabels(viewWith([]), [
-      camp({ pierced: true, stack: { infantry: 3, armor: 1 } }),
+      camp({ pierced: true, stack: { infantry: 3, armor: 1 }, readAt: null }),
     ]);
     expect(read?.lines).toContainEqual({ role: 'nature', text: '3 INF · 1 BLD' });
     const [blind] = buildLabels(viewWith([]), [camp({ pierced: false })]);
     expect(blind?.lines.filter((line) => line.role === 'nature')).toHaveLength(1);
+  });
+
+  /** **Une pile figée se date** : hors de la vue du Guet, elle a pu changer. */
+  it('dates a pile no Guet reads any more, and not one it reads', () => {
+    const readAt = Date.UTC(2026, 10, 2, 13, 5);
+    const camp = (identification: Composition): MapMarker => ({
+      kind: 'camp',
+      id: 'camp',
+      campId: 'c1',
+      lonLat: [0, 0],
+      medium: 'land',
+      lastKnown: false,
+      since: 0,
+      seenMinutesAgo: null,
+      lastSeenAt: null,
+      identification,
+    });
+    const [frozen] = buildLabels(viewWith([]), [
+      camp({ pierced: true, stack: { infantry: 3 }, readAt }),
+    ]);
+    expect(frozen?.lines).toContainEqual({
+      role: 'nature',
+      text: `3 INF · ${fr.labels.readAt(asClockTime(readAt))}`,
+    });
+    const [live] = buildLabels(viewWith([]), [
+      camp({ pierced: true, stack: { infantry: 3 }, readAt: null }),
+    ]);
+    expect(live?.lines).toContainEqual({ role: 'nature', text: '3 INF' });
   });
 
   it('keeps the pile read on the last known position', () => {
@@ -234,7 +262,7 @@ describe('buildLabels', () => {
           to: [1, 1],
           route: directRoute([0, 0], [1, 1], 'land', 10),
           headingDegrees: 0,
-          identification: { pierced: true, stack: { infantry: 2 } },
+          identification: { pierced: true, stack: { infantry: 2 }, readAt: null },
           lastSeenAt: 0,
         },
       ]),

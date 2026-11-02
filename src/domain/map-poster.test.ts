@@ -443,7 +443,7 @@ describe('posterOf', () => {
       detectorRegion: null,
       headingDegrees: 90,
       headingAtMe: false,
-      identification: { pierced: true, stack: { infantry: 2 } },
+      identification: { pierced: true, stack: { infantry: 2 }, readAt: null },
       arrivesAt: LOADED_AT + 30 * 60_000,
       seenTo: LOADED_AT + 10 * 60_000,
       since: LOADED_AT - 40 * 60_000,
@@ -511,7 +511,11 @@ describe('posterOf', () => {
 
   /** **Une force posée relevée par un Guet** dit sa pile sur sa fiche (ADR 0037 §5). */
   it('names the pile of a camp a Guet has read', () => {
-    const identification = { pierced: true, stack: { infantry: 3, armor: 1 } } as const;
+    const identification = {
+      pierced: true,
+      stack: { infantry: 3, armor: 1 },
+      readAt: null,
+    } as const;
     const camp: MapMarker = {
       kind: 'camp',
       id: 'camp',
@@ -533,6 +537,32 @@ describe('posterOf', () => {
       { kind: 'text', text: `${stackLabel(identification.stack)}, nation inconnue` },
       { kind: 'text', text: 'Les types sont classés à l’abaque.' },
     ]);
+  });
+
+  it('dates on the sheet a pile no Guet reads any more', () => {
+    const readAt = LOADED_AT - 30 * 60_000;
+    const identification = { pierced: true, stack: { infantry: 1 }, readAt } as const;
+    const camp: MapMarker = {
+      kind: 'camp',
+      id: 'camp',
+      campId: 'c1',
+      lonLat: [0, 0],
+      medium: 'land',
+      lastKnown: true,
+      since: LOADED_AT - 60 * 60_000,
+      seenMinutesAgo: 30,
+      lastSeenAt: readAt,
+      identification,
+    };
+    const v = view({
+      camps: [
+        { id: 'c1', since: LOADED_AT - 60 * 60_000, lastSeenAt: readAt, identification },
+      ] as unknown as PlayerView['camps'],
+    });
+    expect(posterFor(v, [camp], 'camp')?.lines[0]).toEqual({
+      kind: 'text',
+      text: `${stackLabel({ infantry: 1 })}, nation inconnue, lue à ${asClockTime(readAt)}`,
+    });
   });
 
   it('reads a neutral objective off what is public, and nothing of its garrison', () => {

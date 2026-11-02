@@ -1,7 +1,7 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
-import { asLocalTime } from '@/domain/duration';
+import { asClockTime, asLocalTime } from '@/domain/duration';
 import { aimRefusalShort, countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
@@ -1155,9 +1155,20 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
   };
 }
 
-/** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile, abrégée — « 3 INF · 1 BLD » —, jamais l'ordre. */
+/** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile, abrégée — « 3 INF · 1 BLD » —, jamais l'ordre ;
+ *  figée, l'heure de sa dernière lecture, parce qu'elle a pu changer depuis. */
 const compositionLine = (known: Composition): ReadonlyArray<LabelLine> =>
-  known.pierced ? [{ role: 'nature', text: abbreviateStack(known.stack) }] : [];
+  known.pierced
+    ? [
+        {
+          role: 'nature',
+          text: [
+            abbreviateStack(known.stack),
+            ...(known.readAt === null ? [] : [fr.labels.readAt(asClockTime(known.readAt))]),
+          ].join(' · '),
+        },
+      ]
+    : [];
 
 /** **Ce que Lisbonne fait lire** (P11) : la nation d'un relevé, à son seul teneur. */
 const lisbonLine = (nation: string | undefined): ReadonlyArray<LabelLine> =>

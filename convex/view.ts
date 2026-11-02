@@ -1044,7 +1044,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               detectorRegion: camp.detectorRegion,
               lastKnown: camp.until !== null,
               ...lisbonNation(readsNations, camp.ownerId),
-              identification: compositionOf(camp, now),
+              identification: compositionOf(camp),
             },
           ],
     ),
@@ -1426,7 +1426,7 @@ async function detectedArcs(
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
         ...lisbonNation(nationOf, sighting.ownerId),
-        identification: compositionOf(sighting, Math.min(now, frozen.closedAt)),
+        identification: compositionOf(sighting),
       });
       continue;
     }
@@ -1462,25 +1462,24 @@ async function detectedArcs(
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
       ...lisbonNation(nationOf, movement.playerId),
-      identification: compositionOf(sighting, Math.min(now, sighting.to)),
+      identification: compositionOf(sighting),
     });
   }
   return seen;
 }
 
 /**
- * **La pile qu'un Guet a lue, et rien avant sa fenêtre** (ADR 0037 §5). La ligne nomme le premier
- * détecteur qui a pris la force, pas forcément le Guet : `readFrom` date la lecture, et une
- * lecture que la fenêtre n'a pas encore ouverte — ou que la fin de la colonne a coupée avant —
- * ne sert rien. Un camp n'a pas de lecture à venir : sa pile est celle d'un Guet qui l'a vu.
+ * **La pile qu'un Guet a lue** (ADR 0037 §5), et la date de sa dernière lecture quand plus aucun
+ * Guet ne la lit. Rien ici ne lit l'heure : la pile ne s'écrit sur la ligne que sous un Guet qui
+ * voit, et un réveil à chaque borne de sa fenêtre la lit puis la fige (`readPile`).
  */
-const compositionOf = (
-  row: { readonly stack?: ReadonlyArray<UnitRole>; readonly readFrom?: number },
-  until: number,
-): Composition =>
-  row.stack === undefined || (row.readFrom !== undefined && row.readFrom > until)
+const compositionOf = (row: {
+  readonly stack?: ReadonlyArray<UnitRole>;
+  readonly readAt?: number;
+}): Composition =>
+  row.stack === undefined
     ? { pierced: false }
-    : { pierced: true, stack: stackOf(row.stack) };
+    : { pierced: true, stack: stackOf(row.stack), readAt: row.readAt ?? null };
 
 const coordsOf = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 

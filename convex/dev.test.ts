@@ -286,7 +286,7 @@ describe('dev.guetScene', () => {
 
     const view = await t.query(api.view.playerView, seat);
     expect(view.detected.map((arc) => arc.identification)).toEqual([
-      { pierced: true, stack: { infantry: 3, armor: 1 } },
+      { pierced: true, stack: { infantry: 3, armor: 1 }, readAt: null },
     ]);
     const camps = view.camps.map(({ lastKnown, identification }) => ({
       lastKnown,
@@ -296,9 +296,16 @@ describe('dev.guetScene', () => {
       expect.arrayContaining([
         {
           lastKnown: false,
-          identification: { pierced: true, stack: { infantry: 2, artillery: 1 } },
+          identification: { pierced: true, stack: { infantry: 2, artillery: 1 }, readAt: null },
         },
-        { lastKnown: true, identification: { pierced: true, stack: { infantry: 1, armor: 1 } } },
+        {
+          lastKnown: true,
+          identification: {
+            pierced: true,
+            stack: { infantry: 1, armor: 1 },
+            readAt: expect.any(Number),
+          },
+        },
         { lastKnown: false, identification: { pierced: false } },
       ]),
     );

@@ -59,7 +59,13 @@ type OwnMovementMission =
  * un arc, sa dernière position connue et un camp.
  */
 export type Composition =
-  { readonly pierced: false } | { readonly pierced: true; readonly stack: Stack };
+  | { readonly pierced: false }
+  | {
+      readonly pierced: true;
+      readonly stack: Stack;
+      /** Figée, l'instant de sa dernière lecture ; `null` sous un Guet qui lit à l'instant. */
+      readonly readAt: number | null;
+    };
 
 /** Une pile comptée par rôle, depuis un rôle par troupe. */
 export const stackOf = (roles: ReadonlyArray<UnitRole>): Stack =>
