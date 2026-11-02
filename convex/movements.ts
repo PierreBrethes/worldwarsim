@@ -63,6 +63,7 @@ import {
   seatedOf,
   specializationServed,
   standingPile,
+  sameStation,
 } from './movement/forces';
 import {
   aimOf,
@@ -71,7 +72,6 @@ import {
   departureOf,
   march,
   namesATroopTwice,
-  sameStation,
   plunderAimOf,
   surveyedPlunderTarget,
   troopsAmong,

@@ -1,10 +1,14 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { internal } from './_generated/api';
-import { RESOURCES } from '../src/domain/ids';
-import { carryCapacityOf } from '../src/domain/loot';
-import { cargoTotal, movementCargoLoads, takeMovementCargo, type CargoLoad } from './cargo';
-import { CARRY_CAPACITY_BY_ROLE } from './constants';
+import { amountTotal } from '../src/domain/loot';
+import {
+  capacityOf,
+  cargoTotal,
+  movementCargoLoads,
+  takeMovementCargo,
+  type CargoLoad,
+} from './cargo';
 import { fail } from './errors';
 import { takeLootFromCrate } from './crateStock';
 import { forgetMovement, walkHome } from './movement/arrival';
@@ -14,19 +18,6 @@ import { restHold } from './movement/rest';
 import { requirePlayable, seasonStillPlays } from './seats';
 import { surveyAlongRoute } from './surveys';
 import { hostAtPoint } from './routes';
-
-const amountTotal = (amounts: ReturnType<typeof cargoTotal>): number =>
-  RESOURCES.reduce((sum, key) => sum + amounts[key], 0);
-
-const capacityOf = (troops: ReadonlyArray<Doc<'troops'>>): number =>
-  carryCapacityOf(
-    troops.map((troop) => ({
-      role: troop.role,
-      strength: troop.currentStrength,
-      nominalStrength: troop.nominalStrength,
-    })),
-    CARRY_CAPACITY_BY_ROLE,
-  );
 
 /** The target is read only from the observer's ledger: filing the order never asks whether the
  * crate still exists, so a stale sighting cannot become a remote probe. */

@@ -111,7 +111,7 @@ const SQUAD_REACH = 1.92;
 
 /** **Where each piece walks behind the head**, by its length: ranks of one, or two abreast
  *  beyond `SINGLE_FILE`; in board units at the figurines' own size. */
-export function fileOf(
+function fileOf(
   pieces: ReadonlyArray<{ readonly span: number; readonly infantry: boolean }>,
 ): ReadonlyArray<{ readonly back: number; readonly side: number; readonly rank: number }> {
   const lanes = pieces.length > SINGLE_FILE ? 2 : 1;

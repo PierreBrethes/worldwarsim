@@ -3,7 +3,7 @@ export type Rect = { left: number; right: number; top: number; bottom: number };
 const STEM_CORNER = 10;
 
 /** How far the card stands from the point its stem touches (`poster.css`, 15px). */
-export const TIP = 15;
+const TIP = 15;
 
 /** How far past its own limit the side already held is kept. */
 const HYSTERESIS = 12;

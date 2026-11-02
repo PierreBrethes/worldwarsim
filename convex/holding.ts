@@ -9,7 +9,7 @@ import { pointOf, seasonOutposts } from './movement/forces';
 import { regionsWithinReach } from './regionGeometry';
 import { homeCountryOf, regionFacts, regionsOf, type RegionFacts } from './regions';
 import { isBlitz } from './blitz';
-import { seatsOf } from './seats';
+import { everySeatOf, seatsOf } from './seats';
 import { seasonPoints } from './strategicPoints';
 
 /**
@@ -302,10 +302,7 @@ export async function homeGroundsOf(
   /** **En Blitz personne ne joue chez soi** : un Français joue le Pacifique, et ce qu'il tient
    *  est ce qu'il a reçu ou capturé (`occupationsOf`), jamais son sol national. */
   if (await isBlitz(ctx, seasonId)) return [];
-  const seats = await ctx.db
-    .query('players')
-    .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-    .collect();
+  const seats = await everySeatOf(ctx, seasonId);
   /** **Un éliminé n'a plus de sol** (M16) : son QG tombé, sa nation ne tient plus rien que ses
    *  irréguliers ne tiennent à sa place. Qui a seulement capitulé garde le sien. */
   return seats.flatMap((seat) => {

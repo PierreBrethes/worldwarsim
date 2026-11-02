@@ -91,6 +91,14 @@ export const asPoint = (lonLat: LonLat) => ({ lon: lonLat[0], lat: lonLat[1] });
 /** A troop's address as the row stores it. Named because one of its three forms is not an id. */
 export type TroopAddress = Doc<'troops'>['stationedAt'];
 
+/** **Two addresses are the same when they name the same place.** The point is compared as it was
+ *  written — nothing rounds, because an address is copied, never re-measured. */
+export const sameStation = (a: TroopAddress, b: TroopAddress): boolean => {
+  if (a === null || b === null) return a === b;
+  if (typeof a === 'string' || typeof b === 'string') return a === b;
+  return a.lon === b.lon && a.lat === b.lat;
+};
+
 /** Une troupe telle que la règle des transports la lit (`src/domain/troops.ts`). */
 export const seatedOf = (troop: Doc<'troops'>): Seated => ({
   id: troop._id,
@@ -312,59 +320,6 @@ export async function stanceOf(
   const building = buildingId === null ? null : await ctx.db.get(buildingId);
   const point = building === null ? null : pointOfBuilding(building);
   return point === null ? null : { point, outpostId: null };
-}
-
-/** **A technical tolerance, not a radius of the game** — the width of a coordinate that has been
- *  through the database and back. It replaces an equality between two floats, where a missed
- *  comparison would resolve a battle against nobody and say nothing about it. */
-const POSTED_MATCH_KM = 1;
-
-/** An interceptor is a garrison, a column or a camp, read **now** and not at the moment the
- *  contact was computed. Hence the distance: the camp is found by standing where the contact says
- *  it stood, never by matching a coordinate to the digit. */
-export async function forceOf(
-  ctx: MutationCtx,
-  force: ContactForce,
-): Promise<{
-  playerId: Id<'players'>;
-  troops: ReadonlyArray<Doc<'troops'>>;
-  movementId: Id<'movements'> | null;
-} | null> {
-  if (force.kind === 'posted') {
-    /** His own columns and nobody else's: no other player's manifest can name one of his
-     *  troops. */
-    const marching = new Set<Id<'troops'>>(
-      (await movementsOf(ctx, force.playerId)).flatMap((movement) => movement.troopIds),
-    );
-    const here = pointOf(force.point);
-    const troops = (
-      await ctx.db
-        .query('troops')
-        .withIndex('byPlayer', (q) => q.eq('playerId', force.playerId))
-        .collect()
-    ).filter((troop) => {
-      const address = troop.stationedAt;
-      if (marching.has(troop._id) || address === null || typeof address === 'string') return false;
-      return distanceKm(pointOf(address), here) <= POSTED_MATCH_KM;
-    });
-    return { playerId: force.playerId, troops, movementId: null };
-  }
-  if (force.kind === 'outpost') {
-    const outpost = await ctx.db.get(force.outpostId);
-    if (!outpost) return null;
-    return {
-      playerId: outpost.playerId,
-      troops: await troopsStationedAt(ctx, outpost._id),
-      movementId: null,
-    };
-  }
-  const movement = await ctx.db.get(force.movementId);
-  if (!movement) return null;
-  return {
-    playerId: movement.playerId,
-    troops: await troopsCarriedBy(ctx, movement),
-    movementId: movement._id,
-  };
 }
 
 export async function troopsCarriedBy(
