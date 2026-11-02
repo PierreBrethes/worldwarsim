@@ -310,6 +310,26 @@ describe('a patrol on a liaison', () => {
     ).rejects.toThrow('ON_PATROL');
   });
 
+  it('takes no troop on patrol aboard, nor a transport that carries one', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { kassel, troop } = await patrolling(t, seat);
+    await arriveNext(t);
+    const truck = await form(t, seat, 'landTransport', kassel);
+    await expect(
+      t.mutation(api.movements.board, { ...seat, troopIds: [troop], carrierId: truck }),
+    ).rejects.toThrow('ON_PATROL');
+    await t.run(async (ctx) => ctx.db.patch(troop, { carriedBy: truck }));
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'outpost', outpostId: kassel },
+        troopIds: [truck],
+        point: { lon: 9.6, lat: 51.2 },
+      }),
+    ).rejects.toThrow('ON_PATROL');
+  });
+
   it('is not offered in Blitz', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

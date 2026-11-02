@@ -621,21 +621,23 @@ export function compassOf(
    * lui retirerait « fonder », qui est précisément l'ordre qu'on donne là où l'on se tient
    * (ADR 0019 §1). Le clic droit sur elle répond donc toujours la même chose, armée ou non.
    */
-  if (column !== null && target.kind === 'force' && origin !== null) {
-    const station = posted(target);
-    if (station !== null && stationKeyOf(station) !== stationKeyOf(origin))
-      return towardsMyPile(target, station, view, column, heldTroopIds ?? []);
-  }
-  if (column !== null && target.kind !== 'force') {
-    const fan = aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
-    /** **En tournée, rien d'autre** (ADR 0028) : la rose le dit, la marche le relit. */
+  /** **En tournée ou en ronde, rien d'autre** (ADR 0028, #376) : la rose le dit, la marche le
+   *  relit. */
+  const engaged = (fan: Compass | null): Compass | null => {
     const touring = onTourRefusalOf(
       view.me.troops.filter((troop) => heldTroopIds?.includes(troop.id) === true),
     );
     if (fan === null || touring === null) return fan;
     const { code, ...details } = touring;
     return { ...fan, actions: [], refusal: fr.errors[code](details) };
+  };
+  if (column !== null && target.kind === 'force' && origin !== null) {
+    const station = posted(target);
+    if (station !== null && stationKeyOf(station) !== stationKeyOf(origin))
+      return engaged(towardsMyPile(target, station, view, column, heldTroopIds ?? []));
   }
+  if (column !== null && target.kind !== 'force')
+    return engaged(aim(target, view, column, freeCapacity, origin, heldTroopIds, now));
   const here =
     origin !== null &&
     target.kind === 'force' &&

@@ -80,6 +80,7 @@ import { passingEstimate, resupply, resupplyInPassing, toppedUp } from './suppli
 import { suppliesOf } from '../src/domain/supplies';
 import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
+import { onTourRefusalOf } from '../src/domain/logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
 import { arriveOnPatrol } from './patrols';
 import { pacedMinutes } from './movement/pace';
@@ -305,6 +306,11 @@ export const board = mutation({
       pile.find((troop) => troop._id === troopId) ?? fail('TROOP_NOT_AT_ORIGIN', { troopId });
     standing(carrierId);
     const riders = troopIds.map(standing);
+    const engaged = onTourRefusalOf(riders);
+    if (engaged !== null) {
+      const { code, ...details } = engaged;
+      fail(code, details);
+    }
     const boarding = {
       riders: riders.map(seatedOf),
       carrier: seatedOf(carrier),

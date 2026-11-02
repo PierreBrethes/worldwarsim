@@ -831,11 +831,6 @@ export async function march(
     }
     troops.push(troop);
   }
-  const touring = keepsSlot ? null : onTourRefusalOf(troops);
-  if (touring !== null) {
-    const { code, ...details } = touring;
-    fail(code, details);
-  }
   /** **Les passagers suivent leur transport** (15/10) : un transport part avec sa cargaison, et
    *  un passager ne part pas sans lui — on le débarque d'abord. */
   const pile = (await standingPile(ctx, playerId, departure.stationId)).map(seatedOf);
@@ -846,6 +841,12 @@ export async function march(
     for (const rider of cargoOf(seatedOf(troop), pile))
       if (!troops.some((one) => one._id === rider.id))
         troops.push((await ctx.db.get(rider.id as Id<'troops'>))!);
+  }
+  /** **En tournée ou en ronde, rien d'autre** — cargaison comprise. */
+  const touring = keepsSlot ? null : onTourRefusalOf(troops);
+  if (touring !== null) {
+    const { code, ...details } = touring;
+    fail(code, details);
   }
 
   /** **Ancrée, elle se recharge au départ** (ADR 0028 §3) : les coups et le plein se reprennent
