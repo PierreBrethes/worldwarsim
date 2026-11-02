@@ -660,8 +660,7 @@ async function columnsHeld(
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
       .collect())
   ).filter(
-    (troop) =>
-      (troop.tour !== undefined || troop.patrol !== undefined) && !marching.has(troop._id),
+    (troop) => (troop.tour !== undefined || troop.patrol !== undefined) && !marching.has(troop._id),
   );
   const holders = [
     ...flying.map((movement) => movement.troopIds),

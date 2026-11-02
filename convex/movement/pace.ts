@@ -49,17 +49,19 @@ export async function drawnLiaisonsAt(
 /** Ses points debout et en service — l'équivalent serveur d'`isOnWatch`. */
 async function liaisonPointsOf(ctx: QueryCtx, playerId: Id<'players'>, at: number) {
   return (
-    await ctx.db
-      .query('outposts')
-      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-      .collect()
-  )
-    /** Un chantier n'est en liaison avec rien : le point n'existe pas encore (révision du 15/09). */
-    .filter((outpost) => isStanding(outpost, at))
-    .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
-    .map((outpost) => ({
-      id: outpost._id,
-      point: pointOf(outpost.point),
-      reachKm: outpostReachKm(outpost.level),
-    }));
+    (
+      await ctx.db
+        .query('outposts')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    )
+      /** Un chantier n'est en liaison avec rien : le point n'existe pas encore (révision du 15/09). */
+      .filter((outpost) => isStanding(outpost, at))
+      .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
+      .map((outpost) => ({
+        id: outpost._id,
+        point: pointOf(outpost.point),
+        reachKm: outpostReachKm(outpost.level),
+      }))
+  );
 }

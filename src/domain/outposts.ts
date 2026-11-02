@@ -194,10 +194,8 @@ export function drawnLiaisonsOf<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): Ar
 }
 
 /** **La même liaison, prise dans un sens ou dans l'autre** : une paire n'est pas orientée. */
-export const sameLiaison = <Id>(
-  [a, b]: readonly [Id, Id],
-  [c, d]: readonly [Id, Id],
-): boolean => (a === c && b === d) || (a === d && b === c);
+export const sameLiaison = <Id>([a, b]: readonly [Id, Id], [c, d]: readonly [Id, Id]): boolean =>
+  (a === c && b === d) || (a === d && b === c);
 
 /** **Ce qui tourne en ronde** (ADR 0037 §10) : une troupe terrestre de combat. */
 export const PATROL_ROLES: ReadonlySet<UnitRole> = new Set(['infantry', 'armor', 'artillery']);
