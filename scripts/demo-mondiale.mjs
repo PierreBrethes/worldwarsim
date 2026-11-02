@@ -1063,7 +1063,9 @@ if (!bare) {
   }
   if (seaCombatIn !== null && scene.a !== null && scene.b !== null) {
     const moored = { lon: -1.6, lat: 50.05 };
-    places['combat-mer'] = [moored.lon, moored.lat];
+    // Framed between the two lines, three hulls apart (storyboard), not on the moored one: the
+    // attacker's must stand on a phone too.
+    places['combat-mer'] = [moored.lon - 0.9, moored.lat];
     const from = { lon: -1.95, lat: 50.0 };
     const spawn = (playerId, count, at) =>
       JSON.parse(
