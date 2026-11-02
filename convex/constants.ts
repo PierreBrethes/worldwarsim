@@ -262,13 +262,16 @@ export function buildCost(key: BuildCostKey, level: number): Costs {
 }
 
 /**
- * **Changer de spécialisation coûte la moitié de l'acier de la dernière élévation** (ADR 0037
- * §7), et l'acier seul ; sa durée est celle de cette élévation (`worksMinutes('outpost', level)`).
+ * **Changer de spécialisation coûte une part de l'acier de la dernière élévation** (ADR 0037 §7).
  *
  * @a-mesurer la moitié : tranchée au grilling (Q13), aucune partie ne l'a jouée
  */
+export const RESPECIALTY_STEEL_SHARE = 0.5;
+
+/** La facture d'un changement de spécialisation : l'acier seul ; sa durée est celle de la
+ *  dernière élévation (`worksMinutes('outpost', level)`). */
 export const respecialtyBill = (level: number): Costs => ({
-  steel: Math.round((buildCost('outpost', level).steel ?? 0) / 2),
+  steel: Math.round((buildCost('outpost', level).steel ?? 0) * RESPECIALTY_STEEL_SHARE),
 });
 
 export function buildMinutes(key: BuildCostKey, level: number): number {
@@ -487,14 +490,19 @@ export const BAKU_REFUEL_MS = 12 * 3_600_000;
 export const DEPOT_CAPACITY_PER_LEVEL = 400;
 
 /**
- * **Le Magasin double son dépôt** (ADR 0037 §3, erratum du 01/11). L'appelant passe la
- * spécialisation **agissante** (`effectiveSpecialty`) : un Magasin qui change de métier reprend
- * la capacité simple, garde son surplus, et rien n'y entre tant qu'il dépasse (`deliveryOf`).
+ * **Le Magasin double son dépôt** (ADR 0037 §3, erratum du 01/11).
  *
  * @a-mesurer le double : ce que le POC a pris (`WWS/prototypes/avant-postes/commun/rules.js`)
  */
+export const STORE_DEPOT_FACTOR = 2;
+
+/** L'appelant passe la spécialisation **agissante** (`effectiveSpecialty`) : un Magasin qui change
+ *  de métier reprend la capacité simple, garde son surplus, et rien n'y entre tant qu'il dépasse
+ *  (`deliveryOf`). */
 export const depotCapacity = (level: number, specialty: Specialty): number =>
-  DEPOT_CAPACITY_PER_LEVEL * Math.max(1, Math.trunc(level)) * (specialty === 'store' ? 2 : 1);
+  DEPOT_CAPACITY_PER_LEVEL *
+  Math.max(1, Math.trunc(level)) *
+  (specialty === 'store' ? STORE_DEPOT_FACTOR : 1);
 
 /**
  * **Une seule charge par transport** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon
