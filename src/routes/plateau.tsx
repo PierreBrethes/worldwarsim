@@ -8,7 +8,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
-import { effectiveSpecialty, isOnWatch, lookoutKmOf } from '@/domain/outposts';
+import { effectiveSpecialty, isOnWatch, lookoutKmOf, sameLiaison } from '@/domain/outposts';
 import {
   drawnLiaisonsIn,
   holdsPatrolTroop,
@@ -1479,11 +1479,16 @@ function BoardContent({
       wholeLookout: effectiveSpecialty(outpost) === 'lookout',
     }));
     const station = (outpostId: string) => stationKeyOf({ kind: 'outpost', outpostId });
-    const liaisons = drawnLiaisonsIn({ outposts: view.me.outposts }).map(
-      ([a, b]) => [station(a), station(b)] as [string, string],
+    const drawn = drawnLiaisonsIn({ outposts: view.me.outposts });
+    const liaisons = drawn.map(([a, b]) => [station(a), station(b)] as [string, string]);
+    /** **Une ronde se lit sur le trait de sa liaison** (#377), tant que la carte la trace. */
+    const patrolled = view.me.troops.flatMap(({ patrol }) =>
+      patrol !== undefined && drawn.some((pair) => sameLiaison(pair, patrol.ends))
+        ? [[station(patrol.ends[0]), station(patrol.ends[1])] as [string, string]]
+        : [],
     );
-    return { points, liaisons };
-  }, [blitz, view.me.outposts, view.me.upkeep.listeningSilent]);
+    return { points, liaisons, patrolled };
+  }, [blitz, view.me.outposts, view.me.troops, view.me.upkeep.listeningSilent]);
 
   /** **Une troupe de ronde en main** (#376) : la carte montre et vise ses liaisons. */
   const patrolHand = useMemo(

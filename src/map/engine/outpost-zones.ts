@@ -13,7 +13,7 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
-import type { LonLat } from '@/domain/geo';
+import { distanceKm, type LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
@@ -66,6 +66,15 @@ const HAND_WASH = 0.11;
 /** A liaison at rest, a thin pen; sharper under the hand. In CSS pixels. @a-mesurer */
 const LIAISON_REST = { opacity: 0.5, width: 1.2 };
 const LIAISON_SHARP = { opacity: 0.85, width: 2 };
+/**
+ * **Une liaison sous ronde se lit sur son trait** (ADR 0037 §10, #377 ; aperçu des rondes de
+ * `WWS/prototypes/avant-postes`) : toujours net, en tirets, et des dents d'un côté, calque éteint
+ * aussi, comme l'arc d'un ordre en cours (Décisions du 02/11). Un tiret et une dent tous les
+ * `PATROL_DASH_KM`, la dent longue d'un tiers du pas. @a-mesurer
+ */
+const PATROL_DASH_KM = 14;
+const PATROL_DASH_SHARE = 0.6;
+const PATROL_TOOTH_SHARE = 0.35;
 const COMPASS_OPACITY = 0.8;
 /** Under `SETTLE_MS`: the hover's fade needs no word to the frame loop. @a-mesurer */
 const FADE_MS = 180;
@@ -126,7 +135,13 @@ export class OutpostZones {
   readonly object = new Group();
   private readonly wash: Mesh<BufferGeometry, ShaderMaterial>;
   private points: ReadonlyArray<ZonePoint> = [];
-  private liaisons: Array<{ readonly a: string; readonly b: string; readonly line: Fat }> = [];
+  private liaisons: Array<{
+    readonly a: string;
+    readonly b: string;
+    readonly line: Fat;
+    /** Ses dents, sur une liaison sous ronde. */
+    readonly teeth: Teeth | null;
+  }> = [];
   private compasses = new Map<string, Compass>();
   /** **Le rayon que lit la pose d'un bâtiment** (#239), hors du calque : il remplace `ReachRings`. */
   private held: Array<{ readonly reach: HeldReach; readonly compass: Compass }> = [];
@@ -170,6 +185,8 @@ export class OutpostZones {
     liaisons: ReadonlyArray<readonly [string, string]>,
     /** **Les liaisons seules** (#376) : une troupe de ronde en main les montre, calque éteint. */
     linesOnly = false,
+    /** Celles où tourne une de mes rondes (#377), dans le sens qu'en donne la paire. */
+    patrolled: ReadonlyArray<readonly [string, string]> = [],
   ): void {
     this.clear();
     this.linesOnly = linesOnly;
@@ -180,12 +197,22 @@ export class OutpostZones {
       const from = at.get(a);
       const to = at.get(b);
       if (from === undefined || to === undefined) return [];
-      const line = new Fat(false, 1.85, true);
-      line.write(this.segment(from, to));
-      return [{ a, b, line }];
+      const segment = this.segment(from, to);
+      if (!patrolled.some(([c, d]) => (c === a && d === b) || (c === b && d === a))) {
+        const line = new Fat(null, 1.85, true);
+        line.write(segment);
+        return [{ a, b, line, teeth: null as Teeth | null }];
+      }
+      const dashes = Math.max(4, Math.round(distanceKm(from, to) / PATROL_DASH_KM));
+      const line = new Fat({ count: dashes, share: PATROL_DASH_SHARE }, 1.85, true);
+      line.write(segment, worldLength(segment));
+      return [{ a, b, line, teeth: new Teeth(this.frame, from, to, dashes) }];
     });
     for (const point of this.points) this.compasses.set(point.id, new Compass(this.frame, point));
-    for (const { line } of this.liaisons) this.object.add(line.line);
+    for (const { line, teeth } of this.liaisons) {
+      this.object.add(line.line);
+      if (teeth !== null) this.object.add(teeth.line);
+    }
     for (const compass of this.compasses.values()) this.object.add(compass.object);
     this.resize(...this.size);
     // A new view mid-fade carries on from where the fade was.
@@ -272,7 +299,10 @@ export class OutpostZones {
 
   resize(width: number, height: number): void {
     this.size = [width, height];
-    for (const { line } of this.liaisons) line.resize(width, height);
+    for (const { line, teeth } of this.liaisons) {
+      line.resize(width, height);
+      teeth?.material.resolution.set(width, height);
+    }
     for (const compass of this.compasses.values()) compass.resize(width, height);
     for (const { compass } of this.held) compass.resize(width, height);
   }
@@ -307,13 +337,15 @@ export class OutpostZones {
       this.shown.set(id, now);
       this.compasses.get(id)?.emphasise(now.reach, now.lookout);
     }
-    for (const { a, b, line } of this.liaisons) {
-      const e = this.linesOnly
-        ? 1
-        : Math.max(this.shown.get(a)?.reach ?? 0, this.shown.get(b)?.reach ?? 0);
+    for (const { a, b, line, teeth } of this.liaisons) {
+      const e =
+        this.linesOnly || teeth !== null
+          ? 1
+          : Math.max(this.shown.get(a)?.reach ?? 0, this.shown.get(b)?.reach ?? 0);
       line.material.opacity =
         LIAISON_REST.opacity + (LIAISON_SHARP.opacity - LIAISON_REST.opacity) * e;
       line.material.linewidth = LIAISON_REST.width + (LIAISON_SHARP.width - LIAISON_REST.width) * e;
+      if (teeth !== null) teeth.material.opacity = LIAISON_SHARP.opacity;
     }
   }
 
@@ -349,7 +381,10 @@ export class OutpostZones {
   }
 
   private clear(): void {
-    for (const { line } of this.liaisons) line.dispose();
+    for (const { line, teeth } of this.liaisons) {
+      line.dispose();
+      teeth?.dispose();
+    }
     for (const compass of this.compasses.values()) compass.dispose();
     this.liaisons = [];
     this.compasses.clear();
@@ -363,7 +398,8 @@ class Fat {
   private readonly geometry = new LineGeometry();
 
   constructor(
-    private readonly dotted: boolean,
+    /** Dashed: so many dashes along the line, each this share of its period. */
+    private readonly dashes: { readonly count: number; readonly share: number } | null,
     renderOrder: number,
     /** Of the ground: hidden behind a maquette, lowered by the night. */
     ground = false,
@@ -375,7 +411,7 @@ class Fat {
       opacity: 0,
       depthTest: ground,
       depthWrite: false,
-      dashed: dotted,
+      dashed: dashes !== null,
     });
     this.line = new Line2(this.geometry, this.material);
     this.line.renderOrder = renderOrder;
@@ -385,10 +421,10 @@ class Fat {
   write(positions: ReadonlyArray<number>, perimeter = 0): void {
     this.geometry.setPositions([...positions]);
     this.geometry.computeBoundingSphere();
-    if (!this.dotted) return;
-    const period = perimeter / LOOKOUT_DOTS;
-    this.material.dashSize = period * 0.35;
-    this.material.gapSize = period * 0.65;
+    if (this.dashes === null) return;
+    const period = perimeter / this.dashes.count;
+    this.material.dashSize = period * this.dashes.share;
+    this.material.gapSize = period * (1 - this.dashes.share);
     this.line.computeLineDistances();
   }
 
@@ -403,12 +439,68 @@ class Fat {
   }
 }
 
+const worldLength = (positions: ReadonlyArray<number>): number => {
+  let length = 0;
+  for (let i = 3; i < positions.length; i += 3)
+    length += Math.hypot(
+      positions[i]! - positions[i - 3]!,
+      positions[i + 1]! - positions[i - 2]!,
+      positions[i + 2]! - positions[i - 1]!,
+    );
+  return length;
+};
+
+/** **Les dents d'une ligne de guet**, une par tiret, du même côté de la paire. */
+class Teeth {
+  readonly line: LineSegments2;
+  readonly material: LineMaterial;
+
+  constructor(frame: WorldFrame, from: LonLat, to: LonLat, count: number) {
+    const km = (distanceKm(from, to) / count) * PATROL_TOOTH_SHARE;
+    const cos = Math.max(0.05, Math.cos(((from[1] + to[1]) * Math.PI) / 360));
+    const east = (to[0] - from[0]) * cos;
+    const north = to[1] - from[1];
+    const norm = Math.hypot(east, north) || 1;
+    const out: LonLat = [
+      ((-north / norm) * km) / KM_PER_DEGREE / cos,
+      ((east / norm) * km) / KM_PER_DEGREE,
+    ];
+    const positions: number[] = [];
+    for (let i = 1; i < count; i += 1) {
+      const at: LonLat = [
+        from[0] + ((to[0] - from[0]) * i) / count,
+        from[1] + ((to[1] - from[1]) * i) / count,
+      ];
+      for (const tip of [at, [at[0] + out[0], at[1] + out[1]] as LonLat])
+        positions.push(...frame.projectLonLat(tip, COUNTRY_THICKNESS + LIFT).toArray());
+    }
+    const geometry = new LineSegmentsGeometry();
+    geometry.setPositions(positions);
+    this.material = new LineMaterial({
+      color: INK,
+      linewidth: LIAISON_REST.width,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    this.line = new LineSegments2(geometry, this.material);
+    this.line.renderOrder = 1.85;
+    this.line.frustumCulled = false;
+  }
+
+  dispose(): void {
+    this.line.removeFromParent();
+    this.line.geometry.dispose();
+    this.material.dispose();
+  }
+}
+
 /** **Le cercle gradué** d'un point (POC `compas.html`) : son rayon de contrôle, ses graduations
  *  vers le dehors, et sa vigie en pointillé — au ras du rayon pour un Guet. */
 class Compass {
   readonly object = new Group();
-  private readonly reach = new Fat(false, 3);
-  private readonly lookout = new Fat(true, 3);
+  private readonly reach = new Fat(null, 3);
+  private readonly lookout = new Fat({ count: LOOKOUT_DOTS, share: 0.35 }, 3);
   private readonly ticks: LineSegments2;
   private readonly tickMaterial: LineMaterial;
   private readonly hasLookout: boolean;

@@ -1964,9 +1964,10 @@ export class MapEngine {
     points: ReadonlyArray<ZonePoint>,
     liaisons: ReadonlyArray<readonly [string, string]>,
     linesOnly = false,
+    patrolled: ReadonlyArray<readonly [string, string]> = [],
   ): void {
     this.invalidate();
-    this.zones.show(points, liaisons, linesOnly);
+    this.zones.show(points, liaisons, linesOnly, patrolled);
   }
 
   /** **La liaison tracée sous le pointeur** (#376), par les clés de ses deux points, ou `null`. */
