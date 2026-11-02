@@ -44,7 +44,9 @@
  * une pile à Thionville (`@zones`, `@metz`, `@thionville`). `--ronde` (#376) pose pour la France
  * une étoile autour de Metz (Luxembourg, Nancy, Sarrebruck), un blindé en ronde de Luxembourg vers
  * Metz, une infanterie en halte à Nancy, une infanterie seule à Metz et une dépêche de fin
- * (`@ronde`, `@metz`, `@nancy`, `@luxembourg`). `--guet` (#373) pose pour la
+ * (`@ronde`, `@metz`, `@nancy`, `@luxembourg`). `--ligne` (#377) pose pour la France une ronde en
+ * halte à Liège sur Liège–Sarrebruck, et en face une colonne que la seule ligne a relevée à son
+ * franchissement (`@ligne`, `@liege`, `@sarrebruck`). `--guet` (#373) pose pour la
  * France un Guet à Kaiserslautern et un généraliste à Berne, et en face une colonne britannique
  * lue en route vers Munich, un camp lu à Francfort, une dernière position lue à Mayence et un camp
  * que le généraliste relève sans le lire près de Berne (`@guet`, `@francfort`, `@mayence`, `@berne`). `--magasin` (#372) pose pour la France un
@@ -198,6 +200,8 @@ const zones = process.argv.includes('--zones');
 /** `--ronde` (#376) : une étoile lorraine autour de Metz, une ronde en route depuis Luxembourg,
  *  une en halte à Nancy, une infanterie seule à Metz à lancer, une dépêche de fin. */
 const patrols = process.argv.includes('--ronde');
+/** `--ligne` (#377) : une ronde Liège–Sarrebruck, et une colonne adverse que sa seule ligne a relevée. */
+const watchLine = process.argv.includes('--ligne');
 /** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
 const specialties = process.argv.includes('--metiers');
 /** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
@@ -726,6 +730,12 @@ if (!bare) {
     places.metz = [6.18, 49.12];
     places.nancy = [6.18, 48.69];
     places.luxembourg = [6.13, 49.61];
+  }
+  if (watchLine && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:watchLineScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+    places.ligne = [6.29, 49.93];
+    places.liege = [5.57, 50.63];
+    places.sarrebruck = [7.0, 49.23];
   }
   if (specialties && scene.a !== null) {
     cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);
