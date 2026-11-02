@@ -174,6 +174,7 @@ export function markersOf(
       seenMinutesAgo: camp.seenMinutesAgo,
       lastSeenAt: camp.lastSeenAt,
       ...(camp.nation === undefined ? {} : { nation: camp.nation }),
+      identification: camp.identification,
     }));
 
   /**

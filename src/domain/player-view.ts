@@ -52,13 +52,18 @@ type OwnMovementMission =
   | null;
 
 /**
- * What intelligence has pierced of an enemy movement. A nested union rather than a boolean
- * with optional fields: until the breakthrough happens, the card structurally has neither a
- * type nor a composition to leak.
+ * **Ce qu'un Guet a lu d'une force relevée** (ADR 0037 §5) : sa pile, rôles et nombres, et rien
+ * d'autre — ni l'ordre, qui reste le métier de l'agent (fiche 04, décision du 02/11), ni
+ * l'effectif, ni le tier, ni la cargaison. Une union plutôt qu'une pile optionnelle : tant que
+ * rien ne l'a lue, la carte n'a structurellement aucune composition à laisser fuir. La même pour
+ * un arc, sa dernière position connue et un camp.
  */
-type MovementIdentification =
-  | { readonly pierced: false }
-  | { readonly pierced: true; readonly type: MovementType; readonly stack: Stack };
+export type Composition =
+  { readonly pierced: false } | { readonly pierced: true; readonly stack: Stack };
+
+/** Une pile comptée par rôle, depuis un rôle par troupe. */
+export const stackOf = (roles: ReadonlyArray<UnitRole>): Stack =>
+  roles.reduce<Stack>((counted, role) => ({ ...counted, [role]: (counted[role] ?? 0) + 1 }), {});
 
 /**
  * The four display states of an arc. The discriminated union is the fog of war's guardrail:
@@ -134,7 +139,7 @@ export type ArcView =
        * destination is served — and the card already says « estimé ».
        */
       readonly headingAtMe: boolean;
-      readonly identification: MovementIdentification;
+      readonly identification: Composition;
       /** When the arrival is due. It times the label's countdown and nothing else: the arrival
        *  lies past the end of the thread drawn. */
       readonly arrivesAt: number;
@@ -154,6 +159,8 @@ export type ArcView =
       readonly detectorRegion: string | null;
       readonly nation?: string;
       readonly headingDegrees: number;
+      /** La dernière pile qu'un Guet a lue, figée avec le fil. */
+      readonly identification: Composition;
       /** L'instant où le fil a été vu pour la dernière fois — celui que l'annotation et l'affiche
        *  écrivent, et dont l'âge se lit à l'heure de qui le dessine. */
       readonly lastSeenAt: number;
@@ -169,9 +176,10 @@ export type ArcView =
 
 /**
  * **Un camp adverse relevé** (ADR 0024 §1). Le pendant immobile d'un arc adverse, et la même
- * garantie par la forme : il n'y a **structurellement** ni composition, ni effectif, ni nation à
- * afficher par distraction. Ce qu'il porte est ce qu'un guetteur peut honnêtement rapporter — un
- * endroit, un milieu, deux dates — plus le détecteur, qui est un fait du plateau de l'observateur.
+ * garantie par la forme : il n'y a **structurellement** ni effectif ni nation à afficher par
+ * distraction, et la pile seulement quand un Guet l'a lue (`Composition`). Ce qu'il porte est ce
+ * qu'un guetteur peut honnêtement rapporter — un endroit, un milieu, deux dates — plus le
+ * détecteur, qui est un fait du plateau de l'observateur.
  *
  * `lastKnown` est le camp perdu de vue : `seenMinutesAgo` le date alors, et il vaut `null` tant
  * qu'une portée le couvre.
@@ -224,6 +232,8 @@ export type CampView = {
   readonly lastKnown: boolean;
   /** La nation du camp, servie au seul teneur de Lisbonne (P11). */
   readonly nation?: string;
+  /** Sa pile, sous un Guet ; la dernière lue, une fois perdu de vue. */
+  readonly identification: Composition;
 };
 
 /**

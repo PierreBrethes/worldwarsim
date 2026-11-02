@@ -1273,6 +1273,15 @@ export default defineSchema({
         closedAt: v.number(),
       }),
     ),
+    /**
+     * **Ce qu'un Guet a lu de la pile** (ADR 0037 §5) : un rôle par troupe, sans effectif, sans
+     * tier, sans cargaison, et jamais l'ordre. `readFrom` ouvre la plus tôt des fenêtres de Guet,
+     * qui n'est pas forcément celle de la ligne : la ligne nomme le premier détecteur, et la vue
+     * ne sert la pile qu'à partir de là. Écrite au niveau de la ligne, hors de `frozen`, elle
+     * survit au souvenir. Absentes, aucun Guet ne l'a lue.
+     */
+    readFrom: v.optional(v.number()),
+    stack: v.optional(v.array(UNIT_ROLE)),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
@@ -1292,7 +1301,8 @@ export default defineSchema({
    * est une pile posée comme une autre, et elle se relève sous la même clé.
    *
    * `ownerId` n'est **jamais servi** : il est là pour que l'écriture sache de quel camp elle parle
-   * et pour qu'un test puisse le dire — la vue ne porte ni nation, ni composition, ni effectif.
+   * et pour qu'un test puisse le dire — la vue ne porte ni nation, ni effectif, et la composition
+   * seulement sous un Guet (`stack`).
    *
    * `until` à `null` est un camp couvert à l'instant ; daté, c'est l'heure où on l'a perdu de vue,
    * et la ligne devient une dernière position connue jusqu'à `LAST_KNOWN_HOURS`.
@@ -1314,6 +1324,9 @@ export default defineSchema({
     detectorRegion: v.union(v.string(), v.null()),
     /** Une dépêche par ligne, à l'ouverture : une réouverture ne rejoue pas la nouvelle. */
     noticeFiled: v.boolean(),
+    /** **La dernière pile qu'un Guet a lue** (ADR 0037 §5), un rôle par troupe ; seul un Guet
+     *  l'écrit, et elle reste quand il la perd de vue. Absente, aucun Guet ne l'a lue. */
+    stack: v.optional(v.array(UNIT_ROLE)),
   })
     .index('byPlayer', ['playerId'])
     .index('byStation', ['stationKey']),

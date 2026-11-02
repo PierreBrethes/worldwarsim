@@ -9,15 +9,15 @@ import type { PilePieces } from './pile-pieces';
 import { loadingUntilOf } from './loading';
 import { borderResolution } from './arc-timing';
 import { detectionRangeOf, sightingReachKm } from '../../convex/constants';
-import {
-  RESOURCES,
-  type BuildingKey,
-  type DepositKey,
-  type MovementType,
-  type Specialty,
-  type UnitRole,
-} from './ids';
-import type { ArcView, CaptureView, PlayerView, Stack, TroopStation } from './player-view';
+import { RESOURCES, type BuildingKey, type DepositKey, type Specialty, type UnitRole } from './ids';
+import type {
+  ArcView,
+  CaptureView,
+  Composition,
+  PlayerView,
+  Stack,
+  TroopStation,
+} from './player-view';
 import type { AimVerdict, WorkSite } from './construction';
 
 /**
@@ -59,7 +59,7 @@ export type MapMarker =
       /**
        * **Un camp adverse relevé** (ADR 0024 §1) — une position, un milieu, deux dates. Il n'a
        * ni encre, ni effectif, ni portrait : le brouillard ne rend que *où* une force se tient,
-       * jamais *ce qu'elle est*, et la forme est ce qui l'interdit.
+       * et sa pile seulement quand un Guet l'a lue (ADR 0037 §5).
        */
       readonly kind: 'camp';
       readonly id: string;
@@ -73,6 +73,7 @@ export type MapMarker =
       readonly lastSeenAt: number | null;
       /** Lisbonne (P11) : la nation du camp, à son seul teneur. */
       readonly nation?: string;
+      readonly identification: Composition;
     }
   | {
       /**
@@ -813,7 +814,7 @@ function markerLabel(marker: MapMarker): MapLabel {
       };
     /**
      * **Ce qu'on sait d'un camp, et c'est tout** (ADR 0024 §1) : il se tient là, dans ce
-     * milieu-là, et on l'a relevé à cette heure-là. Aucun pictogramme — c'est la silhouette de
+     * milieu-là, et on l'a relevé à cette heure-là — et sa pile, sous un Guet. Aucun pictogramme — c'est la silhouette de
      * domaine qui en tient lieu, celle qu'un arc adverse porte déjà.
      */
     case 'camp':
@@ -824,11 +825,13 @@ function markerLabel(marker: MapMarker): MapLabel {
         pictogram: null,
         camp: { id: marker.campId, medium: marker.medium },
         hostCountry: null,
+        identified: marker.identification.pierced,
         lines: [
           { role: 'nature', text: fr.camps.marker },
           marker.lastSeenAt === null
             ? { role: 'mention', text: fr.camps.seenAt(asLocalTime(marker.since)) }
             : { role: 'age', since: marker.lastSeenAt },
+          ...compositionLine(marker.identification),
           ...lisbonLine(marker.nation),
         ],
       };
@@ -1112,7 +1115,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       plate: null,
       lootSightingId: null,
       lootCurrent: true,
-      identified: false,
+      identified: arc.identification.pierced,
       offensive: false,
       idle: false,
       works: null,
@@ -1120,19 +1123,20 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       building: null,
       station: null,
       force: null,
-      lines: [{ role: 'age', since: arc.lastSeenAt }, ...lisbonLine(arc.nation)],
+      lines: [
+        { role: 'age', since: arc.lastSeenAt },
+        ...compositionLine(arc.identification),
+        ...lisbonLine(arc.nation),
+      ],
     };
   }
   if (arc.state !== 'enemyDetected') return null;
 
   const type = arc.headingAtMe ? 'inbound-movement' : 'intel';
   const schedule: LabelLine = { role: 'countdown', dueAt: arc.arrivesAt, prefix: '~' };
-  const second: LabelLine = arc.identification.pierced
-    ? {
-        role: 'nature',
-        text: `${fr.movementTypes[arc.identification.type]} · ${abbreviateStack(arc.identification.stack)}`,
-      }
-    : { role: 'mention', text: fr.labels.estimated };
+  const [second = { role: 'mention', text: fr.labels.estimated }] = compositionLine(
+    arc.identification,
+  );
 
   return {
     id: arc.id,
@@ -1151,7 +1155,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     lootSightingId: null,
     lootCurrent: true,
     identified: arc.identification.pierced,
-    offensive: arc.identification.pierced && OFFENSIVE_TYPES.includes(arc.identification.type),
+    offensive: false,
     idle: false,
     works: null,
     hostCountry: null,
@@ -1161,6 +1165,10 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     lines: [schedule, second, ...lisbonLine(arc.nation)],
   };
 }
+
+/** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile, abrégée — « 3 INF · 1 BLD » —, jamais l'ordre. */
+const compositionLine = (known: Composition): ReadonlyArray<LabelLine> =>
+  known.pierced ? [{ role: 'nature', text: abbreviateStack(known.stack) }] : [];
 
 /** **Ce que Lisbonne fait lire** (P11) : la nation d'un relevé, à son seul teneur. */
 const lisbonLine = (nation: string | undefined): ReadonlyArray<LabelLine> =>
@@ -1196,9 +1204,6 @@ function scheduleLines(
     { role: 'mention', text: fr.labels.borderHold(resolvesAt) },
   ];
 }
-
-/** Striking means attacking a nation or raiding an outpost; the rest infiltrates. */
-const OFFENSIVE_TYPES: ReadonlyArray<MovementType> = ['attack', 'raid'];
 
 const resourceAmountsLabel = (amounts: PlayerView['lootSightings'][number]['loot']): string =>
   RESOURCES.filter((resource) => amounts[resource] > 0)

@@ -3,6 +3,7 @@ import { buildLabels, type MapMarker } from './labels';
 import { posterOf, type Poster } from './map-poster';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
+import { stackLabel } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import type { WorkSite } from './construction';
 
@@ -431,8 +432,8 @@ describe('posterOf', () => {
     expect(texts(poster)).not.toMatch(/marche|attaque|raid/);
   });
 
-  it('names the types of a pierced movement and sends to the gunnery, with no statistic of the piece', () => {
-    const arc = {
+  it('names the pile a Guet has read, never its order, and sends to the gunnery', () => {
+    const arc: ArcView = {
       state: 'enemyDetected',
       id: 'foe',
       from: [0, 0],
@@ -442,12 +443,17 @@ describe('posterOf', () => {
       detectorRegion: null,
       headingDegrees: 90,
       headingAtMe: false,
-      identification: { pierced: true, type: 'march', stack: { infantry: 2 } },
+      identification: { pierced: true, stack: { infantry: 2 } },
       arrivesAt: LOADED_AT + 30 * 60_000,
       seenTo: LOADED_AT + 10 * 60_000,
       since: LOADED_AT - 40 * 60_000,
-    } as unknown as ArcView;
+    };
     const poster = posterFor(view({ arcs: [arc] }), [], 'foe');
+    expect(poster?.lines[0]).toEqual({
+      kind: 'text',
+      text: `${stackLabel({ infantry: 2 })}, nation inconnue`,
+    });
+    expect(texts(poster)).not.toMatch(/marche|attaque|raid/);
     expect(poster?.lines).toContainEqual({
       kind: 'text',
       text: 'Les types sont classés à l’abaque.',
@@ -466,6 +472,7 @@ describe('posterOf', () => {
       detector: 'troop',
       detectorRegion: null,
       headingDegrees: 0,
+      identification: { pierced: false },
       lastSeenAt: LOADED_AT - 125 * 60_000,
     };
     const camp: MapMarker = {
@@ -478,11 +485,17 @@ describe('posterOf', () => {
       since: LOADED_AT - 60_000,
       seenMinutesAgo: null,
       lastSeenAt: null,
+      identification: { pierced: false },
     };
     const v = view({
       arcs: [lastKnown],
       camps: [
-        { id: 'c1', since: LOADED_AT - 60_000, seenMinutesAgo: null },
+        {
+          id: 'c1',
+          since: LOADED_AT - 60_000,
+          seenMinutesAgo: null,
+          identification: { pierced: false },
+        },
       ] as unknown as PlayerView['camps'],
     });
     // The served instant, never re-derived from an age against the load: the two drift apart.
@@ -494,6 +507,32 @@ describe('posterOf', () => {
       title: 'force posée',
       washed: true,
     });
+  });
+
+  /** **Une force posée relevée par un Guet** dit sa pile sur sa fiche (ADR 0037 §5). */
+  it('names the pile of a camp a Guet has read', () => {
+    const identification = { pierced: true, stack: { infantry: 3, armor: 1 } } as const;
+    const camp: MapMarker = {
+      kind: 'camp',
+      id: 'camp',
+      campId: 'c1',
+      lonLat: [0, 0],
+      medium: 'land',
+      lastKnown: false,
+      since: LOADED_AT - 60_000,
+      seenMinutesAgo: null,
+      lastSeenAt: null,
+      identification,
+    };
+    const v = view({
+      camps: [
+        { id: 'c1', since: LOADED_AT - 60_000, seenMinutesAgo: null, identification },
+      ] as unknown as PlayerView['camps'],
+    });
+    expect(posterFor(v, [camp], 'camp')?.lines).toEqual([
+      { kind: 'text', text: `${stackLabel(identification.stack)}, nation inconnue` },
+      { kind: 'text', text: 'Les types sont classés à l’abaque.' },
+    ]);
   });
 
   it('reads a neutral objective off what is public, and nothing of its garrison', () => {

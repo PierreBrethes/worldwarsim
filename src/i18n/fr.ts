@@ -4737,7 +4737,7 @@ export const fr = {
     standing: 'force posée',
     moving: 'force en mouvement',
     unknown: 'composition inconnue, nation inconnue',
-    pierced: (type: string, composition: string) => `${type} · ${composition}, nation inconnue`,
+    pierced: (composition: string) => `${composition}, nation inconnue`,
     estimatedArrival: 'arrivée estimée',
     estimatedTime: (time: string) => `~${time}`,
     heading: 'cap',

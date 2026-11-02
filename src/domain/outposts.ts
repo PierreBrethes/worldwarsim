@@ -115,6 +115,11 @@ export const lookoutKmOf = (outpost: { readonly level: number } & Specialized): 
   outpostReachKm(outpost.level) *
   (effectiveSpecialty(outpost) === 'lookout' ? 1 : LOOKOUT_REACH_SHARE);
 
+/** **Le Guet lit la pile de ce qu'il relève** (ADR 0037 §5), jamais son ordre ni sa nation
+ *  (décision du 02/11) ; pendant un chantier de changement, il guette en généraliste et ne lit rien. */
+export const readsComposition = (outpost: Specialized): boolean =>
+  effectiveSpecialty(outpost) === 'lookout';
+
 /** **Un point guette debout et en service** (ADR 0037 §2), lu sur la vue : un chantier ou un
  *  point désactivé n'a ni vigie ni liaison. */
 export const isOnWatch = (outpost: {

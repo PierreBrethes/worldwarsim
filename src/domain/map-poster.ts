@@ -12,7 +12,7 @@ import { arcProgressAt } from './arc-timing';
 import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
 import { buildingStatsOf, pileStatsOf, type StatRow } from './stat-sheet';
-import type { CargoView, PlayerView, TroopView } from './player-view';
+import type { CargoView, Composition, PlayerView, TroopView } from './player-view';
 import { surveyedAt } from './survey-ink';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
 
@@ -153,7 +153,12 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
   if (label.camp !== null) {
     const camp = view.camps.find((candidate) => candidate.id === label.camp?.id);
     if (camp === undefined) return null;
-    return sighting(fr.posters.surveyed(asClockTime(surveyedAt(camp))), fr.posters.standing, []);
+    return sighting(
+      fr.posters.surveyed(asClockTime(surveyedAt(camp))),
+      fr.posters.standing,
+      [composition(camp.identification)],
+      camp.identification.pierced,
+    );
   }
   if (label.anchor.kind !== 'movementHead') return null;
   const arcId = label.anchor.arc;
@@ -181,21 +186,18 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         loading: loadingUntilOf(arc),
       };
     case 'lastKnown':
-      return sighting(fr.posters.surveyed(asClockTime(arc.lastSeenAt)), fr.posters.moving, [
-        { kind: 'text', text: fr.posters.unknown },
-      ]);
+      return sighting(
+        fr.posters.surveyed(asClockTime(arc.lastSeenAt)),
+        fr.posters.moving,
+        [composition(arc.identification)],
+        arc.identification.pierced,
+      );
     case 'enemyDetected': {
-      const known = arc.identification;
       return sighting(
         fr.posters.surveyed(asClockTime(arc.since)),
         fr.posters.moving,
         [
-          {
-            kind: 'text',
-            text: known.pierced
-              ? fr.posters.pierced(fr.movementTypes[known.type], stackLabel(known.stack))
-              : fr.posters.unknown,
-          },
+          composition(arc.identification),
           {
             kind: 'row',
             label: fr.posters.estimatedArrival,
@@ -212,7 +214,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
               ]
             : []),
         ],
-        known.pierced,
+        arc.identification.pierced,
       );
     }
     default:
@@ -220,21 +222,25 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
   }
 }
 
+/** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile en toutes lettres, jamais l'ordre ni la nation. */
+const composition = (known: Composition): PosterLine => ({
+  kind: 'text',
+  text: known.pierced ? fr.posters.pierced(stackLabel(known.stack)) : fr.posters.unknown,
+});
+
 function sighting(
   eyebrow: string,
   title: string,
   lines: ReadonlyArray<PosterLine>,
-  pierced = false,
+  pierced: boolean,
 ): Poster {
-  // Un camp ne se compose jamais, même percé : la phrase le dit une fois.
-  const said = lines.length === 0 ? [{ kind: 'text', text: fr.posters.unknown } as const] : lines;
   // Une force relevée n'a aucune statistique de la pièce (brouillard) : elle renvoie à l'abaque,
   // qui range les types du jeu — ceux qu'un relevé percé nomme, et tous les autres.
   const toGunnery = {
     kind: 'text',
     text: pierced ? fr.stats.foggedPierced : fr.stats.toGunnery,
   } as const;
-  return { ...plain, eyebrow, title, washed: true, lines: [...said, toGunnery] };
+  return { ...plain, eyebrow, title, washed: true, lines: [...lines, toGunnery] };
 }
 
 /** **Bakou** : le prochain cran de plein de la pile, quand elle en reprend un hors de toute ancre. */

@@ -9,7 +9,7 @@ import {
   type MapLabel,
   type MapMarker,
 } from './labels';
-import type { ArcView, PlayerView } from './player-view';
+import type { ArcView, Composition, PlayerView } from './player-view';
 import { directRoute } from './routing';
 import { asLocalTime } from './duration';
 
@@ -185,19 +185,62 @@ describe('buildLabels', () => {
     expect(label?.lines.some((line) => line.role === 'countdown')).toBe(false);
   });
 
-  it('gives type and composition once intelligence has pierced', () => {
+  /** **Le Guet lit la pile, jamais l'ordre** (ADR 0037 §5, décision du 02/11). */
+  it('gives the pile a Guet has read, and never the order', () => {
     const [label] = buildLabels(
       viewWith([
         detectedArc({
           headingAtMe: true,
-          identification: { pierced: true, type: 'attack', stack: { armor: 30 } },
+          identification: { pierced: true, stack: { infantry: 3, armor: 1 } },
         }),
       ]),
       [],
     );
     expect(label?.type).toBe('inbound-movement');
     expect(label?.identified).toBe(true);
-    expect(texts(label!.lines)).toEqual(['countdown:countdown', 'attaque · 30 BLD']);
+    expect(texts(label!.lines)).toEqual(['countdown:countdown', '3 INF · 1 BLD']);
+  });
+
+  it('says the pile of a camp a Guet has read, and nothing of one it has not', () => {
+    const camp = (identification: Composition): MapMarker => ({
+      kind: 'camp',
+      id: 'camp',
+      campId: 'c1',
+      lonLat: [0, 0],
+      medium: 'land',
+      lastKnown: false,
+      since: 0,
+      seenMinutesAgo: null,
+      lastSeenAt: null,
+      identification,
+    });
+    const [read] = buildLabels(viewWith([]), [
+      camp({ pierced: true, stack: { infantry: 3, armor: 1 } }),
+    ]);
+    expect(read?.lines).toContainEqual({ role: 'nature', text: '3 INF · 1 BLD' });
+    const [blind] = buildLabels(viewWith([]), [camp({ pierced: false })]);
+    expect(blind?.lines.filter((line) => line.role === 'nature')).toHaveLength(1);
+  });
+
+  it('keeps the pile read on the last known position', () => {
+    const [label] = buildLabels(
+      viewWith([
+        {
+          state: 'lastKnown',
+          detector: 'outpost',
+          detectorRegion: null,
+          id: 'old',
+          from: [0, 0],
+          to: [1, 1],
+          route: directRoute([0, 0], [1, 1], 'land', 10),
+          headingDegrees: 0,
+          identification: { pierced: true, stack: { infantry: 2 } },
+          lastSeenAt: 0,
+        },
+      ]),
+      [],
+    );
+    expect(label?.lines).toContainEqual({ role: 'nature', text: '2 INF' });
   });
 
   it('never gives national ink to an enemy label', () => {
@@ -270,6 +313,7 @@ describe('buildLabels', () => {
           state: 'lastKnown',
           detector: 'troop',
           detectorRegion: null,
+          identification: { pierced: false },
           id: 'old',
           from: [0, 0],
           to: [1, 1],
@@ -324,6 +368,7 @@ describe('buildLabels', () => {
         state: 'lastKnown',
         detector: 'troop',
         detectorRegion: null,
+        identification: { pierced: false },
         id: 'a',
         from: [0, 0],
         to: [1, 1],

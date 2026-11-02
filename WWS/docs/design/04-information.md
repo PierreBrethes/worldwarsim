@@ -146,6 +146,10 @@ visible, filtrables par type puisque mes types sont connus) ; **cap sur moi** (e
 critique : adverse détecté dont la trajectoire croise mon territoire ou mes avant-postes) ;
 **renseignement** (encre sourde : adverse détecté ailleurs, sans conséquence directe).
 
+> ⚠️ **Révision (02/11/2026, [ADR 0037](../adr/0037-un-avant-poste-qui-stocke-et-guette.md) §5, codée par #373).**
+> Le Guet lit la **composition** de ce qu'il relève, colonne ou force posée : sa pile, « 3 inf ·
+> 1 blindé », jamais son ordre ni sa nation. Le type reste le métier de l'agent.
+
 **Un mouvement adverse détecté ne révèle par défaut ni son type ni sa composition** —
 seulement le fil, le cap et un horaire estimé. C'était la condition d'existence du leurre ; la
 règle lui survit et vaut pour elle-même.

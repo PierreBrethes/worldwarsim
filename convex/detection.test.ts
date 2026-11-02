@@ -846,6 +846,7 @@ describe('what sees a camp standing', () => {
       'detector',
       'detectorRegion',
       'id',
+      'identification',
       'lastKnown',
       'lastSeenAt',
       'medium',
@@ -853,6 +854,7 @@ describe('what sees a camp standing', () => {
       'seenMinutesAgo',
       'since',
     ]);
+    expect(camp!.identification).toEqual({ pierced: false });
     expect(camp!.lastKnown).toBe(false);
     expect(camp!.seenMinutesAgo).toBeNull();
     expect(camp!.lastSeenAt).toBeNull();
@@ -1529,6 +1531,8 @@ describe('a one-player event reassesses what the whole pass would', () => {
             row.detectorRegion,
             row.noticeFiled ?? null,
             row.frozen?.closedAt ?? null,
+            row.readFrom ?? null,
+            row.stack?.join() ?? null,
           ]),
         )
         .sort(),
@@ -1591,6 +1595,20 @@ describe('a one-player event reassesses what the whole pass would', () => {
           hostCountry: 'DEU',
           /** Niveau 2 : sa vigie porte à 90 km, la portée que la tournée doit croiser. */
           level: 2,
+          foundedAt: Date.now() - 1,
+          disabledUntil: null,
+          immuneUntil: null,
+        });
+        /** Un Guet allemand : ses relevés écrivent la pile, que la passe entière retrouve telle
+         *  quelle (ADR 0037 §5). */
+        await ctx.db.insert('outposts', {
+          seasonId: seat.seasonId,
+          playerId: players[1]!,
+          /** Au centre du carré, sans tirer sur la suite pseudo-aléatoire de la scène. */
+          point: { lon: 8, lat: 50 },
+          hostCountry: 'DEU',
+          level: 2,
+          specialty: 'lookout',
           foundedAt: Date.now() - 1,
           disabledUntil: null,
           immuneUntil: null,
@@ -1673,6 +1691,8 @@ describe('a one-player event reassesses what the whole pass would', () => {
 
       const relit = await ledger(t);
       expect(relit).not.toEqual(departed);
+      /** Le Guet a lu au moins une pile : l'équivalence porte aussi sur elle. */
+      expect(relit.some((row) => JSON.parse(row)[11] !== null)).toBe(true);
       await wholePass(t, seat.seasonId);
       expect(await ledger(t)).toEqual(relit);
     },
@@ -1698,5 +1718,267 @@ describe('a one-player event reassesses what the whole pass would', () => {
     expect(rifleSees).toMatchObject({ movementId: truckId, detector: 'troop' });
     expect(rifleSees!.from).toBeLessThan(truckSees!.from);
     expect(rifleSees!.to).toBeGreaterThan(truckSees!.to);
+  });
+});
+
+/**
+ * **Le Guet lit la pile de ce qu'il relève, jamais son ordre** (ADR 0037 §5, décision du 02/11).
+ * La garantie est au serveur : la vue d'un joueur sans Guet ne porte ni pile ni ordre, et celle
+ * d'un teneur de Guet porte la pile seule — ni `type`, ni effectif, ni tier, ni cargaison.
+ */
+describe('what a Guet reads of what it relève', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const HOUR = 3_600_000;
+  const here = () => pointOf(PRAHOVA);
+  /** Ni l'ordre, ni l'effectif, ni le tier, ni la cargaison : aucune de ces clés ne voyage. */
+  const LEAKS = /"(type|currentStrength|nominalStrength|tier|cargo|troopIds|roles)"/;
+
+  async function guet(t: ReturnType<typeof boot>, seat: Seat, specialty?: 'lookout') {
+    const point = await outpost(t, seat, here());
+    await t.run(async (ctx) =>
+      ctx.db.patch(point, { level: 2, ...(specialty === undefined ? {} : { specialty }) }),
+    );
+    return point;
+  }
+
+  async function pile(
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    at: LonLat,
+    roles: ReadonlyArray<UnitRole>,
+  ) {
+    const troopIds: Array<Id<'troops'>> = [];
+    for (const role of roles) troopIds.push(await form(t, seat, role, null));
+    await t.run(async (ctx) => {
+      for (const troopId of troopIds) await ctx.db.patch(troopId, { stationedAt: asPoint(at) });
+      await reassessDetection(ctx, (await ctx.db.get(troopIds[0]!))!.seasonId);
+    });
+    return troopIds;
+  }
+
+  /** Une colonne posée sur la route, qui part : le fil traverse le rayon du Guet de niveau 2 à
+   *  cent cinquante kilomètres, hors de la mi-portée d'un généraliste. */
+  async function column(
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    roles: ReadonlyArray<UnitRole>,
+    from: LonLat,
+    to: LonLat,
+    durationMs = 6 * HOUR,
+  ) {
+    const troopIds = await pile(t, seat, from, roles);
+    const playerId = await playerOf(t, seat);
+    return t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(playerId))!.seasonId;
+      const distanceUnits = distanceKm(from, to);
+      const movementId = await ctx.db.insert('movements', {
+        seasonId,
+        playerId,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'point', point: asPoint(to) },
+        from: asPoint(from),
+        to: asPoint(to),
+        hostCountry: hostAtPoint(to),
+        points: [asPoint(from), asPoint(to)],
+        legs: [{ medium: 'land', distanceUnits }],
+        distanceUnits,
+        costUnits: distanceUnits * COST_BY_MEDIUM.land,
+        landCost: COST_BY_MEDIUM.land,
+        troopIds,
+        departedAt: Date.now(),
+        arrivesAt: Date.now() + durationMs,
+      });
+      for (const troopId of troopIds) await ctx.db.patch(troopId, { stationedAt: null });
+      await reassessDetection(ctx, seasonId);
+      return movementId;
+    });
+  }
+
+  const road = () => ({
+    from: eastOf(northOf(here(), 150), -50),
+    to: eastOf(northOf(here(), 150), 600),
+  });
+
+  it('serves neither pile nor order to a player whose lookout is no Guet', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await outpost(t, guest, here());
+    const from = eastOf(northOf(here(), 30), -50);
+    await column(t, seat, ['infantry', 'armor'], from, eastOf(northOf(here(), 30), 600));
+    await pile(t, seat, eastOf(here(), 40), ['infantry', 'infantry']);
+
+    const view = await t.query(api.view.playerView, guest);
+    expect(view.detected).toMatchObject([{ identification: { pierced: false } }]);
+    expect(view.camps.length).toBeGreaterThan(0);
+    for (const camp of view.camps) expect(camp.identification).toEqual({ pierced: false });
+    expect(JSON.stringify([view.detected, view.camps])).not.toMatch(LEAKS);
+    expect(JSON.stringify([view.detected, view.camps])).not.toContain('stack');
+  });
+
+  it('serves a Guet the pile of a column, and never its order, strength, tier or cargo', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await guet(t, guest, 'lookout');
+    const { from, to } = road();
+    await column(t, seat, ['infantry', 'armor', 'infantry'], from, to);
+
+    const view = await t.query(api.view.playerView, guest);
+    expect(view.detected).toMatchObject([{ detector: 'outpost' }]);
+    expect(view.detected[0]!.identification).toEqual({
+      pierced: true,
+      stack: { infantry: 2, armor: 1 },
+    });
+    expect(JSON.stringify(view.detected)).not.toMatch(LEAKS);
+    expect(view.detected[0]).not.toHaveProperty('nation');
+  });
+
+  it('serves nothing of the pile to a generalist of the same level', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await guet(t, guest);
+    const from = eastOf(northOf(here(), 60), -50);
+    await column(t, seat, ['infantry', 'armor'], from, eastOf(northOf(here(), 60), 600));
+
+    const view = await t.query(api.view.playerView, guest);
+    expect(view.detected).toMatchObject([{ identification: { pierced: false } }]);
+  });
+
+  /** La pile suit les recrues et les départs tant que le Guet la voit, puis se fige. */
+  it('follows the pile of a camp while the Guet sees it, and keeps the last read once it is gone', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await guet(t, guest, 'lookout');
+    const at = eastOf(here(), 150);
+    const [first, second] = await pile(t, seat, at, ['infantry', 'infantry']);
+    const campOf = async () => (await t.query(api.view.playerView, guest)).camps;
+    expect(await campOf()).toMatchObject([
+      { lastKnown: false, identification: { pierced: true, stack: { infantry: 2 } } },
+    ]);
+
+    const [armor] = await pile(t, seat, at, ['armor']);
+    expect((await campOf())[0]!.identification).toEqual({
+      pierced: true,
+      stack: { infantry: 2, armor: 1 },
+    });
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(at) },
+      troopIds: [first!],
+      point: asPoint(northOf(at, 500)),
+    });
+    expect((await campOf())[0]!.identification).toEqual({
+      pierced: true,
+      stack: { infantry: 1, armor: 1 },
+    });
+
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(at) },
+      troopIds: [second!, armor!],
+      point: asPoint(eastOf(at, -500)),
+    });
+    const camps = await campOf();
+    expect(camps.find((camp) => camp.lastKnown)!.identification).toEqual({
+      pierced: true,
+      stack: { infantry: 1, armor: 1 },
+    });
+  });
+
+  /** **La pile ne se sert qu'à l'ouverture de la fenêtre du Guet**, même quand un autre détecteur
+   *  a pris la colonne plus tôt : le relevé nomme le premier, la lecture attend le Guet. */
+  it('serves the pile from the opening of the Guet window, not of the row', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const start = eastOf(northOf(here(), 150), -700);
+    await guet(t, guest, 'lookout');
+    await pile(t, guest, eastOf(start, 20), ['infantry']);
+    await column(t, seat, ['armor'], start, eastOf(northOf(here(), 150), 700), 12 * HOUR);
+
+    const [row] = await sightingsOf(t, guest);
+    expect(row).toMatchObject({ detector: 'troop' });
+    expect(row!.from).toBeLessThanOrEqual(Date.now());
+    expect(row!.readFrom).toBeGreaterThan(Date.now());
+    expect((await t.query(api.view.playerView, guest)).detected).toMatchObject([
+      { identification: { pierced: false } },
+    ]);
+
+    vi.advanceTimersByTime(row!.readFrom! - Date.now());
+    expect((await t.query(api.view.playerView, guest)).detected).toMatchObject([
+      { identification: { pierced: true, stack: { armor: 1 } } },
+    ]);
+  });
+
+  /** **Les pertes d'un combat se relisent** : l'arrivée d'un assaut réévalue, et la pile servie
+   *  est celle des survivants. */
+  it('reads the survivors of a camp an attack has struck', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await guet(t, guest, 'lookout');
+    const at = eastOf(here(), 150);
+    await pile(t, seat, at, ['infantry', 'infantry', 'infantry', 'infantry', 'artillery']);
+    const camp = (await t.query(api.view.playerView, guest)).camps[0]!;
+    const start = eastOf(at, -30);
+    const attackers = await pile(t, guest, start, ['armor', 'armor', 'armor', 'armor', 'armor']);
+
+    const sent = await t.mutation(api.movements.attack, {
+      ...guest,
+      origin: { kind: 'point', point: asPoint(start) },
+      troopIds: attackers,
+      target: { kind: 'camp', campId: camp.id as Id<'campSightings'> },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const sellerId = await playerOf(t, seat);
+    const standing = await t.run(async (ctx) =>
+      (await ctx.db.query('troops').collect()).filter(
+        (troop) =>
+          troop.playerId === sellerId &&
+          typeof troop.stationedAt === 'object' &&
+          troop.stationedAt?.lon === asPoint(at).lon,
+      ),
+    );
+    /** L'assaut tue une part de la pile, pas toute : la pile servie est celle qui reste. */
+    expect(standing.length).toBeGreaterThan(0);
+    expect(standing.length).toBeLessThan(5);
+    const served = (await t.query(api.view.playerView, guest)).camps.find(
+      (row) => row.id === camp.id,
+    )!;
+    expect(served.identification).toEqual({
+      pierced: true,
+      stack: { infantry: standing.length },
+    });
+    expect(standing.every((troop) => troop.role === 'infantry')).toBe(true);
+  });
+
+  it('keeps the pile on the last known position of a column, and none it never read', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await guet(t, guest, 'lookout');
+    const { from, to } = road();
+    const read = await column(t, seat, ['infantry', 'armor'], from, to);
+    const start = eastOf(northOf(here(), 150), -700);
+    await pile(t, guest, eastOf(start, 20), ['infantry']);
+    const unread = await column(t, seat, ['armor'], start, eastOf(start, -300), 12 * HOUR);
+
+    vi.advanceTimersByTime(HOUR);
+    await t.run(async (ctx) => {
+      await forgetMovement(ctx, read);
+      await forgetMovement(ctx, unread);
+    });
+    vi.advanceTimersByTime(12 * HOUR);
+
+    const detected = (await t.query(api.view.playerView, guest)).detected;
+    expect(detected).toHaveLength(2);
+    expect(
+      detected.map((arc) => arc.identification).sort((a, b) => +a.pierced - +b.pierced),
+    ).toEqual([{ pierced: false }, { pierced: true, stack: { infantry: 1, armor: 1 } }]);
   });
 });
