@@ -5,6 +5,7 @@ import { TelegraphPanel, useTelegraphTabs } from '@/shell/TelegraphPanel';
 import { useNarrowScreen } from '@/shell/viewport';
 import { FloatingWindow, useWindowSized, type WindowProps, WindowHead } from './Window';
 import type { Seat } from '@/data/session';
+import { FrontTape } from './FrontTape';
 
 /**
  * **Le cadre du plateau, et rien de plus** : le fil et son champ d'envoi sont partagés avec le
@@ -57,6 +58,7 @@ export function TelegraphWindow({
           <WindowHead eyebrow={title} title={fr.telegraph.header} onClose={close} />
         )}
 
+        <FrontTape />
         <TelegraphPanel
           telegraph={telegraph}
           tabs={tabs}
