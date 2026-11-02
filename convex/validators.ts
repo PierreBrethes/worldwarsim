@@ -377,6 +377,22 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     troops: v.number(),
   }),
+  /** **Ce qu'un Magasin a versé à la colonne qui le traversait** (ADR 0037 §4), en crans ; à sec,
+   *  ce qui restait ; capturé ou fermé en route, rien. Chez le propriétaire de la colonne seul. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('storeResupplied'),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    outcome: v.union(
+      v.literal('served'),
+      v.literal('short'),
+      v.literal('captured'),
+      v.literal('closed'),
+    ),
+    rounds: v.number(),
+    fuel: v.number(),
+  }),
   /** **A march that ended inside one of the player's buildings** (decision 64b): the address is
    *  named, building and region, because « a pris position — France » would not say which port
    *  now holds the infantry the cargo is waiting for. */

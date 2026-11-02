@@ -195,6 +195,18 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    case 'storeResupplied':
+      return {
+        at: notice.at,
+        severity: notice.outcome === 'served' ? 'routine' : 'notable',
+        kind: 'column',
+        text: said.storeResupplied(
+          notice.outcome,
+          notice.rounds,
+          notice.fuel,
+          countryLabel(notice.hostCountry),
+        ),
+      };
     case 'garrisonEntered':
       return {
         at: notice.at,

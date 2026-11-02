@@ -76,7 +76,8 @@ import {
   troopsAmong,
   fuelBill,
 } from './movement/orders';
-import { resupply, toppedUp } from './supplies';
+import { passingEstimate, resupply, resupplyInPassing, toppedUp } from './supplies';
+import { suppliesOf } from '../src/domain/supplies';
 import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
@@ -683,7 +684,10 @@ export const preview = query({
       originName: departure.name,
       route: routeFacts(route),
       /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
-      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true),
+      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true, {
+        departedAt: now,
+        arrivesAt,
+      }),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -748,16 +752,38 @@ const fuelFacts = async (
   route: ComputedRoute,
   column: { readonly blitz?: unknown },
   roundTrip: boolean,
+  { departedAt, arrivesAt }: { readonly departedAt: number; readonly arrivesAt: number },
 ) => {
-  const { gauge, short, km, eased } = fuelBill(
+  const { gauge, short, km, eased, drivers, stepsOf } = fuelBill(
     troops,
     route.distanceUnits,
     column.blitz !== undefined,
     roundTrip,
     await holdsPoint(ctx, player, 'singapore'),
   );
+  /** **Ce que ses Magasins lui verseront en route** (ADR 0037 §4), la route payée d'abord : c'est
+   *  le plein qui lui restera qui se remplit. */
+  const paying = new Set(drivers.map((troop) => troop._id));
+  const resupply = await passingEstimate(
+    ctx,
+    player._id,
+    {
+      id: 'preview',
+      points: route.points,
+      legs: route.legs,
+      distanceUnits: route.distanceUnits,
+      landCost: route.landCost,
+      departedAt,
+      arrivesAt,
+    },
+    troops.map((troop) =>
+      paying.has(troop._id)
+        ? { ...troop, fuel: Math.max(0, suppliesOf(troop).fuel - stepsOf(troop)) }
+        : troop,
+    ),
+  );
   /** **Singapour** se dit à la carte : le plein des camions et cargos, de tant à tant de crans. */
-  return { gauge, short, km, roundTrip, eased };
+  return { gauge, short, km, roundTrip, eased, resupply };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -809,7 +835,10 @@ export const previewPlunder = query({
       destinationName: region.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, {
+        departedAt: now,
+        arrivesAt,
+      }),
       cargo: await cargoPreviewOf(ctx, player, departure, troops),
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
@@ -864,7 +893,10 @@ export const previewCapture = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, {
+        departedAt: now,
+        arrivesAt,
+      }),
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
@@ -930,7 +962,10 @@ export const previewLootCollection = query({
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, {
+        departedAt: now,
+        arrivesAt,
+      }),
       cargo,
       estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
       seenAt: sighting.seenAt,
@@ -989,6 +1024,10 @@ export const arrive = internalMutation({
       await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }
+
+    /** **Ce que la route a croisé avant d'arriver**, relu à l'arrivée : la colonne se bat avec ce
+     *  qu'elle a repris au Magasin (ADR 0037 §4). */
+    await resupplyInPassing(ctx, movement, now);
 
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);

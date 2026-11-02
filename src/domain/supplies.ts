@@ -2,11 +2,14 @@ import {
   BAKU_REFUEL_MS,
   FAMILY_RESOURCE_OF_ROLE,
   FUEL_STEP_KM,
+  PASSING_RESUPPLY_PER_MINUTE,
   SINGAPORE_FUEL_DISCOUNT_PCT,
   SUPPLY_BY_ROLE,
   SUPPLY_STEP_COST,
 } from '../../convex/constants';
+import { distanceKm, type LonLat } from './geo';
 import type { UnitRole } from './ids';
+import { INTERCEPTION_SAMPLES, mediumAt, positionAt, type MarchingForce } from './interception';
 
 /**
  * **Coups et plein** (ADR 0028 §3, Mondiale seule) : ce que chaque troupe porte, en crans. Les
@@ -260,4 +263,84 @@ export function bakuGainOf(
   if (fullSupplies(troop.role).fuel === 0) return null;
   const since = Math.max(troop.fuelAt ?? troop.createdAt, state.heldSince);
   return bakuRefuel(troop.role, suppliesOf(troop).fuel, since, now);
+}
+
+/** Un Magasin tel que le passage le lit : à soi, debout, en service et Magasin à l'arrivée. */
+export type PassingStore<Id extends string = string> = {
+  readonly id: Id;
+  readonly point: LonLat;
+  readonly reachKm: number;
+  readonly depot: SupplyStocks;
+};
+
+export type PassingTake<Id extends string = string> = {
+  readonly id: Id;
+  /** Les crans de chaque troupe servie, ce Magasin et les précédents compris. */
+  readonly supplies: ReadonlyMap<string, Supplies>;
+  /** Ce que le dépôt rend (`takeFromDepot`). */
+  readonly cost: SupplyStocks;
+  readonly steps: { readonly rounds: number; readonly fuel: number };
+  /** **Le dépôt n'a pas suffi** : un Magasin plein aurait versé davantage. */
+  readonly short: boolean;
+};
+
+/**
+ * **Le Magasin ravitaille la colonne qui le traverse** (ADR 0037 §4). Le temps passé dans chaque
+ * rayon se mesure dans le temps (`positionAt`), pas en part de route : une route terre et mer
+ * attend aux quais. Une minute compte une fois, au Magasin le plus proche qui la couvre ; une
+ * minute de vol ne compte pas. Chaque Magasin verse `PASSING_RESUPPLY_PER_MINUTE` de chaque
+ * ressource par minute, cran par cran (`topUp`), plancher à son dépôt, dans l'ordre où la colonne
+ * les traverse. L'aperçu et l'arrivée lisent celle-ci ; l'appelant passe la force arrêtée à son
+ * arrivée réelle (`heldAt` d'une colonne retenue).
+ */
+export function passingResupply<Id extends string>(
+  force: MarchingForce,
+  stores: ReadonlyArray<PassingStore<Id>>,
+  troops: ReadonlyArray<Carrying & { readonly id: string }>,
+  samples = INTERCEPTION_SAMPLES,
+): Array<PassingTake<Id>> {
+  const span = force.arrivesAt - force.departedAt;
+  if (stores.length === 0 || span <= 0) return [];
+  const step = span / samples;
+  const minutes = new Map<PassingStore<Id>, number>();
+  for (let index = 0; index < samples; index += 1) {
+    const at = force.departedAt + (index + 0.5) * step;
+    if (mediumAt(force, at) === 'air') continue;
+    const here = positionAt(force, at);
+    let nearest: PassingStore<Id> | null = null;
+    let nearestKm = Infinity;
+    for (const store of stores) {
+      const km = distanceKm(here, store.point);
+      if (km <= store.reachKm && km < nearestKm) [nearest, nearestKm] = [store, km];
+    }
+    if (nearest !== null) minutes.set(nearest, (minutes.get(nearest) ?? 0) + step / 60_000);
+  }
+
+  const supplies = new Map<string, Supplies>();
+  return [...minutes].map(([store, spent]) => {
+    const carried = troops.map((troop) => ({
+      ...troop,
+      ...supplies.get(troop.id),
+      anchored: true,
+    }));
+    const poured = Math.floor(spent * PASSING_RESUPPLY_PER_MINUTE);
+    const wanted = topUp(carried, { ammunition: poured, oil: poured, coal: poured });
+    const got = topUp(carried, {
+      ammunition: Math.min(poured, store.depot.ammunition),
+      oil: Math.min(poured, store.depot.oil),
+      coal: Math.min(poured, store.depot.coal),
+    });
+    for (const [id, refill] of got.supplies) supplies.set(id, refill);
+    const total = (stocks: SupplyStocks) => stocks.ammunition + stocks.oil + stocks.coal;
+    return {
+      id: store.id,
+      supplies: new Map(supplies),
+      cost: got.cost,
+      steps: {
+        rounds: got.cost.ammunition / SUPPLY_STEP_COST,
+        fuel: (got.cost.oil + got.cost.coal) / SUPPLY_STEP_COST,
+      },
+      short: total(got.cost) < total(wanted.cost),
+    };
+  });
 }

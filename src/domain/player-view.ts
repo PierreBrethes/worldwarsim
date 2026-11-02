@@ -810,6 +810,15 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly troops: number;
     }
+  /** **Ce qu'un Magasin a versé à la colonne qui le traversait** (ADR 0037 §4), en crans. */
+  | {
+      readonly kind: 'storeResupplied';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly outcome: 'served' | 'short' | 'captured' | 'closed';
+      readonly rounds: number;
+      readonly fuel: number;
+    }
   /** A march that ended inside one of the player's own buildings (decision 64b). */
   | {
       readonly kind: 'garrisonEntered';

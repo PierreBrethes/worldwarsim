@@ -1,14 +1,22 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { MarchingForce } from '../src/domain/interception';
+import { effectiveSpecialty, isStanding } from '../src/domain/outposts';
 import {
   bakuGainOf,
+  passingResupply,
   suppliesOf,
   topUp,
+  type PassingStore,
   type Supplies,
   type SupplyStocks,
 } from '../src/domain/supplies';
 import { emptyLoad, SUPPLY_KEYS } from '../src/domain/logistics';
 import { isBlitz } from './blitz';
+import { inService } from './buildingReads';
+import { outpostReachKm } from './constants';
+import { marchingForce } from './movement/detection';
+import { pointOf } from './movement/forces';
 import { heldSinceOf } from './strategicPoints';
 import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
@@ -133,4 +141,116 @@ export async function takeFromDepot(
   const left = { ...depot };
   for (const key of SUPPLY_KEYS) left[key] = Math.max(0, depot[key] - taken[key]);
   await ctx.db.patch(outpostId, { depot: left });
+}
+
+/** **Les Magasins du joueur qui agissent à `at`** (ADR 0037 §4) : debout, en service, Magasin et
+ *  pas en chantier de changement (`effectiveSpecialty`). La vigie muette n'y change rien (§2). */
+export async function activeStoresOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  at: number,
+): Promise<Array<PassingStore<Id<'outposts'>>>> {
+  return (
+    await ctx.db
+      .query('outposts')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()
+  )
+    .filter(
+      (outpost) =>
+        effectiveSpecialty(outpost) === 'store' &&
+        isStanding(outpost, at) &&
+        inService(outpost.disabledUntil, at),
+    )
+    .map((outpost) => ({
+      id: outpost._id,
+      point: pointOf(outpost.point),
+      reachKm: outpostReachKm(outpost.level),
+      depot: outpost.depot ?? emptyLoad(),
+    }));
+}
+
+/** **Ce que la colonne reprendra en passant**, en crans, à l'estimation du départ : le chip de la
+ *  route le dit (ADR 0037 §4). */
+export async function passingEstimate(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  force: MarchingForce,
+  troops: ReadonlyArray<Doc<'troops'>>,
+): Promise<{ readonly rounds: number; readonly fuel: number }> {
+  const takes = passingResupply(
+    force,
+    await activeStoresOf(ctx, playerId, force.departedAt),
+    troops.map((troop) => ({ ...troop, id: troop._id })),
+  );
+  return {
+    rounds: takes.reduce((sum, take) => sum + take.steps.rounds, 0),
+    fuel: takes.reduce((sum, take) => sum + take.steps.fuel, 0),
+  };
+}
+
+/** **Les Magasins que la route traverse au départ** : l'arrivée dit ceux qui n'ont rien donné,
+ *  capturés ou fermés en route. Un Magasin adverse n'y est jamais : il ne se nomme pas. */
+export async function storesCrossed(ctx: MutationCtx, movementId: Id<'movements'>): Promise<void> {
+  const movement = await ctx.db.get(movementId);
+  if (movement === null) return;
+  const stores = passingResupply(
+    marchingForce(movement),
+    await activeStoresOf(ctx, movement.playerId, movement.departedAt),
+    [],
+  ).map((take) => take.id);
+  if (stores.length > 0) await ctx.db.patch(movementId, { stores });
+}
+
+/**
+ * **Le Magasin ravitaille la colonne qui le traverse** (ADR 0037 §4), relu à l'arrivée
+ * (invariant « Échéance ») : les Magasins agissants de son propriétaire à cette heure, leur dépôt
+ * d'alors, la route jusqu'à l'arrivée réelle (`heldAt` d'une colonne retenue à la frontière). Un
+ * Magasin capturé ou fermé depuis le départ ne donne rien, et la dépêche le dit.
+ */
+export async function resupplyInPassing(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  now: number,
+): Promise<void> {
+  const troops = (await Promise.all(movement.troopIds.map((id) => ctx.db.get(id)))).filter(
+    (troop): troop is Doc<'troops'> => troop !== null,
+  );
+  const stores = await activeStoresOf(ctx, movement.playerId, now);
+  const takes = passingResupply(
+    { ...marchingForce(movement), arrivesAt: movement.heldAt ?? movement.arrivesAt },
+    stores,
+    troops.map((troop) => ({ ...troop, id: troop._id })),
+  );
+  const file = async (
+    outpost: Doc<'outposts'>,
+    outcome: 'served' | 'short' | 'captured' | 'closed',
+    steps = { rounds: 0, fuel: 0 },
+  ) =>
+    ctx.db.insert('notices', {
+      playerId: movement.playerId,
+      at: now,
+      kind: 'storeResupplied',
+      hostCountry: outpost.hostCountry,
+      point: outpost.point,
+      outcome,
+      ...steps,
+    });
+  for (const take of takes) {
+    if (take.cost.ammunition + take.cost.oil + take.cost.coal > 0)
+      await takeFromDepot(ctx, take.id, take.cost);
+    if (take.steps.rounds + take.steps.fuel > 0 || take.short)
+      await file((await ctx.db.get(take.id))!, take.short ? 'short' : 'served', take.steps);
+  }
+  for (const [troopId, refill] of takes.at(-1)?.supplies ?? [])
+    await ctx.db.patch(troopId as Id<'troops'>, refill);
+
+  const served = new Set<string>(takes.map((take) => take.id));
+  for (const id of movement.stores ?? []) {
+    if (served.has(id)) continue;
+    const outpost = await ctx.db.get(id);
+    /** Démantelé ou détruit, il a déjà sa dépêche. */
+    if (outpost === null) continue;
+    await file(outpost, outpost.playerId === movement.playerId ? 'closed' : 'captured');
+  }
 }

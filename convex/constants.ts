@@ -496,6 +496,14 @@ export const DEPOT_CAPACITY_PER_LEVEL = 400;
  */
 export const STORE_DEPOT_FACTOR = 2;
 
+/**
+ * **Ce qu'un Magasin verse par minute passée dans son rayon**, par colonne, en unités de dépôt de
+ * chaque ressource (ADR 0037 §4) : munitions, pétrole, et charbon pour un navire.
+ *
+ * @a-mesurer 2 de la décision du 01/11, l'échelle que le POC a réglée pour « un peu »
+ */
+export const PASSING_RESUPPLY_PER_MINUTE = 2;
+
 /** L'appelant passe la spécialisation **agissante** (`effectiveSpecialty`) : un Magasin qui change
  *  de métier reprend la capacité simple, garde son surplus, et rien n'y entre tant qu'il dépasse
  *  (`deliveryOf`). */

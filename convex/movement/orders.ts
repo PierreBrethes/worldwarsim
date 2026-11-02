@@ -69,7 +69,7 @@ import {
   suppliesOf,
 } from '../../src/domain/supplies';
 import { kmOf } from '../../src/domain/routing';
-import { resupply } from '../supplies';
+import { resupply, storesCrossed } from '../supplies';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
  *  standing on. Exactly one of the three, never two, never none. */
@@ -966,6 +966,7 @@ export async function march(
     await ctx.db.patch(riderId as Id<'troops'>, { carriedBy: carrierId as Id<'troops'> });
   /** The document rather than its parts: the sweep has to read the order exactly as the arrival
    *  will, and the surest way to say that is to hand it the same row. */
+  await storesCrossed(ctx, movementId);
   const filed = (await ctx.db.get(movementId))!;
   if (pursuit === undefined)
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });

@@ -646,6 +646,9 @@ export default defineSchema({
      *  view reads a seven-hour push back as a column leaving its barracks again. Written once,
      *  by `arrive`; a return or a resolution ignores it. */
     heldAt: v.optional(v.number()),
+    /** **Les Magasins de son propriétaire que la route traversait au départ** (ADR 0037 §4) :
+     *  l'arrivée dit celui qui n'a rien donné, capturé ou fermé en route. Absent, aucun. */
+    stores: v.optional(v.array(v.id('outposts'))),
     /**
      * The next mobile encounter reserved for this column. Optional because movements already in
      * flight predate passive ranges. A reassessment cancels the job before replacing these four

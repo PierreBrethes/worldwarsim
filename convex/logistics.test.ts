@@ -1117,3 +1117,148 @@ describe('an airdrop, checked before and after', () => {
     expect(crate?.loot).toMatchObject({ ammunition: 40, oil: 10 });
   });
 });
+
+describe('a Magasin resupplying the column that crosses it (ADR 0037 §4)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** From Bulgaria to Moldavia, through Ploiești: both ends out of the Magasin's 180 km. */
+  const SOUTH = { lon: 26, lat: 43 };
+  const NORTH = { lon: 26, lat: 47 };
+
+  async function magasin(t: Bench, seat: Seat, ammunition = 400) {
+    const outpost = await plant(t, seat, PLOIESTI, 2);
+    await t.run(async (ctx) =>
+      ctx.db.patch(outpost, { specialty: 'store', depot: { ammunition, oil: 400, coal: 0 } }),
+    );
+    return outpost;
+  }
+
+  async function emptyColumn(t: Bench, seat: Seat) {
+    const rifles = await form(t, seat, 'infantry', null);
+    const truck = await form(t, seat, 'landTransport', null);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(rifles, { stationedAt: SOUTH, rounds: 0 });
+      await ctx.db.patch(truck, { stationedAt: SOUTH });
+    });
+    return { rifles, truck };
+  }
+
+  async function marchThrough(t: Bench, seat: Seat, troopIds: Array<Id<'troops'>>) {
+    const { arrivesAt } = await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: SOUTH },
+      troopIds,
+      point: NORTH,
+    });
+    return arrivesAt;
+  }
+
+  async function arrive(t: Bench, arrivesAt: number) {
+    vi.setSystemTime(arrivesAt + 1);
+    const movement = (await t.run(async (ctx) => ctx.db.query('movements').collect()))[0]!;
+    await t.mutation(internal.movements.arrive, { movementId: movement._id });
+  }
+
+  const resupplied = (t: Bench) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter(
+        (notice) => notice.kind === 'storeResupplied',
+      ),
+    );
+
+  it('rearms and refuels the column from the depot, and the dispatch says what it took', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const outpost = await magasin(t, seat);
+    const { rifles, truck } = await emptyColumn(t, seat);
+    const arrivesAt = await marchThrough(t, seat, [rifles, truck]);
+    const paid = (await get(t, truck))!.fuel;
+
+    await arrive(t, arrivesAt);
+
+    expect((await get(t, rifles))!.rounds).toBe(3);
+    expect((await get(t, truck))!.fuel).toBe(4);
+    const refuelled = 4 - (paid ?? 0);
+    expect(refuelled).toBeGreaterThan(0);
+    expect(await depotOf(t, outpost)).toEqual({
+      ammunition: 370,
+      oil: 400 - 10 * refuelled,
+      coal: 0,
+    });
+    expect(await resupplied(t)).toEqual([
+      expect.objectContaining({
+        outcome: 'served',
+        rounds: 3,
+        fuel: refuelled,
+        hostCountry: 'ROU',
+      }),
+    ]);
+  });
+
+  it('pours what an emptied depot still holds, and says it ran dry', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const outpost = await magasin(t, seat, 15);
+    const { rifles } = await emptyColumn(t, seat);
+
+    await arrive(t, await marchThrough(t, seat, [rifles]));
+
+    expect((await get(t, rifles))!.rounds).toBe(1);
+    expect((await depotOf(t, outpost))?.ammunition).toBe(5);
+    expect(await resupplied(t)).toEqual([
+      expect.objectContaining({ outcome: 'short', rounds: 1, fuel: 0 }),
+    ]);
+  });
+
+  it('gives nothing once the Magasin was captured on the way, and says so', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const outpost = await magasin(t, seat);
+    const { rifles } = await emptyColumn(t, seat);
+    const arrivesAt = await marchThrough(t, seat, [rifles]);
+    const taker = await playerOf(t, guest);
+    await t.run(async (ctx) => ctx.db.patch(outpost, { playerId: taker }));
+
+    await arrive(t, arrivesAt);
+
+    expect((await get(t, rifles))!.rounds).toBe(0);
+    expect((await depotOf(t, outpost))?.ammunition).toBe(400);
+    expect(await resupplied(t)).toEqual([
+      expect.objectContaining({ outcome: 'captured', rounds: 0, fuel: 0 }),
+    ]);
+  });
+
+  it('serves nothing to an enemy column that crosses it, and tells nobody', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const outpost = await magasin(t, seat);
+    const { rifles } = await emptyColumn(t, guest);
+
+    await arrive(t, await marchThrough(t, guest, [rifles]));
+
+    expect((await get(t, rifles))!.rounds).toBe(0);
+    expect((await depotOf(t, outpost))?.ammunition).toBe(400);
+    expect(await resupplied(t)).toEqual([]);
+  });
+
+  it('announces the steps before the order, the route paid first', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await magasin(t, seat);
+    const { rifles, truck } = await emptyColumn(t, seat);
+
+    const preview = await t.query(api.movements.preview, {
+      ...seat,
+      origin: { kind: 'point', point: SOUTH },
+      troopIds: [rifles, truck],
+      target: { kind: 'point', point: NORTH },
+      type: 'march',
+    });
+
+    expect(preview!.fuel.resupply).toEqual({ rounds: 3, fuel: preview!.fuel.gauge!.eaten });
+  });
+});
