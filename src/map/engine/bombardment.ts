@@ -18,7 +18,6 @@ import { FIRING, flash, FLASH_MS, scaleWithin, sinceDeparture } from './replay';
 import { dashPitch, Ribbon, RibbonMaterial, ribbonWidth } from './route-ribbon';
 import { articulatedOf, type SequenceHost } from './sequences';
 import { Smoke } from './smoke';
-import { threadWidth } from './thread';
 
 /** **How high the arc rises** over its middle, in shares of the chord: the storyboard's.
  *  @a-mesurer: 30 km high over 90 km reads as a shell's flight, not a bridge? */
@@ -82,7 +81,9 @@ const toward = new Vector3();
 export class BatteryShot {
   readonly object = new Group();
   private readonly ink = new RibbonMaterial({
-    width: threadWidth(ARC_PX),
+    // A pen's line on screen, never a band of the board: at the gun's zoom a thread's true
+    // width would stand as a wall.
+    width: 0,
     floorPx: ARC_PX,
     covered: { color: ARC_INK, opacity: 1 },
     remaining: { color: ARC_INK, opacity: 1 },
