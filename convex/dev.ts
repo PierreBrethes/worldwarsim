@@ -1331,6 +1331,88 @@ export const storesScene = internalMutation({
 });
 
 /**
+ * **La scène des Forts** (#374), pour la démo : un Fort français de niveau 2 à Namur, au charbon,
+ * et un Fort adverse à Luxembourg, son maître sans charbon. Une colonne adverse part de Gand vers
+ * Liège : elle entre dans la vigie de Namur trente secondes après la scène, et l'arrivée s'y
+ * rechiffre (`@namur`, `@gand`). Une colonne française part de Nancy vers Liège à côté du Fort
+ * sans charbon, qui ne la retient pas (`@luxembourg`).
+ *
+ * `npx convex run dev:fortScene '{"playerId":"…","enemyId":"…"}'`
+ */
+export const fortScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [owner, lon, lat, hostCountry] of [
+      [playerId, 4.87, 50.47, 'BEL'],
+      [enemyId, 6.13, 49.61, 'LUX'],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        point: { lon, lat },
+        hostCountry,
+        level: 2,
+        specialty: 'fort',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    await settle(ctx, enemyId, now);
+    for (const row of await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', enemyId))
+      .collect())
+      if (row.key === 'coal') await ctx.db.patch(row._id, { stock: 0, updatedAt: now });
+    await reassessDetection(ctx, player.seasonId, now, enemyId);
+
+    const columnOf = async (
+      owner: Id<'players'>,
+      from: { lon: number; lat: number },
+      to: { lon: number; lat: number },
+    ) => {
+      const troopId = await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: from,
+      });
+      const { movementId } = await march(ctx, {
+        playerId: owner,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds: [troopId],
+        aim: await aimOf(ctx, owner, { kind: 'point', point: to }),
+      });
+      return movementId;
+    };
+    const held = await columnOf(enemyId, { lon: 3.72, lat: 51.05 }, { lon: 5.57, lat: 50.63 });
+    await columnOf(playerId, { lon: 6.18, lat: 48.69 }, { lon: 5.57, lat: 50.63 });
+
+    /** Partie plus tôt, elle entre dans la vigie de Namur dans trente secondes : la réévaluation
+     *  replace le rendez-vous, l'ancien job d'arrivée passe sans rien faire. */
+    const movement = (await ctx.db.get(held))!;
+    if (movement.fortEntry === undefined) throw new Error('the column misses the Fort');
+    const shift = movement.fortEntry.at - (now + 30_000);
+    await ctx.db.patch(held, {
+      departedAt: movement.departedAt - shift,
+      arrivesAt: movement.arrivesAt - shift,
+    });
+    await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
+      movementId: held,
+    });
+    await reassessDetection(ctx, player.seasonId, now, enemyId);
+  },
+});
+
+/**
  * **La scène du navire** (#129), pour la démo : un port à Marseille, un cargo à quai, un avant-poste
  * côtier à Agde. Le cargo est de la démo, le départ et l'arrivée le long du quai se jouent à l'écran.
  *

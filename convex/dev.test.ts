@@ -295,6 +295,36 @@ describe('dev.storesScene', () => {
   });
 });
 
+describe('dev.fortScene', () => {
+  /** La scène de #374 : une colonne adverse retenue à Namur, une française qui passe le Fort sec. */
+  it('holds the enemy column at Namur thirty seconds on, and not the one by the dry Fort', async () => {
+    vi.useFakeTimers();
+    const { t, playerId } = await twoNations();
+    const enemyId = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('players').collect()).find((one) => one._id !== playerId)!._id,
+    );
+    await t.mutation(internal.dev.fortScene, { playerId, enemyId });
+
+    const columns = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    const held = columns.find((one) => one.playerId === enemyId)!;
+    expect(held.fortEntry!.at - Date.now()).toBeGreaterThan(25_000);
+    expect(held.fortEntry!.at - Date.now()).toBeLessThan(35_000);
+    expect(columns.find((one) => one.playerId === playerId)!.fortEntry).toBeUndefined();
+
+    vi.setSystemTime(held.fortEntry!.at);
+    await t.mutation(internal.movements.holdAtFort, {
+      movementId: held._id,
+      expectedAt: held.fortEntry!.at,
+    });
+    const kinds = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).map((one) => one.kind),
+    );
+    expect(kinds).toEqual(expect.arrayContaining(['fortHeld', 'fortSlowed']));
+    vi.useRealTimers();
+  });
+});
+
 describe('dev.backfillListeningSilent', () => {
   /** Une base d'avant le champ : le joueur déjà muet n'a pas `listeningSilent`, lu « entend ». */
   it('re-reads every belligerent of a launched season, and writes the silent one silent', async () => {

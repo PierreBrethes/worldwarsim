@@ -42,7 +42,10 @@
  * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--magasin` (#372) pose pour la France un
  * Magasin plein à Berne et un presque vide à Innsbruck (`@berne`, `@innsbruck`, `@magasins`), une
  * pile à sec à Turin (`@turin`, vers Stuttgart) et une à Vérone (`@verone`, vers Nuremberg), et
- * deux colonnes à sec sur ces routes qui arrivent vingt secondes après : le journal le dit. `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * deux colonnes à sec sur ces routes qui arrivent vingt secondes après : le journal le dit. `--fort` (#374)
+ * pose un Fort français à Namur et un Fort britannique sans charbon à Luxembourg ; une colonne
+ * britannique partie de Gand entre dans la vigie de Namur trente secondes après (`@namur`, `@gand`,
+ * `--compte b` pour la voir retenue), une française passe le Fort sec (`@luxembourg`). `--quais` pose pour la France trois avant-postes, à La Valette, à
  * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
@@ -180,6 +183,8 @@ const specialties = process.argv.includes('--metiers');
 /** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
  *  devant chacun, et deux colonnes qui les traversent et arrivent vingt secondes après. */
 const stores = process.argv.includes('--magasin');
+/** `--fort` (#374) : une colonne adverse retenue à Namur, une française à côté d'un Fort sec. */
+const forts = process.argv.includes('--fort');
 const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
@@ -688,6 +693,12 @@ if (!bare) {
     places.innsbruck = [11.4, 47.27];
     places.turin = [7.68, 45.07];
     places.verone = [10.99, 45.44];
+  }
+  if (forts && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:fortScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+    places.namur = [4.87, 50.47];
+    places.gand = [3.72, 51.05];
+    places.luxembourg = [6.13, 49.61];
   }
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };
