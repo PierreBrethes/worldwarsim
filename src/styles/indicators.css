@@ -70,51 +70,6 @@
   color: var(--routine);
 }
 
-/* Identified and offensive: the triangle, thin stroke, never filled. */
-.indicator-triangle {
-  position: absolute;
-  inset: -3px;
-  display: none;
-}
-
-.indicator-triangle svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke: var(--critical);
-  stroke-width: 1.1;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 1.5px rgb(15 10 4 / 85%));
-}
-
-.indicator--offensive .indicator-triangle,
-.indicator--imminent .indicator-triangle {
-  display: block;
-}
-
-/* Due time under URGENCY_MS: the same triangle, filled, slow beat. */
-.indicator--imminent .indicator-triangle svg {
-  fill: var(--critical);
-  animation: alert-beat 1.2s ease-in-out infinite;
-}
-
-.indicator--imminent .indicator-glyph,
-.indicator--imminent .indicator-backing {
-  color: var(--paper);
-  filter: none;
-}
-
-@keyframes alert-beat {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-
 /* The attention accent — a finished construction nothing follows. Neither red nor alarm:
    it is an oversight to catch, not a threat. */
 .indicator--attention {

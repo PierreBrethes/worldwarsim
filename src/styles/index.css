@@ -527,13 +527,6 @@ body {
   transition: none;
 }
 
-:root:is([data-motion='reduced'], [data-motion='off'])
-  .indicator--imminent
-  .indicator-triangle
-  svg {
-  animation: none;
-}
-
 /* **La bulle des premiers pas** : elle bat doucement au-dessus de ce qu'elle désigne, et ce qu'on
    doit toucher — la poignée du plateau personnel, un onglet — porte un anneau d'ocre. Réduites ou
    coupées, l'une et l'autre se tiennent. */

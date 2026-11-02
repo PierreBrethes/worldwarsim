@@ -424,11 +424,6 @@ export type MapLabel = {
   readonly lines: ReadonlyArray<LabelLine>;
   /** An enemy movement pierced by intelligence — the mockup marks it with a state. */
   readonly identified: boolean;
-  /**
-   * The movement comes to strike, and we know it. False until intelligence pierces it: the
-   * alert mark only arms its triangle on an established nature, never on a suspicion.
-   */
-  readonly offensive: boolean;
   /** A finished construction that nothing follows — the oversight the screen edge catches. */
   readonly idle: boolean;
   /** The works on a building's site (`WorkSite`): its maquette's crane up close, the poster's lines. */
@@ -657,7 +652,6 @@ function withCaptures(
       washed: false,
       lines: [{ role: 'nature', text: captureSiteName(capture) }, lineOf(capture)],
       identified: false,
-      offensive: false,
       idle: false,
       works: null,
       hostCountry: null,
@@ -702,7 +696,6 @@ function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
     washed: false,
     lines: [{ role: 'nature', text: arc.destinationLabel }],
     identified: false,
-    offensive: false,
     idle: false,
     works: null,
     hostCountry: null,
@@ -750,7 +743,6 @@ function markerLabel(marker: MapMarker): MapLabel {
       (marker.kind === 'installation' && marker.washed) ||
       (marker.kind === 'camp' && marker.lastKnown),
     identified: false,
-    offensive: false,
     idle: false,
     works: null,
     building: null,
@@ -1067,7 +1059,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       lootSightingId: null,
       lootCurrent: true,
       identified: false,
-      offensive: false,
       idle: false,
       works: null,
       hostCountry: null,
@@ -1116,7 +1107,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       lootSightingId: null,
       lootCurrent: true,
       identified: arc.identification.pierced,
-      offensive: false,
       idle: false,
       works: null,
       hostCountry: null,
@@ -1155,7 +1145,6 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
     lootSightingId: null,
     lootCurrent: true,
     identified: arc.identification.pierced,
-    offensive: false,
     idle: false,
     works: null,
     hostCountry: null,

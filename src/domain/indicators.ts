@@ -1,4 +1,4 @@
-import { URGENCY_MS, isCountdown, type LabelType, type MapLabel } from './labels';
+import { isCountdown, type LabelType, type MapLabel } from './labels';
 
 /**
  * An off-screen entity does not vanish: it parks at the screen edge. The categories are
@@ -214,27 +214,19 @@ export function sideOf(x: number, y: number, width: number, height: number): Edg
 }
 
 /**
- * The three intensities of the alert mark, and nothing else on the map carries one.
+ * The alert mark, and nothing else on the map carries one.
  *
- * `threat` covers the unidentified heading, and since the spur was removed it is invisible:
- * the glyph stays neutral, otherwise we would assert a nature we do not know. It is a mark
- * computed without being drawn; the day a sign is given back to it, it fits here.
+ * `threat` covers a heading at me, and since the spur was removed it is invisible: the glyph
+ * stays neutral, because no relevé tells the order of a column — a Guet reads its pile, never
+ * whether it comes to strike (ADR 0037 §5, decision of 02/11). It is a mark computed without
+ * being drawn; the day a sign is given back to it, it fits here.
  */
-export type AlertMark = 'none' | 'threat' | 'offensive' | 'imminent';
+export type AlertMark = 'none' | 'threat';
 
-const INTENSITY: Readonly<Record<AlertMark, number>> = {
-  none: 0,
-  threat: 1,
-  offensive: 2,
-  imminent: 3,
-};
+const INTENSITY: Readonly<Record<AlertMark, number>> = { none: 0, threat: 1 };
 
-export function alertMark(label: MapLabel, now: number): AlertMark {
-  if (label.type !== 'inbound-movement') return 'none';
-  if (!label.identified || !label.offensive) return 'threat';
-  const due = dueOf(label);
-  return due !== null && due - now < URGENCY_MS ? 'imminent' : 'offensive';
-}
+export const alertMark = (label: MapLabel): AlertMark =>
+  label.type === 'inbound-movement' ? 'threat' : 'none';
 
 /** A cluster carries the strongest of the marks it covers: a threat does not dilute. */
 export const strongestMark = (marks: ReadonlyArray<AlertMark>): AlertMark =>
