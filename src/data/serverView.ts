@@ -129,7 +129,7 @@ function adaptedView(server: ServerView): PlayerView {
         level: entry.level,
       })),
       armyPresent: server.me.armyPresent ?? {},
-      armyInTransit: {},
+      armyInTransit: server.me.armyInTransit ?? {},
       /** A deployment one version behind knows no upkeep: a troop without the field is one
        *  nobody charges extra for, and a nation without the line is one holding nothing. */
       troops: server.me.troops.map((troop) => ({

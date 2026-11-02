@@ -338,10 +338,15 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   //
   // A garrison is left out: it is reported on its outpost's own line, and counting it here
   // too would show the same column twice in the inventory — once at home, once in Arabia.
+  //
+  // A troop inside a running movement is in transit, never present: `marching` is the set the
+  // arcs of the view are made of.
   const armyPresent: Record<string, number> = {};
+  const armyInTransit: Record<string, number> = {};
   for (const troop of troops) {
     if (stationOf(troop).kind === 'outpost') continue;
-    armyPresent[troop.role] = (armyPresent[troop.role] ?? 0) + 1;
+    const count = marching.has(troop._id) ? armyInTransit : armyPresent;
+    count[troop.role] = (count[troop.role] ?? 0) + 1;
   }
 
   const buildCatalog = Object.fromEntries(
@@ -654,6 +659,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           level: entry.level,
         })),
       armyPresent,
+      armyInTransit,
       /**
        * What the army costs to hold, and how much of it is standing where nobody feeds it
        * (ADR 0019 §4). The food rate in `resources` is already net of `foodPerHour`; this is
