@@ -448,6 +448,17 @@ function written(notice: Notice): Written {
         kind: 'supply',
         text: said.tourEnded(fr.roles[notice.role].one, notice.why),
       };
+    case 'patrolEnded':
+      return {
+        at: notice.at,
+        severity: notice.why === 'recalled' ? 'notable' : 'critical',
+        kind: 'column',
+        text: said.patrolEnded(
+          fr.roles[notice.role].one,
+          notice.why,
+          countryLabel(notice.hostCountry),
+        ),
+      };
     case 'supplyDelivered':
       return {
         at: notice.at,

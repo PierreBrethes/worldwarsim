@@ -298,6 +298,17 @@ export const TOUR_WAIT = v.object({
  *  chute), ou sa route refusée trop longtemps (`road`). */
 export const TOUR_END = v.union(v.literal('recalled'), v.literal('cut'), v.literal('road'));
 
+/** **Pourquoi une ronde finit** (#376) : rappelée, son bout perdu (capturé, démantelé), sa
+ *  liaison retirée du tracé, sa troupe en déroute, ou sa route refusée trop longtemps. */
+export const PATROL_END = v.union(
+  v.literal('recalled'),
+  v.literal('lost'),
+  v.literal('withdrawn'),
+  v.literal('routed'),
+  v.literal('road'),
+  v.literal('irregular'),
+);
+
 export const NOTICE = v.union(
   /** **La capture commence** (décision du 14/10) : une alarme chez le défenseur, une nouvelle
    *  chez le capteur. L'heure est celle de la perte si rien ne change. */
@@ -532,6 +543,14 @@ export const NOTICE = v.union(
     kind: v.literal('tourEnded'),
     role: UNIT_ROLE,
     why: TOUR_END,
+  }),
+  /** **Une ronde qui finit** (#376), et le pays où elle s'arrête. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('patrolEnded'),
+    role: UNIT_ROLE,
+    why: PATROL_END,
+    hostCountry: v.string(),
   }),
   /** **Un largage** (ADR 0028 §4) : le paquet descendu, ce qu'il a rendu et ce qui reste à bord.
    *  `squad` dit si une escouade l'a reçu ; absente, c'est un dépôt. */

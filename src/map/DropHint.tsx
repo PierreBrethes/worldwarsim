@@ -28,6 +28,8 @@ export type DropHint = {
   /** **Boarding**: the transport aimed at, the seats the hand takes in it, and whether they fit —
    *  its tag opens on them (POC, `seats`). */
   readonly boarding?: { readonly carrierId: string; readonly need: number; readonly fits: boolean };
+  /** **Une branche refusée à côté** (#376) : son motif, sous le verbe gardé. */
+  readonly aside?: string;
 };
 
 /** La pastille d'une lecture du lâcher (`dropReadingOf`) : le verbe choisi, ou le refus. */
@@ -55,6 +57,7 @@ export function hintOfReading(
     ...chip,
     ...(verb.key === 'aim' && verb.join !== undefined ? { joins: true } : {}),
     ...(boarding === null ? {} : { boarding }),
+    ...(reading.aside === undefined ? {} : { aside: reading.aside }),
     detail:
       verb.key === 'aim' && verb.join !== undefined
         ? fr.drop.pieces(verb.join.pieces)
@@ -185,6 +188,9 @@ export function DropHintChip({
             {note.text}
           </span>
         ))}
+      {hint.tone !== 'refused' && hint.aside !== undefined && (
+        <span className="drop-chip-detail drop-chip-detail--alarm">{hint.aside}</span>
+      )}
       {hint.choice !== undefined && <span className="drop-chip-detail">{hint.choice}</span>}
       <span className="drop-chip-keys">
         {hint.tone === 'refused'

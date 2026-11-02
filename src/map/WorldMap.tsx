@@ -148,6 +148,11 @@ type Props = {
    */
   outpostZones?: OutpostZonesView | null;
   /**
+   * **Une troupe de ronde en main** (#376) : les liaisons se montrent calque éteint et se visent ;
+   * la fonction nomme une liaison par ses deux avant-postes. `null` hors de ce geste.
+   */
+  patrolHand?: ((ends: readonly [string, string]) => string) | null;
+  /**
    * **My regions that lost their colour** (ADR 0020 §6), and those where something of mine
    * produces: a region that loses it under a producer is stamped « hors réseau » beside its
    * maquette. The colour is what is diffed, not the sites — a producer finished on ground already
@@ -301,6 +306,8 @@ type Props = {
   onTakeDepot?: TakeDepot | undefined;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** **Rappeler une ronde** depuis l'étiquette de sa colonne en route (#376). */
+  onRecallPatrol?: ((troopId: string) => void) | undefined;
   /** La bulle des premiers pas, sur la pièce à lever. */
   cue?: { readonly labelId: string; readonly text: string } | null;
   /** **Les combats appris d'une vue à l'autre** (#272), joués à leur point : sans leur vue tant
@@ -471,6 +478,7 @@ export function WorldMap({
   selectedLabel = null,
   openStation = null,
   outpostZones = null,
+  patrolHand = null,
   selectedLootLabel = null,
   reach = null,
   onCountryHover,
@@ -505,6 +513,7 @@ export function WorldMap({
   carriersShown = false,
   onTakeDepot,
   onTour,
+  onRecallPatrol,
   cue = null,
   combats = NO_COMBATS,
   onCombatSettled,
@@ -673,6 +682,18 @@ export function WorldMap({
   // a map drifting under the pointer is aiming twice.
   /** La dernière visée qui a ouvert la rose : relue quand la côte arrive (#224). */
   const lastAim = useRef<{ target: CompassTarget; clientX: number; clientY: number } | null>(null);
+  /** **La liaison sous la main** (#376), jointe au point visé : seule une troupe de ronde en
+   *  main la vise, et la ronde s'ajoute à ce que le point offre. */
+  const withLiaison = useCallback(
+    (target: CompassTarget | null, clientX: number, clientY: number): CompassTarget | null => {
+      if (patrolHand === null || target?.kind !== 'point') return target;
+      const keys = engine.current?.liaisonAt(clientX, clientY) ?? null;
+      if (keys === null) return target;
+      const ends = [keys[0].replace(/^outpost:/, ''), keys[1].replace(/^outpost:/, '')] as const;
+      return { ...target, liaison: { ends, name: patrolHand(ends) } };
+    },
+    [patrolHand],
+  );
   const openRose = useCallback(
     (target: CompassTarget, clientX: number, clientY: number) => {
       lastAim.current = { target, clientX, clientY };
@@ -805,14 +826,18 @@ export function WorldMap({
        * because a foundation still needs one; the fan sorts out which type takes which.
        */
       if (aiming) {
-        const aimed = pointTarget(
-          country,
-          region,
-          point,
-          point !== null && coastAt(point),
-          point === null ? 'sea' : groundAt(point),
-          point !== null && coastPendingAt(point),
-          point === null || walkableAt(point),
+        const aimed = withLiaison(
+          pointTarget(
+            country,
+            region,
+            point,
+            point !== null && coastAt(point),
+            point === null ? 'sea' : groundAt(point),
+            point !== null && coastPendingAt(point),
+            point === null || walkableAt(point),
+          ),
+          clientX,
+          clientY,
         );
         if (aimed === null) {
           setRose(null);
@@ -836,7 +861,17 @@ export function WorldMap({
     return () => {
       readyEngine.onAct = () => {};
     };
-  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt, coastPendingAt, walkableAt]);
+  }, [
+    readyEngine,
+    openRose,
+    aiming,
+    placing,
+    coastAt,
+    groundAt,
+    coastPendingAt,
+    walkableAt,
+    withLiaison,
+  ]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -1113,14 +1148,18 @@ export function WorldMap({
           ? labelTarget(label, clientX, clientY)
           : (() => {
               const point = readyEngine.pointAt(clientX, clientY);
-              return pointTarget(
-                readyEngine.countryAtPoint(clientX, clientY),
-                readyEngine.regionAtPoint(clientX, clientY),
-                point,
-                point !== null && coastAt(point),
-                point === null ? 'sea' : groundAt(point),
-                point !== null && coastPendingAt(point),
-                point === null || walkableAt(point),
+              return withLiaison(
+                pointTarget(
+                  readyEngine.countryAtPoint(clientX, clientY),
+                  readyEngine.regionAtPoint(clientX, clientY),
+                  point,
+                  point !== null && coastAt(point),
+                  point === null ? 'sea' : groundAt(point),
+                  point !== null && coastPendingAt(point),
+                  point === null || walkableAt(point),
+                ),
+                clientX,
+                clientY,
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
@@ -1144,6 +1183,7 @@ export function WorldMap({
     chosenOf,
     onDropRefused,
     onCarryEnd,
+    withLiaison,
   ]);
 
   useEffect(() => {
@@ -1193,14 +1233,18 @@ export function WorldMap({
           ? labelTarget(label, clientX, clientY)
           : point === null
             ? null
-            : pointTarget(
-                country,
-                region,
-                point,
-                coastAt(point),
-                groundAt(point),
-                coastPendingAt(point),
-                walkableAt(point),
+            : withLiaison(
+                pointTarget(
+                  country,
+                  region,
+                  point,
+                  coastAt(point),
+                  groundAt(point),
+                  coastPendingAt(point),
+                  walkableAt(point),
+                ),
+                clientX,
+                clientY,
               );
       /** La route du verbe choisi, celui que le lâcher donnerait. */
       const read = dropReadingOf(target === null ? null : compassOf(target));
@@ -1223,6 +1267,7 @@ export function WorldMap({
     labels,
     labelTarget,
     chosenOf,
+    withLiaison,
   ]);
 
   /**
@@ -1556,12 +1601,14 @@ export function WorldMap({
   }, [outposts, readyEngine]);
 
   const zonesShown = indicators['outpost-zones'];
+  const patrolLines = !zonesShown && patrolHand !== null;
   useEffect(() => {
     readyEngine?.showOutpostZones(
-      zonesShown ? (outpostZones?.points ?? []) : [],
-      zonesShown ? (outpostZones?.liaisons ?? []) : [],
+      zonesShown || patrolLines ? (outpostZones?.points ?? []) : [],
+      zonesShown || patrolLines ? (outpostZones?.liaisons ?? []) : [],
+      patrolLines,
     );
-  }, [readyEngine, outpostZones, zonesShown]);
+  }, [readyEngine, outpostZones, zonesShown, patrolLines]);
   // A liaison born since the view before is traced once; nothing on the first view (#375).
   const liaisonsBefore = useRef<OutpostZonesView['liaisons'] | null>(null);
   useEffect(() => {
@@ -1807,6 +1854,7 @@ export function WorldMap({
         carriersShown={carriersShown}
         onTakeDepot={onTakeDepot}
         onTour={onTour}
+        onRecallPatrol={onRecallPatrol}
         cue={cue}
         cargoAim={cargoAim}
         availableLabels={availableLabels}

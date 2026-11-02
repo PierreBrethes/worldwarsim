@@ -15,6 +15,7 @@ import {
   squadTarget,
   hullsAmong,
   loadTotal,
+  onTourRefusalOf,
   tourRefusalOf,
   type LoadingPlace,
 } from './logistics';
@@ -185,6 +186,12 @@ export function boardingAt(
     (troop) => !heldTroopIds.includes(troop.id) && fareOf(troop.role, PROBE, []) !== null,
   );
   if (carriers.length === 0) return null;
+  /** **En ronde ou en tournée, on ne monte à bord de rien** : `board` relit la même règle. */
+  const engaged = onTourRefusalOf(held);
+  if (engaged !== null) {
+    const { code, ...details } = engaged;
+    return { actions: [], refusal: fr.errors[code](details) };
+  }
   const boardings = carriers.map((carrier) =>
     boardingOf(
       view.me.buildings,

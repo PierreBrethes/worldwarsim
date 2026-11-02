@@ -32,7 +32,7 @@ import type {
   SpecialtyRefusal,
   UpgradeHold,
 } from '../domain/construction';
-import type { DispatchKind, Faced, TourEnd } from '../domain/player-view';
+import type { DispatchKind, Faced, PatrolEnd, TourEnd } from '../domain/player-view';
 import type { TagTour } from '../domain/cargo-tag';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
@@ -871,6 +871,17 @@ export const fr = {
     TOUR_TOO_LONG: (d) => `une tournée compte ${num(d.maximum)} arrêts au plus`,
     TOUR_STOP_TWICE: () => 'ce dépôt est déjà un arrêt de la tournée',
     NOT_ON_TOUR: () => 'ce transport n’est pas en tournée',
+    /** **La ronde** (ADR 0037 §10, #376). */
+    PATROL_ONE_TROOP: () => 'une ronde se fait à une seule troupe : n’en tenez qu’une',
+    PATROL_LAND_COMBAT_ONLY: () =>
+      'seules une infanterie, un blindé ou une artillerie font une ronde',
+    PATROL_BUSY: () => 'cette troupe est déjà en route ou en ronde',
+    PATROL_NOT_DRAWN: () => 'ce n’est pas une liaison tracée entre deux de vos avant-postes',
+    PATROL_NOT_AT_END: () => 'pas à un bout de cette liaison : la troupe part de l’un des deux',
+    PATROL_TAKEN: () => 'cette liaison a déjà sa ronde',
+    NOT_ON_PATROL: () => 'cette troupe n’est pas en ronde',
+    ON_PATROL: (d) =>
+      `${roleLabel(str(d.role) as UnitRole, 1)} est en ronde : rappelez cette troupe d’abord`,
     NO_ROUNDS: () =>
       'à sec : plus un coup dans la colonne — elle marche, elle n’attaque pas ; elle se recharge à l’ancre',
     UNKNOWN_TROOP: () => 'troupe inconnue',
@@ -2854,6 +2865,18 @@ export const fr = {
           : why === 'road'
             ? `Route refusée, tournée arrêtée — ${role} : le plein manque au chargement ; il rentre seul.`
             : `Tournée coupée — ${role} : chargement ou dépôts perdus, ou repli ; il rentre seul.`,
+      patrolEnded: (role: string, why: PatrolEnd, country: string) =>
+        why === 'recalled'
+          ? `Ronde arrêtée — ${role} : rappelée, elle s’arrête où elle est, ${country}.`
+          : why === 'lost'
+            ? `Ronde coupée — ${role} : un bout de sa liaison est pris ou désactivé ; elle s’arrête où elle est, ${country}.`
+            : why === 'withdrawn'
+              ? `Ronde coupée — ${role} : liaison retirée du tracé ; elle s’arrête en garnison, ${country}.`
+              : why === 'routed'
+                ? `Ronde coupée — ${role} : en déroute, ${country}.`
+                : why === 'irregular'
+                  ? `Ronde perdue — ${role} : votre QG est tombé, elle passe aux irréguliers, ${country}.`
+                  : `Route refusée, ronde arrêtée — ${role} : le plein manque ; elle reste en garnison, ${country}.`,
       supplyDelivered: (country: string, delivered: string, kept: string) =>
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
@@ -2966,6 +2989,53 @@ export const fr = {
     clear: 'effacer',
     recall: 'rappeler',
     tourStarted: 'Tournée lancée',
+  },
+  /** **La ronde** (ADR 0037 §10, #376) : la ligne de la fiche, « En cours », la notification. */
+  patrol: {
+    title: 'Ronde',
+    toward: (other: string) => `liaison vers ${other}`,
+    launch: 'lancer',
+    recall: 'rappeler',
+    recalledOnLabel: 'ronde rappelée',
+    started: 'Ronde lancée',
+    state: ({
+      to,
+      here,
+      haltUntil,
+      recalled,
+      waiting,
+    }: {
+      readonly to: string;
+      readonly here: string | null;
+      readonly haltUntil: number | null;
+      readonly recalled: boolean;
+      readonly waiting: 'road' | null;
+    }): string => {
+      if (recalled) return `ronde rappelée · finit à ${to}`;
+      if (haltUntil === null || here === null) return `ronde → ${to}`;
+      const at = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(
+        new Date(haltUntil),
+      );
+      return waiting === 'road'
+        ? `attend sa route à ${here} · nouvel essai à ${at}`
+        : `halte à ${here} jusqu’à ${at}`;
+    },
+    /** Sa ligne dans la garnison de son point : la halte s'y lit, le point va de soi. */
+    inGarrison: ({
+      haltUntil,
+      waiting,
+    }: {
+      readonly haltUntil: number | null;
+      readonly waiting: 'road' | null;
+    }): string => {
+      if (haltUntil === null) return 'en ronde';
+      const at = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(
+        new Date(haltUntil),
+      );
+      return waiting === 'road'
+        ? `en ronde · attend sa route · nouvel essai à ${at}`
+        : `en ronde · halte jusqu’à ${at}`;
+    },
   },
   troops: {
     atHome: 'à domicile',
@@ -4457,6 +4527,7 @@ export const fr = {
       deliver: 'Livrer',
       airdrop: 'Larguer',
       tour: 'Tracer une tournée',
+      patrol: 'Tenir la ronde',
       sea: 'Marcher',
       inland: 'Faire route',
       air: 'Voler',
@@ -4489,6 +4560,12 @@ export const fr = {
       'Largue un paquet sous parachute sur le dépôt, sans se poser : ce qui ne tient pas reste à bord. Paie le plein de l’aller-retour, puis rentre seul.',
     airdropSquadConsequence:
       'Largue un paquet sous parachute : l’escouade reprend ses coups et son plein, dans la limite de ce que chaque troupe porte. Le reste reste à bord. Paie le plein de l’aller-retour, puis rentre seul.',
+    /** **La ronde** (#376) : la troupe tourne sur la liaison, avec une halte à chaque bout. */
+    liaison: 'liaison tracée',
+    liaisonName: (a: string, b: string) => `${a} – ${b}`,
+    patrol: 'tenir la ronde',
+    patrolConsequence:
+      'Part sur-le-champ vers l’autre bout, fait halte une heure en garnison à chaque bout, et garde son slot.',
     tour: 'tracer une tournée',
     tourStop: (count: number) => `arrêt ${count} de la tournée`,
     tourConsequence:

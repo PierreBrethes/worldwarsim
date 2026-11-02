@@ -23,12 +23,15 @@ export function UnderwayColumn({
   nation,
   fresh,
   onLocate,
+  onRecall,
 }: {
   lines: ReadonlyArray<Underway>;
   nation: string;
   /** La ligne qu'un envoi vient d'ajouter, `null` le reste du temps. */
   fresh: string | null;
   onLocate: (line: Underway) => void;
+  /** **Rappeler une ronde** (#376), depuis sa ligne. */
+  onRecall?: (troopId: string) => void;
 }) {
   const now = useClock();
   const [folded, setFolded] = useState(readUnderwayFolded);
@@ -58,7 +61,8 @@ export function UnderwayColumn({
         const isFresh = line.id === fresh;
         const open = !folded || isFresh;
         const minutesLeft = (line.endsAt - now) / 60_000;
-        return (
+        const recall = line.recall;
+        const row = (
           <button
             key={line.id}
             type="button"
@@ -84,6 +88,20 @@ export function UnderwayColumn({
               )}
             </span>
           </button>
+        );
+        return recall === undefined || !open || onRecall === undefined ? (
+          row
+        ) : (
+          <div key={line.id} className="flex items-stretch gap-[4px]">
+            {row}
+            <button
+              type="button"
+              onClick={() => onRecall(recall)}
+              className="paper-grain float h-[44px] cursor-pointer border border-[var(--ink)] px-[8px] text-[9.5px] tracking-[.14em] uppercase"
+            >
+              {fr.patrol.recall}
+            </button>
+          </div>
         );
       })}
     </section>

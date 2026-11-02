@@ -12,6 +12,7 @@ import {
   type PlunderAim,
 } from './movement-orders';
 import { onTourRefusalOf } from './logistics';
+import { patrolRefusalIn } from './patrol';
 import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
 import { type LonLat } from './geo';
@@ -183,6 +184,9 @@ export type CompassTarget =
       readonly coastPending?: boolean;
       /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
       readonly walkable?: boolean;
+      /** **La liaison tracée sous ce point** (#376), troupe de ronde en main : la ronde s'ajoute
+       *  à l'éventail du point, qui garde sa marche. */
+      readonly liaison?: { readonly ends: readonly [string, string]; readonly name: string };
     }
   | {
       /**
@@ -509,6 +513,19 @@ export type CompassAction =
       readonly carrierId: string;
     }
   /**
+   * **Tenir la ronde** (ADR 0037 §10, #376) : la troupe en main part sur-le-champ vers l'autre
+   * bout de la liaison, et tourne. La règle est `patrolRefusalOf`, celle que `patrols.start` relit.
+   */
+  | {
+      readonly key: 'patrol';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly troopId: string;
+      readonly ends: readonly [string, string];
+    }
+  /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
    * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
    */
@@ -598,21 +615,23 @@ export function compassOf(
    * lui retirerait « fonder », qui est précisément l'ordre qu'on donne là où l'on se tient
    * (ADR 0019 §1). Le clic droit sur elle répond donc toujours la même chose, armée ou non.
    */
-  if (column !== null && target.kind === 'force' && origin !== null) {
-    const station = posted(target);
-    if (station !== null && stationKeyOf(station) !== stationKeyOf(origin))
-      return towardsMyPile(target, station, view, column, heldTroopIds ?? []);
-  }
-  if (column !== null && target.kind !== 'force') {
-    const fan = aim(target, view, column, freeCapacity, origin, heldTroopIds, now);
-    /** **En tournée, rien d'autre** (ADR 0028) : la rose le dit, la marche le relit. */
+  /** **En tournée ou en ronde, rien d'autre** (ADR 0028, #376) : la rose le dit, la marche le
+   *  relit. */
+  const engaged = (fan: Compass | null): Compass | null => {
     const touring = onTourRefusalOf(
       view.me.troops.filter((troop) => heldTroopIds?.includes(troop.id) === true),
     );
-    return fan === null || touring === null
-      ? fan
-      : { ...fan, actions: [], refusal: fr.errors[touring.code]() };
+    if (fan === null || touring === null) return fan;
+    const { code, ...details } = touring;
+    return { ...fan, actions: [], refusal: fr.errors[code](details) };
+  };
+  if (column !== null && target.kind === 'force' && origin !== null) {
+    const station = posted(target);
+    if (station !== null && stationKeyOf(station) !== stationKeyOf(origin))
+      return engaged(towardsMyPile(target, station, view, column, heldTroopIds ?? []));
   }
+  if (column !== null && target.kind !== 'force')
+    return engaged(aim(target, view, column, freeCapacity, origin, heldTroopIds, now));
   const here =
     origin !== null &&
     target.kind === 'force' &&
@@ -658,6 +677,11 @@ function aim(
   now: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
+  if (target.kind === 'point' && target.liaison !== undefined) {
+    const { liaison, ...point } = target;
+    const fan = aim(point, view, column, freeCapacity, origin, heldTroopIds, now);
+    return withPatrol(fan, liaison, view, heldTroopIds ?? []);
+  }
   if ((target.kind === 'camp' || target.kind === 'track') && bombardsWith(column.roles, view.mode))
     return bombardFan(target, view, column, origin, heldTroopIds, now);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
@@ -831,4 +855,34 @@ function aim(
       surveyed: carriesSurveyedInstallation(target.regionId, view.surveyedInstallations),
     },
   ]);
+}
+
+/** **La ronde, en tête de l'éventail du point** (#376) : lâchée sur le trait, la troupe tourne ;
+ *  la marche reste à côté. Refusée, son motif se dit près de la marche. Rien en Blitz. */
+function withPatrol(
+  fan: Compass | null,
+  liaison: NonNullable<Extract<CompassTarget, { kind: 'point' }>['liaison']>,
+  view: PlayerView,
+  heldTroopIds: ReadonlyArray<string>,
+): Compass | null {
+  if (view.mode === 'blitz') return fan;
+  const refusal = patrolRefusalIn(view, heldTroopIds, liaison.ends);
+  const troopId = heldTroopIds[0];
+  const patrol: ReadonlyArray<CompassAction> =
+    refusal !== null || troopId === undefined
+      ? []
+      : [
+          {
+            key: 'patrol',
+            pictogram: 'pennant',
+            label: fr.compass.patrol,
+            cost: null,
+            consequence: fr.compass.patrolConsequence,
+            troopId,
+            ends: liaison.ends,
+          },
+        ];
+  if (fan === null)
+    return { kicker: fr.compass.liaison, name: liaison.name, actions: patrol, refusal };
+  return { ...fan, actions: [...patrol, ...fan.actions], refusal: fan.refusal ?? refusal };
 }

@@ -5,7 +5,7 @@ import type { Compass, CompassAction } from './compass-rose';
 import type { UnitRole } from './ids';
 import { routeModeOf } from './movement-orders';
 
-/** Ce qu'une pile lâchée exécute d'elle-même : partir, monter à bord, tirer, fonder. Le reste —
+/** Ce qu'une pile lâchée exécute d'elle-même : partir, monter à bord, tirer, fonder, tourner. Le reste —
  *  bâtir, élever, raser, débarquer — n'est pas un ordre de pièce et reste au clic droit. */
 const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
   'aim',
@@ -16,6 +16,7 @@ const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
   'airdrop',
   'tour',
   'tourStop',
+  'patrol',
   'board',
   'bombard',
   'found',
@@ -26,7 +27,12 @@ export type DropReading =
   | { readonly kind: 'refused'; readonly reason: string }
   /** **La côte n'est pas encore lue** (#224) : ni ordre ni refus, la pièce reste en main. */
   | { readonly kind: 'pending'; readonly reason: string }
-  | { readonly kind: 'orders'; readonly verbs: ReadonlyArray<CompassAction> };
+  /** `aside` : une branche refusée à côté de celles offertes (la ronde près de la marche, #376). */
+  | {
+      readonly kind: 'orders';
+      readonly verbs: ReadonlyArray<CompassAction>;
+      readonly aside?: string;
+    };
 
 /**
  * **Ce que ferait le lâcher ici**, lu sur la rose de la cible — la même fonction que le serveur
@@ -35,7 +41,10 @@ export type DropReading =
  */
 export function dropReadingOf(compass: Compass | null): DropReading {
   const verbs = compass?.actions.filter((action) => DROPPABLE.has(action.key)) ?? [];
-  if (verbs.length > 0) return { kind: 'orders', verbs };
+  if (verbs.length > 0)
+    return compass?.refusal
+      ? { kind: 'orders', verbs, aside: compass.refusal }
+      : { kind: 'orders', verbs };
   if (compass?.pending === true && compass.refusal)
     return { kind: 'pending', reason: compass.refusal };
   return compass?.refusal ? { kind: 'refused', reason: compass.refusal } : { kind: 'none' };
@@ -75,6 +84,7 @@ export function chipOf(action: CompassAction, forbidden: Forbidden): DropChip {
   if (action.key === 'board') return { icon: '⤓', tone: 'order', verb: verbs.board };
   if (action.key === 'deliver') return { icon: '⇥', tone: 'order', verb: verbs.deliver };
   if (action.key === 'airdrop') return { icon: '⇣', tone: 'order', verb: verbs.airdrop };
+  if (action.key === 'patrol') return { icon: '⇄', tone: 'order', verb: verbs.patrol };
   if (action.key === 'tour' || action.key === 'tourStop')
     return { icon: '↻', tone: 'order', verb: action.key === 'tour' ? verbs.tour : capital };
   if (action.key !== 'aim')

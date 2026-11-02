@@ -748,6 +748,18 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                 ...(rangoon ? { veiled: true as const } : {}),
               },
             }),
+        /** **Sa ronde** (#376), à son seul maître : l'ennemi voit une colonne comme une autre. */
+        ...(troop.patrol === undefined
+          ? {}
+          : {
+              patrol: {
+                ends: [troop.patrol.ends[0]!, troop.patrol.ends[1]!] as const,
+                to: troop.patrol.to,
+                haltUntil: troop.patrol.haltUntil ?? null,
+                recalled: troop.patrol.recalled === true,
+                waiting: (troop.patrol.roads ?? 0) > 0 ? ('road' as const) : null,
+              },
+            }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un
          *  compte à rebours, que la pièce égrène seule. */
         ...(troop.reloadUntil !== undefined && troop.reloadUntil > now

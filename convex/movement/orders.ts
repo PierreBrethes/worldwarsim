@@ -639,7 +639,8 @@ function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Colu
 
 /**
  * **Les colonnes qui tiennent un slot** : chaque mouvement, sauf un retour, plus chaque **tournée
- * à l'arrêt** au chargement : elle garde son slot tant qu'elle tourne (ADR 0028). Ce que chacune
+ * à l'arrêt** au chargement et chaque **ronde en halte** : elles gardent leur slot tant qu'elles
+ * tournent (ADR 0028, ADR 0037 §10). Ce que chacune
  * demande, Halifax compris, est dit par `slotsAskedBy` : une règle, une fonction, pour la porte
  * (`claimSlot`) et pour la bannière de la vue.
  */
@@ -658,7 +659,9 @@ async function columnsHeld(
       .query('troops')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
       .collect())
-  ).filter((troop) => troop.tour !== undefined && !marching.has(troop._id));
+  ).filter(
+    (troop) => (troop.tour !== undefined || troop.patrol !== undefined) && !marching.has(troop._id),
+  );
   const holders = [
     ...flying.map((movement) => movement.troopIds),
     ...resting.map((troop) => [troop._id]),
@@ -828,8 +831,6 @@ export async function march(
     }
     troops.push(troop);
   }
-  const touring = keepsSlot ? null : onTourRefusalOf(troops);
-  if (touring !== null) fail(touring.code);
   /** **Les passagers suivent leur transport** (15/10) : un transport part avec sa cargaison, et
    *  un passager ne part pas sans lui — on le débarque d'abord. */
   const pile = (await standingPile(ctx, playerId, departure.stationId)).map(seatedOf);
@@ -840,6 +841,12 @@ export async function march(
     for (const rider of cargoOf(seatedOf(troop), pile))
       if (!troops.some((one) => one._id === rider.id))
         troops.push((await ctx.db.get(rider.id as Id<'troops'>))!);
+  }
+  /** **En tournée ou en ronde, rien d'autre** — cargaison comprise. */
+  const touring = keepsSlot ? null : onTourRefusalOf(troops);
+  if (touring !== null) {
+    const { code, ...details } = touring;
+    fail(code, details);
   }
 
   /** **Ancrée, elle se recharge au départ** (ADR 0028 §3) : les coups et le plein se reprennent

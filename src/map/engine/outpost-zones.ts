@@ -4,6 +4,7 @@ import {
   Float32BufferAttribute,
   Group,
   Mesh,
+  type Raycaster,
   ShaderMaterial,
   Vector3,
 } from 'three';
@@ -130,6 +131,8 @@ export class OutpostZones {
   /** **Le rayon que lit la pose d'un bâtiment** (#239), hors du calque : il remplace `ReachRings`. */
   private held: Array<{ readonly reach: HeldReach; readonly compass: Compass }> = [];
   private focused: ZoneFocus = null;
+  /** Shown for a patrol troop in hand only: sharp at once. */
+  private linesOnly = false;
   /** Each point's emphasis on its way to its target: its reach ring, its lookout ring. */
   private shown = new Map<string, { reach: number; lookout: number }>();
   private size: readonly [number, number] = [1, 1];
@@ -162,9 +165,15 @@ export class OutpostZones {
     this.object.add(this.wash);
   }
 
-  show(points: ReadonlyArray<ZonePoint>, liaisons: ReadonlyArray<readonly [string, string]>): void {
+  show(
+    points: ReadonlyArray<ZonePoint>,
+    liaisons: ReadonlyArray<readonly [string, string]>,
+    /** **Les liaisons seules** (#376) : une troupe de ronde en main les montre, calque éteint. */
+    linesOnly = false,
+  ): void {
     this.clear();
-    this.points = points;
+    this.linesOnly = linesOnly;
+    this.points = linesOnly ? [] : points;
     this.writeWash();
     const at = new Map(points.map((point) => [point.id, point.lonLat] as const));
     this.liaisons = liaisons.flatMap(([a, b]) => {
@@ -175,7 +184,7 @@ export class OutpostZones {
       line.write(this.segment(from, to));
       return [{ a, b, line }];
     });
-    for (const point of points) this.compasses.set(point.id, new Compass(this.frame, point));
+    for (const point of this.points) this.compasses.set(point.id, new Compass(this.frame, point));
     for (const { line } of this.liaisons) this.object.add(line.line);
     for (const compass of this.compasses.values()) this.object.add(compass.object);
     this.resize(...this.size);
@@ -240,6 +249,15 @@ export class OutpostZones {
       .concat(held);
   }
 
+  /** **The liaison under the ray** (#376): what a patrol troop is let go on, by its two ids. */
+  liaisonUnder(ray: Raycaster): readonly [string, string] | null {
+    const lines = this.liaisons.map(({ line }) => line.line);
+    const [hit] = ray.intersectObjects(lines, false);
+    const liaison =
+      hit === undefined ? undefined : this.liaisons[lines.indexOf(hit.object as Line2)];
+    return liaison === undefined ? null : [liaison.a, liaison.b];
+  }
+
   /** A liaison's straight stroke on the board, for the pen that traces a newborn one. */
   segment(from: LonLat, to: LonLat): ReadonlyArray<number> {
     return Array.from({ length: 25 }, (_, i) =>
@@ -290,7 +308,9 @@ export class OutpostZones {
       this.compasses.get(id)?.emphasise(now.reach, now.lookout);
     }
     for (const { a, b, line } of this.liaisons) {
-      const e = Math.max(this.shown.get(a)?.reach ?? 0, this.shown.get(b)?.reach ?? 0);
+      const e = this.linesOnly
+        ? 1
+        : Math.max(this.shown.get(a)?.reach ?? 0, this.shown.get(b)?.reach ?? 0);
       line.material.opacity =
         LIAISON_REST.opacity + (LIAISON_SHARP.opacity - LIAISON_REST.opacity) * e;
       line.material.linewidth = LIAISON_REST.width + (LIAISON_SHARP.width - LIAISON_REST.width) * e;

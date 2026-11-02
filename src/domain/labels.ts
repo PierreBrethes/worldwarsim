@@ -345,6 +345,8 @@ export type LabelLine =
       readonly dueAt: number | null;
       readonly share: number;
     }
+  /** **Ma ronde en route** (#376) : `recall`, la troupe à rappeler — `null` une fois rappelée. */
+  | { readonly role: 'patrol'; readonly text: string; readonly recall: string | null }
   /** **Une charge** (ADR 0028 §4) : le dépôt d'un avant-poste, en barre découpée par couleur. */
   | { readonly role: 'charge'; readonly load: SupplyLoad; readonly capacity: number }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
@@ -596,7 +598,7 @@ export function ownerFlags(
 
 export function buildLabels(
   view: Pick<PlayerView, 'arcs' | 'loadedAt' | 'captures'> & {
-    readonly me: Pick<PlayerView['me'], 'ink'>;
+    readonly me: Pick<PlayerView['me'], 'ink' | 'troops'>;
   },
   markers: ReadonlyArray<MapMarker>,
 ): ReadonlyArray<MapLabel> {
@@ -605,7 +607,7 @@ export function buildLabels(
       markers.map((marker) => markerLabel(marker, view.loadedAt)),
       view.captures,
     ),
-    ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt)).filter(exists),
+    ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt, view.me.troops)).filter(exists),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
 }
@@ -1036,9 +1038,16 @@ const countdownsOf = ({
  * A frozen arc or mere sea control carries no label: they have nothing to say that an
  * anonymous cone does not already.
  */
-function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
+function arcLabel(
+  arc: ArcView,
+  loadedAt: number,
+  troops: PlayerView['me']['troops'],
+): MapLabel | null {
   if (arc.state === 'mine') {
     const mission = arc.mission ?? null;
+    const patrol = troops.find(
+      (troop) => troop.patrol !== undefined && arc.troopIds.includes(troop.id),
+    );
     const cargo = arc.cargo;
     // Une poursuite ne porte rien : sa charge vide ne dirait rien de plus que « poursuite ».
     const cargoVisible =
@@ -1084,6 +1093,13 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
           ? [{ role: 'figures', text: resourceAmountsLabel(cargo.loot) } as const]
           : []),
         ...(mission === null ? [] : [{ role: 'mention', text: missionLabel(mission) } as const]),
+        ...(patrol === undefined
+          ? []
+          : [
+              patrol.patrol!.recalled
+                ? ({ role: 'patrol', text: fr.patrol.recalledOnLabel, recall: null } as const)
+                : ({ role: 'patrol', text: fr.patrol.title, recall: patrol.id } as const),
+            ]),
       ],
     };
   }

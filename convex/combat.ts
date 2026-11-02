@@ -20,6 +20,7 @@ import { push, journalUrl, reportUrl } from '../src/domain/push';
 import { resupply } from './supplies';
 import { dropTransportCrate } from './crateStock';
 import { stopTour } from './tours';
+import { endPatrol } from './patrols';
 import { suppliesOf } from '../src/domain/supplies';
 import {
   combatCargoSnapshot,
@@ -302,6 +303,8 @@ export async function resolveContact(
       });
     if (outcome.state === 'routed' && troop.tour !== undefined)
       await stopTour(ctx, troop, at, 'cut');
+    if (outcome.state === 'routed' && troop.patrol !== undefined)
+      await endPatrol(ctx, troop, at, 'routed');
   }
 
   /**

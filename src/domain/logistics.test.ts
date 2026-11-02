@@ -184,8 +184,18 @@ describe('tracing a tour', () => {
   });
 
   it('takes no other order while it tours', () => {
-    expect(onTourRefusalOf([{}, { tour: {} }])).toEqual({ code: 'TRANSPORT_ON_TOUR' });
-    expect(onTourRefusalOf([{}])).toBeNull();
+    const truck = { role: 'landTransport' as const };
+    expect(onTourRefusalOf([truck, { ...truck, tour: {} }])).toEqual({
+      code: 'TRANSPORT_ON_TOUR',
+    });
+    expect(onTourRefusalOf([truck])).toBeNull();
+  });
+
+  it('takes no other order while it patrols, and names the troop (#376)', () => {
+    expect(onTourRefusalOf([{ role: 'armor', patrol: {} }])).toEqual({
+      code: 'ON_PATROL',
+      role: 'armor',
+    });
   });
 });
 

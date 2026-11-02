@@ -8,7 +8,14 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
-import { drawnLiaisonsOf, effectiveSpecialty, isOnWatch, lookoutKmOf } from '@/domain/outposts';
+import { effectiveSpecialty, isOnWatch, lookoutKmOf } from '@/domain/outposts';
+import {
+  drawnLiaisonsIn,
+  holdsPatrolTroop,
+  outpostNameIn,
+  patrolLineOf,
+  withoutPatrols,
+} from '@/domain/patrol';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
@@ -1013,6 +1020,37 @@ function BoardContent({
   const boardTransport = useMutation(api.movements.board);
   const disembark = useMutation(api.movements.disembark);
   const bombard = useMutation(api.movements.bombard);
+  const startPatrol = useMutation(api.patrols.start);
+  const recallPatrol = useMutation(api.patrols.recall);
+  /** **Rappeler une ronde en route** (#376), d'« En cours » ou de l'étiquette de sa colonne. */
+  const recallPatrolNow = useCallback(
+    (troopId: string) =>
+      void recallPatrol({ ...seat, troopId: troopId as Id<'troops'> }).catch((problem: unknown) =>
+        handleError(problem, setOrderError),
+      ),
+    [recallPatrol, seat],
+  );
+  /** **Lancer une ronde** (#376), de la carte ou de la fiche : la main se repose à l'issue. */
+  const launchPatrol = useCallback(
+    (troopId: string, ends: readonly [string, string]) => {
+      setOrderError(null);
+      startPatrol({
+        ...seat,
+        troopId: troopId as Id<'troops'>,
+        ends: ends.map((end) => end as Id<'outposts'>),
+      }).then(
+        () => {
+          notify(fr.patrol.started, 'info');
+          dropHand();
+        },
+        (problem: unknown) => {
+          handleError(problem, setOrderError);
+          dropHand();
+        },
+      );
+    },
+    [startPatrol, seat, dropHand],
+  );
   const deliver = useMutation(api.logistics.deliver);
   const airdrop = useMutation(api.logistics.airdrop);
   const loadTransport = useMutation(api.logistics.load);
@@ -1235,6 +1273,9 @@ function BoardContent({
           );
           dropHand();
           return;
+        case 'patrol':
+          launchPatrol(action.troopId, action.ends);
+          return;
         /** **Bombarder est immédiat** (B20) : la branche est l'ordre, aucune colonne ne part ;
          *  la pièce reste posée et la main se repose. */
         case 'bombard':
@@ -1316,6 +1357,7 @@ function BoardContent({
       settle,
       grouped,
       setTrace,
+      launchPatrol,
     ],
   );
 
@@ -1436,11 +1478,22 @@ function BoardContent({
       lookoutKm: silent ? null : lookoutKmOf(outpost),
       wholeLookout: effectiveSpecialty(outpost) === 'lookout',
     }));
-    const liaisons = drawnLiaisonsOf(
-      points.map(({ id, lonLat, reachKm }) => ({ id, point: lonLat, reachKm })),
+    const station = (outpostId: string) => stationKeyOf({ kind: 'outpost', outpostId });
+    const liaisons = drawnLiaisonsIn({ outposts: view.me.outposts }).map(
+      ([a, b]) => [station(a), station(b)] as [string, string],
     );
     return { points, liaisons };
   }, [blitz, view.me.outposts, view.me.upkeep.listeningSilent]);
+
+  /** **Une troupe de ronde en main** (#376) : la carte montre et vise ses liaisons. */
+  const patrolHand = useMemo(
+    () =>
+      hand.kind === 'held' && holdsPatrolTroop(view, hand.troopIds)
+        ? (ends: readonly [string, string]) =>
+            fr.compass.liaisonName(outpostNameIn(view.me, ends[0]), outpostNameIn(view.me, ends[1]))
+        : null,
+    [hand, view],
+  );
 
   // Every building stands at the point written at its placement (ADR 0029), and so does the
   // work that will raise it; an outpost carries its own point, because it *is* a point and
@@ -1478,8 +1531,9 @@ function BoardContent({
 
   const { arcs, loadedAt, captures, mode } = view;
   const ink = view.me.ink;
+  const troops = view.me.troops;
   const labels = useMemo(() => {
-    const built = buildLabels({ arcs, loadedAt, captures, me: { ink } }, markers);
+    const built = buildLabels({ arcs, loadedAt, captures, me: { ink, troops } }, markers);
     return mode === 'blitz'
       ? ownerFlags(
           built,
@@ -1490,7 +1544,7 @@ function BoardContent({
           ink,
         )
       : built;
-  }, [arcs, loadedAt, captures, mode, ink, markers, knownRegionById]);
+  }, [arcs, loadedAt, captures, mode, ink, troops, markers, knownRegionById]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment ou d'un avant-poste se lève par ses
@@ -1530,8 +1584,11 @@ function BoardContent({
             troopIds:
               blitz && hit.troopIds.length > 0
                 ? hit.troopIds
-                : (pile?.pieces.troopIds ??
-                  troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id)),
+                : withoutPatrols(
+                    view.me,
+                    pile?.pieces.troopIds ??
+                      troopsAt(view.me, hit.pileId, marching).map((troop) => troop.id),
+                  ),
           };
     },
     [pileOf, view.me, marching, blitz],
@@ -1545,7 +1602,7 @@ function BoardContent({
       const troopIds = troopsAt(view.me, stationKeyOf(from.station), marching).map(
         (troop) => troop.id,
       );
-      return { kind: 'pile', station: from.station, troopIds };
+      return { kind: 'pile', station: from.station, troopIds: withoutPatrols(view.me, troopIds) };
     },
     [pileClickOf, view.me, marching],
   );
@@ -2467,6 +2524,7 @@ function BoardContent({
                   held={held}
                   outposts={reachedOutposts}
                   outpostZones={outpostZones}
+                  patrolHand={patrolHand}
                   cut={cut}
                   selectedCountry={country ?? null}
                   playerNation={view.me.nation}
@@ -2528,6 +2586,7 @@ function BoardContent({
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}
                   carriersShown={carryingTokens}
                   onTour={view.me.defeated ? undefined : onTour}
+                  onRecallPatrol={view.me.defeated ? undefined : recallPatrolNow}
                   tourLoops={tourLoops}
                   cue={mapCue}
                   combats={mapCombats}
@@ -2705,6 +2764,14 @@ function BoardContent({
                             },
                           }
                     }
+                    patrol={patrolLineOf(view, hand.troopIds)}
+                    onPatrol={launchPatrol}
+                    onRecallPatrol={(troopId) =>
+                      recallPatrol({ ...seat, troopId: troopId as Id<'troops'> }).then(
+                        dropHand,
+                        (problem: unknown) => handleError(problem, setOrderError),
+                      )
+                    }
                     onOpenGunnery={() => openWindow('gunnery')}
                     onDrop={dropHand}
                   />
@@ -2758,6 +2825,7 @@ function BoardContent({
                       nation={view.me.nation}
                       fresh={sent === null ? null : `movement-${sent.movementId}`}
                       onLocate={locateUnderway}
+                      onRecall={recallPatrolNow}
                     />
                   </div>
                 )}

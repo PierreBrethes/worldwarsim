@@ -59,6 +59,33 @@ describe('GarrisonStack', () => {
   });
 });
 
+/** **Une ronde en halte se dit dans sa garnison** (#376) : pas une troupe ordinaire décochée. */
+describe('GarrisonStack, a patrol at its halt', () => {
+  it('says the troop is on patrol, and until when it halts', () => {
+    const view = { me: { nation: 'france', troops: [] } } as unknown as PlayerView;
+    const halt = Date.UTC(2026, 10, 2, 16, 51);
+    const patrol = { ends: ['a', 'b'], to: 'b', haltUntil: halt, recalled: false, waiting: null };
+    const held = [
+      troop('rifle', 'infantry', 50, 50),
+      { ...troop('tank', 'armor', 12, 12), patrol },
+    ];
+    const markup = renderToStaticMarkup(
+      <GarrisonStack
+        view={view}
+        station={station}
+        held={held as ReadonlyArray<TroopView>}
+        preselect={['rifle']}
+        canPrepare
+        observing={false}
+        onPrepare={() => undefined}
+      />,
+    );
+    const said = fr.patrol.inGarrison(patrol);
+    expect(said).toMatch(/^en ronde · halte jusqu’à \d\d:\d\d$/);
+    expect(markup.split(said)).toHaveLength(2);
+  });
+});
+
 /** **Un passager suit son transport** (15/10) : il se lit sous lui, il ne se coche pas seul, et il
  *  descend d'un bouton. */
 describe('GarrisonStack, a transport and its passengers', () => {

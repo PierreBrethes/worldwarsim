@@ -16,6 +16,7 @@ import { COMBAT_RULES, RELOAD_SECONDS_BY_ROLE } from '../constants';
 import { combatantOf, resolveContact } from '../combat';
 import { salvoOf } from '../../src/domain/combat';
 import { outOfRounds } from '../../src/domain/supplies';
+import { onTourRefusalOf } from '../../src/domain/logistics';
 import { toppedUp } from '../supplies';
 import { fail } from '../errors';
 import { hostAtPoint, landAtPoint } from '../routes';
@@ -58,6 +59,12 @@ export async function bombard(
   const now = Date.now();
   const troop = await ctx.db.get(troopId);
   if (troop === null || troop.playerId !== player._id) fail('UNKNOWN_TROOP');
+  /** **En ronde, rien d'autre** : la rose le dit, le tir le relit. */
+  const engaged = onTourRefusalOf([troop]);
+  if (engaged !== null) {
+    const { code, ...details } = engaged;
+    fail(code, details);
+  }
   const theatre = await blitzTheatreOf(ctx, player._id);
   const moving = (await movementsOf(ctx, player._id)).some((movement) =>
     movement.troopIds.includes(troopId),

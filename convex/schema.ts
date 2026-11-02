@@ -529,6 +529,22 @@ export default defineSchema({
         retryJobId: v.optional(v.id('_scheduled_functions')),
       }),
     ),
+    /**
+     * **Sa ronde** (ADR 0037 §10, #376) : elle tourne sur la liaison `ends`, cap sur `to`. À
+     * l'arrêt, elle fait halte en garnison au bout atteint jusqu'à `haltUntil` (`jobId` la
+     * relance, ou relit une route refusée `roads` fois d'affilée) ; `recalled`, elle finit
+     * l'étape en cours et s'arrête là. Elle garde son slot tant qu'elle tourne.
+     */
+    patrol: v.optional(
+      v.object({
+        ends: v.array(v.id('outposts')),
+        to: v.id('outposts'),
+        haltUntil: v.optional(v.number()),
+        jobId: v.optional(v.id('_scheduled_functions')),
+        roads: v.optional(v.number()),
+        recalled: v.optional(v.boolean()),
+      }),
+    ),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -718,6 +734,8 @@ export default defineSchema({
     /** **Un pas de tournée** : vers un de ses dépôts (`stop`), ou de retour au chargement
      *  (`base`), où elle recharge sa consigne et repart. */
     tourLeg: v.optional(v.union(v.literal('stop'), v.literal('base'))),
+    /** **Une étape de ronde** (#376) : vers l'autre bout de sa liaison. */
+    patrolLeg: v.optional(v.boolean()),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

@@ -1152,6 +1152,33 @@ describe('boarding a transport from the map (révision de l’ADR 0025, 15/10)',
     });
   });
 
+  /** **En ronde, on ne monte à bord de rien** (#376) : la rose le dit du mot du serveur. */
+  it('boards no troop on patrol, here or elsewhere, and says why', () => {
+    const patrolling = (seen: PlayerView) =>
+      ({
+        ...seen,
+        me: {
+          ...seen.me,
+          troops: seen.me.troops.map((troop) =>
+            troop.id === 'rifle' ? { ...troop, patrol: { ends: ['a', 'b'], to: 'b' } } : troop,
+          ),
+        },
+      }) as unknown as PlayerView;
+    const own = { ...target, id: 'own-stack', station: origin };
+    const here = compassOf(
+      own,
+      patrolling(at('cargo', 0, { station: origin })),
+      column,
+      origin,
+      0,
+      ['rifle'],
+    );
+    expect(here?.actions.map((action) => action.key)).not.toContain('board');
+    const there = aim(patrolling(at('cargo')));
+    expect(there?.actions).toEqual([]);
+    expect(there?.refusal).toBe(fr.errors.ON_PATROL({ role: 'infantry' }));
+  });
+
   it('seats infantry in a truck with a free seat, and never armour', () => {
     expect(anchor(at('landTransport', 1))).toBeDefined();
     expect(anchor(at('landTransport', 2))).toBeUndefined();

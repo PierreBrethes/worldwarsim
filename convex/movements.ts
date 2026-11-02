@@ -80,7 +80,9 @@ import { passingEstimate, resupply, resupplyInPassing, toppedUp } from './suppli
 import { suppliesOf } from '../src/domain/supplies';
 import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
+import { onTourRefusalOf } from '../src/domain/logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
+import { arriveOnPatrol } from './patrols';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
@@ -304,6 +306,11 @@ export const board = mutation({
       pile.find((troop) => troop._id === troopId) ?? fail('TROOP_NOT_AT_ORIGIN', { troopId });
     standing(carrierId);
     const riders = troopIds.map(standing);
+    const engaged = onTourRefusalOf(riders);
+    if (engaged !== null) {
+      const { code, ...details } = engaged;
+      fail(code, details);
+    }
     const boarding = {
       riders: riders.map(seatedOf),
       carrier: seatedOf(carrier),
@@ -1067,6 +1074,13 @@ export const arrive = internalMutation({
     if (movement.tourLeg !== undefined) {
       if (movement.tourLeg === 'stop') await arriveOnTour(ctx, movement, now);
       else await arriveAtBase(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
+      return;
+    }
+
+    /** **Une étape de ronde** (#376) : halte au bout atteint, ou fin de la ronde. */
+    if (movement.patrolLeg === true) {
+      await arriveOnPatrol(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }

@@ -1963,9 +1963,16 @@ export class MapEngine {
   showOutpostZones(
     points: ReadonlyArray<ZonePoint>,
     liaisons: ReadonlyArray<readonly [string, string]>,
+    linesOnly = false,
   ): void {
     this.invalidate();
-    this.zones.show(points, liaisons);
+    this.zones.show(points, liaisons, linesOnly);
+  }
+
+  /** **La liaison tracée sous le pointeur** (#376), par les clés de ses deux points, ou `null`. */
+  liaisonAt(clientX: number, clientY: number): readonly [string, string] | null {
+    if (!this.castAt(clientX, clientY)) return null;
+    return this.zones.liaisonUnder(this.ray);
   }
 
   /** Ce que la main tient sur les zones : le compas d'un point, de tous, ou rien. */

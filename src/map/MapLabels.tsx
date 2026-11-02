@@ -136,6 +136,7 @@ export function MapLabels({
   carriersShown = false,
   onTakeDepot,
   onTour,
+  onRecallPatrol,
   cue = null,
   selectionBar = null,
   openStation = null,
@@ -147,6 +148,8 @@ export function MapLabels({
   cue?: { readonly labelId: string; readonly text: string } | null;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** **Rappeler une ronde** depuis l'étiquette de sa colonne en route (#376). */
+  onRecallPatrol?: ((troopId: string) => void) | undefined;
   /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
   carriersShown?: boolean;
   /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
@@ -1071,6 +1074,7 @@ export function MapLabels({
     takeDepot: (outpostId, key, event) => onTakeDepot?.(outpostId, key, event),
     disembark: (troopIds) => onDisembark?.(troopIds),
     tour: (carrierId, act) => onTour?.(carrierId, act),
+    recallPatrol: (troopId) => onRecallPatrol?.(troopId),
   };
   const disembark = useCallback(
     (troopIds: ReadonlyArray<string>) => gestures.current.disembark(troopIds),
@@ -1233,6 +1237,7 @@ type LabelGestures = {
   readonly takeDepot: TakeDepot;
   readonly disembark: (troopIds: ReadonlyArray<string>) => void;
   readonly tour: (carrierId: string, act: TourAct) => void;
+  readonly recallPatrol: (troopId: string) => void;
 };
 
 type LabelNodeProps = {
@@ -1401,6 +1406,23 @@ const LabelNode = memo(function LabelNode({
               ) : line.role === 'supplies' ? (
                 <div key={rank} className="label-line label-line--figures">
                   <SupplyPictos supplies={line.supplies} />
+                </div>
+              ) : line.role === 'patrol' ? (
+                <div key={rank} className="label-line label-line--mention">
+                  {line.text}
+                  {line.recall !== null && (
+                    <button
+                      type="button"
+                      className="cargo-tag-out ml-[6px]"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        gestures.current.recallPatrol(line.recall!);
+                      }}
+                    >
+                      {fr.patrol.recall}
+                    </button>
+                  )}
                 </div>
               ) : line.role === 'charge' ? (
                 <div key={rank} className="label-line label-line--figures label-line--depot">
