@@ -1986,11 +1986,11 @@ export class MapEngine {
   inkLiaison(from: LonLat, to: LonLat): void {
     this.invalidate();
     if (this.ambience.motion !== 'full') return;
-    const line = this.zones.segment(from, to);
-    this.ink.traceReach(
-      Array.from({ length: line.length / 3 }, (_, i) => new Vector3().fromArray(line, 3 * i)),
-      performance.now(),
-    );
+    for (const line of this.zones.segment(from, to))
+      this.ink.traceReach(
+        Array.from({ length: line.length / 3 }, (_, i) => new Vector3().fromArray(line, 3 * i)),
+        performance.now(),
+      );
   }
 
   /** The km labels of the compasses, told when they move on screen, at a rendered frame only. */
