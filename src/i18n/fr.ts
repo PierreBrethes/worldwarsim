@@ -3415,6 +3415,8 @@ export const fr = {
     leaveNote: 'la carte revient où elle était',
     stay: 'rester',
     held: 'terrain tenu',
+    /** « Terrain tenu » d'un combat en mer (#324). */
+    heldAtSea: 'eaux tenues',
     lost: 'terrain perdu',
     mine: 'chez nous',
     theirs: 'en face',
@@ -3425,6 +3427,8 @@ export const fr = {
     report: {
       attacker: { won: 'position enlevée', lost: 'attaque repoussée' },
       defender: { won: 'position tenue', lost: 'position perdue' },
+      /** En mer (#324), on ne tient ni ne prend de position. */
+      sea: { won: 'engagement gagné', lost: 'engagement perdu' },
       ours: 'nos pièces',
       noLoss: 'aucune perte',
       destroyed: (n: number) => `${n} détruite${n > 1 ? 's' : ''}`,

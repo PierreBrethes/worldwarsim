@@ -1389,7 +1389,12 @@ export function WorldMap({
       ? {
           kind: 'held' as const,
           at: [replayView.point.lon, replayView.point.lat] as const,
-          words: { word: fr.replay.held, hour: asClockTime(replayView.at) },
+          words: {
+            word: readyEngine.landAt([replayView.point.lon, replayView.point.lat])
+              ? fr.replay.held
+              : fr.replay.heldAtSea,
+            hour: asClockTime(replayView.at),
+          },
         }
       : null;
     // Once a replay: stepping back and forth through the account does not stamp it again.
@@ -1802,7 +1807,10 @@ export function WorldMap({
     const vanished = before.arcs.flatMap((arc) =>
       arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
-    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null))
+    const ground = engine.current;
+    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null, (at) =>
+      ground === null ? true : ground.landAt(at),
+    ))
       engine.current?.inkBurst(burst);
   }, [arcs, journal, blitz]);
 

@@ -65,6 +65,8 @@ export function inkBursts(
   vanishedEnds: ReadonlyArray<LonLat>,
   /** The map plays the combats that arrive (#327): « terrain tenu » is then the stamp's to say. */
   mapPlays = false,
+  /** The ground under a point (`groundOf`): a combat won at sea holds no ground (#324). */
+  landAt: (at: LonLat) => boolean = () => true,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
   const combats = fresh.flatMap((dispatch): InkBurst[] => {
@@ -84,7 +86,7 @@ export function inkBursts(
           {
             kind: 'held',
             at,
-            words: stamped(fr.replay.held, dispatch.at),
+            words: stamped(landAt(at) ? fr.replay.held : fr.replay.heldAtSea, dispatch.at),
             delayMs: STAMP_MS,
             ...(mapPlays && cause === 'arrival' ? { combatId: dispatch.combat.id } : {}),
           },

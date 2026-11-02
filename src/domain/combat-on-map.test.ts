@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  afloat,
   COMBAT_LIMITS,
+  sceneSpan,
   combatAt,
   FINAL_POSE_MS,
   freshCombats,
@@ -10,6 +12,7 @@ import {
   stampStays,
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
+import { troopSpan } from './piece-size';
 import { REPLAY_MS, stepBounds } from './replay';
 import type { ArcView, CombatReport, ReplayView } from './player-view';
 
@@ -190,5 +193,55 @@ describe('stampStays', () => {
   it('stays when the camera arrives by the combat, goes when it arrives far from it', () => {
     expect(stampStays(2, 10)).toBe(true);
     expect(stampStays(30, 10)).toBe(false);
+  });
+});
+
+/** My escort carrying a squad and a tank, against an escort and a cargo carrying men. */
+const atSea: ReplayView = {
+  ...view,
+  mine: [
+    { role: 'escort', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 },
+    { role: 'infantry', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 0 },
+    { role: 'armor', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 },
+  ],
+  theirs: { troops: 4, lost: 300, routed: 0, destroyed: 2 },
+  faced: {
+    nation: 'germany',
+    forces: [
+      { role: 'escort', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 1, strength: 100 },
+      { role: 'cargo', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0, strength: 100 },
+      { role: 'infantry', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 1, strength: 100 },
+    ],
+  },
+};
+
+describe('afloat', () => {
+  it('keeps the ships of a sea combat: what they carry drowns in the dispatch, not on the map', () => {
+    const ships = afloat(atSea);
+    expect(ships.mine.map((entry) => entry.role)).toEqual(['escort']);
+    expect(ships.faced!.forces.map((force) => force.role)).toEqual(['escort', 'cargo']);
+    expect(ships.theirs).toMatchObject({ troops: 2, destroyed: 1, routed: 0 });
+  });
+
+  it('leaves an unseen enemy as it was counted', () => {
+    const { faced: _, ...unseen } = atSea;
+    expect(afloat(unseen).theirs).toEqual(atSea.theirs);
+  });
+});
+
+describe('sceneSpan', () => {
+  it("reads a scene on its longest piece, never below a tank's", () => {
+    expect(sceneSpan(view)).toBe(troopSpan('armor'));
+    expect(sceneSpan(atSea)).toBe(troopSpan('cargo'));
+  });
+});
+
+describe('reportOf at sea', () => {
+  it('says the engagement in words of the sea', () => {
+    expect(reportOf(view, 'sea').title).toBe('engagement gagné');
+    expect(reportOf({ ...view, won: false, side: 'defender' }, 'sea').title).toBe(
+      'engagement perdu',
+    );
+    expect(reportOf(view).title).toBe('position enlevée');
   });
 });

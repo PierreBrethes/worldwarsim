@@ -79,6 +79,12 @@ describe('inkBursts', () => {
     ]);
   });
 
+  it('stamps « eaux tenues » for a combat won at sea (#324)', () => {
+    const won = { ...combat, won: true };
+    const [, held] = inkBursts([dispatch(20, 'assault', won)], 10, [], false, () => false);
+    expect(held).toMatchObject({ kind: 'held', words: { word: 'eaux tenues' } });
+  });
+
   it('names the combat on « terrain tenu » when the map may play it, an arrival only (#327)', () => {
     const arrival = { ...combat, won: true, cause: 'arrival' } as CombatReport;
     const [, held] = inkBursts([dispatch(20, 'assault', arrival)], 10, [], true);

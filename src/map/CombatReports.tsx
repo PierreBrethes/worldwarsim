@@ -87,6 +87,7 @@ export function CombatReports({
         <ReportStamp
           key={view.combatId}
           view={view}
+          sea={engine?.landAt([view.point.lon, view.point.lat]) === false}
           register={(node) =>
             node ? nodes.current.set(view.combatId, node) : nodes.current.delete(view.combatId)
           }
@@ -100,18 +101,21 @@ export function CombatReports({
 
 function ReportStamp({
   view,
+  sea,
   register,
   onOpen,
   onLift,
 }: {
   view: ReplayView;
+  /** At sea (#324), an engagement rather than a position. */
+  sea: boolean;
   register: (node: HTMLElement | null) => void;
   onOpen: () => void;
   onLift: () => void;
 }) {
   const motion = useMapMotion();
   const ink = useRef<HTMLDivElement>(null);
-  const { title, losses, won } = reportOf(view);
+  const { title, losses, won } = reportOf(view, sea ? 'sea' : 'land');
 
   useEffect(() => {
     const timer = setTimeout(onLift, REPORT_HOLD_MS);
