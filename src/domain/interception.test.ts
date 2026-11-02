@@ -409,6 +409,27 @@ describe('a column crossing a watch line', () => {
     expect(second.point[0]).toBeCloseTo(5.1, 9);
   });
 
+  it('unfolds a line across the antimeridian, in both directions of march', () => {
+    const line: [LonLat, LonLat] = [
+      [178, -1],
+      [-178, 1],
+    ];
+    const across = (...lons: number[]): MarchingForce => ({
+      id: 'pacific',
+      points: lons.map((lon): LonLat => [lon, 0]),
+      departedAt: 0,
+      arrivesAt: 10 * HOUR,
+    });
+    for (const march of [across(170, -170), across(-170, 170)]) {
+      const crossing = lineCrossingOf(march, line, 0);
+      expect(crossing).not.toBeNull();
+      expect(Math.abs(crossing!.point[0])).toBeCloseTo(180, 6);
+      expect(crossing!.point[1]).toBeCloseTo(0, 6);
+    }
+    expect(lineCrossingOf(across(0, 10), line, 0)).toBeNull();
+    expect(lineCrossingOf(across(0, -10), line, 0)).toBeNull();
+  });
+
   it('answers what a walk of every sample answers, on random scenes', () => {
     let seed = 7;
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;

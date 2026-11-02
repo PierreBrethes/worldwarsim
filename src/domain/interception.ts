@@ -488,7 +488,10 @@ export function lineCrossingOf(
   const startedAt = force.departedAt;
   const span = force.arrivesAt - startedAt;
   if (span <= 0) return null;
-  const [a, b] = line;
+  /** La ligne se déplie au plus court : `b` peut passer 180°, et la colonne se déplie sur elle. */
+  const a = line[0];
+  const b: LonLat = [a[0] + shortestLongitudeGap(a[0], line[1][0]), line[1][1]];
+  const middle = (a[0] + b[0]) / 2;
   const step = span / INTERCEPTION_SAMPLES;
   const sampleAt = (index: number) => startedAt + index * step;
   const first = Math.max(
@@ -513,7 +516,8 @@ export function lineCrossingOf(
       const middle = (first + last) >> 1;
       return walk(first, middle) ?? walk(middle + 1, last);
     }
-    let p = positionAt(force, sampleAt(first - 1));
+    const start = positionAt(force, sampleAt(first - 1));
+    let p: LonLat = [middle + shortestLongitudeGap(middle, start[0]), start[1]];
     for (let index = first; index <= last; index += 1) {
       const at = sampleAt(index);
       const here = positionAt(force, at);
@@ -525,7 +529,7 @@ export function lineCrossingOf(
         const lon = p[0] + (q[0] - p[0]) * t;
         return { at, point: [((lon + 540) % 360) - 180, p[1] + (q[1] - p[1]) * t] };
       }
-      p = here;
+      p = q;
     }
     return null;
   };
