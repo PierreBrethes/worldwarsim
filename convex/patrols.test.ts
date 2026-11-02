@@ -554,6 +554,44 @@ describe('the watch line of a patrol', () => {
     expect(row!.crossings).toHaveLength(1);
   });
 
+  it('keeps its hour and its job through readings before the crossing', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { troop } = await patrolling(t, seat);
+    await arriveNext(t);
+    await enemyColumn(t, guest, ...ACROSS, HOUR);
+    const [before] = await sightingsOf(t, seat);
+    for (const later of [60_000, 10 * 60_000]) {
+      vi.setSystemTime(before!._creationTime + later);
+      await t.run(async (ctx) => reassessDetection(ctx, (await ctx.db.get(troop))!.seasonId));
+      const [row] = await sightingsOf(t, seat);
+      expect(row!.from).toBe(before!.from);
+      expect(row!.crossings![0]!.jobId).toBe(before!.crossings![0]!.jobId);
+    }
+  });
+
+  it('cancels the dispatch to come when the patrol ends, or its liaison leaves the drawing', async () => {
+    for (const cut of ['recalled', 'withdrawn'] as const) {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const { troop } = await patrolling(t, seat);
+      await arriveNext(t);
+      await enemyColumn(t, guest, ...ACROSS, HOUR);
+      const jobId = (await sightingsOf(t, seat))[0]!.crossings![0]!.jobId!;
+
+      if (cut === 'recalled') await t.mutation(api.patrols.recall, { ...seat, troopId: troop });
+      else {
+        await plant(t, seat, SAUERLAND);
+        await t.run(async (ctx) => reassessDetection(ctx, (await ctx.db.get(troop))!.seasonId));
+      }
+      /** Le point neuf du milieu relève la colonne de sa vigie : la ligne seule se tait. */
+      expect((await sightingsOf(t, seat)).flatMap((row) => row.crossings ?? [])).toEqual([]);
+      expect((await t.run(async (ctx) => ctx.db.system.get(jobId)))?.state.kind, cut).toBe(
+        'canceled',
+      );
+    }
+  });
+
   it('sights nothing that runs beside the line, nor past a disabled end', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
