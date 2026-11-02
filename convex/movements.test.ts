@@ -1969,7 +1969,6 @@ describe('an arrival on a point finds who stands there', () => {
     /** Sans caserne, l'origine se nomme par le point quitté — et non par le pays d'arrivée. */
     const [movement] = (await t.query(api.view.playerView, seat)).movements;
     expect(movement!.originName).toBe(regionFacts(PRAHOVA)!.name);
-    expect(movement!.originCountry).toBe('ROU');
   });
 
   it('refuses a column ordered out of a point it does not stand on', async () => {

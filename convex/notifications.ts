@@ -248,25 +248,6 @@ export const subscribed = query({
   },
 });
 
-/** Les appareils du compte, pour la liste des Réglages — jamais les clés. */
-export const devices = query({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
-    const account = await accountOf(ctx, token);
-    if (account === null) return [];
-    const rows = await ctx.db
-      .query('pushSubscriptions')
-      .withIndex('byAccount', (q) => q.eq('accountId', account._id))
-      .collect();
-    return rows.map((row) => ({
-      endpoint: row.endpoint,
-      deviceLabel: row.deviceLabel,
-      createdAt: row.createdAt,
-      lastSentAt: row.lastSentAt ?? null,
-    }));
-  },
-});
-
 export const preferences = query({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {

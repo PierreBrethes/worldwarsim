@@ -12,10 +12,20 @@ import {
   sessionOf,
   tokenDigest,
 } from './sessions';
+import { accountOf } from './seats';
 import schema from './schema';
 import { modules } from './test.setup';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
+
+const devicesOf = (t: ReturnType<typeof boot>, token: string) =>
+  t.run(async (ctx) => {
+    const account = await accountOf(ctx, token);
+    return ctx.db
+      .query('pushSubscriptions')
+      .withIndex('byAccount', (q) => q.eq('accountId', account!._id))
+      .collect();
+  });
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
 beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }));
@@ -374,10 +384,10 @@ describe('what a session is worth, and for how long', () => {
     expect(await t.query(api.accounts.me, here)).toEqual({ nickname: 'Pierre' });
     expect(await t.query(api.accounts.me, elsewhere)).toBeNull();
     expect(await t.query(api.accounts.me, other)).toEqual({ nickname: 'Camille' });
-    expect((await t.query(api.notifications.devices, here)).map((kept) => kept.endpoint)).toEqual([
+    expect((await devicesOf(t, here.token)).map((kept) => kept.endpoint)).toEqual([
       'https://fcm.googleapis.com/ici',
     ]);
-    expect(await t.query(api.notifications.devices, other)).toHaveLength(1);
+    expect(await devicesOf(t, other.token)).toHaveLength(1);
     await expect(t.mutation(api.accounts.logoutOthers, elsewhere)).rejects.toThrow(
       'UNKNOWN_SESSION',
     );
