@@ -9,6 +9,7 @@ import {
 } from './_generated/server';
 import { heldOf } from './control';
 import { recordLinkage } from './holding';
+import { belligerents } from './production';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
@@ -273,6 +274,29 @@ export const backfillAirTransportInfantryOnly = internalMutation({
       });
     }
     return { freed };
+  },
+});
+
+/**
+ * **Le silence des vigies sur une base d'avant le champ** (#370) : `players.listeningSilent` est
+ * lu « entend » quand il manque, et un joueur déjà muet au déploiement le resterait sur la carte
+ * de tous jusqu'à son prochain réveil. Planifie `listening.reassess` pour chaque belligérant des
+ * saisons lancées, qui règle son économie et écrit son verdict. Idempotente.
+ *
+ * `npx convex run dev:backfillListeningSilent`
+ */
+export const backfillListeningSilent = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let players = 0;
+    for (const season of await ctx.db.query('seasons').collect()) {
+      if (season.status !== 'launched') continue;
+      for (const player of await belligerents(ctx, season._id)) {
+        await ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId: player._id });
+        players += 1;
+      }
+    }
+    return { players };
   },
 });
 

@@ -143,7 +143,7 @@ export const scheduleRestore = (
 
 /** Les belligérants, jamais les sièges : quelqu'un qui n'a pas choisi son drapeau n'a ni
  *  ressources ni bâtiments, et `settle` n'a rien à lui régler. */
-async function belligerents(
+export async function belligerents(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
 ): Promise<ReadonlyArray<Doc<'players'>>> {

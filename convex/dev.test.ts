@@ -240,3 +240,36 @@ describe('dev.specialtiesScene', () => {
     expect(me.construction).toMatchObject({ respecialty: 'lookout' });
   });
 });
+
+describe('dev.backfillListeningSilent', () => {
+  /** Une base d'avant le champ : le joueur déjà muet n'a pas `listeningSilent`, lu « entend ». */
+  it('re-reads every belligerent of a launched season, and writes the silent one silent', async () => {
+    vi.useFakeTimers();
+    const { t, playerId } = await twoNations();
+    await t.run(async (ctx) => {
+      const player = (await ctx.db.get(playerId))!;
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon: 26, lat: 45 },
+        hostCountry: 'ROU',
+        level: 1,
+        foundedAt: Date.now() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect())
+        if (row.key === 'coal') await ctx.db.patch(row._id, { stock: 0, updatedAt: Date.now() });
+      await ctx.db.patch(playerId, { listeningSilent: undefined });
+    });
+
+    expect(await t.mutation(internal.dev.backfillListeningSilent, {})).toEqual({ players: 2 });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect((await t.run((ctx) => ctx.db.get(playerId)))!.listeningSilent).toBe(true);
+    vi.useRealTimers();
+  });
+});
