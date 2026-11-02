@@ -3,9 +3,10 @@
 **Statut :** acceptée (01/11/2026). Tranchée par Pierre en quatre manches de grilling (28/10 au
 30/10, Q1 à Q22), après un POC (`WWS/prototypes/avant-postes/`) ; les onze points restés ouverts
 ont été tranchés le 01/11 (« je valide toutes tes recos ») et sont écrits ci-dessous à leur place.
-La vigie et les liaisons (§1, §2, §8) sont codées par #370 ; les lots suivants (#371 à #377)
-codent le reste. **Mondiale seule** : la Blitz n'a pas d'avant-postes
-(`refuseInBlitz` dans `foundOutpostHere` et `raiseOutpost`), et rien ici ne lui en donne.
+La vigie et les liaisons (§1, §2, §8) sont codées par #370, les spécialisations, leur choix et
+leur changement (§3, §7, §11) par #371 ; les lots suivants (#372 à #377) codent le reste.
+**Mondiale seule** : la Blitz n'a pas d'avant-postes (`refuseInBlitz` dans `foundOutpostHere` et
+`raiseOutpost`), et rien ici ne lui en donne.
 
 **Révise** l'ADR 0004 (la spécialisation exclusive relais / écoute), l'ADR 0021 §1 (« la simple
 présence d'un avant-poste n'ajoute aucun bonus ») et §4 (le changement de spécialisation),
@@ -170,8 +171,15 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
   (dépôt simple, vigie à mi-rayon, liaisons). Le dépôt d'un Magasin qui change garde son surplus
   au-delà de la capacité simple, et **rien n'y entre tant qu'il dépasse** : un changement de
   spécialisation ne doit rien brûler. (Q13, 01/11)
-- **Le scellement disparaît** : `SPECIALIZATION_SEALED`, `specializationLocked` et le blocage de
-  `respecialize` partent. (Q13)
+- **L'effet se coupe au départ du chantier, pas à sa mise en file** : une ligne en file est une
+  promesse qui s'annule et se rembourse ; un Guet qui part en chantier guette à mi-rayon dès ce
+  départ. (Pierre, 01/11)
+- **Un point spécialisé capturé garde son métier chez le preneur**, comme son niveau et son dépôt ;
+  un changement en cours est annulé et l'ancien métier reste ; les liaisons se recalculent, la
+  ronde s'arrête. (Pierre, 01/11)
+- **Le scellement disparaît** : `SPECIALIZATION_SEALED` et le blocage de `respecialize` partent ;
+  `specializationLocked` est **renommé `serving`**, puisqu'il ne garde plus que le démantèlement
+  (`outpostServed`, `convex/movement/forces.ts`). (Q13, #371)
 - **Le démantèlement garde sa garde** : `OUTPOST_SERVING` reste, sur le critère d'aujourd'hui
   (un mouvement est passé dans le rayon depuis la fondation). (Q13)
 
@@ -248,6 +256,8 @@ n'est utile.
 Un point d'avant la refonte se lit généraliste. **Celui qui est déjà au niveau 2 ou 3 choisit sa
 spécialisation une fois, sans chantier ni acier**, et agit en généraliste jusque-là : il a déjà
 payé son élévation, et c'est le seul cas où un niveau 2 sans spécialisation existe. (01/11)
+**Ce point ancien monte au niveau 3 sans choisir**, et le choix gratuit lui reste ouvert ensuite.
+(Pierre, 01/11)
 
 ## Conséquences
 
