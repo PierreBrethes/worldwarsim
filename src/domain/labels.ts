@@ -1,7 +1,7 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
-import { asClockTime, asLocalTime } from '@/domain/duration';
+import { asDatedClock, asLocalTime } from '@/domain/duration';
 import { aimRefusalShort, countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
@@ -601,7 +601,10 @@ export function buildLabels(
   markers: ReadonlyArray<MapMarker>,
 ): ReadonlyArray<MapLabel> {
   return [
-    ...withCaptures(markers.map(markerLabel), view.captures),
+    ...withCaptures(
+      markers.map((marker) => markerLabel(marker, view.loadedAt)),
+      view.captures,
+    ),
     ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt)).filter(exists),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
@@ -722,7 +725,7 @@ export function anchorOf(marker: MapMarker): LabelAnchor {
   return { kind: 'ground', lonLat: marker.lonLat };
 }
 
-function markerLabel(marker: MapMarker): MapLabel {
+function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
   const common = {
     id: marker.id,
     anchor: anchorOf(marker),
@@ -823,7 +826,7 @@ function markerLabel(marker: MapMarker): MapLabel {
           marker.lastSeenAt === null
             ? { role: 'mention', text: fr.camps.seenAt(asLocalTime(marker.since)) }
             : { role: 'age', since: marker.lastSeenAt },
-          ...compositionLine(marker.identification),
+          ...compositionLine(marker.identification, loadedAt),
           ...lisbonLine(marker.nation),
         ],
       };
@@ -1115,7 +1118,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
       force: null,
       lines: [
         { role: 'age', since: arc.lastSeenAt },
-        ...compositionLine(arc.identification),
+        ...compositionLine(arc.identification, loadedAt),
         ...lisbonLine(arc.nation),
       ],
     };
@@ -1126,6 +1129,7 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
   const schedule: LabelLine = { role: 'countdown', dueAt: arc.arrivesAt, prefix: '~' };
   const [second = { role: 'mention', text: fr.labels.estimated }] = compositionLine(
     arc.identification,
+    loadedAt,
   );
 
   return {
@@ -1157,14 +1161,16 @@ function arcLabel(arc: ArcView, loadedAt: number): MapLabel | null {
 
 /** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile, abrégée — « 3 INF · 1 BLD » —, jamais l'ordre ;
  *  figée, l'heure de sa dernière lecture, parce qu'elle a pu changer depuis. */
-const compositionLine = (known: Composition): ReadonlyArray<LabelLine> =>
+const compositionLine = (known: Composition, loadedAt: number): ReadonlyArray<LabelLine> =>
   known.pierced
     ? [
         {
           role: 'nature',
           text: [
             abbreviateStack(known.stack),
-            ...(known.readAt === null ? [] : [fr.labels.readAt(asClockTime(known.readAt))]),
+            ...(known.readAt === null
+              ? []
+              : [fr.labels.readAt(asDatedClock(known.readAt, loadedAt))]),
           ].join(' · '),
         },
       ]

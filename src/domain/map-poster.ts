@@ -5,7 +5,7 @@ import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
 import { capturingAt, isHqSite, progressAt } from './capture';
-import { asClockTime, asDuration, reloadClock } from './duration';
+import { asClockTime, asDatedClock, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
 import { arcProgressAt } from './arc-timing';
@@ -156,7 +156,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
     return sighting(
       fr.posters.surveyed(asClockTime(surveyedAt(camp))),
       fr.posters.standing,
-      [composition(camp.identification)],
+      [composition(camp.identification, now)],
       camp.identification.pierced,
     );
   }
@@ -189,7 +189,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
       return sighting(
         fr.posters.surveyed(asClockTime(arc.lastSeenAt)),
         fr.posters.moving,
-        [composition(arc.identification)],
+        [composition(arc.identification, now)],
         arc.identification.pierced,
       );
     case 'enemyDetected': {
@@ -197,7 +197,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
         fr.posters.surveyed(asClockTime(arc.since)),
         fr.posters.moving,
         [
-          composition(arc.identification),
+          composition(arc.identification, now),
           {
             kind: 'row',
             label: fr.posters.estimatedArrival,
@@ -223,12 +223,12 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
 }
 
 /** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile en toutes lettres, jamais l'ordre ni la nation. */
-const composition = (known: Composition): PosterLine => ({
+const composition = (known: Composition, now: number): PosterLine => ({
   kind: 'text',
   text: known.pierced
     ? fr.posters.pierced(
         stackLabel(known.stack),
-        known.readAt === null ? null : asClockTime(known.readAt),
+        known.readAt === null ? null : asDatedClock(known.readAt, now),
       )
     : fr.posters.unknown,
 });

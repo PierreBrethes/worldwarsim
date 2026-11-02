@@ -11,7 +11,7 @@ import {
 } from './labels';
 import type { ArcView, Composition, PlayerView } from './player-view';
 import { directRoute } from './routing';
-import { asClockTime, asLocalTime } from './duration';
+import { asClockTime, asDayAndTime, asLocalTime } from './duration';
 
 const LOADED_AT = 1_700_000_000_000;
 const MINUTE = 60_000;
@@ -223,8 +223,7 @@ describe('buildLabels', () => {
   });
 
   /** **Une pile figée se date** : hors de la vue du Guet, elle a pu changer. */
-  it('dates a pile no Guet reads any more, and not one it reads', () => {
-    const readAt = Date.UTC(2026, 10, 2, 13, 5);
+  it('dates a pile no Guet reads any more, with its day when it is not today', () => {
     const camp = (identification: Composition): MapMarker => ({
       kind: 'camp',
       id: 'camp',
@@ -237,17 +236,21 @@ describe('buildLabels', () => {
       lastSeenAt: null,
       identification,
     });
-    const [frozen] = buildLabels(viewWith([]), [
-      camp({ pierced: true, stack: { infantry: 3 }, readAt }),
-    ]);
-    expect(frozen?.lines).toContainEqual({
+    const lineOf = (readAt: number | null) =>
+      buildLabels(viewWith([]), [
+        camp({ pierced: true, stack: { infantry: 3 }, readAt }),
+      ])[0]!.lines.find((line) => line.role === 'nature' && line.text.startsWith('3 INF'));
+    const today = LOADED_AT - 60_000;
+    expect(lineOf(today)).toEqual({
       role: 'nature',
-      text: `3 INF · ${fr.labels.readAt(asClockTime(readAt))}`,
+      text: `3 INF · ${fr.labels.readAt(asClockTime(today))}`,
     });
-    const [live] = buildLabels(viewWith([]), [
-      camp({ pierced: true, stack: { infantry: 3 }, readAt: null }),
-    ]);
-    expect(live?.lines).toContainEqual({ role: 'nature', text: '3 INF' });
+    const monday = LOADED_AT - 2 * 24 * 3_600_000;
+    expect(lineOf(monday)).toEqual({
+      role: 'nature',
+      text: `3 INF · ${fr.labels.readAt(asDayAndTime(monday))}`,
+    });
+    expect(lineOf(null)).toEqual({ role: 'nature', text: '3 INF' });
   });
 
   it('keeps the pile read on the last known position', () => {
