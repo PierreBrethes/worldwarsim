@@ -690,6 +690,7 @@ export const fr = {
     territory: 'notre sol',
     station: 'station d’écoute',
     outpost: 'vigie d’avant-poste',
+    patrol: 'notre ronde',
     troop: 'nos guetteurs',
   } satisfies Record<Detector, string>,
 

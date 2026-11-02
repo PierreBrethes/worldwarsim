@@ -155,7 +155,7 @@ export type ChosenSpecialty = (typeof CHOSEN_SPECIALTIES)[number];
  * été vu" and "ma station de Prahova l'a vu", which is the difference between a line of
  * flavour and a reason to build one.
  */
-export type Detector = 'territory' | 'station' | 'outpost' | 'troop';
+export type Detector = 'territory' | 'station' | 'outpost' | 'patrol' | 'troop';
 
 /** Land, sea, sky — the three environments a route can traverse. */
 export type Medium = 'land' | 'sea' | 'air';

@@ -231,6 +231,7 @@ export const DETECTOR = v.union(
   v.literal('territory'),
   v.literal('station'),
   v.literal('outpost'),
+  v.literal('patrol'),
   v.literal('troop'),
 );
 

@@ -17,6 +17,7 @@ import type { MutationCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import {
   INTERCEPTION_SAMPLES,
+  lineCrossingOf,
   mobileSighting,
   positionAt,
   passesAlong,
@@ -32,6 +33,8 @@ import {
   isStanding,
   lookoutKmOf,
   readsComposition,
+  drawnLiaisonsOf,
+  sameLiaison,
 } from '../../src/domain/outposts';
 import {
   campReading,
@@ -58,6 +61,7 @@ import { hostAmongCountries, hostAtPoint, landAtPoint } from '../routes';
 import { asPoint, pointOf, seasonMovements, seasonOutposts, seasonTroops } from './forces';
 import { everySeatOf } from '../seats';
 import { reassessForts, type Fort } from './fort';
+import { liaisonPointsAmong } from './pace';
 import { notifyPlayer } from '../notifications';
 import { journalUrl, push } from '../../src/domain/push';
 
@@ -71,7 +75,7 @@ type Mobile = {
   readonly roles: ReadonlyArray<UnitRole>;
 };
 
-const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'troop'] as const;
+const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'patrol', 'troop'] as const;
 type Detector = (typeof DETECTOR_ORDER)[number];
 
 type Caught = {
@@ -455,7 +459,43 @@ async function detectionBoard(
   }
 
   const mutualWindows = new Map<string, { readonly from: number; readonly to: number } | null>();
-  return { mobileById, watchers, forts, players, posted, allOnRangoonTour, mutualWindows };
+  return {
+    mobileById,
+    watchers,
+    lines: watchLinesOf(troops, outposts, now),
+    forts,
+    players,
+    posted,
+    allOnRangoonTour,
+    mutualWindows,
+  };
+}
+
+/**
+ * **Les lignes de guet** (ADR 0037 §10, #377) : une par ronde dont la liaison tient à l'instant —
+ * ses deux bouts à son joueur, debout, en service, et la paire tracée (`drawnLiaisonsOf`), lue sur
+ * les avant-postes déjà chargés. Hors de `watchers`, que camps et caisses lisent comme des cercles.
+ * Ni charbon ni Blitz : une troupe relève sans charbon, et la ronde est refusée en Blitz.
+ */
+function watchLinesOf(
+  troops: ReadonlyArray<Doc<'troops'>>,
+  outposts: ReadonlyArray<Doc<'outposts'>>,
+  now: number,
+) {
+  const patrols = troops.filter((troop) => troop.patrol !== undefined);
+  if (patrols.length === 0) return [];
+  const pointById = new Map(outposts.map((outpost) => [outpost._id, pointOf(outpost.point)]));
+  const drawn = new Map<Id<'players'>, Array<[Id<'outposts'>, Id<'outposts'>]>>();
+  return patrols.flatMap((troop) => {
+    const [a, b] = troop.patrol!.ends as [Id<'outposts'>, Id<'outposts'>];
+    if (!drawn.has(troop.playerId)) {
+      const mine = outposts.filter((outpost) => outpost.playerId === troop.playerId);
+      drawn.set(troop.playerId, drawnLiaisonsOf(liaisonPointsAmong(mine, now)));
+    }
+    return drawn.get(troop.playerId)!.some((pair) => sameLiaison(pair, [a, b]))
+      ? [{ playerId: troop.playerId, line: [pointById.get(a)!, pointById.get(b)!] as const }]
+      : [];
+  });
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;
@@ -1026,6 +1066,24 @@ async function sightingsFor(
       from: seen[0]!.from,
       to: seen[seen.length - 1]!.to,
       readWindows,
+    });
+  }
+
+  /** **Une ligne de guet relève au franchissement** (ADR 0037 §10), terre, mer et air, sans lire
+   *  la pile : un instant, au point où la colonne passe. */
+  for (const { playerId, line } of board.lines) {
+    if (!watching(playerId)) continue;
+    const crossing = lineCrossingOf(target.force, line, now);
+    if (crossing === null) continue;
+    caught.push({
+      playerId,
+      detector: 'patrol',
+      detectorId: null,
+      detectorHostCountry: hostAtPoint(crossing.point),
+      detectorRegion: null,
+      readWindows: [],
+      from: crossing.at,
+      to: crossing.at,
     });
   }
 

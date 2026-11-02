@@ -6,6 +6,10 @@ import type { UnitRole } from '../src/domain/ids';
 import type { LonLat } from '../src/domain/geo';
 import { nominalStrength } from './constants';
 import { resolveContact } from './combat';
+import { reassessDetection } from './movement/detection';
+import { hostAtPoint } from './routes';
+import { COST_BY_MEDIUM } from '../src/domain/routing';
+import { distanceKm } from '../src/domain/geo';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn, unclocked, type Seat } from './seats.fixture';
@@ -367,5 +371,114 @@ describe('a patrol on a liaison', () => {
     await expect(
       t.mutation(api.patrols.start, { ...seat, troopId: troop, ends: [essen, kassel] }),
     ).rejects.toThrow('NOT_IN_BLITZ');
+  });
+});
+
+/** Une colonne de Léa tirée droit d'un point à l'autre, sans Dijkstra : c'est la ligne qu'on
+ *  mesure ici, pas la route. */
+async function enemyColumn(t: Bench, seat: Seat, from: LonLat, to: LonLat, durationMs: number) {
+  const playerId = await playerOf(t, seat);
+  const troopId = await t.run(async (ctx) =>
+    ctx.db.insert('troops', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
+      playerId,
+      role: 'armor',
+      tier: 1,
+      nominalStrength: nominalStrength('armor', 1),
+      currentStrength: nominalStrength('armor', 1),
+      stationedAt: null,
+    }),
+  );
+  return t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    const distanceUnits = distanceKm(from, to);
+    const movementId = await ctx.db.insert('movements', {
+      seasonId,
+      playerId,
+      type: 'march',
+      fromBuildingId: null,
+      target: { kind: 'point', point: { lon: to[0], lat: to[1] } },
+      from: { lon: from[0], lat: from[1] },
+      to: { lon: to[0], lat: to[1] },
+      hostCountry: hostAtPoint(to),
+      points: [
+        { lon: from[0], lat: from[1] },
+        { lon: to[0], lat: to[1] },
+      ],
+      legs: [{ medium: 'land', distanceUnits }],
+      distanceUnits,
+      costUnits: distanceUnits * COST_BY_MEDIUM.land,
+      landCost: COST_BY_MEDIUM.land,
+      troopIds: [troopId],
+      departedAt: Date.now(),
+      arrivesAt: Date.now() + durationMs,
+    });
+    await reassessDetection(ctx, seasonId);
+    return movementId;
+  });
+}
+
+const sightingsOf = (t: Bench, seat: Seat) =>
+  t.run(async (ctx) => {
+    const playerId = (await seatIn(ctx, seat))._id;
+    return ctx.db
+      .query('sightings')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+  });
+
+/** Au milieu de la liaison, hors de la vigie des deux bouts (60 km) et des guetteurs de la ronde
+ *  en halte à Kassel. */
+const ACROSS: [LonLat, LonLat] = [
+  [SAUERLAND[0], SAUERLAND[1] + 0.3],
+  [SAUERLAND[0], SAUERLAND[1] - 0.3],
+];
+
+describe('the watch line of a patrol', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('sights an enemy column at the point it crosses, without its pile, and the dispatch says so', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await patrolling(t, seat);
+    await arriveNext(t);
+    const departed = Date.now();
+    await enemyColumn(t, guest, ...ACROSS, HOUR);
+
+    const [sighting, ...more] = await sightingsOf(t, seat);
+    expect(more).toEqual([]);
+    expect(sighting).toMatchObject({ detector: 'patrol', detectorId: null, detectorHostCountry: 'DEU' });
+    expect(sighting!.from).toBe(sighting!.to);
+    expect(sighting!.from).toBeGreaterThan(departed + 0.45 * HOUR);
+    expect(sighting!.from).toBeLessThan(departed + 0.55 * HOUR);
+    expect(sighting!.stack).toBeUndefined();
+    expect(await sightingsOf(t, guest)).toEqual([]);
+
+    vi.setSystemTime(sighting!.from);
+    await t.mutation(internal.movements.revealSighting, { sightingId: sighting!._id });
+    const notices = await t.run(async (ctx) =>
+      ctx.db
+        .query('notices')
+        .filter((q) => q.eq(q.field('kind'), 'movementSighted'))
+        .collect(),
+    );
+    expect(notices).toMatchObject([{ detector: 'patrol', hostCountry: 'DEU' }]);
+  });
+
+  it('sights nothing that runs beside the line, nor past a disabled end', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { kassel } = await patrolling(t, seat);
+    await arriveNext(t);
+    await enemyColumn(t, guest, [SAUERLAND[0] - 0.5, 51.9], [SAUERLAND[0] + 0.5, 51.9], HOUR);
+    expect(await sightingsOf(t, seat)).toEqual([]);
+
+    await t.run(async (ctx) => ctx.db.patch(kassel, { disabledUntil: Date.now() + 24 * HOUR }));
+    await enemyColumn(t, guest, ...ACROSS, HOUR);
+    expect(await sightingsOf(t, seat)).toEqual([]);
   });
 });
