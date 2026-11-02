@@ -303,4 +303,42 @@ describe('CombatLayer, at sea (#324)', () => {
     layer.advance(stepBounds('compte-rendu').start + 1, scale);
     expect(told[0]!.mine).toHaveLength(2);
   });
+
+  it('plays bombers striking a moored fleet: only what is carried stays off the scene', () => {
+    const view: ReplayView = {
+      ...combat('air'),
+      mine: [{ role: 'bomber', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 0 }],
+      theirs: { troops: 1, lost: 0, routed: 0, destroyed: 1 },
+      faced: {
+        nation: 'germany',
+        forces: [
+          { role: 'escort', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 1, strength: 100 },
+        ],
+      },
+    };
+    const layer = new CombatLayer();
+    layer.play(view, 'france', at, 0, 0, 'sea');
+    // Two bombers, one escort, and their three shots.
+    expect(layer.group.children[0]!.children).toHaveLength(6);
+  });
+
+  it('settles at once, with no scene, a combat at sea with a side left empty', () => {
+    const view: ReplayView = {
+      ...combat('carried'),
+      mine: [{ role: 'infantry', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 0 }],
+      theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+      faced: {
+        nation: 'germany',
+        forces: [
+          { role: 'escort', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0, strength: 100 },
+        ],
+      },
+    };
+    const layer = new CombatLayer();
+    const settled: string[] = [];
+    layer.onSettled = (id) => settled.push(id);
+    layer.play(view, 'france', at, 0, 0, 'sea');
+    expect(layer.group.children).toHaveLength(0);
+    expect(settled).toEqual(['carried']);
+  });
 });

@@ -125,12 +125,13 @@ export function homewardOf(
 }
 
 /**
- * **Un combat en mer se joue entre navires** (#324) : ce qu'ils portent ne se montre pas, et sa
- * noyade reste à la dépêche (`drownedAtSea`). L'ennemi vu au feu perd de même ses passagers ;
- * l'ennemi non relevé reste compté tel quel, rien ne disant ce qui flottait.
+ * **Un combat en mer se joue entre navires et avions** (#324) : ce que portent les navires — les
+ * troupes de terre — ne se montre pas, et sa noyade reste à la dépêche (`drownedAtSea`). L'ennemi
+ * vu au feu perd de même ses passagers ; l'ennemi non relevé reste compté tel quel, rien ne disant
+ * ce qui flottait.
  */
 export function afloat(view: ReplayView): ReplayView {
-  const ship = (entry: { readonly role: UnitRole }) => DOMAIN_BY_ROLE[entry.role] === 'sea';
+  const ship = (entry: { readonly role: UnitRole }) => DOMAIN_BY_ROLE[entry.role] !== 'land';
   if (view.faced === undefined) return { ...view, mine: view.mine.filter(ship) };
   const forces = view.faced.forces.filter(ship);
   const sum = (key: 'troops' | 'lost' | 'routed' | 'destroyed') =>

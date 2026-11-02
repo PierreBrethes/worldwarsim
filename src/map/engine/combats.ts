@@ -93,6 +93,11 @@ export class CombatLayer {
   ): void {
     this.waiting.delete(told.combatId);
     const view = medium === 'sea' ? afloat(told) : told;
+    // Nothing afloat on one side: the dispatch tells it, no scene does.
+    if (medium === 'sea' && (view.mine.length === 0 || view.theirs.troops === 0)) {
+      this.onSettled(told.combatId);
+      return;
+    }
     const attacker = view.side === 'attacker' ? 'mine' : 'theirs';
     const defender = attacker === 'mine' ? 'theirs' : 'mine';
     const pieces = replayAt(view, 0).pieces;

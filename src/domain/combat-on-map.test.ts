@@ -217,8 +217,11 @@ const atSea: ReplayView = {
 
 describe('afloat', () => {
   it('keeps the ships of a sea combat: what they carry drowns in the dispatch, not on the map', () => {
-    const ships = afloat(atSea);
-    expect(ships.mine.map((entry) => entry.role)).toEqual(['escort']);
+    const ships = afloat({
+      ...atSea,
+      mine: [...atSea.mine, { ...atSea.mine[0]!, role: 'bomber' }],
+    });
+    expect(ships.mine.map((entry) => entry.role)).toEqual(['escort', 'bomber']);
     expect(ships.faced!.forces.map((force) => force.role)).toEqual(['escort', 'cargo']);
     expect(ships.theirs).toMatchObject({ troops: 2, destroyed: 1, routed: 0 });
   });
