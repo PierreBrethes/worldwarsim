@@ -4869,12 +4869,6 @@ export function upgradeHoldText(hold: UpgradeHold): string {
   }
 }
 
-/**
- * **Ce qui retient une élévation d'avant-poste**, en une phrase — la même fonction pour le
- * panneau de garnison et pour la rose des vents, parce que c'est le même empêchement lu par la
- * même `outpostRaiseHold`. Le panneau tait la facture (il l'affiche déjà en chiffres rouges
- * au-dessus) ; la rose la dit, faute de place pour deux lectures.
- */
 /** **Le métier qu'un point exerce en ce moment**, et celui qu'un changement en cours lui donnera
  *  (ADR 0037 §7) : le mât et la fiche du sol le disent comme la règle le lit. */
 export function specialtyNowText(outpost: Specialized): string {
@@ -4906,6 +4900,12 @@ export function specialtyRefusalText(refusal: SpecialtyRefusal): string {
   return raiseHoldText(refusal);
 }
 
+/**
+ * **Ce qui retient une élévation d'avant-poste**, en une phrase — la même fonction pour le
+ * panneau de garnison et pour la rose des vents, parce que c'est le même empêchement lu par la
+ * même `outpostRaiseHold`. Le panneau tait la facture (il l'affiche déjà en chiffres rouges
+ * au-dessus) ; la rose la dit, faute de place pour deux lectures.
+ */
 export function raiseHoldText(hold: OutpostRaiseHold): string {
   switch (hold.kind) {
     case 'maxLevel':

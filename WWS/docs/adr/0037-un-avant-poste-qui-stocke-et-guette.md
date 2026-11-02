@@ -39,7 +39,7 @@ munitions, le pétrole et le charbon. Les rayons : `OUTPOST_REACH_KM_BY_LEVEL` =
 
 Le client fonde toujours en `'relay'`, en dur (`src/routes/plateau.tsx`). On change ensuite par
 `respecialize` (`convex/movements.ts`) tant que le point n'est pas **scellé** :
-`specializationServed` (`convex/movement/forces.ts`) répond vrai dès qu'un mouvement de n'importe
+`outpostServed` (`convex/movement/forces.ts`) répond vrai dès qu'un mouvement de n'importe
 quel joueur est parti après la fondation en passant dans le rayon. Le même critère interdit le
 démantèlement (`OUTPOST_SERVING`, `outpostDismantleRefusalOf`, `src/domain/construction.ts`).
 
