@@ -359,6 +359,7 @@ describe('a posted column founds an outpost where it stands', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.outposts[0]!.garrison).toBe(1);
     expect(view.me.armyPresent.infantry ?? 0).toBe(0);
+    expect(view.me.armyInTransit).toEqual({});
     expect(view.me.troops).toHaveLength(1);
 
     /** **Founding is not a march**: no slot is spent, nothing is scheduled, nothing walks. */
@@ -2040,6 +2041,31 @@ describe('an arrival on a point finds who stands there', () => {
     expect(view.me.troops).toHaveLength(1);
     expect(view.me.troops[0]!.stationedAt).toMatchObject({ kind: 'point', country: 'SAU' });
     expect(view.me.armyPresent).toEqual({ infantry: 1 });
+  });
+
+  /** A column on the road is in transit, never present; a standing one is the reverse. */
+  it('counts a marching troop in transit and not present, a standing one the other way', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const standing = await form(t, seat, 'infantry', barracks);
+    const walking = await form(t, seat, 'infantry', barracks);
+
+    let view = await t.query(api.view.playerView, seat);
+    expect(view.me.armyPresent).toEqual({ infantry: 2 });
+    expect(view.me.armyInTransit).toEqual({});
+
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [walking],
+      target: { kind: 'region', regionId: PRAHOVA },
+    });
+
+    view = await t.query(api.view.playerView, seat);
+    expect(standing).toBeDefined();
+    expect(view.me.armyPresent).toEqual({ infantry: 1 });
+    expect(view.me.armyInTransit).toEqual({ infantry: 1 });
   });
 });
 
