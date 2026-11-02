@@ -15,6 +15,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 import { PALETTE } from './palette';
 import { circleAround, KM_PER_DEGREE, LIFT, lonLatAround, SEGMENTS } from './reach';
 
@@ -53,6 +54,8 @@ const INK = PALETTE.border;
  * main, où il dit où l'ordre porte. @a-mesurer
  */
 const REST_WASH = 0.07;
+/** The wash by night, a paper the moon lights. @a-mesurer */
+const MOON = PALETTE.paper;
 const HAND_WASH = 0.11;
 /** A liaison at rest, a thin pen; sharper under the hand. In CSS pixels. @a-mesurer */
 const LIAISON_REST = { opacity: 0.5, width: 1.2 };
@@ -76,20 +79,25 @@ attribute vec2 aLonLat;
 attribute float aIndex;
 varying vec2 vLonLat;
 varying float vIndex;
+varying vec2 vWorld;
 void main() {
   vLonLat = aLonLat;
   vIndex = aIndex;
+  vWorld = (modelMatrix * vec4(position, 1.0)).xz;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 
 // A pixel takes the wash once: a disc leaves to those before it the ground they already cover,
 // measured as the rings are walked (`lonLatAround`). The antimeridian is not crossed.
 const FRAGMENT = `
+${NIGHT_HERE_GLSL}
+uniform vec3 uMoon;
 uniform vec3 uDiscs[${MAX_DISCS}];
 uniform vec3 uInk;
 uniform float uAlpha;
 varying vec2 vLonLat;
 varying float vIndex;
+varying vec2 vWorld;
 void main() {
   for (int j = 0; j < ${MAX_DISCS}; j++) {
     if (float(j) > vIndex - 0.5) break;
@@ -97,7 +105,8 @@ void main() {
     vec2 d = (vLonLat - disc.xy) * vec2(${KM_PER_DEGREE} * max(0.05, cos(radians(disc.y))), ${KM_PER_DEGREE});
     if (dot(d, d) < disc.z * disc.z) discard;
   }
-  gl_FragColor = vec4(uInk, uAlpha);
+  // By night an ink wash is lost on the dark sheet: the wash turns to paper, a moonlit ground.
+  gl_FragColor = vec4(mix(uInk, uMoon, nightAtWorld(vWorld)), uAlpha);
 }`;
 
 /**
@@ -119,7 +128,10 @@ export class OutpostZones {
   private size: readonly [number, number] = [1, 1];
   private stepAt = 0;
 
-  constructor(private readonly frame: WorldFrame) {
+  constructor(
+    private readonly frame: WorldFrame,
+    night: NightUniforms,
+  ) {
     this.wash = new Mesh(
       new BufferGeometry(),
       new ShaderMaterial({
@@ -129,6 +141,8 @@ export class OutpostZones {
           uDiscs: { value: Array.from({ length: MAX_DISCS }, () => new Vector3()) },
           uInk: { value: new Color(INK) },
           uAlpha: { value: REST_WASH },
+          uMoon: { value: new Color(MOON) },
+          ...night,
         },
         transparent: true,
         depthWrite: false,

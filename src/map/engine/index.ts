@@ -898,7 +898,7 @@ export class MapEngine {
       this.endOf(medium, which, at, hint),
     );
     this.reach = new ReachRing(this.frame);
-    this.zones = new OutpostZones(this.frame);
+    this.zones = new OutpostZones(this.frame, this.night.uniforms);
     this.searchArea = new SearchAreaLayer(this.frame);
     this.ghost = new PlacingGhost(this.frame, this.touch);
     this.standing = new StandingLayer(
