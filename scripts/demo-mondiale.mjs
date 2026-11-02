@@ -89,6 +89,9 @@
  * `--combat [s]` (#272) pose une garnison britannique à Sedan, deux fantassins et un char, et
  * lance sur elle une colonne française de même force, qui arrive dans `s` secondes (25 par
  * défaut) : le temps d'ouvrir la carte, où le combat se joue à son point.
+ * `--combat-mer [s]` (#324) mouille deux escorteurs britanniques en Manche, au nord de
+ * Cherbourg, et lance sur eux deux escorteurs français, qui arrivent dans `s` secondes (25 par
+ * défaut) : le combat se joue en mer, et `lieu=@combat-mer` cadre son point.
  * `--arrivee [s]` (#362) fait marcher de Reims vers l'est-nord-est une pile mêlée française (trois
  * fantassins, deux chars, un canon) qui arrive sur un point vide dans `s` secondes (25 par
  * défaut) : la colonne s'y déploie, et `lieu=@arrivee` cadre son point.
@@ -232,6 +235,9 @@ const loaded = process.argv.includes('--chargee');
 /** `--combat [s]` : une colonne française sur une garnison britannique, arrivée dans s secondes (#272). */
 const combatAt = process.argv.indexOf('--combat');
 const combatIn = combatAt < 0 ? null : Number(process.argv[combatAt + 1]) || 25;
+/** `--combat-mer [s]` : deux escorteurs français sur deux britanniques en Manche (#324). */
+const seaCombatAt = process.argv.indexOf('--combat-mer');
+const seaCombatIn = seaCombatAt < 0 ? null : Number(process.argv[seaCombatAt + 1]) || 25;
 /** `--arrivee [s]` : une pile mêlée française qui arrive sur un point vide dans s secondes (#362). */
 const arrivalAt = process.argv.indexOf('--arrivee');
 const arrivalIn = arrivalAt < 0 ? null : Number(process.argv[arrivalAt + 1]) || 25;
@@ -1054,6 +1060,40 @@ if (!bare) {
         if (tries === 29) throw new Error('scène du rejeu : aucun combat résolu en 30 s');
       }
     }
+  }
+  if (seaCombatIn !== null && scene.a !== null && scene.b !== null) {
+    const moored = { lon: -1.6, lat: 50.05 };
+    places['combat-mer'] = [moored.lon, moored.lat];
+    const from = { lon: -1.95, lat: 50.0 };
+    const spawn = (playerId, count, at) =>
+      JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId, role: 'escort', count, ...at }),
+        ]).match(/\[[^\]]*\]/)[0],
+      );
+    spawn(scene.b, 2, moored);
+    const fleet = spawn(scene.a, 2, from);
+    cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+    const { camps } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const camp = camps.find(
+      (one) =>
+        Math.abs(one.point[0] - moored.lon) < 0.05 && Math.abs(one.point[1] - moored.lat) < 0.05,
+    );
+    if (camp === undefined) throw new Error('combat en mer : la flotte mouillée n’est pas relevée');
+    await client.mutation(api.movements.attack, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: fleet,
+      target: { kind: 'camp', campId: camp.id },
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: seaCombatIn * 1000 }),
+    ]);
   }
   /** Les fantassins et les chars entrent dans la caserne (#265). */
   if ((scale || razing) && scene.a !== null) {
