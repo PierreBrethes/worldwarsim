@@ -42,6 +42,22 @@ describe('shareWalked', () => {
   });
 });
 
+/** **La reprise au Fort** (ADR 0037 §6) : le pion repart du point d'entrée, sans reculer. */
+describe('shareWalked after a Fort', () => {
+  it('reads the stretch before the entry at the old pace and the rest at the new one', () => {
+    const schedule = {
+      departedAt: NOW,
+      arrivesAt: NOW + 16 * HOUR,
+      heldAt: null,
+      holdUntil: null,
+      resumed: { at: NOW + 4 * HOUR, share: 0.4 },
+    };
+    expect(shareWalked(schedule, NOW + 2 * HOUR)).toBeCloseTo(0.2, 9);
+    expect(shareWalked(schedule, NOW + 4 * HOUR)).toBeCloseTo(0.4, 9);
+    expect(shareWalked(schedule, NOW + 10 * HOUR)).toBeCloseTo(0.7, 9);
+  });
+});
+
 /** **The arc does not move, the hour does** (#183): one served arc, read at two instants. */
 describe('arcProgressAt', () => {
   const route = {

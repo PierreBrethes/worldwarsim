@@ -72,6 +72,30 @@ describe('where a column stands at an instant', () => {
   });
 });
 
+/**
+ * **La reprise** (ADR 0037 §6, décision du 02/11) : entrée dans la vigie d'un Fort, la colonne
+ * repart de là où elle est vers sa nouvelle arrivée, plus lente sur tout le reste du trajet. Le
+ * pion ne recule jamais : avant l'entrée il marche à l'allure du départ, après à la nouvelle.
+ */
+describe('a column resumed at a Fort', () => {
+  /** Partie à 0 pour 10 h, retenue à 4 h, et arrivée repoussée à 16 h. */
+  const resumed: MarchingForce = {
+    ...column('held', 0, 10),
+    arrivesAt: 16 * HOUR,
+    resumed: { at: 4 * HOUR, share: 0.4 },
+  };
+
+  it('walks the stretch before the entry at the pace of its departure', () => {
+    expect(positionAt(resumed, 2 * HOUR)[0]).toBeCloseTo(2, 6);
+    expect(positionAt(resumed, 4 * HOUR)[0]).toBeCloseTo(4, 6);
+  });
+
+  it('walks the rest of its road from the entry to its new arrival, slower', () => {
+    expect(positionAt(resumed, 10 * HOUR)[0]).toBeCloseTo(7, 6);
+    expect(positionAt(resumed, 16 * HOUR)[0]).toBeCloseTo(10, 6);
+  });
+});
+
 describe('mobile encounters derive from the order', () => {
   const mobile = (id: string, from: number, to: number, medium: 'land' | 'sea' | 'air') => ({
     ...column(id, from, to),
