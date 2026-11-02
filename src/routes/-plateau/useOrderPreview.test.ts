@@ -72,7 +72,7 @@ describe('the length of the road, said under the hand (#302)', () => {
     const fast = { ...road(5.77, 0, 200, 640), relayed: 40 } as NonNullable<Previewed>;
     expect(said(fast)).toEqual([
       '≈ 640 km · 3 h 20',
-      '×1,5 dans le rayon de vos liaisons — 40 min de gagnées',
+      '×1,5 dans le rayon de vos liaisons — 40 min de gagné',
     ]);
     expect(said({ ...fast, relayed: 0 } as NonNullable<Previewed>)).toEqual(['≈ 640 km · 3 h 20']);
   });
