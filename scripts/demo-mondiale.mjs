@@ -36,7 +36,10 @@
  * `--voisins` pose un avant-poste britannique en Hainaut, contre le Nord français : deux
  * contours côte à côte (#217). `--liaisons` (#370) pose pour la France deux avant-postes en liaison,
  * Namur et Liège, un seul à Bâle, et une pile à Charleroi (`@liaisons`, `@charleroi`, `@aix`) ;
- * `--sans-charbon` y met le charbon national à zéro. `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * `--sans-charbon` y met le charbon national à zéro. `--metiers` (#371) pose pour la France quatre
+ * avant-postes : un niveau 1 à élever à Arlon (`@arlon`), un généraliste d'avant la refonte au
+ * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
+ * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--quais` pose pour la France trois avant-postes, à La Valette, à
  * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
@@ -169,6 +172,8 @@ const quays = islands || process.argv.includes('--quais');
 /** `--liaisons` (#370) : deux avant-postes français en liaison en Belgique, un seul à Bâle,
  *  une pile à Charleroi ; `--sans-charbon` met le charbon national à zéro (vigies aveugles). */
 const liaisons = process.argv.includes('--liaisons');
+/** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
+const specialties = process.argv.includes('--metiers');
 const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
@@ -661,6 +666,14 @@ if (!bare) {
     places.liaisons = [4.87, 50.47];
     places.charleroi = [4.44, 50.41];
     places.aix = [6.08, 50.78];
+  }
+  if (specialties && scene.a !== null) {
+    cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);
+    places.metiers = [6.4, 49.55];
+    places.arlon = [5.81, 49.68];
+    places.luxembourg = [6.13, 49.61];
+    places.treves = [6.64, 49.75];
+    places.sarrebruck = [7.0, 49.23];
   }
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };

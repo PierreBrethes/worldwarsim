@@ -216,3 +216,27 @@ describe('dev.liaisonsScene', () => {
     expect(alone!.point).toEqual([7.59, 47.56]);
   });
 });
+
+describe('dev.specialtiesScene', () => {
+  /** La scène de #371 : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
+  it('sets a point to raise, an old generalist, a changing Magasin and a Guet', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.mutation(internal.dev.specialtiesScene, { playerId });
+
+    const { me } = await t.query(api.view.playerView, seat);
+    expect(
+      me.outposts.map(({ level, specialty, changingTo, depotCapacity }) => ({
+        level,
+        specialty,
+        changingTo,
+        depotCapacity,
+      })),
+    ).toEqual([
+      { level: 1, specialty: 'general', changingTo: null, depotCapacity: 400 },
+      { level: 2, specialty: 'general', changingTo: null, depotCapacity: 800 },
+      { level: 2, specialty: 'store', changingTo: 'lookout', depotCapacity: 800 },
+      { level: 2, specialty: 'lookout', changingTo: null, depotCapacity: 800 },
+    ]);
+    expect(me.construction).toMatchObject({ respecialty: 'lookout' });
+  });
+});

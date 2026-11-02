@@ -467,6 +467,7 @@ export const logisticsScene = internalMutation({
       point: { lon: 4.35, lat: 50.85 },
       hostCountry: 'BEL',
       level: 2,
+      specialty: 'store',
       foundedAt: now - 1,
       disabledUntil: null,
       immuneUntil: null,
@@ -1005,6 +1006,7 @@ export const neighbourScene = internalMutation({
       point: { lon: 3.95, lat: 50.45 },
       hostCountry: 'BEL',
       level: 2,
+      specialty: 'lookout',
       foundedAt: Date.now() - 1,
       disabledUntil: null,
       immuneUntil: null,
@@ -1086,6 +1088,8 @@ export const quaysScene = internalMutation({
         point: { lon, lat },
         hostCountry,
         level: 3,
+        /** Malte en Fort ; les deux autres, points d'avant la refonte, choisissent encore. */
+        ...(hostCountry === 'MLT' ? { specialty: 'fort' as const } : {}),
         foundedAt: Date.now() - 1,
         disabledUntil: null,
         immuneUntil: null,
@@ -1143,6 +1147,79 @@ export const liaisonsScene = internalMutation({
       for (const row of coal.filter((one) => one.key === 'coal'))
         await ctx.db.patch(row._id, { stock: 0, updatedAt: now });
     }
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **La scène des métiers** (#371), pour la démo : quatre avant-postes français entre Arlon et
+ * Sarrebruck. À Arlon un point de niveau 1, dont l'élévation offre Magasin, Guet et Fort ; à
+ * Luxembourg un point d'avant la refonte, généraliste au niveau 2, qui choisit gratuitement ; à
+ * Trèves un Magasin plein au-delà de la capacité simple, en chantier pour devenir Guet ; à
+ * Sarrebruck un Guet, au rayon entier. L'acier est remis à 1 000 pour que tout se paie.
+ *
+ * `npx convex run dev:specialtiesScene '{"playerId":"…"}'`
+ */
+export const specialtiesScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    const plant = (
+      lon: number,
+      lat: number,
+      hostCountry: string,
+      level: number,
+      more: Partial<Doc<'outposts'>> = {},
+    ) =>
+      ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level,
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        ...more,
+      });
+    await plant(5.81, 49.68, 'BEL', 1);
+    await plant(6.13, 49.61, 'LUX', 2);
+    const changing = await plant(6.64, 49.75, 'DEU', 2, {
+      specialty: 'store',
+      changingTo: 'lookout',
+      depot: { ammunition: 700, oil: 300, coal: 200 },
+    });
+    await plant(7.0, 49.23, 'DEU', 2, { specialty: 'lookout' });
+    const minutes = 130;
+    const finishesAt = now + minutes * 60_000;
+    const queue = await ctx.db
+      .query('constructions')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    const constructionId = await ctx.db.insert('constructions', {
+      playerId,
+      building: 'outpost',
+      outpostId: changing,
+      specialty: 'lookout',
+      respecialize: true,
+      regionId: '',
+      level: 2,
+      rank: queue.reduce((top, entry) => Math.max(top, entry.rank + 1), 0),
+      finishesAt,
+      minutes,
+    });
+    await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, { constructionId });
+    await settle(ctx, playerId, now);
+    for (const row of (
+      await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).filter((one) => one.key === 'steel'))
+      await ctx.db.patch(row._id, { stock: 1000, updatedAt: now });
     await recordLinkage(ctx, player.seasonId);
     await reassessDetection(ctx, player.seasonId, now, playerId);
   },
