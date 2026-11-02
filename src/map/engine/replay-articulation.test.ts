@@ -421,6 +421,34 @@ describe('a combat at sea', () => {
     expect(scene.smoking).toBe(true);
   });
 
+  /** The lowest opacity a piece wears: 1 when nothing on it is see-through. */
+  const opacityOf = (piece: Object3D) => {
+    let least = 1;
+    piece.traverse((part) => {
+      if (part instanceof Mesh && !Array.isArray(part.material) && part.material.transparent)
+        least = Math.min(least, part.material.opacity);
+    });
+    return least;
+  };
+
+  it('on the map, fades the attacker in over the voyage and out as the account ends', async () => {
+    const v = fleet(1, 1);
+    const scene = new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', 'mine');
+    await landed();
+    const [mine, theirs] = scene.object.children as Object3D[];
+    const shown = (t: number) => {
+      scene.show(replayAt(v, t), 0, false);
+      return [opacityOf(mine!), opacityOf(theirs!)];
+    };
+    expect(shown(stepBounds('voyage').start)).toEqual([0, 1]);
+    const [half] = shown(at('voyage', 0.5));
+    expect(half).toBeGreaterThan(0);
+    expect(half).toBeLessThan(1);
+    expect(shown(stepBounds('frappe').start + 1)).toEqual([1, 1]);
+    expect(shown(at('compte-rendu', 0.2))).toEqual([1, 1]);
+    expect(shown(REPLAY_MS)).toEqual([0, 1]);
+  });
+
   it('fires only from a ship that has a muzzle: a cargo does not', async () => {
     const v: ReplayView = {
       ...fleet(1, 1),

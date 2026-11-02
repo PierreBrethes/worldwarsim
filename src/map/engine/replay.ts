@@ -20,6 +20,7 @@ import { sceneSpan } from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
 import { metresOnBoard, troopSpan } from '@/domain/piece-size';
 import {
+  REPLAY_MS,
   STEP_MS,
   stepBounds,
   VOLLEY_SHARE,
@@ -266,6 +267,9 @@ const SEA_SMOKE = 3;
 const HEEL = 0.12;
 const SINK_DEPTH = 0.6;
 const SINK_MS = 1600;
+/** **Sur la carte, l'attaquant en mer** (#324) : il paraît au fil du voyage et s'efface sur les
+ *  dernières 600 ms du compte-rendu, où son pion de retour le reprend. `@a-mesurer` */
+const SEA_LEAVE_MS = 600;
 /** Ships sail their last part of a hull in over the voyage; a shot aims at the side of a hull.
  *  `@a-mesurer` */
 const SEA_ARRIVAL = 0.4;
@@ -317,7 +321,8 @@ function dress(object: Object3D, copy: ((material: Material) => Material) | null
 }
 
 /** What a piece wears: `bare` is the models' own materials, shared, not yet swapped for the scene's. */
-type Look = 'bare' | 'whole' | 'burnt' | 'washed' | 'sunk';
+/** How a piece is dressed; `-clear` when it wears see-through copies (`Piece.fading`). */
+type Look = 'bare' | `${'whole' | 'burnt' | 'washed'}${'' | '-clear'}`;
 
 type Piece = {
   readonly side: 'mine' | 'theirs';
@@ -338,7 +343,8 @@ type Piece = {
   /** Its height in the scene's units, what a sinking hull goes down by. */
   height: number;
   /** Its own fading copies, once it sinks: they are not shared with a hull still afloat. */
-  sinking: Material[] | null;
+  /** Its see-through copies while it sinks or fades, `null` otherwise. */
+  fading: Material[] | null;
   readonly shot: Mesh;
   burning: Smoke | null;
   look: Look;
@@ -462,7 +468,7 @@ export class ReplayScene {
       tubes: [{ flash: flashSprite, size: FLASH_SIZE, firing, salvo: 0 }],
       armed: !this.sea || seen === undefined,
       height: 0,
-      sinking: null,
+      fading: null,
       shot: new Mesh(SHOT, SHOT_INK),
       burning: null,
       look: 'bare',
@@ -713,23 +719,32 @@ export class ReplayScene {
         piece.burning.object.visible = burnt && sink < 1;
         if (burnt) piece.burning.frame(still ? 1 : seconds);
       }
-      const look: Look = sink > 0 ? 'sunk' : burnt ? 'burnt' : retreat > 0 ? 'washed' : 'whole';
+      // On the map the attacker's ships come in out of nothing and go back into their pawn.
+      const ghost =
+        this.sea && this.onMap === piece.side && !still
+          ? step === 'voyage'
+            ? ease(progress)
+            : 1 - ease(Math.max(0, 1 - (REPLAY_MS - clockOf(frame)) / SEA_LEAVE_MS))
+          : 1;
+      const opacity = Math.min(1 - sink, ghost);
+      const wear = burnt || sink > 0 ? 'burnt' : retreat > 0 ? 'washed' : 'whole';
+      const clear = opacity < 1;
+      const look: Look = clear ? `${wear}-clear` : wear;
       if (look !== piece.look) {
         piece.look = look;
-        const worn =
-          look === 'burnt' || look === 'sunk' ? charred : look === 'washed' ? washedOf : null;
-        const sinking: Material[] = [];
+        const worn = wear === 'burnt' ? charred : wear === 'washed' ? washedOf : null;
+        const fading: Material[] = [];
         dress(piece.body, (material) => {
           const dressed = worn === null ? material : worn(material);
-          if (look !== 'sunk') return this.sharesMaterials ? dressed : this.ownOf(dressed);
+          if (!clear) return this.sharesMaterials ? dressed : this.ownOf(dressed);
           const own = dressed.clone();
           own.transparent = true;
-          sinking.push(own);
+          fading.push(own);
           return own;
         });
-        piece.sinking = look === 'sunk' ? sinking : null;
+        piece.fading = clear ? fading : null;
       }
-      for (const material of piece.sinking ?? []) material.opacity = 1 - sink;
+      for (const material of piece.fading ?? []) material.opacity = opacity;
     });
     // Aimed once every holder stands where this frame puts it.
     const mine = frame.pieces.filter((piece) => piece.side === 'mine').length;
