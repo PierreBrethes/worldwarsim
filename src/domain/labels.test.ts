@@ -62,8 +62,9 @@ const detectedArc = (override: Partial<Extract<ArcView, { state: 'enemyDetected'
 const viewWith = (
   arcs: ReadonlyArray<ArcView>,
   captures: PlayerView['captures'] = [],
+  troops: PlayerView['me']['troops'] = [],
 ): PlayerView =>
-  ({ arcs, captures, loadedAt: LOADED_AT, me: { ink: '#2f4f78' } }) as unknown as PlayerView;
+  ({ arcs, captures, loadedAt: LOADED_AT, me: { ink: '#2f4f78', troops } }) as unknown as PlayerView;
 
 const OUTPOST: MapMarker = {
   kind: 'outpost',
@@ -144,6 +145,29 @@ describe('buildLabels', () => {
     expect(texts(label!.lines)).toEqual([
       `arrivée retenue · résolution à ${asLocalTime(LOADED_AT + 420 * 60_000)}`,
     ]);
+  });
+
+  /** **Une ronde en route se rappelle de son étiquette** (#376), comme une tournée. */
+  it('offers to recall a patrol on its column, and says once it is recalled', () => {
+    const patrol = (recalled: boolean) =>
+      [
+        {
+          id: 'p',
+          role: 'infantry',
+          patrol: { ends: ['a', 'b'], to: 'b', haltUntil: null, recalled },
+        },
+      ] as unknown as PlayerView['me']['troops'];
+    const arc = mineArc({ troopIds: ['p'] });
+    const [label] = buildLabels(viewWith([arc], [], patrol(false)), []);
+    expect(label?.lines).toContainEqual({ role: 'patrol', text: fr.patrol.title, recall: 'p' });
+    const [recalled] = buildLabels(viewWith([arc], [], patrol(true)), []);
+    expect(recalled?.lines).toContainEqual({
+      role: 'patrol',
+      text: fr.patrol.recalledOnLabel,
+      recall: null,
+    });
+    const [plain] = buildLabels(viewWith([mineArc({})]), []);
+    expect(plain?.lines.some((line) => line.role === 'patrol')).toBe(false);
   });
 
   it('dates the departure of my column, for its bar, from what the view serves', () => {

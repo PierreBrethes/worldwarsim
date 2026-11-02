@@ -306,6 +306,8 @@ type Props = {
   onTakeDepot?: TakeDepot | undefined;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** **Rappeler une ronde** depuis l'étiquette de sa colonne en route (#376). */
+  onRecallPatrol?: ((troopId: string) => void) | undefined;
   /** La bulle des premiers pas, sur la pièce à lever. */
   cue?: { readonly labelId: string; readonly text: string } | null;
   /** **Les combats appris d'une vue à l'autre** (#272), joués à leur point : sans leur vue tant
@@ -511,6 +513,7 @@ export function WorldMap({
   carriersShown = false,
   onTakeDepot,
   onTour,
+  onRecallPatrol,
   cue = null,
   combats = NO_COMBATS,
   onCombatSettled,
@@ -1846,6 +1849,7 @@ export function WorldMap({
         carriersShown={carriersShown}
         onTakeDepot={onTakeDepot}
         onTour={onTour}
+        onRecallPatrol={onRecallPatrol}
         cue={cue}
         cargoAim={cargoAim}
         availableLabels={availableLabels}

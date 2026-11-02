@@ -2994,6 +2994,7 @@ export const fr = {
     toward: (other: string) => `liaison vers ${other}`,
     launch: 'lancer',
     recall: 'rappeler',
+    recalledOnLabel: 'ronde rappelée',
     started: 'Ronde lancée',
     state: ({
       to,

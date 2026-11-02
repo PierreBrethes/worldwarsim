@@ -1016,6 +1016,14 @@ function BoardContent({
   const bombard = useMutation(api.movements.bombard);
   const startPatrol = useMutation(api.patrols.start);
   const recallPatrol = useMutation(api.patrols.recall);
+  /** **Rappeler une ronde en route** (#376), d'« En cours » ou de l'étiquette de sa colonne. */
+  const recallPatrolNow = useCallback(
+    (troopId: string) =>
+      void recallPatrol({ ...seat, troopId: troopId as Id<'troops'> }).catch((problem: unknown) =>
+        handleError(problem, setOrderError),
+      ),
+    [recallPatrol, seat],
+  );
   /** **Lancer une ronde** (#376), de la carte ou de la fiche : la main se repose à l'issue. */
   const launchPatrol = useCallback(
     (troopId: string, ends: readonly [string, string]) => {
@@ -1516,8 +1524,9 @@ function BoardContent({
 
   const { arcs, loadedAt, captures, mode } = view;
   const ink = view.me.ink;
+  const troops = view.me.troops;
   const labels = useMemo(() => {
-    const built = buildLabels({ arcs, loadedAt, captures, me: { ink } }, markers);
+    const built = buildLabels({ arcs, loadedAt, captures, me: { ink, troops } }, markers);
     return mode === 'blitz'
       ? ownerFlags(
           built,
@@ -1528,7 +1537,7 @@ function BoardContent({
           ink,
         )
       : built;
-  }, [arcs, loadedAt, captures, mode, ink, markers, knownRegionById]);
+  }, [arcs, loadedAt, captures, mode, ink, troops, markers, knownRegionById]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment ou d'un avant-poste se lève par ses
@@ -2570,6 +2579,7 @@ function BoardContent({
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}
                   carriersShown={carryingTokens}
                   onTour={view.me.defeated ? undefined : onTour}
+                  onRecallPatrol={view.me.defeated ? undefined : recallPatrolNow}
                   tourLoops={tourLoops}
                   cue={mapCue}
                   combats={mapCombats}
@@ -2808,11 +2818,7 @@ function BoardContent({
                       nation={view.me.nation}
                       fresh={sent === null ? null : `movement-${sent.movementId}`}
                       onLocate={locateUnderway}
-                      onRecall={(troopId) =>
-                        recallPatrol({ ...seat, troopId: troopId as Id<'troops'> }).catch(
-                          (problem: unknown) => handleError(problem, setOrderError),
-                        )
-                      }
+                      onRecall={recallPatrolNow}
                     />
                   </div>
                 )}
