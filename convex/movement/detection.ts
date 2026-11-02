@@ -1237,7 +1237,7 @@ async function syncSightings(
         const patch = {
           ...(row.to > now ? { to: now } : {}),
           ...(await writeReading(ctx, row, columnReading(row, [], roles, now), now)),
-          ...(await keepCrossings(ctx, row, [])),
+          ...(await keepCrossings(ctx, row, [], now)),
         };
         if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
       }
@@ -1334,7 +1334,7 @@ async function replaceSighting(
     columnReading(row, next.readWindows, roles, now),
     now,
   );
-  const crossings = await keepCrossings(ctx, row, next.crossings ?? []);
+  const crossings = await keepCrossings(ctx, row, next.crossings ?? [], now);
   if (row.from <= now) {
     const patch = { ...(next.to > row.to ? { to: next.to } : {}), ...reading, ...crossings };
     if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
@@ -1386,7 +1386,7 @@ async function insertSighting(
     columnReading({}, sighting.readWindows, roles, now),
     now,
   );
-  const crossings = await keepCrossings(ctx, { _id: sightingId }, sighting.crossings ?? []);
+  const crossings = await keepCrossings(ctx, { _id: sightingId }, sighting.crossings ?? [], now);
   if (Object.keys(reading).length + Object.keys(crossings).length > 0)
     await ctx.db.patch(sightingId, { ...reading, ...crossings });
   if (sighting.from <= now) await revealSighting(ctx, sightingId, now);
@@ -1433,12 +1433,15 @@ async function keepCrossings(
   ctx: MutationCtx,
   row: { readonly _id: Id<'sightings'>; readonly crossings?: Doc<'sightings'>['crossings'] },
   desired: ReadonlyArray<Crossing>,
+  now: number,
 ): Promise<{ crossings?: Doc<'sightings'>['crossings'] }> {
   const held = row.crossings ?? [];
   const kept: NonNullable<Doc<'sightings'>['crossings']> = [];
   for (const entry of held) {
     const wanted = desired.find((crossing) => crossing.troopId === entry.troopId);
-    if (entry.jobId === undefined || wanted?.at === entry.at) kept.push(entry);
+    /** Une dépêche échue attend son job : la lecture d'après ne voit plus le franchissement
+     *  devant elle, et l'annuler le perdrait. */
+    if (entry.jobId === undefined || entry.at <= now || wanted?.at === entry.at) kept.push(entry);
     else await cancelJob(ctx, entry.jobId);
   }
   for (const crossing of desired) {

@@ -513,6 +513,19 @@ describe('the watch line of a patrol', () => {
     expect(await sighted(t)).toHaveLength(2);
   });
 
+  it('keeps a due dispatch that a reading just past the crossing finds behind it', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { troop } = await patrolling(t, seat);
+    await arriveNext(t);
+    await enemyColumn(t, guest, ...ACROSS, HOUR);
+    const [row] = await sightingsOf(t, seat);
+    vi.setSystemTime(row!.from + 1);
+    await t.run(async (ctx) => reassessDetection(ctx, (await ctx.db.get(troop))!.seasonId));
+    await fileCrossings(t, seat);
+    expect(await sighted(t)).toMatchObject([{ detector: 'patrol' }]);
+  });
+
   it('sights nothing that runs beside the line, nor past a disabled end', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
