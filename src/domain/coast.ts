@@ -230,7 +230,7 @@ export function regionOf(
  * des lacs et îles sans cellule. La grille de 28 km soude Messine à la Calabre ; l'atlas, lui, voit
  * le détroit — deux rivages entre la Calabre et la Sicile, aucun d'un champ de Bourgogne à l'autre.
  */
-export function shoreCrossings(coast: Coast, from: LonLat, to: LonLat): number[] {
+function shoreCrossings(coast: Coast, from: LonLat, to: LonLat): number[] {
   const { outline, sphere } = coast.projection;
   const [ax, ay] = projectLonLat(outline, sphere, from);
   const [bx, by] = projectLonLat(outline, sphere, to);

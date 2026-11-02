@@ -215,8 +215,6 @@ export type ErrorCode =
   | 'UNKNOWN_COMBAT'
   | 'NOT_A_PARTY';
 
-export type ErrorDetail = { readonly code: ErrorCode; readonly [key: string]: unknown };
-
 export function fail(code: ErrorCode, details?: Record<string, unknown>): never {
   throw new ConvexError({ code, ...details });
 }

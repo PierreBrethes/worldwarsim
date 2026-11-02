@@ -567,7 +567,7 @@ export const buildingsOfMaquette = <B extends { key: string; point: LonLat | nul
   labelId: string | null,
 ): B[] => buildings.filter((building) => buildingLabelId(building) === labelId);
 
-export const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
+const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
   troops.reduce<Stack>(
     (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
     {},

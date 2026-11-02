@@ -10,7 +10,7 @@ import { ANONYMOUS_SPAN, nearWeight, pieceStands, type PinnedBy } from './figuri
  * The overlap degradation is what keeps the crowd readable, and it folds buildings first —
  * they are the lowest priority, being the only labels that never move.
  */
-export const LABEL_EXPANDED_DISTANCE = 220;
+const LABEL_EXPANDED_DISTANCE = 220;
 
 /** The anchor sits on the crust, not above it: the callout must start from the ground it
  *  designates. */

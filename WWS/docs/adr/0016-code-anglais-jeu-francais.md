@@ -59,8 +59,8 @@ que l'inverse — c'est la table de traduction qui connaît le domaine, jamais l
 ## Justification
 
 Une table de traduction unique rend la couture nom-de-pays / id-de-nation **structurelle** :
-`src/domain/nations.ts` exporte `COUNTRY_BY_NATION` et `NATION_BY_COUNTRY` une seule fois : tout
-code qui doit comparer un pays de carte à une nation de joueur passe par l'une des deux, il ne
+`src/domain/nations.ts` exporte `COUNTRY_BY_NATION` une seule fois : tout
+code qui doit comparer un pays de carte à une nation de joueur passe par elle, il ne
 compare plus deux chaînes à l'œil. Le bug qui a motivé cette ADR devient une erreur de type si
 quelqu'un compare directement `country === opponent.nation`, puisque leurs types (`string` de
 `monde.json` vs `Nation`) ne s'unifient plus par accident.

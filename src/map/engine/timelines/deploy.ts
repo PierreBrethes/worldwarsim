@@ -6,7 +6,7 @@ type Flat = readonly [x: number, z: number];
 /** **A piece of the file at the arrival** (#362): where the pawn left it and the way it faced,
  *  how far behind the head and to the right of the road it walked, and its own place in the pile
  *  at rest, on the board. */
-export type FilePlace = {
+type FilePlace = {
   readonly from: Flat;
   readonly heading: number;
   readonly back: number;
