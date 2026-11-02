@@ -39,6 +39,7 @@ import {
   troopScale,
   troopWeight,
   type Figurine,
+  type RestPose,
 } from './figurines/figurine';
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { InkRing, type RingState } from './ink-ring';
@@ -236,10 +237,28 @@ export function formationOf(
  * **A pile is dressed whole or not at all** (ADR 0026 §5): one group without a figurine and
  * the pile keeps its plate — half a pile in figurines would read as half a pile.
  */
-export function dressedGroups(nation: string | null, pieces: PilePieces): Figurine[] | null {
+/** **The rest pose a group stands at `now`** (ADR 0036 §4): a gun in battery opens its trails. */
+const restPoseOf = (group: PilePieces['groups'][number], now: number): RestPose | undefined =>
+  group.battery !== undefined && group.battery <= now ? 'emplaced' : undefined;
+
+/** **The next instant a pile changes pose by itself** (#325), `null` when none is due. */
+function nextPoseChange(piles: ReadonlyArray<StandingPile>, now: number): number | null {
+  const due = piles.flatMap(({ pieces }) =>
+    pieces.groups.flatMap(({ battery }) =>
+      battery !== undefined && battery > now ? [battery] : [],
+    ),
+  );
+  return due.length === 0 ? null : Math.min(...due);
+}
+
+export function dressedGroups(
+  nation: string | null,
+  pieces: PilePieces,
+  now = Date.now(),
+): Figurine[] | null {
   const figurines: Figurine[] = [];
   for (const group of pieces.groups) {
-    const figurine = figurineFor(nation, group.role, group.figures);
+    const figurine = figurineFor(nation, group.role, group.figures, restPoseOf(group, now));
     if (figurine === null) return null;
     figurines.push(figurine);
   }
@@ -736,8 +755,16 @@ export type PiecePick = PieceHold & {
 };
 
 /** What a pile draws: its nation, its count, and per piece the role, the figures, the wear and the riders. */
-export const drawnKey = (nation: string | null, { groups, count }: PilePieces): string =>
-  JSON.stringify([nation, count, groups.map((g) => [g.role, g.figures, g.wear, g.aboard])]);
+export const drawnKey = (
+  nation: string | null,
+  { groups, count }: PilePieces,
+  now = Date.now(),
+): string =>
+  JSON.stringify([
+    nation,
+    count,
+    groups.map((g) => [g.role, g.figures, g.wear, g.aboard, restPoseOf(g, now)]),
+  ]);
 
 /**
  * **My piles standing on the board, in figurines** (ADR 0026 §3 and §5) — the twin of a
@@ -780,6 +807,8 @@ export class StandingLayer implements SequenceHost {
     readonly step: (k: number) => void;
     readonly end: () => void;
   }[] = [];
+  /** The next change of pose a pile makes by itself (`nextPoseChange`). */
+  private posing: ReturnType<typeof setTimeout> | null = null;
   /** A boarding announced, waiting for the hand to empty (`boardInto`). */
   private boarding: { readonly at: Vector3; readonly since: number } | null = null;
   /** The copy put back, on its way home. */
@@ -802,9 +831,15 @@ export class StandingLayer implements SequenceHost {
    *  of any column, and rebuilding three squads each time would be work for nothing. */
   display(piles: ReadonlyArray<StandingPile>): void {
     this.piles = piles;
+    const now = Date.now();
+    // No view comes as a gun goes into battery: the pile dresses itself again then.
+    if (this.posing !== null) clearTimeout(this.posing);
+    const change = nextPoseChange(piles, now);
+    this.posing =
+      change === null ? null : setTimeout(() => this.display(this.piles), change - now + 1);
     const next = new Map<string, Dressed>();
     for (const pile of piles) {
-      const key = drawnKey(this.nation, pile.pieces);
+      const key = drawnKey(this.nation, pile.pieces, now);
       const kept = this.dressed.get(pile.id);
       // A pile grown under the eyes is a squad formed or joined (POC, `merge`): said once it
       // stands, or when the newcomer reaches its rank (`arrive`).
@@ -910,12 +945,12 @@ export class StandingLayer implements SequenceHost {
 
   /** **What a sequence may borrow** (`SequenceHost`): a group of a pile that stands and is not
    *  in hand, with the one file a copy is cooked from — none for a squad, which moves whole. */
-  pieceOf(id: string): { url?: string; box: Box3 | null } | null {
+  pieceOf(id: string): { url?: string; pose?: RestPose; box: Box3 | null } | null {
     const lent = this.figurineOf(id);
     const stood = this.stoodIn.get(id);
     if (lent === null || (stood && stood !== lent.figurine)) return null;
-    const { url } = lent.figurine;
-    const file = url === undefined ? {} : { url };
+    const { url, pose } = lent.figurine;
+    const file = { ...(url === undefined ? {} : { url }), ...(pose === undefined ? {} : { pose }) };
     if (!lent.placed) return { ...file, box: null };
     // A copy just stood in has not been placed yet: its meshes would read at the origin.
     const { object } = lent.figurine;
@@ -1603,6 +1638,8 @@ export class StandingLayer implements SequenceHost {
 
   /** Model geometry is shared with the pawns: nothing here is this layer's to free. */
   dispose(): void {
+    if (this.posing !== null) clearTimeout(this.posing);
+    this.posing = null;
     this.dropLeaving();
     if (this.carried !== null) discard(this.carried);
     this.carried = null;

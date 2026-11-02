@@ -177,6 +177,8 @@ export type Figurine = {
   /** The file of its model, what a sequence cooks its copy from; absent for a squad (several
    *  files, none articulated) and for what is not a role's model (a block, an annotation). */
   readonly url?: string;
+  /** The rest pose it is baked at, what its articulated copy is cooked at too. */
+  readonly pose?: RestPose;
   /** A copy takes the place of the model it is drawn with, until `null` gives it back
    *  (ADR 0036 §5). Asked before `ready`, it takes its place when the model lands. */
   standIn?(copy: Object3D | null): void;
@@ -221,13 +223,49 @@ export function movesOnItsOwn(node: Object3D): boolean {
  */
 export const bakedFigurine = (scene: Object3D): Group => bakedRig(scene, movesOnItsOwn);
 
+/** **How far a gun in battery opens its trails** (#325), each to its own side, in radians: the
+ *  storyboard's 0,32. @a-mesurer: its breech, raised to 35°, clears their hinge? */
+export const TRAIL_OPEN = 0.32;
+
+/**
+ * **A rest bake of one more pose** (ADR 0036 §4, précisée le 02/11): what a lasting state turns
+ * on a model — never a held sequence. Each turns named nodes of a clone of the scene before any
+ * bake, the resting one and the articulated one alike.
+ */
+export const REST_POSES = {
+  /** **En batterie** (#325) : les flèches ouvertes ; les bêches viendront avec les GLB. */
+  emplaced: (scene: Object3D): void => {
+    scene.getObjectByName('trail_left')?.rotateY(-TRAIL_OPEN);
+    scene.getObjectByName('trail_right')?.rotateY(TRAIL_OPEN);
+  },
+} as const;
+export type RestPose = keyof typeof REST_POSES;
+
+const posed = new Map<string, Promise<Object3D>>();
+/** The scene of `url` at `pose`, its own clone posed once; the file's own at rest. */
+export function posedScene(url: string, pose?: RestPose): Promise<Object3D> {
+  if (pose === undefined) return sceneOf(url);
+  const key = `${url} ${pose}`;
+  let scene = posed.get(key);
+  if (!scene) {
+    scene = sceneOf(url).then((loaded) => {
+      const clone = loaded.clone(true);
+      REST_POSES[pose](clone);
+      return clone;
+    });
+    posed.set(key, scene);
+  }
+  return scene;
+}
+
 const baked = new Map<string, Promise<Group>>();
-/** Baked once per file, cloned per figurine: the clones share its geometry and materials. */
-function bakedOf(url: string): Promise<Group> {
-  let figurine = baked.get(url);
+/** Baked once per file and pose, cloned per figurine: the clones share its geometry and materials. */
+function bakedOf(url: string, pose?: RestPose): Promise<Group> {
+  const key = pose === undefined ? url : `${url} ${pose}`;
+  let figurine = baked.get(key);
   if (!figurine) {
-    figurine = sceneOf(url).then(bakedFigurine);
-    baked.set(url, figurine);
+    figurine = posedScene(url, pose).then(bakedFigurine);
+    baked.set(key, figurine);
   }
   return figurine;
 }
@@ -250,6 +288,8 @@ export function figurineFor(
   nation: string | null,
   role: UnitRole,
   marks: ReadonlyArray<UnitTier>,
+  /** A lasting state of the model (`REST_POSES`), its own bake; at rest without. */
+  pose?: RestPose,
 ): Figurine | null {
   if (nation === null || !isNation(nation) || marks.length === 0) return null;
   const crew = role === 'infantry' ? crewOf(nation, marks) : marks.slice(0, 1);
@@ -292,15 +332,19 @@ export function figurineFor(
       model.add(copy);
     }
   };
-  const ready = Promise.all(files.map((file) => bakedOf(file!))).then(
-    (scenes) => {
+  const ready = Promise.all([
+    bakedOf(files[0]!),
+    ...files.map((file) => bakedOf(file!, pose)),
+  ]).then(
+    ([rest, ...scenes]) => {
       const makers = scenes.map((scene, k) => ({
         make: () => scene.clone(true),
         sculpted: crew[k] !== 1,
         gun: hasGun(nation, crew[k]!),
       }));
-      // Each model brought to its role's real size, whatever it was sculpted at.
-      model.scale.setScalar(span / measureOf(scenes[0]!, role));
+      // Each model brought to its role's real size, whatever it was sculpted at — measured at
+      // rest: a gun's open trails do not shrink it.
+      model.scale.setScalar(span / measureOf(rest!, role));
       drawn = role === 'infantry' ? squadOf(makers) : makers[0]!.make();
       model.add(drawn);
       for (const fn of dressers) fn(drawn, true);
@@ -320,6 +364,7 @@ export function figurineFor(
     span,
     ready,
     ...(role === 'infantry' ? {} : { url: files[0]! }),
+    ...(pose === undefined ? {} : { pose }),
     standIn,
     copy: () => {
       const copy = drawn?.clone(true) ?? null;
