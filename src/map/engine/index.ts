@@ -1964,10 +1964,10 @@ export class MapEngine {
     points: ReadonlyArray<ZonePoint>,
     liaisons: ReadonlyArray<readonly [string, string]>,
     linesOnly = false,
-    patrolled: ReadonlyArray<readonly [string, string]> = [],
+    patrol?: { readonly liaisons: ReadonlyArray<readonly [string, string]>; readonly ink: string },
   ): void {
     this.invalidate();
-    this.zones.show(points, liaisons, linesOnly, patrolled);
+    this.zones.show(points, liaisons, linesOnly, patrol);
   }
 
   /** **La liaison tracée sous le pointeur** (#376), par les clés de ses deux points, ou `null`. */
@@ -3856,7 +3856,7 @@ export class MapEngine {
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
-    this.zones.animate(now, this.ambience.motion);
+    this.zones.animate(now, this.ambience.motion, this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.tellThread();
     this.tellZoneLabels();

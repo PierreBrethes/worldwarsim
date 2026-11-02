@@ -375,8 +375,10 @@ type Props = {
 export type OutpostZonesView = {
   readonly points: ReadonlyArray<ZonePoint>;
   readonly liaisons: ReadonlyArray<readonly [string, string]>;
-  /** **Celles où tourne une de mes rondes** (#377) : leur trait reste, calque éteint. */
+  /** **Celles où tourne une de mes rondes** (#377) : leur trait reste, calque éteint, à l'encre
+   *  de ma nation. */
   readonly patrolled: ReadonlyArray<readonly [string, string]>;
+  readonly ink: string;
 };
 
 /** An outpost the player confirmed dismantling: its id, and whether it takes an area with it. */
@@ -1610,7 +1612,7 @@ export function WorldMap({
       outpostZones?.points ?? [],
       zonesShown || patrolLines ? (outpostZones?.liaisons ?? []) : patrolled,
       !zonesShown,
-      patrolled,
+      { liaisons: patrolled, ink: outpostZones?.ink ?? '' },
     );
   }, [readyEngine, outpostZones, zonesShown, patrolLines]);
   // A liaison born since the view before is traced once; nothing on the first view (#375).

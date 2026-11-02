@@ -1487,8 +1487,8 @@ function BoardContent({
         ? [[station(patrol.ends[0]), station(patrol.ends[1])] as [string, string]]
         : [],
     );
-    return { points, liaisons, patrolled };
-  }, [blitz, view.me.outposts, view.me.troops, view.me.upkeep.listeningSilent]);
+    return { points, liaisons, patrolled, ink: nationInk(view.me.nation) };
+  }, [blitz, view.me.outposts, view.me.troops, view.me.nation, view.me.upkeep.listeningSilent]);
 
   /** **Une troupe de ronde en main** (#376) : la carte montre et vise ses liaisons. */
   const patrolHand = useMemo(
