@@ -12,6 +12,7 @@ import {
   type PlunderAim,
 } from './movement-orders';
 import { onTourRefusalOf } from './logistics';
+import { patrolRefusalIn } from './patrol';
 import { carriesSurveyedInstallation } from './objectives';
 import { stationKeyOf } from './troops';
 import { type LonLat } from './geo';
@@ -183,6 +184,15 @@ export type CompassTarget =
       readonly coastPending?: boolean;
       /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
       readonly walkable?: boolean;
+    }
+  /**
+   * **Une liaison tracée entre deux de mes avant-postes** (#376), visée troupe en main : le trait
+   * que la carte dessine (`drawnLiaisonsOf`). Une seule branche y mène, la ronde.
+   */
+  | {
+      readonly kind: 'liaison';
+      readonly ends: readonly [string, string];
+      readonly name: string;
     }
   | {
       /**
@@ -509,6 +519,19 @@ export type CompassAction =
       readonly carrierId: string;
     }
   /**
+   * **Tenir la ronde** (ADR 0037 §10, #376) : la troupe en main part sur-le-champ vers l'autre
+   * bout de la liaison, et tourne. La règle est `patrolRefusalOf`, celle que `patrols.start` relit.
+   */
+  | {
+      readonly key: 'patrol';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly troopId: string;
+      readonly ends: readonly [string, string];
+    }
+  /**
    * **Ramasser une caisse relevée.** La cible est le relevé possédé et jamais la caisse vraie —
    * elle peut avoir disparu, et c'est le sujet : on marche vers ce qu'on a vu.
    */
@@ -609,9 +632,9 @@ export function compassOf(
     const touring = onTourRefusalOf(
       view.me.troops.filter((troop) => heldTroopIds?.includes(troop.id) === true),
     );
-    return fan === null || touring === null
-      ? fan
-      : { ...fan, actions: [], refusal: fr.errors[touring.code]() };
+    if (fan === null || touring === null) return fan;
+    const { code, ...details } = touring;
+    return { ...fan, actions: [], refusal: fr.errors[code](details) };
   }
   const here =
     origin !== null &&
@@ -658,6 +681,7 @@ function aim(
   now: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
+  if (target.kind === 'liaison') return patrolFan(target, view, heldTroopIds ?? []);
   if ((target.kind === 'camp' || target.kind === 'track') && bombardsWith(column.roles, view.mode))
     return bombardFan(target, view, column, origin, heldTroopIds, now);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
@@ -831,4 +855,34 @@ function aim(
       surveyed: carriesSurveyedInstallation(target.regionId, view.surveyedInstallations),
     },
   ]);
+}
+
+/** **La rose d'une liaison** (#376) : la ronde, ou son refus ; rien en Blitz. */
+function patrolFan(
+  target: Extract<CompassTarget, { kind: 'liaison' }>,
+  view: PlayerView,
+  heldTroopIds: ReadonlyArray<string>,
+): Compass | null {
+  if (view.mode === 'blitz') return null;
+  const refusal = patrolRefusalIn(view, heldTroopIds, target.ends);
+  const troopId = heldTroopIds[0];
+  return {
+    kicker: fr.compass.liaison,
+    name: target.name,
+    actions:
+      refusal !== null || troopId === undefined
+        ? []
+        : [
+            {
+              key: 'patrol',
+              pictogram: 'pennant',
+              label: fr.compass.patrol,
+              cost: null,
+              consequence: fr.compass.patrolConsequence,
+              troopId,
+              ends: target.ends,
+            },
+          ],
+    refusal,
+  };
 }

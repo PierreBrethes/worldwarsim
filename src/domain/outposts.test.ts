@@ -10,6 +10,7 @@ import {
   effectiveSpecialty,
   lookoutKmOf,
   nearestOutpost,
+  patrolRefusalOf,
   reachingOutpost,
   withinReach,
 } from './outposts';
@@ -139,5 +140,51 @@ describe('the specialty an outpost acts on', () => {
   it('doubles the depot of a Magasin, and only its', () => {
     expect([2, 3].map((level) => depotCapacity(level, 'store'))).toEqual([1600, 2400]);
     expect([2, 3].map((level) => depotCapacity(level, 'fort'))).toEqual([800, 1200]);
+  });
+});
+
+/** **Une ronde tourne sur une liaison tracée** (ADR 0037 §10, #376) : le contrat, avant le geste. */
+describe('the refusal of a patrol', () => {
+  const ready = {
+    role: 'infantry' as const,
+    pieces: 1,
+    aboard: false,
+    busy: false,
+    stationedAt: 'a',
+    liaison: ['b', 'a'] as const,
+    drawn: [['a', 'b'] as const, ['b', 'c'] as const],
+    patrolled: [['c', 'b'] as const],
+    slots: { used: 1, total: 2 },
+  };
+
+  it('lets one land combat troop, standing at an end, onto a drawn liaison either way round', () => {
+    expect(patrolRefusalOf(ready)).toBeNull();
+    expect(patrolRefusalOf({ ...ready, role: 'armor', liaison: ['a', 'b'] })).toBeNull();
+    expect(patrolRefusalOf({ ...ready, role: 'artillery' })).toBeNull();
+  });
+
+  it('says why not, in the order the hand meets it', () => {
+    expect(patrolRefusalOf({ ...ready, pieces: 2 })).toEqual({ code: 'PATROL_ONE_TROOP' });
+    expect(patrolRefusalOf({ ...ready, role: 'landTransport' })).toEqual({
+      code: 'PATROL_LAND_COMBAT_ONLY',
+    });
+    expect(patrolRefusalOf({ ...ready, role: 'fighter' })).toEqual({
+      code: 'PATROL_LAND_COMBAT_ONLY',
+    });
+    expect(patrolRefusalOf({ ...ready, aboard: true })).toEqual({ code: 'STILL_ABOARD' });
+    expect(patrolRefusalOf({ ...ready, busy: true })).toEqual({ code: 'PATROL_BUSY' });
+    expect(patrolRefusalOf({ ...ready, liaison: ['a', 'c'] })).toEqual({
+      code: 'PATROL_NOT_DRAWN',
+    });
+    expect(patrolRefusalOf({ ...ready, stationedAt: 'c', liaison: ['a', 'b'] })).toEqual({
+      code: 'PATROL_NOT_AT_END',
+    });
+    expect(patrolRefusalOf({ ...ready, stationedAt: 'c', liaison: ['b', 'c'] })).toEqual({
+      code: 'PATROL_TAKEN',
+    });
+    expect(patrolRefusalOf({ ...ready, slots: { used: 2, total: 2 } })).toEqual({
+      code: 'MOVEMENT_IN_FLIGHT',
+      maximum: 2,
+    });
   });
 });

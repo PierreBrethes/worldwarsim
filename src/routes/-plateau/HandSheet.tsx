@@ -2,6 +2,7 @@ import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import type { CompassAction } from '@/domain/compass-rose';
+import type { PatrolLine } from '@/domain/patrol';
 import { unitsOf, type MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import { pileStatsOf } from '@/domain/stat-sheet';
@@ -25,6 +26,9 @@ export function HandSheet({
   onCompose,
   onDisembark,
   founding,
+  patrol = null,
+  onPatrol,
+  onRecallPatrol,
   onOpenGunnery,
   onDrop,
   onApproach,
@@ -50,6 +54,10 @@ export function HandSheet({
     readonly refusal: string | null;
     readonly onFound: () => void;
   } | null;
+  /** **La ligne « Ronde »** (#376) : les liaisons de son avant-poste, ou la ronde qu'elle tient. */
+  patrol?: PatrolLine | null;
+  onPatrol?: (troopId: string, ends: readonly [string, string]) => void;
+  onRecallPatrol?: (troopId: string) => void;
   onOpenGunnery: () => void;
   onDrop: () => void;
   /** La caméra descend sur la pile en main : au loin, au doigt, elle n'est qu'une épingle. */
@@ -83,6 +91,52 @@ export function HandSheet({
         </p>
       )}
     </>
+  );
+  const button = `cursor-pointer border border-[var(--ink)] px-[8px] ${narrow ? 'min-h-[44px]' : 'py-[3px]'} text-[9.5px] tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]`;
+  const rounds = patrol !== null && (
+    <section className="mt-[8px] border-t border-[var(--ink)] pt-[5px]">
+      <h3 className="text-[9.5px] tracking-[.18em] uppercase">{fr.patrol.title}</h3>
+      {patrol.kind === 'patrolling' ? (
+        <div className="mt-[3px] flex items-center gap-[8px]">
+          <span className="min-w-0 flex-1 font-(family-name:--font-mono) text-[10.5px]">
+            {fr.patrol.state(patrol)}
+          </span>
+          {!patrol.recalled && (
+            <button
+              type="button"
+              className={button}
+              onClick={() => onRecallPatrol?.(patrol.troopId)}
+            >
+              {fr.patrol.recall}
+            </button>
+          )}
+        </div>
+      ) : (
+        <ul>
+          {patrol.liaisons.map(({ ends, other, refusal }) => (
+            <li key={ends.join()} className="flex items-center gap-[8px] py-[2px]">
+              <span className="min-w-0 flex-1 text-[11.5px]">
+                {fr.patrol.toward(other)}
+                {refusal !== null && (
+                  <span className="block text-[10.5px] leading-[1.35] text-[var(--critical)]">
+                    {refusal}
+                  </span>
+                )}
+              </span>
+              {refusal === null && inHand[0] !== undefined && (
+                <button
+                  type="button"
+                  className={button}
+                  onClick={() => onPatrol?.(inHand[0]!.id, ends)}
+                >
+                  {fr.patrol.launch}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
   const [unit, ...aboard] = unitsOf(inHand)[0] ?? [];
   /** A Blitz hand holds one unit: a strip says it, the pile's grid and its range say nothing more.
@@ -180,6 +234,7 @@ export function HandSheet({
           {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
         </p>
       )}
+      {rounds}
       {inHand.length > 0 && (
         <div className="mt-[8px]">
           <StatLines rows={pileStatsOf(view, inHand)} />

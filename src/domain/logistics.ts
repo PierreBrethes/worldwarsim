@@ -182,12 +182,23 @@ export function deliverRefusalOf(
   return null;
 }
 
-/** **Un transport en tournée ne prend pas d'autre ordre** (ADR 0028) : on le rappelle d'abord.
- *  La rose le dit sur la colonne en main, la marche le relit. */
+/** **Un transport en tournée, une troupe en ronde, ne prennent pas d'autre ordre** (ADR 0028,
+ *  ADR 0037 §10) : on les rappelle d'abord. La rose le dit sur la colonne en main, la marche le
+ *  relit ; le refus de la ronde nomme la troupe. */
 export const onTourRefusalOf = (
-  troops: ReadonlyArray<{ readonly tour?: unknown }>,
-): { readonly code: 'TRANSPORT_ON_TOUR' } | null =>
-  troops.some((troop) => troop.tour !== undefined) ? { code: 'TRANSPORT_ON_TOUR' } : null;
+  troops: ReadonlyArray<{
+    readonly role: UnitRole;
+    readonly tour?: unknown;
+    readonly patrol?: unknown;
+  }>,
+):
+  | { readonly code: 'TRANSPORT_ON_TOUR' }
+  | { readonly code: 'ON_PATROL'; readonly role: UnitRole }
+  | null => {
+  if (troops.some((troop) => troop.tour !== undefined)) return { code: 'TRANSPORT_ON_TOUR' };
+  const patrolling = troops.find((troop) => troop.patrol !== undefined);
+  return patrolling === undefined ? null : { code: 'ON_PATROL', role: patrolling.role };
+};
 
 /** **Ce que la tournée remonte à bord** pour retrouver sa consigne. */
 export const missingOf = (consigne: SupplyLoad, held: SupplyLoad): SupplyLoad => ({

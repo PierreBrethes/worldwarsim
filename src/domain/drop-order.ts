@@ -5,7 +5,7 @@ import type { Compass, CompassAction } from './compass-rose';
 import type { UnitRole } from './ids';
 import { routeModeOf } from './movement-orders';
 
-/** Ce qu'une pile lâchée exécute d'elle-même : partir, monter à bord, tirer, fonder. Le reste —
+/** Ce qu'une pile lâchée exécute d'elle-même : partir, monter à bord, tirer, fonder, tourner. Le reste —
  *  bâtir, élever, raser, débarquer — n'est pas un ordre de pièce et reste au clic droit. */
 const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
   'aim',
@@ -16,6 +16,7 @@ const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
   'airdrop',
   'tour',
   'tourStop',
+  'patrol',
   'board',
   'bombard',
   'found',
@@ -75,6 +76,7 @@ export function chipOf(action: CompassAction, forbidden: Forbidden): DropChip {
   if (action.key === 'board') return { icon: '⤓', tone: 'order', verb: verbs.board };
   if (action.key === 'deliver') return { icon: '⇥', tone: 'order', verb: verbs.deliver };
   if (action.key === 'airdrop') return { icon: '⇣', tone: 'order', verb: verbs.airdrop };
+  if (action.key === 'patrol') return { icon: '⇄', tone: 'order', verb: verbs.patrol };
   if (action.key === 'tour' || action.key === 'tourStop')
     return { icon: '↻', tone: 'order', verb: action.key === 'tour' ? verbs.tour : capital };
   if (action.key !== 'aim')

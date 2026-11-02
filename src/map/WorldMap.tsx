@@ -148,6 +148,11 @@ type Props = {
    */
   outpostZones?: OutpostZonesView | null;
   /**
+   * **Une troupe de ronde en main** (#376) : les liaisons se montrent calque éteint et se visent ;
+   * la fonction nomme une liaison par ses deux avant-postes. `null` hors de ce geste.
+   */
+  patrolHand?: ((ends: readonly [string, string]) => string) | null;
+  /**
    * **My regions that lost their colour** (ADR 0020 §6), and those where something of mine
    * produces: a region that loses it under a producer is stamped « hors réseau » beside its
    * maquette. The colour is what is diffed, not the sites — a producer finished on ground already
@@ -471,6 +476,7 @@ export function WorldMap({
   selectedLabel = null,
   openStation = null,
   outpostZones = null,
+  patrolHand = null,
   selectedLootLabel = null,
   reach = null,
   onCountryHover,
@@ -673,6 +679,17 @@ export function WorldMap({
   // a map drifting under the pointer is aiming twice.
   /** La dernière visée qui a ouvert la rose : relue quand la côte arrive (#224). */
   const lastAim = useRef<{ target: CompassTarget; clientX: number; clientY: number } | null>(null);
+  /** **La liaison sous la main** (#376) : seule une troupe de ronde en main la vise. */
+  const liaisonTarget = useCallback(
+    (clientX: number, clientY: number): CompassTarget | null => {
+      if (patrolHand === null) return null;
+      const keys = engine.current?.liaisonAt(clientX, clientY) ?? null;
+      if (keys === null) return null;
+      const ends = [keys[0].replace(/^outpost:/, ''), keys[1].replace(/^outpost:/, '')] as const;
+      return { kind: 'liaison', ends, name: patrolHand(ends) };
+    },
+    [patrolHand],
+  );
   const openRose = useCallback(
     (target: CompassTarget, clientX: number, clientY: number) => {
       lastAim.current = { target, clientX, clientY };
@@ -805,15 +822,17 @@ export function WorldMap({
        * because a foundation still needs one; the fan sorts out which type takes which.
        */
       if (aiming) {
-        const aimed = pointTarget(
-          country,
-          region,
-          point,
-          point !== null && coastAt(point),
-          point === null ? 'sea' : groundAt(point),
-          point !== null && coastPendingAt(point),
-          point === null || walkableAt(point),
-        );
+        const aimed =
+          liaisonTarget(clientX, clientY) ??
+          pointTarget(
+            country,
+            region,
+            point,
+            point !== null && coastAt(point),
+            point === null ? 'sea' : groundAt(point),
+            point !== null && coastPendingAt(point),
+            point === null || walkableAt(point),
+          );
         if (aimed === null) {
           setRose(null);
           return;
@@ -836,7 +855,17 @@ export function WorldMap({
     return () => {
       readyEngine.onAct = () => {};
     };
-  }, [readyEngine, openRose, aiming, placing, coastAt, groundAt, coastPendingAt, walkableAt]);
+  }, [
+    readyEngine,
+    openRose,
+    aiming,
+    placing,
+    coastAt,
+    groundAt,
+    coastPendingAt,
+    walkableAt,
+    liaisonTarget,
+  ]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
   // opens, it would answer a question the player has not asked yet.
@@ -1111,7 +1140,8 @@ export function WorldMap({
       const aimed =
         label !== undefined
           ? labelTarget(label, clientX, clientY)
-          : (() => {
+          : (liaisonTarget(clientX, clientY) ??
+            (() => {
               const point = readyEngine.pointAt(clientX, clientY);
               return pointTarget(
                 readyEngine.countryAtPoint(clientX, clientY),
@@ -1122,7 +1152,7 @@ export function WorldMap({
                 point !== null && coastPendingAt(point),
                 point === null || walkableAt(point),
               );
-            })();
+            })());
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
       tell(hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null));
     };
@@ -1144,6 +1174,7 @@ export function WorldMap({
     chosenOf,
     onDropRefused,
     onCarryEnd,
+    liaisonTarget,
   ]);
 
   useEffect(() => {
@@ -1556,12 +1587,14 @@ export function WorldMap({
   }, [outposts, readyEngine]);
 
   const zonesShown = indicators['outpost-zones'];
+  const patrolLines = !zonesShown && patrolHand !== null;
   useEffect(() => {
     readyEngine?.showOutpostZones(
-      zonesShown ? (outpostZones?.points ?? []) : [],
-      zonesShown ? (outpostZones?.liaisons ?? []) : [],
+      zonesShown || patrolLines ? (outpostZones?.points ?? []) : [],
+      zonesShown || patrolLines ? (outpostZones?.liaisons ?? []) : [],
+      patrolLines,
     );
-  }, [readyEngine, outpostZones, zonesShown]);
+  }, [readyEngine, outpostZones, zonesShown, patrolLines]);
   // A liaison born since the view before is traced once; nothing on the first view (#375).
   const liaisonsBefore = useRef<OutpostZonesView['liaisons'] | null>(null);
   useEffect(() => {

@@ -4,7 +4,7 @@ import {
   outpostReachKm,
 } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
-import type { Specialty } from './ids';
+import type { Specialty, UnitRole } from './ids';
 
 /**
  * What an outpost opens around itself: the right to build there (ADR 0015).
@@ -191,4 +191,59 @@ export function drawnLiaisonsOf<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): Ar
         c !== a && c !== b && Math.max(km(a, c), km(b, c)) < side && linked(a, c) && linked(b, c),
     );
   });
+}
+
+/** **La même liaison, prise dans un sens ou dans l'autre** : une paire n'est pas orientée. */
+export const sameLiaison = <Id>(
+  [a, b]: readonly [Id, Id],
+  [c, d]: readonly [Id, Id],
+): boolean => (a === c && b === d) || (a === d && b === c);
+
+/** **Ce qui tourne en ronde** (ADR 0037 §10) : une troupe terrestre de combat. */
+export const PATROL_ROLES: ReadonlySet<UnitRole> = new Set(['infantry', 'armor', 'artillery']);
+
+export type PatrolRefusal =
+  | { readonly code: 'PATROL_ONE_TROOP' }
+  | { readonly code: 'PATROL_LAND_COMBAT_ONLY' }
+  | { readonly code: 'STILL_ABOARD' }
+  | { readonly code: 'PATROL_BUSY' }
+  | { readonly code: 'PATROL_NOT_DRAWN' }
+  | { readonly code: 'PATROL_NOT_AT_END' }
+  | { readonly code: 'PATROL_TAKEN' }
+  | { readonly code: 'MOVEMENT_IN_FLIGHT'; readonly maximum: number };
+
+/**
+ * **Une ronde part sur une liaison tracée** (ADR 0037 §10, #376) : une seule troupe terrestre de
+ * combat, libre et à terre, en garnison à l'un des deux bouts d'une liaison que la carte trace
+ * (`drawnLiaisonsOf`) et qu'aucune ronde ne tient encore, avec un slot libre. La rose et
+ * `patrols.start` lisent cette seule fonction (ADR 0015).
+ */
+export function patrolRefusalOf<Id>(facts: {
+  readonly role: UnitRole;
+  /** Les troupes que la main tient : une seule tourne. */
+  readonly pieces: number;
+  readonly aboard: boolean;
+  /** En route, en tournée ou déjà en ronde. */
+  readonly busy: boolean;
+  /** L'avant-poste où elle se tient en garnison, ou `null`. */
+  readonly stationedAt: Id | null;
+  readonly liaison: readonly [Id, Id];
+  readonly drawn: ReadonlyArray<readonly [Id, Id]>;
+  /** Les liaisons qu'une de mes rondes tient déjà. */
+  readonly patrolled: ReadonlyArray<readonly [Id, Id]>;
+  readonly slots: { readonly used: number; readonly total: number };
+}): PatrolRefusal | null {
+  if (facts.pieces !== 1) return { code: 'PATROL_ONE_TROOP' };
+  if (!PATROL_ROLES.has(facts.role)) return { code: 'PATROL_LAND_COMBAT_ONLY' };
+  if (facts.aboard) return { code: 'STILL_ABOARD' };
+  if (facts.busy) return { code: 'PATROL_BUSY' };
+  if (!facts.drawn.some((pair) => sameLiaison(pair, facts.liaison)))
+    return { code: 'PATROL_NOT_DRAWN' };
+  if (facts.stationedAt === null || !facts.liaison.includes(facts.stationedAt))
+    return { code: 'PATROL_NOT_AT_END' };
+  if (facts.patrolled.some((pair) => sameLiaison(pair, facts.liaison)))
+    return { code: 'PATROL_TAKEN' };
+  if (facts.slots.used >= facts.slots.total)
+    return { code: 'MOVEMENT_IN_FLIGHT', maximum: facts.slots.total };
+  return null;
 }

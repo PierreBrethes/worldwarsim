@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { followCenter } from './research';
 import { stopTour } from './tours';
+import { endPatrol } from './patrols';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation } from './_generated/server';
@@ -742,8 +743,9 @@ async function toIrregulars(
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
     .collect()) {
-    /** Sa tournée tombe avec lui : un siège irrégulier ne ravitaille personne. */
+    /** Sa tournée et ses rondes tombent avec lui : un siège irrégulier ne ravitaille personne. */
     if (troop.tour !== undefined) await stopTour(ctx, troop, now, 'cut');
+    if (troop.patrol !== undefined) await endPatrol(ctx, troop, now, 'lost');
     await ctx.db.patch(troop._id, { playerId: irregularId });
   }
   await dropCapturesOf(ctx, loser._id, now);

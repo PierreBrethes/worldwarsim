@@ -81,6 +81,7 @@ import { suppliesOf } from '../src/domain/supplies';
 import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
+import { arriveOnPatrol } from './patrols';
 import { pacedMinutes } from './movement/pace';
 import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
@@ -1067,6 +1068,13 @@ export const arrive = internalMutation({
     if (movement.tourLeg !== undefined) {
       if (movement.tourLeg === 'stop') await arriveOnTour(ctx, movement, now);
       else await arriveAtBase(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
+      return;
+    }
+
+    /** **Une étape de ronde** (#376) : halte au bout atteint, ou fin de la ronde. */
+    if (movement.patrolLeg === true) {
+      await arriveOnPatrol(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }

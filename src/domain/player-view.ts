@@ -335,6 +335,14 @@ export type TroopView = {
      *  maître. */
     readonly veiled?: true;
   };
+  /** **Sa ronde** (ADR 0037 §10, #376) : sa liaison, le bout vers lequel elle va, la fin de sa
+   *  halte (`null` en route), et si elle finit l'étape, rappelée. */
+  readonly patrol?: {
+    readonly ends: readonly [string, string];
+    readonly to: string;
+    readonly haltUntil: number | null;
+    readonly recalled: boolean;
+  };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;
   /** **L'artillerie** (B20) : l'instant où elle sera en batterie ; absent quand elle l'est. */
@@ -353,6 +361,9 @@ export type TourWait = {
 /** **Pourquoi une tournée finit** : rappelée, coupée (chargement ou dépôts perdus, déroute,
  *  chute), ou sa route refusée trop longtemps. */
 export type TourEnd = 'recalled' | 'cut' | 'road';
+/** **Pourquoi une ronde finit** (#376) : rappelée, son bout perdu, sa liaison retirée du tracé, sa
+ *  troupe en déroute, sa route refusée trop longtemps. */
+export type PatrolEnd = 'recalled' | 'lost' | 'withdrawn' | 'routed' | 'road';
 
 export type OutpostView = {
   readonly id: string;
@@ -980,6 +991,13 @@ type NoticeBody =
       readonly at: number;
       readonly role: UnitRole;
     } & TourWait)
+  | {
+      readonly kind: 'patrolEnded';
+      readonly at: number;
+      readonly role: UnitRole;
+      readonly why: PatrolEnd;
+      readonly hostCountry: string;
+    }
   | {
       readonly kind: 'tourEnded';
       readonly at: number;

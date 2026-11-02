@@ -555,6 +555,13 @@ export const TOUR_RETRY_MINUTES = 30;
  */
 export const TOUR_ROAD_WAITS = 3;
 
+/**
+ * **La halte d'une ronde** à chaque bout de sa liaison, en garnison (ADR 0037 §10, Q21).
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const PATROL_HALT_MINUTES = 60;
+
 export const TIER_2_FACTOR = 1.6;
 
 /** Nearly inert since a batch became a single troop — the troop bound below bites first. Kept

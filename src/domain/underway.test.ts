@@ -16,6 +16,8 @@ const board = (over: Readonly<Record<string, unknown>> = {}, arcs: ReadonlyArray
         { id: 'B-1', key: 'mine', name: 'Mine', regionId: 'FRA-1', point: [3, 50], level: 3 },
       ],
       outposts: [],
+      troops: [],
+      regions: [],
       chains: [],
       research: { researched: [], running: null, queue: [] },
       ...over,
@@ -212,5 +214,57 @@ describe('what runs, nearest first', () => {
       'recruitment-B-2',
       'movement-M-1',
     ]);
+  });
+});
+
+/** **La ronde dans « En cours »** (#376) : « ronde → B » en route, sa halte à l'arrêt. */
+describe('a patrol under way', () => {
+  const outposts = [
+    { id: 'P-1', hostCountry: 'DEU', regionId: 'R-1', standsAt: null },
+    { id: 'P-2', hostCountry: 'DEU', regionId: 'R-2', standsAt: null },
+  ];
+  const regions = [
+    { id: 'R-1', name: 'Rhénanie' },
+    { id: 'R-2', name: 'Hesse' },
+  ];
+  const patrol = (haltUntil: number | null) => ({
+    ends: ['P-1', 'P-2'],
+    to: 'P-2',
+    haltUntil,
+    recalled: false,
+  });
+
+  it('names the end it walks to while on the road', () => {
+    const troops = [
+      {
+        id: 'T',
+        role: 'armor',
+        stationedAt: { kind: 'outpost', outpostId: 'P-1' },
+        patrol: patrol(null),
+      },
+    ];
+    const lines = underwayOf(
+      board({ outposts, regions, troops } as never, [march('M', 30, { troopIds: ['T'] } as never)]),
+      [],
+    );
+    expect(lines.map((line) => line.label)).toEqual(['ronde → Hesse']);
+  });
+
+  it('dates its halt in the garrison it holds', () => {
+    const troops = [
+      {
+        id: 'T',
+        role: 'armor',
+        stationedAt: { kind: 'outpost', outpostId: 'P-2' },
+        patrol: patrol(minutes(60)),
+      },
+    ];
+    const [line] = underwayOf(board({ outposts, regions, troops } as never), []);
+    expect(line).toMatchObject({
+      id: 'patrol-T',
+      endsAt: minutes(60),
+      place: { kind: 'outpost', outpostId: 'P-2' },
+    });
+    expect(line!.label).toMatch(/^halte à Hesse jusqu’à \d\d:\d\d$/);
   });
 });

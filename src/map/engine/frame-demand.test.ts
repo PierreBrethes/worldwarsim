@@ -189,6 +189,7 @@ describe('every public method of the engine asks for a frame', () => {
     'walkableAt',
     'landAt',
     'groundAt',
+    'liaisonAt',
     'consumeCarry',
     'dispose',
   ]);

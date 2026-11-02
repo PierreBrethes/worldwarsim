@@ -289,6 +289,8 @@ export function build(
     case 'loot':
     case 'camp':
     case 'track':
+    /** Une liaison ne se vise que troupe en main (#376). */
+    case 'liaison':
       return { kicker: '', name: '', actions: [], refusal: null };
     /**
      * **L'objectif est la seule cible qui parle au repos**, et c'est la conséquence de sa

@@ -1,6 +1,6 @@
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { isStanding, linkedRelays } from '../../src/domain/outposts';
+import { drawnLiaisonsOf, isStanding, linkedRelays } from '../../src/domain/outposts';
 import { relayedCostUnits, type Relay } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
 import { costMinutes } from '../../src/domain/pace';
@@ -33,20 +33,33 @@ export async function liaisonRelaysOf(
   playerId: Id<'players'>,
   at: number,
 ): Promise<ReadonlyArray<Relay>> {
-  return linkedRelays(
-    (
-      await ctx.db
-        .query('outposts')
-        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
-        .collect()
-    )
-      /** Un chantier n'est en liaison avec rien : le point n'existe pas encore (révision du 15/09). */
-      .filter((outpost) => isStanding(outpost, at))
-      .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
-      .map((outpost) => ({
-        id: outpost._id,
-        point: pointOf(outpost.point),
-        reachKm: outpostReachKm(outpost.level),
-      })),
-  );
+  return linkedRelays(await liaisonPointsOf(ctx, playerId, at));
+}
+
+/** **Les liaisons que sa carte trace à cet instant** (ADR 0037 §8, #376) : celles où une ronde
+ *  tourne, lues comme le client les dessine (`drawnLiaisonsOf`). */
+export async function drawnLiaisonsAt(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  at: number,
+): Promise<Array<[Id<'outposts'>, Id<'outposts'>]>> {
+  return drawnLiaisonsOf(await liaisonPointsOf(ctx, playerId, at));
+}
+
+/** Ses points debout et en service — l'équivalent serveur d'`isOnWatch`. */
+async function liaisonPointsOf(ctx: QueryCtx, playerId: Id<'players'>, at: number) {
+  return (
+    await ctx.db
+      .query('outposts')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect()
+  )
+    /** Un chantier n'est en liaison avec rien : le point n'existe pas encore (révision du 15/09). */
+    .filter((outpost) => isStanding(outpost, at))
+    .filter((outpost) => outpost.disabledUntil === null || outpost.disabledUntil <= at)
+    .map((outpost) => ({
+      id: outpost._id,
+      point: pointOf(outpost.point),
+      reachKm: outpostReachKm(outpost.level),
+    }));
 }
