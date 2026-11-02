@@ -364,6 +364,73 @@ describe('what sees a movement go past', () => {
     expect(await sightingsOf(t, guest)).toEqual([]);
   });
 
+  /** Une route à 150 km d'un point de niveau 2 : hors de sa mi-portée, dans le rayon d'un Guet. */
+  const pastTheHalfReach = async (
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    guest: Seat,
+    specialty?: 'fort',
+    /** Assez loin pour que la colonne n'entre dans le rayon qu'après un chantier. */
+    westKm = 250,
+  ) => {
+    const here = pointOf(PRAHOVA);
+    const point = await outpost(t, guest, here);
+    await t.run(async (ctx) =>
+      ctx.db.patch(point, { level: 2, ...(specialty === undefined ? {} : { specialty }) }),
+    );
+    const guestId = await playerOf(t, guest);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', guestId))
+        .collect())
+        if (row.key === 'steel') await ctx.db.patch(row._id, { stock: 1000 });
+    });
+    const from = eastOf(northOf(here, 150), -westKm);
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin,
+      troopIds,
+      point: asPoint(eastOf(northOf(here, 150), 250)),
+    });
+    return point;
+  };
+
+  /** **Le choix gratuit relit les détecteurs** (ADR 0037 §11) : le Guet voit aussitôt. */
+  it('files the sighting at once when an old generalist chooses the Guet', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const point = await pastTheHalfReach(t, seat, guest);
+    expect(await sightingsOf(t, guest)).toEqual([]);
+
+    await t.mutation(api.constructions.respecializeOutpost, {
+      ...guest,
+      outpostId: point,
+      specialty: 'lookout',
+    });
+    expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'outpost' }]);
+  });
+
+  /** **La fin d'un changement relit les détecteurs** (ADR 0037 §7) : le Fort devenu Guet voit. */
+  it('files the sighting when a Fort finishes its change to Guet', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const point = await pastTheHalfReach(t, seat, guest, 'fort', 700);
+    await t.mutation(api.constructions.respecializeOutpost, {
+      ...guest,
+      outpostId: point,
+      specialty: 'lookout',
+    });
+    expect(await sightingsOf(t, guest)).toEqual([]);
+
+    const works = await t.run(async (ctx) => ctx.db.query('constructions').collect());
+    vi.advanceTimersByTime(works[0]!.finishesAt! - Date.now());
+    await t.finishInProgressScheduledFunctions();
+    expect((await t.run(async (ctx) => ctx.db.get(point)))!.specialty).toBe('lookout');
+    expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'outpost' }]);
+  });
+
   it('files nothing for a road inside the reach of an outpost but outside its lookout', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
