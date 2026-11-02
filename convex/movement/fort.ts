@@ -16,7 +16,7 @@ import {
   type MarchingForce,
   type Watcher,
 } from '../../src/domain/interception';
-import { effectiveSpecialty, isStanding, lookoutKmOf } from '../../src/domain/outposts';
+import { fortWatches, lookoutKmOf } from '../../src/domain/outposts';
 import { fortEntryOf, heldMinutes } from '../../src/domain/route-timing';
 import { COST_BY_MEDIUM } from '../../src/domain/routing';
 import { seenSegment } from '../../src/domain/sighting-segment';
@@ -169,13 +169,12 @@ async function fortsOnWatch(ctx: MutationCtx, movement: Doc<'movements'>, now: n
   const silent = new Map<Id<'players'>, boolean>();
   const forts: Array<Fort & { readonly hostCountry: string }> = [];
   for (const outpost of await seasonOutposts(ctx, movement.seasonId)) {
-    if (outpost.playerId === movement.playerId || effectiveSpecialty(outpost) !== 'fort') continue;
-    if (!isStanding(outpost, now) || (outpost.disabledUntil ?? 0) > now) continue;
+    if (outpost.playerId === movement.playerId) continue;
     if (!silent.has(outpost.playerId)) {
       const player = await ctx.db.get(outpost.playerId);
       silent.set(outpost.playerId, player?.irregular === true || player?.listeningSilent === true);
     }
-    if (silent.get(outpost.playerId)) continue;
+    if (!fortWatches(outpost, now, silent.get(outpost.playerId)!)) continue;
     forts.push({
       id: outpost._id,
       point: pointOf(outpost.point),

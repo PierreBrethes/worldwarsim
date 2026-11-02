@@ -109,6 +109,21 @@ export type Specialized = {
 export const effectiveSpecialty = (outpost: Specialized): Specialty =>
   outpost.changingTo == null ? (outpost.specialty ?? 'general') : 'general';
 
+/**
+ * **Un Fort retient ce qu'il guette, rien de plus** (ADR 0037 §6) : debout, en service, son maître
+ * au charbon (`silent` : le silence national, lu par l'appelant). Le plateau du brouillard et
+ * l'entrée dans la vigie lisent ce seul prédicat.
+ */
+export const fortWatches = (
+  outpost: OutpostStanding & { readonly disabledUntil: number | null } & Specialized,
+  now: number,
+  silent: boolean,
+): boolean =>
+  !silent &&
+  isStanding(outpost, now) &&
+  (outpost.disabledUntil ?? 0) <= now &&
+  effectiveSpecialty(outpost) === 'fort';
+
 /** **Tout avant-poste debout guette** (ADR 0037 §1, §2), à une part de son rayon de contrôle ;
  *  le Guet, au rayon entier (§5). */
 export const lookoutKmOf = (outpost: { readonly level: number } & Specialized): number =>

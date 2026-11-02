@@ -26,7 +26,12 @@ import {
 import { seenSegment } from '../../src/domain/sighting-segment';
 import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
-import { effectiveSpecialty, isStanding, lookoutKmOf } from '../../src/domain/outposts';
+import {
+  effectiveSpecialty,
+  fortWatches,
+  isStanding,
+  lookoutKmOf,
+} from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
 import { coalDryAt, economyOf, keepDryWakeUp, keepSilence } from '../resources';
@@ -406,14 +411,15 @@ async function detectionBoard(
     /** Un chantier ne guette pas : le point n'existe pas encore (révision du 15/09). */
     if (!isStanding(outpost, now)) continue;
     if (outpost.disabledUntil !== null && outpost.disabledUntil > now) continue;
-    if (await isSilent(outpost.playerId)) continue;
-    if (effectiveSpecialty(outpost) === 'fort')
+    const silent = await isSilent(outpost.playerId);
+    if (fortWatches(outpost, now, silent))
       forts.push({
         id: outpost._id,
         point: pointOf(outpost.point),
         radiusKm: lookoutKmOf(outpost),
         playerId: outpost.playerId,
       });
+    if (silent) continue;
     watchers.push({
       id: `outpost:${outpost._id}`,
       point: pointOf(outpost.point),
