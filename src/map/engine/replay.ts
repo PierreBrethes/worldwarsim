@@ -400,6 +400,9 @@ export class ReplayScene {
   private readonly sea: boolean;
   /** The longest piece's length, in the scene's units. */
   private readonly hull: number;
+  /** **What a fleet's night glow covers** (#324), in the scene's units: its ships and a hull
+   *  around them, like a pile's (`StandingLayer.lights`). `null` on land. */
+  readonly fleet: number | null;
 
   /** `medium` is the point's: an enemy block — an account from before the fire was seen — wears
    *  its pictogram, never a role. `foe` is the nation faced at the fire (F1). */
@@ -424,6 +427,10 @@ export class ReplayScene {
       mine: layout(mine, 'mine').map((spot) => batteryOf(fire) ?? spot),
       theirs: layout(pieces.length - mine, 'theirs'),
     };
+    const homes = [...spots.mine, ...spots.theirs];
+    this.fleet = this.sea
+      ? Math.max(...homes.flatMap(([x, z]) => [Math.abs(x), Math.abs(z)])) + this.hull
+      : null;
     this.pieces = pieces.map((piece, k) =>
       this.stand(
         piece,

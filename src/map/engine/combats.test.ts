@@ -3,7 +3,10 @@ import { MeshStandardMaterial, Vector3, type Mesh } from 'three';
 import { FINAL_POSE_MS } from '@/domain/combat-on-map';
 import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, stepBounds } from '@/domain/replay';
+import { troopSpan } from '@/domain/piece-size';
 import { CombatLayer, WAIT_MS } from './combats';
+import { ANONYMOUS_SPAN } from './figurines/figurine';
+import { REPLAY_STAGE } from './replay';
 
 const heard = vi.hoisted(() => [] as string[]);
 vi.mock('../table-sound', () => ({ playTableSound: (sound: string) => heard.push(sound) }));
@@ -104,7 +107,7 @@ describe('CombatLayer, after the review', () => {
     const layer = new CombatLayer();
     const settled: string[] = [];
     layer.onSettled = (id) => settled.push(id);
-    layer.wait('a', at, 0);
+    layer.wait('a', at, ANONYMOUS_SPAN, 0);
     expect(layer.advance(10, scale)).toBe(false);
     expect(layer.veils).toHaveLength(1);
     expect(layer.advance(WAIT_MS + 1, scale)).toBe(true);
@@ -117,7 +120,7 @@ describe('CombatLayer, after the review', () => {
     const settled: string[] = [];
     layer.onSettled = (id) => settled.push(id);
     layer.play(combat('a'), null, at, 0, 0);
-    layer.wait('b', at, 0);
+    layer.wait('b', at, ANONYMOUS_SPAN, 0);
     layer.advance(0, scale);
     layer.clear();
     expect(layer.group.children).toHaveLength(0);
@@ -212,7 +215,7 @@ describe('CombatLayer, the report stamp (#327)', () => {
     const told: string[] = [];
     layer.onShown = (id) => told.push(id);
     layer.play(combat('a'), null, at, 0, 0);
-    layer.wait('w', at, 0);
+    layer.wait('w', at, ANONYMOUS_SPAN, 0);
     expect(layer.shown('a')).toBe(false);
     layer.advance(0, () => 0);
     expect(layer.shown('a')).toBe(false);
@@ -320,6 +323,45 @@ describe('CombatLayer, at sea (#324)', () => {
     layer.play(view, 'france', at, 0, 0, 'sea');
     // Two bombers, one escort, and their three shots.
     expect(layer.group.children[0]!.children).toHaveLength(6);
+  });
+
+  it('veils a waiting point by hulls of the ship it is seen by, not by a tank', () => {
+    const reachOf = (span: number) => {
+      const layer = new CombatLayer();
+      layer.wait('w', at, span, 0);
+      layer.advance(1, scale);
+      return layer.veils[0]!.reach;
+    };
+    expect(reachOf(troopSpan('escort')) / reachOf(ANONYMOUS_SPAN)).toBeCloseTo(
+      troopSpan('escort') / ANONYMOUS_SPAN,
+    );
+  });
+
+  it('glows at night over its ships and a hull around them, not over its whole reach', () => {
+    const escort = {
+      role: 'escort' as const,
+      tier: 1 as const,
+      troops: 1,
+      lost: 0,
+      routed: 0,
+      destroyed: 0,
+    };
+    const view: ReplayView = {
+      ...combat('night'),
+      mine: [escort],
+      theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+      faced: { nation: 'germany', forces: [{ ...escort, strength: 100 }] },
+    };
+    const layer = new CombatLayer();
+    layer.play(view, 'france', at, 0, 0, 'sea');
+    layer.advance(stepBounds('frappe').start, scale);
+    const radii: number[] = [];
+    layer.lights((_, radius) => radii.push(radius));
+    const ships = layer.group.children[0]!.children.slice(0, 2);
+    const far = Math.max(
+      ...ships.flatMap(({ position }) => [Math.abs(position.x), Math.abs(position.z)]),
+    );
+    expect(radii).toEqual([expect.closeTo(far + troopSpan('escort') / REPLAY_STAGE)]);
   });
 
   it('settles at once, with no scene, a combat at sea with a side left empty', () => {

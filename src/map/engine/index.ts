@@ -2813,7 +2813,7 @@ export class MapEngine {
       return;
     }
     if (cue.view === null) {
-      this.combats.wait(cue.id, point, now);
+      this.combats.wait(cue.id, point, span, now);
       return;
     }
     let yaw: number;

@@ -4,9 +4,8 @@ import type { Medium } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { replayAt } from '@/domain/replay';
-import { ANONYMOUS_SPAN } from './figurines/figurine';
 import { warmPieces, type Flash } from './halo';
-import { lineCentre, ReplayScene, replayReach } from './replay';
+import { lineCentre, REPLAY_STAGE, ReplayScene, replayReach } from './replay';
 
 type Played = {
   /** What the scene plays: at sea, its ships alone (`afloat`). */
@@ -35,9 +34,9 @@ type Played = {
 /** A point waits this long for its view before it shows again. @a-mesurer: a slow `replayOf`
  *  on a phone still lands inside it? */
 export const WAIT_MS = 4000;
-/** What a point waiting for its view veils around it, in the scene's units. @a-mesurer: the
- *  reach of a combat of three pieces a side, about. */
-const WAITING_REACH = 3;
+/** What a point waiting for its view veils around it, in hulls of its longest piece (`span`).
+ *  @a-mesurer: the reach of a combat of three tanks a side, about. */
+const WAITING_HULLS = 4;
 
 /**
  * **Les combats qui se jouent sur la carte** (#272) : chacun pose sa propre scène au point, tirée
@@ -59,7 +58,10 @@ export class CombatLayer {
   onShown: (id: string) => void = () => {};
   private readonly seen = new Set<string>();
   private played: Played[] = [];
-  private readonly waiting = new Map<string, { readonly point: Vector3; readonly since: number }>();
+  private readonly waiting = new Map<
+    string,
+    { readonly point: Vector3; readonly span: number; readonly since: number }
+  >();
   /** What the scenes cover on the board, as of the last `advance`: the ground there is hidden. */
   veils: ReadonlyArray<{ readonly center: Vector3; readonly reach: number }> = [];
 
@@ -68,9 +70,10 @@ export class CombatLayer {
     return this.motion === 'full' && this.played.some((each) => each.plays);
   }
 
-  /** A combat is known before its view comes: its point is hidden from now. */
-  wait(id: string, point: Vector3, now: number): void {
-    this.waiting.set(id, { point, since: now });
+  /** A combat is known before its view comes: its point is hidden from now, as far as `span`,
+   *  the piece it is seen by (`playCombat`), takes. */
+  wait(id: string, point: Vector3, span: number, now: number): void {
+    this.waiting.set(id, { point, span, since: now });
   }
 
   waits(id: string): boolean {
@@ -181,12 +184,16 @@ export class CombatLayer {
       veils.push({ center: object.position, reach: each.reach * scale });
       return true;
     });
-    for (const [id, { point, since }] of this.waiting) {
+    for (const [id, { point, span, since }] of this.waiting) {
       if (now - since > WAIT_MS) {
         this.waiting.delete(id);
         this.onSettled(id);
         due = true;
-      } else veils.push({ center: point, reach: WAITING_REACH * scaleAt(point, ANONYMOUS_SPAN) });
+      } else
+        veils.push({
+          center: point,
+          reach: ((WAITING_HULLS * span) / REPLAY_STAGE) * scaleAt(point, span),
+        });
     }
     this.veils = veils;
     return due;
@@ -195,7 +202,8 @@ export class CombatLayer {
   /** At night a combat glows like a pile (`StandingLayer.lights`): it stood in the dark. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
     for (const { scene, reach } of this.played)
-      if (scene.object.visible) emit(scene.object.position, reach * scene.object.scale.x, 1);
+      if (scene.object.visible)
+        emit(scene.object.position, (scene.fleet ?? reach) * scene.object.scale.x, 1);
   }
 
   /** **The shots that light the night** (#332): each shown scene's most vivid flash (cut
@@ -203,7 +211,7 @@ export class CombatLayer {
   flashes(): Flash[] {
     return this.played.flatMap(({ scene, reach }) => {
       const lit = scene.object.visible ? scene.brightestFlash() : null;
-      return lit === null ? [] : [{ ...lit, reach: reach * scene.object.scale.x }];
+      return lit === null ? [] : [{ ...lit, reach: (scene.fleet ?? reach) * scene.object.scale.x }];
     });
   }
 
