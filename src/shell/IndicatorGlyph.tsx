@@ -75,13 +75,7 @@ export function IndustryGlyph({ size = 19 }: { size?: number }) {
  * Categories of things carry their pictogram; the two movement marks stay drawn strokes,
  * whose arrow says a direction where a pictogram would only say a nature.
  */
-export function IndicatorGlyph({
-  category,
-  size = 19,
-}: {
-  category: EdgeCategory;
-  size?: number;
-}) {
+export function IndicatorGlyph({ category, size = 19 }: { category: EdgeCategory; size?: number }) {
   const mark = MARK[category];
   return 'pictogram' in mark ? (
     <Pictogram pictogram={mark.pictogram} weight={20} size={size} />

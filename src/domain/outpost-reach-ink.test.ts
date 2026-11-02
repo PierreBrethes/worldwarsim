@@ -54,7 +54,15 @@ describe('leftReaches', () => {
 /** **Une liaison qui naît se trace** (#375), comparée d'une vue à la suivante, dans un sens ou l'autre. */
 describe('bornLiaisons', () => {
   it('names the liaisons this view adds, whatever their order', () => {
-    expect(bornLiaisons([['a', 'b']], [['b', 'a'], ['b', 'c']])).toEqual([['b', 'c']]);
+    expect(
+      bornLiaisons(
+        [['a', 'b']],
+        [
+          ['b', 'a'],
+          ['b', 'c'],
+        ],
+      ),
+    ).toEqual([['b', 'c']]);
   });
 
   it('says nothing of one that went', () => {

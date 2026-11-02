@@ -180,18 +180,15 @@ export function linkedRelays<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): Outpo
  */
 export function drawnLiaisonsOf<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): Array<[Id, Id]> {
   const all = liaisonsOf(points);
-  const linked = (x: Id, y: Id) => all.some(([p, q]) => (p === x && q === y) || (p === y && q === x));
+  const linked = (x: Id, y: Id) =>
+    all.some(([p, q]) => (p === x && q === y) || (p === y && q === x));
   const at = new Map(points.map((point) => [point.id, point.point] as const));
   const km = (x: Id, y: Id) => distanceKm(at.get(x)!, at.get(y)!);
   return all.filter(([a, b]) => {
     const side = km(a, b);
     return !points.some(
       ({ id: c }) =>
-        c !== a &&
-        c !== b &&
-        Math.max(km(a, c), km(b, c)) < side &&
-        linked(a, c) &&
-        linked(b, c),
+        c !== a && c !== b && Math.max(km(a, c), km(b, c)) < side && linked(a, c) && linked(b, c),
     );
   });
 }
