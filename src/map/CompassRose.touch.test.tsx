@@ -40,11 +40,11 @@ const aim = {
 } as unknown as CompassAction;
 
 const of = (key: CompassAction['key']): CompassAction =>
-  ({ ...upgrade, key, hold: null, current: false, sealed: null }) as unknown as CompassAction;
+  ({ ...upgrade, key, hold: null }) as unknown as CompassAction;
 
 describe('readsFirst', () => {
-  it('fait lire d’abord, sous le seuil, les quatre branches qui paient sans confirmation', () => {
-    for (const key of ['upgrade', 'raiseOutpost', 'found', 'specialize'] as const)
+  it('fait lire d’abord, sous le seuil, les trois branches qui paient sans confirmation', () => {
+    for (const key of ['upgrade', 'raiseOutpost', 'found'] as const)
       expect(readsFirst(of(key), true)).toBe(true);
   });
 

@@ -12,7 +12,16 @@ import { allRegions, foundationOwedBy, regionFacts, pointOfRegion } from './regi
 import { distanceKm } from '../src/domain/geo';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, holdPoint, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
+import {
+  campsAroundAFullPass,
+  foundSeat,
+  holdPoint,
+  joinSeat,
+  placeHq,
+  plantGuet,
+  seatIn,
+  surveyRegion,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -177,6 +186,37 @@ describe('capturing a building', () => {
       { side: 'defender', completesAt: MIDDAY + 6 * HOUR },
     ]);
     expect((await t.run((ctx) => ctx.db.get(infantry)))!.stationedAt).toEqual(pointOfRegion(PSKOV));
+  });
+
+  /** **Le Guet relit les pertes de la capture** (#373) : la garnison tuée à l'arrivée se relit. */
+  it('re-reads for a Guet the garrison a capture has killed', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, guest, PSKOV);
+    const defender = await troop(t, guest, 'infantry', barracks);
+    const attackers = await Promise.all([
+      troop(t, seat, 'infantry', null),
+      troop(t, seat, 'infantry', null),
+      troop(t, seat, 'infantry', null),
+    ]);
+    const site = pointOfRegion(PSKOV);
+    await plantGuet(t, seat, { lon: site.lon - 0.5, lat: site.lat });
+    expect((await t.query(api.view.playerView, seat)).camps).toContainEqual(
+      expect.objectContaining({ identification: expect.objectContaining({ pierced: true }) }),
+    );
+
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: barracks },
+      site,
+      'RUS',
+      attackers,
+    );
+
+    expect(await t.run((ctx) => ctx.db.get(defender))).toBeNull();
+    const { before, after } = await campsAroundAFullPass(t, seat);
+    expect(before).toEqual(after);
   });
 
   it('hands the building over a level down, and colours national ground for its capturer', async () => {
@@ -397,7 +437,6 @@ describe('capturing an outpost', () => {
         hostCountry: 'ROU',
         regionId: PRAHOVA,
         level: 2,
-        specialization: 'relay',
         foundedAt: MIDDAY - 10 * HOUR,
         disabledUntil: null,
         immuneUntil: null,
@@ -450,7 +489,6 @@ describe('capturing an outpost with a depot', () => {
         hostCountry: 'ROU',
         regionId: PRAHOVA,
         level: 2,
-        specialization: 'relay',
         foundedAt: MIDDAY - 10 * HOUR,
         disabledUntil: null,
         immuneUntil: null,
@@ -606,7 +644,6 @@ describe('capturing a foundation still under way', () => {
         hostCountry: 'ROU',
         regionId: PRAHOVA,
         level: 1,
-        specialization: 'relay',
         foundedAt: MIDDAY - HOUR,
         standsAt: MIDDAY + 5 * HOUR,
         disabledUntil: null,
@@ -738,7 +775,6 @@ describe('a disabled outpost', () => {
         hostCountry: 'ROU',
         regionId: PRAHOVA,
         level: 1,
-        specialization: 'relay',
         foundedAt: MIDDAY - 10 * HOUR,
         disabledUntil: MIDDAY + 4 * HOUR,
         immuneUntil: MIDDAY + 20 * HOUR,
@@ -1325,7 +1361,6 @@ describe('a headquarters falling at a full table', () => {
             point: near(0.5),
             hostCountry: 'DEU',
             level: 1,
-            specialization: 'listening',
             foundedAt: Date.now() - 1,
             disabledUntil: null,
             immuneUntil: null,
@@ -1342,6 +1377,9 @@ describe('a headquarters falling at a full table', () => {
             }
           }
         });
+        /** Les stocks sont écrits à la main : le réveil que le jeu aurait pris à sec relit le
+         *  capteur et inscrit son silence sur sa ligne (`players.listeningSilent`). */
+        await t.mutation(internal.listening.reassess, { playerId: capturerId });
         await holdPoint(t, seats[1]!, 'rangoon');
       }
       await reassess(t, seat.seasonId);

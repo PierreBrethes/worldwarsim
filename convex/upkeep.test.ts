@@ -8,7 +8,7 @@ import { ledgerOf } from '../src/domain/ledger';
 import type { PlayerView } from '../src/domain/player-view';
 import {
   EXTRACTION_PER_HOUR,
-  LISTENING_COAL_PER_HOUR,
+  LOOKOUT_COAL_PER_HOUR_PER_LEVEL,
   OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   OUTPOST_DISABLED_HOURS,
   outpostReachKm,
@@ -126,7 +126,6 @@ async function plant(
       point: { lon: point[0], lat: point[1] },
       hostCountry: 'SAU',
       level: 1,
-      specialization: 'relay' as const,
       foundedAt: Date.now(),
       disabledUntil: disabled ? Date.now() + OUTPOST_DISABLED_HOURS * 3_600_000 : null,
       immuneUntil: null,
@@ -259,16 +258,19 @@ describe('the empire eats and burns (ADR 0028 §2)', () => {
     expect((await upkeepOf(t, seat)).outpostFoodPerHour).toBe(0);
   });
 
-  it('burns coal for a listening outpost and for nothing else', async () => {
+  /** **Tout point debout guette, et sa vigie brûle un charbon par heure et par niveau** (ADR 0037
+   *  §2) ; un point désactivé ou en chantier ne guette pas, donc ne brûle rien. */
+  it('burns coal for every standing lookout, by level, and none for one out of service', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const id = await plant(t, seat, RIYADH);
-    expect((await upkeepOf(t, seat)).listeningCoalPerHour).toBe(0);
+    await plant(t, seat, [RIYADH[0] + 3, RIYADH[1]], { disabled: true });
+    expect((await upkeepOf(t, seat)).listeningCoalPerHour).toBe(LOOKOUT_COAL_PER_HOUR_PER_LEVEL);
 
-    await t.run(async (ctx) => ctx.db.patch(id, { specialization: 'listening' as const }));
+    await t.run(async (ctx) => ctx.db.patch(id, { level: 3 }));
     const view = await t.query(api.view.playerView, seat);
-    expect(view.me.upkeep.listeningCoalPerHour).toBe(LISTENING_COAL_PER_HOUR);
-    expect(view.me.resources.coal.ratePerHour).toBe(-LISTENING_COAL_PER_HOUR);
+    expect(view.me.upkeep.listeningCoalPerHour).toBe(3 * LOOKOUT_COAL_PER_HOUR_PER_LEVEL);
+    expect(view.me.resources.coal.ratePerHour).toBe(-3 * LOOKOUT_COAL_PER_HOUR_PER_LEVEL);
     for (const resource of RESOURCES)
       expect(ledgerOf(view as unknown as PlayerView, resource).balance).toBeCloseTo(
         view.me.resources[resource].ratePerHour,

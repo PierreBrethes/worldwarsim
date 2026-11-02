@@ -328,13 +328,13 @@ describe('what the jobs file for the journal', () => {
       regionId: null,
       ...seat,
       point: asPoint(desert),
-      specialization: 'relay',
       troopIds: [await post(t, seat, desert)],
     });
 
-    expect(await noticesOf(t, seat, 'outpostFounded')).toMatchObject([
-      { hostCountry: 'ROU', specialization: 'relay' },
-    ]);
+    const [founded] = await noticesOf(t, seat, 'outpostFounded');
+    expect(founded).toMatchObject({ hostCountry: 'ROU' });
+    /** Le journal ne dit plus de métier (ADR 0037 §1) : la dépêche n'en porte plus. */
+    expect(founded).not.toHaveProperty('specialization');
     expect(await noticesOf(t, guest, 'outpostFounded')).toEqual([]);
   });
 
@@ -355,7 +355,6 @@ describe('what the jobs file for the journal', () => {
         point: asPoint(point),
         hostCountry: 'ROU',
         level: 1,
-        specialization: 'relay',
         foundedAt: Date.now(),
         disabledUntil: null,
         immuneUntil: null,
@@ -380,9 +379,9 @@ describe('what the jobs file for the journal', () => {
     vi.advanceTimersByTime(sent.minutes * 60_000);
     await t.finishInProgressScheduledFunctions();
 
-    expect(await noticesOf(t, guest, 'outpostDisabled')).toMatchObject([
-      { hostCountry: 'ROU', specialization: 'relay' },
-    ]);
+    const [disabled] = await noticesOf(t, guest, 'outpostDisabled');
+    expect(disabled).toMatchObject({ hostCountry: 'ROU' });
+    expect(disabled).not.toHaveProperty('specialization');
     expect(await noticesOf(t, seat, 'outpostDisabled')).toEqual([]);
   });
 

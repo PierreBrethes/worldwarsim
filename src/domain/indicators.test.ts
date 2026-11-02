@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { URGENCY_MS, type MapLabel } from './labels';
+import type { MapLabel } from './labels';
 import {
   CATEGORIES,
   CATEGORY_BY_TYPE,
@@ -47,7 +47,6 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
   lootCurrent: true,
   lines: [],
   identified: false,
-  offensive: false,
   idle: false,
   building: null,
   station: null,
@@ -174,36 +173,18 @@ describe('cluster', () => {
 });
 
 describe('alert mark', () => {
-  it('leaves the glyph neutral while the movement is unidentified', () => {
-    expect(alertMark(label({}), NOW)).toBe('threat');
-  });
-
-  it('only arms the triangle on an identified, offensive movement', () => {
-    const pierced = label({
-      identified: true,
-      offensive: true,
-      lines: [{ role: 'countdown', dueAt: NOW + 60 * 60_000, prefix: '~' }],
-    });
-    expect(alertMark(pierced, NOW)).toBe('offensive');
-    expect(alertMark(label({ identified: true, offensive: false }), NOW)).toBe('threat');
-  });
-
-  it('turns imminent below the urgency threshold', () => {
-    const near = label({
-      identified: true,
-      offensive: true,
-      lines: [{ role: 'countdown', dueAt: NOW + URGENCY_MS - 1, prefix: '~' }],
-    });
-    expect(alertMark(near, NOW)).toBe('imminent');
+  it('leaves the glyph neutral on a heading at me, its pile read or not', () => {
+    expect(alertMark(label({}))).toBe('threat');
+    expect(alertMark(label({ identified: true }))).toBe('threat');
   });
 
   it('marks nothing outside inbound — the critical accent is its alone', () => {
-    expect(alertMark(label({ type: 'intel' }), NOW)).toBe('none');
-    expect(alertMark(label({ type: 'my-movement' }), NOW)).toBe('none');
+    expect(alertMark(label({ type: 'intel' }))).toBe('none');
+    expect(alertMark(label({ type: 'my-movement' }))).toBe('none');
   });
 
   it('keeps a cluster’s strongest mark', () => {
-    expect(strongestMark(['threat', 'imminent', 'none'])).toBe('imminent');
+    expect(strongestMark(['none', 'threat', 'none'])).toBe('threat');
     expect(strongestMark([])).toBe('none');
   });
 });

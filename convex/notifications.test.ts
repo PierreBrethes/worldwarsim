@@ -428,7 +428,6 @@ describe('ce qui entre dans la file', () => {
         point: asPoint(pointOf(PRAHOVA)),
         hostCountry: 'ROU',
         level: 1,
-        specialization: 'relay',
         foundedAt: Date.now(),
         disabledUntil: null,
         immuneUntil: null,

@@ -285,7 +285,6 @@ describe('what the view serves', () => {
         point: { lon: 26, lat: 45 },
         hostCountry: 'ROU',
         level: 1,
-        specialization: 'relay',
         foundedAt: Date.now() - HOUR,
         disabledUntil: Date.now() + 99 * HOUR,
         immuneUntil: null,

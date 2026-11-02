@@ -61,7 +61,6 @@ import {
   pointOf,
   recognises,
   seatedOf,
-  specializationServed,
   standingPile,
   sameStation,
 } from './movement/forces';
@@ -77,7 +76,8 @@ import {
   troopsAmong,
   fuelBill,
 } from './movement/orders';
-import { resupply, toppedUp } from './supplies';
+import { passingEstimate, resupply, resupplyInPassing, toppedUp } from './supplies';
+import { suppliesOf } from '../src/domain/supplies';
 import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
@@ -90,6 +90,7 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
+import { holdAtFort as holdAtFortEntry } from './movement/fort';
 import { pursue as pursueStep, quarryOf } from './movement/pursuit';
 import { blitzTheatreOf } from './movement/theatre';
 import { bombard as bombardFrom } from './movement/bombard';
@@ -130,10 +131,12 @@ export const foundOutpostHere = mutation({
      * point se relit par la géographie comme ceux d'avant le champ.
      */
     regionId: v.union(v.string(), v.null()),
-    specialization: SPECIALIZATION,
+    /** Ignoré (ADR 0037 §1) : gardé une version, pour qu'un onglet resté sur l'ancien client
+     *  fonde encore. */
+    specialization: v.optional(SPECIALIZATION),
     troopIds: v.array(v.id('troops')),
   },
-  handler: async (ctx, { token, seasonId, point, regionId, specialization, troopIds }) => {
+  handler: async (ctx, { token, seasonId, point, regionId, troopIds }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     refuseInBlitz(season);
@@ -208,7 +211,7 @@ export const foundOutpostHere = mutation({
       playerId: player._id,
       ...ground,
       level: 1,
-      specialization,
+      specialty: 'general',
       foundedAt: founded,
       standsAt,
       disabledUntil: null,
@@ -237,7 +240,6 @@ export const foundOutpostHere = mutation({
       kind: 'outpostFounded',
       hostCountry,
       point,
-      specialization,
     });
     await scheduleStand(ctx, outpostId, standsAt);
     /** Rien ne change de couleur, mais l'heure du lever en est une : la couleur retenue la porte
@@ -247,40 +249,6 @@ export const foundOutpostHere = mutation({
      *  le point, lui, ne voit encore rien. */
     await reassessDetection(ctx, season._id, founded);
     return { outpostId, cost, standsAt };
-  },
-});
-
-/**
- * **Le métier d'un point se règle sur le point, tant qu'aucune passe ne s'en est servie.**
- *
- * La fondation part du clic droit et pose « relais » : le serveur exige un mot à l'insertion, et
- * ce mot ne peut plus être choisi sur la carte au moment où l'on plante (décision Pierre du
- * 29/08). Le panneau de l'avant-poste rattrape ce choix — et le referme dès qu'un départ a lu ce
- * point, parce que c'est là que les deux spécialisations s'engagent : `pacedMinutes` lit les
- * relais au départ et la détection passive réévalue les postes d'écoute aux événements.
- *
- * « S'en être servi » se mesure donc à un départ qui **passe à portée** : un mouvement à l'autre
- * bout du monde n'a rien lu de ce point-là, et sceller sur lui aurait scellé chaque avant-poste
- * dans la minute qui suit sa fondation.
- */
-export const respecialize = mutation({
-  args: {
-    token: v.string(),
-    seasonId: v.id('seasons'),
-    outpostId: v.id('outposts'),
-    specialization: SPECIALIZATION,
-  },
-  handler: async (ctx, { token, seasonId, outpostId, specialization }) => {
-    const { player, season } = await playerOf(ctx, token, seasonId);
-    requirePlayable(player, season);
-
-    const outpost = await ctx.db.get(outpostId);
-    if (!outpost || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST', { outpostId });
-    if (await specializationServed(ctx, outpost)) fail('SPECIALIZATION_SEALED', { outpostId });
-
-    await ctx.db.patch(outpost._id, { specialization });
-    await reassessDetection(ctx, season._id);
-    return { outpostId: outpost._id };
   },
 });
 
@@ -708,9 +676,7 @@ export const preview = query({
     return {
       minutes,
       arrivesAt,
-      /** The card owes the player the reason for an hour he did not expect: an acceleration
-       *  nothing on screen accounts for reads as a bug, not as a reward. */
-      relayed: column.blitz === undefined ? routeMinutes(route.costUnits) - minutes : 0,
+      relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
       recognised: await recognises(ctx, player, point),
       troops: troopIds.length,
@@ -719,7 +685,10 @@ export const preview = query({
       originName: departure.name,
       route: routeFacts(route),
       /** **Le plein que la route coûte** (ADR 0028 §3), et le refus avant le clic s'il manque. */
-      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true),
+      fuel: await fuelFacts(ctx, player, troops, route, column, roundTrip === true, {
+        departedAt: now,
+        arrivesAt,
+      }),
       /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
       pursuit:
         type === 'attack' &&
@@ -784,16 +753,38 @@ const fuelFacts = async (
   route: ComputedRoute,
   column: { readonly blitz?: unknown },
   roundTrip: boolean,
+  { departedAt, arrivesAt }: { readonly departedAt: number; readonly arrivesAt: number },
 ) => {
-  const { gauge, short, km, eased } = fuelBill(
+  const { gauge, short, km, eased, drivers, stepsOf } = fuelBill(
     troops,
     route.distanceUnits,
     column.blitz !== undefined,
     roundTrip,
     await holdsPoint(ctx, player, 'singapore'),
   );
+  /** **Ce que ses Magasins lui verseront en route** (ADR 0037 §4), la route payée d'abord : c'est
+   *  le plein qui lui restera qui se remplit. */
+  const paying = new Set(drivers.map((troop) => troop._id));
+  const resupply = await passingEstimate(
+    ctx,
+    player._id,
+    {
+      id: 'preview',
+      points: route.points,
+      legs: route.legs,
+      distanceUnits: route.distanceUnits,
+      landCost: route.landCost,
+      departedAt,
+      arrivesAt,
+    },
+    troops.map((troop) =>
+      paying.has(troop._id)
+        ? { ...troop, fuel: Math.max(0, suppliesOf(troop).fuel - stepsOf(troop)) }
+        : troop,
+    ),
+  );
   /** **Singapour** se dit à la carte : le plein des camions et cargos, de tant à tant de crans. */
-  return { gauge, short, km, roundTrip, eased };
+  return { gauge, short, km, roundTrip, eased, resupply };
 };
 
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
@@ -840,11 +831,15 @@ export const previewPlunder = query({
     return {
       minutes,
       arrivesAt,
+      relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, region.country, arrivesAt),
       destinationName: region.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, {
+        departedAt: now,
+        arrivesAt,
+      }),
       cargo: await cargoPreviewOf(ctx, player, departure, troops),
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
@@ -894,11 +889,15 @@ export const previewCapture = query({
     return {
       minutes,
       arrivesAt,
+      relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, {
+        departedAt: now,
+        arrivesAt,
+      }),
       captureMinutes:
         captureDurationAt(
           modeOf(season.mode),
@@ -959,11 +958,15 @@ export const previewLootCollection = query({
     return {
       minutes,
       arrivesAt,
+      relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),
       destinationName: aimed.name,
       originName: departure.name,
       route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false),
+      fuel: await fuelFacts(ctx, player, troops, route, column, false, {
+        departedAt: now,
+        arrivesAt,
+      }),
       cargo,
       estimatedLoot: trimLootToCapacity(sighting.loot, cargo.free),
       seenAt: sighting.seenAt,
@@ -971,6 +974,14 @@ export const previewLootCollection = query({
     };
   },
 });
+
+/** **Ce que les liaisons ont pris sur le trajet**, en minutes (ADR 0037 §8) : la carte doit au
+ *  joueur la raison d'une heure qu'il n'attendait pas. La Blitz n'a pas d'avant-postes. */
+const relayedMinutes = (
+  route: ComputedRoute,
+  minutes: number,
+  column: { readonly blitz?: unknown },
+): number => (column.blitz === undefined ? routeMinutes(route.costUnits) - minutes : 0);
 
 const routeFacts = (route: ComputedRoute) => ({
   mode: route.mode,
@@ -991,9 +1002,12 @@ export const arrive = internalMutation({
   handler: async (ctx, { movementId }) => {
     const movement = await ctx.db.get(movementId);
     if (!movement) return;
+    const now = Date.now();
+    /** **Une arrivée repoussée en route** (le Fort, ADR 0037 §6) laisse son ancien job derrière
+     *  elle : il tombe avant l'heure, et passe. */
+    if (now < movement.arrivesAt) return;
     if (!(await seasonStillPlays(ctx, movement.playerId))) return;
 
-    const now = Date.now();
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
       await ctx.db.patch(movementId, { arrivesAt: held, heldAt: now });
@@ -1015,6 +1029,18 @@ export const arrive = internalMutation({
       return;
     }
 
+    /** **Une collecte de caisse** résout toutes les colonnes dues sur la caisse, et chacune y
+     *  reprend son passage au Magasin (`resolveOne`). */
+    if (movement.lootCollection !== undefined) {
+      await resolveLootCollectionArrivals(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
+    /** **Ce que la route a croisé avant d'arriver**, relu à l'arrivée : la colonne se bat avec ce
+     *  qu'elle a repris au Magasin (ADR 0037 §4). */
+    await resupplyInPassing(ctx, movement, now);
+
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);
       await arriveForPlunder(ctx, movement, now);
@@ -1025,12 +1051,6 @@ export const arrive = internalMutation({
     if (movement.capture !== undefined) {
       await surveyAlongRoute(ctx, movement, now);
       await arriveForCapture(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
-      return;
-    }
-
-    if (movement.lootCollection !== undefined) {
-      await resolveLootCollectionArrivals(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
       return;
     }
@@ -1155,6 +1175,12 @@ export const completePlunderPresence = internalMutation({
     await completePresence(ctx, movement, expectedAt);
     await reassessDetection(ctx, movement.seasonId);
   },
+});
+
+/** **L'entrée dans la vigie d'un Fort adverse** (ADR 0037 §6), gardée par son heure. */
+export const holdAtFort = internalMutation({
+  args: { movementId: v.id('movements'), expectedAt: v.number() },
+  handler: (ctx, { movementId, expectedAt }) => holdAtFortEntry(ctx, movementId, expectedAt),
 });
 
 /** The opening of a future visibility window, still validated against its own ledger row. */

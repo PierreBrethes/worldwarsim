@@ -11,12 +11,12 @@ import {
 import { outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
 import { razeBuilding } from './buildings';
-import { playerBuildings } from './buildingReads';
-import { buildCost, outpostReachKm, type Costs } from './constants';
+import { billOfWork, playerBuildings } from './buildingReads';
+import { outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
 import { homeGroundsOf, occupationsOf, recordLinkage, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
-import { movementsOf, outpostsOf, pointOf, specializationServed } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, outpostServed } from './movement/forces';
 import { allRegions, regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { notifyPlayer } from './notifications';
@@ -76,9 +76,9 @@ export const standOutpost = internalMutation({
       kind: 'outpostStands',
       hostCountry: outpost.hostCountry,
       point: outpost.point,
-      specialization: outpost.specialization,
     });
-    await reassessDetection(ctx, outpost.seasonId, at);
+    /** Le point levé guette, et sa garnison se tient sous un toit : seul son joueur change. */
+    await reassessDetection(ctx, outpost.seasonId, at, outpost.playerId);
   },
 });
 
@@ -120,7 +120,6 @@ export async function collapseIfAbandoned(
     kind: 'foundationLost',
     hostCountry: outpost.hostCountry,
     point: outpost.point,
-    specialization: outpost.specialization,
   });
   await notifyPlayer(ctx, outpost.playerId, {
     type: 'outpost',
@@ -179,7 +178,7 @@ export const dismantle = mutation({
     const outpost = await ctx.db.get(outpostId);
     const refusal = outpostDismantleRefusalOf({
       mine: outpost !== null && outpost.playerId === player._id,
-      serving: outpost !== null && (await specializationServed(ctx, outpost)),
+      serving: outpost !== null && (await outpostServed(ctx, outpost)),
     });
     if (refusal !== null || outpost === null) fail(refusal ?? 'NOT_YOURS');
 
@@ -232,7 +231,7 @@ export const dismantle = mutation({
     /** La file repart derrière les entrées disparues, et la détection se réévalue : un point
      *  retiré est une portée de moins, et une garnison passée au sol un détecteur qui a bougé. */
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: player._id });
-    await reassessDetection(ctx, season._id, now);
+    await reassessDetection(ctx, season._id, now, player._id);
     return { buildings: anchored.length, refunded };
   },
 });
@@ -310,12 +309,14 @@ export async function cancelRaisesOf(
     .collect()) {
     if (entry.outpostId !== outpost._id) continue;
     if (entry.finishesAt === null) {
-      for (const [key, amount] of Object.entries(buildCost(entry.building, entry.level))) {
+      for (const [key, amount] of Object.entries(billOfWork(entry))) {
         refunded[key] = (refunded[key] ?? 0) + amount;
       }
     }
     await ctx.db.delete(entry._id);
   }
+  /** **Un changement en cours s'annule, l'ancien métier reste** (décision du 01/11). */
+  if (outpost.changingTo !== undefined) await ctx.db.patch(outpost._id, { changingTo: undefined });
   const costs = refunded as Costs;
   await credit(ctx, playerId, costs, now);
   return costs;

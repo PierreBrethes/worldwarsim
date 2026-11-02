@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { internalMutation } from './_generated/server';
-import { reassessDetection } from './movement/detection';
+import { readPile as readPileAt, reassessDetection } from './movement/detection';
 import { playingSeason } from './seats';
 
 /**
@@ -12,6 +12,14 @@ export const reassess = internalMutation({
   args: { playerId: v.id('players') },
   handler: async (ctx, { playerId }) => {
     const season = await playingSeason(ctx, playerId);
-    if (season !== null) await reassessDetection(ctx, season._id);
+    /** Le charbon d'un joueur ne tait que ses propres vigies. */
+    if (season !== null) await reassessDetection(ctx, season._id, Date.now(), playerId);
   },
+});
+
+/** **Une borne de la fenêtre d'un Guet** (ADR 0037 §5) : la pile se lit à l'ouverture, se fige à
+ *  la fin, et la vue de l'observateur se relit avec la ligne. */
+export const readPile = internalMutation({
+  args: { sightingId: v.id('sightings'), expectedAt: v.number() },
+  handler: async (ctx, { sightingId, expectedAt }) => readPileAt(ctx, sightingId, expectedAt),
 });

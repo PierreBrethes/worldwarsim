@@ -56,6 +56,15 @@ export const asDayAndTime = (instant: number) =>
   });
 
 /**
+ * **L'heure, et la date si elle n'est pas du jour** : en Mondiale, « lu à 14:05 » le mercredi
+ * pour une lecture du lundi mentirait par omission.
+ */
+export const asDatedClock = (instant: number, now: number) =>
+  new Date(instant).toDateString() === new Date(now).toDateString()
+    ? asClockTime(instant)
+    : asDayAndTime(instant);
+
+/**
  * **Une date de presse, pas une ancienneté.** Le relevé d'une région se lit « relevé du 12 août »
  * et jamais « il y a 17 h » : la carte est un document d'état-major de 1940, et un document porte
  * la date à laquelle il a été dressé. L'ancienneté, elle, se voit déjà — c'est le délavage de la

@@ -12,7 +12,36 @@ export type MarchingForce = {
   readonly createdAt?: number;
   readonly departedAt: number;
   readonly arrivesAt: number;
+  readonly resumed?: Resumed;
+  /** **Retenue au bout de sa route** (fiche 07) : arrivée réelle à `heldAt`, la colonne s'y tient
+   *  jusqu'à `arrivesAt`, repoussé à la fin de la retenue (#407). */
+  readonly heldAt?: number;
 };
+
+/**
+ * **La reprise au Fort** (ADR 0037 §6, décision du 02/11) : à l'instant `at`, la colonne avait
+ * marché `share` de son temps ; elle repart de là vers son arrivée repoussée. Une marche, deux
+ * allures, et le pion ne recule pas.
+ */
+export type Resumed = { readonly at: number; readonly share: number };
+
+const clampedShare = (from: number, to: number, at: number): number =>
+  to <= from ? 1 : Math.min(1, Math.max(0, (at - from) / (to - from)));
+
+/** The share of its time a column has walked at an instant, its reprise read in two segments. */
+export function timeShareAt(
+  force: Pick<MarchingForce, 'departedAt' | 'arrivesAt' | 'resumed'> & {
+    /** `null` comme sur un horaire d'arc (`ArcSchedule`) : pas de retenue. */
+    readonly heldAt?: number | null;
+  },
+  at: number,
+): number {
+  const { departedAt, resumed } = force;
+  const arrivesAt = force.heldAt ?? force.arrivesAt;
+  if (resumed === undefined) return clampedShare(departedAt, arrivesAt, at);
+  if (at <= resumed.at) return resumed.share * clampedShare(departedAt, resumed.at, at);
+  return resumed.share + (1 - resumed.share) * clampedShare(resumed.at, arrivesAt, at);
+}
 
 /**
  * How finely the two paths are walked. A closed form on two piecewise great-circle paths is a
@@ -88,9 +117,8 @@ function measured(points: ReadonlyArray<LonLat>) {
  * made a detector see the column in the wrong medium and at the wrong hour.
  */
 export function distanceProgressAt(force: MarchingForce, at: number): number {
-  const span = force.arrivesAt - force.departedAt;
-  if (span <= 0) return 1;
-  const temporal = Math.min(1, Math.max(0, (at - force.departedAt) / span));
+  if (force.arrivesAt - force.departedAt <= 0) return 1;
+  const temporal = timeShareAt(force, at);
   const legs = force.legs;
   const distanceUnits = force.distanceUnits;
   if (
@@ -128,7 +156,7 @@ export function mediumAt(force: MarchingForce, at: number): Medium | null {
   const span = force.arrivesAt - force.departedAt;
   const legs = force.legs;
   if (span <= 0 || legs === undefined || legs.length === 0) return null;
-  const temporal = Math.min(1, Math.max(0, (at - force.departedAt) / span));
+  const temporal = timeShareAt(force, at);
   const { costs, total } = legCostsOf(force, legs);
   let left = temporal * total;
   for (const [index, leg] of legs.entries()) {
@@ -365,7 +393,22 @@ export type Watcher = {
  * an observer nothing he does not already hold — he has the whole thread — and two rows for one
  * pair would be two states to reconcile on screen.
  */
-export function sightingsAlong({
+export function sightingsAlong(walked: Parameters<typeof passesAlong>[0]): ReadonlyArray<Sighting> {
+  const windows = new Map<string, { from: number; to: number }>();
+  for (const pass of passesAlong(walked)) {
+    const window = windows.get(pass.id);
+    if (window === undefined) windows.set(pass.id, { from: pass.from, to: pass.to });
+    else window.to = pass.to;
+  }
+  return [...windows].map(([id, window]) => ({ id, from: window.from, to: window.to }));
+}
+
+/**
+ * **Chaque passage dans le cercle**, un intervalle par entrée, dans l'ordre du trajet — la même
+ * marche que `sightingsAlong`, qui en est l'enveloppe par veilleur. Le Guet en a besoin (ADR 0037
+ * §5) : il ne lit la pile que dans son cercle, et une sortie entre deux passages ne se lit pas.
+ */
+export function passesAlong({
   mine,
   watchers,
   after = mine.departedAt,
@@ -384,7 +427,10 @@ export function sightingsAlong({
   const first = firstSampleFrom(sampleAt, samples, startedAt, mine.arrivesAt, after);
   if (first > samples) return [];
 
-  const windows = new Map<string, { from: number; to: number }>();
+  const passes: Array<{ id: string; from: number; to: number }> = [];
+  /** Le passage en cours de chaque veilleur, et l'échantillon où il l'a vu pour la dernière fois :
+   *  un échantillon manqué — dehors, ou élagué parce que loin — ouvre le passage suivant. */
+  const open = new Map<string, { pass: { to: number }; index: number }>();
   const walk = (first: number, last: number, near: ReadonlyArray<Watcher>) => {
     if (last - first >= PRUNED_STRETCH) {
       const box = stretchBox(mine, sampleAt(first), sampleAt(last));
@@ -409,12 +455,18 @@ export function sightingsAlong({
       const here = positionAt(mine, at);
       for (const watcher of near) {
         if (distanceKm(here, watcher.point) > watcher.radiusKm) continue;
-        const window = windows.get(watcher.id);
-        if (window === undefined) windows.set(watcher.id, { from: at, to: at });
-        else window.to = at;
+        const held = open.get(watcher.id);
+        if (held !== undefined && held.index === index - 1) {
+          held.pass.to = at;
+          held.index = index;
+          continue;
+        }
+        const pass = { id: watcher.id, from: at, to: at };
+        passes.push(pass);
+        open.set(watcher.id, { pass, index });
       }
     }
   };
   walk(first, samples, watchers);
-  return [...windows].map(([id, window]) => ({ id, from: window.from, to: window.to }));
+  return passes;
 }

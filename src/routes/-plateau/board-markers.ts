@@ -1,12 +1,13 @@
 import { pileSupplies } from '@/domain/supplies';
 import type { TourTrace } from '@/domain/cargo-tag';
 import { cargoTagsOf } from '@/domain/cargo-tag';
-import { outpostReachKm, objectiveArchetype } from '../../../convex/constants';
+import { objectiveArchetype } from '../../../convex/constants';
 import { cardName, fr, nationLabel } from '@/i18n/fr';
 import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
 import { isRangoonColumn } from '@/domain/strategic-points';
 import type { StandingPile } from '@/map/engine';
 import { rangoonReachOf, type LabelLine, type MapMarker } from '@/domain/labels';
+import { isOnWatch, lookoutKmOf } from '@/domain/outposts';
 import { pilePieces, unitPieces, type PilePieces } from '@/domain/pile-pieces';
 import { COUNTRY_BY_NATION, isNation, nationInk } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
@@ -17,7 +18,13 @@ import { DEPOSIT_POINTS } from '@/domain/world';
 import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
-import type { ArcView, PlayerView, Stack, TroopStation, TroopView } from '@/domain/player-view';
+import {
+  stackOf,
+  type ArcView,
+  type PlayerView,
+  type TroopStation,
+  type TroopView,
+} from '@/domain/player-view';
 import { DOMAIN_BY_ROLE, PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
 import { outpostPinId } from '@/domain/pins';
 import { stackLabelId } from '@/domain/force-highlight';
@@ -99,23 +106,22 @@ export function markersOf(
     /** **Le mât ouvre la garnison** : la colonne qui a fondé stationne là (ADR 0019 §1), et
      *  depuis la disparition du widget de troupes plus rien ne l'ouvrait. */
     station: { kind: 'outpost', outpostId: outpost.id },
-    specialization: outpost.specialization,
+    specialty: outpost.specialty,
+    changingTo: outpost.changingTo,
     level: outpost.level,
     standsAt: outpost.standsAt,
     garrison: outpost.garrison,
-    /** **Ce qu'il écoute est ce qu'il ravitaille** : le même rayon, montré au survol. Le
-     *  relais couvre le même cercle mais n'y relève rien — c'est le temps de trajet qu'il
-     *  change, et la carte n'a pas de trait pour dire une vitesse. */
-    /** Un chantier n'atteint rien : pas de cercle à montrer tant qu'il n'est pas levé. */
+    /** **Tout point debout et en service guette** (ADR 0037 §2) : le cercle de survol est celui
+     *  de sa vigie. Un chantier ou un point désactivé ne guette pas : pas de cercle. */
     reach: withRangoonPile(
       view.me,
       { kind: 'outpost', outpostId: outpost.id },
       marching,
       outpost.lonLat,
-      outpost.specialization === 'listening' && outpost.standsAt === null
+      isOnWatch(outpost)
         ? {
             lonLat: outpost.lonLat,
-            detectionKm: outpostReachKm(outpost.level),
+            detectionKm: lookoutKmOf(outpost),
             /** Un point n'engage rien : il relève, et le cercle de contact est celui d'une
              *  pile (décisions 4a et 3a du 16/09). */
             contactKm: null,
@@ -174,6 +180,7 @@ export function markersOf(
       seenMinutesAgo: camp.seenMinutesAgo,
       lastSeenAt: camp.lastSeenAt,
       ...(camp.nation === undefined ? {} : { nation: camp.nation }),
+      identification: camp.identification,
     }));
 
   /**
@@ -399,7 +406,7 @@ function postedStacks(
   }
 
   return [...posts.values()].map(({ at, held }) => {
-    const stack = stackOf(held);
+    const stack = stackOf(held.map((troop) => troop.role));
     return {
       kind: 'stack' as const,
       id: stackLabelId(at),
@@ -566,12 +573,6 @@ export const buildingsOfMaquette = <B extends { key: string; point: LonLat | nul
   buildings: ReadonlyArray<B>,
   labelId: string | null,
 ): B[] => buildings.filter((building) => buildingLabelId(building) === labelId);
-
-const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
-  troops.reduce<Stack>(
-    (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
-    {},
-  );
 
 /** Where a station stands on the board, as the label layer names it. A building answers with
  *  its mast and an outpost with its own marker; a **point** has none — the camera then holds

@@ -129,7 +129,6 @@ describe('seasonReport.outpostEvents', () => {
         at: 1,
         kind: 'outpostStands',
         hostCountry: 'FRA',
-        specialization: 'relay',
       } as never);
       await ctx.db.insert('notices', {
         ...head,

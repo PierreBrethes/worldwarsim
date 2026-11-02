@@ -266,7 +266,6 @@ async function plant(
       hostCountry,
       ...(regionId === undefined ? {} : { regionId }),
       level: 1,
-      specialization: 'relay',
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,
@@ -317,7 +316,6 @@ describe('a posted column founds an outpost where it stands', () => {
       regionId: null,
       ...seat,
       point: { lon: point[0], lat: point[1] },
-      specialization: 'relay',
       troopIds: [posted],
     });
     expect((await t.run(async (ctx) => ctx.db.get(posted)))!.facing).toBeUndefined();
@@ -342,14 +340,16 @@ describe('a posted column founds an outpost where it stands', () => {
       regionId: null,
       ...seat,
       point: asPoint(point),
-      specialization: 'relay',
+      /** Un onglet resté sur l'ancien client l'envoie encore : ignoré (ADR 0037 §1). */
+      specialization: 'relay' as const,
       troopIds: [posted],
     });
 
     const [outpost] = await outpostsOf(t, seat);
     expect(outpost).toBeDefined();
     expect(outpost!.hostCountry).toBe('ROU');
-    expect(outpost!.specialization).toBe('relay');
+    expect(outpost!.specialty).toBe('general');
+    expect(outpost!.specialization).toBeUndefined();
     expect(outpost!.level).toBe(1);
     /** Exactly where the column stood: nothing walks, so nothing rounds the place either. */
     expect(outpost!.point).toEqual(asPoint(point));
@@ -384,7 +384,6 @@ describe('a posted column founds an outpost where it stands', () => {
         regionId: null,
         ...seat,
         point: asPoint(point),
-        specialization: 'relay',
         troopIds: [await post(t, seat, point)],
       });
     }
@@ -404,7 +403,6 @@ describe('a posted column founds an outpost where it stands', () => {
         regionId: null,
         ...seat,
         point: asPoint(point),
-        specialization: 'relay',
         troopIds: [tank],
       }),
     ).rejects.toThrow('INFANTRY_ONLY');
@@ -424,7 +422,6 @@ describe('a posted column founds an outpost where it stands', () => {
         regionId: null,
         ...seat,
         point: asPoint(point),
-        specialization: 'relay',
         troopIds: [posted],
       }),
     ).rejects.toThrow('FRIENDLY_TARGET');
@@ -450,7 +447,6 @@ describe('a posted column founds an outpost where it stands', () => {
         regionId: null,
         ...seat,
         point: asPoint(point),
-        specialization: 'relay',
         troopIds: [posted],
       }),
     ).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
@@ -467,7 +463,6 @@ describe('a posted column founds an outpost where it stands', () => {
         regionId: null,
         ...seat,
         point: asPoint(regionFacts(RUHR)!.point),
-        specialization: 'relay',
         troopIds: [posted],
       }),
     ).rejects.toThrow('TROOP_NOT_AT_ORIGIN');
@@ -477,7 +472,6 @@ describe('a posted column founds an outpost where it stands', () => {
         regionId: null,
         ...seat,
         point: asPoint(point),
-        specialization: 'relay',
         troopIds: [],
       }),
     ).rejects.toThrow('EMPTY_MOVEMENT');
@@ -506,7 +500,6 @@ describe('founding opens a construction site, and it has to be held', () => {
       regionId: null,
       ...seat,
       point: asPoint(point),
-      specialization: 'relay',
       troopIds: troopIds as Array<Id<'troops'>>,
     });
 
@@ -868,7 +861,6 @@ describe('an outpost opens a radius to build in', () => {
       regionId: null,
       ...seat,
       point: { lon: point[0], lat: point[1] },
-      specialization: 'relay',
       troopIds: [await post(t, seat, point)],
     });
     vi.advanceTimersByTime(buildMinutes('outpost', 1) * 60_000);
@@ -3945,7 +3937,6 @@ describe('a manifest names each troop once', () => {
         regionId: null,
         ...seat,
         point: asPoint(point),
-        specialization: 'relay',
         troopIds: [posted, posted],
       }),
     ).rejects.toThrow('DUPLICATE_TROOP');
@@ -3987,11 +3978,11 @@ describe('a manifest names each troop once', () => {
 });
 
 /**
- * **Le métier d'un point se règle sur le point** (décision Pierre, 29/08). Le serveur exige une
- * spécialisation à la fondation et le clic droit n'en demande aucune : il pose « relais », et le
- * panneau de l'avant-poste rattrape — tant qu'aucune passe ne s'en est servie.
+ * **Un point a servi dès qu'un départ passe à portée** (`outpostServed`) : c'est ce que
+ * le refus de démantèlement lit (`OUTPOST_SERVING`). Il n'y a plus de métier à sceller (ADR 0037
+ * §7) : tout point d'avant se lit généraliste.
  */
-describe('an outpost changes trade until a pass has read it', () => {
+describe('an outpost serves once a departure passes within its reach', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(MIDDAY);
@@ -4000,35 +3991,23 @@ describe('an outpost changes trade until a pass has read it', () => {
 
   const asPoint = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 
-  it('takes the change, and says so in the view', async () => {
+  it('reads an outpost from before the specialties as a general one', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    const outpostId = await plant(t, seat, regionFacts(PRAHOVA)!.point, 'ROU');
+    await plant(t, seat, regionFacts(PRAHOVA)!.point, 'ROU');
 
     expect((await t.query(api.view.playerView, seat)).me.outposts[0]).toMatchObject({
-      specialization: 'relay',
-      specializationLocked: false,
+      specialty: 'general',
+      serving: false,
     });
-
-    await t.mutation(api.movements.respecialize, {
-      ...seat,
-      outpostId,
-      specialization: 'listening',
-    });
-
-    expect((await t.run(async (ctx) => ctx.db.get(outpostId)))!.specialization).toBe('listening');
   });
 
-  /**
-   * Un départ **à portée** est ce qui scelle : il peut lire le relais immédiatement et fait
-   * entrer le poste d'écoute dans la réévaluation événementielle.
-   */
-  it('seals it once a departure passes within its reach', async () => {
+  it('serves once a departure passes within its reach', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
-    const outpostId = await plant(t, seat, regionFacts(MARNE)!.point, 'FRA');
+    await plant(t, seat, regionFacts(MARNE)!.point, 'FRA');
 
     await t.mutation(api.movements.marchTo, {
       ...seat,
@@ -4038,22 +4017,17 @@ describe('an outpost changes trade until a pass has read it', () => {
     });
 
     expect((await t.query(api.view.playerView, seat)).me.outposts[0]).toMatchObject({
-      specializationLocked: true,
+      serving: true,
     });
-    const refused = await t
-      .mutation(api.movements.respecialize, { ...seat, outpostId, specialization: 'listening' })
-      .catch((problem: unknown) => (problem as ConvexError<{ code: string }>).data);
-    expect(refused).toMatchObject({ code: 'SPECIALIZATION_SEALED' });
   });
 
-  /** Un départ à l'autre bout du monde n'a rien lu de ce point-là : sceller sur lui scellerait
-   *  chaque avant-poste dans la minute qui suit sa fondation. */
-  it('leaves it open when the departure never comes near', async () => {
+  /** Un départ à l'autre bout du monde n'a rien lu de ce point-là. */
+  it('does not serve when the departure never comes near', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
     const troop = await form(t, seat, 'infantry', barracks);
-    const outpostId = await plant(t, seat, regionFacts(RIYADH)!.point, 'SAU');
+    await plant(t, seat, regionFacts(RIYADH)!.point, 'SAU');
 
     await t.mutation(api.movements.marchTo, {
       ...seat,
@@ -4063,14 +4037,8 @@ describe('an outpost changes trade until a pass has read it', () => {
     });
 
     expect((await t.query(api.view.playerView, seat)).me.outposts[0]).toMatchObject({
-      specializationLocked: false,
+      serving: false,
     });
-    await t.mutation(api.movements.respecialize, {
-      ...seat,
-      outpostId,
-      specialization: 'listening',
-    });
-    expect((await t.run(async (ctx) => ctx.db.get(outpostId)))!.specialization).toBe('listening');
   });
 });
 
@@ -4483,7 +4451,6 @@ describe('rester en mer', () => {
         ...seat,
         point: water,
         regionId: null,
-        specialization: 'relay',
         troopIds: [infantry],
       }),
     ).rejects.toThrow('NO_FOUNDING_AT_SEA');
@@ -4729,7 +4696,6 @@ describe('les petites îles', () => {
       ...seat,
       point: AT_VALLETTA,
       regionId: VALLETTA,
-      specialization: 'relay',
       troopIds: [infantry],
     });
     const [outpost] = await outpostsOf(t, seat);
@@ -4756,7 +4722,6 @@ describe('les petites îles', () => {
       ...seat,
       point: atYaren,
       regionId: YAREN,
-      specialization: 'relay',
       troopIds: [infantry],
     });
     expect((await outpostsOf(t, seat))[0]).toMatchObject({ hostCountry: 'NRU' });

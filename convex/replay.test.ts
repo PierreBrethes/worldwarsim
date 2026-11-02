@@ -84,7 +84,6 @@ async function fight(t: Bench, attacker: Seat, defender: Seat) {
       point: { lon, lat },
       hostCountry: 'ROU',
       level: 1,
-      specialization: 'relay' as const,
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,

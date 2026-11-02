@@ -30,6 +30,7 @@ import {
   RESOURCE_KEY,
   SEASON_STATUS,
   SPECIALIZATION,
+  SPECIALTY,
   SURVEYED_INSTALLATION,
   STRIKE,
   TROOP_STATE,
@@ -204,6 +205,13 @@ export default defineSchema({
      * immédiats d'un règlement (oreilles muettes, file de recrues affamée).
      */
     dryJob: v.optional(v.object({ jobId: v.id('_scheduled_functions'), at: v.number() })),
+    /**
+     * **Ses vigies et ses stations sont-elles muettes ?** (ADR 0037 §2) Le verdict de son économie,
+     * écrit par la seule réévaluation qui le touche (`isSilent`, `listening.reassess`) et
+     * seulement quand il change : les autres réévaluations le lisent ici plutôt que de régler
+     * son économie. Absent vaut « elles entendent ».
+     */
+    listeningSilent: v.optional(v.boolean()),
     reassessJobId: v.optional(v.id('_scheduled_functions')),
     resumeJobId: v.optional(v.id('_scheduled_functions')),
     /**
@@ -638,6 +646,16 @@ export default defineSchema({
      *  view reads a seven-hour push back as a column leaving its barracks again. Written once,
      *  by `arrive`; a return or a resolution ignores it. */
     heldAt: v.optional(v.number()),
+    /** **Les Magasins de son propriétaire que la route traversait au départ** (ADR 0037 §4) :
+     *  l'arrivée dit celui qui n'a rien donné, capturé ou fermé en route. Absent, aucun. */
+    stores: v.optional(v.array(v.id('outposts'))),
+    /** **Le rendez-vous à l'entrée dans la vigie d'un Fort adverse** (ADR 0037 §6) : gardé sur la
+     *  ligne, annulé avant d'être replanifié par chaque réévaluation (`reassessForts`, #146). */
+    fortEntry: v.optional(v.object({ at: v.number(), jobId: v.id('_scheduled_functions') })),
+    /** **La reprise** (décision du 02/11) : retenue à `at` par un Fort, la colonne avait marché
+     *  `share` de son temps et repart de là vers son arrivée repoussée, plus lente. Lue une fois :
+     *  une colonne reprise n'est plus retenue. */
+    resumed: v.optional(v.object({ at: v.number(), share: v.number() })),
     /**
      * The next mobile encounter reserved for this column. Optional because movements already in
      * flight predate passive ranges. A reassessment cancels the job before replacing these four
@@ -862,7 +880,15 @@ export default defineSchema({
      */
     regionId: v.optional(v.string()),
     level: v.number(),
-    specialization: SPECIALIZATION,
+    /** L'ancien métier (ADR 0004), plus lu ni écrit : il part au prochain vidage (ADR 0037 §11). */
+    specialization: v.optional(SPECIALIZATION),
+    /** **Sa spécialisation** (ADR 0037 §3), lue `?? 'general'` : un point d'avant se lit
+     *  généraliste. */
+    specialty: v.optional(SPECIALTY),
+    /** **Le métier qu'un chantier de changement lui donnera** (ADR 0037 §7), posé au départ du
+     *  chantier et effacé à sa fin ou à son annulation : tant qu'il est là, le point agit en
+     *  généraliste (`effectiveSpecialty`). */
+    changingTo: v.optional(SPECIALTY),
     foundedAt: v.number(),
     /**
      * **L'heure où le chantier devient un point** (révision du 15/09 de l'ADR 0020 §10). Tant
@@ -1062,6 +1088,13 @@ export default defineSchema({
      * règle « une entrée par point » ne la voient (`constructions.ts`).
      */
     outpostId: v.optional(v.id('outposts')),
+    /** **La spécialisation que la ligne donne au point** (ADR 0037 §3, §7) : choisie à l'élévation
+     *  au niveau 2, ou la cible d'un changement. Absente : une élévation au niveau 3, ou une
+     *  ligne d'avant le champ. */
+    specialty: v.optional(SPECIALTY),
+    /** **Un changement de spécialisation**, pas une élévation : `level` y vaut le niveau du point,
+     *  donc sa durée est celle de la dernière élévation, et sa facture `respecialtyBill`. */
+    respecialize: v.optional(v.literal(true)),
     level: v.number(),
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
@@ -1250,6 +1283,19 @@ export default defineSchema({
         closedAt: v.number(),
       }),
     ),
+    /**
+     * **Ce qu'un Guet a lu de la pile** (ADR 0037 §5, `src/domain/lookout-reading.ts`) : un rôle
+     * par troupe, sans effectif, sans tier, sans cargaison, et jamais l'ordre. `reads` garde les
+     * fenêtres de Guet en cours et à venir, une par passage dans un cercle, qui ne sont pas
+     * celles de la ligne : la ligne nomme le premier détecteur et couvre les sorties. La pile ne
+     * s'écrit que dans une fenêtre ouverte ; figée, `readAt` date sa dernière lecture.
+     * `readJobId` réveille la ligne à la prochaine borne, `readJobAt`. Écrite au niveau de la ligne, hors de `frozen`, elle survit au souvenir.
+     */
+    reads: v.optional(v.array(v.object({ from: v.number(), to: v.number() }))),
+    stack: v.optional(v.array(UNIT_ROLE)),
+    readAt: v.optional(v.number()),
+    readJobId: v.optional(v.id('_scheduled_functions')),
+    readJobAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
@@ -1269,7 +1315,8 @@ export default defineSchema({
    * est une pile posée comme une autre, et elle se relève sous la même clé.
    *
    * `ownerId` n'est **jamais servi** : il est là pour que l'écriture sache de quel camp elle parle
-   * et pour qu'un test puisse le dire — la vue ne porte ni nation, ni composition, ni effectif.
+   * et pour qu'un test puisse le dire — la vue ne porte ni nation, ni effectif, et la composition
+   * seulement sous un Guet (`stack`).
    *
    * `until` à `null` est un camp couvert à l'instant ; daté, c'est l'heure où on l'a perdu de vue,
    * et la ligne devient une dernière position connue jusqu'à `LAST_KNOWN_HOURS`.
@@ -1291,6 +1338,10 @@ export default defineSchema({
     detectorRegion: v.union(v.string(), v.null()),
     /** Une dépêche par ligne, à l'ouverture : une réouverture ne rejoue pas la nouvelle. */
     noticeFiled: v.boolean(),
+    /** **La dernière pile qu'un Guet a lue** (ADR 0037 §5), un rôle par troupe ; seul un Guet
+     *  l'écrit, et elle reste datée (`readAt`) quand il la perd de vue. */
+    stack: v.optional(v.array(UNIT_ROLE)),
+    readAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byStation', ['stationKey']),

@@ -9,11 +9,15 @@ import {
   PLACING_SNAP_KM,
   riseOf,
   snapTo,
+  raiseChoosesSpecialty,
+  specialtyRefusalOf,
   upgradeHold,
   workSitesOf,
   type Aim,
   type OutpostRaise,
+  type SpecialtyChange,
 } from './construction';
+import { respecialtyBill } from '../../convex/constants';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResearchCard, type ResourceKey } from './ids';
 import { BUILDING_SPACING_KM } from './economy';
 import { destinationPoint, type LonLat } from './geo';
@@ -83,6 +87,8 @@ describe('what holds a raise back', () => {
       point: [6.2, 48.7] as LonLat,
       minutesLeft: 20,
       level: 2,
+      specialty: null,
+      respecialize: false,
     };
     expect(upgradeHold(building(), viewWith({ construction: running }), LOADED_AT)).toBeNull();
   });
@@ -98,6 +104,8 @@ describe('what holds a raise back', () => {
         regionName: 'Moselle',
         point: POINT,
         level: 2,
+        specialty: null,
+        respecialize: false,
       },
     ];
     expect(upgradeHold(building(), viewWith({ queue: queued }), LOADED_AT)).toEqual({
@@ -502,6 +510,77 @@ describe('raising an outpost', () => {
   });
 });
 
+/**
+ * **Changer de spécialisation, c'est un chantier** (ADR 0037 §7) ; le point d'avant la refonte
+ * choisit une fois, sans chantier ni acier (§11). La fonction est lue par la fiche, la rose et
+ * la mutation.
+ */
+describe('choosing an outpost’s specialty', () => {
+  const STOCKED: Record<ResourceKey, number> = Object.fromEntries(
+    RESOURCES.map((key) => [key, 1000]),
+  ) as Record<ResourceKey, number>;
+  const point = (over: Partial<SpecialtyChange> = {}): SpecialtyChange => ({
+    level: 2,
+    specialty: 'store',
+    disabled: false,
+    queued: false,
+    stocks: STOCKED,
+    ...over,
+  });
+  const BILL: Cost = { steel: 65 };
+
+  it('bills half the steel of the last raise, and nothing else', () => {
+    expect(respecialtyBill(2)).toEqual({ steel: 65 });
+    expect(respecialtyBill(3)).toEqual({ steel: 130 });
+  });
+
+  /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) ; le niveau 3 garde le sien. */
+  it('asks the raise from level 1 for a specialty, and no other', () => {
+    expect([1, 2, 3].map(raiseChoosesSpecialty)).toEqual([true, false, false]);
+  });
+
+  it('lets a payable change through', () => {
+    expect(specialtyRefusalOf(point(), 'fort', BILL)).toBeNull();
+  });
+
+  it('chooses at level 2, never before', () => {
+    expect(specialtyRefusalOf(point({ level: 1, specialty: 'general' }), 'fort', BILL)).toEqual({
+      kind: 'levelOne',
+    });
+  });
+
+  it('refuses the specialty it already has', () => {
+    expect(specialtyRefusalOf(point(), 'store', BILL)).toEqual({ kind: 'held' });
+  });
+
+  it('refuses a disabled point, a point with work queued, and a short bill', () => {
+    expect(specialtyRefusalOf(point({ disabled: true }), 'fort', BILL)).toEqual({
+      kind: 'disabled',
+    });
+    expect(specialtyRefusalOf(point({ queued: true }), 'fort', BILL)).toEqual({
+      kind: 'alreadyQueued',
+    });
+    expect(specialtyRefusalOf(point({ stocks: { ...STOCKED, steel: 10 } }), 'fort', BILL)).toEqual({
+      kind: 'materials',
+      resource: 'steel',
+      needed: 65,
+      available: 10,
+    });
+  });
+
+  /** **Le point d'avant la refonte choisit gratuitement** (ADR 0037 §11) : ni acier, ni file, ni
+   *  désactivation ne le retiennent — il a déjà payé son élévation. */
+  it('lets an old level-2 generalist choose freely', () => {
+    const old = point({
+      specialty: 'general',
+      disabled: true,
+      queued: true,
+      stocks: { ...STOCKED, steel: 0 },
+    });
+    expect(specialtyRefusalOf(old, 'lookout', BILL)).toBeNull();
+  });
+});
+
 describe('riseOf', () => {
   it('reads how far a site has risen from the minutes left out of the minutes it lasts', () => {
     expect(riseOf(30, 30)).toBe(0);
@@ -547,6 +626,8 @@ describe('workSitesOf', () => {
     point: at(regionId),
     minutesLeft,
     level: 1,
+    specialty: null,
+    respecialize: false,
   });
   const queued = (
     key: BuildingKey | 'outpost',
@@ -562,6 +643,8 @@ describe('workSitesOf', () => {
     regionName: 'Meuse',
     point: outpostId === null ? at(regionId) : null,
     level,
+    specialty: null,
+    respecialize: false,
   });
 
   it('dates the head of the queue — a first level rises by the catalog, a raise by the building', () => {

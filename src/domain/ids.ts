@@ -135,22 +135,15 @@ export type PlayableRegion = 'europe' | 'europe-med' | 'world';
 export type RegionType = 'plain' | 'forest' | 'jungle' | 'mountain' | 'desert' | 'tundra';
 
 /**
- * What an outpost is *for*, chosen when it is founded and never changed again (fiche 03).
- *
- * **Extraction is gone** (decision of 18/08): an outpost replaces no building. Extracting
- * abroad is the economy's own buildings (ADR 0015), put up in the reach the outpost opens —
- * counted, capped and lootable like any other, which an outpost was never going to be.
- *
- * The two that remain both do what they sell: the relay speeds up the stretch of its owner's
- * roads that passes inside its reach, the listening post files a sighting against what crosses
- * the same reach. Others are expected — a field pharmacy has been floated — and the union takes
- * them without a migration, which is all they are owed today.
+ * **Ce qu'un avant-poste devient au niveau 2** (ADR 0037 §3), chacune ajoutant à ce que fait le
+ * généraliste : le Magasin stocke, le Guet voit loin, le Fort retient. Tout point fondé est
+ * généraliste, et tout point guette (§1, §2).
  */
-export type Specialization = 'relay' | 'listening';
+export type Specialty = 'general' | 'store' | 'lookout' | 'fort';
 
-/** Les deux métiers dans l'ordre où la plate et le panneau les présentent — une seule liste,
- *  pour que la rose des vents et la fenêtre ne puissent pas les ranger différemment. */
-export const SPECIALIZATIONS: ReadonlyArray<Specialization> = ['relay', 'listening'];
+/** **Ce qui se choisit** : on ne choisit jamais de redevenir généraliste. Dans l'ordre de l'offre. */
+export const CHOSEN_SPECIALTIES = ['store', 'lookout', 'fort'] as const;
+export type ChosenSpecialty = (typeof CHOSEN_SPECIALTIES)[number];
 
 /**
  * **What caught a movement** (fiche 04), in the order the sheet ranks the four: the ground a

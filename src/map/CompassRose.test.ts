@@ -39,11 +39,11 @@ const action = (key: CompassAction['key'], hold: unknown = null): CompassAction 
 
 /**
  * **Ce qui paie sans carte de confirmation se touche deux fois** (sous le seuil) : élever, monter
- * un point, fonder, changer de métier partent au serveur dès l'action, et leur facture n'est
+ * un point, fonder partent au serveur dès l'action, et leur facture n'est
  * écrite que dans la bulle. Le premier toucher la lit, le second agit.
  */
 describe('readsFirst', () => {
-  it.each(['upgrade', 'raiseOutpost', 'found', 'specialize'] as const)(
+  it.each(['upgrade', 'raiseOutpost', 'found'] as const)(
     'fait lire %s au premier toucher, sous le seuil',
     (key) => {
       expect(readsFirst(action(key), true)).toBe(true);

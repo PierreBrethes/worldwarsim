@@ -11,9 +11,11 @@ import { modules } from './test.setup';
 import { reassessDetection } from './movement/detection';
 import { resolveContact } from './combat';
 import {
+  campsAroundAFullPass,
   foundSeat,
   joinSeat,
   placeHq,
+  plantGuet,
   seatIn,
   surveyCamp,
   type Seat,
@@ -350,6 +352,31 @@ describe('a Blitz unit and its orders (lot 5)', () => {
         target: { kind: 'camp', campId: again },
       }),
     ).rejects.toThrow(/RELOADING/);
+  });
+
+  /** **Le Guet relit les pertes d'une poursuite** (#373) : la cible tuée au contact se relit. */
+  it('re-reads for a Guet the troop a pursuit has killed', async () => {
+    const t = boot();
+    const { seat, guest } = await blitz(t);
+    const hunter = await troop(t, seat, PARIS, 'armor');
+    const quarry = await troop(t, guest, LYON);
+    await t.run((ctx) => ctx.db.patch(quarry, { currentStrength: 1 }));
+    await plantGuet(t, seat, { lon: LYON.lon + 0.5, lat: LYON.lat });
+    const camp = (await t.query(api.view.playerView, seat)).camps.find(
+      (one) => one.identification.pierced,
+    )!;
+
+    await t.mutation(api.movements.attack, {
+      ...seat,
+      origin: { kind: 'point', point: PARIS },
+      troopIds: [hunter],
+      target: { kind: 'camp', campId: camp.id as Id<'campSightings'> },
+    });
+    await runPursuits(t);
+
+    expect(await troopRow(t, quarry)).toBeNull();
+    const { before, after } = await campsAroundAFullPass(t, seat);
+    expect(before).toEqual(after);
   });
 
   it('takes the road again when its route stops short of the target', async () => {

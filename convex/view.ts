@@ -17,9 +17,9 @@ import type { QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { emptyLoad } from '../src/domain/logistics';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
-import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
+import { distanceProgressAt, timeShareAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
-import { isStanding, type OutpostReach } from '../src/domain/outposts';
+import { effectiveSpecialty, isStanding, type OutpostReach } from '../src/domain/outposts';
 import {
   canonicalBuildingKey,
   isOutpostWork,
@@ -29,6 +29,7 @@ import {
   type BuildCostKey,
   type BuildingKey,
   type ResearchCard,
+  type UnitRole,
 } from '../src/domain/ids';
 import { outputShareOf } from '../src/domain/economy';
 import { carryCapacityOf } from '../src/domain/loot';
@@ -36,7 +37,9 @@ import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import {
   NOTICES_SERVED,
+  stackOf,
   type CombatTally,
+  type Composition,
   type Faced,
   type ForceKind,
   type TroopStation,
@@ -56,6 +59,7 @@ import {
   PRESS_EDITION_HOURS,
   STORAGE_CAP_PER_LEVEL,
   buildCost,
+  respecialtyBill,
   buildMinutes,
   OUTPOST_MAX_LEVEL,
   depotCapacity,
@@ -68,7 +72,7 @@ import {
 } from './constants';
 import { engagementsOf } from './combat';
 import { isReached, sitesOf, type Site, type Sites } from './sites';
-import { movementsOf, outpostsOf, pointOf, specializationsServed } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, outpostsServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
 import { regionNameAt } from './placeNames';
@@ -101,6 +105,14 @@ import { fundsAt, mendPlan } from '../src/domain/blitz';
  *  canonique, une élévation d'avant-poste garde le sien — elle n'est pas un bâtiment. */
 const workKey = (building: BuildCostKey): BuildCostKey =>
   isOutpostWork(building) ? building : canonicalBuildingKey(building);
+
+/** **Le métier qu'une ligne d'avant-poste donne au point** — choisi à l'élévation au niveau 2, ou
+ *  cible d'un changement —, et si c'est un changement : la file, le bandeau et la fiche le disent
+ *  dès la mise en file, pas seulement à la fin du chantier. */
+const specialtyOfWork = (entry: Doc<'constructions'>) => ({
+  specialty: entry.specialty ?? null,
+  respecialize: entry.respecialize === true,
+});
 
 /** What a set of engaged troops amounts to, in men and machines (ADR 0014) — one count for the
  *  account and for the replay, so the two cannot disagree. */
@@ -206,10 +218,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const recruiting = await recruitmentsOf(ctx, player._id);
 
-  const locked = await specializationsServed(ctx, season._id, outposts);
-  const sealed = outposts.map((outpost) => ({
+  const served = await outpostsServed(ctx, season._id, outposts);
+  const outpostRows = outposts.map((outpost) => ({
     outpost,
-    specializationLocked: locked.has(outpost._id),
+    serving: served.has(outpost._id),
   }));
   const movements = await movementsOf(ctx, player._id);
   const surveyed = (
@@ -639,6 +651,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
               minutes: construction.minutes,
               level: construction.level,
+              ...specialtyOfWork(construction),
             }
           : null,
       /** **What is paid for behind the running site**, in build order: only a rank, a countdown
@@ -657,6 +670,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               ? null
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
+          ...specialtyOfWork(entry),
         })),
       armyPresent,
       armyInTransit,
@@ -762,7 +776,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * until something else can move one. It is an address and nothing more: what a garrison
        * *does* when attacked is the combat pass's to say.
        */
-      outposts: sealed.map(({ outpost, specializationLocked }) => ({
+      outposts: outpostRows.map(({ outpost, serving }) => ({
         id: outpost._id,
         hostCountry: outpost.hostCountry,
         lonLat: [outpost.point.lon, outpost.point.lat] as [number, number],
@@ -770,7 +784,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  du 04/09). Servi plutôt que redeviné : le client n'a ni polygone ni index, et le
          *  repli des points d'avant le champ est une lecture du serveur. */
         regionId: regionOfOutpost(outpost),
-        specialization: outpost.specialization,
+        specialty: outpost.specialty ?? 'general',
+        /** Le métier qu'un changement en cours lui donnera : jusque-là il agit en généraliste. */
+        changingTo: outpost.changingTo ?? null,
         level: outpost.level,
         /** **L'heure où le chantier devient un point**, `null` pour un point debout (révision
          *  du 15/09). Une date plutôt qu'un compte à rebours : le cachet du mât et la ligne du
@@ -784,10 +800,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
             ? (outpost.disabledUntil - now) / 60_000
             : null,
         isMine: true,
-        /** Le métier se règle sur le panneau du point tant qu'aucune passe ne l'a lu
-         *  (`specializationServed`) — servi plutôt que redérivé : l'écran et le refus du
-         *  serveur lisent la même réponse. */
-        specializationLocked,
+        /** Un mouvement est passé dans son rayon depuis la fondation (`outpostServed`) :
+         *  servi plutôt que redérivé, le refus de démantèlement de l'écran et celui du serveur
+         *  lisent la même réponse. */
+        serving,
         /** **Ce qu'une élévation coûterait**, servi comme celui d'un bâtiment : les nombres
          *  d'équilibrage ont une seule maison (précision du 15/09). Au dernier niveau il n'y a
          *  pas de suivant — la facture est vide et le panneau dit « niveau maximal ». */
@@ -796,8 +812,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelMinutes:
           outpost.level >= OUTPOST_MAX_LEVEL ? 0 : worksMinutesAt('outpost', outpost.level + 1),
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
+        /** **Ce qu'un changement de spécialisation coûterait** (ADR 0037 §7) : la moitié de l'acier
+         *  et la durée de la dernière élévation, servis comme le niveau suivant. */
+        respecialtyCost: respecialtyBill(outpost.level),
+        respecialtyMinutes: worksMinutesAt('outpost', outpost.level),
         depot: outpost.depot ?? emptyLoad(),
-        depotCapacity: depotCapacity(outpost.level),
+        depotCapacity: depotCapacity(outpost.level, effectiveSpecialty(outpost)),
         coastal: coastAtPoint([outpost.point.lon, outpost.point.lat]),
       })),
     },
@@ -966,6 +986,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           }),
           departedAt: movement.departedAt,
           arrivesAt: movement.arrivesAt,
+          /** **Retenue par un Fort en route** (ADR 0037 §6) : le pion repart de là, plus lent. */
+          ...(movement.resumed === undefined ? {} : { resumed: movement.resumed }),
           /** The target's rest window, if the arrival bites it: the column then waits at the
            *  border until it closes (design sheet 07). **A hold already taken is not recomputed**:
            *  `arrive` pushed `arrivesAt` to the exit of the window, and that instant sits outside
@@ -985,11 +1007,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * movements of the board at large and the fan-out of the naive query does not exist
      * (`WWS/docs/technique/brouillard-et-fanout.md`).
      *
-     * **Nothing here can leak a type or a composition, because nothing here carries one.** The
-     * thread, the endpoints, the media and the two dates: that is exactly what design sheet 04
-     * grants a detected movement that has not been identified. The nation is not served
-     * either — a sentry sees a column go by, not a flag; identification stays the business of
-     * the agent and the buildings that carry it.
+     * **Nothing here can leak a type, because nothing here carries one.** The thread, the
+     * endpoints, the media and the two dates: that is exactly what design sheet 04 grants a
+     * detected movement that has not been identified — and the pile, roles and counts, once a
+     * Guet of his has read it (ADR 0037 §5, `compositionOf`). The nation is not served either — a
+     * sentry sees a column go by, not a flag; the order stays the business of the agent.
      *
      * A window that has not opened yet is not served at all. Past its close, the row stays and
      * turns into the last known position ADR 0005 asks for — the client reads the two dates
@@ -998,9 +1020,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     detected: await detectedArcs(ctx, player, outposts, now, readsNations),
     /**
      * **Ce qu'on a relevé de posé** (ADR 0024 §1) : une position, un milieu, deux dates, et ce
-     * que le joueur a de *lui-même* — le détecteur qui l'a pris. **Rien ne porte une composition,
-     * un effectif ni une nation, parce que rien n'en est lu** : le camp est un endroit où quelque
-     * chose se tient, et l'identifier reste le métier de l'agent (fiche 04).
+     * que le joueur a de *lui-même* — le détecteur qui l'a pris. **Rien ne porte un effectif ni
+     * une nation, parce que rien n'en est lu** : le camp est un endroit où quelque chose se tient,
+     * et l'identifier reste le métier de l'agent (fiche 04). La pile, seulement celle qu'un Guet
+     * a lue (ADR 0037 §5).
      *
      * Une ligne fermée devient une dernière position connue, comme un arc — et s'efface au même
      * délai (`LAST_KNOWN_HOURS`), parce que le brouillard périme l'information au lieu de
@@ -1027,6 +1050,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               detectorRegion: camp.detectorRegion,
               lastKnown: camp.until !== null,
               ...lisbonNation(readsNations, camp.ownerId),
+              identification: compositionOf(camp),
             },
           ],
     ),
@@ -1252,6 +1276,7 @@ function named(notice: Doc<'notices'>) {
     /** Un point d'avant le champ de région n'en a aucune : la dépêche se contente alors de son
      *  pays, qu'elle porte de toute façon. */
     case 'outpostRaised':
+    case 'outpostRespecialized':
       return {
         ...notice,
         regionName: notice.regionId === null ? null : nameOf(notice.regionId),
@@ -1407,6 +1432,7 @@ async function detectedArcs(
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
         ...lisbonNation(nationOf, sighting.ownerId),
+        identification: compositionOf(sighting),
       });
       continue;
     }
@@ -1436,18 +1462,51 @@ async function detectedArcs(
       ),
       seenFrom: sighting.from,
       seenTo: sighting.to,
+      ...seenReprise(force, sighting),
       /** **Ce que le joueur a de lui-même**, jamais de la colonne : le détecteur est une ligne
        *  de son propre plateau, et la station se nomme par sa région parce que c'est la seule
        *  qu'il puisse montrer du doigt sur sa carte. Deux stations sinon se lisent pareil. */
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
       ...lisbonNation(nationOf, movement.playerId),
+      identification: compositionOf(sighting),
     });
   }
   return seen;
 }
 
+/**
+ * **La pile qu'un Guet a lue** (ADR 0037 §5), et la date de sa dernière lecture quand plus aucun
+ * Guet ne la lit. Rien ici ne lit l'heure : la pile ne s'écrit sur la ligne que sous un Guet qui
+ * voit, et un réveil à chaque borne de sa fenêtre la lit puis la fige (`readPile`).
+ */
+const compositionOf = (row: {
+  readonly stack?: ReadonlyArray<UnitRole>;
+  readonly readAt?: number;
+}): Composition =>
+  row.stack === undefined
+    ? { pierced: false }
+    : { pierced: true, stack: stackOf(row.stack), readAt: row.readAt ?? null };
+
 const coordsOf = (point: LonLat) => ({ lon: point[0], lat: point[1] });
+
+/**
+ * **Une colonne retenue par un Fort sous les yeux de l'observateur** (ADR 0037 §6) : la reprise
+ * du tronçon vu, quand la fenêtre couvre l'entrée — la part du tronçon déjà marchée alors. Elle
+ * ne dit rien de plus que le saut d'`arrivesAt` déjà servi : la colonne ralentit sous ses yeux.
+ */
+function seenReprise(force: MarchingForce, sighting: Doc<'sightings'>) {
+  /** **Une retenue au bout** (#407) se sert de même, à part entière : le pion s'arrête au bout
+   *  du tronçon à l'arrivée réelle. Avec un Fort dans la même fenêtre, la retenue l'emporte. */
+  const at = [force.heldAt, force.resumed?.at].find(
+    (instant) => instant !== undefined && instant > sighting.from && instant < sighting.to,
+  );
+  if (at === undefined) return {};
+  const [from, entry, to] = [sighting.from, at, sighting.to].map((instant) =>
+    timeShareAt(force, instant),
+  ) as [number, number, number];
+  return { resumed: { at, share: to > from ? (entry - from) / (to - from) : 0 } };
+}
 
 /**
  * **« Cap sur moi », estimated** (rule 5 of decision 4a). Without a destination the question is

@@ -5,7 +5,7 @@ import type { Id } from './_generated/dataModel';
 import { NOTICES_SERVED, REPORTS_SERVED } from '../src/domain/player-view';
 import { buildGrid } from '../src/domain/routing';
 import { nominalStrength } from './constants';
-import { specializationServed, specializationsServed } from './movement/forces';
+import { outpostServed, outpostsServed } from './movement/forces';
 import type { LonLat } from '../src/domain/geo';
 import { outpostReachKm } from './constants';
 import { heldOver } from './holding';
@@ -263,7 +263,6 @@ describe('la vue du plateau tient dans un budget', () => {
           point: { lon: point[0] + index, lat: point[1] },
           hostCountry: 'France',
           level: 1,
-          specialization: 'relay' as const,
           foundedAt: MIDDAY.getTime(),
           disabledUntil: null,
           immuneUntil: null,
@@ -294,10 +293,10 @@ describe('la vue du plateau tient dans un budget', () => {
         arrivesAt: MIDDAY.getTime() + 3_600_000,
       });
 
-      const bulk = await specializationsServed(ctx, me.seasonId, outposts);
+      const bulk = await outpostsServed(ctx, me.seasonId, outposts);
       const one = new Map<string, boolean>();
       for (const outpost of outposts) {
-        one.set(outpost._id, await specializationServed(ctx, outpost));
+        one.set(outpost._id, await outpostServed(ctx, outpost));
       }
       return outposts.map((outpost) => [bulk.has(outpost._id), one.get(outpost._id)!] as const);
     });
@@ -439,7 +438,6 @@ describe('la couleur se mesure par point et se retient', () => {
           point: { lon, lat },
           hostCountry: 'XXX',
           level: 3,
-          specialization: 'relay' as const,
           foundedAt: MIDDAY.getTime(),
           disabledUntil: null,
           immuneUntil: null,

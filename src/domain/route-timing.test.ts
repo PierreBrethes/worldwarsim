@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { routeMinutes } from '../../convex/constants';
+import type { MarchingForce } from './interception';
 import {
+  fortEntryOf,
+  heldMinutes,
   relayedCostUnits,
   relayedShare,
   temporalPosition,
@@ -177,5 +181,94 @@ describe('what a logistics relay does to a road', () => {
       legs / 1.5 + 2 * TRANSFER_COST,
       6,
     );
+  });
+
+  /** **Une liaison n'accélère pas l'air** (Pierre, 01/11, ADR 0037) : la terre et la mer seules. */
+  it('leaves a flight under the relays at its full length', () => {
+    const flight = directRoute([0, 0], [2, 0], 'air', 2);
+    const relays = [watching(1, 0)];
+
+    expect(relayedShare({ points: flight.points, relays })).toBe(1);
+    expect(relayedCostUnits({ route: flight, relays, multiplier: 1.5 })).toBe(flight.costUnits);
+  });
+});
+
+/**
+ * **Le Fort retient** (ADR 0037 §6) : ×1,5 sur la part de route que couvre la vigie d'au moins un
+ * Fort, à terre et en mer, jamais en vol ; ses liaisons et un Fort sur la même part s'annulent.
+ */
+describe('what a Fort does to an enemy road', () => {
+  const lookout = (lon: number, radiusKm = 400) => ({
+    id: `fort@${lon}`,
+    point: [lon, 0] as const,
+    radiusKm,
+  });
+  const straight = (fromLon: number, toLon: number, mode: 'land' | 'air' = 'land') =>
+    directRoute([fromLon, 0], [toLon, 0], mode, toLon - fromLon);
+  const marching = (route: ComputedRoute): MarchingForce => ({
+    id: 'enemy',
+    points: route.points,
+    legs: route.legs,
+    distanceUnits: route.distanceUnits,
+    departedAt: 0,
+    arrivesAt: 10 * HOUR,
+  });
+  const HOUR = 3_600_000;
+
+  it('opens the hold the first instant the road is inside a lookout', () => {
+    const road = straight(0, 10);
+    const entry = fortEntryOf(marching(road), [lookout(8, 111)]);
+    // 111 km is a degree on the equator: the column enters at lon 7, seven tenths of its time.
+    expect(entry! / HOUR).toBeCloseTo(7, 1);
+  });
+
+  /** Un Fort qui ne couvre que l'arrivée ne retient rien : la colonne est arrivée. */
+  it('opens no hold at the arrival itself', () => {
+    expect(fortEntryOf(marching(straight(0, 10)), [lookout(10.3, 34)])).toBeNull();
+  });
+
+  it('never holds a flight, nor a road no lookout covers', () => {
+    expect(fortEntryOf(marching(straight(0, 10, 'air')), [lookout(5)])).toBeNull();
+    expect(fortEntryOf(marching(straight(0, 10)), [lookout(40)])).toBeNull();
+  });
+
+  it('lengthens a road wholly inside a lookout by half its walk', () => {
+    const road = straight(0, 2);
+    expect(heldMinutes({ route: road, forts: [lookout(1)], relays: [], fromShare: 0 })).toBe(
+      routeMinutes(road.costUnits * 0.5),
+    );
+  });
+
+  it('counts two Forts that overlap as one', () => {
+    const road = straight(0, 2);
+    expect(
+      heldMinutes({ route: road, forts: [lookout(1), lookout(1.2)], relays: [], fromShare: 0 }),
+    ).toBe(routeMinutes(road.costUnits * 0.5));
+  });
+
+  it('cancels a liaison on the same stretch, the road back at its plain pace', () => {
+    const road = straight(0, 2);
+    const relays = [{ point: [1, 0] as const, reachKm: 400 }];
+    const relayed = relayedCostUnits({ route: road, relays, multiplier: 1.5 });
+    expect(heldMinutes({ route: road, forts: [lookout(1)], relays, fromShare: 0 })).toBe(
+      routeMinutes(road.costUnits - relayed),
+    );
+  });
+
+  it('counts only the road ahead of the column', () => {
+    const road = straight(0, 2);
+    const ahead = heldMinutes({ route: road, forts: [lookout(1)], relays: [], fromShare: 0.5 });
+    expect(ahead).toBeGreaterThanOrEqual(routeMinutes(road.costUnits * 0.25) - 1);
+    expect(ahead).toBeLessThanOrEqual(routeMinutes(road.costUnits * 0.25) + 1);
+  });
+
+  it('holds a crossing by sea, and nothing on a flight', () => {
+    const crossing = combined(0, 20, 0);
+    expect(heldMinutes({ route: crossing, forts: [lookout(1.5)], relays: [], fromShare: 0 })).toBe(
+      routeMinutes(20 * COST_BY_MEDIUM.sea * 0.5),
+    );
+    expect(
+      heldMinutes({ route: straight(0, 2, 'air'), forts: [lookout(1)], relays: [], fromShare: 0 }),
+    ).toBe(0);
   });
 });

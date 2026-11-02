@@ -33,7 +33,7 @@ import { useLayerSize } from './layer-size';
  * counts at every degree of orbit, for a result nobody would have time to read.
  *
  * Classes styled in `src/styles/indicators.css`:
- * `indicator--<category>` · `--clustered` · `--threat | --offensive | --imminent` ·
+ * `indicator--<category>` · `--clustered` · `--threat` ·
  * `--attention`.
  */
 export function EdgeIndicators({
@@ -183,8 +183,8 @@ export function EdgeIndicators({
     engine?.invalidate();
   }, [engine, groups, destinations]);
 
-  // The alert mark falls at the due time, not per frame: a one-second beat suffices and it
-  // is the same cadence as the labels' countdowns.
+  // The attention accent falls at the due time, not per frame: a one-second beat suffices and
+  // it is the same cadence as the labels' countdowns.
   useEffect(() => {
     const apply = () => {
       const now = Date.now();
@@ -194,7 +194,7 @@ export function EdgeIndicators({
         const members = group.members
           .map((member) => kept.get(member))
           .filter((label): label is MapLabel => label !== undefined);
-        const mark = strongestMark(members.map((member) => alertMark(member, now)));
+        const mark = strongestMark(members.map(alertMark));
         for (const name of MARKS) root.classList.toggle(`indicator--${name}`, mark === name);
         root.classList.toggle(
           'indicator--attention',
@@ -249,11 +249,6 @@ export function EdgeIndicators({
             }}
             onClick={() => engine?.journeyTo([group.nearest])}
           >
-            <span className="indicator-triangle" aria-hidden>
-              <svg viewBox="0 0 20 20">
-                <path d="M10 1.8 18.4 17.2H1.6z" />
-              </svg>
-            </span>
             {group.members.length > 1 && (
               <span className="indicator-backing">
                 <IndicatorGlyph category={group.category} size={17} />
@@ -272,7 +267,7 @@ export function EdgeIndicators({
   );
 }
 
-const MARKS: ReadonlyArray<AlertMark> = ['threat', 'offensive', 'imminent'];
+const MARKS: ReadonlyArray<AlertMark> = ['threat'];
 
 function titleOf(group: IndicatorGroup, kept: ReadonlyMap<string, MapLabel>): string {
   const nature = fr.edgeIndicators.natures[group.category];

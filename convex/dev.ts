@@ -9,6 +9,7 @@ import {
 } from './_generated/server';
 import { heldOf } from './control';
 import { recordLinkage } from './holding';
+import { belligerents } from './production';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
@@ -22,7 +23,7 @@ import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { DEPOSIT_POINTS } from '../src/domain/world';
 import { isNation } from '../src/domain/nations';
-import type { ResearchCard } from '../src/domain/ids';
+import type { ResearchCard, UnitRole } from '../src/domain/ids';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
 /**
@@ -277,6 +278,29 @@ export const backfillAirTransportInfantryOnly = internalMutation({
 });
 
 /**
+ * **Le silence des vigies sur une base d'avant le champ** (#370) : `players.listeningSilent` est
+ * lu « entend » quand il manque, et un joueur déjà muet au déploiement le resterait sur la carte
+ * de tous jusqu'à son prochain réveil. Planifie `listening.reassess` pour chaque belligérant des
+ * saisons lancées, qui règle son économie et écrit son verdict. Idempotente.
+ *
+ * `npx convex run dev:backfillListeningSilent`
+ */
+export const backfillListeningSilent = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let players = 0;
+    for (const season of await ctx.db.query('seasons').collect()) {
+      if (season.status !== 'launched') continue;
+      for (const player of await belligerents(ctx, season._id)) {
+        await ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId: player._id });
+        players += 1;
+      }
+    }
+    return { players };
+  },
+});
+
+/**
  * **Rallumer la presse là où elle s'est tue.** La chaîne des éditions n'a pas de planificateur
  * au-dessus d'elle — chaque `press:publish` prend le rendez-vous du suivant (ADR 0020 §4) — donc
  * une saison dont le maillon est tombé ne publie plus jamais, et rien ne le dit. C'est arrivé le
@@ -456,7 +480,6 @@ export const logisticsScene = internalMutation({
         point: { lon: 3.06, lat: 50.63 },
         hostCountry: 'FRA',
         level: 1,
-        specialization: 'relay',
         foundedAt: now - 1,
         disabledUntil: null,
         immuneUntil: null,
@@ -468,7 +491,7 @@ export const logisticsScene = internalMutation({
       point: { lon: 4.35, lat: 50.85 },
       hostCountry: 'BEL',
       level: 2,
-      specialization: 'relay',
+      specialty: 'store',
       foundedAt: now - 1,
       disabledUntil: null,
       immuneUntil: null,
@@ -497,7 +520,6 @@ export const logisticsScene = internalMutation({
         point: { lon, lat },
         hostCountry: 'FRA',
         level: 1,
-        specialization: 'relay',
         foundedAt: now - 1,
         disabledUntil: null,
         immuneUntil: null,
@@ -540,11 +562,17 @@ export const arriveNow = internalMutation({
       .collect();
     const arrivesAt = Date.now() + (afterMs ?? 0);
     for (const movement of moving) {
-      if (onTime)
-        await ctx.db.patch(movement._id, {
-          arrivesAt,
-          departedAt: arrivesAt - (movement.arrivesAt - movement.departedAt),
-        });
+      /** `arrive` ne part pas avant l'heure (le Fort repousse une arrivée en route) : l'heure se
+       *  ramène, et une reprise glisse avec la route ou se perd avec elle. */
+      const shift = arrivesAt - movement.arrivesAt;
+      await ctx.db.patch(movement._id, {
+        arrivesAt,
+        ...(onTime ? { departedAt: movement.departedAt + shift } : {}),
+        resumed:
+          onTime && movement.resumed !== undefined
+            ? { ...movement.resumed, at: movement.resumed.at + shift }
+            : undefined,
+      });
       await ctx.scheduler.runAfter(afterMs ?? 0, internal.movements.arrive, {
         movementId: movement._id,
       });
@@ -724,7 +752,6 @@ export const airdropScene = internalMutation({
       point: { lon: 4.35, lat: 50.85 },
       hostCountry: 'BEL',
       level: 1,
-      specialization: 'relay',
       foundedAt: Date.now() - 1,
       disabledUntil: null,
       immuneUntil: null,
@@ -737,7 +764,6 @@ export const airdropScene = internalMutation({
       kind: 'outpostFounded',
       hostCountry: 'BEL',
       point: { lon: 4.35, lat: 50.85 },
-      specialization: 'relay',
     });
     for (const troop of [
       { role: 'infantry' as const, rounds: 0 },
@@ -1010,7 +1036,7 @@ export const neighbourScene = internalMutation({
       point: { lon: 3.95, lat: 50.45 },
       hostCountry: 'BEL',
       level: 2,
-      specialization: 'relay',
+      specialty: 'lookout',
       foundedAt: Date.now() - 1,
       disabledUntil: null,
       immuneUntil: null,
@@ -1058,7 +1084,6 @@ export const depositsScene = internalMutation({
       point: { lon: 4.87, lat: 50.47 },
       hostCountry: 'BEL',
       level: 1,
-      specialization: 'relay',
       foundedAt: now - 1,
       disabledUntil: null,
       immuneUntil: null,
@@ -1093,12 +1118,369 @@ export const quaysScene = internalMutation({
         point: { lon, lat },
         hostCountry,
         level: 3,
-        specialization: 'relay',
+        /** Malte en Fort ; les deux autres, points d'avant la refonte, choisissent encore. */
+        ...(hostCountry === 'MLT' ? { specialty: 'fort' as const } : {}),
         foundedAt: Date.now() - 1,
         disabledUntil: null,
         immuneUntil: null,
       });
     await recordLinkage(ctx, player.seasonId);
+  },
+});
+
+/**
+ * **La scène des liaisons** (#370), pour la démo : deux avant-postes français en liaison, Namur et
+ * Liège, un troisième seul à Bâle, à plus de 240 km des deux, et une pile à Charleroi d'où viser Aix-la-Chapelle à
+ * travers les deux rayons. Avec `dryCoal`, le charbon national tombe à zéro : toutes les vigies
+ * aveugles.
+ *
+ * `npx convex run dev:liaisonsScene '{"playerId":"…","dryCoal":false}'`
+ */
+export const liaisonsScene = internalMutation({
+  args: { playerId: v.id('players'), dryCoal: v.boolean() },
+  handler: async (ctx, { playerId, dryCoal }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [lon, lat, hostCountry] of [
+      [4.87, 50.47, 'BEL'],
+      [5.57, 50.63, 'BEL'],
+      [7.59, 47.56, 'CHE'],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    for (let count = 0; count < 2; count += 1)
+      await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: { lon: 4.44, lat: 50.41 },
+      });
+    if (dryCoal) {
+      await settle(ctx, playerId, now);
+      const coal = await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect();
+      for (const row of coal.filter((one) => one.key === 'coal'))
+        await ctx.db.patch(row._id, { stock: 0, updatedAt: now });
+    }
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **La scène des métiers** (#371), pour la démo : quatre avant-postes français entre Arlon et
+ * Sarrebruck. À Arlon un point de niveau 1, dont l'élévation offre Magasin, Guet et Fort ; à
+ * Luxembourg un point d'avant la refonte, généraliste au niveau 2, qui choisit gratuitement ; à
+ * Trèves un Magasin plein au-delà de la capacité simple, en file pour devenir Guet (en chantier
+ * dès que la file le fait partir) ; à
+ * Sarrebruck un Guet, au rayon entier. L'acier est remis à 1 000 pour que tout se paie.
+ *
+ * `npx convex run dev:specialtiesScene '{"playerId":"…"}'`
+ */
+export const specialtiesScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    const plant = (
+      lon: number,
+      lat: number,
+      hostCountry: string,
+      level: number,
+      more: Partial<Doc<'outposts'>> = {},
+    ) =>
+      ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level,
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        ...more,
+      });
+    await plant(5.81, 49.68, 'BEL', 1);
+    await plant(6.13, 49.61, 'LUX', 2);
+    const changing = await plant(6.64, 49.75, 'DEU', 2, {
+      specialty: 'store',
+      depot: { ammunition: 700, oil: 300, coal: 200 },
+    });
+    await plant(7.0, 49.23, 'DEU', 2, { specialty: 'lookout' });
+    /** Mis en file comme le ferait `respecializeOutpost`, au dernier rang et sans date : c'est la
+     *  file qui le fait partir à son tour (`resume`), à la durée de `worksMinutes`, et qui pose
+     *  `changingTo` au départ. Derrière un chantier en cours (`--chantiers`), il attend. */
+    const queue = await ctx.db
+      .query('constructions')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    await ctx.db.insert('constructions', {
+      playerId,
+      building: 'outpost',
+      outpostId: changing,
+      specialty: 'lookout',
+      respecialize: true,
+      regionId: '',
+      level: 2,
+      rank: queue.reduce((top, entry) => Math.max(top, entry.rank + 1), 0),
+      finishesAt: null,
+    });
+    await ctx.runMutation(internal.constructions.resume, { playerId });
+    await settle(ctx, playerId, now);
+    for (const row of (
+      await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).filter((one) => one.key === 'steel'))
+      await ctx.db.patch(row._id, { stock: 1000, updatedAt: now });
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **La scène des Magasins** (#372), pour la démo : deux Magasins français de niveau 2, plein à
+ * Berne, presque vide à Innsbruck. Une pile à sec à Turin, d'où viser Stuttgart à travers Berne, et
+ * une à Vérone, d'où viser Nuremberg à travers Innsbruck : le chip dit ce qu'elles y reprendront.
+ * Deux colonnes à sec font ces deux routes et arrivent vingt secondes après la scène : le journal
+ * dit ce que chaque Magasin a versé, et le dépôt d'Innsbruck tombe à zéro.
+ *
+ * `npx convex run dev:storesScene '{"playerId":"…"}'`
+ */
+export const storesScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [lon, lat, hostCountry, depot] of [
+      [7.45, 46.95, 'CHE', { ammunition: 800, oil: 600, coal: 200 }],
+      [11.4, 47.27, 'AUT', { ammunition: 15, oil: 10, coal: 0 }],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 2,
+        specialty: 'store',
+        depot,
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    const dryPile = async (at: { lon: number; lat: number }) => {
+      const ids: Array<Id<'troops'>> = [];
+      for (const role of ['infantry', 'infantry', 'landTransport'] as const)
+        ids.push(
+          await ctx.db.insert('troops', {
+            seasonId: player.seasonId,
+            playerId,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: at,
+            rounds: 0,
+            fuel: role === 'landTransport' ? 3 : 0,
+          }),
+        );
+      return ids;
+    };
+    const routes = [
+      { from: { lon: 7.68, lat: 45.07 }, to: { lon: 9.18, lat: 48.78 } },
+      { from: { lon: 10.99, lat: 45.44 }, to: { lon: 11.08, lat: 49.45 } },
+    ];
+    for (const { from, to } of routes) {
+      await dryPile(from);
+      const { movementId, arrivesAt } = await march(ctx, {
+        playerId,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds: await dryPile(from),
+        aim: await aimOf(ctx, playerId, { kind: 'point', point: to }),
+      });
+      /** Partie il y a le temps de sa route, elle arrive tout de suite : la dépêche se lit à la
+       *  capture. Le rendez-vous d'origine trouvera la colonne déjà arrivée. */
+      const soon = now + 20_000;
+      await ctx.db.patch(movementId, { departedAt: soon - (arrivesAt - now), arrivesAt: soon });
+      await ctx.scheduler.runAt(soon, internal.movements.arrive, { movementId });
+    }
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **La scène des Forts** (#374), pour la démo : un Fort français de niveau 2 à Namur, au charbon,
+ * et un Fort adverse à Luxembourg, son maître sans charbon. Une colonne adverse part de Gand vers
+ * Liège : elle entre dans la vigie de Namur trente secondes après la scène, et l'arrivée s'y
+ * rechiffre (`@namur`, `@gand`). Une colonne française part de Nancy vers Liège à côté du Fort
+ * sans charbon, qui ne la retient pas (`@luxembourg`).
+ *
+ * `npx convex run dev:fortScene '{"playerId":"…","enemyId":"…"}'`
+ */
+export const fortScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [owner, lon, lat, hostCountry] of [
+      [playerId, 4.87, 50.47, 'BEL'],
+      [enemyId, 6.13, 49.61, 'LUX'],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        point: { lon, lat },
+        hostCountry,
+        level: 2,
+        specialty: 'fort',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    await settle(ctx, enemyId, now);
+    for (const row of await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', enemyId))
+      .collect())
+      if (row.key === 'coal') await ctx.db.patch(row._id, { stock: 0, updatedAt: now });
+    await reassessDetection(ctx, player.seasonId, now, enemyId);
+
+    const columnOf = async (
+      owner: Id<'players'>,
+      from: { lon: number; lat: number },
+      to: { lon: number; lat: number },
+    ) => {
+      const troopId = await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId: owner,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: from,
+      });
+      const { movementId } = await march(ctx, {
+        playerId: owner,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds: [troopId],
+        aim: await aimOf(ctx, owner, { kind: 'point', point: to }),
+      });
+      return movementId;
+    };
+    const held = await columnOf(enemyId, { lon: 3.72, lat: 51.05 }, { lon: 5.57, lat: 50.63 });
+    await columnOf(playerId, { lon: 6.18, lat: 48.69 }, { lon: 5.57, lat: 50.63 });
+
+    /** Partie plus tôt, elle entre dans la vigie de Namur dans trente secondes : la réévaluation
+     *  replace le rendez-vous, l'ancien job d'arrivée passe sans rien faire. */
+    const movement = (await ctx.db.get(held))!;
+    if (movement.fortEntry === undefined) throw new Error('the column misses the Fort');
+    const shift = movement.fortEntry.at - (now + 30_000);
+    await ctx.db.patch(held, {
+      departedAt: movement.departedAt - shift,
+      arrivesAt: movement.arrivesAt - shift,
+    });
+    await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
+      movementId: held,
+    });
+    await reassessDetection(ctx, player.seasonId, now, enemyId);
+  },
+});
+
+/**
+ * **La scène du Guet** (#373), pour la démo : un Guet français de niveau 2 à Kaiserslautern, au
+ * rayon entier (180 km), et un généraliste à Berne. En face, des piles britanniques : trois
+ * fantassins et un blindé partis de Wurtzbourg vers Munich (une colonne lue) ;
+ * deux fantassins et un canon à Francfort (un camp lu, hors de la mi-portée d'un généraliste) ;
+ * un blindé et un fantassin lus à Mayence il y a deux heures, partis depuis hors de vue (une
+ * dernière position connue qui garde sa pile) ; deux fantassins près de Berne, que le généraliste
+ * relève sans les lire.
+ *
+ * `npx convex run dev:guetScene '{"playerId":"…","enemyId":"…"}'`
+ */
+export const guetScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const { seasonId } = player;
+    const now = Date.now();
+    const plant = (lon: number, lat: number, hostCountry: string, level: number, more = {}) =>
+      ctx.db.insert('outposts', {
+        seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level,
+        /** Debout avant le relevé de Mayence, deux heures plus tôt. */
+        foundedAt: now - 3 * 3_600_000,
+        disabledUntil: null,
+        immuneUntil: null,
+        ...more,
+      });
+    await plant(7.77, 49.44, 'DEU', 2, { specialty: 'lookout' });
+    await plant(7.45, 46.95, 'CHE', 1);
+    const pile = async (at: { lon: number; lat: number }, roles: ReadonlyArray<UnitRole>) => {
+      const ids: Array<Id<'troops'>> = [];
+      for (const role of roles)
+        ids.push(
+          await ctx.db.insert('troops', {
+            seasonId,
+            playerId: enemyId,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: at,
+          }),
+        );
+      return ids;
+    };
+    const wurzburg = { lon: 9.93, lat: 49.79 };
+    const column = await pile(wurzburg, ['infantry', 'infantry', 'infantry', 'armor']);
+    await pile({ lon: 8.68, lat: 50.11 }, ['infantry', 'infantry', 'artillery']);
+    await pile({ lon: 7.6, lat: 47.15 }, ['infantry', 'infantry']);
+    const lost = await pile({ lon: 8.27, lat: 50.0 }, ['armor', 'infantry']);
+    await reassessDetection(ctx, seasonId, now - 2 * 3_600_000);
+    for (const troopId of lost)
+      await ctx.db.patch(troopId, { stationedAt: { lon: 13.4, lat: 52.5 } });
+    const season = await ctx.db.get(seasonId);
+    if (season === null) throw new Error('no such season');
+    await march(ctx, {
+      playerId: enemyId,
+      season,
+      type: 'march',
+      origin: { kind: 'point', point: wurzburg },
+      troopIds: column,
+      aim: await aimOf(ctx, enemyId, { kind: 'point', point: { lon: 11.58, lat: 48.14 } }),
+    });
+    await reassessDetection(ctx, seasonId, now);
+    await recordLinkage(ctx, seasonId);
   },
 });
 
@@ -1130,7 +1512,6 @@ export const navyScene = internalMutation({
       point: { lon: 3, lat: 43.3 },
       hostCountry: 'FRA',
       level: 1,
-      specialization: 'relay',
       foundedAt: Date.now() - 1,
       disabledUntil: null,
       immuneUntil: null,
@@ -1197,7 +1578,6 @@ export const benchScene = internalMutation({
           point,
           hostCountry: 'BENCH',
           level: 2,
-          specialization: 'relay',
           foundedAt: Date.now() - 1,
           disabledUntil: null,
           immuneUntil: null,
@@ -1425,7 +1805,8 @@ export const benchWakeups = internalMutation({
       }
     }
     await settle(ctx, silent, Date.now());
-    await reassessDetection(ctx, seasonId, Date.now());
+    /** Les deux joueurs dont le charbon a bougé : seuls eux règlent leur silence et leur réveil. */
+    await reassessDetection(ctx, seasonId, Date.now(), [burning, silent]);
   },
 });
 

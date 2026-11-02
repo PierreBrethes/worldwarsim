@@ -11,6 +11,7 @@ import { regionAtRoutePoint } from './regionGeometry';
 import { openSession, sessionOf } from './sessions';
 import { handOver, layPoint } from './strategicPoints';
 import { recordLinkage } from './holding';
+import { reassessDetection } from './movement/detection';
 
 /**
  * **La seule façon de s'asseoir à une table de test** (ADR 0022). Un jeton bricolé par suite
@@ -307,3 +308,45 @@ export const holdPoint = (
     await recordLinkage(ctx, seat.seasonId);
     return point._id;
   });
+
+/**
+ * **Un Guet de `seat`** de niveau 2 à `at` (ADR 0037 §5), et le plateau relu : il lit les piles
+ * posées dans ses 180 km. Les chemins de combat le posent pour prouver qu'ils relisent.
+ */
+export async function plantGuet(
+  t: Bench,
+  seat: Seat,
+  at: { readonly lon: number; readonly lat: number },
+): Promise<void> {
+  await t.run(async (ctx: MutationCtx) => {
+    const player = await seatIn(ctx, seat);
+    await ctx.db.insert('outposts', {
+      seasonId: player.seasonId,
+      playerId: player._id,
+      point: { lon: at.lon, lat: at.lat },
+      hostCountry: '',
+      level: 2,
+      specialty: 'lookout',
+      foundedAt: Date.now() - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+    });
+    await reassessDetection(ctx, player.seasonId);
+  });
+}
+
+/**
+ * **Ce que le Guet de `seat` sert des camps, puis ce qu'une passe entière en servirait** : un
+ * chemin qui tue des troupes sans réévaluer laisse les deux différer (#373).
+ */
+export async function campsAroundAFullPass(t: Bench, seat: Seat) {
+  const served = async () =>
+    (await t.query(api.view.playerView, seat)).camps.map(({ id, lastKnown, identification }) => ({
+      id,
+      lastKnown,
+      identification,
+    }));
+  const before = await served();
+  await t.run(async (ctx: MutationCtx) => reassessDetection(ctx, seat.seasonId));
+  return { before, after: await served() };
+}

@@ -7,6 +7,7 @@ import {
 import { PRODUCER_OF, YIELD_OF } from './economy';
 import type { BuildingKey, ResourceKey } from './ids';
 import type { PlayerView } from './player-view';
+import { lookoutCoalPerHour } from './outposts';
 import { cumulative } from './upkeep';
 
 /**
@@ -146,14 +147,12 @@ export function ledgerOf(view: PlayerView, resource: ResourceKey): Ledger {
             },
             perHour: -LISTENING_COAL_PER_HOUR,
           })),
+        /** Tout point debout et en service guette (ADR 0037 §2), comme `upkeepOf` le compte. */
         ...standing(view)
-          .filter(
-            (outpost) =>
-              outpost.specialization === 'listening' && outpost.disabledMinutesLeft === null,
-          )
+          .filter((outpost) => outpost.disabledMinutesLeft === null)
           .map((outpost) => ({
             what: { kind: 'station' as const, region: regionName(outpost.regionId), outpost: true },
-            perHour: -LISTENING_COAL_PER_HOUR,
+            perHour: -lookoutCoalPerHour(outpost.level),
           })),
       ];
       return { id: 'listening', perHour: -me.upkeep.listeningCoalPerHour, rows };

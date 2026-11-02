@@ -344,7 +344,7 @@ describe('the sort a dispatch is stamped with', () => {
    *  perdu, ce qui a manqué en tirant, ce qu'on a vu passer. */
   it('reserves the red ink for the four sorts that ask for a decision now', () => {
     const alarms: ReadonlyArray<Notice> = [
-      { kind: 'outpostDisabled', at: NOON, hostCountry: 'ROU', specialization: 'listening' },
+      { kind: 'outpostDisabled', at: NOON, hostCountry: 'ROU' },
       { kind: 'firedDry', at: NOON, hostCountry: 'ROU' },
       {
         kind: 'movementSighted',
@@ -361,12 +361,21 @@ describe('the sort a dispatch is stamped with', () => {
 
     const quiet: ReadonlyArray<Notice> = [
       finished(NOON),
-      { kind: 'outpostFounded', at: NOON, hostCountry: 'ROU', specialization: 'relay' },
+      { kind: 'outpostFounded', at: NOON, hostCountry: 'ROU' },
       { kind: 'columnArrived', at: NOON, movementType: 'march', hostCountry: 'ROU', troops: 2 },
     ];
     for (const notice of quiet) {
       expect(isAlarm(journalDispatches([], null, [notice])[0]!.kind)).toBe(false);
     }
+  });
+
+  /** **Le journal ne dit plus de métier** (ADR 0037 §1) : « avant-poste », même sur une dépêche
+   *  d'avant qui porte encore « relais ». */
+  it('says an outpost, never its old trade, on the dispatches old and new', () => {
+    const old = { kind: 'outpostFounded', at: NOON, hostCountry: 'ROU', specialization: 'relay' };
+    const [founded] = journalDispatches([], null, [old as Notice]);
+    expect(founded!.text).toMatch(/^Un avant-poste a été mis en chantier/);
+    expect(founded!.text).not.toMatch(/relais/);
   });
 
   /** Une saison close se relit, elle ne se joue plus : elle n'exige plus rien de personne, donc

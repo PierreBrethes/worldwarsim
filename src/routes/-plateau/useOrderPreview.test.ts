@@ -41,7 +41,7 @@ describe('the length of the road, said under the hand (#302)', () => {
     ({
       minutes,
       /** What the server's fuel bill counts on the same road, round trip aside. */
-      fuel: { km: fuelKm },
+      fuel: { km: fuelKm, resupply: { rounds: 0, fuel: 0 } },
       route: {
         distanceUnits: land + sea,
         legs: [
@@ -65,6 +65,28 @@ describe('the length of the road, said under the hand (#302)', () => {
 
   it('does not repeat the total as a share when the whole road is at sea', () => {
     expect(said(road(0, 2.6, 130))).toEqual(['≈ 289 km · 2 h 10']);
+  });
+
+  /** **Le chip dit pourquoi la durée est courte** (ADR 0037 §8) : ce que les liaisons ont pris. */
+  it('says what the liaisons took off the road, and nothing when they took nothing', () => {
+    const fast = { ...road(5.77, 0, 200, 640), relayed: 40 } as NonNullable<Previewed>;
+    expect(said(fast)).toEqual([
+      '≈ 640 km · 3 h 20',
+      '×1,5 dans le rayon de vos liaisons — 40 min de gagné',
+    ]);
+    expect(said({ ...fast, relayed: 0 } as NonNullable<Previewed>)).toEqual(['≈ 640 km · 3 h 20']);
+  });
+
+  /** **Le chip dit ce que ses Magasins verseront en route** (ADR 0037 §4). */
+  it('says the steps its Magasins will pour on the way, and nothing when none', () => {
+    const base = road(5.77, 0, 200, 640);
+    const fed = { ...base, fuel: { ...base.fuel, resupply: { rounds: 3, fuel: 2 } } };
+    expect(said(fed as NonNullable<Previewed>)).toEqual([
+      '≈ 640 km · 3 h 20',
+      'vos Magasins en route : 3 crans de coups et 2 de plein',
+    ]);
+    const dry = { ...base, fuel: { ...base.fuel, resupply: { rounds: 0, fuel: 1 } } };
+    expect(said(dry as NonNullable<Previewed>)[1]).toBe('vos Magasins en route : 1 cran de plein');
   });
 
   it('says nothing for a grouped order: the line would hold for the pile in hand only', () => {

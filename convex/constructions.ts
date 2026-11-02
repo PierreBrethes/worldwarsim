@@ -20,10 +20,15 @@ import {
 import {
   outpostRaiseHold,
   raiseRefusalOf,
+  specialtyRefusalOf,
+  choosesFreely,
+  raiseChoosesSpecialty,
   type OutpostRaiseHold,
+  type SpecialtyRefusal,
 } from '../src/domain/construction';
 import { depositAt, type DepositPoint } from '../src/domain/world';
 import {
+  billOfWork,
   buildingAt,
   buildingCostKey,
   cappedByHq,
@@ -40,6 +45,7 @@ import {
   OUTPOST_MAX_LEVEL,
   outpostReachKm,
   buildCost,
+  respecialtyBill,
   nominalStrength,
   settlesDebt,
 } from './constants';
@@ -48,10 +54,10 @@ import { isOnRegionCoast } from './coast';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, isReached, sitesOf } from './sites';
-import { credit, debit, economyOf, settle } from './resources';
+import { credit, debit, economyOf, rearmDryWakeUp, settle } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seats';
-import { BUILDING_KEY, LON_LAT } from './validators';
+import { BUILDING_KEY, CHOSEN_SPECIALTY, LON_LAT } from './validators';
 import { reportChange, settleBeforeChange } from './production';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
@@ -212,8 +218,15 @@ export const start = mutation({
  * qu'un raid interdit, c'est de **rénover sous le feu** (`OUTPOST_DISABLED`).
  */
 export const raiseOutpost = mutation({
-  args: { token: v.string(), seasonId: v.id('seasons'), outpostId: v.id('outposts') },
-  handler: async (ctx, { token, seasonId, outpostId }) => {
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    outpostId: v.id('outposts'),
+    /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : un geste, un chantier. Ignorée
+     *  au passage au niveau 3, qui garde la spécialisation du niveau 2. */
+    specialty: v.optional(CHOSEN_SPECIALTY),
+  },
+  handler: async (ctx, { token, seasonId, outpostId, specialty }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     refuseInBlitz(season);
@@ -235,6 +248,8 @@ export const raiseOutpost = mutation({
       OUTPOST_MAX_LEVEL,
     );
     if (hold !== null) refuseRaise(hold);
+    const chosen = raiseChoosesSpecialty(outpost.level) ? specialty : undefined;
+    if (raiseChoosesSpecialty(outpost.level) && chosen === undefined) fail('SPECIALTY_REQUIRED');
 
     await debit(ctx, player._id, cost, now);
     const last = queue[queue.length - 1];
@@ -243,6 +258,7 @@ export const raiseOutpost = mutation({
       playerId: player._id,
       building: 'outpost',
       outpostId,
+      ...(chosen === undefined ? {} : { specialty: chosen }),
       /** L'écran nomme le lieu de tout ce qui est en file ; ce n'est pas une réservation de sol.
        *  Un point d'avant le champ de région n'en a pas, et la ligne se lit par son pays. */
       regionId: regionOfOutpost(outpost) ?? '',
@@ -257,6 +273,76 @@ export const raiseOutpost = mutation({
   },
 });
 
+/**
+ * **Choisir ou changer la spécialisation d'un point** (ADR 0037 §7, §11). Un point d'avant la
+ * refonte, généraliste au niveau 2 ou 3, choisit une fois, sans chantier ni acier : il a déjà
+ * payé son élévation. Un point spécialisé change par un chantier de la file du QG, la durée de sa
+ * dernière élévation et la moitié de son acier (`respecialtyBill`) ; l'effet se coupe au départ
+ * du chantier (`runHead`), pas à la mise en file — une ligne en file s'annule et se rembourse.
+ */
+export const respecializeOutpost = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    outpostId: v.id('outposts'),
+    specialty: CHOSEN_SPECIALTY,
+  },
+  handler: async (ctx, { token, seasonId, outpostId, specialty }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    refuseInBlitz(season);
+    const outpost = await ctx.db.get(outpostId);
+    if (outpost === null || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST');
+
+    const now = Date.now();
+    const queue = await queueOf(ctx, player._id);
+    const bill = respecialtyBill(outpost.level);
+    const current = outpost.specialty ?? 'general';
+    const refusal = specialtyRefusalOf(
+      {
+        level: outpost.level,
+        specialty: current,
+        disabled: disabledAt(outpost, now),
+        queued: queue.some((entry) => entry.outpostId === outpostId),
+        stocks: (await economyOf(ctx, player._id, now)).stocks,
+      },
+      specialty,
+      bill,
+    );
+    if (refusal !== null) refuseSpecialty(refusal);
+
+    if (choosesFreely({ level: outpost.level, specialty: current })) {
+      await ctx.db.patch(outpostId, { specialty });
+      /** Un Guet voit plus loin, un Magasin stocke plus : ses seuls détecteurs changent. */
+      await reassessDetection(ctx, season._id, now, player._id);
+      return { finishesAt: now, cost: {}, rank: null };
+    }
+
+    await debit(ctx, player._id, bill, now);
+    const last = queue[queue.length - 1];
+    const constructionId = await ctx.db.insert('constructions', {
+      playerId: player._id,
+      building: 'outpost',
+      outpostId,
+      specialty,
+      respecialize: true,
+      regionId: regionOfOutpost(outpost) ?? '',
+      level: outpost.level,
+      rank: last ? last.rank + 1 : 0,
+      finishesAt: null,
+    });
+    await startHead(ctx, player._id, now);
+    const written = await ctx.db.get(constructionId);
+    return { finishesAt: written?.finishesAt ?? null, cost: bill, rank: written?.rank ?? null };
+  },
+});
+
+function refuseSpecialty(refusal: SpecialtyRefusal): never {
+  if (refusal.kind === 'levelOne') fail('SPECIALTY_AT_LEVEL_TWO');
+  if (refusal.kind === 'held') fail('SPECIALTY_HELD');
+  refuseRaise(refusal);
+}
+
 /** Hors service tant que la borne n'est pas passée, **inclusivement** — la même lecture que la
  *  couleur (`convex/holding.ts`), pour que les deux ne se contredisent pas d'une milliseconde. */
 const disabledAt = (outpost: Doc<'outposts'>, now: number): boolean =>
@@ -267,7 +353,7 @@ const disabledAt = (outpost: Doc<'outposts'>, now: number): boolean =>
 function refuseRaise(hold: OutpostRaiseHold): never {
   if (hold.kind === 'maxLevel') fail('MAX_LEVEL_REACHED', { maximum: hold.maximum });
   if (hold.kind === 'disabled') fail('OUTPOST_DISABLED');
-  if (hold.kind === 'alreadyQueued') fail('OUTPOST_RAISE_QUEUED');
+  if (hold.kind === 'alreadyQueued') fail('OUTPOST_WORK_QUEUED');
   fail('INSUFFICIENT_RESOURCE', {
     resource: hold.resource,
     needed: hold.needed,
@@ -316,7 +402,7 @@ export const cancel = mutation({
     if (!entry || entry.playerId !== player._id) fail('UNKNOWN_CONSTRUCTION');
     if (entry.finishesAt !== null) fail('CONSTRUCTION_ALREADY_STARTED');
 
-    const refunded = buildCost(entry.building, entry.level);
+    const refunded = billOfWork(entry);
     await credit(ctx, player._id, refunded, Date.now());
     await ctx.db.delete(constructionId);
     return { refunded };
@@ -335,7 +421,9 @@ export const finish = internalMutation({
     if (construction.finishesAt === null || construction.finishesAt > Date.now()) return;
 
     if (isOutpostWork(construction.building)) {
-      await finishRaise(ctx, construction, season._id);
+      if (construction.respecialize === true)
+        await finishRespecialize(ctx, construction, season._id);
+      else await finishRaise(ctx, construction, season._id);
       return;
     }
 
@@ -392,6 +480,9 @@ export const finish = internalMutation({
       });
     }
     await ctx.db.delete(constructionId);
+    /** Réglé avant le niveau neuf : une station, un arsenal ou une mine qui monte change ce que
+     *  le charbon brûle, et le réveil des vigies se recale sur la forme écrite. */
+    await rearmDryWakeUp(ctx, construction.playerId, Date.now());
     /** **Un Centre de recherche de nouveau debout relance la carte qui l'attendait** (#123). */
     if (standing === undefined && construction.building === 'researchCenter')
       await followCenter(ctx, construction.playerId, Date.now());
@@ -444,7 +535,10 @@ async function finishRaise(
 
   const at = Date.now();
   const before = await settleBeforeChange(ctx, seasonId, at);
-  await ctx.db.patch(outpost._id, { level: construction.level });
+  await ctx.db.patch(outpost._id, {
+    level: construction.level,
+    ...(construction.specialty === undefined ? {} : { specialty: construction.specialty }),
+  });
   await reportChange(ctx, seasonId, before, at);
 
   const ground = regionOfOutpost(outpost);
@@ -465,8 +559,40 @@ async function finishRaise(
     point: outpost.point,
     regionId: ground,
     level: construction.level,
+    ...(construction.specialty === undefined ? {} : { specialty: construction.specialty }),
   });
-  await reassessDetection(ctx, seasonId);
+  /** Une vigie plus large : seuls les détecteurs de son propriétaire changent. */
+  await reassessDetection(ctx, seasonId, at, construction.playerId);
+  await startHead(ctx, construction.playerId, at);
+}
+
+/**
+ * **La fin d'un changement de spécialisation** (ADR 0037 §7) : le point prend son métier et cesse
+ * d'agir en généraliste. Ni couleur ni rayon ne bougent — seulement la vigie et le dépôt —, donc
+ * pas de règlement de couleur ; les détecteurs du seul propriétaire se relisent.
+ */
+async function finishRespecialize(
+  ctx: MutationCtx,
+  construction: Doc<'constructions'>,
+  seasonId: Id<'seasons'>,
+): Promise<void> {
+  const outpost =
+    construction.outpostId === undefined ? null : await ctx.db.get(construction.outpostId);
+  await ctx.db.delete(construction._id);
+  const at = Date.now();
+  if (outpost !== null && construction.specialty !== undefined) {
+    await ctx.db.patch(outpost._id, { specialty: construction.specialty, changingTo: undefined });
+    await ctx.db.insert('notices', {
+      playerId: construction.playerId,
+      at,
+      kind: 'outpostRespecialized',
+      hostCountry: outpost.hostCountry,
+      point: outpost.point,
+      regionId: regionOfOutpost(outpost),
+      specialty: construction.specialty,
+    });
+    await reassessDetection(ctx, seasonId, at, construction.playerId);
+  }
   await startHead(ctx, construction.playerId, at);
 }
 
@@ -506,7 +632,9 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
      */
     if (isOutpostWork(head.building)) {
       const outpost = head.outpostId === undefined ? null : await ctx.db.get(head.outpostId);
-      if (outpost !== null && !disabledAt(outpost, now) && outpost.level < OUTPOST_MAX_LEVEL) {
+      /** Un changement de spécialisation garde le niveau : le plafond ne le regarde pas. */
+      const underCeiling = head.respecialize === true || (outpost?.level ?? 0) < OUTPOST_MAX_LEVEL;
+      if (outpost !== null && !disabledAt(outpost, now) && underCeiling) {
         await runHead(ctx, head, now);
         continue;
       }
@@ -557,6 +685,13 @@ async function runHead(ctx: MutationCtx, head: Doc<'constructions'>, now: number
   await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, {
     constructionId: head._id,
   });
+  /** **L'effet du métier se coupe au départ du chantier** (décision du 01/11) : dès lors le point
+   *  agit en généraliste — un Guet guette à mi-rayon —, et ses seuls détecteurs se relisent. */
+  if (head.respecialize === true && head.outpostId !== undefined && head.specialty !== undefined) {
+    await ctx.db.patch(head.outpostId, { changingTo: head.specialty });
+    const player = await ctx.db.get(head.playerId);
+    if (player !== null) await reassessDetection(ctx, player.seasonId, now, head.playerId);
+  }
 }
 
 /** L'entrée dont le droit a disparu : remboursée entière, dite au journal, effacée. La dépêche
@@ -568,13 +703,16 @@ async function refundHead(
   now: number,
   reason?: LostAtFinish,
 ): Promise<void> {
-  await credit(ctx, playerId, buildCost(head.building, head.level), now);
+  await credit(ctx, playerId, billOfWork(head), now);
   await ctx.db.insert('notices', {
     playerId,
     at: now,
     kind: 'constructionCancelled',
     building: head.building,
     regionId: head.regionId,
+    ...(head.respecialize === true && head.specialty !== undefined
+      ? { respecialty: head.specialty }
+      : {}),
     ...(reason === undefined ? {} : { reason: reason.kind }),
   });
   await ctx.db.delete(head._id);

@@ -81,7 +81,6 @@ const me = {
       id: 'AP-01',
       hostCountry: 'Hungary',
       lonLat: [0, 0],
-      specialization: 'relay',
       garrison: 1,
       disabledMinutesLeft: null,
       isMine: true,

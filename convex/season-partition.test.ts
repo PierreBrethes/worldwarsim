@@ -104,12 +104,7 @@ async function form(
   );
 }
 
-async function plant(
-  t: ReturnType<typeof boot>,
-  seat: Seat,
-  point: LonLat,
-  specialization: Doc<'outposts'>['specialization'],
-) {
+async function plant(t: ReturnType<typeof boot>, seat: Seat, point: LonLat) {
   const { _id: playerId, seasonId } = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
@@ -118,7 +113,6 @@ async function plant(
       point: asPoint(point),
       hostCountry: 'ROU',
       level: 1,
-      specialization,
       foundedAt: Date.now(),
       disabledUntil: null,
       immuneUntil: null,
@@ -142,19 +136,20 @@ describe('a season reads its own board and no other', () => {
     /**
      * **Everything the other season could contaminate this one with**, planted on the very road
      * the column is about to walk and in the very region it is walking at: a garrison to answer
-     * the arrival, a manned outpost and a camp to catch it on the way, a listening point to file
-     * a sighting on it, and a relay to carry it faster than it should go.
+     * the arrival, a manned outpost and a camp to catch it on the way, a lookout to file
+     * a sighting on it, and two points in liaison to carry it faster than it should go.
      */
     const road = routeBetween(pointOf(MARNE), pointOf(PRAHOVA), 'land', landCostOf(['infantry']))!;
     const halfway = road.points[Math.floor(road.points.length / 2)]!;
 
     const theirBarracks = await raise(t, elsewhere.guest, PRAHOVA);
     const theirGarrison = await form(t, elsewhere.guest, theirBarracks);
-    const theirOutpost = await plant(t, elsewhere.guest, halfway, 'relay');
+    const theirOutpost = await plant(t, elsewhere.guest, halfway);
     const theirSentries = await form(t, elsewhere.guest, theirOutpost);
     const theirCamp = await form(t, elsewhere.guest, asPoint(halfway));
-    await plant(t, elsewhere.guest, halfway, 'listening');
-    await plant(t, elsewhere.seat, halfway, 'relay');
+    await plant(t, elsewhere.guest, halfway);
+    await plant(t, elsewhere.seat, halfway);
+    await plant(t, elsewhere.seat, halfway);
 
     const barracks = await raise(t, here.seat, MARNE);
     const troop = await form(t, here.seat, barracks);
@@ -209,7 +204,7 @@ describe('a season reads its own board and no other', () => {
     const elsewhere = await launchedSeason(t, 'Camille', 'Nour');
     await disbandTheGift(t, here.seat, here.guest, elsewhere.seat, elsewhere.guest);
 
-    const theirOutpost = await plant(t, elsewhere.guest, pointOf(PRAHOVA), 'relay');
+    const theirOutpost = await plant(t, elsewhere.guest, pointOf(PRAHOVA));
     const barracks = await raise(t, here.seat, MARNE);
     const troop = await form(t, here.seat, barracks);
     const order = {

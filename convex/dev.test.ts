@@ -6,6 +6,14 @@ import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import { api } from './_generated/api';
+import { outpostReachKm } from './constants';
+import { liaisonsOf } from '../src/domain/outposts';
+import { worksMinutes } from '../src/domain/level-speed';
+import { levelOf, playerBuildings } from './buildingReads';
+import type { Id } from './_generated/dataModel';
+
+const buildingsOf = (t: ReturnType<typeof convexTest>, playerId: Id<'players'>) =>
+  t.run(async (ctx) => playerBuildings(ctx, playerId));
 
 describe('dev.reset', () => {
   it('empties every game table, however many documents, and cancels pending jobs', async () => {
@@ -23,7 +31,6 @@ describe('dev.reset', () => {
           kind: 'outpostFounded',
           hostCountry: 'BEL',
           point: { lon: 4, lat: 50 },
-          specialization: 'relay',
         });
       await ctx.scheduler.runAfter(60_000, internal.press.publish, { playerId: player!._id });
     });
@@ -187,5 +194,204 @@ describe('dev.levelsScene', () => {
 
     const { researched } = (await t.run((ctx) => ctx.db.get(playerId)))!;
     expect(researched).toEqual(['infantryMk2', 'transmissions1', 'transmissions2']);
+  });
+});
+
+describe('dev.liaisonsScene', () => {
+  /** La scène de #370 : deux points en liaison, un seul, et, sans charbon, des vigies aveugles. */
+  it('sets two outposts in liaison, one alone, and blinds the lookouts without coal', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.mutation(internal.dev.liaisonsScene, { playerId, dryCoal: true });
+
+    const { me } = await t.query(api.view.playerView, seat);
+    expect(me.outposts.map((outpost) => outpost.specialty)).toEqual([
+      'general',
+      'general',
+      'general',
+    ]);
+    expect(me.upkeep.listeningCoalPerHour).toBe(3);
+    expect(me.upkeep.listeningSilent).toBe(true);
+    const points = me.outposts.map((outpost) => ({
+      id: outpost.id,
+      point: outpost.lonLat,
+      reachKm: outpostReachKm(outpost.level),
+    }));
+    const pairs = liaisonsOf(points);
+    expect(pairs).toHaveLength(1);
+    const alone = points.find((point) => !pairs[0]!.includes(point.id));
+    expect(alone!.point).toEqual([7.59, 47.56]);
+  });
+});
+
+describe('dev.specialtiesScene', () => {
+  /** La scène de #371 : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
+  it('sets a point to raise, an old generalist, a changing Magasin and a Guet', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.mutation(internal.dev.specialtiesScene, { playerId });
+
+    const { me } = await t.query(api.view.playerView, seat);
+    expect(
+      me.outposts.map(({ level, specialty, changingTo, depotCapacity }) => ({
+        level,
+        specialty,
+        changingTo,
+        depotCapacity,
+      })),
+    ).toEqual([
+      { level: 1, specialty: 'general', changingTo: null, depotCapacity: 400 },
+      { level: 2, specialty: 'general', changingTo: null, depotCapacity: 800 },
+      { level: 2, specialty: 'store', changingTo: 'lookout', depotCapacity: 800 },
+      { level: 2, specialty: 'lookout', changingTo: null, depotCapacity: 800 },
+    ]);
+    expect(me.construction).toMatchObject({
+      specialty: 'lookout',
+      respecialize: true,
+      minutes: worksMinutes('outpost', 2, levelOf(await buildingsOf(t, playerId), 'hq')),
+    });
+  });
+
+  /** Avec un chantier déjà en cours (`--chantiers`), le changement attend son tour : un seul
+   *  chantier à la fois, et il agit encore en Magasin tant qu'il n'est pas parti. */
+  it('queues the change behind a running works rather than running two', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.run(async (ctx) => {
+      await ctx.db.insert('constructions', {
+        playerId,
+        building: 'farm',
+        regionId: 'FRA-5312',
+        level: 1,
+        rank: 0,
+        finishesAt: Date.now() + 3_600_000,
+        point: { lon: 5.9, lat: 46.7 },
+      });
+    });
+    await t.mutation(internal.dev.specialtiesScene, { playerId });
+
+    const { me } = await t.query(api.view.playerView, seat);
+    expect(me.construction).toMatchObject({ key: 'farm' });
+    expect(me.constructionQueue).toMatchObject([{ specialty: 'lookout', respecialize: true }]);
+    expect(me.outposts[2]).toMatchObject({ specialty: 'store', changingTo: null });
+  });
+});
+
+describe('dev.guetScene', () => {
+  /** La scène de #373 : un Guet qui lit une colonne, un camp et un souvenir ; un généraliste non. */
+  it('lets the Guet read a column, a camp and a last known position, and the generalist none', async () => {
+    const { t, seat, playerId } = await twoNations();
+    const enemyId = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
+    );
+    await t.mutation(internal.dev.guetScene, { playerId, enemyId });
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.detected.map((arc) => arc.identification)).toEqual([
+      { pierced: true, stack: { infantry: 3, armor: 1 }, readAt: null },
+    ]);
+    const camps = view.camps.map(({ lastKnown, identification }) => ({
+      lastKnown,
+      identification,
+    }));
+    expect(camps).toEqual(
+      expect.arrayContaining([
+        {
+          lastKnown: false,
+          identification: { pierced: true, stack: { infantry: 2, artillery: 1 }, readAt: null },
+        },
+        {
+          lastKnown: true,
+          identification: {
+            pierced: true,
+            stack: { infantry: 1, armor: 1 },
+            readAt: expect.any(Number),
+          },
+        },
+        { lastKnown: false, identification: { pierced: false } },
+      ]),
+    );
+  });
+});
+
+describe('dev.storesScene', () => {
+  /** La scène de #372 : deux colonnes à sec traversent un Magasin plein et un presque vide. */
+  it('lands two dry columns through a full and a nearly empty Magasin, and files what each took', async () => {
+    vi.useFakeTimers();
+    const { t, playerId } = await twoNations();
+    await t.mutation(internal.dev.storesScene, { playerId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const notices = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter((one) => one.kind === 'storeResupplied'),
+    );
+    expect(notices.map((one) => [one.hostCountry, one.outcome])).toEqual(
+      expect.arrayContaining([
+        ['CHE', 'served'],
+        ['AUT', 'short'],
+      ]),
+    );
+    vi.useRealTimers();
+  });
+});
+
+describe('dev.fortScene', () => {
+  /** La scène de #374 : une colonne adverse retenue à Namur, une française qui passe le Fort sec. */
+  it('holds the enemy column at Namur thirty seconds on, and not the one by the dry Fort', async () => {
+    vi.useFakeTimers();
+    const { t, playerId } = await twoNations();
+    const enemyId = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('players').collect()).find((one) => one._id !== playerId)!._id,
+    );
+    await t.mutation(internal.dev.fortScene, { playerId, enemyId });
+
+    const columns = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    const held = columns.find((one) => one.playerId === enemyId)!;
+    expect(held.fortEntry!.at - Date.now()).toBeGreaterThan(25_000);
+    expect(held.fortEntry!.at - Date.now()).toBeLessThan(35_000);
+    expect(columns.find((one) => one.playerId === playerId)!.fortEntry).toBeUndefined();
+
+    vi.setSystemTime(held.fortEntry!.at);
+    await t.mutation(internal.movements.holdAtFort, {
+      movementId: held._id,
+      expectedAt: held.fortEntry!.at,
+    });
+    const kinds = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).map((one) => one.kind),
+    );
+    expect(kinds).toEqual(expect.arrayContaining(['fortHeld', 'fortSlowed']));
+    vi.useRealTimers();
+  });
+});
+
+describe('dev.backfillListeningSilent', () => {
+  /** Une base d'avant le champ : le joueur déjà muet n'a pas `listeningSilent`, lu « entend ». */
+  it('re-reads every belligerent of a launched season, and writes the silent one silent', async () => {
+    vi.useFakeTimers();
+    const { t, playerId } = await twoNations();
+    await t.run(async (ctx) => {
+      const player = (await ctx.db.get(playerId))!;
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon: 26, lat: 45 },
+        hostCountry: 'ROU',
+        level: 1,
+        foundedAt: Date.now() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect())
+        if (row.key === 'coal') await ctx.db.patch(row._id, { stock: 0, updatedAt: Date.now() });
+      await ctx.db.patch(playerId, { listeningSilent: undefined });
+    });
+
+    expect(await t.mutation(internal.dev.backfillListeningSilent, {})).toEqual({ players: 2 });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect((await t.run((ctx) => ctx.db.get(playerId)))!.listeningSilent).toBe(true);
+    vi.useRealTimers();
   });
 });

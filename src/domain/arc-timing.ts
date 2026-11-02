@@ -1,3 +1,4 @@
+import { timeShareAt, type Resumed } from './interception';
 import type { ArcView } from './player-view';
 
 /**
@@ -14,14 +15,13 @@ export type ArcSchedule = {
   readonly arrivesAt: number;
   readonly heldAt: number | null;
   readonly holdUntil: number | null;
+  /** Retenue par un Fort en route (ADR 0037 §6) : le pion repart de là, plus lent. */
+  readonly resumed?: Resumed;
 };
 
-const share = (from: number, to: number, now: number): number =>
-  to <= from ? 1 : Math.min(1, Math.max(0, (now - from) / (to - from)));
-
 /** The share of my column's thread walked at `now`; a column held at the border is at its end. */
-export const shareWalked = ({ departedAt, arrivesAt, heldAt }: ArcSchedule, now: number): number =>
-  heldAt !== null ? 1 : share(departedAt, arrivesAt, now);
+export const shareWalked = (schedule: ArcSchedule, now: number): number =>
+  schedule.heldAt !== null ? 1 : timeShareAt(schedule, now);
 
 /** When a rest window lets my column go: held, the pass that resolves it; walking towards a
  *  known window, its close; `null` when nothing bites. */
@@ -39,7 +39,14 @@ export function arcProgressAt(arc: ArcView, now: number): number {
     case 'mine':
       return shareWalked(arc.schedule, now);
     case 'enemyDetected':
-      return share(arc.since, arc.seenTo, now);
+      return timeShareAt(
+        {
+          departedAt: arc.since,
+          arrivesAt: arc.seenTo,
+          ...(arc.resumed === undefined ? {} : { resumed: arc.resumed }),
+        },
+        now,
+      );
     case 'lastKnown':
       return 1;
     case 'seaControl':

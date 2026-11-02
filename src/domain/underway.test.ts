@@ -128,6 +128,30 @@ describe('what runs, nearest first', () => {
     });
   });
 
+  /** Le métier choisi à l'élévation se lit dès le chantier (ADR 0037 §3). */
+  it('names the specialty a raise to level 2 carries, and a change as a change', () => {
+    const outposts = [{ id: 'O-1', hostCountry: 'BEL', level: 1, standsAt: null }];
+    const work = {
+      id: 'W-1',
+      key: 'outpost',
+      name: 'élévation',
+      outpostId: 'O-1',
+      regionId: 'BEL-1',
+      point: null,
+      minutesLeft: 30,
+      level: 2,
+    };
+    const raise = { ...work, specialty: 'store', respecialize: false };
+    expect(underwayOf(board({ outposts, construction: raise }), [])[0]?.label).toBe(
+      'avant-poste → niveau 2, magasin',
+    );
+    const change = { ...work, specialty: 'fort', respecialize: true };
+    expect(
+      underwayOf(board({ outposts: [{ ...outposts[0], level: 2 }], construction: change }), [])[0]
+        ?.label,
+    ).toBe('avant-poste → fort');
+  });
+
   it('lists only the head of the queue, the waiting works have no hour', () => {
     const work = (id: string) => ({
       id,

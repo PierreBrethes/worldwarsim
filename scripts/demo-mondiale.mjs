@@ -34,7 +34,21 @@
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
  * relèverait sans Rangoun, et un camion de tournée seul à l'arrêt en Picardie (#176).
  * `--voisins` pose un avant-poste britannique en Hainaut, contre le Nord français : deux
- * contours côte à côte (#217). `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * contours côte à côte (#217). `--liaisons` (#370) pose pour la France deux avant-postes en liaison,
+ * Namur et Liège, un seul à Bâle, et une pile à Charleroi (`@liaisons`, `@charleroi`, `@aix`) ;
+ * `--sans-charbon` y met le charbon national à zéro. `--metiers` (#371) pose pour la France quatre
+ * avant-postes : un niveau 1 à élever à Arlon (`@arlon`), un généraliste d'avant la refonte au
+ * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
+ * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--guet` (#373) pose pour la
+ * France un Guet à Kaiserslautern et un généraliste à Berne, et en face une colonne britannique
+ * lue en route vers Munich, un camp lu à Francfort, une dernière position lue à Mayence et un camp
+ * que le généraliste relève sans le lire près de Berne (`@guet`, `@francfort`, `@mayence`, `@berne`). `--magasin` (#372) pose pour la France un
+ * Magasin plein à Berne et un presque vide à Innsbruck (`@berne`, `@innsbruck`, `@magasins`), une
+ * pile à sec à Turin (`@turin`, vers Stuttgart) et une à Vérone (`@verone`, vers Nuremberg), et
+ * deux colonnes à sec sur ces routes qui arrivent vingt secondes après : le journal le dit. `--fort` (#374)
+ * pose un Fort français à Namur et un Fort britannique sans charbon à Luxembourg ; une colonne
+ * britannique partie de Gand entre dans la vigie de Namur trente secondes après (`@namur`, `@gand`,
+ * `--compte b` pour la voir retenue), une française passe le Fort sec (`@luxembourg`). `--quais` pose pour la France trois avant-postes, à La Valette, à
  * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
@@ -171,6 +185,19 @@ const neighbours = process.argv.includes('--voisins');
 /** `--iles` : `--quais`, plus Malte débarquée, fondée et son quai, et Syracuse en face (#224). */
 const islands = process.argv.includes('--iles');
 const quays = islands || process.argv.includes('--quais');
+/** `--liaisons` (#370) : deux avant-postes français en liaison en Belgique, un seul à Bâle,
+ *  une pile à Charleroi ; `--sans-charbon` met le charbon national à zéro (vigies aveugles). */
+const liaisons = process.argv.includes('--liaisons');
+/** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
+const specialties = process.argv.includes('--metiers');
+/** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
+ *  devant chacun, et deux colonnes qui les traversent et arrivent vingt secondes après. */
+const stores = process.argv.includes('--magasin');
+/** `--fort` (#374) : une colonne adverse retenue à Namur, une française à côté d'un Fort sec. */
+const forts = process.argv.includes('--fort');
+/** `--guet` (#373) : un Guet qui lit une colonne et un camp britanniques, un généraliste qui non. */
+const lookout = process.argv.includes('--guet');
+const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
 const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
@@ -657,6 +684,41 @@ if (!bare) {
     cli(['run', 'dev:neighbourScene', JSON.stringify({ playerId: scene.b })]);
   if (quays && scene.a !== null)
     cli(['run', 'dev:quaysScene', JSON.stringify({ playerId: scene.a })]);
+  if (liaisons && scene.a !== null) {
+    cli(['run', 'dev:liaisonsScene', JSON.stringify({ playerId: scene.a, dryCoal })]);
+    places.liaisons = [4.87, 50.47];
+    places.charleroi = [4.44, 50.41];
+    places.aix = [6.08, 50.78];
+  }
+  if (specialties && scene.a !== null) {
+    cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);
+    places.metiers = [6.4, 49.55];
+    places.arlon = [5.81, 49.68];
+    places.luxembourg = [6.13, 49.61];
+    places.treves = [6.64, 49.75];
+    places.sarrebruck = [7.0, 49.23];
+  }
+  if (stores && scene.a !== null) {
+    cli(['run', 'dev:storesScene', JSON.stringify({ playerId: scene.a })]);
+    places.magasins = [9.3, 47.0];
+    places.berne = [7.45, 46.95];
+    places.innsbruck = [11.4, 47.27];
+    places.turin = [7.68, 45.07];
+    places.verone = [10.99, 45.44];
+  }
+  if (forts && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:fortScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+    places.namur = [4.87, 50.47];
+    places.gand = [3.72, 51.05];
+    places.luxembourg = [6.13, 49.61];
+  }
+  if (lookout && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:guetScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+    places.guet = [8.6, 49.7];
+    places.francfort = [8.68, 50.11];
+    places.mayence = [8.27, 50.0];
+    places.berne = [7.5, 47.05];
+  }
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };
     places.valette = [valletta.lon, valletta.lat];
@@ -700,7 +762,6 @@ if (!bare) {
       seasonId,
       point: valletta,
       regionId: 'MLT-5949',
-      specialization: 'relay',
       troopIds: [founder.id],
     });
     await client.mutation(api.constructions.start, {

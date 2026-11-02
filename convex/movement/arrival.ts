@@ -6,6 +6,7 @@
  */
 
 import { internal } from '../_generated/api';
+import { storesCrossed } from '../supplies';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
@@ -58,6 +59,8 @@ import { notifyPlayer } from '../notifications';
 import { journalUrl, push } from '../../src/domain/push';
 import { pacedMinutes } from './pace';
 import { creditToStorage, settle } from '../resources';
+import { lostReading } from '../../src/domain/lookout-reading';
+import { cancelJob } from '../scheduledJobs';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
 
 /**
@@ -83,6 +86,8 @@ export async function forgetMovement(
     .withIndex('byMovement', (q) => q.eq('movementId', movementId))
     .collect();
   for (const sighting of seen) {
+    /** Un réveil de Guet n'a plus de colonne à lire : la pile se fige ici, ou part avec la ligne. */
+    if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
     if (sighting.from > now || movement === null) {
       if (sighting.revealJobId !== undefined) {
         try {
@@ -96,8 +101,13 @@ export async function forgetMovement(
     }
     const closedAt = Math.min(sighting.to, now);
     const segment = seenSegment(marchingForce(movement), sighting.from, closedAt);
+    const { readAt } = lostReading(sighting, closedAt);
     await ctx.db.patch(sighting._id, {
       to: closedAt,
+      readJobId: undefined,
+      readJobAt: undefined,
+      reads: undefined,
+      ...(readAt === undefined ? {} : { readAt }),
       frozen: {
         points: segment.points.map(asPoint),
         legs: [...segment.legs],
@@ -481,7 +491,6 @@ async function deactivate(
     kind: 'outpostDisabled',
     hostCountry: outpost.hostCountry,
     point: outpost.point,
-    specialization: outpost.specialization,
   });
   await notifyPlayer(ctx, outpost.playerId, {
     type: 'outpost',
@@ -490,6 +499,9 @@ async function deactivate(
     at: now,
   });
   await reportChange(ctx, outpost.seasonId, before, now);
+  /** **La vigie s'éteint avec le point** (invariant Brouillard) : `arrive`, le seul chemin qui
+   *  désactive (`engageAt`), réévalue tout après un raid ou un assaut ; une seconde ici doublerait
+   *  le coût. */
   /** La couleur reviendra seule : le rendez-vous se prend ici, à la seconde où le raid l'a fixé.
    *  Personne n'ordonne cet événement-là, et rien ne bat pour le constater. */
   await scheduleRestore(ctx, outpost.seasonId, disabledUntil);
@@ -905,6 +917,7 @@ export async function walkHome(
     if (load !== undefined && group[0]!.playerId === load.playerId && !attachedCargo.has(load)) {
       attachedCargo.add(load);
     }
+    await storesCrossed(ctx, movementId);
     /** Le plein de Bakou se recompte depuis l'arrivée du retour, comme depuis celle d'un départ. */
     for (const troop of group) await ctx.db.patch(troop._id, { fuelAt: arrivesAt });
     filed.push(movementId);

@@ -42,6 +42,22 @@ describe('shareWalked', () => {
   });
 });
 
+/** **La reprise au Fort** (ADR 0037 §6) : le pion repart du point d'entrée, sans reculer. */
+describe('shareWalked after a Fort', () => {
+  it('reads the stretch before the entry at the old pace and the rest at the new one', () => {
+    const schedule = {
+      departedAt: NOW,
+      arrivesAt: NOW + 16 * HOUR,
+      heldAt: null,
+      holdUntil: null,
+      resumed: { at: NOW + 4 * HOUR, share: 0.4 },
+    };
+    expect(shareWalked(schedule, NOW + 2 * HOUR)).toBeCloseTo(0.2, 9);
+    expect(shareWalked(schedule, NOW + 4 * HOUR)).toBeCloseTo(0.4, 9);
+    expect(shareWalked(schedule, NOW + 10 * HOUR)).toBeCloseTo(0.7, 9);
+  });
+});
+
 /** **The arc does not move, the hour does** (#183): one served arc, read at two instants. */
 describe('arcProgressAt', () => {
   const route = {
@@ -73,6 +89,15 @@ describe('arcProgressAt', () => {
     expect(arcProgressAt(watched, NOW + 2 * HOUR)).toBe(1);
   });
 
+  /** **Le relevé d'une colonne retenue sous les yeux** (ADR 0037 §6) : le pion ne recule pas, il
+   *  ralentit à l'entrée, la part du tronçon déjà vue à cet instant. */
+  it('paces a sighting held by a Fort in its window in two paces', () => {
+    const held = { ...watched, seenTo: NOW + 5 * HOUR, resumed: { at: NOW, share: 0.25 } };
+    expect(arcProgressAt(held, NOW - HOUR / 2)).toBeCloseTo(0.125, 9);
+    expect(arcProgressAt(held, NOW)).toBeCloseTo(0.25, 9);
+    expect(arcProgressAt(held, NOW + 2.5 * HOUR)).toBeCloseTo(0.625, 9);
+  });
+
   it('keeps a last known position at the end of its stretch', () => {
     const lost = {
       state: 'lastKnown',
@@ -83,6 +108,7 @@ describe('arcProgressAt', () => {
       detector: 'troop',
       detectorRegion: null,
       headingDegrees: 0,
+      identification: { pierced: false },
       lastSeenAt: NOW - HOUR,
     } as const satisfies ArcView;
     expect(arcProgressAt(lost, NOW)).toBe(1);

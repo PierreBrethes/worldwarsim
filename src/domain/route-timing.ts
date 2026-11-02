@@ -1,5 +1,16 @@
+import {
+  FORT_SLOWDOWN_MULTIPLIER,
+  RELAY_SPEED_MULTIPLIER,
+  routeMinutes,
+} from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
-import { INTERCEPTION_SAMPLES, positionAt } from './interception';
+import {
+  INTERCEPTION_SAMPLES,
+  positionAt,
+  sightingsAlong,
+  type MarchingForce,
+  type Watcher,
+} from './interception';
 import {
   COST_BY_MEDIUM,
   TRANSFER_COST,
@@ -184,10 +195,67 @@ export function relayedCostUnits({
   multiplier: number;
   samples?: number;
 }): number {
+  /** **Une liaison n'accélère pas l'air** (Pierre, 01/11) ; le routeur ne mêle jamais un vol à la
+   *  terre ou à la mer (`routeMedium`), donc une route est aérienne de bout en bout ou pas du tout. */
+  if (route.mode === 'air') return route.costUnits;
   const share = relayedShare({ points: route.points, relays, samples });
   if (share <= 0 || multiplier <= 0) return route.costUnits;
 
   const legs = route.legs.reduce((sum, leg) => sum + legCost(leg, route.landCost), 0);
   const docks = Math.max(0, route.costUnits - legs);
   return legs * (1 - share + share / multiplier) + docks;
+}
+
+/**
+ * **L'entrée dans la vigie d'un Fort** (ADR 0037 §6) : le premier instant après `after` où la
+ * colonne est dans le rayon de l'une d'elles. C'est l'ouverture d'une fenêtre de relevé
+ * (`sightingsAlong`) : un Fort ne retient que ce qu'il voit. Un vol passe au-dessus, et le
+ * routeur ne mêle jamais l'air à la terre ou à la mer.
+ */
+export function fortEntryOf(
+  force: MarchingForce,
+  forts: ReadonlyArray<Watcher>,
+  after = force.departedAt,
+): number | null {
+  if (forts.length === 0 || force.legs?.every((leg) => leg.medium === 'air')) return null;
+  const windows = sightingsAlong({ mine: force, watchers: forts, after });
+  const entry = Math.min(...windows.map((window) => window.from));
+  /** Un Fort qui ne couvre que l'arrivée ne retient rien : la colonne est arrivée. */
+  return entry < force.arrivesAt ? entry : null;
+}
+
+/**
+ * **Ce que les Forts ajoutent au reste de la route**, en minutes de Mondiale (ADR 0037 §6) :
+ * ×1,5 sur la part que couvre au moins une vigie, au-delà de `fromShare` (la part de route déjà
+ * marchée). Le jumeau de `relayedCostUnits`, au même échantillonnage : une liaison et un Fort sur
+ * la même part s'annulent, les quais ne sont pas retenus, un vol non plus.
+ */
+export function heldMinutes({
+  route,
+  forts,
+  relays,
+  fromShare,
+  samples = INTERCEPTION_SAMPLES,
+}: {
+  route: Pick<ComputedRoute, 'points' | 'legs' | 'landCost'>;
+  forts: ReadonlyArray<Watcher>;
+  relays: ReadonlyArray<Relay>;
+  fromShare: number;
+  samples?: number;
+}): number {
+  if (forts.length === 0 || route.legs.every((leg) => leg.medium === 'air')) return 0;
+  const road = { id: 'route', points: route.points, departedAt: 0, arrivesAt: 1 };
+  const inside = (here: LonLat, point: LonLat, km: number) => distanceKm(here, point) <= km;
+
+  let held = 0;
+  for (let index = Math.ceil(fromShare * samples); index <= samples; index += 1) {
+    const here = positionAt(road, index / samples);
+    if (!forts.some((fort) => inside(here, fort.point, fort.radiusKm))) continue;
+    held += relays.some((relay) => inside(here, relay.point, relay.reachKm))
+      ? 1 / RELAY_SPEED_MULTIPLIER
+      : 1;
+  }
+  const legs = route.legs.reduce((sum, leg) => sum + legCost(leg, route.landCost), 0);
+  const units = ((legs * held) / (samples + 1)) * (FORT_SLOWDOWN_MULTIPLIER - 1);
+  return units <= 0 ? 0 : routeMinutes(units);
 }
