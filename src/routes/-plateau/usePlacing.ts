@@ -131,6 +131,7 @@ export function usePlacing(
     return {
       sprite: buildingSprite(placing.key),
       magnet,
+      reaches: stableReaches,
       title: placingAim?.region?.name ?? placing.title,
       name: fr.buildings[placing.key],
       cost: spec.cost,
@@ -151,7 +152,7 @@ export function usePlacing(
             ),
       nearest: nearestLine(calls, kinds, placingAim?.lonLat ?? null),
     };
-  }, [placing, magnet, placingAim, verdict, reaches, view, calls, kinds]);
+  }, [placing, magnet, placingAim, verdict, reaches, stableReaches, view, calls, kinds]);
 
   const hold = useCallback((held: HeldBuilding | null) => {
     setPlacingAim(null);

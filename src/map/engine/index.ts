@@ -108,7 +108,13 @@ import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
-import { OutpostZones, type ZoneFocus, type ZoneLabel, type ZonePoint } from './outpost-zones';
+import {
+  OutpostZones,
+  type HeldReach,
+  type ZoneFocus,
+  type ZoneLabel,
+  type ZonePoint,
+} from './outpost-zones';
 import { AimRibbon } from './aim';
 import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
@@ -205,6 +211,8 @@ const SELECTED_LIFT = 0.75;
 
 /** @a-mesurer Délai avant de redemander `/coast.json` après un échec. */
 const COAST_RETRY_MS = 3000;
+/** Half the width of a compass's km label, in CSS pixels: closer to the edge it would be cut. */
+const LABEL_ROOM_PX = 40;
 /** Under a finger, the point a held building aims at stands this far above it (#239). @a-mesurer */
 const PLACING_FINGER_LIFT_PX = 64;
 /** Closer than this the pointer is on its pin, and no thread is drawn between them. */
@@ -231,6 +239,8 @@ export type PlacingMagnet =
 export type HeldPlacing = {
   readonly sprite: string | null;
   readonly magnet: PlacingMagnet;
+  /** The outposts' reach the pose reads (`reachesOf`), graduated while held (#239, #375). */
+  readonly reaches: ReadonlyArray<HeldReach>;
 };
 
 /**
@@ -1981,7 +1991,11 @@ export class MapEngine {
       .labels()
       .map(({ lonLat, km, kind }) => ({ at: this.mapPointOf(lonLat), km, kind }))
       .filter(
-        ({ at }) => at.x > 0 && at.x < this.screenWidth && at.y > 20 && at.y < this.screenHeight,
+        ({ at }) =>
+          at.x > LABEL_ROOM_PX &&
+          at.x < this.screenWidth - LABEL_ROOM_PX &&
+          at.y > 20 &&
+          at.y < this.screenHeight,
       );
     const said = JSON.stringify(labels);
     if (said === this.zoneLabelsSaid) return;
@@ -3126,6 +3140,7 @@ export class MapEngine {
     if (placing === this.placing) return;
     this.placing = placing;
     this.placingFinger = null;
+    this.zones.hold(placing?.reaches ?? []);
     this.basins.wake(placing?.magnet.kind === 'deposits' ? placing.magnet.calls : null);
     this.loadBasins();
     if (placing === null) {

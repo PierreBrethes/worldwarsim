@@ -33,12 +33,17 @@ export type ZonePoint = {
 
 /**
  * **What is in hand** (#375, décisions du 02/11): a pile lifted graduates every point with its
- * lookout, a building held every point's reach alone; a hover or an open garrison, its point.
+ * lookout; a hover or an open garrison, its point. Only the `labelled` points write their km: a
+ * lifted pile labelling every ring covered the map with them.
  */
 export type ZoneFocus = {
   readonly points: 'all' | ReadonlyArray<string>;
   readonly lookout: boolean;
+  readonly labelled: ReadonlyArray<string>;
 } | null;
+
+/** A point whose reach a held building reads (`reachesOf`, a disabled one too): the pose's. */
+export type HeldReach = { readonly lonLat: LonLat; readonly reachKm: number };
 
 /** A km label the board writes at a ring's top (or foot, for a Guet's whole lookout). */
 export type ZoneLabel = {
@@ -50,8 +55,8 @@ export type ZoneLabel = {
 const INK = PALETTE.border;
 /**
  * **Le lavis se lit sans peser** (ADR 0033 : une carte sans aplat) : à peine plus qu'un papier
- * teinté, sous les tirets des régions tenues. Un peu plus quand une pile ou un bâtiment est en
- * main, où il dit où l'ordre porte. @a-mesurer
+ * teinté, sous les tirets des régions tenues. Un peu plus quand une pile est en main, où il dit
+ * où l'ordre porte. @a-mesurer
  */
 const REST_WASH = 0.07;
 /** The wash by night, a paper the moon lights. @a-mesurer */
@@ -70,8 +75,8 @@ const TICK_LONG = 0.05;
 const LOOKOUT_DOTS = 90;
 /** A Guet's dotted ring sits just inside its reach, so the two read apart. @a-mesurer */
 const WHOLE_INSET = 0.97;
-/** Beyond, a point's disc darkens where it overlaps another: one player's network, in practice. */
-// ponytail: discs only skip the first MAX_DISCS before them; a uniform texture lifts the cap.
+/** One player's network, in practice. */
+// ponytail: past 64 points the overlaps darken (a disc skips only the first 64); a texture lifts it.
 const MAX_DISCS = 64;
 
 const VERTEX = `
@@ -122,6 +127,8 @@ export class OutpostZones {
   private points: ReadonlyArray<ZonePoint> = [];
   private liaisons: Array<{ readonly a: string; readonly b: string; readonly line: Fat }> = [];
   private compasses = new Map<string, Compass>();
+  /** **Le rayon que lit la pose d'un bâtiment** (#239), hors du calque : il remplace `ReachRings`. */
+  private held: Array<{ readonly reach: HeldReach; readonly compass: Compass }> = [];
   private focused: ZoneFocus = null;
   /** Each point's emphasis on its way to its target: its reach ring, its lookout ring. */
   private shown = new Map<string, { reach: number; lookout: number }>();
@@ -172,20 +179,44 @@ export class OutpostZones {
     for (const { line } of this.liaisons) this.object.add(line.line);
     for (const compass of this.compasses.values()) this.object.add(compass.object);
     this.resize(...this.size);
-    this.step(true);
+    // A new view mid-fade carries on from where the fade was.
+    this.step(false, 0);
+  }
+
+  /** The reach of every standing point of mine while a building is held, or nothing. */
+  hold(reaches: ReadonlyArray<HeldReach>): void {
+    for (const { compass } of this.held) compass.dispose();
+    this.held = reaches.map((reach) => {
+      const compass = new Compass(this.frame, {
+        id: '',
+        ...reach,
+        lookoutKm: null,
+        wholeLookout: false,
+      });
+      compass.resize(...this.size);
+      compass.emphasise(1, 0);
+      this.object.add(compass.object);
+      return { reach, compass };
+    });
   }
 
   focus(focus: ZoneFocus): void {
     this.focused = focus;
+    this.stepAt = performance.now();
     this.wash.material.uniforms.uAlpha!.value = focus?.points === 'all' ? HAND_WASH : REST_WASH;
   }
 
   /** The kilometres the board writes, for each point under the hand. */
   labels(): ReadonlyArray<ZoneLabel> {
     const focus = this.focused;
-    if (focus === null) return [];
+    const held = this.held.map(({ reach: { lonLat, reachKm } }): ZoneLabel => ({
+      lonLat: lonLatAround(lonLat, reachKm, 0),
+      km: reachKm,
+      kind: 'reach',
+    }));
+    if (focus === null) return held;
     return this.points
-      .filter(({ id }) => focus.points === 'all' || focus.points.includes(id))
+      .filter(({ id }) => focus.labelled.includes(id))
       .flatMap(({ lonLat, reachKm, lookoutKm, wholeLookout }): ZoneLabel[] => [
         { lonLat: lonLatAround(lonLat, reachKm, 0), km: reachKm, kind: 'reach' },
         ...(!focus.lookout || lookoutKm === null
@@ -205,7 +236,8 @@ export class OutpostZones {
                   kind: 'lookout' as const,
                 },
               ]),
-      ]);
+      ])
+      .concat(held);
   }
 
   /** A liaison's straight stroke on the board, for the pen that traces a newborn one. */
@@ -224,6 +256,7 @@ export class OutpostZones {
     this.size = [width, height];
     for (const { line } of this.liaisons) line.resize(width, height);
     for (const compass of this.compasses.values()) compass.resize(width, height);
+    for (const { compass } of this.held) compass.resize(width, height);
   }
 
   /** The hover's short fade at full motion, at once otherwise (`map-motion`). */
@@ -235,6 +268,7 @@ export class OutpostZones {
 
   dispose(): void {
     this.clear();
+    this.hold([]);
     this.wash.geometry.dispose();
     this.wash.material.dispose();
     this.object.removeFromParent();

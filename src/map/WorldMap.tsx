@@ -97,6 +97,7 @@ import {
   MapEngine,
   type CarryTarget,
   type HeldClaim,
+  type HeldPlacing,
   type PieceClick,
   type PieceHold,
   type PlacingMagnet,
@@ -375,6 +376,8 @@ export type Dismantled = { readonly id: string; readonly area: boolean };
 export type PlacingBuilding = {
   readonly sprite: string | null;
   readonly magnet: PlacingMagnet;
+  /** The outposts' reach the pose reads, graduated while the building is held (#239). */
+  readonly reaches: HeldPlacing['reaches'];
   readonly title: string;
   readonly name: string;
   readonly cost: Cost;
@@ -1280,9 +1283,13 @@ export function WorldMap({
    *  its point while the board re-reads the refusal under it. */
   const heldSprite = placing?.sprite ?? null;
   const heldMagnet = placing?.magnet ?? null;
+  const heldReaches = placing?.reaches ?? null;
   const heldPlacing = useMemo(
-    () => (heldMagnet === null ? null : { sprite: heldSprite, magnet: heldMagnet }),
-    [heldSprite, heldMagnet],
+    () =>
+      heldMagnet === null
+        ? null
+        : { sprite: heldSprite, magnet: heldMagnet, reaches: heldReaches ?? [] },
+    [heldSprite, heldMagnet, heldReaches],
   );
   useEffect(() => {
     readyEngine?.setPlacing(heldPlacing);
@@ -1567,16 +1574,15 @@ export function WorldMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a view's liaisons, not the toggle
   }, [outpostZones, readyEngine]);
   /** **Ce que la main tient** (décisions du 02/11) : une pile soulevée gradue tous mes points et
-   *  leur vigie, un bâtiment tenu leur seul rayon ; le survol et la garnison ouverte, leur point. */
-  const placingHeld = placing != null;
+   *  leur vigie, le survol et la garnison ouverte leur point ; seuls ces deux-là disent leurs km.
+   *  Le bâtiment tenu lit son rayon hors du calque (`HeldPlacing.reaches`). */
   const zoneFocus = useMemo<ZoneFocus>(() => {
-    if (holding !== null) return { points: 'all', lookout: true };
-    if (placingHeld) return { points: 'all', lookout: false };
-    const points = [hoveredOutpost, openStation].filter(
+    const labelled = [hoveredOutpost, openStation].filter(
       (station): station is string => station?.startsWith('outpost:') === true,
     );
-    return points.length === 0 ? null : { points, lookout: true };
-  }, [holding, placingHeld, hoveredOutpost, openStation]);
+    if (holding !== null) return { points: 'all', lookout: true, labelled };
+    return labelled.length === 0 ? null : { points: labelled, lookout: true, labelled };
+  }, [holding, hoveredOutpost, openStation]);
   useEffect(() => {
     readyEngine?.focusOutpostZones(zoneFocus);
   }, [readyEngine, zoneFocus]);
@@ -1830,7 +1836,7 @@ export function WorldMap({
         </div>
       )}
       {gestureHint && <GestureHint mapping={mapping} />}
-      {zoneFocus !== null && <ZoneLabels engine={readyEngine} />}
+      {(zoneFocus !== null || placing) && <ZoneLabels engine={readyEngine} />}
       {placing && <PlacingOverlay engine={readyEngine} placing={placing} container={container} />}
       {sweep && (
         <SweepOverlay
