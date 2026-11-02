@@ -146,6 +146,15 @@ describe('the journal', () => {
     expect(caughtUp.some((dispatch) => dispatch.unread)).toBe(false);
   });
 
+  it('marks a finished construction, and only it, as built', () => {
+    const [done, cancelled] = journalDispatches([], null, [
+      finished(NOON),
+      { kind: 'constructionCancelled', at: NOON - HOUR, building: 'barracks', regionName: 'Marne' },
+    ]);
+    expect(done!.built).toBe(true);
+    expect(cancelled!.built).toBeUndefined();
+  });
+
   it('words a cancelled outpost raise without throwing', () => {
     const [cancelled] = journalDispatches([], null, [
       { kind: 'constructionCancelled', at: NOON, building: 'outpost', regionName: 'Marne' },
