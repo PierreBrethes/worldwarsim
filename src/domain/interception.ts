@@ -365,7 +365,22 @@ export type Watcher = {
  * an observer nothing he does not already hold — he has the whole thread — and two rows for one
  * pair would be two states to reconcile on screen.
  */
-export function sightingsAlong({
+export function sightingsAlong(walked: Parameters<typeof passesAlong>[0]): ReadonlyArray<Sighting> {
+  const windows = new Map<string, { from: number; to: number }>();
+  for (const pass of passesAlong(walked)) {
+    const window = windows.get(pass.id);
+    if (window === undefined) windows.set(pass.id, { from: pass.from, to: pass.to });
+    else window.to = pass.to;
+  }
+  return [...windows].map(([id, window]) => ({ id, from: window.from, to: window.to }));
+}
+
+/**
+ * **Chaque passage dans le cercle**, un intervalle par entrée, dans l'ordre du trajet — la même
+ * marche que `sightingsAlong`, qui en est l'enveloppe par veilleur. Le Guet en a besoin (ADR 0037
+ * §5) : il ne lit la pile que dans son cercle, et une sortie entre deux passages ne se lit pas.
+ */
+export function passesAlong({
   mine,
   watchers,
   after = mine.departedAt,
@@ -384,7 +399,10 @@ export function sightingsAlong({
   const first = firstSampleFrom(sampleAt, samples, startedAt, mine.arrivesAt, after);
   if (first > samples) return [];
 
-  const windows = new Map<string, { from: number; to: number }>();
+  const passes: Array<{ id: string; from: number; to: number }> = [];
+  /** Le passage en cours de chaque veilleur, et l'échantillon où il l'a vu pour la dernière fois :
+   *  un échantillon manqué — dehors, ou élagué parce que loin — ouvre le passage suivant. */
+  const open = new Map<string, { pass: { to: number }; index: number }>();
   const walk = (first: number, last: number, near: ReadonlyArray<Watcher>) => {
     if (last - first >= PRUNED_STRETCH) {
       const box = stretchBox(mine, sampleAt(first), sampleAt(last));
@@ -409,12 +427,18 @@ export function sightingsAlong({
       const here = positionAt(mine, at);
       for (const watcher of near) {
         if (distanceKm(here, watcher.point) > watcher.radiusKm) continue;
-        const window = windows.get(watcher.id);
-        if (window === undefined) windows.set(watcher.id, { from: at, to: at });
-        else window.to = at;
+        const held = open.get(watcher.id);
+        if (held !== undefined && held.index === index - 1) {
+          held.pass.to = at;
+          held.index = index;
+          continue;
+        }
+        const pass = { id: watcher.id, from: at, to: at };
+        passes.push(pass);
+        open.set(watcher.id, { pass, index });
       }
     }
   };
   walk(first, samples, watchers);
-  return [...windows].map(([id, window]) => ({ id, from: window.from, to: window.to }));
+  return passes;
 }

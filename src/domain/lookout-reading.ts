@@ -1,69 +1,81 @@
 /**
  * **Ce qu'un Guet écrit de la pile qu'il relève** (ADR 0037 §5), sur la ligne de l'observateur.
- * La pile ne s'écrit que sous un Guet qui voit **à l'instant** ; hors de sa vue, elle se fige et
- * porte la date de sa dernière lecture (`readAt`), que l'étiquette écrit. Une lecture à venir ne
- * montre rien avant son ouverture : la ligne garde seulement sa fenêtre, et un réveil à ses deux
- * bornes la fait lire, puis figer (`readingTransition`).
+ * La ligne garde ses fenêtres de lecture en cours et à venir, une par passage dans le cercle d'un
+ * Guet (`passesAlong`), fondues quand elles se chevauchent. La pile ne s'écrit que dans une
+ * fenêtre ouverte **à l'instant** ; hors d'elles, elle se fige et porte la date de sa dernière
+ * lecture (`readAt`), que l'étiquette écrit. Un réveil à chaque borne la lit, puis la fige
+ * (`readingTransition`).
  */
 import type { UnitRole } from './ids';
 
 export type ReadWindow = { readonly from: number; readonly to: number };
 
 export type Reading = {
-  /** La fenêtre de Guet en cours ou la prochaine, sur la ligne d'une colonne. */
-  readonly readFrom?: number;
-  readonly readTo?: number;
+  /** Les fenêtres de Guet en cours et à venir, dans l'ordre, sur la ligne d'une colonne. */
+  readonly reads?: ReadonlyArray<ReadWindow>;
   /** La pile lue, un rôle par troupe ; absente, aucun Guet ne l'a lue. */
   readonly stack?: ReadonlyArray<UnitRole>;
   /** Figée : l'instant de sa dernière lecture. Absente sous un Guet qui lit. */
   readonly readAt?: number;
 };
 
-/** La première fenêtre de Guet, une fois fondues celles qui se chevauchent. */
-export function firstReadWindow(windows: ReadonlyArray<ReadWindow>): ReadWindow | null {
-  const sorted = [...windows].sort((a, b) => a.from - b.from);
-  const [first, ...rest] = sorted;
-  if (first === undefined) return null;
-  let to = first.to;
-  for (const window of rest) {
-    if (window.from > to) break;
-    to = Math.max(to, window.to);
+/** Les fenêtres dans l'ordre, fondues quand elles se chevauchent. */
+export function mergeWindows(windows: ReadonlyArray<ReadWindow>): ReadonlyArray<ReadWindow> {
+  const merged: Array<{ from: number; to: number }> = [];
+  for (const window of [...windows].sort((a, b) => a.from - b.from)) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && window.from <= last.to) last.to = Math.max(last.to, window.to);
+    else merged.push({ from: window.from, to: window.to });
   }
-  return { from: first.from, to };
+  return merged;
 }
+
+/** La fenêtre ouverte à l'instant : sa fin n'en est plus, c'est l'heure où la pile se fige. */
+const openAt = (windows: ReadonlyArray<ReadWindow> | undefined, now: number) =>
+  windows?.find((window) => window.from <= now && now < window.to);
 
 const live = (reading: Reading): boolean =>
   reading.stack !== undefined && reading.readAt === undefined;
 
-/** La pile figée à l'instant où plus rien ne la lit : au plus tard, à la fin de sa fenêtre. */
-export const lostReading = (row: Reading, now: number): Reading =>
-  live(row) ? { ...row, readAt: Math.min(now, row.readTo ?? now) } : row;
+/** La pile figée à l'instant où plus rien ne la lit : au plus tard, à la fin de la fenêtre où
+ *  elle a été lue. */
+export function lostReading(row: Reading, now: number): Reading {
+  if (!live(row)) return row;
+  const ends = (row.reads ?? []).flatMap((window) => (window.from <= now ? [window.to] : []));
+  return { ...row, readAt: Math.min(now, ...ends) };
+}
 
 /**
- * **La ligne d'une colonne, relue** : `window` est la fenêtre de Guet en cours ou à venir,
- * `null` si aucun Guet ne la promet plus.
+ * **La ligne d'une colonne, relue** : `windows` sont les fenêtres de Guet que la route promet
+ * encore. Une lecture qui court garde son ouverture : la relire à chaque événement réécrirait la
+ * ligne, et réveillerait le plateau de l'observateur pour rien.
  */
 export function columnReading(
   row: Reading,
-  window: ReadWindow | null,
+  windows: ReadonlyArray<ReadWindow>,
   roles: ReadonlyArray<UnitRole>,
   now: number,
 ): Reading {
-  const kept = lostReading(row, now);
-  const frozen = kept.stack === undefined ? {} : { stack: kept.stack, readAt: kept.readAt! };
-  if (window === null) return frozen;
-  if (window.from > now) return { readFrom: window.from, readTo: window.to, ...frozen };
-  /** Une lecture qui court garde son ouverture : la relire à chaque événement réécrirait la
-   *  ligne, et réveillerait le plateau de l'observateur pour rien. */
-  const readFrom = live(row) && row.readFrom !== undefined ? row.readFrom : window.from;
-  return { readFrom, readTo: window.to, stack: [...roles] };
+  const was = live(row) ? openAt(row.reads, now) : undefined;
+  const reads = mergeWindows(windows)
+    .filter((window) => window.to > now)
+    .map((window) =>
+      was !== undefined && window.from <= now && now < window.to
+        ? { from: Math.min(was.from, window.from), to: window.to }
+        : window,
+    );
+  const kept = reads.length === 0 ? {} : { reads };
+  if (openAt(reads, now) !== undefined) return { ...kept, stack: [...roles] };
+  const lost = lostReading(row, now);
+  return lost.stack === undefined ? kept : { ...kept, stack: lost.stack, readAt: lost.readAt! };
 }
 
-/** **L'instant où la lecture change d'elle-même** : l'ouverture de sa fenêtre, puis sa fin. */
+/** **L'instant où la lecture change d'elle-même** : la prochaine borne de ses fenêtres. */
 export function readingTransition(reading: Reading, now: number): number | null {
-  if (reading.readFrom !== undefined && reading.readFrom > now) return reading.readFrom;
-  if (reading.readTo !== undefined && reading.readTo > now) return reading.readTo;
-  return null;
+  const bounds = (reading.reads ?? []).flatMap((window) =>
+    [window.from, window.to].filter((bound) => bound > now),
+  );
+  return bounds.length === 0 ? null : Math.min(...bounds);
 }
 
 /**

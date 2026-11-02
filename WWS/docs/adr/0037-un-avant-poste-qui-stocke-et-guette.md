@@ -138,8 +138,10 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
 > l'ordre reste le métier de l'agent (fiche 04). La branche servie est `Composition`
 > (`{ pierced: true, stack, readAt }`, `src/domain/player-view.ts`), partagée par l'arc, sa
 > dernière position connue et le camp, et non la branche `type, stack` évoquée ci-dessous. La
-> pile ne s'écrit que sous un Guet qui voit **à l'instant** ; hors de sa vue, elle se fige et
-> l'étiquette écrit l'heure de sa dernière lecture (`src/domain/lookout-reading.ts`). Une ligne
+> pile ne s'écrit que sous un Guet qui voit **à l'instant**, une fenêtre par passage dans son
+> cercle (une sortie entre deux ne se lit pas) ; hors de sa vue, elle se fige et l'étiquette
+> écrit l'heure de sa dernière lecture, avec le jour quand ce n'est pas celui-ci
+> (`src/domain/lookout-reading.ts`). Une ligne
 > de camp fermée qui rouvre sans Guet l'oublie, et la garnison d'un objectif ne se lit jamais.
 
 - Sa vigie porte au **rayon de contrôle entier**. (Q2, Q10)

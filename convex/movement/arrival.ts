@@ -104,8 +104,8 @@ export async function forgetMovement(
     await ctx.db.patch(sighting._id, {
       to: closedAt,
       readJobId: undefined,
-      readFrom: undefined,
-      readTo: undefined,
+      readJobAt: undefined,
+      reads: undefined,
       ...(readAt === undefined ? {} : { readAt }),
       frozen: {
         points: segment.points.map(asPoint),

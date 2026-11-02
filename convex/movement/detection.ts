@@ -19,7 +19,7 @@ import {
   INTERCEPTION_SAMPLES,
   mobileSighting,
   positionAt,
-  sightingsAlong,
+  passesAlong,
   type MarchingForce,
   type Watcher,
 } from '../../src/domain/interception';
@@ -30,7 +30,6 @@ import { isStanding, lookoutKmOf, readsComposition } from '../../src/domain/outp
 import {
   campReading,
   columnReading,
-  firstReadWindow,
   lostReading,
   readingTransition,
   type ReadWindow,
@@ -690,14 +689,16 @@ function readingPatch(
   row: Reading,
   next: Reading,
 ): {
-  readFrom?: number | undefined;
-  readTo?: number | undefined;
+  reads?: Array<{ from: number; to: number }> | undefined;
   readAt?: number | undefined;
   stack?: Array<UnitRole> | undefined;
 } {
   const patch: ReturnType<typeof readingPatch> = {};
-  for (const key of ['readFrom', 'readTo', 'readAt'] as const) {
-    if (row[key] !== next[key]) patch[key] = next[key];
+  if (row.readAt !== next.readAt) patch.readAt = next.readAt;
+  const windows = (reading: Reading) =>
+    reading.reads?.map((window) => `${window.from}-${window.to}`).join();
+  if (windows(row) !== windows(next)) {
+    patch.reads = next.reads?.map((window) => ({ from: window.from, to: window.to }));
   }
   if (row.stack?.join() !== next.stack?.join()) {
     patch.stack = next.stack === undefined ? undefined : [...next.stack];
@@ -707,7 +708,7 @@ function readingPatch(
 
 /** Un camp n'a pas de fenêtre à venir : sa lecture est sa pile et sa date. */
 const campPatch = (row: Reading, next: Reading) => {
-  const { readFrom: _from, readTo: _to, ...patch } = readingPatch(row, next);
+  const { reads: _reads, ...patch } = readingPatch(row, next);
   return patch;
 };
 
@@ -956,22 +957,34 @@ async function sightingsFor(
       ? [{ ...watcher, radiusKm: sightingReachKm(watcher.radiusKm, target.rangoonTour) }]
       : [],
   );
+  /** Un passage par entrée dans chaque cercle : la ligne relève de la première entrée à la
+   *  dernière sortie, et le Guet ne lit que dans ses passages (ADR 0037 §5). */
+  const passes = new Map<string, Array<{ from: number; to: number }>>();
+  for (const pass of passesAlong({ mine: target.force, watchers, after: now })) {
+    const held = passes.get(pass.id) ?? [];
+    held.push({ from: pass.from, to: pass.to });
+    passes.set(pass.id, held);
+  }
   let here: LonLat | null = null;
-  for (const sighting of sightingsAlong({ mine: target.force, watchers, after: now })) {
-    const watcher = watchers.find((candidate) => candidate.id === sighting.id);
+  for (const [id, seen] of passes) {
+    const watcher = watchers.find((candidate) => candidate.id === id);
     if (watcher === undefined) continue;
-    /** La grille du trajet place la fenêtre ouverte au prochain échantillon : un Guet qui voit
+    /** La grille du trajet place le passage en cours au prochain échantillon : un Guet qui voit
      *  la colonne à l'instant la lit à l'instant. */
     here ??= watcher.reads ? positionAt(target.force, now) : null;
     const readWindows = !watcher.reads
       ? []
-      : [
-          {
-            from: distanceKm(here!, watcher.point) <= watcher.radiusKm ? now : sighting.from,
-            to: sighting.to,
-          },
-        ];
-    caught.push({ ...watcher, from: sighting.from, to: sighting.to, readWindows });
+      : seen.map((pass, index) =>
+          index === 0 && distanceKm(here!, watcher.point) <= watcher.radiusKm
+            ? { from: now, to: pass.to }
+            : pass,
+        );
+    caught.push({
+      ...watcher,
+      from: seen[0]!.from,
+      to: seen[seen.length - 1]!.to,
+      readWindows,
+    });
   }
 
   for (const observer of board.mobileById.values()) {
@@ -1103,7 +1116,7 @@ async function syncSightings(
       else {
         const patch = {
           ...(row.to > now ? { to: now } : {}),
-          ...(await writeReading(ctx, row, columnReading(row, null, roles, now), now)),
+          ...(await writeReading(ctx, row, columnReading(row, [], roles, now), now)),
         };
         if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
       }
@@ -1119,33 +1132,41 @@ async function syncSightings(
 
 /**
  * **La lecture d'une ligne et son réveil** (ADR 0037 §5) : le patch de ce qui change, et le job
- * de la prochaine borne de sa fenêtre de Guet — ouverture, puis fin. Une vue en cache ne relit
- * pas l'heure : sans ce réveil, la pile n'apparaîtrait qu'à la prochaine écriture sans rapport.
- * Un job garde son rendez-vous tant que l'échéance ne bouge pas.
+ * de la prochaine borne de ses fenêtres de Guet — une ouverture ou une fin. Une vue en cache ne
+ * relit pas l'heure : sans ce réveil, la pile n'apparaîtrait qu'à la prochaine écriture sans
+ * rapport. Un job n'est gardé que s'il vise la borne que la lecture nouvelle attend.
  */
 async function writeReading(
   ctx: MutationCtx,
   row: {
     readonly _id: Id<'sightings'>;
     readonly readJobId?: Id<'_scheduled_functions'> | undefined;
+    readonly readJobAt?: number | undefined;
   } & Reading,
   next: Reading,
   now: number,
 ): Promise<
-  ReturnType<typeof readingPatch> & { readJobId?: Id<'_scheduled_functions'> | undefined }
+  ReturnType<typeof readingPatch> & {
+    readJobId?: Id<'_scheduled_functions'> | undefined;
+    readJobAt?: number | undefined;
+  }
 > {
   const patch = readingPatch(row, next);
   const at = readingTransition(next, now);
   /** Le job d'une ligne la réécrit quand il court : tant qu'il y est noté, il attend encore. Le
    *  relire au système coûterait une lecture par ligne et par réévaluation. */
-  if (row.readJobId !== undefined && at === readingTransition(row, now)) return patch;
+  if (row.readJobId !== undefined && row.readJobAt === at) return patch;
   if (row.readJobId !== undefined) await cancelJob(ctx, row.readJobId);
-  if (at === null) return row.readJobId === undefined ? patch : { ...patch, readJobId: undefined };
+  if (at === null) {
+    return row.readJobId === undefined
+      ? patch
+      : { ...patch, readJobId: undefined, readJobAt: undefined };
+  }
   const readJobId = await ctx.scheduler.runAt(at, internal.listening.readPile, {
     sightingId: row._id,
     expectedAt: at,
   });
-  return { ...patch, readJobId };
+  return { ...patch, readJobId, readJobAt: at };
 }
 
 /** **Le réveil d'une borne de Guet** : la pile se lit à l'ouverture et se fige à la fin. Un job
@@ -1157,25 +1178,19 @@ export async function readPile(
   now = Date.now(),
 ): Promise<void> {
   const row = await ctx.db.get(sightingId);
-  if (row === null || now < expectedAt || readingTransition(row, expectedAt - 1) !== expectedAt) {
-    return;
-  }
+  if (row === null || now < expectedAt || row.readJobAt !== expectedAt) return;
   const movement = row.frozen === undefined ? await ctx.db.get(row.movementId) : null;
   if (movement === null) return;
   const roles = (await Promise.all(movement.troopIds.map((id) => ctx.db.get(id))))
     .flatMap((troop) => (troop === null ? [] : [troop.role]))
     .sort();
-  const window =
-    row.readFrom !== undefined && row.readTo !== undefined && row.readTo > now
-      ? { from: row.readFrom, to: row.readTo }
-      : null;
-  const { readJobId, ...patch } = await writeReading(
+  const { readJobId, readJobAt, ...patch } = await writeReading(
     ctx,
-    { ...row, readJobId: undefined },
-    columnReading(row, window, roles, now),
+    { ...row, readJobId: undefined, readJobAt: undefined },
+    columnReading(row, row.reads ?? [], roles, now),
     now,
   );
-  await ctx.db.patch(row._id, { ...patch, readJobId });
+  await ctx.db.patch(row._id, { ...patch, readJobId, readJobAt });
 }
 
 const earlier = (held: Caught, sighting: Caught): Caught =>
@@ -1195,7 +1210,7 @@ async function replaceSighting(
   const reading = await writeReading(
     ctx,
     row,
-    columnReading(row, firstReadWindow(next.readWindows), roles, now),
+    columnReading(row, next.readWindows, roles, now),
     now,
   );
   if (row.from <= now) {
@@ -1244,7 +1259,7 @@ async function insertSighting(
   const reading = await writeReading(
     ctx,
     { _id: sightingId },
-    columnReading({}, firstReadWindow(sighting.readWindows), roles, now),
+    columnReading({}, sighting.readWindows, roles, now),
     now,
   );
   if (Object.keys(reading).length > 0) await ctx.db.patch(sightingId, reading);

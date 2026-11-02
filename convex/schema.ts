@@ -1275,17 +1275,17 @@ export default defineSchema({
     ),
     /**
      * **Ce qu'un Guet a lu de la pile** (ADR 0037 §5, `src/domain/lookout-reading.ts`) : un rôle
-     * par troupe, sans effectif, sans tier, sans cargaison, et jamais l'ordre. `readFrom` et
-     * `readTo` bornent la fenêtre de Guet en cours ou la prochaine, qui n'est pas forcément celle
-     * de la ligne : la ligne nomme le premier détecteur. La pile ne s'écrit que sous un Guet qui
-     * voit ; figée, `readAt` date sa dernière lecture. `readJobId` réveille la ligne à la
-     * prochaine borne. Écrite au niveau de la ligne, hors de `frozen`, elle survit au souvenir.
+     * par troupe, sans effectif, sans tier, sans cargaison, et jamais l'ordre. `reads` garde les
+     * fenêtres de Guet en cours et à venir, une par passage dans un cercle, qui ne sont pas
+     * celles de la ligne : la ligne nomme le premier détecteur et couvre les sorties. La pile ne
+     * s'écrit que dans une fenêtre ouverte ; figée, `readAt` date sa dernière lecture.
+     * `readJobId` réveille la ligne à la prochaine borne, `readJobAt`. Écrite au niveau de la ligne, hors de `frozen`, elle survit au souvenir.
      */
-    readFrom: v.optional(v.number()),
-    readTo: v.optional(v.number()),
+    reads: v.optional(v.array(v.object({ from: v.number(), to: v.number() }))),
     stack: v.optional(v.array(UNIT_ROLE)),
     readAt: v.optional(v.number()),
     readJobId: v.optional(v.id('_scheduled_functions')),
+    readJobAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
