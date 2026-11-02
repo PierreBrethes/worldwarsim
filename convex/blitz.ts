@@ -43,7 +43,7 @@ import { endowIrregular, irregularSeat } from './objectives';
 import { reassessDetection } from './movement/detection';
 import { allRegions, pointOfBuilding, pointOfRegion, regionFacts } from './regions';
 import { quayOfRegion, routeKmFrom } from './routes';
-import { seatsOf } from './seats';
+import { everySeatOf, seatsOf } from './seats';
 import { concludeSeason } from './seasons';
 import { surveyFromPoint } from './surveys';
 import { reassessCaptures } from './captures';
@@ -199,10 +199,7 @@ export const abandon = internalMutation({
       .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
       .first();
     if (built !== null) return;
-    const seats = await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-      .collect();
+    const seats = await everySeatOf(ctx, seasonId);
     for (const seat of seats) {
       for (const row of await ctx.db
         .query('resources')

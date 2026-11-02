@@ -55,6 +55,7 @@ import {
   movementsOf,
   outpostsOf,
   pointOf,
+  sameStation,
   seatedOf,
   standingPile,
   type TroopAddress,
@@ -160,14 +161,6 @@ export async function departureOf(
     coastal: false,
   };
 }
-
-/** **Two addresses are the same when they name the same place.** The point is compared as it was
- *  written — nothing rounds, because an address is copied, never re-measured. */
-export const sameStation = (a: TroopAddress, b: TroopAddress): boolean => {
-  if (a === null || b === null) return a === b;
-  if (typeof a === 'string' || typeof b === 'string') return a === b;
-  return a.lon === b.lon && a.lat === b.lat;
-};
 
 /** A target resolved to a place. The **legality** of marching there is not decided here — see
  *  `refusalOf` and ADR 0015. */

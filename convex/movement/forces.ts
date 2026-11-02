@@ -91,6 +91,14 @@ export const asPoint = (lonLat: LonLat) => ({ lon: lonLat[0], lat: lonLat[1] });
 /** A troop's address as the row stores it. Named because one of its three forms is not an id. */
 export type TroopAddress = Doc<'troops'>['stationedAt'];
 
+/** **Two addresses are the same when they name the same place.** The point is compared as it was
+ *  written — nothing rounds, because an address is copied, never re-measured. */
+export const sameStation = (a: TroopAddress, b: TroopAddress): boolean => {
+  if (a === null || b === null) return a === b;
+  if (typeof a === 'string' || typeof b === 'string') return a === b;
+  return a.lon === b.lon && a.lat === b.lat;
+};
+
 /** Une troupe telle que la règle des transports la lit (`src/domain/troops.ts`). */
 export const seatedOf = (troop: Doc<'troops'>): Seated => ({
   id: troop._id,
