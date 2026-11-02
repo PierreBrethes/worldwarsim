@@ -1233,14 +1233,18 @@ export function WorldMap({
           ? labelTarget(label, clientX, clientY)
           : point === null
             ? null
-            : pointTarget(
-                country,
-                region,
-                point,
-                coastAt(point),
-                groundAt(point),
-                coastPendingAt(point),
-                walkableAt(point),
+            : withLiaison(
+                pointTarget(
+                  country,
+                  region,
+                  point,
+                  coastAt(point),
+                  groundAt(point),
+                  coastPendingAt(point),
+                  walkableAt(point),
+                ),
+                clientX,
+                clientY,
               );
       /** La route du verbe choisi, celui que le lâcher donnerait. */
       const read = dropReadingOf(target === null ? null : compassOf(target));
@@ -1263,6 +1267,7 @@ export function WorldMap({
     labels,
     labelTarget,
     chosenOf,
+    withLiaison,
   ]);
 
   /**
