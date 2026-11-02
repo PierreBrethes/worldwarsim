@@ -16,7 +16,16 @@ import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
 import { fileSurvey } from './surveys';
 import { modules } from './test.setup';
-import { attacking, foundSeat, holdPoint, joinSeat, placeHq, seatIn } from './seats.fixture';
+import {
+  attacking,
+  campsAroundAFullPass,
+  foundSeat,
+  holdPoint,
+  joinSeat,
+  placeHq,
+  plantGuet,
+  seatIn,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -570,6 +579,31 @@ describe('plunder presence', () => {
     await completePresence(t, movementId);
     const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
     expect(report?.engagementId).toBe(engagement?._id);
+  });
+
+  /** **Le Guet relit les pertes du pillage** (#373) : la garnison tuée à l'arrivée se relit. */
+  it('re-reads for a Guet the garrison a plunder has killed', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const attackers = await Promise.all([
+      troop(t, seat, 'infantry', barracks),
+      troop(t, seat, 'infantry', barracks),
+      troop(t, seat, 'infantry', barracks),
+    ]);
+    const warehouseId = await building(t, guest, 'warehouse');
+    const defender = await troop(t, guest, 'infantry', warehouseId);
+    const site = pointOfRegion(PRAHOVA);
+    await plantGuet(t, seat, { lon: site.lon + 0.5, lat: site.lat });
+    expect((await t.query(api.view.playerView, seat)).camps).toMatchObject([
+      { identification: { pierced: true, stack: { infantry: 1 } } },
+    ]);
+
+    await plunderArrival(t, seat, warehouseId, attackers, barracks);
+
+    expect(await t.run((ctx) => ctx.db.get(defender))).toBeNull();
+    const { before, after } = await campsAroundAFullPass(t, seat);
+    expect(before).toEqual(after);
   });
 
   it('returns empty when the warehouse is already disabled at arrival', async () => {
