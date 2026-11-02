@@ -44,7 +44,7 @@ const outpostOf = (disabledMinutesLeft: number | null) => ({
   respecialtyMinutes: 0,
   depot: {},
 });
-const mount = (disabledMinutesLeft: number | null) =>
+const mount = (disabledMinutesLeft: number | null, listeningSilent = false) =>
   render(
     <GarrisonPanel
       view={
@@ -62,7 +62,7 @@ const mount = (disabledMinutesLeft: number | null) =>
             ),
             construction: null,
             constructionQueue: [],
-            upkeep: { listeningSilent: false },
+            upkeep: { listeningSilent },
           },
           arcs: [],
           loadedAt: 0,
@@ -90,5 +90,12 @@ describe('the lookout line of one of my outposts', () => {
     expect(screen.getByText(fr.garrison.lookoutCut)).toBeTruthy();
     expect(screen.queryByText(fr.garrison.lookout(60, 1))).toBeNull();
     expect(screen.queryByText(/^(Aucune liaison|En liaison)/)).toBeNull();
+  });
+
+  /** Sans charbon, aucune vigie ne guette : la fiche n'en dit pas le rayon, ses liaisons restent. */
+  it('says no lookout without coal, and keeps its liaisons', () => {
+    mount(null, true);
+    expect(screen.queryByText(fr.garrison.lookout(60, 1))).toBeNull();
+    expect(screen.getByText(/^(Aucune liaison|En liaison)/)).toBeTruthy();
   });
 });

@@ -262,9 +262,12 @@ export function GarrisonPanel({
             />
             {isOnWatch(outpost) ? (
               <>
-                <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-                  {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
-                </p>
+                {/* Sans charbon, la ligne aveugle plus bas dit pourquoi : pas de rayon promis. */}
+                {!view.me.upkeep.listeningSilent && (
+                  <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+                    {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
+                  </p>
+                )}
                 <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
                   {fr.garrison.liaisons(
                     liaisonCountOf(view.me.outposts, outpost.id),
