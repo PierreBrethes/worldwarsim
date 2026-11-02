@@ -649,6 +649,13 @@ export default defineSchema({
     /** **Les Magasins de son propriétaire que la route traversait au départ** (ADR 0037 §4) :
      *  l'arrivée dit celui qui n'a rien donné, capturé ou fermé en route. Absent, aucun. */
     stores: v.optional(v.array(v.id('outposts'))),
+    /** **Le rendez-vous à l'entrée dans la vigie d'un Fort adverse** (ADR 0037 §6) : gardé sur la
+     *  ligne, annulé avant d'être replanifié par chaque réévaluation (`reassessForts`, #146). */
+    fortEntry: v.optional(v.object({ at: v.number(), jobId: v.id('_scheduled_functions') })),
+    /** **La reprise** (décision du 02/11) : retenue à `at` par un Fort, la colonne avait marché
+     *  `share` de son temps et repart de là vers son arrivée repoussée, plus lente. Lue une fois :
+     *  une colonne reprise n'est plus retenue. */
+    resumed: v.optional(v.object({ at: v.number(), share: v.number() })),
     /**
      * The next mobile encounter reserved for this column. Optional because movements already in
      * flight predate passive ranges. A reassessment cancels the job before replacing these four

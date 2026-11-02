@@ -819,6 +819,21 @@ type NoticeBody =
       readonly rounds: number;
       readonly fuel: number;
     }
+  /** **Retenue par un Fort adverse** (ADR 0037 §6) : le point d'entrée, l'arrivée repoussée. */
+  | {
+      readonly kind: 'fortSlowed';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly arrivesAt: number;
+    }
+  /** **Notre Fort a retenu une colonne** (ADR 0037 §6) : le relevé, et l'arrivée rechiffrée. */
+  | {
+      readonly kind: 'fortHeld';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly headingDegrees: number;
+      readonly arrivesAt: number;
+    }
   /** A march that ended inside one of the player's own buildings (decision 64b). */
   | {
       readonly kind: 'garrisonEntered';

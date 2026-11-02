@@ -393,6 +393,26 @@ export const NOTICE = v.union(
     rounds: v.number(),
     fuel: v.number(),
   }),
+  /** **Retenue par un Fort adverse** (ADR 0037 §6) : chez l'attaquant, le point d'entrée et
+   *  l'arrivée repoussée, jamais le Fort. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('fortSlowed'),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    arrivesAt: v.number(),
+  }),
+  /** **Notre Fort a retenu une colonne** (ADR 0037 §6) : chez le défenseur, le relevé de la colonne
+   *  (le point d'entrée et son cap) et son arrivée rechiffrée ; elle tient lieu de la dépêche de
+   *  relevé, qui ne part pas une seconde fois. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('fortHeld'),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    headingDegrees: v.number(),
+    arrivesAt: v.number(),
+  }),
   /** **A march that ended inside one of the player's buildings** (decision 64b): the address is
    *  named, building and region, because « a pris position — France » would not say which port
    *  now holds the infantry the cargo is waiting for. */

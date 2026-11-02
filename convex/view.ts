@@ -979,6 +979,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           }),
           departedAt: movement.departedAt,
           arrivesAt: movement.arrivesAt,
+          /** **Retenue par un Fort en route** (ADR 0037 §6) : le pion repart de là, plus lent. */
+          ...(movement.resumed === undefined ? {} : { resumed: movement.resumed }),
           /** The target's rest window, if the arrival bites it: the column then waits at the
            *  border until it closes (design sheet 07). **A hold already taken is not recomputed**:
            *  `arrive` pushed `arrivesAt` to the exit of the window, and that instant sits outside

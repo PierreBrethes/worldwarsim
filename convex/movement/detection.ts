@@ -26,7 +26,7 @@ import {
 import { seenSegment } from '../../src/domain/sighting-segment';
 import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
-import { isStanding, lookoutKmOf } from '../../src/domain/outposts';
+import { effectiveSpecialty, isStanding, lookoutKmOf } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
 import { coalDryAt, economyOf, keepDryWakeUp, keepSilence } from '../resources';
@@ -42,6 +42,7 @@ import { seasonTheatre } from './theatre';
 import { capitalRegionOf, homeCountryOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAmongCountries, hostAtPoint, landAtPoint } from '../routes';
 import { asPoint, pointOf, seasonMovements, seasonOutposts } from './forces';
+import { reassessForts, type Fort } from './fort';
 import { notifyPlayer } from '../notifications';
 import { journalUrl, push } from '../../src/domain/push';
 
@@ -121,6 +122,7 @@ export async function reassessDetection(
     await syncCampSightings(ctx, seasonId, board, now, camps);
     await syncLootCrateSightings(ctx, seasonId, board, now);
     await rescheduleLootCrateDetectionJobs(ctx, seasonId, board, now);
+    await reassessForts(ctx, board, now);
     /** **La capture se relit aux mêmes événements que le brouillard** : un départ, une arrivée,
      *  une passe — exactement ce qui peut retirer, tuer ou entamer l'infanterie qui capture. */
     await reassessCaptures(ctx, seasonId, now);
@@ -187,6 +189,10 @@ export async function revealSighting(
   if (movement === null) return;
   const season = await ctx.db.get(movement.seasonId);
   if (season === null || season.status !== 'launched' || season.concludedAt !== null) return;
+  if (await heldByFort(ctx, sighting, movement)) {
+    await ctx.db.patch(sighting._id, { noticeFiled: true, revealJobId: undefined });
+    return;
+  }
 
   const seen = seenSegment(marchingForce(movement), sighting.from, sighting.to);
   await ctx.db.insert('notices', {
@@ -215,6 +221,26 @@ export async function revealSighting(
   await ctx.db.patch(sighting._id, { noticeFiled: true, revealJobId: undefined });
 }
 
+/**
+ * **Le relevé qu'ouvre la retenue d'un Fort part avec sa dépêche** (ADR 0037 §6) : le défenseur
+ * reçoit une seule dépêche, `fortHeld`, qui porte le relevé. La fenêtre s'ouvre au rendez-vous
+ * pas encore tenu, ou au plus tard à la reprise ; les deux jobs tombent à la même heure, dans un
+ * ordre que rien ne garantit.
+ */
+async function heldByFort(
+  ctx: MutationCtx,
+  sighting: Doc<'sightings'>,
+  movement: Doc<'movements'>,
+): Promise<boolean> {
+  if (sighting.detector !== 'outpost' || sighting.detectorId === null) return false;
+  const opensTheHold =
+    movement.fortEntry?.at === sighting.from ||
+    (movement.resumed !== undefined && sighting.from <= movement.resumed.at);
+  if (!opensTheHold) return false;
+  const outpost = await ctx.db.get(sighting.detectorId as Id<'outposts'>);
+  return outpost !== null && effectiveSpecialty(outpost) === 'fort';
+}
+
 export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   id: movement._id,
   points: movement.points.map(pointOf),
@@ -224,6 +250,7 @@ export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   createdAt: movement._creationTime,
   departedAt: movement.departedAt,
   arrivesAt: movement.arrivesAt,
+  ...(movement.resumed === undefined ? {} : { resumed: movement.resumed }),
 });
 
 async function detectionBoard(
@@ -372,12 +399,21 @@ async function detectionBoard(
     });
   }
 
+  /** **Les Forts qui retiennent** (ADR 0037 §6) : ceux qui guettent, rien de plus. */
+  const forts: Fort[] = [];
   /** **Tout avant-poste debout guette** (ADR 0037 §1, §2), à mi-rayon, sur le charbon national. */
   for (const outpost of outposts) {
     /** Un chantier ne guette pas : le point n'existe pas encore (révision du 15/09). */
     if (!isStanding(outpost, now)) continue;
     if (outpost.disabledUntil !== null && outpost.disabledUntil > now) continue;
     if (await isSilent(outpost.playerId)) continue;
+    if (effectiveSpecialty(outpost) === 'fort')
+      forts.push({
+        id: outpost._id,
+        point: pointOf(outpost.point),
+        radiusKm: lookoutKmOf(outpost),
+        playerId: outpost.playerId,
+      });
     watchers.push({
       id: `outpost:${outpost._id}`,
       point: pointOf(outpost.point),
@@ -391,7 +427,7 @@ async function detectionBoard(
   }
 
   const mutualWindows = new Map<string, { readonly from: number; readonly to: number } | null>();
-  return { mobileById, watchers, players, posted, allOnRangoonTour, mutualWindows };
+  return { mobileById, watchers, forts, players, posted, allOnRangoonTour, mutualWindows };
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;

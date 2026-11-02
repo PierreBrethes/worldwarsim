@@ -562,11 +562,17 @@ export const arriveNow = internalMutation({
       .collect();
     const arrivesAt = Date.now() + (afterMs ?? 0);
     for (const movement of moving) {
-      if (onTime)
-        await ctx.db.patch(movement._id, {
-          arrivesAt,
-          departedAt: arrivesAt - (movement.arrivesAt - movement.departedAt),
-        });
+      /** `arrive` ne part pas avant l'heure (le Fort repousse une arrivée en route) : l'heure se
+       *  ramène, et une reprise glisse avec la route ou se perd avec elle. */
+      const shift = arrivesAt - movement.arrivesAt;
+      await ctx.db.patch(movement._id, {
+        arrivesAt,
+        ...(onTime ? { departedAt: movement.departedAt + shift } : {}),
+        resumed:
+          onTime && movement.resumed !== undefined
+            ? { ...movement.resumed, at: movement.resumed.at + shift }
+            : undefined,
+      });
       await ctx.scheduler.runAfter(afterMs ?? 0, internal.movements.arrive, {
         movementId: movement._id,
       });

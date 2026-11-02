@@ -90,6 +90,7 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
+import { holdAtFort as holdAtFortEntry } from './movement/fort';
 import { pursue as pursueStep, quarryOf } from './movement/pursuit';
 import { blitzTheatreOf } from './movement/theatre';
 import { bombard as bombardFrom } from './movement/bombard';
@@ -1001,9 +1002,12 @@ export const arrive = internalMutation({
   handler: async (ctx, { movementId }) => {
     const movement = await ctx.db.get(movementId);
     if (!movement) return;
+    const now = Date.now();
+    /** **Une arrivée repoussée en route** (le Fort, ADR 0037 §6) laisse son ancien job derrière
+     *  elle : il tombe avant l'heure, et passe. */
+    if (now < movement.arrivesAt) return;
     if (!(await seasonStillPlays(ctx, movement.playerId))) return;
 
-    const now = Date.now();
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
       await ctx.db.patch(movementId, { arrivesAt: held, heldAt: now });
@@ -1171,6 +1175,12 @@ export const completePlunderPresence = internalMutation({
     await completePresence(ctx, movement, expectedAt);
     await reassessDetection(ctx, movement.seasonId);
   },
+});
+
+/** **L'entrée dans la vigie d'un Fort adverse** (ADR 0037 §6), gardée par son heure. */
+export const holdAtFort = internalMutation({
+  args: { movementId: v.id('movements'), expectedAt: v.number() },
+  handler: (ctx, { movementId, expectedAt }) => holdAtFortEntry(ctx, movementId, expectedAt),
 });
 
 /** The opening of a future visibility window, still validated against its own ledger row. */
