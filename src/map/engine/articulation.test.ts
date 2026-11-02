@@ -25,19 +25,20 @@ describe('the turret', () => {
     const { root, turret } = tank();
     turret.rotation.y = 0.1;
     const guns = new Guns(root, 'armor', null);
-    // The target lies 170° one way, the piece faces 170° the other: 20° apart, not 340°.
-    guns.point(wrap(deg(170) - deg(-170)), 1, 1, 0);
-    expect(turret.rotation.y).toBeCloseTo(0.1 - deg(20));
-    // Half-way to its pose, half-way round.
-    guns.point(deg(60), 0.5, 0.5, 0);
-    expect(turret.rotation.y).toBeCloseTo(0.1 + deg(30));
+    // The target lies 170° one way, the piece faces 170° the other: 20° apart, not 340°. The
+    // turret ends on its target, whatever its rest (#324).
+    guns.point(wrap(deg(170) - deg(-170)), 1, 1, () => 0);
+    expect(turret.rotation.y).toBeCloseTo(-deg(20));
+    // Half-way to its pose, half-way round from its rest.
+    guns.point(deg(60), 0.5, 0.5, () => 0);
+    expect(turret.rotation.y).toBeCloseTo(0.1 + (deg(60) - 0.1) / 2);
   });
 
   it('comes back to its rest exactly when the piece is no longer in joue', () => {
     const { root, turret, gun } = tank();
     const guns = new Guns(root, 'armor', null);
-    guns.point(deg(80), 1, 1, 1);
-    guns.point(deg(80), 0, 0, 0);
+    guns.point(deg(80), 1, 1, () => 1);
+    guns.point(deg(80), 0, 0, () => 0);
     expect(turret.rotation.y).toBe(0);
     expect([gun.rotation.x, gun.position.y, gun.position.z]).toEqual([0, 0, 0.06]);
   });
@@ -47,11 +48,11 @@ describe('the turret', () => {
     expect(limit).toBeCloseTo(deg(12));
     const { root, turret } = tank();
     const guns = new Guns(root, 'armor', limit);
-    guns.point(deg(80), 1, 1, 0);
+    guns.point(deg(80), 1, 1, () => 0);
     expect(turret.rotation.y).toBeCloseTo(deg(12));
-    guns.point(deg(-80), 1, 1, 0);
+    guns.point(deg(-80), 1, 1, () => 0);
     expect(turret.rotation.y).toBeCloseTo(-deg(12));
-    guns.point(deg(5), 1, 1, 0);
+    guns.point(deg(5), 1, 1, () => 0);
     expect(turret.rotation.y).toBeCloseTo(deg(5));
   });
 
@@ -77,7 +78,7 @@ describe('the recoil curve', () => {
 describe('the barrel', () => {
   it('draws back along its axis, raised by its elevation: 0.14 m for a tank', () => {
     const { root, gun } = tank();
-    new Guns(root, 'armor', null).point(0, 1, 1, 1);
+    new Guns(root, 'armor', null).point(0, 1, 1, () => 1);
     const { elevation, tube } = GUNS.armor;
     expect(elevation).toBe(0.04);
     expect(gun.rotation.x).toBeCloseTo(-0.04);
@@ -91,7 +92,7 @@ describe('the barrel', () => {
     const barrel = new Group();
     barrel.name = 'barrel';
     root.add(barrel);
-    new Guns(root, 'artillery', null).point(deg(40), 1, 1, 1);
+    new Guns(root, 'artillery', null).point(deg(40), 1, 1, () => 1);
     expect(GUNS.artillery).toMatchObject({ tube: 0.35, elevation: 0.1, piece: 0.08, rock: -3 });
     expect(barrel.rotation.x).toBeCloseTo(-0.1);
     expect(barrel.position.z).toBeCloseTo(-0.35 * Math.cos(0.1));
@@ -103,7 +104,7 @@ describe('the barrel', () => {
     hull.name = 'gun_hull';
     hull.position.set(-0.45, 1.2, 2.635);
     root.add(hull);
-    new Guns(root, 'armor', null).point(deg(30), 1, 1, 1);
+    new Guns(root, 'armor', null).point(deg(30), 1, 1, () => 1);
     expect(turret.rotation.y).toBeCloseTo(deg(30));
     expect(hull.rotation.x).toBe(0);
     expect(hull.position.toArray()).toEqual([-0.45, 1.2, 2.635]);

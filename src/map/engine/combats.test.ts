@@ -282,3 +282,25 @@ describe('CombatLayer, the flashes that light the night (#332)', () => {
     expect(materials(playing, 0).some((m) => materials(playing, 1).includes(m))).toBe(false);
   });
 });
+
+describe('CombatLayer, at sea (#324)', () => {
+  it('plays the ships alone: what they carry does not show, and drowns in the dispatch', () => {
+    const forces = [
+      { role: 'escort' as const, tier: 1 as const, troops: 1, lost: 0, routed: 0, destroyed: 0 },
+    ];
+    const view: ReplayView = {
+      ...combat('sea'),
+      mine: [...forces, { role: 'infantry', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 0 }],
+      theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+      faced: { nation: 'germany', forces: forces.map((f) => ({ ...f, strength: 100 })) },
+    };
+    const layer = new CombatLayer();
+    const told: ReplayView[] = [];
+    layer.onReport = (each) => told.push(each);
+    layer.play(view, 'france', at, 0, 0, 'sea');
+    // Two ships and their two shots.
+    expect(layer.group.children[0]!.children).toHaveLength(4);
+    layer.advance(stepBounds('compte-rendu').start + 1, scale);
+    expect(told[0]!.mine).toHaveLength(2);
+  });
+});

@@ -76,7 +76,7 @@ import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
 import { HeldBursts } from './held-bursts';
-import { stampStays } from '@/domain/combat-on-map';
+import { afloat, sceneSpan, stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
@@ -96,7 +96,7 @@ import {
 } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
-import { buildingSpan } from '@/domain/piece-size';
+import { buildingSpan, troopSpan } from '@/domain/piece-size';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
@@ -1573,6 +1573,8 @@ export class MapEngine {
     this.replay?.scene.dispose();
     const lonLat = [view.point.lon, view.point.lat] as const;
     const onLand = this.landAt(lonLat);
+    // At sea, the ships fight alone: what they carried drowns in the dispatch (#324).
+    const shown = onLand ? view : afloat(view);
     const center = this.frame.projectLonLat(lonLat, onLand ? COUNTRY_THICKNESS : SEA_LEVEL);
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
     const flat = Math.hypot(orientation.x, orientation.z);
@@ -1588,7 +1590,8 @@ export class MapEngine {
           );
     const yaw = Math.atan2(tilted.x, tilted.z);
     const fire = this.replayFire(view, center, yaw);
-    const reach = replayReach(view, fire) * REPLAY_STAGE * pieceScale.size;
+    const reach =
+      replayReach(shown, fire, onLand ? 'land' : 'sea') * REPLAY_STAGE * pieceScale.size;
     // Fitted to the height left above `below`, and to the width on a portrait screen.
     const aspect = this.screenWidth / this.screenHeight;
     const distance = Math.max(
@@ -1604,7 +1607,7 @@ export class MapEngine {
       .add(new Vector3(tilted.x, 0, tilted.z).normalize().multiplyScalar(nearer));
     const scene = new ReplayScene(
       this.playerNation,
-      replayAt(view, 0).pieces,
+      replayAt(shown, 0).pieces,
       onLand ? 'land' : 'sea',
       fire,
       view.faced?.nation ?? null,
@@ -1613,7 +1616,7 @@ export class MapEngine {
     scene.object.rotation.y = yaw;
     this.scene.add(scene.object);
     this.replay = {
-      view,
+      view: shown,
       scene,
       saved,
       center,
@@ -2783,19 +2786,27 @@ export class MapEngine {
   }
 
   /**
-   * **Un combat se joue à son point** (#272) : sur terre, s'il est dans le champ et ses figurines
-   * dessinées au signal, et qu'aucun rejeu n'est ouvert ; sinon rien, la dépêche suffit. Sans sa
+   * **Un combat se joue à son point** (#272) : sur terre comme en mer (#324), s'il est dans le
+   * champ et sa plus longue pièce dessinée au signal, et qu'aucun rejeu n'est ouvert ; sinon rien,
+   * la dépêche suffit. Sans sa
    * vue encore, le point se masque en l'attendant. La ligne du défenseur se tient sur sa pile,
    * l'attaquant en face, du côté d'où il est venu (`toward`), sinon à gauche, comme au rejeu.
    */
   private playCombat(cue: Extract<Cue, { kind: 'combat' }>): void {
-    const point = this.frame.projectLonLat(cue.point, COUNTRY_THICKNESS);
+    const medium = this.landAt(cue.point) ? 'land' : 'sea';
+    const point = this.frame.projectLonLat(
+      cue.point,
+      medium === 'land' ? COUNTRY_THICKNESS : SEA_LEVEL,
+    );
     const now = performance.now();
-    if (
-      this.replay !== null ||
-      !this.landAt(cue.point) ||
-      (!this.combats.waits(cue.id) && !this.seenWhole(point))
-    ) {
+    // Its view still on its way, a sea combat is seen by the least of the ships that fight.
+    const span =
+      cue.view !== null
+        ? sceneSpan(cue.view)
+        : medium === 'sea'
+          ? troopSpan('escort')
+          : ANONYMOUS_SPAN;
+    if (this.replay !== null || (!this.combats.waits(cue.id) && !this.seenWhole(point, span))) {
       this.settleCombat(cue.id);
       return;
     }
@@ -2812,7 +2823,7 @@ export class MapEngine {
       yaw =
         cue.view.side === 'attacker' ? Math.atan2(away.z, -away.x) : Math.atan2(-away.z, away.x);
     }
-    this.combats.play(cue.view, this.playerNation, point, yaw, now);
+    this.combats.play(cue.view, this.playerNation, point, yaw, now, medium);
   }
 
   /** A combat has done showing itself: « terrain tenu » stands if no scene did, and its dispatch
@@ -2822,14 +2833,14 @@ export class MapEngine {
     this.onCombatSettled?.(id);
   }
 
-  /** In the field, and near enough for a troop to stand rather than its pin. */
-  private seenWhole(point: Vector3): boolean {
+  /** In the field, and near enough for a troop of `span` to stand rather than its pin. */
+  private seenWhole(point: Vector3, span = ANONYMOUS_SPAN): boolean {
     this.eyeFrustum.setFromProjectionMatrix(
       this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
     );
     return (
       this.eyeFrustum.containsPoint(point) &&
-      troopScale(this.camera.position.distanceTo(point), ANONYMOUS_SPAN) > 0
+      troopScale(this.camera.position.distanceTo(point), span) > 0
     );
   }
 
@@ -3500,9 +3511,10 @@ export class MapEngine {
       this.invalidate();
   }
 
-  /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile. */
-  private combatScaleAt(at: Vector3): number {
-    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), ANONYMOUS_SPAN);
+  /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile of its
+   *  longest piece (#324). */
+  private combatScaleAt(at: Vector3, span: number): number {
+    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span);
   }
 
   /** What the replay and the combats on the map cover: the board there would show the after. */
@@ -3802,7 +3814,7 @@ export class MapEngine {
         ),
       );
     }
-    if (this.combats.advance(now, (at) => this.combatScaleAt(at))) this.demand.whole();
+    if (this.combats.advance(now, (at, span) => this.combatScaleAt(at, span))) this.demand.whole();
     this.razes.advance(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();

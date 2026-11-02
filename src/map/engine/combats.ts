@@ -1,13 +1,20 @@
 import { Group, Vector3 } from 'three';
-import { COMBAT_LIMITS, combatAt, playsWhole } from '@/domain/combat-on-map';
+import { afloat, COMBAT_LIMITS, combatAt, playsWhole, sceneSpan } from '@/domain/combat-on-map';
+import type { Medium } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { replayAt } from '@/domain/replay';
+import { ANONYMOUS_SPAN } from './figurines/figurine';
 import { warmPieces, type Flash } from './halo';
 import { lineCentre, ReplayScene, replayReach } from './replay';
 
 type Played = {
+  /** What the scene plays: at sea, its ships alone (`afloat`). */
   readonly view: ReplayView;
+  /** What the stamp reads (#327): the whole account, the drowned included. */
+  readonly told: ReplayView;
+  /** Its longest piece, on the board: what it is drawn and seen by (`sceneSpan`). */
+  readonly span: number;
   readonly scene: ReplayScene;
   /** The combat's point on the board, where the defender's line stands. */
   readonly point: Vector3;
@@ -75,16 +82,24 @@ export class CombatLayer {
     return this.seen.has(id);
   }
 
-  /** `yaw` turns the scene on the board; `nation` is mine. */
-  play(view: ReplayView, nation: string | null, point: Vector3, yaw: number, now: number): void {
-    this.waiting.delete(view.combatId);
+  /** `yaw` turns the scene on the board; `nation` is mine; `medium` is the point's (#324). */
+  play(
+    told: ReplayView,
+    nation: string | null,
+    point: Vector3,
+    yaw: number,
+    now: number,
+    medium: Medium = 'land',
+  ): void {
+    this.waiting.delete(told.combatId);
+    const view = medium === 'sea' ? afloat(told) : told;
     const attacker = view.side === 'attacker' ? 'mine' : 'theirs';
     const defender = attacker === 'mine' ? 'theirs' : 'mine';
     const pieces = replayAt(view, 0).pieces;
     const scene = new ReplayScene(
       nation,
       pieces,
-      'land',
+      medium,
       null,
       view.faced?.nation ?? null,
       attacker,
@@ -97,12 +112,19 @@ export class CombatLayer {
       this.motion !== 'off' &&
       playing < COMBAT_LIMITS[this.phone ? 'phone' : 'desk'].atOnce;
     scene.sharesMaterials = !plays;
+    scene.final = !plays;
     this.played.push({
       view,
+      told,
+      span: sceneSpan(view),
       scene,
       point,
-      offset: lineCentre(pieces.filter((piece) => piece.side === defender).length, defender),
-      reach: replayReach(view),
+      offset: lineCentre(
+        pieces.filter((piece) => piece.side === defender).length,
+        defender,
+        medium,
+      ),
+      reach: replayReach(view, null, medium),
       plays,
       since: now,
       step: null,
@@ -112,11 +134,11 @@ export class CombatLayer {
   }
 
   /**
-   * Draws every combat at `now`, at the scale `scaleAt` gives its point — 0 past the figurines'
-   * floor, where nothing shows nor sounds. `true` when a whole frame is due: a scene came, went,
+   * Draws every combat at `now`, at the scale `scaleAt` gives its point for its longest piece —
+   * 0 past the figurines' floor, where nothing shows nor sounds. `true` when a whole frame is due: a scene came, went,
    * or a held step changed.
    */
-  advance(now: number, scaleAt: (point: Vector3) => number): boolean {
+  advance(now: number, scaleAt: (point: Vector3, span: number) => number): boolean {
     let due = false;
     const veils: Array<{ center: Vector3; reach: number }> = [];
     this.played = this.played.filter((each) => {
@@ -126,7 +148,7 @@ export class CombatLayer {
         due = true;
         return false;
       }
-      const scale = scaleAt(each.point);
+      const scale = scaleAt(each.point, each.span);
       const object = each.scene.object;
       object.visible = scale > 0;
       if (scale === 0) return true;
@@ -137,7 +159,7 @@ export class CombatLayer {
       }
       if (!each.reported && shown.frame.step === 'compte-rendu') {
         each.reported = true;
-        this.onReport(each.view);
+        this.onReport(each.told);
       }
       object.scale.setScalar(scale);
       const yaw = object.rotation.y;
@@ -157,7 +179,7 @@ export class CombatLayer {
         this.waiting.delete(id);
         this.onSettled(id);
         due = true;
-      } else veils.push({ center: point, reach: WAITING_REACH * scaleAt(point) });
+      } else veils.push({ center: point, reach: WAITING_REACH * scaleAt(point, ANONYMOUS_SPAN) });
     }
     this.veils = veils;
     return due;

@@ -1,14 +1,52 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { Group, type Object3D } from 'three';
+import {
+  AdditiveBlending,
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  type Object3D,
+  Quaternion,
+  Sprite,
+  Vector3,
+} from 'three';
 import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, STEP_MS } from '@/domain/replay';
 import type { UnitRole } from '@/domain/ids';
-import { GUNS } from './articulation';
+import { metresOnBoard, troopSpan } from '@/domain/piece-size';
+import { GUNS, Guns, turretLimitOf } from './articulation';
 import { REPLAY_STAGE, ReplayScene, sinceDeparture } from './replay';
 
 vi.mock('./sequences', () => ({
-  articulatedOf: async (): Promise<Group> => {
+  articulatedOf: async (_url: string, family: string): Promise<Group> => {
     const root = new Group();
+    if (family === 'escort') {
+      // A fore turret at rest facing the bow, an aft one facing the stern; only the first gun
+      // carries its muzzle, the second ends where its geometry does.
+      for (const [n, z, rest] of [
+        [1, 2, 0],
+        [2, -2, Math.PI],
+      ] as const) {
+        const turret = new Group();
+        turret.name = `turret_${n}`;
+        turret.position.z = z;
+        turret.rotation.y = rest;
+        const gun = new Group();
+        gun.name = `gun_${n}`;
+        gun.add(
+          new Mesh(new BoxGeometry(0.2, 0.2, 1).translate(0, 0, 0.5), new MeshStandardMaterial()),
+        );
+        if (n === 1) {
+          const muzzle = new Group();
+          muzzle.name = 'fx_muzzle';
+          muzzle.position.z = 0.9;
+          gun.add(muzzle);
+        }
+        turret.add(gun);
+        root.add(turret);
+      }
+      return root;
+    }
     const turret = new Group();
     turret.name = 'turret';
     const gun = new Group();
@@ -21,7 +59,7 @@ vi.mock('./sequences', () => ({
 }));
 
 vi.mock('./figurines/figurine', async (original) => {
-  const { Group: G } = await import('three');
+  const { Group: G, Mesh: M, BoxGeometry: B } = await import('three');
   const { squadOf: squad } = await import('./figurines/infantry');
   return {
     ...(await original<typeof import('./figurines/figurine')>()),
@@ -53,7 +91,7 @@ vi.mock('./figurines/figurine', async (original) => {
           drawn =
             role === 'infantry'
               ? squad([1, 2].map((tier) => ({ make: man, sculpted: tier === 2 })))
-              : new G();
+              : new G().add(new M(new B(1, 1, 1).translate(0, 0.5, 0)));
           model.add(drawn);
         }),
         ...(role === 'infantry' ? {} : { url: `${role}.glb` }),
@@ -256,5 +294,144 @@ describe('the departures of a line', () => {
     const flash = (k: number) =>
       scene.object.children[k]!.children[0]!.children[1]!.children[0]!.visible;
     expect(flash(2)).toBe(true);
+  });
+});
+
+const fleet = (mine: number, theirs: number): ReplayView => {
+  const forces = (troops: number) => [
+    { role: 'escort' as const, tier: 1 as const, troops, lost: 0, routed: 0, destroyed: 0 },
+  ];
+  return {
+    ...view('escort'),
+    mine: forces(mine),
+    theirs: { troops: theirs, lost: 0, routed: 0, destroyed: 0 },
+    faced: { nation: 'germany', forces: forces(theirs).map((f) => ({ ...f, strength: 100 })) },
+  };
+};
+
+describe('an escort at sea', () => {
+  it('turns each turret the short way from its own rest, the aft one starting astern', async () => {
+    const v = fleet(1, 1);
+    const scene = new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null);
+    await landed();
+    scene.show(replayAt(v, at('pose', 1)), 0, false);
+    const [ship, foe] = scene.object.children as [Object3D, Object3D];
+    const aim = Math.atan2(foe.position.x - ship.position.x, foe.position.z - ship.position.z);
+    for (const name of ['turret_1', 'turret_2']) {
+      const facing = ship.getObjectByName(name)!.getWorldDirection(new Vector3());
+      expect(Math.cos(Math.atan2(facing.x, facing.z) - aim), name).toBeCloseTo(1);
+    }
+    // From its rest astern, the aft turret turns a quarter, not three.
+    const aft = ship.getObjectByName('turret_2')!.quaternion;
+    expect(aft.angleTo(new Quaternion(0, 1, 0, 0))).toBeLessThanOrEqual(Math.PI / 2 + 1e-6);
+  });
+
+  it('holds a turret within 150 degrees of its rest: it does not fire through the bridge', async () => {
+    const { articulatedOf } = await import('./sequences');
+    const rig = await articulatedOf('escort.glb', 'escort');
+    const guns = new Guns(rig, 'escort', turretLimitOf(null, 1, 'escort'));
+    // Dead astern: the fore turret stops short of its own bridge, the aft one looks straight on.
+    guns.point(Math.PI - 0.01, 1, 1, () => 0);
+    expect(rig.getObjectByName('turret_1')!.quaternion.angleTo(new Quaternion())).toBeCloseTo(
+      (150 * Math.PI) / 180,
+    );
+    expect(
+      rig.getObjectByName('turret_2')!.quaternion.angleTo(new Quaternion(0, 1, 0, 0)),
+    ).toBeCloseTo(0.01);
+  });
+
+  it('fires each tube from its own muzzle, one after the other', async () => {
+    const v = fleet(1, 1);
+    const scene = new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null);
+    await landed();
+    const ship = scene.object.children[0]!;
+    const flashOn = (gun: string) => {
+      let lit = false;
+      // The flash glows, additive; the smoke's puffs do not.
+      ship.getObjectByName(gun)!.traverse((part) => {
+        lit ||=
+          part instanceof Sprite && part.visible && part.material.blending === AdditiveBlending;
+      });
+      return lit;
+    };
+    const start = stepBounds('frappe').start;
+    scene.show(replayAt(v, start + 30), 0, false);
+    expect([flashOn('gun_1'), flashOn('gun_2')]).toEqual([true, false]);
+    scene.show(replayAt(v, start + 100), 0, false);
+    expect([flashOn('gun_1'), flashOn('gun_2')]).toEqual([true, true]);
+  });
+});
+
+describe('a combat at sea', () => {
+  const sea = (v: ReplayView) =>
+    new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null);
+
+  it('lays the ships broadside, each side in file a hull and a fifth apart, ninety metres between the lines', () => {
+    const v = fleet(2, 2);
+    const scene = sea(v);
+    scene.show(replayAt(v, 0), 0, false);
+    const [a, b, c] = scene.object.children as Object3D[];
+    const hull = troopSpan('escort') / REPLAY_STAGE;
+    expect(a!.visible).toBe(true);
+    expect(b!.position.x).toBeCloseTo(a!.position.x);
+    expect(b!.position.z - a!.position.z).toBeCloseTo(1.2 * hull);
+    expect(c!.position.x - a!.position.x).toBeCloseTo(metresOnBoard(90) / REPLAY_STAGE);
+    // Bow along the file, the two lines in opposite ways.
+    expect(Math.cos(a!.rotation.y - c!.rotation.y)).toBeCloseTo(-1);
+  });
+
+  const sunk = (): ReplayView => {
+    const v = fleet(1, 1);
+    return {
+      ...v,
+      theirs: { ...v.theirs, destroyed: 1 },
+      faced: { ...v.faced!, forces: v.faced!.forces.map((f) => ({ ...f, destroyed: 1 })) },
+    };
+  };
+
+  it('heels the escort it sinks, then sinks and fades it over the account', async () => {
+    const v = sunk();
+    const scene = sea(v);
+    await landed();
+    const pivot = scene.object.children[1]!.children[0]!;
+    scene.show(replayAt(v, stepBounds('riposte').start), 0, false);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo(0.12);
+    expect(pivot.position.y).toBeCloseTo(0);
+    scene.show(replayAt(v, stepBounds('compte-rendu').start + 1600), 0, false);
+    // Its rig's guns stand a tenth of a unit high, drawn at the scene's scale.
+    expect(pivot.position.y).toBeCloseTo((-0.6 * 0.1) / REPLAY_STAGE);
+    const opacities: number[] = [];
+    pivot.traverse((part) => {
+      if (part instanceof Mesh && !Array.isArray(part.material) && part.material.transparent)
+        opacities.push(part.material.opacity);
+    });
+    expect(opacities.length).toBeGreaterThan(0);
+    expect(Math.max(...opacities)).toBeCloseTo(0);
+  });
+
+  it('holds it heeled and burning in the final pose, never faded: the pose shows the loss', async () => {
+    const v = sunk();
+    const scene = sea(v);
+    scene.final = true;
+    await landed();
+    const pivot = scene.object.children[1]!.children[0]!;
+    scene.show(replayAt(v, REPLAY_MS), 0, true);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo(0.12);
+    expect(pivot.position.y).toBeCloseTo(0);
+    expect(scene.smoking).toBe(true);
+  });
+
+  it('fires only from a ship that has a muzzle: a cargo does not', async () => {
+    const v: ReplayView = {
+      ...fleet(1, 1),
+      mine: [{ role: 'cargo', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    };
+    const scene = sea(v);
+    await landed();
+    const shot = (k: number) => scene.object.children[2 + k]!.visible;
+    scene.show(replayAt(v, stepBounds('frappe').start + 40), 0, false);
+    expect(shot(0)).toBe(false);
+    scene.show(replayAt(v, stepBounds('riposte').start + 40), 0, false);
+    expect(shot(1)).toBe(true);
   });
 });

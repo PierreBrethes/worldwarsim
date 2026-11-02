@@ -1,6 +1,7 @@
 import { playTableSound } from '../table-sound';
 import {
   AdditiveBlending,
+  Box3,
   BoxGeometry,
   CanvasTexture,
   Group,
@@ -15,11 +16,20 @@ import {
   type Object3D,
   Vector3,
 } from 'three';
+import { sceneSpan } from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
-import { STEP_MS, VOLLEY_SHARE, type ReplayFrame, type ReplayPiece } from '@/domain/replay';
+import { metresOnBoard, troopSpan } from '@/domain/piece-size';
+import {
+  STEP_MS,
+  stepBounds,
+  VOLLEY_SHARE,
+  type ReplayFrame,
+  type ReplayPiece,
+} from '@/domain/replay';
 import type { ReplayView } from '@/domain/player-view';
 import { spriteUrl } from '@/emblems/units/manifest';
 import {
+  clockOf,
   Guns,
   GUNS,
   readyOf,
@@ -31,7 +41,7 @@ import {
 } from './articulation';
 import { textureOf } from './billboard';
 import { blockFigurine } from './blocks';
-import { FIGURINE_SCALE, figurineFor, TANK_SHARE } from './figurines/figurine';
+import { ANONYMOUS_SPAN, FIGURINE_SCALE, figurineFor, TANK_SHARE } from './figurines/figurine';
 import { shoulder } from './figurines/infantry';
 import { pieceScale } from './piece-scale';
 import { articulatedOf } from './sequences';
@@ -74,9 +84,32 @@ function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[number, nu
   });
 }
 
+/**
+ * **En mer, deux lignes de file, par le travers** (#324, storyboard `commun/combat.js:185-187`) :
+ * mes navires à gauche cap vers l'œil, les leurs à droite en sens inverse, à `SEA_GAP` d'axe à
+ * axe, espacés dans leur file de `SEA_FILE` coques. `hull` : la plus longue pièce de la scène.
+ */
+const SEA_GAP = metresOnBoard(90) / REPLAY_STAGE;
+const SEA_FILE = 1.2;
+function seaLayout(count: number, side: 'mine' | 'theirs', hull: number): Array<[number, number]> {
+  const sign = side === 'mine' ? -1 : 1;
+  return Array.from({ length: count }, (_, k) => [
+    (sign * SEA_GAP) / 2,
+    (k - (count - 1) / 2) * SEA_FILE * hull,
+  ]);
+}
+
+/** **The longest piece of a scene, in its units** (`sceneSpan`): what a file of ships is spaced by. */
+const hullOf = (view: ReplayView): number => sceneSpan(view) / REPLAY_STAGE;
+
 /** **Where a side's line stands across the scene**, its middle on x: on the map, the
  *  defender's is set on its pile's place (#272). */
-export function lineCentre(count: number, side: 'mine' | 'theirs'): number {
+export function lineCentre(
+  count: number,
+  side: 'mine' | 'theirs',
+  medium: Medium = 'land',
+): number {
+  if (medium === 'sea') return ((side === 'mine' ? -1 : 1) * SEA_GAP) / 2;
   const columns = Math.max(1, Math.ceil(count / PER_COLUMN));
   return (side === 'mine' ? -1 : 1) * (GAP + ((columns - 1) * COLUMN) / 2);
 }
@@ -103,9 +136,18 @@ const batteryOf = (fire: ReplayFire): readonly [number, number] | null =>
 
 /** The half width of what both sides take, to frame it and to clear the board around it — the
  *  battery's own place included, where its pile would otherwise stand twice. */
-export function replayReach(view: ReplayView, fire: ReplayFire = null): number {
+export function replayReach(
+  view: ReplayView,
+  fire: ReplayFire = null,
+  medium: Medium = 'land',
+): number {
   const troops = Math.max(view.theirs.troops, ...view.mine.map((entry) => entry.troops), 1);
-  const sides = GAP + Math.ceil(troops / PER_COLUMN) * COLUMN + RETREAT;
+  const hull = hullOf(view);
+  // A ship that routs on the table sails off a hull's length.
+  const sides =
+    medium === 'sea'
+      ? Math.hypot(SEA_GAP / 2, ((troops - 1) * SEA_FILE * hull) / 2) + hull
+      : GAP + Math.ceil(troops / PER_COLUMN) * COLUMN + RETREAT;
   const battery = batteryOf(fire);
   return battery === null ? sides : Math.max(sides, Math.hypot(...battery) + COLUMN);
 }
@@ -214,6 +256,23 @@ const LINGER_FADE_MS = 400;
 /** How long a muzzle flash lasts. */
 const FLASH_MS = 160;
 
+/** **L'escorteur au feu** (#324, storyboard) : 70 ms entre deux tubes, l'éclair à 9 % de la coque,
+ *  une fumée trois fois celle d'un char. `@a-mesurer` */
+const TUBE_LAG_MS = 70;
+const SEA_FLASH = 0.09;
+const SEA_SMOKE = 3;
+/** **Le coulé** : il gîte de 0,12 rad à sa chute, puis s'enfonce de 0,6 de sa hauteur et s'efface
+ *  sur 1,6 s au compte-rendu. */
+const HEEL = 0.12;
+const SINK_DEPTH = 0.6;
+const SINK_MS = 1600;
+/** Ships sail their last part of a hull in over the voyage; a shot aims at the side of a hull.
+ *  `@a-mesurer` */
+const SEA_ARRIVAL = 0.4;
+const SEA_AIM = 0.05;
+/** A block at sea is drawn this share of the longest hull wide. `@a-mesurer` */
+const SEA_BLOCK = 0.4;
+
 const SHOT_LENGTH = 0.24;
 const SHOT = new BoxGeometry(0.02, 0.02, SHOT_LENGTH);
 /** How high above its target an unseen shell is first seen: it falls, it does not come from anyone. */
@@ -258,7 +317,7 @@ function dress(object: Object3D, copy: ((material: Material) => Material) | null
 }
 
 /** What a piece wears: `bare` is the models' own materials, shared, not yet swapped for the scene's. */
-type Look = 'bare' | 'whole' | 'burnt' | 'washed';
+type Look = 'bare' | 'whole' | 'burnt' | 'washed' | 'sunk';
 
 type Piece = {
   readonly side: 'mine' | 'theirs';
@@ -272,11 +331,14 @@ type Piece = {
   readonly holder: Group;
   readonly pivot: Group;
   body: Object3D;
-  readonly flash: Sprite;
-  flashSize: number;
-  /** How lively its flash is at the frame drawn, 0 to 1 (#332). */
-  salvo: number;
-  readonly firing: Smoke;
+  /** A flash and a puff per tube (#324), the first in the piece's own marker until a muzzle takes it. */
+  readonly tubes: Tube[];
+  /** It has a muzzle: at sea, what has none — a cargo — does not fire. */
+  armed: boolean;
+  /** Its height in the scene's units, what a sinking hull goes down by. */
+  height: number;
+  /** Its own fading copies, once it sinks: they are not shared with a hull still afloat. */
+  sinking: Material[] | null;
   readonly shot: Mesh;
   burning: Smoke | null;
   look: Look;
@@ -291,6 +353,9 @@ type Piece = {
   /** How far its turret may turn, when it is not free to. */
   turretLimit: number | null;
 };
+
+/** One tube's flash and puff; `salvo`, how lively its flash is at the frame drawn, 0 to 1. */
+type Tube = { readonly flash: Sprite; size: number; readonly firing: Smoke; salvo: number };
 
 /** How long after the first man the next ones of a squad fire. @a-mesurer */
 const SQUAD_LAG_MS = 40;
@@ -321,6 +386,12 @@ export class ReplayScene {
   /** A scene that never fires (the final pose) keeps the models' own materials: copies are paid
    *  for by what beats. Set before the first `show`. */
   sharesMaterials = false;
+  /** **La pose finale** (#324) : ce qui a coulé reste gîté et en feu, sans s'effacer — sinon la
+   *  pose ne montrerait aucune perte. Set before the first `show`. */
+  final = false;
+  private readonly sea: boolean;
+  /** The longest piece's length, in the scene's units. */
+  private readonly hull: number;
 
   /** `medium` is the point's: an enemy block — an account from before the fire was seen — wears
    *  its pictogram, never a role. `foe` is the nation faced at the fire (F1). */
@@ -335,9 +406,17 @@ export class ReplayScene {
     private readonly onMap: 'mine' | 'theirs' | null = null,
   ) {
     const mine = pieces.filter((piece) => piece.side === 'mine').length;
+    this.sea = medium === 'sea';
+    const roles = pieces.flatMap((piece) => {
+      const role = piece.side === 'mine' ? piece.role : piece.seen?.role;
+      return role === undefined ? [] : [role];
+    });
+    this.hull = Math.max(ANONYMOUS_SPAN, ...roles.map((role) => troopSpan(role))) / REPLAY_STAGE;
+    const layout = (count: number, side: 'mine' | 'theirs') =>
+      this.sea ? seaLayout(count, side, this.hull) : replayLayout(count, side);
     const spots = {
-      mine: replayLayout(mine, 'mine').map((spot) => batteryOf(fire) ?? spot),
-      theirs: replayLayout(pieces.length - mine, 'theirs'),
+      mine: layout(mine, 'mine').map((spot) => batteryOf(fire) ?? spot),
+      theirs: layout(pieces.length - mine, 'theirs'),
     };
     this.pieces = pieces.map((piece, k) =>
       this.stand(
@@ -380,10 +459,10 @@ export class ReplayScene {
       holder,
       pivot,
       body: new Group(),
-      flash: flashSprite,
-      flashSize: FLASH_SIZE,
-      salvo: 0,
-      firing,
+      tubes: [{ flash: flashSprite, size: FLASH_SIZE, firing, salvo: 0 }],
+      armed: !this.sea || seen === undefined,
+      height: 0,
+      sinking: null,
       shot: new Mesh(SHOT, SHOT_INK),
       burning: null,
       look: 'bare',
@@ -400,17 +479,25 @@ export class ReplayScene {
     }
 
     if (seen === undefined) {
+      // At sea a block stands for a ship: grown towards a hull, it fires and sinks as one.
+      const grown = this.sea ? (SEA_BLOCK * this.hull * REPLAY_STAGE) / ANONYMOUS_SPAN : 1;
       built.body = blockFigurine(medium).object;
-      built.body.scale.setScalar(1 / REPLAY_STAGE);
+      built.body.scale.setScalar(grown / REPLAY_STAGE);
+      built.height = 1.9 * SCENE_FIGURE * grown;
       // It tips onto its back, away from the eye, its pictogram to the sky: tipped sideways, in
       // the eye's plane, a fallen block looked like a standing one.
-      pivot.position.z = -BLOCK_HALF;
-      built.body.position.z = BLOCK_HALF;
-      marker.position.set(-0.75 * SCENE_FIGURE, 0.3, BLOCK_HALF);
+      pivot.position.z = -BLOCK_HALF * grown;
+      built.body.position.z = BLOCK_HALF * grown;
+      marker.position.set(-0.75 * SCENE_FIGURE, 0.3, BLOCK_HALF).multiplyScalar(grown);
+      marker.scale.setScalar(grown);
     } else {
-      // Its front, +z, towards the other line — or, a battery, towards its target.
-      holder.rotation.y =
-        piece.side === 'theirs'
+      // Its front, +z, towards the other line — or, a battery, towards its target. At sea, a
+      // ship's bow along its file: mine towards the eye, theirs away.
+      holder.rotation.y = this.sea
+        ? piece.side === 'mine'
+          ? 0
+          : Math.PI
+        : piece.side === 'theirs'
           ? -Math.PI / 2
           : batteryOf(this.fire) === null
             ? Math.PI / 2
@@ -437,16 +524,21 @@ export class ReplayScene {
         const rig = Object.hasOwn(GUNS, seen.role) ? (seen.role as GunKind) : undefined;
         if (rig !== undefined && figurine.url !== undefined) {
           built.gunKind = rig;
-          built.turretLimit = turretLimitOf(nation, seen.tier);
-          articulatedOf(figurine.url, rig).then(
-            (cooked) => {
-              const copy = cooked.clone(true);
-              figurine.standIn?.(copy);
-              built.guns = new Guns(copy, rig, built.turretLimit);
-              built.look = 'bare';
-            },
-            () => {},
-          );
+          built.turretLimit = turretLimitOf(nation, seen.tier, rig);
+          const rigged = articulatedOf(figurine.url, rig).then((cooked) => {
+            const copy = cooked.clone(true);
+            figurine.standIn?.(copy);
+            built.guns = new Guns(copy, rig, built.turretLimit);
+            built.look = 'bare';
+            return built.guns;
+          });
+          // A ship's guns each fire from their own muzzle (#324), once the copy stands in the piece.
+          if (rig === 'escort')
+            void Promise.all([rigged, figurine.ready]).then(
+              ([guns]) => this.arm(built, guns.muzzles),
+              () => {},
+            );
+          else rigged.catch(() => {});
         }
         // The models' markers are in model units: what hangs there drops the model's scale.
         void figurine.ready.then(
@@ -455,9 +547,15 @@ export class ReplayScene {
             built.body.traverse((part) => part.name.startsWith('man_') && men.push(part));
             built.men = men;
             const muzzle = figurine.object.getObjectByName('fx_muzzle');
-            if (muzzle) {
+            if (this.sea) {
+              pivot.updateWorldMatrix(true, true);
+              const box = new Box3().setFromObject(built.body);
+              built.height = box.applyMatrix4(pivot.matrixWorld.clone().invert()).max.y;
+              // Its guns have their own muzzles; any other ship fires from its own, or not at all.
+              if (muzzle && built.gunKind === null) this.arm(built, [muzzle]);
+            } else if (muzzle) {
               muzzle.add(flashSprite);
-              built.flashSize = FLASH_SIZE / scaleWithin(muzzle, pivot);
+              built.tubes[0]!.size = FLASH_SIZE / scaleWithin(muzzle, pivot);
             }
             // The model lands after its fate may have been drawn: dress it again next frame.
             built.look = 'bare';
@@ -471,6 +569,7 @@ export class ReplayScene {
         );
       }
     }
+    if (this.sea) firing.object.scale.setScalar(SCENE_FIGURE * SEA_SMOKE);
     pivot.add(built.body, marker);
     built.yaw = holder.rotation.y;
     built.shot.visible = false;
@@ -479,13 +578,29 @@ export class ReplayScene {
     return built;
   }
 
+  /** **A ship's flashes and puffs hang at its muzzles** (#324), one per tube, sized by its hull. */
+  private arm(piece: Piece, muzzles: ReadonlyArray<Object3D>): void {
+    muzzles.forEach((muzzle, j) => {
+      const tube =
+        piece.tubes[j] ??
+        (piece.tubes[j] = { flash: flash(), size: 0, firing: new Smoke(FIRING), salvo: 0 });
+      const within = scaleWithin(muzzle, piece.pivot);
+      tube.size = (SEA_FLASH * piece.length) / within;
+      tube.firing.object.scale.setScalar((SCENE_FIGURE * SEA_SMOKE) / within);
+      muzzle.add(tube.flash, tube.firing.object);
+    });
+    piece.armed = muzzles.length > 0;
+  }
+
   /** The most vivid muzzle flash standing now, in the world, 0 to 1 (#332); `null` in the dark. */
   brightestFlash(): { readonly at: Vector3; readonly strength: number } | null {
-    let best: Piece | null = null;
-    for (const piece of this.pieces) if (piece.salvo > (best?.salvo ?? 0.02)) best = piece;
+    let best: { tube: Tube; salvo: number } | null = null;
+    for (const piece of this.pieces)
+      for (const tube of piece.tubes)
+        if (tube.salvo > (best?.salvo ?? 0.02)) best = { tube, salvo: tube.salvo };
     if (best === null) return null;
-    best.flash.updateWorldMatrix(true, false);
-    return { at: best.flash.getWorldPosition(new Vector3()), strength: best.salvo };
+    best.tube.flash.updateWorldMatrix(true, false);
+    return { at: best.tube.flash.getWorldPosition(new Vector3()), strength: best.salvo };
   }
 
   /**
@@ -509,7 +624,7 @@ export class ReplayScene {
       const state = frame.pieces[k]!;
       const { holder, pivot } = piece;
       const down =
-        this.onMap !== null
+        this.onMap !== null || this.sea
           ? 1
           : step === 'voyage'
             ? -1
@@ -519,41 +634,72 @@ export class ReplayScene {
       holder.visible = down >= 0;
       holder.position.y = DROP * (1 - ease(Math.min(1, Math.max(0, down)))) ** 2;
 
-      const fires = frame.firing === piece.side && state.fate !== 'fallen';
-      // One instant for the flash, the smoke, the ink and the recoil: this piece's departure.
+      const fires = frame.firing === piece.side && state.fate !== 'fallen' && piece.armed;
+      // One instant for the flash, the smoke, the ink and the recoil: this piece's departure —
+      // and a ship's tubes one after the other from it.
       const since = fires ? sinceDeparture(frame, rankOf(k, mineCount)) : null;
-      const salvo = !fires
-        ? 0
-        : still
-          ? 1
-          : since === null || since < 0 || since >= FLASH_MS
-            ? 0
-            : Math.sin((Math.PI * since) / FLASH_MS);
-      piece.salvo = salvo;
-      piece.flash.visible = salvo > 0.02;
-      piece.flash.scale.setScalar(piece.flashSize * salvo);
       const sinceLanded = sinceImpact(frame) ?? Infinity;
       const lingering = sinceLanded >= 0 && sinceLanded < LINGER_MS;
       const fade = lingering ? Math.min(1, (LINGER_MS - sinceLanded) / LINGER_FADE_MS) : 1;
-      piece.firing.object.visible =
-        fires && (still || (since !== null && since >= 0 && (sinceLanded < 0 || lingering)));
-      piece.firing.frame(still ? 0.4 : (since ?? 0) / 1000 + 0.03, fade);
+      piece.tubes.forEach((tube, j) => {
+        const after = since === null ? null : since - TUBE_LAG_MS * j;
+        const salvo = !fires
+          ? 0
+          : still
+            ? 1
+            : after === null || after < 0 || after >= FLASH_MS
+              ? 0
+              : Math.sin((Math.PI * after) / FLASH_MS);
+        tube.salvo = salvo;
+        tube.flash.visible = salvo > 0.02;
+        tube.flash.scale.setScalar(tube.size * salvo);
+        tube.firing.object.visible =
+          fires && (still || (after !== null && after >= 0 && (sinceLanded < 0 || lingering)));
+        tube.firing.frame(still ? 0.4 : (after ?? 0) / 1000 + 0.03, fade);
+      });
 
       const fall = state.fate === 'fallen' ? ease(state.progress) : 0;
       const retreat = state.fate === 'routed' ? ease(state.progress) : 0;
       const sign = piece.side === 'mine' ? -1 : 1;
       // On the map the attacker walks its last steps in over the voyage, and a rout turns about.
       const arriving =
-        this.onMap === piece.side && step === 'voyage' && !still ? 1 - ease(progress) : 0;
-      holder.position.x =
-        piece.home[0] + sign * (this.onMap === null ? RETREAT * retreat : ARRIVAL * arriving);
+        (this.onMap === piece.side || (this.sea && this.onMap === null)) &&
+        step === 'voyage' &&
+        !still
+          ? 1 - ease(progress)
+          : 0;
+      if (this.sea) {
+        // A ship sails in along its bow; on the table a routed one turns a quarter off its
+        // enemy and sails away (storyboard), on the map it turns about where it is (`turns`).
+        const off = this.onMap === null ? state.fate === 'routed' : false;
+        const turned = off ? ease(Math.min(1, state.progress / 0.25)) : 0;
+        const away = off ? ease(Math.max(0, (state.progress - 0.25) / 0.75)) * this.hull : 0;
+        holder.position.x = piece.home[0] + sign * away;
+        holder.position.z = piece.home[1] + sign * SEA_ARRIVAL * this.hull * arriving;
+        holder.rotation.y = piece.yaw - (Math.PI / 2) * turned;
+      } else
+        holder.position.x =
+          piece.home[0] + sign * (this.onMap === null ? RETREAT * retreat : ARRIVAL * arriving);
       if (turns !== null) holder.rotation.y = piece.yaw + Math.PI * ease(turns[k] ?? 0);
       holder.rotation.z = shakeOf(frame, still);
+      // A hull that went down heels with its fall, then sinks and fades at the account — held,
+      // never, by the final pose.
+      const sink =
+        this.sea && state.fate === 'fallen' && !this.final
+          ? ease(
+              Math.min(
+                1,
+                Math.max(0, (clockOf(frame) - stepBounds('compte-rendu').start) / SINK_MS),
+              ),
+            )
+          : 0;
+      pivot.position.y = -SINK_DEPTH * piece.height * sink;
       if (piece.burns) {
         // A tank rears and a gun slides back as its shot leaves (`since`); nothing at reduced motion.
         const gun = piece.gunKind === null ? null : GUNS[piece.gunKind];
         const recoil = still ? 0 : recoilAt(since);
-        pivot.rotation.set(gun === null ? 0 : ((gun.rock * Math.PI) / 180) * recoil, 0, 0);
+        const heel = this.sea ? (piece.side === 'mine' ? 1 : -1) * HEEL * fall : 0;
+        pivot.rotation.set(gun === null ? 0 : ((gun.rock * Math.PI) / 180) * recoil, 0, heel);
         if (gun !== null) piece.body.position.z = -gun.piece * piece.length * recoil;
       } else if (piece.card) {
         // Away from the eye: mine's +x is the scene's -z, theirs' is its +z.
@@ -564,23 +710,33 @@ export class ReplayScene {
       }
       const burnt = piece.burns && fall > 0;
       if (piece.burning) {
-        piece.burning.object.visible = burnt;
+        piece.burning.object.visible = burnt && sink < 1;
         if (burnt) piece.burning.frame(still ? 1 : seconds);
       }
-      const look: Look = burnt ? 'burnt' : retreat > 0 ? 'washed' : 'whole';
+      const look: Look = sink > 0 ? 'sunk' : burnt ? 'burnt' : retreat > 0 ? 'washed' : 'whole';
       if (look !== piece.look) {
         piece.look = look;
-        const worn = look === 'burnt' ? charred : look === 'washed' ? washedOf : null;
+        const worn =
+          look === 'burnt' || look === 'sunk' ? charred : look === 'washed' ? washedOf : null;
+        const sinking: Material[] = [];
         dress(piece.body, (material) => {
           const dressed = worn === null ? material : worn(material);
-          return this.sharesMaterials ? dressed : this.ownOf(dressed);
+          if (look !== 'sunk') return this.sharesMaterials ? dressed : this.ownOf(dressed);
+          const own = dressed.clone();
+          own.transparent = true;
+          sinking.push(own);
+          return own;
         });
+        piece.sinking = look === 'sunk' ? sinking : null;
       }
+      for (const material of piece.sinking ?? []) material.opacity = 1 - sink;
     });
     // Aimed once every holder stands where this frame puts it.
     const mine = frame.pieces.filter((piece) => piece.side === 'mine').length;
     const volley = volleyOf(frame);
     const battery = batteryOf(this.fire) !== null;
+    // At sea a shot leaves from the first muzzle, where the model put it.
+    if (this.sea) this.object.updateMatrixWorld(true);
     this.pieces.forEach((piece, k) => {
       piece.shot.scale.z = 1;
       if (this.fire === 'unseen') {
@@ -593,7 +749,8 @@ export class ReplayScene {
         return;
       }
       const target = this.pieces[salvoTarget(k, mine, count - mine) ?? -1];
-      const fires = frame.firing === piece.side && frame.pieces[k]!.fate !== 'fallen';
+      const fires =
+        frame.firing === piece.side && frame.pieces[k]!.fate !== 'fallen' && piece.armed;
       /** **La batterie trace un trait** (A4) : il part d'elle, gagne la cible pendant la salve, et
        *  reste posé jusqu'à la fin de la frappe — le coup se lit d'un bout à l'autre. */
       const stroke = battery && piece.side === 'mine';
@@ -607,8 +764,13 @@ export class ReplayScene {
             : null;
       piece.shot.visible = share !== null && target !== undefined;
       if (!piece.shot.visible) return;
-      muzzle.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);
-      aim.copy(target!.holder.position).setY(target!.holder.position.y + MUZZLE_HEIGHT * 0.8);
+      if (this.sea) {
+        this.object.worldToLocal(piece.tubes[0]!.flash.getWorldPosition(muzzle));
+        aim.copy(target!.holder.position).setY(target!.holder.position.y + SEA_AIM * this.hull);
+      } else {
+        muzzle.copy(piece.holder.position).setY(piece.holder.position.y + MUZZLE_HEIGHT);
+        aim.copy(target!.holder.position).setY(target!.holder.position.y + MUZZLE_HEIGHT * 0.8);
+      }
       if (stroke) {
         aim.lerpVectors(muzzle, aim, share!);
         piece.shot.position.lerpVectors(muzzle, aim, 0.5);
@@ -632,7 +794,7 @@ export class ReplayScene {
       if (piece.guns === null && piece.men.length === 0) return;
       const state = frame.pieces[k]!;
       const rout = state.fate === 'routed' ? state.progress : 0;
-      const fires = frame.firing === piece.side && state.fate !== 'fallen';
+      const fires = frame.firing === piece.side && state.fate !== 'fallen' && piece.armed;
       const since = fires && !still ? sinceDeparture(frame, rankOf(k, mine)) : null;
       if (piece.guns !== null) {
         const target = this.pieces[salvoTarget(k, mine, this.pieces.length - mine) ?? -1];
@@ -645,7 +807,9 @@ export class ReplayScene {
                   target.holder.position.z - piece.holder.position.z,
                 ) - piece.holder.rotation.y,
               );
-        piece.guns.point(aim, ready, ready * (1 - Math.min(1, rout / 0.25)), recoilAt(since));
+        piece.guns.point(aim, ready, ready * (1 - Math.min(1, rout / 0.25)), (j) =>
+          recoilAt(since === null ? null : since - TUBE_LAG_MS * j),
+        );
       }
       piece.men.forEach((man, j) =>
         shoulder(
