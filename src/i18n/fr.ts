@@ -2324,7 +2324,8 @@ export const fr = {
     locate: (label: string) => `${label} — recentrer la carte`,
     movement: (type: string, destination: string) => `${type} → ${destination}`,
     construction: (building: string, level: number) => `${building} → niveau ${num(level)}`,
-    raise: (level: number) => `avant-poste → niveau ${num(level)}`,
+    raise: (level: number, specialty?: string) =>
+      `avant-poste → niveau ${num(level)}${specialty === undefined ? '' : `, ${specialty}`}`,
     respecialize: (specialty: string) => `avant-poste → ${specialty}`,
     foundation: (country: string) => `fondation · ${country}`,
     recruitment: (region: string) => `recrutement · ${region}`,
@@ -3172,6 +3173,10 @@ export const fr = {
     raiseHeader: 'élévation',
     /** Le nom que la ligne de file porte : elle n'est dans aucune table de bâtiments. */
     raiseWork: 'élévation d’avant-poste',
+    raiseWorkAs: (specialty: string) => `élévation d’avant-poste · ${specialty}`,
+    /** Le choix fait à l'élévation, lu dès la mise en file (ADR 0037 §3). */
+    raiseQueuedAs: (specialty: string) =>
+      `Élévation en file : il deviendra ${specialty} au niveau 2.`,
     raiseAction: 'monter',
     raiseToLevel: (level: number) => `au niveau ${level}`,
     raiseTitle: (level: number) => `monter cet avant-poste au niveau ${level}`,

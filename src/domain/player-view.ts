@@ -658,9 +658,11 @@ type RunningWork = {
   readonly minutes?: number;
   /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
   readonly level: number;
-  /** **Un changement de spécialisation** et la cible (ADR 0037 §7) ; `null` sur toute autre ligne.
-   *  `level` y est le niveau du point, qui ne bouge pas. */
-  readonly respecialty: Specialty | null;
+  /** **Le métier que la ligne donne au point** (ADR 0037 §3, §7) : choisi à l'élévation au
+   *  niveau 2, ou cible d'un changement ; `null` sur toute autre ligne. */
+  readonly specialty: Specialty | null;
+  /** **Un changement de spécialisation**, pas une élévation : `level` y est le niveau du point. */
+  readonly respecialize: boolean;
 };
 
 type QueuedWork = {
@@ -673,7 +675,8 @@ type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
-  readonly respecialty: Specialty | null;
+  readonly specialty: Specialty | null;
+  readonly respecialize: boolean;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';

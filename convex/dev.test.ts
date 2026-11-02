@@ -237,7 +237,7 @@ describe('dev.specialtiesScene', () => {
       { level: 2, specialty: 'store', changingTo: 'lookout', depotCapacity: 800 },
       { level: 2, specialty: 'lookout', changingTo: null, depotCapacity: 800 },
     ]);
-    expect(me.construction).toMatchObject({ respecialty: 'lookout' });
+    expect(me.construction).toMatchObject({ specialty: 'lookout', respecialize: true });
   });
 });
 

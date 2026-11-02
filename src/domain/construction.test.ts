@@ -87,7 +87,8 @@ describe('what holds a raise back', () => {
       point: [6.2, 48.7] as LonLat,
       minutesLeft: 20,
       level: 2,
-      respecialty: null,
+      specialty: null,
+      respecialize: false,
     };
     expect(upgradeHold(building(), viewWith({ construction: running }), LOADED_AT)).toBeNull();
   });
@@ -103,7 +104,8 @@ describe('what holds a raise back', () => {
         regionName: 'Moselle',
         point: POINT,
         level: 2,
-        respecialty: null,
+        specialty: null,
+        respecialize: false,
       },
     ];
     expect(upgradeHold(building(), viewWith({ queue: queued }), LOADED_AT)).toEqual({
@@ -624,7 +626,8 @@ describe('workSitesOf', () => {
     point: at(regionId),
     minutesLeft,
     level: 1,
-    respecialty: null,
+    specialty: null,
+    respecialize: false,
   });
   const queued = (
     key: BuildingKey | 'outpost',
@@ -640,7 +643,8 @@ describe('workSitesOf', () => {
     regionName: 'Meuse',
     point: outpostId === null ? at(regionId) : null,
     level,
-    respecialty: null,
+    specialty: null,
+    respecialize: false,
   });
 
   it('dates the head of the queue — a first level rises by the catalog, a raise by the building', () => {

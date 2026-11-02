@@ -29,7 +29,7 @@ afterEach(cleanup);
 
 const STOCK = { stock: 1000, ratePerHour: 0, cap: 5000 };
 
-const mount = (outpost: Record<string, unknown>) =>
+const mount = (outpost: Record<string, unknown>, constructionQueue: unknown[] = []) =>
   render(
     <GarrisonPanel
       view={
@@ -65,7 +65,7 @@ const mount = (outpost: Record<string, unknown>) =>
             ],
             resources: Object.fromEntries(RESOURCES.map((key) => [key, STOCK])),
             construction: null,
-            constructionQueue: [],
+            constructionQueue,
             upkeep: { listeningSilent: false },
           },
           arcs: [],
@@ -92,6 +92,22 @@ describe('the specialty of one of my outposts', () => {
       expect(screen.getByText(specialtyEffectText(specialty, 2))).toBeTruthy();
     }
     expect(screen.getByText(fr.errors.SPECIALTY_AT_LEVEL_TWO())).toBeTruthy();
+  });
+
+  /** Le choix fait à l'élévation se lit dès la mise en file, à la place de la note du niveau 1. */
+  it('names the specialty a queued raise will give it', () => {
+    mount({}, [
+      {
+        id: 'W-1',
+        key: 'outpost',
+        outpostId: 'O-1',
+        specialty: 'store',
+        respecialize: false,
+        level: 2,
+      },
+    ]);
+    expect(screen.getByText(fr.garrison.raiseQueuedAs('magasin'))).toBeTruthy();
+    expect(screen.queryByText(fr.errors.SPECIALTY_AT_LEVEL_TWO())).toBeNull();
   });
 
   it('lets an old level-2 generalist choose once, freely', () => {

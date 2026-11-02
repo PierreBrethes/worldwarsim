@@ -103,10 +103,13 @@ import { fundsAt, mendPlan } from '../src/domain/blitz';
 const workKey = (building: BuildCostKey): BuildCostKey =>
   isOutpostWork(building) ? building : canonicalBuildingKey(building);
 
-/** **Le métier qu'un changement de spécialisation donne au point**, `null` sur toute autre ligne :
- *  la file et le bandeau le disent changement, jamais élévation. */
-const respecialtyOf = (entry: Doc<'constructions'>) =>
-  entry.respecialize === true ? (entry.specialty ?? null) : null;
+/** **Le métier qu'une ligne d'avant-poste donne au point** — choisi à l'élévation au niveau 2, ou
+ *  cible d'un changement —, et si c'est un changement : la file, le bandeau et la fiche le disent
+ *  dès la mise en file, pas seulement à la fin du chantier. */
+const specialtyOfWork = (entry: Doc<'constructions'>) => ({
+  specialty: entry.specialty ?? null,
+  respecialize: entry.respecialize === true,
+});
 
 /** What a set of engaged troops amounts to, in men and machines (ADR 0014) — one count for the
  *  account and for the replay, so the two cannot disagree. */
@@ -640,7 +643,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
               minutes: construction.minutes,
               level: construction.level,
-              respecialty: respecialtyOf(construction),
+              ...specialtyOfWork(construction),
             }
           : null,
       /** **What is paid for behind the running site**, in build order: only a rank, a countdown
@@ -659,7 +662,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               ? null
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
-          respecialty: respecialtyOf(entry),
+          ...specialtyOfWork(entry),
         })),
       armyPresent,
       /**

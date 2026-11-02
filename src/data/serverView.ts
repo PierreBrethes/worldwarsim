@@ -21,12 +21,19 @@ import { shareUnchanged } from './shareUnchanged';
 
 /** Le nom français d'une ligne de file : un bâtiment porte le sien, une élévation d'avant-poste
  *  porte le mot du point — il n'est dans aucune table de bâtiments (précision du 15/09). */
-const workName = (key: string, name: string, respecialty: Specialty | null = null): string =>
-  respecialty !== null
-    ? fr.garrison.respecializeWork(fr.specialties[respecialty])
-    : key === 'outpost'
+const workName = (
+  key: string,
+  name: string,
+  specialty: Specialty | null = null,
+  respecialize = false,
+): string =>
+  key !== 'outpost'
+    ? (fr.buildings[key as BuildingKey] ?? name)
+    : specialty === null
       ? fr.garrison.raiseWork
-      : (fr.buildings[key as BuildingKey] ?? name);
+      : respecialize
+        ? fr.garrison.respecializeWork(fr.specialties[specialty])
+        : fr.garrison.raiseWorkAs(fr.specialties[specialty]);
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
 
@@ -116,7 +123,8 @@ function adaptedView(server: ServerView): PlayerView {
             name: workName(
               server.me.construction.key,
               server.me.construction.name,
-              server.me.construction.respecialty,
+              server.me.construction.specialty ?? null,
+              server.me.construction.respecialize ?? false,
             ),
             key: server.me.construction.key as BuildCostKey,
             /** Un déploiement d'avant le 15/09 ne sert pas le champ : la ligne se lit alors comme
@@ -130,19 +138,21 @@ function adaptedView(server: ServerView): PlayerView {
               ? {}
               : { minutes: server.me.construction.minutes }),
             level: server.me.construction.level ?? 1,
-            respecialty: server.me.construction.respecialty ?? null,
+            specialty: server.me.construction.specialty ?? null,
+            respecialize: server.me.construction.respecialize ?? false,
           }
         : null,
       constructionQueue: (server.me.constructionQueue ?? []).map((entry) => ({
         id: entry.id,
-        name: workName(entry.key, entry.name, entry.respecialty),
+        name: workName(entry.key, entry.name, entry.specialty ?? null, entry.respecialize ?? false),
         key: entry.key as BuildCostKey,
         outpostId: entry.outpostId ?? null,
         regionId: entry.regionId,
         regionName: entry.regionName,
         point: entry.point ?? null,
         level: entry.level,
-        respecialty: entry.respecialty ?? null,
+        specialty: entry.specialty ?? null,
+        respecialize: entry.respecialize ?? false,
       })),
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},

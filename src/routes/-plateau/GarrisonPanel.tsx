@@ -568,6 +568,12 @@ function OutpostSpecialty({
     offered[0] === undefined
       ? null
       : specialtyRefusalOf(facts, offered[0], outpost.respecialtyCost);
+  /** **Le métier qu'une élévation en file lui donnera** : le choix est fait, il se lit avant la
+   *  fin du chantier (ADR 0037 §3). */
+  const queuedChoice =
+    [view.me.construction, ...view.me.constructionQueue].find(
+      (work) => work?.outpostId === outpost.id && !work.respecialize,
+    )?.specialty ?? null;
   const choose = (specialty: ChosenSpecialty) => {
     setError(null);
     respecialize({ ...seat, outpostId: outpost.id as Id<'outposts'>, specialty }).catch(
@@ -590,7 +596,11 @@ function OutpostSpecialty({
           {outpost.specialty === 'store' && <p className={note}>{fr.garrison.storeSurplus}</p>}
         </>
       ) : refusal?.kind === 'levelOne' ? (
-        <p className={note}>{specialtyRefusalText(refusal)}</p>
+        <p className={note}>
+          {queuedChoice === null
+            ? specialtyRefusalText(refusal)
+            : fr.garrison.raiseQueuedAs(fr.specialties[queuedChoice])}
+        </p>
       ) : observing ? null : (
         <div className="mt-[7px]">
           {free ? (

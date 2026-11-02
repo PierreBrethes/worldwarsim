@@ -2882,6 +2882,12 @@ describe('choosing an outpost’s specialty', () => {
     ).rejects.toThrow('SPECIALTY_REQUIRED');
     await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     expect((await outpostOf(t, outpostId)).specialty).toBeUndefined();
+    /** Le métier choisi se lit dès la mise en file, pas seulement à la fin du chantier. */
+    expect((await t.query(api.view.playerView, seat)).me.construction).toMatchObject({
+      outpostId,
+      specialty: 'store',
+      respecialize: false,
+    });
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await outpostOf(t, outpostId)).toMatchObject({ level: 2, specialty: 'store' });
@@ -2934,7 +2940,11 @@ describe('choosing an outpost’s specialty', () => {
     });
     expect(await steelOf(t, seat)).toBe(opening - 65);
     const running = await t.query(api.view.playerView, seat);
-    expect(running.me.construction).toMatchObject({ outpostId, respecialty: 'fort' });
+    expect(running.me.construction).toMatchObject({
+      outpostId,
+      specialty: 'fort',
+      respecialize: true,
+    });
     expect(running.me.construction!.minutes).toBe(worksMinutes('outpost', 2, HQ_LEVEL_AT_LAUNCH));
     expect(running.me.outposts[0]).toMatchObject({
       specialty: 'store',
@@ -2991,7 +3001,7 @@ describe('choosing an outpost’s specialty', () => {
       specialty: 'store',
     });
     const entry = (await t.query(api.view.playerView, seat)).me.constructionQueue[0]!;
-    expect(entry).toMatchObject({ outpostId, respecialty: 'store' });
+    expect(entry).toMatchObject({ outpostId, specialty: 'store', respecialize: true });
     expect((await outpostOf(t, outpostId)).changingTo).toBeUndefined();
 
     await t.mutation(api.constructions.cancel, { ...seat, constructionId: entry.id });
