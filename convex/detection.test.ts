@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { bearingDegrees, distanceKm, type LonLat } from '../src/domain/geo';
-import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
+import { INTERCEPTION_SAMPLES, positionAt, timeShareAt } from '../src/domain/interception';
 import type { UnitRole } from '../src/domain/ids';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import {
@@ -20,7 +20,7 @@ import {
 } from './constants';
 import { allRegions, regionFacts, pointOfRegion } from './regions';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
-import { reassessDetection } from './movement/detection';
+import { marchingForce, reassessDetection } from './movement/detection';
 import { lookoutKmOf } from '../src/domain/outposts';
 import { pacedMinutes } from './movement/pace';
 import { credit, debit, settle } from './resources';
@@ -2201,5 +2201,82 @@ describe('what a Guet reads of what it relève', () => {
     const camps = (await t.query(api.view.playerView, guest)).camps;
     expect(camps).toHaveLength(1);
     expect(camps[0]!.identification).toEqual({ pierced: false });
+  });
+});
+
+/**
+ * **Une colonne retenue au bout de sa route y reste** (#407) : le repos repousse `arrivesAt` à la
+ * fin de la retenue, et `heldAt` date l'arrivée réelle. Lu comme une marche jusqu'à la fin de la
+ * retenue, le fil s'étirait : la colonne revenait au huitième de sa route et repassait sous des
+ * vigies qu'elle avait déjà laissées derrière elle.
+ */
+describe('a column held at the end of its road', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('is seen at the end of its road until the hold lets it go, and nowhere behind', async () => {
+    // Le joueur soviétique dort de 21 h à 4 h UTC : arrivée à 21 h 30, retenue jusqu'à 4 h.
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 20, 30, 0)));
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const sleeper = await joinSeat(t, code, 'Léa');
+    const watcher = await joinSeat(t, code, 'Hans');
+    for (const [one, nation] of [
+      [seat, 'france'],
+      [sleeper, 'ussr'],
+      [watcher, 'germany'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...one, nation });
+      await t.mutation(api.players.declareReady, { ...one, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+
+    const start = pointOf('RUS-2335');
+    const end = eastOf(start, 600);
+    /** Une vigie d'un tiers sur le premier quart, que la colonne a laissé derrière elle bien avant
+     *  d'arriver : le territoire du dormeur, lui, la voit d'un bout à l'autre. */
+    await outpost(t, watcher, northOf(eastOf(start, 150), 10));
+    /** Un camp du dormeur à côté du bout : la colonne retenue l'y relève, depuis sa vraie place. */
+    const camp = await form(t, sleeper, 'infantry', null);
+    await t.run(async (ctx) => ctx.db.patch(camp, { stationedAt: asPoint(eastOf(end, 30)) }));
+
+    const { troopIds } = await column(t, seat, start);
+    const movementId = await moving(t, seat, troopIds[0]!, 'march', start, end, 60 * 60_000);
+    vi.advanceTimersByTime(60 * 60_000);
+    await t.mutation(internal.movements.arrive, { movementId });
+
+    const held = (await t.run(async (ctx) => ctx.db.get(movementId)))!;
+    expect(held.heldAt).toBe(Date.now());
+    expect(held.arrivesAt).toBeGreaterThan(Date.now() + 6 * 60 * 60_000);
+
+    const [behind] = await sightingsOf(t, watcher);
+    expect(behind).toMatchObject({ detector: 'outpost' });
+    expect(behind!.to).toBeLessThan(held.heldAt!);
+
+    const [soil] = await sightingsOf(t, sleeper);
+    expect(soil).toMatchObject({ detector: 'territory', to: held.arrivesAt });
+    const [arc] = (await t.query(api.view.playerView, sleeper)).detected!;
+    expect(arc!.seenTo).toBe(held.arrivesAt);
+    expect(
+      timeShareAt(
+        {
+          departedAt: arc!.seenFrom,
+          arrivesAt: arc!.seenTo,
+          ...(arc!.resumed === undefined ? {} : { resumed: arc!.resumed }),
+        },
+        Date.now(),
+      ),
+    ).toBe(1);
+
+    const seen = await t.run(async (ctx) =>
+      ctx.db
+        .query('campSightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', held.playerId))
+        .collect(),
+    );
+    expect(seen).toMatchObject([{ until: null }]);
+
+    // Un éliminé pendant la retenue laisse ses troupes là (`toIrregulars`).
+    expect(distanceKm(positionAt(marchingForce(held), Date.now()), end)).toBeLessThan(0.001);
   });
 });

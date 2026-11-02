@@ -1496,8 +1496,12 @@ const coordsOf = (point: LonLat) => ({ lon: point[0], lat: point[1] });
  * ne dit rien de plus que le saut d'`arrivesAt` déjà servi : la colonne ralentit sous ses yeux.
  */
 function seenReprise(force: MarchingForce, sighting: Doc<'sightings'>) {
-  const at = force.resumed?.at;
-  if (at === undefined || at <= sighting.from || at >= sighting.to) return {};
+  /** **Une retenue au bout** (#407) se sert de même, à part entière : le pion s'arrête au bout
+   *  du tronçon à l'arrivée réelle. Avec un Fort dans la même fenêtre, la retenue l'emporte. */
+  const at = [force.heldAt, force.resumed?.at].find(
+    (instant) => instant !== undefined && instant > sighting.from && instant < sighting.to,
+  );
+  if (at === undefined) return {};
   const [from, entry, to] = [sighting.from, at, sighting.to].map((instant) =>
     timeShareAt(force, instant),
   ) as [number, number, number];

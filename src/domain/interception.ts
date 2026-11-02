@@ -13,6 +13,9 @@ export type MarchingForce = {
   readonly departedAt: number;
   readonly arrivesAt: number;
   readonly resumed?: Resumed;
+  /** **Retenue au bout de sa route** (fiche 07) : arrivée réelle à `heldAt`, la colonne s'y tient
+   *  jusqu'à `arrivesAt`, repoussé à la fin de la retenue (#407). */
+  readonly heldAt?: number;
 };
 
 /**
@@ -27,10 +30,14 @@ const clampedShare = (from: number, to: number, at: number): number =>
 
 /** The share of its time a column has walked at an instant, its reprise read in two segments. */
 export function timeShareAt(
-  force: { readonly departedAt: number; readonly arrivesAt: number; readonly resumed?: Resumed },
+  force: Pick<MarchingForce, 'departedAt' | 'arrivesAt' | 'resumed'> & {
+    /** `null` comme sur un horaire d'arc (`ArcSchedule`) : pas de retenue. */
+    readonly heldAt?: number | null;
+  },
   at: number,
 ): number {
-  const { departedAt, arrivesAt, resumed } = force;
+  const { departedAt, resumed } = force;
+  const arrivesAt = force.heldAt ?? force.arrivesAt;
   if (resumed === undefined) return clampedShare(departedAt, arrivesAt, at);
   if (at <= resumed.at) return resumed.share * clampedShare(departedAt, resumed.at, at);
   return resumed.share + (1 - resumed.share) * clampedShare(resumed.at, arrivesAt, at);

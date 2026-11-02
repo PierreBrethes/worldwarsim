@@ -279,6 +279,7 @@ export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   departedAt: movement.departedAt,
   arrivesAt: movement.arrivesAt,
   ...(movement.resumed === undefined ? {} : { resumed: movement.resumed }),
+  ...(movement.heldAt === undefined ? {} : { heldAt: movement.heldAt }),
 });
 
 async function detectionBoard(
