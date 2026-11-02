@@ -904,6 +904,37 @@ describe('a Mondiale headquarters', () => {
     expect((await capturesOf(other))[0]!.completesAt).toBe(MIDDAY + 24 * HOUR);
   });
 
+  /** **Sa ronde ne perd pas un bout** (#376) : elle passe aux irréguliers, et la dépêche le dit. */
+  it('ends the fallen player’s patrol on its passing to the irregulars', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const loser = await playerOf(t, guest);
+    const rifles = await troop(t, guest, 'infantry', { lon: 30, lat: 57 });
+    await t.run(async (ctx) => {
+      const post = await ctx.db.insert('outposts', {
+        seasonId: loser.seasonId,
+        playerId: loser._id,
+        point: { lon: 30, lat: 57 },
+        hostCountry: 'RUS',
+        regionId: PSKOV,
+        level: 1,
+        foundedAt: MIDDAY - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      await ctx.db.patch(rifles, { stationedAt: post, patrol: { ends: [post, post], to: post } });
+    });
+
+    await take(t, seat, await headquartersOf(t, guest));
+    await finish(t);
+
+    const notices = await t.run((ctx) => ctx.db.query('notices').collect());
+    expect(notices.find((notice) => notice.kind === 'patrolEnded')).toMatchObject({
+      playerId: loser._id,
+      why: 'irregular',
+    });
+  });
+
   it('eliminates its player: the HQ and the stock above the seal to the capturer, the rest to the irregulars', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);

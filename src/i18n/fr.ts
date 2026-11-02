@@ -2869,12 +2869,14 @@ export const fr = {
         why === 'recalled'
           ? `Ronde arrêtée — ${role} : rappelée, elle s’arrête où elle est, ${country}.`
           : why === 'lost'
-            ? `Ronde coupée — ${role} : le bout de sa liaison est perdu ; elle s’arrête au point atteint, ${country}.`
+            ? `Ronde coupée — ${role} : un bout de sa liaison est pris ou désactivé ; elle s’arrête où elle est, ${country}.`
             : why === 'withdrawn'
               ? `Ronde coupée — ${role} : liaison retirée du tracé ; elle s’arrête en garnison, ${country}.`
               : why === 'routed'
                 ? `Ronde coupée — ${role} : en déroute, ${country}.`
-                : `Route refusée, ronde arrêtée — ${role} : le plein manque ; elle reste en garnison, ${country}.`,
+                : why === 'irregular'
+                  ? `Ronde perdue — ${role} : votre QG est tombé, elle passe aux irréguliers, ${country}.`
+                  : `Route refusée, ronde arrêtée — ${role} : le plein manque ; elle reste en garnison, ${country}.`,
       supplyDelivered: (country: string, delivered: string, kept: string) =>
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`

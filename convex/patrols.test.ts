@@ -197,6 +197,16 @@ describe('a patrol on a liaison', () => {
     expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
   });
 
+  it('says its end is lost, not its liaison withdrawn, when the end it left is disabled', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { essen, troop } = await patrolling(t, seat);
+    await t.run(async (ctx) => ctx.db.patch(essen, { disabledUntil: Date.now() + 24 * HOUR }));
+    await arriveNext(t);
+    expect((await troopOf(t, troop))!.patrol).toBeUndefined();
+    expect(await ended(t)).toMatchObject([{ why: 'lost' }]);
+  });
+
   it('stops in garrison when a new point takes its liaison off the drawing, read at the halt', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

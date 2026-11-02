@@ -363,7 +363,7 @@ export type TourWait = {
 export type TourEnd = 'recalled' | 'cut' | 'road';
 /** **Pourquoi une ronde finit** (#376) : rappelée, son bout perdu, sa liaison retirée du tracé, sa
  *  troupe en déroute, sa route refusée trop longtemps. */
-export type PatrolEnd = 'recalled' | 'lost' | 'withdrawn' | 'routed' | 'road';
+export type PatrolEnd = 'recalled' | 'lost' | 'withdrawn' | 'routed' | 'road' | 'irregular';
 
 export type OutpostView = {
   readonly id: string;

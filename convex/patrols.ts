@@ -2,7 +2,7 @@ import { ConvexError, v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, type MutationCtx } from './_generated/server';
-import { isStanding, patrolRefusalOf, sameLiaison } from '../src/domain/outposts';
+import { isStanding, outpostShelters, patrolRefusalOf, sameLiaison } from '../src/domain/outposts';
 import { isBlitz } from './blitz';
 import { PATROL_HALT_MINUTES, TOUR_RETRY_MINUTES, TOUR_ROAD_WAITS } from './constants';
 import { fail } from './errors';
@@ -179,8 +179,12 @@ async function endedAt(
   now: number,
 ): Promise<PatrolEnd | null> {
   const patrol = troop.patrol!;
-  const end = await ctx.db.get(here);
-  if (end === null || end.playerId !== troop.playerId || !isStanding(end, now)) return 'lost';
+  /** **Un bout pris ou désactivé** n'est pas une liaison que l'épure retire : chaque bout se
+   *  relit à l'instant, celui qu'on atteint et celui qu'on a quitté. */
+  for (const id of [here, ...patrol.ends]) {
+    const end = await ctx.db.get(id);
+    if (end === null || end.playerId !== troop.playerId || !outpostShelters(end, now)) return 'lost';
+  }
   const liaison: Liaison = [patrol.ends[0]!, patrol.ends[1]!];
   const drawn = await drawnLiaisonsAt(ctx, troop.playerId, now);
   return drawn.some((pair) => sameLiaison(pair, liaison)) ? null : 'withdrawn';

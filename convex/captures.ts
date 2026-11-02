@@ -745,7 +745,7 @@ async function toIrregulars(
     .collect()) {
     /** Sa tournée et ses rondes tombent avec lui : un siège irrégulier ne ravitaille personne. */
     if (troop.tour !== undefined) await stopTour(ctx, troop, now, 'cut');
-    if (troop.patrol !== undefined) await endPatrol(ctx, troop, now, 'lost');
+    if (troop.patrol !== undefined) await endPatrol(ctx, troop, now, 'irregular');
     await ctx.db.patch(troop._id, { playerId: irregularId });
   }
   await dropCapturesOf(ctx, loser._id, now);

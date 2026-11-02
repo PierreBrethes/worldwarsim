@@ -306,6 +306,7 @@ export const PATROL_END = v.union(
   v.literal('withdrawn'),
   v.literal('routed'),
   v.literal('road'),
+  v.literal('irregular'),
 );
 
 export const NOTICE = v.union(
