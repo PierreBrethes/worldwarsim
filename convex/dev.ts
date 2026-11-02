@@ -1808,10 +1808,24 @@ export const benchScene = internalMutation({
             stationedAt: outpostIds[0],
             load: { ammunition: 90, oil: 50, coal: 20 },
           });
+    /** **Une infanterie pour la ronde** (#377) : le banc la lance sur une liaison tracée du
+     *  premier point, et sa ligne de guet se relit à chaque réévaluation. */
+    const patrolId =
+      outpostIds[0] === undefined
+        ? null
+        : await ctx.db.insert('troops', {
+            seasonId: player.seasonId,
+            playerId,
+            role: 'infantry',
+            tier: 1,
+            nominalStrength: nominalStrength('infantry', 1),
+            currentStrength: nominalStrength('infantry', 1),
+            stationedAt: outpostIds[0],
+          });
     /** Des points posés hors du geste de couleur : leur couleur se retient comme après une
      *  fondation, sans quoi la vue mesurée serait celle d'un sol jamais relevé (#144). */
     await recordLinkage(ctx, player.seasonId);
-    return { squads: placed, reserveIds, outpostIds, truckId };
+    return { squads: placed, reserveIds, outpostIds, truckId, patrolId };
   },
 });
 

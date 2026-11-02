@@ -155,7 +155,8 @@ Même prérequis que ci-dessus (Docker levé, `.env.local` sur 127.0.0.1, `npx c
 appelle les fonctions `dev:bench*`). Il refuse tout backend non local.
 
 ```bash
-npm run banc:mondiale   # 8 joueurs, ~150 troupes chacun, 161 mouvements en vol, 7 tournées, ~35 s
+npm run banc:mondiale   # 8 joueurs, ~150 troupes chacun, 161 mouvements en vol, 7 tournées, 7 rondes, ~35 s
+npm run banc:mondiale -- --sans-rondes   # le même sans rondes, comparable aux mesures d'avant #377
 ```
 
 Il fonde une nouvelle saison à chaque passage (comptes `Banc1`..`Banc8` dans
