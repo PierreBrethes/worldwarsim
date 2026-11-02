@@ -72,7 +72,7 @@ const LIAISON_SHARP = { opacity: 0.85, width: 2 };
  * aussi, comme l'arc d'un ordre en cours (Décisions du 02/11). Un tiret et une dent tous les
  * `PATROL_DASH_KM`, la dent longue d'un tiers du pas. @a-mesurer
  */
-const PATROL_DASH_KM = 14;
+const PATROL_DASH_KM = 6;
 const PATROL_DASH_SHARE = 0.6;
 const PATROL_TOOTH_SHARE = 0.35;
 const COMPASS_OPACITY = 0.8;
@@ -203,7 +203,7 @@ export class OutpostZones {
         line.write(segment);
         return [{ a, b, line, teeth: null as Teeth | null }];
       }
-      const dashes = Math.max(4, Math.round(distanceKm(from, to) / PATROL_DASH_KM));
+      const dashes = Math.max(8, Math.round(distanceKm(from, to) / PATROL_DASH_KM));
       const line = new Fat({ count: dashes, share: PATROL_DASH_SHARE }, 1.85, true);
       line.write(segment, worldLength(segment));
       return [{ a, b, line, teeth: new Teeth(this.frame, from, to, dashes) }];
