@@ -171,3 +171,27 @@ export function linkedRelays<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): Outpo
     .filter((point) => linked.has(point.id))
     .map(({ point, reachKm }) => ({ point, reachKm }));
 }
+
+/**
+ * **Les liaisons que la carte trace** (ADR 0037 §8, #375) : celles de `liaisonsOf`, sans le côté
+ * long de chaque triangle — la paire a–b tombe quand un point c, en liaison avec l'une et l'autre,
+ * est plus près des deux qu'elles ne le sont entre elles. Le réseau sans la toile ; la règle,
+ * elle, lit toutes les paires.
+ */
+export function drawnLiaisonsOf<Id>(points: ReadonlyArray<LiaisonPoint<Id>>): Array<[Id, Id]> {
+  const all = liaisonsOf(points);
+  const linked = (x: Id, y: Id) => all.some(([p, q]) => (p === x && q === y) || (p === y && q === x));
+  const at = new Map(points.map((point) => [point.id, point.point] as const));
+  const km = (x: Id, y: Id) => distanceKm(at.get(x)!, at.get(y)!);
+  return all.filter(([a, b]) => {
+    const side = km(a, b);
+    return !points.some(
+      ({ id: c }) =>
+        c !== a &&
+        c !== b &&
+        Math.max(km(a, c), km(b, c)) < side &&
+        linked(a, c) &&
+        linked(b, c),
+    );
+  });
+}

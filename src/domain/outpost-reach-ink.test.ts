@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { leftReaches, raisedReaches } from './outpost-reach-ink';
+import { bornLiaisons, leftReaches, raisedReaches } from './outpost-reach-ink';
 
 const point = (id: string, reachKm: number, standsAt: number | null) => ({
   id,
@@ -48,5 +48,16 @@ describe('leftReaches', () => {
       [],
     );
     expect(leftReaches([point('a', 120, null)], [], new Set())).toEqual([]);
+  });
+});
+
+/** **Une liaison qui naît se trace** (#375), comparée d'une vue à la suivante, dans un sens ou l'autre. */
+describe('bornLiaisons', () => {
+  it('names the liaisons this view adds, whatever their order', () => {
+    expect(bornLiaisons([['a', 'b']], [['b', 'a'], ['b', 'c']])).toEqual([['b', 'c']]);
+  });
+
+  it('says nothing of one that went', () => {
+    expect(bornLiaisons([['a', 'b']], [])).toEqual([]);
   });
 });

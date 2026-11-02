@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { IndicatorCategory } from '@/domain/indicators';
+import type { EdgeCategory } from '@/domain/indicators';
 import { Glyph } from './Glyph';
 
 /**
@@ -79,7 +79,7 @@ export function IndicatorGlyph({
   category,
   size = 19,
 }: {
-  category: IndicatorCategory;
+  category: EdgeCategory;
   size?: number;
 }) {
   const mark = MARK[category];
@@ -92,7 +92,7 @@ export function IndicatorGlyph({
 
 type Mark = { readonly pictogram: PictogramName } | { readonly stroke: ReactNode };
 
-const MARK: Readonly<Record<IndicatorCategory, Mark>> = {
+const MARK: Readonly<Record<EdgeCategory, Mark>> = {
   /**
    * A drawn stroke, not a pictogram: the fifteen buildings share no silhouette, and picking
    * one of them — the arsenal, the port — would say a nature where the bascule speaks of all

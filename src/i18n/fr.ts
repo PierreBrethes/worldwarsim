@@ -2360,6 +2360,7 @@ export const fr = {
     buildings: 'bâtiments',
     deposits: 'gisements',
     outposts: 'avant-postes',
+    'outpost-zones': 'zones et liaisons des avant-postes',
     objectives: 'objectifs neutres',
     constructions: 'chantiers',
     forces: 'forces',

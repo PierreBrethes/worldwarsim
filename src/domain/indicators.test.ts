@@ -63,6 +63,7 @@ describe('toggles', () => {
       ['buildings', true],
       ['deposits', true],
       ['outposts', true],
+      ['outpost-zones', true],
       ['objectives', true],
       ['inbound', true],
     ]);
@@ -74,8 +75,10 @@ describe('toggles', () => {
     expect(CATEGORY_BY_TYPE.installation).toBe('intel');
   });
 
-  it('gives a category to each label type', () => {
-    expect(new Set(Object.values(CATEGORY_BY_TYPE)).size).toBe(CATEGORIES.length);
+  it('folds a label of every category to the edge, but the outposts zones that no label carries', () => {
+    expect(new Set(Object.values(CATEGORY_BY_TYPE))).toEqual(
+      new Set(CATEGORIES.filter((category) => category !== 'outpost-zones')),
+    );
   });
 });
 
