@@ -1,7 +1,7 @@
 import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { api } from '../../convex/_generated/api';
-import { telegraphSoundOn } from './settings';
+import { sharedAudio, soundNow } from './audio';
 import type { Seat } from './session';
 import { unreadCount } from '@/domain/telegraph';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -80,8 +80,6 @@ export function useTelegraph(seat: Seat): Telegraph {
   return telegraph;
 }
 
-let audio: AudioContext | null = null;
-
 /**
  * **Deux clics amortis, synthétisés** — pas un fichier : un bruit blanc étouffé en quatre
  * millisecondes et passé au filtre sonne mécanique là où un oscillateur sonnerait comme une
@@ -92,9 +90,9 @@ let audio: AudioContext | null = null;
  * dans une fenêtre qu'on a quittée.
  */
 function tick(): void {
-  if (!telegraphSoundOn() || document.hidden) return;
+  if (soundNow() === 'off' || document.hidden) return;
   try {
-    audio ??= new AudioContext();
+    const audio = sharedAudio();
     void audio.resume();
     click(audio, audio.currentTime, 2400, 0.09);
     click(audio, audio.currentTime + 0.085, 1700, 0.06);
