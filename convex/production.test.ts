@@ -617,7 +617,7 @@ describe('raising an outpost is a colour event', () => {
       5,
     );
 
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     /** À la minute exacte du chantier, jamais « tous les minuteurs » : ce qui est mesuré est un
      *  stock, et une horloge lâchée le pousserait au plafond. */
     vi.advanceTimersByTime(buildMinutes('outpost', 2) * 60_000);
@@ -665,7 +665,7 @@ describe('raising an outpost is a colour event', () => {
 
     await fill(t, seat, 'steel', 1000);
     await fill(t, seat, 'coal', 1000);
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     expect(await surveyed()).toContain(CALARASI);

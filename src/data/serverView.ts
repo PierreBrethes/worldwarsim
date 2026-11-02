@@ -2,7 +2,13 @@ import { modeOf } from '@/domain/season-mode';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
-import { RESOURCES, type BuildCostKey, type BuildingKey, type UnitRole } from '@/domain/ids';
+import {
+  RESOURCES,
+  type BuildCostKey,
+  type BuildingKey,
+  type Specialty,
+  type UnitRole,
+} from '@/domain/ids';
 import { HOME_BY_NATION, isNation } from '@/domain/nations';
 import { journalDispatches } from '@/domain/journal';
 import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
@@ -15,8 +21,12 @@ import { shareUnchanged } from './shareUnchanged';
 
 /** Le nom français d'une ligne de file : un bâtiment porte le sien, une élévation d'avant-poste
  *  porte le mot du point — il n'est dans aucune table de bâtiments (précision du 15/09). */
-const workName = (key: string, name: string): string =>
-  key === 'outpost' ? fr.garrison.raiseWork : (fr.buildings[key as BuildingKey] ?? name);
+const workName = (key: string, name: string, respecialty: Specialty | null = null): string =>
+  respecialty !== null
+    ? fr.garrison.respecializeWork(fr.specialties[respecialty])
+    : key === 'outpost'
+      ? fr.garrison.raiseWork
+      : (fr.buildings[key as BuildingKey] ?? name);
 
 export type ServerView = FunctionReturnType<typeof api.view.playerView>;
 
@@ -103,7 +113,11 @@ function adaptedView(server: ServerView): PlayerView {
       construction: server.me.construction
         ? {
             id: server.me.construction.id,
-            name: workName(server.me.construction.key, server.me.construction.name),
+            name: workName(
+              server.me.construction.key,
+              server.me.construction.name,
+              server.me.construction.respecialty,
+            ),
             key: server.me.construction.key as BuildCostKey,
             /** Un déploiement d'avant le 15/09 ne sert pas le champ : la ligne se lit alors comme
              *  un chantier de bâtiment, ce qu'elle était. */
@@ -116,17 +130,19 @@ function adaptedView(server: ServerView): PlayerView {
               ? {}
               : { minutes: server.me.construction.minutes }),
             level: server.me.construction.level ?? 1,
+            respecialty: server.me.construction.respecialty ?? null,
           }
         : null,
       constructionQueue: (server.me.constructionQueue ?? []).map((entry) => ({
         id: entry.id,
-        name: workName(entry.key, entry.name),
+        name: workName(entry.key, entry.name, entry.respecialty),
         key: entry.key as BuildCostKey,
         outpostId: entry.outpostId ?? null,
         regionId: entry.regionId,
         regionName: entry.regionName,
         point: entry.point ?? null,
         level: entry.level,
+        respecialty: entry.respecialty ?? null,
       })),
       armyPresent: server.me.armyPresent ?? {},
       armyInTransit: {},

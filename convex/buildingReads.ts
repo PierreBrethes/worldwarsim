@@ -1,5 +1,6 @@
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
+import { buildCost, respecialtyBill, type Costs } from './constants';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 
 // A completed legacy queue entry changes its building key, never its paid tariff.
@@ -129,3 +130,10 @@ export async function queueOf(
     .collect();
   return entries.sort((a, b) => a.rank - b.rank);
 }
+
+/** **Ce qu'une ligne de la file a payé**, et donc ce qu'elle rend : un changement de spécialisation
+ *  a sa propre facture (ADR 0037 §7), toute autre ligne celle de son niveau. */
+export const billOfWork = (entry: Doc<'constructions'>): Costs =>
+  entry.respecialize === true
+    ? respecialtyBill(entry.level)
+    : buildCost(entry.building, entry.level);

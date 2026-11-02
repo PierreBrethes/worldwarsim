@@ -137,7 +137,11 @@ function written(notice: Notice): Written {
         severity: 'notable',
         kind: 'construction',
         text: fr.journal.constructionCancelled(
-          isOutpostWork(notice.building) ? fr.garrison.raiseWork : fr.buildings[notice.building],
+          notice.respecialty !== undefined
+            ? fr.garrison.respecializeWork(fr.specialties[notice.respecialty])
+            : isOutpostWork(notice.building)
+              ? fr.garrison.raiseWork
+              : fr.buildings[notice.building],
           notice.regionName,
           notice.reason,
         ),
@@ -255,6 +259,17 @@ function written(notice: Notice): Written {
         kind: 'outpostRaised',
         text: said.outpostRaised(
           notice.level,
+          notice.regionName ?? countryLabel(notice.hostCountry),
+          notice.specialty === undefined ? undefined : fr.specialties[notice.specialty],
+        ),
+      };
+    case 'outpostRespecialized':
+      return {
+        at: notice.at,
+        severity: 'routine',
+        kind: 'outpostRespecialized',
+        text: said.outpostRespecialized(
+          fr.specialties[notice.specialty],
           notice.regionName ?? countryLabel(notice.hostCountry),
         ),
       };

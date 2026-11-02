@@ -19,6 +19,7 @@ import type {
   DepositKey,
   ResearchCard,
   ResourceKey,
+  Specialty,
   UnitRole,
 } from '../src/domain/ids';
 import type { CombatRules, DamageTable } from '../src/domain/combat';
@@ -260,6 +261,16 @@ export function buildCost(key: BuildCostKey, level: number): Costs {
   );
 }
 
+/**
+ * **Changer de spécialisation coûte la moitié de l'acier de la dernière élévation** (ADR 0037
+ * §7), et l'acier seul ; sa durée est celle de cette élévation (`worksMinutes('outpost', level)`).
+ *
+ * @a-mesurer la moitié : tranchée au grilling (Q13), aucune partie ne l'a jouée
+ */
+export const respecialtyBill = (level: number): Costs => ({
+  steel: Math.round((buildCost('outpost', level).steel ?? 0) / 2),
+});
+
 export function buildMinutes(key: BuildCostKey, level: number): number {
   return Math.round(COST_SPEC[key].minutes * LEVEL_COST_FACTOR ** (level - 1));
 }
@@ -475,8 +486,15 @@ export const BAKU_REFUEL_MS = 12 * 3_600_000;
  */
 export const DEPOT_CAPACITY_PER_LEVEL = 400;
 
-export const depotCapacity = (level: number): number =>
-  DEPOT_CAPACITY_PER_LEVEL * Math.max(1, Math.trunc(level));
+/**
+ * **Le Magasin double son dépôt** (ADR 0037 §3, erratum du 01/11). L'appelant passe la
+ * spécialisation **agissante** (`effectiveSpecialty`) : un Magasin qui change de métier reprend
+ * la capacité simple, garde son surplus, et rien n'y entre tant qu'il dépasse (`deliveryOf`).
+ *
+ * @a-mesurer le double : ce que le POC a pris (`WWS/prototypes/avant-postes/commun/rules.js`)
+ */
+export const depotCapacity = (level: number, specialty: Specialty): number =>
+  DEPOT_CAPACITY_PER_LEVEL * Math.max(1, Math.trunc(level)) * (specialty === 'store' ? 2 : 1);
 
 /**
  * **Une seule charge par transport** (ADR 0028 §4, Q27-Q28) : munitions, pétrole et charbon
@@ -928,7 +946,7 @@ export const LOOKOUT_COAL_PER_HOUR_PER_LEVEL = 1;
 
 /**
  * **Jusqu'où guette la vigie d'un avant-poste**, en part de son rayon de contrôle (ADR 0037 §2) :
- * 60, 90 et 120 km. Le Guet portera au rayon entier (#371).
+ * 60, 90 et 120 km ; le Guet porte au rayon entier (`lookoutKmOf`).
  *
  * @a-mesurer la moitié : ce que le POC a montré lisible, une vigie qui ne couvre pas tout ce qu'elle tient
  */

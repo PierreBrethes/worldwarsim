@@ -46,6 +46,7 @@ import {
 } from './constants';
 import { capitalRegionOf, foundationOwed, homeDepositsOf, regionFacts } from './regions';
 import { clipToStorage, settle } from './resources';
+import { cancelRaisesOf } from './outposts';
 import schema from './schema';
 import { decodeCoast, nearestCoast, type CoastAsset } from '../src/domain/coast';
 import coastAsset from '../public/coast.json';
@@ -2669,7 +2670,7 @@ describe('raising an outpost', () => {
     const outpostId = await plant(t, seat);
     const opening = await steelOf(t, seat);
 
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     expect(await steelOf(t, seat)).toBe(opening - (buildCost('outpost', 2).steel ?? 0));
 
     const queued = await t.query(api.view.playerView, seat);
@@ -2692,7 +2693,7 @@ describe('raising an outpost', () => {
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
 
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     await expect(
       t.mutation(api.constructions.start, {
         ...seat,
@@ -2712,7 +2713,7 @@ describe('raising an outpost', () => {
     const outpostId = await plant(t, seat, OUTPOST_MAX_LEVEL);
 
     await expect(
-      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }),
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' }),
     ).rejects.toThrow('MAX_LEVEL_REACHED');
   });
 
@@ -2728,19 +2729,21 @@ describe('raising an outpost', () => {
 
     await t.run(async (ctx) => ctx.db.patch(outpostId, { disabledUntil }));
     await expect(
-      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }),
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' }),
     ).rejects.toThrow('OUTPOST_DISABLED');
 
     // Remise en service, mise en file, puis désactivation d'un point dont le chantier est en
     // tête et pas encore parti : ce que la file fait alors est attendre.
     await t.run(async (ctx) => ctx.db.patch(outpostId, { disabledUntil: null }));
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     await t.run(async (ctx) => {
       const head = (await ctx.db.query('constructions').collect())[0]!;
       await ctx.db.patch(head._id, { finishesAt: null });
       await ctx.db.patch(outpostId, { disabledUntil });
     });
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }).catch(() => null);
+    await t
+      .mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' })
+      .catch(() => null);
     await t.run(async (ctx) => {
       const player = await seatIn(ctx, seat);
       await ctx.runMutation(internal.constructions.resume, { playerId: player._id });
@@ -2767,7 +2770,7 @@ describe('raising an outpost', () => {
       point: pointIn(JURA),
     });
     const opening = await steelOf(t, seat);
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
 
     const queued = await t.query(api.view.playerView, seat);
     const entry = queued.me.constructionQueue[0]!;
@@ -2787,10 +2790,10 @@ describe('raising an outpost', () => {
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
 
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     await expect(
-      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }),
-    ).rejects.toThrow('OUTPOST_RAISE_QUEUED');
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' }),
+    ).rejects.toThrow('OUTPOST_WORK_QUEUED');
   });
 
   /** La dépêche du propriétaire, et de lui seul : un point qui grandit se relève, il ne
@@ -2802,7 +2805,7 @@ describe('raising an outpost', () => {
     await fill(t, seat, 'coal', 1000);
     const outpostId = await plant(t, seat);
 
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId });
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const filed = await t.run(async (ctx) => ctx.db.query('notices').collect());
@@ -2814,5 +2817,207 @@ describe('raising an outpost', () => {
   /** Le rayon suit le niveau : c'est la table qui le dit, et rien ici ne la recopie. */
   it('opens the next radius, straight out of the level table', async () => {
     expect(outpostReachKm(2)).toBeGreaterThan(outpostReachKm(1));
+  });
+});
+
+/**
+ * **Au niveau 2, un avant-poste choisit son métier** (ADR 0037 §3, §7, §11) : l'élévation au
+ * niveau 2 porte le choix, un point d'avant la refonte choisit une fois sans chantier ni acier, et
+ * un point spécialisé change par un chantier de la file du QG, pendant lequel il agit en
+ * généraliste.
+ */
+describe('choosing an outpost’s specialty', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2026, 8, 15, 12));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const PRAHOVA = 'ROU-310';
+  const PRAHOVA_POINT = regionFacts(PRAHOVA)!.point;
+
+  const plant = async (
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    level: number,
+    specialty?: 'general' | 'store' | 'lookout' | 'fort',
+  ) =>
+    t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        point: { lon: PRAHOVA_POINT[0], lat: PRAHOVA_POINT[1] },
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level,
+        ...(specialty === undefined ? {} : { specialty }),
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    });
+
+  const outpostOf = async (t: ReturnType<typeof boot>, outpostId: Id<'outposts'>) =>
+    (await t.run(async (ctx) => ctx.db.get(outpostId)))!;
+
+  const steelOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
+    (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
+
+  const stocked = async (t: ReturnType<typeof boot>) => {
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'steel', 1000);
+    await fill(t, seat, 'coal', 1000);
+    await fill(t, seat, 'food', 1000);
+    return seat;
+  };
+
+  it('asks the raise to level 2 for its specialty, and writes it at the end', async () => {
+    const t = boot();
+    const seat = await stocked(t);
+    const outpostId = await plant(t, seat, 1);
+
+    await expect(
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId }),
+    ).rejects.toThrow('SPECIALTY_REQUIRED');
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
+    expect((await outpostOf(t, outpostId)).specialty).toBeUndefined();
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await outpostOf(t, outpostId)).toMatchObject({ level: 2, specialty: 'store' });
+    const raised = (await t.run(async (ctx) => ctx.db.query('notices').collect())).find(
+      (notice) => notice.kind === 'outpostRaised',
+    );
+    expect(raised).toMatchObject({ level: 2, specialty: 'store' });
+  });
+
+  /** Décision 3 du 01/11 : un point ancien de niveau 2 sans métier monte sans choisir. */
+  it('raises an old level-2 generalist to level 3 without a choice', async () => {
+    const t = boot();
+    const seat = await stocked(t);
+    const outpostId = await plant(t, seat, 2);
+
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'fort' });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const raised = await outpostOf(t, outpostId);
+    expect(raised.level).toBe(3);
+    expect(raised.specialty ?? 'general').toBe('general');
+  });
+
+  it('lets an old level-2 generalist choose once, without works or steel', async () => {
+    const t = boot();
+    const seat = await stocked(t);
+    const outpostId = await plant(t, seat, 2);
+    const opening = await steelOf(t, seat);
+
+    await t.mutation(api.constructions.respecializeOutpost, {
+      ...seat,
+      outpostId,
+      specialty: 'lookout',
+    });
+    expect((await outpostOf(t, outpostId)).specialty).toBe('lookout');
+    expect(await steelOf(t, seat)).toBe(opening);
+    expect((await t.query(api.view.playerView, seat)).me.construction).toBeNull();
+  });
+
+  it('changes a specialty by a works of the queue, acting as a generalist from its start', async () => {
+    const t = boot();
+    const seat = await stocked(t);
+    const outpostId = await plant(t, seat, 2, 'store');
+    const opening = await steelOf(t, seat);
+    expect((await t.query(api.view.playerView, seat)).me.outposts[0]!.depotCapacity).toBe(1600);
+
+    await t.mutation(api.constructions.respecializeOutpost, {
+      ...seat,
+      outpostId,
+      specialty: 'fort',
+    });
+    expect(await steelOf(t, seat)).toBe(opening - 65);
+    const running = await t.query(api.view.playerView, seat);
+    expect(running.me.construction).toMatchObject({ outpostId, respecialty: 'fort' });
+    expect(running.me.construction!.minutes).toBe(worksMinutes('outpost', 2, HQ_LEVEL_AT_LAUNCH));
+    expect(running.me.outposts[0]).toMatchObject({
+      specialty: 'store',
+      changingTo: 'fort',
+      depotCapacity: 800,
+      level: 2,
+    });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const done = await outpostOf(t, outpostId);
+    expect(done).toMatchObject({ level: 2, specialty: 'fort' });
+    expect(done.changingTo).toBeUndefined();
+    const notices = await t.run(async (ctx) => ctx.db.query('notices').collect());
+    expect(notices.find((notice) => notice.kind === 'outpostRespecialized')).toMatchObject({
+      specialty: 'fort',
+    });
+  });
+
+  it('refuses a choice at level 1, the same specialty, a disabled point and a second works', async () => {
+    const t = boot();
+    const seat = await stocked(t);
+    const young = await plant(t, seat, 1);
+    const store = await plant(t, seat, 2, 'store');
+    const choose = (outpostId: Id<'outposts'>, specialty: 'store' | 'fort') =>
+      t.mutation(api.constructions.respecializeOutpost, { ...seat, outpostId, specialty });
+
+    await expect(choose(young, 'store')).rejects.toThrow('SPECIALTY_AT_LEVEL_TWO');
+    await expect(choose(store, 'store')).rejects.toThrow('SPECIALTY_HELD');
+    await t.run(async (ctx) => ctx.db.patch(store, { disabledUntil: Date.now() + 3_600_000 }));
+    await expect(choose(store, 'fort')).rejects.toThrow('OUTPOST_DISABLED');
+    await t.run(async (ctx) => ctx.db.patch(store, { disabledUntil: null }));
+    await choose(store, 'fort');
+    await expect(choose(store, 'fort')).rejects.toThrow('OUTPOST_WORK_QUEUED');
+    await expect(
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId: store }),
+    ).rejects.toThrow('OUTPOST_WORK_QUEUED');
+  });
+
+  /** Ce qui n'a pas commencé revient entier, à la facture du changement et non d'une élévation. */
+  it('refunds a cancelled change at its own bill, and leaves the specialty alone', async () => {
+    const t = boot();
+    const seat = await stocked(t);
+    const outpostId = await plant(t, seat, 2, 'lookout');
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'warehouse',
+      regionId: JURA,
+      point: pointIn(JURA),
+    });
+    const opening = await steelOf(t, seat);
+    await t.mutation(api.constructions.respecializeOutpost, {
+      ...seat,
+      outpostId,
+      specialty: 'store',
+    });
+    const entry = (await t.query(api.view.playerView, seat)).me.constructionQueue[0]!;
+    expect(entry).toMatchObject({ outpostId, respecialty: 'store' });
+    expect((await outpostOf(t, outpostId)).changingTo).toBeUndefined();
+
+    await t.mutation(api.constructions.cancel, { ...seat, constructionId: entry.id });
+    expect(await steelOf(t, seat)).toBe(opening);
+    expect((await outpostOf(t, outpostId)).specialty).toBe('lookout');
+  });
+
+  /** Décision 2 du 01/11 : capturé, le point garde son métier ; le changement en cours est
+   *  annulé et l'ancien métier reste. */
+  it('cancels a running change when the point is taken, and keeps the old specialty', async () => {
+    const t = boot();
+    const seat = await stocked(t);
+    const outpostId = await plant(t, seat, 2, 'lookout');
+    await t.mutation(api.constructions.respecializeOutpost, {
+      ...seat,
+      outpostId,
+      specialty: 'fort',
+    });
+    expect((await outpostOf(t, outpostId)).changingTo).toBe('fort');
+
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      await cancelRaisesOf(ctx, player._id, (await ctx.db.get(outpostId))!, Date.now());
+    });
+    const kept = await outpostOf(t, outpostId);
+    expect(kept.specialty).toBe('lookout');
+    expect(kept.changingTo).toBeUndefined();
   });
 });

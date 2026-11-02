@@ -50,6 +50,7 @@ import type {
   ResearchCard,
   ResourceKey,
   Specialty,
+  ChosenSpecialty,
   UnitRole,
 } from '../domain/ids';
 
@@ -469,6 +470,16 @@ export const fr = {
     fort: 'fort',
   } satisfies Record<Specialty, string>,
 
+  /** **Ce que chaque spécialisation fait, en chiffres** (ADR 0037 §3) : ce qui se lit avant de
+   *  choisir. Chacune ajoute au généraliste, aucune ne retire rien. */
+  specialtyEffects: {
+    store: (capacity: number) =>
+      `Magasin : dépôt doublé, ${num(capacity)} de munitions, pétrole et charbon.`,
+    lookout: (km: number) => `Guet : vigie au rayon entier, ${num(km)} km.`,
+    fort: (km: number, multiplier: number) =>
+      `Fort : les colonnes adverses vont ×${decimal(multiplier, 1)} plus lentement dans sa vigie, ${num(km)} km.`,
+  } satisfies Record<ChosenSpecialty, (...figures: number[]) => string>,
+
   /** **La capture** (décision du 14/10) — jamais « prise ». */
   capture: {
     buildingSite: (building: string, region: string) => `${building} ${ofName(region)}`.trim(),
@@ -725,7 +736,7 @@ export const fr = {
     POWER_SPENT: () => 'la règle de ce point a déjà servi — elle revient à la période suivante',
     SAME_RESOURCE: () => 'le comptoir échange une ressource contre une autre',
     STORAGE_FULL: (d) =>
-      `vos magasins ne peuvent pas recevoir ${num(Number(d.needed))} de ${resourceName(d.resource)} — bâtissez un entrepôt ou videz-les d’abord`,
+      `l’entrepôt ne peut pas recevoir ${num(Number(d.needed))} de ${resourceName(d.resource)} — montez-le ou videz-le d’abord`,
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
     SEATS_OUT_OF_RANGE: () =>
       'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
@@ -925,7 +936,11 @@ export const fr = {
     /** **On ne rénove pas sous le feu** (décision 3a du 15/09). Le refus dit l'état, pas une
      *  perte : le point revient, et un chantier déjà en file l'attend sans s'annuler. */
     OUTPOST_DISABLED: () => 'avant-poste hors service — il ne se monte pas tant qu’il l’est',
-    OUTPOST_RAISE_QUEUED: () => 'une élévation de cet avant-poste est déjà en file',
+    OUTPOST_WORK_QUEUED: () => 'un chantier de cet avant-poste est déjà en file',
+    SPECIALTY_REQUIRED: () =>
+      'au niveau 2, l’avant-poste choisit sa spécialisation : magasin, guet ou fort',
+    SPECIALTY_AT_LEVEL_TWO: () => 'la spécialisation se choisit au niveau 2',
+    SPECIALTY_HELD: () => 'c’est déjà sa spécialisation',
     /** **Deux refus sous un même code** : marcher sur les siens, et fonder là où l'on bâtit déjà.
      *  La région nommée est ce qui sépare les deux — sans elle, « on ne marche pas sur les siens »
      *  répondrait à côté d'un geste qui n'est pas une marche. */
@@ -2302,6 +2317,7 @@ export const fr = {
     movement: (type: string, destination: string) => `${type} → ${destination}`,
     construction: (building: string, level: number) => `${building} → niveau ${num(level)}`,
     raise: (level: number) => `avant-poste → niveau ${num(level)}`,
+    respecialize: (specialty: string) => `avant-poste → ${specialty}`,
     foundation: (country: string) => `fondation · ${country}`,
     recruitment: (region: string) => `recrutement · ${region}`,
     lot: (ordered: number, resource: string) => `lot · ${num(ordered)} ${resource}`,
@@ -2472,6 +2488,7 @@ export const fr = {
       outpostStands: 'avant-poste debout',
       foundationLost: 'fondation perdue',
       outpostRaised: 'avant-poste élevé',
+      outpostRespecialized: 'avant-poste spécialisé',
       outpostDismantled: 'avant-poste démantelé',
       outpostDisabled: 'avant-poste désactivé',
       drownedAtSea: 'coulés en mer',
@@ -2716,8 +2733,10 @@ export const fr = {
       },
       /** Le lieu est la région quand on la connaît, le pays sinon — un point d'avant le champ de
        *  région n'a que lui. La phrase dit ce que le niveau ouvre, qui est ce qu'on a payé. */
-      outpostRaised: (level: number, place: string) =>
-        `Notre avant-poste est passé au niveau ${num(level)} — ${place} : ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée.`,
+      outpostRaised: (level: number, place: string, specialty?: string) =>
+        `Notre avant-poste est passé au niveau ${num(level)} — ${place} : ${num(OUTPOST_REACH_KM_BY_LEVEL[level] ?? 0)} km de portée${specialty === undefined ? '' : `, devenu ${specialty}`}.`,
+      outpostRespecialized: (specialty: string, place: string) =>
+        `Notre avant-poste a changé de spécialisation — ${place} : le voici ${specialty}.`,
       /**
        * **Le point qu'on a démonté soi-même** (décision du 16/09) — la seule fin d'un avant-poste
        * que personne ne subit, donc la seule qui n'ait pas besoin d'encre rouge. La phrase compte
@@ -3151,7 +3170,26 @@ export const fr = {
     raiseCarries: (reachKm: number) => `rayon ${num(reachKm)} km`,
     raiseAtMaximum: (maximum: number) => `Niveau maximal atteint (${num(maximum)}).`,
     raiseDisabled: 'Hors service : on ne monte pas un avant-poste sous le feu.',
-    raiseQueued: 'Élévation déjà en file — elle se lit au plateau personnel.',
+    raiseQueued: 'Un chantier de ce point est déjà en file — il se lit au plateau personnel.',
+    /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : un geste, un chantier. */
+    raiseChoose: 'Au niveau 2, il choisit sa spécialisation — un geste, un chantier.',
+    raiseAs: (specialty: string) => `monter · ${specialty}`,
+    /** **Le point d'avant la refonte** (ADR 0037 §11) choisit une fois, gratuitement. */
+    chooseFree:
+      'Il a déjà payé son élévation : il choisit sa spécialisation une fois, sans chantier ni acier. Jusque-là, il agit en généraliste.',
+    chooseAs: (specialty: string) => `choisir · ${specialty}`,
+    /** **Changer, c'est un chantier** (ADR 0037 §7) : la durée et l'acier se lisent avant le geste. */
+    changeHeader: 'changer de spécialisation',
+    changeAs: (specialty: string) => `devenir ${specialty}`,
+    changeConsequence:
+      'Ouvre un chantier dans la file du QG : pendant ce temps, le point agit en généraliste.',
+    /** Le nom de la ligne de file : un changement, pas une élévation. */
+    respecializeWork: (specialty: string) => `changement d’avant-poste → ${specialty}`,
+    changing: (specialty: string) =>
+      `En chantier pour devenir ${specialty} : il agit en généraliste jusqu’à la fin.`,
+    /** Un changement ne doit rien brûler (ADR 0037 §7, 01/11). */
+    storeSurplus:
+      'Son dépôt garde ce qu’il porte au-delà de la capacité simple, et ne reçoit rien tant qu’il dépasse.',
   },
 
   /** **L'ordre transmis** (refonte mobile, 1d) : la feuille s'est refermée, la boucle se dit. */
@@ -4501,6 +4539,8 @@ export const fr = {
     myOutpost: (level: number) => `mon avant-poste · niveau ${level}`,
     raiseConsequence: (level: number) =>
       `Ouvre un chantier : ce point passe au niveau ${level}, avec le rayon qui va avec.`,
+    raiseAsConsequence: (effect: string) =>
+      `Ouvre un chantier : ce point passe au niveau 2. ${effect}`,
     /** **Démanteler** (décision du 16/09) : jumelle de « raser », en dernier et en encre rouge.
      *  Ce qu'elle emporte en plus — la couleur du sol et les bâtiments ancrés — se lit sur la
      *  confirmation, qui a la place de le dire en chiffres. */

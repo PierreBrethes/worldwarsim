@@ -141,6 +141,10 @@ export type RegionType = 'plain' | 'forest' | 'jungle' | 'mountain' | 'desert' |
  */
 export type Specialty = 'general' | 'store' | 'lookout' | 'fort';
 
+/** **Ce qui se choisit** : on ne choisit jamais de redevenir généraliste. Dans l'ordre de l'offre. */
+export const CHOSEN_SPECIALTIES = ['store', 'lookout', 'fort'] as const;
+export type ChosenSpecialty = (typeof CHOSEN_SPECIALTIES)[number];
+
 /**
  * **What caught a movement** (fiche 04), in the order the sheet ranks the four: the ground a
  * player owns, the station he built to hear, the outpost he specialised to listen, and the

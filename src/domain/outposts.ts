@@ -4,6 +4,7 @@ import {
   outpostReachKm,
 } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
+import type { Specialty } from './ids';
 
 /**
  * What an outpost opens around itself: the right to build there (ADR 0015).
@@ -93,9 +94,26 @@ export const outpostShelters = (
   now: number,
 ): boolean => isStanding(outpost, now) && (outpost.disabledUntil ?? 0) <= now;
 
-/** **Tout avant-poste debout guette** (ADR 0037 §1, §2), à une part de son rayon de contrôle. */
-export const lookoutKmOf = (outpost: { readonly level: number }): number =>
-  outpostReachKm(outpost.level) * LOOKOUT_REACH_SHARE;
+/** Un point tel que sa spécialisation se lit : la ligne de la table comme la vue. */
+export type Specialized = {
+  readonly specialty?: Specialty | undefined;
+  /** **Le métier qu'un chantier de changement lui donnera**, posé au départ du chantier. */
+  readonly changingTo?: Specialty | null | undefined;
+};
+
+/**
+ * **Ce que le point fait en ce moment** (ADR 0037 §7) : sa spécialisation, ou le généraliste
+ * pendant un chantier de changement — dès son départ, pas à sa mise en file (décision du 01/11).
+ * Un point d'avant le champ se lit généraliste (§11).
+ */
+export const effectiveSpecialty = (outpost: Specialized): Specialty =>
+  outpost.changingTo == null ? (outpost.specialty ?? 'general') : 'general';
+
+/** **Tout avant-poste debout guette** (ADR 0037 §1, §2), à une part de son rayon de contrôle ;
+ *  le Guet, au rayon entier (§5). */
+export const lookoutKmOf = (outpost: { readonly level: number } & Specialized): number =>
+  outpostReachKm(outpost.level) *
+  (effectiveSpecialty(outpost) === 'lookout' ? 1 : LOOKOUT_REACH_SHARE);
 
 /** **Un point guette debout et en service** (ADR 0037 §2), lu sur la vue : un chantier ou un
  *  point désactivé n'a ni vigie ni liaison. */

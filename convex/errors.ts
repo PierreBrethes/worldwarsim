@@ -179,7 +179,12 @@ export type ErrorCode =
   | 'UNKNOWN_OUTPOST'
   | 'UNKNOWN_OBJECTIVE'
   | 'OUTPOST_DISABLED'
-  | 'OUTPOST_RAISE_QUEUED'
+  /** Un chantier de ce point (élévation ou changement de spécialisation) est déjà en file. */
+  | 'OUTPOST_WORK_QUEUED'
+  /** L'élévation au niveau 2 porte le choix de la spécialisation (ADR 0037 §3). */
+  | 'SPECIALTY_REQUIRED'
+  | 'SPECIALTY_AT_LEVEL_TWO'
+  | 'SPECIALTY_HELD'
   /** Démanteler (décision du 16/09) : une colonne marche dans la portée de ce relais, et son
    *  allure est déjà payée — on ne retire pas la route sous ses pieds. */
   | 'OUTPOST_SERVING'

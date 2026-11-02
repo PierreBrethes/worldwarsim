@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { depotCapacity } from '../../convex/constants';
 import type { LonLat } from './geo';
 import {
   isOnWatch,
   liaisonsOf,
   linkedRelays,
   lookoutCoalPerHour,
+  effectiveSpecialty,
   lookoutKmOf,
   nearestOutpost,
   reachingOutpost,
@@ -59,6 +61,14 @@ describe('the lookout of an outpost', () => {
     expect(isOnWatch({ standsAt: 5, disabledMinutesLeft: null })).toBe(false);
   });
 
+  /** **Le Guet voit au rayon entier** (ADR 0037 §5) ; en chantier de changement, il guette en
+   *  généraliste dès le départ (§7, décision du 01/11). */
+  it('watches the whole reach as a Guet, and half of it while changing trade', () => {
+    expect([2, 3].map((level) => lookoutKmOf({ level, specialty: 'lookout' }))).toEqual([180, 240]);
+    expect(lookoutKmOf({ level: 2, specialty: 'store' })).toBe(90);
+    expect(lookoutKmOf({ level: 2, specialty: 'lookout', changingTo: 'fort' })).toBe(90);
+  });
+
   it('burns one coal an hour per level', () => {
     expect([1, 2, 3].map(lookoutCoalPerHour)).toEqual([1, 2, 3]);
   });
@@ -93,5 +103,24 @@ describe('the liaisons between outposts', () => {
       { point: east(200), reachKm: 120 },
     ]);
     expect(linkedRelays([at('alone', 0)])).toEqual([]);
+  });
+});
+
+/** **Pendant le chantier de changement, le point agit en généraliste** (ADR 0037 §7). */
+describe('the specialty an outpost acts on', () => {
+  it('reads an outpost from before the field as a generalist', () => {
+    expect(effectiveSpecialty({})).toBe('general');
+  });
+
+  it('acts on its specialty, and as a generalist while a change runs', () => {
+    expect(effectiveSpecialty({ specialty: 'store' })).toBe('store');
+    expect(effectiveSpecialty({ specialty: 'store', changingTo: 'lookout' })).toBe('general');
+    expect(effectiveSpecialty({ specialty: 'store', changingTo: null })).toBe('store');
+  });
+
+  /** **Le Magasin double son dépôt** (ADR 0037 §3, erratum du 01/11) : 1 600 et 2 400. */
+  it('doubles the depot of a Magasin, and only its', () => {
+    expect([2, 3].map((level) => depotCapacity(level, 'store'))).toEqual([1600, 2400]);
+    expect([2, 3].map((level) => depotCapacity(level, 'fort'))).toEqual([800, 1200]);
   });
 });

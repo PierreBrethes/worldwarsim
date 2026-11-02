@@ -326,6 +326,44 @@ describe('what sees a movement go past', () => {
     expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'outpost' }]);
   });
 
+  /**
+   * **Le Guet guette au rayon entier** (ADR 0037 §5), et **en généraliste dès le départ d'un
+   * chantier de changement** (§7, décision du 01/11) : le départ relit ses seuls détecteurs, et le
+   * relevé que sa vigie entière promettait s'efface.
+   */
+  it('watches the whole reach as a Guet, and only half of it once a change of trade starts', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const here = pointOf(PRAHOVA);
+    const guet = await outpost(t, guest, here);
+    await t.run(async (ctx) => ctx.db.patch(guet, { level: 2, specialty: 'lookout' }));
+
+    const from = eastOf(northOf(here, 150), -250);
+    const to = eastOf(northOf(here, 150), 250);
+    const approach = nearestApproach(routeBetween(from, to, 'land')!.points, here);
+    expect(approach).toBeGreaterThan(lookoutKmOf({ level: 2 }));
+    expect(approach).toBeLessThan(lookoutKmOf({ level: 2, specialty: 'lookout' }));
+
+    const { troopIds, origin } = await column(t, seat, from);
+    await t.mutation(api.movements.marchTo, { ...seat, origin, troopIds, point: asPoint(to) });
+    expect(await sightingsOf(t, guest)).toMatchObject([{ detector: 'outpost' }]);
+
+    const guestId = await playerOf(t, guest);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', guestId))
+        .collect())
+        if (row.key === 'steel') await ctx.db.patch(row._id, { stock: 1000 });
+    });
+    await t.mutation(api.constructions.respecializeOutpost, {
+      ...guest,
+      outpostId: guet,
+      specialty: 'fort',
+    });
+    expect(await sightingsOf(t, guest)).toEqual([]);
+  });
+
   it('files nothing for a road inside the reach of an outpost but outside its lookout', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);

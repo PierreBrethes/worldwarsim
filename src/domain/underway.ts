@@ -86,7 +86,10 @@ export function underwayOf(
         lines.push({
           id: `construction-${work.id}`,
           endsAt: at(work.minutesLeft),
-          label: fr.underway.raise(outpost.level + 1),
+          label:
+            work.respecialty === null
+              ? fr.underway.raise(outpost.level + 1)
+              : fr.underway.respecialize(fr.specialties[work.respecialty]),
           face: { kind: 'outpost' },
           place: { kind: 'outpost', outpostId: outpost.id },
           moving: false,

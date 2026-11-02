@@ -349,6 +349,9 @@ export type OutpostView = {
    */
   readonly regionId: string | null;
   readonly specialty: Specialty;
+  /** **Le métier qu'un chantier de changement lui donnera**, posé au départ du chantier : jusqu'à
+   *  sa fin le point agit en généraliste (`effectiveSpecialty`, ADR 0037 §7). */
+  readonly changingTo: Specialty | null;
   readonly level: number;
   /**
    * **En chantier jusqu'à cette heure-là**, `null` pour un point debout (révision du 15/09 de
@@ -377,6 +380,10 @@ export type OutpostView = {
   readonly nextLevelCost: Cost;
   readonly nextLevelMinutes: number;
   readonly atMaxLevel: boolean;
+  /** **Ce qu'un changement de spécialisation coûterait** (ADR 0037 §7), servi comme le niveau
+   *  suivant : la moitié de l'acier et la durée de la dernière élévation, au QG d'aujourd'hui. */
+  readonly respecialtyCost: Cost;
+  readonly respecialtyMinutes: number;
   /** **Son dépôt** (ADR 0028 §4) : munitions, pétrole et charbon, et la charge maximale qu'ils
    *  se partagent (`depotCapacity`). Le point est à moi : le brouillard ne sert rien d'autre. */
   readonly depot: SupplyLoad;
@@ -651,6 +658,9 @@ type RunningWork = {
   readonly minutes?: number;
   /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
   readonly level: number;
+  /** **Un changement de spécialisation** et la cible (ADR 0037 §7) ; `null` sur toute autre ligne.
+   *  `level` y est le niveau du point, qui ne bouge pas. */
+  readonly respecialty: Specialty | null;
 };
 
 type QueuedWork = {
@@ -663,6 +673,7 @@ type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
+  readonly respecialty: Specialty | null;
 };
 
 export type DispatchSeverity = 'critical' | 'notable' | 'routine';
@@ -692,6 +703,7 @@ export type DispatchKind =
   | 'outpostStands'
   | 'foundationLost'
   | 'outpostRaised'
+  | 'outpostRespecialized'
   /** Le point que son propriétaire a démantelé (décision du 16/09) — la seule fin d'un
    *  avant-poste que personne ne subit. */
   | 'outpostDismantled'
@@ -761,6 +773,8 @@ type NoticeBody =
       readonly building: BuildCostKey;
       readonly regionName: string;
       readonly reason?: 'depositTaken' | 'tooClose';
+      /** Un changement de spécialisation remboursé, et sa cible : la ligne ne dit pas « élévation ». */
+      readonly respecialty?: Specialty;
     }
   | {
       readonly kind: 'constructionFinished';
@@ -849,6 +863,16 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly regionName: string | null;
       readonly level: number;
+      /** La spécialisation choisie avec le niveau 2 (ADR 0037 §3). */
+      readonly specialty?: Specialty;
+    }
+  /** **Le point a changé de spécialisation** (ADR 0037 §7). Chez le seul propriétaire. */
+  | {
+      readonly kind: 'outpostRespecialized';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly regionName: string | null;
+      readonly specialty: Specialty;
     }
   /**
    * **Le point démantelé** (décision du 16/09). Chez lui seul : ce qu'un adversaire en apprend,

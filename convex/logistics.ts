@@ -19,7 +19,7 @@ import {
 } from '../src/domain/logistics';
 import { canonicalBuildingKey } from '../src/domain/ids';
 import { suppliesOf } from '../src/domain/supplies';
-import { isStanding } from '../src/domain/outposts';
+import { effectiveSpecialty, isStanding } from '../src/domain/outposts';
 import { isBlitz } from './blitz';
 import { upkeepOf } from './upkeep';
 import { depotCapacity } from './constants';
@@ -125,7 +125,7 @@ export const depotOf = (outpost: Doc<'outposts'>, now: number) => ({
   level: outpost.level,
   standing: isStanding(outpost, now),
   depot: outpost.depot ?? emptyLoad(),
-  capacity: depotCapacity(outpost.level),
+  capacity: depotCapacity(outpost.level, effectiveSpecialty(outpost)),
 });
 
 /** **Les coques d'une colonne** : toute troupe qui n'est pas à bord d'une autre. Un largage
@@ -199,7 +199,7 @@ export async function unloadAt(
     return null;
   const troops = await troopsAmong(ctx, movement.playerId, movement.troopIds);
   const carriers = carriersOf(troops).sort((a, b) => (a._id < b._id ? -1 : 1));
-  const capacity = depotCapacity(outpost.level);
+  const capacity = depotCapacity(outpost.level, effectiveSpecialty(outpost));
   let depot = outpost.depot ?? emptyLoad();
   let delivered = emptyLoad();
   let kept = emptyLoad();
@@ -364,7 +364,11 @@ export async function arriveToAirdrop(
     mine !== null ? { kind: 'outpost', ...depotOf(mine, now) } : (squad?.target ?? squadTarget([])),
   );
   if (refusal === null && mine !== null) {
-    const { moved } = deliveryOf(packet, mine.depot ?? emptyLoad(), depotCapacity(mine.level));
+    const { moved } = deliveryOf(
+      packet,
+      mine.depot ?? emptyLoad(),
+      depotCapacity(mine.level, effectiveSpecialty(mine)),
+    );
     delivered = moved;
     await ctx.db.patch(mine._id, { depot: addLoads(mine.depot ?? emptyLoad(), moved) });
     hostCountry = mine.hostCountry;

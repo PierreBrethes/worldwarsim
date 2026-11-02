@@ -310,7 +310,11 @@ describe('démanteler un avant-poste', () => {
       regionId: PRAHOVA,
       point: pointIn(PRAHOVA),
     });
-    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId: point });
+    await t.mutation(api.constructions.raiseOutpost, {
+      ...seat,
+      outpostId: point,
+      specialty: 'store',
+    });
 
     const before = (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
     const done = await t.mutation(api.outposts.dismantle, { ...seat, outpostId: point });

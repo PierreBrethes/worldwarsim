@@ -19,7 +19,7 @@ import { emptyLoad } from '../src/domain/logistics';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
 import { distanceProgressAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
-import { isStanding, type OutpostReach } from '../src/domain/outposts';
+import { effectiveSpecialty, isStanding, type OutpostReach } from '../src/domain/outposts';
 import {
   canonicalBuildingKey,
   isOutpostWork,
@@ -56,6 +56,7 @@ import {
   PRESS_EDITION_HOURS,
   STORAGE_CAP_PER_LEVEL,
   buildCost,
+  respecialtyBill,
   buildMinutes,
   OUTPOST_MAX_LEVEL,
   depotCapacity,
@@ -101,6 +102,11 @@ import { fundsAt, mendPlan } from '../src/domain/blitz';
  *  canonique, une élévation d'avant-poste garde le sien — elle n'est pas un bâtiment. */
 const workKey = (building: BuildCostKey): BuildCostKey =>
   isOutpostWork(building) ? building : canonicalBuildingKey(building);
+
+/** **Le métier qu'un changement de spécialisation donne au point**, `null` sur toute autre ligne :
+ *  la file et le bandeau le disent changement, jamais élévation. */
+const respecialtyOf = (entry: Doc<'constructions'>) =>
+  entry.respecialize === true ? (entry.specialty ?? null) : null;
 
 /** What a set of engaged troops amounts to, in men and machines (ADR 0014) — one count for the
  *  account and for the replay, so the two cannot disagree. */
@@ -634,6 +640,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
               minutes: construction.minutes,
               level: construction.level,
+              respecialty: respecialtyOf(construction),
             }
           : null,
       /** **What is paid for behind the running site**, in build order: only a rank, a countdown
@@ -652,6 +659,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               ? null
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
+          respecialty: respecialtyOf(entry),
         })),
       armyPresent,
       /**
@@ -765,6 +773,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  repli des points d'avant le champ est une lecture du serveur. */
         regionId: regionOfOutpost(outpost),
         specialty: outpost.specialty ?? 'general',
+        /** Le métier qu'un changement en cours lui donnera : jusque-là il agit en généraliste. */
+        changingTo: outpost.changingTo ?? null,
         level: outpost.level,
         /** **L'heure où le chantier devient un point**, `null` pour un point debout (révision
          *  du 15/09). Une date plutôt qu'un compte à rebours : le cachet du mât et la ligne du
@@ -790,8 +800,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelMinutes:
           outpost.level >= OUTPOST_MAX_LEVEL ? 0 : worksMinutesAt('outpost', outpost.level + 1),
         atMaxLevel: outpost.level >= OUTPOST_MAX_LEVEL,
+        /** **Ce qu'un changement de spécialisation coûterait** (ADR 0037 §7) : la moitié de l'acier
+         *  et la durée de la dernière élévation, servis comme le niveau suivant. */
+        respecialtyCost: respecialtyBill(outpost.level),
+        respecialtyMinutes: worksMinutesAt('outpost', outpost.level),
         depot: outpost.depot ?? emptyLoad(),
-        depotCapacity: depotCapacity(outpost.level),
+        depotCapacity: depotCapacity(outpost.level, effectiveSpecialty(outpost)),
         coastal: coastAtPoint([outpost.point.lon, outpost.point.lat]),
       })),
     },
@@ -1248,6 +1262,7 @@ function named(notice: Doc<'notices'>) {
     /** Un point d'avant le champ de région n'en a aucune : la dépêche se contente alors de son
      *  pays, qu'elle porte de toute façon. */
     case 'outpostRaised':
+    case 'outpostRespecialized':
       return {
         ...notice,
         regionName: notice.regionId === null ? null : nameOf(notice.regionId),

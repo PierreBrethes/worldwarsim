@@ -11,8 +11,8 @@ import {
 import { outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
 import { razeBuilding } from './buildings';
-import { playerBuildings } from './buildingReads';
-import { buildCost, outpostReachKm, type Costs } from './constants';
+import { billOfWork, playerBuildings } from './buildingReads';
+import { outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
 import { homeGroundsOf, occupationsOf, recordLinkage, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
@@ -309,12 +309,14 @@ export async function cancelRaisesOf(
     .collect()) {
     if (entry.outpostId !== outpost._id) continue;
     if (entry.finishesAt === null) {
-      for (const [key, amount] of Object.entries(buildCost(entry.building, entry.level))) {
+      for (const [key, amount] of Object.entries(billOfWork(entry))) {
         refunded[key] = (refunded[key] ?? 0) + amount;
       }
     }
     await ctx.db.delete(entry._id);
   }
+  /** **Un changement en cours s'annule, l'ancien métier reste** (décision du 01/11). */
+  if (outpost.changingTo !== undefined) await ctx.db.patch(outpost._id, { changingTo: undefined });
   const costs = refunded as Costs;
   await credit(ctx, playerId, costs, now);
   return costs;
