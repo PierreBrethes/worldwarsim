@@ -159,6 +159,11 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
 - **Elle le découvre en route** : son arrivée, chiffrée au départ sans le Fort, est rechiffrée
   quand elle entre dans le rayon, et une dépêche le lui dit. (Q11)
 - **Le propriétaire reçoit une dépêche** quand son Fort retient une colonne. (Q15)
+- **Précisé le 02/11 (Pierre, #374)** : la colonne **reprend** à l'entrée, de là où elle est vers
+  son arrivée rechiffrée, plus lente sur tout le reste du trajet, et non plus lente dans le seul
+  cercle. Un Fort sans charbon ne retient rien ; deux Forts qui se recouvrent font ×1,5 une seule
+  fois sur la part couverte par au moins un ; une liaison sur la même part l'annule. L'effet se lit
+  une fois, à l'entrée. Registre : `pierre-2026-11-02-fort-reprise`.
 - Le Fort n'arrête rien, n'engage rien, ne rend aucune région imprenable : l'ADR 0020 §8 et
   l'ADR 0024 §3 tiennent. Ralentir n'est pas bloquer.
 
