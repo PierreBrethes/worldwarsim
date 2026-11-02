@@ -1273,6 +1273,19 @@ export default defineSchema({
         closedAt: v.number(),
       }),
     ),
+    /**
+     * **Ce qu'un Guet a lu de la pile** (ADR 0037 §5, `src/domain/lookout-reading.ts`) : un rôle
+     * par troupe, sans effectif, sans tier, sans cargaison, et jamais l'ordre. `reads` garde les
+     * fenêtres de Guet en cours et à venir, une par passage dans un cercle, qui ne sont pas
+     * celles de la ligne : la ligne nomme le premier détecteur et couvre les sorties. La pile ne
+     * s'écrit que dans une fenêtre ouverte ; figée, `readAt` date sa dernière lecture.
+     * `readJobId` réveille la ligne à la prochaine borne, `readJobAt`. Écrite au niveau de la ligne, hors de `frozen`, elle survit au souvenir.
+     */
+    reads: v.optional(v.array(v.object({ from: v.number(), to: v.number() }))),
+    stack: v.optional(v.array(UNIT_ROLE)),
+    readAt: v.optional(v.number()),
+    readJobId: v.optional(v.id('_scheduled_functions')),
+    readJobAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
@@ -1292,7 +1305,8 @@ export default defineSchema({
    * est une pile posée comme une autre, et elle se relève sous la même clé.
    *
    * `ownerId` n'est **jamais servi** : il est là pour que l'écriture sache de quel camp elle parle
-   * et pour qu'un test puisse le dire — la vue ne porte ni nation, ni composition, ni effectif.
+   * et pour qu'un test puisse le dire — la vue ne porte ni nation, ni effectif, et la composition
+   * seulement sous un Guet (`stack`).
    *
    * `until` à `null` est un camp couvert à l'instant ; daté, c'est l'heure où on l'a perdu de vue,
    * et la ligne devient une dernière position connue jusqu'à `LAST_KNOWN_HOURS`.
@@ -1314,6 +1328,10 @@ export default defineSchema({
     detectorRegion: v.union(v.string(), v.null()),
     /** Une dépêche par ligne, à l'ouverture : une réouverture ne rejoue pas la nouvelle. */
     noticeFiled: v.boolean(),
+    /** **La dernière pile qu'un Guet a lue** (ADR 0037 §5), un rôle par troupe ; seul un Guet
+     *  l'écrit, et elle reste datée (`readAt`) quand il la perd de vue. */
+    stack: v.optional(v.array(UNIT_ROLE)),
+    readAt: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byStation', ['stationKey']),

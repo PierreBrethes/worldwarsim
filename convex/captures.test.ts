@@ -12,7 +12,16 @@ import { allRegions, foundationOwedBy, regionFacts, pointOfRegion } from './regi
 import { distanceKm } from '../src/domain/geo';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, holdPoint, joinSeat, placeHq, seatIn, surveyRegion } from './seats.fixture';
+import {
+  campsAroundAFullPass,
+  foundSeat,
+  holdPoint,
+  joinSeat,
+  placeHq,
+  plantGuet,
+  seatIn,
+  surveyRegion,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -177,6 +186,37 @@ describe('capturing a building', () => {
       { side: 'defender', completesAt: MIDDAY + 6 * HOUR },
     ]);
     expect((await t.run((ctx) => ctx.db.get(infantry)))!.stationedAt).toEqual(pointOfRegion(PSKOV));
+  });
+
+  /** **Le Guet relit les pertes de la capture** (#373) : la garnison tuée à l'arrivée se relit. */
+  it('re-reads for a Guet the garrison a capture has killed', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, guest, PSKOV);
+    const defender = await troop(t, guest, 'infantry', barracks);
+    const attackers = await Promise.all([
+      troop(t, seat, 'infantry', null),
+      troop(t, seat, 'infantry', null),
+      troop(t, seat, 'infantry', null),
+    ]);
+    const site = pointOfRegion(PSKOV);
+    await plantGuet(t, seat, { lon: site.lon - 0.5, lat: site.lat });
+    expect((await t.query(api.view.playerView, seat)).camps).toContainEqual(
+      expect.objectContaining({ identification: expect.objectContaining({ pierced: true }) }),
+    );
+
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: barracks },
+      site,
+      'RUS',
+      attackers,
+    );
+
+    expect(await t.run((ctx) => ctx.db.get(defender))).toBeNull();
+    const { before, after } = await campsAroundAFullPass(t, seat);
+    expect(before).toEqual(after);
   });
 
   it('hands the building over a level down, and colours national ground for its capturer', async () => {

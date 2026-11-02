@@ -18,7 +18,13 @@ import { DEPOSIT_POINTS } from '@/domain/world';
 import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
-import type { ArcView, PlayerView, Stack, TroopStation, TroopView } from '@/domain/player-view';
+import {
+  stackOf,
+  type ArcView,
+  type PlayerView,
+  type TroopStation,
+  type TroopView,
+} from '@/domain/player-view';
 import { DOMAIN_BY_ROLE, PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
 import { outpostPinId } from '@/domain/pins';
 import { stackLabelId } from '@/domain/force-highlight';
@@ -174,6 +180,7 @@ export function markersOf(
       seenMinutesAgo: camp.seenMinutesAgo,
       lastSeenAt: camp.lastSeenAt,
       ...(camp.nation === undefined ? {} : { nation: camp.nation }),
+      identification: camp.identification,
     }));
 
   /**
@@ -399,7 +406,7 @@ function postedStacks(
   }
 
   return [...posts.values()].map(({ at, held }) => {
-    const stack = stackOf(held);
+    const stack = stackOf(held.map((troop) => troop.role));
     return {
       kind: 'stack' as const,
       id: stackLabelId(at),
@@ -566,12 +573,6 @@ export const buildingsOfMaquette = <B extends { key: string; point: LonLat | nul
   buildings: ReadonlyArray<B>,
   labelId: string | null,
 ): B[] => buildings.filter((building) => buildingLabelId(building) === labelId);
-
-const stackOf = (troops: ReadonlyArray<TroopView>): Stack =>
-  troops.reduce<Stack>(
-    (counted, troop) => ({ ...counted, [troop.role]: (counted[troop.role] ?? 0) + 1 }),
-    {},
-  );
 
 /** Where a station stands on the board, as the label layer names it. A building answers with
  *  its mast and an outpost with its own marker; a **point** has none — the camera then holds

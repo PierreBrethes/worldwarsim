@@ -23,7 +23,7 @@ import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { DEPOSIT_POINTS } from '../src/domain/world';
 import { isNation } from '../src/domain/nations';
-import type { ResearchCard } from '../src/domain/ids';
+import type { ResearchCard, UnitRole } from '../src/domain/ids';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
 /**
@@ -1246,6 +1246,78 @@ export const specialtiesScene = internalMutation({
       await ctx.db.patch(row._id, { stock: 1000, updatedAt: now });
     await recordLinkage(ctx, player.seasonId);
     await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **La scène du Guet** (#373), pour la démo : un Guet français de niveau 2 à Kaiserslautern, au
+ * rayon entier (180 km), et un généraliste à Berne. En face, des piles britanniques : trois
+ * fantassins et un blindé partis de Wurtzbourg vers Munich (une colonne lue) ;
+ * deux fantassins et un canon à Francfort (un camp lu, hors de la mi-portée d'un généraliste) ;
+ * un blindé et un fantassin lus à Mayence il y a deux heures, partis depuis hors de vue (une
+ * dernière position connue qui garde sa pile) ; deux fantassins près de Berne, que le généraliste
+ * relève sans les lire.
+ *
+ * `npx convex run dev:guetScene '{"playerId":"…","enemyId":"…"}'`
+ */
+export const guetScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const { seasonId } = player;
+    const now = Date.now();
+    const plant = (lon: number, lat: number, hostCountry: string, level: number, more = {}) =>
+      ctx.db.insert('outposts', {
+        seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level,
+        /** Debout avant le relevé de Mayence, deux heures plus tôt. */
+        foundedAt: now - 3 * 3_600_000,
+        disabledUntil: null,
+        immuneUntil: null,
+        ...more,
+      });
+    await plant(7.77, 49.44, 'DEU', 2, { specialty: 'lookout' });
+    await plant(7.45, 46.95, 'CHE', 1);
+    const pile = async (at: { lon: number; lat: number }, roles: ReadonlyArray<UnitRole>) => {
+      const ids: Array<Id<'troops'>> = [];
+      for (const role of roles)
+        ids.push(
+          await ctx.db.insert('troops', {
+            seasonId,
+            playerId: enemyId,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: at,
+          }),
+        );
+      return ids;
+    };
+    const wurzburg = { lon: 9.93, lat: 49.79 };
+    const column = await pile(wurzburg, ['infantry', 'infantry', 'infantry', 'armor']);
+    await pile({ lon: 8.68, lat: 50.11 }, ['infantry', 'infantry', 'artillery']);
+    await pile({ lon: 7.6, lat: 47.15 }, ['infantry', 'infantry']);
+    const lost = await pile({ lon: 8.27, lat: 50.0 }, ['armor', 'infantry']);
+    await reassessDetection(ctx, seasonId, now - 2 * 3_600_000);
+    for (const troopId of lost)
+      await ctx.db.patch(troopId, { stationedAt: { lon: 13.4, lat: 52.5 } });
+    const season = await ctx.db.get(seasonId);
+    if (season === null) throw new Error('no such season');
+    await march(ctx, {
+      playerId: enemyId,
+      season,
+      type: 'march',
+      origin: { kind: 'point', point: wurzburg },
+      troopIds: column,
+      aim: await aimOf(ctx, enemyId, { kind: 'point', point: { lon: 11.58, lat: 48.14 } }),
+    });
+    await reassessDetection(ctx, seasonId, now);
+    await recordLinkage(ctx, seasonId);
   },
 });
 

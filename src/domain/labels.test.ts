@@ -9,9 +9,9 @@ import {
   type MapLabel,
   type MapMarker,
 } from './labels';
-import type { ArcView, PlayerView } from './player-view';
+import type { ArcView, Composition, PlayerView } from './player-view';
 import { directRoute } from './routing';
-import { asLocalTime } from './duration';
+import { asClockTime, asDayAndTime, asLocalTime } from './duration';
 
 const LOADED_AT = 1_700_000_000_000;
 const MINUTE = 60_000;
@@ -183,19 +183,93 @@ describe('buildLabels', () => {
     expect(label?.lines.some((line) => line.role === 'countdown')).toBe(false);
   });
 
-  it('gives type and composition once intelligence has pierced', () => {
+  /** **Le Guet lit la pile, jamais l'ordre** (ADR 0037 §5, décision du 02/11). */
+  it('gives the pile a Guet has read, and never the order', () => {
     const [label] = buildLabels(
       viewWith([
         detectedArc({
           headingAtMe: true,
-          identification: { pierced: true, type: 'attack', stack: { armor: 30 } },
+          identification: { pierced: true, stack: { infantry: 3, armor: 1 }, readAt: null },
         }),
       ]),
       [],
     );
     expect(label?.type).toBe('inbound-movement');
     expect(label?.identified).toBe(true);
-    expect(texts(label!.lines)).toEqual(['countdown:countdown', 'attaque · 30 BLD']);
+    expect(texts(label!.lines)).toEqual(['countdown:countdown', '3 INF · 1 BLD']);
+  });
+
+  it('says the pile of a camp a Guet has read, and nothing of one it has not', () => {
+    const camp = (identification: Composition): MapMarker => ({
+      kind: 'camp',
+      id: 'camp',
+      campId: 'c1',
+      lonLat: [0, 0],
+      medium: 'land',
+      lastKnown: false,
+      since: 0,
+      seenMinutesAgo: null,
+      lastSeenAt: null,
+      identification,
+    });
+    const [read] = buildLabels(viewWith([]), [
+      camp({ pierced: true, stack: { infantry: 3, armor: 1 }, readAt: null }),
+    ]);
+    expect(read?.lines).toContainEqual({ role: 'nature', text: '3 INF · 1 BLD' });
+    const [blind] = buildLabels(viewWith([]), [camp({ pierced: false })]);
+    expect(blind?.lines.filter((line) => line.role === 'nature')).toHaveLength(1);
+  });
+
+  /** **Une pile figée se date** : hors de la vue du Guet, elle a pu changer. */
+  it('dates a pile no Guet reads any more, with its day when it is not today', () => {
+    const camp = (identification: Composition): MapMarker => ({
+      kind: 'camp',
+      id: 'camp',
+      campId: 'c1',
+      lonLat: [0, 0],
+      medium: 'land',
+      lastKnown: false,
+      since: 0,
+      seenMinutesAgo: null,
+      lastSeenAt: null,
+      identification,
+    });
+    const lineOf = (readAt: number | null) =>
+      buildLabels(viewWith([]), [
+        camp({ pierced: true, stack: { infantry: 3 }, readAt }),
+      ])[0]!.lines.find((line) => line.role === 'nature' && line.text.startsWith('3 INF'));
+    const today = LOADED_AT - 60_000;
+    expect(lineOf(today)).toEqual({
+      role: 'nature',
+      text: `3 INF · ${fr.labels.readAt(asClockTime(today))}`,
+    });
+    const monday = LOADED_AT - 2 * 24 * 3_600_000;
+    expect(lineOf(monday)).toEqual({
+      role: 'nature',
+      text: `3 INF · ${fr.labels.readAt(asDayAndTime(monday))}`,
+    });
+    expect(lineOf(null)).toEqual({ role: 'nature', text: '3 INF' });
+  });
+
+  it('keeps the pile read on the last known position', () => {
+    const [label] = buildLabels(
+      viewWith([
+        {
+          state: 'lastKnown',
+          detector: 'outpost',
+          detectorRegion: null,
+          id: 'old',
+          from: [0, 0],
+          to: [1, 1],
+          route: directRoute([0, 0], [1, 1], 'land', 10),
+          headingDegrees: 0,
+          identification: { pierced: true, stack: { infantry: 2 }, readAt: null },
+          lastSeenAt: 0,
+        },
+      ]),
+      [],
+    );
+    expect(label?.lines).toContainEqual({ role: 'nature', text: '2 INF' });
   });
 
   it('never gives national ink to an enemy label', () => {
@@ -268,6 +342,7 @@ describe('buildLabels', () => {
           state: 'lastKnown',
           detector: 'troop',
           detectorRegion: null,
+          identification: { pierced: false },
           id: 'old',
           from: [0, 0],
           to: [1, 1],
@@ -322,6 +397,7 @@ describe('buildLabels', () => {
         state: 'lastKnown',
         detector: 'troop',
         detectorRegion: null,
+        identification: { pierced: false },
         id: 'a',
         from: [0, 0],
         to: [1, 1],

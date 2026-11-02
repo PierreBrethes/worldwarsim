@@ -53,9 +53,10 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
 ## Invariants
 
 - **Brouillard.** `PlayerView`, jamais `GameState` : le client reçoit ce qu'un joueur a le droit
-  de voir, rien de plus. Un arc adverse n'a structurellement ni `type` ni `stack` (union
-  discriminée) ; une force seulement relevée ne sert ni composition, ni effectif, ni nation —
-  sauf la nation, au seul teneur de Lisbonne (P11, `convex/view.ts`).
+  de voir, rien de plus. Un arc adverse n'a structurellement jamais de `type` ; sa pile (rôles et
+  nombres) n'existe que dans la branche `pierced` de `Composition`, servie sous un Guet
+  (`readsComposition`, ADR 0037 §5). Une force relevée ne sert ni effectif, ni tier, ni
+  cargaison, ni nation — sauf la nation, au seul teneur de Lisbonne (P11, `convex/view.ts`).
   Chaque joueur lit son propre index de relevés (`sightings`, `campSightings`,
   `regionSightings`), jamais un filtre sur une table de vérité
   (`WWS/docs/technique/brouillard-et-fanout.md`). Toute mutation qui change un détecteur ou une

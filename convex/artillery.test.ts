@@ -6,7 +6,16 @@ import type { UnitRole } from '../src/domain/ids';
 import { INDIRECT_FIRE, nominalStrength } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, surveyCamp, type Seat } from './seats.fixture';
+import {
+  campsAroundAFullPass,
+  foundSeat,
+  joinSeat,
+  placeHq,
+  plantGuet,
+  seatIn,
+  surveyCamp,
+  type Seat,
+} from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 type Bench = ReturnType<typeof boot>;
@@ -288,6 +297,35 @@ describe('the artillery and indirect fire (lot 6b)', () => {
     expect(report).not.toHaveProperty('faced');
     const target = await t.query(api.replay.replayOf, { ...guest, combatId: engagement!._id });
     expect(JSON.stringify(target)).not.toContain(String(PARIS.lon));
+  });
+
+  /** **Le Guet relit les pertes d'un bombardement** (#373) : la pièce tuée se relit. */
+  it('re-reads for a Guet the troop a bombardment has killed', async () => {
+    const t = boot();
+    const { seat, guest } = await season(t, 'mondiale');
+    const gun = await troop(t, seat, PARIS, 'artillery');
+    const victim = await troop(t, guest, ROUEN);
+    await troop(t, guest, ROUEN, 'armor');
+    await t.run((ctx) => ctx.db.patch(victim, { currentStrength: 1 }));
+    await plantGuet(t, seat, { lon: ROUEN.lon + 0.5, lat: ROUEN.lat });
+    const camp = (await t.query(api.view.playerView, seat)).camps.find(
+      (one) => one.identification.pierced,
+    )!;
+    expect(camp.identification).toMatchObject({ stack: { infantry: 1, armor: 1 } });
+    emplaced();
+
+    await t.mutation(api.movements.bombard, {
+      ...seat,
+      troopId: gun,
+      target: { kind: 'camp', campId: camp.id as Id<'campSightings'> },
+    });
+
+    expect(await row(t, victim)).toBeNull();
+    const { before, after } = await campsAroundAFullPass(t, seat);
+    expect(before).toEqual(after);
+    expect(before.find((one) => one.id === camp.id)!.identification).toMatchObject({
+      stack: { armor: 1 },
+    });
   });
 
   it('leaves the troops that marched off the point out of the salvo', async () => {

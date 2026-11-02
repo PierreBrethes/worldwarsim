@@ -14,7 +14,7 @@ import { journalDispatches } from '@/domain/journal';
 import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
 import { placeLabel } from '@/domain/station-name';
 import type { LonLat } from '@/domain/geo';
-import type { ArcView, PlayerView, Stack } from '@/domain/player-view';
+import { stackOf, type ArcView, type PlayerView } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
 import { COST_BY_MEDIUM } from '@/domain/routing';
 import { shareUnchanged } from './shareUnchanged';
@@ -303,9 +303,9 @@ const emptyCargo = () => ({
 
 /**
  * A sighting becomes an arc **in one of the two enemy states and no other**: the union is what
- * guarantees the fog on this side (ADR 0005, convention §8). Nothing built here carries a type, a
- * composition or a nation, because the server sent none — `identification` is nailed to
- * `pierced: false` since no system pierces anything yet (design sheet 04).
+ * guarantees the fog on this side (ADR 0005, convention §8). Nothing built here carries a type or
+ * a nation, because the server sent none; `identification` is the pile a Guet read, already
+ * discriminated by the server (ADR 0037 §5), and the last known position keeps it.
  *
  * **The window decides the state**, read at the server's hour (`loadedAt`) and not the client's:
  * inside it, the stretch is watched and the pawn walks it; past its close the arc freezes into the
@@ -331,6 +331,7 @@ function asDetectedArc(
     detectorRegion: seen.detectorRegion,
     ...(seen.nation === undefined ? {} : { nation: seen.nation }),
     headingDegrees: seen.headingDegrees,
+    identification: seen.identification,
   };
 
   if (loadedAt > seen.seenTo) return { ...shared, state: 'lastKnown', lastSeenAt: seen.seenTo };
@@ -338,7 +339,6 @@ function asDetectedArc(
     ...shared,
     state: 'enemyDetected',
     headingAtMe: seen.headingAtMe,
-    identification: { pierced: false },
     arrivesAt: seen.arrivesAt,
     seenTo: seen.seenTo,
     since: seen.seenFrom,
@@ -377,9 +377,3 @@ function routeOf(movement: {
     legs,
   };
 }
-
-const stackOf = (roles: ReadonlyArray<UnitRole>): Stack =>
-  roles.reduce<Record<string, number>>(
-    (counted, role) => ({ ...counted, [role]: (counted[role] ?? 0) + 1 }),
-    {},
-  );

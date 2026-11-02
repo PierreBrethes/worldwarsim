@@ -29,6 +29,7 @@ import {
   type BuildCostKey,
   type BuildingKey,
   type ResearchCard,
+  type UnitRole,
 } from '../src/domain/ids';
 import { outputShareOf } from '../src/domain/economy';
 import { carryCapacityOf } from '../src/domain/loot';
@@ -36,7 +37,9 @@ import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import {
   NOTICES_SERVED,
+  stackOf,
   type CombatTally,
+  type Composition,
   type Faced,
   type ForceKind,
   type TroopStation,
@@ -1002,11 +1005,11 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      * movements of the board at large and the fan-out of the naive query does not exist
      * (`WWS/docs/technique/brouillard-et-fanout.md`).
      *
-     * **Nothing here can leak a type or a composition, because nothing here carries one.** The
-     * thread, the endpoints, the media and the two dates: that is exactly what design sheet 04
-     * grants a detected movement that has not been identified. The nation is not served
-     * either — a sentry sees a column go by, not a flag; identification stays the business of
-     * the agent and the buildings that carry it.
+     * **Nothing here can leak a type, because nothing here carries one.** The thread, the
+     * endpoints, the media and the two dates: that is exactly what design sheet 04 grants a
+     * detected movement that has not been identified — and the pile, roles and counts, once a
+     * Guet of his has read it (ADR 0037 §5, `compositionOf`). The nation is not served either — a
+     * sentry sees a column go by, not a flag; the order stays the business of the agent.
      *
      * A window that has not opened yet is not served at all. Past its close, the row stays and
      * turns into the last known position ADR 0005 asks for — the client reads the two dates
@@ -1015,9 +1018,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     detected: await detectedArcs(ctx, player, outposts, now, readsNations),
     /**
      * **Ce qu'on a relevé de posé** (ADR 0024 §1) : une position, un milieu, deux dates, et ce
-     * que le joueur a de *lui-même* — le détecteur qui l'a pris. **Rien ne porte une composition,
-     * un effectif ni une nation, parce que rien n'en est lu** : le camp est un endroit où quelque
-     * chose se tient, et l'identifier reste le métier de l'agent (fiche 04).
+     * que le joueur a de *lui-même* — le détecteur qui l'a pris. **Rien ne porte un effectif ni
+     * une nation, parce que rien n'en est lu** : le camp est un endroit où quelque chose se tient,
+     * et l'identifier reste le métier de l'agent (fiche 04). La pile, seulement celle qu'un Guet
+     * a lue (ADR 0037 §5).
      *
      * Une ligne fermée devient une dernière position connue, comme un arc — et s'efface au même
      * délai (`LAST_KNOWN_HOURS`), parce que le brouillard périme l'information au lieu de
@@ -1044,6 +1048,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               detectorRegion: camp.detectorRegion,
               lastKnown: camp.until !== null,
               ...lisbonNation(readsNations, camp.ownerId),
+              identification: compositionOf(camp),
             },
           ],
     ),
@@ -1425,6 +1430,7 @@ async function detectedArcs(
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
         ...lisbonNation(nationOf, sighting.ownerId),
+        identification: compositionOf(sighting),
       });
       continue;
     }
@@ -1460,10 +1466,24 @@ async function detectedArcs(
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
       ...lisbonNation(nationOf, movement.playerId),
+      identification: compositionOf(sighting),
     });
   }
   return seen;
 }
+
+/**
+ * **La pile qu'un Guet a lue** (ADR 0037 §5), et la date de sa dernière lecture quand plus aucun
+ * Guet ne la lit. Rien ici ne lit l'heure : la pile ne s'écrit sur la ligne que sous un Guet qui
+ * voit, et un réveil à chaque borne de sa fenêtre la lit puis la fige (`readPile`).
+ */
+const compositionOf = (row: {
+  readonly stack?: ReadonlyArray<UnitRole>;
+  readonly readAt?: number;
+}): Composition =>
+  row.stack === undefined
+    ? { pierced: false }
+    : { pierced: true, stack: stackOf(row.stack), readAt: row.readAt ?? null };
 
 const coordsOf = (point: LonLat) => ({ lon: point[0], lat: point[1] });
 

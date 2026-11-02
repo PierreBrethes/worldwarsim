@@ -39,7 +39,10 @@
  * `--sans-charbon` y met le charbon national à zéro. `--metiers` (#371) pose pour la France quatre
  * avant-postes : un niveau 1 à élever à Arlon (`@arlon`), un généraliste d'avant la refonte au
  * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
- * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--guet` (#373) pose pour la
+ * France un Guet à Kaiserslautern et un généraliste à Berne, et en face une colonne britannique
+ * lue en route vers Munich, un camp lu à Francfort, une dernière position lue à Mayence et un camp
+ * que le généraliste relève sans le lire près de Berne (`@guet`, `@francfort`, `@mayence`, `@berne`). `--quais` pose pour la France trois avant-postes, à La Valette, à
  * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
@@ -181,6 +184,8 @@ const quays = islands || process.argv.includes('--quais');
 const liaisons = process.argv.includes('--liaisons');
 /** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
 const specialties = process.argv.includes('--metiers');
+/** `--guet` (#373) : un Guet qui lit une colonne et un camp britanniques, un généraliste qui non. */
+const lookout = process.argv.includes('--guet');
 const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
@@ -681,6 +686,13 @@ if (!bare) {
     places.luxembourg = [6.13, 49.61];
     places.treves = [6.64, 49.75];
     places.sarrebruck = [7.0, 49.23];
+  }
+  if (lookout && scene.a !== null && scene.b !== null) {
+    cli(['run', 'dev:guetScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
+    places.guet = [8.6, 49.7];
+    places.francfort = [8.68, 50.11];
+    places.mayence = [8.27, 50.0];
+    places.berne = [7.5, 47.05];
   }
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };

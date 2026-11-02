@@ -83,6 +83,7 @@ describe('arcProgressAt', () => {
       detector: 'troop',
       detectorRegion: null,
       headingDegrees: 0,
+      identification: { pierced: false },
       lastSeenAt: NOW - HOUR,
     } as const satisfies ArcView;
     expect(arcProgressAt(lost, NOW)).toBe(1);

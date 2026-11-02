@@ -19,14 +19,22 @@ import {
   INTERCEPTION_SAMPLES,
   mobileSighting,
   positionAt,
-  sightingsAlong,
+  passesAlong,
   type MarchingForce,
   type Watcher,
 } from '../../src/domain/interception';
 import { seenSegment } from '../../src/domain/sighting-segment';
-import { RESOURCES, type ResourceKey } from '../../src/domain/ids';
+import { RESOURCES, type ResourceKey, type UnitRole } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
-import { isStanding, lookoutKmOf } from '../../src/domain/outposts';
+import { isStanding, lookoutKmOf, readsComposition } from '../../src/domain/outposts';
+import {
+  campReading,
+  columnReading,
+  lostReading,
+  readingTransition,
+  type ReadWindow,
+  type Reading,
+} from '../../src/domain/lookout-reading';
 import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
 import { coalDryAt, economyOf, keepDryWakeUp, keepSilence } from '../resources';
@@ -52,6 +60,8 @@ type Mobile = {
   readonly rangeKm: number;
   /** **Rangoun** : une tournée de son teneur, que chaque détecteur ne relève qu'à sa part. */
   readonly rangoonTour: boolean;
+  /** Ce qu'un Guet en lit : un rôle par troupe, trié (ADR 0037 §5). */
+  readonly roles: ReadonlyArray<UnitRole>;
 };
 
 const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'troop'] as const;
@@ -65,9 +75,16 @@ type Caught = {
   readonly detectorRegion: string | null;
   readonly from: number;
   readonly to: number;
+  /** **Les fenêtres de Guet** (ADR 0037 §5), ouvertes à l'instant si un Guet voit déjà la
+   *  colonne ; aucune pour tout autre détecteur. */
+  readonly readWindows: ReadonlyArray<ReadWindow>;
 };
 
-type PassiveWatcher = Watcher & Omit<Caught, 'from' | 'to'>;
+type PassiveWatcher = Watcher &
+  Omit<Caught, 'from' | 'to' | 'readWindows'> & {
+    /** Un Guet : ses relevés livrent la pile (`readsComposition`). */
+    readonly reads: boolean;
+  };
 
 /**
  * Replaces every prediction affected by the current board. It is called only from mutations that
@@ -113,6 +130,7 @@ export async function reassessDetection(
       await desired,
       now,
       ledgers.sightingsByMovement.get(target._id) ?? [],
+      mobile?.roles ?? [],
     );
   }
 
@@ -271,6 +289,7 @@ async function detectionBoard(
       force: marchingForce(movement),
       rangeKm: detectionRangeOf(roles, theatre),
       rangoonTour: allOnRangoonTour(movement.troopIds),
+      roles: roles.sort(),
     });
   }
 
@@ -322,6 +341,7 @@ async function detectionBoard(
             detectorId: null,
             detectorHostCountry: force.detectorHostCountry,
             detectorRegion: force.detectorRegion,
+            reads: false,
           },
         ];
   });
@@ -364,6 +384,7 @@ async function detectionBoard(
       detectorId: building._id,
       detectorHostCountry: facts.country,
       detectorRegion: facts.name,
+      reads: false,
     });
   }
 
@@ -382,6 +403,7 @@ async function detectionBoard(
       detectorId: outpost._id,
       detectorHostCountry: outpost.hostCountry,
       detectorRegion: null,
+      reads: readsComposition(outpost),
     });
   }
 
@@ -483,6 +505,7 @@ type CampDetector = CurrentDetector & {
   readonly detectorId: Id<'buildings'> | Id<'outposts'> | null;
   readonly detectorHostCountry: string;
   readonly detectorRegion: string | null;
+  readonly reads: boolean;
 };
 
 /**
@@ -491,8 +514,10 @@ type CampDetector = CurrentDetector & {
  * plateau, la lecture ne filtre jamais rien — et la ligne appartient à un observateur, qui lit son
  * propre index (`brouillard-et-fanout.md`).
  *
- * Ce qui est relevé est une **position, un milieu et une date**. Ni la composition, ni l'effectif,
- * ni la nation : l'agent dormant garde son métier, qui est d'identifier et non de repérer.
+ * Ce qui est relevé est une **position, un milieu et une date**. Ni l'effectif, ni la nation :
+ * l'agent dormant garde son métier, qui est d'identifier et non de repérer. La pile, seulement
+ * sous un Guet (ADR 0037 §5) : seul un Guet l'écrit, il la récrit tant qu'il voit, et elle reste
+ * la dernière lue quand il la perd.
  */
 async function syncCampSightings(
   ctx: MutationCtx,
@@ -515,6 +540,7 @@ async function syncCampSightings(
       detectorId: watcher.detectorId,
       detectorHostCountry: watcher.detectorHostCountry,
       detectorRegion: watcher.detectorRegion,
+      reads: watcher.reads,
     });
   }
   /** Une colonne en marche relève aussi — depuis l'endroit où elle se trouve **maintenant**,
@@ -529,6 +555,7 @@ async function syncCampSightings(
       detectorId: null,
       detectorHostCountry: hostAtPoint(point),
       detectorRegion: null,
+      reads: false,
     });
   }
 
@@ -544,7 +571,7 @@ async function syncCampSightings(
     playerId: Id<'players'>,
     point: LonLat,
     rangoonTour: boolean,
-  ): CampDetector | null => {
+  ): { readonly first: CampDetector; readonly reads: boolean } | null => {
     const home = soils.get(hostAmongCountries(point, new Set(soils.keys())));
     const found = (detectors.get(playerId) ?? []).filter(
       (detector) =>
@@ -558,16 +585,26 @@ async function syncCampSightings(
         detectorId: null,
         detectorHostCountry: hostAtPoint(point),
         detectorRegion: null,
+        reads: false,
       });
     }
     /** Le même classement que le relevé d'un fil : ce qui est nommé est le premier détecteur de
-     *  la fiche 04 qui couvre, jamais un appel de tous. */
-    return (
-      found.sort(
-        (a, b) => DETECTOR_ORDER.indexOf(a.detector) - DETECTOR_ORDER.indexOf(b.detector),
-      )[0] ?? null
-    );
+     *  la fiche 04 qui couvre, jamais un appel de tous. La pile, elle, se lit sur tous : nommer
+     *  la station ne doit pas rater le Guet qui la double. */
+    const first = found.sort(
+      (a, b) => DETECTOR_ORDER.indexOf(a.detector) - DETECTOR_ORDER.indexOf(b.detector),
+    )[0];
+    return first === undefined ? null : { first, reads: found.some((detector) => detector.reads) };
   };
+
+  /** **La garnison d'un objectif ne se lit pas** (`WWS/CONTEXT.md`, « la composition, jamais ») :
+   *  le siège irrégulier ne se lit nulle part. */
+  const irregular = new Set(
+    board.players.flatMap((player) => (player.irregular === true ? [player._id] : [])),
+  );
+  /** Une ligne qui se ferme fige sa pile, datée de l'instant (`lostReading`). */
+  const close = (row: Doc<'campSightings'>) =>
+    ctx.db.patch(row._id, { until: now, ...campPatch(row, lostReading(row, now)) });
 
   for (const player of board.players) {
     const rows = camps.filter((row) => row.playerId === player._id && row.seasonId === seasonId);
@@ -575,12 +612,19 @@ async function syncCampSightings(
 
     for (const [stationKey, camp] of board.posted) {
       if (camp.playerId === player._id) continue;
-      const caught = caughtBy(player._id, camp.point, board.allOnRangoonTour(camp.troopIds));
+      const sighted = caughtBy(player._id, camp.point, board.allOnRangoonTour(camp.troopIds));
       const row = byStation.get(stationKey);
-      if (caught === null) {
-        if (row !== undefined && row.until === null) await ctx.db.patch(row._id, { until: now });
+      if (sighted === null) {
+        if (row !== undefined && row.until === null) await close(row);
         continue;
       }
+      const caught = sighted.first;
+      const reading = campReading(
+        row,
+        sighted.reads && !irregular.has(camp.playerId),
+        [...camp.roles].sort(),
+        now,
+      );
       const seen = {
         point: asPoint(camp.point),
         medium: landAtPoint(camp.point) ? ('land' as const) : ('sea' as const),
@@ -601,7 +645,8 @@ async function syncCampSightings(
           row.detector === seen.detector &&
           row.detectorId === seen.detectorId &&
           row.detectorRegion === seen.detectorRegion;
-        if (!unchanged) await ctx.db.patch(row._id, seen);
+        const patch = { ...(unchanged ? {} : seen), ...campPatch(row, reading) };
+        if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
         continue;
       }
       await ctx.db.insert('campSightings', {
@@ -612,6 +657,7 @@ async function syncCampSightings(
         since: now,
         noticeFiled: true,
         ...seen,
+        ...(reading.stack === undefined ? {} : { stack: [...reading.stack] }),
       });
       /** **Une fois par ligne, à l'ouverture** : une réouverture est le même camp retrouvé, et
        *  une seconde manchette pour lui ferait du journal un compteur de passages. */
@@ -628,12 +674,38 @@ async function syncCampSightings(
 
     /** La pile a levé le camp : la fenêtre se ferme, et le souvenir reste jusqu'au lot C. */
     for (const row of rows) {
-      if (!board.posted.has(row.stationKey) && row.until === null) {
-        await ctx.db.patch(row._id, { until: now });
-      }
+      if (!board.posted.has(row.stationKey) && row.until === null) await close(row);
     }
   }
 }
+
+/** Ce qui change de la lecture, et seulement ça : une clé absente de `next` s'efface. */
+function readingPatch(
+  row: Reading,
+  next: Reading,
+): {
+  reads?: Array<{ from: number; to: number }> | undefined;
+  readAt?: number | undefined;
+  stack?: Array<UnitRole> | undefined;
+} {
+  const patch: ReturnType<typeof readingPatch> = {};
+  if (row.readAt !== next.readAt) patch.readAt = next.readAt;
+  const windows = (reading: Reading) =>
+    reading.reads?.map((window) => `${window.from}-${window.to}`).join();
+  if (windows(row) !== windows(next)) {
+    patch.reads = next.reads?.map((window) => ({ from: window.from, to: window.to }));
+  }
+  if (row.stack?.join() !== next.stack?.join()) {
+    patch.stack = next.stack === undefined ? undefined : [...next.stack];
+  }
+  return patch;
+}
+
+/** Un camp n'a pas de fenêtre à venir : sa lecture est sa pile et sa date. */
+const campPatch = (row: Reading, next: Reading) => {
+  const { reads: _reads, ...patch } = readingPatch(row, next);
+  return patch;
+};
 
 const emptyLoot = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((resource) => [resource, 0])) as Record<ResourceKey, number>;
@@ -880,9 +952,34 @@ async function sightingsFor(
       ? [{ ...watcher, radiusKm: sightingReachKm(watcher.radiusKm, target.rangoonTour) }]
       : [],
   );
-  for (const sighting of sightingsAlong({ mine: target.force, watchers, after: now })) {
-    const watcher = watchers.find((candidate) => candidate.id === sighting.id);
-    if (watcher !== undefined) caught.push({ ...watcher, from: sighting.from, to: sighting.to });
+  /** Un passage par entrée dans chaque cercle : la ligne relève de la première entrée à la
+   *  dernière sortie, et le Guet ne lit que dans ses passages (ADR 0037 §5). */
+  const passes = new Map<string, Array<{ from: number; to: number }>>();
+  for (const pass of passesAlong({ mine: target.force, watchers, after: now })) {
+    const held = passes.get(pass.id) ?? [];
+    held.push({ from: pass.from, to: pass.to });
+    passes.set(pass.id, held);
+  }
+  let here: LonLat | null = null;
+  for (const [id, seen] of passes) {
+    const watcher = watchers.find((candidate) => candidate.id === id);
+    if (watcher === undefined) continue;
+    /** La grille du trajet place le passage en cours au prochain échantillon : un Guet qui voit
+     *  la colonne à l'instant la lit à l'instant. */
+    here ??= watcher.reads ? positionAt(target.force, now) : null;
+    const readWindows = !watcher.reads
+      ? []
+      : seen.map((pass, index) =>
+          index === 0 && distanceKm(here!, watcher.point) <= watcher.radiusKm
+            ? { from: now, to: pass.to }
+            : pass,
+        );
+    caught.push({
+      ...watcher,
+      from: seen[0]!.from,
+      to: seen[seen.length - 1]!.to,
+      readWindows,
+    });
   }
 
   for (const observer of board.mobileById.values()) {
@@ -896,6 +993,7 @@ async function sightingsFor(
       detectorId: null,
       detectorHostCountry: hostAtPoint(point),
       detectorRegion: null,
+      readWindows: [],
       ...window,
     });
   }
@@ -967,6 +1065,7 @@ function crossedSoil(
     detectorId: null,
     detectorHostCountry: hostCountry,
     detectorRegion: null,
+    readWindows: [],
     ...window,
   }));
 }
@@ -977,6 +1076,7 @@ async function syncSightings(
   candidates: ReadonlyArray<Caught>,
   now: number,
   rows: ReadonlyArray<Doc<'sightings'>>,
+  roles: ReadonlyArray<UnitRole>,
 ): Promise<void> {
   const desired = new Map<Id<'players'>, Caught>();
   for (const candidate of candidates) {
@@ -988,6 +1088,7 @@ async function syncSightings(
         ...first,
         from: Math.min(held.from, candidate.from),
         to: Math.max(held.to, candidate.to),
+        readWindows: [...held.readWindows, ...candidate.readWindows],
       });
     }
   }
@@ -1007,13 +1108,84 @@ async function syncSightings(
     desired.delete(playerId);
     if (next === undefined) {
       if (row.from > now) await deleteSighting(ctx, row);
-      else if (row.to > now) await ctx.db.patch(row._id, { to: now });
+      else {
+        const patch = {
+          ...(row.to > now ? { to: now } : {}),
+          ...(await writeReading(ctx, row, columnReading(row, [], roles, now), now)),
+        };
+        if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
+      }
       continue;
     }
-    await replaceSighting(ctx, row, next, now);
+    await replaceSighting(ctx, row, next, now, roles);
   }
 
-  for (const sighting of desired.values()) await insertSighting(ctx, movement._id, sighting, now);
+  for (const sighting of desired.values()) {
+    await insertSighting(ctx, movement._id, sighting, now, roles);
+  }
+}
+
+/**
+ * **La lecture d'une ligne et son réveil** (ADR 0037 §5) : le patch de ce qui change, et le job
+ * de la prochaine borne de ses fenêtres de Guet — une ouverture ou une fin. Une vue en cache ne
+ * relit pas l'heure : sans ce réveil, la pile n'apparaîtrait qu'à la prochaine écriture sans
+ * rapport. Un job n'est gardé que s'il vise la borne que la lecture nouvelle attend.
+ */
+async function writeReading(
+  ctx: MutationCtx,
+  row: {
+    readonly _id: Id<'sightings'>;
+    readonly readJobId?: Id<'_scheduled_functions'> | undefined;
+    readonly readJobAt?: number | undefined;
+  } & Reading,
+  next: Reading,
+  now: number,
+): Promise<
+  ReturnType<typeof readingPatch> & {
+    readJobId?: Id<'_scheduled_functions'> | undefined;
+    readJobAt?: number | undefined;
+  }
+> {
+  const patch = readingPatch(row, next);
+  const at = readingTransition(next, now);
+  /** Le job d'une ligne la réécrit quand il court : tant qu'il y est noté, il attend encore. Le
+   *  relire au système coûterait une lecture par ligne et par réévaluation. */
+  if (row.readJobId !== undefined && row.readJobAt === at) return patch;
+  if (row.readJobId !== undefined) await cancelJob(ctx, row.readJobId);
+  if (at === null) {
+    return row.readJobId === undefined
+      ? patch
+      : { ...patch, readJobId: undefined, readJobAt: undefined };
+  }
+  const readJobId = await ctx.scheduler.runAt(at, internal.listening.readPile, {
+    sightingId: row._id,
+    expectedAt: at,
+  });
+  return { ...patch, readJobId, readJobAt: at };
+}
+
+/** **Le réveil d'une borne de Guet** : la pile se lit à l'ouverture et se fige à la fin. Un job
+ *  périmé — la fenêtre a bougé depuis — ne fait rien. */
+export async function readPile(
+  ctx: MutationCtx,
+  sightingId: Id<'sightings'>,
+  expectedAt: number,
+  now = Date.now(),
+): Promise<void> {
+  const row = await ctx.db.get(sightingId);
+  if (row === null || now < expectedAt || row.readJobAt !== expectedAt) return;
+  const movement = row.frozen === undefined ? await ctx.db.get(row.movementId) : null;
+  if (movement === null) return;
+  const roles = (await Promise.all(movement.troopIds.map((id) => ctx.db.get(id))))
+    .flatMap((troop) => (troop === null ? [] : [troop.role]))
+    .sort();
+  const { readJobId, readJobAt, ...patch } = await writeReading(
+    ctx,
+    { ...row, readJobId: undefined, readJobAt: undefined },
+    columnReading(row, row.reads ?? [], roles, now),
+    now,
+  );
+  await ctx.db.patch(row._id, { ...patch, readJobId, readJobAt });
 }
 
 const earlier = (held: Caught, sighting: Caught): Caught =>
@@ -1028,9 +1200,17 @@ async function replaceSighting(
   row: Doc<'sightings'>,
   next: Caught,
   now: number,
+  roles: ReadonlyArray<UnitRole>,
 ): Promise<void> {
+  const reading = await writeReading(
+    ctx,
+    row,
+    columnReading(row, next.readWindows, roles, now),
+    now,
+  );
   if (row.from <= now) {
-    if (next.to > row.to) await ctx.db.patch(row._id, { to: next.to });
+    const patch = { ...(next.to > row.to ? { to: next.to } : {}), ...reading };
+    if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
     return;
   }
   /** La grille ne bouge plus avec l'instant (#145) : une fenêtre future relue telle quelle garde
@@ -1038,13 +1218,15 @@ async function replaceSighting(
   const fields = sightingFields(next);
   if (
     (row.revealJobId !== undefined || row.noticeFiled === true) &&
-    (Object.keys(fields) as Array<keyof typeof fields>).every((key) => row[key] === fields[key])
+    (Object.keys(fields) as Array<keyof typeof fields>).every((key) => row[key] === fields[key]) &&
+    Object.keys(reading).length === 0
   ) {
     return;
   }
   if (row.revealJobId !== undefined) await cancelJob(ctx, row.revealJobId);
   await ctx.db.patch(row._id, {
     ...sightingFields(next),
+    ...reading,
     revealJobId: undefined,
     ...(row.noticeFiled === undefined && row.revealJobId === undefined
       ? { noticeFiled: true }
@@ -1061,6 +1243,7 @@ async function insertSighting(
   movementId: Id<'movements'>,
   sighting: Caught,
   now: number,
+  roles: ReadonlyArray<UnitRole>,
 ): Promise<void> {
   const owner = (await ctx.db.get(movementId))?.playerId;
   const sightingId = await ctx.db.insert('sightings', {
@@ -1068,6 +1251,13 @@ async function insertSighting(
     ...(owner === undefined ? {} : { ownerId: owner }),
     ...sightingFields(sighting),
   });
+  const reading = await writeReading(
+    ctx,
+    { _id: sightingId },
+    columnReading({}, sighting.readWindows, roles, now),
+    now,
+  );
+  if (Object.keys(reading).length > 0) await ctx.db.patch(sightingId, reading);
   if (sighting.from <= now) await revealSighting(ctx, sightingId, now);
   else await scheduleReveal(ctx, sightingId, sighting.from);
 }
@@ -1095,5 +1285,6 @@ async function scheduleReveal(
 
 async function deleteSighting(ctx: MutationCtx, sighting: Doc<'sightings'>): Promise<void> {
   if (sighting.revealJobId !== undefined) await cancelJob(ctx, sighting.revealJobId);
+  if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
   await ctx.db.delete(sighting._id);
 }

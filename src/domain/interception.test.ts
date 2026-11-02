@@ -4,6 +4,7 @@ import {
   INTERCEPTION_SAMPLES,
   mediumAt,
   mobileSighting,
+  passesAlong,
   positionAt,
   sightingsAlong,
   type MarchingForce,
@@ -111,6 +112,27 @@ describe('what a posted watcher sees pass', () => {
     expect(seen!.from).toBeGreaterThan(3 * HOUR);
     expect(seen!.to).toBeLessThan(7 * HOUR);
     expect(seen!.from).toBeLessThan(seen!.to);
+  });
+
+  /** **Un passage par entrée dans le cercle** (#373) : la sortie entre deux ne se voit pas. */
+  it('gives one pass per entry into the radius, and the window the hull of them', () => {
+    const outAndBack: MarchingForce = {
+      id: 'loop',
+      points: [
+        ...Array.from({ length: 11 }, (_, step) => [step, 0] as LonLat),
+        ...Array.from({ length: 10 }, (_, step) => [9 - step, 0] as LonLat),
+      ],
+      departedAt: 0,
+      arrivesAt: 20 * HOUR,
+    };
+    const watchers = [{ id: 'camp', point: [7, 0] as LonLat, radiusKm: 150 }];
+    const passes = passesAlong({ mine: outAndBack, watchers });
+    expect(passes).toHaveLength(2);
+    expect(passes[0]!.to).toBeLessThan(10 * HOUR);
+    expect(passes[1]!.from).toBeGreaterThan(10 * HOUR);
+    expect(sightingsAlong({ mine: outAndBack, watchers })).toEqual([
+      { id: 'camp', from: passes[0]!.from, to: passes[1]!.to },
+    ]);
   });
 
   it('answers nothing for a watcher the column never comes near', () => {

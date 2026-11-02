@@ -48,7 +48,6 @@ const outpost = (id: string, text: string): MapLabel =>
     washed: false,
     lines: [{ role: 'nature', text }],
     identified: false,
-    offensive: false,
     idle: false,
     works: null,
     hostCountry: null,
