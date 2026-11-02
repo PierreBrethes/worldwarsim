@@ -72,6 +72,10 @@ describe('the patrol gesture', () => {
     const pair = compassOf(liaison, two, column, origin, 0, ['t', 'u']);
     expect(pair?.actions.map((action) => action.key)).toEqual(['aim']);
     expect(pair?.refusal).toBe(fr.errors.PATROL_ONE_TROOP());
+    expect(dropReadingOf(pair)).toMatchObject({
+      kind: 'orders',
+      aside: fr.errors.PATROL_ONE_TROOP(),
+    });
     const truck = viewOf([troop('t', 'landTransport')]);
     expect(compassOf(liaison, truck, column, origin, 0, ['t'])?.refusal).toBe(
       fr.errors.PATROL_LAND_COMBAT_ONLY(),

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { DropHintChip, type DropFuel } from './DropHint';
+import type { CompassAction } from '@/domain/compass-rose';
+import { DropHintChip, hintOfReading, type DropFuel } from './DropHint';
 
 const hint = { icon: '→', tone: 'order' as const, verb: 'marcher', detail: null };
 const gauge = (fuel: Partial<DropFuel>): DropFuel => ({
@@ -59,5 +60,20 @@ describe('a road the server refuses', () => {
 
   it('keeps the fuel gauge under the verb', () => {
     expect(markup).toContain('drop-chip-fuel');
+  });
+});
+
+/** **Un ordre refusé à côté d'un autre offert** (#376) : la ronde refusée sous la marche. */
+describe('a refusal beside the offered order', () => {
+  it('says the refused branch under the verb it keeps', () => {
+    const march = { key: 'aim', label: 'marcher', cost: null } as unknown as CompassAction;
+    const shown = hintOfReading(
+      { kind: 'orders', verbs: [march], aside: 'liaison déjà tenue' },
+      () => 0,
+      null,
+    )!;
+    expect(shown.aside).toBe('liaison déjà tenue');
+    const markup = renderToStaticMarkup(<DropHintChip hint={shown} ref={null} />);
+    expect(markup).toContain('drop-chip-detail--alarm">liaison déjà tenue<');
   });
 });
