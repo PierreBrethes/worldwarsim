@@ -101,6 +101,7 @@ export function markersOf(
      *  depuis la disparition du widget de troupes plus rien ne l'ouvrait. */
     station: { kind: 'outpost', outpostId: outpost.id },
     specialty: outpost.specialty,
+    changingTo: outpost.changingTo,
     level: outpost.level,
     standsAt: outpost.standsAt,
     garrison: outpost.garrison,

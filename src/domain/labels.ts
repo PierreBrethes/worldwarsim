@@ -2,7 +2,7 @@ import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
 import { asLocalTime } from '@/domain/duration';
-import { aimRefusalShort, countryLabel, fr, nationLabel } from '@/i18n/fr';
+import { aimRefusalShort, countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
@@ -117,6 +117,8 @@ export type MapMarker =
        */
       readonly station: Extract<TroopStation, { kind: 'outpost' }>;
       readonly specialty: Specialty;
+      /** Le métier qu'un changement en cours lui donnera (ADR 0037 §7). */
+      readonly changingTo: Specialty | null;
       readonly level: number;
       /**
        * **En chantier jusqu'à cette heure-là**, `null` pour un point debout (révision du 15/09
@@ -883,7 +885,7 @@ function markerLabel(marker: MapMarker): MapLabel {
         lines:
           marker.standsAt === null
             ? [
-                { role: 'nature', text: fr.specialties[marker.specialty] },
+                { role: 'nature', text: specialtyNowText(marker) },
                 {
                   role: 'figures',
                   text: fr.labels.levelAndGarrison(marker.level, marker.garrison),

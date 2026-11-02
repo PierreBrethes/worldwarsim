@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { TerrainIcon } from '@/emblems/terrain/TerrainIcon';
-import { countryLabel, fr, nationLabel } from '@/i18n/fr';
+import { countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
 import { asClockTime, asPressDate } from '@/domain/duration';
 import { NATION_BY_ADM0 } from '@/domain/nations';
 import type { PlayerView } from '@/domain/player-view';
@@ -120,7 +120,7 @@ export function GroundPanel({
       <>
         <Line
           label={fr.selectedCountry.outpost}
-          value={`${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${fr.specialties[outpost.specialty]}`}
+          value={`${outpost.isMine ? nationLabel(view.me.nation) : fr.selectedCountry.enemyOwner} — ${specialtyNowText(outpost)}`}
         />
         <Line label={fr.selectedCountry.garrison} value={`${outpost.garrison}`} />
       </>

@@ -19,6 +19,7 @@ describe('targetOfLabel', () => {
       lonLat: [2, 48],
       hostCountry: 'FRA',
       specialty: 'general',
+      changingTo: null,
       station: { kind: 'outpost', outpostId: 'o1' },
       level: 1,
       standsAt: null,

@@ -25,7 +25,7 @@ import {
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
-import { lookoutKmOf } from '../domain/outposts';
+import { effectiveSpecialty, lookoutKmOf, type Specialized } from '../domain/outposts';
 import type {
   AimVerdict,
   OutpostRaiseHold,
@@ -4875,6 +4875,15 @@ export function upgradeHoldText(hold: UpgradeHold): string {
  * même `outpostRaiseHold`. Le panneau tait la facture (il l'affiche déjà en chiffres rouges
  * au-dessus) ; la rose la dit, faute de place pour deux lectures.
  */
+/** **Le métier qu'un point exerce en ce moment**, et celui qu'un changement en cours lui donnera
+ *  (ADR 0037 §7) : le mât et la fiche du sol le disent comme la règle le lit. */
+export function specialtyNowText(outpost: Specialized): string {
+  const now = fr.specialties[effectiveSpecialty(outpost)];
+  return outpost.changingTo == null
+    ? now
+    : `${now} → ${fr.specialties[outpost.changingTo]}, en chantier`;
+}
+
 /** **Ce que la spécialisation fera de ce point, à ce niveau** : la phrase de l'offre, dans la
  *  fiche comme dans la rose. */
 export function specialtyEffectText(specialty: ChosenSpecialty, level: number): string {
