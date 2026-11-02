@@ -16,9 +16,8 @@ import { isBlitz } from './blitz';
 import { inService } from './buildingReads';
 import { outpostReachKm } from './constants';
 import { marchingForce } from './movement/detection';
-import { pointOf } from './movement/forces';
+import { movementsOf, pointOf } from './movement/forces';
 import { heldSinceOf } from './strategicPoints';
-import { movementsOf } from './movement/forces';
 import { debit, economyOf } from './resources';
 import { upkeepOf, type AnchorStore } from './upkeep';
 

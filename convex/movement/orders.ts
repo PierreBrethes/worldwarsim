@@ -964,9 +964,9 @@ export async function march(
    *  s'il y a de la place, et le reste à bord à l'arrivée. */
   for (const [riderId, carrierId] of seatLoose(troops.map(seatedOf)))
     await ctx.db.patch(riderId as Id<'troops'>, { carriedBy: carrierId as Id<'troops'> });
+  await storesCrossed(ctx, movementId);
   /** The document rather than its parts: the sweep has to read the order exactly as the arrival
    *  will, and the surest way to say that is to hand it the same row. */
-  await storesCrossed(ctx, movementId);
   const filed = (await ctx.db.get(movementId))!;
   if (pursuit === undefined)
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId });
