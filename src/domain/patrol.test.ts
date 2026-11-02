@@ -136,7 +136,13 @@ describe('the patrol gesture', () => {
 describe('a halted patrol in its garrison', () => {
   it('stays unticked when the garrison is lifted, and lifts alone', () => {
     const halted = troop('p', 'infantry', {
-      patrol: { ends: ['essen', 'kassel'], to: 'essen', haltUntil: 1, recalled: false, waiting: null },
+      patrol: {
+        ends: ['essen', 'kassel'],
+        to: 'essen',
+        haltUntil: 1,
+        recalled: false,
+        waiting: null,
+      },
     });
     const me = viewOf([troop('t', 'armor'), halted]).me;
     expect(withoutPatrols(me, ['t', 'p'])).toEqual(['t']);

@@ -64,7 +64,12 @@ const viewWith = (
   captures: PlayerView['captures'] = [],
   troops: PlayerView['me']['troops'] = [],
 ): PlayerView =>
-  ({ arcs, captures, loadedAt: LOADED_AT, me: { ink: '#2f4f78', troops } }) as unknown as PlayerView;
+  ({
+    arcs,
+    captures,
+    loadedAt: LOADED_AT,
+    me: { ink: '#2f4f78', troops },
+  }) as unknown as PlayerView;
 
 const OUTPOST: MapMarker = {
   kind: 'outpost',

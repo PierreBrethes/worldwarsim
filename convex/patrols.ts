@@ -183,7 +183,8 @@ async function endedAt(
    *  relit à l'instant, celui qu'on atteint et celui qu'on a quitté. */
   for (const id of [here, ...patrol.ends]) {
     const end = await ctx.db.get(id);
-    if (end === null || end.playerId !== troop.playerId || !outpostShelters(end, now)) return 'lost';
+    if (end === null || end.playerId !== troop.playerId || !outpostShelters(end, now))
+      return 'lost';
   }
   const liaison: Liaison = [patrol.ends[0]!, patrol.ends[1]!];
   const drawn = await drawnLiaisonsAt(ctx, troop.playerId, now);
