@@ -173,6 +173,14 @@ describe('a Fort holding the enemy column it sees (ADR 0037 §6)', () => {
     const told = await noticesOf(t, guest);
     expect(told.map((notice) => notice.kind)).toEqual(['fortHeld']);
     expect(told[0]).toMatchObject({ hostCountry: 'ROU', arrivesAt: after.arrivesAt });
+
+    /** Le compte à rebours de l'attaquant s'allonge et son pion repart de l'entrée ; le
+     *  défenseur lit l'arrivée rechiffrée sur l'arc relevé, rien de la reprise. */
+    const mine = (await t.query(api.view.playerView, seat)).movements![0]!;
+    expect(mine).toMatchObject({ arrivesAt: after.arrivesAt, resumed: after.resumed });
+    const seen = (await t.query(api.view.playerView, guest)).detected!;
+    expect(seen).toEqual([expect.objectContaining({ arrivesAt: after.arrivesAt })]);
+    expect(seen[0]).not.toHaveProperty('resumed');
   });
 
   it('lets the old arrival job pass without landing the column early', async () => {
