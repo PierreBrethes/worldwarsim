@@ -1,7 +1,7 @@
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { isStanding, linkedRelays } from '../../src/domain/outposts';
-import { relayedCostUnits } from '../../src/domain/route-timing';
+import { relayedCostUnits, type Relay } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
 import { costMinutes } from '../../src/domain/pace';
 import { RELAY_SPEED_MULTIPLIER, outpostReachKm } from '../constants';
@@ -20,7 +20,20 @@ export async function pacedMinutes(
   route: ComputedRoute,
   at: number,
 ): Promise<number> {
-  const relays = linkedRelays(
+  const relays = await liaisonRelaysOf(ctx, playerId, at);
+  const costUnits = relayedCostUnits({ route, relays, multiplier: RELAY_SPEED_MULTIPLIER });
+  /** **Une Blitz court à l'échelle de son théâtre** (B1), en secondes et non en minutes : un saut
+   *  de cent kilomètres y dure une demi-minute, que l'arrondi de la Mondiale portait à une. */
+  return costMinutes(costUnits, await blitzTheatreOf(ctx, playerId));
+}
+
+/** **Les points d'un joueur qui accélèrent ses colonnes à cet instant** (ADR 0037 §8). */
+export async function liaisonRelaysOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  at: number,
+): Promise<ReadonlyArray<Relay>> {
+  return linkedRelays(
     (
       await ctx.db
         .query('outposts')
@@ -36,9 +49,4 @@ export async function pacedMinutes(
         reachKm: outpostReachKm(outpost.level),
       })),
   );
-
-  const costUnits = relayedCostUnits({ route, relays, multiplier: RELAY_SPEED_MULTIPLIER });
-  /** **Une Blitz court à l'échelle de son théâtre** (B1), en secondes et non en minutes : un saut
-   *  de cent kilomètres y dure une demi-minute, que l'arrondi de la Mondiale portait à une. */
-  return costMinutes(costUnits, await blitzTheatreOf(ctx, playerId));
 }
