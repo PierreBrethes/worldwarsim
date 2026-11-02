@@ -437,8 +437,30 @@ describe('CombatLayer, a bombardment', () => {
     new Group().add(copy!);
     layer.advance(stepBounds('frappe').start + 10, scale);
     expect(copy!.getObjectByName('barrel')!.rotation.x).toBeCloseTo(-INDIRECT_ELEVATION);
-    // The target's scene stands no battery: its pieces only, theirs.
-    expect(layer.flashes().length).toBeGreaterThan(0);
+    // A veil leaves my battery standing while it fires.
+    expect(layer.batteries).toEqual([battery]);
+    // My gun's flash lights the night from its muzzle.
+    const muzzle = copy!.getObjectsByProperty('isSprite', true)[0]!.getWorldPosition(new Vector3());
+    expect(layer.flashes().some((flash) => flash.at.distanceTo(muzzle) < 1e-6)).toBe(true);
+    layer.advance(REPLAY_MS, scale);
+    expect(stood).toEqual(['p/0', null]);
+  });
+
+  it('gives the piece back when its pile goes from under the copy mid-scene', async () => {
+    const layer = new CombatLayer();
+    const stood: Array<string | null> = [];
+    let drawn = true;
+    layer.host = {
+      batteryNear: () => 'p/0',
+      pieceOf: () => (drawn ? { url: 'gun.glb', pose: 'emplaced', box: null } : null),
+      standIn: (id, standing) => void stood.push(standing === null ? null : id),
+    };
+    layer.play(shelled('attacker'), 'france', at, 0, 0, 'land', battery);
+    layer.advance(0, scale);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    drawn = false;
+    layer.advance(stepBounds('frappe').start + 10, scale);
+    expect(stood).toEqual(['p/0', null]);
     layer.advance(REPLAY_MS, scale);
     expect(stood).toEqual(['p/0', null]);
   });
@@ -452,7 +474,8 @@ describe('CombatLayer, a bombardment', () => {
       pieceOf: () => null,
       standIn: () => {},
     };
-    layer.play(shelled('defender'), null, at, 0, 0, 'land', null);
+    // Even handed a battery, the target's scene has none to fire.
+    layer.play(shelled('defender'), null, at, 0, 0, 'land', battery);
     let burst = 0;
     const { start, end } = stepBounds('frappe');
     for (let t = start; t < end; t += 20) {

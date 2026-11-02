@@ -93,6 +93,8 @@ export class BatteryShot {
   private start: Vector3 | null = null;
   private readonly shell = new Mesh(SHELL, new MeshBasicMaterial({ color: ARC_INK }));
   private id: string | null = null;
+  /** The copy stands in the piece: it goes back however the scene ends. */
+  private stood = false;
   private gun: {
     readonly copy: Object3D;
     readonly guns: Guns;
@@ -106,8 +108,8 @@ export class BatteryShot {
 
   constructor(
     /** The battery's place on the board, and how near it a gun of mine must stand to be it. */
-    private readonly from: Vector3,
-    private readonly within: number,
+    readonly from: Vector3,
+    readonly within: number,
     /** The target's point on the board. */
     private readonly to: Vector3,
     private readonly host: BatteryHost | null,
@@ -151,12 +153,18 @@ export class BatteryShot {
   /** The piece goes back to its pile, the arc off the board. */
   dispose(): void {
     this.over = true;
-    if (this.id !== null && this.gun !== null) this.host?.standIn(this.id, null);
-    this.gun = null;
+    this.giveBack();
     this.arc?.geometry.dispose();
     this.ink.dispose();
     (this.shell.material as MeshBasicMaterial).dispose();
     this.object.removeFromParent();
+  }
+
+  /** The piece back to its pile: a pile gone to its pin or drawn again would keep the copy. */
+  private giveBack(): void {
+    if (this.stood && this.id !== null) this.host?.standIn(this.id, null);
+    this.stood = false;
+    this.gun = null;
   }
 
   /** Asks the host for the gun once its pile stands: a copy cooked at the piece's own pose. */
@@ -184,6 +192,7 @@ export class BatteryShot {
         smoke.object.visible = false;
         muzzle.add(sprite, smoke.object);
         this.host?.standIn(id, copy);
+        this.stood = true;
         this.gun = { copy, guns, length, flash: sprite, smoke };
       },
       () => {},
@@ -196,7 +205,7 @@ export class BatteryShot {
     if (gun === null) return null;
     // A pile drawn again, or taken in hand, has taken the piece back.
     if (this.id === null || this.host?.pieceOf(this.id) === null) {
-      this.gun = null;
+      this.giveBack();
       return null;
     }
     const { copy, guns, length } = gun;

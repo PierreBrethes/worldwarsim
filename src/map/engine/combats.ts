@@ -77,6 +77,14 @@ export class CombatLayer {
   /** What the scenes cover on the board, as of the last `advance`: the ground there is hidden. */
   veils: ReadonlyArray<{ readonly center: Vector3; readonly reach: number }> = [];
 
+  /** My batteries firing, each its point and reach on the board: a veil leaves them standing,
+   *  or a gun near its target would vanish under its own shot (#325). */
+  get batteries(): ReadonlyArray<{ readonly at: Vector3; readonly within: number }> {
+    return this.played.flatMap(({ shot }) =>
+      shot === null ? [] : [{ at: shot.from, within: shot.within }],
+    );
+  }
+
   /** Frames are due every image while one plays at full motion. */
   get active(): boolean {
     return this.motion === 'full' && this.played.some((each) => each.plays);

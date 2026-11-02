@@ -1018,14 +1018,6 @@ export class StandingLayer implements SequenceHost {
     this.changed();
   }
 
-  /** Whether the pile drawn as `object` lends a copy: a combat's veil leaves it standing, or a
-   *  battery firing within its target's scene would vanish with its shot (#325). */
-  lends(object: Object3D): boolean {
-    for (const id of this.stoodIn.keys())
-      if (this.dressed.get(id.slice(0, id.lastIndexOf('/')))?.object === object) return true;
-    return false;
-  }
-
   /** Takes back every copy stood in the groups of a pile: its sequence ends on its next step. */
   private recall(pileId: string): void {
     for (const [id, figurine] of this.stoodIn)

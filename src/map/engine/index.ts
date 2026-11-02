@@ -3558,9 +3558,15 @@ export class MapEngine {
         this.replayHidden.delete(pawn);
       }
     if (veils.length === 0) return;
-    for (const layer of [this.standing.group, this.camps.group])
-      for (const object of layer.children)
-        if (covered(object.position) && !this.standing.lends(object)) object.visible = false;
+    const batteries = this.combats.batteries;
+    const firing = (at: Vector3) =>
+      batteries.some(
+        (battery) => Math.hypot(at.x - battery.at.x, at.z - battery.at.z) <= battery.within,
+      );
+    for (const object of this.standing.group.children)
+      if (covered(object.position) && !firing(object.position)) object.visible = false;
+    for (const object of this.camps.group.children)
+      if (covered(object.position)) object.visible = false;
     for (const pawn of this.arcs.pawns)
       if (pawn.visible && covered(pawn.position)) {
         pawn.visible = false;

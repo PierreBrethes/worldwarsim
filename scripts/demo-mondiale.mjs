@@ -1120,7 +1120,7 @@ if (!bare) {
     const fronts = [
       // Ashore: a gun north of Paris on a garrison towards Amiens, 78 km.
       { gun: { lon: 2.35, lat: 49.2 }, target: { lon: 2.3, lat: 49.9 }, name: 'bombarder' },
-      // At sea: a gun on the Cotentin on two escorts moored off it, 50 km.
+      // At sea: a gun on the Cotentin on six escorts moored off it, 50 km.
       { gun: { lon: -1.55, lat: 49.55 }, target: { lon: -1.6, lat: 50.0 }, name: 'bombarder-mer' },
     ];
     for (const [k, { gun, target, name }] of fronts.entries()) {

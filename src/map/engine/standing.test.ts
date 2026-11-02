@@ -308,16 +308,6 @@ describe('a pile lent to a sequence', () => {
     expect(box.max.x).toBeGreaterThan(rank.x + 1);
   });
 
-  it('says which drawn pile lends a copy: a scene nearby must not veil it (#325)', async () => {
-    const layer = await standing('landTransport');
-    const [pile] = layer.group.children;
-    expect(layer.lends(pile!)).toBe(false);
-    layer.standIn(TRUCK, new Group());
-    expect(layer.lends(pile!)).toBe(true);
-    layer.standIn(TRUCK, null);
-    expect(layer.lends(pile!)).toBe(false);
-  });
-
   it('lends a group still loading, unmeasured, and stands the copy in when it lands', async () => {
     const layer = new StandingLayer(
       frame,

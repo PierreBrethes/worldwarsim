@@ -45,7 +45,7 @@ describe('the arc of ink', () => {
     expect(arcAt(replayAt(shelled, frappe.start + volley), 'off')).toBeNull();
   });
 
-  it('is never the target’s: it fires from nowhere it can see', () => {
+  it('is not traced over a strike their side fires', () => {
     const target = { ...shelled, side: 'defender' as const, bombardment: {} };
     expect(arcAt(replayAt(target, frappe.start + volley / 2), 'full')).toBeNull();
   });
