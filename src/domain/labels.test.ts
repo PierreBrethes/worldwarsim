@@ -33,8 +33,6 @@ const mineArc = (override: Partial<Extract<ArcView, { state: 'mine' }>>): ArcVie
   from: [0, 0],
   to: [1, 1],
   route: directRoute([0, 0], [1, 1], 'land', 10),
-  originCountry: 'United Kingdom',
-  destinationCountry: 'Italy',
   originLabel: 'Royaume-Uni',
   destinationLabel: 'Italie',
   type: 'attack',

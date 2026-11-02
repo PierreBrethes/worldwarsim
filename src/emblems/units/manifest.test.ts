@@ -132,8 +132,6 @@ describe('movementRoles', () => {
     from: [0, 0],
     to: [10, 10],
     route: directRoute([0, 0], [1, 1], 'land', 10),
-    originCountry: 'France',
-    destinationCountry: 'Chad',
     originLabel: 'France',
     destinationLabel: 'Tchad',
     type: 'attack',

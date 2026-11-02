@@ -7,6 +7,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { journalUrl, push, reportUrl, telegraphUrl, type PushType } from '../src/domain/push';
 import { DETECTION_RANGE_KM, nominalStrength } from './constants';
 import { notifyPlayer } from './notifications';
+import { accountOf } from './seats';
 import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
@@ -180,6 +181,16 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+/** Les appareils du compte, lus dans la table. */
+const devicesOf = (t: ReturnType<typeof boot>, token: string) =>
+  t.run(async (ctx) => {
+    const account = await accountOf(ctx, token);
+    return ctx.db
+      .query('pushSubscriptions')
+      .withIndex('byAccount', (q) => q.eq('accountId', account!._id))
+      .collect();
+  });
+
 describe('les abonnements', () => {
   it('rattachent un appareil au compte, avec un libellé lisible', async () => {
     const t = boot();
@@ -198,7 +209,7 @@ describe('les abonnements', () => {
         endpoint: 'https://fcm.googleapis.com/b',
       }),
     ).toBe(false);
-    expect(await t.query(api.notifications.devices, { token: seat.token })).toMatchObject([
+    expect(await devicesOf(t, seat.token)).toMatchObject([
       { endpoint: 'https://fcm.googleapis.com/a', deviceLabel: 'Chrome sur Android' },
     ]);
   });
@@ -676,7 +687,7 @@ describe('le vidage', () => {
     await enqueue(t, seat, 'attack');
     await advance(t, MINUTE);
 
-    const [device] = await t.query(api.notifications.devices, { token: seat.token });
+    const [device] = await devicesOf(t, seat.token);
     expect(device!.lastSentAt).not.toBeNull();
     expect(device!.lastSentAt!).toBeGreaterThanOrEqual(NOON + 2 * MINUTE);
   });
@@ -693,7 +704,7 @@ describe('le vidage', () => {
     ]) {
       await expect(subscribe(t, seat, endpoint)).rejects.toThrow('PUSH_ENDPOINT_INVALID');
     }
-    expect(await t.query(api.notifications.devices, { token: seat.token })).toEqual([]);
+    expect(await devicesOf(t, seat.token)).toEqual([]);
   });
 
   it('ne garde que les dix derniers appareils d’un compte', async () => {
@@ -703,7 +714,7 @@ describe('le vidage', () => {
       vi.setSystemTime(NOON + rank * MINUTE);
       await subscribe(t, seat, `https://fcm.googleapis.com/${rank}`);
     }
-    const kept = await t.query(api.notifications.devices, { token: seat.token });
+    const kept = await devicesOf(t, seat.token);
     expect(kept.map((device) => device.endpoint).sort()).toEqual(
       Array.from({ length: 10 }, (_, rank) => `https://fcm.googleapis.com/${rank + 2}`).sort(),
     );
