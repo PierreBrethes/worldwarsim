@@ -1180,7 +1180,8 @@ export const liaisonsScene = internalMutation({
  * **La scène des métiers** (#371), pour la démo : quatre avant-postes français entre Arlon et
  * Sarrebruck. À Arlon un point de niveau 1, dont l'élévation offre Magasin, Guet et Fort ; à
  * Luxembourg un point d'avant la refonte, généraliste au niveau 2, qui choisit gratuitement ; à
- * Trèves un Magasin plein au-delà de la capacité simple, en chantier pour devenir Guet ; à
+ * Trèves un Magasin plein au-delà de la capacité simple, en file pour devenir Guet (en chantier
+ * dès que la file le fait partir) ; à
  * Sarrebruck un Guet, au rayon entier. L'acier est remis à 1 000 pour que tout se paie.
  *
  * `npx convex run dev:specialtiesScene '{"playerId":"…"}'`
@@ -1213,17 +1214,17 @@ export const specialtiesScene = internalMutation({
     await plant(6.13, 49.61, 'LUX', 2);
     const changing = await plant(6.64, 49.75, 'DEU', 2, {
       specialty: 'store',
-      changingTo: 'lookout',
       depot: { ammunition: 700, oil: 300, coal: 200 },
     });
     await plant(7.0, 49.23, 'DEU', 2, { specialty: 'lookout' });
-    const minutes = 130;
-    const finishesAt = now + minutes * 60_000;
+    /** Mis en file comme le ferait `respecializeOutpost`, au dernier rang et sans date : c'est la
+     *  file qui le fait partir à son tour (`resume`), à la durée de `worksMinutes`, et qui pose
+     *  `changingTo` au départ. Derrière un chantier en cours (`--chantiers`), il attend. */
     const queue = await ctx.db
       .query('constructions')
       .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
       .collect();
-    const constructionId = await ctx.db.insert('constructions', {
+    await ctx.db.insert('constructions', {
       playerId,
       building: 'outpost',
       outpostId: changing,
@@ -1232,10 +1233,9 @@ export const specialtiesScene = internalMutation({
       regionId: '',
       level: 2,
       rank: queue.reduce((top, entry) => Math.max(top, entry.rank + 1), 0),
-      finishesAt,
-      minutes,
+      finishesAt: null,
     });
-    await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, { constructionId });
+    await ctx.runMutation(internal.constructions.resume, { playerId });
     await settle(ctx, playerId, now);
     for (const row of (
       await ctx.db

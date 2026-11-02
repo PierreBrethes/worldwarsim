@@ -8,6 +8,12 @@ import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import { api } from './_generated/api';
 import { outpostReachKm } from './constants';
 import { liaisonsOf } from '../src/domain/outposts';
+import { worksMinutes } from '../src/domain/level-speed';
+import { levelOf, playerBuildings } from './buildingReads';
+import type { Id } from './_generated/dataModel';
+
+const buildingsOf = (t: ReturnType<typeof convexTest>, playerId: Id<'players'>) =>
+  t.run(async (ctx) => playerBuildings(ctx, playerId));
 
 describe('dev.reset', () => {
   it('empties every game table, however many documents, and cancels pending jobs', async () => {
@@ -237,7 +243,34 @@ describe('dev.specialtiesScene', () => {
       { level: 2, specialty: 'store', changingTo: 'lookout', depotCapacity: 800 },
       { level: 2, specialty: 'lookout', changingTo: null, depotCapacity: 800 },
     ]);
-    expect(me.construction).toMatchObject({ specialty: 'lookout', respecialize: true });
+    expect(me.construction).toMatchObject({
+      specialty: 'lookout',
+      respecialize: true,
+      minutes: worksMinutes('outpost', 2, levelOf(await buildingsOf(t, playerId), 'hq')),
+    });
+  });
+
+  /** Avec un chantier déjà en cours (`--chantiers`), le changement attend son tour : un seul
+   *  chantier à la fois, et il agit encore en Magasin tant qu'il n'est pas parti. */
+  it('queues the change behind a running works rather than running two', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.run(async (ctx) => {
+      await ctx.db.insert('constructions', {
+        playerId,
+        building: 'farm',
+        regionId: 'FRA-5312',
+        level: 1,
+        rank: 0,
+        finishesAt: Date.now() + 3_600_000,
+        point: { lon: 5.9, lat: 46.7 },
+      });
+    });
+    await t.mutation(internal.dev.specialtiesScene, { playerId });
+
+    const { me } = await t.query(api.view.playerView, seat);
+    expect(me.construction).toMatchObject({ key: 'farm' });
+    expect(me.constructionQueue).toMatchObject([{ specialty: 'lookout', respecialize: true }]);
+    expect(me.outposts[2]).toMatchObject({ specialty: 'store', changingTo: null });
   });
 });
 
