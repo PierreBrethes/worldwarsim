@@ -28,6 +28,7 @@ const viewOf = (troops: ReadonlyArray<TroopView>, mode = 'mondiale') =>
     mode,
     loadedAt: 0,
     arcs: [],
+    surveyedInstallations: [],
     me: {
       defeated: false,
       slots: { total: 2, used: 0 },
@@ -41,45 +42,55 @@ const column = {
   myRegionIds: new Set(),
   myOutpostIds: new Set(),
 } as unknown as Column;
-const liaison = { kind: 'liaison', ends: ['kassel', 'essen'], name: 'Essen – Hesse' } as const;
+/** Un point sous le trait d'une liaison tracée : la carte y joint la liaison (#376). */
+const liaison = {
+  kind: 'point',
+  lon: 8.25,
+  lat: 51.4,
+  regionId: 'DEU-sauerland',
+  ground: 'land',
+  country: 'DEU',
+  name: 'Sauerland',
+  coastal: false,
+  liaison: { ends: ['kassel', 'essen'], name: 'Essen – Hesse' },
+} as const;
 const origin = { kind: 'outpost', outpostId: 'essen' } as const;
 
 /** **Lâcher une troupe sur une liaison tracée, c'est lancer la ronde** (#376). */
 describe('the patrol gesture', () => {
-  it('offers the patrol on a drawn liaison, the order a drop gives', () => {
+  it('adds the patrol to the point’s fan, first, the march kept beside it', () => {
     const rose = compassOf(liaison, viewOf([troop('t', 'infantry')]), column, origin, 0, ['t']);
-    const reading = dropReadingOf(rose);
-    expect(reading).toMatchObject({
+    expect(rose?.actions.map((action) => action.key)).toEqual(['patrol', 'aim']);
+    expect(dropReadingOf(rose)).toMatchObject({
       kind: 'orders',
-      verbs: [{ key: 'patrol', troopId: 't', ends: ['kassel', 'essen'] }],
+      verbs: [{ key: 'patrol', troopId: 't', ends: ['kassel', 'essen'] }, { key: 'aim' }],
     });
   });
 
-  it('says the refusal before the gesture: two troops in hand, a transport, no slot', () => {
+  it('says the refusal beside the march: two troops in hand, a transport, no slot', () => {
     const two = viewOf([troop('t', 'infantry'), troop('u', 'armor')]);
-    expect(dropReadingOf(compassOf(liaison, two, column, origin, 0, ['t', 'u']))).toEqual({
-      kind: 'refused',
-      reason: fr.errors.PATROL_ONE_TROOP(),
-    });
+    const pair = compassOf(liaison, two, column, origin, 0, ['t', 'u']);
+    expect(pair?.actions.map((action) => action.key)).toEqual(['aim']);
+    expect(pair?.refusal).toBe(fr.errors.PATROL_ONE_TROOP());
     const truck = viewOf([troop('t', 'landTransport')]);
-    expect(dropReadingOf(compassOf(liaison, truck, column, origin, 0, ['t']))).toMatchObject({
-      kind: 'refused',
-    });
+    expect(compassOf(liaison, truck, column, origin, 0, ['t'])?.refusal).toBe(
+      fr.errors.PATROL_LAND_COMBAT_ONLY(),
+    );
     const full = { ...viewOf([troop('t', 'infantry')]) };
     const busy = { ...full, me: { ...full.me, slots: { total: 2, used: 2 } } } as PlayerView;
-    expect(dropReadingOf(compassOf(liaison, busy, column, origin, 0, ['t']))).toEqual({
-      kind: 'refused',
-      reason: fr.errors.MOVEMENT_IN_FLIGHT({ maximum: 2 }),
-    });
+    expect(compassOf(liaison, busy, column, origin, 0, ['t'])?.refusal).toBe(
+      fr.errors.MOVEMENT_IN_FLIGHT({ maximum: 2 }),
+    );
   });
 
   it('shows the liaisons for a combat troop in hand, never in Blitz nor for a transport', () => {
     expect(holdsPatrolTroop(viewOf([troop('t', 'artillery')]), ['t'])).toBe(true);
     expect(holdsPatrolTroop(viewOf([troop('t', 'cargo')]), ['t'])).toBe(false);
     expect(holdsPatrolTroop(viewOf([troop('t', 'infantry')], 'blitz'), ['t'])).toBe(false);
-    expect(
-      compassOf(liaison, viewOf([troop('t', 'infantry')], 'blitz'), column, origin, 0, ['t']),
-    ).toBeNull();
+    const blitz = compassOf(liaison, viewOf([troop('t', 'infantry')], 'blitz'), column, origin, 0, [
+      't',
+    ]);
+    expect(blitz?.actions.map((action) => action.key)).not.toContain('patrol');
   });
 
   it('lists on the sheet the liaisons of its outpost by the other end, or its patrol', () => {

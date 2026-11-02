@@ -679,14 +679,15 @@ export function WorldMap({
   // a map drifting under the pointer is aiming twice.
   /** La dernière visée qui a ouvert la rose : relue quand la côte arrive (#224). */
   const lastAim = useRef<{ target: CompassTarget; clientX: number; clientY: number } | null>(null);
-  /** **La liaison sous la main** (#376) : seule une troupe de ronde en main la vise. */
-  const liaisonTarget = useCallback(
-    (clientX: number, clientY: number): CompassTarget | null => {
-      if (patrolHand === null) return null;
+  /** **La liaison sous la main** (#376), jointe au point visé : seule une troupe de ronde en
+   *  main la vise, et la ronde s'ajoute à ce que le point offre. */
+  const withLiaison = useCallback(
+    (target: CompassTarget | null, clientX: number, clientY: number): CompassTarget | null => {
+      if (patrolHand === null || target?.kind !== 'point') return target;
       const keys = engine.current?.liaisonAt(clientX, clientY) ?? null;
-      if (keys === null) return null;
+      if (keys === null) return target;
       const ends = [keys[0].replace(/^outpost:/, ''), keys[1].replace(/^outpost:/, '')] as const;
-      return { kind: 'liaison', ends, name: patrolHand(ends) };
+      return { ...target, liaison: { ends, name: patrolHand(ends) } };
     },
     [patrolHand],
   );
@@ -822,8 +823,7 @@ export function WorldMap({
        * because a foundation still needs one; the fan sorts out which type takes which.
        */
       if (aiming) {
-        const aimed =
-          liaisonTarget(clientX, clientY) ??
+        const aimed = withLiaison(
           pointTarget(
             country,
             region,
@@ -832,7 +832,10 @@ export function WorldMap({
             point === null ? 'sea' : groundAt(point),
             point !== null && coastPendingAt(point),
             point === null || walkableAt(point),
-          );
+          ),
+          clientX,
+          clientY,
+        );
         if (aimed === null) {
           setRose(null);
           return;
@@ -864,7 +867,7 @@ export function WorldMap({
     groundAt,
     coastPendingAt,
     walkableAt,
-    liaisonTarget,
+    withLiaison,
   ]);
 
   // The hint fires on the first orientation drag, never on arrival: shown when the board
@@ -1140,19 +1143,22 @@ export function WorldMap({
       const aimed =
         label !== undefined
           ? labelTarget(label, clientX, clientY)
-          : (liaisonTarget(clientX, clientY) ??
-            (() => {
+          : (() => {
               const point = readyEngine.pointAt(clientX, clientY);
-              return pointTarget(
-                readyEngine.countryAtPoint(clientX, clientY),
-                readyEngine.regionAtPoint(clientX, clientY),
-                point,
-                point !== null && coastAt(point),
-                point === null ? 'sea' : groundAt(point),
-                point !== null && coastPendingAt(point),
-                point === null || walkableAt(point),
+              return withLiaison(
+                pointTarget(
+                  readyEngine.countryAtPoint(clientX, clientY),
+                  readyEngine.regionAtPoint(clientX, clientY),
+                  point,
+                  point !== null && coastAt(point),
+                  point === null ? 'sea' : groundAt(point),
+                  point !== null && coastPendingAt(point),
+                  point === null || walkableAt(point),
+                ),
+                clientX,
+                clientY,
               );
-            })());
+            })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
       tell(hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null));
     };
@@ -1174,7 +1180,7 @@ export function WorldMap({
     chosenOf,
     onDropRefused,
     onCarryEnd,
-    liaisonTarget,
+    withLiaison,
   ]);
 
   useEffect(() => {

@@ -283,14 +283,12 @@ export function build(
      * **Au repos, ce qui appartient à l'autre ne se fait rien.** Une installation relevée et une
      * caisse relevée sont des cibles de la visée et d'elle seule : sans colonne armée il n'y a
      * pas d'ordre à donner là, et le clic droit reste inerte comme sur un pays (décision du
-     * 31/08). La lecture, elle, se fait au clic gauche — la popin lit, la carte agit. Une liaison
-     * ne se vise que troupe en main (#376).
+     * 31/08). La lecture, elle, se fait au clic gauche — la popin lit, la carte agit.
      */
     case 'installation':
     case 'loot':
     case 'camp':
     case 'track':
-    case 'liaison':
       return { kicker: '', name: '', actions: [], refusal: null };
     /**
      * **L'objectif est la seule cible qui parle au repos**, et c'est la conséquence de sa

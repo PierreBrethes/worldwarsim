@@ -184,15 +184,9 @@ export type CompassTarget =
       readonly coastPending?: boolean;
       /** Une route à pied y aboutit-elle (`isWalkableCell`) ? Absent, oui (#224). */
       readonly walkable?: boolean;
-    }
-  /**
-   * **Une liaison tracée entre deux de mes avant-postes** (#376), visée troupe en main : le trait
-   * que la carte dessine (`drawnLiaisonsOf`). Une seule branche y mène, la ronde.
-   */
-  | {
-      readonly kind: 'liaison';
-      readonly ends: readonly [string, string];
-      readonly name: string;
+      /** **La liaison tracée sous ce point** (#376), troupe de ronde en main : la ronde s'ajoute
+       *  à l'éventail du point, qui garde sa marche. */
+      readonly liaison?: { readonly ends: readonly [string, string]; readonly name: string };
     }
   | {
       /**
@@ -683,7 +677,11 @@ function aim(
   now: number,
 ): Compass | null {
   if (target.kind === 'installation') return plunderFan(target, view, column);
-  if (target.kind === 'liaison') return patrolFan(target, view, heldTroopIds ?? []);
+  if (target.kind === 'point' && target.liaison !== undefined) {
+    const { liaison, ...point } = target;
+    const fan = aim(point, view, column, freeCapacity, origin, heldTroopIds, now);
+    return withPatrol(fan, liaison, view, heldTroopIds ?? []);
+  }
   if ((target.kind === 'camp' || target.kind === 'track') && bombardsWith(column.roles, view.mode))
     return bombardFan(target, view, column, origin, heldTroopIds, now);
   if (target.kind === 'loot') return collectFan(target, column, freeCapacity);
@@ -859,32 +857,32 @@ function aim(
   ]);
 }
 
-/** **La rose d'une liaison** (#376) : la ronde, ou son refus ; rien en Blitz. */
-function patrolFan(
-  target: Extract<CompassTarget, { kind: 'liaison' }>,
+/** **La ronde, en tête de l'éventail du point** (#376) : lâchée sur le trait, la troupe tourne ;
+ *  la marche reste à côté. Refusée, son motif se dit près de la marche. Rien en Blitz. */
+function withPatrol(
+  fan: Compass | null,
+  liaison: NonNullable<Extract<CompassTarget, { kind: 'point' }>['liaison']>,
   view: PlayerView,
   heldTroopIds: ReadonlyArray<string>,
 ): Compass | null {
-  if (view.mode === 'blitz') return null;
-  const refusal = patrolRefusalIn(view, heldTroopIds, target.ends);
+  if (view.mode === 'blitz') return fan;
+  const refusal = patrolRefusalIn(view, heldTroopIds, liaison.ends);
   const troopId = heldTroopIds[0];
-  return {
-    kicker: fr.compass.liaison,
-    name: target.name,
-    actions:
-      refusal !== null || troopId === undefined
-        ? []
-        : [
-            {
-              key: 'patrol',
-              pictogram: 'pennant',
-              label: fr.compass.patrol,
-              cost: null,
-              consequence: fr.compass.patrolConsequence,
-              troopId,
-              ends: target.ends,
-            },
-          ],
-    refusal,
-  };
+  const patrol: ReadonlyArray<CompassAction> =
+    refusal !== null || troopId === undefined
+      ? []
+      : [
+          {
+            key: 'patrol',
+            pictogram: 'pennant',
+            label: fr.compass.patrol,
+            cost: null,
+            consequence: fr.compass.patrolConsequence,
+            troopId,
+            ends: liaison.ends,
+          },
+        ];
+  if (fan === null)
+    return { kicker: fr.compass.liaison, name: liaison.name, actions: patrol, refusal };
+  return { ...fan, actions: [...patrol, ...fan.actions], refusal: fan.refusal ?? refusal };
 }
