@@ -317,7 +317,14 @@ describe('a column crossing a watch line', () => {
   const sampleAt = (index: number) => (10 * HOUR * index) / INTERCEPTION_SAMPLES;
 
   it('is caught at the first sample past the line, where the line stands', () => {
-    const crossing = lineCrossingOf(march, [[5.1, -1], [5.1, 1]], 0);
+    const crossing = lineCrossingOf(
+      march,
+      [
+        [5.1, -1],
+        [5.1, 1],
+      ],
+      0,
+    );
     /** 24 samples a degree: 5.1° falls between samples 122 and 123. */
     expect(crossing?.at).toBe(sampleAt(123));
     expect(crossing?.point[0]).toBeCloseTo(5.1, 9);
@@ -325,14 +332,59 @@ describe('a column crossing a watch line', () => {
   });
 
   it('is not caught past either end of the line, nor by a line it never reaches', () => {
-    expect(lineCrossingOf(march, [[5.1, 0.5], [5.1, 2]], 0)).toBeNull();
-    expect(lineCrossingOf(march, [[12, -1], [12, 1]], 0)).toBeNull();
-    expect(lineCrossingOf(march, [[0, 1], [10, 1]], 0)).toBeNull();
+    expect(
+      lineCrossingOf(
+        march,
+        [
+          [5.1, 0.5],
+          [5.1, 2],
+        ],
+        0,
+      ),
+    ).toBeNull();
+    expect(
+      lineCrossingOf(
+        march,
+        [
+          [12, -1],
+          [12, 1],
+        ],
+        0,
+      ),
+    ).toBeNull();
+    expect(
+      lineCrossingOf(
+        march,
+        [
+          [0, 1],
+          [10, 1],
+        ],
+        0,
+      ),
+    ).toBeNull();
   });
 
   it('keeps its hour when read again before it, and forgets a crossing already past', () => {
-    expect(lineCrossingOf(march, [[5.1, -1], [5.1, 1]], sampleAt(122) + 1)?.at).toBe(sampleAt(123));
-    expect(lineCrossingOf(march, [[5.1, -1], [5.1, 1]], sampleAt(123) + 1)).toBeNull();
+    expect(
+      lineCrossingOf(
+        march,
+        [
+          [5.1, -1],
+          [5.1, 1],
+        ],
+        sampleAt(122) + 1,
+      )?.at,
+    ).toBe(sampleAt(123));
+    expect(
+      lineCrossingOf(
+        march,
+        [
+          [5.1, -1],
+          [5.1, 1],
+        ],
+        sampleAt(123) + 1,
+      ),
+    ).toBeNull();
   });
 
   it('answers only the first crossing still ahead', () => {
@@ -346,7 +398,10 @@ describe('a column crossing a watch line', () => {
       departedAt: 0,
       arrivesAt: 20 * HOUR,
     };
-    const line: [LonLat, LonLat] = [[5.1, -1], [5.1, 1]];
+    const line: [LonLat, LonLat] = [
+      [5.1, -1],
+      [5.1, 1],
+    ];
     const first = lineCrossingOf(outAndBack, line, 0)!;
     const second = lineCrossingOf(outAndBack, line, first.at + 1)!;
     expect(first.at).toBeLessThan(10 * HOUR);
@@ -356,7 +411,7 @@ describe('a column crossing a watch line', () => {
 
   it('answers what a walk of every sample answers, on random scenes', () => {
     let seed = 7;
-    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     let caught = 0;
     for (let scene = 0; scene < 200; scene += 1) {
       const force: MarchingForce = {
