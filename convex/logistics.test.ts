@@ -1245,6 +1245,93 @@ describe('a Magasin resupplying the column that crosses it (ADR 0037 §4)', () =
     expect(await resupplied(t)).toEqual([]);
   });
 
+  it('files nothing for a Magasin still acting that a nearer one relieved on the way', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const far = await plant(t, seat, [26.9, PLOIESTI[1]], 2);
+    await t.run(async (ctx) =>
+      ctx.db.patch(far, { specialty: 'store', depot: { ammunition: 400, oil: 400, coal: 0 } }),
+    );
+    const { rifles } = await emptyColumn(t, seat);
+    const arrivesAt = await marchThrough(t, seat, [rifles]);
+    const near = await plant(t, seat, [26, PLOIESTI[1]], 3);
+    await t.run(async (ctx) =>
+      ctx.db.patch(near, { specialty: 'store', depot: { ammunition: 400, oil: 400, coal: 0 } }),
+    );
+
+    await arrive(t, arrivesAt);
+
+    expect((await get(t, rifles))!.rounds).toBe(3);
+    expect((await depotOf(t, far))?.ammunition).toBe(400);
+    expect((await resupplied(t)).map((notice) => notice.outcome)).toEqual(['served']);
+  });
+
+  it('resupplies a column whose loot collection the arrival of another resolved', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await magasin(t, seat);
+    const first = await emptyColumn(t, seat);
+    const second = await emptyColumn(t, seat);
+    const arrivesAt = await marchThrough(t, seat, [first.rifles]);
+    await marchThrough(t, seat, [second.rifles]);
+    const [mine, them] = [await playerOf(t, seat), await playerOf(t, guest)];
+    await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(mine))!.seasonId;
+      const zero = { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 };
+      const engagementId = await ctx.db.insert('engagements', {
+        seasonId,
+        attackerId: mine,
+        defenderId: them,
+        cause: 'arrival',
+        point: NORTH,
+        hostCountry: 'MDA',
+        at: Date.now(),
+        winner: 'attacker',
+        outpostId: null,
+        disabledUntil: null,
+        troops: [],
+      });
+      const recoveryId = await ctx.db.insert('lootRecoveries', {
+        seasonId,
+        engagementId,
+        dispossessedPlayerId: them,
+        recoveringPlayerId: mine,
+        point: NORTH,
+        at: Date.now(),
+        recovered: zero,
+        remainder: zero,
+      });
+      const crateId = await ctx.db.insert('lootCrates', {
+        seasonId,
+        recoveryId,
+        point: NORTH,
+        appearedAt: Date.now(),
+        expiresAt: Date.now() + 400 * 3_600_000,
+        loot: zero,
+      });
+      const sightingId = await ctx.db.insert('lootCrateSightings', {
+        seasonId,
+        playerId: mine,
+        crateId,
+        point: NORTH,
+        loot: zero,
+        seenAt: Date.now(),
+        present: true,
+        current: true,
+      });
+      for (const movement of await ctx.db.query('movements').collect())
+        await ctx.db.patch(movement._id, {
+          arrivesAt,
+          lootCollection: { sightingId, crateId, orderedAt: Date.now() },
+        });
+    });
+
+    await arrive(t, arrivesAt);
+
+    expect((await get(t, first.rifles))!.rounds).toBe(3);
+    expect((await get(t, second.rifles))!.rounds).toBe(3);
+  });
+
   it('announces the steps before the order, the route paid first', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

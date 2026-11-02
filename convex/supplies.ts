@@ -244,9 +244,10 @@ export async function resupplyInPassing(
   for (const [troopId, refill] of takes.at(-1)?.supplies ?? [])
     await ctx.db.patch(troopId as Id<'troops'>, refill);
 
-  const served = new Set<string>(takes.map((take) => take.id));
+  /** Un Magasin encore agissant qui n'a pas servi (un plus proche l'a relayé) ne dit rien. */
+  const acting = new Set<string>(stores.map((store) => store.id));
   for (const id of movement.stores ?? []) {
-    if (served.has(id)) continue;
+    if (acting.has(id)) continue;
     const outpost = await ctx.db.get(id);
     /** Démantelé ou détruit, il a déjà sa dépêche. */
     if (outpost === null) continue;

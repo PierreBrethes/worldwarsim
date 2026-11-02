@@ -12,6 +12,7 @@ import { pointOf, troopsCarriedBy } from './movement/forces';
 import { aimOf, march, type MarchOrigin } from './movement/orders';
 import { restHold } from './movement/rest';
 import { requirePlayable, seasonStillPlays } from './seats';
+import { resupplyInPassing } from './supplies';
 import { surveyAlongRoute } from './surveys';
 import { hostAtPoint } from './routes';
 
@@ -124,6 +125,9 @@ async function resolveOne(
   const troops = (await troopsCarriedBy(ctx, current)).filter(
     (troop) => troop.playerId === current.playerId && troop.seasonId === current.seasonId,
   );
+  /** Chaque colonne résolue sur la caisse, celle qui arrive comme celles qu'elle entraîne, reprend
+   *  ce que ses Magasins lui versent avant que le relevé ne parle (ADR 0037 §4). */
+  await resupplyInPassing(ctx, current, now);
   await surveyAlongRoute(ctx, current, now);
   if (troops.length === 0) {
     await forgetMovement(ctx, current._id);
@@ -215,7 +219,7 @@ export async function resolveDueLootCollectionMissions(
   for (const movement of await dueLootCollectionMovements(ctx, seasonId, crateId, at, inclusive)) {
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
-      await ctx.db.patch(movement._id, { arrivesAt: held });
+      await ctx.db.patch(movement._id, { arrivesAt: held, heldAt: now });
       await ctx.scheduler.runAt(held, internal.movements.arrive, { movementId: movement._id });
       await ctx.db.insert('notices', {
         playerId: movement.playerId,

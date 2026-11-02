@@ -1025,6 +1025,14 @@ export const arrive = internalMutation({
       return;
     }
 
+    /** **Une collecte de caisse** résout toutes les colonnes dues sur la caisse, et chacune y
+     *  reprend son passage au Magasin (`resolveOne`). */
+    if (movement.lootCollection !== undefined) {
+      await resolveLootCollectionArrivals(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now);
+      return;
+    }
+
     /** **Ce que la route a croisé avant d'arriver**, relu à l'arrivée : la colonne se bat avec ce
      *  qu'elle a repris au Magasin (ADR 0037 §4). */
     await resupplyInPassing(ctx, movement, now);
@@ -1039,12 +1047,6 @@ export const arrive = internalMutation({
     if (movement.capture !== undefined) {
       await surveyAlongRoute(ctx, movement, now);
       await arriveForCapture(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
-      return;
-    }
-
-    if (movement.lootCollection !== undefined) {
-      await resolveLootCollectionArrivals(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now);
       return;
     }
