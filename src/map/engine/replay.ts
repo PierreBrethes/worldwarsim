@@ -86,17 +86,19 @@ function replayLayout(count: number, side: 'mine' | 'theirs'): Array<[number, nu
 }
 
 /**
- * **En mer, deux lignes de file, par le travers** (#324, storyboard `commun/combat.js:185-187`) :
- * mes navires à gauche cap vers l'œil, les leurs à droite en sens inverse, à `SEA_GAP` d'axe à
- * axe, espacés dans leur file de `SEA_FILE` coques. `hull` : la plus longue pièce de la scène.
+ * **En mer, deux lignes de file, par le travers** (#324, storyboard `commun/combat.js:177-188`,
+ * validé le 31/10) : mes navires à gauche cap vers l'œil, les leurs à droite en sens inverse et
+ * décalés de `SEA_STAGGER`, à `SEA_GAP` d'axe à axe, espacés dans leur file de `SEA_FILE` coques.
+ * `hull` : la plus longue pièce de la scène.
  */
-const SEA_GAP = metresOnBoard(90) / REPLAY_STAGE;
+const SEA_GAP = metresOnBoard(90) / REPLAY_STAGE + 0.4 / REPLAY_STAGE;
+const SEA_STAGGER = 0.25 / REPLAY_STAGE;
 const SEA_FILE = 1.2;
 function seaLayout(count: number, side: 'mine' | 'theirs', hull: number): Array<[number, number]> {
   const sign = side === 'mine' ? -1 : 1;
   return Array.from({ length: count }, (_, k) => [
     (sign * SEA_GAP) / 2,
-    (k - (count - 1) / 2) * SEA_FILE * hull,
+    (k - (count - 1) / 2) * SEA_FILE * hull + (side === 'theirs' ? SEA_STAGGER : 0),
   ]);
 }
 
@@ -147,7 +149,7 @@ export function replayReach(
   // A ship that routs on the table sails off a hull's length.
   const sides =
     medium === 'sea'
-      ? Math.hypot(SEA_GAP / 2, ((troops - 1) * SEA_FILE * hull) / 2) + hull
+      ? Math.hypot(SEA_GAP / 2, ((troops - 1) * SEA_FILE * hull) / 2 + SEA_STAGGER) + hull
       : GAP + Math.ceil(troops / PER_COLUMN) * COLUMN + RETREAT;
   const battery = batteryOf(fire);
   return battery === null ? sides : Math.max(sides, Math.hypot(...battery) + COLUMN);

@@ -321,9 +321,10 @@ describe('an escort at sea', () => {
       const facing = ship.getObjectByName(name)!.getWorldDirection(new Vector3());
       expect(Math.cos(Math.atan2(facing.x, facing.z) - aim), name).toBeCloseTo(1);
     }
-    // From its rest astern, the aft turret turns a quarter, not three.
+    // From its rest astern, the aft turret turns a quarter and the stagger's angle, not three.
     const aft = ship.getObjectByName('turret_2')!.quaternion;
-    expect(aft.angleTo(new Quaternion(0, 1, 0, 0))).toBeLessThanOrEqual(Math.PI / 2 + 1e-6);
+    const stagger = Math.abs(Math.PI / 2 - Math.abs(aim));
+    expect(aft.angleTo(new Quaternion(0, 1, 0, 0))).toBeCloseTo(Math.PI / 2 + stagger);
   });
 
   it('holds a turret within 150 degrees of its rest: it does not fire through the bridge', async () => {
@@ -366,7 +367,7 @@ describe('a combat at sea', () => {
   const sea = (v: ReplayView) =>
     new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null);
 
-  it('lays the ships broadside, each side in file a hull and a fifth apart, ninety metres between the lines', () => {
+  it('lays the ships broadside, each side in file a hull and a fifth apart, ninety metres and a margin between the lines, theirs staggered', () => {
     const v = fleet(2, 2);
     const scene = sea(v);
     scene.show(replayAt(v, 0), 0, false);
@@ -375,7 +376,10 @@ describe('a combat at sea', () => {
     expect(a!.visible).toBe(true);
     expect(b!.position.x).toBeCloseTo(a!.position.x);
     expect(b!.position.z - a!.position.z).toBeCloseTo(1.2 * hull);
-    expect(c!.position.x - a!.position.x).toBeCloseTo(metresOnBoard(90) / REPLAY_STAGE);
+    expect(c!.position.x - a!.position.x).toBeCloseTo((metresOnBoard(90) + 0.4) / REPLAY_STAGE);
+    // Arrived, theirs stand a quarter of the storyboard's unit along from mine.
+    scene.show(replayAt(v, stepBounds('frappe').start), 0, false);
+    expect(c!.position.z - a!.position.z).toBeCloseTo(0.25 / REPLAY_STAGE);
     // Bow along the file, the two lines in opposite ways.
     expect(Math.cos(a!.rotation.y - c!.rotation.y)).toBeCloseTo(-1);
   });
