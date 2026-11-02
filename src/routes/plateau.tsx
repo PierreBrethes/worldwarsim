@@ -2279,12 +2279,20 @@ function BoardContent({
     for (const report of fresh) setTimeout(() => releaseDispatch(report.id), DISPATCH_HOLD_MAX_MS);
     setMapCombats((current) => [
       ...current,
-      ...fresh.map((report) => ({
-        id: report.id,
-        point: [report.point.lon, report.point.lat] as const,
-        view: null,
-        toward: homewardOf(report.point, view.arcs, report.side),
-      })),
+      ...fresh.map((report) => {
+        // My battery's place (#325), served to the shooter alone: its targets face it.
+        const from =
+          report.firedFrom === undefined
+            ? null
+            : ([report.firedFrom.lon, report.firedFrom.lat] as const);
+        return {
+          id: report.id,
+          point: [report.point.lon, report.point.lat] as const,
+          view: null,
+          toward: from ?? homewardOf(report.point, view.arcs, report.side),
+          from,
+        };
+      }),
     ]);
     for (const report of fresh)
       convex

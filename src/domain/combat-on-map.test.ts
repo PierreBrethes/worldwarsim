@@ -9,6 +9,7 @@ import {
   homewardOf,
   playsWhole,
   reportOf,
+  sceneOf,
   stampStays,
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
@@ -38,13 +39,13 @@ describe('freshCombats', () => {
     expect(freshCombats(null, [report('a')], NOW)).toEqual([]);
   });
 
-  it('plays the reports the view before did not have, a land arrival only', () => {
+  it('plays the reports the view before did not have, an arrival or a bombardment (#325)', () => {
     const fresh = freshCombats(
       new Set(['a']),
       [report('a'), report('b'), report('c', 'interception'), report('d', 'bombardment')],
       NOW,
     );
-    expect(fresh.map((each) => each.id)).toEqual(['b']);
+    expect(fresh.map((each) => each.id)).toEqual(['b', 'd']);
   });
 
   it('plays no combat older than a replay and its margin: a laptop woken an hour later', () => {
@@ -246,5 +247,26 @@ describe('reportOf at sea', () => {
       'engagement perdu',
     );
     expect(reportOf(view).title).toBe('position enlevée');
+  });
+});
+
+/** **Le bombardement sur la carte** (#325) : chez le tireur, la scène au point de la cible ne pose
+ *  que le camp d'en face — sa batterie reste sa pile —, chez la cible, ses seules pièces. */
+describe('a bombardment on the map', () => {
+  const shelled: ReplayView = {
+    ...view,
+    mine: [{ role: 'artillery', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    bombardment: { from: { lon: 4.0, lat: 49.5 } },
+  };
+  it("stands the shooter's target alone, its battery staying in its pile", () => {
+    expect(sceneOf(shelled).mine).toEqual([]);
+    expect(sceneOf(shelled).theirs).toEqual(shelled.theirs);
+    expect(sceneOf(view)).toBe(view);
+    const target = { ...shelled, side: 'defender' as const, bombardment: {} };
+    expect(sceneOf(target)).toBe(target);
+  });
+  it('stamps a hit for the shooter, shelled for the target', () => {
+    expect(reportOf(shelled).title).toBe('coup au but');
+    expect(reportOf({ ...shelled, side: 'defender', bombardment: {} }).title).toBe('pilonnés');
   });
 });

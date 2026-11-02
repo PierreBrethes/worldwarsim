@@ -211,6 +211,9 @@ const SELECTED_LIFT = 0.75;
 
 /** @a-mesurer Délai avant de redemander `/coast.json` après un échec. */
 const COAST_RETRY_MS = 3000;
+/** **How near its fired-from point my gun stands** (#325), in degrees of longitude: its pile at
+ *  that point, or a garrison at the foot of its building there. @a-mesurer */
+const BATTERY_SEARCH_DEGREES = 0.05;
 /** Half the width of a compass's km label, in CSS pixels: closer to the edge it would be cut. */
 const LABEL_ROOM_PX = 40;
 /** Under a finger, the point a held building aims at stands this far above it (#239). @a-mesurer */
@@ -934,6 +937,7 @@ export class MapEngine {
     this.combats.onSettled = (id) => this.settleCombat(id);
     this.combats.onShown = (id) => this.groundWords.shown(id);
     this.combats.onReport = (view) => this.onCombatReport?.(view);
+    this.combats.host = this.standing;
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -2808,7 +2812,20 @@ export class MapEngine {
         : medium === 'sea'
           ? troopSpan('escort')
           : ANONYMOUS_SPAN;
-    if (this.replay !== null || (!this.combats.waits(cue.id) && !this.seenWhole(point, span))) {
+    // My battery, when it fired (#325): the scene plays when either end is in the field.
+    const battery =
+      cue.from === null
+        ? null
+        : {
+            at: this.frame.projectLonLat(cue.from, COUNTRY_THICKNESS),
+            within: this.frame
+              .projectLonLat([cue.from[0] + BATTERY_SEARCH_DEGREES, cue.from[1]], COUNTRY_THICKNESS)
+              .distanceTo(this.frame.projectLonLat(cue.from, COUNTRY_THICKNESS)),
+          };
+    const seen =
+      this.seenWhole(point, span) ||
+      (battery !== null && this.seenWhole(battery.at, troopSpan('artillery')));
+    if (this.replay !== null || (!this.combats.waits(cue.id) && !seen)) {
       this.settleCombat(cue.id);
       return;
     }
@@ -2825,7 +2842,7 @@ export class MapEngine {
       yaw =
         cue.view.side === 'attacker' ? Math.atan2(away.z, -away.x) : Math.atan2(-away.z, away.x);
     }
-    this.combats.play(cue.view, this.playerNation, point, yaw, now, medium);
+    this.combats.play(cue.view, this.playerNation, point, yaw, now, medium, battery);
   }
 
   /** A combat has done showing itself: « terrain tenu » stands if no scene did, and its dispatch
@@ -3865,6 +3882,7 @@ export class MapEngine {
     );
     this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw, this.eyeFrustum);
     this.ink.animate(now, this.unitsPerPixel(distance));
+    this.combats.scaleInk(this.unitsPerPixel(distance), this.screenHeight);
     this.parachutes.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.

@@ -962,6 +962,22 @@ export class StandingLayer implements SequenceHost {
     };
   }
 
+  /** **The gun in battery nearest `at`** (#325), within `within` on the board: the group a
+   *  bombardment's copy stands in for (`BatteryShot`); `null` when none is drawn there. */
+  batteryNear(at: Vector3, within: number): string | null {
+    const now = Date.now();
+    let best: { id: string; gap: number } | null = null;
+    for (const [pileId, entry] of this.dressed)
+      for (const [k, group] of entry.pieces.groups.entries()) {
+        if (group.role !== 'artillery' || restPoseOf(group, now) === undefined) continue;
+        const id = `${pileId}/${k}`;
+        const place = this.placeOf(id);
+        const gap = place === null ? Infinity : Math.hypot(place.at.x - at.x, place.at.z - at.z);
+        if (gap <= within && (best === null || gap < best.gap)) best = { id, gap };
+      }
+    return best?.id ?? null;
+  }
+
   /** What a pile stands, as dressed here. */
   piecesOf(pileId: string): PilePieces | null {
     return this.dressed.get(pileId)?.pieces ?? null;

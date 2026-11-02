@@ -32,9 +32,8 @@ const STALE_MARGIN_MS = 30_000;
 export const FINAL_POSE_MS = STEP_MS['compte-rendu'];
 
 /** **Les combats qu'une vue apporte et que la précédente n'avait pas** — jamais à la première
- *  vue (`known` nul), jamais un combat fini depuis longtemps (un portable qui sort de veille), et
- *  seulement l'arrivée, sur terre comme en mer : l'interception et le bombardement sont d'autres
- *  lots. */
+ *  vue (`known` nul), jamais un combat fini depuis longtemps (un portable qui sort de veille) :
+ *  l'arrivée et le bombardement (#325), sur terre comme en mer ; l'interception est un autre lot. */
 export function freshCombats(
   known: ReadonlySet<string> | null,
   reports: ReadonlyArray<CombatReport>,
@@ -43,7 +42,7 @@ export function freshCombats(
   if (known === null) return [];
   return reports.filter(
     (report) =>
-      report.cause === 'arrival' &&
+      report.cause !== 'interception' &&
       !known.has(report.id) &&
       report.at >= now - REPLAY_MS - STALE_MARGIN_MS,
   );
@@ -150,6 +149,15 @@ export function afloat(view: ReplayView): ReplayView {
 }
 
 /**
+ * **Ce que la scène au point pose** (#325) : chez le tireur d'un bombardement, le camp d'en face
+ * seul — sa batterie reste sa propre pile, sa pièce relayée par une copie qui tire (ADR 0036 §5,
+ * précisée le 02/11). Ailleurs, tout le combat.
+ */
+export function sceneOf(view: ReplayView): ReplayView {
+  return view.bombardment !== undefined && view.side === 'attacker' ? { ...view, mine: [] } : view;
+}
+
+/**
  * **La mesure d'une scène de combat** (#324) : sa plus longue pièce, un char au moins — un bloc
  * ennemi se mesure en char (`ANONYMOUS_SPAN`). Ce qui la cadre, la montre de loin et la pose.
  */
@@ -164,7 +172,8 @@ export const REPORT_HOLD_MS = STEP_MS['compte-rendu'] + 6000;
 
 /**
  * **Ce que dit le tampon du compte-rendu** (#327) : l'issue vue du lecteur — en mer, un
- * engagement, qu'on attaque ou qu'on défende (#324) — et ses propres pertes
+ * engagement, qu'on attaque ou qu'on défende (#324) ; bombardé, le coup du tireur ou les pilonnés
+ * (#325) — et ses propres pertes
  * en pièces — la dépêche garde les hommes. `won` fait l'encre : rouge quand on gagne.
  */
 export function reportOf(
@@ -183,7 +192,10 @@ export function reportOf(
     ...(routed > 0 ? [words.routed(routed)] : []),
   ];
   return {
-    title: (medium === 'sea' ? words.sea : words[view.side])[view.won ? 'won' : 'lost'],
+    title:
+      view.bombardment !== undefined
+        ? words.bombardment[view.side]
+        : (medium === 'sea' ? words.sea : words[view.side])[view.won ? 'won' : 'lost'],
     losses: `${words.ours} : ${lost.length > 0 ? lost.join(', ') : words.noLoss}`,
     won: view.won,
   };

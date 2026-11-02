@@ -130,6 +130,8 @@ export type Cue =
       readonly point: LonLat;
       readonly view: ReplayView | null;
       readonly toward: LonLat | null;
+      /** **D'où ma batterie a tiré** (#325) : chez le tireur seul, d'où l'arc part. */
+      readonly from: LonLat | null;
     };
 
 const ceilingOf = (pool: Sequence['pool']): number =>

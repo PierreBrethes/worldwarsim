@@ -3434,6 +3434,8 @@ export const fr = {
       defender: { won: 'position tenue', lost: 'position perdue' },
       /** En mer (#324), on ne tient ni ne prend de position. */
       sea: { won: 'engagement gagné', lost: 'engagement perdu' },
+      /** Un bombardement (#325) : personne n'y prend ni ne tient rien. */
+      bombardment: { attacker: 'coup au but', defender: 'pilonnés' },
       ours: 'nos pièces',
       noLoss: 'aucune perte',
       destroyed: (n: number) => `${n} détruite${n > 1 ? 's' : ''}`,

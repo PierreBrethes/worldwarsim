@@ -26,6 +26,10 @@ export const GUNS: Readonly<Record<GunKind, Gun>> = {
   escort: { piece: 0.004, tube: 0.8, rock: 0, elevation: 0.14 },
 };
 
+/** **Le tir indirect lève le tube à 35°** (#325, storyboard « Bombarder »), en radians.
+ *  @a-mesurer */
+export const INDIRECT_ELEVATION = 0.61;
+
 /** **Le L3/35 n'a pas de tourelle** : son affût tourne dans ce débattement, en radians. */
 const MOUNT_ARC = (12 * Math.PI) / 180;
 /** **Une tourelle de navire ne tire pas à travers sa passerelle** (#324) : ± 150° de son repos. */
@@ -139,6 +143,8 @@ export class Guns {
     root: Object3D,
     private readonly kind: GunKind,
     private readonly limit: number | null,
+    /** Sa hausse en joue ; celle de son rôle (`GUNS`) sauf au tir indirect. */
+    private readonly elevation = GUNS[kind].elevation,
   ) {
     this.pairs = pairsOf(root, kind);
     for (const { turret, tube } of this.pairs) {
@@ -160,7 +166,8 @@ export class Guns {
    * du tube `j`, 0..1.
    */
   point(aim: number, ready: number, turretReady: number, recoilOf: (j: number) => number): void {
-    const { elevation, tube: kick } = GUNS[this.kind];
+    const { tube: kick } = GUNS[this.kind];
+    const { elevation } = this;
     this.pairs.forEach(({ turret, tube }, j) => {
       if (turret) {
         const rest = this.turrets.get(turret)!;

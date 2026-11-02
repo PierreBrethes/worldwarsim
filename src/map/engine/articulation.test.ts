@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { Group } from 'three';
 import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, replayAt, stepBounds } from '@/domain/replay';
-import { GUNS, Guns, readyOf, recoilAt, turretLimitOf, wrap } from './articulation';
+import {
+  GUNS,
+  Guns,
+  INDIRECT_ELEVATION,
+  readyOf,
+  recoilAt,
+  turretLimitOf,
+  wrap,
+} from './articulation';
 
 /** A tank as its articulated copy keeps it: the turret on the hull, the gun in the turret. */
 function tank(gunName = 'gun'): { root: Group; turret: Group; gun: Group } {
@@ -96,6 +104,18 @@ describe('the barrel', () => {
     expect(GUNS.artillery).toMatchObject({ tube: 0.35, elevation: 0.1, piece: 0.08, rock: -3 });
     expect(barrel.rotation.x).toBeCloseTo(-0.1);
     expect(barrel.position.z).toBeCloseTo(-0.35 * Math.cos(0.1));
+  });
+
+  it('raises a gun in battery to 35° and draws its barrel back along it (#325)', () => {
+    const root = new Group();
+    const barrel = new Group();
+    barrel.name = 'barrel';
+    root.add(barrel);
+    new Guns(root, 'artillery', null, INDIRECT_ELEVATION).point(0, 1, 1, () => 1);
+    expect(INDIRECT_ELEVATION).toBeCloseTo(deg(35), 2);
+    expect(barrel.rotation.x).toBeCloseTo(-INDIRECT_ELEVATION);
+    expect(barrel.position.y).toBeCloseTo(-0.35 * Math.sin(INDIRECT_ELEVATION));
+    expect(barrel.position.z).toBeCloseTo(-0.35 * Math.cos(INDIRECT_ELEVATION));
   });
 
   it('does not aim the B1 bis hull 75: only `gun` moves', () => {

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { MeshStandardMaterial, Vector3, type Mesh } from 'three';
+import { Group, MeshStandardMaterial, type Object3D, Vector3, type Mesh } from 'three';
 import { FINAL_POSE_MS } from '@/domain/combat-on-map';
 import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, stepBounds } from '@/domain/replay';
@@ -7,9 +7,24 @@ import { troopSpan } from '@/domain/piece-size';
 import { CombatLayer, WAIT_MS } from './combats';
 import { ANONYMOUS_SPAN } from './figurines/figurine';
 import { REPLAY_STAGE } from './replay';
+import { INDIRECT_ELEVATION } from './articulation';
 
 const heard = vi.hoisted(() => [] as string[]);
 vi.mock('../table-sound', () => ({ playTableSound: (sound: string) => heard.push(sound) }));
+/** A gun as its articulated copy keeps it: its barrel, a muzzle at its end. */
+vi.mock('./sequences', async (original) => {
+  const { Group } = await import('three');
+  return {
+    ...(await original<typeof import('./sequences')>()),
+    articulatedOf: () => {
+      const gun = new Group();
+      const barrel = Object.assign(new Group(), { name: 'barrel' });
+      barrel.add(Object.assign(new Group(), { name: 'fx_muzzle' }));
+      gun.add(barrel);
+      return Promise.resolve(gun);
+    },
+  };
+});
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ addColorStop() {} }) });
@@ -382,5 +397,68 @@ describe('CombatLayer, at sea (#324)', () => {
     layer.play(view, 'france', at, 0, 0, 'sea');
     expect(layer.group.children).toHaveLength(0);
     expect(settled).toEqual(['carried']);
+  });
+});
+
+/** **Le bombardement sur la carte** (#325) : ma batterie reste sa pile, sa pièce relayée par une
+ *  copie qui tire, menée par l'horloge du combat ; la cible voit l'obus tomber et la gerbe. */
+describe('CombatLayer, a bombardment', () => {
+  const shelled = (side: ReplayView['side']): ReplayView => ({
+    ...combat('b'),
+    side,
+    mine:
+      side === 'attacker'
+        ? [{ role: 'artillery', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }]
+        : [{ role: 'infantry', tier: 1, troops: 2, lost: 40, routed: 0, destroyed: 1 }],
+    theirs:
+      side === 'attacker'
+        ? { troops: 2, lost: 40, routed: 0, destroyed: 1 }
+        : { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+    bombardment: side === 'attacker' ? { from: { lon: 4.0, lat: 49.5 } } : {},
+  });
+  const battery = { at: new Vector3(-5, 0, 0), within: 1 };
+
+  it("fires my gun from its own pile, raised to 35°, and gives it back at the scene's end", async () => {
+    const layer = new CombatLayer();
+    const stood: Array<string | null> = [];
+    let copy: Object3D | null = null;
+    layer.host = {
+      batteryNear: (point, within) => (point.distanceTo(battery.at) <= within ? 'p/0' : null),
+      pieceOf: () => ({ url: 'gun.glb', pose: 'emplaced', box: null }),
+      standIn: (id, standing) => {
+        stood.push(standing === null ? null : id);
+        copy = standing;
+      },
+    };
+    layer.play(shelled('attacker'), 'france', at, 0, 0, 'land', battery);
+    layer.advance(0, scale);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stood).toEqual(['p/0']);
+    new Group().add(copy!);
+    layer.advance(stepBounds('frappe').start + 10, scale);
+    expect(copy!.getObjectByName('barrel')!.rotation.x).toBeCloseTo(-INDIRECT_ELEVATION);
+    // The target's scene stands no battery: its pieces only, theirs.
+    expect(layer.flashes().length).toBeGreaterThan(0);
+    layer.advance(REPLAY_MS, scale);
+    expect(stood).toEqual(['p/0', null]);
+  });
+
+  it('shells the target from nowhere: no gun, a burst rising on its pieces', () => {
+    const layer = new CombatLayer();
+    layer.host = {
+      batteryNear: () => {
+        throw new Error('the target has no battery to find');
+      },
+      pieceOf: () => null,
+      standIn: () => {},
+    };
+    layer.play(shelled('defender'), null, at, 0, 0, 'land', null);
+    let burst = 0;
+    const { start, end } = stepBounds('frappe');
+    for (let t = start; t < end; t += 20) {
+      layer.advance(t, scale);
+      for (const flash of layer.flashes()) burst = Math.max(burst, flash.strength);
+    }
+    expect(burst).toBeGreaterThan(0.5);
   });
 });

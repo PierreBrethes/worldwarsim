@@ -119,9 +119,10 @@ export function lineCentre(
 
 /**
  * **D'où part le coup d'un bombardement** (B20, A4) : chez le tireur, la batterie à sa place, en
- * unités de la scène ; chez la cible, `unseen` — aucune batterie, le coup tombe du ciel.
+ * unités de la scène — ou, sur la carte, `afar` : sa batterie reste sa pile, et l'arc d'encre se
+ * trace hors de la scène (#325) ; chez la cible, `unseen` — aucune batterie, le coup tombe du ciel.
  */
-export type ReplayFire = { readonly battery: readonly [number, number] } | 'unseen' | null;
+export type ReplayFire = { readonly battery: readonly [number, number] } | 'afar' | 'unseen' | null;
 
 /**
  * **La batterie se pose à sa place, à l'échelle de la scène** : sa direction est vraie, sa distance
@@ -135,7 +136,33 @@ export function batteryAt([x, z]: readonly [number, number]): readonly [number, 
 }
 
 const batteryOf = (fire: ReplayFire): readonly [number, number] | null =>
-  fire !== null && fire !== 'unseen' ? fire.battery : null;
+  typeof fire === 'object' && fire !== null ? fire.battery : null;
+
+/** **La gerbe d'un obus** (#325, storyboard `commun/combat.js:88-89`) : la terre, ou l'eau d'un
+ *  navire touché, qui monte sur la pièce frappée à l'impact. `@a-mesurer` */
+const GERBE: Readonly<Record<'land' | 'sea', Plume>> = {
+  land: {
+    puffs: 9,
+    life: 1.1,
+    rise: 1.1,
+    size: [0.5, 1.8],
+    opacity: 0.6,
+    color: '#6e5a40',
+    lean: 0.15,
+  },
+  sea: {
+    puffs: 9,
+    life: 1.3,
+    rise: 2.4,
+    size: [0.4, 1.5],
+    opacity: 0.7,
+    color: '#e3eaec',
+    lean: 0.1,
+  },
+};
+/** Its burst of fire, in the scene's units, and how long it lasts. `@a-mesurer` */
+const BURST_SIZE = 0.7;
+const BURST_MS = 260;
 
 /** The half width of what both sides take, to frame it and to clear the board around it — the
  *  battery's own place included, where its pile would otherwise stand twice. */
@@ -155,7 +182,7 @@ export function replayReach(
   return battery === null ? sides : Math.max(sides, Math.hypot(...battery) + COLUMN);
 }
 
-const FIRING: Plume = {
+export const FIRING: Plume = {
   puffs: 4,
   life: 1.2,
   rise: 1.4,
@@ -165,7 +192,7 @@ const FIRING: Plume = {
 };
 
 let flashMaterial: SpriteMaterial | null = null;
-function flash(): Sprite {
+export function flash(): Sprite {
   flashMaterial ??= new SpriteMaterial({
     map: drawFlash(),
     color: '#ffd27a',
@@ -257,7 +284,7 @@ const LINGER_MS = 900;
 const LINGER_FADE_MS = 400;
 
 /** How long a muzzle flash lasts. */
-const FLASH_MS = 160;
+export const FLASH_MS = 160;
 
 /** **L'escorteur au feu** (#324, storyboard) : 70 ms entre deux tubes, l'éclair à 9 % de la coque,
  *  une fumée trois fois celle d'un char. `@a-mesurer` */
@@ -360,6 +387,9 @@ type Piece = {
   men: ReadonlyArray<Object3D>;
   /** How far its turret may turn, when it is not free to. */
   turretLimit: number | null;
+  /** **Bombardée, la gerbe qui monte sur elle** à l'impact (#325) ; `null` hors d'un
+   *  bombardement, et pour le camp qui tire. */
+  readonly gerbe: { readonly burst: Sprite; readonly dust: Smoke; salvo: number } | null;
 };
 
 /** One tube's flash and puff; `salvo`, how lively its flash is at the frame drawn, 0 to 1. */
@@ -370,7 +400,7 @@ const SQUAD_LAG_MS = 40;
 const FLASH_SIZE = 0.22;
 
 /** How much bigger a node's units are than `root`'s, by the scales between them. */
-function scaleWithin(node: Object3D, root: Object3D): number {
+export function scaleWithin(node: Object3D, root: Object3D): number {
   let scale = 1;
   for (let at: Object3D | null = node; at !== null && at !== root; at = at.parent)
     scale *= at.scale.x;
@@ -484,6 +514,7 @@ export class ReplayScene {
       guns: null,
       men: [],
       turretLimit: null,
+      gerbe: this.struck(piece.side) ? this.gerbeOf(holder) : null,
     };
     if (built.burns) {
       built.burning = new Smoke(PLUME_BY_WEAR.burning!);
@@ -591,6 +622,23 @@ export class ReplayScene {
     return built;
   }
 
+  /** **The side a bombardment strikes**: theirs, under my battery; mine, shelled from nowhere. */
+  private struck(side: 'mine' | 'theirs'): boolean {
+    return this.fire !== null && side === (this.fire === 'unseen' ? 'mine' : 'theirs');
+  }
+
+  /** A burst and its plume of earth or water, at the foot of the piece, out of its fall. */
+  private gerbeOf(holder: Group): Piece['gerbe'] {
+    const burst = flash();
+    burst.position.y = BURST_SIZE * 0.3;
+    burst.visible = false;
+    const dust = new Smoke(GERBE[this.sea ? 'sea' : 'land']);
+    dust.object.scale.setScalar(SCENE_FIGURE * (this.sea ? SEA_SMOKE : 1));
+    dust.object.visible = false;
+    holder.add(burst, dust.object);
+    return { burst, dust, salvo: 0 };
+  }
+
   /** **A ship's flashes and puffs hang at its muzzles** (#324), one per tube, sized by its hull. */
   private arm(piece: Piece, muzzles: ReadonlyArray<Object3D>): void {
     muzzles.forEach((muzzle, j) => {
@@ -607,13 +655,17 @@ export class ReplayScene {
 
   /** The most vivid muzzle flash standing now, in the world, 0 to 1 (#332); `null` in the dark. */
   brightestFlash(): { readonly at: Vector3; readonly strength: number } | null {
-    let best: { tube: Tube; salvo: number } | null = null;
+    let best: { flash: Sprite; salvo: number } | null = null;
+    // A shell's burst lights the night as a shot does (#325).
     for (const piece of this.pieces)
-      for (const tube of piece.tubes)
-        if (tube.salvo > (best?.salvo ?? 0.02)) best = { tube, salvo: tube.salvo };
+      for (const { flash, salvo } of [
+        ...piece.tubes,
+        ...(piece.gerbe ? [{ ...piece.gerbe, flash: piece.gerbe.burst }] : []),
+      ])
+        if (salvo > (best?.salvo ?? 0.02)) best = { flash, salvo };
     if (best === null) return null;
-    best.tube.flash.updateWorldMatrix(true, false);
-    return { at: best.tube.flash.getWorldPosition(new Vector3()), strength: best.salvo };
+    best.flash.updateWorldMatrix(true, false);
+    return { at: best.flash.getWorldPosition(new Vector3()), strength: best.salvo };
   }
 
   /**
@@ -670,6 +722,24 @@ export class ReplayScene {
           fires && (still || (after !== null && after >= 0 && (sinceLanded < 0 || lingering)));
         tube.firing.frame(still ? 0.4 : (after ?? 0) / 1000 + 0.03, fade);
       });
+      if (piece.gerbe !== null) {
+        // It rises as the volley lands on its side, whether or not the piece falls.
+        const hit = frame.firing !== null && frame.firing !== piece.side ? sinceLanded : Infinity;
+        const { burst, dust } = piece.gerbe;
+        const life = GERBE[this.sea ? 'sea' : 'land'].life * 1000;
+        piece.gerbe.salvo =
+          hit === Infinity
+            ? 0
+            : still
+              ? 1
+              : hit >= 0 && hit < BURST_MS
+                ? Math.sin((Math.PI * hit) / BURST_MS)
+                : 0;
+        burst.visible = piece.gerbe.salvo > 0.02;
+        burst.scale.setScalar(BURST_SIZE * piece.gerbe.salvo * (this.sea ? SEA_SMOKE : 1));
+        dust.object.visible = hit !== Infinity && (still || (hit >= 0 && hit < life));
+        if (dust.object.visible) dust.frame(still ? 0.4 : hit / 1000, still ? 1 : 1 - hit / life);
+      }
 
       const fall = state.fate === 'fallen' ? ease(state.progress) : 0;
       const retreat = state.fate === 'routed' ? ease(state.progress) : 0;

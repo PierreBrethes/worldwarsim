@@ -431,6 +431,8 @@ export type MapCombat = {
   readonly point: LonLat;
   readonly view: ReplayView | null;
   readonly toward: LonLat | null;
+  /** **D'où ma batterie a tiré** (#325) : `report.firedFrom`, que la cible ne reçoit jamais. */
+  readonly from: LonLat | null;
 };
 /** How far above a finger the drop chip stands, clear of the fingertip (#250). @a-mesurer */
 const FINGER_LIFT_PX = 56;

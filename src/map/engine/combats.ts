@@ -1,9 +1,17 @@
 import { Group, Vector3 } from 'three';
-import { afloat, COMBAT_LIMITS, combatAt, playsWhole, sceneSpan } from '@/domain/combat-on-map';
+import {
+  afloat,
+  COMBAT_LIMITS,
+  combatAt,
+  playsWhole,
+  sceneOf,
+  sceneSpan,
+} from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { replayAt } from '@/domain/replay';
+import { BatteryShot, type BatteryHost } from './bombardment';
 import { warmPieces, type Flash } from './halo';
 import { lineCentre, REPLAY_STAGE, ReplayScene, replayReach } from './replay';
 
@@ -25,6 +33,8 @@ type Played = {
   readonly since: number;
   /** The step last drawn: a held step asks one whole frame as it changes. */
   step: string | null;
+  /** **My battery firing at it** (#325), its copy and its arc: the shooter's only. */
+  readonly shot: BatteryShot | null;
   /** Its ink stamp has been asked: once, as the account begins (#327). */
   reported: boolean;
   /** It has stood at a scale above zero: the map showed it. */
@@ -56,6 +66,8 @@ export class CombatLayer {
   onReport: (view: ReplayView) => void = () => {};
   /** **The map showed this combat's scene** (#327), from the first image above the floor. */
   onShown: (id: string) => void = () => {};
+  /** **What lends my guns** to a bombardment's shot (#325): the standing piles. */
+  host: BatteryHost | null = null;
   private readonly seen = new Set<string>();
   private played: Played[] = [];
   private readonly waiting = new Map<
@@ -85,7 +97,9 @@ export class CombatLayer {
     return this.seen.has(id);
   }
 
-  /** `yaw` turns the scene on the board; `nation` is mine; `medium` is the point's (#324). */
+  /** `yaw` turns the scene on the board; `nation` is mine; `medium` is the point's (#324).
+   *  `battery`, my battery's place on the board and how near it my gun stands, when it fired at
+   *  this point (#325): read from `firedFrom` alone, the target has none. */
   play(
     told: ReplayView,
     nation: string | null,
@@ -93,11 +107,13 @@ export class CombatLayer {
     yaw: number,
     now: number,
     medium: Medium = 'land',
+    battery: { readonly at: Vector3; readonly within: number } | null = null,
   ): void {
     this.waiting.delete(told.combatId);
-    const view = medium === 'sea' ? afloat(told) : told;
+    const view = sceneOf(medium === 'sea' ? afloat(told) : told);
+    const shooting = view.bombardment !== undefined && view.side === 'attacker';
     // Nothing afloat on one side: the dispatch tells it, no scene does.
-    if (medium === 'sea' && (view.mine.length === 0 || view.theirs.troops === 0)) {
+    if (medium === 'sea' && ((!shooting && view.mine.length === 0) || view.theirs.troops === 0)) {
       this.onSettled(told.combatId);
       return;
     }
@@ -109,7 +125,7 @@ export class CombatLayer {
       nation,
       pieces,
       medium,
-      null,
+      view.bombardment === undefined ? null : shooting ? 'afar' : 'unseen',
       view.faced?.nation ?? null,
       attacker,
       span,
@@ -136,6 +152,7 @@ export class CombatLayer {
       ),
       reach: replayReach(view, null, medium),
       plays,
+      shot: shooting && battery !== null ? this.shotAt(battery, point) : null,
       since: now,
       step: null,
       reported: false,
@@ -158,6 +175,8 @@ export class CombatLayer {
         due = true;
         return false;
       }
+      // Its arc and its gun show whichever end is in the field (#325).
+      each.shot?.show(shown.frame, this.motion, each.plays);
       const scale = scaleAt(each.point, each.span);
       const object = each.scene.object;
       object.visible = scale > 0;
@@ -209,10 +228,25 @@ export class CombatLayer {
   /** **The shots that light the night** (#332): each shown scene's most vivid flash (cut
    *  motion holds the final pose, where nobody fires). */
   flashes(): Flash[] {
-    return this.played.flatMap(({ scene, reach }) => {
+    return this.played.flatMap(({ scene, reach, shot }) => {
       const lit = scene.object.visible ? scene.brightestFlash() : null;
-      return lit === null ? [] : [{ ...lit, reach: (scene.fleet ?? reach) * scene.object.scale.x }];
+      const gun = shot?.flashOf() ?? null;
+      return [
+        ...(lit === null ? [] : [{ ...lit, reach: (scene.fleet ?? reach) * scene.object.scale.x }]),
+        ...(gun === null ? [] : [gun]),
+      ];
     });
+  }
+
+  /** The pen's measures this frame, for the arcs of ink (#325). */
+  scaleInk(unitsPerPixel: number, viewHeight: number): void {
+    for (const { shot } of this.played) shot?.scaleInk(unitsPerPixel, viewHeight);
+  }
+
+  private shotAt(battery: { readonly at: Vector3; readonly within: number }, point: Vector3) {
+    const shot = new BatteryShot(battery.at, battery.within, point, this.host);
+    this.group.add(shot.object);
+    return shot;
   }
 
   /** The pieces' glow by `night`, each scene swelling with its own flash (#332). */
@@ -231,13 +265,17 @@ export class CombatLayer {
   }
 
   dispose(): void {
-    for (const each of this.played) each.scene.dispose();
+    for (const each of this.played) {
+      each.scene.dispose();
+      each.shot?.dispose();
+    }
     this.played = [];
     this.waiting.clear();
   }
 
   private end(each: Played): void {
     each.scene.dispose();
+    each.shot?.dispose();
     // A stamp up carries the dispatch with it: its lifting settles the combat.
     if (!each.reported) this.onSettled(each.view.combatId);
   }
