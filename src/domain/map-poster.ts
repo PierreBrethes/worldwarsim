@@ -223,14 +223,17 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
 }
 
 /** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile en toutes lettres, jamais l'ordre ni la nation. */
-const composition = (known: Composition, now: number): PosterLine => ({
-  kind: 'text',
-  text: known.pierced
+export const compositionText = (known: Composition, now: number): string =>
+  known.pierced
     ? fr.posters.pierced(
         stackLabel(known.stack),
         known.readAt === null ? null : asDatedClock(known.readAt, now),
       )
-    : fr.posters.unknown,
+    : fr.posters.unknown;
+
+const composition = (known: Composition, now: number): PosterLine => ({
+  kind: 'text',
+  text: compositionText(known, now),
 });
 
 function sighting(

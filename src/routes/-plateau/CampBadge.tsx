@@ -3,14 +3,15 @@ import { asDuration, asLocalTime } from '@/domain/duration';
 import type { CampView } from '@/domain/player-view';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from '@/map/engine/silhouettes';
+import { compositionText } from '@/domain/map-poster';
 import { MapCard } from './MapCard';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08), et ce cartouche-ci lit moins que
- * tous : un camp relevé n'a **structurellement** ni composition, ni effectif, ni nation (ADR 0024
- * §1, `CampView`). Ce qu'il dit est ce qu'un guetteur peut honnêtement rapporter — un milieu, une
- * heure, et ce qui de nous l'a pris — plus la phrase qui dit ce qu'on ne sait pas, une fois, pour
- * qu'un silence ne se lise pas comme un chargement.
+ * tous : un camp relevé n'a ni effectif ni nation (ADR 0024 §1, `CampView`), et sa pile seulement
+ * sous un Guet (ADR 0037 §5). Ce qu'il dit est ce qu'un guetteur peut honnêtement rapporter — un
+ * milieu, une heure, et ce qui de nous l'a pris — plus la phrase qui dit ce qu'on sait ou ne sait
+ * pas, une fois, pour qu'un silence ne se lise pas comme un chargement.
  *
  * Il ne porte aucun ordre : l'attaque se donne au clic droit sur le même mât, comme partout
  * ailleurs sur la carte.
@@ -66,7 +67,9 @@ export function CampBadge({
       </p>
 
       <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
-        {fr.camps.unknown}
+        {camp.identification.pierced
+          ? compositionText(camp.identification, Date.now())
+          : fr.camps.unknown}
       </p>
 
       <button
