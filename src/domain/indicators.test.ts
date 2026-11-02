@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MapLabel } from './labels';
 import {
+  clearOfColumns,
   CATEGORIES,
   CATEGORY_BY_TYPE,
   DEFAULT_TOGGLES,
@@ -210,5 +211,23 @@ describe('idleConstruction', () => {
 
   it('stays quiet when an order takes over', () => {
     expect(idleConstruction(construction(NOW - 1, false), NOW)).toBe(false);
+  });
+});
+
+/** **Un nom au bord ne couvre pas ma colonne** (#376) : il passe dessous, ou dessus au pied. */
+describe('a destination named at the edge, beside my column', () => {
+  const label = { left: 200, top: 380, right: 360, bottom: 450 };
+  it('keeps its place when it covers nothing', () => {
+    expect(clearOfColumns({ left: 250, top: 100, right: 380, bottom: 144 }, [label], 844)).toBe(
+      100,
+    );
+  });
+  it('steps below the label it would cover, or above it near the foot of the screen', () => {
+    expect(clearOfColumns({ left: 250, top: 380, right: 380, bottom: 424 }, [label], 844)).toBe(
+      454,
+    );
+    expect(clearOfColumns({ left: 250, top: 380, right: 380, bottom: 424 }, [label], 480)).toBe(
+      332,
+    );
   });
 });

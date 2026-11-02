@@ -1,4 +1,5 @@
 import { isCountdown, type LabelType, type MapLabel } from './labels';
+import { boxesOverlap, type ScreenBox } from './label-groups';
 
 /**
  * An off-screen entity does not vanish: it parks at the screen edge. The categories are the
@@ -255,4 +256,23 @@ export const idleConstruction = (label: MapLabel, now: number): boolean =>
 function dueOf(label: MapLabel): number | null {
   const countdown = label.lines.find(isCountdown);
   return countdown?.dueAt ?? null;
+}
+
+/**
+ * **Un nom au bord ne couvre pas ma colonne** (#376) : posé au-dessus des étiquettes, il cacherait
+ * celle de ma colonne en route et son « rappeler ». Le haut où le poser : le sien s'il ne couvre
+ * rien, sinon juste sous ce qu'il couvrait — ou juste dessus quand le pied de l'écran manque.
+ */
+export function clearOfColumns(
+  box: ScreenBox,
+  columns: ReadonlyArray<ScreenBox>,
+  height: number,
+): number {
+  const covered = columns.filter((column) => boxesOverlap(column, box, 0));
+  if (covered.length === 0) return box.top;
+  const tall = box.bottom - box.top;
+  const below = Math.max(...covered.map((column) => column.bottom)) + 4;
+  return below + tall <= height
+    ? below
+    : Math.min(...covered.map((column) => column.top)) - 4 - tall;
 }

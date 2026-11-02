@@ -9,6 +9,7 @@ import type { MapLabel } from '@/domain/labels';
 import {
   CATEGORY_BY_TYPE,
   alertMark,
+  clearOfColumns,
   cluster,
   idleConstruction,
   sideOf,
@@ -119,6 +120,34 @@ export function EdgeIndicators({
     engine.onEdges = (projections) => {
       latest.current = projections;
       const { width, height } = size.current;
+      /** Les étiquettes de mes colonnes, lues seulement quand un nom est au bord. */
+      const origin = layer.current?.getBoundingClientRect();
+      const columns =
+        origin !== undefined &&
+        projections.some((projection) => projection.atEdge && named.current.has(projection.id))
+          ? [
+              ...(layer.current?.parentElement?.querySelectorAll(
+                '.label--my-movement .label-block',
+              ) ?? []),
+            ].flatMap((node) => {
+              const box = node.getBoundingClientRect();
+              // Repliée par `degrade`, l'étiquette ne se lit pas : rien à dégager.
+              const shown = node.checkVisibility({
+                opacityProperty: true,
+                visibilityProperty: true,
+              });
+              return box.width === 0 || !shown
+                ? []
+                : [
+                    {
+                      left: box.left - origin.left,
+                      top: box.top - origin.top,
+                      right: box.right - origin.left,
+                      bottom: box.bottom - origin.top,
+                    },
+                  ];
+            })
+          : [];
       for (const projection of projections) {
         const tag = named.current.get(projection.id);
         if (tag === undefined) continue;
@@ -136,7 +165,17 @@ export function EdgeIndicators({
             : projection.edgeY > height * 0.85
               ? '-100%'
               : '-50%';
-        tag.style.transform = `translate3d(${projection.edgeX}px, ${projection.edgeY}px, 0) translate(${across}, ${down})`;
+        const pill = tag.firstElementChild?.getBoundingClientRect();
+        const wide = pill?.width ?? 0;
+        const tall = pill?.height ?? 0;
+        const left = projection.edgeX - (across === '0' ? 0 : wide);
+        const top = projection.edgeY - (down === '0' ? 0 : down === '-100%' ? tall : tall / 2);
+        const clear = clearOfColumns(
+          { left, top, right: left + wide, bottom: top + tall },
+          columns,
+          height,
+        );
+        tag.style.transform = `translate3d(${projection.edgeX}px, ${projection.edgeY + clear - top}px, 0) translate(${across}, ${down})`;
       }
       for (const sum of sums) {
         sum.x = sum.y = sum.count = 0;
