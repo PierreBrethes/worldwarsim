@@ -330,6 +330,20 @@ describe('a patrol on a liaison', () => {
     ).rejects.toThrow('ON_PATROL');
   });
 
+  it('fires no gun on patrol', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { troop } = await patrolling(t, seat, 'artillery');
+    const leg = await arriveNext(t);
+    await expect(
+      t.mutation(api.movements.bombard, {
+        ...seat,
+        troopId: troop,
+        target: { kind: 'track', movementId: leg._id },
+      }),
+    ).rejects.toThrow('ON_PATROL');
+  });
+
   it('is not offered in Blitz', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
