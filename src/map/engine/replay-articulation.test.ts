@@ -10,6 +10,7 @@ import {
   Sprite,
   Vector3,
 } from 'three';
+import { sceneSpan } from '@/domain/combat-on-map';
 import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, STEP_MS } from '@/domain/replay';
 import type { UnitRole } from '@/domain/ids';
@@ -312,7 +313,15 @@ const fleet = (mine: number, theirs: number): ReplayView => {
 describe('an escort at sea', () => {
   it('turns each turret the short way from its own rest, the aft one starting astern', async () => {
     const v = fleet(1, 1);
-    const scene = new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null);
+    const scene = new ReplayScene(
+      'france',
+      replayAt(v, 0).pieces,
+      'sea',
+      null,
+      'germany',
+      null,
+      sceneSpan(v),
+    );
     await landed();
     scene.show(replayAt(v, at('pose', 1)), 0, false);
     const [ship, foe] = scene.object.children as [Object3D, Object3D];
@@ -343,7 +352,15 @@ describe('an escort at sea', () => {
 
   it('fires each tube from its own muzzle, one after the other', async () => {
     const v = fleet(1, 1);
-    const scene = new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null);
+    const scene = new ReplayScene(
+      'france',
+      replayAt(v, 0).pieces,
+      'sea',
+      null,
+      'germany',
+      null,
+      sceneSpan(v),
+    );
     await landed();
     const ship = scene.object.children[0]!;
     const flashOn = (gun: string) => {
@@ -365,7 +382,7 @@ describe('an escort at sea', () => {
 
 describe('a combat at sea', () => {
   const sea = (v: ReplayView) =>
-    new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null);
+    new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null, sceneSpan(v));
 
   it('lays the ships broadside, each side in file a hull and a fifth apart, ninety metres and a margin between the lines, theirs staggered', () => {
     const v = fleet(2, 2);
@@ -437,7 +454,15 @@ describe('a combat at sea', () => {
 
   it('on the map, fades the attacker in over the voyage and out as the account ends', async () => {
     const v = fleet(1, 1);
-    const scene = new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', 'mine');
+    const scene = new ReplayScene(
+      'france',
+      replayAt(v, 0).pieces,
+      'sea',
+      null,
+      'germany',
+      'mine',
+      sceneSpan(v),
+    );
     await landed();
     const [mine, theirs] = scene.object.children as Object3D[];
     const shown = (t: number) => {

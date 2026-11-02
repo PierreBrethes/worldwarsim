@@ -18,7 +18,7 @@ import {
 } from 'three';
 import { sceneSpan } from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
-import { metresOnBoard, troopSpan } from '@/domain/piece-size';
+import { metresOnBoard } from '@/domain/piece-size';
 import {
   REPLAY_MS,
   STEP_MS,
@@ -412,14 +412,12 @@ export class ReplayScene {
     /** **Sur la carte** (#272), le camp qui arrive : il fait ses derniers pas au voyage, rien ne
      *  tombe du ciel, et la déroute est un demi-tour sur place (`turns` de `show`). */
     private readonly onMap: 'mine' | 'theirs' | null = null,
+    /** Its longest piece on the board, `sceneSpan` of its view: what a file of ships is spaced by. */
+    span = ANONYMOUS_SPAN,
   ) {
     const mine = pieces.filter((piece) => piece.side === 'mine').length;
     this.sea = medium === 'sea';
-    const roles = pieces.flatMap((piece) => {
-      const role = piece.side === 'mine' ? piece.role : piece.seen?.role;
-      return role === undefined ? [] : [role];
-    });
-    this.hull = Math.max(ANONYMOUS_SPAN, ...roles.map((role) => troopSpan(role))) / REPLAY_STAGE;
+    this.hull = span / REPLAY_STAGE;
     const layout = (count: number, side: 'mine' | 'theirs') =>
       this.sea ? seaLayout(count, side, this.hull) : replayLayout(count, side);
     const spots = {

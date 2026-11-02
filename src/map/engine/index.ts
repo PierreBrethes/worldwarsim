@@ -1611,6 +1611,8 @@ export class MapEngine {
       onLand ? 'land' : 'sea',
       fire,
       view.faced?.nation ?? null,
+      null,
+      sceneSpan(shown),
     );
     scene.object.position.copy(center);
     scene.object.rotation.y = yaw;

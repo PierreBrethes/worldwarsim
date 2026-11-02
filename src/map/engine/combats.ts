@@ -101,6 +101,7 @@ export class CombatLayer {
     const attacker = view.side === 'attacker' ? 'mine' : 'theirs';
     const defender = attacker === 'mine' ? 'theirs' : 'mine';
     const pieces = replayAt(view, 0).pieces;
+    const span = sceneSpan(view);
     const scene = new ReplayScene(
       nation,
       pieces,
@@ -108,6 +109,7 @@ export class CombatLayer {
       null,
       view.faced?.nation ?? null,
       attacker,
+      span,
     );
     scene.object.rotation.y = yaw;
     this.group.add(scene.object);
@@ -121,7 +123,7 @@ export class CombatLayer {
     this.played.push({
       view,
       told,
-      span: sceneSpan(view),
+      span,
       scene,
       point,
       offset: lineCentre(
