@@ -912,9 +912,9 @@ async function play(profileName, pass) {
     const step = sea ? 0.5 : 0.25;
     await page.evaluate(frameAt, [around, sea ? 7 : 4]);
     await page.waitForTimeout(3000);
-    const play = (combats) =>
+    const play = (combats, from = null) =>
       page.evaluate(
-        ([list, sea]) => {
+        ([list, sea, from]) => {
           for (const [id, lon, lat, troops] of list) {
             const losses = { lost: 0, routed: 1, destroyed: 1 };
             const forces = sea
@@ -927,24 +927,30 @@ async function play(profileName, pass) {
               kind: 'combat',
               id,
               point: [lon, lat],
-              toward: null,
+              toward: from,
+              from,
               view: {
                 combatId: id,
                 at: 0,
                 point: { lon, lat },
                 side: 'attacker',
                 won: true,
-                mine: forces,
+                // A bombardment (#325): my gun stays in its pile, an arc of ink to theirs.
+                mine:
+                  from === null
+                    ? forces
+                    : [{ role: 'artillery', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
                 theirs: { troops, ...losses },
                 faced: {
                   nation: 'germany',
                   forces: forces.map((force) => ({ ...force, strength: 100 })),
                 },
+                ...(from === null ? {} : { bombardment: { from: { lon: from[0], lat: from[1] } } }),
               },
             });
           }
         },
-        [combats, sea],
+        [combats, sea, from],
       );
     await gesture('combats repos 5 s', () => page.waitForTimeout(5000), 0);
     await gesture('un combat, 3 contre 3', () => play([['banc-1', ...around, 3]]), 10500);
@@ -959,6 +965,11 @@ async function play(profileName, pass) {
       10500,
     );
     if (sea) await gesture('un combat, 6 contre 6', () => play([['banc-6', ...around, 6]]), 10500);
+    await gesture(
+      'un bombardement, 4 frappées',
+      () => play([['banc-7', ...around, 4]], [around[0], around[1] - 0.7]),
+      10500,
+    );
     await gesture('un combat, 12 contre 12', () => play([['banc-5', ...around, 12]]), 10500);
   };
   if (filesOnly) {
