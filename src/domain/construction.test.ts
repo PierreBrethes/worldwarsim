@@ -9,6 +9,7 @@ import {
   PLACING_SNAP_KM,
   riseOf,
   snapTo,
+  raiseChoosesSpecialty,
   specialtyRefusalOf,
   upgradeHold,
   workSitesOf,
@@ -529,6 +530,11 @@ describe('choosing an outpost’s specialty', () => {
   it('bills half the steel of the last raise, and nothing else', () => {
     expect(respecialtyBill(2)).toEqual({ steel: 65 });
     expect(respecialtyBill(3)).toEqual({ steel: 130 });
+  });
+
+  /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) ; le niveau 3 garde le sien. */
+  it('asks the raise from level 1 for a specialty, and no other', () => {
+    expect([1, 2, 3].map(raiseChoosesSpecialty)).toEqual([true, false, false]);
   });
 
   it('lets a payable change through', () => {

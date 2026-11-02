@@ -529,6 +529,10 @@ export type SpecialtyRefusal =
 
 export type SpecialtyChange = OutpostRaise & { readonly specialty: Specialty };
 
+/** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : un geste, un chantier. Lu par la
+ *  mutation, la rose et la fiche ; le niveau 3 garde la spécialisation du niveau 2. */
+export const raiseChoosesSpecialty = (level: number): boolean => level === 1;
+
 /** **Le choix gratuit** (ADR 0037 §11) : le seul cas où un niveau 2 sans spécialisation existe. */
 export const choosesFreely = (outpost: Pick<SpecialtyChange, 'level' | 'specialty'>): boolean =>
   outpost.level >= 2 && outpost.specialty === 'general';

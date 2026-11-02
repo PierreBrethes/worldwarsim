@@ -14,6 +14,7 @@ import {
   outpostDismantleRefusalOf,
   outpostRaiseHold,
   pledgedOutposts,
+  raiseChoosesSpecialty,
   upgradeHold,
   type OutpostRaiseHold,
   type UpgradeHold,
@@ -137,7 +138,7 @@ function outpostRaiseBranches(
   });
   /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : trois branches, un geste. */
   return {
-    actions: outpost.level === 1 ? CHOSEN_SPECIALTIES.map(branch) : [branch(null)],
+    actions: raiseChoosesSpecialty(outpost.level) ? CHOSEN_SPECIALTIES.map(branch) : [branch(null)],
     refusal: null,
   };
 }

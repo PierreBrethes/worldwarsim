@@ -27,6 +27,7 @@ import {
   availabilityOf,
   choosesFreely,
   outpostRaiseHold,
+  raiseChoosesSpecialty,
   specialtyRefusalOf,
   outpostDismantleRefusalOf,
   pledgedOutposts,
@@ -402,7 +403,7 @@ function OutpostRaise({
             </span>
           </>
         )}
-        {outpost.level !== 1 && (
+        {!raiseChoosesSpecialty(outpost.level) && (
           <button
             type="button"
             disabled={held !== null}
@@ -415,7 +416,7 @@ function OutpostRaise({
         )}
       </div>
       {/** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) : un geste, un chantier. */}
-      {outpost.level === 1 && hold?.kind !== 'maxLevel' && (
+      {raiseChoosesSpecialty(outpost.level) && hold?.kind !== 'maxLevel' && (
         <>
           <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
             {fr.garrison.raiseChoose}

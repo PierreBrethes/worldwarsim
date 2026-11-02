@@ -22,6 +22,7 @@ import {
   raiseRefusalOf,
   specialtyRefusalOf,
   choosesFreely,
+  raiseChoosesSpecialty,
   type OutpostRaiseHold,
   type SpecialtyRefusal,
 } from '../src/domain/construction';
@@ -247,8 +248,8 @@ export const raiseOutpost = mutation({
       OUTPOST_MAX_LEVEL,
     );
     if (hold !== null) refuseRaise(hold);
-    const chosen = level === 2 ? specialty : undefined;
-    if (level === 2 && chosen === undefined) fail('SPECIALTY_REQUIRED');
+    const chosen = raiseChoosesSpecialty(outpost.level) ? specialty : undefined;
+    if (raiseChoosesSpecialty(outpost.level) && chosen === undefined) fail('SPECIALTY_REQUIRED');
 
     await debit(ctx, player._id, cost, now);
     const last = queue[queue.length - 1];
