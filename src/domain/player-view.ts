@@ -510,7 +510,7 @@ type UpkeepView = {
  * outpost (ADR 0020 §10). The two forms are exclusive in a single field, so nothing here needs
  * a tag: a site is an outpost or it is home, and there is no third answer.
  */
-export type SiteRef = { readonly outpostId: string | null };
+type SiteRef = { readonly outpostId: string | null };
 
 export type Resource = {
   readonly stock: number;

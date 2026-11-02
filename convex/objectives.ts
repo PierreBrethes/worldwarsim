@@ -41,7 +41,7 @@ import {
 } from './constants';
 import { allRegions, capitalRegionOf, pointOfBuilding, regionFacts } from './regions';
 import { routeBetween, routeKmFrom } from './routes';
-import { seatsOf } from './seats';
+import { everySeatOf, seatsOf } from './seats';
 import { reassessDetection } from './movement/detection';
 
 export const seasonObjectives = (
@@ -326,12 +326,7 @@ export async function irregularSeat(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
 ): Promise<Id<'players'>> {
-  const already = (
-    await ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-      .collect()
-  ).find((seat) => seat.irregular === true);
+  const already = (await everySeatOf(ctx, seasonId)).find((seat) => seat.irregular === true);
   if (already !== undefined) return already._id;
 
   return ctx.db.insert('players', {

@@ -13,7 +13,7 @@ import { currentStock } from './player-view';
  * The diagnosis travels with the mark rather than being derived again beside it: a pavé that
  * lights up for one reason and explains itself with another is worse than a silent one.
  */
-export type Mark = {
+type Mark = {
   readonly kind: 'full';
   readonly diagnosis: string;
 };

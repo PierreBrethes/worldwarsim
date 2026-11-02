@@ -42,7 +42,8 @@ import {
 import { seasonTheatre } from './theatre';
 import { capitalRegionOf, homeCountryOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAmongCountries, hostAtPoint, landAtPoint } from '../routes';
-import { asPoint, pointOf, seasonMovements, seasonOutposts } from './forces';
+import { asPoint, pointOf, seasonMovements, seasonOutposts, seasonTroops } from './forces';
+import { everySeatOf } from '../seats';
 import { notifyPlayer } from '../notifications';
 import { journalUrl, push } from '../../src/domain/push';
 
@@ -271,16 +272,10 @@ async function detectionBoard(
 ) {
   const theatre = seasonTheatre(await ctx.db.get(seasonId));
   const [troops, buildings, outposts, players] = await Promise.all([
-    ctx.db
-      .query('troops')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-      .collect(),
+    seasonTroops(ctx, seasonId),
     seasonBuildings(ctx, seasonId),
     seasonOutposts(ctx, seasonId),
-    ctx.db
-      .query('players')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-      .collect(),
+    everySeatOf(ctx, seasonId),
   ]);
   const troopById = new Map(troops.map((troop) => [troop._id, troop]));
   /** **Rangoun** : les tournées de son teneur ne se relèvent qu'à la part de portée de

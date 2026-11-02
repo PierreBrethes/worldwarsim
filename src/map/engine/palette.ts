@@ -39,7 +39,7 @@ export const PALETTE = {
  * the lavis is left to the landing's table (`routes/-index/table/sheet.ts`) and the pictogram
  * review, which still paint a nation's sheet.
  */
-export const HELD_OPACITY = 0.65;
+const HELD_OPACITY = 0.65;
 /** An old survey's share of that load, on the landing's table. */
 const SURVEYED_LOAD = 0.35;
 
@@ -90,7 +90,7 @@ export function contrastRatio(first: string, second: string): number {
 
 /** How far the pen's ink goes toward the black: dark enough to read on the land, enough of the
  *  nation left that the drawing stays in its family. */
-export const PEN_DEPTH = 0.75;
+const PEN_DEPTH = 0.75;
 
 /** The hover's contour is laid at this, thin enough to read as a pen stroke and not as a second
  *  border. */

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_CAP, CARRY_CAPACITY_BY_ROLE } from '../../convex/constants';
 import type { ResourceKey, UnitRole } from './ids';
-import { carryCapacityOf, lootFromSurplus, sparedPerResourceOf, trimLootToCapacity } from './loot';
+import {
+  amountTotal,
+  carryCapacityOf,
+  difference,
+  emptyAmounts,
+  hasLoot,
+  lootFromSurplus,
+  sparedPerResourceOf,
+  trimLootToCapacity,
+} from './loot';
 
 const capacities: Readonly<Record<UnitRole, number>> = CARRY_CAPACITY_BY_ROLE;
 
@@ -109,5 +118,19 @@ describe('trimLootToCapacity', () => {
       lootFromSurplus(stocks, sparedPerResourceOf(holdsDakar), 1000).food;
     expect(taken(false)).toBe(700 - BASE_CAP);
     expect(taken(true)).toBe(700 - sparedPerResourceOf(true));
+  });
+});
+
+describe('the amounts every loot module shares', () => {
+  it('starts from nothing, and says whether anything is left', () => {
+    expect(hasLoot(emptyAmounts())).toBe(false);
+    expect(hasLoot(resources({ coal: 0.5 }))).toBe(true);
+  });
+
+  it('totals the eight resources and subtracts without going below zero', () => {
+    expect(amountTotal(resources({ food: 3, oil: 4.5 }))).toBe(7.5);
+    const left = difference(resources({ food: 10, oil: 2 }), resources({ food: 4, oil: 5 }));
+    expect(left.food).toBe(6);
+    expect(left.oil).toBe(0);
   });
 });

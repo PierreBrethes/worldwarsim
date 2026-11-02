@@ -29,5 +29,5 @@
    * entrer les types de Vite reviendrait à autoriser un fichier serveur à s'en servir. Ils
    * restent typés par le `tsconfig.json` de la racine, qui inclut `convex` et porte
    * `types: ["vite/client", "node"]` : `npm run types` les couvre, et la CI passe par lui. */
-  "exclude": ["./_generated", "./test.setup.ts", "./**/*.test.ts"]
+  "exclude": ["./_generated", "./test.setup.ts", "./blitz.fixture.ts", "./**/*.test.ts"]
 }
