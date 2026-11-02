@@ -154,7 +154,7 @@ describe('buildLabels', () => {
         {
           id: 'p',
           role: 'infantry',
-          patrol: { ends: ['a', 'b'], to: 'b', haltUntil: null, recalled },
+          patrol: { ends: ['a', 'b'], to: 'b', haltUntil: null, recalled, waiting: null },
         },
       ] as unknown as PlayerView['me']['troops'];
     const arc = mineArc({ troopIds: ['p'] });

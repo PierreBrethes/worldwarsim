@@ -757,6 +757,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                 to: troop.patrol.to,
                 haltUntil: troop.patrol.haltUntil ?? null,
                 recalled: troop.patrol.recalled === true,
+                waiting: (troop.patrol.roads ?? 0) > 0 ? ('road' as const) : null,
               },
             }),
         /** Blitz (B19) : l'heure où elle pourra de nouveau attaquer — une date plutôt qu'un

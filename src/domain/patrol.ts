@@ -77,6 +77,7 @@ export type PatrolLine =
       readonly haltUntil: number | null;
       readonly here: string | null;
       readonly recalled: boolean;
+      readonly waiting: 'road' | null;
     }
   | {
       readonly kind: 'offers';
@@ -92,7 +93,7 @@ export function patrolLineOf(view: PlayerView, troopIds: ReadonlyArray<string>):
   const held = view.me.troops.filter((troop) => troopIds.includes(troop.id));
   const patrolling = held.find((troop) => troop.patrol !== undefined);
   if (patrolling?.patrol !== undefined) {
-    const { to, haltUntil, recalled } = patrolling.patrol;
+    const { to, haltUntil, recalled, waiting } = patrolling.patrol;
     const station = patrolling.stationedAt;
     return {
       kind: 'patrolling',
@@ -101,6 +102,7 @@ export function patrolLineOf(view: PlayerView, troopIds: ReadonlyArray<string>):
       haltUntil,
       here: station.kind === 'outpost' ? outpostNameIn(view.me, station.outpostId) : null,
       recalled,
+      waiting,
     };
   }
   const station = held[0]?.stationedAt;

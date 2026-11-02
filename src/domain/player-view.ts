@@ -336,12 +336,14 @@ export type TroopView = {
     readonly veiled?: true;
   };
   /** **Sa ronde** (ADR 0037 §10, #376) : sa liaison, le bout vers lequel elle va, la fin de sa
-   *  halte (`null` en route), et si elle finit l'étape, rappelée. */
+   *  halte (`null` en route), si elle finit l'étape, rappelée, et si sa halte attend une route
+   *  refusée (`'road'`) plutôt que son heure. */
   readonly patrol?: {
     readonly ends: readonly [string, string];
     readonly to: string;
     readonly haltUntil: number | null;
     readonly recalled: boolean;
+    readonly waiting: 'road' | null;
   };
   /** **Blitz** (B19) : l'instant où elle pourra de nouveau attaquer ; absent hors rechargement. */
   readonly reloadUntil?: number;

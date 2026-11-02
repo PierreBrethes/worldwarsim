@@ -136,6 +136,7 @@ describe('a patrol on a liaison', () => {
       to: kassel,
       haltUntil: null,
       recalled: false,
+      waiting: null,
     });
     expect(JSON.stringify(await t.query(api.view.playerView, guest))).not.toContain('patrol');
   });
@@ -277,6 +278,8 @@ describe('a patrol on a liaison', () => {
     await haltEnds(t, troop);
     expect(await flying(t)).toEqual([]);
     expect((await troopOf(t, troop))!.patrol?.roads).toBe(1);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.me.troops.find((one) => one.id === troop)?.patrol?.waiting).toBe('road');
     await haltEnds(t, troop);
     await haltEnds(t, troop);
     expect((await troopOf(t, troop))!.patrol).toBeUndefined();

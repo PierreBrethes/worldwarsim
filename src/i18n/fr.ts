@@ -3003,17 +3003,23 @@ export const fr = {
       here,
       haltUntil,
       recalled,
+      waiting,
     }: {
       readonly to: string;
       readonly here: string | null;
       readonly haltUntil: number | null;
       readonly recalled: boolean;
-    }): string =>
-      recalled
-        ? `ronde rappelée · finit à ${to}`
-        : haltUntil === null || here === null
-          ? `ronde → ${to}`
-          : `halte à ${here} jusqu’à ${new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(new Date(haltUntil))}`,
+      readonly waiting: 'road' | null;
+    }): string => {
+      if (recalled) return `ronde rappelée · finit à ${to}`;
+      if (haltUntil === null || here === null) return `ronde → ${to}`;
+      const at = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(
+        new Date(haltUntil),
+      );
+      return waiting === 'road'
+        ? `attend sa route à ${here} · nouvel essai à ${at}`
+        : `halte à ${here} jusqu’à ${at}`;
+    },
   },
   troops: {
     atHome: 'à domicile',

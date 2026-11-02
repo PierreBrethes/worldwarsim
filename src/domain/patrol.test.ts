@@ -100,7 +100,13 @@ describe('the patrol gesture', () => {
     });
     const patrolling = troop('t', 'infantry', {
       stationedAt: { kind: 'outpost', outpostId: 'kassel' },
-      patrol: { ends: ['essen', 'kassel'], to: 'kassel', haltUntil: 3_600_000, recalled: false },
+      patrol: {
+        ends: ['essen', 'kassel'],
+        to: 'kassel',
+        haltUntil: 3_600_000,
+        recalled: false,
+        waiting: null,
+      },
     });
     expect(patrolLineOf(viewOf([patrolling]), ['t'])).toEqual({
       kind: 'patrolling',
@@ -109,14 +115,28 @@ describe('the patrol gesture', () => {
       haltUntil: 3_600_000,
       here: 'Hesse',
       recalled: false,
+      waiting: null,
     });
+  });
+
+  /** **Une route refusée n'est pas une halte ordinaire** (#376) : la fiche le dit. */
+  it('says a patrol waits for its road, not that it halts', () => {
+    const line = {
+      to: 'Hesse',
+      here: 'Essen',
+      haltUntil: 3_600_000,
+      recalled: false,
+      waiting: 'road',
+    } as const;
+    expect(fr.patrol.state(line)).toContain('attend sa route');
+    expect(fr.patrol.state({ ...line, waiting: null })).toContain('halte à Essen');
   });
 });
 
 describe('a halted patrol in its garrison', () => {
   it('stays unticked when the garrison is lifted, and lifts alone', () => {
     const halted = troop('p', 'infantry', {
-      patrol: { ends: ['essen', 'kassel'], to: 'essen', haltUntil: 1, recalled: false },
+      patrol: { ends: ['essen', 'kassel'], to: 'essen', haltUntil: 1, recalled: false, waiting: null },
     });
     const me = viewOf([troop('t', 'armor'), halted]).me;
     expect(withoutPatrols(me, ['t', 'p'])).toEqual(['t']);
