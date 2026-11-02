@@ -84,8 +84,6 @@ export type ArcView =
       // country on the map. `…Label` is what gets printed, in French. Both exist because
       // Natural Earth has no translations while the screen is French; mixing them up would
       // put "United Kingdom" back on a card.
-      readonly originCountry: string;
-      readonly destinationCountry: string;
       readonly originLabel: string;
       readonly destinationLabel: string;
       readonly type: MovementType;

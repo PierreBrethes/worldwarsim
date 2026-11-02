@@ -936,9 +936,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           landCost: movement.landCost,
           /** Une colonne partie d'un point n'a pas de caserne : elle se nomme par la région et le
            *  pays de ce point, et non par le pays d'arrivée, que ce repli écrivait faute de mieux. */
-          originCountry: origin?.country ?? hostAtPoint(departurePoint),
           originName: origin?.name ?? regionNameAt(departurePoint) ?? hostAtPoint(departurePoint),
-          destinationCountry: movement.hostCountry,
           /** Une marche vers un point nu prend le nom de la région sous lui, et le code du pays
            *  seulement en mer — un code que le client traduit (ADR 0016). */
           destinationName:

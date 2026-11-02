@@ -234,8 +234,6 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     from: [movement.from.lon, movement.from.lat],
     to: [movement.to.lon, movement.to.lat],
     route: routeOf(movement),
-    originCountry: movement.originCountry,
-    destinationCountry: movement.destinationCountry,
     originLabel: placeLabel(movement.originName),
     destinationLabel: placeLabel(movement.destinationName),
     type: movement.type,
