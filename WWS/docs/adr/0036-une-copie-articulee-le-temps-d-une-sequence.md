@@ -48,7 +48,9 @@ Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur
 >   l'hôte des piles (`SequenceHost` et `batteryNear`), au groupe d'artillerie en batterie le plus
 >   proche de ce point ; elle se tourne vers la cible, lève le tube à 35°, recule tube et affût au
 >   départ, éclaire sa bouche, puis rend la pièce à la fin de la scène. Pas de copie quand la pile
->   n'est pas dessinée (son épingle) : l'arc part alors du point.
+>   n'est pas dessinée (son épingle) : l'arc part alors du point. Le voile d'une scène, qui
+>   cache les piles sous elle, laisse debout une pile qui prête une copie (`StandingLayer.lends`) :
+>   une batterie proche de sa cible tomberait sinon sous le voile de son propre coup.
 > - **La scène au point de la cible** ne pose chez le tireur que le camp d'en face, le coup venant
 >   de loin (`fire = 'afar'`) ; chez la cible, `fire = 'unseen'`, l'obus tombe du ciel. L'arc
 >   d'encre se dessine dans le repère du monde, de la bouche à la cible, chez le tireur seul ; la
