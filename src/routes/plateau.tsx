@@ -2808,6 +2808,11 @@ function BoardContent({
                       nation={view.me.nation}
                       fresh={sent === null ? null : `movement-${sent.movementId}`}
                       onLocate={locateUnderway}
+                      onRecall={(troopId) =>
+                        recallPatrol({ ...seat, troopId: troopId as Id<'troops'> }).catch(
+                          (problem: unknown) => handleError(problem, setOrderError),
+                        )
+                      }
                     />
                   </div>
                 )}

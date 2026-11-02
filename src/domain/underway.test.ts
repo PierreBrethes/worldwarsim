@@ -247,7 +247,7 @@ describe('a patrol under way', () => {
       board({ outposts, regions, troops } as never, [march('M', 30, { troopIds: ['T'] } as never)]),
       [],
     );
-    expect(lines.map((line) => line.label)).toEqual(['ronde → Hesse']);
+    expect(lines.map(({ label, recall }) => [label, recall])).toEqual([['ronde → Hesse', 'T']]);
   });
 
   it('dates its halt in the garrison it holds', () => {

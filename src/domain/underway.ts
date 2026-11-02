@@ -37,6 +37,8 @@ export type Underway = {
   readonly place: UnderwayPlace;
   /** Un mouvement se lit à l'ambre de son fil ; le reste à l'encre. */
   readonly moving: boolean;
+  /** **Une ronde qu'on peut rappeler** (#376) : sa troupe. */
+  readonly recall?: string;
 };
 
 /** Un lot de recrutement commencé, tel que l'atelier le date (`troops.workshop`) : il n'est pas
@@ -68,7 +70,8 @@ export function underwayOf(
   const patrolling = view.me.troops.filter((troop) => troop.patrol !== undefined);
   for (const arc of view.arcs) {
     if (arc.state !== 'mine') continue;
-    const patrol = patrolling.find((troop) => arc.troopIds.includes(troop.id))?.patrol;
+    const patroller = patrolling.find((troop) => arc.troopIds.includes(troop.id));
+    const patrol = patroller?.patrol;
     lines.push({
       id: `movement-${arc.id}`,
       endsAt: borderResolution(arc.schedule) ?? arc.schedule.arrivesAt,
@@ -82,6 +85,7 @@ export function underwayOf(
       face: { kind: 'unit', role: representativeRole(arc.stack) },
       place: { kind: 'movement', arcId: arc.id },
       moving: true,
+      ...(patrol === undefined || patrol.recalled ? {} : { recall: patroller!.id }),
     });
   }
 
@@ -139,6 +143,7 @@ export function underwayOf(
       face: { kind: 'unit', role: troop.role },
       place: { kind: 'outpost', outpostId: station.outpostId },
       moving: false,
+      recall: troop.id,
     });
   }
 
