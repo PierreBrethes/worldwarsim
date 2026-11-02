@@ -39,7 +39,10 @@
  * `--sans-charbon` y met le charbon national à zéro. `--metiers` (#371) pose pour la France quatre
  * avant-postes : un niveau 1 à élever à Arlon (`@arlon`), un généraliste d'avant la refonte au
  * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
- * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--quais` pose pour la France trois avant-postes, à La Valette, à
+ * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--magasin` (#372) pose pour la France un
+ * Magasin plein à Berne et un presque vide à Innsbruck (`@berne`, `@innsbruck`, `@magasins`), une
+ * pile à sec à Turin (`@turin`, vers Stuttgart) et une à Vérone (`@verone`, vers Nuremberg), et
+ * deux colonnes à sec sur ces routes qui arrivent vingt secondes après : le journal le dit. `--quais` pose pour la France trois avant-postes, à La Valette, à
  * Singapour et à Florence : de quoi y viser un port (#221). `--iles` (#224) y ajoute, pour la
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
@@ -174,6 +177,9 @@ const quays = islands || process.argv.includes('--quais');
 const liaisons = process.argv.includes('--liaisons');
 /** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
 const specialties = process.argv.includes('--metiers');
+/** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
+ *  devant chacun, et deux colonnes qui les traversent et arrivent vingt secondes après. */
+const stores = process.argv.includes('--magasin');
 const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
@@ -674,6 +680,14 @@ if (!bare) {
     places.luxembourg = [6.13, 49.61];
     places.treves = [6.64, 49.75];
     places.sarrebruck = [7.0, 49.23];
+  }
+  if (stores && scene.a !== null) {
+    cli(['run', 'dev:storesScene', JSON.stringify({ playerId: scene.a })]);
+    places.magasins = [9.3, 47.0];
+    places.berne = [7.45, 46.95];
+    places.innsbruck = [11.4, 47.27];
+    places.turin = [7.68, 45.07];
+    places.verone = [10.99, 45.44];
   }
   if (islands && scene.a !== null) {
     const valletta = { lon: 14.513, lat: 35.895 };

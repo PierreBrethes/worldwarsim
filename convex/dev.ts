@@ -1250,6 +1250,81 @@ export const specialtiesScene = internalMutation({
 });
 
 /**
+ * **La scène des Magasins** (#372), pour la démo : deux Magasins français de niveau 2, plein à
+ * Berne, presque vide à Innsbruck. Une pile à sec à Turin, d'où viser Stuttgart à travers Berne, et
+ * une à Vérone, d'où viser Nuremberg à travers Innsbruck : le chip dit ce qu'elles y reprendront.
+ * Deux colonnes à sec font ces deux routes et arrivent vingt secondes après la scène : le journal
+ * dit ce que chaque Magasin a versé, et le dépôt d'Innsbruck tombe à zéro.
+ *
+ * `npx convex run dev:storesScene '{"playerId":"…"}'`
+ */
+export const storesScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [lon, lat, hostCountry, depot] of [
+      [7.45, 46.95, 'CHE', { ammunition: 800, oil: 600, coal: 200 }],
+      [11.4, 47.27, 'AUT', { ammunition: 15, oil: 10, coal: 0 }],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 2,
+        specialty: 'store',
+        depot,
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    const dryPile = async (at: { lon: number; lat: number }) => {
+      const ids: Array<Id<'troops'>> = [];
+      for (const role of ['infantry', 'infantry', 'landTransport'] as const)
+        ids.push(
+          await ctx.db.insert('troops', {
+            seasonId: player.seasonId,
+            playerId,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: at,
+            rounds: 0,
+            fuel: role === 'landTransport' ? 3 : 0,
+          }),
+        );
+      return ids;
+    };
+    const routes = [
+      { from: { lon: 7.68, lat: 45.07 }, to: { lon: 9.18, lat: 48.78 } },
+      { from: { lon: 10.99, lat: 45.44 }, to: { lon: 11.08, lat: 49.45 } },
+    ];
+    for (const { from, to } of routes) {
+      await dryPile(from);
+      const { movementId, arrivesAt } = await march(ctx, {
+        playerId,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds: await dryPile(from),
+        aim: await aimOf(ctx, playerId, { kind: 'point', point: to }),
+      });
+      /** Partie il y a le temps de sa route, elle arrive tout de suite : la dépêche se lit à la
+       *  capture. Le rendez-vous d'origine trouvera la colonne déjà arrivée. */
+      const soon = now + 20_000;
+      await ctx.db.patch(movementId, { departedAt: soon - (arrivesAt - now), arrivesAt: soon });
+      await ctx.scheduler.runAt(soon, internal.movements.arrive, { movementId });
+    }
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
  * **La scène du navire** (#129), pour la démo : un port à Marseille, un cargo à quai, un avant-poste
  * côtier à Agde. Le cargo est de la démo, le départ et l'arrivée le long du quai se jouent à l'écran.
  *

@@ -274,6 +274,27 @@ describe('dev.specialtiesScene', () => {
   });
 });
 
+describe('dev.storesScene', () => {
+  /** La scène de #372 : deux colonnes à sec traversent un Magasin plein et un presque vide. */
+  it('lands two dry columns through a full and a nearly empty Magasin, and files what each took', async () => {
+    vi.useFakeTimers();
+    const { t, playerId } = await twoNations();
+    await t.mutation(internal.dev.storesScene, { playerId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const notices = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter((one) => one.kind === 'storeResupplied'),
+    );
+    expect(notices.map((one) => [one.hostCountry, one.outcome])).toEqual(
+      expect.arrayContaining([
+        ['CHE', 'served'],
+        ['AUT', 'short'],
+      ]),
+    );
+    vi.useRealTimers();
+  });
+});
+
 describe('dev.backfillListeningSilent', () => {
   /** Une base d'avant le champ : le joueur déjà muet n'a pas `listeningSilent`, lu « entend ». */
   it('re-reads every belligerent of a launched season, and writes the silent one silent', async () => {
