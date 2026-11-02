@@ -2419,6 +2419,7 @@ export const fr = {
       outpostDisabled,
       shock = false,
       faced,
+      atSea = false,
     }: {
       where: string;
       cause: 'arrival' | 'interception' | 'bombardment';
@@ -2429,6 +2430,7 @@ export const fr = {
       outpostDisabled: boolean;
       shock?: boolean;
       faced?: Faced | undefined;
+      atSea?: boolean;
     }) => {
       /** **Un bombardement** (B20) : une frappe à distance, sans riposte possible. La salve bornée
        *  (ADR 0028 §6) dit combien de troupes elle touche ; la cible ne sait pas d'où elle vient. */
@@ -2457,7 +2459,7 @@ export const fr = {
       const forces = `${mine.troops} contre ${theirs.troops}${faced ? ` — en face, ${facedWords(faced)} —` : ','}`;
       const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
       const after = [
-        won ? 'terrain tenu' : 'terrain perdu',
+        atSea ? (won ? 'eaux tenues' : 'eaux perdues') : won ? 'terrain tenu' : 'terrain perdu',
         mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,
         theirs.routed > 0
           ? `${theirs.routed} déroute${plural(theirs.routed, '', 's')} en face`
@@ -3383,6 +3385,8 @@ export const fr = {
     ground: 'le terrain',
     held: 'tenu',
     lost: 'perdu',
+    /** Les mêmes, d'un combat en mer (#324). */
+    sea: { ground: 'les eaux', held: 'tenues', lost: 'perdues' },
     outpost: 'avant-poste',
     outpostDisabled: 'désactivé',
     openGarrison: 'ouvrir la garnison',
@@ -3418,6 +3422,7 @@ export const fr = {
     /** « Terrain tenu » d'un combat en mer (#324). */
     heldAtSea: 'eaux tenues',
     lost: 'terrain perdu',
+    lostAtSea: 'eaux perdues',
     mine: 'chez nous',
     theirs: 'en face',
     columns: { troops: 'troupes', lost: 'pertes', routed: 'déroutées', destroyed: 'détruites' },

@@ -203,7 +203,15 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
           {said}
         </span>
         <Stamp
-          label={view.won ? fr.replay.held : fr.replay.lost}
+          label={
+            view.atSea === true
+              ? view.won
+                ? fr.replay.heldAtSea
+                : fr.replay.lostAtSea
+              : view.won
+                ? fr.replay.held
+                : fr.replay.lost
+          }
           tone={view.won ? 'ink' : 'critical'}
         />
       </div>

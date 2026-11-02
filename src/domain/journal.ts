@@ -780,6 +780,7 @@ const fromCombat = (report: CombatReport): Written => ({
     outpostDisabled: report.outpostDisabled,
     shock: report.shock === true,
     faced: report.faced,
+    atSea: report.atSea === true,
   }),
   combat: report,
   place: report.point,

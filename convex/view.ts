@@ -136,6 +136,10 @@ export const kindsOf = (rows: Doc<'engagements'>['troops']): ForceKind[] =>
     };
   });
 
+/** **Le milieu d'un combat** (#324), que les deux camps ont vu : `groundOf` sur son point. */
+export const seaOf = (point: { readonly lon: number; readonly lat: number }) =>
+  groundAtPoint([point.lon, point.lat]) === 'land' ? {} : { atSea: true as const };
+
 /**
  * **Au feu, on voit l'ennemi** (F1) — ce que `side` a eu en face. Rien sur un engagement d'avant
  * le lot, et rien pour la cible d'un bombardement : elle ne voit pas d'où vient le coup.
@@ -875,6 +879,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  attaque centre la carte (lot mobile-3, §6). Rien de la position de l'adversaire
          *  ensuite — seulement l'endroit où l'on s'est battu. */
         point: engagement.point,
+        ...seaOf(engagement.point),
         outpostId: engagement.outpostId,
         outpostDisabled: engagement.disabledUntil !== null,
         shock: engagement.shock === true,

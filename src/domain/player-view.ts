@@ -468,6 +468,9 @@ export type CombatReport = {
   /** **Ce qu'on a eu en face au feu** (F1) — absent sur un engagement d'avant le 14/10, et chez
    *  la cible d'un bombardement, qui ne voit pas d'où vient le coup. */
   readonly faced?: Faced;
+  /** **Le combat s'est livré en mer** (#324) : `groundOf` sur le point, lu par le serveur. Absent
+   *  sur terre — et d'un serveur d'avant. */
+  readonly atSea?: true;
 };
 
 export type CombatTally = {
@@ -517,6 +520,8 @@ export type ReplayView = {
   /** **Un bombardement** (B20) : personne ne riposte. `from`, d'où la batterie a tiré, n'est servi
    *  qu'au tireur — la cible ne sait pas d'où le coup part, et ne voit pas la batterie. */
   readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };
+  /** Aux mêmes conditions que `CombatReport.atSea`. */
+  readonly atSea?: true;
 };
 
 /**

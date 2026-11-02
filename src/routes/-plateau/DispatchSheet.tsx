@@ -106,6 +106,7 @@ export function DispatchSheet({
  */
 export function CombatLines({ combat }: { combat: CombatReport }) {
   const said = fr.dispatchSheet;
+  const ground = combat.atSea === true ? said.sea : said;
   return (
     <>
       <Row
@@ -137,7 +138,7 @@ export function CombatLines({ combat }: { combat: CombatReport }) {
           )}
         />
       )}
-      <Row label={said.ground} value={combat.won ? said.held : said.lost} />
+      <Row label={ground.ground} value={combat.won ? ground.held : ground.lost} />
       {combat.outpostDisabled && <Row label={said.outpost} value={said.outpostDisabled} />}
     </>
   );
