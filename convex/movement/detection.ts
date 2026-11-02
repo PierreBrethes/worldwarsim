@@ -1202,8 +1202,17 @@ async function syncSightings(
   rows: ReadonlyArray<Doc<'sightings'>>,
   roles: ReadonlyArray<UnitRole>,
 ): Promise<void> {
+  /** **Seul le premier franchissement d'une ligne relève** (#377) : passé, la ligne ne rend plus
+   *  que le suivant, et l'étendre jusque-là servirait l'aller et le retour que personne n'a vus. */
+  const crossed = new Set(
+    rows.flatMap((row) =>
+      (row.crossings ?? []).flatMap(({ troopId, at }) => (at <= now ? [troopId] : [])),
+    ),
+  );
   const desired = new Map<Id<'players'>, Caught>();
   for (const candidate of candidates) {
+    const line = candidate.detector === 'patrol' ? candidate.crossings?.[0] : undefined;
+    if (line !== undefined && crossed.has(line.troopId)) continue;
     const held = desired.get(candidate.playerId);
     if (held === undefined) desired.set(candidate.playerId, candidate);
     else {

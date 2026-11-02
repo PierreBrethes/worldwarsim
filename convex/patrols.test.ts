@@ -376,7 +376,15 @@ describe('a patrol on a liaison', () => {
 
 /** Une colonne de Léa tirée droit d'un point à l'autre, sans Dijkstra : c'est la ligne qu'on
  *  mesure ici, pas la route. */
-async function enemyColumn(t: Bench, seat: Seat, from: LonLat, to: LonLat, durationMs: number) {
+async function enemyColumn(
+  t: Bench,
+  seat: Seat,
+  from: LonLat,
+  to: LonLat,
+  durationMs: number,
+  /** Un aller-retour : la colonne revient là, après `to`. */
+  back?: LonLat,
+) {
   const playerId = await playerOf(t, seat);
   const troopId = await t.run(async (ctx) =>
     ctx.db.insert('troops', {
@@ -391,20 +399,21 @@ async function enemyColumn(t: Bench, seat: Seat, from: LonLat, to: LonLat, durat
   );
   return t.run(async (ctx) => {
     const seasonId = (await ctx.db.get(playerId))!.seasonId;
-    const distanceUnits = distanceKm(from, to);
+    const path = back === undefined ? [from, to] : [from, to, back];
+    const end = path.at(-1)!;
+    const distanceUnits = path
+      .slice(1)
+      .reduce((sum, point, k) => sum + distanceKm(path[k]!, point), 0);
     const movementId = await ctx.db.insert('movements', {
       seasonId,
       playerId,
       type: 'march',
       fromBuildingId: null,
-      target: { kind: 'point', point: { lon: to[0], lat: to[1] } },
+      target: { kind: 'point', point: { lon: end[0], lat: end[1] } },
       from: { lon: from[0], lat: from[1] },
-      to: { lon: to[0], lat: to[1] },
-      hostCountry: hostAtPoint(to),
-      points: [
-        { lon: from[0], lat: from[1] },
-        { lon: to[0], lat: to[1] },
-      ],
+      to: { lon: end[0], lat: end[1] },
+      hostCountry: hostAtPoint(end),
+      points: path.map(([lon, lat]) => ({ lon, lat })),
       legs: [{ medium: 'land', distanceUnits }],
       distanceUnits,
       costUnits: distanceUnits * COST_BY_MEDIUM.land,
@@ -524,6 +533,25 @@ describe('the watch line of a patrol', () => {
     await t.run(async (ctx) => reassessDetection(ctx, (await ctx.db.get(troop))!.seasonId));
     await fileCrossings(t, seat);
     expect(await sighted(t)).toMatchObject([{ detector: 'patrol' }]);
+  });
+
+  /** Revue de #377 : le second franchissement d'une même ligne n'étend pas le relevé — l'aller
+   *  et le retour seraient un tronçon que personne n'a vu. */
+  it('keeps the sighting at the first crossing when the column crosses the line back', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { troop } = await patrolling(t, seat);
+    await arriveNext(t);
+    await enemyColumn(t, guest, ACROSS[0], ACROSS[1], 2 * HOUR, ACROSS[0]);
+    const [first] = await sightingsOf(t, seat);
+    expect(first!.from).toBeLessThan(Date.now() + HOUR);
+
+    vi.setSystemTime(first!.from + 1);
+    await t.run(async (ctx) => reassessDetection(ctx, (await ctx.db.get(troop))!.seasonId));
+    const [row, ...more] = await sightingsOf(t, seat);
+    expect(more).toEqual([]);
+    expect(row).toMatchObject({ from: first!.from, to: first!.from });
+    expect(row!.crossings).toHaveLength(1);
   });
 
   it('sights nothing that runs beside the line, nor past a disabled end', async () => {
