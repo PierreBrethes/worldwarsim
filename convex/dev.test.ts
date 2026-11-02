@@ -274,6 +274,37 @@ describe('dev.specialtiesScene', () => {
   });
 });
 
+describe('dev.guetScene', () => {
+  /** La scène de #373 : un Guet qui lit une colonne, un camp et un souvenir ; un généraliste non. */
+  it('lets the Guet read a column, a camp and a last known position, and the generalist none', async () => {
+    const { t, seat, playerId } = await twoNations();
+    const enemyId = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
+    );
+    await t.mutation(internal.dev.guetScene, { playerId, enemyId });
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.detected.map((arc) => arc.identification)).toEqual([
+      { pierced: true, stack: { infantry: 3, armor: 1 } },
+    ]);
+    const camps = view.camps.map(({ lastKnown, identification }) => ({
+      lastKnown,
+      identification,
+    }));
+    expect(camps).toEqual(
+      expect.arrayContaining([
+        {
+          lastKnown: false,
+          identification: { pierced: true, stack: { infantry: 2, artillery: 1 } },
+        },
+        { lastKnown: true, identification: { pierced: true, stack: { infantry: 1, armor: 1 } } },
+        { lastKnown: false, identification: { pierced: false } },
+      ]),
+    );
+  });
+});
+
 describe('dev.backfillListeningSilent', () => {
   /** Une base d'avant le champ : le joueur déjà muet n'a pas `listeningSilent`, lu « entend ». */
   it('re-reads every belligerent of a launched season, and writes the silent one silent', async () => {
