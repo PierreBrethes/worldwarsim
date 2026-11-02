@@ -41,7 +41,10 @@
  * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
  * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--zones` (#375) pose pour la
  * France un réseau lorrain (Luxembourg, Metz, Nancy, un Guet à Sarrebruck), Strasbourg désactivé et
- * une pile à Thionville (`@zones`, `@metz`, `@thionville`). `--guet` (#373) pose pour la
+ * une pile à Thionville (`@zones`, `@metz`, `@thionville`). `--ronde` (#376) pose pour la France
+ * une étoile autour de Metz (Luxembourg, Nancy, Sarrebruck), un blindé en ronde de Luxembourg vers
+ * Metz, une infanterie en halte à Nancy, une infanterie seule à Metz et une dépêche de fin
+ * (`@ronde`, `@metz`, `@nancy`, `@luxembourg`). `--guet` (#373) pose pour la
  * France un Guet à Kaiserslautern et un généraliste à Berne, et en face une colonne britannique
  * lue en route vers Munich, un camp lu à Francfort, une dernière position lue à Mayence et un camp
  * que le généraliste relève sans le lire près de Berne (`@guet`, `@francfort`, `@mayence`, `@berne`). `--magasin` (#372) pose pour la France un
@@ -192,6 +195,9 @@ const quays = islands || process.argv.includes('--quais');
 const liaisons = process.argv.includes('--liaisons');
 /** `--zones` (#375) : un réseau lorrain à triangles, un Guet, un point désactivé, une pile. */
 const zones = process.argv.includes('--zones');
+/** `--ronde` (#376) : une étoile lorraine autour de Metz, une ronde en route depuis Luxembourg,
+ *  une en halte à Nancy, une infanterie seule à Metz à lancer, une dépêche de fin. */
+const patrols = process.argv.includes('--ronde');
 /** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
 const specialties = process.argv.includes('--metiers');
 /** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
@@ -700,6 +706,26 @@ if (!bare) {
     places.metz = [6.18, 49.12];
     places.sarrebruck = [7.0, 49.23];
     places.thionville = [6.17, 49.36];
+  }
+  if (patrols && scene.a !== null) {
+    cli(['run', 'dev:patrolScene', JSON.stringify({ playerId: scene.a })]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const outpostIn = (lat) =>
+      me.outposts.find((outpost) => Math.abs(outpost.lonLat[1] - lat) < 0.02);
+    const [luxembourg, metz] = [outpostIn(49.61), outpostIn(49.12)];
+    const armor = me.troops.find(
+      (troop) => troop.role === 'armor' && troop.stationedAt.outpostId === luxembourg.id,
+    );
+    await client.mutation(api.patrols.start, {
+      token: tokenA,
+      seasonId,
+      troopId: armor.id,
+      ends: [luxembourg.id, metz.id],
+    });
+    places.ronde = [6.5, 49.2];
+    places.metz = [6.18, 49.12];
+    places.nancy = [6.18, 48.69];
+    places.luxembourg = [6.13, 49.61];
   }
   if (specialties && scene.a !== null) {
     cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);

@@ -1231,6 +1231,72 @@ export const zonesScene = internalMutation({
 });
 
 /**
+ * **La scène des rondes** (#376), pour la démo : quatre avant-postes français en étoile autour de
+ * Metz (Luxembourg, Nancy, Sarrebruck), un blindé à Luxembourg que la démo lance en ronde vers
+ * Metz, une infanterie en halte à Nancy sur Metz–Nancy, une infanterie seule à Metz (la liaison
+ * vers Sarrebruck est libre), et la dépêche d'une ronde dont la liaison a été retirée du tracé.
+ * Deux cartes Transmissions : quatre slots, pour que le geste ne bute pas sur le dernier.
+ *
+ * `npx convex run dev:patrolScene '{"playerId":"…"}'`
+ */
+export const patrolScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    const researched: ResearchCard[] = ['transmissions1', 'transmissions2'];
+    await ctx.db.patch(playerId, {
+      researched: [...new Set([...(player.researched ?? []), ...researched])],
+    });
+    const plant = (lon: number, lat: number, hostCountry: string) =>
+      ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    const luxembourg = await plant(6.13, 49.61, 'LUX');
+    const metz = await plant(6.18, 49.12, 'FRA');
+    const nancy = await plant(6.18, 48.69, 'FRA');
+    await plant(7.0, 49.23, 'DEU');
+    const troop = (role: UnitRole, stationedAt: Id<'outposts'>) =>
+      ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role,
+        tier: 1,
+        nominalStrength: nominalStrength(role, 1),
+        currentStrength: nominalStrength(role, 1),
+        stationedAt,
+      });
+    await troop('armor', luxembourg);
+    await troop('infantry', metz);
+    const halted = await troop('infantry', nancy);
+    const haltUntil = now + 40 * 60_000;
+    const jobId = await ctx.scheduler.runAt(haltUntil, internal.patrols.haltEnds, {
+      troopId: halted,
+    });
+    await ctx.db.patch(halted, { patrol: { ends: [metz, nancy], to: nancy, haltUntil, jobId } });
+    await ctx.db.insert('notices', {
+      playerId,
+      at: now - 5 * 60_000,
+      kind: 'patrolEnded',
+      role: 'artillery',
+      why: 'withdrawn',
+      hostCountry: 'FRA',
+    });
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
  * **La scène des métiers** (#371), pour la démo : quatre avant-postes français entre Arlon et
  * Sarrebruck. À Arlon un point de niveau 1, dont l'élévation offre Magasin, Guet et Fort ; à
  * Luxembourg un point d'avant la refonte, généraliste au niveau 2, qui choisit gratuitement ; à
