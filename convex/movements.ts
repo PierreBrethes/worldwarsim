@@ -84,7 +84,11 @@ import { onTourRefusalOf } from '../src/domain/logistics';
 import { arriveAtBase, arriveOnTour } from './tours';
 import { arriveOnPatrol } from './patrols';
 import { pacedMinutes } from './movement/pace';
-import { reassessDetection, revealSighting as revealScheduledSighting } from './movement/detection';
+import {
+  fileCrossing as fileScheduledCrossing,
+  reassessDetection,
+  revealSighting as revealScheduledSighting,
+} from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
 import { surveyAlongRoute } from './surveys';
 import { hostAtPoint, landAtPoint, reachedOverGround, routeBetween } from './routes';
@@ -1201,4 +1205,10 @@ export const holdAtFort = internalMutation({
 export const revealSighting = internalMutation({
   args: { sightingId: v.id('sightings') },
   handler: (ctx, { sightingId }) => revealScheduledSighting(ctx, sightingId),
+});
+
+/** **Un franchissement de ligne de guet à son heure** (#377), relu sur sa ligne de relevé. */
+export const fileCrossing = internalMutation({
+  args: { sightingId: v.id('sightings'), troopId: v.id('troops'), at: v.number() },
+  handler: (ctx, args) => fileScheduledCrossing(ctx, args),
 });

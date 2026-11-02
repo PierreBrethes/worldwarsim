@@ -418,6 +418,28 @@ async function enemyColumn(t: Bench, seat: Seat, from: LonLat, to: LonLat, durat
   });
 }
 
+const sighted = (t: Bench) =>
+  t.run(async (ctx) =>
+    ctx.db
+      .query('notices')
+      .filter((q) => q.eq(q.field('kind'), 'movementSighted'))
+      .collect(),
+  );
+
+/** Chaque franchissement en attente, mené à son heure. */
+async function fileCrossings(t: Bench, seat: Seat) {
+  for (const row of await sightingsOf(t, seat))
+    for (const crossing of row.crossings ?? []) {
+      if (crossing.jobId === undefined) continue;
+      vi.setSystemTime(crossing.at);
+      await t.mutation(internal.movements.fileCrossing, {
+        sightingId: row._id,
+        troopId: crossing.troopId,
+        at: crossing.at,
+      });
+    }
+}
+
 const sightingsOf = (t: Bench, seat: Seat) =>
   t.run(async (ctx) => {
     const playerId = (await seatIn(ctx, seat))._id;
@@ -451,7 +473,11 @@ describe('the watch line of a patrol', () => {
 
     const [sighting, ...more] = await sightingsOf(t, seat);
     expect(more).toEqual([]);
-    expect(sighting).toMatchObject({ detector: 'patrol', detectorId: null, detectorHostCountry: 'DEU' });
+    expect(sighting).toMatchObject({
+      detector: 'patrol',
+      detectorId: null,
+      detectorHostCountry: 'DEU',
+    });
     expect(sighting!.from).toBe(sighting!.to);
     expect(sighting!.from).toBeGreaterThan(departed + 0.45 * HOUR);
     expect(sighting!.from).toBeLessThan(departed + 0.55 * HOUR);
@@ -460,13 +486,31 @@ describe('the watch line of a patrol', () => {
 
     vi.setSystemTime(sighting!.from);
     await t.mutation(internal.movements.revealSighting, { sightingId: sighting!._id });
-    const notices = await t.run(async (ctx) =>
-      ctx.db
-        .query('notices')
-        .filter((q) => q.eq(q.field('kind'), 'movementSighted'))
-        .collect(),
-    );
-    expect(notices).toMatchObject([{ detector: 'patrol', hostCountry: 'DEU' }]);
+    await fileCrossings(t, seat);
+    expect(await sighted(t)).toMatchObject([{ detector: 'patrol', hostCountry: 'DEU' }]);
+  });
+
+  /** **Décisions (02/11)** : chaque premier franchissement fait sa dépêche, même sur une colonne
+   *  qu'une vigie relève déjà ; la ligne de relevé, elle, reste une. */
+  it('files its own dispatch for a column a lookout already sights, once per line', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { troop } = await patrolling(t, seat);
+    await arriveNext(t);
+    /** Partie dans la vigie d'Essen, elle coupe la liaison à quelque 45 km du point. */
+    await enemyColumn(t, guest, [7.3, 51.6], [8.25, 51.08], HOUR);
+
+    const [row, ...more] = await sightingsOf(t, seat);
+    expect(more).toEqual([]);
+    expect(row).toMatchObject({ detector: 'outpost' });
+    expect(row!.crossings).toMatchObject([{ troopId: troop }]);
+    expect(await sighted(t)).toMatchObject([{ detector: 'outpost' }]);
+
+    await fileCrossings(t, seat);
+    expect(await sighted(t)).toMatchObject([{ detector: 'outpost' }, { detector: 'patrol' }]);
+    await t.run(async (ctx) => reassessDetection(ctx, (await ctx.db.get(troop))!.seasonId));
+    await fileCrossings(t, seat);
+    expect(await sighted(t)).toHaveLength(2);
   });
 
   it('sights nothing that runs beside the line, nor past a disabled end', async () => {

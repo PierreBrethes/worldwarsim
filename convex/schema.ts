@@ -1314,6 +1314,21 @@ export default defineSchema({
     readAt: v.optional(v.number()),
     readJobId: v.optional(v.id('_scheduled_functions')),
     readJobAt: v.optional(v.number()),
+    /**
+     * **Les franchissements de lignes de guet** (#377) : un par ronde, sa dépêche planifiée
+     * (`jobId`) ou partie (sans job). La ligne de relevé reste une ; chaque franchissement a sa
+     * dépêche (Décisions du 02/11).
+     */
+    crossings: v.optional(
+      v.array(
+        v.object({
+          troopId: v.id('troops'),
+          at: v.number(),
+          point: LON_LAT,
+          jobId: v.optional(v.id('_scheduled_functions')),
+        }),
+      ),
+    ),
   })
     .index('byPlayer', ['playerId'])
     .index('byMovement', ['movementId']),
