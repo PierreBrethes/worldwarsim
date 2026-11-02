@@ -5,6 +5,7 @@ import { BLITZ, CAPTURE_MINUTES } from './constants';
 import { captureAimOf } from './movement/orders';
 import { pointOfBuilding } from './regions';
 import { surveyFromPoint } from './surveys';
+import { THEATRES } from '../src/domain/theatres';
 import { joinSeat, signIn, type Seat } from './seats.fixture';
 import {
   boot,
@@ -41,6 +42,14 @@ const vacate = (t: Bench, building: { _id: Id<'buildings'>; regionId: string; po
 
 const fundsServed = async (t: Bench, seat: Seat) =>
   (await t.query(api.view.playerView, seat)).me.funds;
+
+/** Each theatre is posed in its own `blitz-<id>.test.ts`, so vitest runs them side by side. */
+it('pose chaque théâtre dans son propre fichier', () => {
+  const posed = Object.keys(import.meta.glob('./blitz-*.test.ts')).map((path) =>
+    path.slice('./blitz-'.length, -'.test.ts'.length),
+  );
+  expect(posed.sort()).toEqual(THEATRES.map((theatre) => theatre.id).sort());
+});
 
 describe('la carte de départ de la Blitz', () => {
   beforeEach(() => {
