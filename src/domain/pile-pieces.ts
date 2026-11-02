@@ -1,4 +1,5 @@
 import type { UnitRole, UnitTier } from './ids';
+import { batterySince } from './indirect-fire';
 import type { ArcView, TroopView } from './player-view';
 import { cargoOf, carrierIn, DOMAIN_BY_ROLE, ROLE_ORDER, unitsOf, type UnitDomain } from './troops';
 
@@ -9,7 +10,7 @@ import { cargoOf, carrierIn, DOMAIN_BY_ROLE, ROLE_ORDER, unitsOf, type UnitDomai
 
 type PileTroop = Pick<
   TroopView,
-  'id' | 'role' | 'tier' | 'strength' | 'nominalStrength' | 'carriedBy'
+  'id' | 'role' | 'tier' | 'strength' | 'nominalStrength' | 'carriedBy' | 'emplacedAt'
 >;
 
 export type Wear = 'whole' | 'smoking' | 'burning';
@@ -28,6 +29,9 @@ type PieceGroup = {
   /** **Ce que ses transports portent** (15/10), à tous les étages : les passagers ne se voient
    *  pas, le jeton « N à bord » les compte. Absent sans passager. */
   readonly aboard?: number;
+  /** **En batterie dès cet instant** (`batterySince`, #325) : ses pièces y ouvrent leurs flèches.
+   *  Absent quand elles ne le sont jamais telles qu'elles se tiennent. */
+  readonly battery?: number;
 };
 
 export type PilePieces = {
@@ -101,10 +105,15 @@ function figuresOf({ role, troops, ratio }: Bucket): UnitTier[] {
  * voit plus la première troupe seule. **Ce qui est à bord ne se voit pas** (15/10) : seul ce qui
  * se tient debout se dessine, et un transport emmène ce qu'il porte.
  */
-export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
+export function pilePieces(
+  troops: ReadonlyArray<PileTroop>,
+  /** **Posée à une station** (#325), et au large ou non : ses pièces peuvent y être en batterie. */
+  station?: { readonly afloat: boolean },
+): PilePieces {
   const standing = troops.filter((troop) => carrierIn(troop, troops) === null);
   const piece = (bucket: Bucket): PieceGroup => {
     const riders = bucket.troops.flatMap((troop) => cargoOf(troop, troops));
+    const battery = station === undefined ? null : batterySince(bucket.troops, station.afloat);
     return {
       role: bucket.role,
       troops: bucket.troops.length,
@@ -112,6 +121,7 @@ export function pilePieces(troops: ReadonlyArray<PileTroop>): PilePieces {
       figures: figuresOf(bucket),
       wear: wearOf(bucket.ratio),
       ...(riders.length === 0 ? {} : { aboard: riders.length }),
+      ...(battery === null ? {} : { battery }),
     };
   };
   const ids = troops.map((t) => t.id);

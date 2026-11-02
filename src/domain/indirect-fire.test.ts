@@ -3,6 +3,7 @@ import { contactKm, INDIRECT_FIRE } from '../../convex/constants';
 import { distanceKm, type LonLat } from './geo';
 import {
   bombardRefusalOf,
+  batterySince,
   bombardsWith,
   emplacedAt,
   fireReachOf,
@@ -124,5 +125,24 @@ describe('the indirect fire of a Mondiale', () => {
     expect(bombardsWith(['artillery', 'infantry'], 'mondiale')).toBe(false);
     expect(bombardsWith(['landTransport', 'artillery'], 'blitz')).toBe(true);
     expect(bombardsWith([], 'mondiale')).toBe(false);
+  });
+});
+
+/** **En batterie** (#325) : la pose de repos d'une pièce, dès l'instant que la vue dit. */
+describe('batterySince', () => {
+  const gun = { role: 'artillery' as const };
+  it('is in battery from the start once the view serves no emplacedAt', () => {
+    expect(batterySince([gun, gun], false)).toBe(0);
+  });
+  it('waits for the last piece to be emplaced', () => {
+    expect(batterySince([{ ...gun, emplacedAt: 5 }, { ...gun, emplacedAt: 9 }, gun], false)).toBe(
+      9,
+    );
+  });
+  it('is never in battery afloat, aboard, or beside another role', () => {
+    expect(batterySince([gun], true)).toBeNull();
+    expect(batterySince([{ ...gun, carriedBy: 'truck' }], false)).toBeNull();
+    expect(batterySince([gun, { role: 'infantry' as const }], false)).toBeNull();
+    expect(batterySince([], false)).toBeNull();
   });
 });
