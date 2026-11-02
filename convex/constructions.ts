@@ -53,7 +53,7 @@ import { isOnRegionCoast } from './coast';
 import { fail, type ErrorCode } from './errors';
 import { foundationOwedBy, pointOfBuilding, regionFacts, regionOfOutpost } from './regions';
 import { anchorAt, anchored, isReached, sitesOf } from './sites';
-import { credit, debit, economyOf, settle } from './resources';
+import { credit, debit, economyOf, rearmDryWakeUp, settle } from './resources';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seats';
 import { BUILDING_KEY, CHOSEN_SPECIALTY, LON_LAT } from './validators';
@@ -479,6 +479,9 @@ export const finish = internalMutation({
       });
     }
     await ctx.db.delete(constructionId);
+    /** Réglé avant le niveau neuf : une station, un arsenal ou une mine qui monte change ce que
+     *  le charbon brûle, et le réveil des vigies se recale sur la forme écrite. */
+    await rearmDryWakeUp(ctx, construction.playerId, Date.now());
     /** **Un Centre de recherche de nouveau debout relance la carte qui l'attendait** (#123). */
     if (standing === undefined && construction.building === 'researchCenter')
       await followCenter(ctx, construction.playerId, Date.now());

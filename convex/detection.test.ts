@@ -23,13 +23,13 @@ import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { reassessDetection } from './movement/detection';
 import { lookoutKmOf } from '../src/domain/outposts';
 import { pacedMinutes } from './movement/pace';
-import { settle } from './resources';
+import { credit, debit, settle } from './resources';
 import { forgetMovement } from './movement/arrival';
 import { handOver } from './strategicPoints';
 import { neutralPoint } from './seats.fixture';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, holdPoint, joinSeat, seatIn } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, pointIn, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -945,10 +945,10 @@ describe('the instant the coal runs dry', () => {
     return { seat, guest, reassess, dryJob };
   }
 
+  /** **L'ordre d'usine recale le réveil, sur l'état écrit** : le lot posé, la chaîne brûle. */
   it('wakes the lookouts at two hours, the arsenal burning its share', async () => {
     const t = boot();
-    const { reassess, dryJob } = await burning(t);
-    await reassess();
+    const { dryJob } = await burning(t);
 
     const job = await dryJob();
     expect(job).toBeDefined();
@@ -967,6 +967,78 @@ describe('the instant the coal runs dry', () => {
     const job = await dryJob();
     expect(job).toBeDefined();
     expect(job!.at - MIDDAY.getTime()).toBeLessThan(2 * HOUR + 60_000);
+  });
+
+  /** **Un crédit qui relance une chaîne affamée** recale le réveil sur l'état écrit. */
+  it('brings the wake-up forward when a refund feeds a starving arsenal again', async () => {
+    const t = boot();
+    const { guest, dryJob } = await burning(t);
+    const guestId = await playerOf(t, guest);
+    await t.run(async (ctx) => {
+      const steel = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', guestId))
+          .collect()
+      ).find((row) => row.key === 'steel')!;
+      await ctx.db.patch(steel._id, { stock: 0, updatedAt: Date.now() });
+      /** Le réveil du lot posé partirait à temps : on le retire pour lire celui d'un arsenal
+       *  déjà affamé, calé sur les seules vigies. */
+      await ctx.db.patch(guestId, { dryJob: undefined });
+      await settle(ctx, guestId, Date.now());
+    });
+    /** L'arsenal à sec d'acier ne brûle plus : seules les vigies rongent le charbon, 5 h. */
+    expect((await dryJob())!.at - MIDDAY.getTime()).toBeGreaterThan(4 * HOUR);
+
+    await t.run((ctx) => credit(ctx, guestId, { steel: 50 }, Date.now()));
+
+    expect((await dryJob())!.at - MIDDAY.getTime()).toBeLessThan(2 * HOUR + 60_000);
+  });
+
+  /** **Le verdict s'écrit dans la mutation qui le fait basculer** : une réévaluation complète de
+   *  la même mutation le lira sur la ligne. */
+  it('writes the silence on the row as soon as a settlement empties the coal', async () => {
+    const t = boot();
+    const { guest } = await burning(t);
+    const guestId = await playerOf(t, guest);
+    await t.run((ctx) => debit(ctx, guestId, { coal: 10 }, Date.now()));
+
+    expect((await t.run((ctx) => ctx.db.get(guestId)))!.listeningSilent).toBe(true);
+  });
+
+  /** **Raser sa mine de charbon recale le réveil** : le règlement s'est fait avant le `delete`. */
+  it('wakes the lookouts in time once their own coal mine is razed', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const seatId = await playerOf(t, seat);
+    await outpost(t, seat, pointOf(PRAHOVA));
+    await outpost(t, seat, eastOf(pointOf(PRAHOVA), 400));
+    const mine = await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', seatId))
+        .collect())
+        await ctx.db.patch(row._id, {
+          stock: row.key === 'coal' ? 10 : row.stock,
+          updatedAt: Date.now(),
+        });
+      return ctx.db.insert('buildings', {
+        seasonId: seat.seasonId,
+        playerId: seatId,
+        key: 'mine',
+        regionId: 'FRA-5328',
+        point: pointIn('FRA-5328'),
+        level: 1,
+      });
+    });
+
+    await t.mutation(api.buildings.demolish, { ...seat, buildingId: mine });
+
+    const rate = (await t.query(api.view.playerView, seat)).me.resources.coal.ratePerHour;
+    expect(rate).toBeLessThan(0);
+    const job = (await t.run((ctx) => ctx.db.get(seatId)))!.dryJob;
+    expect(job).toBeDefined();
+    expect(job!.at - MIDDAY.getTime()).toBeLessThan((10 / -rate) * HOUR + 60_000);
   });
 
   /** Le réveil en attente qui tombe à temps reste : le joueur n'est réécrit que s'il change. */

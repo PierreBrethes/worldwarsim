@@ -10,7 +10,7 @@ import { playerBuildings } from './buildingReads';
 import { fail } from './errors';
 import { reassessDetection } from './movement/detection';
 import { foundationOwedBy, pointOfBuilding } from './regions';
-import { clipToStorage, credit, settle } from './resources';
+import { clipToStorage, credit, rearmDryWakeUp, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { reportChange, settleBeforeChange } from './production';
 import { refuseInBlitz } from './blitz';
@@ -94,6 +94,8 @@ export async function razeBuilding(
   if (player === null) return { refunded: {}, clipped: null };
   const refunded = await releaseBuilding(ctx, player, building, now);
   await ctx.db.delete(building._id);
+  /** Réglé avant le `delete` : une mine de charbon rasée rapproche le réveil des vigies. */
+  await rearmDryWakeUp(ctx, player._id, now);
   if (building.key === 'researchCenter') await followCenter(ctx, player._id, now);
   const clipped =
     canonicalBuildingKey(building.key) === 'warehouse'

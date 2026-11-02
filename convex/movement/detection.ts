@@ -29,7 +29,7 @@ import { isNation } from '../../src/domain/nations';
 import { isStanding, lookoutKmOf } from '../../src/domain/outposts';
 import { seasonBuildings } from '../buildingReads';
 import { cancelJob, isPending } from '../scheduledJobs';
-import { coalDryAt, economyOf, keepDryWakeUp } from '../resources';
+import { coalDryAt, economyOf, keepDryWakeUp, keepSilence } from '../resources';
 import { holdsPoint } from '../strategicPoints';
 import { isRangoonColumn } from '../../src/domain/strategic-points';
 import {
@@ -348,8 +348,7 @@ async function detectionBoard(
     if (!silent.has(playerId)) {
       const economy = await economyOf(ctx, playerId, now);
       silent.set(playerId, economy.listeningSilent);
-      if (player !== undefined && (player.listeningSilent === true) !== economy.listeningSilent)
-        await ctx.db.patch(playerId, { listeningSilent: economy.listeningSilent });
+      await keepSilence(ctx, player, economy.listeningSilent);
       await keepDryWakeUp(ctx, player, coalDryAt(economy, economy.stocks.coal, now));
     }
     return silent.get(playerId)!;

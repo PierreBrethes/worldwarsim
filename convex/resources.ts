@@ -373,8 +373,7 @@ export async function economyOf(
     /** Empty **and** still being eaten. A reserve at zero under a rate that holds is a nation
      *  living hand to mouth, not a famine, and calling it one would stop its queues for nothing. */
     starving: settled.stocks.food <= 0 && ratePerHour.food < 0,
-    listeningSilent:
-      upkeep.listeningCoalPerHour > 0 && settled.stocks.coal <= 0 && ratePerHour.coal < 0,
+    listeningSilent: silentOn(upkeep.listeningCoalPerHour, settled.stocks.coal, ratePerHour.coal),
     unlinked: active.filter(
       (building) => produces(building.key) && !isLinked(building, held, playerId),
     ),
@@ -511,8 +510,49 @@ async function writeStocks(
         ctx.scheduler.runAfter(0, internal.listening.reassess, { playerId }),
       );
     }
-    await keepDryWakeUp(ctx, await ctx.db.get(owner), coalDryAt(economy, coal, now));
+    /** **Le verdict d'après l'écriture, sur la ligne, dans la même mutation** : une réévaluation
+     *  complète qui suit (`arrive` après un `reportChange`) le lit là, sans régler personne. */
+    const player = await ctx.db.get(owner);
+    await keepSilence(
+      ctx,
+      player,
+      silentOn(economy.upkeep.listeningCoalPerHour, coal, economy.ratePerHour.coal),
+    );
+    await keepDryWakeUp(ctx, player, coalDryAt(economy, coal, now));
   }
+}
+
+/** **Muettes** (ADR 0028 §1) : du charbon qui brûle, plus de stock, et un débit qui ronge encore. */
+const silentOn = (burnPerHour: number, coal: number, ratePerHour: number): boolean =>
+  burnPerHour > 0 && coal <= 0 && ratePerHour < 0;
+
+/** Le verdict sur la ligne du joueur, réécrit seulement s'il change : toutes les vues de la
+ *  saison lisent `players`. */
+export async function keepSilence(
+  ctx: MutationCtx,
+  player: Doc<'players'> | undefined | null,
+  silent: boolean,
+): Promise<void> {
+  if (player && (player.listeningSilent === true) !== silent)
+    await ctx.db.patch(player._id, { listeningSilent: silent });
+}
+
+/**
+ * **Après un changement de forme qui ne règle personne derrière lui** — un lot posé, un bâtiment
+ * rasé, un crédit qui relance une chaîne —, le verdict et le réveil se relisent sur l'état écrit.
+ * Le règlement qui précède le changement les a calés sur l'ancienne forme, et les réévaluations
+ * complètes ne règlent plus personne. Une lecture d'économie par appel : seulement sur ces gestes.
+ */
+export async function rearmDryWakeUp(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  const economy = await economyOf(ctx, playerId, now);
+  if (economy.upkeep.listeningCoalPerHour <= 0) return;
+  const player = await ctx.db.get(playerId);
+  await keepSilence(ctx, player, economy.listeningSilent);
+  await keepDryWakeUp(ctx, player, coalDryAt(economy, economy.stocks.coal, now));
 }
 
 /**
@@ -690,6 +730,7 @@ export async function credit(
     stocks[key] += gain;
   }
   await writeStocks(ctx, economy, stocks, now);
+  await rearmDryWakeUp(ctx, playerId, now);
 }
 
 /**
@@ -714,5 +755,6 @@ export async function creditToStorage(
     stocks[key] += accepted;
   }
   await writeStocks(ctx, economy, stocks, now);
+  await rearmDryWakeUp(ctx, playerId, now);
   return { delivered, lost };
 }

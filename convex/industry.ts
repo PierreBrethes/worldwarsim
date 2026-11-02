@@ -3,7 +3,7 @@ import { mutation } from './_generated/server';
 import { playerBuildings, totalLevelOf } from './buildingReads';
 import { DEFAULT_LINE, isCommanded } from './constants';
 import { fail } from './errors';
-import { maxOrderOf, settle } from './resources';
+import { maxOrderOf, rearmDryWakeUp, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { BUILDING_KEY, LINE_KEY } from './validators';
 import { lineLockOf } from '../src/domain/research';
@@ -73,6 +73,8 @@ export const order = mutation({
       produced: 0,
       placedAt: now,
     });
+    /** La chaîne brûle à présent : le réveil des vigies se recale sur le lot posé. */
+    await rearmDryWakeUp(ctx, player._id, now);
     return { ordered: wanted };
   },
 });
