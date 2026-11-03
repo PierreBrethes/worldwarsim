@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { arcProgressAt } from '../domain/arc-timing';
 import { adaptServerView, type ServerView } from './serverView';
 
 const NOW = 1_700_000_000_000;
@@ -88,5 +89,32 @@ describe('adaptServerView', () => {
     expect(watched).toMatchObject({ state: 'enemyDetected', seenTo: NOW + 10 * MINUTE });
     expect(lost).toMatchObject({ state: 'lastKnown', lastSeenAt: NOW + 10 * MINUTE });
     expect(lost).not.toHaveProperty('arrivesAt');
+  });
+
+  /** **Une colonne qui reparaît repart de sa réapparition** (#412) : le serveur ne sert plus que
+   *  la seconde fenêtre, datée de son ouverture, et le pion part du début de ce tronçon — il ne
+   *  glisse pas à travers le trou depuis la fin du premier. */
+  it('starts a reappearing column at the opening of its new window', () => {
+    const second = {
+      ...thread,
+      from: { lon: 3, lat: 3 },
+      points: [
+        { lon: 3, lat: 3 },
+        { lon: 4, lat: 4 },
+      ],
+    };
+    const reappeared = (loadedAt: number) => {
+      const view = answer(loadedAt);
+      return {
+        ...view,
+        detected: [{ ...view.detected![0]!, ...second, seenFrom: NOW, seenTo: NOW + 20 * MINUTE }],
+      } as ServerView;
+    };
+    const [, arc] = adaptServerView(reappeared(NOW)).arcs;
+    expect(arc).toMatchObject({ state: 'enemyDetected', since: NOW, from: [3, 3] });
+    expect(arcProgressAt(arc!, NOW)).toBe(0);
+    expect(arcProgressAt(arc!, NOW + 10 * MINUTE)).toBe(0.5);
+    const [, later] = adaptServerView(reappeared(NOW + 5 * MINUTE)).arcs;
+    expect(arcProgressAt(later!, NOW + 5 * MINUTE)).toBe(0.25);
   });
 });
