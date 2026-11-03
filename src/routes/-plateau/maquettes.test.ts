@@ -70,6 +70,19 @@ describe('maquettesOf', () => {
     ).toEqual([true, undefined]);
   });
 
+  it('works my sites at work at rest (#273), and stands my searching Centre in observation', () => {
+    const centre = building({ id: 'c', buildingId: 'b3', key: 'researchCenter' });
+    const idle = building({ id: 'i', buildingId: 'b2' });
+    const [mine, rest, searching] = maquettesOf(
+      [building(), idle, centre],
+      () => undefined,
+      new Set(),
+      new Set(['b1', 'b3']),
+    );
+    expect([mine!.working, rest!.working, searching!.working]).toEqual([true, undefined, true]);
+    expect([mine!.pose, rest!.pose, searching!.pose]).toEqual([undefined, undefined, 'observing']);
+  });
+
   it('dresses a site by its works: a plan queued, a level rising or raised, its stamp dated', () => {
     const works = (
       phase: WorkSite['phase'],

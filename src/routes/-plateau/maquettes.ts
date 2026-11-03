@@ -25,6 +25,8 @@ export function maquettesOf(
   objectiveKey: (objectiveId: string) => string | undefined,
   /** My buildings that produce right now (`producingSites`): they smoke. */
   producing: ReadonlySet<string> = new Set(),
+  /** My buildings at work at rest (`workingSites`): their loop plays (#273). */
+  working: ReadonlySet<string> = new Set(),
 ): StandingMaquette[] {
   return markers.flatMap((marker): StandingMaquette[] => {
     const standing = (
@@ -60,6 +62,13 @@ export function maquettesOf(
             }),
             ...(marker.buildingId !== null &&
               producing.has(marker.buildingId) && { smoking: true }),
+            ...(marker.buildingId !== null &&
+              working.has(marker.buildingId) && {
+                working: true,
+                // A Centre that searches stands with its shutter open, at every motion (#273).
+                ...(marker.key === 'researchCenter' &&
+                  marker.works === null && { pose: 'observing' as const }),
+              }),
             side: 'mine',
             ink: marker.ink,
             // What stands: the level served, or the one before a raise; a first rise has none yet.
