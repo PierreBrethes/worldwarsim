@@ -344,6 +344,29 @@ describe('dev.watchLineScene', () => {
   });
 });
 
+describe('dev.twoSentriesScene', () => {
+  /** La scène de #412 : une colonne dans le trou entre deux vigies, puis sous la seconde. */
+  it.each([false, true])('serves one stretch of the column, reappeared: %s', async (reappeared) => {
+    const { t, seat, playerId } = await twoNations();
+    const enemyId = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
+    );
+    await t.mutation(internal.dev.twoSentriesScene, { playerId, enemyId, reappeared });
+    const [row] = await t.run(async (ctx) =>
+      ctx.db
+        .query('sightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+    const [first, second] = row!.windows!;
+    const [arc] = (await t.query(api.view.playerView, seat)).detected;
+    expect(arc!.seenFrom).toBe((reappeared ? second : first)!.from);
+    expect(Date.now()).toBeGreaterThan(first!.to);
+    expect(Date.now() > second!.from).toBe(reappeared);
+  });
+});
+
 describe('dev.storesScene', () => {
   /** La scène de #372 : deux colonnes à sec traversent un Magasin plein et un presque vide. */
   it('lands two dry columns through a full and a nearly empty Magasin, and files what each took', async () => {
