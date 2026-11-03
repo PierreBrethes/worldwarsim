@@ -19,12 +19,16 @@ export type Reading = {
   readonly readAt?: number;
 };
 
-/** Les fenêtres dans l'ordre, fondues quand elles se chevauchent. */
-export function mergeWindows(windows: ReadonlyArray<ReadWindow>): ReadonlyArray<ReadWindow> {
+/** Les fenêtres dans l'ordre, fondues quand elles se chevauchent, ou quand moins de `gap` les
+ *  sépare : un pas de grille pour les fenêtres d'une ligne de relevé (#412). */
+export function mergeWindows(
+  windows: ReadonlyArray<ReadWindow>,
+  gap = 0,
+): ReadonlyArray<ReadWindow> {
   const merged: Array<{ from: number; to: number }> = [];
   for (const window of [...windows].sort((a, b) => a.from - b.from)) {
     const last = merged[merged.length - 1];
-    if (last !== undefined && window.from <= last.to) last.to = Math.max(last.to, window.to);
+    if (last !== undefined && window.from <= last.to + gap) last.to = Math.max(last.to, window.to);
     else merged.push({ from: window.from, to: window.to });
   }
   return merged;

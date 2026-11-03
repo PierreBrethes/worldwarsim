@@ -8,6 +8,7 @@
  * ouverture, qui date la dépêche, et la fin de la dernière fenêtre —, jamais servie telle quelle.
  */
 import { INTERCEPTION_SAMPLES } from './interception';
+import { mergeWindows } from './lookout-reading';
 
 export type SightWindow = { readonly from: number; readonly to: number };
 
@@ -31,28 +32,13 @@ export const windowAt = (windows: ReadonlyArray<SightWindow>, now: number): Sigh
 export const nextOpening = (windows: ReadonlyArray<SightWindow>, after: number): number | null =>
   windows.find((window) => window.from > after)?.from ?? null;
 
-/** **Un pas de la grille du trajet** : deux fenêtres qu'il sépare se touchent, car la grille ne
- *  sait rien de ce qui se passe entre deux échantillons. */
-export const gridStepOf = (force: { readonly departedAt: number; readonly arrivesAt: number }) =>
-  (force.arrivesAt - force.departedAt) / INTERCEPTION_SAMPLES;
-
 /** Une milliseconde de jeu pour l'arrondi flottant des échantillons, jamais une tolérance. */
 const ROUNDING_MS = 1;
 
-/** Les fenêtres dans l'ordre, jointes quand elles se chevauchent ou se touchent à un pas près. */
-export function joinedWindows(
-  windows: ReadonlyArray<SightWindow>,
-  step: number,
-): ReadonlyArray<SightWindow> {
-  const joined: Array<{ from: number; to: number }> = [];
-  for (const window of [...windows].sort((a, b) => a.from - b.from)) {
-    const last = joined[joined.length - 1];
-    if (last !== undefined && window.from <= last.to + step + ROUNDING_MS)
-      last.to = Math.max(last.to, window.to);
-    else joined.push({ from: window.from, to: window.to });
-  }
-  return joined;
-}
+/** **Un pas de la grille du trajet** : deux fenêtres qu'il sépare se touchent, car la grille ne
+ *  sait rien de ce qui se passe entre deux échantillons. */
+export const gridStepOf = (force: { readonly departedAt: number; readonly arrivesAt: number }) =>
+  (force.arrivesAt - force.departedAt) / INTERCEPTION_SAMPLES + ROUNDING_MS;
 
 /**
  * **Les fenêtres d'une ligne, relues** : le passé reste tel qu'il a été vu, l'avenir est ce que
@@ -72,7 +58,7 @@ export function relaidWindows(
     current === undefined || current.to < now
       ? opened
       : [...opened.slice(0, -1), { from: current.from, to: now }];
-  return prunedWindows(joinedWindows([...past, ...desired], step), now);
+  return prunedWindows(mergeWindows([...past, ...desired], step), now);
 }
 
 /** Ce qui précède la fenêtre servie ne se servira plus. */

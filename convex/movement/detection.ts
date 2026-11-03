@@ -27,7 +27,6 @@ import {
 import { seenSegment } from '../../src/domain/sighting-segment';
 import {
   gridStepOf,
-  joinedWindows,
   nextOpening,
   prunedWindows,
   relaidWindows,
@@ -51,6 +50,7 @@ import {
   campReading,
   columnReading,
   lostReading,
+  mergeWindows,
   readingTransition,
   type ReadWindow,
   type Reading,
@@ -1238,7 +1238,7 @@ async function syncSightings(
       const first = earlier(held, candidate);
       desired.set(candidate.playerId, {
         ...first,
-        windows: joinedWindows([...held.windows, ...candidate.windows], step),
+        windows: mergeWindows([...held.windows, ...candidate.windows], step),
         readWindows: [...held.readWindows, ...candidate.readWindows],
         crossings: [...(held.crossings ?? []), ...(candidate.crossings ?? [])],
       });
