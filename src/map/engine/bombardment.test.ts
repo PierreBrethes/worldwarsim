@@ -4,7 +4,7 @@ import type { ReplayView } from '@/domain/player-view';
 import { replayAt, stepBounds, VOLLEY_SHARE } from '@/domain/replay';
 import { ARC_RISE, arcAt, arcPoints } from './bombardment';
 
-/** My gun on two of theirs: the shooter's scene, its target alone (`sceneOf`). */
+/** My gun on two of theirs: the shooter's scene, its target alone (`stagedOf`). */
 const shelled: ReplayView = {
   combatId: 'b',
   at: 0,
