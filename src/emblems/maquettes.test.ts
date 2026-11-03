@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Box3, Matrix4, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { BuildingKey } from '@/domain/ids';
-import { BUILDING_FOOTPRINT_METRES } from '@/domain/piece-size';
+import { BUILDING_FOOTPRINT_METRES, BUILDING_REACH_METRES } from '@/domain/piece-size';
 import { RIG_PARTS } from './rigs';
 import { BUILDING_MAQUETTES, buildingMaquette, buildingOnSocle } from './buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from './objectives/manifest';
@@ -328,6 +328,17 @@ function trianglesByState(gltf: Gltf): number[] {
 }
 
 /** What the ring spaces a site by: its socle's box, else the model as built, its flag left out. */
+/** What the ring spaces a site by: the farthest corner of its socle from its point, which any
+ *  turn of the site keeps in reach. The socle is not centred: the yard runs 20 to 25 m past the
+ *  façade. */
+const reachOf = (gltf: Gltf): number => {
+  const box = boundsOf(gltf, 'socle');
+  return Math.hypot(
+    Math.max(Math.abs(box.min.x), Math.abs(box.max.x)),
+    Math.max(Math.abs(box.min.z), Math.abs(box.max.z)),
+  );
+};
+
 const footprintOf = (gltf: Gltf): Vector3 =>
   (gltf.nodes.some((node) => node.name === 'socle')
     ? boundsOf(gltf, 'socle')
@@ -378,6 +389,13 @@ describe('maquettes', () => {
   it.each(buildings)('%s: stands on a socle if the manifest says so', (key, url) => {
     const k = (key === 'mine (coal)' ? 'mine' : key) as BuildingKey;
     expect(readGlb(url).nodes.some((node) => node.name === 'socle')).toBe(buildingOnSocle(k));
+  });
+
+  it.each(buildings)('%s: its reach is measured on its socle', (key, url) => {
+    const k = (key === 'mine (coal)' ? 'mine' : key) as BuildingKey;
+    const gltf = readGlb(url);
+    if (!gltf.nodes.some((node) => node.name === 'socle')) return;
+    expect(Math.abs(reachOf(gltf) / BUILDING_REACH_METRES[k] - 1)).toBeLessThan(0.02);
   });
 
   it.each(buildings)('%s: the ring spaces it by its real footprint', (key, url) => {

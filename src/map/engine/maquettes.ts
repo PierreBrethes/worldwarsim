@@ -88,6 +88,9 @@ export type StandingMaquette = {
   readonly side?: 'mine' | 'seen' | 'neutral';
   /** Its file stands on a socle (ADR 0038): the ring spaces it by its socle turned any way. */
   readonly socle?: boolean;
+  /** **How far its socle reaches from its point**, in board units (`buildingReach`): the farthest
+   *  corner, the socle not being centred. Absent, half its footprint's diagonal. */
+  readonly reach?: number;
   /** **The level its yard shows** (ADR 0038 §5): mine as served, the level before a raise, 1 for a
    *  survey. Absent for an objective, and read as 1. */
   readonly level?: number;
@@ -494,11 +497,14 @@ const SOCLE_GAP = 4;
 
 /**
  * **What the ring spaces a site by**, centre to centre with a neighbour like it: its footprint by
- * `RING_GAP`, or on a socle (`socleMetre`, board units per metre) a square socle turned at worst —
- * half its diagonal each — and `SOCLE_GAP` between the two.
+ * `RING_GAP`, or on a socle its `reach` — the farthest corner of the socle from its point, which
+ * a turn of the site keeps in reach — twice, and `SOCLE_GAP` between the two (`socleMetre`, board
+ * units per metre).
  */
-export const ringSpacing = (footprint: number, socleMetre: number | null): number =>
-  socleMetre === null ? footprint * RING_GAP : footprint * Math.SQRT2 + SOCLE_GAP * socleMetre;
+export const ringSpacing = (
+  footprint: number,
+  socle: { readonly reach: number; readonly metre: number } | null,
+): number => (socle === null ? footprint * RING_GAP : 2 * socle.reach + SOCLE_GAP * socle.metre);
 
 /** **How far a ring may carry a maquette from its own point**, in its widest spacings: under one,
  *  so the site reads where it is — 0.55 for the former 0.875. `@a-mesurer` */
@@ -699,7 +705,10 @@ export class MaquetteLayer implements SequenceHost {
         spacing: ringSpacing(
           maquette.footprint ?? maquette.span,
           maquette.socle === true && maquette.metres !== undefined
-            ? maquette.span / maquette.metres
+            ? {
+                reach: maquette.reach ?? ((maquette.footprint ?? maquette.span) * Math.SQRT2) / 2,
+                metre: maquette.span / maquette.metres,
+              }
             : null,
         ),
         ground,

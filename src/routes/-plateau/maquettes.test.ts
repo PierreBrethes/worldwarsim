@@ -8,6 +8,7 @@ import type { WorkSite } from '@/domain/construction';
 import { asClockTime } from '@/domain/duration';
 import {
   buildingFootprint,
+  buildingReach,
   buildingMetres,
   buildingSpan,
   objectiveSpan,
@@ -44,6 +45,7 @@ describe('maquettesOf', () => {
         metres: buildingMetres('mine'),
         footprint: buildingFootprint('mine'),
         socle: true,
+        reach: buildingReach('mine'),
         washed: false,
         side: 'mine',
         ink: '#000',
@@ -57,6 +59,7 @@ describe('maquettesOf', () => {
         metres: buildingMetres('port'),
         footprint: buildingFootprint('port'),
         socle: true,
+        reach: buildingReach('port'),
         washed: false,
         side: 'mine',
         ink: '#000',
@@ -165,6 +168,7 @@ describe('maquettesOf', () => {
         metres: buildingMetres('farm'),
         footprint: buildingFootprint('farm'),
         socle: true,
+        reach: buildingReach('farm'),
         washed: true,
         side: 'seen',
         level: 1,

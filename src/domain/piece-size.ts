@@ -95,6 +95,28 @@ export const BUILDING_FOOTPRINT_METRES: Readonly<Record<BuildingKey, number>> = 
 };
 
 /**
+ * **La portée de chaque site depuis son point, en mètres** : la distance de l'origine au coin le
+ * plus loin de la boîte de son `socle`, quel que soit son tour. Le socle n'est pas centré (la cour
+ * déborde de 20 à 25 m côté façade) : c'est elle, et non la moitié du côté, qui espace deux sites
+ * voisins. Elle n'entre pas dans `siteReading`, qui lit `BUILDING_FOOTPRINT_METRES`.
+ */
+export const BUILDING_REACH_METRES: Readonly<Record<BuildingKey, number>> = {
+  hq: 55,
+  farm: 52,
+  mine: 57,
+  oilWell: 25,
+  arsenal: 66,
+  barracks: 57,
+  airfield: 72,
+  port: 146,
+  listening: 42,
+  researchCenter: 53,
+  warehouse: 62,
+  depot: 62,
+  city: 50,
+};
+
+/**
  * Les objectifs neutres, au plus grand côté de leur modèle.
  * @a-mesurer lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel
  */
@@ -135,6 +157,10 @@ export const buildingSpan = (key: BuildingKey): number =>
 /** **L'emprise d'un bâtiment sur le plateau**, en unités : ce dont l'anneau le sépare de ses voisins. */
 export const buildingFootprint = (key: BuildingKey): number =>
   onBoard(BUILDING_FOOTPRINT_METRES[key], key === 'port' ? SEA_SHARE : 1);
+
+/** **La portée d'un site depuis son point**, en unités : ce dont l'anneau l'espace d'un voisin. */
+export const buildingReach = (key: BuildingKey): number =>
+  onBoard(BUILDING_REACH_METRES[key], key === 'port' ? SEA_SHARE : 1);
 
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>

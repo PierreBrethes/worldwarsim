@@ -15,7 +15,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
-import { buildingFootprint, buildingSpan, troopSpan } from '@/domain/piece-size';
+import {
+  buildingFootprint,
+  buildingMetres,
+  buildingReach,
+  buildingSpan,
+  troopSpan,
+} from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
   clusterFootprints,
@@ -979,10 +985,12 @@ describe('a site on its socle (ADR 0038)', () => {
   });
 
   it('spaces two socles 4 m apart at least, turned any way, wherever their points fall', () => {
-    // A square socle 80 m wide turned at worst reaches half its diagonal (ADR 0038 §6).
-    const metre = buildingFootprint('barracks') / 65;
-    const reach = (Math.SQRT2 * 80 * metre) / 2;
-    const spacing = ringSpacing(80 * metre, metre);
+    // A socle turned at worst reaches its farthest corner from the point (ADR 0038 §6): the
+    // warehouse's yard runs 25 m past its façade, so half its side would be 5 m short.
+    const metre = buildingSpan('warehouse') / buildingMetres('warehouse');
+    const reach = buildingReach('warehouse');
+    expect(reach).toBeGreaterThan((buildingFootprint('warehouse') * Math.SQRT2) / 2);
+    const spacing = ringSpacing(buildingFootprint('warehouse'), { reach, metre });
     for (const points of [
       [
         [0, 0],
