@@ -61,7 +61,7 @@ reste dans l'ordre des lots qui s'en servent.
 
 **ADR 0038 (01/11/2026) : les treize bâtiments sont à régénérer** (le bâtiment sur son socle). La section « Le socle, la cour, le signe » de chaque prompt s'ajoute à la conversation Claude Design existante du bâtiment : la consigne dit « Le bâtiment lui-même ne change pas ». `verifier-glb.mjs` attend désormais `socle`, `lisere`, `cour`, `signe`, `fx_rang` et les groupes d'accessoires, et 3 500 triangles par état visible. L'aérodrome porte deux hangars (0,85 de l'échelle) sur un socle, les pièces du second suffixées `_b` ; l'atlas des bâtiments est de 512² au plus.
 
-Treize bâtiments, douze rôles de figurines (96 conversations) et trois kits de terrain. Le dépôt
+Treize bâtiments, l'avant-poste, douze rôles de figurines (96 conversations) et trois kits de terrain. Le dépôt
 historique (`depot`) prend le modèle de l'entrepôt.
 
 ## Ce que le script vérifie
@@ -100,6 +100,6 @@ seule texture de 1 024 px au plus, en WebP ; ni meshopt, ni quantification, ni l
 
 ## L'avant-poste (#298)
 
-Un socle rond de 30 m (ADR 0038 §11), sans cour ni `fx_rang` : sa garnison se pose à côté, au
-sol. Trois groupes `magasin`, `guet` et `fort`, un seul montré par le jeu ; aucun pour le
+Un cercle de sacs de 30 m sur un socle rond de 37 m (ADR 0038 §8 et §11), sans cour ni
+`fx_rang` : sa garnison se pose à côté, hors du socle. Trois groupes `magasin`, `guet` et `fort`, un seul montré par le jeu ; aucun pour le
 généraliste. 1 500 triangles dans n'importe quel état, atlas de 512² au plus.

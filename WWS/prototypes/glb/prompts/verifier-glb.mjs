@@ -109,10 +109,12 @@ const EXPECT = {
   },
   // ADR 0038 §11 : un socle rond, sans cour ni fx_rang (la garnison se pose à côté) ; un groupe par spécialisation, un seul montré.
   outpost: {
-    measure: ['socle', 'x', 30, 0.04], triangles: 1500, groups: ['magasin', 'guet', 'fort'], texture: 512, materials: ['lisere', 'feux'],
+    // le cercle de sacs de 30 m, 0,5 m de jeu et le liseré de 3 m : 37 m, mesurés dans les deux sens (un rond)
+    measure: ['socle', 'xz', 37, 0.04], texture: 512, materials: ['lisere', 'feux'],
+    triangles: 1500, groups: ['magasin', 'guet', 'fort'], fixed: [['socle', 'lisere', 'signe', 'hampe', 'drapeau'], 500], rest: 850,
     names: ['socle', 'lisere', 'sacs', 'signe', 'magasin', 'guet', 'fort', ...FLAG.names],
     pivots: { ...FLAG.pivots },
-    absent: ['fx_rang', 'cour', 'niveau_1'],
+    absent: ['fx_rang', 'cour', 'niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'],
   },
   city: {
     site: true,
@@ -364,14 +366,16 @@ function verify(path, key, nation) {
   if (spec.measure) {
     const [node, axis, metres, tolerance] = spec.measure;
     const want = valueOf(metres);
-    const k = { x: 0, y: 1, z: 2 }[axis];
-    let got;
-    if (node) {
-      const i = named.find(([n]) => n === node)?.[1];
-      got = i === undefined ? NaN : size(boxUnder(gltf, i, isPart, world.get(i)))[k];
-    } else got = s[k];
-    if (want === undefined) look(`mesure en ${axis} : ${got.toFixed(2)} m (passe --nation pour la comparer)`);
-    else check(Math.abs(got - want) <= tolerance * want, `mesure ${node ?? 'du modèle'} en ${axis} : ${got.toFixed(2)} m pour ${want} m (± ${Math.round(tolerance * 100)} %)`);
+    for (const a of axis) {
+      const k = { x: 0, y: 1, z: 2 }[a];
+      let got;
+      if (node) {
+        const i = named.find(([n]) => n === node)?.[1];
+        got = i === undefined ? NaN : size(boxUnder(gltf, i, isPart, world.get(i)))[k];
+      } else got = s[k];
+      if (want === undefined) look(`mesure en ${a} : ${got.toFixed(2)} m (passe --nation pour la comparer)`);
+      else check(Math.abs(got - want) <= tolerance * want, `mesure ${node ?? 'du modèle'} en ${a} : ${got.toFixed(2)} m pour ${want} m (± ${Math.round(tolerance * 100)} %)`);
+    }
   }
   if (spec.maxSpan) check(s[0] <= spec.maxSpan, `envergure ${s[0].toFixed(2)} m ≤ ${spec.maxSpan} m (baie du hangar)`);
   for (const [marker, rule] of Object.entries(spec.markers ?? {})) {
@@ -416,9 +420,20 @@ function verify(path, key, nation) {
     const groups = (spec.groups ?? []).map((g) => [g, named.filter(([n]) => n === g).reduce((sum, [, i]) => sum + trianglesUnder(i), 0)]);
     for (const [g, n] of groups) check(n <= SITE_BUDGET.group, `${g} : ${n} triangles ≤ ${SITE_BUDGET.group}`);
     const hidden = groups.reduce((sum, [, n]) => sum + n, 0) - Math.max(0, ...groups.map(([, n]) => n));
-    const n = roots.reduce((sum, r) => sum + trianglesUnder(r), 0) - hidden;
+    const total = roots.reduce((sum, r) => sum + trianglesUnder(r), 0);
+    const n = total - hidden;
     const max = valueOf(spec.triangles);
     check(n <= max, `${n} triangles ≤ ${max}${groups.length ? ' (un seul groupe montré, le plus lourd)' : ''}`);
+    if (spec.fixed) {
+      // Un nœud maillé compte s'il est, ou descend d'un, des noms donnés : chacun une fois, la toile sous sa hampe comprise.
+      const [names, most] = spec.fixed;
+      const within = (i) => i !== undefined && (names.includes(nodes[i].name) || within(parent.get(i)));
+      const own = (node) => gltf.meshes[node.mesh].primitives.reduce((t, p) => t + gltf.accessors[p.indices ?? p.attributes.POSITION].count / 3, 0);
+      const fixed = nodes.reduce((sum, node, i) => (node.mesh !== undefined && within(i) ? sum + own(node) : sum), 0);
+      check(fixed <= most, `${names.join(', ')} : ${fixed} triangles ≤ ${most}`);
+      const rest = total - fixed - groups.reduce((sum, [, t]) => sum + t, 0);
+      check(rest <= spec.rest, `le reste, hors accessoires : ${rest} triangles ≤ ${spec.rest}`);
+    }
   }
 
   // Matériaux, textures, extensions.
