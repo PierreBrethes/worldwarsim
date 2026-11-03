@@ -1386,8 +1386,10 @@ export class StandingLayer implements SequenceHost {
 
   /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
-    for (const { object, extent, ready, near } of this.dressed.values()) {
-      if (!ready || !object.visible) continue;
+    const lent = new Set(this.stoodIn.values());
+    for (const { object, extent, ready, near, figurines } of this.dressed.values()) {
+      // A pile whose every group plays away (a truck backing to its quay) glows with it, not at its rank.
+      if (!ready || !object.visible || figurines.every((figurine) => lent.has(figurine))) continue;
       emit(object.position, Math.max(extent.x, extent.z) * object.scale.x, near);
     }
   }

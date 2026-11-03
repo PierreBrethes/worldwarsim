@@ -413,6 +413,28 @@ describe('a pile lent to a sequence', () => {
     expect(layer.under(down())?.id).toBe(under);
   });
 
+  it('leaves no glow at its rank while its only group plays away, and glows again given back (#271)', async () => {
+    const layer = await standing('landTransport');
+    const glows = () => {
+      let count = 0;
+      layer.lights(() => count++);
+      return count;
+    };
+    expect(glows()).toBe(1);
+    layer.standIn(TRUCK, new Group());
+    expect(glows()).toBe(0);
+    layer.standIn(TRUCK, null);
+    expect(glows()).toBe(1);
+  });
+
+  it('keeps the glow of a pile whose other groups stay at their rank', async () => {
+    const layer = await standing('infantry', 'armor');
+    layer.standIn('p/0', new Group());
+    let count = 0;
+    layer.lights(() => count++);
+    expect(count).toBe(1);
+  });
+
   it('takes the loan back from a pile dressed again, or put in hand', async () => {
     const layer = await standing('landTransport');
     layer.standIn(TRUCK, new Group());
