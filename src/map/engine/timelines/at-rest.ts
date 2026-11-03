@@ -65,7 +65,7 @@ export function pumpAt(t: number, rig: PumpRig) {
 export const HEADFRAME_S = 16;
 /** **La molette fait au plus 2,5 rad/s** : 18° par pas à 8 i/s, sous la moitié des 60° entre deux
  *  rayons — elle ne paraît jamais tourner à l'envers. */
-export const WHEEL_SPEED = 2.5;
+const WHEEL_SPEED = 2.5;
 const HAUL = 4.5;
 /** La cordée : 1,5 s pour prendre sa vitesse, 3 s pleine, 1,5 s pour s'arrêter, de 0 à 1. */
 const trip = (tau: number): number => {
