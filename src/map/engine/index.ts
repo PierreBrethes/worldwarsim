@@ -75,6 +75,7 @@ import {
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
+import { veiledPiles } from './veils';
 import { HeldBursts } from './held-bursts';
 import { afloat, sceneSpan, stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
@@ -3569,13 +3570,8 @@ export class MapEngine {
         this.replayHidden.delete(pawn);
       }
     if (veils.length === 0) return;
-    const batteries = this.combats.batteries;
-    const firing = (at: Vector3) =>
-      batteries.some(
-        (battery) => Math.hypot(at.x - battery.at.x, at.z - battery.at.z) <= battery.within,
-      );
-    for (const object of this.standing.group.children)
-      if (covered(object.position) && !firing(object.position)) object.visible = false;
+    for (const object of veiledPiles(this.standing.group.children, veils, this.combats.batteries))
+      object.visible = false;
     for (const object of this.camps.group.children)
       if (covered(object.position)) object.visible = false;
     for (const pawn of this.arcs.pawns)
