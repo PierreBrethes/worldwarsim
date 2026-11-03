@@ -36,7 +36,10 @@ export type PumpRig = {
 };
 
 /** **The crank leads everything**: it turns round, the beam, the rods and the polished rod
- *  follow at every step, as in the machine. Angles in radians about x, shifts in (y, z). */
+ *  follow at every step, as in the machine. Angles in radians about x, shifts in (y, z).
+ *  Each rod keeps its length, its head on the beam, aimed at the pin: the decided stops are not
+ *  those of today's file as a linkage (−3°, +20°), so its foot misses the pin by up to 1,08 m
+ *  there. A file whose crank matches the stops (#368) closes it. */
 export function pumpAt(t: number, rig: PumpRig) {
   const crank = (-2 * Math.PI * (((t % PUMP_S) + PUMP_S) % PUMP_S)) / PUMP_S;
   const pin0 = rig.rods[0]?.pin ?? rig.crank;
