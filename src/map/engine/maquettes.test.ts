@@ -27,6 +27,7 @@ import {
   yawOf,
 } from './maquettes';
 import { pileLayout } from './standing';
+import { articulatedOf } from './sequences';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';
 
 /** The box the last works were dressed round. */
@@ -1158,5 +1159,12 @@ describe('a site on its socle (ADR 0038)', () => {
       for (const placed of drawn)
         expect(scaleOf(placed)).toBeCloseTo((Math.round(weight * 100) / 100) * 0.964 * FULL, 9);
     });
+  });
+});
+
+describe('a copy for a sequence or a loop (#273)', () => {
+  it('keeps its sign a node, to grow on its foot as the instance does', async () => {
+    const rig = await articulatedOf('socle.glb', 'barracks');
+    expect(rig.getObjectByName('signe')).toBeDefined();
   });
 });
