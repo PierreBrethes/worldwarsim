@@ -1,5 +1,5 @@
 import {
-  type Box3,
+  Box3,
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
@@ -8,6 +8,7 @@ import {
   Group,
   Line,
   LineDashedMaterial,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -1005,6 +1006,28 @@ export class StandingLayer implements SequenceHost {
         .sort((a, b) => (a.name < b.name ? -1 : 1))
         .map((man) => man.getWorldPosition(new Vector3())),
     };
+  }
+
+  /** **How long a group is drawn**, nose to tail along its own front, on the board: a turned
+   *  rank does not lengthen it as its world box does (#271). `null` until placed. */
+  lengthOf(id: string): number | null {
+    const lent = this.figurineOf(id);
+    if (!lent?.placed) return null;
+    const { object } = lent.figurine;
+    object.updateWorldMatrix(true, true);
+    const back = object.matrixWorld.clone().invert();
+    const own = new Box3();
+    object.traverseVisible((part) => {
+      const { geometry } = part as Mesh;
+      if ((part as Mesh).isMesh !== true || part.userData.ground === true) return;
+      if (geometry.boundingBox === null) geometry.computeBoundingBox();
+      own.union(
+        geometry
+          .boundingBox!.clone()
+          .applyMatrix4(new Matrix4().multiplyMatrices(back, part.matrixWorld)),
+      );
+    });
+    return own.isEmpty() ? null : (own.max.z - own.min.z) * object.getWorldScale(new Vector3()).z;
   }
 
   /** The copy takes the group's model's place, at its scale: it is drawn under the same

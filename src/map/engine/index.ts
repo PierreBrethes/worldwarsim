@@ -3139,7 +3139,8 @@ export class MapEngine {
     const site = this.maquettes.siteOf(cue.siteId);
     const place = this.standing.placeOf(cue.groupId);
     const drawn = this.standing.pieceOf(cue.groupId)?.box;
-    if (site === null || place === null || !drawn) return 'wait';
+    const long = this.standing.lengthOf(cue.groupId);
+    if (site === null || place === null || !drawn || long === null) return 'wait';
     const stop = site.marker('fx_quai');
     const front = site.front('fx_quai');
     if (
@@ -3156,7 +3157,6 @@ export class MapEngine {
     const rank = site.toModel(place.at);
     const inside = site.marker('fx_entree');
     const door = site.marker('fx_sortie');
-    const size = drawn.getSize(new Vector3());
     const plan: Docked['plan'] = {
       rank: rank.toArray(),
       rankFront: site
@@ -3165,7 +3165,7 @@ export class MapEngine {
         .setY(0)
         .normalize()
         .toArray(),
-      length: Math.max(size.x, size.z) / metre,
+      length: long / metre,
       box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
       quay: { stop: stop.toArray(), front: front.setY(0).normalize().toArray() },
       perron:
