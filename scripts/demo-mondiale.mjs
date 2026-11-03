@@ -79,6 +79,9 @@
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
  * avant-poste à Namur, et à l'adversaire une mine relevée sur la Sarre : une mine à poser, au
  * cadrage de la maquette des gisements.
+ * `--sites` (#273) pose pour la France le Centre qui cherche de `--recherche`, quatre mines sur
+ * leurs gisements, un chantier naval au Havre avec une coque sur cale et Bakou tenu avec son puits :
+ * les sites qui vivent au repos (`@sites` cadre les six de France, `@bakou` le puits).
  * `--echelle` (#265) pose pour la France l'aérodrome et le port de `--largage` et `--navire`, la
  * caserne de `--niveaux`, puis y fait entrer trois fantassins et deux chars : une garnison à
  * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
@@ -151,7 +154,9 @@ const rangoon = process.argv.includes('--rangoun');
 const airdrops = process.argv.includes('--largage') || process.argv.includes('--echelle');
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
-const research = idleCenter || process.argv.includes('--recherche');
+/** `--sites` (#273) : les sites qui vivent au repos, le Centre qui cherche compris. */
+const livingSites = process.argv.includes('--sites');
+const research = idleCenter || livingSites || process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 /** `--pillage` (#211) : `--points`, sans l'escorte en mer, plus un pillage en phase de présence. */
@@ -485,6 +490,11 @@ if (!bare) {
   /** Un Centre de recherche, deux cartes acquises, une troisième en cours (#123). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a, idle: idleCenter })]);
+  if (livingSites && scene.a !== null) {
+    cli(['run', 'dev:sitesScene', JSON.stringify({ playerId: scene.a })]);
+    places.sites = [3.2, 49.2];
+    places.bakou = [49.9, 40.5];
+  }
   /** Une salve sur seize troupes, une fois la pièce en batterie (ADR 0028 §6). */
   if (artillery && scene.a !== null && scene.b !== null) {
     cli(['run', 'dev:artilleryScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
