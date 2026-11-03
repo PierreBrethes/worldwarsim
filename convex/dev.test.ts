@@ -11,6 +11,7 @@ import { liaisonsOf } from '../src/domain/outposts';
 import { worksMinutes } from '../src/domain/level-speed';
 import { levelOf, playerBuildings } from './buildingReads';
 import type { Id } from './_generated/dataModel';
+import { distanceKm } from '../src/domain/geo';
 
 const buildingsOf = (t: ReturnType<typeof convexTest>, playerId: Id<'players'>) =>
   t.run(async (ctx) => playerBuildings(ctx, playerId));
@@ -364,6 +365,44 @@ describe('dev.twoSentriesScene', () => {
     expect(arc!.seenFrom).toBe((reappeared ? second : first)!.from);
     expect(Date.now()).toBeGreaterThan(first!.to);
     expect(Date.now() > second!.from).toBe(reappeared);
+  });
+});
+
+describe('dev.twoSentriesScene, reappeared', () => {
+  /** **La dépêche tardive** : relue au départ, la ligne a deux rendez-vous échus ; la
+   *  réapparition peut élaguer le premier tronçon avant que la dépêche ne parte. Elle se dit
+   *  quand même à sa date, sous Cologne, jamais sous Erfurt. */
+  it('words the dispatch at its own date when the reappearance woke first', async () => {
+    const { t, playerId } = await twoNations();
+    const enemyId = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
+    );
+    await t.mutation(internal.dev.twoSentriesScene, { playerId, enemyId, reappeared: true });
+    const row = async () =>
+      (
+        await t.run(async (ctx) =>
+          ctx.db
+            .query('sightings')
+            .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+            .collect(),
+        )
+      )[0]!;
+    const before = await row();
+    await t.mutation(internal.movements.wakeSighting, {
+      sightingId: before._id,
+      expectedAt: before.openJobAt!,
+    });
+    expect((await row()).windows).toEqual([before.windows![1]]);
+    await t.mutation(internal.movements.revealSighting, { sightingId: before._id });
+
+    const [dispatch] = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter((one) => one.kind === 'movementSighted'),
+    );
+    expect(dispatch!.at).toBe(before.from);
+    const point: [number, number] = [dispatch!.point!.lon, dispatch!.point!.lat];
+    expect(distanceKm(point, [6.96, 50.94])).toBeLessThan(100);
+    expect(distanceKm(point, [11.03, 50.98])).toBeGreaterThan(200);
   });
 });
 

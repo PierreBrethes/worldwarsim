@@ -32,6 +32,7 @@ import {
   relaidWindows,
   sameWindows,
   storedWindows,
+  windowAt,
   windowsOf,
   type SightWindow,
 } from '../../src/domain/sighting-windows';
@@ -249,9 +250,10 @@ export async function revealSighting(
   }
 
   /** **La première fenêtre, jamais l'enveloppe** (#412) : le cap au bout de l'enveloppe serait
-   *  celui d'après le trou, que personne n'a vu. */
-  const first = windowsOf(sighting)[0]!;
-  const seen = seenSegment(marchingForce(movement), first.from, first.to);
+   *  celui d'après le trou, que personne n'a vu. Une réapparition réveillée avant la dépêche a pu
+   *  élaguer cette fenêtre : la dépêche se dit alors à sa date, sur l'instant de l'ouverture. */
+  const first = windowAt(windowsOf(sighting), sighting.from);
+  const seen = seenSegment(marchingForce(movement), sighting.from, first?.to ?? sighting.from);
   await ctx.db.insert('notices', {
     playerId: sighting.playerId,
     at: sighting.from,
