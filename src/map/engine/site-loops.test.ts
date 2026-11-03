@@ -182,6 +182,42 @@ describe('the sites at rest (#273)', () => {
     loops.frame(4, 'full');
     expect(wheel(ours)).toBeGreaterThan(0);
   });
+  it('withdraws its copy from a sequence still cooking that ends out of sight', async () => {
+    const { host, sight } = setup();
+    const sequences = new SequenceLayer(
+      (_box, px) => px <= sight.px,
+      () => new Promise<Group>(() => {}),
+    );
+    const layer = new SiteLoopLayer(
+      host,
+      sequences,
+      () => true,
+      () => new Vector3(),
+      6,
+      () => Promise.resolve(mineRig()),
+    );
+    host.sites = [site('a', 5)];
+    layer.frame(0, 'full');
+    await flush();
+    const door: Sequence<'mine'> = { family: 'mine', ms: 1000, at: () => ({}) };
+    sequences.play(host, 'a', door, 0);
+    layer.frame(0.5, 'full');
+    host.sites = [];
+    sight.px = 0;
+    sequences.step(100);
+    layer.frame(1, 'full');
+    expect(host.copies.size).toBe(0);
+  });
+
+  it('drops a copy cooked after its site left', async () => {
+    const { host, loops } = setup();
+    host.sites = [site('a', 5)];
+    loops.frame(0, 'full');
+    host.sites = [];
+    loops.frame(0.1, 'full');
+    await flush();
+    expect(host.copies.size).toBe(0);
+  });
 });
 
 describe('each loop on its file today (#273)', () => {

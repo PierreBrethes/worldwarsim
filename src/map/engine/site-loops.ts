@@ -202,7 +202,10 @@ export class SiteLoopLayer implements AmbientLayer {
 
   constructor(
     private readonly host: LoopHost,
-    private readonly sequences: { playsOn(host: SequenceHost, id: string): boolean },
+    private readonly sequences: {
+      playsOn(host: SequenceHost, id: string): boolean;
+      holds(host: SequenceHost, id: string): boolean;
+    },
     /** Ce que voit l'œil : la boîte coupe le champ, et fait au moins `px`. */
     private readonly sees: (box: Box3, px: number) => boolean,
     private readonly eye: () => Vector3,
@@ -301,12 +304,13 @@ export class SiteLoopLayer implements AmbientLayer {
     );
   }
 
-  /** Its copy given back — but to a sequence that took it, which keeps it. A site gone from its
-   *  host (taken, razed) has its copy withdrawn here. */
+  /** Its copy given back — but to a sequence that placed its own, which keeps it: one still
+   *  cooking may end without placing any. A site gone from its host (taken, razed) has its copy
+   *  withdrawn here. */
   private release(id: string, life: Living): void {
     life.over = true;
     this.living.delete(id);
-    if (life.copy !== null && !this.sequences.playsOn(this.host, id)) this.host.standIn(id, null);
+    if (life.copy !== null && !this.sequences.holds(this.host, id)) this.host.standIn(id, null);
   }
 
   private pose(life: Living): void {

@@ -320,6 +320,11 @@ export class SequenceLayer {
     return this.playing.some((p) => p.host === host && p.id === id);
   }
 
+  /** Whether a sequence on the piece `id` of `host` already placed its own copy. */
+  holds(host: SequenceHost, id: string): boolean {
+    return this.playing.some((p) => p.host === host && p.id === id && p.copy !== null);
+  }
+
   /** How many more pieces may play now (`MAX_PLAYING`), a deployment aside. */
   get room(): number {
     return this.roomFor(undefined);
