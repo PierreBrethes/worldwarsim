@@ -881,6 +881,7 @@ export const sitesScene = internalMutation({
       finishesAt: now + 24 * 3_600_000,
     });
     await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
   },
 });
 
