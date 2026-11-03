@@ -48,9 +48,10 @@ const EXPECT = {
   port: {
     site: true,
     measure: [null, 'z', 210, 0.05], except: ['avant_cale'], below: ['avant_cale'], materials: ['vitres'],
-    names: ['coque_cale', 'ber_1', 'ber_2', 'ber_3', 'accore_1', 'accore_2', 'accore_3', 'accore_4', 'accore_5', 'accore_6', 'avant_cale', 'grue', 'grue_couronne', 'fleche', 'cable', 'crochet', 'fx_bord_eau', 'fx_smoke', ...FLAG.names],
+    names: ['coque_cale', 'ber_1', 'ber_2', 'ber_3', 'accore_1', 'accore_2', 'accore_3', 'accore_4', 'accore_5', 'accore_6', 'avant_cale', 'grue', 'grue_couronne', 'fleche', 'cable', 'crochet', 'fx_bord_eau', 'fx_tete_fleche', 'fx_smoke', ...FLAG.names],
     pivots: { coque_cale: 'zmax-bas', 'ber_*': 'pied', 'accore_*': 'pied', grue_couronne: 'axe-y', fleche: 'bout', cable: 'haut', crochet: 'haut', ...FLAG.pivots },
     markers: { fx_bord_eau: 'zmax' },
+    parents: { fx_tete_fleche: 'fleche' },
     absent: ['coque', 'door_left', 'door_right', 'vantail', 'moufle', 'cable_crochet'],
   },
   warehouse: {
