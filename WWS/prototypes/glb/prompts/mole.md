@@ -3,7 +3,7 @@
 Un kit de môle portuaire de 1940 en pierre, en deux modules que le jeu assemble : un tronçon de
 10 m qui se raccorde sans couture, avec sa bitte, sa défense et son lampadaire, et le musoir rond
 qui le termine, avec son feu vert. Dans « La Manchette » (stratégie, presse illustrée de 1940), le
-môle part du chantier naval, du côté de la grue ; les navires y accostent et s'y amarrent.
+môle part du chantier naval, du côté de la grue, depuis le bord de son socle ; les navires y accostent et s'y amarrent.
 
 ## Dimensions (mètres réels)
 
@@ -13,21 +13,22 @@ sa propre emprise. **Le côté bassin, où accostent les navires, est −x** ; l
 un enrochement. Seuls les parements descendent sous y = 0, jusqu'à −1 m, pour qu'aucun jour ne
 paraisse à la flottaison.
 
-- **Largeur : 20 m** (x de −10 à +10). **Dessus à y = +0,5 m** (le terre-plein du chantier est au
-  même niveau).
+- **Largeur : 20 m** (x de −10 à +10). **Dessus à y = +2,2 m** : le chantier naval est posé sur un socle dont
+  le dessus est à 2,2 m, et le môle part de son bord **au même niveau** (le quai). Le kit le mettait à +0,5 m : c'est corrigé.
 - **`mole_troncon`** : 10 m de long (z de −5 à +5). Le jeu en aligne seize pour 160 m.
   - Dalle de pierre à joints, liseré de pierre de taille de 0,6 m le long du bord bassin, deux
     rails gravés dans la dalle parallèles à l'axe (à x = −4 et x = −2,5).
-  - Parement bassin (x = −10) vertical, pierre de taille ; côté large (x = +10), un talus
-    d'enrochements jusqu'à l'eau.
+  - Parement bassin (x = −10) vertical, pierre de taille, de y = −1 à y = +2,2 (3,2 m de haut) ; côté large (x = +10), un talus
+    d'enrochements du dessus (y = +2,2) jusqu'à l'eau, et jusqu'à y = −1.
   - Accessoires, chacun un nœud que le jeu montre ou cache selon la place du tronçon (une bitte
     tous les 30 m, une défense tous les 20 m, une lampe tous les 40 m) :
-    - **bitte** d'amarrage en fonte, 0,6 m de haut, au bord bassin (x = −9,2 ; z = 0) ;
+    - **bitte** d'amarrage en fonte, 0,6 m de haut, au bord bassin (x = −9,2 ; z = 0), pied à y = +2,2 ;
     - **défense** : un boudin de bois et de corde suspendu au parement bassin (x = −10,1 ;
-      z = 0), 0,6 × 2 m ;
-    - **lampadaire** : poteau de 6 m sur l'axe (x = 0 ; z = 0), une lanterne en tête.
+      z = 0), 0,6 × 2 m, pendue du bord du parement (son haut à y = +2,2) ;
+    - **lampadaire** : poteau de 6 m sur l'axe (x = 0 ; z = 0), pied à y = +2,2, une lanterne en tête.
+  - Les accessoires (bitte, défense, lampadaire) et les repères (`feu_musoir`, `fx_amarre`, `fx_amarre_tete`) sont **relevés de 1,7 m avec le dessus** (de +0,5 à +2,2) ; rien d'autre ne change.
 - **`mole_tete`** (le musoir) : un plateau rond de **Ø 24 m** (plus large que le môle), même dessus
-  à +0,5 m, parement de pierre tout autour ; une tourelle de feu de 6 m au centre, un feu vert en
+  à +2,2 m, parement de pierre tout autour ; une tourelle de feu de 6 m au centre, un feu vert en
   tête ; une bitte côté bassin. Son origine est au centre du cercle ; il se raccorde au dernier
   tronçon par son bord −z (z = −12).
 
@@ -38,10 +39,10 @@ Dans la page, ils peuvent se montrer assemblés, mais l'export les remet à zér
 
 | Nœud | Origine (pivot) | Axe et mouvement | Taille |
 |---|---|---|---|
-| `mole_troncon` | centre du module, sur l'eau | fixe ; posé bout à bout le long de z | 20 × 1,5 × 10 m |
-| `bitte` | pied de la bitte (−9,2 ; 0,5 ; 0) | enfant de `mole_troncon` ; montrée ou cachée | 0,6 m |
+| `mole_troncon` | centre du module, sur l'eau | fixe ; posé bout à bout le long de z | 20 × 3,2 × 10 m (de y = −1 à +2,2) |
+| `bitte` | pied de la bitte (−9,2 ; 2,2 ; 0) | enfant de `mole_troncon` ; montrée ou cachée | 0,6 m |
 | `defense` | haut de la défense, au bord du parement | enfant de `mole_troncon` ; montrée ou cachée | 0,6 × 2 m |
-| `lampadaire` | pied du poteau (0 ; 0,5 ; 0) | enfant de `mole_troncon` ; montré ou caché | 6 m |
+| `lampadaire` | pied du poteau (0 ; 2,2 ; 0) | enfant de `mole_troncon` ; montré ou caché | 6 m |
 | `mole_tete` | centre du musoir, sur l'eau | fixe | Ø 24 m |
 | `feu_musoir` | centre du feu, en tête de la tourelle | enfant de `mole_tete` ; fixe ; le jeu l'allume la nuit (vert) | Ø 0,6 m |
 
@@ -49,7 +50,7 @@ Dans la page, ils peuvent se montrer assemblés, mais l'export les remet à zér
 
 | Repère | Position | Orientation |
 |---|---|---|
-| `fx_amarre` | enfant de `bitte`, au sommet de la bitte | −x (vers le bassin) : où arrive l'aussière d'un navire |
+| `fx_amarre` | enfant de `bitte`, au sommet de la bitte (y = +2,8) | −x (vers le bassin) : où arrive l'aussière d'un navire |
 | `fx_amarre_tete` | enfant de `mole_tete`, au sommet de sa bitte | −x |
 
 ## Matériaux et texture
@@ -66,7 +67,7 @@ Dans la page, ils peuvent se montrer assemblés, mais l'export les remet à zér
 ## Ce que le modèle doit permettre
 
 - Le jeu assemble 160 m de môle (seize tronçons et le musoir), parallèle à la cale du chantier,
-  le côté bassin vers elle.
+  le côté bassin vers elle, posé contre le bord du socle du chantier (son bord +x, ou −x quand le port est en miroir) : le dessus du môle et celui du socle sont au même niveau, sans marche.
 - Un cargo de 130 m vient de travers le long du parement bassin, touche les défenses, s'amarre :
   le jeu tend ses aussières jusqu'aux `fx_amarre` des bittes.
 - La nuit, une lampe tous les 40 m et le feu vert du musoir s'allument ; le feu se reflète sur
@@ -79,8 +80,8 @@ Dans la page, ils peuvent se montrer assemblés, mais l'export les remet à zér
   « Exporter en GLB » (GLTFExporter, binaire) qui n'exporte que les deux modules, chacun à
   l'origine : ni lumière, ni caméra, ni eau, ni l'assemblage. Ni meshopt, ni quantification.
   Texture en WebP si possible, sinon PNG.
-- 1 unité = 1 m ; 20 m de large ; tronçon de 10 m ; musoir de Ø 24 m ; dessus à +0,5 m ; rien
-  sous −1 m.
+- 1 unité = 1 m ; 20 m de large ; tronçon de 10 m ; musoir de Ø 24 m ; **dessus à +2,2 m**, au niveau du quai du chantier ; rien
+  sous −1 m ; parements de −1 à +2,2.
 - Côté bassin en −x ; assemblage sans couture.
 - Noms présents à l'identique : `mole_troncon`, `bitte`, `defense`, `lampadaire`, `mole_tete`,
   `feu_musoir`, `fx_amarre`, `fx_amarre_tete`.
