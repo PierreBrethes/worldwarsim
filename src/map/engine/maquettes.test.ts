@@ -1,5 +1,5 @@
 import {
-  type Box3,
+  Box3,
   BoxGeometry,
   Color,
   Group,
@@ -14,6 +14,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
+import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { buildingFootprint, buildingSpan, troopSpan } from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
@@ -28,6 +29,7 @@ import {
 } from './maquettes';
 import { pileLayout } from './standing';
 import { articulatedOf } from './sequences';
+import { sceneOfFile } from './gltf-scene.fixture';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';
 
 /** The box the last works were dressed round. */
@@ -62,11 +64,14 @@ vi.mock('./works', async (original) => ({
 }));
 
 vi.mock('./figurines/figurine', async (original) => {
-  // A box of a metre for every file but the barracks on its socle: the loader wants a DOM.
+  // A box of a metre for every file but the barracks on its socle and the HQ: the loader wants
+  // a DOM.
   const sceneOf = async (url: string) => {
-    if (url === 'socle.glb')
-      return (await import('./gltf-scene.fixture')).sceneOfFile(
-        'src/emblems/fixtures/barracks-socle.glb',
+    const { sceneOfFile } = await import('./gltf-scene.fixture');
+    if (url === 'socle.glb') return sceneOfFile('src/emblems/fixtures/barracks-socle.glb');
+    if (url === 'hq.glb')
+      return sceneOfFile(
+        (await import('@/emblems/buildings/manifest')).buildingMaquette('hq', null)!,
       );
     const door = new Group();
     door.name = 'fx_sortie';
@@ -1166,5 +1171,17 @@ describe('a copy for a sequence or a loop (#273)', () => {
   it('keeps its sign a node, to grow on its foot as the instance does', async () => {
     const rig = await articulatedOf('socle.glb', 'barracks');
     expect(rig.getObjectByName('signe')).toBeDefined();
+  });
+
+  it("stocks the HQ's copy with two crates inside its walls, for a loading (#271)", async () => {
+    const rig = await articulatedOf('hq.glb', 'hq');
+    rig.updateMatrixWorld(true);
+    const file = sceneOfFile(buildingMaquette('hq', null)!);
+    const walls = new Box3().setFromObject(file.getObjectByName('corps')!);
+    for (const name of ['caisse_1', 'caisse_2']) {
+      const crate = rig.getObjectByName(name);
+      expect(crate, name).toBeDefined();
+      expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(1)), name).toBe(true);
+    }
   });
 });

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   type Docked,
   dockedOf,
+  joinedOf,
   LOADING_WAIT_MS,
+  mayDock,
   quayTaken,
   stillWaiting,
   undock,
@@ -53,11 +55,49 @@ function layerOf(playing: Array<[SequenceHost, string]>) {
 describe('the quays of a loading (#271)', () => {
   const { docked: entry } = dockedOf(plan, 'w', 0);
 
+  it('ends the site when the truck ends before it, and forgets the truck', () => {
+    const docked = new Map([['g', entry]]);
+    const layer = layerOf([[siteHost, 'w']]);
+    undock(docked, layer, hosts, 1000);
+    expect(layer.retimed).toEqual([[siteHost, 'w', 0]]);
+    expect(docked.size).toBe(0);
+  });
+
+  it('ends the truck when its site ends before its own end', () => {
+    const docked = new Map([['g', entry]]);
+    const layer = layerOf([[truckHost, 'g']]);
+    undock(docked, layer, hosts, 1000);
+    expect(layer.retimed).toEqual([[truckHost, 'g', 0]]);
+  });
+
+  it('lets the truck drive home alone once its site is done', () => {
+    const docked = new Map([['g', entry]]);
+    const layer = layerOf([[truckHost, 'g']]);
+    undock(docked, layer, hosts, entry.siteMs + 10);
+    expect(layer.retimed).toEqual([]);
+    expect(docked.size).toBe(1);
+  });
+
+  it('starts only with room for both, both seen', () => {
+    expect(mayDock(2, true, true)).toBe(true);
+    expect(mayDock(1, true, true)).toBe(false);
+    expect(mayDock(2, false, true)).toBe(false);
+    expect(mayDock(2, true, false)).toBe(false);
+  });
+
   it('holds a quay until its truck backs into its place, and that quay only', () => {
     const docked = new Map([['g', entry]]);
     expect(quayTaken(docked, 'w', entry.homeAt - 10)).toBe(true);
     expect(quayTaken(docked, 'other', 10)).toBe(false);
     expect(quayTaken(docked, 'w', entry.homeAt)).toBe(false);
+  });
+
+  it('joins a second load while the tailgate is down, not once it starts up', () => {
+    const one = dockedOf({ ...plan, crates: [0] }, 'w', 0).docked;
+    const joined = joinedOf(one, 1, one.gateUp - 200);
+    expect(joined?.docked.plan.crates).toHaveLength(2);
+    expect(joined!.docked.gateUp).toBeGreaterThan(one.gateUp);
+    expect(joinedOf(one, 1, one.gateUp)).toBeNull();
   });
 
   it('plays three trucks of one quay one after the other', () => {
