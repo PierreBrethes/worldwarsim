@@ -31,7 +31,7 @@ reste dans l'ordre des lots qui s'en servent.
 |---|---|---|---|
 | 1 | Caserne | [barracks.md](barracks.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs barracks.glb barracks` |
 | 2 | Hangar d'aérodrome | [airfield.md](airfield.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs airfield.glb airfield` |
-| 3 | Piste (kit : bout, seuil, tronçon) | [piste.md](piste.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs piste.glb piste` |
+| 3 | Piste (kit : bout, seuil, tronçon, rampe) | [piste.md](piste.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs piste.glb piste` |
 | 4 | Môle (kit : tronçon, musoir) | [mole.md](mole.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs mole.glb mole` |
 | 5 | Chantier naval | [port.md](port.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs port.glb port` |
 | 6 | Camion (×8 nations) | [landTransport.md](landTransport.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs landTransport.glb landTransport --nation <nation>` |
@@ -103,3 +103,32 @@ seule texture de 1 024 px au plus, en WebP ; ni meshopt, ni quantification, ni l
 Un cercle de sacs de 30 m sur un socle rond de 37 m (ADR 0038 §8 et §11), sans cour ni
 `fx_rang` : sa garnison se pose à côté, hors du socle. Trois groupes `magasin`, `guet` et `fort`, un seul montré par le jeu ; aucun pour le
 généraliste. 1 500 triangles dans n'importe quel état, atlas de 512² au plus.
+
+## Du 03/11
+
+Les storyboards de l'aérodrome (#269), du port (#270), de l'entrepôt (#271) et du repos (#273) sont
+validés ; leurs demandes au modèle sont reportées dans les prompts. À recoller dans la
+conversation Claude Design du modèle (prompt entier), dans cet ordre :
+
+1. [airfield.md](airfield.md) (hangars à l'échelle 1, cour de 35 m, socle de 126 × 88,9 m), puis
+   [piste.md](piste.md) (`piste_rampe`) : la rampe dépend des cotes du socle.
+2. [mole.md](mole.md) (dessus à 2,2 m), puis [port.md](port.md) (grue au repos : `fx_tete_fleche`,
+   câble de 20 m). Le môle se pose contre le socle du port : les deux dessus sont au même niveau.
+3. [warehouse.md](warehouse.md) (quai à +23,0, bornes, perron, `lanterne`, aire libre) et
+   [hq.md](hq.md) (porte de service à x = +30, repère en +34).
+4. [oilWell.md](oilWell.md), [mine.md](mine.md), [coalMine.md](coalMine.md),
+   [researchCenter.md](researchCenter.md) : pièces animées au repos (`fx_maneton`, molettes à six
+   rayons, cheminée de la mine de fer, `fente`).
+5. Les feux, dans la conversation de chaque rôle et de chaque nation (le reste de l'avion ou de
+   la coque ne change pas) : [fighter.md](fighter.md), [bomber.md](bomber.md),
+   [airTransport.md](airTransport.md) (`feu_gauche`, `feu_droit`, `feu_queue`),
+   [cargo.md](cargo.md), [escort.md](escort.md), [carrier.md](carrier.md) (`feu_babord`,
+   `feu_tribord`, `feu_mat`).
+6. Le drapeau de 12 × 6 quads (au lieu de 8 × 4) est dans tous les prompts de site : pour
+   [barracks.md](barracks.md), [arsenal.md](arsenal.md), [farm.md](farm.md),
+   [listening.md](listening.md), [city.md](city.md) et [outpost.md](outpost.md), rien d'autre ne
+   change ; à demander à la prochaine régénération.
+
+`verifier-glb.mjs` attend les noms neufs : `fx_tete_fleche` (port), `lanterne` (entrepôt),
+`fx_maneton` (puits), `piste_rampe` (piste), les feux des avions et des coques ; l'aérodrome se
+mesure à 110 m (deux hangars de 50 m et 10 m d'écart). `--coherence` passe.
