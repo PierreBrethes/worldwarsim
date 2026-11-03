@@ -11,6 +11,7 @@ import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { contactAt, passModeOf, pursuitVerdict } from '../../src/domain/blitz';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { positionAt, type MarchingForce } from '../../src/domain/interception';
+import { windowAt, windowsOf } from '../../src/domain/sighting-windows';
 import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
 import { contactKm, PURSUIT_STEP_SECONDS, RELOAD_SECONDS_BY_ROLE } from '../constants';
 import { resolveContact } from '../combat';
@@ -53,6 +54,11 @@ async function quarryNow(
   };
 }
 
+/** **Un fil en vue** : une fenêtre de son relevé tient l'instant — jamais un trou entre deux
+ *  fenêtres (#412), ni un souvenir. */
+const trackInSight = (row: Doc<'sightings'>, now: number): boolean =>
+  row.frozen === undefined && windowAt(windowsOf(row), now) !== null;
+
 /** **Ce que le joueur voit, et rien de plus** : la fenêtre de son relevé sur le fil, ou le camp
  *  qu'il tient pour présent. Le brouillard décide de l'abandon, pas une portée inventée ici. */
 async function inSight(
@@ -68,10 +74,7 @@ async function inSight(
         .query('sightings')
         .withIndex('byMovement', (q) => q.eq('movementId', movementId))
         .collect()
-    ).some(
-      (row) =>
-        row.playerId === playerId && row.frozen === undefined && row.from <= now && now <= row.to,
-    );
+    ).some((row) => row.playerId === playerId && trackInSight(row, now));
   }
   return (
     await ctx.db
@@ -110,14 +113,7 @@ export async function quarryOf(
       ).find((one) => one.playerId === playerId) ?? null;
     const movement = row === null ? null : await ctx.db.get(movementId);
     const troopId = movement?.troopIds[0];
-    if (
-      row === null ||
-      row.frozen !== undefined ||
-      row.from > now ||
-      row.to < now ||
-      movement === null ||
-      troopId === undefined
-    )
+    if (row === null || !trackInSight(row, now) || movement === null || troopId === undefined)
       fail('NOTHING_TO_ATTACK');
     return { troopId, point: positionAt(marchingForce(movement), now) };
   }

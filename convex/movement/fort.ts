@@ -20,6 +20,7 @@ import { fortWatches, lookoutKmOf } from '../../src/domain/outposts';
 import { fortEntryOf, heldMinutes } from '../../src/domain/route-timing';
 import { COST_BY_MEDIUM } from '../../src/domain/routing';
 import { seenSegment } from '../../src/domain/sighting-segment';
+import { windowAt, windowsOf } from '../../src/domain/sighting-windows';
 import { isRangoonColumn } from '../../src/domain/strategic-points';
 import { journalUrl, push } from '../../src/domain/push';
 import { sightingReachKm } from '../constants';
@@ -150,7 +151,10 @@ export async function holdAtFort(
     .collect();
   for (const owner of new Set(holders.map((fort) => fort.playerId))) {
     const row = rows.find((sighting) => sighting.playerId === owner);
-    const seen = seenSegment(held, row?.from ?? now, row?.to ?? arrivesAt);
+    /** **La fenêtre qui voit la colonne à l'entrée** (#412), jamais l'enveloppe : son cap au
+     *  bout serait celui d'une autre vigie, plus loin. */
+    const window = row === undefined ? null : windowAt(windowsOf(row), now);
+    const seen = seenSegment(held, window?.from ?? now, window?.to ?? now);
     await ctx.db.insert('notices', {
       playerId: owner,
       at: now,
