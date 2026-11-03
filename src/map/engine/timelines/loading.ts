@@ -32,6 +32,8 @@ const GATE_METRES = 0.6;
 const CRATE = { hop: 450, gap: 400, slide: 350, arc: 1.4 } as const;
 /** Where each crate stands aboard, in the truck's lengths from its back. `@a-mesurer` */
 const SLOTS = [0.55, 0.35] as const;
+/** **Two crates at most** (décision de Pierre du 03/11): what the tarp holds, a slot each. */
+export const MAX_CRATES = SLOTS.length;
 /** The door slides 5.2 m toward +x in 600 ms (`DOOR_RUN`, `DOOR_S`), on rollers of 0.15 m. */
 const DOOR = { run: 5.2, ms: 600, roller: 0.15, after: 150 } as const;
 /** A crate back out of the dark: straight out, along the quay, up the pile (`RESTOCK`), each
@@ -162,6 +164,8 @@ export function loadingAt({
   /** When the tailgate starts up: a load signalled before joins this one. */
   readonly gateUp: number;
   readonly atQuay: number;
+  /** When it starts back into its place: the quay is free for the next truck. */
+  readonly homeAt: number;
 } {
   // The way: out nose first, past the bay on the side away from the rank, then back to the quay.
   const y = rank[1];
@@ -203,7 +207,7 @@ export function loadingAt({
             Math.hypot(a.at[0] - stop[0], a.at[2] - stop[2]) -
               Math.hypot(b.at[0] - stop[0], b.at[2] - stop[2]),
         )
-        .slice(0, SLOTS.length)
+        .slice(0, MAX_CRATES)
     : SLOTS.map((_, k) => ({ name: `caisse_${k + 1}`, at: darkCrate(stop, front, k) }));
   const count = Math.min(crates.length, pile.length);
   const moves = crates.slice(0, count).map((earliest, k) => {
@@ -224,11 +228,13 @@ export function loadingAt({
   clock = gateUp + GATE.close + GATE.rest;
   drive([...toQuay].reverse(), LEG.leave, false);
   clock += LEG.pause;
+  const homeAt = clock;
   drive([...out].reverse(), LEG.home, true);
   const ms = clock;
+  // The site ends on its own gestures: the door shut, the last crate under the tarp or back up.
   const siteMs = Math.max(
-    ms,
     doorShut + (perron ? DOOR.ms : HQ.door),
+    lastIn,
     ...restocks.map((r) => r + RESTOCK.out + RESTOCK.along + RESTOCK.up),
   );
 
@@ -342,5 +348,5 @@ export function loadingAt({
       return pose;
     },
   };
-  return { truck, site, gateUp, atQuay };
+  return { truck, site, gateUp, atQuay, homeAt };
 }
