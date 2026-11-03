@@ -84,6 +84,7 @@ import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
 import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
+import { boardingOf } from './timelines/boarding';
 import { tailgateDrop } from './timelines/truck';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
@@ -560,6 +561,13 @@ export class MapEngine {
   private readonly docked = new Map<string, Docked>();
   /** Piles owed their ring of ink once their file has held, at reduced motion (#362). */
   private inkDue: Array<{ readonly at: number; readonly run: () => void }> = [];
+  /** **Men boarding a truck** (#277), waiting for the truck to stand, then for their own figures
+   *  (`boards`, once drawn). */
+  private boardings: Array<{
+    readonly cue: Extract<Cue, { kind: 'montee' }>;
+    readonly since: number;
+    boards?: ReadonlyArray<string>;
+  }> = [];
   /** **Squads disbanded**, waiting for their crown to stand (#277, U). */
   private dispersions: Array<{
     readonly cue: Extract<Cue, { kind: 'dispersion' }>;
@@ -2435,12 +2443,11 @@ export class MapEngine {
     if (gesture.carry !== null) this.gesture = gesture;
   }
 
-  /** **The piece let go boards a transport there** (15/10): it glides into it rather than home. */
-  boardInto(clientX: number, clientY: number): void {
+  /** **The piece let go boards a transport** (15/10): it goes home, and its men board from
+   *  there as the view says it (#277, `montee`). */
+  boardInto(): void {
     this.invalidate();
-    if (!this.castAt(clientX, clientY)) return;
-    const ground = this.sheetPoint() ?? undefined;
-    if (ground !== undefined) this.standing.boardInto(ground);
+    this.standing.boardInto();
   }
 
   /** **Whether the click now arriving closes a carry** — the browser sends it at once after the
@@ -2835,6 +2842,10 @@ export class MapEngine {
         this.sequences.play(this.standing, cue.truck, tailgateDrop(), performance.now());
         break;
       case 'montee':
+        if (this.sequences.motion === 'off') break;
+        // The truck holds where it stood until its men are under the tarp (`boardOf`).
+        this.standing.expect(cue.truck.slice(0, cue.truck.lastIndexOf('/')));
+        this.boardings.push({ cue, since: performance.now() });
         break;
       case 'dispersion':
         if (this.sequences.motion === 'off') break;
@@ -3205,6 +3216,73 @@ export class MapEngine {
         });
       this.inkDue.push({ at: since + ms, run: () => this.standing.inkArrival(pileId, true) });
     }
+    return true;
+  }
+
+  /**
+   * **Men board a truck under the eyes** (#277, storyboard « une pile vivante »): each one is
+   * drawn where it last stood — in its rank, or at the end of its file — walks round the rank to
+   * the tailgate, hops onto the bed and is swallowed by the tarp, one by one (`boardingOf`). All
+   * or nothing: the truck and its squads play together. At reduced motion the truck stands with
+   * its ring of ink; under a combat, out of the field, beyond the room left, it stands at once.
+   * `false` while the truck, then its men, are not drawn yet.
+   */
+  private boardOf(boarding: (typeof this.boardings)[number], now: number): boolean {
+    const { cue } = boarding;
+    const pileId = cue.truck.slice(0, cue.truck.lastIndexOf('/'));
+    const truck = this.standing.placeOf(cue.truck);
+    const length = this.standing.lengthOf(cue.truck);
+    const step = this.standing.stepOf(pileId);
+    if (truck === null || length === null || step === null) return false;
+    const motion = this.sequences.motion;
+    const unseen = motion !== 'full' || this.veiled(truck.at) || !this.seenWhole(truck.at);
+    if (boarding.boards === undefined && !unseen)
+      boarding.boards = this.standing.board(
+        pileId,
+        cue.riders.flatMap(({ troopId, figures }) => {
+          const was = this.standing.lastSeen(troopId) ?? this.arcs.fileLeftBy(troopId);
+          return was === null ? [] : [{ troopId, figures, at: was.at, heading: was.heading }];
+        }),
+      );
+    const boards = boarding.boards ?? [];
+    const men = boards.map((id) => this.standing.placeOf(id));
+    if (men.some((place) => place === null)) return false;
+    const size = new Vector3();
+    const height = Math.max(
+      0,
+      ...boards.map((id) => this.standing.pieceOf(id)?.box?.getSize(size).y ?? 0),
+    );
+    const plan =
+      unseen || boards.length === 0 || height === 0 || this.sequences.room < 1 + boards.length
+        ? null
+        : boardingOf({
+            down: false,
+            truck: { at: [truck.at.x, truck.at.z], front: [truck.front.x, truck.front.z], length },
+            man: height,
+            step,
+            squads: men.map((place) => ({
+              men: place!.men.map(({ x, z }) => [x, z] as const),
+              heading: Math.atan2(place!.front.x, place!.front.z),
+            })),
+          });
+    // The men first, drawn whole at once; the truck last, or they stop where they stand.
+    const walking =
+      plan === null
+        ? []
+        : boards.filter((id, n) => this.sequences.play(this.standing, id, plan.squads[n]!, now));
+    const played =
+      plan !== null &&
+      walking.length === boards.length &&
+      this.sequences.play(this.standing, cue.truck, plan.truck, now);
+    if (!played)
+      for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+    if (!played) {
+      for (const id of boards) this.standing.unboard(id);
+      if (motion === 'reduced') this.standing.inkArrival(pileId);
+      this.standing.arrive(pileId, []);
+      return true;
+    }
+    this.standing.arrive(pileId, [plan.settled]);
     return true;
   }
 
@@ -4159,6 +4237,12 @@ export class MapEngine {
     );
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
     this.undock(now);
+    this.boardings = this.boardings.filter((boarding) => {
+      if (this.boardOf(boarding, now)) return false;
+      if (now - boarding.since < SORTIE_WAIT_MS) return true;
+      for (const id of boarding.boards ?? []) this.standing.unboard(id);
+      return false;
+    });
     this.dispersions = this.dispersions.filter(
       (dispersion) => !this.disperseOf(dispersion, now) && now - dispersion.since < SORTIE_WAIT_MS,
     );

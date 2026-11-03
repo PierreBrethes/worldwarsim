@@ -58,6 +58,7 @@ import {
   dispersionsOf,
   entreesOf,
   loadsOf,
+  monteesOf,
   rankKept,
   sortiesOf,
 } from './cues';
@@ -78,7 +79,7 @@ import type { MouseMapping } from '@/domain/mouse-mapping';
 import { MAT_LIFT_HUD, useBoardInsets, useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
 import { Price } from '@/shell/Price';
 import type { Cost } from '@/domain/player-view';
-import type { PilePieces } from '@/domain/pile-pieces';
+import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
 import { RouteScale } from './RouteScale';
 import type { CargoAim } from './CargoTags';
 import { CombatReports } from './CombatReports';
@@ -1118,7 +1119,7 @@ export function WorldMap({
       ((target, clientX, clientY) => {
         const { from, label } = read(target, clientX, clientY);
         const outcome = from === null ? 'pose' : onPieceDrop(from);
-        if (outcome === 'board') readyEngine.boardInto(clientX, clientY);
+        if (outcome === 'board') readyEngine.boardInto();
         if (outcome === 'refused') readyEngine.refuseDrop();
         if (outcome === 'pose' && label !== undefined) onLabelAct(label, clientX, clientY);
       });
@@ -1802,7 +1803,22 @@ export function WorldMap({
     if (known === null) return;
     for (const descente of descentesOf(known, troops, standing))
       readyEngine?.cue({ kind: 'descente', ...descente });
-  }, [troops, standing, readyEngine]);
+    // Men board a truck one by one (#277); a Blitz unit is not three men.
+    if (blitz !== null) return;
+    const byId = new Map(troops.map((troop) => [troop.id, troop]));
+    for (const { truck, riders } of monteesOf(known, troops, standing))
+      readyEngine?.cue({
+        kind: 'montee',
+        truck,
+        riders: riders.flatMap((troopId) => {
+          const troop = byId.get(troopId);
+          if (troop?.role !== 'infantry') return [];
+          const { carriedBy: _, ...alone } = troop;
+          const figures = pilePieces([alone]).groups[0]?.figures ?? [];
+          return [{ troopId, figures }];
+        }),
+      });
+  }, [troops, standing, readyEngine, blitz]);
 
   // A squad disbanded at its point: its pieces walk out to their crown (#277, U). The two views
   // say it; my columns on either one are a march, not a crown.

@@ -1,6 +1,7 @@
 import { wrap } from '../articulation';
 import type { PartPose, Pose, Sequence } from '../sequences';
 import { ease, span } from './curves';
+import { WALK_MIN_PX } from './walk';
 
 export type Flat = readonly [x: number, z: number];
 
@@ -251,9 +252,10 @@ export function boardingOf(boarding: Boarding): {
   const squads = boarding.squads.map((_, squad): Sequence => {
     const mine = men.filter((m) => m.squad === squad);
     const ms = Math.max(...mine.map((m) => m.end)) + (down ? 0 : 1);
+    // The truck says whether it plays (`BOARDING_PX`); its men follow it.
     return {
       ms,
-      minPx: BOARDING_PX,
+      minPx: WALK_MIN_PX,
       at(t) {
         if (t < 0 || t >= ms) return {};
         const pose: Record<string, PartPose> = {};

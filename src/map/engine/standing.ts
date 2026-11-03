@@ -813,8 +813,8 @@ export class StandingLayer implements SequenceHost {
   }[] = [];
   /** The next change of pose a pile makes by itself (`nextPoseChange`). */
   private posing: ReturnType<typeof setTimeout> | null = null;
-  /** A boarding announced, waiting for the hand to empty (`boardInto`). */
-  private boarding: { readonly at: Vector3; readonly since: number } | null = null;
+  /** When a boarding was announced, waiting for the hand to empty (`boardInto`). */
+  private boarding: number | null = null;
   /** The copy put back, on its way home. */
   private leaving: Carried | null = null;
 
@@ -1139,13 +1139,10 @@ export class StandingLayer implements SequenceHost {
     this.dropLeaving();
     const lifted = this.carried;
     this.carried = null;
-    // Put back, the copy goes home and drops there; sent, its pawn takes over; boarded, it
-    // glides into its transport.
+    // Put back, the copy goes home and drops there; sent, its pawn takes over; boarded, it goes
+    // home too, and its men board from there (#277, `montee`).
     const released = performance.now();
-    const into =
-      this.boarding !== null && released - this.boarding.since < BOARDING_MS
-        ? this.boarding.at
-        : null;
+    const boarded = this.boarding !== null && released - this.boarding < BOARDING_MS;
     this.boarding = null;
     const refused = this.refusal !== null && released - this.refusal < REFUSAL_MS;
     this.refusal = null;
@@ -1160,7 +1157,7 @@ export class StandingLayer implements SequenceHost {
         this.dust(foot.at, 3, 0.5, foot.scale);
       }
     }
-    if (held === null && previous !== null && into === null && !refused && !sent)
+    if (held === null && previous !== null && !boarded && !refused && !sent)
       playTableSound('whoosh');
     // Sent onto a pile, the copy flies into it (POC, `absorb`); elsewhere it waits there, pale.
     const onto = lifted?.onto ?? null;
@@ -1170,8 +1167,8 @@ export class StandingLayer implements SequenceHost {
         from: lifted.object.position.clone(),
         since: released,
         carried: lifted.lift,
-        into: into ?? absorbed,
-        refused: refused && into === null && this.motion === 'full',
+        into: absorbed,
+        refused: refused && !boarded && this.motion === 'full',
       };
       lifted.down = null;
       this.leaving = lifted;
@@ -1501,6 +1498,12 @@ export class StandingLayer implements SequenceHost {
    *  walk computed a frame later calls, rather than standing at once in their new places. */
   expect(pileId: string): void {
     this.expected.set(pileId, performance.now());
+  }
+
+  /** **A pile's step on the board** (#277): how far apart its squads stand, at its scale. */
+  stepOf(pileId: string): number | null {
+    const entry = this.dressed.get(pileId);
+    return entry?.placed ? SQUAD_SPACING * entry.object.scale.x : null;
   }
 
   /** **Dust kicked up** where a vehicle of the pile sets off (#277, U), at its scale. */
@@ -1875,10 +1878,10 @@ export class StandingLayer implements SequenceHost {
     this.refusal = performance.now();
   }
 
-  /** **The next putting back is a boarding** (15/10): the copy glides to `at` and shrinks away. */
-  boardInto(at: Vector3): void {
+  /** **The next putting back is a boarding** (15/10): heard now, the copy goes home quietly. */
+  boardInto(): void {
     playTableSound('board');
-    this.boarding = { at, since: performance.now() };
+    this.boarding = performance.now();
   }
 
   /** Model geometry is shared with the pawns: nothing here is this layer's to free. */
