@@ -20,6 +20,7 @@ const plan: Docked['plan'] = {
   rankFront: [0, 0, 1],
   length: 6.5,
   box: { min: [-30, 0, -20], max: [30, 10, 24.2] },
+  socle: { min: [-38, 0, -30], max: [38, 2.2, 50] },
   quay: { stop: [0, 0, 23.5], front: [0, 0, 1] },
   perron: {
     crates: [
