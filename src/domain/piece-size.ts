@@ -74,24 +74,24 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
 };
 
 /**
- * **Le plus grand côté au sol de l'emprise réelle de chaque bâtiment, en mètres**, hampe et
- * drapeau exclus : l'anneau espace les sites par elle, car la remise de la caserne la porte à
- * 65 m quand ses `murs` en font 50. `maquettes.test.ts` la mesure sur les GLB.
+ * **Le plus grand côté au sol de l'emprise de chaque site, en mètres** : la boîte de son
+ * `socle` (ADR 0038 §6), car le socle déborde de 6 à 9 m du bâtiment, et de 20 à 25 m côté
+ * façade. Le puits n'a pas encore de socle : il garde la boîte de son bâtiment. `maquettes.test.ts` la mesure sur les GLB.
  */
 export const BUILDING_FOOTPRINT_METRES: Readonly<Record<BuildingKey, number>> = {
-  hq: 61,
-  farm: 41,
-  mine: 50,
+  hq: 78,
+  farm: 66,
+  mine: 75,
   oilWell: 25,
-  arsenal: 80,
-  barracks: 65,
-  airfield: 51,
+  arsenal: 98,
+  barracks: 82,
+  airfield: 113,
   port: 222,
-  listening: 31,
-  researchCenter: 50,
-  warehouse: 61,
-  depot: 61,
-  city: 51,
+  listening: 53,
+  researchCenter: 68,
+  warehouse: 78,
+  depot: 78,
+  city: 68,
 };
 
 /**

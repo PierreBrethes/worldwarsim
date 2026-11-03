@@ -64,11 +64,11 @@ vi.mock('./works', async (original) => ({
 }));
 
 vi.mock('./figurines/figurine', async (original) => {
-  // A box of a metre for every file but the barracks on its socle and the HQ: the loader wants
+  // A box of a metre for every file but the barracks and the HQ: the loader wants
   // a DOM.
   const sceneOf = async (url: string) => {
     const { sceneOfFile } = await import('./gltf-scene.fixture');
-    if (url === 'socle.glb') return sceneOfFile('src/emblems/fixtures/barracks-socle.glb');
+    if (url === 'socle.glb') return sceneOfFile('src/emblems/buildings/barracks.glb');
     if (url === 'hq.glb')
       return sceneOfFile(
         (await import('@/emblems/buildings/manifest')).buildingMaquette('hq', null)!,
@@ -797,13 +797,13 @@ describe('a site on its socle (ADR 0038)', () => {
     const frame = layer.siteOf(MINE)!;
     expect(frame.box.min.y).toBeCloseTo(0, 3);
     expect(frame.building.min.y).toBeCloseTo(SOCLE_TOP, 3);
-    const first = new Vector3(-25, SOCLE_TOP, 17.4).applyMatrix4(drawn.matrix);
+    const first = new Vector3(12, SOCLE_TOP, 12.5).applyMatrix4(drawn.matrix);
     expect(rank.at.x + rank.step[0]).toBeCloseTo(first.x, 6);
     expect(rank.at.z + rank.step[1]).toBeCloseTo(first.z, 6);
     expect(rank.at.y).toBeCloseTo(first.y, 6);
     expect(rank.at.y).toBeGreaterThan(0);
-    // The rank runs along the marker's +z, the model's +x, turned as the maquette is.
-    const along = new Vector3(1, 0, 0).applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
+    // The rank runs along the marker's +z, the model's +z, turned as the maquette is.
+    const along = new Vector3(0, 0, 1).applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
     expect(Math.cos(rank.facing)).toBeCloseTo(along.x, 6);
     expect(-Math.sin(rank.facing)).toBeCloseTo(along.z, 6);
   });
@@ -831,7 +831,7 @@ describe('a site on its socle (ADR 0038)', () => {
     const all = meshes(layer);
     const cut = (mesh: InstancedMesh) =>
       ((mesh.material as MeshStandardMaterial).clippingPlanes ?? []).length > 0;
-    for (const name of ['socle', 'lisere'])
+    for (const name of ['socle_papier', 'lisere'])
       expect(
         all.filter((mesh) => nameOf(mesh) === name && !cut(mesh) && mesh.name === ''),
       ).toHaveLength(1);
@@ -871,6 +871,8 @@ describe('a site on its socle (ADR 0038)', () => {
       meshes(layer)
         .map((mesh) => mesh.name)
         .filter((name) => name.startsWith('niveau_') || name === 'chantier' || name === 'ruines')
+        // A group is one mesh per material of the file.
+        .filter((name, k, all) => all.indexOf(name) === k)
         .sort();
     const stood = async (more: Parameters<typeof site>[1]) =>
       groupsOf(await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', ...more })]));
@@ -901,9 +903,11 @@ describe('a site on its socle (ADR 0038)', () => {
         site(MINE, { level: 1 }),
         site('building-barracks@5,0', { level: 3 }),
       ]);
+      // One material of each group, to count its copies once.
+      const MARK: Record<string, string> = { niveau_1: 'borne', niveau_3: 'terre' };
       const count = (name: string) =>
         meshes(layer)
-          .filter((mesh) => mesh.name === name)
+          .filter((mesh) => mesh.name === name && nameOf(mesh) === MARK[name])
           .reduce((sum, mesh) => sum + mesh.count, 0);
       expect(count('niveau_1')).toBe(2);
       expect(count('niveau_3')).toBe(1);
@@ -944,8 +948,9 @@ describe('a site on its socle (ADR 0038)', () => {
       const layer = await layerOf([site(MINE, { level: 3, side: 'mine', ink: '#2a5ba8' })]);
       const copy = new Group();
       layer.standIn(MINE, copy);
-      // The rig bakes niveau_1 into its base: the two groups that come later stand with it.
-      expect(copy.children).toHaveLength(2);
+      // The rig bakes niveau_1 into its base: the two groups that come later stand with it,
+      // a mesh per material (one for niveau_2, three for niveau_3).
+      expect(copy.children).toHaveLength(4);
       const low = await layerOf([site(MINE, { level: 1, side: 'mine', ink: '#2a5ba8' })]);
       const bare = new Group();
       low.standIn(MINE, bare);
@@ -969,7 +974,7 @@ describe('a site on its socle (ADR 0038)', () => {
     };
     const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', works })]);
     const names = meshes(layer).map(nameOf);
-    expect(names).toContain('socle');
+    expect(names).toContain('socle_papier');
     expect(names).not.toContain('ardoise');
   });
 
@@ -1029,7 +1034,7 @@ describe('a site on its socle (ADR 0038)', () => {
         });
     const scaleOf = (placed: Matrix4) => new Vector3().setFromMatrixScale(placed).x;
     const isSocle = (mesh: InstancedMesh) =>
-      mesh.name === '' && ['socle', 'lisere'].includes(nameOf(mesh));
+      mesh.name === '' && ['socle_papier', 'socle_flanc', 'lisere'].includes(nameOf(mesh));
     const isBuilding = (mesh: InstancedMesh) => mesh.name === '' && !isSocle(mesh);
     const isYard = (mesh: InstancedMesh) => mesh.name === 'cour' || mesh.name.startsWith('niveau_');
     const isSign = (mesh: InstancedMesh) => mesh.name === 'signe';
@@ -1070,10 +1075,10 @@ describe('a site on its socle (ADR 0038)', () => {
       const sign = drawnAs(layer, isSign)[0]!;
       expect(scaleOf(socle)).toBeGreaterThan(0);
       expect(scaleOf(socle)).toBeLessThan(FULL);
-      // 12 px over its ~8.6 px at d = 72.
+      // 12 px over its ~7.8 px at d = 72 (a 24 m sign).
       expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.3);
-      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.5);
-      const foot = new Vector3(18, SOCLE_TOP, 22);
+      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.6);
+      const foot = new Vector3(-22, SOCLE_TOP, 17);
       expect(
         foot.clone().applyMatrix4(sign).distanceTo(foot.clone().applyMatrix4(socle)),
       ).toBeLessThan(1e-6);
@@ -1177,11 +1182,11 @@ describe('a copy for a sequence or a loop (#273)', () => {
     const rig = await articulatedOf('hq.glb', 'hq');
     rig.updateMatrixWorld(true);
     const file = sceneOfFile(buildingMaquette('hq', null)!);
-    const walls = new Box3().setFromObject(file.getObjectByName('corps')!);
+    const walls = new Box3().setFromObject(file.getObjectByName('batiment')!);
     for (const name of ['caisse_1', 'caisse_2']) {
       const crate = rig.getObjectByName(name);
       expect(crate, name).toBeDefined();
-      expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(1)), name).toBe(true);
+      expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(3)), name).toBe(true);
     }
   });
 });

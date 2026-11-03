@@ -115,7 +115,7 @@ describe('PinLayer — the pieces far away', () => {
 
   it('gives way to a site on its socle while the socle reads at 28 px (ADR 0038 §7)', () => {
     const building: Pin = { ...mine('b', paris), shape: 'building' };
-    const socle = (buildingFootprint('barracks') * 80) / 65;
+    const socle = buildingFootprint('barracks');
     const pinAt = (distance: number, by: PinnedBy) => {
       const eye = eyeOver(paris, distance);
       const layer = new PinLayer(

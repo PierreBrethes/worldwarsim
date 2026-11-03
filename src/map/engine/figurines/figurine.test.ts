@@ -79,10 +79,10 @@ describe('pieceWeight', () => {
   });
 });
 
-/** A site on its socle reads by its socle's pixels (ADR 0038 §7): the barracks' socle of 80 m. */
+/** A site on its socle reads by its socle's pixels (ADR 0038 §7): the barracks' socle of 82 m. */
 describe('siteReading', () => {
-  const socle = (buildingFootprint('barracks') * 80) / 65;
-  // The fixture's sign: its mast stands some 27 m over the socle top.
+  const socle = buildingFootprint('barracks');
+  // The barracks' sign: its mast stands some 27 m over the socle top.
   const sign = (buildingSpan('barracks') * 27) / 50;
   afterEach(() => {
     setNearFloor(0);
@@ -93,7 +93,7 @@ describe('siteReading', () => {
     expect(siteReading(28, socle, sign)).toEqual({ diorama: 1, socle: 1, signGrowth: 1 });
     expect(siteReading(30, socle, sign).diorama).toBeLessThan(1);
     expect(siteReading(30, socle, sign).diorama).toBeGreaterThan(0);
-    expect(siteReading(34, socle, sign).diorama).toBe(0);
+    expect(siteReading(35, socle, sign).diorama).toBe(0);
   });
 
   it('keeps the socle and its sign alone down to 28 px, until d ≈ 65, then shrinks the socle', () => {
@@ -101,7 +101,7 @@ describe('siteReading', () => {
     expect(siteReading(64, socle, sign).socle).toBe(1);
     expect(siteReading(70, socle, sign).socle).toBeLessThan(1);
     expect(siteReading(70, socle, sign).socle).toBeGreaterThan(0);
-    expect(siteReading(77, socle, sign).socle).toBe(0);
+    expect(siteReading(79, socle, sign).socle).toBe(0);
   });
 
   it('grows the sign to keep 12 px tall, twice its height at most', () => {

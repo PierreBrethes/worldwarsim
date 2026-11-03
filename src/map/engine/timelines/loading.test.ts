@@ -121,11 +121,11 @@ describe('the files a loading reads (#271)', () => {
     const quay = scene.getObjectByName('fx_quai')!;
     const stop = quay.getWorldPosition(new Vector3());
     const front = new Vector3(0, 0, 1).applyQuaternion(quay.getWorldQuaternion(new Quaternion()));
-    const walls = new Box3().setFromObject(scene.getObjectByName('corps')!);
+    const walls = new Box3().setFromObject(scene.getObjectByName('batiment')!);
     const dark = scene.getObjectByName('fond_sombre_service')!.getWorldPosition(new Vector3());
     for (const k of [0, 1]) {
       const at = new Vector3(...darkCrate(stop.toArray(), front.toArray(), k));
-      expect(walls.containsPoint(at.clone().setY(1)), `${k}`).toBe(true);
+      expect(walls.containsPoint(at.clone().setY(3)), `${k}`).toBe(true);
       expect(at.clone().sub(dark).dot(front)).toBeLessThan(-1);
     }
   });

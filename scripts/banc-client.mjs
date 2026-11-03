@@ -33,7 +33,7 @@
  */
 /* global window, document, requestAnimationFrame, WebGL2RenderingContext, addEventListener, getComputedStyle, innerWidth, innerHeight -- les fonctions passées à `page.evaluate` tournent dans la page. */
 import { execFileSync, execSync, spawn } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -58,7 +58,7 @@ const cpu = option('cpu', null) === null ? null : new RegExp(option('cpu'), 'i')
 const shadowless = args.includes('--sans-ombres');
 /** `--heure 2026-10-21T00:00Z` : le soleil tenu à cet instant (nuit, crépuscule), `?heure=` du build de banc. */
 const heure = option('heure', null);
-/** `--socle` : les casernes sur le socle de la fixture (#365, `?socle`), copiée à côté du build. */
+/** `--socle` : la vitrine des sites sur socle (#365, `?socle`). */
 const socle = args.includes('--socle');
 /** `--demarrage` : le démarrage seul — délai jusqu'à la première image de la carte, tâches
  *  longues jusqu'à la fin de l'attente, décodage de `coast.json` (`performance.measure` de la
@@ -139,13 +139,6 @@ if (!args.includes('--sans-build')) {
     env: { ...process.env, VITE_BANC: '1' },
     stdio: 'ignore',
   });
-}
-if (socle) {
-  mkdirSync(`${dist}/src/emblems/fixtures`, { recursive: true });
-  copyFileSync(
-    `${root}src/emblems/fixtures/barracks-socle.glb`,
-    `${dist}/src/emblems/fixtures/barracks-socle.glb`,
-  );
 }
 if (
   await fetch(origin).then(
