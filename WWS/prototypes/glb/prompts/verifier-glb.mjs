@@ -96,15 +96,17 @@ const EXPECT = {
   oilWell: {
     site: true,
     measure: [null, 'x', 25, 0.06], 
-    names: ['balancier', 'tete_de_cheval', 'manivelle', 'contrepoids', 'bielle', 'tige', 'fx_smoke', ...FLAG.names],
-    pivots: { balancier: 'interieur', manivelle: 'interieur', bielle: 'bout', tige: 'haut', ...FLAG.pivots },
+    names: ['balancier', 'tete_de_cheval', 'manivelle', 'contrepoids', 'contrepoids_2', 'bielle', 'bielle_2', 'tige', 'fx_maneton', 'fx_smoke', ...FLAG.names],
+    pivots: { balancier: 'interieur', manivelle: 'interieur', bielle: 'bout', bielle_2: 'bout', tige: 'haut', ...FLAG.pivots },
+    parents: { fx_maneton: 'manivelle' },
     absent: ['walking_beam', 'crank'],
   },
   researchCenter: {
     site: true,
-    measure: [null, 'x', 50, 0.06], materials: ['vitres'],
-    names: ['coupole', 'volet_coupole', 'lunette', 'porte_gauche', 'porte_droite', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
+    measure: [null, 'x', 50, 0.06], materials: ['vitres', 'fond_sombre'],
+    names: ['coupole', 'fente', 'volet_coupole', 'lunette', 'porte_gauche', 'porte_droite', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
     pivots: { coupole: 'pied', porte_gauche: 'gond', porte_droite: 'gond', ...FLAG.pivots },
+    parents: { fente: 'coupole' },
   },
   listening: {
     site: true,

@@ -24,6 +24,7 @@ une porte de 9 m et des fenêtres de 3,7 m : ne pas l'imiter.
   avec garde-corps. Deux molettes de Ø 4 m côte à côte (x = −1,2 et +1,2), axe horizontal le long
   de x, à 24 m. Deux câbles descendent des molettes dans la recette, deux autres vers le bâtiment
   du treuil, derrière (−z).
+- **Cheminée de brique** de Ø 1,6 m sur le faîtage de la recette, 6 m au-dessus du faîtage : elle appartient au bâtiment (pas à un groupe de niveau) et fume dès le niveau 1.
 - **Annexe** (lampisterie, compresseur) : 12 × 10 m, à x de −24 à −12, un niveau de 4,5 m.
 - **Terril** : cône de minerai rougeâtre, Ø 20 m, 9 m de haut, centré en (+16 ; 0 ; −10).
 - **Rail** : voie de 0,6 m, du pignon +x de la recette (x = +10, z = +6) vers le pied du terril
@@ -54,8 +55,8 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 
 | Nœud | Origine (pivot) | Axe et mouvement | Taille |
 |---|---|---|---|
-| `molette_1` | moyeu de la molette −x (−1,2 ; 24 ; −2) | tourne autour de x (un sens) | Ø 4 m |
-| `molette_2` | moyeu de la molette +x (+1,2 ; 24 ; −2) | tourne autour de x, sens opposé (une cage monte, l'autre descend) | Ø 4 m |
+| `molette_1` | moyeu de la molette −x (−1,2 ; 24 ; −2) | tourne autour de x (un sens) ; **six rayons francs, jante plus claire que les rayons** : un disque plein ne montre pas qu'il tourne | Ø 4 m |
+| `molette_2` | moyeu de la molette +x (+1,2 ; 24 ; −2) | tourne autour de x, sens opposé (une cage monte, l'autre descend) ; six rayons francs, jante plus claire | Ø 4 m |
 | `wagonnet` | centre du dessous, sur le rail, devant la porte de berline (+11 ; 0 ; +6) | translation le long de +x, **course 10 m** | 1,6 × 1,3 × 1 m |
 | `wagonnet_caisse` | axe de bascule, au bord +z de la caisse | enfant de `wagonnet` ; bascule autour de x jusqu'à 110° pour vider le minerai | 1,4 × 0,8 × 0,9 m |
 | `rail` | centre de la voie | fixe | 12 m |
@@ -68,7 +69,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 
 | Repère | Position | Orientation |
 |---|---|---|
-| `fx_smoke` | au-dessus du bâtiment du treuil (vapeur) | +y |
+| `fx_smoke` | au sommet de la cheminée de brique de la recette (présent dès le niveau 1, jamais dans un groupe de niveau) | +y |
 | `fx_sortie` | seuil de la porte de berline (+10,2 ; 0 ; +6) | +x |
 | `fx_tete_hampe` | sommet de la hampe | +y |
 
@@ -85,7 +86,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 
 - Les deux molettes tournent en sens opposés tant que la mine produit ; sabotée, une fumée noire
   monte et elles s'arrêtent.
-- Le wagonnet roule de la recette au pied du terril, bascule sa caisse, revient.
+- Le wagonnet roule de la recette au pied du terril, bascule sa caisse, revient (cage et wagonnet : un cycle de 16 s tant que la mine produit, au même rythme à tous les niveaux). Les pièces mobiles gardent les matériaux du reste du site (le jeu les prive d'ombre lui-même : rien à faire dans le modèle).
 - La nuit, les fenêtres s'allument.
 - À la capture, le drapeau descend, celui du vainqueur monte.
 
@@ -100,3 +101,4 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 - Le socle (dessus à y = 2,2 m, rayon de coin 6 m, biseau 0,8 m), `lisere` (matériau `lisere`), `cour`, `signe`, `fx_rang`, `niveau_1`, `niveau_2`, `niveau_3`, `chantier` et `ruines` présents, écrits à l'identique ; `hampe`, `drapeau` et `fx_tete_hampe` sur le signe, mêmes noms, mêmes pivots.
 - Le bâtiment inchangé et rehaussé de 2,2 m ; la cour libre du rectangle de 30 × 14 m devant `fx_rang` ; aucun accessoire ne ressemble à une pièce du jeu.
 - Dans la page, des cases pour montrer un seul groupe (`niveau_2`, `niveau_3`, `chantier`, `ruines`) et compter les triangles de chaque état : moins de 3 500 dans tous.
+- Cheminée de brique sur le faîtage avec `fx_smoke` à son sommet, hors de tout groupe de niveau ; molettes à six rayons et jante plus claire, lisibles à 6 px.

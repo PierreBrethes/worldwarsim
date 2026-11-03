@@ -53,8 +53,9 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 | Nœud | Origine (pivot) | Axe et mouvement | Taille |
 |---|---|---|---|
 | `coupole` | centre de la base de la coupole, sur l'axe du tambour (−8 ; 12,3 ; +4) | tourne autour de y, lentement, tant que la recherche avance | Ø 8 m |
-| `volet_coupole` | centre de la coupole | enfant de `coupole` ; ouvre la fente en tournant autour de l'axe x de la coupole, jusqu'à 90° | 1,4 m de large |
-| `lunette` | axe de hauteur de la monture | enfant de `coupole` ; se lève autour de x de 10° à 60°, dans la fente | 4 m |
+| `fente` | centre de la fente d'observation, dans la coupole | enfant de `coupole` ; fixe ; **matériau `fond_sombre`** : le jeu l'allume la nuit | 1,2 m de large |
+| `volet_coupole` | centre de la coupole | enfant de `coupole` ; ouvre la fente en tournant autour de l'axe x de la coupole, **jusqu'à 90° sans traverser la `lunette` levée à 60°** | 1,4 m de large |
+| `lunette` | axe de hauteur de la monture | enfant de `coupole` ; se lève autour de x de 10° à 60°, dans la fente ; **au repos à 10°, couchée dans la fente** | 4 m |
 | `porte_gauche` | gond, montant +x de la porte (x = −6,8 ; y = 0,8 ; z = +12) | axe vertical ; s'étend vers −x ; vers l'extérieur de +110° | 1,2 × 3,4 m |
 | `porte_droite` | gond, montant −x (x = −9,2 ; y = 0,8 ; z = +12) | axe vertical ; s'étend vers +x ; vers l'extérieur de −110° | 1,2 × 3,4 m |
 | `fond_sombre` | centre du plan | fixe ; noir mat, 0,3 m derrière les battants | 2,4 × 3,4 m |
@@ -83,7 +84,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 
 ## Ce que le modèle doit permettre
 
-- Pendant une recherche, la coupole tourne lentement, le volet s'ouvre et la lunette se lève.
+- Pendant une recherche, la coupole tourne lentement, le volet s'ouvre et la lunette se lève (un cycle de 56 s tant qu'une recherche avance). Le jeu cuit aussi une pose « en observation » : volet ouvert, lunette levée, qu'il garde même quand les animations sont réduites ; les deux poses extrêmes doivent donc se tenir seules, sans interpénétration. Les pièces mobiles gardent les matériaux du reste du site (le jeu les prive d'ombre lui-même : rien à faire dans le modèle).
 - La nuit, les fenêtres s'allument et la fente de la coupole luit.
 - Les battants s'ouvrent de 110° ; un homme sort par `fx_sortie`.
 - À la capture, le drapeau descend, celui du vainqueur monte.
@@ -99,3 +100,4 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 - Le socle (dessus à y = 2,2 m, rayon de coin 6 m, biseau 0,8 m), `lisere` (matériau `lisere`), `cour`, `signe`, `fx_rang`, `niveau_1`, `niveau_2`, `niveau_3`, `chantier` et `ruines` présents, écrits à l'identique ; `hampe`, `drapeau` et `fx_tete_hampe` sur le signe, mêmes noms, mêmes pivots.
 - Le bâtiment inchangé et rehaussé de 2,2 m ; la cour libre du rectangle de 30 × 14 m devant `fx_rang` ; aucun accessoire ne ressemble à une pièce du jeu.
 - Dans la page, des cases pour montrer un seul groupe (`niveau_2`, `niveau_3`, `chantier`, `ruines`) et compter les triangles de chaque état : moins de 3 500 dans tous.
+- `fente` présente, au matériau `fond_sombre` ; le volet s'ouvre à 90° sans traverser la lunette levée à 60° ; la lunette repose couchée à 10° dans la fente (le curseur joue les deux poses).

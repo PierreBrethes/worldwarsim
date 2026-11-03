@@ -52,16 +52,16 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 
 | Nœud | Origine (pivot) | Axe et mouvement | Taille |
 |---|---|---|---|
-| `balancier` | palier du balancier, au sommet du chevalet (+5 ; 5,4 ; 0) | bascule autour de x, ±18°, 8 coups par minute ; porte la tête de cheval | 7 m |
+| `balancier` | palier du balancier, au sommet du chevalet (+5 ; 5,4 ; 0) | bascule autour de x, **de −19° à +16°** (butées décidées le 02/11, inchangées), un coup toutes les 3 s tant que le puits produit ; porte la tête de cheval | 7 m |
 | `tete_de_cheval` | — | enfant de `balancier`, au bout +z | 1,5 × 2 m |
-| `manivelle` | axe de sortie du réducteur (+5 ; 1,6 ; −3) | tourne autour de x, un tour par coup ; porte les contrepoids | rayon 1,2 m |
-| `contrepoids` | — | enfants de `manivelle` | 1,2 × 1 × 0,3 m |
-| `bielle` | articulation haute, au bout −z du balancier | le jeu l'oriente vers le maneton de la manivelle (rotation autour de x) | 4 m |
+| `manivelle` | axe de sortie du réducteur (+5 ; 1,6 ; −3) | tourne autour de x, un tour par coup ; porte les contrepoids et le repère `fx_maneton` | rayon 1,2 m |
+| `contrepoids`, `contrepoids_2` | — | enfants de `manivelle`, un par bras | 1,2 × 1 × 0,3 m |
+| `bielle`, `bielle_2` | **la tête de bielle**, sur l'axe de l'articulation avec le bout −z du balancier | le jeu l'oriente vers le maneton de la manivelle (rotation autour de x) ; **sa géométrie est tendue vers −y depuis son origine, jusqu'au maneton** | 4 m |
 | `tige` | sommet de la tige, sous la tête de cheval | translation verticale de ±1,2 m, suit la tête de cheval | 3 m |
 | `hampe` | pied du mât (+11, 0, +8) | fixe | 8 m |
 | `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
-`bielle` et `tige` ne sont pas enfants de `balancier` : le jeu les accorde au balancier et à la
+`bielle`, `bielle_2` et `tige` ne sont pas enfants de `balancier` : le jeu les accorde au balancier et à la
 manivelle à chaque image. Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 
 ## Repères vides
@@ -69,6 +69,7 @@ manivelle à chaque image. Le drapeau est une toile neutre blanc cassé, UV 0 �
 | Repère | Position | Orientation |
 |---|---|---|
 | `fx_smoke` | au bout du tuyau d'échappement du moteur | +y |
+| `fx_maneton` | enfant de `manivelle`, au centre du maneton (là où la bielle s'attache) ; `fx_maneton_2` si le second bras a son propre maneton | +x : le jeu y lit la tête de la bielle, sans la deviner |
 | `fx_tete_hampe` | sommet de la hampe | +y |
 
 ## Matériaux et texture
@@ -83,6 +84,7 @@ manivelle à chaque image. Le drapeau est une toile neutre blanc cassé, UV 0 �
 
 - Le balancier bascule, la manivelle tourne avec ses contrepoids, les bielles suivent, la tige
   monte et descend : le puits pompe tant qu'il produit ; le moteur crache par `fx_smoke`.
+- Le puits vit tant qu'il produit : un coup toutes les 3 s, au même rythme à tous les niveaux ; arrêté, rien ne bouge. Les pièces mobiles gardent les matériaux du reste du site (le jeu les prive d'ombre lui-même : rien à faire dans le modèle).
 - Saboté, une fumée noire monte et le balancier se fige.
 - À la capture, le drapeau descend, celui du vainqueur monte.
 
@@ -99,3 +101,4 @@ manivelle à chaque image. Le drapeau est une toile neutre blanc cassé, UV 0 �
 - Le socle (dessus à y = 2,2 m, rayon de coin 6 m, biseau 0,8 m), `lisere` (matériau `lisere`), `cour`, `signe`, `fx_rang`, `niveau_1`, `niveau_2`, `niveau_3`, `chantier` et `ruines` présents, écrits à l'identique ; `hampe`, `drapeau` et `fx_tete_hampe` sur le signe, mêmes noms, mêmes pivots.
 - Le bâtiment inchangé et rehaussé de 2,2 m ; la cour libre du rectangle de 30 × 14 m devant `fx_rang` ; aucun accessoire ne ressemble à une pièce du jeu.
 - Dans la page, des cases pour montrer un seul groupe (`niveau_2`, `niveau_3`, `chantier`, `ruines`) et compter les triangles de chaque état : moins de 3 500 dans tous.
+- `fx_maneton` enfant de `manivelle`, au centre du maneton ; `bielle` et `bielle_2` à l'origine de leur tête, tendues vers −y ; butées du balancier −19° et +16° (le curseur les joue).
