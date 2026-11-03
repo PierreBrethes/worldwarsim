@@ -170,6 +170,10 @@ type Model = {
   readonly chimneys: ReadonlyArray<Vector3>;
   /** Every `fx_*` marker, in its own units: a door a recruit comes out of (`markersOf`). */
   readonly markers: ReadonlyMap<string, Vector3>;
+  /** Each marker's +z, in its own units: the way a quay faces (#271). */
+  readonly fronts: ReadonlyMap<string, Vector3>;
+  /** Its pile of crates (`caisse_*`), each at its foot: what a loading takes aboard (#271). */
+  readonly crates: ReadonlyArray<{ readonly name: string; readonly at: Vector3 }>;
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
@@ -196,9 +200,17 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
         .union(boundsOf(sign?.parts ?? []));
       const chimneys: Vector3[] = [];
       const markers = new Map<string, Vector3>();
+      const fronts = new Map<string, Vector3>();
+      const crates: Array<{ name: string; at: Vector3 }> = [];
       scene.traverse((node) => {
+        if (/^caisse_\d+$/.test(node.name))
+          crates.push({ name: node.name, at: node.getWorldPosition(new Vector3()) });
         if (!node.name.startsWith('fx_')) return;
         markers.set(node.name, node.getWorldPosition(new Vector3()));
+        fronts.set(
+          node.name,
+          new Vector3(0, 0, 1).applyQuaternion(node.getWorldQuaternion(new Quaternion())),
+        );
         if (node.name.startsWith('fx_smoke')) chimneys.push(markers.get(node.name)!.clone());
       });
       // Without a marker, from the top of the building — not of its socle's sign.
@@ -230,6 +242,8 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
         building,
         chimneys,
         markers,
+        fronts,
+        crates,
         rank,
       };
     });
@@ -1022,6 +1036,9 @@ export class MaquetteLayer implements SequenceHost {
    *  What a recruit's way out of its door is laid on (#268). */
   siteOf(id: string): {
     marker(name: string): Vector3 | null;
+    /** The marker's +z, in its model's units. */
+    front(name: string): Vector3 | null;
+    readonly crates: ReadonlyArray<{ readonly name: string; readonly at: Vector3 }>;
     readonly box: Box3;
     /** Its building's bounds, its socle left out. */
     readonly building: Box3;
@@ -1040,6 +1057,8 @@ export class MaquetteLayer implements SequenceHost {
     const back = placed.clone().invert();
     return {
       marker: (name) => model.markers.get(name)?.clone() ?? null,
+      front: (name) => model.fronts.get(name)?.clone() ?? null,
+      crates: model.crates,
       box: model.box,
       building: model.building,
       toBoard: (point) => point.clone().applyMatrix4(placed),

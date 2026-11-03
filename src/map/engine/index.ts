@@ -84,6 +84,7 @@ import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
 import { deployAt, deployMs } from './timelines/deploy';
 import { tailgateDrop } from './timelines/truck';
+import { LOADING_PX, loadingAt } from './timelines/loading';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -460,6 +461,11 @@ const MEN_GAP_MS = 400;
 const CLOSE_AFTER_MS = 150;
 /** A pile that does not stand within this time has its recruits in place, unwalked. */
 const SORTIE_WAIT_MS = 2000;
+/** **A load waits so long for its pile to stand or its quay to be free**, then the truck stays
+ *  where it is: a file of loads at one site does not outlive a passing look. `@a-mesurer` */
+const LOADING_WAIT_MS = 15_000;
+/** A crate joined to a load under way jumps no sooner than this after it is told. */
+const JOIN_MS = 100;
 /** **En réduites, la file tient 0,6 s**, puis la pile se pose (storyboard de la marche, #362). */
 const FILE_HOLD_MS = 600;
 
@@ -539,6 +545,22 @@ export class MapEngine {
     readonly cue: Extract<Cue, { kind: 'deploiement' }>;
     readonly since: number;
   }> = [];
+  /** **Trucks loaded, waiting** for their pile to stand, or their site's quay to be free (#271). */
+  private loadings: Array<{
+    readonly cue: Extract<Cue, { kind: 'chargement' }>;
+    readonly since: number;
+  }> = [];
+  /** What each truck at a quay plays, from when: a second load joins it (`loadOf`). */
+  private readonly docked = new Map<
+    string,
+    {
+      readonly since: number;
+      readonly siteId: string;
+      readonly plan: Parameters<typeof loadingAt>[0];
+      readonly gateUp: number;
+      readonly ms: number;
+    }
+  >();
   /** Piles owed their ring of ink once their file has held, at reduced motion (#362). */
   private inkDue: Array<{ readonly pileId: string; readonly at: number }> = [];
   /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
@@ -2809,6 +2831,9 @@ export class MapEngine {
       case 'descente':
         this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
         break;
+      case 'chargement':
+        this.loadings.push({ cue, since: performance.now() });
+        break;
       case 'combat':
         this.playCombat(cue);
         break;
@@ -3080,6 +3105,117 @@ export class MapEngine {
     });
     if (arrivals.length > 0) this.standing.arrive(cue.pileId, arrivals);
     return true;
+  }
+
+  /**
+   * **Un camion se charge à son quai** (#271) : il sort de son rang, recule à `fx_quai`, les
+   * caisses sautent à bord, la porte regarnit la pile, et il revient (`loadingAt`). Tout ou rien :
+   * le camion et son site jouent ensemble, ou aucun — hors du champ, sous `LOADING_PX`, en
+   * chantier, sans deux places sous `MAX_PLAYING`. Un second chargement du même camion se joint
+   * tant que le hayon n'est pas remonté ; sinon il attend, comme un autre camion du même site.
+   * En réduites, un anneau d'encre sur sa pile. `false` tant qu'il attend.
+   */
+  private loadOf({ cue }: (typeof this.loadings)[number], now: number): boolean {
+    const motion = this.sequences.motion;
+    const pileId = cue.groupId.slice(0, cue.groupId.lastIndexOf('/'));
+    if (motion === 'off') return true;
+    if (motion === 'reduced') {
+      this.standing.inkArrival(pileId);
+      return true;
+    }
+    const playing = this.docked.get(cue.groupId);
+    if (playing !== undefined && this.sequences.playsOn(this.standing, cue.groupId)) {
+      const t = now - playing.since;
+      if (t >= playing.gateUp) return false;
+      const plan = {
+        ...playing.plan,
+        crates: [...playing.plan.crates, ...Array<number>(cue.crates).fill(t + JOIN_MS)].slice(
+          0,
+          2,
+        ),
+      };
+      const joined = loadingAt(plan);
+      this.sequences.retime(this.standing, cue.groupId, joined.truck);
+      this.sequences.retime(this.maquettes, playing.siteId, joined.site);
+      this.docked.set(cue.groupId, {
+        ...playing,
+        plan,
+        gateUp: joined.gateUp,
+        ms: joined.truck.ms,
+      });
+      return true;
+    }
+    // One quay, one file: the next truck waits for the one at it to be home.
+    if (this.sequences.playsOn(this.maquettes, cue.siteId)) return false;
+    const site = this.maquettes.siteOf(cue.siteId);
+    const place = this.standing.placeOf(cue.groupId);
+    const drawn = this.standing.pieceOf(cue.groupId)?.box;
+    if (site === null || place === null || !drawn) return false;
+    const stop = site.marker('fx_quai');
+    const front = site.front('fx_quai');
+    const building = this.maquettes.pieceOf(cue.siteId);
+    if (
+      stop === null ||
+      front === null ||
+      building === null ||
+      this.sequences.room < 2 ||
+      !this.seenBig(drawn, LOADING_PX) ||
+      (building.box !== null && !this.seenBig(building.box, LOADING_PX))
+    )
+      return true;
+    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+    const rank = site.toModel(place.at);
+    const inside = site.marker('fx_entree');
+    const door = site.marker('fx_sortie');
+    const size = drawn.getSize(new Vector3());
+    const plan: Parameters<typeof loadingAt>[0] = {
+      rank: rank.toArray(),
+      rankFront: site
+        .toModel(place.at.clone().add(place.front))
+        .sub(rank)
+        .setY(0)
+        .normalize()
+        .toArray(),
+      length: Math.max(size.x, size.z) / metre,
+      box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
+      quay: { stop: stop.toArray(), front: front.setY(0).normalize().toArray() },
+      perron:
+        cue.siteId.startsWith('building-warehouse') && inside !== null && door !== null
+          ? {
+              crates: site.crates.map(({ name, at }) => ({ name, at: at.toArray() })),
+              inside: inside.toArray(),
+              door: door.toArray(),
+              top: door.y,
+            }
+          : null,
+      crates: Array<number>(Math.min(cue.crates, 2)).fill(0),
+      toBoard: (point) =>
+        site
+          .toBoard(new Vector3(...point))
+          .sub(place.at)
+          .toArray(),
+    };
+    const { truck, site: quay, gateUp } = loadingAt(plan);
+    if (!this.sequences.play(this.standing, cue.groupId, truck, now)) return true;
+    this.docked.set(cue.groupId, { since: now, siteId: cue.siteId, plan, gateUp, ms: truck.ms });
+    if (!this.sequences.play(this.maquettes, cue.siteId, quay, now)) this.undock(now);
+    return true;
+  }
+
+  /** **A truck and its quay end together**: one ended early (out of the field, too small, taken
+   *  in hand, its site razed) ends the other — no crate jumps into a truck that is not there. */
+  private undock(now: number): void {
+    const ended: Sequence = { ms: 0, at: () => ({}) };
+    for (const [groupId, { since, siteId, ms }] of this.docked) {
+      const truck = this.sequences.playsOn(this.standing, groupId);
+      const site = this.sequences.playsOn(this.maquettes, siteId);
+      if (truck && site) continue;
+      if (now - since < ms) {
+        if (truck) this.sequences.retime(this.standing, groupId, ended);
+        if (site) this.sequences.retime(this.maquettes, siteId, ended);
+      }
+      if (!truck || !site) this.docked.delete(groupId);
+    }
   }
 
   /** **The doors of a barracks open for its recruits**; a second sortie while they still play
@@ -3932,6 +4068,10 @@ export class MapEngine {
     this.deployments = this.deployments.filter(
       (deployment) => !this.deployOf(deployment, now) && now - deployment.since < SORTIE_WAIT_MS,
     );
+    this.loadings = this.loadings.filter(
+      (loading) => !this.loadOf(loading, now) && now - loading.since < LOADING_WAIT_MS,
+    );
+    this.undock(now);
     this.inkDue = this.inkDue.filter(({ pileId, at }) => {
       if (now < at) return true;
       this.standing.inkArrival(pileId);
