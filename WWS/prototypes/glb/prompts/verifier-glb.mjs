@@ -56,8 +56,8 @@ const EXPECT = {
   },
   warehouse: {
     site: true,
-    measure: ['murs', 'x', 60, 0.04], materials: ['vitres'],
-    names: ['murs', 'porte', 'rail', 'galet', 'galet_2', 'fond_sombre', 'caisse_1', 'caisse_2', 'caisse_3', 'caisse_4', 'caisse_5', 'fx_quai', 'fx_entree', 'fx_sortie', ...FLAG.names],
+    measure: ['murs', 'x', 60, 0.04], materials: ['vitres', 'bois_caisse'],
+    names: ['murs', 'quai', 'lanterne', 'porte', 'rail', 'galet', 'galet_2', 'fond_sombre', 'caisse_1', 'caisse_2', 'caisse_3', 'caisse_4', 'caisse_5', 'fx_quai', 'fx_entree', 'fx_sortie', ...FLAG.names],
     pivots: { porte: 'bout-haut', galet: 'centre', galet_2: 'centre', 'caisse_*': 'pied', ...FLAG.pivots },
   },
   hq: {

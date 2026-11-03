@@ -68,7 +68,7 @@ rectangle aux coins arrondis), comme le losange de son épingle au loin (ADR 003
 | `sacs` | centre du cercle (0 ; 2,2 ; 0) | fixe | anneau de 30 m, 1,3 m de haut, ouvert de 4 m vers +z |
 | `signe` | pied du mât (0 ; 2,2 ; 0) | fixe | mât de 12 m, haubans, vergue, lanterne |
 | `hampe` | pied de la hampe (0 ; 14,2 ; 0) | fixe | 3 m |
-| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 |
+| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 | `magasin` | pied du groupe, au centre de la zone des accessoires (0 ; 2,2 ; −5) | groupe fixe, montré par le jeu pour le Magasin seul | voir plus bas |
 | `guet` | même point (0 ; 2,2 ; −5) | groupe fixe, montré pour le Guet seul | voir plus bas |
 | `fort` | même point (0 ; 2,2 ; −5) | groupe fixe, montré pour le Fort seul | voir plus bas |

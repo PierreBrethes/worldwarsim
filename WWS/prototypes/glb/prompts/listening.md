@@ -53,7 +53,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 | `porte` | gond, au bas du montant +x de la porte (x = +0,8 ; y = 0,6 ; z = +8) | axe vertical ; s'étend vers −x ; vers l'extérieur de +110° | 1,6 × 3,3 m |
 | `fond_sombre` | centre du plan | fixe ; noir mat, 0,3 m derrière la porte | 1,6 × 3,3 m |
 | `hampe` | pied du mât (+8, 0, +11) | fixe | 8 m |
-| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 |
+| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
 Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 

@@ -76,7 +76,7 @@ pièce qui bouge.
 | `porte_droite_2` | haut du vantail, bout −x, voie arrière (x = −16,1 ; y = 14 ; z = +22,9) | translation −x, course 8,3 m | 8,1 × 13,8 × 0,3 m |
 | `fond_sombre` | centre du plan | fixe ; plan noir mat dans la baie, 0,2 m derrière la façade | 32 × 13,6 m |
 | `hampe` | pied du mât (−28, 0, +26) | fixe | Ø 0,15 m, 12 m |
-| `drapeau` | en haut de la hampe, coin haut de la toile côté mât (−28 ; 11,8 ; +26) | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 quads |
+| `drapeau` | en haut de la hampe, coin haut de la toile côté mât (−28 ; 11,8 ; +26) | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
 Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile (u depuis la hampe,
 v de bas en haut) : le jeu y peint le drapeau du teneur.

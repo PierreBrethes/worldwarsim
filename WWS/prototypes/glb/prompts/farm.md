@@ -52,7 +52,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 | `eolienne_tete` | sur l'axe du pylône, au sommet (+2 ; 12 ; −8) | axe vertical : la tête s'oriente au vent (roue et gouvernail) | 6 m de long |
 | `eolienne_roue` | moyeu de la roue | enfant de `eolienne_tete` ; tourne autour de son axe (z local), s'arrête au sabotage | Ø 4 m |
 | `hampe` | pied du mât (+22, 0, +12) | fixe | 10 m |
-| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 |
+| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
 Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 
