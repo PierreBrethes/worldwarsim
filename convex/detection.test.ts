@@ -2417,8 +2417,14 @@ describe('a column two sentries see apart', () => {
     await at(t, row.from);
     const [opened] = await sightingsOf(t, guest);
     expect(opened!.openJobAt).toBe(second.from);
-    /** Une réévaluation qui ne change rien garde le réveil, et ne réécrit pas la ligne. */
-    await t.run(async (ctx) => reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId));
+    /** Une réévaluation qui ne change rien garde le réveil, et n'écrit pas la ligne : une
+     *  écriture identique réveillerait quand même la vue de l'observateur. */
+    const patched = await t.run(async (ctx) => {
+      const patch = vi.spyOn(ctx.db, 'patch');
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+      return patch.mock.calls.flat().filter((arg) => arg === opened!._id);
+    });
+    expect(patched).toEqual([]);
     expect(await sightingsOf(t, guest)).toEqual([opened]);
 
     /** Un réveil périmé ne fait rien. */
