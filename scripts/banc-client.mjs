@@ -80,7 +80,8 @@ const pinsOnly = args.includes('--epingles');
 const sequencesOnly = args.includes('--sequences');
 /** `--combats` (toute démo) : le démarrage, puis des combats joués sur la carte au rapproché
  *  (#272), signalés au moteur avec leur vue (`mapEngine.cue`) : un de trois pièces par camp, trois
- *  à la fois, puis un de douze par camp — le seuil au-delà duquel le combat ne joue plus. */
+ *  à la fois, un bombardement de la batterie de `--bombarder` (#325), puis un de douze par camp —
+ *  le seuil au-delà duquel le combat ne joue plus. */
 const combatsOnly = args.includes('--combats');
 /** `--combats-mer` (toute démo) : les mêmes combats en Manche, entre escorteurs (#324), cadrés de
  *  plus loin, comme le storyboard : la mer se lit sur la coque, pas sur le char. */
@@ -965,11 +966,23 @@ async function play(profileName, pass) {
       10500,
     );
     if (sea) await gesture('un combat, 6 contre 6', () => play([['banc-6', ...around, 6]]), 10500);
-    await gesture(
-      'un bombardement, 4 frappées',
-      () => play([['banc-7', ...around, 4]], [around[0], around[1] - 0.7]),
-      10500,
-    );
+    // A gun really in battery (`--bombarder`): its copy, cooked open, fires from its pile.
+    const batterie = accounts.places?.[sea ? 'batterie-mer' : 'batterie'];
+    const bombarder = accounts.places?.[sea ? 'bombarder-mer' : 'bombarder'];
+    if (batterie && bombarder) {
+      await page.evaluate(frameAt, [
+        [(batterie[0] + bombarder[0]) / 2, (batterie[1] + bombarder[1]) / 2],
+        4,
+      ]);
+      await page.waitForTimeout(3000);
+      await gesture(
+        'un bombardement, 4 frappées',
+        () => play([['banc-7', ...bombarder, 4]], batterie),
+        10500,
+      );
+      await page.evaluate(frameAt, [around, sea ? 7 : 4]);
+      await page.waitForTimeout(3000);
+    } else console.log('un bombardement : pas de batterie, relance la démo avec --bombarder');
     await gesture('un combat, 12 contre 12', () => play([['banc-5', ...around, 12]]), 10500);
   };
   if (filesOnly) {
