@@ -21,6 +21,8 @@ import {
   ANONYMOUS_SPAN,
   type PinnedBy,
   pieceWeight,
+  posedScene,
+  type RestPose,
   sceneOf,
   siteReading,
   type SiteReading,
@@ -76,6 +78,11 @@ export type StandingMaquette = {
   readonly works?: Works;
   /** One of my producers at work: a thread of smoke rises from its chimneys. */
   readonly smoking?: boolean;
+  /** **One of my sites at work at rest** (#273, `workingSites`): its loop plays, where its file
+   *  has one (`loopOf`). */
+  readonly working?: boolean;
+  /** **A lasting state its file is baked in** (`REST_POSES`): a Centre that searches. */
+  readonly pose?: RestPose;
   /** **Who its socle's liseré says holds it** (ADR 0038 §2-§3): mine in my ink, a survey and a
    *  neutral of the Blitz hollow in the board's ink. Absent for an objective: no liseré. */
   readonly side?: 'mine' | 'seen' | 'neutral';
@@ -163,14 +170,18 @@ type Model = {
   readonly chimneys: ReadonlyArray<Vector3>;
   /** Every `fx_*` marker, in its own units: a door a recruit comes out of (`markersOf`). */
   readonly markers: ReadonlyMap<string, Vector3>;
+  /** Each marker's +z, in its own units: the way a quay faces (#271). */
+  readonly fronts: ReadonlyMap<string, Vector3>;
+  /** Its pile of crates (`caisse_*`), each at its foot: what a loading takes aboard (#271). */
+  readonly crates: ReadonlyArray<{ readonly name: string; readonly at: Vector3 }>;
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
-function modelOf(url: string, metres?: number): Promise<Model> {
-  const key = `${url} ${metres ?? ''}`;
+function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> {
+  const key = `${url} ${metres ?? ''} ${pose ?? ''}`;
   let model = models.get(key);
   if (!model) {
-    model = sceneOf(url).then((cached) => {
+    model = (pose === undefined ? sceneOf(url) : posedScene(url, pose)).then((cached) => {
       const scene = cached;
       const { building: parts, dressing, yard, sign, accessories } = bakedSite(scene);
       const boundsOf = (of: ReadonlyArray<Part>) => {
@@ -189,9 +200,17 @@ function modelOf(url: string, metres?: number): Promise<Model> {
         .union(boundsOf(sign?.parts ?? []));
       const chimneys: Vector3[] = [];
       const markers = new Map<string, Vector3>();
+      const fronts = new Map<string, Vector3>();
+      const crates: Array<{ name: string; at: Vector3 }> = [];
       scene.traverse((node) => {
+        if (/^caisse_\d+$/.test(node.name))
+          crates.push({ name: node.name, at: node.getWorldPosition(new Vector3()) });
         if (!node.name.startsWith('fx_')) return;
         markers.set(node.name, node.getWorldPosition(new Vector3()));
+        fronts.set(
+          node.name,
+          new Vector3(0, 0, 1).applyQuaternion(node.getWorldQuaternion(new Quaternion())),
+        );
         if (node.name.startsWith('fx_smoke')) chimneys.push(markers.get(node.name)!.clone());
       });
       // Without a marker, from the top of the building — not of its socle's sign.
@@ -223,6 +242,8 @@ function modelOf(url: string, metres?: number): Promise<Model> {
         building,
         chimneys,
         markers,
+        fronts,
+        crates,
         rank,
       };
     });
@@ -511,6 +532,8 @@ type Placed = {
    *  before the next frame still finds it drawn (#326). */
   drawnNear: number;
   readonly smoking: boolean;
+  /** Its loop may play (`StandingMaquette.working`): not at work, not a ghost. */
+  readonly working: boolean;
   /** One per chimney once the model has landed, empty for a site that does not produce. */
   smokes: Smoke[];
   /** The ink of its liseré (`lisereOf`), `null` for none. */
@@ -526,6 +549,8 @@ type AtWork = { readonly works: Works; dressing: WorksDressing | null };
 type Lot = {
   readonly url: string;
   readonly washed: boolean;
+  /** The lasting state its file is baked in (`REST_POSES`). */
+  readonly pose?: RestPose;
   readonly items: Placed[];
   readonly group: Group;
   model: Model | null;
@@ -641,12 +666,13 @@ export class MaquetteLayer implements SequenceHost {
       const shown = accessoriesShown(maquette.level ?? 1, maquette.works?.phase);
       const key = maquette.works
         ? `${maquette.url} works ${maquette.id}`
-        : `${maquette.url} ${maquette.washed} ${shown.join()}`;
+        : `${maquette.url} ${maquette.washed} ${shown.join()} ${maquette.pose ?? ''}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
         lot = {
           url: maquette.url,
           washed: maquette.washed,
+          ...(maquette.pose !== undefined && { pose: maquette.pose }),
           items: [],
           group: new Group(),
           model: null,
@@ -662,7 +688,7 @@ export class MaquetteLayer implements SequenceHost {
         this.group.add(lot.group);
         const landing = lot;
         // A model that fails to load leaves the plates; `modelOf` has said why.
-        modelOf(maquette.url, maquette.metres).then(
+        modelOf(maquette.url, maquette.metres, maquette.pose).then(
           (model) => this.landed(landing, model, maquette.washed),
           () => {},
         );
@@ -690,6 +716,7 @@ export class MaquetteLayer implements SequenceHost {
         drawnNear: drawn.get(maquette.id)?.drawnNear ?? 0,
         // A site at work and a ghost of a survey do not produce.
         smoking: maquette.smoking === true && !maquette.works && !maquette.washed,
+        working: maquette.working === true && !maquette.works && !maquette.washed,
         smokes: [],
         settledAt: null,
         lisere: lisereOf(maquette),
@@ -908,7 +935,7 @@ export class MaquetteLayer implements SequenceHost {
 
   /** **What a sequence may borrow** (`SequenceHost`): not a ghost, a site at work, a pin or a
    *  piece a replay has cleared. Its box is `null` until its lot has been placed. */
-  pieceOf(id: string): { url: string; box: Box3 | null } | null {
+  pieceOf(id: string): { url: string; pose?: RestPose; box: Box3 | null } | null {
     const dressed = this.byId.get(id);
     if (
       dressed === undefined ||
@@ -919,7 +946,25 @@ export class MaquetteLayer implements SequenceHost {
       dressed.item.near === 0
     )
       return null;
-    return { url: dressed.lot.url, box: this.boxOf(id)?.clone() ?? null };
+    const { url, pose } = dressed.lot;
+    return { url, ...(pose !== undefined && { pose }), box: this.boxOf(id)?.clone() ?? null };
+  }
+
+  /** **What a loop may borrow** (`LoopHost`, #273): my sites at work, drawn whole — their
+   *  diorama standing —, with their board units per metre of their file. Read at the weight it
+   *  was last drawn at: a copy stood in, or a view served again, sets it to be placed anew, and
+   *  the loop must not give its copy back for that frame. */
+  working(): Array<{ id: string; url: string; pose?: RestPose; box: Box3; metre: number }> {
+    return [...this.byId.values()].flatMap(({ item, lot }) => {
+      const { model } = lot;
+      if (!item.working || model === null || item.cleared || item.diorama < 1) return [];
+      const metre = sizeOf(model, item);
+      matrix.compose(item.at, item.turn, scale.setScalar(item.drawnNear * metre));
+      const box = model.box.clone().applyMatrix4(matrix);
+      const { id } = item;
+      const { url, pose } = lot;
+      return [{ id, url, ...(pose !== undefined && { pose }), box, metre }];
+    });
   }
 
   /** **What a maquette is drawn as now, and where** (#326): its parts as its lot draws them — a
@@ -991,6 +1036,9 @@ export class MaquetteLayer implements SequenceHost {
    *  What a recruit's way out of its door is laid on (#268). */
   siteOf(id: string): {
     marker(name: string): Vector3 | null;
+    /** The marker's +z, in its model's units. */
+    front(name: string): Vector3 | null;
+    readonly crates: ReadonlyArray<{ readonly name: string; readonly at: Vector3 }>;
     readonly box: Box3;
     /** Its building's bounds, its socle left out. */
     readonly building: Box3;
@@ -1009,6 +1057,8 @@ export class MaquetteLayer implements SequenceHost {
     const back = placed.clone().invert();
     return {
       marker: (name) => model.markers.get(name)?.clone() ?? null,
+      front: (name) => model.fronts.get(name)?.clone() ?? null,
+      crates: model.crates,
       box: model.box,
       building: model.building,
       toBoard: (point) => point.clone().applyMatrix4(placed),
@@ -1172,6 +1222,8 @@ export class MaquetteLayer implements SequenceHost {
         else {
           copy.matrix.copy(matrix);
           copy.matrixWorldNeedsUpdate = true;
+          // Its sign grows on its foot as the instance's would: the copy keeps it apart.
+          copy.getObjectByName('signe')?.scale.setScalar(signGrowth);
           const away = shrunk.compose(item.at, item.turn, scale.setScalar(0));
           for (const mesh of lot.meshes) mesh.setMatrixAt(k, away);
         }

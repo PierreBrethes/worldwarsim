@@ -56,7 +56,7 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 | `rail_porte` | centre du rail | fixe | 9 m |
 | `fond_sombre` | centre du plan | fixe ; noir mat derrière la porte de quai | 4 × 4 m |
 | `hampe` | pied du mât (+36, 0, +22) | fixe | 12 m |
-| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 |
+| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers −x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
 Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 

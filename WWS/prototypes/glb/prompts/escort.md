@@ -31,6 +31,7 @@ elle tourne. Aucun autre nom pour une pièce qui bouge.
 | `turret_1` … `turret_N` | **centre de la couronne de chaque tourelle** (numérotées de l'avant vers l'arrière) | enfants de `hull` ; tournent autour de y (±150°) | — |
 | `gun_1` … `gun_N` | **aux tourillons** du ou des canons de chaque tourelle | enfant de sa `turret_k` ; hausse autour de x (0° à +30°) ; recul le long de son axe | — |
 | `boat_left`, `boat_right` | centre de la quille de chaque canot, sous ses bossoirs | enfants de `hull`, détachables : le jeu les met à l'eau | 7 à 8 m |
+| `feu_babord`, `feu_tribord`, `feu_mat` | centre de chaque globe : aileron de passerelle bâbord (+x, rouge), aileron de passerelle tribord (−x, vert), tête du mât avant (blanc) | enfants de `hull` ; fixes ; matériau `feux`, que le jeu allume la nuit (feux de route) ; **nommés exactement ainsi** | globes de 0,3 m |
 
 ## Repères vides
 
@@ -100,5 +101,5 @@ Longueur × largeur × tirant d'eau (m) ; tourelles.
 - 1 unité = 1 m ; longueur de la nation ± 5 % ; flottaison à y = 0 ; seule la coque sous y = 0 ;
   étrave vers +z.
 - Noms présents à l'identique : `hull`, `turret_*`, `gun_*`, `boat_left`, `boat_right`,
-  `fx_muzzle`, `fx_smoke`, `fx_sillage`, les quatre `fx_amarre_*`.
+  `feu_babord`, `feu_tribord`, `feu_mat`, `fx_muzzle`, `fx_smoke`, `fx_sillage`, les quatre `fx_amarre_*`.
 - `vitres` et `feux` présents ; moins de 4 000 triangles.

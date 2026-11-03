@@ -51,7 +51,15 @@ import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
-import { aboardOf, descentesOf, entreesOf, rankKept, sortiesOf } from './cues';
+import {
+  aboardOf,
+  chargementsOf,
+  descentesOf,
+  entreesOf,
+  loadsOf,
+  rankKept,
+  sortiesOf,
+} from './cues';
 import {
   bornLiaisons,
   leftReaches,
@@ -1793,6 +1801,16 @@ export function WorldMap({
     if (known === null) return;
     for (const groupId of descentesOf(known, troops, standing))
       readyEngine?.cue({ kind: 'descente', groupId });
+  }, [troops, standing, readyEngine]);
+
+  // A truck loads at its warehouse or its HQ: it backs to the quay (#271). Nothing on the first view.
+  const loadsKnown = useRef<ReadonlyMap<string, number> | null>(null);
+  useEffect(() => {
+    const known = loadsKnown.current;
+    loadsKnown.current = loadsOf(troops);
+    if (known === null) return;
+    for (const chargement of chargementsOf(known, troops, standing))
+      readyEngine?.cue({ kind: 'chargement', ...chargement });
   }, [troops, standing, readyEngine]);
 
   const cutBefore = useRef<ReadonlyArray<string> | null>(null);

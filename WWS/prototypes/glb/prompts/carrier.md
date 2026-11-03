@@ -30,6 +30,7 @@ origine où elle bouge. Aucun autre nom pour une pièce qui bouge.
 | `ascenseur` | **centre du dessus de la plate-forme**, au ras du pont (l'ascenseur avant, ou le seul) | enfant de `hull` ; translation verticale vers −y de 6 m (jusqu'au pont hangar) | 13 à 15 m de côté |
 | `fond_sombre` | centre du puits, 6,5 m sous le pont | plan noir mat au fond du puits de l'ascenseur | taille de la plate-forme |
 | `boat_left`, `boat_right` | centre de la quille de chaque canot | enfants de `hull`, détachables | 8 m |
+| `feu_babord`, `feu_tribord`, `feu_mat` | centre de chaque globe : aileron de passerelle bâbord (+x, rouge), aileron de passerelle tribord (−x, vert), tête du mât avant (à défaut, le mât de l'îlot) (blanc) | enfants de `hull` ; fixes ; matériau `feux`, que le jeu allume la nuit (feux de route) ; **nommés exactement ainsi** | globes de 0,3 m |
 
 Les autres ascenseurs, s'il y en a, sont dessinés fixes dans le pont.
 
@@ -93,5 +94,5 @@ Longueur × largeur de coque × tirant d'eau (m) ; pont d'envol ; îlot.
 - 1 unité = 1 m ; longueur de la nation ± 5 % ; flottaison à y = 0 ; seule la coque sous y = 0 ;
   étrave vers +z.
 - Noms présents à l'identique : `hull`, `ascenseur`, `fond_sombre`, `boat_left`, `boat_right`,
-  `fx_smoke`, `fx_sillage`, `fx_pont`, les quatre `fx_amarre_*`.
+  `feu_babord`, `feu_tribord`, `feu_mat`, `fx_smoke`, `fx_sillage`, `fx_pont`, les quatre `fx_amarre_*`.
 - `vitres` et `feux` présents ; moins de 4 000 triangles.

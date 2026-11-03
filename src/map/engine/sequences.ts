@@ -13,9 +13,12 @@ import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
 import { bakedRig } from './baking';
+import { crateOf } from './crate';
+import { SLATS, WOOD } from './crates';
 import { movesOnItsOwn, posedScene, type RestPose } from './figurines/figurine';
 import { stand, stride } from './figurines/infantry';
 import { EXHAUST, Smoke } from './smoke';
+import { darkCrate } from './timelines/loading';
 
 /** A motor's breath leaves a door low under its lintel, in metres of the building. `@a-mesurer` */
 const EXHAUST_HEIGHT = 1.5;
@@ -120,6 +123,14 @@ export type Cue =
       readonly pileId: string;
       readonly groups: ReadonlyArray<number>;
     }
+  /** **A truck loads at its warehouse or its HQ** (#271): `groupId` backs to the quay of
+   *  `siteId`, and so many crates jump aboard. */
+  | {
+      readonly kind: 'chargement';
+      readonly siteId: string;
+      readonly groupId: string;
+      readonly crates: number;
+    }
   /** A troop steps down from a truck: `groupId` is `${pileId}/${group}` (`StandingLayer`). */
   | { readonly kind: 'descente'; readonly groupId: string }
   /** **A combat at its point** (#272): first without its view, to hide the point while it is
@@ -145,12 +156,33 @@ export function articulatedOf(url: string, family: RigFamily, pose?: RestPose): 
   const key = `${url} ${family} ${pose ?? ''}`;
   let rig = cooked.get(key);
   if (!rig) {
-    rig = posedScene(url, pose).then((scene) =>
-      bakedRig(scene, (node) => isRigPart(family, node.name) || movesOnItsOwn(node)),
-    );
+    // Its sign kept apart, to grow on its foot at a distance as the instance's does (ADR 0038 §7).
+    rig = posedScene(url, pose).then((scene) => {
+      const baked = bakedRig(
+        scene,
+        (node) => isRigPart(family, node.name) || movesOnItsOwn(node) || node.name === 'signe',
+      );
+      if (family === 'hq') stockDark(baked, scene);
+      return baked;
+    });
     cooked.set(key, rig);
   }
   return rig;
+}
+
+/** **The HQ keeps no pile**: two crates wait in the dark behind its service door, on the axis
+ *  of its `fx_quai`, for a loading to bring out (#271). Its copy's own, never its instance's. */
+function stockDark(rig: Object3D, scene: Object3D): void {
+  const quay = scene.getObjectByName('fx_quai');
+  if (quay === undefined) return;
+  const stop = quay.getWorldPosition(new Vector3());
+  const front = new Vector3(0, 0, 1).applyQuaternion(quay.getWorldQuaternion(new Quaternion()));
+  for (const k of [0, 1]) {
+    const crate = crateOf(WOOD, SLATS, true);
+    crate.name = `caisse_${k + 1}`;
+    crate.position.set(...darkCrate(stop.toArray(), front.toArray(), k));
+    rig.add(crate);
+  }
 }
 
 type Playing = {
@@ -201,7 +233,11 @@ export class SequenceLayer {
   constructor(
     /** Ce que voit l'œil cette image : la boîte coupe le champ, et fait au moins `px`. */
     private readonly sees: (box: Box3, px: number) => boolean,
-    private readonly cook: (url: string, family: RigFamily) => Promise<Group> = articulatedOf,
+    private readonly cook: (
+      url: string,
+      family: RigFamily,
+      pose?: RestPose,
+    ) => Promise<Group> = articulatedOf,
   ) {}
 
   /** Lance `sequence` sur la pièce `id` de `host`, son horloge partie à `now` ; une pièce qui
@@ -249,7 +285,8 @@ export class SequenceLayer {
     }
     // Cooking is the first signal's cost: the clock already runs, so it eats the start of the
     // sequence, never its end.
-    this.cook(piece.url!, family!).then(
+    // A lasting state is baked in the copy as in the instance it stands in for.
+    this.cook(piece.url!, family!, piece.pose).then(
       (rig) => {
         if (!playing.over) this.standIn(playing, rig.clone(true));
       },
@@ -309,6 +346,11 @@ export class SequenceLayer {
   /** Whether the piece `id` of `host` plays a sequence now. */
   playsOn(host: SequenceHost, id: string): boolean {
     return this.playing.some((p) => p.host === host && p.id === id);
+  }
+
+  /** Whether a sequence on the piece `id` of `host` already placed its own copy. */
+  holds(host: SequenceHost, id: string): boolean {
+    return this.playing.some((p) => p.host === host && p.id === id && p.copy !== null);
   }
 
   /** How many more pieces may play now (`MAX_PLAYING`), a deployment aside. */

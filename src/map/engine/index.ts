@@ -73,6 +73,7 @@ import {
   troopScale,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
+import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
 import { veiledPiles } from './veils';
@@ -83,6 +84,17 @@ import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
 import { deployAt, deployMs } from './timelines/deploy';
 import { tailgateDrop } from './timelines/truck';
+import { LOADING_PX, MAX_CRATES } from './timelines/loading';
+import {
+  type Attempt,
+  type Docked,
+  dockedOf,
+  joinedOf,
+  mayDock,
+  quayTaken,
+  stillWaiting,
+  undock,
+} from './docks';
 import { Ambience } from './ambience';
 import { CURRENT_RIBBONS, RibbonLayer, WIND_RIBBONS } from './ribbons';
 import type { ContourWeight } from '@/domain/contours';
@@ -513,6 +525,8 @@ export class MapEngine {
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
   private readonly maquettes: MaquetteLayer;
+  /** My sites at work, alive at rest (#273): an ambience that borrows their copies. */
+  private readonly loops: SiteLoopLayer;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   /** The combats played at their point (#272), on a budget of their own. */
@@ -536,6 +550,13 @@ export class MapEngine {
     readonly cue: Extract<Cue, { kind: 'deploiement' }>;
     readonly since: number;
   }> = [];
+  /** **Trucks loaded, waiting** for their pile to stand, or their site's quay to be free (#271). */
+  private loadings: Array<{
+    readonly cue: Extract<Cue, { kind: 'chargement' }>;
+    readonly since: number;
+  }> = [];
+  /** What each truck at a quay plays, from when: a second load joins it (`loadOf`). */
+  private readonly docked = new Map<string, Docked>();
   /** Piles owed their ring of ink once their file has held, at reduced motion (#362). */
   private inkDue: Array<{ readonly pileId: string; readonly at: number }> = [];
   /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
@@ -963,6 +984,14 @@ export class MapEngine {
     );
     this.scene.add(this.maquettes.group);
     this.ambience.add(this.maquettes.smoke);
+    this.loops = new SiteLoopLayer(
+      this.maquettes,
+      this.sequences,
+      (box, px) => this.seenBig(box, px),
+      () => this.eye.position,
+      this.touch ? MAX_LIVING.touch : MAX_LIVING.desk,
+    );
+    this.ambience.add(this.loops);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.pins = new PinLayer(
@@ -2077,6 +2106,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
+    this.loops.dispose();
     this.sequences.dispose();
     this.combats.dispose();
     this.razes.dispose();
@@ -2797,6 +2827,9 @@ export class MapEngine {
       case 'descente':
         this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
         break;
+      case 'chargement':
+        this.loadings.push({ cue, since: performance.now() });
+        break;
       case 'combat':
         this.playCombat(cue);
         break;
@@ -3068,6 +3101,98 @@ export class MapEngine {
     });
     if (arrivals.length > 0) this.standing.arrive(cue.pileId, arrivals);
     return true;
+  }
+
+  /**
+   * **Un camion se charge à son quai** (#271) : il sort de son rang, recule à `fx_quai`, les
+   * caisses sautent à bord, la porte regarnit la pile, et il revient (`loadingAt`). Tout ou rien :
+   * le camion et son site jouent ensemble, ou aucun — hors du champ, sous `LOADING_PX`, en
+   * chantier, sans deux places sous `MAX_PLAYING`. Un second chargement du même camion se joint
+   * tant que le hayon n'est pas remonté ; sinon il attend, comme un autre camion du même site,
+   * que le camion à quai recule dans sa place (`quayTaken`). En réduites, un anneau d'encre sur
+   * sa pile ; un site en chantier ne montre rien.
+   */
+  private loadOf({ cue }: (typeof this.loadings)[number], now: number): Attempt {
+    const motion = this.sequences.motion;
+    const pileId = cue.groupId.slice(0, cue.groupId.lastIndexOf('/'));
+    // A site in works shows nothing, at any setting.
+    const building = this.maquettes.pieceOf(cue.siteId);
+    if (motion === 'off' || building === null) return 'done';
+    if (motion === 'reduced') {
+      this.standing.inkArrival(pileId);
+      return 'done';
+    }
+    const playing = this.docked.get(cue.groupId);
+    if (playing !== undefined && this.sequences.playsOn(this.standing, cue.groupId)) {
+      const joined = joinedOf(playing, cue.crates, now);
+      if (joined === null) return 'queued';
+      this.sequences.retime(this.standing, cue.groupId, joined.truck);
+      this.sequences.retime(this.maquettes, playing.siteId, joined.site);
+      this.docked.set(cue.groupId, joined.docked);
+      return 'done';
+    }
+    if (
+      quayTaken(this.docked, cue.siteId, now) ||
+      this.sequences.playsOn(this.maquettes, cue.siteId)
+    )
+      return 'queued';
+    const site = this.maquettes.siteOf(cue.siteId);
+    const place = this.standing.placeOf(cue.groupId);
+    const drawn = this.standing.pieceOf(cue.groupId)?.box;
+    const long = this.standing.lengthOf(cue.groupId);
+    if (site === null || place === null || !drawn || long === null) return 'wait';
+    const stop = site.marker('fx_quai');
+    const front = site.front('fx_quai');
+    if (
+      stop === null ||
+      front === null ||
+      !mayDock(
+        this.sequences.room,
+        this.seenBig(drawn, LOADING_PX),
+        building.box === null || this.seenBig(building.box, LOADING_PX),
+      )
+    )
+      return 'done';
+    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+    const rank = site.toModel(place.at);
+    const inside = site.marker('fx_entree');
+    const door = site.marker('fx_sortie');
+    const plan: Docked['plan'] = {
+      rank: rank.toArray(),
+      rankFront: site
+        .toModel(place.at.clone().add(place.front))
+        .sub(rank)
+        .setY(0)
+        .normalize()
+        .toArray(),
+      length: long / metre,
+      box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
+      quay: { stop: stop.toArray(), front: front.setY(0).normalize().toArray() },
+      perron:
+        cue.siteId.startsWith('building-warehouse') && inside !== null && door !== null
+          ? {
+              crates: site.crates.map(({ name, at }) => ({ name, at: at.toArray() })),
+              inside: inside.toArray(),
+              door: door.toArray(),
+              top: door.y,
+            }
+          : null,
+      crates: Array<number>(Math.min(cue.crates, MAX_CRATES)).fill(0),
+      toBoard: (point) =>
+        site
+          .toBoard(new Vector3(...point))
+          .sub(place.at)
+          .toArray(),
+    };
+    const { docked, truck, site: quay } = dockedOf(plan, cue.siteId, now);
+    if (!this.sequences.play(this.standing, cue.groupId, truck, now)) return 'done';
+    this.docked.set(cue.groupId, docked);
+    if (!this.sequences.play(this.maquettes, cue.siteId, quay, now)) this.undock(now);
+    return 'done';
+  }
+
+  private undock(now: number): void {
+    undock(this.docked, this.sequences, { truck: this.standing, site: this.maquettes }, now);
   }
 
   /** **The doors of a barracks open for its recruits**; a second sortie while they still play
@@ -3920,6 +4045,8 @@ export class MapEngine {
     this.deployments = this.deployments.filter(
       (deployment) => !this.deployOf(deployment, now) && now - deployment.since < SORTIE_WAIT_MS,
     );
+    this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
+    this.undock(now);
     this.inkDue = this.inkDue.filter(({ pileId, at }) => {
       if (now < at) return true;
       this.standing.inkArrival(pileId);

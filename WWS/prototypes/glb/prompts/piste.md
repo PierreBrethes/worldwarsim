@@ -1,9 +1,11 @@
 # Piste d'aérodrome — piste.glb
 
-Un kit de piste en terre battue de 1940, en trois modules que le jeu assemble bout à bout : un
-bout, un seuil à barres blanches et un tronçon de 10 m qui se raccorde sans couture. Dans « La
+Un kit de piste en terre battue de 1940, en quatre modules que le jeu assemble bout à bout : un
+bout, un seuil à barres blanches, un tronçon de 10 m qui se raccorde sans couture, et une rampe de
+béton par où l'avion descend du socle de son aérodrome. Dans « La
 Manchette » (stratégie, presse illustrée de 1940), la piste se pose devant les deux hangars d'un
-aérodrome, parallèle à leurs façades ; les avions y courent, décollent et atterrissent.
+aérodrome, parallèle à leurs façades, hors du socle ; les avions y courent, décollent et atterrissent. Le dessus du socle est à 2,2 m : la rampe
+(`piste_rampe`) raccorde chaque couloir de roulage du socle à la piste.
 
 ## Dimensions (mètres réels)
 
@@ -18,6 +20,7 @@ a son origine au sol (y = 0), au centre de sa propre emprise. Rien sous y = 0. �
   large et 8 m de long, réparties sur la largeur (centres à x = 0, ±5,5, ±11).
 - **`piste_bout`** : 5 m de long (z de −2,5 à +2,5) ; le côté −z se raccorde, le côté +z ferme la
   piste d'un contour d'encre à angles arrondis (rayon 3 m).
+- **`piste_rampe`** : béton gris de l'aire (celui de la cour de l'aérodrome), **32 m de large** (x de −16 à +16, la largeur d'un couloir de roulage), **12 m de long** (z de 0 à +12). Son dessus descend en **pente droite de y = 2,2 m (z = 0, au socle) à y = 0 (z = +12, au sol de la piste)** ; flancs verticaux jusqu'à y = 0 ; bords en biseau de 0,3 m ; joints peints tous les 4 m en travers. **Origine au sol (0 ; 0 ; 0), sous l'arête haute, au milieu** : le jeu la pose à 2 m en deçà du bord +z du socle, au droit de chaque couloir (deux fois par aérodrome), le haut contre le socle. Pas de liseré, pas de balise. Moins de 200 triangles.
 - Assemblage complet : bout, seuil, quatorze tronçons, seuil, bout = **170 m**. Le jeu retourne
   de 180° le seuil et le bout de l'autre extrémité.
 - Sur chaque tronçon et chaque seuil, de chaque côté, à 0,5 m du bord : une borne blanche
@@ -26,7 +29,7 @@ a son origine au sol (y = 0), au centre de sa propre emprise. Rien sous y = 0. �
 
 ## Pièces nommées
 
-Le fichier contient trois nœuds racines, un par module, **chacun à l'origine** (translation
+Le fichier contient quatre nœuds racines, un par module, **chacun à l'origine** (translation
 nulle) : le jeu clone chaque module par son nom. Dans la page, ils peuvent se montrer côte à côte
 et assemblés, mais l'export les remet à zéro.
 
@@ -35,6 +38,7 @@ et assemblés, mais l'export les remet à zéro.
 | `piste_troncon` | centre du module au sol | fixe ; posé bout à bout le long de z | 30 × 0,1 × 10 m |
 | `piste_seuil` | centre du module au sol | fixe | 30 × 0,1 × 10 m |
 | `piste_bout` | centre du module au sol | fixe ; le côté −z se raccorde | 30 × 0,1 × 5 m |
+| `piste_rampe` | au sol, sous l'arête haute, au milieu (0 ; 0 ; 0) | fixe ; dessus de y = 2,2 (z = 0) à y = 0 (z = +12) | 32 × 2,2 × 12 m |
 | `balise_gauche`, `balise_droite` | pied de chaque borne (x = ±14,5 ; z = 0) | enfants de `piste_troncon` et de `piste_seuil` ; fixes | 0,4 m |
 | `feu_gauche`, `feu_droit` | pied de chaque feu (x = ±14,5 ; z = 0) | enfants de `piste_troncon` et de `piste_seuil` ; le jeu les allume un par un, de proche en proche depuis le hangar | 0,55 m |
 
@@ -55,11 +59,13 @@ et assemblés, mais l'export les remet à zéro.
 - `peinture_blanche` : barres de seuil et bornes.
 - `feux` : les globes des feux de bord (le jeu les allume la nuit, pendant un mouvement).
 - Désaturé, pâle : la piste est toujours dessinée et ne doit pas crier.
-- **Moins de 500 triangles par module, au moins 1 000 pour le fichier.**
+- `beton` : `piste_rampe` seule, gris de l'aire de l'aérodrome, joints peints.
+- **Moins de 500 triangles par module (200 pour `piste_rampe`), au moins 1 000 pour le fichier.**
 
 ## Ce que le modèle doit permettre
 
 - Le jeu assemble 170 m de piste devant deux hangars, parallèle à leurs façades, sans couture.
+- Un avion qui roule du couloir de son hangar descend du socle par `piste_rampe`, sans marche, puis rejoint la piste ; au retour il remonte de même.
 - Un chasseur part de `fx_seuil`, court queue basse puis queue haute, et quitte le sol avant
   l'autre seuil ; un bombardier ou un transport aussi, plus lentement.
 - La nuit, pendant un mouvement, les feux de bord s'allument de proche en proche depuis le hangar,
@@ -67,12 +73,12 @@ et assemblés, mais l'export les remet à zéro.
 
 ## À vérifier avant de livrer
 
-- Livrable : page three.js autonome (OrbitControls, vue de dessus, vue rasante) montrant les trois
-  modules seuls et la piste assemblée de 170 m ; bouton « Exporter en GLB » (GLTFExporter,
-  binaire) qui n'exporte que les trois modules, chacun à l'origine : ni lumière, ni caméra, ni sol,
+- Livrable : page three.js autonome (OrbitControls, vue de dessus, vue rasante) montrant les quatre
+  modules seuls, la piste assemblée de 170 m, et la rampe posée contre un socle d'essai de 2,2 m de haut (non exporté) ; bouton « Exporter en GLB » (GLTFExporter,
+  binaire) qui n'exporte que les quatre modules, chacun à l'origine : ni lumière, ni caméra, ni sol,
   ni l'assemblage. Ni meshopt, ni quantification. Texture en WebP si possible, sinon PNG.
-- 1 unité = 1 m ; 30 m de large ; tronçon et seuil de 10 m, bout de 5 m ; dessus à y = 0,1.
+- 1 unité = 1 m ; 30 m de large ; tronçon et seuil de 10 m, bout de 5 m ; dessus à y = 0,1 ; `piste_rampe` de 32 × 12 m, dessus de y = 2,2 à y = 0.
 - Assemblage sans couture visible de texture ni de liseré.
 - Noms présents à l'identique : `piste_troncon`, `piste_seuil`, `piste_bout`, `balise_gauche`,
-  `balise_droite`, `feu_gauche`, `feu_droit`, `fx_seuil`.
-- `feux` présent ; moins de 500 triangles par module, au moins 1 000 pour le fichier.
+  `balise_droite`, `feu_gauche`, `feu_droit`, `fx_seuil`, `piste_rampe`.
+- `feux` présent ; moins de 500 triangles par module (200 pour `piste_rampe`), au moins 1 000 pour le fichier.

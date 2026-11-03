@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
-import { aboardOf, descentesOf, entreesOf, rankKept, sortiesOf } from './cues';
+import {
+  aboardOf,
+  chargementsOf,
+  descentesOf,
+  entreesOf,
+  loadsOf,
+  rankKept,
+  sortiesOf,
+} from './cues';
 import type { StandingPile } from './engine';
 
 const pile = (id: string, at: StandingPile['at'], ...troopIds: string[]): StandingPile => ({
@@ -225,5 +233,78 @@ describe("an outpost's garrison (#299)", () => {
     };
     expect(sortiesOf(new Set(), [outpost])).toEqual([]);
     expect(entreesOf([column], [outpost])).toEqual([]);
+  });
+});
+
+describe('chargementsOf (#271)', () => {
+  const group = (role: UnitRole, ...troopIds: string[]) => ({
+    role,
+    troops: troopIds.length,
+    troopIds,
+    figures: [1 as const],
+    wear: 'whole' as const,
+  });
+  const at = (beside: string, ...groups: ReturnType<typeof group>[]): StandingPile => ({
+    id: 'p',
+    at: { beside },
+    pieces: { groups, troopIds: groups.flatMap((g) => g.troopIds), squad: false },
+  });
+  const warehouse = 'building-warehouse@2,48';
+  const loaded = (id: string, ammunition: number, role: UnitRole = 'landTransport') => ({
+    id,
+    role,
+    load: { ammunition, oil: 0, coal: 0 },
+  });
+
+  it('names the truck whose load rose at a warehouse, a crate a hundred, two at most', () => {
+    const before = loadsOf([loaded('t', 0), loaded('u', 50)]);
+    const piles = [
+      at(
+        warehouse,
+        group('infantry', 'i'),
+        group('landTransport', 't'),
+        group('landTransport', 'u'),
+      ),
+    ];
+    expect(chargementsOf(before, [loaded('t', 250), loaded('u', 100)], piles)).toEqual([
+      { siteId: warehouse, groupId: 'p/1', crates: 2 },
+      { siteId: warehouse, groupId: 'p/2', crates: 1 },
+    ]);
+  });
+
+  it('names a truck loaded at its HQ too', () => {
+    const before = loadsOf([loaded('t', 0)]);
+    const piles = [at('building-hq@2,48', group('landTransport', 't'))];
+    expect(chargementsOf(before, [loaded('t', 30)], piles)).toEqual([
+      { siteId: 'building-hq@2,48', groupId: 'p/0', crates: 1 },
+    ]);
+  });
+
+  it('names nothing for a first sight, an unload, a cargo, another site or a point', () => {
+    const now = [loaded('t', 100)];
+    expect(chargementsOf(new Map(), now, [at(warehouse, group('landTransport', 't'))])).toEqual([]);
+    expect(
+      chargementsOf(loadsOf([loaded('t', 200)]), now, [at(warehouse, group('landTransport', 't'))]),
+    ).toEqual([]);
+    const before = loadsOf([loaded('t', 0)]);
+    expect(
+      chargementsOf(
+        before,
+        [loaded('t', 100, 'cargo')],
+        [at('building-port@2,48', group('cargo', 't'))],
+      ),
+    ).toEqual([]);
+    expect(
+      chargementsOf(before, now, [at('building-barracks@2,48', group('landTransport', 't'))]),
+    ).toEqual([]);
+    expect(
+      chargementsOf(before, now, [
+        {
+          id: 'p',
+          at: { lonLat: [2, 48] },
+          pieces: { groups: [group('landTransport', 't')], troopIds: ['t'], squad: false },
+        },
+      ]),
+    ).toEqual([]);
   });
 });

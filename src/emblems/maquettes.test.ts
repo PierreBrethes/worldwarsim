@@ -414,7 +414,20 @@ describe('maquettes', () => {
     (family, parts) => {
       const gltf = readGlb(BUILDING_MAQUETTES[family as BuildingKey]!);
       for (const part of parts)
-        expect(gltf.nodes.filter((node) => node.name === part).length, part).toBe(1);
+        if (!part.endsWith('*'))
+          expect(gltf.nodes.filter((node) => node.name === part).length, part).toBe(1);
+        // The HQ's crates are its copy's own (`stockDark`, #271): its file keeps none.
+        else if (family !== 'hq')
+          expect(
+            gltf.nodes.some((node) => node.name?.startsWith(part.slice(0, -1))),
+            part,
+          ).toBe(true);
     },
   );
+
+  it("carries the iron mine's rig parts in the coal mine too: one loop for both (#273)", () => {
+    const gltf = readGlb(buildingMaquette('mine', 'coal')!);
+    for (const part of RIG_PARTS.mine)
+      expect(gltf.nodes.filter((node) => node.name === part).length, part).toBe(1);
+  });
 });

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { producingSites } from './producing';
+import { producingSites, workingSites } from './producing';
 
 const me = {
   buildings: [
-    { id: 'farm', key: 'farm', regionId: 'home' },
-    { id: 'cutFarm', key: 'farm', regionId: 'cut' },
-    { id: 'dryWell', key: 'oilWell', regionId: 'home' },
-    { id: 'arsenal', key: 'arsenal', regionId: 'home' },
-    { id: 'barracks', key: 'barracks', regionId: 'home' },
+    { id: 'farm', key: 'farm', regionId: 'home', level: 1 },
+    { id: 'cutFarm', key: 'farm', regionId: 'cut', level: 1 },
+    { id: 'dryWell', key: 'oilWell', regionId: 'home', level: 1 },
+    { id: 'arsenal', key: 'arsenal', regionId: 'home', level: 1 },
+    { id: 'barracks', key: 'barracks', regionId: 'home', level: 1 },
   ],
   regions: [
     { id: 'home', linked: true },
@@ -32,5 +32,31 @@ describe('producingSites', () => {
       buildings: [...me.buildings, { id: 'cutArsenal', key: 'arsenal', regionId: 'cut' } as const],
     };
     expect(producingSites(cut).has('cutArsenal')).toBe(false);
+  });
+});
+
+describe('workingSites (#273)', () => {
+  const busy = {
+    ...me,
+    buildings: [
+      ...me.buildings,
+      { id: 'centre', key: 'researchCenter', regionId: 'home', level: 1 },
+      { id: 'taken', key: 'researchCenter', regionId: 'home', level: 3, captured: true },
+      { id: 'yard', key: 'port', regionId: 'home', level: 1 },
+      { id: 'idleYard', key: 'port', regionId: 'home', level: 1 },
+    ],
+    research: { running: { since: 0 } },
+    recruiting: ['yard'],
+  } as const;
+
+  it('names the producers, my Centre while a card advances, and the yards with a hull on the slip', () => {
+    expect([...workingSites(busy)].sort()).toEqual(['arsenal', 'centre', 'farm', 'yard']);
+  });
+
+  it('leaves the Centre at rest when no card is set, or the card waits for its headquarters', () => {
+    expect(workingSites({ ...busy, research: { running: null } }).has('centre')).toBe(false);
+    expect(workingSites({ ...busy, research: { running: { since: null } } }).has('centre')).toBe(
+      false,
+    );
   });
 });

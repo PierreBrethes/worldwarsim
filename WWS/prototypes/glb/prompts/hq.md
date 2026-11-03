@@ -25,7 +25,7 @@ fenêtres de 4,7 m et une porte de 8,3 m : ne pas l'imiter.
   0,9 m ; encadrements de pierre en relief.
 - **Porte d'honneur** : au milieu (x = 0, z = +8), baie de 2,4 × 3,4 m, seuil à +1 m ; deux
   battants de 1,2 × 3,4 m. Perron de 1 m, cinq marches de 0,2 m ; porche à deux piliers.
-- **Porte de service** : au rez-de-chaussée de l'aile +x, sur sa face extérieure (x = +20), au sol
+- **Porte de service** : au rez-de-chaussée de l'aile +x, sur sa face extérieure (**x = +30**, décision du 02/11 sur #368), au sol
   (seuil à y = 0, une rampe douce rattrape le soubassement), baie charretière de 3 × 3,4 m, un seul
   battant.
 - **Tour** : carrée, 5 × 5 m, au milieu du corps, jusqu'à 22 m, une horloge ; le mât du drapeau
@@ -38,7 +38,7 @@ fenêtres de 4,7 m et une porte de 8,3 m : ne pas l'imiter.
 
 Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site tient sur le socle ; le bâtiment, ses portes et ses pièces nommées gardent leurs mètres et leurs pivots, simplement rehaussés de 2,2 m (le dessus du socle). **Le bâtiment lui-même ne change pas.** Les x et z des tableaux qui suivent restent vrais.
 
-**Rehausse.** L'origine du fichier reste au même (x, z), au pied du socle (y = 0) ; le dessus du socle est à y = 2,2. Toute cote y des tableaux ci-dessous se lit **+2,2 m** : un pivot ou un repère donné à y = 0 passe à 2,2. En particulier : perron et soubassement à 3,2 m, `porte_gauche` et `porte_droite` pivotent à y = 3,2, `porte_service` à 2,2 (seuil), `fx_entree` (0 ; 3,2 ; +6,7), `fx_sortie` (0 ; 3,2 ; +8,2), `fx_quai` (+24 ; 2,2 ; z de la baie), `fx_smoke` et `fx_tete_hampe` +2,2 m ; `fx_tete_hampe` passe en (−26 ; 32,2 ; +20). Seul le socle descend jusqu'à y = 0.
+**Rehausse.** L'origine du fichier reste au même (x, z), au pied du socle (y = 0) ; le dessus du socle est à y = 2,2. Toute cote y des tableaux ci-dessous se lit **+2,2 m** : un pivot ou un repère donné à y = 0 passe à 2,2. En particulier : perron et soubassement à 3,2 m, `porte_gauche` et `porte_droite` pivotent à y = 3,2, `porte_service` à 2,2 (seuil), `fx_entree` (0 ; 3,2 ; +6,7), `fx_sortie` (0 ; 3,2 ; +8,2), `fx_quai` (+34 ; 2,2 ; z de la baie), `fx_smoke` et `fx_tete_hampe` +2,2 m ; `fx_tete_hampe` passe en (−26 ; 32,2 ; +20). Seul le socle descend jusqu'à y = 0.
 
 - `socle`, fixe : rectangle aux coins arrondis (rayon 6 m), dessus à y = 2,2 m, biseau de 0,8 m à 45° sur tout le tour. Couleur papier, à peine plus claire que la feuille (#ebe1c8, L* 90), flanc et biseau plus sombres (#bfae8a). Ici 76 × 71 m : x de −38 à 38, z de −38 à 33. Il enveloppe le corps, les deux ailes en retour (jusqu'à z = −30) et le perron : 8 m de débord sur les côtés et derrière, 25 m devant la façade pour la cour d'honneur. Rien du site ne dépasse le socle sauf le drapeau au vent.
 - `lisere`, fixe, matériau `lisere` à part (le jeu le teint à l'encre de la nation) : une bande de 3 m de large sur le bord du dessus du socle, 6 cm au-dessus, blanc neutre dans le GLB.
@@ -61,10 +61,10 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 | `porte_gauche` | gond, au bas du montant +x de la porte d'honneur (x = +1,2 ; y = 1 ; z = +8) | axe vertical ; s'étend vers −x ; vers l'extérieur de +110° | 1,2 × 3,4 × 0,12 m |
 | `porte_droite` | gond, au bas du montant −x (x = −1,2 ; y = 1 ; z = +8) | axe vertical ; s'étend vers +x ; vers l'extérieur de −110° | 1,2 × 3,4 × 0,12 m |
 | `fond_sombre` | centre du plan | fixe ; noir mat, 0,3 m derrière les battants | 2,4 × 3,4 m |
-| `porte_service` | gond, au bas du montant arrière (−z) de la baie de service, sur la face x = +20 | axe vertical ; s'ouvre vers l'extérieur (+x) de 110° | 3 × 3,4 × 0,12 m |
+| `porte_service` | gond, au bas du montant arrière (−z) de la baie de service, sur la face x = +30 | axe vertical ; s'ouvre vers l'extérieur (+x) de 110° | 3 × 3,4 × 0,12 m |
 | `fond_sombre_service` | centre du plan | fixe ; noir mat derrière `porte_service` | 3 × 3,4 m |
 | `hampe` | pied du mât, sur le toit de la tour (0 ; 22 ; 0) | fixe | 8 m |
-| `drapeau` | haut de la hampe, coin haut de la toile côté mât (0 ; 29,8 ; 0) | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 |
+| `drapeau` | haut de la hampe, coin haut de la toile côté mât (0 ; 29,8 ; 0) | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
 Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile : le jeu y peint le
 drapeau du teneur. Plus de `flag` ni de `fanion`.
@@ -75,7 +75,7 @@ drapeau du teneur. Plus de `flag` ni de `fanion`.
 |---|---|---|
 | `fx_entree` | derrière la porte d'honneur (0 ; 1 ; +6,7) | +z |
 | `fx_sortie` | seuil de la porte d'honneur (0 ; 1 ; +8,2) | +z |
-| `fx_quai` | au sol, 4 m devant la porte de service (+24 ; 0 ; z de la baie) | +x : le camion s'y arrête, l'arrière contre la baie |
+| `fx_quai` | au sol, 4 m devant la porte de service (+34 ; 0 ; z de la baie) | +x : le camion s'y arrête, l'arrière contre la baie |
 | `fx_smoke` | au sommet de chaque souche de cheminée (`fx_smoke`, `fx_smoke_2`…) | +y |
 | `fx_tete_hampe` | sommet de la hampe (0 ; 30 ; 0) | +y |
 
@@ -93,7 +93,7 @@ drapeau du teneur. Plus de `flag` ni de `fanion`.
 
 - Les deux battants s'ouvrent de 110° vers l'extérieur ; une sentinelle fait les cent pas devant
   le perron ; un homme sort du noir par `fx_sortie`.
-- Un camion recule jusqu'à `fx_quai`, la porte de service s'ouvre, les caisses montent à bord.
+- Un camion recule jusqu'à `fx_quai`, la porte de service s'ouvre, son hayon se pose, et deux caisses sortent du noir de `fond_sombre_service` et montent à bord (le QG n'a ni perron ni porte coulissante : même séquence que l'entrepôt, par la porte). La chaussée devant la porte de service (4 × 12 m) reste libre de tout accessoire, dans tous les états, pour que le camion y recule.
 - La nuit, les fenêtres, l'horloge, les lanternes et les deux fonds s'allument.
 - À la capture, le drapeau descend du mât de la tour, celui du vainqueur monte.
 

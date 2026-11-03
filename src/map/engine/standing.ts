@@ -1,5 +1,5 @@
 import {
-  type Box3,
+  Box3,
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
@@ -8,6 +8,7 @@ import {
   Group,
   Line,
   LineDashedMaterial,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -1007,6 +1008,28 @@ export class StandingLayer implements SequenceHost {
     };
   }
 
+  /** **How long a group is drawn**, nose to tail along its own front, on the board: a turned
+   *  rank does not lengthen it as its world box does (#271). `null` until placed. */
+  lengthOf(id: string): number | null {
+    const lent = this.figurineOf(id);
+    if (!lent?.placed) return null;
+    const { object } = lent.figurine;
+    object.updateWorldMatrix(true, true);
+    const back = object.matrixWorld.clone().invert();
+    const own = new Box3();
+    object.traverseVisible((part) => {
+      const { geometry } = part as Mesh;
+      if ((part as Mesh).isMesh !== true || part.userData.ground === true) return;
+      if (geometry.boundingBox === null) geometry.computeBoundingBox();
+      own.union(
+        geometry
+          .boundingBox!.clone()
+          .applyMatrix4(new Matrix4().multiplyMatrices(back, part.matrixWorld)),
+      );
+    });
+    return own.isEmpty() ? null : (own.max.z - own.min.z) * object.getWorldScale(new Vector3()).z;
+  }
+
   /** The copy takes the group's model's place, at its scale: it is drawn under the same
    *  `model` group. The pile's feet, which a click takes, do not change. */
   standIn(id: string, copy: Object3D | null): void {
@@ -1363,8 +1386,10 @@ export class StandingLayer implements SequenceHost {
 
   /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
-    for (const { object, extent, ready, near } of this.dressed.values()) {
-      if (!ready || !object.visible) continue;
+    const lent = new Set(this.stoodIn.values());
+    for (const { object, extent, ready, near, figurines } of this.dressed.values()) {
+      // A pile whose every group plays away (a truck backing to its quay) glows with it, not at its rank.
+      if (!ready || !object.visible || figurines.every((figurine) => lent.has(figurine))) continue;
       emit(object.position, Math.max(extent.x, extent.z) * object.scale.x, near);
     }
   }

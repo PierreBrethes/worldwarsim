@@ -25,7 +25,7 @@ portes de 6 m du modèle précédent.
 - **Chaufferie** : 12 × 10 m à x de −24 à −12, un niveau de 5 m ; cheminée de brique de Ø 1,8 m
   et 25 m de haut à son angle arrière (x = −20, z = −12).
 - **Terril** : cône noir de schiste, Ø 22 m, 11 m de haut, centré en (+15 ; 0 ; −10).
-- **Tas de charbon** : 8 × 8 m, 2,5 m de haut, au bout du rail (x = +20, z = +10).
+- **Tas de charbon** : 8 × 8 m, 2,5 m de haut, au bout du rail (x = +20, z = +10), du côté **+z** du bout du rail : la caisse bascule vers +z, le charbon doit y tomber.
 - **Rail** : voie de 0,6 m, du pignon +x de la recette (x = +10, z = +6) au tas de charbon.
 - **Hampe** : 10 m au sol à x = −22, z = +16 ; drapeau de 3 × 2 m (3:2 exact).
 
@@ -53,13 +53,13 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 
 | Nœud | Origine (pivot) | Axe et mouvement | Taille |
 |---|---|---|---|
-| `molette_1` | moyeu de la molette −x (−1,2 ; 24 ; −2) | tourne autour de x | Ø 4 m |
-| `molette_2` | moyeu de la molette +x (+1,2 ; 24 ; −2) | tourne autour de x, sens opposé | Ø 4 m |
+| `molette_1` | moyeu de la molette −x (−1,2 ; 24 ; −2) | tourne autour de x ; **six rayons francs, jante plus claire que les rayons** | Ø 4 m |
+| `molette_2` | moyeu de la molette +x (+1,2 ; 24 ; −2) | tourne autour de x, sens opposé ; six rayons francs, jante plus claire | Ø 4 m |
 | `wagonnet` | centre du dessous, sur le rail (+11 ; 0 ; +6) | translation le long de +x, **course 8 m** | 1,6 × 1,3 × 1 m |
-| `wagonnet_caisse` | axe de bascule, au bord +z de la caisse | enfant de `wagonnet` ; bascule autour de x jusqu'à 110° | 1,4 × 0,8 × 0,9 m |
+| `wagonnet_caisse` | axe de bascule, au bord +z de la caisse | enfant de `wagonnet` ; bascule **vers +z** autour de x jusqu'à 110° : le charbon tombe sur son tas, pas sur la voie | 1,4 × 0,8 × 0,9 m |
 | `rail` | centre de la voie | fixe | 10 m |
 | `hampe` | pied du mât (−22, 0, +16) | fixe | 10 m |
-| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 |
+| `drapeau` | haut de la hampe, coin haut de la toile côté mât | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
 Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 
@@ -83,7 +83,7 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 
 - Les molettes tournent en sens opposés et la cheminée fume tant que la mine produit ; sabotée,
   une fumée noire monte et tout s'arrête.
-- Le wagonnet roule de la recette au tas de charbon, bascule sa caisse, revient.
+- Le wagonnet roule de la recette au tas de charbon, bascule sa caisse vers +z, revient (cage et wagonnet : un cycle de 16 s tant que la mine produit, au même rythme à tous les niveaux). Les pièces mobiles gardent les matériaux du reste du site (le jeu les prive d'ombre lui-même : rien à faire dans le modèle).
 - La nuit, les fenêtres s'allument.
 - À la capture, le drapeau descend, celui du vainqueur monte.
 
@@ -98,3 +98,4 @@ Le drapeau est une toile neutre blanc cassé, UV 0 → 1 sur toute la toile.
 - Le socle (dessus à y = 2,2 m, rayon de coin 6 m, biseau 0,8 m), `lisere` (matériau `lisere`), `cour`, `signe`, `fx_rang`, `niveau_1`, `niveau_2`, `niveau_3`, `chantier` et `ruines` présents, écrits à l'identique ; `hampe`, `drapeau` et `fx_tete_hampe` sur le signe, mêmes noms, mêmes pivots.
 - Le bâtiment inchangé et rehaussé de 2,2 m ; la cour libre du rectangle de 30 × 14 m devant `fx_rang` ; aucun accessoire ne ressemble à une pièce du jeu.
 - Dans la page, des cases pour montrer un seul groupe (`niveau_2`, `niveau_3`, `chantier`, `ruines`) et compter les triangles de chaque état : moins de 3 500 dans tous.
+- Molettes à six rayons et jante plus claire ; la caisse bascule vers +z, le tas de charbon est de ce côté du bout du rail ; `fx_smoke` toujours au sommet de la cheminée de la chaufferie.

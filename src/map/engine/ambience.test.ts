@@ -49,8 +49,20 @@ describe('Ambience', () => {
     expect(ambience.advance(1000)).toBe(false);
     expect(ambience.advance(1100)).toBe(false);
     idle = false;
-    expect(ambience.advance(1100)).toBe(true);
-    expect(ambience.advance(1110)).toBe(false);
+    expect(ambience.advance(1180)).toBe(true);
+    expect(ambience.advance(1190)).toBe(false);
+  });
+
+  it('asks an idle layer only on its beat, not at every frame', () => {
+    let asked = 0;
+    const ambience = new Ambience(new Set(['sites']));
+    const idle = () => {
+      asked += 1;
+      return true;
+    };
+    ambience.add({ fx: 'sites', hz: 8, idle, frame: () => {} });
+    for (let ms = 1000; ms < 2000; ms += 16) ambience.advance(ms);
+    expect(asked).toBe(8);
   });
 
   it('steps a passive layer with the frames drawn anyway, never asking for one', () => {

@@ -1,5 +1,6 @@
 import { produces } from './economy';
 import type { BuildingKey } from './ids';
+import { searcherOf } from './research';
 
 /**
  * **My sites that are producing right now** — what smokes over its maquette (lot « vie des
@@ -36,4 +37,29 @@ export function producingSites(me: {
       )
       .map((building) => building.id),
   );
+}
+
+/**
+ * **My sites at work at rest** (#273), whose loop plays where their file has one: the producers
+ * (`producingSites`), my Centre while a card advances — not one waiting for its headquarters —,
+ * and a yard with a hull on its slip (`recruiting`). An enemy site is not served: it never works.
+ */
+export function workingSites(
+  me: Parameters<typeof producingSites>[0] & {
+    readonly buildings: ReadonlyArray<{
+      readonly id: string;
+      readonly key: BuildingKey;
+      readonly level: number;
+      readonly captured?: boolean;
+    }>;
+    readonly research: { readonly running: { readonly since: number | null } | null };
+    readonly recruiting: ReadonlyArray<string>;
+  },
+): ReadonlySet<string> {
+  const searcher = (me.research.running?.since ?? null) === null ? null : searcherOf(me.buildings);
+  return new Set([
+    ...producingSites(me),
+    ...(searcher === null ? [] : [searcher.id]),
+    ...me.recruiting,
+  ]);
 }

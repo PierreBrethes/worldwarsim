@@ -270,6 +270,28 @@ describe('a pile lent to a sequence', () => {
     expect(shore.z).toBeCloseTo(1, 6);
   });
 
+  it('measures a truck nose to tail whichever way its rank turns (#271)', async () => {
+    const flat = {
+      projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, -lat),
+    } as unknown as WorldFrame;
+    const turned = async (facing: number) => {
+      const layer = new StandingLayer(
+        flat,
+        () => {},
+        () => null,
+      );
+      layer.setNation('france');
+      layer.display([{ ...pileOf('landTransport'), facing }]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(new Vector3(2, 3, -45));
+      const size = layer.pieceOf(TRUCK)!.box!.getSize(new Vector3());
+      return { length: layer.lengthOf(TRUCK)!, box: Math.max(size.x, size.z) };
+    };
+    const [straight, aslant] = [await turned(0), await turned(30)];
+    expect(aslant.length).toBeCloseTo(straight.length, 6);
+    expect(aslant.box).toBeGreaterThan(aslant.length + 0.01);
+  });
+
   it('lends a group that stands, with its file and its box', async () => {
     const layer = await standing('landTransport');
     const piece = layer.pieceOf(TRUCK);
@@ -389,6 +411,28 @@ describe('a pile lent to a sequence', () => {
     expect(pick).toBe('p');
     expect(layer.pick(down())?.pileId).toBe(pick);
     expect(layer.under(down())?.id).toBe(under);
+  });
+
+  it('leaves no glow at its rank while its only group plays away, and glows again given back (#271)', async () => {
+    const layer = await standing('landTransport');
+    const glows = () => {
+      let count = 0;
+      layer.lights(() => count++);
+      return count;
+    };
+    expect(glows()).toBe(1);
+    layer.standIn(TRUCK, new Group());
+    expect(glows()).toBe(0);
+    layer.standIn(TRUCK, null);
+    expect(glows()).toBe(1);
+  });
+
+  it('keeps the glow of a pile whose other groups stay at their rank', async () => {
+    const layer = await standing('infantry', 'armor');
+    layer.standIn('p/0', new Group());
+    let count = 0;
+    layer.lights(() => count++);
+    expect(count).toBe(1);
   });
 
   it('takes the loan back from a pile dressed again, or put in hand', async () => {

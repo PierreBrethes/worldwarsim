@@ -543,6 +543,45 @@ export const logisticsScene = internalMutation({
 });
 
 /**
+ * **La scène du chargement** (#271), pour la démo : un entrepôt dans l'Oise et le QG à la
+ * capitale, un camion vide en garnison à chacun. La démo les charge plus tard (`--chargement`).
+ *
+ * `npx convex run dev:loadingScene '{"playerId":"…"}'`
+ */
+export const loadingScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const hq = await headquartersOf(ctx, player);
+    if (hq === undefined) throw new Error('no headquarters');
+    const regionId = 'FRA-5312';
+    const warehouse = await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'warehouse',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
+    const truck = (stationedAt: Id<'buildings'>) =>
+      ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role: 'landTransport',
+        tier: 1,
+        nominalStrength: nominalStrength('landTransport', 1),
+        currentStrength: nominalStrength('landTransport', 1),
+        stationedAt,
+      });
+    const trucks = { warehouse: await truck(warehouse), hq: await truck(hq._id) };
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, Date.now(), playerId);
+    return trucks;
+  },
+});
+
+/**
  * **Fait arriver sur-le-champ les mouvements d'un joueur**, pour voir une livraison ou une
  * tournée se dénouer sans attendre la route (#128). `afterMs` les fait arriver plus tard : le
  * temps d'ouvrir la carte, où le combat de `--combat` se joue (#272).
@@ -822,6 +861,66 @@ export const researchScene = internalMutation({
       playerId,
       finishesAt: now + remainingMs,
     });
+  },
+});
+
+/**
+ * **Les sites au repos qui vivent** (#273), pour la démo : quatre mines françaises sur leurs
+ * gisements (deux de charbon, deux de fer), un chantier naval au Havre, une coque sur cale, et
+ * Bakou tenu, son puits sur le gisement. Le Centre qui cherche est celui de `researchScene`.
+ *
+ * `npx convex run dev:sitesScene '{"playerId":"…"}'`
+ */
+export const sitesScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    await headquartersOf(ctx, player);
+    const now = Date.now();
+    const baku = await layPoint(ctx, player.seasonId, 'baku');
+    if (baku === null) throw new Error('no region under baku');
+    await ctx.db.patch(baku._id, { holderId: playerId, heldSince: now - 3_600_000 });
+    for (const [key, id] of [
+      ['mine', 'coal-FRA-5328'],
+      ['mine', 'coal-FRA-5334'],
+      ['mine', 'iron-FRA-5325'],
+      ['mine', 'iron-FRA-5275'],
+      ['oilWell', 'oil-AZE-1690'],
+    ] as const) {
+      const deposit = DEPOSIT_POINTS.find((candidate) => candidate.id === id);
+      if (deposit === undefined) throw new Error(`no deposit ${id}`);
+      await ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId,
+        key,
+        regionId: deposit.regionId,
+        point: { lon: deposit.lonLat[0], lat: deposit.lonLat[1] },
+        level: 1,
+      });
+    }
+    const point = { lon: 0.11, lat: 49.49 };
+    const region = nearestRegion([point.lon, point.lat]);
+    if (region === null) throw new Error('no region at Le Havre');
+    const port = await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'port',
+      regionId: region.id,
+      point,
+      level: 1,
+    });
+    // A hull on the slip for the day: nothing delivers it.
+    await ctx.db.insert('recruitments', {
+      playerId,
+      buildingId: port,
+      role: 'escort',
+      tier: 1,
+      rank: 0,
+      finishesAt: now + 24 * 3_600_000,
+    });
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
   },
 });
 

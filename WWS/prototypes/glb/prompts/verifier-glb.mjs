@@ -21,7 +21,11 @@ const MAN = ['body', 'head', 'arm_left', 'forearm_left', 'arm_right', 'forearm_r
 const MAN_PIVOTS = { head: 'bas', arm_left: 'haut', arm_right: 'haut', forearm_left: 'haut', forearm_right: 'haut', leg_left: 'haut', leg_right: 'haut', shin_left: 'haut', shin_right: 'haut' };
 const TRACKED = ['hull', 'turret', 'gun', 'hatch', 'tracks_left', 'tracks_right', 'wheels_left', 'wheels_right', 'barbotin_left', 'barbotin_right', 'roue_folle_left', 'roue_folle_right', 'galet_left_*|galets_left', 'galet_right_*|galets_right', 'fx_muzzle', 'fx_smoke', 'fx_poussiere'];
 const TRACKED_PIVOTS = { turret: 'axe-y', gun: 'tourillons', barbotin_left: 'centre', barbotin_right: 'centre', roue_folle_left: 'centre', roue_folle_right: 'centre', 'galet_left_*': 'centre', 'galet_right_*': 'centre' };
-const PLANE = ['fuselage', 'gear_left', 'gear_right', 'wheel_left', 'wheel_right', 'tailwheel', 'fx_smoke'];
+// Feux de position (avions) et de route (coques) : des globes maillés, enfants du nœud racine, que la page pose à la boîte du modèle (storyboards #269, #270).
+const PLANE_LIGHTS = ['feu_gauche', 'feu_droit', 'feu_queue'];
+const HULL_LIGHTS = ['feu_babord', 'feu_tribord', 'feu_mat'];
+const lightsUnder = (names, root) => Object.fromEntries(names.map((n) => [n, root]));
+const PLANE = ['fuselage', 'gear_left', 'gear_right', 'wheel_left', 'wheel_right', 'tailwheel', ...PLANE_LIGHTS, 'fx_smoke'];
 const PLANE_PIVOTS = { 'prop*': 'moyeu', gear_left: 'haut', gear_right: 'haut', wheel_left: 'centre', wheel_right: 'centre' };
 
 // measure : [nœud ou null pour tout le modèle, axe 'x' | 'y' | 'z', mètres (ou valeurs par nation), tolérance]
@@ -35,8 +39,8 @@ const EXPECT = {
   },
   airfield: {
     site: true,
-    // deux hangars à l'échelle 0,85, à 10 m l'un de l'autre : 2 × 42,5 + 10 = 95 m. Le hangar B porte les mêmes pièces suffixées `_b`.
-    measure: [null, 'x', 95, 0.05], materials: ['vitres'],
+    // deux hangars à l'échelle 1, à 10 m l'un de l'autre : 2 × 50 + 10 = 110 m (storyboard #269, du 03/11). Le hangar B porte les mêmes pièces suffixées `_b`.
+    measure: [null, 'x', 110, 0.05], materials: ['vitres'],
     names: [...AIRFIELD_HANGAR, ...AIRFIELD_HANGAR.map((n) => `${n}_b`), ...FLAG.names],
     pivots: { ...AIRFIELD_PIVOTS, ...Object.fromEntries(Object.entries(AIRFIELD_PIVOTS).map(([n, r]) => [`${n}_b`, r])), ...FLAG.pivots },
     absent: ['porte', 'mat_manche', 'manche_cerceau', 'windsock'],
@@ -44,15 +48,16 @@ const EXPECT = {
   port: {
     site: true,
     measure: [null, 'z', 210, 0.05], except: ['avant_cale'], below: ['avant_cale'], materials: ['vitres'],
-    names: ['coque_cale', 'ber_1', 'ber_2', 'ber_3', 'accore_1', 'accore_2', 'accore_3', 'accore_4', 'accore_5', 'accore_6', 'avant_cale', 'grue', 'grue_couronne', 'fleche', 'cable', 'crochet', 'fx_bord_eau', 'fx_smoke', ...FLAG.names],
+    names: ['coque_cale', 'ber_1', 'ber_2', 'ber_3', 'accore_1', 'accore_2', 'accore_3', 'accore_4', 'accore_5', 'accore_6', 'avant_cale', 'grue', 'grue_couronne', 'fleche', 'cable', 'crochet', 'fx_bord_eau', 'fx_tete_fleche', 'fx_smoke', ...FLAG.names],
     pivots: { coque_cale: 'zmax-bas', 'ber_*': 'pied', 'accore_*': 'pied', grue_couronne: 'axe-y', fleche: 'bout', cable: 'haut', crochet: 'haut', ...FLAG.pivots },
     markers: { fx_bord_eau: 'zmax' },
+    parents: { fx_tete_fleche: 'fleche' },
     absent: ['coque', 'door_left', 'door_right', 'vantail', 'moufle', 'cable_crochet'],
   },
   warehouse: {
     site: true,
-    measure: ['murs', 'x', 60, 0.04], materials: ['vitres'],
-    names: ['murs', 'porte', 'rail', 'galet', 'galet_2', 'fond_sombre', 'caisse_1', 'caisse_2', 'caisse_3', 'caisse_4', 'caisse_5', 'fx_quai', 'fx_entree', 'fx_sortie', ...FLAG.names],
+    measure: ['murs', 'x', 60, 0.04], materials: ['vitres', 'bois_caisse'],
+    names: ['murs', 'quai', 'lanterne', 'porte', 'rail', 'galet', 'galet_2', 'fond_sombre', 'caisse_1', 'caisse_2', 'caisse_3', 'caisse_4', 'caisse_5', 'fx_quai', 'fx_entree', 'fx_sortie', ...FLAG.names],
     pivots: { porte: 'bout-haut', galet: 'centre', galet_2: 'centre', 'caisse_*': 'pied', ...FLAG.pivots },
   },
   hq: {
@@ -91,21 +96,32 @@ const EXPECT = {
   oilWell: {
     site: true,
     measure: [null, 'x', 25, 0.06], 
-    names: ['balancier', 'tete_de_cheval', 'manivelle', 'contrepoids', 'bielle', 'tige', 'fx_smoke', ...FLAG.names],
-    pivots: { balancier: 'interieur', manivelle: 'interieur', bielle: 'bout', tige: 'haut', ...FLAG.pivots },
+    names: ['balancier', 'tete_de_cheval', 'manivelle', 'contrepoids', 'contrepoids_2', 'bielle', 'bielle_2', 'tige', 'fx_maneton', 'fx_smoke', ...FLAG.names],
+    pivots: { balancier: 'interieur', manivelle: 'interieur', bielle: 'bout', bielle_2: 'bout', tige: 'haut', ...FLAG.pivots },
+    parents: { fx_maneton: 'manivelle' },
     absent: ['walking_beam', 'crank'],
   },
   researchCenter: {
     site: true,
-    measure: [null, 'x', 50, 0.06], materials: ['vitres'],
-    names: ['coupole', 'volet_coupole', 'lunette', 'porte_gauche', 'porte_droite', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
+    measure: [null, 'x', 50, 0.06], materials: ['vitres', 'fond_sombre'],
+    names: ['coupole', 'fente', 'volet_coupole', 'lunette', 'porte_gauche', 'porte_droite', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
     pivots: { coupole: 'pied', porte_gauche: 'gond', porte_droite: 'gond', ...FLAG.pivots },
+    parents: { fente: 'coupole' },
   },
   listening: {
     site: true,
     measure: [null, 'x', 30, 0.06], materials: ['vitres', 'feux'],
     names: ['cadre_gonio', 'porte', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
     pivots: { cadre_gonio: 'axe-y', porte: 'gond', ...FLAG.pivots },
+  },
+  // ADR 0038 §11 : un socle rond, sans cour ni fx_rang (la garnison se pose à côté) ; un groupe par spécialisation, un seul montré.
+  outpost: {
+    // le cercle de sacs de 30 m, 0,5 m de jeu et le liseré de 3 m : 37 m, mesurés dans les deux sens (un rond)
+    measure: ['socle', 'xz', 37, 0.04], texture: 512, materials: ['lisere', 'feux'],
+    triangles: 1500, groups: ['magasin', 'guet', 'fort'], fixed: [['socle', 'lisere', 'signe', 'hampe', 'drapeau'], 500], rest: 850,
+    names: ['socle', 'lisere', 'sacs', 'signe', 'magasin', 'guet', 'fort', ...FLAG.names],
+    pivots: { ...FLAG.pivots },
+    absent: ['fx_rang', 'cour', 'niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'],
   },
   city: {
     site: true,
@@ -143,38 +159,38 @@ const EXPECT = {
   },
   fighter: {
     measure: [null, 'x', per([10.18, 11.23, 11.38, 10.0, 9.87, 12.0, 10.58, 9.75]), 0.06], triangles: 2500, materials: ['vitres', 'feux'],
-    names: [...PLANE, 'prop', 'fx_muzzle'], pivots: PLANE_PIVOTS,
+    names: [...PLANE, 'prop', 'fx_muzzle'], pivots: PLANE_PIVOTS, parents: lightsUnder(PLANE_LIGHTS, 'fuselage'),
   },
   bomber: {
     measure: [null, 'x', per([22.52, 26.26, 31.62, 14.6, 13.8, 25.0, 21.2, 20.33]), 0.06], maxSpan: 31.8, triangles: 1500, materials: ['vitres', 'feux'],
-    names: [...PLANE, 'prop*', 'fx_muzzle'], pivots: PLANE_PIVOTS,
+    names: [...PLANE, 'prop*', 'fx_muzzle'], pivots: PLANE_PIVOTS, parents: lightsUnder(PLANE_LIGHTS, 'fuselage'),
   },
   airTransport: {
     measure: [null, 'x', per([29.36, 29.18, 29.11, 28.81, 29.25, 22.6, 29.68, 28.96]), 0.06], maxSpan: 31.8, triangles: 1500, materials: ['vitres', 'feux'],
     names: [...PLANE, 'prop_*', 'cabin_door', 'bay_door', 'fond_sombre', 'fond_sombre_soute', 'fx_porte', 'fx_parachute'],
-    pivots: { ...PLANE_PIVOTS, cabin_door: 'zmax', bay_door: 'zmax' },
+    pivots: { ...PLANE_PIVOTS, cabin_door: 'zmax', bay_door: 'zmax' }, parents: lightsUnder(PLANE_LIGHTS, 'fuselage'),
   },
   escort: {
     measure: [null, 'z', per([132.4, 62.5, 114.8, 112.8, 119.0, 67.5, 106.7, 109.7]), 0.06], below: ['hull'], triangles: 4000, materials: ['vitres', 'feux'],
-    names: ['hull', 'turret_*', 'gun_*', 'boat_left', 'boat_right', 'fx_muzzle', 'fx_smoke', 'fx_sillage', ...AMARRES],
-    pivots: { 'turret_*': 'axe-y', 'gun_*': 'tourillons' },
+    names: ['hull', 'turret_*', 'gun_*', 'boat_left', 'boat_right', ...HULL_LIGHTS, 'fx_muzzle', 'fx_smoke', 'fx_sillage', ...AMARRES],
+    pivots: { 'turret_*': 'axe-y', 'gun_*': 'tourillons' }, parents: lightsUnder(HULL_LIGHTS, 'hull'),
   },
   cargo: {
     measure: [null, 'z', per([130, 128, 134.6, 120, 130, 130, 125, 55]), 0.08], below: ['hull'], triangles: 4000, materials: ['vitres', 'feux'],
-    names: ['hull', 'mat_charge_*', 'hold_hatch_*', 'fond_sombre_*', 'boat_left', 'fx_charge_*', 'fx_smoke', 'fx_sillage', 'fx_passerelle', ...AMARRES],
-    pivots: { 'mat_charge_*': 'bout', 'hold_hatch_*': 'arete' },
+    names: ['hull', 'mat_charge_*', 'hold_hatch_*', 'fond_sombre_*', 'boat_left', ...HULL_LIGHTS, 'fx_charge_*', 'fx_smoke', 'fx_sillage', 'fx_passerelle', ...AMARRES],
+    pivots: { 'mat_charge_*': 'bout', 'hold_hatch_*': 'arete' }, parents: lightsUnder(HULL_LIGHTS, 'hull'),
     byNation: Object.fromEntries(NATIONS.filter((n) => n !== 'china').map((n) => [n, ['boat_right']])),
   },
   carrier: {
     measure: [null, 'z', per([182.6, 229.7, 250, 195, 262.5, 260.7, 231.5, 150]), 0.07], below: ['hull'], triangles: 4000, materials: ['vitres', 'feux'],
-    names: ['hull', 'ascenseur', 'fond_sombre', 'boat_left', 'boat_right', 'fx_smoke', 'fx_sillage', 'fx_pont', ...AMARRES],
-    pivots: { ascenseur: 'haut' },
+    names: ['hull', 'ascenseur', 'fond_sombre', 'boat_left', 'boat_right', ...HULL_LIGHTS, 'fx_smoke', 'fx_sillage', 'fx_pont', ...AMARRES],
+    pivots: { ascenseur: 'haut' }, parents: lightsUnder(HULL_LIGHTS, 'hull'),
   },
 
   piste: {
-    roots: { piste_troncon: [30, 10, 500], piste_seuil: [30, 10, 500], piste_bout: [30, 5, 500] }, materials: ['feux'],
+    roots: { piste_troncon: [30, 10, 500], piste_seuil: [30, 10, 500], piste_bout: [30, 5, 500], piste_rampe: [32, 12, 200] }, materials: ['feux', 'beton'],
     repeated: ['balise_gauche', 'balise_droite', 'feu_gauche', 'feu_droit'],
-    names: ['piste_troncon', 'piste_seuil', 'piste_bout', 'balise_gauche', 'balise_droite', 'feu_gauche', 'feu_droit', 'fx_seuil'],
+    names: ['piste_troncon', 'piste_seuil', 'piste_bout', 'piste_rampe', 'balise_gauche', 'balise_droite', 'feu_gauche', 'feu_droit', 'fx_seuil'],
     pivots: { balise_gauche: 'pied', balise_droite: 'pied', feu_gauche: 'pied', feu_droit: 'pied' },
   },
   mole: {
@@ -357,14 +373,16 @@ function verify(path, key, nation) {
   if (spec.measure) {
     const [node, axis, metres, tolerance] = spec.measure;
     const want = valueOf(metres);
-    const k = { x: 0, y: 1, z: 2 }[axis];
-    let got;
-    if (node) {
-      const i = named.find(([n]) => n === node)?.[1];
-      got = i === undefined ? NaN : size(boxUnder(gltf, i, isPart, world.get(i)))[k];
-    } else got = s[k];
-    if (want === undefined) look(`mesure en ${axis} : ${got.toFixed(2)} m (passe --nation pour la comparer)`);
-    else check(Math.abs(got - want) <= tolerance * want, `mesure ${node ?? 'du modèle'} en ${axis} : ${got.toFixed(2)} m pour ${want} m (± ${Math.round(tolerance * 100)} %)`);
+    for (const a of axis) {
+      const k = { x: 0, y: 1, z: 2 }[a];
+      let got;
+      if (node) {
+        const i = named.find(([n]) => n === node)?.[1];
+        got = i === undefined ? NaN : size(boxUnder(gltf, i, isPart, world.get(i)))[k];
+      } else got = s[k];
+      if (want === undefined) look(`mesure en ${a} : ${got.toFixed(2)} m (passe --nation pour la comparer)`);
+      else check(Math.abs(got - want) <= tolerance * want, `mesure ${node ?? 'du modèle'} en ${a} : ${got.toFixed(2)} m pour ${want} m (± ${Math.round(tolerance * 100)} %)`);
+    }
   }
   if (spec.maxSpan) check(s[0] <= spec.maxSpan, `envergure ${s[0].toFixed(2)} m ≤ ${spec.maxSpan} m (baie du hangar)`);
   for (const [marker, rule] of Object.entries(spec.markers ?? {})) {
@@ -405,9 +423,24 @@ function verify(path, key, nation) {
     const states = { 'niveau 3': building + fixed + groups.niveau_1 + groups.niveau_2 + groups.niveau_3, chantier: building + fixed + groups.niveau_1 + groups.chantier, ruines: building + fixed + groups.ruines };
     for (const [s, n] of Object.entries(states)) check(n <= SITE_BUDGET.site, `état ${s} : ${n} triangles ≤ ${SITE_BUDGET.site}`);
   } else {
-    const n = roots.reduce((sum, r) => sum + trianglesUnder(r), 0);
+    // Des groupes montrés un seul à la fois : l'état le plus lourd porte le plus lourd d'entre eux.
+    const groups = (spec.groups ?? []).map((g) => [g, named.filter(([n]) => n === g).reduce((sum, [, i]) => sum + trianglesUnder(i), 0)]);
+    for (const [g, n] of groups) check(n <= SITE_BUDGET.group, `${g} : ${n} triangles ≤ ${SITE_BUDGET.group}`);
+    const hidden = groups.reduce((sum, [, n]) => sum + n, 0) - Math.max(0, ...groups.map(([, n]) => n));
+    const total = roots.reduce((sum, r) => sum + trianglesUnder(r), 0);
+    const n = total - hidden;
     const max = valueOf(spec.triangles);
-    check(n <= max, `${n} triangles ≤ ${max}`);
+    check(n <= max, `${n} triangles ≤ ${max}${groups.length ? ' (un seul groupe montré, le plus lourd)' : ''}`);
+    if (spec.fixed) {
+      // Un nœud maillé compte s'il est, ou descend d'un, des noms donnés : chacun une fois, la toile sous sa hampe comprise.
+      const [names, most] = spec.fixed;
+      const within = (i) => i !== undefined && (names.includes(nodes[i].name) || within(parent.get(i)));
+      const own = (node) => gltf.meshes[node.mesh].primitives.reduce((t, p) => t + gltf.accessors[p.indices ?? p.attributes.POSITION].count / 3, 0);
+      const fixed = nodes.reduce((sum, node, i) => (node.mesh !== undefined && within(i) ? sum + own(node) : sum), 0);
+      check(fixed <= most, `${names.join(', ')} : ${fixed} triangles ≤ ${most}`);
+      const rest = total - fixed - groups.reduce((sum, [, t]) => sum + t, 0);
+      check(rest <= spec.rest, `le reste, hors accessoires : ${rest} triangles ≤ ${spec.rest}`);
+    }
   }
 
   // Matériaux, textures, extensions.
@@ -416,7 +449,7 @@ function verify(path, key, nation) {
   const unnamed = (gltf.meshes ?? []).flatMap((m) => m.primitives).filter((p) => p.material === undefined).length;
   check(unnamed === 0, `chaque primitive a son matériau${unnamed ? ` (${unnamed} sans)` : ''}`);
   const images = gltf.images ?? [];
-  const maxTexture = spec.site ? 512 : 1024; // ADR 0038 §9 : 512² pour les bâtiments
+  const maxTexture = spec.texture ?? (spec.site ? 512 : 1024); // ADR 0038 §9 : 512² pour les bâtiments
   check(images.length <= 1, `une seule texture (${images.length})`);
   for (const [k, img] of images.entries()) {
     const view = gltf.bufferViews[img.bufferView];

@@ -4,6 +4,7 @@
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
  *       [--demarrage] [--repos] [--epingles] [--sequences] [--combats] [--combats-mer] [--files] [--socle]
+ *       [--sites]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -90,6 +91,10 @@ const seaCombatsOnly = args.includes('--combats-mer');
  *  puis les trois colonnes de douze troupes cadrées au rapproché, au milieu de leurs têtes, dix
  *  secondes de marche (#276). */
 const filesOnly = args.includes('--files');
+/** `--sites` (`npm run demo:mondiale -- --sites`, #273) : le démarrage, puis les six sites de
+ *  France qui vivent au repos cadrés ensemble (`@sites`), dix secondes de repos, et le nombre de
+ *  sites vivants que la carte dit. */
+const sitesOnly = args.includes('--sites');
 const PORT = 4173;
 const origin = `http://localhost:${PORT}`;
 
@@ -770,6 +775,17 @@ async function play(profileName, pass) {
         ['nation', null, () => link(/fiche de nation/)],
         ['réglages', null, () => link(/^Réglages$/)],
       ];
+  if (sitesOnly) {
+    const at = accounts.places?.sites;
+    if (at === undefined) throw new Error('--sites : relancer `npm run demo:mondiale -- --sites`');
+    await page.evaluate(frameAt, [at, phone ? 9 : 10]);
+    await page.waitForTimeout(4000);
+    await gesture('sites au repos 10 s', () => page.waitForTimeout(10000), 0);
+    // A build before #273 has no loops: nothing lives there.
+    console.log(`sites vivants : ${await page.evaluate(() => window.mapEngine.loops?.size ?? 0)}`);
+    await context.close();
+    return { boot, results };
+  }
   if (restOnly) {
     await gesture('repos 10 s', () => page.waitForTimeout(10000), 0);
     await context.close();
@@ -1560,7 +1576,15 @@ try {
       report.profiles[name] = { boot, runs };
       continue;
     }
-    if (restOnly || pinsOnly || sequencesOnly || combatsOnly || seaCombatsOnly || filesOnly) {
+    if (
+      restOnly ||
+      sitesOnly ||
+      pinsOnly ||
+      sequencesOnly ||
+      combatsOnly ||
+      seaCombatsOnly ||
+      filesOnly
+    ) {
       const { gestures } = merge(runs);
       report.profiles[name] = { boot, gestures, runs };
       text += `${table(gestures)}\n`;

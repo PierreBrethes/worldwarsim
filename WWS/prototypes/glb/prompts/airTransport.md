@@ -35,6 +35,7 @@ elle tourne. Aucun autre nom pour une pièce qui bouge.
 | `gear_left`, `gear_right` | articulation haute de chaque jambe | se replient autour de l'axe dit pour la nation ; train fixe : jamais | — |
 | `wheel_left`, `wheel_right` | moyeu de chaque roue | enfants de leur jambe ; tournent autour de x | — |
 | `tailwheel` | articulation de la roulette | fixe ou repliée vers l'arrière | — |
+| `feu_gauche`, `feu_droit`, `feu_queue` | centre de chaque globe : bout de l'aile gauche (+x, rouge), bout de l'aile droite (−x, vert), bout de la queue (blanc) | enfants de `fuselage` ; fixes ; matériau `feux`, que le jeu allume la nuit ; **le jeu les pose à la boîte du modèle, nommés exactement ainsi** | globes de 0,2 m |
 | `cabin_door` | **gond sur l'arête avant de la porte** | enfant de `fuselage` ; axe vertical ; s'ouvre vers l'extérieur et l'arrière de 160°, rabattue contre le flanc | 0,8 × 1,7 m |
 | `bay_door` | **gond sur l'arête avant de la trappe** | enfant de `fuselage` ; axe horizontal (x) ; s'abaisse de 90° vers le bas | 1,2 × 1,5 m |
 | `fond_sombre` | centre du plan | enfant de `fuselage` ; plan noir mat 0,2 m en dedans de la porte : les hommes qui montent s'y effacent | 0,8 × 1,7 m |
@@ -104,5 +105,5 @@ Envergure × longueur × hauteur (m) ; angle au sol ; hélices ; train.
   vers +z ; porte sur le flanc +x.
 - Noms présents à l'identique : `fuselage`, les `prop*`, `gear_left`, `gear_right`, `wheel_left`,
   `wheel_right`, `tailwheel`, `cabin_door`, `bay_door`, `fond_sombre`, `fond_sombre_soute`,
-  `fx_porte`, `fx_parachute`, `fx_smoke`.
+  `feu_gauche`, `feu_droit`, `feu_queue`, `fx_porte`, `fx_parachute`, `fx_smoke`.
 - `vitres` et `feux` présents ; moins de 1 500 triangles.

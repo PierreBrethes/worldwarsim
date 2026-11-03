@@ -11,12 +11,12 @@ contrôle. Écrits le 24/10/2026 d'après `../prompt-claude-design.md`.
    « Nation de cette conversation » ; une conversation par rôle et par nation.
 2. Joindre la planche : `src/emblems/buildings/<clé>.webp` (le centre de recherche :
    `researchCenter.svg`), `src/emblems/units/<nation>/<rôle>.webp`. Rien à joindre pour la
-   piste, le môle et la manche à air.
+   piste, le môle, la manche à air et l'avant-poste.
 3. Exporter le GLB depuis la page, puis, si la texture n'est pas déjà en WebP, hors du dépôt :
    `npx @gltf-transform/cli webp in.glb out.glb --quality 90` (ni meshopt ni quantification).
 4. Vérifier avec la commande de la ligne (depuis la racine du dépôt). Code de sortie 1 au moindre
    ÉCHEC ; « à voir » se juge à l'œil.
-5. Déposer : `src/emblems/buildings/<clé>.glb`, `src/emblems/figurines/<nation>/<rôle>.glb` ;
+5. Déposer : `src/emblems/buildings/<clé>.glb` (l'avant-poste : `src/emblems/buildings/outpost.glb`), `src/emblems/figurines/<nation>/<rôle>.glb` ;
    les kits de terrain dans `src/emblems/kits/` (dossier à créer avec le lot qui les branche).
 
 `node WWS/prototypes/glb/prompts/verifier-glb.mjs --coherence` vérifie que chaque nom attendu par
@@ -31,7 +31,7 @@ reste dans l'ordre des lots qui s'en servent.
 |---|---|---|---|
 | 1 | Caserne | [barracks.md](barracks.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs barracks.glb barracks` |
 | 2 | Hangar d'aérodrome | [airfield.md](airfield.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs airfield.glb airfield` |
-| 3 | Piste (kit : bout, seuil, tronçon) | [piste.md](piste.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs piste.glb piste` |
+| 3 | Piste (kit : bout, seuil, tronçon, rampe) | [piste.md](piste.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs piste.glb piste` |
 | 4 | Môle (kit : tronçon, musoir) | [mole.md](mole.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs mole.glb mole` |
 | 5 | Chantier naval | [port.md](port.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs port.glb port` |
 | 6 | Camion (×8 nations) | [landTransport.md](landTransport.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs landTransport.glb landTransport --nation <nation>` |
@@ -57,10 +57,11 @@ reste dans l'ordre des lots qui s'en servent.
 | 26 | Centre de recherche | [researchCenter.md](researchCenter.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs researchCenter.glb researchCenter` |
 | 27 | Station d'écoute | [listening.md](listening.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs listening.glb listening` |
 | 28 | Ville (Blitz) | [city.md](city.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs city.glb city` |
+| 29 | Avant-poste (socle rond, un accessoire par spécialisation) | [outpost.md](outpost.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs outpost.glb outpost` |
 
-**ADR 0038 (01/11/2026) : les treize bâtiments sont à régénérer** (le bâtiment sur son socle). La section « Le socle, la cour, le signe » de chaque prompt s'ajoute à la conversation Claude Design existante du bâtiment : la consigne dit « Le bâtiment lui-même ne change pas ». `verifier-glb.mjs` attend désormais `socle`, `lisere`, `cour`, `signe`, `fx_rang` et les groupes d'accessoires, et 3 500 triangles par état visible. L'aérodrome porte deux hangars (0,85 de l'échelle) sur un socle, les pièces du second suffixées `_b` ; l'atlas des bâtiments est de 512² au plus.
+**ADR 0038 (01/11/2026) : les treize bâtiments sont à régénérer** (le bâtiment sur son socle). La section « Le socle, la cour, le signe » de chaque prompt s'ajoute à la conversation Claude Design existante du bâtiment : la consigne dit « Le bâtiment lui-même ne change pas ». `verifier-glb.mjs` attend désormais `socle`, `lisere`, `cour`, `signe`, `fx_rang` et les groupes d'accessoires, et 3 500 triangles par état visible. L'aérodrome porte deux hangars (à l'échelle 1 depuis le 03/11, pas 0,85) sur un socle, les pièces du second suffixées `_b` ; l'atlas des bâtiments est de 512² au plus.
 
-Treize bâtiments, douze rôles de figurines (96 conversations) et trois kits de terrain. Le dépôt
+Treize bâtiments, l'avant-poste, douze rôles de figurines (96 conversations) et trois kits de terrain. Le dépôt
 historique (`depot`) prend le modèle de l'entrepôt.
 
 ## Ce que le script vérifie
@@ -95,5 +96,39 @@ seule texture de 1 024 px au plus, en WebP ; ni meshopt, ni quantification, ni l
 
 - **La caisse et la bâche** : la matrice des interactions les range au moteur (éléments
   réutilisables) ; le camion a seulement sa bâche optionnelle `tarp`.
-- **Les objectifs neutres** (`src/emblems/objectives/`) et **l'avant-poste** (dessiné par le
-  moteur) : hors des deux manifestes, pas de prompt.
+- **Les objectifs neutres** (`src/emblems/objectives/`) : hors des deux manifestes, pas de prompt.
+
+## L'avant-poste (#298)
+
+Un cercle de sacs de 30 m sur un socle rond de 37 m (ADR 0038 §8 et §11), sans cour ni
+`fx_rang` : sa garnison se pose à côté, hors du socle. Trois groupes `magasin`, `guet` et `fort`, un seul montré par le jeu ; aucun pour le
+généraliste. 1 500 triangles dans n'importe quel état, atlas de 512² au plus.
+
+## Du 03/11
+
+Les storyboards de l'aérodrome (#269), du port (#270), de l'entrepôt (#271) et du repos (#273) sont
+validés ; leurs demandes au modèle sont reportées dans les prompts. À recoller dans la
+conversation Claude Design du modèle (prompt entier), dans cet ordre :
+
+1. [airfield.md](airfield.md) (hangars à l'échelle 1, cour de 35 m, socle de 126 × 88,9 m), puis
+   [piste.md](piste.md) (`piste_rampe`) : la rampe dépend des cotes du socle.
+2. [mole.md](mole.md) (dessus à 2,2 m), puis [port.md](port.md) (grue au repos : `fx_tete_fleche`,
+   câble de 20 m). Le môle se pose contre le socle du port : les deux dessus sont au même niveau.
+3. [warehouse.md](warehouse.md) (quai à +23,0, bornes, perron, `lanterne`, aire libre) et
+   [hq.md](hq.md) (porte de service à x = +30, repère en +34).
+4. [oilWell.md](oilWell.md), [mine.md](mine.md), [coalMine.md](coalMine.md),
+   [researchCenter.md](researchCenter.md) : pièces animées au repos (`fx_maneton`, molettes à six
+   rayons, cheminée de la mine de fer, `fente`).
+5. Les feux, dans la conversation de chaque rôle et de chaque nation (le reste de l'avion ou de
+   la coque ne change pas) : [fighter.md](fighter.md), [bomber.md](bomber.md),
+   [airTransport.md](airTransport.md) (`feu_gauche`, `feu_droit`, `feu_queue`),
+   [cargo.md](cargo.md), [escort.md](escort.md), [carrier.md](carrier.md) (`feu_babord`,
+   `feu_tribord`, `feu_mat`).
+6. Le drapeau de 12 × 6 quads (au lieu de 8 × 4) est dans tous les prompts de site : pour
+   [barracks.md](barracks.md), [arsenal.md](arsenal.md), [farm.md](farm.md),
+   [listening.md](listening.md), [city.md](city.md) et [outpost.md](outpost.md), rien d'autre ne
+   change ; à demander à la prochaine régénération.
+
+`verifier-glb.mjs` attend les noms neufs : `fx_tete_fleche` (port), `lanterne` (entrepôt),
+`fx_maneton` (puits), `piste_rampe` (piste), les feux des avions et des coques ; l'aérodrome se
+mesure à 110 m (deux hangars de 50 m et 10 m d'écart). `--coherence` passe.

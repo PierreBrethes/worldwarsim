@@ -75,7 +75,7 @@ tourne ou glisse. Aucun autre nom pour une pièce qui bouge.
 | `remise_porte_droite` | gond, au bas du montant −x (x = +29,5 ; y = 0 ; z = +7,7) | axe vertical ; s'étend vers +x ; vers l'extérieur de **−110°** | 2,5 × 4,2 × 0,15 m |
 | `remise_fond_sombre` | centre du plan | fixe ; plan noir mat 0,3 m en retrait derrière les vantaux | 5 × 4,2 m |
 | `hampe` | pied du mât (−20, 0, +12) | fixe | Ø 0,15 m, 12 m |
-| `drapeau` | en haut de la hampe, au coin haut de la toile côté mât (−20, 11,8, +12) | la toile pend vers −y et s'étend vers +x ; le moteur la fait flotter (maillage) et la descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 quads |
+| `drapeau` | en haut de la hampe, au coin haut de la toile côté mât (−20, 11,8, +12) | la toile pend vers −y et s'étend vers +x ; le moteur la fait flotter (maillage) et la descend le long de y | 3 × 2 m, grille de 12 × 6 quads au moins (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
 Le drapeau est une toile neutre (blanc cassé) : le jeu y peint le drapeau de qui tient la caserne.
 Ses UV couvrent 0 → 1 sur toute la toile, u le long de la toile depuis la hampe, v de bas en haut.
