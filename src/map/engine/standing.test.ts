@@ -1,4 +1,5 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from 'three';
+import { pileLayout } from '@/domain/pile-layout';
 import { describe, expect, it, vi } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
@@ -11,7 +12,6 @@ import {
   formationOf,
   labelOfPile,
   nearestGroup,
-  pileLayout,
   pileObject,
   pickedIn,
   StandingLayer,

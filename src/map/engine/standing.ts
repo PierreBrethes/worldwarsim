@@ -51,6 +51,7 @@ import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { rankLayout } from './rank-layout';
+import { block, GROUP_SPACING, type Slot } from '@/domain/pile-layout';
 import {
   boxOfObject,
   drawnHit,
@@ -149,8 +150,6 @@ const pileUnitOf = (span: number): number => span / LAID_OUT_FOR;
 /** How far ahead a pile's heading is read on the board: its point's own scale. */
 const FACING_KM = 10;
 
-/** Between two groups, in the pile's units: a squad and a tank are both about a third of one wide. */
-const GROUP_SPACING = 0.5;
 /** **The rank recentres in half a second** once a newcomer reaches it (décision de Pierre,
  *  #268, 23/10). */
 const GLIDE_MS = 500;
@@ -172,36 +171,6 @@ function heldWhereTheyStood(
     return [{ figurine, by }];
   });
 }
-/** **Where each piece stands in a row around the pile's point**, side by side and centred.
- *  In the pile's units, before the near weight scales the whole pile. */
-export function pileLayout(pieces: number): ReadonlyArray<number> {
-  return Array.from({ length: pieces }, (_, k) => (k - (pieces - 1) / 2) * GROUP_SPACING);
-}
-
-type Slot = { readonly x: number; readonly z: number };
-
-/** Between two ranks of a formation, in the pile's units: a man's height seen at the board's tilt. */
-const RANK_DEPTH = 0.85;
-/** Between two pieces of a squad: three men abreast fill a group's width, a gap stays between. */
-const SQUAD_SPACING = 0.62;
-
-/** A block of `count` slots around its centre: one row up to four — a man's figure would hide
- *  the one behind him at the board's tilt —, then ranks far enough apart to read. */
-function block(count: number): Slot[] {
-  if (count <= 4)
-    return pileLayout(count).map((x) => ({ x: (x * SQUAD_SPACING) / GROUP_SPACING, z: 0 }));
-  const columns = Math.ceil(Math.sqrt(count));
-  const ranks = Math.ceil(count / columns);
-  return Array.from({ length: count }, (_, k) => {
-    const rank = Math.floor(k / columns);
-    const inRank = Math.min(columns, count - rank * columns);
-    return {
-      x: ((k % columns) - (inRank - 1) / 2) * SQUAD_SPACING,
-      z: ((ranks - 1) / 2 - rank) * RANK_DEPTH,
-    };
-  });
-}
-
 /**
  * **Where each piece of a pile stands around its point** (retours du 15/10, POC du 16/10): a tight
  * formation, one piece per troop. **On a shore** — `seaward`, a unit vector toward the

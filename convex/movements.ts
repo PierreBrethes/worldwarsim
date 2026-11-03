@@ -24,6 +24,9 @@ import { modeOf } from '../src/domain/season-mode';
 import { isNation } from '../src/domain/nations';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { cargoOf, carrierIn } from '../src/domain/troops';
+import { inPileOrder } from '../src/domain/pile-pieces';
+import { bearingDegrees } from '../src/domain/geo';
+import { crownSeats } from '../src/domain/pile-layout';
 import type { ComputedRoute } from '../src/domain/routing';
 import { levelOf, playerBuildings } from './buildingReads';
 import {
@@ -410,11 +413,17 @@ export const disband = mutation({
     if (refusal !== null) fail(refusal);
     const spots = ring();
     if (spots === null) fail('NO_ROOM_TO_DISBAND');
-    for (const [index, piece] of pieces.entries()) {
+    /** **Les piles posées rayonnent** (#277) : chaque pièce prend la place de couronne la plus
+     *  proche de la sienne au rang, et regarde du point vers elle ; la tête garde son cap. */
+    const ranked = inPileOrder(pieces);
+    const facing = pile.find((troop) => troop.facing !== undefined)?.facing;
+    const seats = crownSeats(facing, spots);
+    for (const [index, piece] of ranked.entries()) {
       if (index === 0) continue;
-      const at = asPoint(spots[index]!);
+      const spot = spots[seats[index]!]!;
+      const patch = { stationedAt: asPoint(spot), facing: bearingDegrees(center, spot) };
       for (const troop of [piece, ...cargoOf(piece, seated)])
-        await ctx.db.patch(troop.id as Id<'troops'>, { stationedAt: at });
+        await ctx.db.patch(troop.id as Id<'troops'>, patch);
     }
     /** Les pièces posées à part se voient ailleurs, et voient d'ailleurs : leurs relevés et ceux
      *  qu'on tient sur elles se relisent, rien d'autre ne bouge (#418). */
