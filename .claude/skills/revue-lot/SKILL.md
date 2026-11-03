@@ -74,7 +74,12 @@ Ce sont les défauts que les revues ont réellement trouvés.
   repos près de 15 ms), jamais sur batterie.
 - **Test vide** : un test qui passe sans la correction ne protège rien. Un mock qui rend un
   objet simple là où le navigateur rend un `DOMRect`, ou un `.catch` qui avale le refus attendu,
-  en sont les formes vues ; retire la correction en pensée et dis si le test tombe.
+  en sont les formes vues ; retire la correction en pensée et dis si le test tombe. Chaque garde
+  que le lot pose (une exception, une annulation, une valeur qui doit rester stable) a le sien :
+  une garde qu'on retire sans qu'aucun test tombe est un finding.
+- **Ce qu'un rendu remplace** : quand un lot remplace un rendu par un autre (trait droit → arc,
+  pion → scène), liste les cas où l'ancien jouait (scène non jouée, au-delà des limites, rejeu
+  ouvert, animations coupées) ; un cas où plus rien ne s'affiche est un finding.
 - **Chiffres écrits** : chaque coût, poids ou décompte qu'un ADR, `CLAUDE.md` ou un commentaire
   annonce se remesure sur la pointe, avec tous les chemins qui le paient (premier appel, second
   index, terre comme mer). Un chiffre faux est un finding.
