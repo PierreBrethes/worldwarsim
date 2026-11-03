@@ -19,7 +19,8 @@ export type InkBurst = {
   readonly words?: StampWords;
   readonly delayMs?: number;
   /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
-   *  compte-rendu le remplace, et celui-ci ne se pose pas. */
+   *  compte-rendu le remplace, et celui-ci ne se pose pas. Sur le coup de ma batterie, le trait
+   *  droit attend de même : une scène jouée le trace en arc (#325). */
   readonly combatId?: string;
   /** **D'où ma batterie a tiré** (B20) : le trait d'encre du coup, jusqu'au tampon. */
   readonly from?: LonLat;
@@ -76,10 +77,10 @@ export function inkBursts(
     const engaged: InkBurst = {
       kind: 'combat',
       at,
-      // Where the map plays its combats, the scene's arc of ink draws the shot (#325).
-      ...(firedFrom === undefined || mapPlays
-        ? {}
-        : { from: [firedFrom.lon, firedFrom.lat] as const }),
+      ...(firedFrom === undefined ? {} : { from: [firedFrom.lon, firedFrom.lat] as const }),
+      // Where the map plays its combats, the scene's arc of ink may draw the shot (#325): the
+      // straight one waits for the map to say it played none.
+      ...(firedFrom !== undefined && mapPlays ? { combatId: dispatch.combat.id } : {}),
       words: stamped(cause === 'bombardment' ? fr.stamps.shelled : fr.stamps.engaged, dispatch.at),
     };
     /** Un bombardement ne tient aucun terrain : personne n'y est allé. */

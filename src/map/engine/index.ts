@@ -525,6 +525,9 @@ export class MapEngine {
   private piles: ReadonlyArray<StandingPile> = [];
   /** « Terrain tenu » of a combat the map may play: the report stamp says it when it does. */
   private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
+  /** **The straight line of my battery's shot** (#325), held while the map may play its scene:
+   *  the scene draws it as an arc, a combat settled without one draws it straight. */
+  private readonly shots = new HeldBursts((burst) => this.traceShot(burst));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
   /** Columns waiting for their pile to stand before they deploy (#362). */
@@ -935,7 +938,10 @@ export class MapEngine {
     };
     this.combats.phone = this.touch;
     this.combats.onSettled = (id) => this.settleCombat(id);
-    this.combats.onShown = (id) => this.groundWords.shown(id);
+    this.combats.onShown = (id) => {
+      this.groundWords.shown(id);
+      this.shots.shown(id);
+    };
     this.combats.onReport = (view) => this.onCombatReport?.(view);
     this.combats.host = this.standing;
     this.maquettes = new MaquetteLayer(
@@ -1095,18 +1101,7 @@ export class MapEngine {
   inkBurst(burst: InkBurst): void {
     this.invalidate();
     if (burst.kind === 'held' && burst.combatId !== undefined) return this.groundWords.hold(burst);
-    /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis
-     *  levé comme le cercle d'un point — la même plume. */
-    if (burst.from !== undefined) {
-      const [from, to] = [burst.from, burst.at];
-      const shot = Array.from({ length: 25 }, (_, i) =>
-        this.frame.projectLonLat(
-          [from[0] + ((to[0] - from[0]) * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
-          COUNTRY_THICKNESS + 0.04,
-        ),
-      );
-      this.ink.traceReach(shot, performance.now());
-    }
+    if (burst.from !== undefined) this.shots.hold(burst);
     if (burst.kind === 'airdropped') this.parachutes.release(burst.at, performance.now());
     this.ink.burst(burst, performance.now());
   }
@@ -1115,6 +1110,20 @@ export class MapEngine {
   liftStamps(kind: InkBurst['kind']): void {
     this.invalidate();
     this.ink.lift(kind);
+  }
+
+  /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis levé
+   *  comme le cercle d'un point — la même plume. */
+  private traceShot({ from, at: to }: InkBurst): void {
+    if (from === undefined) return;
+    this.invalidate();
+    const shot = Array.from({ length: 25 }, (_, i) =>
+      this.frame.projectLonLat(
+        [from[0] + ((to[0] - from[0]) * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
+        COUNTRY_THICKNESS + 0.04,
+      ),
+    );
+    this.ink.traceReach(shot, performance.now());
   }
 
   /** A site of mine just cut off: its stamp beside the maquette, where its region anchors it. */
@@ -2070,6 +2079,7 @@ export class MapEngine {
     this.combats.dispose();
     this.razes.dispose();
     this.groundWords.dispose();
+    this.shots.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
     this.pins.dispose();
@@ -2849,6 +2859,7 @@ export class MapEngine {
    *  may come — unless a stamp holds it until it lifts. */
   private settleCombat(id: string): void {
     this.groundWords.abandon(id);
+    this.shots.abandon(id);
     this.onCombatSettled?.(id);
   }
 

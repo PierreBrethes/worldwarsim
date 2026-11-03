@@ -66,14 +66,20 @@ describe('inkBursts', () => {
     ]);
   });
 
-  it('leaves the shot to the arc of ink where the map plays its combats (#325)', () => {
+  it('holds the shot for the map to say whether its arc drew it, where it plays combats (#325)', () => {
     const fired = {
       ...combat,
       cause: 'bombardment',
       firedFrom: { lon: 1, lat: 48 },
     } as CombatReport;
     expect(inkBursts([dispatch(20, 'assault', fired)], 10, [], true)).toEqual([
-      { kind: 'combat', at: [2, 49], words: { word: 'bombardé', hour: hour(20) } },
+      {
+        kind: 'combat',
+        at: [2, 49],
+        from: [1, 48],
+        combatId: combat.id,
+        words: { word: 'bombardé', hour: hour(20) },
+      },
     ]);
   });
 
