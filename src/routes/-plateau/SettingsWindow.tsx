@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
@@ -10,12 +10,10 @@ import {
   MAX_HUD_SCALE,
   MIN_HUD_SCALE,
   keepHudScale,
-  keepTableSound,
-  keepTelegraphSound,
   readHudScale,
-  tableSoundOn,
-  telegraphSoundOn,
+  SOUNDS,
 } from '@/data/settings';
+import { setSound, soundNow, subscribeSound } from '@/data/audio';
 import { setMapMotionSetting, useMapMotionSetting } from '@/data/mapMotion';
 import { setDayCycle, useDayCycle } from '@/data/dayCycle';
 import { DAY_CYCLES } from '@/domain/daylight';
@@ -60,8 +58,7 @@ export function SettingsWindow({
   onShowBriefing: () => void;
 }) {
   const [scale, setScale] = useState(readHudScale);
-  const [sound, setSound] = useState(telegraphSoundOn);
-  const [tableSound, setTableSound] = useState(tableSoundOn);
+  const sound = useSyncExternalStore(subscribeSound, soundNow);
   const mapping = useMouseMapping();
   const mapMotion = useMapMotionSetting();
   const dayCycle = useDayCycle();
@@ -181,56 +178,27 @@ export function SettingsWindow({
             </div>
           )}
 
-          {/* **Le son est un réglage à part.** `prefers-reduced-motion` parle d'animation, pas
-              d'audio : s'en servir pour taire le télégraphe muterait un joueur qui n'a jamais
-              demandé le silence. */}
-          <div className="mt-[18px] flex flex-wrap items-baseline justify-between gap-2 border-t border-(color:--ink)/22 pt-[14px]">
-            <div className="min-w-[180px] flex-1">
-              <div className="text-[13.5px] text-[var(--ink)]">{fr.settingsWindow.soundLabel}</div>
-              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
-                {fr.settingsWindow.soundNote}
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-pressed={sound}
-              onClick={() => {
-                setSound(!sound);
-                keepTelegraphSound(!sound);
-              }}
-              className={
-                sound
-                  ? 'shrink-0 cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--paper)] uppercase'
-                  : 'shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]'
-              }
-            >
-              {fr.settingsWindow.soundState(sound)}
-            </button>
-          </div>
-          <div className="mt-[14px] flex flex-wrap items-baseline justify-between gap-2 border-t border-(color:--ink)/22 pt-[14px]">
-            <div className="min-w-[180px] flex-1">
-              <div className="text-[13.5px] text-[var(--ink)]">
-                {fr.settingsWindow.tableSoundLabel}
+          {/* **Le son est un réglage à part, et un seul** (#405) : `prefers-reduced-motion`
+              parle d'animation, pas d'audio. */}
+          <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-[13.5px] text-[var(--ink)]">
+                {fr.settingsWindow.soundLabel}
+              </span>
+              <div className="flex gap-[6px]">
+                {SOUNDS.map((option) => (
+                  <Chip
+                    key={option}
+                    label={fr.settingsWindow.sound[option]}
+                    marked={sound === option}
+                    onClick={() => setSound(option)}
+                  />
+                ))}
               </div>
-              <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
-                {fr.settingsWindow.tableSoundNote}
-              </p>
             </div>
-            <button
-              type="button"
-              aria-pressed={tableSound}
-              onClick={() => {
-                setTableSound(!tableSound);
-                keepTableSound(!tableSound);
-              }}
-              className={
-                tableSound
-                  ? 'shrink-0 cursor-pointer border border-[var(--ink)] bg-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--paper)] uppercase'
-                  : 'shrink-0 cursor-pointer border border-[var(--ink)] px-2 py-1 text-[9px] tracking-[.16em] text-[var(--ink)] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]'
-              }
-            >
-              {fr.settingsWindow.soundState(tableSound)}
-            </button>
+            <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">
+              {fr.settingsWindow.soundNote}
+            </p>
           </div>
 
           <div className="mt-[18px] border-t border-(color:--ink)/22 pt-[14px]">

@@ -1,4 +1,4 @@
-import { tableSoundOn } from '@/data/settings';
+import { sharedAudio, soundNow } from '@/data/audio';
 
 /**
  * **The table's sounds** (POC « Manipuler les pions », `SOUNDS`): wood, ink and canvas,
@@ -8,7 +8,6 @@ import { tableSoundOn } from '@/data/settings';
 type Sound =
   'lift' | 'drop' | 'snap' | 'tick' | 'bad' | 'whoosh' | 'board' | 'merge' | 'fire' | 'stamp';
 
-let audio: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
 
 function tone(
@@ -97,8 +96,8 @@ const SOUNDS: Readonly<Record<Sound, (a: AudioContext, t: number) => void>> = {
 };
 
 function contextOf(): AudioContext {
-  if (audio === null) {
-    audio = new AudioContext();
+  const audio = sharedAudio();
+  if (noise === null) {
     noise = audio.createBuffer(1, audio.sampleRate * 0.5, audio.sampleRate);
     const wave = noise.getChannelData(0);
     for (let i = 0; i < wave.length; i++) wave[i] = Math.random() * 2 - 1;
@@ -117,7 +116,7 @@ export function warmTableSoundOnFirstPress(): void {
     () => {
       const warm = () => {
         try {
-          if (!tableSoundOn() || document.hidden) return;
+          if (soundNow() === 'off' || document.hidden) return;
           const audio = contextOf();
           // Né hors d'un geste, il démarre suspendu sur iOS : le prochain geste le réveille.
           const resume = () => {
@@ -138,7 +137,7 @@ export function warmTableSoundOnFirstPress(): void {
 
 export function playTableSound(name: Sound): void {
   try {
-    if (!tableSoundOn() || document.hidden) return;
+    if (soundNow() === 'off' || document.hidden) return;
     const audio = contextOf();
     if (audio.state === 'suspended') void audio.resume();
     SOUNDS[name](audio, audio.currentTime + 0.005);

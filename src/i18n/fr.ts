@@ -2364,7 +2364,7 @@ export const fr = {
     layersNote: (lit: number, total: number) =>
       `${lit} sur ${total} allumé${plural(lit, '', 's')} — aussi sur la carte`,
     settings: 'Réglages',
-    settingsNote: 'son du télégraphe, notifications, échelle',
+    settingsNote: 'son, notifications, échelle',
     briefingNote: 'les gestes, le terrain, vos bureaux',
   },
 
@@ -4116,6 +4116,27 @@ export const fr = {
     yesterday: 'hier',
   },
 
+  /** **La bande du front** (#405) : chaque phrase sonore s'y imprime, au-dessus du fil. */
+  frontTape: {
+    label: 'bande du front',
+    empty: 'La bande est vierge : rien de relevé n’a changé.',
+    replay: 'Réentendre',
+    /** Le rejeu refusé dit pourquoi (ADR 0015) : un bouton muet passerait pour une panne. */
+    soundOff: 'Son coupé — il se rallume dans les Réglages',
+    silent: 'sans son',
+    inbound: 'vers vous',
+    nature: {
+      column: 'colonne',
+      fleet: 'flotte',
+      aviation: 'aviation',
+      combat: 'combat',
+      capture: 'prise',
+      construction: 'chantier fini',
+      edition: 'édition',
+    },
+    step: { near: 'proche', mid: 'moyen', far: 'loin' },
+  },
+
   /** Le bulletin des mises à jour : des feuilles imprimées, feuilletées dans un carrousel. */
   patchnotes: {
     label: 'Mises à jour',
@@ -4184,12 +4205,10 @@ export const fr = {
     pieceScaleNote:
       'Troupes et bâtiments ensemble, à leur taille réelle à 100 % : un char tient dans sa remise. Plus grandes, elles restent figurines de plus loin.',
     pieceScalePercent: (value: number) => `${value} %`,
-    soundLabel: 'Son du télégraphe',
+    soundLabel: 'Son',
+    sound: { full: 'plein', reduced: 'réduit', off: 'coupé' },
     soundNote:
-      'Un tic-tac bref à l’arrivée d’un message des autres. Muet quand l’onglet est masqué.',
-    soundState: (on: boolean) => (on ? 'activé' : 'coupé'),
-    tableSoundLabel: 'Bruits de la table',
-    tableSoundNote: 'Le bois des pièces qu’on lève, pose ou embarque, le tampon, la volée.',
+      'Le front, la table et le tic-tac des messages. Réduit, le front ne dit plus que le tic du télégraphe. Muet quand l’onglet est masqué.',
     /** **Le seul pouvoir de fondateur du plateau.** Une saison sans horloge n'a pas d'autre fin,
      *  et la note dit ce qui reste après — sinon « clore » se lit comme « supprimer ». Il passe
      *  au doyen quand le fondateur ne revient plus (`seasons.conclude`), sans que le titre

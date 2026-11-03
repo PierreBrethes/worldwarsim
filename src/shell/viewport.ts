@@ -11,13 +11,13 @@ import { createContext, useContext, useEffect, useState } from 'react';
  */
 const NARROW_MAX_WIDTH = 767;
 
-const NARROW = `(max-width: ${NARROW_MAX_WIDTH}px)`;
+export const NARROW = `(max-width: ${NARROW_MAX_WIDTH}px)`;
 
 /**
  * **Ce qu'on affiche du geste, pas ce qu'on en fait.** Le pointeur principal décide quelle notice
  * on montre — le doigt ou les boutons ; la carte, elle, lit chaque événement.
  */
-const COARSE = '(pointer: coarse)';
+export const COARSE = '(pointer: coarse)';
 
 export const useNarrowScreen = (): boolean => useMedia(NARROW);
 

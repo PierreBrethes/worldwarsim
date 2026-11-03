@@ -173,6 +173,7 @@ import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { CombatToasts } from './-plateau/CombatToasts';
+import { useFrontSound } from './-plateau/FrontTape';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
 import { REPLAY_MS, type ReplayStep } from '@/domain/replay';
@@ -355,6 +356,7 @@ function LiveBoard({ atlas, shore, seat }: { atlas: Atlas; shore: Shore; seat: S
     previousView.current = adaptServerView(server, previousView.current);
     return previousView.current;
   }, [server]);
+  useFrontSound(view, seat.seasonId, interrupted);
   if (view === null) return <Loading />;
   return (
     <>

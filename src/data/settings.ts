@@ -79,30 +79,28 @@ export const briefingSeen = (): boolean => localStorage.getItem(BRIEFING_KEY) ==
 
 export const markBriefingSeen = (): void => localStorage.setItem(BRIEFING_KEY, 'seen');
 
-const TELEGRAPH_SOUND_KEY = 'wws-telegraph-sound';
+const SOUND_KEY = 'wws-sound';
 
 /**
- * **Le son est un réglage à part, et `prefers-reduced-motion` ne le couvre pas** : cette requête
- * média parle d'animation, pas d'audio, et s'en servir pour taire le télégraphe muterait un
- * joueur qui n'a jamais demandé le silence. Allumé par défaut — le tic-tac est la moitié de ce
- * que le canal apporte — et coupé d'un clic dans les Réglages, pour ce navigateur.
+ * **Le son est un seul réglage** (#405) : plein, réduit ou coupé, pour ce navigateur. Réduit ne
+ * touche que le front, qui ne dit plus que son tic ; la table et le tic des messages restent
+ * pleins. `prefers-reduced-motion` ne le couvre pas : cette requête parle d'animation, pas
+ * d'audio, et s'en servir muterait un joueur qui n'a jamais demandé le silence.
+ *
+ * Un navigateur d'avant gardait deux bascules : il ne retombe sur coupé que s'il avait coupé les
+ * deux.
  */
-export const telegraphSoundOn = (): boolean =>
-  localStorage.getItem(TELEGRAPH_SOUND_KEY) !== 'muted';
+export type Sound = 'full' | 'reduced' | 'off';
+export const SOUNDS: ReadonlyArray<Sound> = ['full', 'reduced', 'off'];
 
-export const keepTelegraphSound = (on: boolean): void => {
-  localStorage.setItem(TELEGRAPH_SOUND_KEY, on ? 'audible' : 'muted');
-};
+export function readSound(): Sound {
+  const kept = localStorage.getItem(SOUND_KEY);
+  if (SOUNDS.includes(kept as Sound)) return kept as Sound;
+  const muted = (key: string) => localStorage.getItem(key) === 'muted';
+  return muted('wws-telegraph-sound') && muted('wws-table-sound') ? 'off' : 'full';
+}
 
-const TABLE_SOUND_KEY = 'wws-table-sound';
-
-/** **The table's sounds** (POC « Manipuler les pions »), apart from the telegraph's: one may want
- *  either without the other. On by default, for this browser. */
-export const tableSoundOn = (): boolean => localStorage.getItem(TABLE_SOUND_KEY) !== 'muted';
-
-export const keepTableSound = (on: boolean): void => {
-  localStorage.setItem(TABLE_SOUND_KEY, on ? 'audible' : 'muted');
-};
+export const keepSound = (sound: Sound): void => localStorage.setItem(SOUND_KEY, sound);
 
 const MOUSE_MAPPING_KEY = 'wws-mouse-mapping';
 

@@ -1227,6 +1227,9 @@ export type JournalDispatch = {
   /** **Ce qu'une livraison a versé au dépôt** : les pastilles qui volent du transport le lisent
    *  ici, jamais dans la phrase. Absent de toute autre dépêche. */
   readonly delivered?: SupplyLoad;
+  /** **Un chantier achevé**, que `construction` ne distingue pas d'un annulé ou d'un rasé : le
+   *  front le sonne (#405). Absent de toute autre dépêche. */
+  readonly built?: true;
 };
 
 export type SeasonVerdict = {

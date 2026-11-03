@@ -8,6 +8,8 @@ import {
   readPatchnotesRead,
   readIndicatorToggles,
   readMouseMapping,
+  keepSound,
+  readSound,
 } from './settings';
 
 /** Le magasin du navigateur, réduit à ce que les réglages lui demandent. */
@@ -64,5 +66,25 @@ describe('les bulletins lus par le navigateur', () => {
   it('ignore un magasin abîmé', () => {
     kept.set('wws-patchnotes-read', '{oops');
     expect(readPatchnotesRead().size).toBe(0);
+  });
+});
+
+describe('le son, un seul réglage', () => {
+  it('sonne plein par défaut', () => {
+    expect(readSound()).toBe('full');
+  });
+
+  it('reprend les deux anciennes bascules : coupé seulement si les deux l’étaient', () => {
+    kept.set('wws-telegraph-sound', 'muted');
+    expect(readSound()).toBe('full');
+    kept.set('wws-table-sound', 'muted');
+    expect(readSound()).toBe('off');
+  });
+
+  it('rend ce qu’on lui a confié, devant les anciennes clés', () => {
+    kept.set('wws-telegraph-sound', 'muted');
+    kept.set('wws-table-sound', 'muted');
+    keepSound('reduced');
+    expect(readSound()).toBe('reduced');
   });
 });

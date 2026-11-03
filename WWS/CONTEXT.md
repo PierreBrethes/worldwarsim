@@ -57,6 +57,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 | **La Manchette** | Le nom du jeu depuis le 02/10/2026 (décision `marque-nom-2026-10-02`) : le titre d'un quotidien et sa bande. Affiché par `fr.masthead` seulement ; **`worldwarsim`** reste le nom de code — dépôt, paquet, projet Convex, domaine, clés `localStorage`. |
 | **Journal d'événements** | L'écran « qu'est-ce qui a changé depuis ma dernière visite ». |
 | **Télégraphe** | Le chat de la partie : un **canal général**, ouvert dès le salon, fermé à la conclusion, et un **canal privé** par paire de joueurs. Le mot est imposé — ni « chat » ni « dépêches », qui appartiennent au journal. *(décision du 29/08 ; canaux privés le 14/10)* |
+| **Bande du front** | Ce que le front fait entendre, imprimé au télégraphe, au-dessus du fil : une **phrase** par changement relevé (colonne, flotte, aviation, combat, prise, chantier fini, édition), sa distance au QG en trois crans (proche, moyen, loin), son côté. Rien n'y entre qui ne soit dans la vue du joueur. *(#405, 02/11)* |
 
 ## Ressources
 
