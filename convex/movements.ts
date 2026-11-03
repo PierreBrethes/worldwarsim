@@ -505,9 +505,11 @@ export const attack = mutation({
     const chasing =
       (await blitzTheatreOf(ctx, player._id)) !== null &&
       (target.kind === 'camp' || target.kind === 'track');
-    /** **On poursuit ce qu'on voit à l'instant** : la vue refaite avant de la lire, comme à
-     *  chaque regard de la poursuite — la sienne seule (#418). */
-    if (chasing) await reassessDetection(ctx, seasonId, Date.now(), player._id);
+    /** **On poursuit ce qu'on voit à l'instant** : les camps relus avant de les lire, comme à
+     *  chaque regard de la poursuite. Ils se lisent à la position présente des détecteurs et se
+     *  relisent toujours en entier ; aucun relevé de colonne n'a bougé, d'où `changed` vide
+     *  (#418). */
+    if (chasing) await reassessDetection(ctx, seasonId, Date.now(), []);
     const hunted = chasing ? await quarryOf(ctx, player._id, target, Date.now()) : null;
     return march(ctx, {
       playerId: player._id,

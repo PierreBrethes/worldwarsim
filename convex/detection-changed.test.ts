@@ -533,6 +533,35 @@ describe('a targeted reassessment of a Blitz pursuit leaves nothing for the whol
     expect(left).toEqual(whole);
   });
 
+  /** **Ce que la refonte de l'ordre relit, ce sont les camps** : un relevé de colonne est une
+   *  prédiction déjà juste, un camp est une position lue à l'instant de la dernière passe. Le
+   *  guetteur parti sans passe, la ligne du camp reste ouverte jusqu'à ce que l'ordre la relise. */
+  it('chases no camp that nothing covers any more at the order', async () => {
+    const t = boot();
+    const { seats, hunter, seasonId } = await chase(t);
+    const tank = await troop(t, hunter, PARIS, 'armor');
+    await wholePass(t, seasonId);
+    const camp = await t.run(async (ctx) =>
+      (await ctx.db.query('campSightings').collect()).find(
+        (row) => row.playerId === hunter && row.point.lon === LYON.lon && row.until === null,
+      ),
+    );
+    expect(camp).toBeDefined();
+    await t.run(async (ctx) => {
+      for (const one of await ctx.db.query('troops').collect())
+        if (one.playerId === hunter && one._id !== tank) await ctx.db.delete(one._id);
+    });
+
+    await expect(
+      t.mutation(api.movements.attack, {
+        ...seats[0]!,
+        origin: { kind: 'point', point: PARIS },
+        troopIds: [tank],
+        target: { kind: 'camp', campId: camp!._id },
+      }),
+    ).rejects.toThrow(/NOTHING_TO_ATTACK/);
+  });
+
   it('when a pursuit takes the road again from short of its target', async () => {
     const t = boot();
     const { hunter, prey, seasonId } = await chase(t);
