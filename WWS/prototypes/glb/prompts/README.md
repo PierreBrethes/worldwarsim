@@ -59,7 +59,7 @@ reste dans l'ordre des lots qui s'en servent.
 | 28 | Ville (Blitz) | [city.md](city.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs city.glb city` |
 | 29 | Avant-poste (socle rond, un accessoire par spécialisation) | [outpost.md](outpost.md) | `node WWS/prototypes/glb/prompts/verifier-glb.mjs outpost.glb outpost` |
 
-**ADR 0038 (01/11/2026) : les treize bâtiments sont à régénérer** (le bâtiment sur son socle). La section « Le socle, la cour, le signe » de chaque prompt s'ajoute à la conversation Claude Design existante du bâtiment : la consigne dit « Le bâtiment lui-même ne change pas ». `verifier-glb.mjs` attend désormais `socle`, `lisere`, `cour`, `signe`, `fx_rang` et les groupes d'accessoires, et 3 500 triangles par état visible. L'aérodrome porte deux hangars (0,85 de l'échelle) sur un socle, les pièces du second suffixées `_b` ; l'atlas des bâtiments est de 512² au plus.
+**ADR 0038 (01/11/2026) : les treize bâtiments sont à régénérer** (le bâtiment sur son socle). La section « Le socle, la cour, le signe » de chaque prompt s'ajoute à la conversation Claude Design existante du bâtiment : la consigne dit « Le bâtiment lui-même ne change pas ». `verifier-glb.mjs` attend désormais `socle`, `lisere`, `cour`, `signe`, `fx_rang` et les groupes d'accessoires, et 3 500 triangles par état visible. L'aérodrome porte deux hangars (à l'échelle 1 depuis le 03/11, pas 0,85) sur un socle, les pièces du second suffixées `_b` ; l'atlas des bâtiments est de 512² au plus.
 
 Treize bâtiments, l'avant-poste, douze rôles de figurines (96 conversations) et trois kits de terrain. Le dépôt
 historique (`depot`) prend le modèle de l'entrepôt.

@@ -39,8 +39,8 @@ const EXPECT = {
   },
   airfield: {
     site: true,
-    // deux hangars à l'échelle 0,85, à 10 m l'un de l'autre : 2 × 42,5 + 10 = 95 m. Le hangar B porte les mêmes pièces suffixées `_b`.
-    measure: [null, 'x', 95, 0.05], materials: ['vitres'],
+    // deux hangars à l'échelle 1, à 10 m l'un de l'autre : 2 × 50 + 10 = 110 m (storyboard #269, du 03/11). Le hangar B porte les mêmes pièces suffixées `_b`.
+    measure: [null, 'x', 110, 0.05], materials: ['vitres'],
     names: [...AIRFIELD_HANGAR, ...AIRFIELD_HANGAR.map((n) => `${n}_b`), ...FLAG.names],
     pivots: { ...AIRFIELD_PIVOTS, ...Object.fromEntries(Object.entries(AIRFIELD_PIVOTS).map(([n, r]) => [`${n}_b`, r])), ...FLAG.pivots },
     absent: ['porte', 'mat_manche', 'manche_cerceau', 'windsock'],
@@ -185,9 +185,9 @@ const EXPECT = {
   },
 
   piste: {
-    roots: { piste_troncon: [30, 10, 500], piste_seuil: [30, 10, 500], piste_bout: [30, 5, 500] }, materials: ['feux'],
+    roots: { piste_troncon: [30, 10, 500], piste_seuil: [30, 10, 500], piste_bout: [30, 5, 500], piste_rampe: [32, 12, 200] }, materials: ['feux', 'beton'],
     repeated: ['balise_gauche', 'balise_droite', 'feu_gauche', 'feu_droit'],
-    names: ['piste_troncon', 'piste_seuil', 'piste_bout', 'balise_gauche', 'balise_droite', 'feu_gauche', 'feu_droit', 'fx_seuil'],
+    names: ['piste_troncon', 'piste_seuil', 'piste_bout', 'piste_rampe', 'balise_gauche', 'balise_droite', 'feu_gauche', 'feu_droit', 'fx_seuil'],
     pivots: { balise_gauche: 'pied', balise_droite: 'pied', feu_gauche: 'pied', feu_droit: 'pied' },
   },
   mole: {
