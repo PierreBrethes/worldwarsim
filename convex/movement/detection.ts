@@ -25,6 +25,17 @@ import {
   type Watcher,
 } from '../../src/domain/interception';
 import { seenSegment } from '../../src/domain/sighting-segment';
+import {
+  gridStepOf,
+  joinedWindows,
+  nextOpening,
+  prunedWindows,
+  relaidWindows,
+  sameWindows,
+  storedWindows,
+  windowsOf,
+  type SightWindow,
+} from '../../src/domain/sighting-windows';
 import { RESOURCES, type ResourceKey, type UnitRole } from '../../src/domain/ids';
 import { isNation } from '../../src/domain/nations';
 import {
@@ -84,8 +95,8 @@ type Caught = {
   readonly detectorId: Id<'buildings'> | Id<'outposts'> | null;
   readonly detectorHostCountry: string;
   readonly detectorRegion: string | null;
-  readonly from: number;
-  readonly to: number;
+  /** **Ce que ce détecteur voit**, une fenêtre par passage, dans l'ordre (#412). */
+  readonly windows: ReadonlyArray<SightWindow>;
   /** **Les fenêtres de Guet** (ADR 0037 §5), ouvertes à l'instant si un Guet voit déjà la
    *  colonne ; aucune pour tout autre détecteur. */
   readonly readWindows: ReadonlyArray<ReadWindow>;
@@ -101,7 +112,7 @@ type Crossing = {
 };
 
 type PassiveWatcher = Watcher &
-  Omit<Caught, 'from' | 'to' | 'readWindows'> & {
+  Omit<Caught, 'windows' | 'readWindows'> & {
     /** Un Guet : ses relevés livrent la pile (`readsComposition`). */
     readonly reads: boolean;
   };
@@ -237,7 +248,10 @@ export async function revealSighting(
     return;
   }
 
-  const seen = seenSegment(marchingForce(movement), sighting.from, sighting.to);
+  /** **La première fenêtre, jamais l'enveloppe** (#412) : le cap au bout de l'enveloppe serait
+   *  celui d'après le trou, que personne n'a vu. */
+  const first = windowsOf(sighting)[0]!;
+  const seen = seenSegment(marchingForce(movement), first.from, first.to);
   await ctx.db.insert('notices', {
     playerId: sighting.playerId,
     at: sighting.from,
@@ -1056,8 +1070,8 @@ async function sightingsFor(
       ? [{ ...watcher, radiusKm: sightingReachKm(watcher.radiusKm, target.rangoonTour) }]
       : [],
   );
-  /** Un passage par entrée dans chaque cercle : la ligne relève de la première entrée à la
-   *  dernière sortie, et le Guet ne lit que dans ses passages (ADR 0037 §5). */
+  /** Un passage par entrée dans chaque cercle : la ligne relève chaque passage, une fenêtre
+   *  chacun (#412), et le Guet ne lit que dans ses passages (ADR 0037 §5). */
   const passes = new Map<string, Array<{ from: number; to: number }>>();
   for (const pass of passesAlong({ mine: target.force, watchers, after: now })) {
     const held = passes.get(pass.id) ?? [];
@@ -1078,12 +1092,7 @@ async function sightingsFor(
             ? { from: now, to: pass.to }
             : pass,
         );
-    caught.push({
-      ...watcher,
-      from: seen[0]!.from,
-      to: seen[seen.length - 1]!.to,
-      readWindows,
-    });
+    caught.push({ ...watcher, windows: seen, readWindows });
   }
 
   /** **Une ligne de guet relève au franchissement** (ADR 0037 §10), terre, mer et air, sans lire
@@ -1101,13 +1110,15 @@ async function sightingsFor(
       detectorHostCountry: hostAtPoint(crossing.point),
       detectorRegion: null,
       readWindows: [],
-      from: crossing.at,
-      to: crossing.at,
+      windows: [{ from: crossing.at, to: crossing.at }],
     });
   }
 
   for (const observer of board.mobileById.values()) {
     if (!watching(observer.movement.playerId) || observer.rangeKm <= 0) continue;
+    /** **Colonne contre colonne, l'enveloppe est admise** (#412, Décisions du 03/11) : deux
+     *  colonnes qui se croisent, s'écartent et se recroisent sont un cas rare, et `mobileSighting`
+     *  n'en rend qu'une fenêtre. */
     const window = mutualWindow(board, observer, target, now);
     if (window === null) continue;
     const point = positionAt(observer.force, window.from);
@@ -1118,7 +1129,7 @@ async function sightingsFor(
       detectorHostCountry: hostAtPoint(point),
       detectorRegion: null,
       readWindows: [],
-      ...window,
+      windows: [window],
     });
   }
 
@@ -1173,24 +1184,29 @@ function crossedSoil(
   if (soils.size === 0 || span <= 0) return [];
 
   const countries = new Set(soils.keys());
-  const windows = new Map<string, { from: number; to: number }>();
+  /** Un passage par séjour sur le sol : le quitter puis le reprendre laisse un trou (#412). */
+  const windows = new Map<string, Array<{ from: number; to: number }>>();
+  let previous = '';
   for (let index = 0; index <= INTERCEPTION_SAMPLES; index += 1) {
     const at = from + (index * span) / INTERCEPTION_SAMPLES;
     if (at < now) continue;
     const host = hostAmongCountries(positionAt(target.force, at), countries);
-    if (host === '') continue;
-    const held = windows.get(host);
-    if (held === undefined) windows.set(host, { from: at, to: at });
-    else held.to = at;
+    if (host !== '') {
+      const held = windows.get(host) ?? [];
+      if (host === previous) held[held.length - 1]!.to = at;
+      else held.push({ from: at, to: at });
+      windows.set(host, held);
+    }
+    previous = host;
   }
-  return [...windows].map(([hostCountry, window]) => ({
+  return [...windows].map(([hostCountry, seen]) => ({
     playerId: soils.get(hostCountry)!,
     detector: 'territory' as const,
     detectorId: null,
     detectorHostCountry: hostCountry,
     detectorRegion: null,
     readWindows: [],
-    ...window,
+    windows: seen,
   }));
 }
 
@@ -1209,6 +1225,9 @@ async function syncSightings(
       (row.crossings ?? []).flatMap(({ troopId, at }) => (at <= now ? [troopId] : [])),
     ),
   );
+  /** **Deux détecteurs, deux fenêtres** (#412) : jointes seulement quand elles se touchent à un
+   *  pas de grille près, jamais leur enveloppe — elle servirait le trou que personne n'a vu. */
+  const step = gridStepOf(movement);
   const desired = new Map<Id<'players'>, Caught>();
   for (const candidate of candidates) {
     const line = candidate.detector === 'patrol' ? candidate.crossings?.[0] : undefined;
@@ -1219,8 +1238,7 @@ async function syncSightings(
       const first = earlier(held, candidate);
       desired.set(candidate.playerId, {
         ...first,
-        from: Math.min(held.from, candidate.from),
-        to: Math.max(held.to, candidate.to),
+        windows: joinedWindows([...held.windows, ...candidate.windows], step),
         readWindows: [...held.readWindows, ...candidate.readWindows],
         crossings: [...(held.crossings ?? []), ...(candidate.crossings ?? [])],
       });
@@ -1240,24 +1258,69 @@ async function syncSightings(
     if (row === undefined) continue;
     const next = desired.get(playerId);
     desired.delete(playerId);
-    if (next === undefined) {
-      if (row.from > now) await deleteSighting(ctx, row);
-      else {
-        const patch = {
-          ...(row.to > now ? { to: now } : {}),
-          ...(await writeReading(ctx, row, columnReading(row, [], roles, now), now)),
-          ...(await keepCrossings(ctx, row, [], now)),
-        };
-        if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
-      }
-      continue;
-    }
-    await replaceSighting(ctx, row, next, now, roles);
+    if (next === undefined && row.from > now) await deleteSighting(ctx, row);
+    else await replaceSighting(ctx, row, next, now, roles, step);
   }
 
   for (const sighting of desired.values()) {
     await insertSighting(ctx, movement._id, sighting, now, roles);
   }
+}
+
+/**
+ * **Le réveil d'une réapparition** (#412) : un job à la prochaine ouverture d'une fenêtre après la
+ * première, que la dépêche (`revealJobId`) réveille déjà. Gardé si l'heure ne change pas, annulé
+ * puis replanifié sinon. Rend le patch, vide si rien ne change.
+ */
+async function keepOpenJob(
+  ctx: MutationCtx,
+  row: {
+    readonly _id: Id<'sightings'>;
+    readonly openJobId?: Id<'_scheduled_functions'> | undefined;
+    readonly openJobAt?: number | undefined;
+  },
+  from: number,
+  windows: ReadonlyArray<SightWindow>,
+  now: number,
+): Promise<{ openJobId?: Id<'_scheduled_functions'> | undefined; openJobAt?: number | undefined }> {
+  const at = nextOpening(windows, Math.max(now, from));
+  if (row.openJobId !== undefined && row.openJobAt === at) return {};
+  if (row.openJobId !== undefined) await cancelJob(ctx, row.openJobId);
+  if (at === null) {
+    return row.openJobId === undefined ? {} : { openJobId: undefined, openJobAt: undefined };
+  }
+  const openJobId = await ctx.scheduler.runAt(at, internal.movements.wakeSighting, {
+    sightingId: row._id,
+    expectedAt: at,
+  });
+  return { openJobId, openJobAt: at };
+}
+
+/** **La colonne reparaît** : la fenêtre d'avant s'élague, la vue se relit, et le réveil suivant
+ *  se pose. Ni dépêche ni push : la ligne n'en a qu'une, à sa première ouverture. Un job périmé
+ *  ne fait rien. */
+export async function wakeSighting(
+  ctx: MutationCtx,
+  sightingId: Id<'sightings'>,
+  expectedAt: number,
+  now = Date.now(),
+): Promise<void> {
+  const row = await ctx.db.get(sightingId);
+  if (row === null || row.frozen !== undefined || now < expectedAt || row.openJobAt !== expectedAt)
+    return;
+  const windows = prunedWindows(windowsOf(row), now);
+  const job = await keepOpenJob(
+    ctx,
+    { ...row, openJobId: undefined, openJobAt: undefined },
+    row.from,
+    windows,
+    now,
+  );
+  await ctx.db.patch(row._id, {
+    windows: storedWindows(row.from, windows),
+    openJobId: job.openJobId,
+    openJobAt: job.openJobAt,
+  });
 }
 
 /**
@@ -1324,8 +1387,8 @@ export async function readPile(
 }
 
 const earlier = (held: Caught, sighting: Caught): Caught =>
-  sighting.from < held.from ||
-  (sighting.from === held.from &&
+  sighting.windows[0]!.from < held.windows[0]!.from ||
+  (sighting.windows[0]!.from === held.windows[0]!.from &&
     DETECTOR_ORDER.indexOf(sighting.detector) < DETECTOR_ORDER.indexOf(held.detector))
     ? sighting
     : held;
@@ -1333,36 +1396,56 @@ const earlier = (held: Caught, sighting: Caught): Caught =>
 async function replaceSighting(
   ctx: MutationCtx,
   row: Doc<'sightings'>,
-  next: Caught,
+  next: Caught | undefined,
   now: number,
   roles: ReadonlyArray<UnitRole>,
+  step: number,
 ): Promise<void> {
   const reading = await writeReading(
     ctx,
     row,
-    columnReading(row, next.readWindows, roles, now),
+    columnReading(row, next?.readWindows ?? [], roles, now),
     now,
   );
-  const crossings = await keepCrossings(ctx, row, next.crossings ?? [], now);
+  const crossings = await keepCrossings(ctx, row, next?.crossings ?? [], now);
   if (row.from <= now) {
-    const patch = { ...(next.to > row.to ? { to: next.to } : {}), ...reading, ...crossings };
+    /** **Le passé reste ce qu'il a été vu** : la fenêtre en cours finit à la prédiction, ou à
+     *  l'instant quand plus rien ne la tient, et l'avenir est ce que la carte promet encore. */
+    const windows = relaidWindows(windowsOf(row), next?.windows ?? [], now, step);
+    const to = windows[windows.length - 1]!.to;
+    const patch = {
+      ...(to === row.to ? {} : { to }),
+      ...(sameWindows(windows, windowsOf(row))
+        ? {}
+        : { windows: storedWindows(row.from, windows) }),
+      ...(await keepOpenJob(ctx, row, row.from, windows, now)),
+      ...reading,
+      ...crossings,
+    };
     if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
     return;
   }
+  if (next === undefined) return;
   /** La grille ne bouge plus avec l'instant (#145) : une fenêtre future relue telle quelle garde
    *  sa ligne et son rendez-vous, sans réécriture ni job replanifié. */
   const fields = sightingFields(next);
+  const open = await keepOpenJob(ctx, row, fields.from, next.windows, now);
   if (
     (row.revealJobId !== undefined || row.noticeFiled === true) &&
-    (Object.keys(fields) as Array<keyof typeof fields>).every((key) => row[key] === fields[key]) &&
+    (Object.keys(fields) as Array<keyof typeof fields>).every(
+      (key) => key === 'windows' || row[key] === fields[key],
+    ) &&
+    sameWindows(windowsOf(row), next.windows) &&
     Object.keys(reading).length === 0
   ) {
-    if (Object.keys(crossings).length > 0) await ctx.db.patch(row._id, crossings);
+    const patch = { ...open, ...crossings };
+    if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
     return;
   }
   if (row.revealJobId !== undefined) await cancelJob(ctx, row.revealJobId);
   await ctx.db.patch(row._id, {
-    ...sightingFields(next),
+    ...fields,
+    ...open,
     ...reading,
     ...crossings,
     revealJobId: undefined,
@@ -1370,9 +1453,9 @@ async function replaceSighting(
       ? { noticeFiled: true }
       : {}),
   });
-  if (next.from <= now) await revealSighting(ctx, row._id, now);
+  if (fields.from <= now) await revealSighting(ctx, row._id, now);
   else if (row.noticeFiled !== true && row.revealJobId !== undefined) {
-    await scheduleReveal(ctx, row._id, next.from);
+    await scheduleReveal(ctx, row._id, fields.from);
   }
 }
 
@@ -1384,10 +1467,12 @@ async function insertSighting(
   roles: ReadonlyArray<UnitRole>,
 ): Promise<void> {
   const owner = (await ctx.db.get(movementId))?.playerId;
+  const { windows, ...fields } = sightingFields(sighting);
   const sightingId = await ctx.db.insert('sightings', {
     movementId,
     ...(owner === undefined ? {} : { ownerId: owner }),
-    ...sightingFields(sighting),
+    ...fields,
+    ...(windows === undefined ? {} : { windows }),
   });
   const reading = await writeReading(
     ctx,
@@ -1396,16 +1481,19 @@ async function insertSighting(
     now,
   );
   const crossings = await keepCrossings(ctx, { _id: sightingId }, sighting.crossings ?? [], now);
-  if (Object.keys(reading).length + Object.keys(crossings).length > 0)
-    await ctx.db.patch(sightingId, { ...reading, ...crossings });
-  if (sighting.from <= now) await revealSighting(ctx, sightingId, now);
-  else await scheduleReveal(ctx, sightingId, sighting.from);
+  const open = await keepOpenJob(ctx, { _id: sightingId }, fields.from, sighting.windows, now);
+  const patch = { ...reading, ...crossings, ...open };
+  if (Object.keys(patch).length > 0) await ctx.db.patch(sightingId, patch);
+  if (fields.from <= now) await revealSighting(ctx, sightingId, now);
+  else await scheduleReveal(ctx, sightingId, fields.from);
 }
 
+/** Une ligne neuve ou à venir : son enveloppe et ses fenêtres, toutes promises par la carte. */
 const sightingFields = (sighting: Caught) => ({
   playerId: sighting.playerId,
-  from: sighting.from,
-  to: sighting.to,
+  from: sighting.windows[0]!.from,
+  to: sighting.windows[sighting.windows.length - 1]!.to,
+  windows: storedWindows(sighting.windows[0]!.from, sighting.windows),
   detector: sighting.detector,
   detectorId: sighting.detectorId,
   detectorHostCountry: sighting.detectorHostCountry,
@@ -1426,6 +1514,7 @@ async function scheduleReveal(
 async function deleteSighting(ctx: MutationCtx, sighting: Doc<'sightings'>): Promise<void> {
   if (sighting.revealJobId !== undefined) await cancelJob(ctx, sighting.revealJobId);
   if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
+  if (sighting.openJobId !== undefined) await cancelJob(ctx, sighting.openJobId);
   for (const { jobId } of sighting.crossings ?? [])
     if (jobId !== undefined) await cancelJob(ctx, jobId);
   await ctx.db.delete(sighting._id);

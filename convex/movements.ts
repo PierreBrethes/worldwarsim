@@ -88,6 +88,7 @@ import {
   fileCrossing as fileScheduledCrossing,
   reassessDetection,
   revealSighting as revealScheduledSighting,
+  wakeSighting as wakeSightingAt,
 } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
 import { surveyAlongRoute } from './surveys';
@@ -1209,6 +1210,12 @@ export const holdAtFort = internalMutation({
 export const revealSighting = internalMutation({
   args: { sightingId: v.id('sightings') },
   handler: (ctx, { sightingId }) => revealScheduledSighting(ctx, sightingId),
+});
+
+/** **Une réapparition** (#412) : la fenêtre suivante d'un relevé s'ouvre. */
+export const wakeSighting = internalMutation({
+  args: { sightingId: v.id('sightings'), expectedAt: v.number() },
+  handler: (ctx, { sightingId, expectedAt }) => wakeSightingAt(ctx, sightingId, expectedAt),
 });
 
 /** **Un franchissement de ligne de guet à son heure** (#377), relu sur sa ligne de relevé. */

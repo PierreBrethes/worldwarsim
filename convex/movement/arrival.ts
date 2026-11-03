@@ -60,6 +60,7 @@ import { journalUrl, push } from '../../src/domain/push';
 import { pacedMinutes } from './pace';
 import { creditToStorage, settle } from '../resources';
 import { lostReading } from '../../src/domain/lookout-reading';
+import { servedWindow, storedWindows, windowsOf } from '../../src/domain/sighting-windows';
 import { cancelJob } from '../scheduledJobs';
 import { planCargoReturn, startCargoReturn } from './cargoReturn';
 
@@ -86,9 +87,13 @@ export async function forgetMovement(
     .withIndex('byMovement', (q) => q.eq('movementId', movementId))
     .collect();
   for (const sighting of seen) {
-    /** Un réveil de Guet n'a plus de colonne à lire : la pile se fige ici, ou part avec la ligne. */
+    /** Un réveil de Guet n'a plus de colonne à lire : la pile se fige ici, ou part avec la ligne.
+     *  Une réapparition non plus (#412). */
     if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
-    if (sighting.from > now || movement === null) {
+    if (sighting.openJobId !== undefined) await cancelJob(ctx, sighting.openJobId);
+    /** **La dernière fenêtre ouverte se fige** (#412), et celles à venir partent avec la colonne. */
+    const served = servedWindow(windowsOf(sighting), now);
+    if (served === null || movement === null) {
       if (sighting.revealJobId !== undefined) {
         try {
           await ctx.scheduler.cancel(sighting.revealJobId);
@@ -99,11 +104,14 @@ export async function forgetMovement(
       await ctx.db.delete(sighting._id);
       continue;
     }
-    const closedAt = Math.min(sighting.to, now);
-    const segment = seenSegment(marchingForce(movement), sighting.from, closedAt);
+    const closedAt = Math.min(served.to, now);
+    const segment = seenSegment(marchingForce(movement), served.from, closedAt);
     const { readAt } = lostReading(sighting, closedAt);
     await ctx.db.patch(sighting._id, {
       to: closedAt,
+      windows: storedWindows(sighting.from, [{ from: served.from, to: closedAt }]),
+      openJobId: undefined,
+      openJobAt: undefined,
       readJobId: undefined,
       readJobAt: undefined,
       reads: undefined,

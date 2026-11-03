@@ -19,6 +19,7 @@ import { emptyLoad } from '../src/domain/logistics';
 import { pathLengthKm, pointsAhead, type LonLat } from '../src/domain/geo';
 import { distanceProgressAt, timeShareAt, type MarchingForce } from '../src/domain/interception';
 import { seenSegment } from '../src/domain/sighting-segment';
+import { servedWindow, windowsOf, type SightWindow } from '../src/domain/sighting-windows';
 import { effectiveSpecialty, isStanding, type OutpostReach } from '../src/domain/outposts';
 import {
   canonicalBuildingKey,
@@ -1408,8 +1409,10 @@ async function detectedArcs(
   for (const sighting of sightings) {
     /** A window that has not opened is not information yet. Past its close the row stays: the
      *  arc becomes the last known position ADR 0005 asks for, and the client decides which of
-     *  the two states the two dates put it in. */
-    if (sighting.from > now) continue;
+     *  the two states the two dates put it in. **Only the last window opened is served** (#412):
+     *  past a hole, the stretch before it is gone, and the arc is dated from the reappearance. */
+    const window = servedWindow(windowsOf(sighting), now);
+    if (window === null) continue;
     /** Une ligne figée a perdu son mouvement : inutile de le chercher. */
     const movement = sighting.frozen === undefined ? await ctx.db.get(sighting.movementId) : null;
     /**
@@ -1444,7 +1447,7 @@ async function detectedArcs(
           home,
           anchors,
         ),
-        seenFrom: sighting.from,
+        seenFrom: window.from,
         seenTo: frozen.closedAt,
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
@@ -1454,7 +1457,7 @@ async function detectedArcs(
       continue;
     }
     const force = marchingForce(movement);
-    const segment = seenSegment(force, sighting.from, sighting.to);
+    const segment = seenSegment(force, window.from, window.to);
     const exit = segment.points[segment.points.length - 1]!;
     seen.push({
       id: movement._id as string,
@@ -1469,17 +1472,10 @@ async function detectedArcs(
       landCost: movement.landCost,
       arrivesAt: movement.arrivesAt,
       headingDegrees: segment.headingDegrees,
-      headingAtMe: headingReachesMe(
-        force,
-        exit,
-        segment.headingDegrees,
-        sighting.to,
-        home,
-        anchors,
-      ),
-      seenFrom: sighting.from,
-      seenTo: sighting.to,
-      ...seenReprise(force, sighting),
+      headingAtMe: headingReachesMe(force, exit, segment.headingDegrees, window.to, home, anchors),
+      seenFrom: window.from,
+      seenTo: window.to,
+      ...seenReprise(force, window),
       /** **Ce que le joueur a de lui-même**, jamais de la colonne : le détecteur est une ligne
        *  de son propre plateau, et la station se nomme par sa région parce que c'est la seule
        *  qu'il puisse montrer du doigt sur sa carte. Deux stations sinon se lisent pareil. */
@@ -1512,7 +1508,7 @@ const coordsOf = (point: LonLat) => ({ lon: point[0], lat: point[1] });
  * du tronçon vu, quand la fenêtre couvre l'entrée — la part du tronçon déjà marchée alors. Elle
  * ne dit rien de plus que le saut d'`arrivesAt` déjà servi : la colonne ralentit sous ses yeux.
  */
-function seenReprise(force: MarchingForce, sighting: Doc<'sightings'>) {
+function seenReprise(force: MarchingForce, sighting: SightWindow) {
   /** **Une retenue au bout** (#407) se sert de même, à part entière : le pion s'arrête au bout
    *  du tronçon à l'arrivée réelle. Avec un Fort dans la même fenêtre, la retenue l'emporte. */
   const at = [force.heldAt, force.resumed?.at].find(
