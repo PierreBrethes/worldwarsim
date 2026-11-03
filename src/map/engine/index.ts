@@ -946,6 +946,7 @@ export class MapEngine {
       (lonLat) => this.seawardOf(lonLat),
     );
     this.ambience.add(this.standing.smoke);
+    this.arcs.stopShort = (end) => this.standing.edgeAt(end);
     this.scene.add(this.arcs.group);
     this.scene.add(this.standing.group);
     this.scene.add(this.combats.group);
@@ -3099,8 +3100,18 @@ export class MapEngine {
           since,
         });
     });
-    if (arrivals.length > 0) this.standing.arrive(cue.pileId, arrivals);
+    if (arrivals.length > 0)
+      this.standing.arrive(cue.pileId, arrivals, {
+        opens: true,
+        formed: !this.headsThere(cue.pileId),
+      });
     return true;
+  }
+
+  /** Whether one of my columns still heads for the point a pile stands at (#277). */
+  private headsThere(pileId: string): boolean {
+    const at = this.piles.find((pile) => pile.id === pileId)?.at;
+    return at !== undefined && 'lonLat' in at && this.arcs.headsFor(at.lonLat);
   }
 
   /**

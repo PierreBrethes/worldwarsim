@@ -10,8 +10,9 @@ import type { LonLat } from './geo';
 export const GROUP_SPACING = 0.5;
 /** Between two ranks of a formation, in the pile's units: a man's height seen at the board's tilt. */
 const RANK_DEPTH = 0.85;
-/** Between two pieces of a squad: three men abreast fill a group's width, a gap stays between. */
-const SQUAD_SPACING = 0.62;
+/** Between two pieces of a squad: three men abreast fill a group's width, a gap stays between —
+ *  the pile's step (`g` of the storyboards). */
+export const SQUAD_SPACING = 0.62;
 
 export type Slot = { readonly x: number; readonly z: number };
 

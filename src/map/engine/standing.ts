@@ -51,7 +51,7 @@ import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { rankLayout } from './rank-layout';
-import { block, GROUP_SPACING, type Slot } from '@/domain/pile-layout';
+import { block, GROUP_SPACING, SQUAD_SPACING, type Slot } from '@/domain/pile-layout';
 import {
   boxOfObject,
   drawnHit,
@@ -153,6 +153,14 @@ const FACING_KM = 10;
 /** **The rank recentres in half a second** once a newcomer reaches it (décision de Pierre,
  *  #268, 23/10). */
 const GLIDE_MS = 500;
+/** **A column joining a pile halts at its edge** (#277): so far out of its footprint, in steps. */
+const HALT_STEPS = 0.55;
+/** **The staple** (#277, storyboard « une pile vivante ») : a stroke of ink round the squad just
+ *  formed, traced in 0.6 s, overlapping its start by an eighth, then paling in 0.3 s. @a-mesurer */
+const STAPLE = { trace: 0.6, pale: 0.3, from: Math.PI * 0.62, turn: Math.PI * 2.08 } as const;
+const STAPLE_GEOMETRY = new RingGeometry(0.955, 1, 128, 1, STAPLE.from, STAPLE.turn).rotateX(
+  -Math.PI / 2,
+);
 
 /** Each group of a pile drawn again that stood in the pile before, held where it stood: by how
  *  far from its new place, in pile units, its figurine already moved there. */
@@ -1374,17 +1382,39 @@ export class StandingLayer implements SequenceHost {
     return span === undefined ? null : troopPinSpan(span);
   }
 
+  /** **Where a column joining the pile at `lonLat` halts** (#277): its footprint and a little
+   *  more, on the board; 0 where no pile of mine stands drawn. */
+  edgeAt(lonLat: LonLat): number {
+    for (const { at, ready, object, extent } of this.dressed.values())
+      if (
+        ready &&
+        object.visible &&
+        'lonLat' in at &&
+        Math.abs(at.lonLat[0] - lonLat[0]) + Math.abs(at.lonLat[1] - lonLat[1]) < 1e-9
+      )
+        return (Math.max(extent.x, extent.z) + HALT_STEPS * SQUAD_SPACING) * object.scale.x;
+    return 0;
+  }
+
   /**
    * **Each newcomer reaches the rank in its `delays` ms** (#268, décision de Pierre du 23/10): the
    * rest of the pile holds where it stood, then glides its share of the way in `GLIDE_MS` at each
    * arrival, and the pile says it grew each time. Out of full motion, it stands at once.
+   * **A column deploying** (`opens`, #277) finds the rank open: it glides in the newcomer's last
+   * half-second, and its place is free when it gets there. **The squad formed** (`formed`: no
+   * column of mine heads there any more) is stapled once its last newcomer stands.
    */
-  arrive(pileId: string, delays: ReadonlyArray<number>): void {
+  arrive(
+    pileId: string,
+    delays: ReadonlyArray<number>,
+    { opens = false, formed = false }: { opens?: boolean; formed?: boolean } = {},
+  ): void {
     const entry = this.dressed.get(pileId);
     if (entry === undefined) return;
     const { held } = entry;
     entry.held = [];
     const grown = this.grown.delete(pileId);
+    if (grown && formed) this.staple(entry, Math.max(0, ...delays));
     const bases = held.map(({ figurine, by }) => figurine.object.position.clone().sub(by));
     const stand = (left: number) =>
       held.forEach(({ figurine, by }, n) =>
@@ -1396,7 +1426,8 @@ export class StandingLayer implements SequenceHost {
       return;
     }
     let told = 0;
-    const seconds = (Math.max(...delays) + GLIDE_MS) / 1000;
+    const lead = opens ? GLIDE_MS : 0;
+    const seconds = (Math.max(...delays) + GLIDE_MS - lead) / 1000;
     this.effects.push({
       since: performance.now(),
       seconds,
@@ -1404,7 +1435,8 @@ export class StandingLayer implements SequenceHost {
         // A setting changed on the way: the rank stands where it ends.
         const elapsed = this.motion === 'full' ? k * seconds * 1000 : Infinity;
         const gone = delays.reduce(
-          (sum, delay) => sum + ease.inOut(Math.min(1, Math.max(0, (elapsed - delay) / GLIDE_MS))),
+          (sum, delay) =>
+            sum + ease.inOut(Math.min(1, Math.max(0, (elapsed - delay + lead) / GLIDE_MS))),
           0,
         );
         stand(1 - gone / delays.length);
@@ -1412,6 +1444,43 @@ export class StandingLayer implements SequenceHost {
         for (; grown && told < arrived; told++) this.merged(pileId);
       },
       end: () => stand(0),
+    });
+  }
+
+  /** **The staple round a squad just formed** (#277), `after` ms from now: traced at full motion,
+   *  laid whole at reduced, then pale; nothing when cut. Its own mesh, never the pile's ring. */
+  private staple(entry: Dressed, after: number): void {
+    if (this.motion === 'off') return;
+    const material = new MeshBasicMaterial({
+      color: PALETTE.border,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    const geometry = STAPLE_GEOMETRY.clone();
+    const mark = new Mesh(geometry, material);
+    mark.position.copy(entry.ring.position);
+    mark.scale.set(entry.extent.x + 0.05, 1, entry.extent.z + 0.05);
+    entry.object.add(mark);
+    const count = geometry.index!.count;
+    const seconds = STAPLE.trace + STAPLE.pale;
+    this.effects.push({
+      since: performance.now() + after,
+      seconds,
+      step: (k) => {
+        const t = k * seconds;
+        mark.visible = t >= 0;
+        const traced = this.motion === 'full' ? ease.out3(Math.min(1, t / STAPLE.trace)) : 1;
+        const pale = Math.min(1, Math.max(0, (t - STAPLE.trace) / STAPLE.pale));
+        // Whole triangles: six indices a segment.
+        geometry.setDrawRange(0, Math.max(6, Math.floor((count * traced) / 6) * 6));
+        material.opacity = 0.8 * (1 - 0.6 * pale);
+      },
+      end: () => {
+        mark.removeFromParent();
+        geometry.dispose();
+        material.dispose();
+      },
     });
   }
 

@@ -1,4 +1,12 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from 'three';
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Raycaster,
+  type RingGeometry,
+  Vector3,
+} from 'three';
 import { pileLayout } from '@/domain/pile-layout';
 import { describe, expect, it, vi } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
@@ -456,7 +464,11 @@ describe('a pile lent to a sequence', () => {
   });
 
   describe('a pile that grows by a troop walking to its rank', () => {
-    const grown = async (claim: ReadonlyArray<number> | null, motion: MapMotion = 'full') => {
+    const grown = async (
+      claim: ReadonlyArray<number> | null,
+      motion: MapMotion = 'full',
+      options: { opens?: boolean; formed?: boolean } = {},
+    ) => {
       const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
       const layer = await standing('infantry');
       const was = layer.placeOf('p/0')!.at.x;
@@ -464,15 +476,70 @@ describe('a pile lent to a sequence', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       layer.orient(eye);
       layer.motion = motion;
-      if (claim) layer.arrive('p', claim);
+      if (claim) layer.arrive('p', claim, options);
       layer.orient(eye);
       const at = (ms: number) => {
         clock.mockReturnValue(ms);
         layer.orient(eye);
         return layer.placeOf('p/0')!.at.x;
       };
-      return { was, at, clock };
+      return { was, at, clock, layer };
     };
+    /** The staple's stroke round the pile (#277), and how much of it is drawn. */
+    const staple = (layer: StandingLayer) => {
+      let found: Mesh | null = null;
+      layer.group.traverse((node) => {
+        const mesh = node as Mesh;
+        if (mesh.isMesh && mesh.visible && mesh.geometry.type === 'RingGeometry')
+          if ((mesh.geometry as RingGeometry).parameters.thetaLength > 2 * Math.PI) found = mesh;
+      });
+      return found as Mesh | null;
+    };
+
+    it('opens the rank in the half-second before a deploying column reaches it (#277)', async () => {
+      const { was, at, clock } = await grown([1000], 'full', { opens: true });
+      expect(at(400)).toBeCloseTo(was);
+      const gliding = at(750);
+      const settled = at(1000);
+      expect(gliding).toBeLessThan(was);
+      expect(gliding).toBeGreaterThan(settled);
+      expect(at(1600)).toBeCloseTo(settled);
+      clock.mockRestore();
+    });
+
+    it('staples the squad once its last newcomer stands, and only then (#277)', async () => {
+      const { at, clock, layer } = await grown([1000], 'full', { opens: true, formed: true });
+      at(900);
+      expect(staple(layer)).toBeNull();
+      at(1300);
+      const stroke = staple(layer)!;
+      expect(stroke.geometry.drawRange.count).toBeLessThan(stroke.geometry.index!.count);
+      at(1650);
+      expect(stroke.geometry.drawRange.count).toBeGreaterThanOrEqual(stroke.geometry.index!.count);
+      at(2000);
+      expect(staple(layer)).toBeNull();
+      clock.mockRestore();
+    });
+
+    it('lays no staple while a column of mine still heads there, nor when motion is cut', async () => {
+      const { at, clock, layer } = await grown([1000], 'full', { opens: true });
+      at(1300);
+      expect(staple(layer)).toBeNull();
+      clock.mockRestore();
+      const cut = await grown([1000], 'off', { opens: true, formed: true });
+      cut.at(1300);
+      expect(staple(cut.layer)).toBeNull();
+      cut.clock.mockRestore();
+    });
+
+    it('halts a column joining the pile at its edge, nowhere else (#277)', async () => {
+      const one = (await standing('infantry')).edgeAt([2, 48]);
+      const layer = await standing('infantry', 'armor', 'landTransport');
+      expect(one).toBeGreaterThan(0);
+      // A wider rank, a further edge.
+      expect(layer.edgeAt([2, 48])).toBeGreaterThan(one);
+      expect(layer.edgeAt([2.5, 48])).toBe(0);
+    });
 
     it('holds the rank as it stood until the newcomer arrives, then glides it in half a second', async () => {
       const { was, at, clock } = await grown([1000]);
