@@ -1,4 +1,5 @@
 import type { LonLat } from '@/domain/geo';
+import { loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { cameFrom } from '@/domain/pile-facing';
 import type { StandingPile } from './engine';
@@ -68,6 +69,60 @@ export function descentesOf(
         ? [`${id}/${k}`]
         : [],
     ),
+  );
+}
+
+type Laden = { readonly id: string; readonly load?: SupplyLoad | undefined };
+
+/** What each troop carries in a view: what `chargementsOf` remembers between two views. */
+export function loadsOf(troops: ReadonlyArray<Laden>): ReadonlyMap<string, number> {
+  return new Map(troops.map((troop) => [troop.id, loadTotal(troop.load)]));
+}
+
+/** **Une caisse par centaine chargée**, arrondie au-dessus, deux au plus : ce que tient la bâche
+ *  (décision de Pierre du 03/11). `@a-mesurer` */
+const LOAD_PER_CRATE = 100;
+const MAX_CRATES = 2;
+
+/** **Un camion chargé à son entrepôt ou à son QG** (#271) : le groupe qui l'est, et ses caisses. */
+export type Chargement = {
+  readonly siteId: string;
+  readonly groupId: string;
+  readonly crates: number;
+};
+
+/**
+ * **Les camions dont la charge vient de monter à leur entrepôt ou à leur QG** (#271) : chaque
+ * groupe de camion d'une garnison de l'un des deux dont une troupe d'avant porte plus. Ni première
+ * vue, ni avant-poste, ni cargo, ni avion : la carte n'y a pas de quai.
+ */
+export function chargementsOf(
+  before: ReadonlyMap<string, number>,
+  troops: ReadonlyArray<Laden>,
+  piles: ReadonlyArray<StandingPile>,
+): ReadonlyArray<Chargement> {
+  const rose = new Map(
+    troops.flatMap((troop) => {
+      const was = before.get(troop.id);
+      const by = loadTotal(troop.load) - (was ?? 0);
+      return was !== undefined && by > 0 ? [[troop.id, by] as const] : [];
+    }),
+  );
+  return piles.flatMap(({ id, at, pieces }) =>
+    'beside' in at && /^building-(warehouse|hq)@/.test(at.beside)
+      ? pieces.groups.flatMap(({ role, troopIds }, k) => {
+          const by = troopIds.reduce((sum, troop) => sum + (rose.get(troop) ?? 0), 0);
+          return role === 'landTransport' && by > 0
+            ? [
+                {
+                  siteId: at.beside,
+                  groupId: `${id}/${k}`,
+                  crates: Math.min(MAX_CRATES, Math.ceil(by / LOAD_PER_CRATE)),
+                },
+              ]
+            : [];
+        })
+      : [],
   );
 }
 
