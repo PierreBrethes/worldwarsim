@@ -30,6 +30,24 @@
         "5197"
       ],
       "port": 5197
+    },
+    {
+      "name": "pions",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-c",
+        "import http.server as h\nclass H(h.SimpleHTTPRequestHandler):\n  def end_headers(s):\n    s.send_header('Cache-Control', 'no-store'); super().end_headers()\nclass S(h.ThreadingHTTPServer):\n  request_queue_size = 256\nS(('', 5198), H).serve_forever()"
+      ],
+      "port": 5198
+    },
+    {
+      "name": "dev-node",
+      "runtimeExecutable": "/Users/pierre/.nvm/versions/node/v24.19.0/bin/node",
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js"
+      ],
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

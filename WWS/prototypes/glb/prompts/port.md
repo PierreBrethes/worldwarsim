@@ -39,7 +39,7 @@ l'imiter.
 - **Accores** : six étais, trois de chaque bord, du sol au flanc de la coque, au droit des bers.
 - **Grue** : grue portique sur rails, au pied du môle, centrée en (x = +70, z = +90) : portique de
   10 × 10 m et 10 m de passage, fût jusqu'à 14 m, cabine, flèche relevable de 30 m, contrepoids.
-  Au repos, la flèche pointe vers la cale (−x), relevée à 20°, avec **20 m de câble** (storyboard du repos du 03/11 : le jeu fait vivre la grue au repos tant qu'une coque est sur cale, et lit ce câble de 20 m comme sa longueur de repos). Relevée au
+  Au repos, la flèche pointe vers la cale (−x), relevée à 20°, avec **12 m de câble**, comme le modèle livré le 03/11 (le jeu fait vivre la grue au repos tant qu'une coque est sur cale, et lit la longueur de ce câble comme sa longueur de repos). Relevée au
   maximum (45°), sa tête reste sous le signe (36 m contre 44 m).
 - **Pile de bois** : madriers et rondins sur le terre-plein, à x ≈ −30, z de +75 à +95 (jamais
   dans l'eau).
@@ -78,8 +78,8 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 | `grue` | centre du portique au sol (+70 ; 0 ; +90) | fixe : portique et fût | 10 × 14 × 10 m |
 | `grue_couronne` | centre de la couronne d'orientation, en haut du fût (+70 ; 14 ; +90) | axe vertical, rotation libre : porte la cabine, la flèche et le contrepoids | Ø 5 m |
 | `fleche` | pied de la flèche, sur son axe d'articulation | axe horizontal perpendiculaire à la flèche : relevage de 10° à 45°, **repos à 20° pointé vers la cale (−x)** ; porte le repère `fx_tete_fleche` | 30 m |
-| `cable` | en tête de flèche, à la poulie | une seule pièce verticale qui pend vers −y (**20 m exactement dans la pose de repos**, origine en haut) ; le jeu l'étire en y et pose le crochet sous la poulie, au lieu de recalculer la flèche | Ø 0,1 m |
-| `crochet` | en haut de la moufle, au bout du câble | suit le bout du câble ; descend jusqu'au pont d'une coque amarrée (le jeu étire le câble de 20 m) | 1 × 2 m |
+| `cable` | en tête de flèche, à la poulie | une seule pièce verticale qui pend vers −y (**12 m dans la pose de repos**, origine en haut) ; le jeu l'étire en y et pose le crochet sous la poulie, au lieu de recalculer la flèche | Ø 0,1 m |
+| `crochet` | en haut de la moufle, au bout du câble | suit le bout du câble ; descend jusqu'au pont d'une coque amarrée (le jeu étire le câble) | 1 × 2 m |
 | `hampe` | pied du mât (−30 ; 0 ; +100) | fixe | 12 m |
 | `drapeau` | haut de la hampe, coin haut de la toile côté mât (−30 ; 11,8 ; +100) | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, **grille de 12 × 6 quads au moins** (u de 0 à la hampe à 1 au bout libre, v de 0 en haut ; la toile seule dans son nœud, sans la hampe) |
 
@@ -116,7 +116,7 @@ UV 0 → 1 sur toute la toile.
 - Le jeu pose le terre-plein et le môle à partir de `fx_bord_eau` ; le môle part du côté de la
   grue (+x), parallèle à la cale.
 - La grue tourne sur sa couronne, relève sa flèche et descend son crochet sur un navire
-  amarré au môle ; au repos elle regarde la cale, flèche à 20°, câble de 20 m ; tant qu'une coque est sur cale, le jeu la fait charger la cale en boucle (44 s), sans autre pièce que `grue_couronne`, `fleche`, `cable` et `crochet`.
+  amarré au môle ; au repos elle regarde la cale, flèche à 20°, câble de 12 m ; tant qu'une coque est sur cale, le jeu la fait charger la cale en boucle (44 s), sans autre pièce que `grue_couronne`, `fleche`, `cable` et `crochet`.
 - Le port peut être posé en miroir (x → −x) quand le côté de la grue est encombré : rien ne doit
   dépendre d'une asymétrie cachée.
 - À la capture, le drapeau descend, celui du vainqueur monte.
@@ -131,7 +131,7 @@ UV 0 → 1 sur toute la toile.
 - 1 unité = 1 m ; 210 m de long en z ; la coque fait 130 m, étrave côté terre ; le dessus du socle à y = 2,2 et le bâtiment posé dessus, rien sous y = 0
   sauf `avant_cale`.
 - `fx_bord_eau` exactement en tête de cale, orienté +z.
-- `fx_tete_fleche` enfant de `fleche`, `cable` de 20 m au repos, `drapeau` en grille de 12 × 6, flèche au repos à 20° vers −x.
+- `fx_tete_fleche` enfant de `fleche`, `cable` de 12 m au repos, `drapeau` en grille de 12 × 6, flèche au repos à 20° vers −x.
 - Tous les noms ci-dessus présents à l'identique (les anciens `coque`, `door_left`,
   `door_right`, `vantail`, `moufle`, `cable_crochet` disparaissent).
 - Budget de 3 500 triangles par état (bâtiment ≤ 2 500).
