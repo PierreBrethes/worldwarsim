@@ -38,6 +38,9 @@ const LOADS_AT: Partial<Record<UnitRole, ReadonlyArray<BuildingKey>>> = {
   airTransport: ['airfield'],
 };
 
+/** The buildings a transport of `role` loads at: none for a role that carries nothing. */
+export const loadsAt = (role: UnitRole): ReadonlyArray<BuildingKey> => LOADS_AT[role] ?? [];
+
 /** Là où se tient le transport : un de mes bâtiments, un de mes avant-postes debout, ou ailleurs. */
 export type LoadingPlace =
   | { readonly kind: 'building'; readonly key: BuildingKey }
@@ -84,7 +87,7 @@ const idleRefusal = (busy: Busy) =>
  *  partir en tournée. */
 const loadsHere = (role: UnitRole, place: LoadingPlace) => {
   if (place.kind === 'outpost') return airStopRefusal(role, place.level);
-  if (place.kind === 'elsewhere' || !(LOADS_AT[role] ?? []).includes(place.key))
+  if (place.kind === 'elsewhere' || !loadsAt(role).includes(place.key))
     return { code: 'LOAD_NOT_HERE', role } as const;
   return null;
 };

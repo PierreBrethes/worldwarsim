@@ -1,8 +1,9 @@
 import type { LonLat } from '@/domain/geo';
-import { loadTotal, type SupplyLoad } from '@/domain/logistics';
+import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { cameFrom } from '@/domain/pile-facing';
 import type { StandingPile } from './engine';
+import { MAX_CRATES } from './engine/timelines/loading';
 
 /** **Une sortie de caserne** : où, dans quelle pile, et les groupes de la pile qui en sortent. */
 export type Sortie = {
@@ -79,10 +80,9 @@ export function loadsOf(troops: ReadonlyArray<Laden>): ReadonlyMap<string, numbe
   return new Map(troops.map((troop) => [troop.id, loadTotal(troop.load)]));
 }
 
-/** **Une caisse par centaine chargée**, arrondie au-dessus, deux au plus : ce que tient la bâche
- *  (décision de Pierre du 03/11). `@a-mesurer` */
+/** **Une caisse par centaine chargée**, arrondie au-dessus, `MAX_CRATES` au plus (décision de
+ *  Pierre du 03/11). `@a-mesurer` */
 const LOAD_PER_CRATE = 100;
-const MAX_CRATES = 2;
 
 /** **Un camion chargé à son entrepôt ou à son QG** (#271) : le groupe qui l'est, et ses caisses. */
 export type Chargement = {
@@ -108,8 +108,10 @@ export function chargementsOf(
       return was !== undefined && by > 0 ? [[troop.id, by] as const] : [];
     }),
   );
+  // A site is `building-<key>@<point>`.
+  const quays = loadsAt('landTransport') as ReadonlyArray<string>;
   return piles.flatMap(({ id, at, pieces }) =>
-    'beside' in at && /^building-(warehouse|hq)@/.test(at.beside)
+    'beside' in at && quays.includes(/^building-([^@]+)@/.exec(at.beside)?.[1] ?? '')
       ? pieces.groups.flatMap(({ role, troopIds }, k) => {
           const by = troopIds.reduce((sum, troop) => sum + (rose.get(troop) ?? 0), 0);
           return role === 'landTransport' && by > 0
