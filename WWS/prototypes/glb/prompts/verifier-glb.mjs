@@ -107,6 +107,13 @@ const EXPECT = {
     names: ['cadre_gonio', 'porte', 'fond_sombre', 'fx_sortie', 'fx_smoke', ...FLAG.names],
     pivots: { cadre_gonio: 'axe-y', porte: 'gond', ...FLAG.pivots },
   },
+  // ADR 0038 §11 : un socle rond, sans cour ni fx_rang (la garnison se pose à côté) ; un groupe par spécialisation, un seul montré.
+  outpost: {
+    measure: ['socle', 'x', 30, 0.04], triangles: 1500, groups: ['magasin', 'guet', 'fort'], texture: 512, materials: ['lisere', 'feux'],
+    names: ['socle', 'lisere', 'sacs', 'signe', 'magasin', 'guet', 'fort', ...FLAG.names],
+    pivots: { ...FLAG.pivots },
+    absent: ['fx_rang', 'cour', 'niveau_1'],
+  },
   city: {
     site: true,
     measure: [null, 'x', 50, 0.05], materials: ['vitres'],
@@ -405,9 +412,13 @@ function verify(path, key, nation) {
     const states = { 'niveau 3': building + fixed + groups.niveau_1 + groups.niveau_2 + groups.niveau_3, chantier: building + fixed + groups.niveau_1 + groups.chantier, ruines: building + fixed + groups.ruines };
     for (const [s, n] of Object.entries(states)) check(n <= SITE_BUDGET.site, `état ${s} : ${n} triangles ≤ ${SITE_BUDGET.site}`);
   } else {
-    const n = roots.reduce((sum, r) => sum + trianglesUnder(r), 0);
+    // Des groupes montrés un seul à la fois : l'état le plus lourd porte le plus lourd d'entre eux.
+    const groups = (spec.groups ?? []).map((g) => [g, named.filter(([n]) => n === g).reduce((sum, [, i]) => sum + trianglesUnder(i), 0)]);
+    for (const [g, n] of groups) check(n <= SITE_BUDGET.group, `${g} : ${n} triangles ≤ ${SITE_BUDGET.group}`);
+    const hidden = groups.reduce((sum, [, n]) => sum + n, 0) - Math.max(0, ...groups.map(([, n]) => n));
+    const n = roots.reduce((sum, r) => sum + trianglesUnder(r), 0) - hidden;
     const max = valueOf(spec.triangles);
-    check(n <= max, `${n} triangles ≤ ${max}`);
+    check(n <= max, `${n} triangles ≤ ${max}${groups.length ? ' (un seul groupe montré, le plus lourd)' : ''}`);
   }
 
   // Matériaux, textures, extensions.
@@ -416,7 +427,7 @@ function verify(path, key, nation) {
   const unnamed = (gltf.meshes ?? []).flatMap((m) => m.primitives).filter((p) => p.material === undefined).length;
   check(unnamed === 0, `chaque primitive a son matériau${unnamed ? ` (${unnamed} sans)` : ''}`);
   const images = gltf.images ?? [];
-  const maxTexture = spec.site ? 512 : 1024; // ADR 0038 §9 : 512² pour les bâtiments
+  const maxTexture = spec.texture ?? (spec.site ? 512 : 1024); // ADR 0038 §9 : 512² pour les bâtiments
   check(images.length <= 1, `une seule texture (${images.length})`);
   for (const [k, img] of images.entries()) {
     const view = gltf.bufferViews[img.bufferView];
