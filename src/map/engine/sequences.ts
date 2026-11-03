@@ -13,7 +13,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
 import { bakedRig } from './baking';
-import { movesOnItsOwn, sceneOf } from './figurines/figurine';
+import { movesOnItsOwn, posedScene, type RestPose } from './figurines/figurine';
 import { stand, stride } from './figurines/infantry';
 import { EXHAUST, Smoke } from './smoke';
 
@@ -75,7 +75,9 @@ export type SequenceHost = {
   /** La pièce `id` telle qu'elle est dessinée : son fichier et sa boîte dans le monde (`null` le
    *  temps qu'un lot reconstruit se pose : on ne juge pas cette image-là) ; `null` quand elle
    *  n'est pas dessinée ici (partie, fantôme, chantier, épingle, écartée par un rejeu). */
-  pieceOf(id: string): { readonly url?: string; readonly box: Box3 | null } | null;
+  pieceOf(
+    id: string,
+  ): { readonly url?: string; readonly pose?: RestPose; readonly box: Box3 | null } | null;
   /** A clone of the piece as drawn, for a sequence that moves it whole; `null` until it is. */
   copyOf?(id: string): Object3D | null;
   /** La copie se tient à la place de la pièce au repos, placée comme elle, jusqu'à `null`. Un
@@ -128,6 +130,8 @@ export type Cue =
       readonly point: LonLat;
       readonly view: ReplayView | null;
       readonly toward: LonLat | null;
+      /** **D'où ma batterie a tiré** (#325) : chez le tireur seul, d'où l'arc part. */
+      readonly from: LonLat | null;
     };
 
 const ceilingOf = (pool: Sequence['pool']): number =>
@@ -137,11 +141,11 @@ type Rest = { readonly position: Vector3; readonly quaternion: Quaternion };
 
 const cooked = new Map<string, Promise<Group>>();
 /** Cuite une fois par fichier, au premier signal ; les copies en partagent géométries et matériaux. */
-export function articulatedOf(url: string, family: RigFamily): Promise<Group> {
-  const key = `${url} ${family}`;
+export function articulatedOf(url: string, family: RigFamily, pose?: RestPose): Promise<Group> {
+  const key = `${url} ${family} ${pose ?? ''}`;
   let rig = cooked.get(key);
   if (!rig) {
-    rig = sceneOf(url).then((scene) =>
+    rig = posedScene(url, pose).then((scene) =>
       bakedRig(scene, (node) => isRigPart(family, node.name) || movesOnItsOwn(node)),
     );
     cooked.set(key, rig);

@@ -3,7 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
- *       [--demarrage] [--repos] [--epingles] [--sequences] [--combats] [--files] [--socle]
+ *       [--demarrage] [--repos] [--epingles] [--sequences] [--combats] [--combats-mer] [--files] [--socle]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
  * `--niveaux --edition` donne des bâtiments et une presse). Le banc construit un build de prod
@@ -80,8 +80,12 @@ const pinsOnly = args.includes('--epingles');
 const sequencesOnly = args.includes('--sequences');
 /** `--combats` (toute démo) : le démarrage, puis des combats joués sur la carte au rapproché
  *  (#272), signalés au moteur avec leur vue (`mapEngine.cue`) : un de trois pièces par camp, trois
- *  à la fois, puis un de douze par camp — le seuil au-delà duquel le combat ne joue plus. */
+ *  à la fois, un bombardement de la batterie de `--bombarder` (#325), puis un de douze par camp —
+ *  le seuil au-delà duquel le combat ne joue plus. */
 const combatsOnly = args.includes('--combats');
+/** `--combats-mer` (toute démo) : les mêmes combats en Manche, entre escorteurs (#324), cadrés de
+ *  plus loin, comme le storyboard : la mer se lit sur la coque, pas sur le char. */
+const seaCombatsOnly = args.includes('--combats-mer');
 /** `--files` (`npm run demo:mondiale -- --files`, une quinzaine de minutes après) : le démarrage,
  *  puis les trois colonnes de douze troupes cadrées au rapproché, au milieu de leurs têtes, dix
  *  secondes de marche (#276). */
@@ -904,51 +908,81 @@ async function play(profileName, pass) {
   };
   /** Des combats de démonstration en Champagne : chaque camp perd une pièce et en voit une
    *  dérouter, l'ennemi en ses figurines (F1). */
-  const combatGestures = async () => {
-    const around = [4.0, 49.0];
-    await page.evaluate(frameAt, [around, 4]);
+  const combatGestures = async (sea = false) => {
+    const around = sea ? [-1.6, 50.05] : [4.0, 49.0];
+    const step = sea ? 0.5 : 0.25;
+    await page.evaluate(frameAt, [around, sea ? 7 : 4]);
     await page.waitForTimeout(3000);
-    const play = (combats) =>
-      page.evaluate((list) => {
-        for (const [id, lon, lat, troops] of list) {
-          const losses = { lost: 0, routed: 1, destroyed: 1 };
-          const forces = [
-            { role: 'infantry', tier: 1, troops: troops - 1, ...losses },
-            { role: 'armor', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 },
-          ];
-          window.mapEngine.cue({
-            kind: 'combat',
-            id,
-            point: [lon, lat],
-            toward: null,
-            view: {
-              combatId: id,
-              at: 0,
-              point: { lon, lat },
-              side: 'attacker',
-              won: true,
-              mine: forces,
-              theirs: { troops, ...losses },
-              faced: {
-                nation: 'germany',
-                forces: forces.map((force) => ({ ...force, strength: 100 })),
+    const play = (combats, from = null) =>
+      page.evaluate(
+        ([list, sea, from]) => {
+          for (const [id, lon, lat, troops] of list) {
+            const losses = { lost: 0, routed: 1, destroyed: 1 };
+            const forces = sea
+              ? [{ role: 'escort', tier: 1, troops, ...losses }]
+              : [
+                  { role: 'infantry', tier: 1, troops: troops - 1, ...losses },
+                  { role: 'armor', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 },
+                ];
+            window.mapEngine.cue({
+              kind: 'combat',
+              id,
+              point: [lon, lat],
+              toward: from,
+              from,
+              view: {
+                combatId: id,
+                at: 0,
+                point: { lon, lat },
+                side: 'attacker',
+                won: true,
+                // A bombardment (#325): my gun stays in its pile, an arc of ink to theirs.
+                mine:
+                  from === null
+                    ? forces
+                    : [{ role: 'artillery', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+                theirs: { troops, ...losses },
+                faced: {
+                  nation: 'germany',
+                  forces: forces.map((force) => ({ ...force, strength: 100 })),
+                },
+                ...(from === null ? {} : { bombardment: { from: { lon: from[0], lat: from[1] } } }),
               },
-            },
-          });
-        }
-      }, combats);
+            });
+          }
+        },
+        [combats, sea, from],
+      );
     await gesture('combats repos 5 s', () => page.waitForTimeout(5000), 0);
     await gesture('un combat, 3 contre 3', () => play([['banc-1', ...around, 3]]), 10500);
     await gesture(
       'trois combats',
       () =>
         play([
-          ['banc-2', around[0] - 0.25, around[1], 3],
+          ['banc-2', around[0] - step, around[1], 3],
           ['banc-3', ...around, 3],
-          ['banc-4', around[0] + 0.25, around[1], 3],
+          ['banc-4', around[0] + step, around[1], 3],
         ]),
       10500,
     );
+    if (sea) await gesture('un combat, 6 contre 6', () => play([['banc-6', ...around, 6]]), 10500);
+    // A gun really in battery (`--bombarder`): its copy, cooked open, fires from its pile.
+    const batterie = accounts.places?.[sea ? 'batterie-mer' : 'batterie'];
+    const bombarder = accounts.places?.[sea ? 'bombarder-mer' : 'bombarder'];
+    if (batterie && bombarder) {
+      await page.evaluate(frameAt, [
+        [(batterie[0] + bombarder[0]) / 2, (batterie[1] + bombarder[1]) / 2],
+        4,
+      ]);
+      await page.waitForTimeout(3000);
+      await gesture(
+        'un bombardement, 4 frappées',
+        () => play([['banc-7', ...bombarder, 4]], batterie),
+        10500,
+      );
+      await page.evaluate(frameAt, [around, sea ? 7 : 4]);
+      await page.waitForTimeout(3000);
+    } else console.log('un bombardement : pas de batterie, relance la démo avec --bombarder');
     await gesture('un combat, 12 contre 12', () => play([['banc-5', ...around, 12]]), 10500);
   };
   if (filesOnly) {
@@ -983,8 +1017,8 @@ async function play(profileName, pass) {
     await context.close();
     return { boot, results };
   }
-  if (combatsOnly) {
-    await combatGestures();
+  if (combatsOnly || seaCombatsOnly) {
+    await combatGestures(seaCombatsOnly);
     await context.close();
     return { boot, results };
   }
@@ -1526,7 +1560,7 @@ try {
       report.profiles[name] = { boot, runs };
       continue;
     }
-    if (restOnly || pinsOnly || sequencesOnly || combatsOnly || filesOnly) {
+    if (restOnly || pinsOnly || sequencesOnly || combatsOnly || seaCombatsOnly || filesOnly) {
       const { gestures } = merge(runs);
       report.profiles[name] = { boot, gestures, runs };
       text += `${table(gestures)}\n`;

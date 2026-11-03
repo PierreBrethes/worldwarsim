@@ -48,6 +48,26 @@ export const fireReachOf = (theatre: Theatre | null) =>
 export const emplacedAt = (settledAt: number): number =>
   settledAt + INDIRECT_FIRE.emplaceSeconds * 1000;
 
+/**
+ * **En batterie** (B20, #325) : l'instant dès lequel ces pièces d'un groupe de pile sont en
+ * batterie — 0 quand la vue ne sert plus `emplacedAt`, qu'elle ne sert que tant que la pièce n'y
+ * est pas. `null` quand elles ne le sont jamais telles qu'elles se tiennent : un autre rôle, une
+ * pièce à bord, la pile au large. Lu sur une pile posée seulement : une colonne n'en a pas.
+ */
+export function batterySince(
+  troops: ReadonlyArray<{
+    readonly role: UnitRole;
+    readonly carriedBy?: string;
+    readonly emplacedAt?: number;
+  }>,
+  afloat: boolean,
+): number | null {
+  if (afloat || troops.length === 0) return null;
+  if (troops.some((troop) => !firesIndirect(troop.role) || troop.carriedBy !== undefined))
+    return null;
+  return Math.max(0, ...troops.map((troop) => troop.emplacedAt ?? 0));
+}
+
 export type BombardRefusal =
   | 'ONE_UNIT_ONLY'
   | 'ONE_GUN_ONLY'

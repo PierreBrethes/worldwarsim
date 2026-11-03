@@ -405,7 +405,7 @@ function postedStacks(
       station: at,
       stack,
       place: pilePlace(at, names, regionAt),
-      pieces: pilePieces(held),
+      pieces: pilePieces(held, { afloat: at.afloat }),
       cargo: cargoTagsOf(held, { afloat: at.afloat, atAirfield: false }),
       ink: me.ink,
       supplies: pileSupplies(held),
@@ -468,7 +468,14 @@ function garrisonPiles(
     const troops = troopsAt(me, id, marching);
     return troops.length === 0
       ? []
-      : [{ id, ...(label === undefined ? {} : { label }), at, pieces: pilePieces(troops) }];
+      : [
+          {
+            id,
+            ...(label === undefined ? {} : { label }),
+            at,
+            pieces: pilePieces(troops, { afloat: false }),
+          },
+        ];
   };
   return [
     ...me.buildings.flatMap((building) =>

@@ -240,3 +240,23 @@ describe('unitPieces (Blitz: one piece per unit)', () => {
     ]);
   });
 });
+
+/** **Une pile posée dit quand ses pièces sont en batterie** (#325) ; une colonne, jamais. */
+describe('a battery in the pile', () => {
+  it('carries the instant each gun is in battery, standing only', () => {
+    const gun = { ...troop('artillery'), emplacedAt: 42 };
+    const settled = troop('artillery');
+    const rifle = troop('infantry');
+    const standing = pilePieces([gun, settled, rifle], { afloat: false });
+    expect(standing.groups.map((group) => [group.role, group.battery])).toEqual([
+      ['artillery', 42],
+      ['artillery', 0],
+      ['infantry', undefined],
+    ]);
+    expect(pilePieces([gun, settled]).groups.map((group) => group.battery)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(pilePieces([settled], { afloat: true }).groups[0]!.battery).toBeUndefined();
+  });
+});

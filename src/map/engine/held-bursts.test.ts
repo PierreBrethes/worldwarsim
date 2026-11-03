@@ -61,4 +61,21 @@ describe('HeldBursts, « terrain tenu » of a combat the map may play (#327)', (
     vi.advanceTimersByTime(HELD_MAX_MS + 1);
     expect(stamped).toHaveLength(1);
   });
+
+  it("draws my battery's straight shot when the combat settles without a scene, never after one (#325)", () => {
+    const traced: InkBurst[] = [];
+    const shots = new HeldBursts((burst) => traced.push(burst));
+    const shot = (combatId: string): InkBurst => ({
+      kind: 'combat',
+      at: [2, 49],
+      from: [2, 48],
+      combatId,
+    });
+    shots.hold(shot('unplayed'));
+    shots.hold(shot('played'));
+    shots.shown('played');
+    shots.abandon('played');
+    shots.abandon('unplayed');
+    expect(traced.map(({ from }) => from)).toEqual([[2, 48]]);
+  });
 });

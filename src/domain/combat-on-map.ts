@@ -1,12 +1,16 @@
 import { fr } from '@/i18n/fr';
+import type { Medium, UnitRole } from './ids';
+import { troopSpan } from './piece-size';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
+import { DOMAIN_BY_ROLE } from './troops';
 import { REPLAY_MS, STEP_MS, replayAt, type ReplayFrame } from './replay';
 import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
 import type { ArcView, CombatReport, ReplayView } from './player-view';
 
 /**
- * **Le combat sur la carte** (#272) : un combat d'arrivée à terre se joue à son point, aux six
+ * **Le combat sur la carte** (#272) : un combat d'arrivée — à terre, ou en mer sur une pile
+ * mouillée (#324) — se joue à son point, aux six
  * temps du rejeu (`replayAt`), le même sort pour chaque pièce. Le rejeu reste pour revoir.
  */
 
@@ -28,9 +32,8 @@ const STALE_MARGIN_MS = 30_000;
 export const FINAL_POSE_MS = STEP_MS['compte-rendu'];
 
 /** **Les combats qu'une vue apporte et que la précédente n'avait pas** — jamais à la première
- *  vue (`known` nul), jamais un combat fini depuis longtemps (un portable qui sort de veille), et
- *  seulement l'arrivée : l'interception, la mer et le bombardement sont d'autres lots (#323 à
- *  #327). */
+ *  vue (`known` nul), jamais un combat fini depuis longtemps (un portable qui sort de veille) :
+ *  l'arrivée et le bombardement (#325), sur terre comme en mer ; l'interception est un autre lot. */
 export function freshCombats(
   known: ReadonlySet<string> | null,
   reports: ReadonlyArray<CombatReport>,
@@ -39,7 +42,7 @@ export function freshCombats(
   if (known === null) return [];
   return reports.filter(
     (report) =>
-      report.cause === 'arrival' &&
+      report.cause !== 'interception' &&
       !known.has(report.id) &&
       report.at >= now - REPLAY_MS - STALE_MARGIN_MS,
   );
@@ -120,15 +123,63 @@ export function homewardOf(
   );
 }
 
+/**
+ * **Un combat en mer se joue entre navires et avions** (#324) : ce que portent les navires — les
+ * troupes de terre — ne se montre pas, et sa noyade reste à la dépêche (`drownedAtSea`). L'ennemi
+ * vu au feu perd de même ses passagers ; l'ennemi non relevé reste compté tel quel, rien ne disant
+ * ce qui flottait.
+ */
+export function afloat(view: ReplayView): ReplayView {
+  const ship = (entry: { readonly role: UnitRole }) => DOMAIN_BY_ROLE[entry.role] !== 'land';
+  if (view.faced === undefined) return { ...view, mine: view.mine.filter(ship) };
+  const forces = view.faced.forces.filter(ship);
+  const sum = (key: 'troops' | 'lost' | 'routed' | 'destroyed') =>
+    forces.reduce((total, force) => total + force[key], 0);
+  return {
+    ...view,
+    mine: view.mine.filter(ship),
+    theirs: {
+      troops: sum('troops'),
+      lost: sum('lost'),
+      routed: sum('routed'),
+      destroyed: sum('destroyed'),
+    },
+    faced: { ...view.faced, forces },
+  };
+}
+
+/**
+ * **Ce que la scène au point pose** (#325) : chez le tireur d'un bombardement, le camp d'en face
+ * seul — sa batterie reste sa propre pile, sa pièce relayée par une copie qui tire (ADR 0036 §5,
+ * précisée le 02/11). Ailleurs, tout le combat.
+ */
+export function sceneOf(view: ReplayView): ReplayView {
+  return view.bombardment !== undefined && view.side === 'attacker' ? { ...view, mine: [] } : view;
+}
+
+/**
+ * **La mesure d'une scène de combat** (#324) : sa plus longue pièce, un char au moins — un bloc
+ * ennemi se mesure en char (`ANONYMOUS_SPAN`). Ce qui la cadre, la montre de loin et la pose.
+ */
+export function sceneSpan(view: ReplayView): number {
+  const roles = [...view.mine, ...(view.faced?.forces ?? [])].map((entry) => entry.role);
+  return Math.max(troopSpan('armor'), ...roles.map((role) => troopSpan(role)));
+}
+
 /** **Combien de temps le tampon du compte-rendu reste posé**, de son apparition : le reste du
  *  compte-rendu, puis six secondes. @a-mesurer : le temps de lire « nos pièces » et de l'ouvrir. */
 export const REPORT_HOLD_MS = STEP_MS['compte-rendu'] + 6000;
 
 /**
- * **Ce que dit le tampon du compte-rendu** (#327) : l'issue vue du lecteur, et ses propres pertes
+ * **Ce que dit le tampon du compte-rendu** (#327) : l'issue vue du lecteur — en mer, un
+ * engagement, qu'on attaque ou qu'on défende (#324) ; bombardé, le coup du tireur ou les pilonnés
+ * (#325) — et ses propres pertes
  * en pièces — la dépêche garde les hommes. `won` fait l'encre : rouge quand on gagne.
  */
-export function reportOf(view: ReplayView): {
+export function reportOf(
+  view: ReplayView,
+  medium: Medium = 'land',
+): {
   readonly title: string;
   readonly losses: string;
   readonly won: boolean;
@@ -141,7 +192,10 @@ export function reportOf(view: ReplayView): {
     ...(routed > 0 ? [words.routed(routed)] : []),
   ];
   return {
-    title: words[view.side][view.won ? 'won' : 'lost'],
+    title:
+      view.bombardment !== undefined
+        ? words.bombardment[view.side]
+        : (medium === 'sea' ? words.sea : words[view.side])[view.won ? 'won' : 'lost'],
     losses: `${words.ours} : ${lost.length > 0 ? lost.join(', ') : words.noLoss}`,
     won: view.won,
   };

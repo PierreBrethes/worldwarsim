@@ -58,6 +58,16 @@ describe('the journal', () => {
     ]);
   });
 
+  /** #324 : un combat en mer ne tient ni ne perd de terrain. */
+  it('says waters, not ground, of a combat at sea', () => {
+    const [held] = journalDispatches([{ ...battle(NOON), atSea: true }], null, []);
+    const [lost] = journalDispatches([{ ...battle(NOON), atSea: true, won: false }], null, []);
+    const [ashore] = journalDispatches([battle(NOON)], null, []);
+    expect(held!.text).toContain(fr.replay.heldAtSea);
+    expect(lost!.text).toContain(fr.replay.lostAtSea);
+    expect(ashore!.text).toContain('terrain tenu');
+  });
+
   it('tells a bombardment on both sides, with no riposte', () => {
     const shot = {
       ...battle(NOON),

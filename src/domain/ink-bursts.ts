@@ -19,7 +19,8 @@ export type InkBurst = {
   readonly words?: StampWords;
   readonly delayMs?: number;
   /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
-   *  compte-rendu le remplace, et celui-ci ne se pose pas. */
+   *  compte-rendu le remplace, et celui-ci ne se pose pas. Sur le coup de ma batterie, le trait
+   *  droit attend de même : une scène jouée le trace en arc (#325). */
   readonly combatId?: string;
   /** **D'où ma batterie a tiré** (B20) : le trait d'encre du coup, jusqu'au tampon. */
   readonly from?: LonLat;
@@ -65,6 +66,8 @@ export function inkBursts(
   vanishedEnds: ReadonlyArray<LonLat>,
   /** The map plays the combats that arrive (#327): « terrain tenu » is then the stamp's to say. */
   mapPlays = false,
+  /** The ground under a point (`groundOf`): a combat won at sea holds no ground (#324). */
+  landAt: (at: LonLat) => boolean = () => true,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
   const combats = fresh.flatMap((dispatch): InkBurst[] => {
@@ -75,6 +78,9 @@ export function inkBursts(
       kind: 'combat',
       at,
       ...(firedFrom === undefined ? {} : { from: [firedFrom.lon, firedFrom.lat] as const }),
+      // Where the map plays its combats, the scene's arc of ink may draw the shot (#325): the
+      // straight one waits for the map to say it played none.
+      ...(firedFrom !== undefined && mapPlays ? { combatId: dispatch.combat.id } : {}),
       words: stamped(cause === 'bombardment' ? fr.stamps.shelled : fr.stamps.engaged, dispatch.at),
     };
     /** Un bombardement ne tient aucun terrain : personne n'y est allé. */
@@ -84,7 +90,7 @@ export function inkBursts(
           {
             kind: 'held',
             at,
-            words: stamped(fr.replay.held, dispatch.at),
+            words: stamped(landAt(at) ? fr.replay.held : fr.replay.heldAtSea, dispatch.at),
             delayMs: STAMP_MS,
             ...(mapPlays && cause === 'arrival' ? { combatId: dispatch.combat.id } : {}),
           },

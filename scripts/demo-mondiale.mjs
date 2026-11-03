@@ -91,6 +91,15 @@
  * `--combat [s]` (#272) pose une garnison britannique à Sedan, deux fantassins et un char, et
  * lance sur elle une colonne française de même force, qui arrive dans `s` secondes (25 par
  * défaut) : le temps d'ouvrir la carte, où le combat se joue à son point.
+ * `--combat-mer [s]` (#324) mouille deux escorteurs britanniques en Manche, au nord de
+ * Cherbourg, et lance sur eux deux escorteurs français, qui arrivent dans `s` secondes (25 par
+ * défaut) : le combat se joue en mer, et `lieu=@combat-mer` cadre son point.
+ * `--bombarder [s]` (#325) met une pièce française en batterie au nord de Paris (`@batterie`), une
+ * garnison britannique de douze troupes à 78 km, vers Amiens (`@bombarder`), et, en mer, une pièce
+ * sur la côte du Cotentin (`@batterie-mer`) face à six escorteurs mouillés à 50 km (`@bombarder-mer`) ; un
+ * fantassin français relève chaque cible. Les deux pièces tirent dans `s` secondes (40 par défaut,
+ * le temps de la mise en batterie et d'ouvrir la carte), puis encore `--salves N` fois toutes les
+ * 125 s, leur recharge passée : la démo tourne jusqu'à la dernière salve.
  * `--arrivee [s]` (#362) fait marcher de Reims vers l'est-nord-est une pile mêlée française (trois
  * fantassins, deux chars, un canon) qui arrive sur un point vide dans `s` secondes (25 par
  * défaut) : la colonne s'y déploie, et `lieu=@arrivee` cadre son point.
@@ -128,6 +137,8 @@ const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', impo
 /** `--tutoriel` : une place neuve, au début des premiers pas (ADR 0027 §2) — rien de posé. */
 /** Les lieux des scènes posées, écrits dans le fichier des comptes : `lieu=@camion` de `capture.mjs`. */
 const places = {};
+/** The guns of `--bombarder` and their targets, fired once the accounts are written. */
+const shelling = [];
 const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
@@ -236,6 +247,14 @@ const loaded = process.argv.includes('--chargee');
 /** `--combat [s]` : une colonne française sur une garnison britannique, arrivée dans s secondes (#272). */
 const combatAt = process.argv.indexOf('--combat');
 const combatIn = combatAt < 0 ? null : Number(process.argv[combatAt + 1]) || 25;
+/** `--combat-mer [s]` : deux escorteurs français sur deux britanniques en Manche (#324). */
+const seaCombatAt = process.argv.indexOf('--combat-mer');
+const seaCombatIn = seaCombatAt < 0 ? null : Number(process.argv[seaCombatAt + 1]) || 25;
+/** `--bombarder [s]` : deux pièces en batterie qui tirent dans s secondes, `--salves N` fois (#325). */
+const shellingAt = process.argv.indexOf('--bombarder');
+const shellingIn = shellingAt < 0 ? null : Number(process.argv[shellingAt + 1]) || 40;
+const salvoesAt = process.argv.indexOf('--salves');
+const salvoes = salvoesAt < 0 ? 1 : Number(process.argv[salvoesAt + 1]) || 1;
 /** `--arrivee [s]` : une pile mêlée française qui arrive sur un point vide dans s secondes (#362). */
 const arrivalAt = process.argv.indexOf('--arrivee');
 const arrivalIn = arrivalAt < 0 ? null : Number(process.argv[arrivalAt + 1]) || 25;
@@ -1065,6 +1084,71 @@ if (!bare) {
       }
     }
   }
+  if (seaCombatIn !== null && scene.a !== null && scene.b !== null) {
+    const moored = { lon: -1.6, lat: 50.05 };
+    // Framed between the two lines, three hulls apart (storyboard), not on the moored one: the
+    // attacker's must stand on a phone too.
+    places['combat-mer'] = [moored.lon - 0.9, moored.lat];
+    const from = { lon: -1.95, lat: 50.0 };
+    const spawn = (playerId, count, at) =>
+      JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId, role: 'escort', count, ...at }),
+        ]).match(/\[[^\]]*\]/)[0],
+      );
+    spawn(scene.b, 2, moored);
+    const fleet = spawn(scene.a, 2, from);
+    cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+    const { camps } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const camp = camps.find(
+      (one) =>
+        Math.abs(one.point[0] - moored.lon) < 0.05 && Math.abs(one.point[1] - moored.lat) < 0.05,
+    );
+    if (camp === undefined) throw new Error('combat en mer : la flotte mouillée n’est pas relevée');
+    await client.mutation(api.movements.attack, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: fleet,
+      target: { kind: 'camp', campId: camp.id },
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: seaCombatIn * 1000 }),
+    ]);
+  }
+  if (shellingIn !== null && scene.a !== null && scene.b !== null) {
+    const spawn = (playerId, role, count, at) =>
+      JSON.parse(
+        cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId, role, count, ...at })]).match(
+          /\[[^\]]*\]/,
+        )[0],
+      );
+    const fronts = [
+      // Ashore: a gun north of Paris on a garrison towards Amiens, 78 km.
+      { gun: { lon: 2.35, lat: 49.2 }, target: { lon: 2.3, lat: 49.9 }, name: 'bombarder' },
+      // At sea: a gun on the Cotentin on six escorts moored off it, 50 km.
+      { gun: { lon: -1.55, lat: 49.55 }, target: { lon: -1.6, lat: 50.0 }, name: 'bombarder-mer' },
+    ];
+    for (const [k, { gun, target, name }] of fronts.entries()) {
+      places[name] = [target.lon, target.lat];
+      places[name.replace('bombarder', 'batterie')] = [gun.lon, gun.lat];
+      places[`${name}-milieu`] = [(gun.lon + target.lon) / 2, (gun.lat + target.lat) / 2];
+      const [piece] = spawn(scene.a, 'artillery', 1, gun);
+      // Enough to stand a dozen salvoes, each striking four at most.
+      if (k === 0) {
+        spawn(scene.b, 'infantry', 9, target);
+        spawn(scene.b, 'armor', 3, target);
+      } else spawn(scene.b, 'escort', 6, target);
+      // A rifle of mine within sight of the target: a gun fires on what is seen.
+      spawn(scene.a, 'infantry', 1, { lon: target.lon + 0.15, lat: target.lat - 0.12 });
+      shelling.push({ piece, target });
+    }
+    cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+  }
   /** Les fantassins et les chars entrent dans la caserne (#265). */
   if ((scale || razing) && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
@@ -1147,3 +1231,29 @@ writeFileSync(
 );
 console.log(`Mondiale lancée : code ${code}, saison ${seasonId}`);
 console.log(`Comptes : ${accounts.a.nickname} (a), ${accounts.b.nickname} (b) → ${accountsFile}`);
+
+/** `--bombarder` : each gun fires on its target's camp, its battery set, then every reload. */
+for (let salvo = 0; salvo < salvoes && shelling.length > 0; salvo++) {
+  await pause(salvo === 0 ? shellingIn * 1000 : 125_000);
+  cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+  const { camps } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+  for (const { piece, target } of shelling) {
+    const camp = camps.find(
+      (one) =>
+        !one.lastKnown &&
+        Math.abs(one.point[0] - target.lon) < 0.05 &&
+        Math.abs(one.point[1] - target.lat) < 0.05,
+    );
+    if (camp === undefined) {
+      console.log(`bombarder : la cible ${target.lon}, ${target.lat} n’est plus relevée`);
+      continue;
+    }
+    await client.mutation(api.movements.bombard, {
+      token: tokenA,
+      seasonId,
+      troopId: piece,
+      target: { kind: 'camp', campId: camp.id },
+    });
+  }
+  console.log(`Salve ${salvo + 1}/${salvoes} tirée à ${new Date().toISOString()}`);
+}
