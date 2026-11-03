@@ -70,6 +70,21 @@ la dernière position connue.
   sur une réévaluation suivante. Mesure du banc, 161 colonnes croisées dans un même carré
   d'Europe : un départ passe de plus d'une seconde (coupé) à quelques centaines de millisecondes.
 
+- **La marge sous la seconde est faible par construction** (#418, enquête du 03/11). La passe
+  entière prend environ 900 ms à 161 mouvements en vol sur le backend local ; la seconde tomberait
+  vers 170 à 180 mouvements dans ce carré d'Europe dense (estimation : pente mesurée en processus,
+  multipliée par 3,1). Ce qui coûte : `sightingsFor` fait 93 % de la passe, dont 52 % pour les
+  paires colonne-colonne (`mutualWindow`, `mobileSighting`) et 28 % pour `passesAlong` ; les
+  rondes, environ 5 %. `INTERCEPTION_SAMPLES` ne baisse pas : c'est une précision de règle, pour
+  12 % de gain. La marge se rend donc par `changed`, passé à toute mutation qui sait quels joueurs
+  elle a touchés : en processus, la passe d'un joueur prend 187 ms contre 310 à 325 ms pour
+  l'entière ; une restauration après raid passe de 469 à 360 ms, une dissolution de 332 à 226,
+  une démolition de 375 à 263 (médianes de sept, germes 1 et 2). Chaque joueur de `changed` paie
+  le règlement de son économie, environ 70 ms en processus : à trois joueurs, la passe ciblée
+  coûte à peu près l'entière. Deux bancs ne se comparent qu'au même germe
+  (`npm run banc:mondiale -- --germe N`) : au `Math.random`, un même commit lisait de 4 041 à
+  4 156 documents.
+
 - **Un job planifié ne s'empile pas** (#146). Le réveil des oreilles à l'instant où le charbon
   s'épuise, la reprise d'une file affamée, le regard d'une tournée et le regard d'une caisse
   gardent leur id sur le joueur, la tournée ou la ligne de prédiction : on annule avant de

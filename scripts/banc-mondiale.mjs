@@ -5,7 +5,7 @@
  * un brouillard qui se croise (tous les départs tiennent dans un même carré d'Europe). Puis il
  * mesure et imprime le tableau qui sert de référence « avant » aux optimisations.
  *
- *     npm run banc:mondiale
+ *     npm run banc:mondiale -- [--germe 2] [--sans-rondes]
  *
  * Refuse tout backend qui n'est pas 127.0.0.1 ou localhost. Les fonctions `dev:bench*` doivent
  * être déployées (`npx convex deploy`). Les chiffres viennent du backend lui-même : le flux de
@@ -53,7 +53,16 @@ const admin = new ConvexHttpClient(url);
 admin.setAdminAuth(adminKey);
 const internal = (name) => makeFunctionReference(name);
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
-const rand = (spread) => (Math.random() * 2 - 1) * spread;
+/** **`--germe N`** (1 par défaut) : la scène se tire d'un générateur à germe (Park-Miller), et
+ *  deux bancs au même germe posent les mêmes troupes aux mêmes points (#418). Au `Math.random`,
+ *  un même commit lisait de 4 041 à 4 156 documents d'un banc à l'autre. */
+const germeAt = process.argv.indexOf('--germe');
+const germe = germeAt === -1 ? 1 : Number(process.argv[germeAt + 1]);
+if (!Number.isInteger(germe) || germe < 1)
+  throw new Error(`--germe : "${process.argv[germeAt + 1]}" n'est pas un entier positif`);
+let draw = (germe * 7919 + 7) % 2147483647;
+const random = () => ((draw = (draw * 16807) % 2147483647) - 1) / 2147483646;
+const rand = (spread) => (random() * 2 - 1) * spread;
 /** Un isolat froid décode la grille des routes : le premier appel dépasse parfois la seconde permise. */
 const coldRetry = async (call) => {
   for (let attempt = 0; ; attempt++)
@@ -319,7 +328,7 @@ const fixed = (n, d = 1) => n.toFixed(d);
 /** Une exécution qui dépasse la seconde permise est coupée et ne laisse rien : on le dit. */
 const cell = (run) => (run.timedOut ? `${fixed(run.ms)} (coupée à 1 s)` : fixed(run.ms));
 console.log(
-  `\nBanc Mondiale — ${String(PLAYERS)} joueurs, ${String(stats.troops)} troupes, ${String(flights)} mouvements en vol, ${String(stats.outposts)} avant-postes, ${String(tours)} tournées, ${String(patrols)} rondes`,
+  `\nBanc Mondiale (germe ${String(germe)}) — ${String(PLAYERS)} joueurs, ${String(stats.troops)} troupes, ${String(flights)} mouvements en vol, ${String(stats.outposts)} avant-postes, ${String(tours)} tournées, ${String(patrols)} rondes`,
 );
 console.log(
   "Source : /api/stream_function_logs du backend local (executionTime, databaseReadDocuments), médiane de 3 passes (playerView : 3 joueurs, le cache des requêtes rendrait 0 à une répétition). Une exécution coupée à 1 s ne rend que ce qu'elle avait lu.\n",

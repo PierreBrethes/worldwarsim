@@ -66,9 +66,10 @@ export const demolish = mutation({
     if (before !== null) await reportChange(ctx, season._id, before, now);
 
     /** La file repart derrière l'entrée qui vient de disparaître, et la détection se réévalue
-     *  parce qu'une garnison qui passe au sol est un détecteur qui a bougé (ADR 0021). */
+     *  parce qu'une garnison qui passe au sol est un détecteur qui a bougé (ADR 0021) : les
+     *  siens seuls, comme la station rasée (#418). */
     await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: player._id });
-    await reassessDetection(ctx, season._id);
+    await reassessDetection(ctx, season._id, now, player._id);
     return { refunded, clipped };
   },
 });

@@ -7,6 +7,8 @@ import { regionFacts } from './regions';
 import { settle } from './resources';
 import { isAtWar, seatsOf } from './seats';
 import { reassessDetection } from './movement/detection';
+import { seasonOutposts } from './movement/forces';
+import { seasonBuildings } from './buildingReads';
 import { recordLinkage } from './holding';
 import { holdsPoint } from './strategicPoints';
 
@@ -124,7 +126,16 @@ export const restoreAfterDisabling = internalMutation({
     if (season === null || season.concludedAt !== null) return;
     const before = await settleBeforeChange(ctx, seasonId, at);
     await reportChange(ctx, seasonId, before, Date.now());
-    await reassessDetection(ctx, seasonId);
+    /** **Ne relit que les tenants de ce qui se rallume** (#418) : l'avant-poste qui guette de
+     *  nouveau, le bâtiment qui produit. Un tiers dont la couleur bouge n'a que son charbon de
+     *  changé, et `writeStocks` réveille alors ses oreilles. */
+    const restored = [
+      ...(await seasonOutposts(ctx, seasonId)),
+      ...(await seasonBuildings(ctx, seasonId)),
+    ]
+      .filter((one) => one.disabledUntil === at)
+      .map((one) => one.playerId);
+    await reassessDetection(ctx, seasonId, Date.now(), restored);
   },
 });
 

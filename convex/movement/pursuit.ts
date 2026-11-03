@@ -177,9 +177,11 @@ export async function pursue(
   const at = positionAt(marchingForce(movement), now);
   const quarry = await quarryNow(ctx, movement.pursuit.troopId, now);
   const gapKm = quarry === null ? Infinity : distanceKm(at, quarry.point);
-  /** **La vue du joueur et rien d'autre** : ses relevés, refaits à l'instant — la règle de milieu
-   *  de `mobileSighting` comprise —, jamais une distance entre deux positions vraies. */
-  await reassessDetection(ctx, movement.seasonId, now);
+  /** **La vue du joueur et rien d'autre** : ses relevés, jamais une distance entre deux positions
+   *  vraies. Rien n'a bougé depuis la dernière réévaluation : ses relevés de colonne, des
+   *  prédictions, sont déjà justes ; ce qui se relit, ce sont les camps, lus à la position
+   *  présente des détecteurs et toujours en entier — d'où `changed` vide (#418). */
+  await reassessDetection(ctx, movement.seasonId, now, []);
   const seen = quarry !== null && (await inSight(ctx, movement.playerId, quarry, now));
   const reachKm = contactKm(await blitzTheatreOf(ctx, movement.playerId));
   const verdict = quarry === null ? 'lost' : pursuitVerdict({ gapKm, seen, reachKm });
@@ -200,7 +202,7 @@ export async function pursue(
         await loseSight(ctx, movement, now, false);
         return;
       }
-      await reassessDetection(ctx, movement.seasonId, now);
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
     }
     await schedulePursuit(ctx, (await ctx.db.get(movement._id))!, now);
   }
@@ -317,5 +319,6 @@ async function strike(
       await forgetMovement(ctx, theirs._id, now);
     }
   }
-  await reassessDetection(ctx, movement.seasonId, now);
+  /** La passe ne touche que ses deux camps (#418). */
+  await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, quarry.troop.playerId]);
 }

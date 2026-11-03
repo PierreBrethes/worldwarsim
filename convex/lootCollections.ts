@@ -177,10 +177,10 @@ export async function resolveLootCollectionArrivals(
   ctx: MutationCtx,
   trigger: Doc<'movements'>,
   now: number,
-): Promise<void> {
+): Promise<ReadonlyArray<Id<'players'>>> {
   const mission = trigger.lootCollection;
-  if (mission === undefined) return;
-  await resolveDueLootCollectionMissions(ctx, {
+  if (mission === undefined) return [];
+  return resolveDueLootCollectionMissions(ctx, {
     seasonId: trigger.seasonId,
     crateId: mission.crateId,
     at: now,
@@ -190,7 +190,8 @@ export async function resolveLootCollectionArrivals(
 }
 
 /** The crate expiry uses this same arbiter directly. Exclusive deadlines keep an arrival exactly
- * at `expiresAt` outside the collection window, while a rest hold moves the mission forward. */
+ * at `expiresAt` outside the collection window, while a rest hold moves the mission forward.
+ * Returns the owners of the columns it settled or held: nobody else's board moved (#418). */
 export async function resolveDueLootCollectionMissions(
   ctx: MutationCtx,
   {
@@ -206,8 +207,9 @@ export async function resolveDueLootCollectionMissions(
     inclusive: boolean;
     now: number;
   },
-): Promise<void> {
-  for (const movement of await dueLootCollectionMovements(ctx, seasonId, crateId, at, inclusive)) {
+): Promise<ReadonlyArray<Id<'players'>>> {
+  const due = await dueLootCollectionMovements(ctx, seasonId, crateId, at, inclusive);
+  for (const movement of due) {
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
       await ctx.db.patch(movement._id, { arrivesAt: held, heldAt: now });
@@ -224,4 +226,5 @@ export async function resolveDueLootCollectionMissions(
     }
     await resolveOne(ctx, movement, now);
   }
+  return due.map((movement) => movement.playerId);
 }
