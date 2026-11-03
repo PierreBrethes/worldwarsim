@@ -233,7 +233,7 @@ describe('a targeted reassessment leaves nothing for the whole pass to change', 
   });
 
   /** Deux colonnes de deux joueurs dues sur la même caisse, toutes deux réglées d'un coup. */
-  async function crateScene(t: Bench) {
+  async function crateScene(t: Bench, oil = 4000) {
     const { ids, seasonId } = await season(t);
     const [first, second, third] = ids as [Id<'players'>, Id<'players'>, Id<'players'>];
     await column(t, first, east(-120), SITE);
@@ -271,7 +271,7 @@ describe('a targeted reassessment leaves nothing for the whole pass to change', 
         point: SITE,
         appearedAt: Date.now(),
         expiresAt: arrivesAt + MINUTE,
-        loot: { ...zero, oil: 4000 },
+        loot: { ...zero, oil },
       });
       for (const movement of await ctx.db.query('movements').collect()) {
         if (movement.playerId === third) continue;
@@ -326,6 +326,23 @@ describe('a targeted reassessment leaves nothing for the whole pass to change', 
     expect(
       await t.run(async (ctx) => (await ctx.db.query('lootCollections').collect()).length),
     ).toBe(2);
+    const { left, whole } = await aroundAWholePass(t, seasonId);
+    expect(left).toEqual(whole);
+    expect(left).not.toEqual(before);
+  });
+
+  /** La première colonne vide la caisse : la seconde rentre bredouille, et toutes deux se relisent. */
+  it('when a crate expires over the columns due on it, the first of them emptying it', async () => {
+    const t = boot();
+    const { seasonId, crateId, arrivesAt, before } = await crateScene(t, 1);
+
+    vi.setSystemTime(arrivesAt + MINUTE);
+    await t.mutation(internal.lootCrates.expire, { crateId, expectedAt: arrivesAt + MINUTE });
+
+    expect(await t.run((ctx) => ctx.db.get(crateId))).toBeNull();
+    expect(
+      await t.run(async (ctx) => (await ctx.db.query('lootCollections').collect()).length),
+    ).toBe(1);
     const { left, whole } = await aroundAWholePass(t, seasonId);
     expect(left).toEqual(whole);
     expect(left).not.toEqual(before);

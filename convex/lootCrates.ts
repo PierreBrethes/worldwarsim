@@ -24,10 +24,11 @@ export const expire = internalMutation({
       inclusive: false,
       now: Date.now(),
     });
-    if ((await ctx.db.get(crateId)) === null) return;
-    await ctx.db.delete(crateId);
-    /** Les missions réglées ont pu poser, retenir ou renvoyer des colonnes de plusieurs joueurs :
-     *  les leurs se relisent ; les caisses, toujours en entier (#145, #418). */
+    /** Vidée par une mission, la caisse n'est déjà plus. */
+    if ((await ctx.db.get(crateId)) !== null) await ctx.db.delete(crateId);
+    /** Les missions réglées ont pu poser, retenir ou renvoyer des colonnes de plusieurs joueurs,
+     *  la caisse vidée ou non : les leurs se relisent ; les caisses, toujours en entier (#145,
+     *  #418). */
     await reassessDetection(ctx, crate.seasonId, Date.now(), settled);
   },
 });
