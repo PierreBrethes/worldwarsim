@@ -222,9 +222,9 @@ async function dispatchFromHongKong(
 /**
  * **La colonne arrive au site qu'elle vient capturer.** S'il reste des défenseurs, une passe a
  * lieu comme pour une attaque ; si l'attaquant gagne et garde de l'infanterie debout, la capture
- * commence. Sinon chacun rentre comme après une attaque.
+ * commence. Sinon chacun rentre comme après une attaque. Elle rend le défenseur combattu, le seul
+ * autre joueur dont le plateau a bougé (#418).
  */
-/** Returns the defender it fought, the only other player whose board it moved (#418). */
 export async function arriveForCapture(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
