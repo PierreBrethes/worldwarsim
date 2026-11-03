@@ -937,16 +937,19 @@ export class MaquetteLayer implements SequenceHost {
   }
 
   /** **What a loop may borrow** (`LoopHost`, #273): my sites at work, drawn whole — their
-   *  diorama standing —, with their board units per metre of their file. */
+   *  diorama standing —, with their board units per metre of their file. Read at the weight it
+   *  was last drawn at: a copy stood in, or a view served again, sets it to be placed anew, and
+   *  the loop must not give its copy back for that frame. */
   working(): Array<{ id: string; url: string; pose?: RestPose; box: Box3; metre: number }> {
     return [...this.byId.values()].flatMap(({ item, lot }) => {
-      const box = item.working && item.diorama >= 1 ? this.pieceOf(item.id)?.box : null;
-      if (!box || lot.model === null) return [];
+      const { model } = lot;
+      if (!item.working || model === null || item.cleared || item.diorama < 1) return [];
+      const metre = sizeOf(model, item);
+      matrix.compose(item.at, item.turn, scale.setScalar(item.drawnNear * metre));
+      const box = model.box.clone().applyMatrix4(matrix);
       const { id } = item;
       const { url, pose } = lot;
-      return [
-        { id, url, ...(pose !== undefined && { pose }), box, metre: sizeOf(lot.model, item) },
-      ];
+      return [{ id, url, ...(pose !== undefined && { pose }), box, metre }];
     });
   }
 

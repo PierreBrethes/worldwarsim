@@ -583,6 +583,13 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
       new Vector3().setFromMatrixScale(maquettes.drawnOf(ID)!.matrix).x,
       9,
     );
+    // Neither the copy it lends nor a view served again lets it drop for a frame: the loop
+    // would give its copy back and take it again, a frame at rest each time.
+    maquettes.standIn(ID, copyOf());
+    expect(maquettes.working().map(({ id }) => id)).toEqual([ID]);
+    maquettes.display([{ ...stand(), working: true, metres: 50, level: 2 }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(maquettes.working().map(({ id }) => id)).toEqual([ID]);
     // Its diorama no longer whole: it rests.
     maquettes.orient(new Vector3(0, 900, 0), null, 0);
     expect(maquettes.working()).toEqual([]);
