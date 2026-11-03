@@ -170,11 +170,11 @@ const pillaging = process.argv.includes('--pillage');
 const eight = process.argv.includes('--huit');
 /** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
 const ranks = process.argv.includes('--rangs');
-/** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 /** `--chargement [s]` : deux camions chargés dans `s` secondes, à l'entrepôt et au QG (#271). */
 const loadingAt = process.argv.indexOf('--chargement');
 const loadingIn = loadingAt < 0 ? null : Number(process.argv[loadingAt + 1]) || 25;
 let loadingTrucks = null;
+/** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
 /** `--rejeu` (#211) : le combat de `--combat`, joué tout de suite : un compte rendu à rejouer. */

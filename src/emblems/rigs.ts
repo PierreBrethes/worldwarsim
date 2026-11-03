@@ -28,7 +28,7 @@ export const RIG_PARTS = {
   researchCenter: ['coupole', 'lunette'],
   port: ['grue_couronne', 'fleche', 'cable', 'crochet'],
   // The loading (#271): the door slides on its rollers, the crates of the pile jump aboard. The
-  // HQ swings its service door; its crates are the copy's own (`darkCrates`).
+  // HQ swings its service door; its crates are the copy's own (`stockDark`).
   warehouse: ['porte', 'galet', 'galet_2', 'caisse_*'],
   hq: ['porte_service', 'caisse_*'],
 } as const;
