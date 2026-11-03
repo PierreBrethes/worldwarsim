@@ -35,6 +35,7 @@ elle tourne. Aucun autre nom pour une pièce qui bouge.
 | `gear_right` | articulation haute de la jambe droite | idem, en miroir | — |
 | `wheel_left`, `wheel_right` | moyeu de chaque roue | enfants de leur jambe ; tournent autour de x au roulage | Ø 0,6 à 0,7 m |
 | `tailwheel` | articulation de la roulette sous la queue | enfant de `fuselage` ; fixe ou repliée vers l'arrière selon la nation | Ø 0,3 m |
+| `feu_gauche`, `feu_droit`, `feu_queue` | centre de chaque globe : bout de l'aile gauche (+x, rouge), bout de l'aile droite (−x, vert), bout de la queue (blanc) | enfants de `fuselage` ; fixes ; matériau `feux`, que le jeu allume la nuit ; **le jeu les pose à la boîte du modèle, nommés exactement ainsi** | globes de 0,2 m |
 
 ## Repères vides
 
@@ -105,5 +106,5 @@ Envergure × longueur × hauteur (m) ; angle au sol ; repli du train.
   de l'avion cabré de son angle au sol, roulette posée.
 - 1 unité = 1 m ; envergure de la nation ± 5 % ; roues principales sur y = 0 ; nez vers +z.
 - Noms présents à l'identique : `fuselage`, `prop`, `gear_left`, `gear_right`, `wheel_left`,
-  `wheel_right`, `tailwheel`, `fx_muzzle`, `fx_smoke`.
+  `wheel_right`, `tailwheel`, `feu_gauche`, `feu_droit`, `feu_queue`, `fx_muzzle`, `fx_smoke`.
 - `vitres` et `feux` présents ; moins de 2 500 triangles.

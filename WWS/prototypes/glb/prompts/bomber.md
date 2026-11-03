@@ -34,6 +34,7 @@ elle tourne. Aucun autre nom pour une pièce qui bouge.
 | `gear_left`, `gear_right` | **articulation haute de chaque jambe**, dans le fuseau moteur ou l'aile | enfants de `fuselage` ; se replient autour de l'axe dit pour la nation, 85 à 95° ; 0° = sorti ; train fixe : jamais replié | jambe ≈ 1,5 à 2 m |
 | `wheel_left`, `wheel_right` | moyeu de chaque roue | enfants de leur jambe ; tournent autour de x | Ø 0,9 à 1,2 m |
 | `tailwheel` | articulation de la roulette | enfant de `fuselage` ; fixe ou repliée vers l'arrière | Ø 0,4 m |
+| `feu_gauche`, `feu_droit`, `feu_queue` | centre de chaque globe : bout de l'aile gauche (+x, rouge), bout de l'aile droite (−x, vert), bout de la queue (blanc) | enfants de `fuselage` ; fixes ; matériau `feux`, que le jeu allume la nuit ; **le jeu les pose à la boîte du modèle, nommés exactement ainsi** | globes de 0,2 m |
 
 ## Repères vides
 
@@ -99,5 +100,5 @@ Envergure × longueur × hauteur (m) ; angle au sol ; hélices ; repli du train.
 - 1 unité = 1 m ; envergure de la nation ± 5 % et ≤ 31,8 m ; roues principales sur y = 0 ; nez
   vers +z.
 - Noms présents à l'identique : `fuselage`, les `prop*` de la nation, `gear_left`, `gear_right`,
-  `wheel_left`, `wheel_right`, `tailwheel`, `fx_muzzle`, `fx_smoke`.
+  `wheel_left`, `wheel_right`, `tailwheel`, `feu_gauche`, `feu_droit`, `feu_queue`, `fx_muzzle`, `fx_smoke`.
 - `vitres` et `feux` présents ; moins de 1 500 triangles.

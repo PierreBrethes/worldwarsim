@@ -32,6 +32,7 @@ son origine où elle tourne. Aucun autre nom pour une pièce qui bouge.
 | `hold_hatch_1` … `hold_hatch_N` | **gond sur l'arête bâbord** de chaque panneau de cale | enfants de `hull` ; s'ouvrent de 120° vers bâbord autour d'un axe le long de z | panneau de la taille de l'écoutille |
 | `fond_sombre_1` … `fond_sombre_N` | centre de chaque écoutille | plans noirs mats 0,3 m sous chaque panneau : ce qui descend en cale s'y efface | taille de l'écoutille |
 | `boat_left`, `boat_right` | centre de la quille de chaque canot, sous ses bossoirs | enfants de `hull`, détachables : le jeu les met à l'eau | 7 à 8 m |
+| `feu_babord`, `feu_tribord`, `feu_mat` | centre de chaque globe : aileron de passerelle bâbord (+x, rouge), aileron de passerelle tribord (−x, vert), tête du mât avant (blanc) | enfants de `hull` ; fixes ; matériau `feux`, que le jeu allume la nuit (feux de route) ; **nommés exactement ainsi** | globes de 0,3 m |
 
 ## Repères vides
 
@@ -99,6 +100,6 @@ Longueur × largeur × tirant d'eau (m) ; cales et mâts.
 - 1 unité = 1 m ; longueur de la nation ± 5 % ; flottaison à y = 0 ; seule la coque sous y = 0 ;
   étrave vers +z.
 - Noms présents à l'identique : `hull`, `mat_charge_*`, `hold_hatch_*`, `fond_sombre_*`,
-  `boat_left` (et `boat_right` hors jonque), `fx_charge_*`, `fx_smoke`, `fx_sillage`, les quatre
+  `boat_left` (et `boat_right` hors jonque), `feu_babord`, `feu_tribord`, `feu_mat`, `fx_charge_*`, `fx_smoke`, `fx_sillage`, les quatre
   `fx_amarre_*`, `fx_passerelle`.
 - `vitres` et `feux` présents ; moins de 4 000 triangles.

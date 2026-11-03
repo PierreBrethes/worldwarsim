@@ -21,7 +21,11 @@ const MAN = ['body', 'head', 'arm_left', 'forearm_left', 'arm_right', 'forearm_r
 const MAN_PIVOTS = { head: 'bas', arm_left: 'haut', arm_right: 'haut', forearm_left: 'haut', forearm_right: 'haut', leg_left: 'haut', leg_right: 'haut', shin_left: 'haut', shin_right: 'haut' };
 const TRACKED = ['hull', 'turret', 'gun', 'hatch', 'tracks_left', 'tracks_right', 'wheels_left', 'wheels_right', 'barbotin_left', 'barbotin_right', 'roue_folle_left', 'roue_folle_right', 'galet_left_*|galets_left', 'galet_right_*|galets_right', 'fx_muzzle', 'fx_smoke', 'fx_poussiere'];
 const TRACKED_PIVOTS = { turret: 'axe-y', gun: 'tourillons', barbotin_left: 'centre', barbotin_right: 'centre', roue_folle_left: 'centre', roue_folle_right: 'centre', 'galet_left_*': 'centre', 'galet_right_*': 'centre' };
-const PLANE = ['fuselage', 'gear_left', 'gear_right', 'wheel_left', 'wheel_right', 'tailwheel', 'fx_smoke'];
+// Feux de position (avions) et de route (coques) : des globes maillés, enfants du nœud racine, que la page pose à la boîte du modèle (storyboards #269, #270).
+const PLANE_LIGHTS = ['feu_gauche', 'feu_droit', 'feu_queue'];
+const HULL_LIGHTS = ['feu_babord', 'feu_tribord', 'feu_mat'];
+const lightsUnder = (names, root) => Object.fromEntries(names.map((n) => [n, root]));
+const PLANE = ['fuselage', 'gear_left', 'gear_right', 'wheel_left', 'wheel_right', 'tailwheel', ...PLANE_LIGHTS, 'fx_smoke'];
 const PLANE_PIVOTS = { 'prop*': 'moyeu', gear_left: 'haut', gear_right: 'haut', wheel_left: 'centre', wheel_right: 'centre' };
 
 // measure : [nœud ou null pour tout le modèle, axe 'x' | 'y' | 'z', mètres (ou valeurs par nation), tolérance]
@@ -152,32 +156,32 @@ const EXPECT = {
   },
   fighter: {
     measure: [null, 'x', per([10.18, 11.23, 11.38, 10.0, 9.87, 12.0, 10.58, 9.75]), 0.06], triangles: 2500, materials: ['vitres', 'feux'],
-    names: [...PLANE, 'prop', 'fx_muzzle'], pivots: PLANE_PIVOTS,
+    names: [...PLANE, 'prop', 'fx_muzzle'], pivots: PLANE_PIVOTS, parents: lightsUnder(PLANE_LIGHTS, 'fuselage'),
   },
   bomber: {
     measure: [null, 'x', per([22.52, 26.26, 31.62, 14.6, 13.8, 25.0, 21.2, 20.33]), 0.06], maxSpan: 31.8, triangles: 1500, materials: ['vitres', 'feux'],
-    names: [...PLANE, 'prop*', 'fx_muzzle'], pivots: PLANE_PIVOTS,
+    names: [...PLANE, 'prop*', 'fx_muzzle'], pivots: PLANE_PIVOTS, parents: lightsUnder(PLANE_LIGHTS, 'fuselage'),
   },
   airTransport: {
     measure: [null, 'x', per([29.36, 29.18, 29.11, 28.81, 29.25, 22.6, 29.68, 28.96]), 0.06], maxSpan: 31.8, triangles: 1500, materials: ['vitres', 'feux'],
     names: [...PLANE, 'prop_*', 'cabin_door', 'bay_door', 'fond_sombre', 'fond_sombre_soute', 'fx_porte', 'fx_parachute'],
-    pivots: { ...PLANE_PIVOTS, cabin_door: 'zmax', bay_door: 'zmax' },
+    pivots: { ...PLANE_PIVOTS, cabin_door: 'zmax', bay_door: 'zmax' }, parents: lightsUnder(PLANE_LIGHTS, 'fuselage'),
   },
   escort: {
     measure: [null, 'z', per([132.4, 62.5, 114.8, 112.8, 119.0, 67.5, 106.7, 109.7]), 0.06], below: ['hull'], triangles: 4000, materials: ['vitres', 'feux'],
-    names: ['hull', 'turret_*', 'gun_*', 'boat_left', 'boat_right', 'fx_muzzle', 'fx_smoke', 'fx_sillage', ...AMARRES],
-    pivots: { 'turret_*': 'axe-y', 'gun_*': 'tourillons' },
+    names: ['hull', 'turret_*', 'gun_*', 'boat_left', 'boat_right', ...HULL_LIGHTS, 'fx_muzzle', 'fx_smoke', 'fx_sillage', ...AMARRES],
+    pivots: { 'turret_*': 'axe-y', 'gun_*': 'tourillons' }, parents: lightsUnder(HULL_LIGHTS, 'hull'),
   },
   cargo: {
     measure: [null, 'z', per([130, 128, 134.6, 120, 130, 130, 125, 55]), 0.08], below: ['hull'], triangles: 4000, materials: ['vitres', 'feux'],
-    names: ['hull', 'mat_charge_*', 'hold_hatch_*', 'fond_sombre_*', 'boat_left', 'fx_charge_*', 'fx_smoke', 'fx_sillage', 'fx_passerelle', ...AMARRES],
-    pivots: { 'mat_charge_*': 'bout', 'hold_hatch_*': 'arete' },
+    names: ['hull', 'mat_charge_*', 'hold_hatch_*', 'fond_sombre_*', 'boat_left', ...HULL_LIGHTS, 'fx_charge_*', 'fx_smoke', 'fx_sillage', 'fx_passerelle', ...AMARRES],
+    pivots: { 'mat_charge_*': 'bout', 'hold_hatch_*': 'arete' }, parents: lightsUnder(HULL_LIGHTS, 'hull'),
     byNation: Object.fromEntries(NATIONS.filter((n) => n !== 'china').map((n) => [n, ['boat_right']])),
   },
   carrier: {
     measure: [null, 'z', per([182.6, 229.7, 250, 195, 262.5, 260.7, 231.5, 150]), 0.07], below: ['hull'], triangles: 4000, materials: ['vitres', 'feux'],
-    names: ['hull', 'ascenseur', 'fond_sombre', 'boat_left', 'boat_right', 'fx_smoke', 'fx_sillage', 'fx_pont', ...AMARRES],
-    pivots: { ascenseur: 'haut' },
+    names: ['hull', 'ascenseur', 'fond_sombre', 'boat_left', 'boat_right', ...HULL_LIGHTS, 'fx_smoke', 'fx_sillage', 'fx_pont', ...AMARRES],
+    pivots: { ascenseur: 'haut' }, parents: lightsUnder(HULL_LIGHTS, 'hull'),
   },
 
   piste: {
