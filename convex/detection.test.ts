@@ -2308,28 +2308,37 @@ describe('a column two sentries see apart', () => {
     await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(at) }));
   }
 
-  async function seenTwice(t: ReturnType<typeof boot>) {
+  async function seenTwice(
+    t: ReturnType<typeof boot>,
+    stops: ReadonlyArray<LonLat> = [start(), corner(), end()],
+    sentries: ReadonlyArray<LonLat> = [
+      northOf(eastOf(start(), 300), 30),
+      eastOf(northOf(corner(), 300), 30),
+    ],
+  ) {
     const { seat, guest } = await launchedSeason(t);
-    await sentry(t, guest, northOf(eastOf(start(), 300), 30));
-    await sentry(t, guest, eastOf(northOf(corner(), 300), 30));
+    for (const at of sentries) await sentry(t, guest, at);
     const troopId = await form(t, seat, 'infantry', null);
     const playerId = await playerOf(t, seat);
+    const last = stops[stops.length - 1]!;
+    const km = stops
+      .slice(1)
+      .reduce((sum, point, index) => sum + distanceKm(stops[index]!, point), 0);
     const movementId = await t.run(async (ctx) => {
       const seasonId = (await ctx.db.get(playerId))!.seasonId;
-      const stops = [start(), corner(), end()];
       const movementId = await ctx.db.insert('movements', {
         seasonId,
         playerId,
         type: 'march',
         fromBuildingId: null,
-        target: { kind: 'point', point: asPoint(end()) },
-        from: asPoint(start()),
-        to: asPoint(end()),
-        hostCountry: hostAtPoint(end()),
+        target: { kind: 'point', point: asPoint(last) },
+        from: asPoint(stops[0]!),
+        to: asPoint(last),
+        hostCountry: hostAtPoint(last),
         points: stops.map(asPoint),
-        legs: [{ medium: 'land', distanceUnits: 1200 }],
-        distanceUnits: 1200,
-        costUnits: 1200 * COST_BY_MEDIUM.land,
+        legs: [{ medium: 'land', distanceUnits: km }],
+        distanceUnits: km,
+        costUnits: km * COST_BY_MEDIUM.land,
         landCost: COST_BY_MEDIUM.land,
         troopIds: [troopId],
         departedAt: Date.now(),
@@ -2339,9 +2348,8 @@ describe('a column two sentries see apart', () => {
       return movementId;
     });
     const [row] = await sightingsOf(t, guest);
-    const [first, second] = row!.windows ?? [];
-    expect(first).toBeDefined();
-    expect(second).toBeDefined();
+    expect(row!.windows).toHaveLength(2);
+    const [first, second] = row!.windows!;
     return { seat, guest, movementId, row: row!, first: first!, second: second! };
   }
 
@@ -2356,9 +2364,58 @@ describe('a column two sentries see apart', () => {
     expect(arc).toBeDefined();
     return { arc: arc!, points: arc!.points.map((point): LonLat => [point.lon, point.lat]) };
   };
-  const outsideTheHole = (points: ReadonlyArray<LonLat>) => {
-    for (const point of points) expect(distanceKm(point, corner())).toBeGreaterThan(IN_THE_HOLE_KM);
+  const outsideTheHole = (points: ReadonlyArray<LonLat>, hole = corner(), km = IN_THE_HOLE_KM) => {
+    for (const point of points) expect(distanceKm(point, hole)).toBeGreaterThan(km);
   };
+
+  /** Ce que sert l'arc dans le trou, puis à la réapparition : jamais un point du trou. */
+  async function servedAroundTheHole(
+    t: ReturnType<typeof boot>,
+    guest: Seat,
+    first: { from: number; to: number },
+    second: { from: number; to: number },
+    hole: LonLat,
+    km: number,
+  ) {
+    await at(t, (first.to + second.from) / 2);
+    const inTheHole = await served(t, guest);
+    expect(inTheHole.arc.seenTo).toBe(first.to);
+    outsideTheHole(inTheHole.points, hole, km);
+    await at(t, (second.from + second.to) / 2);
+    const reappeared = await served(t, guest);
+    expect(reappeared.arc.seenFrom).toBe(second.from);
+    outsideTheHole(reappeared.points, hole, km);
+  }
+
+  /** **Une même vigie, deux passages** : la route la coupe, file à trois cents kilomètres, et
+   *  revient sur ses pas. Le demi-tour est au milieu du trou. */
+  it('keeps two windows for one sentry the road leaves and enters again', async () => {
+    const t = boot();
+    const turn = eastOf(start(), 600);
+    const { guest, first, second } = await seenTwice(
+      t,
+      [start(), turn, start()],
+      [northOf(eastOf(start(), 300), 30)],
+    );
+    await servedAroundTheHole(t, guest, first, second, turn, IN_THE_HOLE_KM);
+  });
+
+  /** **Un sol quitté puis repris** : de Kaliningrad à Smolensk, la colonne traverse la Lituanie
+   *  et la Biélorussie, que le sol soviétique ne voit pas. */
+  it('keeps two windows for the soil a road leaves and takes again', async () => {
+    const t = boot();
+    const vilnius: LonLat = [25.28, 54.69];
+    const { guest, row, first, second } = await seenTwice(
+      t,
+      [
+        [20.5, 54.7],
+        [32.0, 54.8],
+      ],
+      [],
+    );
+    expect(row.detector).toBe('territory');
+    await servedAroundTheHole(t, guest, first, second, vilnius, 100);
+  });
 
   it('keeps one row with two windows and the hole between them', async () => {
     const t = boot();
