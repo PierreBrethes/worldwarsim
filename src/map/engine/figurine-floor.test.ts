@@ -43,6 +43,8 @@ async function garrison(): Promise<{ layer: StandingLayer; object: () => Group }
       step: [0, garrisonFoot(BARRACKS, pile) * pieceScale.size],
       facing: 0,
       rank: false,
+      width: Infinity,
+      deep: [0, 0] as const,
     }),
   );
   layer.setNation('france');
@@ -175,32 +177,50 @@ describe('two piles at the foot of one site (#341)', () => {
 });
 
 describe('a garrison ranked on the yard of a socle (ADR 0038 §5)', () => {
-  it('starts at the first man, on the socle top, and stands the next pile along the rank', async () => {
-    const rank = () => ({
-      at: new Vector3(0, 0.5, 0),
-      step: [1, 2] as const,
-      facing: 0,
-      rank: true,
-    });
-    const ranked = new StandingLayer({} as WorldFrame, () => {}, rank);
+  const rankOf = (width: number) => () => ({
+    at: new Vector3(0, 0.5, 0),
+    step: [1, 2] as const,
+    facing: 0,
+    rank: true,
+    width,
+    deep: [0, 1] as const,
+  });
+  const stood = async (width: number, ids: string[]) => {
+    const ranked = new StandingLayer({} as WorldFrame, () => {}, rankOf(width));
     ranked.setNation('france');
-    ranked.display([
-      { id: 'a', at: { beside: 'site' }, pieces: pilePieces([troop(1), troop(2)]) },
-      { id: 'b', at: { beside: 'site' }, pieces: pilePieces([troop(3), troop(4)]) },
-    ]);
+    ranked.display(
+      ids.map((id, k) => ({
+        id,
+        at: { beside: 'site' },
+        pieces: pilePieces([troop(2 * k + 1), troop(2 * k + 2)]),
+      })),
+    );
     await vi.waitFor(() =>
-      expect(ranked.group.children.filter((c) => c instanceof Group).length).toBe(2),
+      expect(ranked.group.children.filter((c) => c instanceof Group).length).toBe(ids.length),
     );
     const eye = new Vector3(1, 6, 3);
     ranked.orient(eye);
     ranked.orient(eye);
-    const [a, b] = ranked.group.children.filter((child) => child instanceof Group);
-    // Facing +z, the rank runs along +x from the first man at (1, 2).
+    return ranked.group.children.filter((child) => child instanceof Group);
+  };
+
+  it('stands piles abreast along the rank, centred on fx_rang, on the socle top', async () => {
+    const [a, b] = await stood(30, ['a', 'b']);
+    // Facing +z the rank runs along +x, about the marker at (1, 2): one pile each side of it.
     expect(a!.position.y).toBe(0.5);
-    expect(a!.position.z).toBeCloseTo(2);
-    expect(a!.position.x).toBeGreaterThan(1);
-    expect(b!.position.z).toBeCloseTo(2);
+    expect(a!.position.z).toBeCloseTo(b!.position.z);
+    expect(a!.position.z).toBeGreaterThan(2);
     expect(b!.position.x).toBeGreaterThan(a!.position.x);
+    expect((a!.position.x + b!.position.x) / 2).toBeCloseTo(1, 6);
+  });
+
+  it('opens the next row, deeper, when the rank is full, instead of leaving its rectangle', async () => {
+    const [a, b, c] = await stood(0.0001, ['a', 'b', 'c']);
+    expect(a!.position.x).toBeCloseTo(1, 6);
+    expect(b!.position.x).toBeCloseTo(1, 6);
+    expect(c!.position.x).toBeCloseTo(1, 6);
+    expect(b!.position.z).toBeGreaterThan(a!.position.z);
+    expect(c!.position.z).toBeGreaterThan(b!.position.z);
   });
 });
 
@@ -221,6 +241,8 @@ describe('a garrison handed back to the ground, attached to a site (#341)', () =
     step: [0, 2] as const,
     facing: 0,
     rank: false,
+    width: Infinity,
+    deep: [0, 0] as const,
   });
 
   it('leaves the garrison the server attached where it stands, whatever the order served', async () => {

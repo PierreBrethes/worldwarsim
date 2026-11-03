@@ -22,7 +22,7 @@ import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene.fixture';
 describe('bakedSite, as one geometry per material', () => {
   it('merges the meshes of one material into one part, their placement baked in', () => {
     const stone = new MeshStandardMaterial();
-    const slate = new MeshStandardMaterial();
+    const slate = new MeshStandardMaterial({ color: 0x334455 });
     const scene = new Group();
     const wall = new Mesh(new BoxGeometry(1, 1, 1), stone);
     wall.position.set(2, 0, 0);
@@ -37,6 +37,16 @@ describe('bakedSite, as one geometry per material', () => {
     walls.computeBoundingBox();
     expect(walls.boundingBox!.min.toArray()).toEqual([-0.5, -0.5, -0.5]);
     expect(walls.boundingBox!.max.toArray()).toEqual([2.5, 3.5, 0.5]);
+  });
+
+  it('merges materials that differ by their name alone, and never the ones read by name', () => {
+    const named = (name: string) => new MeshStandardMaterial({ name });
+    const meshes = ['paper', 'flank', 'lisere', 'fond_sombre'].map(
+      (name) => new Mesh(new BoxGeometry(1, 1, 1), named(name)),
+    );
+    const parts = mergedByMaterial(meshes, new Matrix4());
+    expect(parts.map((part) => part.material.name)).toEqual(['paper', 'lisere', 'fond_sombre']);
+    expect(parts[0]!.geometry.attributes.position!.count).toBe(2 * 24);
   });
 
   it('bakes a rotated parent too', () => {
@@ -94,7 +104,7 @@ describe('bakedSite, as one geometry per material', () => {
 });
 
 describe('bakedSite (ADR 0038)', () => {
-  const SOCLE = 'src/emblems/fixtures/barracks-socle.glb';
+  const SOCLE = 'src/emblems/buildings/barracks.glb';
   const trianglesOf = (parts: ReadonlyArray<Part>) =>
     parts.reduce(
       (sum, { geometry }) => sum + (geometry.index ?? geometry.attributes.position!).count / 3,
@@ -114,14 +124,17 @@ describe('bakedSite (ADR 0038)', () => {
     return box;
   };
 
-  /** Every file the board draws today, none of them on a socle yet. */
+  /** Every file the board draws that stands on no socle: the well's, until its regeneration
+   *  carries `bielle_2` again (#368), and the objectives'. */
   const files = [
     ...new Set([
       ...Object.values(BUILDING_MAQUETTES),
       buildingMaquette('mine', 'coal'),
       ...Object.values(OBJECTIVE_MAQUETTES),
     ]),
-  ].flatMap((url) => (url === null ? [] : [url]));
+  ].flatMap((url) =>
+    url === null || sceneOfFile(url).getObjectByName('socle') !== undefined ? [] : [url],
+  );
 
   /** What the board drew before ADR 0038: every mesh but the flag's, merged per material. */
   const before = (url: string): Part[] => {
@@ -148,36 +161,49 @@ describe('bakedSite (ADR 0038)', () => {
     );
     expect(trianglesOf(building)).toBe(trianglesOf(today));
     expect(boxOf(building).equals(boxOf(today))).toBe(true);
-    // A copy stood in for it draws the same, a `chantier` of its own included (the port's slip).
+    // A copy stood in for it draws the same, its `chantier` group included.
     expect(triangleCount(bakedRig(sceneOfFile(url), () => false))).toBe(trianglesOf(today));
   });
 
   it('bakes the building apart from its socle and liseré', () => {
     const { building, dressing } = bakedSite(sceneOfFile(SOCLE));
     const names = dressing.map((part) => part.material.name);
-    expect(names).toContain('socle');
+    expect(names).toContain('socle_papier');
     expect(names).toContain('lisere');
     expect(building.map((part) => part.material.name)).not.toContain('lisere');
-    expect(building.map((part) => part.material.name)).not.toContain('socle');
+    expect(building.map((part) => part.material.name)).not.toContain('socle_papier');
     // The building stands on the socle's top; the socle on the ground.
     expect(boxOf(building).min.y).toBeCloseTo(2.2, 3);
     expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
-    // Its flagpole went to the sign: the building keeps its walls and roofs alone.
-    expect(trianglesOf(building)).toBe(1855);
+    // Its flagpole went to the sign (`flagOnSign`): the building keeps its walls and roofs alone.
+    expect(trianglesOf(building)).toBe(1851);
   });
 
   it('bakes the yard and the sign apart, the sign with its foot (ADR 0038 §7)', () => {
     const { dressing, yard, sign } = bakedSite(sceneOfFile(SOCLE));
     // The socle and its liseré stand to the pin; the yard shrinks with the building.
-    expect(dressing.map((part) => part.material.name).sort()).toEqual(['lisere', 'socle']);
+    // The flank and the paper are one atlas look, one part; the liseré is inked apart.
+    expect(dressing.map((part) => part.material.name).sort()).toEqual(['lisere', 'socle_papier']);
     expect(boxOf(dressing).max.y).toBeLessThan(2.5);
-    expect(yard.map((part) => part.material.name)).toEqual(['socle']);
+    expect(yard.map((part) => part.material.name)).toEqual(['gravier']);
     expect(boxOf(yard).min.y).toBeGreaterThan(2.2);
     // The sign grows on its foot, the signe node's place on the socle top; its mast and pole in it.
-    expect(sign!.foot.toArray()).toEqual([18, 2.2, 22]);
+    expect(sign!.foot.toArray()).toEqual([-22, 2.2, 17]);
     expect(boxOf(sign!.parts).min.y).toBeCloseTo(2.2, 3);
-    expect(sign!.height).toBeGreaterThan(24);
-    expect(sign!.height).toBeLessThan(30);
+    expect(sign!.height).toBeGreaterThanOrEqual(24);
+    expect(sign!.height).toBeLessThan(32);
+  });
+
+  it('on a socle, carries the flagpole and the flag on the sign, which the file hangs from the root', () => {
+    const scene = sceneOfFile(SOCLE);
+    const sign = scene.getObjectByName('signe')!;
+    const top = new Box3().setFromObject(scene.getObjectByName('hampe')!).max.y;
+    const { building, sign: baked } = bakedSite(scene);
+    expect(scene.getObjectByName('hampe')!.parent).toBe(sign);
+    expect(scene.getObjectByName('drapeau')!.parent).toBe(sign);
+    // The pole stands in the sign's parts: it grows on its foot, and no cut reaches it.
+    expect(boxOf(baked!.parts).max.y).toBeCloseTo(top, 3);
+    expect(boxOf(building).max.y).toBeLessThan(top);
   });
 
   it('draws the first level of a yard, and none of the accessories that come later', () => {
@@ -217,16 +243,16 @@ describe('bakedSite (ADR 0038)', () => {
       'ruines',
     ]);
     expect(accessories.get('niveau_2')!.map((part) => part.material.name)).toEqual(['niveau_2']);
-    // A port's slip named `chantier` is a part of the port, not an accessory.
-    const port = new Group();
+    // Without a socle, a node named `chantier` is a part of the file, not an accessory.
+    const plain = new Group();
     const slip = new Group();
     slip.name = 'chantier';
     slip.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()));
-    port.add(slip);
-    expect(bakedSite(port).accessories.size).toBe(0);
+    plain.add(slip);
+    expect(bakedSite(plain).accessories.size).toBe(0);
   });
 
-  it('gives the fixture a yard per level, a works site and ruins, within 150 triangles each', () => {
+  it('gives the barracks a yard per level, a works site and ruins, within 150 triangles each', () => {
     const { accessories } = bakedSite(sceneOfFile(SOCLE));
     expect([...accessories.keys()].sort()).toEqual([
       'chantier',
@@ -264,7 +290,15 @@ describe('bakedRig', () => {
     );
   const drawn = (scene: Parameters<typeof bakedRig>[0]) => {
     const group = new Group();
-    for (const { geometry, material } of bakedSite(scene).building)
+    // On its socle the copy draws the whole diorama at its first level, as `standIn` leaves it.
+    const site = bakedSite(scene);
+    for (const { geometry, material } of [
+      ...site.building,
+      ...site.dressing,
+      ...site.yard,
+      ...(site.sign?.parts ?? []),
+      ...(site.accessories.get('niveau_1') ?? []),
+    ])
       group.add(new Mesh(geometry, material));
     return group;
   };

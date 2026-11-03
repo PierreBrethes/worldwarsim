@@ -37,7 +37,7 @@ const named = (rig: Object3D, name: string): Object3D => {
 };
 
 /** **Le pied de bielle au repos** : `fx_maneton`, ou faute de repère le bas de sa géométrie,
- *  au milieu de sa section (le GLB d'avant #368). */
+ *  au milieu de sa section (le puits de la génération du 03/11 n'a pas `fx_maneton`). */
 function pinOf(rig: Object3D, rod: Object3D, marker: string): Vector3 {
   const pin = rig.getObjectByName(marker);
   if (pin !== undefined) return world(pin);
@@ -116,7 +116,8 @@ const CRANE: SiteLoop = {
     rig.updateMatrixWorld(true);
     const ring = named(rig, 'grue_couronne');
     const cable = named(rig, 'cable');
-    // Its head: `fx_tete_fleche`, or the top of the cable that hangs from it (before #368).
+    // Its head: `fx_tete_fleche`, or the top of the cable that hangs from it (the generation of
+    // 03/11 lacks the marker).
     const marker = rig.getObjectByName('fx_tete_fleche');
     const head = marker === undefined ? cable.position.clone() : ring.worldToLocal(world(marker));
     const frame = {

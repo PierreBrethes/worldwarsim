@@ -50,6 +50,7 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
 5. **Revue** : un agent `relecteur` après chaque lot. Ses findings repartent au même `dev` (SendMessage), les bloquants d'abord.
 6. **Rendu** : tu regardes toi-même les captures, à côté de leur référence, avant de dire que c'est fait. Tu les envoies à Pierre (SendUserFile) quand le rendu change.
 7. **Fusion** : vérifieur vert sur la pointe (relance seuls les timeouts de `convex/`), PR (skill `pr`). Avant chaque fusion groupée, une passe de `PLAYWRIGHT_DIR=<pw> npm run gestes` sur la pointe de la branche d'intégration, avec ses fonctions déployées et son `npm run dev` (≈ 2 min 30, bureau et téléphone) : un geste en échec bloque la fusion, sa capture va dans une issue. Les lots prêts attendent en PR ; tu proposes à Pierre une fusion groupée (une seule poussée sur `main`) et tu fusionnes à son accord. Un lot qui exige de vider la pré-prod attend aussi qu'il l'ait vidée.
+8. **Tes propres commits** suivent la section Git de `lot` : `git add <fichiers>`, jamais `-a` ni `-A`. Les fichiers de Pierre (`.claude/launch.json`, `WWS/prototypes/`) restent hors de toute PR.
 
 | Le lot | Modèle, effort |
 |---|---|

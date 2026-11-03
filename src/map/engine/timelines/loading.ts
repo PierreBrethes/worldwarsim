@@ -10,6 +10,9 @@ export const LOADING_PX = 30;
  *  the yard, so far aside (the storyboard's (11 ; 39) off a quay at 23.5), and the run it makes
  *  there nose first. `@a-mesurer` */
 const TURN = { out: 15.5, aside: 11, run: 7 } as const;
+/** Half a truck's width, in metres: its turn keeps that far inside the socle's edge, or its
+ *  wheels would run off the site. `@a-mesurer` */
+const HALF_WIDTH = 1.5;
 /** Where it comes straight to the quay from, in metres past its own half. `@a-mesurer` */
 const STRAIGHT = 6;
 /** How far ahead of its place it drives before it turns, in its own lengths. `@a-mesurer` */
@@ -43,7 +46,8 @@ const RESTOCK = { out: 400, along: 450, up: 400, gap: 500, lane: 1.25, arc: 0.8 
  *  110° in 750 ms like the barracks' shed: 800 ms from the dark to the tailgate's foot, 500 ms
  *  apart, then a hop onto the bed. `@a-mesurer` */
 const HQ = { swing: (110 * Math.PI) / 180, door: 750, out: 800, gap: 500, floor: 1.3 } as const;
-/** How deep in the HQ's dark its crates wait, in metres behind `fx_quai`. `@a-mesurer` */
+/** How deep in the HQ's dark its crates wait, in metres behind `fx_quai`, and the gap between
+ *  two: both stay within 3 m of the service door's wall. `@a-mesurer` */
 const HQ_DARK = 6;
 /** The truck settles 4 cm under each crate, over 300 ms. */
 const DIP = { metres: 0.04, ms: 300 } as const;
@@ -65,7 +69,7 @@ const at = ([x, , z]: Point, y: number): Point => [x, y, z];
 
 /** **Where a crate of the HQ waits in its dark**: on the quay's axis, behind its door. */
 export const darkCrate = (stop: Point, front: Point, k: number): Point =>
-  add(stop, front, -(HQ_DARK + k * 1.4));
+  add(stop, front, -(HQ_DARK + k * 1.2));
 
 /** Corners cut a quarter in, three times (Chaikin): a polyline driven as a curve, its ends kept. */
 function rounded(points: ReadonlyArray<Point>): Point[] {
@@ -120,6 +124,29 @@ const pointOn = ({ points, lengths, length }: Leg, s: number): Point => {
   return lerp(points[k - 1]!, points[k]!, leg === 0 ? 1 : (d - lengths[k - 1]!) / leg);
 };
 
+/** **Where the truck turns, where its run into the quay starts, and where it straightens before
+ *  backing in**, shortened to what the socle holds: a quay near the edge leaves less yard (the
+ *  HQ's is 4.8 m off it, too short for a straight run: the truck backs in from the edge). */
+export function turnOf(
+  stop: Point,
+  front: Point,
+  side: Point,
+  socle: { readonly min: Point; readonly max: Point },
+  length: number,
+): { turn: Point; into: Point; straight: Point } {
+  const keep = (p: Point): Point => [
+    Math.min(Math.max(p[0], socle.min[0] + HALF_WIDTH), socle.max[0] - HALF_WIDTH),
+    stop[1],
+    Math.min(Math.max(p[2], socle.min[2] + HALF_WIDTH), socle.max[2] - HALF_WIDTH),
+  ];
+  const turn = keep(add(add(stop, front, TURN.out), side, TURN.aside));
+  return {
+    turn,
+    into: keep(add(turn, side, -TURN.run)),
+    straight: keep(add(stop, front, length / 2 + STRAIGHT)),
+  };
+}
+
 /**
  * **Un camion se charge à son entrepôt** (#271, `storyboard-entrepot`, « Au rang ») : il sort de
  * sa place nez devant, tourne sur la cour, recule l'arrière à `fx_quai` ; le hayon se pose sur le
@@ -136,6 +163,7 @@ export function loadingAt({
   rankFront,
   length,
   box,
+  socle,
   quay: { stop, front },
   perron,
   crates,
@@ -146,6 +174,8 @@ export function loadingAt({
   /** The truck's length, in metres. */
   readonly length: number;
   readonly box: { readonly min: Point; readonly max: Point };
+  /** The socle's bounds: the truck turns on it and never past its edge (ADR 0038). */
+  readonly socle: { readonly min: Point; readonly max: Point };
   /** `fx_quai`, where the truck's back stops, and its +z: toward the yard, on the ground. */
   readonly quay: { readonly stop: Point; readonly front: Point };
   /** The warehouse's pile (`caisse_*`), its dark (`fx_entree`) and door (`fx_sortie`), and the
@@ -173,15 +203,16 @@ export function loadingAt({
   let side: Point = [front[2], 0, -front[0]];
   if ((rank[0] - stop[0]) * side[0] + (rank[2] - stop[2]) * side[2] > 0)
     side = add([0, 0, 0], side, -1);
-  const turn = ground(add(add(stop, front, TURN.out), side, TURN.aside));
-  const into = add(turn, side, -TURN.run);
+  const turned = turnOf(stop, front, side, socle, length);
+  const turn = ground(turned.turn);
+  const into = ground(turned.into);
   const ahead = ground(add(rank, rankFront, AHEAD * length));
   const corners = around([ahead[0], ahead[2]], [into[0], into[2]], box, GABLE + length / 2).map(
     ([x, z]: Flat): Point => [x, y, z],
   );
   const docked = ground(add(stop, front, length / 2));
   const out = rounded([rank, ahead, ...corners, into, turn]);
-  const toQuay = rounded([turn, into, ground(add(stop, front, length / 2 + STRAIGHT)), docked]);
+  const toQuay = rounded([turn, into, ground(turned.straight), docked]);
 
   let clock = LEG.start;
   const legs: Leg[] = [];

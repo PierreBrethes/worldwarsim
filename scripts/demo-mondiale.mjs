@@ -195,7 +195,7 @@ const levels =
   process.argv.includes('--echelle');
 const works = levels || process.argv.includes('--chantiers');
 /** `--caserne-chantier` (#365) : une caserne seule en chantier dans l'Aube, son premier niveau
- *  qui monte — avec `?socle`, le bâtiment coupé sur son socle entier. */
+ *  qui monte — le bâtiment coupé sur son socle entier. */
 const risingBarracks = process.argv.includes('--caserne-chantier');
 /** `--caserne-montee` (#366) : la caserne de niveau 3 du QG, tête de file d'une montée au niveau 4
  *  (le QG est élevé au niveau 5 pour la permettre) : sa cour montre les trois niveaux et le chantier. */

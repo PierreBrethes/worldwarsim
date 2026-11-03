@@ -64,7 +64,8 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
   oilWell: 25,
   arsenal: 80,
   barracks: 50,
-  airfield: 50,
+  // The brief says 110 m (two hangars at scale 1, #269); the file of 03/11 draws 96.2 m.
+  airfield: 96.2,
   port: 210,
   listening: 30,
   researchCenter: 50,
@@ -74,24 +75,46 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
 };
 
 /**
- * **Le plus grand côté au sol de l'emprise réelle de chaque bâtiment, en mètres**, hampe et
- * drapeau exclus : l'anneau espace les sites par elle, car la remise de la caserne la porte à
- * 65 m quand ses `murs` en font 50. `maquettes.test.ts` la mesure sur les GLB.
+ * **Le plus grand côté au sol de l'emprise de chaque site, en mètres** : la boîte de son
+ * `socle` (ADR 0038 §6), car le socle déborde de 6 à 9 m du bâtiment, et de 20 à 25 m côté
+ * façade. Le puits n'a pas encore de socle : il garde la boîte de son bâtiment. `maquettes.test.ts` la mesure sur les GLB.
  */
 export const BUILDING_FOOTPRINT_METRES: Readonly<Record<BuildingKey, number>> = {
-  hq: 61,
-  farm: 41,
-  mine: 50,
+  hq: 78,
+  farm: 66,
+  mine: 75,
   oilWell: 25,
-  arsenal: 80,
-  barracks: 65,
-  airfield: 51,
+  arsenal: 98,
+  barracks: 82,
+  airfield: 113,
   port: 222,
-  listening: 31,
-  researchCenter: 50,
-  warehouse: 61,
-  depot: 61,
-  city: 51,
+  listening: 53,
+  researchCenter: 68,
+  warehouse: 78,
+  depot: 78,
+  city: 68,
+};
+
+/**
+ * **La portée de chaque site depuis son point, en mètres** : la distance de l'origine au coin le
+ * plus loin de la boîte de son `socle`, quel que soit son tour. Le socle n'est pas centré (la cour
+ * déborde de 20 à 25 m côté façade) : c'est elle, et non la moitié du côté, qui espace deux sites
+ * voisins. Elle n'entre pas dans `siteReading`, qui lit `BUILDING_FOOTPRINT_METRES`.
+ */
+export const BUILDING_REACH_METRES: Readonly<Record<BuildingKey, number>> = {
+  hq: 55,
+  farm: 52,
+  mine: 57,
+  oilWell: 25,
+  arsenal: 66,
+  barracks: 57,
+  airfield: 72,
+  port: 146,
+  listening: 42,
+  researchCenter: 53,
+  warehouse: 62,
+  depot: 62,
+  city: 50,
 };
 
 /**
@@ -135,6 +158,10 @@ export const buildingSpan = (key: BuildingKey): number =>
 /** **L'emprise d'un bâtiment sur le plateau**, en unités : ce dont l'anneau le sépare de ses voisins. */
 export const buildingFootprint = (key: BuildingKey): number =>
   onBoard(BUILDING_FOOTPRINT_METRES[key], key === 'port' ? SEA_SHARE : 1);
+
+/** **La portée d'un site depuis son point**, en unités : ce dont l'anneau l'espace d'un voisin. */
+export const buildingReach = (key: BuildingKey): number =>
+  onBoard(BUILDING_REACH_METRES[key], key === 'port' ? SEA_SHARE : 1);
 
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>

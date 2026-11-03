@@ -2,6 +2,7 @@ import {
   type BufferGeometry,
   Group,
   type Material,
+  type MeshStandardMaterial,
   Matrix4,
   Mesh,
   type Object3D,
@@ -47,8 +48,9 @@ export function accessoriesShown(level: number, phase: WorkPhase | undefined): s
 /** The accessories of a later level or state: `bakedSite` bakes them apart, the engine shows them. */
 const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 
-/** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one — a
- *  port has a slip named `chantier` of its own. */
+/** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one —
+ *  a file without a socle (the well's, the objectives') may name a node `chantier` for itself.
+ *  The port's slip is `cale`, and its `chantier` is a yard group like any. */
 const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
 
 /**
@@ -60,6 +62,21 @@ const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !==
 export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
   const later = onSocle(scene) ? LATER : new Set<string>();
   return (node) => flagless(node) && !later.has(node.name);
+}
+
+/**
+ * **The flagpole and the flag ride on the sign** (ADR 0038 §4), whatever the file says: the
+ * generation of 03/11 still hangs them from the root, where they would shrink with the building
+ * and be cut by its works. Moved under `signe` in place, once; a file that has it right is left
+ * as it is.
+ */
+function flagOnSign(scene: Object3D): void {
+  const sign = scene.getObjectByName('signe');
+  if (sign === undefined) return;
+  for (const name of ['hampe', 'drapeau']) {
+    const node = scene.getObjectByName(name);
+    if (node !== undefined && node.parent !== sign) sign.attach(node);
+  }
 }
 
 /** The flag is painted by its owner's colours later (#279): no bake draws it. */
@@ -81,6 +98,7 @@ export function bakedSite(scene: Object3D): {
   sign: { parts: Part[]; foot: Vector3; height: number } | null;
   accessories: Map<string, Part[]>;
 } {
+  flagOnSign(scene);
   scene.updateMatrixWorld(true);
   const kinds = {
     building: [] as Mesh[],
@@ -143,6 +161,7 @@ function walk(
  * carrier, or an arm would swing square to the hips.
  */
 export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): Group {
+  flagOnSign(scene);
   scene.updateMatrixWorld(true);
   const root = new Group();
   root.name = scene.name;
@@ -188,6 +207,38 @@ export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): G
   return root;
 }
 
+/** The materials the engine reads by name: the liseré is inked per instance, the dark of a door
+ *  is lit by the halo. Two of them are never one, whatever they look like. */
+const named = (material: Material): boolean =>
+  material.name === 'lisere' || material.name.startsWith('fond_sombre');
+
+/**
+ * **What makes a material look as it does**, its name left out: two materials of a file that
+ * differ by their name alone (a socle's paper and its flank, painted from the same atlas) bake
+ * into one, and cost one draw call instead of two.
+ */
+function lookOf(material: Material): string {
+  if (named(material)) return material.uuid;
+  const std = material as MeshStandardMaterial;
+  const textures = [std.map, std.normalMap, std.roughnessMap, std.metalnessMap, std.emissiveMap];
+  return JSON.stringify([
+    material.type,
+    std.color?.getHex(),
+    std.emissive?.getHex(),
+    std.emissiveIntensity,
+    std.roughness,
+    std.metalness,
+    material.opacity,
+    material.transparent,
+    material.side,
+    material.alphaTest,
+    material.depthWrite,
+    material.vertexColors,
+    std.flatShading,
+    textures.map((texture) => texture?.uuid),
+  ]);
+}
+
 /** `meshes` merged per material, placed in the frame `fromWorld` brings the world into. */
 export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4): Part[] {
   const groups = new Map<string, { material: Material; geometries: BufferGeometry[] }>();
@@ -201,7 +252,7 @@ export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4
     // face order of a mirrored mesh, and the merged one no longer knows it was.
     if (placement.determinant() < 0) reverseWinding(geometry);
     const key = [
-      mesh.material.uuid,
+      lookOf(mesh.material),
       geometry.index === null,
       ...Object.keys(geometry.attributes).sort(),
     ].join();

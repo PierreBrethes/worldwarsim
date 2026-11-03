@@ -5,7 +5,7 @@ import { isRigPart } from '@/emblems/rigs';
 import { bakedRig } from '../baking';
 import { sceneOfFile } from '../gltf-scene.fixture';
 import type { PartPose } from '../sequences';
-import { darkCrate, loadingAt } from './loading';
+import { darkCrate, loadingAt, turnOf } from './loading';
 
 type Point = readonly [number, number, number];
 
@@ -16,6 +16,7 @@ const warehouse = {
   rankFront: [0, 0, 1] as Point,
   length: 6.5,
   box: { min: [-30, 0, -20] as Point, max: [30, 10, 24.2] as Point },
+  socle: { min: [-38, 0, -30] as Point, max: [38, 2.2, 50] as Point },
   quay: { stop: [0, 0, 23.5] as Point, front: [0, 0, 1] as Point },
   perron: {
     crates: [
@@ -94,6 +95,7 @@ describe('loadingAt (#271)', () => {
     const hq = loadingAt({
       ...warehouse,
       box: { min: [-20, 0, -25], max: [20, 20, 10] },
+      socle: { min: [-38.8, 0, -45], max: [38.8, 2.2, 40] },
       quay: { stop: [24, 0, -19], front: [1, 0, 0] },
       rank: [0, 0, 20],
       toBoard: ([x, y, z]: Point): Point => [x, y, z - 20],
@@ -115,18 +117,54 @@ describe('the files a loading reads (#271)', () => {
     expect(scene.getObjectByName('fx_quai')).toBeDefined();
   });
 
-  it("the HQ's crates wait inside its walls, behind its service door", () => {
+  it("the HQ's crates wait behind its service door, within 3 m of its wall", () => {
     const scene = sceneOfFile(buildingMaquette('hq', null)!);
     scene.updateMatrixWorld(true);
     const quay = scene.getObjectByName('fx_quai')!;
     const stop = quay.getWorldPosition(new Vector3());
     const front = new Vector3(0, 0, 1).applyQuaternion(quay.getWorldQuaternion(new Quaternion()));
-    const walls = new Box3().setFromObject(scene.getObjectByName('corps')!);
     const dark = scene.getObjectByName('fond_sombre_service')!.getWorldPosition(new Vector3());
     for (const k of [0, 1]) {
       const at = new Vector3(...darkCrate(stop.toArray(), front.toArray(), k));
-      expect(walls.containsPoint(at.clone().setY(1)), `${k}`).toBe(true);
-      expect(at.clone().sub(dark).dot(front)).toBeLessThan(-1);
+      const behind = dark.clone().sub(at).dot(front);
+      // Behind the dark, not in the yard: a crate laid outside the wall would fail here.
+      expect(behind, `${k}`).toBeGreaterThan(1);
+      expect(behind, `${k}`).toBeLessThan(3);
     }
   });
+
+  it.each(['warehouse', 'hq', 'arsenal', 'barracks', 'airfield'] as const)(
+    "%s: the truck's turn and straight run stay on the socle, a half-width in",
+    (key) => {
+      const scene = sceneOfFile(buildingMaquette(key, null)!);
+      const quay = scene.getObjectByName('fx_quai');
+      if (quay === undefined) return;
+      scene.updateMatrixWorld(true);
+      const socle = new Box3().setFromObject(scene.getObjectByName('socle')!);
+      const stop = quay.getWorldPosition(new Vector3()).toArray();
+      const front = new Vector3(0, 0, 1)
+        .applyQuaternion(quay.getWorldQuaternion(new Quaternion()))
+        .setY(0)
+        .normalize();
+      const sides: Point[] = [
+        [front.z, 0, -front.x],
+        [-front.z, 0, front.x],
+      ];
+      for (const side of sides) {
+        const { turn, into, straight } = turnOf(
+          stop,
+          front.toArray(),
+          side,
+          { min: socle.min.toArray(), max: socle.max.toArray() },
+          6.5,
+        );
+        for (const [x, , z] of [turn, into, straight]) {
+          expect(x).toBeGreaterThanOrEqual(socle.min.x);
+          expect(x).toBeLessThanOrEqual(socle.max.x);
+          expect(z).toBeGreaterThanOrEqual(socle.min.z);
+          expect(z).toBeLessThanOrEqual(socle.max.z);
+        }
+      }
+    },
+  );
 });

@@ -3167,6 +3167,7 @@ export class MapEngine {
         .toArray(),
       length: long / metre,
       box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
+      socle: { min: site.box.min.toArray(), max: site.box.max.toArray() },
       quay: { stop: stop.toArray(), front: front.setY(0).normalize().toArray() },
       perron:
         cue.siteId.startsWith('building-warehouse') && inside !== null && door !== null

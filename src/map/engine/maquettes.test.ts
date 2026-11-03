@@ -15,7 +15,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
-import { buildingFootprint, buildingSpan, troopSpan } from '@/domain/piece-size';
+import {
+  buildingFootprint,
+  buildingMetres,
+  buildingReach,
+  buildingSpan,
+  troopSpan,
+} from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
   clusterFootprints,
@@ -64,11 +70,11 @@ vi.mock('./works', async (original) => ({
 }));
 
 vi.mock('./figurines/figurine', async (original) => {
-  // A box of a metre for every file but the barracks on its socle and the HQ: the loader wants
+  // A box of a metre for every file but the barracks and the HQ: the loader wants
   // a DOM.
   const sceneOf = async (url: string) => {
     const { sceneOfFile } = await import('./gltf-scene.fixture');
-    if (url === 'socle.glb') return sceneOfFile('src/emblems/fixtures/barracks-socle.glb');
+    if (url === 'socle.glb') return sceneOfFile('src/emblems/buildings/barracks.glb');
     if (url === 'hq.glb')
       return sceneOfFile(
         (await import('@/emblems/buildings/manifest')).buildingMaquette('hq', null)!,
@@ -552,7 +558,7 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     maquettes.group.traverse((node) => {
       if ((node as InstancedMesh).isInstancedMesh) lots.push((node as InstancedMesh).count);
     });
-    expect(lots).toEqual([1, 1, 1]);
+    expect(lots).toEqual([1, 1]);
     expect(maquettes.pieceOf(ID)?.pose).toBe('observing');
     expect(maquettes.pieceOf('building-researchCenter@3,48')?.pose).toBeUndefined();
   });
@@ -797,15 +803,21 @@ describe('a site on its socle (ADR 0038)', () => {
     const frame = layer.siteOf(MINE)!;
     expect(frame.box.min.y).toBeCloseTo(0, 3);
     expect(frame.building.min.y).toBeCloseTo(SOCLE_TOP, 3);
-    const first = new Vector3(-25, SOCLE_TOP, 17.4).applyMatrix4(drawn.matrix);
+    const first = new Vector3(12, SOCLE_TOP, 12.5).applyMatrix4(drawn.matrix);
     expect(rank.at.x + rank.step[0]).toBeCloseTo(first.x, 6);
     expect(rank.at.z + rank.step[1]).toBeCloseTo(first.z, 6);
     expect(rank.at.y).toBeCloseTo(first.y, 6);
     expect(rank.at.y).toBeGreaterThan(0);
-    // The rank runs along the marker's +z, the model's +x, turned as the maquette is.
-    const along = new Vector3(1, 0, 0).applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
+    // The rank runs along the marker's +x and deepens along its +z, turned as the maquette is,
+    // over the 30 m of its rectangle.
+    const turn = (v: Vector3) => v.applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
+    const along = turn(new Vector3(1, 0, 0));
     expect(Math.cos(rank.facing)).toBeCloseTo(along.x, 6);
     expect(-Math.sin(rank.facing)).toBeCloseTo(along.z, 6);
+    const deep = turn(new Vector3(0, 0, 1));
+    expect(rank.deep[0]).toBeCloseTo(deep.x, 6);
+    expect(rank.deep[1]).toBeCloseTo(deep.z, 6);
+    expect(rank.width).toBeCloseTo((30 * drawn.matrix.getMaxScaleOnAxis()) / 1, 6);
   });
 
   it('keeps the foot and its facing without a socle, and for the hulls of a quay', async () => {
@@ -831,14 +843,16 @@ describe('a site on its socle (ADR 0038)', () => {
     const all = meshes(layer);
     const cut = (mesh: InstancedMesh) =>
       ((mesh.material as MeshStandardMaterial).clippingPlanes ?? []).length > 0;
-    for (const name of ['socle', 'lisere'])
+    for (const name of ['socle_papier', 'lisere'])
       expect(
         all.filter((mesh) => nameOf(mesh) === name && !cut(mesh) && mesh.name === ''),
       ).toHaveLength(1);
-    expect(all.filter((mesh) => nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise')).toEqual(
-      all.filter((mesh) => (nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise') && cut(mesh)),
+    // The building is its stone and its dark, the file's materials of one atlas merged by look.
+    const walls = all.filter(
+      (mesh) => mesh.name === '' && ['pierre', 'fond_sombre'].includes(nameOf(mesh)),
     );
-    expect(all.some((mesh) => nameOf(mesh) === 'ardoise' && cut(mesh))).toBe(true);
+    expect(walls.length).toBeGreaterThan(0);
+    expect(walls.every(cut)).toBe(true);
   });
 
   it('is picked by its socle while its building rises, the cut above the ground', async () => {
@@ -871,6 +885,8 @@ describe('a site on its socle (ADR 0038)', () => {
       meshes(layer)
         .map((mesh) => mesh.name)
         .filter((name) => name.startsWith('niveau_') || name === 'chantier' || name === 'ruines')
+        // A group is one mesh per material of the file.
+        .filter((name, k, all) => all.indexOf(name) === k)
         .sort();
     const stood = async (more: Parameters<typeof site>[1]) =>
       groupsOf(await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', ...more })]));
@@ -901,9 +917,11 @@ describe('a site on its socle (ADR 0038)', () => {
         site(MINE, { level: 1 }),
         site('building-barracks@5,0', { level: 3 }),
       ]);
+      // One material of each group, to count its copies once.
+      const MARK: Record<string, string> = { niveau_1: 'borne', niveau_3: 'terre' };
       const count = (name: string) =>
         meshes(layer)
-          .filter((mesh) => mesh.name === name)
+          .filter((mesh) => mesh.name === name && nameOf(mesh) === MARK[name])
           .reduce((sum, mesh) => sum + mesh.count, 0);
       expect(count('niveau_1')).toBe(2);
       expect(count('niveau_3')).toBe(1);
@@ -944,7 +962,8 @@ describe('a site on its socle (ADR 0038)', () => {
       const layer = await layerOf([site(MINE, { level: 3, side: 'mine', ink: '#2a5ba8' })]);
       const copy = new Group();
       layer.standIn(MINE, copy);
-      // The rig bakes niveau_1 into its base: the two groups that come later stand with it.
+      // The rig bakes niveau_1 into its base: the two groups that come later stand with it,
+      // a mesh per material (one each: the atlas materials merged by look).
       expect(copy.children).toHaveLength(2);
       const low = await layerOf([site(MINE, { level: 1, side: 'mine', ink: '#2a5ba8' })]);
       const bare = new Group();
@@ -968,16 +987,20 @@ describe('a site on its socle (ADR 0038)', () => {
       stamp: null,
     };
     const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', works })]);
-    const names = meshes(layer).map(nameOf);
-    expect(names).toContain('socle');
-    expect(names).not.toContain('ardoise');
+    const names = meshes(layer)
+      .filter((mesh) => mesh.name === '')
+      .map(nameOf);
+    expect(names).toContain('socle_papier');
+    expect(names).not.toContain('pierre');
   });
 
   it('spaces two socles 4 m apart at least, turned any way, wherever their points fall', () => {
-    // A square socle 80 m wide turned at worst reaches half its diagonal (ADR 0038 §6).
-    const metre = buildingFootprint('barracks') / 65;
-    const reach = (Math.SQRT2 * 80 * metre) / 2;
-    const spacing = ringSpacing(80 * metre, metre);
+    // A socle turned at worst reaches its farthest corner from the point (ADR 0038 §6): the
+    // warehouse's yard runs 25 m past its façade, so half its side would be 5 m short.
+    const metre = buildingSpan('warehouse') / buildingMetres('warehouse');
+    const reach = buildingReach('warehouse');
+    expect(reach).toBeGreaterThan((buildingFootprint('warehouse') * Math.SQRT2) / 2);
+    const spacing = ringSpacing(buildingFootprint('warehouse'), { reach, metre });
     for (const points of [
       [
         [0, 0],
@@ -1029,7 +1052,7 @@ describe('a site on its socle (ADR 0038)', () => {
         });
     const scaleOf = (placed: Matrix4) => new Vector3().setFromMatrixScale(placed).x;
     const isSocle = (mesh: InstancedMesh) =>
-      mesh.name === '' && ['socle', 'lisere'].includes(nameOf(mesh));
+      mesh.name === '' && ['socle_papier', 'socle_flanc', 'lisere'].includes(nameOf(mesh));
     const isBuilding = (mesh: InstancedMesh) => mesh.name === '' && !isSocle(mesh);
     const isYard = (mesh: InstancedMesh) => mesh.name === 'cour' || mesh.name.startsWith('niveau_');
     const isSign = (mesh: InstancedMesh) => mesh.name === 'signe';
@@ -1070,10 +1093,10 @@ describe('a site on its socle (ADR 0038)', () => {
       const sign = drawnAs(layer, isSign)[0]!;
       expect(scaleOf(socle)).toBeGreaterThan(0);
       expect(scaleOf(socle)).toBeLessThan(FULL);
-      // 12 px over its ~8.6 px at d = 72.
-      expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.3);
-      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.5);
-      const foot = new Vector3(18, SOCLE_TOP, 22);
+      // 12 px over its ~9.8 px at d = 72 (a 24 m mast and its pole, 30 m with the flag's).
+      expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.15);
+      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.4);
+      const foot = new Vector3(-22, SOCLE_TOP, 17);
       expect(
         foot.clone().applyMatrix4(sign).distanceTo(foot.clone().applyMatrix4(socle)),
       ).toBeLessThan(1e-6);
@@ -1099,21 +1122,21 @@ describe('a site on its socle (ADR 0038)', () => {
       const layer = seenFrom(await layerOf([socled()]), 20);
       const named = (drawn: ReturnType<MaquetteLayer['drawnOf']>) =>
         drawn!.parts.map((part) => part.material.name);
-      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(named(layer.drawnOf(MINE))).toContain('fond_sombre');
       expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
       seenFrom(layer, 45);
       // Read over a rebuild, before any frame: the weights it was drawn at.
       layer.display([socled({ smoking: true })]);
       await new Promise((resolve) => setTimeout(resolve, 0));
       const far = layer.drawnOf(MINE)!;
-      expect(named(far)).not.toContain('ardoise');
+      expect(named(far)).not.toContain('fond_sombre');
       expect(named(far)).toContain('lisere');
       expect(far.ruins).toBeUndefined();
       // Back up close and rebuilt before any frame: whole again, ruins and all.
       seenFrom(layer, 20);
       layer.display([socled()]);
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(named(layer.drawnOf(MINE))).toContain('fond_sombre');
       expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
     });
 
@@ -1121,13 +1144,13 @@ describe('a site on its socle (ADR 0038)', () => {
       const layer = seenFrom(await layerOf([socled()]), 72);
       const within = (part: { within?: Matrix4 }) =>
         part.within === undefined ? 1 : new Vector3().setFromMatrixScale(part.within).x;
-      // 12 px over its ~8.6 px at d = 72, as the instance draws it.
+      // 12 px over its ~9.8 px at d = 72, as the instance draws it.
       const grown = layer.drawnOf(MINE)!.parts.filter((part) => within(part) > 1);
       expect(grown.length).toBeGreaterThan(0);
-      for (const part of grown) expect(within(part)).toBeGreaterThan(1.3);
+      for (const part of grown) expect(within(part)).toBeGreaterThan(1.15);
       seenFrom(layer, 31);
       const drawn = layer.drawnOf(MINE)!;
-      const walls = drawn.parts.filter((part) => part.material.name === 'ardoise');
+      const walls = drawn.parts.filter((part) => part.material.name === 'fond_sombre');
       expect(walls).toHaveLength(1);
       expect(within(walls[0]!)).toBeGreaterThan(0);
       expect(within(walls[0]!)).toBeLessThan(1);
@@ -1177,11 +1200,11 @@ describe('a copy for a sequence or a loop (#273)', () => {
     const rig = await articulatedOf('hq.glb', 'hq');
     rig.updateMatrixWorld(true);
     const file = sceneOfFile(buildingMaquette('hq', null)!);
-    const walls = new Box3().setFromObject(file.getObjectByName('corps')!);
+    const walls = new Box3().setFromObject(file.getObjectByName('batiment')!);
     for (const name of ['caisse_1', 'caisse_2']) {
       const crate = rig.getObjectByName(name);
       expect(crate, name).toBeDefined();
-      expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(1)), name).toBe(true);
+      expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(3)), name).toBe(true);
     }
   });
 });
