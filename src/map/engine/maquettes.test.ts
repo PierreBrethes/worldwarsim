@@ -1083,9 +1083,9 @@ describe('a site on its socle (ADR 0038)', () => {
       const sign = drawnAs(layer, isSign)[0]!;
       expect(scaleOf(socle)).toBeGreaterThan(0);
       expect(scaleOf(socle)).toBeLessThan(FULL);
-      // 12 px over its ~7.8 px at d = 72 (a 24 m sign).
-      expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.3);
-      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.6);
+      // 12 px over its ~9.8 px at d = 72 (a 24 m mast and its pole, 30 m with the flag's).
+      expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.15);
+      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.4);
       const foot = new Vector3(-22, SOCLE_TOP, 17);
       expect(
         foot.clone().applyMatrix4(sign).distanceTo(foot.clone().applyMatrix4(socle)),
@@ -1134,10 +1134,10 @@ describe('a site on its socle (ADR 0038)', () => {
       const layer = seenFrom(await layerOf([socled()]), 72);
       const within = (part: { within?: Matrix4 }) =>
         part.within === undefined ? 1 : new Vector3().setFromMatrixScale(part.within).x;
-      // 12 px over its ~8.6 px at d = 72, as the instance draws it.
+      // 12 px over its ~9.8 px at d = 72, as the instance draws it.
       const grown = layer.drawnOf(MINE)!.parts.filter((part) => within(part) > 1);
       expect(grown.length).toBeGreaterThan(0);
-      for (const part of grown) expect(within(part)).toBeGreaterThan(1.3);
+      for (const part of grown) expect(within(part)).toBeGreaterThan(1.15);
       seenFrom(layer, 31);
       const drawn = layer.drawnOf(MINE)!;
       const walls = drawn.parts.filter((part) => part.material.name === 'ardoise');

@@ -62,6 +62,21 @@ export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
   return (node) => flagless(node) && !later.has(node.name);
 }
 
+/**
+ * **The flagpole and the flag ride on the sign** (ADR 0038 §4), whatever the file says: the
+ * generation of 03/11 still hangs them from the root, where they would shrink with the building
+ * and be cut by its works. Moved under `signe` in place, once; a file that has it right is left
+ * as it is.
+ */
+function flagOnSign(scene: Object3D): void {
+  const sign = scene.getObjectByName('signe');
+  if (sign === undefined) return;
+  for (const name of ['hampe', 'drapeau']) {
+    const node = scene.getObjectByName(name);
+    if (node !== undefined && node.parent !== sign) sign.attach(node);
+  }
+}
+
 /** The flag is painted by its owner's colours later (#279): no bake draws it. */
 const flagless = (node: Object3D): boolean => node.name !== 'drapeau';
 
@@ -81,6 +96,7 @@ export function bakedSite(scene: Object3D): {
   sign: { parts: Part[]; foot: Vector3; height: number } | null;
   accessories: Map<string, Part[]>;
 } {
+  flagOnSign(scene);
   scene.updateMatrixWorld(true);
   const kinds = {
     building: [] as Mesh[],
@@ -143,6 +159,7 @@ function walk(
  * carrier, or an arm would swing square to the hips.
  */
 export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): Group {
+  flagOnSign(scene);
   scene.updateMatrixWorld(true);
   const root = new Group();
   root.name = scene.name;

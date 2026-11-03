@@ -165,8 +165,8 @@ describe('bakedSite (ADR 0038)', () => {
     // The building stands on the socle's top; the socle on the ground.
     expect(boxOf(building).min.y).toBeCloseTo(2.2, 3);
     expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
-    // Its flagpole went to the sign: the building keeps its walls and roofs alone.
-    expect(trianglesOf(building)).toBe(1867);
+    // Its flagpole went to the sign (`flagOnSign`): the building keeps its walls and roofs alone.
+    expect(trianglesOf(building)).toBe(1851);
   });
 
   it('bakes the yard and the sign apart, the sign with its foot (ADR 0038 §7)', () => {
@@ -184,7 +184,19 @@ describe('bakedSite (ADR 0038)', () => {
     expect(sign!.foot.toArray()).toEqual([-22, 2.2, 17]);
     expect(boxOf(sign!.parts).min.y).toBeCloseTo(2.2, 3);
     expect(sign!.height).toBeGreaterThanOrEqual(24);
-    expect(sign!.height).toBeLessThan(30);
+    expect(sign!.height).toBeLessThan(32);
+  });
+
+  it('on a socle, carries the flagpole and the flag on the sign, which the file hangs from the root', () => {
+    const scene = sceneOfFile(SOCLE);
+    const sign = scene.getObjectByName('signe')!;
+    const top = new Box3().setFromObject(scene.getObjectByName('hampe')!).max.y;
+    const { building, sign: baked } = bakedSite(scene);
+    expect(scene.getObjectByName('hampe')!.parent).toBe(sign);
+    expect(scene.getObjectByName('drapeau')!.parent).toBe(sign);
+    // The pole stands in the sign's parts: it grows on its foot, and no cut reaches it.
+    expect(boxOf(baked!.parts).max.y).toBeCloseTo(top, 3);
+    expect(boxOf(building).max.y).toBeLessThan(top);
   });
 
   it('draws the first level of a yard, and none of the accessories that come later', () => {
