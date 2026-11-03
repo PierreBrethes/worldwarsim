@@ -116,7 +116,8 @@ export function domeAt(t: number) {
 export const CRANE_S = 44;
 /** Elle pivote de 110° vers le terre-plein. */
 const PICK = -110 * DEG;
-/** Over its rest: raised 18° over the yard, lowered 8° over the hull (20° → 38°, 12°). */
+/** Over its rest: raised 18° over the yard, lowered 8° over the hull — 20° → 38°, 12° on the
+ *  regenerated file (rest at 20°, #368); today's rests at 30°, so 48° and 22°. */
 const LIFT = { yard: 18 * DEG, hull: -8 * DEG } as const;
 /** **Where the hook stops**, metres over the crane's foot: 3 m over the yard, 7,4 m over the
  *  deck of a hull on the slip (`storyboard-repos`). `@a-mesurer` */
