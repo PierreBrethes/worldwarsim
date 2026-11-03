@@ -76,7 +76,10 @@ export function inkBursts(
     const engaged: InkBurst = {
       kind: 'combat',
       at,
-      ...(firedFrom === undefined ? {} : { from: [firedFrom.lon, firedFrom.lat] as const }),
+      // Where the map plays its combats, the scene's arc of ink draws the shot (#325).
+      ...(firedFrom === undefined || mapPlays
+        ? {}
+        : { from: [firedFrom.lon, firedFrom.lat] as const }),
       words: stamped(cause === 'bombardment' ? fr.stamps.shelled : fr.stamps.engaged, dispatch.at),
     };
     /** Un bombardement ne tient aucun terrain : personne n'y est allé. */

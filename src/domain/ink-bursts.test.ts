@@ -66,6 +66,17 @@ describe('inkBursts', () => {
     ]);
   });
 
+  it('leaves the shot to the arc of ink where the map plays its combats (#325)', () => {
+    const fired = {
+      ...combat,
+      cause: 'bombardment',
+      firedFrom: { lon: 1, lat: 48 },
+    } as CombatReport;
+    expect(inkBursts([dispatch(20, 'assault', fired)], 10, [], true)).toEqual([
+      { kind: 'combat', at: [2, 49], words: { word: 'bombardé', hour: hour(20) } },
+    ]);
+  });
+
   it('stamps « terrain tenu » after « engagé » when the ground was held', () => {
     const won = { ...combat, won: true };
     expect(inkBursts([dispatch(20, 'assault', won)], 10, [])).toEqual([
