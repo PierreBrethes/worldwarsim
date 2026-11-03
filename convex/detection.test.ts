@@ -2306,6 +2306,7 @@ describe('a column two sentries see apart', () => {
   async function sentry(t: ReturnType<typeof boot>, seat: Seat, at: LonLat) {
     const troopId = await form(t, seat, 'infantry', null);
     await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(at) }));
+    return troopId;
   }
 
   async function seenTwice(
@@ -2317,7 +2318,8 @@ describe('a column two sentries see apart', () => {
     ],
   ) {
     const { seat, guest } = await launchedSeason(t);
-    for (const at of sentries) await sentry(t, guest, at);
+    const posted: Array<Id<'troops'>> = [];
+    for (const at of sentries) posted.push(await sentry(t, guest, at));
     const troopId = await form(t, seat, 'infantry', null);
     const playerId = await playerOf(t, seat);
     const last = stops[stops.length - 1]!;
@@ -2350,7 +2352,7 @@ describe('a column two sentries see apart', () => {
     const [row] = await sightingsOf(t, guest);
     expect(row!.windows).toHaveLength(2);
     const [first, second] = row!.windows!;
-    return { seat, guest, movementId, row: row!, first: first!, second: second! };
+    return { seat, guest, movementId, posted, row: row!, first: first!, second: second! };
   }
 
   /** L'heure avance, et les rendez-vous échus tombent : rien d'autre ne réévalue. */
@@ -2495,6 +2497,46 @@ describe('a column two sentries see apart', () => {
     const [woken] = await sightingsOf(t, guest);
     expect(woken!.windows).toEqual([second]);
     expect(woken!.openJobAt).toBeUndefined();
+  });
+
+  const jobState = (t: ReturnType<typeof boot>, jobId: Id<'_scheduled_functions'>) =>
+    t.run(async (ctx) => (await ctx.db.system.get(jobId))!.state.kind);
+
+  /** **La seconde vigie recule** : la réapparition est plus tard, le réveil la suit. */
+  it('moves the wake-up when a reassessment moves the reappearance', async () => {
+    const t = boot();
+    const { guest, movementId, posted, row, second } = await seenTwice(t);
+    await at(t, row.from);
+    const [opened] = await sightingsOf(t, guest);
+    expect(opened!.openJobAt).toBe(second.from);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(posted[1]!, {
+        stationedAt: asPoint(eastOf(northOf(corner(), 450), 30)),
+      });
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+    });
+
+    const [moved] = await sightingsOf(t, guest);
+    const later = moved!.windows![1]!;
+    expect(later.from).toBeGreaterThan(second.from);
+    expect(moved!.openJobAt).toBe(later.from);
+    expect(await jobState(t, opened!.openJobId!)).toBe('canceled');
+  });
+
+  /** **Les deux vigies parties avant la première ouverture** : la ligne part, son réveil aussi. */
+  it('cancels the wake-up of a row that goes before it ever opened', async () => {
+    const t = boot();
+    const { guest, movementId, posted, row } = await seenTwice(t);
+    expect(row.openJobId).toBeDefined();
+
+    await t.run(async (ctx) => {
+      for (const troopId of posted) await ctx.db.delete(troopId);
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+    });
+
+    expect(await sightingsOf(t, guest)).toEqual([]);
+    expect(await jobState(t, row.openJobId!)).toBe('canceled');
   });
 
   it('freezes the last window opened when the column vanishes in the hole', async () => {
