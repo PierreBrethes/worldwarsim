@@ -83,6 +83,7 @@ import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
 import { deployAt, deployMs } from './timelines/deploy';
+import { crownWayOf } from './timelines/disband';
 import { tailgateDrop } from './timelines/truck';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
@@ -558,7 +559,12 @@ export class MapEngine {
   /** What each truck at a quay plays, from when: a second load joins it (`loadOf`). */
   private readonly docked = new Map<string, Docked>();
   /** Piles owed their ring of ink once their file has held, at reduced motion (#362). */
-  private inkDue: Array<{ readonly pileId: string; readonly at: number }> = [];
+  private inkDue: Array<{ readonly at: number; readonly run: () => void }> = [];
+  /** **Squads disbanded**, waiting for their crown to stand (#277, U). */
+  private dispersions: Array<{
+    readonly cue: Extract<Cue, { kind: 'dispersion' }>;
+    readonly since: number;
+  }> = [];
   /** What each barracks' doors play, from when: a later sortie joins it (`passDoors`). */
   private readonly doors = new Map<string, { since: number; passing: DoorsPassing }>();
   /** The recruits on their way, whose pin follows the path when they are pinned (#268). */
@@ -2826,7 +2832,15 @@ export class MapEngine {
         this.deployments.push({ cue, since: performance.now() });
         break;
       case 'descente':
-        this.sequences.play(this.standing, cue.groupId, tailgateDrop(), performance.now());
+        this.sequences.play(this.standing, cue.truck, tailgateDrop(), performance.now());
+        break;
+      case 'montee':
+        break;
+      case 'dispersion':
+        if (this.sequences.motion === 'off') break;
+        // What stays glides to the point once the crown is laid out (`disperseOf`).
+        this.standing.expect(cue.pileId);
+        this.dispersions.push({ cue, since: performance.now() });
         break;
       case 'chargement':
         this.loadings.push({ cue, since: performance.now() });
@@ -3039,7 +3053,11 @@ export class MapEngine {
     const point = places[0]!.at;
     const motion = this.sequences.motion;
     if (motion === 'off' || this.veiled(point) || !this.seenWhole(point)) return true;
-    if (motion === 'reduced') this.inkDue.push({ pileId: cue.pileId, at: since + FILE_HOLD_MS });
+    if (motion === 'reduced')
+      this.inkDue.push({
+        at: since + FILE_HOLD_MS,
+        run: () => this.standing.inkArrival(cue.pileId),
+      });
     const file = ids.flatMap((id, n) => {
       const group = pieces.groups[cue.groups[n]!];
       const left = group === undefined ? null : this.arcs.fileLeftBy(group.troopIds[0]!);
@@ -3105,6 +3123,88 @@ export class MapEngine {
         opens: true,
         formed: !this.headsThere(cue.pileId),
       });
+    return true;
+  }
+
+  /**
+   * **A squad disbands under the eyes** (#277, U, storyboard « une pile vivante »): the head
+   * glides to the point, each piece set apart walks from its place in the rank to its place in the
+   * crown, 0.16 s apart in the rank's order, and turns away from the point (`crownWayOf`); each
+   * lays a ring of ink as it stands, a vehicle kicks up dust as it sets off. At reduced motion, or
+   * for a crown past the room left, or a pile drawn whole, the crown stands at once with its rings;
+   * under a combat, out of the field, nothing. Laid out once the crown stands; `false` until.
+   */
+  private disperseOf({ cue, since }: (typeof this.dispersions)[number], now: number): boolean {
+    const head = this.standing.placeOf(`${cue.pileId}/0`);
+    const places = cue.moves.map(({ groupId }) => this.standing.placeOf(groupId));
+    if (head === null || places.some((place) => place === null)) return false;
+    const pileOf = (groupId: string) => groupId.slice(0, groupId.lastIndexOf('/'));
+    const rings = () => {
+      for (const { groupId } of cue.moves) this.standing.inkArrival(pileOf(groupId), true);
+    };
+    const motion = this.sequences.motion;
+    if (motion !== 'full' || this.veiled(head.at) || !this.seenWhole(head.at)) {
+      if (motion === 'reduced' || cue.whole) rings();
+      this.standing.arrive(cue.pileId, []);
+      return true;
+    }
+    const size = new Vector3();
+    const walks = cue.moves.flatMap(({ groupId, troopId, rank }, n) => {
+      const seen = this.standing.lastSeen(troopId);
+      const box = this.standing.pieceOf(groupId)?.box;
+      const k = Number(groupId.slice(groupId.lastIndexOf('/') + 1));
+      const role = this.standing.piecesOf(pileOf(groupId))?.groups[k]?.role;
+      return seen === null || !box || role === undefined
+        ? []
+        : [{ groupId, rank, seen, box, place: places[n]!, infantry: role === 'infantry' }];
+    });
+    if (
+      cue.whole ||
+      walks.length < cue.moves.length ||
+      walks.length > this.sequences.roomFor('deployment')
+    ) {
+      rings();
+      this.standing.arrive(cue.pileId, []);
+      return true;
+    }
+    const span = Math.max(...walks.map(({ box }) => Math.max(box.getSize(size).x, size.z)));
+    this.standing.arrive(cue.pileId, [0]);
+    for (const { groupId, rank, seen, place, infantry } of walks) {
+      const way = crownWayOf({
+        center: [head.at.x, head.at.z],
+        from: [seen.at.x, seen.at.z],
+        front: [Math.sin(seen.heading), Math.cos(seen.heading)],
+        to: [place.at.x, place.at.z],
+        span,
+        rank,
+        infantry,
+      });
+      const ms = way.start + way.ms;
+      const sequence: Sequence<never> = {
+        ms,
+        minPx: WALK_MIN_PX,
+        pool: 'deployment',
+        at: (t) => {
+          if (t < 0 || t >= ms) return {};
+          const { at, heading, moving } = way.at(t);
+          const stride = moving ? { stride: (t - way.start) / 1000 } : {};
+          return {
+            root: { travel: [at[0] - place.at.x, 0, at[1] - place.at.z], heading },
+            man_0: stride,
+            man_1: stride,
+            man_2: stride,
+          };
+        },
+      };
+      if (!this.sequences.play(this.standing, groupId, sequence, since, now)) continue;
+      const pileId = pileOf(groupId);
+      if (!infantry)
+        this.inkDue.push({
+          at: since + way.start + 100,
+          run: () => this.standing.dustAt(pileId, seen.at),
+        });
+      this.inkDue.push({ at: since + ms, run: () => this.standing.inkArrival(pileId, true) });
+    }
     return true;
   }
 
@@ -4059,9 +4159,12 @@ export class MapEngine {
     );
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
     this.undock(now);
-    this.inkDue = this.inkDue.filter(({ pileId, at }) => {
+    this.dispersions = this.dispersions.filter(
+      (dispersion) => !this.disperseOf(dispersion, now) && now - dispersion.since < SORTIE_WAIT_MS,
+    );
+    this.inkDue = this.inkDue.filter(({ at, run }) => {
       if (now < at) return true;
-      this.standing.inkArrival(pileId);
+      run();
       this.invalidate();
       return false;
     });

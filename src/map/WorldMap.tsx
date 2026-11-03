@@ -55,6 +55,7 @@ import {
   aboardOf,
   chargementsOf,
   descentesOf,
+  dispersionsOf,
   entreesOf,
   loadsOf,
   rankKept,
@@ -1799,9 +1800,23 @@ export function WorldMap({
     const known = aboardKnown.current;
     aboardKnown.current = aboardOf(troops);
     if (known === null) return;
-    for (const groupId of descentesOf(known, troops, standing))
-      readyEngine?.cue({ kind: 'descente', groupId });
+    for (const descente of descentesOf(known, troops, standing))
+      readyEngine?.cue({ kind: 'descente', ...descente });
   }, [troops, standing, readyEngine]);
+
+  // A squad disbanded at its point: its pieces walk out to their crown (#277, U). The two views
+  // say it; my columns on either one are a march, not a crown.
+  const crownKnown = useRef<{
+    standing: ReadonlyArray<StandingPile>;
+    arcs: ReadonlyArray<ArcView>;
+  } | null>(null);
+  useEffect(() => {
+    const before = crownKnown.current;
+    crownKnown.current = { standing, arcs };
+    if (before === null) return;
+    for (const dispersion of dispersionsOf(before.standing, standing, [before.arcs, arcs]))
+      readyEngine?.cue({ kind: 'dispersion', ...dispersion });
+  }, [standing, arcs, readyEngine]);
 
   // A truck loads at its warehouse or its HQ: it backs to the quay (#271). Nothing on the first view.
   const loadsKnown = useRef<ReadonlyMap<string, number> | null>(null);

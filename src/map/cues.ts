@@ -48,30 +48,138 @@ export function aboardOf(troops: ReadonlyArray<Seated>): ReadonlyMap<string, str
   return new Map(troops.flatMap((troop) => (troop.carriedBy ? [[troop.id, troop.carriedBy]] : [])));
 }
 
+/** **Un camion et ses passagers** (#277) : l'id (`${pile}/${groupe}`, celui que `StandingLayer`
+ *  prête aux séquences) du groupe du camion, et ce qui en descend ou y monte. */
+export type Descente = {
+  readonly truck: string;
+  /** Les groupes d'infanterie de sa pile qui viennent d'en descendre, par leur id. */
+  readonly men: ReadonlyArray<string>;
+};
+
 /**
- * **Les camions dont une troupe vient de descendre** : l'id (`${pile}/${groupe}`, celui que
- * `StandingLayer` prête aux séquences) du groupe de chaque camion dont un passager d'avant, encore
- * là, n'est plus à bord. Un embarquement, un passager qui reste ou qui a disparu ne donnent rien.
+ * **Les camions dont une troupe vient de descendre** : chaque camion dont un passager d'avant,
+ * encore là, n'est plus à bord, et les groupes neufs de sa pile que ces passagers forment
+ * (#277) — un passager fondu dans un groupe connu (une escouade dessinée par rôle) n'en donne pas.
+ * Un embarquement, un passager qui reste ou qui a disparu ne donnent rien.
  */
 export function descentesOf(
   aboard: ReadonlyMap<string, string>,
   troops: ReadonlyArray<Seated>,
   piles: ReadonlyArray<StandingPile>,
-): ReadonlyArray<string> {
-  const freed = new Set(
+): ReadonlyArray<Descente> {
+  const freed = new Map(
     troops.flatMap((troop) => {
       const carrier = aboard.get(troop.id);
-      return carrier !== undefined && !troop.carriedBy ? [carrier] : [];
+      return carrier !== undefined && !troop.carriedBy ? [[troop.id, carrier] as const] : [];
     }),
   );
+  const carriers = new Set(freed.values());
   return piles.flatMap(({ id, pieces }) =>
-    pieces.groups.flatMap((group, k) =>
-      group.role === 'landTransport' && group.troopIds.some((troop) => freed.has(troop))
-        ? [`${id}/${k}`]
-        : [],
-    ),
+    pieces.groups.flatMap((group, k) => {
+      const carrier = group.troopIds.find((troop) => carriers.has(troop));
+      if (group.role !== 'landTransport' || carrier === undefined) return [];
+      const men = pieces.groups.flatMap(({ role, troopIds }, j) =>
+        role === 'infantry' && troopIds.every((troop) => freed.get(troop) === carrier)
+          ? [`${id}/${j}`]
+          : [],
+      );
+      return [{ truck: `${id}/${k}`, men }];
+    }),
   );
 }
+
+/** **Un camion où des hommes montent** (#277) : le groupe du camion, et chaque passager neuf. */
+export type Montee = {
+  readonly truck: string;
+  readonly riders: ReadonlyArray<string>;
+};
+
+/**
+ * **Les camions où des troupes viennent de monter** (#277) : chaque camion d'une pile posée dont
+ * un passager n'était pas à bord à la vue d'avant — monté sur-le-champ, ou au bout de sa marche
+ * (`boardsOn`). Une colonne qui embarque au départ (`seatLoose`) n'a pas de pile posée : rien.
+ */
+export function monteesOf(
+  aboard: ReadonlyMap<string, string>,
+  troops: ReadonlyArray<Seated>,
+  piles: ReadonlyArray<StandingPile>,
+): ReadonlyArray<Montee> {
+  const boarded = new Map<string, string[]>();
+  for (const troop of troops)
+    if (troop.carriedBy && aboard.get(troop.id) !== troop.carriedBy)
+      boarded.set(troop.carriedBy, [...(boarded.get(troop.carriedBy) ?? []), troop.id]);
+  return piles.flatMap(({ id, pieces }) =>
+    pieces.groups.flatMap(({ role, troopIds }, k) => {
+      const riders = troopIds.flatMap((troop) => boarded.get(troop) ?? []);
+      return role === 'landTransport' && riders.length > 0 ? [{ truck: `${id}/${k}`, riders }] : [];
+    }),
+  );
+}
+
+/** **Une escouade dissoute** (#277) : la pile qu'elle quitte, et chaque groupe posé à part, par
+ *  son id, la troupe qui le porte et sa place au rang d'avant. */
+export type Dispersion = {
+  readonly pileId: string;
+  /** Dessinée par rôle (ADR 0028 §6) : elle ne s'anime pas. */
+  readonly whole: boolean;
+  readonly moves: ReadonlyArray<{
+    readonly groupId: string;
+    readonly troopId: string;
+    readonly rank: number;
+  }>;
+};
+
+/**
+ * **Les escouades dissoutes** (#277, U) : une troupe dans la pile A à la vue d'avant, dans une
+ * pile B ≠ A maintenant, ailleurs, et dans aucune de mes colonnes sur les deux vues. Rien de neuf
+ * n'est servi : la différence des deux vues est le signal. Une pile vue pour la première fois,
+ * une garnison, un avant-poste fondé sur place ne donnent rien.
+ */
+export function dispersionsOf(
+  before: ReadonlyArray<StandingPile> | null,
+  piles: ReadonlyArray<StandingPile>,
+  columns: ReadonlyArray<ReadonlyArray<Column>>,
+): ReadonlyArray<Dispersion> {
+  if (before === null) return [];
+  const marching = new Set(columns.flat().flatMap(({ troopIds }) => troopIds ?? []));
+  const was = new Map(
+    before.flatMap((pile) =>
+      pile.pieces.groups.flatMap(({ troopIds }, rank) =>
+        troopIds.map((troop) => [troop, { pile, rank }] as const),
+      ),
+    ),
+  );
+  const found = new Map<string, Dispersion>();
+  for (const { id, at, pieces } of piles) {
+    if (!('lonLat' in at)) continue;
+    pieces.groups.forEach(({ troopIds }, k) => {
+      const troopId = troopIds[0];
+      const from = troopId === undefined ? undefined : was.get(troopId);
+      if (
+        troopId === undefined ||
+        from === undefined ||
+        from.pile.id === id ||
+        !('lonLat' in from.pile.at) ||
+        samePoint(from.pile.at.lonLat, at.lonLat) ||
+        troopIds.some((troop) => marching.has(troop))
+      )
+        return;
+      const dispersion = found.get(from.pile.id) ?? {
+        pileId: from.pile.id,
+        whole: from.pile.pieces.count !== undefined,
+        moves: [],
+      };
+      found.set(from.pile.id, {
+        ...dispersion,
+        moves: [...dispersion.moves, { groupId: `${id}/${k}`, troopId, rank: from.rank }],
+      });
+    });
+  }
+  return [...found.values()];
+}
+
+const samePoint = (a: LonLat, b: LonLat): boolean =>
+  Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) < 1e-9;
 
 type Laden = { readonly id: string; readonly load?: SupplyLoad | undefined };
 

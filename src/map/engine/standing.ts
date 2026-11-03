@@ -25,6 +25,7 @@ import { destinationPoint, type LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PilePieces } from '@/domain/pile-pieces';
+import type { UnitTier } from '@/domain/ids';
 import { nationInk } from '@/domain/nations';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
@@ -153,6 +154,11 @@ const FACING_KM = 10;
 /** **The rank recentres in half a second** once a newcomer reaches it (décision de Pierre,
  *  #268, 23/10). */
 const GLIDE_MS = 500;
+/** How long a pile waits for the sequence `expect` promised before it stands at once: past the
+ *  engine's own wait for a pile to stand (`SORTIE_WAIT_MS`). */
+const EXPECT_MS = 2500;
+/** How long where a group stood is kept (`lastSeen`): the view that moved it is long in. */
+const SEEN_MS = 3000;
 /** **A column joining a pile halts at its edge** (#277): so far out of its footprint, in steps. */
 const HALT_STEPS = 0.55;
 /** **The staple** (#277, storyboard « une pile vivante ») : a stroke of ink round the squad just
@@ -781,6 +787,21 @@ export class StandingLayer implements SequenceHost {
   private readonly grown = new Set<string>();
   /** Piles owed a ring of ink at reduced motion, once they stand (`inkArrival`). */
   private readonly inked = new Set<string>();
+  /** **Piles a sequence will claim** (`expect`, #277): their held groups wait for `arrive`, they do
+   *  not stand at once in their new places. */
+  private readonly expected = new Map<string, number>();
+  /** **Where each troop's group last stood** (#277), as its pile was drawn again or went: what a
+   *  piece set apart walks from, and a man boarding. Kept `SEEN_MS`. */
+  private readonly seen = new Map<
+    string,
+    { readonly at: Vector3; readonly heading: number; readonly since: number }
+  >();
+  /** **The men boarding a truck** (#277), drawn for their walk to its tailgate, by
+   *  `${pileId}/+${troopId}`: a rider is not drawn in its pile any more. */
+  private readonly boarders = new Map<
+    string,
+    { readonly pileId: string; readonly figurine: Figurine; ready: boolean }
+  >();
   /** Sent copies waiting at their destination (POC, `settle`). */
   private settling: Carried[] = [];
   /** Ripples of ink and puffs of dust, each on its own clock. */
@@ -883,10 +904,14 @@ export class StandingLayer implements SequenceHost {
         () => {},
       );
     }
-    for (const gone of this.dressed.values()) {
+    for (const [troopId, { since }] of this.seen)
+      if (now - since > SEEN_MS) this.seen.delete(troopId);
+    for (const [id, gone] of this.dressed) {
+      this.remember(id, gone, now);
       gone.object.removeFromParent();
       gone.ring.material.dispose();
     }
+    for (const [id, { pileId }] of this.boarders) if (!next.has(pileId)) this.boarders.delete(id);
     this.dressed = next;
     this.rebuild();
   }
@@ -916,6 +941,11 @@ export class StandingLayer implements SequenceHost {
     const at = id.lastIndexOf('/');
     const pileId = id.slice(0, at);
     const entry = this.dressed.get(pileId);
+    const boarder = this.boarders.get(id);
+    if (boarder !== undefined)
+      return entry?.ready && entry.placed && entry.object.visible && boarder.ready
+        ? { figurine: boarder.figurine, placed: true }
+        : null;
     // A pile in hand is washed out in place: a copy would stand there unwashed.
     if (entry === undefined || this.held?.pileId === pileId) return null;
     // A pile drawn again after a view (a troop stepped down) is loading, then waits for its
@@ -1020,6 +1050,8 @@ export class StandingLayer implements SequenceHost {
     figurine.standIn?.(copy);
     if (copy === null) this.stoodIn.delete(id);
     else this.stoodIn.set(id, figurine);
+    // A man boarding is under the tarp once his walk is over: he is drawn no more.
+    if (copy === null) this.unboard(id);
     this.changed();
   }
 
@@ -1409,6 +1441,7 @@ export class StandingLayer implements SequenceHost {
     delays: ReadonlyArray<number>,
     { opens = false, formed = false }: { opens?: boolean; formed?: boolean } = {},
   ): void {
+    this.expected.delete(pileId);
     const entry = this.dressed.get(pileId);
     if (entry === undefined) return;
     const { held } = entry;
@@ -1445,6 +1478,100 @@ export class StandingLayer implements SequenceHost {
       },
       end: () => stand(0),
     });
+  }
+
+  /** Where each group of a pile drawn again, or gone, stood: by its troops (`seen`). */
+  private remember(pileId: string, entry: Dressed, now: number): void {
+    if (!entry.ready || !entry.placed || !entry.object.visible) return;
+    entry.pieces.groups.forEach(({ troopIds }, k) => {
+      const place = this.placeOf(`${pileId}/${k}`);
+      if (place === null) return;
+      const heading = Math.atan2(place.front.x, place.front.z);
+      for (const troopId of troopIds) this.seen.set(troopId, { at: place.at, heading, since: now });
+    });
+  }
+
+  /** **Where a troop's group last stood** (#277), and the way it faced, on the board: `null`
+   *  when its pile was not drawn then, or long ago. */
+  lastSeen(troopId: string): { readonly at: Vector3; readonly heading: number } | null {
+    return this.seen.get(troopId) ?? null;
+  }
+
+  /** **A sequence will claim this pile's held groups** (#277): they wait for `arrive`, which a
+   *  walk computed a frame later calls, rather than standing at once in their new places. */
+  expect(pileId: string): void {
+    this.expected.set(pileId, performance.now());
+  }
+
+  /** **Dust kicked up** where a vehicle of the pile sets off (#277, U), at its scale. */
+  dustAt(pileId: string, at: Vector3): void {
+    const foot = this.footOf(pileId);
+    if (foot !== null) this.dust(at, 6, 0.6, foot.scale);
+  }
+
+  /** **The rank holds on the groups already held** (#277, a landing): the newcomers stand off
+   *  their places by the same gap, and glide with them at `arrive`. */
+  anchor(pileId: string): void {
+    const entry = this.dressed.get(pileId);
+    const by = entry?.held[0]?.by;
+    if (entry === undefined || by === undefined) return;
+    const held = new Set(entry.held.map(({ figurine }) => figurine));
+    const more = entry.figurines
+      .filter((figurine) => !held.has(figurine))
+      .map((figurine) => {
+        figurine.object.position.add(by);
+        return { figurine, by: by.clone() };
+      });
+    entry.held = [...entry.held, ...more];
+  }
+
+  /**
+   * **Men drawn to board a truck** (#277): a rider is not drawn in its pile, so each one boarding
+   * stands where it stood before — in its rank or at the end of its file — as a squad of its own
+   * `figures`, for its walk to the tailgate (`${pileId}/+${troopId}`). It goes once its walk ends,
+   * or at `unboard`.
+   */
+  board(
+    pileId: string,
+    riders: ReadonlyArray<{
+      readonly troopId: string;
+      readonly figures: ReadonlyArray<UnitTier>;
+      readonly at: Vector3;
+      readonly heading: number;
+    }>,
+  ): ReadonlyArray<string> {
+    const entry = this.dressed.get(pileId);
+    if (entry === undefined || !entry.placed) return [];
+    entry.object.updateMatrixWorld(true);
+    return riders.flatMap(({ troopId, figures, at, heading }) => {
+      const figurine = figurineFor(this.nation, 'infantry', figures);
+      if (figurine === null) return [];
+      const id = `${pileId}/+${troopId}`;
+      this.unboard(id);
+      const { object } = figurine;
+      object.position.copy(entry.object.worldToLocal(at.clone())).setY(0);
+      object.rotation.y = heading - entry.object.rotation.y;
+      object.scale.setScalar(1 / pileUnitOf(entry.span));
+      entry.object.add(object);
+      const boarder = { pileId, figurine, ready: false };
+      this.boarders.set(id, boarder);
+      figurine.ready.then(
+        () => {
+          boarder.ready = true;
+          this.changed();
+        },
+        () => this.unboard(id),
+      );
+      return [id];
+    });
+  }
+
+  /** The man boarding `id` is drawn no more. */
+  unboard(id: string): void {
+    const boarder = this.boarders.get(id);
+    if (boarder === undefined) return;
+    this.boarders.delete(id);
+    boarder.figurine.object.removeFromParent();
   }
 
   /** **The staple round a squad just formed** (#277), `after` ms from now: traced at full motion,
@@ -1484,9 +1611,10 @@ export class StandingLayer implements SequenceHost {
     });
   }
 
-  /** **A ring of ink where a recruit stands**, at reduced motion: it is already in its rank. */
-  inkArrival(pileId: string): void {
-    if (this.motion === 'reduced') this.inked.add(pileId);
+  /** **A ring of ink where a recruit stands**, at reduced motion: it is already in its rank. At
+   *  full motion too (`evenFull`) for what could not play: a crown past the pool (#277). */
+  inkArrival(pileId: string, evenFull = false): void {
+    if (this.motion === 'reduced' || (evenFull && this.motion === 'full')) this.inked.add(pileId);
   }
 
   /** The pile grew under the eyes: its sound, a ripple and a puff of dust where it stands. */
@@ -1502,6 +1630,9 @@ export class StandingLayer implements SequenceHost {
     // What no walk claimed by the frame after its pile first stood stands at once (`arrive`).
     for (const [id, entry] of this.dressed) {
       if (!entry.stood) continue;
+      const expected = this.expected.get(id);
+      if (expected !== undefined && performance.now() - expected < EXPECT_MS) continue;
+      this.expected.delete(id);
       for (const { figurine, by } of entry.held) figurine.object.position.sub(by);
       entry.held = [];
       if (this.grown.delete(id)) this.merged(id);

@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
+import type { UnitTier } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
@@ -16,7 +17,7 @@ import { bakedRig } from './baking';
 import { crateOf } from './crate';
 import { SLATS, WOOD } from './crates';
 import { movesOnItsOwn, posedScene, type RestPose } from './figurines/figurine';
-import { stand, stride } from './figurines/infantry';
+import { hop, stand, stride } from './figurines/infantry';
 import { EXHAUST, Smoke } from './smoke';
 import { darkCrate } from './timelines/loading';
 
@@ -43,6 +44,8 @@ export type PartPose = {
   /** `root` or a man: the men march, at this many seconds of their stride (`stride`); a man
    *  without it stands as his squad stands him. */
   readonly stride?: number;
+  /** A man only: he hops (a tailgate, #277), hips and knees bent this much, 0..1 (`hop`). */
+  readonly hop?: number;
   /** A marker (`fx_*`) only: a motor's breath (`EXHAUST`) there, at this many seconds and this
    *  share of its strength. */
   readonly exhaust?: readonly [seconds: number, fade: number];
@@ -131,8 +134,32 @@ export type Cue =
       readonly groupId: string;
       readonly crates: number;
     }
-  /** A troop steps down from a truck: `groupId` is `${pileId}/${group}` (`StandingLayer`). */
-  | { readonly kind: 'descente'; readonly groupId: string }
+  /** **Men step down from a truck** (#277): `truck` and each squad that came down, `men`, are
+   *  `${pileId}/${group}` (`StandingLayer`). */
+  | { readonly kind: 'descente'; readonly truck: string; readonly men: ReadonlyArray<string> }
+  /** **Men board a truck** (#277): `truck` is its group; each rider is drawn by its `figures`
+   *  from where it last stood, or the end of its file, to the tailgate. */
+  | {
+      readonly kind: 'montee';
+      readonly truck: string;
+      readonly riders: ReadonlyArray<{
+        readonly troopId: string;
+        readonly figures: ReadonlyArray<UnitTier>;
+      }>;
+    }
+  /** **A squad disbanded at its point** (#277, U): what stays of `pileId` glides to the point,
+   *  each piece set apart (`groupId`, by its `troopId`) walks from its `rank` to its place in the
+   *  crown. A pile drawn `whole` (ADR 0028 §6) does not walk: rings of ink. */
+  | {
+      readonly kind: 'dispersion';
+      readonly pileId: string;
+      readonly whole: boolean;
+      readonly moves: ReadonlyArray<{
+        readonly groupId: string;
+        readonly troopId: string;
+        readonly rank: number;
+      }>;
+    }
   /** **A combat at its point** (#272): first without its view, to hide the point while it is
    *  asked for, then with it. `toward` is where the attacker came from, when it is known. */
   | {
@@ -402,6 +429,7 @@ export class SequenceLayer {
         if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
         if (own?.travel || own?.heading !== undefined) onTheBoard(node, rest, own);
         if (own?.stride !== undefined) stride(node, own.stride);
+        else if (own?.hop !== undefined) hop(node, own.hop);
         // A man arrived before the rest of his squad stands as `squadOf` stood him.
         else if (MAN.test(node.name)) stand(node);
       }
