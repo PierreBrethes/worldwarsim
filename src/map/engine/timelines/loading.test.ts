@@ -134,7 +134,7 @@ describe('the files a loading reads (#271)', () => {
   });
 
   it.each(['warehouse', 'hq', 'arsenal', 'barracks', 'airfield'] as const)(
-    "%s: the truck's turn stays on the socle, a half-width in",
+    "%s: the truck's turn and straight run stay on the socle, a half-width in",
     (key) => {
       const scene = sceneOfFile(buildingMaquette(key, null)!);
       const quay = scene.getObjectByName('fx_quai');
@@ -151,11 +151,14 @@ describe('the files a loading reads (#271)', () => {
         [-front.z, 0, front.x],
       ];
       for (const side of sides) {
-        const { turn, into } = turnOf(stop, front.toArray(), side, {
-          min: socle.min.toArray(),
-          max: socle.max.toArray(),
-        });
-        for (const [x, , z] of [turn, into]) {
+        const { turn, into, straight } = turnOf(
+          stop,
+          front.toArray(),
+          side,
+          { min: socle.min.toArray(), max: socle.max.toArray() },
+          6.5,
+        );
+        for (const [x, , z] of [turn, into, straight]) {
           expect(x).toBeGreaterThanOrEqual(socle.min.x);
           expect(x).toBeLessThanOrEqual(socle.max.x);
           expect(z).toBeGreaterThanOrEqual(socle.min.z);

@@ -124,21 +124,27 @@ const pointOn = ({ points, lengths, length }: Leg, s: number): Point => {
   return lerp(points[k - 1]!, points[k]!, leg === 0 ? 1 : (d - lengths[k - 1]!) / leg);
 };
 
-/** **Where the truck turns, and where its run into the quay starts**, shortened to what the socle
- *  holds: a quay near the edge leaves less yard (the HQ's is 4.8 m off it). */
+/** **Where the truck turns, where its run into the quay starts, and where it straightens before
+ *  backing in**, shortened to what the socle holds: a quay near the edge leaves less yard (the
+ *  HQ's is 4.8 m off it, too short for a straight run: the truck backs in from the edge). */
 export function turnOf(
   stop: Point,
   front: Point,
   side: Point,
   socle: { readonly min: Point; readonly max: Point },
-): { turn: Point; into: Point } {
+  length: number,
+): { turn: Point; into: Point; straight: Point } {
   const keep = (p: Point): Point => [
     Math.min(Math.max(p[0], socle.min[0] + HALF_WIDTH), socle.max[0] - HALF_WIDTH),
     stop[1],
     Math.min(Math.max(p[2], socle.min[2] + HALF_WIDTH), socle.max[2] - HALF_WIDTH),
   ];
   const turn = keep(add(add(stop, front, TURN.out), side, TURN.aside));
-  return { turn, into: keep(add(turn, side, -TURN.run)) };
+  return {
+    turn,
+    into: keep(add(turn, side, -TURN.run)),
+    straight: keep(add(stop, front, length / 2 + STRAIGHT)),
+  };
 }
 
 /**
@@ -197,7 +203,7 @@ export function loadingAt({
   let side: Point = [front[2], 0, -front[0]];
   if ((rank[0] - stop[0]) * side[0] + (rank[2] - stop[2]) * side[2] > 0)
     side = add([0, 0, 0], side, -1);
-  const turned = turnOf(stop, front, side, socle);
+  const turned = turnOf(stop, front, side, socle, length);
   const turn = ground(turned.turn);
   const into = ground(turned.into);
   const ahead = ground(add(rank, rankFront, AHEAD * length));
@@ -206,7 +212,7 @@ export function loadingAt({
   );
   const docked = ground(add(stop, front, length / 2));
   const out = rounded([rank, ahead, ...corners, into, turn]);
-  const toQuay = rounded([turn, into, ground(add(stop, front, length / 2 + STRAIGHT)), docked]);
+  const toQuay = rounded([turn, into, ground(turned.straight), docked]);
 
   let clock = LEG.start;
   const legs: Leg[] = [];
