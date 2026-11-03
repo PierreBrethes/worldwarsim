@@ -58,6 +58,16 @@ describe('the journal', () => {
     ]);
   });
 
+  /** #324 : un combat en mer ne tient ni ne perd de terrain. */
+  it('says waters, not ground, of a combat at sea', () => {
+    const [held] = journalDispatches([{ ...battle(NOON), atSea: true }], null, []);
+    const [lost] = journalDispatches([{ ...battle(NOON), atSea: true, won: false }], null, []);
+    const [ashore] = journalDispatches([battle(NOON)], null, []);
+    expect(held!.text).toContain(fr.replay.heldAtSea);
+    expect(lost!.text).toContain(fr.replay.lostAtSea);
+    expect(ashore!.text).toContain('terrain tenu');
+  });
+
   it('tells a bombardment on both sides, with no riposte', () => {
     const shot = {
       ...battle(NOON),
@@ -144,6 +154,15 @@ describe('the journal', () => {
 
     const caughtUp = journalDispatches([battle(NOON)], null, stream, NOON);
     expect(caughtUp.some((dispatch) => dispatch.unread)).toBe(false);
+  });
+
+  it('marks a finished construction, and only it, as built', () => {
+    const [done, cancelled] = journalDispatches([], null, [
+      finished(NOON),
+      { kind: 'constructionCancelled', at: NOON - HOUR, building: 'barracks', regionName: 'Marne' },
+    ]);
+    expect(done!.built).toBe(true);
+    expect(cancelled!.built).toBeUndefined();
   });
 
   it('words a cancelled outpost raise without throwing', () => {

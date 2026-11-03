@@ -8,7 +8,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
-import { effectiveSpecialty, isOnWatch, lookoutKmOf } from '@/domain/outposts';
+import { effectiveSpecialty, isOnWatch, lookoutKmOf, sameLiaison } from '@/domain/outposts';
 import {
   drawnLiaisonsIn,
   holdsPatrolTroop,
@@ -173,6 +173,7 @@ import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
 import { GroundPanel } from './-plateau/GroundPanel';
 import { CombatToasts } from './-plateau/CombatToasts';
+import { useFrontSound } from './-plateau/FrontTape';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
 import { REPLAY_MS, type ReplayStep } from '@/domain/replay';
@@ -355,6 +356,7 @@ function LiveBoard({ atlas, shore, seat }: { atlas: Atlas; shore: Shore; seat: S
     previousView.current = adaptServerView(server, previousView.current);
     return previousView.current;
   }, [server]);
+  useFrontSound(view, seat.seasonId, interrupted);
   if (view === null) return <Loading />;
   return (
     <>
@@ -1479,11 +1481,16 @@ function BoardContent({
       wholeLookout: effectiveSpecialty(outpost) === 'lookout',
     }));
     const station = (outpostId: string) => stationKeyOf({ kind: 'outpost', outpostId });
-    const liaisons = drawnLiaisonsIn({ outposts: view.me.outposts }).map(
-      ([a, b]) => [station(a), station(b)] as [string, string],
+    const drawn = drawnLiaisonsIn({ outposts: view.me.outposts });
+    const liaisons = drawn.map(([a, b]) => [station(a), station(b)] as [string, string]);
+    /** **Une ronde se lit sur le trait de sa liaison** (#377), tant que la carte la trace. */
+    const patrolled = view.me.troops.flatMap(({ patrol }) =>
+      patrol !== undefined && drawn.some((pair) => sameLiaison(pair, patrol.ends))
+        ? [[station(patrol.ends[0]), station(patrol.ends[1])] as [string, string]]
+        : [],
     );
-    return { points, liaisons };
-  }, [blitz, view.me.outposts, view.me.upkeep.listeningSilent]);
+    return { points, liaisons, patrolled, ink: nationInk(view.me.nation) };
+  }, [blitz, view.me.outposts, view.me.troops, view.me.nation, view.me.upkeep.listeningSilent]);
 
   /** **Une troupe de ronde en main** (#376) : la carte montre et vise ses liaisons. */
   const patrolHand = useMemo(
@@ -2279,12 +2286,20 @@ function BoardContent({
     for (const report of fresh) setTimeout(() => releaseDispatch(report.id), DISPATCH_HOLD_MAX_MS);
     setMapCombats((current) => [
       ...current,
-      ...fresh.map((report) => ({
-        id: report.id,
-        point: [report.point.lon, report.point.lat] as const,
-        view: null,
-        toward: homewardOf(report.point, view.arcs, report.side),
-      })),
+      ...fresh.map((report) => {
+        // My battery's place (#325), served to the shooter alone: its targets face it.
+        const from =
+          report.firedFrom === undefined
+            ? null
+            : ([report.firedFrom.lon, report.firedFrom.lat] as const);
+        return {
+          id: report.id,
+          point: [report.point.lon, report.point.lat] as const,
+          view: null,
+          toward: from ?? homewardOf(report.point, view.arcs, report.side),
+          from,
+        };
+      }),
     ]);
     for (const report of fresh)
       convex

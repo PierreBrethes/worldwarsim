@@ -564,21 +564,7 @@ function assembleLeg(
   vertices: ReadonlyArray<LonLat>,
   frame: WorldFrame,
 ): ThreadLeg {
-  const strands: ThreadStrand[] = [];
-  let current: Vector3[] = [];
-
-  for (let i = 0; i < vertices.length; i++) {
-    const point = vertices[i]!;
-    if (i > 0 && Math.abs(point[0] - vertices[i - 1]![0]) > 180) {
-      const { exit, entry } = crossedEdges(vertices[i - 1]!, point, frame);
-      current.push(exit);
-      if (current.length > 1) strands.push(strandOf(current));
-      current = [entry];
-    }
-    current.push(frame.projectLonLat(point, SURFACE_ALTITUDE));
-  }
-  if (current.length > 1) strands.push(strandOf(current));
-
+  const strands = wrappedStrands(vertices, frame);
   return {
     medium,
     strands,
@@ -586,10 +572,34 @@ function assembleLeg(
   };
 }
 
+/** The vertices on the board, cut at the edge wherever a step jumps over the antimeridian. */
+export function wrappedStrands(
+  vertices: ReadonlyArray<LonLat>,
+  frame: WorldFrame,
+  height = SURFACE_ALTITUDE,
+): ThreadStrand[] {
+  const strands: ThreadStrand[] = [];
+  let current: Vector3[] = [];
+
+  for (let i = 0; i < vertices.length; i++) {
+    const point = vertices[i]!;
+    if (i > 0 && Math.abs(point[0] - vertices[i - 1]![0]) > 180) {
+      const { exit, entry } = crossedEdges(vertices[i - 1]!, point, frame, height);
+      current.push(exit);
+      if (current.length > 1) strands.push(strandOf(current));
+      current = [entry];
+    }
+    current.push(frame.projectLonLat(point, height));
+  }
+  if (current.length > 1) strands.push(strandOf(current));
+  return strands;
+}
+
 function crossedEdges(
   from: LonLat,
   to: LonLat,
   frame: WorldFrame,
+  height: number,
 ): { exit: Vector3; entry: Vector3 } {
   const eastward = to[0] - from[0] < -180;
   const gap = eastward ? to[0] - from[0] + 360 : to[0] - from[0] - 360;
@@ -597,8 +607,8 @@ function crossedEdges(
   const fraction = gap === 0 ? 0 : (rimLongitude - from[0]) / gap;
   const edge = frame.edgeAtLatitude(from[1] + fraction * (to[1] - from[1]));
   return {
-    exit: frame.toWorld(eastward ? edge.eastX : edge.westX, edge.y, SURFACE_ALTITUDE),
-    entry: frame.toWorld(eastward ? edge.westX : edge.eastX, edge.y, SURFACE_ALTITUDE),
+    exit: frame.toWorld(eastward ? edge.eastX : edge.westX, edge.y, height),
+    entry: frame.toWorld(eastward ? edge.westX : edge.eastX, edge.y, height),
   };
 }
 

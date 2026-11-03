@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  afloat,
   COMBAT_LIMITS,
+  sceneSpan,
   combatAt,
   FINAL_POSE_MS,
   freshCombats,
   homewardOf,
   playsWhole,
   reportOf,
+  sceneOf,
   stampStays,
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
+import { troopSpan } from './piece-size';
 import { REPLAY_MS, stepBounds } from './replay';
 import type { ArcView, CombatReport, ReplayView } from './player-view';
 
@@ -35,13 +39,13 @@ describe('freshCombats', () => {
     expect(freshCombats(null, [report('a')], NOW)).toEqual([]);
   });
 
-  it('plays the reports the view before did not have, a land arrival only', () => {
+  it('plays the reports the view before did not have, an arrival or a bombardment (#325)', () => {
     const fresh = freshCombats(
       new Set(['a']),
       [report('a'), report('b'), report('c', 'interception'), report('d', 'bombardment')],
       NOW,
     );
-    expect(fresh.map((each) => each.id)).toEqual(['b']);
+    expect(fresh.map((each) => each.id)).toEqual(['b', 'd']);
   });
 
   it('plays no combat older than a replay and its margin: a laptop woken an hour later', () => {
@@ -190,5 +194,79 @@ describe('stampStays', () => {
   it('stays when the camera arrives by the combat, goes when it arrives far from it', () => {
     expect(stampStays(2, 10)).toBe(true);
     expect(stampStays(30, 10)).toBe(false);
+  });
+});
+
+/** My escort carrying a squad and a tank, against an escort and a cargo carrying men. */
+const atSea: ReplayView = {
+  ...view,
+  mine: [
+    { role: 'escort', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 },
+    { role: 'infantry', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 0 },
+    { role: 'armor', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 },
+  ],
+  theirs: { troops: 4, lost: 300, routed: 0, destroyed: 2 },
+  faced: {
+    nation: 'germany',
+    forces: [
+      { role: 'escort', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 1, strength: 100 },
+      { role: 'cargo', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0, strength: 100 },
+      { role: 'infantry', tier: 1, troops: 2, lost: 0, routed: 0, destroyed: 1, strength: 100 },
+    ],
+  },
+};
+
+describe('afloat', () => {
+  it('keeps the ships of a sea combat: what they carry drowns in the dispatch, not on the map', () => {
+    const ships = afloat({
+      ...atSea,
+      mine: [...atSea.mine, { ...atSea.mine[0]!, role: 'bomber' }],
+    });
+    expect(ships.mine.map((entry) => entry.role)).toEqual(['escort', 'bomber']);
+    expect(ships.faced!.forces.map((force) => force.role)).toEqual(['escort', 'cargo']);
+    expect(ships.theirs).toMatchObject({ troops: 2, destroyed: 1, routed: 0 });
+  });
+
+  it('leaves an unseen enemy as it was counted', () => {
+    const { faced: _, ...unseen } = atSea;
+    expect(afloat(unseen).theirs).toEqual(atSea.theirs);
+  });
+});
+
+describe('sceneSpan', () => {
+  it("reads a scene on its longest piece, never below a tank's", () => {
+    expect(sceneSpan(view)).toBe(troopSpan('armor'));
+    expect(sceneSpan(atSea)).toBe(troopSpan('cargo'));
+  });
+});
+
+describe('reportOf at sea', () => {
+  it('says the engagement in words of the sea', () => {
+    expect(reportOf(view, 'sea').title).toBe('engagement gagné');
+    expect(reportOf({ ...view, won: false, side: 'defender' }, 'sea').title).toBe(
+      'engagement perdu',
+    );
+    expect(reportOf(view).title).toBe('position enlevée');
+  });
+});
+
+/** **Le bombardement sur la carte** (#325) : chez le tireur, la scène au point de la cible ne pose
+ *  que le camp d'en face — sa batterie reste sa pile —, chez la cible, ses seules pièces. */
+describe('a bombardment on the map', () => {
+  const shelled: ReplayView = {
+    ...view,
+    mine: [{ role: 'artillery', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    bombardment: { from: { lon: 4.0, lat: 49.5 } },
+  };
+  it("stands the shooter's target alone, its battery staying in its pile", () => {
+    expect(sceneOf(shelled).mine).toEqual([]);
+    expect(sceneOf(shelled).theirs).toEqual(shelled.theirs);
+    expect(sceneOf(view)).toBe(view);
+    const target = { ...shelled, side: 'defender' as const, bombardment: {} };
+    expect(sceneOf(target)).toBe(target);
+  });
+  it('stamps a hit for the shooter, shelled for the target', () => {
+    expect(reportOf(shelled).title).toBe('coup au but');
+    expect(reportOf({ ...shelled, side: 'defender', bombardment: {} }).title).toBe('pilonnés');
   });
 });

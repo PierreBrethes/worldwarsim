@@ -312,6 +312,38 @@ describe('dev.guetScene', () => {
   });
 });
 
+describe('dev.watchLineScene', () => {
+  /** La scène de #377 : une colonne que la seule ligne de la ronde Sedan–Nancy a relevée. */
+  it('sights the column by the patrol line alone, its dispatch due', async () => {
+    const { t, seat, playerId } = await twoNations();
+    const enemyId = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
+    );
+    await t.mutation(internal.dev.watchLineScene, { playerId, enemyId });
+
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.detected.map((arc) => arc.detector)).toEqual(['patrol']);
+    const [row] = await t.run(async (ctx) =>
+      ctx.db
+        .query('sightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect(),
+    );
+    const [crossing] = row!.crossings!;
+    expect(crossing!.at).toBeLessThan(Date.now());
+    await t.mutation(internal.movements.fileCrossing, {
+      sightingId: row!._id,
+      troopId: crossing!.troopId,
+      at: crossing!.at,
+    });
+    const notices = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter((one) => one.kind === 'movementSighted'),
+    );
+    expect(notices).toMatchObject([{ playerId, detector: 'patrol' }]);
+  });
+});
+
 describe('dev.storesScene', () => {
   /** La scène de #372 : deux colonnes à sec traversent un Magasin plein et un presque vide. */
   it('lands two dry columns through a full and a nearly empty Magasin, and files what each took', async () => {

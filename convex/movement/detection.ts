@@ -17,6 +17,7 @@ import type { MutationCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import {
   INTERCEPTION_SAMPLES,
+  lineCrossingOf,
   mobileSighting,
   positionAt,
   passesAlong,
@@ -32,6 +33,8 @@ import {
   isStanding,
   lookoutKmOf,
   readsComposition,
+  drawnLiaisonsOf,
+  sameLiaison,
 } from '../../src/domain/outposts';
 import {
   campReading,
@@ -58,6 +61,7 @@ import { hostAmongCountries, hostAtPoint, landAtPoint } from '../routes';
 import { asPoint, pointOf, seasonMovements, seasonOutposts, seasonTroops } from './forces';
 import { everySeatOf } from '../seats';
 import { reassessForts, type Fort } from './fort';
+import { liaisonPointsAmong } from './pace';
 import { notifyPlayer } from '../notifications';
 import { journalUrl, push } from '../../src/domain/push';
 
@@ -71,7 +75,7 @@ type Mobile = {
   readonly roles: ReadonlyArray<UnitRole>;
 };
 
-const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'troop'] as const;
+const DETECTOR_ORDER = ['territory', 'station', 'outpost', 'patrol', 'troop'] as const;
 type Detector = (typeof DETECTOR_ORDER)[number];
 
 type Caught = {
@@ -85,6 +89,15 @@ type Caught = {
   /** **Les fenêtres de Guet** (ADR 0037 §5), ouvertes à l'instant si un Guet voit déjà la
    *  colonne ; aucune pour tout autre détecteur. */
   readonly readWindows: ReadonlyArray<ReadWindow>;
+  /** **Les franchissements de lignes de guet à venir** (#377), un par ronde : chacun sa dépêche,
+   *  même sur une colonne déjà relevée (Décisions du 02/11). */
+  readonly crossings?: ReadonlyArray<Crossing>;
+};
+
+type Crossing = {
+  readonly troopId: Id<'troops'>;
+  readonly at: number;
+  readonly point: { readonly lon: number; readonly lat: number };
 };
 
 type PassiveWatcher = Watcher &
@@ -217,7 +230,9 @@ export async function revealSighting(
   if (movement === null) return;
   const season = await ctx.db.get(movement.seasonId);
   if (season === null || season.status !== 'launched' || season.concludedAt !== null) return;
-  if (await heldByFort(ctx, sighting, movement)) {
+  /** **Le franchissement dit la dépêche lui-même** (`fileCrossing`), même quand il ouvre la
+   *  ligne : une seule voix pour une ronde, quelle que soit la place du franchissement. */
+  if (sighting.detector === 'patrol' || (await heldByFort(ctx, sighting, movement))) {
     await ctx.db.patch(sighting._id, { noticeFiled: true, revealJobId: undefined });
     return;
   }
@@ -455,7 +470,49 @@ async function detectionBoard(
   }
 
   const mutualWindows = new Map<string, { readonly from: number; readonly to: number } | null>();
-  return { mobileById, watchers, forts, players, posted, allOnRangoonTour, mutualWindows };
+  return {
+    mobileById,
+    watchers,
+    lines: watchLinesOf(troops, outposts, now),
+    forts,
+    players,
+    posted,
+    allOnRangoonTour,
+    mutualWindows,
+  };
+}
+
+/**
+ * **Les lignes de guet** (ADR 0037 §10, #377) : une par ronde dont la liaison tient à l'instant —
+ * ses deux bouts à son joueur, debout, en service, et la paire tracée (`drawnLiaisonsOf`), lue sur
+ * les avant-postes déjà chargés. Hors de `watchers`, que camps et caisses lisent comme des cercles.
+ * Ni charbon ni Blitz : une troupe relève sans charbon, et la ronde est refusée en Blitz.
+ */
+function watchLinesOf(
+  troops: ReadonlyArray<Doc<'troops'>>,
+  outposts: ReadonlyArray<Doc<'outposts'>>,
+  now: number,
+) {
+  const patrols = troops.filter((troop) => troop.patrol !== undefined);
+  if (patrols.length === 0) return [];
+  const pointById = new Map(outposts.map((outpost) => [outpost._id, pointOf(outpost.point)]));
+  const drawn = new Map<Id<'players'>, Array<[Id<'outposts'>, Id<'outposts'>]>>();
+  return patrols.flatMap((troop) => {
+    const [a, b] = troop.patrol!.ends as [Id<'outposts'>, Id<'outposts'>];
+    if (!drawn.has(troop.playerId)) {
+      const mine = outposts.filter((outpost) => outpost.playerId === troop.playerId);
+      drawn.set(troop.playerId, drawnLiaisonsOf(liaisonPointsAmong(mine, now)));
+    }
+    return drawn.get(troop.playerId)!.some((pair) => sameLiaison(pair, [a, b]))
+      ? [
+          {
+            troopId: troop._id,
+            playerId: troop.playerId,
+            line: [pointById.get(a)!, pointById.get(b)!] as const,
+          },
+        ]
+      : [];
+  });
 }
 
 type DetectionBoard = Awaited<ReturnType<typeof detectionBoard>>;
@@ -1029,6 +1086,26 @@ async function sightingsFor(
     });
   }
 
+  /** **Une ligne de guet relève au franchissement** (ADR 0037 §10), terre, mer et air, sans lire
+   *  la pile : un instant, au point où la colonne passe. */
+  for (const { troopId, playerId, line } of board.lines) {
+    if (!watching(playerId)) continue;
+    const crossing = lineCrossingOf(target.force, line, now);
+    if (crossing === null) continue;
+    const [lon, lat] = crossing.point;
+    caught.push({
+      crossings: [{ troopId, at: crossing.at, point: { lon, lat } }],
+      playerId,
+      detector: 'patrol',
+      detectorId: null,
+      detectorHostCountry: hostAtPoint(crossing.point),
+      detectorRegion: null,
+      readWindows: [],
+      from: crossing.at,
+      to: crossing.at,
+    });
+  }
+
   for (const observer of board.mobileById.values()) {
     if (!watching(observer.movement.playerId) || observer.rangeKm <= 0) continue;
     const window = mutualWindow(board, observer, target, now);
@@ -1125,8 +1202,17 @@ async function syncSightings(
   rows: ReadonlyArray<Doc<'sightings'>>,
   roles: ReadonlyArray<UnitRole>,
 ): Promise<void> {
+  /** **Seul le premier franchissement d'une ligne relève** (#377) : passé, la ligne ne rend plus
+   *  que le suivant, et l'étendre jusque-là servirait l'aller et le retour que personne n'a vus. */
+  const crossed = new Set(
+    rows.flatMap((row) =>
+      (row.crossings ?? []).flatMap(({ troopId, at }) => (at <= now ? [troopId] : [])),
+    ),
+  );
   const desired = new Map<Id<'players'>, Caught>();
   for (const candidate of candidates) {
+    const line = candidate.detector === 'patrol' ? candidate.crossings?.[0] : undefined;
+    if (line !== undefined && crossed.has(line.troopId)) continue;
     const held = desired.get(candidate.playerId);
     if (held === undefined) desired.set(candidate.playerId, candidate);
     else {
@@ -1136,6 +1222,7 @@ async function syncSightings(
         from: Math.min(held.from, candidate.from),
         to: Math.max(held.to, candidate.to),
         readWindows: [...held.readWindows, ...candidate.readWindows],
+        crossings: [...(held.crossings ?? []), ...(candidate.crossings ?? [])],
       });
     }
   }
@@ -1159,6 +1246,7 @@ async function syncSightings(
         const patch = {
           ...(row.to > now ? { to: now } : {}),
           ...(await writeReading(ctx, row, columnReading(row, [], roles, now), now)),
+          ...(await keepCrossings(ctx, row, [], now)),
         };
         if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
       }
@@ -1255,8 +1343,9 @@ async function replaceSighting(
     columnReading(row, next.readWindows, roles, now),
     now,
   );
+  const crossings = await keepCrossings(ctx, row, next.crossings ?? [], now);
   if (row.from <= now) {
-    const patch = { ...(next.to > row.to ? { to: next.to } : {}), ...reading };
+    const patch = { ...(next.to > row.to ? { to: next.to } : {}), ...reading, ...crossings };
     if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
     return;
   }
@@ -1268,12 +1357,14 @@ async function replaceSighting(
     (Object.keys(fields) as Array<keyof typeof fields>).every((key) => row[key] === fields[key]) &&
     Object.keys(reading).length === 0
   ) {
+    if (Object.keys(crossings).length > 0) await ctx.db.patch(row._id, crossings);
     return;
   }
   if (row.revealJobId !== undefined) await cancelJob(ctx, row.revealJobId);
   await ctx.db.patch(row._id, {
     ...sightingFields(next),
     ...reading,
+    ...crossings,
     revealJobId: undefined,
     ...(row.noticeFiled === undefined && row.revealJobId === undefined
       ? { noticeFiled: true }
@@ -1304,7 +1395,9 @@ async function insertSighting(
     columnReading({}, sighting.readWindows, roles, now),
     now,
   );
-  if (Object.keys(reading).length > 0) await ctx.db.patch(sightingId, reading);
+  const crossings = await keepCrossings(ctx, { _id: sightingId }, sighting.crossings ?? [], now);
+  if (Object.keys(reading).length + Object.keys(crossings).length > 0)
+    await ctx.db.patch(sightingId, { ...reading, ...crossings });
   if (sighting.from <= now) await revealSighting(ctx, sightingId, now);
   else await scheduleReveal(ctx, sightingId, sighting.from);
 }
@@ -1333,5 +1426,79 @@ async function scheduleReveal(
 async function deleteSighting(ctx: MutationCtx, sighting: Doc<'sightings'>): Promise<void> {
   if (sighting.revealJobId !== undefined) await cancelJob(ctx, sighting.revealJobId);
   if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
+  for (const { jobId } of sighting.crossings ?? [])
+    if (jobId !== undefined) await cancelJob(ctx, jobId);
   await ctx.db.delete(sighting._id);
+}
+
+/**
+ * **Les dépêches des franchissements** (#377, Décisions du 02/11) : une par ronde et par colonne,
+ * au premier franchissement de sa ligne, planifiée à son heure. Une dépêche partie reste (sans
+ * job) et ferme la ligne à cette colonne ; une dépêche à venir que la carte ne prévoit plus
+ * s'annule, et celle qui change d'heure se replanifie. Rend le patch de la ligne, vide si rien
+ * ne change.
+ */
+async function keepCrossings(
+  ctx: MutationCtx,
+  row: { readonly _id: Id<'sightings'>; readonly crossings?: Doc<'sightings'>['crossings'] },
+  desired: ReadonlyArray<Crossing>,
+  now: number,
+): Promise<{ crossings?: Doc<'sightings'>['crossings'] }> {
+  const held = row.crossings ?? [];
+  const kept: NonNullable<Doc<'sightings'>['crossings']> = [];
+  for (const entry of held) {
+    const wanted = desired.find((crossing) => crossing.troopId === entry.troopId);
+    /** Une dépêche échue attend son job : la lecture d'après ne voit plus le franchissement
+     *  devant elle, et l'annuler le perdrait. */
+    if (entry.jobId === undefined || entry.at <= now || wanted?.at === entry.at) kept.push(entry);
+    else await cancelJob(ctx, entry.jobId);
+  }
+  for (const crossing of desired) {
+    if (kept.some((entry) => entry.troopId === crossing.troopId)) continue;
+    const jobId = await ctx.scheduler.runAt(crossing.at, internal.movements.fileCrossing, {
+      sightingId: row._id,
+      troopId: crossing.troopId,
+      at: crossing.at,
+    });
+    kept.push({ ...crossing, jobId });
+  }
+  const same = kept.length === held.length && kept.every((entry, index) => entry === held[index]);
+  return same ? {} : { crossings: kept };
+}
+
+/** **Le franchissement à son heure** : la dépêche « notre ronde a relevé… », au point de la
+ *  ligne. Un job périmé — la ligne n'attend plus cette heure — ne fait rien. */
+export async function fileCrossing(
+  ctx: MutationCtx,
+  { sightingId, troopId, at }: { sightingId: Id<'sightings'>; troopId: Id<'troops'>; at: number },
+  now = Date.now(),
+): Promise<void> {
+  const row = await ctx.db.get(sightingId);
+  const entry = row?.crossings?.find((crossing) => crossing.troopId === troopId);
+  if (row === null || entry?.jobId === undefined || entry.at !== at || now < at) return;
+  await ctx.db.patch(row._id, {
+    crossings: row.crossings!.map((crossing) =>
+      crossing === entry ? { troopId, at, point: entry.point } : crossing,
+    ),
+  });
+  const movement = await ctx.db.get(row.movementId);
+  if (movement === null) return;
+  const season = await ctx.db.get(movement.seasonId);
+  if (season === null || season.status !== 'launched' || season.concludedAt !== null) return;
+  await ctx.db.insert('notices', {
+    playerId: row.playerId,
+    at,
+    kind: 'movementSighted',
+    hostCountry: hostAtPoint(pointOf(entry.point)),
+    point: entry.point,
+    headingDegrees: seenSegment(marchingForce(movement), at, at).headingDegrees,
+    detector: 'patrol',
+    detectorRegion: null,
+  });
+  await notifyPlayer(ctx, row.playerId, {
+    type: 'sighting',
+    phrase: push.sighting,
+    url: journalUrl,
+    at,
+  });
 }

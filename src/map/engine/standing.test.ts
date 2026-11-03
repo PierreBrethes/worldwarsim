@@ -601,3 +601,29 @@ describe('besideSites (#341)', () => {
     expect(besideSites([fleet], [hq])).toEqual([fleet]);
   });
 });
+
+/** **La pièce se met en batterie d'elle-même** (#325) : aucune vue n'arrive quand `emplacedAt`
+ *  passe, la couche programme le changement de pose. */
+describe('a gun going into battery', () => {
+  it('is dressed at rest, then in battery once its instant passes', () => {
+    vi.useFakeTimers({ now: 1_000 });
+    try {
+      const layer = new StandingLayer(
+        { projectLonLat: () => new Vector3() } as unknown as WorldFrame,
+        () => {},
+        () => null,
+      );
+      layer.setNation('france');
+      const gun = { ...troop('artillery'), emplacedAt: 31_000 };
+      layer.display([
+        { id: 'p', at: { lonLat: [2, 49] }, pieces: pilePieces([gun], { afloat: false }) },
+      ]);
+      expect(layer.pieceOf('p/0')?.pose).toBeUndefined();
+      vi.advanceTimersByTime(30_100);
+      expect(layer.pieceOf('p/0')?.pose).toBe('emplaced');
+      layer.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

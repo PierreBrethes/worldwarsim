@@ -13,7 +13,8 @@ import { belligerents } from './production';
 import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
-import { reassessDetection } from './movement/detection';
+import { marchingForce, reassessDetection } from './movement/detection';
+import { lineCrossingOf } from '../src/domain/interception';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
@@ -1297,6 +1298,99 @@ export const patrolScene = internalMutation({
 });
 
 /**
+ * **La scène de la ligne de guet** (#377), pour la démo : deux avant-postes français hors de
+ * France, Liège et Sarrebruck, en liaison, une infanterie en ronde en halte à Liège, et une
+ * colonne de l'adversaire partie de Virton vers Coblence, qui a coupé la liaison il y a cinq
+ * minutes au milieu, loin des deux vigies et de notre sol : relevée au point de franchissement
+ * par la seule ligne, et la dépêche le dit.
+ *
+ * `npx convex run dev:watchLineScene '{"playerId":"…","enemyId":"…"}'`
+ */
+export const watchLineScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players') },
+  handler: async (ctx, { playerId, enemyId }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    const plant = (lon: number, lat: number, hostCountry: string) =>
+      ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 3_600_000,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    const liege = await plant(5.57, 50.63, 'BEL');
+    const saarbrucken = await plant(7.0, 49.23, 'DEU');
+    const patrol = await ctx.db.insert('troops', {
+      seasonId: player.seasonId,
+      playerId,
+      role: 'infantry',
+      tier: 1,
+      nominalStrength: nominalStrength('infantry', 1),
+      currentStrength: nominalStrength('infantry', 1),
+      stationedAt: liege,
+    });
+    const haltUntil = now + 2 * 3_600_000;
+    const jobId = await ctx.scheduler.runAt(haltUntil, internal.patrols.haltEnds, {
+      troopId: patrol,
+    });
+    await ctx.db.patch(patrol, {
+      patrol: { ends: [liege, saarbrucken], to: saarbrucken, haltUntil, jobId },
+    });
+
+    const from = { lon: 5.46, lat: 49.59 };
+    const troopId = await ctx.db.insert('troops', {
+      seasonId: player.seasonId,
+      playerId: enemyId,
+      role: 'armor',
+      tier: 1,
+      nominalStrength: nominalStrength('armor', 1),
+      currentStrength: nominalStrength('armor', 1),
+      stationedAt: from,
+    });
+    const { movementId } = await march(ctx, {
+      playerId: enemyId,
+      season,
+      type: 'march',
+      origin: { kind: 'point', point: from },
+      troopIds: [troopId],
+      aim: await aimOf(ctx, enemyId, { kind: 'point', point: { lon: 7.12, lat: 50.27 } }),
+    });
+    const movement = (await ctx.db.get(movementId))!;
+    const crossing = lineCrossingOf(
+      marchingForce(movement),
+      [
+        [5.57, 50.63],
+        [7.0, 49.23],
+      ],
+      movement.departedAt,
+    );
+    if (crossing === null) throw new Error('the column misses the line');
+    /** Partie plus tôt, elle a franchi il y a cinq minutes ; la lecture se fait juste avant, pour
+     *  que le relevé et sa dépêche partent comme ils seraient partis. */
+    const shift = crossing.at - (now - 5 * 60_000);
+    await ctx.db.patch(movementId, {
+      departedAt: movement.departedAt - shift,
+      arrivesAt: movement.arrivesAt - shift,
+    });
+    await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
+      movementId,
+    });
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, crossing.at - shift - 60_000, [
+      playerId,
+      enemyId,
+    ]);
+  },
+});
+
+/**
  * **La scène des métiers** (#371), pour la démo : quatre avant-postes français entre Arlon et
  * Sarrebruck. À Arlon un point de niveau 1, dont l'élévation offre Magasin, Guet et Fort ; à
  * Luxembourg un point d'avant la refonte, généraliste au niveau 2, qui choisit gratuitement ; à
@@ -1714,10 +1808,24 @@ export const benchScene = internalMutation({
             stationedAt: outpostIds[0],
             load: { ammunition: 90, oil: 50, coal: 20 },
           });
+    /** **Une infanterie pour la ronde** (#377) : le banc la lance sur une liaison tracée du
+     *  premier point, et sa ligne de guet se relit à chaque réévaluation. */
+    const patrolId =
+      outpostIds[0] === undefined
+        ? null
+        : await ctx.db.insert('troops', {
+            seasonId: player.seasonId,
+            playerId,
+            role: 'infantry',
+            tier: 1,
+            nominalStrength: nominalStrength('infantry', 1),
+            currentStrength: nominalStrength('infantry', 1),
+            stationedAt: outpostIds[0],
+          });
     /** Des points posés hors du geste de couleur : leur couleur se retient comme après une
      *  fondation, sans quoi la vue mesurée serait celle d'un sol jamais relevé (#144). */
     await recordLinkage(ctx, player.seasonId);
-    return { squads: placed, reserveIds, outpostIds, truckId };
+    return { squads: placed, reserveIds, outpostIds, truckId, patrolId };
   },
 });
 

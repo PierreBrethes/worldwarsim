@@ -75,8 +75,9 @@ import {
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
+import { veiledPiles } from './veils';
 import { HeldBursts } from './held-bursts';
-import { stampStays } from '@/domain/combat-on-map';
+import { afloat, sceneSpan, stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
@@ -96,7 +97,7 @@ import {
 } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
-import { buildingSpan } from '@/domain/piece-size';
+import { buildingSpan, troopSpan } from '@/domain/piece-size';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
@@ -211,6 +212,9 @@ const SELECTED_LIFT = 0.75;
 
 /** @a-mesurer Délai avant de redemander `/coast.json` après un échec. */
 const COAST_RETRY_MS = 3000;
+/** **How near its fired-from point my gun stands** (#325), in degrees of longitude: its pile at
+ *  that point, or a garrison at the foot of its building there. @a-mesurer */
+const BATTERY_SEARCH_DEGREES = 0.05;
 /** Half the width of a compass's km label, in CSS pixels: closer to the edge it would be cut. */
 const LABEL_ROOM_PX = 40;
 /** Under a finger, the point a held building aims at stands this far above it (#239). @a-mesurer */
@@ -522,6 +526,9 @@ export class MapEngine {
   private piles: ReadonlyArray<StandingPile> = [];
   /** « Terrain tenu » of a combat the map may play: the report stamp says it when it does. */
   private readonly groundWords = new HeldBursts((burst) => this.inkBurst(burst));
+  /** **The straight line of my battery's shot** (#325), held while the map may play its scene:
+   *  the scene draws it as an arc, a combat settled without one draws it straight. */
+  private readonly shots = new HeldBursts((burst) => this.traceShot(burst));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
   /** Columns waiting for their pile to stand before they deploy (#362). */
@@ -932,8 +939,12 @@ export class MapEngine {
     };
     this.combats.phone = this.touch;
     this.combats.onSettled = (id) => this.settleCombat(id);
-    this.combats.onShown = (id) => this.groundWords.shown(id);
+    this.combats.onShown = (id) => {
+      this.groundWords.shown(id);
+      this.shots.shown(id);
+    };
     this.combats.onReport = (view) => this.onCombatReport?.(view);
+    this.combats.host = this.standing;
     this.maquettes = new MaquetteLayer(
       this.frame,
       (regionId) => this.regions.anchorOf(regionId),
@@ -1091,18 +1102,7 @@ export class MapEngine {
   inkBurst(burst: InkBurst): void {
     this.invalidate();
     if (burst.kind === 'held' && burst.combatId !== undefined) return this.groundWords.hold(burst);
-    /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis
-     *  levé comme le cercle d'un point — la même plume. */
-    if (burst.from !== undefined) {
-      const [from, to] = [burst.from, burst.at];
-      const shot = Array.from({ length: 25 }, (_, i) =>
-        this.frame.projectLonLat(
-          [from[0] + ((to[0] - from[0]) * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
-          COUNTRY_THICKNESS + 0.04,
-        ),
-      );
-      this.ink.traceReach(shot, performance.now());
-    }
+    if (burst.from !== undefined) this.shots.hold(burst);
     if (burst.kind === 'airdropped') this.parachutes.release(burst.at, performance.now());
     this.ink.burst(burst, performance.now());
   }
@@ -1111,6 +1111,20 @@ export class MapEngine {
   liftStamps(kind: InkBurst['kind']): void {
     this.invalidate();
     this.ink.lift(kind);
+  }
+
+  /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis levé
+   *  comme le cercle d'un point — la même plume. */
+  private traceShot({ from, at: to }: InkBurst): void {
+    if (from === undefined) return;
+    this.invalidate();
+    const shot = Array.from({ length: 25 }, (_, i) =>
+      this.frame.projectLonLat(
+        [from[0] + ((to[0] - from[0]) * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
+        COUNTRY_THICKNESS + 0.04,
+      ),
+    );
+    this.ink.traceReach(shot, performance.now());
   }
 
   /** A site of mine just cut off: its stamp beside the maquette, where its region anchors it. */
@@ -1573,6 +1587,8 @@ export class MapEngine {
     this.replay?.scene.dispose();
     const lonLat = [view.point.lon, view.point.lat] as const;
     const onLand = this.landAt(lonLat);
+    // At sea, the ships fight alone: what they carried drowns in the dispatch (#324).
+    const shown = onLand ? view : afloat(view);
     const center = this.frame.projectLonLat(lonLat, onLand ? COUNTRY_THICKNESS : SEA_LEVEL);
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
     const flat = Math.hypot(orientation.x, orientation.z);
@@ -1588,7 +1604,8 @@ export class MapEngine {
           );
     const yaw = Math.atan2(tilted.x, tilted.z);
     const fire = this.replayFire(view, center, yaw);
-    const reach = replayReach(view, fire) * REPLAY_STAGE * pieceScale.size;
+    const reach =
+      replayReach(shown, fire, onLand ? 'land' : 'sea') * REPLAY_STAGE * pieceScale.size;
     // Fitted to the height left above `below`, and to the width on a portrait screen.
     const aspect = this.screenWidth / this.screenHeight;
     const distance = Math.max(
@@ -1604,16 +1621,18 @@ export class MapEngine {
       .add(new Vector3(tilted.x, 0, tilted.z).normalize().multiplyScalar(nearer));
     const scene = new ReplayScene(
       this.playerNation,
-      replayAt(view, 0).pieces,
+      replayAt(shown, 0).pieces,
       onLand ? 'land' : 'sea',
       fire,
       view.faced?.nation ?? null,
+      null,
+      sceneSpan(shown),
     );
     scene.object.position.copy(center);
     scene.object.rotation.y = yaw;
     this.scene.add(scene.object);
     this.replay = {
-      view,
+      view: shown,
       scene,
       saved,
       center,
@@ -1964,9 +1983,10 @@ export class MapEngine {
     points: ReadonlyArray<ZonePoint>,
     liaisons: ReadonlyArray<readonly [string, string]>,
     linesOnly = false,
+    patrol?: { readonly liaisons: ReadonlyArray<readonly [string, string]>; readonly ink: string },
   ): void {
     this.invalidate();
-    this.zones.show(points, liaisons, linesOnly);
+    this.zones.show(points, liaisons, linesOnly, patrol);
   }
 
   /** **La liaison tracée sous le pointeur** (#376), par les clés de ses deux points, ou `null`. */
@@ -1985,11 +2005,11 @@ export class MapEngine {
   inkLiaison(from: LonLat, to: LonLat): void {
     this.invalidate();
     if (this.ambience.motion !== 'full') return;
-    const line = this.zones.segment(from, to);
-    this.ink.traceReach(
-      Array.from({ length: line.length / 3 }, (_, i) => new Vector3().fromArray(line, 3 * i)),
-      performance.now(),
-    );
+    for (const line of this.zones.segment(from, to))
+      this.ink.traceReach(
+        Array.from({ length: line.length / 3 }, (_, i) => new Vector3().fromArray(line, 3 * i)),
+        performance.now(),
+      );
   }
 
   /** The km labels of the compasses, told when they move on screen, at a rendered frame only. */
@@ -2061,6 +2081,7 @@ export class MapEngine {
     this.combats.dispose();
     this.razes.dispose();
     this.groundWords.dispose();
+    this.shots.dispose();
     this.maquettes.dispose();
     this.camps.dispose();
     this.pins.dispose();
@@ -2783,24 +2804,45 @@ export class MapEngine {
   }
 
   /**
-   * **Un combat se joue à son point** (#272) : sur terre, s'il est dans le champ et ses figurines
-   * dessinées au signal, et qu'aucun rejeu n'est ouvert ; sinon rien, la dépêche suffit. Sans sa
+   * **Un combat se joue à son point** (#272) : sur terre comme en mer (#324), s'il est dans le
+   * champ et sa plus longue pièce dessinée au signal, et qu'aucun rejeu n'est ouvert ; sinon rien,
+   * la dépêche suffit. Sans sa
    * vue encore, le point se masque en l'attendant. La ligne du défenseur se tient sur sa pile,
    * l'attaquant en face, du côté d'où il est venu (`toward`), sinon à gauche, comme au rejeu.
    */
   private playCombat(cue: Extract<Cue, { kind: 'combat' }>): void {
-    const point = this.frame.projectLonLat(cue.point, COUNTRY_THICKNESS);
+    const medium = this.landAt(cue.point) ? 'land' : 'sea';
+    const point = this.frame.projectLonLat(
+      cue.point,
+      medium === 'land' ? COUNTRY_THICKNESS : SEA_LEVEL,
+    );
     const now = performance.now();
-    if (
-      this.replay !== null ||
-      !this.landAt(cue.point) ||
-      (!this.combats.waits(cue.id) && !this.seenWhole(point))
-    ) {
+    // Its view still on its way, a sea combat is seen by the least of the ships that fight.
+    const span =
+      cue.view !== null
+        ? sceneSpan(cue.view)
+        : medium === 'sea'
+          ? troopSpan('escort')
+          : ANONYMOUS_SPAN;
+    // My battery, when it fired (#325): the scene plays when either end is in the field.
+    const battery =
+      cue.from === null
+        ? null
+        : {
+            at: this.frame.projectLonLat(cue.from, COUNTRY_THICKNESS),
+            within: this.frame
+              .projectLonLat([cue.from[0] + BATTERY_SEARCH_DEGREES, cue.from[1]], COUNTRY_THICKNESS)
+              .distanceTo(this.frame.projectLonLat(cue.from, COUNTRY_THICKNESS)),
+          };
+    const seen =
+      this.seenWhole(point, span) ||
+      (battery !== null && this.seenWhole(battery.at, troopSpan('artillery')));
+    if (this.replay !== null || (!this.combats.waits(cue.id) && !seen)) {
       this.settleCombat(cue.id);
       return;
     }
     if (cue.view === null) {
-      this.combats.wait(cue.id, point, now);
+      this.combats.wait(cue.id, point, span, now);
       return;
     }
     let yaw: number;
@@ -2812,24 +2854,25 @@ export class MapEngine {
       yaw =
         cue.view.side === 'attacker' ? Math.atan2(away.z, -away.x) : Math.atan2(-away.z, away.x);
     }
-    this.combats.play(cue.view, this.playerNation, point, yaw, now);
+    this.combats.play(cue.view, this.playerNation, point, yaw, now, medium, battery);
   }
 
   /** A combat has done showing itself: « terrain tenu » stands if no scene did, and its dispatch
    *  may come — unless a stamp holds it until it lifts. */
   private settleCombat(id: string): void {
     this.groundWords.abandon(id);
+    this.shots.abandon(id);
     this.onCombatSettled?.(id);
   }
 
-  /** In the field, and near enough for a troop to stand rather than its pin. */
-  private seenWhole(point: Vector3): boolean {
+  /** In the field, and near enough for a troop of `span` to stand rather than its pin. */
+  private seenWhole(point: Vector3, span = ANONYMOUS_SPAN): boolean {
     this.eyeFrustum.setFromProjectionMatrix(
       this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
     );
     return (
       this.eyeFrustum.containsPoint(point) &&
-      troopScale(this.camera.position.distanceTo(point), ANONYMOUS_SPAN) > 0
+      troopScale(this.camera.position.distanceTo(point), span) > 0
     );
   }
 
@@ -3500,9 +3543,10 @@ export class MapEngine {
       this.invalidate();
   }
 
-  /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile. */
-  private combatScaleAt(at: Vector3): number {
-    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), ANONYMOUS_SPAN);
+  /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile of its
+   *  longest piece (#324). */
+  private combatScaleAt(at: Vector3, span: number): number {
+    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span);
   }
 
   /** What the replay and the combats on the map cover: the board there would show the after. */
@@ -3527,8 +3571,10 @@ export class MapEngine {
         this.replayHidden.delete(pawn);
       }
     if (veils.length === 0) return;
-    for (const layer of [this.standing.group, this.camps.group])
-      for (const object of layer.children) if (covered(object.position)) object.visible = false;
+    for (const object of veiledPiles(this.standing.group.children, veils, this.combats.batteries))
+      object.visible = false;
+    for (const object of this.camps.group.children)
+      if (covered(object.position)) object.visible = false;
     for (const pawn of this.arcs.pawns)
       if (pawn.visible && covered(pawn.position)) {
         pawn.visible = false;
@@ -3802,7 +3848,7 @@ export class MapEngine {
         ),
       );
     }
-    if (this.combats.advance(now, (at) => this.combatScaleAt(at))) this.demand.whole();
+    if (this.combats.advance(now, (at, span) => this.combatScaleAt(at, span))) this.demand.whole();
     this.razes.advance(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
@@ -3851,11 +3897,12 @@ export class MapEngine {
     );
     this.arcs.animate(this.camera, this.unitsPerPixel(distance), yaw, this.eyeFrustum);
     this.ink.animate(now, this.unitsPerPixel(distance));
+    this.combats.scaleInk(this.unitsPerPixel(distance), this.screenHeight);
     this.parachutes.animate(now, this.unitsPerPixel(distance));
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
-    this.zones.animate(now, this.ambience.motion);
+    this.zones.animate(now, this.ambience.motion, this.unitsPerPixel(distance));
     this.ghost.orient(this.camera.position);
     this.tellThread();
     this.tellZoneLabels();

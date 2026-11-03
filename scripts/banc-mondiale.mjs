@@ -1,6 +1,7 @@
 /**
  * **Le banc de charge de la Mondiale** (#143) : huit joueurs, cent cinquante troupes chacun, une
- * centaine de mouvements en vol, des avant-postes aux dépôts entamés, une tournée par joueur, et
+ * centaine de mouvements en vol, des avant-postes aux dépôts entamés, une tournée et une ronde
+ * par joueur (`--sans-rondes` les retire, pour comparer aux mesures d'avant #377), et
  * un brouillard qui se croise (tous les départs tiennent dans un même carré d'Europe). Puis il
  * mesure et imprime le tableau qui sert de référence « avant » aux optimisations.
  *
@@ -187,6 +188,29 @@ for (let k = 0; k < PLAYERS; k++) {
   }
 }
 
+/** **Une ronde par joueur** (#377) : sur la première liaison tracée du premier point, ce que la
+ *  carte refuse (paire non tracée) passant au voisin suivant. */
+let patrols = 0;
+for (let k = 0; k < PLAYERS; k++) {
+  if (k === MEASURED || process.argv.includes('--sans-rondes')) continue;
+  const [first, ...others] = scenes[k].outpostIds;
+  for (const other of others) {
+    try {
+      await client.mutation(api.patrols.start, {
+        token: tokens[k],
+        seasonId,
+        troopId: scenes[k].patrolId,
+        ends: [first, other],
+      });
+      patrols += 1;
+      break;
+    } catch (error) {
+      if (error.data?.code !== 'PATROL_NOT_DRAWN')
+        console.warn(`ronde ${String(k)} refusée : ${String(error.data?.code ?? error.message)}`);
+    }
+  }
+}
+
 // --- les mouvements en vol, par étages : le brouillard est relu à chaque étage -----------------
 /** Un joueur après l'autre, puis tour à tour : le plateau se remplit de tous les côtés à la fois. */
 const queue = [];
@@ -295,7 +319,7 @@ const fixed = (n, d = 1) => n.toFixed(d);
 /** Une exécution qui dépasse la seconde permise est coupée et ne laisse rien : on le dit. */
 const cell = (run) => (run.timedOut ? `${fixed(run.ms)} (coupée à 1 s)` : fixed(run.ms));
 console.log(
-  `\nBanc Mondiale — ${String(PLAYERS)} joueurs, ${String(stats.troops)} troupes, ${String(flights)} mouvements en vol, ${String(stats.outposts)} avant-postes, ${String(tours)} tournées`,
+  `\nBanc Mondiale — ${String(PLAYERS)} joueurs, ${String(stats.troops)} troupes, ${String(flights)} mouvements en vol, ${String(stats.outposts)} avant-postes, ${String(tours)} tournées, ${String(patrols)} rondes`,
 );
 console.log(
   "Source : /api/stream_function_logs du backend local (executionTime, databaseReadDocuments), médiane de 3 passes (playerView : 3 joueurs, le cache des requêtes rendrait 0 à une répétition). Une exécution coupée à 1 s ne rend que ce qu'elle avait lu.\n",

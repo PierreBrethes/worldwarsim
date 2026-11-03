@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { playerOf } from './seats';
-import { facedOf, kindsOf, tallyOf } from './view';
+import { facedOf, kindsOf, seaOf, tallyOf } from './view';
 import type { ReplayView } from '../src/domain/player-view';
 
 /**
@@ -35,6 +35,7 @@ export const replayOf = query({
       combatId: engagement._id,
       at: engagement.at,
       point: engagement.point,
+      ...seaOf(engagement.point),
       side,
       won: engagement.winner === side,
       mine: kindsOf(engagement.troops.filter((troop) => troop.side === side)),

@@ -103,6 +103,7 @@ export function journalDispatches(
       combat: entry.combat ?? null,
       place: entry.place ?? null,
       ...(entry.delivered === undefined ? {} : { delivered: entry.delivered }),
+      ...(entry.built === true ? { built: true as const } : {}),
     }));
 }
 
@@ -118,6 +119,7 @@ type Written = {
   readonly combat?: CombatReport;
   readonly place?: MapPlace | null;
   readonly delivered?: SupplyLoad;
+  readonly built?: true;
 };
 
 /**
@@ -151,6 +153,7 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'routine',
         kind: 'construction',
+        built: true,
         text: said.constructionFinished(
           fr.buildings[notice.building],
           notice.regionName,
@@ -780,6 +783,7 @@ const fromCombat = (report: CombatReport): Written => ({
     outpostDisabled: report.outpostDisabled,
     shock: report.shock === true,
     faced: report.faced,
+    atSea: report.atSea === true,
   }),
   combat: report,
   place: report.point,

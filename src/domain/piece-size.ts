@@ -108,6 +108,9 @@ const OBJECTIVE_METRES: Readonly<Record<string, number>> = {
 const onBoard = (metres: number, share = 1): number =>
   (metres * EXAGGERATION * share) / 1000 / BOARD_KM;
 
+/** **Une distance réelle sur le plateau**, en unités, à l'exagération commune. */
+export const metresOnBoard = (metres: number): number => onBoard(metres);
+
 /** **La mesure d'un rôle sur le plateau**, en unités : la taille de l'homme, la longueur ou
  *  l'envergure du reste (`TROOP_METRES`) ; d'un char, celle du modèle de sa nation et de son rang
  *  quand ils sont dits (`ARMOR_METRES`). */

@@ -66,6 +66,23 @@ describe('inkBursts', () => {
     ]);
   });
 
+  it('holds the shot for the map to say whether its arc drew it, where it plays combats (#325)', () => {
+    const fired = {
+      ...combat,
+      cause: 'bombardment',
+      firedFrom: { lon: 1, lat: 48 },
+    } as CombatReport;
+    expect(inkBursts([dispatch(20, 'assault', fired)], 10, [], true)).toEqual([
+      {
+        kind: 'combat',
+        at: [2, 49],
+        from: [1, 48],
+        combatId: combat.id,
+        words: { word: 'bombardé', hour: hour(20) },
+      },
+    ]);
+  });
+
   it('stamps « terrain tenu » after « engagé » when the ground was held', () => {
     const won = { ...combat, won: true };
     expect(inkBursts([dispatch(20, 'assault', won)], 10, [])).toEqual([
@@ -77,6 +94,12 @@ describe('inkBursts', () => {
         delayMs: STAMP_MS,
       },
     ]);
+  });
+
+  it('stamps « eaux tenues » for a combat won at sea (#324)', () => {
+    const won = { ...combat, won: true };
+    const [, held] = inkBursts([dispatch(20, 'assault', won)], 10, [], false, () => false);
+    expect(held).toMatchObject({ kind: 'held', words: { word: 'eaux tenues' } });
   });
 
   it('names the combat on « terrain tenu » when the map may play it, an arrival only (#327)', () => {

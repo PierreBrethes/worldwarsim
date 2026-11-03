@@ -4,7 +4,7 @@ import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { isRigPart, type RigFamily, RIG_PARTS } from '@/emblems/rigs';
 import { bakedRig } from '../baking';
 import { meshesOf, sceneOfFile, sweptVolume } from '../gltf-scene.fixture';
-import { bakedFigurine } from './figurine';
+import { bakedFigurine, REST_POSES } from './figurine';
 import { JOINTS, POSED, squadOf, stride } from './infantry';
 
 const readByName = (name: string) =>
@@ -137,5 +137,24 @@ describe.runIf(files.length > 0)('articulated copies of the figurines', () => {
       const was = node.getWorldPosition(new Vector3());
       expect(kept!.getWorldPosition(new Vector3()).distanceTo(was), node.name).toBeLessThan(1e-5);
     });
+  });
+});
+
+/** **Une pièce en batterie ouvre ses flèches** (#325) : une cuisson de plus, sur un clone posé. */
+describe('a gun in battery', () => {
+  const guns = files.filter(([, role]) => role === 'artillery');
+  const keeps = (node: Object3D) => isRigPart('artillery', node.name);
+  it.each(guns)('%s swings each trail outward, the file untouched', (_, __, url) => {
+    const scene = sceneOfFile(url);
+    const open = scene.clone(true);
+    REST_POSES.emplaced(open);
+    const [rest, emplaced] = [scene, open].map((made) => {
+      const rig = bakedRig(made, keeps);
+      rig.updateMatrixWorld(true);
+      return (name: string) => new Box3().setFromObject(rig.getObjectByName(name)!, true);
+    });
+    expect(emplaced!('trail_left').max.x).toBeGreaterThan(rest!('trail_left').max.x + 0.05);
+    expect(emplaced!('trail_right').min.x).toBeLessThan(rest!('trail_right').min.x - 0.05);
+    expect(scene.getObjectByName('trail_left')!.rotation.y).toBe(0);
   });
 });

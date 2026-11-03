@@ -24,6 +24,41 @@ Part de l'état du lot 0 (#286) : GLB neufs en mètres, pièces nommées à leur
 > Pierre du 31/10, au banc) ; `MAX_PLAYING` reste aux copies. Au-delà, la pose finale. Un rejeu
 > ouvert retire les scènes, et la dépêche d'un combat joué attend la fin de sa scène.
 
+> **Précisée le 02/11/2026, au codage du bombardement** (#325, relecture à froid du 02/11, option
+> A) :
+>
+> - **§4, une cuisson de repos par pose.** Une pose de repos (`REST_POSES`,
+>   `src/map/engine/figurines/figurine.ts`) tourne des nœuds nommés d'un clone de la scène avant
+>   toute cuisson ; la clé du cache passe de l'URL à URL + pose, pour la cuisson de repos comme pour
+>   la cuisson articulée (`articulatedOf(url, family, pose)`). La première est `emplaced` : les
+>   flèches `trail_left`/`trail_right` ouvertes de `TRAIL_OPEN` (`@a-mesurer`) ; `RIG_PARTS.artillery`
+>   garde `trail_*`, que la copie au tir porte ouvertes. #269 y ajoutera le vol, train rentré.
+> - **Qui demande la pose.** Le domaine dit l'instant dès lequel un groupe de pile est en
+>   batterie (`batterySince`, `src/domain/indirect-fire.ts`) : artillerie seule, rien à bord, pile
+>   pas au large, `emplacedAt` absent ou dépassé pour toutes ses troupes ; il le porte au groupe
+>   (`PieceGroup.battery`). `StandingLayer` habille le groupe à la pose `emplaced` dès cet instant,
+>   compte la pose dans la clé de dessin, et programme lui-même le changement : aucune vue n'arrive
+>   quand `emplacedAt` passe. Les bêches attendent la régénération des GLB d'artillerie.
+> - **§5, la batterie au tir n'est pas une séquence de `SequenceLayer`.** Elle reste sa propre pile
+>   sur la carte ; sa pièce est remplacée, le temps de la scène du combat, par une copie articulée
+>   menée par l'horloge de `combatAt` et comptée dans `COMBAT_LIMITS` avec son combat
+>   (`BatteryShot`, `src/map/engine/bombardment.ts`). `CombatLayer.play` reçoit chez le tireur le
+>   point de la batterie, tiré de `report.firedFrom` ou de `view.bombardment.from` seuls, que la
+>   cible ne reçoit jamais : le brouillard tient par construction. La copie est empruntée à
+>   l'hôte des piles (`SequenceHost` et `batteryNear`), au groupe d'artillerie en batterie le plus
+>   proche de ce point ; elle se tourne vers la cible, lève le tube à 35°, recule tube et affût au
+>   départ, éclaire sa bouche, puis rend la pièce à la fin de la scène. Pas de copie quand la pile
+>   n'est pas dessinée (son épingle) : l'arc part alors du point. Le voile d'une scène, qui
+>   cache les piles sous elle, laisse debout les piles au point d'une batterie qui tire
+>   (`CombatLayer.batteries`) : une batterie proche de sa cible tomberait sinon sous le voile de son
+>   propre coup, avant même que sa copie soit cuite.
+> - **La scène au point de la cible** ne pose chez le tireur que le camp d'en face, le coup venant
+>   de loin (`fire = 'afar'`) ; chez la cible, `fire = 'unseen'`, l'obus tombe du ciel. L'arc
+>   d'encre se dessine dans le repère du monde, de la bouche à la cible, chez le tireur seul ; la
+>   gerbe (terre, ou eau en mer) monte sur chaque pièce frappée, des deux côtés, et compte avec
+>   l'éclair de la batterie dans `CombatLayer.flashes()`. La scène joue quand l'un ou l'autre bout
+>   est dans le champ ; Mondiale seule.
+
 > **Précisée le 26/10/2026, au codage de la sortie de caserne** (#268) : une séquence sans
 > `family` déplace la pièce, ou chacun des hommes d'une escouade (`man_*`) ; sa copie est un clone
 > de ce que l'hôte dessine (`copyOf`), posé dès le signal, sans cuisson. Ces poses y gagnent

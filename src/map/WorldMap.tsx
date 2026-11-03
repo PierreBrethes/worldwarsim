@@ -375,6 +375,10 @@ type Props = {
 export type OutpostZonesView = {
   readonly points: ReadonlyArray<ZonePoint>;
   readonly liaisons: ReadonlyArray<readonly [string, string]>;
+  /** **Celles où tourne une de mes rondes** (#377) : leur trait reste, calque éteint, à l'encre
+   *  de ma nation. */
+  readonly patrolled: ReadonlyArray<readonly [string, string]>;
+  readonly ink: string;
 };
 
 /** An outpost the player confirmed dismantling: its id, and whether it takes an area with it. */
@@ -431,6 +435,8 @@ export type MapCombat = {
   readonly point: LonLat;
   readonly view: ReplayView | null;
   readonly toward: LonLat | null;
+  /** **D'où ma batterie a tiré** (#325) : `report.firedFrom`, que la cible ne reçoit jamais. */
+  readonly from: LonLat | null;
 };
 /** How far above a finger the drop chip stands, clear of the fingertip (#250). @a-mesurer */
 const FINGER_LIFT_PX = 56;
@@ -1389,7 +1395,12 @@ export function WorldMap({
       ? {
           kind: 'held' as const,
           at: [replayView.point.lon, replayView.point.lat] as const,
-          words: { word: fr.replay.held, hour: asClockTime(replayView.at) },
+          words: {
+            word: readyEngine.landAt([replayView.point.lon, replayView.point.lat])
+              ? fr.replay.held
+              : fr.replay.heldAtSea,
+            hour: asClockTime(replayView.at),
+          },
         }
       : null;
     // Once a replay: stepping back and forth through the account does not stamp it again.
@@ -1603,10 +1614,12 @@ export function WorldMap({
   const zonesShown = indicators['outpost-zones'];
   const patrolLines = !zonesShown && patrolHand !== null;
   useEffect(() => {
+    const patrolled = outpostZones?.patrolled ?? [];
     readyEngine?.showOutpostZones(
-      zonesShown || patrolLines ? (outpostZones?.points ?? []) : [],
-      zonesShown || patrolLines ? (outpostZones?.liaisons ?? []) : [],
-      patrolLines,
+      outpostZones?.points ?? [],
+      zonesShown || patrolLines ? (outpostZones?.liaisons ?? []) : patrolled,
+      !zonesShown,
+      { liaisons: patrolled, ink: outpostZones?.ink ?? '' },
     );
   }, [readyEngine, outpostZones, zonesShown, patrolLines]);
   // A liaison born since the view before is traced once; nothing on the first view (#375).
@@ -1802,7 +1815,10 @@ export function WorldMap({
     const vanished = before.arcs.flatMap((arc) =>
       arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
-    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null))
+    const ground = engine.current;
+    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null, (at) =>
+      ground === null ? true : ground.landAt(at),
+    ))
       engine.current?.inkBurst(burst);
   }, [arcs, journal, blitz]);
 
