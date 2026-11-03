@@ -41,6 +41,9 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   tâche en arrière-plan que tu as lancés avant ton rapport : la machine de Pierre chauffe, et
   l'orchestrateur attend ton rapport.
 - **Mondiale seule** sauf mention contraire : la Blitz garde ses règles (`modeOf`).
+- **État jumeau** : un état neuf qui double un état existant (`patrol` à côté de `tour`) se lit
+  partout où l'ancien se lit, serveur et rose (marcher, embarquer, tirer, déroute, chute du QG) ;
+  `grep` chaque lecteur de l'ancien avant le premier commit, et liste-les dans le rapport.
 - **Code mort** : ce que le lot rend inutile se retire partout (constantes, refus, textes,
   tests, docs), dans un commit séparé.
 - **Périmètre** : ton issue, rien d'autre ; tu n'anticipes pas les suivantes.
