@@ -21,6 +21,8 @@ import {
   ANONYMOUS_SPAN,
   type PinnedBy,
   pieceWeight,
+  posedScene,
+  type RestPose,
   sceneOf,
   siteReading,
   type SiteReading,
@@ -76,6 +78,11 @@ export type StandingMaquette = {
   readonly works?: Works;
   /** One of my producers at work: a thread of smoke rises from its chimneys. */
   readonly smoking?: boolean;
+  /** **One of my sites at work at rest** (#273, `workingSites`): its loop plays, where its file
+   *  has one (`loopOf`). */
+  readonly working?: boolean;
+  /** **A lasting state its file is baked in** (`REST_POSES`): a Centre that searches. */
+  readonly pose?: RestPose;
   /** **Who its socle's liseré says holds it** (ADR 0038 §2-§3): mine in my ink, a survey and a
    *  neutral of the Blitz hollow in the board's ink. Absent for an objective: no liseré. */
   readonly side?: 'mine' | 'seen' | 'neutral';
@@ -166,11 +173,11 @@ type Model = {
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
-function modelOf(url: string, metres?: number): Promise<Model> {
-  const key = `${url} ${metres ?? ''}`;
+function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> {
+  const key = `${url} ${metres ?? ''} ${pose ?? ''}`;
   let model = models.get(key);
   if (!model) {
-    model = sceneOf(url).then((cached) => {
+    model = (pose === undefined ? sceneOf(url) : posedScene(url, pose)).then((cached) => {
       const scene = cached;
       const { building: parts, dressing, yard, sign, accessories } = bakedSite(scene);
       const boundsOf = (of: ReadonlyArray<Part>) => {
@@ -511,6 +518,8 @@ type Placed = {
    *  before the next frame still finds it drawn (#326). */
   drawnNear: number;
   readonly smoking: boolean;
+  /** Its loop may play (`StandingMaquette.working`): not at work, not a ghost. */
+  readonly working: boolean;
   /** One per chimney once the model has landed, empty for a site that does not produce. */
   smokes: Smoke[];
   /** The ink of its liseré (`lisereOf`), `null` for none. */
@@ -526,6 +535,8 @@ type AtWork = { readonly works: Works; dressing: WorksDressing | null };
 type Lot = {
   readonly url: string;
   readonly washed: boolean;
+  /** The lasting state its file is baked in (`REST_POSES`). */
+  readonly pose?: RestPose;
   readonly items: Placed[];
   readonly group: Group;
   model: Model | null;
@@ -641,12 +652,13 @@ export class MaquetteLayer implements SequenceHost {
       const shown = accessoriesShown(maquette.level ?? 1, maquette.works?.phase);
       const key = maquette.works
         ? `${maquette.url} works ${maquette.id}`
-        : `${maquette.url} ${maquette.washed} ${shown.join()}`;
+        : `${maquette.url} ${maquette.washed} ${shown.join()} ${maquette.pose ?? ''}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
         lot = {
           url: maquette.url,
           washed: maquette.washed,
+          ...(maquette.pose !== undefined && { pose: maquette.pose }),
           items: [],
           group: new Group(),
           model: null,
@@ -662,7 +674,7 @@ export class MaquetteLayer implements SequenceHost {
         this.group.add(lot.group);
         const landing = lot;
         // A model that fails to load leaves the plates; `modelOf` has said why.
-        modelOf(maquette.url, maquette.metres).then(
+        modelOf(maquette.url, maquette.metres, maquette.pose).then(
           (model) => this.landed(landing, model, maquette.washed),
           () => {},
         );
@@ -690,6 +702,7 @@ export class MaquetteLayer implements SequenceHost {
         drawnNear: drawn.get(maquette.id)?.drawnNear ?? 0,
         // A site at work and a ghost of a survey do not produce.
         smoking: maquette.smoking === true && !maquette.works && !maquette.washed,
+        working: maquette.working === true && !maquette.works && !maquette.washed,
         smokes: [],
         settledAt: null,
         lisere: lisereOf(maquette),
@@ -908,7 +921,7 @@ export class MaquetteLayer implements SequenceHost {
 
   /** **What a sequence may borrow** (`SequenceHost`): not a ghost, a site at work, a pin or a
    *  piece a replay has cleared. Its box is `null` until its lot has been placed. */
-  pieceOf(id: string): { url: string; box: Box3 | null } | null {
+  pieceOf(id: string): { url: string; pose?: RestPose; box: Box3 | null } | null {
     const dressed = this.byId.get(id);
     if (
       dressed === undefined ||
@@ -919,7 +932,22 @@ export class MaquetteLayer implements SequenceHost {
       dressed.item.near === 0
     )
       return null;
-    return { url: dressed.lot.url, box: this.boxOf(id)?.clone() ?? null };
+    const { url, pose } = dressed.lot;
+    return { url, ...(pose !== undefined && { pose }), box: this.boxOf(id)?.clone() ?? null };
+  }
+
+  /** **What a loop may borrow** (`LoopHost`, #273): my sites at work, drawn whole — their
+   *  diorama standing —, with their board units per metre of their file. */
+  working(): Array<{ id: string; url: string; pose?: RestPose; box: Box3; metre: number }> {
+    return [...this.byId.values()].flatMap(({ item, lot }) => {
+      const box = item.working && item.diorama >= 1 ? this.pieceOf(item.id)?.box : null;
+      if (!box || lot.model === null) return [];
+      const { id } = item;
+      const { url, pose } = lot;
+      return [
+        { id, url, ...(pose !== undefined && { pose }), box, metre: sizeOf(lot.model, item) },
+      ];
+    });
   }
 
   /** **What a maquette is drawn as now, and where** (#326): its parts as its lot draws them — a
@@ -1172,6 +1200,8 @@ export class MaquetteLayer implements SequenceHost {
         else {
           copy.matrix.copy(matrix);
           copy.matrixWorldNeedsUpdate = true;
+          // Its sign grows on its foot as the instance's would: the copy keeps it apart.
+          copy.getObjectByName('signe')?.scale.setScalar(signGrowth);
           const away = shrunk.compose(item.at, item.turn, scale.setScalar(0));
           for (const mesh of lot.meshes) mesh.setMatrixAt(k, away);
         }

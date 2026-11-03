@@ -417,4 +417,10 @@ describe('maquettes', () => {
         expect(gltf.nodes.filter((node) => node.name === part).length, part).toBe(1);
     },
   );
+
+  it("carries the iron mine's rig parts in the coal mine too: one loop for both (#273)", () => {
+    const gltf = readGlb(buildingMaquette('mine', 'coal')!);
+    for (const part of RIG_PARTS.mine)
+      expect(gltf.nodes.filter((node) => node.name === part).length, part).toBe(1);
+  });
 });

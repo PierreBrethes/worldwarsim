@@ -73,6 +73,7 @@ import {
   troopScale,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
+import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
 import { veiledPiles } from './veils';
@@ -513,6 +514,8 @@ export class MapEngine {
   private readonly arcs: ArcLayer;
   private readonly standing: StandingLayer;
   private readonly maquettes: MaquetteLayer;
+  /** My sites at work, alive at rest (#273): an ambience that borrows their copies. */
+  private readonly loops: SiteLoopLayer;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   /** The combats played at their point (#272), on a budget of their own. */
@@ -963,6 +966,14 @@ export class MapEngine {
     );
     this.scene.add(this.maquettes.group);
     this.ambience.add(this.maquettes.smoke);
+    this.loops = new SiteLoopLayer(
+      this.maquettes,
+      this.sequences,
+      (box, px) => this.seenBig(box, px),
+      () => this.eye.position,
+      this.touch ? MAX_LIVING.touch : MAX_LIVING.desk,
+    );
+    this.ambience.add(this.loops);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.pins = new PinLayer(
@@ -2077,6 +2088,7 @@ export class MapEngine {
     this.searchArea.dispose();
     this.ghost.dispose();
     this.standing.dispose();
+    this.loops.dispose();
     this.sequences.dispose();
     this.combats.dispose();
     this.razes.dispose();

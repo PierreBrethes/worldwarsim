@@ -192,6 +192,10 @@ chaque pièce, la pose finale est `pose(total + 1)` (`storyboard-caserne/commun/
     rapproché, `MAX_PLAYING` copies au plus, en mouvement plein seulement. Une image d'ambiance ne
     refait pas les ombres (`index.ts:3241`) : la pièce qui tourne en boucle ne porte pas d'ombre
     (voir « Reste à trancher »). Lot à part, après les kits.
+    Précisé le 03/11/2026 (#273) : la boucle a sa couche `sites` et son propre emprunteur de
+    copies (`SiteLoopLayer`), au pas de 8 i/s de la fumée sans jamais appeler `invalidate()`,
+    plafonnée à 6 sites au bureau et 3 au téléphone (`MAX_LIVING`, `@a-mesurer`) hors du
+    `MAX_PLAYING` des séquences, et cède sa copie à une séquence qui joue sur le site.
 
 ## Conséquences
 

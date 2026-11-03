@@ -59,6 +59,22 @@ const doorOf = (host: FakeHost, id: string) =>
   host.copies.get(id)!.getObjectByName('porte_gauche')!;
 
 describe('SequenceLayer', () => {
+  it('cooks the copy in the lasting state its piece is drawn in (#273)', async () => {
+    const cooked: unknown[] = [];
+    const layer = new SequenceLayer(
+      () => true,
+      (...args) => {
+        cooked.push(args);
+        return Promise.resolve(rig());
+      },
+    );
+    const host = new FakeHost();
+    host.pieceOf = () => ({ url: 'x.glb', pose: 'observing' as const, box: host.box });
+    layer.play(host, 'a', turning, 0);
+    await flush();
+    expect(cooked).toEqual([['x.glb', 'barracks', 'observing']]);
+  });
+
   it('does not play at reduced or cut motion, out of sight, or while the piece is not drawn', async () => {
     for (const motion of ['reduced', 'off'] as const) {
       const { layer } = layerOf();

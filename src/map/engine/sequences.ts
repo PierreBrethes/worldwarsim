@@ -145,8 +145,12 @@ export function articulatedOf(url: string, family: RigFamily, pose?: RestPose): 
   const key = `${url} ${family} ${pose ?? ''}`;
   let rig = cooked.get(key);
   if (!rig) {
+    // Its sign kept apart, to grow on its foot at a distance as the instance's does (ADR 0038 §7).
     rig = posedScene(url, pose).then((scene) =>
-      bakedRig(scene, (node) => isRigPart(family, node.name) || movesOnItsOwn(node)),
+      bakedRig(
+        scene,
+        (node) => isRigPart(family, node.name) || movesOnItsOwn(node) || node.name === 'signe',
+      ),
     );
     cooked.set(key, rig);
   }
@@ -201,7 +205,11 @@ export class SequenceLayer {
   constructor(
     /** Ce que voit l'œil cette image : la boîte coupe le champ, et fait au moins `px`. */
     private readonly sees: (box: Box3, px: number) => boolean,
-    private readonly cook: (url: string, family: RigFamily) => Promise<Group> = articulatedOf,
+    private readonly cook: (
+      url: string,
+      family: RigFamily,
+      pose?: RestPose,
+    ) => Promise<Group> = articulatedOf,
   ) {}
 
   /** Lance `sequence` sur la pièce `id` de `host`, son horloge partie à `now` ; une pièce qui
@@ -249,7 +257,8 @@ export class SequenceLayer {
     }
     // Cooking is the first signal's cost: the clock already runs, so it eats the start of the
     // sequence, never its end.
-    this.cook(piece.url!, family!).then(
+    // A lasting state is baked in the copy as in the instance it stands in for.
+    this.cook(piece.url!, family!, piece.pose).then(
       (rig) => {
         if (!playing.over) this.standIn(playing, rig.clone(true));
       },

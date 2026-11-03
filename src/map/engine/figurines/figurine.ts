@@ -227,6 +227,9 @@ export const bakedFigurine = (scene: Object3D): Group => bakedRig(scene, movesOn
  *  storyboard's 0,32. @a-mesurer: its breech, raised to 35°, clears their hinge? */
 const TRAIL_OPEN = 0.32;
 
+/** The shutter open and the lens raised over their rest, in radians (`storyboard-repos`). */
+const OBSERVING = { shutter: (95 * Math.PI) / 180, lens: (25 * Math.PI) / 180 } as const;
+
 /**
  * **A rest bake of one more pose** (ADR 0036 §4, précisée le 02/11): what a lasting state turns
  * on a model — never a held sequence. Each turns named nodes of a clone of the scene before any
@@ -237,6 +240,12 @@ export const REST_POSES = {
   emplaced: (scene: Object3D): void => {
     scene.getObjectByName('trail_left')?.rotateY(-TRAIL_OPEN);
     scene.getObjectByName('trail_right')?.rotateY(TRAIL_OPEN);
+  },
+  /** **En observation** (#273) : le Centre qui cherche, volet ouvert et lunette levée de 10° à
+   *  35° (`storyboard-repos`), en toutes réduites. */
+  observing: (scene: Object3D): void => {
+    scene.getObjectByName('volet_coupole')?.rotateX(-OBSERVING.shutter);
+    scene.getObjectByName('lunette')?.rotateX(-OBSERVING.lens);
   },
 } as const;
 export type RestPose = keyof typeof REST_POSES;
