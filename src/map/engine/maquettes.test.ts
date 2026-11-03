@@ -808,10 +808,16 @@ describe('a site on its socle (ADR 0038)', () => {
     expect(rank.at.z + rank.step[1]).toBeCloseTo(first.z, 6);
     expect(rank.at.y).toBeCloseTo(first.y, 6);
     expect(rank.at.y).toBeGreaterThan(0);
-    // The rank runs along the marker's +z, the model's +z, turned as the maquette is.
-    const along = new Vector3(0, 0, 1).applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
+    // The rank runs along the marker's +x and deepens along its +z, turned as the maquette is,
+    // over the 30 m of its rectangle.
+    const turn = (v: Vector3) => v.applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
+    const along = turn(new Vector3(1, 0, 0));
     expect(Math.cos(rank.facing)).toBeCloseTo(along.x, 6);
     expect(-Math.sin(rank.facing)).toBeCloseTo(along.z, 6);
+    const deep = turn(new Vector3(0, 0, 1));
+    expect(rank.deep[0]).toBeCloseTo(deep.x, 6);
+    expect(rank.deep[1]).toBeCloseTo(deep.z, 6);
+    expect(rank.width).toBeCloseTo((30 * drawn.matrix.getMaxScaleOnAxis()) / 1, 6);
   });
 
   it('keeps the foot and its facing without a socle, and for the hulls of a quay', async () => {

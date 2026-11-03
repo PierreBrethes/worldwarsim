@@ -167,8 +167,13 @@ type Model = {
   readonly box: Box3;
   /** Its building's bounds: how high a site rises, where its scaffold stands, what a raze marks. */
   readonly building: Box3;
-  /** Its `fx_rang` on a socle — the first man, and the way the rank runs —, `null` without. */
-  readonly rank: { readonly at: Vector3; readonly along: Vector3 } | null;
+  /** Its `fx_rang` on a socle — the middle of the rank's front edge, the way it runs (the marker's
+   *  +x) and the way it deepens (its +z) —, `null` without. */
+  readonly rank: {
+    readonly at: Vector3;
+    readonly along: Vector3;
+    readonly deep: Vector3;
+  } | null;
   /** Its `fx_smoke` markers in its own units — the top of its bounds when it has none. */
   readonly chimneys: ReadonlyArray<Vector3>;
   /** Every `fx_*` marker, in its own units: a door a recruit comes out of (`markersOf`). */
@@ -227,7 +232,10 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
           ? null
           : {
               at: markers.get('fx_rang')!,
-              along: new Vector3(0, 0, 1).applyQuaternion(
+              along: new Vector3(1, 0, 0).applyQuaternion(
+                ranked.getWorldQuaternion(new Quaternion()),
+              ),
+              deep: new Vector3(0, 0, 1).applyQuaternion(
                 ranked.getWorldQuaternion(new Quaternion()),
               ),
             };
@@ -491,6 +499,10 @@ const QUAY_SHARE = 0.5;
  * when its walls make 50. `@a-mesurer`
  */
 export const RING_GAP = 1.45;
+
+/** The width of the rank's free rectangle on a yard, in metres (ADR 0038 §5; it is 14 m deep):
+ *  the piles stand abreast along it, then deepen. */
+const RANK_WIDTH_METRES = 30;
 
 /** **Two socles never stand nearer than this**, in metres (ADR 0038 §6). */
 const SOCLE_GAP = 4;
@@ -1132,8 +1144,11 @@ export class MaquetteLayer implements SequenceHost {
     at: Vector3;
     step: readonly [number, number];
     facing: number;
-    /** On a socle's yard (ADR 0038 §5): the first pile starts at `fx_rang`, the next along. */
+    /** On a socle's yard (ADR 0038 §5): piles stand abreast along `facing`, centred on `fx_rang`. */
     rank: boolean;
+    /** The rank's width, in board units, and the way it deepens, on the board. */
+    width: number;
+    deep: readonly [number, number];
   } | null {
     const held = this.held.get(id);
     const dressed = this.byId.get(id);
@@ -1149,15 +1164,25 @@ export class MaquetteLayer implements SequenceHost {
       const size = near * sizeOf((held?.model ?? dressed!.lot.model)!, item);
       const first = rank.at.clone().setY(0).applyQuaternion(item.turn).multiplyScalar(size);
       const along = rank.along.clone().applyQuaternion(item.turn);
+      const deep = rank.deep.clone().applyQuaternion(item.turn);
       return {
         at: at.clone().setY(at.y + SOCLE_TOP * size),
         step: [first.x, first.z],
         facing: Math.atan2(-along.z, along.x),
         rank: true,
+        width: RANK_WIDTH_METRES * size,
+        deep: [deep.x, deep.z],
       };
     }
     const foot = garrisonFoot(span, pile, quay) * pieceScale.size * scale * near;
-    return { at, step: [foot * Math.sin(facing), foot * Math.cos(facing)], facing, rank: false };
+    return {
+      at,
+      step: [foot * Math.sin(facing), foot * Math.cos(facing)],
+      facing,
+      rank: false,
+      width: Infinity,
+      deep: [0, 0],
+    };
   }
 
   /** **What a label's maquette is pinned by** — its socle, or its span —, `null` for none

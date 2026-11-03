@@ -50,6 +50,7 @@ import { playTableSound } from '../table-sound';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
+import { rankLayout } from './rank-layout';
 import {
   boxOfObject,
   drawnHit,
@@ -130,8 +131,12 @@ export type GarrisonAt = (
   at: Vector3;
   step: readonly [number, number];
   facing: number;
-  /** Ranked on a socle's yard from its first man: the first pile starts there. */
+  /** Ranked on a socle's yard (`rankLayout`): piles abreast along `facing`, centred on the
+   *  marker, then deeper along `deep`. */
   rank: boolean;
+  /** The rank's width, in board units, and the way it deepens, on the board. */
+  width: number;
+  deep: readonly [number, number];
 } | null;
 
 /**
@@ -1473,7 +1478,27 @@ export class StandingLayer implements SequenceHost {
     // abreast of them, whatever the order served.
     const attached = (entry: Dressed) =>
       'beside' in entry.at && entry.at.from !== undefined ? 1 : 0;
-    for (const entry of [...this.dressed.values()].sort((a, b) => attached(a) - attached(b))) {
+    const order = [...this.dressed.values()].sort((a, b) => attached(a) - attached(b));
+    // On a yard the piles are laid out together, centred on `fx_rang` (`rankLayout`).
+    const ranked = new Map<string, Dressed[]>();
+    for (const entry of order) {
+      if (!('beside' in entry.at) || entry.at.quay !== undefined) continue;
+      if (this.garrisonAt(entry.at.beside, entry.span, false)?.rank)
+        ranked.set(entry.at.beside, [...(ranked.get(entry.at.beside) ?? []), entry]);
+    }
+    const laid = new Map<Dressed, { x: number; z: number }>();
+    for (const [site, entries] of ranked) {
+      const { width } = this.garrisonAt(site, entries[0]!.span, false)!;
+      const spots = rankLayout(
+        entries.map(({ extent, object }) => {
+          const side = 2 * Math.max(extent.x, extent.z) * object.scale.x;
+          return { width: side, depth: side };
+        }),
+        width,
+      );
+      entries.forEach((entry, k) => laid.set(entry, spots[k]!));
+    }
+    for (const entry of order) {
       const { object, at, span, targets, extent } = entry;
       if ('beside' in at) {
         const quay = at.quay !== undefined;
@@ -1488,15 +1513,25 @@ export class StandingLayer implements SequenceHost {
           );
         if (foot !== null) {
           const half = Math.max(extent.x, extent.z) * object.scale.x;
-          const taken = abreast.get(at.beside) ?? 0;
-          // At a site's foot the first pile stands square to it; on a rank, from its first man.
-          const aside = taken === 0 && !foot.rank ? 0 : taken + half;
-          abreast.set(at.beside, aside + half);
-          object.position.set(
-            foot.at.x + foot.step[0] + aside * Math.cos(foot.facing),
-            foot.at.y,
-            foot.at.z + foot.step[1] - aside * Math.sin(foot.facing),
-          );
+          const spot = laid.get(entry);
+          if (spot !== undefined) {
+            // On a yard: abreast along the rank, centred on its marker, deeper by rows.
+            object.position.set(
+              foot.at.x + foot.step[0] + spot.x * Math.cos(foot.facing) + spot.z * foot.deep[0],
+              foot.at.y,
+              foot.at.z + foot.step[1] - spot.x * Math.sin(foot.facing) + spot.z * foot.deep[1],
+            );
+          } else {
+            const taken = abreast.get(at.beside) ?? 0;
+            // At a site's foot the first pile stands square to it.
+            const aside = taken === 0 ? 0 : taken + half;
+            abreast.set(at.beside, aside + half);
+            object.position.set(
+              foot.at.x + foot.step[0] + aside * Math.cos(foot.facing),
+              foot.at.y,
+              foot.at.z + foot.step[1] - aside * Math.sin(foot.facing),
+            );
+          }
           object.rotation.y = at.quay === undefined ? foot.facing : 0;
         } else if (at.from === undefined) {
           object.visible = false;
