@@ -38,8 +38,9 @@ l'imiter.
 - **Bers** : trois berceaux sous la quille, à z = −20, +20 et +60 (s = −125, −85, −45).
 - **Accores** : six étais, trois de chaque bord, du sol au flanc de la coque, au droit des bers.
 - **Grue** : grue portique sur rails, au pied du môle, centrée en (x = +70, z = +90) : portique de
-  10 × 10 m et 10 m de passage, fût jusqu'à 22 m, cabine, flèche relevable de 45 m (portée de 12 à
-  42 m), contrepoids. Au repos, la flèche pointe vers la cale (−x), relevée à 30°.
+  10 × 10 m et 10 m de passage, fût jusqu'à 14 m, cabine, flèche relevable de 30 m, contrepoids.
+  Au repos, la flèche pointe vers la cale (−x), relevée à 20°, avec 12 m de câble. Relevée au
+  maximum (45°), sa tête reste sous le signe (36 m contre 44 m).
 - **Pile de bois** : madriers et rondins sur le terre-plein, à x ≈ −30, z de +75 à +95 (jamais
   dans l'eau).
 - **Hampe** : mât de 12 m au sol à x = −30, z = +100 ; drapeau de 3 × 2 m (3:2 exact).
@@ -48,7 +49,7 @@ l'imiter.
 
 Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site tient sur le socle ; le bâtiment, ses portes et ses pièces nommées gardent leurs mètres et leurs pivots, simplement rehaussés de 2,2 m (le dessus du socle). **Le bâtiment lui-même ne change pas.** Les x et z des tableaux qui suivent restent vrais.
 
-**Rehausse.** L'origine du fichier reste au même (x, z), au pied du socle (y = 0) ; le dessus du socle est à y = 2,2. Toute cote y des tableaux ci-dessous se lit **+2,2 m** : un pivot ou un repère donné à y = 0 passe à 2,2. En particulier : toute la cale, le hall, les bers et accores (pieds à y = 2,2 + la pente), la grue portique (pied du portique à 2,2, `grue_couronne` à y = 24,2), la pile de bois ; `coque_cale` à (0 ; 4,2 ; +85) ; `fx_bord_eau` en (0 ; 2,2 ; +105) ; le chemin de glissement va de y = 6,95 au fond à y = 2,2 en tête. Seul le socle descend jusqu'à y = 0, et `avant_cale` jusqu'à y = −1,5.
+**Rehausse.** L'origine du fichier reste au même (x, z), au pied du socle (y = 0) ; le dessus du socle est à y = 2,2. Toute cote y des tableaux ci-dessous se lit **+2,2 m** : un pivot ou un repère donné à y = 0 passe à 2,2. En particulier : toute la cale, le hall, les bers et accores (pieds à y = 2,2 + la pente), la grue portique (pied du portique à 2,2, `grue_couronne` à y = 16,2), la pile de bois ; `coque_cale` à (0 ; 4,2 ; +85) ; `fx_bord_eau` en (0 ; 2,2 ; +105) ; le chemin de glissement va de y = 6,95 au fond à y = 2,2 en tête. Seul le socle descend jusqu'à y = 0, et `avant_cale` jusqu'à y = −1,5.
 
 - `socle`, fixe : rectangle aux coins arrondis (rayon 6 m), dessus à y = 2,2 m, biseau de 0,8 m à 45° sur tout le tour. Couleur papier, à peine plus claire que la feuille (#ebe1c8, L* 90), flanc et biseau plus sombres (#bfae8a). Ici 133 × 219 m : x de −44 à 89, z de −114 à 105. Le socle tient la part de terre du chantier : hall, cale, bers, pile de bois et pied de la grue portique. Son bord +z, en tête de cale (z = +105), est le quai : le socle s'arrête là, sans biseau ni liseré sur ce bord-là, et l'eau commence. 8 à 9 m de débord sur les trois autres côtés, 25 m de quai devant le hall (z de +80 à +105) pour la cour. Rien du site ne dépasse le socle, hormis `avant_cale` qui plonge dans l'eau, sauf le drapeau au vent.
 - `lisere`, fixe, matériau `lisere` à part (le jeu le teint à l'encre de la nation) : une bande de 3 m de large sur le bord du dessus du socle, 6 cm au-dessus, blanc neutre dans le GLB, sur les trois côtés de terre ; le bord du quai (z = +105) n'en porte pas.
@@ -74,10 +75,10 @@ Ce site est une maquette posée sur sa base de wargame (ADR 0038). Tout le site 
 | `ber_1`, `ber_2`, `ber_3` | centre du dessous de chaque ber, sur les coulisses (z = −20, +20, +60) | glissent avec la coque jusqu'au bout de la cale, puis coulent | 17 × 1,5 × 4 m |
 | `accore_1` à `accore_6` | pied de l'étai, au sol | tombent vers l'extérieur (vers ±x) de 77°, l'un après l'autre ; axe horizontal le long de z | ≈ 9 m de long |
 | `avant_cale` | tête de cale, au centre (0 ; 0 ; +105) | fixe ; descend sous l'eau | 20 × 12 m |
-| `grue` | centre du portique au sol (+70 ; 0 ; +90) | fixe : portique et fût | 10 × 22 × 10 m |
-| `grue_couronne` | centre de la couronne d'orientation, en haut du fût (+70 ; 22 ; +90) | axe vertical, rotation libre : porte la cabine, la flèche et le contrepoids | Ø 5 m |
-| `fleche` | pied de la flèche, sur son axe d'articulation | axe horizontal perpendiculaire à la flèche : relevage de 10° à 75° | 45 m |
-| `cable` | en tête de flèche, à la poulie | une seule pièce verticale qui pend vers −y (20 m dans la pose de repos) ; le jeu l'étire en y | Ø 0,1 m |
+| `grue` | centre du portique au sol (+70 ; 0 ; +90) | fixe : portique et fût | 10 × 14 × 10 m |
+| `grue_couronne` | centre de la couronne d'orientation, en haut du fût (+70 ; 14 ; +90) | axe vertical, rotation libre : porte la cabine, la flèche et le contrepoids | Ø 5 m |
+| `fleche` | pied de la flèche, sur son axe d'articulation | axe horizontal perpendiculaire à la flèche : relevage de 10° à 45° | 30 m |
+| `cable` | en tête de flèche, à la poulie | une seule pièce verticale qui pend vers −y (12 m dans la pose de repos) ; le jeu l'étire en y | Ø 0,1 m |
 | `crochet` | en haut de la moufle, au bout du câble | suit le bout du câble ; descend de 14 m sur une coque | 1 × 2 m |
 | `hampe` | pied du mât (−30 ; 0 ; +100) | fixe | 12 m |
 | `drapeau` | haut de la hampe, coin haut de la toile côté mât (−30 ; 11,8 ; +100) | pend vers −y, s'étend vers +x ; flotte et descend le long de y | 3 × 2 m, grille d'au moins 8 × 4 |
