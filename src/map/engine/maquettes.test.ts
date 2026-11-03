@@ -558,7 +558,7 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     maquettes.group.traverse((node) => {
       if ((node as InstancedMesh).isInstancedMesh) lots.push((node as InstancedMesh).count);
     });
-    expect(lots).toEqual([1, 1, 1]);
+    expect(lots).toEqual([1, 1]);
     expect(maquettes.pieceOf(ID)?.pose).toBe('observing');
     expect(maquettes.pieceOf('building-researchCenter@3,48')?.pose).toBeUndefined();
   });
@@ -847,10 +847,12 @@ describe('a site on its socle (ADR 0038)', () => {
       expect(
         all.filter((mesh) => nameOf(mesh) === name && !cut(mesh) && mesh.name === ''),
       ).toHaveLength(1);
-    expect(all.filter((mesh) => nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise')).toEqual(
-      all.filter((mesh) => (nameOf(mesh) === 'murs' || nameOf(mesh) === 'ardoise') && cut(mesh)),
+    // The building is its stone and its dark, the file's materials of one atlas merged by look.
+    const walls = all.filter(
+      (mesh) => mesh.name === '' && ['pierre', 'fond_sombre'].includes(nameOf(mesh)),
     );
-    expect(all.some((mesh) => nameOf(mesh) === 'ardoise' && cut(mesh))).toBe(true);
+    expect(walls.length).toBeGreaterThan(0);
+    expect(walls.every(cut)).toBe(true);
   });
 
   it('is picked by its socle while its building rises, the cut above the ground', async () => {
@@ -961,8 +963,8 @@ describe('a site on its socle (ADR 0038)', () => {
       const copy = new Group();
       layer.standIn(MINE, copy);
       // The rig bakes niveau_1 into its base: the two groups that come later stand with it,
-      // a mesh per material (one for niveau_2, three for niveau_3).
-      expect(copy.children).toHaveLength(4);
+      // a mesh per material (one each: the atlas materials merged by look).
+      expect(copy.children).toHaveLength(2);
       const low = await layerOf([site(MINE, { level: 1, side: 'mine', ink: '#2a5ba8' })]);
       const bare = new Group();
       low.standIn(MINE, bare);
@@ -985,9 +987,11 @@ describe('a site on its socle (ADR 0038)', () => {
       stamp: null,
     };
     const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', works })]);
-    const names = meshes(layer).map(nameOf);
+    const names = meshes(layer)
+      .filter((mesh) => mesh.name === '')
+      .map(nameOf);
     expect(names).toContain('socle_papier');
-    expect(names).not.toContain('ardoise');
+    expect(names).not.toContain('pierre');
   });
 
   it('spaces two socles 4 m apart at least, turned any way, wherever their points fall', () => {
@@ -1118,21 +1122,21 @@ describe('a site on its socle (ADR 0038)', () => {
       const layer = seenFrom(await layerOf([socled()]), 20);
       const named = (drawn: ReturnType<MaquetteLayer['drawnOf']>) =>
         drawn!.parts.map((part) => part.material.name);
-      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(named(layer.drawnOf(MINE))).toContain('fond_sombre');
       expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
       seenFrom(layer, 45);
       // Read over a rebuild, before any frame: the weights it was drawn at.
       layer.display([socled({ smoking: true })]);
       await new Promise((resolve) => setTimeout(resolve, 0));
       const far = layer.drawnOf(MINE)!;
-      expect(named(far)).not.toContain('ardoise');
+      expect(named(far)).not.toContain('fond_sombre');
       expect(named(far)).toContain('lisere');
       expect(far.ruins).toBeUndefined();
       // Back up close and rebuilt before any frame: whole again, ruins and all.
       seenFrom(layer, 20);
       layer.display([socled()]);
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(named(layer.drawnOf(MINE))).toContain('ardoise');
+      expect(named(layer.drawnOf(MINE))).toContain('fond_sombre');
       expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
     });
 
@@ -1146,7 +1150,7 @@ describe('a site on its socle (ADR 0038)', () => {
       for (const part of grown) expect(within(part)).toBeGreaterThan(1.15);
       seenFrom(layer, 31);
       const drawn = layer.drawnOf(MINE)!;
-      const walls = drawn.parts.filter((part) => part.material.name === 'ardoise');
+      const walls = drawn.parts.filter((part) => part.material.name === 'fond_sombre');
       expect(walls).toHaveLength(1);
       expect(within(walls[0]!)).toBeGreaterThan(0);
       expect(within(walls[0]!)).toBeLessThan(1);

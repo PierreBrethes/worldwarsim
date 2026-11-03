@@ -22,7 +22,7 @@ import { meshesOf, sceneOfFile, sweptVolume } from './gltf-scene.fixture';
 describe('bakedSite, as one geometry per material', () => {
   it('merges the meshes of one material into one part, their placement baked in', () => {
     const stone = new MeshStandardMaterial();
-    const slate = new MeshStandardMaterial();
+    const slate = new MeshStandardMaterial({ color: 0x334455 });
     const scene = new Group();
     const wall = new Mesh(new BoxGeometry(1, 1, 1), stone);
     wall.position.set(2, 0, 0);
@@ -37,6 +37,16 @@ describe('bakedSite, as one geometry per material', () => {
     walls.computeBoundingBox();
     expect(walls.boundingBox!.min.toArray()).toEqual([-0.5, -0.5, -0.5]);
     expect(walls.boundingBox!.max.toArray()).toEqual([2.5, 3.5, 0.5]);
+  });
+
+  it('merges materials that differ by their name alone, and never the ones read by name', () => {
+    const named = (name: string) => new MeshStandardMaterial({ name });
+    const meshes = ['paper', 'flank', 'lisere', 'fond_sombre'].map(
+      (name) => new Mesh(new BoxGeometry(1, 1, 1), named(name)),
+    );
+    const parts = mergedByMaterial(meshes, new Matrix4());
+    expect(parts.map((part) => part.material.name)).toEqual(['paper', 'lisere', 'fond_sombre']);
+    expect(parts[0]!.geometry.attributes.position!.count).toBe(2 * 24);
   });
 
   it('bakes a rotated parent too', () => {
@@ -172,13 +182,10 @@ describe('bakedSite (ADR 0038)', () => {
   it('bakes the yard and the sign apart, the sign with its foot (ADR 0038 §7)', () => {
     const { dressing, yard, sign } = bakedSite(sceneOfFile(SOCLE));
     // The socle and its liseré stand to the pin; the yard shrinks with the building.
-    expect(dressing.map((part) => part.material.name).sort()).toEqual([
-      'lisere',
-      'socle_flanc',
-      'socle_papier',
-    ]);
+    // The flank and the paper are one atlas look, one part; the liseré is inked apart.
+    expect(dressing.map((part) => part.material.name).sort()).toEqual(['lisere', 'socle_papier']);
     expect(boxOf(dressing).max.y).toBeLessThan(2.5);
-    expect(yard.map((part) => part.material.name)).toEqual(['gravier', 'allee', 'dallage']);
+    expect(yard.map((part) => part.material.name)).toEqual(['gravier']);
     expect(boxOf(yard).min.y).toBeGreaterThan(2.2);
     // The sign grows on its foot, the signe node's place on the socle top; its mast and pole in it.
     expect(sign!.foot.toArray()).toEqual([-22, 2.2, 17]);

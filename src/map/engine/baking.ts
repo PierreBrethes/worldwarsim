@@ -2,6 +2,7 @@ import {
   type BufferGeometry,
   Group,
   type Material,
+  type MeshStandardMaterial,
   Matrix4,
   Mesh,
   type Object3D,
@@ -206,6 +207,38 @@ export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): G
   return root;
 }
 
+/** The materials the engine reads by name: the liseré is inked per instance, the dark of a door
+ *  is lit by the halo. Two of them are never one, whatever they look like. */
+const named = (material: Material): boolean =>
+  material.name === 'lisere' || material.name.startsWith('fond_sombre');
+
+/**
+ * **What makes a material look as it does**, its name left out: two materials of a file that
+ * differ by their name alone (a socle's paper and its flank, painted from the same atlas) bake
+ * into one, and cost one draw call instead of two.
+ */
+function lookOf(material: Material): string {
+  if (named(material)) return material.uuid;
+  const std = material as MeshStandardMaterial;
+  const textures = [std.map, std.normalMap, std.roughnessMap, std.metalnessMap, std.emissiveMap];
+  return JSON.stringify([
+    material.type,
+    std.color?.getHex(),
+    std.emissive?.getHex(),
+    std.emissiveIntensity,
+    std.roughness,
+    std.metalness,
+    material.opacity,
+    material.transparent,
+    material.side,
+    material.alphaTest,
+    material.depthWrite,
+    material.vertexColors,
+    std.flatShading,
+    textures.map((texture) => texture?.uuid),
+  ]);
+}
+
 /** `meshes` merged per material, placed in the frame `fromWorld` brings the world into. */
 export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4): Part[] {
   const groups = new Map<string, { material: Material; geometries: BufferGeometry[] }>();
@@ -219,7 +252,7 @@ export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4
     // face order of a mirrored mesh, and the merged one no longer knows it was.
     if (placement.determinant() < 0) reverseWinding(geometry);
     const key = [
-      mesh.material.uuid,
+      lookOf(mesh.material),
       geometry.index === null,
       ...Object.keys(geometry.attributes).sort(),
     ].join();
