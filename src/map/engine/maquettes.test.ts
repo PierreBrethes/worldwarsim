@@ -1,5 +1,5 @@
 import {
-  type Box3,
+  Box3,
   BoxGeometry,
   Color,
   Group,
@@ -14,6 +14,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
+import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { buildingFootprint, buildingSpan, troopSpan } from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
@@ -27,6 +28,8 @@ import {
   yawOf,
 } from './maquettes';
 import { pileLayout } from './standing';
+import { articulatedOf } from './sequences';
+import { sceneOfFile } from './gltf-scene.fixture';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';
 
 /** The box the last works were dressed round. */
@@ -60,20 +63,33 @@ vi.mock('./works', async (original) => ({
   },
 }));
 
-vi.mock('./figurines/figurine', async (original) => ({
-  ...(await original<typeof import('./figurines/figurine')>()),
-  // A box of a metre for every file but the barracks on its socle: the loader wants a DOM.
-  sceneOf: async (url: string) => {
-    if (url === 'socle.glb')
-      return (await import('./gltf-scene.fixture')).sceneOfFile(
-        'src/emblems/fixtures/barracks-socle.glb',
+vi.mock('./figurines/figurine', async (original) => {
+  // A box of a metre for every file but the barracks on its socle and the HQ: the loader wants
+  // a DOM.
+  const sceneOf = async (url: string) => {
+    const { sceneOfFile } = await import('./gltf-scene.fixture');
+    if (url === 'socle.glb') return sceneOfFile('src/emblems/fixtures/barracks-socle.glb');
+    if (url === 'hq.glb')
+      return sceneOfFile(
+        (await import('@/emblems/buildings/manifest')).buildingMaquette('hq', null)!,
       );
     const door = new Group();
     door.name = 'fx_sortie';
     door.position.set(0, 0.1, 0.5);
     return new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()), door);
-  },
-}));
+  };
+  return {
+    ...(await original<typeof import('./figurines/figurine')>()),
+    sceneOf,
+    // A lasting state adds a second material: its lot draws two meshes.
+    posedScene: async (url: string, pose?: string) => {
+      const scene = await sceneOf(url);
+      if (pose !== undefined)
+        scene.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name: pose })));
+      return scene;
+    },
+  };
+});
 
 /** A spacing and a garrison's foot for the shapes of the ring alone, whatever the building. */
 const S = 1.2;
@@ -516,6 +532,73 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     maquettes.display([{ ...stand(), smoking: true }]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(maquettes.drawnOf(ID)).not.toBeNull();
+  });
+
+  it('bakes a lasting state in a lot of its own, and lends it with its pose (#273)', async () => {
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    maquettes.display([
+      { ...stand(), pose: 'observing' },
+      { ...stand(), id: 'building-researchCenter@3,48' },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    maquettes.orient(eye, null, 0);
+    const lots: number[] = [];
+    maquettes.group.traverse((node) => {
+      if ((node as InstancedMesh).isInstancedMesh) lots.push((node as InstancedMesh).count);
+    });
+    expect(lots).toEqual([1, 1, 1]);
+    expect(maquettes.pieceOf(ID)?.pose).toBe('observing');
+    expect(maquettes.pieceOf('building-researchCenter@3,48')?.pose).toBeUndefined();
+  });
+
+  it('offers a loop its sites at work drawn whole, with their metre on the board (#273)', async () => {
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    const works = {
+      phase: 'raising' as const,
+      level: 2,
+      finishesAt: null,
+      minutes: 5,
+      pennant: null,
+      stamp: null,
+    };
+    maquettes.display([
+      { ...stand(), working: true, metres: 50 },
+      { ...stand(), id: 'idle', working: false },
+      { ...stand(), id: 'raised', working: true, works },
+      { ...stand(true), id: 'ghost', working: true },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    maquettes.orient(eye, null, 0);
+    const [site, ...others] = maquettes.working();
+    expect(others).toEqual([]);
+    expect(site!.id).toBe(ID);
+    // Its file is 1 m wide for 50: it is drawn at its metre.
+    expect(site!.metre).toBeCloseTo(
+      new Vector3().setFromMatrixScale(maquettes.drawnOf(ID)!.matrix).x,
+      9,
+    );
+    // Neither the copy it lends nor a view served again lets it drop for a frame: the loop
+    // would give its copy back and take it again, a frame at rest each time.
+    maquettes.standIn(ID, copyOf());
+    expect(maquettes.working().map(({ id }) => id)).toEqual([ID]);
+    maquettes.display([{ ...stand(), working: true, metres: 50, level: 2 }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(maquettes.working().map(({ id }) => id)).toEqual([ID]);
+    // Its diorama no longer whole: it rests.
+    maquettes.orient(new Vector3(0, 900, 0), null, 0);
+    expect(maquettes.working()).toEqual([]);
   });
 
   it('lends only what is drawn whole: not a ghost, not an unknown id', async () => {
@@ -998,6 +1081,20 @@ describe('a site on its socle (ADR 0038)', () => {
       for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBe(0);
     });
 
+    it('grows the sign of a copy standing in for it as the instance grows its own (#273)', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 20);
+      const sign = new Group();
+      sign.name = 'signe';
+      layer.standIn(MINE, new Group().add(sign));
+      seenFrom(layer, 72);
+      const grown = new Vector3();
+      sign.updateWorldMatrix(true, false);
+      grown.setFromMatrixScale(sign.matrixWorld);
+      layer.standIn(MINE, null);
+      seenFrom(layer, 72);
+      expect(grown.x).toBeCloseTo(scaleOf(drawnAs(layer, isSign)[0]!), 9);
+    });
+
     it('hands a raze from afar its socle alone, without its shrunk building or ruins', async () => {
       const layer = seenFrom(await layerOf([socled()]), 20);
       const named = (drawn: ReturnType<MaquetteLayer['drawnOf']>) =>
@@ -1067,5 +1164,24 @@ describe('a site on its socle (ADR 0038)', () => {
       for (const placed of drawn)
         expect(scaleOf(placed)).toBeCloseTo((Math.round(weight * 100) / 100) * 0.964 * FULL, 9);
     });
+  });
+});
+
+describe('a copy for a sequence or a loop (#273)', () => {
+  it('keeps its sign a node, to grow on its foot as the instance does', async () => {
+    const rig = await articulatedOf('socle.glb', 'barracks');
+    expect(rig.getObjectByName('signe')).toBeDefined();
+  });
+
+  it("stocks the HQ's copy with two crates inside its walls, for a loading (#271)", async () => {
+    const rig = await articulatedOf('hq.glb', 'hq');
+    rig.updateMatrixWorld(true);
+    const file = sceneOfFile(buildingMaquette('hq', null)!);
+    const walls = new Box3().setFromObject(file.getObjectByName('corps')!);
+    for (const name of ['caisse_1', 'caisse_2']) {
+      const crate = rig.getObjectByName(name);
+      expect(crate, name).toBeDefined();
+      expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(1)), name).toBe(true);
+    }
   });
 });

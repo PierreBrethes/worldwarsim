@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { REGIONS_GONE_DISTANCE } from './regions';
-import { lampIntensity, shadowReach } from './lamp';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
+import { castShadows, lampIntensity, shadowReach } from './lamp';
 
 /**
  * La carte d'ombres ne couvre que ce que la caméra regarde, et rien au loin : il n'y a plus de
@@ -41,5 +42,15 @@ describe('how strong the lamp shines', () => {
 
   it('keeps the night lamp at night', () => {
     expect(lampIntensity(sun(-30), 1)).toBeCloseTo(0.9);
+  });
+});
+
+describe('castShadows', () => {
+  it('arms every lit opaque piece, but never a part a loop moves (#273)', () => {
+    const wall = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    const beam = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    beam.userData.shadowless = true;
+    castShadows(new Group().add(wall, beam));
+    expect([wall.castShadow, beam.castShadow]).toEqual([true, false]);
   });
 });

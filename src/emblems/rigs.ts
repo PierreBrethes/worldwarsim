@@ -21,6 +21,16 @@ export const RIG_PARTS = {
   bomber: PLANE_GEAR,
   airTransport: [...PLANE_GEAR, 'cabin_door', 'bay_door'],
   cargo: ['hold_hatch_*', 'mat_charge_*'],
+  // The loops at rest (#273): what each site moves while it works. The iron and the coal mines
+  // share their names; the shutter is baked open (`REST_POSES.observing`), not moved.
+  oilWell: ['balancier', 'manivelle', 'bielle', 'bielle_2', 'tige'],
+  mine: ['molette_1', 'molette_2', 'wagonnet', 'wagonnet_caisse'],
+  researchCenter: ['coupole', 'lunette'],
+  port: ['grue_couronne', 'fleche', 'cable', 'crochet'],
+  // The loading (#271): the door slides on its rollers, the crates of the pile jump aboard. The
+  // HQ swings its service door; its crates are the copy's own (`stockDark`).
+  warehouse: ['porte', 'galet', 'galet_2', 'caisse_*'],
+  hq: ['porte_service', 'caisse_*'],
 } as const;
 
 export type RigFamily = keyof typeof RIG_PARTS;

@@ -79,6 +79,9 @@
  * `--gisements` (#239) donne à la France un QG à Paris, une mine sur le charbon du Nord et un
  * avant-poste à Namur, et à l'adversaire une mine relevée sur la Sarre : une mine à poser, au
  * cadrage de la maquette des gisements.
+ * `--sites` (#273) pose pour la France le Centre qui cherche de `--recherche`, quatre mines sur
+ * leurs gisements, un chantier naval au Havre avec une coque sur cale et Bakou tenu avec son puits :
+ * les sites qui vivent au repos (`@sites` cadre les six de France, `@bakou` le puits).
  * `--echelle` (#265) pose pour la France l'aérodrome et le port de `--largage` et `--navire`, la
  * caserne de `--niveaux`, puis y fait entrer trois fantassins et deux chars : une garnison à
  * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
@@ -106,6 +109,11 @@
  * `--flotte-cote [s]` (#395) pose la scène de `--navire` et envoie le cargo de Marseille vers un
  * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
  * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
+ *
+ * `--chargement [s]` (#271) pose pour la France un entrepôt dans l'Oise et un camion vide en
+ * garnison à l'entrepôt et au QG, puis les charge dans `s` secondes (25 par défaut) : deux cents
+ * munitions à l'entrepôt (deux caisses), soixante au QG puis soixante de pétrole une seconde après
+ * (deux chargements joints). `lieu=@chargement` cadre l'entrepôt, `lieu=@chargement-qg` le QG.
  *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
@@ -151,7 +159,9 @@ const rangoon = process.argv.includes('--rangoun');
 const airdrops = process.argv.includes('--largage') || process.argv.includes('--echelle');
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
-const research = idleCenter || process.argv.includes('--recherche');
+/** `--sites` (#273) : les sites qui vivent au repos, le Centre qui cherche compris. */
+const livingSites = process.argv.includes('--sites');
+const research = idleCenter || livingSites || process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 /** `--pillage` (#211) : `--points`, sans l'escorte en mer, plus un pillage en phase de présence. */
@@ -160,6 +170,10 @@ const pillaging = process.argv.includes('--pillage');
 const eight = process.argv.includes('--huit');
 /** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
 const ranks = process.argv.includes('--rangs');
+/** `--chargement [s]` : deux camions chargés dans `s` secondes, à l'entrepôt et au QG (#271). */
+const loadingAt = process.argv.indexOf('--chargement');
+const loadingIn = loadingAt < 0 ? null : Number(process.argv[loadingAt + 1]) || 25;
+let loadingTrucks = null;
 /** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
@@ -485,6 +499,11 @@ if (!bare) {
   /** Un Centre de recherche, deux cartes acquises, une troisième en cours (#123). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a, idle: idleCenter })]);
+  if (livingSites && scene.a !== null) {
+    cli(['run', 'dev:sitesScene', JSON.stringify({ playerId: scene.a })]);
+    places.sites = [3.2, 49.2];
+    places.bakou = [49.9, 40.5];
+  }
   /** Une salve sur seize troupes, une fois la pièce en batterie (ADR 0028 §6). */
   if (artillery && scene.a !== null && scene.b !== null) {
     cli(['run', 'dev:artilleryScene', JSON.stringify({ playerId: scene.a, enemyId: scene.b })]);
@@ -605,6 +624,19 @@ if (!bare) {
     ]);
     if (Number(finishing.trim().split('\n').pop()) < 1)
       throw new Error('scène de la recrue : aucun lot daté');
+  }
+  if (loadingIn !== null && scene.a !== null) {
+    loadingTrucks = JSON.parse(
+      cli(['run', 'dev:loadingScene', JSON.stringify({ playerId: scene.a })]).match(/\{[^}]*\}/)[0],
+    );
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    for (const [name, key] of [
+      ['chargement', 'warehouse'],
+      ['chargement-qg', 'hq'],
+    ]) {
+      const { point } = me.buildings.find((building) => building.key === key);
+      places[name] = { id: `building-${key}@${point[0]},${point[1]}`, lonLat: point };
+    }
   }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
@@ -1231,6 +1263,18 @@ writeFileSync(
 );
 console.log(`Mondiale lancée : code ${code}, saison ${seasonId}`);
 console.log(`Comptes : ${accounts.a.nickname} (a), ${accounts.b.nickname} (b) → ${accountsFile}`);
+
+/** `--chargement` : the trucks load, the HQ's twice a second apart: the second load joins. */
+if (loadingTrucks !== null) {
+  await pause(loadingIn * 1000);
+  const load = (troopId, resource, amount) =>
+    client.mutation(api.logistics.load, { token: tokenA, seasonId, troopId, resource, amount });
+  await load(loadingTrucks.warehouse, 'ammunition', 200);
+  await load(loadingTrucks.hq, 'ammunition', 60);
+  await pause(1000);
+  await load(loadingTrucks.hq, 'oil', 60);
+  console.log(`Camions chargés à ${new Date().toISOString()}`);
+}
 
 /** `--bombarder` : each gun fires on its target's camp, its battery set, then every reload. */
 for (let salvo = 0; salvo < salvoes && shelling.length > 0; salvo++) {

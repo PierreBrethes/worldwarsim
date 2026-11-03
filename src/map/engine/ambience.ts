@@ -13,7 +13,7 @@ export type AmbientLayer = {
   readonly hz?: number;
   /** Steps with the frames the map draws anyway and never asks for one: the contours at the finger. */
   readonly passive?: boolean;
-  /** True when it has nothing to animate: its beat asks for no frame — a smoke without a worn pile in sight. */
+  /** True when it has nothing to animate: its beat asks for no frame — a smoke without a worn pile in sight. Asked once a beat. */
   idle?(): boolean;
   frame(time: number, motion: MapMotion): void;
 };
@@ -41,10 +41,11 @@ export class Ambience {
     if (this.motion !== 'full') return false;
     let stepped = false;
     for (const paced of this.layers) {
-      if (paced.layer.idle?.()) continue;
       const step = ambientStep(nowMs, paced.layer.hz);
       if (step === paced.step) continue;
       paced.step = step;
+      // Asked on its beat only: what it costs to know (the sites in sight) is not paid at 60.
+      if (paced.layer.idle?.()) continue;
       paced.time = ambientTime(step, paced.layer.hz);
       if (!paced.layer.passive) stepped = true;
     }

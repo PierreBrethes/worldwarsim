@@ -159,7 +159,7 @@ export function wayOut({
   return [inside, out, ...door, [foot[0], rank[1], street], ...around, approach, rank];
 }
 
-type Flat = readonly [x: number, z: number];
+export type Flat = readonly [x: number, z: number];
 type Rect = { readonly min: Flat; readonly max: Flat };
 
 /** Whether the segment `a`→`b` crosses the inside of `rect` (Liang–Barsky, on the ground). */
@@ -188,6 +188,44 @@ const grown = ({ min, max }: { readonly min: Point; readonly max: Point }, by: n
 });
 
 /**
+ * **The corners to go by from `start` to `end`** round a building, `margin` off its walls: the
+ * shortest way of none, one or two corners whose legs keep clear of it.
+ */
+export function around(
+  start: Flat,
+  end: Flat,
+  box: { readonly min: Point; readonly max: Point },
+  margin: number,
+): Flat[] {
+  const outer = grown(box, margin);
+  const blocked = grown(box, margin / 2);
+  const corners: Flat[] = [
+    [outer.min[0], outer.min[1]],
+    [outer.max[0], outer.min[1]],
+    [outer.max[0], outer.max[1]],
+    [outer.min[0], outer.max[1]],
+  ];
+  const ways: Flat[][] = [
+    [],
+    ...corners.map((corner) => [corner]),
+    ...corners.flatMap((corner, k) => {
+      const next = corners[(k + 1) % 4]!;
+      return [
+        [corner, next],
+        [next, corner],
+      ];
+    }),
+  ];
+  const legsOf = (way: Flat[]) => {
+    const points = [start, ...way, end];
+    return points.slice(1).map((p, k) => [points[k]!, p] as const);
+  };
+  const walked = (way: Flat[]) => lengthOf([start, ...way, end].map(([x, z]): Point => [x, 0, z]));
+  const clear = ways.filter((way) => legsOf(way).every(([a, b]) => !crosses(a, b, blocked)));
+  return [...clear].sort((a, b) => walked(a) - walked(b))[0] ?? [];
+}
+
+/**
  * **The way into a garrison** (décision de Pierre du 28/10): from the edge of the building on
  * the side the column came from (`at` coming from `toward`), round it by its corners when it
  * stands between, to come to the rank from behind, along its front. No door: the piece walks to
@@ -210,8 +248,7 @@ export function wayIn({
   readonly box: { readonly min: Point; readonly max: Point };
 }): Point[] {
   const margin = WAY.gable + length / 2;
-  const around = grown(box, margin);
-  const blocked = grown(box, margin / 2);
+  const outer = grown(box, margin);
   const y = rank[1];
   // A route ends on a cell's centre, kilometres off the building (`computeRoute`): the walk starts
   // on the way round the building, the side the column came from — the rank's side when the
@@ -222,40 +259,14 @@ export function wayIn({
   const out = Math.min(
     ...([0, 1] as const)
       .filter((axis) => Math.abs(d[axis]) > 1e-9)
-      .map(
-        (axis) => ((d[axis] > 0 ? around.max[axis] : around.min[axis]) - centre[axis]) / d[axis],
-      ),
+      .map((axis) => ((d[axis] > 0 ? outer.max[axis] : outer.min[axis]) - centre[axis]) / d[axis]),
   );
   const start: Flat = [centre[0] + d[0] * out, centre[1] + d[1] * out];
   const approach: Flat = [
     rank[0] - front[0] * APPROACH * length,
     rank[2] - front[2] * APPROACH * length,
   ];
-  const corners: Flat[] = [
-    [around.min[0], around.min[1]],
-    [around.max[0], around.min[1]],
-    [around.max[0], around.max[1]],
-    [around.min[0], around.max[1]],
-  ];
-  const ways: Flat[][] = [
-    [],
-    ...corners.map((corner) => [corner]),
-    ...corners.flatMap((corner, k) => {
-      const next = corners[(k + 1) % 4]!;
-      return [
-        [corner, next],
-        [next, corner],
-      ];
-    }),
-  ];
-  const legsOf = (way: Flat[]) => {
-    const points = [start, ...way, approach];
-    return points.slice(1).map((p, k) => [points[k]!, p] as const);
-  };
-  const walked = (way: Flat[]) =>
-    lengthOf([start, ...way, approach].map(([x, z]): Point => [x, 0, z]));
-  const clear = ways.filter((way) => legsOf(way).every(([a, b]) => !crosses(a, b, blocked)));
-  const best = [...clear].sort((a, b) => walked(a) - walked(b))[0] ?? [];
+  const best = around(start, approach, box, margin);
   return [
     [start[0], y, start[1]],
     ...best.map(([x, z]): Point => [x, y, z]),
