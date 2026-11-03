@@ -225,7 +225,7 @@ export const bakedFigurine = (scene: Object3D): Group => bakedRig(scene, movesOn
 
 /** **How far a gun in battery opens its trails** (#325), each to its own side, in radians: the
  *  storyboard's 0,32. @a-mesurer: its breech, raised to 35°, clears their hinge? */
-export const TRAIL_OPEN = 0.32;
+const TRAIL_OPEN = 0.32;
 
 /**
  * **A rest bake of one more pose** (ADR 0036 §4, précisée le 02/11): what a lasting state turns
