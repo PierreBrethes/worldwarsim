@@ -543,6 +543,45 @@ export const logisticsScene = internalMutation({
 });
 
 /**
+ * **La scène du chargement** (#271), pour la démo : un entrepôt dans l'Oise et le QG à la
+ * capitale, un camion vide en garnison à chacun. La démo les charge plus tard (`--chargement`).
+ *
+ * `npx convex run dev:loadingScene '{"playerId":"…"}'`
+ */
+export const loadingScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const hq = await headquartersOf(ctx, player);
+    if (hq === undefined) throw new Error('no headquarters');
+    const regionId = 'FRA-5312';
+    const warehouse = await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'warehouse',
+      regionId,
+      point: pointOfRegion(regionId),
+      level: 1,
+    });
+    const truck = (stationedAt: Id<'buildings'>) =>
+      ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role: 'landTransport',
+        tier: 1,
+        nominalStrength: nominalStrength('landTransport', 1),
+        currentStrength: nominalStrength('landTransport', 1),
+        stationedAt,
+      });
+    const trucks = { warehouse: await truck(warehouse), hq: await truck(hq._id) };
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, Date.now(), playerId);
+    return trucks;
+  },
+});
+
+/**
  * **Fait arriver sur-le-champ les mouvements d'un joueur**, pour voir une livraison ou une
  * tournée se dénouer sans attendre la route (#128). `afterMs` les fait arriver plus tard : le
  * temps d'ouvrir la carte, où le combat de `--combat` se joue (#272).

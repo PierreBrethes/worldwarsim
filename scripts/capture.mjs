@@ -26,7 +26,8 @@
  * `--heure` tient le soleil à cet instant ISO (avec Z ; midi UTC sans l'option) : il s'ajoute à l'URL
  * et toute autre écriture est refusée. `lieu=@<id>[,distance[,pente°]]` cadre une pile
  * (`stack-point:lon,lat`) ou un bâtiment (`building-<clé>@lon,lat`) là où elle est dessinée, à 3 par
- * défaut, et attend ses figurines ; `lieu=@<nom>` lit un lieu de la démo (`places` de
+ * défaut, et attend ses figurines (`lieu=@<id>,distance,pente°,azimut°` : l'œil tourné, 0 = depuis
+ * le sud) ; `lieu=@<nom>` lit un lieu de la démo (`places` de
  * `demo-mondiale.accounts.json` : `combat`, `camion`, `valette`, `paris`). `toucher=@<id>`,
  * `doigt=@<id>`, `clic=@<id>`… visent l'étiquette `[data-label-id]` de l'id, sinon son point.
  * `lieu=lon,lat,distance[,pente°]` vise un lieu de la carte au centre de l'écran, à cette distance,
@@ -206,15 +207,15 @@ try {
       );
       await page.waitForTimeout(1500);
     } else if (kind === 'lieu') {
-      // `lieu=@id[,distance[,pente]]` : là où la pièce est dessinée, à 3 par défaut.
+      // `lieu=@id[,distance[,pente[,azimut]]]` : là où la pièce est dessinée, à 3 par défaut.
       const aimedAt = value.startsWith('@') ? splitSpot(value) : null;
       const spot = aimedAt ? spotOf(aimedAt.spec, accounts.places) : null;
       const numbers = aimedAt ? aimedAt.rest : value.split(',').map(Number);
       const [lon, lat] = spot ? spot.lonLat : numbers.splice(0, 2);
-      const [distance = spot ? 3 : 30, pitch = NaN] = numbers;
+      const [distance = spot ? 3 : 30, pitch = NaN, azimuth = 0] = numbers;
       const frameAt = () =>
         page.evaluate(
-          ([lon, lat, d, p, id]) => {
+          ([lon, lat, d, p, a, id]) => {
             const engine = globalThis.mapEngine;
             let target = engine.frame.projectLonLat([lon, lat], 0);
             if (id) {
@@ -231,13 +232,17 @@ try {
             }
             const away = engine.camera.position.clone().sub(engine.controls.target).normalize();
             if (!Number.isNaN(p))
-              away.set(0, Math.cos((p * Math.PI) / 180), Math.sin((p * Math.PI) / 180));
+              away.set(
+                Math.sin((p * Math.PI) / 180) * Math.sin((a * Math.PI) / 180),
+                Math.cos((p * Math.PI) / 180),
+                Math.sin((p * Math.PI) / 180) * Math.cos((a * Math.PI) / 180),
+              );
             engine.controls.target.copy(target);
             engine.camera.position.copy(target).addScaledVector(away, d);
             engine.controls.update();
             engine.invalidate();
           },
-          [lon, lat, distance, pitch, spot?.id ?? null],
+          [lon, lat, distance, pitch, azimuth, spot?.id ?? null],
         );
       await frameAt();
       await page.waitForTimeout(2500);

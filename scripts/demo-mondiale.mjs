@@ -110,6 +110,11 @@
  * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
  * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
  *
+ * `--chargement [s]` (#271) pose pour la France un entrepôt dans l'Oise et un camion vide en
+ * garnison à l'entrepôt et au QG, puis les charge dans `s` secondes (25 par défaut) : deux cents
+ * munitions à l'entrepôt (deux caisses), soixante au QG puis soixante de pétrole une seconde après
+ * (deux chargements joints). `lieu=@chargement` cadre l'entrepôt, `lieu=@chargement-qg` le QG.
+ *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
  * `capitale-<nation>`. `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
@@ -166,6 +171,10 @@ const eight = process.argv.includes('--huit');
 /** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
 const ranks = process.argv.includes('--rangs');
 /** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
+/** `--chargement [s]` : deux camions chargés dans `s` secondes, à l'entrepôt et au QG (#271). */
+const loadingAt = process.argv.indexOf('--chargement');
+const loadingIn = loadingAt < 0 ? null : Number(process.argv[loadingAt + 1]) || 25;
+let loadingTrucks = null;
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
 /** `--rejeu` (#211) : le combat de `--combat`, joué tout de suite : un compte rendu à rejouer. */
@@ -615,6 +624,19 @@ if (!bare) {
     ]);
     if (Number(finishing.trim().split('\n').pop()) < 1)
       throw new Error('scène de la recrue : aucun lot daté');
+  }
+  if (loadingIn !== null && scene.a !== null) {
+    loadingTrucks = JSON.parse(
+      cli(['run', 'dev:loadingScene', JSON.stringify({ playerId: scene.a })]).match(/\{[^}]*\}/)[0],
+    );
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    for (const [name, key] of [
+      ['chargement', 'warehouse'],
+      ['chargement-qg', 'hq'],
+    ]) {
+      const { point } = me.buildings.find((building) => building.key === key);
+      places[name] = { id: `building-${key}@${point[0]},${point[1]}`, lonLat: point };
+    }
   }
   if (oilLine && scene.a !== null)
     cli(['run', 'dev:oilLineScene', JSON.stringify({ playerId: scene.a })]);
@@ -1241,6 +1263,18 @@ writeFileSync(
 );
 console.log(`Mondiale lancée : code ${code}, saison ${seasonId}`);
 console.log(`Comptes : ${accounts.a.nickname} (a), ${accounts.b.nickname} (b) → ${accountsFile}`);
+
+/** `--chargement` : the trucks load, the HQ's twice a second apart: the second load joins. */
+if (loadingTrucks !== null) {
+  await pause(loadingIn * 1000);
+  const load = (troopId, resource, amount) =>
+    client.mutation(api.logistics.load, { token: tokenA, seasonId, troopId, resource, amount });
+  await load(loadingTrucks.warehouse, 'ammunition', 200);
+  await load(loadingTrucks.hq, 'ammunition', 60);
+  await pause(1000);
+  await load(loadingTrucks.hq, 'oil', 60);
+  console.log(`Camions chargés à ${new Date().toISOString()}`);
+}
 
 /** `--bombarder` : each gun fires on its target's camp, its battery set, then every reload. */
 for (let salvo = 0; salvo < salvoes && shelling.length > 0; salvo++) {
