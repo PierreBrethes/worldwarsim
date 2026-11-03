@@ -951,7 +951,9 @@ export class StandingLayer implements SequenceHost {
 
   /** **What a sequence may borrow** (`SequenceHost`): a group of a pile that stands and is not
    *  in hand, with the one file a copy is cooked from — none for a squad, which moves whole. */
-  pieceOf(id: string): { url?: string; pose?: RestPose; box: Box3 | null } | null {
+  pieceOf(
+    id: string,
+  ): { url?: string; pose?: RestPose; box: Box3 | null; length?: number | null } | null {
     const lent = this.figurineOf(id);
     const stood = this.stoodIn.get(id);
     if (lent === null || (stood && stood !== lent.figurine)) return null;
@@ -965,6 +967,7 @@ export class StandingLayer implements SequenceHost {
     return {
       ...file,
       box: boxOfObject(object).clone().expandByPoint(object.getWorldPosition(new Vector3())),
+      length: this.lengthOf(id),
     };
   }
 

@@ -292,6 +292,26 @@ describe('a pile lent to a sequence', () => {
     expect(aslant.box).toBeGreaterThan(aslant.length + 0.01);
   });
 
+  it('lends a piece with its length nose to tail, as a barracks door reads it', async () => {
+    const lent = async (facing: number) => {
+      const layer = new StandingLayer(
+        {
+          projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, -lat),
+        } as unknown as WorldFrame,
+        () => {},
+        () => null,
+      );
+      layer.setNation('france');
+      layer.display([{ ...pileOf('landTransport'), facing }]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      layer.orient(new Vector3(2, 3, -45));
+      return { lent: layer.pieceOf(TRUCK)!.length, own: layer.lengthOf(TRUCK) };
+    };
+    const aslant = await lent(30);
+    expect(aslant.lent).toBe(aslant.own);
+    expect(aslant.lent).toBeCloseTo((await lent(0)).lent!, 6);
+  });
+
   it('lends a group that stands, with its file and its box', async () => {
     const layer = await standing('landTransport');
     const piece = layer.pieceOf(TRUCK);

@@ -2937,11 +2937,10 @@ export class MapEngine {
       const [inside, out] = man
         ? [site.marker('fx_entree'), site.marker('fx_sortie')]
         : [site.marker('fx_entree_remise'), site.marker('fx_sortie_remise')];
-      const drawn = this.standing.pieceOf(id)?.box;
-      if (role === undefined || (!entering && (inside === null || out === null)) || !drawn)
+      const drawn = this.standing.pieceOf(id);
+      if (role === undefined || (!entering && (inside === null || out === null)) || !drawn?.box)
         return [];
-      const size = drawn.getSize(new Vector3());
-      const length = Math.max(size.x, size.z) / metre;
+      const length = (drawn.length ?? 0) / metre;
       const front = site
         .toModel(place.at.clone().add(place.front))
         .sub(site.toModel(place.at))
