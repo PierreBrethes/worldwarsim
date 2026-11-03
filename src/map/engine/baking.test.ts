@@ -151,7 +151,7 @@ describe('bakedSite (ADR 0038)', () => {
     );
     expect(trianglesOf(building)).toBe(trianglesOf(today));
     expect(boxOf(building).equals(boxOf(today))).toBe(true);
-    // A copy stood in for it draws the same, a `chantier` of its own included (the port's slip).
+    // A copy stood in for it draws the same, its `chantier` group included.
     expect(triangleCount(bakedRig(sceneOfFile(url), () => false))).toBe(trianglesOf(today));
   });
 
@@ -236,13 +236,13 @@ describe('bakedSite (ADR 0038)', () => {
       'ruines',
     ]);
     expect(accessories.get('niveau_2')!.map((part) => part.material.name)).toEqual(['niveau_2']);
-    // A port's slip named `chantier` is a part of the port, not an accessory.
-    const port = new Group();
+    // Without a socle, a node named `chantier` is a part of the file, not an accessory.
+    const plain = new Group();
     const slip = new Group();
     slip.name = 'chantier';
     slip.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()));
-    port.add(slip);
-    expect(bakedSite(port).accessories.size).toBe(0);
+    plain.add(slip);
+    expect(bakedSite(plain).accessories.size).toBe(0);
   });
 
   it('gives the barracks a yard per level, a works site and ruins, within 150 triangles each', () => {

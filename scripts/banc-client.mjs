@@ -3,7 +3,7 @@
  *
  *     PLAYWRIGHT_DIR=/chemin/pw npm run banc:client -- [--profil telephone|bureau] [--passes 3]
  *       [--sortie dossier] [--heure instant] [--sans-build] [--photos] [--cpu motif] [--couches]
- *       [--demarrage] [--repos] [--epingles] [--sequences] [--combats] [--combats-mer] [--files] [--socle]
+ *       [--demarrage] [--repos] [--epingles] [--sequences] [--combats] [--combats-mer] [--files]
  *       [--sites]
  *
  * Prérequis de `npm run capture` (Docker levé, fonctions déployées, `npm run demo:mondiale` —
@@ -58,8 +58,6 @@ const cpu = option('cpu', null) === null ? null : new RegExp(option('cpu'), 'i')
 const shadowless = args.includes('--sans-ombres');
 /** `--heure 2026-10-21T00:00Z` : le soleil tenu à cet instant (nuit, crépuscule), `?heure=` du build de banc. */
 const heure = option('heure', null);
-/** `--socle` : la vitrine des sites sur socle (#365, `?socle`). */
-const socle = args.includes('--socle');
 /** `--demarrage` : le démarrage seul — délai jusqu'à la première image de la carte, tâches
  *  longues jusqu'à la fin de l'attente, décodage de `coast.json` (`performance.measure` de la
  *  carte) — sans les gestes. */
@@ -612,7 +610,7 @@ async function play(profileName, pass) {
   // Le ralenti avant le plateau : le démarrage se mesure au téléphone qu'il simule.
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
   await page.goto(
-    `${origin}/plateau?season=${accounts.seasonId}${heure === null ? '' : `&heure=${heure}`}${socle ? '&socle' : ''}`,
+    `${origin}/plateau?season=${accounts.seasonId}${heure === null ? '' : `&heure=${heure}`}`,
   );
   const understood = page.getByRole('button', { name: /compris/i }).first();
   if (

@@ -495,8 +495,8 @@ const QUAY_SHARE = 0.5;
  * **Two maquettes of a ring stand this many of their half footprints apart**, centre to centre:
  * a model turned any way reaches half its diagonal, a square's at worst — √2 —, and a little more
  * (retours du 15/10 : un QG et sa caserne se dessinaient l'un dans l'autre). The footprint is the
- * model as built (`buildingFootprint`), not its `span`: a barracks reaches 65 m with its shed
- * when its walls make 50. `@a-mesurer`
+ * model's socle (`buildingFootprint`), not its `span`: a barracks' walls make 50 m, its socle
+ * 82. A site on a socle is spaced by `ringSpacing` instead. `@a-mesurer`
  */
 export const RING_GAP = 1.45;
 

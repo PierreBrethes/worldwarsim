@@ -56,7 +56,7 @@ import { produces } from '@/domain/economy';
 import { isNation, nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
 import { maquettesOf } from './-plateau/maquettes';
-import { withSocleFixture } from './-plateau/socle-fixture';
+import { withVitrine } from './-plateau/vitrine';
 import { producingSites, workingSites } from '@/domain/producing';
 import type { Atlas } from '@/domain/atlas';
 import type { Shore } from '@/map/engine/sea';
@@ -1997,7 +1997,7 @@ function BoardContent({
   );
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
-    return withSocleFixture(
+    return withVitrine(
       maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me), workingSites(view.me)),
     );
   }, [markers, view.objectives, view.me]);

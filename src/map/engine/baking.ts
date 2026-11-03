@@ -47,8 +47,9 @@ export function accessoriesShown(level: number, phase: WorkPhase | undefined): s
 /** The accessories of a later level or state: `bakedSite` bakes them apart, the engine shows them. */
 const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 
-/** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one — a
- *  port has a slip named `chantier` of its own. */
+/** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one —
+ *  a file without a socle (the well's, the objectives') may name a node `chantier` for itself.
+ *  The port's slip is `cale`, and its `chantier` is a yard group like any. */
 const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
 
 /**

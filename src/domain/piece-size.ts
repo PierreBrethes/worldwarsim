@@ -64,7 +64,8 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
   oilWell: 25,
   arsenal: 80,
   barracks: 50,
-  airfield: 50,
+  // The brief says 110 m (two hangars at scale 1, #269); the file of 03/11 draws 96.2 m.
+  airfield: 96.2,
   port: 210,
   listening: 30,
   researchCenter: 50,
