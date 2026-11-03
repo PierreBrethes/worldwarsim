@@ -17,7 +17,7 @@ export const expire = internalMutation({
     if (crate === null || crate.expiresAt !== expectedAt || Date.now() < expectedAt) return;
     const season = await ctx.db.get(crate.seasonId);
     if (season === null || season.concludedAt !== null) return;
-    await resolveDueLootCollectionMissions(ctx, {
+    const settled = await resolveDueLootCollectionMissions(ctx, {
       seasonId: crate.seasonId,
       crateId,
       at: expectedAt,
@@ -27,8 +27,8 @@ export const expire = internalMutation({
     if ((await ctx.db.get(crateId)) === null) return;
     await ctx.db.delete(crateId);
     /** Les missions réglées ont pu poser, retenir ou renvoyer des colonnes de plusieurs joueurs :
-     *  tout se relit, caisses comprises (#145). */
-    await reassessDetection(ctx, crate.seasonId);
+     *  les leurs se relisent ; les caisses, toujours en entier (#145, #418). */
+    await reassessDetection(ctx, crate.seasonId, Date.now(), settled);
   },
 });
 

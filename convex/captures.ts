@@ -224,13 +224,14 @@ async function dispatchFromHongKong(
  * lieu comme pour une attaque ; si l'attaquant gagne et garde de l'infanterie debout, la capture
  * commence. Sinon chacun rentre comme après une attaque.
  */
+/** Returns the defender it fought, the only other player whose board it moved (#418). */
 export async function arriveForCapture(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   now: number,
-): Promise<void> {
+): Promise<ReadonlyArray<Id<'players'>>> {
   const aimed = movement.capture;
-  if (aimed === undefined) return;
+  if (aimed === undefined) return [];
   const troops = await troopsCarriedBy(ctx, movement);
   const site = await targetOf(ctx, aimed, movement.playerId, movement.seasonId);
   if (site === null) {
@@ -245,7 +246,7 @@ export async function arriveForCapture(
     });
     await walkHome(ctx, { winners: troops, beaten: [] }, pointOf(movement.to), now);
     await forgetMovement(ctx, movement._id);
-    return;
+    return [];
   }
 
   let standing = troops;
@@ -283,7 +284,7 @@ export async function arriveForCapture(
         await walkHome(ctx, { winners: standing, beaten: [] }, pointOf(movement.to), now);
       }
       await forgetMovement(ctx, movement._id);
-      return;
+      return [defence.playerId];
     }
   }
 
@@ -298,9 +299,10 @@ export async function arriveForCapture(
       point: movement.to,
     };
     await notifyBoth(ctx, refused, now, { kind: 'captureCancelled', reason: 'left' });
-    return;
+    return defence === null ? [] : [defence.playerId];
   }
   await startCapture(ctx, movement, site, standing, now);
+  return defence === null ? [] : [defence.playerId];
 }
 
 async function startCapture(

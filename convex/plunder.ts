@@ -163,18 +163,19 @@ async function keepLootAtTarget(
   });
 }
 
+/** Returns the defender it fought, the only other player whose board it moved (#418). */
 export async function arriveForPlunder(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   now: number,
-): Promise<void> {
-  if (movement.plunder?.phase !== 'outbound') return;
+): Promise<ReadonlyArray<Id<'players'>>> {
+  if (movement.plunder?.phase !== 'outbound') return [];
   const target = await targetAt(ctx, movement, now);
   const troops = await troopsCarriedBy(ctx, movement);
   if (target === null || !troops.some((troop) => troop.role === 'infantry')) {
     if (target === null) await reportNothingFound(ctx, movement, now);
     await returnEmpty(ctx, movement, troops, now);
-    return;
+    return [];
   }
 
   const defence = await defenceOf(ctx, movement);
@@ -196,7 +197,7 @@ export async function arriveForPlunder(
     if (engagement.winner === 'attacker' && standing.some((troop) => troop.role === 'infantry')) {
       await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now, routedCargo);
       await startPresence(ctx, movement, standing, now, engagementId);
-      return;
+      return [defence.playerId];
     }
     const survivors = troops.filter((troop) => stateOf.get(troop._id) !== 'destroyed');
     await walkHome(
@@ -207,10 +208,11 @@ export async function arriveForPlunder(
       routedCargo,
     );
     await forgetMovement(ctx, movement._id);
-    return;
+    return [defence.playerId];
   }
 
   await startPresence(ctx, movement, troops, now, null);
+  return [];
 }
 
 export async function completePresence(

@@ -416,8 +416,9 @@ export const disband = mutation({
       for (const troop of [piece, ...cargoOf(piece, seated)])
         await ctx.db.patch(troop.id as Id<'troops'>, { stationedAt: at });
     }
-    /** Les pièces posées à part se voient ailleurs : l'œil adverse relit la scène. */
-    await reassessDetection(ctx, season._id, Date.now());
+    /** Les pièces posées à part se voient ailleurs, et voient d'ailleurs : leurs relevés et ceux
+     *  qu'on tient sur elles se relisent, rien d'autre ne bouge (#418). */
+    await reassessDetection(ctx, season._id, Date.now(), player._id);
     return { pieces: pieces.length };
   },
 });
@@ -505,8 +506,8 @@ export const attack = mutation({
       (await blitzTheatreOf(ctx, player._id)) !== null &&
       (target.kind === 'camp' || target.kind === 'track');
     /** **On poursuit ce qu'on voit à l'instant** : la vue refaite avant de la lire, comme à
-     *  chaque regard de la poursuite. */
-    if (chasing) await reassessDetection(ctx, seasonId, Date.now());
+     *  chaque regard de la poursuite — la sienne seule (#418). */
+    if (chasing) await reassessDetection(ctx, seasonId, Date.now(), player._id);
     const hunted = chasing ? await quarryOf(ctx, player._id, target, Date.now()) : null;
     return march(ctx, {
       playerId: player._id,
@@ -1043,8 +1044,8 @@ export const arrive = internalMutation({
     /** **Une collecte de caisse** résout toutes les colonnes dues sur la caisse, et chacune y
      *  reprend son passage au Magasin (`resolveOne`). */
     if (movement.lootCollection !== undefined) {
-      await resolveLootCollectionArrivals(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
+      const settled = await resolveLootCollectionArrivals(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, ...settled]);
       return;
     }
 
@@ -1054,15 +1055,15 @@ export const arrive = internalMutation({
 
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);
-      await arriveForPlunder(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
+      const fought = await arriveForPlunder(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, ...fought]);
       return;
     }
 
     if (movement.capture !== undefined) {
       await surveyAlongRoute(ctx, movement, now);
-      await arriveForCapture(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
+      const fought = await arriveForCapture(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, ...fought]);
       return;
     }
 
@@ -1092,7 +1093,8 @@ export const arrive = internalMutation({
     /** **Un largage lâche son paquet et rentre sans se poser** (ADR 0028 §4). */
     if (movement.airdrop?.leg === 'out') {
       await arriveToAirdrop(ctx, movement, now);
-      await reassessDetection(ctx, movement.seasonId, now);
+      /** Le paquet tombe chez soi : seuls l'avion et ce qu'il ravitaille ont bougé (#418). */
+      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
       return;
     }
 
