@@ -1421,6 +1421,14 @@ describe('raising a level from the map', () => {
     expect(compass?.refusal).toBe(fr.errors.DEMOLITION_UNDER_CAPTURE());
   });
 
+  it('says the capture beside a refused raise, both at once (#450)', () => {
+    const besieged = {
+      ...standing({ cappedByHq: true }),
+      captures: [{ side: 'defender', target: { kind: 'building', id: 'B-01' }, stoppedAt: null }],
+    } as unknown as PlayerView;
+    expect(compassOf(mast, besieged)?.refusal).toContain(fr.errors.DEMOLITION_UNDER_CAPTURE());
+  });
+
   it('offers the raise, its flat figure and its bill against the stock', () => {
     const compass = compassOf(mast, standing({}));
     expect(compass?.kicker).toBe('bâtiment · niveau 1');

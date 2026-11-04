@@ -1,19 +1,21 @@
 import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 import {
+  besieged,
   demolitionRefusalOf,
   evacuationOf,
   keeping,
   type Evacuated,
+  type Siege,
 } from '../src/domain/construction';
 import { assetOf } from '../src/domain/nation-assets';
 import { modeOf } from '../src/domain/season-mode';
 import { buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
-import { playerBuildings } from './buildingReads';
+import { playerBuildings, samePoint } from './buildingReads';
 import { fail } from './errors';
 import { reassessDetection } from './movement/detection';
 import { foundationOwedBy, pointOfBuilding } from './regions';
@@ -59,19 +61,10 @@ export const demolish = mutation({
     refuseInBlitz(season);
 
     const building = await ctx.db.get(buildingId);
-    const sieges = await ctx.db
-      .query('captures')
-      .withIndex('byDefender', (q) => q.eq('defenderId', player._id))
-      .collect();
     const refusal = demolitionRefusalOf({
       key: building?.key ?? 'hq',
       mine: building !== null && building.playerId === player._id,
-      underCapture: sieges.some(
-        (capture) =>
-          capture.target.kind === 'building' &&
-          capture.target.buildingId === buildingId &&
-          capture.stoppedAt === undefined,
-      ),
+      underCapture: besieged(await siegesOf(ctx, player._id), [buildingId]),
     });
     if (refusal !== null || building === null) fail(refusal ?? 'NOT_YOURS');
 
@@ -90,6 +83,33 @@ export const demolish = mutation({
     return { refunded, clipped };
   },
 });
+
+/** **Les captures que ce joueur subit**, telles que le refus de raser et de démanteler les lit
+ *  (`besieged`) : la cible, et si elle court. */
+export async function siegesOf(ctx: QueryCtx, defenderId: Id<'players'>): Promise<Siege[]> {
+  const rows = await ctx.db
+    .query('captures')
+    .withIndex('byDefender', (q) => q.eq('defenderId', defenderId))
+    .collect();
+  return rows.map(({ target, stoppedAt }) => ({
+    targetId:
+      target.kind === 'building'
+        ? target.buildingId
+        : target.kind === 'outpost'
+          ? target.outpostId
+          : target.pointId,
+    ...(stoppedAt === undefined ? {} : { stoppedAt }),
+  }));
+}
+
+/** **Ce qu'une capture sur un avant-poste vise** : le point, et les bâtiments qu'il ancre. */
+export const siegeTargetsOf = (
+  outpost: Doc<'outposts'>,
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+): string[] => [
+  outpost._id,
+  ...buildings.filter((building) => building.outpostId === outpost._id).map(({ _id }) => _id),
+];
 
 /**
  * **La chute d'un mât, sans la porte qui l'ordonne.** Extraite de `demolish` le 16/09 parce
@@ -198,14 +218,21 @@ async function cancelWorkOn(
     }
   };
 
-  /** Une entrée par région (`constructions.ts`), donc celle de cette région est l'élévation de
-   *  ce bâtiment-ci — une élévation d'avant-poste ne prend aucun sol et ne compte pas. */
+  /** **L'élévation de ce bâtiment-ci**, et elle seule : sa clé à son point (ADR 0029). Une pose
+   *  voisine de la même région n'est pas à lui, et une élévation d'avant-poste ne prend aucun sol. */
   const queued = await ctx.db
     .query('constructions')
     .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
     .collect();
   for (const entry of queued) {
-    if (entry.outpostId !== undefined || entry.regionId !== building.regionId) continue;
+    if (
+      entry.outpostId !== undefined ||
+      entry.building === 'outpost' ||
+      entry.point === undefined ||
+      !samePoint(entry.point, building.point) ||
+      canonicalBuildingKey(entry.building) !== canonicalBuildingKey(building.key)
+    )
+      continue;
     if (entry.finishesAt === null) {
       add(buildCost(entry.building, entry.level));
       await restoreKept(ctx, player._id, entry);

@@ -196,6 +196,7 @@ function adaptedView(server: ServerView): PlayerView {
         /** Une version de retard ne connaît pas le chantier : un point sans date est debout,
          *  ce qui est la même lecture que le serveur en fait (`isStanding`). */
         standsAt: outpost.standsAt ?? null,
+        besieged: outpost.besieged ?? false,
       })),
     },
     buildCatalog: server.buildCatalog,

@@ -802,6 +802,8 @@ export const fr = {
      *  « jamais éliminé », et elle n'est pas tranchée. */
     HQ_NEVER_DEMOLISHED: () => 'le quartier général ne se rase pas',
     DEMOLITION_UNDER_CAPTURE: () => 'une capture court sur ce bâtiment : il ne se rase pas',
+    DISMANTLE_UNDER_CAPTURE: () =>
+      'une capture court sur ce point ou un bâtiment qu’il ancre : il ne se démantèle pas',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
@@ -3827,7 +3829,10 @@ export const fr = {
     tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
     /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
-    tileKept: (level: number) => `réserve niv.\u00a0${level}`,
+    tileKept: (kept: number, stands: number) =>
+      stands < kept
+        ? `réserve niv.\u00a0${kept} · sort au niv.\u00a0${stands}`
+        : `réserve niv.\u00a0${kept}`,
     /** **Le site sélectionné** (#163) : la bande montre ce qu'il forme. */
     siteCards: (building: string) => `Troupes que forme ${lowerFirst(building)}`,
     siteSheet: 'fiche du site',

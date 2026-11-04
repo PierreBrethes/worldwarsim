@@ -134,7 +134,8 @@ export function DemolitionCard({
           )}
 
           {/* La phrase de la décision 5a, à part et en dernier : c'est ce qu'on lit juste avant
-              d'appuyer. L'Évacuation (ADR 0039 §5) dit à la place ce que la réserve garde. */}
+              d'appuyer. L'acier reste perdu sous l'Évacuation (ADR 0039 §5) : la réserve s'ajoute
+              dessous, elle ne remplace pas la phrase. */}
           <p className="mt-[8px] border-t border-(color:--ink)/40 pt-[6px] text-[11px] leading-[1.4] text-[var(--critical)]">
             {fr.demolition.noRefund}
           </p>

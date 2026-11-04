@@ -30,7 +30,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const station = { kind: 'outpost', outpostId: 'O-1' } as const;
-const outpostOf = (serving: boolean) => ({
+const outpostOf = (serving: boolean, besieged = false) => ({
   id: 'O-1',
   level: 1,
   hostCountry: 'Belgique',
@@ -38,11 +38,12 @@ const outpostOf = (serving: boolean) => ({
   standsAt: 1,
   disabledMinutesLeft: null,
   serving,
+  besieged,
   nextLevelCost: {},
   nextLevelMinutes: 0,
   depot: {},
 });
-const viewOf = (locked: boolean) =>
+const viewOf = (locked: boolean, besieged = false) =>
   ({
     me: {
       nation: 'france',
@@ -51,7 +52,7 @@ const viewOf = (locked: boolean) =>
       stationedCargo: [],
       regions: [],
       buildings: [],
-      outposts: [outpostOf(locked)],
+      outposts: [outpostOf(locked, besieged)],
       resources: {},
       upkeep: {},
     },
@@ -59,10 +60,10 @@ const viewOf = (locked: boolean) =>
     loadedAt: 0,
   }) as unknown as PlayerView;
 
-const mount = (locked: boolean, onDismantle = vi.fn()) => {
+const mount = (locked: boolean, onDismantle = vi.fn(), besieged = false) => {
   render(
     <GarrisonPanel
-      view={viewOf(locked)}
+      view={viewOf(locked, besieged)}
       seat={{ token: 't', seasonId: 's' } as never}
       station={station}
       at={{ x: 10, y: 10 }}
@@ -86,5 +87,11 @@ describe('the garrison sheet of one of my outposts', () => {
     mount(true);
     expect(screen.queryByRole('button', { name: fr.compass.dismantle })).toBeNull();
     expect(screen.getByText(fr.errors.OUTPOST_SERVING())).toBeTruthy();
+  });
+
+  it('says a running capture holds it, before the gesture (#450)', () => {
+    mount(false, vi.fn(), true);
+    expect(screen.queryByRole('button', { name: fr.compass.dismantle })).toBeNull();
+    expect(screen.getByText(fr.errors.DISMANTLE_UNDER_CAPTURE())).toBeTruthy();
   });
 });

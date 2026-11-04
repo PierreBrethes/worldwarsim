@@ -51,6 +51,11 @@ function countryAllegiance(country: string, view: PlayerView): Allegiance {
  * qu'elle coûte — le niveau, le chantier, l'écrêtage — ne tient pas dans une bulle. C'est la
  * confirmation qui le dit, et c'est pour ça qu'il y en a une.
  */
+/** **Deux branches retenues se disent toutes deux** (#450) : la rose n'a qu'une ligne de refus, et
+ *  celui de l'élévation ne doit pas cacher celui de raser ou de démanteler. */
+const saidTogether = (...refusals: ReadonlyArray<string | null>): string | null =>
+  refusals.filter((refusal) => refusal !== null).join(' · ') || null;
+
 const demolishOf = (buildingId: string): CompassAction => ({
   key: 'demolish',
   pictogram: 'rubble',
@@ -219,6 +224,7 @@ export function build(
       const dismantles = outpostDismantleRefusalOf({
         mine: true,
         serving: mine.serving,
+        besieged: mine.besieged,
       });
       return {
         kicker: fr.compass.myOutpost(mine.level),
@@ -227,7 +233,7 @@ export function build(
         /** Le motif de l'élévation d'abord : c'est la seule branche que le joueur cherche et ne
          *  trouve pas. Le démantèlement retenu se lit sur le point lui-même — une colonne y
          *  marche. */
-        refusal: raise.refusal ?? (dismantles === null ? null : fr.errors[dismantles]()),
+        refusal: saidTogether(raise.refusal, dismantles === null ? null : fr.errors[dismantles]()),
       };
     }
     /**
@@ -265,9 +271,10 @@ export function build(
           ...(raise?.action == null ? [] : [raise.action]),
           ...(razes && standing !== null ? [demolishOf(standing.id)] : []),
         ],
-        refusal:
-          raise?.refusal ??
-          (razeRefusal === 'DEMOLITION_UNDER_CAPTURE' ? fr.errors[razeRefusal]() : null),
+        refusal: saidTogether(
+          raise?.refusal ?? null,
+          razeRefusal === 'DEMOLITION_UNDER_CAPTURE' ? fr.errors[razeRefusal]() : null,
+        ),
       };
     }
     /**

@@ -194,6 +194,54 @@ describe('démanteler un avant-poste', () => {
     ]);
   });
 
+  it('ne garde rien en Blitz', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    const point = await plant(t, guest);
+    await anchor(t, guest, 'oilWell', PRAHOVA, point, 2);
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, guest);
+      await ctx.db.patch(player.seasonId, { mode: 'blitz' });
+    });
+
+    await t.mutation(api.outposts.dismantle, { ...guest, outpostId: point });
+
+    const reserve = await t.run(async (ctx) => (await seatIn(ctx, guest)).evacuated ?? []);
+    expect(reserve).toEqual([]);
+  });
+
+  /** **Démanteler n'annule pas une prise** (#450) : une capture qui court sur le point ou un mât
+   *  qu'il ancre retient le geste, pour toute nation ; la vue le sert, la fiche le dit. */
+  it('refuse tant qu’une capture court sur un bâtiment qu’il ancre', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const point = await plant(t, guest);
+    const well = await anchor(t, guest, 'oilWell', PRAHOVA, point, 3);
+    await t.run(async (ctx) => {
+      const defender = await seatIn(ctx, guest);
+      const capturer = await seatIn(ctx, seat);
+      await ctx.db.insert('captures', {
+        seasonId: defender.seasonId,
+        playerId: capturer._id,
+        defenderId: defender._id,
+        target: { kind: 'building', buildingId: well },
+        site: { kind: 'building', building: 'oilWell', regionId: PRAHOVA },
+        point: pointIn(PRAHOVA),
+        progress: 0,
+        progressAt: Date.now(),
+        rate: 1,
+        durationMs: 3_600_000,
+        rest: null,
+        completesAt: Date.now() + 3_600_000,
+      });
+    });
+
+    expect((await outpostsOf(t, guest))[0]).toMatchObject({ besieged: true });
+    await expect(
+      t.mutation(api.outposts.dismantle, { ...guest, outpostId: point }),
+    ).rejects.toThrow(/DISMANTLE_UNDER_CAPTURE/);
+  });
+
   /**
    * **La couleur part avec le point, et le sol du joueur est relevé** (décision (a) du 31/10). Le
    * point tenait la région à jour ; démantelé, le serveur relève le sol au point : la région

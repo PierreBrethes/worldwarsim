@@ -16,6 +16,7 @@ import {
   type Aim,
   type OutpostRaise,
   type SpecialtyChange,
+  keptLevelOf,
 } from './construction';
 import { respecialtyBill } from '../../convex/constants';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResearchCard, type ResourceKey } from './ids';
@@ -706,5 +707,13 @@ describe('workSitesOf', () => {
         LOADED,
       ),
     ).toEqual([]);
+  });
+});
+
+describe('keptLevelOf (#450)', () => {
+  it('stands at the kept level under the headquarters ceiling, never below the first', () => {
+    expect(keptLevelOf(3, 5)).toBe(3);
+    expect(keptLevelOf(4, 3)).toBe(3);
+    expect(keptLevelOf(2, 0)).toBe(1);
   });
 });

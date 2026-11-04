@@ -620,14 +620,23 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
         ? 'DEMOLITION_UNDER_CAPTURE'
         : null;
 
-/** La lecture cliente de `underCapture` : le défenseur ne reçoit que les captures qui courent. */
+/** Une capture telle que le refus la lit, des deux côtés : ce qu'elle vise, et si elle court. */
+export type Siege = { readonly targetId: string; readonly stoppedAt?: number | null };
+
+/**
+ * **Une capture court-elle sur l'une de ces cibles ?** Le seul prédicat du refus de raser et de
+ * démanteler (#450) : une capture arrêtée faute d'infanterie ne retient rien.
+ */
+export const besieged = (sieges: ReadonlyArray<Siege>, targetIds: ReadonlyArray<string>): boolean =>
+  sieges.some((siege) => (siege.stoppedAt ?? null) === null && targetIds.includes(siege.targetId));
+
+/** La lecture cliente de `underCapture` : les captures que je subis. */
 export const underCaptureOf = (view: PlayerView, buildingId: string): boolean =>
-  view.captures.some(
-    (capture) =>
-      capture.side === 'defender' &&
-      capture.target.kind === 'building' &&
-      capture.target.id === buildingId &&
-      capture.stoppedAt === null,
+  besieged(
+    view.captures
+      .filter((capture) => capture.side === 'defender')
+      .map((capture) => ({ targetId: capture.target.id, stoppedAt: capture.stoppedAt })),
+    [buildingId],
   );
 
 /**
@@ -650,6 +659,14 @@ export function keeping(reserve: Evacuated, key: BuildingKey, level: number): Ev
 /** La réserve après la pose qui la consomme. */
 export const spending = (reserve: Evacuated, key: BuildingKey): Evacuated =>
   reserve.filter((one) => one.key !== canonicalBuildingKey(key));
+
+/**
+ * **Le niveau auquel une pose de la réserve sort du chantier** : le niveau gardé, sous le plafond
+ * du QG (rien ne monte au-dessus de lui, `cappedByHq`), jamais sous le premier. `finish` le lit à
+ * l'échéance, l'écran avec le QG d'aujourd'hui.
+ */
+export const keptLevelOf = (kept: number, hqLevel: number): number =>
+  Math.max(1, Math.min(kept, hqLevel));
 
 /**
  * **Ce qu'un rasage garde**, `null` sans l'atout : le niveau que la réserve tiendra, et s'il ne
@@ -681,19 +698,28 @@ export function evacuationOf(
  * annoncé. La lecture est `outpostsServed`, servie au client par `serving`,
  * et il n'y en a pas deux.
  */
-export type OutpostDismantleRefusal = 'NOT_YOURS' | 'OUTPOST_SERVING';
+export type OutpostDismantleRefusal = 'NOT_YOURS' | 'OUTPOST_SERVING' | 'DISMANTLE_UNDER_CAPTURE';
 
 /** L'avant-poste tel que la règle le lit — jamais un document, jamais une vue : les deux bouts
  *  n'ont pas les mêmes en main, et ils doivent poser la même question. */
 export type OutpostDismantle = {
   readonly mine: boolean;
   readonly serving: boolean;
+  /** Une capture qui court sur le point ou l'un des bâtiments qu'il ancre (#450) : démanteler
+   *  les raserait, et annulerait la prise. */
+  readonly besieged: boolean;
 };
 
 export const outpostDismantleRefusalOf = (
   outpost: OutpostDismantle,
 ): OutpostDismantleRefusal | null =>
-  !outpost.mine ? 'NOT_YOURS' : outpost.serving ? 'OUTPOST_SERVING' : null;
+  !outpost.mine
+    ? 'NOT_YOURS'
+    : outpost.serving
+      ? 'OUTPOST_SERVING'
+      : outpost.besieged
+        ? 'DISMANTLE_UNDER_CAPTURE'
+        : null;
 
 /**
  * **Ce que l'entrepôt rasé fait perdre, matière par matière** (5a : rien n'est rendu, et le
@@ -755,7 +781,7 @@ type RisingWork = Pick<
 > & { readonly minutes?: number; readonly kept?: number };
 
 export function workSitesOf(
-  me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue'>,
+  me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue' | 'hqLevel'>,
   catalog: Readonly<Record<BuildingKey, BuildSpec>>,
   loadedAt: number,
 ): WorkSite[] {
@@ -775,7 +801,12 @@ export function workSitesOf(
       regionId: work.regionId,
       regionName: work.regionName,
       point: work.point,
-      level: standing === undefined ? (work.kept ?? 1) : standing.level + 1,
+      level:
+        standing === undefined
+          ? work.kept === undefined
+            ? 1
+            : keptLevelOf(work.kept, me.hqLevel)
+          : standing.level + 1,
       rank,
       finishesAt: loadedAt + work.minutesLeft * 60_000,
       /** Dated at the start: the length the server wrote, not today's headquarters level. */
@@ -792,7 +823,7 @@ export function workSitesOf(
       regionId: queued.regionId,
       regionName: queued.regionName,
       point: queued.point,
-      level: queued.kept ?? 1,
+      level: queued.kept === undefined ? 1 : keptLevelOf(queued.kept, me.hqLevel),
       rank: k + 1,
       finishesAt: null,
       minutes: catalog[queued.key].minutes,

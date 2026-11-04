@@ -6,6 +6,7 @@ import type { LonLat } from './geo';
 import { representativeRole } from './troops';
 import { borderResolution } from './arc-timing';
 import { outpostNameIn } from './patrol';
+import { keptLevelOf } from './construction';
 
 /**
  * **Où la carte va quand on touche une ligne.** Le domaine ne connaît pas les étiquettes du
@@ -120,7 +121,14 @@ export function underwayOf(
       lines.push({
         id: `construction-${work.id}`,
         endsAt: at(work.minutesLeft),
-        label: fr.underway.construction(work.name, (standing?.level ?? 0) + 1),
+        label: fr.underway.construction(
+          work.name,
+          standing !== undefined
+            ? standing.level + 1
+            : work.kept === undefined
+              ? 1
+              : keptLevelOf(work.kept, view.me.hqLevel),
+        ),
         face: { kind: 'building', key: work.key },
         place: { kind: 'building', regionId: work.regionId, key: work.key, point: work.point },
         moving: false,

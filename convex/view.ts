@@ -54,6 +54,8 @@ import {
   queueOf,
   totalLevelOf,
 } from './buildingReads';
+import { siegesOf, siegeTargetsOf } from './buildings';
+import { besieged } from '../src/domain/construction';
 import {
   FOUNDER_ABSENCE_NOTICE_HOURS,
   MAX_PLAYERS,
@@ -224,9 +226,14 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const recruiting = await recruitmentsOf(ctx, player._id);
 
   const served = await outpostsServed(ctx, season._id, outposts);
+  /** Le refus de démantèlement sous capture, servi comme `serving` : la même lecture que la
+   *  mutation (`siegeTargetsOf`, `besieged`). */
+  const sieges = await siegesOf(ctx, player._id);
+  const ownBuildings = await playerBuildings(ctx, player._id);
   const outpostRows = outposts.map((outpost) => ({
     outpost,
     serving: served.has(outpost._id),
+    underSiege: besieged(sieges, siegeTargetsOf(outpost, ownBuildings)),
   }));
   const movements = await movementsOf(ctx, player._id);
   const surveyed = (
@@ -796,7 +803,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * until something else can move one. It is an address and nothing more: what a garrison
        * *does* when attacked is the combat pass's to say.
        */
-      outposts: outpostRows.map(({ outpost, serving }) => ({
+      outposts: outpostRows.map(({ outpost, serving, underSiege }) => ({
         id: outpost._id,
         hostCountry: outpost.hostCountry,
         lonLat: [outpost.point.lon, outpost.point.lat] as [number, number],
@@ -824,6 +831,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  servi plutôt que redérivé, le refus de démantèlement de l'écran et celui du serveur
          *  lisent la même réponse. */
         serving,
+        /** Une capture court sur lui ou un bâtiment qu'il ancre (#450). */
+        besieged: underSiege,
         /** **Ce qu'une élévation coûterait**, servi comme celui d'un bâtiment : les nombres
          *  d'équilibrage ont une seule maison (précision du 15/09). Au dernier niveau il n'y a
          *  pas de suivant — la facture est vide et le panneau dit « niveau maximal ». */

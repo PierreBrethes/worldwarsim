@@ -25,7 +25,7 @@ import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
 import { ReserveCell } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
-import { keptOf, placementOf, reachesOf, upgradeHold } from '@/domain/construction';
+import { keptLevelOf, keptOf, placementOf, reachesOf, upgradeHold } from '@/domain/construction';
 import { outpostReachKm } from '../../../convex/constants';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
@@ -922,7 +922,9 @@ function Tile({
   );
   const free = view.me.foundation.some((due) => due.key === buildingKey);
   const refusal = tileRefusalOf(view, buildingKey);
-  /** La réserve de l'Évacuation (ADR 0039 §5) : la prochaine pose payée sort à ce niveau. */
+  /** **La réserve de l'Évacuation** (ADR 0039 §5) : la prochaine pose payée coûte un niveau 1 et
+   *  sort au niveau gardé, sous le plafond du QG. Elle prend la ligne et le prix de la tuile : une
+   *  ligne de plus serait tronquée au bureau ; posée sur sa pareille, la main dit l'élévation. */
   const kept = keptOf(view.me.evacuated, buildingKey);
   const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
   return (
@@ -936,18 +938,22 @@ function Tile({
       picture={<BuildingPlate building={buildingKey} height={narrow ? 34 : 50} />}
       meta={
         refusal ??
-        `${kept === null ? '' : `${fr.personalBoard.tileKept(kept)} · `}${
-          lowest === null
+        (kept !== null
+          ? fr.personalBoard.tileKept(kept, keptLevelOf(kept, view.me.hqLevel))
+          : lowest === null
             ? time
-            : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`
-        }`
+            : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`)
       }
       price={
         free ? (
           fr.construction.free
         ) : (
           <Price
-            costs={lowest === null ? view.buildCatalog[buildingKey].cost : lowest.nextLevelCost}
+            costs={
+              lowest === null || kept !== null
+                ? view.buildCatalog[buildingKey].cost
+                : lowest.nextLevelCost
+            }
             size={10}
           />
         )
@@ -1186,7 +1192,11 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   return (
     <>
       <b className="font-semibold text-[var(--ink)]">
-        {fr.personalBoard.workAt(running.name, running.kept ?? running.level, running.regionName)}
+        {fr.personalBoard.workAt(
+          running.name,
+          running.kept === undefined ? running.level : keptLevelOf(running.kept, view.me.hqLevel),
+          running.regionName,
+        )}
       </b>
       {fr.personalBoard.workTail(
         countdownLabel(currentMinutes(running.minutesLeft, view.loadedAt, now) * 60_000),
@@ -1251,7 +1261,10 @@ function Works({
               <b className="min-w-0 flex-1 truncate font-semibold">
                 {fr.personalBoard.workRank(
                   index + 1,
-                  fr.personalBoard.work(work.name, work.kept ?? work.level),
+                  fr.personalBoard.work(
+                    work.name,
+                    work.kept === undefined ? work.level : keptLevelOf(work.kept, view.me.hqLevel),
+                  ),
                 )}
               </b>
               {running && (

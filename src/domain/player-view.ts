@@ -402,6 +402,9 @@ export type OutpostView = {
    * et celui que le serveur refuse lisent la même réponse (`OUTPOST_SERVING`).
    */
   readonly serving: boolean;
+  /** **Une capture court sur lui ou un bâtiment qu'il ancre** (#450) : servi comme `serving`,
+   *  le refus de l'écran et celui du serveur lisent la même réponse (`DISMANTLE_UNDER_CAPTURE`). */
+  readonly besieged: boolean;
   /**
    * **Ce que monter ce point coûterait**, servi comme celui d'un bâtiment (`Building`) et pour
    * la même raison : les nombres d'équilibrage ont une seule maison, `convex/constants.ts`. Un

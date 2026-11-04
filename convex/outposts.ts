@@ -8,9 +8,9 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from './_generated/server';
-import { outpostDismantleRefusalOf } from '../src/domain/construction';
+import { besieged, outpostDismantleRefusalOf } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
-import { razeBuilding } from './buildings';
+import { razeBuilding, siegesOf, siegeTargetsOf } from './buildings';
 import { billOfWork, playerBuildings } from './buildingReads';
 import { outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
@@ -179,6 +179,12 @@ export const dismantle = mutation({
     const refusal = outpostDismantleRefusalOf({
       mine: outpost !== null && outpost.playerId === player._id,
       serving: outpost !== null && (await outpostServed(ctx, outpost)),
+      besieged:
+        outpost !== null &&
+        besieged(
+          await siegesOf(ctx, player._id),
+          siegeTargetsOf(outpost, await playerBuildings(ctx, player._id)),
+        ),
     });
     if (refusal !== null || outpost === null) fail(refusal ?? 'NOT_YOURS');
 

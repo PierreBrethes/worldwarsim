@@ -311,9 +311,16 @@ function OutpostDismantle({
   outpost: OutpostView;
   onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
 }) {
-  const refusal = outpostDismantleRefusalOf({ mine: true, serving: outpost.serving });
+  const refusal = outpostDismantleRefusalOf({
+    mine: true,
+    serving: outpost.serving,
+    besieged: outpost.besieged,
+  });
   return (
-    <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px] md:hidden">
+    /** Une capture qui court se dit aussi au bureau, comme sur la fiche d'un bâtiment (#450). */
+    <div
+      className={`mt-[11px] border-t border-(color:--ink)/32 pt-[9px] ${refusal === 'DISMANTLE_UNDER_CAPTURE' ? '' : 'md:hidden'}`}
+    >
       {refusal === null ? (
         <button
           type="button"

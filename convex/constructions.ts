@@ -25,6 +25,7 @@ import {
   raiseChoosesSpecialty,
   type OutpostRaiseHold,
   type SpecialtyRefusal,
+  keptLevelOf,
   keptOf,
   spending,
 } from '../src/domain/construction';
@@ -483,7 +484,7 @@ export const finish = internalMutation({
       const level =
         construction.kept === undefined
           ? construction.level
-          : Math.max(construction.level, Math.min(construction.kept, hqLevel));
+          : keptLevelOf(construction.kept, hqLevel);
       stood = level;
       await ctx.db.insert('buildings', {
         seasonId: season._id,
