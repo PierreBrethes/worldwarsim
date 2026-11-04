@@ -87,6 +87,17 @@ describe('chipOf', () => {
     expect(chipOf(aim('march', { boardsOn: 't1' }), 'sea').icon).toBe('⤓');
   });
 
+  it("says a delivery to somebody else's depot as lend-lease, and one to mine as a delivery", () => {
+    const deliver = (extra: object = {}) =>
+      ({ ...branch('deliver'), ...extra }) as unknown as CompassAction;
+    expect(chipOf(deliver(), 'sea').verb).toBe('Livrer');
+    expect(chipOf(deliver({ lendLease: true }), 'sea')).toEqual({
+      icon: '⇥',
+      tone: 'order',
+      verb: 'Livrer en Prêt-bail',
+    });
+  });
+
   it('names a plain march by what goes: on foot, by sea, by air', () => {
     expect(chipOf(aim('march'), 'sea').verb).toBe('Marcher');
     expect(chipOf(aim('march'), 'inland').verb).toBe('Faire route');

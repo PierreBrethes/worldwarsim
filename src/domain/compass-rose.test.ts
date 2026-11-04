@@ -503,6 +503,7 @@ describe('in aim', () => {
       expect(compass?.actions[0]).toMatchObject({
         key: 'deliver',
         label: fr.compass.lendLease,
+        lendLease: true,
         outpostId: 'AP-FR',
         aim: { kind: 'point', lon: 10.2, lat: 59.8 },
       });

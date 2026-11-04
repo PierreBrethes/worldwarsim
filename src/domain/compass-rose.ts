@@ -467,6 +467,8 @@ export type CompassAction =
       readonly destination: string;
       /** La visée de la marche : l'aperçu de route en tire l'heure et le plein. */
       readonly aim: MovementAim;
+      /** **Au dépôt d'un autre** (ADR 0039 §3) : la pastille le dit, l'Américain livre chez lui. */
+      readonly lendLease?: true;
     }
   /**
    * **Larguer** (ADR 0028 §4) : l'avion chargé ne se pose pas, il lâche son paquet sur un de mes

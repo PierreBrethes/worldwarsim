@@ -4568,6 +4568,7 @@ export const fr = {
       join: 'Rejoindre l’escouade',
       board: 'Embarquer',
       deliver: 'Livrer',
+      lendLease: 'Livrer en Prêt-bail',
       airdrop: 'Larguer',
       tour: 'Tracer une tournée',
       patrol: 'Tenir la ronde',

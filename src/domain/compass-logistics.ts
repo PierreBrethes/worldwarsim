@@ -141,6 +141,7 @@ export function withLendLease(
     outpostId: target.id,
     destination: target.name,
     aim: marching.aim,
+    lendLease: true,
   };
   return { ...fan, actions: [deliver, ...fan.actions], refusal: null };
 }
