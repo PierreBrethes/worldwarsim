@@ -8,7 +8,7 @@ export type Flat = readonly [x: number, z: number];
 /** **The tailgate plays from 30 px**: the zoom stops at d = 3, where a truck reads some 50 px
  *  (34 by `seenBig`, which reads the backed-off eye's distance on the 42 degrees reference window)
  *  — the buildings' 150 px (`PLAY_PX`) would never let it play. `@a-mesurer` */
-export const BOARDING_PX = 30;
+const BOARDING_PX = 30;
 
 /** The storyboard's hours (« une pile vivante », `T`), in ms: the tailgate falls in 500 (`out3`)
  *  and shuts in 450 (`in2`); the rest is proposed there. `@a-mesurer` */
