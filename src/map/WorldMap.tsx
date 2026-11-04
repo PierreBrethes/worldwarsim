@@ -58,6 +58,7 @@ import {
   dispersionsOf,
   entreesOf,
   loadsOf,
+  takingsOf,
   tourneesOf,
   monteesOf,
   rankKept,
@@ -1860,6 +1861,15 @@ export function WorldMap({
     for (const tournee of tourneesOf(before, arcs, troops, maquettes))
       readyEngine?.cue({ kind: 'tournee', ...tournee });
   }, [troops, standing, arcs, maquettes, readyEngine]);
+
+  // My column leaves what it took at its point (#279): a crate, a site plundered or sabotaged.
+  const takersKnown = useRef<ReadonlyArray<ArcView> | null>(null);
+  useEffect(() => {
+    const before = takersKnown.current;
+    takersKnown.current = arcs;
+    for (const { kind, ...taking } of takingsOf(before, arcs, maquettes))
+      readyEngine?.cue({ kind: 'prise', act: kind, ...taking });
+  }, [arcs, maquettes, readyEngine]);
 
   const cutBefore = useRef<ReadonlyArray<string> | null>(null);
   useEffect(() => {

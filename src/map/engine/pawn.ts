@@ -338,6 +338,12 @@ export class Pawn {
     return this.marchers.length === 1 ? this.marchers[0]!.figurine : null;
   }
 
+  /** **The squad a sequence borrows** (#279): its file's first infantry, once its men landed;
+   *  `null` for a file without one. Standing or not: a copy is given back to it whatever. */
+  get squadFigurine(): Figurine | null {
+    return this.marchers.find(({ men }) => men.length > 0)?.figurine ?? null;
+  }
+
   /** The span it gives way to its pin by: its worn figurine's, a tank's for a silhouette. */
   get span(): number {
     if (this.medium === 'land' && this.file !== null) return this.fileSpan;

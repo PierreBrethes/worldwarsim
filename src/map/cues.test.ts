@@ -12,6 +12,7 @@ import {
   monteesOf,
   rankKept,
   sortiesOf,
+  takingsOf,
   tourneesOf,
 } from './cues';
 import type { StandingPile } from './engine';
@@ -472,5 +473,52 @@ describe('tourneesOf (#278)', () => {
     none(seen(), [leg([4, 50])], [truck(150)], sites);
     none(seen(), [leg([5, 51])], [truck(150)], sites);
     none(seen(), [leg([2, 48])], [truck(150, true, 'cargo')], sites);
+  });
+});
+
+describe('takingsOf (#279)', () => {
+  type Arc = Parameters<typeof takingsOf>[1][number];
+  const arc = (
+    id: string,
+    from: [number, number],
+    to: [number, number],
+    over: Partial<Arc> = {},
+  ): Arc => ({
+    state: 'mine',
+    id,
+    from,
+    to,
+    mission: null,
+    ...over,
+  });
+  const sites = [{ id: 'installation-w', buildingId: 'w' }];
+  const crate = arc('a', [1, 1], [5, 50], { mission: { kind: 'collection' } });
+  const raid = (id: string) =>
+    arc('r', [1, 1], [6, 49], {
+      mission: { kind: 'plunder', buildingId: id },
+    });
+
+  it('takes a crate up where my column leaves its point loaded', () => {
+    const home = arc('b', [5, 50], [1, 1], { cargo: {} as never });
+    expect(takingsOf([crate], [home], sites)).toEqual([{ kind: 'ramassage', arcId: 'b' }]);
+  });
+
+  it('plunders, or sabotages, the site my raid leaves, by what it carries away', () => {
+    const loaded = arc('b', [6, 49], [1, 1], { cargo: {} as never });
+    const empty = arc('b', [6, 49], [1, 1]);
+    expect(takingsOf([raid('w')], [loaded], sites)).toEqual([
+      { kind: 'pillage', arcId: 'b', siteId: 'installation-w' },
+    ]);
+    expect(takingsOf([raid('w')], [empty], sites)).toEqual([
+      { kind: 'sabotage', arcId: 'b', siteId: 'installation-w' },
+    ]);
+  });
+
+  it('plays nothing for a crate gone, a raid still there, a site unseen, or a first view', () => {
+    const empty = arc('b', [5, 50], [1, 1]);
+    expect(takingsOf([crate], [empty], sites)).toEqual([]);
+    expect(takingsOf([raid('w')], [raid('w'), arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
+    expect(takingsOf([raid('x')], [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
+    expect(takingsOf(null, [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
   });
 });

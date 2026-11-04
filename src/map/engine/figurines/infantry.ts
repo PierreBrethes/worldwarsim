@@ -143,6 +143,41 @@ export function hop(man: Object3D, bend: number): void {
   pose(man, { joints: { ...marching(0), ...legs }, body: STANDING_BODY });
 }
 
+/** **La caisse à l'épaule** (#279, `storyboard-prise`, `placeMan`) : penché de `bend` (0..1) sur
+ *  elle, puis ses bras la montent à l'épaule de `lift` (0..1) ; ses jambes gardent sa foulée hors
+ *  du penché. Rien pour ce qui n'est pas un homme. */
+export function carrying(man: Object3D, bend: number, lift: number): void {
+  if (man.userData.stride === undefined) return;
+  const joints: Rotations =
+    bend > 0
+      ? {
+          arm_right: [-1.2 * bend, 0, 0],
+          arm_left: [-1.2 * bend, 0, 0],
+          leg_left: [-0.5 * bend, 0, 0],
+          leg_right: [-0.5 * bend, 0, 0],
+          shin_left: [0.9 * bend, 0, 0],
+          shin_right: [0.9 * bend, 0, 0],
+        }
+      : {
+          arm_right: [-2.75 * lift, 0, -0.1],
+          forearm_right: [-0.35 * lift, 0, 0],
+          arm_left: [-2.6 * lift, 0, 0.12],
+          forearm_left: [-0.4 * lift, 0, 0],
+        };
+  for (const [name, [x, y, z]] of Object.entries(joints))
+    man.getObjectByName(name)?.rotation.set(x, y, z);
+  const body = man.getObjectByName('body');
+  if (body) body.rotation.x = 0.55 * bend;
+}
+
+/** **Where a carried crate sits on its man** (#279), in his metres: at his feet, in front, then
+ *  on his shoulder as he lifts it (`lift` 0..1), half his height (`prise.js`, `placeCarried`). */
+export const crateOnMan = (lift: number): Vec3 => [
+  -0.15 * MAN_METRES,
+  0.88 * MAN_METRES * lift,
+  (0.35 - 0.3 * lift) * MAN_METRES,
+];
+
 /**
  * **Les hommes qui marchent, au pas** (page publique) : chaque marcheur reprend sa foulée à
  * `seconds`, décalé des autres ; `null` les arrête, jambes droites, sauf l'homme `sculpted` qui

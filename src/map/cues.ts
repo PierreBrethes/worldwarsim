@@ -423,3 +423,52 @@ export function entreesOf(
     });
   });
 }
+
+/** **Ce que ma colonne vient de prendre à son point** (#279, `storyboard-prise`) : une caisse
+ *  ramassée, un site pillé ou saboté, joué sur la colonne qui en repart (`arcId`). */
+export type Taking =
+  | { readonly kind: 'ramassage'; readonly arcId: string }
+  | { readonly kind: 'pillage' | 'sabotage'; readonly arcId: string; readonly siteId: string };
+
+type Taker = {
+  readonly state: string;
+  readonly id: string;
+  readonly from: LonLat;
+  readonly to: LonLat;
+  readonly cargo?: unknown;
+  readonly mission?:
+    | { readonly kind: 'collection' }
+    | { readonly kind: 'plunder'; readonly buildingId: string }
+    | { readonly kind: string }
+    | null;
+};
+
+/**
+ * **Les prises qui viennent de se faire** (#279) : un arc à moi neuf part du point où finit un arc
+ * à moi disparu. Celui-là ramassait une caisse : il repart chargé, c'est un ramassage ; il repart
+ * à vide, la caisse était partie et la dépêche le dit seule. Celui-là pillait un site que je vois :
+ * il repart chargé, c'est un pillage ; à vide, un sabotage. Rien à la première vue.
+ */
+export function takingsOf(
+  before: ReadonlyArray<Taker> | null,
+  arcs: ReadonlyArray<Taker>,
+  sites: ReadonlyArray<{ readonly id: string; readonly buildingId?: string }>,
+): ReadonlyArray<Taking> {
+  if (before === null) return [];
+  const ids = new Set(arcs.map(({ id }) => id));
+  const known = new Set(before.map(({ id }) => id));
+  return arcs.flatMap((arc): Taking[] => {
+    if (arc.state !== 'mine' || known.has(arc.id)) return [];
+    const ended = before.find(
+      (gone) => gone.state === 'mine' && !ids.has(gone.id) && samePoint(gone.to, arc.from),
+    );
+    const mission = ended?.mission;
+    const loaded = arc.cargo !== undefined;
+    if (mission?.kind === 'collection') return loaded ? [{ kind: 'ramassage', arcId: arc.id }] : [];
+    if (mission?.kind !== 'plunder' || !('buildingId' in mission)) return [];
+    const site = sites.find(({ buildingId }) => buildingId === mission.buildingId);
+    return site === undefined
+      ? []
+      : [{ kind: loaded ? 'pillage' : 'sabotage', arcId: arc.id, siteId: site.id }];
+  });
+}
