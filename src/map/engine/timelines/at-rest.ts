@@ -37,9 +37,9 @@ export type PumpRig = {
 
 /** **The crank leads everything**: it turns round, the beam, the rods and the polished rod
  *  follow at every step, as in the machine. Angles in radians about x, shifts in (y, z).
- *  Each rod keeps its length, its head on the beam, aimed at the pin: the decided stops are not
- *  those of today's file as a linkage (−3°, +20°), so its foot misses the pin by up to 1,08 m
- *  there. A file whose crank matches the stops (#368) closes it. */
+ *  Each rod keeps its length, its head on the beam, aimed at the pin: the decided stops (−19°,
+ *  +16°) are not those of `oilWell.glb` as a linkage, so its foot misses the pin by up to 0,66 m
+ *  over a stroke (measured on the file of 04/11). */
 export function pumpAt(t: number, rig: PumpRig) {
   const crank = (-2 * Math.PI * (((t % PUMP_S) + PUMP_S) % PUMP_S)) / PUMP_S;
   const pin0 = rig.rods[0]?.pin ?? rig.crank;
@@ -119,8 +119,8 @@ export function domeAt(t: number) {
 export const CRANE_S = 44;
 /** Elle pivote de 110° vers le terre-plein. */
 const PICK = -110 * DEG;
-/** Over its rest: raised 18° over the yard, lowered 8° over the hull — 20° → 38°, 12° on the
- *  regenerated file (rest at 20°, #368); today's rests at 30°, so 48° and 22°. */
+/** Over its rest: raised 18° over the yard, lowered 8° over the hull — `port.glb`'s jib rests
+ *  at 20°, so 38° and 12°. */
 const LIFT = { yard: 18 * DEG, hull: -8 * DEG } as const;
 /** **Where the hook stops**, metres over the crane's foot: 3 m over the yard, 7,4 m over the
  *  deck of a hull on the slip (`storyboard-repos`). `@a-mesurer` */
