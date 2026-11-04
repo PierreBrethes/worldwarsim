@@ -1,6 +1,7 @@
 import {
   Box3,
   BoxGeometry,
+  Quaternion,
   Color,
   Group,
   InstancedMesh,
@@ -29,6 +30,7 @@ import {
   MaquetteLayer,
   MAX_SHIFT,
   RING_GAP,
+  type SeaFront,
   ringSpacing,
   SOCLE_TOP,
   yawOf,
@@ -75,6 +77,7 @@ vi.mock('./figurines/figurine', async (original) => {
   const sceneOf = async (url: string) => {
     const { sceneOfFile } = await import('./gltf-scene.fixture');
     if (url === 'socle.glb') return sceneOfFile('src/emblems/buildings/barracks.glb');
+    if (url === 'port.glb') return sceneOfFile('src/emblems/buildings/port.glb');
     if (url === 'hq.glb')
       return sceneOfFile(
         (await import('@/emblems/buildings/manifest')).buildingMaquette('hq', null)!,
@@ -1273,5 +1276,144 @@ describe('a copy for a sequence or a loop (#273)', () => {
       expect(crate, name).toBeDefined();
       expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(3)), name).toBe(true);
     }
+  });
+});
+
+describe('a port faces its water, a coastal site its land (#436)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const PORT = 'building-port@0,0';
+  /** The sea lies east of `COAST`, on the board's +x. */
+  const COAST = 0.1;
+  const port = {
+    id: PORT,
+    at: { lonLat: [0, 0] as const },
+    url: 'port.glb',
+    span: buildingSpan('port'),
+    metres: buildingMetres('port'),
+    footprint: buildingFootprint('port'),
+    reach: buildingReach('port'),
+    socle: true,
+    washed: false,
+  };
+  const layerOf = async (
+    maquettes: Parameters<MaquetteLayer['display']>[0],
+    shore: (x: number, z: number) => SeaFront | null,
+    onLand: (x: number, z: number) => boolean = (x) => x < COAST,
+  ) => {
+    const layer = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      onLand,
+      shore,
+    );
+    layer.display(maquettes);
+    await vi.waitFor(() => expect(maquettes.every(({ id }) => layer.isDressed(id))).toBe(true));
+    layer.orient(new Vector3(0, 0.5, 0.5), null, 0);
+    return layer;
+  };
+  const east: SeaFront = { seaward: [1, 0], line: [COAST, 0.3] };
+
+  it('lays its water edge on the coast line, its quay to the sea, and steps back from its point alone', async () => {
+    const layer = await layerOf([port], () => east);
+    const site = layer.siteOf(PORT)!;
+    const edge = site.toBoard(site.marker('fx_bord_eau')!);
+    expect(edge.x).toBeCloseTo(COAST, 6);
+    expect(edge.z).toBeCloseTo(0, 6);
+    const back = site.toBoard(site.marker('fx_bord_eau')!.setZ(0));
+    expect(edge.x - back.x).toBeGreaterThan(0);
+    expect(edge.z - back.z).toBeCloseTo(0, 6);
+    // Its pin follows the maquette; its point does not move.
+    const drawn = layer.drawnAt(PORT)!;
+    expect(drawn.x).toBeLessThan(0);
+    expect(drawn.z).toBeCloseTo(0, 9);
+    expect(layer.buildingPoints()).toEqual([{ id: PORT, at: [0, 0] }]);
+  });
+
+  it('docks its hulls in the water off its edge, whichever way its hash would have turned it', async () => {
+    const layer = await layerOf([port], () => east);
+    const cargo = troopSpan('cargo');
+    const quay = layer.quayAt(0, 0, cargo)!;
+    expect(quay.at.x).toBeGreaterThan(COAST);
+    expect(quay.at.z).toBeCloseTo(0, 6);
+    const { at, step, facing } = layer.garrisonAt(PORT, cargo, true)!;
+    expect(at.x + step[0]).toBeGreaterThan(COAST);
+    expect(facing).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it('only turns to the sea before the coast has landed, on its point', async () => {
+    const layer = await layerOf([port], () => ({ seaward: [0, -1], line: null }));
+    expect(layer.drawnAt(PORT)).toBeNull();
+    const site = layer.siteOf(PORT)!;
+    const edge = site.toBoard(site.marker('fx_bord_eau')!);
+    expect(edge.z).toBeLessThan(0);
+    expect(edge.x).toBeCloseTo(0, 6);
+  });
+
+  it('never steps further from its point than its bound, for a coast far off', async () => {
+    const layer = await layerOf([port], () => ({ seaward: [1, 0], line: [-20, 0] }));
+    const bound =
+      MAX_SHIFT *
+      ringSpacing(buildingFootprint('port'), {
+        reach: buildingReach('port'),
+        metre: buildingSpan('port') / buildingMetres('port'),
+      });
+    expect(Math.hypot(layer.drawnAt(PORT)!.x, layer.drawnAt(PORT)!.z)).toBeCloseTo(bound, 6);
+  });
+
+  it('turns a socle its hashed turn wets onto the land, and leaves a dry one as it was', async () => {
+    const SEA = 0.6;
+    const ids = Array.from({ length: 12 }, (_, k) => `building-barracks@${k},0`);
+    const sites = ids.map((id) => ({
+      id,
+      at: { lonLat: [0, 0] as const },
+      url: 'socle.glb',
+      span: 1,
+      metres: 50,
+      footprint: 82 / 50,
+      socle: true,
+      washed: false,
+    }));
+    /** The share of a socle at sea under a turn, on a grid finer than the layer's. */
+    const wetUnder = (box: Box3, toBoard: (point: Vector3) => Vector3) => {
+      let wet = 0;
+      for (let i = 0; i <= 20; i++)
+        for (let j = 0; j <= 20; j++) {
+          const point = new Vector3(
+            box.min.x + ((box.max.x - box.min.x) * i) / 20,
+            0,
+            box.min.z + ((box.max.z - box.min.z) * j) / 20,
+          );
+          if (toBoard(point).x >= SEA) wet++;
+        }
+      return wet / 441;
+    };
+    // Each alone on its own board: a ring would carry them apart.
+    let turned = 0;
+    for (const site of sites) {
+      const layer = await layerOf(
+        [site],
+        () => null,
+        (x) => x < SEA,
+      );
+      const drawn = layer.siteOf(site.id)!;
+      const hashed = new Matrix4().compose(
+        new Vector3(),
+        new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yawOf(site.id)),
+        new Vector3().setScalar(
+          drawn.toBoard(new Vector3(1, 0, 0)).distanceTo(drawn.toBoard(new Vector3())),
+        ),
+      );
+      const before = wetUnder(drawn.box, (point) => point.clone().applyMatrix4(hashed));
+      const after = wetUnder(drawn.box, drawn.toBoard);
+      expect(after, site.id).toBeLessThanOrEqual(0.12);
+      // Near the threshold the layer's coarser grid may read either way.
+      if (before > 0.15) turned++;
+      if (before < 0.06) expect(after, site.id).toBeCloseTo(before, 9);
+    }
+    expect(turned).toBeGreaterThan(0);
   });
 });
