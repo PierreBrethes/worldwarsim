@@ -121,8 +121,8 @@ export type StandingMaquette = {
     readonly stopped: boolean;
   };
   /** **Out of service** (décision 5): its seals at this mark, in metres of its file, facing this
-   *  turn (`BUILDING_SEALS`). */
-  readonly seal?: readonly [x: number, y: number, z: number, yaw: number];
+   *  turn, its planks so long (`BUILDING_SEALS`). */
+  readonly seal?: readonly [x: number, y: number, z: number, yaw: number, length: number];
 };
 
 /** The socle's paper (ADR 0038 §1): a hollow liseré is its ink mixed into it. */
@@ -1095,7 +1095,7 @@ export class MaquetteLayer implements SequenceHost {
         lot.group.add(item.staple);
       }
       if (item.seal !== null) {
-        item.seals = sealsOf();
+        item.seals = sealsOf(item.seal[4]);
         lot.group.add(item.seals);
       }
     }
@@ -1119,9 +1119,11 @@ export class MaquetteLayer implements SequenceHost {
       if (cut !== null && (mesh.material as Material).clippingPlanes?.includes(cut))
         (mesh.material as Material).dispose();
     }
-    for (const { staple } of lot.items) {
+    for (const { staple, seals } of lot.items) {
       staple?.geometry.dispose();
       (staple?.material as Material | undefined)?.dispose();
+      // Both planks share one geometry.
+      (seals?.children[0] as Mesh | undefined)?.geometry.dispose();
     }
     lot.atWork?.dressing?.dispose();
   }

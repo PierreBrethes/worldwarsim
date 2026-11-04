@@ -108,21 +108,21 @@ export function traceStaple(staple: Mesh, share: number, pale: boolean): boolean
   return true;
 }
 
-const PLANK = new BoxGeometry(3.2, 0.35, 0.12);
 const PLANK_WOOD = new MeshStandardMaterial({ color: '#9c7a4e', roughness: 0.85 });
 /** The planks cross this much off the horizontal. */
 const PLANK_TILT = 0.6;
 
-/** **Les scellés** (décision 5) : deux planches clouées en croix devant la porte, origine au
- *  milieu de la croix, face vers +z. Un état, pas une animation. */
-export function sealsOf(): Group {
+/** **Les scellés** (décision 5) : deux planches de `length` mètres clouées en croix devant la
+ *  porte, origine au milieu de la croix, face vers +z. Un état, pas une animation. */
+export function sealsOf(length: number): Group {
+  const plank = new BoxGeometry(length, 0.4, 0.15);
   const seals = new Group();
   seals.name = 'scelles';
   for (const tilt of [PLANK_TILT, -PLANK_TILT]) {
-    const plank = new Mesh(PLANK, PLANK_WOOD);
-    plank.rotation.z = tilt;
-    plank.castShadow = true;
-    seals.add(plank);
+    const nailed = new Mesh(plank, PLANK_WOOD);
+    nailed.rotation.z = tilt;
+    nailed.castShadow = true;
+    seals.add(nailed);
   }
   seals.matrixAutoUpdate = false;
   return seals;
