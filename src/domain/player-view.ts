@@ -115,6 +115,10 @@ export type ArcView =
       /** **Un largage** (ADR 0028 §4) : l'aller (`out`) finit en l'air au-dessus de sa cible, le
        *  retour (`back`) en part ; seule la base voit l'avion décoller et se poser. */
       readonly airdrop?: 'out' | 'back';
+      /** **Une mission la porte** (`onMission`, `convex/movement/course.ts`) : son cap ne change pas. */
+      readonly onMission?: true;
+      /** **Son cap a changé** (ADR 0039 §4) : l'instant du coude, et la route courue avant lui. */
+      readonly courseChange?: { readonly at: number; readonly ran: ReadonlyArray<LonLat> };
       /**
        * **Its four dates, as served — never a share or a countdown against the clock** (#183):
        * the arc keeps its identity until its trip changes, and whoever draws or counts reads
@@ -854,6 +858,13 @@ type NoticeBody =
       readonly movementType: 'march' | 'return';
       readonly hostCountry: string;
       readonly troops: number;
+    }
+  /** **Le cap changé** (Doctrine du porte-avions, ADR 0039 §4) : la destination neuve, l'arrivée. */
+  | {
+      readonly kind: 'courseChanged';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly arrivesAt: number;
     }
   /** **Ce qu'un Magasin a versé à la colonne qui le traversait** (ADR 0037 §4), en crans. */
   | {

@@ -827,6 +827,13 @@ export const fr = {
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
     NOT_ENOUGH_FUEL: (d) =>
       `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
+    /** **La Doctrine du porte-avions** (ADR 0039 §4) : la fiche et la pastille le disent avant. */
+    UNKNOWN_MOVEMENT: () => 'mouvement inconnu',
+    NO_CARRIER_DOCTRINE: () => 'un mouvement parti ne se reprend pas',
+    COURSE_ON_MISSION: () => 'ce mouvement porte une mission : son cap ne change pas',
+    COURSE_ALREADY_CHANGED: () => 'cap déjà changé : une fois par mouvement',
+    PAST_HALFWAY: () => 'mi-parcours passée : le cap ne change plus',
+    NOT_AT_SEA: () => 'la doctrine ne vaut qu’en mer',
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
       'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
@@ -2736,6 +2743,9 @@ export const fr = {
           return `Une colonne de ${column} a reflué sur ses arrières — ${country}.`;
         return `Une colonne de ${column} a pris position — ${country}.`;
       },
+      /** **Le cap changé** (ADR 0039 §4) : une fois, et la dépêche le rappelle. */
+      courseChanged: (country: string, arrival: string) =>
+        `La flotte a changé de cap vers ${country} — arrivée à ${arrival}. C’était l’unique fois.`,
       /** **Le Magasin traversé** (ADR 0037 §4) : ce qu'il a versé, ou pourquoi rien. */
       storeResupplied: (
         outcome: 'served' | 'short' | 'captured' | 'closed',

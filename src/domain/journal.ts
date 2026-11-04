@@ -199,6 +199,13 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    case 'courseChanged':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'column',
+        text: said.courseChanged(countryLabel(notice.hostCountry), asLocalTime(notice.arrivesAt)),
+      };
     case 'storeResupplied':
       return {
         at: notice.at,

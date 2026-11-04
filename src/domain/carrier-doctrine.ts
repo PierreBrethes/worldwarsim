@@ -1,0 +1,77 @@
+import type { MovementType, UnitRole } from './ids';
+import { mediumAt, type MarchingForce } from './interception';
+import type { Asset } from './nation-assets';
+import type { ArcView } from './player-view';
+import { fuelStepsOf } from './supplies';
+
+/**
+ * **La Doctrine du porte-avions** (ADR 0039 §4) : un mouvement japonais en mer change une fois de
+ * destination, avant la mi-parcours. La fiche au survol, la pastille et `movements.changeCourse`
+ * lisent cette fonction ; la nouvelle destination, elle, se refuse comme un ordre neuf.
+ */
+export type CourseRefusal =
+  | 'NO_CARRIER_DOCTRINE'
+  /** Ni un retour, ni une livraison, un largage, un pillage, un ramassage, une capture, une
+   *  tournée, une ronde, un embarquement (décision de Pierre du 04/11). */
+  | 'COURSE_ON_MISSION'
+  | 'COURSE_ALREADY_CHANGED'
+  | 'PAST_HALFWAY'
+  | 'NOT_AT_SEA';
+
+export type Course = {
+  readonly type: MovementType;
+  readonly onMission: boolean;
+  readonly courseChangedAt: number | null;
+  readonly force: MarchingForce;
+};
+
+const STEERED: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
+
+/** La moitié de la durée du trajet (`departedAt` à `arrivesAt`). */
+export const halfwayOf = ({ departedAt, arrivesAt }: Pick<MarchingForce, 'departedAt' | 'arrivesAt'>) =>
+  departedAt + (arrivesAt - departedAt) / 2;
+
+export function courseRefusalOf(
+  asset: Asset | null,
+  course: Course,
+  now: number,
+): CourseRefusal | null {
+  if (asset !== 'carrierDoctrine') return 'NO_CARRIER_DOCTRINE';
+  if (!STEERED.includes(course.type) || course.onMission) return 'COURSE_ON_MISSION';
+  if (course.courseChangedAt !== null) return 'COURSE_ALREADY_CHANGED';
+  /** Retenue à la frontière, la colonne est arrivée : sa mi-parcours est loin derrière. */
+  if (course.force.heldAt !== undefined || now >= halfwayOf(course.force)) return 'PAST_HALFWAY';
+  return mediumAt(course.force, now) === 'sea' ? null : 'NOT_AT_SEA';
+}
+
+/** **Le plein déjà payé** : les crans de l'ancienne route moins ceux qu'elle a courus. */
+export const fuelCreditOf = (
+  role: UnitRole,
+  paidKm: number,
+  ranKm: number,
+  holdsSingapore = false,
+): number =>
+  Math.max(0, fuelStepsOf(role, paidKm, holdsSingapore) - fuelStepsOf(role, ranKm, holdsSingapore));
+
+/** Ce qui reste au réservoir : le surplus de la route neuve s'y prend, le crédit en trop se perd
+ *  (aucun mouvement ne rend son plein, décision du 04/11). */
+export const fuelAfterCourse = (held: number, credit: number, needed: number): number =>
+  held - Math.max(0, needed - credit);
+
+/** **Le cap d'un arc à moi**, lu comme le serveur lit sa ligne (`courseRefusalOfRow`). */
+export const courseOfArc = (arc: Extract<ArcView, { state: 'mine' }>): Course => ({
+  type: arc.type,
+  onMission: arc.onMission === true,
+  courseChangedAt: arc.courseChange?.at ?? null,
+  force: {
+    id: arc.id,
+    points: arc.route.points,
+    legs: arc.route.legs,
+    distanceUnits: arc.route.distanceUnits,
+    landCost: arc.route.landCost,
+    departedAt: arc.schedule.departedAt,
+    arrivesAt: arc.schedule.arrivesAt,
+    ...(arc.schedule.resumed === undefined ? {} : { resumed: arc.schedule.resumed }),
+    ...(arc.schedule.heldAt === null ? {} : { heldAt: arc.schedule.heldAt }),
+  },
+});
