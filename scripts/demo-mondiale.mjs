@@ -21,7 +21,8 @@
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
- * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
+ * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--brest` (#436) y ajoute un chantier
+ * de port à Brest, sur sa rade. `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
@@ -241,6 +242,9 @@ const neighbours = process.argv.includes('--voisins');
 /** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
 /** `--iles` : `--quais`, plus Malte débarquée, fondée et son quai, et Syracuse en face (#224). */
 const islands = process.argv.includes('--iles');
+/** `--brest` (#436) : un chantier de port français à Brest, sur sa rade : un port dans une baie
+ *  fermée, tourné vers l'eau qu'il a devant lui. */
+const brest = process.argv.includes('--brest');
 const quays = islands || process.argv.includes('--quais');
 /** `--liaisons` (#370) : deux avant-postes français en liaison en Belgique, un seul à Bâle,
  *  une pile à Charleroi ; `--sans-charbon` met le charbon national à zéro (vigies aveugles). */
@@ -973,6 +977,14 @@ if (!bare) {
       point: { lon: 14.5145, lat: 35.8998 },
     });
   }
+  if (brest && scene.a !== null)
+    await client.mutation(api.constructions.start, {
+      token: tokenA,
+      seasonId,
+      building: 'port',
+      regionId: 'FRA-5292',
+      point: { lon: -4.491, lat: 48.381 },
+    });
   /** Mille pièces, des camps relevés, une dernière position, et deux mouvements (#234). */
   if (pins !== null && scene.a !== null && scene.b !== null) {
     for (let seed = 0, left = pins; ; seed++, left -= 100) {
