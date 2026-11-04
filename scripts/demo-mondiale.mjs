@@ -1233,14 +1233,16 @@ if (!bare) {
     const site = me.buildings.find((one) => one.key === 'port');
     places['quai-dense'] = site.point;
     cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 2000 })]);
-    // Eight sites in the nearest regions of mine, 30 km apart at least (`BUILDING_TOO_CLOSE`).
+    // Sites in my regions within 150 km of the port, 30 km apart at least (`BUILDING_TOO_CLOSE`):
+    // a ring too wide for its coast. A refusal is said, and too few stops the scene.
     const km = ([a, b], [c, d]) => 111 * Math.hypot((a - c) * Math.cos((b * Math.PI) / 180), b - d);
+    const refusals = [];
     let started = 0;
-    for (const region of [...me.regions].sort(
-      (a, b) => km(a.point, site.point) - km(b.point, site.point),
-    )) {
+    for (const region of me.regions
+      .filter((one) => km(one.point, site.point) < 150)
+      .sort((a, b) => km(a.point, site.point) - km(b.point, site.point))) {
       if (started === 8) break;
-      started += await client
+      await client
         .mutation(api.constructions.start, {
           token: tokenA,
           seasonId,
@@ -1249,10 +1251,13 @@ if (!bare) {
           point: { lon: region.point[0], lat: region.point[1] },
         })
         .then(
-          () => 1,
-          () => 0,
+          () => started++,
+          (error) => refusals.push(`${region.id} : ${JSON.stringify(error.data ?? error.message)}`),
         );
     }
+    console.log(`quai-dense : ${started} chantiers près de Marseille`);
+    if (started < 4)
+      throw new Error(`quai-dense : trop peu de chantiers près du port\n${refusals.join('\n')}`);
     if (process.argv.includes('--appareille')) {
       const cargo = me.troops.find((one) => one.role === 'cargo');
       await client.mutation(api.movements.marchTo, {
