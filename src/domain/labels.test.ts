@@ -553,6 +553,14 @@ describe('buildLabels', () => {
     ]);
   });
 
+  it('carries the piece a worked deposit clears, and none for a free one (#445)', () => {
+    const [worked, free] = buildLabels(viewWith([]), [
+      { kind: 'deposit', id: 'd1', lonLat: [2.4, 49.4], deposit: 'coal', clears: 'building-x' },
+      { kind: 'deposit', id: 'd2', lonLat: [2.5, 49.4], deposit: 'coal' },
+    ]);
+    expect([worked?.clears, free?.clears]).toEqual(['building-x', undefined]);
+  });
+
   it('wakes a deposit a held key calls, in its own ink, and says why the pose would refuse it (#239)', () => {
     const woken = (wake: NonNullable<(MapMarker & { kind: 'deposit' })['wake']>) =>
       buildLabels(viewWith([]), [

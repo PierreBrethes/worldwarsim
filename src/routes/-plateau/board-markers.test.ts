@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { stationKeyOf } from '@/domain/troops';
+import { depositHolders } from '@/domain/construction';
+import { DEPOSIT_POINTS } from '@/domain/world';
 import {
   buildingsOfMaquette,
+  markersOf,
   leavingStill,
   marchingPiecesOf,
   razingStill,
@@ -159,5 +162,53 @@ describe('marchingPiecesOf (#276)', () => {
       false,
     );
     expect(pieces.size).toBe(0);
+  });
+});
+
+describe('the deposits markersOf draws', () => {
+  const at = (id: string) => DEPOSIT_POINTS.find((point) => point.id === id)!;
+  const [standing, ordered, seen, free] = DEPOSIT_POINTS.filter(
+    (point) => point.deposit === 'coal',
+  );
+  const view = {
+    mode: 'mondiale',
+    loadedAt: 0,
+    me: {
+      nation: 'france',
+      ink: '#000',
+      buildings: [{ id: 'b1', key: 'mine', point: standing!.lonLat, level: 1, regionId: 'r' }],
+      construction: { key: 'mine', point: ordered!.lonLat, regionId: 'r', outpostId: null },
+      constructionQueue: [],
+      regions: [],
+      outposts: [],
+      troops: [],
+    },
+    surveyedInstallations: [{ id: 's1', key: 'mine', point: seen!.lonLat, regionId: 'r' }],
+    neutralSites: [],
+    lootSightings: [],
+    camps: [],
+    objectives: [],
+    strategicPoints: [],
+    buildCatalog: { mine: { cost: {}, minutes: 30 } },
+  } as never;
+  const deposits = () =>
+    markersOf(view, {
+      marching: new Set(),
+      trace: null,
+      regionAt: null,
+      toggles: { deposits: true, buildings: false } as never,
+      calls: null,
+      holders: depositHolders(view),
+      knownRegionById: new Map(),
+    }).filter((marker) => marker.kind === 'deposit');
+
+  it('hangs a name below the piece standing on it: my building, my works, a surveyed one (#445)', () => {
+    const clears = (id: string) =>
+      (deposits().find((marker) => marker.id === `deposit-${id}`) as { clears?: string }).clears;
+    expect(clears(standing!.id)).toBe(`building-mine@${standing!.lonLat}`);
+    expect(clears(ordered!.id)).toBe(`building-mine@${ordered!.lonLat}`);
+    expect(clears(seen!.id)).toBe('installation-s1');
+    expect(clears(free!.id)).toBeUndefined();
+    expect(at(free!.id)).toBeDefined();
   });
 });

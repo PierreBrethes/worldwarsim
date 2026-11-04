@@ -13,7 +13,8 @@ import { buildingSprite } from '@/emblems/buildings/manifest';
 import { lootWords } from '@/domain/journal';
 import { destinationPoint, type LonLat } from '@/domain/geo';
 import { BASIN_FLATTENING, BASIN_KM } from '@/domain/deposit-basins';
-import { DEPOSIT_POINTS, depositAt } from '@/domain/world';
+import { DEPOSIT_POINTS } from '@/domain/world';
+import { buildingLabelId } from '@/domain/building-label-id';
 import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
@@ -73,17 +74,12 @@ export function markersOf(
   const woken = new Map(
     (calls ?? []).map((call) => [call.deposit.id, call.refusal ?? ('open' as const)]),
   );
-  const minedBy = new Map(
-    view.me.buildings.flatMap((building) => {
-      const point = depositAt(building.point);
-      return point === null ? [] : [[point.id, buildingLabelId(building)] as const];
-    }),
-  );
   const deposits: ReadonlyArray<MapMarker> =
     (toggles.deposits || calls !== null) && view.mode !== 'blitz'
       ? DEPOSIT_POINTS.map((point) => {
           const holder = holders.get(point.id);
           const wake = woken.get(point.id);
+          const piece = holder?.piece;
           return {
             kind: 'deposit' as const,
             id: `deposit-${point.id}`,
@@ -91,7 +87,7 @@ export function markersOf(
             lonLat: destinationPoint(point.lonLat, BASIN_KM * BASIN_FLATTENING, 180),
             deposit: point.deposit,
             ...(holder === undefined ? {} : { held: holder }),
-            ...(minedBy.has(point.id) ? { clears: minedBy.get(point.id)! } : {}),
+            ...(piece === undefined ? {} : { clears: piece }),
             ...(wake === undefined ? {} : { wake }),
           };
         })
@@ -544,8 +540,7 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
 
 /** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché — par son point (ADR 0029) :
  *  deux mines d'une même région sont deux mâts. */
-export const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
-  point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
+export { buildingLabelId };
 
 /** **Les maquettes rasées que la vue sert encore** (#326) : la carte joue l'affaissement de celle
  *  que la vue perd, puis l'id s'oublie. La même liste quand rien n'est parti. */

@@ -30,6 +30,7 @@ import {
   type Resource,
 } from './player-view';
 import { distanceKm, type LonLat } from './geo';
+import { buildingLabelId } from './building-label-id';
 import { DEPOSIT_POINTS, depositAt, type DepositPoint } from './world';
 import { ADM0_BY_NATION, isNation } from './nations';
 
@@ -115,23 +116,29 @@ export function freeDeposits(view: PlayerView): ReadonlyArray<DepositPoint> {
 
 /**
  * **Who is known to work each deposit** (map labels): mine, with the level standing (`null` while
- * only ordered), or a surveyed exploitation of anybody else's — its nation is not in the survey,
+ * only ordered), and the label id of the piece standing on it (`piece`, #445), or a surveyed exploitation of anybody else's — its nation is not in the survey,
  * so the fog keeps it unsaid. A deposit absent from the map is free.
  */
 export function depositHolders(
   view: Pick<PlayerView, 'me' | 'surveyedInstallations'>,
-): ReadonlyMap<string, { readonly mine: boolean; readonly level: number | null }> {
-  const holders = new Map<string, { mine: boolean; level: number | null }>();
-  const take = (lonLat: LonLat, mine: boolean, level: number | null) => {
+): ReadonlyMap<
+  string,
+  { readonly mine: boolean; readonly level: number | null; readonly piece: string }
+> {
+  const holders = new Map<string, { mine: boolean; level: number | null; piece: string }>();
+  const take = (lonLat: LonLat, mine: boolean, level: number | null, piece: string) => {
     const point = depositAt(lonLat);
-    if (point !== null && !holders.has(point.id)) holders.set(point.id, { mine, level });
+    if (point !== null && !holders.has(point.id)) holders.set(point.id, { mine, level, piece });
   };
   for (const building of view.me.buildings)
-    if (EXPLOITED_DEPOSITS[building.key] !== undefined) take(building.point, true, building.level);
+    if (EXPLOITED_DEPOSITS[building.key] !== undefined)
+      take(building.point, true, building.level, buildingLabelId(building));
   for (const order of pledgedBuildings(view))
-    if (EXPLOITED_DEPOSITS[order.key] !== undefined) take(order.lonLat, true, null);
+    if (EXPLOITED_DEPOSITS[order.key] !== undefined)
+      take(order.lonLat, true, null, buildingLabelId({ key: order.key, point: order.lonLat }));
   for (const seen of view.surveyedInstallations)
-    if (EXPLOITED_DEPOSITS[seen.key] !== undefined) take(seen.point, false, null);
+    if (EXPLOITED_DEPOSITS[seen.key] !== undefined)
+      take(seen.point, false, null, `installation-${seen.id}`);
   return holders;
 }
 

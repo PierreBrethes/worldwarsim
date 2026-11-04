@@ -315,11 +315,12 @@ export function MapLabels({
     const timers = folding.current;
     return () => timers.forEach((timer) => clearTimeout(timer));
   }, []);
-  /** The labels that carry a transport's tag: only they look for their figurines each frame. */
+  /** A worked deposit's label → the piece whose plinth its name hangs below (#445). */
   const clearing = useRef<ReadonlyMap<string, string>>(new Map());
   clearing.current = new Map(
     labels.flatMap((label) => (label.clears === undefined ? [] : [[label.id, label.clears]])),
   );
+  /** The labels that carry a transport's tag: only they look for their figurines each frame. */
   const cargoed = useRef<ReadonlySet<string>>(new Set());
   cargoed.current = new Set(
     labels.flatMap((label) => ((label.cargo?.length ?? 0) > 0 ? [label.id] : [])),

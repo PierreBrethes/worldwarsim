@@ -243,7 +243,7 @@ export type MapMarker =
       readonly deposit: DepositKey;
       /** Who is known to work it (`depositHolders`), absent while it is free. */
       readonly held?: { readonly mine: boolean; readonly level: number | null };
-      /** The label id of my building standing on it (`buildingLabelId`), absent while none does. */
+      /** The label id of the piece standing on it (`depositHolders`), absent while it is free. */
       readonly clears?: string;
       /** **Woken by a key in hand** (#239): the pose takes it (`open`), or the refusal it would
        *  give on its point. */
