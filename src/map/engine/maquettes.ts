@@ -17,8 +17,10 @@ import type { LonLat } from '@/domain/geo';
 import type { StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { GROUP_SPACING } from '@/domain/pile-layout';
 import {
   ANONYMOUS_SPAN,
+  LAID_OUT_FOR,
   type PinnedBy,
   pieceWeight,
   posedScene,
@@ -797,17 +799,23 @@ export class MaquetteLayer implements SequenceHost {
    * at — the hull's too.
    * `null` for no port there, or one not landed.
    */
-  quayAt(x: number, z: number, span: number): { at: Vector3; scale: number } | null {
+  quayAt(
+    x: number,
+    z: number,
+    span: number,
+  ): { at: Vector3; scale: number; front: readonly [number, number] } | null {
     for (const [id, { item, lot }] of this.byId) {
       if (!id.startsWith('building-port') || lot.model === null) continue;
       if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
       const { at, facing, scale } = item;
       const edge = quayStep(item, lot.model, span * scale * pieceScale.size);
-      if (edge !== null) return { at: edge.add(at), scale };
+      const front = [Math.sin(item.yaw), Math.cos(item.yaw)] as const;
+      if (edge !== null) return { at: edge.add(at), scale, front };
       const foot = garrisonFoot(item.span * scale, span * scale, true) * pieceScale.size;
       return {
         at: new Vector3(at.x + foot * Math.sin(facing), at.y, at.z + foot * Math.cos(facing)),
         scale,
+        front,
       };
     }
     return null;
@@ -1504,14 +1512,25 @@ const grownOn = (foot: Vector3, growth: number): Matrix4 =>
 const sizeOf = (model: Model, item: Placed): number =>
   model.scale * item.span * pieceScale.size * item.scale;
 
-/** **A hull of `pile` board units at its port's water edge** (#436), off the site's point as it is
- *  drawn whole, its side along the edge; `null` for a model without one. */
+/** **A hull's beam against its length**, for the side it turns to a quay along the sea's
+ *  east–west. `@a-mesurer` */
+const HULL_BEAM = 0.15;
+
+/**
+ * **Where the fleet of a port stands for a hull of `pile` board units to touch its water edge**
+ * (#436), off the site's point as it is drawn whole; `null` for a model without one. A hull keeps
+ * its turn at a quay (ADR 0028, `rotation.y = 0`): it touches the edge by its stern or by its side,
+ * as the edge runs, and the formation then steps it a group's spacing to seaward (`formationOf`) —
+ * so the pile's point stands that much short of it.
+ */
 function quayStep(item: Placed, model: Model, pile: number): Vector3 | null {
   const edge = model.markers.get(WATER_EDGE);
   if (edge === undefined) return null;
-  const step = edge.clone().setY(0).multiplyScalar(sizeOf(model, item));
-  step.z += pile / 2;
-  return step.applyQuaternion(item.turn);
+  const [sx, sz] = [Math.sin(item.yaw), Math.cos(item.yaw)];
+  const half = (pile / 2) * (Math.abs(sz) + HULL_BEAM * Math.abs(sx));
+  const short = half - (GROUP_SPACING * pile) / LAID_OUT_FOR;
+  const step = edge.clone().setY(0).multiplyScalar(sizeOf(model, item)).applyQuaternion(item.turn);
+  return step.add(new Vector3(sx * short, 0, sz * short));
 }
 
 /** Up a tenth, down a little, still: the vertical give of a site that just stood up. */

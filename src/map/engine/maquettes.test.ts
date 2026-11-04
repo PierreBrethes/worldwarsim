@@ -35,7 +35,7 @@ import {
   SOCLE_TOP,
   yawOf,
 } from './maquettes';
-import { pileLayout } from '@/domain/pile-layout';
+import { GROUP_SPACING, pileLayout } from '@/domain/pile-layout';
 import { articulatedOf } from './sequences';
 import { sceneOfFile } from './gltf-scene.fixture';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';
@@ -1336,12 +1336,33 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
   it('docks its hulls in the water off its edge, whichever way its hash would have turned it', async () => {
     const layer = await layerOf([port], () => east);
     const cargo = troopSpan('cargo');
+    const off = (GROUP_SPACING * cargo) / LAID_OUT_FOR;
     const quay = layer.quayAt(0, 0, cargo)!;
-    expect(quay.at.x).toBeGreaterThan(COAST);
+    expect(quay.at.x + quay.front[0] * off).toBeGreaterThan(COAST);
     expect(quay.at.z).toBeCloseTo(0, 6);
     const { at, step, facing } = layer.garrisonAt(PORT, cargo, true)!;
-    expect(at.x + step[0]).toBeGreaterThan(COAST);
+    // Its hull, a group's spacing to seaward of the pile's point (`formationOf`).
+    expect(at.x + step[0] + off).toBeGreaterThan(COAST);
     expect(facing).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it('docks a hull square to its edge, its stern within a tenth of its span of it (#436)', async () => {
+    // The sea to the south: a hull, which keeps its turn at a quay (ADR 0028), lies bow to it.
+    const south: SeaFront = { seaward: [0, 1], line: [0.3, COAST] };
+    const layer = await layerOf(
+      [port],
+      () => south,
+      (_, z) => z < COAST,
+    );
+    const cargo = troopSpan('cargo');
+    const { at, step } = layer.garrisonAt(PORT, cargo, true)!;
+    // The formation steps its hulls a group's spacing to seaward of the pile's point.
+    const hull = at.z + step[1] + (GROUP_SPACING * cargo) / LAID_OUT_FOR;
+    expect(Math.abs(hull - cargo / 2 - COAST)).toBeLessThan(cargo / 10);
+    // The thread leaves from where the hull stands.
+    const quay = layer.quayAt(0, 0, cargo)!;
+    const off = (GROUP_SPACING * cargo) / LAID_OUT_FOR;
+    expect(quay.at.z + quay.front[1] * off).toBeCloseTo(hull, 9);
   });
 
   it('only turns to the sea before the coast has landed, on its point', async () => {

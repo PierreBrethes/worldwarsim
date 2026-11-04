@@ -1072,8 +1072,10 @@ export class MapEngine {
         this.landed();
         // A maquette that lands off its point, on its ring, takes its pin there.
         this.pins.rebuild();
-        // A port that lands moors the threads that leave it (#433).
+        // A port that lands moors the threads that leave it (#433), and ranks its hulls along its
+        // front (#436).
         this.relayThreads();
+        this.standing.display(this.besideSites(this.piles));
       },
       (at, words) =>
         this.inkBurst({
@@ -1361,15 +1363,10 @@ export class MapEngine {
   private quayOf(at: Vector3, span: number): { at: Vector3; scale: number } | null {
     const quay = this.maquettes.quayAt(at.x, at.z, span);
     if (quay === null) return null;
-    const sea = this.seawardOf(
-      this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
-    );
-    if (sea === null) return quay;
+    // Along the port's front, as its garrison's formation steps it (#436).
+    const [sx, sz] = quay.front;
     const off = (GROUP_SPACING * pieceScale.size * span * quay.scale) / LAID_OUT_FOR;
-    return {
-      at: quay.at.clone().add(new Vector3(sea[0] * off, 0, sea[1] * off)),
-      scale: quay.scale,
-    };
+    return { at: quay.at.clone().add(new Vector3(sx * off, 0, sz * off)), scale: quay.scale };
   }
 
   /** The threads are laid again once the airfields and ports they leave are placed otherwise. */
@@ -3910,6 +3907,7 @@ export class MapEngine {
         this.maquettes.resize();
         this.pins.rebuild();
         this.relayThreads();
+        this.standing.display(this.besideSites(this.piles));
         this.loadRaster();
         const held = this.ghost.spot;
         if (this.placing !== null && held !== null) this.onPlacingAim(this.placingSpotAt(held));
