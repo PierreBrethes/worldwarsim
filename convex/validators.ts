@@ -359,6 +359,9 @@ export const NOTICE = v.union(
     building: BUILDING_KEY,
     regionId: v.string(),
     level: v.number(),
+    /** **La réserve de l'Évacuation après le rasage** (ADR 0039 §5) : absente sans l'atout. Le
+     *  rapport de saison compte ces lignes. */
+    kept: v.optional(v.number()),
   }),
   v.object({
     ...NOTICE_HEAD,

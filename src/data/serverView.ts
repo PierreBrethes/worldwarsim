@@ -96,6 +96,8 @@ function adaptedView(server: ServerView): PlayerView {
         ? { ...server.me.research, queue: server.me.research.queue ?? [] }
         : { researched: [], running: null, queue: [] },
       foundation: server.me.foundation ?? [],
+      /** Une version de retard ne sert pas la réserve : vide, comme sans l'atout. */
+      evacuated: server.me.evacuated ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,
        *  ce qu'il a toujours fait — jamais un port planté à un point inventé ici. */
       buildings: server.me.buildings.map((building) => ({
@@ -137,6 +139,9 @@ function adaptedView(server: ServerView): PlayerView {
               ? {}
               : { minutes: server.me.construction.minutes }),
             level: server.me.construction.level ?? 1,
+            ...(server.me.construction.kept === undefined
+              ? {}
+              : { kept: server.me.construction.kept }),
             specialty: server.me.construction.specialty ?? null,
             respecialize: server.me.construction.respecialize ?? false,
           }
@@ -150,6 +155,7 @@ function adaptedView(server: ServerView): PlayerView {
         regionName: entry.regionName,
         point: entry.point ?? null,
         level: entry.level,
+        ...(entry.kept === undefined ? {} : { kept: entry.kept }),
         specialty: entry.specialty ?? null,
         respecialize: entry.respecialize ?? false,
       })),

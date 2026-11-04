@@ -204,4 +204,21 @@ describe('assets', () => {
       { nation: 'japan', asset: 'carrierDoctrine', uses: 0 },
     ]);
   });
+
+  it('counts the uses each seat made of its asset', () => {
+    const report = seasonReportOf(
+      input({
+        players: [
+          { id: 'a', nation: 'france', nickname: 'Alice' },
+          { id: 's', nation: 'ussr', nickname: 'Sacha' },
+        ],
+        assetUses: { a: 0, s: 3 },
+      }),
+    );
+    expect(report.assets).toContainEqual({
+      nation: 'ussr',
+      asset: 'industrialEvacuation',
+      uses: 3,
+    });
+  });
 });

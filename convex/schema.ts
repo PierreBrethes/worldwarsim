@@ -287,6 +287,9 @@ export default defineSchema({
      * s'acquitte que sur du fer (`settlesDebt`), et une clé seule en solderait deux.
      */
     settledFoundation: v.optional(v.array(FOUNDATION_DEBT)),
+    /** **La réserve de l'Évacuation industrielle** (ADR 0039 §5) : un niveau par type, le plus
+     *  haut rasé, que la prochaine pose payée consomme. Absente : vide. */
+    evacuated: v.optional(v.array(v.object({ key: BUILDING_KEY, level: v.number() }))),
     /** **Les fonds de la Blitz** à `fundsAt` : le débit se relit sur les villes et le QG tenus
      *  (`convex/blitz.ts`), donc rien d'autre n'est stocké. Absent hors Blitz. */
     funds: v.optional(v.number()),
@@ -1120,6 +1123,10 @@ export default defineSchema({
      *  sa barre sans la recalculer au niveau d'aujourd'hui. Absent tant qu'il attend, et sur les
      *  lignes d'avant le champ. */
     minutes: v.optional(v.number()),
+    /** **Le niveau gardé** qu'une pose soviétique a pris à la réserve (ADR 0039 §5) : `level`
+     *  vaut 1, son prix et sa durée ; `finish` le pose à ce niveau. Revient à la réserve avec le
+     *  remboursement. */
+    kept: v.optional(v.number()),
     /** The point the building is ordered on (ADR 0029), carried through the queue so the mast
      *  is drawn there from the moment it is enqueued and `finish` has nothing left to choose.
      *  Absent on an outpost's raise only: the point already stands on its own row. */

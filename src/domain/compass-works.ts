@@ -10,6 +10,7 @@ import {
 import {
   availabilityOf,
   demolitionRefusalOf,
+  underCaptureOf,
   foundationHold,
   outpostDismantleRefusalOf,
   outpostRaiseHold,
@@ -245,10 +246,18 @@ export function build(
        * **Raser vient en dernier** (demande du 15/09) : la plate se lit du nord dans le sens des
        * aiguilles, et ce qu'on efface n'est jamais ce qu'on cherche en ouvrant un menu. Le
        * quartier général n'a pas la branche — `demolitionRefusalOf` est la fonction que la
-       * mutation refuse avec, et un mât que la vue ne porte pas n'est pas à nous.
+       * mutation refuse avec, et un mât que la vue ne porte pas n'est pas à nous. Une capture qui
+       * court le retient, et le refus se dit (#450).
        */
-      const razes =
-        standing !== null && demolitionRefusalOf({ key: standing.key, mine: true }) === null;
+      const razeRefusal =
+        standing === null
+          ? null
+          : demolitionRefusalOf({
+              key: standing.key,
+              mine: true,
+              underCapture: underCaptureOf(view, standing.id),
+            });
+      const razes = standing !== null && razeRefusal === null;
       return {
         kicker: fr.compass.building(target.level),
         name: standing?.name ?? fr.buildings[target.key],
@@ -256,7 +265,9 @@ export function build(
           ...(raise?.action == null ? [] : [raise.action]),
           ...(razes && standing !== null ? [demolishOf(standing.id)] : []),
         ],
-        refusal: raise?.refusal ?? null,
+        refusal:
+          raise?.refusal ??
+          (razeRefusal === 'DEMOLITION_UNDER_CAPTURE' ? fr.errors[razeRefusal]() : null),
       };
     }
     /**

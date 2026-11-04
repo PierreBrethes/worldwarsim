@@ -154,6 +154,23 @@ describe('seasonReport.outpostEvents', () => {
         site: { kind: 'building', building: 'mine', regionId: MARNE },
         point,
       } as never);
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 5,
+        kind: 'buildingDemolished',
+        building: 'mine',
+        regionId: MARNE,
+        level: 2,
+        kept: 2,
+      });
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 6,
+        kind: 'buildingDemolished',
+        building: 'mine',
+        regionId: MARNE,
+        level: 1,
+      });
     });
 
     const page = await t.query(internal.seasonReport.outpostEvents, {
@@ -163,5 +180,6 @@ describe('seasonReport.outpostEvents', () => {
 
     expect(page.next).toBeNull();
     expect(page.events.map((event) => event.kind)).toEqual(['stands', 'raised', 'taken']);
+    expect(page.uses).toBe(1);
   });
 });

@@ -94,6 +94,7 @@ const boardView = {
   me: {
     ...view.me,
     foundation: [],
+    evacuated: [],
     outposts: [],
     chains: [],
     hqLevel: 1,
@@ -173,6 +174,72 @@ describe('the site sheet of one of my buildings, under a finger', () => {
   it('offers « raser » on the garrison sheet of another building', () => {
     render(garrisonOf('B-1'));
     expect(screen.getByRole('button', { name: fr.compass.razeNamed('Caserne') })).toBeTruthy();
+  });
+});
+
+/** **L'Évacuation industrielle et la capture** (ADR 0039 §5, #450). */
+describe('razing under the national asset and under a capture', () => {
+  const besieged = {
+    ...view,
+    captures: [
+      {
+        id: 'C-1',
+        side: 'defender',
+        target: { kind: 'building', id: 'B-1' },
+        stoppedAt: null,
+      },
+    ],
+  } as unknown as PlayerView;
+
+  it('says, before the touch, that a running capture holds the building', () => {
+    render(
+      <ConvexProvider client={client}>
+        <RazeContext.Provider value={() => {}}>
+          <GarrisonPanel
+            view={besieged}
+            seat={SEAT}
+            station={{ kind: 'building', buildingId: 'B-1' }}
+            at={{ x: 10, y: 10 }}
+            preselect={[]}
+            onClose={() => {}}
+            onPrepare={() => {}}
+            onDismantle={() => {}}
+          />
+        </RazeContext.Provider>
+      </ConvexProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /raser/ })).toBeNull();
+    expect(screen.getByText(fr.errors.DEMOLITION_UNDER_CAPTURE())).toBeTruthy();
+  });
+
+  const card = (me: Partial<PlayerView['me']>) =>
+    render(
+      <ConvexProvider client={client}>
+        <DemolitionCard
+          seat={SEAT}
+          view={{ ...view, me: { ...view.me, ...me } } as PlayerView}
+          building={{ ...view.me.buildings[0]!, level: 3 }}
+          at={{ x: 0, y: 0 }}
+          onRazing={() => {}}
+          onRefused={() => {}}
+          onClose={() => {}}
+        />
+      </ConvexProvider>,
+    );
+
+  it('tells a Soviet the level goes into the reserve', () => {
+    card({ asset: 'industrialEvacuation', evacuated: [] });
+    expect(screen.getByText(fr.demolition.kept(3))).toBeTruthy();
+  });
+
+  it('tells a Soviet when the reserve already holds more', () => {
+    card({ asset: 'industrialEvacuation', evacuated: [{ key: 'barracks', level: 4 }] });
+    expect(screen.getByText(fr.demolition.keptUnchanged(4))).toBeTruthy();
+  });
+
+  it('says nothing of a reserve to a nation without the asset', () => {
+    card({ asset: null, evacuated: [] });
+    expect(screen.queryByText(/réserve/)).toBeNull();
   });
 });
 

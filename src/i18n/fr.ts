@@ -801,6 +801,7 @@ export const fr = {
     /** **Le QG ne se rase pas** (question 39, 15/09) : sa destruction serait une révision de
      *  « jamais éliminé », et elle n'est pas tranchée. */
     HQ_NEVER_DEMOLISHED: () => 'le quartier général ne se rase pas',
+    DEMOLITION_UNDER_CAPTURE: () => 'une capture court sur ce bâtiment : il ne se rase pas',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
@@ -2713,8 +2714,12 @@ export const fr = {
           : `${building} en ${region} passe au niveau ${level}.`,
       /** Rasé sur ordre : la phrase dit le niveau, parce que c'est ce qui est parti — et rien
        *  ne revient (décision 5a du 15/09). */
-      buildingDemolished: (building: string, region: string, level: number) =>
-        `${building} en ${region} a été rasé — niveau ${level} perdu, rien n’est rendu.`,
+      buildingDemolished: (building: string, region: string, level: number, kept?: number) =>
+        kept === undefined
+          ? `${building} en ${region} a été rasé — niveau ${level} perdu, rien n’est rendu.`
+          : kept > level
+            ? `${building} en ${region} a été évacué — réserve inchangée, niveau ${kept}.`
+            : `${building} en ${region} a été évacué — niveau ${level} gardé en réserve.`,
       delivered: (building: string, region: string, role: string) =>
         `${building} en ${region} a livré une compagnie — ${role}.`,
       deliveredHome: (role: string) =>
@@ -3821,6 +3826,8 @@ export const fr = {
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
     tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
+    /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
+    tileKept: (level: number) => `réserve niv.\u00a0${level}`,
     /** **Le site sélectionné** (#163) : la bande montre ce qu'il forme. */
     siteCards: (building: string) => `Troupes que forme ${lowerFirst(building)}`,
     siteSheet: 'fiche du site',
@@ -4698,6 +4705,9 @@ export const fr = {
     heading: (building: string, level: number) => `${building} — niveau ${level}`,
     /** La phrase de la décision 5a, imprimée : ce qui est bâti est dépensé. */
     noRefund: 'aucun remboursement de l’acier payé',
+    /** L'Évacuation industrielle (ADR 0039 §5) : la ligne que lit un Soviétique avant le clic. */
+    kept: (level: number) => `niveau ${level} gardé en réserve`,
+    keptUnchanged: (level: number) => `réserve inchangée — niveau ${level} déjà gardé`,
     freed: (region: string) => `libère ${region}`,
     /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
      *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */

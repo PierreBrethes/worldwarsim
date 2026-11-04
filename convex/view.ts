@@ -589,6 +589,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * to be able to say out loud.
        */
       foundation: blitz ? [] : foundationOwedBy(player, buildings),
+      evacuated: player.evacuated ?? [],
       buildings: buildings.map((building) => ({
         // The instance, not the key: a nation can hold three barracks, and a link that
         // carried `barracks` would open the one in Normandy for a click in Brittany.
@@ -656,6 +657,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
               minutes: construction.minutes,
               level: construction.level,
+              kept: construction.kept,
               ...specialtyOfWork(construction),
             }
           : null,
@@ -675,6 +677,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               ? null
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
+          kept: entry.kept,
           ...specialtyOfWork(entry),
         })),
       armyPresent,

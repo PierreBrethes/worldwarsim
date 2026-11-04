@@ -171,6 +171,7 @@ function written(notice: Notice): Written {
           fr.buildings[notice.building],
           notice.regionName,
           notice.level,
+          notice.kept,
         ),
       };
     case 'recruitmentDelivered':

@@ -179,6 +179,21 @@ describe('démanteler un avant-poste', () => {
     expect(said[0]).toMatchObject({ hostCountry: 'ROU', level: 1, buildings: 1 });
   });
 
+  /** **L'Évacuation au démantèlement** (décision (a) du 04/11, #450) : un point soviétique met en
+   *  réserve les niveaux des mâts qu'il emporte, comme un rasage. */
+  it('met en réserve les niveaux des mâts soviétiques qu’il emporte', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    const point = await plant(t, guest);
+    await anchor(t, guest, 'oilWell', PRAHOVA, point, 2);
+
+    await t.mutation(api.outposts.dismantle, { ...guest, outpostId: point });
+
+    expect((await t.query(api.view.playerView, guest)).me.evacuated).toEqual([
+      { key: 'oilWell', level: 2 },
+    ]);
+  });
+
   /**
    * **La couleur part avec le point, et le sol du joueur est relevé** (décision (a) du 31/10). Le
    * point tenait la région à jour ; démantelé, le serveur relève le sol au point : la région

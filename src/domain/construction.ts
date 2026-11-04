@@ -32,6 +32,7 @@ import {
 import { distanceKm, type LonLat } from './geo';
 import { buildingLabelId } from './building-label-id';
 import { DEPOSIT_POINTS, depositAt, type DepositPoint } from './world';
+import type { Asset } from './nation-assets';
 import { ADM0_BY_NATION, isNation } from './nations';
 
 /**
@@ -585,19 +586,20 @@ export const pledgedOutposts = (view: PlayerView): ReadonlySet<string> =>
   new Set(pledgedWork(view).flatMap((work) => (work.outpostId === null ? [] : [work.outpostId])));
 
 /**
- * **Ce qui empêche de raser**, `null` quand rien ne l'empêche (demande de Pierre, 15/09). Deux
- * empêchements et pas un de plus, lus par la rose et par la mutation — une seconde table aurait
- * offert une branche que le serveur refuse (ADR 0015).
+ * **Ce qui empêche de raser**, `null` quand rien ne l'empêche (demande de Pierre, 15/09). Lu par
+ * la rose, la fiche et la mutation — une seconde table aurait offert une branche que le serveur
+ * refuse (ADR 0015).
  *
  * Le quartier général est le seul bâtiment qu'on ne rase pas : sa destruction serait une
- * révision de « jamais éliminé » (question 39), et elle n'est pas tranchée. Tout le reste part,
- * debout ou en cours d'élévation.
+ * révision de « jamais éliminé » (question 39), et elle n'est pas tranchée. **Une capture en
+ * cours retient** (ADR 0039 §5, décision (b) du 04/11) : sans elle, raser annulerait la prise,
+ * et l'Évacuation en ferait un repli sans perte. Toutes les nations.
  *
  * **Rien ici ne parle d'une file de démolition** : raser est immédiat — il n'y a pas de chantier
  * à attendre, donc pas d'état « déjà en cours » à lire. Le jour où la démolition prendrait du
  * temps, c'est ici que la retenue viendrait.
  */
-export type DemolitionRefusal = 'NOT_YOURS' | 'HQ_NEVER_DEMOLISHED';
+export type DemolitionRefusal = 'NOT_YOURS' | 'HQ_NEVER_DEMOLISHED' | 'DEMOLITION_UNDER_CAPTURE';
 
 /** Le bâtiment tel que la règle le lit — jamais un document, jamais une vue : les deux bouts
  *  n'ont pas les mêmes en main, et ils doivent poser la même question. */
@@ -605,10 +607,65 @@ export type Demolition = {
   readonly key: BuildingKey;
   /** Trouvé parmi les siens : un mât adverse relevé n'est pas un bâtiment qu'on rase. */
   readonly mine: boolean;
+  /** Une capture qui court sur lui — pas une arrêtée faute d'infanterie. */
+  readonly underCapture: boolean;
 };
 
 export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | null =>
-  !building.mine ? 'NOT_YOURS' : building.key === 'hq' ? 'HQ_NEVER_DEMOLISHED' : null;
+  !building.mine
+    ? 'NOT_YOURS'
+    : building.key === 'hq'
+      ? 'HQ_NEVER_DEMOLISHED'
+      : building.underCapture
+        ? 'DEMOLITION_UNDER_CAPTURE'
+        : null;
+
+/** La lecture cliente de `underCapture` : le défenseur ne reçoit que les captures qui courent. */
+export const underCaptureOf = (view: PlayerView, buildingId: string): boolean =>
+  view.captures.some(
+    (capture) =>
+      capture.side === 'defender' &&
+      capture.target.kind === 'building' &&
+      capture.target.id === buildingId &&
+      capture.stoppedAt === null,
+  );
+
+/**
+ * **La réserve de l'Évacuation industrielle** (ADR 0039 §5) : un niveau par type, le plus haut
+ * rasé. Vide pour toute nation sans l'atout, qui n'y écrit jamais.
+ */
+export type Evacuated = PlayerView['me']['evacuated'];
+
+export const keptOf = (reserve: Evacuated, key: BuildingKey): number | null =>
+  reserve.find((held) => held.key === canonicalBuildingKey(key))?.level ?? null;
+
+/** La réserve après qu'un niveau y entre : le plus haut des deux reste. */
+export function keeping(reserve: Evacuated, key: BuildingKey, level: number): Evacuated {
+  const canonical = canonicalBuildingKey(key);
+  const held = keptOf(reserve, canonical);
+  if (held !== null && held >= level) return reserve;
+  return [...reserve.filter((one) => one.key !== canonical), { key: canonical, level }];
+}
+
+/** La réserve après la pose qui la consomme. */
+export const spending = (reserve: Evacuated, key: BuildingKey): Evacuated =>
+  reserve.filter((one) => one.key !== canonicalBuildingKey(key));
+
+/**
+ * **Ce qu'un rasage garde**, `null` sans l'atout : le niveau que la réserve tiendra, et s'il ne
+ * change rien (un niveau rasé qui ne dépasse pas la réserve). La fiche le dit avant le clic, la
+ * mutation l'écrit après — un seul calcul.
+ */
+export function evacuationOf(
+  asset: Asset | null,
+  reserve: Evacuated,
+  building: { readonly key: BuildingKey; readonly level: number },
+): { readonly level: number; readonly unchanged: boolean } | null {
+  if (asset !== 'industrialEvacuation') return null;
+  const held = keptOf(reserve, building.key);
+  const unchanged = held !== null && held >= building.level;
+  return { level: unchanged ? held : building.level, unchanged };
+}
 
 /**
  * **Ce qui empêche de démanteler son propre avant-poste** (décision de Pierre, 16/09), `null`
@@ -695,7 +752,7 @@ export type WorkSite = {
 type RisingWork = Pick<
   NonNullable<PlayerView['me']['construction']>,
   'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
-> & { readonly minutes?: number };
+> & { readonly minutes?: number; readonly kept?: number };
 
 export function workSitesOf(
   me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue'>,
@@ -718,7 +775,7 @@ export function workSitesOf(
       regionId: work.regionId,
       regionName: work.regionName,
       point: work.point,
-      level: standing === undefined ? 1 : standing.level + 1,
+      level: standing === undefined ? (work.kept ?? 1) : standing.level + 1,
       rank,
       finishesAt: loadedAt + work.minutesLeft * 60_000,
       /** Dated at the start: the length the server wrote, not today's headquarters level. */
@@ -735,7 +792,7 @@ export function workSitesOf(
       regionId: queued.regionId,
       regionName: queued.regionName,
       point: queued.point,
-      level: 1,
+      level: queued.kept ?? 1,
       rank: k + 1,
       finishesAt: null,
       minutes: catalog[queued.key].minutes,

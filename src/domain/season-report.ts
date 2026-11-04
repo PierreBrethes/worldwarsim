@@ -70,6 +70,8 @@ export type ReportInput = {
   readonly queued: Readonly<Record<string, number>>;
   readonly outposts: ReadonlyArray<OutpostEvent>;
   readonly engagements: ReadonlyArray<ReportEngagement>;
+  /** Les usages d'atout tirés du journal, par joueur (ADR 0039 §2). */
+  readonly assetUses?: Readonly<Record<string, number>>;
 };
 
 type SnowballRow = {
@@ -143,8 +145,8 @@ type IsolationRow = {
   readonly against: Readonly<Record<string, number>>;
 };
 
-/** **L'usage d'un atout** (ADR 0039 §2) : chaque lot d'atout compte le sien ; zéro tant qu'aucun
- *  n'est codé. */
+/** **L'usage d'un atout** (ADR 0039 §2) : chaque lot d'atout compte le sien au journal ; zéro tant
+ *  qu'il n'est pas codé. */
 type AssetRow = { readonly nation: Nation; readonly asset: Asset; readonly uses: number };
 
 export type SeasonReport = {
@@ -192,7 +194,13 @@ export function seasonReportOf(input: ReportInput): SeasonReport {
     isolation: isolationOf(input, players),
     assets: NATIONS.flatMap((nation) => {
       const asset = ASSET_BY_NATION[nation];
-      return asset === null ? [] : [{ nation, asset, uses: 0 }];
+      if (asset === null) return [];
+      const uses = sum(
+        players
+          .filter((player) => player.nation === nation)
+          .map(({ id }) => input.assetUses?.[id] ?? 0),
+      );
+      return [{ nation, asset, uses }];
     }),
   };
 }

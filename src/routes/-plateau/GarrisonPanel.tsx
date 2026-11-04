@@ -287,7 +287,7 @@ export function GarrisonPanel({
             )}
           </div>
         )}
-        {building !== null && <RazeButton building={building} className="mt-[11px]" />}
+        {building !== null && <RazeButton view={view} building={building} className="mt-[11px]" />}
         {outpost !== null && !view.me.defeated && (
           <OutpostDismantle outpost={outpost} onDismantle={onDismantle} />
         )}

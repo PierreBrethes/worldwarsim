@@ -152,7 +152,7 @@ export const facts = internalQuery({
   },
 });
 
-/** Les dépêches d'avant-postes d'un joueur, par pages de `PAGE` lignes (`next: null` à la fin). */
+/** Les dépêches d'avant-postes d'un joueur et ses usages d'atout, par pages de `PAGE` lignes (`next: null` à la fin). */
 const PAGE = 3000;
 
 export const outpostEvents = internalQuery({
@@ -163,11 +163,14 @@ export const outpostEvents = internalQuery({
       .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
       .paginate({ numItems: PAGE, cursor });
     const events: OutpostEvent[] = [];
+    let uses = 0;
     for (const notice of page.page) {
       const kind = outpostKindOf(notice);
       if (kind !== null) events.push({ playerId, at: notice.at, kind });
+      /** **Un rasage évacué** (ADR 0039 §5) : la dépêche porte la réserve. */
+      if (notice.kind === 'buildingDemolished' && notice.kept !== undefined) uses += 1;
     }
-    return { events, next: page.isDone ? null : page.continueCursor };
+    return { events, uses, next: page.isDone ? null : page.continueCursor };
   },
 });
 

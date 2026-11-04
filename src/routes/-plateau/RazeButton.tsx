@@ -1,6 +1,6 @@
 import { createContext, useContext, type ContextType } from 'react';
-import { demolitionRefusalOf } from '@/domain/construction';
-import type { Building } from '@/domain/player-view';
+import { demolitionRefusalOf, underCaptureOf } from '@/domain/construction';
+import type { Building, PlayerView } from '@/domain/player-view';
 import { fr } from '@/i18n/fr';
 
 /**
@@ -28,19 +28,28 @@ export const razeOf = (state: { blitz: boolean; defeated: boolean }, open: Raze)
  * la fiche en porte plusieurs du même nom, dit lequel.
  */
 export function RazeButton({
+  view,
   building,
   region,
   className = '',
 }: {
+  view: PlayerView;
   building: Building;
   region?: string | undefined;
   className?: string;
 }) {
   const raze = useContext(RazeContext);
   if (raze === null) return null;
-  const refusal = demolitionRefusalOf({ key: building.key, mine: true });
+  const refusal = demolitionRefusalOf({
+    key: building.key,
+    mine: true,
+    underCapture: underCaptureOf(view, building.id),
+  });
   return (
-    <div className={`shrink-0 border-t border-(color:--ink)/32 pt-[9px] md:hidden ${className}`}>
+    /** Une capture qui court se dit aussi au bureau : la rose n'est pas la seule à le taire. */
+    <div
+      className={`shrink-0 border-t border-(color:--ink)/32 pt-[9px] ${refusal === 'DEMOLITION_UNDER_CAPTURE' ? '' : 'md:hidden'} ${className}`}
+    >
       {refusal === null ? (
         <button
           type="button"

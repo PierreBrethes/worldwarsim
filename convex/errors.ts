@@ -93,6 +93,7 @@ export type ErrorCode =
   /** Raser (demande du 15/09) : le mât visé n'est pas à soi, ou c'est le quartier général. */
   | 'NOT_YOURS'
   | 'HQ_NEVER_DEMOLISHED'
+  | 'DEMOLITION_UNDER_CAPTURE'
   | 'WRONG_PROJECTION_BUILDING'
   | 'SINGLE_TIER_ROLE'
   | 'QUEUE_FULL'

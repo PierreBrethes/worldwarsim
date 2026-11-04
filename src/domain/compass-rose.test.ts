@@ -8,6 +8,7 @@ import { fr } from '../i18n/fr';
 
 const view = {
   season: { hqCaptureHours: 12 },
+  captures: [],
   me: {
     nation: 'france',
     slots: { total: 4, used: 1 },
@@ -1409,6 +1410,16 @@ describe('raising a level from the map', () => {
     level: 1,
     regionId: 'FRA-9999',
   } as const;
+
+  it('withholds « raser » while a capture runs on it, and says why (#450)', () => {
+    const besieged = {
+      ...standing({}),
+      captures: [{ side: 'defender', target: { kind: 'building', id: 'B-01' }, stoppedAt: null }],
+    } as unknown as PlayerView;
+    const compass = compassOf(mast, besieged);
+    expect(compass?.actions.map((action) => action.key)).toEqual(['upgrade']);
+    expect(compass?.refusal).toBe(fr.errors.DEMOLITION_UNDER_CAPTURE());
+  });
 
   it('offers the raise, its flat figure and its bill against the stock', () => {
     const compass = compassOf(mast, standing({}));

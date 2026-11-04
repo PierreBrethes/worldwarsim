@@ -188,6 +188,7 @@ export function ResearchWindow({
         </div>
         {razable !== undefined && (
           <RazeButton
+            view={view}
             building={razable}
             region={view.me.regions.find((one) => one.id === razable.regionId)?.name}
             className="px-[10px] pb-[9px]"

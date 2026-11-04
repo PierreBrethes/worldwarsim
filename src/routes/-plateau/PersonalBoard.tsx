@@ -25,7 +25,7 @@ import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
 import { ReserveCell } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
-import { placementOf, reachesOf, upgradeHold } from '@/domain/construction';
+import { keptOf, placementOf, reachesOf, upgradeHold } from '@/domain/construction';
 import { outpostReachKm } from '../../../convex/constants';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
@@ -922,6 +922,8 @@ function Tile({
   );
   const free = view.me.foundation.some((due) => due.key === buildingKey);
   const refusal = tileRefusalOf(view, buildingKey);
+  /** La réserve de l'Évacuation (ADR 0039 §5) : la prochaine pose payée sort à ce niveau. */
+  const kept = keptOf(view.me.evacuated, buildingKey);
   const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
   return (
     <TileFrame
@@ -934,9 +936,11 @@ function Tile({
       picture={<BuildingPlate building={buildingKey} height={narrow ? 34 : 50} />}
       meta={
         refusal ??
-        (lowest === null
-          ? time
-          : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`)
+        `${kept === null ? '' : `${fr.personalBoard.tileKept(kept)} · `}${
+          lowest === null
+            ? time
+            : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`
+        }`
       }
       price={
         free ? (
@@ -964,7 +968,7 @@ function FocusedBuilding({ building, view }: { building: Building; view: PlayerV
         <b className="font-semibold text-[var(--ink)]">{building.name}</b>
         {region === undefined ? '' : ` · ${region}`}
       </p>
-      <RazeButton building={building} className="px-[10px] pb-[9px]" />
+      <RazeButton view={view} building={building} className="px-[10px] pb-[9px]" />
     </section>
   );
 }
@@ -1182,7 +1186,7 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   return (
     <>
       <b className="font-semibold text-[var(--ink)]">
-        {fr.personalBoard.workAt(running.name, running.level, running.regionName)}
+        {fr.personalBoard.workAt(running.name, running.kept ?? running.level, running.regionName)}
       </b>
       {fr.personalBoard.workTail(
         countdownLabel(currentMinutes(running.minutesLeft, view.loadedAt, now) * 60_000),
@@ -1245,7 +1249,10 @@ function Works({
           <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
             <span className="flex items-baseline gap-2">
               <b className="min-w-0 flex-1 truncate font-semibold">
-                {fr.personalBoard.workRank(index + 1, fr.personalBoard.work(work.name, work.level))}
+                {fr.personalBoard.workRank(
+                  index + 1,
+                  fr.personalBoard.work(work.name, work.kept ?? work.level),
+                )}
               </b>
               {running && (
                 <small className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">

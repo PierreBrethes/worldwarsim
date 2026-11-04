@@ -694,6 +694,9 @@ type RunningWork = {
   readonly minutes?: number;
   /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
   readonly level: number;
+  /** **Le niveau gardé en réserve** qu'une pose soviétique fait sortir (ADR 0039 §5) : `level`
+   *  reste 1, ce qu'elle coûte et dure. Absent sur toute autre ligne. */
+  readonly kept?: number;
   /** **Le métier que la ligne donne au point** (ADR 0037 §3, §7) : choisi à l'élévation au
    *  niveau 2, ou cible d'un changement ; `null` sur toute autre ligne. */
   readonly specialty: Specialty | null;
@@ -711,6 +714,7 @@ type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
+  readonly kept?: number;
   readonly specialty: Specialty | null;
   readonly respecialize: boolean;
 };
@@ -830,6 +834,8 @@ type NoticeBody =
       readonly building: BuildingKey;
       readonly regionName: string;
       readonly level: number;
+      /** La réserve de l'Évacuation après le rasage (ADR 0039 §5) ; absente sans l'atout. */
+      readonly kept?: number;
     }
   | { readonly kind: 'researchDone'; readonly at: number; readonly card: ResearchCard }
   | {
@@ -1407,6 +1413,9 @@ export type PlayerView = {
       readonly deposit: DepositKey | null;
     }>;
     readonly buildings: ReadonlyArray<Building>;
+    /** **La réserve de l'Évacuation industrielle** (ADR 0039 §5) : un niveau par type, le plus
+     *  haut rasé ; vide sans l'atout. */
+    readonly evacuated: ReadonlyArray<{ readonly key: BuildingKey; readonly level: number }>;
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
     /** **Narvik** : la part que produit une exploitation coupée du réseau, 0 sans le point

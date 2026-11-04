@@ -4,7 +4,14 @@ import { mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
-import { demolitionRefusalOf } from '../src/domain/construction';
+import {
+  demolitionRefusalOf,
+  evacuationOf,
+  keeping,
+  type Evacuated,
+} from '../src/domain/construction';
+import { assetOf } from '../src/domain/nation-assets';
+import { modeOf } from '../src/domain/season-mode';
 import { buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
 import { playerBuildings } from './buildingReads';
 import { fail } from './errors';
@@ -52,9 +59,19 @@ export const demolish = mutation({
     refuseInBlitz(season);
 
     const building = await ctx.db.get(buildingId);
+    const sieges = await ctx.db
+      .query('captures')
+      .withIndex('byDefender', (q) => q.eq('defenderId', player._id))
+      .collect();
     const refusal = demolitionRefusalOf({
       key: building?.key ?? 'hq',
       mine: building !== null && building.playerId === player._id,
+      underCapture: sieges.some(
+        (capture) =>
+          capture.target.kind === 'building' &&
+          capture.target.buildingId === buildingId &&
+          capture.stoppedAt === undefined,
+      ),
     });
     if (refusal !== null || building === null) fail(refusal ?? 'NOT_YOURS');
 
@@ -95,6 +112,16 @@ export async function razeBuilding(
   if (player === null) return { refunded: {}, clipped: null };
   const refunded = await releaseBuilding(ctx, player, building, now);
   await ctx.db.delete(building._id);
+  /** **L'Évacuation industrielle** (ADR 0039 §5) : le niveau rasé passe en réserve. Le démantèlement
+   *  passe ici aussi (décision (a) du 04/11) ; la capture, qui ne rase pas, jamais. */
+  const season = await ctx.db.get(player.seasonId);
+  const reserve = (await ctx.db.get(player._id))?.evacuated ?? [];
+  const evacuation = evacuationOf(assetOf(player.nation, modeOf(season?.mode)), reserve, building);
+  if (evacuation !== null) {
+    await ctx.db.patch(player._id, {
+      evacuated: [...keeping(reserve, building.key, building.level)],
+    });
+  }
   /** Réglé avant le `delete` : une mine de charbon rasée rapproche le réveil des vigies. */
   await rearmDryWakeUp(ctx, player._id, now);
   if (building.key === 'researchCenter') await followCenter(ctx, player._id, now);
@@ -110,6 +137,7 @@ export async function razeBuilding(
     building: canonicalBuildingKey(building.key),
     regionId: building.regionId,
     level: building.level,
+    ...(evacuation === null ? {} : { kept: evacuation.level }),
   });
   return { refunded, clipped };
 }
@@ -178,7 +206,10 @@ async function cancelWorkOn(
     .collect();
   for (const entry of queued) {
     if (entry.outpostId !== undefined || entry.regionId !== building.regionId) continue;
-    if (entry.finishesAt === null) add(buildCost(entry.building, entry.level));
+    if (entry.finishesAt === null) {
+      add(buildCost(entry.building, entry.level));
+      await restoreKept(ctx, player._id, entry);
+    }
     await ctx.db.delete(entry._id);
   }
 
@@ -198,6 +229,20 @@ async function cancelWorkOn(
   const costs = refunded as Costs;
   await credit(ctx, player._id, costs, now);
   return costs;
+}
+
+/**
+ * **Le niveau gardé revient avec le remboursement** (#450) : une pose soviétique qui n'a pas
+ * commencé rend sa facture et la réserve qu'elle avait prise, au plus haut des deux.
+ */
+export async function restoreKept(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  entry: Doc<'constructions'>,
+): Promise<void> {
+  if (entry.kept === undefined || entry.building === 'outpost') return;
+  const reserve: Evacuated = (await ctx.db.get(playerId))?.evacuated ?? [];
+  await ctx.db.patch(playerId, { evacuated: [...keeping(reserve, entry.building, entry.kept)] });
 }
 
 /**

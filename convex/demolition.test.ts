@@ -336,3 +336,133 @@ const industryOf = (buildings: ReadonlyArray<{ key: BuildingKey; level: number }
       ofTroop: () => 0,
     },
   }).industry;
+
+/** **L'Évacuation industrielle** (ADR 0039 §5, #450) : le guest est soviétique, le fondateur
+ *  français. */
+describe('évacuation industrielle', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const PSKOV = 'RUS-2336';
+
+  const reserveOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
+    (await t.query(api.view.playerView, seat)).me.evacuated;
+
+  it('garde en réserve le niveau d’un bâtiment soviétique rasé, au plus haut', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    await promoteHq(t, guest, 5);
+    const high = await raise(t, guest, 'barracks', PSKOV, 3);
+    const low = await raise(t, guest, 'barracks', 'RUS-2335', 2);
+
+    await t.mutation(api.buildings.demolish, { ...guest, buildingId: high });
+    await t.mutation(api.buildings.demolish, { ...guest, buildingId: low });
+
+    expect(await reserveOf(t, guest)).toEqual([{ key: 'barracks', level: 3 }]);
+    expect(await noticesOf(t, guest, 'buildingDemolished')).toMatchObject([
+      { building: 'barracks', level: 3, kept: 3 },
+      { building: 'barracks', level: 2, kept: 3 },
+    ]);
+  });
+
+  it('ne garde rien pour une nation sans l’atout', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await promoteHq(t, seat, 5);
+    const barracks = await raise(t, seat, 'barracks', MARNE, 3);
+
+    await t.mutation(api.buildings.demolish, { ...seat, buildingId: barracks });
+
+    expect(await reserveOf(t, seat)).toEqual([]);
+    expect((await noticesOf(t, seat, 'buildingDemolished'))[0]).not.toHaveProperty('kept');
+  });
+
+  it('pose au prix d’un niveau 1 et sort au niveau gardé', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    await promoteHq(t, guest, 5);
+    await fillAll(t, guest);
+    const barracks = await raise(t, guest, 'barracks', PSKOV, 3);
+    await t.mutation(api.buildings.demolish, { ...guest, buildingId: barracks });
+
+    const before = (await stocks(t, guest)).steel.stock;
+    const placed = await t.mutation(api.constructions.start, {
+      ...guest,
+      building: 'barracks',
+      regionId: PSKOV,
+      point: pointIn(PSKOV),
+    });
+    expect(placed.cost).toEqual(buildCost('barracks', 1));
+    expect((await stocks(t, guest)).steel.stock).toBeCloseTo(
+      before - (buildCost('barracks', 1).steel ?? 0),
+      5,
+    );
+    expect(await reserveOf(t, guest)).toEqual([]);
+    const running = (await t.query(api.view.playerView, guest)).me.construction;
+    expect(running).toMatchObject({ level: 1, kept: 3 });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const standing = (await buildingsOf(t, guest)).filter((one) => one.key === 'barracks');
+    expect(standing.map((one) => one.level)).toEqual([3]);
+  });
+
+  it('rend la réserve quand la pose est annulée avant de commencer', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    await promoteHq(t, guest, 5);
+    await fillAll(t, guest);
+    const barracks = await raise(t, guest, 'barracks', PSKOV, 3);
+    await t.mutation(api.buildings.demolish, { ...guest, buildingId: barracks });
+    // Un entrepôt court devant : la pose attend son tour.
+    await t.mutation(api.constructions.start, {
+      ...guest,
+      building: 'warehouse',
+      regionId: 'RUS-2335',
+      point: pointIn('RUS-2335'),
+    });
+    await t.mutation(api.constructions.start, {
+      ...guest,
+      building: 'barracks',
+      regionId: PSKOV,
+      point: pointIn(PSKOV),
+    });
+    const waiting = (await t.query(api.view.playerView, guest)).me.constructionQueue[0]!;
+    expect(waiting).toMatchObject({ key: 'barracks', kept: 3 });
+
+    await t.mutation(api.constructions.cancel, {
+      ...guest,
+      constructionId: waiting.id as Id<'constructions'>,
+    });
+
+    expect(await reserveOf(t, guest)).toEqual([{ key: 'barracks', level: 3 }]);
+  });
+
+  it('refuse de raser pendant une capture en cours, pour toute nation', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await promoteHq(t, seat, 5);
+    const barracks = await raise(t, seat, 'barracks', MARNE, 2);
+    await t.run(async (ctx) => {
+      const defender = await seatIn(ctx, seat);
+      const capturer = await seatIn(ctx, guest);
+      await ctx.db.insert('captures', {
+        seasonId: defender.seasonId,
+        playerId: capturer._id,
+        defenderId: defender._id,
+        target: { kind: 'building', buildingId: barracks },
+        site: { kind: 'building', building: 'barracks', regionId: MARNE },
+        point: pointIn(MARNE),
+        progress: 0,
+        progressAt: Date.now(),
+        rate: 1,
+        durationMs: 3_600_000,
+        rest: null,
+        completesAt: Date.now() + 3_600_000,
+      });
+    });
+
+    await expect(
+      t.mutation(api.buildings.demolish, { ...seat, buildingId: barracks }),
+    ).rejects.toThrow(/DEMOLITION_UNDER_CAPTURE/);
+  });
+});
