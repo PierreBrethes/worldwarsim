@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAN_METRES } from '@/domain/piece-size';
-import { crateTaking, perronOf, plunderOf, sabotageOf, TAKING } from './taking';
+import { crateSearch, crateTaking, perronOf, plunderOf, sabotageOf, TAKING } from './taking';
 
 const to = [3, 0, 4] as const;
 /** He stops where the crate lies at his feet, before him (`crateOnMan(0)`). */
@@ -49,6 +49,24 @@ describe('crateTaking (#279, « Ramasser »)', () => {
     expect(home.lying).toBeUndefined();
     expect(home.carry![2]).toBeLessThan(1);
     expect(home.carry![2]).toBeGreaterThan(0);
+  });
+});
+
+describe('crateSearch (#279, « Ramasser », la caisse partie)', () => {
+  const search = crateSearch({ part: 'man_0', to, perMetre: 1 });
+  const there = TAKING.crateWalk;
+
+  it('walks to where the crate lay, looks left and right, finds nothing, and comes back', () => {
+    expect(search.at(there / 2).man_0?.lying).toEqual({ at: to, shown: 1 });
+    const looking = search.at(there + TAKING.search / 4).man_0!;
+    expect(looking.travel![0]).toBeCloseTo(3 * short);
+    expect(looking.heading).not.toBeCloseTo(Math.atan2(3, 4));
+    expect(looking.carry).toBeUndefined();
+    expect(search.at(there + TAKING.search / 2).man_0?.lying?.shown ?? 0).toBe(0);
+    const home = search.at(search.ms - 1).man_0!;
+    expect(home.travel).toEqual([0, 0, 0]);
+    expect(home.carry).toBeUndefined();
+    expect(home.lying).toBeUndefined();
   });
 });
 

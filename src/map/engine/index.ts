@@ -90,7 +90,14 @@ import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
-import { crateTaking, perronOf, plunderOf, sabotageOf, type Trip } from './timelines/taking';
+import {
+  crateSearch,
+  crateTaking,
+  perronOf,
+  plunderOf,
+  sabotageOf,
+  type Trip,
+} from './timelines/taking';
 import {
   type Attempt,
   type Docked,
@@ -3733,10 +3740,11 @@ export class MapEngine {
     if (first === undefined) return letGo();
     let sequence;
     let perron = null;
-    if (cue.act === 'ramassage') {
+    if (cue.act === 'ramassage' || cue.act === 'recherche') {
       // The crate lies a few steps behind the pile, on the way it came (« la pile s'arrête à un pas »).
       const crate = first.clone().addScaledVector(squad.front, -CRATE_STEPS_METRES * perMetre);
-      sequence = crateTaking({ part: 'man_0', to: offset(first, crate), perMetre });
+      const trip = { part: 'man_0', to: offset(first, crate), perMetre } as const;
+      sequence = cue.act === 'ramassage' ? crateTaking(trip) : crateSearch(trip);
     } else if (cue.act === 'pillage' && site !== null && site.crates.length > 0) {
       // Each man takes a crate off the top of the perron's pile, which loses it (storyboard).
       const top = [...site.crates].sort((a, b) => b.at.y - a.at.y);

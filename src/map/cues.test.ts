@@ -503,6 +503,11 @@ describe('takingsOf (#279)', () => {
     expect(takingsOf([crate], [home], sites)).toEqual([{ kind: 'ramassage', arcId: 'b' }]);
   });
 
+  it('searches for a crate gone where my column leaves its point empty', () => {
+    const empty = arc('b', [5, 50], [1, 1]);
+    expect(takingsOf([crate], [empty], sites)).toEqual([{ kind: 'recherche', arcId: 'b' }]);
+  });
+
   it('plunders, or sabotages, the site my raid leaves, by what it carries away', () => {
     const loaded = arc('b', [6, 49], [1, 1], { cargo: {} as never });
     const empty = arc('b', [6, 49], [1, 1]);
@@ -514,9 +519,7 @@ describe('takingsOf (#279)', () => {
     ]);
   });
 
-  it('plays nothing for a crate gone, a raid still there, a site unseen, or a first view', () => {
-    const empty = arc('b', [5, 50], [1, 1]);
-    expect(takingsOf([crate], [empty], sites)).toEqual([]);
+  it('plays nothing for a raid still there, a site unseen, or a first view', () => {
     expect(takingsOf([raid('w')], [raid('w'), arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
     expect(takingsOf([raid('x')], [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
     expect(takingsOf(null, [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);

@@ -427,7 +427,7 @@ export function entreesOf(
 /** **Ce que ma colonne vient de prendre à son point** (#279, `storyboard-prise`) : une caisse
  *  ramassée, un site pillé ou saboté, joué sur la colonne qui en repart (`arcId`). */
 export type Taking =
-  | { readonly kind: 'ramassage'; readonly arcId: string }
+  | { readonly kind: 'ramassage' | 'recherche'; readonly arcId: string }
   | { readonly kind: 'pillage' | 'sabotage'; readonly arcId: string; readonly siteId: string };
 
 type Taker = {
@@ -446,7 +446,7 @@ type Taker = {
 /**
  * **Les prises qui viennent de se faire** (#279) : un arc à moi neuf part du point où finit un arc
  * à moi disparu. Celui-là ramassait une caisse : il repart chargé, c'est un ramassage ; il repart
- * à vide, la caisse était partie et la dépêche le dit seule. Celui-là pillait un site que je vois :
+ * à vide, la caisse était partie : il l'a cherchée. Celui-là pillait un site que je vois :
  * il repart chargé, c'est un pillage ; à vide, un sabotage. Rien à la première vue.
  */
 export function takingsOf(
@@ -464,7 +464,8 @@ export function takingsOf(
     );
     const mission = ended?.mission;
     const loaded = arc.cargo !== undefined;
-    if (mission?.kind === 'collection') return loaded ? [{ kind: 'ramassage', arcId: arc.id }] : [];
+    if (mission?.kind === 'collection')
+      return [{ kind: loaded ? 'ramassage' : 'recherche', arcId: arc.id }];
     if (mission?.kind !== 'plunder' || !('buildingId' in mission)) return [];
     const site = sites.find(({ buildingId }) => buildingId === mission.buildingId);
     return site === undefined

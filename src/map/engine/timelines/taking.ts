@@ -16,6 +16,7 @@ export const TAKING = {
   crateWalk: 600,
   bend: 300,
   lift: 450,
+  search: 1100,
   swallow: 350,
   smoke: 2400,
   stop: 1200,
@@ -109,6 +110,33 @@ export function crateTaking({
   // The crate lies at its point from the column's arrival until he takes it up.
   const at = (t: number): PartPose =>
     t < there ? { ...trip(t), lying: { at: to, shown: 1 } } : trip(t);
+  return sequenceOf(ms, [[part, at]]);
+}
+
+/**
+ * **Il cherche** (#279, « Ramasser », la caisse partie) : l'homme va où était la caisse, regarde à
+ * gauche, à droite ; la caisse se délave, il n'y a rien sous sa main, il rejoint le rang à vide.
+ */
+export function crateSearch({
+  part,
+  to,
+  perMetre,
+}: Trip & { readonly perMetre: number }): Sequence {
+  const there = TAKING.crateWalk;
+  const back = there + TAKING.search;
+  const home = back + TAKING.crateWalk;
+  const ms = home + 200;
+  const facing = Math.atan2(to[0], to[2]);
+  const trip = tripOf(
+    { part, to: shortOf(to, perMetre) },
+    { there, back, home },
+    (t) => ({ heading: facing + Math.sin(span(t, there, back) * Math.PI * 2) * 0.8 }),
+    () => ({}),
+    perMetre,
+  );
+  const washed = (t: number) => 1 - span(t, there, there + 400);
+  const at = (t: number): PartPose =>
+    washed(t) > 0 ? { ...trip(t), lying: { at: to, shown: washed(t) } } : trip(t);
   return sequenceOf(ms, [[part, at]]);
 }
 

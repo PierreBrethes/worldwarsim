@@ -182,7 +182,7 @@ export type Cue =
    *  played on the column `arcId` leaving it — its squad's men go and come back. */
   | {
       readonly kind: 'prise';
-      readonly act: 'ramassage' | 'pillage' | 'sabotage';
+      readonly act: 'ramassage' | 'recherche' | 'pillage' | 'sabotage';
       readonly arcId: string;
       readonly siteId?: string;
     }
