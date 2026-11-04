@@ -34,7 +34,7 @@ const render = (engagements = []) =>
   });
 
 describe('renderReport', () => {
-  it('names each of the seven measures', () => {
+  it('names each of the eight measures', () => {
     const markdown = render();
     for (const title of [
       'Boule de neige',
@@ -44,6 +44,7 @@ describe('renderReport', () => {
       'Charge',
       'Isolement',
       'Élever ou fonder',
+      'Atouts nationaux',
     ]) {
       expect(markdown).toContain(title);
     }

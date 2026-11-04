@@ -12,6 +12,7 @@ import {
   rendezvousLabel,
 } from '@/i18n/fr';
 import { NATIONS, isNation } from '@/domain/nations';
+import { assetOf } from '@/domain/nation-assets';
 import type { PlayableRegion } from '@/domain/ids';
 import {
   HQ_CAPTURE_HOURS,
@@ -159,6 +160,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
   const [wireOpen, setWireOpen] = useState(true);
 
   const blitz = lobby.mode === 'blitz';
+  const myAsset = assetOf(lobby.me.nation, lobby.mode);
   const founder = lobby.me.creator;
   const open = lobby.status === 'lobby';
   const meRow = lobby.players.find((player) => player.mine);
@@ -442,18 +444,14 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
             </div>
             {!blitz && isNation(lobby.me.nation) && (
               <div className="nfiche">
-                <b>{fr.nationAssets[lobby.me.nation].name}</b>
-                <span className="rule-broken">
-                  <em>{fr.nationAssets[lobby.me.nation].rule}.</em>
-                  {lobby.me.nation === 'usa' && (
-                    <>
-                      {' '}
-                      <span className="chip" style={{ color: 'var(--notable-paper)' }}>
-                        {fr.lobby.toBalance}
-                      </span>
-                    </>
-                  )}
-                </span>
+                {myAsset !== null && (
+                  <>
+                    <b>{fr.nationAssets[myAsset].name}</b>
+                    <span className="rule-broken">
+                      <em>{fr.nationAssets[myAsset].rule}.</em>
+                    </span>
+                  </>
+                )}
                 <RestField seat={seat} declared={lobby.me.restWindow} onError={setError} />
               </div>
             )}
@@ -630,7 +628,8 @@ function SeatCard({
     toLocalMinutes(player.restWindow.startMinutes, offset),
     toLocalMinutes(player.restWindow.endMinutes, offset),
   );
-  const asset = isNation(player.nation) ? fr.nationAssets[player.nation] : null;
+  const assetId = assetOf(player.nation, lobby.mode);
+  const asset = assetId === null ? null : fr.nationAssets[assetId];
   const tags = [mine && fr.table.you, player.creator && fr.lobby.founder]
     .filter(Boolean)
     .join(' · ');
