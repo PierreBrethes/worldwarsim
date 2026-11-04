@@ -205,7 +205,7 @@ export class ArcLayer {
       readonly foot: number;
       readonly end: number;
       readonly until: number;
-      release: Parameters<typeof caughtUp>[1] | null;
+      release: Parameters<typeof caughtUp>[2] | null;
     }
   >();
 
@@ -224,6 +224,13 @@ export class ArcLayer {
       if (leg !== undefined) pointOnLeg(leg, target.local, point);
       return target.legIndex;
     };
+    const held = this.holds.get(id);
+    if (held !== undefined) {
+      if (held.release !== null) return null;
+      this.holds.set(id, { ...held, until });
+      at(held.foot);
+      return point;
+    }
     let foot: number | null = null;
     let end = 1;
     for (let k = 0; k <= HOLD_SAMPLES; k++) {
@@ -234,7 +241,19 @@ export class ArcLayer {
       }
       if (foot === null && !inside(point)) foot = share;
     }
+    // A long road steps over the socle between two samples: its edge lies between them.
+    if (foot !== null && foot > 0) {
+      let [lo, hi] = [foot - 1 / HOLD_SAMPLES, foot];
+      for (let k = 0; k < EDGE_STEPS; k++) {
+        const mid = (lo + hi) / 2;
+        if (at(mid) === 0 && inside(point)) lo = mid;
+        else hi = mid;
+      }
+      foot = hi;
+    }
     foot ??= end;
+    // Already past its foot: held, it would step back.
+    if (arcProgressAt(rendered.arc, Date.now()) > foot) return null;
     this.holds.set(id, { foot, end, until, release: null });
     at(foot);
     return point;
@@ -251,9 +270,10 @@ export class ArcLayer {
     const held = this.holds.get(id);
     if (held === undefined) return own;
     if (now < held.until) return held.foot;
-    held.release ??= { from: own, foot: held.foot, end: held.end };
-    if (own >= held.end) this.holds.delete(id);
-    return caughtUp(own, held.release);
+    held.release ??= { from: own, at: now, foot: held.foot, end: held.end };
+    const walked = caughtUp(own, now, held.release);
+    if (walked === own) this.holds.delete(id);
+    return walked;
   }
 
   /** **What a sequence may borrow** (`SequenceHost`, #278): the truck a pawn of mine wears on land,
@@ -699,15 +719,30 @@ export class ArcLayer {
 
 /** **Where a pawn let go runs on its way** (#278): held at the socle's `foot` while its truck
  *  loaded, it starts from there when its own hour (`share`) is `from`, and comes back to it by
- *  the `end` of its first leg — never a jump, never a step back. */
+ *  the `end` of its first leg — or over `CATCH_UP_MS`, let go past that end. Never a jump, never
+ *  a step back. */
 export function caughtUp(
   share: number,
-  { from, foot, end }: { readonly from: number; readonly foot: number; readonly end: number },
+  now: number,
+  release: {
+    readonly from: number;
+    readonly at: number;
+    readonly foot: number;
+    readonly end: number;
+  },
 ): number {
-  if (share >= end) return share;
-  const start = Math.min(foot, end);
-  return from >= end ? start : start + ((share - from) * (end - start)) / (end - from);
+  const { from, at, foot, end } = release;
+  if (from < end)
+    return share >= end ? share : foot + ((share - from) * (end - foot)) / (end - from);
+  const k = (now - at) / CATCH_UP_MS;
+  return k >= 1 ? share : foot + (share - foot) * k;
 }
+
+/** A pawn let go past the end of its first leg runs back to its hour in so long. `@a-mesurer` */
+export const CATCH_UP_MS = 1500;
+
+/** The edge of a socle is looked for in so many halvings between two samples. */
+const EDGE_STEPS = 20;
 
 /** The shares of its way a held pawn's foot is looked for at. */
 const HOLD_SAMPLES = 200;

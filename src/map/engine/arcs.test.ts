@@ -14,7 +14,7 @@ import type { ArcView, TroopView } from '@/domain/player-view';
 import type { World } from '@/domain/world';
 import { directRoute } from '@/domain/routing';
 import { unrollRoute } from '@/domain/route-timing';
-import { ArcLayer, caughtUp, lastKnownMedium } from './arcs';
+import { ArcLayer, CATCH_UP_MS, caughtUp, lastKnownMedium } from './arcs';
 import { figurineFor } from './figurines/figurine';
 import { WorldFrame } from './frame';
 import type { InkLayer } from './ink';
@@ -438,24 +438,29 @@ describe('ArcLayer: a column joining a pile (#277)', () => {
 
 describe('caughtUp (#278)', () => {
   // Let go at 0.02 of its way, held at the socle's foot 0.05 in, its first leg ends at 0.4.
-  const release = { from: 0.02, foot: 0.05, end: 0.4 };
+  const release = { from: 0.02, at: 0, foot: 0.05, end: 0.4 };
 
   it('starts from the foot it was held at, with no jump', () => {
-    expect(caughtUp(0.02, release)).toBeCloseTo(0.05);
+    expect(caughtUp(0.02, 0, release)).toBeCloseTo(0.05);
   });
 
   it('runs on to its own hour by the end of its first leg, and keeps it after', () => {
-    expect(caughtUp(0.4, release)).toBeCloseTo(0.4);
-    expect(caughtUp(0.7, release)).toBe(0.7);
+    expect(caughtUp(0.4, 0, release)).toBeCloseTo(0.4);
+    expect(caughtUp(0.7, 0, release)).toBe(0.7);
     let last = 0;
     for (let share = 0.02; share <= 0.4; share += 0.01) {
-      expect(caughtUp(share, release)).toBeGreaterThanOrEqual(last);
-      last = caughtUp(share, release);
+      expect(caughtUp(share, 0, release)).toBeGreaterThanOrEqual(last);
+      last = caughtUp(share, 0, release);
     }
   });
 
-  it('waits at the foot no further than the end of its leg', () => {
-    expect(caughtUp(0.1, { from: 0.1, foot: 0.6, end: 0.4 })).toBe(0.4);
+  it('let go past the end of its first leg, it still starts from its foot and runs to its hour', () => {
+    const late = { from: 0.6, at: 1000, foot: 0.05, end: 0.4 };
+    expect(caughtUp(0.6, 1000, late)).toBeCloseTo(0.05);
+    const half = caughtUp(0.6, 1000 + CATCH_UP_MS / 2, late);
+    expect(half).toBeGreaterThan(0.05);
+    expect(half).toBeLessThan(0.6);
+    expect(caughtUp(0.61, 1000 + CATCH_UP_MS, late)).toBe(0.61);
   });
 });
 
@@ -481,6 +486,32 @@ describe('ArcLayer.hold (#278)', () => {
     arcs.animate();
     expect(at(arcs).x).toBeGreaterThan(held.x);
     vi.mocked(Date.now).mockRestore();
+  });
+
+  it('holds no pawn already past its foot: it never steps back', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(1_800_000);
+    arcs.display([mine('a')]);
+    arcs.animate();
+    const own = at(arcs);
+    // Its socle a mere step round where it set off.
+    expect(arcs.hold('a', (point) => point.x < 0.01, Infinity)).toBeNull();
+    arcs.animate();
+    expect(at(arcs).distanceTo(own)).toBeLessThan(1e-9);
+    vi.mocked(Date.now).mockRestore();
+  });
+
+  it('finds the foot at the edge of the socle however long its road', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    arcs.display([mine('a', [170, 80])]);
+    arcs.animate();
+    const start = at(arcs);
+    const radius = 1e-3;
+    const foot = arcs.hold('a', (point) => point.distanceTo(start) < radius, Infinity)!;
+    vi.mocked(Date.now).mockRestore();
+    expect(foot.distanceTo(start)).toBeGreaterThanOrEqual(radius);
+    expect(foot.distanceTo(start)).toBeLessThan(radius * 1.01);
   });
 
   it('reads the box of a copy stood in on the pawn, not at the origin', () => {
