@@ -171,6 +171,8 @@ export const outpostEvents = internalQuery({
       /** **Un rasage évacué** (ADR 0039 §5) : la dépêche porte la réserve. **Un Prêt-bail**
        *  (§3) : une livraison réelle au dépôt d'un autre, jamais un convoi revenu plein. */
       if (notice.kind === 'buildingDemolished' && notice.kept !== undefined) uses += 1;
+      /** **Un cap changé** (§4) : la dépêche que la mutation écrit à son auteur. */
+      if (notice.kind === 'courseChanged') uses += 1;
       if (
         notice.kind === 'supplyDelivered' &&
         notice.abroad === true &&

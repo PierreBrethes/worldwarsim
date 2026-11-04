@@ -274,6 +274,15 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     mission: movement.mission ?? null,
     ...(movement.delivery === true ? { delivery: true } : {}),
     ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop }),
+    ...(movement.onMission ? { onMission: true } : {}),
+    ...(movement.courseChange == null
+      ? {}
+      : {
+          courseChange: {
+            at: movement.courseChange.at,
+            ran: movement.courseChange.ran.map((point) => [point.lon, point.lat] as LonLat),
+          },
+        }),
     schedule: {
       departedAt: movement.departedAt,
       arrivesAt: movement.arrivesAt,

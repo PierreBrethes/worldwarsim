@@ -112,6 +112,13 @@ export type ErrorCode =
   | 'NO_LAND_ROUTE'
   /** **Coups et plein** (ADR 0028 §3) : une route au-delà du plus petit plein, une attaque à sec. */
   | 'NOT_ENOUGH_FUEL'
+  /** **La Doctrine du porte-avions** (ADR 0039 §4), `courseRefusalOf`. */
+  | 'UNKNOWN_MOVEMENT'
+  | 'NO_CARRIER_DOCTRINE'
+  | 'COURSE_ON_MISSION'
+  | 'COURSE_ALREADY_CHANGED'
+  | 'PAST_HALFWAY'
+  | 'NOT_AT_SEA'
   | 'NO_ROUNDS'
   | 'UNKNOWN_TROOP'
   | 'DUPLICATE_TROOP'

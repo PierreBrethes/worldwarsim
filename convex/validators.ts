@@ -553,6 +553,14 @@ export const NOTICE = v.union(
     point: LON_LAT,
     delivered: SUPPLY_LOAD,
   }),
+  /** **Un cap changé** (Doctrine du porte-avions, ADR 0039 §4), chez son seul auteur : la
+   *  destination neuve et l'arrivée. Le rapport de saison y compte l'usage de l'atout. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('courseChanged'),
+    hostCountry: v.string(),
+    arrivesAt: v.number(),
+  }),
   /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses
    *  dépôts sont pleins (`full`), ou sa route est refusée (`road`, le plein manque). */
   v.object({

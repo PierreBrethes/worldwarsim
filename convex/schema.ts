@@ -747,6 +747,10 @@ export default defineSchema({
     tourLeg: v.optional(v.union(v.literal('stop'), v.literal('base'))),
     /** **Une étape de ronde** (#376) : vers l'autre bout de sa liaison. */
     patrolLeg: v.optional(v.boolean()),
+    /** **Le cap changé** (Doctrine du porte-avions, ADR 0039 §4) : l'instant du coude, et la route
+     *  que l'ancien mouvement avait courue jusque-là, que son auteur voit encore. Présent, le cap
+     *  ne change plus. */
+    courseChange: v.optional(v.object({ at: v.number(), ran: v.array(LON_LAT) })),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])

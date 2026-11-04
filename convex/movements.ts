@@ -106,6 +106,7 @@ import { blitzTheatreOf } from './movement/theatre';
 import { bombard as bombardFrom } from './movement/bombard';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { arriveForCapture } from './captures';
+import { changeCourse as steer, plotCourse } from './movement/course';
 
 export { restHold } from './movement/rest';
 import {
@@ -573,6 +574,80 @@ export const raid = mutation({
       troopIds,
       aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
     });
+  },
+});
+
+const STEERED_TYPE = v.union(v.literal('march'), v.literal('attack'), v.literal('raid'));
+
+/**
+ * **Changer de cap** (Doctrine du porte-avions, ADR 0039 §4) : une flotte japonaise en mer, avant
+ * sa mi-parcours, repart de sa position vers ce qu'un ordre neuf pourrait viser, une fois.
+ */
+export const changeCourse = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    movementId: v.id('movements'),
+    type: STEERED_TYPE,
+    target: ATTACK_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, movementId, type, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    return steer(ctx, player, season, movementId, type, target);
+  },
+});
+
+/** L'aperçu du cap neuf : la route, l'heure, et le plein que l'ancienne route a déjà payé. Il
+ *  rend `null` sur un refus, que la fiche et la pastille ont déjà dit (`courseRefusalOf`). */
+export const previewCourse = query({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    movementId: v.id('movements'),
+    type: STEERED_TYPE,
+    target: ATTACK_TARGET,
+  },
+  handler: async (ctx, { token, seasonId, movementId, type, target }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    const now = Date.now();
+    const plan = await plotCourse(ctx, player, season, movementId, type, target, now).catch(
+      () => null,
+    );
+    if (plan === null) return null;
+    const { route, minutes, arrivesAt, fuel } = plan;
+    return {
+      minutes,
+      arrivesAt,
+      relayed: relayedMinutes(route, minutes, plan.column),
+      holdUntil: await restHold(ctx, player._id, plan.aimed.host, arrivesAt),
+      destinationName: plan.aimed.name,
+      originName: plan.departureName,
+      route: routeFacts(route),
+      fuel: {
+        gauge: fuel.gauge,
+        short: fuel.short,
+        km: fuel.km,
+        roundTrip: false,
+        eased: fuel.eased,
+        resupply: await passingEstimate(
+          ctx,
+          player._id,
+          {
+            id: 'preview',
+            points: route.points,
+            legs: route.legs,
+            distanceUnits: route.distanceUnits,
+            landCost: route.landCost,
+            departedAt: now,
+            arrivesAt,
+          },
+          plan.troops.map((troop) =>
+            fuel.after.has(troop._id) ? { ...troop, fuel: fuel.after.get(troop._id)! } : troop,
+          ),
+        ),
+      },
+    };
   },
 });
 

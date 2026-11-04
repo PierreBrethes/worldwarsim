@@ -11,6 +11,7 @@ import {
   seasonPoints,
 } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
+import { onMission } from './movement/course';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
@@ -1012,6 +1013,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           mission,
           /** **Une livraison** (ADR 0028 §4), dite au seul propriétaire de la marche. */
           delivery: movement.delivery !== undefined,
+          /** **La Doctrine du porte-avions** (ADR 0039 §4) : ce que `courseRefusalOf` lit de la
+           *  ligne, et le coude d'un cap déjà changé, avec la route courue avant lui. */
+          onMission: onMission(movement),
+          courseChange: movement.courseChange ?? null,
           /** **Un largage** (ADR 0028 §4) : le fil de l'avion ne se pose qu'à sa base. */
           ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop.leg }),
           roles: movement.troopIds.flatMap((troopId) => {
