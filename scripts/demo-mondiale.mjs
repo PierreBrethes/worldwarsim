@@ -139,6 +139,10 @@
  * français sur l'entrepôt adverse relevé en Pologne, et recule leur présence d'une heure et demie :
  * trois caisses sur quatre sont tombées (`pillage`).
  *
+ * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
+ * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
+ * doit s'animer (`saboteur`).
+ *
  *     npm run demo:mondiale
  *
  * Refuse toute URL qui n'est pas 127.0.0.1 ou localhost. Les comptes (mot de passe compris) vont
