@@ -1,7 +1,7 @@
 import { modeOf } from '@/domain/season-mode';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
-import { assetLine } from '@/i18n/fr';
+import { assetLine, fr } from '@/i18n/fr';
 import { assetOf } from '@/domain/nation-assets';
 import {
   RESOURCES,
