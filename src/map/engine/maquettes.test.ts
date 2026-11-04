@@ -414,13 +414,6 @@ describe('the garrison foot', () => {
     }
   });
 
-  it('docks the hulls of a port along its quay, beside it and not a port away', () => {
-    const [port, cargo] = [buildingSpan('port'), troopSpan('cargo')];
-    const foot = garrisonFoot(port, cargo, true);
-    expect(foot - cargo / 2).toBeGreaterThanOrEqual(port / 2);
-    expect(foot - cargo / 2).toBeLessThan(port / Math.SQRT2);
-  });
-
   it('keeps a garrison grown to its floor clear of the other maquettes of its ring, and of their garrisons', () => {
     // At d ≈ 30 a pile is drawn as large as the floor's span (ADR 0035 §10), whatever it holds.
     const pile = troopPinSpan(0);
@@ -722,12 +715,12 @@ describe('a garrison at the foot of a site drawn smaller (#433)', () => {
       ids.map((one) => ({
         id: one,
         at: { lonLat: [0, 0] as const },
-        url: `${one}.glb`,
+        url: one.startsWith('building-port') ? 'port.glb' : `${one}.glb`,
         span: 1,
         washed: false,
       })),
     );
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(maquettes.isDressed(id)).toBe(true));
     maquettes.orient(new Vector3(0, 2, 2), null, 0);
     return maquettes;
   };
@@ -745,13 +738,19 @@ describe('a garrison at the foot of a site drawn smaller (#433)', () => {
   it('hands the scale of a port to its hulls, and docks a cargo drawn at it clear of the port', async () => {
     const PORT = 'building-port@0,0';
     const maquettes = await crowded(PORT);
-    const { scale, step } = maquettes.garrisonAt(PORT, 0, true)!;
+    const { scale } = maquettes.garrisonAt(PORT, 0, true)!;
     expect(scale).toBeCloseTo(0.4, 9);
-    // The bare quay is half the port's span off its centre: its board unit, here.
-    const unit = reach(step) / (0.5 * scale);
-    const cargo = troopSpan('cargo') * scale;
-    const foot = reach(maquettes.garrisonAt(PORT, cargo, true)!.step);
-    expect(foot - (cargo / 2) * unit).toBeGreaterThanOrEqual(((1 * scale) / 2) * unit - 1e-12);
+    // The hull, a group's spacing to seaward of where its quay is read, past the port's edge.
+    const cargo = troopSpan('cargo');
+    const quay = maquettes.quayAt(0, 0, cargo)!;
+    expect(quay.scale).toBeCloseTo(0.4, 9);
+    const off = (GROUP_SPACING * cargo * scale) / LAID_OUT_FOR;
+    const site = maquettes.siteOf(PORT)!;
+    const edge = site.toBoard(site.marker('fx_bord_eau')!);
+    const [fx, fz] = quay.front;
+    const beyond = (quay.at.x + fx * off - edge.x) * fx + (quay.at.z + fz * off - edge.z) * fz;
+    expect(beyond).toBeGreaterThan(0);
+    expect(beyond).toBeLessThan(cargo * scale);
   });
 });
 

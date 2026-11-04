@@ -506,15 +506,10 @@ function ringed(
 /**
  * **How far from its maquette a building's garrison stands**, in board units at full size: a
  * span and a seventh of its site off its centre — 0.8 for the former 0.7 —, so that its back
- * clears the corner of a model turned any way, and half the pile's largest piece more, so that a
- * cargo stands off its port as a man off his barracks. `@a-mesurer`
+ * clears the corner of a model turned any way, and half the pile's largest piece more. The hulls
+ * of a port dock at its water edge instead (`quayStep`). `@a-mesurer`
  */
-export const garrisonFoot = (site: number, pile: number, quay = false): number =>
-  (quay ? QUAY_SHARE : 8 / 7) * site + pile / 2;
-
-/** **The hulls of a port dock along its quay** (ADR 0035 §1, « un cargo qui tient le long de son
- *  port »): half its span off its centre, its side, rather than clear of its corners. */
-const QUAY_SHARE = 0.5;
+export const garrisonFoot = (site: number, pile: number): number => (8 / 7) * site + pile / 2;
 
 /**
  * **Two maquettes of a ring stand this many of their half footprints apart**, centre to centre:
@@ -807,16 +802,11 @@ export class MaquetteLayer implements SequenceHost {
     for (const [id, { item, lot }] of this.byId) {
       if (!id.startsWith('building-port') || lot.model === null) continue;
       if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
-      const { at, facing, scale } = item;
+      const { at, scale } = item;
+      // Its file has its water edge (`maquettes.test.ts` in emblems).
       const edge = quayStep(item, lot.model, span * scale * pieceScale.size);
-      const front = [Math.sin(item.yaw), Math.cos(item.yaw)] as const;
-      if (edge !== null) return { at: edge.add(at), scale, front };
-      const foot = garrisonFoot(item.span * scale, span * scale, true) * pieceScale.size;
-      return {
-        at: new Vector3(at.x + foot * Math.sin(facing), at.y, at.z + foot * Math.cos(facing)),
-        scale,
-        front,
-      };
+      if (edge === null) return null;
+      return { at: edge.add(at), scale, front: [Math.sin(item.yaw), Math.cos(item.yaw)] };
     }
     return null;
   }
@@ -1330,7 +1320,7 @@ export class MaquetteLayer implements SequenceHost {
         scale,
       };
     // The site is drawn at its ring's scale; the pile, at the size it is handed in at (#433).
-    const foot = garrisonFoot(span * scale, pile, quay) * pieceScale.size * near;
+    const foot = garrisonFoot(span * scale, pile) * pieceScale.size * near;
     return {
       at,
       step: [foot * Math.sin(facing), foot * Math.cos(facing)],
