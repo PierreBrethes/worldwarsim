@@ -73,7 +73,7 @@ de ravitaillement (ADR 0028, précision du 18/10) couvre le besoin sans nouvelle
 figurine ni comportement automatique de plus. À reprendre si bâtir loin doit un jour exiger une
 présence physique.
 
-**Les atouts nationaux et l'unité spéciale.** La fiche 06 décrit huit atouts qui cassent
+**Les atouts nationaux et l'unité spéciale.** *(04/11 : quatre atouts tranchés par l'ADR 0039 — États-Unis, Japon, URSS, Allemagne ; restent les quatre autres nations et les troupes signature, hors V1.)* La fiche 06 décrit huit atouts qui cassent
 chacun une règle, et huit troupes signature ; **aucun n'est codé** — les nations se distinguent
 par la géographie, les gisements et les sprites. C'est le pitch d'origine (« chaque pays a son
 identité réelle »). Deux contraintes déjà posées : un atout casse une règle, il ne bonifie
