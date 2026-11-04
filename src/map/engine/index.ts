@@ -84,6 +84,7 @@ import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
 import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
+import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
@@ -3163,12 +3164,14 @@ export class MapEngine {
     const places = cue.moves.map(({ groupId }) => this.standing.placeOf(groupId));
     if (head === null || places.some((place) => place === null)) return false;
     const pileOf = (groupId: string) => groupId.slice(0, groupId.lastIndexOf('/'));
-    const rings = () => {
-      for (const { groupId } of cue.moves) this.standing.inkArrival(pileOf(groupId), true);
-    };
     const motion = this.sequences.motion;
-    if (motion !== 'full' || this.veiled(head.at) || !this.seenWhole(head.at)) {
-      if (motion === 'reduced' || cue.whole) rings();
+    const veiled = this.veiled(head.at);
+    const rings = (unplayable: boolean) => {
+      if (ringsLeft(motion, { veiled, unplayable }))
+        for (const { groupId } of cue.moves) this.standing.inkArrival(pileOf(groupId), true);
+    };
+    if (motion !== 'full' || veiled || !this.seenWhole(head.at)) {
+      rings(cue.whole);
       this.standing.arrive(cue.pileId, []);
       return true;
     }
@@ -3187,7 +3190,7 @@ export class MapEngine {
       walks.length < cue.moves.length ||
       walks.length > this.sequences.roomFor('deployment')
     ) {
-      rings();
+      rings(true);
       this.standing.arrive(cue.pileId, []);
       return true;
     }
@@ -3291,7 +3294,8 @@ export class MapEngine {
       for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
     if (!played) {
       for (const id of boards) this.standing.unboard(id);
-      if (motion === 'reduced') this.standing.inkArrival(pileId);
+      if (ringsLeft(motion, { veiled: this.veiled(truck.at), unplayable: false }))
+        this.standing.inkArrival(pileId);
       this.standing.arrive(pileId, []);
       return true;
     }
@@ -3350,7 +3354,8 @@ export class MapEngine {
       this.sequences.play(this.standing, cue.truck, plan.truck, now);
     if (!played) {
       for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
-      if (motion === 'reduced') this.standing.inkArrival(pileId);
+      if (ringsLeft(motion, { veiled: this.veiled(truck.at), unplayable: false }))
+        this.standing.inkArrival(pileId);
       this.standing.arrive(pileId, []);
       return true;
     }
