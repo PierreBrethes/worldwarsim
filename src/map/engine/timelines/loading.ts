@@ -23,8 +23,9 @@ const GABLE = 3;
 const LEG = { start: 200, out: 2000, pause: 250, back: 1800, leave: 1600, home: 2000 } as const;
 /** **On a tour** (#278, « En tournée »): into the yard in 1.5 s, across it to the edge in 1.4 s. */
 const TOUR_LEG = { in: 1500, across: 1400 } as const;
-/** **Set on the socle by hand** (décision de Pierre du 03/11): in 0.5 s, on an arc of 2.5 m. */
-const HAND = { ms: 500, lift: 2.5 } as const;
+/** **Set on the socle by hand** (décision de Pierre du 03/11): in 0.5 s, on an arc of 2.5 m,
+ *  swaying 0.07 rad on its length at the top; set down, it rests 0.15 s before it drives. */
+const HAND = { ms: 500, lift: 2.5, sway: 0.07, rest: 150 } as const;
 /** The tailgate: it falls in 500 ms (`out3`) and shuts in 450 (`in2`), as at a boarding (`boardingOf`); laid
  *  on the quay beyond the level (`@a-mesurer`, the storyboard's 112° for France), it hangs on its
  *  chains at the HQ (93°), with a clang of 3° in 80 ms on the quay. */
@@ -249,6 +250,7 @@ export function loadingAt({
   if (tour && edge && !tour.fromRank) {
     clock = 0;
     lift(tour.foot, edge);
+    clock += HAND.rest;
     drive(rounded([edge, ...aroundTo(edge, into), into, turn]), TOUR_LEG.in, false);
   } else drive(out, LEG.out, false);
   clock += LEG.pause;
@@ -331,6 +333,7 @@ export function loadingAt({
         pose.root = {
           travel: toBoard(add(lerp(a, b, leg.curve(k)), [0, Math.sin(k * Math.PI) * HAND.lift, 0])),
           heading: Math.atan2(to![0] - from![0], to![2] - from![2]),
+          roll: Math.sin(k * Math.PI) * HAND.sway,
         };
       } else if (leg !== undefined) {
         const done = leg.length * leg.curve(span(t, leg.from, leg.to));

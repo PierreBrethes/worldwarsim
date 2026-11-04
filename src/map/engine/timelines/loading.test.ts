@@ -125,6 +125,14 @@ describe('loadingAt on a tour (#278)', () => {
     expect(on[2]).toBeLessThan(50);
   });
 
+  it('sways as the hand carries it, and rests a beat on the socle before it drives', () => {
+    expect(truck.at(250).root?.roll).toBeCloseTo(0.07, 3);
+    expect(truck.at(1).root?.roll ?? 0).toBeLessThan(0.01);
+    const set = at(500);
+    close(at(640), set, 1e-6);
+    expect(at(700)).not.toEqual(set);
+  });
+
   it('backs to the quay and loads there as from its rank', () => {
     close(at(atQuay + 700), [0, 0, 23.5 + 3.25]);
   });
