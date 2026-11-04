@@ -11,6 +11,10 @@ export function shortestLongitudeGap(lonA: number, lonB: number): number {
   return raw;
 }
 
+/** **Le même point, servi deux fois** : à un milliardième de degré près, le bruit d'un aller-retour. */
+export const samePoint = (a: LonLat, b: LonLat): boolean =>
+  Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) < 1e-9;
+
 export function distanceKm(a: LonLat, b: LonLat): number {
   const dLat = toRadians(b[1] - a[1]);
   const dLon = toRadians(shortestLongitudeGap(a[0], b[0]));

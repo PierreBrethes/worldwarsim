@@ -130,6 +130,19 @@ export function stand(man: Object3D): void {
     pose(man, (man.userData.sculpted as Stance | undefined) ?? walking(phase));
 }
 
+/** **Le saut du hayon** (#277) : debout, hanches et genoux pliés de `bend` (0..1), à l'appel et à
+ *  la réception ; rien pour ce qui n'est pas un homme. */
+export function hop(man: Object3D, bend: number): void {
+  if (man.userData.stride === undefined) return;
+  const legs: Rotations = {
+    leg_left: [-0.5 * bend, 0, 0],
+    leg_right: [-0.5 * bend, 0, 0],
+    shin_left: [0.8 * bend, 0, 0],
+    shin_right: [0.8 * bend, 0, 0],
+  };
+  pose(man, { joints: { ...marching(0), ...legs }, body: STANDING_BODY });
+}
+
 /**
  * **Les hommes qui marchent, au pas** (page publique) : chaque marcheur reprend sa foulée à
  * `seconds`, décalé des autres ; `null` les arrête, jambes droites, sauf l'homme `sculpted` qui

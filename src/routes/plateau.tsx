@@ -1,6 +1,7 @@
 import { outpostPinId, pinsOf } from '@/domain/pins';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
+import { boardsUnderTheEyes } from '@/map/cues';
 import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useConvex, useMutation, useQuery } from 'convex/react';
@@ -1898,7 +1899,7 @@ function BoardContent({
   /** **La pièce lâchée sur une de mes piles** (15/10) : sur un transport de son adresse elle
    *  embarque, sur elle-même elle se repose ; ailleurs c'est poser, et la rose s'ouvre. */
   const dropPiece = useCallback(
-    (on: PieceFrom): 'pose' | 'board' | 'back' | 'refused' => {
+    (on: PieceFrom): 'pose' | 'board' | 'boardHome' | 'back' | 'refused' => {
       const click = aimOf(on);
       if (click === null || hand.kind !== 'held') return 'pose';
       const drop = boardingDropOf(
@@ -1913,7 +1914,8 @@ function BoardContent({
         dropHand();
         return drop.kind === 'putBack' ? 'back' : 'refused';
       }
-      if (inFlight.current) return 'board';
+      const boarded = boardsUnderTheEyes(drop.boarding.carrier.role, blitz) ? 'boardHome' : 'board';
+      if (inFlight.current) return boarded;
       inFlight.current = true;
       boardHand(hand.troopIds, drop.boarding.carrier.id).then(
         () => {
@@ -1925,9 +1927,9 @@ function BoardContent({
           handleError(problem, setOrderError);
         },
       );
-      return 'board';
+      return boarded;
     },
-    [aimOf, hand, unitsAt, view.me.buildings, dropHand, boardHand, settle],
+    [aimOf, hand, unitsAt, view.me.buildings, dropHand, boardHand, settle, blitz],
   );
 
   /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is

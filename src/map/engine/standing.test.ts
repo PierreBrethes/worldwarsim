@@ -1,4 +1,13 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Raycaster, Vector3 } from 'three';
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Raycaster,
+  type RingGeometry,
+  Vector3,
+} from 'three';
+import { pileLayout } from '@/domain/pile-layout';
 import { describe, expect, it, vi } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
@@ -11,7 +20,6 @@ import {
   formationOf,
   labelOfPile,
   nearestGroup,
-  pileLayout,
   pileObject,
   pickedIn,
   StandingLayer,
@@ -476,7 +484,11 @@ describe('a pile lent to a sequence', () => {
   });
 
   describe('a pile that grows by a troop walking to its rank', () => {
-    const grown = async (claim: ReadonlyArray<number> | null, motion: MapMotion = 'full') => {
+    const grown = async (
+      claim: ReadonlyArray<number> | null,
+      motion: MapMotion = 'full',
+      options: { opens?: boolean; formed?: boolean } = {},
+    ) => {
       const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
       const layer = await standing('infantry');
       const was = layer.placeOf('p/0')!.at.x;
@@ -484,15 +496,82 @@ describe('a pile lent to a sequence', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       layer.orient(eye);
       layer.motion = motion;
-      if (claim) layer.arrive('p', claim);
+      if (claim) layer.arrive('p', claim, options);
       layer.orient(eye);
       const at = (ms: number) => {
         clock.mockReturnValue(ms);
         layer.orient(eye);
         return layer.placeOf('p/0')!.at.x;
       };
-      return { was, at, clock };
+      return { was, at, clock, layer };
     };
+    /** The staple's stroke round the pile (#277), and how much of it is drawn. */
+    const staple = (layer: StandingLayer) => {
+      let found: Mesh | null = null;
+      layer.group.traverse((node) => {
+        const mesh = node as Mesh;
+        if (mesh.isMesh && mesh.visible && mesh.geometry.type === 'RingGeometry')
+          if ((mesh.geometry as RingGeometry).parameters.thetaLength > 2 * Math.PI) found = mesh;
+      });
+      return found as Mesh | null;
+    };
+
+    it('opens the rank in the half-second before a deploying column reaches it (#277)', async () => {
+      const { was, at, clock } = await grown([1000], 'full', { opens: true });
+      expect(at(400)).toBeCloseTo(was);
+      const gliding = at(750);
+      const settled = at(1000);
+      expect(gliding).toBeLessThan(was);
+      expect(gliding).toBeGreaterThan(settled);
+      expect(at(1600)).toBeCloseTo(settled);
+      clock.mockRestore();
+    });
+
+    it('staples the squad once its last newcomer stands, and only then (#277)', async () => {
+      const { at, clock, layer } = await grown([1000], 'full', { opens: true, formed: true });
+      at(900);
+      expect(staple(layer)).toBeNull();
+      at(1300);
+      const stroke = staple(layer)!;
+      expect(stroke.geometry.drawRange.count).toBeLessThan(stroke.geometry.index!.count);
+      at(1650);
+      expect(stroke.geometry.drawRange.count).toBeGreaterThanOrEqual(stroke.geometry.index!.count);
+      at(2000);
+      expect(staple(layer)).toBeNull();
+      clock.mockRestore();
+    });
+
+    it('lays no staple while a column of mine still heads there, nor when motion is cut', async () => {
+      const { at, clock, layer } = await grown([1000], 'full', { opens: true });
+      at(1300);
+      expect(staple(layer)).toBeNull();
+      clock.mockRestore();
+      const cut = await grown([1000], 'off', { opens: true, formed: true });
+      cut.at(1300);
+      expect(staple(cut.layer)).toBeNull();
+      cut.clock.mockRestore();
+    });
+
+    it('lays the staple whole at reduced motion, then pales it in 0.3 s (#277)', async () => {
+      const { at, clock, layer } = await grown([1000], 'reduced', { opens: true, formed: true });
+      at(1050);
+      const stroke = staple(layer)!;
+      expect(stroke.geometry.drawRange.count).toBeGreaterThanOrEqual(stroke.geometry.index!.count);
+      at(1200);
+      expect((stroke.material as MeshStandardMaterial).opacity).toBeLessThan(0.75);
+      at(1400);
+      expect(staple(layer)).toBeNull();
+      clock.mockRestore();
+    });
+
+    it('halts a column joining the pile at its edge, nowhere else (#277)', async () => {
+      const one = (await standing('infantry')).edgeAt([2, 48]);
+      const layer = await standing('infantry', 'armor', 'landTransport');
+      expect(one).toBeGreaterThan(0);
+      // A wider rank, a further edge.
+      expect(layer.edgeAt([2, 48])).toBeGreaterThan(one);
+      expect(layer.edgeAt([2.5, 48])).toBe(0);
+    });
 
     it('holds the rank as it stood until the newcomer arrives, then glides it in half a second', async () => {
       const { was, at, clock } = await grown([1000]);
@@ -689,5 +768,109 @@ describe('a gun going into battery', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('a pile drawn again under a gesture (#277)', () => {
+  const flat = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, -lat),
+  } as unknown as WorldFrame;
+  const eye = new Vector3(2, 3, -45);
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const one = (id: string, role: UnitRole, carriedBy?: string) => ({
+    ...troop(role),
+    id,
+    ...(carriedBy === undefined ? {} : { carriedBy }),
+  });
+  const pile = (id: string, lon: number, ...troops: ReturnType<typeof one>[]) => ({
+    id,
+    at: { lonLat: [lon, 48] as const },
+    pieces: pilePieces(troops),
+  });
+  const drawn = async (...piles: ReturnType<typeof pile>[]) => {
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display(piles);
+    await tick();
+    layer.orient(eye);
+    layer.orient(eye);
+    return layer;
+  };
+  const x = (layer: StandingLayer, id: string) => layer.placeOf(id)!.at.x;
+
+  it('holds a pile a sequence will claim, then stands it once the wait is over', async () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+    const layer = await drawn(pile('p', 2, one('a', 'infantry')));
+    const was = x(layer, 'p/0');
+    layer.display([pile('p', 2, one('a', 'infantry'), one('b', 'armor'))]);
+    layer.expect('p');
+    await tick();
+    layer.orient(eye);
+    layer.orient(eye);
+    expect(x(layer, 'p/0')).toBeCloseTo(was, 6);
+    clock.mockReturnValue(3000);
+    layer.orient(eye);
+    expect(x(layer, 'p/0')).not.toBeCloseTo(was, 3);
+    clock.mockRestore();
+  });
+
+  it('remembers where each troop last stood as its pile is drawn again, for three seconds', async () => {
+    const date = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const squad = [one('a', 'infantry'), one('b', 'armor')];
+    const layer = await drawn(pile('p', 2, ...squad));
+    const stood = layer.placeOf('p/1')!.at.clone();
+    const apart = [pile('p', 2, squad[0]!), pile('q', 2.3, squad[1]!)];
+    layer.display(apart);
+    expect(layer.lastSeen('b')!.at.distanceTo(stood)).toBeCloseTo(0, 6);
+    date.mockReturnValue(3001);
+    layer.display(apart);
+    expect(layer.lastSeen('b')).toBeNull();
+    date.mockRestore();
+  });
+
+  it('holds the men just landed on their truck, the same however often it is asked', async () => {
+    const layer = await drawn(pile('p', 2, one('t', 'landTransport'), one('i', 'infantry', 't')));
+    layer.display([pile('p', 2, one('t', 'landTransport'), one('i', 'infantry'))]);
+    await tick();
+    layer.orient(eye);
+    const groups = layer.piecesOf('p')!.groups;
+    const truck = `p/${groups.findIndex(({ role }) => role === 'landTransport')}`;
+    const men = `p/${groups.findIndex(({ role }) => role === 'infantry')}`;
+    layer.anchor(truck);
+    const held = [x(layer, truck), x(layer, men)];
+    layer.anchor(truck);
+    expect([x(layer, truck), x(layer, men)]).toEqual(held);
+    layer.arrive('p', []);
+    const gap = held[0]! - x(layer, truck);
+    expect(Math.abs(gap)).toBeGreaterThan(1e-3);
+    expect(held[1]! - x(layer, men)).toBeCloseTo(gap, 6);
+  });
+
+  it('draws a man boarding until his walk ends, and forgets him with his pile', async () => {
+    const truck = pile('p', 2, one('t', 'landTransport'));
+    const layer = await drawn(truck);
+    const rider = {
+      troopId: 'i',
+      figures: [1, 1, 1] as const,
+      at: new Vector3(2, 0, -48),
+      heading: 0,
+    };
+    const [walker] = layer.board('p', [rider]);
+    await tick();
+    expect(layer.placeOf(walker!)).not.toBeNull();
+    layer.standIn(walker!, new Group());
+    layer.standIn(walker!, null);
+    expect(layer.placeOf(walker!)).toBeNull();
+    const [again] = layer.board('p', [rider]);
+    await tick();
+    layer.display([]);
+    layer.display([truck]);
+    await tick();
+    layer.orient(eye);
+    expect(layer.placeOf(again!)).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { LonLat } from '@/domain/geo';
+import { samePoint, type LonLat } from '@/domain/geo';
 import { type Box3, type Frustum, Group, Vector3, type Camera, type Raycaster } from 'three';
 import {
   pawnTarget,
@@ -176,6 +176,16 @@ export class ArcLayer {
   >();
   fileLeftBy(troopId: string): (FilePiece & { readonly road: ReadonlyArray<Vector3> }) | null {
     return this.left.get(troopId) ?? null;
+  }
+  /** **How far short of its end a pawn stops** (#277), on the board: a column joining a pile
+   *  halts at its edge, not among its pieces. 0 where nothing stands. */
+  stopShort: (end: LonLat) => number = () => 0;
+  /** **Whether one of my columns still heads for `end`** (#277): the squad there is not yet formed. */
+  headsFor(end: LonLat): boolean {
+    return this.rendered.some(({ arc }) => {
+      const last = arc.state === 'mine' ? arc.route.points.at(-1) : undefined;
+      return last !== undefined && samePoint(last, end);
+    });
   }
   /** Kept across displays, which come at every step of any column: a crate falls once. */
   private readonly crates = new Map<string, CratePile>();
@@ -452,11 +462,21 @@ export class ArcLayer {
       // The share walked is read from the hour (#183): the arc carries the server's dates and
       // keeps its identity from one answer to the next, so no answer moves a pawn.
       const position = temporalPosition(rendered.unrolled, arcProgressAt(rendered.arc, clock));
-      const { legIndex, local } = pawnTarget(position);
+      const target = pawnTarget(position);
+      const { legIndex } = target;
+      const leg = rendered.thread.legs[legIndex];
+      const end = rendered.arc.route.points.at(-1);
+      const short =
+        leg !== undefined && legIndex === rendered.thread.legs.length - 1 && end !== undefined
+          ? this.stopShort(end)
+          : 0;
+      const local =
+        short > 0 && leg!.length > 0
+          ? Math.min(target.local, Math.max(0, 1 - short / leg!.length))
+          : target.local;
 
       rendered.thread.cut(legIndex, local);
 
-      const leg = rendered.thread.legs[legIndex];
       let turn = 0;
       if (leg !== undefined) {
         pointOnLeg(leg, local, this.pawnPoint);
