@@ -13,7 +13,7 @@ import { buildingSprite } from '@/emblems/buildings/manifest';
 import { lootWords } from '@/domain/journal';
 import { destinationPoint, type LonLat } from '@/domain/geo';
 import { BASIN_FLATTENING, BASIN_KM } from '@/domain/deposit-basins';
-import { DEPOSIT_POINTS } from '@/domain/world';
+import { DEPOSIT_POINTS, depositAt } from '@/domain/world';
 import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
@@ -73,6 +73,12 @@ export function markersOf(
   const woken = new Map(
     (calls ?? []).map((call) => [call.deposit.id, call.refusal ?? ('open' as const)]),
   );
+  const minedBy = new Map(
+    view.me.buildings.flatMap((building) => {
+      const point = depositAt(building.point);
+      return point === null ? [] : [[point.id, buildingLabelId(building)] as const];
+    }),
+  );
   const deposits: ReadonlyArray<MapMarker> =
     (toggles.deposits || calls !== null) && view.mode !== 'blitz'
       ? DEPOSIT_POINTS.map((point) => {
@@ -85,6 +91,7 @@ export function markersOf(
             lonLat: destinationPoint(point.lonLat, BASIN_KM * BASIN_FLATTENING, 180),
             deposit: point.deposit,
             ...(holder === undefined ? {} : { held: holder }),
+            ...(minedBy.has(point.id) ? { clears: minedBy.get(point.id)! } : {}),
             ...(wake === undefined ? {} : { wake }),
           };
         })

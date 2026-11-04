@@ -316,6 +316,10 @@ export function MapLabels({
     return () => timers.forEach((timer) => clearTimeout(timer));
   }, []);
   /** The labels that carry a transport's tag: only they look for their figurines each frame. */
+  const clearing = useRef<ReadonlyMap<string, string>>(new Map());
+  clearing.current = new Map(
+    labels.flatMap((label) => (label.clears === undefined ? [] : [[label.id, label.clears]])),
+  );
   const cargoed = useRef<ReadonlySet<string>>(new Set());
   cargoed.current = new Set(
     labels.flatMap((label) => ((label.cargo?.length ?? 0) > 0 ? [label.id] : [])),
@@ -728,9 +732,14 @@ export function MapLabels({
           tether.style.transform = `rotate(${turn})`;
         }
 
-        anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
+        // A worked deposit's name hangs under the maquette that stands on it: its plinth is
+        // wider than the basin the name was written below (#445).
+        const standing = clearing.current.get(projection.id);
+        const plinth = standing === undefined ? null : engine.pieceRect(standing);
+        const y = plinth === null ? projection.y : Math.max(projection.y, plinth.bottom);
+        anchor.style.transform = `translate3d(${projection.x}px, ${y}px, 0)`;
         state.x = projection.x;
-        state.y = projection.y;
+        state.y = y;
         // A transport's tag hangs over its figurines, not its point: on a shore they stand inland.
         if (cargoed.current.has(projection.id)) {
           const rect =

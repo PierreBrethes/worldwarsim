@@ -243,6 +243,8 @@ export type MapMarker =
       readonly deposit: DepositKey;
       /** Who is known to work it (`depositHolders`), absent while it is free. */
       readonly held?: { readonly mine: boolean; readonly level: number | null };
+      /** The label id of my building standing on it (`buildingLabelId`), absent while none does. */
+      readonly clears?: string;
       /** **Woken by a key in hand** (#239): the pose takes it (`open`), or the refusal it would
        *  give on its point. */
       readonly wake?: 'open' | NonNullable<AimVerdict['refusal']>;
@@ -417,6 +419,9 @@ export type MapLabel = {
   /** **A deposit woken by a key in hand** (#239): written in its resource's ink, in red when the
    *  pose would refuse it. */
   readonly wake?: { readonly deposit: DepositKey; readonly open: boolean };
+  /** **The label of the maquette standing on this deposit** (#445): its name hangs below that
+   *  piece's plinth, not below the basin the plinth overruns. */
+  readonly clears?: string;
   /** The private sighting a click opens; every other label carries null. */
   readonly lootSightingId: string | null;
   /** False gives a known crate its stale, dashed treatment. */
@@ -982,6 +987,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
         // A click on a deposit says nothing the ground does not: the region's own click
         // already selects the country.
         hostCountry: null,
+        ...(marker.clears === undefined ? {} : { clears: marker.clears }),
         ...(marker.wake === undefined || marker.held !== undefined
           ? {}
           : { wake: { deposit: marker.deposit, open: marker.wake === 'open' } }),

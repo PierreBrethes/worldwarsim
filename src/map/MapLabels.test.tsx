@@ -358,6 +358,72 @@ describe('a deposit on the map', () => {
     expect(container.querySelector('.label--deposit img')).toBeNull();
     expect(container.querySelector('.label--deposit')?.textContent).toContain('charbon');
   });
+
+  /** #445 : le nom s'écrit sous le bassin, mais la maquette bâtie dessus a un socle plus large. */
+  it('hangs its name below the building that stands on it, not under its plinth', () => {
+    const engine: Record<string, unknown> = {
+      setLabelAnchors: () => {},
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      pieceRect: (id: string) =>
+        id === 'building-mine@3,50' ? { left: 700, right: 860, top: 160, bottom: 269 } : null,
+      cameraDistance: () => 20,
+    };
+    const worked = { ...deposit('held', [3, 50]), clears: 'building-mine@3,50' } as MapLabel;
+    render(
+      <MapLabels
+        labels={[worked, deposit('free', [4, 50])]}
+        engine={engine as never}
+        selected={null}
+        secondarySelected={null}
+        onMovementHover={noop}
+        onReachHover={noop}
+        poster={() => null}
+        onSelect={noop}
+        onOpenBuilding={noop}
+        onOpenStack={noop}
+        onOpenLoot={noop}
+        onOpenCamp={noop}
+        onOpenObjective={noop}
+        onOpenStrategic={noop}
+        onAct={noop}
+        onCancelHeld={noop}
+        mapping={CLASSIC_MAPPING}
+        holding={false}
+        onHoldOver={noop}
+        muted
+      />,
+    );
+    const project = (id: string) => ({
+      id,
+      visible: true,
+      x: 796,
+      y: 246,
+      lod: 'expanded',
+      fade: 1,
+      dressed: 0,
+      far: false,
+      drawnX: 0,
+      drawnY: 0,
+      distance: 20,
+      atEdge: false,
+      edgeX: 0,
+      edgeY: 0,
+      heading: 0,
+    });
+    act(() =>
+      (engine.onLabels as (projections: ReadonlyArray<unknown>) => void)([
+        project('held'),
+        project('free'),
+      ]),
+    );
+    const at = (id: string) =>
+      (document.querySelector(`[data-label-id="${id}"]`)?.parentElement as HTMLElement).style
+        .transform;
+    expect(at('held')).toBe('translate3d(796px, 269px, 0)');
+    expect(at('free')).toBe('translate3d(796px, 246px, 0)');
+  });
 });
 
 /**
