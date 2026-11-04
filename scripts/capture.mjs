@@ -23,7 +23,8 @@
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
- * `--horloge` tient l'heure du jeu (`Date.now`) à cet instant ISO, pour un fondu d'une demi-seconde.
+ * `--horloge` tient l'heure du jeu (`Date.now`) à cet instant ISO ; `horloge=ISO[,ms]` la déplace en
+ * cours de route et capture `ms` après : le milieu d'un fondu d'une demi-seconde.
  * `--heure` tient le soleil à cet instant ISO (avec Z ; midi UTC sans l'option) : il s'ajoute à l'URL
  * et toute autre écriture est refusée. `lieu=@<id>[,distance[,pente°]]` cadre une pile
  * (`stack-point:lon,lat`) ou un bâtiment (`building-<clé>@lon,lat`) là où elle est dessinée, à 3 par
@@ -278,6 +279,14 @@ try {
           await page.waitForTimeout(1000);
         }
       }
+    } else if (kind === 'horloge') {
+      // L'heure du jeu passe là, la carte redessine, et la capture tombe `ms` après, sans l'attente
+      // commune : le milieu d'un fondu d'une demi-seconde (#433).
+      const [at, ms = '0'] = value.split(',');
+      await page.clock.setFixedTime(new Date(at));
+      await page.evaluate(() => globalThis.mapEngine.invalidate());
+      await page.waitForTimeout(Number(ms));
+      continue;
     } else if (kind === 'ralenti') {
       const devtools = await page.context().newCDPSession(page);
       await devtools.send('Animation.enable');
