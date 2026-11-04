@@ -502,6 +502,60 @@ const PACES: Readonly<Record<'infantry' | 'armor' | 'landTransport' | 'artillery
  *  site, the storyboard's 4.2 m. `@a-mesurer` */
 const QUAY_RING_METRES = 4.2;
 
+type Site = NonNullable<ReturnType<MaquetteLayer['siteOf']>>;
+
+/** One metre of a site's model, in units of the board. */
+function metreOf(site: Site): number {
+  return site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+}
+
+/**
+ * **A truck's plan at a site's quay** (#271, #278), what `loadingAt` reads: its rank and the way
+ * it faces there in the site's model, its length on the board, and `origin` the board point its
+ * moves are measured from (its place in the pile, or its pawn's foot on a tour).
+ */
+function planOf(
+  site: Site,
+  siteId: string,
+  at: {
+    stop: Vector3;
+    front: Vector3;
+    rank: Vector3;
+    rankFront: Vector3;
+    long: number;
+    crates: number;
+    origin: Vector3;
+    tour?: Docked['plan']['tour'];
+  },
+): Docked['plan'] {
+  const inside = site.marker('fx_entree');
+  const door = site.marker('fx_sortie');
+  return {
+    rank: at.rank.toArray(),
+    rankFront: at.rankFront.toArray(),
+    length: at.long / metreOf(site),
+    box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
+    socle: { min: site.box.min.toArray(), max: site.box.max.toArray() },
+    quay: { stop: at.stop.toArray(), front: at.front.setY(0).normalize().toArray() },
+    perron:
+      siteId.startsWith('building-warehouse') && inside !== null && door !== null
+        ? {
+            crates: site.crates.map(({ name, at }) => ({ name, at: at.toArray() })),
+            inside: inside.toArray(),
+            door: door.toArray(),
+            top: door.y,
+          }
+        : null,
+    crates: Array<number>(Math.min(at.crates, MAX_CRATES)).fill(0),
+    toBoard: (point) =>
+      site
+        .toBoard(new Vector3(...point))
+        .sub(at.origin)
+        .toArray(),
+    ...(at.tour && { tour: at.tour }),
+  };
+}
+
 export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
@@ -2977,7 +3031,7 @@ export class MapEngine {
     const ids = cue.groups.map((k) => `${cue.pileId}/${k}`);
     const places = ids.map((id) => this.standing.placeOf(id));
     if (site === null || pieces === null || places.some((place) => place === null)) return false;
-    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+    const metre = metreOf(site);
     // The way goes round the building, on its socle's yard when it stands on one.
     const box = { min: site.building.min.toArray(), max: site.building.max.toArray() };
     const queued = { caserne: 0, remise: 0 };
@@ -3436,38 +3490,16 @@ export class MapEngine {
       )
     )
       return 'done';
-    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
     const rank = site.toModel(place.at);
-    const inside = site.marker('fx_entree');
-    const door = site.marker('fx_sortie');
-    const plan: Docked['plan'] = {
-      rank: rank.toArray(),
-      rankFront: site
-        .toModel(place.at.clone().add(place.front))
-        .sub(rank)
-        .setY(0)
-        .normalize()
-        .toArray(),
-      length: long / metre,
-      box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
-      socle: { min: site.box.min.toArray(), max: site.box.max.toArray() },
-      quay: { stop: stop.toArray(), front: front.setY(0).normalize().toArray() },
-      perron:
-        cue.siteId.startsWith('building-warehouse') && inside !== null && door !== null
-          ? {
-              crates: site.crates.map(({ name, at }) => ({ name, at: at.toArray() })),
-              inside: inside.toArray(),
-              door: door.toArray(),
-              top: door.y,
-            }
-          : null,
-      crates: Array<number>(Math.min(cue.crates, MAX_CRATES)).fill(0),
-      toBoard: (point) =>
-        site
-          .toBoard(new Vector3(...point))
-          .sub(place.at)
-          .toArray(),
-    };
+    const plan = planOf(site, cue.siteId, {
+      stop,
+      front,
+      rank,
+      rankFront: site.toModel(place.at.clone().add(place.front)).sub(rank).setY(0).normalize(),
+      long,
+      crates: cue.crates,
+      origin: place.at,
+    });
     const { docked, truck, site: quay } = dockedOf(plan, cue.siteId, now);
     if (!this.sequences.play(this.standing, cue.groupId, truck, now)) return 'done';
     this.docked.set(cue.groupId, docked);
@@ -3491,7 +3523,7 @@ export class MapEngine {
     if (motion === 'reduced') {
       const quay = site?.marker('fx_quai');
       if (site && quay) {
-        const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+        const metre = metreOf(site);
         this.standing.rippleAt(site.toBoard(quay), QUAY_RING_METRES * metre);
       }
       return 'done';
@@ -3530,39 +3562,22 @@ export class MapEngine {
     const foot = this.arcs.hold(cue.arcId, inside, Infinity);
     if (foot === null) return 'done';
     this.heldTours.add(cue.arcId);
-    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
     // Out of its rank, where it waited for its stock; or from the road, when it was not seen.
     const stood = cue.from === 'rank' ? this.standing.lastSeen(cue.troopId) : null;
-    const rankAt = site.toModel(stood?.at ?? foot);
+    const rank = site.toModel(stood?.at ?? foot);
     const ahead = stood
       ? stood.at.clone().add(new Vector3(Math.sin(stood.heading), 0, Math.cos(stood.heading)))
-      : foot;
-    const dark = site.marker('fx_entree');
-    const door = site.marker('fx_sortie');
-    const plan: Docked['plan'] = {
-      rank: rankAt.toArray(),
-      rankFront: stood ? site.toModel(ahead).sub(rankAt).setY(0).normalize().toArray() : [0, 0, 1],
-      length: long / metre,
-      box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
-      socle: { min: site.box.min.toArray(), max: site.box.max.toArray() },
-      quay: { stop: stop.toArray(), front: front.setY(0).normalize().toArray() },
-      perron:
-        cue.siteId.startsWith('building-warehouse') && dark !== null && door !== null
-          ? {
-              crates: site.crates.map(({ name, at }) => ({ name, at: at.toArray() })),
-              inside: dark.toArray(),
-              door: door.toArray(),
-              top: door.y,
-            }
-          : null,
-      crates: Array<number>(Math.min(cue.crates, MAX_CRATES)).fill(0),
-      toBoard: (point) =>
-        site
-          .toBoard(new Vector3(...point))
-          .sub(foot)
-          .toArray(),
+      : null;
+    const plan = planOf(site, cue.siteId, {
+      stop,
+      front,
+      rank,
+      rankFront: ahead ? site.toModel(ahead).sub(rank).setY(0).normalize() : new Vector3(0, 0, 1),
+      long,
+      crates: cue.crates,
+      origin: foot,
       tour: { foot: site.toModel(foot).toArray(), fromRank: stood !== null },
-    };
+    });
     const { docked, truck, site: quay } = dockedOf(plan, cue.siteId, now, true);
     if (!this.sequences.play(this.arcs, cue.arcId, truck, now)) return 'done';
     this.arcs.hold(cue.arcId, inside, now + truck.ms);
