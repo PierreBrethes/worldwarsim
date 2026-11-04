@@ -113,13 +113,28 @@ export function nearestCoast(
   withinKm: number,
   regionId: string | null = null,
 ): { readonly lonLat: LonLat; readonly regionId: string } | null {
+  const found = nearestSegment(coast, lonLat, withinKm, regionId);
+  const { outline, sphere } = coast.projection;
+  return found === null
+    ? null
+    : { lonLat: lonLatAtProjected(outline, sphere, [found.x, found.y]), regionId: found.regionId };
+}
+
+/** The nearest point of an open-sea coast, on the sheet, with the line and segment it lies on. */
+function nearestSegment(
+  coast: Coast,
+  lonLat: LonLat,
+  withinKm: number,
+  regionId: string | null,
+): { x: number; y: number; regionId: string; line: Float32Array; i: number } | null {
   const { outline, sphere } = coast.projection;
   const [x, y] = projectLonLat(outline, sphere, lonLat);
   const [a, b, c] = squaredKmPerUnit(coast.projection, lonLat, [x, y]);
   const smallest = (a + c) / 2 - Math.sqrt(((a - c) / 2) ** 2 + b * b);
   const reach = withinKm / Math.sqrt(smallest);
   let best = withinKm * withinKm;
-  let found: { x: number; y: number; regionId: string } | null = null;
+  let found: { x: number; y: number; regionId: string; line: Float32Array; i: number } | null =
+    null;
   for (const id of regionId === null ? coast.regions : [regionId]) {
     const region = coast.coastOf.get(id);
     if (region === undefined) continue;
@@ -136,13 +151,54 @@ export function nearestCoast(
         const t = length === 0 ? 0 : Math.min(1, Math.max(0, along / length));
         const [ex, ey] = [ux - t * dx, uy - t * dy];
         const squared = a * ex * ex + 2 * b * ex * ey + c * ey * ey;
-        if (squared <= best) [best, found] = [squared, { x: x - ex, y: y - ey, regionId: id }];
+        if (squared <= best)
+          [best, found] = [squared, { x: x - ex, y: y - ey, regionId: id, line, i }];
       }
     }
   }
-  return found === null
-    ? null
-    : { lonLat: lonLatAtProjected(outline, sphere, [found.x, found.y]), regionId: found.regionId };
+  return found;
+}
+
+/**
+ * **La côte que regarde un port** (#436) : son point de côte le plus proche, à `withinKm` au plus,
+ * et la normale de sa ligne vers le large, un vecteur unité de la feuille. Les segments de la même
+ * ligne y comptent par leur longueur et leur proximité — une cloche de `nearKm`, coupée à trois :
+ * l'eau devant le port, pas la corde d'une baie ni le tour d'une île. Une moyenne qui tourne le dos
+ * au segment le plus proche lui cède la place. `null` loin de toute côte.
+ */
+export function coastFacing(
+  coast: Coast,
+  lonLat: LonLat,
+  withinKm: number,
+  nearKm: number,
+): { readonly lonLat: LonLat; readonly seaward: readonly [number, number] } | null {
+  const found = nearestSegment(coast, lonLat, withinKm, null);
+  if (found === null) return null;
+  const { outline, sphere } = coast.projection;
+  const at = lonLatAtProjected(outline, sphere, [found.x, found.y]);
+  const [a, b, c] = squaredKmPerUnit(coast.projection, at, [found.x, found.y]);
+  const km = (dx: number, dy: number) => Math.sqrt(a * dx * dx + 2 * b * dx * dy + c * dy * dy);
+  const { line } = found;
+  // The land on the left of whoever walks the line: on the sheet, whose y runs south, the sea is
+  // on its left as drawn — the walker's (dy, -dx), as long as the segment.
+  const normalAt = (i: number): [number, number] => [
+    line[i + 3]! - line[i + 1]!,
+    line[i]! - line[i + 2]!,
+  ];
+  let [sx, sy] = [0, 0];
+  for (let i = 0; i + 3 < line.length; i += 2) {
+    const [mx, my] = [(line[i]! + line[i + 2]!) / 2, (line[i + 1]! + line[i + 3]!) / 2];
+    const near = km(mx - found.x, my - found.y) / nearKm;
+    if (near > 3) continue;
+    const [nx, ny] = normalAt(i);
+    const weight = Math.exp(-near * near);
+    sx += nx * weight;
+    sy += ny * weight;
+  }
+  const [px, py] = normalAt(found.i);
+  if (sx * px + sy * py <= 0) [sx, sy] = [px, py];
+  const length = Math.hypot(sx, sy);
+  return length === 0 ? null : { lonLat: at, seaward: [sx / length, sy / length] };
 }
 
 /**

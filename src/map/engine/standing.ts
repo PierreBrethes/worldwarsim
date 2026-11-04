@@ -848,7 +848,9 @@ export class StandingLayer implements SequenceHost {
       change === null ? null : setTimeout(() => this.display(this.piles), change - now + 1);
     const next = new Map<string, Dressed>();
     for (const pile of piles) {
-      const key = drawnKey(this.nation, pile.pieces, now);
+      // A port that turns, or lands, ranks its hulls again along its front (#436).
+      const shore = this.shoreOf(pile.at);
+      const key = `${drawnKey(this.nation, pile.pieces, now)} ${shore?.map((v) => v.toFixed(3))}`;
       const kept = this.dressed.get(pile.id);
       // A pile grown under the eyes is a squad formed or joined (POC, `merge`): said once it
       // stands, or when the newcomer reaches its rank (`arrive`).
@@ -866,7 +868,7 @@ export class StandingLayer implements SequenceHost {
         next.set(pile.id, kept);
         continue;
       }
-      const built = pileObject(this.nation, pile.pieces, this.shoreOf(pile.at));
+      const built = pileObject(this.nation, pile.pieces, shore);
       if (built === null) continue;
       for (const smoke of built.smokes) smoke.frame(this.time);
       for (const target of built.targets) target.userData.pileId = pile.id;
@@ -1372,8 +1374,11 @@ export class StandingLayer implements SequenceHost {
     if (entry) wash(entry.object, false);
   }
 
-  /** Toward the water from a pile on a shore, or from the quay of a port's garrison. */
+  /** Toward the water from a pile on a shore, or from the quay of a port's garrison: its port's
+   *  front once it stands, its water edge to the sea (#436). */
   private shoreOf(at: StandingPile['at']): readonly [number, number] | null {
+    const port = 'beside' in at && at.quay !== undefined && this.garrisonAt(at.beside, 0, true);
+    if (port) return [Math.sin(port.facing), Math.cos(port.facing)];
     const point = 'lonLat' in at ? at.lonLat : at.quay;
     return point === undefined ? null : this.seaward(point);
   }

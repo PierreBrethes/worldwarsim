@@ -17,8 +17,10 @@ import type { LonLat } from '@/domain/geo';
 import type { StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
+import { GROUP_SPACING } from '@/domain/pile-layout';
 import {
   ANONYMOUS_SPAN,
+  LAID_OUT_FOR,
   type PinnedBy,
   pieceWeight,
   posedScene,
@@ -116,6 +118,26 @@ function lisereOf({ side, ink }: StandingMaquette): Color | null {
     .lerp(SOCLE_PAPER.clone().convertLinearToSRGB(), HOLLOW)
     .convertSRGBToLinear();
 }
+
+/**
+ * **The sea a port faces** (#436), from its point: toward it, a unit vector on the board, and a
+ * point of the coast line on the board, read from `coast.json` — `null` before it lands: the port
+ * then only turns to the sea.
+ */
+export type SeaFront = {
+  readonly seaward: readonly [number, number];
+  readonly line: readonly [number, number] | null;
+};
+
+/** **A port's water edge** (#436): its quay, the marker its model lays on the coast line. */
+const WATER_EDGE = 'fx_bord_eau';
+
+/** **A coastal site turns when its hashed turn wets more of its socle than this** (#436,
+ *  Décisions du 04/11). */
+const SOCLE_WET = 0.1;
+
+/** The socle is read wet or dry on a grid of this many cells a side. */
+const SOCLE_SAMPLES = 7;
 
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */
 export function yawOf(id: string): number {
@@ -484,15 +506,10 @@ function ringed(
 /**
  * **How far from its maquette a building's garrison stands**, in board units at full size: a
  * span and a seventh of its site off its centre — 0.8 for the former 0.7 —, so that its back
- * clears the corner of a model turned any way, and half the pile's largest piece more, so that a
- * cargo stands off its port as a man off his barracks. `@a-mesurer`
+ * clears the corner of a model turned any way, and half the pile's largest piece more. The hulls
+ * of a port dock at its water edge instead (`quayStep`). `@a-mesurer`
  */
-export const garrisonFoot = (site: number, pile: number, quay = false): number =>
-  (quay ? QUAY_SHARE : 8 / 7) * site + pile / 2;
-
-/** **The hulls of a port dock along its quay** (ADR 0035 §1, « un cargo qui tient le long de son
- *  port »): half its span off its centre, its side, rather than clear of its corners. */
-const QUAY_SHARE = 0.5;
+export const garrisonFoot = (site: number, pile: number): number => (8 / 7) * site + pile / 2;
 
 /**
  * **Two maquettes of a ring stand this many of their half footprints apart**, centre to centre:
@@ -535,6 +552,9 @@ type Placed = {
   readonly at: Vector3;
   /** Where its garrison stands from it (`Placement.facing`). */
   facing: number;
+  /** Its turn about the vertical (`pose`): hashed from its id, to the sea for a port, inland for
+   *  a socle the hashed one wets. */
+  yaw: number;
   /** Its group's size against a lone maquette's: a tight group shrinks rather than spreads. */
   scale: number;
   readonly turn: Quaternion;
@@ -637,6 +657,8 @@ export class MaquetteLayer implements SequenceHost {
     private readonly posed: (at: Vector3, words: StampWords) => void,
     /** Whether a board point is land: a site on land never stands off it. */
     private readonly onLand: (x: number, z: number) => boolean,
+    /** The sea a port at this board point faces, `null` for none known. */
+    private readonly seaFront: (x: number, z: number) => SeaFront | null = () => null,
   ) {}
 
   /** Re-served at every step of any column: says whether anything changed, and only then
@@ -729,6 +751,7 @@ export class MaquetteLayer implements SequenceHost {
         ground,
         at: ground.clone(),
         facing: 0,
+        yaw: yawOf(maquette.id),
         scale: 1,
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
@@ -767,19 +790,23 @@ export class MaquetteLayer implements SequenceHost {
 
   /**
    * **Where my port standing at (`x`, `z`) docks a hull of `span`**, as the port is drawn (#433):
-   * its quay off the point a ring carried it from, and the size it is drawn at — the hull's too.
+   * along its water edge (#436), off the point a ring carried it from, and the size it is drawn
+   * at — the hull's too.
    * `null` for no port there, or one not landed.
    */
-  quayAt(x: number, z: number, span: number): { at: Vector3; scale: number } | null {
+  quayAt(
+    x: number,
+    z: number,
+    span: number,
+  ): { at: Vector3; scale: number; front: readonly [number, number] } | null {
     for (const [id, { item, lot }] of this.byId) {
       if (!id.startsWith('building-port') || lot.model === null) continue;
       if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
-      const { at, facing, scale } = item;
-      const foot = garrisonFoot(item.span * scale, span * scale, true) * pieceScale.size;
-      return {
-        at: new Vector3(at.x + foot * Math.sin(facing), at.y, at.z + foot * Math.cos(facing)),
-        scale,
-      };
+      const { at, scale } = item;
+      // Its file has its water edge (`maquettes.test.ts` in emblems).
+      const edge = quayStep(item, lot.model, span * scale * pieceScale.size);
+      if (edge === null) return null;
+      return { at: edge.add(at), scale, front: [Math.sin(item.yaw), Math.cos(item.yaw)] };
     }
     return null;
   }
@@ -836,9 +863,7 @@ export class MaquetteLayer implements SequenceHost {
   }
 
   private place(): void {
-    const items = [...this.byId.values(), ...this.held.values()]
-      .map(({ item }) => item)
-      .sort((a, b) => (a.id < b.id ? -1 : 1));
+    const items = this.placedItems().sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
       items.map(({ spacing }) => spacing * pieceScale.size),
@@ -847,18 +872,96 @@ export class MaquetteLayer implements SequenceHost {
       items.map(({ span }) => garrisonFoot(span, ANONYMOUS_SPAN) * pieceScale.size),
       { maxShift: MAX_SHIFT, onLand: this.onLand },
     );
+    const models = new Map([
+      ...[...this.byId.values()].map(({ item, lot }) => [item, lot.model] as const),
+      ...[...this.held.values()].map(({ item, model }) => [item, model] as const),
+    ]);
     items.forEach((item, k) => {
       const { at, facing, scale } = placed[k]!;
       item.facing = facing;
       item.scale = scale;
       item.at.set(at[0], item.ground.y, at[1]);
       item.near = -1;
+      const model = models.get(item);
+      if (model) this.pose(item, model);
     });
+  }
+
+  /**
+   * **Which way a maquette turns** (#436), once its model is known: a port faces the sea, and lays
+   * its water edge on the coast line once `coast.json` has landed — it alone steps back from its
+   * point, its pin with it, never further than `MAX_SHIFT`; a socle its hashed turn wets takes the
+   * one of the eight that keeps it on land.
+   */
+  private pose(item: Placed, model: Model): void {
+    const edge = model.markers.get(WATER_EDGE);
+    const shore = edge === undefined ? null : this.seaFront(item.ground.x, item.ground.z);
+    const size = sizeOf(model, item);
+    let yaw = yawOf(item.id);
+    if (shore !== null) {
+      const [sx, sz] = shore.seaward;
+      yaw = Math.atan2(sx, sz);
+      if (shore.line !== null) {
+        const { at, ground } = item;
+        const [dx, dz] = [at.x - ground.x, at.z - ground.z];
+        const dn = dx * sx + dz * sz;
+        const room =
+          dn * dn - dx * dx - dz * dz + (MAX_SHIFT * item.spacing * pieceScale.size) ** 2;
+        // Along the normal, as far as its edge onto the line, within its bound around its point.
+        const wanted = (shore.line[0] - at.x) * sx + (shore.line[1] - at.z) * sz - edge!.z * size;
+        let step =
+          room < 0 ? 0 : Math.min(Math.max(wanted, -dn - Math.sqrt(room)), -dn + Math.sqrt(room));
+        // Never into a neighbour, nearer than the ring would stand the two (`ringed`).
+        for (const other of this.placedItems()) {
+          if (other === item) continue;
+          const [ox, oz] = [at.x - other.at.x, at.z - other.at.z];
+          const apart =
+            ((item.spacing * item.scale + other.spacing * other.scale) / 2) * pieceScale.size;
+          const along = ox * sx + oz * sz;
+          const clear = along * along - ox * ox - oz * oz + apart * apart;
+          if (clear <= 0) continue;
+          const [near, far] = [-along - Math.sqrt(clear), -along + Math.sqrt(clear)];
+          if (step < 0 && far <= 0 && far > step) step = far;
+          if (step > 0 && near >= 0 && near < step) step = near;
+        }
+        at.set(at.x + step * sx, at.y, at.z + step * sz);
+      }
+    } else if (model.dressing.length > 0) {
+      const wet = (turn: number) => {
+        const { min, max } = model.box;
+        const [cos, sin] = [Math.cos(turn), Math.sin(turn)];
+        let count = 0;
+        for (let i = 0; i < SOCLE_SAMPLES; i++)
+          for (let j = 0; j < SOCLE_SAMPLES; j++) {
+            // At the middle of each cell: its edge rows would weigh a sliver of sea twice.
+            const mx = min.x + ((max.x - min.x) * (i + 0.5)) / SOCLE_SAMPLES;
+            const mz = min.z + ((max.z - min.z) * (j + 0.5)) / SOCLE_SAMPLES;
+            const x = item.at.x + size * (mx * cos + mz * sin);
+            const z = item.at.z + size * (-mx * sin + mz * cos);
+            if (!this.onLand(x, z)) count++;
+          }
+        return count / SOCLE_SAMPLES ** 2;
+      };
+      if (wet(yaw) > SOCLE_WET) {
+        const turns = FACINGS.map((facing) => yaw + facing);
+        const wets = turns.map(wet);
+        yaw = turns[wets.indexOf(Math.min(...wets))]!;
+      }
+    }
+    item.yaw = yaw;
+    item.turn.setFromAxisAngle(UP, yaw);
+  }
+
+  /** Every maquette that holds a place on the board: drawn, or razed and still falling. */
+  private placedItems(): Placed[] {
+    return [...this.byId.values(), ...this.held.values()].map(({ item }) => item);
   }
 
   private landed(lot: Lot, model: Model, washed: boolean): void {
     if (![...this.lots.values()].includes(lot)) return;
     lot.model = model;
+    // Its turn, and a port's place on its coast, waited on its model: each stands on its ring.
+    for (const item of lot.items) this.pose(item, model);
     const atWork = lot.atWork;
     if (atWork !== null) {
       // The building alone is at work: its socle stands whole (ADR 0038 §5).
@@ -1187,10 +1290,11 @@ export class MaquetteLayer implements SequenceHost {
     const { at, facing, scale, span } = item;
     // A held site is not oriented any more: its garrison keeps the weight it was drawn at.
     const near = Math.max(held === undefined ? item.near : item.drawnNear, 0);
-    const rank = (held?.model ?? dressed!.lot.model)!.rank;
+    const model = (held?.model ?? dressed!.lot.model)!;
+    const { rank } = model;
     // The hulls of a port keep its quay.
     if (rank !== null && !quay) {
-      const size = near * sizeOf((held?.model ?? dressed!.lot.model)!, item);
+      const size = near * sizeOf(model, item);
       const first = rank.at.clone().setY(0).applyQuaternion(item.turn).multiplyScalar(size);
       const along = rank.along.clone().applyQuaternion(item.turn);
       const deep = rank.deep.clone().applyQuaternion(item.turn);
@@ -1204,8 +1308,19 @@ export class MaquetteLayer implements SequenceHost {
         scale,
       };
     }
+    const edge = quay ? quayStep(item, model, pile * pieceScale.size) : null;
+    if (edge !== null)
+      return {
+        at,
+        step: [edge.x * near, edge.z * near],
+        facing: item.yaw,
+        rank: false,
+        width: Infinity,
+        deep: [0, 0],
+        scale,
+      };
     // The site is drawn at its ring's scale; the pile, at the size it is handed in at (#433).
-    const foot = garrisonFoot(span * scale, pile, quay) * pieceScale.size * near;
+    const foot = garrisonFoot(span * scale, pile) * pieceScale.size * near;
     return {
       at,
       step: [foot * Math.sin(facing), foot * Math.cos(facing)],
@@ -1402,6 +1517,27 @@ const grownOn = (foot: Vector3, growth: number): Matrix4 =>
 /** **Its own units to the board** at full near weight: its span at the player's size, in its group's. */
 const sizeOf = (model: Model, item: Placed): number =>
   model.scale * item.span * pieceScale.size * item.scale;
+
+/** **A hull's beam against its length**, for the side it turns to a quay along the sea's
+ *  east–west. `@a-mesurer` */
+const HULL_BEAM = 0.15;
+
+/**
+ * **Where the fleet of a port stands for a hull of `pile` board units to touch its water edge**
+ * (#436), off the site's point as it is drawn whole; `null` for a model without one. A hull keeps
+ * its turn at a quay (ADR 0028, `rotation.y = 0`): it touches the edge by its stern or by its side,
+ * as the edge runs, and the formation then steps it a group's spacing to seaward (`formationOf`) —
+ * so the pile's point stands that much short of it.
+ */
+function quayStep(item: Placed, model: Model, pile: number): Vector3 | null {
+  const edge = model.markers.get(WATER_EDGE);
+  if (edge === undefined) return null;
+  const [sx, sz] = [Math.sin(item.yaw), Math.cos(item.yaw)];
+  const half = (pile / 2) * (Math.abs(sz) + HULL_BEAM * Math.abs(sx));
+  const short = half - (GROUP_SPACING * pile) / LAID_OUT_FOR;
+  const step = edge.clone().setY(0).multiplyScalar(sizeOf(model, item)).applyQuaternion(item.turn);
+  return step.add(new Vector3(sx * short, 0, sz * short));
+}
 
 /** Up a tenth, down a little, still: the vertical give of a site that just stood up. */
 const bounceAt = (elapsed: number): number | null =>

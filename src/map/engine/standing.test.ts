@@ -914,7 +914,8 @@ describe('a fleet docked at a port drawn smaller', () => {
   it('is drawn at the port scale, stood off by its drawn span, pinned by it', async () => {
     const whole = await docked(1);
     const small = await docked(0.4);
-    const span = whole.piles[0]!;
+    // The first asks are for its port's front alone (#436), at no pile.
+    const span = whole.piles.find((pile) => pile > 0)!;
     expect(small.piles.some((pile) => Math.abs(pile - span * 0.4) < 1e-12)).toBe(true);
     const d = eye.length();
     expect(small.size / whole.size).toBeCloseTo(
@@ -922,5 +923,38 @@ describe('a fleet docked at a port drawn smaller', () => {
       9,
     );
     expect(small.pin).toBeCloseTo(troopPinSpan(span * 0.4), 12);
+  });
+});
+
+/** **Les coques d'un port tourné se rangent le long de son bord d'eau** (#436) : la formation lit le
+ *  cap de la maquette, pas la grille autour du point. */
+describe('a fleet at the quay of a turned port', () => {
+  it('stands its hulls to seaward of the pile along the port front, not along the grid', async () => {
+    const layer = new StandingLayer(
+      { projectLonLat: () => new Vector3() } as unknown as WorldFrame,
+      () => {},
+      () => ({
+        at: new Vector3(),
+        step: [0, 0] as const,
+        facing: Math.PI / 2,
+        rank: false,
+        width: Infinity,
+        deep: [0, 0] as const,
+        scale: 1,
+      }),
+      // The grid round the point reads no shore.
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display([
+      { id: 'f', at: { beside: 'port', quay: [0, 0] }, pieces: pilePieces([troop('cargo')]) },
+    ]);
+    await vi.waitFor(() => expect(layer.group.children.length).toBe(1));
+    const { object } = (
+      layer as unknown as { dressed: Map<string, { object: Group }> }
+    ).dressed.get('f')!;
+    const hull = object.children[0]!;
+    expect(hull.position.x).toBeGreaterThan(0.4);
+    expect(hull.position.z).toBeCloseTo(0, 9);
   });
 });

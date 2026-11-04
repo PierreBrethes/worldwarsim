@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  coastFacing,
   decodeCoast,
   groundOf,
   isLandingShore,
@@ -10,7 +11,7 @@ import {
 } from './coast';
 import { distanceKm, type LonLat } from './geo';
 import { decodeRegionRaster, type RegionRasterAsset } from './region-raster';
-import { decodeGrid, groundAt } from './routing';
+import { decodeGrid, groundAt, lonLatAtProjected, projectLonLat } from './routing';
 import type { Projection } from './world';
 import coastAsset from '../../public/coast.json';
 import gridAsset from '../../public/grid.json';
@@ -106,5 +107,46 @@ describe('la terre exacte', () => {
   it('dit une plage où une coque accoste à Malte, et pas au large', () => {
     expect(isLandingShore(grid, coast, VALLETTA)).toBe(true);
     expect(isLandingShore(grid, coast, OFF_MALTA)).toBe(false);
+  });
+});
+
+describe('la côte que regarde un port (#436)', () => {
+  /** Le cap de la normale, en degrés depuis le nord, mesuré sur le terrain à son point de côte. */
+  const capOf = (at: LonLat, [sx, sy]: readonly [number, number]) => {
+    const [x, y] = projectLonLat(projection.outline, projection.sphere, at);
+    const [lon, lat] = lonLatAtProjected(projection.outline, projection.sphere, [
+      x + sx * 0.01,
+      y + sy * 0.01,
+    ]);
+    const east = (lon - at[0]) * Math.cos((at[1] * Math.PI) / 180);
+    return ((Math.atan2(east, lat - at[1]) * 180) / Math.PI + 360) % 360;
+  };
+
+  // La mer que chacun a devant lui, lue sur une carte : le cap à 45° près. Les huit ports de
+  // l'enquête du 04/11, des baies fermées (la rade de Brest, la baie de Sébastopol) et des îles.
+  it.each([
+    ['Marseille', [5.37, 43.3], 225],
+    ['Le Havre', [0.11, 49.49], 240],
+    ['Brest', [-4.49, 48.38], 180],
+    ['Portsmouth', [-1.1, 50.8], 200],
+    ['Norfolk', [-76.29, 36.85], 315],
+    ['Sébastopol', [33.52, 44.6], 0],
+    ['Kiel', [10.14, 54.32], 20],
+    ['Yokosuka', [139.67, 35.28], 45],
+    ['La Spezia', [9.83, 44.1], 180],
+    ['Shanghai', [121.5, 31.23], 60],
+    ['La Valette', [14.51, 35.9], 45],
+    ['Pantelleria', [11.94, 36.83], 315],
+    ['Rønne, Bornholm', [14.69, 55.1], 270],
+  ] as const)('tourne %s vers le large', (_, point, cap) => {
+    const facing = coastFacing(coast, point as unknown as LonLat, 30, 5)!;
+    expect(Math.hypot(...facing.seaward)).toBeCloseTo(1, 9);
+    expect(distanceKm(facing.lonLat, point as unknown as LonLat)).toBeLessThan(30);
+    const off = Math.abs(((capOf(facing.lonLat, facing.seaward) - cap + 540) % 360) - 180);
+    expect(off).toBeLessThan(45);
+  });
+
+  it('ne dit rien loin de toute côte', () => {
+    expect(coastFacing(coast, [2.35, 48.85], 30, 5)).toBeNull();
   });
 });

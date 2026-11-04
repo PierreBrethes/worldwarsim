@@ -39,6 +39,7 @@ import type { RegionType } from '@/domain/ids';
 import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import {
   carriesBuilding,
+  coastFacing,
   decodeCoast,
   groundOf,
   isLandingShore,
@@ -175,7 +176,7 @@ import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer, type Shore } from './sea';
-import { MaquetteLayer, type StandingMaquette } from './maquettes';
+import { MaquetteLayer, type SeaFront, type StandingMaquette } from './maquettes';
 import {
   besideSites,
   StandingLayer,
@@ -223,6 +224,12 @@ export type { ZoneFocus, ZonePoint } from './outpost-zones';
  *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
 const SHORE_REACH = 0.6 * TANK_SHARE;
 const SHORE_PROBES = 8;
+
+/** **A port reads the coast it faces within this many km of its point**, and its normal from the
+ *  water within a few times this many of it: the water in front, not a bay's chord (#436).
+ *  `@a-mesurer` */
+const PORT_COAST_KM = 30;
+const PORT_NEAR_KM = 5;
 
 /** How much of its own colour a country gives off under the pointer, and once selected. */
 const HOVERED_LIFT = 0.35;
@@ -1065,8 +1072,10 @@ export class MapEngine {
         this.landed();
         // A maquette that lands off its point, on its ring, takes its pin there.
         this.pins.rebuild();
-        // A port that lands moors the threads that leave it (#433).
+        // A port that lands moors the threads that leave it (#433), and ranks its hulls along its
+        // front (#436).
         this.relayThreads();
+        this.standing.display(this.besideSites(this.piles));
       },
       (at, words) =>
         this.inkBurst({
@@ -1075,6 +1084,7 @@ export class MapEngine {
           words,
         }),
       (x, z) => this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
+      (x, z) => this.seaFrontOf(x, z),
     );
     this.scene.add(this.maquettes.group);
     this.ambience.add(this.maquettes.smoke);
@@ -1353,15 +1363,10 @@ export class MapEngine {
   private quayOf(at: Vector3, span: number): { at: Vector3; scale: number } | null {
     const quay = this.maquettes.quayAt(at.x, at.z, span);
     if (quay === null) return null;
-    const sea = this.seawardOf(
-      this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
-    );
-    if (sea === null) return quay;
+    // Along the port's front, as its garrison's formation steps it (#436).
+    const [sx, sz] = quay.front;
     const off = (GROUP_SPACING * pieceScale.size * span * quay.scale) / LAID_OUT_FOR;
-    return {
-      at: quay.at.clone().add(new Vector3(sea[0] * off, 0, sea[1] * off)),
-      scale: quay.scale,
-    };
+    return { at: quay.at.clone().add(new Vector3(sx * off, 0, sz * off)), scale: quay.scale };
   }
 
   /** The threads are laid again once the airfields and ports they leave are placed otherwise. */
@@ -3898,6 +3903,11 @@ export class MapEngine {
         this.coast = decodeCoast(asset, PROJECTION);
         performance.measure('coast.json décodé', { start: started });
         this.onCoast?.();
+        // The ports lay their edge on the coast, the socles read the land it gives back (#436).
+        this.maquettes.resize();
+        this.pins.rebuild();
+        this.relayThreads();
+        this.standing.display(this.besideSites(this.piles));
         this.loadRaster();
         const held = this.ghost.spot;
         if (this.placing !== null && held !== null) this.onPlacingAim(this.placingSpotAt(held));
@@ -4026,6 +4036,23 @@ export class MapEngine {
     if (which === 'start') return seaward;
     const shore: readonly [number, number] = [-seaward[1], seaward[0]];
     return shore[0] * hint[0] + shore[1] * hint[1] >= 0 ? shore : [-shore[0], -shore[1]];
+  }
+
+  /**
+   * **The sea a port at a board point faces** (#436): the normal of `coast.json`'s line and the line
+   * itself once it has landed; before it, or far from it, toward the water alone (`seawardOf`).
+   */
+  private seaFrontOf(x: number, z: number): SeaFront | null {
+    const lonLat = this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY);
+    const facing =
+      this.coast === null ? null : coastFacing(this.coast, lonLat, PORT_COAST_KM, PORT_NEAR_KM);
+    if (facing === null) {
+      const seaward = this.seawardOf(lonLat);
+      return seaward === null ? null : { seaward, line: null };
+    }
+    // The board is the sheet, moved: a direction on one is a direction on the other.
+    const line = this.frame.projectLonLat(facing.lonLat);
+    return { seaward: facing.seaward, line: [line.x, line.z] };
   }
 
   /** **Toward the water from a point on a shore**, a unit vector on the board — `null` inland, or

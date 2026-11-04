@@ -85,6 +85,8 @@ const BRIEF: Readonly<
     axis: 'z',
     below: ['avant_cale'],
     names: [
+      // Its water edge: what a port lays on the coast, and its hulls dock at (#436).
+      'fx_bord_eau',
       'coque_cale',
       'ber_1',
       'ber_2',
