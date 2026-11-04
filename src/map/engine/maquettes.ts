@@ -68,6 +68,21 @@ const FACTORY_SMOKE: Plume = {
   color: '#6e685e',
 };
 
+/** **The black smoke of a sabotage** (#279, `storyboard-prise`, « La fumée noire ») : bouffées
+ *  sombres de ses cheminées sur `BLAST_MS`, à l'échelle de la fumée d'usine. `@a-mesurer` */
+const BLAST: Plume = {
+  puffs: 10,
+  life: 1.2,
+  rise: 1.1,
+  lean: 0.4,
+  size: [0.15, 0.7],
+  opacity: 0.8,
+  color: '#2b2723',
+};
+export const BLAST_MS = 2400;
+/** It thins out over its last so many ms. */
+const BLAST_FADE_MS = 600;
+
 /**
  * **What a maquette stands on and as** (ADR 0026 §1): a building, a surveyed installation or a
  * neutral objective, by its label's id — the label reads whether its plate gives way. A region
@@ -702,6 +717,8 @@ export class MaquetteLayer implements SequenceHost {
   private drawn = '';
   /** **A flag running up or down its pole** (#279), by the maquette's id: kept over a rebuild. */
   private readonly flags = new Map<string, FlagMotion>();
+  /** **Black smoke** out of a sabotaged site's chimneys (#279), from `start` (`Date.now`). */
+  private readonly blasts = new Map<string, { readonly smokes: Smoke[]; readonly start: number }>();
   motion: MapMotion = 'full';
 
   constructor(
@@ -1590,6 +1607,46 @@ export class MaquetteLayer implements SequenceHost {
       }
       lot.group.visible = lot.items.some((item) => item.near > 0);
     }
+    this.puffBlasts(now);
+  }
+
+  /** **Black smoke out of the site `id`'s chimneys** (#279), from `start` (`Date.now`), for
+   *  `BLAST_MS`; then it is gone, and its seals stay. */
+  blast(id: string, start: number): void {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    if (dressed === undefined || !model || this.blasts.has(id)) return;
+    const smokes = model.chimneys.map(() => new Smoke(BLAST));
+    for (const smoke of smokes) {
+      smoke.object.visible = false;
+      dressed.lot.group.add(smoke.object);
+    }
+    this.blasts.set(id, { smokes, start });
+  }
+
+  private puffBlasts(now: number): void {
+    for (const [id, { smokes, start }] of this.blasts) {
+      const dressed = this.byId.get(id);
+      const model = dressed?.lot.model;
+      if (dressed === undefined || !model || now >= start + BLAST_MS) {
+        for (const smoke of smokes) smoke.object.removeFromParent();
+        this.blasts.delete(id);
+        continue;
+      }
+      const { item } = dressed;
+      dioramaMatrix(standing, model, item, null);
+      smokes.forEach((smoke, c) => {
+        smoke.object.visible = now >= start && item.diorama > 0;
+        smoke.object.position.copy(model.chimneys[c]!).applyMatrix4(standing);
+        smoke.object.scale.setScalar(
+          (item.diorama * pieceScale.size * item.scale * item.span) / SMOKE_SPAN,
+        );
+        smoke.frame(
+          Math.max(0, now - start) / 1000,
+          Math.min(1, (start + BLAST_MS - now) / BLAST_FADE_MS),
+        );
+      });
+    }
   }
 
   /**
@@ -1616,7 +1673,9 @@ export class MaquetteLayer implements SequenceHost {
    *  drawing until it is still. */
   get settling(): boolean {
     return (
-      this.flags.size > 0 || [...this.byId.values()].some(({ item }) => item.settledAt !== null)
+      this.flags.size > 0 ||
+      this.blasts.size > 0 ||
+      [...this.byId.values()].some(({ item }) => item.settledAt !== null)
     );
   }
 

@@ -131,3 +131,35 @@ export function plunderOf({
     ]),
   );
 }
+
+/**
+ * **Saboter** (#279) : deux hommes vont à la porte du site et s'effacent dans son noir ; une
+ * fumée noire sort de ses cheminées (`smokeAt`, `TAKING.smoke`) ; ils ressortent du noir et
+ * rejoignent le rang. Ses scellés et sa machine figée restent (décision 5).
+ */
+export function sabotageOf({
+  trips,
+  perMetre,
+}: {
+  readonly trips: ReadonlyArray<Trip>;
+  readonly perMetre: number;
+}): Sequence & { readonly smokeAt: number } {
+  const there = TAKING.walk * 1.6;
+  const smokeAt = there + TAKING.swallow + 200;
+  const out = smokeAt + 500 + TAKING.stop;
+  const home = out + TAKING.walk * 1.6;
+  const ms = home + 200;
+  const swallowed = (t: number) => ({
+    fade: t < out ? 1 - span(t, there, there + TAKING.swallow) : span(t, out, out + TAKING.swallow),
+  });
+  return {
+    ...sequenceOf(
+      ms,
+      trips.map((trip) => [
+        trip.part,
+        tripOf(trip, { there, back: out, home }, swallowed, swallowed, perMetre),
+      ]),
+    ),
+    smokeAt,
+  };
+}

@@ -90,7 +90,7 @@ import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
-import { crateTaking, plunderOf, type Trip } from './timelines/taking';
+import { crateTaking, plunderOf, sabotageOf, type Trip } from './timelines/taking';
 import {
   type Attempt,
   type Docked,
@@ -3750,8 +3750,12 @@ export class MapEngine {
         );
       const trips: Trip[] = [{ part: 'man_0', to: offset(first, before(-0.8)) }];
       if (second !== undefined) trips.push({ part: 'man_1', to: offset(second, before(0.8)) });
-      if (cue.act !== 'pillage') return letGo();
-      sequence = plunderOf({ trips, perMetre });
+      if (cue.act === 'pillage') sequence = plunderOf({ trips, perMetre });
+      else {
+        const sabotage = sabotageOf({ trips, perMetre });
+        this.maquettes.blast(cue.siteId!, Date.now() + sabotage.smokeAt);
+        sequence = sabotage;
+      }
     }
     if (!this.sequences.play(this.arcs.squads, cue.arcId, sequence, now)) return letGo();
     this.arcs.hold(cue.arcId, inside, now + sequence.ms);

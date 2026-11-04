@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { crateTaking, plunderOf, TAKING } from './taking';
+import { crateTaking, plunderOf, sabotageOf, TAKING } from './taking';
 
 const to = [3, 0, 4] as const;
 
@@ -58,5 +58,25 @@ describe('plunderOf (#279, « Piller »)', () => {
     expect(back.man_0?.carry?.[1]).toBe(1);
     expect(back.man_1?.carry?.[1]).toBe(1);
     expect(plunder.at(plunder.ms - 1).man_0?.travel).toEqual([0, 0, 0]);
+  });
+});
+
+describe('sabotageOf (#279, « Saboter »)', () => {
+  const sabotage = sabotageOf({
+    trips: [
+      { part: 'man_0', to },
+      { part: 'man_1', to },
+    ],
+    perMetre: 1,
+  });
+
+  it('swallows two men in the dark of the door while the smoke rises, then gives them back', () => {
+    const inside = TAKING.walk * 1.6;
+    expect(sabotage.at(inside / 2).man_0?.fade ?? 1).toBe(1);
+    expect(sabotage.at(inside + TAKING.swallow).man_0?.fade).toBe(0);
+    expect(sabotage.smokeAt).toBeGreaterThan(inside + TAKING.swallow);
+    expect(sabotage.at(sabotage.smokeAt + 100).man_1?.fade).toBe(0);
+    expect(sabotage.at(sabotage.ms - 1).man_0?.fade).toBe(1);
+    expect(sabotage.at(sabotage.ms - 1).man_0?.carry).toBeUndefined();
   });
 });
