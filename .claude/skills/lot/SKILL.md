@@ -55,6 +55,8 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   cohérente avec eux, et note-la pour le rapport, même petite. Tout chiffre neuf porte
   `@a-mesurer`. Ce qu'un joueur apprend de l'autre (relevé, vue, rayon d'un relevé) ne se
   tranche pas seul : prends le plus étroit, et dis dans le rapport ce que l'autre choix révélerait.
+- **Un fichier livré qui contredit un test** (GLB, données cuites) : le test garde son contrat,
+  tu dis l'écart au rapport. Le retourner pour suivre le fichier cache le défaut.
 
 ## 3. Environnement
 
