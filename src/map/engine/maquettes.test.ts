@@ -1417,6 +1417,48 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
     expect(Math.hypot(layer.drawnAt(PORT)!.x, layer.drawnAt(PORT)!.z)).toBeCloseTo(bound, 6);
   });
 
+  it('keeps the hashed turn of a socle a twentieth wet: the bar is a tenth (#436)', async () => {
+    const id = 'building-barracks@3,0';
+    const hashed = new Matrix4().compose(
+      new Vector3(),
+      new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yawOf(id)),
+      new Vector3().setScalar(1 / 50),
+    );
+    // The barracks' socle, in metres (its file): the sea starts where a twentieth of it lies past.
+    const xs: number[] = [];
+    for (let i = 0; i < 40; i++)
+      for (let j = 0; j < 40; j++)
+        xs.push(
+          new Vector3(
+            -33.8 + (81.6 * (i + 0.5)) / 40,
+            0,
+            -16.3 + (46.6 * (j + 0.5)) / 40,
+          ).applyMatrix4(hashed).x,
+        );
+    const sea = xs.sort((a, b) => a - b)[Math.floor(xs.length * 0.95)]!;
+    const layer = await layerOf(
+      [
+        {
+          id,
+          at: { lonLat: [0, 0] as const },
+          url: 'socle.glb',
+          span: 1,
+          metres: 50,
+          footprint: 82 / 50,
+          socle: true,
+          washed: false,
+        },
+      ],
+      () => null,
+      (x) => x < sea,
+    );
+    const corner = new Vector3(47.8, 0, 30.3);
+    const drawn = layer.siteOf(id)!.toBoard(corner.clone());
+    const kept = corner.clone().applyMatrix4(hashed);
+    expect(drawn.x).toBeCloseTo(kept.x, 6);
+    expect(drawn.z).toBeCloseTo(kept.z, 6);
+  });
+
   it('turns a socle its hashed turn wets onto the land, and leaves a dry one as it was', async () => {
     const SEA = 0.6;
     const ids = Array.from({ length: 12 }, (_, k) => `building-barracks@${k},0`);
