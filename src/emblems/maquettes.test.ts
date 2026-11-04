@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { BuildingKey } from '@/domain/ids';
 import { BUILDING_FOOTPRINT_METRES, BUILDING_REACH_METRES } from '@/domain/piece-size';
 import { RIG_PARTS } from './rigs';
-import { BUILDING_MAQUETTES, buildingMaquette, buildingOnSocle } from './buildings/manifest';
+import { BUILDING_MAQUETTES, buildingMaquette } from './buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from './objectives/manifest';
 
 /** The heaviest drawn on 13/10 is the shipyard, at 3 156; a site on its socle, in any one state
@@ -64,9 +64,8 @@ const BRIEF: Readonly<
     ],
   },
   airfield: {
-    // The brief says 110 m (two hangars at scale 1, 10 m apart, #269); the generation of 03/11
-    // still draws 96.19 m. Raise this to 110 with the file that has them.
-    metres: 96.2,
+    // Two hangars at scale 1, 10 m apart (#269).
+    metres: 110,
     tolerance: 0.05,
     names: [
       'rail_porte',
@@ -327,7 +326,6 @@ function trianglesByState(gltf: Gltf): number[] {
   ];
 }
 
-/** What the ring spaces a site by: its socle's box, else the model as built, its flag left out. */
 /** What the ring spaces a site by: the farthest corner of its socle from its point, which any
  *  turn of the site keeps in reach. The socle is not centred: the yard runs 20 to 25 m past the
  *  façade. */
@@ -339,11 +337,8 @@ const reachOf = (gltf: Gltf): number => {
   );
 };
 
-const footprintOf = (gltf: Gltf): Vector3 =>
-  (gltf.nodes.some((node) => node.name === 'socle')
-    ? boundsOf(gltf, 'socle')
-    : boundsOf(gltf, undefined, ['hampe', 'drapeau'])
-  ).getSize(new Vector3());
+/** What the ring spaces a site by: its socle's box. */
+const footprintOf = (gltf: Gltf): Vector3 => boundsOf(gltf, 'socle').getSize(new Vector3());
 
 describe('maquettes', () => {
   it.each(objectives)('%s keeps to the brief', (url) => {
@@ -386,21 +381,27 @@ describe('maquettes', () => {
     expect(whole.min.x < 0 && whole.max.x > 0 && whole.min.z < 0 && whole.max.z > 0).toBe(true);
   });
 
-  it.each(buildings)('%s: stands on a socle if the manifest says so', (key, url) => {
-    const k = (key === 'mine (coal)' ? 'mine' : key) as BuildingKey;
-    expect(readGlb(url).nodes.some((node) => node.name === 'socle')).toBe(buildingOnSocle(k));
-  });
+  it.each(buildings)(
+    '%s: stands on a socle, its flagpole and flag on the sign (ADR 0038)',
+    (_, url) => {
+      const { nodes } = readGlb(url);
+      const sign = nodes.findIndex((node) => node.name === 'signe');
+      expect(nodes.some((node) => node.name === 'socle')).toBe(true);
+      for (const name of ['hampe', 'drapeau'])
+        expect(nodes[sign]?.children, name).toContain(
+          nodes.findIndex((node) => node.name === name),
+        );
+    },
+  );
 
   it.each(buildings)('%s: its reach is measured on its socle', (key, url) => {
     const k = (key === 'mine (coal)' ? 'mine' : key) as BuildingKey;
     const gltf = readGlb(url);
-    if (!gltf.nodes.some((node) => node.name === 'socle')) return;
     expect(Math.abs(reachOf(gltf) / BUILDING_REACH_METRES[k] - 1)).toBeLessThan(0.02);
   });
 
   it.each(buildings)('%s: the ring spaces it by its real footprint', (key, url) => {
     const k = (key === 'mine (coal)' ? 'mine' : key) as BuildingKey;
-    // The flagpole is left out: the ring spaces what is built, not what flies.
     const size = footprintOf(readGlb(url));
     expect(Math.abs(Math.max(size.x, size.z) / BUILDING_FOOTPRINT_METRES[k] - 1)).toBeLessThan(
       0.02,

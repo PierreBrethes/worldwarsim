@@ -803,18 +803,19 @@ describe('a site on its socle (ADR 0038)', () => {
     const frame = layer.siteOf(MINE)!;
     expect(frame.box.min.y).toBeCloseTo(0, 3);
     expect(frame.building.min.y).toBeCloseTo(SOCLE_TOP, 3);
-    const first = new Vector3(12, SOCLE_TOP, 12.5).applyMatrix4(drawn.matrix);
+    const first = new Vector3(12, SOCLE_TOP, 26.5).applyMatrix4(drawn.matrix);
     expect(rank.at.x + rank.step[0]).toBeCloseTo(first.x, 6);
     expect(rank.at.z + rank.step[1]).toBeCloseTo(first.z, 6);
     expect(rank.at.y).toBeCloseTo(first.y, 6);
     expect(rank.at.y).toBeGreaterThan(0);
     // The rank runs along the marker's +x and deepens along its +z, turned as the maquette is,
-    // over the 30 m of its rectangle.
+    // over the 30 m of its rectangle. The barracks' marker is turned half a turn, its +z toward
+    // the building.
     const turn = (v: Vector3) => v.applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
-    const along = turn(new Vector3(1, 0, 0));
+    const along = turn(new Vector3(-1, 0, 0));
     expect(Math.cos(rank.facing)).toBeCloseTo(along.x, 6);
     expect(-Math.sin(rank.facing)).toBeCloseTo(along.z, 6);
-    const deep = turn(new Vector3(0, 0, 1));
+    const deep = turn(new Vector3(0, 0, -1));
     expect(rank.deep[0]).toBeCloseTo(deep.x, 6);
     expect(rank.deep[1]).toBeCloseTo(deep.z, 6);
     expect(rank.width).toBeCloseTo((30 * drawn.matrix.getMaxScaleOnAxis()) / 1, 6);
