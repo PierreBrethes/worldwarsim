@@ -764,7 +764,8 @@ async function play(profileName, pass) {
         ['abaque', null, () => link(/^Abaque de tir/)],
         ['recherche', null, () => button(/^recherche$/)],
         ['nation', null, () => link(/fiche de nation/)],
-        ['réglages', null, () => link(/^Réglages$/)],
+        // Son nom accessible devient « Réglages · bulletin non lu » quand un bulletin attend.
+        ['réglages', null, () => link(/^Réglages( · bulletin non lu)?$/)],
       ];
   if (sitesOnly) {
     const at = accounts.places?.sites;
