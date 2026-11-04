@@ -277,4 +277,74 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     expect(facts.served).toHaveLength(1);
     expect(facts.surveyed).toHaveLength(1);
   });
+
+  it('turns a fleet while every slot is held, and frees none', async () => {
+    const t = boot();
+    const { japan } = await launchedSeason(t);
+    const first = await sailing(t, japan);
+    await sailing(t, japan);
+    vi.setSystemTime(MIDDAY.getTime() + 60_000);
+    const held = (await t.query(api.view.playerView, japan)).me.slots;
+    expect(held.used).toBe(held.total);
+
+    await turning(t, japan, first.movementId, OFF_SAIPAN);
+
+    expect((await t.query(api.view.playerView, japan)).me.slots.used).toBe(held.total);
+    const third = await postAt(t, japan, 'escort', OPEN_SEA);
+    expect(
+      await codeOf(
+        t.mutation(api.movements.marchTo, {
+          ...japan,
+          origin: { kind: 'point', point: OPEN_SEA },
+          troopIds: [third],
+          point: EAST,
+        }),
+      ),
+    ).toBe('MOVEMENT_IN_FLIGHT');
+  });
+
+  it('keeps the course of a delivery at sea', async () => {
+    const t = boot();
+    const { japan } = await launchedSeason(t);
+    const { movementId } = await sailing(t, japan);
+    const japanId = await playerOf(t, japan);
+    await t.run(async (ctx) => {
+      const outpostId = await ctx.db.insert('outposts', {
+        seasonId: (await ctx.db.get(japanId))!.seasonId,
+        playerId: japanId,
+        point: EAST,
+        hostCountry: '',
+        regionId: 'sea',
+        level: 1,
+        foundedAt: MIDDAY.getTime() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      await ctx.db.patch(movementId, { delivery: { outpostId } });
+    });
+    vi.setSystemTime(MIDDAY.getTime() + 60_000);
+
+    expect(await codeOf(turning(t, japan, movementId, OFF_SAIPAN))).toBe('COURSE_ON_MISSION');
+  });
+
+  it('previews the new course with the fuel the old road paid, and nothing to another nation', async () => {
+    const t = boot();
+    const { japan, france } = await launchedSeason(t);
+    const ours = await sailing(t, japan);
+    const theirs = await sailing(t, france);
+    vi.setSystemTime(MIDDAY.getTime() + (ours.arrivesAt - MIDDAY.getTime()) / 4);
+    const asked = (seat: Seat, movementId: Id<'movements'>) =>
+      t.query(api.movements.previewCourse, {
+        ...seat,
+        movementId,
+        type: 'march',
+        target: { kind: 'point', point: OFF_SAIPAN },
+      });
+
+    const preview = await asked(japan, ours.movementId);
+
+    expect(preview?.fuel.short).toBeNull();
+    expect(preview?.fuel.gauge?.paid).toBeGreaterThan(0);
+    expect(await asked(france, theirs.movementId)).toBeNull();
+  });
 });
