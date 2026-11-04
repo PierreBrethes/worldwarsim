@@ -4,7 +4,7 @@ import { ease, span } from './curves';
 
 type Point = readonly [x: number, y: number, z: number];
 
-/** **The truck plays from 30 px**, and its site with it (`MIN_PX` of `tailgateDrop`). `@a-mesurer` */
+/** **The truck plays from 30 px**, and its site with it (`BOARDING_PX` of `boardingOf`). `@a-mesurer` */
 export const LOADING_PX = 30;
 /** Where the truck turns before it backs to the quay, in metres from `fx_quai`: so far out into
  *  the yard, so far aside (the storyboard's (11 ; 39) off a quay at 23.5), and the run it makes
@@ -21,7 +21,7 @@ const AHEAD = 1.5;
 const GABLE = 3;
 /** The legs, in ms (`entrepot.js`, « Au rang »). */
 const LEG = { start: 200, out: 2000, pause: 250, back: 1800, leave: 1600, home: 2000 } as const;
-/** The tailgate: it falls in 500 ms (`out3`) and shuts in 450 (`in2`), as `tailgateDrop`; laid
+/** The tailgate: it falls in 500 ms (`out3`) and shuts in 450 (`in2`), as at a boarding (`boardingOf`); laid
  *  on the quay beyond the level (`@a-mesurer`, the storyboard's 112° for France), it hangs on its
  *  chains at the HQ (93°), with a clang of 3° in 80 ms on the quay. */
 const GATE = { open: 500, close: 450, clang: 80, after: 150, rest: 200 } as const;
