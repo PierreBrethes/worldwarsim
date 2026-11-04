@@ -873,9 +873,7 @@ export class MaquetteLayer implements SequenceHost {
   }
 
   private place(): void {
-    const items = [...this.byId.values(), ...this.held.values()]
-      .map(({ item }) => item)
-      .sort((a, b) => (a.id < b.id ? -1 : 1));
+    const items = this.placedItems().sort((a, b) => (a.id < b.id ? -1 : 1));
     const placed = clusterFootprints(
       items.map(({ ground }) => [ground.x, ground.z] as const),
       items.map(({ spacing }) => spacing * pieceScale.size),
@@ -921,8 +919,21 @@ export class MaquetteLayer implements SequenceHost {
           dn * dn - dx * dx - dz * dz + (MAX_SHIFT * item.spacing * pieceScale.size) ** 2;
         // Along the normal, as far as its edge onto the line, within its bound around its point.
         const wanted = (shore.line[0] - at.x) * sx + (shore.line[1] - at.z) * sz - edge!.z * size;
-        const step =
+        let step =
           room < 0 ? 0 : Math.min(Math.max(wanted, -dn - Math.sqrt(room)), -dn + Math.sqrt(room));
+        // Never into a neighbour, nearer than the ring would stand the two (`ringed`).
+        for (const other of this.placedItems()) {
+          if (other === item) continue;
+          const [ox, oz] = [at.x - other.at.x, at.z - other.at.z];
+          const apart =
+            ((item.spacing * item.scale + other.spacing * other.scale) / 2) * pieceScale.size;
+          const along = ox * sx + oz * sz;
+          const clear = along * along - ox * ox - oz * oz + apart * apart;
+          if (clear <= 0) continue;
+          const [near, far] = [-along - Math.sqrt(clear), -along + Math.sqrt(clear)];
+          if (step < 0 && far <= 0 && far > step) step = far;
+          if (step > 0 && near >= 0 && near < step) step = near;
+        }
         at.set(at.x + step * sx, at.y, at.z + step * sz);
       }
     } else if (model.dressing.length > 0) {
@@ -949,6 +960,11 @@ export class MaquetteLayer implements SequenceHost {
     }
     item.yaw = yaw;
     item.turn.setFromAxisAngle(UP, yaw);
+  }
+
+  /** Every maquette that holds a place on the board: drawn, or razed and still falling. */
+  private placedItems(): Placed[] {
+    return [...this.byId.values(), ...this.held.values()].map(({ item }) => item);
   }
 
   private landed(lot: Lot, model: Model, washed: boolean): void {

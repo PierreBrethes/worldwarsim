@@ -1365,6 +1365,39 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
     expect(quay.at.z + quay.front[1] * off).toBeCloseTo(hull, 9);
   });
 
+  it('steps back no nearer a neighbour inland than the ring would stand them (#436)', async () => {
+    const portSpacing = ringSpacing(buildingFootprint('port'), {
+      reach: buildingReach('port'),
+      metre: buildingSpan('port') / buildingMetres('port'),
+    });
+    const barracksSpacing = ringSpacing(82 / 50, {
+      reach: ((82 / 50) * Math.SQRT2) / 2,
+      metre: 1 / 50,
+    });
+    const apart = (portSpacing + barracksSpacing) / 2;
+    const BARRACKS = 'building-barracks@-9,0';
+    const barracks = {
+      id: BARRACKS,
+      at: { lonLat: [-apart - 0.02, 0] as const },
+      url: 'socle.glb',
+      span: 1,
+      metres: 50,
+      footprint: 82 / 50,
+      socle: true,
+      washed: false,
+    };
+    const layer = await layerOf(
+      [port, barracks],
+      () => east,
+      () => true,
+    );
+    // Apart at their points: no ring. The port alone steps back toward the barracks.
+    expect(layer.drawnAt(BARRACKS)).toBeNull();
+    const drawn = layer.drawnAt(PORT)!;
+    expect(drawn.x).toBeLessThan(0);
+    expect(drawn.x - (-apart - 0.02)).toBeGreaterThanOrEqual(apart - 1e-9);
+  });
+
   it('only turns to the sea before the coast has landed, on its point', async () => {
     const layer = await layerOf([port], () => ({ seaward: [0, -1], line: null }));
     expect(layer.drawnAt(PORT)).toBeNull();
