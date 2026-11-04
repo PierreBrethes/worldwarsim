@@ -116,6 +116,10 @@ par le salon. Chaque refus d'atout sort de la même fonction pure à l'écran et
   (invariant « Schéma Convex »).
 - Le rapport de saison suit l'usage de chaque atout, avec l'isolement des États-Unis (le 🔴 de
   `WWS/QUESTIONS.md`), qu'un Prêt-bail interceptable expose davantage.
+- *(04/11/2026, #448)* Le relevé de région garde les avant-postes étrangers debout : id, point et
+  pays hôte, sans niveau ni dépôt. Toutes les nations les voient et les visent depuis la carte —
+  raid, capture, attaque —, comme un bâtiment relevé, et seuls les États-Unis y livrent. L'ordre
+  se résout par le relevé du joueur, jamais par l'avant-poste vivant ; l'arrivée lit la vérité.
 
 ## Ce qu'on abandonne
 
