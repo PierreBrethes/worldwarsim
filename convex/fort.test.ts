@@ -303,6 +303,64 @@ describe('a Fort holding the enemy column it sees (ADR 0037 §6)', () => {
     expect((await movementOf(t, movementId))!.resumed).toBeUndefined();
   });
 
+  /** **Le cap de la dépêche est celui de la vigie du Fort** (#412) : la route tourne au nord
+   *  passé le Fort, et une seconde vigie la relève loin derrière le coude. Le cap au bout de
+   *  l'enveloppe serait celui du nord, que personne n'a vu à l'entrée. */
+  it('words the hold on the window of its lookout, not on the far one past the turn', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await fort(t, guest);
+    const far = northOf(TO, 600);
+    await fort(t, guest, 'general', eastOf(northOf(TO, 300), 10));
+    const playerId = await playerOf(t, seat);
+    const movementId = await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(playerId))!.seasonId;
+      const strength = nominalStrength('infantry', 1);
+      const troopId = await ctx.db.insert('troops', {
+        seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: strength,
+        currentStrength: strength,
+        stationedAt: null,
+      });
+      const movementId = await ctx.db.insert('movements', {
+        seasonId,
+        playerId,
+        type: 'march',
+        fromBuildingId: null,
+        target: { kind: 'point', point: asPoint(far) },
+        from: asPoint(FROM),
+        to: asPoint(far),
+        hostCountry: 'ROU',
+        points: [FROM, TO, far].map(asPoint),
+        legs: [{ medium: 'land', distanceUnits: 900 }],
+        distanceUnits: 900,
+        costUnits: 900,
+        troopIds: [troopId],
+        departedAt: Date.now(),
+        arrivesAt: Date.now() + 12 * 3_600_000,
+      });
+      await reassessDetection(ctx, seasonId);
+      return movementId;
+    });
+    const guestId = await playerOf(t, guest);
+    const [row] = await t.run(async (ctx) =>
+      ctx.db
+        .query('sightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', guestId))
+        .collect(),
+    );
+    expect(row!.windows).toHaveLength(2);
+
+    await enter(t, guest, movementId);
+
+    const held = (await noticesOf(t, guest)).find((notice) => notice.kind === 'fortHeld');
+    expect(held!.headingDegrees).toBeGreaterThan(80);
+    expect(held!.headingDegrees).toBeLessThan(100);
+  });
+
   /** **Un Fort qui naît après le départ** retient la colonne qui n'est pas encore entrée. */
   it('sets the rendezvous of a Fort raised after the departure', async () => {
     const t = boot();

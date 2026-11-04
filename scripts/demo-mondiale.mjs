@@ -46,7 +46,10 @@
  * Metz, une infanterie en halte à Nancy, une infanterie seule à Metz et une dépêche de fin
  * (`@ronde`, `@metz`, `@nancy`, `@luxembourg`). `--ligne` (#377) pose pour la France une ronde en
  * halte à Liège sur Liège–Sarrebruck, et en face une colonne que la seule ligne a relevée à son
- * franchissement (`@ligne`, `@liege`, `@sarrebruck`). `--guet` (#373) pose pour la
+ * franchissement (`@ligne`, `@liege`, `@sarrebruck`). `--deux-vigies` (#412) pose pour la France
+ * deux vigies, à Cologne et à Erfurt, et en face un blindé d'Aix-la-Chapelle à Leipzig, dans le
+ * trou d'entre les deux : l'arc est la dernière position connue sous Cologne ; avec `--reparue`,
+ * il est sous Erfurt, et repart de la réapparition (`@deux-vigies`, `@cologne`, `@erfurt`). `--guet` (#373) pose pour la
  * France un Guet à Kaiserslautern et un généraliste à Berne, et en face une colonne britannique
  * lue en route vers Munich, un camp lu à Francfort, une dernière position lue à Mayence et un camp
  * que le généraliste relève sans le lire près de Berne (`@guet`, `@francfort`, `@mayence`, `@berne`). `--magasin` (#372) pose pour la France un
@@ -227,6 +230,8 @@ const zones = process.argv.includes('--zones');
 const patrols = process.argv.includes('--ronde');
 /** `--ligne` (#377) : une ronde Liège–Sarrebruck, et une colonne adverse que sa seule ligne a relevée. */
 const watchLine = process.argv.includes('--ligne');
+/** `--deux-vigies` (#412) : une colonne dans le trou entre deux vigies ; `--reparue`, sous la seconde. */
+const twoSentries = process.argv.includes('--deux-vigies');
 /** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
 const specialties = process.argv.includes('--metiers');
 /** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
@@ -272,6 +277,27 @@ const salvoes = salvoesAt < 0 ? 1 : Number(process.argv[salvoesAt + 1]) || 1;
 /** `--arrivee [s]` : une pile mêlée française qui arrive sur un point vide dans s secondes (#362). */
 const arrivalAt = process.argv.indexOf('--arrivee');
 const arrivalIn = arrivalAt < 0 ? null : Number(process.argv[arrivalAt + 1]) || 25;
+/**
+ * **Une pile vivante** (#277), chaque geste à son heure, `s` secondes après la démo (25 par
+ * défaut) : `--former [s]` une escouade de deux fantassins en Champagne, rejointe par un camion à
+ * `s` puis par un fantassin et un char quatre secondes après (G) ; `--dissoudre [s]` une escouade
+ * de quatre pièces dans le Berry, dissoute à `s` (U) ; `--monter [s]` un camion et deux
+ * fantassins en Beauce, qui montent à `s` ; `--descendre [s]` un camion chargé de deux fantassins
+ * dans le Nivernais, qui en descendent à `s` ; `--embarquer [s]` deux fantassins qui marchent vers
+ * un camion du Gâtinais et y montent en arrivant, à `s`, depuis leur file. Leurs lieux : `former`,
+ * `dissoudre`, `monter`, `descendre`, `embarquer`.
+ */
+const gestureIn = (flag) => {
+  const at = process.argv.indexOf(flag);
+  return at < 0 ? null : Number(process.argv[at + 1]) || 25;
+};
+const formingIn = gestureIn('--former');
+const disbandingIn = gestureIn('--dissoudre');
+const boardingIn = gestureIn('--monter');
+const landingIn = gestureIn('--descendre');
+const marchAboardIn = gestureIn('--embarquer');
+/** What the gestures of `--former`… act on, once the accounts are written. */
+const pile = {};
 
 const env = Object.fromEntries(
   (existsSync(`${root}.env.local`) ? readFileSync(`${root}.env.local`, 'utf8') : '')
@@ -788,6 +814,20 @@ if (!bare) {
     places.liege = [5.57, 50.63];
     places.sarrebruck = [7.0, 49.23];
   }
+  if (twoSentries && scene.a !== null && scene.b !== null) {
+    cli([
+      'run',
+      'dev:twoSentriesScene',
+      JSON.stringify({
+        playerId: scene.a,
+        enemyId: scene.b,
+        reappeared: process.argv.includes('--reparue'),
+      }),
+    ]);
+    places['deux-vigies'] = [9.0, 51.0];
+    places.cologne = [6.96, 50.94];
+    places.erfurt = [11.03, 50.98];
+  }
   if (specialties && scene.a !== null) {
     cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);
     places.metiers = [6.4, 49.55];
@@ -1022,6 +1062,78 @@ if (!bare) {
     const { movements } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const landing = movements.find((one) => Math.abs(one.from.lon - offshore.lon) < 0.01);
     places['trajet-mixte'] = { id: landing.id, lonLat: [landing.from.lon, landing.from.lat] };
+  }
+  const spawned = (args) =>
+    JSON.parse(
+      cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, ...args })]).match(
+        /\[[^\]]*\]/,
+      )[0],
+    );
+  if (formingIn !== null && scene.a !== null) {
+    const to = { lon: 4.4, lat: 48.9 };
+    places.former = [to.lon, to.lat];
+    spawned({ role: 'infantry', count: 2, ...to });
+    const truckFrom = { lon: 4.15, lat: 48.97 };
+    const later = { lon: 4.6, lat: 48.75 };
+    pile.former = {
+      to,
+      later,
+      laterTroops: [
+        ...spawned({ role: 'infantry', count: 1, fuel: 20, ...later }),
+        ...spawned({ role: 'armor', count: 1, fuel: 20, ...later }),
+      ],
+    };
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: truckFrom },
+      troopIds: spawned({ role: 'landTransport', count: 1, fuel: 20, ...truckFrom }),
+      point: to,
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: formingIn * 1000, onTime: true }),
+    ]);
+  }
+  if (disbandingIn !== null && scene.a !== null) {
+    const at = { lon: 2.2, lat: 47.0 };
+    places.dissoudre = [at.lon, at.lat];
+    spawned({ role: 'infantry', count: 2, ...at });
+    spawned({ role: 'armor', count: 1, ...at });
+    spawned({ role: 'landTransport', count: 1, ...at });
+    pile.dissoudre = at;
+  }
+  if (boardingIn !== null && scene.a !== null) {
+    const at = { lon: 1.75, lat: 48.3 };
+    places.monter = [at.lon, at.lat];
+    const [truck] = spawned({ role: 'landTransport', count: 1, ...at });
+    pile.monter = { truck, riders: spawned({ role: 'infantry', count: 2, ...at }) };
+  }
+  if (landingIn !== null && scene.a !== null) {
+    const at = { lon: 3.3, lat: 47.1 };
+    places.descendre = [at.lon, at.lat];
+    const [truck] = spawned({ role: 'landTransport', count: 1, ...at });
+    pile.descendre = spawned({ role: 'infantry', count: 2, ...at, carriedBy: truck });
+  }
+  if (marchAboardIn !== null && scene.a !== null) {
+    const at = { lon: 2.6, lat: 48.2 };
+    const from = { lon: 2.35, lat: 48.3 };
+    places.embarquer = [at.lon, at.lat];
+    const [truck] = spawned({ role: 'landTransport', count: 1, ...at });
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: spawned({ role: 'infantry', count: 2, fuel: 20, ...from }),
+      boardsOn: truck,
+      point: at,
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: marchAboardIn * 1000, onTime: true }),
+    ]);
   }
   if (arrivalIn !== null && scene.a !== null) {
     const from = { lon: 4.1, lat: 49.25 };
@@ -1274,6 +1386,85 @@ if (loadingTrucks !== null) {
   await pause(1000);
   await load(loadingTrucks.hq, 'oil', 60);
   console.log(`Camions chargés à ${new Date().toISOString()}`);
+}
+
+/** `--former`, `--dissoudre`, `--monter`, `--descendre` (#277): each gesture at its hour. */
+const gestures = [
+  // The second column leaves before the truck arrives, at its own pace: the squad is not formed
+  // yet when the truck joins it. It is brought in four seconds after (`arriveNow` moves every
+  // movement of mine, the truck's included, which has arrived by then).
+  formingIn !== null &&
+    pile.former && [
+      formingIn - 8,
+      async () => {
+        const { later, laterTroops, to } = pile.former;
+        await client.mutation(api.movements.marchTo, {
+          token: tokenA,
+          seasonId,
+          origin: { kind: 'point', point: later },
+          troopIds: laterTroops,
+          point: to,
+        });
+        return 'seconde marche partie';
+      },
+    ],
+  formingIn !== null &&
+    pile.former && [
+      formingIn + 2,
+      async () => {
+        cli([
+          'run',
+          'dev:arriveNow',
+          JSON.stringify({ playerId: scene.a, afterMs: 4000, onTime: true }),
+        ]);
+        return 'seconde marche à quatre secondes';
+      },
+    ],
+  disbandingIn !== null &&
+    pile.dissoudre && [
+      disbandingIn,
+      async () => {
+        await client.mutation(api.movements.disband, {
+          token: tokenA,
+          seasonId,
+          point: pile.dissoudre,
+        });
+        return 'escouade dissoute';
+      },
+    ],
+  boardingIn !== null &&
+    pile.monter && [
+      boardingIn,
+      async () => {
+        const { truck, riders } = pile.monter;
+        await client.mutation(api.movements.board, {
+          token: tokenA,
+          seasonId,
+          troopIds: riders,
+          carrierId: truck,
+        });
+        return 'fantassins à bord';
+      },
+    ],
+  landingIn !== null &&
+    pile.descendre && [
+      landingIn,
+      async () => {
+        await client.mutation(api.movements.disembark, {
+          token: tokenA,
+          seasonId,
+          troopIds: pile.descendre,
+        });
+        return 'fantassins à terre';
+      },
+    ],
+]
+  .filter(Boolean)
+  .sort(([a], [b]) => a - b);
+const started = Date.now();
+for (const [seconds, gesture] of gestures) {
+  await pause(Math.max(0, started + seconds * 1000 - Date.now()));
+  console.log(`${await gesture()} à ${new Date().toISOString()}`);
 }
 
 /** `--bombarder` : each gun fires on its target's camp, its battery set, then every reload. */

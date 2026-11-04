@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
 import {
+  boardsUnderTheEyes,
   aboardOf,
   chargementsOf,
   descentesOf,
+  dispersionsOf,
   entreesOf,
   loadsOf,
+  monteesOf,
   rankKept,
   sortiesOf,
 } from './cues';
@@ -77,7 +80,8 @@ describe('descentesOf', () => {
   it('names the truck a troop has just stepped down from', () => {
     const before = aboardOf(view(truck, man('a', 'truck')));
     const now = view(truck, man('a'));
-    expect(descentesOf(before, now, pilesOf(now))).toEqual(['p/1']); // the man stands first, the truck second
+    // The man stands first, the truck second: the truck, and the squad that came down (#277).
+    expect(descentesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/1', men: ['p/0'] }]);
   });
 
   it('names nothing for a boarding, a troop that stays aboard or one that is gone', () => {
@@ -92,6 +96,109 @@ describe('descentesOf', () => {
     const ship = { id: 'ship', role: 'cargo' as const, tier: 1 as const };
     const now = view(ship, man('a'));
     expect(descentesOf(aboardOf(view(ship, man('a', 'ship'))), now, pilesOf(now))).toEqual([]);
+  });
+});
+
+describe('boardsUnderTheEyes (#277)', () => {
+  it('lets the men of a truck board under the eyes, in a Mondiale only', () => {
+    expect(boardsUnderTheEyes('landTransport', false)).toBe(true);
+    expect(boardsUnderTheEyes('landTransport', true)).toBe(false);
+  });
+
+  it('keeps a ship or a plane swallowing the piece dropped on it', () => {
+    expect(boardsUnderTheEyes('cargo', false)).toBe(false);
+    expect(boardsUnderTheEyes('airTransport', false)).toBe(false);
+  });
+});
+
+describe('monteesOf (#277)', () => {
+  const truck = { id: 'truck', role: 'landTransport' as const, tier: 1 as const };
+  const man = (id: string, carriedBy?: string) => ({
+    id,
+    role: 'infantry' as const,
+    tier: 1 as const,
+    ...(carriedBy === undefined ? {} : { carriedBy }),
+  });
+  const full = { strength: 10, nominalStrength: 10 };
+  const view = (...troops: Array<{ id: string; role: UnitRole; tier: 1; carriedBy?: string }>) =>
+    troops.map((troop) => ({ ...troop, ...full }));
+  const pilesOf = (troops: ReturnType<typeof view>): StandingPile[] => [
+    { id: 'p', at: { lonLat: [2, 48] }, pieces: pilePieces(troops) },
+  ];
+
+  it('names the truck men just boarded, and each of them', () => {
+    const before = aboardOf(view(truck, man('a'), man('b', 'truck'), man('c')));
+    const now = view(truck, man('a', 'truck'), man('b', 'truck'), man('c', 'truck'));
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'c'] }]);
+  });
+
+  it('names the men a column brings aboard at its arrival: they board from their file', () => {
+    // On the road the men stand in no pile; at the end of it they are aboard (`boardsOn`).
+    const before = aboardOf(view(truck, man('a'), man('b')));
+    const now = view(truck, man('a', 'truck'), man('b', 'truck'));
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'b'] }]);
+  });
+
+  it('names nothing for a landing, a rider that stays, or a column leaving aboard', () => {
+    const now = view(truck, man('a', 'truck'));
+    expect(monteesOf(aboardOf(now), now, pilesOf(now))).toEqual([]);
+    const down = view(truck, man('a'));
+    expect(monteesOf(aboardOf(now), down, pilesOf(down))).toEqual([]);
+    // Seated at its departure (`seatLoose`), the column stands in no pile.
+    expect(monteesOf(aboardOf(view(truck, man('a'))), now, [])).toEqual([]);
+  });
+});
+
+describe('dispersionsOf (#277)', () => {
+  const troop = (id: string, role: UnitRole) => ({
+    id,
+    role,
+    tier: 1 as const,
+    strength: 10,
+    nominalStrength: 10,
+  });
+  const at = (
+    id: string,
+    lonLat: readonly [number, number],
+    ...troops: ReturnType<typeof troop>[]
+  ) => ({ id, at: { lonLat }, pieces: pilePieces(troops) }) satisfies StandingPile;
+  const squad = [troop('a', 'infantry'), troop('b', 'infantry'), troop('c', 'armor')];
+
+  it('names the squad left, each piece set apart, the troop it carries and its place in the rank', () => {
+    const before = [at('A', [2, 48], ...squad)];
+    const now = [
+      at('A', [2, 48], squad[0]!),
+      at('B', [2.2, 48], squad[1]!),
+      at('C', [2, 48.2], squad[2]!),
+    ];
+    expect(dispersionsOf(before, now, [[], []])).toEqual([
+      {
+        pileId: 'A',
+        whole: false,
+        moves: [
+          { groupId: 'B/0', troopId: 'b', rank: 1 },
+          { groupId: 'C/0', troopId: 'c', rank: 2 },
+        ],
+      },
+    ]);
+  });
+
+  it('names nothing for a march, a first view, or an outpost founded on the spot', () => {
+    const before = [at('A', [2, 48], ...squad)];
+    const now = [at('A', [2, 48], squad[0]!, squad[1]!), at('B', [2.2, 48], squad[2]!)];
+    const column = { state: 'mine', troopIds: ['c'] };
+    expect(dispersionsOf(before, now, [[column], []])).toEqual([]);
+    expect(dispersionsOf(before, now, [[], [column]])).toEqual([]);
+    expect(dispersionsOf(null, now, [[], []])).toEqual([]);
+    const founded = [at('outpost', [2, 48], ...squad)];
+    expect(dispersionsOf(before, founded, [[], []])).toEqual([]);
+  });
+
+  it('names nothing for a piece found far off after a gap between two views: it marched there', () => {
+    const before = [at('A', [2, 48], ...squad)];
+    // A laptop asleep: the armour marched 200 km while no view came.
+    const now = [at('A', [2, 48], squad[0]!, squad[1]!), at('B', [2, 49.8], squad[2]!)];
+    expect(dispersionsOf(before, now, [[], []])).toEqual([]);
   });
 });
 

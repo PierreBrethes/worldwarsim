@@ -15,6 +15,7 @@ import { settle } from './resources';
 import { viewOf } from './view';
 import { marchingForce, reassessDetection } from './movement/detection';
 import { lineCrossingOf } from '../src/domain/interception';
+import { windowsOf } from '../src/domain/sighting-windows';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
@@ -1486,6 +1487,79 @@ export const watchLineScene = internalMutation({
       playerId,
       enemyId,
     ]);
+  },
+});
+
+/**
+ * **Deux vigies et un trou** (#412), pour la démo : deux généralistes français, à Cologne et à
+ * Erfurt, et un blindé britannique d'Aix-la-Chapelle à Leipzig qui passe sous l'un puis sous
+ * l'autre. Parti plus tôt, il est dans le trou d'entre les deux — ou, `reappeared`, sous la
+ * seconde vigie : le premier tronçon a disparu, l'arc repart de la réapparition.
+ *
+ * `npx convex run dev:twoSentriesScene '{"playerId":"…","enemyId":"…","reappeared":false}'`
+ */
+export const twoSentriesScene = internalMutation({
+  args: { playerId: v.id('players'), enemyId: v.id('players'), reappeared: v.boolean() },
+  handler: async (ctx, { playerId, enemyId, reappeared }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    for (const [lon, lat] of [
+      [6.96, 50.94],
+      [11.03, 50.98],
+    ] as const)
+      await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId,
+        point: { lon, lat },
+        hostCountry: 'DEU',
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 86_400_000,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    const from = { lon: 6.08, lat: 50.78 };
+    const troopId = await ctx.db.insert('troops', {
+      seasonId: player.seasonId,
+      playerId: enemyId,
+      role: 'armor',
+      tier: 1,
+      nominalStrength: nominalStrength('armor', 1),
+      currentStrength: nominalStrength('armor', 1),
+      stationedAt: from,
+    });
+    const { movementId } = await march(ctx, {
+      playerId: enemyId,
+      season,
+      type: 'march',
+      origin: { kind: 'point', point: from },
+      troopIds: [troopId],
+      aim: await aimOf(ctx, enemyId, { kind: 'point', point: { lon: 12.37, lat: 51.34 } }),
+    });
+    const row = (
+      await ctx.db
+        .query('sightings')
+        .withIndex('byMovement', (q) => q.eq('movementId', movementId))
+        .collect()
+    ).find((one) => one.playerId === playerId);
+    const [first, second] = row === undefined ? [] : windowsOf(row);
+    if (first === undefined || second === undefined) throw new Error('no hole between the two');
+    const at = reappeared ? (second.from + second.to) / 2 : (first.to + second.from) / 2;
+    const shift = at - now;
+    const movement = (await ctx.db.get(movementId))!;
+    await ctx.db.patch(movementId, {
+      departedAt: movement.departedAt - shift,
+      arrivesAt: movement.arrivesAt - shift,
+    });
+    await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
+      movementId,
+    });
+    /** Relue à son départ, la ligne est celle qu'une partie aurait écrite : ses rendez-vous
+     *  échus partent aussitôt, la dépêche et la réapparition. */
+    await reassessDetection(ctx, player.seasonId, movement.departedAt - shift, [playerId, enemyId]);
+    await recordLinkage(ctx, player.seasonId);
   },
 });
 

@@ -33,7 +33,7 @@ import {
   SOCLE_TOP,
   yawOf,
 } from './maquettes';
-import { pileLayout } from './standing';
+import { pileLayout } from '@/domain/pile-layout';
 import { articulatedOf } from './sequences';
 import { sceneOfFile } from './gltf-scene.fixture';
 import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';

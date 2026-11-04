@@ -2793,13 +2793,14 @@ describe('the door of the sea, read on the pile', () => {
 
     await t.mutation(api.movements.disband, { ...seat, point: field });
 
+    // The first piece of the pile (`pilePieces`: the armour, before the truck) keeps the point.
     const [kept, aboard, apart] = await t.run((ctx) =>
-      Promise.all([truck, rider, armour].map((id) => ctx.db.get(id))),
+      Promise.all([armour, rider, truck].map((id) => ctx.db.get(id))),
     );
     expect(kept!.stationedAt).toEqual(field);
-    expect(aboard!.stationedAt).toEqual(field);
-    expect(aboard!.carriedBy).toBe(truck);
     expect(apart!.stationedAt).not.toEqual(field);
+    expect(aboard!.stationedAt).toEqual(apart!.stationedAt);
+    expect(aboard!.carriedBy).toBe(truck);
     // la couronne se lit sur le camion, la plus grande pièce (#283) : quelque 22 km
     const ring = distanceKm(pointOf(field), pointOf(apart!.stationedAt as typeof field));
     expect(ring).toBeGreaterThan(20);
@@ -2809,6 +2810,39 @@ describe('the door of the sea, read on the pile', () => {
     await expect(t.mutation(api.movements.disband, { ...seat, point: field })).rejects.toThrow(
       'NOT_A_SQUAD',
     );
+  });
+
+  /** **Les piles posées rayonnent** (#277, décision du 03/11) : chaque pièce posée à part regarde
+   *  du point vers sa place, ses passagers avec elle ; la tête garde son cap. */
+  it('turns each piece set apart away from the point, its riders with it, the head as it was', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const field = { lon: 4.8, lat: 46.5 };
+    const rifles = [
+      await postAt(t, seat, 'infantry', field),
+      await postAt(t, seat, 'infantry', field),
+    ];
+    const armour = await postAt(t, seat, 'armor', field);
+    const truck = await postAt(t, seat, 'landTransport', field);
+    const rider = await postAt(t, seat, 'infantry', field);
+    await t.run(async (ctx) => {
+      for (const id of [...rifles, armour, truck, rider]) await ctx.db.patch(id, { facing: 90 });
+      await ctx.db.patch(rider, { carriedBy: truck });
+    });
+
+    await t.mutation(api.movements.disband, { ...seat, point: field });
+
+    const [head, ...apart] = await t.run((ctx) =>
+      Promise.all([...rifles, armour, truck].map((id) => ctx.db.get(id))),
+    );
+    expect(head!.stationedAt).toEqual(field);
+    expect(head!.facing).toBe(90);
+    for (const troop of apart) {
+      const at = troop!.stationedAt as typeof field;
+      expect(troop!.facing).toBeCloseTo(bearingDegrees(pointOf(field), pointOf(at)), 6);
+    }
+    const aboard = (await t.run((ctx) => ctx.db.get(rider)))!;
+    expect(aboard.facing).toBe(apart.at(-1)!.facing);
   });
 
   /** **La couronne reste sur le sol du point** (#283) : à 22 km, le Cotentin touche la mer et

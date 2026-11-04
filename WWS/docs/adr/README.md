@@ -28,7 +28,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0018](0018-anatomie-de-la-passe-de-resolution.md) | Anatomie de la passe de résolution, table unique, munitions au tir seul | acceptée, §3 amendé par 0019, §7 renversée le 25/08, §3 et §5 révisés par 0021 |
 | [0019](0019-mouvement-libre-et-troupes-posees.md) | Mouvement libre, troupes posées, et l'avant-poste qui ravitaille | acceptée, §3 et §6 révisés par 0024, §2 révisé par 0025, §4 précisé par 0037 |
 | [0020](0020-domination-par-couleur.md) | Domination par couleur : le territoire devient le score | acceptée, §10 et §11 révisés par 0027, rendu (§1, §5) révisé par 0033, §8 précisé par 0037 |
-| [0021](0021-portee-de-detection-et-postures.md) | Portées passives et comportement dérivé de l'ordre | acceptée, révisée le 08/09, §2 et §3 révisés par 0024, source des slots révisée par 0030, §1 et §4 révisés par 0037 |
+| [0021](0021-portee-de-detection-et-postures.md) | Portées passives et comportement dérivé de l'ordre | acceptée, révisée le 08/09, §2 et §3 révisés par 0024, source des slots révisée par 0030, §1 et §4 révisés par 0037, §4 précisé le 03/11 (fenêtres disjointes, #412) |
 | [0022](0022-comptes-pseudo-et-mot-de-passe.md) | Comptes pseudo et mot de passe, sans e-mail | acceptée — révise 0009, révisée le 12/09 |
 | [0023](0023-geographie-serveur-en-raster.md) | La géographie du serveur est un raster à la maille de la grille | acceptée — précise 0012 |
 | [0024](0024-engagement-intentionnel-et-forces-posees-visibles.md) | L'engagement est intentionnel, et une force posée se voit dans la portée | acceptée — révise 0008, 0019 §3/§6, 0021 §2/§3 ; §1 révisé par 0037 |

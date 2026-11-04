@@ -22,6 +22,7 @@ import { allRegions, regionFacts, pointOfRegion } from './regions';
 import { hostAtPoint, landAtPoint, routeBetween } from './routes';
 import { marchingForce, reassessDetection } from './movement/detection';
 import { lookoutKmOf } from '../src/domain/outposts';
+import { windowsOf } from '../src/domain/sighting-windows';
 import { pacedMinutes } from './movement/pace';
 import { credit, debit, settle } from './resources';
 import { forgetMovement } from './movement/arrival';
@@ -1482,16 +1483,18 @@ describe('what survives the movement it watched', () => {
     const from = eastOf(here, 30);
     await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(from) }));
     const movementId = await moving(t, seat, troopId, 'march', from, eastOf(here, 900), 6 * HOUR);
-    const [window] = await sightingsOf(t, guest);
-    expect(window!.from).toBeLessThanOrEqual(Date.now());
+    const [row] = await sightingsOf(t, guest);
+    /** La vigie d'abord ; le sol soviétique, bien plus loin, ouvre une seconde fenêtre (#412). */
+    const window = windowsOf(row!)[0]!;
+    expect(window.from).toBeLessThanOrEqual(Date.now());
 
-    vi.advanceTimersByTime(HOUR);
+    vi.advanceTimersByTime((window.from + window.to) / 2 - Date.now());
     const cut = Date.now();
     await t.run(async (ctx) => forgetMovement(ctx, movementId));
 
     const [frozen] = await sightingsOf(t, guest);
     expect(frozen!.frozen).toBeDefined();
-    expect(frozen!.frozen!.closedAt).toBe(Math.min(window!.to, cut));
+    expect(frozen!.frozen!.closedAt).toBe(cut);
     const [seen] = (await t.query(api.view.playerView, guest)).detected;
     expect(seen!.seenTo).toBe(frozen!.frozen!.closedAt);
     expect(seen!.arrivesAt).toBe(frozen!.frozen!.closedAt);
@@ -2278,5 +2281,293 @@ describe('a column held at the end of its road', () => {
 
     // Un éliminé pendant la retenue laisse ses troupes là (`toIrregulars`).
     expect(distanceKm(positionAt(marchingForce(held), Date.now()), end)).toBeLessThan(0.001);
+  });
+});
+
+/**
+ * **Une colonne vue par deux guetteurs ne montre que ce qu'ils ont vu** (#412). Le fil part vers
+ * l'est, tourne au nord à six cents kilomètres ; un guetteur sur chaque branche, le coude entre
+ * les deux. Aucun point du trou — le coude en est le milieu — ne sort, par aucun lecteur.
+ */
+describe('a column two sentries see apart', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const HOUR = 3_600_000;
+  const start = () => pointOf(MARNE);
+  const corner = () => eastOf(start(), 600);
+  const end = () => northOf(corner(), 600);
+  /** À plus de deux cents kilomètres de tout ce qu'un guetteur a vu. */
+  const IN_THE_HOLE_KM = 200;
+
+  async function sentry(t: ReturnType<typeof boot>, seat: Seat, at: LonLat) {
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(at) }));
+    return troopId;
+  }
+
+  async function seenTwice(
+    t: ReturnType<typeof boot>,
+    stops: ReadonlyArray<LonLat> = [start(), corner(), end()],
+    sentries: ReadonlyArray<LonLat> = [
+      northOf(eastOf(start(), 300), 30),
+      eastOf(northOf(corner(), 300), 30),
+    ],
+  ) {
+    const { seat, guest } = await launchedSeason(t);
+    const posted: Array<Id<'troops'>> = [];
+    for (const at of sentries) posted.push(await sentry(t, guest, at));
+    const troopId = await form(t, seat, 'infantry', null);
+    const playerId = await playerOf(t, seat);
+    const last = stops[stops.length - 1]!;
+    const km = stops
+      .slice(1)
+      .reduce((sum, point, index) => sum + distanceKm(stops[index]!, point), 0);
+    const movementId = await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(playerId))!.seasonId;
+      const movementId = await ctx.db.insert('movements', {
+        seasonId,
+        playerId,
+        type: 'march',
+        fromBuildingId: null,
+        target: { kind: 'point', point: asPoint(last) },
+        from: asPoint(stops[0]!),
+        to: asPoint(last),
+        hostCountry: hostAtPoint(last),
+        points: stops.map(asPoint),
+        legs: [{ medium: 'land', distanceUnits: km }],
+        distanceUnits: km,
+        costUnits: km * COST_BY_MEDIUM.land,
+        landCost: COST_BY_MEDIUM.land,
+        troopIds: [troopId],
+        departedAt: Date.now(),
+        arrivesAt: Date.now() + 6 * HOUR,
+      });
+      await reassessDetection(ctx, seasonId);
+      return movementId;
+    });
+    const [row] = await sightingsOf(t, guest);
+    expect(row!.windows).toHaveLength(2);
+    const [first, second] = row!.windows!;
+    return { seat, guest, movementId, posted, row: row!, first: first!, second: second! };
+  }
+
+  /** L'heure avance, et les rendez-vous échus tombent : rien d'autre ne réévalue. */
+  const at = async (t: ReturnType<typeof boot>, instant: number) => {
+    vi.advanceTimersByTime(instant - Date.now());
+    await t.finishInProgressScheduledFunctions();
+  };
+
+  const served = async (t: ReturnType<typeof boot>, guest: Seat) => {
+    const [arc] = (await t.query(api.view.playerView, guest)).detected;
+    expect(arc).toBeDefined();
+    return { arc: arc!, points: arc!.points.map((point): LonLat => [point.lon, point.lat]) };
+  };
+  const outsideTheHole = (points: ReadonlyArray<LonLat>, hole = corner(), km = IN_THE_HOLE_KM) => {
+    for (const point of points) expect(distanceKm(point, hole)).toBeGreaterThan(km);
+  };
+
+  /** Ce que sert l'arc dans le trou, puis à la réapparition : jamais un point du trou. */
+  async function servedAroundTheHole(
+    t: ReturnType<typeof boot>,
+    guest: Seat,
+    first: { from: number; to: number },
+    second: { from: number; to: number },
+    hole: LonLat,
+    km: number,
+  ) {
+    await at(t, (first.to + second.from) / 2);
+    const inTheHole = await served(t, guest);
+    expect(inTheHole.arc.seenTo).toBe(first.to);
+    outsideTheHole(inTheHole.points, hole, km);
+    await at(t, (second.from + second.to) / 2);
+    const reappeared = await served(t, guest);
+    expect(reappeared.arc.seenFrom).toBe(second.from);
+    outsideTheHole(reappeared.points, hole, km);
+  }
+
+  /** **Une même vigie, deux passages** : la route la coupe, file à trois cents kilomètres, et
+   *  revient sur ses pas. Le demi-tour est au milieu du trou. */
+  it('keeps two windows for one sentry the road leaves and enters again', async () => {
+    const t = boot();
+    const turn = eastOf(start(), 600);
+    const { guest, first, second } = await seenTwice(
+      t,
+      [start(), turn, start()],
+      [northOf(eastOf(start(), 300), 30)],
+    );
+    await servedAroundTheHole(t, guest, first, second, turn, IN_THE_HOLE_KM);
+  });
+
+  /** **Un sol quitté puis repris** : de Kaliningrad à Smolensk, la colonne traverse la Lituanie
+   *  et la Biélorussie, que le sol soviétique ne voit pas. */
+  it('keeps two windows for the soil a road leaves and takes again', async () => {
+    const t = boot();
+    const vilnius: LonLat = [25.28, 54.69];
+    const { guest, row, first, second } = await seenTwice(
+      t,
+      [
+        [20.5, 54.7],
+        [32.0, 54.8],
+      ],
+      [],
+    );
+    expect(row.detector).toBe('territory');
+    await servedAroundTheHole(t, guest, first, second, vilnius, 100);
+  });
+
+  it('keeps one row with two windows and the hole between them', async () => {
+    const t = boot();
+    const { row, first, second } = await seenTwice(t);
+    expect(row.windows).toHaveLength(2);
+    expect(row.from).toBe(first.from);
+    expect(row.to).toBe(second.to);
+    expect(second.from - first.to).toBeGreaterThan(HOUR);
+  });
+
+  it('serves the first stretch as the last known position while the column is in the hole', async () => {
+    const t = boot();
+    const { guest, first, second } = await seenTwice(t);
+    await at(t, (first.to + second.from) / 2);
+    const { arc, points } = await served(t, guest);
+    expect(arc.seenFrom).toBe(first.from);
+    expect(arc.seenTo).toBe(first.to);
+    outsideTheHole(points);
+  });
+
+  it('serves the second stretch alone once the column reappears, dated from the reappearance', async () => {
+    const t = boot();
+    const { guest, second } = await seenTwice(t);
+    await at(t, (second.from + second.to) / 2);
+    const { arc, points } = await served(t, guest);
+    expect(arc.seenFrom).toBe(second.from);
+    expect(arc.seenTo).toBe(second.to);
+    outsideTheHole(points);
+    /** Due north, on the second branch: the arc starts after the corner. */
+    expect(arc.headingDegrees).toBeLessThan(10);
+  });
+
+  it('files one dispatch, worded on the first window, and none at the reappearance', async () => {
+    const t = boot();
+    const { first, second } = await seenTwice(t);
+    const sighted = () =>
+      t.run(async (ctx) =>
+        (await ctx.db.query('notices').collect()).filter(
+          (notice) => notice.kind === 'movementSighted',
+        ),
+      );
+    await at(t, first.from);
+    const [dispatch] = await sighted();
+    expect(dispatch).toBeDefined();
+    /** Due east, the heading on leaving the first sentry — never the northward one past the hole. */
+    expect(dispatch!.headingDegrees).toBeGreaterThan(80);
+    expect(dispatch!.headingDegrees).toBeLessThan(100);
+
+    await at(t, second.from);
+    expect(await sighted()).toHaveLength(1);
+  });
+
+  it('wakes the row at the reappearance, and keeps only the window served', async () => {
+    const t = boot();
+    const { guest, movementId, row, second } = await seenTwice(t);
+    await at(t, row.from);
+    const [opened] = await sightingsOf(t, guest);
+    expect(opened!.openJobAt).toBe(second.from);
+    /** Une réévaluation qui ne change rien garde le réveil, et n'écrit pas la ligne : une
+     *  écriture identique réveillerait quand même la vue de l'observateur. */
+    const patched = await t.run(async (ctx) => {
+      const patch = vi.spyOn(ctx.db, 'patch');
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+      return patch.mock.calls.flat().filter((arg) => arg === opened!._id);
+    });
+    expect(patched).toEqual([]);
+    expect(await sightingsOf(t, guest)).toEqual([opened]);
+
+    /** Un réveil périmé ne fait rien. */
+    await t.mutation(internal.movements.wakeSighting, {
+      sightingId: opened!._id,
+      expectedAt: row.from,
+    });
+    expect(await sightingsOf(t, guest)).toEqual([opened]);
+
+    await at(t, second.from);
+    const [woken] = await sightingsOf(t, guest);
+    expect(woken!.windows).toEqual([second]);
+    expect(woken!.openJobAt).toBeUndefined();
+  });
+
+  const jobState = (t: ReturnType<typeof boot>, jobId: Id<'_scheduled_functions'>) =>
+    t.run(async (ctx) => (await ctx.db.system.get(jobId))!.state.kind);
+
+  /** **La seconde vigie recule** : la réapparition est plus tard, le réveil la suit. */
+  it('moves the wake-up when a reassessment moves the reappearance', async () => {
+    const t = boot();
+    const { guest, movementId, posted, row, second } = await seenTwice(t);
+    await at(t, row.from);
+    const [opened] = await sightingsOf(t, guest);
+    expect(opened!.openJobAt).toBe(second.from);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(posted[1]!, {
+        stationedAt: asPoint(eastOf(northOf(corner(), 450), 30)),
+      });
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+    });
+
+    const [moved] = await sightingsOf(t, guest);
+    const later = moved!.windows![1]!;
+    expect(later.from).toBeGreaterThan(second.from);
+    expect(moved!.openJobAt).toBe(later.from);
+    expect(await jobState(t, opened!.openJobId!)).toBe('canceled');
+  });
+
+  /** **Les deux vigies parties avant la première ouverture** : la ligne part, son réveil aussi. */
+  it('cancels the wake-up of a row that goes before it ever opened', async () => {
+    const t = boot();
+    const { guest, movementId, posted, row } = await seenTwice(t);
+    expect(row.openJobId).toBeDefined();
+
+    await t.run(async (ctx) => {
+      for (const troopId of posted) await ctx.db.delete(troopId);
+      await reassessDetection(ctx, (await ctx.db.get(movementId))!.seasonId);
+    });
+
+    expect(await sightingsOf(t, guest)).toEqual([]);
+    expect(await jobState(t, row.openJobId!)).toBe('canceled');
+  });
+
+  it('freezes the last window opened when the column vanishes in the hole', async () => {
+    const t = boot();
+    const { guest, movementId, first, second } = await seenTwice(t);
+    await at(t, (first.to + second.from) / 2);
+    const [before] = await sightingsOf(t, guest);
+    await t.run(async (ctx) => forgetMovement(ctx, movementId));
+
+    const [frozen] = await sightingsOf(t, guest);
+    expect(frozen!.frozen!.closedAt).toBe(first.to);
+    expect(frozen!.windows).toBeUndefined();
+    expect(frozen!.openJobId).toBeUndefined();
+    const job = await t.run(async (ctx) => ctx.db.system.get(before!.openJobId!));
+    expect(job!.state.kind).toBe('canceled');
+    outsideTheHole(frozen!.frozen!.points.map((point): LonLat => [point.lon, point.lat]));
+    const { arc, points } = await served(t, guest);
+    expect(arc.seenFrom).toBe(first.from);
+    outsideTheHole(points);
+  });
+
+  it('keeps a single window when the two sentries see each other’s end', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await sentry(t, guest, northOf(eastOf(start(), 300), 30));
+    await sentry(t, guest, northOf(eastOf(start(), 380), 30));
+    const troopId = await form(t, seat, 'infantry', null);
+    await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(start()) }));
+    await moving(t, seat, troopId, 'march', start(), corner(), 3 * HOUR);
+    const [row] = await sightingsOf(t, guest);
+    expect(row!.windows).toBeUndefined();
+    expect(row!.to - row!.from).toBeGreaterThan(HOUR / 2);
   });
 });

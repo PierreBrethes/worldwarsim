@@ -911,6 +911,14 @@ const DISBAND_LARGEST_KM = troopSpan('landTransport') * BOARD_KM;
 /** Les places essayées sur la couronne quand une partie tombe hors du sol du point. */
 const DISBAND_RING_SAMPLES = 72;
 
+/** **Le rayon de la couronne** de `count` pièces dont la plus grande fait `spanKm`, en km : ce que
+ *  `disbandPointsOf` pose, et ce que la carte reconnaît pour une dissolution (#277). */
+export function disbandRadiusKm(count: number, spanKm: number): number {
+  const ring = count - 1;
+  const span = Math.min(spanKm, DISBAND_LARGEST_KM);
+  return Math.max(DISBAND_RING_SPANS * span, ring < 2 ? 0 : span / (2 * Math.sin(Math.PI / ring)));
+}
+
 /**
  * **Où se posent les pièces dissoutes** : la première reste au point, les autres en couronne
  * autour, sur-le-champ — aucun mouvement, aucun slot, comme débarquer. Le rayon se lit sur la plus
@@ -927,10 +935,7 @@ export function disbandPointsOf(
 ): Array<[number, number]> | null {
   const ring = count - 1;
   spanKm = Math.min(spanKm, DISBAND_LARGEST_KM);
-  const radiusKm = Math.max(
-    DISBAND_RING_SPANS * spanKm,
-    ring < 2 ? 0 : spanKm / (2 * Math.sin(Math.PI / ring)),
-  );
+  const radiusKm = disbandRadiusKm(count, spanKm);
   const step = 2 * Math.asin(Math.min(1, spanKm / (2 * radiusKm)));
   const degrees = radiusKm / KM_PER_UNIT;
   const stretch = 1 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));

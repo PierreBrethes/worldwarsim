@@ -62,25 +62,34 @@ export type SheetLine = {
 
 type Bucket = { role: UnitRole; troops: PileTroop[]; ratio: number };
 
-function bucketsOf(troops: ReadonlyArray<PileTroop>): Bucket[] {
-  const byRole = new Map<UnitRole, PileTroop[]>();
+/** Troops by role: the most numerous role first, then the sheet's order (`ROLE_ORDER`). */
+function runsOf<T extends { readonly role: UnitRole }>(
+  troops: ReadonlyArray<T>,
+): Array<readonly [UnitRole, T[]]> {
+  const byRole = new Map<UnitRole, T[]>();
   for (const troop of troops) {
     const members = byRole.get(troop.role);
     if (members) members.push(troop);
     else byRole.set(troop.role, [troop]);
   }
-  return [...byRole]
-    .map(([role, members]) => {
-      const nominal = members.reduce((sum, t) => sum + t.nominalStrength, 0);
-      const strength = members.reduce((sum, t) => sum + t.strength, 0);
-      // A zero nominal is no wound: reading it as 1 keeps NaN out of the notches.
-      return { role, troops: members, ratio: nominal === 0 ? 1 : strength / nominal };
-    })
-    .sort(
-      (a, b) =>
-        b.troops.length - a.troops.length ||
-        ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
-    );
+  return [...byRole].sort(
+    ([a, one], [b, other]) =>
+      other.length - one.length || ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b),
+  );
+}
+
+/** **The pieces of a pile in the order they stand** (`pilePieces`): what the crown of a
+ *  disbanded squad ranks them by (`crownSeats`, #277). */
+export const inPileOrder = <T extends { readonly role: UnitRole }>(pieces: ReadonlyArray<T>): T[] =>
+  runsOf(pieces).flatMap(([, members]) => members);
+
+function bucketsOf(troops: ReadonlyArray<PileTroop>): Bucket[] {
+  return runsOf(troops).map(([role, members]) => {
+    const nominal = members.reduce((sum, t) => sum + t.nominalStrength, 0);
+    const strength = members.reduce((sum, t) => sum + t.strength, 0);
+    // A zero nominal is no wound: reading it as 1 keeps NaN out of the notches.
+    return { role, troops: members, ratio: nominal === 0 ? 1 : strength / nominal };
+  });
 }
 
 function wearOf(ratio: number): Wear {

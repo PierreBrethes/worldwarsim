@@ -55,8 +55,10 @@ import {
   aboardOf,
   chargementsOf,
   descentesOf,
+  dispersionsOf,
   entreesOf,
   loadsOf,
+  monteesOf,
   rankKept,
   sortiesOf,
 } from './cues';
@@ -77,7 +79,7 @@ import type { MouseMapping } from '@/domain/mouse-mapping';
 import { MAT_LIFT_HUD, useBoardInsets, useCoarsePointer, useNarrowScreen } from '@/shell/viewport';
 import { Price } from '@/shell/Price';
 import type { Cost } from '@/domain/player-view';
-import type { PilePieces } from '@/domain/pile-pieces';
+import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
 import { RouteScale } from './RouteScale';
 import type { CargoAim } from './CargoTags';
 import { CombatReports } from './CombatReports';
@@ -199,7 +201,9 @@ type Props = {
   onPieceCarry?: ((from: PieceFrom, single: boolean) => boolean) | undefined;
   /** **La pièce portée, lâchée sur une pile à moi** : poser — la rose s'ouvre alors sur sa
    *  cible —, embarquer, ou reposer. */
-  onPieceDrop?: ((on: PieceFrom) => 'pose' | 'board' | 'back' | 'refused') | undefined;
+  /** `boardHome`: onto a truck whose men board under the eyes (`boardsUnderTheEyes`, #277). */
+  onPieceDrop?:
+    ((on: PieceFrom) => 'pose' | 'board' | 'boardHome' | 'back' | 'refused') | undefined;
   /** Ce que le lâcher ferait sur une pièce de la même adresse ; `undefined` ailleurs, où la rose
    *  le dit. */
   dropHintOf?: ((on: PieceFrom) => DropHint | null | undefined) | undefined;
@@ -1117,7 +1121,8 @@ export function WorldMap({
       ((target, clientX, clientY) => {
         const { from, label } = read(target, clientX, clientY);
         const outcome = from === null ? 'pose' : onPieceDrop(from);
-        if (outcome === 'board') readyEngine.boardInto(clientX, clientY);
+        if (outcome === 'board' || outcome === 'boardHome')
+          readyEngine.boardInto(clientX, clientY, outcome === 'boardHome');
         if (outcome === 'refused') readyEngine.refuseDrop();
         if (outcome === 'pose' && label !== undefined) onLabelAct(label, clientX, clientY);
       });
@@ -1799,9 +1804,38 @@ export function WorldMap({
     const known = aboardKnown.current;
     aboardKnown.current = aboardOf(troops);
     if (known === null) return;
-    for (const groupId of descentesOf(known, troops, standing))
-      readyEngine?.cue({ kind: 'descente', groupId });
-  }, [troops, standing, readyEngine]);
+    for (const descente of descentesOf(known, troops, standing))
+      readyEngine?.cue({ kind: 'descente', ...descente });
+    // Men board a truck one by one (#277); a Blitz unit is not three men.
+    if (blitz !== null) return;
+    const byId = new Map(troops.map((troop) => [troop.id, troop]));
+    for (const { truck, riders } of monteesOf(known, troops, standing))
+      readyEngine?.cue({
+        kind: 'montee',
+        truck,
+        riders: riders.flatMap((troopId) => {
+          const troop = byId.get(troopId);
+          if (troop?.role !== 'infantry') return [];
+          const { carriedBy: _, ...alone } = troop;
+          const figures = pilePieces([alone]).groups[0]?.figures ?? [];
+          return [{ troopId, figures }];
+        }),
+      });
+  }, [troops, standing, readyEngine, blitz]);
+
+  // A squad disbanded at its point: its pieces walk out to their crown (#277, U). The two views
+  // say it; my columns on either one are a march, not a crown.
+  const crownKnown = useRef<{
+    standing: ReadonlyArray<StandingPile>;
+    arcs: ReadonlyArray<ArcView>;
+  } | null>(null);
+  useEffect(() => {
+    const before = crownKnown.current;
+    crownKnown.current = { standing, arcs };
+    if (before === null) return;
+    for (const dispersion of dispersionsOf(before.standing, standing, [before.arcs, arcs]))
+      readyEngine?.cue({ kind: 'dispersion', ...dispersion });
+  }, [standing, arcs, readyEngine]);
 
   // A truck loads at its warehouse or its HQ: it backs to the quay (#271). Nothing on the first view.
   const loadsKnown = useRef<ReadonlyMap<string, number> | null>(null);

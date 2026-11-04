@@ -24,19 +24,51 @@ côté client pour des raisons de performance.
 Un départ, une arrivée, une composition modifiée, un détecteur posé ou retiré et son changement
 d'état déclenchent une réévaluation serveur bornée par les mouvements et les slots de la saison.
 On calcule, pour chaque observateur, l'intersection temporelle entre les trajets et les portées,
-puis on écrit ou corrige des enregistrements :
+puis on écrit ou corrige **une ligne par mouvement et par observateur** :
 
 ```
-(observateur, mouvement, tDébut, tFin)
+(observateur, mouvement, tDébut, tFin, fenêtres)
 ```
 
 Chaque joueur ne lit ensuite **que ses propres lignes**. Sa requête ne dépend plus de la table des
 mouvements, mais d'une table qui lui est propre. Le fan-out disparaît.
 
+**Les fenêtres sont disjointes** (#412). Chaque détecteur rend une fenêtre par passage : une vigie
+quittée puis retrouvée, un sol quitté puis repris, une seconde vigie plus loin, le point d'une
+ligne de guet franchie (`[at, at]`). La ligne les garde dans l'ordre, jointes seulement quand
+elles se chevauchent ou se touchent à un pas de la grille du trajet près
+(`(arrivée − départ) / INTERCEPTION_SAMPLES`) : la grille ne sait rien de ce qui se passe entre
+deux échantillons. `tDébut` et `tFin` restent l'enveloppe — la première ouverture, qui date la
+dépêche, et la fin de la dernière fenêtre — et ne se servent jamais telles quelles : toute lecture
+passe par `windowsOf` (`src/domain/sighting-windows.ts`). Une ligne sans `windows` n'a qu'une
+fenêtre, son enveloppe.
+
+- **Seule la dernière fenêtre ouverte se sert** (celle dont `from <= now`). Dans un trou, c'est la
+  précédente, close : la dernière position connue. À la réapparition, le premier tronçon disparaît,
+  et l'arc se date de la réapparition (`seenFrom`) ; le client ne connaît qu'un tronçon, comme avant.
+- **Le passé reste ce qu'il a été vu, l'avenir se remplace.** La fenêtre en cours finit à
+  `max(now, prédiction)` : elle raccourcit quand plus rien ne la tient. Les fenêtres à venir sont
+  celles que la carte promet encore ; celles d'avant la fenêtre servie s'élaguent.
+- **Une dépêche par ligne**, à sa première ouverture : une réapparition n'en donne ni dépêche ni
+  push. Son cap et son point se lisent sur la première fenêtre, jamais sur l'enveloppe.
+- **Un réveil par réapparition** (`openJobId`, `openJobAt`) : une vue en cache ne relit pas
+  l'heure. Gardé si l'heure ne change pas, annulé puis replanifié sinon, et sans effet s'il est
+  périmé. Il n'y a pas de réveil de fin de fenêtre : le client passe au dernier point connu de
+  lui-même.
+- **Le figé** (`forgetMovement`) fige la dernière fenêtre ouverte, efface celles à venir et
+  annule le réveil. **La Blitz** (`inSight`, `quarryOf`) et **la dépêche d'un Fort** demandent une
+  fenêtre qui tienne l'instant : dans un trou, la proie n'est pas en vue.
+- **Colonne contre colonne, l'enveloppe est admise** (Décisions du 03/11) : `mobileSighting` ne
+  rend qu'une fenêtre par paire, de la première approche à la dernière. Deux colonnes qui se
+  croisent, s'écartent puis se recroisent servent le tronçon d'entre deux. Le cas est rare, et le
+  découper toucherait `mobileSighting`, la part la plus chère de la passe (52 %, ci-dessous).
+- **Une écriture ne part que si la valeur change** : les fenêtres se comparent par valeur avant
+  toute écriture, sinon chaque réévaluation réveillerait la vue de chaque observateur.
+
 Une ligne future porte un rendez-vous annulable : aucune dépêche et aucun arc ne sort avant
-`tDébut`. Si l'événement suivant rend la fenêtre impossible, la ligne et son rendez-vous
-disparaissent. Une fenêtre déjà ouverte n'est pas effacée : son `tFin` est refermé et elle devient
-la dernière position connue.
+`tDébut`. Si l'événement suivant rend la ligne impossible, elle et ses rendez-vous disparaissent.
+Une fenêtre déjà ouverte n'est pas effacée : sa fin est refermée et elle devient la dernière
+position connue.
 
 ## Ce que ça implique
 

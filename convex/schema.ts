@@ -1260,8 +1260,18 @@ export default defineSchema({
     /** **Whose column it was**, kept for the memory once the movement is gone. Never served —
      *  except as a nation to the holder of Lisbon (P11). Absent on rows written before it. */
     ownerId: v.optional(v.id('players')),
+    /** L'enveloppe : la première ouverture et la fin de la dernière fenêtre, jamais servie. */
     from: v.number(),
     to: v.number(),
+    /**
+     * **Les fenêtres disjointes** (#412) : ce que les détecteurs ont vu, un trou entre deux
+     * fenêtres qui ne se touchent pas. Absentes, la fenêtre est l'enveloppe. Toute lecture passe
+     * par `windowsOf` (`src/domain/sighting-windows.ts`). `openJobId` réveille la ligne à la
+     * prochaine ouverture, `openJobAt` : la vue en cache ne relit pas l'heure.
+     */
+    windows: v.optional(v.array(v.object({ from: v.number(), to: v.number() }))),
+    openJobId: v.optional(v.id('_scheduled_functions')),
+    openJobAt: v.optional(v.number()),
     /**
      * **Which of his four detectors caught it first**, and the row it hangs from when it has
      * one. There is one row per observer whatever saw the thread — two would draw the same arc
@@ -1305,7 +1315,7 @@ export default defineSchema({
      * **Ce qu'un Guet a lu de la pile** (ADR 0037 §5, `src/domain/lookout-reading.ts`) : un rôle
      * par troupe, sans effectif, sans tier, sans cargaison, et jamais l'ordre. `reads` garde les
      * fenêtres de Guet en cours et à venir, une par passage dans un cercle, qui ne sont pas
-     * celles de la ligne : la ligne nomme le premier détecteur et couvre les sorties. La pile ne
+     * celles de la ligne : la ligne nomme le premier détecteur et garde tous ses passages. La pile ne
      * s'écrit que dans une fenêtre ouverte ; figée, `readAt` date sa dernière lecture.
      * `readJobId` réveille la ligne à la prochaine borne, `readJobAt`. Écrite au niveau de la ligne, hors de `frozen`, elle survit au souvenir.
      */
