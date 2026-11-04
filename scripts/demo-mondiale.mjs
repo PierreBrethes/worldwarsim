@@ -143,6 +143,13 @@
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
  * doit s'animer (`saboteur`).
  *
+ * `--prise [s]` (#279) pose en Belgique, pour la France contre le Royaume-Uni, une caserne
+ * britannique à Namur que deux fantassins français capturent : la capture aboutit dans `s`
+ * secondes (90 par défaut), l'agrafe court d'ici là autour du socle, et le drapeau monte chez le
+ * capteur, descend chez le teneur (`--compte b`) ; un entrepôt britannique à Liège, pillé par la
+ * France et scellé douze heures ; une infanterie française qui arrive dans une minute à Mons, sur
+ * une caisse déjà partie : « caisse introuvable » au journal. Lieux `prise`, `scelles`, `caisse`.
+ *
  *     npm run demo:mondiale
  *
  * Refuse toute URL qui n'est pas 127.0.0.1 ou localhost. Les comptes (mot de passe compris) vont
@@ -295,6 +302,9 @@ const lone = process.argv.includes('--troupe-seule');
 /** `--chargee` : avec `--troupe-seule`, le camion du point porte un fantassin à son bord. */
 const loaded = process.argv.includes('--chargee');
 /** `--combat [s]` : une colonne française sur une garnison britannique, arrivée dans s secondes (#272). */
+/** `--prise [s]` (#279) : une capture qui aboutit dans `s` secondes, un pillage scellé, une caisse partie. */
+const takingAt = process.argv.indexOf('--prise');
+const takingIn = takingAt < 0 ? null : Number(process.argv[takingAt + 1]) || 90;
 const combatAt = process.argv.indexOf('--combat');
 const combatIn = combatAt < 0 ? null : Number(process.argv[combatAt + 1]) || 25;
 /** `--combat-mer [s]` : deux escorteurs français sur deux britanniques en Manche (#324). */
@@ -1315,6 +1325,22 @@ if (!bare) {
       'dev:arriveNow',
       JSON.stringify({ playerId: scene.a, afterMs: coastIn * 1000, onTime: true }),
     ]);
+  }
+  if (takingIn !== null && scene.a !== null && scene.b !== null) {
+    const out = cli([
+      'run',
+      'dev:takingScene',
+      JSON.stringify({
+        playerId: scene.a,
+        enemyId: scene.b,
+        captureInMs: takingIn * 1000,
+        crateInMs: 60_000,
+      }),
+    ]);
+    Object.assign(places, JSON.parse(out.slice(out.indexOf('{'))));
+    console.log(
+      `prise : la capture aboutit à ${new Date(Date.now() + takingIn * 1000).toISOString()}`,
+    );
   }
   if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
     const garrison = { lon: 4.94, lat: 49.7 };

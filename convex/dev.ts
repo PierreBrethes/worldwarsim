@@ -2277,3 +2277,174 @@ export const benchPlayers = internalQuery({
         .collect()
     ).map((player) => ({ id: player._id, nation: player.nation })),
 });
+
+/**
+ * **La prise se voit** (#279), pour la démo, en Belgique : une caserne de `enemyId` à Namur, que
+ * `playerId` a relevée et capture avec deux fantassins posés à son point — la capture aboutit dans
+ * `captureInMs` (`@prise`) ; un entrepôt de `enemyId` à Liège, relevé, que `playerId` a pillé et
+ * mis hors service douze heures (`@scelles`) ; et une infanterie de `playerId` partie de Charleroi
+ * vers une caisse relevée à Mons, qu'un autre a déjà prise : elle y arrive dans `crateInMs` et
+ * rentre à vide (`@caisse`, la dépêche « caisse introuvable »).
+ *
+ * `npx convex run dev:takingScene '{"playerId":"…","enemyId":"…","captureInMs":90000,"crateInMs":60000}'`
+ */
+export const takingScene = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    enemyId: v.id('players'),
+    captureInMs: v.number(),
+    crateInMs: v.number(),
+  },
+  handler: async (ctx, { playerId, enemyId, captureInMs, crateInMs }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    const seasonId = player.seasonId;
+    const regionAt = (lonLat: readonly [number, number]) => {
+      const region = nearestRegion(lonLat);
+      if (region === null) throw new Error(`no region at ${lonLat.join(',')}`);
+      return region;
+    };
+    const infantry = (at: { lon: number; lat: number }) =>
+      ctx.db.insert('troops', {
+        seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: at,
+      });
+
+    const namur = regionAt([4.87, 50.47]);
+    const barracksPoint = pointOfRegion(namur.id);
+    const barracksId = await ctx.db.insert('buildings', {
+      seasonId,
+      playerId: enemyId,
+      key: 'barracks',
+      regionId: namur.id,
+      point: barracksPoint,
+      level: 2,
+    });
+    const liege = regionAt([5.57, 50.63]);
+    const warehousePoint = pointOfRegion(liege.id);
+    const warehouseId = await ctx.db.insert('buildings', {
+      seasonId,
+      playerId: enemyId,
+      key: 'warehouse',
+      regionId: liege.id,
+      point: warehousePoint,
+      level: 1,
+      disabledUntil: now + PLUNDER_DISABLED_HOURS * 3_600_000,
+    });
+    await recordLinkage(ctx, seasonId);
+    for (const point of [namur.point, liege.point])
+      await fileSurvey(ctx, playerId, [{ point, radiusKm: 1 }], now);
+
+    // The capture, as `arriveForCapture` starts it, sped up: it completes in `captureInMs`.
+    for (let k = 0; k < 2; k++) await infantry(barracksPoint);
+    const progress = 0.4;
+    const completesAt = now + captureInMs;
+    const captureId = await ctx.db.insert('captures', {
+      seasonId,
+      playerId,
+      defenderId: enemyId,
+      target: { kind: 'building', buildingId: barracksId },
+      site: { kind: 'building', building: 'barracks', regionId: namur.id },
+      point: barracksPoint,
+      progress,
+      progressAt: now,
+      rate: 1,
+      durationMs: captureInMs / (1 - progress),
+      rest: null,
+      completesAt,
+    });
+    await ctx.scheduler.runAt(completesAt, internal.captures.complete, {
+      captureId,
+      expectedAt: completesAt,
+    });
+
+    // The plunder, as `completePresence` files it: my report, their warehouse out of service.
+    await ctx.db.insert('plunderReports', {
+      seasonId,
+      attackerId: playerId,
+      defenderId: enemyId,
+      buildingId: warehouseId,
+      building: 'warehouse',
+      regionId: liege.id,
+      hostCountry: 'BEL',
+      at: now,
+      disabledUntil: now + PLUNDER_DISABLED_HOURS * 3_600_000,
+      engagementId: null,
+      taken: { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 },
+      storageLost: { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 },
+    });
+
+    // A crate sighted at Mons, taken by another before my column gets there.
+    const mons = { lon: 3.95, lat: 50.45 };
+    const zero = { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 };
+    const engagementId = await ctx.db.insert('engagements', {
+      seasonId,
+      attackerId: enemyId,
+      defenderId: playerId,
+      cause: 'arrival',
+      point: mons,
+      hostCountry: 'BEL',
+      at: now,
+      winner: 'attacker',
+      outpostId: null,
+      disabledUntil: null,
+      troops: [],
+    });
+    const recoveryId = await ctx.db.insert('lootRecoveries', {
+      seasonId,
+      engagementId,
+      dispossessedPlayerId: playerId,
+      recoveringPlayerId: enemyId,
+      point: mons,
+      at: now,
+      recovered: zero,
+      remainder: { ...zero, steel: 30 },
+    });
+    const crateId = await ctx.db.insert('lootCrates', {
+      seasonId,
+      recoveryId,
+      point: mons,
+      appearedAt: now,
+      expiresAt: now + 24 * 3_600_000,
+      loot: { ...zero, steel: 30 },
+    });
+    const sightingId = await ctx.db.insert('lootCrateSightings', {
+      seasonId,
+      playerId,
+      crateId,
+      point: mons,
+      loot: { ...zero, steel: 30 },
+      seenAt: now,
+      present: true,
+      current: true,
+    });
+    const charleroi = { lon: 4.44, lat: 50.41 };
+    const { movementId } = await march(ctx, {
+      playerId,
+      season,
+      type: 'march',
+      origin: { kind: 'point', point: charleroi },
+      troopIds: [await infantry(charleroi)],
+      aim: await aimOf(ctx, playerId, { kind: 'point', point: mons }),
+    });
+    await ctx.db.patch(movementId, {
+      arrivesAt: now + crateInMs,
+      lootCollection: { sightingId, crateId, orderedAt: now },
+    });
+    await ctx.scheduler.runAt(now + crateInMs, internal.movements.arrive, { movementId });
+    await ctx.db.delete(crateId);
+    await reassessDetection(ctx, seasonId, now);
+    return {
+      prise: [barracksPoint.lon, barracksPoint.lat],
+      scelles: [warehousePoint.lon, warehousePoint.lat],
+      caisse: [mons.lon, mons.lat],
+    };
+  },
+});
