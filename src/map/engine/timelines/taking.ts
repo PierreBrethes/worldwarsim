@@ -98,3 +98,36 @@ export function crateTaking({
   );
   return sequenceOf(ms, [[part, at]]);
 }
+
+/**
+ * **Piller** (#279) : deux hommes quittent le rang pour le perron, chacun met une caisse à
+ * l'épaule et rejoint le rang, où elle s'efface : la colonne repart chargée.
+ */
+export function plunderOf({
+  trips,
+  perMetre,
+}: {
+  readonly trips: ReadonlyArray<Trip>;
+  readonly perMetre: number;
+}): Sequence {
+  const there = TAKING.walk * 1.4;
+  const back = there + TAKING.lift + 150;
+  const home = back + TAKING.walk * 1.4;
+  const ms = home + TAKING.tag + 300;
+  return sequenceOf(
+    ms,
+    trips.map((trip) => [
+      trip.part,
+      tripOf(
+        trip,
+        { there, back, home },
+        (t) => {
+          const lifted = ease.out3(span(t, there, there + TAKING.lift));
+          return { carry: [0.5 * (1 - lifted), lifted, 1] };
+        },
+        (t) => ({ carry: [0, 1, 1 - span(t, home, home + TAKING.tag)] }),
+        perMetre,
+      ),
+    ]),
+  );
+}

@@ -90,7 +90,7 @@ import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
-import { crateTaking, type Trip } from './timelines/taking';
+import { crateTaking, plunderOf, type Trip } from './timelines/taking';
 import {
   type Attempt,
   type Docked,
@@ -177,7 +177,7 @@ import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer, type Shore } from './sea';
-import { MaquetteLayer, type SeaFront, type StandingMaquette } from './maquettes';
+import { MaquetteLayer, SOCLE_TOP, type SeaFront, type StandingMaquette } from './maquettes';
 import { BARE_MS, flagCues, HOIST_MS, LOWER_MS } from './site-marks';
 import {
   besideSites,
@@ -229,9 +229,10 @@ const SHORE_PROBES = 8;
 /** **A site plays its taking from this size on screen** (px, window of 900): its socle under
  *  64 px takes its end pose (storyboard, ADR 0038 §7). */
 const TAKING_PX = 64;
-/** **The crate lies so many metres behind its column** (#279, « la pile s'arrête à un pas »),.
- *  `@a-mesurer` */
+/** **The crate lies so many metres behind its column** (#279, « la pile s'arrête à un pas »), and
+ *  the men stop so far before a door. `@a-mesurer` */
 const CRATE_STEPS_METRES = 2.5;
+const DOOR_STEP_METRES = 2;
 
 /** **A port reads the coast it faces within this many km of its point**, and its normal from the
  *  water within a few times this many of it: the water in front, not a bay's chord (#436).
@@ -3728,14 +3729,30 @@ export class MapEngine {
     // The men's own metres: the floor grows them with the distance (ADR 0035 §10).
     const perMetre = box.getSize(new Vector3()).y / MAN_METRES;
     const offset = (man: Vector3, to: Vector3): Trip['to'] => [to.x - man.x, 0, to.z - man.z];
-    const [first] = squad.men;
+    const [first, second] = squad.men;
     if (first === undefined) return letGo();
     let sequence;
     if (cue.act === 'ramassage') {
       // The crate lies a few steps behind the pile, on the way it came (« la pile s'arrête à un pas »).
       const crate = first.clone().addScaledVector(squad.front, -CRATE_STEPS_METRES * perMetre);
       sequence = crateTaking({ part: 'man_0', to: offset(first, crate), perMetre });
-    } else return letGo();
+    } else {
+      const door = site?.door ?? null;
+      if (site === null || door === null) return letGo();
+      const [x, , z, yaw] = door;
+      const before = (side: number) =>
+        site.toBoard(
+          new Vector3(
+            x + Math.sin(yaw) * DOOR_STEP_METRES + Math.cos(yaw) * side,
+            SOCLE_TOP,
+            z + Math.cos(yaw) * DOOR_STEP_METRES - Math.sin(yaw) * side,
+          ),
+        );
+      const trips: Trip[] = [{ part: 'man_0', to: offset(first, before(-0.8)) }];
+      if (second !== undefined) trips.push({ part: 'man_1', to: offset(second, before(0.8)) });
+      if (cue.act !== 'pillage') return letGo();
+      sequence = plunderOf({ trips, perMetre });
+    }
     if (!this.sequences.play(this.arcs.squads, cue.arcId, sequence, now)) return letGo();
     this.arcs.hold(cue.arcId, inside, now + sequence.ms);
     return true;

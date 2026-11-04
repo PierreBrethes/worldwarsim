@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { crateTaking, TAKING } from './taking';
+import { crateTaking, plunderOf, TAKING } from './taking';
 
 const to = [3, 0, 4] as const;
 
@@ -38,5 +38,25 @@ describe('crateTaking (#279, « Ramasser »)', () => {
     expect(home.travel).toEqual([0, 0, 0]);
     expect(home.carry![2]).toBeLessThan(1);
     expect(home.carry![2]).toBeGreaterThan(0);
+  });
+});
+
+describe('plunderOf (#279, « Piller »)', () => {
+  const plunder = plunderOf({
+    trips: [
+      { part: 'man_0', to },
+      { part: 'man_1', to },
+    ],
+    perMetre: 1,
+  });
+
+  it('sends two men to the door, who come back a crate on the shoulder', () => {
+    const out = TAKING.walk * 1.4;
+    const both = plunder.at(out / 2);
+    expect(Object.keys(both)).toEqual(['man_0', 'man_1']);
+    const back = plunder.at(out + TAKING.lift + 150 + out / 2);
+    expect(back.man_0?.carry?.[1]).toBe(1);
+    expect(back.man_1?.carry?.[1]).toBe(1);
+    expect(plunder.at(plunder.ms - 1).man_0?.travel).toEqual([0, 0, 0]);
   });
 });

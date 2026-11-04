@@ -1292,6 +1292,8 @@ export class MaquetteLayer implements SequenceHost {
     readonly building: Box3;
     toBoard(point: Vector3): Vector3;
     toModel(point: Vector3): Vector3;
+    /** Where it wears its seals, out of service (`StandingMaquette.seal`): before its door. */
+    readonly door: StandingMaquette['seal'] | null;
   } | null {
     const dressed = this.byId.get(id);
     const model = dressed?.lot.model;
@@ -1311,6 +1313,7 @@ export class MaquetteLayer implements SequenceHost {
       building: model.building,
       toBoard: (point) => point.clone().applyMatrix4(placed),
       toModel: (point) => point.clone().applyMatrix4(back),
+      door: item.seal,
     };
   }
 
