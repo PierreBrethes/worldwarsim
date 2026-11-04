@@ -92,10 +92,11 @@ import {
   type Docked,
   dockedOf,
   joinedOf,
-  LOADING_WAIT_MS,
   mayDock,
   quayTaken,
   stillWaiting,
+  tourStepOf,
+  toursLetGo,
   undock,
 } from './docks';
 import { Ambience } from './ambience';
@@ -3516,39 +3517,44 @@ export class MapEngine {
    * repart sans séquence. En réduites, un anneau d'encre au `fx_quai`, le pion jamais retenu.
    */
   private tourOf({ cue, since }: (typeof this.touring)[number], now: number): Attempt {
-    const motion = this.sequences.motion;
     const building = this.maquettes.pieceOf(cue.siteId);
     const site = this.maquettes.siteOf(cue.siteId);
-    if (motion === 'off' || building === null) return 'done';
-    if (motion === 'reduced') {
+    const drawn = this.arcs.pieceOf(cue.arcId)?.box;
+    const long = this.arcs.truckLength(cue.arcId);
+    const step = tourStepOf(
+      this.sequences.motion,
+      {
+        built: building !== null,
+        site: site !== null,
+        busy:
+          quayTaken(this.docked, cue.siteId, now) ||
+          this.sequences.playsOn(this.maquettes, cue.siteId),
+        drawn: !!drawn && long !== null,
+      },
+      since,
+    );
+    if (step === 'nothing') return 'done';
+    if (step === 'wait') return 'wait';
+    if (step === 'ring') {
       const quay = site?.marker('fx_quai');
-      if (site && quay) {
-        const metre = metreOf(site);
-        this.standing.rippleAt(site.toBoard(quay), QUAY_RING_METRES * metre);
-      }
+      if (site && quay)
+        this.standing.rippleAt(site.toBoard(quay), QUAY_RING_METRES * metreOf(site));
       return 'done';
     }
-    if (site === null) return 'wait';
+    if (site === null || building === null || !drawn || long === null) return 'wait';
     const inside = (point: Vector3) => {
       const { x, z } = site.toModel(point);
       return (
         x >= site.box.min.x && x <= site.box.max.x && z >= site.box.min.z && z <= site.box.max.z
       );
     };
-    if (
-      quayTaken(this.docked, cue.siteId, now) ||
-      this.sequences.playsOn(this.maquettes, cue.siteId)
-    ) {
+    if (step !== 'dock') {
       // In file at the socle's foot, from its signal: so long at most.
-      if (this.arcs.hold(cue.arcId, inside, since + LOADING_WAIT_MS) !== null)
-        this.heldTours.add(cue.arcId);
+      if (this.arcs.hold(cue.arcId, inside, step.holdUntil) !== null) this.heldTours.add(cue.arcId);
       return 'wait';
     }
-    const drawn = this.arcs.pieceOf(cue.arcId)?.box;
-    const long = this.arcs.truckLength(cue.arcId);
     const stop = site.marker('fx_quai');
     const front = site.front('fx_quai');
-    if (!drawn || long === null) return 'wait';
     if (
       stop === null ||
       front === null ||
@@ -3594,14 +3600,14 @@ export class MapEngine {
       now,
     );
     // A tour's truck that played out early, or waited for its quay too long, runs on its road.
-    for (const id of this.heldTours)
-      if (
-        !this.sequences.playsOn(this.arcs, id) &&
-        !this.touring.some(({ cue }) => cue.arcId === id)
-      ) {
-        this.arcs.letGo(id, now);
-        this.heldTours.delete(id);
-      }
+    for (const id of toursLetGo(
+      this.heldTours,
+      (arcId) => this.sequences.playsOn(this.arcs, arcId),
+      this.touring,
+    )) {
+      this.arcs.letGo(id, now);
+      this.heldTours.delete(id);
+    }
   }
 
   /** **The doors of a barracks open for its recruits**; a second sortie while they still play

@@ -1,3 +1,4 @@
+import type { MapMotion } from '@/domain/map-motion';
 import type { Sequence, SequenceHost, SequenceLayer } from './sequences';
 import { loadingAt, MAX_CRATES } from './timelines/loading';
 
@@ -78,6 +79,39 @@ export function stillWaiting<L extends { readonly since: number }>(
     if (outcome === 'queued') return [{ ...loading, since: now }];
     return now - loading.since < LOADING_WAIT_MS ? [loading] : [];
   });
+}
+
+/**
+ * **What a tour's truck does at its quay now** (#278): nothing with motion off or its building
+ * not drawn, a ring at reduced motion, a file at the socle's foot while the quay is taken
+ * (`LOADING_WAIT_MS` from its signal at most), a wait while it or its site is not drawn yet;
+ * else it docks.
+ */
+export function tourStepOf(
+  motion: MapMotion,
+  at: {
+    readonly built: boolean;
+    readonly site: boolean;
+    readonly busy: boolean;
+    readonly drawn: boolean;
+  },
+  since: number,
+): 'nothing' | 'ring' | 'wait' | 'dock' | { readonly holdUntil: number } {
+  if (motion === 'off' || !at.built) return 'nothing';
+  if (motion === 'reduced') return 'ring';
+  if (!at.site) return 'wait';
+  if (at.busy) return { holdUntil: since + LOADING_WAIT_MS };
+  return at.drawn ? 'dock' : 'wait';
+}
+
+/** **The tours held at their foot that run on now** (#278): their truck neither plays nor waits
+ *  for its quay — played out, refused, or tired of waiting. */
+export function toursLetGo(
+  held: Iterable<string>,
+  playing: (arcId: string) => boolean,
+  waiting: ReadonlyArray<{ readonly cue: { readonly arcId: string } }>,
+): string[] {
+  return [...held].filter((id) => !playing(id) && !waiting.some(({ cue }) => cue.arcId === id));
 }
 
 const ENDED: Sequence = { ms: 0, at: () => ({}) };

@@ -7,6 +7,8 @@ import {
   mayDock,
   quayTaken,
   stillWaiting,
+  tourStepOf,
+  toursLetGo,
   undock,
 } from './docks';
 import type { Sequence, SequenceHost } from './sequences';
@@ -140,5 +142,40 @@ describe('the quays of a loading (#271)', () => {
     // The next leaves its place as the one before backs into its own.
     expect(started[1]![1]).toBeLessThanOrEqual(entry.homeAt + 100);
     expect(started[2]![1]).toBeGreaterThan(LOADING_WAIT_MS);
+  });
+});
+
+describe('a tour at its quay (#278)', () => {
+  const at = { built: true, site: true, busy: false, drawn: true };
+
+  it('waits in file at the foot while the quay is taken, then runs on', () => {
+    expect(tourStepOf('full', { ...at, busy: true }, 1000)).toEqual({
+      holdUntil: 1000 + LOADING_WAIT_MS,
+    });
+    const tour = { cue: { arcId: 'a' }, since: 1000 };
+    expect(stillWaiting([tour], 1000 + LOADING_WAIT_MS, () => 'wait')).toEqual([]);
+    expect(toursLetGo(['a'], () => false, [])).toEqual(['a']);
+  });
+
+  it('runs on as soon as its truck is refused, or played out', () => {
+    expect(toursLetGo(['a'], () => false, [])).toEqual(['a']);
+    expect(toursLetGo(['a'], (id) => id === 'a', [])).toEqual([]);
+    expect(toursLetGo(['a'], () => false, [{ cue: { arcId: 'a' } }])).toEqual([]);
+  });
+
+  it('rings its quay at reduced motion and holds nothing, even with the quay taken', () => {
+    expect(tourStepOf('reduced', at, 0)).toBe('ring');
+    expect(tourStepOf('reduced', { ...at, busy: true }, 0)).toBe('ring');
+  });
+
+  it('shows nothing with motion off, nor with its building not drawn', () => {
+    expect(tourStepOf('off', at, 0)).toBe('nothing');
+    expect(tourStepOf('full', { ...at, built: false }, 0)).toBe('nothing');
+  });
+
+  it('docks when all is drawn, and waits for what is not', () => {
+    expect(tourStepOf('full', at, 0)).toBe('dock');
+    expect(tourStepOf('full', { ...at, drawn: false }, 0)).toBe('wait');
+    expect(tourStepOf('full', { ...at, site: false, busy: true }, 0)).toBe('wait');
   });
 });

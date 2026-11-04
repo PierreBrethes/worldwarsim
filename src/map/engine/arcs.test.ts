@@ -1,5 +1,14 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { Frustum, Group, Matrix4, PerspectiveCamera, Vector3, type Object3D } from 'three';
+import {
+  BoxGeometry,
+  Frustum,
+  Group,
+  Matrix4,
+  Mesh,
+  PerspectiveCamera,
+  Vector3,
+  type Object3D,
+} from 'three';
 import type { PilePieces } from '@/domain/pile-pieces';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { World } from '@/domain/world';
@@ -14,12 +23,19 @@ import { Pawn } from './pawn';
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),
   // A gun is drawn longer than a tank: a mixed file spaces its ranks by their lengths.
-  figurineFor: vi.fn((_nation: unknown, role: unknown) => ({
-    object: new Group(),
-    span: role === 'artillery' ? 0.012 : 0.006,
-    ready: Promise.resolve(),
-    spin() {},
-  })),
+  figurineFor: vi.fn((_nation: unknown, role: unknown) => {
+    const object = new Group();
+    return {
+      object,
+      span: role === 'artillery' ? 0.012 : 0.006,
+      ready: Promise.resolve(),
+      spin() {},
+      standIn(copy: Object3D | null) {
+        object.clear();
+        if (copy !== null) object.add(copy);
+      },
+    };
+  }),
 }));
 
 const arc = (state: ArcView['state'], mediums: ReadonlyArray<string>) =>
@@ -465,6 +481,24 @@ describe('ArcLayer.hold (#278)', () => {
     arcs.animate();
     expect(at(arcs).x).toBeGreaterThan(held.x);
     vi.mocked(Date.now).mockRestore();
+  });
+
+  it('reads the box of a copy stood in on the pawn, not at the origin', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(360_000);
+    arcs.display([{ ...mine('a'), stack: { landTransport: 1 } } as ArcView]);
+    arcs.animate();
+    vi.mocked(Date.now).mockRestore();
+    // As a frame drawn would leave it: the pawn placed, its truck's meshes with it.
+    arcs.group.updateMatrixWorld(true);
+    // A model's copy: its meshes hang under a root of their own, offset as a scene's are.
+    const copy = new Group().add(new Mesh(new BoxGeometry(1e-3, 1e-3, 1e-3)));
+    copy.position.set(0, 1e-3, 0);
+    arcs.standIn('a', copy);
+    const box = arcs.pieceOf('a')!.box!;
+    const head = at(arcs);
+    expect(head.length()).toBeGreaterThan(0.1);
+    expect(box.getCenter(new Vector3()).distanceTo(head)).toBeLessThan(0.05);
   });
 
   it('holds nothing of an enemy', () => {
