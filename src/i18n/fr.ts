@@ -3830,9 +3830,7 @@ export const fr = {
     tileCount: (count: number) => `×${count}`,
     /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
     tileKept: (kept: number, stands: number) =>
-      stands < kept
-        ? `réserve niv.\u00a0${kept} · sort au niv.\u00a0${stands}`
-        : `réserve niv.\u00a0${kept}`,
+      stands < kept ? `réserve ${kept} → niv.\u00a0${stands}` : `réserve niv.\u00a0${kept}`,
     /** **Le site sélectionné** (#163) : la bande montre ce qu'il forme. */
     siteCards: (building: string) => `Troupes que forme ${lowerFirst(building)}`,
     siteSheet: 'fiche du site',
