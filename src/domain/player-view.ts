@@ -864,6 +864,7 @@ type NoticeBody =
       readonly kind: 'courseChanged';
       readonly at: number;
       readonly hostCountry: string;
+      readonly point?: MapPlace;
       readonly arrivesAt: number;
     }
   /** **Ce qu'un Magasin a versé à la colonne qui le traversait** (ADR 0037 §4), en crans. */

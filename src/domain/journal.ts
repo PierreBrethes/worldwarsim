@@ -204,7 +204,13 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'column',
-        text: said.courseChanged(countryLabel(notice.hostCountry), asLocalTime(notice.arrivesAt)),
+        /** Au large, aucun pays : la mer se dit en degrés, comme un naufrage. */
+        text: said.courseChanged(
+          notice.hostCountry === '' && notice.point !== undefined
+            ? fr.aim.pointAt(notice.point.lon, notice.point.lat)
+            : countryLabel(notice.hostCountry),
+          asLocalTime(notice.arrivesAt),
+        ),
       };
     case 'storeResupplied':
       return {

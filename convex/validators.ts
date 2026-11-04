@@ -559,6 +559,8 @@ export const NOTICE = v.union(
     ...NOTICE_HEAD,
     kind: v.literal('courseChanged'),
     hostCountry: v.string(),
+    /** La destination : au large, la dépêche la dit en degrés (`hostCountry` vide). */
+    point: v.optional(LON_LAT),
     arrivesAt: v.number(),
   }),
   /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses

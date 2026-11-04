@@ -208,6 +208,7 @@ export async function changeCourse(
     at: now,
     kind: 'courseChanged',
     hostCountry: aimed.host,
+    point: asPoint(aimed.point),
     arrivesAt,
   });
   /** **Comme un départ** : qui guette voit la colonne repartir de sa position. */

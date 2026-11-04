@@ -485,3 +485,18 @@ describe('a delivery dispatch carries what the depot took', () => {
     expect(waiting!.delivered).toBeUndefined();
   });
 });
+
+/** **Le cap changé au large** (#449) : sans pays, la mer se dit en degrés. */
+describe('a course changed towards the open sea', () => {
+  it('names the point, not an empty country', () => {
+    const notice: Notice = {
+      kind: 'courseChanged',
+      at: NOON,
+      hostCountry: '',
+      point: { lon: 130, lat: 20 },
+      arrivesAt: NOON + HOUR,
+    };
+    const [dispatch] = journalDispatches([], null, [notice]);
+    expect(dispatch!.text).toContain(fr.aim.pointAt(130, 20));
+  });
+});
