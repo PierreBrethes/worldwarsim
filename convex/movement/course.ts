@@ -32,6 +32,7 @@ import {
 } from '../../src/domain/movement-orders';
 import { kmOf } from '../../src/domain/routing';
 import { seenSegment } from '../../src/domain/sighting-segment';
+import { windowAt, windowsOf } from '../../src/domain/sighting-windows';
 import { fuelGaugeOf, fuelRefusalOf, suppliesOf } from '../../src/domain/supplies';
 
 export type Steered = 'march' | 'attack' | 'raid';
@@ -159,6 +160,18 @@ export async function changeCourse(
     fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: false });
 
   const ran = seenSegment(marchingForce(movement), movement.departedAt, now).points;
+  /** **Qui la guettait la voit repartir sans seconde dépêche** (décision du 04/11) : relevé avant
+   *  l'oubli, qui fige les lignes. */
+  const watching = new Set(
+    (
+      await ctx.db
+        .query('sightings')
+        .withIndex('byMovement', (q) => q.eq('movementId', movement._id))
+        .collect()
+    )
+      .filter((row) => row.noticeFiled === true && windowAt(windowsOf(row), now) !== null)
+      .map((row) => row.playerId),
+  );
   for (const troop of plan.troops)
     await ctx.db.patch(troop._id, {
       ...(fuel.after.has(troop._id) ? { fuel: fuel.after.get(troop._id)! } : {}),
@@ -198,6 +211,9 @@ export async function changeCourse(
     arrivesAt,
   });
   /** **Comme un départ** : qui guette voit la colonne repartir de sa position. */
-  await reassessDetection(ctx, movement.seasonId, now, player._id);
+  await reassessDetection(ctx, movement.seasonId, now, player._id, {
+    movementId: turnedId,
+    by: watching,
+  });
   return { movementId: turnedId, minutes: plan.minutes, arrivesAt };
 }

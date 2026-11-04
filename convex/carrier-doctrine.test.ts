@@ -202,4 +202,29 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     );
     expect(seen.map((one) => one.movementId)).toContain(turned.movementId);
   });
+
+  it('tells a watcher already following the fleet nothing new: one dispatch, its line frozen', async () => {
+    const t = boot();
+    const { japan, france } = await launchedSeason(t);
+    await postAt(t, france, 'escort', { lon: 146, lat: 27.6 });
+    const { movementId, arrivesAt } = await sailing(t, japan);
+    const watcher = await playerOf(t, france);
+    const told = () =>
+      t.run(async (ctx) =>
+        (await ctx.db.query('notices').collect()).filter(
+          (notice) => notice.playerId === watcher && notice.kind === 'movementSighted',
+        ),
+      );
+    expect(await told()).toHaveLength(1);
+    vi.setSystemTime(MIDDAY.getTime() + (arrivesAt - MIDDAY.getTime()) / 10);
+
+    const turned = await turning(t, japan, movementId, OFF_SAIPAN);
+
+    expect(await told()).toHaveLength(1);
+    const lines = await t.run(async (ctx) =>
+      (await ctx.db.query('sightings').collect()).filter((one) => one.playerId === watcher),
+    );
+    expect(lines.find((one) => one.movementId === movementId)?.frozen).toBeDefined();
+    expect(lines.find((one) => one.movementId === turned.movementId)?.noticeFiled).toBe(true);
+  });
 });

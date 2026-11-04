@@ -138,6 +138,9 @@ export async function reassessDetection(
   seasonId: Id<'seasons'>,
   now = Date.now(),
   changed?: Id<'players'> | ReadonlyArray<Id<'players'>>,
+  /** **Ceux qui la guettaient déjà** (cap changé, #449) : leur relevé de ce mouvement naît dit,
+   *  sans seconde dépêche. Jamais stocké : le joueur apprendrait qui le guette. */
+  watching?: { readonly movementId: Id<'movements'>; readonly by: ReadonlySet<Id<'players'>> },
 ): Promise<void> {
   const season = await ctx.db.get(seasonId);
   if (season === null) return;
@@ -167,6 +170,7 @@ export async function reassessDetection(
       now,
       ledgers.sightingsByMovement.get(target._id) ?? [],
       mobile?.roles ?? [],
+      watching?.movementId === target._id ? watching.by : undefined,
     );
   }
 
@@ -1219,6 +1223,7 @@ async function syncSightings(
   now: number,
   rows: ReadonlyArray<Doc<'sightings'>>,
   roles: ReadonlyArray<UnitRole>,
+  watching?: ReadonlySet<Id<'players'>>,
 ): Promise<void> {
   /** **Seul le premier franchissement d'une ligne relève** (#377) : passé, la ligne ne rend plus
    *  que le suivant, et l'étendre jusque-là servirait l'aller et le retour que personne n'a vus. */
@@ -1265,7 +1270,14 @@ async function syncSightings(
   }
 
   for (const sighting of desired.values()) {
-    await insertSighting(ctx, movement._id, sighting, now, roles);
+    await insertSighting(
+      ctx,
+      movement._id,
+      sighting,
+      now,
+      roles,
+      watching?.has(sighting.playerId) === true,
+    );
   }
 }
 
@@ -1467,6 +1479,8 @@ async function insertSighting(
   sighting: Caught,
   now: number,
   roles: ReadonlyArray<UnitRole>,
+  /** Déjà dite : la dépêche de l'ancien mouvement vaut pour le neuf (`revealSighting` se tait). */
+  told = false,
 ): Promise<void> {
   const owner = (await ctx.db.get(movementId))?.playerId;
   const { windows, ...fields } = sightingFields(sighting);
@@ -1475,6 +1489,7 @@ async function insertSighting(
     ...(owner === undefined ? {} : { ownerId: owner }),
     ...fields,
     ...(windows === undefined ? {} : { windows }),
+    ...(told ? { noticeFiled: true } : {}),
   });
   const reading = await writeReading(
     ctx,
