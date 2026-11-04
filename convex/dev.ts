@@ -721,8 +721,10 @@ export const unreachedMineScene = internalMutation({
 
 /**
  * **L'Évacuation et la capture, posées** (`--evacuation`, #450) : l'URSS tient une caserne de
- * niveau 2 à Pskov et une réserve de caserne au niveau 3 ; la France tient une caserne de niveau 2
- * dans la Marne, sous une capture soviétique qui court. Rend les deux points.
+ * niveau 2 à Pskov, un entrepôt de niveau 2 à côté, une réserve de caserne au niveau 3 et
+ * d'arsenal au niveau 6, et un avant-poste en Roumanie dont le puits est sous capture française ;
+ * la France tient une caserne de niveau 2 dans la Marne, sous une capture soviétique. Rend les
+ * points.
  */
 export const evacuationScene = internalMutation({
   args: { seasonId: v.id('seasons') },
@@ -749,26 +751,80 @@ export const evacuationScene = internalMutation({
       return { id, point };
     };
     const soviet = await barracks(ussr, 'RUS-2336');
-    await ctx.db.patch(ussr._id, { evacuated: [{ key: 'barracks', level: 3 }] });
-    const french = await barracks(france, 'FRA-5323');
-    const now = Date.now();
-    await ctx.db.insert('captures', {
+    /** Un arsenal gardé au niveau 6 sous un QG de niveau 4 : la tuile dit où il sortira. */
+    await ctx.db.patch(ussr._id, {
+      evacuated: [
+        { key: 'barracks', level: 3 },
+        { key: 'arsenal', level: 6 },
+      ],
+    });
+    /** Un entrepôt sans réserve de son type : sa carte dit « niveau 2 gardé en réserve ». */
+    const store = pointOfRegion('RUS-2335');
+    await ctx.db.insert('buildings', {
       seasonId,
       playerId: ussr._id,
-      defenderId: france._id,
-      target: { kind: 'building', buildingId: french.id },
-      site: { kind: 'building', building: 'barracks', regionId: 'FRA-5323' },
-      point: french.point,
-      progress: 0,
-      progressAt: now,
-      rate: 1,
-      durationMs: 6 * 3_600_000,
-      rest: null,
-      completesAt: now + 6 * 3_600_000,
+      key: 'warehouse',
+      regionId: 'RUS-2335',
+      point: store,
+      level: 2,
     });
+    const french = await barracks(france, 'FRA-5323');
+    const now = Date.now();
+    const siege = (
+      capturer: Doc<'players'>,
+      defender: Doc<'players'>,
+      buildingId: Id<'buildings'>,
+      building: 'barracks' | 'oilWell',
+      regionId: string,
+      point: { lon: number; lat: number },
+    ) =>
+      ctx.db.insert('captures', {
+        seasonId,
+        playerId: capturer._id,
+        defenderId: defender._id,
+        target: { kind: 'building', buildingId },
+        site: { kind: 'building', building, regionId },
+        point,
+        progress: 0,
+        progressAt: now,
+        rate: 1,
+        durationMs: 6 * 3_600_000,
+        rest: null,
+        completesAt: now + 6 * 3_600_000,
+      });
+    await siege(ussr, france, french.id, 'barracks', 'FRA-5323', french.point);
+    /** Un avant-poste soviétique en Roumanie, dont le puits qu'il ancre est sous une capture
+     *  française : il ne se démantèle pas (`DISMANTLE_UNDER_CAPTURE`). */
+    const prahova = pointOfRegion('ROU-310');
+    const outpostId = await ctx.db.insert('outposts', {
+      seasonId,
+      playerId: ussr._id,
+      point: prahova,
+      hostCountry: 'ROU',
+      regionId: 'ROU-310',
+      level: 1,
+      foundedAt: now - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+    });
+    const wellPoint = { lon: prahova.lon + 0.25, lat: prahova.lat + 0.1 };
+    const well = await ctx.db.insert('buildings', {
+      seasonId,
+      playerId: ussr._id,
+      key: 'oilWell',
+      regionId: 'ROU-310',
+      point: wellPoint,
+      level: 1,
+      outpostId,
+    });
+    await siege(france, ussr, well, 'oilWell', 'ROU-310', wellPoint);
+    await recordLinkage(ctx, seasonId);
+    await surveyFoundation(ctx, seasonId, [prahova.lon, prahova.lat], outpostReachKm(1), now);
     return {
       evacuation: [soviet.point.lon, soviet.point.lat],
+      'evacuation-neuf': [store.lon, store.lat],
       'sous-capture': [french.point.lon, french.point.lat],
+      demantelement: [prahova.lon, prahova.lat],
     };
   },
 });

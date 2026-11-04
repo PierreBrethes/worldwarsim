@@ -130,7 +130,9 @@
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
  * `capitale-<nation>`. `--evacuation` (#450, avec `--huit`) donne à l'URSS une caserne de niveau 2 à
- * Pskov et une caserne de niveau 3 en réserve (`evacuation`, compte e), et pose sur une caserne
+ * Pskov et une caserne de niveau 3 en réserve (`evacuation`, compte e), un entrepôt sans réserve
+ * (`evacuation-neuf`), un arsenal gardé au niveau 6 sous un QG de niveau 4, un avant-poste en
+ * Roumanie dont le puits est sous capture française (`demantelement`), et pose sur une caserne
  * française de la Marne une capture soviétique qui court (`sous-capture`, compte a).
  * `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
  * rangs et une artillerie, et une escorte et un porte-avions en golfe de Gascogne (`rangs-mer`).
