@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { MAN_METRES } from '@/domain/piece-size';
 import { crateTaking, plunderOf, sabotageOf, TAKING } from './taking';
 
 const to = [3, 0, 4] as const;
+/** He stops where the crate lies at his feet, before him (`crateOnMan(0)`). */
+const short = 1 - (0.35 * MAN_METRES) / 5;
 
 describe('crateTaking (#279, « Ramasser »)', () => {
   const taking = crateTaking({ part: 'man_0', to, perMetre: 1 });
@@ -20,9 +23,16 @@ describe('crateTaking (#279, « Ramasser »)', () => {
     expect(man_0?.carry).toBeUndefined();
   });
 
+  it('finds the crate on the ground at its point, until he takes it', () => {
+    expect(taking.at(1).man_0?.lying).toEqual({ at: to, shown: 1 });
+    expect(taking.at(TAKING.crateWalk / 2).man_0?.lying).toEqual({ at: to, shown: 1 });
+    expect(taking.at(TAKING.crateWalk + 1).man_0?.lying).toBeUndefined();
+  });
+
   it('bends over the crate, then shoulders it', () => {
     const bending = taking.at(TAKING.crateWalk + TAKING.bend / 2).man_0!;
-    expect(bending.travel).toEqual(to);
+    expect(bending.travel![0]).toBeCloseTo(3 * short);
+    expect(bending.travel![2]).toBeCloseTo(4 * short);
     expect(bending.carry![0]).toBeGreaterThan(0);
     expect(bending.carry![1]).toBe(0);
     const lifted = taking.at(TAKING.crateWalk + TAKING.bend + TAKING.lift).man_0!;
@@ -36,6 +46,7 @@ describe('crateTaking (#279, « Ramasser »)', () => {
     expect(walking.carry).toEqual([0, 1, 1]);
     const home = taking.at(back + TAKING.crateWalk + TAKING.tag / 2).man_0!;
     expect(home.travel).toEqual([0, 0, 0]);
+    expect(home.lying).toBeUndefined();
     expect(home.carry![2]).toBeLessThan(1);
     expect(home.carry![2]).toBeGreaterThan(0);
   });

@@ -1,3 +1,4 @@
+import { MAN_METRES } from '@/domain/piece-size';
 import type { PartPose, Pose, Sequence } from '../sequences';
 import { ease, span } from './curves';
 import { WALK_MIN_PX } from './walk';
@@ -31,6 +32,13 @@ const lerp = (a: Point, b: Point, k: number): Point => [
   a[2] + (b[2] - a[2]) * k,
 ];
 const length = (p: Point): number => Math.hypot(p[0], p[1], p[2]);
+
+/** **Where he stops to take a crate lying at `to`**: it lies at his feet, before him
+ *  (`crateOnMan(0)`), so that he lifts it from where it lay. */
+function shortOf(to: Point, perMetre: number): Point {
+  const reach = 0.35 * MAN_METRES * perMetre;
+  return lerp(ORIGIN, to, Math.max(0, 1 - reach / Math.max(length(to), 1e-6)));
+}
 
 /** One leg of his trip, `from` → `to` between `start` and `end`: facing the way, marching. */
 function walking(from: Point, to: Point, t: number, start: number, end: number, perMetre: number) {
@@ -86,8 +94,8 @@ export function crateTaking({
   const back = lift + TAKING.lift;
   const home = back + TAKING.crateWalk;
   const ms = home + TAKING.tag + 200;
-  const at = tripOf(
-    { part, to },
+  const trip = tripOf(
+    { part, to: shortOf(to, perMetre) },
     { there, back, home },
     (t) => {
       const lifted = ease.out3(span(t, lift, back));
@@ -96,6 +104,9 @@ export function crateTaking({
     (t) => ({ carry: [0, 1, 1 - span(t, home, home + TAKING.tag)] }),
     perMetre,
   );
+  // The crate lies at its point from the column's arrival until he takes it up.
+  const at = (t: number): PartPose =>
+    t < there ? { ...trip(t), lying: { at: to, shown: 1 } } : trip(t);
   return sequenceOf(ms, [[part, at]]);
 }
 

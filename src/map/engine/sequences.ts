@@ -51,6 +51,9 @@ export type PartPose = {
   /** A man only: he bends (0..1) over a crate, lifts it (0 at his feet, 1 on his shoulder), and
    *  the crate shows so much (#279, `storyboard-prise`); absent, he carries none. */
   readonly carry?: readonly [bend: number, lift: number, crate: number];
+  /** A man only: his crate lies on the ground at `at` (board units from his rest, like
+   *  `travel`), shown so much, until he takes it up (`carry`). */
+  readonly lying?: { readonly at: Vec3; readonly shown: number };
   /** A marker (`fx_*`) only: a motor's breath (`EXHAUST`) there, at this many seconds and this
    *  share of its strength. */
   readonly exhaust?: readonly [seconds: number, fade: number];
@@ -462,7 +465,7 @@ export class SequenceLayer {
         else if (own?.hop !== undefined) hop(node, own.hop);
         // A man arrived before the rest of his squad stands as `squadOf` stood him.
         else if (MAN.test(node.name)) stand(node);
-        if (MAN.test(node.name)) this.carry(playing, node, own?.carry);
+        if (MAN.test(node.name)) this.carry(playing, node, rest, own);
       }
       const seen = fade * (own?.fade ?? 1) * ((node.userData.crate as number | undefined) ?? 1);
       if ((node as Mesh).isMesh) this.fadeMesh(playing, node as Mesh, seen);
@@ -471,23 +474,34 @@ export class SequenceLayer {
     walk(playing.rig!, 1);
   }
 
-  /** **A crate on a man** (#279): his own, hung on him at its first `carry`, hidden without. */
-  private carry(playing: Playing, man: Object3D, carry: PartPose['carry']): void {
+  /** **A man's crate** (#279): his own, hung on him, on the ground where it lies (`lying`) or
+   *  on him (`carry`), hidden without either. */
+  private carry(playing: Playing, man: Object3D, rest: Rest, { carry, lying }: PartPose = {}) {
     let crate = playing.crates.get(man);
-    if (carry === undefined) {
+    if (carry === undefined && lying === undefined) {
       if (crate) crate.visible = false;
       return;
     }
-    const [bend, lift, shown] = carry;
-    carrying(man, bend, lift);
     if (crate === undefined) {
       crate = crateOf(WOOD, SLATS, true);
       crate.name = 'caisse';
       man.add(crate);
       playing.crates.set(man, crate);
     }
+    let shown: number;
+    if (carry !== undefined) {
+      const [bend, lift] = carry;
+      shown = carry[2];
+      carrying(man, bend, lift);
+      crate.position.set(...crateOnMan(lift));
+    } else {
+      shown = lying!.shown;
+      const parent = man.parent!;
+      man.updateWorldMatrix(true, false);
+      const ground = parent.localToWorld(rest.position.clone()).add(new Vector3(...lying!.at));
+      crate.position.copy(man.worldToLocal(ground));
+    }
     crate.visible = shown > 0;
-    crate.position.set(...crateOnMan(lift));
     crate.userData.crate = shown;
   }
 
