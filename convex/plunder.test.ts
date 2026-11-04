@@ -814,6 +814,28 @@ describe('plunder presence', () => {
     expect((await t.run((ctx) => ctx.db.get(warehouseId)))?.disabledUntil).toBeDefined();
   });
 
+  /** **The saboteur sees his seals** (#279, Q2), read in his own reports: the holder reads his
+   *  own `disabled`, and a third who surveyed the mine reads nothing of it. */
+  it('serves the seals of a sabotaged mine to its saboteur alone, until they lift', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const mineId = await building(t, guest, 'mine');
+    await observe(t, seat);
+    const movementId = await plunderArrival(t, seat, mineId, [infantry], barracks);
+
+    const at = await completePresence(t, movementId);
+
+    const sealed = async () =>
+      (await t.query(api.view.playerView, seat)).surveyedInstallations.find(
+        (installation) => installation.id === mineId,
+      )?.sealedUntil;
+    expect(await sealed()).toBe(at + 12 * HOUR);
+    vi.setSystemTime(at + 12 * HOUR);
+    expect(await sealed()).toBeUndefined();
+  });
+
   it('takes only available stocks and leaves queued recruitment refunds protected', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);

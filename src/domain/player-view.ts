@@ -1481,6 +1481,9 @@ export type PlayerView = {
     /** Entrepôt du teneur de Dakar : ce qu'un pillage laisse par ressource (`sparedPerResourceOf`),
      *  absent quand c'est le plancher commun. Le stock lui-même ne se relève pas. */
     readonly spared?: number;
+    /** **Mis hors service par moi** (#279) : ses scellés jusqu'à cette heure, lus dans mes propres
+     *  rapports de pillage. Absent ailleurs : le relevé ne dit pas l'état d'un site. */
+    readonly sealedUntil?: number;
   }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{

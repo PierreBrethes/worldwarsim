@@ -246,6 +246,18 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   );
   /** **Dakar** : ce que le pillage d'un entrepôt de son teneur laisse par ressource, de la fonction
    *  même que le serveur applique (`sparedPerResourceOf`). Absent quand c'est le plancher commun. */
+  /** **Mes scellés** (#279) : ce que j'ai mis hors service, lu dans mes propres rapports — jamais
+   *  dans l'état du site, que le relevé ne sert pas. */
+  const sealedUntil = new Map<string, number>();
+  for (const report of await ctx.db
+    .query('plunderReports')
+    .withIndex('byAttacker', (q) => q.eq('attackerId', player._id))
+    .collect())
+    if (report.disabledUntil > now)
+      sealedUntil.set(
+        report.buildingId,
+        Math.max(report.disabledUntil, sealedUntil.get(report.buildingId) ?? 0),
+      );
   const surveyedInstallations = await Promise.all(
     surveyed.map(async (installation) => {
       const row =
@@ -253,7 +265,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           ? await ctx.db.get(installation.id as Id<'buildings'>)
           : null;
       const spared = row === null ? null : await dakarSparedAt(ctx, row);
-      return spared === null ? installation : { ...installation, spared };
+      const sealed = sealedUntil.get(installation.id);
+      return {
+        ...installation,
+        ...(spared !== null && { spared }),
+        ...(sealed !== undefined && { sealedUntil: sealed }),
+      };
     }),
   );
   const lootSightings = await ctx.db
