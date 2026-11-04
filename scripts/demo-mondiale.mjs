@@ -117,6 +117,10 @@
  * garnison à l'entrepôt et au QG, puis les charge dans `s` secondes (25 par défaut) : deux cents
  * munitions à l'entrepôt (deux caisses), soixante au QG puis soixante de pétrole une seconde après
  * (deux chargements joints). `lieu=@chargement` cadre l'entrepôt, `lieu=@chargement-qg` le QG.
+ * `--en-tournee [s]` (#278) met en tournée par Bruxelles un camion de l'entrepôt de l'Oise et un
+ * du QG, les y décharge, et les fait rentrer dans `s` secondes (25 par défaut) : ils rechargent et
+ * repartent de la route. Avec `--cour`, ils attendent à la cour, les munitions à zéro, et le stock
+ * rendu dans `s` secondes les fait repartir de leur rang. `lieu=@en-tournee`, `lieu=@en-tournee-qg`.
  *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
@@ -177,6 +181,13 @@ const ranks = process.argv.includes('--rangs');
 const loadingAt = process.argv.indexOf('--chargement');
 const loadingIn = loadingAt < 0 ? null : Number(process.argv[loadingAt + 1]) || 25;
 let loadingTrucks = null;
+/** `--en-tournee [s]` (#278) : un camion en tournée à l'entrepôt, un autre au QG, de retour de
+ *  Bruxelles dans `s` secondes : ils rechargent et repartent. Avec `--cour`, ils attendent déjà à
+ *  la cour, le stock de munitions vide, et repartent dans `s` secondes, le stock rendu. */
+const touringAt = process.argv.indexOf('--en-tournee');
+const touringIn = touringAt < 0 ? null : Number(process.argv[touringAt + 1]) || 25;
+const yard = process.argv.includes('--cour');
+let touringTrucks = null;
 /** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
@@ -213,7 +224,8 @@ const twinTrucks = process.argv.includes('--deux-camions');
 /** `--demanteler` (#340) : l'avant-poste de `--livraison` près de Bruxelles, à démanteler dans
  *  l'interface : son épingle, l'aire qu'il colore, un camion en garnison. */
 const dismantling = process.argv.includes('--demanteler');
-const logistics = dismantling || tours || twinTrucks || process.argv.includes('--livraison');
+const logistics =
+  dismantling || tours || twinTrucks || touringIn !== null || process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
 /** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
@@ -662,6 +674,47 @@ if (!bare) {
     ]) {
       const { point } = me.buildings.find((building) => building.key === key);
       places[name] = { id: `building-${key}@${point[0]},${point[1]}`, lonLat: point };
+    }
+  }
+  if (touringIn !== null && scene.a !== null) {
+    touringTrucks = JSON.parse(
+      cli(['run', 'dev:loadingScene', JSON.stringify({ playerId: scene.a })]).match(/\{[^}]*\}/)[0],
+    );
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const brussels = me.outposts.find((outpost) => Math.abs(outpost.lonLat[0] - 4.35) < 0.05);
+    for (const [name, key] of [
+      ['en-tournee', 'warehouse'],
+      ['en-tournee-qg', 'hq'],
+    ]) {
+      const { point } = me.buildings.find((building) => building.key === key);
+      places[name] = { id: `building-${key}@${point[0]},${point[1]}`, lonLat: point };
+    }
+    // Loaded, sent to Brussels, unloaded there: on their way back, empty.
+    for (const [troopId, amount] of [
+      [touringTrucks.warehouse, 200],
+      [touringTrucks.hq, 60],
+    ]) {
+      await client.mutation(api.logistics.load, {
+        token: tokenA,
+        seasonId,
+        troopId,
+        resource: 'ammunition',
+        amount,
+      });
+      await client.mutation(api.tours.start, {
+        token: tokenA,
+        seasonId,
+        troopId,
+        stops: [brussels.id],
+      });
+    }
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+    await pause(3000);
+    if (yard) {
+      // Back at the yard, the stock dry: they wait there.
+      cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 0, only: 'ammunition' })]);
+      cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+      await pause(3000);
     }
   }
   if (oilLine && scene.a !== null)
@@ -1386,6 +1439,17 @@ if (loadingTrucks !== null) {
   await pause(1000);
   await load(loadingTrucks.hq, 'oil', 60);
   console.log(`Camions chargés à ${new Date().toISOString()}`);
+}
+
+/** `--en-tournee` (#278): the trucks come back to load, or their stock comes back at the yard. */
+if (touringTrucks !== null) {
+  await pause(touringIn * 1000);
+  if (yard) {
+    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 400, only: 'ammunition' })]);
+    for (const troopId of [touringTrucks.warehouse, touringTrucks.hq])
+      cli(['run', 'tours:retry', JSON.stringify({ troopId })]);
+  } else cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+  console.log(`Tournées rechargées à ${new Date().toISOString()}`);
 }
 
 /** `--former`, `--dissoudre`, `--monter`, `--descendre` (#277): each gesture at its hour. */
