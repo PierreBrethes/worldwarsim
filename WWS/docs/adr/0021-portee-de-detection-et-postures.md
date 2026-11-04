@@ -2,6 +2,8 @@
 
 > ⚠️ **Révision (01/11/2026, [ADR 0037](0037-un-avant-poste-qui-stocke-et-guette.md), non codée).** §1 : « la simple présence d'un avant-poste n'ajoute aucun bonus » ne vaut plus pour la vigie, que porte tout avant-poste debout. §4 : le changement de spécialisation devient la fin d'un chantier.
 
+> **Précisée le 03/11/2026 (#412, décisions de Pierre)** : §4, une ligne de relevé garde des fenêtres disjointes, et seule la dernière ouverte se sert ; colonne contre colonne, l'enveloppe est admise.
+
 > **Révisée par l'[ADR 0030](0030-le-qg-batit-la-recherche-transmet.md)** (source des slots) : le nombre de slots de mouvement ne suit plus le niveau du QG (« QG 5 », ci-dessous) mais la recherche ; les bornes de coût citées sont historiques.
 
 **Statut :** acceptée (31/08/2026), **révisée le 08/09/2026**, **§2 et §3 révisés le 13/09/2026 par l'[ADR 0024](0024-engagement-intentionnel-et-forces-posees-visibles.md)** (plus de rencontre en route ni de riposte au rayon d'arrivée sans ordre ; une force posée se voit dans la portée) — révise l’[ADR 0008](0008-combat-par-interception.md), les §3 et §5 de l’[ADR 0018](0018-anatomie-de-la-passe-de-resolution.md) et la conséquence du §5 de l’ADR 0019 selon laquelle un détecteur arrivé après un départ ne voit jamais ce mouvement. Le calcul de la passe (ADR 0014, ADR 0018 §1-2-4) reste fermé.
@@ -64,6 +66,8 @@ Il n’y a pas de boucle globale. À chaque événement qui change un trajet ou 
 
 Un détecteur posé après le départ peut donc voir un mouvement encore en vol. À l’inverse, un détecteur parti avant l’ouverture d’une fenêtre ne révèle rien. Une ligne future n’est jamais servie avant son heure.
 
+**Des fenêtres disjointes** (précisé le 03/11/2026, #412). Une colonne relevée par deux détecteurs l'un après l'autre garde une ligne par observateur, mais pas l'enveloppe de leurs fenêtres : elle aurait servi, dès la première, le tronçon d'entre deux que personne n'a vu — et une fenêtre étant une prédiction, il se lisait d'avance. Chaque détecteur rend une fenêtre par passage (une vigie quittée puis retrouvée, un sol quitté puis repris, une seconde vigie, le point d'une ligne de guet franchie) ; la ligne les garde, jointes seulement quand elles se chevauchent ou se touchent à un pas de la grille du trajet près. Seule la **dernière fenêtre ouverte** se sert : dans le trou, la précédente est la dernière position connue ; à la réapparition, le premier tronçon disparaît et l'arc se date de la réapparition. Une seule dépêche, à la première ouverture. **Colonne contre colonne, l'enveloppe est admise** : deux colonnes qui se croisent, s'écartent puis se recroisent servent le tronçon d'entre deux, cas rare pour le calcul le plus cher de la réévaluation. Le détail technique : `WWS/docs/technique/brouillard-et-fanout.md`.
+
 Un seul rendez-vous est retenu par mouvement. Quand deux prévisions partagent une colonne, la plus proche est seule programmée ; après la passe, la composition restante provoque une nouvelle évaluation. Cela empêche deux jobs de résoudre le même croisement avec un manifeste devenu faux.
 
 ### 5. Les segments réels gouvernent le contact
@@ -95,7 +99,8 @@ La carte dessine la portée de la pile sélectionnée et d’un mouvement à soi
 - les postures choisies et stockées ;
 - la discrétion automatique, ses coefficients et ses malus ;
 - la salve d’allonge ;
-- toute interception à distance déclenchée par une garnison ou une force posée.
+- toute interception à distance déclenchée par une garnison ou une force posée ;
+- l'enveloppe des fenêtres d'une ligne de relevé, sauf colonne contre colonne (03/11/2026, #412).
 
 ## Questions ouvertes
 

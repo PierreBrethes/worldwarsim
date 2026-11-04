@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { UnitRole } from '../src/domain/ids';
 import { nominalStrength } from './constants';
 import { reassessDetection } from './movement/detection';
+import { quarryOf } from './movement/pursuit';
 import schema from './schema';
 import { modules } from './test.setup';
 import { allRegions, pointOfRegion } from './regions';
@@ -596,5 +597,108 @@ describe('a targeted reassessment of a Blitz pursuit leaves nothing for the whol
     const { left, whole } = await aroundAWholePass(t, seasonId);
     expect(left).toEqual(whole);
     expect(left).not.toEqual(before);
+  });
+});
+
+/**
+ * **Une poursuite de Blitz ne voit que par une fenêtre** (#412) : entre deux fenêtres d'un même
+ * relevé, la proie n'est pas en vue — ni pour viser, ni pour la suivre.
+ */
+describe('a Blitz pursuit between two windows of its sighting', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const PARIS = { lon: 2.35, lat: 48.85 };
+  const LYON = { lon: 4.85, lat: 45.75 };
+
+  /** La proie marche vers l'est ; le chasseur l'a vue avant l'instant et la reverra après. */
+  async function hole(t: Bench) {
+    const { ids, seasonId } = await season(t, true);
+    const [hunter, quarry] = ids as [Id<'players'>, Id<'players'>];
+    const prey = await troop(t, quarry, null);
+    const movementId = await t.run(async (ctx) => {
+      const movementId = await ctx.db.insert('movements', {
+        seasonId,
+        playerId: quarry,
+        type: 'march',
+        fromBuildingId: null,
+        target: { kind: 'point', point: east(300, LYON) },
+        from: LYON,
+        to: east(300, LYON),
+        hostCountry: 'FRA',
+        points: [LYON, east(300, LYON)],
+        legs: [{ medium: 'land', distanceUnits: 300 }],
+        distanceUnits: 300,
+        costUnits: 300,
+        troopIds: [prey],
+        departedAt: MIDDAY - 10 * MINUTE,
+        arrivesAt: MIDDAY + 600 * MINUTE,
+      });
+      await ctx.db.insert('sightings', {
+        playerId: hunter,
+        movementId,
+        ownerId: quarry,
+        from: MIDDAY - 5 * MINUTE,
+        to: MIDDAY + 5 * MINUTE,
+        windows: [
+          { from: MIDDAY - 5 * MINUTE, to: MIDDAY - MINUTE },
+          { from: MIDDAY + MINUTE, to: MIDDAY + 5 * MINUTE },
+        ],
+        detector: 'troop',
+        detectorId: null,
+        noticeFiled: true,
+      });
+      return movementId;
+    });
+    return { hunter, prey, movementId, seasonId };
+  }
+
+  it('aims at nothing in the hole, and at the column once it reappears', async () => {
+    const t = boot();
+    const { hunter, movementId } = await hole(t);
+    const target = { kind: 'track' as const, movementId };
+    await expect(t.run((ctx) => quarryOf(ctx, hunter, target, MIDDAY))).rejects.toThrow(
+      'NOTHING_TO_ATTACK',
+    );
+    await expect(
+      t.run((ctx) => quarryOf(ctx, hunter, target, MIDDAY + 2 * MINUTE)),
+    ).resolves.toMatchObject({ troopId: expect.any(String) });
+  });
+
+  it('loses sight of the column in the hole', async () => {
+    const t = boot();
+    const { hunter, prey, seasonId } = await hole(t);
+    const tank = await troop(t, hunter, PARIS, 'armor');
+    const movementId = await t.run((ctx) =>
+      ctx.db.insert('movements', {
+        seasonId,
+        playerId: hunter,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'point', point: LYON },
+        from: PARIS,
+        to: LYON,
+        hostCountry: 'FRA',
+        points: [PARIS, LYON],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [tank],
+        departedAt: MIDDAY - MINUTE,
+        arrivesAt: MIDDAY + 60 * MINUTE,
+        pursuit: { troopId: prey, checkAt: MIDDAY },
+      }),
+    );
+
+    await t.mutation(internal.movements.pursue, { movementId, expectedAt: MIDDAY });
+
+    expect((await t.run((ctx) => ctx.db.get(movementId)))?.pursuit).toBeUndefined();
+    const lost = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter((one) => one.kind === 'pursuitLost'),
+    );
+    expect(lost).toHaveLength(1);
   });
 });

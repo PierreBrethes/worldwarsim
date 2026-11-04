@@ -46,7 +46,10 @@
  * Metz, une infanterie en halte à Nancy, une infanterie seule à Metz et une dépêche de fin
  * (`@ronde`, `@metz`, `@nancy`, `@luxembourg`). `--ligne` (#377) pose pour la France une ronde en
  * halte à Liège sur Liège–Sarrebruck, et en face une colonne que la seule ligne a relevée à son
- * franchissement (`@ligne`, `@liege`, `@sarrebruck`). `--guet` (#373) pose pour la
+ * franchissement (`@ligne`, `@liege`, `@sarrebruck`). `--deux-vigies` (#412) pose pour la France
+ * deux vigies, à Cologne et à Erfurt, et en face un blindé d'Aix-la-Chapelle à Leipzig, dans le
+ * trou d'entre les deux : l'arc est la dernière position connue sous Cologne ; avec `--reparue`,
+ * il est sous Erfurt, et repart de la réapparition (`@deux-vigies`, `@cologne`, `@erfurt`). `--guet` (#373) pose pour la
  * France un Guet à Kaiserslautern et un généraliste à Berne, et en face une colonne britannique
  * lue en route vers Munich, un camp lu à Francfort, une dernière position lue à Mayence et un camp
  * que le généraliste relève sans le lire près de Berne (`@guet`, `@francfort`, `@mayence`, `@berne`). `--magasin` (#372) pose pour la France un
@@ -227,6 +230,8 @@ const zones = process.argv.includes('--zones');
 const patrols = process.argv.includes('--ronde');
 /** `--ligne` (#377) : une ronde Liège–Sarrebruck, et une colonne adverse que sa seule ligne a relevée. */
 const watchLine = process.argv.includes('--ligne');
+/** `--deux-vigies` (#412) : une colonne dans le trou entre deux vigies ; `--reparue`, sous la seconde. */
+const twoSentries = process.argv.includes('--deux-vigies');
 /** `--metiers` (#371) : un point à élever, un ancien qui choisit, un Magasin qui change, un Guet. */
 const specialties = process.argv.includes('--metiers');
 /** `--magasin` (#372) : un Magasin plein à Berne, un presque vide à Innsbruck, une pile à sec
@@ -787,6 +792,20 @@ if (!bare) {
     places.ligne = [6.29, 49.93];
     places.liege = [5.57, 50.63];
     places.sarrebruck = [7.0, 49.23];
+  }
+  if (twoSentries && scene.a !== null && scene.b !== null) {
+    cli([
+      'run',
+      'dev:twoSentriesScene',
+      JSON.stringify({
+        playerId: scene.a,
+        enemyId: scene.b,
+        reappeared: process.argv.includes('--reparue'),
+      }),
+    ]);
+    places['deux-vigies'] = [9.0, 51.0];
+    places.cologne = [6.96, 50.94];
+    places.erfurt = [11.03, 50.98];
   }
   if (specialties && scene.a !== null) {
     cli(['run', 'dev:specialtiesScene', JSON.stringify({ playerId: scene.a })]);
