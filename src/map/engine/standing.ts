@@ -1593,15 +1593,17 @@ export class StandingLayer implements SequenceHost {
     mark.scale.set(entry.extent.x + 0.05, 1, entry.extent.z + 0.05);
     entry.object.add(mark);
     const count = geometry.index!.count;
-    const seconds = STAPLE.trace + STAPLE.pale;
+    // At reduced motion it is laid whole at once: no tracing to wait for.
+    const trace = this.motion === 'full' ? STAPLE.trace : 0;
+    const seconds = trace + STAPLE.pale;
     this.effects.push({
       since: performance.now() + after,
       seconds,
       step: (k) => {
         const t = k * seconds;
         mark.visible = t >= 0;
-        const traced = this.motion === 'full' ? ease.out3(Math.min(1, t / STAPLE.trace)) : 1;
-        const pale = Math.min(1, Math.max(0, (t - STAPLE.trace) / STAPLE.pale));
+        const traced = trace > 0 ? ease.out3(Math.min(1, t / trace)) : 1;
+        const pale = Math.min(1, Math.max(0, (t - trace) / STAPLE.pale));
         // Whole triangles: six indices a segment.
         geometry.setDrawRange(0, Math.max(6, Math.floor((count * traced) / 6) * 6));
         material.opacity = 0.8 * (1 - 0.6 * pale);

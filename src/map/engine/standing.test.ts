@@ -532,6 +532,18 @@ describe('a pile lent to a sequence', () => {
       cut.clock.mockRestore();
     });
 
+    it('lays the staple whole at reduced motion, then pales it in 0.3 s (#277)', async () => {
+      const { at, clock, layer } = await grown([1000], 'reduced', { opens: true, formed: true });
+      at(1050);
+      const stroke = staple(layer)!;
+      expect(stroke.geometry.drawRange.count).toBeGreaterThanOrEqual(stroke.geometry.index!.count);
+      at(1200);
+      expect((stroke.material as MeshStandardMaterial).opacity).toBeLessThan(0.75);
+      at(1400);
+      expect(staple(layer)).toBeNull();
+      clock.mockRestore();
+    });
+
     it('halts a column joining the pile at its edge, nowhere else (#277)', async () => {
       const one = (await standing('infantry')).edgeAt([2, 48]);
       const layer = await standing('infantry', 'armor', 'landTransport');
