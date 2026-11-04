@@ -13,7 +13,7 @@ import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, seatIn } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, raiding, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -232,10 +232,10 @@ describe('a season reads its own board and no other', () => {
 
     expect(await t.run(async (ctx) => ctx.db.query('movements').collect())).toHaveLength(0);
 
-    /** The same point, named from its own season, is a target like any other. */
+    /** The same point, surveyed from its own season, is a target like any other. */
     const theirBarracks = await raise(t, elsewhere.seat, MARNE);
     const theirTroop = await form(t, elsewhere.seat, theirBarracks);
-    await t.mutation(api.movements.raid, {
+    await raiding(t, {
       ...elsewhere.seat,
       origin: { kind: 'building', buildingId: theirBarracks },
       troopIds: [theirTroop],

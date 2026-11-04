@@ -9,7 +9,7 @@ import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, seatIn, unclocked } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, raiding, seatIn, unclocked } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -370,7 +370,7 @@ describe('what the jobs file for the journal', () => {
     )[0]!._id;
 
     const barracks = await raise(t, seat, 'barracks', MARNE);
-    const sent = await t.mutation(api.movements.raid, {
+    const sent = await raiding(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],

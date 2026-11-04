@@ -257,4 +257,35 @@ describe('lend-lease (ADR 0039 §3)', () => {
     expect(notice).toMatchObject({ delivered: ammunition(150) });
     expect(notice).not.toHaveProperty('abroad');
   });
+
+  /**
+   * **Un avant-poste relevé se vise à son relevé** : démantelé depuis, l'aperçu ne lève pas et ne
+   * dit pas qu'il a disparu — c'est l'arrivée qui ne trouve personne.
+   */
+  it('aims a surveyed outpost dismantled since at its surveyed point, and the column finds nobody', async () => {
+    const t = boot();
+    const { usa, base, depot } = await scene(t);
+    const rifles = await form(t, usa, 'infantry', base);
+    await survey(t, usa, CHALONS);
+    await t.run(async (ctx) => ctx.db.delete(depot));
+    const order = {
+      ...usa,
+      origin: { kind: 'outpost' as const, outpostId: base },
+      troopIds: [rifles],
+    };
+    const target = { kind: 'outpost' as const, outpostId: depot };
+
+    const raid = await t.query(api.movements.preview, { ...order, type: 'raid', target });
+    expect(raid).toMatchObject({ destinationName: 'FRA' });
+    expect(await t.query(api.movements.previewCapture, { ...order, target })).not.toBeNull();
+    await expect(
+      t.mutation(api.movements.enterOutpost, { ...order, outpostId: depot }),
+    ).rejects.toThrow('POINT_TARGET_ONLY');
+
+    const { arrivesAt } = await t.mutation(api.movements.raid, { ...order, outpostId: depot });
+    await arrive(t, arrivesAt);
+    expect(await noticesOf(t, usa, 'columnFoundNothing')).toMatchObject([
+      { movementType: 'raid', hostCountry: 'FRA' },
+    ]);
+  });
 });

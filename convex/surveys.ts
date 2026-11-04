@@ -260,6 +260,33 @@ export async function fileSurvey(
   return written;
 }
 
+/** **Les lignes de relevé qui portent quelque chose à servir** — installations ou avant-postes
+ *  étrangers —, celles de ce joueur seul : son index, jamais un filtre sur une table de vérité. */
+export async function surveysWithInstallations(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+): Promise<ReadonlyArray<Doc<'regionSightings'>>> {
+  return ctx.db
+    .query('regionSightings')
+    .withIndex('byPlayerHasInstallations', (q) =>
+      q.eq('playerId', playerId).eq('hasInstallations', true),
+    )
+    .collect();
+}
+
+/** **Les avant-postes étrangers relevés** (ADR 0039 §3), tels que ces lignes les gardent : un
+ *  avant-poste démantelé depuis y reste jusqu'au prochain passage. */
+export function surveyedOutposts(surveys: ReadonlyArray<Doc<'regionSightings'>>): ReadonlyArray<{
+  outpostId: Id<'outposts'>;
+  regionId: string;
+  point: { lon: number; lat: number };
+  hostCountry: string;
+}> {
+  return surveys.flatMap((survey) =>
+    (survey.outposts ?? []).map((outpost) => ({ ...outpost, regionId: survey.regionId })),
+  );
+}
+
 /** Une troupe posée relève le sol autour d'elle, au même rayon qu'elle relève ce qui passe. */
 export const surveyFromPoint = async (
   ctx: MutationCtx,

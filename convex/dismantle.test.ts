@@ -11,7 +11,7 @@ import { outpostsOf as outpostsOfPlayer } from './movement/forces';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, pointIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, pointIn, surveyOutpost } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -482,6 +482,16 @@ describe('entrer en garnison dans son propre avant-poste', () => {
     const mine = await plant(t, seat, 'ROU-311');
     const troop = await station(t, seat, mine);
 
+    await expect(
+      t.mutation(api.movements.enterOutpost, {
+        ...seat,
+        origin: { kind: 'outpost', outpostId: mine },
+        troopIds: [troop],
+        outpostId: theirs,
+      }),
+    ).rejects.toThrow('UNKNOWN_OUTPOST');
+    /** Relevé, il se vise — et une marche n'y entre toujours pas. */
+    await surveyOutpost(t, seat, theirs);
     await expect(
       t.mutation(api.movements.enterOutpost, {
         ...seat,

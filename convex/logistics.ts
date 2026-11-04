@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { surveyedOutposts, surveysWithInstallations } from './surveys';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, type MutationCtx, type QueryCtx } from './_generated/server';
 import {
@@ -168,10 +169,14 @@ export const deliver = mutation({
     const mine = outpost !== null && outpost.playerId === player._id;
     const troops = await troopsAmong(ctx, player._id, troopIds);
     /** **Le dépôt d'un autre ne se lit qu'au relevé** : la ligne vivante n'est pas lue ici. */
-    const seen = mine ? null : await surveyedOutpostOf(ctx, player._id, outpostId);
+    const seen = mine
+      ? undefined
+      : surveyedOutposts(await surveysWithInstallations(ctx, player._id)).find(
+          (one) => one.outpostId === outpostId,
+        );
     const access = depotAccessOf({
       mine,
-      surveyed: seen !== null,
+      surveyed: seen !== undefined,
       asset: assetOf(player.nation, modeOf(season.mode)),
       troops: mine ? troops : await withRiders(ctx, player._id, troops),
     });
@@ -202,25 +207,6 @@ export const deliver = mutation({
     });
   },
 });
-
-/** **L'avant-poste étranger tel que mon relevé le garde** (ADR 0039 §3), `null` si je ne l'ai
- *  pas relevé. */
-async function surveyedOutpostOf(
-  ctx: QueryCtx,
-  playerId: Id<'players'>,
-  outpostId: Id<'outposts'>,
-): Promise<{ readonly point: { lon: number; lat: number } } | null> {
-  const surveys = await ctx.db
-    .query('regionSightings')
-    .withIndex('byPlayerHasInstallations', (q) =>
-      q.eq('playerId', playerId).eq('hasInstallations', true),
-    )
-    .collect();
-  for (const survey of surveys)
-    for (const outpost of survey.outposts ?? [])
-      if (outpost.outpostId === outpostId) return outpost;
-  return null;
-}
 
 /** **La colonne qui partirait**, passagers des transports compris, comme `march` la forme. */
 async function withRiders(

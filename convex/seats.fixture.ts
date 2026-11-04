@@ -6,7 +6,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { nicknameKey } from '../src/domain/account';
 import { isNation } from '../src/domain/nations';
 import { DEPOSIT_POINTS } from '../src/domain/world';
-import { capitalRegionOf, pointOfRegion } from './regions';
+import { capitalRegionOf, pointOfRegion, regionOfOutpost } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { openSession, sessionOf } from './sessions';
 import { handOver, layPoint } from './strategicPoints';
@@ -213,7 +213,7 @@ async function writeSurvey(ctx: MutationCtx, seat: Seat, regionId: string): Prom
  * est posé ici plutôt que dans chaque cas parce qu'il est le **préalable** de l'ordre et non le
  * sujet des suites qui l'utilisent — elles mesurent la passe, la route ou la dépêche.
  *
- * Un camp et un avant-poste *sont* le relevé : rien à poser pour eux.
+ * Un camp est le relevé : rien à poser pour lui. Un avant-poste étranger se relève (`surveyOutpost`).
  */
 export async function attacking(t: Bench, args: FunctionArgs<typeof api.movements.attack>) {
   const regionId =
@@ -225,7 +225,55 @@ export async function attacking(t: Bench, args: FunctionArgs<typeof api.movement
   if (regionId !== null) {
     await surveyRegion(t, { token: args.token, seasonId: args.seasonId }, regionId);
   }
+  if (args.target.kind === 'outpost') {
+    await surveyOutpost(t, { token: args.token, seasonId: args.seasonId }, args.target.outpostId);
+  }
   return t.mutation(api.movements.attack, args);
+}
+
+/** **Le raid, tel qu'un joueur le donne** : sur un avant-poste qu'il a relevé (`surveyOutpost`). */
+export async function raiding(t: Bench, args: FunctionArgs<typeof api.movements.raid>) {
+  await surveyOutpost(t, { token: args.token, seasonId: args.seasonId }, args.outpostId);
+  return t.mutation(api.movements.raid, args);
+}
+
+/**
+ * **Le relevé d'un avant-poste étranger** (ADR 0039 §3) : depuis que l'avant-poste d'un autre se
+ * vise à son relevé (`aimOf`), un raid ou un assaut sur lui demande de l'avoir vu. La ligne est
+ * celle que `fileSurvey` aurait écrite au passage : id, point et pays hôte.
+ */
+export async function surveyOutpost(
+  t: Bench,
+  seat: Seat,
+  outpostId: Id<'outposts'>,
+): Promise<void> {
+  await t.run(async (ctx: MutationCtx) => {
+    const player = await seatIn(ctx, seat);
+    const outpost = await ctx.db.get(outpostId);
+    const regionId = outpost === null ? null : regionOfOutpost(outpost);
+    if (outpost === null || regionId === null) throw new Error('no outpost to survey');
+    const seen = { outpostId, point: outpost.point, hostCountry: outpost.hostCountry };
+    const existing = await ctx.db
+      .query('regionSightings')
+      .withIndex('byPlayerRegion', (q) => q.eq('playerId', player._id).eq('regionId', regionId))
+      .unique();
+    if (existing === null) {
+      await ctx.db.insert('regionSightings', {
+        playerId: player._id,
+        regionId,
+        ownerId: null,
+        seenAt: Date.now(),
+        installations: [],
+        outposts: [seen],
+        hasInstallations: true,
+      });
+    } else {
+      await ctx.db.patch(existing._id, {
+        outposts: [...(existing.outposts ?? []), seen],
+        hasInstallations: true,
+      });
+    }
+  });
 }
 
 /**

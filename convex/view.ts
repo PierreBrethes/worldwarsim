@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { surveyedOutposts, surveysWithInstallations } from './surveys';
 import { query } from './_generated/server';
 import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
@@ -236,22 +237,15 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     underSiege: besieged(sieges, siegeTargetsOf(outpost, ownBuildings)),
   }));
   const movements = await movementsOf(ctx, player._id);
-  const surveys = await ctx.db
-    .query('regionSightings')
-    .withIndex('byPlayerHasInstallations', (q) =>
-      q.eq('playerId', player._id).eq('hasInstallations', true),
-    )
-    .collect();
+  const surveys = await surveysWithInstallations(ctx, player._id);
   /** **Les avant-postes étrangers relevés** (ADR 0039 §3) : ce que la ligne garde, rien de la
    *  ligne vivante. */
-  const surveyedOutposts = surveys.flatMap((survey) =>
-    (survey.outposts ?? []).map((outpost) => ({
-      id: outpost.outpostId as string,
-      regionId: survey.regionId,
-      point: [outpost.point.lon, outpost.point.lat] as LonLat,
-      hostCountry: outpost.hostCountry,
-    })),
-  );
+  const surveyedOutpostRows = surveyedOutposts(surveys).map((outpost) => ({
+    id: outpost.outpostId as string,
+    regionId: outpost.regionId,
+    point: [outpost.point.lon, outpost.point.lat] as LonLat,
+    hostCountry: outpost.hostCountry,
+  }));
   const surveyed = surveys.flatMap((survey) =>
     (survey.installations ?? []).map((installation) => ({
       id: installation.buildingId,
@@ -923,7 +917,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      *  `clipToStorage` applique après doivent soustraire le même nombre. */
     storageCapPerLevel: STORAGE_CAP_PER_LEVEL,
     surveyedInstallations,
-    surveyedOutposts,
+    surveyedOutposts: surveyedOutpostRows,
     lootSightings: lootSightings
       .filter((sighting) => sighting.seasonId === season._id)
       .map((sighting) => ({
