@@ -3349,6 +3349,9 @@ export class MapEngine {
       return true;
     }
     this.standing.arrive(pileId, [plan.settled]);
+    const foot = new Vector3(plan.dust.at[0], truck.at.y, plan.dust.at[1]);
+    for (const t of plan.dust.times)
+      this.inkDue.push({ at: now + t, run: () => this.standing.dustAt(pileId, foot) });
     return true;
   }
 

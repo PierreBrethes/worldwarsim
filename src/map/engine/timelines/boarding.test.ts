@@ -102,4 +102,20 @@ describe('boardingOf (#277)', () => {
     expect(bent).toBeGreaterThan(0.9);
     expect(sunk).toBeLessThan(-0.05);
   });
+
+  it("raises dust at the tailgate's foot as each man lands, and none as they board", () => {
+    const { squads, dust } = boardingOf(scene(true));
+    expect(dust.times).toHaveLength(6);
+    // The foot of the tailgate: behind the hinge, 4.9 m behind the middle of a 6.5 m truck.
+    expect(dust.at[0]).toBeCloseTo(0, 5);
+    expect(dust.at[1]).toBeCloseTo(-4.9, 5);
+    // Each dust is the moment a man's travel is back to the ground.
+    for (const t of dust.times) {
+      const y = squads.flatMap((squad) =>
+        [0, 1, 2].map((k) => squad.at(t)[`man_${k}`]?.travel?.[1] ?? 1),
+      );
+      expect(Math.min(...y)).toBeCloseTo(0, 5);
+    }
+    expect(boardingOf(scene(false)).dust.times).toEqual([]);
+  });
 });

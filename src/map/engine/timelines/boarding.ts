@@ -125,6 +125,9 @@ export function boardingOf(boarding: Boarding): {
   readonly truck: Sequence<'landTransport'>;
   readonly squads: ReadonlyArray<Sequence>;
   readonly settled: number;
+  /** Coming down, the dust each man raises at the tailgate's foot as he lands (« une pile
+   *  vivante », `hopDust`): where, and when. */
+  readonly dust: { readonly at: Flat; readonly times: ReadonlyArray<number> };
 } {
   const { down, truck, man: h, step } = boarding;
   const metre = truck.length / TRUCK_M.length;
@@ -310,5 +313,6 @@ export function boardingOf(boarding: Boarding): {
       return pose;
     },
   };
-  return { truck: truckSequence, squads, settled };
+  const dust = { at: foot, times: down ? men.map((m) => m.atFoot) : [] };
+  return { truck: truckSequence, squads, settled, dust };
 }
