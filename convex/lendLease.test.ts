@@ -4,7 +4,7 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { UnitRole } from '../src/domain/ids';
 import type { LonLat } from '../src/domain/geo';
-import { depotCapacity, nominalStrength } from './constants';
+import { AIR_STOP_LEVEL, depotCapacity, nominalStrength } from './constants';
 import { pointOfRegion } from './regions';
 import { fileSurvey } from './surveys';
 import schema from './schema';
@@ -28,19 +28,23 @@ const ammunition = (n: number) => ({ ammunition: n, oil: 0, coal: 0 });
 
 const playerOf = (t: Bench, seat: Seat) => t.run(async (ctx) => (await seatIn(ctx, seat))._id);
 
-/** Les États-Unis (`usa`) et la France (`france`), QG posés, sans troupe. */
+/** Les États-Unis (`usa`), la France (`france`) et l'Angleterre (`uk`), QG posés, sans troupe. */
 async function launchedSeason(t: Bench) {
   const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
+  const third = await joinSeat(t, code, 'Nour');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'usa' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  await t.mutation(api.players.reserveNation, { ...third, nation: 'uk' });
+  await t.mutation(api.players.declareReady, { ...third, ready: true });
   await t.mutation(api.seasons.launch, seat);
   await unclocked(t);
   await placeHq(t, seat);
   await placeHq(t, guest);
-  for (const one of [seat, guest]) {
+  await placeHq(t, third);
+  for (const one of [seat, guest, third]) {
     const playerId = await playerOf(t, one);
     await t.run(async (ctx) => {
       for (const troop of await ctx.db
@@ -50,7 +54,7 @@ async function launchedSeason(t: Bench) {
         await ctx.db.delete(troop._id);
     });
   }
-  return { usa: seat, france: guest };
+  return { usa: seat, france: guest, uk: third };
 }
 
 async function plant(
@@ -99,12 +103,12 @@ const survey = async (t: Bench, seat: Seat, point: LonLat) => {
 
 /** Un camion américain chargé à son avant-poste de la Ruhr, et un point français à Châlons. */
 async function scene(t: Bench, held = 150) {
-  const { usa, france } = await launchedSeason(t);
+  const { usa, france, uk } = await launchedSeason(t);
   const base = await plant(t, usa, ESSEN, { hostCountry: 'DEU', regionId: RUHR });
   const truck = await form(t, usa, 'landTransport', base);
   await t.run(async (ctx) => ctx.db.patch(truck, { load: ammunition(held) }));
   const depot = await plant(t, france, CHALONS, { hostCountry: 'FRA', regionId: MARNE });
-  return { usa, france, base, truck, depot };
+  return { usa, france, uk, base, truck, depot };
 }
 
 const delivering = (
@@ -287,5 +291,118 @@ describe('lend-lease (ADR 0039 §3)', () => {
     expect(await noticesOf(t, usa, 'columnFoundNothing')).toMatchObject([
       { movementType: 'raid', hostCountry: 'FRA' },
     ]);
+  });
+
+  /** **Ce qui fait qu'un dépôt ne reçoit rien**, relu à l'arrivée : le convoi rapporte tout. */
+  const receivesNothing = async (t: Bench, usa: Seat, france: Seat, truck: Id<'troops'>) => {
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run(async (ctx) => ctx.db.get(truck)))!.load).toEqual(ammunition(150));
+    expect(await noticesOf(t, usa, 'supplyDelivered')).toMatchObject([
+      { abroad: true, delivered: ammunition(0), kept: ammunition(150) },
+    ]);
+    expect(await noticesOf(t, france, 'lendLeaseReceived')).toEqual([]);
+  };
+
+  it('delivers nothing to a depot put out of service on the way', async () => {
+    const t = boot();
+    const { usa, france, base, truck, depot } = await scene(t);
+    await survey(t, usa, CHALONS);
+    const { arrivesAt } = await delivering(t, usa, base, [truck], depot);
+    await t.run(async (ctx) => ctx.db.patch(depot, { disabledUntil: arrivesAt + 3_600_000 }));
+    await arrive(t, arrivesAt);
+    await receivesNothing(t, usa, france, truck);
+  });
+
+  it('delivers nothing to a depot under capture', async () => {
+    const t = boot();
+    const { usa, france, uk, base, truck, depot } = await scene(t);
+    await survey(t, usa, CHALONS);
+    const { arrivesAt } = await delivering(t, usa, base, [truck], depot);
+    await t.run(async (ctx) => {
+      const them = await seatIn(ctx, france);
+      await ctx.db.insert('captures', {
+        seasonId: them.seasonId,
+        playerId: (await seatIn(ctx, uk))._id,
+        defenderId: them._id,
+        target: { kind: 'outpost', outpostId: depot },
+        site: { kind: 'outpost', hostCountry: 'FRA', level: 1 },
+        point: { lon: CHALONS[0], lat: CHALONS[1] },
+        progress: 0,
+        progressAt: Date.now(),
+        rate: 1,
+        durationMs: 3_600_000,
+        rest: null,
+        completesAt: Date.now() + 3_600_000,
+      });
+    });
+    await arrive(t, arrivesAt);
+    await receivesNothing(t, usa, france, truck);
+  });
+
+  it('lands nothing from a transport plane at a depot that is no air stop', async () => {
+    const t = boot();
+    const { usa, france, base, depot } = await scene(t, 0);
+    /** Le départ est une escale ; le dépôt de niveau 1 n'en est pas une. */
+    await t.run(async (ctx) => ctx.db.patch(base, { level: AIR_STOP_LEVEL }));
+    const plane = await form(t, usa, 'airTransport', base);
+    await t.run(async (ctx) => ctx.db.patch(plane, { load: ammunition(150) }));
+    await survey(t, usa, CHALONS);
+    const { arrivesAt } = await delivering(t, usa, base, [plane], depot);
+    await arrive(t, arrivesAt);
+    await receivesNothing(t, usa, france, plane);
+  });
+
+  it('delivers to whoever holds the point when the convoy arrives, and only he hears of it', async () => {
+    const t = boot();
+    const { usa, france, uk, base, truck, depot } = await scene(t);
+    await survey(t, usa, CHALONS);
+    const { arrivesAt } = await delivering(t, usa, base, [truck], depot);
+    const british = await playerOf(t, uk);
+    await t.run(async (ctx) => ctx.db.patch(depot, { playerId: british }));
+    await arrive(t, arrivesAt);
+
+    expect((await t.run(async (ctx) => ctx.db.get(depot)))!.depot).toEqual(ammunition(150));
+    expect(await noticesOf(t, uk, 'lendLeaseReceived')).toMatchObject([
+      { nation: 'usa', delivered: ammunition(150) },
+    ]);
+    expect(await noticesOf(t, france, 'lendLeaseReceived')).toEqual([]);
+  });
+
+  it('keeps none of its own outposts in a survey that keeps a foreign one', async () => {
+    const t = boot();
+    const { usa, depot } = await scene(t);
+    await plant(t, usa, [CHALONS[0] + 0.01, CHALONS[1]], { hostCountry: 'FRA', regionId: MARNE });
+    await survey(t, usa, CHALONS);
+
+    const seen = (await t.query(api.view.playerView, usa)).surveyedOutposts;
+    expect(seen.map((one) => one.id)).toEqual([depot]);
+  });
+
+  it('rewrites a fresh survey row when the outposts standing in it changed', async () => {
+    const t = boot();
+    const { usa, france, depot } = await scene(t);
+    await survey(t, usa, CHALONS);
+    const second = await plant(t, france, [CHALONS[0] + 0.01, CHALONS[1]], {
+      hostCountry: 'FRA',
+      regionId: MARNE,
+    });
+    vi.setSystemTime(MIDDAY.getTime() + 60_000);
+    await survey(t, usa, CHALONS);
+
+    const seen = (await t.query(api.view.playerView, usa)).surveyedOutposts;
+    expect(seen.map((one) => one.id)).toEqual([depot, second]);
+  });
+
+  it('keeps a survey row on home soil for a foreign outpost standing there', async () => {
+    const t = boot();
+    const { usa, france } = await scene(t);
+    const american = await plant(t, usa, [CHALONS[0] + 0.01, CHALONS[1]], {
+      hostCountry: 'FRA',
+      regionId: MARNE,
+    });
+    await survey(t, france, CHALONS);
+
+    const seen = (await t.query(api.view.playerView, france)).surveyedOutposts;
+    expect(seen.map((one) => one.id)).toEqual([american]);
   });
 });
