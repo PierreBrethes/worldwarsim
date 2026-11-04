@@ -142,6 +142,10 @@ Deux différences avec `sightings`, et elles suivent de ce que le sol ne bouge p
   le nouveau point peut avoir touchées : sinon un joueur posté à côté verrait le drapeau se
   planter et sa carte ne bougerait pas.
 
+**La ligne garde aussi les avant-postes étrangers debout** (ADR 0039 §3, #448) : id, point et
+pays hôte, rien de plus. C'est le seul « relevé » d'un avant-poste ; le Prêt-bail livre à ceux-là,
+et l'ordre ne lit que la ligne du joueur, jamais l'avant-poste vivant.
+
 Mesure du 31/08 : un mouvement Lisbonne → Moscou (95 sommets, 76 haltes au demi-rayon) écrit
 **21 lignes** en 13 ms ; à quatre joueurs, une heure de jeu — huit avant-postes, huit troupes
 posées, huit marches — laisse **730 lignes** au total, la plus grosse part revenant à qui a fondé
