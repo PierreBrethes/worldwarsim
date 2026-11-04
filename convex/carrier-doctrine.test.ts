@@ -70,7 +70,10 @@ async function postAt(t: Bench, seat: Seat, role: UnitRole, at: { lon: number; l
 
 /** Une escorte et un cargo partis du large vers l’est. */
 async function sailing(t: Bench, seat: Seat) {
-  const troopIds = [await postAt(t, seat, 'escort', OPEN_SEA), await postAt(t, seat, 'cargo', OPEN_SEA)];
+  const troopIds = [
+    await postAt(t, seat, 'escort', OPEN_SEA),
+    await postAt(t, seat, 'cargo', OPEN_SEA),
+  ];
   const filed = await t.mutation(api.movements.marchTo, {
     ...seat,
     origin: { kind: 'point', point: OPEN_SEA },
@@ -200,4 +203,3 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     expect(seen.map((one) => one.movementId)).toContain(turned.movementId);
   });
 });
-

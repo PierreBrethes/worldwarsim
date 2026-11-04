@@ -21,11 +21,7 @@ import { aimOf, columnOf, departureOf, fuelBill, type AimTarget } from './orders
 import { asPoint } from './forces';
 import { assetOf } from '../../src/domain/nation-assets';
 import { modeOf } from '../../src/domain/season-mode';
-import {
-  courseRefusalOf,
-  fuelAfterCourse,
-  fuelCreditOf,
-} from '../../src/domain/carrier-doctrine';
+import { courseRefusalOf, fuelAfterCourse, fuelCreditOf } from '../../src/domain/carrier-doctrine';
 import { distanceProgressAt, positionAt } from '../../src/domain/interception';
 import {
   isQuay,
@@ -116,8 +112,7 @@ export async function plotCourse(
   const bill = fuelBill(troops, route.distanceUnits, false, false, singapore);
   const paidKm = kmOf(movement.distanceUnits);
   const ranKm = kmOf(movement.distanceUnits * distanceProgressAt(force, now));
-  const creditOf = (troop: Doc<'troops'>) =>
-    fuelCreditOf(troop.role, paidKm, ranKm, singapore);
+  const creditOf = (troop: Doc<'troops'>) => fuelCreditOf(troop.role, paidKm, ranKm, singapore);
   const drivers = bill.drivers.map((troop) => ({ ...troop, credit: creditOf(troop) }));
   const short = fuelRefusalOf(drivers, bill.km, singapore);
 
@@ -160,7 +155,8 @@ export async function changeCourse(
   const now = Date.now();
   const plan = await plotCourse(ctx, player, season, movementId, type, target, now);
   const { movement, here, aimed, route, arrivesAt, fuel } = plan;
-  if (fuel.short !== null) fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: false });
+  if (fuel.short !== null)
+    fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: false });
 
   const ran = seenSegment(marchingForce(movement), movement.departedAt, now).points;
   for (const troop of plan.troops)

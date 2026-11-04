@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { courseRefusalOf, fuelAfterCourse, fuelCreditOf, halfwayOf, type Course } from './carrier-doctrine';
+import {
+  courseRefusalOf,
+  fuelAfterCourse,
+  fuelCreditOf,
+  halfwayOf,
+  type Course,
+} from './carrier-doctrine';
 import { fuelGaugeOf, fuelRefusalOf } from './supplies';
 
 const HOUR = 3_600_000;

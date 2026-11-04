@@ -1,7 +1,6 @@
 import type { MovementType, UnitRole } from './ids';
 import { mediumAt, type MarchingForce } from './interception';
 import type { Asset } from './nation-assets';
-import type { ArcView } from './player-view';
 import { fuelStepsOf } from './supplies';
 
 /**
@@ -28,8 +27,10 @@ export type Course = {
 const STEERED: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
 
 /** La moitié de la durée du trajet (`departedAt` à `arrivesAt`). */
-export const halfwayOf = ({ departedAt, arrivesAt }: Pick<MarchingForce, 'departedAt' | 'arrivesAt'>) =>
-  departedAt + (arrivesAt - departedAt) / 2;
+export const halfwayOf = ({
+  departedAt,
+  arrivesAt,
+}: Pick<MarchingForce, 'departedAt' | 'arrivesAt'>) => departedAt + (arrivesAt - departedAt) / 2;
 
 export function courseRefusalOf(
   asset: Asset | null,
@@ -57,21 +58,3 @@ export const fuelCreditOf = (
  *  (aucun mouvement ne rend son plein, décision du 04/11). */
 export const fuelAfterCourse = (held: number, credit: number, needed: number): number =>
   held - Math.max(0, needed - credit);
-
-/** **Le cap d'un arc à moi**, lu comme le serveur lit sa ligne (`courseRefusalOfRow`). */
-export const courseOfArc = (arc: Extract<ArcView, { state: 'mine' }>): Course => ({
-  type: arc.type,
-  onMission: arc.onMission === true,
-  courseChangedAt: arc.courseChange?.at ?? null,
-  force: {
-    id: arc.id,
-    points: arc.route.points,
-    legs: arc.route.legs,
-    distanceUnits: arc.route.distanceUnits,
-    landCost: arc.route.landCost,
-    departedAt: arc.schedule.departedAt,
-    arrivesAt: arc.schedule.arrivesAt,
-    ...(arc.schedule.resumed === undefined ? {} : { resumed: arc.schedule.resumed }),
-    ...(arc.schedule.heldAt === null ? {} : { heldAt: arc.schedule.heldAt }),
-  },
-});
