@@ -1,6 +1,7 @@
 import type { MovementType, UnitRole } from './ids';
 import { mediumAt, type MarchingForce } from './interception';
 import type { Asset } from './nation-assets';
+import type { ArcView } from './player-view';
 import { fuelStepsOf } from './supplies';
 
 /**
@@ -58,3 +59,55 @@ export const fuelCreditOf = (
  *  (aucun mouvement ne rend son plein, décision du 04/11). */
 export const fuelAfterCourse = (held: number, credit: number, needed: number): number =>
   held - Math.max(0, needed - credit);
+
+type MyArc = Extract<ArcView, { state: 'mine' }>;
+
+/** **Le cap d'un arc à moi**, lu comme le serveur lit sa ligne (`courseRefusalOfRow`). */
+export const courseOfArc = (arc: MyArc): Course => ({
+  type: arc.type,
+  onMission: arc.onMission === true,
+  courseChangedAt: arc.courseChange?.at ?? null,
+  force: {
+    id: arc.id,
+    points: arc.route.points,
+    legs: arc.route.legs,
+    distanceUnits: arc.route.distanceUnits,
+    landCost: arc.route.landCost,
+    departedAt: arc.schedule.departedAt,
+    arrivesAt: arc.schedule.arrivesAt,
+    ...(arc.schedule.resumed === undefined ? {} : { resumed: arc.schedule.resumed }),
+    ...(arc.schedule.heldAt === null ? {} : { heldAt: arc.schedule.heldAt }),
+  },
+});
+
+/**
+ * **Ce que la fiche d'un de mes mouvements dit du cap** (maquette A, #449) : libre jusqu'à la
+ * mi-parcours, ou pourquoi il ne change plus — `null` quand il n'y a rien à dire (une mission,
+ * une colonne à terre d'une nation sans l'atout).
+ */
+export type CourseNote =
+  | { readonly kind: 'free'; readonly until: number }
+  | { readonly kind: 'changed'; readonly at: number }
+  | { readonly kind: 'pastHalfway'; readonly at: number }
+  | { readonly kind: 'ashore' }
+  | { readonly kind: 'others' };
+
+export function courseNoteOf(asset: Asset | null, arc: MyArc, now: number): CourseNote | null {
+  const course = courseOfArc(arc);
+  switch (courseRefusalOf(asset, course, now)) {
+    case null:
+      return { kind: 'free', until: halfwayOf(course.force) };
+    case 'COURSE_ALREADY_CHANGED':
+      return { kind: 'changed', at: course.courseChangedAt! };
+    case 'PAST_HALFWAY':
+      return { kind: 'pastHalfway', at: halfwayOf(course.force) };
+    case 'NOT_AT_SEA':
+      return { kind: 'ashore' };
+    case 'NO_CARRIER_DOCTRINE':
+      return STEERED.includes(course.type) && mediumAt(course.force, now) === 'sea'
+        ? { kind: 'others' }
+        : null;
+    case 'COURSE_ON_MISSION':
+      return null;
+  }
+}

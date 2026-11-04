@@ -40,6 +40,8 @@ export type ServerView = FunctionReturnType<typeof api.view.playerView>;
 
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
+/** **Le cap neuf d'une flotte reprise en mer** (#449), mesuré comme un départ. */
+export type CoursePreviewed = FunctionReturnType<typeof api.movements.previewCourse>;
 export type PlunderPreviewed = FunctionReturnType<typeof api.movements.previewPlunder>;
 export type CapturePreviewed = FunctionReturnType<typeof api.movements.previewCapture>;
 export type LootCollectionPreviewed = FunctionReturnType<

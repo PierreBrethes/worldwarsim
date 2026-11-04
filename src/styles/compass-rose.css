@@ -586,3 +586,23 @@
   color: var(--critical);
   font: 500 11px/1.3 var(--font-mono);
 }
+
+/* **La flotte reprise en mer** (Doctrine du porte-avions, #449) : l'atout au-dessus du verbe, et
+   le plein déjà payé cerclé de l'ocre de la route. */
+.drop-chip--course .drop-chip-icon {
+  grid-row: 1 / span 3;
+}
+.drop-chip-eyebrow {
+  grid-column: 2;
+  font: 600 9px/1.2 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--arc-mine);
+}
+.fuel-tube--paid {
+  border-color: var(--arc-mine);
+}
+.fuel-step--paid {
+  background: var(--fuel-ink);
+  box-shadow: inset 0 0 0 1.5px var(--arc-mine);
+}

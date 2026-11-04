@@ -74,15 +74,21 @@ export class TourInk {
     this.group.renderOrder = TOUR_RANK;
   }
 
-  show(loops: ReadonlyArray<TourLoop>): void {
-    const key = JSON.stringify(loops);
+  /** `runs` : **la route courue avant un cap changé** (Doctrine du porte-avions, #449), en
+   *  pointillés jusqu'au coude, de la même encre posée. */
+  show(loops: ReadonlyArray<TourLoop>, runs: ReadonlyArray<ReadonlyArray<LonLat>> = []): void {
+    const key = JSON.stringify([loops, runs]);
     if (key === this.key) return;
     this.key = key;
     for (const child of [...this.group.children]) {
       if (child instanceof Ribbon) child.geometry.dispose();
       child.removeFromParent();
     }
-    for (const stroke of loops.flatMap(strokesOf)) {
+    const strokes = [
+      ...loops.flatMap(strokesOf),
+      ...runs.map((points) => ({ points, dashed: true })),
+    ];
+    for (const stroke of strokes) {
       const lifted = stroke.points.map((point) => {
         const at = this.frame.projectLonLat(point);
         return new Vector3(at.x, at.y + LIFT, at.z);

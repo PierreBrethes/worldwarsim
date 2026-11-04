@@ -705,3 +705,57 @@ describe('ownerFlags', () => {
     expect(flagOf({ type: 'camp', ink: null })).toBeUndefined();
   });
 });
+
+/** **La Doctrine du porte-avions sur la fiche** (#449) : le cap se dit avant le geste, par la
+ *  règle même du serveur (`courseRefusalOf`). */
+describe('the course of a fleet at sea', () => {
+  const atSea = (schedule = march(30)) =>
+    mineArc({ route: directRoute([140, 30], [150, 30], 'sea', 10), schedule });
+  const japanese = (arcs: ReadonlyArray<ArcView>) =>
+    ({
+      ...viewWith(arcs),
+      me: { ink: '#6a4796', troops: [], asset: 'carrierDoctrine' },
+    }) as unknown as PlayerView;
+
+  it('frees a Japanese course until halfway, and marks halfway on its thread', () => {
+    const labels = buildLabels(japanese([atSea(march(90))]), []);
+    const fleet = labels.find((label) => label.type === 'my-movement')!;
+    const until = asClockTime(LOADED_AT - 30 * MINUTE + 60 * MINUTE);
+    expect(fleet.lines).toContainEqual({ role: 'free', text: fr.course.free(until) });
+    expect(fleet.lines).toContainEqual({ role: 'mention', text: fr.course.grab });
+    const mark = labels.find((label) => label.type === 'course-mark')!;
+    expect(texts(mark.lines)).toEqual([fr.course.halfway(until)]);
+  });
+
+  it('says why the course no longer changes past halfway, or once changed', () => {
+    const [past] = buildLabels(japanese([atSea(march(10))]), []);
+    expect(past!.lines).toContainEqual({
+      role: 'alarm',
+      text: fr.course.pastHalfway(asClockTime(LOADED_AT - 10 * MINUTE)),
+    });
+    const turned = mineArc({
+      route: directRoute([140, 30], [150, 30], 'sea', 10),
+      courseChange: {
+        at: LOADED_AT - 5 * MINUTE,
+        ran: [
+          [139, 31],
+          [140, 30],
+        ],
+      },
+    });
+    const labels = buildLabels(japanese([turned]), []);
+    expect(labels[0]!.lines).toContainEqual({
+      role: 'alarm',
+      text: fr.course.changed(asClockTime(LOADED_AT - 5 * MINUTE)),
+    });
+    expect(
+      labels.filter((label) => label.type === 'course-mark').map((l) => texts(l.lines)),
+    ).toEqual([[fr.course.elbow(asClockTime(LOADED_AT - 5 * MINUTE))]]);
+  });
+
+  it('tells another nation’s fleet that a movement under way is not taken back', () => {
+    const labels = buildLabels(viewWith([atSea()]), []);
+    expect(labels[0]!.lines).toContainEqual({ role: 'mention', text: fr.course.others });
+    expect(labels.some((label) => label.type === 'course-mark')).toBe(false);
+  });
+});

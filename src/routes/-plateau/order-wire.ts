@@ -10,6 +10,7 @@ import type { MarchStation } from '@/domain/troops';
 import { placeLabel } from '@/domain/station-name';
 import type {
   CapturePreviewed,
+  CoursePreviewed,
   LootCollectionPreviewed,
   MovementPreviewed,
   PlunderPreviewed,
@@ -19,7 +20,11 @@ import type { Seat } from '@/data/session';
 /** **Un seul aperçu pour quatre missions** : la même route et les mêmes heures ; ce qui les
  *  sépare — le relais, la charge, la présence sur site — se lit là où il existe. */
 export type Previewed =
-  MovementPreviewed | PlunderPreviewed | CapturePreviewed | LootCollectionPreviewed;
+  | MovementPreviewed
+  | PlunderPreviewed
+  | CapturePreviewed
+  | LootCollectionPreviewed
+  | CoursePreviewed;
 
 /** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
 type PreviewMission =
@@ -285,3 +290,36 @@ export function choiceOf(action: OrderAction): OrderChoice {
 /** La clé d'un ordre de groupe : son genre et sa cible, ce que chaque pile relit. */
 export const groupKeyOf = (action: OrderAction): string =>
   `${action.key}:${JSON.stringify(choiceOf(action).aim)}`;
+
+/** **Changer de cap** (Doctrine du porte-avions, ADR 0039 §4) : la flotte reprise en mer part de
+ *  sa position vers la cible lâchée, même slot ; le serveur relit tout. Une mission garde son cap
+ *  (décision du 04/11) : seule une marche, une attaque ou une expédition sans mission part ici. */
+export function useChangeCourse(seat: Seat) {
+  const changeCourse = useMutation(api.movements.changeCourse);
+  return useCallback(
+    async (movementId: string, { aim, type }: OrderChoice, preview?: Previewed): Promise<Sent> => {
+      if (type !== 'march' && type !== 'attack' && type !== 'raid')
+        throw new Error('COURSE_ON_MISSION');
+      const sent = await changeCourse({
+        ...seat,
+        movementId: movementId as Id<'movements'>,
+        type,
+        target: wireTarget(aim),
+      });
+      return {
+        movementId: sent.movementId,
+        arrivesAt: sent.arrivesAt,
+        destination: destinationOf(aim, preview),
+      };
+    },
+    [seat, changeCourse],
+  );
+}
+
+/** Ce que la flotte reprise peut faire au lâcher : une marche, une attaque ou une expédition sans
+ *  mission ni embarquement — le reste garde son cap, comme au serveur (`onMission`). */
+export const steersCourse = (choice: OrderChoice): boolean =>
+  choice.mission.kind === 'march' &&
+  choice.mission.boardsOn === undefined &&
+  choice.mission.roundTrip !== true &&
+  (choice.type === 'march' || choice.type === 'attack' || choice.type === 'raid');

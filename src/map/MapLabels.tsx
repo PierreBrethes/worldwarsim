@@ -418,7 +418,8 @@ export function MapLabels({
         return (
           state?.visible === true &&
           (state.lod === 'expanded' || (groupFar && site(label))) &&
-          label.type !== 'arrival'
+          label.type !== 'arrival' &&
+          label.type !== 'course-mark'
         );
       })
       .slice()
@@ -1061,7 +1062,11 @@ export function MapLabels({
     pointerDown: (label, event) => {
       pressedWith.current = event.pointerType;
       // Une de mes piles se porte aussi depuis son étiquette (glisser-déposer, 15/10).
-      if (label.type === 'stack' && label.station !== null && !muted)
+      // Une flotte en mer se reprend par sa fiche (Doctrine du porte-avions, #449).
+      if (
+        ((label.type === 'stack' && label.station !== null) || label.type === 'my-movement') &&
+        !muted
+      )
         engine?.pressOnLabel(label.id, event.nativeEvent);
       // Un clic ouvre ce que la pièce ouvre — garnison, site, cartouche : l'affiche le
       // doublerait. Elle revient au survol suivant.

@@ -12,7 +12,9 @@ import type { RingState } from './engine/ink-ring';
  *  d'une de mes piles. */
 export type PieceFrom =
   | { readonly kind: 'piece'; readonly hit: PieceClick }
-  | { readonly kind: 'stack'; readonly station: TroopStation };
+  | { readonly kind: 'stack'; readonly station: TroopStation }
+  /** **Une de mes flottes en mer**, saisie par sa fiche (Doctrine du porte-avions, #449). */
+  | { readonly kind: 'movement'; readonly arcId: string };
 
 /** **What letting go would do, said under the pointer** (POC, `#hint`): a sign in a round, the
  *  verb, its consequence — or the refusal in red, or « reposer » when nothing moves. */
@@ -99,7 +101,10 @@ export type DropFuel = FuelGauge & { readonly roundTrip: boolean };
  *  the road eats pale and hatched, those Singapore spares ringed, what is missing spilling red
  *  past the tube. Drawn like the personal board's tubes, lying down. */
 function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
-  const eaten = Math.min(fuel.eaten, fuel.held);
+  /** **Ce que l'ancienne route a payé et pas couru** (Doctrine du porte-avions, #449) : la route
+   *  neuve le mange d'abord, cerclé d'ocre, et le réservoir ne paie que le surplus. */
+  const paid = Math.min(fuel.paid ?? 0, fuel.eaten);
+  const eaten = Math.min(fuel.eaten - paid, fuel.held);
   const kept = fuel.held - eaten;
   /** Singapore's steps stay in the tube when the fuel holds them; past it, they are the spill the
    *  plain price would have made, ringed and empty. */
@@ -128,6 +133,13 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
       <span aria-hidden className="inline-flex">
         <ResourcePlate resource={fuel.resource} height={13} width={13} />
       </span>
+      {paid > 0 && (
+        <span className="fuel-tube fuel-tube--paid" aria-hidden>
+          {Array.from({ length: paid }, (_, at) => (
+            <i key={at} className="fuel-step fuel-step--paid" />
+          ))}
+        </span>
+      )}
       <span className="fuel-tube" aria-hidden>
         {cells.map((cell, at) => (
           <i key={at} className={`fuel-step fuel-step--${cell}`} />
@@ -143,6 +155,7 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
       <span className={`fuel-count${fuel.short > 0 ? ' fuel-count--short' : ''}`} aria-hidden>
         {fuel.held} → {kept}
         {fuel.short > 0 && ` · ${fr.supplies.lacking(fuel.short)}`}
+        {paid > 0 && <small> · {fr.course.paid(paid)}</small>}
         {fuel.roundTrip && <small> · {fr.supplies.roundTrip}</small>}
       </span>
     </span>
@@ -154,11 +167,14 @@ export function DropHintChip({
   hint,
   notes = [],
   fuel = null,
+  course = false,
   ref,
 }: {
   hint: DropHint;
   notes?: ReadonlyArray<DropNote>;
   fuel?: DropFuel | null;
+  /** **Une flotte reprise en mer** (#449) : l'ordre est un cap neuf, et la pastille le dit. */
+  course?: boolean;
   ref: Ref<HTMLDivElement>;
 }) {
   /** **A refusal only the server's preview knows** (#258) turns the sign, as a refusal read on
@@ -168,8 +184,23 @@ export function DropHintChip({
     hint = { icon: '✕', tone: 'refused', verb: refusal.text, detail: null };
     notes = [];
   }
+  const steering = course && hint.tone !== 'refused' && hint.tone !== 'calm';
+  if (steering)
+    hint = {
+      ...hint,
+      icon: '↻',
+      verb: fr.course.verb,
+      /** Le verbe de la rose, sans son prix en slots : le cap neuf garde le sien. */
+      detail: hint.verb,
+    };
+  const touch = globalThis.matchMedia?.('(pointer: coarse)').matches === true;
   return (
-    <div ref={ref} role="status" className={`drop-chip paper-grain float drop-chip--${hint.tone}`}>
+    <div
+      ref={ref}
+      role="status"
+      className={`drop-chip paper-grain float drop-chip--${hint.tone}${steering ? ' drop-chip--course' : ''}`}
+    >
+      {steering && <span className="drop-chip-eyebrow">{fr.course.eyebrow}</span>}
       {/* Keyed by what it says: a new verb pops its sign. */}
       <span key={hint.icon + hint.verb} className="drop-chip-icon" aria-hidden>
         {hint.icon}
@@ -197,7 +228,11 @@ export function DropHintChip({
           ? fr.drop.refused
           : hint.tone === 'calm'
             ? fr.drop.still
-            : fr.drop.release}
+            : steering
+              ? touch
+                ? fr.course.keysTouch
+                : fr.course.keys
+              : fr.drop.release}
       </span>
     </div>
   );

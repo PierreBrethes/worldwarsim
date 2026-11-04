@@ -11,12 +11,15 @@ import { fr } from '@/i18n/fr';
 import type { DropFuel, DropNote } from '@/map/DropHint';
 import type { Seat } from '@/data/session';
 import {
+  steersCourse,
   wireCaptureTarget,
   wireOrigin,
   wireTarget,
   type OrderChoice,
   type Previewed,
 } from './order-wire';
+
+type Steered = 'march' | 'attack' | 'raid';
 
 /** **Le refus que seul l'aperçu du serveur connaît** (#258) : pas de route, ou plein trop court.
  *  Même fonction que le serveur (`fuelRefusalOf`) ; `null` tant que l'aperçu n'est pas là. */
@@ -89,8 +92,13 @@ export function useOrderPreview(
   seat: Seat,
   column: ArmedColumn | null,
   resting: OrderChoice | null,
-  /** Ce qui fait taire la ligne de distance (#302) : un ordre groupé, une Blitz. */
-  { grouped, blitz }: { readonly grouped: boolean; readonly blitz: boolean },
+  /** Ce qui fait taire la ligne de distance (#302) : un ordre groupé, une Blitz. `course` : le
+   *  mouvement d'une flotte reprise en mer (#449), que `previewCourse` mesure à la place. */
+  {
+    grouped,
+    blitz,
+    course = null,
+  }: { readonly grouped: boolean; readonly blitz: boolean; readonly course?: string | null },
 ) {
   /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
@@ -109,9 +117,22 @@ export function useOrderPreview(
   const mission = aimed?.mission ?? null;
   /** **Une réponse périmée ne s'affiche jamais** : un argument neuf rend `undefined` jusqu'à sa
    *  propre réponse, et l'abonnement précédent est remplacé, pas empilé (ADR 0026 §6). */
+  const steered =
+    course !== null && aimed !== null && steersCourse(aimed) ? (aimed.type as Steered) : null;
+  const coursePreview = useQuery(
+    api.movements.previewCourse,
+    course === null || aimed === null || steered === null
+      ? 'skip'
+      : {
+          ...seat,
+          movementId: course as Id<'movements'>,
+          type: steered,
+          target: wireTarget(aimed.aim),
+        },
+  );
   const marchPreview = useQuery(
     api.movements.preview,
-    dispatch === null || aimed === null || mission?.kind !== 'march'
+    dispatch === null || aimed === null || mission?.kind !== 'march' || course !== null
       ? 'skip'
       : {
           ...dispatch,
@@ -141,13 +162,18 @@ export function useOrderPreview(
   const preview =
     mission === null
       ? undefined
-      : mission.kind === 'plunder'
-        ? plunderPreview
-        : mission.kind === 'capture'
-          ? capturePreview
-          : mission.kind === 'collect'
-            ? collectPreview
-            : marchPreview;
+      : course !== null
+        ? /** Une mission garde son cap : rien à mesurer, le lâcher le dira. */
+          steered === null
+          ? null
+          : coursePreview
+        : mission.kind === 'plunder'
+          ? plunderPreview
+          : mission.kind === 'capture'
+            ? capturePreview
+            : mission.kind === 'collect'
+              ? collectPreview
+              : marchPreview;
   /** No card before the order any more: what would change it is said under the verb, at the stop. */
   const dropNotes = useMemo(
     (): ReadonlyArray<DropNote> =>
@@ -161,7 +187,7 @@ export function useOrderPreview(
               ...(preview.holdUntil === null
                 ? []
                 : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
-              ...('spared' in preview && preview.spared !== null
+              ...('spared' in preview && typeof preview.spared === 'number'
                 ? [{ text: fr.aim.sparedAtDakar(preview.spared), alarm: false }]
                 : []),
               ...fuelNotes(preview),

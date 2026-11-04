@@ -17,6 +17,9 @@ export type Hand =
       readonly kind: 'held';
       readonly station: MarchStation;
       readonly troopIds: ReadonlyArray<string>;
+      /** **Une flotte reprise en mer** (Doctrine du porte-avions, ADR 0039 §4) : son mouvement.
+       *  La station est sa position au moment de la saisie ; le lâcher change son cap. */
+      readonly course?: string;
     };
 
 /**

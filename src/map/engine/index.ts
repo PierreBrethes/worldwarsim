@@ -1484,9 +1484,9 @@ export class MapEngine {
   }
 
   /** **Les boucles de mes tournées**, à l'encre (ADR 0028) : posées une fois, sans flux. */
-  showTours(loops: ReadonlyArray<TourLoop>): void {
+  showTours(loops: ReadonlyArray<TourLoop>, runs: ReadonlyArray<ReadonlyArray<LonLat>> = []): void {
     this.invalidate();
-    this.tourInk.show(loops);
+    this.tourInk.show(loops, runs);
   }
 
   /** **The drop is refused**: the piece shakes its head before it goes home. */
@@ -1710,6 +1710,12 @@ export class MapEngine {
   accentArc(id: string | null): void {
     this.invalidate();
     this.arcs.accent(id);
+  }
+
+  /** **La route qu'une flotte reprise en mer quitte** (#449), pâle tant qu'elle est en main. */
+  fadeArc(id: string | null): void {
+    this.invalidate();
+    this.arcs.fade(id);
   }
 
   /**

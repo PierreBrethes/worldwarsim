@@ -1267,3 +1267,48 @@
   filter: drop-shadow(1px 0 0 var(--critical)) drop-shadow(-1px 0 0 var(--critical))
     drop-shadow(0 1px 0 var(--critical)) drop-shadow(0 -1px 0 var(--critical));
 }
+
+/* **Le cap d'une flotte** (Doctrine du porte-avions, #449) : libre à l'encre de l'arc, tenu à
+   l'encre d'alarme. */
+.label-line--free,
+.label-line--alarm {
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.label-line--free {
+  color: var(--arc-mine);
+}
+.label-line--alarm {
+  color: var(--critical);
+}
+
+/* **Un trait sur le fil** (#449) : la mi-parcours ou le coude, un tiret court et l'heure, sans
+   mât ni clic — le sol dessous reste celui que la main vise. */
+.label--course-mark::before,
+.label--course-mark .label-bar {
+  content: none;
+  display: none;
+}
+.label--course-mark .label-block {
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  bottom: auto;
+}
+.label--course-mark .label-lines {
+  position: relative;
+  padding: 0 4px;
+  border-color: var(--arc-mine);
+  box-shadow: none;
+  white-space: nowrap;
+}
+.label--course-mark .label-lines::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 2px;
+  height: 8px;
+  background: var(--arc-mine);
+}

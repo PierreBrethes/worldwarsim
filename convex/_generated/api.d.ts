@@ -36,6 +36,7 @@ import type * as messages from "../messages.js";
 import type * as movement_arrival from "../movement/arrival.js";
 import type * as movement_bombard from "../movement/bombard.js";
 import type * as movement_cargoReturn from "../movement/cargoReturn.js";
+import type * as movement_course from "../movement/course.js";
 import type * as movement_detection from "../movement/detection.js";
 import type * as movement_forces from "../movement/forces.js";
 import type * as movement_fort from "../movement/fort.js";
@@ -115,6 +116,7 @@ declare const fullApi: ApiFromModules<{
   "movement/arrival": typeof movement_arrival;
   "movement/bombard": typeof movement_bombard;
   "movement/cargoReturn": typeof movement_cargoReturn;
+  "movement/course": typeof movement_course;
   "movement/detection": typeof movement_detection;
   "movement/forces": typeof movement_forces;
   "movement/fort": typeof movement_fort;

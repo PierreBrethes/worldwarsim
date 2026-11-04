@@ -1,13 +1,16 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
-import { asDatedClock, asLocalTime } from '@/domain/duration';
+import { asClockTime, asDatedClock, asLocalTime } from '@/domain/duration';
 import { aimRefusalShort, countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
 import { loadingUntilOf } from './loading';
 import { borderResolution } from './arc-timing';
+import { courseNoteOf, courseOfArc, halfwayOf, type CourseNote } from './carrier-doctrine';
+import { positionAt } from './interception';
+import type { Asset } from './nation-assets';
 import { detectionRangeOf, sightingReachKm } from '../../convex/constants';
 import { RESOURCES, type BuildingKey, type DepositKey, type Specialty, type UnitRole } from './ids';
 import type {
@@ -328,7 +331,10 @@ export type LabelType =
   | 'intel'
   /** **Le drapeau planté au bout d'un de mes mouvements** (carte-lisible, 03/10). Il n'existe
    *  que sur la branche `mine` de l'arc : un relevé adverse ne sert pas de destination (4a). */
-  | 'arrival';
+  | 'arrival'
+  /** **Un trait sur le fil d'une de mes flottes** (#449) : sa mi-parcours, ou le coude du cap
+   *  changé. Ni clic ni repli, comme le drapeau. */
+  | 'course-mark';
 
 /**
  * A line's role, not its shape: the mockup decides that a nature line is spaced capitals and
@@ -336,7 +342,11 @@ export type LabelType =
  * time, the display layer counts it down once per second and nothing recomputes in between.
  */
 export type LabelLine =
-  | { readonly role: 'nature' | 'figures' | 'headcount' | 'mention'; readonly text: string }
+  | {
+      /** `free` et `alarm` : le cap d'une flotte (Doctrine du porte-avions, #449), libre ou tenu. */
+      readonly role: 'nature' | 'figures' | 'headcount' | 'mention' | 'free' | 'alarm';
+      readonly text: string;
+    }
   | {
       readonly role: 'countdown';
       readonly dueAt: number;
@@ -575,6 +585,7 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   deposit: 0,
   /** Le drapeau ne repousse rien et n'est repoussé par rien : il est hors du repli. */
   arrival: 0,
+  'course-mark': 0,
 };
 
 /** Below this remainder, the label switches to the mockup's urgency accent. */
@@ -625,7 +636,9 @@ export function ownerFlags(
 
 export function buildLabels(
   view: Pick<PlayerView, 'arcs' | 'loadedAt' | 'captures'> & {
-    readonly me: Pick<PlayerView['me'], 'ink' | 'troops'>;
+    readonly me: Pick<PlayerView['me'], 'ink' | 'troops'> & {
+      readonly asset?: Asset | null;
+    };
   },
   markers: ReadonlyArray<MapMarker>,
 ): ReadonlyArray<MapLabel> {
@@ -634,7 +647,10 @@ export function buildLabels(
       markers.map((marker) => markerLabel(marker, view.loadedAt)),
       view.captures,
     ),
-    ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt, view.me.troops)).filter(exists),
+    ...view.arcs
+      .map((arc) => arcLabel(arc, view.loadedAt, view.me.troops, view.me.asset ?? null))
+      .filter(exists),
+    ...view.arcs.flatMap((arc) => courseMarksOf(arc, view.loadedAt, view.me.asset ?? null)),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
 }
@@ -1084,9 +1100,11 @@ function arcLabel(
   arc: ArcView,
   loadedAt: number,
   troops: PlayerView['me']['troops'],
+  asset: Asset | null,
 ): MapLabel | null {
   if (arc.state === 'mine') {
     const mission = arc.mission ?? null;
+    const course = courseNoteOf(asset, arc, loadedAt);
     const patrol = troops.find(
       (troop) => troop.patrol !== undefined && arc.troopIds.includes(troop.id),
     );
@@ -1135,6 +1153,7 @@ function arcLabel(
           ? [{ role: 'figures', text: resourceAmountsLabel(cargo.loot) } as const]
           : []),
         ...(mission === null ? [] : [{ role: 'mention', text: missionLabel(mission) } as const]),
+        ...(course === null ? [] : courseLines(course)),
         ...(patrol === undefined
           ? []
           : [
@@ -1215,6 +1234,63 @@ function arcLabel(
     force: null,
     lines: [schedule, second, ...lisbonLine(arc.nation)],
   };
+}
+
+/** **Le cap d'une flotte, sur sa fiche** (maquette A, #449) : libre et comment le reprendre, ou
+ *  pourquoi il ne change plus, en encre d'alarme — dit avant le geste. */
+function courseLines(note: CourseNote): ReadonlyArray<LabelLine> {
+  switch (note.kind) {
+    case 'free':
+      return [
+        { role: 'free', text: fr.course.free(asClockTime(note.until)) },
+        { role: 'mention', text: fr.course.grab },
+      ];
+    case 'changed':
+      return [{ role: 'alarm', text: fr.course.changed(asClockTime(note.at)) }];
+    case 'pastHalfway':
+      return [{ role: 'alarm', text: fr.course.pastHalfway(asClockTime(note.at)) }];
+    case 'ashore':
+      return [{ role: 'alarm', text: fr.course.ashore }];
+    case 'others':
+      return [{ role: 'mention', text: fr.course.others }];
+  }
+}
+
+/** **Les traits du fil** (maquette A, #449) : la mi-parcours d'un cap que l'atout tient encore ou
+ *  vient de tenir, et le coude où le cap a changé. */
+function courseMarksOf(arc: ArcView, loadedAt: number, asset: Asset | null): MapLabel[] {
+  if (arc.state !== 'mine') return [];
+  const note = courseNoteOf(asset, arc, loadedAt);
+  const force = courseOfArc(arc).force;
+  const mark = (id: string, lonLat: LonLat, text: string): MapLabel => ({
+    ...arrivalLabel(arc, '')!,
+    id: `${id}-${arc.id}`,
+    type: 'course-mark',
+    priority: PRIORITY['course-mark'],
+    anchor: { kind: 'ground', lonLat },
+    ink: null,
+    lines: [{ role: 'mention', text }],
+  });
+  return [
+    ...(note?.kind === 'free' || note?.kind === 'pastHalfway'
+      ? [
+          mark(
+            'halfway',
+            positionAt(force, halfwayOf(force)),
+            fr.course.halfway(asClockTime(halfwayOf(force))),
+          ),
+        ]
+      : []),
+    ...(arc.courseChange === undefined
+      ? []
+      : [
+          mark(
+            'elbow',
+            arc.route.points[0] ?? arc.from,
+            fr.course.elbow(asClockTime(arc.courseChange.at)),
+          ),
+        ]),
+  ];
 }
 
 /** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile, abrégée — « 3 INF · 1 BLD » —, jamais l'ordre ;

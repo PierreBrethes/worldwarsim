@@ -73,6 +73,9 @@ import {
 import { atAirfieldOf, boardPlacesOf, traceCompass } from '@/domain/compass-logistics';
 import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
+import { courseOfArc, courseRefusalOf } from '@/domain/carrier-doctrine';
+import { positionAt } from '@/domain/interception';
+import { pilePieces } from '@/domain/pile-pieces';
 import {
   buildingLabelId,
   razingStill,
@@ -162,6 +165,8 @@ import { DismantleCard } from './-plateau/DismantleCard';
 import { RazeContext, razeOf } from './-plateau/RazeButton';
 import {
   useSendOrder,
+  useChangeCourse,
+  steersCourse,
   wireOrigin,
   choiceOf,
   groupKeyOf,
@@ -1104,6 +1109,7 @@ function BoardContent({
     [narrow, dropHand],
   );
   const sendOrder = useSendOrder(seat);
+  const changeCourse = useChangeCourse(seat);
   /** **Tirer un passager hors de l'étiquette** (POC du 16/10) : il descend au pied de son
    *  transport, sur-le-champ — la règle de `movements.disembark`, que l'étiquette a déjà lue. */
   const disembarkFromTag = useCallback(
@@ -1310,6 +1316,29 @@ function BoardContent({
           }
           if (column === null) return;
           if (heldAtDrop(action)) return;
+          if (hand.kind === 'held' && hand.course !== undefined) {
+            const movementId = hand.course;
+            const chosen = choiceOf(action);
+            if (!steersCourse(chosen)) {
+              setOrderError(fr.errors.COURSE_ON_MISSION());
+              dropHand();
+              return;
+            }
+            const seen = previewNow.current;
+            sendColumn(
+              () =>
+                changeCourse(
+                  movementId,
+                  chosen,
+                  seen !== undefined &&
+                    JSON.stringify(seen.choice.aim) === JSON.stringify(chosen.aim)
+                    ? seen.preview
+                    : undefined,
+                ),
+              fr.course.sent,
+            );
+            return;
+          }
           sendColumn(() => {
             const chosen = choiceOf(action);
             const seen = previewNow.current;
@@ -1354,8 +1383,10 @@ function BoardContent({
       airdrop,
       dropHand,
       column,
+      hand,
       seat,
       sendOrder,
+      changeCourse,
       afterSent,
       settle,
       grouped,
@@ -1379,11 +1410,17 @@ function BoardContent({
    *  observateur qui vient de capituler : la main ne tient pas ce que la vue ne sert plus. */
   useEffect(() => {
     if (hand.kind === 'empty') return;
+    /** Une flotte reprise en mer (#449) est là tant que son mouvement vole. */
     const here = new Set(
-      troopsAt(view.me, stationKeyOf(hand.station), marching).map((troop) => troop.id),
+      hand.course !== undefined
+        ? (
+            view.arcs.find((arc) => arc.id === hand.course && arc.state === 'mine') as
+              { troopIds: ReadonlyArray<string> } | undefined
+          )?.troopIds
+        : troopsAt(view.me, stationKeyOf(hand.station), marching).map((troop) => troop.id),
     );
     if (view.me.defeated || !hand.troopIds.every((troopId) => here.has(troopId))) dropHand();
-  }, [hand, view.me, marching, dropHand]);
+  }, [hand, view.me, view.arcs, marching, dropHand]);
 
   /** **Les cases de la fiche latérale composent la main**, sans la lâcher (`composeHand`). Un
    *  ordre choisi pour l'ancienne composition ne vaut plus pour la nouvelle. */
@@ -1540,8 +1577,9 @@ function BoardContent({
   const { arcs, loadedAt, captures, mode } = view;
   const ink = view.me.ink;
   const troops = view.me.troops;
+  const asset = view.me.asset;
   const labels = useMemo(() => {
-    const built = buildLabels({ arcs, loadedAt, captures, me: { ink, troops } }, markers);
+    const built = buildLabels({ arcs, loadedAt, captures, me: { ink, troops, asset } }, markers);
     return mode === 'blitz'
       ? ownerFlags(
           built,
@@ -1552,7 +1590,7 @@ function BoardContent({
           ink,
         )
       : built;
-  }, [arcs, loadedAt, captures, mode, ink, troops, markers, knownRegionById]);
+  }, [arcs, loadedAt, captures, mode, ink, troops, asset, markers, knownRegionById]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment ou d'un avant-poste se lève par ses
@@ -1606,6 +1644,7 @@ function BoardContent({
   const clickOfFrom = useCallback(
     (from: PieceFrom, single = false): PileClick | null => {
       if (from.kind === 'piece') return pileClickOf(from.hit, single);
+      if (from.kind === 'movement') return null;
       if (from.station.kind !== 'point' && from.station.kind !== 'outpost') return null;
       const troopIds = troopsAt(view.me, stationKeyOf(from.station), marching).map(
         (troop) => troop.id,
@@ -1637,15 +1676,54 @@ function BoardContent({
     },
     [clickOfFrom, unitsAt, hand, liftHand],
   );
+  /** **Reprendre une flotte en mer** (Doctrine du porte-avions, ADR 0039 §4) : la règle du
+   *  serveur dit oui, et la main la prend à sa position du moment ; sinon le refus est dit, et
+   *  la flotte reste sur son fil. */
+  const takeCourse = useCallback(
+    (arcId: string): Hand | null => {
+      const arc = view.arcs.find((one) => one.id === arcId);
+      if (arc?.state !== 'mine') return null;
+      const now = Date.now();
+      const course = courseOfArc(arc);
+      const refusal = courseRefusalOf(view.me.asset, course, now);
+      if (refusal !== null) {
+        setOrderError(fr.errors[refusal]());
+        return null;
+      }
+      const next: Hand = {
+        kind: 'held',
+        /** En mer, la règle vient de le dire : la position n'a ni pays ni côte à nommer. */
+        station: {
+          kind: 'point',
+          lonLat: positionAt(course.force, now),
+          country: '',
+          afloat: true,
+          ground: 'sea',
+          coastal: false,
+        },
+        troopIds: arc.troopIds,
+        course: arc.id,
+      };
+      clearSelection();
+      liftHand(next);
+      return next;
+    },
+    [view.arcs, view.me.asset, clearSelection, liftHand],
+  );
   const carryPiece = useCallback(
     (from: PieceFrom, single: boolean): boolean => {
+      if (from.kind === 'movement') {
+        const taken = takeCourse(from.arcId);
+        setDragged(taken);
+        return taken !== null;
+      }
       const next = takePiece(from, single);
       // A troop taken alone, or a pile outside the selection, goes by itself.
       if (next?.kind === 'held' && (single || !holds(chosen, next.station))) clearSelection();
       setDragged(next);
       return next !== null;
     },
-    [takePiece, chosen, clearSelection],
+    [takePiece, takeCourse, chosen, clearSelection],
   );
   /** Released where a long press took one troop, the click lifts that troop alone. */
   const pieceClick = useCallback(
@@ -1901,7 +1979,7 @@ function BoardContent({
   const dropPiece = useCallback(
     (on: PieceFrom): 'pose' | 'board' | 'boardHome' | 'back' | 'refused' => {
       const click = aimOf(on);
-      if (click === null || hand.kind !== 'held') return 'pose';
+      if (click === null || hand.kind !== 'held' || hand.course !== undefined) return 'pose';
       const drop = boardingDropOf(
         hand,
         click,
@@ -1956,7 +2034,7 @@ function BoardContent({
   const dropHintOf = useCallback(
     (on: PieceFrom): DropHint | null | undefined => {
       const click = aimOf(on);
-      if (click === null || hand.kind !== 'held') return undefined;
+      if (click === null || hand.kind !== 'held' || hand.course !== undefined) return undefined;
       const drop = boardingDropOf(
         hand,
         click,
@@ -1993,10 +2071,22 @@ function BoardContent({
   );
   /** **Une pile de Blitz se dessine en unités** (15/10) : une pièce chacune, et rien ne se
    *  déploie — la pièce est déjà l'unité. */
-  const standing = useMemo(
-    () => standingPilesOf(view.me, markers, marching, blitz),
-    [markers, view.me, marching, blitz],
-  );
+  /** **La flotte reprise en mer** (#449) se tient, le temps du geste, à sa position : c'est elle
+   *  que la main soulève, et son ombre qui reste sur le fil. */
+  const standing = useMemo(() => {
+    const piles = standingPilesOf(view.me, markers, marching, blitz);
+    if (hand.kind !== 'held' || hand.course === undefined || hand.station.kind !== 'point')
+      return piles;
+    const troops = view.me.troops.filter((troop) => hand.troopIds.includes(troop.id));
+    return [
+      ...piles,
+      {
+        id: pileIdOf(hand.station),
+        at: { lonLat: hand.station.lonLat },
+        pieces: pilePieces(troops),
+      },
+    ];
+  }, [markers, view.me, marching, blitz, hand]);
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return withVitrine(
@@ -2361,6 +2451,7 @@ function BoardContent({
   const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting, {
     grouped,
     blitz,
+    course: hand.kind === 'held' ? (hand.course ?? null) : null,
   });
   previewNow.current =
     resting === null || preview === undefined ? undefined : { choice: resting, preview };
@@ -2600,6 +2691,7 @@ function BoardContent({
                   dropNotes={dropNotes}
                   dropFuel={dropFuel}
                   aimRoute={aimRoute}
+                  course={hand.kind === 'held' ? (hand.course ?? null) : null}
                   availablePiles={availablePiles}
                   onCarryEnd={carryEnded}
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}

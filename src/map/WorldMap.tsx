@@ -307,6 +307,9 @@ type Props = {
   dropFuel?: DropFuel | null;
   /** **The server's road under the resting pointer**: the ribbon of the piece in hand follows it. */
   aimRoute?: ReadonlyArray<LonLat> | null;
+  /** **Une flotte reprise en mer** (#449), par son mouvement : sa route pâlit, et la pastille dit
+   *  « Changer de cap ». */
+  course?: string | null;
   /** My piles whose transport could take the hand: their rings beat while it is held. */
   availablePiles?: ReadonlyArray<string>;
   /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
@@ -526,6 +529,7 @@ export function WorldMap({
   dropNotes,
   dropFuel = null,
   aimRoute = null,
+  course = null,
   availablePiles = NO_PILES,
   onCarryEnd,
   onDisembark,
@@ -1090,7 +1094,9 @@ export function WorldMap({
         from:
           (label?.type === 'stack' || label?.type === 'outpost') && label.station !== null
             ? { kind: 'stack', station: label.station }
-            : null,
+            : label?.type === 'my-movement'
+              ? { kind: 'movement', arcId: label.id }
+              : null,
         label,
       };
     };
@@ -1494,9 +1500,20 @@ export function WorldMap({
     readyEngine?.setAimRoute(aimRoute);
   }, [readyEngine, aimRoute]);
 
+  /** **La route courue avant un cap changé** (#449) : le fil neuf part du coude. */
+  const courseRuns = useMemo(
+    () =>
+      arcs.flatMap((arc) =>
+        arc.state === 'mine' && arc.courseChange !== undefined ? [arc.courseChange.ran] : [],
+      ),
+    [arcs],
+  );
   useEffect(() => {
-    readyEngine?.showTours(tourLoops);
-  }, [readyEngine, tourLoops]);
+    readyEngine?.showTours(tourLoops, courseRuns);
+  }, [readyEngine, tourLoops, courseRuns]);
+  useEffect(() => {
+    readyEngine?.fadeArc(course);
+  }, [readyEngine, course]);
 
   useEffect(() => {
     readyEngine?.setAvailable(availablePiles);
@@ -1983,6 +2000,7 @@ export function WorldMap({
           ref={hintNode}
           hint={hint}
           fuel={dropFuel}
+          course={course !== null}
           {...(dropNotes ? { notes: dropNotes } : {})}
         />
       )}

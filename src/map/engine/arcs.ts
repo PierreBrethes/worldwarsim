@@ -178,6 +178,7 @@ export class ArcLayer {
   }
   private targets: Ribbon[] = [];
   private accented: string | null = null;
+  private faded: string | null = null;
   private width = 1;
   private height = 1;
   private unitsPerPixel = 1;
@@ -590,6 +591,13 @@ export class ArcLayer {
     this.applyAccent();
   }
 
+  /** **La route qu'une flotte reprise en mer quitte** (#449) pâlit le temps du geste. */
+  fade(id: string | null): void {
+    if (id === this.faded) return;
+    this.faded = id;
+    this.applyAccent();
+  }
+
   boxOf(id: string): Box3 | null {
     const rendered = this.rendered.find(({ arc }) => arc.id === id);
     return rendered?.pawn.object.visible ? boxOfObject(rendered.pawn.object) : null;
@@ -773,11 +781,13 @@ export class ArcLayer {
   private applyAccent(): void {
     for (const rendered of this.rendered) {
       rendered.thread.setAccent(
-        this.accented === null
-          ? 1
-          : rendered.arc.id === this.accented
-            ? ACCENT_DESIGNATED
-            : ACCENT_OTHERS,
+        rendered.arc.id === this.faded
+          ? ACCENT_OTHERS
+          : this.accented === null
+            ? 1
+            : rendered.arc.id === this.accented
+              ? ACCENT_DESIGNATED
+              : ACCENT_OTHERS,
       );
     }
   }

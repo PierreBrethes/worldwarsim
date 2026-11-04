@@ -4562,6 +4562,24 @@ export const fr = {
     atLeastTwo: 'choisissez au moins deux piles — Maj + clic, ou le lasso (Maj + glisser)',
     label: 'Sélection',
   },
+  /** **La Doctrine du porte-avions** (ADR 0039 §4, maquette A « la reprise ») : la fiche, les
+   *  marques du fil et la pastille de la flotte reprise en mer. */
+  course: {
+    eyebrow: 'Doctrine du porte-avions',
+    verb: 'Changer de cap',
+    free: (until: string) => `cap libre jusqu’à ${until} · une fois`,
+    grab: 'saisissez-la pour changer de cap',
+    changed: (at: string) => `cap changé à ${at} · c’était l’unique fois`,
+    pastHalfway: (at: string) => `mi-parcours passée à ${at} : le cap ne change plus`,
+    ashore: 'la doctrine ne vaut qu’en mer',
+    others: 'un mouvement parti ne se reprend pas',
+    halfway: (at: string) => `mi-parcours · ${at}`,
+    elbow: (at: string) => `cap changé · ${at}`,
+    paid: (steps: number) => `${steps} déjà payé${steps > 1 ? 's' : ''}`,
+    keys: 'relâcher : nouveau cap, même slot · une seule fois · Échap annule',
+    keysTouch: 'lever le doigt : nouveau cap, même slot · une seule fois',
+    sent: 'Nouveau cap',
+  },
   drop: {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
