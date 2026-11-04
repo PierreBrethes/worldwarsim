@@ -1444,11 +1444,12 @@ if (loadingTrucks !== null) {
 /** `--en-tournee` (#278): the trucks come back to load, or their stock comes back at the yard. */
 if (touringTrucks !== null) {
   await pause(touringIn * 1000);
-  if (yard) {
-    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 400, only: 'ammunition' })]);
+  // Stock for both consignes: two hundred at the warehouse, sixty at the HQ.
+  cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 400, only: 'ammunition' })]);
+  if (yard)
     for (const troopId of [touringTrucks.warehouse, touringTrucks.hq])
       cli(['run', 'tours:retry', JSON.stringify({ troopId })]);
-  } else cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+  else cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
   console.log(`Tournées rechargées à ${new Date().toISOString()}`);
 }
 
