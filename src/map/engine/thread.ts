@@ -470,14 +470,29 @@ export type Moor = (which: 'start' | 'end', at: Vector3) => Vector3 | null;
  *  there; a split leg is left as drawn. */
 function moored(leg: ThreadLeg, moor: Moor, first: boolean, last: boolean): ThreadLeg {
   if (leg.medium !== 'sea' || leg.strands.length !== 1) return leg;
-  const vertices = [...leg.strands[0]!.vertices];
-  const to = (k: number, which: 'start' | 'end') => {
-    const quay = moor(which, vertices[k]!);
-    if (quay !== null) vertices[k] = new Vector3(quay.x, vertices[k]!.y, quay.z);
-  };
-  if (first) to(0, 'start');
-  if (last) to(vertices.length - 1, 'end');
+  let vertices = leg.strands[0]!.vertices;
+  if (first) vertices = offQuay(vertices, (at) => moor('start', at));
+  if (last) vertices = offQuay([...vertices].reverse(), (at) => moor('end', at)).reverse();
   return { medium: leg.medium, strands: [strandOf(vertices)], length: lengthOf(vertices) };
+}
+
+/** The way off a quay starts where the hull stands, past the points it already stands beyond:
+ *  it does not sail back over its port. */
+function offQuay(
+  vertices: ReadonlyArray<Vector3>,
+  moor: (at: Vector3) => Vector3 | null,
+): Vector3[] {
+  const start = vertices[0]!;
+  const quay = moor(start);
+  if (quay === null) return [...vertices];
+  const reach = Math.hypot(quay.x - start.x, quay.z - start.z);
+  let k = 1;
+  while (
+    k < vertices.length - 1 &&
+    Math.hypot(vertices[k]!.x - start.x, vertices[k]!.z - start.z) <= reach
+  )
+    k++;
+  return [new Vector3(quay.x, start.y, quay.z), ...vertices.slice(k)];
 }
 
 /** A leg that leaves and reaches its ends the way `ends` says; a split leg is left as drawn. */

@@ -63,8 +63,10 @@ import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { PilePieces } from '@/domain/pile-pieces';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
+import { GROUP_SPACING } from '@/domain/pile-layout';
 import {
   ANONYMOUS_SPAN,
+  LAID_OUT_FOR,
   REFERENCE_PX_PER_UNIT,
   setNearFloor,
   TANK_SHARE,
@@ -1022,7 +1024,7 @@ export class MapEngine {
       this.frame,
       this.ink,
       (medium, which, at, hint) => this.endOf(medium, which, at, hint),
-      (at, span) => this.maquettes.quayAt(at.x, at.z, span),
+      (at, span) => this.quayOf(at, span),
     );
     this.reach = new ReachRing(this.frame);
     this.zones = new OutpostZones(this.frame, this.night.uniforms);
@@ -1341,6 +1343,25 @@ export class MapEngine {
     // A ring may have carried a maquette elsewhere: its pin follows.
     this.pins.rebuild();
     this.relayThreads();
+  }
+
+  /**
+   * **Where a hull of `span` leaves or reaches my port at `at`** (#433): its quay as the port is
+   * drawn, and a hull's step off it to seaward, as its garrison stands there (`formationOf`, up
+   * close) — the hull sails from where it stood.
+   */
+  private quayOf(at: Vector3, span: number): { at: Vector3; scale: number } | null {
+    const quay = this.maquettes.quayAt(at.x, at.z, span);
+    if (quay === null) return null;
+    const sea = this.seawardOf(
+      this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+    );
+    if (sea === null) return quay;
+    const off = (GROUP_SPACING * pieceScale.size * span * quay.scale) / LAID_OUT_FOR;
+    return {
+      at: quay.at.clone().add(new Vector3(sea[0] * off, 0, sea[1] * off)),
+      scale: quay.scale,
+    };
   }
 
   /** The threads are laid again once the airfields and ports they leave are placed otherwise. */
