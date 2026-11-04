@@ -82,7 +82,7 @@ const QUAY_FADE_MS = 500;
  * **The size a hull of mine is drawn at** (#433): its port's at the quay, its own at sea, faded
  * over `QUAY_FADE_MS` after it leaves and before it arrives — at once out of full motion.
  */
-export function quaySize(
+function quaySize(
   { start, end }: { start: number; end: number },
   { departedAt, arrivesAt }: { departedAt: number; arrivesAt: number },
   now: number,

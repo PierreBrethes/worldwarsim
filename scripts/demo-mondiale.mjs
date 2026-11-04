@@ -109,6 +109,10 @@
  * `--arrivee [s]` (#362) fait marcher de Reims vers l'est-nord-est une pile mêlée française (trois
  * fantassins, deux chars, un canon) qui arrive sur un point vide dans `s` secondes (25 par
  * défaut) : la colonne s'y déploie, et `lieu=@arrivee` cadre son point.
+ * `--quai-dense` (#433) pose la scène de `--navire` et huit chantiers dans les régions voisines
+ * de Marseille (le QG de `--chantiers` d'abord) : un anneau trop large pour sa côte, dessiné à son
+ * plus petit (×0,4), le cargo à quai. Avec `--appareille`, le cargo part pour Agde, et l'heure du
+ * départ s'imprime, pour `--horloge` de la capture (le fondu de 0,5 s). `lieu=@quai-dense`.
  * `--flotte-cote [s]` (#395) pose la scène de `--navire` et envoie le cargo de Marseille vers un
  * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
  * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
@@ -207,7 +211,8 @@ const levels =
   recruitIn !== null ||
   process.argv.includes('--niveaux') ||
   process.argv.includes('--echelle');
-const works = levels || process.argv.includes('--chantiers');
+const works =
+  levels || process.argv.includes('--chantiers') || process.argv.includes('--quai-dense');
 /** `--caserne-chantier` (#365) : une caserne seule en chantier dans l'Aube, son premier niveau
  *  qui monte — le bâtiment coupé sur son socle entier. */
 const risingBarracks = process.argv.includes('--caserne-chantier');
@@ -217,8 +222,13 @@ const raisingBarracks = process.argv.includes('--caserne-montee');
 /** `--flotte-cote [s]` : une flotte partie de Marseille vise la côte d'Agde, arrivée dans s secondes (#395). */
 const coastAt = process.argv.indexOf('--flotte-cote');
 const coastIn = coastAt < 0 ? null : Number(process.argv[coastAt + 1]) || 25;
+/** `--quai-dense` : deux ports dans un anneau à ×0,4, un cargo à quai, un qui appareille (#433). */
+const denseQuay = process.argv.includes('--quai-dense');
 const navy =
-  coastIn !== null || process.argv.includes('--navire') || process.argv.includes('--echelle');
+  denseQuay ||
+  coastIn !== null ||
+  process.argv.includes('--navire') ||
+  process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
 const twinTrucks = process.argv.includes('--deux-camions');
 /** `--demanteler` (#340) : l'avant-poste de `--livraison` près de Bruxelles, à démanteler dans
@@ -1217,6 +1227,47 @@ if (!bare) {
       'dev:arriveNow',
       JSON.stringify({ playerId: scene.a, afterMs: arrivalIn * 1000, onTime: true }),
     ]);
+  }
+  if (denseQuay && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const site = me.buildings.find((one) => one.key === 'port');
+    places['quai-dense'] = site.point;
+    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 2000 })]);
+    // Eight sites in the nearest regions of mine, 30 km apart at least (`BUILDING_TOO_CLOSE`).
+    const km = ([a, b], [c, d]) => 111 * Math.hypot((a - c) * Math.cos((b * Math.PI) / 180), b - d);
+    let started = 0;
+    for (const region of [...me.regions].sort(
+      (a, b) => km(a.point, site.point) - km(b.point, site.point),
+    )) {
+      if (started === 8) break;
+      started += await client
+        .mutation(api.constructions.start, {
+          token: tokenA,
+          seasonId,
+          building: started % 2 === 0 ? 'barracks' : 'warehouse',
+          regionId: region.id,
+          point: { lon: region.point[0], lat: region.point[1] },
+        })
+        .then(
+          () => 1,
+          () => 0,
+        );
+    }
+    if (process.argv.includes('--appareille')) {
+      const cargo = me.troops.find((one) => one.role === 'cargo');
+      await client.mutation(api.movements.marchTo, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'building', buildingId: site.id },
+        troopIds: [cargo.id],
+        point: { lon: 3.47, lat: 43.31 },
+      });
+      const view = await client.query(api.view.playerView, { token: tokenA, seasonId });
+      const leaving = (view.movements ?? view.me.movements).find((one) =>
+        one.troopIds.includes(cargo.id),
+      );
+      console.log(`quai-dense : départ ${new Date(leaving.departedAt).toISOString()}`);
+    }
   }
   if (coastIn !== null && scene.a !== null) {
     const to = { lon: 3.47, lat: 43.31 };
