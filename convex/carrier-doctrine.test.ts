@@ -9,6 +9,7 @@ import { kmOf } from '../src/domain/routing';
 import { fuelStepsOf } from '../src/domain/supplies';
 import { nominalStrength } from './constants';
 import { marchingForce } from './movement/detection';
+import { regionAtPoint } from './regionGeometry';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn, unclocked, type Seat } from './seats.fixture';
@@ -226,5 +227,54 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     );
     expect(lines.find((one) => one.movementId === movementId)?.frozen).toBeDefined();
     expect(lines.find((one) => one.movementId === turned.movementId)?.noticeFiled).toBe(true);
+  });
+
+  it('settles the road run before the turn at arrival: the survey and the Magasin passed', async () => {
+    const t = boot();
+    const { japan } = await launchedSeason(t);
+    const HUALIEN = { lon: 121.6, lat: 23.97 };
+    const OFF_TAIWAN = { lon: 122.3, lat: 23.6 };
+    const japanId = await playerOf(t, japan);
+    const region = regionAtPoint([HUALIEN.lon, HUALIEN.lat])!;
+    await t.run(async (ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: (await ctx.db.get(japanId))!.seasonId,
+        playerId: japanId,
+        point: HUALIEN,
+        hostCountry: region.country,
+        regionId: region.id,
+        level: 3,
+        specialty: 'store',
+        foundedAt: MIDDAY.getTime() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        depot: { ammunition: 400, oil: 400, coal: 400 },
+      }),
+    );
+    const troopIds = [
+      await postAt(t, japan, 'escort', OFF_TAIWAN),
+      await postAt(t, japan, 'cargo', OFF_TAIWAN),
+    ];
+    const filed = await t.mutation(api.movements.marchTo, {
+      ...japan,
+      origin: { kind: 'point', point: OFF_TAIWAN },
+      troopIds,
+      point: { lon: 131, lat: 26 },
+    });
+    vi.setSystemTime(MIDDAY.getTime() + (filed.arrivesAt - MIDDAY.getTime()) * 0.4);
+    const turned = await turning(t, japan, filed.movementId, { lon: 130, lat: 20 });
+    vi.setSystemTime(turned.arrivesAt + 1);
+    await t.mutation(internal.movements.arrive, { movementId: turned.movementId });
+
+    const facts = await t.run(async (ctx) => ({
+      served: (await ctx.db.query('notices').collect()).filter(
+        (notice) => notice.playerId === japanId && notice.kind === 'storeResupplied',
+      ),
+      surveyed: (await ctx.db.query('regionSightings').collect()).filter(
+        (survey) => survey.playerId === japanId && survey.regionId === region.id,
+      ),
+    }));
+    expect(facts.served).toHaveLength(1);
+    expect(facts.surveyed).toHaveLength(1);
   });
 });

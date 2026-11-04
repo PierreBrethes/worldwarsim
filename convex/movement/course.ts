@@ -199,7 +199,7 @@ export async function changeCourse(
       ? { objectiveId: aimed.aim.objectiveId as Id<'objectives'> }
       : {}),
     ...movementCargoFields(movementCargoLoads(movement)),
-    courseChange: { at: now, ran: ran.map(asPoint) },
+    courseChange: { at: now, ran: ran.map(asPoint), since: movement.departedAt },
   });
   await storesCrossed(ctx, turnedId);
   await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, { movementId: turnedId });

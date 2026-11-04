@@ -322,7 +322,11 @@ export const surveyAlongRoute = async (
   return fileSurvey(
     ctx,
     movement.playerId,
-    surveyStops(movement.points.map(pointOf), radiusKm).map((point) => ({ point, radiusKm })),
+    /** Le tronçon d'avant un cap changé (#449) se relève à l'arrivée, avec le reste. */
+    surveyStops(
+      [...(movement.courseChange?.ran ?? []), ...movement.points].map(pointOf),
+      radiusKm,
+    ).map((point) => ({ point, radiusKm })),
     at,
   );
 };

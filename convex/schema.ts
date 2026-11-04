@@ -750,7 +750,15 @@ export default defineSchema({
     /** **Le cap changé** (Doctrine du porte-avions, ADR 0039 §4) : l'instant du coude, et la route
      *  que l'ancien mouvement avait courue jusque-là, que son auteur voit encore. Présent, le cap
      *  ne change plus. */
-    courseChange: v.optional(v.object({ at: v.number(), ran: v.array(LON_LAT) })),
+    courseChange: v.optional(
+      v.object({
+        at: v.number(),
+        ran: v.array(LON_LAT),
+        /** Le départ de l'ancien mouvement : le Magasin longé avant le coude se règle à
+         *  l'arrivée sur ce tronçon-là (#449). Absent des premières lignes. */
+        since: v.optional(v.number()),
+      }),
+    ),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
