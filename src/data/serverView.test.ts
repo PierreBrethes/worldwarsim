@@ -132,11 +132,11 @@ describe('adaptServerView', () => {
         ],
       }) as unknown as ServerView;
     const mondiale = adaptServerView(withNations('mondiale', 'france'));
-    expect(mondiale.me.power).toBe('');
-    expect(mondiale.opponents[0]!.power).toContain('Doctrine du porte-avions');
+    expect(mondiale.me.asset).toBeNull();
+    expect(mondiale.opponents[0]!.asset).toBe('carrierDoctrine');
     const blitz = adaptServerView(withNations('blitz', 'usa'));
-    expect(blitz.me.power).toBe('');
-    expect(blitz.opponents[0]!.power).toBe('');
-    expect(adaptServerView(withNations('mondiale', 'usa')).me.power).toContain('Prêt-bail');
+    expect(blitz.me.asset).toBeNull();
+    expect(blitz.opponents[0]!.asset).toBeNull();
+    expect(adaptServerView(withNations('mondiale', 'usa')).me.asset).toBe('lendLease');
   });
 });

@@ -1,4 +1,5 @@
 import type { LineKey } from '../../convex/constants';
+import type { Asset } from './nation-assets';
 import type { SupplyLoad } from './logistics';
 import type { Supplies } from './supplies';
 import type { CaptureClock } from './capture';
@@ -671,7 +672,7 @@ type RegionView = {
 type Opponent = {
   readonly nation: string;
   readonly ink: string;
-  readonly power: string;
+  readonly asset: Asset | null;
   readonly restWindow: string;
 };
 
@@ -1365,7 +1366,7 @@ export type PlayerView = {
      *  opening frame only — the return-home path stays on `capitalPoint`. */
     readonly openingPoint: LonLat | null;
     readonly ink: string;
-    readonly power: string;
+    readonly asset: Asset | null;
     readonly progress: number;
     readonly restWindow: string;
     readonly resources: Readonly<Record<ResourceKey, Resource>>;

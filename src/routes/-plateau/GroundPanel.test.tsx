@@ -50,8 +50,8 @@ it("reads an opponent's asset on its country, and nothing for one without", () =
     me: { nation: 'france', outposts: [] },
     mode: 'mondiale',
     opponents: [
-      { nation: 'usa', power: 'Prêt-bail — règle', restWindow: '22 h – 6 h' },
-      { nation: 'italy', power: '', restWindow: '22 h – 6 h' },
+      { nation: 'usa', asset: 'lendLease', restWindow: '22 h – 6 h' },
+      { nation: 'italy', asset: null, restWindow: '22 h – 6 h' },
     ],
   } as unknown as PlayerView;
   const over = (country: string) =>
@@ -67,7 +67,8 @@ it("reads an opponent's asset on its country, and nothing for one without", () =
       />,
     );
   over('USA');
-  expect(screen.getByText('Prêt-bail — règle')).toBeTruthy();
+  expect(screen.getByText('Prêt-bail')).toBeTruthy();
+  expect(screen.getByText(/sans l’accord du receveur/)).toBeTruthy();
   cleanup();
   over('ITA');
   expect(screen.queryByText('atout')).toBeNull();

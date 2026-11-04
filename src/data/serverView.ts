@@ -1,7 +1,7 @@
 import { modeOf } from '@/domain/season-mode';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
-import { assetLine, fr } from '@/i18n/fr';
+import { fr } from '@/i18n/fr';
 import { assetOf } from '@/domain/nation-assets';
 import {
   RESOURCES,
@@ -85,7 +85,7 @@ function adaptedView(server: ServerView): PlayerView {
       capitalPoint: (server.me.capitalPoint as LonLat | null | undefined) ?? null,
       openingPoint: (server.me.openingPoint as LonLat | null | undefined) ?? null,
       ink: server.me.ink,
-      power: assetLine(assetOf(server.me.nation, modeOf(server.mode))),
+      asset: assetOf(server.me.nation, modeOf(server.mode)),
       progress: server.me.progress,
       restWindow: formatWindow(asLocalWindow(server.me.restWindow)),
       resources: server.me.resources,
@@ -232,7 +232,7 @@ function adaptedView(server: ServerView): PlayerView {
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
       ink: opponent.ink,
-      power: assetLine(assetOf(opponent.nation, modeOf(server.mode))),
+      asset: assetOf(opponent.nation, modeOf(server.mode)),
       restWindow: formatWindow(asLocalWindow(opponent.restWindow)),
     })),
     coverage: { visible: 0, total: 0 },

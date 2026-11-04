@@ -1212,7 +1212,7 @@ export const fr = {
       ['terrain', 'le monde entier'],
       ['capture d’un QG', `${capture} heures, suspendue pendant le repos du défenseur`],
       ['vos engagements', 'une plage de repos de 7 h, publique'],
-      ['nations', 'une chacune, avec son atout'],
+      ['nations', 'une chacune ; quatre ont un atout'],
     ],
     reply: 'répondre',
     takeSeat: (founder: string) =>
@@ -1347,7 +1347,7 @@ export const fr = {
         span: 'quelques jours',
         facts: [
           ['horloge', '3 à 14 jours, deux ou trois visites par jour'],
-          ['table', '2 à 8 joueurs, une nation et son atout'],
+          ['table', '2 à 8 joueurs, une nation chacun'],
           ['terrain', 'le monde entier'],
           ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
         ],
@@ -1611,7 +1611,7 @@ export const fr = {
     ): ReadonlyArray<readonly [string, string]> => [
       ['horloge', `${clockLabel(durationHours)}, deux ou trois visites par jour`],
       ['terrain', 'le monde entier'],
-      ['nations', 'une chacune, avec son atout'],
+      ['nations', 'une chacune ; quatre ont un atout'],
       ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
       ['après le départ', 'la table se ferme'],
       ['départ', founder === null ? 'quand vous lancez' : `quand ${founder} lance`],
@@ -4049,7 +4049,7 @@ export const fr = {
     kicker: 'fiche de nation',
     readOnly:
       'Fiche de lecture — rien ne s’y commande. Ce qui se pose et ce qui coule est dans le plateau personnel.',
-    powerHeader: 'pouvoir national',
+    assetHeader: 'atout national',
     /**
      * The counterpart of the power, and it belongs beside it: the ADR 0015 gap is a design
      * decision, not an accident of the map, and today a player only discovers it by searching
@@ -5169,10 +5169,6 @@ const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'] as const;
 export function cardinalLabel(degrees: number): string {
   return CARDINALS[Math.round((((degrees % 360) + 360) % 360) / 45) % 8]!;
 }
-
-/** « Nom — règle » : la ligne d'atout de la fiche de nation et du panneau de pays ; vide sans atout. */
-export const assetLine = (asset: Asset | null): string =>
-  asset === null ? '' : `${fr.nationAssets[asset].name} — ${fr.nationAssets[asset].rule}`;
 
 export function nationLabel(nation: string | null): string {
   return nation !== null && nation in fr.nations

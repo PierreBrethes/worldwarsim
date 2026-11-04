@@ -60,9 +60,11 @@ export function NationWindow({
         </WindowHead>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-contain">
-          {view.me.power !== '' && (
-            <Entry header={fr.nationSheet.powerHeader}>
-              <p className="text-[13px] leading-[1.5] text-[var(--ink)]">{view.me.power}</p>
+          {view.me.asset !== null && (
+            <Entry header={fr.nationSheet.assetHeader}>
+              <p className="text-[13px] leading-[1.5] text-[var(--ink)]">
+                <b>{fr.nationAssets[view.me.asset].name}</b> — {fr.nationAssets[view.me.asset].rule}
+              </p>
             </Entry>
           )}
 

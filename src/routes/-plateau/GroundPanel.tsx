@@ -117,7 +117,12 @@ export function GroundPanel({
     opponent && view.mode === 'blitz' ? null : opponent ? (
       <>
         <Line label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
-        {opponent.power !== '' && <Line label={fr.selectedCountry.asset} value={opponent.power} />}
+        {opponent.asset !== null && (
+          <>
+            <Line label={fr.selectedCountry.asset} value={fr.nationAssets[opponent.asset].name} />
+            <p className={QUIET}>{fr.nationAssets[opponent.asset].rule}</p>
+          </>
+        )}
       </>
     ) : outpost ? (
       <>
