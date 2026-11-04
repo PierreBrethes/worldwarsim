@@ -193,16 +193,22 @@ export function buildThread(
     aloft = false,
     airdrop,
     ends,
+    moor,
   }: {
     readonly aloft?: boolean;
     readonly airdrop?: 'out' | 'back';
     readonly ends?: EndsOf;
+    /** **Where a hull leaves or reaches the quay at this point** as it is drawn (#433): a port a
+     *  ring carried off its point. `null` for none there. */
+    readonly moor?: Moor;
   } = {},
 ): Thread {
   const object = new Group();
-  const legs = cutIntoLegs(route, frame, aloft, airdrop).map((leg) =>
-    ends === undefined ? leg : aligned(leg, ends),
-  );
+  const legs = cutIntoLegs(route, frame, aloft, airdrop)
+    .map((leg, k, all) =>
+      moor === undefined ? leg : moored(leg, moor, k === 0, k === all.length - 1),
+    )
+    .map((leg) => (ends === undefined ? leg : aligned(leg, ends)));
   const lineMaterials: LineMaterial[] = [];
   const width = threadWidth(thickness);
 
@@ -456,6 +462,37 @@ export function leadIn(
     );
   });
   return [first, ...curve, ...vertices.slice(j)];
+}
+
+export type Moor = (which: 'start' | 'end', at: Vector3) => Vector3 | null;
+
+/** A sea leg that leaves (`first`) or reaches (`last`) a quay drawn off its point starts or ends
+ *  there; a split leg is left as drawn. */
+function moored(leg: ThreadLeg, moor: Moor, first: boolean, last: boolean): ThreadLeg {
+  if (leg.medium !== 'sea' || leg.strands.length !== 1) return leg;
+  let vertices = leg.strands[0]!.vertices;
+  if (first) vertices = offQuay(vertices, (at) => moor('start', at));
+  if (last) vertices = offQuay([...vertices].reverse(), (at) => moor('end', at)).reverse();
+  return { medium: leg.medium, strands: [strandOf(vertices)], length: lengthOf(vertices) };
+}
+
+/** The way off a quay starts where the hull stands, past the points it already stands beyond:
+ *  it does not sail back over its port. */
+function offQuay(
+  vertices: ReadonlyArray<Vector3>,
+  moor: (at: Vector3) => Vector3 | null,
+): Vector3[] {
+  const start = vertices[0]!;
+  const quay = moor(start);
+  if (quay === null) return [...vertices];
+  const reach = Math.hypot(quay.x - start.x, quay.z - start.z);
+  let k = 1;
+  while (
+    k < vertices.length - 1 &&
+    Math.hypot(vertices[k]!.x - start.x, vertices[k]!.z - start.z) <= reach
+  )
+    k++;
+  return [new Vector3(quay.x, start.y, quay.z), ...vertices.slice(k)];
 }
 
 /** A leg that leaves and reaches its ends the way `ends` says; a split leg is left as drawn. */

@@ -12,6 +12,7 @@ import {
   monteesOf,
   rankKept,
   sortiesOf,
+  tourneesOf,
 } from './cues';
 import type { StandingPile } from './engine';
 
@@ -413,5 +414,63 @@ describe('chargementsOf (#271)', () => {
         },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe('tourneesOf (#278)', () => {
+  const warehouse = 'building-warehouse@2,48';
+  const sites = [
+    { id: warehouse, at: { lonLat: [2, 48] as const } },
+    { id: 'building-hq@3,49', at: { lonLat: [3, 49] as const } },
+    { id: 'building-barracks@4,50', at: { lonLat: [4, 50] as const } },
+  ];
+  const truck = (ammunition: number, tour = true, role: UnitRole = 'landTransport') => ({
+    id: 't',
+    role,
+    load: { ammunition, oil: 0, coal: 0 },
+    ...(tour ? { tour: { baseId: 'b' } } : {}),
+  });
+  const leg = (from: readonly [number, number], id = 'm2', state = 'mine') => ({
+    state,
+    id,
+    from,
+    troopIds: ['t'],
+  });
+  const seen = (piles: ReadonlyArray<StandingPile> = []) => ({
+    loads: loadsOf([truck(0)]),
+    arcIds: new Set(['m1']),
+    piles,
+  });
+
+  it('names a tour that leaves its warehouse loaded, from the road, a crate a hundred', () => {
+    expect(tourneesOf(seen(), [leg([2, 48])], [truck(150)], sites)).toEqual([
+      { arcId: 'm2', siteId: warehouse, troopId: 't', crates: 2, from: 'road' },
+    ]);
+  });
+
+  it('names it from the rank when the truck stood in the garrison, waiting for its stock', () => {
+    const yard = pile('p', { beside: warehouse }, 't');
+    expect(tourneesOf(seen([yard]), [leg([2, 48])], [truck(40)], sites)).toEqual([
+      { arcId: 'm2', siteId: warehouse, troopId: 't', crates: 1, from: 'rank' },
+    ]);
+  });
+
+  it('names one at its HQ too', () => {
+    expect(tourneesOf(seen(), [leg([3, 49])], [truck(40)], sites)).toMatchObject([
+      { siteId: 'building-hq@3,49' },
+    ]);
+  });
+
+  it('names nothing without a load that rose, a tour, a new arc of mine, or a quay', () => {
+    const none = (...args: Parameters<typeof tourneesOf>) =>
+      expect(tourneesOf(...args)).toEqual([]);
+    none(null, [leg([2, 48])], [truck(150)], sites);
+    none(seen(), [leg([2, 48])], [truck(0)], sites);
+    none(seen(), [leg([2, 48])], [truck(150, false)], sites);
+    none(seen(), [leg([2, 48], 'm1')], [truck(150)], sites);
+    none(seen(), [leg([2, 48], 'm2', 'enemyDetected')], [truck(150)], sites);
+    none(seen(), [leg([4, 50])], [truck(150)], sites);
+    none(seen(), [leg([5, 51])], [truck(150)], sites);
+    none(seen(), [leg([2, 48])], [truck(150, true, 'cargo')], sites);
   });
 });

@@ -36,22 +36,6 @@ const named = (rig: Object3D, name: string): Object3D => {
   return node;
 };
 
-/** **Le pied de bielle au repos** : `fx_maneton`, ou faute de repère le bas de sa géométrie,
- *  au milieu de sa section (le puits de la génération du 03/11 n'a pas `fx_maneton`). */
-function pinOf(rig: Object3D, rod: Object3D, marker: string): Vector3 {
-  const pin = rig.getObjectByName(marker);
-  if (pin !== undefined) return world(pin);
-  const box = new Box3();
-  for (const child of rod.children) {
-    const { geometry } = child as Mesh;
-    if (geometry === undefined) continue;
-    geometry.computeBoundingBox();
-    box.union(geometry.boundingBox!);
-  }
-  const foot = new Vector3((box.min.x + box.max.x) / 2, box.min.y, (box.min.z + box.max.z) / 2);
-  return rod.localToWorld(foot);
-}
-
 const PUMP: SiteLoop = {
   family: 'oilWell',
   part: 7,
@@ -60,9 +44,11 @@ const PUMP: SiteLoop = {
     const beam = world(named(rig, 'balancier'));
     const rods = (['bielle', 'bielle_2'] as const).map((name, k) => {
       const rod = named(rig, name);
-      // A second arm without its own pin shares the first's.
-      const marker = k > 0 && rig.getObjectByName('fx_maneton_2') ? 'fx_maneton_2' : 'fx_maneton';
-      return { name, head: yz(world(rod)), pin: yz(pinOf(rig, rod, marker)) };
+      return {
+        name,
+        head: yz(world(rod)),
+        pin: yz(world(named(rig, k === 0 ? 'fx_maneton' : 'fx_maneton_2'))),
+      };
     });
     const frame = {
       crank: yz(world(named(rig, 'manivelle'))),
@@ -116,10 +102,7 @@ const CRANE: SiteLoop = {
     rig.updateMatrixWorld(true);
     const ring = named(rig, 'grue_couronne');
     const cable = named(rig, 'cable');
-    // Its head: `fx_tete_fleche`, or the top of the cable that hangs from it (the generation of
-    // 03/11 lacks the marker).
-    const marker = rig.getObjectByName('fx_tete_fleche');
-    const head = marker === undefined ? cable.position.clone() : ring.worldToLocal(world(marker));
+    const head = ring.worldToLocal(world(named(rig, 'fx_tete_fleche')));
     const frame = {
       foot: [named(rig, 'fleche').position.x, named(rig, 'fleche').position.y] as Flat,
       head: [head.x, head.y] as Flat,

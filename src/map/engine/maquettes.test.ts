@@ -202,6 +202,21 @@ describe('clusterFootprints', () => {
     ]);
   });
 
+  it("measures a ring's reach member by member, not the widest one's half at the farthest one", () => {
+    // A wide site at the centre, two narrow ones 40 away: the ring reaches 80.8, not 90 (Marseille
+    // taken into Paris's ring, 04/11). A narrow site 95 away stays on its own.
+    const placed = clusterFootprints(
+      [
+        [0, 0],
+        [40, 0],
+        [-40, 0],
+        [95, 0],
+      ],
+      [100, 20, 20, 20],
+    );
+    expect(placed[3]).toEqual({ at: [95, 0], facing: 0, scale: 1 });
+  });
+
   it('rings sites that overlap around their barycentre, a span apart', () => {
     const placed = clusterFootprints(
       [
@@ -686,6 +701,57 @@ describe('a razed maquette holds its place while it falls (#326)', () => {
   });
 });
 
+describe('a garrison at the foot of a site drawn smaller (#433)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  // A dozen sites on one point make a ring too wide to keep: each stands at its smallest size.
+  const crowded = async (id: string) => {
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    const ids = [id, ...Array.from({ length: 11 }, (_, k) => `building-hq${k}@0,0`)];
+    maquettes.display(
+      ids.map((one) => ({
+        id: one,
+        at: { lonLat: [0, 0] as const },
+        url: `${one}.glb`,
+        span: 1,
+        washed: false,
+      })),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    maquettes.orient(new Vector3(0, 2, 2), null, 0);
+    return maquettes;
+  };
+  const reach = (step: readonly [number, number]) => Math.hypot(...step);
+
+  it('stands a pile on land off a model without `fx_rang` by its own half, not by its half at the site scale', async () => {
+    const maquettes = await crowded('building-barracks@0,0');
+    const bare = maquettes.garrisonAt('building-barracks@0,0', 0)!;
+    expect(bare.scale).toBeCloseTo(0.4, 9);
+    const pile = reach(maquettes.garrisonAt('building-barracks@0,0', 1)!.step);
+    // The bare foot is the site's 8/7 of its span at 0.4; a pile of span 1 adds its 1/2, whole.
+    expect((pile - reach(bare.step)) / reach(bare.step)).toBeCloseTo(0.5 / ((8 / 7) * 0.4), 9);
+  });
+
+  it('hands the scale of a port to its hulls, and docks a cargo drawn at it clear of the port', async () => {
+    const PORT = 'building-port@0,0';
+    const maquettes = await crowded(PORT);
+    const { scale, step } = maquettes.garrisonAt(PORT, 0, true)!;
+    expect(scale).toBeCloseTo(0.4, 9);
+    // The bare quay is half the port's span off its centre: its board unit, here.
+    const unit = reach(step) / (0.5 * scale);
+    const cargo = troopSpan('cargo') * scale;
+    const foot = reach(maquettes.garrisonAt(PORT, cargo, true)!.step);
+    expect(foot - (cargo / 2) * unit).toBeGreaterThanOrEqual(((1 * scale) / 2) * unit - 1e-12);
+  });
+});
+
 describe('the sites a garrison stands at the foot of (#341)', () => {
   it('are my buildings by their points: no installation, no objective, no region anchor', () => {
     const maquettes = new MaquetteLayer(
@@ -803,18 +869,19 @@ describe('a site on its socle (ADR 0038)', () => {
     const frame = layer.siteOf(MINE)!;
     expect(frame.box.min.y).toBeCloseTo(0, 3);
     expect(frame.building.min.y).toBeCloseTo(SOCLE_TOP, 3);
-    const first = new Vector3(12, SOCLE_TOP, 12.5).applyMatrix4(drawn.matrix);
+    const first = new Vector3(12, SOCLE_TOP, 26.5).applyMatrix4(drawn.matrix);
     expect(rank.at.x + rank.step[0]).toBeCloseTo(first.x, 6);
     expect(rank.at.z + rank.step[1]).toBeCloseTo(first.z, 6);
     expect(rank.at.y).toBeCloseTo(first.y, 6);
     expect(rank.at.y).toBeGreaterThan(0);
     // The rank runs along the marker's +x and deepens along its +z, turned as the maquette is,
-    // over the 30 m of its rectangle.
+    // over the 30 m of its rectangle. The barracks' marker is turned half a turn, its +z toward
+    // the building.
     const turn = (v: Vector3) => v.applyAxisAngle(new Vector3(0, 1, 0), yawOf(MINE));
-    const along = turn(new Vector3(1, 0, 0));
+    const along = turn(new Vector3(-1, 0, 0));
     expect(Math.cos(rank.facing)).toBeCloseTo(along.x, 6);
     expect(-Math.sin(rank.facing)).toBeCloseTo(along.z, 6);
-    const deep = turn(new Vector3(0, 0, 1));
+    const deep = turn(new Vector3(0, 0, -1));
     expect(rank.deep[0]).toBeCloseTo(deep.x, 6);
     expect(rank.deep[1]).toBeCloseTo(deep.z, 6);
     expect(rank.width).toBeCloseTo((30 * drawn.matrix.getMaxScaleOnAxis()) / 1, 6);

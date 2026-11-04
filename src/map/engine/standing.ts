@@ -139,6 +139,8 @@ export type GarrisonAt = (
   /** The rank's width, in board units, and the way it deepens, on the board. */
   width: number;
   deep: readonly [number, number];
+  /** The size its ring draws the site at: a fleet at its quay is drawn at it (#433). */
+  scale: number;
 } | null;
 
 /**
@@ -523,6 +525,8 @@ type Dressed = {
   pieces: PilePieces;
   readonly object: Group;
   readonly span: number;
+  /** **The size of its site it is drawn at** (#433): a port's, at its quay; 1 anywhere else. */
+  sized: number;
   ready: boolean;
   /** How much of it stands rather than its pin, at the last `orient`. */
   near: number;
@@ -876,6 +880,7 @@ export class StandingLayer implements SequenceHost {
         pieces: pile.pieces,
         object: built.object,
         span: built.span,
+        sized: 1,
         ready: false,
         near: 0,
         placed: false,
@@ -1028,22 +1033,7 @@ export class StandingLayer implements SequenceHost {
    *  rank does not lengthen it as its world box does (#271). `null` until placed. */
   lengthOf(id: string): number | null {
     const lent = this.figurineOf(id);
-    if (!lent?.placed) return null;
-    const { object } = lent.figurine;
-    object.updateWorldMatrix(true, true);
-    const back = object.matrixWorld.clone().invert();
-    const own = new Box3();
-    object.traverseVisible((part) => {
-      const { geometry } = part as Mesh;
-      if ((part as Mesh).isMesh !== true || part.userData.ground === true) return;
-      if (geometry.boundingBox === null) geometry.computeBoundingBox();
-      own.union(
-        geometry
-          .boundingBox!.clone()
-          .applyMatrix4(new Matrix4().multiplyMatrices(back, part.matrixWorld)),
-      );
-    });
-    return own.isEmpty() ? null : (own.max.z - own.min.z) * object.getWorldScale(new Vector3()).z;
+    return lent?.placed ? lengthAlong(lent.figurine.object) : null;
   }
 
   /** The copy takes the group's model's place, at its scale: it is drawn under the same
@@ -1278,6 +1268,11 @@ export class StandingLayer implements SequenceHost {
     this.aimed = aimed;
   }
 
+  /** **A ring of ink at a point of the board**, in reduced motion (#278): a tour at its quay. */
+  rippleAt(at: Vector3, radius: number): void {
+    this.ripple(at, radius, false, true);
+  }
+
   /** **A ring of ink spreads where a piece touches down** (POC, `ripple`); at reduced motion
    *  only when it is all there is to see (`reduced`). */
   private ripple(at: Vector3, radius: number, ochre = false, reduced = false): void {
@@ -1412,8 +1407,8 @@ export class StandingLayer implements SequenceHost {
 
   /** **The span a label's pile is pinned by**, `null` for a pile not dressed here. */
   spanOf(id: string): number | null {
-    const span = this.dressed.get(id)?.span;
-    return span === undefined ? null : troopPinSpan(span);
+    const entry = this.dressed.get(id);
+    return entry === undefined ? null : troopPinSpan(entry.span * entry.sized);
   }
 
   /** **Where a column joining the pile at `lonLat` halts** (#277): its footprint and a little
@@ -1676,9 +1671,14 @@ export class StandingLayer implements SequenceHost {
       entries.forEach((entry, k) => laid.set(entry, spots[k]!));
     }
     for (const entry of order) {
-      const { object, at, span, targets, extent } = entry;
+      const { object, at, targets, extent } = entry;
+      let span = entry.span;
+      entry.sized = 1;
       if ('beside' in at) {
         const quay = at.quay !== undefined;
+        // At its quay a fleet is drawn at its port's size, pin and floor included (#433).
+        entry.sized = quay ? (this.garrisonAt(at.beside, span, quay)?.scale ?? 1) : 1;
+        span *= entry.sized;
         const site = this.garrisonAt(at.beside, span, quay);
         // A pile grown by its floor stands off its building by its grown size.
         const foot =
@@ -1903,4 +1903,23 @@ export class StandingLayer implements SequenceHost {
     this.effects = [];
     this.group.removeFromParent();
   }
+}
+
+/** **How long a piece is drawn**, nose to tail along its own front, on the board: a turned
+ *  piece does not lengthen as its world box does (#271). `null` while nothing is drawn. */
+export function lengthAlong(object: Object3D): number | null {
+  object.updateWorldMatrix(true, true);
+  const back = object.matrixWorld.clone().invert();
+  const own = new Box3();
+  object.traverseVisible((part) => {
+    const { geometry } = part as Mesh;
+    if ((part as Mesh).isMesh !== true || part.userData.ground === true) return;
+    if (geometry.boundingBox === null) geometry.computeBoundingBox();
+    own.union(
+      geometry
+        .boundingBox!.clone()
+        .applyMatrix4(new Matrix4().multiplyMatrices(back, part.matrixWorld)),
+    );
+  });
+  return own.isEmpty() ? null : (own.max.z - own.min.z) * object.getWorldScale(new Vector3()).z;
 }

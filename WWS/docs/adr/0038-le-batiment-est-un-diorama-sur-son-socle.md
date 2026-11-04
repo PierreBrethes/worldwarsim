@@ -70,6 +70,12 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    liseré, car il peut changer de mains seul. Seul le repli de l’anneau trop serré (chaque site
    à son point, à 0,4) peut les faire se toucher.
 
+   > **Précisée le 04/11/2026** (#433, décision de Pierre) : à ce repli, des socles voisins
+   > peuvent se toucher et aussi se recouvrir en partie. Une caserne à 0,4 a un socle d'environ
+   > 52 km de côté, alors que deux sites d'un joueur sont à 30 km au moins
+   > (`BUILDING_SPACING_KM`). Ils ne se superposent jamais entièrement : deux sites d'un joueur
+   > ne partagent pas un point.
+
 7. **La lecture par distance**, en pixels du socle, pour garder la règle de l'ADR 0035 §3 (chaque
    pièce pesée par sa taille à l'écran, `pieceWeight`) : tout le diorama tant que le socle fait
    64 px ou plus ; jusqu'à 28 px, seuls le socle, le liseré et le signe, ce dernier grandi jusqu'à

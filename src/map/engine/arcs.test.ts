@@ -1,12 +1,21 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { Frustum, Group, Matrix4, PerspectiveCamera, Vector3, type Object3D } from 'three';
+import {
+  BoxGeometry,
+  Frustum,
+  Group,
+  Matrix4,
+  Mesh,
+  PerspectiveCamera,
+  Vector3,
+  type Object3D,
+} from 'three';
 import type { PilePieces } from '@/domain/pile-pieces';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { World } from '@/domain/world';
 import { directRoute } from '@/domain/routing';
 import { unrollRoute } from '@/domain/route-timing';
-import { ArcLayer, lastKnownMedium } from './arcs';
-import { figurineFor } from './figurines/figurine';
+import { ArcLayer, CATCH_UP_MS, caughtUp, lastKnownMedium } from './arcs';
+import { figurineFor, troopScale } from './figurines/figurine';
 import { WorldFrame } from './frame';
 import type { InkLayer } from './ink';
 import { Pawn } from './pawn';
@@ -14,12 +23,19 @@ import { Pawn } from './pawn';
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),
   // A gun is drawn longer than a tank: a mixed file spaces its ranks by their lengths.
-  figurineFor: vi.fn((_nation: unknown, role: unknown) => ({
-    object: new Group(),
-    span: role === 'artillery' ? 0.012 : 0.006,
-    ready: Promise.resolve(),
-    spin() {},
-  })),
+  figurineFor: vi.fn((_nation: unknown, role: unknown) => {
+    const object = new Group();
+    return {
+      object,
+      span: role === 'artillery' ? 0.012 : 0.006,
+      ready: Promise.resolve(),
+      spin() {},
+      standIn(copy: Object3D | null) {
+        object.clear();
+        if (copy !== null) object.add(copy);
+      },
+    };
+  }),
 }));
 
 const arc = (state: ArcView['state'], mediums: ReadonlyArray<string>) =>
@@ -417,5 +433,188 @@ describe('ArcLayer: a column joining a pile (#277)', () => {
     expect(arcs.headsFor([10, 6])).toBe(false);
     arcs.display([sighted('enemyDetected')]);
     expect(arcs.headsFor([10, 5])).toBe(false);
+  });
+});
+
+describe('caughtUp (#278)', () => {
+  // Let go at 0.02 of its way, held at the socle's foot 0.05 in, its first leg ends at 0.4.
+  const release = { from: 0.02, at: 0, foot: 0.05, end: 0.4 };
+
+  it('starts from the foot it was held at, with no jump', () => {
+    expect(caughtUp(0.02, 0, release)).toBeCloseTo(0.05);
+  });
+
+  it('runs on to its own hour by the end of its first leg, and keeps it after', () => {
+    expect(caughtUp(0.4, 0, release)).toBeCloseTo(0.4);
+    expect(caughtUp(0.7, 0, release)).toBe(0.7);
+    let last = 0;
+    for (let share = 0.02; share <= 0.4; share += 0.01) {
+      expect(caughtUp(share, 0, release)).toBeGreaterThanOrEqual(last);
+      last = caughtUp(share, 0, release);
+    }
+  });
+
+  it('let go past the end of its first leg, it still starts from its foot and runs to its hour', () => {
+    const late = { from: 0.6, at: 1000, foot: 0.05, end: 0.4 };
+    expect(caughtUp(0.6, 1000, late)).toBeCloseTo(0.05);
+    const half = caughtUp(0.6, 1000 + CATCH_UP_MS / 2, late);
+    expect(half).toBeGreaterThan(0.05);
+    expect(half).toBeLessThan(0.6);
+    expect(caughtUp(0.61, 1000 + CATCH_UP_MS, late)).toBe(0.61);
+  });
+});
+
+describe('ArcLayer.hold (#278)', () => {
+  const at = (arcs: ArcLayer) => arcs.headPositions.get('a')!.clone();
+
+  it('holds the pawn where its road leaves the socle, then runs it on from there', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(360_000);
+    arcs.display([mine('a')]);
+    arcs.animate();
+    const own = at(arcs);
+    const start = arcs.hold('a', (point) => point.distanceTo(own) < 1e-9 || point.x < 2, Infinity)!;
+    arcs.animate();
+    const held = at(arcs);
+    expect(held.distanceTo(start)).toBeLessThan(1e-6);
+    expect(held.distanceTo(own)).toBeGreaterThan(0);
+    // Let go, it starts from the foot, not from its own hour: no jump.
+    arcs.letGo('a', performance.now());
+    arcs.animate();
+    expect(at(arcs).distanceTo(held)).toBeLessThan(1e-6);
+    vi.mocked(Date.now).mockReturnValue(3_000_000);
+    arcs.animate();
+    expect(at(arcs).x).toBeGreaterThan(held.x);
+    vi.mocked(Date.now).mockRestore();
+  });
+
+  it('holds no pawn already past its foot: it never steps back', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(1_800_000);
+    arcs.display([mine('a')]);
+    arcs.animate();
+    const own = at(arcs);
+    // Its socle a mere step round where it set off.
+    expect(arcs.hold('a', (point) => point.x < 0.01, Infinity)).toBeNull();
+    arcs.animate();
+    expect(at(arcs).distanceTo(own)).toBeLessThan(1e-9);
+    vi.mocked(Date.now).mockRestore();
+  });
+
+  it('finds the foot at the edge of the socle however long its road', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    arcs.display([mine('a', [170, 80])]);
+    arcs.animate();
+    const start = at(arcs);
+    const radius = 1e-3;
+    const foot = arcs.hold('a', (point) => point.distanceTo(start) < radius, Infinity)!;
+    vi.mocked(Date.now).mockRestore();
+    expect(foot.distanceTo(start)).toBeGreaterThanOrEqual(radius);
+    expect(foot.distanceTo(start)).toBeLessThan(radius * 1.01);
+  });
+
+  it('reads the box of a copy stood in on the pawn, not at the origin', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(360_000);
+    arcs.display([{ ...mine('a'), stack: { landTransport: 1 } } as ArcView]);
+    arcs.animate();
+    vi.mocked(Date.now).mockRestore();
+    // As a frame drawn would leave it: the pawn placed, its truck's meshes with it.
+    arcs.group.updateMatrixWorld(true);
+    // A model's copy: its meshes hang under a root of their own, offset as a scene's are.
+    const copy = new Group().add(new Mesh(new BoxGeometry(1e-3, 1e-3, 1e-3)));
+    copy.position.set(0, 1e-3, 0);
+    arcs.standIn('a', copy);
+    const box = arcs.pieceOf('a')!.box!;
+    const head = at(arcs);
+    expect(head.length()).toBeGreaterThan(0.1);
+    expect(box.getCenter(new Vector3()).distanceTo(head)).toBeLessThan(0.05);
+  });
+
+  it('holds nothing of an enemy', () => {
+    const arcs = layer();
+    arcs.display([sighted('enemyDetected')]);
+    expect(arcs.hold('e', () => true, Infinity)).toBeNull();
+  });
+});
+
+/** **Un navire qui quitte un port dessiné plus petit** (#433, option C) : il part du quai tel
+ *  qu'il est dessiné, à l'échelle du port, et reprend sa taille en une demi-seconde. */
+describe('a hull leaving a port drawn smaller', () => {
+  const frame = new WorldFrame(world);
+  const start = frame.projectLonLat([0, 0]);
+  const quay = start.clone().add(new Vector3(0.3, 0, -0.2));
+  const SPAN = 0.006;
+  /** One voyage, drawn frame by frame at the server's hour `clock` and the page's `perf`: how
+   *  large the hull is drawn, as a share of its own size at the same distance. */
+  const voyage = (motion: 'full' | 'reduced', back = false) => {
+    const arcs = new ArcLayer(
+      frame,
+      { trace: () => 0 } as unknown as InkLayer,
+      undefined,
+      (point) =>
+        Math.hypot(point.x - start.x, point.z - start.z) < 1e-6 ? { at: quay, scale: 0.4 } : null,
+    );
+    arcs.setPlayerNation('france');
+    arcs.motion = motion;
+    const route = back
+      ? directRoute([10, 5], [0, 0], 'sea', 10)
+      : directRoute([0, 0], [10, 5], 'sea', 10);
+    let shown = false;
+    return (clock: number, perf: number) => {
+      vi.useFakeTimers({ now: clock, toFake: ['Date'] });
+      const page = vi.spyOn(performance, 'now').mockReturnValue(perf);
+      try {
+        if (!shown) arcs.display([{ ...mine('a'), route, stack: { cargo: 1 } } as ArcView]);
+        shown = true;
+        arcs.animate();
+        const head = arcs.headPositions.get('a')!.clone();
+        const camera = new PerspectiveCamera();
+        camera.position.copy(head).add(new Vector3(0, 0.05, 0.05));
+        arcs.animate(camera);
+        const hull = vi.mocked(figurineFor).mock.results.at(-1)!.value.object as Group;
+        const d = camera.position.distanceTo(head);
+        return { share: hull.scale.x / troopScale(d, SPAN), head, d };
+      } finally {
+        page.mockRestore();
+        vi.useRealTimers();
+      }
+    };
+  };
+  const docked = (d: number) => (0.4 * troopScale(d, SPAN * 0.4)) / troopScale(d, SPAN);
+
+  it('leaves from the quay as drawn, at the port scale', () => {
+    const { share, head, d } = voyage('full')(0, 1_000);
+    expect(docked(d)).toBeLessThan(0.99);
+    expect(share).toBeCloseTo(docked(d), 9);
+    expect(Math.hypot(head.x - quay.x, head.z - quay.z)).toBeLessThan(1e-6);
+  });
+
+  it('grows back to its own size in half a second from the frame it is first drawn', () => {
+    // The view lands 200 ms after the server's departure: the fade starts from there.
+    const at = voyage('full');
+    const first = at(200, 1_000);
+    expect(first.share).toBeCloseTo(docked(first.d), 9);
+    const mid = at(450, 1_250);
+    expect(mid.share).toBeGreaterThan(docked(mid.d));
+    expect(mid.share).toBeLessThan(1);
+    expect(at(700, 1_500).share).toBeCloseTo(1, 9);
+  });
+
+  it('is drawn at its own size when first drawn long after it left', () => {
+    expect(voyage('full')(10_000, 1_000).share).toBeCloseTo(1, 9);
+  });
+
+  it('takes its size at once out of full motion', () => {
+    expect(voyage('reduced')(1, 1_000).share).toBeCloseTo(1, 9);
+  });
+
+  it('shrinks back to it in its last half-second, docking at the quay as drawn', () => {
+    const at = voyage('full', true);
+    expect(at(3_600_000 - 600, 1_000).share).toBeCloseTo(1, 9);
+    const end = at(3_600_000, 1_600);
+    expect(end.share).toBeCloseTo(docked(end.d), 9);
+    expect(Math.hypot(end.head.x - quay.x, end.head.z - quay.z)).toBeLessThan(1e-6);
   });
 });

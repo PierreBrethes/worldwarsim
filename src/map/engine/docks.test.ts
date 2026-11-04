@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   type Docked,
   dockedOf,
@@ -7,6 +7,8 @@ import {
   mayDock,
   quayTaken,
   stillWaiting,
+  tourStepOf,
+  toursLetGo,
   undock,
 } from './docks';
 import type { Sequence, SequenceHost } from './sequences';
@@ -79,6 +81,14 @@ describe('the quays of a loading (#271)', () => {
     expect(docked.size).toBe(1);
   });
 
+  it("ends a tour's truck on the pawn that lends it, not on a pile (#278)", () => {
+    const arcHost = { name: 'arcs' } as unknown as SequenceHost;
+    const docked = new Map([['m', dockedOf(plan, 'w', 0, true).docked]]);
+    const layer = layerOf([[arcHost, 'm']]);
+    undock(docked, layer, { ...hosts, arc: arcHost }, 1000);
+    expect(layer.retimed).toEqual([[arcHost, 'm', 0]]);
+  });
+
   it('starts only with room for both, both seen', () => {
     expect(mayDock(2, true, true)).toBe(true);
     expect(mayDock(1, true, true)).toBe(false);
@@ -132,5 +142,68 @@ describe('the quays of a loading (#271)', () => {
     // The next leaves its place as the one before backs into its own.
     expect(started[1]![1]).toBeLessThanOrEqual(entry.homeAt + 100);
     expect(started[2]![1]).toBeGreaterThan(LOADING_WAIT_MS);
+  });
+});
+
+describe('a tour at its quay (#278)', () => {
+  const at = { built: true, site: true, busy: false, drawn: true };
+
+  it('waits in file at the foot while the quay is taken, then runs on', () => {
+    expect(tourStepOf('full', { ...at, busy: true }, 1000)).toEqual({
+      holdUntil: 1000 + LOADING_WAIT_MS,
+    });
+    const tour = { cue: { arcId: 'a' }, since: 1000 };
+    expect(stillWaiting([tour], 1000 + LOADING_WAIT_MS, () => 'wait')).toEqual([]);
+    expect(toursLetGo(['a'], () => false, [])).toEqual(['a']);
+  });
+
+  it('runs on as soon as its truck is refused, or played out', () => {
+    expect(toursLetGo(['a'], () => false, [])).toEqual(['a']);
+    expect(toursLetGo(['a'], (id) => id === 'a', [])).toEqual([]);
+    expect(toursLetGo(['a'], () => false, [{ cue: { arcId: 'a' } }])).toEqual([]);
+  });
+
+  it('rings its quay at reduced motion and holds nothing, even with the quay taken', () => {
+    expect(tourStepOf('reduced', at, 0)).toBe('ring');
+    expect(tourStepOf('reduced', { ...at, busy: true }, 0)).toBe('ring');
+  });
+
+  it('shows nothing with motion off, nor with its building not drawn', () => {
+    expect(tourStepOf('off', at, 0)).toBe('nothing');
+    expect(tourStepOf('full', { ...at, built: false }, 0)).toBe('nothing');
+  });
+
+  it('docks when all is drawn, and waits for what is not', () => {
+    expect(tourStepOf('full', at, 0)).toBe('dock');
+    expect(tourStepOf('full', { ...at, drawn: false }, 0)).toBe('wait');
+    expect(tourStepOf('full', { ...at, site: false, busy: true }, 0)).toBe('wait');
+  });
+});
+
+/** **Un camion de tournée dont le quai est pris attend en file au pied du socle** (#278), même
+ *  quand son modèle n'est pas encore arrivé : la file ne lit pas le camion, seul le quai le lit. */
+describe('a tour whose quay is taken, its truck not landed yet', () => {
+  it('holds its pawn at the socle foot rather than letting it run on its road', async () => {
+    const { Vector3 } = await import('three');
+    const { MapEngine } = await import('./index');
+    const hold = vi.fn(() => new Vector3());
+    const engine = Object.assign(Object.create(MapEngine.prototype) as object, {
+      maquettes: {
+        pieceOf: () => ({ url: 'warehouse.glb', box: null }),
+        siteOf: () => ({ toModel: (point: unknown) => point, box: { min: {}, max: {} } }),
+      },
+      arcs: { pieceOf: () => null, truckLength: () => null, hold },
+      sequences: { motion: 'full', playsOn: () => true },
+      docked: new Map(),
+      heldTours: new Set<string>(),
+    });
+    const attempt = (
+      MapEngine.prototype as unknown as {
+        tourOf: (tour: object, now: number) => string;
+      }
+    ).tourOf.call(engine, { cue: { siteId: 'building-warehouse@2,49', arcId: 'a' }, since: 0 }, 10);
+    expect(attempt).toBe('wait');
+    expect(hold).toHaveBeenCalledWith('a', expect.any(Function), LOADING_WAIT_MS);
+    expect((engine as { heldTours: Set<string> }).heldTours.has('a')).toBe(true);
   });
 });

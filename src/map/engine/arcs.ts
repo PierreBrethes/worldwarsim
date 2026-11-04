@@ -1,5 +1,13 @@
 import { samePoint, type LonLat } from '@/domain/geo';
-import { type Box3, type Frustum, Group, Vector3, type Camera, type Raycaster } from 'three';
+import {
+  type Box3,
+  type Frustum,
+  Group,
+  type Object3D,
+  Vector3,
+  type Camera,
+  type Raycaster,
+} from 'three';
 import {
   pawnTarget,
   temporalPosition,
@@ -10,6 +18,7 @@ import {
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
 import { movementWear, type PilePieces } from '@/domain/pile-pieces';
+import { troopSpan } from '@/domain/piece-size';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
@@ -21,6 +30,7 @@ import {
   projectOnGround,
   stretchTether,
   type EndsOf,
+  type Moor,
   type Thread,
   type ThreadLeg,
 } from './thread';
@@ -39,6 +49,8 @@ import { HEARTBEAT_MS } from './frame-demand';
 import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
 import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
+import type { RestPose } from './figurines/figurine';
+import { lengthAlong } from './standing';
 
 type RenderedArc = {
   readonly key: string;
@@ -57,7 +69,35 @@ type RenderedArc = {
   /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
   rest: Vector3 | null;
   loadingUntil: number | null;
+  /** The size of the port it leaves and the one it reaches, its hull drawn at it there (#433);
+   *  1 away from a port of mine. */
+  readonly quays: { start: number; end: number };
 };
+
+/** **A hull takes its size, or its port's, in this time** as it leaves or reaches the quay (#433):
+ *  a pile's glide (`GLIDE_MS`). */
+const QUAY_FADE_MS = 500;
+
+/** **A hull first drawn this long after its departure** is already at sea: the view came late,
+ *  a page opened mid-voyage. `@a-mesurer` */
+const FRESH_DEPARTURE_MS = 3_000;
+
+/**
+ * **The size a hull of mine is drawn at** (#433): its port's at the quay, its own at sea, faded
+ * over `QUAY_FADE_MS` after it leaves (`sailing`, the page's milliseconds since, negative before)
+ * and before it arrives (`docking`, the server's) — at once out of full motion.
+ */
+function quaySize(
+  { start, end }: { start: number; end: number },
+  sailing: number,
+  docking: number,
+  full: boolean,
+): number {
+  const away = (ms: number) =>
+    full ? Math.min(1, Math.max(0, ms / QUAY_FADE_MS)) : ms >= 0 ? 1 : 0;
+  const toward = (size: number, share: number) => size + (1 - size) * share;
+  return toward(start, away(sailing)) * toward(end, away(docking));
+}
 
 /** Every thread's weight against its original design: the first one read too heavy on the sheet. */
 const THREAD_WEIGHT = 0.5;
@@ -99,7 +139,7 @@ export class ArcLayer {
   /** **The span a movement's pawn gives way to its pin by**, `null` for no movement of that id. */
   spanOf(id: string): number | null {
     const pawn = this.pawnById.get(id);
-    return pawn === undefined ? null : troopPinSpan(pawn.span);
+    return pawn === undefined ? null : troopPinSpan(pawn.span * pawn.sized);
   }
   readonly aheadPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
@@ -187,6 +227,132 @@ export class ArcLayer {
       return last !== undefined && samePoint(last, end);
     });
   }
+  /** When each hull of mine was first drawn past its departure (`sailing`), by movement id. */
+  private readonly sailedAt = new Map<string, number>();
+  /** **Pawns held at their socle's foot** (#278), by movement id: the share of their way they
+   *  stand at, the share their first leg ends at, until when; then how they catch up. */
+  private readonly holds = new Map<
+    string,
+    {
+      readonly foot: number;
+      readonly end: number;
+      readonly until: number;
+      release: Parameters<typeof caughtUp>[2] | null;
+    }
+  >();
+
+  /**
+   * **Holds a truck of mine where its road leaves its socle** (#278) until `until`: the first
+   * point of its first leg that is not `inside`. It runs on from there after (`caughtUp`).
+   * Returns that point on the board; `null` for no such movement, or one not mine.
+   */
+  hold(id: string, inside: (point: Vector3) => boolean, until: number): Vector3 | null {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    if (rendered === undefined || rendered.arc.state !== 'mine') return null;
+    const point = new Vector3();
+    const at = (share: number): number => {
+      const target = pawnTarget(temporalPosition(rendered.unrolled, share));
+      const leg = rendered.thread.legs[target.legIndex];
+      if (leg !== undefined) pointOnLeg(leg, target.local, point);
+      return target.legIndex;
+    };
+    const held = this.holds.get(id);
+    if (held !== undefined) {
+      if (held.release !== null) return null;
+      this.holds.set(id, { ...held, until });
+      at(held.foot);
+      return point;
+    }
+    let foot: number | null = null;
+    let end = 1;
+    for (let k = 0; k <= HOLD_SAMPLES; k++) {
+      const share = k / HOLD_SAMPLES;
+      if (at(share) > 0) {
+        end = share;
+        break;
+      }
+      if (foot === null && !inside(point)) foot = share;
+    }
+    // A long road steps over the socle between two samples: its edge lies between them.
+    if (foot !== null && foot > 0) {
+      let [lo, hi] = [foot - 1 / HOLD_SAMPLES, foot];
+      for (let k = 0; k < EDGE_STEPS; k++) {
+        const mid = (lo + hi) / 2;
+        if (at(mid) === 0 && inside(point)) lo = mid;
+        else hi = mid;
+      }
+      foot = hi;
+    }
+    foot ??= end;
+    // Already past its foot: held, it would step back.
+    if (arcProgressAt(rendered.arc, Date.now()) > foot) return null;
+    this.holds.set(id, { foot, end, until, release: null });
+    at(foot);
+    return point;
+  }
+
+  /** **Lets a held pawn go now** (#278): its truck played out early, or never got the quay. */
+  letGo(id: string, now: number): void {
+    const held = this.holds.get(id);
+    if (held !== undefined && held.until > now) this.holds.set(id, { ...held, until: now });
+  }
+
+  /**
+   * **How long a hull of mine has sailed, by the page's clock** (#433): from the first frame it is
+   * drawn past its departure — the view reaches the page after the server's hour, and the two
+   * clocks differ. First drawn long after it, it has long sailed. Kept over a `rebuild`.
+   */
+  private sailing(id: string, departedAt: number, clock: number, now: number): number {
+    if (clock < departedAt) return -1;
+    let since = this.sailedAt.get(id);
+    if (since === undefined) {
+      since = clock - departedAt <= FRESH_DEPARTURE_MS ? now : -Infinity;
+      this.sailedAt.set(id, since);
+    }
+    return now - since;
+  }
+
+  /** The share a pawn walks: its own, or held, or catching up (`hold`). */
+  private walked(id: string, own: number, now: number): number {
+    const held = this.holds.get(id);
+    if (held === undefined) return own;
+    if (now < held.until) return held.foot;
+    held.release ??= { from: own, at: now, foot: held.foot, end: held.end };
+    const walked = caughtUp(own, now, held.release);
+    if (walked === own) this.holds.delete(id);
+    return walked;
+  }
+
+  /** **What a sequence may borrow** (`SequenceHost`, #278): the truck a pawn of mine wears on land,
+   *  standing on the board. */
+  pieceOf(id: string): { url?: string; pose?: RestPose; box: Box3 | null } | null {
+    const truck = this.truckOf(id);
+    if (truck === null) return null;
+    // A copy just stood in is not placed yet: its meshes would read at the origin.
+    truck.object.updateMatrixWorld(true);
+    return {
+      ...(truck.url === undefined ? {} : { url: truck.url }),
+      ...(truck.pose === undefined ? {} : { pose: truck.pose }),
+      box: boxOfObject(truck.object),
+    };
+  }
+
+  /** The copy takes the truck's place on its pawn, which stands where it is held. */
+  standIn(id: string, copy: Object3D | null): void {
+    this.pawnById.get(id)?.truckFigurine?.standIn?.(copy);
+  }
+
+  /** How long the truck is drawn, on the board (`lengthAlong`). */
+  truckLength(id: string): number | null {
+    const truck = this.truckOf(id);
+    return truck === null ? null : lengthAlong(truck.object);
+  }
+
+  private truckOf(id: string) {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    return rendered?.arc.state === 'mine' ? rendered.pawn.truck : null;
+  }
+
   /** Kept across displays, which come at every step of any column: a crate falls once. */
   private readonly crates = new Map<string, CratePile>();
 
@@ -195,6 +361,12 @@ export class ArcLayer {
     private readonly ink: InkLayer,
     /** Where a plane leaves a runway or a hull a quay (`EndsOf`), by the board's own points. */
     private readonly ends: EndsOf = () => null,
+    /** **Where my port at this point docks a hull** of `span` as it is drawn, and its size
+     *  (#433); `null` for none there. */
+    private readonly quays: (
+      at: Vector3,
+      span: number,
+    ) => { at: Vector3; scale: number } | null = () => null,
   ) {}
 
   setPlayerNation(nation: string | null): void {
@@ -235,6 +407,10 @@ export class ArcLayer {
     for (const id of this.inking.keys()) {
       if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
     }
+    for (const id of this.holds.keys())
+      if (!arcs.some((arc) => arc.id === id)) this.holds.delete(id);
+    for (const id of this.sailedAt.keys())
+      if (!arcs.some((arc) => arc.id === id)) this.sailedAt.delete(id);
     const now = performance.now();
     const clock = Date.now();
     const previous = new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered]));
@@ -287,6 +463,18 @@ export class ArcLayer {
     clock: number,
   ): RenderedArc {
     const stale = arc.state === 'lastKnown';
+    const roles = movementRoles(arc);
+    const hull = roles?.sea ?? null;
+    const quays = { start: 1, end: 1 };
+    const moor: Moor | undefined =
+      hull === null
+        ? undefined
+        : (which, at) => {
+            const quay = this.quays(at, troopSpan(hull));
+            if (quay === null) return null;
+            quays[which] = quay.scale;
+            return quay.at;
+          };
     const thread = buildThread(
       arc.route,
       this.frame,
@@ -299,6 +487,7 @@ export class ArcLayer {
       {
         aloft: this.aloft,
         ...(this.motion !== 'off' ? { ends: this.ends } : {}),
+        ...(moor === undefined ? {} : { moor }),
         ...(arc.state === 'mine' && arc.airdrop !== undefined ? { airdrop: arc.airdrop } : {}),
       },
     );
@@ -307,7 +496,6 @@ export class ArcLayer {
     this.group.add(thread.object);
     for (const target of thread.targets) target.userData.arc = arc.id;
 
-    const roles = movementRoles(arc);
     const column = arc.state === 'mine' ? this.columnOf(arc.id) : null;
     const figurineOf = (role: UnitRole | null) =>
       role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
@@ -368,6 +556,7 @@ export class ArcLayer {
       ink: lastKnownInk(arc, clock),
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
+      quays,
     };
   }
 
@@ -461,7 +650,10 @@ export class ArcLayer {
 
       // The share walked is read from the hour (#183): the arc carries the server's dates and
       // keeps its identity from one answer to the next, so no answer moves a pawn.
-      const position = temporalPosition(rendered.unrolled, arcProgressAt(rendered.arc, clock));
+      const position = temporalPosition(
+        rendered.unrolled,
+        this.walked(rendered.arc.id, arcProgressAt(rendered.arc, clock), now),
+      );
       const target = pawnTarget(position);
       const { legIndex } = target;
       const leg = rendered.thread.legs[legIndex];
@@ -506,6 +698,13 @@ export class ArcLayer {
         turn,
         roadOf(rendered.thread.legs, position, leg, local),
       );
+      if (rendered.arc.state === 'mine')
+        rendered.pawn.sized = quaySize(
+          rendered.quays,
+          this.sailing(rendered.arc.id, rendered.arc.schedule.departedAt, clock, now),
+          rendered.arc.schedule.arrivesAt - clock,
+          this.motion === 'full',
+        );
       rendered.pawn.step(this.motion === 'full' ? elapsed : null, this.motion === 'reduced');
       rendered.pawn.orient(this.cameraPosition, this.cameraYaw, this.inView);
       rendered.headPosition.copy(this.pawnPoint);
@@ -592,6 +791,36 @@ export class ArcLayer {
     this.pawnById.clear();
   }
 }
+
+/** **Where a pawn let go runs on its way** (#278): held at the socle's `foot` while its truck
+ *  loaded, it starts from there when its own hour (`share`) is `from`, and comes back to it by
+ *  the `end` of its first leg — or over `CATCH_UP_MS`, let go past that end. Never a jump, never
+ *  a step back. */
+export function caughtUp(
+  share: number,
+  now: number,
+  release: {
+    readonly from: number;
+    readonly at: number;
+    readonly foot: number;
+    readonly end: number;
+  },
+): number {
+  const { from, at, foot, end } = release;
+  if (from < end)
+    return share >= end ? share : foot + ((share - from) * (end - foot)) / (end - from);
+  const k = (now - at) / CATCH_UP_MS;
+  return k >= 1 ? share : foot + (share - foot) * k;
+}
+
+/** A pawn let go past the end of its first leg runs back to its hour in so long. `@a-mesurer` */
+export const CATCH_UP_MS = 1500;
+
+/** The edge of a socle is looked for in so many halvings between two samples. */
+const EDGE_STEPS = 20;
+
+/** The shares of its way a held pawn's foot is looked for at. */
+const HOLD_SAMPLES = 200;
 
 /** A closed file waits this long for its pile to stand (`SORTIE_WAIT_MS` and a beat). */
 const LEFT_MS = 3000;

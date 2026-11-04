@@ -45,6 +45,7 @@ async function garrison(): Promise<{ layer: StandingLayer; object: () => Group }
       rank: false,
       width: Infinity,
       deep: [0, 0] as const,
+      scale: 1,
     }),
   );
   layer.setNation('france');
@@ -184,6 +185,7 @@ describe('a garrison ranked on the yard of a socle (ADR 0038 §5)', () => {
     rank: true,
     width,
     deep: [0, 1] as const,
+    scale: 1,
   });
   const stood = async (width: number, ids: string[]) => {
     const ranked = new StandingLayer({} as WorldFrame, () => {}, rankOf(width));
@@ -243,6 +245,7 @@ describe('a garrison handed back to the ground, attached to a site (#341)', () =
     rank: false,
     width: Infinity,
     deep: [0, 0] as const,
+    scale: 1,
   });
 
   it('leaves the garrison the server attached where it stands, whatever the order served', async () => {

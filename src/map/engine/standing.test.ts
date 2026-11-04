@@ -28,7 +28,7 @@ import {
 } from './standing';
 import { troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
-import { TANK_SHARE } from './figurines/figurine';
+import { TANK_SHARE, troopPinSpan, troopScale } from './figurines/figurine';
 
 // The loader wants a DOM: every file is a box of a metre.
 vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
@@ -872,5 +872,55 @@ describe('a pile drawn again under a gesture (#277)', () => {
     await tick();
     layer.orient(eye);
     expect(layer.placeOf(again!)).toBeNull();
+  });
+});
+
+/** **Un tas à quai prend l'échelle de son port** (#433, option C) : son seuil d'épingle, son
+ *  plancher et son pied sont ceux du tas dessiné à cette échelle. */
+describe('a fleet docked at a port drawn smaller', () => {
+  type Inner = { dressed: Map<string, { object: Group }> };
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const eye = new Vector3(0, 0.4, 0.4);
+  const docked = async (scale: number) => {
+    const piles: number[] = [];
+    const layer = new StandingLayer(
+      frame,
+      () => {},
+      (_, pile) => {
+        piles.push(pile);
+        return {
+          at: new Vector3(0, 0, 0),
+          step: [0, 0] as const,
+          facing: 0,
+          rank: false,
+          width: Infinity,
+          deep: [0, 0] as const,
+          scale,
+        };
+      },
+    );
+    layer.setNation('france');
+    layer.display([
+      { id: 'f', at: { beside: 'port', quay: [0, 0] }, pieces: pilePieces([troop('cargo')]) },
+    ]);
+    await vi.waitFor(() => expect(layer.group.children.length).toBe(1));
+    layer.orient(eye);
+    const { object } = (layer as unknown as Inner).dressed.get('f')!;
+    return { size: object.scale.x, piles, pin: layer.spanOf('f')! };
+  };
+
+  it('is drawn at the port scale, stood off by its drawn span, pinned by it', async () => {
+    const whole = await docked(1);
+    const small = await docked(0.4);
+    const span = whole.piles[0]!;
+    expect(small.piles.some((pile) => Math.abs(pile - span * 0.4) < 1e-12)).toBe(true);
+    const d = eye.length();
+    expect(small.size / whole.size).toBeCloseTo(
+      (0.4 * troopScale(d, span * 0.4)) / troopScale(d, span),
+      9,
+    );
+    expect(small.pin).toBeCloseTo(troopPinSpan(span * 0.4), 12);
   });
 });

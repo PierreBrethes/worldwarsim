@@ -64,8 +64,7 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
   oilWell: 25,
   arsenal: 80,
   barracks: 50,
-  // The brief says 110 m (two hangars at scale 1, #269); the file of 03/11 draws 96.2 m.
-  airfield: 96.2,
+  airfield: 110,
   port: 210,
   listening: 30,
   researchCenter: 50,
@@ -77,16 +76,16 @@ const BUILDING_METRES: Readonly<Record<BuildingKey, number>> = {
 /**
  * **Le plus grand côté au sol de l'emprise de chaque site, en mètres** : la boîte de son
  * `socle` (ADR 0038 §6), car le socle déborde de 6 à 9 m du bâtiment, et de 20 à 25 m côté
- * façade. Le puits n'a pas encore de socle : il garde la boîte de son bâtiment. `maquettes.test.ts` la mesure sur les GLB.
+ * façade. `maquettes.test.ts` la mesure sur les GLB.
  */
 export const BUILDING_FOOTPRINT_METRES: Readonly<Record<BuildingKey, number>> = {
-  hq: 78,
+  hq: 90,
   farm: 66,
   mine: 75,
-  oilWell: 25,
+  oilWell: 49,
   arsenal: 98,
   barracks: 82,
-  airfield: 113,
+  airfield: 128,
   port: 222,
   listening: 53,
   researchCenter: 68,
@@ -102,13 +101,13 @@ export const BUILDING_FOOTPRINT_METRES: Readonly<Record<BuildingKey, number>> = 
  * voisins. Elle n'entre pas dans `siteReading`, qui lit `BUILDING_FOOTPRINT_METRES`.
  */
 export const BUILDING_REACH_METRES: Readonly<Record<BuildingKey, number>> = {
-  hq: 55,
+  hq: 64,
   farm: 52,
   mine: 57,
-  oilWell: 25,
+  oilWell: 36,
   arsenal: 66,
   barracks: 57,
-  airfield: 72,
+  airfield: 87,
   port: 146,
   listening: 42,
   researchCenter: 53,

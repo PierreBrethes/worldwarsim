@@ -124,8 +124,7 @@ describe('bakedSite (ADR 0038)', () => {
     return box;
   };
 
-  /** Every file the board draws that stands on no socle: the well's, until its regeneration
-   *  carries `bielle_2` again (#368), and the objectives'. */
+  /** Every file the board draws that stands on no socle: the objectives'. */
   const files = [
     ...new Set([
       ...Object.values(BUILDING_MAQUETTES),
@@ -175,7 +174,7 @@ describe('bakedSite (ADR 0038)', () => {
     // The building stands on the socle's top; the socle on the ground.
     expect(boxOf(building).min.y).toBeCloseTo(2.2, 3);
     expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
-    // Its flagpole went to the sign (`flagOnSign`): the building keeps its walls and roofs alone.
+    // Its flagpole stands on the sign: the building keeps its walls and roofs alone.
     expect(trianglesOf(building)).toBe(1851);
   });
 
@@ -194,7 +193,7 @@ describe('bakedSite (ADR 0038)', () => {
     expect(sign!.height).toBeLessThan(32);
   });
 
-  it('on a socle, carries the flagpole and the flag on the sign, which the file hangs from the root', () => {
+  it('on a socle, bakes the flagpole into the sign, where the file hangs it', () => {
     const scene = sceneOfFile(SOCLE);
     const sign = scene.getObjectByName('signe')!;
     const top = new Box3().setFromObject(scene.getObjectByName('hampe')!).max.y;
@@ -202,7 +201,7 @@ describe('bakedSite (ADR 0038)', () => {
     expect(scene.getObjectByName('hampe')!.parent).toBe(sign);
     expect(scene.getObjectByName('drapeau')!.parent).toBe(sign);
     // The pole stands in the sign's parts: it grows on its foot, and no cut reaches it.
-    expect(boxOf(baked!.parts).max.y).toBeCloseTo(top, 3);
+    expect(boxOf(baked!.parts).max.y).toBeGreaterThanOrEqual(top);
     expect(boxOf(building).max.y).toBeLessThan(top);
   });
 

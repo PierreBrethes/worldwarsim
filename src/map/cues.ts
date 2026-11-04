@@ -251,6 +251,79 @@ export function chargementsOf(
   );
 }
 
+/** **Un camion de tournée rechargé à son entrepôt ou à son QG** (#278) : son arc neuf, le site,
+ *  ses caisses, et d'où il vient au quai — la route, ou le rang où il attendait son stock. */
+export type Tournee = {
+  readonly arcId: string;
+  readonly siteId: string;
+  readonly troopId: string;
+  readonly crates: number;
+  readonly from: 'road' | 'rank';
+};
+
+type Leg = {
+  readonly state: string;
+  readonly id: string;
+  readonly from: LonLat;
+  readonly troopIds?: ReadonlyArray<string>;
+};
+type Touring = Laden & { readonly role: UnitRole; readonly tour?: unknown };
+
+/**
+ * **Les tournées qui repartent de leur chargement** (#278) : `atBase` recharge et repart dans la
+ * même mutation, et le camion en marche n'est dans aucune pile — `chargementsOf` ne le voit pas.
+ * Un arc à moi neuf, parti du point d'un entrepôt ou d'un QG, d'un camion en tournée dont la
+ * charge a monté. Basée à un avant-poste, rien : pas de quai. Rien chargé, rien.
+ */
+export function tourneesOf(
+  before: {
+    readonly loads: ReadonlyMap<string, number>;
+    readonly arcIds: ReadonlySet<string>;
+    readonly piles: ReadonlyArray<StandingPile>;
+  } | null,
+  arcs: ReadonlyArray<Leg>,
+  troops: ReadonlyArray<Touring>,
+  sites: ReadonlyArray<{ readonly id: string; readonly at: { readonly lonLat: LonLat } | object }>,
+): ReadonlyArray<Tournee> {
+  if (before === null) return [];
+  const quays = loadsAt('landTransport') as ReadonlyArray<string>;
+  return arcs.flatMap((arc) => {
+    if (arc.state !== 'mine' || before.arcIds.has(arc.id)) return [];
+    const site = sites.find(
+      ({ id, at }) =>
+        'lonLat' in at &&
+        quays.includes(/^building-([^@]+)@/.exec(id)?.[1] ?? '') &&
+        samePoint(at.lonLat as LonLat, arc.from),
+    );
+    if (site === undefined) return [];
+    return troops.flatMap((troop) => {
+      const was = before.loads.get(troop.id);
+      const by = loadTotal(troop.load) - (was ?? 0);
+      if (
+        troop.role !== 'landTransport' ||
+        troop.tour === undefined ||
+        !(arc.troopIds ?? []).includes(troop.id) ||
+        was === undefined ||
+        by <= 0
+      )
+        return [];
+      const waited = before.piles.some(
+        ({ at, pieces }) =>
+          'beside' in at && at.beside === site.id && pieces.troopIds.includes(troop.id),
+      );
+      return [
+        {
+          arcId: arc.id,
+          siteId: site.id,
+          troopId: troop.id,
+          crates: Math.min(MAX_CRATES, Math.ceil(by / LOAD_PER_CRATE)),
+          from: waited ? ('rank' as const) : ('road' as const),
+        },
+      ];
+    });
+  });
+}
+
 /**
  * **A newcomer stands at the end of the pieces of its role** (décision de Pierre du 28/10): the
  * piles keep their order by role, and within a role the pieces that stood there before keep their

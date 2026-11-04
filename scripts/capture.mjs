@@ -2,7 +2,7 @@
  * **Une capture du jeu en local**, connecté avec un compte de démo (`npm run demo:mondiale`).
  *
  *     PLAYWRIGHT_DIR=/chemin/vers/pw npm run capture -- <url> <sortie.png> \
- *       [--heure 2026-10-21T12:00Z] [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
+ *       [--heure 2026-10-21T12:00Z] [--horloge 2026-11-04T13:00:00.250Z] [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
  *
  * `PLAYWRIGHT_DIR` : un dossier hors du dépôt où `npm i playwright-core@1.58` a été fait. L'URL
  * peut être un chemin (`/plateau`) pris sur http://localhost:5173 ; `{saison}` y devient
@@ -23,6 +23,8 @@
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
+ * `--horloge` tient l'heure du jeu (`Date.now`) à cet instant ISO ; `horloge=ISO[,ms]` la déplace en
+ * cours de route et capture `ms` après : le milieu d'un fondu d'une demi-seconde.
  * `--heure` tient le soleil à cet instant ISO (avec Z ; midi UTC sans l'option) : il s'ajoute à l'URL
  * et toute autre écriture est refusée. `lieu=@<id>[,distance[,pente°]]` cadre une pile
  * (`stack-point:lon,lat`) ou un bâtiment (`building-<clé>@lon,lat`) là où elle est dessinée, à 3 par
@@ -52,6 +54,7 @@ const flags = new Set([
   '--attendre',
   '--geste',
   '--heure',
+  '--horloge',
 ]);
 /** `--tactile` : un écran tactile, pour les gestes du doigt (`toucher=x,y`, la rose s'ouvre au toucher). */
 const touch = args.includes('--tactile');
@@ -82,7 +85,8 @@ if (!account?.nickname) {
   throw new Error(`--compte : ${keys.join(', ')} (les comptes de ${accountsFile})`);
 }
 
-const origin = 'http://localhost:5173';
+/** Une URL entière garde son origine : la capture d'avant se prend sur le serveur d'un clone. */
+const origin = target.startsWith('http') ? new URL(target).origin : 'http://localhost:5173';
 const heure = hourOf(option('heure'));
 const base = (target.startsWith('/') ? origin + target : target).replace(
   '{saison}',
@@ -116,6 +120,10 @@ try {
   await page.getByLabel('mot de passe').fill(account.password);
   await page.getByRole('button', { name: 'entrer' }).click();
   await page.waitForURL('**/accueil', { timeout: 15000 });
+  /** `--horloge ISO` tient `Date.now` à cet instant, les minuteries courant : l'heure d'un fil (un
+   *  fondu d'une demi-seconde au départ, #433) se capture là où elle tombe. */
+  const clock = option('horloge');
+  if (clock !== undefined) await page.clock.setFixedTime(new Date(clock));
   await page.goto(url);
   /** La notice « Entrée en campagne » couvre le plateau d'une place neuve : on la tamponne. */
   const understood = page.getByRole('button', { name: /compris/i }).first();
@@ -271,6 +279,14 @@ try {
           await page.waitForTimeout(1000);
         }
       }
+    } else if (kind === 'horloge') {
+      // L'heure du jeu passe là, la carte redessine, et la capture tombe `ms` après, sans l'attente
+      // commune : le milieu d'un fondu d'une demi-seconde (#433).
+      const [at, ms = '0'] = value.split(',');
+      await page.clock.setFixedTime(new Date(at));
+      await page.evaluate(() => globalThis.mapEngine.invalidate());
+      await page.waitForTimeout(Number(ms));
+      continue;
     } else if (kind === 'ralenti') {
       const devtools = await page.context().newCDPSession(page);
       await devtools.send('Animation.enable');

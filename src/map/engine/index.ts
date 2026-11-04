@@ -63,8 +63,10 @@ import { PLACING_SNAP_KM } from '@/domain/construction';
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { PilePieces } from '@/domain/pile-pieces';
 import { flowPaceOf, FLOW_TOUCH_MS, FrameDemand, HEARTBEAT_MS } from './frame-demand';
+import { GROUP_SPACING } from '@/domain/pile-layout';
 import {
   ANONYMOUS_SPAN,
+  LAID_OUT_FOR,
   REFERENCE_PX_PER_UNIT,
   setNearFloor,
   TANK_SHARE,
@@ -95,6 +97,8 @@ import {
   mayDock,
   quayTaken,
   stillWaiting,
+  tourStepOf,
+  toursLetGo,
   undock,
 } from './docks';
 import { Ambience } from './ambience';
@@ -497,6 +501,64 @@ const PACES: Readonly<Record<'infantry' | 'armor' | 'landTransport' | 'artillery
   artillery: { lead: 600, mps: 19, roll: 3400, gap: 1500, curve: ease.push },
 };
 
+/** **A tour's ring of ink at its quay**, in reduced motion (#278): its radius in metres of the
+ *  site, the storyboard's 4.2 m. `@a-mesurer` */
+const QUAY_RING_METRES = 4.2;
+
+type Site = NonNullable<ReturnType<MaquetteLayer['siteOf']>>;
+
+/** One metre of a site's model, in units of the board. */
+function metreOf(site: Site): number {
+  return site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+}
+
+/**
+ * **A truck's plan at a site's quay** (#271, #278), what `loadingAt` reads: its rank and the way
+ * it faces there in the site's model, its length on the board, and `origin` the board point its
+ * moves are measured from (its place in the pile, or its pawn's foot on a tour).
+ */
+function planOf(
+  site: Site,
+  siteId: string,
+  at: {
+    stop: Vector3;
+    front: Vector3;
+    rank: Vector3;
+    rankFront: Vector3;
+    long: number;
+    crates: number;
+    origin: Vector3;
+    tour?: Docked['plan']['tour'];
+  },
+): Docked['plan'] {
+  const inside = site.marker('fx_entree');
+  const door = site.marker('fx_sortie');
+  return {
+    rank: at.rank.toArray(),
+    rankFront: at.rankFront.toArray(),
+    length: at.long / metreOf(site),
+    box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
+    socle: { min: site.box.min.toArray(), max: site.box.max.toArray() },
+    quay: { stop: at.stop.toArray(), front: at.front.setY(0).normalize().toArray() },
+    perron:
+      siteId.startsWith('building-warehouse') && inside !== null && door !== null
+        ? {
+            crates: site.crates.map(({ name, at }) => ({ name, at: at.toArray() })),
+            inside: inside.toArray(),
+            door: door.toArray(),
+            top: door.y,
+          }
+        : null,
+    crates: Array<number>(Math.min(at.crates, MAX_CRATES)).fill(0),
+    toBoard: (point) =>
+      site
+        .toBoard(new Vector3(...point))
+        .sub(at.origin)
+        .toArray(),
+    ...(at.tour && { tour: at.tour }),
+  };
+}
+
 export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
@@ -557,6 +619,13 @@ export class MapEngine {
     readonly cue: Extract<Cue, { kind: 'chargement' }>;
     readonly since: number;
   }> = [];
+  /** **Trucks on a tour come to load** (#278), waiting for their pawn, or their quay. */
+  private touring: Array<{
+    readonly cue: Extract<Cue, { kind: 'tournee' }>;
+    readonly since: number;
+  }> = [];
+  /** The tours whose pawn this layer holds at its socle's foot (`ArcLayer.hold`). */
+  private readonly heldTours = new Set<string>();
   /** What each truck at a quay plays, from when: a second load joins it (`loadOf`). */
   private readonly docked = new Map<string, Docked>();
   /** Piles owed their ring of ink once their file has held, at reduced motion (#362). */
@@ -951,8 +1020,11 @@ export class MapEngine {
       );
     }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
-    this.arcs = new ArcLayer(this.frame, this.ink, (medium, which, at, hint) =>
-      this.endOf(medium, which, at, hint),
+    this.arcs = new ArcLayer(
+      this.frame,
+      this.ink,
+      (medium, which, at, hint) => this.endOf(medium, which, at, hint),
+      (at, span) => this.quayOf(at, span),
     );
     this.reach = new ReachRing(this.frame);
     this.zones = new OutpostZones(this.frame, this.night.uniforms);
@@ -993,6 +1065,8 @@ export class MapEngine {
         this.landed();
         // A maquette that lands off its point, on its ring, takes its pin there.
         this.pins.rebuild();
+        // A port that lands moors the threads that leave it (#433).
+        this.relayThreads();
       },
       (at, words) =>
         this.inkBurst({
@@ -1268,6 +1342,30 @@ export class MapEngine {
     this.standing.display(this.besideSites(this.piles));
     // A ring may have carried a maquette elsewhere: its pin follows.
     this.pins.rebuild();
+    this.relayThreads();
+  }
+
+  /**
+   * **Where a hull of `span` leaves or reaches my port at `at`** (#433): its quay as the port is
+   * drawn, and a hull's step off it to seaward, as its garrison stands there (`formationOf`, up
+   * close) — the hull sails from where it stood.
+   */
+  private quayOf(at: Vector3, span: number): { at: Vector3; scale: number } | null {
+    const quay = this.maquettes.quayAt(at.x, at.z, span);
+    if (quay === null) return null;
+    const sea = this.seawardOf(
+      this.frame.lonLatAt(at.x + this.frame.centerX, at.z + this.frame.centerY),
+    );
+    if (sea === null) return quay;
+    const off = (GROUP_SPACING * pieceScale.size * span * quay.scale) / LAID_OUT_FOR;
+    return {
+      at: quay.at.clone().add(new Vector3(sea[0] * off, 0, sea[1] * off)),
+      scale: quay.scale,
+    };
+  }
+
+  /** The threads are laid again once the airfields and ports they leave are placed otherwise. */
+  private relayThreads(): void {
     const runways = this.maquettes.runwaysKey();
     if (runways === this.runways) return;
     this.runways = runways;
@@ -2870,6 +2968,9 @@ export class MapEngine {
       case 'chargement':
         this.loadings.push({ cue, since: performance.now() });
         break;
+      case 'tournee':
+        this.touring.push({ cue, since: performance.now() });
+        break;
       case 'combat':
         this.playCombat(cue);
         break;
@@ -2962,7 +3063,7 @@ export class MapEngine {
     const ids = cue.groups.map((k) => `${cue.pileId}/${k}`);
     const places = ids.map((id) => this.standing.placeOf(id));
     if (site === null || pieces === null || places.some((place) => place === null)) return false;
-    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+    const metre = metreOf(site);
     // The way goes round the building, on its socle's yard when it stands on one.
     const box = { min: site.building.min.toArray(), max: site.building.max.toArray() };
     const queued = { caserne: 0, remise: 0 };
@@ -3421,38 +3522,16 @@ export class MapEngine {
       )
     )
       return 'done';
-    const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
     const rank = site.toModel(place.at);
-    const inside = site.marker('fx_entree');
-    const door = site.marker('fx_sortie');
-    const plan: Docked['plan'] = {
-      rank: rank.toArray(),
-      rankFront: site
-        .toModel(place.at.clone().add(place.front))
-        .sub(rank)
-        .setY(0)
-        .normalize()
-        .toArray(),
-      length: long / metre,
-      box: { min: site.building.min.toArray(), max: site.building.max.toArray() },
-      socle: { min: site.box.min.toArray(), max: site.box.max.toArray() },
-      quay: { stop: stop.toArray(), front: front.setY(0).normalize().toArray() },
-      perron:
-        cue.siteId.startsWith('building-warehouse') && inside !== null && door !== null
-          ? {
-              crates: site.crates.map(({ name, at }) => ({ name, at: at.toArray() })),
-              inside: inside.toArray(),
-              door: door.toArray(),
-              top: door.y,
-            }
-          : null,
-      crates: Array<number>(Math.min(cue.crates, MAX_CRATES)).fill(0),
-      toBoard: (point) =>
-        site
-          .toBoard(new Vector3(...point))
-          .sub(place.at)
-          .toArray(),
-    };
+    const plan = planOf(site, cue.siteId, {
+      stop,
+      front,
+      rank,
+      rankFront: site.toModel(place.at.clone().add(place.front)).sub(rank).setY(0).normalize(),
+      long,
+      crates: cue.crates,
+      origin: place.at,
+    });
     const { docked, truck, site: quay } = dockedOf(plan, cue.siteId, now);
     if (!this.sequences.play(this.standing, cue.groupId, truck, now)) return 'done';
     this.docked.set(cue.groupId, docked);
@@ -3460,8 +3539,108 @@ export class MapEngine {
     return 'done';
   }
 
+  /**
+   * **Un camion de tournée se recharge à son quai** (#278) : son pion est retenu au pied du socle,
+   * la main pose le camion sur la cour (ou il sort de son rang, s'il y attendait son stock), il
+   * recule au quai, charge comme au rang (`loadingAt`), traverse la cour et la main le repose sur
+   * la route ; le pion rattrape son horaire sur sa première étape (`caughtUp`). Tout ou rien,
+   * comme au rang. Un quai pris : le pion attend au pied du socle `LOADING_WAIT_MS` au plus, puis
+   * repart sans séquence. En réduites, un anneau d'encre au `fx_quai`, le pion jamais retenu.
+   */
+  private tourOf({ cue, since }: (typeof this.touring)[number], now: number): Attempt {
+    const building = this.maquettes.pieceOf(cue.siteId);
+    const site = this.maquettes.siteOf(cue.siteId);
+    const drawn = this.arcs.pieceOf(cue.arcId)?.box;
+    const long = this.arcs.truckLength(cue.arcId);
+    const step = tourStepOf(
+      this.sequences.motion,
+      {
+        built: building !== null,
+        site: site !== null,
+        busy:
+          quayTaken(this.docked, cue.siteId, now) ||
+          this.sequences.playsOn(this.maquettes, cue.siteId),
+        drawn: !!drawn && long !== null,
+      },
+      since,
+    );
+    if (step === 'nothing') return 'done';
+    if (step === 'wait') return 'wait';
+    if (step === 'ring') {
+      const quay = site?.marker('fx_quai');
+      if (site && quay)
+        this.standing.rippleAt(site.toBoard(quay), QUAY_RING_METRES * metreOf(site));
+      return 'done';
+    }
+    if (site === null || building === null) return 'wait';
+    const inside = (point: Vector3) => {
+      const { x, z } = site.toModel(point);
+      return (
+        x >= site.box.min.x && x <= site.box.max.x && z >= site.box.min.z && z <= site.box.max.z
+      );
+    };
+    if (step !== 'dock') {
+      // In file at the socle's foot, from its signal: so long at most.
+      if (this.arcs.hold(cue.arcId, inside, step.holdUntil) !== null) this.heldTours.add(cue.arcId);
+      return 'wait';
+    }
+    // The truck itself is read at the quay only: one not landed yet still waits in file.
+    if (!drawn || long === null) return 'wait';
+    const stop = site.marker('fx_quai');
+    const front = site.front('fx_quai');
+    if (
+      stop === null ||
+      front === null ||
+      !mayDock(
+        this.sequences.room,
+        this.seenBig(drawn, LOADING_PX),
+        building.box === null || this.seenBig(building.box, LOADING_PX),
+      )
+    )
+      return 'done';
+    const foot = this.arcs.hold(cue.arcId, inside, Infinity);
+    if (foot === null) return 'done';
+    this.heldTours.add(cue.arcId);
+    // Out of its rank, where it waited for its stock; or from the road, when it was not seen.
+    const stood = cue.from === 'rank' ? this.standing.lastSeen(cue.troopId) : null;
+    const rank = site.toModel(stood?.at ?? foot);
+    const ahead = stood
+      ? stood.at.clone().add(new Vector3(Math.sin(stood.heading), 0, Math.cos(stood.heading)))
+      : null;
+    const plan = planOf(site, cue.siteId, {
+      stop,
+      front,
+      rank,
+      rankFront: ahead ? site.toModel(ahead).sub(rank).setY(0).normalize() : new Vector3(0, 0, 1),
+      long,
+      crates: cue.crates,
+      origin: foot,
+      tour: { foot: site.toModel(foot).toArray(), fromRank: stood !== null },
+    });
+    const { docked, truck, site: quay } = dockedOf(plan, cue.siteId, now, true);
+    if (!this.sequences.play(this.arcs, cue.arcId, truck, now)) return 'done';
+    this.arcs.hold(cue.arcId, inside, now + truck.ms);
+    this.docked.set(cue.arcId, docked);
+    if (!this.sequences.play(this.maquettes, cue.siteId, quay, now)) this.undock(now);
+    return 'done';
+  }
+
   private undock(now: number): void {
-    undock(this.docked, this.sequences, { truck: this.standing, site: this.maquettes }, now);
+    undock(
+      this.docked,
+      this.sequences,
+      { truck: this.standing, site: this.maquettes, arc: this.arcs },
+      now,
+    );
+    // A tour's truck that played out early, or waited for its quay too long, runs on its road.
+    for (const id of toursLetGo(
+      this.heldTours,
+      (arcId) => this.sequences.playsOn(this.arcs, arcId),
+      this.touring,
+    )) {
+      this.arcs.letGo(id, now);
+      this.heldTours.delete(id);
+    }
   }
 
   /** **The doors of a barracks open for its recruits**; a second sortie while they still play
@@ -4315,6 +4494,7 @@ export class MapEngine {
       (deployment) => !this.deployOf(deployment, now) && now - deployment.since < SORTIE_WAIT_MS,
     );
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
+    this.touring = stillWaiting(this.touring, now, (tour) => this.tourOf(tour, now));
     this.undock(now);
     this.boardings = this.boardings.filter((boarding) => {
       if (this.boardOf(boarding, now)) return false;

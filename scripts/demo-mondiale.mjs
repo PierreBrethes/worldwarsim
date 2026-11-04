@@ -109,6 +109,10 @@
  * `--arrivee [s]` (#362) fait marcher de Reims vers l'est-nord-est une pile mêlée française (trois
  * fantassins, deux chars, un canon) qui arrive sur un point vide dans `s` secondes (25 par
  * défaut) : la colonne s'y déploie, et `lieu=@arrivee` cadre son point.
+ * `--quai-dense` (#433) pose la scène de `--navire` et huit chantiers dans les régions voisines
+ * de Marseille (le QG de `--chantiers` d'abord) : un anneau trop large pour sa côte, dessiné à son
+ * plus petit (×0,4), le cargo à quai. Avec `--appareille`, le cargo part pour Agde, et l'heure du
+ * départ s'imprime, pour `--horloge` de la capture (le fondu de 0,5 s). `lieu=@quai-dense`.
  * `--flotte-cote [s]` (#395) pose la scène de `--navire` et envoie le cargo de Marseille vers un
  * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
  * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
@@ -117,6 +121,10 @@
  * garnison à l'entrepôt et au QG, puis les charge dans `s` secondes (25 par défaut) : deux cents
  * munitions à l'entrepôt (deux caisses), soixante au QG puis soixante de pétrole une seconde après
  * (deux chargements joints). `lieu=@chargement` cadre l'entrepôt, `lieu=@chargement-qg` le QG.
+ * `--en-tournee [s]` (#278) met en tournée par Bruxelles un camion de l'entrepôt de l'Oise et un
+ * du QG, les y décharge, et les fait rentrer dans `s` secondes (25 par défaut) : ils rechargent et
+ * repartent de la route. Avec `--cour`, ils attendent à la cour, les munitions à zéro, et le stock
+ * rendu dans `s` secondes les fait repartir de leur rang. `lieu=@en-tournee`, `lieu=@en-tournee-qg`.
  *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
@@ -177,6 +185,13 @@ const ranks = process.argv.includes('--rangs');
 const loadingAt = process.argv.indexOf('--chargement');
 const loadingIn = loadingAt < 0 ? null : Number(process.argv[loadingAt + 1]) || 25;
 let loadingTrucks = null;
+/** `--en-tournee [s]` (#278) : un camion en tournée à l'entrepôt, un autre au QG, de retour de
+ *  Bruxelles dans `s` secondes : ils rechargent et repartent. Avec `--cour`, ils attendent déjà à
+ *  la cour, le stock de munitions vide, et repartent dans `s` secondes, le stock rendu. */
+const touringAt = process.argv.indexOf('--en-tournee');
+const touringIn = touringAt < 0 ? null : Number(process.argv[touringAt + 1]) || 25;
+const yard = process.argv.includes('--cour');
+let touringTrucks = null;
 /** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
@@ -196,7 +211,8 @@ const levels =
   recruitIn !== null ||
   process.argv.includes('--niveaux') ||
   process.argv.includes('--echelle');
-const works = levels || process.argv.includes('--chantiers');
+const works =
+  levels || process.argv.includes('--chantiers') || process.argv.includes('--quai-dense');
 /** `--caserne-chantier` (#365) : une caserne seule en chantier dans l'Aube, son premier niveau
  *  qui monte — le bâtiment coupé sur son socle entier. */
 const risingBarracks = process.argv.includes('--caserne-chantier');
@@ -206,14 +222,20 @@ const raisingBarracks = process.argv.includes('--caserne-montee');
 /** `--flotte-cote [s]` : une flotte partie de Marseille vise la côte d'Agde, arrivée dans s secondes (#395). */
 const coastAt = process.argv.indexOf('--flotte-cote');
 const coastIn = coastAt < 0 ? null : Number(process.argv[coastAt + 1]) || 25;
+/** `--quai-dense` : deux ports dans un anneau à ×0,4, un cargo à quai, un qui appareille (#433). */
+const denseQuay = process.argv.includes('--quai-dense');
 const navy =
-  coastIn !== null || process.argv.includes('--navire') || process.argv.includes('--echelle');
+  denseQuay ||
+  coastIn !== null ||
+  process.argv.includes('--navire') ||
+  process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
 const twinTrucks = process.argv.includes('--deux-camions');
 /** `--demanteler` (#340) : l'avant-poste de `--livraison` près de Bruxelles, à démanteler dans
  *  l'interface : son épingle, l'aire qu'il colore, un camion en garnison. */
 const dismantling = process.argv.includes('--demanteler');
-const logistics = dismantling || tours || twinTrucks || process.argv.includes('--livraison');
+const logistics =
+  dismantling || tours || twinTrucks || touringIn !== null || process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
 /** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
@@ -662,6 +684,47 @@ if (!bare) {
     ]) {
       const { point } = me.buildings.find((building) => building.key === key);
       places[name] = { id: `building-${key}@${point[0]},${point[1]}`, lonLat: point };
+    }
+  }
+  if (touringIn !== null && scene.a !== null) {
+    touringTrucks = JSON.parse(
+      cli(['run', 'dev:loadingScene', JSON.stringify({ playerId: scene.a })]).match(/\{[^}]*\}/)[0],
+    );
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const brussels = me.outposts.find((outpost) => Math.abs(outpost.lonLat[0] - 4.35) < 0.05);
+    for (const [name, key] of [
+      ['en-tournee', 'warehouse'],
+      ['en-tournee-qg', 'hq'],
+    ]) {
+      const { point } = me.buildings.find((building) => building.key === key);
+      places[name] = { id: `building-${key}@${point[0]},${point[1]}`, lonLat: point };
+    }
+    // Loaded, sent to Brussels, unloaded there: on their way back, empty.
+    for (const [troopId, amount] of [
+      [touringTrucks.warehouse, 200],
+      [touringTrucks.hq, 60],
+    ]) {
+      await client.mutation(api.logistics.load, {
+        token: tokenA,
+        seasonId,
+        troopId,
+        resource: 'ammunition',
+        amount,
+      });
+      await client.mutation(api.tours.start, {
+        token: tokenA,
+        seasonId,
+        troopId,
+        stops: [brussels.id],
+      });
+    }
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+    await pause(3000);
+    if (yard) {
+      // Back at the yard, the stock dry: they wait there.
+      cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 0, only: 'ammunition' })]);
+      cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+      await pause(3000);
     }
   }
   if (oilLine && scene.a !== null)
@@ -1165,6 +1228,52 @@ if (!bare) {
       JSON.stringify({ playerId: scene.a, afterMs: arrivalIn * 1000, onTime: true }),
     ]);
   }
+  if (denseQuay && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const site = me.buildings.find((one) => one.key === 'port');
+    places['quai-dense'] = site.point;
+    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 2000 })]);
+    // Sites in my regions within 150 km of the port, 30 km apart at least (`BUILDING_TOO_CLOSE`):
+    // a ring too wide for its coast. A refusal is said, and too few stops the scene.
+    const km = ([a, b], [c, d]) => 111 * Math.hypot((a - c) * Math.cos((b * Math.PI) / 180), b - d);
+    const refusals = [];
+    let started = 0;
+    for (const region of me.regions
+      .filter((one) => km(one.point, site.point) < 150)
+      .sort((a, b) => km(a.point, site.point) - km(b.point, site.point))) {
+      if (started === 8) break;
+      await client
+        .mutation(api.constructions.start, {
+          token: tokenA,
+          seasonId,
+          building: started % 2 === 0 ? 'barracks' : 'warehouse',
+          regionId: region.id,
+          point: { lon: region.point[0], lat: region.point[1] },
+        })
+        .then(
+          () => started++,
+          (error) => refusals.push(`${region.id} : ${JSON.stringify(error.data ?? error.message)}`),
+        );
+    }
+    console.log(`quai-dense : ${started} chantiers près de Marseille`);
+    if (started < 4)
+      throw new Error(`quai-dense : trop peu de chantiers près du port\n${refusals.join('\n')}`);
+    if (process.argv.includes('--appareille')) {
+      const cargo = me.troops.find((one) => one.role === 'cargo');
+      await client.mutation(api.movements.marchTo, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'building', buildingId: site.id },
+        troopIds: [cargo.id],
+        point: { lon: 3.47, lat: 43.31 },
+      });
+      const view = await client.query(api.view.playerView, { token: tokenA, seasonId });
+      const leaving = (view.movements ?? view.me.movements).find((one) =>
+        one.troopIds.includes(cargo.id),
+      );
+      console.log(`quai-dense : départ ${new Date(leaving.departedAt).toISOString()}`);
+    }
+  }
   if (coastIn !== null && scene.a !== null) {
     const to = { lon: 3.47, lat: 43.31 };
     places['flotte-cote'] = [to.lon, to.lat];
@@ -1386,6 +1495,18 @@ if (loadingTrucks !== null) {
   await pause(1000);
   await load(loadingTrucks.hq, 'oil', 60);
   console.log(`Camions chargés à ${new Date().toISOString()}`);
+}
+
+/** `--en-tournee` (#278): the trucks come back to load, or their stock comes back at the yard. */
+if (touringTrucks !== null) {
+  await pause(touringIn * 1000);
+  // Stock for both consignes: two hundred at the warehouse, sixty at the HQ.
+  cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 400, only: 'ammunition' })]);
+  if (yard)
+    for (const troopId of [touringTrucks.warehouse, touringTrucks.hq])
+      cli(['run', 'tours:retry', JSON.stringify({ troopId })]);
+  else cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a })]);
+  console.log(`Tournées rechargées à ${new Date().toISOString()}`);
 }
 
 /** `--former`, `--dissoudre`, `--monter`, `--descendre` (#277): each gesture at its hour. */

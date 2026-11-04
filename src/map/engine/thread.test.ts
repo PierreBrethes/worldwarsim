@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { pawnTarget, temporalPosition, unrollRoute } from '@/domain/route-timing';
 import type { World } from '@/domain/world';
-import { buildGrid, computeRoute, directRoute } from '@/domain/routing';
+import { buildGrid, computeRoute, directRoute, groundAt } from '@/domain/routing';
 import {
   buildThread,
   airRise,
@@ -328,5 +328,82 @@ describe('leadIn', () => {
     let hint: readonly [number, number] = [0, 0];
     leadIn(line, (h) => ((hint = h), null));
     expect(hint[0]).toBeCloseTo(1, 6);
+  });
+});
+
+/** **Un fil de mer amarré à un quai dessiné hors de son point** (#433) : il part du quai, sans
+ *  repasser sur le port par les sommets que le quai a déjà dépassés. */
+describe('a sea thread moored at a quay drawn off its point', () => {
+  const at = (x: number, y: number) => frame.toWorld(x, y);
+  const flat = (a: Vector3, b: Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
+  const route = (points: ReadonlyArray<readonly [number, number]>) => ({
+    ...directRoute(toLonLat(...points[0]!), toLonLat(...points.at(-1)!), 'sea', 10),
+    points: points.map(([x, y]) => toLonLat(x, y)),
+  });
+  const verticesOf = (thread: ReturnType<typeof buildThread>) =>
+    thread.legs.flatMap((leg) => leg.strands.flatMap((strand) => strand.vertices));
+
+  it('leaves from the quay past the points nearer the port, and keeps the rest', () => {
+    const [start, quay] = [at(32, 25), at(32, 26)];
+    const thread = buildThread(
+      route([
+        [32, 25],
+        [32.2, 25.1],
+        [32.4, 25],
+        [36, 25],
+        [38, 25],
+      ]),
+      frame,
+      colors,
+      thickness,
+      opacities,
+      { moor: (which, point) => (which === 'start' && flat(point, start) < 1e-6 ? quay : null) },
+    );
+    const vertices = verticesOf(thread);
+    expect(flat(vertices[0]!, quay)).toBeLessThan(1e-9);
+    for (const vertex of vertices.slice(1)) expect(flat(vertex, start)).toBeGreaterThan(1);
+    expect(flat(vertices.at(-1)!, at(38, 25))).toBeLessThan(1e-9);
+  });
+
+  it('reaches the quay at its end the same way', () => {
+    const [end, quay] = [at(38, 25), at(38, 24)];
+    const thread = buildThread(
+      route([
+        [32, 25],
+        [36, 25],
+        [37.7, 25],
+        [38, 25],
+      ]),
+      frame,
+      colors,
+      thickness,
+      opacities,
+      { moor: (which, point) => (which === 'end' && flat(point, end) < 1e-6 ? quay : null) },
+    );
+    const vertices = verticesOf(thread);
+    expect(flat(vertices.at(-1)!, quay)).toBeLessThan(1e-9);
+    for (const vertex of vertices.slice(0, -1)) expect(flat(vertex, end)).toBeGreaterThan(1);
+    expect(flat(vertices[0]!, at(32, 25))).toBeLessThan(1e-9);
+  });
+
+  it('crosses neither the coast nor the port of a port standing on land', () => {
+    // A port on Westland's shore, drawn by its ring a little off it, its quay at sea.
+    const naval = computeRoute(grid, toLonLat(29.5, 25), toLonLat(40.5, 25), 'naval')!;
+    const start = frame.projectLonLat(naval.points[0]!);
+    const quay = at(30.6, 24);
+    const thread = buildThread(naval, frame, colors, thickness, opacities, {
+      moor: (which, point) => (which === 'start' && flat(point, start) < 1e-6 ? quay : null),
+    });
+    const vertices = verticesOf(thread);
+    expect(flat(vertices[0]!, quay)).toBeLessThan(1e-9);
+    // Its first half, sampled finely, never touches land.
+    const half = vertices.filter((vertex) => vertex.x <= at(35, 25).x);
+    for (let k = 1; k < half.length; k++)
+      for (let s = 0; s <= 10; s++) {
+        const p = half[k - 1]!.clone().lerp(half[k]!, s / 10);
+        expect(groundAt(grid, frame.lonLatAt(p.x + frame.centerX, p.z + frame.centerY))).not.toBe(
+          'land',
+        );
+      }
   });
 });
