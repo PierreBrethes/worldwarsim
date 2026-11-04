@@ -224,7 +224,7 @@ export function renderReport({ code, launchedAt, now, players, report }) {
 
   say(
     '## 8. Atouts nationaux',
-    "Usage de chaque atout (ADR 0039 §2), compté au journal ; à zéro tant que son lot n'est pas codé. L'Évacuation compte chaque rasage soviétique, le Prêt-bail chaque convoi arrivé au dépôt d'un autre.",
+    "Usage de chaque atout (ADR 0039 §2), compté au journal ; à zéro tant que son lot n'est pas codé. L'Évacuation compte chaque rasage soviétique, le Prêt-bail chaque convoi qui a livré au dépôt d'un autre.",
     table(
       ['Nation', 'Atout', 'Usages'],
       report.assets.map((row) => [row.nation, row.asset, row.uses]),

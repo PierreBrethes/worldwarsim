@@ -182,6 +182,16 @@ describe('seasonReport.outpostEvents', () => {
         kept: none,
         abroad: true,
       });
+      /** Un convoi arrivé à un dépôt qui n'a rien pris n'a rien livré. */
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 7,
+        kind: 'supplyDelivered',
+        hostCountry: 'FRA',
+        delivered: none,
+        kept: load,
+        abroad: true,
+      });
       await ctx.db.insert('notices', {
         ...head,
         at: 8,
@@ -199,7 +209,8 @@ describe('seasonReport.outpostEvents', () => {
 
     expect(page.next).toBeNull();
     expect(page.events.map((event) => event.kind)).toEqual(['stands', 'raised', 'taken']);
-    /** Un rasage évacué et un Prêt-bail ; la livraison à son propre dépôt ne compte pas. */
+    /** Un rasage évacué et un Prêt-bail livré ; ni le convoi revenu plein, ni la livraison à son
+     *  propre dépôt ne comptent. */
     expect(page.uses).toBe(2);
   });
 });

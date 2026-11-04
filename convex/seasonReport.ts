@@ -9,6 +9,7 @@ import { seasonMovements, seasonOutposts, seasonTroops } from './movement/forces
 import type { OutpostEvent, ReportInput, ReportTroop } from '../src/domain/season-report';
 import { modeOf } from '../src/domain/season-mode';
 import type { LonLat } from '../src/domain/geo';
+import { loadTotal } from '../src/domain/logistics';
 
 /**
  * **La lecture du rapport de saison** (ADR 0027 §7) : elle range les faits que la base garde,
@@ -168,9 +169,14 @@ export const outpostEvents = internalQuery({
       const kind = outpostKindOf(notice);
       if (kind !== null) events.push({ playerId, at: notice.at, kind });
       /** **Un rasage évacué** (ADR 0039 §5) : la dépêche porte la réserve. **Un Prêt-bail**
-       *  (§3) : le convoi arrivé au dépôt d'un autre, qu'il ait pris ou non. */
+       *  (§3) : une livraison réelle au dépôt d'un autre, jamais un convoi revenu plein. */
       if (notice.kind === 'buildingDemolished' && notice.kept !== undefined) uses += 1;
-      if (notice.kind === 'supplyDelivered' && notice.abroad === true) uses += 1;
+      if (
+        notice.kind === 'supplyDelivered' &&
+        notice.abroad === true &&
+        loadTotal(notice.delivered) > 0
+      )
+        uses += 1;
     }
     return { events, uses, next: page.isDone ? null : page.continueCursor };
   },
