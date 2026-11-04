@@ -1263,13 +1263,13 @@ export class StandingLayer implements SequenceHost {
     this.aimed = aimed;
   }
 
-  /** **A ring of ink spreads where a piece touches down** (POC, `ripple`); at reduced motion
-   *  only when it is all there is to see (`reduced`). */
   /** **A ring of ink at a point of the board**, in reduced motion (#278): a tour at its quay. */
   rippleAt(at: Vector3, radius: number): void {
     this.ripple(at, radius, false, true);
   }
 
+  /** **A ring of ink spreads where a piece touches down** (POC, `ripple`); at reduced motion
+   *  only when it is all there is to see (`reduced`). */
   private ripple(at: Vector3, radius: number, ochre = false, reduced = false): void {
     if (this.motion !== 'full' && !(reduced && this.motion === 'reduced')) return;
     const ring = new InkRing();
