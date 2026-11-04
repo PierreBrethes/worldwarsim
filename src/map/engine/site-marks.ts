@@ -11,6 +11,7 @@ import {
 } from 'three';
 import { progressAt, type CaptureClock } from '@/domain/capture';
 import { PALETTE } from './palette';
+import type { StandingMaquette } from './maquettes';
 
 /**
  * **Ce qu'un site porte de la prise** (#279, storyboard `storyboard-prise`) : l'agrafe qui compte
@@ -152,4 +153,34 @@ export function flagHeight({ from, to, start, ms }: FlagMotion, now: number): nu
   const t = Math.min(1, Math.max(0, (now - start) / ms));
   const eased = to < from ? t * t : 1 - (1 - t) ** 3;
   return from + (to - from) * eased;
+}
+
+/**
+ * **Ce que la vue dit d'une prise, de deux vues** (#279, Précisions du 04/11) : sans lire le
+ * journal. Chez le capteur, la capture disparaît et le site entre dans mes bâtiments : son
+ * drapeau monte (`hoisted`, mes maquettes neuves). Chez le teneur, la capture disparaît et le site
+ * quitte mes bâtiments : son drapeau descend sur la maquette d'avant (`lowered`). Une capture qui
+ * disparaît sans changer la main est levée : rien. À la chute d'un QG, seul le site visé joue.
+ */
+export function flagCues(
+  before: ReadonlyArray<StandingMaquette>,
+  after: ReadonlyArray<StandingMaquette>,
+): { hoisted: ReadonlyArray<string>; lowered: ReadonlyArray<StandingMaquette> } {
+  const still = (buildingId: string) =>
+    after.some((maquette) => maquette.buildingId === buildingId && maquette.capture !== undefined);
+  const mineIn = (buildingId: string) =>
+    after.find((maquette) => maquette.buildingId === buildingId && maquette.side === 'mine');
+  const ended = (side: 'capturer' | 'defender') =>
+    before.filter(
+      (maquette): maquette is StandingMaquette & { buildingId: string } =>
+        maquette.capture?.side === side &&
+        maquette.buildingId !== undefined &&
+        !still(maquette.buildingId),
+    );
+  return {
+    hoisted: ended('capturer').flatMap(({ buildingId }) => mineIn(buildingId)?.id ?? []),
+    lowered: ended('defender').filter(
+      ({ buildingId, side }) => side === 'mine' && mineIn(buildingId) === undefined,
+    ),
+  };
 }

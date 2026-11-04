@@ -177,6 +177,7 @@ import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer, type Shore } from './sea';
 import { MaquetteLayer, type SeaFront, type StandingMaquette } from './maquettes';
+import { BARE_MS, flagCues, HOIST_MS, LOWER_MS } from './site-marks';
 import {
   besideSites,
   StandingLayer,
@@ -224,6 +225,9 @@ export type { ZoneFocus, ZonePoint } from './outpost-zones';
  *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
 const SHORE_REACH = 0.6 * TANK_SHARE;
 const SHORE_PROBES = 8;
+/** **A site plays its taking from this size on screen** (px, window of 900): its socle under
+ *  64 px takes its end pose (storyboard, ADR 0038 §7). */
+const TAKING_PX = 64;
 
 /** **A port reads the coast it faces within this many km of its point**, and its normal from the
  *  water within a few times this many of it: the water in front, not a bay's chord (#436).
@@ -606,6 +610,10 @@ export class MapEngine {
   private readonly razes = new RazeLayer();
   /** The razed maquettes still falling, whose place is held (`MaquetteLayer.hold`). */
   private readonly falling = new Set<string>();
+  /** **The maquettes as served**, and those a capture took from me, held as they stood while
+   *  their flag comes down (#279), by their building. */
+  private servedMaquettes: ReadonlyArray<StandingMaquette> = [];
+  private readonly lowering = new Map<string, StandingMaquette>();
   /** The piles as last served: a garrison handed back to the ground is drawn at the foot of the
    *  building at its point, standing or falling (`besideSites`). */
   private piles: ReadonlyArray<StandingPile> = [];
@@ -1329,7 +1337,16 @@ export class MapEngine {
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
    *  (ADR 0026 §1). */
-  displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
+  displayMaquettes(served: ReadonlyArray<StandingMaquette>): void {
+    const hoisted = this.takenUnderTheEyes(served);
+    // A site a capture took from me stands as it stood, its flag coming down, then is gone or
+    // surveyed again (#279).
+    const maquettes = [
+      ...served.filter(
+        ({ buildingId }) => buildingId === undefined || !this.lowering.has(buildingId),
+      ),
+      ...this.lowering.values(),
+    ];
     // A razed maquette is copied as it is drawn before its lot is rebuilt without it, and its
     // place held while it falls: its neighbours on a ring stay where they stand.
     const now = performance.now();
@@ -1348,11 +1365,48 @@ export class MapEngine {
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
     this.invalidate();
+    for (const id of hoisted)
+      this.maquettes.runFlag(id, {
+        from: 0,
+        to: 1,
+        start: Date.now() + BARE_MS,
+        ms: HOIST_MS,
+      });
     // A pile posted at the point of a maquette that comes or goes stands at its foot, or not.
     this.standing.display(this.besideSites(this.piles));
     // A ring may have carried a maquette elsewhere: its pin follows.
     this.pins.rebuild();
     this.relayThreads();
+  }
+
+  /**
+   * **A site changed hands under my eyes** (#279, `flagCues`): the ids whose flag runs up once
+   * displayed; a site taken from me is held in `lowering`, its flag running down, and displayed
+   * as served after. Played up close, in the field and at full motion alone — else the end pose.
+   */
+  private takenUnderTheEyes(served: ReadonlyArray<StandingMaquette>): ReadonlyArray<string> {
+    const before = this.servedMaquettes;
+    const { hoisted, lowered } = flagCues(before, served);
+    this.servedMaquettes = served;
+    // Where it stood before this view: the site I took was a survey of mine until now.
+    const seenBefore = (buildingId: string | undefined) => {
+      const was = before.find((maquette) => maquette.buildingId === buildingId);
+      const box = was === undefined ? null : this.maquettes.boxOf(was.id);
+      return this.sequences.motion === 'full' && box !== null && this.seenBig(box, TAKING_PX);
+    };
+    for (const { capture: _staple, ...held } of lowered) {
+      const { buildingId } = held;
+      if (buildingId === undefined || !seenBefore(buildingId)) continue;
+      this.lowering.set(buildingId, held);
+      this.maquettes.runFlag(held.id, { from: 1, to: 0, start: Date.now(), ms: LOWER_MS });
+      setTimeout(() => {
+        this.lowering.delete(buildingId);
+        this.displayMaquettes(this.servedMaquettes);
+      }, LOWER_MS);
+    }
+    return hoisted.filter((id) =>
+      seenBefore(served.find((maquette) => maquette.id === id)?.buildingId),
+    );
   }
 
   /**
