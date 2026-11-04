@@ -222,6 +222,26 @@ async function withRiders(
   return [...troops, ...riders.filter((rider) => !troops.some((one) => one._id === rider._id))];
 }
 
+/** **Chaque transport dépose ce qui tient**, dans l'ordre des identifiants, et garde le reste à
+ *  bord : la boucle d'une livraison chez soi comme d'un Prêt-bail. */
+async function unloadCarriers(
+  ctx: MutationCtx,
+  carriers: ReadonlyArray<Doc<'troops'>>,
+  depot: SupplyLoad,
+  capacity: number,
+): Promise<{ depot: SupplyLoad; delivered: SupplyLoad; kept: SupplyLoad }> {
+  let delivered = emptyLoad();
+  let kept = emptyLoad();
+  for (const carrier of [...carriers].sort((a, b) => (a._id < b._id ? -1 : 1))) {
+    const unloaded = deliveryOf(carrier.load ?? emptyLoad(), depot, capacity);
+    depot = addLoads(depot, unloaded.moved);
+    delivered = addLoads(delivered, unloaded.moved);
+    kept = addLoads(kept, unloaded.kept);
+    await ctx.db.patch(carrier._id, { load: unloaded.kept });
+  }
+  return { depot, delivered, kept };
+}
+
 /**
  * **Décharger au dépôt** : chaque transport de la colonne dépose ce qui tient, dans l'ordre des
  * identifiants, et garde le reste à bord ; ce qu'il portait d'autre y reste en garnison et s'y
@@ -241,18 +261,13 @@ export async function unloadAt(
   if (outpost === null || outpost.playerId !== movement.playerId || !isStanding(outpost, now))
     return null;
   const troops = await troopsAmong(ctx, movement.playerId, movement.troopIds);
-  const carriers = carriersOf(troops).sort((a, b) => (a._id < b._id ? -1 : 1));
-  const capacity = depotCapacity(outpost.level, effectiveSpecialty(outpost));
-  let depot = outpost.depot ?? emptyLoad();
-  let delivered = emptyLoad();
-  let kept = emptyLoad();
-  for (const carrier of carriers) {
-    const unloaded = deliveryOf(carrier.load ?? emptyLoad(), depot, capacity);
-    depot = addLoads(depot, unloaded.moved);
-    delivered = addLoads(delivered, unloaded.moved);
-    kept = addLoads(kept, unloaded.kept);
-    await ctx.db.patch(carrier._id, { load: unloaded.kept });
-  }
+  const carriers = carriersOf(troops);
+  const { depot, delivered, kept } = await unloadCarriers(
+    ctx,
+    carriers,
+    outpost.depot ?? emptyLoad(),
+    depotCapacity(outpost.level, effectiveSpecialty(outpost)),
+  );
   await ctx.db.patch(outpost._id, { depot });
   const riders = troops.filter((troop) => !carriers.some((carrier) => carrier._id === troop._id));
   for (const rider of riders)
@@ -328,27 +343,19 @@ async function deliverAbroad(
   player: Doc<'players'>,
   now: number,
 ): Promise<void> {
-  const carriers = carriersOf(await troopsAmong(ctx, movement.playerId, movement.troopIds)).sort(
-    (a, b) => (a._id < b._id ? -1 : 1),
-  );
+  const carriers = carriersOf(await troopsAmong(ctx, movement.playerId, movement.troopIds));
   const receiving =
     outpost !== null &&
     (outpost.disabledUntil ?? 0) <= now &&
     !besieged(await siegesOf(ctx, outpost.playerId), [outpost._id]) &&
     deliverRefusalOf(carriers, depotOf(outpost, now), true) === null;
-  let depot = outpost?.depot ?? emptyLoad();
-  let delivered = emptyLoad();
-  let kept = emptyLoad();
-  for (const carrier of carriers) {
-    const held = carrier.load ?? emptyLoad();
-    const unloaded = receiving
-      ? deliveryOf(held, depot, depotCapacity(outpost.level, effectiveSpecialty(outpost)))
-      : { moved: emptyLoad(), kept: held };
-    depot = addLoads(depot, unloaded.moved);
-    delivered = addLoads(delivered, unloaded.moved);
-    kept = addLoads(kept, unloaded.kept);
-    await ctx.db.patch(carrier._id, { load: unloaded.kept });
-  }
+  /** Un dépôt qui ne reçoit pas a une place nulle : chaque transport garde tout à bord. */
+  const { depot, delivered, kept } = await unloadCarriers(
+    ctx,
+    carriers,
+    outpost?.depot ?? emptyLoad(),
+    receiving ? depotCapacity(outpost.level, effectiveSpecialty(outpost)) : 0,
+  );
   await ctx.db.insert('notices', {
     playerId: movement.playerId,
     at: now,
