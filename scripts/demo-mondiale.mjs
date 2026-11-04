@@ -139,6 +139,10 @@
  * français sur l'entrepôt adverse relevé en Pologne, et recule leur présence d'une heure et demie :
  * trois caisses sur quatre sont tombées (`pillage`).
  *
+ * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
+ * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
+ * doit s'animer (`saboteur`).
+ *
  *     npm run demo:mondiale
  *
  * Refuse toute URL qui n'est pas 127.0.0.1 ou localhost. Les comptes (mot de passe compris) vont
@@ -172,7 +176,8 @@ const airdrops = process.argv.includes('--largage') || process.argv.includes('--
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
 /** `--sites` (#273) : les sites qui vivent au repos, le Centre qui cherche compris. */
-const livingSites = process.argv.includes('--sites');
+const saboteur = process.argv.includes('--saboteur');
+const livingSites = process.argv.includes('--sites') || saboteur;
 const research = idleCenter || livingSites || process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
@@ -553,6 +558,10 @@ if (!bare) {
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a, idle: idleCenter })]);
   if (livingSites && scene.a !== null) {
     cli(['run', 'dev:sitesScene', JSON.stringify({ playerId: scene.a })]);
+    if (saboteur) {
+      cli(['run', 'dev:sabotageScene', JSON.stringify({ playerId: scene.a })]);
+      places.saboteur = [6.6, 49.05];
+    }
     places.sites = [3.2, 49.2];
     places.bakou = [49.9, 40.5];
   }

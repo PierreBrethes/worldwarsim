@@ -20,7 +20,7 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
-import { nominalStrength, outpostReachKm } from './constants';
+import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { DEPOSIT_POINTS } from '../src/domain/world';
@@ -919,6 +919,35 @@ export const sitesScene = internalMutation({
       tier: 1,
       rank: 0,
       finishesAt: now + 24 * 3_600_000,
+    });
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **Une mine jumelle sabotée** (#432), pour la démo : à six cents mètres de la mine de charbon de
+ * `sitesScene` (même gisement, même région, même clé), une seconde hors service douze heures.
+ * Seule celle de `sitesScene` doit s'animer. À lancer après `sitesScene`.
+ *
+ * `npx convex run dev:sabotageScene '{"playerId":"…"}'`
+ */
+export const sabotageScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    const now = Date.now();
+    const deposit = DEPOSIT_POINTS.find((candidate) => candidate.id === 'coal-FRA-5328');
+    if (deposit === undefined) throw new Error('no deposit coal-FRA-5328');
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'mine',
+      regionId: deposit.regionId,
+      point: { lon: deposit.lonLat[0] + 0.008, lat: deposit.lonLat[1] },
+      level: 1,
+      disabledUntil: now + PLUNDER_DISABLED_HOURS * 3_600_000,
     });
     await recordLinkage(ctx, player.seasonId);
     await reassessDetection(ctx, player.seasonId, now, playerId);

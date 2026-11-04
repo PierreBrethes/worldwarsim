@@ -14,6 +14,8 @@ export function producingSites(me: {
     readonly id: string;
     readonly key: BuildingKey;
     readonly regionId: string;
+    /** Out of service (`PLUNDER_DISABLED_HOURS`): the served rate is its neighbours', not its own. */
+    readonly disabled?: true;
   }>;
   readonly regions: ReadonlyArray<{ readonly id: string; readonly linked: boolean }>;
   readonly extraction: ReadonlyArray<{
@@ -33,7 +35,10 @@ export function producingSites(me: {
     me.buildings
       .filter(
         (building) =>
-          produces(building.key) && linked.has(building.regionId) && rateOf(building) > 0,
+          produces(building.key) &&
+          !building.disabled &&
+          linked.has(building.regionId) &&
+          rateOf(building) > 0,
       )
       .map((building) => building.id),
   );

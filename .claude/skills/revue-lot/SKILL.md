@@ -77,6 +77,10 @@ Ce sont les défauts que les revues ont réellement trouvés.
   en sont les formes vues ; retire la correction en pensée et dis si le test tombe. Chaque garde
   que le lot pose (une exception, une annulation, une valeur qui doit rester stable) a le sien :
   une garde qu'on retire sans qu'aucun test tombe est un finding.
+  Deux autres formes vues (#433, #436) : un test qui passe par un chemin qu'aucun fichier livré
+  ne prend (un GLB simulé sans le repère que tous les vrais portent), et des cas choisis parmi
+  ceux qui passent (cinq ports sur les huit de l'enquête). Les cas de l'issue et de son enquête
+  sont tous dans le test.
 - **Ce qu'un rendu remplace** : quand un lot remplace un rendu par un autre (trait droit → arc,
   pion → scène), liste les cas où l'ancien jouait (scène non jouée, au-delà des limites, rejeu
   ouvert, animations coupées) ; un cas où plus rien ne s'affiche est un finding.
