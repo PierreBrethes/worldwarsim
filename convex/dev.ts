@@ -23,6 +23,7 @@ import { aimOf, march } from './movement/orders';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
+import { regionAtPoint } from './regionGeometry';
 import { DEPOSIT_POINTS } from '../src/domain/world';
 import { isNation } from '../src/domain/nations';
 import type { ResearchCard, UnitRole } from '../src/domain/ids';
@@ -858,6 +859,7 @@ export const lendLeaseScene = internalMutation({
         playerId: player._id,
         point,
         hostCountry,
+        regionId: regionAtPoint([point.lon, point.lat])?.id,
         level: 1,
         specialty: 'general',
         foundedAt: now - 1,
