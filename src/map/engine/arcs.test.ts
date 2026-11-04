@@ -546,58 +546,74 @@ describe('a hull leaving a port drawn smaller', () => {
   const start = frame.projectLonLat([0, 0]);
   const quay = start.clone().add(new Vector3(0.3, 0, -0.2));
   const SPAN = 0.006;
-  /** How large the hull is drawn, as a share of its own size at the same distance. */
-  const sailing = (motion: 'full' | 'reduced', at: number, back = false) => {
-    vi.useFakeTimers({ now: at });
-    try {
-      const arcs = new ArcLayer(
-        frame,
-        { trace: () => 0 } as unknown as InkLayer,
-        undefined,
-        (point) =>
-          Math.hypot(point.x - start.x, point.z - start.z) < 1e-6 ? { at: quay, scale: 0.4 } : null,
-      );
-      arcs.setPlayerNation('france');
-      arcs.motion = motion;
-      const route = back
-        ? directRoute([10, 5], [0, 0], 'sea', 10)
-        : directRoute([0, 0], [10, 5], 'sea', 10);
-      arcs.display([{ ...mine('a'), route, stack: { cargo: 1 } } as ArcView]);
-      arcs.animate();
-      const head = arcs.headPositions.get('a')!.clone();
-      const camera = new PerspectiveCamera();
-      camera.position.copy(head).add(new Vector3(0, 0.05, 0.05));
-      arcs.animate(camera);
-      const hull = vi.mocked(figurineFor).mock.results.at(-1)!.value.object as Group;
-      const d = camera.position.distanceTo(head);
-      return { share: hull.scale.x / troopScale(d, SPAN), head, d };
-    } finally {
-      vi.useRealTimers();
-    }
+  /** One voyage, drawn frame by frame at the server's hour `clock` and the page's `perf`: how
+   *  large the hull is drawn, as a share of its own size at the same distance. */
+  const voyage = (motion: 'full' | 'reduced', back = false) => {
+    const arcs = new ArcLayer(
+      frame,
+      { trace: () => 0 } as unknown as InkLayer,
+      undefined,
+      (point) =>
+        Math.hypot(point.x - start.x, point.z - start.z) < 1e-6 ? { at: quay, scale: 0.4 } : null,
+    );
+    arcs.setPlayerNation('france');
+    arcs.motion = motion;
+    const route = back
+      ? directRoute([10, 5], [0, 0], 'sea', 10)
+      : directRoute([0, 0], [10, 5], 'sea', 10);
+    let shown = false;
+    return (clock: number, perf: number) => {
+      vi.useFakeTimers({ now: clock, toFake: ['Date'] });
+      const page = vi.spyOn(performance, 'now').mockReturnValue(perf);
+      try {
+        if (!shown) arcs.display([{ ...mine('a'), route, stack: { cargo: 1 } } as ArcView]);
+        shown = true;
+        arcs.animate();
+        const head = arcs.headPositions.get('a')!.clone();
+        const camera = new PerspectiveCamera();
+        camera.position.copy(head).add(new Vector3(0, 0.05, 0.05));
+        arcs.animate(camera);
+        const hull = vi.mocked(figurineFor).mock.results.at(-1)!.value.object as Group;
+        const d = camera.position.distanceTo(head);
+        return { share: hull.scale.x / troopScale(d, SPAN), head, d };
+      } finally {
+        page.mockRestore();
+        vi.useRealTimers();
+      }
+    };
   };
   const docked = (d: number) => (0.4 * troopScale(d, SPAN * 0.4)) / troopScale(d, SPAN);
 
   it('leaves from the quay as drawn, at the port scale', () => {
-    const { share, head, d } = sailing('full', 0);
+    const { share, head, d } = voyage('full')(0, 1_000);
     expect(docked(d)).toBeLessThan(0.99);
     expect(share).toBeCloseTo(docked(d), 9);
     expect(Math.hypot(head.x - quay.x, head.z - quay.z)).toBeLessThan(1e-6);
   });
 
-  it('grows back to its own size in half a second, at full motion', () => {
-    const { share, d } = sailing('full', 250);
-    expect(share).toBeGreaterThan(docked(d));
-    expect(share).toBeLessThan(1);
-    expect(sailing('full', 500).share).toBeCloseTo(1, 9);
+  it('grows back to its own size in half a second from the frame it is first drawn', () => {
+    // The view lands 200 ms after the server's departure: the fade starts from there.
+    const at = voyage('full');
+    const first = at(200, 1_000);
+    expect(first.share).toBeCloseTo(docked(first.d), 9);
+    const mid = at(450, 1_250);
+    expect(mid.share).toBeGreaterThan(docked(mid.d));
+    expect(mid.share).toBeLessThan(1);
+    expect(at(700, 1_500).share).toBeCloseTo(1, 9);
+  });
+
+  it('is drawn at its own size when first drawn long after it left', () => {
+    expect(voyage('full')(10_000, 1_000).share).toBeCloseTo(1, 9);
   });
 
   it('takes its size at once out of full motion', () => {
-    expect(sailing('reduced', 1).share).toBeCloseTo(1, 9);
+    expect(voyage('reduced')(1, 1_000).share).toBeCloseTo(1, 9);
   });
 
   it('shrinks back to it in its last half-second, docking at the quay as drawn', () => {
-    expect(sailing('full', 3_600_000 - 600, true).share).toBeCloseTo(1, 9);
-    const end = sailing('full', 3_600_000, true);
+    const at = voyage('full', true);
+    expect(at(3_600_000 - 600, 1_000).share).toBeCloseTo(1, 9);
+    const end = at(3_600_000, 1_600);
     expect(end.share).toBeCloseTo(docked(end.d), 9);
     expect(Math.hypot(end.head.x - quay.x, end.head.z - quay.z)).toBeLessThan(1e-6);
   });

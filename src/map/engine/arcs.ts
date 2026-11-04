@@ -78,20 +78,25 @@ type RenderedArc = {
  *  a pile's glide (`GLIDE_MS`). */
 const QUAY_FADE_MS = 500;
 
+/** **A hull first drawn this long after its departure** is already at sea: the view came late,
+ *  a page opened mid-voyage. `@a-mesurer` */
+const FRESH_DEPARTURE_MS = 3_000;
+
 /**
  * **The size a hull of mine is drawn at** (#433): its port's at the quay, its own at sea, faded
- * over `QUAY_FADE_MS` after it leaves and before it arrives — at once out of full motion.
+ * over `QUAY_FADE_MS` after it leaves (`sailing`, the page's milliseconds since, negative before)
+ * and before it arrives (`docking`, the server's) — at once out of full motion.
  */
 function quaySize(
   { start, end }: { start: number; end: number },
-  { departedAt, arrivesAt }: { departedAt: number; arrivesAt: number },
-  now: number,
+  sailing: number,
+  docking: number,
   full: boolean,
 ): number {
   const away = (ms: number) =>
-    full ? Math.min(1, Math.max(0, ms / QUAY_FADE_MS)) : ms > 0 ? 1 : 0;
+    full ? Math.min(1, Math.max(0, ms / QUAY_FADE_MS)) : ms >= 0 ? 1 : 0;
   const toward = (size: number, share: number) => size + (1 - size) * share;
-  return toward(start, away(now - departedAt)) * toward(end, away(arrivesAt - now));
+  return toward(start, away(sailing)) * toward(end, away(docking));
 }
 
 /** Every thread's weight against its original design: the first one read too heavy on the sheet. */
@@ -222,6 +227,8 @@ export class ArcLayer {
       return last !== undefined && samePoint(last, end);
     });
   }
+  /** When each hull of mine was first drawn past its departure (`sailing`), by movement id. */
+  private readonly sailedAt = new Map<string, number>();
   /** **Pawns held at their socle's foot** (#278), by movement id: the share of their way they
    *  stand at, the share their first leg ends at, until when; then how they catch up. */
   private readonly holds = new Map<
@@ -288,6 +295,21 @@ export class ArcLayer {
   letGo(id: string, now: number): void {
     const held = this.holds.get(id);
     if (held !== undefined && held.until > now) this.holds.set(id, { ...held, until: now });
+  }
+
+  /**
+   * **How long a hull of mine has sailed, by the page's clock** (#433): from the first frame it is
+   * drawn past its departure — the view reaches the page after the server's hour, and the two
+   * clocks differ. First drawn long after it, it has long sailed. Kept over a `rebuild`.
+   */
+  private sailing(id: string, departedAt: number, clock: number, now: number): number {
+    if (clock < departedAt) return -1;
+    let since = this.sailedAt.get(id);
+    if (since === undefined) {
+      since = clock - departedAt <= FRESH_DEPARTURE_MS ? now : -Infinity;
+      this.sailedAt.set(id, since);
+    }
+    return now - since;
   }
 
   /** The share a pawn walks: its own, or held, or catching up (`hold`). */
@@ -387,6 +409,8 @@ export class ArcLayer {
     }
     for (const id of this.holds.keys())
       if (!arcs.some((arc) => arc.id === id)) this.holds.delete(id);
+    for (const id of this.sailedAt.keys())
+      if (!arcs.some((arc) => arc.id === id)) this.sailedAt.delete(id);
     const now = performance.now();
     const clock = Date.now();
     const previous = new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered]));
@@ -677,8 +701,8 @@ export class ArcLayer {
       if (rendered.arc.state === 'mine')
         rendered.pawn.sized = quaySize(
           rendered.quays,
-          rendered.arc.schedule,
-          clock,
+          this.sailing(rendered.arc.id, rendered.arc.schedule.departedAt, clock, now),
+          rendered.arc.schedule.arrivesAt - clock,
           this.motion === 'full',
         );
       rendered.pawn.step(this.motion === 'full' ? elapsed : null, this.motion === 'reduced');
