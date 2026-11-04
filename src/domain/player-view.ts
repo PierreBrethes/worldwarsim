@@ -1501,8 +1501,9 @@ export type PlayerView = {
   }>;
   /**
    * **Les avant-postes étrangers que son relevé garde** (ADR 0039 §3) : id, point et pays hôte,
-   * ni niveau, ni dépôt, ni nation. Le Prêt-bail américain y livre ; les autres s'y voient dire
-   * le refus avant le lâcher.
+   * ni niveau, ni dépôt, ni nation. Tout ordre sur lui — attaque, raid, capture, et le Prêt-bail
+   * américain qui y livre — se vise à ce relevé, jamais à l'avant-poste vivant (`aimOf`) ; les
+   * autres nations s'y voient dire le refus de livrer avant le lâcher.
    */
   readonly surveyedOutposts: ReadonlyArray<{
     readonly id: string;

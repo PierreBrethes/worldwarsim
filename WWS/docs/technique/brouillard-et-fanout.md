@@ -143,8 +143,11 @@ Deux différences avec `sightings`, et elles suivent de ce que le sol ne bouge p
   planter et sa carte ne bougerait pas.
 
 **La ligne garde aussi les avant-postes étrangers debout** (ADR 0039 §3, #448) : id, point et
-pays hôte, rien de plus. C'est le seul « relevé » d'un avant-poste ; le Prêt-bail livre à ceux-là,
-et l'ordre ne lit que la ligne du joueur, jamais l'avant-poste vivant.
+pays hôte, rien de plus. C'est le seul « relevé » d'un avant-poste ; le Prêt-bail livre à ceux-là.
+Tout ordre qui en vise un — livrer, attaquer, raid, capturer — ne lit que la ligne du joueur
+(`aimOf`, `convex/movement/orders.ts`), jamais l'avant-poste vivant : non relevé, il se refuse
+qu'il existe ou non ; démantelé depuis, il se vise encore à son point, et l'arrivée ne trouve
+personne.
 
 Mesure du 31/08 : un mouvement Lisbonne → Moscou (95 sommets, 76 haltes au demi-rayon) écrit
 **21 lignes** en 13 ms ; à quatre joueurs, une heure de jeu — huit avant-postes, huit troupes

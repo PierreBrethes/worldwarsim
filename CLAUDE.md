@@ -56,7 +56,9 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   de voir, rien de plus. Un arc adverse n'a structurellement jamais de `type` ; sa pile (rôles et
   nombres) n'existe que dans la branche `pierced` de `Composition`, servie sous un Guet
   (`readsComposition`, ADR 0037 §5). Une force relevée ne sert ni effectif, ni tier, ni
-  cargaison, ni nation — sauf la nation, au seul teneur de Lisbonne (P11, `convex/view.ts`).
+  cargaison, ni nation — sauf la nation, au seul teneur de Lisbonne (P11, `convex/view.ts`) et
+  au receveur d'un Prêt-bail, dans sa dépêche `lendLeaseReceived` (ADR 0039 §3,
+  `convex/logistics.ts`).
   Chaque joueur lit son propre index de relevés (`sightings`, `campSightings`,
   `regionSightings`), jamais un filtre sur une table de vérité
   (`WWS/docs/technique/brouillard-et-fanout.md`). Toute mutation qui change un détecteur ou une

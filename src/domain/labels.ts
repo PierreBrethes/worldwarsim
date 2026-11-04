@@ -58,7 +58,8 @@ export type MapMarker =
   | {
       /**
        * **Un avant-poste étranger relevé** (ADR 0039 §3) : un point et un pays hôte, ni niveau,
-       * ni dépôt, ni encre — le relevé n'en sert pas davantage. Le Prêt-bail y livre.
+       * ni dépôt, ni encre — le relevé n'en sert pas davantage. Attaque, raid, capture et
+       * Prêt-bail le visent à ce relevé.
        */
       readonly kind: 'foreignOutpost';
       readonly id: string;
@@ -466,7 +467,8 @@ export type MapLabel = {
   readonly building: BuildingHandle | null;
   /** Le mât adverse relevé, la cible de l'expédition — jamais confondu avec `building`. */
   readonly installation: InstallationHandle | null;
-  /** **L'avant-poste étranger relevé** (ADR 0039 §3) : ce qu'un clic droit vise. Absent ailleurs. */
+  /** **L'avant-poste étranger relevé** (ADR 0039 §3) : ce que la rose vise — attaque, raid,
+   *  capture, Prêt-bail. Absent ailleurs. */
   readonly foreignOutpost?: { readonly id: string; readonly hostCountry: string };
   /**
    * **Le camp adverse relevé** (ADR 0024 §1) : ce qu'un clic gauche ouvre en cartouche et ce
