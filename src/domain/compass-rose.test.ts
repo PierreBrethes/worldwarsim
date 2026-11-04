@@ -520,6 +520,14 @@ describe('in aim', () => {
       expect(compass?.refusal).toBe(fr.errors.LEND_LEASE_TRANSPORTS_ONLY());
     });
 
+    it('keeps the capture of a truck that carries infantry, beside the refused delivery', () => {
+      const rifles = { ...truck, id: 'I1', role: 'infantry', load: undefined, carriedBy: 'T1' };
+      const carrying = { ...column, roles: ['landTransport' as const, 'infantry' as const] };
+      const compass = compassOf(target, lent('lendLease', rifles), carrying, null, 0, ['T1']);
+      expect(compass?.actions.map((action) => action.key)).toContain('capture');
+      expect(compass?.refusal).toBe(fr.errors.LEND_LEASE_TRANSPORTS_ONLY());
+    });
+
     it('never stops a tour there, and says so on the trace', () => {
       const traced = traceCompass(target, lent('lendLease'), { carrierId: 'T1', stops: [] });
       expect(traced.actions).toEqual([]);

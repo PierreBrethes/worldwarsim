@@ -709,8 +709,9 @@ function aim(
       };
     }
     if (isMine) return withDelivery(fan, target.id, view, heldTroopIds ?? []);
+    /** **Le Prêt-bail s'ajoute aux branches, il n'en retire aucune** : un camion chargé qui porte
+     *  de l'infanterie garde sa capture, et le refus de livrer se dit à côté. */
     const lent = withLendLease(fan, target, view, column, heldTroopIds ?? []);
-    if (lent !== fan) return lent;
     const capture = captureBranch(
       { kind: 'outpost' },
       { kind: 'outpost', id: target.id },
@@ -719,8 +720,12 @@ function aim(
       column,
       false,
     );
-    if (capture.action === null) return fan;
-    return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
+    if (capture.action === null) return lent;
+    return {
+      ...lent,
+      actions: [...lent.actions, capture.action],
+      refusal: lent === fan ? null : lent.refusal,
+    };
   }
   if (target.kind === 'strategic') {
     const aimed: MovementAim = {
