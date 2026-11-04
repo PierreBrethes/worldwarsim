@@ -186,6 +186,13 @@ describe('dispersionsOf (#277)', () => {
     const founded = [at('outpost', [2, 48], ...squad)];
     expect(dispersionsOf(before, founded, [[], []])).toEqual([]);
   });
+
+  it('names nothing for a piece found far off after a gap between two views: it marched there', () => {
+    const before = [at('A', [2, 48], ...squad)];
+    // A laptop asleep: the armour marched 200 km while no view came.
+    const now = [at('A', [2, 48], squad[0]!, squad[1]!), at('B', [2, 49.8], squad[2]!)];
+    expect(dispersionsOf(before, now, [[], []])).toEqual([]);
+  });
 });
 
 describe('rankKept', () => {

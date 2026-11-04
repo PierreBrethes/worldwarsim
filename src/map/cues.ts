@@ -1,4 +1,5 @@
-import type { LonLat } from '@/domain/geo';
+import { distanceKm, type LonLat } from '@/domain/geo';
+import { disbandRadiusKm, disbandSpanKm } from '@/domain/movement-orders';
 import type { UnitRole } from '@/domain/ids';
 import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
@@ -136,6 +137,15 @@ export type Dispersion = {
   }>;
 };
 
+/** How far past its crown's radius a piece set apart may stand: further, it marched there
+ *  between two views (a laptop asleep). `@a-mesurer` */
+const CROWN_MARGIN = 2;
+
+/** Where the crown of a squad can stand at most, in km (`disbandRadiusKm`). */
+const crownReachKm = ({ groups }: StandingPile['pieces']): number =>
+  disbandRadiusKm(groups.length, disbandSpanKm(groups.map(({ role }) => ({ role })))) *
+  CROWN_MARGIN;
+
 /**
  * **Les escouades dissoutes** (#277, U) : une troupe dans la pile A à la vue d'avant, dans une
  * pile B ≠ A maintenant, ailleurs, et dans aucune de mes colonnes sur les deux vues. Rien de neuf
@@ -168,6 +178,7 @@ export function dispersionsOf(
         from.pile.id === id ||
         !('lonLat' in from.pile.at) ||
         samePoint(from.pile.at.lonLat, at.lonLat) ||
+        distanceKm(from.pile.at.lonLat, at.lonLat) > crownReachKm(from.pile.pieces) ||
         troopIds.some((troop) => marching.has(troop))
       )
         return;
