@@ -20,7 +20,7 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
-import { nominalStrength, outpostReachKm } from './constants';
+import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { DEPOSIT_POINTS } from '../src/domain/world';
@@ -920,6 +920,41 @@ export const sitesScene = internalMutation({
       rank: 0,
       finishesAt: now + 24 * 3_600_000,
     });
+    await recordLinkage(ctx, player.seasonId);
+    await reassessDetection(ctx, player.seasonId, now, playerId);
+  },
+});
+
+/**
+ * **Deux mines jumelles, l'une sabotée** (#432), pour la démo : deux mines de charbon à six cents
+ * mètres l'une de l'autre sur le gisement de Lorraine (même région, même clé), la seconde hors
+ * service douze heures. Seule la première doit s'animer.
+ *
+ * `npx convex run dev:sabotageScene '{"playerId":"…"}'`
+ */
+export const sabotageScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such player');
+    await headquartersOf(ctx, player);
+    const now = Date.now();
+    const deposit = DEPOSIT_POINTS.find((candidate) => candidate.id === 'coal-FRA-5328');
+    if (deposit === undefined) throw new Error('no deposit coal-FRA-5328');
+    for (const [dLon, state] of [
+      [0, {}],
+      [0.008, { disabledUntil: now + PLUNDER_DISABLED_HOURS * 3_600_000 }],
+    ] as const) {
+      await ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId,
+        key: 'mine',
+        regionId: deposit.regionId,
+        point: { lon: deposit.lonLat[0] + dLon, lat: deposit.lonLat[1] },
+        level: 1,
+        ...state,
+      });
+    }
     await recordLinkage(ctx, player.seasonId);
     await reassessDetection(ctx, player.seasonId, now, playerId);
   },
