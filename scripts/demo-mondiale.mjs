@@ -139,6 +139,9 @@
  * Namur au dépôt entamé (`pret-bail`) et Liège (`pret-bail-recu`), un camion français chargé à
  * Namur qui a relevé Aix-la-Chapelle (le refus, compte a), et un Prêt-bail déjà livré à Liège : le
  * convoi et le receveur (compte a) lisent chacun leur dépêche.
+ * `--porte-avions` (#449, avec `--huit`) fait partir au large de Honshu une escadre japonaise au
+ * cap libre (`porte-avions`, compte g) et une escadre française du même point au même instant
+ * (compte a), et pose une seconde escadre japonaise passée la mi-parcours (`porte-avions-tenu`).
  * `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
  * rangs et une artillerie, et une escorte et un porte-avions en golfe de Gascogne (`rangs-mer`).
  * `--recrue [s]` forme une infanterie de rang 2 à la caserne de `--niveaux` et la fait sortir dans
@@ -457,6 +460,17 @@ if (!bare) {
       places,
       JSON.parse(
         cli(['run', 'dev:lendLeaseScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
+      ),
+    );
+  /** `--porte-avions` : deux escadres japonaises, l'une au cap libre, l'autre passée la
+   *  mi-parcours, et une escadre française au même point que la première. */
+  if (eight && process.argv.includes('--porte-avions'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:carrierDoctrineScene', JSON.stringify({ seasonId })]).match(
+          /\{[\s\S]*\}/,
+        )[0],
       ),
     );
   /** `--rangs` : les deux rangs, une artillerie à côté de Paris ; une flotte au large de la Bretagne. */

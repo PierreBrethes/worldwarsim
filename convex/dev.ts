@@ -14,7 +14,7 @@ import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
 import { marchingForce, reassessDetection } from './movement/detection';
-import { lineCrossingOf } from '../src/domain/interception';
+import { lineCrossingOf, positionAt } from '../src/domain/interception';
 import { windowsOf } from '../src/domain/sighting-windows';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
@@ -922,6 +922,72 @@ export const lendLeaseScene = internalMutation({
       'pret-bail': [namur.lon, namur.lat],
       'pret-bail-convoi': [aachen.lon, aachen.lat],
       'pret-bail-recu': [liege.lon, liege.lat],
+    };
+  },
+});
+
+/**
+ * **La Doctrine du porte-avions** (#449, `--porte-avions` avec `--huit`) : une escadre japonaise
+ * qui part au large de Honshu (cap libre, compte g), une autre déjà passée la mi-parcours vers
+ * Truk (cap tenu), et une escadre française partie du même point vers le même cap, au même
+ * instant (sans l'atout, compte a).
+ */
+export const carrierDoctrineScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const season = (await ctx.db.get(seasonId))!;
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const japan = players.find((player) => player.nation === 'japan');
+    const france = players.find((player) => player.nation === 'france');
+    if (japan === undefined || france === undefined) throw new Error('--porte-avions wants --huit');
+    const now = Date.now();
+    const sail = async (
+      player: Doc<'players'>,
+      from: { lon: number; lat: number },
+      to: { lon: number; lat: number },
+    ) => {
+      const troopIds = [];
+      for (const role of ['carrier', 'escort'] as const)
+        troopIds.push(
+          await ctx.db.insert('troops', {
+            seasonId,
+            playerId: player._id,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: from,
+          }),
+        );
+      return march(ctx, {
+        playerId: player._id,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds,
+        aim: await aimOf(ctx, player._id, { kind: 'point', point: to }),
+      });
+    };
+    const offHonshu = { lon: 142, lat: 32 };
+    const eastward = { lon: 158, lat: 25 };
+    await sail(japan, offHonshu, eastward);
+    await sail(france, offHonshu, eastward);
+    /** Partie il y a six dixièmes de sa route : la mi-parcours est derrière elle. */
+    const held = await sail(japan, { lon: 150, lat: 30 }, { lon: 152, lat: 12 });
+    const length = held.arrivesAt - now;
+    const arrivesAt = now + length * 0.4;
+    await ctx.db.patch(held.movementId, { departedAt: now - length * 0.6, arrivesAt });
+    await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, {
+      movementId: held.movementId,
+    });
+    const past = marchingForce((await ctx.db.get(held.movementId))!);
+    await reassessDetection(ctx, seasonId, now);
+    return {
+      'porte-avions': [offHonshu.lon, offHonshu.lat],
+      'porte-avions-tenu': positionAt(past, now),
     };
   },
 });
