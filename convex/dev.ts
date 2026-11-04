@@ -20,6 +20,7 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
+import { planCargoReturn } from './movement/cargoReturn';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
@@ -2371,39 +2372,6 @@ export const takingScene = internalMutation({
       expectedAt: completesAt,
     });
 
-    // Two raids whose presence ends under the eyes, as `startPresence` leaves them.
-    const raid = async (target: typeof warehouse, squads: number, inMs: number) => {
-      const troopIds = [];
-      const near = { lon: target.point.lon - 0.2, lat: target.point.lat };
-      for (let k = 0; k < squads; k++) troopIds.push(await infantry(near));
-      const { movementId } = await march(ctx, {
-        playerId,
-        season,
-        type: 'raid',
-        origin: { kind: 'point', point: near },
-        troopIds,
-        aim: await aimOf(ctx, playerId, { kind: 'point', point: target.point }),
-      });
-      const until = now + inMs;
-      await ctx.db.patch(movementId, {
-        from: target.point,
-        to: target.point,
-        points: [target.point],
-        legs: [],
-        distanceUnits: 0,
-        costUnits: 0,
-        departedAt: now,
-        arrivesAt: until,
-        plunder: { phase: 'presence', buildingId: target.id, until, engagementId: null },
-      });
-      await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
-        movementId,
-        expectedAt: until,
-      });
-    };
-    await raid(warehouse, 2, raidInMs ?? captureInMs);
-    await raid(mine, 1, (raidInMs ?? captureInMs) + 20_000);
-
     // Crates sighted: one at Tournai that my column takes up, one at Mons taken by another first.
     const zero = { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 };
     const crate = async (
@@ -2467,11 +2435,59 @@ export const takingScene = internalMutation({
       });
       await ctx.scheduler.runAt(now + inMs, internal.movements.arrive, { movementId });
       if (gone) await ctx.db.delete(crateId);
+      return movementId;
     };
     const tournai = { lon: 3.39, lat: 50.6 };
     const mons = { lon: 3.95, lat: 50.45 };
-    await crate(tournai, { lon: 3.06, lat: 50.63 }, crateInMs, false);
+    const column = await crate(tournai, { lon: 3.06, lat: 50.63 }, crateInMs, false);
     await crate(mons, { lon: 4.44, lat: 50.41 }, crateInMs + 15_000, true);
+    // Two raids whose presence ends under the eyes, as `startPresence` leaves them. They stand
+    // at their site from the start, with no route: copies of a crate's column, past the slots.
+    const raid = async (
+      template: Id<'movements'>,
+      target: typeof warehouse,
+      squads: number,
+      inMs: number,
+    ) => {
+      const troopIds = [];
+      for (let k = 0; k < squads; k++) troopIds.push(await infantry(target.point));
+      const until = now + inMs;
+      const returnPlan = await planCargoReturn(ctx, {
+        seasonId,
+        playerId,
+        from: [target.point.lon, target.point.lat],
+        roles: troopIds.map(() => 'infantry' as const),
+        now,
+      });
+      const { _id, _creationTime, lootCollection, ...column } = (await ctx.db.get(template))!;
+      void [_id, _creationTime, lootCollection];
+      const movementId = await ctx.db.insert('movements', {
+        ...column,
+        troopIds,
+        from: target.point,
+        to: target.point,
+        points: [target.point],
+        legs: [],
+        distanceUnits: 0,
+        costUnits: 0,
+        departedAt: now,
+        arrivesAt: until,
+        plunder: {
+          phase: 'presence',
+          buildingId: target.id,
+          until,
+          engagementId: null,
+          returnRegionId: returnPlan?.regionId ?? null,
+          returnPlan,
+        },
+      });
+      await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
+        movementId,
+        expectedAt: until,
+      });
+    };
+    await raid(column, warehouse, 2, raidInMs ?? captureInMs);
+    await raid(column, mine, 1, (raidInMs ?? captureInMs) + 20_000);
     await reassessDetection(ctx, seasonId, now);
     return {
       prise: [barracksPoint.lon, barracksPoint.lat],

@@ -489,3 +489,40 @@ describe('dev.backfillListeningSilent', () => {
     vi.useRealTimers();
   });
 });
+
+describe('dev.takingScene', () => {
+  /** La scène de #279 : deux raids tenus au site, qui s'achèvent à leur heure. */
+  it('holds a plunder and a sabotage at their sites, and lets each complete on time', async () => {
+    vi.useFakeTimers();
+    try {
+      const { t, playerId } = await twoNations();
+      const enemyId = await t.run(
+        async (ctx) =>
+          (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
+      );
+      await t.mutation(internal.dev.takingScene, {
+        playerId,
+        enemyId,
+        captureInMs: 60_000,
+        crateInMs: 30_000,
+        raidInMs: 90_000,
+      });
+      const raids = () =>
+        t.run(async (ctx) =>
+          (await ctx.db.query('movements').collect()).filter((m) => m.plunder !== undefined),
+        );
+      expect((await raids()).map((m) => m.plunder?.phase)).toEqual(['presence', 'presence']);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const reports = await t.run(async (ctx) =>
+        Promise.all(
+          (await ctx.db.query('plunderReports').collect()).map(
+            async (report) => (await ctx.db.get(report.buildingId))?.key,
+          ),
+        ),
+      );
+      expect(reports.sort()).toEqual(['mine', 'warehouse']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
