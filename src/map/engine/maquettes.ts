@@ -43,6 +43,7 @@ import {
   FLAG_DROP,
   flagHeight,
   type FlagMotion,
+  sealHeight,
   sealsOf,
   stapleOf,
   stapleShare,
@@ -1533,10 +1534,12 @@ export class MaquetteLayer implements SequenceHost {
           item.staple.matrixWorldNeedsUpdate = true;
         }
         if (item.seals !== null && item.seal !== null) {
-          const [x, y, z, yaw] = item.seal;
+          const [x, y, z, yaw, length] = item.seal;
           item.seals.matrix
             .copy(standing)
-            .multiply(flagDown.makeRotationY(yaw).setPosition(x, y, z));
+            .multiply(
+              flagDown.makeRotationY(yaw).setPosition(x, sealHeight(y, length, SOCLE_TOP), z),
+            );
           item.seals.matrixWorldNeedsUpdate = true;
         }
         const copy = this.copies.get(item.id);

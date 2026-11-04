@@ -906,14 +906,14 @@ describe('a site on its socle (ADR 0038)', () => {
 
   it('seals a site out of service at its mark, and no other', async () => {
     const layer = await layerOf([
-      site(MINE, { side: 'mine', ink: '#2a5ba8', seal: [0, 4.6, 8, 0, 3.4] }),
+      site(MINE, { side: 'mine', ink: '#2a5ba8', seal: [0, 5.2, 8, 0, 3.4] }),
       site('installation-seen', { side: 'seen' }),
     ]);
     const seals: Object3D[] = [];
     layer.group.traverse((node) => node.name === 'scelles' && seals.push(node));
     expect(seals).toHaveLength(1);
     const drawn = layer.drawnOf(MINE)!;
-    const mark = new Vector3(0, 4.6, 8).applyMatrix4(drawn.matrix);
+    const mark = new Vector3(0, 5.2, 8).applyMatrix4(drawn.matrix);
     expect(new Vector3().applyMatrix4(seals[0]!.matrix).distanceTo(mark)).toBeLessThan(1e-6);
   });
 

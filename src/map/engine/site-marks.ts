@@ -108,9 +108,16 @@ export function traceStaple(staple: Mesh, share: number, pale: boolean): boolean
   return true;
 }
 
-const PLANK_WOOD = new MeshStandardMaterial({ color: '#9c7a4e', roughness: 0.85 });
+const PLANK_WOOD = new MeshStandardMaterial({ color: '#b08a55', roughness: 0.85 });
 /** The planks cross this much off the horizontal. */
 const PLANK_TILT = 0.6;
+/** **The seals drawn larger than the storyboard's planks**, to read at the board's closest zoom,
+ *  at 1440 as on a phone. `@a-mesurer` */
+export const SEAL_SCALE = 2.5;
+/** **How high the middle of the seals stands**, over a mark that sits lower: its lower ends
+ *  clear the socle (`top`), by 20 cm. */
+export const sealHeight = (y: number, length: number, top: number): number =>
+  Math.max(y, top + (Math.sin(PLANK_TILT) * length * SEAL_SCALE) / 2 + 0.2);
 
 /** **Les scellés** (décision 5) : deux planches de `length` mètres clouées en croix devant la
  *  porte, origine au milieu de la croix, face vers +z. Un état, pas une animation. */
@@ -121,9 +128,12 @@ export function sealsOf(length: number): Group {
   for (const tilt of [PLANK_TILT, -PLANK_TILT]) {
     const nailed = new Mesh(plank, PLANK_WOOD);
     nailed.rotation.z = tilt;
+    // One over the other where they cross, not through it.
+    nailed.position.z = tilt > 0 ? 0 : 0.15 * SEAL_SCALE;
     nailed.castShadow = true;
     seals.add(nailed);
   }
+  for (const plank of seals.children) plank.scale.multiplyScalar(SEAL_SCALE);
   seals.matrixAutoUpdate = false;
   return seals;
 }

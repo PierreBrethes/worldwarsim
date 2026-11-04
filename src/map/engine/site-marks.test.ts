@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { StandingMaquette } from './maquettes';
-import { flagCues, flagHeight, STAPLE_STEPS, stapleShare } from './site-marks';
+import {
+  flagCues,
+  flagHeight,
+  SEAL_SCALE,
+  sealHeight,
+  STAPLE_STEPS,
+  stapleShare,
+} from './site-marks';
 
 const clock = { progress: 0, at: 0, rate: 1, durationMs: 1000, rest: null };
 const maquette = (
@@ -68,5 +75,13 @@ describe('the staple and the flag (#279)', () => {
     expect(flagHeight(down, 2000)).toBe(0);
     const up = { from: 0, to: 1, start: 100, ms: 1000 };
     expect(flagHeight(up, 600)).toBe(0.875);
+  });
+});
+
+describe('sealHeight (#279)', () => {
+  it('keeps a mark high enough, and lifts a low one until its planks clear the socle', () => {
+    expect(sealHeight(9, 3.4, 2.2)).toBe(9);
+    const lifted = sealHeight(3, 3.4, 2.2);
+    expect(lifted - (Math.sin(0.6) * 3.4 * SEAL_SCALE) / 2).toBeCloseTo(2.4);
   });
 });
