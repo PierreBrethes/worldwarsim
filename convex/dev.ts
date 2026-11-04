@@ -926,9 +926,9 @@ export const sitesScene = internalMutation({
 });
 
 /**
- * **Deux mines jumelles, l'une sabotée** (#432), pour la démo : deux mines de charbon à six cents
- * mètres l'une de l'autre sur le gisement de Lorraine (même région, même clé), la seconde hors
- * service douze heures. Seule la première doit s'animer.
+ * **Une mine jumelle sabotée** (#432), pour la démo : à six cents mètres de la mine de charbon de
+ * `sitesScene` (même gisement, même région, même clé), une seconde hors service douze heures.
+ * Seule celle de `sitesScene` doit s'animer. À lancer après `sitesScene`.
  *
  * `npx convex run dev:sabotageScene '{"playerId":"…"}'`
  */
@@ -937,24 +937,18 @@ export const sabotageScene = internalMutation({
   handler: async (ctx, { playerId }) => {
     const player = await ctx.db.get(playerId);
     if (player === null || !isNation(player.nation)) throw new Error('no such player');
-    await headquartersOf(ctx, player);
     const now = Date.now();
     const deposit = DEPOSIT_POINTS.find((candidate) => candidate.id === 'coal-FRA-5328');
     if (deposit === undefined) throw new Error('no deposit coal-FRA-5328');
-    for (const [dLon, state] of [
-      [0, {}],
-      [0.008, { disabledUntil: now + PLUNDER_DISABLED_HOURS * 3_600_000 }],
-    ] as const) {
-      await ctx.db.insert('buildings', {
-        seasonId: player.seasonId,
-        playerId,
-        key: 'mine',
-        regionId: deposit.regionId,
-        point: { lon: deposit.lonLat[0] + dLon, lat: deposit.lonLat[1] },
-        level: 1,
-        ...state,
-      });
-    }
+    await ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId,
+      key: 'mine',
+      regionId: deposit.regionId,
+      point: { lon: deposit.lonLat[0] + 0.008, lat: deposit.lonLat[1] },
+      level: 1,
+      disabledUntil: now + PLUNDER_DISABLED_HOURS * 3_600_000,
+    });
     await recordLinkage(ctx, player.seasonId);
     await reassessDetection(ctx, player.seasonId, now, playerId);
   },

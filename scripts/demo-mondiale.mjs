@@ -172,7 +172,8 @@ const airdrops = process.argv.includes('--largage') || process.argv.includes('--
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
 /** `--sites` (#273) : les sites qui vivent au repos, le Centre qui cherche compris. */
-const livingSites = process.argv.includes('--sites');
+const saboteur = process.argv.includes('--saboteur');
+const livingSites = process.argv.includes('--sites') || saboteur;
 const research = idleCenter || livingSites || process.argv.includes('--recherche');
 const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
@@ -551,13 +552,12 @@ if (!bare) {
   /** Un Centre de recherche, deux cartes acquises, une troisième en cours (#123). */
   if (research && scene.a !== null)
     cli(['run', 'dev:researchScene', JSON.stringify({ playerId: scene.a, idle: idleCenter })]);
-  /** `--saboteur` (#432) : deux mines jumelles en Lorraine, la seconde sabotée (`saboteur`). */
-  if (process.argv.includes('--saboteur') && scene.a !== null) {
-    cli(['run', 'dev:sabotageScene', JSON.stringify({ playerId: scene.a })]);
-    places.saboteur = [6.6, 49.05];
-  }
   if (livingSites && scene.a !== null) {
     cli(['run', 'dev:sitesScene', JSON.stringify({ playerId: scene.a })]);
+    if (saboteur) {
+      cli(['run', 'dev:sabotageScene', JSON.stringify({ playerId: scene.a })]);
+      places.saboteur = [6.6, 49.05];
+    }
     places.sites = [3.2, 49.2];
     places.bakou = [49.9, 40.5];
   }
