@@ -1,4 +1,4 @@
-import type { LonLat } from '@/domain/geo';
+import { samePoint, type LonLat } from '@/domain/geo';
 import { type Box3, type Frustum, Group, Vector3, type Camera, type Raycaster } from 'three';
 import {
   pawnTarget,
@@ -594,10 +594,6 @@ export class ArcLayer {
 }
 
 /** A closed file waits this long for its pile to stand (`SORTIE_WAIT_MS` and a beat). */
-/** The same point, as served twice. */
-const samePoint = (a: LonLat, b: LonLat): boolean =>
-  Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) < 1e-9;
-
 const LEFT_MS = 3000;
 
 function release({ thread, pawn, relic }: RenderedArc): void {

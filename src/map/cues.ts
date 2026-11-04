@@ -1,4 +1,4 @@
-import { distanceKm, type LonLat } from '@/domain/geo';
+import { distanceKm, samePoint, type LonLat } from '@/domain/geo';
 import { disbandRadiusKm, disbandSpanKm } from '@/domain/movement-orders';
 import type { UnitRole } from '@/domain/ids';
 import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
@@ -195,9 +195,6 @@ export function dispersionsOf(
   }
   return [...found.values()];
 }
-
-const samePoint = (a: LonLat, b: LonLat): boolean =>
-  Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) < 1e-9;
 
 type Laden = { readonly id: string; readonly load?: SupplyLoad | undefined };
 

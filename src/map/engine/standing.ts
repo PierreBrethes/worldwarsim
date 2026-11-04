@@ -21,7 +21,7 @@ import {
   Vector3,
 } from 'three';
 import type { Forbidden } from '@/domain/drop-order';
-import { destinationPoint, type LonLat } from '@/domain/geo';
+import { destinationPoint, samePoint, type LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PilePieces } from '@/domain/pile-pieces';
@@ -1417,12 +1417,7 @@ export class StandingLayer implements SequenceHost {
    *  more, on the board; 0 where no pile of mine stands drawn. */
   edgeAt(lonLat: LonLat): number {
     for (const { at, ready, object, extent } of this.dressed.values())
-      if (
-        ready &&
-        object.visible &&
-        'lonLat' in at &&
-        Math.abs(at.lonLat[0] - lonLat[0]) + Math.abs(at.lonLat[1] - lonLat[1]) < 1e-9
-      )
+      if (ready && object.visible && 'lonLat' in at && samePoint(at.lonLat, lonLat))
         return (Math.max(extent.x, extent.z) + HALT_STEPS * SQUAD_SPACING) * object.scale.x;
     return 0;
   }
