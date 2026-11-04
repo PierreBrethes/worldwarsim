@@ -202,6 +202,21 @@ describe('clusterFootprints', () => {
     ]);
   });
 
+  it("measures a ring's reach member by member, not the widest one's half at the farthest one", () => {
+    // A wide site at the centre, two narrow ones 40 away: the ring reaches 80.8, not 90 (Marseille
+    // taken into Paris's ring, 04/11). A narrow site 95 away stays on its own.
+    const placed = clusterFootprints(
+      [
+        [0, 0],
+        [40, 0],
+        [-40, 0],
+        [95, 0],
+      ],
+      [100, 20, 20, 20],
+    );
+    expect(placed[3]).toEqual({ at: [95, 0], facing: 0, scale: 1 });
+  });
+
   it('rings sites that overlap around their barycentre, a span apart', () => {
     const placed = clusterFootprints(
       [

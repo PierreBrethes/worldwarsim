@@ -439,8 +439,11 @@ function ringed(
       .map((k) => ({ k, bearing: outwardOf(offsetOf(k)), away: Math.hypot(...offsetOf(k)) }))
       .sort((a, b) => a.bearing - b.bearing);
     const radius = ringRadius(around.map(({ k }) => spacings[k]!));
-    const widest = Math.max(...members.map((k) => spacings[k]!));
-    const reach = Math.max(radius, ...around.map(({ away }) => away)) + widest / 2;
+    // Each member reaches its own half past where it stands: the widest one's half carried to the
+    // farthest one took in Marseille with Paris (04/11).
+    const reach = Math.max(
+      ...around.map(({ k, away }) => Math.max(radius, away) + spacings[k]! / 2),
+    );
     return { members, centre, around, radius, reach };
   };
   const clusters = points.map((_, k) => clusterOf([k]));
