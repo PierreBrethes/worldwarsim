@@ -129,7 +129,10 @@
  *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
- * `capitale-<nation>`. `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
+ * `capitale-<nation>`. `--evacuation` (#450, avec `--huit`) donne à l'URSS une caserne de niveau 2 à
+ * Pskov et une caserne de niveau 3 en réserve (`evacuation`, compte e), et pose sur une caserne
+ * française de la Marne une capture soviétique qui court (`sous-capture`, compte a).
+ * `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
  * rangs et une artillerie, et une escorte et un porte-avions en golfe de Gascogne (`rangs-mer`).
  * `--recrue [s]` forme une infanterie de rang 2 à la caserne de `--niveaux` et la fait sortir dans
  * `s` secondes (25 par défaut) : lieu `recrue`. `--rejeu` joue le combat de `--combat` tout de
@@ -432,6 +435,14 @@ if (!bare) {
     );
     for (const [nation, point] of Object.entries(capitals)) places[`capitale-${nation}`] = point;
   }
+  /** `--evacuation` : la réserve soviétique et une capture qui court sur une caserne française. */
+  if (eight && process.argv.includes('--evacuation'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:evacuationScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
+      ),
+    );
   /** `--rangs` : les deux rangs, une artillerie à côté de Paris ; une flotte au large de la Bretagne. */
   if (ranks && scene.a !== null) {
     const beside = { lon: 2.47, lat: 48.85 };

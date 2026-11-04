@@ -720,6 +720,60 @@ export const unreachedMineScene = internalMutation({
 });
 
 /**
+ * **L'Évacuation et la capture, posées** (`--evacuation`, #450) : l'URSS tient une caserne de
+ * niveau 2 à Pskov et une réserve de caserne au niveau 3 ; la France tient une caserne de niveau 2
+ * dans la Marne, sous une capture soviétique qui court. Rend les deux points.
+ */
+export const evacuationScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const ussr = players.find((player) => player.nation === 'ussr');
+    const france = players.find((player) => player.nation === 'france');
+    if (ussr === undefined || france === undefined) throw new Error('--evacuation wants --huit');
+    const barracks = async (player: Doc<'players'>, regionId: string) => {
+      const hq = await headquartersOf(ctx, player);
+      if (hq !== undefined) await ctx.db.patch(hq._id, { level: 4 });
+      const point = pointOfRegion(regionId);
+      const id = await ctx.db.insert('buildings', {
+        seasonId,
+        playerId: player._id,
+        key: 'barracks',
+        regionId,
+        point,
+        level: 2,
+      });
+      return { id, point };
+    };
+    const soviet = await barracks(ussr, 'RUS-2336');
+    await ctx.db.patch(ussr._id, { evacuated: [{ key: 'barracks', level: 3 }] });
+    const french = await barracks(france, 'FRA-5323');
+    const now = Date.now();
+    await ctx.db.insert('captures', {
+      seasonId,
+      playerId: ussr._id,
+      defenderId: france._id,
+      target: { kind: 'building', buildingId: french.id },
+      site: { kind: 'building', building: 'barracks', regionId: 'FRA-5323' },
+      point: french.point,
+      progress: 0,
+      progressAt: now,
+      rate: 1,
+      durationMs: 6 * 3_600_000,
+      rest: null,
+      completesAt: now + 6 * 3_600_000,
+    });
+    return {
+      evacuation: [soviet.point.lon, soviet.point.lat],
+      'sous-capture': [french.point.lon, french.point.lat],
+    };
+  },
+});
+
+/**
  * **Une présence de pillage déjà entamée** (`--pillage`) : les colonnes en phase de présence
  * sont reculées de `hours` heures, de sorte que les caisses tombées à chaque quart de la présence
  * (`loadingAt`) se voient déjà ; la fin de présence est replanifiée à sa nouvelle date.
