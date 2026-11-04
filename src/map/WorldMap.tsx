@@ -201,7 +201,9 @@ type Props = {
   onPieceCarry?: ((from: PieceFrom, single: boolean) => boolean) | undefined;
   /** **La pièce portée, lâchée sur une pile à moi** : poser — la rose s'ouvre alors sur sa
    *  cible —, embarquer, ou reposer. */
-  onPieceDrop?: ((on: PieceFrom) => 'pose' | 'board' | 'back' | 'refused') | undefined;
+  /** `boardHome`: onto a truck whose men board under the eyes (`boardsUnderTheEyes`, #277). */
+  onPieceDrop?:
+    ((on: PieceFrom) => 'pose' | 'board' | 'boardHome' | 'back' | 'refused') | undefined;
   /** Ce que le lâcher ferait sur une pièce de la même adresse ; `undefined` ailleurs, où la rose
    *  le dit. */
   dropHintOf?: ((on: PieceFrom) => DropHint | null | undefined) | undefined;
@@ -1119,7 +1121,8 @@ export function WorldMap({
       ((target, clientX, clientY) => {
         const { from, label } = read(target, clientX, clientY);
         const outcome = from === null ? 'pose' : onPieceDrop(from);
-        if (outcome === 'board') readyEngine.boardInto();
+        if (outcome === 'board' || outcome === 'boardHome')
+          readyEngine.boardInto(clientX, clientY, outcome === 'boardHome');
         if (outcome === 'refused') readyEngine.refuseDrop();
         if (outcome === 'pose' && label !== undefined) onLabelAct(label, clientX, clientY);
       });

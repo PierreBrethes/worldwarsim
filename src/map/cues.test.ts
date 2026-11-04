@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
 import {
+  boardsUnderTheEyes,
   aboardOf,
   chargementsOf,
   descentesOf,
@@ -95,6 +96,18 @@ describe('descentesOf', () => {
     const ship = { id: 'ship', role: 'cargo' as const, tier: 1 as const };
     const now = view(ship, man('a'));
     expect(descentesOf(aboardOf(view(ship, man('a', 'ship'))), now, pilesOf(now))).toEqual([]);
+  });
+});
+
+describe('boardsUnderTheEyes (#277)', () => {
+  it('lets the men of a truck board under the eyes, in a Mondiale only', () => {
+    expect(boardsUnderTheEyes('landTransport', false)).toBe(true);
+    expect(boardsUnderTheEyes('landTransport', true)).toBe(false);
+  });
+
+  it('keeps a ship or a plane swallowing the piece dropped on it', () => {
+    expect(boardsUnderTheEyes('cargo', false)).toBe(false);
+    expect(boardsUnderTheEyes('airTransport', false)).toBe(false);
   });
 });
 

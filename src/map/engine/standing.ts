@@ -813,8 +813,9 @@ export class StandingLayer implements SequenceHost {
   }[] = [];
   /** The next change of pose a pile makes by itself (`nextPoseChange`). */
   private posing: ReturnType<typeof setTimeout> | null = null;
-  /** When a boarding was announced, waiting for the hand to empty (`boardInto`). */
-  private boarding: number | null = null;
+  /** A boarding announced, waiting for the hand to empty (`boardInto`): where the copy glides
+   *  into its transport, or `null` when it goes home and its men board from there (#277). */
+  private boarding: { readonly at: Vector3 | null; readonly since: number } | null = null;
   /** The copy put back, on its way home. */
   private leaving: Carried | null = null;
 
@@ -1139,10 +1140,11 @@ export class StandingLayer implements SequenceHost {
     this.dropLeaving();
     const lifted = this.carried;
     this.carried = null;
-    // Put back, the copy goes home and drops there; sent, its pawn takes over; boarded, it goes
-    // home too, and its men board from there (#277, `montee`).
+    // Put back, the copy goes home and drops there; sent, its pawn takes over; boarded, it
+    // glides into its transport — or onto a truck goes home, its men board from there (#277).
     const released = performance.now();
-    const boarded = this.boarding !== null && released - this.boarding < BOARDING_MS;
+    const boarded = this.boarding !== null && released - this.boarding.since < BOARDING_MS;
+    const into = boarded ? this.boarding!.at : null;
     this.boarding = null;
     const refused = this.refusal !== null && released - this.refusal < REFUSAL_MS;
     this.refusal = null;
@@ -1167,7 +1169,7 @@ export class StandingLayer implements SequenceHost {
         from: lifted.object.position.clone(),
         since: released,
         carried: lifted.lift,
-        into: absorbed,
+        into: into ?? absorbed,
         refused: refused && !boarded && this.motion === 'full',
       };
       lifted.down = null;
@@ -1881,10 +1883,11 @@ export class StandingLayer implements SequenceHost {
     this.refusal = performance.now();
   }
 
-  /** **The next putting back is a boarding** (15/10): heard now, the copy goes home quietly. */
-  boardInto(): void {
+  /** **The next putting back is a boarding** (15/10): the copy glides to `at` and shrinks away;
+   *  with no `at` (a truck, #277) it goes home quietly, and its men board from there. */
+  boardInto(at: Vector3 | null): void {
     playTableSound('board');
-    this.boarding = performance.now();
+    this.boarding = { at, since: performance.now() };
   }
 
   /** Model geometry is shared with the pawns: nothing here is this layer's to free. */

@@ -2447,11 +2447,17 @@ export class MapEngine {
     if (gesture.carry !== null) this.gesture = gesture;
   }
 
-  /** **The piece let go boards a transport** (15/10): it goes home, and its men board from
-   *  there as the view says it (#277, `montee`). */
-  boardInto(): void {
+  /** **The piece let go boards a transport** (15/10): it glides into it at the pointer, or, onto
+   *  a truck its men board under the eyes (`home`, #277), it goes home and they board from there. */
+  boardInto(clientX: number, clientY: number, home = false): void {
     this.invalidate();
-    this.standing.boardInto();
+    if (home) {
+      this.standing.boardInto(null);
+      return;
+    }
+    if (!this.castAt(clientX, clientY)) return;
+    const ground = this.sheetPoint();
+    if (ground !== null) this.standing.boardInto(ground);
   }
 
   /** **Whether the click now arriving closes a carry** — the browser sends it at once after the

@@ -1,4 +1,5 @@
 import type { LonLat } from '@/domain/geo';
+import type { UnitRole } from '@/domain/ids';
 import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { cameFrom } from '@/domain/pile-facing';
@@ -86,6 +87,12 @@ export function descentesOf(
       return [{ truck: `${id}/${k}`, men }];
     }),
   );
+}
+
+/** **Les hommes montent sous les yeux** (#277) : en camion, en Mondiale. Ailleurs — un navire,
+ *  un avion, une unité Blitz qui n'est pas trois hommes — la pièce lâchée dessus s'y engouffre. */
+export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
+  return carrier === 'landTransport' && !blitz;
 }
 
 /** **Un camion où des hommes montent** (#277) : le groupe du camion, et chaque passager neuf. */
