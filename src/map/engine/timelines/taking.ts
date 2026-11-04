@@ -20,6 +20,8 @@ export const TAKING = {
   smoke: 2400,
   stop: 1200,
   tag: 300,
+  /** A perron's crate gives way to the one on the man's shoulder. */
+  swap: 150,
 } as const;
 
 /** A man walks so many metres a second: his stride follows the ground (`stride`). `@a-mesurer` */
@@ -111,8 +113,9 @@ export function crateTaking({
 }
 
 /**
- * **Piller** (#279) : deux hommes quittent le rang pour le perron, chacun met une caisse à
- * l'épaule et rejoint le rang, où elle s'efface : la colonne repart chargée.
+ * **Piller** (#279) : deux hommes quittent le rang pour le perron, chacun prend une caisse du haut
+ * de sa pile (`takenAt`, `perronOf`), la met à l'épaule et rejoint le rang, où elle s'efface : la
+ * colonne repart chargée. `to` : la caisse qu'il prend.
  */
 export function plunderOf({
   trips,
@@ -120,27 +123,49 @@ export function plunderOf({
 }: {
   readonly trips: ReadonlyArray<Trip>;
   readonly perMetre: number;
-}): Sequence {
+}): Sequence & { readonly takenAt: number } {
   const there = TAKING.walk * 1.4;
   const back = there + TAKING.lift + 150;
   const home = back + TAKING.walk * 1.4;
   const ms = home + TAKING.tag + 300;
-  return sequenceOf(
+  const sequence = sequenceOf(
     ms,
-    trips.map((trip) => [
-      trip.part,
+    trips.map(({ part, to }) => [
+      part,
       tripOf(
-        trip,
+        { part, to: shortOf(to, perMetre) },
         { there, back, home },
         (t) => {
-          const lifted = ease.out3(span(t, there, there + TAKING.lift));
-          return { carry: [0.5 * (1 - lifted), lifted, 1] };
+          // He takes it at hand's height off the pile, and swings it up to his shoulder.
+          const lifted = 0.6 + 0.4 * ease.out3(span(t, there, there + TAKING.lift));
+          return { carry: [0, lifted, span(t, there, there + TAKING.swap)] };
         },
         (t) => ({ carry: [0, 1, 1 - span(t, home, home + TAKING.tag)] }),
         perMetre,
       ),
     ]),
   );
+  return { ...sequence, takenAt: there };
+}
+
+/** **The perron's pile loses the crates the men take** (#279), `crates` off its top: they give
+ *  way to the ones on their shoulders, as a loading's jump aboard (#271). */
+export function perronOf(
+  { ms, takenAt }: Sequence & { readonly takenAt: number },
+  crates: ReadonlyArray<string>,
+): Sequence<'warehouse'> {
+  const fade = (t: number) => 1 - span(t, takenAt, takenAt + TAKING.swap);
+  return {
+    family: 'warehouse',
+    ms,
+    minPx: WALK_MIN_PX,
+    at: (t) =>
+      t <= 0 || t >= ms
+        ? {}
+        : (Object.fromEntries(
+            crates.map((name) => [name, { fade: fade(t) }]),
+          ) as Pose<'warehouse'>),
+  };
 }
 
 /**

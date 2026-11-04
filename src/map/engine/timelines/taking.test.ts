@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAN_METRES } from '@/domain/piece-size';
-import { crateTaking, plunderOf, sabotageOf, TAKING } from './taking';
+import { crateTaking, perronOf, plunderOf, sabotageOf, TAKING } from './taking';
 
 const to = [3, 0, 4] as const;
 /** He stops where the crate lies at his feet, before him (`crateOnMan(0)`). */
@@ -69,6 +69,18 @@ describe('plunderOf (#279, « Piller »)', () => {
     expect(back.man_0?.carry?.[1]).toBe(1);
     expect(back.man_1?.carry?.[1]).toBe(1);
     expect(plunder.at(plunder.ms - 1).man_0?.travel).toEqual([0, 0, 0]);
+  });
+
+  it('takes the crates off the top of the perron as the men shoulder theirs', () => {
+    const perron = perronOf(plunder, ['caisse_5', 'caisse_4']);
+    expect(perron.family).toBe('warehouse');
+    expect(perron.ms).toBe(plunder.ms);
+    expect(perron.at(plunder.takenAt - 1).caisse_5?.fade ?? 1).toBe(1);
+    expect(plunder.at(plunder.takenAt + 1).man_0?.carry?.[2]).toBeLessThan(1);
+    expect(perron.at(plunder.takenAt + TAKING.swap).caisse_5?.fade).toBe(0);
+    expect(perron.at(plunder.takenAt + TAKING.swap).caisse_4?.fade).toBe(0);
+    expect(plunder.at(plunder.takenAt + TAKING.swap).man_0?.carry?.[2]).toBe(1);
+    expect(perron.at(plunder.ms - 1).caisse_4?.fade).toBe(0);
   });
 });
 
