@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   type Docked,
   dockedOf,
@@ -177,5 +177,33 @@ describe('a tour at its quay (#278)', () => {
     expect(tourStepOf('full', at, 0)).toBe('dock');
     expect(tourStepOf('full', { ...at, drawn: false }, 0)).toBe('wait');
     expect(tourStepOf('full', { ...at, site: false, busy: true }, 0)).toBe('wait');
+  });
+});
+
+/** **Un camion de tournée dont le quai est pris attend en file au pied du socle** (#278), même
+ *  quand son modèle n'est pas encore arrivé : la file ne lit pas le camion, seul le quai le lit. */
+describe('a tour whose quay is taken, its truck not landed yet', () => {
+  it('holds its pawn at the socle foot rather than letting it run on its road', async () => {
+    const { Vector3 } = await import('three');
+    const { MapEngine } = await import('./index');
+    const hold = vi.fn(() => new Vector3());
+    const engine = Object.assign(Object.create(MapEngine.prototype) as object, {
+      maquettes: {
+        pieceOf: () => ({ url: 'warehouse.glb', box: null }),
+        siteOf: () => ({ toModel: (point: unknown) => point, box: { min: {}, max: {} } }),
+      },
+      arcs: { pieceOf: () => null, truckLength: () => null, hold },
+      sequences: { motion: 'full', playsOn: () => true },
+      docked: new Map(),
+      heldTours: new Set<string>(),
+    });
+    const attempt = (
+      MapEngine.prototype as unknown as {
+        tourOf: (tour: object, now: number) => string;
+      }
+    ).tourOf.call(engine, { cue: { siteId: 'building-warehouse@2,49', arcId: 'a' }, since: 0 }, 10);
+    expect(attempt).toBe('wait');
+    expect(hold).toHaveBeenCalledWith('a', expect.any(Function), LOADING_WAIT_MS);
+    expect((engine as { heldTours: Set<string> }).heldTours.has('a')).toBe(true);
   });
 });

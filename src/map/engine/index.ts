@@ -3572,7 +3572,7 @@ export class MapEngine {
         this.standing.rippleAt(site.toBoard(quay), QUAY_RING_METRES * metreOf(site));
       return 'done';
     }
-    if (site === null || building === null || !drawn || long === null) return 'wait';
+    if (site === null || building === null) return 'wait';
     const inside = (point: Vector3) => {
       const { x, z } = site.toModel(point);
       return (
@@ -3584,6 +3584,8 @@ export class MapEngine {
       if (this.arcs.hold(cue.arcId, inside, step.holdUntil) !== null) this.heldTours.add(cue.arcId);
       return 'wait';
     }
+    // The truck itself is read at the quay only: one not landed yet still waits in file.
+    if (!drawn || long === null) return 'wait';
     const stop = site.marker('fx_quai');
     const front = site.front('fx_quai');
     if (
