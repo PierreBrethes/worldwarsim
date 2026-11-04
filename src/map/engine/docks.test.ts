@@ -79,6 +79,14 @@ describe('the quays of a loading (#271)', () => {
     expect(docked.size).toBe(1);
   });
 
+  it("ends a tour's truck on the pawn that lends it, not on a pile (#278)", () => {
+    const arcHost = { name: 'arcs' } as unknown as SequenceHost;
+    const docked = new Map([['m', dockedOf(plan, 'w', 0, true).docked]]);
+    const layer = layerOf([[arcHost, 'm']]);
+    undock(docked, layer, { ...hosts, arc: arcHost }, 1000);
+    expect(layer.retimed).toEqual([[arcHost, 'm', 0]]);
+  });
+
   it('starts only with room for both, both seen', () => {
     expect(mayDock(2, true, true)).toBe(true);
     expect(mayDock(1, true, true)).toBe(false);

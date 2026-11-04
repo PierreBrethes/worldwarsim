@@ -1,5 +1,13 @@
 import { samePoint, type LonLat } from '@/domain/geo';
-import { type Box3, type Frustum, Group, Vector3, type Camera, type Raycaster } from 'three';
+import {
+  type Box3,
+  type Frustum,
+  Group,
+  type Object3D,
+  Vector3,
+  type Camera,
+  type Raycaster,
+} from 'three';
 import {
   pawnTarget,
   temporalPosition,
@@ -39,6 +47,8 @@ import { HEARTBEAT_MS } from './frame-demand';
 import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
 import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
+import type { RestPose } from './figurines/figurine';
+import { lengthAlong } from './standing';
 
 type RenderedArc = {
   readonly key: string;
@@ -187,6 +197,93 @@ export class ArcLayer {
       return last !== undefined && samePoint(last, end);
     });
   }
+  /** **Pawns held at their socle's foot** (#278), by movement id: the share of their way they
+   *  stand at, the share their first leg ends at, until when; then how they catch up. */
+  private readonly holds = new Map<
+    string,
+    {
+      readonly foot: number;
+      readonly end: number;
+      readonly until: number;
+      release: Parameters<typeof caughtUp>[1] | null;
+    }
+  >();
+
+  /**
+   * **Holds a truck of mine where its road leaves its socle** (#278) until `until`: the first
+   * point of its first leg that is not `inside`. It runs on from there after (`caughtUp`).
+   * Returns that point on the board; `null` for no such movement, or one not mine.
+   */
+  hold(id: string, inside: (point: Vector3) => boolean, until: number): Vector3 | null {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    if (rendered === undefined || rendered.arc.state !== 'mine') return null;
+    const point = new Vector3();
+    const at = (share: number): number => {
+      const target = pawnTarget(temporalPosition(rendered.unrolled, share));
+      const leg = rendered.thread.legs[target.legIndex];
+      if (leg !== undefined) pointOnLeg(leg, target.local, point);
+      return target.legIndex;
+    };
+    let foot: number | null = null;
+    let end = 1;
+    for (let k = 0; k <= HOLD_SAMPLES; k++) {
+      const share = k / HOLD_SAMPLES;
+      if (at(share) > 0) {
+        end = share;
+        break;
+      }
+      if (foot === null && !inside(point)) foot = share;
+    }
+    foot ??= end;
+    this.holds.set(id, { foot, end, until, release: null });
+    at(foot);
+    return point;
+  }
+
+  /** **Lets a held pawn go now** (#278): its truck played out early, or never got the quay. */
+  letGo(id: string, now: number): void {
+    const held = this.holds.get(id);
+    if (held !== undefined && held.until > now) this.holds.set(id, { ...held, until: now });
+  }
+
+  /** The share a pawn walks: its own, or held, or catching up (`hold`). */
+  private walked(id: string, own: number, now: number): number {
+    const held = this.holds.get(id);
+    if (held === undefined) return own;
+    if (now < held.until) return held.foot;
+    held.release ??= { from: own, foot: held.foot, end: held.end };
+    if (own >= held.end) this.holds.delete(id);
+    return caughtUp(own, held.release);
+  }
+
+  /** **What a sequence may borrow** (`SequenceHost`, #278): the truck a pawn of mine wears on land,
+   *  standing on the board. */
+  pieceOf(id: string): { url?: string; pose?: RestPose; box: Box3 | null } | null {
+    const truck = this.truckOf(id);
+    if (truck === null) return null;
+    return {
+      ...(truck.url === undefined ? {} : { url: truck.url }),
+      ...(truck.pose === undefined ? {} : { pose: truck.pose }),
+      box: boxOfObject(truck.object),
+    };
+  }
+
+  /** The copy takes the truck's place on its pawn, which stands where it is held. */
+  standIn(id: string, copy: Object3D | null): void {
+    this.pawnById.get(id)?.truckFigurine?.standIn?.(copy);
+  }
+
+  /** How long the truck is drawn, on the board (`lengthAlong`). */
+  truckLength(id: string): number | null {
+    const truck = this.truckOf(id);
+    return truck === null ? null : lengthAlong(truck.object);
+  }
+
+  private truckOf(id: string) {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    return rendered?.arc.state === 'mine' ? rendered.pawn.truck : null;
+  }
+
   /** Kept across displays, which come at every step of any column: a crate falls once. */
   private readonly crates = new Map<string, CratePile>();
 
@@ -235,6 +332,8 @@ export class ArcLayer {
     for (const id of this.inking.keys()) {
       if (!arcs.some((arc) => arc.id === id)) this.inking.delete(id);
     }
+    for (const id of this.holds.keys())
+      if (!arcs.some((arc) => arc.id === id)) this.holds.delete(id);
     const now = performance.now();
     const clock = Date.now();
     const previous = new Map(this.rendered.map((rendered) => [rendered.arc.id, rendered]));
@@ -461,7 +560,10 @@ export class ArcLayer {
 
       // The share walked is read from the hour (#183): the arc carries the server's dates and
       // keeps its identity from one answer to the next, so no answer moves a pawn.
-      const position = temporalPosition(rendered.unrolled, arcProgressAt(rendered.arc, clock));
+      const position = temporalPosition(
+        rendered.unrolled,
+        this.walked(rendered.arc.id, arcProgressAt(rendered.arc, clock), now),
+      );
       const target = pawnTarget(position);
       const { legIndex } = target;
       const leg = rendered.thread.legs[legIndex];
@@ -592,6 +694,21 @@ export class ArcLayer {
     this.pawnById.clear();
   }
 }
+
+/** **Where a pawn let go runs on its way** (#278): held at the socle's `foot` while its truck
+ *  loaded, it starts from there when its own hour (`share`) is `from`, and comes back to it by
+ *  the `end` of its first leg — never a jump, never a step back. */
+export function caughtUp(
+  share: number,
+  { from, foot, end }: { readonly from: number; readonly foot: number; readonly end: number },
+): number {
+  if (share >= end) return share;
+  const start = Math.min(foot, end);
+  return from >= end ? start : start + ((share - from) * (end - start)) / (end - from);
+}
+
+/** The shares of its way a held pawn's foot is looked for at. */
+const HOLD_SAMPLES = 200;
 
 /** A closed file waits this long for its pile to stand (`SORTIE_WAIT_MS` and a beat). */
 const LEFT_MS = 3000;

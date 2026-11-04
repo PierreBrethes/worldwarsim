@@ -58,6 +58,7 @@ import {
   dispersionsOf,
   entreesOf,
   loadsOf,
+  tourneesOf,
   monteesOf,
   rankKept,
   sortiesOf,
@@ -1846,6 +1847,19 @@ export function WorldMap({
     for (const chargement of chargementsOf(known, troops, standing))
       readyEngine?.cue({ kind: 'chargement', ...chargement });
   }, [troops, standing, readyEngine]);
+
+  // A truck on a tour reloads at its warehouse or its HQ and leaves at once (#278): its new arc.
+  const toursKnown = useRef<Parameters<typeof tourneesOf>[0]>(null);
+  useEffect(() => {
+    const before = toursKnown.current;
+    toursKnown.current = {
+      loads: loadsOf(troops),
+      arcIds: new Set(arcs.map(({ id }) => id)),
+      piles: standing,
+    };
+    for (const tournee of tourneesOf(before, arcs, troops, maquettes))
+      readyEngine?.cue({ kind: 'tournee', ...tournee });
+  }, [troops, standing, arcs, maquettes, readyEngine]);
 
   const cutBefore = useRef<ReadonlyArray<string> | null>(null);
   useEffect(() => {

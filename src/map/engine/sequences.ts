@@ -134,6 +134,16 @@ export type Cue =
       readonly groupId: string;
       readonly crates: number;
     }
+  /** **A truck on a tour loads at its warehouse or its HQ** (#278): the pawn of `arcId` is held
+   *  at the socle's foot while its truck comes `from` the road, or its rank, to the quay. */
+  | {
+      readonly kind: 'tournee';
+      readonly arcId: string;
+      readonly siteId: string;
+      readonly troopId: string;
+      readonly crates: number;
+      readonly from: 'road' | 'rank';
+    }
   /** **Men step down from a truck** (#277): `truck` and each squad that came down, `men`, are
    *  `${pileId}/${group}` (`StandingLayer`). */
   | { readonly kind: 'descente'; readonly truck: string; readonly men: ReadonlyArray<string> }

@@ -5,7 +5,7 @@ import type { ArcView, TroopView } from '@/domain/player-view';
 import type { World } from '@/domain/world';
 import { directRoute } from '@/domain/routing';
 import { unrollRoute } from '@/domain/route-timing';
-import { ArcLayer, lastKnownMedium } from './arcs';
+import { ArcLayer, caughtUp, lastKnownMedium } from './arcs';
 import { figurineFor } from './figurines/figurine';
 import { WorldFrame } from './frame';
 import type { InkLayer } from './ink';
@@ -417,5 +417,59 @@ describe('ArcLayer: a column joining a pile (#277)', () => {
     expect(arcs.headsFor([10, 6])).toBe(false);
     arcs.display([sighted('enemyDetected')]);
     expect(arcs.headsFor([10, 5])).toBe(false);
+  });
+});
+
+describe('caughtUp (#278)', () => {
+  // Let go at 0.02 of its way, held at the socle's foot 0.05 in, its first leg ends at 0.4.
+  const release = { from: 0.02, foot: 0.05, end: 0.4 };
+
+  it('starts from the foot it was held at, with no jump', () => {
+    expect(caughtUp(0.02, release)).toBeCloseTo(0.05);
+  });
+
+  it('runs on to its own hour by the end of its first leg, and keeps it after', () => {
+    expect(caughtUp(0.4, release)).toBeCloseTo(0.4);
+    expect(caughtUp(0.7, release)).toBe(0.7);
+    let last = 0;
+    for (let share = 0.02; share <= 0.4; share += 0.01) {
+      expect(caughtUp(share, release)).toBeGreaterThanOrEqual(last);
+      last = caughtUp(share, release);
+    }
+  });
+
+  it('waits at the foot no further than the end of its leg', () => {
+    expect(caughtUp(0.1, { from: 0.1, foot: 0.6, end: 0.4 })).toBe(0.4);
+  });
+});
+
+describe('ArcLayer.hold (#278)', () => {
+  const at = (arcs: ArcLayer) => arcs.headPositions.get('a')!.clone();
+
+  it('holds the pawn where its road leaves the socle, then runs it on from there', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(360_000);
+    arcs.display([mine('a')]);
+    arcs.animate();
+    const own = at(arcs);
+    const start = arcs.hold('a', (point) => point.distanceTo(own) < 1e-9 || point.x < 2, Infinity)!;
+    arcs.animate();
+    const held = at(arcs);
+    expect(held.distanceTo(start)).toBeLessThan(1e-6);
+    expect(held.distanceTo(own)).toBeGreaterThan(0);
+    // Let go, it starts from the foot, not from its own hour: no jump.
+    arcs.letGo('a', performance.now());
+    arcs.animate();
+    expect(at(arcs).distanceTo(held)).toBeLessThan(1e-6);
+    vi.mocked(Date.now).mockReturnValue(3_000_000);
+    arcs.animate();
+    expect(at(arcs).x).toBeGreaterThan(held.x);
+    vi.mocked(Date.now).mockRestore();
+  });
+
+  it('holds nothing of an enemy', () => {
+    const arcs = layer();
+    arcs.display([sighted('enemyDetected')]);
+    expect(arcs.hold('e', () => true, Infinity)).toBeNull();
   });
 });

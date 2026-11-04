@@ -108,6 +108,44 @@ describe('loadingAt (#271)', () => {
   });
 });
 
+describe('loadingAt on a tour (#278)', () => {
+  // The road passes 6 m off the socle's south edge, 2.2 m under its top.
+  const foot: Point = [12, -2.2, 56];
+  const fromFoot = ([x, y, z]: Point): Point => [x - foot[0], y - foot[1], z - foot[2]];
+  const road = { ...warehouse, tour: { foot, fromRank: false }, toBoard: fromFoot };
+  const { truck, atQuay, homeAt } = loadingAt(road);
+  const at = (t: number) => where(truck.at(t).root, foot);
+
+  it('lifts the truck by hand from the road onto the socle in half a second, no ramp', () => {
+    close(at(1), foot, 0.1);
+    const mid = at(250);
+    expect(mid[1]).toBeGreaterThan(0.5);
+    const on = at(500);
+    expect(on[1]).toBeCloseTo(0, 5);
+    expect(on[2]).toBeLessThan(50);
+  });
+
+  it('backs to the quay and loads there as from its rank', () => {
+    close(at(atQuay + 700), [0, 0, 23.5 + 3.25]);
+  });
+
+  it('drives clear of the building, and is set down on the road again at its end', () => {
+    for (const t of times(truck.ms)) {
+      const [x, , z] = at(t);
+      expect(x > -30 && x < 30 && z > -20 && z < 23.5 + 3.24, `${t} ms`).toBe(false);
+    }
+    close(at(truck.ms - 1), foot, 0.1);
+    expect(truck.at(truck.ms)).toEqual({});
+    expect(homeAt).toBeLessThanOrEqual(truck.ms - 500);
+  });
+
+  it('out of its rank when it waited at the yard, and onto the road', () => {
+    const waited = loadingAt({ ...warehouse, tour: { foot, fromRank: true } });
+    close(where(waited.truck.at(1).root, rank), rank, 0.1);
+    close(where(waited.truck.at(waited.truck.ms - 1).root, rank), foot, 0.1);
+  });
+});
+
 describe('the files a loading reads (#271)', () => {
   it('the warehouse keeps apart its door, its rollers and its five crates, and marks its quay', () => {
     const scene = sceneOfFile(buildingMaquette('warehouse', null)!);

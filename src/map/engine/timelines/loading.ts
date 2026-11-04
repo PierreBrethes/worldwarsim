@@ -21,6 +21,10 @@ const AHEAD = 1.5;
 const GABLE = 3;
 /** The legs, in ms (`entrepot.js`, « Au rang »). */
 const LEG = { start: 200, out: 2000, pause: 250, back: 1800, leave: 1600, home: 2000 } as const;
+/** **On a tour** (#278, « En tournée »): into the yard in 1.5 s, across it to the edge in 1.4 s. */
+const TOUR_LEG = { in: 1500, across: 1400 } as const;
+/** **Set on the socle by hand** (décision de Pierre du 03/11): in 0.5 s, on an arc of 2.5 m. */
+const HAND = { ms: 500, lift: 2.5 } as const;
 /** The tailgate: it falls in 500 ms (`out3`) and shuts in 450 (`in2`), as at a boarding (`boardingOf`); laid
  *  on the quay beyond the level (`@a-mesurer`, the storyboard's 112° for France), it hangs on its
  *  chains at the HQ (93°), with a clang of 3° in 80 ms on the quay. */
@@ -87,6 +91,8 @@ function rounded(points: ReadonlyArray<Point>): Point[] {
 }
 
 type Leg = {
+  /** Carried by hand, from the first point to the last, its wheels still. */
+  readonly lift?: true;
   readonly points: ReadonlyArray<Point>;
   readonly lengths: ReadonlyArray<number>;
   readonly length: number;
@@ -168,6 +174,7 @@ export function loadingAt({
   perron,
   crates,
   toBoard,
+  tour,
 }: {
   readonly rank: Point;
   readonly rankFront: Point;
@@ -188,6 +195,9 @@ export function loadingAt({
   } | null;
   readonly crates: ReadonlyArray<number>;
   readonly toBoard: (point: Point) => Point;
+  /** **On a tour** (#278): it leaves for `foot`, the road at the socle's foot, and comes from
+   *  it too — or from its rank, where it waited for its stock (`fromRank`). */
+  readonly tour?: { readonly foot: Point; readonly fromRank: boolean };
 }): {
   readonly truck: Sequence<'landTransport'>;
   readonly site: Sequence<'warehouse' | 'hq'>;
@@ -198,7 +208,7 @@ export function loadingAt({
   readonly homeAt: number;
 } {
   // The way: out nose first, past the bay on the side away from the rank, then back to the quay.
-  const y = rank[1];
+  const y = tour && !tour.fromRank ? stop[1] : rank[1];
   const ground = (p: Point): Point => at(p, y);
   let side: Point = [front[2], 0, -front[0]];
   if ((rank[0] - stop[0]) * side[0] + (rank[2] - stop[2]) * side[2] > 0)
@@ -213,14 +223,35 @@ export function loadingAt({
   const docked = ground(add(stop, front, length / 2));
   const out = rounded([rank, ahead, ...corners, into, turn]);
   const toQuay = rounded([turn, into, ground(turned.straight), docked]);
+  // The edge of the socle nearest the road, the whole truck on it.
+  const inset = length / 2 + HALF_WIDTH;
+  const edge =
+    tour &&
+    ([
+      Math.min(Math.max(tour.foot[0], socle.min[0] + inset), socle.max[0] - inset),
+      y,
+      Math.min(Math.max(tour.foot[2], socle.min[2] + inset), socle.max[2] - inset),
+    ] as const);
+  const aroundTo = (from: Point, to: Point): Point[] =>
+    around([from[0], from[2]], [to[0], to[2]], box, GABLE + length / 2).map(
+      ([x, z]: Flat): Point => [x, y, z],
+    );
 
-  let clock = LEG.start;
+  let clock: number = LEG.start;
   const legs: Leg[] = [];
   const drive = (points: Point[], ms: number, back: boolean) => {
     legs.push(legOf(points, clock, ms, back));
     clock += ms;
   };
-  drive(out, LEG.out, false);
+  const lift = (from: Point, to: Point) => {
+    legs.push({ ...legOf([from, to], clock, HAND.ms, false), lift: true, curve: ease.inOut });
+    clock += HAND.ms;
+  };
+  if (tour && edge && !tour.fromRank) {
+    clock = 0;
+    lift(tour.foot, edge);
+    drive(rounded([edge, ...aroundTo(edge, into), into, turn]), TOUR_LEG.in, false);
+  } else drive(out, LEG.out, false);
   clock += LEG.pause;
   drive(toQuay, LEG.back, true);
   const atQuay = clock;
@@ -257,10 +288,18 @@ export function loadingAt({
     : moves.at(-1)!.from + HQ.out;
   const gateUp = lastIn + GATE.after;
   clock = gateUp + GATE.close + GATE.rest;
-  drive([...toQuay].reverse(), LEG.leave, false);
-  clock += LEG.pause;
-  const homeAt = clock;
-  drive([...out].reverse(), LEG.home, true);
+  let homeAt: number;
+  if (tour && edge) {
+    const straight = ground(turned.straight);
+    drive(rounded([docked, straight, ...aroundTo(straight, edge), edge]), TOUR_LEG.across, false);
+    homeAt = clock;
+    lift(edge, tour.foot);
+  } else {
+    drive([...toQuay].reverse(), LEG.leave, false);
+    clock += LEG.pause;
+    homeAt = clock;
+    drive([...out].reverse(), LEG.home, true);
+  }
   const ms = clock;
   // The site ends on its own gestures: the door shut, the last crate under the tarp or back up.
   const siteMs = Math.max(
@@ -283,9 +322,18 @@ export function loadingAt({
         if (t < each.from) break;
         leg = each;
         if (t < each.to) break;
-        rolled += (each.back ? -1 : 1) * each.length;
+        if (!each.lift) rolled += (each.back ? -1 : 1) * each.length;
       }
-      if (leg !== undefined) {
+      if (leg?.lift) {
+        // Its nose the way it is carried: into the yard, or out to the road.
+        const k = span(t, leg.from, leg.to);
+        const [a, b] = [leg.points[0]!, leg.points.at(-1)!];
+        const [from, to] = [a, b].map(toBoard);
+        pose.root = {
+          travel: toBoard(add(lerp(a, b, leg.curve(k)), [0, Math.sin(k * Math.PI) * HAND.lift, 0])),
+          heading: Math.atan2(to![0] - from![0], to![2] - from![2]),
+        };
+      } else if (leg !== undefined) {
         const done = leg.length * leg.curve(span(t, leg.from, leg.to));
         if (t < leg.to) rolled += (leg.back ? -1 : 1) * done;
         const [a, b] = [pointOn(leg, done - 0.5), pointOn(leg, done + 0.5)].map(toBoard);

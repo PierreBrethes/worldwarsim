@@ -323,6 +323,18 @@ export class Pawn {
     return this.object.visible && worn?.visible === true;
   }
 
+  /** **The truck it wears on land** (#278): its land figurine, or its file's one piece; `null`
+   *  for a file of several, a silhouette, or a piece not on land now. */
+  get truck(): Figurine | null {
+    return this.medium === 'land' && this.standing ? this.truckFigurine : null;
+  }
+
+  /** The same figurine, standing or not: a copy is given back to it whatever it shows. */
+  get truckFigurine(): Figurine | null {
+    if (this.file === null) return this.figurines.get('land') ?? null;
+    return this.marchers.length === 1 ? this.marchers[0]!.figurine : null;
+  }
+
   /** The span it gives way to its pin by: its worn figurine's, a tank's for a silhouette. */
   get span(): number {
     if (this.medium === 'land' && this.file !== null) return this.fileSpan;
