@@ -859,7 +859,7 @@ export const lendLeaseScene = internalMutation({
         playerId: player._id,
         point,
         hostCountry,
-        regionId: regionAtPoint([point.lon, point.lat])?.id,
+        regionId: regionAtPoint([point.lon, point.lat])!.id,
         level: 1,
         specialty: 'general',
         foundedAt: now - 1,
