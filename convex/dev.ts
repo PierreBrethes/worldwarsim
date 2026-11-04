@@ -722,7 +722,7 @@ export const unreachedMineScene = internalMutation({
 /**
  * **L'Évacuation et la capture, posées** (`--evacuation`, #450) : l'URSS tient une caserne de
  * niveau 2 à Pskov, un entrepôt de niveau 2 à côté, une réserve de caserne au niveau 3 et
- * d'arsenal au niveau 6, et un avant-poste en Roumanie dont le puits est sous capture française ;
+ * d'arsenal au niveau 5, et un avant-poste en Roumanie dont le puits est sous capture française ;
  * la France tient une caserne de niveau 2 dans la Marne, sous une capture soviétique. Rend les
  * points.
  */
@@ -751,11 +751,12 @@ export const evacuationScene = internalMutation({
       return { id, point };
     };
     const soviet = await barracks(ussr, 'RUS-2336');
-    /** Un arsenal gardé au niveau 6 sous un QG de niveau 4 : la tuile dit où il sortira. */
+    /** Un arsenal gardé au niveau 5 (pris au plafond) sous un QG de niveau 4 : la tuile dit où
+     *  il sortira. */
     await ctx.db.patch(ussr._id, {
       evacuated: [
         { key: 'barracks', level: 3 },
-        { key: 'arsenal', level: 6 },
+        { key: 'arsenal', level: 5 },
       ],
     });
     /** Un entrepôt sans réserve de son type : sa carte dit « niveau 2 gardé en réserve ». */
