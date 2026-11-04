@@ -257,8 +257,9 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
       /this\.maquettes\.settling \|\|\s+this\.sequences\.active \|\|\s+this\.walks\.length > 0/,
     );
     const cue = source.slice(source.indexOf('  cue(cue: Cue)'));
+    // A cue plays nothing itself: it stirs the loop, and its walk is laid out on a frame (#277).
     expect(cue.slice(0, cue.indexOf('\n  }\n'))).toMatch(
-      /this\.invalidate\(\);[\s\S]*sequences\.play/,
+      /this\.invalidate\(\);[\s\S]*\.push\(\{ cue/,
     );
   });
 });
