@@ -131,8 +131,7 @@ const pointOn = ({ points, lengths, length }: Leg, s: number): Point => {
 };
 
 /** **Where the truck turns, where its run into the quay starts, and where it straightens before
- *  backing in**, shortened to what the socle holds: a quay near the edge leaves less yard (the
- *  HQ's is 4.8 m off it, too short for a straight run: the truck backs in from the edge). */
+ *  backing in**, shortened to what the socle holds: a quay near the edge leaves less yard. */
 export function turnOf(
   stop: Point,
   front: Point,

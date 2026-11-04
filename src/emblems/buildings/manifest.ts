@@ -84,7 +84,3 @@ export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = 
  *  and the headframe says it. The deposit is public, so it tells nothing the atlas does not. */
 export const buildingMaquette = (key: BuildingKey, deposit: DepositKey | null): string | null =>
   key === 'mine' && deposit === 'coal' ? coalMineMaquette : BUILDING_MAQUETTES[key];
-
-/** Whether a building's file stands on its socle (ADR 0038): all but the well's, until its
- *  regeneration carries `bielle_2` again (#368). The ring spaces such a site by its socle. */
-export const buildingOnSocle = (key: BuildingKey): boolean => key !== 'oilWell';

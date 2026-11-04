@@ -1,7 +1,7 @@
 import type { MapMarker } from '@/domain/labels';
 import { depositAt } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
-import { buildingMaquette, buildingOnSocle } from '@/emblems/buildings/manifest';
+import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import type { StandingMaquette } from '@/map/engine';
 import { asClockTime } from '@/domain/duration';
@@ -46,7 +46,8 @@ export function maquettesOf(
           {
             metres: buildingMetres(marker.key),
             footprint: buildingFootprint(marker.key),
-            ...(buildingOnSocle(marker.key) && { socle: true, reach: buildingReach(marker.key) }),
+            socle: true,
+            reach: buildingReach(marker.key),
             ...(marker.works !== null && {
               works: {
                 phase: marker.works.phase,
@@ -86,7 +87,8 @@ export function maquettesOf(
             washed: marker.washed,
             metres: buildingMetres(marker.key),
             footprint: buildingFootprint(marker.key),
-            ...(buildingOnSocle(marker.key) && { socle: true, reach: buildingReach(marker.key) }),
+            socle: true,
+            reach: buildingReach(marker.key),
             side: marker.neutral === null ? 'seen' : 'neutral',
             // A survey serves neither level nor state: the first yard, never a works site.
             level: 1,
