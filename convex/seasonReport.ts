@@ -167,8 +167,10 @@ export const outpostEvents = internalQuery({
     for (const notice of page.page) {
       const kind = outpostKindOf(notice);
       if (kind !== null) events.push({ playerId, at: notice.at, kind });
-      /** **Un rasage évacué** (ADR 0039 §5) : la dépêche porte la réserve. */
+      /** **Un rasage évacué** (ADR 0039 §5) : la dépêche porte la réserve. **Un Prêt-bail**
+       *  (§3) : le convoi arrivé au dépôt d'un autre, qu'il ait pris ou non. */
       if (notice.kind === 'buildingDemolished' && notice.kept !== undefined) uses += 1;
+      if (notice.kind === 'supplyDelivered' && notice.abroad === true) uses += 1;
     }
     return { events, uses, next: page.isDone ? null : page.continueCursor };
   },

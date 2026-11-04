@@ -236,14 +236,23 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     underSiege: besieged(sieges, siegeTargetsOf(outpost, ownBuildings)),
   }));
   const movements = await movementsOf(ctx, player._id);
-  const surveyed = (
-    await ctx.db
-      .query('regionSightings')
-      .withIndex('byPlayerHasInstallations', (q) =>
-        q.eq('playerId', player._id).eq('hasInstallations', true),
-      )
-      .collect()
-  ).flatMap((survey) =>
+  const surveys = await ctx.db
+    .query('regionSightings')
+    .withIndex('byPlayerHasInstallations', (q) =>
+      q.eq('playerId', player._id).eq('hasInstallations', true),
+    )
+    .collect();
+  /** **Les avant-postes étrangers relevés** (ADR 0039 §3) : ce que la ligne garde, rien de la
+   *  ligne vivante. */
+  const surveyedOutposts = surveys.flatMap((survey) =>
+    (survey.outposts ?? []).map((outpost) => ({
+      id: outpost.outpostId as string,
+      regionId: survey.regionId,
+      point: [outpost.point.lon, outpost.point.lat] as LonLat,
+      hostCountry: outpost.hostCountry,
+    })),
+  );
+  const surveyed = surveys.flatMap((survey) =>
     (survey.installations ?? []).map((installation) => ({
       id: installation.buildingId,
       key: canonicalBuildingKey(installation.key),
@@ -914,6 +923,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      *  `clipToStorage` applique après doivent soustraire le même nombre. */
     storageCapPerLevel: STORAGE_CAP_PER_LEVEL,
     surveyedInstallations,
+    surveyedOutposts,
     lootSightings: lootSightings
       .filter((sighting) => sighting.seasonId === season._id)
       .map((sighting) => ({

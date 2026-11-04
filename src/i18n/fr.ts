@@ -849,6 +849,10 @@ export const fr = {
     NOTHING_TO_DELIVER: () => 'le transport est vide : chargez-le d’abord',
     DEPOT_NOT_STANDING: () => 'le point est encore en chantier : son dépôt n’existe pas',
     DEPOT_FULL: (d) => `le dépôt est plein : ${num(d.capacity)} au total`,
+    FOREIGN_DEPOT: () =>
+      'on ne livre qu’à ses propres dépôts : seul le Prêt-bail américain livre chez un autre',
+    LEND_LEASE_TRANSPORTS_ONLY: () =>
+      'un Prêt-bail ne porte que des transports : pas de garnison chez l’autre, débarquez d’abord',
     AIRDROP_AIR_ONLY: () => 'seul un avion de transport largue : camions et cargos se posent',
     NO_SQUAD_THERE: () => 'aucune de vos escouades ne se tient là',
     SQUAD_ANCHORED: () => 'cette escouade est ancrée : elle se recharge seule, sans paquet',
@@ -2882,6 +2886,12 @@ export const fr = {
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
           : `Livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le transport rentre.`,
+      lendLeaseDelivered: (country: string, delivered: string, kept: string) =>
+        delivered === ''
+          ? `Prêt-bail sans livraison — ${country} : le dépôt n’a rien pu prendre, ${kept} encore à bord. Le convoi rentre.`
+          : `Prêt-bail livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le convoi rentre.`,
+      lendLeaseReceived: (nation: string, delivered: string, country: string) =>
+        `Prêt-bail reçu — ${nation} : ${delivered} à votre dépôt, ${country}.`,
       researchDone: (card: ResearchCard) =>
         `Recherche achevée — ${cardName(card)} : ${RESEARCH_UNLOCKS[card]}, désormais à vous.`,
       airdropped: (country: string, delivered: string, kept: string, squad: boolean) =>
@@ -4604,6 +4614,12 @@ export const fr = {
     tourConsequence:
       'Une boucle depuis le chargement, quatre dépôts au plus : il recharge sa consigne à chaque tour, saute un dépôt plein, et garde son slot.',
     tracing: (count: number) => `tournée à tracer · ${count} arrêt${plural(count, '', 's')}`,
+    /** **Une tournée ne s'arrête pas chez l'autre** (ADR 0039 §3) : le Prêt-bail livre une fois. */
+    traceAbroad:
+      'Une tournée ne s’arrête qu’à vos dépôts : chez un autre, le Prêt-bail livre une fois, transport lâché dessus',
+    lendLease: 'livrer en Prêt-bail',
+    lendLeaseConsequence:
+      'Décharge au dépôt de l’autre ce qui y tient, puis rentre seul avec le reste. Plein, démantelé ou désactivé, son dépôt ne se lit qu’à l’arrivée, et le receveur apprend qui a livré.',
     traceElsewhere:
       'Une tournée se trace de dépôt en dépôt : lâchez le transport sur un de vos avant-postes, ou lancez-la depuis son étiquette',
     /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */

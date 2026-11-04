@@ -1,6 +1,6 @@
 import { isHqSite } from './capture';
 import { asClockTime, asLocalTime } from './duration';
-import { cardinalLabel, countryLabel, fr, ofName, theBuilding } from '../i18n/fr';
+import { cardinalLabel, countryLabel, fr, nationLabel, ofName, theBuilding } from '../i18n/fr';
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
@@ -468,12 +468,23 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'supplyDelivered',
-        text: said.supplyDelivered(
+        text: (notice.abroad === true ? said.lendLeaseDelivered : said.supplyDelivered)(
           countryLabel(notice.hostCountry),
           supplyWords(notice.delivered),
           supplyWords(notice.kept),
         ),
         delivered: notice.delivered,
+      };
+    case 'lendLeaseReceived':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.lendLeaseReceived(
+          nationLabel(notice.nation),
+          supplyWords(notice.delivered),
+          countryLabel(notice.hostCountry),
+        ),
       };
     case 'researchDone':
       return {

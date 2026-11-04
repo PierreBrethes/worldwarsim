@@ -32,6 +32,7 @@ import {
   SPECIALIZATION,
   SPECIALTY,
   SURVEYED_INSTALLATION,
+  SURVEYED_OUTPOST,
   STRIKE,
   TROOP_STATE,
   TROOP_ADDRESS,
@@ -723,7 +724,14 @@ export default defineSchema({
     /** **Une livraison** (ADR 0028 §4) : à l'arrivée sur cet avant-poste, les transports
      *  déchargent dans la limite du dépôt, puis rentrent seuls ; ce qu'ils portaient d'autre y
      *  reste en garnison. */
-    delivery: v.optional(v.object({ outpostId: v.id('outposts') })),
+    delivery: v.optional(
+      v.object({
+        outpostId: v.id('outposts'),
+        /** **Le Prêt-bail** (ADR 0039 §3) : le dépôt d'un autre, relevé à l'ordre. Son état se
+         *  relit à l'arrivée, et le convoi rentre avec ce qu'il n'a pas pris. */
+        lendLease: v.optional(v.literal(true)),
+      }),
+    ),
     /** **Un largage** (ADR 0028 §4) : à l'arrivée, l'avion lâche son paquet sur cet avant-poste ou
      *  sur l'escouade isolée de ce point, sans se poser, puis rentre ; son retour porte `back`,
      *  pour que le fil le dessine en vol. */
@@ -1457,7 +1465,11 @@ export default defineSchema({
     seenAt: v.number(),
     /** Snapshot at `seenAt`. Absent rows predate installation surveys and reveal nothing. */
     installations: v.optional(v.array(SURVEYED_INSTALLATION)),
-    /** Indexed read gate for PlayerView; absent legacy rows are the same as false. */
+    /** **Les avant-postes étrangers debout à `seenAt`** (ADR 0039 §3) : id, point et pays hôte,
+     *  ni niveau ni dépôt. Absent : aucun. */
+    outposts: v.optional(v.array(SURVEYED_OUTPOST)),
+    /** Indexed read gate for PlayerView: installations or outposts to serve. Absent legacy rows
+     *  are the same as false. */
     hasInstallations: v.optional(v.boolean()),
   })
     .index('byPlayer', ['playerId'])

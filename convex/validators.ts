@@ -74,6 +74,13 @@ export const SURVEYED_INSTALLATION = v.object({
   point: LON_LAT,
 });
 
+/** **Un avant-poste étranger relevé** (ADR 0039 §3) : où il se tient et chez qui, rien de plus. */
+export const SURVEYED_OUTPOST = v.object({
+  outpostId: v.id('outposts'),
+  point: LON_LAT,
+  hostCountry: v.string(),
+});
+
 export const RESOURCE_KEY = v.union(
   v.literal('food'),
   v.literal('steel'),
@@ -532,6 +539,19 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     delivered: SUPPLY_LOAD,
     kept: SUPPLY_LOAD,
+    /** **Au dépôt d'un autre, par le Prêt-bail** (ADR 0039 §3) : la dépêche dit le lieu, jamais
+     *  le teneur. Le rapport de saison compte ces lignes. */
+    abroad: v.optional(v.literal(true)),
+  }),
+  /** **Le receveur d'un Prêt-bail** (ADR 0039 §3) : la nation qui livre et ce qu'elle a livré à
+   *  son dépôt — la seconde brèche voulue au brouillard sur la nation, bornée à ce dépôt. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lendLeaseReceived'),
+    nation: v.string(),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    delivered: SUPPLY_LOAD,
   }),
   /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses
    *  dépôts sont pleins (`full`), ou sa route est refusée (`road`, le plein manque). */

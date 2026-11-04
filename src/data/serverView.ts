@@ -205,6 +205,7 @@ function adaptedView(server: ServerView): PlayerView {
     outpostFoundation: server.outpostFoundation ?? { cost: {}, minutes: 0 },
     storageCapPerLevel: server.storageCapPerLevel ?? 0,
     surveyedInstallations: server.surveyedInstallations ?? [],
+    surveyedOutposts: server.surveyedOutposts ?? [],
     lootSightings: server.lootSightings ?? [],
     /** **Servie telle quelle, jamais recomposée.** L'adaptateur ne calcule rien ici — un delta
      *  reconstitué côté client aurait besoin de l'édition précédente, que la vue ne sert pas et

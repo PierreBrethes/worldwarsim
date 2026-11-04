@@ -171,6 +171,25 @@ describe('seasonReport.outpostEvents', () => {
         regionId: MARNE,
         level: 1,
       });
+      const load = { ammunition: 40, oil: 0, coal: 0 };
+      const none = { ammunition: 0, oil: 0, coal: 0 };
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 7,
+        kind: 'supplyDelivered',
+        hostCountry: 'FRA',
+        delivered: load,
+        kept: none,
+        abroad: true,
+      });
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 8,
+        kind: 'supplyDelivered',
+        hostCountry: 'FRA',
+        delivered: load,
+        kept: none,
+      });
     });
 
     const page = await t.query(internal.seasonReport.outpostEvents, {
@@ -180,6 +199,7 @@ describe('seasonReport.outpostEvents', () => {
 
     expect(page.next).toBeNull();
     expect(page.events.map((event) => event.kind)).toEqual(['stands', 'raised', 'taken']);
-    expect(page.uses).toBe(1);
+    /** Un rasage évacué et un Prêt-bail ; la livraison à son propre dépôt ne compte pas. */
+    expect(page.uses).toBe(2);
   });
 });

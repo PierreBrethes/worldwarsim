@@ -27,7 +27,7 @@ import {
 } from './constants';
 import { heldOver } from './holding';
 import { regionsCoveredBy, regionsWithinReach } from './regionGeometry';
-import { movementsOf, outpostsOf, pointOf } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, seasonOutposts } from './movement/forces';
 import { seatsOf } from './seats';
 import { blitzTheatreOf } from './movement/theatre';
 import {
@@ -36,6 +36,7 @@ import {
   homeCountryOf,
   pointOfBuilding,
   regionFacts,
+  regionOfOutpost,
   type RegionFacts,
 } from './regions';
 
@@ -182,6 +183,20 @@ export async function fileSurvey(
     installations.push({ buildingId: building._id, key: building.key, point: building.point });
     installationsByRegion.set(building.regionId, installations);
   }
+  /** **Les avant-postes étrangers debout** (ADR 0039 §3) : id, point et pays hôte. Un chantier ne
+   *  tient pas encore son sol, il ne se relève pas : son lever relève pour qui regarde. */
+  const outpostsByRegion = new Map<
+    string,
+    Array<{ outpostId: Id<'outposts'>; point: Doc<'outposts'>['point']; hostCountry: string }>
+  >();
+  for (const outpost of await seasonOutposts(ctx, player.seasonId)) {
+    const regionId = regionOfOutpost(outpost);
+    if (outpost.playerId === playerId || regionId === null || !covered.has(regionId)) continue;
+    if (!isStanding(outpost, at)) continue;
+    const list = outpostsByRegion.get(regionId) ?? [];
+    list.push({ outpostId: outpost._id, point: outpost.point, hostCountry: outpost.hostCountry });
+    outpostsByRegion.set(regionId, list);
+  }
 
   const home = homeCountryOf(player.nation);
   const staleAfter = SURVEY_REFRESH_HOURS * 3_600_000;
@@ -189,10 +204,12 @@ export async function fileSurvey(
   for (const region of seen) {
     const owner = (truth.get(region.id) ?? null) as Id<'players'> | null;
     const installations = installationsByRegion.get(region.id) ?? [];
+    const outposts = outpostsByRegion.get(region.id) ?? [];
+    const something = installations.length > 0 || outposts.length > 0;
     /** **Son sol ne se relève que s'il porte un mât adverse** — un bâtiment capturé chez soi
      *  (14/10) : sans ligne, le perdant n'avait ni mât à viser ni branche pour le reprendre. Le
      *  reste de son sol reste servi par la lecture, et la ligne part quand le mât revient. */
-    if (region.country === home && installations.length === 0) {
+    if (region.country === home && !something) {
       const stale = await ctx.db
         .query('regionSightings')
         .withIndex('byPlayerRegion', (q) => q.eq('playerId', playerId).eq('regionId', region.id))
@@ -206,14 +223,15 @@ export async function fileSurvey(
       .unique();
 
     if (row === null) {
-      if (owner === null && installations.length === 0) continue;
+      if (owner === null && !something) continue;
       await ctx.db.insert('regionSightings', {
         playerId,
         regionId: region.id,
         ownerId: owner,
         seenAt: at,
         installations,
-        hasInstallations: installations.length > 0,
+        outposts,
+        hasInstallations: something,
       });
       written += 1;
       continue;
@@ -226,12 +244,16 @@ export async function fileSurvey(
           previous[index]?.buildingId === installation.buildingId &&
           previous[index]?.key === installation.key,
       );
-    if (row.ownerId === owner && sameInstallations && at - row.seenAt < staleAfter) continue;
+    const seenOutposts = (row.outposts ?? []).map((one) => one.outpostId).join();
+    const sameOutposts = seenOutposts === outposts.map((one) => one.outpostId).join();
+    if (row.ownerId === owner && sameInstallations && sameOutposts && at - row.seenAt < staleAfter)
+      continue;
     await ctx.db.patch(row._id, {
       ownerId: owner,
       seenAt: at,
       installations,
-      hasInstallations: installations.length > 0,
+      outposts,
+      hasInstallations: something,
     });
     written += 1;
   }

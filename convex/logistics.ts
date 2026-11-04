@@ -5,6 +5,8 @@ import {
   addLoads,
   deliverRefusalOf,
   deliveryOf,
+  depotAccessOf,
+  loadTotal,
   airdropOnSquad,
   airdropRefusalOf,
   emptyLoad,
@@ -18,6 +20,11 @@ import {
   type SupplyLoad,
 } from '../src/domain/logistics';
 import { canonicalBuildingKey } from '../src/domain/ids';
+import { assetOf } from '../src/domain/nation-assets';
+import { modeOf } from '../src/domain/season-mode';
+import { besieged } from '../src/domain/construction';
+import { cargoOf } from '../src/domain/troops';
+import { siegesOf } from './buildings';
 import { suppliesOf } from '../src/domain/supplies';
 import { effectiveSpecialty, isStanding } from '../src/domain/outposts';
 import { isBlitz } from './blitz';
@@ -158,11 +165,28 @@ export const deliver = mutation({
     requirePlayable(player, season);
     if (await isBlitz(ctx, seasonId)) fail('NOT_IN_BLITZ');
     const outpost = await ctx.db.get(outpostId);
-    if (outpost === null || outpost.playerId !== player._id) fail('UNKNOWN_OUTPOST', { outpostId });
-    const refusal = deliverRefusalOf(
-      carriersOf(await troopsAmong(ctx, player._id, troopIds)),
-      depotOf(outpost, Date.now()),
-    );
+    const mine = outpost !== null && outpost.playerId === player._id;
+    const troops = await troopsAmong(ctx, player._id, troopIds);
+    /** **Le dépôt d'un autre ne se lit qu'au relevé** : la ligne vivante n'est pas lue ici. */
+    const seen = mine ? null : await surveyedOutpostOf(ctx, player._id, outpostId);
+    const access = depotAccessOf({
+      mine,
+      surveyed: seen !== null,
+      asset: assetOf(player.nation, modeOf(season.mode)),
+      troops: mine ? troops : await withRiders(ctx, player._id, troops),
+    });
+    if (access.kind === 'refused') fail(access.refusal.code, { outpostId });
+    if (access.kind === 'lendLease')
+      return march(ctx, {
+        playerId: player._id,
+        season,
+        type: 'march',
+        origin,
+        troopIds,
+        aim: await aimOf(ctx, player._id, { kind: 'point', point: seen!.point }),
+        delivery: { outpostId, lendLease: true },
+      });
+    const refusal = deliverRefusalOf(carriersOf(troops), depotOf(outpost!, Date.now()));
     if (refusal !== null) {
       const { code, ...details } = refusal;
       fail(code, details);
@@ -178,6 +202,39 @@ export const deliver = mutation({
     });
   },
 });
+
+/** **L'avant-poste étranger tel que mon relevé le garde** (ADR 0039 §3), `null` si je ne l'ai
+ *  pas relevé. */
+async function surveyedOutpostOf(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  outpostId: Id<'outposts'>,
+): Promise<{ readonly point: { lon: number; lat: number } } | null> {
+  const surveys = await ctx.db
+    .query('regionSightings')
+    .withIndex('byPlayerHasInstallations', (q) =>
+      q.eq('playerId', playerId).eq('hasInstallations', true),
+    )
+    .collect();
+  for (const survey of surveys)
+    for (const outpost of survey.outposts ?? [])
+      if (outpost.outpostId === outpostId) return outpost;
+  return null;
+}
+
+/** **La colonne qui partirait**, passagers des transports compris, comme `march` la forme. */
+async function withRiders(
+  ctx: QueryCtx,
+  playerId: Id<'players'>,
+  troops: ReadonlyArray<Doc<'troops'>>,
+): Promise<ReadonlyArray<Doc<'troops'>>> {
+  if (troops.length === 0) return troops;
+  const pile = await standingPile(ctx, playerId, troops[0]!.stationedAt);
+  const riders = troops
+    .flatMap((troop) => cargoOf(seatedOf(troop), pile.map(seatedOf)))
+    .flatMap((rider) => pile.filter((troop) => troop._id === rider.id));
+  return [...troops, ...riders.filter((rider) => !troops.some((one) => one._id === rider._id))];
+}
 
 /**
  * **Décharger au dépôt** : chaque transport de la colonne dépose ce qui tient, dans l'ordre des
@@ -243,6 +300,20 @@ export async function arriveToDeliver(
   movement: Doc<'movements'>,
   now: number,
 ): Promise<boolean> {
+  const outpost = await ctx.db.get(movement.delivery!.outpostId);
+  const player = (await ctx.db.get(movement.playerId))!;
+  const season = await ctx.db.get(movement.seasonId);
+  const access = depotAccessOf({
+    mine: outpost !== null && outpost.playerId === movement.playerId,
+    surveyed: movement.delivery!.lendLease === true,
+    asset: assetOf(player.nation, modeOf(season?.mode)),
+    troops: await troopsAmong(ctx, movement.playerId, movement.troopIds),
+  });
+  if (access.kind !== 'own') {
+    if (movement.delivery!.lendLease !== true) return false;
+    await deliverAbroad(ctx, movement, access.kind === 'lendLease' ? outpost : null, player, now);
+    return true;
+  }
   const unloaded = await unloadAt(ctx, movement, now);
   if (unloaded === null) return false;
   await ctx.db.insert('notices', {
@@ -256,6 +327,71 @@ export async function arriveToDeliver(
   });
   await walkHome(ctx, { winners: unloaded.carriers, beaten: [] }, pointOf(movement.to), now);
   return true;
+}
+
+/**
+ * **Le Prêt-bail à l'arrivée** (ADR 0039 §3) : le dépôt de l'autre se relit ici. Il prend ce qui
+ * tient ; démantelé, en chantier, désactivé, sous capture ou hors escale pour un avion, il ne prend
+ * rien. Le convoi rentre seul avec le reste, et sa dépêche dit le lieu, jamais le teneur. Le
+ * receveur apprend la nation qui a livré, et rien d'autre.
+ */
+async function deliverAbroad(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  outpost: Doc<'outposts'> | null,
+  player: Doc<'players'>,
+  now: number,
+): Promise<void> {
+  const carriers = carriersOf(await troopsAmong(ctx, movement.playerId, movement.troopIds)).sort(
+    (a, b) => (a._id < b._id ? -1 : 1),
+  );
+  const receiving =
+    outpost !== null &&
+    (outpost.disabledUntil ?? 0) <= now &&
+    !besieged(await siegesOf(ctx, outpost.playerId), [outpost._id]) &&
+    deliverRefusalOf(carriers, depotOf(outpost, now), true) === null;
+  let depot = outpost?.depot ?? emptyLoad();
+  let delivered = emptyLoad();
+  let kept = emptyLoad();
+  for (const carrier of carriers) {
+    const held = carrier.load ?? emptyLoad();
+    const unloaded = receiving
+      ? deliveryOf(held, depot, depotCapacity(outpost.level, effectiveSpecialty(outpost)))
+      : { moved: emptyLoad(), kept: held };
+    depot = addLoads(depot, unloaded.moved);
+    delivered = addLoads(delivered, unloaded.moved);
+    kept = addLoads(kept, unloaded.kept);
+    await ctx.db.patch(carrier._id, { load: unloaded.kept });
+  }
+  await ctx.db.insert('notices', {
+    playerId: movement.playerId,
+    at: now,
+    kind: 'supplyDelivered',
+    hostCountry: outpost?.hostCountry ?? movement.hostCountry,
+    point: movement.to,
+    delivered,
+    kept,
+    abroad: true,
+  });
+  if (outpost !== null && loadTotal(delivered) > 0) {
+    await ctx.db.patch(outpost._id, { depot });
+    await ctx.db.insert('notices', {
+      playerId: outpost.playerId,
+      at: now,
+      kind: 'lendLeaseReceived',
+      nation: player.nation ?? '',
+      hostCountry: outpost.hostCountry,
+      point: outpost.point,
+      delivered,
+    });
+  }
+  await forgetMovement(ctx, movement._id, now);
+  await walkHome(
+    ctx,
+    { winners: await troopsAmong(ctx, movement.playerId, movement.troopIds), beaten: [] },
+    pointOf(movement.to),
+    now,
+  );
 }
 
 /** **Mes escouades posées en ce point**, telles que le largage les lit : ancrées ou non, et ce

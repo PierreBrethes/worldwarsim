@@ -1027,6 +1027,16 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly delivered: SupplyLoad;
       readonly kept: SupplyLoad;
+      /** Au dépôt d'un autre, par le Prêt-bail (ADR 0039 §3). */
+      readonly abroad?: true;
+    }
+  /** **Un Prêt-bail reçu** (ADR 0039 §3) : la nation qui a livré, et ce qu'elle a livré. */
+  | {
+      readonly kind: 'lendLeaseReceived';
+      readonly at: number;
+      readonly nation: string;
+      readonly hostCountry: string;
+      readonly delivered: SupplyLoad;
     }
   | {
       readonly kind: 'airdropped';
@@ -1488,6 +1498,17 @@ export type PlayerView = {
     /** Entrepôt du teneur de Dakar : ce qu'un pillage laisse par ressource (`sparedPerResourceOf`),
      *  absent quand c'est le plancher commun. Le stock lui-même ne se relève pas. */
     readonly spared?: number;
+  }>;
+  /**
+   * **Les avant-postes étrangers que son relevé garde** (ADR 0039 §3) : id, point et pays hôte,
+   * ni niveau, ni dépôt, ni nation. Le Prêt-bail américain y livre ; les autres s'y voient dire
+   * le refus avant le lâcher.
+   */
+  readonly surveyedOutposts: ReadonlyArray<{
+    readonly id: string;
+    readonly regionId: string;
+    readonly point: LonLat;
+    readonly hostCountry: string;
   }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{

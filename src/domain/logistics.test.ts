@@ -5,6 +5,7 @@ import {
   tourRefusalOf,
   grabbedWithin,
   deliverRefusalOf,
+  depotAccessOf,
   deliveryOf,
   airdropOnSquad,
   airdropRefusalOf,
@@ -119,6 +120,48 @@ describe('delivering to a depot', () => {
 
   it('lets a tour pass a full depot: it skips it', () => {
     expect(deliverRefusalOf([truck], { ...outpost, depot: load(400) }, true)).toBeNull();
+  });
+});
+
+describe('which depot a column may deliver to (lend-lease, ADR 0039 §3)', () => {
+  const truck = { role: 'landTransport' as const, load: load(50) };
+  const abroad = { mine: false, surveyed: true, asset: 'lendLease' as const, troops: [truck] };
+
+  it('delivers to its own depot whatever the nation', () => {
+    expect(depotAccessOf({ ...abroad, mine: true, asset: null })).toEqual({ kind: 'own' });
+  });
+
+  it('lets an American transport deliver to a foreign depot it has surveyed', () => {
+    expect(depotAccessOf(abroad)).toEqual({ kind: 'lendLease' });
+  });
+
+  it('answers an unsurveyed foreign depot as an unknown one', () => {
+    expect(depotAccessOf({ ...abroad, surveyed: false })).toEqual({
+      kind: 'refused',
+      refusal: { code: 'UNKNOWN_OUTPOST' },
+    });
+  });
+
+  it('refuses every other nation a foreign depot', () => {
+    expect(depotAccessOf({ ...abroad, asset: 'blitzkrieg' })).toEqual({
+      kind: 'refused',
+      refusal: { code: 'FOREIGN_DEPOT' },
+    });
+  });
+
+  it('refuses a column that carries anything but transports, riders included', () => {
+    const infantry = { role: 'infantry' as const };
+    expect(depotAccessOf({ ...abroad, troops: [truck, infantry] })).toEqual({
+      kind: 'refused',
+      refusal: { code: 'LEND_LEASE_TRANSPORTS_ONLY' },
+    });
+  });
+
+  it('refuses an empty hold', () => {
+    expect(depotAccessOf({ ...abroad, troops: [{ ...truck, load: load() }] })).toEqual({
+      kind: 'refused',
+      refusal: { code: 'NOTHING_TO_DELIVER' },
+    });
   });
 });
 

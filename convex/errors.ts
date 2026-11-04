@@ -168,6 +168,9 @@ export type ErrorCode =
   | 'NOTHING_TO_DELIVER'
   | 'DEPOT_NOT_STANDING'
   | 'DEPOT_FULL'
+  /** **Le Prêt-bail** (ADR 0039 §3). */
+  | 'FOREIGN_DEPOT'
+  | 'LEND_LEASE_TRANSPORTS_ONLY'
   /** **Larguer** (ADR 0028 §4). */
   | 'AIRDROP_AIR_ONLY'
   | 'NO_SQUAD_THERE'
