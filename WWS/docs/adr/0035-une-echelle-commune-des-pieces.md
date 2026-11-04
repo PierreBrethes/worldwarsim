@@ -34,8 +34,10 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    > quai, escorteur et porte-avions compris : son seuil d'épingle, son plancher (§10) et son pied
    > sont ceux du tas à cette taille. Le navire qui appareille part du quai tel qu'il est dessiné
    > et reprend sa taille en 0,5 s ; celui qui arrive la quitte de même. Une flotte relevée reste
-   > à son point et à pleine taille. Les garnisons de terre gardent leur taille (§1) ; leur pied
-   > est seul corrigé.
+   > à son point et à pleine taille. Les garnisons de terre gardent leur taille (§1) et se rangent
+   > sur la cour de leur socle (ADR 0038 §5) : rien n'y change à l'écran. Seul le pied d'un modèle
+   > sans `fx_rang` — aucun des treize bâtiments aujourd'hui — ne multiplie plus la demi-pile par
+   > l'échelle du site.
 3. **Deux distances d'épingle.** Une pièce devient épingle selon sa taille à l'écran, non plus à
    une distance commune : les troupes vers d ≈ 3 à 7 (tenues jusqu'à d ≈ 30 par le plancher,
    §10), les bâtiments vers d ≈ 56 à 68. Le fondu des régions et des ombres garde ses propres

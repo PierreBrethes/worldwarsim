@@ -730,7 +730,7 @@ describe('a garrison at the foot of a site drawn smaller (#433)', () => {
   };
   const reach = (step: readonly [number, number]) => Math.hypot(...step);
 
-  it('stands a pile on land off the site by its own half, not by its half at the site scale', async () => {
+  it('stands a pile on land off a model without `fx_rang` by its own half, not by its half at the site scale', async () => {
     const maquettes = await crowded('building-barracks@0,0');
     const bare = maquettes.garrisonAt('building-barracks@0,0', 0)!;
     expect(bare.scale).toBeCloseTo(0.4, 9);
