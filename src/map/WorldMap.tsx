@@ -2457,6 +2457,17 @@ export function targetOfLabel(
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
     };
   }
+  /** **Un avant-poste étranger relevé** (ADR 0039 §3) : la poignée est le relevé, et la rose
+   *  le lit comme un point qui n'est pas à moi. */
+  if (label.foreignOutpost !== undefined && label.anchor.kind === 'ground') {
+    return {
+      kind: 'outpost',
+      id: label.foreignOutpost.id,
+      hostCountry: label.foreignOutpost.hostCountry,
+      name: lineText(label, 'nature') ?? fr.labels.foreignOutpost,
+      coastal: coastAt(label.anchor.lonLat),
+    };
+  }
   /**
    * **Le mât d'un bâtiment est une cible** (décisions 54a, 56a) : le clic droit y ouvre la rose
    * qui monte un niveau. La poignée est celle du label — clé, niveau, région — et non le sol

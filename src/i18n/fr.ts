@@ -4898,6 +4898,8 @@ export const fr = {
     /** **Un chantier n'a pas de niveau** : il n'en aura un qu'au lever. Ce que le mât doit dire
      *  est ce qui le tient — la garnison — et dans combien de temps il tiendra debout. */
     outpostUnderConstruction: 'avant-poste en chantier',
+    /** Un avant-poste étranger relevé (ADR 0039 §3) : ni niveau ni nation. */
+    foreignOutpost: 'avant-poste étranger',
     outpostGarrison: (garrison: number) => `GARNISON ${garrison}`,
     buildingLevel: (level: number) => `NIVEAU ${level}`,
     /** A deposit's name in ink beside its basin (#239), and who is known to work it: mine (a

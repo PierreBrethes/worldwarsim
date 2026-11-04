@@ -240,8 +240,28 @@ export function markersOf(
     neutral: { lonLat: site.point },
   }));
 
+  /** **Les avant-postes étrangers relevés** (ADR 0039 §3) : un point et un pays, le relevé n'en
+   *  sert pas plus. Ils se tiennent comme les camps, hors de l'interrupteur des mâts. */
+  const foreign: ReadonlyArray<MapMarker> = view.surveyedOutposts.map((outpost) => ({
+    kind: 'foreignOutpost' as const,
+    id: `foreign-outpost-${outpost.id}`,
+    outpostId: outpost.id,
+    lonLat: outpost.point,
+    hostCountry: outpost.hostCountry,
+    washed: knownRegionById.get(outpost.regionId)?.state !== 'current',
+  }));
+
   if (!toggles.buildings)
-    return [...deposits, ...loot, ...camps, ...objectives, ...points, ...outposts, ...stacks];
+    return [
+      ...deposits,
+      ...loot,
+      ...camps,
+      ...objectives,
+      ...points,
+      ...outposts,
+      ...foreign,
+      ...stacks,
+    ];
   const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
   const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
   const worksOn = (point: LonLat, key: string) =>
@@ -335,6 +355,7 @@ export function markersOf(
     ...surveyed,
     ...neutral,
     ...outposts,
+    ...foreign,
     ...stacks,
     ...standing,
     ...raising,

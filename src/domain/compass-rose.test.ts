@@ -65,6 +65,7 @@ const view = {
   outpostFoundation: { cost: { steel: 65, coal: 20 }, minutes: 65 },
   arcs: [],
   camps: [],
+  surveyedOutposts: [],
   /** Un relevé d'installation en Aragon : c'est lui qui ouvre « attaquer » sur ce sol-là. */
   surveyedInstallations: [
     { id: 'mine-enemy', key: 'mine', regionId: 'ESP-1234' },
@@ -467,6 +468,62 @@ describe('in aim', () => {
       const traced = traceCompass(target, atHq(0), { carrierId: 'T1', stops: ['AP-01'] });
       expect(traced.actions).toEqual([]);
       expect(traced.refusal).toBe('ce dépôt est déjà un arrêt de la tournée');
+    });
+  });
+
+  /** **Le Prêt-bail** (ADR 0039 §3) : lâché sur un avant-poste étranger relevé, le transport
+   *  américain chargé y livre ; toute autre nation s'y voit dire le refus avant le lâcher. */
+  describe('a loaded transport over a surveyed foreign outpost', () => {
+    const trucking = { ...column, roles: ['landTransport' as const] };
+    const truck = {
+      id: 'T1',
+      role: 'landTransport',
+      tier: 1,
+      load: { ammunition: 60, oil: 0, coal: 0 },
+      stationedAt: { kind: 'building', buildingId: 'HQ' },
+    };
+    const lent = (asset: string | null, ...others: object[]) =>
+      ({
+        ...view,
+        me: { ...view.me, asset, troops: [truck, ...others] },
+        surveyedOutposts: [
+          { id: 'AP-FR', regionId: 'NOR-1', point: [10.2, 59.8], hostCountry: 'NOR' },
+        ],
+      }) as unknown as PlayerView;
+    const target = {
+      kind: 'outpost',
+      id: 'AP-FR',
+      hostCountry: 'NOR',
+      name: 'avant-poste étranger',
+      coastal: false,
+    } as const;
+
+    it('offers the American to deliver there, marching to the surveyed point', () => {
+      const compass = compassOf(target, lent('lendLease'), trucking, null, 0, ['T1']);
+      expect(compass?.actions[0]).toMatchObject({
+        key: 'deliver',
+        label: fr.compass.lendLease,
+        outpostId: 'AP-FR',
+        aim: { kind: 'point', lon: 10.2, lat: 59.8 },
+      });
+    });
+
+    it('says the refusal to every other nation, before the drop', () => {
+      const compass = compassOf(target, lent('blitzkrieg'), trucking, null, 0, ['T1']);
+      expect(compass?.actions.map((action) => action.key)).not.toContain('deliver');
+      expect(compass?.refusal).toBe(fr.errors.FOREIGN_DEPOT());
+    });
+
+    it('refuses a column with a passenger aboard', () => {
+      const rifles = { ...truck, id: 'I1', role: 'infantry', load: undefined, carriedBy: 'T1' };
+      const compass = compassOf(target, lent('lendLease', rifles), trucking, null, 0, ['T1']);
+      expect(compass?.refusal).toBe(fr.errors.LEND_LEASE_TRANSPORTS_ONLY());
+    });
+
+    it('never stops a tour there, and says so on the trace', () => {
+      const traced = traceCompass(target, lent('lendLease'), { carrierId: 'T1', stops: [] });
+      expect(traced.actions).toEqual([]);
+      expect(traced.refusal).toBe(fr.compass.traceAbroad);
     });
   });
 

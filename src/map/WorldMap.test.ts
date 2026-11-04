@@ -42,6 +42,42 @@ describe('targetOfLabel', () => {
 
     expect(target).toMatchObject({ kind: 'outpost', id: 'o1' });
   });
+
+  /** **Le relevé d'un avant-poste étranger** (ADR 0039 §3) : son mât est une cible, sans encre,
+   *  sans niveau, nommé de son seul pays. */
+  it('rend un avant-poste étranger relevé comme un point qui n’est pas à moi', () => {
+    const marker: MapMarker = {
+      kind: 'foreignOutpost',
+      id: 'foreign-outpost-o9',
+      outpostId: 'o9',
+      lonLat: [4.4, 48.9],
+      hostCountry: 'FRA',
+      washed: false,
+    };
+    const view = { arcs: [], captures: [], loadedAt: 0 } as unknown as PlayerView;
+    const [label] = buildLabels(view, [marker]);
+    expect(label).toMatchObject({ type: 'foreign-outpost', ink: null, station: null });
+    expect(label!.lines.map((line) => ('text' in line ? line.text : null))).toEqual([
+      'avant-poste étranger',
+      'France',
+    ]);
+
+    const target = targetOfLabel(
+      label!,
+      'BEL',
+      null,
+      () => true,
+      () => 'land',
+    );
+
+    expect(target).toEqual({
+      kind: 'outpost',
+      id: 'o9',
+      hostCountry: 'FRA',
+      name: 'avant-poste étranger',
+      coastal: true,
+    });
+  });
 });
 
 describe('WorldMap tells the engine what the player dismantled (#340)', () => {

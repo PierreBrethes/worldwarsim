@@ -1,5 +1,5 @@
 import { build } from './compass-works';
-import { boardingAt, towardsMyPile, withDelivery } from './compass-logistics';
+import { boardingAt, towardsMyPile, withDelivery, withLendLease } from './compass-logistics';
 import { bombardFan, captureBranch, collectFan, plunderFan } from './compass-strike';
 import { fanOf, posted } from './compass-fan';
 import { fr } from '@/i18n/fr';
@@ -709,6 +709,8 @@ function aim(
       };
     }
     if (isMine) return withDelivery(fan, target.id, view, heldTroopIds ?? []);
+    const lent = withLendLease(fan, target, view, column, heldTroopIds ?? []);
+    if (lent !== fan) return lent;
     const capture = captureBranch(
       { kind: 'outpost' },
       { kind: 'outpost', id: target.id },

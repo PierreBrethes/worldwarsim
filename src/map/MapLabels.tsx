@@ -1745,6 +1745,7 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
   'building',
   'construction',
   'outpost',
+  'foreign-outpost',
   'camp',
   'installation',
   'my-movement',

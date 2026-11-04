@@ -57,6 +57,19 @@ export type MapMarker =
     }
   | {
       /**
+       * **Un avant-poste étranger relevé** (ADR 0039 §3) : un point et un pays hôte, ni niveau,
+       * ni dépôt, ni encre — le relevé n'en sert pas davantage. Le Prêt-bail y livre.
+       */
+      readonly kind: 'foreignOutpost';
+      readonly id: string;
+      readonly outpostId: string;
+      readonly lonLat: LonLat;
+      readonly hostCountry: string;
+      /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
+      readonly washed: boolean;
+    }
+  | {
+      /**
        * **Un camp adverse relevé** (ADR 0024 §1) — une position, un milieu, deux dates. Il n'a
        * ni encre, ni effectif, ni portrait : le brouillard ne rend que *où* une force se tient,
        * et sa pile seulement quand un Guet l'a lue (ADR 0037 §5).
@@ -303,6 +316,8 @@ export type LabelType =
   | 'objective'
   | 'strategic'
   | 'outpost'
+  /** Un avant-poste étranger relevé (ADR 0039 §3). */
+  | 'foreign-outpost'
   | 'stack'
   | 'construction'
   | 'building'
@@ -451,6 +466,8 @@ export type MapLabel = {
   readonly building: BuildingHandle | null;
   /** Le mât adverse relevé, la cible de l'expédition — jamais confondu avec `building`. */
   readonly installation: InstallationHandle | null;
+  /** **L'avant-poste étranger relevé** (ADR 0039 §3) : ce qu'un clic droit vise. Absent ailleurs. */
+  readonly foreignOutpost?: { readonly id: string; readonly hostCountry: string };
   /**
    * **Le camp adverse relevé** (ADR 0024 §1) : ce qu'un clic gauche ouvre en cartouche et ce
    * qu'un clic droit vise. Il porte son milieu parce que c'est tout son portrait — la
@@ -507,6 +524,7 @@ const NAMED_WHEN_POINTED: ReadonlySet<LabelType> = new Set([
   'building',
   'stack',
   'outpost',
+  'foreign-outpost',
   'objective',
   'strategic',
   'installation',
@@ -538,6 +556,8 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   construction: 4,
   loot: 3,
   outpost: 3,
+  /** Le point d'un autre ne prend jamais la place des siens. */
+  'foreign-outpost': 1,
   /** Un camp relevé se lit avant un mât : c'est une force, et elle peut partir. */
   camp: 3,
   /** **Un objectif se lit avant tout ce qui ne bouge pas** : c'est le seul endroit de la carte
@@ -740,6 +760,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
       marker.kind === 'deposit' ||
       marker.kind === 'loot' ||
       marker.kind === 'installation' ||
+      marker.kind === 'foreignOutpost' ||
       marker.kind === 'camp' ||
       /** **Un objectif n'appartient à personne** : il n'a donc pas d'encre à porter, et c'est la
        *  forme qui le dit — la couleur est un attribut de possession. */
@@ -750,7 +771,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
     lootSightingId: null,
     lootCurrent: true,
     washed:
-      (marker.kind === 'installation' && marker.washed) ||
+      ((marker.kind === 'installation' || marker.kind === 'foreignOutpost') && marker.washed) ||
       (marker.kind === 'camp' && marker.lastKnown),
     identified: false,
     idle: false,
@@ -812,6 +833,19 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
           ...(marker.neutral === null
             ? []
             : [{ role: 'mention', text: fr.blitz.neutral } as const]),
+        ],
+      };
+    case 'foreignOutpost':
+      return {
+        ...common,
+        type: 'foreign-outpost',
+        priority: PRIORITY['foreign-outpost'],
+        pictogram: 'outpost',
+        foreignOutpost: { id: marker.outpostId, hostCountry: marker.hostCountry },
+        hostCountry: null,
+        lines: [
+          { role: 'nature', text: fr.labels.foreignOutpost },
+          { role: 'mention', text: countryLabel(marker.hostCountry) },
         ],
       };
     /**

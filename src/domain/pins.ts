@@ -83,6 +83,8 @@ function markerPin(marker: MapMarker): ReadonlyArray<Pin> {
           ...(marker.neutral === null ? {} : { neutral: true }),
         },
       ];
+    case 'foreignOutpost':
+      return [{ ...at, shape: 'outpost', side: 'seen' }];
     case 'camp':
       return [
         marker.lastKnown
@@ -139,6 +141,7 @@ export function clusterSheetOf(types: ReadonlyArray<LabelType>): ClusterSheet {
       : [
           ...line(count('camp', 'intel', 'inbound-movement'), fr.cluster.forces),
           ...line(count('installation'), fr.cluster.sites),
+          ...line(count('foreign-outpost'), fr.cluster.outposts),
         ],
     note: fr.cluster.note,
   };

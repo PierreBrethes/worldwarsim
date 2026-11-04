@@ -183,6 +183,7 @@ describe('the deposits markersOf draws', () => {
       troops: [],
     },
     surveyedInstallations: [{ id: 's1', key: 'mine', point: seen!.lonLat, regionId: 'r' }],
+    surveyedOutposts: [],
     neutralSites: [],
     lootSightings: [],
     camps: [],
