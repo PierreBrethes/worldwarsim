@@ -1163,6 +1163,78 @@ describe('a Magasin resupplying the column that crosses it (ADR 0037 §4)', () =
     await t.mutation(internal.movements.arrive, { movementId: movement._id });
   }
 
+  /** **A crate on the way of every column**, sighted by `seat`: each marches to collect it. Its
+   *  loot and its life as given; `gone`, deleted before they arrive. */
+  async function crateOnTheWay(
+    t: Bench,
+    seat: Seat,
+    guest: Seat,
+    arrivesAt: number,
+    {
+      expiresAt = Date.now() + 400 * 3_600_000,
+      steel = 0,
+      gone = false,
+    }: { expiresAt?: number; steel?: number; gone?: boolean } = {},
+  ) {
+    const [mine, them] = [await playerOf(t, seat), await playerOf(t, guest)];
+    await t.run(async (ctx) => {
+      const seasonId = (await ctx.db.get(mine))!.seasonId;
+      const zero = { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 };
+      const engagementId = await ctx.db.insert('engagements', {
+        seasonId,
+        attackerId: mine,
+        defenderId: them,
+        cause: 'arrival',
+        point: NORTH,
+        hostCountry: 'MDA',
+        at: Date.now(),
+        winner: 'attacker',
+        outpostId: null,
+        disabledUntil: null,
+        troops: [],
+      });
+      const recoveryId = await ctx.db.insert('lootRecoveries', {
+        seasonId,
+        engagementId,
+        dispossessedPlayerId: them,
+        recoveringPlayerId: mine,
+        point: NORTH,
+        at: Date.now(),
+        recovered: zero,
+        remainder: zero,
+      });
+      const crateId = await ctx.db.insert('lootCrates', {
+        seasonId,
+        recoveryId,
+        point: NORTH,
+        appearedAt: Date.now(),
+        expiresAt,
+        loot: { ...zero, steel },
+      });
+      const sightingId = await ctx.db.insert('lootCrateSightings', {
+        seasonId,
+        playerId: mine,
+        crateId,
+        point: NORTH,
+        loot: { ...zero, steel },
+        seenAt: Date.now(),
+        present: true,
+        current: true,
+      });
+      for (const movement of await ctx.db.query('movements').collect())
+        await ctx.db.patch(movement._id, {
+          arrivesAt,
+          lootCollection: { sightingId, crateId, orderedAt: Date.now() },
+        });
+      if (gone) await ctx.db.delete(crateId);
+    });
+  }
+
+  const noticesOf = (t: Bench, kind: string) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter((notice) => notice.kind === kind),
+    );
+
   const resupplied = (t: Bench) =>
     t.run(async (ctx) =>
       (await ctx.db.query('notices').collect()).filter(
@@ -1274,62 +1346,41 @@ describe('a Magasin resupplying the column that crosses it (ADR 0037 §4)', () =
     const second = await emptyColumn(t, seat);
     const arrivesAt = await marchThrough(t, seat, [first.rifles]);
     await marchThrough(t, seat, [second.rifles]);
-    const [mine, them] = [await playerOf(t, seat), await playerOf(t, guest)];
-    await t.run(async (ctx) => {
-      const seasonId = (await ctx.db.get(mine))!.seasonId;
-      const zero = { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 };
-      const engagementId = await ctx.db.insert('engagements', {
-        seasonId,
-        attackerId: mine,
-        defenderId: them,
-        cause: 'arrival',
-        point: NORTH,
-        hostCountry: 'MDA',
-        at: Date.now(),
-        winner: 'attacker',
-        outpostId: null,
-        disabledUntil: null,
-        troops: [],
-      });
-      const recoveryId = await ctx.db.insert('lootRecoveries', {
-        seasonId,
-        engagementId,
-        dispossessedPlayerId: them,
-        recoveringPlayerId: mine,
-        point: NORTH,
-        at: Date.now(),
-        recovered: zero,
-        remainder: zero,
-      });
-      const crateId = await ctx.db.insert('lootCrates', {
-        seasonId,
-        recoveryId,
-        point: NORTH,
-        appearedAt: Date.now(),
-        expiresAt: Date.now() + 400 * 3_600_000,
-        loot: zero,
-      });
-      const sightingId = await ctx.db.insert('lootCrateSightings', {
-        seasonId,
-        playerId: mine,
-        crateId,
-        point: NORTH,
-        loot: zero,
-        seenAt: Date.now(),
-        present: true,
-        current: true,
-      });
-      for (const movement of await ctx.db.query('movements').collect())
-        await ctx.db.patch(movement._id, {
-          arrivesAt,
-          lootCollection: { sightingId, crateId, orderedAt: Date.now() },
-        });
-    });
+    await crateOnTheWay(t, seat, guest, arrivesAt);
 
     await arrive(t, arrivesAt);
 
     expect((await get(t, first.rifles))!.rounds).toBe(3);
     expect((await get(t, second.rifles))!.rounds).toBe(3);
+  });
+
+  it('tells the column that finds its crate gone, and brings it home empty (#279)', async () => {
+    for (const crate of [{ gone: true }, { expiresAt: Date.now() + 60_000 }]) {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const { rifles } = await emptyColumn(t, seat);
+      const arrivesAt = await marchThrough(t, seat, [rifles]);
+      await crateOnTheWay(t, seat, guest, arrivesAt, crate);
+
+      await arrive(t, arrivesAt);
+
+      expect(await noticesOf(t, 'lootCrateGone')).toMatchObject([
+        { playerId: await playerOf(t, seat), point: NORTH },
+      ]);
+      expect(await noticesOf(t, 'lootCollected')).toEqual([]);
+    }
+  });
+
+  it('says nothing of a crate that is there, whatever it gives (#279)', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { rifles } = await emptyColumn(t, seat);
+    const arrivesAt = await marchThrough(t, seat, [rifles]);
+    await crateOnTheWay(t, seat, guest, arrivesAt);
+
+    await arrive(t, arrivesAt);
+
+    expect(await noticesOf(t, 'lootCrateGone')).toEqual([]);
   });
 
   it('announces the steps before the order, the route paid first', async () => {

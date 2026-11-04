@@ -699,6 +699,13 @@ function written(notice: Notice): Written {
         kind: 'lootCollected',
         text: said.lootCollected(countryLabel(notice.hostCountry), lootWords(notice.loot)),
       };
+    case 'lootCrateGone':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'foundNothing',
+        text: said.lootCrateGone(countryLabel(notice.hostCountry)),
+      };
     case 'lootDelivered':
       return {
         at: notice.at,

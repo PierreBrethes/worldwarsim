@@ -1149,6 +1149,12 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly loot: ResourceAmounts;
     }
+  /** **La caisse n'était plus là** (#279) : la colonne rentre à vide. */
+  | {
+      readonly kind: 'lootCrateGone';
+      readonly at: number;
+      readonly hostCountry: string;
+    }
   | {
       readonly kind: 'lootDelivered';
       readonly at: number;
