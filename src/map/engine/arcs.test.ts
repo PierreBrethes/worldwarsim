@@ -389,3 +389,33 @@ describe('ArcLayer: the column on the road (#276)', () => {
     expect(arcs.pawns).toHaveLength(1);
   });
 });
+
+describe('ArcLayer: a column joining a pile (#277)', () => {
+  /** The head's distance to the end of its road, a second before it arrives. */
+  const shortOfEnd = (short: number) => {
+    vi.useFakeTimers({ now: 3_599_000 });
+    const arcs = layer();
+    arcs.setPlayerNation('france');
+    arcs.stopShort = () => short;
+    arcs.display([mine('a')]);
+    arcs.animate({ position: new Vector3(0, 1e4, 0) } as PerspectiveCamera);
+    const end = new WorldFrame(world).projectLonLat([10, 5], 0);
+    const head = arcs.headPositions.get('a')!;
+    vi.useRealTimers();
+    return Math.hypot(head.x - end.x, head.z - end.z);
+  };
+
+  it('halts its pawn so far short of the point', () => {
+    const plain = shortOfEnd(0);
+    expect(shortOfEnd(0.5) - plain).toBeCloseTo(0.5, 2);
+  });
+
+  it('says a column of mine still heads for the point, and none for another', () => {
+    const arcs = layer();
+    arcs.display([mine('a'), sighted('enemyDetected')]);
+    expect(arcs.headsFor([10, 5])).toBe(true);
+    expect(arcs.headsFor([10, 6])).toBe(false);
+    arcs.display([sighted('enemyDetected')]);
+    expect(arcs.headsFor([10, 5])).toBe(false);
+  });
+});

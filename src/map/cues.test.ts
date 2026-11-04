@@ -132,6 +132,13 @@ describe('monteesOf (#277)', () => {
     expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'c'] }]);
   });
 
+  it('names the men a column brings aboard at its arrival: they board from their file', () => {
+    // On the road the men stand in no pile; at the end of it they are aboard (`boardsOn`).
+    const before = aboardOf(view(truck, man('a'), man('b')));
+    const now = view(truck, man('a', 'truck'), man('b', 'truck'));
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'b'] }]);
+  });
+
   it('names nothing for a landing, a rider that stays, or a column leaving aboard', () => {
     const now = view(truck, man('a', 'truck'));
     expect(monteesOf(aboardOf(now), now, pilesOf(now))).toEqual([]);

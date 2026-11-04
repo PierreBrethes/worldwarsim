@@ -278,7 +278,9 @@ const arrivalIn = arrivalAt < 0 ? null : Number(process.argv[arrivalAt + 1]) || 
  * `s` puis par un fantassin et un char quatre secondes après (G) ; `--dissoudre [s]` une escouade
  * de quatre pièces dans le Berry, dissoute à `s` (U) ; `--monter [s]` un camion et deux
  * fantassins en Beauce, qui montent à `s` ; `--descendre [s]` un camion chargé de deux fantassins
- * dans le Nivernais, qui en descendent à `s`. Leurs lieux : `former`, `dissoudre`, `monter`, `descendre`.
+ * dans le Nivernais, qui en descendent à `s` ; `--embarquer [s]` deux fantassins qui marchent vers
+ * un camion du Gâtinais et y montent en arrivant, à `s`, depuis leur file. Leurs lieux : `former`,
+ * `dissoudre`, `monter`, `descendre`, `embarquer`.
  */
 const gestureIn = (flag) => {
   const at = process.argv.indexOf(flag);
@@ -288,6 +290,7 @@ const formingIn = gestureIn('--former');
 const disbandingIn = gestureIn('--dissoudre');
 const boardingIn = gestureIn('--monter');
 const landingIn = gestureIn('--descendre');
+const marchAboardIn = gestureIn('--embarquer');
 /** What the gestures of `--former`… act on, once the accounts are written. */
 const pile = {};
 
@@ -1093,6 +1096,25 @@ if (!bare) {
     places.descendre = [at.lon, at.lat];
     const [truck] = spawned({ role: 'landTransport', count: 1, ...at });
     pile.descendre = spawned({ role: 'infantry', count: 2, ...at, carriedBy: truck });
+  }
+  if (marchAboardIn !== null && scene.a !== null) {
+    const at = { lon: 2.6, lat: 48.2 };
+    const from = { lon: 2.35, lat: 48.3 };
+    places.embarquer = [at.lon, at.lat];
+    const [truck] = spawned({ role: 'landTransport', count: 1, ...at });
+    await client.mutation(api.movements.marchTo, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: spawned({ role: 'infantry', count: 2, fuel: 20, ...from }),
+      boardsOn: truck,
+      point: at,
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: marchAboardIn * 1000, onTime: true }),
+    ]);
   }
   if (arrivalIn !== null && scene.a !== null) {
     const from = { lon: 4.1, lat: 49.25 };

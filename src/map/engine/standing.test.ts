@@ -738,3 +738,107 @@ describe('a gun going into battery', () => {
     }
   });
 });
+
+describe('a pile drawn again under a gesture (#277)', () => {
+  const flat = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, -lat),
+  } as unknown as WorldFrame;
+  const eye = new Vector3(2, 3, -45);
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const one = (id: string, role: UnitRole, carriedBy?: string) => ({
+    ...troop(role),
+    id,
+    ...(carriedBy === undefined ? {} : { carriedBy }),
+  });
+  const pile = (id: string, lon: number, ...troops: ReturnType<typeof one>[]) => ({
+    id,
+    at: { lonLat: [lon, 48] as const },
+    pieces: pilePieces(troops),
+  });
+  const drawn = async (...piles: ReturnType<typeof pile>[]) => {
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display(piles);
+    await tick();
+    layer.orient(eye);
+    layer.orient(eye);
+    return layer;
+  };
+  const x = (layer: StandingLayer, id: string) => layer.placeOf(id)!.at.x;
+
+  it('holds a pile a sequence will claim, then stands it once the wait is over', async () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+    const layer = await drawn(pile('p', 2, one('a', 'infantry')));
+    const was = x(layer, 'p/0');
+    layer.display([pile('p', 2, one('a', 'infantry'), one('b', 'armor'))]);
+    layer.expect('p');
+    await tick();
+    layer.orient(eye);
+    layer.orient(eye);
+    expect(x(layer, 'p/0')).toBeCloseTo(was, 6);
+    clock.mockReturnValue(3000);
+    layer.orient(eye);
+    expect(x(layer, 'p/0')).not.toBeCloseTo(was, 3);
+    clock.mockRestore();
+  });
+
+  it('remembers where each troop last stood as its pile is drawn again, for three seconds', async () => {
+    const date = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const squad = [one('a', 'infantry'), one('b', 'armor')];
+    const layer = await drawn(pile('p', 2, ...squad));
+    const stood = layer.placeOf('p/1')!.at.clone();
+    const apart = [pile('p', 2, squad[0]!), pile('q', 2.3, squad[1]!)];
+    layer.display(apart);
+    expect(layer.lastSeen('b')!.at.distanceTo(stood)).toBeCloseTo(0, 6);
+    date.mockReturnValue(3001);
+    layer.display(apart);
+    expect(layer.lastSeen('b')).toBeNull();
+    date.mockRestore();
+  });
+
+  it('holds the men just landed on their truck, the same however often it is asked', async () => {
+    const layer = await drawn(pile('p', 2, one('t', 'landTransport'), one('i', 'infantry', 't')));
+    layer.display([pile('p', 2, one('t', 'landTransport'), one('i', 'infantry'))]);
+    await tick();
+    layer.orient(eye);
+    const groups = layer.piecesOf('p')!.groups;
+    const truck = `p/${groups.findIndex(({ role }) => role === 'landTransport')}`;
+    const men = `p/${groups.findIndex(({ role }) => role === 'infantry')}`;
+    layer.anchor(truck);
+    const held = [x(layer, truck), x(layer, men)];
+    layer.anchor(truck);
+    expect([x(layer, truck), x(layer, men)]).toEqual(held);
+    layer.arrive('p', []);
+    const gap = held[0]! - x(layer, truck);
+    expect(Math.abs(gap)).toBeGreaterThan(1e-3);
+    expect(held[1]! - x(layer, men)).toBeCloseTo(gap, 6);
+  });
+
+  it('draws a man boarding until his walk ends, and forgets him with his pile', async () => {
+    const truck = pile('p', 2, one('t', 'landTransport'));
+    const layer = await drawn(truck);
+    const rider = {
+      troopId: 'i',
+      figures: [1, 1, 1] as const,
+      at: new Vector3(2, 0, -48),
+      heading: 0,
+    };
+    const [walker] = layer.board('p', [rider]);
+    await tick();
+    expect(layer.placeOf(walker!)).not.toBeNull();
+    layer.standIn(walker!, new Group());
+    layer.standIn(walker!, null);
+    expect(layer.placeOf(walker!)).toBeNull();
+    const [again] = layer.board('p', [rider]);
+    await tick();
+    layer.display([]);
+    layer.display([truck]);
+    await tick();
+    layer.orient(eye);
+    expect(layer.placeOf(again!)).toBeNull();
+  });
+});
