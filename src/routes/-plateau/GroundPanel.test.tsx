@@ -44,3 +44,31 @@ it('names the terrain of a neutral region just the same', () => {
   panelOver('CHE');
   expect(screen.getByText('terrain : montagne')).toBeTruthy();
 });
+
+it("reads an opponent's asset on its country, and nothing for one without", () => {
+  const rivals = {
+    me: { nation: 'france', outposts: [] },
+    mode: 'mondiale',
+    opponents: [
+      { nation: 'usa', power: 'Prêt-bail — règle', restWindow: '22 h – 6 h' },
+      { nation: 'italy', power: '', restWindow: '22 h – 6 h' },
+    ],
+  } as unknown as PlayerView;
+  const over = (country: string) =>
+    render(
+      <GroundPanel
+        selected={country}
+        hoveredCountry={null}
+        hoveredRegion={null}
+        holding={null}
+        suspendedUntil={null}
+        view={rivals}
+        onDeselect={() => {}}
+      />,
+    );
+  over('USA');
+  expect(screen.getByText('Prêt-bail — règle')).toBeTruthy();
+  cleanup();
+  over('ITA');
+  expect(screen.queryByText('atout')).toBeNull();
+});

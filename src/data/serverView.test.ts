@@ -117,4 +117,26 @@ describe('adaptServerView', () => {
     const [, later] = adaptServerView(reappeared(NOW + 5 * MINUTE)).arcs;
     expect(arcProgressAt(later!, NOW + 5 * MINUTE)).toBe(0.25);
   });
+
+  /** **L'atout se dérive de la nation servie** (ADR 0039) : rien pour une nation sans atout, rien
+   *  en Blitz, pour moi comme pour un adversaire. */
+  it('reads the asset from the nation, in a Mondiale only', () => {
+    const base = answer(NOW);
+    const withNations = (mode: string, mine: string): ServerView =>
+      ({
+        ...base,
+        mode,
+        me: { ...base.me, nation: mine },
+        opponents: [
+          { nation: 'japan', ink: '#000', restWindow: { startMinutes: 0, endMinutes: 0 } },
+        ],
+      }) as unknown as ServerView;
+    const mondiale = adaptServerView(withNations('mondiale', 'france'));
+    expect(mondiale.me.power).toBe('');
+    expect(mondiale.opponents[0]!.power).toContain('Doctrine du porte-avions');
+    const blitz = adaptServerView(withNations('blitz', 'usa'));
+    expect(blitz.me.power).toBe('');
+    expect(blitz.opponents[0]!.power).toBe('');
+    expect(adaptServerView(withNations('mondiale', 'usa')).me.power).toContain('Prêt-bail');
+  });
 });

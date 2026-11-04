@@ -115,7 +115,10 @@ export function GroundPanel({
      à zéro et à « — » tant que la part de carte et la surface 4.9 n'existent pas, sont partis. */
   const countryLines =
     opponent && view.mode === 'blitz' ? null : opponent ? (
-      <Line label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
+      <>
+        <Line label={fr.selectedCountry.restWindow} value={opponent.restWindow} />
+        {opponent.power !== '' && <Line label={fr.selectedCountry.asset} value={opponent.power} />}
+      </>
     ) : outpost ? (
       <>
         <Line

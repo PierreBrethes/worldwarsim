@@ -220,6 +220,15 @@ export function renderReport({ code, launchedAt, now, players, report }) {
     ),
   );
 
+  say(
+    '## 8. Atouts nationaux',
+    "Usage de chaque atout (ADR 0039 §2) ; chaque lot d'atout compte le sien, à zéro tant qu'il n'est pas codé.",
+    table(
+      ['Nation', 'Atout', 'Usages'],
+      report.assets.map((row) => [row.nation, row.asset, row.uses]),
+    ),
+  );
+
   return (
     out
       .join('\n')

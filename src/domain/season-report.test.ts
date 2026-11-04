@@ -194,3 +194,14 @@ describe('isolation', () => {
     });
   });
 });
+
+describe('assets', () => {
+  it('lays one usage line per national asset, at zero while none is coded', () => {
+    expect(seasonReportOf(input()).assets).toEqual([
+      { nation: 'usa', asset: 'lendLease', uses: 0 },
+      { nation: 'ussr', asset: 'industrialEvacuation', uses: 0 },
+      { nation: 'germany', asset: 'blitzkrieg', uses: 0 },
+      { nation: 'japan', asset: 'carrierDoctrine', uses: 0 },
+    ]);
+  });
+});

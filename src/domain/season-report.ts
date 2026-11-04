@@ -10,6 +10,9 @@
  * temps ; les troupes, leur place et les escouades n'existent qu'à l'instant de la lecture.
  */
 
+import { ASSET_BY_NATION, type Asset } from './nation-assets';
+import { NATIONS, type Nation } from './ids';
+
 const HOUR_MS = 3_600_000;
 
 type ReportPlayer = {
@@ -140,6 +143,10 @@ type IsolationRow = {
   readonly against: Readonly<Record<string, number>>;
 };
 
+/** **L'usage d'un atout** (ADR 0039 §2) : chaque lot d'atout compte le sien ; zéro tant qu'aucun
+ *  n'est codé. */
+type AssetRow = { readonly nation: Nation; readonly asset: Asset; readonly uses: number };
+
 export type SeasonReport = {
   /** Heures depuis le lancement : chaque pas, puis l'heure de la lecture. */
   readonly marks: ReadonlyArray<number>;
@@ -149,6 +156,7 @@ export type SeasonReport = {
   readonly load: ReadonlyArray<LoadRow>;
   readonly outposts: ReadonlyArray<OutpostRow>;
   readonly isolation: ReadonlyArray<IsolationRow>;
+  readonly assets: ReadonlyArray<AssetRow>;
 };
 
 const sum = (values: ReadonlyArray<number>): number => values.reduce((a, b) => a + b, 0);
@@ -182,6 +190,10 @@ export function seasonReportOf(input: ReportInput): SeasonReport {
     })),
     outposts: players.map(({ id }) => outpostsOf(input, marks, id)),
     isolation: isolationOf(input, players),
+    assets: NATIONS.flatMap((nation) => {
+      const asset = ASSET_BY_NATION[nation];
+      return asset === null ? [] : [{ nation, asset, uses: 0 }];
+    }),
   };
 }
 

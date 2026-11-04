@@ -23,6 +23,7 @@ import {
   sightingReachKm,
 } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
+import type { Asset } from '../domain/nation-assets';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
 import { effectiveSpecialty, lookoutKmOf, type Specialized } from '../domain/outposts';
@@ -255,35 +256,26 @@ export const fr = {
     china: 'Chine',
   } satisfies Record<Nation, string>,
 
-  /** **L'atout d'une nation, en clair** (fiche 06, N3 du 14/10) : un nom et la règle qu'il casse. */
+  /** **L'atout d'une nation, en clair** (ADR 0039 §1) : un nom et la règle qu'il casse. Quatre
+   *  atouts seulement ; la table qui dit à qui ils vont est `ASSET_BY_NATION`. */
   nationAssets: {
-    france: {
-      name: 'Le rayon impérial',
-      rule: 'vos avant-postes ouvrent un rayon plus large, sans contrainte d’adjacence',
+    lendLease: {
+      name: 'Prêt-bail',
+      rule: 'un transport livre au dépôt d’un avant-poste étranger que vous avez relevé, allié ou ennemi, sans l’accord du receveur',
     },
-    uk: {
-      name: 'Maîtrise des mers',
-      rule: 'votre écoute relève tous les mouvements maritimes, sans origine ni destination',
+    carrierDoctrine: {
+      name: 'Doctrine du porte-avions',
+      rule: 'un mouvement en mer change une fois de destination, avant la mi-parcours',
     },
-    usa: { name: 'Prêt-bail', rule: 'vos envois de ressources ne sont jamais relevés' },
-    ussr: {
+    industrialEvacuation: {
       name: 'Évacuation industrielle',
-      rule: 'vous démontez un bâtiment et le rebâtissez ailleurs, à coût réduit',
+      rule: 'un bâtiment rasé laisse son niveau en réserve : la prochaine pose du même type coûte un niveau 1 et sort au niveau gardé',
     },
-    germany: {
+    blitzkrieg: {
       name: 'Guerre éclair',
-      rule: 'deux mouvements offensifs s’enchaînent sans attendre de slot',
+      rule: 'une attaque à terre porte deux cibles, la seconde ne part qu’après une victoire à la première',
     },
-    japan: { name: 'Banzaï', rule: 'votre infanterie capture à pleine vitesse, même entamée' },
-    italy: {
-      name: 'Mare Nostrum',
-      rule: 'un mouvement maritime part d’un avant-poste côtier, sans port',
-    },
-    china: {
-      name: 'Terre brûlée',
-      rule: 'un bâtiment chinois capturé est détruit au lieu d’être pris',
-    },
-  } satisfies Record<Nation, { name: string; rule: string }>,
+  } satisfies Record<Asset, { name: string; rule: string }>,
 
   roles: {
     infantry: { one: 'infanterie', many: 'infanterie' },
@@ -1323,7 +1315,6 @@ export const fr = {
     opening: 'Ouverture du salon…',
     quit: 'quitter',
     founder: 'fondateur',
-    toBalance: 'à équilibrer',
     destroy: 'supprimer la partie',
     destroyConfirm: 'confirmer — tout est effacé',
     destroyCancel: 'annuler',
@@ -4409,6 +4400,7 @@ export const fr = {
     marker: 'sélection',
     hoverMarker: 'survol',
     restWindow: 'plage de repos',
+    asset: 'atout',
     /**
      * **Deux questions, deux lignes** (correctif du 31/08). « Avant-poste » répond de *ce
      * pays-ci* — ai-je un point planté dedans — et c'est juste ; c'est l'étiquette qui mentait
@@ -5177,6 +5169,10 @@ const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'] as const;
 export function cardinalLabel(degrees: number): string {
   return CARDINALS[Math.round((((degrees % 360) + 360) % 360) / 45) % 8]!;
 }
+
+/** « Nom — règle » : la ligne d'atout de la fiche de nation et du panneau de pays ; vide sans atout. */
+export const assetLine = (asset: Asset | null): string =>
+  asset === null ? '' : `${fr.nationAssets[asset].name} — ${fr.nationAssets[asset].rule}`;
 
 export function nationLabel(nation: string | null): string {
   return nation !== null && nation in fr.nations

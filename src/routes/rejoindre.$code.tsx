@@ -15,7 +15,7 @@ import { resumeSeat } from '@/data/resumeSeat';
 import { downloadRendezvous } from '@/data/rendezvous';
 import { forgetSession, keepSeat, useSession } from '@/data/session';
 import { useSingleFlight } from '@/data/useSingleFlight';
-import { isNation } from '@/domain/nations';
+import { assetOf } from '@/domain/nation-assets';
 import { normalizeGameCode, type JoinRefusal } from '@/domain/off-season';
 import { DEFAULT_HQ_CAPTURE_HOURS, THEATRE_DRAW, presenceOf } from '@/domain/operation-order';
 import { MODE_RULES } from '@/domain/season-mode';
@@ -243,6 +243,7 @@ export function InvitationPage({ code: raw }: { code: string }) {
             <div className="atable" aria-label={fr.invitation.alreadySeated}>
               {invitation.seats.map((entry, rank) => {
                 const presence = presenceOf(entry.seenAt, now);
+                const asset = assetOf(entry.nation, invitation.mode);
                 return (
                   <div className="r" key={`${entry.nickname}${rank}`}>
                     <FlagChip nation={entry.nation} width={33} />
@@ -253,9 +254,9 @@ export function InvitationPage({ code: raw }: { code: string }) {
                         ? presence.kind === 'unknown'
                           ? ''
                           : ` · ${presence.kind === 'present' ? fr.table.atTable : fr.table.away}`
-                        : isNation(entry.nation)
-                          ? ` · ${fr.nationAssets[entry.nation].name}`
-                          : ''}
+                        : asset === null
+                          ? ''
+                          : ` · ${fr.nationAssets[asset].name}`}
                     </span>
                   </div>
                 );
