@@ -38,6 +38,16 @@ import type { AmbientLayer } from './ambience';
 import type { SequenceHost } from './sequences';
 import { Smoke, type Plume } from './smoke';
 import { groundFootprint, SOCLE_TOP, WorksDressing, type Works } from './works';
+import type { CaptureClock } from '@/domain/capture';
+import {
+  FLAG_DROP,
+  flagHeight,
+  type FlagMotion,
+  sealsOf,
+  stapleOf,
+  stapleShare,
+  traceStaple,
+} from './site-marks';
 
 export { SOCLE_TOP };
 
@@ -98,6 +108,21 @@ export type StandingMaquette = {
   readonly level?: number;
   /** My ink (`marker.ink`), for a site that is `mine` alone: a survey serves no nation. */
   readonly ink?: string;
+  /** **The colour of its flag** (#279): mine on my sites; absent, its pole stands bare — a
+   *  survey serves no nation, a neutral flies none. */
+  readonly flag?: string;
+  /** The building it stands for: what a capture names, mine or the one I surveyed. */
+  readonly buildingId?: string;
+  /** **A capture on it** (#279): its staple runs round the socle at its clock. `capturer` when I
+   *  lead it; `stopped`, frozen and pale — served to the capturer alone. */
+  readonly capture?: {
+    readonly clock: CaptureClock;
+    readonly side: 'capturer' | 'defender';
+    readonly stopped: boolean;
+  };
+  /** **Out of service** (décision 5): its seals at this mark, in metres of its file, facing this
+   *  turn (`BUILDING_SEALS`). */
+  readonly seal?: readonly [x: number, y: number, z: number, yaw: number];
 };
 
 /** The socle's paper (ADR 0038 §1): a hollow liseré is its ink mixed into it. */
@@ -163,6 +188,10 @@ export type Drawn = {
   };
 };
 
+/** **How far off its sign's foot the pile that captures stands**, toward the socle's middle, in
+ *  metres: clear of the mast's footing. `@a-mesurer` */
+const SIGN_STEP_OFF = 7;
+
 /** **How high the walls of a razed site stand over its socle**, in metres (ADR 0038 §5). */
 const STUMP = 3;
 
@@ -204,6 +233,10 @@ type Model = {
   readonly fronts: ReadonlyMap<string, Vector3>;
   /** Its pile of crates (`caisse_*`), each at its foot: what a loading takes aboard (#271). */
   readonly crates: ReadonlyArray<{ readonly name: string; readonly at: Vector3 }>;
+  /** Its flag, white to be inked per instance (#279); empty for a file without one. */
+  readonly flag: ReadonlyArray<Part>;
+  /** Its socle's bounds, its sign left out: what a staple runs round. */
+  readonly socle: Box3;
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
@@ -213,7 +246,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
   if (!model) {
     model = (pose === undefined ? sceneOf(url) : posedScene(url, pose)).then((cached) => {
       const scene = cached;
-      const { building: parts, dressing, yard, sign, accessories } = bakedSite(scene);
+      const { building: parts, dressing, yard, sign, flag, accessories } = bakedSite(scene);
       const boundsOf = (of: ReadonlyArray<Part>) => {
         const bounds = new Box3();
         for (const { geometry } of of) {
@@ -269,6 +302,13 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
         dressing,
         yard,
         sign,
+        // Cream in its file: white here, so that each instance wears its own colour (#279).
+        flag: flag.map(({ geometry, material }) => {
+          const white = (material as MeshStandardMaterial).clone();
+          white.color.set(WHITE);
+          return { geometry, material: white };
+        }),
+        socle: boundsOf(dressing),
         accessories,
         scale: 1 / (metres ?? Math.max(size.x, size.z)),
         box,
@@ -579,6 +619,14 @@ type Placed = {
   smokes: Smoke[];
   /** The ink of its liseré (`lisereOf`), `null` for none. */
   readonly lisere: Color | null;
+  /** The colour of its flag, `null` for a bare pole. */
+  readonly flag: Color | null;
+  readonly capture: NonNullable<StandingMaquette['capture']> | null;
+  /** Its staple (`stapleOf`) once its model has landed, while a capture runs on it. */
+  staple: Mesh | null;
+  readonly seal: NonNullable<StandingMaquette['seal']> | null;
+  /** Its seals (`sealsOf`) once its model has landed, while it is out of service. */
+  seals: Object3D | null;
   /** When it stood up under the eyes (`Date.now()`): it bounces once. */
   settledAt: number | null;
 };
@@ -606,6 +654,8 @@ type Lot = {
   readonly shown: ReadonlyArray<string>;
   /** The meshes of those groups, among `meshes`. */
   accessories: InstancedMesh[];
+  /** Its flag's meshes, among `meshes`: they grow with its sign, and run up and down its pole. */
+  flag: InstancedMesh[];
   readonly atWork: AtWork | null;
 };
 
@@ -618,6 +668,8 @@ const BOUNCE_MS = 450;
 const matrix = new Matrix4();
 const shrunk = new Matrix4();
 const signMatrix = new Matrix4();
+const flagMatrix = new Matrix4();
+const flagDown = new Matrix4();
 /** The building's, its yard's and its accessories' placement (`dioramaMatrix`). */
 const standing = new Matrix4();
 const grown = new Matrix4();
@@ -647,6 +699,8 @@ export class MaquetteLayer implements SequenceHost {
   >();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
+  /** **A flag running up or down its pole** (#279), by the maquette's id: kept over a rebuild. */
+  private readonly flags = new Map<string, FlagMotion>();
   motion: MapMotion = 'full';
 
   constructor(
@@ -725,6 +779,7 @@ export class MaquetteLayer implements SequenceHost {
           sign: [],
           shown,
           accessories: [],
+          flag: [],
           atWork: maquette.works ? { works: maquette.works, dressing: null } : null,
         };
         this.lots.set(key, lot);
@@ -767,6 +822,11 @@ export class MaquetteLayer implements SequenceHost {
         smokes: [],
         settledAt: null,
         lisere: lisereOf(maquette),
+        flag: maquette.flag === undefined ? null : new Color(maquette.flag),
+        capture: maquette.capture ?? null,
+        staple: null,
+        seal: maquette.seal ?? null,
+        seals: null,
       };
       lot.items.push(item);
       this.byId.set(maquette.id, { item, lot });
@@ -857,9 +917,22 @@ export class MaquetteLayer implements SequenceHost {
   /** **The points my buildings' maquettes stand on**: a garrison handed back to the ground there
    *  stands at their foot. An installation or an objective is not mine to garrison. */
   buildingPoints(): ReadonlyArray<{ readonly id: string; readonly at: LonLat }> {
-    return this.maquettes.flatMap(({ id, at }) =>
-      id.startsWith('building-') && 'lonLat' in at ? [{ id, at: at.lonLat }] : [],
+    return this.maquettes.flatMap(({ id, at, capture }) =>
+      (id.startsWith('building-') || capture?.side === 'capturer') && 'lonLat' in at
+        ? [{ id, at: at.lonLat }]
+        : [],
     );
+  }
+
+  /**
+   * **A flag runs on the pole of `id`** (#279): from `from` to `to` (1 at its top, 0 gone),
+   * starting at `start` (`Date.now()`), over `ms`. Its frames are the board's while it runs
+   * (`settling`).
+   */
+  runFlag(id: string, motion: FlagMotion): void {
+    this.flags.set(id, motion);
+    const dressed = this.byId.get(id);
+    if (dressed !== undefined) dressed.item.near = -1;
   }
 
   private place(): void {
@@ -1008,8 +1081,24 @@ export class MaquetteLayer implements SequenceHost {
     lot.accessories = accessories;
     lot.diorama = [...lot.shell, ...yard, ...accessories];
     lot.sign = (model.sign?.parts ?? []).map((part) => instanced(part, false, 'signe'));
-    lot.meshes = [...lot.shell, ...dressing, ...yard, ...lot.sign, ...accessories];
+    // Its flag (#279), in its owner's colour: none flies on a bare pole (`flagMatrixOf`).
+    lot.flag =
+      model.sign === null ? [] : model.flag.map((part) => instanced(part, false, 'drapeau'));
+    for (const mesh of lot.flag)
+      lot.items.forEach((item, k) => mesh.setColorAt(k, item.flag ?? WHITE));
+    lot.meshes = [...lot.shell, ...dressing, ...yard, ...lot.sign, ...lot.flag, ...accessories];
     if (lot.meshes.length > 0) lot.group.add(...lot.meshes);
+    // A capture's staple round its socle, the seals of a site out of service: the item's own.
+    for (const item of lot.items) {
+      if (item.capture !== null && model.dressing.length > 0) {
+        item.staple = stapleOf(model.socle);
+        lot.group.add(item.staple);
+      }
+      if (item.seal !== null) {
+        item.seals = sealsOf();
+        lot.group.add(item.seals);
+      }
+    }
     for (const item of lot.items) {
       if (!item.smoking) continue;
       item.smokes = model.chimneys.map(() => new Smoke(FACTORY_SMOKE));
@@ -1029,6 +1118,10 @@ export class MaquetteLayer implements SequenceHost {
       mesh.dispose();
       if (cut !== null && (mesh.material as Material).clippingPlanes?.includes(cut))
         (mesh.material as Material).dispose();
+    }
+    for (const { staple } of lot.items) {
+      staple?.geometry.dispose();
+      (staple?.material as Material | undefined)?.dispose();
     }
     lot.atWork?.dressing?.dispose();
   }
@@ -1147,11 +1240,13 @@ export class MaquetteLayer implements SequenceHost {
     const gone = item.diorama <= 0;
     // On a socle that has ruins, the yard of the level falls away and the ruins stand in its place.
     const ruins = shrinking ? undefined : model.accessories.get('ruines');
+    // Its flag goes with its owner: a razed site flies none (#422, Q2).
+    const standingMeshes = lot.meshes.filter((m) => !lot.flag.includes(m));
     const kept = gone
-      ? lot.meshes.filter((m) => !lot.diorama.includes(m))
+      ? standingMeshes.filter((m) => !lot.diorama.includes(m))
       : ruins === undefined
-        ? lot.meshes
-        : lot.meshes.filter((m) => !lot.accessories.includes(m));
+        ? standingMeshes
+        : standingMeshes.filter((m) => !lot.accessories.includes(m));
     const sunk =
       shrinking && !gone
         ? grownOn(new Vector3(0, SOCLE_TOP, 0), item.diorama / item.drawnNear).clone()
@@ -1234,13 +1329,19 @@ export class MaquetteLayer implements SequenceHost {
     }
     const dressed = this.byId.get(id);
     const lisere = dressed?.item.lisere ?? null;
-    // Its file's materials are shared by every copy: its liseré wears its own (ADR 0038 §2).
-    if (copy !== null && lisere !== null)
+    const flag = dressed?.item.flag ?? null;
+    // Its file's materials are shared by every copy: its liseré and its flag wear their own
+    // (ADR 0038 §2, #279); a bare pole flies none.
+    if (copy !== null)
       copy.traverse((node) => {
         const mesh = node as Mesh;
-        if (!mesh.isMesh || (mesh.material as Material).name !== 'lisere') return;
+        if (!mesh.isMesh) return;
+        const { name } = mesh.material as Material;
+        const ink = name === 'lisere' ? lisere : name === 'drapeau' ? flag : undefined;
+        if (name === 'drapeau' && flag === null) mesh.visible = false;
+        if (ink === undefined || ink === null) return;
         const own = (mesh.material as MeshStandardMaterial).clone();
-        own.color.copy(lisere);
+        own.color.copy(ink);
         mesh.material = own;
         mesh.userData.ownLisere = true;
       });
@@ -1292,6 +1393,26 @@ export class MaquetteLayer implements SequenceHost {
     const near = Math.max(held === undefined ? item.near : item.drawnNear, 0);
     const model = (held?.model ?? dressed!.lot.model)!;
     const { rank } = model;
+    // **The pile that captures stands at the foot of its sign** (décision 1, #279): where the
+    // flag it takes flies, on the socle — off the mast's own footing, toward the yard.
+    const sign = model.sign;
+    const capturing =
+      held === undefined && dressed!.item.capture?.side === 'capturer' && sign !== null;
+    if (capturing && !quay) {
+      const size = near * sizeOf(model, item);
+      const foot = sign.foot.clone().setY(0);
+      const toward = foot.clone().negate().setLength(Math.min(SIGN_STEP_OFF, foot.length()));
+      const step = foot.add(toward).applyQuaternion(item.turn).multiplyScalar(size);
+      return {
+        at: at.clone().setY(at.y + SOCLE_TOP * size),
+        step: [step.x, step.z],
+        facing: item.yaw,
+        rank: false,
+        width: Infinity,
+        deep: [0, 0],
+        scale,
+      };
+    }
     // The hulls of a port keep its quay.
     if (rank !== null && !quay) {
       const size = near * sizeOf(model, item);
@@ -1380,9 +1501,20 @@ export class MaquetteLayer implements SequenceHost {
         // Its last bounce sets it back on its feet: one more placement, then still.
         const ending = item.settledAt !== null && bounce === null;
         if (ending) item.settledAt = null;
+        if (item.staple !== null && item.capture !== null)
+          moved =
+            traceStaple(
+              item.staple,
+              stapleShare(item.capture.clock, Date.now()),
+              item.capture.stopped,
+            ) || moved;
+        const running = this.flags.get(item.id);
+        // Its last height sets it at its top, or gone: one more placement, then still.
+        if (running !== undefined && Date.now() >= running.start + running.ms)
+          this.flags.delete(item.id);
         const still =
           near === item.near && diorama === item.diorama && signGrowth === item.signGrowth;
-        if (still && item.settledAt === null && !ending) return;
+        if (still && item.settledAt === null && !ending && running === undefined) return;
         item.near = near;
         item.diorama = diorama;
         item.signGrowth = signGrowth;
@@ -1393,12 +1525,30 @@ export class MaquetteLayer implements SequenceHost {
         dioramaMatrix(standing, lot.model!, item, bounce);
         if (lot.model!.sign !== null)
           signMatrix.copy(matrix).multiply(grownOn(lot.model!.sign.foot, signGrowth));
+        flagMatrixOf(flagMatrix, item, running === undefined ? 1 : flagHeight(running, Date.now()));
+        if (item.staple !== null) {
+          item.staple.matrix.compose(item.at, item.turn, scale.setScalar(size));
+          item.staple.matrixWorldNeedsUpdate = true;
+        }
+        if (item.seals !== null && item.seal !== null) {
+          const [x, y, z, yaw] = item.seal;
+          item.seals.matrix
+            .copy(standing)
+            .multiply(flagDown.makeRotationY(yaw).setPosition(x, y, z));
+          item.seals.matrixWorldNeedsUpdate = true;
+        }
         const copy = this.copies.get(item.id);
         if (copy === undefined)
           for (const mesh of lot.meshes)
             mesh.setMatrixAt(
               k,
-              lot.diorama.includes(mesh) ? standing : lot.sign.includes(mesh) ? signMatrix : matrix,
+              lot.diorama.includes(mesh)
+                ? standing
+                : lot.sign.includes(mesh)
+                  ? signMatrix
+                  : lot.flag.includes(mesh)
+                    ? flagMatrix
+                    : matrix,
             );
         else {
           copy.matrix.copy(matrix);
@@ -1454,9 +1604,12 @@ export class MaquetteLayer implements SequenceHost {
     },
   };
 
-  /** A site stood up under the eyes is bouncing: the board keeps drawing until it is still. */
+  /** A site stood up under the eyes is bouncing, a flag runs on its pole: the board keeps
+   *  drawing until it is still. */
   get settling(): boolean {
-    return [...this.byId.values()].some(({ item }) => item.settledAt !== null);
+    return (
+      this.flags.size > 0 || [...this.byId.values()].some(({ item }) => item.settledAt !== null)
+    );
   }
 
   dispose(): void {
@@ -1513,6 +1666,13 @@ const grownOn = (foot: Vector3, growth: number): Matrix4 =>
   grown
     .makeScale(growth, growth, growth)
     .setPosition(foot.x * (1 - growth), foot.y * (1 - growth), foot.z * (1 - growth));
+
+/** **Where its flag flies** (#279), into `out`: on its sign, `height` down its pole (1 at the
+ *  top); squashed to nothing on a bare pole, or once lowered. Read after `signMatrix`. */
+function flagMatrixOf(out: Matrix4, item: Placed, height: number): void {
+  if (item.flag === null || height <= 0) out.makeScale(0, 0, 0);
+  else out.copy(signMatrix).multiply(flagDown.makeTranslation(0, -(1 - height) * FLAG_DROP, 0));
+}
 
 /** **Its own units to the board** at full near weight: its span at the player's size, in its group's. */
 const sizeOf = (model: Model, item: Placed): number =>
