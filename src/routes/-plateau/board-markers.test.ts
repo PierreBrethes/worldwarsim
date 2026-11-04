@@ -166,7 +166,6 @@ describe('marchingPiecesOf (#276)', () => {
 });
 
 describe('the deposits markersOf draws', () => {
-  const at = (id: string) => DEPOSIT_POINTS.find((point) => point.id === id)!;
   const [standing, ordered, seen, free] = DEPOSIT_POINTS.filter(
     (point) => point.deposit === 'coal',
   );
@@ -209,6 +208,5 @@ describe('the deposits markersOf draws', () => {
     expect(clears(ordered!.id)).toBe(`building-mine@${ordered!.lonLat}`);
     expect(clears(seen!.id)).toBe('installation-s1');
     expect(clears(free!.id)).toBeUndefined();
-    expect(at(free!.id)).toBeDefined();
   });
 });

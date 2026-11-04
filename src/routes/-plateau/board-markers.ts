@@ -79,15 +79,13 @@ export function markersOf(
       ? DEPOSIT_POINTS.map((point) => {
           const holder = holders.get(point.id);
           const wake = woken.get(point.id);
-          const piece = holder?.piece;
           return {
             kind: 'deposit' as const,
             id: `deposit-${point.id}`,
             // Its name is written below its basin, as a massif's (#239).
             lonLat: destinationPoint(point.lonLat, BASIN_KM * BASIN_FLATTENING, 180),
             deposit: point.deposit,
-            ...(holder === undefined ? {} : { held: holder }),
-            ...(piece === undefined ? {} : { clears: piece }),
+            ...(holder === undefined ? {} : { held: holder, clears: holder.piece }),
             ...(wake === undefined ? {} : { wake }),
           };
         })
@@ -538,8 +536,6 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
   return { ...pile, pieces: unitPieces(troops.filter((troop) => here.has(troop.id))) };
 }
 
-/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché — par son point (ADR 0029) :
- *  deux mines d'une même région sont deux mâts. */
 export { buildingLabelId };
 
 /** **Les maquettes rasées que la vue sert encore** (#326) : la carte joue l'affaissement de celle

@@ -115,9 +115,10 @@ export function freeDeposits(view: PlayerView): ReadonlyArray<DepositPoint> {
 }
 
 /**
- * **Who is known to work each deposit** (map labels): mine, with the level standing (`null` while
- * only ordered), and the label id of the piece standing on it (`piece`, #445), or a surveyed exploitation of anybody else's — its nation is not in the survey,
- * so the fog keeps it unsaid. A deposit absent from the map is free.
+ * **Who is known to work each deposit** (map labels): mine (with the level standing, `null` while
+ * only ordered) or a surveyed exploitation of anybody else's — its nation is not in the survey, so
+ * the fog keeps it unsaid. `piece` is the label id of what stands on it (#445). A deposit absent
+ * from the map is free.
  */
 export function depositHolders(
   view: Pick<PlayerView, 'me' | 'surveyedInstallations'>,
