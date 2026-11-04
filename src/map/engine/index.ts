@@ -225,10 +225,11 @@ export type { ZoneFocus, ZonePoint } from './outpost-zones';
 const SHORE_REACH = 0.6 * TANK_SHARE;
 const SHORE_PROBES = 8;
 
-/** **A port reads the coast it faces within this many km of its point**, and its normal over this
- *  many on either side: about half its width (#436). `@a-mesurer` */
+/** **A port reads the coast it faces within this many km of its point**, and its normal from the
+ *  water within a few times this many of it: the water in front, not a bay's chord (#436).
+ *  `@a-mesurer` */
 const PORT_COAST_KM = 30;
-const PORT_ACROSS_KM = 50;
+const PORT_NEAR_KM = 5;
 
 /** How much of its own colour a country gives off under the pointer, and once selected. */
 const HOVERED_LIFT = 0.35;
@@ -4046,7 +4047,7 @@ export class MapEngine {
   private seaFrontOf(x: number, z: number): SeaFront | null {
     const lonLat = this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY);
     const facing =
-      this.coast === null ? null : coastFacing(this.coast, lonLat, PORT_COAST_KM, PORT_ACROSS_KM);
+      this.coast === null ? null : coastFacing(this.coast, lonLat, PORT_COAST_KM, PORT_NEAR_KM);
     if (facing === null) {
       const seaward = this.seawardOf(lonLat);
       return seaward === null ? null : { seaward, line: null };
