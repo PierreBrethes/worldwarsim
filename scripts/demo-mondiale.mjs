@@ -143,12 +143,13 @@
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
  * doit s'animer (`saboteur`).
  *
- * `--prise [s]` (#279) pose en Belgique, pour la France contre le Royaume-Uni, une caserne
- * britannique à Namur que deux fantassins français capturent : la capture aboutit dans `s`
- * secondes (90 par défaut), l'agrafe court d'ici là autour du socle, et le drapeau monte chez le
- * capteur, descend chez le teneur (`--compte b`) ; un entrepôt britannique à Liège, pillé par la
- * France et scellé douze heures ; une infanterie française qui arrive dans une minute à Mons, sur
- * une caisse déjà partie : « caisse introuvable » au journal. Lieux `prise`, `scelles`, `caisse`.
+ * `--prise [s]` (#279) pose en Belgique, pour la France contre le Royaume-Uni : une infanterie
+ * française qui ramasse dans une minute une caisse à Tournai (`ramassage`), une autre 15 s après
+ * sur une caisse déjà partie à Mons, « caisse introuvable » au journal (`caisse`) ; une caserne
+ * britannique à Namur que deux fantassins capturent dans `s` secondes (90 par défaut), l'agrafe
+ * court d'ici là autour du socle, le drapeau monte chez le capteur et descend chez le teneur
+ * (`--compte b`) (`prise`) ; un entrepôt à Liège pillé à `s` + 30 s (`pillage`) et une mine à Huy
+ * sabotée à `s` + 50 s (`sabotage`), scellés ensuite douze heures. L'heure de chacun s'affiche.
  *
  *     npm run demo:mondiale
  *
@@ -1335,11 +1336,13 @@ if (!bare) {
         enemyId: scene.b,
         captureInMs: takingIn * 1000,
         crateInMs: 60_000,
+        raidInMs: (takingIn + 30) * 1000,
       }),
     ]);
     Object.assign(places, JSON.parse(out.slice(out.indexOf('{'))));
+    const hour = (s) => new Date(Date.now() + s * 1000).toISOString();
     console.log(
-      `prise : la capture aboutit à ${new Date(Date.now() + takingIn * 1000).toISOString()}`,
+      `prise : ramassage à ${hour(60)}, caisse partie à ${hour(75)}, capture à ${hour(takingIn)}, pillage à ${hour(takingIn + 30)}, sabotage à ${hour(takingIn + 50)}`,
     );
   }
   if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
