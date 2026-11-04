@@ -498,6 +498,10 @@ const PACES: Readonly<Record<'infantry' | 'armor' | 'landTransport' | 'artillery
   artillery: { lead: 600, mps: 19, roll: 3400, gap: 1500, curve: ease.push },
 };
 
+/** **A tour's ring of ink at its quay**, in reduced motion (#278): its radius in metres of the
+ *  site, the storyboard's 4.2 m. `@a-mesurer` */
+const QUAY_RING_METRES = 4.2;
+
 export class MapEngine {
   private readonly scene = new Scene();
   private readonly camera: PerspectiveCamera;
@@ -3486,7 +3490,10 @@ export class MapEngine {
     if (motion === 'off' || building === null) return 'done';
     if (motion === 'reduced') {
       const quay = site?.marker('fx_quai');
-      if (quay) this.ink.ringAt(site!.toBoard(quay), now);
+      if (site && quay) {
+        const metre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+        this.standing.rippleAt(site.toBoard(quay), QUAY_RING_METRES * metre);
+      }
       return 'done';
     }
     if (site === null) return 'wait';

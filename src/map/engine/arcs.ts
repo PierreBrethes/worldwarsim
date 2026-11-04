@@ -261,6 +261,8 @@ export class ArcLayer {
   pieceOf(id: string): { url?: string; pose?: RestPose; box: Box3 | null } | null {
     const truck = this.truckOf(id);
     if (truck === null) return null;
+    // A copy just stood in is not placed yet: its meshes would read at the origin.
+    truck.object.updateMatrixWorld(true);
     return {
       ...(truck.url === undefined ? {} : { url: truck.url }),
       ...(truck.pose === undefined ? {} : { pose: truck.pose }),
