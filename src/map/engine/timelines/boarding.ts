@@ -29,6 +29,8 @@ const T = {
   /** The tailgate shuts this long after the last man is in, or down. */
   after: 150,
 } as const;
+/** How long the tailgate hangs with no man through it. `@a-mesurer` */
+const EMPTY_HANG = 1000;
 /** It falls to 93 degrees and hangs on its chains, with a clang of 3 (`embarquer.js`). */
 const DOWN = (93 * Math.PI) / 180;
 const CLANG = (3 * Math.PI) / 180;
@@ -184,7 +186,11 @@ export function boardingOf(boarding: Boarding): {
       m.end = m.atFoot + m.walk;
     }
   });
-  const lastHop = Math.max(...men.map((m) => (down ? m.atFoot : m.dark)));
+  // With no man to come (a squad drawn by role steps down whole), it hangs as long as one would.
+  const lastHop =
+    men.length === 0
+      ? T.open + EMPTY_HANG
+      : Math.max(...men.map((m) => (down ? m.atFoot : m.dark)));
   const closeAt = lastHop + T.after;
   const closed = closeAt + T.close;
   const engineAt = closed + 50;

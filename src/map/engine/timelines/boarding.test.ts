@@ -118,4 +118,16 @@ describe('boardingOf (#277)', () => {
     }
     expect(boardingOf(scene(false)).dust.times).toEqual([]);
   });
+
+  it('falls and rises with no man to come down (a squad drawn by role): the tailgate alone', () => {
+    const { truck, squads, settled, dust } = boardingOf({ ...scene(true), squads: [] });
+    const gate = (t: number) => -(truck.at(t).tailgate?.turn?.[0] ?? 0);
+    expect(squads).toEqual([]);
+    expect(dust.times).toEqual([]);
+    expect(Number.isFinite(truck.ms)).toBe(true);
+    expect(gate(700)).toBeCloseTo(DOWN, 1);
+    expect(gate(truck.ms - 1)).toBeLessThan(DOWN * 0.2);
+    expect(truck.at(truck.ms)).toEqual({});
+    expect(settled).toBeGreaterThanOrEqual(truck.ms - 100);
+  });
 });

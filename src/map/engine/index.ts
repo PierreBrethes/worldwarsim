@@ -3302,7 +3302,8 @@ export class MapEngine {
   /**
    * **Men come down from a truck under the eyes** (#277): the tailgate falls, the dark gives them
    * back one by one, they hop down, the first out going furthest, and walk to their places; the
-   * tailgate shuts behind the last (`boardingOf`). The rank holds on the truck where it stood
+   * tailgate shuts behind the last (`boardingOf`); with no man to come down (a squad drawn by
+   * role), the tailgate alone falls and rises. The rank holds on the truck where it stood
    * (`anchor`) and recentres once they stand. All or nothing, as the boarding; at reduced motion
    * the pile stands with its ring of ink. `false` until the pile stands.
    */
@@ -3326,8 +3327,7 @@ export class MapEngine {
       motion !== 'full' ||
       this.veiled(truck.at) ||
       !this.seenWhole(truck.at) ||
-      men.length === 0 ||
-      height === 0 ||
+      (men.length > 0 && height === 0) ||
       this.sequences.room < 1 + men.length
         ? null
         : boardingOf({
