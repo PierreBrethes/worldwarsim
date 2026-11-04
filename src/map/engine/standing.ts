@@ -1512,20 +1512,23 @@ export class StandingLayer implements SequenceHost {
     if (foot !== null) this.dust(at, 6, 0.6, foot.scale);
   }
 
-  /** **The rank holds on the groups already held** (#277, a landing): the newcomers stand off
-   *  their places by the same gap, and glide with them at `arrive`. */
-  anchor(pileId: string): void {
-    const entry = this.dressed.get(pileId);
-    const by = entry?.held[0]?.by;
-    if (entry === undefined || by === undefined) return;
-    const held = new Set(entry.held.map(({ figurine }) => figurine));
-    const more = entry.figurines
-      .filter((figurine) => !held.has(figurine))
-      .map((figurine) => {
-        figurine.object.position.add(by);
-        return { figurine, by: by.clone() };
-      });
-    entry.held = [...entry.held, ...more];
+  /** **The rank holds on one group** (#277, a landing: the truck): every group of the pile stands
+   *  off its place by that group's gap, and glides with it at `arrive`. The men stood on the
+   *  truck they rode in (`heldWhereTheyStood`); they stand by it now. */
+  anchor(id: string): void {
+    const at = id.lastIndexOf('/');
+    const entry = this.dressed.get(id.slice(0, at));
+    const figurine = entry?.figurines[Number(id.slice(at + 1))];
+    if (entry === undefined || figurine === undefined) return;
+    const by = entry.held.find((each) => each.figurine === figurine)?.by.clone() ?? new Vector3();
+    for (const each of entry.held) each.figurine.object.position.sub(each.by);
+    entry.held =
+      by.lengthSq() === 0
+        ? []
+        : entry.figurines.map((each) => {
+            each.object.position.add(by);
+            return { figurine: each, by: by.clone() };
+          });
   }
 
   /**
