@@ -139,6 +139,8 @@ export type GarrisonAt = (
   /** The rank's width, in board units, and the way it deepens, on the board. */
   width: number;
   deep: readonly [number, number];
+  /** The size its ring draws the site at: a fleet at its quay is drawn at it (#433). */
+  scale: number;
 } | null;
 
 /**
@@ -523,6 +525,8 @@ type Dressed = {
   pieces: PilePieces;
   readonly object: Group;
   readonly span: number;
+  /** **The size of its site it is drawn at** (#433): a port's, at its quay; 1 anywhere else. */
+  sized: number;
   ready: boolean;
   /** How much of it stands rather than its pin, at the last `orient`. */
   near: number;
@@ -876,6 +880,7 @@ export class StandingLayer implements SequenceHost {
         pieces: pile.pieces,
         object: built.object,
         span: built.span,
+        sized: 1,
         ready: false,
         near: 0,
         placed: false,
@@ -1402,8 +1407,8 @@ export class StandingLayer implements SequenceHost {
 
   /** **The span a label's pile is pinned by**, `null` for a pile not dressed here. */
   spanOf(id: string): number | null {
-    const span = this.dressed.get(id)?.span;
-    return span === undefined ? null : troopPinSpan(span);
+    const entry = this.dressed.get(id);
+    return entry === undefined ? null : troopPinSpan(entry.span * entry.sized);
   }
 
   /** **Where a column joining the pile at `lonLat` halts** (#277): its footprint and a little
@@ -1666,9 +1671,14 @@ export class StandingLayer implements SequenceHost {
       entries.forEach((entry, k) => laid.set(entry, spots[k]!));
     }
     for (const entry of order) {
-      const { object, at, span, targets, extent } = entry;
+      const { object, at, targets, extent } = entry;
+      let span = entry.span;
+      entry.sized = 1;
       if ('beside' in at) {
         const quay = at.quay !== undefined;
+        // At its quay a fleet is drawn at its port's size, pin and floor included (#433).
+        entry.sized = quay ? (this.garrisonAt(at.beside, span, quay)?.scale ?? 1) : 1;
+        span *= entry.sized;
         const site = this.garrisonAt(at.beside, span, quay);
         // A pile grown by its floor stands off its building by its grown size.
         const foot =

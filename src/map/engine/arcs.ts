@@ -18,6 +18,7 @@ import {
 import type { ArcView, TroopView } from '@/domain/player-view';
 import type { UnitRole } from '@/domain/ids';
 import { movementWear, type PilePieces } from '@/domain/pile-pieces';
+import { troopSpan } from '@/domain/piece-size';
 import { movementRoles } from '@/emblems/units/manifest';
 import { figurineFor } from './figurines/figurine';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
@@ -29,6 +30,7 @@ import {
   projectOnGround,
   stretchTether,
   type EndsOf,
+  type Moor,
   type Thread,
   type ThreadLeg,
 } from './thread';
@@ -67,7 +69,30 @@ type RenderedArc = {
   /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
   rest: Vector3 | null;
   loadingUntil: number | null;
+  /** The size of the port it leaves and the one it reaches, its hull drawn at it there (#433);
+   *  1 away from a port of mine. */
+  readonly quays: { start: number; end: number };
 };
+
+/** **A hull takes its size, or its port's, in this time** as it leaves or reaches the quay (#433):
+ *  a pile's glide (`GLIDE_MS`). */
+const QUAY_FADE_MS = 500;
+
+/**
+ * **The size a hull of mine is drawn at** (#433): its port's at the quay, its own at sea, faded
+ * over `QUAY_FADE_MS` after it leaves and before it arrives — at once out of full motion.
+ */
+export function quaySize(
+  { start, end }: { start: number; end: number },
+  { departedAt, arrivesAt }: { departedAt: number; arrivesAt: number },
+  now: number,
+  full: boolean,
+): number {
+  const away = (ms: number) =>
+    full ? Math.min(1, Math.max(0, ms / QUAY_FADE_MS)) : ms > 0 ? 1 : 0;
+  const toward = (size: number, share: number) => size + (1 - size) * share;
+  return toward(start, away(now - departedAt)) * toward(end, away(arrivesAt - now));
+}
 
 /** Every thread's weight against its original design: the first one read too heavy on the sheet. */
 const THREAD_WEIGHT = 0.5;
@@ -109,7 +134,7 @@ export class ArcLayer {
   /** **The span a movement's pawn gives way to its pin by**, `null` for no movement of that id. */
   spanOf(id: string): number | null {
     const pawn = this.pawnById.get(id);
-    return pawn === undefined ? null : troopPinSpan(pawn.span);
+    return pawn === undefined ? null : troopPinSpan(pawn.span * pawn.sized);
   }
   readonly aheadPositions = new Map<string, Vector3>();
   private readonly pawnPoint = new Vector3();
@@ -314,6 +339,12 @@ export class ArcLayer {
     private readonly ink: InkLayer,
     /** Where a plane leaves a runway or a hull a quay (`EndsOf`), by the board's own points. */
     private readonly ends: EndsOf = () => null,
+    /** **Where my port at this point docks a hull** of `span` as it is drawn, and its size
+     *  (#433); `null` for none there. */
+    private readonly quays: (
+      at: Vector3,
+      span: number,
+    ) => { at: Vector3; scale: number } | null = () => null,
   ) {}
 
   setPlayerNation(nation: string | null): void {
@@ -408,6 +439,18 @@ export class ArcLayer {
     clock: number,
   ): RenderedArc {
     const stale = arc.state === 'lastKnown';
+    const roles = movementRoles(arc);
+    const hull = roles?.sea ?? null;
+    const quays = { start: 1, end: 1 };
+    const moor: Moor | undefined =
+      hull === null
+        ? undefined
+        : (which, at) => {
+            const quay = this.quays(at, troopSpan(hull));
+            if (quay === null) return null;
+            quays[which] = quay.scale;
+            return quay.at;
+          };
     const thread = buildThread(
       arc.route,
       this.frame,
@@ -420,6 +463,7 @@ export class ArcLayer {
       {
         aloft: this.aloft,
         ...(this.motion !== 'off' ? { ends: this.ends } : {}),
+        ...(moor === undefined ? {} : { moor }),
         ...(arc.state === 'mine' && arc.airdrop !== undefined ? { airdrop: arc.airdrop } : {}),
       },
     );
@@ -428,7 +472,6 @@ export class ArcLayer {
     this.group.add(thread.object);
     for (const target of thread.targets) target.userData.arc = arc.id;
 
-    const roles = movementRoles(arc);
     const column = arc.state === 'mine' ? this.columnOf(arc.id) : null;
     const figurineOf = (role: UnitRole | null) =>
       role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
@@ -489,6 +532,7 @@ export class ArcLayer {
       ink: lastKnownInk(arc, clock),
       rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
       loadingUntil: null,
+      quays,
     };
   }
 
@@ -630,6 +674,13 @@ export class ArcLayer {
         turn,
         roadOf(rendered.thread.legs, position, leg, local),
       );
+      if (rendered.arc.state === 'mine')
+        rendered.pawn.sized = quaySize(
+          rendered.quays,
+          rendered.arc.schedule,
+          clock,
+          this.motion === 'full',
+        );
       rendered.pawn.step(this.motion === 'full' ? elapsed : null, this.motion === 'reduced');
       rendered.pawn.orient(this.cameraPosition, this.cameraYaw, this.inView);
       rendered.headPosition.copy(this.pawnPoint);

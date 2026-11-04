@@ -219,6 +219,9 @@ export class Pawn {
   private laidOut = false;
   /** The figurines' size on the board at that `orient` (`troopScale`). */
   private drawn = 1;
+  /** **The share of its own size it is drawn at**: a hull at the quay of a port drawn smaller
+   *  takes its size (#433). */
+  sized = 1;
 
   constructor(
     color: string,
@@ -409,9 +412,10 @@ export class Pawn {
     const distance = this.object.position.distanceTo(cameraPosition);
     const figurine = this.figurines.get(this.medium);
     const span = this.span;
-    const drawn = troopScale(distance, span);
+    // Drawn as a piece of its sized span: its pin and its floor follow (#433).
+    const drawn = troopScale(distance, span * this.sized) * this.sized;
     // The silhouette fades with it: its own size is a share of the screen.
-    const close = troopWeight(distance, span);
+    const close = troopWeight(distance, span * this.sized);
     // The wake and the altitude disc are drawn for a tank: they follow the piece's own size.
     const around = drawn * (span / LAID_OUT_FOR);
     // Figurine or silhouette, a hull at sea up close stirs the water: the wake says « at sea ».

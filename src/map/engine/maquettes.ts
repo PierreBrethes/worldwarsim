@@ -751,14 +751,37 @@ export class MaquetteLayer implements SequenceHost {
     this.place();
   }
 
-  /** Where the airfields stand, as one string: a thread leaves a runway only once its airfield is
-   *  placed, and is laid again when this changes. */
+  /** Where the airfields and the ports stand, as one string: a thread leaves a runway, or a quay
+   *  as it is drawn, only once its site is placed, and is laid again when this changes. */
   runwaysKey(): string {
     return [...this.byId]
-      .filter(([id]) => id.startsWith('building-airfield'))
-      .map(([id, { item }]) => `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)}`)
+      .filter(([id]) => id.startsWith('building-airfield') || id.startsWith('building-port'))
+      .map(([id, { item, lot }]) =>
+        id.startsWith('building-port')
+          ? `${id}:${item.at.x.toFixed(4)},${item.at.z.toFixed(4)},${item.scale},${lot.model !== null}`
+          : `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)}`,
+      )
       .sort()
       .join(';');
+  }
+
+  /**
+   * **Where my port standing at (`x`, `z`) docks a hull of `span`**, as the port is drawn (#433):
+   * its quay off the point a ring carried it from, and the size it is drawn at — the hull's too.
+   * `null` for no port there, or one not landed.
+   */
+  quayAt(x: number, z: number, span: number): { at: Vector3; scale: number } | null {
+    for (const [id, { item, lot }] of this.byId) {
+      if (!id.startsWith('building-port') || lot.model === null) continue;
+      if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
+      const { at, facing, scale } = item;
+      const foot = garrisonFoot(item.span * scale, span * scale, true) * pieceScale.size;
+      return {
+        at: new Vector3(at.x + foot * Math.sin(facing), at.y, at.z + foot * Math.cos(facing)),
+        scale,
+      };
+    }
+    return null;
   }
 
   /**
@@ -1137,7 +1160,8 @@ export class MaquetteLayer implements SequenceHost {
    * **Where the garrison of a maquette stands**, `null` while its model has not landed — a pile
    * beside a plate would stand beside nothing — or while a replay has cleared it away. Read at every frame, so that a ring or a region
    * that lands carries the pile along. The step follows the maquette as it is drawn now: it
-   * closes in as the maquette gives way to its pin. `pile` is the span of its largest piece.
+   * closes in as the maquette gives way to its pin. `pile` is the span of its largest piece, as
+   * the pile is drawn: whole on land (ADR 0035 §1), at the port's `scale` at its quay.
    */
   garrisonAt(
     id: string,
@@ -1152,6 +1176,8 @@ export class MaquetteLayer implements SequenceHost {
     /** The rank's width, in board units, and the way it deepens, on the board. */
     width: number;
     deep: readonly [number, number];
+    /** The size its ring draws the site at: the hulls of a port are drawn at it (#433). */
+    scale: number;
   } | null {
     const held = this.held.get(id);
     const dressed = this.byId.get(id);
@@ -1175,9 +1201,11 @@ export class MaquetteLayer implements SequenceHost {
         rank: true,
         width: RANK_WIDTH_METRES * size,
         deep: [deep.x, deep.z],
+        scale,
       };
     }
-    const foot = garrisonFoot(span, pile, quay) * pieceScale.size * scale * near;
+    // The site is drawn at its ring's scale; the pile, at the size it is handed in at (#433).
+    const foot = garrisonFoot(span * scale, pile, quay) * pieceScale.size * near;
     return {
       at,
       step: [foot * Math.sin(facing), foot * Math.cos(facing)],
@@ -1185,6 +1213,7 @@ export class MaquetteLayer implements SequenceHost {
       rank: false,
       width: Infinity,
       deep: [0, 0],
+      scale,
     };
   }
 

@@ -1018,8 +1018,11 @@ export class MapEngine {
       );
     }
     this.ink = new InkLayer(this.frame, this.ambience.enabled('ink'));
-    this.arcs = new ArcLayer(this.frame, this.ink, (medium, which, at, hint) =>
-      this.endOf(medium, which, at, hint),
+    this.arcs = new ArcLayer(
+      this.frame,
+      this.ink,
+      (medium, which, at, hint) => this.endOf(medium, which, at, hint),
+      (at, span) => this.maquettes.quayAt(at.x, at.z, span),
     );
     this.reach = new ReachRing(this.frame);
     this.zones = new OutpostZones(this.frame, this.night.uniforms);
@@ -1060,6 +1063,8 @@ export class MapEngine {
         this.landed();
         // A maquette that lands off its point, on its ring, takes its pin there.
         this.pins.rebuild();
+        // A port that lands moors the threads that leave it (#433).
+        this.relayThreads();
       },
       (at, words) =>
         this.inkBurst({
@@ -1335,6 +1340,11 @@ export class MapEngine {
     this.standing.display(this.besideSites(this.piles));
     // A ring may have carried a maquette elsewhere: its pin follows.
     this.pins.rebuild();
+    this.relayThreads();
+  }
+
+  /** The threads are laid again once the airfields and ports they leave are placed otherwise. */
+  private relayThreads(): void {
     const runways = this.maquettes.runwaysKey();
     if (runways === this.runways) return;
     this.runways = runways;

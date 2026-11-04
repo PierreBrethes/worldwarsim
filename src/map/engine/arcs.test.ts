@@ -15,7 +15,7 @@ import type { World } from '@/domain/world';
 import { directRoute } from '@/domain/routing';
 import { unrollRoute } from '@/domain/route-timing';
 import { ArcLayer, CATCH_UP_MS, caughtUp, lastKnownMedium } from './arcs';
-import { figurineFor } from './figurines/figurine';
+import { figurineFor, troopScale } from './figurines/figurine';
 import { WorldFrame } from './frame';
 import type { InkLayer } from './ink';
 import { Pawn } from './pawn';
@@ -536,5 +536,69 @@ describe('ArcLayer.hold (#278)', () => {
     const arcs = layer();
     arcs.display([sighted('enemyDetected')]);
     expect(arcs.hold('e', () => true, Infinity)).toBeNull();
+  });
+});
+
+/** **Un navire qui quitte un port dessiné plus petit** (#433, option C) : il part du quai tel
+ *  qu'il est dessiné, à l'échelle du port, et reprend sa taille en une demi-seconde. */
+describe('a hull leaving a port drawn smaller', () => {
+  const frame = new WorldFrame(world);
+  const start = frame.projectLonLat([0, 0]);
+  const quay = start.clone().add(new Vector3(0.3, 0, -0.2));
+  const SPAN = 0.006;
+  /** How large the hull is drawn, as a share of its own size at the same distance. */
+  const sailing = (motion: 'full' | 'reduced', at: number, back = false) => {
+    vi.useFakeTimers({ now: at });
+    try {
+      const arcs = new ArcLayer(
+        frame,
+        { trace: () => 0 } as unknown as InkLayer,
+        undefined,
+        (point) =>
+          Math.hypot(point.x - start.x, point.z - start.z) < 1e-6 ? { at: quay, scale: 0.4 } : null,
+      );
+      arcs.setPlayerNation('france');
+      arcs.motion = motion;
+      const route = back
+        ? directRoute([10, 5], [0, 0], 'sea', 10)
+        : directRoute([0, 0], [10, 5], 'sea', 10);
+      arcs.display([{ ...mine('a'), route, stack: { cargo: 1 } } as ArcView]);
+      arcs.animate();
+      const head = arcs.headPositions.get('a')!.clone();
+      const camera = new PerspectiveCamera();
+      camera.position.copy(head).add(new Vector3(0, 0.05, 0.05));
+      arcs.animate(camera);
+      const hull = vi.mocked(figurineFor).mock.results.at(-1)!.value.object as Group;
+      const d = camera.position.distanceTo(head);
+      return { share: hull.scale.x / troopScale(d, SPAN), head, d };
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+  const docked = (d: number) => (0.4 * troopScale(d, SPAN * 0.4)) / troopScale(d, SPAN);
+
+  it('leaves from the quay as drawn, at the port scale', () => {
+    const { share, head, d } = sailing('full', 0);
+    expect(docked(d)).toBeLessThan(0.99);
+    expect(share).toBeCloseTo(docked(d), 9);
+    expect(Math.hypot(head.x - quay.x, head.z - quay.z)).toBeLessThan(1e-6);
+  });
+
+  it('grows back to its own size in half a second, at full motion', () => {
+    const { share, d } = sailing('full', 250);
+    expect(share).toBeGreaterThan(docked(d));
+    expect(share).toBeLessThan(1);
+    expect(sailing('full', 500).share).toBeCloseTo(1, 9);
+  });
+
+  it('takes its size at once out of full motion', () => {
+    expect(sailing('reduced', 1).share).toBeCloseTo(1, 9);
+  });
+
+  it('shrinks back to it in its last half-second, docking at the quay as drawn', () => {
+    expect(sailing('full', 3_600_000 - 600, true).share).toBeCloseTo(1, 9);
+    const end = sailing('full', 3_600_000, true);
+    expect(end.share).toBeCloseTo(docked(end.d), 9);
+    expect(Math.hypot(end.head.x - quay.x, end.head.z - quay.z)).toBeLessThan(1e-6);
   });
 });

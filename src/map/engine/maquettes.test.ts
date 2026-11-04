@@ -701,6 +701,57 @@ describe('a razed maquette holds its place while it falls (#326)', () => {
   });
 });
 
+describe('a garrison at the foot of a site drawn smaller (#433)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  // A dozen sites on one point make a ring too wide to keep: each stands at its smallest size.
+  const crowded = async (id: string) => {
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    const ids = [id, ...Array.from({ length: 11 }, (_, k) => `building-hq${k}@0,0`)];
+    maquettes.display(
+      ids.map((one) => ({
+        id: one,
+        at: { lonLat: [0, 0] as const },
+        url: `${one}.glb`,
+        span: 1,
+        washed: false,
+      })),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    maquettes.orient(new Vector3(0, 2, 2), null, 0);
+    return maquettes;
+  };
+  const reach = (step: readonly [number, number]) => Math.hypot(...step);
+
+  it('stands a pile on land off the site by its own half, not by its half at the site scale', async () => {
+    const maquettes = await crowded('building-barracks@0,0');
+    const bare = maquettes.garrisonAt('building-barracks@0,0', 0)!;
+    expect(bare.scale).toBeCloseTo(0.4, 9);
+    const pile = reach(maquettes.garrisonAt('building-barracks@0,0', 1)!.step);
+    // The bare foot is the site's 8/7 of its span at 0.4; a pile of span 1 adds its 1/2, whole.
+    expect((pile - reach(bare.step)) / reach(bare.step)).toBeCloseTo(0.5 / ((8 / 7) * 0.4), 9);
+  });
+
+  it('hands the scale of a port to its hulls, and docks a cargo drawn at it clear of the port', async () => {
+    const PORT = 'building-port@0,0';
+    const maquettes = await crowded(PORT);
+    const { scale, step } = maquettes.garrisonAt(PORT, 0, true)!;
+    expect(scale).toBeCloseTo(0.4, 9);
+    // The bare quay is half the port's span off its centre: its board unit, here.
+    const unit = reach(step) / (0.5 * scale);
+    const cargo = troopSpan('cargo') * scale;
+    const foot = reach(maquettes.garrisonAt(PORT, cargo, true)!.step);
+    expect(foot - (cargo / 2) * unit).toBeGreaterThanOrEqual(((1 * scale) / 2) * unit - 1e-12);
+  });
+});
+
 describe('the sites a garrison stands at the foot of (#341)', () => {
   it('are my buildings by their points: no installation, no objective, no region anchor', () => {
     const maquettes = new MaquetteLayer(
