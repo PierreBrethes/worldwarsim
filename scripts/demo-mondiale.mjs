@@ -134,6 +134,10 @@
  * (`evacuation-neuf`), un arsenal gardé au niveau 5 sous un QG de niveau 4, un avant-poste en
  * Roumanie dont le puits est sous capture française (`demantelement`), et pose sur une caserne
  * française de la Marne une capture soviétique qui court (`sous-capture`, compte a).
+ * `--pret-bail` (#448, avec `--huit`) pose un avant-poste américain à Aix-la-Chapelle et son camion
+ * chargé (`pret-bail-convoi`, compte f), deux avant-postes français que le relevé américain garde,
+ * Namur au dépôt entamé (`pret-bail`) et Liège (`pret-bail-recu`), et un Prêt-bail déjà livré à
+ * Liège : le convoi et le receveur (compte a) lisent chacun leur dépêche.
  * `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
  * rangs et une artillerie, et une escorte et un porte-avions en golfe de Gascogne (`rangs-mer`).
  * `--recrue [s]` forme une infanterie de rang 2 à la caserne de `--niveaux` et la fait sortir dans
@@ -443,6 +447,15 @@ if (!bare) {
       places,
       JSON.parse(
         cli(['run', 'dev:evacuationScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
+      ),
+    );
+  /** `--pret-bail` : un camion américain chargé, deux avant-postes français relevés, une livraison
+   *  déjà reçue. */
+  if (eight && process.argv.includes('--pret-bail'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:lendLeaseScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
       ),
     );
   /** `--rangs` : les deux rangs, une artillerie à côté de Paris ; une flotte au large de la Bretagne. */

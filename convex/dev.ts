@@ -831,6 +831,94 @@ export const evacuationScene = internalMutation({
 });
 
 /**
+ * **Le Prêt-bail, posé** (`--pret-bail`, #448) : un avant-poste américain à Aix-la-Chapelle et son
+ * camion chargé ; deux avant-postes français en Belgique, Namur au dépôt entamé et Liège, que le
+ * relevé américain garde ; et un Prêt-bail déjà livré à Liège, dont chacun lit sa dépêche. Rend
+ * les points.
+ */
+export const lendLeaseScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const usa = players.find((player) => player.nation === 'usa');
+    const france = players.find((player) => player.nation === 'france');
+    if (usa === undefined || france === undefined) throw new Error('--pret-bail wants --huit');
+    const now = Date.now();
+    const plant = (
+      player: Doc<'players'>,
+      point: { lon: number; lat: number },
+      hostCountry: string,
+      depot: { ammunition: number; oil: number; coal: number },
+    ) =>
+      ctx.db.insert('outposts', {
+        seasonId,
+        playerId: player._id,
+        point,
+        hostCountry,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        depot,
+      });
+    const aachen = { lon: 6.08, lat: 50.78 };
+    const namur = { lon: 4.87, lat: 50.47 };
+    const liege = { lon: 5.57, lat: 50.63 };
+    const base = await plant(usa, aachen, 'DEU', { ammunition: 0, oil: 0, coal: 0 });
+    await plant(france, namur, 'BEL', { ammunition: 150, oil: 60, coal: 0 });
+    await plant(france, liege, 'BEL', { ammunition: 80, oil: 40, coal: 0 });
+    await ctx.db.insert('troops', {
+      seasonId,
+      playerId: usa._id,
+      role: 'landTransport',
+      tier: 1,
+      nominalStrength: nominalStrength('landTransport', 1),
+      currentStrength: nominalStrength('landTransport', 1),
+      stationedAt: base,
+      load: { ammunition: 120, oil: 80, coal: 40 },
+    });
+    await recordLinkage(ctx, seasonId);
+    await fileSurvey(
+      ctx,
+      usa._id,
+      [namur, liege].map((point) => ({ point: [point.lon, point.lat] as const, radiusKm: 1 })),
+      now,
+    );
+    /** Un Prêt-bail déjà livré à Liège : le convoi rentré dit le lieu, le receveur la nation. */
+    const delivered = { ammunition: 80, oil: 40, coal: 0 };
+    await ctx.db.insert('notices', {
+      playerId: usa._id,
+      at: now - 60_000,
+      kind: 'supplyDelivered',
+      hostCountry: 'BEL',
+      point: liege,
+      delivered,
+      kept: { ammunition: 20, oil: 0, coal: 0 },
+      abroad: true,
+    });
+    await ctx.db.insert('notices', {
+      playerId: france._id,
+      at: now - 60_000,
+      kind: 'lendLeaseReceived',
+      nation: 'usa',
+      hostCountry: 'BEL',
+      point: liege,
+      delivered,
+    });
+    await reassessDetection(ctx, seasonId, now);
+    return {
+      'pret-bail': [namur.lon, namur.lat],
+      'pret-bail-convoi': [aachen.lon, aachen.lat],
+      'pret-bail-recu': [liege.lon, liege.lat],
+    };
+  },
+});
+
+/**
  * **Une présence de pillage déjà entamée** (`--pillage`) : les colonnes en phase de présence
  * sont reculées de `hours` heures, de sorte que les caisses tombées à chaque quart de la présence
  * (`loadingAt`) se voient déjà ; la fin de présence est replanifiée à sa nouvelle date.
