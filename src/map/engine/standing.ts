@@ -25,7 +25,8 @@ import { destinationPoint, samePoint, type LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PilePieces } from '@/domain/pile-pieces';
-import type { UnitTier } from '@/domain/ids';
+import type { UnitRole, UnitTier } from '@/domain/ids';
+import { AIRFIELD } from '@/emblems/kits/manifest';
 import { nationInk } from '@/domain/nations';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
@@ -46,7 +47,10 @@ import {
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { InkRing, type RingState } from './ink-ring';
 import type { SequenceHost } from './sequences';
+import type { AirRole } from './timelines/airfield';
 import { ease } from './timelines/curves';
+import type { SeaRole } from './timelines/port';
+import { apron, berths } from './timelines/rest';
 import { playTableSound } from '../table-sound';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
@@ -141,6 +145,8 @@ export type GarrisonAt = (
   deep: readonly [number, number];
   /** The size its ring draws the site at: a fleet at its quay is drawn at it (#433). */
   scale: number;
+  /** The site's metres to the board, as it is drawn now (#475): where its pieces rest. */
+  toBoard(point: Vector3): Vector3;
 } | null;
 
 /**
@@ -343,10 +349,13 @@ export function pileObject(
 } | null {
   const figurines = dressedGroups(nation, pieces);
   if (figurines === null) return null;
-  const layout = formationOf(
-    pieces.groups.map(({ role }) => (DOMAIN_BY_ROLE[role] === 'sea' ? 'sea' : 'land')),
+  // A piece posted at its site (#475) leaves the formation: the engine stands it at its post.
+  const free = pieces.groups.flatMap((group, k) => (group.posted ? [] : [k]));
+  const placed = formationOf(
+    free.map((k) => (DOMAIN_BY_ROLE[pieces.groups[k]!.role] === 'sea' ? 'sea' : 'land')),
     seaward,
   );
+  const layout = pieces.groups.map((_, k) => placed[free.indexOf(k)] ?? { x: 0, z: 0 });
   const object = new Group();
   const smokes: Smoke[] = [];
   const targets: Mesh[] = [];
@@ -382,10 +391,10 @@ export function pileObject(
       if (group.wear === 'burning') blacken(model);
     });
   });
-  if (pieces.squad) object.add(squadMarks(layout, nation, pieces.count));
+  if (pieces.squad && placed.length > 0) object.add(squadMarks(placed, nation, pieces.count));
   const margin = GROUP_SPACING * 0.62;
-  const xs = layout.map(({ x }) => x);
-  const zs = layout.map(({ z }) => z);
+  const xs = placed.length === 0 ? [0] : placed.map(({ x }) => x);
+  const zs = placed.length === 0 ? [0] : placed.map(({ z }) => z);
   return {
     object,
     span,
@@ -733,7 +742,10 @@ function discard(carried: Carried): void {
 /** The held pieces only: a troop taken out of its squad is carried alone, no outline. */
 function heldPieces(pieces: PilePieces, troopIds: ReadonlyArray<string>): PilePieces {
   const held = new Set(troopIds);
-  const groups = pieces.groups.filter((group) => group.troopIds.some((id) => held.has(id)));
+  // In hand it is carried with the others: no post to stand at.
+  const groups = pieces.groups
+    .filter((group) => group.troopIds.some((id) => held.has(id)))
+    .map(({ posted: _, ...group }) => group);
   return { groups, troopIds, squad: pieces.squad && groups.length > 1 };
 }
 
@@ -756,7 +768,7 @@ export const drawnKey = (
   JSON.stringify([
     nation,
     count,
-    groups.map((g) => [g.role, g.figures, g.wear, g.aboard, restPoseOf(g, now)]),
+    groups.map((g) => [g.role, g.figures, g.wear, g.aboard, restPoseOf(g, now), g.posted]),
   ]);
 
 /**
@@ -1667,9 +1679,12 @@ export class StandingLayer implements SequenceHost {
     const ranked = new Map<string, Dressed[]>();
     for (const entry of order) {
       if (!('beside' in entry.at) || entry.at.quay !== undefined) continue;
+      // What rests at its post does not take a place in the rank (#475).
+      if (entry.pieces.groups.every((group) => group.posted)) continue;
       if (this.garrisonAt(entry.at.beside, entry.span, false)?.rank)
         ranked.set(entry.at.beside, [...(ranked.get(entry.at.beside) ?? []), entry]);
     }
+    const posts = this.postsOf(order, cameraPosition);
     const laid = new Map<Dressed, { x: number; z: number }>();
     for (const [site, entries] of ranked) {
       const { width } = this.garrisonAt(site, entries[0]!.span, false)!;
@@ -1739,6 +1754,7 @@ export class StandingLayer implements SequenceHost {
       const scale = troopScale(distance, span) * pileUnitOf(span);
       object.scale.setScalar(scale);
       hover(object);
+      this.post(entry, posts.get(entry), scale);
       const growth = targetGrowth(scale, distance);
       for (const target of targets) target.scale.setScalar(growth);
     }
@@ -1760,6 +1776,74 @@ export class StandingLayer implements SequenceHost {
       effect.end();
       return false;
     });
+  }
+
+  /**
+   * **Where the pieces posted at their site rest, on the board** (#475): the planes of an airfield
+   * on its apron, the hulls of a port along its mole, a slot per piece by its rank across the
+   * site's piles, the figurines drawn as large as they are up close.
+   */
+  private postsOf(
+    order: ReadonlyArray<Dressed>,
+    eye: Vector3,
+  ): Map<Dressed, Array<{ k: number; at: Vector3; heading: number }>> {
+    const bySite = new Map<string, Array<{ entry: Dressed; k: number; role: UnitRole }>>();
+    for (const entry of order) {
+      if (!('beside' in entry.at)) continue;
+      const { beside } = entry.at;
+      entry.pieces.groups.forEach(({ role, posted }, k) => {
+        if (posted) bySite.set(beside, [...(bySite.get(beside) ?? []), { entry, k, role }]);
+      });
+    }
+    const posts = new Map<Dressed, Array<{ k: number; at: Vector3; heading: number }>>();
+    for (const [site, members] of bySite) {
+      const sea = DOMAIN_BY_ROLE[members[0]!.role] === 'sea';
+      const first = members[0]!.entry;
+      const frame = this.garrisonAt(site, first.span, sea);
+      if (frame === null) continue;
+      const growth = floorGrowth(frame.at.distanceTo(eye), first.span) * pieceScale.size;
+      const roles = members.map(({ role }) => role);
+      const rests = sea
+        ? berths(roles as SeaRole[], 1, growth)
+        : apron(roles as AirRole[], 1, growth);
+      members.forEach(({ entry, k }, n) => {
+        const rest = rests[n];
+        if (rest === null || rest === undefined) return;
+        const y = sea ? 0 : AIRFIELD.top;
+        const at = frame.toBoard(new Vector3(rest.x, y, rest.z));
+        const ahead = frame
+          .toBoard(new Vector3(rest.x + Math.sin(rest.yaw), y, rest.z + Math.cos(rest.yaw)))
+          .sub(at);
+        posts.set(entry, [
+          ...(posts.get(entry) ?? []),
+          { k, at, heading: Math.atan2(ahead.x, ahead.z) },
+        ]);
+      });
+    }
+    return posts;
+  }
+
+  /** Stands the posted pieces of a pile at their posts, in the pile's own frame. */
+  private post(
+    entry: Dressed,
+    posts: ReadonlyArray<{ k: number; at: Vector3; heading: number }> | undefined,
+    scale: number,
+  ): void {
+    if (posts === undefined || scale <= 0) return;
+    const { object } = entry;
+    const [cos, sin] = [Math.cos(object.rotation.y), Math.sin(object.rotation.y)];
+    for (const { k, at, heading } of posts) {
+      const [dx, dy, dz] = [
+        at.x - object.position.x,
+        at.y - object.position.y,
+        at.z - object.position.z,
+      ];
+      const [x, y, z] = [(dx * cos - dz * sin) / scale, dy / scale, (dx * sin + dz * cos) / scale];
+      const figurine = entry.figurines[k]!;
+      figurine.object.position.set(x, y, z);
+      figurine.object.rotation.y = heading - object.rotation.y;
+      entry.targets[k]!.position.set(x, y, z);
+    }
   }
 
   /** Its time in seconds since `since`, or past every animation when motion is not full. */

@@ -1408,6 +1408,8 @@ export class MaquetteLayer implements SequenceHost {
     deep: readonly [number, number];
     /** The size its ring draws the site at: the hulls of a port are drawn at it (#433). */
     scale: number;
+    /** The site's metres to the board, as it is drawn now (#475): where its pieces rest. */
+    toBoard(point: Vector3): Vector3;
   } | null {
     const held = this.held.get(id);
     const dressed = this.byId.get(id);
@@ -1419,6 +1421,9 @@ export class MaquetteLayer implements SequenceHost {
     const near = Math.max(held === undefined ? item.near : item.drawnNear, 0);
     const model = (held?.model ?? dressed!.lot.model)!;
     const { rank } = model;
+    const metre = near * sizeOf(model, item);
+    const toBoard = (point: Vector3) =>
+      point.clone().multiplyScalar(metre).applyQuaternion(item.turn).add(at);
     // **The pile that captures stands at the foot of its sign** (décision 1, #279): where the
     // flag it takes flies, on the socle — off the mast's own footing, toward the yard.
     const { signFoot } = model;
@@ -1437,6 +1442,7 @@ export class MaquetteLayer implements SequenceHost {
         width: Infinity,
         deep: [0, 0],
         scale,
+        toBoard,
       };
     }
     // The hulls of a port keep its quay.
@@ -1453,6 +1459,7 @@ export class MaquetteLayer implements SequenceHost {
         width: RANK_WIDTH_METRES * size,
         deep: [deep.x, deep.z],
         scale,
+        toBoard,
       };
     }
     const edge = quay ? quayStep(item, model, pile * pieceScale.size) : null;
@@ -1465,6 +1472,7 @@ export class MaquetteLayer implements SequenceHost {
         width: Infinity,
         deep: [0, 0],
         scale,
+        toBoard,
       };
     // The site is drawn at its ring's scale; the pile, at the size it is handed in at (#433).
     const foot = garrisonFoot(span * scale, pile) * pieceScale.size * near;
@@ -1476,6 +1484,7 @@ export class MaquetteLayer implements SequenceHost {
       width: Infinity,
       deep: [0, 0],
       scale,
+      toBoard,
     };
   }
 

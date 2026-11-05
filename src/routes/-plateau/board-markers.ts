@@ -7,7 +7,7 @@ import { researchMs, researchProgressOf, searcherOf } from '@/domain/research';
 import { isRangoonColumn } from '@/domain/strategic-points';
 import type { StandingPile } from '@/map/engine';
 import { rangoonReachOf, type LabelLine, type MapMarker } from '@/domain/labels';
-import { pilePieces, unitPieces, type PilePieces } from '@/domain/pile-pieces';
+import { pilePieces, postedAt, unitPieces, type PilePieces } from '@/domain/pile-pieces';
 import { COUNTRY_BY_NATION, isNation, nationInk } from '@/domain/nations';
 import { buildingSprite } from '@/emblems/buildings/manifest';
 import { lootWords } from '@/domain/journal';
@@ -492,6 +492,7 @@ function garrisonPiles(
     station: TroopStation,
     at: StandingPile['at'],
     label?: string,
+    key?: string,
   ): ReadonlyArray<StandingPile> => {
     // The station's key, as `holding` names the pile a hand was taken from.
     const id = stationKeyOf(station);
@@ -503,7 +504,7 @@ function garrisonPiles(
             id,
             ...(label === undefined ? {} : { label }),
             at,
-            pieces: pilePieces(troops, { afloat: false }),
+            pieces: postedAt(pilePieces(troops, { afloat: false }), key),
           },
         ];
   };
@@ -514,6 +515,8 @@ function garrisonPiles(
         building.key === PROJECTION_BY_DOMAIN.sea
           ? { beside: buildingLabelId(building), quay: building.point }
           : { beside: buildingLabelId(building) },
+        undefined,
+        building.key,
       ),
     ),
     ...me.outposts.flatMap((outpost) =>

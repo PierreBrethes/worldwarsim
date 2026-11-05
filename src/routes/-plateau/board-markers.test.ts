@@ -91,6 +91,65 @@ describe('standingPilesOf', () => {
   });
 });
 
+describe('the pieces that rest at their post (#475)', () => {
+  const at = (role: string, id: string, buildingId: string) => ({
+    id,
+    role,
+    tier: 1,
+    strength: 100,
+    nominalStrength: 100,
+    stationedAt: { kind: 'building', buildingId },
+  });
+  const me = (troops: unknown[]) =>
+    ({
+      buildings: [
+        { id: 'a1', key: 'airfield', point: [1, 2] },
+        { id: 'p1', key: 'port', point: [3, 4] },
+      ],
+      outposts: [],
+      troops,
+    }) as never;
+  const posted = (piles: ReturnType<typeof standingPilesOf>) =>
+    piles.flatMap((pile) => pile.pieces.groups.map((group) => [group.role, group.posted === true]));
+
+  it('posts the planes of an airfield and the hulls of a port, not the men beside them, in a Mondiale', () => {
+    const troops = [
+      at('fighter', 'f', 'a1'),
+      at('infantry', 'i', 'a1'),
+      at('cargo', 'c', 'p1'),
+      at('infantry', 'j', 'p1'),
+    ];
+    expect(posted(standingPilesOf(me(troops), [], new Set(), false)).sort()).toEqual(
+      [
+        ['fighter', true],
+        ['infantry', false],
+        ['cargo', true],
+        ['infantry', false],
+      ].sort(),
+    );
+  });
+
+  it('posts nothing in a Blitz: the plane stays aloft', () => {
+    expect(posted(standingPilesOf(me([at('fighter', 'f', 'a1')]), [], new Set(), true))).toEqual([
+      ['fighter', false],
+    ]);
+  });
+
+  it('never posts what is not my garrison: a force seen at a site stands where the view serves it', () => {
+    const seen = {
+      kind: 'stack',
+      id: 'enemy',
+      lonLat: [1, 2],
+      pieces: {
+        groups: [{ role: 'fighter', troops: 1, troopIds: ['x'], figures: [1], wear: 'whole' }],
+        troopIds: ['x'],
+        squad: false,
+      },
+    } as never;
+    expect(posted(standingPilesOf(me([]), [seen], new Set(), false))).toEqual([['fighter', false]]);
+  });
+});
+
 describe('razingStill', () => {
   const barracks = { key: 'barracks', point: [2, 48] as const };
   const farm = { key: 'farm', point: [3, 47] as const };

@@ -11,7 +11,9 @@ import { pileLayout } from '@/domain/pile-layout';
 import { describe, expect, it, vi } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
-import { pilePieces, unitPieces } from '@/domain/pile-pieces';
+import { pilePieces, postedAt, unitPieces } from '@/domain/pile-pieces';
+import { AIRFIELD } from '@/emblems/kits/manifest';
+import { apron, berths } from './timelines/rest';
 import type { WorldFrame } from './frame';
 import {
   besideSites,
@@ -28,7 +30,7 @@ import {
 } from './standing';
 import { troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
-import { TANK_SHARE, troopPinSpan, troopScale } from './figurines/figurine';
+import { floorGrowth, TANK_SHARE, troopPinSpan, troopScale } from './figurines/figurine';
 
 // The loader wants a DOM: every file is a box of a metre.
 vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
@@ -898,6 +900,7 @@ describe('a fleet docked at a port drawn smaller', () => {
           width: Infinity,
           deep: [0, 0] as const,
           scale,
+          toBoard: (point: Vector3) => point.clone(),
         };
       },
     );
@@ -941,6 +944,7 @@ describe('a fleet at the quay of a turned port', () => {
         width: Infinity,
         deep: [0, 0] as const,
         scale: 1,
+        toBoard: (point: Vector3) => point.clone(),
       }),
       // The grid round the point reads no shore.
       () => null,
@@ -956,5 +960,132 @@ describe('a fleet at the quay of a turned port', () => {
     const hull = object.children[0]!;
     expect(hull.position.x).toBeGreaterThan(0.4);
     expect(hull.position.z).toBeCloseTo(0, 9);
+  });
+});
+
+/** **Une pièce au repos se range à son poste** (#475) : l'avion sur l'aire, la coque au môle, loin
+ *  de la formation de leur pile, et le rang de la garnison ne les compte plus. */
+describe('pieces resting at their post', () => {
+  type Inner = { dressed: Map<string, { object: Group }> };
+  const eye = new Vector3(0, 0.4, 0.4);
+  const SITE = new Vector3(0.3, 0, 0.2);
+  /** A site at `SITE`, a hundredth of a board unit to the metre, turned to nothing. */
+  const toBoard = (point: Vector3) => point.clone().multiplyScalar(0.01).add(SITE);
+  const stub = {
+    at: SITE,
+    step: [0, 0] as const,
+    facing: 0,
+    rank: false,
+    width: Infinity,
+    deep: [0, 0] as const,
+    scale: 1,
+    toBoard,
+  };
+  const unit = (role: UnitRole, id: string) => ({ ...troop(role), id });
+  const standing = async (piles: Parameters<StandingLayer['display']>[0], rank = false) => {
+    const layer = new StandingLayer(
+      { projectLonLat: () => new Vector3() } as unknown as WorldFrame,
+      () => {},
+      () => ({ ...stub, rank, width: 100 }),
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display(piles);
+    await vi.waitFor(() => expect(layer.group.children.length).toBe(piles.length));
+    layer.orient(eye);
+    return layer;
+  };
+  const growthOf = (role: UnitRole) =>
+    floorGrowth(SITE.distanceTo(eye), pileObject('france', pilePieces([troop(role)]))!.span) *
+    pieceScale.size;
+  const near = (at: Vector3, to: Vector3) => expect(at.distanceTo(to)).toBeLessThan(1e-9);
+
+  it('stands the planes of an airfield on its apron, the men in the pile', async () => {
+    const pieces = postedAt(
+      pilePieces([unit('fighter', 'a'), unit('fighter', 'b'), unit('infantry', 'i')]),
+      'airfield',
+    );
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces }]);
+    const g = growthOf('fighter');
+    const slots = apron(['fighter', 'fighter'], 1, g);
+    pieces.groups.forEach(({ role }, k) => {
+      const at = layer.placeOf(`p/${k}`)!.at;
+      if (role !== 'fighter') return expect(at.distanceTo(SITE)).toBeLessThan(0.1);
+      const slot = slots[pieces.groups.slice(0, k).filter((x) => x.role === 'fighter').length]!;
+      near(at, toBoard(new Vector3(slot.x, AIRFIELD.top, slot.z)));
+    });
+  });
+
+  it('stands the hulls of a port along its mole, a third in the roads', async () => {
+    const pieces = postedAt(
+      pilePieces([unit('cargo', 'a'), unit('escort', 'b'), unit('cargo', 'c')]),
+      'port',
+    );
+    const layer = await standing([{ id: 'p', at: { beside: 'site', quay: [0, 0] }, pieces }]);
+    const g = growthOf('cargo');
+    const slots = berths(
+      pieces.groups.map(({ role }) => role as 'cargo' | 'escort'),
+      1,
+      g,
+    );
+    pieces.groups.forEach((_, k) => {
+      const slot = slots[k]!;
+      near(layer.placeOf(`p/${k}`)!.at, toBoard(new Vector3(slot.x, 0, slot.z)));
+    });
+  });
+
+  it('turns a plane nose to the runway and a hull stem to the land', async () => {
+    const air = await standing([
+      {
+        id: 'p',
+        at: { beside: 'site' },
+        pieces: postedAt(pilePieces([unit('fighter', 'a')]), 'airfield'),
+      },
+    ]);
+    const front = air.placeOf('p/0')!.front;
+    expect(Math.atan2(front.x, front.z)).toBeCloseTo(0, 9);
+    const sea = await standing([
+      {
+        id: 'p',
+        at: { beside: 'site', quay: [0, 0] },
+        pieces: postedAt(pilePieces([unit('cargo', 'a')]), 'port'),
+      },
+    ]);
+    expect(Math.abs(sea.placeOf('p/0')!.front.z)).toBeCloseTo(1, 9);
+    expect(sea.placeOf('p/0')!.front.z).toBeLessThan(0);
+  });
+
+  it('does not count the planes in the rank of the garrison', async () => {
+    const planes = postedAt(
+      pilePieces([unit('fighter', 'a'), unit('fighter', 'b'), unit('fighter', 'c')]),
+      'airfield',
+    );
+    const men = pilePieces([unit('infantry', 'i')]);
+    const centred = async (piles: Parameters<StandingLayer['display']>[0]) => {
+      const layer = await standing(piles, true);
+      return (layer as unknown as Inner).dressed.get('men')!.object.position.x;
+    };
+    const alone = await centred([{ id: 'men', at: { beside: 'site' }, pieces: men }]);
+    const beside = await centred([
+      { id: 'planes', at: { beside: 'site' }, pieces: planes },
+      { id: 'men', at: { beside: 'site' }, pieces: men },
+    ]);
+    expect(beside).toBeCloseTo(alone, 9);
+  });
+
+  it('keeps what is not posted where the pile stands it, as before', async () => {
+    const pieces = pilePieces([unit('fighter', 'a')]);
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces }]);
+    expect(layer.placeOf('p/0')!.at.distanceTo(SITE)).toBeLessThan(0.1);
+  });
+
+  it('takes a posted piece in hand with the others, not at its post', () => {
+    const pieces = postedAt(pilePieces([unit('fighter', 'a')]), 'airfield');
+    const posted = pileObject('france', pieces)!;
+    posted.ready.catch(() => {});
+    expect(posted.figurines.length).toBe(1);
+    expect(drawnKey('france', pieces)).not.toBe(
+      drawnKey('france', pilePieces([unit('fighter', 'a')])),
+    );
   });
 });
