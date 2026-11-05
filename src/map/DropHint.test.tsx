@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CompassAction } from '@/domain/compass-rose';
+import type { DropReading } from '@/domain/drop-order';
 import { fr } from '@/i18n/fr';
 import {
   DropHintChip,
@@ -161,5 +162,54 @@ describe('the blitzkrieg chip', () => {
     expect(said(second, board)).toContain('drop-chip--refused');
     expect(secondRefusalOn(fight, second)).toBeNull();
     expect(secondRefusalOn(board, { kind: 'offer' })).toBeNull();
+  });
+});
+
+describe('the chip under a finger (#456)', () => {
+  const verbs = [
+    { key: 'aim', label: 'attaque' },
+    { key: 'raid', label: 'raid d’avant-poste' },
+  ] as unknown as ReadonlyArray<CompassAction>;
+  const withTouch = <T,>(coarse: boolean, run: () => T): T => {
+    vi.stubGlobal('matchMedia', () => ({ matches: coarse }));
+    try {
+      return run();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  };
+  const chipOn = (coarse: boolean, over: Partial<DropHint> = {}, rose = true) =>
+    withTouch(coarse, () =>
+      renderToStaticMarkup(<DropHintChip hint={{ ...hint, ...over }} rose={rose} ref={null} />),
+    ).replaceAll('&#x27;', '’');
+  const choiceOf = (coarse: boolean, rose: boolean) =>
+    withTouch(
+      coarse,
+      () =>
+        hintOfReading({ kind: 'orders', verbs } as unknown as DropReading, () => 0, null, rose)
+          ?.choice,
+    );
+
+  it('names no key of a keyboard, and says how to let go and how to put back', () => {
+    for (const over of [{}, { choice: '2 ordres' }, { tone: 'refused' as const, verb: 'non' }]) {
+      const said = chipOn(true, over);
+      expect(said).not.toMatch(/Tab|Échap/);
+      expect(said).toContain('sur la pièce');
+    }
+    expect(chipOn(true, { choice: '2 ordres' })).toContain(fr.drop.releaseChoiceTouch);
+    expect(chipOn(true)).toContain(fr.drop.releaseTouch);
+  });
+
+  it('keeps Tab and Échap under a mouse', () => {
+    expect(chipOn(false)).toContain('Échap annule');
+    expect(choiceOf(false, true)).toBe('1/2 · Tab : raid d’avant-poste');
+  });
+
+  it('offers the choice only where the finger has a rose to choose in', () => {
+    expect(choiceOf(true, true)).toBe(fr.drop.choiceTouch(2));
+    expect(choiceOf(true, false)).toBeUndefined();
+    const wide = chipOn(true, {}, false);
+    expect(wide).toContain(fr.drop.releaseDirectTouch);
+    expect(wide).not.toContain(fr.drop.releaseChoiceTouch);
   });
 });

@@ -450,6 +450,13 @@ function BoardContent({
   /** **La première jambe posée d'une Guerre éclair** (ADR 0039 §6) : la main tient la colonne au
    *  point de la première cible, le temps de viser la seconde. */
   const [chain, setChain] = useState<ChainedFirst | null>(null);
+  /** **Le dernier aperçu de la main** : au doigt, la rose s'ouvre au lever, quand l'arrêt qui
+   *  avait mesuré la première jambe est déjà oublié. */
+  const lastSeen = useRef<{ choice: OrderChoice; preview: Previewed } | undefined>(undefined);
+  /** La dernière seconde jambe que le serveur a pesée sous la main, lue au lâcher. */
+  const lastThen = useRef<
+    { choice: OrderChoice; then: ReturnType<typeof useOrderPreview>['then'] } | undefined
+  >(undefined);
   /** **Plusieurs piles prises ensemble** (#130) : Maj + clic, le lasso, ou au doigt l'appui long
    *  sur le plateau puis les touchers (`picking`). Levée, une pile choisie emmène les autres. */
   const [selection, setSelection] = useState<Selection>([]);
@@ -759,6 +766,8 @@ function BoardContent({
   const liftHand = useCallback((next: Hand) => {
     setHand(next);
     setChain(null);
+    lastSeen.current = undefined;
+    lastThen.current = undefined;
     setLifts((count) => count + 1);
     setGarrison(null);
     setOrderError(null);
@@ -767,6 +776,8 @@ function BoardContent({
   const dropHand = useCallback(() => {
     setHand(EMPTY_HAND);
     setChain(null);
+    lastSeen.current = undefined;
+    lastThen.current = undefined;
     setResting(null);
   }, []);
 
@@ -1173,10 +1184,6 @@ function BoardContent({
   );
   /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
   const previewNow = useRef<{ choice: OrderChoice; preview: Previewed } | undefined>(undefined);
-  /** La seconde jambe que le serveur a pesée sous la main (Guerre éclair), lue au lâcher. */
-  const thenNow = useRef<
-    { choice: OrderChoice; then: ReturnType<typeof useOrderPreview>['then'] } | undefined
-  >(undefined);
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
       /** **Un ordre de colonne en vol, une fois** : le second lâcher n'envoie pas les mêmes troupes
@@ -1210,7 +1217,8 @@ function BoardContent({
       if (chain !== null) {
         if (column === null) return;
         const chosen = isOrder(action) ? choiceOf(action) : null;
-        const drop = secondDropOf(view.me.asset, chain, chosen, thenNow.current, column.rule);
+        /** Le dernier verdict pesé : au doigt, la rose s'ouvre après l'arrêt qui l'a mesuré. */
+        const drop = secondDropOf(view.me.asset, chain, chosen, lastThen.current, column.rule);
         if (drop.refusal !== null || chosen === null) {
           setOrderError(drop.refusal);
           dropHand();
@@ -1399,7 +1407,7 @@ function BoardContent({
            *  en main au point de la première cible ; rien ne part encore. */
           const first = (() => {
             const chosen = choiceOf(action);
-            const seen = previewNow.current;
+            const seen = previewNow.current ?? lastSeen.current;
             if (!chainKey.ref.current || seen === undefined) return null;
             if (JSON.stringify(seen.choice.aim) !== JSON.stringify(chosen.aim)) return null;
             const marched = marchPreviewOf(chosen, seen.preview);
@@ -1931,7 +1939,13 @@ function BoardContent({
       (station) => lead === null || stationKeyOf(station) !== stationKeyOf(lead),
     );
     if (chosen.length < 2 || lead === null || first === undefined) {
-      setBarRefusal(chosen.length < 2 ? fr.selection.atLeastTwo : fr.selection.noSquadHere);
+      setBarRefusal(
+        chosen.length < 2
+          ? narrow
+            ? fr.selection.atLeastTwoTouch
+            : fr.selection.atLeastTwo
+          : fr.selection.noSquadHere,
+      );
       return;
     }
     const target: CompassTarget = {
@@ -1956,7 +1970,7 @@ function BoardContent({
       return;
     }
     sendGroup(reads, join);
-  }, [chosen, view.me, marching, readGroup, sendGroup]);
+  }, [chosen, view.me, marching, readGroup, sendGroup, narrow]);
 
   const disbandMutation = useMutation(api.movements.disband);
   /** La côte et le raster des pays, une fois arrivés : avant eux U reste offert, le serveur tranche. */
@@ -2640,7 +2654,8 @@ function BoardContent({
   });
   previewNow.current =
     resting === null || preview === undefined ? undefined : { choice: resting, preview };
-  thenNow.current = resting === null ? undefined : { choice: resting, then };
+  if (previewNow.current !== undefined) lastSeen.current = previewNow.current;
+  if (resting !== null && then !== undefined) lastThen.current = { choice: resting, then };
   const chainChip = useMemo(
     () =>
       !chainable
@@ -3055,7 +3070,8 @@ function BoardContent({
                         ? pilePlace(hand.station, stationNames(view), regionAt)
                         : stationNames(view).place(hand.station)
                     }
-                    held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
+                    /** Entre deux cibles, ses troupes sont encore où elles partent (Guerre éclair). */
+                    held={troopsAt(view.me, stationKeyOf(chain?.station ?? hand.station), marching)}
                     troopIds={hand.troopIds}
                     onApproach={() => {
                       const marker = markerOfStation({ me: view.me }, hand.station);

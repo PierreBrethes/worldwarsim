@@ -104,6 +104,19 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
       ),
       title: natureOf(label),
       lines: [
+        /** **Restée d'une Guerre éclair** (#451) : ce que la dépêche dit, sur l'affiche qui
+         *  couvre le cartouche (`withStood`). */
+        ...label.lines.flatMap((line): ReadonlyArray<PosterLine> =>
+          line.role === 'alarm' || line.role === 'mention'
+            ? [
+                {
+                  kind: 'text',
+                  text: line.text,
+                  ...(line.role === 'alarm' ? { tone: 'alarm' } : {}),
+                },
+              ]
+            : [],
+        ),
         ...refuelChip(held, now),
         ...waitingChips(held, now),
         ...(mending === 0

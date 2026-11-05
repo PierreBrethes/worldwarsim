@@ -71,8 +71,18 @@ export function HandSheet({
       {narrow ? fr.hand.hintFinger : fr.hand.hint}
     </p>
   );
+  /** **Restée d'une Guerre éclair** (#451) : au doigt, pas d'affiche au survol ; la fiche le dit. */
+  const stood = view.journal?.find((dispatch) =>
+    dispatch.stood?.troopIds.some((id) => troopIds.includes(id)),
+  )?.stood;
   const found = (
     <>
+      {stood !== undefined && (
+        <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
+          {stood.text}
+          <span className="block text-[var(--ink-quiet)]">{stood.reread}</span>
+        </p>
+      )}
       {founding?.action != null && (
         <button
           type="button"

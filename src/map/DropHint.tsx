@@ -3,6 +3,7 @@ import { isOrder, type CompassAction } from '@/domain/compass-rose';
 import { chipOf, type DropChip, type DropReading, type Forbidden } from '@/domain/drop-order';
 import { fr } from '@/i18n/fr';
 import type { FuelGauge } from '@/domain/supplies';
+import { COARSE } from '@/shell/viewport';
 import { ResourcePlate } from '@/emblems/Plate';
 import type { TroopStation } from '@/domain/player-view';
 import type { PieceClick } from './engine';
@@ -36,11 +37,16 @@ export type DropHint = {
   readonly order?: true;
 };
 
+/** Un doigt n'a ni Tab ni Échap : la pastille parle alors son geste. */
+const onTouch = (): boolean => globalThis.matchMedia?.(COARSE).matches === true;
+
 /** La pastille d'une lecture du lâcher (`dropReadingOf`) : le verbe choisi, ou le refus. */
 export function hintOfReading(
   reading: DropReading,
   chosenOf: (verbs: ReadonlyArray<CompassAction>) => number,
   forbidden: Forbidden,
+  /** Une rose s'ouvre au lâcher sous le doigt (`fingerRose`) : seule elle laisse choisir. */
+  rose = true,
 ): DropHint | null {
   if (reading.kind === 'none') return null;
   if (reading.kind === 'refused')
@@ -69,8 +75,12 @@ export function hintOfReading(
         : verb.key === 'aim' && chip.tone === 'fight'
           ? strikeOf(verb.cost)
           : verb.cost,
-    ...(verbs.length > 1
-      ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
+    ...(verbs.length > 1 && !(onTouch() && !rose)
+      ? {
+          choice: onTouch()
+            ? fr.drop.choiceTouch(verbs.length)
+            : fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label),
+        }
       : {}),
   };
 }
@@ -208,6 +218,7 @@ export function DropHintChip({
   fuel = null,
   course = false,
   chain = null,
+  rose = true,
   ref,
 }: {
   hint: DropHint;
@@ -216,6 +227,8 @@ export function DropHintChip({
   /** **Une flotte reprise en mer** (#449) : l'ordre est un cap neuf, et la pastille le dit. */
   course?: boolean;
   chain?: ChainChip | null;
+  /** Une rose s'ouvre au lâcher sous le doigt : sinon le verbe affiché part tel quel. */
+  rose?: boolean;
   ref: Ref<HTMLDivElement>;
 }) {
   const second = chain?.kind === 'second' ? chain : null;
@@ -237,7 +250,7 @@ export function DropHintChip({
       /** Le verbe de la rose, sans son prix en slots : le cap neuf garde le sien. */
       detail: hint.verb,
     };
-  const touch = globalThis.matchMedia?.('(pointer: coarse)').matches === true;
+  const touch = onTouch();
   const armed = chain?.kind === 'armed' && hint.tone === 'fight' ? chain : null;
   if (armed !== null)
     hint = {
@@ -284,14 +297,22 @@ export function DropHintChip({
             ? touch
               ? fr.course.refusedTouch
               : fr.course.refused
-            : fr.drop.refused
+            : touch
+              ? fr.drop.refusedTouch
+              : fr.drop.refused
           : hint.tone === 'calm'
             ? fr.drop.still
             : steering
               ? touch
                 ? fr.course.keysTouch
                 : fr.course.keys
-              : fr.drop.release;
+              : touch
+                ? !rose
+                  ? fr.drop.releaseDirectTouch
+                  : hint.choice === undefined
+                    ? fr.drop.releaseTouch
+                    : fr.drop.releaseChoiceTouch
+                : fr.drop.release;
   /** Maj sur un ordre qui n'enchaîne pas : l'ordre reste offert, le pied dit pourquoi. */
   const atout =
     hint.tone === 'refused' || hint.tone === 'calm'

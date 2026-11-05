@@ -164,6 +164,15 @@
  * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
  * doit s'animer (`saboteur`).
+ * `--mine-chantier` (#454) pose pour la France le QG à Paris, la mine offerte du charbon du Nord et
+ * une seconde mine de charbon, payée, sur le gisement de Lorraine : elle reste en chantier
+ * (`mine-chantier` cadre le gisement). `--salon-huit` (#454) inscrit huit comptes, a à h, à une
+ * saison de huit nations réservées et prêtes, sans la lancer : `/plateau?season={saison}` fait
+ * entrer le compte dans le salon (`capture.mjs` y met la saison ; la route tombe sur
+ * `SEASON_NOT_LAUNCHED`, une erreur de console attendue, puis renvoie au salon). `--huit` passe un compte qui
+ * existe en base sans mot de passe connu : un pseudo neuf est inscrit à sa place, et écrit dans
+ * le fichier des comptes — à chaque exécution, `--huit` ou non. Une connexion trop rapprochée
+ * (`LOGIN_TOO_FAST`) attend trois secondes et retente, sans renommer.
  *
  *     npm run demo:mondiale
  *
@@ -185,7 +194,10 @@ const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', impo
 const places = {};
 /** The guns of `--bombarder` and their targets, fired once the accounts are written. */
 const shelling = [];
-const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel');
+const bare =
+  process.argv.includes('--nu') ||
+  process.argv.includes('--tutoriel') ||
+  process.argv.includes('--salon-huit');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 /** `--bac-plein` : avec `--recolte`, le bac de charbon plein et sa mine qui tourne : du perdu. */
@@ -206,7 +218,8 @@ const points = process.argv.includes('--points');
 /** `--pillage` (#211) : `--points`, sans l'escorte en mer, plus un pillage en phase de présence. */
 const pillaging = process.argv.includes('--pillage');
 /** `--huit` (#211) : huit comptes, une nation chacun, une revue à chaque capitale. */
-const eight = process.argv.includes('--huit');
+const lobbying = process.argv.includes('--salon-huit');
+const eight = process.argv.includes('--huit') || lobbying;
 /** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
 const ranks = process.argv.includes('--rangs');
 /** `--chargement [s]` : deux camions chargés dans `s` secondes, à l'entrepôt et au QG (#271). */
@@ -387,21 +400,50 @@ const accounts = Object.fromEntries(
 const client = new ConvexHttpClient(url);
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
+const LOGIN_MIN_INTERVAL_MS = 3_000; // src/domain/account.ts
+
+/** Connexion, puis inscription seulement si le compte n'existe pas (`BAD_CREDENTIALS`) : une
+ *  connexion trop rapprochée (`LOGIN_TOO_FAST`, une capture vient de se connecter) attend, puis
+ *  retente — elle ne dit rien du compte. */
 async function signIn({ nickname, password }) {
+  for (;;) {
+    try {
+      return (await client.action(api.auth.login, { nickname, password })).token;
+    } catch (error) {
+      if (String(error).includes('LOGIN_TOO_FAST')) {
+        await pause(LOGIN_MIN_INTERVAL_MS + 200);
+        continue;
+      }
+      if (!String(error).includes('BAD_CREDENTIALS')) throw error;
+      await pause(400);
+      return (await client.action(api.auth.register, { nickname, password })).token;
+    }
+  }
+}
+
+/** **À chaque exécution, pas seulement avec `--huit`** (#454) : un compte qui existe en base sans
+ *  que son mot de passe soit connu (`BAD_CREDENTIALS` puis `NICKNAME_TAKEN`) reçoit un pseudo neuf,
+ *  écrit dans le fichier des comptes. */
+async function signInOrRename(key, k) {
   try {
-    return (await client.action(api.auth.login, { nickname, password })).token;
-  } catch {
-    await pause(400);
-    return (await client.action(api.auth.register, { nickname, password })).token;
+    return await signIn(accounts[key]);
+  } catch (error) {
+    if (!String(error).includes('NICKNAME_TAKEN')) throw error;
+    accounts[key] = {
+      nickname: `Demo${NICKNAMES[k]}${randomBytes(2).toString('hex')}`,
+      password: randomBytes(9).toString('base64url'),
+    };
+    console.log(`${key} : pseudo pris, nouveau pseudo ${accounts[key].nickname}`);
+    return await signIn(accounts[key]);
   }
 }
 
 const cli = (args) => execFileSync('npx', ['convex', ...args], { cwd: root, encoding: 'utf8' });
 
 const tokens = [];
-for (const key of KEYS.slice(0, seats)) {
+for (const [k, key] of KEYS.slice(0, seats).entries()) {
   if (tokens.length > 0) await pause(400);
-  tokens.push(await signIn(accounts[key]));
+  tokens.push(await signInOrRename(key, k));
 }
 const [tokenA, tokenB] = tokens;
 
@@ -416,7 +458,7 @@ for (const [k, token] of tokens.entries()) {
   await client.mutation(api.players.reserveNation, { token, seasonId, nation });
   await client.mutation(api.players.declareReady, { token, seasonId, ready: true });
 }
-await client.mutation(api.seasons.launch, { token: tokenA, seasonId });
+if (!lobbying) await client.mutation(api.seasons.launch, { token: tokenA, seasonId });
 
 const scene = { a: null, b: null };
 if (!bare) {
@@ -667,6 +709,29 @@ if (!bare) {
         point: { lon: site.lon, lat: site.lat },
       });
     }
+  }
+  /** `--mine-chantier` (#454) : la mine offerte du Nord, puis une seconde sur le charbon, payée. */
+  if (process.argv.includes('--mine-chantier') && scene.a !== null) {
+    const deposits = JSON.parse(readFileSync(`${root}public/deposits.json`, 'utf8'));
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const paris = me.regions.find((region) => region.id === 'FRA-5333');
+    const sites = [
+      ['hq', paris.id, paris.point],
+      ...['coal-FRA-5334', 'coal-FRA-5328'].map((id) => {
+        const site = deposits.find((deposit) => deposit.id === id);
+        return ['mine', site.regionId, [site.lon, site.lat]];
+      }),
+    ];
+    for (const [building, regionId, [lon, lat]] of sites)
+      await client.mutation(api.constructions.start, {
+        token: tokenA,
+        seasonId,
+        building,
+        regionId,
+        point: { lon, lat },
+      });
+    const [lon, lat] = sites[2][2];
+    places['mine-chantier'] = [lon, lat];
   }
   if (risingBarracks && scene.a !== null) {
     const point = (

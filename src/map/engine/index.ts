@@ -2899,8 +2899,12 @@ export class MapEngine {
   private tellRest(): void {
     const { clientX, clientY } = this.lastPointer;
     const click = this.actClickAt(clientX, clientY);
-    if (click.point === null && this.restLabel === null) return;
-    this.onRest?.({ ...click, labelId: this.restLabel ?? this.hoveredLabel });
+    // A drag holds the pointer: no label hears it pass, and the stop reads the one the drop
+    // would (`carryTargetAt`), or the route measured would not be the order let go (#451).
+    const carried = this.held === null ? null : this.carryTargetAt(clientX, clientY);
+    const under = carried?.kind === 'label' ? carried.labelId : null;
+    if (click.point === null && this.restLabel === null && under === null) return;
+    this.onRest?.({ ...click, labelId: this.restLabel ?? under ?? this.hoveredLabel });
   }
 
   private readAt(): void {

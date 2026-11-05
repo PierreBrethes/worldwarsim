@@ -4612,6 +4612,7 @@ export const fr = {
     noSquadHere: 'aucune de ces piles ne se tient sur le plateau',
     reread: 'la sélection a changé sous la main — reprenez-la et lâchez-la de nouveau',
     atLeastTwo: 'choisissez au moins deux piles — Maj + clic, ou le lasso (Maj + glisser)',
+    atLeastTwoTouch: 'touchez au moins deux piles',
     label: 'Sélection',
   },
   /** **La Doctrine du porte-avions** (ADR 0039 §4, maquette A « la reprise ») : la fiche, les
@@ -4676,6 +4677,13 @@ export const fr = {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
+    /** Au doigt, ni Tab ni Échap : plusieurs ordres, la rose les propose au lâcher. */
+    choiceTouch: (count: number) => `${count} ordres au choix`,
+    releaseTouch: 'lever le doigt pour ordonner · sur la pièce, rien ne part',
+    releaseChoiceTouch: 'lever le doigt : choisir l’ordre · sur la pièce, rien ne part',
+    /** Sans rose sous le doigt (écran large), le verbe affiché est celui qui part. */
+    releaseDirectTouch: 'lever le doigt : l’ordre affiché part · sur la pièce, rien ne part',
+    refusedTouch: 'lever le doigt : la pièce revient · sur la pièce, rien ne part',
     still: 'relâcher · rien ne change',
     putBack: 'Reposer',
     putBackDetail: 'rien ne bouge',
