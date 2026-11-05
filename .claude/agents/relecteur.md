@@ -2,7 +2,7 @@
 name: relecteur
 description: Relit un lot de La Manchette en lecture seule et rend des findings vérifiés. Use when un lot est codé, avant ses corrections ou sa PR.
 tools: Read, Grep, Glob, Bash, Skill
-model: opus
+model: sonnet
 effort: medium
 ---
 

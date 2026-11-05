@@ -2,7 +2,7 @@
 name: enqueteur
 description: Établit des faits chiffrés sur La Manchette, en lecture seule, avant une décision. Use when une fondation, un défaut de fond ou un choix d'architecture demande des faits avant des options.
 tools: Read, Grep, Glob, Bash, Skill
-model: opus
+model: sonnet
 effort: medium
 ---
 

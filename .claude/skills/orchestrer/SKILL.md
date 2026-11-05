@@ -59,11 +59,15 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
    La base locale est une seule : un banc, une capture ou un déploiement la prend par un fichier `base-occupee` du scratchpad, et la consigne d'un agent qui doit s'en servir lui dit d'attendre que ce fichier disparaisse.
 8. **Tes propres commits** suivent la section Git de `lot` : `git add <fichiers>`, jamais `-a` ni `-A`. Les fichiers de Pierre (`.claude/launch.json`, `WWS/prototypes/`) restent hors de toute PR.
 
-| Le lot | Modèle, effort |
+Le modèle se choisit sur la tranche, pas sur le thème. Une issue qui demanderait Opus par sa
+taille se coupe d'abord (skill `ticket`).
+
+| La tranche | Modèle, effort |
 |---|---|
-| mécanique, spec fermée (brancher des GLB, déplacer du code) | Sonnet, low |
-| feature à spec claire, maquette choisie | Sonnet, medium |
-| conception, rendu 3D, diagnostic, revue | Opus, medium |
+| relevé de faits (noms de nœuds, grep, une mesure à lancer), retouche de prototype, texte, doc | Haiku, low |
+| mécanique, spec fermée (brancher des GLB, déplacer du code, scène de démo) | Sonnet, low |
+| spec claire : fonctions pures d'un storyboard, écran d'une maquette choisie, corrections de revue ; revue d'un écran ou d'outillage | Sonnet, medium |
+| conception (variantes, storyboard neuf), diagnostic d'un bug non reproduit, revue d'un lot 3D | Opus, medium |
 | brouillard, serveur près de la limite d'une seconde, fondation, audit | Opus, high |
 
 ## 4. Quand Pierre est absent

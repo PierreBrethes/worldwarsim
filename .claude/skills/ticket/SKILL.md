@@ -6,7 +6,9 @@ description: Écrit une issue GitHub de La Manchette au format du projet. Use wh
 # Ticket
 
 Une issue = **un agent** : un lot qu'un seul agent de code (skill `lot`) mène jusqu'au dernier
-commit. Trop gros pour un agent, coupe en deux issues qui se citent.
+commit, à la taille d'un Sonnet. Plus gros, coupe en issues qui se citent, une par tranche :
+pour une animation, les timelines en fonctions pures, la pose sur la carte, puis le branchement
+au moteur avec ses captures.
 
 ## 1. Lire avant d'écrire
 
