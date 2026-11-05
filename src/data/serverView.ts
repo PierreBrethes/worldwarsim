@@ -237,6 +237,8 @@ function adaptedView(server: ServerView): PlayerView {
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,
     ),
+    journalReadAt: server.journalReadAt ?? null,
+    absenceTourAt: server.absenceTourAt ?? null,
     boardRead: server.boardRead ?? null,
     firstSteps: server.firstSteps ?? { done: [], shown: 'open' },
     opponents: server.opponents.map((opponent) => ({

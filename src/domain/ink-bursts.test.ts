@@ -152,6 +152,19 @@ describe('stampAt', () => {
     expect(STAMP_MS).toBeCloseTo(3587, 0);
   });
 
+  it('holds as long as it is asked, as the absence tour asks 2.2 s (#439)', () => {
+    expect(stampAt(2199, 'full', 2200)!.opacity).toBe(0.88);
+    expect(stampAt(2400, 'full', 2200)!.opacity).toBeCloseTo(0.58);
+    expect(stampAt(3000, 'full', 2200)).toBeNull();
+  });
+
+  it('lifts in a quarter of a second once a gesture takes it up (#439)', () => {
+    expect(stampAt(1125, 'full', 3000, 1000)!.opacity).toBeCloseTo(0.44);
+    expect(stampAt(1250, 'full', 3000, 1000)).toBeNull();
+    // Lifted before it was pressed, it never shows.
+    expect(stampAt(300, 'full', 3000, -500)).toBeNull();
+  });
+
   it('lays flat at once when motion is reduced, and waits unseen while delayed', () => {
     expect(stampAt(0, 'reduced')).toEqual({ scale: 1, opacity: 0.88 });
     expect(stampAt(-10, 'full')).toEqual({ scale: 1, opacity: 0 });

@@ -1592,6 +1592,10 @@ export type PlayerView = {
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
   readonly press: PressEdition | null;
   readonly journal: ReadonlyArray<JournalDispatch>;
+  /** La dernière fermeture du journal, et la fin du dernier rejeu d'absence (#439) : `null`
+   *  avant la première. */
+  readonly journalReadAt: number | null;
+  readonly absenceTourAt: number | null;
   /** The last opening of the personal board, `null` before the first: what its harvest reads. */
   readonly boardRead: BoardRead | null;
   /** **Mes premiers pas** (ADR 0027 §2), gardés par ma place. */

@@ -3442,6 +3442,30 @@ export const fr = {
   },
 
   /**
+   * **Le rejeu d'absence** (#439, la maquette « la tournée ») : la bande au bas de la carte, un
+   * texte par moment. « Rejeu » seul est la vue rapprochée d'un combat (`replay`).
+   */
+  absenceTour: {
+    eyebrow: 'Pendant votre absence',
+    /** `since` est l'heure de la dernière lecture du journal, `null` s'il ne s'est jamais fermé. */
+    intro: (fresh: number, since: string | null, placed: number) =>
+      `${fresh} dépêche${plural(fresh, '', 's')}${since === null ? '' : ` depuis ${since}`}. ` +
+      (placed > 1
+        ? `La carte rejoue les ${placed} qui ont un lieu ; touchez-la pour l’arrêter.`
+        : 'La carte rejoue celle qui a un lieu ; touchez-la pour l’arrêter.'),
+    stop: (index: number, count: number) => `Pendant votre absence · ${index} sur ${count}`,
+    endEyebrow: 'Fin du rejeu',
+    end: (leftOut: number) =>
+      leftOut === 0
+        ? 'Le journal garde les dépêches rejouées.'
+        : `${leftOut === 1 ? 'Une autre dépêche' : `${leftOut} autres dépêches`}, sans lieu ou plus ancienne${plural(leftOut, '', 's')}, se ${plural(leftOut, 'lit', 'lisent')} au journal.`,
+    stoppedEyebrow: 'Rejeu arrêté',
+    stopped: (fresh: number) =>
+      fresh > 1
+        ? `La carte est à vous. Les ${fresh} dépêches restent au journal.`
+        : 'La carte est à vous. La dépêche reste au journal.',
+  },
+  /**
    * **Le rejeu d'un combat** (surface 4.7, ADR 0026 §7) : lancé depuis sa dépêche, une dizaine de
    * secondes, et un cartouche à la fin — chez nous par rôle, en face par rôle sous sa nation (F1),
    * ou des totaux sur un compte rendu d'avant le 14/10.

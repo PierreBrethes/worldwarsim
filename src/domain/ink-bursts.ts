@@ -14,10 +14,21 @@ export type StampWords = { readonly word: string; readonly hour: string };
  */
 export type InkBurst = {
   readonly kind:
-    'arrival' | 'combat' | 'cut' | 'held' | 'built' | 'captured' | 'airdropped' | 'delivered';
+    | 'arrival'
+    | 'combat'
+    | 'cut'
+    | 'held'
+    | 'built'
+    | 'captured'
+    | 'airdropped'
+    | 'delivered'
+    /** Any other dispatch the absence tour stamps, with its word of the journal's margin (#439). */
+    | 'dispatch';
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;
+  /** How long it is held before it lifts, 3 s unless said (`stampAt`). */
+  readonly holdMs?: number;
   /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
    *  compte-rendu le remplace, et celui-ci ne se pose pas. Sur le coup de ma batterie, le trait
    *  droit attend de même : une scène jouée le trace en arc (#325). */
@@ -31,27 +42,36 @@ const PRESS_MS = 140;
 const HOLD_MS = 3000;
 const PEAK = 0.88;
 const LIFT_PER_MS = 0.0015;
+/** @a-mesurer : un geste lève tout en 0,25 s (#439, la maquette « la tournée »). */
+const TAKEN_UP_MS = 250;
 export const STAMP_MS = HOLD_MS + PEAK / LIFT_PER_MS;
 
 /** A stamp at `age` ms: its scale and opacity, `null` once lifted. Reduced motion lays it flat
- *  at once — no press, the same hold. */
+ *  at once — no press, the same hold. `liftedAt` is the age at which a gesture took it up. */
 export function stampAt(
   age: number,
   motion: MapMotion,
+  holdMs = HOLD_MS,
+  liftedAt: number | null = null,
 ): { readonly scale: number; readonly opacity: number } | null {
-  if (age >= STAMP_MS) return null;
+  if (age >= holdMs + PEAK / LIFT_PER_MS) return null;
+  const taken = liftedAt === null ? 1 : 1 - (age - Math.max(liftedAt, 0)) / TAKEN_UP_MS;
+  if (taken <= 0 || (liftedAt !== null && liftedAt < 0 && age >= 0)) return null;
   if (age < 0) return { scale: 1, opacity: 0 };
   if (age < PRESS_MS && motion === 'full') {
     const pressed = age / PRESS_MS;
-    return { scale: 1.7 - 0.7 * pressed, opacity: pressed * PEAK };
+    return { scale: 1.7 - 0.7 * pressed, opacity: Math.min(pressed, taken) * PEAK };
   }
   return {
     scale: 1,
-    opacity: age > HOLD_MS ? Math.max(0, PEAK - (age - HOLD_MS) * LIFT_PER_MS) : PEAK,
+    opacity: Math.min(
+      age > holdMs ? Math.max(0, PEAK - (age - holdMs) * LIFT_PER_MS) : PEAK,
+      taken * PEAK,
+    ),
   };
 }
 
-const stamped = (word: string, at: number): StampWords => ({ word, hour: asClockTime(at) });
+export const stamped = (word: string, at: number): StampWords => ({ word, hour: asClockTime(at) });
 
 /**
  * The map stamps only what a dispatch already tells the player, never more: a combat the player
@@ -70,33 +90,7 @@ export function inkBursts(
   landAt: (at: LonLat) => boolean = () => true,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
-  const combats = fresh.flatMap((dispatch): InkBurst[] => {
-    if (dispatch.combat === null) return [];
-    const at: LonLat = [dispatch.combat.point.lon, dispatch.combat.point.lat];
-    const { firedFrom, cause } = dispatch.combat;
-    const engaged: InkBurst = {
-      kind: 'combat',
-      at,
-      ...(firedFrom === undefined ? {} : { from: [firedFrom.lon, firedFrom.lat] as const }),
-      // Where the map plays its combats, the scene's arc of ink may draw the shot (#325): the
-      // straight one waits for the map to say it played none.
-      ...(firedFrom !== undefined && mapPlays ? { combatId: dispatch.combat.id } : {}),
-      words: stamped(cause === 'bombardment' ? fr.stamps.shelled : fr.stamps.engaged, dispatch.at),
-    };
-    /** Un bombardement ne tient aucun terrain : personne n'y est allé. */
-    return dispatch.combat.won && cause !== 'bombardment'
-      ? [
-          engaged,
-          {
-            kind: 'held',
-            at,
-            words: stamped(landAt(at) ? fr.replay.held : fr.replay.heldAtSea, dispatch.at),
-            delayMs: STAMP_MS,
-            ...(mapPlays && cause === 'arrival' ? { combatId: dispatch.combat.id } : {}),
-          },
-        ]
-      : [engaged];
-  });
+  const combats = fresh.flatMap((dispatch) => combatBursts(dispatch, mapPlays, landAt));
   // A dispatch does not name its movement: the ends only pair with the dispatches when every
   // vanished thread has one. Otherwise an attack resolved alongside would steal the stamp. Nor
   // does an end say which dispatch is its own: the batch wears the hour of the latest.
@@ -106,31 +100,53 @@ export function inkBursts(
   const arrivals = paired
     ? vanishedEnds.map((at): InkBurst => ({ kind: 'arrival', at, words }))
     : [];
-  /** **Un site a changé de main** (14/10) : le même tampon chez qui l'a pris et chez qui l'a
-   *  perdu, à la place que sa dépêche porte. */
-  const captures = fresh.flatMap((dispatch): InkBurst[] =>
-    (dispatch.kind === 'captured' || dispatch.kind === 'siteLost') && dispatch.place !== null
-      ? [
-          {
-            kind: 'captured',
-            at: [dispatch.place.lon, dispatch.place.lat],
-            words: stamped(fr.stamps.captured, dispatch.at),
-          },
-        ]
-      : [],
-  );
-  /** **Un paquet est descendu** (ADR 0028 §4) : le parachute et le tampon, à la place que la
-   *  dépêche du largage porte. */
-  const airdrops = fresh.flatMap((dispatch): InkBurst[] =>
-    dispatch.kind === 'airdrop' && dispatch.place !== null
-      ? [
-          {
-            kind: 'airdropped',
-            at: [dispatch.place.lon, dispatch.place.lat],
-            words: stamped(fr.stamps.airdropped, dispatch.at),
-          },
-        ]
-      : [],
-  );
-  return [...combats, ...arrivals, ...captures, ...airdrops];
+  return [...combats, ...arrivals, ...fresh.flatMap(placedBursts)];
+}
+
+/** A combat's stamps: « engagé » (or « bombardé »), then what the ground says when it was held. */
+export function combatBursts(
+  dispatch: JournalDispatch,
+  mapPlays: boolean,
+  landAt: (at: LonLat) => boolean,
+): InkBurst[] {
+  if (dispatch.combat === null) return [];
+  const at: LonLat = [dispatch.combat.point.lon, dispatch.combat.point.lat];
+  const { firedFrom, cause } = dispatch.combat;
+  const engaged: InkBurst = {
+    kind: 'combat',
+    at,
+    ...(firedFrom === undefined ? {} : { from: [firedFrom.lon, firedFrom.lat] as const }),
+    // Where the map plays its combats, the scene's arc of ink may draw the shot (#325): the
+    // straight one waits for the map to say it played none.
+    ...(firedFrom !== undefined && mapPlays ? { combatId: dispatch.combat.id } : {}),
+    words: stamped(cause === 'bombardment' ? fr.stamps.shelled : fr.stamps.engaged, dispatch.at),
+  };
+  /** Un bombardement ne tient aucun terrain : personne n'y est allé. */
+  return dispatch.combat.won && cause !== 'bombardment'
+    ? [
+        engaged,
+        {
+          kind: 'held',
+          at,
+          words: stamped(landAt(at) ? fr.replay.held : fr.replay.heldAtSea, dispatch.at),
+          delayMs: STAMP_MS,
+          ...(mapPlays && cause === 'arrival' ? { combatId: dispatch.combat.id } : {}),
+        },
+      ]
+    : [engaged];
+}
+
+/**
+ * **Un site a changé de main** (14/10) : le même tampon chez qui l'a pris et chez qui l'a perdu.
+ * **Un paquet est descendu** (ADR 0028 §4) : le parachute et le tampon. Chacun à la place que
+ * sa dépêche porte.
+ */
+export function placedBursts(dispatch: JournalDispatch): InkBurst[] {
+  if (dispatch.place === null) return [];
+  const at: LonLat = [dispatch.place.lon, dispatch.place.lat];
+  if (dispatch.kind === 'captured' || dispatch.kind === 'siteLost')
+    return [{ kind: 'captured', at, words: stamped(fr.stamps.captured, dispatch.at) }];
+  if (dispatch.kind === 'airdrop')
+    return [{ kind: 'airdropped', at, words: stamped(fr.stamps.airdropped, dispatch.at) }];
+  return [];
 }
