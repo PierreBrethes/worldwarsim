@@ -90,7 +90,7 @@ const PLANE = new PlaneGeometry(1, 1);
 
 /** The prototype's `stampTex`: a double ring, the word, the hour between stars, and the grain
  *  of a rubber stamp that did not take everywhere. */
-export function wordedTexture({ word, hour }: StampWords, ink = STAMP_RED): CanvasTexture {
+function wordedTexture({ word, hour }: StampWords, ink = STAMP_RED): CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 512;
   const ctx = canvas.getContext('2d')!;

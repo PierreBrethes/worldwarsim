@@ -33,7 +33,7 @@ export function EntrySheet({
 }
 
 /** Ce qu'il faut toucher, au doigt comme à la souris : le mot ne grossit pas, son creux si. */
-export const TOUCH_TARGET = 'inline-flex min-h-11 items-center';
+const TOUCH_TARGET = 'inline-flex min-h-11 items-center';
 
 /**
  * **La sortie d'une feuille d'entrée** : la une pour qui n'a pas de compte, l'accueil pour qui en

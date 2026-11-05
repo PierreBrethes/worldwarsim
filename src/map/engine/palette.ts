@@ -36,12 +36,9 @@ export const PALETTE = {
 
 /**
  * **How much ink a lavis lays over the paper.** The board no longer washes any ground (ADR 0033):
- * the lavis is left to the landing's table (`routes/-index/table/sheet.ts`) and the pictogram
- * review, which still paint a nation's sheet.
+ * the lavis is left to the nation-colour tests below, which still paint a nation's sheet.
  */
 const HELD_OPACITY = 0.65;
-/** An old survey's share of that load, on the landing's table. */
-const SURVEYED_LOAD = 0.35;
 
 const channelsOf = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
@@ -62,14 +59,6 @@ export function lavis(
         .padStart(2, '0'),
     )
     .join('')}`;
-}
-
-/** A nation's ground on the landing's table: held, and known by an old survey. */
-export function nationShades(ink: string) {
-  return {
-    sheet: lavis(ink),
-    surveyed: lavis(ink, HELD_OPACITY * SURVEYED_LOAD),
-  };
 }
 
 const linear = (channel: number): number => {

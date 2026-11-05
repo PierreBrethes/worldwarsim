@@ -1,33 +1,32 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { fr } from '@/i18n/fr';
-import { FilmTrailer } from '@/shell/FilmTrailer';
+import { Stamp } from '@/shell/Stamp';
 
-export const BUREAU_ID = 'bureau';
+const BUREAU_ID = 'bureau';
 const CODE_ID = 'front-code';
 const HINT_ID = 'front-code-hint';
 const CODE_LENGTH = 6;
 const CELL_EM = 2.5;
 
-/** « J'ai un code » : on descend au bureau et la main est déjà dans le champ. The timer is
- *  returned so a page left mid-scroll can drop it. */
-export function focusCode(still: boolean): ReturnType<typeof setTimeout> {
+/** « J'ai un code » : on descend au bureau et la main est déjà dans le champ. */
+export function focusCode(still: boolean): void {
   document.getElementById(BUREAU_ID)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth' });
-  return setTimeout(
-    () => document.getElementById(CODE_ID)?.focus({ preventScroll: true }),
-    still ? 0 : 700,
-  );
+  document.getElementById(CODE_ID)?.focus({ preventScroll: true });
 }
 
 /**
- * **Le bureau des engagements** : les deux portes de la page, au bout de l'édition — le code
- * d'invitation, qui ouvre `/rejoindre/CODE`, et la connexion. Pas de troisième : on n'entre pas
- * seul (marque-1c).
+ * **Le bureau des engagements** : le code d'invitation, qui ouvre `/rejoindre/CODE`, et sous lui
+ * les deux autres entrées — fonder une partie, qui passe par l'ouverture d'un dossier, et entrer
+ * avec le sien. Pas de porte qui fonde sans compte (ADR 0022).
+ *
+ * Le bouton n'est jamais grisé : un code incomplet dit, en rouge, ce qui lui manque.
  */
 export function Bureau() {
   const navigate = useNavigate();
+  const field = useRef<HTMLInputElement>(null);
   const [code, setCode] = useState('');
-  const complete = code.length === CODE_LENGTH;
+  const missing = CODE_LENGTH - code.length;
 
   /** Le code n'est pas jugé ici : c'est la page d'invitation qui refuse un mauvais code, avec la
    *  phrase du serveur. On n'écarte que ce qu'un collage apporte en trop. */
@@ -36,20 +35,23 @@ export function Bureau() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (complete) void navigate({ to: '/rejoindre/$code', params: { code } });
+    if (missing > 0) field.current?.focus();
+    else void navigate({ to: '/rejoindre/$code', params: { code } });
   };
 
+  const say = fr.front.bureau.say;
+  const incomplete = code.length > 0 && missing > 0;
+
   return (
-    <section id={BUREAU_ID} className="lp-bureau" aria-labelledby="lp-bureau-title">
-      <article className="lp-clip">
-        <div className="lp-folio">
-          <span>{fr.front.bureau.folio}</span>
-          <span>{fr.front.onInvitation}</span>
-        </div>
-        <h2 id="lp-bureau-title">{fr.front.bureau.title}</h2>
-        <p className="lp-chapo">{fr.front.bureau.chapo}</p>
-        <form onSubmit={submit} autoComplete="off">
-          <label htmlFor={CODE_ID}>{fr.front.bureau.codeTitle}</label>
+    <section id={BUREAU_ID} className="lp-encadre" aria-label={fr.front.bureau.folio}>
+      <span className="lp-encadre-stamp">
+        <Stamp label={fr.front.onInvitation} tone="critical" />
+      </span>
+      <form onSubmit={submit} autoComplete="off">
+        <label htmlFor={CODE_ID} className="lp-kicker">
+          {fr.front.bureau.codeTitle}
+        </label>
+        <div className="lp-code-row">
           {/* Un seul champ, dessiné comme six cases : six champs casseraient le collage, la
               saisie automatique et la correction, que tout le monde attend d'un champ. */}
           <div className="lp-codecells">
@@ -62,36 +64,33 @@ export function Bureau() {
               />
             ))}
             <input
+              ref={field}
               id={CODE_ID}
               aria-describedby={HINT_ID}
               value={code}
               onChange={(event) => accept(event.target.value)}
-              maxLength={CODE_LENGTH}
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
               enterKeyHint="go"
             />
           </div>
-          <p id={HINT_ID} className="lp-hint">
-            {fr.front.bureau.codeHint}
-          </p>
-          <button
-            className="lp-btn lp-btn--solid"
-            type="submit"
-            disabled={!complete}
-            style={{ width: '100%' }}
-          >
+          <button className="lp-btn lp-btn--solid" type="submit">
             {fr.front.bureau.open}
           </button>
-        </form>
-        <div className="lp-row2" style={{ borderTop: 'var(--rule-medium)', paddingTop: 12 }}>
-          <Link className="lp-btn" to="/connexion">
-            {fr.front.signIn}
-          </Link>
-          <FilmTrailer plate />
         </div>
-      </article>
+        <p id={HINT_ID} className={incomplete ? 'lp-say lp-refus' : 'lp-say'} aria-live="polite">
+          {code.length === 0 ? say.empty : missing > 0 ? say.missing(missing) : say.ready(code)}
+        </p>
+      </form>
+      <div className="lp-doors">
+        <span>{fr.front.bureau.noCode}</span>
+        <Link to="/connexion" search={{ ouvrir: true }}>
+          {fr.front.bureau.found}
+        </Link>
+        <span aria-hidden>·</span>
+        <Link to="/connexion">{fr.front.bureau.haveFile}</Link>
+      </div>
     </section>
   );
 }

@@ -24,15 +24,18 @@ const PASS_HINT = 'auth-password-hint';
 export function AccountForm({
   onSignedIn,
   invited = false,
+  opening = false,
   portrait = 'france',
 }: {
   readonly onSignedIn: (token: string) => Promise<void> | void;
   readonly invited?: boolean;
+  /** Start on the tab that opens a file, for whoever came to found a game and has none. */
+  readonly opening?: boolean;
   readonly portrait?: string | null;
 }) {
   const register = useAction(api.auth.register);
   const login = useAction(api.auth.login);
-  const [registering, setRegistering] = useState(false);
+  const [registering, setRegistering] = useState(opening);
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

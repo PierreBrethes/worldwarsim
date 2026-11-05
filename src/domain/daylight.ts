@@ -60,9 +60,6 @@ const FULL_DAY_MARGIN_DEG = 1;
 export const fullDayOver = (sun: LonLat, points: ReadonlyArray<LonLat>): boolean =>
   points.every((at) => sunAltitude(sun, at) >= DAY_ALTITUDE_DEG + FULL_DAY_MARGIN_DEG);
 
-export const nightAt = (epochMs: number, at: LonLat): number =>
-  nightOfAltitude(sunAltitude(subsolarPoint(epochMs), at));
-
 /** The lamp never lights from lower than this (choix de Pierre, #194) : un soleil rasant noie la
  *  carte sous les ombres. */
 export const LAMP_FLOOR_DEG = 25;

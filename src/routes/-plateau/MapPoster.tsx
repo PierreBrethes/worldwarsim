@@ -12,7 +12,7 @@ import { PileSheet } from './PileSheet';
  * pièce dit d'elle. Read-only and pointer-transparent — the pointer never needs to enter it.
  * The map's label layer places it over the piece (`MapLabels`, `PosterLayer`).
  */
-export function MapPoster({ poster }: { poster: Poster }) {
+function MapPoster({ poster }: { poster: Poster }) {
   const motion = useMapMotion();
   const classes = [
     'map-poster hud',

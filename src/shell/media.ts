@@ -5,7 +5,12 @@
  */
 export const LOOP_URL = '/media/la-manchette-boucle-8s.mp4';
 export const LOOP_POSTER_URL = '/media/la-manchette-boucle-poster.jpg';
-export const FILM_URL = '/media/la-manchette-film-30s-leger.mp4';
+
+/** Le film de la une (#446, #469), en deux découpes : l'écran large et le téléphone en 9:16. */
+export const FRONT_FILM_URLS = {
+  wide: '/media/accueil-16x9.webm',
+  tall: '/media/accueil-9x16.webm',
+} as const;
 
 /** Sous cette largeur la feuille couvre l'écran : trois mégaoctets pour un fond qu'on ne voit pas. */
 const FILM_BACKDROP_MIN_WIDTH = 900;
