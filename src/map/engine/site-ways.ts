@@ -12,6 +12,7 @@ import {
   type Track,
 } from './timelines/airfield';
 import type { HullTrack, SeaRole } from './timelines/port';
+import { WALK_MIN_PX } from './timelines/walk';
 
 /** A site's frame on the board (`MaquetteLayer.siteOf`). */
 type Frame = { toBoard(point: Vector3): Vector3; toModel(point: Vector3): Vector3 };
@@ -63,6 +64,8 @@ export function trackSequence(
   return {
     ...(family === undefined ? {} : { family }),
     ms: track.ms,
+    // As long as its piece stands, like a walk out of a door: the site plays as far.
+    minPx: WALK_MIN_PX,
     at(t): Pose<RigFamily> {
       const q = track.at(t);
       const at = site.toBoard(new Vector3(q.x, q.y, q.z));
@@ -92,6 +95,7 @@ export function airfieldSequence(
   return {
     family: 'airfield',
     ms,
+    minPx: WALK_MIN_PX,
     at(t) {
       if (doors === undefined || suffix === null) return {};
       const { inner, outer } = doorCourse(doors.open(t));
@@ -122,6 +126,7 @@ export function slipSequence(
   return {
     family: 'port',
     ms,
+    minPx: WALK_MIN_PX,
     at(t) {
       const pose: Record<string, PartPose> = { coque_cale: { fade: 1 - dressed(t) } };
       // The first three stand on -x, the others on +x: each falls away from the hull.
