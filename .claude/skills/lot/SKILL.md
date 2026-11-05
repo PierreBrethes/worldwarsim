@@ -93,6 +93,8 @@ section « Voir une partie Mondiale en local ».
    Captures rangées hors du dépôt, dans ton dossier temporaire.
 5. Regarde chaque capture avec l'outil Read, à côté de sa référence : la maquette choisie, ou
    la capture d'avant le lot. Un écart se corrige, ou se rapporte s'il vient d'une décision.
+   Une animation se prouve en déroulé réel : la scène la déclenche par un ordre, comme un joueur.
+   Une séquence lancée à la main dans le moteur ne prouve pas qu'elle joue en partie.
    La capture ou le banc d'avant se prend dans un clone du scratchpad (`git clone --shared`,
    `node_modules` en lien symbolique, `.env.local` copié), jamais dans un worktree. Le checkout garde
    ton code, sans ancienne version d'un fichier remise le temps d'une capture.
