@@ -60,7 +60,7 @@ function mount(options: { blitz?: boolean; press?: PressEdition; archive: unknow
         seat={{ token: 'jeton', seasonId: 'season-1' as Id<'seasons'> }}
         press={options.press ?? FINAL}
         verdict={{ reason: 'points', winnerNation: 'france', perMinute: null }}
-        ending={{ nation: 'france', eliminatedAt: null }}
+        ending={{ nation: 'france', eliminatedAt: null, fall: null }}
         blitz={options.blitz ?? false}
         points={[]}
         race={null}
