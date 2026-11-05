@@ -2351,7 +2351,9 @@ export const concludeScene = internalMutation({
       }
 
     if (hold === true || stale === true)
-      for (const job of await ctx.db.system.query('_scheduled_functions').collect())
+      /** La chaîne vient d'être programmée : elle est parmi les dernières, et une base de démo
+       *  usée en garde des dizaines de milliers, au-delà de ce qu'une mutation peut lire. */
+      for (const job of await ctx.db.system.query('_scheduled_functions').order('desc').take(200))
         if (job.name.includes('countDispatches') && job.state.kind === 'pending')
           await ctx.scheduler.cancel(job._id);
   },

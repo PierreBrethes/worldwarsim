@@ -2336,7 +2336,9 @@ export const fr = {
           : `close à la main par ${theNation(input.closedBy)} ${when}${clock}.`;
       if (input.reason === 'draw')
         return `conclue ${when} : heures de points et territoire se valent, personne ne l’emporte.`;
-      return `${fr.victory.verdictWhy(input.reason, null)}, ${when}${clock}.`;
+      /** Sous « à l'horloge », la raison ne le redit pas. */
+      const why = fr.victory.verdictWhy(input.reason, null).replace(/^à l’horloge, /, '');
+      return `${why}, ${when}${clock}.`;
     },
     headline: (reason: VerdictReason, winner: string | null): string =>
       reason === 'closed'
