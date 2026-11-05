@@ -13,7 +13,7 @@ import type { ConvexReactClient } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
-import { ConnectedSignIn } from './connexion';
+import { ConnectedSignIn, Route } from './connexion';
 
 afterEach(cleanup);
 
@@ -25,19 +25,20 @@ const refusingClient = {
   action: () => Promise.reject(new ConvexError({ code: 'BAD_CREDENTIALS' })),
 } as unknown as ConvexReactClient;
 
-const mount = (opening = false) => {
+const mount = (url = '/') => {
   const root = createRootRoute({ component: Outlet });
   const index = createRoute({
     getParentRoute: () => root,
     path: '/',
-    component: () => <ConnectedSignIn opening={opening} />,
+    component: ConnectedSignIn,
+    validateSearch: Route.options.validateSearch,
   });
   return render(
     <ConvexProvider client={refusingClient}>
       <RouterProvider
         router={createRouter({
           routeTree: root.addChildren([index]),
-          history: createMemoryHistory({ initialEntries: ['/'] }),
+          history: createMemoryHistory({ initialEntries: [url] }),
         })}
       />
     </ConvexProvider>,
@@ -80,11 +81,14 @@ it('announces a refusal and ties it to the fields it concerns', async () => {
 
 /** « Fonder une partie », sur la une, mène à l'ouverture d'un dossier : le joueur y arrive sur
  *  l'onglet qui ouvre, pas sur celui qui suppose qu'il en a un. */
-it('opens on the tab that opens a file when the front page sends one to found a game', async () => {
-  mount(true);
-  const tab = await screen.findByRole('tab', { name: fr.auth.openFile });
-  expect(tab.getAttribute('aria-selected')).toBe('true');
-});
+it.each(['/?ouvrir=true', '/?ouvrir'])(
+  'opens on the tab that opens a file at %s, the real route’s search',
+  async (url) => {
+    mount(url);
+    const tab = await screen.findByRole('tab', { name: fr.auth.openFile });
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+  },
+);
 
 it('opens on the tab for a file already held otherwise', async () => {
   mount();

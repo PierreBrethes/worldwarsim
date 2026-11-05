@@ -12,6 +12,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { forgetSession, keepSession } from '@/data/session';
 import { Landing } from './-index/Landing';
+import { Route as ConnexionRoute } from './connexion';
 import { Route as IndexRoute } from './index';
 
 afterEach(() => {
@@ -53,7 +54,7 @@ const mount = () => {
   const connexion = createRoute({
     getParentRoute: () => root,
     path: '/connexion',
-    validateSearch: (search: Record<string, unknown>) => ({ ouvrir: search.ouvrir === true }),
+    validateSearch: ConnexionRoute.options.validateSearch,
     component: () => <p>connexion</p>,
   });
   const router = createRouter({
@@ -90,7 +91,7 @@ it('mène « fonder une partie » à l’ouverture d’un dossier, « j’ai un 
 
   await router.navigate({ to: '/' });
   fireEvent.click(await screen.findByRole('link', { name: fr.front.bureau.haveFile }));
-  await waitFor(() => expect(router.state.location.search).toEqual({ ouvrir: false }));
+  await waitFor(() => expect(router.state.location.search).toEqual({}));
 });
 
 it('dit en rouge ce qui manque à un code incomplet, sans griser le bouton', async () => {

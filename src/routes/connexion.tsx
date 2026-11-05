@@ -1,4 +1,4 @@
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
 import { Wordmark } from '@/shell/Masthead';
@@ -6,17 +6,17 @@ import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
 import { OffSeasonPage, romanDate } from '@/shell/OffSeason';
 
-/** `?ouvrir` : « fonder une partie », sur la une, arrive à l'ouverture d'un dossier. */
+/** `?ouvrir` : « fonder une partie », sur la une, arrive à l'ouverture d'un dossier. Écrite sans
+ *  valeur, l'adresse (`/connexion?ouvrir`) la donne vide : elle ouvre aussi l'onglet. */
 export const Route = createFileRoute('/connexion')({
   component: SignIn,
   validateSearch: (search: Record<string, unknown>): { ouvrir?: true } =>
-    search.ouvrir === true ? { ouvrir: true } : {},
+    search.ouvrir === true || search.ouvrir === '' ? { ouvrir: true } : {},
 });
 
 function SignIn() {
-  const { ouvrir } = Route.useSearch();
   return convexClient ? (
-    <ConnectedSignIn opening={ouvrir === true} />
+    <ConnectedSignIn />
   ) : (
     <Card>{<p className="note">{fr.auth.noBackend}</p>}</Card>
   );
@@ -55,12 +55,13 @@ function Card({ children }: { children: ReactNode }) {
   );
 }
 
-export function ConnectedSignIn({ opening = false }: { opening?: boolean }) {
+export function ConnectedSignIn() {
   const navigate = useNavigate();
+  const { ouvrir } = useSearch({ strict: false });
   return (
     <Card>
       <AccountForm
-        opening={opening}
+        opening={ouvrir === true}
         /** La une prend la place du formulaire : le retour du navigateur ne ramène pas un
          *  joueur connecté devant ses deux champs. Le tampon a le temps de tomber. */
         onSignedIn={() =>
