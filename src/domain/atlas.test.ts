@@ -393,6 +393,37 @@ describe('public/atlas.json', () => {
     expect(dry).toEqual([]);
   });
 
+  /** #457, revue du 05/11 : the radius is the water's, up to the nearest land, not the sea's
+   *  own border with its neighbours. */
+  it.each([
+    'océan Atlantique',
+    'mer du Nord',
+    'mer Baltique',
+    'mer Méditerranée',
+    'mer Noire',
+    'mer Égée',
+  ])('measures the %s from its points to the nearest land', (name) => {
+    const atlas = decodeAtlas(file);
+    const sea = atlas.seas().find((each) => each.name === name)!;
+    const rings = [...atlas.shapes(() => 'land', 'far').values()]
+      .flat()
+      .flatMap(({ outer, holes }) => [outer, ...holes]);
+    // Every point of the land's shores, and the nearest one to a spot: the segments between them
+    // are no longer than the far level's simplification, a fraction of the slack.
+    const shoreDistance = ([x, y]: readonly [number, number]) => {
+      let least = Infinity;
+      for (const ring of rings)
+        for (let i = 0; i < ring.length; i += 2)
+          least = Math.min(least, Math.hypot(ring[i]! - x, ring[i + 1]! - y));
+      return least;
+    };
+    for (const { lonLat, radius } of sea.spots) {
+      const at = projectLonLat(projectionAsset.outline as never, projectionAsset.sphere, lonLat);
+      expect(atlas.regionAt(at, 'far')).toBeNull();
+      expect(Math.abs(shoreDistance(at) - radius)).toBeLessThan(0.3);
+    }
+  });
+
   it('draws the great rivers far, and the front of 1940 near, each named once', () => {
     const names = (rivers: ReturnType<typeof decodeRivers>) => rivers.map(({ name }) => name);
     const far = decodeRivers(file.rivers!, file.transform);

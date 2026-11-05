@@ -658,8 +658,9 @@ near.rivers = await riversOf(
 /**
  * **Les mers et les océans** (#457) : océans, mers, golfes, baies, canaux, détroits et sounds de
  * rang ≤ 4, sous leur `name_fr`, les entités d'un même nom réunies (Atlantique Nord et Sud). Each
- * sea keeps up to six points inside it, 25 u apart at least, each with the radius of the disc
- * that fits there: the map writes the name only where that disc spans it. Across the
+ * sea keeps up to six points inside it, 25 u apart at least, each with the radius of the water
+ * there, up to the nearest land of the far level (the sea's border with its neighbours is no
+ * shore): the map writes the name only where that disc spans it. Across the
  * antimeridian, the points come from the largest projected piece. @a-mesurer
  */
 const SEA_CLASSES = new Set(['ocean', 'sea', 'gulf', 'bay', 'channel', 'strait', 'sound']);
@@ -672,8 +673,45 @@ const SEA_NAMES = {
   'Inner Sea': 'mer intérieure de Seto', // NAME_FR « Mers intérieures de la côte occidentale de l'Écosse »
 };
 
+/** The far level's land, for the seas' radii: its shores in cells of `SHORE_CELL` u. */
+const SHORE_CELL = 2;
+const seaAtlas = decodeAtlas(atlas);
+const shores = new Map();
+for (const polygon of landOf(seaAtlas, 'far').geometry.coordinates)
+  for (const ring of polygon)
+    for (let i = 1; i < ring.length; i++) {
+      const [a, b] = [ring[i - 1], ring[i]];
+      const cell = (v) => Math.floor(v / SHORE_CELL);
+      for (let x = cell(Math.min(a[0], b[0])); x <= cell(Math.max(a[0], b[0])); x++)
+        for (let y = cell(Math.min(a[1], b[1])); y <= cell(Math.max(a[1], b[1])); y++) {
+          const key = `${x},${y}`;
+          if (!shores.has(key)) shores.set(key, []);
+          shores.get(key).push([a, b]);
+        }
+    }
+const segmentDistance = (x, y, [[ax, ay], [bx, by]]) => {
+  const l = (bx - ax) ** 2 + (by - ay) ** 2;
+  const t = l ? Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l)) : 0;
+  return Math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay));
+};
+/** How far the nearest land lies, 0 on land: the rings of cells around the point, out until no
+ *  cell further can hold a nearer shore. A segment is filed in every cell its box covers. */
+function waterRadius(x, y) {
+  if (seaAtlas.regionAt([x, y], 'far') !== null) return 0;
+  const [cx, cy] = [Math.floor(x / SHORE_CELL), Math.floor(y / SHORE_CELL)];
+  let least = Infinity;
+  for (let k = 0; k < 200 && least > (k - 1) * SHORE_CELL; k++)
+    for (let i = cx - k; i <= cx + k; i++)
+      for (let j = cy - k; j <= cy + k; j++) {
+        if (Math.max(Math.abs(i - cx), Math.abs(j - cy)) !== k) continue;
+        for (const segment of shores.get(`${i},${j}`) ?? [])
+          least = Math.min(least, segmentDistance(x, y, segment));
+      }
+  return least;
+}
+
 /** The points inside one projected polygon with the radius of the water there, polylabel's
- *  best and a grid's, the widest first. */
+ *  best and a grid's. */
 function seaCandidates(polygon) {
   const segments = polygon.flatMap((ring) => ring.slice(1).map((b, i) => [ring[i], b]));
   const inside = (x, y) => {
@@ -682,17 +720,8 @@ function seaCandidates(polygon) {
       if (ay > y !== by > y && x < ((bx - ax) * (y - ay)) / (by - ay) + ax) odd = !odd;
     return odd;
   };
-  const radius = (x, y) => {
-    let least = Infinity;
-    for (const [[ax, ay], [bx, by]] of segments) {
-      const l = (bx - ax) ** 2 + (by - ay) ** 2;
-      const t = l ? Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l)) : 0;
-      least = Math.min(least, Math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)));
-    }
-    return least;
-  };
   const best = polylabel(polygon, 0.01);
-  const out = [[best[0], best[1], best.distance]];
+  const out = [[best[0], best[1], waterRadius(best[0], best[1])]];
   const [xs, ys] = [0, 1].map((k) => polygon[0].map((point) => point[k]));
   const [left, right, top, bottom] = [
     Math.min(...xs),
@@ -702,7 +731,7 @@ function seaCandidates(polygon) {
   ];
   const step = Math.max(0.25, Math.min(2, (right - left) / 20));
   for (let x = left; x <= right; x += step)
-    for (let y = top; y <= bottom; y += step) if (inside(x, y)) out.push([x, y, radius(x, y)]);
+    for (let y = top; y <= bottom; y += step) if (inside(x, y)) out.push([x, y, waterRadius(x, y)]);
   return out;
 }
 
