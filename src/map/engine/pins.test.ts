@@ -86,9 +86,58 @@ describe('PinLayer — the pieces far away', () => {
   });
 
   it('opens the cluster when the camera comes closer', () => {
-    const eye = eyeOver(paris, 60);
+    const eye = eyeOver(paris, 30);
     const layer = laidOut([mine('a', paris), mine('b', [3.5, 48.85])], eye);
     expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'a' });
+  });
+
+  it('ranges my pins within 30 px and surveys within 22 (maquette C)', () => {
+    const eye = eyeOver(paris, 120);
+    const apart = (lonLat: LonLat) =>
+      Math.hypot(...screenOf(eye, paris).map((v, k) => v - screenOf(eye, lonLat)[k]!));
+    const near: LonLat = [5.1, 48.85];
+    expect(apart(near)).toBeGreaterThan(22);
+    expect(apart(near)).toBeLessThan(30);
+    const [ax, ay] = screenOf(eye, paris);
+    const [bx, by] = screenOf(eye, near);
+    expect(
+      laidOut([mine('a', paris), mine('b', near)], eye).under((ax + bx) / 2, (ay + by) / 2),
+    ).toMatchObject({ kind: 'cluster' });
+    expect(
+      laidOut([seen('a', paris), seen('b', near)], eye).under(...screenOf(eye, paris)),
+    ).toEqual({
+      kind: 'pin',
+      id: 'a',
+    });
+  });
+
+  it('writes the troops in the disc, and « ? » on a survey no Guet has read', () => {
+    const eye = eyeOver(paris, 120);
+    const glyphs = (pins: ReadonlyArray<Pin>) =>
+      (
+        laidOut(pins, eye) as unknown as {
+          glyphs: { mesh: { geometry: { instanceCount: number } } };
+        }
+      ).glyphs.mesh.geometry.instanceCount;
+    expect(glyphs([{ ...mine('a', paris), stack: { infantry: 8, armor: 4 } } as Pin])).toBe(2);
+    expect(glyphs([mine('a', paris)])).toBe(0);
+    expect(glyphs([seen('c', paris)])).toBe(1);
+    expect(glyphs([{ ...seen('c', paris), pierced: { infantry: 5 } } as Pin])).toBe(1);
+  });
+
+  it('labels only the pins of a contact, with their pictos and counts beside them', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = new PinLayer(frame, () => null);
+    layer.display([{ ...mine('a', paris), stack: { infantry: 3 } } as Pin, mine('b', lyon)]);
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(layer.rects()).toHaveLength(2);
+    layer.engage(new Set(['a']));
+    layer.layout(eye, W, H, new Map(), new Map());
+    const [disc, ...rest] = layer.rects();
+    expect(rest).toHaveLength(2);
+    const tag = rest.find((rect) => rect.left > disc!.right)!;
+    expect(tag.top).toBeLessThan(screenOf(eye, paris)[1]);
+    expect(tag.bottom).toBeGreaterThan(screenOf(eye, paris)[1]);
   });
 
   it('gives way to the figurines up close: no pin under the pointer', () => {
@@ -184,6 +233,31 @@ describe('PinLayer — the pieces far away', () => {
     );
     expect(layer.under(...screenOf(eye, paris))).toEqual({ kind: 'pin', id: 'a' });
     expect(layer.under(...screenOf(eye, eastOfParis))).toEqual({ kind: 'pin', id: 'arc-1' });
+  });
+
+  it('stands a label on the left, once the camera stopped, when its right covers a survey', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = new PinLayer(frame, () => null);
+    layer.display([
+      { ...mine('a', paris), stack: { infantry: 3 } } as Pin,
+      seen('c', [3.6, 48.85]),
+    ]);
+    layer.engage(new Set(['a', 'c']));
+    layer.layout(eye, W, H, new Map(), new Map());
+    const [x] = screenOf(eye, paris);
+    const tagOfA = () =>
+      layer
+        .rects()
+        .find(
+          (rect) =>
+            rect.top > -1 &&
+            Math.abs((rect.left + rect.right) / 2 - x) > 8 &&
+            Math.abs((rect.left + rect.right) / 2 - x) < 40,
+        )!;
+    expect(tagOfA().left).toBeGreaterThan(x);
+    layer.settle();
+    layer.layout(eye, W, H, new Map(), new Map());
+    expect(tagOfA().right).toBeLessThan(x);
   });
 
   it('redoes no cluster while the camera stands still', () => {
