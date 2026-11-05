@@ -44,6 +44,12 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    seuils. Mesuré dans le code (`pieceWeight`, 20 px lus sur une fenêtre de 900 px de haut,
    quelle que soit la fenêtre) : de l'homme à d ≈ 3,0, le R35 à 4,7, le char à 7,0, le chasseur à
    12,7, la caserne à 58 et le hangar à 70, jusqu'au port à 122 et au porte-avions à 145.
+
+   > **Amendé le 05/11/2026** (#465, décisions de Pierre) : un bâtiment sur son socle ne se pèse
+   > plus par sa taille à l'écran. Il passe en épingle avec mes piles, au plancher des troupes
+   > (§10, d ≈ 30 à 35), quelle que soit la taille de son socle (ADR 0038 §7 amendé). Un
+   > objectif neutre, sans socle, et une pièce plus grande que le plancher (un navire) gardent la
+   > règle des pixels.
 4. **Le clic ne suit pas la taille dessinée.** La zone qu'on vise garde une taille minimale à
    l'écran ; une figurine petite reste facile à prendre.
 5. **Les bâtiments gardent leur disposition** en anneau autour d'un site, agrandie dans la même
