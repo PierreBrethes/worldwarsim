@@ -7,7 +7,7 @@ export type EndingFacts = {
   readonly eliminatedAt: string | null;
 };
 
-export type Outcome = 'winner' | 'loser' | 'out' | 'draw';
+export type Outcome = 'winner' | 'loser' | 'out' | 'draw' | 'closed';
 
 /**
  * **Comment une partie finit pour moi**, dans les deux modes : l'édition finale quand la saison
@@ -28,15 +28,22 @@ export function endingOf(view: PlayerView): { key: 'final' | 'out' | null; facts
   };
 }
 
-/** L'issue d'un joueur à la conclusion : le vainqueur, l'égalité, le tombé, le vaincu. */
+/**
+ * L'issue d'un joueur à la conclusion : le vainqueur, l'égalité, le tombé, le vaincu. Une saison
+ * close à la main n'a ni vainqueur, ni vaincu, ni égalité : seul le tombé l'est.
+ */
 export const outcomeOf = (
   line: { readonly nation: string | null; readonly defeated: boolean },
   verdict: SeasonVerdict | null,
 ): Outcome =>
-  verdict?.winnerNation === null && verdict !== null
-    ? 'draw'
-    : line.nation !== null && line.nation === verdict?.winnerNation
-      ? 'winner'
-      : line.defeated
-        ? 'out'
-        : 'loser';
+  verdict?.reason === 'closed'
+    ? line.defeated
+      ? 'out'
+      : 'closed'
+    : verdict?.winnerNation === null && verdict !== null
+      ? 'draw'
+      : line.nation !== null && line.nation === verdict?.winnerNation
+        ? 'winner'
+        : line.defeated
+          ? 'out'
+          : 'loser';

@@ -600,7 +600,8 @@ describe('a concluded season', () => {
     });
 
     await t.mutation(api.seasons.conclude, creator);
-    const tables = Object.keys(schema.tables) as ReadonlyArray<TableNames>;
+    /** Sauf l'archive : l'édition finale s'écrit justement après la clôture (#443). */
+    const tables = GAME_TABLES as ReadonlyArray<TableNames>;
     const before = await dumpRows(t, tables);
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);

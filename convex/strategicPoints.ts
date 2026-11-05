@@ -207,6 +207,7 @@ export async function handOver(
   await ctx.db.patch(point._id, {
     holderId,
     heldSince: holderId === null ? null : now,
+    hands: [...(point.hands ?? []), { at: now, holderId }],
     ...(former === null
       ? {}
       : { heldMs: { ...point.heldMs, [former]: heldMsOn(point, former, now) } }),
@@ -257,7 +258,11 @@ async function tallyRace(ctx: MutationCtx, seasonId: Id<'seasons'>, now: number)
 }
 
 /** Les heures qu'un joueur a tenu un point jusqu'à `now` : perdues, et tenues encore. */
-const heldMsOn = (point: Doc<'strategicPoints'>, playerId: Id<'players'>, now: number): number =>
+export const heldMsOn = (
+  point: Doc<'strategicPoints'>,
+  playerId: Id<'players'>,
+  now: number,
+): number =>
   (point.heldMs?.[playerId] ?? 0) +
   (point.holderId === playerId && point.heldSince !== null ? now - point.heldSince : 0);
 

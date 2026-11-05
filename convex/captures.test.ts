@@ -1242,6 +1242,35 @@ describe('a Mondiale headquarters', () => {
     expect(season!.verdict?.reason).toBe('hqTaken');
   });
 
+  /** **L'édition finale signe la chute** (#443) : le QG perdu, sa région, qui l'a pris. */
+  it('writes the fallen headquarters into the final edition, with its region and its taker', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const hq = await headquartersOf(t, guest);
+    await take(t, seat, hq);
+    await finish(t);
+    for (let link = 0; link < 40; link++) {
+      await vi.advanceTimersByTimeAsync(1);
+      await t.finishInProgressScheduledFunctions();
+    }
+
+    const read = await t.query(api.finalEdition.ofSeason, guest);
+    if (read.state !== 'ready') throw new Error(read.state);
+    const ussr = read.edition.nations.find((page) => page.nation === 'ussr')!;
+    expect(ussr.exit).toEqual({ kind: 'eliminated', at: MIDDAY + 12 * HOUR });
+    expect(ussr.losses.hq).toEqual({
+      at: MIDDAY + 12 * HOUR,
+      regionId: hq.regionId,
+      by: 'france',
+    });
+    expect(read.edition.moments).toContainEqual({
+      kind: 'hqTaken',
+      at: MIDDAY + 12 * HOUR,
+      regionId: hq.regionId,
+      nations: ['france', 'ussr'],
+    });
+  });
+
   it('does not eliminate a capturer who loses a headquarters he had taken', async () => {
     const t = boot();
     const { seat, guest, third } = await threeAtTable(t);
