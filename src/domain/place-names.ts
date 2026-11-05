@@ -107,3 +107,35 @@ export function riverSpots(lines: readonly Float32Array[]): RiverSpot[] {
     return [{ x, y, angle: Math.atan2(by - ay, bx - ax), half }];
   });
 }
+
+/**
+ * **Les villes selon la distance** (#440) : au-delà de 65 rien, ni pendant un rejeu ; puis les
+ * capitales ; sous 55 les villes de plus d'un million ; sous 34 toutes. Au doigt, un palier de
+ * moins. Une capitale de moins de 300 000 habitants (Vaduz, Monaco) attend le palier de toutes.
+ * @a-mesurer
+ */
+export const NAMES_GONE_DISTANCE = 65;
+const CITY_TIERS = [NAMES_GONE_DISTANCE, 55, 34, 0];
+const MILLION = 1_000_000;
+const SMALL_CAPITAL = 300_000;
+
+/** Whether the decor's names show at all: not far from the board, not during a replay. */
+export function namesShown(distance: number, replaying: boolean): boolean {
+  return !replaying && distance < NAMES_GONE_DISTANCE;
+}
+
+/** The cities to name at this distance, in their order. */
+export function namedCities<
+  City extends { readonly capital: boolean; readonly population: number },
+>(
+  cities: readonly City[],
+  { distance, touch, replaying }: { distance: number; touch: boolean; replaying: boolean },
+): City[] {
+  if (!namesShown(distance, replaying)) return [];
+  const tier = CITY_TIERS.findIndex((under) => distance >= under) - 1 - (touch ? 1 : 0);
+  return cities.filter(
+    ({ capital, population }) =>
+      tier >= 2 ||
+      (capital ? tier >= 0 && population >= SMALL_CAPITAL : tier >= 1 && population > MILLION),
+  );
+}

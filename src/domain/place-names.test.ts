@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { placeNames, riverSpots, type NameCandidate } from './place-names';
+import { namedCities, placeNames, riverSpots, type NameCandidate } from './place-names';
 import type { ScreenBox } from './label-groups';
 
 const box = (left: number, top: number, width = 40, height = 12): ScreenBox => ({
@@ -63,4 +63,24 @@ describe('riverSpots', () => {
   it('gives no spot to a line too short to carry a name', () => {
     expect(riverSpots([Float32Array.of(0, 0, 0.001, 0)])).toEqual([]);
   });
+});
+
+describe('namedCities', () => {
+  const paris = { capital: true, population: 11_000_000 };
+  const vaduz = { capital: true, population: 36_000 };
+  const lyon = { capital: false, population: 2_000_000 };
+  const nancy = { capital: false, population: 400_000 };
+  const all = [paris, vaduz, lyon, nancy];
+  const at = (distance: number, touch = false, replaying = false) =>
+    namedCities(all, { distance, touch, replaying });
+
+  it('names nothing from 65 out', () => expect(at(65)).toEqual([]));
+  it('names the capitals over 300 000 from 55 to 65', () => expect(at(60)).toEqual([paris]));
+  it('adds the cities over a million from 34 to 55', () => expect(at(45)).toEqual([paris, lyon]));
+  it('names every city under 34', () => expect(at(20)).toEqual(all));
+  it('shows one tier less on a phone', () => {
+    expect(at(45, true)).toEqual([paris]);
+    expect(at(20, true)).toEqual([paris, lyon]);
+  });
+  it('names nothing during a replay', () => expect(at(20, false, true)).toEqual([]));
 });

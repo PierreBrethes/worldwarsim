@@ -164,6 +164,7 @@ import { SweepWave } from './deposit-sweep';
 import type { NearSheet } from './near-sheet';
 import { RiverLayer, riverData } from './rivers';
 import type { City } from '@/domain/atlas';
+import { namedCities, namesShown } from '@/domain/place-names';
 import { fromGeometryData } from './atlas-geometry';
 import {
   RegionLayer,
@@ -584,7 +585,7 @@ export class MapEngine {
   private readonly night: NightSky;
   private readonly rivers: RiverLayer;
   /** The atlas's cities where the board holds them, for their names (`nameSpots`). */
-  private readonly cities: ReadonlyArray<{ readonly city: City; readonly at: Vector3 }>;
+  private readonly cities: ReadonlyArray<City & { readonly at: Vector3 }>;
   private readonly halos: Halos;
   /** The night the pieces were last warmed by. */
   private warmed = 0;
@@ -1022,7 +1023,7 @@ export class MapEngine {
     this.rivers = new RiverLayer(this.frame, riverData(atlas.rivers(), this.frame));
     this.cities = atlas
       .cities()
-      .map((city) => ({ city, at: this.frame.projectLonLat(city.lonLat) }));
+      .map((city) => ({ ...city, at: this.frame.projectLonLat(city.lonLat) }));
     this.scene.add(this.rivers.group);
     this.scene.add(coast);
 
@@ -2735,10 +2736,10 @@ export class MapEngine {
   nameSpots(): NameSpots {
     const distance = this.cameraDistance();
     const none = { cities: [], rivers: [], pins: [] };
-    if (this.replay !== null || distance >= NAMES_GONE_DISTANCE) return none;
-    const tier = CITY_TIERS.findIndex((under) => distance >= under) - (this.touch ? 1 : 0);
+    const replaying = this.replay !== null;
+    if (!namesShown(distance, replaying)) return none;
     const onScreen = (at: Vector3, margin: number) => {
-      const point = at.clone().project(this.eye);
+      const point = NAME_POINT.copy(at).project(this.eye);
       if (point.z > 1) return null;
       const x = ((point.x + 1) / 2) * this.screenWidth;
       const y = ((1 - point.y) / 2) * this.screenHeight;
@@ -2749,16 +2750,13 @@ export class MapEngine {
         ? null
         : { x, y };
     };
-    const shown = (city: City) =>
-      tier >= 2 ||
-      (city.capital
-        ? tier >= 0 && city.population >= SMALL_CAPITAL
-        : tier >= 1 && city.population > MILLION);
     return {
-      cities: this.cities.flatMap(({ city, at }) => {
-        const point = shown(city) ? onScreen(at, 0) : null;
-        return point === null ? [] : [{ ...point, name: city.name, capital: city.capital }];
-      }),
+      cities: namedCities(this.cities, { distance, touch: this.touch, replaying }).flatMap(
+        ({ at, name, capital }) => {
+          const point = onScreen(at, 0);
+          return point === null ? [] : [{ ...point, name, capital }];
+        },
+      ),
       rivers: this.rivers.names().flatMap(({ name, spots }) => {
         const seen = spots.flatMap(({ at, from, to }) => {
           const [middle, a, b] = [onScreen(at, 0), onScreen(from, 400), onScreen(to, 400)];
@@ -4744,15 +4742,8 @@ export class MapEngine {
   };
 }
 
-/**
- * **Les villes selon la distance** (#440) : au-delà de 65 rien ; puis les capitales ; sous 55 les
- * villes de plus d'un million ; sous 34 toutes. Au doigt, un palier de moins. Une capitale de
- * moins de 300 000 habitants (Vaduz, Monaco) attend le palier de toutes. @a-mesurer
- */
-const NAMES_GONE_DISTANCE = REGIONS_GONE_DISTANCE;
-const CITY_TIERS = [55, 34, 0];
-const MILLION = 1_000_000;
-const SMALL_CAPITAL = 300_000;
+/** The working point `nameSpots` projects each city and river spot with, every image. */
+const NAME_POINT = new Vector3();
 
 /** Where the decor's names may go (`nameSpots`), in the layer's pixels. */
 export type NameSpots = {
