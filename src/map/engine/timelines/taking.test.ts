@@ -229,4 +229,25 @@ describe('plunderOf, round the building (#279)', () => {
     const back = (plan: typeof round) => plan.ms - plan.takenAt;
     expect((back(round) - TAKING.lift) / (back(straight) - TAKING.lift)).toBeGreaterThan(1.3);
   });
+
+  it('comes back by his way out, the corners in the reverse order', () => {
+    const man = (t: number) => round.at(t).man_0!.travel!;
+    const nearest = (from: number, until: number, point: readonly [number, number, number]) => {
+      let best = { t: 0, d: Infinity };
+      for (let k = 0; k <= 800; k++) {
+        const t = from + ((until - from) * k) / 800;
+        const at = man(Math.max(1, Math.min(round.ms - 1, t)));
+        const d = Math.hypot(at[0] - point[0], at[2] - point[2]);
+        if (d < best.d) best = { t, d };
+      }
+      return best.t;
+    };
+    const back = round.takenAt + TAKING.lift + 150;
+    const goes = [nearest(0, round.takenAt, via[0]!), nearest(0, round.takenAt, via[1]!)];
+    const comes = [nearest(back, round.ms, via[1]!), nearest(back, round.ms, via[0]!)];
+    expect(goes[0]).toBeLessThan(goes[1]!);
+    expect(comes[0]).toBeLessThan(comes[1]!);
+    expect(man(goes[0]!)[0]).toBeCloseTo(6, 0);
+    expect(man(comes[1]!)[0]).toBeCloseTo(6, 0);
+  });
 });
