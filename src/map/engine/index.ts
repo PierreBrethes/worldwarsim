@@ -193,6 +193,8 @@ import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
 import { isPinOf, PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
+import { ContactRings, type ContactSpot } from './contact-rings';
+import type { Contact } from '@/domain/contacts';
 import type { Pin, PinShape } from '@/domain/pins';
 import { nationInk } from '@/domain/nations';
 import { TheatreFrame } from './theatre';
@@ -675,6 +677,9 @@ export class MapEngine {
   private readonly eyeMatrix = new Matrix4();
   private readonly camps: CampLayer;
   private readonly pins: PinLayer;
+  private readonly contactRings: ContactRings;
+  /** What the contacts' cartouches hold on the screen: no name of the decor goes there. */
+  private namesReserved: ReadonlyArray<Rect> = [];
   private pinShapes = new Map<string, PinShape>();
   /** Where the piece in hand is over the board: its pin follows it far away (#234). */
   private heldGround: Vector3 | null = null;
@@ -772,6 +777,8 @@ export class MapEngine {
   private readonly replayHidden = new Set<Object3D>();
   private playerNation: string | null = null;
   private readonly restListeners = new Set<() => void>();
+  /** Heard before the others: what they read was laid out there (the contacts' cartouches). */
+  private readonly firstRestListeners = new Set<() => void>();
   /**
    * Picking costs three passes — countries, arcs, then point-in-polygon over the regions —
    * and its result only changes when the pointer or the camera moves. Arcs advance every
@@ -818,6 +825,9 @@ export class MapEngine {
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
+  /** **Where the contacts' circles stand** (#441), every whole frame, for their numbers and
+   *  cartouches; `null` where none is drawn (a replay). */
+  onContacts: (spots: ReadonlyArray<ContactSpot> | null) => void = () => {};
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
   /**
@@ -1124,6 +1134,8 @@ export class MapEngine {
       (id) => this.maquettes.drawnAt(id),
     );
     this.scene.add(this.pins.group);
+    this.contactRings = new ContactRings(this.frame);
+    this.scene.add(this.contactRings.group);
     this.scene.add(this.ink.group);
     this.parachutes = new ParachuteLayer(this.frame);
     this.scene.add(this.parachutes.group);
@@ -1551,6 +1563,13 @@ export class MapEngine {
     return shape === 'building' ? buildingSpan('barracks') : troopPinSpan(ANONYMOUS_SPAN);
   }
 
+  /** **Les accrochages** (#441) : cerclés sur la carte, et leurs épingles étiquetées. */
+  displayContacts(contacts: ReadonlyArray<Contact>): void {
+    this.invalidate();
+    this.contactRings.display(contacts);
+    this.pins.engage(new Set(contacts.flatMap(({ pinIds }) => pinIds)));
+  }
+
   /** **The designated piece far away** — a pile checked, a site opened: a ring at my ink on its pin. */
   selectPin(labelId: string | null): void {
     this.invalidate();
@@ -1873,11 +1892,23 @@ export class MapEngine {
   }
 
   /** Camera rest has two audiences — the labels and the edge — hence the subscription. */
-  subscribeRest(listener: () => void): () => void {
-    this.restListeners.add(listener);
+  subscribeRest(listener: () => void, first = false): () => void {
+    const listeners = first ? this.firstRestListeners : this.restListeners;
+    listeners.add(listener);
     return () => {
-      this.restListeners.delete(listener);
+      listeners.delete(listener);
     };
+  }
+
+  /** Every pin and label on the canvas, in its pixels: what a cartouche stands clear of. */
+  markRects(): Rect[] {
+    return this.pins.rects();
+  }
+
+  /** **What the contacts hold** (#441): the decor's names, painted on their own canvas at the
+   *  same rest, give way to it. */
+  reserveNames(boxes: ReadonlyArray<Rect>): void {
+    this.namesReserved = boxes;
   }
 
   /**
@@ -2772,7 +2803,7 @@ export class MapEngine {
         });
         return seen.length === 0 ? [] : [{ name, spots: seen }];
       }),
-      pins: this.pins.rects(),
+      pins: [...this.pins.rects(), ...this.namesReserved],
     };
   }
 
@@ -4275,6 +4306,8 @@ export class MapEngine {
     if (this.restTimer !== null) clearTimeout(this.restTimer);
     this.restTimer = setTimeout(() => {
       this.restTimer = null;
+      if (this.pins.settle()) this.invalidate();
+      for (const listener of this.firstRestListeners) listener();
       for (const listener of this.restListeners) listener();
     }, CAMERA_REST_MS);
   }
@@ -4661,6 +4694,13 @@ export class MapEngine {
       this.arcs.aheadPositions,
       this.camera.position,
     );
+    const contactSpots = this.contactRings.layout(
+      this.eye,
+      this.screenWidth,
+      this.screenHeight,
+      this.unitsPerPixel(distance),
+      this.replay !== null,
+    );
     this.clearReplayGround();
     this.renderer.shadowMap.needsUpdate = whole;
     const shadowed = this.lamp.follow(this.controls.target, distance);
@@ -4732,6 +4772,7 @@ export class MapEngine {
       this.camera.position,
     );
     this.onLabels(this.outsideReplay(projections, distance));
+    this.onContacts(contactSpots);
     this.onReportsFrame?.();
     // An arrow at the edge would lead out of a replay the veil does not let one leave.
     this.onEdges(

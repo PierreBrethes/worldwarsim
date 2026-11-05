@@ -1,4 +1,5 @@
 import { outpostPinId, pinsOf } from '@/domain/pins';
+import { contactsOf } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { boardsUnderTheEyes } from '@/map/cues';
@@ -2009,6 +2010,8 @@ function BoardContent({
     () => marchingPiecesOf(view.arcs, view.me.troops, blitz),
     [view.arcs, view.me.troops, blitz],
   );
+  /** **Les accrochages** (#441), nommés d'après toutes les villes de l'atlas. */
+  const contacts = useMemo(() => contactsOf(view, atlas.cities()), [view, atlas]);
   const pins = useMemo(
     () =>
       pinsOf(markers, arcs, ink, (station) =>
@@ -2546,6 +2549,7 @@ function BoardContent({
                   standing={standing}
                   camps={camps}
                   pins={pins}
+                  contacts={contacts}
                   maquettes={maquettes}
                   held={held}
                   outposts={reachedOutposts}

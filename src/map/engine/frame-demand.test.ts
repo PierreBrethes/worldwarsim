@@ -175,6 +175,9 @@ describe('every public method of the engine asks for a frame', () => {
     'screenOf',
     'nameSpots',
     'subscribeRest',
+    'markRects',
+    /** The decor's names are a canvas of their own, painted at the rest that reserved them. */
+    'reserveNames',
     'cameraDistance',
     'sweepOrigin',
     'atZoomFloor',

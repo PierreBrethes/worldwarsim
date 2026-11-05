@@ -6,6 +6,7 @@ import { stackLabelId } from './force-highlight';
 import { bearingDegrees, distanceKm, type LonLat } from './geo';
 import type { UnitRole } from './ids';
 import type { PlayerView } from './player-view';
+import type { Rect } from './poster-placement';
 import { campPinId, outpostPinId } from './pins';
 import { playedTheatre } from './theatres';
 import { marchingTroopIds, stationKeyOf, stationPointOf } from './troops';
@@ -26,6 +27,8 @@ export type Contact = {
   /** Its latest sighting: the hour its cartouche says. */
   readonly latest: number;
   readonly name: string;
+  /** The city alone, for a phone's cartouche. */
+  readonly city: string;
 };
 
 /** Closer than this to its city, a contact stands « devant » it. @a-mesurer (maquette C : 0,35 unité ≈ 30 km) */
@@ -72,7 +75,9 @@ export function contactsOf(
   const camps = view.camps.filter((camp) => !camp.lastKnown);
 
   const touching = camps.map((camp) =>
-    mine.flatMap((station, k) => (distanceKm(station.at, camp.point) <= station.rangeKm ? [k] : [])),
+    mine.flatMap((station, k) =>
+      distanceKm(station.at, camp.point) <= station.rangeKm ? [k] : [],
+    ),
   );
   const pieces: Array<{ mine: Set<number>; camps: Set<number> }> = [];
   const pieceOfStation = new Map<number, (typeof pieces)[number]>();
@@ -105,7 +110,11 @@ export function contactsOf(
         seen: seen.length,
         oldest: Math.min(...sinces),
         latest: Math.max(...sinces),
-        name: nameOf(points, seen.some(({ medium }) => medium === 'sea'), cities),
+        ...nameOf(
+          points,
+          seen.some(({ medium }) => medium === 'sea'),
+          cities,
+        ),
       };
     })
     .sort((a, b) => a.oldest - b.oldest || a.key.localeCompare(b.key))
@@ -124,11 +133,41 @@ function nameOf(points: ReadonlyArray<LonLat>, atSea: boolean, cities: ReadonlyA
     const km = distanceKm(city.lonLat, center);
     if (km < best) [nearest, best] = [city, km];
   }
-  if (nearest === null) return '';
-  if (atSea) return fr.contacts.offshore(nearest.name);
-  if (best < BEFORE_CITY_KM) return fr.contacts.before(nearest.name);
-  return fr.contacts.toward(
-    Math.round(bearingDegrees(nearest.lonLat, center) / 45) % 8,
-    nearest.name,
-  );
+  if (nearest === null) return { name: '', city: '' };
+  const city = nearest.name;
+  if (atSea) return { name: fr.contacts.offshore(city), city };
+  if (best < BEFORE_CITY_KM) return { name: fr.contacts.before(city), city };
+  const direction = Math.round(bearingDegrees(nearest.lonLat, center) / 45) % 8;
+  return { name: fr.contacts.toward(direction, city), city };
+}
+
+/**
+ * **Where a contact's cartouche may stand** (maquette C), in the order tried: by the circle's
+ * shoulders, above and below it, then further out at its sides. `R` is the circle's radius on
+ * screen; the rectangles are `width` × `height`.
+ */
+export function cartoucheSpots(
+  x: number,
+  y: number,
+  R: number,
+  width: number,
+  height: number,
+): Rect[] {
+  const a = R * 0.72;
+  const at = (left: number, top: number) => ({
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+  });
+  return [
+    at(x + a + 6, y - a - height / 2),
+    at(x - a - 6 - width, y - a - height / 2),
+    at(x + a + 6, y + a - height / 2),
+    at(x - a - 6 - width, y + a - height / 2),
+    at(x - width / 2, y - R - height - 8),
+    at(x - width / 2, y + R + 8),
+    at(x + R + 30, y - height / 2),
+    at(x - R - 30 - width, y - height / 2),
+  ];
 }

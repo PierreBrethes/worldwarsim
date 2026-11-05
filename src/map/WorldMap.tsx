@@ -5,6 +5,9 @@
 
 import { SweepOverlay, type SweepRequest } from './SweepOverlay';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
+import type { Contact } from '@/domain/contacts';
+import { nationInk } from '@/domain/nations';
+import { ContactMarks } from './ContactMarks';
 import { ClusterSheet } from './ClusterSheet';
 import type { TourAct } from '@/domain/cargo-tag';
 import {
@@ -144,6 +147,8 @@ type Props = {
   camps: ReadonlyArray<SurveyedCamp>;
   /** Every piece far away, a pin (#234): mine at my ink, what I surveyed hollow. */
   pins: ReadonlyArray<Pin>;
+  /** **Les accrochages** (#441): where my forces touch what I surveyed. */
+  contacts?: ReadonlyArray<Contact>;
   /** Buildings, surveyed installations and objectives, which the board stands as maquettes up close. */
   maquettes: ReadonlyArray<StandingMaquette>;
   /**
@@ -415,6 +420,8 @@ export type PlacingBuilding = {
 
 /** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
  *  effects that read it do not run again for nothing. */
+const NO_CONTACTS: ReadonlyArray<Contact> = [];
+
 function useShared<T>(value: T): T {
   const last = useRef(value);
   const shared = shareUnchanged(last.current, value);
@@ -468,6 +475,7 @@ export function WorldMap({
   standing: servedStanding,
   camps: servedCamps,
   pins: servedPins,
+  contacts: servedContacts = NO_CONTACTS,
   maquettes,
   held,
   outposts,
@@ -558,6 +566,7 @@ export function WorldMap({
   const standing = useShared(useRankKept(servedStanding));
   const camps = useShared(servedCamps);
   const pins = useShared(servedPins);
+  const contacts = useShared(servedContacts);
   const selectedPiles = useShared(servedSelection);
   const container = useRef<HTMLDivElement>(null);
   const insets = useBoardInsets();
@@ -1555,6 +1564,10 @@ export function WorldMap({
   }, [readyEngine, pins]);
 
   useEffect(() => {
+    readyEngine?.displayContacts(contacts);
+  }, [readyEngine, contacts]);
+
+  useEffect(() => {
     readyEngine?.selectPin(selectedLabel);
   }, [readyEngine, selectedLabel]);
 
@@ -1947,6 +1960,12 @@ export function WorldMap({
         engine={readyEngine}
         onOpen={onOpenReport ?? (() => {})}
         onLift={liftReport}
+      />
+      <ContactMarks
+        contacts={contacts}
+        engine={readyEngine}
+        intel={indicators.intel}
+        ink={playerNation === null ? null : nationInk(playerNation)}
       />
       <EdgeIndicators
         labels={labels}

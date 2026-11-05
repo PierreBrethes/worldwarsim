@@ -141,7 +141,9 @@ describe('contactsOf — where my forces touch what I surveyed', () => {
       }),
       cities,
     );
-    expect(contacts.map(({ number, seen, latest, name }) => ({ number, seen, latest, name }))).toEqual([
+    expect(
+      contacts.map(({ number, seen, latest, name }) => ({ number, seen, latest, name })),
+    ).toEqual([
       { number: 1, seen: 1, latest: 3000, name: 'au large de Brest' },
       { number: 2, seen: 2, latest: 9000, name: 'à l’est de Metz' },
     ]);
