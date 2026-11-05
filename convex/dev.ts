@@ -403,6 +403,8 @@ export const spawnTroops = internalMutation({
     lon: v.number(),
     lat: v.number(),
     carriedBy: v.optional(v.id('troops')),
+    /** En garnison de ce bâtiment plutôt qu'au point (#475) : l'aire et le môle d'une démo. */
+    buildingId: v.optional(v.id('buildings')),
     /** Son rang : seuls l'infanterie et le blindé en ont un second (`NOMINAL_STRENGTH`) ; absent, le premier. */
     tier: v.optional(UNIT_TIER),
     /** Ses crans déjà entamés (coups et plein, ADR 0028 §3) ; absents, pleins. */
@@ -413,7 +415,7 @@ export const spawnTroops = internalMutation({
   },
   handler: async (
     ctx,
-    { playerId, role, count, lon, lat, carriedBy, tier = 1, rounds, fuel, tourBase },
+    { playerId, role, count, lon, lat, carriedBy, buildingId, tier = 1, rounds, fuel, tourBase },
   ) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
@@ -428,7 +430,7 @@ export const spawnTroops = internalMutation({
           tier,
           nominalStrength: strength,
           currentStrength: strength,
-          stationedAt: { lon, lat },
+          stationedAt: buildingId ?? { lon, lat },
           ...(carriedBy === undefined ? {} : { carriedBy }),
           ...(rounds === undefined ? {} : { rounds }),
           ...(fuel === undefined ? {} : { fuel }),

@@ -103,6 +103,9 @@
  * est lancé ; vingt encore, le chasseur décolle aussi loin que porte son plein (un fil amarré à la
  * piste) et le cargo appareille vers Malte ; vingt encore, le largage arrive et le transport rentre
  * se poser. Lieux `aerodrome` et `port`.
+ * `--poste` (#475, avec `--piste-mole`) garnit d'abord l'aérodrome de deux chasseurs de plus : avec
+ *  celui qui y est formé, l'aire en tient trois ; le cargo du port, l'escorte qui y accoste et le
+ *  cargo lancé font trois coques, la troisième en rade.
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
@@ -240,6 +243,8 @@ const tours = process.argv.includes('--tournee');
 /** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
 const held = process.argv.includes('--sans-depart');
 const rangoon = process.argv.includes('--rangoun');
+/** `--poste` (#475) : des chasseurs et des coques de plus, pour remplir l'aire et le môle. */
+const crowded = process.argv.includes('--poste');
 /** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
 const runwayAt = process.argv.indexOf('--piste-mole');
 const runwayIn = runwayAt < 0 ? null : Number(process.argv[runwayAt + 1]) || 40;
@@ -1748,39 +1753,44 @@ if (runwayScene !== null) {
   );
   console.log(`Le transport décolle pour un largage à ${new Date().toISOString()}`);
   await pause(40_000);
-  // Formed at runwayIn + 25 (`runwayAndMole`): the fighter and the new cargo leave in turn, the
-  // fighter as far as its fuel holds, so that its thread moors at the runway's end.
-  const { me } = await again(() => client.query(api.view.playerView, { token: tokenA, seasonId }));
-  const fighters = me.troops
-    .filter((troop) => troop.role === 'fighter' && !launched.known.has(troop.id))
-    .map(({ id }) => id);
-  let far = null;
-  for (const to of [
-    { lon: 12.57, lat: 55.68 },
-    { lon: 13.4, lat: 52.52 },
-    { lon: 8.68, lat: 50.11 },
-    { lon: 4.85, lat: 45.76 },
-  ])
-    far ??= await march({ from: flight.from, troopIds: fighters, to }).catch((error) => {
-      if (error.data?.code !== 'NOT_ENOUGH_FUEL') throw error;
-      return null;
-    });
-  await march(launched);
-  console.log(`Le chasseur décolle, le cargo appareille, à ${new Date().toISOString()}`);
-  await pause(20_000);
-  // The airdrop arrives, then its way back lands at the airfield.
-  cli([
-    'run',
-    'dev:arriveNow',
-    JSON.stringify({ playerId: scene.a, afterMs: 5_000, onTime: true }),
-  ]);
-  await pause(10_000);
-  cli([
-    'run',
-    'dev:arriveNow',
-    JSON.stringify({ playerId: scene.a, afterMs: 25_000, onTime: true }),
-  ]);
-  console.log(`Le transport se pose dans 25 s, à ${new Date().toISOString()}`);
+  // `--poste` stops here: the new fighter and cargo stay at their posts.
+  if (!crowded) {
+    // Formed at runwayIn + 25 (`runwayAndMole`): the fighter and the new cargo leave in turn, the
+    // fighter as far as its fuel holds, so that its thread moors at the runway's end.
+    const { me } = await again(() =>
+      client.query(api.view.playerView, { token: tokenA, seasonId }),
+    );
+    const fighters = me.troops
+      .filter((troop) => troop.role === 'fighter' && !launched.known.has(troop.id))
+      .map(({ id }) => id);
+    let far = null;
+    for (const to of [
+      { lon: 12.57, lat: 55.68 },
+      { lon: 13.4, lat: 52.52 },
+      { lon: 8.68, lat: 50.11 },
+      { lon: 4.85, lat: 45.76 },
+    ])
+      far ??= await march({ from: flight.from, troopIds: fighters, to }).catch((error) => {
+        if (error.data?.code !== 'NOT_ENOUGH_FUEL') throw error;
+        return null;
+      });
+    await march(launched);
+    console.log(`Le chasseur décolle, le cargo appareille, à ${new Date().toISOString()}`);
+    await pause(20_000);
+    // The airdrop arrives, then its way back lands at the airfield.
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: 5_000, onTime: true }),
+    ]);
+    await pause(10_000);
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: 25_000, onTime: true }),
+    ]);
+    console.log(`Le transport se pose dans 25 s, à ${new Date().toISOString()}`);
+  }
 }
 
 /** `--chargement` : the trucks load, the HQ's twice a second apart: the second load joins. */
@@ -2023,6 +2033,31 @@ async function runwayAndMole() {
       troopIds: spawned,
       buildingId: building.id,
     });
+    for (const id of spawned) for (const { known } of leaving) known.add(id);
+  }
+  // `--poste`: two fighters already at the airfield; with the one formed, the apron holds three,
+  // and the port's cargo, the escort and the cargo launched make three hulls.
+  for (const [role, building] of crowded
+    ? [
+        ['fighter', airfield],
+        ['fighter', airfield],
+      ]
+    : []) {
+    const spawned = JSON.parse(
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({
+          playerId: scene.a,
+          role,
+          count: 1,
+          lon: 0,
+          lat: 0,
+          buildingId: building.id,
+        }),
+      ]).match(/\[[^\]]*\]/)[0],
+    );
+    for (const id of spawned) for (const { known } of leaving) known.add(id);
   }
   cli([
     'run',
