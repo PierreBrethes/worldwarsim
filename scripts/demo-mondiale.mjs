@@ -495,10 +495,18 @@ for (const [k, key] of KEYS.slice(0, seats).entries()) {
 }
 const [tokenA, tokenB] = tokens;
 
+/** `--blitz [théâtre]` (#469) : la saison de la démo est une Blitz, sur ce théâtre (méditerranée par défaut). */
+const blitzAt = process.argv.indexOf('--blitz');
+const blitzTheatre =
+  blitzAt < 0
+    ? null
+    : ((process.argv[blitzAt + 1]?.startsWith('--') ? undefined : process.argv[blitzAt + 1]) ??
+      'mediterranean');
 const { code, seasonId } = await client.mutation(api.seasons.create, {
   token: tokenA,
   compensation: 0,
-  mode: 'mondiale',
+  mode: blitzTheatre === null ? 'mondiale' : 'blitz',
+  ...(blitzTheatre === null ? {} : { theatre: blitzTheatre }),
 });
 for (const token of tokens.slice(1)) await client.mutation(api.seasons.join, { token, code });
 for (const [k, token] of tokens.entries()) {
