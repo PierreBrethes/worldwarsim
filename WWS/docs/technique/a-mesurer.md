@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 7c477c6 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : a608832 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-139 valeurs marquées dans `convex/` et `src/domain/`.
+140 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -144,8 +144,9 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `CITY_TIERS` | `[NAMES_GONE_DISTANCE, 55, 34, 0]` | `src/domain/place-names.ts:118` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `MILLION` | `1_000_000` | `src/domain/place-names.ts:119` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `SMALL_CAPITAL` | `300_000` | `src/domain/place-names.ts:120` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
-| `SEA_RANKS` | `[1, 2, 4]` | `src/domain/place-names.ts:155` | paliers repris de ceux des villes, aucune capture des mers seules |
-| `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:169` | lu sur la maquette A, qui en écrit onze sur l'Europe |
+| `SEA_TIERS` | `[NAMES_GONE_DISTANCE, 45, 0]` | `src/domain/place-names.ts:155` | paliers lus sur la maquette A, aucune capture des mers seules |
+| `SEA_RANKS` | `[2, 4]` | `src/domain/place-names.ts:156` | paliers lus sur la maquette A, aucune capture des mers seules |
+| `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:170` | lu sur la maquette A, qui en écrit onze sur l'Europe |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |

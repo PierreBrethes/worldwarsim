@@ -147,12 +147,13 @@ export function namedCities<
 }
 
 /**
- * **Les mers selon la distance** (#457), aux paliers des villes : au-delà de 65 rien, ni océan
- * ni pendant un rejeu ; puis les rangs 0 et 1 (océans, Méditerranée, mer Noire) ; sous 55 le
- * rang 2 (mer du Nord, Baltique) ; sous 34 les rangs 3 et 4 (Manche, Égée). Au doigt, un palier
- * de moins. @a-mesurer paliers repris de ceux des villes, aucune capture des mers seules
+ * **Les mers selon la distance** (#457, revue du 05/11) : au-delà de 65 rien, ni océan ni
+ * pendant un rejeu ; puis les rangs 0 à 2 (océans, Méditerranée, mer du Nord, Baltique), ceux
+ * que la maquette A écrit au continent ; sous 45 les rangs 3 et 4 (Manche, Égée). Au doigt, un
+ * palier de moins. @a-mesurer paliers lus sur la maquette A, aucune capture des mers seules
  */
-const SEA_RANKS = [1, 2, 4];
+const SEA_TIERS = [NAMES_GONE_DISTANCE, 45, 0];
+const SEA_RANKS = [2, 4];
 
 /** The seas to name at this distance, in their order. */
 export function namedSeas<Sea extends { readonly rank: number }>(
@@ -160,7 +161,7 @@ export function namedSeas<Sea extends { readonly rank: number }>(
   { distance, touch, replaying }: { distance: number; touch: boolean; replaying: boolean },
 ): Sea[] {
   if (!namesShown(distance, replaying)) return [];
-  const tier = CITY_TIERS.findIndex((under) => distance >= under) - 1 - (touch ? 1 : 0);
+  const tier = SEA_TIERS.findIndex((under) => distance >= under) - 1 - (touch ? 1 : 0);
   return tier < 0 ? [] : seas.filter(({ rank }) => rank <= SEA_RANKS[tier]!);
 }
 

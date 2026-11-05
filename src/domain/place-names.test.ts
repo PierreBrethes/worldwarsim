@@ -99,12 +99,14 @@ describe('namedSeas', () => {
     namedSeas(seas, { distance, touch, replaying }).map(({ rank }) => rank);
 
   it('names no sea from 65 out, not even an ocean', () => expect(at(65)).toEqual([]));
-  it('names the oceans and the ranks 0 and 1 from 55 to 65', () => expect(at(60)).toEqual([0, 1]));
-  it('adds the rank 2 under 55', () => expect(at(45)).toEqual([0, 1, 2]));
-  it('names every rank under 34', () => expect(at(20)).toEqual([0, 1, 2, 3, 4]));
+  it('names the ranks 0 to 2 from 45 to 65', () => {
+    expect(at(60)).toEqual([0, 1, 2]);
+    expect(at(46)).toEqual([0, 1, 2]);
+  });
+  it('names every rank under 45', () => expect(at(40)).toEqual([0, 1, 2, 3, 4]));
   it('shows one tier less on a phone', () => {
     expect(at(60, true)).toEqual([]);
-    expect(at(45, true)).toEqual([0, 1]);
+    expect(at(40, true)).toEqual([0, 1, 2]);
     expect(at(20, true)).toEqual([0, 1, 2]);
   });
   it('names nothing during a replay', () => expect(at(20, false, true)).toEqual([]));
