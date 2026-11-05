@@ -59,6 +59,9 @@ function drawnIn(scene: Object3D): (node: Object3D) => boolean {
 
 /** **The flag** (#279): baked apart, white, and inked per instance by its owner's colour. */
 const FLAG = 'drapeau';
+/** The materials white in their file and inked per instance: a copy wears its own ink, which the
+ *  night's glow (`warmPieces`) must not read, or the copy glows another hue than the instance. */
+export const INKED_PER_INSTANCE: ReadonlySet<string> = new Set(['lisere', FLAG]);
 
 /**
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
@@ -175,8 +178,7 @@ export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): G
  *  and a lamp are lit by the night, a runway's lights only while a plane moves on it. Two of them
  *  are never one, whatever they look like. */
 const named = (material: Material): boolean =>
-  material.name === 'lisere' ||
-  material.name === FLAG ||
+  INKED_PER_INSTANCE.has(material.name) ||
   material.name.startsWith('fond_sombre') ||
   material.name.startsWith('feux');
 

@@ -40,6 +40,7 @@ import {
 } from './maquettes';
 import { GROUP_SPACING, pileLayout } from '@/domain/pile-layout';
 import { articulatedOf } from './sequences';
+import { warmPieces } from './halo';
 import { sceneOfFile } from './gltf-scene.fixture';
 import {
   ANONYMOUS_SPAN,
@@ -976,6 +977,32 @@ describe('a site on its socle (ADR 0038)', () => {
     worn.addEventListener('dispose', disposed);
     layer.standIn(MINE, null);
     expect(disposed).toHaveBeenCalled();
+  });
+
+  it('glows the same by night on the instance and on the copy a sequence stands in, liseré and flag', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' })]);
+    const glow = (material: MeshStandardMaterial) => {
+      warmPieces(new Group().add(new Mesh(new BoxGeometry(1, 1, 1), material)), 1);
+      return material.emissive.toArray();
+    };
+    const at = new Map<string, number[]>();
+    layer.group.traverse((node) => {
+      const material = (node as InstancedMesh).isInstancedMesh
+        ? ((node as InstancedMesh).material as MeshStandardMaterial)
+        : null;
+      if (material && ['lisere', 'drapeau'].includes(material.name))
+        at.set(material.name, glow(material));
+    });
+    expect([...at.keys()].sort()).toEqual(['drapeau', 'lisere']);
+    const copy = new Group();
+    for (const name of at.keys())
+      copy.add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name })));
+    layer.standIn(MINE, copy);
+    for (const mesh of copy.children as Mesh[]) {
+      const worn = mesh.material as MeshStandardMaterial;
+      expect(worn.color.getHex()).toBe(new Color('#2a5ba8').getHex());
+      expect(glow(worn)).toEqual(at.get(worn.name));
+    }
   });
 
   it('ranks my garrison on the yard from fx_rang, on the socle top, along the rank', async () => {
