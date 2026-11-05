@@ -1138,6 +1138,48 @@
   pointer-events: auto;
 }
 
+/* **Le drapeau d'un des Sept** (#442) : à l'encre de son teneur. Quand il change de mains, celui
+   du perdant descend la hampe et celui du preneur monte, 0,8 s chacun ; du neutre, il ne fait que
+   monter. Réduites et coupées : d'un coup. */
+.label--strategic .label-pictogram {
+  color: var(--label-ink);
+}
+
+.label--flag-swap .label-pictogram {
+  animation: flag-swap 1.6s ease-in-out both;
+}
+
+.label--flag-rise .label-pictogram {
+  animation: flag-rise 0.8s 0.8s ease-out both;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off']) .label-pictogram {
+  animation: none;
+}
+
+@keyframes flag-swap {
+  0% {
+    color: var(--flag-from);
+  }
+
+  50% {
+    color: var(--flag-from);
+    opacity: 0;
+    translate: 0 14px;
+  }
+
+  50.1% {
+    color: var(--label-ink);
+  }
+}
+
+@keyframes flag-rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
 /* **Au loin, un signe pèse ce que pèse une épingle** (#234) : le coffre d'un objectif, le drapeau
    d'un point stratégique et celui d'une arrivée prennent la taille d'une épingle de bâtiment,
    à l'encre, sans flaque ni mât. Lisibles, ils ne dominent plus les pièces. */
