@@ -419,6 +419,15 @@ export class PinLayer {
     return null;
   }
 
+  /** Every mark on the canvas: what a name of the decor never covers (#440). */
+  rects(): Rect[] {
+    return this.marks.flatMap((mark) => {
+      if (mark.weight <= 0) return [];
+      const r = mark.radius + 2;
+      return [{ left: mark.sx - r, right: mark.sx + r, top: mark.sy - r, bottom: mark.sy + r }];
+    });
+  }
+
   rectOf(id: string): Rect | null {
     const mark = this.marks.find((each) => each.ids.length === 1 && each.ids[0] === id);
     if (mark === undefined || mark.weight < TAKES_POINTER) return null;

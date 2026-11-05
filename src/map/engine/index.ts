@@ -162,6 +162,8 @@ import { BASIN_MIN_RADIUS_PX, DepositBasins, SWEEP_GLOW_MS } from './deposit-bas
 import { BASIN_KM } from '@/domain/deposit-basins';
 import { SweepWave } from './deposit-sweep';
 import type { NearSheet } from './near-sheet';
+import { RiverLayer, riverData } from './rivers';
+import type { City } from '@/domain/atlas';
 import { fromGeometryData } from './atlas-geometry';
 import {
   RegionLayer,
@@ -580,6 +582,9 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
   private readonly night: NightSky;
+  private readonly rivers: RiverLayer;
+  /** The atlas's cities where the board holds them, for their names (`nameSpots`). */
+  private readonly cities: ReadonlyArray<{ readonly city: City; readonly at: Vector3 }>;
   private readonly halos: Halos;
   /** The night the pieces were last warmed by. */
   private warmed = 0;
@@ -1014,6 +1019,11 @@ export class MapEngine {
       this.scene.add(mesh);
     }
     this.scene.add(borders);
+    this.rivers = new RiverLayer(this.frame, riverData(atlas.rivers(), this.frame));
+    this.cities = atlas
+      .cities()
+      .map((city) => ({ city, at: this.frame.projectLonLat(city.lonLat) }));
+    this.scene.add(this.rivers.group);
     this.scene.add(coast);
 
     for (const mesh of meshes) this.countryOf.set(mesh.userData.adm0, mesh);
@@ -1564,6 +1574,7 @@ export class MapEngine {
   displayNearAtlas({ atlas, sheet }: { atlas: Atlas; sheet: NearSheet }): void {
     this.invalidate();
     this.nearLevel = levelOf(sheet.sheet);
+    this.rivers.add('near', sheet.rivers);
     this.regions.showAtlas(atlas, {
       far: fromGeometryData(sheet.lines.far),
       near: fromGeometryData(sheet.lines.near),
@@ -2198,6 +2209,7 @@ export class MapEngine {
     this.eye.updateProjectionMatrix();
     this.renderer.setSize(clientWidth, clientHeight);
     this.sheet.coast.material.resolution.set(clientWidth, clientHeight);
+    this.rivers.resize(clientWidth, clientHeight);
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     // A target's least width on screen is counted in this window's own pixels (`targetGrowth`).
@@ -2712,6 +2724,54 @@ export class MapEngine {
     return {
       x: box.left + ((point.x + 1) / 2) * box.width,
       y: box.top + ((1 - point.y) / 2) * box.height,
+    };
+  }
+
+  /**
+   * **Les noms du décor à écrire maintenant** (#440), à l'écran : les villes que la distance
+   * montre, les fleuves du niveau dessiné, et les épingles qu'aucun nom ne couvre. Rien loin du
+   * plateau, rien pendant un rejeu. La couche des étiquettes les place (`placeNames`).
+   */
+  nameSpots(): NameSpots {
+    const distance = this.cameraDistance();
+    const none = { cities: [], rivers: [], pins: [] };
+    if (this.replay !== null || distance >= NAMES_GONE_DISTANCE) return none;
+    const tier = CITY_TIERS.findIndex((under) => distance >= under) - (this.touch ? 1 : 0);
+    const onScreen = (at: Vector3, margin: number) => {
+      const point = at.clone().project(this.eye);
+      if (point.z > 1) return null;
+      const x = ((point.x + 1) / 2) * this.screenWidth;
+      const y = ((1 - point.y) / 2) * this.screenHeight;
+      return x < -margin ||
+        y < -margin ||
+        x > this.screenWidth + margin ||
+        y > this.screenHeight + margin
+        ? null
+        : { x, y };
+    };
+    const shown = (city: City) =>
+      tier >= 2 || (city.capital ? tier >= 0 : tier >= 1 && city.population > MILLION);
+    return {
+      cities: this.cities.flatMap(({ city, at }) => {
+        const point = shown(city) ? onScreen(at, 0) : null;
+        return point === null ? [] : [{ ...point, name: city.name, capital: city.capital }];
+      }),
+      rivers: this.rivers.names().flatMap(({ name, spots }) => {
+        const seen = spots.flatMap(({ at, from, to }) => {
+          const [middle, a, b] = [onScreen(at, 0), onScreen(from, 400), onScreen(to, 400)];
+          return middle === null || a === null || b === null
+            ? []
+            : [
+                {
+                  ...middle,
+                  angle: Math.atan2(b.y - a.y, b.x - a.x),
+                  length: Math.hypot(b.x - a.x, b.y - a.y),
+                },
+              ];
+        });
+        return seen.length === 0 ? [] : [{ name, spots: seen }];
+      }),
+      pins: this.pins.rects(),
     };
   }
 
@@ -4651,11 +4711,13 @@ export class MapEngine {
     borders.dashSize = COUNTRY_DASH_PX * this.unitsPerPixel(distance);
     borders.gapSize = COUNTRY_GAP_PX * this.unitsPerPixel(distance);
     this.sheet.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
+    this.rivers.fade(distance);
     const detail = this.nearLevel === null ? 'far' : levelAt(this.detail, distance);
     if (detail !== this.detail) {
       this.detail = detail;
       showLevel(this.sheet, detail === 'near' ? this.nearLevel! : this.farLevel);
       this.regions.showLines(detail);
+      this.rivers.show(detail);
     }
 
     this.renderer.render(this.scene, this.eye);
@@ -4678,6 +4740,34 @@ export class MapEngine {
     );
   };
 }
+
+/**
+ * **Les villes selon la distance** (#440) : au-delà de 65 rien ; puis les capitales ; sous 55 les
+ * villes de plus d'un million ; sous 34 toutes. Au doigt, un palier de moins. @a-mesurer
+ */
+const NAMES_GONE_DISTANCE = REGIONS_GONE_DISTANCE;
+const CITY_TIERS = [55, 34, 0];
+const MILLION = 1_000_000;
+
+/** Where the decor's names may go (`nameSpots`), in the layer's pixels. */
+export type NameSpots = {
+  readonly cities: ReadonlyArray<{
+    readonly x: number;
+    readonly y: number;
+    readonly name: string;
+    readonly capital: boolean;
+  }>;
+  readonly rivers: ReadonlyArray<{
+    readonly name: string;
+    readonly spots: ReadonlyArray<{
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+      readonly length: number;
+    }>;
+  }>;
+  readonly pins: readonly Rect[];
+};
 
 /** The screen's edge, eight points a side, in device coordinates (`fullDayInView`). */
 const SCREEN_EDGE: ReadonlyArray<readonly [number, number]> = Array.from(

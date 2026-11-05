@@ -366,6 +366,7 @@ describe('a deposit on the map', () => {
       subscribeRest: () => () => {},
       atZoomFloor: () => false,
       invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], pins: [] }),
       pieceRect: (id: string) =>
         id === 'building-mine@3,50' ? { left: 700, right: 860, top: 160, bottom: 269 } : null,
       cameraDistance: () => 20,
@@ -499,6 +500,7 @@ describe('a ring of buildings around a stack', () => {
       subscribeRest: () => () => {},
       atZoomFloor: () => false,
       invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], pins: [] }),
       pieceRect: () => null,
       cameraDistance: () => 20,
     };

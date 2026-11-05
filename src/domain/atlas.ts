@@ -78,6 +78,8 @@ export type Atlas = {
   readonly regions: readonly AtlasRegion[];
   /** The cities, capitals first, then by population. */
   cities(): readonly City[];
+  /** The far level's rivers; the near ones come with the near file (`decodeRivers`). */
+  rivers(): readonly River[];
   /** The outer ring of each great lake. */
   lakes(detail: Detail): Float32Array[];
   /** The arcs whose two sides `differ` tells apart, each once. */
@@ -194,9 +196,12 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile | DecodedArcs): Atl
     population,
   }));
 
+  const rivers = decodeRivers(file.rivers ?? [], file.transform);
+
   return {
     regions,
     cities: () => cities,
+    rivers: () => rivers,
     lakes(detail) {
       return (file.objects.lakes?.geometries ?? [])
         .flatMap((lake) => (lake.type === 'Polygon' ? [lake.arcs] : lake.arcs))
