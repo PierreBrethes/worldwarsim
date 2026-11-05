@@ -91,6 +91,7 @@ import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
+  aroundTheFront,
   crateSearch,
   crateTaking,
   perronOf,
@@ -4039,12 +4040,24 @@ export class MapEngine {
       sequence = cue.act === 'ramassage' ? crateTaking(trip) : crateSearch(trip);
     } else if (cue.act === 'pillage' && site !== null && site.crates.length > 0) {
       // Each man takes a crate off the top of the perron's pile, which loses it (storyboard).
+      // A man behind the door's front goes round the building: the crate leaves by the door.
       const top = [...site.crates].sort((a, b) => b.at.y - a.at.y);
-      const trips: Trip[] = [first, second].flatMap((man, k) =>
-        man === undefined || top[k] === undefined
-          ? []
-          : [{ part: `man_${k}`, to: offset(man, site.toBoard(top[k].at)) }],
-      );
+      const yaw = site.door?.[3] ?? 0;
+      const box = {
+        minX: site.box.min.x,
+        maxX: site.box.max.x,
+        minZ: site.box.min.z,
+        maxZ: site.box.max.z,
+      };
+      const trips: Trip[] = [first, second].flatMap((man, k) => {
+        const crate = top[k]?.at;
+        if (man === undefined || crate === undefined) return [];
+        const from = site.toModel(man);
+        const via = aroundTheFront([from.x, from.z], [crate.x, crate.z], yaw, box).map(([x, z]) =>
+          offset(man, site.toBoard(new Vector3(x, SOCLE_TOP, z))),
+        );
+        return [{ part: `man_${k}`, to: offset(man, site.toBoard(crate)), via }];
+      });
       const plunder = plunderOf({ trips, perMetre });
       perron = perronOf(
         plunder,

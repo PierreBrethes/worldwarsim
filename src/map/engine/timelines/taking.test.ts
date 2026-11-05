@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAN_METRES } from '@/domain/piece-size';
 import {
+  aroundTheFront,
   crateSearch,
   crateTaking,
   perronOf,
@@ -97,6 +98,27 @@ describe('plunderOf (#279, « Piller »)', () => {
     expect(plunder.at(plunder.ms - 1).man_0?.travel).toEqual([0, 0, 0]);
   });
 
+  it('walks a man round by his way, there and back, when the perron is not in his sight', () => {
+    const via = [[6, 0, 0] as const, [6, 0, 4] as const];
+    const round = plunderOf({ trips: [{ part: 'man_0', to, via }], perMetre: 1 });
+    const out = TAKING.walk * 1.4;
+    const passes = (from: number, until: number) =>
+      via.every((point) =>
+        Array.from(
+          { length: 401 },
+          (_, k) => round.at(from + ((until - from) * (k + 1)) / 402).man_0,
+        )
+          .map((pose) => pose!.travel!)
+          .some((at) => Math.hypot(at[0] - point[0], at[2] - point[2]) < 0.05),
+      );
+    expect(passes(0, out)).toBe(true);
+    const back = out + TAKING.lift + 150;
+    expect(passes(back, back + out)).toBe(true);
+    // He still stops short of the crate, and comes home to his place.
+    expect(round.at(out + 1).man_0?.travel?.[2]).toBeCloseTo(4);
+    expect(round.at(round.ms - 1).man_0?.travel).toEqual([0, 0, 0]);
+  });
+
   it('takes the crates off the top of the perron as the men shoulder theirs', () => {
     const perron = perronOf(plunder, ['caisse_5', 'caisse_4']);
     expect(perron.family).toBe('warehouse');
@@ -135,5 +157,32 @@ describe('takingStepOf (#279, « Réduites et coupées »)', () => {
     expect(takingStepOf('full')).toBe('play');
     expect(takingStepOf('reduced')).toBe('ring');
     expect(takingStepOf('off')).toBe('nothing');
+  });
+});
+
+/** #279 : la caisse prise sort par la porte, à l'épaule d'un homme (storyboard « Piller »). */
+describe('aroundTheFront (#279, « Piller »)', () => {
+  const box = { minX: -38, maxX: 38, minZ: -28, maxZ: 48 };
+  const crate = [-4.7, 21] as const;
+
+  it('takes a man behind the building round its side, to the front of its door', () => {
+    expect(aroundTheFront([0, -10], crate, 0, box)).toEqual([
+      [38, -10],
+      [38, 21],
+    ]);
+    expect(aroundTheFront([-30, -20], crate, 0, box)).toEqual([
+      [-38, -20],
+      [-38, 21],
+    ]);
+  });
+
+  it('lets a man before the door go straight', () => {
+    expect(aroundTheFront([-20, 44], crate, 0, box)).toEqual([]);
+  });
+
+  it('reads the front by the door, however the site is turned', () => {
+    const [[x, z]] = aroundTheFront([10, 0], [21, 0], Math.PI / 2, box) as [[number, number]];
+    expect(x).toBeCloseTo(10);
+    expect(z).toBeCloseTo(-28);
   });
 });
