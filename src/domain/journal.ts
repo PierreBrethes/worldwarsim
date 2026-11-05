@@ -60,16 +60,19 @@ export function journalDispatches(
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
   const verdict = outcome?.verdict ?? null;
+  /** Une clôture à la main a déjà sa dépêche (`seasonClosed`) : la ligne la doublerait. */
   const closing =
-    verdict !== null
-      ? fr.victory.verdictConcluded(
-          verdict.reason,
-          verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
-          verdict.perMinute,
-        )
-      : outcome === null || outcome.winnerNation === null
-        ? null
-        : fr.victory.concluded(nationName(outcome.winnerNation));
+    verdict?.reason === 'closed'
+      ? null
+      : verdict !== null
+        ? fr.victory.verdictConcluded(
+            verdict.reason,
+            verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
+            verdict.perMinute,
+          )
+        : outcome === null || outcome.winnerNation === null
+          ? null
+          : fr.victory.concluded(nationName(outcome.winnerNation));
   const concluded: ReadonlyArray<Written> =
     outcome === null || outcome.concludedAt === null || closing === null
       ? []

@@ -435,11 +435,18 @@ export const fr = {
       won: 'VICTOIRE',
       lost: 'DÉFAITE',
       draw: 'ÉGALITÉ',
+      closed: 'SAISON CLOSE',
       eliminated: (time: string) => `ÉLIMINÉ À ${time} — votre quartier général est tombé`,
       home: 'retour à l’accueil',
       watch: 'regarder la carte',
       observe: 'observer',
-      outcome: { winner: 'vainqueur', loser: 'vaincu', out: 'éliminé', draw: 'égalité' },
+      outcome: {
+        winner: 'vainqueur',
+        loser: 'vaincu',
+        out: 'éliminé',
+        draw: 'égalité',
+        closed: 'saison close',
+      },
     },
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
@@ -2470,11 +2477,13 @@ export const fr = {
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
     /** **La fin d'une partie dit pourquoi** (B10, B11, M1, M12) : le journal et l'édition finale. */
     verdictConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
-      reason === 'draw'
-        ? perMinute === null
-          ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
-          : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
-        : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
+      reason === 'closed'
+        ? 'LA SAISON EST CLOSE'
+        : reason === 'draw'
+          ? perMinute === null
+            ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
+            : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
+          : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
       reason === 'hqTaken'
         ? 'son infanterie a capturé le dernier quartier général adverse'

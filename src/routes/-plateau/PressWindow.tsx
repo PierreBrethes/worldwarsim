@@ -164,11 +164,13 @@ function Ending({
   const outcome =
     verdict === null
       ? null
-      : verdict.winnerNation === null
-        ? fr.blitz.ending.draw
-        : verdict.winnerNation === ending.nation
-          ? fr.blitz.ending.won
-          : fr.blitz.ending.lost;
+      : verdict.reason === 'closed'
+        ? fr.blitz.ending.closed
+        : verdict.winnerNation === null
+          ? fr.blitz.ending.draw
+          : verdict.winnerNation === ending.nation
+            ? fr.blitz.ending.won
+            : fr.blitz.ending.lost;
   return (
     <div className="shrink-0 border-b border-[var(--ink)] px-4 py-[12px] text-center">
       {outcome !== null && (

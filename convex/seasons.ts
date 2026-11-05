@@ -752,7 +752,16 @@ export const conclude = mutation({
     const refusal = concludeRefusal(player, present, season, now);
     if (refusal !== null) fail(refusal);
 
-    await concludeSeason(ctx, season._id, null, now);
+    /** Une Mondiale close à la main a son verdict (#443) ; la Blitz garde sa fin sans verdict. */
+    await concludeSeason(
+      ctx,
+      season._id,
+      null,
+      now,
+      modeOf(season.mode) === 'mondiale'
+        ? { reason: 'closed', closedBy: player.nation ?? player.nickname }
+        : undefined,
+    );
     for (const entry of present) {
       await ctx.db.insert('notices', { playerId: entry._id, at: now, kind: 'seasonClosed' });
     }

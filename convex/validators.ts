@@ -1034,6 +1034,10 @@ export const VERDICT = v.object({
     v.literal('points'),
     v.literal('clock'),
     v.literal('territory'),
+    /** Close à la main (`seasons.conclude`) : personne n'est vainqueur, vaincu ni à égalité. */
+    v.literal('closed'),
   ),
   perMinute: v.optional(v.number()),
+  /** La nation qui a clos à la main. */
+  closedBy: v.optional(v.string()),
 });
