@@ -2,7 +2,7 @@ import { fr } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
-import { nationInk } from './nations';
+import { LOSS_INK, nationInk } from './nations';
 import type { JournalDispatch } from './player-view';
 
 /** What a stamp says: a word and the hour, the prototype's `★ 14:32 ★`. */
@@ -61,8 +61,6 @@ export const STAMP_MS = HOLD_MS + PEAK / LIFT_PER_MS;
  *  l'autre monte (0,8 s + 0,8 s), le cachet se pose ensuite et tient 3,4 s. */
 export const FLAG_SWAP_MS = 1600;
 const SEAL_HOLD_MS = 3400;
-/** L'encre noire d'une perte : « QG tombé », « compte rompu » (`.stamp.lost` des storyboards). */
-export const LOSS_INK = '#2a2118';
 /** @a-mesurer : la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant
  *  et à ce près : le point de la capture est celui où l'infanterie s'est arrêtée. */
 const TWIN_DEGREES = 0.5;

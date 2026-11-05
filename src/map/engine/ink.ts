@@ -140,7 +140,7 @@ function grained(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): Canv
  * papier, à l'encre du preneur — le nom du point en arc, l'heure, « IV » au quatrième, et sept
  * pastilles dont autant de pleines qu'il en tient. Dessiné dans la case de 100 de la maquette.
  */
-export function sealTexture(
+function sealTexture(
   { word, hour }: StampWords,
   ink: string,
   held: number,

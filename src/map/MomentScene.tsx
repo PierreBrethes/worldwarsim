@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LOSS_INK } from '@/domain/ink-bursts';
+import { LOSS_INK } from '@/domain/nations';
 import type { MapMotion } from '@/domain/map-motion';
 import {
   FALL_HOLD_MS,
