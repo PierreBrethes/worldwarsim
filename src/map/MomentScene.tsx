@@ -74,20 +74,19 @@ export function useMomentScene(
     const full = motion === 'full';
     const play = ({ does, index = 0 }: MomentBeat) => {
       if (does === 'open') return finish();
-      if (moment.kind === 'fall') {
-        if (does === 'fly')
-          engine.poseCamera(engine.cameraPose([moment.at], distance), full ? FLY_MS : 0, lift);
-        else if (does === 'stamp')
-          engine.inkBurst({
-            kind: 'captured',
-            at: moment.at,
-            words: { word: fr.stamps.hqFallen, hour: moment.hour },
-            ink: LOSS_INK,
-            holdMs: FALL_HOLD_MS,
-            over: true,
-          });
-        return;
-      }
+      const fall = moment.kind === 'fall' ? moment : moment.fall;
+      if (does === 'fly' && fall !== null)
+        engine.poseCamera(engine.cameraPose([fall.at], distance), full ? FLY_MS : 0, lift);
+      else if (does === 'stamp' && fall !== null)
+        engine.inkBurst({
+          kind: 'captured',
+          at: fall.at,
+          words: { word: fr.stamps.hqFallen, hour: fall.hour },
+          ink: LOSS_INK,
+          holdMs: FALL_HOLD_MS,
+          over: true,
+        });
+      if (moment.kind === 'fall') return;
       const held = moment.held ?? [];
       if (does === 'pull' && moment.seven !== null)
         engine.pullBack(moment.seven, full ? PULL_MS : 0, lift);

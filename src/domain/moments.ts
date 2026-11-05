@@ -13,8 +13,10 @@ import type { SeasonMode } from './season-mode';
  * sa feuille (`useOpenedOnce`), et rien que ce que la vue sert déjà : le lieu de ma chute est
  * celui de ma dépêche, et le recul de la victoire ne cadre que les Sept, publics.
  */
+type Fall = { readonly kind: 'fall'; readonly at: LonLat; readonly hour: string };
+
 export type Moment =
-  | { readonly kind: 'fall'; readonly at: LonLat; readonly hour: string }
+  | Fall
   | {
       readonly kind: 'victory';
       readonly ink: string;
@@ -27,6 +29,8 @@ export type Moment =
       readonly held: ReadonlyArray<{ readonly at: LonLat; readonly name: string }> | null;
       /** Les Sept, que le recul cadre. */
       readonly seven: ReadonlyArray<LonLat> | null;
+      /** **Ma chute, si elle clôt la saison** : jouée d'abord, elle n'a pas eu sa scène. */
+      readonly fall: Fall | null;
     };
 
 export type MomentFacts = {
@@ -42,14 +46,18 @@ export type MomentFacts = {
 /** Le moment d'une fin (`endingOf`), `null` s'il n'y a rien à jouer — et en Blitz. */
 export function momentOf(ending: 'final' | 'out' | null, facts: MomentFacts): Moment | null {
   if (ending === null || facts.mode === 'blitz') return null;
-  if (ending === 'out') {
-    const fall = facts.journal.find(
-      (dispatch) => dispatch.kind === 'elimination' && dispatch.at === facts.eliminatedAt,
-    );
-    return fall?.place == null
+  const dispatch = facts.journal.find(
+    (one) => one.kind === 'elimination' && one.at === facts.eliminatedAt,
+  );
+  const fall: Fall | null =
+    dispatch?.place == null
       ? null
-      : { kind: 'fall', at: [fall.place.lon, fall.place.lat], hour: asClockTime(fall.at) };
-  }
+      : {
+          kind: 'fall',
+          at: [dispatch.place.lon, dispatch.place.lat],
+          hour: asClockTime(dispatch.at),
+        };
+  if (ending === 'out') return fall;
   const winner = facts.verdict?.winnerNation ?? null;
   const byPoints = facts.verdict?.reason === 'points' && winner !== null;
   const won = winner !== null && winner === facts.nation;
@@ -71,6 +79,7 @@ export function momentOf(ending: 'final' | 'out' | null, facts: MomentFacts): Mo
           .map((point) => ({ at: point.point, name: fr.points.names[point.key] }))
       : null,
     seven: byPoints ? facts.strategicPoints.map((point) => point.point) : null,
+    fall: facts.eliminatedAt === facts.concludedAt ? fall : null,
   };
 }
 
@@ -99,21 +108,21 @@ const REDUCED_OPEN_MS = 400;
 /** **Le minutage d'un moment**, en ms depuis son départ. Coupées : la pose finale (les Sept, à
  *  une victoire aux points) et la feuille. */
 export function momentBeatsOf(moment: Moment, motion: MapMotion): ReadonlyArray<MomentBeat> {
-  if (moment.kind === 'fall') {
-    if (motion === 'off')
-      return [
-        { at: 0, does: 'fly' },
-        { at: 0, does: 'open' },
-      ];
-    const stamp = motion === 'full' ? FLY_MS : 0;
-    return [
-      { at: 0, does: 'fly' },
-      { at: stamp, does: 'stamp' },
-      { at: motion === 'full' ? stamp + FALL_HOLD_MS : REDUCED_OPEN_MS, does: 'open' },
-    ];
-  }
+  const stamp = motion === 'full' ? FLY_MS : 0;
+  const fallen = motion === 'full' ? stamp + FALL_HOLD_MS : REDUCED_OPEN_MS;
+  const falls = moment.kind === 'fall' || moment.fall !== null;
+  const fall: MomentBeat[] = !falls
+    ? []
+    : motion === 'off'
+      ? [{ at: 0, does: 'fly' }]
+      : [
+          { at: 0, does: 'fly' },
+          { at: stamp, does: 'stamp' },
+        ];
+  if (moment.kind === 'fall') return [...fall, { at: motion === 'off' ? 0 : fallen, does: 'open' }];
   if (motion === 'off')
     return [
+      ...fall,
       ...(moment.held === null ? [] : [{ at: 0, does: 'pull' } as const]),
       { at: 0, does: 'sepia' },
       { at: 0, does: 'open' },
@@ -123,7 +132,7 @@ export function momentBeatsOf(moment: Moment, motion: MapMotion): ReadonlyArray<
     { at: big + SEPIA_AFTER_MS, does: 'sepia' },
     { at: big + SEPIA_AFTER_MS + OPEN_AFTER_MS, does: 'open' },
   ];
-  if (moment.held === null) return tail(0);
+  if (moment.held === null) return [...fall, ...tail(falls ? fallen : 0)];
   const seals = motion === 'full' ? PULL_MS : 0;
   const trace = seals + TRACE_AFTER_MS;
   return [

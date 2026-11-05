@@ -14,8 +14,8 @@ import { useMomentScene } from './MomentScene';
  * premier geste.
  */
 const START: CameraPose = { target: [0, 0, 0], distance: 60, orientation: [0, 1, 0] };
-const fall: Moment = { kind: 'fall', at: [2, 49], hour: '21:04:00' };
-const victory: Moment = {
+const fall = { kind: 'fall', at: [2, 49], hour: '21:04:00' } as const;
+const victory = {
   kind: 'victory',
   ink: '#444',
   hour: '21:04:00',
@@ -30,7 +30,8 @@ const victory: Moment = {
     [2, 2],
     [3, 3],
   ],
-};
+  fall: null,
+} as const;
 
 function fakeEngine() {
   return {
@@ -108,6 +109,20 @@ describe('useMomentScene', () => {
     act(() => void vi.advanceTimersByTime(1600));
     expect(onDone).toHaveBeenCalledOnce();
     expect(result.current.big).toBeNull();
+  });
+
+  it('flies to my headquarters, the last, stamps it, then closes the season', () => {
+    const engine = fakeEngine();
+    const last = { ...victory, word: 'Saison close', held: null, seven: null, fall };
+    const { result } = play(engine, last);
+    expect(engine.poseCamera).toHaveBeenCalledWith({ ...START, target: [1, 0, 0] }, 1000, 0);
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(engine.inkBurst).toHaveBeenCalledWith(
+      expect.objectContaining({ at: [2, 49], words: { word: 'QG tombé', hour: '21:04:00' } }),
+    );
+    expect(result.current.big).toBeNull();
+    act(() => void vi.advanceTimersByTime(3200));
+    expect(result.current.big?.word).toBe('Saison close');
   });
 
   it('cut motion lays the end at once over the Seven, the sepia released', () => {
