@@ -3,7 +3,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { fr } from '@/i18n/fr';
 import { Stamp } from '@/shell/Stamp';
 
-export const BUREAU_ID = 'bureau';
+const BUREAU_ID = 'bureau';
 const CODE_ID = 'front-code';
 const HINT_ID = 'front-code-hint';
 const CODE_LENGTH = 6;

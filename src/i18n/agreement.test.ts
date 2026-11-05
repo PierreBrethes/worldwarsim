@@ -66,11 +66,6 @@ describe('the Mondiale texts a Blitz does not show', () => {
     expect(text(false)).toMatch(/avant-poste/);
     expect(text(false)).toContain('chantier');
   });
-
-  it('keeps the protractor label from naming a desk that is not there', () => {
-    expect(fr.protractor.open(0, true)).not.toContain('chantiers');
-    expect(fr.protractor.open(0)).toContain('chantiers');
-  });
 });
 
 describe('a capture notice declines the site', () => {

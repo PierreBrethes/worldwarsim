@@ -52,7 +52,7 @@ export const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socl
  * level or state. The rigs read it, so that a copy stood in for a resting maquette has neither
  * (`standIn` puts the levels back).
  */
-export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
+function drawnIn(scene: Object3D): (node: Object3D) => boolean {
   const later = onSocle(scene) ? LATER : new Set<string>();
   return (node) => flagless(node) && !later.has(node.name);
 }

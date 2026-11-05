@@ -40,7 +40,6 @@ import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
-import type { RacePoint } from '../domain/landing';
 import type { StrategicPointKey } from '../domain/strategic-points';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
@@ -1880,9 +1879,9 @@ export const fr = {
     },
   },
 
-  /** **La une** (`/` sans session, page publique du 14/10/2026) : une édition qu'on déplie — la
-   *  une, puis sa photographie, qui est la table, et des coupures que la table joue. On entre sur
-   *  invitation (marque-1c) : un code, ou un compte déjà ouvert. */
+  /** **La une** (`/` sans session) : la une d'un journal, dont la photographie est le film,
+   *  et sous le pli les gestes d'aujourd'hui. On entre sur invitation (marque-1c) : un code, ou un
+   *  compte déjà ouvert, ou un dossier à ouvrir pour fonder. */
   front: {
     /** La date du jour en tête de page, longue au bureau, abrégée sur téléphone. */
     date: (at: Date) =>
@@ -1896,8 +1895,6 @@ export const fr = {
     datelineLong: ' — édition de guerre',
     onInvitation: 'sur invitation',
     film: 'voir le film · 30 s',
-    unfold: 'dépliez l’édition',
-    engraving: 'gravure de la carte…',
     caption:
       'Notre photographie : la table, ce matin, de la Manche à Narvik. Rien n’y est retouché : c’est le jeu.',
     kicker: 'Huit nations · la carte du monde réel · 1940',
@@ -1949,228 +1946,6 @@ export const fr = {
         ],
       },
     },
-    briefs: [
-      {
-        kicker: 'Le front',
-        text: 'Les pièces se lèvent et se posent comme aux échecs.',
-        page: 'Page 2',
-      },
-      {
-        kicker: 'Renseignement',
-        text: 'Ce que vous savez de l’ennemi pâlit à l’encre.',
-        page: 'Page 3',
-      },
-      {
-        kicker: 'L’assaut',
-        text: 'On frappe le premier ; l’infanterie capture Berne.',
-        page: 'Page 4',
-      },
-      { kicker: 'La course', text: 'Sept lieux réels, une règle cassée chacun.', page: 'Page 5' },
-    ],
-
-    /** La feuille d'Europe : ce qui y est gravé, au crayon et à l'encre de mer. */
-    sheet: {
-      cartouche: 'ÉTAT-MAJOR  ·  FEUILLE  D’EUROPE',
-      seas: {
-        atlantic: 'Océan Atlantique',
-        mediterranean: 'Méditerranée',
-        northSea: 'Mer du Nord',
-        channel: 'La Manche',
-        blackSea: 'Mer Noire',
-      },
-      km: (km: number) => `${km} km`,
-      north: 'N',
-    },
-
-    pieces: {
-      pile: 'pile · la mienne',
-      infantry: 'Infanterie',
-      post: 'avant-poste · le mien',
-      postLevel: 'Niv. 3',
-      reach: 'portée',
-      reachKm: '240 km',
-      surveyedAgo: (time: string, hours: number) =>
-        hours === 0 ? `relevé · ${time}` : `relevé de ${time} · il y a ${hours} h`,
-      estimatedHeading: 'cap estimé',
-      southWest: 'sud-ouest',
-      atContact: (time: string) => `au contact · ${time}`,
-      infantryOne: 'infanterie ×1',
-      men: (count: number) => `${count} hommes`,
-      armorOne: 'blindé ×1',
-      panzer: 'Panzer IV',
-      openField: 'rase campagne',
-      unsheltered: 'sans abri',
-      berne: 'Berne',
-      town: 'ville',
-      townMine: 'ville · la mienne',
-      capture: 'capture · infanterie',
-      capturing: 'En cours',
-      taken: 'Capturée',
-      forces: 'forces',
-      forcesValue: '10 / 10',
-      forceInField: 'la force devant Berne',
-      enemyForce: 'force relevée',
-    },
-
-    /** La carte d'envoi au point posé : ce que le serveur daterait, en jeu. */
-    send: {
-      toward: (place: string) => `vers ${place}`,
-      here: 'le point visé',
-      arrival: (time: string) => `arrivée ${time}`,
-      slots: '1 mouvement sur 2',
-    },
-
-    founded: 'fondé',
-
-    /** Les lieux où la compagnie se pose, et les villes que la nuit allume. */
-    places: {
-      verdun: 'Verdun',
-      metz: 'Metz',
-      nancy: 'Nancy',
-      reims: 'Reims',
-      strasbourg: 'Strasbourg',
-      saarbrucken: 'Sarrebruck',
-      brussels: 'Bruxelles',
-      lille: 'Lille',
-      lyon: 'Lyon',
-      paris: 'Paris',
-    },
-    cities: {
-      paris: 'Paris',
-      london: 'Londres',
-      berlin: 'Berlin',
-      rome: 'Rome',
-      madrid: 'Madrid',
-      moscow: 'Moscou',
-      warsaw: 'Varsovie',
-      cairo: 'Le Caire',
-      istanbul: 'Istanbul',
-      stockholm: 'Stockholm',
-    },
-
-    pages: {
-      front: {
-        folio: 'Page 2 · le front',
-        time: '14:05',
-        title: 'On lève la pièce, on la pose, l’ordre part',
-        chapo: 'Pas de menu : le mouvement s’ordonne sur la carte, et nulle part ailleurs.',
-        body: 'Levée, la compagnie suit la main ; posée, la rose dit ce qu’on peut faire là. La route et l’heure d’arrivée viennent du serveur. On envoie, un mouvement est pris — et c’est irréversible.',
-        steps: ['lever', 'poser', 'choisir', 'envoyer', 'arriver'],
-        legend: 'À vous : cliquez la compagnie, puis un point de la carte.',
-      },
-      fog: {
-        folio: 'Page 3 · renseignement',
-        time: '09:40',
-        title: 'L’ennemi n’a pas de visage, seulement une date',
-        chapo: 'Vous ne voyez de l’autre que ce que vos postes relèvent, et le relevé vieillit.',
-        body: 'Une colonne traverse la portée de votre avant-poste : on en garde le tronçon, le cap, une heure. Jamais la destination, la composition ni la nation — une annotation à l’encre, qui pâlit.',
-        age: 'âge du relevé',
-        ageNow: 'à jour',
-        ageAgo: (hours: number) =>
-          `il y a ${hours} h${hours >= 6 ? ' · dernière position connue' : ''}`,
-        statesLabel: 'Les trois états d’une région',
-        states: ['vierge, au crayon', 'relevée, gravée', 'à jour, à l’encre'],
-      },
-      battle: {
-        folio: 'Page 4 · l’assaut',
-        time: '15:12',
-        title: 'Berne change de main',
-        chapo:
-          'L’attaquant frappe le premier ; le défenseur riposte avec ce qui lui reste. À l’abri d’une garnison il encaisserait moins — en rase campagne, rien ne le couvre. Puis l’infanterie entre dans la ville, et la capture.',
-        steps: ['ordre', 'frappe', 'riposte', 'repli', 'capture'],
-        dispatch:
-          '15:12 — DEVANT BERNE. Notre assaut a frappé le premier ; l’adversaire a riposté puis s’est replié. 15:54 — BERNE EST À NOUS.',
-        legend:
-          'Seule l’infanterie capture, au rythme de ses forces. Au feu, on voit qui l’on affronte : rôles, effectifs, nation.',
-        replay: 'rejouer',
-        takenAt: '15:54',
-      },
-      race: {
-        folio: 'Page 5 · la course aux Sept',
-        day: (day: number) => `jour ${day}`,
-        title: 'La course aux Sept',
-        chapo:
-          'Sept lieux réels de 1940, tirés au sort à chaque saison. Qui en tient quatre, vingt-quatre heures d’affilée, prend la saison.',
-        tableLabel: 'Points tenus',
-        belligerent: 'Belligérant',
-        points: 'points',
-        held: 'tenus',
-        waiting: 'Les Sept attendent leurs teneurs.',
-        takes: (nation: string, point: string) => `${nation} prend ${point}.`,
-        three: (nation: string) =>
-          `${nation} tient trois des Sept. Il lui en faut quatre, vingt-quatre heures durant.`,
-        winsIn: (nation: string) => `${nation} prend Malte et tient quatre des Sept. Victoire dans`,
-        ifNothingMoves: 'si rien ne bouge.',
-        countdown: (minutes: number) =>
-          `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`,
-        legend: 'Chaque lieu casse une règle pour qui le tient. Survolez ou touchez un jalon.',
-        /** Les nations de la course, avec leur article, en tête de phrase. */
-        nations: {
-          uk: 'Le Royaume-Uni',
-          germany: 'L’Allemagne',
-          italy: 'L’Italie',
-          ussr: 'L’U.R.S.S.',
-        } satisfies Partial<Record<Nation, string>>,
-        sites: {
-          gibraltar: ['Gibraltar', 'Le détroit est fermé à vos rivaux, sauf à qui vous l’ouvrez.'],
-          malta: ['Malte', 'Vos garnisons tirent avant l’assaillant.'],
-          suez: ['Suez', 'Une fois par jour, un de vos mouvements partis change de destination.'],
-          istanbul: [
-            'Istanbul',
-            'Une fois par jour, vous lisez le dernier télégramme entre deux joueurs.',
-          ],
-          narvik: [
-            'Narvik',
-            `Vos exploitations coupées du réseau produisent encore ${percentOf(NARVIK_UNLINKED_SHARE)} % de leur débit.`,
-          ],
-          baku: [
-            'Bakou',
-            `Vos motorisés à l’arrêt reprennent un cran de plein toutes les ${BAKU_REFUEL_MS / 3_600_000} h.`,
-          ],
-          lisbon: ['Lisbonne', 'Vous lisez la nation de tout ce que vous relevez.'],
-        } satisfies Record<RacePoint, readonly [string, string]>,
-      },
-      night: {
-        folio: 'Page 6 · chronique',
-        title: 'La nuit tombe sur l’Europe',
-        chapo: 'Le jour suit le vrai soleil : il fait nuit à Paris quand il fait nuit à Paris.',
-        body: 'Faites défiler : l’ombre gagne d’est en ouest, chaque ville s’allume à son crépuscule. Du décor — et l’heure à laquelle dorment vos adversaires.',
-        clock: (at: number, zone: string) =>
-          new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: zone })
-            .format(at)
-            .replace(':', ' h '),
-        cities: { london: 'Londres', paris: 'Paris', moscow: 'Moscou' },
-      },
-      press: {
-        folio: 'Page 7 · la presse',
-        edition: 'édition de 15:00',
-        title: 'La presse tient les comptes',
-        chapo: 'Toutes les trois heures, une édition. Entre deux, le classement ne bouge pas.',
-        tableLabel: 'Classement de l’édition',
-        rank: 'rang',
-        nation: 'nation',
-        territory: 'territoire',
-        general: 'général',
-        rows: [
-          { nation: 'uk', pseudo: 'Brisquard', territory: '31 %', general: '4 820' },
-          { nation: 'ussr', pseudo: 'Colonel Plume', territory: '27 %', general: '4 410' },
-          { nation: 'germany', pseudo: 'Mlle Sextant', territory: '24 %', general: '3 960' },
-          { nation: 'italy', pseudo: 'Le Doyen', territory: '18 %', general: '2 705' },
-        ] satisfies ReadonlyArray<{
-          nation: Nation;
-          pseudo: string;
-          territory: string;
-          general: string;
-        }>,
-        telegraph: 'télégraphe · canal général',
-        wires: [
-          ['Brisquard', 'Malte tombera avant l’édition de 18 h.'],
-          ['Mlle Sextant', 'On en reparle à Gibraltar.'],
-          ['Colonel Plume', 'Je ne dis rien. STOP.'],
-        ],
-      },
-    },
-
     /** Les deux portes, au bout de l'édition : on n'entre pas seul. */
     bureau: {
       folio: 'Bureau des engagements',
@@ -2645,21 +2420,7 @@ export const fr = {
       `${count} message${plural(count, '', 's')} non lu${plural(count, '', 's')} au télégraphe`,
   },
 
-  /**
-   * **Le rapporteur** (téléphone, table plein écran, 13/10) : le coin d'encre qui remplaçait la
-   * barre de pied, et ses ronds posés sur l'arc. Le jeu l'a quitté pour la barre basse (`footBar`,
-   * #179) ; seule la démo de l'accueil le joue encore.
-   */
-  protractor: {
-    label: 'menu du plateau',
-    open: (waiting: number, blitz = false) =>
-      `${waiting > 0 ? `${num(waiting)} à faire — ` : ''}ouvrir le menu : à faire, ${blitz ? '' : 'chantiers, '}journal, ${blitz ? '' : 'presse, '}télégraphe, réglages`,
-    close: 'refermer le menu',
-    closeShort: 'fermer',
-  },
-
-  /** Les entrées du téléphone, que portaient la barre de pied et que portent les ronds du
-   *  rapporteur. */
+  /** Les entrées du téléphone, que portait la barre de pied. */
   foot: {
     works: 'chantiers',
     journal: 'journal',

@@ -328,7 +328,7 @@ même tag : la géométrie de `geojson/ne_10m_rivers_lake_centerlines.geojson`, 
 dans le même ordre : le script apparie un tracé et un enregistrement par nom, `rivernum`,
 `scalerank` et classe. Les mers et les océans (#457) viennent de
 `geojson/ne_10m_geography_marine_polys.geojson`, du même tag. Puis, dans cet ordre : `generate-grid`, `generate-coast`,
-`generate-region-index`, `generate-region-grid`, `generate-europe-sheet`,
+`generate-region-index`, `generate-region-grid`,
 `generate-region-types <dossier des rasters>` (qui écrit aussi `terrain-cells.json`, le terrain
 des dessins par cellule), `generate-deposits`, `generate-deposit-basins`.
 

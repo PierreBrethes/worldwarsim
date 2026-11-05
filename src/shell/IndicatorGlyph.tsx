@@ -51,24 +51,6 @@ export function Pictogram({
 }
 
 /**
- * The industry surface's mark. A drawn stroke and not a `Pictogram`, because the eleven
- * pictograms are baked PNG masks and there is no industry plate to bake from — the same
- * reason the buildings bascule and the settings icon are drawn.
- *
- * Two chimneys over a shed: it says *what transforms*, where an arsenal or a mine would name
- * one of the ten buildings the window gathers.
- */
-export function IndustryGlyph({ size = 19 }: { size?: number }) {
-  return (
-    <Glyph size={size}>
-      <path d="M2.5 17.5v-7l4 2.5v-2.5l4 2.5v-2.5l4 2.5V17.5z" />
-      <path d="M15.5 17.5v-13h2.5v13" />
-      <path d="M2.5 17.5h15" />
-    </Glyph>
-  );
-}
-
-/**
  * One mark per category, and the same everywhere: what the rail lights is what parks at the
  * screen edge. Two drawings for the same category would make the toggle a guessing game.
  *
