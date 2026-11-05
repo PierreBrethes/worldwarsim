@@ -26,7 +26,9 @@ import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
 import { regionAtPoint } from './regionGeometry';
 import { DEPOSIT_POINTS } from '../src/domain/world';
-import { isNation } from '../src/domain/nations';
+import { HOME_BY_NATION, isNation } from '../src/domain/nations';
+import { concludeSeason } from './seasons';
+import { seatsOf } from './seats';
 import type { ResearchCard, UnitRole } from '../src/domain/ids';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
 
@@ -2762,6 +2764,163 @@ export const pinsScene = internalMutation({
     await ctx.db.patch(lost, { stationedAt: { lon: 9.5, lat: 52.5 } });
     await reassessDetection(ctx, seasonId, now);
     await recordLinkage(ctx, seasonId);
+  },
+});
+
+const SCENE_HOURS = 240;
+const HOUR_MS = 3_600_000;
+
+/**
+ * **Une Mondiale conclue, pour la démo de l'édition finale** (#455) : une saison de dix jours
+ * réécrite comme si elle avait été jouée — une place tombée au sixième jour, les Sept passés de
+ * main en main, des passes, une édition par jour — puis conclue par la porte du jeu
+ * (`concludeSeason`) avec le verdict demandé. La France l'emporte quand il y a un vainqueur.
+ *
+ * `hold` annule la chaîne de clôture : l'édition reste « en attente » une demi-heure, puis
+ * « aucune ». Jamais pour une saison réelle : c'est un faux passé.
+ *
+ * `npx convex run dev:concludeScene '{"seasonId":"…","reason":"points"}'`
+ */
+export const concludeScene = internalMutation({
+  args: {
+    seasonId: v.id('seasons'),
+    reason: v.union(
+      v.literal('points'),
+      v.literal('clock'),
+      v.literal('draw'),
+      v.literal('closed'),
+    ),
+    hold: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { seasonId, reason, hold }) => {
+    const now = Date.now();
+    const seats = await seatsOf(ctx, seasonId);
+    const winner = seats.find((seat) => seat.nation === 'france') ?? seats[0]!;
+    const fallen = seats.at(-1)!;
+    /** Les points finissent trois heures avant l'horloge ; une clôture à la main deux jours avant. */
+    const ahead = reason === 'points' ? 3 : reason === 'closed' ? 50 : 0;
+    const launchedAt = now - (SCENE_HOURS - ahead) * HOUR_MS;
+    await ctx.db.patch(seasonId, { launchedAt, durationHours: SCENE_HOURS });
+    const at = (hours: number) => launchedAt + hours * HOUR_MS;
+
+    const fellAt = at(116);
+    await ctx.db.patch(fallen._id, { defeated: true, eliminatedAt: fellAt });
+    for (const seat of seats)
+      await ctx.db.insert('notices', {
+        playerId: seat._id,
+        at: fellAt,
+        kind: 'playerEliminated',
+        nation: fallen.nation ?? fallen.nickname,
+        ...(seat._id === fallen._id ? { by: winner.nation ?? winner.nickname } : {}),
+        irregulars: true,
+      });
+
+    /** Les Sept : un premier teneur, un retour au neutre sur le troisième, la main finale ; le
+     *  vainqueur aux points en tient quatre à la fin. */
+    const others = seats.filter((seat) => seat._id !== winner._id && seat._id !== fallen._id);
+    const points = await seasonPoints(ctx, seasonId);
+    for (const [rank, point] of points.entries()) {
+      const first = others[rank % others.length] ?? winner;
+      const last =
+        reason === 'points' && rank < 4 ? winner : (others[(rank + 1) % others.length] ?? winner);
+      const hands: Array<{ at: number; holderId: Id<'players'> | null }> = [
+        { at: at(10 + rank * 7), holderId: first._id },
+        ...(rank === 2 ? [{ at: at(90), holderId: null }] : []),
+        { at: at(120 + rank * 12), holderId: last._id },
+      ];
+      const heldMs: Record<string, number> = {};
+      for (const [index, hand] of hands.slice(0, -1).entries())
+        if (hand.holderId !== null)
+          heldMs[hand.holderId] = (heldMs[hand.holderId] ?? 0) + hands[index + 1]!.at - hand.at;
+      const final = hands.at(-1)!;
+      await ctx.db.patch(point._id, {
+        hands,
+        holderId: final.holderId,
+        heldSince: final.at,
+        heldMs: heldMs as Record<Id<'players'>, number>,
+      });
+    }
+
+    /** Quelques passes entre voisins, la plus grande au milieu de la saison. */
+    for (const [rank, attacker] of seats.entries()) {
+      const defender = seats[(rank + 1) % seats.length]!;
+      if (attacker._id === defender._id) continue;
+      const strength = nominalStrength('infantry', 1);
+      const troopId = await ctx.db.insert('troops', {
+        seasonId,
+        playerId: attacker._id,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: strength,
+        currentStrength: strength,
+        stationedAt: null,
+      });
+      const engaged = 4 + ((rank * 5) % 11);
+      const [lon, lat] = isNation(defender.nation)
+        ? HOME_BY_NATION[defender.nation]
+        : [2.35, 48.85];
+      await ctx.db.insert('engagements', {
+        seasonId,
+        attackerId: attacker._id,
+        defenderId: defender._id,
+        cause: 'arrival',
+        point: { lon, lat },
+        hostCountry: 'FRA',
+        at: at(20 + rank * 11),
+        winner: rank % 3 === 2 ? 'defender' : 'attacker',
+        outpostId: null,
+        disabledUntil: null,
+        troops: Array.from({ length: engaged }, (_, index) => {
+          const side = index % 2 === 0 ? ('attacker' as const) : ('defender' as const);
+          const destroyed = index % 3 === 0;
+          return {
+            troopId,
+            side,
+            role: 'infantry' as const,
+            tier: 1 as const,
+            strengthBefore: strength,
+            strengthAfter: destroyed ? 0 : strength,
+            state: destroyed ? ('destroyed' as const) : ('standing' as const),
+          };
+        }),
+      });
+    }
+
+    await concludeSeason(
+      ctx,
+      seasonId,
+      reason === 'points' || reason === 'clock' ? winner._id : null,
+      now,
+      reason === 'closed' ? { reason, closedBy: winner.nation ?? winner.nickname } : { reason },
+    );
+
+    /** Une édition par jour avant la finale, qui monte vers les chiffres de la conclusion : la
+     *  chaîne les lit après cette mutation, pour les courbes du carnet. */
+    const finals = await ctx.db
+      .query('editions')
+      .withIndex('bySeasonAt', (q) => q.eq('seasonId', seasonId).eq('at', now))
+      .collect();
+    for (const line of finals)
+      for (let day = 1; at(day * 24) < now; day++) {
+        const share = Math.min(1, 0.35 + (0.65 * day * 24) / (SCENE_HOURS - ahead));
+        const fade = line.playerId === fallen._id && at(day * 24) > fellAt ? 0.4 : 1;
+        await ctx.db.insert('editions', {
+          seasonId,
+          playerId: line.playerId,
+          at: at(day * 24),
+          final: false,
+          territory: Math.round(line.territory * share * fade * 10) / 10,
+          industry: Math.round(line.industry * share),
+          military: Math.round(line.military * share * fade),
+          deeds: Math.round(line.deeds * share),
+          general: Math.round(line.general * share * fade),
+        });
+      }
+
+    if (hold === true)
+      for (const job of await ctx.db.system.query('_scheduled_functions').collect())
+        if (job.name.includes('countDispatches') && job.state.kind === 'pending')
+          await ctx.scheduler.cancel(job._id);
   },
 });
 

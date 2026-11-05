@@ -174,6 +174,10 @@
  * le fichier des comptes — à chaque exécution, `--huit` ou non. Une connexion trop rapprochée
  * (`LOGIN_TOO_FAST`) attend trois secondes et retente, sans renommer.
  *
+ * `--conclue <raison>` (#455) conclut la partie à huit (`points`, `clock`, `draw`, `closed`) :
+ * son édition finale au lieu `edition`, une saison détruite après archive (`edition-detruite`)
+ * pour l'accueil ; `--en-attente` retient l'édition sous presse. Voir `scripts/demo-conclusion.mjs`.
+ *
  *     npm run demo:mondiale
  *
  * Refuse toute URL qui n'est pas 127.0.0.1 ou localhost. Les comptes (mot de passe compris) vont
@@ -186,6 +190,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api.js';
+import { conclusionAsked, concludeDemo } from './demo-conclusion.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', import.meta.url));
@@ -217,9 +222,11 @@ const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 /** `--pillage` (#211) : `--points`, sans l'escorte en mer, plus un pillage en phase de présence. */
 const pillaging = process.argv.includes('--pillage');
+/** `--conclue <raison>` (#455, `scripts/demo-conclusion.mjs`) : une Mondiale à huit, conclue. */
+const conclusion = conclusionAsked(process.argv);
 /** `--huit` (#211) : huit comptes, une nation chacun, une revue à chaque capitale. */
 const lobbying = process.argv.includes('--salon-huit');
-const eight = process.argv.includes('--huit') || lobbying;
+const eight = process.argv.includes('--huit') || lobbying || conclusion !== null;
 /** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
 const ranks = process.argv.includes('--rangs');
 /** `--chargement [s]` : deux camions chargés dans `s` secondes, à l'entrepôt et au QG (#271). */
@@ -1622,6 +1629,12 @@ if (editions)
     if (round > 0) await pause(1200);
     cli(['run', 'press:writeEditionJob', JSON.stringify({ seasonId })]);
   }
+
+if (conclusion !== null)
+  Object.assign(
+    places,
+    await concludeDemo({ client, cli, pause, tokens, seasonId, ...conclusion }),
+  );
 
 writeFileSync(
   accountsFile,
