@@ -423,3 +423,65 @@ export function entreesOf(
     });
   });
 }
+
+/** **The sites with a storyboard of their own** for the pieces of a medium: a plane comes out of
+ *  its hangar and lands on its runway (#269), a hull is launched and docks at its mole (#270). */
+const KIT_MEDIA = [
+  ['building-airfield', 'air'],
+  ['building-port', 'sea'],
+] as const;
+
+const kitMediumOf = (at: StandingPile['at']) =>
+  'beside' in at ? KIT_MEDIA.find(([prefix]) => at.beside.startsWith(prefix))?.[1] : undefined;
+
+/** The groups of `pieces` of the site's medium whose every troop `fits`. */
+const kitGroups = (
+  { at, pieces }: StandingPile,
+  fits: (troop: string) => boolean,
+): ReadonlyArray<number> => {
+  const medium = kitMediumOf(at);
+  return pieces.groups.flatMap(({ role, troopIds }, k) =>
+    DOMAIN_BY_ROLE[role] === medium && troopIds.length > 0 && troopIds.every(fits) ? [k] : [],
+  );
+};
+
+/** **Ce qui sort d'un aérodrome ou d'un port** : un avion neuf de son hangar (#269), une coque
+ *  neuve de sa cale (#270). Comme `sortiesOf`, les groupes dont toute troupe est neuve. */
+export function formationsOf(
+  known: ReadonlySet<string>,
+  piles: ReadonlyArray<StandingPile>,
+): ReadonlyArray<Sortie> {
+  return piles.flatMap((pile) => {
+    const groups = kitGroups(pile, (troop) => !known.has(troop));
+    return groups.length === 0 || !('beside' in pile.at)
+      ? []
+      : [{ siteId: pile.at.beside, pileId: pile.id, groups }];
+  });
+}
+
+/** **Ce qui rentre à un aérodrome ou à un port** : l'avion qui s'y pose, la coque qui y accoste,
+ *  portés par une de mes colonnes de la vue d'avant (comme `entreesOf`). */
+export function retoursOf(
+  before: ReadonlyArray<Column>,
+  piles: ReadonlyArray<StandingPile>,
+): ReadonlyArray<Sortie> {
+  const carried = new Set(
+    before.flatMap(({ state, troopIds }) => (state === 'mine' ? (troopIds ?? []) : [])),
+  );
+  return piles.flatMap((pile) => {
+    const groups = kitGroups(pile, (troop) => carried.has(troop));
+    return groups.length === 0 || !('beside' in pile.at)
+      ? []
+      : [{ siteId: pile.at.beside, pileId: pile.id, groups }];
+  });
+}
+
+/** **Mes mouvements nés depuis la vue d'avant** : ce qui peut quitter sa piste ou son môle
+ *  (#269, #270). Le moteur juge s'il en part. */
+export function departuresOf(
+  before: ReadonlyArray<{ readonly id: string }>,
+  arcs: ReadonlyArray<{ readonly id: string; readonly state: string }>,
+): ReadonlyArray<string> {
+  const known = new Set(before.map(({ id }) => id));
+  return arcs.flatMap(({ id, state }) => (state === 'mine' && !known.has(id) ? [id] : []));
+}

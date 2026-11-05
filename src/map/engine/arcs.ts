@@ -338,9 +338,41 @@ export class ArcLayer {
     };
   }
 
-  /** The copy takes the truck's place on its pawn, which stands where it is held. */
+  /** A clone of the truck, the plane or the hull as drawn, for a sequence that moves it whole. */
+  copyOf(id: string): Object3D | null {
+    return this.truckOf(id)?.copy?.() ?? null;
+  }
+
+  /** My movement as last displayed, `null` for none. */
+  viewOf(id: string): ArcView | null {
+    return this.rendered.find(({ arc }) => arc.id === id)?.arc ?? null;
+  }
+
+  /** The copy takes the truck's place on its pawn, which stands where it is held; or its plane's
+   *  or its hull's, leaving its site (#269, #270). */
   standIn(id: string, copy: Object3D | null): void {
-    this.pawnById.get(id)?.truckFigurine?.standIn?.(copy);
+    const pawn = this.pawnById.get(id);
+    (pawn?.truckFigurine ?? pawn?.riderFigurine)?.standIn?.(copy);
+  }
+
+  /** **Where the plane or hull of my movement stands now**, on the board: what its way off its
+   *  site is drawn to (#269, #270). `null` for none standing. */
+  riderAt(id: string): Vector3 | null {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    const rider = rendered?.arc.state === 'mine' ? rendered.pawn.rider : null;
+    if (rider === null) return null;
+    rider.object.updateMatrixWorld(true);
+    return rider.object.getWorldPosition(new Vector3());
+  }
+
+  /** **Where my movement's thread starts**, on the board, and its first leg's medium. */
+  startOf(id: string): { at: Vector3; medium: Medium } | null {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    const leg = rendered?.arc.state === 'mine' ? rendered.thread.legs[0] : undefined;
+    const first = leg?.strands[0]?.vertices[0];
+    return leg === undefined || first === undefined
+      ? null
+      : { at: first.clone(), medium: leg.medium };
   }
 
   /** How long the truck is drawn, on the board (`lengthAlong`). */
@@ -351,7 +383,7 @@ export class ArcLayer {
 
   private truckOf(id: string) {
     const rendered = this.rendered.find(({ arc }) => arc.id === id);
-    return rendered?.arc.state === 'mine' ? rendered.pawn.truck : null;
+    return rendered?.arc.state === 'mine' ? (rendered.pawn.truck ?? rendered.pawn.rider) : null;
   }
 
   /** Kept across displays, which come at every step of any column: a crate falls once. */

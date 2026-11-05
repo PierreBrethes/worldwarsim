@@ -90,8 +90,26 @@ import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
-import { APPROACH, FIL } from './timelines/airfield';
-import { OFFSHORE } from './timelines/port';
+import {
+  APPROACH,
+  AIRFIELD_LANES,
+  FIL,
+  formation,
+  landing,
+  parkingZ,
+  takeoff,
+} from './timelines/airfield';
+import { berthOf, docking, launch, OFFSHORE, undocking } from './timelines/port';
+import { troopMetres } from '@/domain/piece-size';
+import { movementRoles } from '@/emblems/units/manifest';
+import {
+  airfieldSequence,
+  isAirRole,
+  isSeaRole,
+  slipSequence,
+  spotOf,
+  trackSequence,
+} from './site-ways';
 import {
   type Attempt,
   type Docked,
@@ -498,6 +516,7 @@ type Gesture = {
 type Landing = { readonly point: Vector3; readonly country: CountryMesh };
 
 type SortieCue = Extract<Cue, { kind: 'sortie' | 'entree' }>;
+type SiteWayCue = Extract<Cue, { kind: 'formation' | 'retour' | 'depart' }>;
 
 /** **The men of a squad come out in file** (`T.men.gap` of the storyboard), each to his place. */
 const MEN_GAP_MS = 400;
@@ -505,6 +524,10 @@ const MEN_GAP_MS = 400;
 const CLOSE_AFTER_MS = 150;
 /** A pile that does not stand within this time has its recruits in place, unwalked. */
 const SORTIE_WAIT_MS = 2000;
+/** **A hull's beam, and its keel under its middle on the slip**, shares of its length, until the
+ *  models are measured for it (#270). `@a-mesurer` */
+const HULL_BEAM_SHARE = 0.14;
+const KEEL_SHARE = 0.02;
 /** **En réduites, la file tient 0,6 s**, puis la pile se pose (storyboard de la marche, #362). */
 const FILE_HOLD_MS = 600;
 
@@ -646,6 +669,10 @@ export class MapEngine {
   private readonly shots = new HeldBursts((burst) => this.traceShot(burst));
   /** Barracks whose recruits wait for their pile to stand before they walk out (#268). */
   private sorties: Array<{ readonly cue: SortieCue; readonly since: number }> = [];
+  /** What waits on its site, its pile or its pawn to come out, land, dock or leave (#269, #270). */
+  private siteWays: Array<{ readonly cue: SiteWayCue; readonly since: number }> = [];
+  /** **Une Blitz** : ni piste ni môle n'y jouent, rien n'y est amarré (Mondiale seule). */
+  private blitz = false;
   /** Columns waiting for their pile to stand before they deploy (#362). */
   private deployments: Array<{
     readonly cue: Extract<Cue, { kind: 'deploiement' }>;
@@ -1517,7 +1544,7 @@ export class MapEngine {
     const quay = this.maquettes.quayAt(at.x, at.z, span);
     if (quay === null) return null;
     // Off its mole, the hull docks and puts to sea by its own storyboard (#270).
-    const port = this.maquettes.kitSiteAt('port', at.x, at.z);
+    const port = this.blitz ? null : this.maquettes.kitSiteAt('port', at.x, at.z);
     const site = port === null ? null : this.maquettes.siteOf(port);
     const offshore = site?.toBoard(new Vector3(OFFSHORE.x, 0, OFFSHORE.z));
     const room =
@@ -1543,6 +1570,7 @@ export class MapEngine {
    * other end). Its way there is kept for `endOf`.
    */
   private runwayEndOf(which: 'start' | 'end', at: Vector3, far: Vector3): Vector3 | null {
+    if (this.blitz) return null;
     const id = this.maquettes.kitSiteAt('airfield', at.x, at.z);
     const site = id === null ? null : this.maquettes.siteOf(id);
     const axis = this.maquettes.runwayAt(at.x, at.z);
@@ -3237,6 +3265,7 @@ export class MapEngine {
     this.invalidate();
     this.theatreFrame.show(theatre);
     this.arcs.setAloft(theatre !== null);
+    this.blitz = theatre !== null;
   }
 
   /** The one percentage from the settings (ADR 0035 §6); the pieces re-measure on the next frame. */
@@ -3259,6 +3288,15 @@ export class MapEngine {
         break;
       case 'deploiement':
         this.deployments.push({ cue, since: performance.now() });
+        break;
+      case 'formation':
+      case 'retour':
+        if (this.blitz) break;
+        this.standing.inkArrival(cue.pileId);
+        this.siteWays.push({ cue, since: performance.now() });
+        break;
+      case 'depart':
+        if (!this.blitz) this.siteWays.push({ cue, since: performance.now() });
         break;
       case 'descente':
         if (this.sequences.motion === 'off') break;
@@ -3370,6 +3408,114 @@ export class MapEngine {
    * end of its route to its place, round the building, no door (décision de Pierre du 28/10).
    * Laid out once the pile stands; `false` until.
    */
+  /**
+   * **A plane or a hull by its site's storyboard** (#269, #270), once what it plays on stands:
+   * - `formation`: a new plane rolls out of its hangar to its place, its doors open and shut; a
+   *   new hull is launched stern first off the slip and hauled to its place;
+   * - `retour`: a plane that flew in comes down its approach, lands and taxis to its place; a hull
+   *   that sailed in comes from its offshore and docks;
+   * - `depart`: my movement just born, moored off its site, takes off from the yard or puts to sea
+   *   from its place, to where its thread starts.
+   * The site plays with it: its runway lit by night, the hangar's doors, the slip. Only at full
+   * motion — reduced rings the pile in ink (`inkArrival`), cut plays nothing. `true` once done.
+   */
+  private siteWayOf({ cue, since }: (typeof this.siteWays)[number], now: number): boolean {
+    if (this.sequences.motion !== 'full') return true;
+    if (cue.kind === 'depart') return this.departOf(cue.arcId, since, now);
+    const site = this.maquettes.siteOf(cue.siteId);
+    const pieces = this.standing.piecesOf(cue.pileId);
+    if (site === null || pieces === null) return false;
+    const airfield = cue.siteId.startsWith('building-airfield');
+    let longest = 0;
+    let lane: number | null = null;
+    let slip: ReturnType<typeof launch> | null = null;
+    for (const k of cue.groups) {
+      const id = `${cue.pileId}/${k}`;
+      const role = pieces.groups[k]?.role;
+      const place = this.standing.placeOf(id);
+      const drawn = this.standing.pieceOf(id);
+      if (role === undefined || place === null || !drawn) return false;
+      const spot = spotOf(site, place.at, place.front);
+      const length = troopMetres(role);
+      let sequence: Sequence | null = null;
+      if (airfield && isAirRole(role)) {
+        const out = cue.kind === 'formation' ? formation(role, spot, length / 2) : null;
+        const track = out ?? landing(role, spot);
+        const articulated = drawn.url !== undefined;
+        sequence = trackSequence(site, track, place.at, role, articulated, out?.born);
+        if (out !== null && lane === null) {
+          lane = spot.x;
+          const doors = airfieldSequence(out.ms, { lane, open: out.doors });
+          if (this.sequences.play(this.maquettes, cue.siteId, doors, since, now))
+            longest = Math.max(longest, out.ms);
+        }
+      } else if (!airfield && isSeaRole(role)) {
+        const beam = HULL_BEAM_SHARE * length;
+        const launched: ReturnType<typeof launch> | null =
+          cue.kind === 'formation' && slip === null
+            ? launch(role, beam, KEEL_SHARE * length, spot)
+            : null;
+        slip ??= launched;
+        const track = launched ?? docking(role, beam, spot);
+        sequence = trackSequence(site, track, place.at, role, false, launched?.dressed);
+      }
+      if (sequence === null) continue;
+      if (this.sequences.room <= 1) break;
+      if (this.sequences.play(this.standing, id, sequence, since, now))
+        longest = Math.max(longest, sequence.ms);
+    }
+    if (slip !== null)
+      this.sequences.play(
+        this.maquettes,
+        cue.siteId,
+        slipSequence(slip.ms, slip.dressed, slip.shores),
+        since,
+        now,
+      );
+    else if (airfield && lane === null && longest > 0)
+      this.sequences.play(this.maquettes, cue.siteId, airfieldSequence(longest), since, now);
+    if (longest > 0) this.standing.arrive(cue.pileId, [since + longest - now]);
+    return true;
+  }
+
+  /** **My movement leaves its airfield or its port** by its storyboard (#269, #270): when its
+   *  thread is moored off the site its route starts at. */
+  private departOf(arcId: string, since: number, now: number): boolean {
+    const arc = this.arcs.viewOf(arcId);
+    const start = this.arcs.startOf(arcId);
+    const from = arc?.route.points[0];
+    if (arc === null || start === null || from === undefined) return true;
+    const origin = this.frame.projectLonLat(from);
+    // Not moored: its thread leaves from its point, as it always did.
+    if (Math.hypot(start.at.x - origin.x, start.at.z - origin.z) < 1e-6) return true;
+    const air = start.medium === 'air';
+    const id = this.maquettes.kitSiteAt(air ? 'airfield' : 'port', origin.x, origin.z);
+    const site = id === null ? null : this.maquettes.siteOf(id);
+    const role = movementRoles(arc)?.[air ? 'air' : 'sea'] ?? null;
+    if (id === null || site === null || role === null) return true;
+    const rest = this.arcs.riderAt(arcId);
+    const piece = this.arcs.pieceOf(arcId);
+    if (rest === null || piece === null) return false;
+    const length = troopMetres(role);
+    let sequence = null;
+    if (air && isAirRole(role))
+      sequence = trackSequence(
+        site,
+        takeoff(role, { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) }),
+        rest,
+        role,
+        piece.url !== undefined,
+      );
+    else if (!air && isSeaRole(role)) {
+      const beam = HULL_BEAM_SHARE * length;
+      sequence = trackSequence(site, undocking(role, beam, berthOf(role, beam)), rest, role, false);
+    }
+    if (sequence === null) return true;
+    if (this.sequences.play(this.arcs, arcId, sequence, since, now) && air)
+      this.sequences.play(this.maquettes, id, airfieldSequence(sequence.ms), since, now);
+    return true;
+  }
+
   private walkOutOf({ cue, since }: (typeof this.sorties)[number], now: number): boolean {
     const site = this.maquettes.siteOf(cue.siteId);
     const pieces = this.standing.piecesOf(cue.pileId);
@@ -4838,6 +4984,9 @@ export class MapEngine {
     );
     this.deployments = this.deployments.filter(
       (deployment) => !this.deployOf(deployment, now) && now - deployment.since < SORTIE_WAIT_MS,
+    );
+    this.siteWays = this.siteWays.filter(
+      (way) => !this.siteWayOf(way, now) && now - way.since < SORTIE_WAIT_MS,
     );
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
     this.touring = stillWaiting(this.touring, now, (tour) => this.tourOf(tour, now));

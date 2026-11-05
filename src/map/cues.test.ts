@@ -5,6 +5,9 @@ import {
   boardsUnderTheEyes,
   aboardOf,
   chargementsOf,
+  departuresOf,
+  formationsOf,
+  retoursOf,
   descentesOf,
   dispersionsOf,
   entreesOf,
@@ -472,5 +475,62 @@ describe('tourneesOf (#278)', () => {
     none(seen(), [leg([4, 50])], [truck(150)], sites);
     none(seen(), [leg([5, 51])], [truck(150)], sites);
     none(seen(), [leg([2, 48])], [truck(150, true, 'cargo')], sites);
+  });
+});
+
+describe('the airfield and the port (#269, #270)', () => {
+  const at = (beside: string, role: UnitRole, ...troopIds: string[]): StandingPile => ({
+    id: 'p',
+    at: { beside },
+    pieces: {
+      groups: troopIds.map((troop) => ({
+        role,
+        troops: 1,
+        troopIds: [troop],
+        figures: [1],
+        wear: 'whole',
+      })),
+      troopIds,
+      squad: false,
+    },
+  });
+  const airfield = 'building-airfield@2,48';
+  const port = 'building-port@2,48';
+
+  it('a new plane comes out of its hangar, a new hull off its slip; not a known one', () => {
+    expect(formationsOf(new Set(['a']), [at(airfield, 'fighter', 'a', 'b')])).toEqual([
+      { siteId: airfield, pileId: 'p', groups: [1] },
+    ]);
+    expect(formationsOf(new Set(), [at(port, 'cargo', 'c')])).toEqual([
+      { siteId: port, pileId: 'p', groups: [0] },
+    ]);
+    expect(formationsOf(new Set(), [at(airfield, 'infantry', 'm')])).toEqual([]);
+    expect(formationsOf(new Set(), [at(barracks.beside, 'fighter', 'a')])).toEqual([]);
+  });
+
+  it('a plane that flew in lands, a hull that sailed in docks: carried by a column of mine', () => {
+    const flew = { state: 'mine', troopIds: ['a'] };
+    expect(retoursOf([flew], [at(airfield, 'bomber', 'a', 'b')])).toEqual([
+      { siteId: airfield, pileId: 'p', groups: [0] },
+    ]);
+    expect(retoursOf([{ ...flew, state: 'enemyDetected' }], [at(airfield, 'bomber', 'a')])).toEqual(
+      [],
+    );
+    expect(retoursOf([{ state: 'mine', troopIds: ['c'] }], [at(port, 'escort', 'c')])).toHaveLength(
+      1,
+    );
+  });
+
+  it('a movement of mine born since the view before may leave its runway or its mole', () => {
+    expect(
+      departuresOf(
+        [{ id: 'old' }],
+        [
+          { id: 'old', state: 'mine' },
+          { id: 'new', state: 'mine' },
+          { id: 'theirs', state: 'enemyDetected' },
+        ],
+      ),
+    ).toEqual(['new']);
   });
 });

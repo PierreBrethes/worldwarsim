@@ -36,6 +36,7 @@ import type { AmbientLayer } from './ambience';
 import type { SequenceHost } from './sequences';
 import { Smoke, type Plume } from './smoke';
 import { groundFootprint, SOCLE_TOP, WorksDressing, type Works } from './works';
+import { LAMP, RUNWAY_LIGHTS } from './site-kits';
 
 export { SOCLE_TOP };
 
@@ -1218,6 +1219,12 @@ export class MaquetteLayer implements SequenceHost {
     }
     if (copy === null) this.copies.delete(id);
     else {
+      // A plane moves on the airfield: its runway's edge lights come on, by night (#269).
+      copy.traverse((node) => {
+        const mesh = node as Mesh;
+        if (mesh.isMesh && (mesh.material as Material).name === RUNWAY_LIGHTS)
+          mesh.material = litRunway(mesh.material as Material);
+      });
       copy.matrixAutoUpdate = false;
       this.copies.set(id, copy);
       this.group.add(copy);
@@ -1488,4 +1495,16 @@ function cutOf(material: Material, cut: Plane): Material {
   copy.clippingPlanes = [cut];
   copy.clipShadows = true;
   return copy;
+}
+
+const lit = new Map<string, Material>();
+/** The runway's lights as a lamp (`LAMP`), which the night lights (`warmPieces`). */
+function litRunway(out: Material): Material {
+  let lamp = lit.get(out.uuid);
+  if (lamp === undefined) {
+    lamp = out.clone();
+    lamp.name = LAMP;
+    lit.set(out.uuid, lamp);
+  }
+  return lamp;
 }

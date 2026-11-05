@@ -123,6 +123,17 @@ export type Cue =
       readonly at: LonLat;
       readonly toward?: LonLat;
     }
+  /** **A new plane comes out of its hangar, a new hull off its slip** (#269, #270); or one that
+   *  flew or sailed in lands on its runway, docks at its mole (`retour`): `groups` of `pileId`. */
+  | {
+      readonly kind: 'formation' | 'retour';
+      readonly siteId: string;
+      readonly pileId: string;
+      readonly groups: ReadonlyArray<number>;
+    }
+  /** **A movement of mine just born** (#269, #270): its plane takes off from its airfield, its
+   *  hull puts to sea from its mole, when its thread leaves one. */
+  | { readonly kind: 'depart'; readonly arcId: string }
   /** **A column deploys at its point** (#362): `groups` of `pileId` leave the file the pawn
    *  left (`ArcLayer.fileLeftBy`) for their places in the pile. */
   | {

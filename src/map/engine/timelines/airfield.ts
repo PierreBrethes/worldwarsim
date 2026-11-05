@@ -50,6 +50,8 @@ const TAIL_DOWN = 10 * DEG;
 const BOUNCE = 1.2;
 
 const { runway, ramp, top, facade, lanes } = AIRFIELD;
+/** The hangars' lanes, right (`A`) then left (`B`): a plane leaving waits in the left one. */
+export const AIRFIELD_LANES = lanes;
 const x0 = runway.x1 - runway.length;
 /** **Where its thread starts**, beyond the free end, at its height (#269). `@a-mesurer` */
 export const FIL = { x: x0 - 90, y: ALT, z: runway.z } as const;

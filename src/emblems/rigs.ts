@@ -26,7 +26,10 @@ export const RIG_PARTS = {
   oilWell: ['balancier', 'manivelle', 'bielle', 'bielle_2', 'tige'],
   mine: ['molette_1', 'molette_2', 'wagonnet', 'wagonnet_caisse'],
   researchCenter: ['coupole', 'lunette'],
-  port: ['grue_couronne', 'fleche', 'cable', 'crochet'],
+  // The crane's loop, and the launch (#270): the hull on the slip, its cradles and its shores.
+  port: ['grue_couronne', 'fleche', 'cable', 'crochet', 'coque_cale', 'ber_*', 'accore_*'],
+  // The hangars' telescopic doors (#269), both pairs of both hangars (`_b`, the left one).
+  airfield: ['porte_*'],
   // The loading (#271): the door slides on its rollers, the crates of the pile jump aboard. The
   // HQ swings its service door; its crates are the copy's own (`stockDark`).
   warehouse: ['porte', 'galet', 'galet_2', 'caisse_*'],
