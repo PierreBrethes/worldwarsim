@@ -3447,8 +3447,9 @@ export class MapEngine {
   }
 
   private siteWayOf({ cue, since }: (typeof this.siteWays)[number], now: number): boolean {
-    if (this.sequences.motion !== 'full') return true;
+    if (this.sequences.motion === 'off') return true;
     if (cue.kind === 'depart') return this.departOf(cue.arcId, since, now);
+    if (this.sequences.motion !== 'full') return true;
     const site = this.maquettes.siteOf(cue.siteId);
     const pieces = this.standing.piecesOf(cue.pileId);
     if (site === null || pieces === null) return false;
@@ -3530,6 +3531,11 @@ export class MapEngine {
     const piece = this.arcs.pieceOf(arcId);
     if (rest === null || piece === null) return false;
     const length = troopMetres(role);
+    // Reduced motion: it stands at its thread's start already, a ring of ink under it (storyboard).
+    if (this.sequences.motion !== 'full') {
+      this.standing.rippleAt(rest.clone().setY(origin.y), (length / 2) * metreOf(site));
+      return true;
+    }
     let sequence = null;
     if (air && isAirRole(role)) {
       const way = trackSequence(
