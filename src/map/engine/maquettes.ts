@@ -127,6 +127,9 @@ export type SeaFront = {
   readonly line: readonly [number, number] | null;
 };
 
+/** **An airfield's runway** (#269): the kit the engine lays (`dressedScene`), what its turn keeps on land. */
+const RUNWAY = 'piste';
+
 /** **A port's water edge** (#436): its quay, the marker its model lays on the coast line. */
 const WATER_EDGE = 'fx_bord_eau';
 
@@ -195,6 +198,8 @@ type Model = {
   readonly fronts: ReadonlyMap<string, Vector3>;
   /** Its pile of crates (`caisse_*`), each at its foot: what a loading takes aboard (#271). */
   readonly crates: ReadonlyArray<{ readonly name: string; readonly at: Vector3 }>;
+  /** It has a runway laid beside it (#269): its turn keeps it on land too. */
+  readonly runway: boolean;
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
@@ -265,6 +270,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
         fronts,
         crates,
         rank,
+        runway: scene.getObjectByName(RUNWAY) !== undefined,
       };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
@@ -374,6 +380,11 @@ export function clusterFootprints(
 }
 
 const FACINGS = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => (k * Math.PI) / 4);
+/** Every 15°, nearest the hashed turn first: an airfield's runway turned to find its land. */
+const RUNWAY_TURNS = Array.from(
+  { length: 24 },
+  (_, k) => (((k + 1) >> 1) * (k % 2 === 0 ? 1 : -1) * Math.PI) / 12,
+);
 
 /** The placement as it may stand, `null` when it strays or steps off the land. A lone site turns
  *  its garrison when its front is the sea or a neighbour's maquette — inland, away from the other
@@ -781,16 +792,16 @@ export class MaquetteLayer implements SequenceHost {
   }
 
   /**
-   * **The axis of the airfield standing at (`x`, `z`)**, as a unit vector on the board, or `null`
-   * for none: its hangar's door faces along it, and so does the runway a plane rolls on (#129).
+   * **The way a plane takes off from the airfield standing at (`x`, `z`)**, a unit vector on the
+   * board, or `null` for none: along its runway toward its free end (#269); it lands the other way.
    * An airfield is read by its label's id, `building-airfield@…`.
    */
   runwayAt(x: number, z: number): readonly [number, number] | null {
     for (const [id, { item }] of this.byId) {
       if (!id.startsWith('building-airfield')) continue;
       if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
-      const yaw = yawOf(id);
-      return [Math.sin(yaw), Math.cos(yaw)];
+      // Toward its free end, its model's -x, as the site was turned to keep it on land (#436).
+      return [-Math.cos(item.yaw), Math.sin(item.yaw)];
     }
     return null;
   }
@@ -912,7 +923,10 @@ export class MaquetteLayer implements SequenceHost {
         return count / SOCLE_SAMPLES ** 2;
       };
       if (wet(yaw) > SOCLE_WET) {
-        const turns = FACINGS.map((facing) => yaw + facing);
+        // An airfield's runway finds its land by steps of 15° (Décisions du 23/10), any other
+        // socle by the eight facings.
+        const steps = model.runway ? RUNWAY_TURNS : FACINGS;
+        const turns = steps.map((facing) => yaw + facing);
         const wets = turns.map(wet);
         yaw = turns[wets.indexOf(Math.min(...wets))]!;
       }

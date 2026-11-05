@@ -15,6 +15,7 @@ import {
   type Object3D,
 } from 'three';
 import { TANK_SHARE } from './figurines/figurine';
+import { LAMP } from './site-kits';
 
 /**
  * **Un halo chaud autour de chaque pièce, la nuit** (#198) : comme un lampadaire dans la brume, la
@@ -35,6 +36,9 @@ const PIECE_GAIN = 0.32;
  *  a warm hall behind the open door. `@a-mesurer` */
 const DOORWAY = new Color('#c9852f');
 const DOORWAY_GAIN = 0.9;
+/** **A lamp at night** (`feux` of the kits, the position lights, #269-#270): its own colour, lit
+ *  through. Nothing blinks. `@a-mesurer` */
+const LAMP_GAIN = 1.4;
 /** Half the disc's side, in footprint radii: a gaussian reads nothing past two and a bit. */
 export const REACH = 2.3;
 /** A piece of any size still holds a lamp's worth of light: a tank's (ADR 0035). */
@@ -189,6 +193,12 @@ export function warmPieces(root: Object3D, night: number, beat = 0): void {
     // The dark of a doorway is a lit hall by night: a recruit comes out of it in silhouette.
     if (material.name.startsWith('fond_sombre')) {
       material.emissive.copy(DOORWAY).multiplyScalar(DOORWAY_GAIN * MathUtils.clamp(night, 0, 1));
+      return;
+    }
+    if (material.name === LAMP) {
+      material.emissive
+        .copy(material.color)
+        .multiplyScalar(LAMP_GAIN * MathUtils.clamp(night, 0, 1));
       return;
     }
     if (material.emissiveMap !== null && material.emissiveMap !== material.map) return;

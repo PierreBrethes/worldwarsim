@@ -16,6 +16,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
+import { AIRFIELD } from '@/emblems/kits/manifest';
 import {
   buildingFootprint,
   buildingMetres,
@@ -84,6 +85,16 @@ vi.mock('./figurines/figurine', async (original) => {
     const { sceneOfFile } = await import('./gltf-scene.fixture');
     if (url === 'socle.glb') return sceneOfFile('src/emblems/buildings/barracks.glb');
     if (url === 'port.glb') return sceneOfFile('src/emblems/buildings/port.glb');
+    if (url === 'airfield.glb') {
+      // With its runway laid as the engine lays it, a plain slab in its place (`dressedScene`).
+      const { AIRFIELD } = await import('@/emblems/kits/manifest');
+      const site = sceneOfFile('src/emblems/buildings/airfield.glb');
+      const { x1, length, z, half } = AIRFIELD.runway;
+      const runway = new Mesh(new BoxGeometry(length, 0.1, 2 * half), new MeshStandardMaterial());
+      runway.name = 'piste';
+      runway.position.set(x1 - length / 2, 0, z);
+      return site.add(runway);
+    }
     if (url === 'hq.glb')
       return sceneOfFile(
         (await import('@/emblems/buildings/manifest')).buildingMaquette('hq', null)!,
@@ -1227,6 +1238,55 @@ describe('a copy for a sequence or a loop (#273)', () => {
       const crate = rig.getObjectByName(name);
       expect(crate, name).toBeDefined();
       expect(walls.containsPoint(crate!.getWorldPosition(new Vector3()).setY(3)), name).toBe(true);
+    }
+  });
+});
+
+describe('an airfield and its runway (#269)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const airfield = (lon: number) => ({
+    id: `building-airfield@${lon},0`,
+    at: { lonLat: [lon, 0] as const },
+    url: 'airfield.glb',
+    span: buildingSpan('airfield'),
+    metres: buildingMetres('airfield'),
+    footprint: buildingFootprint('airfield'),
+    reach: buildingReach('airfield'),
+    socle: true,
+    washed: false,
+  });
+
+  it('keeps its runway on land, by steps of 15°, and gives its takeoff by the turn it kept (#436)', async () => {
+    // The sea east of a coast close by: most hashed turns lay the runway on it.
+    const coast = 0.5;
+    const onLand = (x: number) => x < coast;
+    for (const lon of [0, 0.01, 0.02, 0.03, 0.04, 0.05]) {
+      const site = airfield(lon);
+      const layer = new MaquetteLayer(
+        frame,
+        () => null,
+        () => {},
+        () => {},
+        onLand,
+      );
+      layer.display([site]);
+      await vi.waitFor(() => expect(layer.isDressed(site.id)).toBe(true));
+      const drawn = layer.siteOf(site.id)!;
+      const { x1, length, z, half } = AIRFIELD.runway;
+      for (const [x, dz] of [
+        [x1, -half],
+        [x1, half],
+        [x1 - length, -half],
+        [x1 - length, half],
+      ] as const)
+        expect(drawn.toBoard(new Vector3(x, 0, z + dz)).x, site.id).toBeLessThan(coast);
+      // Toward its free end, the way it turned, whatever its hash said.
+      const free = drawn.toBoard(new Vector3(-1, 0, 0)).sub(drawn.toBoard(new Vector3()));
+      const takeoff = layer.runwayAt(lon, 0)!;
+      expect(takeoff[0]).toBeCloseTo(free.x / Math.hypot(free.x, free.z), 6);
+      expect(takeoff[1]).toBeCloseTo(free.z / Math.hypot(free.x, free.z), 6);
     }
   });
 });

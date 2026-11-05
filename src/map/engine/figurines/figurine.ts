@@ -17,6 +17,7 @@ import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { bakedRig } from '../baking';
 import { pieceScale } from '../piece-scale';
+import { dressedScene } from '../site-kits';
 import { crewOf, hasGun, POSED, squadOf } from './infantry';
 
 /**
@@ -159,12 +160,23 @@ export type Figurine = {
 };
 
 const loader = new GLTFLoader();
+const files = new Map<string, Promise<Object3D>>();
+/** A file as it was drawn, loaded once: what a kit is cloned from. */
+const fileOfUrl = (url: string): Promise<Object3D> => {
+  let scene = files.get(url);
+  if (!scene) {
+    scene = loader.loadAsync(url).then((gltf) => gltf.scene);
+    files.set(url, scene);
+  }
+  return scene;
+};
 const scenes = new Map<string, Promise<Object3D>>();
-/** One load per file, shared by every figurine and maquette drawn from it. */
+/** One load per file, shared by every figurine and maquette drawn from it, dressed with what the
+ *  engine lays on it (`dressedScene`). */
 export function sceneOf(url: string): Promise<Object3D> {
   let scene = scenes.get(url);
   if (!scene) {
-    scene = loader.loadAsync(url).then((gltf) => gltf.scene);
+    scene = fileOfUrl(url).then((file) => dressedScene(url, file, fileOfUrl));
     scenes.set(url, scene);
   }
   return scene;

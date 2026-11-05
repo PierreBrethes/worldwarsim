@@ -13,10 +13,10 @@ export type Part = { readonly geometry: BufferGeometry; readonly material: Mater
 
 /**
  * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
- * is cut by its works — the socle and its liseré, the yard, the sign. The rest of the scene is the
- * building.
+ * is cut by its works — the socle and its liseré, the yard, the sign, and the kits the engine lays
+ * beside it (§10, `dressedScene`): runway, windsock, mole. The rest of the scene is the building.
  */
-const DRESSING = new Set(['socle', 'lisere', 'cour', 'signe']);
+const DRESSING = new Set(['socle', 'lisere', 'cour', 'signe', 'piste', 'manche', 'mole']);
 
 /** **The accessory groups of the yard** (ADR 0038 §5), baked apart: the engine shows them by
  *  level and state (`accessoriesShown`). */
@@ -161,9 +161,12 @@ export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): G
 }
 
 /** The materials the engine reads by name: the liseré is inked per instance, the dark of a door
- *  is lit by the halo. Two of them are never one, whatever they look like. */
+ *  and a lamp are lit by the night, a runway's lights only while a plane moves on it. Two of them
+ *  are never one, whatever they look like. */
 const named = (material: Material): boolean =>
-  material.name === 'lisere' || material.name.startsWith('fond_sombre');
+  material.name === 'lisere' ||
+  material.name.startsWith('fond_sombre') ||
+  material.name.startsWith('feux');
 
 /**
  * **What makes a material look as it does**, its name left out: two materials of a file that
