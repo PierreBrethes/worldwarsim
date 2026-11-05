@@ -139,6 +139,9 @@ type RefusalContext = {
 };
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
+/** « 1 pièce perdue », « 3 pièces adverses détruites » : le nom et ses adjectifs s'accordent. */
+const pieces = (count: number, ...words: string[]): string =>
+  [`${decimal(count, 0)} pièce`, ...words].map((word) => word + plural(count, '', 's')).join(' ');
 
 /** **Ce qu'un Magasin verse en passant**, en crans (ADR 0037 §4) ; `null` quand rien. */
 const resupplyWords = (rounds: number, fuel: number): string | null => {
@@ -2420,7 +2423,7 @@ export const fr = {
         place: string;
       }) => ({
         title: 'La plus grande bataille',
-        text: `${decimal(input.engaged, 0)} pièces engagées ${near(input.place)}. ${upperFirst(theNation(input.winner))} ${agrees(input.winner, 'l’emporte', 'l’emportent')} : ${decimal(input.destroyed, 0)} pièces détruites contre ${decimal(input.lost, 0)}.`,
+        text: `${pieces(input.engaged, 'engagée')} ${near(input.place)}. ${upperFirst(theNation(input.winner))} ${agrees(input.winner, 'l’emporte', 'l’emportent')} : ${pieces(input.destroyed, 'détruite')} contre ${decimal(input.lost, 0)}.`,
       }),
       hqTaken: (by: string | null, fallen: string, place: string) => ({
         title: `Le quartier général ${ofTheNation(fallen)} tombe`,
@@ -2444,15 +2447,15 @@ export const fr = {
     finest: {
       hqTaken: (fallen: string, at: number) => ({
         title: `Le quartier général ${ofTheNation(fallen)}`,
-        text: `pris ${editionWhen(at)}.`,
+        text: `${upperFirst(`pris ${editionWhen(at)}`)}.`,
       }),
       pointTaken: (key: StrategicPointKey, from: string | null, at: number) => ({
         title: fr.points.names[key],
-        text: `pris ${from === null ? 'au neutre' : `à ${theNation(from)}`} ${editionWhen(at)}.`,
+        text: `${upperFirst(`pris ${from === null ? 'au neutre' : `à ${theNation(from)}`} ${editionWhen(at)}`)}.`,
       }),
       pass: (place: string, destroyed: number, lost: number, at: number) => ({
         title: upperFirst(near(place)),
-        text: `${editionWhen(at)} : ${decimal(destroyed, 0)} pièces détruites contre ${decimal(lost, 0)}.`,
+        text: `${upperFirst(editionWhen(at))} : ${pieces(destroyed, 'détruite')} contre ${decimal(lost, 0)}.`,
       }),
       none: 'Aucun engagement gagné contre une nation.',
     },
@@ -2465,15 +2468,15 @@ export const fr = {
       hqGained: (nation: string) => `le quartier général ${ofTheNation(nation)}`,
       outpostsCaptured: (count: number) =>
         `${decimal(count, 0)} avant-poste${plural(count, '', 's')} capturé${plural(count, '', 's')}`,
-      destroyed: (count: number) => `${decimal(count, 0)} pièces adverses détruites`,
+      destroyed: (count: number) => `${pieces(count, 'adverse', 'détruite')}`,
       pointLost: (key: StrategicPointKey, to: string | null, at: number) =>
         `${fr.points.names[key]}, ${to === null ? 'rendu au neutre' : `à ${theNation(to)}`}, ${editionDay(at)}`,
       hqLost: (at: number) => `le quartier général, ${editionWhen(at)}`,
       outpostsLost: (count: number) =>
         `${decimal(count, 0)} avant-poste${plural(count, '', 's')} pris`,
-      lost: (count: number) => `${decimal(count, 0)} pièces perdues`,
+      lost: (count: number) => `${pieces(count, 'perdue')}`,
       worstPass: (lost: number, place: string, at: number) =>
-        `la pire passe : ${decimal(lost, 0)} pièces ${near(place)}, ${editionDay(at)}`,
+        `la pire passe : ${pieces(lost)} ${near(place)}, ${editionDay(at)}`,
       nothing: 'rien',
     },
     map: {

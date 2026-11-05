@@ -266,6 +266,13 @@
   width: 100%;
   height: 100%;
 }
+.fe-map-label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  fill: var(--ink);
+  stroke: var(--paper-hi);
+  paint-order: stroke;
+}
 .fe-legend {
   display: flex;
   flex-wrap: wrap;
@@ -416,7 +423,7 @@
 }
 .fe-figs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 5px 6px;
   border-top: 1px solid var(--rule-mid);
   border-bottom: 1px solid var(--rule-mid);

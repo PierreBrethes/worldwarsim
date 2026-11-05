@@ -2888,6 +2888,16 @@ export const concludeScene = internalMutation({
       });
     }
 
+    /** Le télégraphe a parlé : quelques dépêches au canal général, que la chaîne compte. */
+    for (const [k, seat] of seats.entries())
+      for (let n = 0; n < 3 * (seats.length - k); n++)
+        await ctx.db.insert('messages', {
+          seasonId,
+          playerId: seat._id,
+          text: `Dépêche ${n + 1}`,
+          at: at(6 + n * 5),
+        });
+
     await concludeSeason(
       ctx,
       seasonId,
@@ -2902,6 +2912,13 @@ export const concludeScene = internalMutation({
       .query('editions')
       .withIndex('bySeasonAt', (q) => q.eq('seasonId', seasonId).eq('at', now))
       .collect();
+    /** Une scène sans usines : l'industrie de la finale est posée, et le général la suit. */
+    for (const [k, line] of finals.entries())
+      if (line.industry === 0) {
+        const industry = 60 + 35 * ((k * 3) % finals.length);
+        Object.assign(line, { industry, general: line.general + industry });
+        await ctx.db.patch(line._id, { industry, general: line.general });
+      }
     for (const line of finals)
       for (let day = 1; at(day * 24) < now; day++) {
         const share = Math.min(1, 0.35 + (0.65 * day * 24) / (SCENE_HOURS - ahead));
