@@ -112,7 +112,7 @@ export function riverSpots(lines: readonly Float32Array[]): RiverSpot[] {
  * **Les villes selon la distance** (#440) : au-delà de 65 rien, ni pendant un rejeu ; puis les
  * capitales ; sous 55 les villes de plus d'un million ; sous 34 toutes. Au doigt, un palier de
  * moins. Une capitale de moins de 300 000 habitants (Vaduz, Monaco) attend le palier de toutes.
- * @a-mesurer
+ * @a-mesurer paliers lus sur les captures de la maquette A, aucune mesure de lisibilité
  */
 const NAMES_GONE_DISTANCE = 65;
 const CITY_TIERS = [NAMES_GONE_DISTANCE, 55, 34, 0];
