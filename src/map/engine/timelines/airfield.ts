@@ -7,7 +7,7 @@ import { ease, span } from './curves';
  * heading `yaw` from +z, its nose `pitch` up from its rest on its wheels, its gear folded by
  * `gear` (0 down, 1 up). Times in milliseconds.
  */
-export type Plane = {
+type Plane = {
   readonly x: number;
   readonly y: number;
   readonly z: number;

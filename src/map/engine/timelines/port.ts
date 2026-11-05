@@ -8,7 +8,7 @@ import { ease, span } from './curves';
  * du 03/11): its middle in `port.glb`'s metres (+z the sea beyond the quay), its heading `yaw`
  * from +z (`π`: the stem toward the land), its bow `pitch` up. Times in milliseconds.
  */
-export type Hull = {
+type Hull = {
   readonly x: number;
   readonly y: number;
   readonly z: number;
