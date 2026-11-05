@@ -1127,6 +1127,77 @@ describe('pieces resting at their post', () => {
     }
   });
 
+  const hullsAt = (...ids: string[]) =>
+    postedAt(pilePieces(ids.map((id) => unit('cargo', id))), 'port');
+  const port = (...ids: string[]) => [
+    { id: 'p', at: { beside: 'site', quay: [0, 0] as [number, number] }, pieces: hullsAt(...ids) },
+  ];
+  const redraw = async (layer: StandingLayer, ...ids: string[]) => {
+    layer.display(port(...ids));
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    layer.orient(eye);
+  };
+
+  it('keeps the post of a hull while it stays: a hull leaving the side or the roads moves no other (#487)', async () => {
+    const layer = await standing(port('a', 'b', 'c'));
+    const [a, c] = [spot(layer, 0).clone(), spot(layer, 2).clone()];
+    await redraw(layer, 'a', 'c');
+    near(spot(layer, 0), a);
+    // `c` was in the roads and stays: the side of the mole is free for the next, not for it.
+    near(spot(layer, 1), c);
+    expect(layer.takePromotions()).toEqual([]);
+  });
+
+  it('moves the hull at the side up to the mole when the one there leaves, and says so (#487)', async () => {
+    const layer = await standing(port('a', 'b', 'c'));
+    const [mole, side, roads] = [0, 1, 2].map((k) => spot(layer, k).clone()) as [
+      Vector3,
+      Vector3,
+      Vector3,
+    ];
+    await redraw(layer, 'b', 'c');
+    near(spot(layer, 0), mole);
+    near(spot(layer, 1), roads);
+    expect(side.distanceTo(mole)).toBeGreaterThan(1e-3);
+    const [moved] = layer.takePromotions();
+    expect(moved).toMatchObject({ site: 'site', id: 'p/0', role: 'cargo' });
+    expect(moved!.from.x).toBeLessThan(moved!.to.x);
+    expect(layer.takePromotions()).toEqual([]);
+  });
+
+  it('remembers where a plane rested when it leaves, for its take-off (#487)', async () => {
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
+    const at = layer.restOf('b');
+    expect(at?.site).toBe('site');
+    layer.display([{ id: 'p', at: { beside: 'site' }, pieces: planes('a') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    layer.orient(eye);
+    expect(layer.restOf('b')).toEqual(at);
+    expect(layer.restOf('nobody')).toBeNull();
+  });
+
+  it('remembers the last plane of a site too: its pile is gone with it (#487)', async () => {
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a') }]);
+    const at = layer.restOf('a');
+    layer.display([]);
+    layer.orient(eye);
+    expect(at).not.toBeNull();
+    expect(layer.restOf('a')).toEqual(at);
+  });
+
+  it('says a plane with no place is not drawn: the apron holds four (#487)', async () => {
+    const layer = await standing([
+      { id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b', 'c', 'd', 'e') },
+    ]);
+    expect([0, 1, 2, 3, 4].map((k) => layer.unposted(`p/${k}`))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+  });
+
   it('draws the ring of a posted pile round the pieces where they rest', async () => {
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
     const { ring, figurines, outline } = (

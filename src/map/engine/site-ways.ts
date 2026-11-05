@@ -86,30 +86,76 @@ export function trackSequence(
   };
 }
 
+/** **The gap between two planes formed together**, from one leaving its hangar to the next.
+ *  `@a-mesurer` */
+export const FORMATION_STAGGER_MS = 2500;
+/** **The gap between two hulls putting to sea together**, the outer one first. `@a-mesurer` */
+export const UNDOCK_STAGGER_MS = 3500;
+/** **How long the hull at the mole's side waits before it is hauled up**, when the one at the
+ *  mole puts to sea: it is backing out of the basin. `@a-mesurer` */
+export const HAUL_LEAD_MS = 8000;
+
+/** **A piece that waits its turn** (#487): for `lead` ms it stands at its start — unseen (`hidden`,
+ *  a piece not yet born) or where it lay —, then it plays from there. */
+export function delayed(sequence: Sequence, lead: number, hidden = true): Sequence {
+  if (lead <= 0) return sequence;
+  return {
+    ...sequence,
+    ms: sequence.ms + lead,
+    at(t) {
+      const pose = sequence.at(Math.max(0, t - lead));
+      return t >= lead || !hidden ? pose : { ...pose, root: { ...pose.root, fade: 0 } };
+    },
+  };
+}
+
+/** One hangar's doors: its lane, how open they are at `ms`. */
+type Doors = { readonly lane: number; open(ms: number): number };
+
 /** **The airfield while a plane moves on it** (#269): its runway lit by night (the copy's own
- *  lamps, `MaquetteLayer.standIn`), and the doors of the hangar a new plane comes out of. */
+ *  lamps, `MaquetteLayer.standIn`), and the doors of each hangar a new plane comes out of. */
 export function airfieldSequence(
   ms: number,
-  doors?: { readonly lane: number; open(ms: number): number },
+  doors: Doors | ReadonlyArray<Doors> = [],
 ): Sequence<'airfield'> {
-  const suffix = doors === undefined ? null : hangarOf(laneOf(doors.lane));
+  const hangars = 'lane' in doors ? [doors] : doors;
   return {
     family: 'airfield',
+    pool: 'site',
     ms,
     minPx: WALK_MIN_PX,
     at(t) {
-      if (doors === undefined || suffix === null) return {};
-      const { inner, outer } = doorCourse(doors.open(t));
-      // The left leaves run to +x, the right to -x (storyboard).
-      const by = (x: number): PartPose => ({ shift: [x, 0, 0] });
-      return {
-        [`porte_gauche_1${suffix}`]: by(inner),
-        [`porte_gauche_2${suffix}`]: by(outer),
-        [`porte_droite_1${suffix}`]: by(-inner),
-        [`porte_droite_2${suffix}`]: by(-outer),
-      } as Pose<'airfield'>;
+      const pose: Record<string, PartPose> = {};
+      for (const { lane, open } of hangars) {
+        const suffix = hangarOf(laneOf(lane));
+        const { inner, outer } = doorCourse(open(t));
+        // The left leaves run to +x, the right to -x (storyboard).
+        const by = (x: number): PartPose => ({ shift: [x, 0, 0] });
+        pose[`porte_gauche_1${suffix}`] = by(inner);
+        pose[`porte_gauche_2${suffix}`] = by(outer);
+        pose[`porte_droite_1${suffix}`] = by(-inner);
+        pose[`porte_droite_2${suffix}`] = by(-outer);
+      }
+      return pose as Pose<'airfield'>;
     },
   };
+}
+
+/**
+ * **One door set for the planes of a hangar, formed one after the other** (#487): it opens at the
+ * first, holds while the others roll out, and shuts behind the last. Each plane is its own
+ * `doors` (how open at `ms` of its track), its `lead`, and `closing`, where its doors start to
+ * shut, in ms.
+ */
+export function doorsOf(
+  planes: ReadonlyArray<{ lead: number; doors(ms: number): number; closing: number }>,
+): (ms: number) => number {
+  const first = planes[0]!;
+  const last = planes.at(-1)!;
+  return (ms) =>
+    ms < last.lead + last.closing
+      ? first.doors(Math.min(ms - first.lead, first.closing))
+      : last.doors(ms - last.lead);
 }
 
 /** The six shores of the slip, by name. */
@@ -117,22 +163,34 @@ const SHORES = [1, 2, 3, 4, 5, 6] as const;
 /** How far a shore tips over as it falls. */
 const SHORE_FALL = (77 * Math.PI) / 180;
 
-/** **The port while a hull is launched** (#270): the hull on its slip gives way to the one
- *  produced, its shores fall outward one after another. */
-export function slipSequence(
-  ms: number,
-  dressed: (ms: number) => number,
-  shores: (ms: number, k: number) => number,
-): Sequence<'port'> {
+/** A hull launched at `lead` ms, for `ms`: its slip's cradle and shores (`launch`). */
+type Launched = {
+  readonly lead: number;
+  readonly ms: number;
+  dressed(ms: number): number;
+  shores(ms: number, k: number): number;
+};
+
+/** **The port while hulls are launched, one after the other** (#270, #487): the hull on its slip
+ *  gives way to the one produced, its shores fall outward one after another; a new hull is dressed
+ *  on the slip, its shores standing, when the next launch starts. */
+export function slipSequence(launches: ReadonlyArray<Launched>): Sequence<'port'> {
+  const last = launches.at(-1)!;
   return {
     family: 'port',
-    ms,
+    pool: 'site',
+    ms: last.lead + last.ms,
     minPx: WALK_MIN_PX,
     at(t) {
-      const pose: Record<string, PartPose> = { coque_cale: { fade: 1 - dressed(t) } };
+      // The launch under way: the last one begun; before the first, the cradle stands.
+      const now = launches.filter(({ lead }) => lead <= t).at(-1) ?? launches[0]!;
+      const τ = t - now.lead;
+      const pose: Record<string, PartPose> = { coque_cale: { fade: 1 - now.dressed(τ) } };
       // The first three stand on -x, the others on +x: each falls away from the hull.
       for (const k of SHORES)
-        pose[`accore_${k}`] = { turn: [0, 0, (k <= 3 ? 1 : -1) * SHORE_FALL * shores(t, k - 1)] };
+        pose[`accore_${k}`] = {
+          turn: [0, 0, (k <= 3 ? 1 : -1) * SHORE_FALL * now.shores(τ, k - 1)],
+        };
       return pose as Pose<'port'>;
     },
   };

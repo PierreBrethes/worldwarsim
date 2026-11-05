@@ -115,30 +115,51 @@ export function apron(
   return layout(planes, side, growth);
 }
 
+/** **A post along the mole**: against its fenders, at its side, or in the roads past its head. */
+export type HullPost = 'mole' | 'couple' | 'roads';
+const POSTS: ReadonlyArray<HullPost> = ['mole', 'couple', 'roads'];
+
+/** **The post a hull takes** (décision du 05/11): the free one nearest the mole; `null` when the
+ *  three are held. A hull that leaves frees its post and no other moves. */
+export const settleHull = (held: ReadonlyArray<HullPost>): HullPost | null =>
+  POSTS.find((post) => !held.includes(post)) ?? null;
+
 /**
- * **The berths**: the first hull against the mole's fenders, the second alongside it, bows level,
- * the third in the roads past the mole's head, off to sea; no more.
+ * **The berths**: the hull at the mole against its fenders, the one at its side alongside it, bows
+ * level, the third in the roads past the mole's head, off to sea. `posts` gives each hull its
+ * post, by default in the order of the roles; a hull with none is not drawn.
  */
 export function berths(
   roles: ReadonlyArray<SeaRole>,
   side: Side = 1,
   growth: Growth = 1,
+  posts: ReadonlyArray<HullPost | null> = roles.map((_, k) => POSTS[k] ?? null),
 ): Array<Rest | null> {
-  // From the mole's face outward: what the hulls before have taken.
-  let used = 0;
-  return roles.map((role, k) => {
-    if (k > 2) return null;
+  const sizes = roles.map((role, k) => {
     const length = troopMetres(role);
     const beam = HULL_BEAM_SHARE * length;
-    const g = growthOf(growth, k);
-    const berth = berthOf(role, beam);
+    return { length, beam, g: growthOf(growth, k), berth: berthOf(role, beam) };
+  });
+  // From the mole's face outward: what the hull at the mole takes.
+  const moored = posts.indexOf('mole');
+  const taken =
+    moored < 0
+      ? 0
+      : sizes[moored]!.g * (MOLE.inner - sizes[moored]!.berth.x - sizes[moored]!.beam / 2) +
+        sizes[moored]!.g * sizes[moored]!.beam;
+  return roles.map((_, k) => {
+    const post = posts[k];
+    if (post === null || post === undefined) return null;
+    const { length, beam, g, berth } = sizes[k]!;
     const clear = MOLE.inner - berth.x - beam / 2;
-    if (k === 0) used = g * clear;
-    else if (k === 1) used += g * COUPLE_GAP;
-    const x = k === 2 ? MOLE.inner - g * (clear + beam / 2) : MOLE.inner - (used + (g * beam) / 2);
-    if (k < 2) used += g * beam;
+    const x =
+      post === 'roads'
+        ? MOLE.inner - g * (clear + beam / 2)
+        : post === 'mole'
+          ? MOLE.inner - (g * clear + (g * beam) / 2)
+          : MOLE.inner - ((moored < 0 ? g * clear : taken) + g * COUPLE_GAP + (g * beam) / 2);
     const z =
-      k === 2
+      post === 'roads'
         ? MOLE.quay + g * (MOLE.length + MOLE.head + ROADS_GAP + length / 2)
         : MOLE.quay + g * (berth.z - MOLE.quay);
     return { x: side * x, z, yaw: side * berth.yaw };

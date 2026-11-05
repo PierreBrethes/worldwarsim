@@ -41,6 +41,12 @@ export const berthOf = (role: SeaRole, beam: number): Berth => ({
   yaw: Math.PI,
 });
 
+/** **A berth in the roads**, past the mole's head: no basin to round, no haul across (#487). */
+const inRoads = (role: SeaRole, b: Berth): boolean => b.z - troopMetres(role) / 2 > MUSOIR;
+/** The heading from `a` toward `b`, from +z. */
+const bearing = (a: { x: number; z: number }, b: { x: number; z: number }): number =>
+  Math.atan2(b.x - a.x, b.z - a.z);
+
 const clamp = (t: number, ms: number) => Math.min(Math.max(t / 1000, 0), ms / 1000);
 const curve = (points: ReadonlyArray<readonly [number, number]>) =>
   new CatmullRomCurve3(
@@ -55,6 +61,7 @@ const curve = (points: ReadonlyArray<readonly [number, number]>) =>
  */
 export function docking(role: SeaRole, beam: number, b = berthOf(role, beam)): HullTrack {
   const p = PACE[role];
+  if (inRoads(role, b)) return anchoring(p, b);
   const off = b.x - beam * 1.5;
   const path = curve([
     [OFFSHORE.x, OFFSHORE.z],
@@ -83,6 +90,48 @@ export function docking(role: SeaRole, beam: number, b = berthOf(role, beam)): H
   };
 }
 
+/** **It anchors in the roads** (décision du 05/11, #487): straight in from the offshore, slowing,
+ *  its stem swinging to the land, no basin to round and no haul across. */
+function anchoring(p: number, b: Berth): HullTrack {
+  const path = curve([
+    [OFFSHORE.x, OFFSHORE.z],
+    [(OFFSHORE.x + b.x) / 2 - 30, (OFFSHORE.z + b.z) / 2 + 20],
+    [b.x, b.z],
+  ]);
+  const ta = 8.5 * p;
+  const ms = ta * 1000;
+  return {
+    ms,
+    at(t) {
+      const u = 1 - (1 - clamp(t, ms) / ta) ** 2.2;
+      const at = path.getPointAt(u);
+      const tangent = path.getTangentAt(Math.min(u, 0.999));
+      const go = Math.atan2(tangent.x, tangent.z);
+      const yaw = go + toward(go, b.yaw) * ease.inOut(span(u, 0.6, 1));
+      return { x: at.x, y: 0, z: at.z, yaw, pitch: 0 };
+    },
+  };
+}
+
+/** **The hull at the mole's side is hauled across to the mole** (#487): the last of its docking,
+ *  from where it lay, when the hull at the mole has put to sea. */
+export function hauling(role: SeaRole, from: Berth, to: Berth): HullTrack {
+  const ms = 2400 * PACE[role];
+  return {
+    ms,
+    at(t) {
+      const k = ease.inOut(span(t, 0, ms));
+      return {
+        x: from.x + (to.x - from.x) * k,
+        y: 0,
+        z: from.z + (to.z - from.z) * k,
+        yaw: from.yaw + toward(from.yaw, to.yaw) * k,
+        pitch: 0,
+      };
+    },
+  };
+}
+
 /**
  * **It puts to sea, going astern** (storyboard « Appareillage »): it swings its stern out on its
  * forward spring, backs out of the basin past the mole's head, turns and goes ahead, to the
@@ -91,6 +140,7 @@ export function docking(role: SeaRole, beam: number, b = berthOf(role, beam)): H
 export function undocking(role: SeaRole, beam: number, b = berthOf(role, beam)): HullTrack {
   const p = PACE[role];
   const h = troopMetres(role) / 2;
+  if (inRoads(role, b)) return weighing(p, b);
   const a = -14 * DEG;
   // It swings on its bow, from its rest to its stern out by `a`.
   const bow = [b.x + h * Math.sin(b.yaw), b.z + h * Math.cos(b.yaw)] as const;
@@ -133,6 +183,31 @@ export function undocking(role: SeaRole, beam: number, b = berthOf(role, beam)):
   };
 }
 
+/** **It weighs anchor in the roads** (#487): it swings its bow to the offshore, then goes ahead. */
+function weighing(p: number, b: Berth): HullTrack {
+  const heading = bearing(b, OFFSHORE);
+  const [tt, tg] = [
+    2.4 * p,
+    Math.max(2.6 * p, Math.hypot(OFFSHORE.x - b.x, OFFSHORE.z - b.z) / 60),
+  ];
+  const ms = (tt + tg) * 1000;
+  return {
+    ms,
+    at(t) {
+      const s = clamp(t, ms);
+      const yaw = b.yaw + toward(b.yaw, heading) * ease.inOut(span(s, 0, tt));
+      const k = ease.in2(span(s, tt, tt + tg));
+      return {
+        x: b.x + (OFFSHORE.x - b.x) * k,
+        y: 0,
+        z: b.z + (OFFSHORE.z - b.z) * k,
+        yaw,
+        pitch: 0,
+      };
+    },
+  };
+}
+
 /** The slipway, in `port.glb`'s metres: its axis, where a hull's stern stands on it, its slope. */
 const SLIP = { x: 0, stern: 85, slope: 0.025, top: 2.2 } as const;
 const slipTop = (z: number) => SLIP.top + Math.max(0, (MOLE.quay - z) * SLIP.slope);
@@ -158,11 +233,13 @@ export function launch(
   const sBow = H - (z0 - h);
   const tBow = tSlide + Math.sqrt((2 * sBow) / acc);
   const vBow = acc * (tBow - tSlide);
-  const drift = 60;
+  // In the roads it runs on to its anchorage: no haul across (#487).
+  const roads = inRoads(role, b);
+  const drift = roads ? Math.max(60, b.z - (z0 + sBow)) : 60;
   const brake = (vBow * vBow) / (2 * drift);
   const tStop = tBow + vBow / brake;
   const zStop = z0 + sBow + drift;
-  const tHauled = tStop + 3.4;
+  const tHauled = roads ? tStop : tStop + 3.4;
   const lift = 1.5 + keel;
   const yHead = slipTop(H) + lift;
   const ms = tHauled * 1000;
@@ -187,12 +264,14 @@ export function launch(
         const τ = s - tBow;
         const settle = ease.inOut(span(τ, 0, 1.1));
         const slope0 = yHead / h / 2;
+        const z = z0 + sBow + vBow * τ - 0.5 * brake * τ * τ;
+        const veer = roads ? ease.inOut(span(z - (z0 + sBow), 0, drift)) : 0;
         return {
-          x: SLIP.x,
-          z: z0 + sBow + vBow * τ - 0.5 * brake * τ * τ,
+          x: SLIP.x + (b.x - SLIP.x) * veer,
+          z,
           y: (yHead / 2) * (1 - settle) + Math.sin(τ * 5) * 0.6 * (1 - settle),
           pitch: -Math.atan(slope0) * (1 - settle),
-          yaw: Math.PI,
+          yaw: Math.PI + toward(Math.PI, b.yaw) * veer,
         };
       }
       const k = ease.inOut(span(s, tStop, tHauled));

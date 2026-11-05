@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { MOLE } from '@/emblems/kits/manifest';
 import {
+  type Berth,
   berthOf,
   docking,
+  hauling,
   type HullTrack,
   launch,
   OFFSHORE,
   type SeaRole,
   undocking,
 } from './port';
+import { berths } from './rest';
 
 const ROLES: SeaRole[] = ['cargo', 'escort', 'carrier'];
 const BEAM = 18;
@@ -88,5 +91,52 @@ describe('a hull ends, and starts, where its pile stands it', () => {
     expect(start.x).toBeCloseTo(quay.x, 3);
     expect(start.z).toBeCloseTo(quay.z, 3);
     expect(Math.cos(start.yaw - quay.yaw)).toBeCloseTo(1, 3);
+  });
+});
+
+describe('a hull at its post, not only at the mole (#487)', () => {
+  const [mole, couple, roads] = berths(['cargo', 'cargo', 'cargo']) as [Berth, Berth, Berth];
+  const stood = (track: HullTrack, at: Berth) => {
+    const end = track.at(track.ms);
+    expect([end.x, end.z]).toEqual([at.x, at.z].map((v) => expect.closeTo(v, 3)));
+    expect(Math.cos(end.yaw - at.yaw)).toBeCloseTo(1, 3);
+  };
+
+  it('docks in the roads without being hauled: it ends at its anchorage, stem to the land', () => {
+    const track = docking('cargo', BEAM, roads);
+    expect([track.at(0).x, track.at(0).z]).toEqual([OFFSHORE.x, OFFSHORE.z]);
+    stood(track, roads);
+    expect(worstStep(track)).toBeLessThan(3);
+  });
+
+  it('is launched to the roads: it runs on to its anchorage, with no haul across', () => {
+    const track = launch('cargo', BEAM, 3, roads);
+    stood(track, roads);
+    expect(worstStep(track)).toBeLessThan(3);
+    // Still moving at the second before its end would be a haul: it has come to rest by then.
+    expect(Math.abs(track.at(track.ms).z - track.at(track.ms - 300).z)).toBeLessThan(0.5);
+  });
+
+  it('puts to sea from the roads ahead, never back toward the mole', () => {
+    const track = undocking('cargo', BEAM, roads);
+    stood({ ms: 0, at: () => track.at(0) }, roads);
+    const end = track.at(track.ms);
+    expect([end.x, end.z]).toEqual([OFFSHORE.x, OFFSHORE.z].map((v) => expect.closeTo(v, 3)));
+    expect(worstStep(track)).toBeLessThan(3);
+    for (let t = 0; t <= track.ms; t += 50)
+      expect(track.at(t).z).toBeGreaterThanOrEqual(roads.z - 1);
+  });
+
+  it('puts to sea from the side of the mole, where the hull stood', () => {
+    const track = undocking('cargo', BEAM, couple);
+    expect(track.at(0).x).toBeCloseTo(couple.x, 3);
+    expect(worstStep(track)).toBeLessThan(3);
+  });
+
+  it('hauls the hull at the side across to the mole, bows level', () => {
+    const track = hauling('cargo', couple, mole);
+    stood({ ms: 0, at: () => track.at(0) }, couple);
+    stood(track, mole);
+    expect(worstStep(track)).toBeLessThan(3);
   });
 });

@@ -50,7 +50,16 @@ import type { SequenceHost } from './sequences';
 import type { AirRole } from './timelines/airfield';
 import { ease } from './timelines/curves';
 import type { SeaRole } from './timelines/port';
-import { berths, layout, type Place, type Plane, settle } from './timelines/rest';
+import {
+  berths,
+  type HullPost,
+  layout,
+  type Place,
+  type Plane,
+  type Rest,
+  settle,
+  settleHull,
+} from './timelines/rest';
 import { playTableSound } from '../table-sound';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
@@ -526,6 +535,16 @@ export function blacken(figurine: Object3D): void {
   });
 }
 
+/** **A hull that came up to the mole** when the one at the mole left (#487): the group `id` was at
+ *  `from`, and rests at `to`, in the site's metres. */
+export type Promotion = {
+  readonly site: string;
+  readonly id: string;
+  readonly role: UnitRole;
+  readonly from: Rest;
+  readonly to: Rest;
+};
+
 /** Where a posted piece rests on the board, its heading; `at` null when it has no post. */
 type Post = { k: number; at: Vector3 | null; heading: number };
 /** A footprint kept out of every ray. */
@@ -972,6 +991,16 @@ export class StandingLayer implements SequenceHost {
   private readonly places = new Map<string, Map<string, Place>>();
   /** How the planes just formed or come home reach their places, until they have one. */
   private readonly arrivals = new Map<string, 'formed' | 'returned'>();
+  /** **The post of each hull at the port it rests at** (#487), by site then troop: a state of its
+   *  troop like a plane's place, kept while it stays; a hull that leaves frees its post. */
+  private readonly hullPosts = new Map<string, Map<string, HullPost>>();
+  /** Where each posted piece last rested, in its site's metres, and the pile it stood in. */
+  private readonly lastRest = new Map<string, { site: string; rest: Rest }>();
+  /** **Where a piece rested when it left its site** (#487), for the sequence of its departure:
+   *  kept `SEEN_MS`. */
+  private readonly left = new Map<string, { site: string; rest: Rest; since: number }>();
+  /** The hulls that moved up to the mole when the one there left, not yet played. */
+  private promotions: Array<Promotion> = [];
 
   private figurineOf(id: string): { figurine: Figurine; placed: boolean } | null {
     const at = id.lastIndexOf('/');
@@ -1816,6 +1845,8 @@ export class StandingLayer implements SequenceHost {
     }
     const posts = new Map<Dressed, Post[]>();
     const alive = new Set<string>();
+    const ids = new Map([...this.dressed].map(([id, entry]) => [entry, id]));
+    const standing = new Set<string>();
     for (const [site, members] of bySite) {
       alive.add(site);
       const sea = DOMAIN_BY_ROLE[members[0]!.role] === 'sea';
@@ -1825,15 +1856,30 @@ export class StandingLayer implements SequenceHost {
       const growth = members.map(
         ({ entry }) => floorGrowth(frame.at.distanceTo(eye), entry.span) * pieceScale.size,
       );
-      const rests = sea
+      const hullPosts = sea ? this.postsOfHulls(site, members) : null;
+      const rests = hullPosts
         ? berths(
             members.map(({ role }) => role as SeaRole),
             1,
             growth,
+            hullPosts.posts,
           )
         : layout(this.planesOf(site, members), 1, growth);
-      members.forEach(({ entry, k }, n) => {
+      members.forEach(({ entry, k, role, troop }, n) => {
         const rest = rests[n];
+        standing.add(troop);
+        if (rest !== null && rest !== undefined) {
+          const before = this.lastRest.get(troop);
+          if (hullPosts?.promoted.includes(troop) && before !== undefined)
+            this.promotions.push({
+              site,
+              id: `${ids.get(entry)}/${k}`,
+              role,
+              from: before.rest,
+              to: rest,
+            });
+          this.lastRest.set(troop, { site, rest });
+        }
         let post: Post = { k, at: null, heading: 0 };
         if (rest !== null && rest !== undefined) {
           const y = sea ? 0 : AIRFIELD.top;
@@ -1847,7 +1893,74 @@ export class StandingLayer implements SequenceHost {
       });
     }
     for (const site of this.places.keys()) if (!alive.has(site)) this.places.delete(site);
+    for (const site of this.hullPosts.keys()) if (!alive.has(site)) this.hullPosts.delete(site);
+    // What no longer rests is remembered where it rested, for its departure.
+    const now = performance.now();
+    for (const [troop, { site, rest }] of this.lastRest)
+      if (!standing.has(troop)) {
+        this.left.set(troop, { site, rest, since: now });
+        this.lastRest.delete(troop);
+      }
+    for (const [troop, { since }] of this.left) if (now - since > SEEN_MS) this.left.delete(troop);
     return posts;
+  }
+
+  /** **The post of each hull of a port** (#487): kept while it stays; a new hull takes the free
+   *  post nearest the mole; when the hull at the mole has gone, the one at its side moves up
+   *  (`promoted`), and no other hull moves. */
+  private postsOfHulls(
+    site: string,
+    members: ReadonlyArray<{ troop: string }>,
+  ): { posts: Array<HullPost | null>; promoted: string[] } {
+    const kept = this.hullPosts.get(site) ?? new Map<string, HullPost>();
+    this.hullPosts.set(site, kept);
+    const present = new Set(members.map(({ troop }) => troop));
+    for (const troop of [...kept.keys()]) if (!present.has(troop)) kept.delete(troop);
+    for (const troop of this.arrivals.keys()) if (present.has(troop)) kept.delete(troop);
+    const promoted: string[] = [];
+    const held = () => [...kept.values()];
+    if (!held().includes('mole'))
+      for (const [troop, post] of kept)
+        if (post === 'couple') {
+          kept.set(troop, 'mole');
+          promoted.push(troop);
+          break;
+        }
+    for (const { troop } of members) {
+      if (kept.has(troop)) continue;
+      const post = settleHull(held());
+      this.arrivals.delete(troop);
+      if (post !== null) kept.set(troop, post);
+    }
+    return { posts: members.map(({ troop }) => kept.get(troop) ?? null), promoted };
+  }
+
+  /** **Where a piece rested when it left its site, or rests still** (#487): its place at the site,
+   *  in the site's metres. `null` for a view loaded cold, or after `SEEN_MS`. */
+  restOf(troopId: string): { site: string; rest: Rest } | null {
+    const kept = this.left.get(troopId) ?? this.lastRest.get(troopId);
+    return kept === undefined ? null : { site: kept.site, rest: kept.rest };
+  }
+
+  /** The hulls that moved up to the mole since the last call (#487). */
+  takePromotions(): Promotion[] {
+    return this.promotions.splice(0);
+  }
+
+  /** **A posted piece the apron or the mole has no place for** (#487): it is not drawn, so no
+   *  sequence plays for it. `false` until the pile stands and is laid out. */
+  unposted(id: string): boolean {
+    const at = id.lastIndexOf('/');
+    const entry = this.dressed.get(id.slice(0, at));
+    const k = Number(id.slice(at + 1));
+    const figurine = entry?.figurines[k];
+    return (
+      entry?.ready === true &&
+      entry.placed &&
+      figurine !== undefined &&
+      entry.pieces.groups[k]?.posted === true &&
+      !figurine.object.visible
+    );
   }
 
   /**

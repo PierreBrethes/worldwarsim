@@ -280,7 +280,7 @@ export function formation(
   role: AirRole,
   to: Spot,
   tail: number,
-): Track & { doors(ms: number): number; born(ms: number): number } {
+): Track & { doors(ms: number): number; born(ms: number): number; closing: number } {
   const a = AIR[role];
   const lane = laneOf(to.x);
   const z0 = facade - 4.9;
@@ -312,6 +312,7 @@ export function formation(
       ease.inOut(span(ms / 1000, 0, T.doors)) *
       (1 - ease.inOut(span(ms / 1000, clear, clear + T.doors))),
     born: (ms) => span(ms / 1000, 0.8, 0.8 + T.born),
+    closing: clear * 1000,
   };
 }
 

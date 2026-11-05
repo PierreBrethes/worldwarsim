@@ -80,7 +80,7 @@ export type Sequence<F extends RigFamily = RigFamily> = {
   readonly minPx?: number;
   /** **A column deploying at its arrival** (#362) plays on a ceiling of its own
    *  (`MAX_DEPLOYING`): a file of six must not wait on the barracks' doors, nor shut them. */
-  readonly pool?: 'deployment';
+  readonly pool?: 'deployment' | 'site';
   /** It plays at reduced motion too: a held pose, nothing moves (the file that holds, #362). */
   readonly reduced?: true;
   at(t: number): Pose<F>;
@@ -213,8 +213,9 @@ export type Cue =
       readonly from: LonLat | null;
     };
 
+/** A site's doors and slip (`pool: 'site'`, #487) are no piece: `MAX_PLAYING` counts pieces only. */
 const ceilingOf = (pool: Sequence['pool']): number =>
-  pool === 'deployment' ? MAX_DEPLOYING : MAX_PLAYING;
+  pool === 'deployment' ? MAX_DEPLOYING : pool === 'site' ? Infinity : MAX_PLAYING;
 
 type Rest = { readonly position: Vector3; readonly quaternion: Quaternion };
 

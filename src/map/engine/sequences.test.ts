@@ -209,6 +209,21 @@ describe('SequenceLayer', () => {
     expect(host.copies.size).toBe(MAX_PLAYING);
   });
 
+  it("counts only pieces against MAX_PLAYING: a site's doors and slip are none (#487)", async () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    const doors = { ...turning, pool: 'site' as const };
+    for (let k = 0; k < MAX_PLAYING; k++) layer.play(host, `p${k}`, turning, 0);
+    expect(layer.play(host, 'doors', doors, 0)).toBe(true);
+    await flush();
+    expect(layer.room).toBe(0);
+    expect(host.copies.size).toBe(MAX_PLAYING + 1);
+    // The doors alone leave every piece its place.
+    const free = layerOf().layer;
+    free.play(new FakeHost(), 'doors', doors, 0);
+    expect(free.room).toBe(MAX_PLAYING);
+  });
+
   it('plays a deployment on a ceiling of its own, and a held pose at reduced motion (#362)', async () => {
     const { layer } = layerOf();
     const host = new FakeHost();

@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { AIRFIELD, MOLE } from '@/emblems/kits/manifest';
 import type { AirRole } from './airfield';
 import { berthOf, type SeaRole } from './port';
-import { apron, berths, layout, type Place, type Plane, settle } from './rest';
+import {
+  apron,
+  berths,
+  type HullPost,
+  layout,
+  type Place,
+  type Plane,
+  settle,
+  settleHull,
+} from './rest';
 
 const [right, left] = AIRFIELD.lanes;
 const rail = AIRFIELD.facade + 2;
@@ -149,5 +158,34 @@ describe('the berths: where hulls rest along the mole (#475)', () => {
     expect(m!.x).toBeCloseTo(-a!.x, 9);
     const [g] = berths(hulls('cargo'), 1, 2);
     expect(g!.z - MOLE.quay).toBeCloseTo(2 * (a!.z - MOLE.quay), 9);
+  });
+});
+
+describe('the posts of a mole, one state per hull (#487, décision du 05/11)', () => {
+  it('gives the mole, then the side of the first hull, then the roads, and no more', () => {
+    expect(settleHull([])).toBe('mole');
+    expect(settleHull(['mole'])).toBe('couple');
+    expect(settleHull(['mole', 'couple'])).toBe('roads');
+    expect(settleHull(['mole', 'couple', 'roads'])).toBeNull();
+  });
+
+  it('takes the free post nearest the mole, whatever the others hold', () => {
+    expect(settleHull(['couple', 'roads'])).toBe('mole');
+    expect(settleHull(['mole', 'roads'])).toBe('couple');
+  });
+
+  it('lays a hull out by its post: the one at the side stays where it was when the mole is held', () => {
+    const [a, b] = berths(hulls('cargo', 'escort'));
+    const posts: HullPost[] = ['couple'];
+    // Alone at its side, a hull keeps its own berth: the mole's hull is not there to measure from.
+    const [alone] = berths(hulls('escort'), 1, 1, posts);
+    expect(alone!.z).toBeCloseTo(b!.z, 9);
+    expect(a).not.toBeNull();
+  });
+
+  it('keeps the roads hull where it is when the hull at the mole leaves', () => {
+    const [, , roads] = berths(hulls('cargo', 'cargo', 'escort'));
+    const [again] = berths(hulls('escort'), 1, 1, ['roads']);
+    expect(again!.z - 110 / 2).toBeCloseTo(roads!.z - 110 / 2, 9);
   });
 });
