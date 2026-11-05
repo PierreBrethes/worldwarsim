@@ -114,7 +114,7 @@ export function riverSpots(lines: readonly Float32Array[]): RiverSpot[] {
  * moins. Une capitale de moins de 300 000 habitants (Vaduz, Monaco) attend le palier de toutes.
  * @a-mesurer
  */
-export const NAMES_GONE_DISTANCE = 65;
+const NAMES_GONE_DISTANCE = 65;
 const CITY_TIERS = [NAMES_GONE_DISTANCE, 55, 34, 0];
 const MILLION = 1_000_000;
 const SMALL_CAPITAL = 300_000;
