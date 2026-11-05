@@ -70,6 +70,8 @@ import {
 } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
 import { NameSheet } from './map-names';
+import { bandOf, matBand } from './board-band';
+import { useBoardInsets } from '@/shell/viewport';
 
 /** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
 export type TakeDepot = (
@@ -290,6 +292,9 @@ export function MapLabels({
   barLabels.current = selectionBar?.labelIds ?? [];
   const layer = useRef<HTMLDivElement>(null);
   const layerSize = useLayerSize(layer);
+  const shellInsets = useBoardInsets();
+  const boardInsets = useRef(shellInsets);
+  boardInsets.current = shellInsets;
   const posterPlace = useRef<PosterPlace | null>(null);
   const posterSide = useRef<{ id: string; side: PosterSpot['side'] } | null>(null);
   const point = useCallback(
@@ -939,7 +944,18 @@ export function MapLabels({
         const piece = engine.pieceRect(id);
         if (piece !== null) occupied.push(piece);
       }
-      names.paint(engine.nameSpots(), occupied, layerSize.current, coarse);
+      // A sea's name stands whole off the shell's bands, as the contacts' tokens do (#457).
+      const { width, height } = layerSize.current;
+      const band = bandOf({
+        ...boardInsets.current,
+        bottom: Math.max(boardInsets.current.bottom, matBand(layer.current)),
+      });
+      names.paint(engine.nameSpots(), occupied, layerSize.current, coarse, {
+        left: band.left,
+        top: band.top,
+        right: width - band.right,
+        bottom: height - band.bottom,
+      });
     };
     const unsubscribe = engine.subscribeRest(degrade);
     return () => {

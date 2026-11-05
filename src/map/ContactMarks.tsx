@@ -9,8 +9,6 @@ import type { Contact } from '@/domain/contacts';
 import {
   clampToEdge,
   cluster,
-  EDGE_MARGIN,
-  HALF_BADGE,
   sideOf,
   type EdgePoint,
   type IndicatorGroup,
@@ -22,6 +20,7 @@ import type { ContactSpot } from './engine/contact-rings';
 import { ARC_COLORS } from './engine/palette';
 import { PIN_APPROACH_DISTANCE } from './engine/pins';
 import type { MapEngine } from './engine';
+import { bandOf, matBand } from './board-band';
 import { useLayerSize } from './layer-size';
 
 /**
@@ -308,23 +307,6 @@ export function ContactMarks({
         </p>
       )}
     </div>
-  );
-}
-
-/** The board's insets widened by the band where the edge tokens stand. */
-const bandOf = ({ top, right, bottom, left }: BoardInsets): BoardInsets => {
-  const band = EDGE_MARGIN + HALF_BADGE;
-  return { top: top + band, right: right + band, bottom: bottom + band, left: left + band };
-};
-
-/** What the personal board's band covers of the layer's bottom, as `MapLabels` reads it. */
-function matBand(layer: HTMLElement | null): number {
-  const pixelsOf = (name: string) =>
-    Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
-  const bottom = layer?.getBoundingClientRect().bottom ?? window.innerHeight;
-  return Math.max(
-    0,
-    Math.max(pixelsOf('--mat-rise'), pixelsOf('--board-bottom')) - (window.innerHeight - bottom),
   );
 }
 

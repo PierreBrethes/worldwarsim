@@ -184,11 +184,13 @@ export function seaLines(name: string): string[] {
 
 /**
  * **Le nom tient dans sa mer** (#457) : a spot is offered only where the disc that fits in the
- * sea there spans the name's width on the screen. The box is the name's, centred on the spot.
+ * sea there spans the name's width on the screen, and where the whole name stands in `field`,
+ * the screen less the shell's bands (revue du 05/11). The box is the name's, centred on the spot.
  */
 export function seaSpots(
   spots: ReadonlyArray<{ readonly x: number; readonly y: number; readonly diameter: number }>,
   { width, height }: { width: number; height: number },
+  field: ScreenBox,
 ): ScreenBox[] {
   return spots
     .filter(({ diameter }) => diameter >= width)
@@ -197,5 +199,9 @@ export function seaSpots(
       top: y - height / 2,
       right: x + width / 2,
       bottom: y + height / 2,
-    }));
+    }))
+    .filter(
+      ({ left, top, right, bottom }) =>
+        left >= field.left && top >= field.top && right <= field.right && bottom <= field.bottom,
+    );
 }

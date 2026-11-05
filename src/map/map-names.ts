@@ -64,6 +64,8 @@ export class NameSheet {
     occupied: readonly ScreenBox[],
     size: { width: number; height: number },
     touch: boolean,
+    /** The screen less the shell's bands, where a sea's name stands whole. */
+    field: ScreenBox,
   ): void {
     const context = this.context;
     if (context === null) return;
@@ -151,7 +153,7 @@ export class NameSheet {
       const w = Math.max(
         ...lines.map((line) => this.widthOf(SEA_FONT, line) + line.length * SEA_SPACING_PX),
       );
-      const boxes = seaSpots(inside, { width: w, height: lines.length * TEXT_HEIGHT });
+      const boxes = seaSpots(inside, { width: w, height: lines.length * TEXT_HEIGHT }, field);
       if (boxes.length === 0) continue;
       seaCandidates.push({ anchor: null, spots: boxes });
       seaDrawn.push(boxes.map((box) => ({ kind: 'sea', lines, box })));

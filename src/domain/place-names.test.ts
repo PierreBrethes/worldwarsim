@@ -123,15 +123,30 @@ describe('seaLines', () => {
 
 describe('seaSpots', () => {
   const size = { width: 120, height: 14 };
+  const field = { left: 0, top: 0, right: 1000, bottom: 800 };
 
   it('offers a spot only where its disc spans the name', () => {
     const spots = [
       { x: 100, y: 100, diameter: 119 },
       { x: 400, y: 300, diameter: 120 },
     ];
-    expect(seaSpots(spots, size)).toEqual([{ left: 340, top: 293, right: 460, bottom: 307 }]);
+    expect(seaSpots(spots, size, field)).toEqual([
+      { left: 340, top: 293, right: 460, bottom: 307 },
+    ]);
   });
 
   it('offers nothing to a sea too narrow on the screen for its name', () =>
-    expect(seaSpots([{ x: 0, y: 0, diameter: 30 }], size)).toEqual([]));
+    expect(seaSpots([{ x: 0, y: 0, diameter: 30 }], size, field)).toEqual([]));
+
+  it('offers a spot only where the whole name stands in the free field', () => {
+    // The field less the shell's bands: the ruler above, the buttons' column to the right.
+    const free = { left: 0, top: 60, right: 900, bottom: 800 };
+    const spots = [
+      { x: 50, y: 300, diameter: 400 }, // cut by the screen's left edge
+      { x: 500, y: 62, diameter: 400 }, // under the ruler
+      { x: 870, y: 300, diameter: 400 }, // under the buttons
+      { x: 500, y: 300, diameter: 400 },
+    ];
+    expect(seaSpots(spots, size, free)).toEqual([{ left: 440, top: 293, right: 560, bottom: 307 }]);
+  });
 });
