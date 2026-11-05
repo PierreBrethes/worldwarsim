@@ -126,7 +126,7 @@ if (pointless.length > 0) throw new Error(`regions without a point: ${pointless.
  * `public/coast.json`, the very file a port is measured against (`src/domain/coast.ts`). The
  * sheet says « côtière » exactly where a port may go up.
  */
-const coastal = new Set(JSON.parse(readFileSync('public/coast.json', 'utf8')).ids);
+const coastal = new Set(JSON.parse(readFileSync('public/coast.json', 'utf8')).coastal);
 
 const output = {
   name,

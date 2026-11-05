@@ -64,6 +64,11 @@
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
  * Valette et une infanterie à Syracuse, d'où viser Malte à pied.
+ * `--accrochages` (#441) pose des piles françaises au contact de britanniques relevées : deux
+ * piles françaises à Metz et Thionville face à une colonne sur la Moselle, deux escorteurs en
+ * Manche face à deux autres, une pile devant Francfort (que `--guet` lit) et une à Alexandrie, hors
+ * champ depuis la France (`@accrochages`, `@accrochage-metz`, `@accrochage-manche`,
+ * `@accrochage-loin`).
  * `--epingles [N]` (#234) sème N piles sur la France (1000 par défaut, une sur deux en Lorraine),
  * pose en face trois camps britanniques relevés en Sarre et en Alsace, un quatrième perdu de vue près de
  * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une
@@ -322,6 +327,8 @@ const stores = process.argv.includes('--magasin');
 const forts = process.argv.includes('--fort');
 /** `--guet` (#373) : un Guet qui lit une colonne et un camp britanniques, un généraliste qui non. */
 const lookout = process.argv.includes('--guet');
+/** `--accrochages` (#441) : des accrochages en Lorraine, en Manche, devant Francfort et en Égypte. */
+const contacts = process.argv.includes('--accrochages');
 const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
@@ -1499,6 +1506,7 @@ if (!bare) {
       }
     }
   }
+  if (contacts && scene.a !== null && scene.b !== null) contactsScene(scene.a, scene.b);
   if (seaCombatIn !== null && scene.a !== null && scene.b !== null) {
     const moored = { lon: -1.6, lat: 50.05 };
     // Framed between the two lines, three hulls apart (storyboard), not on the moored one: the
@@ -1829,4 +1837,27 @@ async function momentsScene() {
       `  1. Tanger prise, comme plus haut, puis la victoire aux points : ${run('raceEndsSoon', { seasonId, inSeconds: 20 })}`,
     ].join('\n'),
   );
+}
+
+/** The stacks of `--accrochages` (#441): each French one stands within sight of a British one. */
+function contactsScene(france, uk) {
+  const spawn = (playerId, role, count, [lon, lat]) =>
+    cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId, role, count, lon, lat })]);
+  const metz = [6.18, 49.12];
+  const channel = [-1.95, 50.0];
+  const cairo = [29.92, 31.2];
+  spawn(france, 'infantry', 3, metz);
+  spawn(france, 'armor', 2, [6.17, 49.36]);
+  spawn(uk, 'infantry', 4, [6.6, 49.27]);
+  spawn(uk, 'armor', 1, [6.6, 49.27]);
+  spawn(france, 'escort', 2, channel);
+  spawn(uk, 'escort', 2, [-1.6, 50.05]);
+  spawn(france, 'infantry', 2, [8.45, 49.92]);
+  spawn(france, 'infantry', 2, cairo);
+  spawn(uk, 'infantry', 3, [30.25, 31.05]);
+  cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+  places.accrochages = [3.2, 49.6];
+  places['accrochage-metz'] = [6.35, 49.24];
+  places['accrochage-manche'] = [-1.78, 50.02];
+  places['accrochage-loin'] = cairo;
 }

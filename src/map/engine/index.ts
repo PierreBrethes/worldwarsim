@@ -162,6 +162,9 @@ import { BASIN_MIN_RADIUS_PX, DepositBasins, SWEEP_GLOW_MS } from './deposit-bas
 import { BASIN_KM } from '@/domain/deposit-basins';
 import { SweepWave } from './deposit-sweep';
 import type { NearSheet } from './near-sheet';
+import { RiverLayer, riverData } from './rivers';
+import type { City } from '@/domain/atlas';
+import { namedCities, namesShown } from '@/domain/place-names';
 import { fromGeometryData } from './atlas-geometry';
 import {
   RegionLayer,
@@ -190,6 +193,8 @@ import { nearer, screenRect, type PieceHit } from './piece-pick';
 import type { Rect } from '@/domain/poster-placement';
 import { CampLayer, type SurveyedCamp } from './annotations';
 import { isPinOf, PIN_APPROACH_DISTANCE, PinLayer, type PinHit } from './pins';
+import { ContactRings, type ContactSpot } from './contact-rings';
+import type { Contact } from '@/domain/contacts';
 import type { Pin, PinShape } from '@/domain/pins';
 import { nationInk } from '@/domain/nations';
 import { TheatreFrame } from './theatre';
@@ -590,6 +595,9 @@ export class MapEngine {
   private readonly frame: WorldFrame;
   private readonly lamp: Lamp;
   private readonly night: NightSky;
+  private readonly rivers: RiverLayer;
+  /** The atlas's cities where the board holds them, for their names (`nameSpots`). */
+  private readonly cities: ReadonlyArray<City & { readonly at: Vector3 }>;
   private readonly halos: Halos;
   /** The night the pieces were last warmed by. */
   private warmed = 0;
@@ -679,6 +687,9 @@ export class MapEngine {
   private readonly eyeMatrix = new Matrix4();
   private readonly camps: CampLayer;
   private readonly pins: PinLayer;
+  private readonly contactRings: ContactRings;
+  /** What the contacts' cartouches hold on the screen: no name of the decor goes there. */
+  private namesReserved: ReadonlyArray<Rect> = [];
   private pinShapes = new Map<string, PinShape>();
   /** Where the piece in hand is over the board: its pin follows it far away (#234). */
   private heldGround: Vector3 | null = null;
@@ -776,6 +787,8 @@ export class MapEngine {
   private readonly replayHidden = new Set<Object3D>();
   private playerNation: string | null = null;
   private readonly restListeners = new Set<() => void>();
+  /** Heard before the others: what they read was laid out there (the contacts' cartouches). */
+  private readonly firstRestListeners = new Set<() => void>();
   /**
    * Picking costs three passes — countries, arcs, then point-in-polygon over the regions —
    * and its result only changes when the pointer or the camera moves. Arcs advance every
@@ -822,6 +835,9 @@ export class MapEngine {
    * subscription: they are two distinct DOM layers, each reading only its fields.
    */
   onEdges: (projections: ReadonlyArray<LabelProjection>) => void = () => {};
+  /** **Where the contacts' circles stand** (#441), every whole frame, for their numbers and
+   *  cartouches; `null` where none is drawn (a replay). */
+  onContacts: (spots: ReadonlyArray<ContactSpot> | null) => void = () => {};
   private hoveredCountry: string | null = null;
   private hoveredRegion: string | null = null;
   /**
@@ -1002,7 +1018,13 @@ export class MapEngine {
     if (this.sea) this.ambience.add(this.sea);
     this.sea?.shore(this.frame, shore);
     this.surface = board.surface;
-    this.night = new NightSky(this.scene, this.frame, this.sea, board.surface.geometry);
+    this.night = new NightSky(
+      this.scene,
+      this.frame,
+      this.sea,
+      board.surface.geometry,
+      atlas.cities().map(({ lonLat }) => lonLat),
+    );
     this.halos = new Halos();
     this.scene.add(this.halos.object);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
@@ -1021,6 +1043,11 @@ export class MapEngine {
       this.scene.add(mesh);
     }
     this.scene.add(borders);
+    this.rivers = new RiverLayer(this.frame, riverData(atlas.rivers(), this.frame));
+    this.cities = atlas
+      .cities()
+      .map((city) => ({ ...city, at: this.frame.projectLonLat(city.lonLat) }));
+    this.scene.add(this.rivers.group);
     this.scene.add(coast);
 
     for (const mesh of meshes) this.countryOf.set(mesh.userData.adm0, mesh);
@@ -1120,6 +1147,8 @@ export class MapEngine {
       (id) => this.maquettes.drawnAt(id),
     );
     this.scene.add(this.pins.group);
+    this.contactRings = new ContactRings(this.frame);
+    this.scene.add(this.contactRings.group);
     this.scene.add(this.ink.group);
     this.parachutes = new ParachuteLayer(this.frame);
     this.scene.add(this.parachutes.group);
@@ -1637,6 +1666,13 @@ export class MapEngine {
     return shape === 'building' ? buildingSpan('barracks') : troopPinSpan(ANONYMOUS_SPAN);
   }
 
+  /** **Les accrochages** (#441) : cerclés sur la carte, et leurs épingles étiquetées. */
+  displayContacts(contacts: ReadonlyArray<Contact>): void {
+    this.invalidate();
+    this.contactRings.display(contacts);
+    this.pins.engage(new Set(contacts.flatMap(({ pinIds }) => pinIds)));
+  }
+
   /** **The designated piece far away** — a pile checked, a site opened: a ring at my ink on its pin. */
   selectPin(labelId: string | null): void {
     this.invalidate();
@@ -1661,6 +1697,7 @@ export class MapEngine {
   displayNearAtlas({ atlas, sheet }: { atlas: Atlas; sheet: NearSheet }): void {
     this.invalidate();
     this.nearLevel = levelOf(sheet.sheet);
+    this.rivers.add('near', sheet.rivers);
     this.regions.showAtlas(atlas, {
       far: fromGeometryData(sheet.lines.far),
       near: fromGeometryData(sheet.lines.near),
@@ -1964,11 +2001,23 @@ export class MapEngine {
   }
 
   /** Camera rest has two audiences — the labels and the edge — hence the subscription. */
-  subscribeRest(listener: () => void): () => void {
-    this.restListeners.add(listener);
+  subscribeRest(listener: () => void, first = false): () => void {
+    const listeners = first ? this.firstRestListeners : this.restListeners;
+    listeners.add(listener);
     return () => {
-      this.restListeners.delete(listener);
+      listeners.delete(listener);
     };
+  }
+
+  /** Every pin and label on the canvas, in its pixels: what a cartouche stands clear of. */
+  markRects(): Rect[] {
+    return this.pins.rects();
+  }
+
+  /** **What the contacts hold** (#441): the decor's names, painted on their own canvas at the
+   *  same rest, give way to it. */
+  reserveNames(boxes: ReadonlyArray<Rect>): void {
+    this.namesReserved = boxes;
   }
 
   /**
@@ -2301,6 +2350,7 @@ export class MapEngine {
     this.eye.updateProjectionMatrix();
     this.renderer.setSize(clientWidth, clientHeight);
     this.sheet.coast.material.resolution.set(clientWidth, clientHeight);
+    this.rivers.resize(clientWidth, clientHeight);
     this.screenWidth = clientWidth;
     this.screenHeight = clientHeight;
     // A target's least width on screen is counted in this window's own pixels (`targetGrowth`).
@@ -2820,6 +2870,54 @@ export class MapEngine {
     return {
       x: box.left + ((point.x + 1) / 2) * box.width,
       y: box.top + ((1 - point.y) / 2) * box.height,
+    };
+  }
+
+  /**
+   * **Les noms du décor à écrire maintenant** (#440), à l'écran : les villes que la distance
+   * montre, les fleuves du niveau dessiné, et les épingles qu'aucun nom ne couvre. Rien loin du
+   * plateau, rien pendant un rejeu. La couche des étiquettes les place (`placeNames`).
+   */
+  nameSpots(): NameSpots {
+    const distance = this.cameraDistance();
+    const none = { cities: [], rivers: [], pins: [] };
+    const replaying = this.replay !== null;
+    if (!namesShown(distance, replaying)) return none;
+    const onScreen = (at: Vector3, margin: number) => {
+      const point = NAME_POINT.copy(at).project(this.eye);
+      if (point.z > 1) return null;
+      const x = ((point.x + 1) / 2) * this.screenWidth;
+      const y = ((1 - point.y) / 2) * this.screenHeight;
+      return x < -margin ||
+        y < -margin ||
+        x > this.screenWidth + margin ||
+        y > this.screenHeight + margin
+        ? null
+        : { x, y };
+    };
+    return {
+      cities: namedCities(this.cities, { distance, touch: this.touch, replaying }).flatMap(
+        ({ at, name, capital }) => {
+          const point = onScreen(at, 0);
+          return point === null ? [] : [{ ...point, name, capital }];
+        },
+      ),
+      rivers: this.rivers.names().flatMap(({ name, spots }) => {
+        const seen = spots.flatMap(({ at, from, to }) => {
+          const [middle, a, b] = [onScreen(at, 0), onScreen(from, 400), onScreen(to, 400)];
+          return middle === null || a === null || b === null
+            ? []
+            : [
+                {
+                  ...middle,
+                  angle: Math.atan2(b.y - a.y, b.x - a.x),
+                  length: Math.hypot(b.x - a.x, b.y - a.y),
+                },
+              ];
+        });
+        return seen.length === 0 ? [] : [{ name, spots: seen }];
+      }),
+      pins: [...this.pins.rects(), ...this.namesReserved],
     };
   }
 
@@ -4341,6 +4439,8 @@ export class MapEngine {
     if (this.restTimer !== null) clearTimeout(this.restTimer);
     this.restTimer = setTimeout(() => {
       this.restTimer = null;
+      if (this.pins.settle()) this.invalidate();
+      for (const listener of this.firstRestListeners) listener();
       for (const listener of this.restListeners) listener();
     }, CAMERA_REST_MS);
   }
@@ -4729,6 +4829,19 @@ export class MapEngine {
       this.arcs.aheadPositions,
       this.camera.position,
     );
+    const contactSpots = this.contactRings.layout(
+      this.eye,
+      this.screenWidth,
+      this.screenHeight,
+      this.unitsPerPixel(distance),
+      this.replay !== null,
+      night,
+      (emit) => {
+        this.standing.lights(emit);
+        this.maquettes.lights(emit);
+        this.pins.discs(emit, this.unitsPerPixel(distance));
+      },
+    );
     this.clearReplayGround();
     this.renderer.shadowMap.needsUpdate = whole;
     const shadowed = this.lamp.follow(this.controls.target, distance);
@@ -4780,11 +4893,13 @@ export class MapEngine {
     borders.dashSize = COUNTRY_DASH_PX * this.unitsPerPixel(distance);
     borders.gapSize = COUNTRY_GAP_PX * this.unitsPerPixel(distance);
     this.sheet.coast.material.linewidth = coastWidthPx(this.unitsPerPixel(distance));
+    this.rivers.fade(distance);
     const detail = this.nearLevel === null ? 'far' : levelAt(this.detail, distance);
     if (detail !== this.detail) {
       this.detail = detail;
       showLevel(this.sheet, detail === 'near' ? this.nearLevel! : this.farLevel);
       this.regions.showLines(detail);
+      this.rivers.show(detail);
     }
 
     this.renderer.render(this.scene, this.eye);
@@ -4798,6 +4913,7 @@ export class MapEngine {
       this.camera.position,
     );
     this.onLabels(this.outsideReplay(projections, distance));
+    this.onContacts(contactSpots);
     this.onReportsFrame?.();
     // An arrow at the edge would lead out of a replay the veil does not let one leave.
     this.onEdges(
@@ -4807,6 +4923,29 @@ export class MapEngine {
     );
   };
 }
+
+/** The working point `nameSpots` projects each city and river spot with, every image. */
+const NAME_POINT = new Vector3();
+
+/** Where the decor's names may go (`nameSpots`), in the layer's pixels. */
+export type NameSpots = {
+  readonly cities: ReadonlyArray<{
+    readonly x: number;
+    readonly y: number;
+    readonly name: string;
+    readonly capital: boolean;
+  }>;
+  readonly rivers: ReadonlyArray<{
+    readonly name: string;
+    readonly spots: ReadonlyArray<{
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+      readonly length: number;
+    }>;
+  }>;
+  readonly pins: readonly Rect[];
+};
 
 /** The screen's edge, eight points a side, in device coordinates (`fullDayInView`). */
 const SCREEN_EDGE: ReadonlyArray<readonly [number, number]> = Array.from(

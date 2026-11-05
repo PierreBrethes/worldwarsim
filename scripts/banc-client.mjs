@@ -536,7 +536,7 @@ async function layerCosts() {
     ['pièces', hide([E.standing.group, E.maquettes.group, E.camps.group])],
     ['fils', hide([E.arcs.group, E.ink.group])],
     ['pays', hide(E.countries)],
-    ['frontières', hide([E.borders, E.coast])],
+    ['frontières', hide([E.sheet.borders, E.sheet.coast])],
     [
       'mer (shader)',
       () => {

@@ -1,4 +1,5 @@
 import { outpostPinId, pinsOf } from '@/domain/pins';
+import { contactsOf } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { boardsUnderTheEyes } from '@/map/cues';
@@ -100,6 +101,7 @@ import {
   razingStill,
   leavingStill,
   campsOf,
+  campsShown,
   markerOfStation,
   markersOf,
   standingPilesOf,
@@ -142,6 +144,7 @@ import {
   type DisbandGround,
 } from '@/domain/movement-orders';
 import {
+  stackOf,
   type CombatReport,
   type JournalDispatch,
   type ReplayView,
@@ -2277,7 +2280,18 @@ function BoardContent({
     () => marchingPiecesOf(view.arcs, view.me.troops, blitz),
     [view.arcs, view.me.troops, blitz],
   );
-  const pins = useMemo(() => pinsOf(markers, arcs, ink), [markers, arcs, ink]);
+  /** **Les accrochages** (#441), nommés d'après toutes les villes de l'atlas. */
+  const contacts = useMemo(
+    () => contactsOf({ ...view, camps: campsShown(view, toggles) }, atlas.cities()),
+    [view, toggles, atlas],
+  );
+  const pins = useMemo(
+    () =>
+      pinsOf(markers, arcs, ink, (station) =>
+        stackOf(troopsAt(view.me, stationKeyOf(station), marching).map(({ role }) => role)),
+      ),
+    [markers, arcs, ink, view.me, marching],
+  );
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -2914,6 +2928,7 @@ function BoardContent({
                   standing={standing}
                   camps={camps}
                   pins={pins}
+                  contacts={contacts}
                   maquettes={maquettes}
                   held={held}
                   outposts={reachedOutposts}

@@ -2,7 +2,7 @@ import { Color, Mesh, PlaneGeometry, ShaderMaterial } from 'three';
 import { ARC_COLORS, PALETTE } from './palette';
 
 const VERTEX = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
-const FRAGMENT = `uniform vec3 uColor; uniform float uOpacity, uDash, uTime, uSpin, uInner, uTicks;
+const FRAGMENT = `uniform vec3 uColor; uniform float uOpacity, uDash, uTime, uSpin, uInner, uTicks, uFill;
 varying vec2 vUv;
 void main(){
   vec2 p = vUv * 2. - 1.; float r = length(p); float a = atan(p.y, p.x) / 6.28318 + .5;
@@ -10,8 +10,9 @@ void main(){
   float ring = smoothstep(uInner - fw, uInner, r) * (1. - smoothstep(1. - fw, 1., r));
   if (uDash > 0.) ring *= step(.42, fract(a * uDash + uTime * uSpin));
   if (uTicks > 0.) { float t = abs(fract(a * 4. + .125) - .5); ring = max(ring, step(t, .02) * step(.55, r) * (1. - smoothstep(1. - fw, 1., r)) * step(r, uInner + .02)); }
-  if (ring < .01) discard;
-  gl_FragColor = vec4(uColor, ring * uOpacity);
+  float wash = uFill * (1. - smoothstep(uInner - fw, uInner, r));
+  if (ring < .01 && wash < .004) discard;
+  gl_FragColor = vec4(uColor, max(ring * uOpacity, wash));
   #include <colorspace_fragment>
 }`;
 
@@ -90,6 +91,7 @@ export class InkRing extends Mesh<PlaneGeometry, ShaderMaterial> {
           uSpin: { value: 0 },
           uInner: { value: 0.9 },
           uTicks: { value: 0 },
+          uFill: { value: 0 },
         },
       }),
     );
@@ -125,6 +127,24 @@ export class InkRing extends Mesh<PlaneGeometry, ShaderMaterial> {
       : 1 + 0.4 * (1 - Math.min(1, (seconds - this.since) / LANDING_S)) ** 2;
     const beat = BEATS.has(state) && !still ? 1.06 + 0.05 * pulse : 1;
     this.beat = landing * beat;
+  }
+
+  /**
+   * **A still ring that its owner sizes** (the circle of a contact, #441): its band and dashes
+   * as shares of its own radius, and a wash of its ink inside. It neither turns nor beats.
+   */
+  outline(color: string, inner: number, dashes: number, fill: number): void {
+    this.state = null;
+    this.visible = true;
+    this.beat = 1;
+    const u = this.material.uniforms;
+    u.uColor!.value.set(color);
+    u.uInner!.value = inner;
+    u.uOpacity!.value = 1;
+    u.uDash!.value = dashes;
+    u.uSpin!.value = 0;
+    u.uTicks!.value = 0;
+    u.uFill!.value = fill;
   }
 
   /** Its ink's opacity, for what fades out on its own clock. */

@@ -1407,3 +1407,12 @@
   height: 8px;
   background: var(--arc-mine);
 }
+
+/* Les noms du décor (#440) : sous les étiquettes, sans pointeur. */
+.map-names {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

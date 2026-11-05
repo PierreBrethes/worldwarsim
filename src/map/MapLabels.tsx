@@ -69,6 +69,7 @@ import {
   type Rect,
 } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
+import { NameSheet } from './map-names';
 
 /** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
 export type TakeDepot = (
@@ -255,6 +256,12 @@ export function MapLabels({
   }, []);
   /** La largeur mesurée de chaque cartouche, pour savoir de combien rapprocher la caméra. */
   const widths = useRef(new Map<string, number>());
+  /**
+   * **La boîte de chaque étiquette autour de son point**, mesurée au repli (`degrade`) : chaque
+   * image la repose sous ses nouvelles coordonnées, et les noms du décor l'évitent (#440).
+   */
+  const boxes = useRef(new Map<string, ScreenBox>());
+  const namesCanvas = useRef<HTMLCanvasElement>(null);
   /** `click` does not say which pointer made it everywhere Safari runs: the press does. */
   const pressedWith = useRef('mouse');
   /** La pile de mâts ouverte en liste, par son identifiant — elle se referme si elle se défait. */
@@ -582,6 +589,28 @@ export function MapLabels({
     groupsNow.current = shown;
     setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
     for (const group of shown) writeLift(group.id);
+    const origin = layer.current?.getBoundingClientRect();
+    boxes.current.clear();
+    if (origin !== undefined)
+      for (const [id, state] of states.current) {
+        const anchor = anchors.current.get(id);
+        const box = state.visible && anchor !== undefined ? drawnBox(anchor) : null;
+        // A shared cartouche stands at its first member's foot: kept under that member's id.
+        const groups = formed.filter((group) => group.members[0] === id);
+        const shared = groups.flatMap((group) => {
+          const node = groupAnchors.current.get(group.id);
+          return node === undefined ? [] : [drawnBox(node)];
+        });
+        const all = [box, ...shared].filter((each) => each !== null);
+        if (all.length === 0) continue;
+        const [x, y] = [origin.left + state.x, origin.top + state.y];
+        boxes.current.set(id, {
+          left: Math.min(...all.map((each) => each.left)) - x,
+          top: Math.min(...all.map((each) => each.top)) - y,
+          right: Math.max(...all.map((each) => each.right)) - x,
+          bottom: Math.max(...all.map((each) => each.bottom)) - y,
+        });
+      }
     point(held);
   }, [labels, apply, engine, point, groupFar, writeLift]);
 
@@ -686,7 +715,9 @@ export function MapLabels({
   }, [engine, labels]);
 
   useEffect(() => {
-    if (!engine) return;
+    if (!engine || namesCanvas.current === null) return;
+    const names = new NameSheet(namesCanvas.current);
+    const coarse = matchMedia('(pointer: coarse)').matches;
     engine.onLabels = (projections: ReadonlyArray<LabelProjection>) => {
       for (const projection of projections) {
         const anchor = anchors.current.get(projection.id);
@@ -893,6 +924,22 @@ export function MapLabels({
         anchor.style.setProperty('--dressed', String(dressed));
         anchor.classList.toggle('label-anchor--dressed', dressed >= 0.5);
       }
+
+      // Les noms du décor viennent après le jeu, et lui cèdent (#440).
+      const occupied: ScreenBox[] = [];
+      for (const [id, state] of states.current) {
+        const box = boxes.current.get(id);
+        if (state.visible && box !== undefined)
+          occupied.push({
+            left: state.x + box.left,
+            top: state.y + box.top,
+            right: state.x + box.right,
+            bottom: state.y + box.bottom,
+          });
+        const piece = engine.pieceRect(id);
+        if (piece !== null) occupied.push(piece);
+      }
+      names.paint(engine.nameSpots(), occupied, layerSize.current, coarse);
     };
     const unsubscribe = engine.subscribeRest(degrade);
     return () => {
@@ -1110,6 +1157,7 @@ export function MapLabels({
       ref={layer}
       className={`map-labels${muted ? ' pointer-events-none' : ''}${carriersShown ? ' map-labels--loading' : ''}`}
     >
+      <canvas ref={namesCanvas} className="map-names" aria-hidden="true" />
       {labels.map((label) => (
         <LabelNode
           key={label.id}
@@ -1526,6 +1574,37 @@ function sameLabelProps(before: LabelNodeProps, after: LabelNodeProps): boolean 
     if (!Object.is(before[key], after[key])) return false;
   }
   return shareUnchanged(before.label, after.label) === before.label;
+}
+
+/**
+ * What a label draws, in the page: its root has no size, its parts are placed around it. A
+ * glyph keeps its block in the layout, transparent; a grouped label hides its words and keeps
+ * its plates.
+ * ponytail: every part read once a second and at rest; a cached box per label if a phone feels it.
+ */
+function drawnBox(anchor: HTMLElement): ScreenBox | null {
+  const root = anchor.querySelector('.label');
+  const hidden = root?.classList.contains('label--glyph')
+    ? '.label-block'
+    : root?.classList.contains('label--grouped')
+      ? '.label-lines, .label-bar'
+      : null;
+  let box: ScreenBox | null = null;
+  for (const node of anchor.querySelectorAll('*')) {
+    if (hidden !== null && node.closest(hidden) !== null) continue;
+    const { left, top, right, bottom } = node.getBoundingClientRect();
+    if (right <= left || bottom <= top) continue;
+    box =
+      box === null
+        ? { left, top, right, bottom }
+        : {
+            left: Math.min(box.left, left),
+            top: Math.min(box.top, top),
+            right: Math.max(box.right, right),
+            bottom: Math.max(box.bottom, bottom),
+          };
+  }
+  return box;
 }
 
 /** Where the poster stands relative to its label's anchor, measured once per render of it. */

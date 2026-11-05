@@ -32,6 +32,12 @@ describe('la côte de mer ouverte', () => {
     expect(new Set(indexAsset.coastal)).toEqual(coast.regions);
   });
 
+  it('tient la liste des côtes à part de `ids`, qui compte aussi les lacs et les régions sans cellule (#458)', () => {
+    const asset = coastAsset as CoastAsset;
+    expect(new Set(asset.coastal)).toEqual(new Set(indexAsset.coastal));
+    expect(asset.ids.length).toBeGreaterThan(asset.coastal.length);
+  });
+
   it('ne compte ni la Caspienne, ni un lac, ni l’intérieur', () => {
     for (const inland of ['KAZ-3198', 'RUS-2388', 'UGA-3088', 'CHE-159', 'ITA-5386', 'SMR-4884'])
       expect(coast.regions.has(inland), inland).toBe(false);

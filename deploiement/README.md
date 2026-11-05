@@ -308,25 +308,36 @@ sont liés à la clé publique) : ils devront réactiver la case des Réglages.
 
 ## L'atlas (#213, ADR 0034)
 
-`public/atlas.json` et `public/atlas-near.json` se cuisent depuis trois sources hors du dépôt,
+`public/atlas.json` et `public/atlas-near.json` se cuisent depuis six sources hors du dépôt,
 épinglées par SHA-256 dans le script (qui dit où les télécharger) :
 
 ```bash
 node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> \
-  <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson>
+  <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson> <ne_10m_populated_places.geojson> \
+  <ne_10m_rivers_lake_centerlines.geojson> <rivers10.dbf>
 ```
 
-Natural Earth 10m admin-1 et lacs v5.1.2, et le VG2500 du BKG (« © GeoBasis-DE / BKG »,
-dl-de/by-2-0). Puis, dans cet ordre : `generate-grid`, `generate-coast`, `generate-region-index`,
-`generate-region-grid`, `generate-europe-sheet`, `generate-region-types <dossier des rasters>`
-(qui écrit aussi `terrain-cells.json`, le terrain des dessins par cellule),
-`generate-deposits`, `generate-deposit-basins`.
-**Déployer le socle de l'atlas vide la base** (ADR 0034), en pré-production comme en
-production : le sol, les points des régions, les gisements et la côte changent sous une saison
-en cours, et aucune migration ne la porte. Base vidée d'abord, fonctions déployées ensuite.
+Natural Earth v5.1.2, tag du dépôt `nvkelso/natural-earth-vector` : admin-1, lacs et lieux
+habités 10m (le fichier complet : `_simple` n'a pas `NAME_FR`), tous trois sous
+`https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/`, et le VG2500
+du BKG (« © GeoBasis-DE / BKG », dl-de/by-2-0). Les fleuves (#440) viennent de deux fichiers du
+même tag : la géométrie de `geojson/ne_10m_rivers_lake_centerlines.geojson`, restée ancienne
+(noms anglais seuls, sans accents), et `name_fr` de
+`10m_physical/ne_10m_rivers_lake_centerlines.dbf`, renommé `rivers10.dbf`. Les deux ne sont pas
+dans le même ordre : le script apparie un tracé et un enregistrement par nom, `rivernum`,
+`scalerank` et classe. Puis, dans cet ordre : `generate-grid`, `generate-coast`,
+`generate-region-index`, `generate-region-grid`, `generate-europe-sheet`,
+`generate-region-types <dossier des rasters>` (qui écrit aussi `terrain-cells.json`, le terrain
+des dessins par cellule), `generate-deposits`, `generate-deposit-basins`.
 
-Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît orpheline une
-capitale, un gisement ou une saison en cours.
+**Déployer le socle de l'atlas vide la base** (ADR 0034) quand ses arcs changent, en
+pré-production comme en production : le sol, les points des régions, les gisements et la côte
+changent sous une saison en cours, et aucune migration ne la porte. Base vidée d'abord, fonctions
+déployées ensuite. Un ajout qui laisse les arcs tels quels (les villes et les fleuves, #440) ne
+vide pas la base.
+
+Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît
+orpheline une capitale, un gisement ou une saison en cours.
 
 ## Médias
 
