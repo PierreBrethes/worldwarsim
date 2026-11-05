@@ -7,8 +7,9 @@ import { finestWords, type FinalEdition } from './words';
 const said = fr.finalEdition;
 const UNE_WIDTH = 1080;
 const UNE_HEIGHT = 1350;
-const INK = '#2a2118';
-const RED = '#9d4638';
+/** Le canvas ne lit pas les variables CSS : les jetons se relisent sur la page, au dessin. */
+const tokenOf = (name: string): string =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const M = 64;
 
 const flagImage = (nation: string): Promise<HTMLImageElement | null> => {
@@ -48,12 +49,14 @@ export async function drawUne(
 ): Promise<void> {
   const c = canvas.getContext('2d');
   if (c === null) return;
+  const INK = tokenOf('--ink');
+  const RED = tokenOf('--critical');
   await document.fonts?.ready;
   canvas.width = UNE_WIDTH;
   canvas.height = UNE_HEIGHT;
   const W = UNE_WIDTH;
   const mine = edition.nations.find((page) => page.mine) ?? null;
-  c.fillStyle = '#e4d8bd';
+  c.fillStyle = tokenOf('--paper');
   c.fillRect(0, 0, W, UNE_HEIGHT);
   c.fillStyle = INK;
   const rule = (y: number, height = 1) => c.fillRect(M, y, W - 2 * M, height);
@@ -84,7 +87,7 @@ export async function drawUne(
   while (c.measureText(headline).width > W - 2 * M && size > 40);
   c.fillText(headline, W / 2, 372);
   c.font = 'italic 400 33px "Source Serif 4"';
-  c.fillStyle = '#4a4436';
+  c.fillStyle = tokenOf('--ink-quiet');
   wrap(
     c,
     said.deck({
@@ -175,8 +178,10 @@ export async function drawUne(
       c.font = '700 14px "Bodoni Moda"';
       c.fillText(said.outcome[page.exit.kind].toUpperCase(), x + 230, y + 24);
     }
-    c.fillStyle = 'rgba(42,33,24,.18)';
+    c.fillStyle = INK;
+    c.globalAlpha = 0.18;
     c.fillRect(x, y + 42, column, 1);
+    c.globalAlpha = 1;
   });
 
   /** Le pied : la ligne de qui partage, ou rien de lui. */
@@ -184,7 +189,7 @@ export async function drawUne(
     const y = UNE_HEIGHT - 102;
     c.fillStyle = INK;
     c.fillRect(0, y, W, 102);
-    c.fillStyle = '#efe5cc';
+    c.fillStyle = tokenOf('--paper');
     c.font = '600 18px "Archivo Narrow"';
     c.fillText(said.une.mineHead(mine.nation, mine.nickname), M, y + 38);
     c.font = 'italic 500 29px "Bodoni Moda"';
@@ -196,7 +201,7 @@ export async function drawUne(
     );
   } else {
     c.font = 'italic 400 22px "Source Serif 4"';
-    c.fillStyle = '#5f5039';
+    c.fillStyle = tokenOf('--ink-soft');
     c.textAlign = 'center';
     c.fillText(said.une.neutralFoot, W / 2, UNE_HEIGHT - 52);
   }

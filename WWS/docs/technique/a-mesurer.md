@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : cec5e93 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 80209bc -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-109 valeurs marquées dans `convex/` et `src/domain/`.
+110 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -100,6 +100,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `SWEEP_RANGE_KM` | `1000` | `src/domain/deposit-sweep.ts:16` | décisions du 23/10 sur #249 : l'Europe de l'Ouest d'un coup d'œil |
 | `SWEEP_MS` | `3000` | `src/domain/deposit-sweep.ts:19` | décisions du 23/10 sur #249 : assez long pour suivre le front |
 | `BUILDING_SPACING_KM` | `30` | `src/domain/economy.ts:89` | l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test |
+| `FRAMES` | `{ world: [0, 0, 400, 208], europe: [187, 14, 248, 61], 'europe-med': [180, 14, 271, 89] }` | `src/domain/final-edition-read.ts:66` | cadres posés à l'œil, sans capture |
 | `NEAR_KM` | `250` | `src/domain/front-sound.ts:43` | 250 et 550 km, maquette D du 02/11, jamais jouée |
 | `MID_KM` | `550` | `src/domain/front-sound.ts:44` | 250 et 550 km, maquette D du 02/11, jamais jouée |
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
