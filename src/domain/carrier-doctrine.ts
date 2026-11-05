@@ -30,7 +30,7 @@ export type Course = {
  *  expédition. */
 export const STEERED = ['march', 'attack', 'raid'] as const;
 export type Steered = (typeof STEERED)[number];
-export const isSteered = (type: MovementType): type is Steered =>
+const isSteered = (type: MovementType): type is Steered =>
   (STEERED as ReadonlyArray<MovementType>).includes(type);
 
 /** L'ordre que la flotte reprise reçoit au lâcher, tel que la rose le propose. */
