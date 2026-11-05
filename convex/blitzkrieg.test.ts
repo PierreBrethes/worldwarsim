@@ -525,6 +525,21 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect((await t.run(async (ctx) => ctx.db.get(tanks[0]!)))!.stationedAt).toEqual(at(LIEGE));
   });
 
+  it('halts a rider whose carrier stays behind instead of failing the leg', async () => {
+    const t = boot();
+    const { germany, liege, namur, tanks } = await scene(t);
+    const order = await attack(t, germany, tanks, liege, namur);
+    await land(t, order.movementId);
+    /** Un camion posé à Liège, que la colonne ne mène pas, porte l'un des chars. */
+    const [truck] = await post(t, germany, 'landTransport', at(LIEGE));
+    await t.run(async (ctx) => ctx.db.patch(tanks[0]!, { carriedBy: truck }));
+    await runDue(t);
+    expect(await blitzNotices(t, germany)).toMatchObject([
+      { outcome: 'halted', refusal: 'STILL_ABOARD' },
+    ]);
+    expect((await movements(t)).filter((movement) => movement.type === 'attack')).toEqual([]);
+  });
+
   it('plans nothing after a lost first attack', async () => {
     const t = boot();
     const { germany, france, liege, namur, tanks } = await scene(t);
