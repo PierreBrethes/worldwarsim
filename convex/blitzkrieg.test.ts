@@ -383,4 +383,21 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     });
     expect(none.uses).toBe(0);
   });
+
+  it('stages each state of the gesture for the captures (--guerre-eclair)', async () => {
+    const t = boot();
+    const { germany, france } = await launchedSeason(t);
+    const places = await t.mutation(internal.dev.blitzkriegScene, { seasonId: germany.seasonId });
+    expect(Object.keys(places)).toContain('guerre-eclair-tenue');
+    vi.advanceTimersByTime(1);
+    await t.finishInProgressScheduledFunctions();
+    expect((await blitzNotices(t, germany)).map((notice) => notice.outcome).sort()).toEqual([
+      'halted',
+      'lost',
+      'onward',
+    ]);
+    const chained = (await movements(t)).filter((movement) => movement.blitzkrieg !== undefined);
+    expect(chained).toHaveLength(1);
+    expect((await t.query(api.view.playerView, france)).detected.length).toBeGreaterThan(0);
+  });
 });

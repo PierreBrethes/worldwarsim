@@ -324,6 +324,21 @@ const fall = await measured('captures:complete', () =>
   admin.mutation(internal('captures:complete'), fallen),
 );
 
+/** **La seconde jambe d'une Guerre éclair** (#451) : la même arrivée sur une garnison, simple puis
+ *  à deux cibles — la jambe déposée à l'échéance ne doit pas alourdir la passe. */
+const blitz = await admin.mutation(internal('dev:benchBlitzkrieg'), {
+  attackerId: playerOf(nations.indexOf('germany')),
+  defenderId: playerOf(MEASURED),
+  from: around(0.8),
+});
+const arrivals = [];
+for (const movementId of [blitz.plain, blitz.chained])
+  arrivals.push(
+    await measured('movements:arrive', () =>
+      admin.mutation(internal('movements:arrive'), { movementId }),
+    ),
+  );
+
 const fixed = (n, d = 1) => n.toFixed(d);
 /** Une exécution qui dépasse la seconde permise est coupée et ne laisse rien : on le dit. */
 const cell = (run) => (run.timedOut ? `${fixed(run.ms)} (coupée à 1 s)` : fixed(run.ms));
@@ -354,6 +369,10 @@ console.log(
 console.log(
   `| chute d'un QG tenant ${String(POINTS_HELD)} points (\`captures.complete\`) | ${cell(fall)} | ${String(fall.read)} | ${String(fall.written)} |`,
 );
+for (const [k, run] of arrivals.entries())
+  console.log(
+    `| arrivée d'une attaque ${k === 0 ? 'simple' : 'à deux cibles (Guerre éclair)'} (\`arrive\`) | ${cell(run)} | ${String(run.read)} | ${String(run.written)} |`,
+  );
 console.log(`| Jobs planifiés en attente | ${String(stats.pendingJobs)} | | |`);
 for (const [name, count] of stats.pendingByName)
   console.log(`| ↳ \`${name}\` | ${String(count)} | | |`);

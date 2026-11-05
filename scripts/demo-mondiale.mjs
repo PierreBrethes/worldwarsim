@@ -142,6 +142,11 @@
  * `--porte-avions` (#449, avec `--huit`) fait partir au large de Honshu une escadre japonaise au
  * cap libre (`porte-avions`, compte g) et une escadre française du même point au même instant
  * (compte a), et pose une seconde escadre japonaise passée la mi-parcours (`porte-avions-tenu`).
+ * `--guerre-eclair` (#451, avec `--huit`) pose trois chars allemands devant Aix-la-Chapelle
+ * (`guerre-eclair`, compte c), deux avant-postes français relevés (`liege`, `namur`), un point de
+ * marche (`spa`) et un avant-poste allemand (`bastogne`) ; puis une attaque à deux cibles en vol
+ * (`guerre-eclair-lancee`), une seconde jambe partie (`guerre-eclair-tenue`, que la France voit
+ * repartir), une tombée (`guerre-eclair-perdue`) et une restée faute de coups (`guerre-eclair-restee`).
  * `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
  * rangs et une artillerie, et une escorte et un porte-avions en golfe de Gascogne (`rangs-mer`).
  * `--recrue [s]` forme une infanterie de rang 2 à la caserne de `--niveaux` et la fait sortir dans
@@ -471,6 +476,14 @@ if (!bare) {
         cli(['run', 'dev:carrierDoctrineScene', JSON.stringify({ seasonId })]).match(
           /\{[\s\S]*\}/,
         )[0],
+      ),
+    );
+  /** `--guerre-eclair` : la colonne en main, et les quatre suites d'une attaque à deux cibles. */
+  if (eight && process.argv.includes('--guerre-eclair'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:blitzkriegScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
       ),
     );
   /** `--rangs` : les deux rangs, une artillerie à côté de Paris ; une flotte au large de la Bretagne. */

@@ -20,6 +20,7 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
+import { chainSecondTarget } from './movement/blitzkrieg';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
@@ -989,6 +990,255 @@ export const carrierDoctrineScene = internalMutation({
       'porte-avions': [offHonshu.lon, offHonshu.lat],
       'porte-avions-tenu': positionAt(past, now),
     };
+  },
+});
+
+/**
+ * **Poser une Guerre éclair** (#451) : des avant-postes `foe` relevés par `attacker`, ses chars à
+ * `from`, et l'attaque à deux cibles telle que `movements.attack` la dépose. `arrivedNow` ramène
+ * son arrivée à l'instant (le trajet glissé avec elle), et le job d'arrivée part tout de suite.
+ */
+async function stageBlitzkrieg(
+  ctx: MutationCtx,
+  {
+    attacker,
+    foe,
+    from,
+    first,
+    then,
+    tanks = 3,
+    rounds,
+    garrison = [],
+    arrivedNow = false,
+    hostCountry,
+  }: {
+    attacker: Doc<'players'>;
+    foe: Doc<'players'>;
+    from: { lon: number; lat: number };
+    first: { lon: number; lat: number };
+    then: { lon: number; lat: number };
+    tanks?: number;
+    rounds?: number;
+    garrison?: ReadonlyArray<UnitRole>;
+    arrivedNow?: boolean;
+    hostCountry?: string;
+  },
+) {
+  const season = (await ctx.db.get(attacker.seasonId))!;
+  const now = Date.now();
+  const troop = (
+    player: Doc<'players'>,
+    role: UnitRole,
+    stationedAt: Doc<'troops'>['stationedAt'],
+  ) =>
+    ctx.db.insert('troops', {
+      seasonId: season._id,
+      playerId: player._id,
+      role,
+      tier: 1,
+      nominalStrength: nominalStrength(role, 1),
+      currentStrength: nominalStrength(role, 1),
+      stationedAt,
+      ...(rounds === undefined || player._id !== attacker._id ? {} : { rounds }),
+    });
+  const outposts: Id<'outposts'>[] = [];
+  for (const point of [first, then]) {
+    const region = regionAtPoint([point.lon, point.lat])!;
+    outposts.push(
+      await ctx.db.insert('outposts', {
+        seasonId: season._id,
+        playerId: foe._id,
+        point,
+        hostCountry: hostCountry ?? region.country,
+        regionId: region.id,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+  }
+  for (const role of garrison) await troop(foe, role, outposts[0]!);
+  await fileSurvey(
+    ctx,
+    attacker._id,
+    [first, then].map((point) => ({ point: [point.lon, point.lat] as const, radiusKm: 1 })),
+    now,
+  );
+  const troopIds = [];
+  for (let k = 0; k < tanks; k++) troopIds.push(await troop(attacker, 'armor', from));
+  const aimed = await aimOf(ctx, attacker._id, { kind: 'outpost', outpostId: outposts[0]! });
+  const filed = await march(ctx, {
+    playerId: attacker._id,
+    season,
+    type: 'attack',
+    origin: { kind: 'point', point: from },
+    troopIds,
+    aim: aimed,
+    keepsSlot: true,
+  });
+  await chainSecondTarget(ctx, attacker, season, filed.movementId, aimed.aim, {
+    kind: 'outpost',
+    outpostId: outposts[1]!,
+  });
+  if (arrivedNow) {
+    const length = filed.arrivesAt - now;
+    await ctx.db.patch(filed.movementId, { departedAt: now - length, arrivesAt: now });
+    await ctx.scheduler.runAt(now, internal.movements.arrive, { movementId: filed.movementId });
+  }
+  return { movementId: filed.movementId, troopIds, outposts };
+}
+
+/**
+ * **La Guerre éclair** (#451, `--guerre-eclair` avec `--huit`, l'Allemagne au compte c) : une
+ * colonne allemande en main devant Aix-la-Chapelle, face à deux avant-postes français relevés
+ * (Liège, Namur), un point de marche (Spa) et un avant-poste allemand (Bastogne) pour le refus ;
+ * puis, chacune à part, une attaque à deux cibles en vol (Luxembourg puis Arlon), une seconde
+ * jambe partie (Malines tenue, vers Louvain), une tombée (Gand, garnison trop forte) et une
+ * restée sur place faute de coups (Neufchâteau). La France (compte a) voit repartir de Malines
+ * une colonne inconnue.
+ */
+export const blitzkriegScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const germany = players.find((player) => player.nation === 'germany');
+    const france = players.find((player) => player.nation === 'france');
+    if (germany === undefined || france === undefined)
+      throw new Error('--guerre-eclair wants --huit');
+    const now = Date.now();
+    const p = (lon: number, lat: number) => ({ lon, lat });
+    const aachen = p(6.08, 50.78);
+    const liege = p(5.57, 50.63);
+    const namur = p(4.87, 50.47);
+    const bastogne = p(5.72, 50.02);
+    const spa = p(5.86, 50.49);
+    /** La main : trois chars posés, deux avant-postes français relevés, un allemand. */
+    for (let k = 0; k < 3; k++)
+      await ctx.db.insert('troops', {
+        seasonId,
+        playerId: germany._id,
+        role: 'armor',
+        tier: 1,
+        nominalStrength: nominalStrength('armor', 1),
+        currentStrength: nominalStrength('armor', 1),
+        stationedAt: aachen,
+      });
+    for (const [player, point] of [
+      [france, liege],
+      [france, namur],
+      [germany, bastogne],
+    ] as const) {
+      const region = regionAtPoint([point.lon, point.lat])!;
+      await ctx.db.insert('outposts', {
+        seasonId,
+        playerId: player._id,
+        point,
+        hostCountry: region.country,
+        regionId: region.id,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    }
+    await fileSurvey(
+      ctx,
+      germany._id,
+      [liege, namur].map((point) => ({ point: [point.lon, point.lat] as const, radiusKm: 1 })),
+      now,
+    );
+    const luxembourg = p(6.13, 49.61);
+    const arlon = p(5.81, 49.68);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(6.64, 49.75),
+      first: luxembourg,
+      then: arlon,
+    });
+    const mechelen = p(4.48, 51.03);
+    const leuven = p(4.7, 50.88);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(4.4, 51.22),
+      first: mechelen,
+      then: leuven,
+      arrivedNow: true,
+    });
+    const ghent = p(3.72, 51.05);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(3.26, 50.83),
+      first: ghent,
+      then: p(3.22, 51.21),
+      tanks: 2,
+      garrison: ['armor', 'armor', 'armor', 'armor', 'armor', 'armor'],
+      arrivedNow: true,
+    });
+    const neufchateau = p(5.43, 49.84);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(5.07, 49.79),
+      first: neufchateau,
+      then: p(5.38, 49.92),
+      rounds: 1,
+      garrison: ['infantry'],
+      arrivedNow: true,
+    });
+    await recordLinkage(ctx, seasonId);
+    await reassessDetection(ctx, seasonId, now);
+    const at = (point: { lon: number; lat: number }) => [point.lon, point.lat];
+    return {
+      'guerre-eclair': at(aachen),
+      liege: at(liege),
+      namur: at(namur),
+      bastogne: at(bastogne),
+      spa: at(spa),
+      'guerre-eclair-lancee': at(luxembourg),
+      'guerre-eclair-tenue': at(mechelen),
+      'guerre-eclair-perdue': at(ghent),
+      'guerre-eclair-restee': at(neufchateau),
+    };
+  },
+});
+
+/**
+ * **Le banc de la seconde jambe** (#451) : deux attaques allemandes sur un même genre de cible
+ * gardée, l'une simple, l'autre à deux cibles, ramenées à leur arrivée. Le banc mesure chacune
+ * par `movements:arrive` : la seconde jambe ne doit pas alourdir la passe.
+ */
+export const benchBlitzkrieg = internalMutation({
+  args: { attackerId: v.id('players'), defenderId: v.id('players'), from: LON_LAT },
+  handler: async (ctx, { attackerId, defenderId, from }) => {
+    const attacker = (await ctx.db.get(attackerId))!;
+    const foe = (await ctx.db.get(defenderId))!;
+    const ids = [];
+    for (const [k, chained] of [false, true].entries()) {
+      const near = { lon: from.lon + 0.3, lat: from.lat + 0.2 * (k + 1) };
+      const staged = await stageBlitzkrieg(ctx, {
+        attacker,
+        foe,
+        from,
+        first: near,
+        then: { lon: near.lon + 0.3, lat: near.lat },
+        garrison: ['infantry'],
+        hostCountry: 'BENCH',
+      });
+      if (!chained) await ctx.db.patch(staged.movementId, { blitzkrieg: undefined });
+      await ctx.db.patch(staged.movementId, { arrivesAt: Date.now() - 1 });
+      ids.push(staged.movementId);
+    }
+    await reassessDetection(ctx, attacker.seasonId, Date.now(), attackerId);
+    return { plain: ids[0]!, chained: ids[1]! };
   },
 });
 
