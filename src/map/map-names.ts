@@ -1,28 +1,39 @@
 import type { ScreenBox } from '@/domain/label-groups';
-import { placeNames, type NameCandidate } from '@/domain/place-names';
+import {
+  placeNames,
+  SEA_BUDGET,
+  seaLines,
+  seaSpots,
+  type NameCandidate,
+} from '@/domain/place-names';
 import type { NameSpots } from './engine';
 
 /**
  * **Le décor de l'atlas, à la plume** (#440, variante A de `carte-lisible`) : capitale en point
  * cerclé, grande ville en point plein, noms de villes en romain, de fleuves en italique bleu,
- * tous détourés de papier. One canvas under the labels, repainted with them; it keeps its ink at
+ * tous détourés de papier ; les mers (#457) en capitales italiques espacées, bleu de mer, sans
+ * liseré. One canvas under the labels, repainted with them; it keeps its ink at
  * night, as the labels do.
  */
 const CITY_INK = '#3a2c1e';
 const RIVER_INK = '#3f6c8c';
+const SEA_INK = '#4f7a92';
 const PAPER = '#f1e8d2';
 /** The maquette's budget: forty names at the desk, fifteen on a phone. */
 const BUDGET = { desk: 40, touch: 15 };
 const CAPITAL_FONT = '600 13px';
 const CITY_FONT = '500 12px';
 const RIVER_FONT = 'italic 500 12px';
+const SEA_FONT = 'italic 500 12px';
+const SEA_SPACING_PX = 3;
 /** The name floats over the river, on the paper side. */
 const RIVER_OFFSET_PX = 7;
 const TEXT_HEIGHT = 14;
 
 type Drawn =
   | { kind: 'city'; x: number; y: number; capital: boolean; name: string; box: ScreenBox }
-  | { kind: 'river'; x: number; y: number; angle: number; name: string };
+  | { kind: 'river'; x: number; y: number; angle: number; name: string; box: ScreenBox }
+  | { kind: 'sea'; lines: string[]; box: ScreenBox };
 
 export class NameSheet {
   private readonly context: CanvasRenderingContext2D | null;
@@ -111,7 +122,14 @@ export class NameSheet {
         ];
         return {
           box: { left: cx - hx, top: cy - hy, right: cx + hx, bottom: cy + hy },
-          draw: { kind: 'river' as const, x: cx, y: cy, angle: turn, name },
+          draw: {
+            kind: 'river' as const,
+            x: cx,
+            y: cy,
+            angle: turn,
+            name,
+            box: { left: cx - hx, top: cy - hy, right: cx + hx, bottom: cy + hy },
+          },
         };
       });
       candidates.push({ anchor: null, spots: placed.map(({ box }) => box) });
@@ -124,11 +142,38 @@ export class NameSheet {
       [...occupied, ...spots.pins],
       touch ? BUDGET.touch : BUDGET.desk,
     );
+
+    // The seas after the cities, on a budget of their own, around what the cities took.
+    const seaDrawn: Drawn[][] = [];
+    const seaCandidates: NameCandidate[] = [];
+    for (const { name, spots: inside } of spots.seas) {
+      const lines = seaLines(name.toUpperCase());
+      const w = Math.max(
+        ...lines.map((line) => this.widthOf(SEA_FONT, line) + line.length * SEA_SPACING_PX),
+      );
+      const boxes = seaSpots(inside, { width: w, height: lines.length * TEXT_HEIGHT });
+      if (boxes.length === 0) continue;
+      seaCandidates.push({ anchor: null, spots: boxes });
+      seaDrawn.push(boxes.map((box) => ({ kind: 'sea', lines, box })));
+    }
+    const seas = placeNames(
+      seaCandidates,
+      [
+        ...occupied,
+        ...spots.pins,
+        ...chosen.flatMap(({ index, spot, point }) => [
+          drawn[index]![spot]!.box,
+          ...(point ? [candidates[index]!.anchor!] : []),
+        ]),
+      ],
+      touch ? SEA_BUDGET.touch : SEA_BUDGET.desk,
+    );
     context.lineJoin = 'round';
     context.strokeStyle = PAPER;
     context.lineWidth = 3;
     for (const { index, spot, point } of chosen) {
       const name = drawn[index]![spot]!;
+      if (name.kind === 'sea') continue;
       if (name.kind === 'city') {
         if (point) dot(context, name.x, name.y, name.capital);
         context.font = `${name.capital ? CAPITAL_FONT : CITY_FONT} ${this.family}`;
@@ -152,6 +197,19 @@ export class NameSheet {
         context.restore();
       }
     }
+    context.font = `${SEA_FONT} ${this.family}`;
+    context.letterSpacing = `${SEA_SPACING_PX}px`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = SEA_INK;
+    for (const { index, spot } of seas) {
+      const name = seaDrawn[index]![spot]!;
+      if (name.kind !== 'sea') continue;
+      const { box, lines } = name;
+      const x = (box.left + box.right) / 2;
+      lines.forEach((line, k) => context.fillText(line, x, box.top + (k + 0.5) * TEXT_HEIGHT));
+    }
+    context.letterSpacing = '0px';
   }
 }
 

@@ -164,7 +164,7 @@ import { SweepWave } from './deposit-sweep';
 import type { NearSheet } from './near-sheet';
 import { RiverLayer, riverData } from './rivers';
 import type { City } from '@/domain/atlas';
-import { namedCities, namesShown } from '@/domain/place-names';
+import { namedCities, namedSeas, namesShown } from '@/domain/place-names';
 import { fromGeometryData } from './atlas-geometry';
 import {
   RegionLayer,
@@ -598,6 +598,12 @@ export class MapEngine {
   private readonly rivers: RiverLayer;
   /** The atlas's cities where the board holds them, for their names (`nameSpots`). */
   private readonly cities: ReadonlyArray<City & { readonly at: Vector3 }>;
+  /** The atlas's seas, each point where the board holds it (`nameSpots`). */
+  private readonly seas: ReadonlyArray<{
+    readonly name: string;
+    readonly rank: number;
+    readonly spots: ReadonlyArray<{ readonly at: Vector3; readonly radius: number }>;
+  }>;
   private readonly halos: Halos;
   /** The night the pieces were last warmed by. */
   private warmed = 0;
@@ -1047,6 +1053,11 @@ export class MapEngine {
     this.cities = atlas
       .cities()
       .map((city) => ({ ...city, at: this.frame.projectLonLat(city.lonLat) }));
+    this.seas = atlas.seas().map(({ name, rank, spots }) => ({
+      name,
+      rank,
+      spots: spots.map(({ lonLat, radius }) => ({ at: this.frame.projectLonLat(lonLat), radius })),
+    }));
     this.scene.add(this.rivers.group);
     this.scene.add(coast);
 
@@ -2874,13 +2885,13 @@ export class MapEngine {
   }
 
   /**
-   * **Les noms du décor à écrire maintenant** (#440), à l'écran : les villes que la distance
-   * montre, les fleuves du niveau dessiné, et les épingles qu'aucun nom ne couvre. Rien loin du
+   * **Les noms du décor à écrire maintenant** (#440), à l'écran : les villes et les mers (#457)
+   * que la distance montre, les fleuves du niveau dessiné, et les épingles qu'aucun nom ne couvre. Rien loin du
    * plateau, rien pendant un rejeu. La couche des étiquettes les place (`placeNames`).
    */
   nameSpots(): NameSpots {
     const distance = this.cameraDistance();
-    const none = { cities: [], rivers: [], pins: [] };
+    const none = { cities: [], rivers: [], seas: [], pins: [] };
     const replaying = this.replay !== null;
     if (!namesShown(distance, replaying)) return none;
     const onScreen = (at: Vector3, margin: number) => {
@@ -2917,6 +2928,19 @@ export class MapEngine {
         });
         return seen.length === 0 ? [] : [{ name, spots: seen }];
       }),
+      seas: namedSeas(this.seas, { distance, touch: this.touch, replaying }).flatMap(
+        ({ name, spots }) => {
+          const seen = spots.flatMap(({ at, radius }) => {
+            const middle = onScreen(at, 0);
+            // The disc's rim, wherever it falls: only its distance to the middle counts.
+            const rim = onScreen(SEA_RIM.copy(at).setX(at.x + radius), Infinity);
+            return middle === null || rim === null
+              ? []
+              : [{ ...middle, diameter: 2 * Math.hypot(rim.x - middle.x, rim.y - middle.y) }];
+          });
+          return seen.length === 0 ? [] : [{ name, spots: seen }];
+        },
+      ),
       pins: [...this.pins.rects(), ...this.namesReserved],
     };
   }
@@ -4926,6 +4950,8 @@ export class MapEngine {
 
 /** The working point `nameSpots` projects each city and river spot with, every image. */
 const NAME_POINT = new Vector3();
+/** The working point for the rim of a sea's disc (`nameSpots`). */
+const SEA_RIM = new Vector3();
 
 /** Where the decor's names may go (`nameSpots`), in the layer's pixels. */
 export type NameSpots = {
@@ -4942,6 +4968,15 @@ export type NameSpots = {
       readonly y: number;
       readonly angle: number;
       readonly length: number;
+    }>;
+  }>;
+  /** Each spot with the diameter on the screen of the disc that fits in the sea there. */
+  readonly seas: ReadonlyArray<{
+    readonly name: string;
+    readonly spots: ReadonlyArray<{
+      readonly x: number;
+      readonly y: number;
+      readonly diameter: number;
     }>;
   }>;
   readonly pins: readonly Rect[];
