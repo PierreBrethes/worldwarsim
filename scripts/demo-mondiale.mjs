@@ -161,6 +161,12 @@
  * lieu autour de Londres, son rejeu jamais vu, ses premiers pas passés (`absence`). À rejouer sans
  * refonder : `npx convex run dev:absenceScene '{"playerId":"…"}'`.
  *
+ * `--moments` (#442) pose les QG de Paris et de Londres et donne à la France Narvik, Istanbul et
+ * Bakou (`moments` cadre les Sept, `tanger`, `narvik`, `londres`), puis écrit les commandes qui
+ * jouent chaque moment à l'heure voulue : Tanger prise (le cachet « IV », la course et ses
+ * anneaux), Narvik reprise (« compte rompu »), Londres prise (le QG tombé), la course close (la
+ * victoire aux points). Avec `--huit`, un tiers les lit aussi.
+ *
  * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
  * doit s'animer (`saboteur`).
@@ -569,6 +575,8 @@ if (!bare) {
     cli(['run', 'dev:unreachedMineScene', JSON.stringify({ playerId: scene.a })]);
   }
   if (process.argv.includes('--absence') && scene.b !== null) absenceScene(scene.b);
+  if (process.argv.includes('--moments') && scene.a !== null && scene.b !== null)
+    await momentsScene();
   /** `--pile-mixte` : un camion, un chasseur et deux fantassins sur un même point (#286). */
   if (process.argv.includes('--pile-mixte') && scene.a !== null)
     for (const [role, count] of [
@@ -1776,4 +1784,46 @@ for (let salvo = 0; salvo < salvoes && shelling.length > 0; salvo++) {
 function absenceScene(playerId) {
   const answer = cli(['run', 'dev:absenceScene', JSON.stringify({ playerId })]);
   places.absence = JSON.parse(answer.match(/\[[\s\S]*\]/)[0]);
+}
+
+/** `--moments` (#442) : les deux QG, trois des Sept à la France, et les commandes des moments. */
+async function momentsScene() {
+  for (const [token, id, at] of [
+    [tokenA, 'FRA-5333', null],
+    [tokenB, null, [-0.12, 51.5]],
+  ]) {
+    const { me } = await client.query(api.view.playerView, { token, seasonId });
+    const region =
+      id !== null
+        ? me.regions.find((one) => one.id === id)
+        : me.regions.reduce((near, one) =>
+            Math.hypot(one.point[0] - at[0], one.point[1] - at[1]) <
+            Math.hypot(near.point[0] - at[0], near.point[1] - at[1])
+              ? one
+              : near,
+          );
+    await client.mutation(api.constructions.start, {
+      token,
+      seasonId,
+      building: 'hq',
+      regionId: region.id,
+      point: { lon: region.point[0], lat: region.point[1] },
+    });
+    if (token === tokenB) places.londres = region.point;
+  }
+  for (const key of ['narvik', 'istanbul', 'baku'])
+    cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key })]);
+  places.moments = [20, 40];
+  places.tanger = [-5.8, 35.78];
+  places.narvik = [17.43, 68.44];
+  const run = (name, args) => `npx convex run dev:${name} '${JSON.stringify(args)}'`;
+  console.log(
+    [
+      'Les moments (#442), chacun à son heure :',
+      `  Tanger prise, le cachet IV et la course : ${run('captureSoon', { playerId: scene.a, point: 'tangier', inSeconds: 20 })}`,
+      `  Narvik reprise, compte rompu : ${run('captureSoon', { playerId: scene.b, point: 'narvik', inSeconds: 20 })}`,
+      `  Londres prise, le QG tombé : ${run('captureSoon', { playerId: scene.a, hqOf: scene.b, inSeconds: 20 })}`,
+      `  La course close, la victoire aux points : ${run('raceEndsSoon', { seasonId, inSeconds: 20 })}`,
+    ].join('\n'),
+  );
 }

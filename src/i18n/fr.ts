@@ -611,6 +611,11 @@ export const fr = {
    * **Les points stratégiques** (P1-P12) : un nom de 1940, une règle cassée pour qui le tient.
    */
   points: {
+    /** **L'heure qui reste au compte**, sous chaque mât du meneur (#442) : « 6 h 00 ». */
+    raceLeft: (milliseconds: number) => {
+      const minutes = Math.floor(milliseconds / 60_000);
+      return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    },
     names: {
       tangier: 'Tanger',
       istanbul: 'Istanbul',
@@ -2881,6 +2886,12 @@ export const fr = {
     shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
     captured: 'capturé',
+    /** **Un QG pris** (#442) : chez son preneur, au lieu de « capturé » ; chez l'éliminé et qui
+     *  l'avait relevé, en noir. */
+    hqTaken: 'QG pris',
+    hqFallen: 'QG tombé',
+    /** **La course aux Sept** (#442) : le meneur a perdu un de ses quatre, en noir sur ce point. */
+    raceBroken: 'compte rompu',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
     finished: 'achevé',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */
@@ -3723,6 +3734,14 @@ export const fr = {
    * **Le rejeu d'absence** (#439, la maquette « la tournée ») : la bande au bas de la carte, un
    * texte par moment. « Rejeu » seul est la vue rapprochée d'un combat (`replay`).
    */
+  /** **Les grands moments de la Mondiale** (#442) : le grand tampon de la fin, sur la carte. */
+  moments: {
+    won: 'Victoire',
+    closed: 'Saison close',
+    byPoints: 'quatre des Sept, vingt-quatre heures',
+    takes: (nation: string) => `${nation} prend la saison`,
+    draw: 'égalité',
+  },
   absenceTour: {
     eyebrow: 'Pendant votre absence',
     /** `since` est l'heure de la dernière lecture du journal, `null` s'il ne s'est jamais fermé. */

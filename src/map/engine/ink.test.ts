@@ -57,3 +57,50 @@ describe('InkLayer.lift', () => {
     expect(ink.group.children).toHaveLength(1);
   });
 });
+
+/** **Le cachet des Sept** (#442) : après le drapeau en actives, avec deux ondes d'encre ; à plat
+ *  et tout de suite en réduites ; rien en coupées. */
+describe('InkLayer, the seal of the Seven', () => {
+  beforeAll(() => {
+    const ctx = new Proxy({}, { get: () => () => ({ width: 0 }) });
+    Object.assign(globalThis, { document: { createElement: () => ({ getContext: () => ctx }) } });
+  });
+  const seal = {
+    kind: 'seal',
+    at: [17.43, 68.44],
+    words: { word: 'Narvik', hour: '03:05' },
+    ink: '#2b6974',
+    held: 3,
+    delayMs: 1600,
+  } as const;
+  const opacities = (ink: InkLayer) =>
+    ink.group.children.map(
+      (child) => (child as unknown as { material: { opacity: number } }).material.opacity,
+    );
+
+  it('lands after its flag with two ripples of ink, when motion is full', () => {
+    const ink = new InkLayer(new WorldFrame(PROJECTION), true);
+    ink.burst(seal, 0);
+    ink.animate(1000, 1);
+    expect(opacities(ink).filter((opacity) => opacity > 0)).toHaveLength(0);
+    ink.animate(1900, 1);
+    // The seal, and its two ripples (the second 0.22 s behind).
+    expect(opacities(ink).filter((opacity) => opacity > 0)).toHaveLength(3);
+  });
+
+  it('lies flat at once without a ripple, when motion is reduced', () => {
+    const ink = new InkLayer(new WorldFrame(PROJECTION), true);
+    ink.motion = 'reduced';
+    ink.burst(seal, 0);
+    ink.animate(50, 1);
+    expect(opacities(ink)).toEqual([expect.any(Number)]);
+    expect(opacities(ink)[0]).toBeGreaterThan(0);
+  });
+
+  it('is not pressed when motion is cut', () => {
+    const ink = new InkLayer(new WorldFrame(PROJECTION), true);
+    ink.motion = 'off';
+    ink.burst(seal, 0);
+    expect(ink.group.children).toHaveLength(0);
+  });
+});

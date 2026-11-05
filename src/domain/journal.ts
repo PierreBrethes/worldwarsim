@@ -109,6 +109,7 @@ export function journalDispatches(
       ...(entry.delivered === undefined ? {} : { delivered: entry.delivered }),
       ...(entry.built === true ? { built: true as const } : {}),
       ...(entry.stood === undefined ? {} : { stood: entry.stood }),
+      ...(entry.point === undefined ? {} : { point: entry.point }),
     }));
 }
 
@@ -126,6 +127,7 @@ type Written = {
   readonly delivered?: SupplyLoad;
   readonly built?: true;
   readonly stood?: NonNullable<JournalDispatch['stood']>;
+  readonly point?: NonNullable<JournalDispatch['point']>;
 };
 
 /**
@@ -636,6 +638,9 @@ function written(notice: Notice): Written {
                 notice.from === undefined ? null : nationName(notice.from),
               )
             : fr.points.taken(nationName(notice.nation), notice.key),
+        ...(notice.held === undefined
+          ? {}
+          : { point: { key: notice.key, nation: notice.nation, held: notice.held } }),
       };
     case 'captureDispatch':
       return {

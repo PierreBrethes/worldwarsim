@@ -113,6 +113,56 @@ describe('buildLabels', () => {
     });
   });
 
+  /** **Le compte en anneaux** (#442) : sous le mât de chaque point du meneur ; un point du meneur
+   *  qu'on capture empile le compte au-dessus, la jauge de capture dessous. */
+  it('rings the leader’s points with the countdown, above the gauge of a capture', () => {
+    const mast = (pointId: string): MapMarker => ({
+      kind: 'strategic',
+      id: `strategic-${pointId}`,
+      pointId,
+      lonLat: [17.43, 68.44],
+      name: 'Narvik',
+      ink: '#2b6974',
+      state: 'Allemagne',
+    });
+    const capture = {
+      id: 'c-3',
+      side: 'defender' as const,
+      target: { kind: 'point' as const, id: 'p-1' },
+      site: { kind: 'point' as const, key: 'narvik' as const },
+      regionName: null,
+      point: [17.5, 68.44] as const,
+      clock: { progress: 0, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
+      completesAt: LOADED_AT + 3_600_000,
+      stoppedAt: null,
+    };
+    const rings = {
+      leaderNation: 'germany',
+      ink: '#2b6974',
+      endsAt: LOADED_AT + 86_400_000,
+      pointIds: ['p-1'],
+      fading: false,
+    };
+    const [ringed, bare, ...others] = buildLabels(
+      { ...viewWith([], [capture]), raceRings: rings },
+      [mast('p-1'), mast('p-2')],
+    );
+    expect(others).toEqual([]);
+    expect(ringed!.lines.map((line) => line.role)).toEqual([
+      'nature',
+      'figures',
+      'race',
+      'capture',
+    ]);
+    expect(ringed!.lines[2]).toEqual({
+      role: 'race',
+      endsAt: rings.endsAt,
+      ink: '#2b6974',
+      fading: false,
+    });
+    expect(bare!.lines.map((line) => line.role)).toEqual(['nature', 'figures']);
+  });
+
   it('stands a capture on its own label when no site of the map carries it', () => {
     const capture = {
       id: 'c-2',

@@ -1,6 +1,6 @@
 import { fr } from '@/i18n/fr';
 import type { LonLat } from './geo';
-import { combatBursts, placedBursts, stamped, type InkBurst } from './ink-bursts';
+import { combatBursts, placedBursts, stamped, twinnedCapture, type InkBurst } from './ink-bursts';
 import type { MapMotion } from './map-motion';
 import type { JournalDispatch } from './player-view';
 import type { SeasonMode } from './season-mode';
@@ -76,15 +76,19 @@ export function absenceTourOf(
   )
     return null;
   const seen = Math.max(marks.journalReadAt ?? -Infinity, marks.absenceTourAt ?? -Infinity);
+  // A capture that a point taken or a fallen HQ says better is one stop, not two (#442).
   const stops = journal
-    .filter((dispatch) => dispatch.at > seen && dispatch.place !== null)
+    .filter(
+      (dispatch) =>
+        dispatch.at > seen && dispatch.place !== null && !twinnedCapture(dispatch, journal),
+    )
     .slice(0, TOUR_CAP)
     .reverse()
     .map((dispatch): TourStop => ({
       at: [dispatch.place!.lon, dispatch.place!.lat],
       hour: dispatch.t,
       text: dispatch.text,
-      stamps: tourStampsOf(dispatch, landAt),
+      stamps: tourStampsOf(dispatch, landAt, journal),
     }));
   if (stops.length === 0) return null;
   const fresh = journal.filter((dispatch) => dispatch.unread).length;
@@ -99,8 +103,9 @@ export function absenceTourOf(
 export function tourStampsOf(
   dispatch: JournalDispatch,
   landAt: (at: LonLat) => boolean,
+  journal: ReadonlyArray<JournalDispatch> = [],
 ): ReadonlyArray<InkBurst> {
-  const known = [...combatBursts(dispatch, false, landAt), ...placedBursts(dispatch)];
+  const known = [...combatBursts(dispatch, false, landAt), ...placedBursts(dispatch, journal)];
   const place = dispatch.place ?? { lon: 0, lat: 0 };
   const at: LonLat = [place.lon, place.lat];
   const own: ReadonlyArray<InkBurst> =

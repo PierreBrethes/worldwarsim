@@ -26,7 +26,7 @@ import { lootFromSurplus } from '../src/domain/loot';
 import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
 import { endowIrregular, irregularSeat } from './objectives';
-import { handOver, holdsPoint } from './strategicPoints';
+import { handOver, holdsPoint, seasonPoints } from './strategicPoints';
 import { emptyLoad } from '../src/domain/logistics';
 import { reportChange, settleBeforeChange } from './production';
 import { seasonStillPlays, seatsOf } from './seats';
@@ -603,6 +603,9 @@ export const complete = internalMutation({
           by: capturer.nation ?? capturer.nickname,
           capturerId: capturer._id,
           irregulars: mode === 'mondiale',
+          ...(mode === 'mondiale' && isBuilding(site)
+            ? { hq: { buildingId: site._id, regionId: site.regionId, point: site.point } }
+            : {}),
         },
       );
     }
@@ -623,6 +626,10 @@ async function takePoint(
   const former = point.holderId === null ? null : await ctx.db.get(point.holderId);
   await handOver(ctx, point, takerId, now);
   const taker = await ctx.db.get(takerId);
+  /** **Le cachet des Sept** (#442) : ses pastilles pleines, prise comprise. */
+  const held = (await seasonPoints(ctx, point.seasonId)).filter(
+    (one) => one.holderId === takerId,
+  ).length;
   for (const seat of await seatsOf(ctx, point.seasonId)) {
     await ctx.db.insert('notices', {
       playerId: seat._id,
@@ -631,6 +638,7 @@ async function takePoint(
       key: point.key,
       nation: taker?.nation ?? taker?.nickname ?? '',
       point: point.point,
+      held,
       /** **Hong Kong** : son teneur lit la même dépêche, avec le nom de celui à qui on le prend. */
       ...((await holdsPoint(ctx, seat, 'hongKong'))
         ? {

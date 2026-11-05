@@ -329,6 +329,25 @@ describe('the journal', () => {
     ]);
     expect(taken!.text).toBe(`${fr.nations.germany} prend Narvik.`);
     expect(taken!.place).toEqual({ lon: 17.43, lat: 68.44 });
+    expect(taken!.point).toBeUndefined();
+  });
+
+  /** **Le cachet des Sept** (#442) se lit sur la dépêche de la prise, et sur elle seule : la
+   *  capture qu'une copie de Hong Kong rapporte est de la même sorte, sans cachet. */
+  it('carries the point, its taker and his count for the seal, on a point taken only', () => {
+    const [taken, captured] = journalDispatches([], null, [
+      { kind: 'pointTaken', at: NOON, key: 'narvik', nation: 'germany', held: 4 },
+      {
+        kind: 'captureDispatch',
+        at: NOON - HOUR,
+        nation: 'germany',
+        site: { kind: 'outpost', hostCountry: 'NOR', level: 1 },
+        regionName: null,
+      },
+    ]);
+    expect(taken!.point).toEqual({ key: 'narvik', nation: 'germany', held: 4 });
+    expect(captured!.kind).toBe('pointTaken');
+    expect(captured!.point).toBeUndefined();
   });
 
   /** En Mondiale, la chute d'un QG ne dissout rien : le reste passe aux irréguliers (M16), et

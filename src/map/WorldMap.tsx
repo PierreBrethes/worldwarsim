@@ -5,6 +5,8 @@
 
 import { SweepOverlay, type SweepRequest } from './SweepOverlay';
 import { AbsenceTourBand, useAbsenceTour } from './AbsenceTour';
+import { BigStamp, useMomentScene } from './MomentScene';
+import type { Moment } from '@/domain/moments';
 import type { AbsenceTour } from '@/domain/absence-tour';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
 import { ClusterSheet } from './ClusterSheet';
@@ -45,6 +47,7 @@ import {
 import {
   type ArcView,
   type JournalDispatch,
+  type RaceCountdown,
   type ReplayView,
   type TroopStation,
   type TroopView,
@@ -142,6 +145,9 @@ type Props = {
   columns: ReadonlyMap<string, PilePieces>;
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
+  /** **Le compte de la course aux Sept**, `null` quand il ne court pas ou que la saison est close :
+   *  tombé entre deux vues, il fait tamponner « compte rompu » (#442). */
+  race?: RaceCountdown | null;
   labels: ReadonlyArray<MapLabel>;
   /** My piles standing at a point, which the board dresses in figurines up close. */
   standing: ReadonlyArray<StandingPile>;
@@ -370,6 +376,15 @@ type Props = {
     readonly lift: number;
     readonly onSeen: () => void;
   } | null;
+  /** **Un grand moment** (#442) à jouer avant sa feuille, que `onEnd` ouvre ; `lift` comme au
+   *  rejeu. */
+  moment?: {
+    readonly moment: Moment;
+    readonly lift: number;
+    readonly onEnd: () => void;
+  } | null;
+  /** La saison est close : la carte passe au sépia, une fois la scène de la fin jouée. */
+  concluded?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
   /**
@@ -483,6 +498,7 @@ export function WorldMap({
   troops,
   columns,
   journal,
+  race = null,
   labels: servedLabels,
   standing: servedStanding,
   camps: servedCamps,
@@ -569,6 +585,8 @@ export function WorldMap({
   tourLoops = NO_LOOPS,
   covered = false,
   absenceTour = null,
+  moment = null,
+  concluded = false,
   reveal = null,
   replay = null,
   onReplayStep,
@@ -1859,14 +1877,26 @@ export function WorldMap({
   useEffect(() => {
     stopTourNow.current = stopTour;
   }, [stopTour]);
-  // A hand on the board stops it, and the gesture goes on doing what it does.
+  const noEnd = useCallback(() => {}, []);
+  const {
+    big,
+    sepiaHeld,
+    skip: skipMoment,
+  } = useMomentScene(readyEngine, moment?.moment ?? null, {
+    covered,
+    motion,
+    lift: moment?.lift ?? 0,
+    onDone: moment?.onEnd ?? noEnd,
+  });
+  // A hand on the board stops the tour, or skips a moment to its end, and the gesture goes on
+  // doing what it does.
   useEffect(() => {
     if (readyEngine === null) return;
-    readyEngine.onHandOnBoard = stopTour;
+    readyEngine.onHandOnBoard = () => skipMoment() || stopTour();
     return () => {
       readyEngine.onHandOnBoard = undefined;
     };
-  }, [readyEngine, stopTour]);
+  }, [readyEngine, stopTour, skipMoment]);
 
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());
@@ -1959,21 +1989,31 @@ export function WorldMap({
         readyEngine.inkCut(regionId, { word: fr.stamps.unlinked, hour });
   }, [cut, readyEngine]);
 
-  const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
+  const inked = useRef<{
+    arcs: ReadonlyArray<ArcView>;
+    seenAt: number;
+    race: RaceCountdown | null;
+  } | null>(null);
   useEffect(() => {
     const latest = Math.max(0, ...journal.map((dispatch) => dispatch.at));
     const before = inked.current;
-    inked.current = { arcs, seenAt: latest };
+    inked.current = { arcs, seenAt: latest, race };
     if (before === null) return;
     const vanished = before.arcs.flatMap((arc) =>
       arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
     const ground = engine.current;
-    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null, (at) =>
-      ground === null ? true : ground.landAt(at),
+    const broken = race === null && before.race !== null ? before.race.leaderNation : null;
+    for (const burst of inkBursts(
+      journal,
+      before.seenAt,
+      vanished,
+      blitz === null,
+      (at) => (ground === null ? true : ground.landAt(at)),
+      broken,
     ))
       engine.current?.inkBurst(burst);
-  }, [arcs, journal, blitz]);
+  }, [arcs, journal, blitz, race]);
 
   useEffect(() => {
     engine.current?.showHeldRegions(held);
@@ -1994,6 +2034,8 @@ export function WorldMap({
     <div ref={container} className="relative h-full w-full overflow-hidden">
       <div aria-hidden className="map-veil" />
       <div aria-hidden className="map-grain" />
+      {concluded && !sepiaHeld && <div aria-hidden className="map-sepia" />}
+      {big !== null && <BigStamp moment={big} />}
       {tour !== null && tourBand !== null && <AbsenceTourBand tour={tour} band={tourBand} />}
       <MapLabels
         labels={labels}

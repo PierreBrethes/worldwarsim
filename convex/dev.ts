@@ -31,6 +31,8 @@ import { concludeSeason } from './seasons';
 import { seatsOf } from './seats';
 import type { ResearchCard, UnitRole } from '../src/domain/ids';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
+import { irregularSeat } from './objectives';
+import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -2933,6 +2935,83 @@ export const holdPoint = internalMutation({
     const point = await layPoint(ctx, player.seasonId, key);
     if (point === null) throw new Error(`no region under ${key}`);
     await handOver(ctx, point, playerId, Date.now());
+  },
+});
+
+/**
+ * **Une prise qui s'achève dans `inSeconds`** (#442, `--moments`) : celle d'un des Sept (`point`)
+ * ou du QG d'un autre siège (`hqOf`), par la porte du jeu (`captures.complete`) — le cachet, la
+ * chute d'un QG et ses dépêches, comme en partie. Sans infanterie : l'échéance ne la relit pas.
+ */
+export const captureSoon = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    point: v.optional(STRATEGIC_POINT_KEY),
+    hqOf: v.optional(v.id('players')),
+    inSeconds: v.optional(v.number()),
+  },
+  handler: async (ctx, { playerId, point: key, hqOf, inSeconds = 10 }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const point = key === undefined ? null : await layPoint(ctx, player.seasonId, key);
+    const hq =
+      hqOf === undefined
+        ? undefined
+        : (
+            await ctx.db
+              .query('buildings')
+              .withIndex('byPlayer', (q) => q.eq('playerId', hqOf))
+              .collect()
+          ).find((building) => building.key === 'hq');
+    const site =
+      point !== null
+        ? {
+            target: { kind: 'point' as const, pointId: point._id },
+            site: { kind: 'point' as const, key: point.key },
+            point: point.point,
+            defenderId: point.holderId ?? (await irregularSeat(ctx, player.seasonId)),
+          }
+        : hq !== undefined && hqOf !== undefined
+          ? {
+              target: { kind: 'building' as const, buildingId: hq._id },
+              site: { kind: 'building' as const, building: 'hq' as const, regionId: hq.regionId },
+              point: hq.point,
+              defenderId: hqOf,
+            }
+          : null;
+    if (site === null) throw new Error('nothing to take');
+    const now = Date.now();
+    const durationMs = inSeconds * 1000;
+    const completesAt = now + durationMs;
+    const captureId = await ctx.db.insert('captures', {
+      seasonId: player.seasonId,
+      playerId,
+      ...site,
+      progress: 0,
+      progressAt: now,
+      rate: 1,
+      durationMs,
+      rest: null,
+      completesAt,
+    });
+    await ctx.scheduler.runAt(completesAt, internal.captures.complete, {
+      captureId,
+      expectedAt: completesAt,
+    });
+  },
+});
+
+/** **La course aux Sept qui se clôt dans `inSeconds`** (#442) : son départ recule d'autant, et
+ *  `race.closeRace` se relit à la nouvelle échéance — la victoire aux points, comme en partie. */
+export const raceEndsSoon = internalMutation({
+  args: { seasonId: v.id('seasons'), inSeconds: v.optional(v.number()) },
+  handler: async (ctx, { seasonId, inSeconds = 20 }) => {
+    const season = await ctx.db.get(seasonId);
+    if (season?.raceLeaderId === undefined) throw new Error('no race runs');
+    const endsAt = Date.now() + inSeconds * 1000;
+    const since = endsAt - RACE_HOLD_HOURS * 3_600_000;
+    await ctx.db.patch(seasonId, { raceSince: since });
+    await ctx.scheduler.runAt(endsAt, internal.race.closeRace, { seasonId, since });
   },
 });
 

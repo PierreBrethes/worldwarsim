@@ -216,6 +216,11 @@ function Ending({
             )
           : fr.blitz.ending.eliminated(ending.eliminatedAt ?? '')}
       </p>
+      {ending.fall !== null && (
+        <p className="mt-[6px] font-(family-name:--font-text) text-[13px] leading-[1.4] text-[var(--ink)]">
+          {ending.fall}
+        </p>
+      )}
       <div className="mt-[10px] flex justify-center gap-3">
         <Link
           to="/accueil"

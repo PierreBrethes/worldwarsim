@@ -168,6 +168,12 @@ export async function leaveTheWar(
         readonly by: string;
         readonly capturerId: Id<'players'>;
         readonly irregulars: boolean;
+        /** **Où il est tombé** (#442, Mondiale) : dit à qui connaît déjà le lieu. */
+        readonly hq?: {
+          readonly buildingId: Id<'buildings'>;
+          readonly regionId: string;
+          readonly point: { readonly lon: number; readonly lat: number };
+        };
       },
 ): Promise<void> {
   await ctx.db.patch(
@@ -206,6 +212,17 @@ export async function leaveTheWar(
   /** Deux nouvelles publiques, déposées chez tout le monde : qui ne joue plus change la table,
    *  et qui commande la partie décide de sa fin. Ni l'une ni l'autre n'est un secret. */
   const nameOf = (seat: Doc<'players'>) => seat.nation ?? seat.nickname;
+  /** Le lieu ne lève aucun brouillard : l'éliminé, le preneur, et qui a déjà ce QG à son relevé. */
+  const knowsTheHq = async (seat: Doc<'players'>) => {
+    if (exit.kind !== 'playerEliminated' || exit.hq === undefined) return false;
+    if (seat._id === player._id || seat._id === exit.capturerId) return true;
+    const { buildingId, regionId } = exit.hq;
+    const row = await ctx.db
+      .query('regionSightings')
+      .withIndex('byPlayerRegion', (q) => q.eq('playerId', seat._id).eq('regionId', regionId))
+      .unique();
+    return row?.installations?.some((seen) => seen.buildingId === buildingId) === true;
+  };
   for (const seat of present) {
     await ctx.db.insert('notices', {
       playerId: seat._id,
@@ -217,6 +234,7 @@ export async function leaveTheWar(
             kind: exit.kind,
             ...(seat._id === player._id || seat._id === exit.capturerId ? { by: exit.by } : {}),
             ...(exit.irregulars ? { irregulars: true as const } : {}),
+            ...(exit.hq !== undefined && (await knowsTheHq(seat)) ? { point: exit.hq.point } : {}),
           }),
     });
     if (successor !== null) {

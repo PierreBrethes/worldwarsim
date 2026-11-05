@@ -5,6 +5,9 @@ import type { PlayerView, SeasonVerdict } from './player-view';
 export type EndingFacts = {
   readonly nation: string;
   readonly eliminatedAt: string | null;
+  /** **Qui a pris mon QG** (Q6 de #442) : ma dépêche de chute, en Mondiale — elle dit aussi que
+   *  le reste passe aux irréguliers. `null` ailleurs. */
+  readonly fall: string | null;
 };
 
 export type Outcome = 'winner' | 'loser' | 'out' | 'draw' | 'closed';
@@ -24,6 +27,12 @@ export function endingOf(view: PlayerView): { key: 'final' | 'out' | null; facts
     facts: {
       nation: me.nation,
       eliminatedAt: !concluded && out ? asLocalTime(me.eliminatedAt!) : null,
+      fall:
+        !concluded && out && view.mode === 'mondiale'
+          ? (view.journal.find(
+              (dispatch) => dispatch.kind === 'elimination' && dispatch.at === me.eliminatedAt,
+            )?.text ?? null)
+          : null,
     },
   };
 }

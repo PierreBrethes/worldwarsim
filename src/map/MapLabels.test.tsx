@@ -145,6 +145,37 @@ describe('MapLabels', () => {
  * (`label--pointed`) et sous un glisser qui la vise. Les règles sont celles de `labels.css`,
  * chargées ici : jsdom les applique.
  */
+/** **Un des Sept change de mains** (#442) : le drapeau du perdant descend, celui du preneur
+ *  monte ; depuis le neutre, il monte seulement. En direct seulement : rien à l'ouverture. */
+describe('the flag on a strategic mast', () => {
+  const mast = (ink: string | null) =>
+    ({
+      ...outpost('narvik', 'Narvik'),
+      type: 'strategic',
+      pictogram: 'strategic',
+      ink,
+    }) as MapLabel;
+  const root = () => document.querySelector('[data-label-id="narvik"]')!;
+
+  it('changes hands on the mast, the loser’s ink first, then lets the swap go', () => {
+    vi.useFakeTimers();
+    const { rerender } = render(layer([mast('#a83f68')]));
+    expect(root().className).not.toMatch(/label--flag/);
+    rerender(layer([mast('#2b6974')]));
+    expect(root().className).toContain('label--flag-swap');
+    expect((root() as HTMLElement).style.getPropertyValue('--flag-from')).toBe('#a83f68');
+    act(() => vi.advanceTimersByTime(1600));
+    expect(root().className).not.toMatch(/label--flag/);
+    vi.useRealTimers();
+  });
+
+  it('only rises from neutral', () => {
+    const { rerender } = render(layer([mast(null)]));
+    rerender(layer([mast('#2b6974')]));
+    expect(root().className).toContain('label--flag-rise');
+  });
+});
+
 describe('a loaded transport', () => {
   const tag = (over: Partial<CargoTag> = {}): CargoTag => ({
     carrierId: 'truck',

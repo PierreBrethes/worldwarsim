@@ -57,7 +57,7 @@ async function twoNations() {
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
   const playerId = await t.run(async (ctx) => (await seatIn(ctx, seat))._id);
-  return { t, seat, playerId };
+  return { t, seat, guest, playerId };
 }
 
 describe('dev.spawnTroops', () => {
@@ -506,5 +506,53 @@ describe('dev.backfillListeningSilent', () => {
 
     expect((await t.run((ctx) => ctx.db.get(playerId)))!.listeningSilent).toBe(true);
     vi.useRealTimers();
+  });
+});
+
+/** **Les grands moments, à la demande** (#442) : une prise qui s'achève par la porte du jeu, et
+ *  la course qui se clôt, de quoi voir le cachet, la chute d'un QG et la victoire aux points. */
+describe('dev.captureSoon and dev.raceEndsSoon', () => {
+  it('takes a point, then a headquarters, at their hour', async () => {
+    vi.useFakeTimers();
+    try {
+      const { t, seat, guest, playerId } = await twoNations();
+      await placeHq(t, guest);
+      const guestId = await t.run(async (ctx) => (await seatIn(ctx, guest))._id);
+      for (const key of ['narvik', 'baku', 'istanbul'] as const)
+        await t.mutation(internal.dev.holdPoint, { playerId, key });
+      await t.mutation(internal.dev.captureSoon, { playerId, point: 'tangier', inSeconds: 5 });
+      vi.advanceTimersByTime(5_000);
+      await t.finishInProgressScheduledFunctions();
+      const taken = await t.query(api.view.playerView, seat);
+      expect(taken.notices.find((notice) => notice.kind === 'pointTaken')).toMatchObject({
+        key: 'tangier',
+        held: 4,
+      });
+      expect(taken.season.race?.leaderNation).toBe('france');
+
+      await t.mutation(internal.dev.captureSoon, { playerId, hqOf: guestId, inSeconds: 2 });
+      vi.advanceTimersByTime(2_000);
+      await t.finishInProgressScheduledFunctions();
+      const fallen = await t.run((ctx) => ctx.db.get(guestId));
+      expect(fallen?.eliminatedAt).toEqual(expect.any(Number));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('closes the race on points at its hour', async () => {
+    vi.useFakeTimers();
+    try {
+      const { t, seat, playerId } = await twoNations();
+      for (const key of ['narvik', 'baku', 'istanbul', 'tangier'] as const)
+        await t.mutation(internal.dev.holdPoint, { playerId, key });
+      await t.mutation(internal.dev.raceEndsSoon, { seasonId: seat.seasonId, inSeconds: 3 });
+      vi.advanceTimersByTime(3_000);
+      await t.finishInProgressScheduledFunctions();
+      const season = await t.run((ctx) => ctx.db.get(seat.seasonId));
+      expect(season).toMatchObject({ status: 'concluded', verdict: { reason: 'points' } });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

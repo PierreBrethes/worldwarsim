@@ -1318,6 +1318,32 @@ export class MapEngine {
     this.travel(arrival, orientation, pose.distance, durationMs);
   }
 
+  /**
+   * **Le recul de la victoire** (#442) : la caméra prend du champ jusqu'à tenir les Sept, en
+   * `durationMs` — coupé net hors des actives. Le voyage tient la boucle jusqu'à son arrivée.
+   */
+  pullBack(places: ReadonlyArray<LonLat>, durationMs: number, lift = 0): void {
+    this.invalidate();
+    this.poseCamera(this.cameraPose(places), durationMs, lift);
+  }
+
+  /** **Le trait de la victoire** (#442) : une ligne d'encre d'un point tenu au suivant, dans
+   *  l'ordre de leur prise, refermée sur le premier — la plume du cercle d'un point. */
+  traceThrough(places: ReadonlyArray<LonLat>, ink: string, penMs: number, holdMs: number): void {
+    this.invalidate();
+    const loop = [...places, ...places.slice(0, 1)];
+    const stroke = loop.slice(1).flatMap((to, leg) => {
+      const from = loop[leg]!;
+      return Array.from({ length: 24 }, (_, i) =>
+        this.frame.projectLonLat(
+          [from[0] + ((to[0] - from[0]) * i) / 24, from[1] + ((to[1] - from[1]) * i) / 24],
+          COUNTRY_THICKNESS + 0.04,
+        ),
+      );
+    });
+    this.ink.traceReach(stroke, performance.now(), { ink, penMs, holdMs });
+  }
+
   /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis levé
    *  comme le cercle d'un point — la même plume. */
   private traceShot({ from, at: to }: InkBurst): void {
