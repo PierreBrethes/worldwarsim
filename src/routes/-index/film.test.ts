@@ -5,7 +5,7 @@ it('pose le sous-titre du plan qui passe, et aucun entre deux plans', () => {
   const first = FILM_SHOTS[0]!;
   expect(subtitleAt(first.start)).toBe(first.subtitle);
   expect(subtitleAt(first.end - 0.01)).toBe(first.subtitle);
-  expect(subtitleAt(0)).toBeNull();
+  expect(subtitleAt(FILM_SHOTS.at(-1)!.end)).toBeNull();
   expect(subtitleAt(1000)).toBeNull();
 });
 
@@ -27,5 +27,5 @@ it('fait la boucle de la une de deux à cinq plans du film', () => {
 it('rend la boucle à son début quand elle atteint sa fin', () => {
   expect(loopedTime(FILM_LOOP.from + 1)).toBe(FILM_LOOP.from + 1);
   expect(loopedTime(FILM_LOOP.to)).toBe(FILM_LOOP.from);
-  expect(loopedTime(0)).toBe(FILM_LOOP.from);
+  expect(loopedTime(FILM_LOOP.to + 10)).toBe(FILM_LOOP.from);
 });

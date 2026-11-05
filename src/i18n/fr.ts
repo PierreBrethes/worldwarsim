@@ -1875,6 +1875,7 @@ export const fr = {
       seven: `Il y a sept points, il en faut ${RACE_TO_WIN}.`,
       day: 'Tenus vingt-quatre heures, la saison est gagnée.',
       edition: 'Et le journal raconte la guerre.',
+      blitz: 'Ou deux heures, sur un seul théâtre.',
     },
   },
 

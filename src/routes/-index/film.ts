@@ -1,5 +1,6 @@
 import type { fr } from '@/i18n/fr';
 import { FRONT_FILM_URLS } from '@/shell/media';
+import filmShots from './film-shots.json';
 
 export type SubtitleKey = keyof typeof fr.film.subtitles;
 
@@ -12,22 +13,17 @@ export type FilmShot = {
 
 /**
  * **Les plans du film, au temps où le montage les pose** : la page lit ce manifeste, jamais la
- * vidéo, pour dire ses sous-titres. Le film (#469) le remplira à son montage ; ces temps sont
- * ceux de l'animatique de `WWS/prototypes/accueil-v1/`, qui suit le même scénario. Les cartons
- * de début et de fin n'ont pas de sous-titre : ils n'ont pas d'entrée.
+ * vidéo, pour dire ses sous-titres. `scripts/film-accueil.mjs` l'écrit (`film-shots.json`) en
+ * tournant le film (#469) : un plan commence où le précédent finit, et le film n'a pas de carton.
  */
-export const FILM_SHOTS: readonly FilmShot[] = [
-  { start: 3, end: 7, subtitle: 'map' },
-  { start: 7, end: 10, subtitle: 'night' },
-  { start: 10, end: 14, subtitle: 'piece' },
-  { start: 14, end: 17, subtitle: 'order' },
-  { start: 17, end: 21, subtitle: 'seven' },
-  { start: 21, end: 24, subtitle: 'day' },
-  { start: 24, end: 28, subtitle: 'edition' },
-];
+const manifest = filmShots as {
+  shots: { start: number; end: number; subtitle: SubtitleKey }[];
+  loop: { from: number; to: number };
+};
+export const FILM_SHOTS: readonly FilmShot[] = manifest.shots;
 
 /** La boucle muette de la une : un segment du même fichier, de deux à cinq plans, sans carton. */
-export const FILM_LOOP = { from: 3, to: 17 } as const;
+export const FILM_LOOP = manifest.loop;
 
 /** Deux découpes d'un même film : l'écran large, et le téléphone en 9:16. */
 export type FilmCut = 'wide' | 'tall';

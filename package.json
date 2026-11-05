@@ -23,6 +23,7 @@
     "banc:mondiale": "node scripts/banc-mondiale.mjs",
     "banc:client": "node scripts/banc-client.mjs",
     "capture": "node scripts/capture.mjs",
+    "film": "node scripts/film-accueil.mjs",
     "gestes": "node scripts/gestes.mjs"
   },
   "dependencies": {
