@@ -145,3 +145,56 @@ export function namedCities<
       (capital ? tier >= 0 && population >= SMALL_CAPITAL : tier >= 1 && population > MILLION),
   );
 }
+
+/**
+ * **Les mers selon la distance** (#457), aux paliers des villes : au-delà de 65 rien, ni océan
+ * ni pendant un rejeu ; puis les rangs 0 et 1 (océans, Méditerranée, mer Noire) ; sous 55 le
+ * rang 2 (mer du Nord, Baltique) ; sous 34 les rangs 3 et 4 (Manche, Égée). Au doigt, un palier
+ * de moins. @a-mesurer paliers repris de ceux des villes, aucune capture des mers seules
+ */
+const SEA_RANKS = [1, 2, 4];
+
+/** The seas to name at this distance, in their order. */
+export function namedSeas<Sea extends { readonly rank: number }>(
+  seas: readonly Sea[],
+  { distance, touch, replaying }: { distance: number; touch: boolean; replaying: boolean },
+): Sea[] {
+  if (!namesShown(distance, replaying)) return [];
+  const tier = CITY_TIERS.findIndex((under) => distance >= under) - 1 - (touch ? 1 : 0);
+  return tier < 0 ? [] : seas.filter(({ rank }) => rank <= SEA_RANKS[tier]!);
+}
+
+/** The seas have a budget of their own, after the cities: six at the desk, three on a phone.
+ *  @a-mesurer lu sur la maquette A, qui en écrit onze sur l'Europe */
+export const SEA_BUDGET = { desk: 6, touch: 3 };
+
+/** Over sixteen letters, a sea's name goes on two lines, cut at the blank nearest its middle. */
+export function seaLines(name: string): string[] {
+  if (name.length <= 16) return [name];
+  let cut = -1;
+  for (let i = 0; i < name.length; i++)
+    if (
+      name[i] === ' ' &&
+      (cut < 0 || Math.abs(i - name.length / 2) < Math.abs(cut - name.length / 2))
+    )
+      cut = i;
+  return cut < 0 ? [name] : [name.slice(0, cut), name.slice(cut + 1)];
+}
+
+/**
+ * **Le nom tient dans sa mer** (#457) : a spot is offered only where the disc that fits in the
+ * sea there spans the name's width on the screen. The box is the name's, centred on the spot.
+ */
+export function seaSpots(
+  spots: ReadonlyArray<{ readonly x: number; readonly y: number; readonly diameter: number }>,
+  { width, height }: { width: number; height: number },
+): ScreenBox[] {
+  return spots
+    .filter(({ diameter }) => diameter >= width)
+    .map(({ x, y }) => ({
+      left: x - width / 2,
+      top: y - height / 2,
+      right: x + width / 2,
+      bottom: y + height / 2,
+    }));
+}

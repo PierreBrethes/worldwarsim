@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { namedCities, placeNames, riverSpots, type NameCandidate } from './place-names';
+import {
+  namedCities,
+  namedSeas,
+  placeNames,
+  riverSpots,
+  seaLines,
+  seaSpots,
+  type NameCandidate,
+} from './place-names';
 import type { ScreenBox } from './label-groups';
 
 const box = (left: number, top: number, width = 40, height = 12): ScreenBox => ({
@@ -83,4 +91,45 @@ describe('namedCities', () => {
     expect(at(20, true)).toEqual([paris, lyon]);
   });
   it('names nothing during a replay', () => expect(at(20, false, true)).toEqual([]));
+});
+
+describe('namedSeas', () => {
+  const seas = [0, 1, 2, 3, 4].map((rank) => ({ rank }));
+  const at = (distance: number, touch = false, replaying = false) =>
+    namedSeas(seas, { distance, touch, replaying }).map(({ rank }) => rank);
+
+  it('names no sea from 65 out, not even an ocean', () => expect(at(65)).toEqual([]));
+  it('names the oceans and the ranks 0 and 1 from 55 to 65', () => expect(at(60)).toEqual([0, 1]));
+  it('adds the rank 2 under 55', () => expect(at(45)).toEqual([0, 1, 2]));
+  it('names every rank under 34', () => expect(at(20)).toEqual([0, 1, 2, 3, 4]));
+  it('shows one tier less on a phone', () => {
+    expect(at(60, true)).toEqual([]);
+    expect(at(45, true)).toEqual([0, 1]);
+    expect(at(20, true)).toEqual([0, 1, 2]);
+  });
+  it('names nothing during a replay', () => expect(at(20, false, true)).toEqual([]));
+});
+
+describe('seaLines', () => {
+  it('keeps a name of sixteen letters on one line', () =>
+    expect(seaLines('mer Méditerranée')).toEqual(['mer Méditerranée']));
+  it('cuts a longer name at the blank nearest its middle', () =>
+    expect(seaLines('mer de Chine méridionale')).toEqual(['mer de Chine', 'méridionale']));
+  it('keeps a long name without a blank whole', () =>
+    expect(seaLines('Méditerranéeorientale')).toEqual(['Méditerranéeorientale']));
+});
+
+describe('seaSpots', () => {
+  const size = { width: 120, height: 14 };
+
+  it('offers a spot only where its disc spans the name', () => {
+    const spots = [
+      { x: 100, y: 100, diameter: 119 },
+      { x: 400, y: 300, diameter: 120 },
+    ];
+    expect(seaSpots(spots, size)).toEqual([{ left: 340, top: 293, right: 460, bottom: 307 }]);
+  });
+
+  it('offers nothing to a sea too narrow on the screen for its name', () =>
+    expect(seaSpots([{ x: 0, y: 0, diameter: 30 }], size)).toEqual([]));
 });
