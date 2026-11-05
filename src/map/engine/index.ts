@@ -110,17 +110,9 @@ import {
   parkingZ,
   takeoff,
 } from './timelines/airfield';
-import {
-  type Berth,
-  berthOf,
-  docking,
-  hauling,
-  HULL_BEAM_SHARE,
-  launch,
-  OFFSHORE,
-  undocking,
-} from './timelines/port';
+import { berthOf, docking, HULL_BEAM_SHARE, launch, OFFSHORE, undocking } from './timelines/port';
 import { troopMetres } from '@/domain/piece-size';
+import type { HullPost } from './timelines/rest';
 import type { UnitRole } from '@/domain/ids';
 import { movementRoles } from '@/emblems/units/manifest';
 import {
@@ -129,8 +121,15 @@ import {
   delayed,
   departs,
   doorsOf,
-  FORMATION_STAGGER_MS,
-  HAUL_LEAD_MS,
+  DEPARTURE_WINDOW_MS,
+  formationLead,
+  haulSequence,
+  inFormationOrder,
+  launchLead,
+  playable,
+  restAt,
+  arrivalRings,
+  undockLead,
   homing,
   isAirRole,
   isSeaRole,
@@ -138,7 +137,6 @@ import {
   slipSequence,
   spotOf,
   trackSequence,
-  UNDOCK_STAGGER_MS,
 } from './site-ways';
 import {
   type Attempt,
@@ -560,8 +558,6 @@ const MEN_GAP_MS = 400;
 const CLOSE_AFTER_MS = 150;
 /** A pile that does not stand within this time has its recruits in place, unwalked. */
 const SORTIE_WAIT_MS = 2000;
-/** Hulls cued within this of each other put to sea together (#487). */
-const DEPARTURE_WINDOW_MS = 1000;
 /** **Its keel under its middle on the slip**, a share of its length (#270). `@a-mesurer` */
 const KEEL_SHARE = 0.02;
 /** **En réduites, la file tient 0,6 s**, puis la pile se pose (storyboard de la marche, #362). */
@@ -718,7 +714,12 @@ export class MapEngine {
   /** The hulls that moved up to the mole when the one there put to sea, waiting to be hauled. */
   private hauls: Array<{ readonly promotion: Promotion; readonly since: number }> = [];
   /** The departures played, for the hulls putting to sea together to wait their turn (#487). */
-  private departures: Array<{ arcId: string; site: string; x: number | null; since: number }> = [];
+  private departures: Array<{
+    arcId: string;
+    site: string;
+    post: HullPost | null;
+    since: number;
+  }> = [];
   /** **Une Blitz** : ni piste ni môle n'y jouent, rien n'y est amarré (Mondiale seule). */
   private blitz = false;
   /** Columns waiting for their pile to stand before they deploy (#362). */
@@ -3539,7 +3540,7 @@ export class MapEngine {
    * - `depart`: my movement just born, moored off its site, takes off from the yard or puts to sea
    *   from its place, to where its thread starts.
    * The site plays with it: its runway lit by night, the hangar's doors, the slip. Only at full
-   * motion — reduced rings the pile in ink (`inkArrival`), cut plays nothing. `true` once done.
+   * motion — reduced rings each piece in ink at its place, cut plays nothing. `true` once done.
    */
   /**
    * **Where the pawn of an arrival stood, when its thread did not come in moored** (#269, #270):
@@ -3573,24 +3574,33 @@ export class MapEngine {
       place: NonNullable<ReturnType<StandingLayer['placeOf']>>;
       drawn: NonNullable<ReturnType<StandingLayer['pieceOf']>>;
     }> = [];
-    for (const k of cue.groups) {
+    const found = cue.groups.map((k) => {
       const id = `${cue.pileId}/${k}`;
       const role = pieces.groups[k]?.role;
-      if (this.standing.unposted(id)) continue;
       const place = this.standing.placeOf(id);
       const drawn = this.standing.pieceOf(id);
-      if (role === undefined || place === null || !drawn) return false;
-      parts.push({ id, role, place, drawn });
-    }
+      const ready = role !== undefined && place !== null && drawn !== null;
+      const state = this.standing.unposted(id) ? 'unposted' : ready ? 'ready' : 'wait';
+      return { state, part: ready ? { id, role, place, drawn } : null } as const;
+    });
+    const stand = playable(found.map(({ state }) => state));
+    if (stand === null) return false;
+    for (const k of stand) parts.push(found[k]!.part!);
     // Reduced: it stands at its place already, a ring of ink under it (storyboard).
     if (this.sequences.motion !== 'full') {
-      for (const { role, place } of parts)
-        this.standing.rippleAt(place.at, (troopMetres(role) / 2) * metreOf(site));
+      for (const { at, radius } of arrivalRings(
+        parts.map(({ role, place }) => ({ role, at: place.at })),
+        metreOf(site),
+      ))
+        this.standing.rippleAt(at, radius);
       return true;
     }
     // Planes formed together leave one after the other, the most advanced place first.
     const spots = new Map(parts.map(({ id, place }) => [id, spotOf(site, place.at, place.front)]));
-    if (cue.kind === 'formation') parts.sort((a, b) => spots.get(b.id)!.z - spots.get(a.id)!.z);
+    if (cue.kind === 'formation') {
+      const order = inFormationOrder(parts.map((part) => ({ part, z: spots.get(part.id)!.z })));
+      parts.splice(0, parts.length, ...order.map(({ part }) => part));
+    }
     let longest = 0;
     const hangars = new Map<number, Array<Parameters<typeof doorsOf>[0][number]>>();
     const slips: Array<Parameters<typeof slipSequence>[0][number]> = [];
@@ -3610,7 +3620,7 @@ export class MapEngine {
         const out = cue.kind === 'formation' ? formation(role, spot, length / 2) : null;
         const track = out ?? landing(role, spot);
         const articulated = drawn.url !== undefined;
-        const lead = out === null ? 0 : turn * FORMATION_STAGGER_MS;
+        const lead = out === null ? 0 : formationLead(turn);
         sequence = delayed(
           from(trackSequence(site, track, place.at, role, articulated, out?.born)),
           lead,
@@ -3619,7 +3629,7 @@ export class MapEngine {
       } else if (!airfield && isSeaRole(role)) {
         const beam = HULL_BEAM_SHARE * length;
         // Hulls formed together are launched one after the other: the next when the last is moored.
-        const lead = cue.kind === 'formation' ? slips.reduce((sum, each) => sum + each.ms, 0) : 0;
+        const lead = cue.kind === 'formation' ? launchLead(slips) : 0;
         const launched =
           cue.kind === 'formation' ? launch(role, beam, KEEL_SHARE * length, spot) : null;
         const track = launched ?? docking(role, beam, spot);
@@ -3677,7 +3687,7 @@ export class MapEngine {
     // cold, or long ago).
     const troop = arc.state === 'mine' ? arc.troopIds[0] : undefined;
     const kept = troop === undefined ? null : this.standing.restOf(troop);
-    const place = kept !== null && kept.site === id ? kept.rest : null;
+    const place = restAt(kept, id);
     let sequence = null;
     if (air && isAirRole(role)) {
       const way = trackSequence(
@@ -3698,39 +3708,31 @@ export class MapEngine {
         false,
       );
       // Several hulls putting to sea together: the outer one first, the others when it is clear.
-      const lead = this.outerDepartures(arcId, id, place?.x ?? null, since) * UNDOCK_STAGGER_MS;
+      const lead = undockLead({ post: kept?.post ?? null, since }, this.otherDepartures(arcId, id));
       sequence = delayed(sequence, lead, false);
     }
     if (sequence === null) return true;
-    this.departures.push({ arcId, site: id, x: place?.x ?? null, since });
+    this.departures.push({ arcId, site: id, post: kept?.post ?? null, since });
     if (this.sequences.play(this.arcs, arcId, sequence, since, now) && air)
       this.sequences.play(this.maquettes, id, airfieldSequence(sequence.ms), since, now);
     return true;
   }
 
-  /** **How many hulls put to sea from this port within the second, further from the mole**
-   *  (#487): `x` is its place's, the outer ones have the smaller x. Those cued and not yet played
-   *  count, and those already playing. */
-  private outerDepartures(arcId: string, siteId: string, x: number | null, since: number): number {
-    if (x === null) return 0;
-    const near = (at: number) => Math.abs(at - since) < DEPARTURE_WINDOW_MS;
-    const others = [
-      ...this.departures.filter((each) => each.site === siteId && near(each.since)),
-      ...this.siteWays.flatMap(({ cue, since: at }) => {
-        const arc = cue.kind === 'depart' ? this.arcs.viewOf(cue.arcId) : null;
-        const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
-        const kept = troop === undefined ? null : this.standing.restOf(troop);
-        return cue.kind === 'depart' && kept?.site === siteId && near(at)
-          ? [{ arcId: cue.arcId, x: kept.rest.x }]
-          : [];
-      }),
-    ];
+  /** **The other hulls cued or put to sea from this port** (#487), those not yet played and those
+   *  already playing, each once. */
+  private otherDepartures(arcId: string, siteId: string) {
     const seen = new Set<string>([arcId]);
-    return others.filter((each) => {
-      if (seen.has(each.arcId) || each.x === null || each.x >= x) return false;
-      seen.add(each.arcId);
-      return true;
-    }).length;
+    const pending = this.siteWays.flatMap(({ cue, since }) => {
+      const arc = cue.kind === 'depart' ? this.arcs.viewOf(cue.arcId) : null;
+      const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
+      const kept = troop === undefined ? null : this.standing.restOf(troop);
+      return cue.kind === 'depart' && kept?.site === siteId
+        ? [{ arcId: cue.arcId, post: kept.post, since }]
+        : [];
+    });
+    return [...this.departures.filter((each) => each.site === siteId), ...pending].filter(
+      (each) => !seen.has(each.arcId) && seen.add(each.arcId),
+    );
   }
 
   /** **The hull at the mole's side is hauled up to the mole** when the one there has put to sea
@@ -3742,8 +3744,7 @@ export class MapEngine {
     if (site === null || place === null) return false;
     const { role } = promotion;
     if (!isSeaRole(role)) return true;
-    const track = hauling(role, promotion.from as Berth, promotion.to as Berth);
-    const way = delayed(trackSequence(site, track, place.at, role, false), HAUL_LEAD_MS, false);
+    const way = haulSequence(site, role, promotion.from, promotion.to, place.at);
     this.sequences.play(this.standing, promotion.id, way, since, now);
     return true;
   }

@@ -11,7 +11,9 @@ import {
   type Spot,
   type Track,
 } from './timelines/airfield';
-import type { HullTrack, SeaRole } from './timelines/port';
+import { type Berth, hauling, type HullTrack, type SeaRole } from './timelines/port';
+import type { HullPost, Rest } from './timelines/rest';
+import { troopMetres } from '@/domain/piece-size';
 import { ease, span } from './timelines/curves';
 import { WALK_MIN_PX } from './timelines/walk';
 
@@ -268,3 +270,73 @@ export function moors(at: Flat, end: Flat, far: Flat | null, blitz: boolean): bo
 /** **Whether a departure plays** (#269, #270): a hull with no offshore to sail to keeps its berth,
  *  a plane takes off whatever its flight. */
 export const departs = (air: boolean, moored: boolean): boolean => air || moored;
+
+/** Hulls cued within this of each other put to sea together (#487). `@a-mesurer` */
+export const DEPARTURE_WINDOW_MS = 1000;
+
+/** **Planes formed together leave one after the other, the most advanced place first** (#487). */
+export const inFormationOrder = <T extends { readonly z: number }>(parts: ReadonlyArray<T>): T[] =>
+  [...parts].sort((a, b) => b.z - a.z);
+
+/** **When the `turn`th piece formed leaves**, from the first's start (#487). */
+export const formationLead = (turn: number): number => turn * FORMATION_STAGGER_MS;
+
+/** **When a hull is launched**: when the ones launched before it are moored (#487). */
+export const launchLead = (before: ReadonlyArray<{ readonly ms: number }>): number =>
+  before.reduce((sum, each) => sum + each.ms, 0);
+
+/** The order hulls put to sea in: the roads first, the side next, the mole last. */
+const SAILS: Readonly<Record<HullPost, number>> = { roads: 0, couple: 1, mole: 2 };
+
+/**
+ * **How long a hull waits to put to sea** (#487, storyboard « l'ordre s'inverse »): one stagger for
+ * each other hull of the same port cued within `DEPARTURE_WINDOW_MS` that sails before it — the
+ * roads, then the side, then the mole. A hull with no post known waits for none.
+ */
+export function undockLead(
+  mine: { readonly post: HullPost | null; readonly since: number },
+  others: ReadonlyArray<{ readonly post: HullPost | null; readonly since: number }>,
+): number {
+  if (mine.post === null) return 0;
+  const first = SAILS[mine.post];
+  const ahead = others.filter(
+    ({ post, since }) =>
+      post !== null && Math.abs(since - mine.since) < DEPARTURE_WINDOW_MS && SAILS[post] < first,
+  );
+  return ahead.length * UNDOCK_STAGGER_MS;
+}
+
+/** **Where a piece took off or put to sea from**: its remembered rest when it was at this site,
+ *  else `null` — the left lane, the mole's berth, as before the lot (#487). */
+export const restAt = (
+  kept: { readonly site: string; readonly rest: Rest } | null,
+  siteId: string,
+): Rest | null => (kept !== null && kept.site === siteId ? kept.rest : null);
+
+/** **What a cue's groups say about the sequence** (#487): `null` while one is not yet laid out
+ *  (`wait`), else the indices of those with a place — a piece with none (`unposted`) is skipped
+ *  and nothing is retried. */
+export function playable(states: ReadonlyArray<'ready' | 'unposted' | 'wait'>): number[] | null {
+  if (states.includes('wait')) return null;
+  return states.flatMap((state, k) => (state === 'ready' ? [k] : []));
+}
+
+/** **The ring of ink under each piece that arrives at reduced motion** (#487, 0.6 s). */
+export const arrivalRings = <P>(
+  parts: ReadonlyArray<{ readonly role: UnitRole; readonly at: P }>,
+  metre: number,
+): Array<{ at: P; radius: number }> =>
+  parts.map(({ role, at }) => ({ at, radius: (troopMetres(role) / 2) * metre }));
+
+/** **The hull at the mole's side is hauled up to the mole** (#487): it holds where it lay while
+ *  the one at the mole puts to sea (`HAUL_LEAD_MS`), then is hauled across. */
+export function haulSequence(
+  site: Frame,
+  role: SeaRole,
+  from: Rest,
+  to: Rest,
+  rest: Vector3,
+): Sequence {
+  const track = hauling(role, from as Berth, to as Berth);
+  return delayed(trackSequence(site, track, rest, role, false), HAUL_LEAD_MS, false);
+}

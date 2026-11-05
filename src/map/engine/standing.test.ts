@@ -1176,6 +1176,40 @@ describe('pieces resting at their post', () => {
     expect(layer.restOf('nobody')).toBeNull();
   });
 
+  it('forgets where a plane rested after SEEN_MS, and keeps the place of one come back (#487)', async () => {
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
+    const first = layer.restOf('b');
+    const clock = vi.spyOn(performance, 'now');
+    const t0 = performance.now();
+    layer.display([{ id: 'p', at: { beside: 'site' }, pieces: planes('a') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    clock.mockReturnValue(t0);
+    layer.orient(eye);
+    expect(layer.restOf('b')).toEqual(first);
+    // Back before SEEN_MS: it rests where it rests now, not where it once left.
+    layer.display([{ id: 'p', at: { beside: 'site' }, pieces: planes('b') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    layer.orient(eye);
+    expect(layer.restOf('b')).not.toEqual(first);
+    // Gone for good, then past SEEN_MS.
+    layer.display([{ id: 'p', at: { beside: 'site' }, pieces: planes('a') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    clock.mockReturnValue(t0 + 100);
+    layer.orient(eye);
+    expect(layer.restOf('b')).not.toBeNull();
+    clock.mockReturnValue(t0 + 3101);
+    layer.orient(eye);
+    expect(layer.restOf('b')).toBeNull();
+    clock.mockRestore();
+  });
+
+  it('tells the post of a hull that left (#487)', async () => {
+    const layer = await standing(port('a', 'b'));
+    expect(layer.restOf('b')?.post).toBe('couple');
+    await redraw(layer, 'a');
+    expect(layer.restOf('b')?.post).toBe('couple');
+  });
+
   it('remembers the last plane of a site too: its pile is gone with it (#487)', async () => {
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a') }]);
     const at = layer.restOf('a');

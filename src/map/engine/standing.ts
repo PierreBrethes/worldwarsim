@@ -995,10 +995,16 @@ export class StandingLayer implements SequenceHost {
    *  troop like a plane's place, kept while it stays; a hull that leaves frees its post. */
   private readonly hullPosts = new Map<string, Map<string, HullPost>>();
   /** Where each posted piece last rested, in its site's metres, and the pile it stood in. */
-  private readonly lastRest = new Map<string, { site: string; rest: Rest }>();
+  private readonly lastRest = new Map<
+    string,
+    { site: string; rest: Rest; post: HullPost | null }
+  >();
   /** **Where a piece rested when it left its site** (#487), for the sequence of its departure:
    *  kept `SEEN_MS`. */
-  private readonly left = new Map<string, { site: string; rest: Rest; since: number }>();
+  private readonly left = new Map<
+    string,
+    { site: string; rest: Rest; post: HullPost | null; since: number }
+  >();
   /** The hulls that moved up to the mole when the one there left, not yet played. */
   private promotions: Array<Promotion> = [];
 
@@ -1878,7 +1884,7 @@ export class StandingLayer implements SequenceHost {
               from: before.rest,
               to: rest,
             });
-          this.lastRest.set(troop, { site, rest });
+          this.lastRest.set(troop, { site, rest, post: hullPosts?.posts[n] ?? null });
         }
         let post: Post = { k, at: null, heading: 0 };
         if (rest !== null && rest !== undefined) {
@@ -1896,9 +1902,9 @@ export class StandingLayer implements SequenceHost {
     for (const site of this.hullPosts.keys()) if (!alive.has(site)) this.hullPosts.delete(site);
     // What no longer rests is remembered where it rested, for its departure.
     const now = performance.now();
-    for (const [troop, { site, rest }] of this.lastRest)
+    for (const [troop, { site, rest, post }] of this.lastRest)
       if (!standing.has(troop)) {
-        this.left.set(troop, { site, rest, since: now });
+        this.left.set(troop, { site, rest, post, since: now });
         this.lastRest.delete(troop);
       }
     for (const [troop, { since }] of this.left) if (now - since > SEEN_MS) this.left.delete(troop);
@@ -1937,9 +1943,10 @@ export class StandingLayer implements SequenceHost {
 
   /** **Where a piece rested when it left its site, or rests still** (#487): its place at the site,
    *  in the site's metres. `null` for a view loaded cold, or after `SEEN_MS`. */
-  restOf(troopId: string): { site: string; rest: Rest } | null {
-    const kept = this.left.get(troopId) ?? this.lastRest.get(troopId);
-    return kept === undefined ? null : { site: kept.site, rest: kept.rest };
+  restOf(troopId: string): { site: string; rest: Rest; post: HullPost | null } | null {
+    // A troop back at its site rests where it rests now, not where it once left.
+    const kept = this.lastRest.get(troopId) ?? this.left.get(troopId);
+    return kept === undefined ? null : { site: kept.site, rest: kept.rest, post: kept.post };
   }
 
   /** The hulls that moved up to the mole since the last call (#487). */
