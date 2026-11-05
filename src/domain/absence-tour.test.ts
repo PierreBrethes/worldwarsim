@@ -97,6 +97,7 @@ describe('tourStampsOf', () => {
         at: [2, 49],
         words: { word: 'engagé', hour: hour(20) },
         holdMs: 800,
+        over: true,
       },
       {
         kind: 'held',
@@ -104,6 +105,7 @@ describe('tourStampsOf', () => {
         words: { word: 'terrain tenu', hour: hour(20) },
         delayMs: 800,
         holdMs: TOUR_HOLD_MS,
+        over: true,
       },
     ]);
   });
@@ -120,10 +122,22 @@ describe('tourStampsOf', () => {
     expect(shelled).not.toHaveProperty('from');
   });
 
+  it('presses every stamp over its place, as the mockup does: no piece to keep readable', () => {
+    const stamps = tourStampsOf(dispatch(20, 'assault', { lon: 2, lat: 49 }, combat), land);
+    expect(stamps.length).toBeGreaterThan(0);
+    for (const stamp of stamps) expect(stamp.over).toBe(true);
+  });
+
   it('stamps a lost combat once', () => {
     const lost = { ...combat, won: false };
     expect(tourStampsOf(dispatch(20, 'attacked', { lon: 2, lat: 49 }, lost), land)).toEqual([
-      { kind: 'combat', at: [2, 49], words: { word: 'engagé', hour: hour(20) }, holdMs: 2200 },
+      {
+        kind: 'combat',
+        at: [2, 49],
+        words: { word: 'engagé', hour: hour(20) },
+        holdMs: 2200,
+        over: true,
+      },
     ]);
   });
 
@@ -136,7 +150,13 @@ describe('tourStampsOf', () => {
     ['supplyDelivered', 'dispatch', 'ravitaillement livré'],
   ])('stamps a %s dispatch at its place', (kind, burst, word) => {
     expect(tourStampsOf(dispatch(20, kind, { lon: 9, lat: 52 }), land)).toEqual([
-      { kind: burst, at: [9, 52], words: { word, hour: hour(20) }, holdMs: TOUR_HOLD_MS },
+      {
+        kind: burst,
+        at: [9, 52],
+        words: { word, hour: hour(20) },
+        holdMs: TOUR_HOLD_MS,
+        over: true,
+      },
     ]);
   });
 });

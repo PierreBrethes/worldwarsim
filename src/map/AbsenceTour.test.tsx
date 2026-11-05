@@ -6,7 +6,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AbsenceTour } from '@/domain/absence-tour';
 import type { MapMotion } from '@/domain/map-motion';
-import { useAbsenceTour } from './AbsenceTour';
+import { CURTAIN_MS, useAbsenceTour } from './AbsenceTour';
 import type { CameraPose, MapEngine } from './engine';
 
 /**
@@ -33,6 +33,7 @@ function fakeEngine() {
     inkBurst: vi.fn(),
     liftStamps: vi.fn(),
     landAt: () => true,
+    settlesIn: vi.fn(() => 0),
   };
 }
 
@@ -43,6 +44,8 @@ function play(
     motion = 'full' as MapMotion,
     scene = false,
     queue = vi.fn((_landAt: unknown, _motion: MapMotion) => tour as AbsenceTour | null),
+    /** Past the page's curtain, where every beat below is timed from. */
+    curtained = true,
   } = {},
 ) {
   const onSeen = vi.fn();
@@ -57,6 +60,7 @@ function play(
       }),
     { initialProps: { covered, motion, scene } },
   );
+  if (curtained) act(() => void vi.advanceTimersByTime(CURTAIN_MS));
   return { ...hook, onSeen, queue };
 }
 
@@ -74,6 +78,7 @@ describe('useAbsenceTour', () => {
     expect(engine.inkBurst).not.toHaveBeenCalled();
     expect(result.current.band).toBeNull();
     rerender({ covered: false, motion: 'full', scene: false });
+    act(() => void vi.advanceTimersByTime(900));
     expect(result.current.band).toEqual({ kind: 'intro' });
   });
 
@@ -84,8 +89,52 @@ describe('useAbsenceTour', () => {
     expect(result.current.band).toBeNull();
     hidden.mockReturnValue('visible');
     act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    act(() => void vi.advanceTimersByTime(900));
     expect(result.current.band).toEqual({ kind: 'intro' });
     hidden.mockRestore();
+  });
+
+  it('lets the opening flight land before it says anything', () => {
+    const engine = fakeEngine();
+    engine.settlesIn.mockReturnValue(1200);
+    const { result } = play(engine);
+    expect(result.current.band).toBeNull();
+    act(() => void vi.advanceTimersByTime(1200));
+    expect(result.current.band).toEqual({ kind: 'intro' });
+    act(() => void vi.advanceTimersByTime(1400));
+    expect(result.current.band).toEqual({ kind: 'stop', index: 0 });
+  });
+
+  it('waits out the page curtain, even with the camera still', () => {
+    const engine = fakeEngine();
+    const { result } = play(engine, { curtained: false });
+    act(() => void vi.advanceTimersByTime(899));
+    expect(result.current.band).toBeNull();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(result.current.band).toEqual({ kind: 'intro' });
+  });
+
+  it('gives way unseen to a sheet that covers the map before it said anything', () => {
+    const engine = fakeEngine();
+    engine.settlesIn.mockReturnValue(1200);
+    const { result, rerender, onSeen } = play(engine);
+    rerender({ covered: true, motion: 'full', scene: false });
+    act(() => void vi.advanceTimersByTime(10_000));
+    expect(onSeen).not.toHaveBeenCalled();
+    expect(result.current.band).toBeNull();
+    rerender({ covered: false, motion: 'full', scene: false });
+    act(() => void vi.advanceTimersByTime(1200));
+    expect(result.current.band).toEqual({ kind: 'intro' });
+  });
+
+  it('stops quietly during the opening flight', () => {
+    const engine = fakeEngine();
+    engine.settlesIn.mockReturnValue(1200);
+    const { result, onSeen } = play(engine);
+    act(() => void result.current.stop());
+    act(() => void vi.advanceTimersByTime(10_000));
+    expect(engine.inkBurst).not.toHaveBeenCalled();
+    expect(onSeen).toHaveBeenCalledTimes(1);
   });
 
   it('flies to each place, stamps it, then returns where the player was and marks it seen', () => {
@@ -93,7 +142,7 @@ describe('useAbsenceTour', () => {
     const { result, onSeen } = play(engine);
     act(() => void vi.advanceTimersByTime(1400));
     expect(result.current.band).toEqual({ kind: 'stop', index: 0 });
-    expect(engine.poseCamera).toHaveBeenLastCalledWith({ ...START, target: [1, 0, 0] }, 700, 0, 80);
+    expect(engine.poseCamera).toHaveBeenLastCalledWith({ ...START, target: [1, 0, 0] }, 700, 0);
     act(() => void vi.advanceTimersByTime(700));
     expect(engine.inkBurst).toHaveBeenCalledWith(tour.stops[0]!.stamps[0]);
     act(() => void vi.advanceTimersByTime(3000));
@@ -210,16 +259,24 @@ describe('what stops the tour', () => {
   it.each([
     "canvas.addEventListener('pointerdown'",
     "canvas.addEventListener('wheel'",
-    'private onKeyDown = ',
+    'private onKeyCaught = ',
     '  pressOnLabel(',
   ])('%s tells the hand on the board', (from) => {
     expect(body(from)).toMatch(/this\.onHandOnBoard\?\.\(\)/);
   });
 
-  it('halts the camera at a key only when it stopped the tour', () => {
-    expect(body('private onKeyDown = ')).toMatch(
-      /if \(this\.onHandOnBoard\?\.\(\) === true\) this\.journey = null;/,
+  it('halts the camera at a key only when it stopped the tour, and keeps that Escape from the journal', () => {
+    expect(body('private onKeyCaught = ')).toMatch(
+      /if \(this\.onHandOnBoard\?\.\(\) !== true\) return;\s+this\.journey = null;\s+if \(event\.key === 'Escape'\) event\.stopImmediatePropagation\(\);/,
     );
+    // Caught before the window's own Escape, which listens on the document.
+    expect(engine).toContain("addEventListener('keydown', this.onKeyCaught, true);");
+    expect(engine).toContain("removeEventListener('keydown', this.onKeyCaught, true);");
+  });
+
+  it("waits on the phone for the journal's sheet from its address, before it mounts", () => {
+    const route = readFileSync(join(here, '../routes/plateau.tsx'), 'utf-8');
+    expect(route).toContain("covered={narrow && (sheets > 0 || windows.includes('journal'))}");
   });
 
   it.each([

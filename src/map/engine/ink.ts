@@ -36,6 +36,8 @@ const SPLASH_PX = 14;
 const WORDED_PX = 170;
 /** Beside the point, not on it: the piece stays readable under its stamp (`+3.5, +2.5` of 6). */
 const WORDED_ASIDE = [0.95, 0.7] as const;
+/** Just above the point, the mockup's `dy: -34` of a 68 stamp (`InkBurst.over`). */
+const WORDED_OVER = [0, -0.5] as const;
 const STAMP_RED = '#9d4638';
 
 /** The ring of ink a dismantled pin leaves, in CSS pixels. @a-mesurer */
@@ -65,6 +67,7 @@ type Stamp = {
   readonly worded: boolean;
   readonly kind: InkBurst['kind'];
   readonly holdMs?: number;
+  readonly over?: true;
   /** The age at which a gesture took it up (`lift`). */
   liftedAt?: number;
   /** Its sound, still to come while it is delayed. */
@@ -227,12 +230,15 @@ export class InkLayer {
 
   /** A worded burst is the prototype's stamp; a combat keeps its splash under it, an arrival
    *  wears the stamp alone. */
-  burst({ kind, at, words, delayMs = 0, holdMs }: InkBurst, now: number): void {
+  burst({ kind, at, words, delayMs = 0, holdMs, over }: InkBurst, now: number): void {
     if (!this.enabled || this.motion === 'off') return;
     const point = this.frame.projectLonLat(at);
     if (words !== undefined) {
       const texture = wordedTexture(words);
-      const stamp = this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true, holdMs);
+      const stamp = this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true, {
+        holdMs,
+        over,
+      });
       const timer = setTimeout(() => {
         this.heard.delete(timer);
         playTableSound('stamp');
@@ -271,7 +277,7 @@ export class InkLayer {
     at: Vector3,
     start: number,
     worded: boolean,
-    holdMs?: number,
+    { holdMs, over }: { holdMs?: number | undefined; over?: true | undefined } = {},
   ): Stamp {
     const mesh = new Mesh(
       geometry,
@@ -297,6 +303,7 @@ export class InkLayer {
       worded,
       kind,
       ...(holdMs === undefined ? {} : { holdMs }),
+      ...(over === undefined ? {} : { over }),
     };
     this.stamps.push(stamp);
     return stamp;
@@ -414,11 +421,8 @@ export class InkLayer {
       mesh.material.opacity = at.opacity;
       const size = WORDED_PX * unitsPerPixel;
       mesh.scale.setScalar(at.scale * size);
-      mesh.position.set(
-        stamp.at.x + WORDED_ASIDE[0] * size,
-        stamp.at.y,
-        stamp.at.z + WORDED_ASIDE[1] * size,
-      );
+      const [dx, dz] = stamp.over === true ? WORDED_OVER : WORDED_ASIDE;
+      mesh.position.set(stamp.at.x + dx * size, stamp.at.y, stamp.at.z + dz * size);
       return true;
     }
     if (age >= LIFE_MS || (stamp.liftedAt !== undefined && age >= stamp.liftedAt + TAKEN_UP_MS)) {

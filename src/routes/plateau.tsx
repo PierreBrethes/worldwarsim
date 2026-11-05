@@ -2957,7 +2957,9 @@ function BoardContent({
                   focus={focus}
                   searchArea={searchArea}
                   fingerRose={fingerRose}
-                  covered={narrow && sheets > 0}
+                  /* The journal's sheet counts from its address: loaded lazily, it would mount
+                     after the absence tour had started, and stop it unseen. */
+                  covered={narrow && (sheets > 0 || windows.includes('journal'))}
                   absenceTour={absenceTour}
                   reveal={reveal}
                   replay={replay}

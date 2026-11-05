@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   FLY_MS,
   RETURN_MS,
@@ -22,9 +22,9 @@ export type TourBand =
 
 /** @a-mesurer : le temps que la bande « Rejeu arrêté » reste lue. */
 const STOPPED_BAND_MS = 2200;
-/** @a-mesurer : le lieu se pose à gauche du centre, son tampon à droite (`WORDED_ASIDE`) : au
- *  téléphone, centré, le tampon sortait de l'écran. */
-const STAMP_ASIDE_PX = 80;
+/** Le rideau de la page (`curtain-rise .9s`, `plateau.tsx`) : rien ne se dit dessous, et la feuille
+ *  du journal qui s'ouvre d'elle-même au téléphone a le temps de se déclarer. */
+export const CURTAIN_MS = 900;
 
 /**
  * **Le rejeu d'absence, joué sur la carte** (#439). Il part une fois, quand la carte se voit
@@ -58,6 +58,8 @@ export function useAbsenceTour(
   const [band, setBand] = useState<TourBand | null>(null);
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
   const state = useRef<'idle' | 'running' | 'over'>('idle');
+  /** The intro said: before it, a sheet over the map puts the tour back to wait, unseen. */
+  const spoken = useRef(false);
   const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const seen = useRef(onSeen);
   useEffect(() => {
@@ -81,9 +83,16 @@ export function useAbsenceTour(
     return true;
   }, [engine]);
 
-  // A sheet over the map or a hidden tab: the beats would play blind, and mark it seen.
+  // A sheet over the map or a hidden tab: the beats would play blind, and mark it seen — unless
+  // nothing was said yet, and the tour waits for the map again.
   useEffect(() => {
-    if (covered || !visible) stop();
+    if (covered || !visible) {
+      if (state.current === 'running' && !spoken.current) {
+        for (const timer of timers.current) clearTimeout(timer);
+        state.current = 'idle';
+        setTour(null);
+      } else stop();
+    }
   }, [covered, visible, stop]);
 
   useEffect(() => {
@@ -96,7 +105,6 @@ export function useAbsenceTour(
     }
     state.current = 'running';
     setTour(tour);
-    setBand({ kind: 'intro' });
     let start: CameraPose | null = null;
     let overview: CameraPose | null = null;
     const from = () => (start ??= engine.cameraPose());
@@ -110,12 +118,7 @@ export function useAbsenceTour(
       else if (does === 'fly') {
         setBand({ kind: 'stop', index });
         if (motion === 'full')
-          engine.poseCamera(
-            engine.cameraPose([stop.at], from().distance),
-            FLY_MS,
-            lift,
-            STAMP_ASIDE_PX,
-          );
+          engine.poseCamera(engine.cameraPose([stop.at], from().distance), FLY_MS, lift);
         else engine.poseCamera(wide(), 0, lift);
       } else if (does === 'stamp') for (const burst of stop.stamps) engine.inkBurst(burst);
       else if (does === 'return') {
@@ -126,9 +129,17 @@ export function useAbsenceTour(
         seen.current();
       } else setBand(null);
     };
-    timers.current = tourBeatsOf(tour.stops.length, motion).map((beat) =>
-      setTimeout(() => play(beat), beat.at),
-    );
+    // The opening flight lands first: the band and the tour start from where the player is.
+    const opening = Math.max(CURTAIN_MS, engine.settlesIn());
+    timers.current = [
+      setTimeout(() => {
+        spoken.current = true;
+        setBand({ kind: 'intro' });
+      }, opening),
+      ...tourBeatsOf(tour.stops.length, motion).map((beat) =>
+        setTimeout(() => play(beat), opening + beat.at),
+      ),
+    ];
     // Motion, lift and the scene are read once, at the start: the tour does not change course.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, queue, covered, visible]);
@@ -164,19 +175,33 @@ export function AbsenceTourBand({ tour, band }: { tour: AbsenceTour; band: TourB
           ? [said.endEyebrow, said.end(tour.leftOut)]
           : [said.stoppedEyebrow, said.stopped(tour.fresh)];
   const stop = band.kind === 'stop' ? tour.stops[band.index]! : null;
+  const frame = useRef<HTMLDivElement>(null);
+  const [docked, setDocked] = useState(0);
+  // Au bureau, le journal s'ouvre de lui-même à droite de la carte (ADR 0027) : la bande se
+  // centre sur ce qui reste de carte, sinon sa fin passe sous lui.
+  useLayoutEffect(() => {
+    const map = frame.current?.offsetParent?.getBoundingClientRect();
+    if (narrow || map === undefined) return;
+    const lefts = [...document.querySelectorAll('[role="dialog"][data-surface]')]
+      .map((window) => window.getBoundingClientRect().left)
+      .filter((left) => left > map.left + map.width / 2);
+    setDocked(lefts.length === 0 ? 0 : Math.max(0, map.right - Math.min(...lefts)));
+  }, [narrow, band.kind]);
+  const right = Math.max(insets.right, docked);
   /** Placé hors du `.hud`, qui porte un `zoom` : sa position serait zoomée avec lui. Au bureau,
    *  au-dessus du plateau personnel (`MAT_LIFT`), comme l'aide des gestes. */
   return (
     <div
+      ref={frame}
       className="pointer-events-none absolute z-[var(--z-band)]"
       style={
         narrow
           ? { top: insets.top + 6, left: 6, right: 6 }
           : {
               bottom: `calc(16px + ${MAT_LIFT})`,
-              left: `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`,
+              left: `calc(${insets.left}px + (100% - ${insets.left + right}px) / 2)`,
               transform: 'translateX(-50%)',
-              width: `min(560px, calc(100% - ${insets.left + insets.right + 48}px))`,
+              width: `min(560px, calc(100% - ${insets.left + right + 48}px))`,
             }
       }
     >

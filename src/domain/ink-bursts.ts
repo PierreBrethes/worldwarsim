@@ -29,6 +29,9 @@ export type InkBurst = {
   readonly delayMs?: number;
   /** How long it is held before it lifts, 3 s unless said (`stampAt`). */
   readonly holdMs?: number;
+  /** Pressed just above its point rather than beside it: the absence tour has no piece there to
+   *  keep readable, and a stamp aside reads as the neighbouring country's (#439). */
+  readonly over?: true;
   /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
    *  compte-rendu le remplace, et celui-ci ne se pose pas. Sur le coup de ma batterie, le trait
    *  droit attend de même : une scène jouée le trace en arc (#325). */

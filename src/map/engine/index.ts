@@ -1299,14 +1299,21 @@ export class MapEngine {
     };
   }
 
+  /** **Le temps qu'il reste au voyage de la caméra**, 0 à l'arrêt : le rejeu d'absence laisse
+   *  atterrir le cadrage d'ouverture (#439). */
+  settlesIn(): number {
+    const journey = this.journey;
+    if (journey === null) return 0;
+    return Math.max(0, journey.startMs + (journey.durationMs ?? JOURNEY_MS) - performance.now());
+  }
+
   /** **La caméra, rendue** (#439) : un voyage de `durationMs`, coupé net hors des actives ; `lift`
-   *  monte le sujet au-dessus d'une feuille basse, comme `journeyTo`, et `aside` le pousse à
-   *  gauche de tant de pixels, pour que le tampon posé à sa droite tienne dans l'écran. */
-  poseCamera(pose: CameraPose, durationMs: number, lift = 0, aside = 0): void {
+   *  monte le sujet au-dessus d'une feuille basse, comme `journeyTo`. */
+  poseCamera(pose: CameraPose, durationMs: number, lift = 0): void {
     this.invalidate();
     const orientation = new Vector3(...pose.orientation);
     const arrival = new Vector3(...pose.target).add(
-      this.groundShift(-aside, -lift, pose.distance, orientation),
+      this.groundShift(0, -lift, pose.distance, orientation),
     );
     this.travel(arrival, orientation, pose.distance, durationMs);
   }
@@ -2289,6 +2296,7 @@ export class MapEngine {
     removeEventListener('pointermove', this.trackGesture);
     removeEventListener('pointerup', this.endGesture);
     removeEventListener('pointercancel', this.endGesture);
+    removeEventListener('keydown', this.onKeyCaught, true);
     removeEventListener('keydown', this.onKeyDown);
     removeEventListener('keyup', this.onKeyUp);
     removeEventListener('blur', this.onFocusLost);
@@ -2404,6 +2412,7 @@ export class MapEngine {
     addEventListener('pointermove', this.trackGesture);
     addEventListener('pointerup', this.endGesture);
     addEventListener('pointercancel', this.endGesture);
+    addEventListener('keydown', this.onKeyCaught, true);
     addEventListener('keydown', this.onKeyDown);
     addEventListener('keyup', this.onKeyUp);
     // A window switch swallows the release: without this, space would stay held on return.
@@ -2920,9 +2929,15 @@ export class MapEngine {
     this.onSelect(this.hovered?.userData.adm0 ?? null);
   }
 
+  /** A key that stopped the absence tour leaves the camera where it was, like a hand on the
+   *  board; an Escape that did is spent there, and leaves the journal open beside the map. */
+  private onKeyCaught = (event: KeyboardEvent): void => {
+    if (this.onHandOnBoard?.() !== true) return;
+    this.journey = null;
+    if (event.key === 'Escape') event.stopImmediatePropagation();
+  };
+
   private onKeyDown = (event: KeyboardEvent): void => {
-    // A key that stopped the absence tour leaves the camera where it was, like a hand on the board.
-    if (this.onHandOnBoard?.() === true) this.journey = null;
     if (event.code !== 'Space' || isTyping()) return;
     // Without this, the page scrolls under the map on every press.
     event.preventDefault();

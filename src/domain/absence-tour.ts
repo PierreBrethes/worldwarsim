@@ -122,6 +122,7 @@ export function tourStampsOf(
       ...rest,
       ...(i > 0 ? { delayMs: SECOND_STAMP_MS * i } : {}),
       holdMs: i < own.length - 1 ? SECOND_STAMP_MS : TOUR_HOLD_MS,
+      over: true,
     };
   });
 }
