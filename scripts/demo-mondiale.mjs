@@ -96,11 +96,13 @@
  * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
  * ne part d'un point sans piste. Deux chars restent seuls à Orléans : une pile hors garnison, pour la
  * figurine plancher (#266).
- * `--piste-mole [s]` (#269, #270) pose la scène de `--largage` et de `--navire` ; dans `s` secondes
- * (40 par défaut) une escorte venue de la mer d'Alboran accoste à Marseille ; dix secondes après, un
- * chasseur sort du hangar et un cargo neuf est lancé ; cinq encore, le transport décolle vers Naples
- * et le cargo de Marseille appareille vers Alexandrie ; vingt encore, le transport, porté près de
- * Naples, fait demi-tour et se pose vingt-cinq secondes après. Lieux `aerodrome` et `port`.
+ * `--piste-mole [s]` (#269, #270) pose la scène de `--largage` et de `--navire`, et joue chaque
+ * séquence par un ordre de joueur : dans `s` secondes (40 par défaut) une escorte venue de la mer
+ * d'Alboran accoste à Marseille ; cinq après, le transport décolle pour un largage sur Bruxelles
+ * (un vol court : le fil part de la pile) ; vingt après, un chasseur sort du hangar et un cargo neuf
+ * est lancé ; vingt encore, le chasseur décolle aussi loin que porte son plein (un fil amarré à la
+ * piste) et le cargo appareille vers Malte ; vingt encore, le largage arrive et le transport rentre
+ * se poser. Lieux `aerodrome` et `port`.
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
@@ -1677,11 +1679,18 @@ console.log(`Comptes : ${accounts.a.nickname} (a), ${accounts.b.nickname} (b) �
 /** `--piste-mole` : what leaves, once the page has the view before it (#269, #270); the plane
  *  turns back to its airfield and lands, both arrivals brought forward. */
 if (runwayScene !== null) {
-  await pause((runwayIn + 15) * 1000);
-  const ids = [];
-  for (const { from, troopIds, to } of runwayScene)
-    ids.push(
-      await client.mutation(api.movements.marchTo, {
+  // A local base under load times a call out at 1 s: it is asked again.
+  const again = async (call, tries = 3) => {
+    try {
+      return await call();
+    } catch (error) {
+      if (tries <= 1 || !String(error.message).includes('timed out')) throw error;
+      return again(call, tries - 1);
+    }
+  };
+  const march = async ({ from, troopIds, to }) => {
+    const id = await again(() =>
+      client.mutation(api.movements.marchTo, {
         token: tokenA,
         seasonId,
         origin: { kind: 'building', buildingId: from },
@@ -1689,28 +1698,59 @@ if (runwayScene !== null) {
         point: to,
       }),
     );
-  console.log(`Départs de la piste et du môle à ${new Date().toISOString()}`, ids);
-  // Its take-off played, the plane is brought near Naples, turned back, and lands in 25 s.
+    return typeof id === 'string' ? id : id.movementId;
+  };
+  const [flight, launched] = runwayScene;
+  await pause((runwayIn + 5) * 1000);
+  // A short flight out and back: the airdrop on the outpost of Brussels (ADR 0028 §4).
+  const { me: before } = await again(() =>
+    client.query(api.view.playerView, { token: tokenA, seasonId }),
+  );
+  const outpost = before.outposts.find(({ lonLat }) => Math.abs(lonLat[0] - 4.35) < 0.01);
+  await again(() =>
+    client.mutation(api.logistics.airdrop, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'building', buildingId: flight.from },
+      troopIds: flight.troopIds,
+      target: { kind: 'outpost', outpostId: outpost.id },
+    }),
+  );
+  console.log(`Le transport décolle pour un largage à ${new Date().toISOString()}`);
+  await pause(40_000);
+  // Formed at runwayIn + 25 (`runwayAndMole`): the fighter and the new cargo leave in turn, the
+  // fighter as far as its fuel holds, so that its thread moors at the runway's end.
+  const { me } = await again(() => client.query(api.view.playerView, { token: tokenA, seasonId }));
+  const fighters = me.troops
+    .filter((troop) => troop.role === 'fighter' && !launched.known.has(troop.id))
+    .map(({ id }) => id);
+  let far = null;
+  for (const to of [
+    { lon: 12.57, lat: 55.68 },
+    { lon: 13.4, lat: 52.52 },
+    { lon: 8.68, lat: 50.11 },
+    { lon: 4.85, lat: 45.76 },
+  ])
+    far ??= await march({ from: flight.from, troopIds: fighters, to }).catch((error) => {
+      if (error.data?.code !== 'NOT_ENOUGH_FUEL') throw error;
+      return null;
+    });
+  await march(launched);
+  console.log(`Le chasseur décolle, le cargo appareille, à ${new Date().toISOString()}`);
   await pause(20_000);
+  // The airdrop arrives, then its way back lands at the airfield.
   cli([
     'run',
     'dev:arriveNow',
-    JSON.stringify({ playerId: scene.a, afterMs: 300_000, onTime: true }),
+    JSON.stringify({ playerId: scene.a, afterMs: 5_000, onTime: true }),
   ]);
-  const flight = ids[0];
-  await client.mutation(api.movements.changeCourse, {
-    token: tokenA,
-    seasonId,
-    movementId: typeof flight === 'string' ? flight : flight.movementId,
-    type: 'march',
-    target: { kind: 'building', buildingId: runwayScene[0].from },
-  });
+  await pause(10_000);
   cli([
     'run',
     'dev:arriveNow',
     JSON.stringify({ playerId: scene.a, afterMs: 25_000, onTime: true }),
   ]);
-  console.log(`Retour à la piste dans 25 s, à ${new Date().toISOString()}`);
+  console.log(`Le transport se pose dans 25 s, à ${new Date().toISOString()}`);
 }
 
 /** `--chargement` : the trucks load, the HQ's twice a second apart: the second load joins. */
@@ -1917,8 +1957,8 @@ function contactsScene(france, uk) {
 /**
  * **`--piste-mole`** (#269, #270): an escort from
  * the Alboran Sea docks at Marseille in `runwayIn` seconds; a fighter and a cargo are recruited
- * there, finished ten seconds after. Returns what leaves at the end: the transport for Naples, the
- * cargo of Marseille for Alexandria.
+ * there, finished twenty-five seconds after, once the transport has left. Returns what leaves: the
+ * transport, its destination chosen as it leaves, the cargo of Marseille for Malta.
  */
 async function runwayAndMole() {
   const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
@@ -1930,12 +1970,13 @@ async function runwayAndMole() {
   };
   places.port = { id: `building-port@${port.point[0]},${port.point[1]}`, lonLat: port.point };
   const leaving = [
-    { from: airfield.id, role: 'airTransport', to: { lon: 14.25, lat: 40.85 } },
-    { from: port.id, role: 'cargo', to: { lon: 29.9, lat: 31.3 } },
+    { from: airfield.id, role: 'airTransport', to: null },
+    { from: port.id, role: 'cargo', to: { lon: 14.6, lat: 35.8 } },
   ].map(({ from, role, to }) => ({
     from,
     to,
     troopIds: me.troops.filter((troop) => troop.role === role).map((troop) => troop.id),
+    known: new Set(me.troops.map((troop) => troop.id)),
   }));
   for (const [role, start, building] of [['escort', { lon: -3.0, lat: 36.0 }, port]]) {
     const spawned = JSON.parse(
@@ -1958,6 +1999,15 @@ async function runwayAndMole() {
     'dev:arriveNow',
     JSON.stringify({ playerId: scene.a, afterMs: runwayIn * 1000, onTime: true }),
   ]);
+  // Three flights and a sailing at once: the slots of the Transmissions cards.
+  cli([
+    'run',
+    'dev:grantCards',
+    JSON.stringify({
+      playerId: scene.a,
+      cards: ['transmissions1', 'transmissions2', 'transmissions3'],
+    }),
+  ]);
   for (const [building, role] of [
     [airfield, 'fighter'],
     [port, 'cargo'],
@@ -1972,7 +2022,7 @@ async function runwayAndMole() {
   cli([
     'run',
     'dev:finishRecruitments',
-    JSON.stringify({ playerId: scene.a, afterMs: (runwayIn + 10) * 1000 }),
+    JSON.stringify({ playerId: scene.a, afterMs: (runwayIn + 25) * 1000 }),
   ]);
   return leaving;
 }
