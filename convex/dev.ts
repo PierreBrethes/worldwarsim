@@ -27,6 +27,7 @@ import { fileSurvey, surveyFoundation } from './surveys';
 import { regionAtPoint } from './regionGeometry';
 import { DEPOSIT_POINTS } from '../src/domain/world';
 import { HOME_BY_NATION, isNation } from '../src/domain/nations';
+import { ERASE_FALLBACK_MS } from './finalEdition';
 import { concludeSeason } from './seasons';
 import { seatsOf } from './seats';
 import type { ResearchCard, UnitRole } from '../src/domain/ids';
@@ -2793,9 +2794,11 @@ export const concludeScene = internalMutation({
       v.literal('closed'),
     ),
     hold: v.optional(v.boolean()),
+    /** Conclue au-delà de la demi-heure de repli, la chaîne retenue : « pas d'archive ». */
+    stale: v.optional(v.boolean()),
   },
-  handler: async (ctx, { seasonId, reason, hold }) => {
-    const now = Date.now();
+  handler: async (ctx, { seasonId, reason, hold, stale }) => {
+    const now = Date.now() - (stale === true ? ERASE_FALLBACK_MS + 60_000 : 0);
     const seats = await seatsOf(ctx, seasonId);
     const winner = seats.find((seat) => seat.nation === 'france') ?? seats[0]!;
     const fallen = seats.at(-1)!;
@@ -2936,7 +2939,7 @@ export const concludeScene = internalMutation({
         });
       }
 
-    if (hold === true)
+    if (hold === true || stale === true)
       for (const job of await ctx.db.system.query('_scheduled_functions').collect())
         if (job.name.includes('countDispatches') && job.state.kind === 'pending')
           await ctx.scheduler.cancel(job._id);

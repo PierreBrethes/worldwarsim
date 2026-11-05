@@ -182,7 +182,8 @@
  *
  * `--conclue <raison>` (#455) conclut la partie à huit (`points`, `clock`, `draw`, `closed`) :
  * son édition finale au lieu `edition`, une saison détruite après archive (`edition-detruite`)
- * pour l'accueil ; `--en-attente` retient l'édition sous presse. Voir `scripts/demo-conclusion.mjs`.
+ * pour l'accueil ; `--en-attente` retient l'édition sous presse, `--sans-archive` la laisse absente.
+ * Voir `scripts/demo-conclusion.mjs`.
  *
  *     npm run demo:mondiale
  *
