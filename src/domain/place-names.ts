@@ -130,6 +130,12 @@ export function continentZoom(distance: number): boolean {
   return distance >= CITY_TIERS[1]! && distance < NAMES_GONE_DISTANCE;
 }
 
+/** The tier at this distance among `tiers` (the distances each starts under, from the farthest),
+ *  one less on a phone; -1 before the first. */
+function tierOf(distance: number, touch: boolean, tiers: readonly number[]): number {
+  return tiers.findIndex((under) => distance >= under) - 1 - (touch ? 1 : 0);
+}
+
 /** The cities to name at this distance, in their order. */
 export function namedCities<
   City extends { readonly capital: boolean; readonly population: number },
@@ -138,7 +144,7 @@ export function namedCities<
   { distance, touch, replaying }: { distance: number; touch: boolean; replaying: boolean },
 ): City[] {
   if (!namesShown(distance, replaying)) return [];
-  const tier = CITY_TIERS.findIndex((under) => distance >= under) - 1 - (touch ? 1 : 0);
+  const tier = tierOf(distance, touch, CITY_TIERS);
   return cities.filter(
     ({ capital, population }) =>
       tier >= 2 ||
@@ -161,7 +167,7 @@ export function namedSeas<Sea extends { readonly rank: number }>(
   { distance, touch, replaying }: { distance: number; touch: boolean; replaying: boolean },
 ): Sea[] {
   if (!namesShown(distance, replaying)) return [];
-  const tier = SEA_TIERS.findIndex((under) => distance >= under) - 1 - (touch ? 1 : 0);
+  const tier = tierOf(distance, touch, SEA_TIERS);
   return tier < 0 ? [] : seas.filter(({ rank }) => rank <= SEA_RANKS[tier]!);
 }
 
