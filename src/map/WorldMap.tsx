@@ -5,6 +5,8 @@
 
 import { SweepOverlay, type SweepRequest } from './SweepOverlay';
 import { AbsenceTourBand, useAbsenceTour } from './AbsenceTour';
+import { BigStamp, useMomentScene } from './MomentScene';
+import type { Moment } from '@/domain/moments';
 import type { AbsenceTour } from '@/domain/absence-tour';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
 import { ClusterSheet } from './ClusterSheet';
@@ -374,6 +376,15 @@ type Props = {
     readonly lift: number;
     readonly onSeen: () => void;
   } | null;
+  /** **Un grand moment** (#442) à jouer avant sa feuille, que `onEnd` ouvre ; `lift` comme au
+   *  rejeu. */
+  moment?: {
+    readonly moment: Moment;
+    readonly lift: number;
+    readonly onEnd: () => void;
+  } | null;
+  /** La saison est close : la carte passe au sépia, une fois la scène de la fin jouée. */
+  concluded?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
   /**
@@ -574,6 +585,8 @@ export function WorldMap({
   tourLoops = NO_LOOPS,
   covered = false,
   absenceTour = null,
+  moment = null,
+  concluded = false,
   reveal = null,
   replay = null,
   onReplayStep,
@@ -1864,14 +1877,26 @@ export function WorldMap({
   useEffect(() => {
     stopTourNow.current = stopTour;
   }, [stopTour]);
-  // A hand on the board stops it, and the gesture goes on doing what it does.
+  const noEnd = useCallback(() => {}, []);
+  const {
+    big,
+    sepiaHeld,
+    skip: skipMoment,
+  } = useMomentScene(readyEngine, moment?.moment ?? null, {
+    covered,
+    motion,
+    lift: moment?.lift ?? 0,
+    onDone: moment?.onEnd ?? noEnd,
+  });
+  // A hand on the board stops the tour, or skips a moment to its end, and the gesture goes on
+  // doing what it does.
   useEffect(() => {
     if (readyEngine === null) return;
-    readyEngine.onHandOnBoard = stopTour;
+    readyEngine.onHandOnBoard = () => skipMoment() || stopTour();
     return () => {
       readyEngine.onHandOnBoard = undefined;
     };
-  }, [readyEngine, stopTour]);
+  }, [readyEngine, stopTour, skipMoment]);
 
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());
@@ -2009,6 +2034,8 @@ export function WorldMap({
     <div ref={container} className="relative h-full w-full overflow-hidden">
       <div aria-hidden className="map-veil" />
       <div aria-hidden className="map-grain" />
+      {concluded && !sepiaHeld && <div aria-hidden className="map-sepia" />}
+      {big !== null && <BigStamp moment={big} />}
       {tour !== null && tourBand !== null && <AbsenceTourBand tour={tour} band={tourBand} />}
       <MapLabels
         labels={labels}

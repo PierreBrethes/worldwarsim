@@ -3456,6 +3456,14 @@ export const fr = {
    * **Le rejeu d'absence** (#439, la maquette « la tournée ») : la bande au bas de la carte, un
    * texte par moment. « Rejeu » seul est la vue rapprochée d'un combat (`replay`).
    */
+  /** **Les grands moments de la Mondiale** (#442) : le grand tampon de la fin, sur la carte. */
+  moments: {
+    won: 'Victoire',
+    closed: 'Saison close',
+    byPoints: 'quatre des Sept, vingt-quatre heures',
+    takes: (nation: string) => `${nation} prend la saison`,
+    draw: 'égalité',
+  },
   absenceTour: {
     eyebrow: 'Pendant votre absence',
     /** `since` est l'heure de la dernière lecture du journal, `null` s'il ne s'est jamais fermé. */

@@ -67,6 +67,8 @@ type PenStroke = {
   readonly start: number;
   /** How long the pen takes; `0` lays the stroke at once. */
   readonly pen: number;
+  /** How long a reach is held once drawn, before it fades. */
+  readonly hold: number;
 };
 type Stamp = {
   readonly mesh: Mesh<ShapeGeometry | PlaneGeometry, MeshBasicMaterial>;
@@ -292,9 +294,20 @@ export class InkLayer {
 
   /** The circle a point now holds, or the shot a battery fired (B20): pen-drawn when motion is
    *  full and simply there, briefly, when it is reduced. */
-  traceReach(stroke: ReadonlyArray<Vector3>, now: number): void {
+  traceReach(
+    stroke: ReadonlyArray<Vector3>,
+    now: number,
+    /** The victory's line (#442): its winner's ink, its own pen, held to the edition. */
+    {
+      ink,
+      penMs = TRACE_MS,
+      holdMs = REACH_HOLD_MS,
+    }: { ink?: string; penMs?: number; holdMs?: number } = {},
+  ): void {
     if (!this.enabled || this.motion === 'off') return;
-    this.reaches.push(this.penStroke([stroke], now, this.motion === 'full' ? TRACE_MS : 0));
+    this.reaches.push(
+      this.penStroke([stroke], now, this.motion === 'full' ? penMs : 0, ink, holdMs),
+    );
   }
 
   /** **The area a dismantled point coloured goes** (#340): its circle is erased turning from the
@@ -475,8 +488,10 @@ export class InkLayer {
     strands: ReadonlyArray<ReadonlyArray<Vector3>>,
     now: number,
     pen: number,
+    color: string = ARC_COLORS.mine.progress,
+    hold = REACH_HOLD_MS,
   ): PenStroke {
-    const ink = { color: ARC_COLORS.mine.progress, opacity: 1 };
+    const ink = { color, opacity: 1 };
     const material = new RibbonMaterial({
       width: threadWidth(TRACE_PX),
       floorPx: TRACE_PX,
@@ -495,7 +510,7 @@ export class InkLayer {
     });
     material.cut = length;
     material.end = pen > 0 ? 0 : length;
-    return { ribbons, material, length, start: now, pen };
+    return { ribbons, material, length, start: now, pen, hold };
   }
 
   private draw(trace: PenStroke, now: number): boolean {
@@ -510,7 +525,7 @@ export class InkLayer {
 
   private drawReach(reach: PenStroke, now: number): boolean {
     const elapsed = now - reach.start;
-    const fading = elapsed - reach.pen - REACH_HOLD_MS;
+    const fading = elapsed - reach.pen - reach.hold;
     if (fading >= REACH_FADE_MS) {
       wipe(reach);
       return false;
