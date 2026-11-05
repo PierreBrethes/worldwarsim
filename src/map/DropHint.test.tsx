@@ -178,36 +178,38 @@ describe('the chip under a finger (#456)', () => {
       vi.unstubAllGlobals();
     }
   };
-  const chipOnTouch = (coarse: boolean, choice?: string) =>
+  const chipOn = (coarse: boolean, over: Partial<DropHint> = {}, rose = true) =>
     withTouch(coarse, () =>
-      renderToStaticMarkup(
-        <DropHintChip hint={{ ...hint, ...(choice === undefined ? {} : { choice }) }} ref={null} />,
-      ),
+      renderToStaticMarkup(<DropHintChip hint={{ ...hint, ...over }} rose={rose} ref={null} />),
+    ).replaceAll('&#x27;', '’');
+  const choiceOf = (coarse: boolean, rose: boolean) =>
+    withTouch(
+      coarse,
+      () =>
+        hintOfReading({ kind: 'orders', verbs } as unknown as DropReading, () => 0, null, rose)
+          ?.choice,
     );
 
-  it('names no key of a keyboard, and says what lifting the finger does', () => {
-    const lone = chipOnTouch(true);
-    expect(lone).not.toMatch(/Tab|Échap/);
-    expect(lone).toContain('lever le doigt');
-    const several = chipOnTouch(true, '2 ordres');
-    expect(several).not.toMatch(/Tab|Échap/);
-    const refused = withTouch(true, () =>
-      renderToStaticMarkup(
-        <DropHintChip hint={{ ...hint, tone: 'refused', verb: 'non' }} ref={null} />,
-      ),
-    );
-    expect(refused).not.toMatch(/Tab|Échap/);
+  it('names no key of a keyboard, and says how to let go and how to put back', () => {
+    for (const over of [{}, { choice: '2 ordres' }, { tone: 'refused' as const, verb: 'non' }]) {
+      const said = chipOn(true, over);
+      expect(said).not.toMatch(/Tab|Échap/);
+      expect(said).toContain('sur la pièce');
+    }
+    expect(chipOn(true, { choice: '2 ordres' })).toContain(fr.drop.releaseChoiceTouch);
+    expect(chipOn(true)).toContain(fr.drop.releaseTouch);
   });
 
   it('keeps Tab and Échap under a mouse', () => {
-    expect(chipOnTouch(false)).toContain('Échap annule');
+    expect(chipOn(false)).toContain('Échap annule');
+    expect(choiceOf(false, true)).toBe('1/2 · Tab : raid d’avant-poste');
   });
 
-  it('counts the verbs instead of naming Tab when a finger reads them', () => {
-    const read = { kind: 'orders', verbs } as unknown as DropReading;
-    const said = (touch: boolean) =>
-      withTouch(touch, () => hintOfReading(read, () => 0, null)?.choice);
-    expect(said(true)).not.toContain('Tab');
-    expect(said(false)).toBe('1/2 · Tab : raid d’avant-poste');
+  it('offers the choice only where the finger has a rose to choose in', () => {
+    expect(choiceOf(true, true)).toBe(fr.drop.choiceTouch(2));
+    expect(choiceOf(true, false)).toBeUndefined();
+    const wide = chipOn(true, {}, false);
+    expect(wide).toContain(fr.drop.releaseDirectTouch);
+    expect(wide).not.toContain(fr.drop.releaseChoiceTouch);
   });
 });

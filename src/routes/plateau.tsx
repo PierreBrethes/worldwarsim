@@ -1937,7 +1937,13 @@ function BoardContent({
       (station) => lead === null || stationKeyOf(station) !== stationKeyOf(lead),
     );
     if (chosen.length < 2 || lead === null || first === undefined) {
-      setBarRefusal(chosen.length < 2 ? fr.selection.atLeastTwo : fr.selection.noSquadHere);
+      setBarRefusal(
+        chosen.length < 2
+          ? narrow
+            ? fr.selection.atLeastTwoTouch
+            : fr.selection.atLeastTwo
+          : fr.selection.noSquadHere,
+      );
       return;
     }
     const target: CompassTarget = {
@@ -1962,7 +1968,7 @@ function BoardContent({
       return;
     }
     sendGroup(reads, join);
-  }, [chosen, view.me, marching, readGroup, sendGroup]);
+  }, [chosen, view.me, marching, readGroup, sendGroup, narrow]);
 
   const disbandMutation = useMutation(api.movements.disband);
   /** La côte et le raster des pays, une fois arrivés : avant eux U reste offert, le serveur tranche. */

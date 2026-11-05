@@ -703,11 +703,11 @@ export function WorldMap({
       if (next === null) return;
       event.preventDefault();
       choice.current.index = next;
-      setHint(hintOfReading(read, chosenOf, holding.forbidden ?? null));
+      setHint(hintOfReading(read, chosenOf, holding.forbidden ?? null, fingerRose !== null));
     };
     addEventListener('keydown', turn);
     return () => removeEventListener('keydown', turn);
-  }, [holding, chosenOf]);
+  }, [holding, chosenOf, fingerRose]);
 
   // One rose at a time, and the camera holds still while it is open: aiming at an action on
   // a map drifting under the pointer is aiming twice.
@@ -1197,7 +1197,9 @@ export function WorldMap({
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
-      tell(hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null));
+      tell(
+        hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null, fingerRose !== null),
+      );
     };
   }, [
     holding,
@@ -1215,6 +1217,7 @@ export function WorldMap({
     coastPendingAt,
     walkableAt,
     chosenOf,
+    fingerRose,
     onDropRefused,
     onCarryEnd,
     withLiaison,
@@ -2026,6 +2029,7 @@ export function WorldMap({
           fuel={dropFuel}
           course={course !== null}
           chain={chain}
+          rose={fingerRose !== null}
           {...(dropNotes ? { notes: dropNotes } : {})}
         />
       )}
