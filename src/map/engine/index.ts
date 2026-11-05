@@ -650,6 +650,8 @@ export class MapEngine {
    *  their flag comes down (#279), by their building. */
   private servedMaquettes: ReadonlyArray<StandingMaquette> = [];
   private readonly lowering = new Map<string, StandingMaquette>();
+  /** Gone (`dispose`): a timer that falls after reads nothing of it. */
+  private disposed = false;
   /** The piles as last served: a garrison handed back to the ground is drawn at the foot of the
    *  building at its point, standing or falling (`besideSites`). */
   private piles: ReadonlyArray<StandingPile> = [];
@@ -1560,6 +1562,7 @@ export class MapEngine {
       this.lowering.set(buildingId, held);
       this.maquettes.runFlag(held.id, { from: 1, to: 0, start: Date.now(), ms: LOWER_MS });
       setTimeout(() => {
+        if (this.disposed) return;
         this.lowering.delete(buildingId);
         this.displayMaquettes(this.servedMaquettes);
       }, LOWER_MS);
@@ -2100,6 +2103,12 @@ export class MapEngine {
     };
   }
 
+  /** **The sites held while their flag comes down** (#279), in its pixels: their labels are
+   *  gone already, and the decor's names stand clear of them all the same. */
+  heldRects(): Rect[] {
+    return [...this.lowering.values()].flatMap(({ id }) => this.pieceRect(id) ?? []);
+  }
+
   /** Every pin and label on the canvas, in its pixels: what a cartouche stands clear of. */
   markRects(): Rect[] {
     return this.pins.rects();
@@ -2462,6 +2471,7 @@ export class MapEngine {
    * themselves and detach, then the sweep below takes what is left in the scene.
    */
   dispose(): void {
+    this.disposed = true;
     setNearFloor(0);
     cancelAnimationFrame(this.animation);
     if (this.restTimer !== null) clearTimeout(this.restTimer);

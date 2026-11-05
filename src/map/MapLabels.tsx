@@ -944,6 +944,7 @@ export function MapLabels({
         const piece = engine.pieceRect(id);
         if (piece !== null) occupied.push(piece);
       }
+      occupied.push(...engine.heldRects());
       // A sea's name stands whole off the shell's bands, as the contacts' tokens do (#457).
       const { width, height } = layerSize.current;
       const band = bandOf({

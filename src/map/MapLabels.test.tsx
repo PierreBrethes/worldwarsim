@@ -401,6 +401,7 @@ describe('a deposit on the map', () => {
       pieceRect: (id: string) =>
         id === 'building-mine@3,50' ? { left: 700, right: 860, top: 160, bottom: 269 } : null,
       cameraDistance: () => 20,
+      heldRects: () => [],
     };
     const worked = { ...deposit('held', [3, 50]), clears: 'building-mine@3,50' } as MapLabel;
     render(
@@ -534,6 +535,7 @@ describe('a ring of buildings around a stack', () => {
       nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
       pieceRect: () => null,
       cameraDistance: () => 20,
+      heldRects: () => [],
     };
     // A real DOMRect keeps its edges as prototype accessors, which `{ ...box }` drops. At rest a
     // stack's cartouche is quiet: measured, it has no area.
