@@ -227,6 +227,18 @@ describe('the journal', () => {
     expect(nothing!.severity).toBe('notable');
   });
 
+  it('words the crate the column found gone, stamped bredouille (#279)', () => {
+    const [gone] = journalDispatches([], null, [
+      { kind: 'lootCrateGone', at: NOON, hostCountry: 'ROU', place: { lon: 26, lat: 45 } },
+    ]);
+    expect(gone).toMatchObject({
+      kind: 'foundNothing',
+      severity: 'notable',
+      text: 'Caisse introuvable — Roumanie : la colonne rentre à vide.',
+      place: { lon: 26, lat: 45 },
+    });
+  });
+
   /**
    * **Le trou d'affordance de la partie de contrôle** (retours du 11/09, ligne 5) : le joueur
    * venait saboter une mine, l'attaque est arrivée sur une région sans garnison, et la dépêche

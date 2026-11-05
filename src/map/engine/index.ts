@@ -91,6 +91,16 @@ import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
+  aroundTheFront,
+  crateSearch,
+  crateTaking,
+  perronOf,
+  plunderOf,
+  sabotageOf,
+  takingStepOf,
+  type Trip,
+} from './timelines/taking';
+import {
   type Attempt,
   type Docked,
   dockedOf,
@@ -116,7 +126,7 @@ import {
 } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
-import { troopSpan } from '@/domain/piece-size';
+import { MAN_METRES, troopSpan } from '@/domain/piece-size';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
@@ -179,7 +189,8 @@ import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
 import { SeaLayer, type Shore } from './sea';
-import { MaquetteLayer, type SeaFront, type StandingMaquette } from './maquettes';
+import { MaquetteLayer, SOCLE_TOP, type SeaFront, type StandingMaquette } from './maquettes';
+import { BARE_MS, flagCues, HOIST_MS, LOWER_MS } from './site-marks';
 import {
   besideSites,
   StandingLayer,
@@ -229,6 +240,13 @@ export type { ZoneFocus, ZonePoint } from './outpost-zones';
  *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
 const SHORE_REACH = 0.6 * TANK_SHARE;
 const SHORE_PROBES = 8;
+/** **A site plays its taking from this size on screen** (px, window of 900): its socle under
+ *  64 px takes its end pose (storyboard, ADR 0038 §7). */
+const TAKING_PX = 64;
+/** **The crate lies so many metres behind its column** (#279, « la pile s'arrête à un pas »), and
+ *  the men stop so far before a door. `@a-mesurer` */
+const CRATE_STEPS_METRES = 2.5;
+const DOOR_STEP_METRES = 2;
 
 /** **A port reads the coast it faces within this many km of its point**, and its normal from the
  *  water within a few times this many of it: the water in front, not a bay's chord (#436).
@@ -630,6 +648,14 @@ export class MapEngine {
   private readonly razes = new RazeLayer();
   /** The razed maquettes still falling, whose place is held (`MaquetteLayer.hold`). */
   private readonly falling = new Set<string>();
+  /** **The maquettes as served**, and those a capture took from me, held as they stood while
+   *  their flag comes down (#279), by their building. */
+  private servedMaquettes: ReadonlyArray<StandingMaquette> = [];
+  private readonly lowering = new Map<string, StandingMaquette>();
+  /** The hour each held site is let go: a second taking of the same site moves it. */
+  private readonly lettingGo = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Gone (`dispose`): a timer that falls after reads nothing of it. */
+  private disposed = false;
   /** The piles as last served: a garrison handed back to the ground is drawn at the foot of the
    *  building at its point, standing or falling (`besideSites`). */
   private piles: ReadonlyArray<StandingPile> = [];
@@ -653,6 +679,11 @@ export class MapEngine {
   /** **Trucks on a tour come to load** (#278), waiting for their pawn, or their quay. */
   private touring: Array<{
     readonly cue: Extract<Cue, { kind: 'tournee' }>;
+    readonly since: number;
+  }> = [];
+  /** **My columns leaving what they took** (#279), waiting for their squad to stand. */
+  private takings: Array<{
+    readonly cue: Extract<Cue, { kind: 'prise' }>;
     readonly since: number;
   }> = [];
   /** The tours whose pawn this layer holds at its socle's foot (`ArcLayer.hold`). */
@@ -1472,7 +1503,16 @@ export class MapEngine {
 
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
    *  (ADR 0026 §1). */
-  displayMaquettes(maquettes: ReadonlyArray<StandingMaquette>): void {
+  displayMaquettes(served: ReadonlyArray<StandingMaquette>): void {
+    const hoisted = this.takenUnderTheEyes(served);
+    // A site a capture took from me stands as it stood, its flag coming down, then is gone or
+    // surveyed again (#279).
+    const maquettes = [
+      ...served.filter(
+        ({ buildingId }) => buildingId === undefined || !this.lowering.has(buildingId),
+      ),
+      ...this.lowering.values(),
+    ];
     // A razed maquette is copied as it is drawn before its lot is rebuilt without it, and its
     // place held while it falls: its neighbours on a ring stay where they stand.
     const now = performance.now();
@@ -1491,11 +1531,56 @@ export class MapEngine {
     // The view is re-served at every step of any column: a frame only when something changed.
     if (!this.maquettes.display(maquettes)) return;
     this.invalidate();
+    for (const id of hoisted)
+      this.maquettes.runFlag(id, {
+        from: 0,
+        to: 1,
+        start: Date.now() + BARE_MS,
+        ms: HOIST_MS,
+      });
     // A pile posted at the point of a maquette that comes or goes stands at its foot, or not.
     this.standing.display(this.besideSites(this.piles));
     // A ring may have carried a maquette elsewhere: its pin follows.
     this.pins.rebuild();
     this.relayThreads();
+  }
+
+  /**
+   * **A site changed hands under my eyes** (#279, `flagCues`): the ids whose flag runs up once
+   * displayed; a site taken from me is held in `lowering`, its flag running down, and displayed
+   * as served after. Played up close, in the field and at full motion alone — else the end pose.
+   */
+  private takenUnderTheEyes(served: ReadonlyArray<StandingMaquette>): ReadonlyArray<string> {
+    const before = this.servedMaquettes;
+    const { hoisted, lowered } = flagCues(before, served);
+    this.servedMaquettes = served;
+    // Where it stood before this view: the site I took was a survey of mine until now.
+    const seenBefore = (buildingId: string | undefined) => {
+      const was = before.find((maquette) => maquette.buildingId === buildingId);
+      const box = was === undefined ? null : this.maquettes.boxOf(was.id);
+      return this.sequences.motion === 'full' && box !== null && this.seenBig(box, TAKING_PX);
+    };
+    for (const { capture: _staple, ...held } of lowered) {
+      const { buildingId } = held;
+      if (buildingId === undefined || !seenBefore(buildingId)) continue;
+      this.lowering.set(buildingId, held);
+      this.maquettes.runFlag(held.id, { from: 1, to: 0, start: Date.now(), ms: LOWER_MS });
+      clearTimeout(this.lettingGo.get(buildingId));
+      this.lettingGo.set(
+        buildingId,
+        setTimeout(() => {
+          if (this.disposed) return;
+          this.lettingGo.delete(buildingId);
+          this.lowering.delete(buildingId);
+          this.displayMaquettes(this.servedMaquettes);
+          // The decor's names return with the next frame, whether or not the view changed.
+          this.invalidate();
+        }, LOWER_MS),
+      );
+    }
+    return hoisted.filter((id) =>
+      seenBefore(served.find((maquette) => maquette.id === id)?.buildingId),
+    );
   }
 
   /**
@@ -2029,6 +2114,12 @@ export class MapEngine {
     };
   }
 
+  /** **The sites held while their flag comes down** (#279), in its pixels: their labels are
+   *  gone already, and the decor's names stand clear of them all the same. */
+  heldRects(): Rect[] {
+    return [...this.lowering.values()].flatMap(({ id }) => this.pieceRect(id) ?? []);
+  }
+
   /** Every pin and label on the canvas, in its pixels: what a cartouche stands clear of. */
   markRects(): Rect[] {
     return this.pins.rects();
@@ -2391,6 +2482,7 @@ export class MapEngine {
    * themselves and detach, then the sweep below takes what is left in the scene.
    */
   dispose(): void {
+    this.disposed = true;
     setNearFloor(0);
     cancelAnimationFrame(this.animation);
     if (this.restTimer !== null) clearTimeout(this.restTimer);
@@ -3241,6 +3333,10 @@ export class MapEngine {
       case 'tournee':
         this.touring.push({ cue, since: performance.now() });
         break;
+      case 'prise':
+        if (takingStepOf(this.sequences.motion) !== 'nothing')
+          this.takings.push({ cue, since: performance.now() });
+        break;
       case 'combat':
         this.playCombat(cue);
         break;
@@ -3893,6 +3989,121 @@ export class MapEngine {
     this.docked.set(cue.arcId, docked);
     if (!this.sequences.play(this.maquettes, cue.siteId, quay, now)) this.undock(now);
     return 'done';
+  }
+
+  /**
+   * **Ce que ma colonne prend à son point se voit** (#279, `storyboard-prise`) : son pion est
+   * retenu au départ, au pied du socle ; un homme va à la caisse et la rapporte à l'épaule, ou deux
+   * vont à la porte du site — ils en reviennent chargés (pillage), ou s'effacent dans son noir le
+   * temps d'une fumée noire (sabotage). La caisse s'efface au rang, l'étiquette de cargaison prend
+   * le relais ; les scellés restent. En réduites, un anneau d'encre sur le site ou la colonne ;
+   * rien coupées, hors de vue, ou pour un pion déjà parti.
+   * Vrai quand c'est réglé, joué ou non.
+   */
+  private takeOf({ cue }: (typeof this.takings)[number], now: number): boolean {
+    if (takingStepOf(this.sequences.motion) === 'ring') {
+      // At reduced motion, a ring of ink on the site, or on the column that took a crate.
+      const drawn =
+        cue.siteId === undefined
+          ? (this.arcs.squads.pieceOf(cue.arcId)?.box ?? this.arcs.boxOf(cue.arcId))
+          : this.maquettes.boxOf(cue.siteId);
+      if (drawn === null || drawn.isEmpty()) return false;
+      const size = drawn.getSize(new Vector3());
+      this.standing.rippleAt(
+        drawn.getCenter(new Vector3()).setY(drawn.min.y),
+        Math.max(size.x, size.z) / 2,
+      );
+      return true;
+    }
+    const site = cue.siteId === undefined ? null : this.maquettes.siteOf(cue.siteId);
+    if (cue.siteId !== undefined && site === null) return false;
+    const inside = (point: Vector3) => {
+      if (site === null) return false;
+      const { x, z } = site.toModel(point);
+      return (
+        x >= site.box.min.x && x <= site.box.max.x && z >= site.box.min.z && z <= site.box.max.z
+      );
+    };
+    if (this.arcs.hold(cue.arcId, inside, now + SORTIE_WAIT_MS) === null) return true;
+    const squad = this.arcs.squadMen(cue.arcId);
+    const box = this.arcs.squads.pieceOf(cue.arcId)?.box ?? null;
+    if (squad === null || box === null) return false;
+    const letGo = () => {
+      this.arcs.letGo(cue.arcId, now);
+      return true;
+    };
+    const building = cue.siteId === undefined ? null : this.maquettes.pieceOf(cue.siteId);
+    // A site plays from its socle's size; a crate, as long as the squad stands (`WALK_MIN_PX`).
+    if (building?.box && !this.seenBig(building.box, TAKING_PX)) return letGo();
+    // The men's own metres: the floor grows them with the distance (ADR 0035 §10).
+    const perMetre = box.getSize(new Vector3()).y / MAN_METRES;
+    const offset = (man: Vector3, to: Vector3): Trip['to'] => [to.x - man.x, 0, to.z - man.z];
+    const [first, second] = squad.men;
+    if (first === undefined) return letGo();
+    let sequence;
+    let perron = null;
+    if (cue.act === 'ramassage' || cue.act === 'recherche') {
+      // The crate lies a few steps behind the pile, on the way it came (« la pile s'arrête à un pas »).
+      const crate = first.clone().addScaledVector(squad.front, -CRATE_STEPS_METRES * perMetre);
+      const trip = { part: 'man_0', to: offset(first, crate), perMetre } as const;
+      sequence = cue.act === 'ramassage' ? crateTaking(trip) : crateSearch(trip);
+    } else if (cue.act === 'pillage' && site !== null && site.crates.length > 0) {
+      // Each man takes a crate off the top of the perron's pile, which loses it (storyboard).
+      // A man behind the door's front goes round the building: the crate leaves by the door.
+      const top = [...site.crates].sort((a, b) => b.at.y - a.at.y);
+      const yaw = site.door?.[3] ?? 0;
+      const box = {
+        minX: site.box.min.x,
+        maxX: site.box.max.x,
+        minZ: site.box.min.z,
+        maxZ: site.box.max.z,
+      };
+      const building = {
+        minX: site.building.min.x,
+        maxX: site.building.max.x,
+        minZ: site.building.min.z,
+        maxZ: site.building.max.z,
+      };
+      const trips: Trip[] = [first, second].flatMap((man, k) => {
+        const crate = top[k]?.at;
+        if (man === undefined || crate === undefined) return [];
+        const from = site.toModel(man);
+        const via = aroundTheFront([from.x, from.z], [crate.x, crate.z], yaw, box, building).map(
+          ([x, z]) => offset(man, site.toBoard(new Vector3(x, SOCLE_TOP, z))),
+        );
+        return [{ part: `man_${k}`, to: offset(man, site.toBoard(crate)), via }];
+      });
+      const plunder = plunderOf({ trips, perMetre });
+      perron = perronOf(
+        plunder,
+        trips.map((_, k) => top[k]!.name),
+      );
+      sequence = plunder;
+    } else {
+      const door = site?.door ?? null;
+      if (site === null || door === null) return letGo();
+      const [x, , z, yaw] = door;
+      const before = (side: number) =>
+        site.toBoard(
+          new Vector3(
+            x + Math.sin(yaw) * DOOR_STEP_METRES + Math.cos(yaw) * side,
+            SOCLE_TOP,
+            z + Math.cos(yaw) * DOOR_STEP_METRES - Math.sin(yaw) * side,
+          ),
+        );
+      const trips: Trip[] = [{ part: 'man_0', to: offset(first, before(-0.8)) }];
+      if (second !== undefined) trips.push({ part: 'man_1', to: offset(second, before(0.8)) });
+      if (cue.act === 'pillage') sequence = plunderOf({ trips, perMetre });
+      else {
+        const sabotage = sabotageOf({ trips, perMetre });
+        this.maquettes.blast(cue.siteId!, Date.now() + sabotage.smokeAt);
+        sequence = sabotage;
+      }
+    }
+    if (!this.sequences.play(this.arcs.squads, cue.arcId, sequence, now)) return letGo();
+    if (perron !== null) this.sequences.play(this.maquettes, cue.siteId!, perron, now);
+    this.arcs.hold(cue.arcId, inside, now + sequence.ms);
+    return true;
   }
 
   private undock(now: number): void {
@@ -4791,6 +5002,9 @@ export class MapEngine {
     );
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
     this.touring = stillWaiting(this.touring, now, (tour) => this.tourOf(tour, now));
+    this.takings = this.takings.filter(
+      (taking) => !this.takeOf(taking, now) && now - taking.since < SORTIE_WAIT_MS,
+    );
     this.undock(now);
     this.boardings = this.boardings.filter((boarding) => {
       if (this.boardOf(boarding, now)) return false;

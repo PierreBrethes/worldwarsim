@@ -191,6 +191,15 @@
  * pour l'accueil ; `--en-attente` retient l'édition sous presse, `--sans-archive` la laisse absente.
  * Voir `scripts/demo-conclusion.mjs`.
  *
+ * `--prise [s]` (#279) pose en Belgique, pour la France contre le Royaume-Uni : une infanterie
+ * française qui ramasse dans une minute une caisse à Tournai (`ramassage`), une autre 15 s après
+ * sur une caisse déjà partie à Mons, « caisse introuvable » au journal (`caisse`) ; une caserne
+ * britannique à Namur que deux fantassins capturent dans `s` secondes (90 par défaut), l'agrafe
+ * court d'ici là autour du socle, le drapeau monte chez le capteur et descend chez le teneur
+ * (`--compte b`) (`prise`) ; un entrepôt à Liège pillé à `s` + 30 s (`pillage`) et une mine du
+ * Luxembourg belge sabotée à `s` + 50 s (`sabotage`), scellés ensuite douze heures. L'heure de
+ * chacun s'affiche.
+ *
  *     npm run demo:mondiale
  *
  * Refuse toute URL qui n'est pas 127.0.0.1 ou localhost. Les comptes (mot de passe compris) vont
@@ -352,6 +361,9 @@ const lone = process.argv.includes('--troupe-seule');
 /** `--chargee` : avec `--troupe-seule`, le camion du point porte un fantassin à son bord. */
 const loaded = process.argv.includes('--chargee');
 /** `--combat [s]` : une colonne française sur une garnison britannique, arrivée dans s secondes (#272). */
+/** `--prise [s]` (#279) : une capture qui aboutit dans `s` secondes, un pillage scellé, une caisse partie. */
+const takingAt = process.argv.indexOf('--prise');
+const takingIn = takingAt < 0 ? null : Number(process.argv[takingAt + 1]) || 90;
 const combatAt = process.argv.indexOf('--combat');
 const combatIn = combatAt < 0 ? null : Number(process.argv[combatAt + 1]) || 25;
 /** `--combat-mer [s]` : deux escorteurs français sur deux britanniques en Manche (#324). */
@@ -1463,6 +1475,24 @@ if (!bare) {
       'dev:arriveNow',
       JSON.stringify({ playerId: scene.a, afterMs: coastIn * 1000, onTime: true }),
     ]);
+  }
+  if (takingIn !== null && scene.a !== null && scene.b !== null) {
+    const out = cli([
+      'run',
+      'dev:takingScene',
+      JSON.stringify({
+        playerId: scene.a,
+        enemyId: scene.b,
+        captureInMs: takingIn * 1000,
+        crateInMs: 60_000,
+        raidInMs: (takingIn + 30) * 1000,
+      }),
+    ]);
+    Object.assign(places, JSON.parse(out.slice(out.indexOf('{'))));
+    const hour = (s) => new Date(Date.now() + s * 1000).toISOString();
+    console.log(
+      `prise : ramassage à ${hour(60)}, caisse partie à ${hour(75)}, capture à ${hour(takingIn)}, pillage à ${hour(takingIn + 30)}, sabotage à ${hour(takingIn + 50)}`,
+    );
   }
   if ((combatIn !== null || replaying) && scene.a !== null && scene.b !== null) {
     const garrison = { lon: 4.94, lat: 49.7 };

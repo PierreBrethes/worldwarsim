@@ -3,17 +3,12 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { assetOf } from '@/domain/nation-assets';
-import {
-  RESOURCES,
-  type BuildCostKey,
-  type BuildingKey,
-  type Specialty,
-  type UnitRole,
-} from '@/domain/ids';
+import { type BuildCostKey, type BuildingKey, type Specialty, type UnitRole } from '@/domain/ids';
 import { HOME_BY_NATION, isNation } from '@/domain/nations';
 import { journalDispatches } from '@/domain/journal';
 import { formatWindow, toLocalMinutes, type TimeWindow } from '@/domain/rest-window';
 import { placeLabel } from '@/domain/station-name';
+import { emptyCargo } from '@/domain/loot';
 import type { LonLat } from '@/domain/geo';
 import { stackOf, type ArcView, type PlayerView } from '@/domain/player-view';
 import type { ComputedRoute, RouteMode } from '@/domain/routing';
@@ -317,16 +312,6 @@ function asLocalWindow(window: TimeWindow): TimeWindow {
     endMinutes: toLocalMinutes(window.endMinutes, offsetMinutes),
   };
 }
-
-const emptyCargo = () => ({
-  loot: Object.fromEntries(RESOURCES.map((resource) => [resource, 0])) as Record<
-    (typeof RESOURCES)[number],
-    number
-  >,
-  carried: 0,
-  capacity: 0,
-  free: 0,
-});
 
 /**
  * A sighting becomes an arc **in one of the two enemy states and no other**: the union is what

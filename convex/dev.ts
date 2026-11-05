@@ -20,6 +20,7 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
+import { planCargoReturn } from './movement/cargoReturn';
 import { chainSecondTarget } from './movement/blitzkrieg';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
@@ -3130,4 +3131,225 @@ export const benchPlayers = internalQuery({
         .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
         .collect()
     ).map((player) => ({ id: player._id, nation: player.nation })),
+});
+
+/**
+ * **La prise se voit** (#279), pour la démo, en Belgique, pour `playerId` contre `enemyId` : une
+ * caserne à Namur, relevée, que deux fantassins capturent — la capture aboutit dans `captureInMs`
+ * (`@prise`) ; un entrepôt à Liège que deux escouades pillent, et une mine du Luxembourg belge,
+ * dans sa propre province, qu'une escouade sabote, leurs présences finies dans `raidInMs` et 20 s après (`@pillage`, `@sabotage`) ; une
+ * infanterie qui arrive dans `crateInMs` sur une caisse relevée à Tournai et la ramasse
+ * (`@ramassage`), une autre 15 s après à Mons, sur une caisse qu'un autre a prise (`@caisse`, « caisse
+ * introuvable »).
+ *
+ * `npx convex run dev:takingScene '{"playerId":"…","enemyId":"…","captureInMs":90000,"crateInMs":60000,"raidInMs":60000}'`
+ */
+export const takingScene = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    enemyId: v.id('players'),
+    captureInMs: v.number(),
+    crateInMs: v.number(),
+    raidInMs: v.optional(v.number()),
+  },
+  handler: async (ctx, { playerId, enemyId, captureInMs, crateInMs, raidInMs }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (player === null || season === null) throw new Error('no such player');
+    const now = Date.now();
+    const seasonId = player.seasonId;
+    const regionAt = (lonLat: readonly [number, number]) => {
+      const region = nearestRegion(lonLat);
+      if (region === null) throw new Error(`no region at ${lonLat.join(',')}`);
+      return region;
+    };
+    const infantry = (at: { lon: number; lat: number }) =>
+      ctx.db.insert('troops', {
+        seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: nominalStrength('infantry', 1),
+        currentStrength: nominalStrength('infantry', 1),
+        stationedAt: at,
+      });
+
+    const namur = regionAt([4.87, 50.47]);
+    const barracksPoint = pointOfRegion(namur.id);
+    const barracksId = await ctx.db.insert('buildings', {
+      seasonId,
+      playerId: enemyId,
+      key: 'barracks',
+      regionId: namur.id,
+      point: barracksPoint,
+      level: 2,
+    });
+    const site = async (key: 'warehouse' | 'mine', lonLat: readonly [number, number]) => {
+      const region = regionAt(lonLat);
+      const point = pointOfRegion(region.id);
+      const id = await ctx.db.insert('buildings', {
+        seasonId,
+        playerId: enemyId,
+        key,
+        regionId: region.id,
+        point,
+        level: 1,
+      });
+      return { id, point, region };
+    };
+    const warehouse = await site('warehouse', [5.57, 50.63]);
+    const mine = await site('mine', [5.4, 50.0]);
+    await recordLinkage(ctx, seasonId);
+    for (const point of [namur.point, warehouse.region.point, mine.region.point])
+      await fileSurvey(ctx, playerId, [{ point, radiusKm: 1 }], now);
+
+    // The capture, as `arriveForCapture` starts it, sped up: it completes in `captureInMs`.
+    for (let k = 0; k < 2; k++) await infantry(barracksPoint);
+    const progress = 0.4;
+    const completesAt = now + captureInMs;
+    const captureId = await ctx.db.insert('captures', {
+      seasonId,
+      playerId,
+      defenderId: enemyId,
+      target: { kind: 'building', buildingId: barracksId },
+      site: { kind: 'building', building: 'barracks', regionId: namur.id },
+      point: barracksPoint,
+      progress,
+      progressAt: now,
+      rate: 1,
+      durationMs: captureInMs / (1 - progress),
+      rest: null,
+      completesAt,
+    });
+    await ctx.scheduler.runAt(completesAt, internal.captures.complete, {
+      captureId,
+      expectedAt: completesAt,
+    });
+
+    // Crates sighted: one at Tournai that my column takes up, one at Mons taken by another first.
+    const zero = { ammunition: 0, oil: 0, coal: 0, food: 0, steel: 0 };
+    const crate = async (
+      point: { lon: number; lat: number },
+      from: { lon: number; lat: number },
+      inMs: number,
+      gone: boolean,
+    ) => {
+      const engagementId = await ctx.db.insert('engagements', {
+        seasonId,
+        attackerId: enemyId,
+        defenderId: playerId,
+        cause: 'arrival',
+        point,
+        hostCountry: 'BEL',
+        at: now,
+        winner: 'attacker',
+        outpostId: null,
+        disabledUntil: null,
+        troops: [],
+      });
+      const recoveryId = await ctx.db.insert('lootRecoveries', {
+        seasonId,
+        engagementId,
+        dispossessedPlayerId: playerId,
+        recoveringPlayerId: enemyId,
+        point,
+        at: now,
+        recovered: zero,
+        remainder: { ...zero, steel: 30 },
+      });
+      const crateId = await ctx.db.insert('lootCrates', {
+        seasonId,
+        recoveryId,
+        point,
+        appearedAt: now,
+        expiresAt: now + 24 * 3_600_000,
+        loot: { ...zero, steel: 30 },
+      });
+      const sightingId = await ctx.db.insert('lootCrateSightings', {
+        seasonId,
+        playerId,
+        crateId,
+        point,
+        loot: { ...zero, steel: 30 },
+        seenAt: now,
+        present: true,
+        current: true,
+      });
+      const { movementId } = await march(ctx, {
+        playerId,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds: [await infantry(from)],
+        aim: await aimOf(ctx, playerId, { kind: 'point', point }),
+      });
+      await ctx.db.patch(movementId, {
+        arrivesAt: now + inMs,
+        lootCollection: { sightingId, crateId, orderedAt: now },
+      });
+      await ctx.scheduler.runAt(now + inMs, internal.movements.arrive, { movementId });
+      if (gone) await ctx.db.delete(crateId);
+      return movementId;
+    };
+    const tournai = { lon: 3.39, lat: 50.6 };
+    const mons = { lon: 3.95, lat: 50.45 };
+    const column = await crate(tournai, { lon: 3.06, lat: 50.63 }, crateInMs, false);
+    await crate(mons, { lon: 4.44, lat: 50.41 }, crateInMs + 15_000, true);
+    // Two raids whose presence ends under the eyes, as `startPresence` leaves them. They stand
+    // at their site from the start, with no route: copies of a crate's column, past the slots.
+    const raid = async (
+      template: Id<'movements'>,
+      target: typeof warehouse,
+      squads: number,
+      inMs: number,
+    ) => {
+      const troopIds = [];
+      // Stationed at home, at Lille: a column with no road home stays where it raided, unseen.
+      for (let k = 0; k < squads; k++) troopIds.push(await infantry({ lon: 3.06, lat: 50.63 }));
+      const until = now + inMs;
+      const returnPlan = await planCargoReturn(ctx, {
+        seasonId,
+        playerId,
+        from: [target.point.lon, target.point.lat],
+        roles: troopIds.map(() => 'infantry' as const),
+        now,
+      });
+      const { _id, _creationTime, lootCollection, ...column } = (await ctx.db.get(template))!;
+      void [_id, _creationTime, lootCollection];
+      const movementId = await ctx.db.insert('movements', {
+        ...column,
+        troopIds,
+        from: target.point,
+        to: target.point,
+        points: [target.point],
+        legs: [],
+        distanceUnits: 0,
+        costUnits: 0,
+        departedAt: now,
+        arrivesAt: until,
+        plunder: {
+          phase: 'presence',
+          buildingId: target.id,
+          until,
+          engagementId: null,
+          returnRegionId: returnPlan?.regionId ?? null,
+          returnPlan,
+        },
+      });
+      await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
+        movementId,
+        expectedAt: until,
+      });
+    };
+    await raid(column, warehouse, 2, raidInMs ?? captureInMs);
+    await raid(column, mine, 1, (raidInMs ?? captureInMs) + 20_000);
+    await reassessDetection(ctx, seasonId, now);
+    return {
+      prise: [barracksPoint.lon, barracksPoint.lat],
+      pillage: [warehouse.point.lon, warehouse.point.lat],
+      sabotage: [mine.point.lon, mine.point.lat],
+      ramassage: [tournai.lon, tournai.lat],
+      caisse: [mons.lon, mons.lat],
+    };
+  },
 });

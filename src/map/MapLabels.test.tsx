@@ -8,6 +8,7 @@ import { Pictogram } from '@/shell/IndicatorGlyph';
 import type { CargoTag } from '@/domain/cargo-tag';
 import type { CargoAim } from './CargoTags';
 import { MapLabels } from './MapLabels';
+import { NameSheet } from './map-names';
 
 vi.mock('@/shell/IndicatorGlyph', () => ({ Pictogram: vi.fn(() => null) }));
 
@@ -401,6 +402,7 @@ describe('a deposit on the map', () => {
       pieceRect: (id: string) =>
         id === 'building-mine@3,50' ? { left: 700, right: 860, top: 160, bottom: 269 } : null,
       cameraDistance: () => 20,
+      heldRects: () => [],
     };
     const worked = { ...deposit('held', [3, 50]), clears: 'building-mine@3,50' } as MapLabel;
     render(
@@ -455,6 +457,53 @@ describe('a deposit on the map', () => {
         .transform;
     expect(at('held')).toBe('translate3d(796px, 269px, 0)');
     expect(at('free')).toBe('translate3d(796px, 246px, 0)');
+  });
+});
+
+/** #279 : un site tenu le temps que son drapeau descend n'a plus d'étiquette, mais les noms du
+ *  décor s'écartent de sa maquette. */
+describe('the decor names, round a site held while its flag comes down', () => {
+  it('stand clear of its rect, which the engine serves as held', () => {
+    const held = { left: 700, right: 860, top: 160, bottom: 269 };
+    const paint = vi.spyOn(NameSheet.prototype, 'paint').mockImplementation(() => {});
+    const engine: Record<string, unknown> = {
+      setLabelAnchors: () => {},
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
+      pieceRect: () => null,
+      cameraDistance: () => 20,
+      heldRects: () => [held],
+    };
+    render(
+      <MapLabels
+        labels={[]}
+        engine={engine as never}
+        selected={null}
+        secondarySelected={null}
+        onMovementHover={noop}
+        onReachHover={noop}
+        poster={() => null}
+        onSelect={noop}
+        onOpenBuilding={noop}
+        onOpenStack={noop}
+        onOpenLoot={noop}
+        onOpenCamp={noop}
+        onOpenObjective={noop}
+        onOpenStrategic={noop}
+        onAct={noop}
+        onCancelHeld={noop}
+        mapping={CLASSIC_MAPPING}
+        holding={false}
+        onHoldOver={noop}
+        muted
+      />,
+    );
+    act(() => (engine.onLabels as (projections: ReadonlyArray<unknown>) => void)([]));
+    expect(paint).toHaveBeenCalled();
+    expect(paint.mock.calls.at(-1)?.[1]).toContainEqual(held);
+    paint.mockRestore();
   });
 });
 
@@ -534,6 +583,7 @@ describe('a ring of buildings around a stack', () => {
       nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
       pieceRect: () => null,
       cameraDistance: () => 20,
+      heldRects: () => [],
     };
     // A real DOMRect keeps its edges as prototype accessors, which `{ ...box }` drops. At rest a
     // stack's cartouche is quiet: measured, it has no area.

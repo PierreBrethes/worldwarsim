@@ -196,6 +196,18 @@ describe('bakedSite (ADR 0038)', () => {
     expect(boxOf(building).max.y).toBeLessThan(top);
   });
 
+  it('bakes the flag apart from its dressing, in its own material, to be inked (#279)', () => {
+    const scene = sceneOfFile(SOCLE);
+    const { flag, dressing, signFoot } = bakedSite(scene);
+    expect(flag.map((part) => part.material.name)).toEqual(['drapeau']);
+    expect(dressing.some((part) => part.material.name === 'drapeau')).toBe(false);
+    expect(signFoot).toEqual(scene.getObjectByName('signe')!.getWorldPosition(new Vector3()));
+    expect(boxOf(flag).max.y).toBeCloseTo(
+      new Box3().setFromObject(scene.getObjectByName('drapeau')!).max.y,
+      6,
+    );
+  });
+
   it('draws the first level of a yard, and none of the accessories that come later', () => {
     const scene = new Group();
     const socle = new Mesh(new BoxGeometry(4, 1, 4), new MeshStandardMaterial({ name: 'socle' }));
@@ -285,6 +297,7 @@ describe('bakedRig', () => {
     for (const { geometry, material } of [
       ...site.building,
       ...site.dressing,
+      ...site.flag,
       ...(site.accessories.get('niveau_1') ?? []),
     ])
       group.add(new Mesh(geometry, material));
@@ -302,7 +315,7 @@ describe('bakedRig', () => {
     expect(sweptVolume(rig)).toBeCloseTo(sweptVolume(rest), 3);
   });
 
-  it('keeps each rig part by name, at its pivot, and leaves no flag', () => {
+  it('keeps each rig part by name, at its pivot, and its flag on its sign, apart (#279)', () => {
     const scene = barracks();
     scene.updateMatrixWorld(true);
     const rig = bakedRig(scene, keeping(RIG_PARTS.barracks));
@@ -313,6 +326,14 @@ describe('bakedRig', () => {
       expect(kept, name).toBeDefined();
       expect(kept!.getWorldPosition(new Vector3()).distanceTo(was), name).toBeLessThan(1e-5);
     }
+    // The flag is no part that moves: merged into what it hangs from, in its own material, for
+    // `standIn` to ink it.
     expect(rig.getObjectByName('drapeau')).toBeUndefined();
+    const flags: string[] = [];
+    rig.traverse((node) => {
+      const { material } = node as Mesh;
+      if ((material as { name?: string } | undefined)?.name === 'drapeau') flags.push(node.name);
+    });
+    expect(flags).toHaveLength(1);
   });
 });

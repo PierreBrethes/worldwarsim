@@ -86,6 +86,10 @@ export type CrateTake = {
   readonly loot: ResourceAmounts;
 };
 
+/** **A crate gone by its hour** (24 h, `expiresAt`): no column takes from it any more. */
+export const crateExpired = (crate: { readonly expiresAt: number }, at: number): boolean =>
+  at >= crate.expiresAt;
+
 /** Atomic physical take used after the S6c coordinator has sorted every due mission. Convex then
  * serializes each remainder update, so no two collectors can receive the same unit. */
 export async function takeLootFromCrate(
@@ -98,7 +102,7 @@ export async function takeLootFromCrate(
   if (crate === null || capacity <= 0) return null;
   const season = await ctx.db.get(crate.seasonId);
   if (season === null || season.concludedAt !== null) return null;
-  if (at >= crate.expiresAt) {
+  if (crateExpired(crate, at)) {
     await cancelExpiration(ctx, crate.expirationJobId);
     await ctx.db.delete(crateId);
     await reassessLootCrateDetection(ctx, crate.seasonId, at);

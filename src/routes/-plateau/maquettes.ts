@@ -1,7 +1,9 @@
 import type { MapMarker } from '@/domain/labels';
 import { depositAt } from '@/domain/world';
+import { inService } from '@/domain/loot';
 import type { LonLat } from '@/domain/geo';
-import { buildingMaquette } from '@/emblems/buildings/manifest';
+import { BUILDING_SEALS, buildingMaquette } from '@/emblems/buildings/manifest';
+import type { CaptureView } from '@/domain/player-view';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import type { StandingMaquette } from '@/map/engine';
 import { asClockTime } from '@/domain/duration';
@@ -28,7 +30,31 @@ export function maquettesOf(
   producing: ReadonlySet<string> = new Set(),
   /** My buildings at work at rest (`workingSites`): their loop plays (#273). */
   working: ReadonlySet<string> = new Set(),
+  /** **La prise** (#279) : les captures qui me regardent, et les sites hors service que je sais
+   *  (`sealedSites`). */
+  taking: {
+    readonly captures: ReadonlyArray<CaptureView>;
+    readonly sealed: ReadonlySet<string>;
+  } = { captures: [], sealed: new Set() },
 ): StandingMaquette[] {
+  /** What a site I hold or surveyed wears of a capture, and of its seals. */
+  const taken = (buildingId: string, key: keyof typeof BUILDING_SEALS) => {
+    const capture = taking.captures.find(
+      ({ target }) => target.kind === 'building' && target.id === buildingId,
+    );
+    return {
+      buildingId,
+      buildingKey: key,
+      ...(capture !== undefined && {
+        capture: {
+          clock: capture.clock,
+          side: capture.side,
+          stopped: capture.stoppedAt !== null,
+        },
+      }),
+      ...(taking.sealed.has(buildingId) && { seal: BUILDING_SEALS[key] }),
+    };
+  };
   return markers.flatMap((marker): StandingMaquette[] => {
     const standing = (
       at: StandingMaquette['at'],
@@ -74,6 +100,9 @@ export function maquettesOf(
               }),
             side: 'mine',
             ink: marker.ink,
+            flag: marker.ink,
+            ...(marker.buildingId !== null &&
+              taken(marker.buildingId, marker.key === 'depot' ? 'warehouse' : marker.key)),
             // What stands: the level served, or the one before a raise; a first rise has none yet.
             level: marker.works?.phase === 'raising' ? marker.works.level - 1 : (marker.level ?? 1),
           },
@@ -92,6 +121,8 @@ export function maquettesOf(
             side: marker.neutral === null ? 'seen' : 'neutral',
             // A survey serves neither level nor state: the first yard, never a works site.
             level: 1,
+            // Its pole stands bare: a survey serves no nation (#279, Q1).
+            ...taken(marker.buildingId, marker.key),
           },
         );
       case 'objective': {
@@ -110,3 +141,24 @@ export function maquettesOf(
 /** Ce que le point tient (ADR 0029). */
 const depositUnder = (lonLat: LonLat | null) =>
   lonLat === null ? null : (depositAt(lonLat)?.deposit ?? null);
+
+/** **Les sites hors service que je sais** (#279) : les miens (`disabled`), et ceux que j'ai mis
+ *  hors service, lus dans mes propres rapports (`sealedUntil`) tant qu'ils le restent. */
+export const sealedSites = (
+  view: {
+    readonly me: {
+      readonly buildings: ReadonlyArray<{ readonly id: string; readonly disabled?: true }>;
+    };
+    readonly surveyedInstallations: ReadonlyArray<{
+      readonly id: string;
+      readonly sealedUntil?: number;
+    }>;
+  },
+  now: number,
+): ReadonlySet<string> =>
+  new Set([
+    ...view.me.buildings.filter((building) => building.disabled).map(({ id }) => id),
+    ...view.surveyedInstallations
+      .filter(({ sealedUntil }) => sealedUntil !== undefined && !inService(sealedUntil, now))
+      .map(({ id }) => id),
+  ]);

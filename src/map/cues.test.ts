@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { CargoView } from '@/domain/player-view';
+import { emptyCargo } from '@/domain/loot';
 import type { UnitRole } from '@/domain/ids';
 import { pilePieces, type PilePieces } from '@/domain/pile-pieces';
 import {
@@ -12,6 +14,7 @@ import {
   monteesOf,
   rankKept,
   sortiesOf,
+  takingsOf,
   tourneesOf,
 } from './cues';
 import type { StandingPile } from './engine';
@@ -472,5 +475,66 @@ describe('tourneesOf (#278)', () => {
     none(seen(), [leg([4, 50])], [truck(150)], sites);
     none(seen(), [leg([5, 51])], [truck(150)], sites);
     none(seen(), [leg([2, 48])], [truck(150, true, 'cargo')], sites);
+  });
+});
+
+describe('takingsOf (#279)', () => {
+  type Arc = Parameters<typeof takingsOf>[1][number];
+  const arc = (
+    id: string,
+    from: [number, number],
+    to: [number, number],
+    over: Partial<Arc> = {},
+  ): Arc => ({
+    state: 'mine',
+    id,
+    from,
+    to,
+    mission: null,
+    ...over,
+  });
+  const sites = [
+    { id: 'installation-w', buildingId: 'w', buildingKey: 'warehouse' as const },
+    { id: 'installation-m', buildingId: 'm', buildingKey: 'mine' as const },
+  ];
+  // As `asArc` serves it: every arc of mine carries a cargo, empty or not.
+  const cargo = (carried: number): CargoView => ({
+    ...emptyCargo(),
+    loot: { ...emptyCargo().loot, steel: carried },
+    carried,
+    capacity: 40,
+    free: 40 - carried,
+  });
+  const crate = arc('a', [1, 1], [5, 50], { mission: { kind: 'collection' }, cargo: cargo(0) });
+  const raid = (id: string) =>
+    arc('r', [1, 1], [6, 49], {
+      mission: { kind: 'plunder', buildingId: id },
+      cargo: cargo(0),
+    });
+
+  it('takes a crate up where my column leaves its point loaded', () => {
+    const home = arc('b', [5, 50], [1, 1], { cargo: cargo(30) });
+    expect(takingsOf([crate], [home], sites)).toEqual([{ kind: 'ramassage', arcId: 'b' }]);
+  });
+
+  it('searches for a crate gone where my column leaves its point empty', () => {
+    const empty = arc('b', [5, 50], [1, 1], { cargo: emptyCargo() });
+    expect(takingsOf([crate], [empty], sites)).toEqual([{ kind: 'recherche', arcId: 'b' }]);
+  });
+
+  it('plunders a warehouse and sabotages the rest, whatever the raid carries away', () => {
+    const away = arc('b', [6, 49], [1, 1], { cargo: emptyCargo() });
+    expect(takingsOf([raid('w')], [away], sites)).toEqual([
+      { kind: 'pillage', arcId: 'b', siteId: 'installation-w' },
+    ]);
+    expect(takingsOf([raid('m')], [{ ...away, cargo: cargo(0) }], sites)).toEqual([
+      { kind: 'sabotage', arcId: 'b', siteId: 'installation-m' },
+    ]);
+  });
+
+  it('plays nothing for a raid still there, a site unseen, or a first view', () => {
+    expect(takingsOf([raid('w')], [raid('w'), arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
+    expect(takingsOf([raid('x')], [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
+    expect(takingsOf(null, [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
   });
 });

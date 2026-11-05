@@ -1,9 +1,10 @@
 import { DEPOSIT_POINTS } from '@/domain/world';
 import { describe, expect, it } from 'vitest';
 import type { MapMarker } from '@/domain/labels';
-import { buildingMaquette } from '@/emblems/buildings/manifest';
+import { BUILDING_SEALS, buildingMaquette } from '@/emblems/buildings/manifest';
+import type { CaptureView } from '@/domain/player-view';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
-import { maquettesOf } from './maquettes';
+import { maquettesOf, sealedSites } from './maquettes';
 import type { WorkSite } from '@/domain/construction';
 import { asClockTime } from '@/domain/duration';
 import {
@@ -49,6 +50,9 @@ describe('maquettesOf', () => {
         washed: false,
         side: 'mine',
         ink: '#000',
+        flag: '#000',
+        buildingId: 'b1',
+        buildingKey: 'mine',
         level: 1,
       },
       {
@@ -63,9 +67,90 @@ describe('maquettesOf', () => {
         washed: false,
         side: 'mine',
         ink: '#000',
+        flag: '#000',
+        buildingId: 'b1',
+        buildingKey: 'port',
         level: 1,
       },
     ]);
+  });
+
+  /** **La prise se voit** (#279) : mon drapeau sur mes sites et nulle part ailleurs, l'agrafe
+   *  sur le site que vise une capture, les scellés sur ce qui est hors service et que je sais. */
+  describe('the taking (#279)', () => {
+    const survey: MapMarker = {
+      kind: 'installation',
+      id: 'installation-x',
+      buildingId: 'x',
+      key: 'barracks',
+      regionId: 'ITA-1',
+      lonLat: [9, 45],
+      name: 'Caserne',
+      washed: false,
+      neutral: null,
+    };
+    const clock = { progress: 0.25, at: 0, rate: 1, durationMs: 1, rest: null };
+    const capture = (side: CaptureView['side'], id: string, stoppedAt: number | null = null) =>
+      ({
+        id: `c-${id}`,
+        side,
+        target: { kind: 'building', id },
+        site: { kind: 'building', building: 'barracks', regionId: 'ITA-1' },
+        regionName: null,
+        point: [9, 45],
+        clock,
+        completesAt: 1,
+        stoppedAt,
+      }) satisfies CaptureView;
+
+    it('flies my flag on my sites, and none on a survey', () => {
+      const [mine, seen] = maquettesOf([building({ ink: '#2a5ba8' }), survey], () => undefined);
+      expect([mine!.flag, seen!.flag]).toEqual(['#2a5ba8', undefined]);
+      expect([mine!.buildingId, seen!.buildingId]).toEqual(['b1', 'x']);
+    });
+
+    it('runs a staple round the site a capture aims at, pale once stopped', () => {
+      const of = (captures: ReadonlyArray<CaptureView>) =>
+        maquettesOf([building(), survey], () => undefined, new Set(), new Set(), {
+          captures,
+          sealed: new Set(),
+        }).map((m) => m.capture);
+      expect(of([capture('defender', 'b1'), capture('capturer', 'x')])).toEqual([
+        { clock, side: 'defender', stopped: false },
+        { clock, side: 'capturer', stopped: false },
+      ]);
+      expect(of([capture('capturer', 'x', 5)])).toEqual([
+        undefined,
+        { clock, side: 'capturer', stopped: true },
+      ]);
+    });
+
+    it('seals what is out of service and known to be, at the mark of its file', () => {
+      const [mine, seen, other] = maquettesOf(
+        [building(), survey, building({ id: 'o', buildingId: 'b2' })],
+        () => undefined,
+        new Set(),
+        new Set(),
+        { captures: [], sealed: new Set(['b1', 'x']) },
+      );
+      expect([mine!.seal, seen!.seal, other!.seal]).toEqual([
+        BUILDING_SEALS.mine,
+        BUILDING_SEALS.barracks,
+        undefined,
+      ]);
+    });
+  });
+
+  it('knows my sites out of service, and those I sealed while they stay sealed (#279)', () => {
+    const view = {
+      me: { buildings: [{ id: 'b1', disabled: true as const }, { id: 'b2' }] },
+      surveyedInstallations: [
+        { id: 'x', sealedUntil: 20 },
+        { id: 'y', sealedUntil: 9 },
+        { id: 'z' },
+      ],
+    };
+    expect([...sealedSites(view, 10)]).toEqual(['b1', 'x']);
   });
 
   it('smokes over my producers at work, and over nothing else', () => {
@@ -172,6 +257,8 @@ describe('maquettesOf', () => {
         washed: true,
         side: 'seen',
         level: 1,
+        buildingId: 'x',
+        buildingKey: 'farm',
       },
       {
         id: 'objective-o',

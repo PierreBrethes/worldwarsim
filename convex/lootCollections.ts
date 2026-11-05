@@ -10,7 +10,7 @@ import {
   type CargoLoad,
 } from './cargo';
 import { fail } from './errors';
-import { takeLootFromCrate } from './crateStock';
+import { crateExpired, takeLootFromCrate } from './crateStock';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { pointOf, troopsCarriedBy } from './movement/forces';
 import { aimOf, march, type MarchOrigin } from './movement/orders';
@@ -127,6 +127,16 @@ async function resolveOne(
 
   const priorLoads = await takeMovementCargo(ctx, current);
   const freeCapacity = Math.max(0, capacityOf(troops) - amountTotal(cargoTotal(priorLoads)));
+  // Read before the take, which deletes an expired crate: a full column finds it there.
+  const crate = await ctx.db.get(current.lootCollection.crateId);
+  if (crate === null || crateExpired(crate, current.arrivesAt))
+    await ctx.db.insert('notices', {
+      playerId: current.playerId,
+      at: current.arrivesAt,
+      kind: 'lootCrateGone',
+      hostCountry: hostAtPoint([current.to.lon, current.to.lat]),
+      point: current.to,
+    });
   const taken = await takeLootFromCrate(
     ctx,
     current.lootCollection.crateId,

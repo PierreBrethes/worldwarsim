@@ -14,7 +14,8 @@ import {
   OUTPOST_FOOD_PER_HOUR_PER_LEVEL,
   outpostReachKm,
 } from './constants';
-import { activeBuildings, inService, playerBuildings } from './buildingReads';
+import { inService } from '../src/domain/loot';
+import { activeBuildings, playerBuildings } from './buildingReads';
 import { homeCountryOf, pointOfBuilding } from './regions';
 import { hostAtPoint, landAtPoint } from './routes';
 import { modeOf } from '../src/domain/season-mode';

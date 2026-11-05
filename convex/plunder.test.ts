@@ -44,15 +44,15 @@ async function launchedSeason(t: ReturnType<typeof boot>, third = false) {
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
   await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
-  if (third) {
-    const marc = await joinSeat(t, code, 'Marc');
+  const marc = third ? await joinSeat(t, code, 'Marc') : undefined;
+  if (marc) {
     await t.mutation(api.players.reserveNation, { ...marc, nation: 'germany' });
     await t.mutation(api.players.declareReady, { ...marc, ready: true });
   }
   await t.mutation(api.seasons.launch, seat);
   await placeHq(t, seat);
   await placeHq(t, guest);
-  return { seat, guest };
+  return { seat, guest, marc };
 }
 
 async function playerOf(t: ReturnType<typeof boot>, seat: Seat) {
@@ -812,6 +812,42 @@ describe('plunder presence', () => {
     const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
     expect(report?.taken).toEqual(Object.fromEntries(RESOURCES.map((key) => [key, 0])));
     expect((await t.run((ctx) => ctx.db.get(warehouseId)))?.disabledUntil).toBeDefined();
+  });
+
+  /** **The saboteur sees his seals** (#279, Q2), read in his own reports: the holder reads his
+   *  own `disabled`, and a third who surveyed the mine reads nothing of it. */
+  it('serves the seals of a sabotaged mine to its saboteur alone, until they lift', async () => {
+    const t = boot();
+    const { seat, guest, marc } = await launchedSeason(t, true);
+    await placeHq(t, marc!);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const mineId = await building(t, guest, 'mine');
+    await observe(t, seat);
+    await observe(t, marc!);
+    const movementId = await plunderArrival(t, seat, mineId, [infantry], barracks);
+
+    const at = await completePresence(t, movementId);
+
+    const surveyed = async (who: Seat) =>
+      (await t.query(api.view.playerView, who)).surveyedInstallations.find(
+        (installation) => installation.id === mineId,
+      );
+    const sealed = async () => (await surveyed(seat))?.sealedUntil;
+    expect(await sealed()).toBe(at + 12 * HOUR);
+    expect(await surveyed(marc!)).toBeDefined();
+    expect((await surveyed(marc!))?.sealedUntil).toBeUndefined();
+    const held = (await t.query(api.view.playerView, guest)).me.buildings.find(
+      (site) => site.id === mineId,
+    );
+    expect(held?.disabled).toBe(true);
+    expect(
+      (await t.query(api.view.playerView, guest)).surveyedInstallations.every(
+        (installation) => installation.sealedUntil === undefined,
+      ),
+    ).toBe(true);
+    vi.setSystemTime(at + 12 * HOUR + 1);
+    expect(await sealed()).toBeUndefined();
   });
 
   it('takes only available stocks and leaves queued recruitment refunds protected', async () => {

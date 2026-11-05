@@ -509,6 +509,54 @@ describe('dev.backfillListeningSilent', () => {
   });
 });
 
+describe('dev.takingScene', () => {
+  /** La scène de #279 : deux raids tenus au site, qui s'achèvent à leur heure. */
+  it('holds a plunder and a sabotage at their sites, and lets each complete on time', async () => {
+    vi.useFakeTimers();
+    try {
+      const { t, playerId } = await twoNations();
+      const enemyId = await t.run(
+        async (ctx) =>
+          (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
+      );
+      const places = await t.mutation(internal.dev.takingScene, {
+        playerId,
+        enemyId,
+        captureInMs: 60_000,
+        crateInMs: 30_000,
+        raidInMs: 90_000,
+      });
+      // Each site its own region: two on one point stand on each other.
+      const sites = [places.prise, places.pillage, places.sabotage].map(String);
+      expect(new Set(sites).size).toBe(3);
+      const raids = () =>
+        t.run(async (ctx) =>
+          (await ctx.db.query('movements').collect()).filter((m) => m.plunder !== undefined),
+        );
+      expect((await raids()).map((m) => m.plunder?.phase)).toEqual(['presence', 'presence']);
+      vi.advanceTimersByTime(110_001);
+      await t.finishInProgressScheduledFunctions();
+      const reports = await t.run(async (ctx) =>
+        Promise.all(
+          (await ctx.db.query('plunderReports').collect()).map(
+            async (report) => (await ctx.db.get(report.buildingId))?.key,
+          ),
+        ),
+      );
+      expect(reports.sort()).toEqual(['mine', 'warehouse']);
+      // Each raid leaves by a column home: one that stays where it raided cues nothing.
+      const homes = await t.run(async (ctx) =>
+        (await ctx.db.query('movements').collect())
+          .filter((m) => m.type === 'return')
+          .map((m) => String([m.from.lon, m.from.lat])),
+      );
+      expect(homes).toEqual(expect.arrayContaining([places.pillage, places.sabotage].map(String)));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 /** **Les grands moments, à la demande** (#442) : une prise qui s'achève par la porte du jeu, et
  *  la course qui se clôt, de quoi voir le cachet, la chute d'un QG et la victoire aux points. */
 describe('dev.captureSoon and dev.raceEndsSoon', () => {

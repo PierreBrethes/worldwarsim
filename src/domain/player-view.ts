@@ -1208,6 +1208,12 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly loot: ResourceAmounts;
     }
+  /** **La caisse n'était plus là** (#279) : la colonne rentre à vide. */
+  | {
+      readonly kind: 'lootCrateGone';
+      readonly at: number;
+      readonly hostCountry: string;
+    }
   | {
       readonly kind: 'lootDelivered';
       readonly at: number;
@@ -1551,6 +1557,9 @@ export type PlayerView = {
     /** Entrepôt du teneur de Dakar : ce qu'un pillage laisse par ressource (`sparedPerResourceOf`),
      *  absent quand c'est le plancher commun. Le stock lui-même ne se relève pas. */
     readonly spared?: number;
+    /** **Mis hors service par moi** (#279) : ses scellés jusqu'à cette heure, lus dans mes propres
+     *  rapports de pillage. Absent ailleurs : le relevé ne dit pas l'état d'un site. */
+    readonly sealedUntil?: number;
   }>;
   /**
    * **Les avant-postes étrangers que son relevé garde** (ADR 0039 §3) : id, point et pays hôte,

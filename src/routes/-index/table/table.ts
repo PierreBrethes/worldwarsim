@@ -405,11 +405,12 @@ export class LandingTable {
         const model = scene.clone(true);
         const size = new Box3().setFromObject(model).getSize(new Vector3());
         model.scale.setScalar(span / Math.max(size.x, size.z));
-        // What no bake draws (the flag, #279) goes from this copy too: `drawnIn` is the one filter.
+        // What no bake draws goes from this copy too: `drawnIn` is the one filter. The flag too:
+        // the table inks no owner, and a white one would read as a surrender (#279).
         const drawn = drawnIn(model);
         const undrawn: Object3D[] = [];
         model.traverse((node) => {
-          if (!drawn(node)) undrawn.push(node);
+          if (!drawn(node) || node.name === 'drapeau') undrawn.push(node);
         });
         for (const node of undrawn) node.removeFromParent();
         model.position.y -= new Box3().setFromObject(model).min.y;

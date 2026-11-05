@@ -6,6 +6,7 @@ import {
   Matrix4,
   Mesh,
   type Object3D,
+  Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -47,18 +48,17 @@ const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 export const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
 
 /**
- * **What no bake of `scene` draws**: the flag, painted by its owner's colours later (#279) —
- * until then a white one would read as a surrender —, and on a socle the accessories of a later
- * level or state. The rigs read it, so that a copy stood in for a resting maquette has neither
- * (`standIn` puts the levels back).
+ * **What no bake of `scene` draws**: on a socle, the accessories of a later level or state. The
+ * rigs read it, so that a copy stood in for a resting maquette has none (`standIn` puts the
+ * levels back).
  */
 export function drawnIn(scene: Object3D): (node: Object3D) => boolean {
   const later = onSocle(scene) ? LATER : new Set<string>();
-  return (node) => flagless(node) && !later.has(node.name);
+  return (node) => !later.has(node.name);
 }
 
-/** The flag is painted by its owner's colours later (#279): no bake draws it. */
-const flagless = (node: Object3D): boolean => node.name !== 'drapeau';
+/** **The flag** (#279): baked apart, white, and inked per instance by its owner's colour. */
+const FLAG = 'drapeau';
 
 /**
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
@@ -71,16 +71,24 @@ const flagless = (node: Object3D): boolean => node.name !== 'drapeau';
 export function bakedSite(scene: Object3D): {
   building: Part[];
   dressing: Part[];
+  /** The flag, apart from its dressing: it runs on its pole, and is inked per instance (#279). */
+  flag: Part[];
+  /** Where its sign stands (the `signe` node), in the scene's units: a capture's pile stands by. */
+  signFoot: Vector3 | null;
   accessories: Map<string, Part[]>;
 } {
   scene.updateMatrixWorld(true);
-  const kinds = { building: [] as Mesh[], dressing: [] as Mesh[] };
+  const kinds = { building: [] as Mesh[], dressing: [] as Mesh[], flag: [] as Mesh[] };
   const accessories = new Map<string, Mesh[]>();
   const socle = onSocle(scene);
   const visit = (node: Object3D, kind: keyof typeof kinds, accessory: string | null) => {
-    if (!flagless(node)) return;
     const group = accessory ?? (socle && ACCESSORIES.has(node.name) ? node.name : null);
-    const here = kind === 'building' && socle && DRESSING.has(node.name) ? 'dressing' : kind;
+    const here =
+      node.name === FLAG
+        ? 'flag'
+        : kind === 'building' && socle && DRESSING.has(node.name)
+          ? 'dressing'
+          : kind;
     if ((node as Mesh).isMesh) {
       if (group !== null) accessories.set(group, [...(accessories.get(group) ?? []), node as Mesh]);
       else kinds[here].push(node as Mesh);
@@ -92,6 +100,9 @@ export function bakedSite(scene: Object3D): {
   return {
     building: merged(kinds.building),
     dressing: merged(kinds.dressing),
+    flag: merged(kinds.flag),
+    signFoot:
+      (socle ? scene.getObjectByName('signe') : undefined)?.getWorldPosition(new Vector3()) ?? null,
     accessories: new Map([...accessories].map(([name, meshes]) => [name, merged(meshes)])),
   };
 }
@@ -160,10 +171,10 @@ export function bakedRig(scene: Object3D, keeps: (node: Object3D) => boolean): G
   return root;
 }
 
-/** The materials the engine reads by name: the liseré is inked per instance, the dark of a door
+/** The materials the engine reads by name: the liseré and the flag are inked per instance, the dark of a door
  *  is lit by the halo. Two of them are never one, whatever they look like. */
 const named = (material: Material): boolean =>
-  material.name === 'lisere' || material.name.startsWith('fond_sombre');
+  material.name === 'lisere' || material.name === FLAG || material.name.startsWith('fond_sombre');
 
 /**
  * **What makes a material look as it does**, its name left out: two materials of a file that

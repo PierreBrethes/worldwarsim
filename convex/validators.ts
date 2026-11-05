@@ -909,6 +909,14 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     loot: RESOURCE_AMOUNTS,
   }),
+  /** **La caisse n'était plus là** (#279) : un autre l'a prise, ou elle a passé son heure. La
+   *  colonne rentre à vide ; seul le terrain l'apprend, comme `expeditionFoundNothing`. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lootCrateGone'),
+    hostCountry: v.string(),
+    point: LON_LAT,
+  }),
   v.object({
     ...NOTICE_HEAD,
     kind: v.literal('lootDelivered'),

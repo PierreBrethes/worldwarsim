@@ -1,6 +1,7 @@
 import { distanceKm, samePoint, type LonLat } from '@/domain/geo';
 import { disbandRadiusKm, disbandSpanKm } from '@/domain/movement-orders';
-import type { UnitRole } from '@/domain/ids';
+import type { BuildingKey, UnitRole } from '@/domain/ids';
+import { raidLoots } from '@/domain/loot';
 import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { cameFrom } from '@/domain/pile-facing';
@@ -421,5 +422,67 @@ export function entreesOf(
             },
           ];
     });
+  });
+}
+
+/** **Ce que ma colonne vient de prendre à son point** (#279, `storyboard-prise`) : une caisse
+ *  ramassée, un site pillé ou saboté, joué sur la colonne qui en repart (`arcId`). */
+export type Taking =
+  | { readonly kind: 'ramassage' | 'recherche'; readonly arcId: string }
+  | { readonly kind: 'pillage' | 'sabotage'; readonly arcId: string; readonly siteId: string };
+
+type Taker = {
+  readonly state: string;
+  readonly id: string;
+  readonly from: LonLat;
+  readonly to: LonLat;
+  readonly cargo?: { readonly carried: number };
+  readonly mission?:
+    | { readonly kind: 'collection' }
+    | { readonly kind: 'plunder'; readonly buildingId: string }
+    | { readonly kind: string }
+    | null;
+};
+
+/**
+ * **Les prises qui viennent de se faire** (#279) : un arc à moi neuf part du point où finit un arc
+ * à moi disparu. Celui-là ramassait une caisse : il repart plus chargé qu'il n'est venu, c'est un
+ * ramassage ; sinon, la caisse était partie : il l'a cherchée. Celui-là pillait un site que je
+ * vois : un entrepôt, c'est un pillage ; un autre site, un sabotage (`raidLoots`), quoi qu'il
+ * emporte. Rien à la première vue.
+ */
+export function takingsOf(
+  before: ReadonlyArray<Taker> | null,
+  arcs: ReadonlyArray<Taker>,
+  sites: ReadonlyArray<{
+    readonly id: string;
+    readonly buildingId?: string;
+    readonly buildingKey?: BuildingKey;
+  }>,
+): ReadonlyArray<Taking> {
+  if (before === null) return [];
+  const ids = new Set(arcs.map(({ id }) => id));
+  const known = new Set(before.map(({ id }) => id));
+  return arcs.flatMap((arc): Taking[] => {
+    if (arc.state !== 'mine' || known.has(arc.id)) return [];
+    const ended = before.find(
+      (gone) => gone.state === 'mine' && !ids.has(gone.id) && samePoint(gone.to, arc.from),
+    );
+    const mission = ended?.mission;
+    if (mission?.kind === 'collection') {
+      const loaded = (arc.cargo?.carried ?? 0) > (ended?.cargo?.carried ?? 0);
+      return [{ kind: loaded ? 'ramassage' : 'recherche', arcId: arc.id }];
+    }
+    if (mission?.kind !== 'plunder' || !('buildingId' in mission)) return [];
+    const site = sites.find(({ buildingId }) => buildingId === mission.buildingId);
+    return site?.buildingKey === undefined
+      ? []
+      : [
+          {
+            kind: raidLoots(site.buildingKey) ? 'pillage' : 'sabotage',
+            arcId: arc.id,
+            siteId: site.id,
+          },
+        ];
   });
 }

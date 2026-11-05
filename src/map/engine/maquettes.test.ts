@@ -7,7 +7,9 @@ import {
   InstancedMesh,
   Matrix4,
   Mesh,
+  type MeshBasicMaterial,
   MeshStandardMaterial,
+  type Object3D,
   Plane,
   Raycaster,
   Vector3,
@@ -831,13 +833,18 @@ describe('a site on its socle (ADR 0038)', () => {
   };
   const nameOf = (mesh: InstancedMesh) => (mesh.material as MeshStandardMaterial).name;
 
-  it('inks the liseré alone, by the side of each site, in one lot', async () => {
+  it('inks the liseré and the flag alone, by the side of each site, in one lot', async () => {
     const layer = await layerOf([
-      site(MINE, { side: 'mine', ink: '#2a5ba8' }),
+      site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' }),
       site('installation-seen', { side: 'seen' }),
       site('installation-neutral', { side: 'neutral' }),
     ]);
     const all = meshes(layer);
+    const [flag, ...more] = all.filter((mesh) => nameOf(mesh) === 'drapeau');
+    expect(more).toEqual([]);
+    const flagAt = new Color();
+    flag!.getColorAt(0, flagAt);
+    expect(flagAt.getHex()).toBe(new Color('#2a5ba8').getHex());
     const liseres = all.filter((mesh) => nameOf(mesh) === 'lisere');
     expect(liseres).toHaveLength(1);
     const [lisere] = liseres;
@@ -850,7 +857,99 @@ describe('a site on its socle (ADR 0038)', () => {
     // Mixed on the paper as a printer would, in sRGB: 60 % of the ink, 40 % of the socle's paper.
     expect(colorAt(1).getHexString()).toBe('b48675');
     expect(colorAt(2).getHexString()).toBe('776e5e');
-    for (const mesh of all.filter((each) => each !== lisere)) expect(mesh.instanceColor).toBeNull();
+    for (const mesh of all.filter((each) => each !== lisere && each !== flag))
+      expect(mesh.instanceColor).toBeNull();
+  });
+
+  /** **The flag** (#279): mine at the top of my pole, none on a pole a survey shows; it runs
+   *  down the 4 m its pole leaves it, placed with the rest of its site. */
+  it('flies my flag atop its pole, none on a bare one, and runs it down', async () => {
+    const layer = await layerOf([
+      site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' }),
+      site('installation-seen', { side: 'seen' }),
+    ]);
+    const all = meshes(layer);
+    const flag = all.find((mesh) => nameOf(mesh) === 'drapeau')!;
+    const sign = all.find((mesh) => nameOf(mesh) === 'lisere')!;
+    const at = (mesh: InstancedMesh, k: number) => {
+      const placed = new Matrix4();
+      mesh.getMatrixAt(k, placed);
+      return placed;
+    };
+    expect(at(flag, 0).equals(at(sign, 0))).toBe(true);
+    expect(at(flag, 1).determinant()).toBe(0);
+    expect(layer.settling).toBe(false);
+
+    // Its time held still: a loaded machine would otherwise run it further down.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      layer.runFlag(MINE, { from: 1, to: 0, start: Date.now() - 500, ms: 1000 });
+      layer.orient(eye, null, 1);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(layer.settling).toBe(true);
+    // Halfway down its time, slowly first: a quarter of the way.
+    const down = new Vector3(0, -1, 0).applyMatrix4(at(sign, 0));
+    expect(new Vector3().applyMatrix4(at(flag, 0)).distanceTo(down)).toBeLessThan(1e-6);
+  });
+
+  it('runs a staple round the socle to the share of its capture, pale once stopped', async () => {
+    const clock = { progress: 0.5, at: Date.now(), rate: 0, durationMs: 1, rest: null };
+    const layer = await layerOf([
+      site('installation-seen', {
+        side: 'seen',
+        capture: { clock, side: 'capturer', stopped: false },
+      }),
+      site('installation-stopped', {
+        side: 'seen',
+        capture: { clock, side: 'capturer', stopped: true },
+      }),
+    ]);
+    const staples: Mesh[] = [];
+    layer.group.traverse((node) => node.name === 'agrafe' && staples.push(node as Mesh));
+    const [running, stopped] = staples;
+    const segments = running!.geometry.attributes.position!.count / 6;
+    expect(running!.geometry.drawRange.count).toBe(Math.floor(segments / 2) * 6);
+    expect((running!.material as MeshBasicMaterial).opacity).toBeGreaterThan(
+      (stopped!.material as MeshBasicMaterial).opacity,
+    );
+  });
+
+  it('seals a site out of service at its mark, and no other', async () => {
+    const layer = await layerOf([
+      site(MINE, { side: 'mine', ink: '#2a5ba8', seal: [0, 5.2, 8, 0, 3.4] }),
+      site('installation-seen', { side: 'seen' }),
+    ]);
+    const seals: Object3D[] = [];
+    layer.group.traverse((node) => node.name === 'scelles' && seals.push(node));
+    expect(seals).toHaveLength(1);
+    const drawn = layer.drawnOf(MINE)!;
+    const mark = new Vector3(0, 5.2, 8).applyMatrix4(drawn.matrix);
+    expect(new Vector3().applyMatrix4(seals[0]!.matrix).distanceTo(mark)).toBeLessThan(1e-6);
+  });
+
+  /** **The pile that captures stands at the foot of its sign** (#279, décision 1). */
+  it('stands the pile that captures a survey at the foot of its sign, off its footing', async () => {
+    const clock = { progress: 0, at: Date.now(), rate: 1, durationMs: 1, rest: null };
+    const seen = 'installation-seen';
+    const layer = await layerOf([
+      site(seen, { side: 'seen', capture: { clock, side: 'capturer', stopped: false } }),
+    ]);
+    expect(layer.buildingPoints().map(({ id }) => id)).toEqual([seen]);
+    const drawn = layer.drawnOf(seen)!;
+    const stand = layer.garrisonAt(seen, 0.1)!;
+    expect(stand.rank).toBe(false);
+    // The barracks' sign stands at (−22, 17): 7 m of it toward the socle's middle.
+    const foot = new Vector3(-22, 0, 17);
+    const at = foot
+      .clone()
+      .add(foot.clone().negate().setLength(7))
+      .setY(SOCLE_TOP)
+      .applyMatrix4(drawn.matrix);
+    expect(stand.at.x + stand.step[0]).toBeCloseTo(at.x, 6);
+    expect(stand.at.z + stand.step[1]).toBeCloseTo(at.z, 6);
+    expect(stand.at.y).toBeCloseTo(at.y, 6);
   });
 
   it('inks the copy a sequence stands in for it, and no other maquette of the file', async () => {
@@ -1110,7 +1209,14 @@ describe('a site on its socle (ADR 0038)', () => {
     // Its 50 m to one board unit: the fixture's socle of 80 m is 1.6 units. Whatever its size, it
     // stands whole to d ≈ 30 and gives way to its pin by d ≈ 36, with my piles.
     const socled = (more: Parameters<typeof site>[1] = {}) =>
-      site(MINE, { side: 'mine', ink: '#2a5ba8', socle: true, footprint: 1.6, ...more });
+      site(MINE, {
+        side: 'mine',
+        ink: '#2a5ba8',
+        flag: '#2a5ba8',
+        socle: true,
+        footprint: 1.6,
+        ...more,
+      });
     const FULL = 1 / 50;
     const seenFrom = (layer: MaquetteLayer, distance: number) => {
       const at = layer.siteOf(MINE)!.toBoard(new Vector3());

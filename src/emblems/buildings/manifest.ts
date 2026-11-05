@@ -84,3 +84,30 @@ export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = 
  *  and the headframe says it. The deposit is public, so it tells nothing the atlas does not. */
 export const buildingMaquette = (key: BuildingKey, deposit: DepositKey | null): string | null =>
   key === 'mine' && deposit === 'coal' ? coalMineMaquette : BUILDING_MAQUETTES[key];
+
+/**
+ * **Where a site out of service wears its seals** (#279, Q3 du 04/11) : le milieu de la croix,
+ * en mètres de son fichier, le sens où elle regarde (+z tourné de tant) et la longueur de ses
+ * planches. La mine et l'entrepôt les portent où le storyboard les cloue (sa porte, son vantail) ;
+ * les autres devant leur sortie (`fx_sortie`) ou leur façade, en attendant le repère `fx_scelles`
+ * des GLB. `@a-mesurer`
+ */
+export const BUILDING_SEALS: Readonly<
+  Record<
+    Exclude<BuildingKey, 'depot'>,
+    readonly [x: number, y: number, z: number, yaw: number, length: number]
+  >
+> = {
+  hq: [0, 4.8, 8.3, 0, 3.4],
+  farm: [11.5, 4, 8.7, 0, 3.4],
+  mine: [0, 4.7, 14.45, 0, 3.4],
+  oilWell: [0, 4, 9.1, 0, 3.4],
+  arsenal: [-8, 5.5, 15.4, 0, 3.4],
+  barracks: [0, 4.6, 8.4, 0, 3.4],
+  airfield: [-30, 5, 23.4, 0, 3.4],
+  port: [16, 5, 25.5, 0, 3.4],
+  listening: [0, 4.4, 8.3, 0, 3.4],
+  researchCenter: [-8, 4.6, 12.3, 0, 3.4],
+  warehouse: [0, 5.7, 20.45, 0, 6.4],
+  city: [0, 4, 14.1, 0, 3.4],
+};

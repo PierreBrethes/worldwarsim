@@ -17,7 +17,7 @@ import { bakedRig } from './baking';
 import { crateOf } from './crate';
 import { SLATS, WOOD } from './crates';
 import { movesOnItsOwn, posedScene, type RestPose } from './figurines/figurine';
-import { hop, stand, stride } from './figurines/infantry';
+import { carrying, crateOnMan, hop, stand, stride } from './figurines/infantry';
 import { EXHAUST, Smoke } from './smoke';
 import { darkCrate } from './timelines/loading';
 
@@ -48,6 +48,12 @@ export type PartPose = {
   readonly stride?: number;
   /** A man only: he hops (a tailgate, #277), hips and knees bent this much, 0..1 (`hop`). */
   readonly hop?: number;
+  /** A man only: he bends (0..1) over a crate, lifts it (0 at his feet, 1 on his shoulder), and
+   *  the crate shows so much (#279, `storyboard-prise`); absent, he carries none. */
+  readonly carry?: readonly [bend: number, lift: number, crate: number];
+  /** A man only: his crate lies on the ground at `at` (board units from his rest, like
+   *  `travel`), shown so much, until he takes it up (`carry`). */
+  readonly lying?: { readonly at: Vec3; readonly shown: number };
   /** A marker (`fx_*`) only: a motor's breath (`EXHAUST`) there, at this many seconds and this
    *  share of its strength. */
   readonly exhaust?: readonly [seconds: number, fade: number];
@@ -172,6 +178,14 @@ export type Cue =
         readonly rank: number;
       }>;
     }
+  /** **My column takes at its point** (#279): a crate taken up, a site plundered or sabotaged,
+   *  played on the column `arcId` leaving it — its squad's men go and come back. */
+  | {
+      readonly kind: 'prise';
+      readonly act: 'ramassage' | 'recherche' | 'pillage' | 'sabotage';
+      readonly arcId: string;
+      readonly siteId?: string;
+    }
   /** **A combat at its point** (#272): first without its view, to hide the point while it is
    *  asked for, then with it. `toward` is where the attacker came from, when it is known. */
   | {
@@ -237,6 +251,8 @@ type Playing = {
   faded: Map<Mesh, { material: Material; opacity: number; depthWrite: boolean }>;
   /** The motors' breaths it hung on markers (`exhaust`). */
   breaths: Map<Object3D, Smoke>;
+  /** The crates its men carry (`carry`), by man. */
+  crates: Map<Object3D, Group>;
   /** Finie avant la fin de la cuisson : la copie n'a plus à se poser. */
   over: boolean;
 };
@@ -316,6 +332,7 @@ export class SequenceLayer {
       rests: new Map(),
       faded: new Map(),
       breaths: new Map(),
+      crates: new Map(),
       over: false,
     };
     this.playing.push(playing);
@@ -448,12 +465,44 @@ export class SequenceLayer {
         else if (own?.hop !== undefined) hop(node, own.hop);
         // A man arrived before the rest of his squad stands as `squadOf` stood him.
         else if (MAN.test(node.name)) stand(node);
+        if (MAN.test(node.name)) this.carry(playing, node, rest, own);
       }
-      const seen = fade * (own?.fade ?? 1);
+      const seen = fade * (own?.fade ?? 1) * ((node.userData.crate as number | undefined) ?? 1);
       if ((node as Mesh).isMesh) this.fadeMesh(playing, node as Mesh, seen);
       for (const child of node.children) walk(child, seen);
     };
     walk(playing.rig!, 1);
+  }
+
+  /** **A man's crate** (#279): his own, hung on him, on the ground where it lies (`lying`) or
+   *  on him (`carry`), hidden without either. */
+  private carry(playing: Playing, man: Object3D, rest: Rest, { carry, lying }: PartPose = {}) {
+    let crate = playing.crates.get(man);
+    if (carry === undefined && lying === undefined) {
+      if (crate) crate.visible = false;
+      return;
+    }
+    if (crate === undefined) {
+      crate = crateOf(WOOD, SLATS, true);
+      crate.name = 'caisse';
+      man.add(crate);
+      playing.crates.set(man, crate);
+    }
+    let shown: number;
+    if (carry !== undefined) {
+      const [bend, lift] = carry;
+      shown = carry[2];
+      carrying(man, bend, lift);
+      crate.position.set(...crateOnMan(lift));
+    } else {
+      shown = lying!.shown;
+      const parent = man.parent!;
+      man.updateWorldMatrix(true, false);
+      const ground = parent.localToWorld(rest.position.clone()).add(new Vector3(...lying!.at));
+      crate.position.copy(man.worldToLocal(ground));
+    }
+    crate.visible = shown > 0;
+    crate.userData.crate = shown;
   }
 
   /** A plume hung on the marker for the sequence, gone with its copy. */

@@ -13,7 +13,7 @@ import {
 } from '../src/domain/supplies';
 import { emptyLoad, SUPPLY_KEYS } from '../src/domain/logistics';
 import { isBlitz } from './blitz';
-import { inService } from './buildingReads';
+import { inService } from '../src/domain/loot';
 import { outpostReachKm } from './constants';
 import { marchingForce } from './movement/detection';
 import { movementsOf, pointOf } from './movement/forces';

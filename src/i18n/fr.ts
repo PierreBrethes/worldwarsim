@@ -3025,6 +3025,8 @@ export const fr = {
       lootRecovered: (country: string, loot: string) =>
         `Charge récupérée après combat — ${country} : ${loot}.`,
       lootCollected: (country: string, loot: string) => `Caisse ramassée — ${country} : ${loot}.`,
+      lootCrateGone: (country: string) =>
+        `Caisse introuvable — ${country} : la colonne rentre à vide.`,
       lootDelivered: (region: string, delivered: string, lost: string) =>
         delivered === 'rien'
           ? `Livraison impossible en ${region} — charge perdue : ${lost}.`

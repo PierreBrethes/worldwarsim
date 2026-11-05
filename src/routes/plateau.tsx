@@ -71,7 +71,7 @@ import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { isNation, nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
-import { maquettesOf } from './-plateau/maquettes';
+import { maquettesOf, sealedSites } from './-plateau/maquettes';
 import { withVitrine } from './-plateau/vitrine';
 import { producingSites, workingSites } from '@/domain/producing';
 import type { Atlas } from '@/domain/atlas';
@@ -2272,9 +2272,15 @@ function BoardContent({
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return withVitrine(
-      maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me), workingSites(view.me)),
+      maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me), workingSites(view.me), {
+        captures: view.captures,
+        sealed: sealedSites(
+          { me: view.me, surveyedInstallations: view.surveyedInstallations },
+          view.loadedAt,
+        ),
+      }),
     );
-  }, [markers, view.objectives, view.me]);
+  }, [markers, view.objectives, view.me, view.captures, view.surveyedInstallations, view.loadedAt]);
   const camps = useMemo(() => campsOf(markers), [markers]);
   const columns = useMemo(
     () => marchingPiecesOf(view.arcs, view.me.troops, blitz),

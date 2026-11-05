@@ -801,6 +801,7 @@ export default defineSchema({
   })
     .index('bySeason', ['seasonId'])
     .index('byAttacker', ['attackerId'])
+    .index('byAttackerSealed', ['attackerId', 'disabledUntil'])
     .index('byDefender', ['defenderId']),
 
   /** A destroyed carrier changes ownership without rewriting the expedition that first took

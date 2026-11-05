@@ -50,6 +50,7 @@ import { asClockTime } from '@/domain/duration';
 import { surveyInk } from '@/domain/survey-ink';
 import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
 import type { RestPose } from './figurines/figurine';
+import type { SequenceHost } from './sequences';
 import { lengthAlong } from './standing';
 
 type RenderedArc = {
@@ -285,8 +286,11 @@ export class ArcLayer {
       foot = hi;
     }
     foot ??= end;
-    // Already past its foot: held, it would step back.
-    if (arcProgressAt(rendered.arc, Date.now()) > foot) return null;
+    // Already past its foot: held, it would step back — but a pawn set off a moment ago steps
+    // back by nothing, and a taking reaches the view after its column's departure (#279).
+    const clock = Date.now();
+    const fresh = clock - rendered.arc.schedule.departedAt <= FRESH_DEPARTURE_MS;
+    if (!fresh && arcProgressAt(rendered.arc, clock) > foot) return null;
     this.holds.set(id, { foot, end, until, release: null });
     at(foot);
     return point;
@@ -341,6 +345,37 @@ export class ArcLayer {
   /** The copy takes the truck's place on its pawn, which stands where it is held. */
   standIn(id: string, copy: Object3D | null): void {
     this.pawnById.get(id)?.truckFigurine?.standIn?.(copy);
+  }
+
+  /**
+   * **A squad of my column, lent to a sequence** (#279): the file's first infantry, by movement
+   * id, while it stands on the board — the men who go to a door or a crate and come back.
+   */
+  readonly squads: SequenceHost = {
+    pieceOf: (id) => {
+      const pawn = this.pawnById.get(id);
+      const squad = pawn?.squadFigurine ?? null;
+      if (squad === null || !pawn!.standing) return null;
+      squad.object.updateMatrixWorld(true);
+      return { box: boxOfObject(squad.object) };
+    },
+    copyOf: (id) => this.pawnById.get(id)?.squadFigurine?.copy?.() ?? null,
+    standIn: (id, copy) => this.pawnById.get(id)?.squadFigurine?.standIn?.(copy),
+  };
+
+  /** **Its squad's men on the board** (#279), front first, and the way it faces; `null` while it
+   *  is not lent (`squads`). */
+  squadMen(id: string): { men: Vector3[]; front: Vector3 } | null {
+    if (this.squads.pieceOf(id) === null) return null;
+    const { object } = this.pawnById.get(id)!.squadFigurine!;
+    const men: Object3D[] = [];
+    object.traverse((node) => /^man_\d+$/.test(node.name) && men.push(node));
+    return {
+      men: men
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
+        .map((man) => man.getWorldPosition(new Vector3())),
+      front: new Vector3(0, 0, 1).transformDirection(object.matrixWorld).setY(0).normalize(),
+    };
   }
 
   /** How long the truck is drawn, on the board (`lengthAlong`). */

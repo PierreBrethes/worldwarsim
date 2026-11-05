@@ -2,14 +2,11 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { buildCost, respecialtyBill, type Costs } from './constants';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
+import { inService } from '../src/domain/loot';
 
 // A completed legacy queue entry changes its building key, never its paid tariff.
 export const buildingCostKey = (building: Doc<'buildings'>): BuildingKey =>
   building.costKey ?? building.key;
-
-/** A raided site is out of service until its date has passed: the one bound every reading uses. */
-export const inService = (disabledUntil: number | null | undefined, now: number): boolean =>
-  disabledUntil == null || disabledUntil < now;
 
 export const activeBuildings = (
   buildings: ReadonlyArray<Doc<'buildings'>>,
