@@ -407,3 +407,29 @@ describe('a sea thread moored at a quay drawn off its point', () => {
       }
   });
 });
+
+/** **Un fil d'air amarré à sa piste** (#269) : il part du bout de la piste, à sa hauteur de vol,
+ *  et revient s'y poser par son approche, sans plonger entre les deux. */
+describe('an air thread moored at its runway', () => {
+  const at = (x: number, y: number) => frame.toWorld(x, y);
+  const flat = (a: Vector3, b: Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
+  const air = directRoute(toLonLat(32, 25), toLonLat(40, 25), 'air', 10);
+  const verticesOf = (thread: ReturnType<typeof buildThread>) =>
+    thread.legs.flatMap((leg) => leg.strands.flatMap((strand) => strand.vertices));
+
+  it('leaves from the end of its runway at its height, and lands on the other unmoored', () => {
+    const start = frame.projectLonLat(air.points[0]!);
+    const fil = at(32.6, 25.1).setY(start.y + 0.4);
+    const thread = buildThread(air, frame, colors, thickness, opacities, {
+      moor: (which, point, medium) =>
+        medium === 'air' && which === 'start' && flat(point, start) < 1e-6 ? fil : null,
+    });
+    const vertices = verticesOf(thread);
+    expect(flat(vertices[0]!, fil)).toBeLessThan(1e-9);
+    expect(vertices[0]!.y).toBeCloseTo(fil.y, 9);
+    // It never dips under its moored height on its way up.
+    const firstHalf = vertices.slice(0, vertices.length / 2);
+    for (const vertex of firstHalf) expect(vertex.y).toBeGreaterThanOrEqual(fil.y - 1e-9);
+    expect(vertices.at(-1)!.y).toBeLessThan(fil.y);
+  });
+});

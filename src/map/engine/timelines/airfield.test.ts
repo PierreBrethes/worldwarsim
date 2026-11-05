@@ -104,3 +104,17 @@ describe('a new plane comes out of its hangar (#269)', () => {
     expect(doorCourse(1).outer).toBeCloseTo(8.3, 3);
   });
 });
+
+describe('a plane ends where its pile stands it', () => {
+  const rank = { x: 4, z: 40, yaw: 1.2 };
+  it.each([
+    ['landing', landing('bomber', rank)],
+    ['formation', formation('bomber', rank, 7)],
+  ] as const)('%s: at its place on the rank, turned as it stands', (_, track) => {
+    const end = track.at(track.ms);
+    expect(end.x).toBeCloseTo(rank.x, 3);
+    expect(end.z).toBeCloseTo(rank.z, 3);
+    turnsTo(end.yaw, rank.yaw);
+    expect(worstStep(track)).toBeLessThan(1.2);
+  });
+});

@@ -72,3 +72,21 @@ describe('a new hull is launched (#270)', () => {
     expect(worstStep(track)).toBeLessThan(3);
   });
 });
+
+describe('a hull ends, and starts, where its pile stands it', () => {
+  const quay = { x: 10, z: 175, yaw: 0.3 };
+  it.each([
+    ['docking', docking('cargo', BEAM, quay)],
+    ['launch', launch('cargo', BEAM, 3, quay)],
+  ] as const)('%s: at its place, turned as it stands', (_, track) => {
+    const end = track.at(track.ms);
+    expect([end.x, end.z]).toEqual([quay.x, quay.z].map((v) => expect.closeTo(v, 3)));
+    expect(Math.cos(end.yaw - quay.yaw)).toBeCloseTo(1, 3);
+  });
+  it('undocking: from its place, turned as it stands', () => {
+    const start = undocking('cargo', BEAM, quay).at(0);
+    expect(start.x).toBeCloseTo(quay.x, 3);
+    expect(start.z).toBeCloseTo(quay.z, 3);
+    expect(Math.cos(start.yaw - quay.yaw)).toBeCloseTo(1, 3);
+  });
+});

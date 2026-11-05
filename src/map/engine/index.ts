@@ -90,6 +90,8 @@ import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
+import { APPROACH, FIL } from './timelines/airfield';
+import { OFFSHORE } from './timelines/port';
 import {
   type Attempt,
   type Docked,
@@ -229,6 +231,10 @@ export type { ZoneFocus, ZonePoint } from './outpost-zones';
  *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
 const SHORE_REACH = 0.6 * TANK_SHARE;
 const SHORE_PROBES = 8;
+/** **A flight or a voyage shorter than so many of its offsets** is not moored to its runway or
+ *  its offshore (#269, #270): the site's way out would eat it whole. `@a-mesurer` */
+const MOORED_CHORDS = 3;
+const endKey = (at: Vector3): string => `${at.x.toFixed(5)},${at.z.toFixed(5)}`;
 
 /** **A port reads the coast it faces within this many km of its point**, and its normal from the
  *  water within a few times this many of it: the water in front, not a bay's chord (#436).
@@ -1082,7 +1088,8 @@ export class MapEngine {
       this.frame,
       this.ink,
       (medium, which, at, hint) => this.endOf(medium, which, at, hint),
-      (at, span) => this.quayOf(at, span),
+      (at, span, far) => this.quayOf(at, span, far),
+      (which, at, far) => this.runwayEndOf(which, at, far),
     );
     this.reach = new ReachRing(this.frame);
     this.zones = new OutpostZones(this.frame, this.night.uniforms);
@@ -1211,6 +1218,9 @@ export class MapEngine {
 
   /** The airfields the threads were last laid against (`runwaysKey`). */
   private runways = '';
+  /** **The way a thread moored off its site goes on**, by its end's point (`runwayEndOf`,
+   *  `quayOf`): `endOf` reads it there, where no runway nor shore is. */
+  private readonly mooredEnds = new Map<string, readonly [number, number]>();
 
   /**
    * **La carte ne rend plus que si on le lui demande** (`frame-demand.ts`). Toute méthode
@@ -1503,13 +1513,46 @@ export class MapEngine {
    * drawn, and a hull's step off it to seaward, as its garrison stands there (`formationOf`, up
    * close) — the hull sails from where it stood.
    */
-  private quayOf(at: Vector3, span: number): { at: Vector3; scale: number } | null {
+  private quayOf(at: Vector3, span: number, far?: Vector3): { at: Vector3; scale: number } | null {
     const quay = this.maquettes.quayAt(at.x, at.z, span);
     if (quay === null) return null;
+    // Off its mole, the hull docks and puts to sea by its own storyboard (#270).
+    const port = this.maquettes.kitSiteAt('port', at.x, at.z);
+    const site = port === null ? null : this.maquettes.siteOf(port);
+    const offshore = site?.toBoard(new Vector3(OFFSHORE.x, 0, OFFSHORE.z));
+    const room =
+      offshore !== undefined &&
+      (far === undefined ||
+        Math.hypot(far.x - at.x, far.z - at.z) >=
+          MOORED_CHORDS * Math.hypot(offshore.x - at.x, offshore.z - at.z));
+    if (site && offshore && room) {
+      const way = site.toBoard(new Vector3(OFFSHORE.x, 0, OFFSHORE.z + 100)).sub(offshore);
+      this.mooredEnds.set(endKey(offshore), [way.x, way.z]);
+      return { at: offshore.setY(at.y), scale: quay.scale };
+    }
     // Along the port's front, as its garrison's formation steps it (#436).
     const [sx, sz] = quay.front;
     const off = (GROUP_SPACING * pieceScale.size * span * quay.scale) / LAID_OUT_FOR;
     return { at: quay.at.clone().add(new Vector3(sx * off, 0, sz * off)), scale: quay.scale };
+  }
+
+  /**
+   * **Where a plane of mine leaves or reaches the airfield at `at`** (#269): the end of its thread
+   * (`FIL`) or of its approach (`APPROACH`), on the runway's axis beyond its free end, at the
+   * height its take-off climbs to; `null` for none there, or a flight too short for it (`far`, its
+   * other end). Its way there is kept for `endOf`.
+   */
+  private runwayEndOf(which: 'start' | 'end', at: Vector3, far: Vector3): Vector3 | null {
+    const id = this.maquettes.kitSiteAt('airfield', at.x, at.z);
+    const site = id === null ? null : this.maquettes.siteOf(id);
+    const axis = this.maquettes.runwayAt(at.x, at.z);
+    if (site === null || axis === null) return null;
+    const { x, y, z } = which === 'start' ? FIL : APPROACH;
+    const end = site.toBoard(new Vector3(x, y, z));
+    const offset = Math.hypot(end.x - at.x, end.z - at.z);
+    if (Math.hypot(far.x - at.x, far.z - at.z) < MOORED_CHORDS * offset) return null;
+    this.mooredEnds.set(endKey(end), which === 'start' ? axis : [-axis[0], -axis[1]]);
+    return end;
   }
 
   /** The threads are laid again once the airfields and ports they leave are placed otherwise. */
@@ -4288,6 +4331,13 @@ export class MapEngine {
     at: Vector3,
     hint: readonly [number, number],
   ): readonly [number, number] | null {
+    // Moored off its site (#269, #270), it goes on the way its sequence ends, or comes in by it.
+    const moored = this.mooredEnds.get(endKey(at));
+    if (moored !== undefined) {
+      const length = Math.hypot(moored[0], moored[1]);
+      const way = [moored[0] / length, moored[1] / length] as const;
+      return which === 'start' || medium === 'air' ? way : [-way[0], -way[1]];
+    }
     if (medium === 'air') {
       const axis = this.maquettes.runwayAt(at.x, at.z);
       if (axis === null) return null;

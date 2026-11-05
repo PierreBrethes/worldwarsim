@@ -367,7 +367,15 @@ export class ArcLayer {
     private readonly quays: (
       at: Vector3,
       span: number,
+      far?: Vector3,
     ) => { at: Vector3; scale: number } | null = () => null,
+    /** **Where a plane of mine leaves or reaches the airfield at this point** (#269): the end of
+     *  its runway at its height, `null` for none there or a flight too short, toward `far`. */
+    private readonly runways: (
+      which: 'start' | 'end',
+      at: Vector3,
+      far: Vector3,
+    ) => Vector3 | null = () => null,
   ) {}
 
   setPlayerNation(nation: string | null): void {
@@ -467,11 +475,15 @@ export class ArcLayer {
     const roles = movementRoles(arc);
     const hull = roles?.sea ?? null;
     const quays = { start: 1, end: 1 };
+    const [from, to] = [arc.route.points[0], arc.route.points.at(-1)];
     const moor: Moor | undefined =
-      hull === null
+      hull === null && (roles?.air ?? null) === null
         ? undefined
-        : (which, at) => {
-            const quay = this.quays(at, troopSpan(hull));
+        : (which, at, medium) => {
+            const far = (which === 'start' ? to : from) ?? arc.to;
+            if (medium === 'air') return this.runways(which, at, this.frame.projectLonLat(far));
+            if (hull === null) return null;
+            const quay = this.quays(at, troopSpan(hull), this.frame.projectLonLat(far));
             if (quay === null) return null;
             quays[which] = quay.scale;
             return quay.at;

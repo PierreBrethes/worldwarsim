@@ -464,23 +464,31 @@ export function leadIn(
   return [first, ...curve, ...vertices.slice(j)];
 }
 
-export type Moor = (which: 'start' | 'end', at: Vector3) => Vector3 | null;
+export type Moor = (which: 'start' | 'end', at: Vector3, medium: Medium) => Vector3 | null;
 
 /** A sea leg that leaves (`first`) or reaches (`last`) a quay drawn off its point starts or ends
- *  there; a split leg is left as drawn. */
+ *  there; an air leg, at the end of its runway, at the height the moor gives (#269). A split leg
+ *  is left as drawn. */
 function moored(leg: ThreadLeg, moor: Moor, first: boolean, last: boolean): ThreadLeg {
-  if (leg.medium !== 'sea' || leg.strands.length !== 1) return leg;
+  if (leg.medium === 'land' || leg.strands.length !== 1) return leg;
+  const medium = leg.medium;
   let vertices = leg.strands[0]!.vertices;
-  if (first) vertices = offQuay(vertices, (at) => moor('start', at));
-  if (last) vertices = offQuay([...vertices].reverse(), (at) => moor('end', at)).reverse();
-  return { medium: leg.medium, strands: [strandOf(vertices)], length: lengthOf(vertices) };
+  const off = (ends: ReadonlyArray<Vector3>, which: 'start' | 'end') => {
+    const point = moor(which, ends[0]!, medium);
+    return point === null ? null : offQuay(ends, () => point, medium === 'air' ? point.y : null);
+  };
+  if (first) vertices = off(vertices, 'start') ?? vertices;
+  if (last) vertices = off([...vertices].reverse(), 'end')?.reverse() ?? vertices;
+  return { medium, strands: [strandOf(vertices)], length: lengthOf(vertices) };
 }
 
 /** The way off a quay starts where the hull stands, past the points it already stands beyond:
- *  it does not sail back over its port. */
+ *  it does not sail back over its port. Off a runway (`height`), it starts at the plane's height
+ *  and holds it till its climb is above it (`flightAltitude`). */
 function offQuay(
   vertices: ReadonlyArray<Vector3>,
   moor: (at: Vector3) => Vector3 | null,
+  height: number | null = null,
 ): Vector3[] {
   const start = vertices[0]!;
   const quay = moor(start);
@@ -492,7 +500,14 @@ function offQuay(
     Math.hypot(vertices[k]!.x - start.x, vertices[k]!.z - start.z) <= reach
   )
     k++;
-  return [new Vector3(quay.x, start.y, quay.z), ...vertices.slice(k)];
+  const kept = vertices.slice(k);
+  if (height === null) return [new Vector3(quay.x, start.y, quay.z), ...kept];
+  const above = kept.findIndex((vertex) => vertex.y >= height);
+  const climbed = above === -1 ? kept.length : above;
+  return [
+    new Vector3(quay.x, height, quay.z),
+    ...kept.map((vertex, n) => (n < climbed ? vertex.clone().setY(height) : vertex)),
+  ];
 }
 
 /** A leg that leaves and reaches its ends the way `ends` says; a split leg is left as drawn. */

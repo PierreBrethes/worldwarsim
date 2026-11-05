@@ -30,6 +30,11 @@ export const AIR: Readonly<
 /** **Its thread's height** (`AIR_ALTITUDE`, three fighter spans), in metres. */
 export const ALT = 33;
 const DEG = Math.PI / 180;
+/** Where it stands at rest, in the model's metres, and its heading there (0: nose to the runway). */
+export type Spot = { readonly x: number; readonly z: number; readonly yaw?: number };
+/** The turn from `from` to `to` the shortest way. */
+const toward = (from: number, to: number): number =>
+  Math.atan2(Math.sin(to - from), Math.cos(to - from));
 /** The taxi's quarter turn onto the runway. */
 const TURN_R = 12;
 /** How far its tail stands from the hangar's rail, parked (storyboard, question 1). */
@@ -206,7 +211,7 @@ export function takeoff(role: AirRole, from: { readonly x: number; readonly z: n
  * the ramp, rolls up its lane to its place, and turns about by the outside of the site, nose to
  * the runway.
  */
-export function landing(role: AirRole, to: { readonly x: number; readonly z: number }): Track {
+export function landing(role: AirRole, to: Spot): Track {
   const a = AIR[role];
   const lane = laneOf(to.x);
   const vA = a.vLift * 1.05;
@@ -225,6 +230,8 @@ export function landing(role: AirRole, to: { readonly x: number; readonly z: num
   const tPark = tTurn + taxi;
   // About by the outside of the site: away from the other lane.
   const side = lane > 0 ? -1 : 1;
+  const rest = to.yaw ?? 0;
+  const turn = ((((side * (rest - Math.PI)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) * side;
   return track([
     {
       until: tTouch,
@@ -254,7 +261,7 @@ export function landing(role: AirRole, to: { readonly x: number; readonly z: num
     },
     {
       until: tPark + T.uturn,
-      at: (_, k) => rolling({ x: to.x, z: to.z, yaw: Math.PI + side * Math.PI * ease.inOut(k) }),
+      at: (_, k) => rolling({ x: to.x, z: to.z, yaw: Math.PI + turn * ease.inOut(k) }),
     },
   ]);
 }
@@ -269,7 +276,7 @@ export const hangarOf = (lane: number): '' | '_b' => (lane > 0 ? '_b' : '');
  */
 export function formation(
   role: AirRole,
-  to: { readonly x: number; readonly z: number },
+  to: Spot,
   tail: number,
 ): Track & { doors(ms: number): number; born(ms: number): number } {
   const a = AIR[role];
@@ -284,7 +291,19 @@ export function formation(
       break;
     }
   const end = Math.max(clear + T.doors, T.doors + out);
-  const moved = track([{ until: end, at: (τ) => rolling({ x: lane, z: zAt(τ), yaw: 0 }) }]);
+  // Clear of the doors, it rolls over to its own place and turns to its rest.
+  const aside = (t: number) => ease.inOut(span(t, T.doors + out * 0.5, T.doors + out));
+  const moved = track([
+    {
+      until: end,
+      at: (τ) =>
+        rolling({
+          x: lane + (to.x - lane) * aside(τ),
+          z: zAt(τ),
+          yaw: toward(0, to.yaw ?? 0) * aside(τ),
+        }),
+    },
+  ]);
   return {
     ...moved,
     doors: (ms) =>

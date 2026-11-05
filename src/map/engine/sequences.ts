@@ -43,6 +43,8 @@ export type PartPose = {
   readonly heading?: number;
   /** With `heading` only: banked this many radians about its own length (a truck in hand). */
   readonly roll?: number;
+  /** With `heading` only: its nose up this many radians (a plane lifting off, #269). */
+  readonly pitch?: number;
   /** `root` or a man: the men march, at this many seconds of their stride (`stride`); a man
    *  without it stands as his squad stands him. */
   readonly stride?: number;
@@ -248,11 +250,12 @@ const MAN = /^man_\d+$/;
 const up = new Vector3(0, 1, 0);
 /** A piece faces +z once turned to its heading: its length. */
 const along = new Vector3(0, 0, 1);
+const across = new Vector3(1, 0, 0);
 const parentTurn = new Quaternion();
 
 /** **`travel` and `heading` are read on the board**, through whatever turns and scales the
  *  node's parent: a pile faces away from its building and grows with its floor. */
-function onTheBoard(node: Object3D, rest: Rest, { travel, heading, roll }: PartPose): void {
+function onTheBoard(node: Object3D, rest: Rest, { travel, heading, roll, pitch }: PartPose): void {
   const parent = node.parent!;
   parent.updateWorldMatrix(true, false);
   if (travel) {
@@ -263,6 +266,7 @@ function onTheBoard(node: Object3D, rest: Rest, { travel, heading, roll }: PartP
     parent.getWorldQuaternion(parentTurn).invert();
     node.quaternion.setFromAxisAngle(up, heading).premultiply(parentTurn);
     if (roll) node.quaternion.multiply(turn.setFromAxisAngle(along, roll));
+    if (pitch) node.quaternion.multiply(turn.setFromAxisAngle(across, -pitch));
     node.quaternion.multiply(rest.quaternion);
   }
 }

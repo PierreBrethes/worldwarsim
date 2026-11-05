@@ -27,7 +27,12 @@ const MUSOIR = MOLE.quay + MOLE.length + MOLE.head;
 export const OFFSHORE = { x: -160, z: 640 } as const;
 
 /** **Its berth**: along the mole's basin face, the stem to the land, 3 m off the quay. */
-export const berthOf = (role: SeaRole, beam: number) => ({
+/** Where it stands at rest, its middle in the model's metres, and its heading there. */
+export type Berth = { readonly x: number; readonly z: number; readonly yaw: number };
+const toward = (from: number, to: number): number =>
+  Math.atan2(Math.sin(to - from), Math.cos(to - from));
+
+export const berthOf = (role: SeaRole, beam: number): Berth => ({
   x: MOLE.inner - 1 - beam / 2,
   z: MOLE.quay + 3 + troopMetres(role) / 2,
   yaw: Math.PI,
@@ -45,9 +50,8 @@ const curve = (points: ReadonlyArray<readonly [number, number]>) =>
  * **It docks** (storyboard « Accostage »): from the offshore it rounds into the basin and slows,
  * parallel to the mole a beam and a half off, then comes across against the fenders.
  */
-export function docking(role: SeaRole, beam: number): HullTrack {
+export function docking(role: SeaRole, beam: number, b = berthOf(role, beam)): HullTrack {
   const p = PACE[role];
-  const b = berthOf(role, beam);
   const off = b.x - beam * 1.5;
   const path = curve([
     [OFFSHORE.x, OFFSHORE.z],
@@ -70,7 +74,8 @@ export function docking(role: SeaRole, beam: number): HullTrack {
         return { x: at.x, y: 0, z: at.z, yaw: Math.atan2(tangent.x, tangent.z), pitch: 0 };
       }
       const k = ease.inOut(span(s, ta, ta + tx));
-      return { x: off + (b.x - off) * k, y: 0, z: b.z, yaw: Math.PI, pitch: 0 };
+      const yaw = Math.PI + toward(Math.PI, b.yaw) * k;
+      return { x: off + (b.x - off) * k, y: 0, z: b.z, yaw, pitch: 0 };
     },
   };
 }
@@ -80,14 +85,14 @@ export function docking(role: SeaRole, beam: number): HullTrack {
  * forward spring, backs out of the basin past the mole's head, turns and goes ahead, to the
  * offshore its thread starts from.
  */
-export function undocking(role: SeaRole, beam: number): HullTrack {
+export function undocking(role: SeaRole, beam: number, b = berthOf(role, beam)): HullTrack {
   const p = PACE[role];
-  const b = berthOf(role, beam);
   const h = troopMetres(role) / 2;
   const a = -14 * DEG;
-  const bow = [b.x, b.z - h] as const;
+  // It swings on its bow, from its rest to its stern out by `a`.
+  const bow = [b.x + h * Math.sin(b.yaw), b.z + h * Math.cos(b.yaw)] as const;
   const swing = (k: number) => {
-    const yaw = Math.PI + a * k;
+    const yaw = b.yaw + toward(b.yaw, Math.PI + a) * k;
     return { x: bow[0] - h * Math.sin(yaw), z: bow[1] - h * Math.cos(yaw), yaw };
   };
   const s0 = swing(1);
@@ -139,6 +144,7 @@ export function launch(
   role: SeaRole,
   beam: number,
   keel: number,
+  b = berthOf(role, beam),
 ): HullTrack & { dressed(ms: number): number; shores(ms: number, k: number): number } {
   const h = troopMetres(role) / 2;
   const H = MOLE.quay;
@@ -154,7 +160,6 @@ export function launch(
   const tStop = tBow + vBow / brake;
   const zStop = z0 + sBow + drift;
   const tHauled = tStop + 3.4;
-  const b = berthOf(role, beam);
   const lift = 1.5 + keel;
   const yHead = slipTop(H) + lift;
   const ms = tHauled * 1000;
@@ -193,7 +198,7 @@ export function launch(
         z: zStop + (b.z - zStop) * k,
         y: 0,
         pitch: 0,
-        yaw: Math.PI,
+        yaw: Math.PI + toward(Math.PI, b.yaw) * k,
       };
     },
   };

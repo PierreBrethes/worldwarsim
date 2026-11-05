@@ -806,6 +806,19 @@ export class MaquetteLayer implements SequenceHost {
     return null;
   }
 
+  /** **The landed airfield or port standing at (`x`, `z`)**, by its id (#269, #270): what a thread
+   *  is moored to and a sequence plays on (`siteOf`). */
+  kitSiteAt(kind: 'airfield' | 'port', x: number, z: number): string | null {
+    for (const [id, { item, lot }] of this.byId)
+      if (
+        id.startsWith(`building-${kind}`) &&
+        lot.model !== null &&
+        Math.hypot(item.ground.x - x, item.ground.z - z) <= RUNWAY_TOLERANCE
+      )
+        return id;
+    return null;
+  }
+
   /** The ring and every matrix follow the size: both are rebuilt on the next `orient`. */
   resize(): void {
     this.place();
