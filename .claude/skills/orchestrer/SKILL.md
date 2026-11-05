@@ -57,6 +57,8 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
    - un conflit dans `WWS/docs/technique/a-mesurer.md` se règle en le régénérant (`node scripts/generate-a-mesurer.mjs`).
 
    La base locale est une seule : un banc, une capture ou un déploiement la prend par un fichier `base-occupee` du scratchpad, et la consigne d'un agent qui doit s'en servir lui dit d'attendre que ce fichier disparaisse.
+
+   Le banc serveur de l'intégration se poste en commentaire de la PR fusionnée qui touche `convex/` : c'est la référence de la fusion suivante. Une base qui a reçu un schéma plus neuf refuse de redéployer une version plus ancienne, et l'avant ne se remesure plus.
 8. **Tes propres commits** suivent la section Git de `lot` : `git add <fichiers>`, jamais `-a` ni `-A`. Les fichiers de Pierre (`.claude/launch.json`, `WWS/prototypes/`) restent hors de toute PR.
 
 Le modèle se choisit sur la tranche, pas sur le thème. Une issue qui demanderait Opus par sa
@@ -66,8 +68,8 @@ taille se coupe d'abord (skill `ticket`).
 |---|---|
 | relevé de faits (noms de nœuds, grep, une mesure à lancer), retouche de prototype, texte, doc | Haiku, low |
 | mécanique, spec fermée (brancher des GLB, déplacer du code, scène de démo) | Sonnet, low |
-| spec claire : fonctions pures d'un storyboard, écran d'une maquette choisie, corrections de revue ; revue d'un écran ou d'outillage | Sonnet, medium |
-| conception (variantes, storyboard neuf), diagnostic d'un bug non reproduit, revue d'un lot 3D | Opus, medium |
+| spec claire : fonctions pures d'un storyboard, écran d'une maquette choisie, corrections de revue ; revue d'un lot, relecture à froid d'une issue | Sonnet, medium |
+| conception (variantes, storyboard neuf), diagnostic d'un bug non reproduit | Opus, medium |
 | brouillard, serveur près de la limite d'une seconde, fondation, audit | Opus, high |
 
 ## 4. Quand Pierre est absent
