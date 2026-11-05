@@ -116,7 +116,7 @@ import {
 } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
 import { pieceScale } from './piece-scale';
-import { buildingSpan, troopSpan } from '@/domain/piece-size';
+import { troopSpan } from '@/domain/piece-size';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
 import { boardHoldOf, steepestTiltAt } from './camera-tilt';
@@ -1667,14 +1667,14 @@ export class MapEngine {
 
   /**
    * **What a label's piece gives way to its pin by** (ADR 0035 §3): its socle on one (ADR 0038 §7), what is drawn here, else a
-   * barracks for a building and a tank on its floor for the rest (§10) — what an enemy shows says
+   * socle for a building (#465) and a tank on its floor for the rest (§10) — what an enemy shows says
    * nothing of what it is —; `null` for an outpost, which has no piece: its pin stands at every distance, its label up close.
    */
   private pieceSpanOf(id: string, shape = this.pinShapes.get(id)): PinnedBy | null {
     const drawn = this.maquettes.spanOf(id) ?? this.standing.spanOf(id) ?? this.arcs.spanOf(id);
     if (drawn !== null) return drawn;
     if (shape === 'outpost') return null;
-    return shape === 'building' ? buildingSpan('barracks') : troopPinSpan(ANONYMOUS_SPAN);
+    return shape === 'building' ? 'socle' : troopPinSpan(ANONYMOUS_SPAN);
   }
 
   /** **Les accrochages** (#441) : cerclés sur la carte, et leurs épingles étiquetées. */

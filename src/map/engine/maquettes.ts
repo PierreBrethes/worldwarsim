@@ -1483,15 +1483,13 @@ function readingOf(model: Model, item: Placed, distance: number): SiteReading {
     return { diorama: weight, socle: weight, signGrowth: 1 };
   }
   const sign = model.sign === null ? 0 : model.sign.height * model.scale * item.span;
-  return siteReading(distance, by.socle, sign);
+  return siteReading(distance, sign);
 }
 
 /** **What a site gives way to its pin by** — its socle when it is flagged on one and its file,
  *  once landed, has one; else its span —: what its maquette is read by and its pin and plate. */
 const pinnedBy = (model: Model | null, item: Placed): PinnedBy =>
-  item.socle !== null && (model === null || model.dressing.length > 0)
-    ? { socle: item.socle }
-    : item.span;
+  item.socle !== null && (model === null || model.dressing.length > 0) ? 'socle' : item.span;
 
 /** **Where the building of a maquette stands on the board**: its point, raised to the socle top
  *  it shrinks on — the building and its yard keep their foot on the socle, which stands taller. */

@@ -1100,9 +1100,9 @@ describe('a site on its socle (ADR 0038)', () => {
     expect(ringSpacing(2, null)).toBe(2 * RING_GAP);
   });
 
-  describe('read at a distance by its socle (ADR 0038 §7)', () => {
-    // Its 50 m to one board unit: the fixture's socle of 80 m is 1.6 units, read at 64 px to
-    // d ≈ 29 and at 28 px to d ≈ 67; its sign of some 27 m at 12 px to d ≈ 52.
+  describe('read at a distance on its socle (ADR 0038 §7, #465)', () => {
+    // Its 50 m to one board unit: the fixture's socle of 80 m is 1.6 units. Whatever its size, it
+    // stands whole to d ≈ 30 and gives way to its pin by d ≈ 36, with my piles.
     const socled = (more: Parameters<typeof site>[1] = {}) =>
       site(MINE, { side: 'mine', ink: '#2a5ba8', socle: true, footprint: 1.6, ...more });
     const FULL = 1 / 50;
@@ -1135,41 +1135,17 @@ describe('a site on its socle (ADR 0038)', () => {
       }
     });
 
-    it('shrinks the building and its yard on their foot, the socle and its sign standing', async () => {
+    it('shrinks whole into its pin with my piles, never a socle alone', async () => {
       const layer = await layerOf([socled()]);
-      seenFrom(layer, 31);
-      const socle = drawnAs(layer, isSocle)[0]!;
-      const foot = new Vector3(0, SOCLE_TOP, 0);
-      for (const placed of drawnAs(layer, (mesh) => isBuilding(mesh) || isYard(mesh))) {
-        expect(scaleOf(placed)).toBeLessThan(FULL);
-        expect(scaleOf(placed)).toBeGreaterThan(0);
-        // On their foot: the socle top's centre stays where the socle has it.
-        expect(
-          foot.clone().applyMatrix4(placed).distanceTo(foot.clone().applyMatrix4(socle)),
-        ).toBeLessThan(1e-6);
-      }
-      seenFrom(layer, 45);
-      for (const placed of drawnAs(layer, (mesh) => isBuilding(mesh) || isYard(mesh)))
-        expect(scaleOf(placed)).toBe(0);
-      for (const placed of drawnAs(layer, (mesh) => isSocle(mesh) || isSign(mesh)))
-        expect(scaleOf(placed)).toBeCloseTo(FULL, 9);
-      expect(layer.isDressed(MINE)).toBe(true);
-    });
-
-    it('grows its sign on its foot as the socle gives way to the pin, then leaves', async () => {
-      const layer = seenFrom(await layerOf([socled()]), 72);
-      const socle = drawnAs(layer, isSocle)[0]!;
-      const sign = drawnAs(layer, isSign)[0]!;
-      expect(scaleOf(socle)).toBeGreaterThan(0);
-      expect(scaleOf(socle)).toBeLessThan(FULL);
-      // 12 px over its ~9.8 px at d = 72 (a 24 m mast and its pole, 30 m with the flag's).
-      expect(scaleOf(sign) / scaleOf(socle)).toBeGreaterThan(1.15);
-      expect(scaleOf(sign) / scaleOf(socle)).toBeLessThan(1.4);
-      const foot = new Vector3(-22, SOCLE_TOP, 17);
-      expect(
-        foot.clone().applyMatrix4(sign).distanceTo(foot.clone().applyMatrix4(socle)),
-      ).toBeLessThan(1e-6);
-      seenFrom(layer, 85);
+      seenFrom(layer, 30);
+      for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBeCloseTo(FULL, 9);
+      seenFrom(layer, 33);
+      const drawn = drawnAs(layer, () => true);
+      const shrunk = scaleOf(drawn[0]!);
+      expect(shrunk).toBeGreaterThan(0);
+      expect(shrunk).toBeLessThan(FULL);
+      for (const placed of drawn) expect(scaleOf(placed)).toBeCloseTo(shrunk, 9);
+      seenFrom(layer, 36);
       for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBe(0);
     });
 
@@ -1187,45 +1163,14 @@ describe('a site on its socle (ADR 0038)', () => {
       expect(grown.x).toBeCloseTo(scaleOf(drawnAs(layer, isSign)[0]!), 9);
     });
 
-    it('hands a raze from afar its socle alone, without its shrunk building or ruins', async () => {
-      const layer = seenFrom(await layerOf([socled()]), 20);
-      const named = (drawn: ReturnType<MaquetteLayer['drawnOf']>) =>
-        drawn!.parts.map((part) => part.material.name);
-      expect(named(layer.drawnOf(MINE))).toContain('fond_sombre');
-      expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
-      seenFrom(layer, 45);
-      // Read over a rebuild, before any frame: the weights it was drawn at.
-      layer.display([socled({ smoking: true })]);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const far = layer.drawnOf(MINE)!;
-      expect(named(far)).not.toContain('fond_sombre');
-      expect(named(far)).toContain('lisere');
-      expect(far.ruins).toBeUndefined();
-      // Back up close and rebuilt before any frame: whole again, ruins and all.
-      seenFrom(layer, 20);
-      layer.display([socled()]);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(named(layer.drawnOf(MINE))).toContain('fond_sombre');
-      expect(layer.drawnOf(MINE)!.ruins).toBeDefined();
-    });
-
-    it('hands a raze its sign grown, and its building at the size it shrank to', async () => {
-      const layer = seenFrom(await layerOf([socled()]), 72);
-      const within = (part: { within?: Matrix4 }) =>
-        part.within === undefined ? 1 : new Vector3().setFromMatrixScale(part.within).x;
-      // 12 px over its ~9.8 px at d = 72, as the instance draws it.
-      const grown = layer.drawnOf(MINE)!.parts.filter((part) => within(part) > 1);
-      expect(grown.length).toBeGreaterThan(0);
-      for (const part of grown) expect(within(part)).toBeGreaterThan(1.15);
-      seenFrom(layer, 31);
+    it('hands a raze from afar its whole site, ruins and all, at the size it shrank to', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 33);
       const drawn = layer.drawnOf(MINE)!;
-      const walls = drawn.parts.filter((part) => part.material.name === 'fond_sombre');
-      expect(walls).toHaveLength(1);
-      expect(within(walls[0]!)).toBeGreaterThan(0);
-      expect(within(walls[0]!)).toBeLessThan(1);
-      // On its foot: the socle top's centre does not move.
-      const foot = new Vector3(0, SOCLE_TOP, 0);
-      expect(foot.clone().applyMatrix4(walls[0]!.within!).distanceTo(foot)).toBeLessThan(1e-9);
+      const named = drawn.parts.map((part) => part.material.name);
+      expect(named).toContain('fond_sombre');
+      expect(named).toContain('lisere');
+      expect(drawn.ruins).toBeDefined();
+      expect(drawn.parts.every((part) => part.within === undefined)).toBe(true);
     });
 
     it('lets the smoke rest once its building has shrunk away', async () => {
@@ -1242,7 +1187,7 @@ describe('a site on its socle (ADR 0038)', () => {
 
     it('hands the pin and the plate its socle, and a site without one its span', async () => {
       const layer = await layerOf([socled(), site('building-hq@5,0', { url: 'plain.glb' })]);
-      expect(layer.spanOf(MINE)).toEqual({ socle: 1.6 });
+      expect(layer.spanOf(MINE)).toBe('socle');
       expect(layer.spanOf('building-hq@5,0')).toBe(1);
     });
 
