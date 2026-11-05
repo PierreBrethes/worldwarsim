@@ -6,7 +6,6 @@ import { stackLabelId } from './force-highlight';
 import { bearingDegrees, distanceKm, type LonLat } from './geo';
 import type { UnitRole } from './ids';
 import type { PlayerView } from './player-view';
-import type { Rect } from './poster-placement';
 import { campPinId, outpostPinId } from './pins';
 import { playedTheatre } from './theatres';
 import { marchingTroopIds, stationKeyOf, stationPointOf } from './troops';
@@ -140,35 +139,4 @@ function nameOf(points: ReadonlyArray<LonLat>, atSea: boolean, cities: ReadonlyA
   if (best < BEFORE_CITY_KM) return { name: fr.contacts.before(city), city };
   const direction = Math.round(bearingDegrees(nearest.lonLat, center) / 45) % 8;
   return { name: fr.contacts.toward(direction, city), city };
-}
-
-/**
- * **Where a contact's cartouche may stand** (maquette C), in the order tried: by the circle's
- * shoulders, above and below it, then further out at its sides. `R` is the circle's radius on
- * screen; the rectangles are `width` × `height`.
- */
-export function cartoucheSpots(
-  x: number,
-  y: number,
-  R: number,
-  width: number,
-  height: number,
-): Rect[] {
-  const a = R * 0.72;
-  const at = (left: number, top: number) => ({
-    left,
-    top,
-    right: left + width,
-    bottom: top + height,
-  });
-  return [
-    at(x + a + 6, y - a - height / 2),
-    at(x - a - 6 - width, y - a - height / 2),
-    at(x + a + 6, y + a - height / 2),
-    at(x - a - 6 - width, y + a - height / 2),
-    at(x - width / 2, y - R - height - 8),
-    at(x - width / 2, y + R + 8),
-    at(x + R + 30, y - height / 2),
-    at(x - R - 30 - width, y - height / 2),
-  ];
 }

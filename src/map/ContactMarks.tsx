@@ -4,12 +4,13 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { asClockTime } from '@/domain/duration';
-import { cartoucheSpots, type Contact } from '@/domain/contacts';
+import type { Contact } from '@/domain/contacts';
 import { clampToEdge, cluster, sideOf, type IndicatorGroup } from '@/domain/indicators';
 import type { Rect } from '@/domain/poster-placement';
 import { fr } from '@/i18n/fr';
 import { useBoardInsets, useCoarsePointer } from '@/shell/viewport';
 import type { ContactSpot } from './engine/contact-rings';
+import { ARC_COLORS } from './engine/palette';
 import { PIN_APPROACH_DISTANCE } from './engine/pins';
 import type { MapEngine } from './engine';
 import { useLayerSize } from './layer-size';
@@ -42,6 +43,8 @@ export function ContactMarks({
   /** The spot each cartouche took at the last rest, by number; `-1`, none was free. */
   const chosen = useRef(new Map<number, number>());
   const cards = useRef(new Map<number, HTMLElement>());
+  /** Each cartouche's size, measured at rest: a frame does not read the layout. */
+  const sizes = useRef(new Map<number, readonly [number, number]>());
   const badges = useRef(new Map<number, HTMLElement>());
   const threads = useRef(new Map<number, SVGLineElement>());
   const tokens = useRef(new Map<string, HTMLElement>());
@@ -50,7 +53,7 @@ export function ContactMarks({
 
   const cardRect = useCallback(
     (spot: ContactSpot, node: HTMLElement): Rect => {
-      const [w, h] = [node.offsetWidth, node.offsetHeight];
+      const [w, h] = sizes.current.get(spot.number) ?? measure(sizes.current, spot.number, node);
       const spots = cartoucheSpots(spot.x, spot.y, spot.radius, w, h);
       const k = chosen.current.get(spot.number) ?? 0;
       if (k >= 0) return spots[k]!;
@@ -89,8 +92,7 @@ export function ContactMarks({
         spot.x,
         spot.y,
         spot.radius,
-        node.offsetWidth,
-        node.offsetHeight,
+        ...measure(sizes.current, spot.number, node),
       ).findIndex(free);
       chosen.current.set(spot.number, k);
       held.push(cardRect(spot, node));
@@ -201,7 +203,12 @@ export function ContactMarks({
     <div
       className="contact-marks"
       ref={layer}
-      style={ink === null ? undefined : ({ '--contact-mine': ink } as CSSProperties)}
+      style={
+        {
+          '--contact-seen': ARC_COLORS.enemyDetected.trace,
+          ...(ink === null ? {} : { '--contact-mine': ink }),
+        } as CSSProperties
+      }
     >
       <svg className="contact-threads" aria-hidden>
         {contacts.map(({ number }) => (
@@ -288,4 +295,39 @@ const edgeKey = (groups: ReadonlyArray<IndicatorGroup>): string =>
 function register<K, E>(map: Map<K, E>, key: K, node: E | null): void {
   if (node) map.set(key, node);
   else map.delete(key);
+}
+
+function measure(
+  sizes: Map<number, readonly [number, number]>,
+  number: number,
+  node: HTMLElement,
+): readonly [number, number] {
+  const size = [node.offsetWidth, node.offsetHeight] as const;
+  sizes.set(number, size);
+  return size;
+}
+
+/**
+ * **Where a contact's cartouche may stand** (maquette C), in the order tried: by the circle's
+ * shoulders, above and below it, then further out at its sides. `R` is the circle's radius on
+ * screen; the rectangles are `width` × `height`.
+ */
+function cartoucheSpots(x: number, y: number, R: number, width: number, height: number): Rect[] {
+  const a = R * 0.72;
+  const at = (left: number, top: number) => ({
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+  });
+  return [
+    at(x + a + 6, y - a - height / 2),
+    at(x - a - 6 - width, y - a - height / 2),
+    at(x + a + 6, y + a - height / 2),
+    at(x - a - 6 - width, y + a - height / 2),
+    at(x - width / 2, y - R - height - 8),
+    at(x - width / 2, y + R + 8),
+    at(x + R + 30, y - height / 2),
+    at(x - R - 30 - width, y - height / 2),
+  ];
 }

@@ -418,10 +418,10 @@ export type PlacingBuilding = {
   readonly nearest: string | null;
 };
 
-/** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
- *  effects that read it do not run again for nothing. */
 const NO_CONTACTS: ReadonlyArray<Contact> = [];
 
+/** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
+ *  effects that read it do not run again for nothing. */
 function useShared<T>(value: T): T {
   const last = useRef(value);
   const shared = shareUnchanged(last.current, value);
