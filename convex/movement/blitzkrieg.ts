@@ -18,11 +18,12 @@ import { stationCargoLoads, type HomewardCargo } from '../cargo';
 import { regionNameAt } from '../placeNames';
 import { routeBetween } from '../routes';
 import { holdsPoint } from '../strategicPoints';
-import { toppedUp } from '../supplies';
+import { playingSeason } from '../seats';
+import { resupply, toppedUp } from '../supplies';
 import { surveyFromPoint } from '../surveys';
 import { forgetMovement, standAt } from './arrival';
 import { reassessDetection, watchersOf } from './detection';
-import { asPoint, pointOf } from './forces';
+import { asPoint, pointOf, seatedOf, standingPile } from './forces';
 import {
   aimOf,
   columnOf,
@@ -36,7 +37,9 @@ import { chainRefusalOf, secondTargetRefusalOf } from '../../src/domain/blitzkri
 import type { LonLat } from '../../src/domain/geo';
 import type { MovementAim } from '../../src/domain/movement-orders';
 import { isQuay, landCostOf, refusalDetails, routeModeOf } from '../../src/domain/movement-orders';
+import { withinTheatre } from '../../src/domain/blitz';
 import { assetOf } from '../../src/domain/nation-assets';
+import { carrierIn } from '../../src/domain/troops';
 import type { RouteLeg } from '../../src/domain/routing';
 import { modeOf } from '../../src/domain/season-mode';
 
@@ -70,6 +73,15 @@ export async function weighSecondLeg(
     point: asPoint(first.point),
   }))!;
   const column = await columnOf(ctx, player._id, troops, departure);
+  /** **Ce que `march` refuserait au départ** et que rien d'autre ne pèse : la jambe planifiée ne
+   *  doit jamais lever après ses écritures. Un passager dont le transport reste, un point hors du
+   *  théâtre (la Blitz n'a pas de Guerre éclair : gardé pour que la règle reste entière). */
+  const pile = (await standingPile(ctx, player._id, departure.stationId)).map(seatedOf);
+  const stranded = troops.find((troop) => {
+    const carrier = carrierIn(seatedOf(troop), pile);
+    return carrier !== null && !troops.some((one) => one._id === carrier.id);
+  });
+  if (stranded !== undefined) return refused('STILL_ABOARD', { troopId: stranded._id });
   /** **La cible relue** : un relevé perdu, un camp levé se disent comme à l'ordre, en valeur. */
   const aimed = await aimOf(ctx, player._id, then).catch((error: unknown) => {
     if (!(error instanceof ConvexError)) throw error;
@@ -77,6 +89,8 @@ export async function weighSecondLeg(
     return refused(code, details);
   });
   if ('refusal' in aimed) return aimed;
+  if (column.blitz !== undefined && !withinTheatre(column.blitz.theatre, aimed.point))
+    return refused('OUTSIDE_THEATRE', { type: 'attack' });
   const asset = assetOf(player.nation ?? null, modeOf(season.mode));
   const refusal = secondTargetRefusalOf(asset, first, aimed.aim, column);
   if (refusal !== null) return refused(refusal, refusalDetails(aimed.aim, column) as Details);
@@ -222,15 +236,13 @@ export async function pressOn(
   const watching = await watchersOf(ctx, movementId, movement.arrivesAt);
   await standAt(ctx, { ...movement, troopIds: [...winnerIds] }, movement.to);
   await forgetMovement(ctx, movementId, now);
+  /** Une saison close depuis l'arrivée : la colonne reste posée, rien ne part ni ne se dit. */
+  const season = await playingSeason(ctx, movement.playerId);
+  if (season === null) return;
 
   const player = (await ctx.db.get(movement.playerId))!;
-  const season = (await ctx.db.get(movement.seasonId))!;
-  const { troops } = await toppedUp(
-    ctx,
-    player._id,
-    await troopsAmong(ctx, player._id, [...winnerIds]),
-    now,
-  );
+  const standing = await troopsAmong(ctx, player._id, [...winnerIds]);
+  const { troops } = await toppedUp(ctx, player._id, standing, now);
   const leg = await weighSecondLeg(
     ctx,
     player,
@@ -241,6 +253,9 @@ export async function pressOn(
     true,
   );
   if ('refusal' in leg) {
+    /** **Posée, elle se recharge** (ADR 0028 §3), comme toute arrivée : l'arrivée l'a vue en
+     *  route et l'a sautée. */
+    await resupply(ctx, player._id, standing, now);
     /** Le sol où elle s'est battue, relevé comme `walkHome` le fait pour qui rentre. */
     await surveyFromPoint(
       ctx,

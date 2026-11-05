@@ -95,8 +95,10 @@ async function measured(identifier, call, from = cursor) {
   }
   for (let attempt = 0; attempt < 40; attempt++) {
     const page = await logPage(from);
+    /** Une tentative perdue sur un conflit (`occInfo`) ne compte pas : c'est la reprise qui écrit. */
     const hit = page.entries.findLast(
-      (entry) => entry.kind === 'Completion' && entry.identifier === identifier,
+      (entry) =>
+        entry.kind === 'Completion' && entry.identifier === identifier && entry.occInfo == null,
     );
     if (hit) {
       cursor = page.newCursor;
