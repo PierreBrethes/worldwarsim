@@ -175,6 +175,7 @@ describe('every public method of the engine asks for a frame', () => {
     'screenOf',
     'subscribeRest',
     'cameraDistance',
+    'cameraPose',
     'sweepOrigin',
     'atZoomFloor',
     'countryAtPoint',

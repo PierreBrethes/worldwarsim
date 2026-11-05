@@ -37,6 +37,8 @@ const WORDED_PX = 170;
 /** Beside the point, not on it: the piece stays readable under its stamp (`+3.5, +2.5` of 6). */
 const WORDED_ASIDE = [0.95, 0.7] as const;
 const STAMP_RED = '#9d4638';
+/** A splash taken up with its stamp goes as fast (`stampAt`). */
+const LIFTED_MS = 250;
 
 /** The ring of ink a dismantled pin leaves, in CSS pixels. @a-mesurer */
 const PIN_RING_PX = 14;
@@ -64,6 +66,11 @@ type Stamp = {
   readonly at: Vector3;
   readonly worded: boolean;
   readonly kind: InkBurst['kind'];
+  readonly holdMs?: number;
+  /** The age at which a gesture took it up (`lift`). */
+  liftedAt?: number;
+  /** Its sound, still to come while it is delayed. */
+  heard?: ReturnType<typeof setTimeout>;
 };
 
 const PLANE = new PlaneGeometry(1, 1);
@@ -222,17 +229,18 @@ export class InkLayer {
 
   /** A worded burst is the prototype's stamp; a combat keeps its splash under it, an arrival
    *  wears the stamp alone. */
-  burst({ kind, at, words, delayMs = 0 }: InkBurst, now: number): void {
+  burst({ kind, at, words, delayMs = 0, holdMs }: InkBurst, now: number): void {
     if (!this.enabled || this.motion === 'off') return;
     const point = this.frame.projectLonLat(at);
     if (words !== undefined) {
       const texture = wordedTexture(words);
-      this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true);
+      const stamp = this.stamp(kind, PLANE, { map: texture }, point, now + delayMs, true, holdMs);
       const timer = setTimeout(() => {
         this.heard.delete(timer);
         playTableSound('stamp');
       }, delayMs);
       this.heard.add(timer);
+      stamp.heard = timer;
     }
     if (kind === 'combat' || (kind === 'arrival' && words === undefined))
       this.stamp(
@@ -245,10 +253,17 @@ export class InkLayer {
       );
   }
 
-  /** Lifts every stamp of `kind` at once: what the replay pressed goes with it. */
-  lift(kind: InkBurst['kind']): void {
-    for (const stamp of this.stamps) if (stamp.kind === kind) unstamp(stamp);
-    this.stamps = this.stamps.filter((stamp) => stamp.kind !== kind);
+  /** Takes up every stamp of `kind`, or every one, in a quarter of a second: what the replay
+   *  pressed goes with it, and a gesture ends the absence tour's (#439). A delayed one never lands. */
+  lift(kind: InkBurst['kind'] | undefined, now: number): void {
+    for (const stamp of this.stamps)
+      if (kind === undefined || stamp.kind === kind) {
+        stamp.liftedAt = Math.min(stamp.liftedAt ?? Infinity, now - stamp.start);
+        if (stamp.heard !== undefined && stamp.start > now) {
+          clearTimeout(stamp.heard);
+          this.heard.delete(stamp.heard);
+        }
+      }
   }
 
   private stamp(
@@ -258,7 +273,8 @@ export class InkLayer {
     at: Vector3,
     start: number,
     worded: boolean,
-  ): void {
+    holdMs?: number,
+  ): Stamp {
     const mesh = new Mesh(
       geometry,
       new MeshBasicMaterial({
@@ -276,7 +292,16 @@ export class InkLayer {
     mesh.renderOrder = BURST_RANK;
     mesh.position.copy(at);
     this.group.add(mesh);
-    this.stamps.push({ mesh, start, at, worded, kind });
+    const stamp: Stamp = {
+      mesh,
+      start,
+      at,
+      worded,
+      kind,
+      ...(holdMs === undefined ? {} : { holdMs }),
+    };
+    this.stamps.push(stamp);
+    return stamp;
   }
 
   animate(now: number, unitsPerPixel: number): void {
@@ -383,7 +408,7 @@ export class InkLayer {
     const { mesh, start } = stamp;
     const age = now - start;
     if (stamp.worded) {
-      const at = stampAt(age, this.motion);
+      const at = stampAt(age, this.motion, stamp.holdMs, stamp.liftedAt ?? null);
       if (at === null) {
         unstamp(stamp);
         return false;
@@ -398,7 +423,7 @@ export class InkLayer {
       );
       return true;
     }
-    if (age >= LIFE_MS) {
+    if (age >= LIFE_MS || (stamp.liftedAt !== undefined && age >= stamp.liftedAt + LIFTED_MS)) {
       unstamp(stamp);
       return false;
     }

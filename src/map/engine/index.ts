@@ -309,6 +309,14 @@ export type PlacingSpot = {
 };
 
 /** A deposit the sweep names (#249), and when its front reaches it, in ms from its start. */
+/** **Où la caméra se tient** (#439) : le point visé, sa distance et le côté d'où elle regarde,
+ *  en unités du plateau — de quoi la rendre telle quelle. */
+export type CameraPose = {
+  readonly target: readonly [number, number, number];
+  readonly distance: number;
+  readonly orientation: readonly [number, number, number];
+};
+
 export type SweepTarget = { readonly id: string; readonly lonLat: LonLat; readonly hitMs: number };
 
 /**
@@ -406,6 +414,8 @@ const CAMERA_REST_MS = 180;
  * wait. Zoom does not move: only a cluster overflowing the field widens the view.
  */
 const JOURNEY_MS = 500;
+/** @a-mesurer : la marge autour des lieux que la caméra cadre, le `fit(…, 1.12)` de la maquette. */
+const TOUR_FRAME_MARGIN = 1.15;
 const SEARCH_AREA_MARGIN = 1.3;
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
@@ -863,6 +873,9 @@ export class MapEngine {
   /** **The first hand on the board, or the camera leaving** (#327): the stamps lift — all but
    *  those `stays` says a journey ends by. */
   onReportsLift?: ((stays?: (point: LonLat) => boolean) => void) | undefined;
+  /** **Une main sur la carte** — un appui, la molette, une touche (#439) : le rejeu d'absence
+   *  s'arrête. Le geste n'est pas avalé, il fait ce qu'il fait. */
+  onHandOnBoard?: (() => void) | undefined;
   /** **A press that begins on a report stamp** (#327) is not a press on the board: a tap on it
    *  selects nothing. */
   pressedOnStamp?: (() => boolean) | undefined;
@@ -1240,10 +1253,61 @@ export class MapEngine {
     this.ink.burst(burst, performance.now());
   }
 
-  /** The stamps of `kind` lifted from the board, as a replay that is left takes its own. */
-  liftStamps(kind: InkBurst['kind']): void {
+  /** The stamps of `kind`, or all of them, taken up in a quarter of a second: a replay that is
+   *  left takes its own, a gesture ends the absence tour's (#439). */
+  liftStamps(kind?: InkBurst['kind']): void {
     this.invalidate();
-    this.ink.lift(kind);
+    this.ink.lift(kind, performance.now());
+  }
+
+  /**
+   * **La caméra, lue** (#439) : sans lieu, où elle est ; avec, celle qui les cadre de la même
+   * orientation — à `distance` quand elle est dite, sinon juste assez loin pour les contenir.
+   */
+  cameraPose(places: ReadonlyArray<LonLat> = [], distance?: number): CameraPose {
+    const orientation = this.camera.position.clone().sub(this.controls.target);
+    // In flight, where it is going: the opening framing may still be on its way.
+    if (places.length === 0 && this.journey !== null)
+      return {
+        target: this.journey.arrival.toArray(),
+        distance: this.journey.arrivalDistance,
+        orientation: this.journey.orientation.toArray(),
+      };
+    if (places.length === 0)
+      return {
+        target: this.controls.target.toArray(),
+        distance: orientation.length(),
+        orientation: orientation.normalize().toArray(),
+      };
+    const points = places.map((place) => this.frame.projectLonLat(place));
+    const center = points
+      .reduce((sum, point) => sum.add(point), new Vector3())
+      .divideScalar(points.length);
+    const radius = Math.max(...points.map((point) => point.distanceTo(center)));
+    const framing = framingDistanceOf(
+      radius * TOUR_FRAME_MARGIN,
+      this.camera.fov,
+      this.camera.aspect,
+    );
+    return {
+      target: center.toArray(),
+      distance: Math.min(
+        this.controls.maxDistance,
+        Math.max(this.controls.minDistance, distance ?? framing),
+      ),
+      orientation: orientation.normalize().toArray(),
+    };
+  }
+
+  /** **La caméra, rendue** (#439) : un voyage de `durationMs`, coupé net hors des actives ; `lift`
+   *  monte le sujet au-dessus d'une feuille basse, comme `journeyTo`. */
+  poseCamera(pose: CameraPose, durationMs: number, lift = 0): void {
+    this.invalidate();
+    const orientation = new Vector3(...pose.orientation);
+    const arrival = new Vector3(...pose.target).add(
+      this.groundShift(0, -lift, pose.distance, orientation),
+    );
+    this.travel(arrival, orientation, pose.distance, durationMs);
   }
 
   /** **Le coup de ma batterie** (B20) : un trait d'encre droit d'elle au tampon, tenu puis levé
@@ -2286,6 +2350,7 @@ export class MapEngine {
       if (this.held !== null && this.gesture?.carrying !== true) this.tellCarryOver(null, 0, 0);
     });
     canvas.addEventListener('pointerdown', (event) => {
+      this.onHandOnBoard?.();
       this.journey = null;
       this.onReportsLift?.();
       this.fingerOnBoard = event.pointerType === 'touch';
@@ -2317,6 +2382,7 @@ export class MapEngine {
       this.refreshCursor();
     });
     canvas.addEventListener('wheel', () => {
+      this.onHandOnBoard?.();
       this.journey = null;
       this.onReportsLift?.();
     });
@@ -2537,6 +2603,7 @@ export class MapEngine {
    */
   pressOnLabel(labelId: string, event: PointerEvent): void {
     this.invalidate();
+    this.onHandOnBoard?.();
     if (this.gesture !== null) return;
     const gesture: Gesture = {
       pointerId: event.pointerId,
@@ -2849,6 +2916,7 @@ export class MapEngine {
   }
 
   private onKeyDown = (event: KeyboardEvent): void => {
+    this.onHandOnBoard?.();
     if (event.code !== 'Space' || isTyping()) return;
     // Without this, the page scrolls under the map on every press.
     event.preventDefault();

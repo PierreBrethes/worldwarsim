@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 82c4f4d -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 7f3ad04 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-105 valeurs marquées dans `convex/` et `src/domain/`.
+116 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -84,6 +84,15 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1322` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
 | `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1342` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
 | `BLITZ` | `{ startingFunds: 200, fundsPerMinute: { hq: 30, city: 15 } as Readonly<Partial<Record<BuildingKey, number>>>, rolePrice: { infantry: 60, landTransport: 90, armor: 180, artillery: 160, fighter: 200, bomber: 260, airTransport: 150, escort: 200, cargo: 140, carrier: 320 } as Readonly<Record<UnitRole, number>>, recruitMinutes: 0.8, /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */ troopBound: 80, mend: { stepMinutes: 0.8, /** La part de la force nominale rendue à chaque pas. */ sharePerStep: 0.1, /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */ priceShare: 0.5 }, map: { /** Le cercle des QG, posé sur la terre (A2) : son rayon en part du théâtre — 950 km en * Europe —, et l'écart cible entre QG en est la corde. */ hqRadius: 0.225, hqRadiusSpread: 0.5, /** Combien de tablées on tire au plus, chacune d'une région au hasard. */ hqDraws: 1000, /** Combien de tablées régulières on éprouve en entier (E6 : une douzaine) avant de refuser. */ hqTries: 12, /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */ hqEvenness: 0.6, /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */ tolerance: 0.35, /** La caserne de départ, à soi, à cette part du théâtre (A2) en route depuis le QG — 120 km * en Europe. */ starting: [{ key: 'barracks', share: 0.0284 }], /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous : 250, 450, * 350 et 400 km en Europe. */ near: [ { key: 'city', share: 0.0592 }, { key: 'city', share: 0.1065 }, { key: 'port', share: 0.0828 }, { key: 'airfield', share: 0.0947 }, ], /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */ disputed: ['city', 'airfield'], /** Le plus court écart à vol d'oiseau entre deux bâtiments posés — 80 km en Europe. */ spread: 0.0189, fairness: 0.8 } as const } as const` | `convex/constants.ts:1353` | toutes, posées pour qu'une partie de deux heures se lise sur le papier : le pécule |
+| `INTRO_MS` | `1400` | `src/domain/absence-tour.ts:18` | le minutage de la maquette (`scenes.js`, la tournée) — l'intro, un arrêt, un vol. |
+| `STOP_MS` | `1600` | `src/domain/absence-tour.ts:19` | le minutage de la maquette (`scenes.js`, la tournée) — l'intro, un arrêt, un vol. |
+| `FLY_MS` | `700` | `src/domain/absence-tour.ts:20` | le minutage de la maquette (`scenes.js`, la tournée) — l'intro, un arrêt, un vol. |
+| `REDUCED_LAND_MS` | `250` | `src/domain/absence-tour.ts:22` | réduites, pas de vol ; le tampon se pose un quart de seconde après l'arrêt. |
+| `LAST_HOLD_MS` | `1400` | `src/domain/absence-tour.ts:24` | du dernier tampon au retour, sous `SETTLE_MS` pour que le moteur ne s'endorme pas. |
+| `RETURN_MS` | `1400` | `src/domain/absence-tour.ts:26` | le vol du retour, et la bande de fin qui le suit. |
+| `END_BAND_MS` | `1600` | `src/domain/absence-tour.ts:27` | le vol du retour, et la bande de fin qui le suit. |
+| `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
+| `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
@@ -101,6 +110,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `HEARD_ON_RETURN` | `3` | `src/domain/front-sound.ts:149` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `PHRASE_GAP_MS` | `6_000` | `src/domain/front-sound.ts:150` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
+| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:46` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
+| `STAMP_MS` | `HOLD_MS + PEAK / LIFT_PER_MS` | `src/domain/ink-bursts.ts:47` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
 | `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:355` | deux, d'après la décision du 19/10, jamais joué |

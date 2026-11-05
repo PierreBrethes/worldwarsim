@@ -4,6 +4,8 @@
 'use no memo';
 
 import { SweepOverlay, type SweepRequest } from './SweepOverlay';
+import { AbsenceTourBand, useAbsenceTour } from './AbsenceTour';
+import type { AbsenceTour } from '@/domain/absence-tour';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
 import { ClusterSheet } from './ClusterSheet';
 import type { TourAct } from '@/domain/cargo-tag';
@@ -360,6 +362,13 @@ type Props = {
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien, et
    *  la carte cesse de dessiner (#189). */
   covered?: boolean;
+  /** **Le rejeu d'absence** (#439), figé à l'ouverture : il part quand la carte se voit. `lift`
+   *  monte chaque lieu au-dessus d'une feuille basse ; `onSeen` le marque vu. */
+  absenceTour?: {
+    readonly queue: (landAt: (at: LonLat) => boolean) => AbsenceTour | null;
+    readonly lift: number;
+    readonly onSeen: () => void;
+  } | null;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
   /**
@@ -558,6 +567,7 @@ export function WorldMap({
   selectionBar = null,
   tourLoops = NO_LOOPS,
   covered = false,
+  absenceTour = null,
   reveal = null,
   replay = null,
   onReplayStep,
@@ -1824,6 +1834,26 @@ export function WorldMap({
     };
   }, [dropReports]);
 
+  const noSeen = useCallback(() => {}, []);
+  const {
+    tour,
+    band: tourBand,
+    stop: stopTour,
+  } = useAbsenceTour(readyEngine, absenceTour?.queue ?? null, {
+    covered,
+    motion,
+    lift: absenceTour?.lift ?? 0,
+    onSeen: absenceTour?.onSeen ?? noSeen,
+  });
+  // A hand on the board stops it, and the gesture goes on doing what it does.
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.onHandOnBoard = stopTour;
+    return () => {
+      readyEngine.onHandOnBoard = undefined;
+    };
+  }, [readyEngine, stopTour]);
+
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());
   useEffect(() => {
@@ -1836,9 +1866,11 @@ export function WorldMap({
       )
         continue;
       combatsCued.current.set(combat.id, withView);
+      // A combat played live is what the map looks at: the absence tour gives way (#439).
+      stopTour();
       readyEngine.cue({ kind: 'combat', ...combat });
     }
-  }, [combats, readyEngine]);
+  }, [combats, readyEngine, stopTour]);
 
   // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.
   const aboardKnown = useRef<ReadonlyMap<string, string> | null>(null);
@@ -1948,6 +1980,7 @@ export function WorldMap({
     <div ref={container} className="relative h-full w-full overflow-hidden">
       <div aria-hidden className="map-veil" />
       <div aria-hidden className="map-grain" />
+      {tour !== null && tourBand !== null && <AbsenceTourBand tour={tour} band={tourBand} />}
       <MapLabels
         labels={labels}
         engine={readyEngine}

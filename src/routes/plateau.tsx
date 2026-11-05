@@ -205,6 +205,7 @@ import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { FirstStepsList, useFirstSteps } from './-plateau/FirstSteps';
 import { shownStepOf } from '@/domain/first-steps';
+import { absenceTourOf } from '@/domain/absence-tour';
 import { HandSheet } from './-plateau/HandSheet';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
@@ -2419,6 +2420,37 @@ function BoardContent({
     });
   }, [blitzTheatre, view.me.hqLevel, view.me.openingPoint, view.me.buildings]);
 
+  /**
+   * **Le rejeu d'absence** (#439) : ce qui est neuf depuis la dernière lecture, rejoué sur la
+   * carte. La file se fige à l'ouverture ; elle part quand la carte se voit, le cadrage
+   * d'ouverture posé. Une dépêche arrivée pendant ce temps a les tampons ordinaires.
+   */
+  const markToured = useMutation(api.journal.markToured);
+  const [absenceQueue] = useState(
+    () => (landAt: (at: LonLat) => boolean) =>
+      absenceTourOf(
+        view.journal,
+        { journalReadAt: view.journalReadAt, absenceTourAt: view.absenceTourAt },
+        {
+          mode: view.mode,
+          concluded: view.season.outcome.concludedAt !== null,
+          arrivedOnReport: report !== undefined,
+          firstStepsShown: shownStepOf(view) !== null,
+          defeated: view.me.defeated,
+          motion,
+        },
+        landAt,
+      ),
+  );
+  const absenceTour = useMemo(
+    () => ({
+      queue: absenceQueue,
+      lift: narrow ? sheetLift('peek') : 0,
+      onSeen: () => void markToured(seat).catch(() => undefined),
+    }),
+    [absenceQueue, narrow, markToured, seat],
+  );
+
   const editionServed = useRef(false);
   useEffect(() => {
     if (editionServed.current) return;
@@ -2910,6 +2942,7 @@ function BoardContent({
                   searchArea={searchArea}
                   fingerRose={fingerRose}
                   covered={narrow && sheets > 0}
+                  absenceTour={absenceTour}
                   reveal={reveal}
                   replay={replay}
                   onReplayStep={replayStep}
