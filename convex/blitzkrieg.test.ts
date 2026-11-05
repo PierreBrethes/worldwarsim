@@ -525,6 +525,16 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect((await t.run(async (ctx) => ctx.db.get(tanks[0]!)))!.stationedAt).toEqual(at(LIEGE));
   });
 
+  it('runs the leg once, whatever runs it twice', async () => {
+    const t = boot();
+    const { germany, liege, namur, tanks } = await scene(t);
+    const order = await attack(t, germany, tanks, liege, namur);
+    await arrive(t, order.movementId);
+    await t.mutation(internal.movements.pressOn, { movementId: order.movementId, troopIds: tanks });
+    expect(await blitzNotices(t, germany)).toMatchObject([{ outcome: 'onward' }]);
+    expect((await movements(t)).filter((movement) => movement.type === 'attack')).toHaveLength(1);
+  });
+
   it('halts a rider whose carrier stays behind instead of failing the leg', async () => {
     const t = boot();
     const { germany, liege, namur, tanks } = await scene(t);
