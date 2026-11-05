@@ -5,14 +5,21 @@
  * et régénère les affiches de `public/film/` depuis le film.
  *
  *     PLAYWRIGHT_DIR=/dossier/hors/dépôt npm run film -- [--decoupe wide|tall] \
- *       [--blitz <saison>] [--edition </edition/id>] [--sortie dossier] [--sans-manifeste] [--sans-affiche]
+ *       [--blitz <saison>] [--tanger <saison>] [--edition </edition/id>] [--sortie dossier] [--sans-manifeste] [--sans-affiche]
  *
- * **Une démo fraîche par découpe** : le film prend des ordres et des prises que la démo ne rejoue pas.
+ * **Une démo fraîche par découpe** (la dernière, ci-dessous, relancée avant chaque tournage) : le film
+ * prend des ordres et des prises que la démo ne rejoue pas. Le script pose lui-même les deux prises
+ * (`dev:captureSoon`, Narvik contesté, Tanger tenu) avant la première image, puis lit dans chaque
+ * page la bulle ou l'anneau que son plan doit montrer, la recharge deux fois au plus, et échoue sinon.
  * **Trois parties de démo** (`npm run demo:mondiale`, base locale, dans cet ordre) — la dernière
  * lancée est celle que lit le fichier des comptes, les deux autres se passent en option :
  *   1. `--blitz` : l'identifiant de la saison s'imprime (« saison … »), il va à `--blitz` ;
  *   2. `--conclue points` : son lieu `edition` va à `--edition` ;
- *   3. `--moments --accrochages --guet` : la Mondiale, lue dans `demo-mondiale.accounts.json`.
+ *   3. `--moments --accrochages --guet`, sa saison (« saison … ») va à `--tanger` : Tanger y est pris
+ *      pour le plan 6 — la prise d'un quatrième des Sept lance la course, et la bulle de Narvik ne dit
+ *      plus « contesté » dans la même partie ;
+ *   4. `--moments --accrochages --guet` encore, la dernière : la Mondiale, lue dans
+ *      `demo-mondiale.accounts.json` (Narvik contesté, la pile, la nuit).
  * Les films vont dans `public/media/` (ignoré par git, règle plan-4b : `deploiement/README.md`,
  * « Médias »), sauf `--sortie`. La machine est au calme : un seul Chromium, nul vérifieur, nul banc.
  *
@@ -65,19 +72,22 @@ const accounts = JSON.parse(
 );
 const account = accounts.a;
 const places = accounts.places;
-/** Les sièges de la Mondiale de la démo : la France (a) et le Royaume-Uni (b). */
-const seats = Object.fromEntries(
-  execFileSync('npx', ['convex', 'data', 'players', '--limit', '200', '--format', 'jsonl'], {
-    cwd: root,
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .filter((line) => line.startsWith('{'))
-    .map((line) => JSON.parse(line))
-    .filter((row) => row.seasonId === accounts.seasonId)
-    .map((row) => [row.nation, row._id]),
-);
+/** Les sièges d'une saison de la démo, par nation : la France (a) et le Royaume-Uni (b). */
+const seatsOf = (seasonId) =>
+  Object.fromEntries(
+    execFileSync('npx', ['convex', 'data', 'players', '--limit', '200', '--format', 'jsonl'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((line) => line.startsWith('{'))
+      .map((line) => JSON.parse(line))
+      .filter((row) => row.seasonId === seasonId)
+      .map((row) => [row.nation, row._id]),
+  );
 const BLITZ = option('blitz');
+/** La saison de Tanger : une autre partie de la démo que celle de Narvik (voir l'en-tête). */
+const TANGER = option('tanger');
 
 /**
  * **Les premiers pas, passés** : leur bulle (« Dépliez le plateau personnel ») est une leçon de la
@@ -98,7 +108,7 @@ async function skipFirstSteps() {
     nickname: account.nickname,
     password: account.password,
   });
-  for (const seasonId of [accounts.seasonId, BLITZ])
+  for (const seasonId of [accounts.seasonId, TANGER, BLITZ])
     await client
       .mutation(api.firstSteps.show, { token, seasonId, shown: 'skipped' })
       .catch((error) => console.log(`[premiers pas] ${seasonId} : ${String(error).slice(0, 80)}`));
@@ -106,7 +116,7 @@ async function skipFirstSteps() {
   await new Promise((done) => setTimeout(done, 3500));
 }
 const EDITION = option('edition');
-if (!BLITZ || !EDITION)
+if (!BLITZ || !EDITION || !TANGER)
   throw new Error("--blitz <saison> et --edition </edition/id> : voir l'en-tête");
 
 /** Le plan : sa clé de sous-titre (`fr.film.subtitles`) et sa durée, en secondes. */
@@ -129,6 +139,11 @@ const CUTS = {
   tall: { width: 390, height: 844, density: 2, file: 'accueil-9x16.webm', kbps: 950 },
 };
 const FPS = 25;
+/** La prise de Narvik : à moitié faite au plan 5, achevée après le film ; plus longue, la vue ne la dit pas contestée. */
+const NARVIK_CAPTURE_S = 100;
+/** Une prise de la démo, posée par `dev:` (le serveur local). */
+const lay = (fn, payload) =>
+  run('npx', ['convex', 'run', `dev:${fn}`, JSON.stringify(payload)], { cwd: root });
 /** Le poids qu'une découpe ne dépasse pas. */
 const MAX_BYTES = 4 * 1024 * 1024;
 
@@ -440,19 +455,75 @@ async function shoot(name) {
   const tanger = places.tanger;
 
   /**
-   * Trois pages ouvertes avant la première image, les deux autres à l'approche de leur plan : cinq
-   * vues du même joueur à la fois font tomber le serveur local, et la carte dit alors « liaison
-   * interrompue ».
+   * **Les deux prises sont posées avant la première image**, pas pendant : les pages les lisent à
+   * leur chargement, sans dépendre d'une ligne vivante que le film chargerait. Narvik : une prise
+   * britannique en cours (`NARVIK_CAPTURE_S` secondes, la moitié faite au plan 5 environ : au-delà de ~100 s, la vue ne la
+   * montre pas encore contestée) ; Tanger :
+   * prise française achevée, son anneau de vingt-quatre heures court.
    */
+  await lay('captureSoon', {
+    playerId: seatsOf(accounts.seasonId).uk,
+    point: 'narvik',
+    inSeconds: NARVIK_CAPTURE_S,
+  });
+  await lay('captureSoon', {
+    playerId: seatsOf(TANGER).france,
+    point: 'tangier',
+    inSeconds: 3,
+  });
+  await new Promise((done) => setTimeout(done, 6000));
+
+  const narvikEye = {
+    spec: { lon: narvik[0], lat: narvik[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
+    sun: sunMs(11),
+  };
+  const tangerEye = {
+    spec: { lon: tanger[0], lat: tanger[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
+    sun: sunMs(21.5),
+  };
   const front = await openPage(context, mondiale, { eye: { spec: europe, sun: sunMs(12) } });
   const piece = await openPage(context, mondiale, { eye: { spec: around, sun: sunMs(12) } });
-  const seven = await openPage(context, mondiale, {
-    eye: {
-      spec: { lon: narvik[0], lat: narvik[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
-      sun: sunMs(11),
-    },
-  });
-  console.log('[prépa] front, piece, seven');
+  const seven = await openPage(context, mondiale, { eye: narvikEye });
+  const tangerPath = `/plateau?season=${TANGER}&${forced}`;
+  const day = await openPage(context, tangerPath, { eye: tangerEye });
+  /**
+   * **Ce que le plan doit montrer, lu dans la page avant la première image** : la bulle « contesté »
+   * de Narvik, l'anneau de vingt-quatre heures de Tanger. Absent, la page se recharge, deux fois au
+   * plus, puis le tournage échoue en le disant : un film qui sort est un film juste.
+   */
+  const SEEN = {
+    narvik: ['Narvik', /narvik\s+contest/i],
+    tanger: ['Tanger', /tanger\s+france\s+\d+\s*h\s*\d+/i],
+  };
+  const ensure = async (page, eye, what, path) => {
+    const [label, pattern] = SEEN[what];
+    for (let reloads = 0; ; reloads++) {
+      await page.evaluate(([spec, sun]) => globalThis.__rig.frame(spec, sun), [eye.spec, eye.sun]);
+      await page.waitForTimeout(2200);
+      const seen = await page.evaluate(
+        ([source]) => new RegExp(source, 'i').test(globalThis.document.body.innerText),
+        [pattern.source],
+      );
+      if (seen) return console.log(`[vérifié] ${label} lisible (${reloads} rechargement)`);
+      const text = await page.evaluate(
+        ([word]) => {
+          const found = globalThis.document.body.innerText.match(
+            new RegExp(word + '[^]{0,60}', 'i'),
+          );
+          return found ? found[0].split('\n').join(' | ') : 'rien';
+        },
+        [label],
+      );
+      console.log(`[vérif] ${label} : ${text}`);
+      if (reloads === 2)
+        throw new Error(`${label} : la bulle ou l'anneau manque après 2 rechargements`);
+      console.log(`[vérif] ${label} absent : rechargement ${reloads + 1}`);
+      await openPage(context, path, { eye }, page);
+    }
+  };
+  await ensure(seven, narvikEye, 'narvik', mondiale);
+  await ensure(day, tangerEye, 'tanger', tangerPath);
+  console.log('[prépa] front, piece, seven, day');
   const reel = new Reel(context, cutting, out);
   const starts = [];
   let clock = 0;
@@ -473,16 +544,6 @@ async function shoot(name) {
       ),
     );
   const [mapAt, nightAt, pieceAt, orderAt, sevenAt, dayAt, editionAt, blitzAt] = starts;
-
-  /** Les prises de la démo, lancées sans bloquer la pellicule : Narvik contesté, Tanger qui tombe. */
-  const convex = (fn, payload) =>
-    run('npx', ['convex', 'run', `dev:${fn}`, JSON.stringify(payload)], { cwd: root }).then(
-      () =>
-        console.log(
-          `[${fn}] ${payload.point} : posée à t=${((Date.now() - reel.begun) / 1000).toFixed(1)}`,
-        ),
-      (error) => console.log(`[${fn}] ${error.message}`),
-    );
 
   await reel.prime(front);
   await reel.switchTo();
@@ -521,10 +582,6 @@ async function shoot(name) {
       eye: { spec: { lon: 22, lat: 38, d: tall ? 120 : 85, p: 48 }, sun: sunMs(12) },
     }),
   );
-  // La Mondiale de la démo est jouée par la France ; le Royaume-Uni (b) prend Narvik, la France Tanger.
-  void convex('captureSoon', { playerId: seats.uk, point: 'narvik', inSeconds: length + 30 });
-  void convex('captureSoon', { playerId: seats.france, point: 'tangier', inSeconds: dayAt - 2.5 });
-
   // 1. La carte du monde réel : l'Europe de haut, au jour, la caméra descend vers la Manche.
   at(mapAt, () =>
     front.evaluate(
@@ -542,7 +599,7 @@ async function shoot(name) {
   );
 
   // 3. Pièce en main : on lève la pile et on la porte jusqu'au sol visé, sans la poser.
-  cutTo(pieceAt, piece, null);
+  cutTo(pieceAt, piece, front);
   at(pieceAt + 0.1, async () => {
     const grab = await piece.evaluate((lonLat) => globalThis.__rig.screenOf(lonLat), pile);
     const to = await piece.evaluate((lonLat) => globalThis.__rig.screenOf(lonLat), drop);
@@ -570,41 +627,11 @@ async function shoot(name) {
   cutTo(sevenAt, seven, piece);
 
   // 6. Vingt-quatre heures : Tanger, de nuit, vient de tomber ; l'anneau compte.
-  /**
-   * Les étiquettes (la bulle, l'anneau) ne se posent qu'au repos de la caméra : Narvik et Tanger
-   * sont cadrés une fois pour toutes, à trois unités du point, sur deux pages qui attendent leur
-   * plan. Tanger prend la page de l'ouverture, libre depuis qu'elle a cédé la place à la pièce.
-   */
-  const tangerEye = {
-    spec: { lon: tanger[0], lat: tanger[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
-    sun: sunMs(21.5),
-  };
-  const narvikEye = {
-    spec: { lon: narvik[0], lat: narvik[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
-    sun: sunMs(11),
-  };
-  /**
-   * La ligne d'une page qui attend peut tomber (le serveur local, chargé par le film) : la vue
-   * reste alors celle d'avant, sans prise ni anneau. On le revoit juste avant son plan, et la page
-   * se recharge cadrée si c'est le cas.
-   */
-  const revive = async (page, eye) => {
-    if ((await page.getByText('liaison interrompue').count()) === 0) return;
-    console.log('[liaison] page rechargée avant son plan');
-    await openPage(context, mondiale, { eye }, page);
-  };
-  at(8, async () => {
-    await front.evaluate(
-      ([spec, sun]) => globalThis.__rig.frame(spec, sun),
-      [tangerEye.spec, tangerEye.sun],
-    );
-    await revive(front, tangerEye);
-  });
-  at(9, () => revive(seven, narvikEye));
-  cutTo(dayAt, front, seven);
+  // La page de Tanger attend, cadrée et vérifiée, depuis la préparation.
+  cutTo(dayAt, day, seven);
 
   // 7. L'édition finale : la une, puis la carte de la fin ; la page défile lentement.
-  cutTo(editionAt, editionOpen, front);
+  cutTo(editionAt, editionOpen, day);
   at(editionAt + 0.1, async () => {
     const edition = await editionOpen;
     const scrollTotal = tall ? 520 : 380;
