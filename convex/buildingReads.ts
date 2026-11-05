@@ -4,8 +4,6 @@ import { buildCost, respecialtyBill, type Costs } from './constants';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 import { inService } from '../src/domain/loot';
 
-export { inService };
-
 // A completed legacy queue entry changes its building key, never its paid tariff.
 export const buildingCostKey = (building: Doc<'buildings'>): BuildingKey =>
   building.costKey ?? building.key;

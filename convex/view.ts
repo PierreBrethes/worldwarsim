@@ -35,7 +35,7 @@ import {
   type UnitRole,
 } from '../src/domain/ids';
 import { outputShareOf } from '../src/domain/economy';
-import { carryCapacityOf } from '../src/domain/loot';
+import { carryCapacityOf, inService } from '../src/domain/loot';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import {
@@ -50,7 +50,6 @@ import {
 import {
   buildingCostKey,
   cappedByHq,
-  inService,
   levelOf,
   playerBuildings,
   queueOf,
