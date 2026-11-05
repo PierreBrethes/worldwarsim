@@ -37,6 +37,16 @@ describe('the fuel gauge under the hand', () => {
     expect(markup.match(/fuel-step--short/g)).toHaveLength(6);
     expect(markup).toContain('manque 24');
   });
+
+  it('counts a new course in what the stock pays past the paid fuel (#449)', () => {
+    const count = (fuel: DropFuel) =>
+      renderToStaticMarkup(<DropHintChip hint={hint} fuel={fuel} ref={null} />)
+        .match(/<span class="fuel-count"[^>]*>(.*?)<\/span>/)?.[1]
+        ?.replace(/<[^>]+>/g, '');
+    const truk = gauge({ resource: 'oil', held: 4, full: 6, eaten: 13, paid: 11 });
+    expect(count(truk)).toBe('+2 pétrole · 11 déjà payés');
+    expect(count(gauge({ resource: 'oil', eaten: 9, paid: 11 }))).toBe('plein : 9 / 11 déjà payés');
+  });
 });
 
 describe('a road the server refuses', () => {

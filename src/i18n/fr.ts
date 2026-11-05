@@ -4580,6 +4580,8 @@ export const fr = {
     halfway: (at: string) => `mi-parcours · ${at}`,
     elbow: (at: string) => `cap changé · ${at}`,
     paid: (steps: number) => `${steps} déjà payé${steps > 1 ? 's' : ''}`,
+    surplus: (steps: number, resource: string) => `+${steps} ${resource}`,
+    within: (steps: number) => `plein : ${steps} /`,
     keys: 'relâcher : nouveau cap, même slot · une seule fois · Échap annule',
     keysTouch: 'lever le doigt : nouveau cap, même slot · une seule fois',
     sent: 'Nouveau cap',

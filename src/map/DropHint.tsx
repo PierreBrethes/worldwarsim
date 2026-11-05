@@ -103,7 +103,8 @@ export type DropFuel = FuelGauge & { readonly roundTrip: boolean };
 function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
   /** **Ce que l'ancienne route a payé et pas couru** (Doctrine du porte-avions, #449) : la route
    *  neuve le mange d'abord, cerclé d'ocre, et le réservoir ne paie que le surplus. */
-  const paid = Math.min(fuel.paid ?? 0, fuel.eaten);
+  const credit = fuel.paid ?? 0;
+  const paid = Math.min(credit, fuel.eaten);
   const eaten = Math.min(fuel.eaten - paid, fuel.held);
   const kept = fuel.held - eaten;
   /** Singapore's steps stay in the tube when the fuel holds them; past it, they are the spill the
@@ -153,9 +154,20 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
         </span>
       )}
       <span className={`fuel-count${fuel.short > 0 ? ' fuel-count--short' : ''}`} aria-hidden>
-        {fuel.held} → {kept}
+        {/* Un cap neuf dit ce que le stock paie au-delà du plein déjà payé (maquette A). */}
+        {credit === 0 ? (
+          `${fuel.held} → ${kept}`
+        ) : fuel.eaten > credit ? (
+          <>
+            {fr.course.surplus(fuel.eaten - credit, fr.resources[fuel.resource])}
+            <small> · {fr.course.paid(credit)}</small>
+          </>
+        ) : (
+          <>
+            {fr.course.within(fuel.eaten)} <small>{fr.course.paid(credit)}</small>
+          </>
+        )}
         {fuel.short > 0 && ` · ${fr.supplies.lacking(fuel.short)}`}
-        {paid > 0 && <small> · {fr.course.paid(paid)}</small>}
         {fuel.roundTrip && <small> · {fr.supplies.roundTrip}</small>}
       </span>
     </span>
