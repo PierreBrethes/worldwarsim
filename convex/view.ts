@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { surveyedOutposts, surveysWithInstallations } from './surveys';
 import { query } from './_generated/server';
 import { foundationMinutes, worksMinutes } from '../src/domain/level-speed';
 import { DEFAULT_HQ_CAPTURE_HOURS } from '../src/domain/operation-order';
@@ -10,6 +11,7 @@ import {
   seasonPoints,
 } from './strategicPoints';
 import { slotsTaken } from './movement/orders';
+import { onMission } from './movement/course';
 import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { batteryReadyAt } from './movement/bombard';
@@ -54,6 +56,8 @@ import {
   queueOf,
   totalLevelOf,
 } from './buildingReads';
+import { siegesOf, siegeTargetsOf } from './buildings';
+import { besieged } from '../src/domain/construction';
 import {
   FOUNDER_ABSENCE_NOTICE_HOURS,
   MAX_PLAYERS,
@@ -224,19 +228,26 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const recruiting = await recruitmentsOf(ctx, player._id);
 
   const served = await outpostsServed(ctx, season._id, outposts);
+  /** Le refus de démantèlement sous capture, servi comme `serving` : la même lecture que la
+   *  mutation (`siegeTargetsOf`, `besieged`). */
+  const sieges = await siegesOf(ctx, player._id);
+  const ownBuildings = await playerBuildings(ctx, player._id);
   const outpostRows = outposts.map((outpost) => ({
     outpost,
     serving: served.has(outpost._id),
+    underSiege: besieged(sieges, siegeTargetsOf(outpost, ownBuildings)),
   }));
   const movements = await movementsOf(ctx, player._id);
-  const surveyed = (
-    await ctx.db
-      .query('regionSightings')
-      .withIndex('byPlayerHasInstallations', (q) =>
-        q.eq('playerId', player._id).eq('hasInstallations', true),
-      )
-      .collect()
-  ).flatMap((survey) =>
+  const surveys = await surveysWithInstallations(ctx, player._id);
+  /** **Les avant-postes étrangers relevés** (ADR 0039 §3) : ce que la ligne garde, rien de la
+   *  ligne vivante. */
+  const surveyedOutpostRows = surveyedOutposts(surveys).map((outpost) => ({
+    id: outpost.outpostId as string,
+    regionId: outpost.regionId,
+    point: [outpost.point.lon, outpost.point.lat] as LonLat,
+    hostCountry: outpost.hostCountry,
+  }));
+  const surveyed = surveys.flatMap((survey) =>
     (survey.installations ?? []).map((installation) => ({
       id: installation.buildingId,
       key: canonicalBuildingKey(installation.key),
@@ -606,6 +617,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * to be able to say out loud.
        */
       foundation: blitz ? [] : foundationOwedBy(player, buildings),
+      evacuated: player.evacuated ?? [],
       buildings: buildings.map((building) => ({
         // The instance, not the key: a nation can hold three barracks, and a link that
         // carried `barracks` would open the one in Normandy for a click in Brittany.
@@ -673,6 +685,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
               minutes: construction.minutes,
               level: construction.level,
+              kept: construction.kept,
               ...specialtyOfWork(construction),
             }
           : null,
@@ -692,6 +705,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               ? null
               : ([entry.point.lon, entry.point.lat] as [number, number]),
           level: entry.level,
+          kept: entry.kept,
           ...specialtyOfWork(entry),
         })),
       armyPresent,
@@ -810,7 +824,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
        * until something else can move one. It is an address and nothing more: what a garrison
        * *does* when attacked is the combat pass's to say.
        */
-      outposts: outpostRows.map(({ outpost, serving }) => ({
+      outposts: outpostRows.map(({ outpost, serving, underSiege }) => ({
         id: outpost._id,
         hostCountry: outpost.hostCountry,
         lonLat: [outpost.point.lon, outpost.point.lat] as [number, number],
@@ -838,6 +852,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
          *  servi plutôt que redérivé, le refus de démantèlement de l'écran et celui du serveur
          *  lisent la même réponse. */
         serving,
+        /** Une capture court sur lui ou un bâtiment qu'il ancre (#450). */
+        besieged: underSiege,
         /** **Ce qu'une élévation coûterait**, servi comme celui d'un bâtiment : les nombres
          *  d'équilibrage ont une seule maison (précision du 15/09). Au dernier niveau il n'y a
          *  pas de suivant — la facture est vide et le panneau dit « niveau maximal ». */
@@ -919,6 +935,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
      *  `clipToStorage` applique après doivent soustraire le même nombre. */
     storageCapPerLevel: STORAGE_CAP_PER_LEVEL,
     surveyedInstallations,
+    surveyedOutposts: surveyedOutpostRows,
     lootSightings: lootSightings
       .filter((sighting) => sighting.seasonId === season._id)
       .map((sighting) => ({
@@ -1013,6 +1030,22 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           mission,
           /** **Une livraison** (ADR 0028 §4), dite au seul propriétaire de la marche. */
           delivery: movement.delivery !== undefined,
+          /** **La Doctrine du porte-avions** (ADR 0039 §4) : ce que `courseRefusalOf` lit de la
+           *  ligne, et le coude d'un cap déjà changé, avec la route courue avant lui. */
+          onMission: onMission(movement),
+          courseChange: movement.courseChange ?? null,
+          /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6), au seul propriétaire : son
+           *  point, son nom et la route prévue depuis la première, que le fil tient en suspens. */
+          then:
+            movement.blitzkrieg === undefined
+              ? null
+              : {
+                  point: movement.blitzkrieg.point,
+                  name:
+                    regionNameAt(pointOf(movement.blitzkrieg.point)) ??
+                    movement.blitzkrieg.hostCountry,
+                  points: movement.blitzkrieg.points,
+                },
           /** **Un largage** (ADR 0028 §4) : le fil de l'avion ne se pose qu'à sa base. */
           ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop.leg }),
           roles: movement.troopIds.flatMap((troopId) => {
@@ -1168,6 +1201,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
     journalReadAt: marks.journalReadAt,
+    /** The end or the stop of the last absence tour (#439), `null` before the first. */
+    absenceTourAt: marks.absenceTourAt,
     /** The last opening of the personal board and the stocks it showed: the harvest of the
      *  next one is read against them. */
     boardRead: marks.boardRead,

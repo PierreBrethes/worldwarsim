@@ -85,6 +85,17 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    recouvrement. Le passage suit la caméra, comme aujourd'hui : le bâtiment et la cour rétrécissent
    sur leur pied pendant que le signe grandit, sans transparence.
 
+   > **Amendé le 05/11/2026** (#465, décisions de Pierre) : un site passe en épingle **au seuil
+   > des piles**, quelle que soit la taille de son socle : le plancher des troupes (ADR 0035 §10,
+   > `FLOOR_SPAN`), lu par `pieceStands` pour la maquette, l'épingle et la plaque à la fois. Il
+   > reste entier jusqu'à d ≈ 30 et se fond dans son épingle vers d ≈ 35, comme mes piles. La
+   > phase « socle et signe seuls » disparaît, et avec elle le cartouche de cette phase, le signe
+   > grandi (aucun signe ne descend sous 12 px avant le seuil) et la lecture du diorama à 64 px :
+   > tout le site rétrécit d'un seul poids. Pierre accepte le saut d'un grand socle vers le carré
+   > de 8 px. L'épingle est le carré sobre (#234, #441), garnison au-delà de 1 ; le picto ne vient
+   > que dans l'étiquette d'un accrochage, le niveau seulement sur la fiche. Un bâtiment rasé au
+   > loin fait tomber son épingle, comme un avant-poste démantelé.
+
 8. **Le socle et la cour n'ont pas de mètres réels** (écart à l'ADR 0035, accepté) : ils
    agrandissent l'emprise d'un site de 30 à 60 % au sol (la caserne passe de 65 à 80 m), pas le
    bâtiment. Une figurine se mesure toujours au bâtiment, jamais au socle.

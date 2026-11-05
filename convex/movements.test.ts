@@ -37,6 +37,7 @@ import {
   foundSeat,
   joinSeat,
   placeHq,
+  raiding,
   seatIn,
   surveyCamp,
   surveyRegion,
@@ -1583,7 +1584,7 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     /** La garnison encaisse ×0,7 (C1) : entière, elle tiendrait — à trente, la frappe la casse. */
     await t.run(async (ctx) => ctx.db.patch(held, { currentStrength: 30 }));
 
-    await t.mutation(api.movements.raid, {
+    await raiding(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [first, second],
@@ -1666,7 +1667,7 @@ describe('a raid deactivates an outpost, it never takes it', () => {
     const troop = await form(t, seat, 'infantry', barracks);
     const outpostId = await plant(t, guest, prahovaPoint(), 'ROU');
 
-    await t.mutation(api.movements.raid, {
+    await raiding(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [troop],
@@ -3434,7 +3435,7 @@ describe('a posted force never starts a pass at a distance', () => {
     const neighbour = await plant(t, guest, eastOf(aimed, 20), 'ROU');
     const watching = await garrison(t, guest, neighbour);
 
-    await t.mutation(api.movements.raid, {
+    await raiding(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: column,

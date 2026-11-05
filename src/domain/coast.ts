@@ -21,6 +21,8 @@ import type { Projection } from './world';
 export type CoastAsset = {
   readonly quantum: number;
   readonly ids: ReadonlyArray<string>;
+  /** The regions with an open-sea coast: `ids` also ranks the lakes' and the cell-less regions'. */
+  readonly coastal: ReadonlyArray<string>;
   /** The country of each id, as the region raster's host channel names it. */
   readonly countries: ReadonlyArray<string>;
   /**

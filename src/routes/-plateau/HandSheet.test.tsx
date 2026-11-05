@@ -73,6 +73,36 @@ describe('HandSheet', () => {
     expect(screen.queryByText(fr.garrison.prepare)).toBeNull();
   });
 
+  it('says why a blitzkrieg left its troops standing there (#451)', () => {
+    const stood = {
+      text: 'reste à Liège — plus de coups',
+      reread: 'relu à 13:10',
+      troopIds: ['tank'],
+    };
+    render(
+      <HandSheet
+        view={
+          {
+            me: { nation: 'germany', stationedCargo: [], troops: [], upkeep: { troops: 2 } },
+            journal: [{ stood }],
+          } as unknown as PlayerView
+        }
+        station={station}
+        place="Liège"
+        held={[troop('tank', 'armor')]}
+        troopIds={['tank']}
+        onCompose={() => {}}
+        onDisembark={() => {}}
+        founding={null}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+        onApproach={() => {}}
+      />,
+    );
+    expect(screen.getByText(stood.text)).toBeTruthy();
+    expect(screen.getByText(stood.reread)).toBeTruthy();
+  });
+
   it('reads the statistics of the troops it holds, and no longer a bare detection range', () => {
     const held = [troop('inf', 'infantry'), troop('tank', 'armor')];
     const { container } = render(

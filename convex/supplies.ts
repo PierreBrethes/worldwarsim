@@ -190,11 +190,29 @@ export async function passingEstimate(
 
 /** **Les Magasins que la route traverse au départ** : l'arrivée dit ceux qui n'ont rien donné,
  *  capturés ou fermés en route. Un Magasin adverse n'y est jamais : il ne se nomme pas. */
+/**
+ * **Toute la route courue**, le tronçon d'avant un cap changé compris (#449) : un Magasin longé
+ * avant le coude se règle à l'arrivée, comme les autres. ponytail: une seule allure du départ
+ * ancien à l'arrivée, sans les jambes — une flotte ne change pas de milieu ; les jambes et la
+ * reprise d'un Fort si un jour un cap change à terre.
+ */
+export const roadRun = (movement: Doc<'movements'>): MarchingForce => {
+  const turn = movement.courseChange;
+  if (turn?.since === undefined) return marchingForce(movement);
+  return {
+    id: movement._id,
+    points: [...turn.ran, ...movement.points].map(pointOf),
+    departedAt: turn.since,
+    arrivesAt: movement.arrivesAt,
+    ...(movement.heldAt === undefined ? {} : { heldAt: movement.heldAt }),
+  };
+};
+
 export async function storesCrossed(ctx: MutationCtx, movementId: Id<'movements'>): Promise<void> {
   const movement = await ctx.db.get(movementId);
   if (movement === null) return;
   const stores = passingResupply(
-    marchingForce(movement),
+    roadRun(movement),
     await activeStoresOf(ctx, movement.playerId, movement.departedAt),
     [],
   ).map((take) => take.id);
@@ -217,7 +235,7 @@ export async function resupplyInPassing(
   );
   const stores = await activeStoresOf(ctx, movement.playerId, now);
   const takes = passingResupply(
-    { ...marchingForce(movement), arrivesAt: movement.heldAt ?? movement.arrivesAt },
+    { ...roadRun(movement), arrivesAt: movement.heldAt ?? movement.arrivesAt },
     stores,
     troops.map((troop) => ({ ...troop, id: troop._id })),
   );

@@ -34,6 +34,7 @@ import {
   assaultStepAt,
   captureShareAt,
   dayInstant,
+  LANDING_LIGHTS,
   NIGHT_CITIES,
   nightInstant,
   RACE_POINTS,
@@ -291,7 +292,15 @@ export class LandingTable {
       desk.position.copy(paper.position).setY(-0.07);
       desk.receiveShadow = true;
       this.scene.add(paper, desk);
-      this.night = new NightSky(this.scene, this.frame, null, this.surface(), LANDING_SKY, true);
+      this.night = new NightSky(
+        this.scene,
+        this.frame,
+        null,
+        this.surface(),
+        LANDING_LIGHTS,
+        LANDING_SKY,
+        true,
+      );
 
       addEventListener('resize', this.resize);
       canvas.addEventListener('pointerdown', this.onDown);

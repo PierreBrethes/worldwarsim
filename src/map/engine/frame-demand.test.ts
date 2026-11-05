@@ -173,8 +173,14 @@ describe('every public method of the engine asks for a frame', () => {
     'pieceRect',
     'ownsPile',
     'screenOf',
+    'nameSpots',
     'subscribeRest',
+    'markRects',
+    /** The decor's names are a canvas of their own, painted at the rest that reserved them. */
+    'reserveNames',
     'cameraDistance',
+    'cameraPose',
+    'settlesIn',
     'sweepOrigin',
     'atZoomFloor',
     'countryAtPoint',
@@ -322,6 +328,15 @@ describe('a dismantling is declared to the loop (#340)', () => {
     const pins = source.slice(source.indexOf('  displayPins('));
     expect(pins.slice(0, pins.indexOf('\n  }\n'))).toMatch(
       /razedOf\(this\.dismantling, pins\)[\s\S]*this\.pins\.leave\([\s\S]*this\.pins\.display\(pins\)/,
+    );
+    // A building razed from afar lets its pin tip the same way, by the same id (#465).
+    expect(pins.slice(0, pins.indexOf('\n  }\n'))).toMatch(
+      /razedOf\(this\.razing, pins\)[\s\S]*this\.pins\.leave\([\s\S]*this\.pins\.display\(pins\)/,
+    );
+    // In reduced motion the pin does not tip: a building razed from afar is ringed in ink where
+    // it stood, as a raze up close is (#465).
+    expect(pins.slice(0, pins.indexOf('\n  }\n'))).toMatch(
+      /this\.pins\.leave\([\s\S]*this\.maquettes\.wholeOf\([\s\S]*this\.razes\.play\(/,
     );
     const erase = source.slice(source.indexOf('  eraseReach('));
     expect(erase.slice(0, erase.indexOf('\n  }\n'))).toMatch(

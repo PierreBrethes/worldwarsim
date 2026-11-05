@@ -3,7 +3,7 @@ import { buildLabels, type MapMarker } from './labels';
 import { posterOf, type Poster } from './map-poster';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
-import { stackLabel } from '@/i18n/fr';
+import { fr, stackLabel } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import type { WorkSite } from './construction';
 
@@ -180,6 +180,43 @@ describe('posterOf', () => {
     expect(posterFor(view(), [empty], 'pile')).toBeNull();
   });
 
+  it('says on the pile a blitzkrieg left standing why it stayed (#451)', () => {
+    const at = { kind: 'point', lonLat: [3, 3] } as const;
+    const troop = {
+      id: 't1',
+      role: 'armor',
+      tier: 1,
+      strength: 100,
+      nominalStrength: 100,
+      stationedAt: at,
+      supplied: true,
+    };
+    const pile = {
+      kind: 'stack',
+      id: 'pile',
+      lonLat: [3, 3],
+      station: at,
+      stack: { armor: 1 },
+      place: 'Aisne',
+      plate: null,
+      pieces: { groups: [], troopIds: ['t1'], squad: false },
+      ink: '#2f4f78',
+    } as unknown as MapMarker;
+    const stood = {
+      text: 'reste à Liège — plus de coups',
+      reread: 'relu à 13:10',
+      troopIds: ['t1'],
+    };
+    const v = {
+      ...view({ me: { ...me, troops: [troop] } as unknown as PlayerView['me'] }),
+      journal: [{ place: null, stood }],
+    } as unknown as PlayerView;
+    expect(posterFor(v, [pile], 'pile')?.lines.slice(0, 2)).toEqual([
+      { kind: 'text', text: stood.text, tone: 'alarm' },
+      { kind: 'text', text: stood.reread },
+    ]);
+  });
+
   it('says on its kicker what the pile is: how many troops, or one, whole or worn', () => {
     const at = { kind: 'point', lonLat: [3, 3] } as const;
     const troop = (id: string, strength: number) => ({
@@ -286,6 +323,33 @@ describe('posterOf', () => {
       kind: 'row',
       label: 'Marne → Meuse',
       value: asClockTime(LOADED_AT + 90 * 60_000),
+    });
+  });
+
+  it('says on its poster how long a Japanese fleet at sea keeps its course free (#449)', () => {
+    const fleet: ArcView = {
+      state: 'mine',
+      id: 'fleet',
+      from: [140, 30],
+      to: [150, 30],
+      route: directRoute([140, 30], [150, 30], 'sea', 10),
+      originLabel: '',
+      destinationLabel: '',
+      type: 'march',
+      stack: { carrier: 1 },
+      troopIds: [],
+      schedule: {
+        departedAt: LOADED_AT - 30 * 60_000,
+        arrivesAt: LOADED_AT + 90 * 60_000,
+        heldAt: null,
+        holdUntil: null,
+      },
+    };
+    const japanese = view({ arcs: [fleet], me: { ...me, asset: 'carrierDoctrine' } });
+    expect(posterFor(japanese, [], 'fleet')?.lines).toContainEqual({
+      kind: 'text',
+      text: fr.course.free(asClockTime(LOADED_AT + 30 * 60_000)),
+      tone: 'free',
     });
   });
 

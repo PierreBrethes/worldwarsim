@@ -110,3 +110,138 @@
   zoom: var(--hud-scale);
   pointer-events: auto;
 }
+
+/* **Les accrochages** (#441, maquette `carte-lisible` C) : le numéro sur le cercle, le
+   cartouche et son fil, le jeton au bord. Le cercle est au moteur (`contact-rings.ts`). */
+.contact-marks {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-indicator);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.contact-threads {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.contact-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 5px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+.contact-card-title {
+  font: italic 600 13px var(--font-display);
+}
+
+.contact-card-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font: 500 11px var(--font-body);
+}
+
+.contact-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.contact-dot--mine {
+  background: var(--contact-mine, var(--ink));
+}
+
+.contact-dot--seen {
+  margin-left: 6px;
+  border: 1.5px solid var(--contact-seen);
+  background: var(--paper);
+}
+
+.contact-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 17px;
+  height: 17px;
+  margin: -8.5px 0 0 -8.5px;
+  padding: 0 4px;
+  border: 1.2px solid var(--paper);
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 10px/14px var(--font-mono);
+  cursor: pointer;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+/* A finger needs more than a numeral to hit. */
+@media (pointer: coarse) {
+  .contact-badge::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+
+.contact-edge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.contact-edge .contact-badge {
+  position: relative;
+}
+
+/* The arrow points out of the screen, toward the contact. */
+.contact-edge::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -2px;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid var(--ink);
+  transform: rotate(var(--heading, 0rad)) translateX(10px);
+  transform-origin: 2px 6px;
+}
+
+.contact-none {
+  position: absolute;
+  left: 50%;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--ink) 50%, transparent);
+  background: var(--paper);
+  color: var(--ink);
+  font: italic 500 13px var(--font-display);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+@media (pointer: fine) {
+  .contact-none {
+    left: auto;
+    transform: none;
+  }
+}

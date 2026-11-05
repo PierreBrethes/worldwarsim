@@ -57,7 +57,7 @@ async function twoNations() {
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
   const playerId = await t.run(async (ctx) => (await seatIn(ctx, seat))._id);
-  return { t, seat, playerId };
+  return { t, seat, guest, playerId };
 }
 
 describe('dev.spawnTroops', () => {
@@ -183,6 +183,25 @@ describe('dev scenes read by the capture', () => {
       unreached: true,
     });
     expect(view.me.buildings.find((building) => building.key === 'hq')?.unreached).toBeUndefined();
+  });
+});
+
+describe('dev.absenceScene', () => {
+  it('opens a fresh absence: both marks behind the dispatches, first steps passed, a dozen placed near the capital', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.mutation(api.journal.markToured, seat);
+    await t.mutation(api.journal.markRead, seat);
+    const capital = await t.mutation(internal.dev.absenceScene, { playerId });
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.absenceTourAt).toBeNull();
+    expect(view.firstSteps.shown).toBe('skipped');
+    const fresh = view.notices.filter((notice) => notice.at > (view.journalReadAt ?? 0));
+    expect(fresh).toHaveLength(12);
+    for (const notice of fresh) {
+      expect(notice.place).not.toBeNull();
+      expect(distanceKm(capital, [notice.place!.lon, notice.place!.lat])).toBeLessThan(250);
+    }
+    expect(new Set(fresh.map((notice) => notice.kind)).size).toBeGreaterThan(3);
   });
 });
 
@@ -521,6 +540,54 @@ describe('dev.takingScene', () => {
         ),
       );
       expect(reports.sort()).toEqual(['mine', 'warehouse']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/** **Les grands moments, à la demande** (#442) : une prise qui s'achève par la porte du jeu, et
+ *  la course qui se clôt, de quoi voir le cachet, la chute d'un QG et la victoire aux points. */
+describe('dev.captureSoon and dev.raceEndsSoon', () => {
+  it('takes a point, then a headquarters, at their hour', async () => {
+    vi.useFakeTimers();
+    try {
+      const { t, seat, guest, playerId } = await twoNations();
+      await placeHq(t, guest);
+      const guestId = await t.run(async (ctx) => (await seatIn(ctx, guest))._id);
+      for (const key of ['narvik', 'baku', 'istanbul'] as const)
+        await t.mutation(internal.dev.holdPoint, { playerId, key });
+      await t.mutation(internal.dev.captureSoon, { playerId, point: 'tangier', inSeconds: 5 });
+      vi.advanceTimersByTime(5_000);
+      await t.finishInProgressScheduledFunctions();
+      const taken = await t.query(api.view.playerView, seat);
+      expect(taken.notices.find((notice) => notice.kind === 'pointTaken')).toMatchObject({
+        key: 'tangier',
+        held: 4,
+      });
+      expect(taken.season.race?.leaderNation).toBe('france');
+
+      await t.mutation(internal.dev.captureSoon, { playerId, hqOf: guestId, inSeconds: 2 });
+      vi.advanceTimersByTime(2_000);
+      await t.finishInProgressScheduledFunctions();
+      const fallen = await t.run((ctx) => ctx.db.get(guestId));
+      expect(fallen?.eliminatedAt).toEqual(expect.any(Number));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('closes the race on points at its hour', async () => {
+    vi.useFakeTimers();
+    try {
+      const { t, seat, playerId } = await twoNations();
+      for (const key of ['narvik', 'baku', 'istanbul', 'tangier'] as const)
+        await t.mutation(internal.dev.holdPoint, { playerId, key });
+      await t.mutation(internal.dev.raceEndsSoon, { seasonId: seat.seasonId, inSeconds: 3 });
+      vi.advanceTimersByTime(3_000);
+      await t.finishInProgressScheduledFunctions();
+      const season = await t.run((ctx) => ctx.db.get(seat.seasonId));
+      expect(season).toMatchObject({ status: 'concluded', verdict: { reason: 'points' } });
     } finally {
       vi.useRealTimers();
     }

@@ -34,6 +34,113 @@ describe('inkBursts', () => {
     ]);
   });
 
+  /** **Le cachet des Sept** (#442) : rond, à l'encre du preneur, ses pastilles, « IV » au
+   *  quatrième seul ; il attend que le drapeau ait changé, et remplace le « capturé » de la prise. */
+  describe('a point that changes hands', () => {
+    const narvik = { lon: 17.43, lat: 68.44 };
+    const taken = (held: number): JournalDispatch => ({
+      ...dispatch(20, 'pointTaken'),
+      place: narvik,
+      point: { key: 'narvik', nation: 'germany', held },
+    });
+    const seal = (held: number, roman?: string) => ({
+      kind: 'seal',
+      at: [17.43, 68.44],
+      words: { word: 'Narvik', hour: hour(20) },
+      ink: '#2b6974',
+      held,
+      ...(roman === undefined ? {} : { roman }),
+      holdMs: 3400,
+      // Above its point, as the storyboard has it, but where the count runs: its cartouche is there.
+      ...(held < 4 ? { over: true } : {}),
+      delayMs: 1600,
+    });
+
+    it('presses the seal of the Seven, « IV » on the fourth alone', () => {
+      expect(inkBursts([taken(3)], 10, [])).toEqual([seal(3)]);
+      expect(inkBursts([taken(4)], 10, [])).toEqual([seal(4, 'IV')]);
+      expect(inkBursts([taken(5)], 10, [])).toEqual([seal(5)]);
+    });
+
+    it('in place of the « capturé » of its taker and its loser', () => {
+      const twin = (kind: JournalDispatch['kind']) => ({ ...dispatch(20, kind), place: narvik });
+      expect(inkBursts([taken(3), twin('captured'), twin('siteLost')], 10, [])).toEqual([seal(3)]);
+    });
+
+    /** **Compte rompu** (#442) : le compte tombé en cours de partie, à l'instant où un autre
+     *  reprend un point — le tampon noir sur ce point, au lieu de son cachet. */
+    it('stamps « compte rompu » in black on the point that broke the leader’s count', () => {
+      const retaken = { ...taken(2), point: { key: 'narvik' as const, nation: 'france', held: 2 } };
+      const lead = { leaderNation: 'germany', keys: ['narvik', 'baku'] as const };
+      expect(inkBursts([retaken], 10, [], false, () => true, lead)).toEqual([
+        {
+          kind: 'raceBroken',
+          at: [17.43, 68.44],
+          words: { word: 'compte rompu', hour: hour(20) },
+          ink: '#2a2118',
+          over: true,
+          delayMs: 1600,
+        },
+      ]);
+      // The leader taking a point himself breaks nothing.
+      expect(inkBursts([taken(3)], 10, [], false, () => true, lead)).toEqual([seal(3)]);
+      // Nor a point taken elsewhere as the count fell: only one of the leader's masts broke it.
+      const elsewhere = { leaderNation: 'germany', keys: ['baku'] as const };
+      expect(inkBursts([retaken], 10, [], false, () => true, elsewhere)[0]?.kind).toBe('seal');
+    });
+
+    it('but not in place of a capture of another hour', () => {
+      const other = { ...dispatch(19, 'captured'), place: narvik };
+      expect(inkBursts([taken(3), other], 10, [])).toHaveLength(2);
+    });
+
+    it('nor in place of a capture of the same hour, more than half a degree away', () => {
+      const other = { ...dispatch(20, 'captured'), place: { lon: 18.2, lat: 68.44 } };
+      expect(inkBursts([taken(3), other], 10, [])).toHaveLength(2);
+    });
+  });
+
+  /** **Un QG pris** (#442) : « QG pris » chez le preneur au lieu de « capturé », « QG tombé » en
+   *  noir chez qui l'avait relevé ; l'éliminé a sa scène, et rien ici. */
+  describe('a headquarters that falls', () => {
+    const rome = { lon: 12.5, lat: 41.9 };
+    const fall = { ...dispatch(20, 'elimination'), place: rome };
+    const twin = (kind: JournalDispatch['kind']) => ({ ...dispatch(20, kind), place: rome });
+
+    it('stamps « QG pris » for its taker, once', () => {
+      expect(inkBursts([fall, twin('captured')], 10, [])).toEqual([
+        {
+          kind: 'captured',
+          at: [12.5, 41.9],
+          words: { word: 'QG pris', hour: hour(20) },
+          over: true,
+        },
+      ]);
+    });
+
+    it('stamps « QG tombé » in black for a third side who knew it', () => {
+      expect(inkBursts([fall], 10, [])).toEqual([
+        {
+          kind: 'captured',
+          at: [12.5, 41.9],
+          words: { word: 'QG tombé', hour: hour(20) },
+          ink: '#2a2118',
+          over: true,
+        },
+      ]);
+    });
+
+    it('stamps nothing for the fallen, whose scene it is', () => {
+      expect(inkBursts([fall, twin('siteLost')], 10, [])).toEqual([]);
+      // The camps his territory sights as it falls share its hour and its place.
+      expect(inkBursts([fall, twin('campSighted'), twin('siteLost')], 10, [])).toEqual([]);
+    });
+
+    it('stamps nothing where nobody knows it', () => {
+      expect(inkBursts([dispatch(20, 'elimination')], 10, [])).toEqual([]);
+    });
+  });
+
   it('stamps « largué » where a packet came down, and nothing for a delivery', () => {
     const at = (kind: JournalDispatch['kind']) => ({
       ...dispatch(20, kind),
@@ -150,6 +257,19 @@ describe('stampAt', () => {
     expect(stampAt(3200, 'full')!.opacity).toBeCloseTo(0.58);
     expect(stampAt(STAMP_MS, 'full')).toBeNull();
     expect(STAMP_MS).toBeCloseTo(3587, 0);
+  });
+
+  it('holds as long as it is asked, as the absence tour asks 2.2 s (#439)', () => {
+    expect(stampAt(2199, 'full', 2200)!.opacity).toBe(0.88);
+    expect(stampAt(2400, 'full', 2200)!.opacity).toBeCloseTo(0.58);
+    expect(stampAt(3000, 'full', 2200)).toBeNull();
+  });
+
+  it('lifts in a quarter of a second once a gesture takes it up (#439)', () => {
+    expect(stampAt(1125, 'full', 3000, 1000)!.opacity).toBeCloseTo(0.44);
+    expect(stampAt(1250, 'full', 3000, 1000)).toBeNull();
+    // Lifted before it was pressed, it never shows.
+    expect(stampAt(300, 'full', 3000, -500)).toBeNull();
   });
 
   it('lays flat at once when motion is reduced, and waits unseen while delayed', () => {

@@ -26,33 +26,6 @@ import { nightUniforms, type NightUniforms } from './night-here';
 import { MOON_TINT } from './palette';
 import type { SeaLayer } from './sea';
 
-/**
- * **Les villes qui s'allument la nuit** : le monde n'a ni ville ni population, seulement des
- * pays et des régions. Une sélection cuite des grandes villes de 1940 tient lieu de lumières —
- * du décor, jamais lu par une règle.
- */
-// prettier-ignore
-const CITIES: ReadonlyArray<LonLat> = [
-  [-0.13, 51.51], [2.35, 48.86], [13.4, 52.52], [37.62, 55.75], [12.5, 41.9], [16.37, 48.21],
-  [-3.7, 40.42], [21.01, 52.23], [19.04, 47.5], [14.42, 50.09], [4.9, 52.37], [4.35, 50.85],
-  [12.57, 55.68], [18.07, 59.33], [10.75, 59.91], [24.94, 60.17], [30.32, 59.94], [30.52, 50.45],
-  [23.73, 37.98], [28.98, 41.01], [26.1, 44.43], [20.46, 44.82], [23.32, 42.7], [-9.14, 38.72],
-  [-2.24, 53.48], [-4.25, 55.86], [-6.26, 53.35], [5.37, 43.3], [4.84, 45.76], [9.19, 45.46],
-  [11.58, 48.14], [9.99, 53.55], [6.96, 50.94], [7.01, 51.46], [13.74, 51.05], [2.17, 41.39],
-  [14.27, 40.85], [44.0, 56.33], [49.12, 55.79], [36.23, 49.99], [39.72, 47.23], [60.6, 56.84],
-  [44.51, 40.18], [49.87, 40.41], [31.24, 30.04], [29.92, 31.2], [35.21, 31.77], [44.36, 33.31],
-  [51.39, 35.69], [46.68, 24.71], [-7.59, 33.57], [3.06, 36.75], [10.17, 36.81], [36.82, -1.29],
-  [3.38, 6.52], [18.42, -33.92], [28.05, -26.2], [72.88, 19.08], [88.36, 22.57], [77.21, 28.61],
-  [80.27, 13.08], [67.0, 24.86], [74.35, 31.55], [100.5, 13.75], [106.85, -6.21], [103.85, 1.29],
-  [120.98, 14.6], [121.47, 31.23], [116.4, 39.9], [113.26, 23.13], [114.17, 22.32], [104.07, 30.67],
-  [114.3, 30.59], [123.43, 41.8], [126.98, 37.57], [139.69, 35.69], [135.5, 34.69], [130.4, 33.59],
-  [151.21, -33.87], [144.96, -37.81], [174.76, -36.85], [-74.0, 40.71], [-87.63, 41.88],
-  [-118.24, 34.05], [-122.42, 37.77], [-77.04, 38.9], [-75.16, 39.95], [-71.06, 42.36],
-  [-83.05, 42.33], [-90.07, 29.95], [-79.38, 43.65], [-73.57, 45.5], [-99.13, 19.43],
-  [-82.37, 23.13], [-58.38, -34.6], [-43.17, -22.91], [-46.63, -23.55], [-70.67, -33.45],
-  [-77.04, -12.05], [-74.07, 4.71], [-66.9, 10.49],
-];
-
 const CITY_GOLD = '#ffcf6e';
 export type DaySky = { readonly sky: Color; readonly ground: Color; readonly intensity: number };
 /** Le ciel du prototype (`carte-refonte`) : faible devant la lampe, pour des ombres marquées. */
@@ -155,11 +128,17 @@ export class NightSky {
   readonly uniforms: NightUniforms;
   private readonly night: DaySky;
 
+  /**
+   * **Les villes qui s'allument la nuit** : celles de l'atlas d'aujourd'hui au plateau, les mêmes
+   * que les noms (#440) ; l'accueil, qui ne charge pas l'atlas, passe sa propre liste. Du décor,
+   * jamais lu par une règle.
+   */
   constructor(
     scene: Scene,
     frame: WorldFrame,
     private readonly sea: SeaLayer | null,
     surface: BufferGeometry,
+    private readonly cityLights: readonly LonLat[],
     private readonly day: DaySky = BOARD_DAY_SKY,
     landing = false,
   ) {
@@ -167,14 +146,14 @@ export class NightSky {
     this.night = landing ? LANDING_NIGHT_SKY : MOON_SKY;
     this.uniforms = nightUniforms(frame, this.sun);
 
-    const positions = CITIES.flatMap((city) => frame.projectLonLat(city, 0.3).toArray());
+    const positions = cityLights.flatMap((city) => frame.projectLonLat(city, 0.3).toArray());
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
     // Each city carries its own light in its alpha: it comes on with its own dusk.
     geometry.setAttribute(
       'color',
       new Float32BufferAttribute(
-        CITIES.flatMap(() => [1, 1, 1, 0]),
+        cityLights.flatMap(() => [1, 1, 1, 0]),
         4,
       ),
     );
@@ -219,7 +198,7 @@ export class NightSky {
     if (Math.abs(sun[0] - this.sun.value.x) < SUN_STEP_DEG) return;
     this.sun.value.set(sun[0], sun[1]);
     const colors = this.cities.geometry.getAttribute('color');
-    CITIES.forEach((city, index) => {
+    this.cityLights.forEach((city, index) => {
       // Les villes ne s'allument qu'au crépuscule passé, pas dès le premier assombrissement.
       const dark = nightOfAltitude(sunAltitude(sun, city));
       colors.setW(index, Math.min(1, Math.max(0, (dark - 0.3) / 0.5)));

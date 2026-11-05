@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { combatsSince, isAlarm, journalDispatches, latestDispatchAt } from './journal';
 import { fr } from '@/i18n/fr';
+import { asClockTime } from './duration';
 import type { BuildingKey } from './ids';
 import type { CombatReport, Notice } from './player-view';
 
@@ -340,6 +341,25 @@ describe('the journal', () => {
     ]);
     expect(taken!.text).toBe(`${fr.nations.germany} prend Narvik.`);
     expect(taken!.place).toEqual({ lon: 17.43, lat: 68.44 });
+    expect(taken!.point).toBeUndefined();
+  });
+
+  /** **Le cachet des Sept** (#442) se lit sur la dépêche de la prise, et sur elle seule : la
+   *  capture qu'une copie de Hong Kong rapporte est de la même sorte, sans cachet. */
+  it('carries the point, its taker and his count for the seal, on a point taken only', () => {
+    const [taken, captured] = journalDispatches([], null, [
+      { kind: 'pointTaken', at: NOON, key: 'narvik', nation: 'germany', held: 4 },
+      {
+        kind: 'captureDispatch',
+        at: NOON - HOUR,
+        nation: 'germany',
+        site: { kind: 'outpost', hostCountry: 'NOR', level: 1 },
+        regionName: null,
+      },
+    ]);
+    expect(taken!.point).toEqual({ key: 'narvik', nation: 'germany', held: 4 });
+    expect(captured!.kind).toBe('pointTaken');
+    expect(captured!.point).toBeUndefined();
   });
 
   /** En Mondiale, la chute d'un QG ne dissout rien : le reste passe aux irréguliers (M16), et
@@ -443,6 +463,16 @@ describe('the sort a dispatch is stamped with', () => {
     expect(income!.text).toMatch(/40 fonds par minute/);
   });
 
+  /** Une Mondiale close à la main a déjà sa dépêche `seasonClosed` : pas de seconde ligne. */
+  it('writes no closing line for a season closed by hand (#443)', () => {
+    const closed = journalDispatches([], {
+      concludedAt: NOON,
+      winnerNation: null,
+      verdict: { reason: 'closed', winnerNation: null, perMinute: null },
+    });
+    expect(closed).toEqual([]);
+  });
+
   /** Chaque sorte a son mot : un tampon sans libellé serait un cadre vide dans la marge. */
   it('gives every sort a label of its own', () => {
     const labels = Object.values(fr.stamps.dispatches);
@@ -495,5 +525,62 @@ describe('a delivery dispatch carries what the depot took', () => {
     const [delivery, waiting] = journalDispatches([], null, notices, null);
     expect(delivery!.delivered).toEqual(delivered);
     expect(waiting!.delivered).toBeUndefined();
+  });
+});
+
+/** **Le cap changé au large** (#449) : sans pays, la mer se dit en degrés. */
+describe('a course changed towards the open sea', () => {
+  it('names the point, not an empty country', () => {
+    const notice: Notice = {
+      kind: 'courseChanged',
+      at: NOON,
+      hostCountry: '',
+      point: { lon: 130, lat: 20 },
+      arrivesAt: NOON + HOUR,
+    };
+    const [dispatch] = journalDispatches([], null, [notice]);
+    expect(dispatch!.text).toContain(fr.aim.pointAt(130, 20));
+  });
+});
+
+describe('the second leg of a blitzkrieg (ADR 0039 §6)', () => {
+  const base = {
+    kind: 'blitzkrieg' as const,
+    at: NOON,
+    hostCountry: 'BEL',
+    point: { lon: 5.57, lat: 50.63 },
+    name: 'Liège',
+    then: { hostCountry: 'BEL', point: { lon: 4.87, lat: 50.47 }, name: 'Namur' },
+  };
+  const said = (notice: Notice) => journalDispatches([], null, [notice])[0]!;
+
+  it('says the column runs on, held, and when it reaches the second target', () => {
+    const dispatch = said({ ...base, outcome: 'onward', arrivesAt: NOON + HOUR });
+    expect(dispatch.text).toMatch(/^Liège : terrain tenu\. La colonne file sur Namur — arrivée à/);
+    expect(dispatch.severity).toBe('notable');
+  });
+
+  it('says the second leg fell with the first', () => {
+    expect(said({ ...base, outcome: 'lost' }).text).toContain(
+      'Namur tombe : les survivants rentrent',
+    );
+  });
+
+  it('says why the column stayed, by the refusal’s own words', () => {
+    const dispatch = said({
+      ...base,
+      outcome: 'halted',
+      refusal: 'NO_ROUNDS',
+      details: {},
+      troopIds: ['t1'],
+    });
+    expect(dispatch.text).toContain(fr.errors.NO_ROUNDS());
+    expect(dispatch.text).toContain('Elle reste sur place');
+    expect(dispatch.stood).toEqual({
+      text: `reste à Liège — ${fr.errors.NO_ROUNDS()}`,
+      reread: fr.blitzkrieg.reread(asClockTime(NOON)),
+      troopIds: ['t1'],
+    });
+    expect(dispatch.severity).toBe('critical');
   });
 });

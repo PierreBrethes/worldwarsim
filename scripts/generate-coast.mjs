@@ -4,7 +4,8 @@
  * their left — and **the rings of the regions no cell carries** (#224). It is the one piece of the
  * atlas the server holds (ADR 0023, amended): a port goes up within reach of the coast, in its own
  * region, and the land and the region under a point are read off both where the grid drowns them
- * (`src/domain/coast.ts`); `generate-region-index.mjs` calls a region coastal when it has some.
+ * (`src/domain/coast.ts`); `generate-region-index.mjs` calls a region coastal when it has some. `coastal` lists those regions;
+ * `ids` is wider (the lakes' and the cell-less regions' ranks too) and is no list of coasts.
  *
  * Open sea only: a lake shore (`borders` marks it `lake`), the shore of a hole of the land (the
  * Caspian, the Patagonian ice field) and of an island standing in such water are no coast, and
@@ -147,6 +148,7 @@ const base64 = (ints) => Buffer.from(Int32Array.from(ints).buffer).toString('bas
 const output = JSON.stringify({
   quantum: QUANTUM,
   ids,
+  coastal: [...coastal],
   countries: ids.map((id) => countryOf.get(id)),
   data: base64(coastInts),
   lakes: base64(lakeInts),

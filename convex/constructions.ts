@@ -25,6 +25,9 @@ import {
   raiseChoosesSpecialty,
   type OutpostRaiseHold,
   type SpecialtyRefusal,
+  keptLevelOf,
+  keptOf,
+  spending,
 } from '../src/domain/construction';
 import { depositAt, type DepositPoint } from '../src/domain/world';
 import {
@@ -64,6 +67,7 @@ import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
 import { followCenter } from './research';
 import { worksMinutes } from '../src/domain/level-speed';
+import { restoreKept } from './buildings';
 
 /** A refusal, carried rather than thrown: the same rule is read at two doors, and only one of
  *  them answers a player. At the other one it cancels an entry and refunds it. */
@@ -185,6 +189,14 @@ export const start = mutation({
     const cost = buildCost(costKey, level);
     await debit(ctx, player._id, cost, now);
 
+    /** **La pose soviétique consomme la réserve** (ADR 0039 §5) : elle coûte et dure un niveau 1,
+     *  et sort du chantier au niveau gardé. Une pose offerte du socle n'y touche pas. */
+    const reserve = player.evacuated ?? [];
+    const kept = standing === undefined ? keptOf(reserve, building) : null;
+    if (kept !== null) {
+      await ctx.db.patch(player._id, { evacuated: [...spending(reserve, building)] });
+    }
+
     const last = queue[queue.length - 1];
     const rank = last ? last.rank + 1 : 0;
     const constructionId = await ctx.db.insert('constructions', {
@@ -192,6 +204,7 @@ export const start = mutation({
       building: costKey,
       regionId,
       level,
+      ...(kept === null ? {} : { kept }),
       rank,
       finishesAt: null,
       point,
@@ -404,6 +417,7 @@ export const cancel = mutation({
 
     const refunded = billOfWork(entry);
     await credit(ctx, player._id, refunded, Date.now());
+    await restoreKept(ctx, player._id, entry);
     await ctx.db.delete(constructionId);
     return { refunded };
   },
@@ -433,6 +447,7 @@ export const finish = internalMutation({
     await settle(ctx, construction.playerId, Date.now());
     const buildings = await playerBuildings(ctx, construction.playerId);
     const point = construction.point;
+    let stood = construction.level;
     const standing =
       point === undefined
         ? undefined
@@ -463,13 +478,21 @@ export const finish = internalMutation({
       /** The anchor is decided **here**, at the placement, and never read again: whatever is
        *  founded later leaves this building on the site that carried it (`schema.ts`). */
       const player = await ctx.db.get(construction.playerId);
+      /** **Le niveau gardé relit le plafond du QG à l'échéance** (#450) : rien ne monte au-dessus
+       *  de lui, et ce qui le dépasse est perdu. */
+      const hqLevel = levelOf(buildings, 'hq');
+      const level =
+        construction.kept === undefined
+          ? construction.level
+          : keptLevelOf(construction.kept, hqLevel);
+      stood = level;
       await ctx.db.insert('buildings', {
         seasonId: season._id,
         playerId: construction.playerId,
         key: canonicalBuildingKey(construction.building),
         ...(construction.building === 'depot' ? { costKey: 'depot' as const } : {}),
         regionId: construction.regionId,
-        level: construction.level,
+        level,
         /** The point chosen at the order, carried whole: `finish` decides nothing about where
          *  a building stands — the player did, hours earlier, and a second choice here could
          *  disagree with the mast the queue has been drawing since. */
@@ -506,7 +529,7 @@ export const finish = internalMutation({
       kind: 'constructionFinished',
       building: construction.building,
       regionId: construction.regionId,
-      level: construction.level,
+      level: stood,
     });
     await startHead(ctx, construction.playerId, Date.now());
   },
@@ -704,6 +727,7 @@ async function refundHead(
   reason?: LostAtFinish,
 ): Promise<void> {
   await credit(ctx, playerId, billOfWork(head), now);
+  await restoreKept(ctx, playerId, head);
   await ctx.db.insert('notices', {
     playerId,
     at: now,

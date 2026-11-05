@@ -1,6 +1,7 @@
 import {
   decodeArcs,
   decodeAtlas,
+  decodeRivers,
   packArcs,
   type AtlasFile,
   type DecodedArcs,
@@ -12,6 +13,7 @@ import { geometryData, type GeometryData } from './atlas-geometry';
 import { sheetData, type SheetData } from './countries';
 import { WorldFrame } from './frame';
 import { regionLines } from './regions';
+import { riverData, type RiverData } from './rivers';
 import { typesFromCells, type TerrainCells, type TypesData } from './terrain-drawings';
 
 /**
@@ -26,6 +28,8 @@ export type NearSheet = {
   /** The terrain's type map; `null` when its cells failed to load: the drawings are decor, the
    *  near level goes on without them. */
   readonly types: TypesData | null;
+  /** The near rivers (#440), which replace the far ones as the coast does. */
+  readonly rivers: RiverData;
 };
 
 export function buildNearSheet(
@@ -45,5 +49,6 @@ export function buildNearSheet(
       near: geometryData(regionLines(atlas, 'near', frame)),
     },
     types: cells && typesFromCells(cells, frame),
+    rivers: riverData(decodeRivers(near.rivers ?? [], near.transform), frame),
   };
 }

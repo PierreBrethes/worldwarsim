@@ -14,20 +14,27 @@ import { stampReadMark } from './readMarks';
 import { settle } from './resources';
 import { viewOf } from './view';
 import { marchingForce, reassessDetection } from './movement/detection';
-import { lineCrossingOf } from '../src/domain/interception';
+import { lineCrossingOf, positionAt } from '../src/domain/interception';
 import { windowsOf } from '../src/domain/sighting-windows';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
 import { planCargoReturn } from './movement/cargoReturn';
+import { chainSecondTarget } from './movement/blitzkrieg';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
 import { capitalRegionOf, nearestRegion, pointOfRegion } from './regions';
 import { fileSurvey, surveyFoundation } from './surveys';
+import { regionAtPoint } from './regionGeometry';
 import { DEPOSIT_POINTS } from '../src/domain/world';
-import { isNation } from '../src/domain/nations';
+import { HOME_BY_NATION, isNation } from '../src/domain/nations';
+import { ERASE_FALLBACK_MS } from './finalEdition';
+import { concludeSeason } from './seasons';
+import { seatsOf } from './seats';
 import type { ResearchCard, UnitRole } from '../src/domain/ids';
 import { handOver, layPoint, seasonPoints } from './strategicPoints';
+import { irregularSeat } from './objectives';
+import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
 
 /**
  * **Every disposable game table, and the whole of it.** Exported rather than inlined so the
@@ -76,6 +83,13 @@ export const IDENTITY_TABLES = [
   'pushSubscriptions',
   'authThrottle',
 ] as const;
+
+/**
+ * **The final editions of the Mondiales, frozen per account** (#443, ADR 0040): an archive that
+ * survives both the founder's « détruire » and the reset, like identity — which is why it is
+ * neither of the two lists above.
+ */
+export const ARCHIVE_TABLES = ['finalEditions', 'finalEditionReaders'] as const;
 
 /** Documents per transaction: well under the system-operation cap of a single mutation. */
 const WIPE_BATCH = 200;
@@ -696,6 +710,64 @@ export const reviewScene = internalMutation({
 });
 
 /**
+ * **Une absence à rejouer** (#439, `--absence`) : le joueur a fermé son journal `hours` heures
+ * plus tôt, son dernier rejeu est effacé, ses premiers pas passés, et douze dépêches à lieu sont
+ * tombées depuis, en couronne autour de sa capitale ; ce qui était tombé depuis recule d'autant,
+ * avant la fermeture. Rejouable à volonté :
+ * `npx convex run dev:absenceScene '{"playerId":"…"}'`. Rend le point de la capitale.
+ */
+export const absenceScene = internalMutation({
+  args: { playerId: v.id('players'), hours: v.optional(v.number()) },
+  handler: async (ctx, { playerId, hours = 9 }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such nation');
+    const capital = pointOfRegion(capitalRegionOf(player.nation));
+    const now = Date.now();
+    const away = now - hours * 3_600_000;
+    const marks = await ctx.db
+      .query('readMarks')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .unique();
+    if (marks !== null) await ctx.db.patch(marks._id, { absenceTourAt: undefined });
+    // What fell since — the launch's objectives, a previous scene — goes behind the closing: the
+    // tour would fly to them first, being the newest.
+    const since = await ctx.db
+      .query('notices')
+      .withIndex('byPlayerAt', (q) => q.eq('playerId', playerId).gt('at', away))
+      .collect();
+    for (const notice of since) await ctx.db.patch(notice._id, { at: notice.at - (now - away) });
+    await stampReadMark(ctx, playerId, { journalReadAt: away });
+    await stampReadMark(ctx, playerId, { firstSteps: { done: [], shown: 'skipped' } });
+    for (let k = 0; k < 12; k++) {
+      const turn = (k / 12) * 2 * Math.PI;
+      const reach = 0.7 + (k % 3) * 0.35;
+      const point = {
+        lon: capital.lon + reach * 1.4 * Math.cos(turn),
+        lat: capital.lat + reach * Math.sin(turn),
+      };
+      const region = nearestRegion([point.lon, point.lat]);
+      if (region === null) throw new Error('no region near the capital');
+      const head = { playerId, at: away + ((k + 1) / 13) * (now - away) };
+      const hostCountry = region.country;
+      const rows = [
+        { kind: 'columnArrived', movementType: 'march', hostCountry, point, troops: 3 },
+        { kind: 'constructionFinished', building: 'barracks', regionId: region.id, level: 2 },
+        { kind: 'outpostFounded', hostCountry, point },
+        {
+          kind: 'recruitmentDelivered',
+          role: 'infantry',
+          site: { building: 'barracks', regionId: region.id },
+        },
+        { kind: 'fortHeld', hostCountry, point, headingDegrees: 90, arrivesAt: head.at },
+        { kind: 'outpostDisabled', hostCountry, point },
+      ] as const;
+      await ctx.db.insert('notices', { ...head, ...rows[k % rows.length]! });
+    }
+    return [capital.lon, capital.lat] as [number, number];
+  },
+});
+
+/**
  * **Une mine qu'aucun avant-poste ne couvre** (`--hors-portee`) : le QG à Paris, et une mine sur le
  * charbon de la Ruhr, en sol étranger où le joueur n'a posé aucun point. La fiche de la mine lit
  * `unreached` : la montée y est refusée, et dite. Rend le point de la mine.
@@ -717,6 +789,533 @@ export const unreachedMineScene = internalMutation({
       level: 1,
     });
     return ruhr.lonLat;
+  },
+});
+
+/**
+ * **L'Évacuation et la capture, posées** (`--evacuation`, #450) : l'URSS tient une caserne de
+ * niveau 2 à Pskov, un entrepôt de niveau 2 à côté, une réserve de caserne au niveau 3 et
+ * d'arsenal au niveau 5, et un avant-poste en Roumanie dont le puits est sous capture française ;
+ * la France tient une caserne de niveau 2 dans la Marne, sous une capture soviétique. Rend les
+ * points.
+ */
+export const evacuationScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const ussr = players.find((player) => player.nation === 'ussr');
+    const france = players.find((player) => player.nation === 'france');
+    if (ussr === undefined || france === undefined) throw new Error('--evacuation wants --huit');
+    const barracks = async (player: Doc<'players'>, regionId: string) => {
+      const hq = await headquartersOf(ctx, player);
+      if (hq !== undefined) await ctx.db.patch(hq._id, { level: 4 });
+      const point = pointOfRegion(regionId);
+      const id = await ctx.db.insert('buildings', {
+        seasonId,
+        playerId: player._id,
+        key: 'barracks',
+        regionId,
+        point,
+        level: 2,
+      });
+      return { id, point };
+    };
+    const soviet = await barracks(ussr, 'RUS-2336');
+    /** Un arsenal gardé au niveau 5 (pris au plafond) sous un QG de niveau 4 : la tuile dit où
+     *  il sortira. */
+    await ctx.db.patch(ussr._id, {
+      evacuated: [
+        { key: 'barracks', level: 3 },
+        { key: 'arsenal', level: 5 },
+      ],
+    });
+    /** Un entrepôt sans réserve de son type : sa carte dit « niveau 2 gardé en réserve ». */
+    const store = pointOfRegion('RUS-2335');
+    await ctx.db.insert('buildings', {
+      seasonId,
+      playerId: ussr._id,
+      key: 'warehouse',
+      regionId: 'RUS-2335',
+      point: store,
+      level: 2,
+    });
+    const french = await barracks(france, 'FRA-5323');
+    const now = Date.now();
+    const siege = (
+      capturer: Doc<'players'>,
+      defender: Doc<'players'>,
+      buildingId: Id<'buildings'>,
+      building: 'barracks' | 'oilWell',
+      regionId: string,
+      point: { lon: number; lat: number },
+    ) =>
+      ctx.db.insert('captures', {
+        seasonId,
+        playerId: capturer._id,
+        defenderId: defender._id,
+        target: { kind: 'building', buildingId },
+        site: { kind: 'building', building, regionId },
+        point,
+        progress: 0,
+        progressAt: now,
+        rate: 1,
+        durationMs: 6 * 3_600_000,
+        rest: null,
+        completesAt: now + 6 * 3_600_000,
+      });
+    await siege(ussr, france, french.id, 'barracks', 'FRA-5323', french.point);
+    /** Un avant-poste soviétique en Roumanie, dont le puits qu'il ancre est sous une capture
+     *  française : il ne se démantèle pas (`DISMANTLE_UNDER_CAPTURE`). */
+    const prahova = pointOfRegion('ROU-310');
+    const outpostId = await ctx.db.insert('outposts', {
+      seasonId,
+      playerId: ussr._id,
+      point: prahova,
+      hostCountry: 'ROU',
+      regionId: 'ROU-310',
+      level: 1,
+      foundedAt: now - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+    });
+    const wellPoint = { lon: prahova.lon + 0.25, lat: prahova.lat + 0.1 };
+    const well = await ctx.db.insert('buildings', {
+      seasonId,
+      playerId: ussr._id,
+      key: 'oilWell',
+      regionId: 'ROU-310',
+      point: wellPoint,
+      level: 1,
+      outpostId,
+    });
+    await siege(france, ussr, well, 'oilWell', 'ROU-310', wellPoint);
+    await recordLinkage(ctx, seasonId);
+    await surveyFoundation(ctx, seasonId, [prahova.lon, prahova.lat], outpostReachKm(1), now);
+    return {
+      evacuation: [soviet.point.lon, soviet.point.lat],
+      'evacuation-neuf': [store.lon, store.lat],
+      'sous-capture': [french.point.lon, french.point.lat],
+      demantelement: [prahova.lon, prahova.lat],
+    };
+  },
+});
+
+/**
+ * **Le Prêt-bail, posé** (`--pret-bail`, #448) : un avant-poste américain à Aix-la-Chapelle et son
+ * camion chargé ; deux avant-postes français en Belgique, Namur au dépôt entamé et Liège, que le
+ * relevé américain garde ; un camion français chargé à Namur, qui a relevé Aix-la-Chapelle ; et un
+ * Prêt-bail déjà livré à Liège, dont chacun lit sa dépêche. Rend les points.
+ */
+export const lendLeaseScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const usa = players.find((player) => player.nation === 'usa');
+    const france = players.find((player) => player.nation === 'france');
+    if (usa === undefined || france === undefined) throw new Error('--pret-bail wants --huit');
+    const now = Date.now();
+    const plant = (
+      player: Doc<'players'>,
+      point: { lon: number; lat: number },
+      hostCountry: string,
+      depot: { ammunition: number; oil: number; coal: number },
+    ) =>
+      ctx.db.insert('outposts', {
+        seasonId,
+        playerId: player._id,
+        point,
+        hostCountry,
+        regionId: regionAtPoint([point.lon, point.lat])!.id,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+        depot,
+      });
+    const aachen = { lon: 6.08, lat: 50.78 };
+    const namur = { lon: 4.87, lat: 50.47 };
+    const liege = { lon: 5.57, lat: 50.63 };
+    const base = await plant(usa, aachen, 'DEU', { ammunition: 0, oil: 0, coal: 0 });
+    const french = await plant(france, namur, 'BEL', { ammunition: 150, oil: 60, coal: 0 });
+    await plant(france, liege, 'BEL', { ammunition: 80, oil: 40, coal: 0 });
+    /** Un camion chargé de chaque côté : l'Américain livre, le Français se voit dire le refus. */
+    for (const [player, stationedAt] of [
+      [usa, base],
+      [france, french],
+    ] as const)
+      await ctx.db.insert('troops', {
+        seasonId,
+        playerId: player._id,
+        role: 'landTransport',
+        tier: 1,
+        nominalStrength: nominalStrength('landTransport', 1),
+        currentStrength: nominalStrength('landTransport', 1),
+        stationedAt,
+        load: { ammunition: 120, oil: 80, coal: 40 },
+      });
+    await recordLinkage(ctx, seasonId);
+    await fileSurvey(
+      ctx,
+      usa._id,
+      [namur, liege].map((point) => ({ point: [point.lon, point.lat] as const, radiusKm: 1 })),
+      now,
+    );
+    await fileSurvey(ctx, france._id, [{ point: [aachen.lon, aachen.lat], radiusKm: 1 }], now);
+    /** Un Prêt-bail déjà livré à Liège : le convoi rentré dit le lieu, le receveur la nation. */
+    const delivered = { ammunition: 80, oil: 40, coal: 0 };
+    await ctx.db.insert('notices', {
+      playerId: usa._id,
+      at: now - 60_000,
+      kind: 'supplyDelivered',
+      hostCountry: 'BEL',
+      point: liege,
+      delivered,
+      kept: { ammunition: 20, oil: 0, coal: 0 },
+      abroad: true,
+    });
+    await ctx.db.insert('notices', {
+      playerId: france._id,
+      at: now - 60_000,
+      kind: 'lendLeaseReceived',
+      nation: 'usa',
+      hostCountry: 'BEL',
+      point: liege,
+      delivered,
+    });
+    await reassessDetection(ctx, seasonId, now);
+    return {
+      'pret-bail': [namur.lon, namur.lat],
+      'pret-bail-convoi': [aachen.lon, aachen.lat],
+      'pret-bail-recu': [liege.lon, liege.lat],
+    };
+  },
+});
+
+/**
+ * **La Doctrine du porte-avions** (#449, `--porte-avions` avec `--huit`) : une escadre japonaise
+ * qui part au large de Honshu (cap libre, compte g), une autre déjà passée la mi-parcours vers
+ * Truk (cap tenu), et une escadre française partie du même point vers le même cap, au même
+ * instant (sans l'atout, compte a).
+ */
+export const carrierDoctrineScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const season = (await ctx.db.get(seasonId))!;
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const japan = players.find((player) => player.nation === 'japan');
+    const france = players.find((player) => player.nation === 'france');
+    if (japan === undefined || france === undefined) throw new Error('--porte-avions wants --huit');
+    const now = Date.now();
+    const sail = async (
+      player: Doc<'players'>,
+      from: { lon: number; lat: number },
+      to: { lon: number; lat: number },
+    ) => {
+      const troopIds = [];
+      for (const role of ['carrier', 'escort'] as const)
+        troopIds.push(
+          await ctx.db.insert('troops', {
+            seasonId,
+            playerId: player._id,
+            role,
+            tier: 1,
+            nominalStrength: nominalStrength(role, 1),
+            currentStrength: nominalStrength(role, 1),
+            stationedAt: from,
+          }),
+        );
+      return march(ctx, {
+        playerId: player._id,
+        season,
+        type: 'march',
+        origin: { kind: 'point', point: from },
+        troopIds,
+        aim: await aimOf(ctx, player._id, { kind: 'point', point: to }),
+      });
+    };
+    const offHonshu = { lon: 142, lat: 32 };
+    const eastward = { lon: 158, lat: 25 };
+    await sail(japan, offHonshu, eastward);
+    await sail(france, offHonshu, eastward);
+    /** Partie il y a six dixièmes de sa route : la mi-parcours est derrière elle. */
+    const held = await sail(japan, { lon: 150, lat: 30 }, { lon: 152, lat: 12 });
+    const length = held.arrivesAt - now;
+    const arrivesAt = now + length * 0.4;
+    await ctx.db.patch(held.movementId, { departedAt: now - length * 0.6, arrivesAt });
+    await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, {
+      movementId: held.movementId,
+    });
+    const past = marchingForce((await ctx.db.get(held.movementId))!);
+    await reassessDetection(ctx, seasonId, now);
+    return {
+      'porte-avions': [offHonshu.lon, offHonshu.lat],
+      'porte-avions-tenu': positionAt(past, now),
+    };
+  },
+});
+
+/**
+ * **Poser une Guerre éclair** (#451) : des avant-postes `foe` relevés par `attacker`, ses chars à
+ * `from`, et l'attaque à deux cibles telle que `movements.attack` la dépose. `arrivedNow` ramène
+ * son arrivée à l'instant (le trajet glissé avec elle), et le job d'arrivée part tout de suite.
+ */
+async function stageBlitzkrieg(
+  ctx: MutationCtx,
+  {
+    attacker,
+    foe,
+    from,
+    first,
+    then,
+    tanks = 3,
+    rounds,
+    garrison = [],
+    arrivedNow = false,
+    hostCountry,
+  }: {
+    attacker: Doc<'players'>;
+    foe: Doc<'players'>;
+    from: { lon: number; lat: number };
+    first: { lon: number; lat: number };
+    then: { lon: number; lat: number };
+    tanks?: number;
+    rounds?: number;
+    garrison?: ReadonlyArray<UnitRole>;
+    arrivedNow?: boolean;
+    hostCountry?: string;
+  },
+) {
+  const season = (await ctx.db.get(attacker.seasonId))!;
+  const now = Date.now();
+  const troop = (
+    player: Doc<'players'>,
+    role: UnitRole,
+    stationedAt: Doc<'troops'>['stationedAt'],
+  ) =>
+    ctx.db.insert('troops', {
+      seasonId: season._id,
+      playerId: player._id,
+      role,
+      tier: 1,
+      nominalStrength: nominalStrength(role, 1),
+      currentStrength: nominalStrength(role, 1),
+      stationedAt,
+      ...(rounds === undefined || player._id !== attacker._id ? {} : { rounds }),
+    });
+  const outposts: Id<'outposts'>[] = [];
+  for (const point of [first, then]) {
+    const region = regionAtPoint([point.lon, point.lat])!;
+    outposts.push(
+      await ctx.db.insert('outposts', {
+        seasonId: season._id,
+        playerId: foe._id,
+        point,
+        hostCountry: hostCountry ?? region.country,
+        regionId: region.id,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+  }
+  for (const role of garrison) await troop(foe, role, outposts[0]!);
+  await fileSurvey(
+    ctx,
+    attacker._id,
+    [first, then].map((point) => ({ point: [point.lon, point.lat] as const, radiusKm: 1 })),
+    now,
+  );
+  const troopIds = [];
+  for (let k = 0; k < tanks; k++) troopIds.push(await troop(attacker, 'armor', from));
+  const aimed = await aimOf(ctx, attacker._id, { kind: 'outpost', outpostId: outposts[0]! });
+  const filed = await march(ctx, {
+    playerId: attacker._id,
+    season,
+    type: 'attack',
+    origin: { kind: 'point', point: from },
+    troopIds,
+    aim: aimed,
+    keepsSlot: true,
+  });
+  await chainSecondTarget(ctx, attacker, season, filed.movementId, aimed.aim, {
+    kind: 'outpost',
+    outpostId: outposts[1]!,
+  });
+  if (arrivedNow) {
+    const length = filed.arrivesAt - now;
+    await ctx.db.patch(filed.movementId, { departedAt: now - length, arrivesAt: now });
+    await ctx.scheduler.runAt(now, internal.movements.arrive, { movementId: filed.movementId });
+  }
+  return { movementId: filed.movementId, troopIds, outposts };
+}
+
+/**
+ * **La Guerre éclair** (#451, `--guerre-eclair` avec `--huit`, l'Allemagne au compte c) : une
+ * colonne allemande en main devant Aix-la-Chapelle, face à deux avant-postes français relevés
+ * (Liège, Namur), un point de marche (Spa) et un avant-poste allemand (Bastogne) pour le refus ;
+ * puis, chacune à part, une attaque à deux cibles en vol (Luxembourg puis Arlon), une seconde
+ * jambe partie (Malines tenue, vers Louvain), une tombée (Gand, garnison trop forte) et une
+ * restée sur place faute de coups (Neufchâteau). La France (compte a) voit repartir de Malines
+ * une colonne inconnue.
+ */
+export const blitzkriegScene = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const players = await ctx.db
+      .query('players')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .collect();
+    const germany = players.find((player) => player.nation === 'germany');
+    const france = players.find((player) => player.nation === 'france');
+    if (germany === undefined || france === undefined)
+      throw new Error('--guerre-eclair wants --huit');
+    const now = Date.now();
+    const p = (lon: number, lat: number) => ({ lon, lat });
+    const aachen = p(6.08, 50.78);
+    const liege = p(5.57, 50.63);
+    const namur = p(4.87, 50.47);
+    const bastogne = p(5.72, 50.02);
+    const spa = p(5.86, 50.49);
+    /** La main : trois chars posés, deux avant-postes français relevés, un allemand. */
+    for (let k = 0; k < 3; k++)
+      await ctx.db.insert('troops', {
+        seasonId,
+        playerId: germany._id,
+        role: 'armor',
+        tier: 1,
+        nominalStrength: nominalStrength('armor', 1),
+        currentStrength: nominalStrength('armor', 1),
+        stationedAt: aachen,
+      });
+    for (const [player, point] of [
+      [france, liege],
+      [france, namur],
+      [germany, bastogne],
+    ] as const) {
+      const region = regionAtPoint([point.lon, point.lat])!;
+      await ctx.db.insert('outposts', {
+        seasonId,
+        playerId: player._id,
+        point,
+        hostCountry: region.country,
+        regionId: region.id,
+        level: 1,
+        specialty: 'general',
+        foundedAt: now - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    }
+    await fileSurvey(
+      ctx,
+      germany._id,
+      [liege, namur].map((point) => ({ point: [point.lon, point.lat] as const, radiusKm: 1 })),
+      now,
+    );
+    const luxembourg = p(6.13, 49.61);
+    const arlon = p(5.81, 49.68);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(6.64, 49.75),
+      first: luxembourg,
+      then: arlon,
+    });
+    const mechelen = p(4.48, 51.03);
+    const leuven = p(4.7, 50.88);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(4.4, 51.22),
+      first: mechelen,
+      then: leuven,
+      arrivedNow: true,
+    });
+    const ghent = p(3.72, 51.05);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(3.26, 50.83),
+      first: ghent,
+      then: p(3.22, 51.21),
+      tanks: 2,
+      garrison: ['armor', 'armor', 'armor', 'armor', 'armor', 'armor'],
+      arrivedNow: true,
+    });
+    const neufchateau = p(5.43, 49.84);
+    await stageBlitzkrieg(ctx, {
+      attacker: germany,
+      foe: france,
+      from: p(5.07, 49.79),
+      first: neufchateau,
+      then: p(5.38, 49.92),
+      rounds: 1,
+      garrison: ['infantry'],
+      arrivedNow: true,
+    });
+    await recordLinkage(ctx, seasonId);
+    await reassessDetection(ctx, seasonId, now);
+    const at = (point: { lon: number; lat: number }) => [point.lon, point.lat];
+    return {
+      'guerre-eclair': at(aachen),
+      liege: at(liege),
+      namur: at(namur),
+      bastogne: at(bastogne),
+      spa: at(spa),
+      'guerre-eclair-lancee': at(luxembourg),
+      'guerre-eclair-tenue': at(mechelen),
+      'guerre-eclair-perdue': at(ghent),
+      'guerre-eclair-restee': at(neufchateau),
+    };
+  },
+});
+
+/**
+ * **Le banc de la seconde jambe** (#451) : deux attaques allemandes sur un même genre de cible
+ * gardée, l'une simple, l'autre à deux cibles, ramenées à leur arrivée. Le banc mesure chacune
+ * par `movements:arrive`, puis la seconde jambe par `movements:pressOn`, que l'arrivée planifie.
+ */
+export const benchBlitzkrieg = internalMutation({
+  args: { attackerId: v.id('players'), defenderId: v.id('players'), from: LON_LAT },
+  handler: async (ctx, { attackerId, defenderId, from }) => {
+    const attacker = (await ctx.db.get(attackerId))!;
+    const foe = (await ctx.db.get(defenderId))!;
+    const ids = [];
+    for (const [k, chained] of [false, true].entries()) {
+      const near = { lon: from.lon + 0.3, lat: from.lat + 0.2 * (k + 1) };
+      const staged = await stageBlitzkrieg(ctx, {
+        attacker,
+        foe,
+        from,
+        first: near,
+        then: { lon: near.lon + 0.3, lat: near.lat },
+        garrison: ['infantry'],
+        hostCountry: 'BENCH',
+      });
+      if (!chained) await ctx.db.patch(staged.movementId, { blitzkrieg: undefined });
+      /** Échue tout de suite, sa durée gardée : la vue lit la part parcourue sur les deux. */
+      const movement = (await ctx.db.get(staged.movementId))!;
+      const due = Date.now() - 1;
+      await ctx.db.patch(staged.movementId, {
+        departedAt: movement.departedAt - (movement.arrivesAt - due),
+        arrivesAt: due,
+      });
+      ids.push(staged.movementId);
+    }
+    await reassessDetection(ctx, attacker.seasonId, Date.now(), attackerId);
+    return { plain: ids[0]!, chained: ids[1]! };
   },
 });
 
@@ -2172,6 +2771,184 @@ export const pinsScene = internalMutation({
   },
 });
 
+const SCENE_HOURS = 240;
+const HOUR_MS = 3_600_000;
+
+/**
+ * **Une Mondiale conclue, pour la démo de l'édition finale** (#455) : une saison de dix jours
+ * réécrite comme si elle avait été jouée — une place tombée au sixième jour, les Sept passés de
+ * main en main, des passes, une édition par jour — puis conclue par la porte du jeu
+ * (`concludeSeason`) avec le verdict demandé. La France l'emporte quand il y a un vainqueur.
+ *
+ * `hold` annule la chaîne de clôture : l'édition reste « en attente » une demi-heure, puis
+ * « aucune ». Jamais pour une saison réelle : c'est un faux passé.
+ *
+ * `npx convex run dev:concludeScene '{"seasonId":"…","reason":"points"}'`
+ */
+export const concludeScene = internalMutation({
+  args: {
+    seasonId: v.id('seasons'),
+    reason: v.union(
+      v.literal('points'),
+      v.literal('clock'),
+      v.literal('draw'),
+      v.literal('closed'),
+    ),
+    hold: v.optional(v.boolean()),
+    /** Conclue au-delà de la demi-heure de repli, la chaîne retenue : « pas d'archive ». */
+    stale: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { seasonId, reason, hold, stale }) => {
+    const now = Date.now() - (stale === true ? ERASE_FALLBACK_MS + 60_000 : 0);
+    const seats = await seatsOf(ctx, seasonId);
+    const winner = seats.find((seat) => seat.nation === 'france') ?? seats[0]!;
+    const fallen = seats.at(-1)!;
+    /** Les points finissent trois heures avant l'horloge ; une clôture à la main deux jours avant. */
+    const ahead = reason === 'points' ? 3 : reason === 'closed' ? 50 : 0;
+    const launchedAt = now - (SCENE_HOURS - ahead) * HOUR_MS;
+    await ctx.db.patch(seasonId, { launchedAt, durationHours: SCENE_HOURS });
+    const at = (hours: number) => launchedAt + hours * HOUR_MS;
+
+    const fellAt = at(116);
+    await ctx.db.patch(fallen._id, { defeated: true, eliminatedAt: fellAt });
+    for (const seat of seats)
+      await ctx.db.insert('notices', {
+        playerId: seat._id,
+        at: fellAt,
+        kind: 'playerEliminated',
+        nation: fallen.nation ?? fallen.nickname,
+        ...(seat._id === fallen._id ? { by: winner.nation ?? winner.nickname } : {}),
+        irregulars: true,
+      });
+
+    /** Les Sept : un premier teneur, un retour au neutre sur le troisième, la main finale ; le
+     *  vainqueur aux points en tient quatre à la fin. */
+    const others = seats.filter((seat) => seat._id !== winner._id && seat._id !== fallen._id);
+    const points = await seasonPoints(ctx, seasonId);
+    for (const [rank, point] of points.entries()) {
+      const first = others[rank % others.length] ?? winner;
+      const last =
+        reason === 'points' && rank < 4 ? winner : (others[(rank + 1) % others.length] ?? winner);
+      const hands: Array<{ at: number; holderId: Id<'players'> | null }> = [
+        { at: at(10 + rank * 7), holderId: first._id },
+        ...(rank === 2 ? [{ at: at(90), holderId: null }] : []),
+        { at: at(120 + rank * 12), holderId: last._id },
+      ];
+      const heldMs: Record<string, number> = {};
+      for (const [index, hand] of hands.slice(0, -1).entries())
+        if (hand.holderId !== null)
+          heldMs[hand.holderId] = (heldMs[hand.holderId] ?? 0) + hands[index + 1]!.at - hand.at;
+      const final = hands.at(-1)!;
+      await ctx.db.patch(point._id, {
+        hands,
+        holderId: final.holderId,
+        heldSince: final.at,
+        heldMs: heldMs as Record<Id<'players'>, number>,
+      });
+    }
+
+    /** Quelques passes entre voisins, la plus grande au milieu de la saison. */
+    for (const [rank, attacker] of seats.entries()) {
+      const defender = seats[(rank + 1) % seats.length]!;
+      if (attacker._id === defender._id) continue;
+      const strength = nominalStrength('infantry', 1);
+      const troopId = await ctx.db.insert('troops', {
+        seasonId,
+        playerId: attacker._id,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: strength,
+        currentStrength: strength,
+        stationedAt: null,
+      });
+      const engaged = 4 + ((rank * 5) % 11);
+      const [lon, lat] = isNation(defender.nation)
+        ? HOME_BY_NATION[defender.nation]
+        : [2.35, 48.85];
+      await ctx.db.insert('engagements', {
+        seasonId,
+        attackerId: attacker._id,
+        defenderId: defender._id,
+        cause: 'arrival',
+        point: { lon, lat },
+        hostCountry: 'FRA',
+        at: at(20 + rank * 11),
+        winner: rank % 3 === 2 ? 'defender' : 'attacker',
+        outpostId: null,
+        disabledUntil: null,
+        troops: Array.from({ length: engaged }, (_, index) => {
+          const side = index % 2 === 0 ? ('attacker' as const) : ('defender' as const);
+          const destroyed = index % 3 === 0;
+          return {
+            troopId,
+            side,
+            role: 'infantry' as const,
+            tier: 1 as const,
+            strengthBefore: strength,
+            strengthAfter: destroyed ? 0 : strength,
+            state: destroyed ? ('destroyed' as const) : ('standing' as const),
+          };
+        }),
+      });
+    }
+
+    /** Le télégraphe a parlé : quelques dépêches au canal général, que la chaîne compte. */
+    for (const [k, seat] of seats.entries())
+      for (let n = 0; n < 3 * (seats.length - k); n++)
+        await ctx.db.insert('messages', {
+          seasonId,
+          playerId: seat._id,
+          text: `Dépêche ${n + 1}`,
+          at: at(6 + n * 5),
+        });
+
+    await concludeSeason(
+      ctx,
+      seasonId,
+      reason === 'points' || reason === 'clock' ? winner._id : null,
+      now,
+      reason === 'closed' ? { reason, closedBy: winner.nation ?? winner.nickname } : { reason },
+    );
+
+    /** Une édition par jour avant la finale, qui monte vers les chiffres de la conclusion : la
+     *  chaîne les lit après cette mutation, pour les courbes du carnet. */
+    const finals = await ctx.db
+      .query('editions')
+      .withIndex('bySeasonAt', (q) => q.eq('seasonId', seasonId).eq('at', now))
+      .collect();
+    /** Une scène sans usines : l'industrie de la finale est posée, et le général la suit. */
+    for (const [k, line] of finals.entries())
+      if (line.industry === 0) {
+        const industry = 60 + 35 * ((k * 3) % finals.length);
+        Object.assign(line, { industry, general: line.general + industry });
+        await ctx.db.patch(line._id, { industry, general: line.general });
+      }
+    for (const line of finals)
+      for (let day = 1; at(day * 24) < now; day++) {
+        const share = Math.min(1, 0.35 + (0.65 * day * 24) / (SCENE_HOURS - ahead));
+        const fade = line.playerId === fallen._id && at(day * 24) > fellAt ? 0.4 : 1;
+        await ctx.db.insert('editions', {
+          seasonId,
+          playerId: line.playerId,
+          at: at(day * 24),
+          final: false,
+          territory: Math.round(line.territory * share * fade * 10) / 10,
+          industry: Math.round(line.industry * share),
+          military: Math.round(line.military * share * fade),
+          deeds: Math.round(line.deeds * share),
+          general: Math.round(line.general * share * fade),
+        });
+      }
+
+    if (hold === true || stale === true)
+      /** La chaîne vient d'être programmée : elle est parmi les dernières, et une base de démo
+       *  usée en garde des dizaines de milliers, au-delà de ce qu'une mutation peut lire. */
+      for (const job of await ctx.db.system.query('_scheduled_functions').order('desc').take(200))
+        if (job.name.includes('countDispatches') && job.state.kind === 'pending')
+          await ctx.scheduler.cancel(job._id);
+  },
+});
+
 /** **Un point tenu par la porte du jeu** (`handOver`) : Rangoun au banc et à la démo (#176). */
 export const holdPoint = internalMutation({
   args: { playerId: v.id('players'), key: STRATEGIC_POINT_KEY },
@@ -2181,6 +2958,83 @@ export const holdPoint = internalMutation({
     const point = await layPoint(ctx, player.seasonId, key);
     if (point === null) throw new Error(`no region under ${key}`);
     await handOver(ctx, point, playerId, Date.now());
+  },
+});
+
+/**
+ * **Une prise qui s'achève dans `inSeconds`** (#442, `--moments`) : celle d'un des Sept (`point`)
+ * ou du QG d'un autre siège (`hqOf`), par la porte du jeu (`captures.complete`) — le cachet, la
+ * chute d'un QG et ses dépêches, comme en partie. Sans infanterie : l'échéance ne la relit pas.
+ */
+export const captureSoon = internalMutation({
+  args: {
+    playerId: v.id('players'),
+    point: v.optional(STRATEGIC_POINT_KEY),
+    hqOf: v.optional(v.id('players')),
+    inSeconds: v.optional(v.number()),
+  },
+  handler: async (ctx, { playerId, point: key, hqOf, inSeconds = 10 }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const point = key === undefined ? null : await layPoint(ctx, player.seasonId, key);
+    const hq =
+      hqOf === undefined
+        ? undefined
+        : (
+            await ctx.db
+              .query('buildings')
+              .withIndex('byPlayer', (q) => q.eq('playerId', hqOf))
+              .collect()
+          ).find((building) => building.key === 'hq');
+    const site =
+      point !== null
+        ? {
+            target: { kind: 'point' as const, pointId: point._id },
+            site: { kind: 'point' as const, key: point.key },
+            point: point.point,
+            defenderId: point.holderId ?? (await irregularSeat(ctx, player.seasonId)),
+          }
+        : hq !== undefined && hqOf !== undefined
+          ? {
+              target: { kind: 'building' as const, buildingId: hq._id },
+              site: { kind: 'building' as const, building: 'hq' as const, regionId: hq.regionId },
+              point: hq.point,
+              defenderId: hqOf,
+            }
+          : null;
+    if (site === null) throw new Error('nothing to take');
+    const now = Date.now();
+    const durationMs = inSeconds * 1000;
+    const completesAt = now + durationMs;
+    const captureId = await ctx.db.insert('captures', {
+      seasonId: player.seasonId,
+      playerId,
+      ...site,
+      progress: 0,
+      progressAt: now,
+      rate: 1,
+      durationMs,
+      rest: null,
+      completesAt,
+    });
+    await ctx.scheduler.runAt(completesAt, internal.captures.complete, {
+      captureId,
+      expectedAt: completesAt,
+    });
+  },
+});
+
+/** **La course aux Sept qui se clôt dans `inSeconds`** (#442) : son départ recule d'autant, et
+ *  `race.closeRace` se relit à la nouvelle échéance — la victoire aux points, comme en partie. */
+export const raceEndsSoon = internalMutation({
+  args: { seasonId: v.id('seasons'), inSeconds: v.optional(v.number()) },
+  handler: async (ctx, { seasonId, inSeconds = 20 }) => {
+    const season = await ctx.db.get(seasonId);
+    if (season?.raceLeaderId === undefined) throw new Error('no race runs');
+    const endsAt = Date.now() + inSeconds * 1000;
+    const since = endsAt - RACE_HOLD_HOURS * 3_600_000;
+    await ctx.db.patch(seasonId, { raceSince: since });
+    await ctx.scheduler.runAt(endsAt, internal.race.closeRace, { seasonId, since });
   },
 });
 

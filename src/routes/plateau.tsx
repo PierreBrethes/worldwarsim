@@ -1,4 +1,5 @@
 import { outpostPinId, pinsOf } from '@/domain/pins';
+import { contactsOf } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { boardsUnderTheEyes } from '@/map/cues';
@@ -34,8 +35,22 @@ import {
 import { forbiddenGroundOf } from '@/domain/drop-order';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
+import { momentOf, type Moment } from '@/domain/moments';
+import { useRaceRings } from './-plateau/useRaceRings';
+import { raceLeadOf } from '@/domain/race-rings';
 import { useHeldRegions } from './-plateau/useHeldRegions';
-import { dropRefusalOf, useOrderPreview } from './-plateau/useOrderPreview';
+import { dropRefusalOf, useOrderPreview, type ChainedFirst } from './-plateau/useOrderPreview';
+import {
+  ChainTab,
+  chainChipOf,
+  firstPointOf,
+  marchPreviewOf,
+  secondDropOf,
+  useChainKey,
+  useEscapeKey,
+} from './-plateau/blitzkrieg-hand';
+import { chainRefusalOf } from '@/domain/blitzkrieg';
+import { gateLabel } from '@/domain/labels';
 import { useTours } from './-plateau/useTours';
 import { usePlacing } from './-plateau/usePlacing';
 import { BoardWindows } from './-plateau/BoardWindows';
@@ -74,10 +89,19 @@ import { atAirfieldOf, boardPlacesOf, traceCompass } from '@/domain/compass-logi
 import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
+  courseOfArc,
+  courseRefusalOf,
+  nextCourseTurnAt,
+  steersCourse,
+} from '@/domain/carrier-doctrine';
+import { positionAt } from '@/domain/interception';
+import { pilePieces } from '@/domain/pile-pieces';
+import {
   buildingLabelId,
   razingStill,
   leavingStill,
   campsOf,
+  campsShown,
   markerOfStation,
   markersOf,
   standingPilesOf,
@@ -120,6 +144,7 @@ import {
   type DisbandGround,
 } from '@/domain/movement-orders';
 import {
+  stackOf,
   type CombatReport,
   type JournalDispatch,
   type ReplayView,
@@ -162,6 +187,7 @@ import { DismantleCard } from './-plateau/DismantleCard';
 import { RazeContext, razeOf } from './-plateau/RazeButton';
 import {
   useSendOrder,
+  useChangeCourse,
   wireOrigin,
   choiceOf,
   groupKeyOf,
@@ -185,6 +211,8 @@ import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
 import { FirstStepsList, useFirstSteps } from './-plateau/FirstSteps';
 import { shownStepOf } from '@/domain/first-steps';
+import { absenceTourOf } from '@/domain/absence-tour';
+import type { MapMotion } from '@/domain/map-motion';
 import { HandSheet } from './-plateau/HandSheet';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
@@ -425,6 +453,16 @@ function BoardContent({
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
+  /** **La première jambe posée d'une Guerre éclair** (ADR 0039 §6) : la main tient la colonne au
+   *  point de la première cible, le temps de viser la seconde. */
+  const [chain, setChain] = useState<ChainedFirst | null>(null);
+  /** **Le dernier aperçu de la main** : au doigt, la rose s'ouvre au lever, quand l'arrêt qui
+   *  avait mesuré la première jambe est déjà oublié. */
+  const lastSeen = useRef<{ choice: OrderChoice; preview: Previewed } | undefined>(undefined);
+  /** La dernière seconde jambe que le serveur a pesée sous la main, lue au lâcher. */
+  const lastThen = useRef<
+    { choice: OrderChoice; then: ReturnType<typeof useOrderPreview>['then'] } | undefined
+  >(undefined);
   /** **Plusieurs piles prises ensemble** (#130) : Maj + clic, le lasso, ou au doigt l'appui long
    *  sur le plateau puis les touchers (`picking`). Levée, une pile choisie emmène les autres. */
   const [selection, setSelection] = useState<Selection>([]);
@@ -673,6 +711,11 @@ function BoardContent({
   const selectedPiles = useMemo(() => chosen.map(pileIdOf), [chosen]);
   /** La pièce en main emmène la sélection quand elle en est. */
   const grouped = hand.kind === 'held' && chosen.length >= 2 && holds(chosen, hand.station);
+  /** **Ce que la Guerre éclair peut prendre en main** : une colonne seule, ni groupée ni reprise
+   *  en mer. Maj, la languette et la pastille lisent la même condition. */
+  const chainable =
+    hand.kind === 'held' && !grouped && hand.course === undefined && view.me.asset === 'blitzkrieg';
+  const chainKey = useChainKey(chainable && chain === null);
   const clearSelection = useCallback(() => {
     setSelection([]);
     setPicking(false);
@@ -728,6 +771,9 @@ function BoardContent({
 
   const liftHand = useCallback((next: Hand) => {
     setHand(next);
+    setChain(null);
+    lastSeen.current = undefined;
+    lastThen.current = undefined;
     setLifts((count) => count + 1);
     setGarrison(null);
     setOrderError(null);
@@ -735,6 +781,9 @@ function BoardContent({
 
   const dropHand = useCallback(() => {
     setHand(EMPTY_HAND);
+    setChain(null);
+    lastSeen.current = undefined;
+    lastThen.current = undefined;
     setResting(null);
   }, []);
 
@@ -1104,6 +1153,7 @@ function BoardContent({
     [narrow, dropHand],
   );
   const sendOrder = useSendOrder(seat);
+  const changeCourse = useChangeCourse(seat);
   /** **Tirer un passager hors de l'étiquette** (POC du 16/10) : il descend au pied de son
    *  transport, sur-le-champ — la règle de `movements.disembark`, que l'étiquette a déjà lue. */
   const disembarkFromTag = useCallback(
@@ -1168,6 +1218,31 @@ function BoardContent({
         dropHand();
         return true;
       };
+      /** **La seconde cible lâchée** (Guerre éclair) : refusée, rien ne part, ni l'une ni l'autre,
+       *  et le refus est dit (ADR 0015). */
+      if (chain !== null) {
+        if (column === null) return;
+        const chosen = isOrder(action) ? choiceOf(action) : null;
+        /** Le dernier verdict pesé : au doigt, la rose s'ouvre après l'arrêt qui l'a mesuré. */
+        const drop = secondDropOf(view.me.asset, chain, chosen, lastThen.current, column.rule);
+        if (drop.refusal !== null || chosen === null) {
+          setOrderError(drop.refusal);
+          dropHand();
+          return;
+        }
+        const then = drop.then;
+        sendColumn(
+          () =>
+            sendOrder(chain.station, column.troopIds, chain.first, chain.preview, chosen.aim).then(
+              (filed) =>
+                then === null
+                  ? filed
+                  : { ...filed, destination: fr.blitzkrieg.sent(filed.destination, then) },
+            ),
+          chain.first.label,
+        );
+        return;
+      }
       switch (action.key) {
         /**
          * **L'élévation part de la carte, par la mutation d'`UpgradeControl` et pas une autre**
@@ -1310,6 +1385,53 @@ function BoardContent({
           }
           if (column === null) return;
           if (heldAtDrop(action)) return;
+          if (hand.kind === 'held' && hand.course !== undefined) {
+            const movementId = hand.course;
+            const chosen = choiceOf(action);
+            /** La même règle que la pastille (`courseTargetRefusalOf`). */
+            if (!steersCourse(chosen)) {
+              setOrderError(fr.errors.COURSE_TARGET_ON_MISSION());
+              dropHand();
+              return;
+            }
+            const seen = previewNow.current;
+            sendColumn(
+              () =>
+                changeCourse(
+                  movementId,
+                  chosen,
+                  seen !== undefined &&
+                    JSON.stringify(seen.choice.aim) === JSON.stringify(chosen.aim)
+                    ? seen.preview
+                    : undefined,
+                ),
+              fr.course.sent,
+            );
+            return;
+          }
+          /** **Maj tenue au lâcher** (Guerre éclair) : la première jambe se pose, la colonne reste
+           *  en main au point de la première cible ; rien ne part encore. */
+          const first = (() => {
+            const chosen = choiceOf(action);
+            const seen = previewNow.current ?? lastSeen.current;
+            if (!chainKey.ref.current || seen === undefined) return null;
+            if (JSON.stringify(seen.choice.aim) !== JSON.stringify(chosen.aim)) return null;
+            const marched = marchPreviewOf(chosen, seen.preview);
+            return marched !== null &&
+              chainRefusalOf(view.me.asset, chosen, marched.route.legs) === null
+              ? { chosen, marched }
+              : null;
+          })();
+          if (first !== null) {
+            liftHand({
+              kind: 'held',
+              station: firstPointOf(first.marched),
+              troopIds: column.troopIds,
+            });
+            setChain({ station: column.station, first: first.chosen, preview: first.marched });
+            setResting(null);
+            return;
+          }
           sendColumn(() => {
             const chosen = choiceOf(action);
             const seen = previewNow.current;
@@ -1354,36 +1476,63 @@ function BoardContent({
       airdrop,
       dropHand,
       column,
+      hand,
       seat,
       sendOrder,
+      changeCourse,
       afterSent,
       settle,
       grouped,
       setTrace,
       launchPatrol,
+      chain,
+      chainKey.ref,
+      liftHand,
+      view.me.asset,
     ],
   );
 
-  /** **Échap repose la pièce en main** (ADR 0026 §6). La rose arrête la touche avant nous quand
-   *  elle est ouverte. */
-  useEffect(() => {
-    if (hand.kind === 'empty') return;
-    const putBack = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') dropHand();
-    };
-    document.addEventListener('keydown', putBack);
-    return () => document.removeEventListener('keydown', putBack);
-  }, [hand.kind, dropHand]);
+  /** **Échap garde la première seule** (Guerre éclair) : la première jambe posée part en attaque
+   *  simple. */
+  const sendFirstAlone = useCallback(() => {
+    if (chain === null || hand.kind !== 'held' || inFlight.current) return;
+    inFlight.current = true;
+    setOrderError(null);
+    const { station, first, preview } = chain;
+    sendOrder(station, hand.troopIds, first, preview).then(
+      (filed) => {
+        settle();
+        afterSent(filed, first.label);
+      },
+      (problem: unknown) => {
+        settle();
+        handleError(problem, setOrderError);
+        dropHand();
+      },
+    );
+  }, [chain, hand, sendOrder, settle, afterSent, dropHand]);
+  useEscapeKey(hand.kind !== 'empty', chain !== null, {
+    sendFirst: sendFirstAlone,
+    putBack: dropHand,
+  });
 
   /** **Une pièce dont les troupes ne sont plus là se repose seule** — parties, tombées, ou un
    *  observateur qui vient de capituler : la main ne tient pas ce que la vue ne sert plus. */
   useEffect(() => {
     if (hand.kind === 'empty') return;
+    /** Une flotte reprise en mer (#449) est là tant que son mouvement vole. */
     const here = new Set(
-      troopsAt(view.me, stationKeyOf(hand.station), marching).map((troop) => troop.id),
+      hand.course !== undefined
+        ? (
+            view.arcs.find((arc) => arc.id === hand.course && arc.state === 'mine') as
+              { troopIds: ReadonlyArray<string> } | undefined
+          )?.troopIds
+        : troopsAt(view.me, stationKeyOf(chain?.station ?? hand.station), marching).map(
+            (troop) => troop.id,
+          ),
     );
     if (view.me.defeated || !hand.troopIds.every((troopId) => here.has(troopId))) dropHand();
-  }, [hand, view.me, marching, dropHand]);
+  }, [hand, chain, view.me, view.arcs, marching, dropHand]);
 
   /** **Les cases de la fiche latérale composent la main**, sans la lâcher (`composeHand`). Un
    *  ordre choisi pour l'ancienne composition ne vaut plus pour la nouvelle. */
@@ -1537,11 +1686,39 @@ function BoardContent({
     ],
   );
 
-  const { arcs, loadedAt, captures, mode } = view;
+  const { arcs, loadedAt, captures, mode, journal } = view;
+  const raceRings = useRaceRings(
+    view.season.race,
+    view.strategicPoints,
+    view.season.outcome.concludedAt !== null,
+  );
+  const raceLead = useMemo(
+    () =>
+      raceLeadOf(
+        view.season.outcome.concludedAt === null ? view.season.race : null,
+        view.strategicPoints,
+      ),
+    [view.season.outcome.concludedAt, view.season.race, view.strategicPoints],
+  );
   const ink = view.me.ink;
   const troops = view.me.troops;
+  const asset = view.me.asset;
+  /** **La fiche relit le cap à l'heure du client** (#449) : à la mi-parcours, sans attendre une
+   *  vue neuve, que la Mondiale calme peut faire attendre des heures. */
+  const [courseAt, setCourseAt] = useState(() => Date.now());
+  const courseNow = Math.max(loadedAt, courseAt);
+  const courseTurn = nextCourseTurnAt(arcs, asset, courseNow);
+  useEffect(() => {
+    if (courseTurn === null) return;
+    const timer = setTimeout(() => setCourseAt(Date.now()), Math.max(0, courseTurn - Date.now()));
+    return () => clearTimeout(timer);
+  }, [courseTurn]);
   const labels = useMemo(() => {
-    const built = buildLabels({ arcs, loadedAt, captures, me: { ink, troops } }, markers);
+    const built = buildLabels(
+      { arcs, loadedAt, captures, mode, journal, raceRings, me: { ink, troops, asset } },
+      markers,
+      courseNow,
+    );
     return mode === 'blitz'
       ? ownerFlags(
           built,
@@ -1552,7 +1729,20 @@ function BoardContent({
           ink,
         )
       : built;
-  }, [arcs, loadedAt, captures, mode, ink, troops, markers, knownRegionById]);
+  }, [
+    arcs,
+    loadedAt,
+    captures,
+    mode,
+    journal,
+    raceRings,
+    ink,
+    troops,
+    asset,
+    markers,
+    knownRegionById,
+    courseNow,
+  ]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment ou d'un avant-poste se lève par ses
@@ -1606,6 +1796,7 @@ function BoardContent({
   const clickOfFrom = useCallback(
     (from: PieceFrom, single = false): PileClick | null => {
       if (from.kind === 'piece') return pileClickOf(from.hit, single);
+      if (from.kind === 'movement') return null;
       if (from.station.kind !== 'point' && from.station.kind !== 'outpost') return null;
       const troopIds = troopsAt(view.me, stationKeyOf(from.station), marching).map(
         (troop) => troop.id,
@@ -1637,15 +1828,65 @@ function BoardContent({
     },
     [clickOfFrom, unitsAt, hand, liftHand],
   );
+  /** **Reprendre une flotte en mer** (Doctrine du porte-avions, ADR 0039 §4) : la règle du
+   *  serveur dit oui, et la main la prend à sa position du moment ; sinon le refus est dit, et
+   *  la flotte reste sur son fil. */
+  const takeCourse = useCallback(
+    (arcId: string): Hand | null => {
+      const arc = view.arcs.find((one) => one.id === arcId);
+      /** L'atout est de la Mondiale seule : en Blitz, la flotte ne se saisit pas. */
+      if (arc?.state !== 'mine' || blitz) return null;
+      const now = Date.now();
+      const course = courseOfArc(arc);
+      const refusal = courseRefusalOf(view.me.asset, course, now);
+      if (refusal !== null) {
+        setOrderError(fr.errors[refusal]({}));
+        return null;
+      }
+      const next: Hand = {
+        kind: 'held',
+        /** En mer, la règle vient de le dire : la position n'a ni pays ni côte à nommer. */
+        station: {
+          kind: 'point',
+          lonLat: positionAt(course.force, now),
+          country: '',
+          afloat: true,
+          ground: 'sea',
+          coastal: false,
+        },
+        troopIds: arc.troopIds,
+        course: arc.id,
+      };
+      clearSelection();
+      liftHand(next);
+      return next;
+    },
+    [view.arcs, view.me.asset, blitz, clearSelection, liftHand],
+  );
   const carryPiece = useCallback(
     (from: PieceFrom, single: boolean): boolean => {
+      /** Entre ses deux cibles, la colonne se reprend où elle se tient (Guerre éclair). */
+      if (
+        chain !== null &&
+        hand.kind === 'held' &&
+        from.kind === 'piece' &&
+        from.hit.pileId === pileIdOf(hand.station)
+      ) {
+        setDragged(hand);
+        return true;
+      }
+      if (from.kind === 'movement') {
+        const taken = takeCourse(from.arcId);
+        setDragged(taken);
+        return taken !== null;
+      }
       const next = takePiece(from, single);
       // A troop taken alone, or a pile outside the selection, goes by itself.
       if (next?.kind === 'held' && (single || !holds(chosen, next.station))) clearSelection();
       setDragged(next);
       return next !== null;
     },
-    [takePiece, chosen, clearSelection],
+    [takePiece, takeCourse, chosen, clearSelection, chain, hand],
   );
   /** Released where a long press took one troop, the click lifts that troop alone. */
   const pieceClick = useCallback(
@@ -1718,7 +1959,13 @@ function BoardContent({
       (station) => lead === null || stationKeyOf(station) !== stationKeyOf(lead),
     );
     if (chosen.length < 2 || lead === null || first === undefined) {
-      setBarRefusal(chosen.length < 2 ? fr.selection.atLeastTwo : fr.selection.noSquadHere);
+      setBarRefusal(
+        chosen.length < 2
+          ? narrow
+            ? fr.selection.atLeastTwoTouch
+            : fr.selection.atLeastTwo
+          : fr.selection.noSquadHere,
+      );
       return;
     }
     const target: CompassTarget = {
@@ -1743,7 +1990,7 @@ function BoardContent({
       return;
     }
     sendGroup(reads, join);
-  }, [chosen, view.me, marching, readGroup, sendGroup]);
+  }, [chosen, view.me, marching, readGroup, sendGroup, narrow]);
 
   const disbandMutation = useMutation(api.movements.disband);
   /** La côte et le raster des pays, une fois arrivés : avant eux U reste offert, le serveur tranche. */
@@ -1901,7 +2148,7 @@ function BoardContent({
   const dropPiece = useCallback(
     (on: PieceFrom): 'pose' | 'board' | 'boardHome' | 'back' | 'refused' => {
       const click = aimOf(on);
-      if (click === null || hand.kind !== 'held') return 'pose';
+      if (click === null || hand.kind !== 'held' || hand.course !== undefined) return 'pose';
       const drop = boardingDropOf(
         hand,
         click,
@@ -1909,6 +2156,12 @@ function BoardContent({
         atAirfieldOf(view.me.buildings, click.station),
       );
       if (drop.kind === 'pose') return 'pose';
+      /** Entre deux cibles (Guerre éclair), embarquer ou se reposer n'est pas une seconde cible. */
+      if (chain !== null) {
+        setOrderError(fr.blitzkrieg.notAnOrder);
+        dropHand();
+        return 'refused';
+      }
       // What the preview refused is refused here, as the rose does: nothing goes to the server.
       if (drop.kind === 'putBack' || drop.refusal !== null) {
         dropHand();
@@ -1929,7 +2182,7 @@ function BoardContent({
       );
       return boarded;
     },
-    [aimOf, hand, unitsAt, view.me.buildings, dropHand, boardHand, settle, blitz],
+    [aimOf, hand, unitsAt, view.me.buildings, dropHand, boardHand, settle, blitz, chain],
   );
 
   /** **My transports that could take the hand** (POC, `avail`): their rings beat while it is
@@ -1956,7 +2209,7 @@ function BoardContent({
   const dropHintOf = useCallback(
     (on: PieceFrom): DropHint | null | undefined => {
       const click = aimOf(on);
-      if (click === null || hand.kind !== 'held') return undefined;
+      if (click === null || hand.kind !== 'held' || hand.course !== undefined) return undefined;
       const drop = boardingDropOf(
         hand,
         click,
@@ -1964,6 +2217,8 @@ function BoardContent({
         atAirfieldOf(view.me.buildings, click.station),
       );
       if (drop.kind === 'pose') return undefined;
+      if (chain !== null)
+        return { icon: '✕', tone: 'refused', verb: fr.blitzkrieg.notAnOrder, detail: null };
       if (drop.kind === 'putBack')
         return { icon: '↺', tone: 'calm', verb: fr.drop.putBack, detail: fr.drop.putBackDetail };
       const { boarding, refusal } = drop;
@@ -1989,14 +2244,31 @@ function BoardContent({
             detail: fr.errors[refusal](boardingRefusalDetails(boarding)),
           };
     },
-    [aimOf, hand, unitsAt, view.me.buildings],
+    [aimOf, hand, unitsAt, view.me.buildings, chain],
   );
   /** **Une pile de Blitz se dessine en unités** (15/10) : une pièce chacune, et rien ne se
    *  déploie — la pièce est déjà l'unité. */
-  const standing = useMemo(
-    () => standingPilesOf(view.me, markers, marching, blitz),
-    [markers, view.me, marching, blitz],
-  );
+  /** **La flotte reprise en mer** (#449) se tient, le temps du geste, à sa position : c'est elle
+   *  que la main soulève, et son ombre qui reste sur le fil. */
+  const standing = useMemo(() => {
+    const piles = standingPilesOf(view.me, markers, marching, blitz);
+    /** Comme elle, la colonne d'une Guerre éclair entre ses deux cibles se tient à la première. */
+    if (
+      hand.kind !== 'held' ||
+      (hand.course === undefined && chain === null) ||
+      hand.station.kind !== 'point'
+    )
+      return piles;
+    const troops = view.me.troops.filter((troop) => hand.troopIds.includes(troop.id));
+    return [
+      ...piles,
+      {
+        id: pileIdOf(hand.station),
+        at: { lonLat: hand.station.lonLat },
+        pieces: pilePieces(troops),
+      },
+    ];
+  }, [markers, view.me, marching, blitz, hand, chain]);
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return withVitrine(
@@ -2014,7 +2286,18 @@ function BoardContent({
     () => marchingPiecesOf(view.arcs, view.me.troops, blitz),
     [view.arcs, view.me.troops, blitz],
   );
-  const pins = useMemo(() => pinsOf(markers, arcs, ink), [markers, arcs, ink]);
+  /** **Les accrochages** (#441), nommés d'après toutes les villes de l'atlas. */
+  const contacts = useMemo(
+    () => contactsOf({ ...view, camps: campsShown(view, toggles) }, atlas.cities()),
+    [view, toggles, atlas],
+  );
+  const pins = useMemo(
+    () =>
+      pinsOf(markers, arcs, ink, (station) =>
+        stackOf(troopsAt(view.me, stationKeyOf(station), marching).map(({ role }) => role)),
+      ),
+    [markers, arcs, ink, view.me, marching],
+  );
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui
@@ -2088,8 +2371,25 @@ function BoardContent({
     [navigate],
   );
 
-  useOpenedOnce(ending.key === null ? null : `wws-ending-${seat.seasonId}-${ending.key}`, () =>
-    openWindow('press'),
+  /** **Le grand moment d'une fin** (#442) : la carte le joue, puis la feuille s'ouvre ; sans
+   *  moment (Blitz, une fin sans lieu), la feuille s'ouvre tout de suite. */
+  const [moment, setMoment] = useState<Moment | null>(null);
+  const markEnded = useOpenedOnce(
+    ending.key === null ? null : `wws-ending-${seat.seasonId}-${ending.key}`,
+    () => {
+      const played = momentOf(ending.key, {
+        mode: view.mode,
+        nation: view.me.nation,
+        eliminatedAt: view.me.eliminatedAt,
+        journal: view.journal,
+        verdict: view.season.verdict,
+        concludedAt: view.season.outcome.concludedAt,
+        strategicPoints: view.strategicPoints,
+      });
+      if (played !== null) return setMoment(played);
+      markEnded();
+      openWindow('press');
+    },
   );
 
   /**
@@ -2188,6 +2488,53 @@ function BoardContent({
       nonce: Date.now(),
     });
   }, [blitzTheatre, view.me.hqLevel, view.me.openingPoint, view.me.buildings]);
+
+  /**
+   * **Le rejeu d'absence** (#439) : ce qui est neuf depuis la dernière lecture, rejoué sur la
+   * carte. La file se fige à l'ouverture ; elle part quand la carte se voit, le cadrage
+   * d'ouverture posé. Une dépêche arrivée pendant ce temps a les tampons ordinaires.
+   */
+  const markToured = useMutation(api.journal.markToured);
+  const [absenceQueue] = useState(
+    () => (landAt: (at: LonLat) => boolean, motion: MapMotion) =>
+      absenceTourOf(
+        view.journal,
+        { journalReadAt: view.journalReadAt, absenceTourAt: view.absenceTourAt },
+        {
+          mode: view.mode,
+          concluded: view.season.outcome.concludedAt !== null,
+          arrivedOnReport: report !== undefined,
+          firstStepsShown: shownStepOf(view) !== null,
+          defeated: view.me.defeated,
+          motion,
+        },
+        landAt,
+      ),
+  );
+  const absenceTour = useMemo(
+    () => ({
+      queue: absenceQueue,
+      lift: narrow ? sheetLift('peek') : 0,
+      onSeen: () => void markToured(seat).catch(() => undefined),
+    }),
+    [absenceQueue, narrow, markToured, seat],
+  );
+
+  const playedMoment = useMemo(
+    () =>
+      moment === null
+        ? null
+        : {
+            moment,
+            lift: narrow ? sheetLift('peek') : 0,
+            onEnd: () => {
+              markEnded();
+              setMoment(null);
+              openWindow('press');
+            },
+          },
+    [moment, narrow, openWindow, markEnded],
+  );
 
   const editionServed = useRef(false);
   useEffect(() => {
@@ -2364,12 +2711,47 @@ function BoardContent({
       ),
     [],
   );
-  const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting, {
+  const heldCourse = hand.kind === 'held' ? (hand.course ?? null) : null;
+  const courseHand = useMemo(() => {
+    const arc = view.arcs.find((one) => one.id === heldCourse);
+    return arc?.state === 'mine' ? { arc, asset: view.me.asset } : null;
+  }, [view.arcs, view.me.asset, heldCourse]);
+  const { preview, dropNotes, dropFuel, aimRoute, then } = useOrderPreview(seat, column, resting, {
     grouped,
     blitz,
+    course: courseHand,
+    chain,
   });
   previewNow.current =
     resting === null || preview === undefined ? undefined : { choice: resting, preview };
+  if (previewNow.current !== undefined) lastSeen.current = previewNow.current;
+  if (resting !== null && then !== undefined) lastThen.current = { choice: resting, then };
+  const chainChip = useMemo(
+    () =>
+      !chainable
+        ? null
+        : chainChipOf({
+            asset: view.me.asset,
+            key: chainKey.held,
+            chain,
+            resting,
+            preview,
+            then,
+            column: column?.rule ?? null,
+          }),
+    [chainable, view.me.asset, chainKey.held, chain, resting, preview, then, column],
+  );
+  const chainRun = useMemo(
+    () => chain?.preview.route.points.map((point) => [point.lon, point.lat] as LonLat) ?? null,
+    [chain],
+  );
+  const shownLabels = useMemo(
+    () =>
+      chain === null || hand.kind !== 'held' || hand.station.kind !== 'point'
+        ? labels
+        : [...labels, gateLabel('hand', hand.station.lonLat)],
+    [labels, chain, hand],
+  );
 
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
@@ -2533,6 +2915,12 @@ function BoardContent({
                   </div>
                 )}
                 {tokens.chip}
+                {/* **La languette « puis »** (Guerre éclair) : au doigt, elle tient lieu de Maj. */}
+                {chainable &&
+                  chain === null &&
+                  globalThis.matchMedia?.('(pointer: coarse)').matches === true && (
+                    <ChainTab held={chainKey.held} onHold={chainKey.hold} />
+                  )}
                 <WorldMap
                   blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
                   atlas={atlas}
@@ -2541,10 +2929,12 @@ function BoardContent({
                   troops={view.me.troops}
                   columns={columns}
                   journal={view.journal}
-                  labels={labels}
+                  raceLead={raceLead}
+                  labels={shownLabels}
                   standing={standing}
                   camps={camps}
                   pins={pins}
+                  contacts={contacts}
                   maquettes={maquettes}
                   held={held}
                   outposts={reachedOutposts}
@@ -2606,6 +2996,9 @@ function BoardContent({
                   dropNotes={dropNotes}
                   dropFuel={dropFuel}
                   aimRoute={aimRoute}
+                  course={hand.kind === 'held' ? (hand.course ?? null) : null}
+                  chain={chainChip}
+                  chainRun={chainRun}
                   availablePiles={availablePiles}
                   onCarryEnd={carryEnded}
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}
@@ -2636,7 +3029,12 @@ function BoardContent({
                   focus={focus}
                   searchArea={searchArea}
                   fingerRose={fingerRose}
-                  covered={narrow && sheets > 0}
+                  /* The journal's sheet counts from its address: loaded lazily, it would mount
+                     after the absence tour had started, and stop it unseen. */
+                  covered={narrow && (sheets > 0 || windows.includes('journal'))}
+                  absenceTour={absenceTour}
+                  moment={playedMoment}
+                  concluded={view.season.outcome.concludedAt !== null}
                   reveal={reveal}
                   replay={replay}
                   onReplayStep={replayStep}
@@ -2748,7 +3146,8 @@ function BoardContent({
                         ? pilePlace(hand.station, stationNames(view), regionAt)
                         : stationNames(view).place(hand.station)
                     }
-                    held={troopsAt(view.me, stationKeyOf(hand.station), marching)}
+                    /** Entre deux cibles, ses troupes sont encore où elles partent (Guerre éclair). */
+                    held={troopsAt(view.me, stationKeyOf(chain?.station ?? hand.station), marching)}
                     troopIds={hand.troopIds}
                     onApproach={() => {
                       const marker = markerOfStation({ me: view.me }, hand.station);

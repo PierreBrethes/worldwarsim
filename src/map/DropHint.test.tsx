@@ -1,7 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CompassAction } from '@/domain/compass-rose';
-import { DropHintChip, hintOfReading, type DropFuel } from './DropHint';
+import type { DropReading } from '@/domain/drop-order';
+import { fr } from '@/i18n/fr';
+import {
+  DropHintChip,
+  hintOfReading,
+  secondRefusalOn,
+  type ChainChip,
+  type DropFuel,
+  type DropHint,
+} from './DropHint';
 
 const hint = { icon: '→', tone: 'order' as const, verb: 'marcher', detail: null };
 const gauge = (fuel: Partial<DropFuel>): DropFuel => ({
@@ -36,6 +45,16 @@ describe('the fuel gauge under the hand', () => {
     );
     expect(markup.match(/fuel-step--short/g)).toHaveLength(6);
     expect(markup).toContain('manque 24');
+  });
+
+  it('counts a new course in what the stock pays past the paid fuel (#449)', () => {
+    const count = (fuel: DropFuel) =>
+      renderToStaticMarkup(<DropHintChip hint={hint} fuel={fuel} ref={null} />)
+        .match(/<span class="fuel-count"[^>]*>(.*?)<\/span>/)?.[1]
+        ?.replace(/<[^>]+>/g, '');
+    const truk = gauge({ resource: 'oil', held: 4, full: 6, eaten: 13, paid: 11 });
+    expect(count(truk)).toBe('+2 pétrole · 11 déjà payés');
+    expect(count(gauge({ resource: 'oil', eaten: 9, paid: 11 }))).toBe('plein : 9 / 11 déjà payés');
   });
 });
 
@@ -75,5 +94,122 @@ describe('a refusal beside the offered order', () => {
     expect(shown.aside).toBe('liaison déjà tenue');
     const markup = renderToStaticMarkup(<DropHintChip hint={shown} ref={null} />);
     expect(markup).toContain('drop-chip-detail--alarm">liaison déjà tenue<');
+  });
+});
+
+/** **La Guerre éclair sous la main** (#451, maquette A « Maj »). */
+describe('the blitzkrieg chip', () => {
+  const fight: DropHint = {
+    icon: '⚔',
+    tone: 'fight',
+    verb: 'Attaquer',
+    detail: 'initiative',
+    order: true,
+  };
+  const said = (chain: ChainChip, on: DropHint = fight) =>
+    renderToStaticMarkup(<DropHintChip hint={on} chain={chain} ref={null} />).replaceAll(
+      '&#x27;',
+      '’',
+    );
+
+  it('offers the second target at the foot of an attack, and arms it under Shift', () => {
+    expect(said({ kind: 'offer' })).toContain('Maj en lâchant : une seconde cible');
+    const armed = said({ kind: 'armed', first: 'Liège', span: '4 h 10' });
+    expect(armed).toContain('Attaquer, puis…');
+    expect(armed).toContain('lâchez : la première jambe se pose sur Liège · 4 h 10');
+    expect(armed).toContain('relâchez Maj avant de lâcher : Liège seule');
+  });
+
+  it('keeps a march offered under Shift, and says why it does not chain', () => {
+    const march = said({ kind: 'refused', reason: 'une marche n’enchaîne pas' }, hint);
+    expect(march).toContain('marcher');
+    expect(march).toContain('Maj : une marche n’enchaîne pas');
+  });
+
+  it('names the second target and what it waits for, or turns red on its refusal', () => {
+    const second = said({
+      kind: 'second',
+      first: 'Liège',
+      then: 'Namur',
+      span: '3 h 05',
+      refusal: null,
+    });
+    expect(second).toContain('Puis Namur');
+    expect(second).toContain('initiative · +3 h 05 après terrain tenu à Liège');
+    expect(second).toContain('terrain perdu : Namur tombe, les survivants rentrent');
+    expect(second).toContain('relâcher : deux cibles, un slot · Échap : Liège seule');
+    const refused = said({
+      kind: 'second',
+      first: 'Liège',
+      then: null,
+      span: null,
+      refusal: 'pas les siens',
+    });
+    expect(refused).toContain('drop-chip--refused');
+    expect(refused).toContain('relâcher : rien ne part, la colonne revient · Échap : Liège seule');
+  });
+
+  it('refuses as a second target what is no order: boarding, joining, a garrison', () => {
+    const second: ChainChip = {
+      kind: 'second',
+      first: 'Liège',
+      then: null,
+      span: null,
+      refusal: null,
+    };
+    const board: DropHint = { icon: '⤓', tone: 'order', verb: 'Embarquer', detail: null };
+    expect(secondRefusalOn(board, second)).toBe(fr.blitzkrieg.notAnOrder);
+    expect(said(second, board)).toContain('drop-chip--refused');
+    expect(secondRefusalOn(fight, second)).toBeNull();
+    expect(secondRefusalOn(board, { kind: 'offer' })).toBeNull();
+  });
+});
+
+describe('the chip under a finger (#456)', () => {
+  const verbs = [
+    { key: 'aim', label: 'attaque' },
+    { key: 'raid', label: 'raid d’avant-poste' },
+  ] as unknown as ReadonlyArray<CompassAction>;
+  const withTouch = <T,>(coarse: boolean, run: () => T): T => {
+    vi.stubGlobal('matchMedia', () => ({ matches: coarse }));
+    try {
+      return run();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  };
+  const chipOn = (coarse: boolean, over: Partial<DropHint> = {}, rose = true) =>
+    withTouch(coarse, () =>
+      renderToStaticMarkup(<DropHintChip hint={{ ...hint, ...over }} rose={rose} ref={null} />),
+    ).replaceAll('&#x27;', '’');
+  const choiceOf = (coarse: boolean, rose: boolean) =>
+    withTouch(
+      coarse,
+      () =>
+        hintOfReading({ kind: 'orders', verbs } as unknown as DropReading, () => 0, null, rose)
+          ?.choice,
+    );
+
+  it('names no key of a keyboard, and says how to let go and how to put back', () => {
+    for (const over of [{}, { choice: '2 ordres' }, { tone: 'refused' as const, verb: 'non' }]) {
+      const said = chipOn(true, over);
+      expect(said).not.toMatch(/Tab|Échap/);
+      expect(said).toContain('sur la pièce');
+    }
+    expect(chipOn(true, { choice: '2 ordres' })).toContain(fr.drop.releaseChoiceTouch);
+    expect(chipOn(true)).toContain(fr.drop.releaseTouch);
+  });
+
+  it('keeps Tab and Échap under a mouse', () => {
+    expect(chipOn(false)).toContain('Échap annule');
+    expect(choiceOf(false, true)).toBe('1/2 · Tab : raid d’avant-poste');
+  });
+
+  it('offers the choice only where the finger has a rose to choose in', () => {
+    expect(choiceOf(true, true)).toBe(fr.drop.choiceTouch(2));
+    expect(choiceOf(true, false)).toBeUndefined();
+    const wide = chipOn(true, {}, false);
+    expect(wide).toContain(fr.drop.releaseDirectTouch);
+    expect(wide).not.toContain(fr.drop.releaseChoiceTouch);
   });
 });

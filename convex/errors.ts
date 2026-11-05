@@ -24,6 +24,10 @@ export type ErrorCode =
   | 'SEASON_NOT_LAUNCHED'
   | 'SEASON_ALREADY_LAUNCHED'
   | 'SEASON_CONCLUDED'
+  | 'SEASON_NOT_CONCLUDED'
+  | 'UNKNOWN_EDITION'
+  | 'NOT_A_PARTICIPANT'
+  | 'EDITION_PENDING'
   | 'REGISTRATION_CLOSED'
   | 'UNKNOWN_GAME_CODE'
   | 'NO_FREE_GAME_CODE'
@@ -93,6 +97,8 @@ export type ErrorCode =
   /** Raser (demande du 15/09) : le mât visé n'est pas à soi, ou c'est le quartier général. */
   | 'NOT_YOURS'
   | 'HQ_NEVER_DEMOLISHED'
+  | 'DEMOLITION_UNDER_CAPTURE'
+  | 'DISMANTLE_UNDER_CAPTURE'
   | 'WRONG_PROJECTION_BUILDING'
   | 'SINGLE_TIER_ROLE'
   | 'QUEUE_FULL'
@@ -110,6 +116,20 @@ export type ErrorCode =
   | 'NO_LAND_ROUTE'
   /** **Coups et plein** (ADR 0028 §3) : une route au-delà du plus petit plein, une attaque à sec. */
   | 'NOT_ENOUGH_FUEL'
+  /** **La Doctrine du porte-avions** (ADR 0039 §4), `courseRefusalOf`. */
+  | 'UNKNOWN_MOVEMENT'
+  | 'NO_CARRIER_DOCTRINE'
+  | 'COURSE_ON_MISSION'
+  /** Dit par le client seul : la cible lâchée donnerait une mission à la flotte reprise. */
+  | 'COURSE_TARGET_ON_MISSION'
+  | 'COURSE_ALREADY_CHANGED'
+  | 'PAST_HALFWAY'
+  | 'NOT_AT_SEA'
+  /** **La Guerre éclair** (ADR 0039 §6), `chainRefusalOf` et `secondTargetRefusalOf`. */
+  | 'NO_BLITZKRIEG'
+  | 'CHAIN_ATTACK_ONLY'
+  | 'CHAIN_ASHORE_ONLY'
+  | 'SAME_TARGET'
   | 'NO_ROUNDS'
   | 'UNKNOWN_TROOP'
   | 'DUPLICATE_TROOP'
@@ -166,6 +186,9 @@ export type ErrorCode =
   | 'NOTHING_TO_DELIVER'
   | 'DEPOT_NOT_STANDING'
   | 'DEPOT_FULL'
+  /** **Le Prêt-bail** (ADR 0039 §3). */
+  | 'FOREIGN_DEPOT'
+  | 'LEND_LEASE_TRANSPORTS_ONLY'
   /** **Larguer** (ADR 0028 §4). */
   | 'AIRDROP_AIR_ONLY'
   | 'NO_SQUAD_THERE'

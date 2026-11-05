@@ -1,4 +1,5 @@
 import type { LineKey } from '../../convex/constants';
+import type { Asset } from './nation-assets';
 import type { SupplyLoad } from './logistics';
 import type { Supplies } from './supplies';
 import type { CaptureClock } from './capture';
@@ -114,6 +115,16 @@ export type ArcView =
       /** **Un largage** (ADR 0028 §4) : l'aller (`out`) finit en l'air au-dessus de sa cible, le
        *  retour (`back`) en part ; seule la base voit l'avion décoller et se poser. */
       readonly airdrop?: 'out' | 'back';
+      /** **Une mission la porte** (`onMission`, `convex/movement/course.ts`) : son cap ne change pas. */
+      readonly onMission?: true;
+      /** **Son cap a changé** (ADR 0039 §4) : l'instant du coude, et la route courue avant lui. */
+      readonly courseChange?: { readonly at: number; readonly ran: ReadonlyArray<LonLat> };
+      /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : son nom, et la route prévue
+       *  depuis la première, suspendue au terrain tenu. */
+      readonly then?: {
+        readonly name: string;
+        readonly points: ReadonlyArray<LonLat>;
+      };
       /**
        * **Its four dates, as served — never a share or a countdown against the clock** (#183):
        * the arc keeps its identity until its trip changes, and whoever draws or counts reads
@@ -401,6 +412,9 @@ export type OutpostView = {
    * et celui que le serveur refuse lisent la même réponse (`OUTPOST_SERVING`).
    */
   readonly serving: boolean;
+  /** **Une capture court sur lui ou un bâtiment qu'il ancre** (#450) : servi comme `serving`,
+   *  le refus de l'écran et celui du serveur lisent la même réponse (`DISMANTLE_UNDER_CAPTURE`). */
+  readonly besieged: boolean;
   /**
    * **Ce que monter ce point coûterait**, servi comme celui d'un bâtiment (`Building`) et pour
    * la même raison : les nombres d'équilibrage ont une seule maison, `convex/constants.ts`. Un
@@ -671,7 +685,7 @@ type RegionView = {
 type Opponent = {
   readonly nation: string;
   readonly ink: string;
-  readonly power: string;
+  readonly asset: Asset | null;
   readonly restWindow: string;
 };
 
@@ -693,6 +707,9 @@ type RunningWork = {
   readonly minutes?: number;
   /** The level it raises to: with `buildMinutes`, the whole length its rule is drawn against. */
   readonly level: number;
+  /** **Le niveau gardé en réserve** qu'une pose soviétique fait sortir (ADR 0039 §5) : `level`
+   *  reste 1, ce qu'elle coûte et dure. Absent sur toute autre ligne. */
+  readonly kept?: number;
   /** **Le métier que la ligne donne au point** (ADR 0037 §3, §7) : choisi à l'élévation au
    *  niveau 2, ou cible d'un changement ; `null` sur toute autre ligne. */
   readonly specialty: Specialty | null;
@@ -710,6 +727,7 @@ type QueuedWork = {
   /** The point a building is ordered on (ADR 0029); `null` for an outpost's raise. */
   readonly point: LonLat | null;
   readonly level: number;
+  readonly kept?: number;
   readonly specialty: Specialty | null;
   readonly respecialize: boolean;
 };
@@ -829,6 +847,8 @@ type NoticeBody =
       readonly building: BuildingKey;
       readonly regionName: string;
       readonly level: number;
+      /** La réserve de l'Évacuation après le rasage (ADR 0039 §5) ; absente sans l'atout. */
+      readonly kept?: number;
     }
   | { readonly kind: 'researchDone'; readonly at: number; readonly card: ResearchCard }
   | {
@@ -844,6 +864,33 @@ type NoticeBody =
       readonly movementType: 'march' | 'return';
       readonly hostCountry: string;
       readonly troops: number;
+    }
+  /** **Le cap changé** (Doctrine du porte-avions, ADR 0039 §4) : la destination neuve, l'arrivée. */
+  | {
+      readonly kind: 'courseChanged';
+      readonly at: number;
+      readonly hostCountry: string;
+      readonly point?: MapPlace;
+      readonly arrivesAt: number;
+    }
+  /** **La seconde jambe d'une Guerre éclair** (ADR 0039 §6) : la première cible, la seconde, et
+   *  ce qu'il en est advenu — l'arrivée si elle part, le refus si la colonne reste. */
+  | {
+      readonly kind: 'blitzkrieg';
+      readonly at: number;
+      readonly outcome: 'onward' | 'lost' | 'halted';
+      readonly hostCountry: string;
+      readonly point: MapPlace;
+      readonly name: string;
+      readonly then: {
+        readonly hostCountry: string;
+        readonly point: MapPlace;
+        readonly name: string;
+      };
+      readonly arrivesAt?: number;
+      readonly refusal?: string;
+      readonly details?: Readonly<Record<string, string | number | boolean>>;
+      readonly troopIds?: ReadonlyArray<string>;
     }
   /** **Ce qu'un Magasin a versé à la colonne qui le traversait** (ADR 0037 §4), en crans. */
   | {
@@ -1017,6 +1064,16 @@ type NoticeBody =
       readonly hostCountry: string;
       readonly delivered: SupplyLoad;
       readonly kept: SupplyLoad;
+      /** Au dépôt d'un autre, par le Prêt-bail (ADR 0039 §3). */
+      readonly abroad?: true;
+    }
+  /** **Un Prêt-bail reçu** (ADR 0039 §3) : la nation qui a livré, et ce qu'elle a livré. */
+  | {
+      readonly kind: 'lendLeaseReceived';
+      readonly at: number;
+      readonly nation: string;
+      readonly hostCountry: string;
+      readonly delivered: SupplyLoad;
     }
   | {
       readonly kind: 'airdropped';
@@ -1066,6 +1123,8 @@ type NoticeBody =
       readonly at: number;
       readonly key: StrategicPointKey;
       readonly nation: string;
+      /** Les points que le preneur tient après la prise (#442) ; absent des dépêches d'avant. */
+      readonly held?: number;
       /** Hong Kong : la copie de son teneur seul, avec le détenteur d'avant (absent : neutre). */
       readonly hongKong?: true;
       readonly from?: string;
@@ -1241,6 +1300,20 @@ export type JournalDispatch = {
   /** **Un chantier achevé**, que `construction` ne distingue pas d'un annulé ou d'un rasé : le
    *  front le sonne (#405). Absent de toute autre dépêche. */
   readonly built?: true;
+  /** **Une Guerre éclair restée sur place** (ADR 0039 §6) : ce que dit la pièce de ces troupes,
+   *  tant qu'elles s'y tiennent. Absent de toute autre dépêche. */
+  readonly stood?: {
+    readonly text: string;
+    readonly reread: string;
+    readonly troopIds: ReadonlyArray<string>;
+  };
+  /** **Un des Sept a changé de mains** (#442) : lequel, à qui, et combien il en tient — le cachet
+   *  des Sept. Absent de toute autre dépêche, et d'une prise d'avant le compte. */
+  readonly point?: {
+    readonly key: StrategicPointKey;
+    readonly nation: string;
+    readonly held: number;
+  };
 };
 
 export type SeasonVerdict = {
@@ -1371,7 +1444,7 @@ export type PlayerView = {
      *  opening frame only — the return-home path stays on `capitalPoint`. */
     readonly openingPoint: LonLat | null;
     readonly ink: string;
-    readonly power: string;
+    readonly asset: Asset | null;
     readonly progress: number;
     readonly restWindow: string;
     readonly resources: Readonly<Record<ResourceKey, Resource>>;
@@ -1412,6 +1485,9 @@ export type PlayerView = {
       readonly deposit: DepositKey | null;
     }>;
     readonly buildings: ReadonlyArray<Building>;
+    /** **La réserve de l'Évacuation industrielle** (ADR 0039 §5) : un niveau par type, le plus
+     *  haut rasé ; vide sans l'atout. */
+    readonly evacuated: ReadonlyArray<{ readonly key: BuildingKey; readonly level: number }>;
     readonly chains: ReadonlyArray<ChainView>;
     readonly extraction: ReadonlyArray<ExtractionSiteView>;
     /** **Narvik** : la part que produit une exploitation coupée du réseau, 0 sans le point
@@ -1485,6 +1561,18 @@ export type PlayerView = {
      *  rapports de pillage. Absent ailleurs : le relevé ne dit pas l'état d'un site. */
     readonly sealedUntil?: number;
   }>;
+  /**
+   * **Les avant-postes étrangers que son relevé garde** (ADR 0039 §3) : id, point et pays hôte,
+   * ni niveau, ni dépôt, ni nation. Tout ordre sur lui — attaque, raid, capture, et le Prêt-bail
+   * américain qui y livre — se vise à ce relevé, jamais à l'avant-poste vivant (`aimOf`) ; les
+   * autres nations s'y voient dire le refus de livrer avant le lâcher.
+   */
+  readonly surveyedOutposts: ReadonlyArray<{
+    readonly id: string;
+    readonly regionId: string;
+    readonly point: LonLat;
+    readonly hostCountry: string;
+  }>;
   /** Observer-owned ledger only; no crate truth or expiry crosses this boundary. */
   readonly lootSightings: ReadonlyArray<{
     readonly id: string;
@@ -1522,6 +1610,10 @@ export type PlayerView = {
    *  la seule surface du jeu qui affiche délibérément une donnée périmée, et c'est le sujet. */
   readonly press: PressEdition | null;
   readonly journal: ReadonlyArray<JournalDispatch>;
+  /** La dernière fermeture du journal, et la fin du dernier rejeu d'absence (#439) : `null`
+   *  avant la première. */
+  readonly journalReadAt: number | null;
+  readonly absenceTourAt: number | null;
   /** The last opening of the personal board, `null` before the first: what its harvest reads. */
   readonly boardRead: BoardRead | null;
   /** **Mes premiers pas** (ADR 0027 §2), gardés par ma place. */

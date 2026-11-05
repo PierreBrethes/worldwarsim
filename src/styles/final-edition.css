@@ -1,0 +1,833 @@
+/* L'édition finale d'une Mondiale (#455) : la maquette « La grande une »
+   (WWS/prototypes/edition-finale/grande-une.html), sa bande des Sept (frise.html) et son feuillet
+   (cahier.html). Tout est sous `.fe` ; `.fe.phone` est la même page en colonne. */
+.fe,
+.fe-veil {
+  --paper-hi: #efe5cc;
+}
+.fe {
+  --rule: color-mix(in srgb, var(--ink) 18%, transparent);
+  --rule-mid: color-mix(in srgb, var(--ink) 34%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  flex: 1;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--ink);
+}
+.fe h1,
+.fe h2,
+.fe h3,
+.fe h4,
+.fe p,
+.fe ol,
+.fe ul,
+.fe dl {
+  margin: 0;
+}
+.fe ol,
+.fe ul {
+  padding: 0;
+  list-style: none;
+}
+.fe button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.fe a {
+  color: inherit;
+  text-decoration: none;
+}
+.fe-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--ink);
+  background: var(--paper-hi);
+}
+.fe-bar .grow {
+  flex: 1;
+}
+.fe-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ink) !important;
+  padding: 8px 11px !important;
+  font: 600 11px/1 var(--font-body) !important;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.fe-btn.solid {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+}
+.fe-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.fe .kicker,
+.fe-veil .kicker {
+  font: 600 10px/1.1 var(--font-body);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.fe .rubric {
+  font: 700 10px/1 var(--font-body);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 5px 0 4px;
+}
+.fe .caption {
+  font: italic 12.5px/1.35 var(--font-text);
+  color: var(--ink-soft);
+}
+.fe .mono {
+  font-family: var(--font-mono);
+}
+.fe .flags {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.fe-broad {
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 14px 26px 26px;
+  display: grid;
+  gap: 12px;
+}
+.fe-top {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 250px;
+  gap: 18px;
+  align-items: stretch;
+}
+.fe-ear {
+  border: 1px solid var(--ink);
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  justify-items: start;
+}
+.fe-ear p {
+  font: 13px/1.35 var(--font-text);
+}
+.fe-ear .big {
+  font: 800 26px/1 var(--font-display);
+}
+.fe-ear .who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 700 15px/1 var(--font-display);
+}
+.fe-ear.mine {
+  border-width: 2px;
+  background: var(--paper-hi);
+}
+.fe-ear.mine .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fe-ear .rk {
+  font: 800 38px/0.85 var(--font-display);
+  color: var(--critical);
+}
+.fe-ear .rk sup,
+.fe-pin .rk sup {
+  font-size: 0.42em;
+}
+.fe-link {
+  font: 600 10.5px/1 var(--font-body) !important;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  /* souligné au texte, pas au bord : au toucher, le bouton grandit à sa cible de doigt */
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  padding: 2px 0 !important;
+}
+.fe-mast {
+  text-align: center;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+}
+.fe-mast .title {
+  font: 800 62px/1 var(--font-display);
+}
+.fe-mast .title i {
+  font: italic 500 28px/1 var(--font-display);
+  vertical-align: 18px;
+  margin-right: 6px;
+}
+.fe-mast .meta {
+  border-top: 3px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 5px 0 4px;
+  font: 600 10px/1 var(--font-body);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.fe-mast .meta .red {
+  color: var(--critical);
+}
+.fe-headline {
+  font: 800 72px/0.98 var(--font-display);
+  text-transform: uppercase;
+  text-align: center;
+}
+.fe-deck {
+  text-align: center;
+  font: italic 400 18px/1.4 var(--font-text);
+  color: var(--ink-quiet);
+  max-width: 84ch;
+  margin: -2px auto 0 !important;
+}
+.fe-cols {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr) 280px;
+  border-top: 3px double var(--ink);
+}
+.fe-cols > section {
+  padding: 10px 16px 6px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+.fe-cols > section + section {
+  border-left: 1px solid var(--ink);
+}
+.fe-cols > section:first-child {
+  padding-left: 0;
+}
+.fe-cols > section:last-child {
+  padding-right: 0;
+}
+.fe-chron li {
+  padding: 6px 0 8px;
+  border-bottom: 1px solid var(--rule);
+}
+.fe-chron .when {
+  font: 600 9.5px/1 var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.fe-chron h3 {
+  font: 700 15.5px/1.15 var(--font-display);
+  margin: 3px 0 2px !important;
+}
+.fe-chron p {
+  font: 12.5px/1.38 var(--font-text);
+}
+.fe-chron li.me h3::after {
+  content: ' · vous';
+  font: 600 9px/1 var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--critical);
+  vertical-align: 2px;
+}
+.fe-map {
+  position: relative;
+  border: 1px solid var(--ink);
+  background: #cfdbd2;
+  overflow: hidden;
+}
+/* la carte prend la forme de son cadre : une hauteur fixe la laissait flotter dans une colonne étroite */
+.fe-map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+}
+.fe-map-label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  fill: var(--ink);
+  stroke: var(--paper-hi);
+  paint-order: stroke;
+}
+.fe-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font: 500 11.5px/1.2 var(--font-body);
+}
+.fe-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.fe .dot {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--ink);
+}
+.fe-sept {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+.fe-sept > div {
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  justify-items: center;
+}
+.fe-sept > div + div {
+  border-left: 1px solid var(--rule-mid);
+}
+.fe-sept b {
+  font: 700 13px/1.1 var(--font-display);
+}
+.fe-sept .sq {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--ink);
+}
+.fe-sept small {
+  font: 10.5px/1.2 var(--font-body);
+  color: var(--ink-soft);
+}
+.fe-sept .held {
+  font: 600 11px/1 var(--font-mono);
+  white-space: nowrap;
+}
+.fe-band svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.fe-ranking li {
+  display: grid;
+  grid-template-columns: 22px 20px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.fe-ranking .r {
+  font: 800 18px/1 var(--font-display);
+}
+.fe-ranking .nm {
+  font: 700 14px/1.1 var(--font-display);
+  min-width: 0;
+}
+.fe-ranking small {
+  display: block;
+  font: 11px/1.15 var(--font-body);
+  color: var(--ink-soft);
+}
+.fe-ranking .v {
+  font: 500 12.5px/1.1 var(--font-mono);
+  text-align: right;
+}
+.fe-ranking .v small {
+  font: 500 10.5px/1.1 var(--font-mono);
+}
+.fe-ranking li.me {
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  padding: 6px 4px;
+}
+.fe-ranking li.out,
+.fe-carnet article.out header {
+  opacity: 0.6;
+}
+.fe-fold {
+  display: grid;
+  gap: 10px;
+}
+.fe-fold-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 3px double var(--ink);
+  padding-top: 8px;
+}
+.fe-fold-title h2 {
+  font: 800 30px/1 var(--font-display);
+}
+.fe-carnet {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--ink);
+}
+.fe-carnet article {
+  scroll-margin-top: 56px;
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  border-bottom: 1px solid var(--ink);
+  min-width: 0;
+}
+.fe-carnet article:not(:nth-child(4n + 1)) {
+  border-left: 1px solid var(--rule-mid);
+}
+.fe-carnet article.me {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.fe-carnet header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fe-carnet header .r {
+  font: 800 24px/1 var(--font-display);
+}
+.fe-carnet header h3 {
+  font: 800 18px/1 var(--font-display);
+  flex: 1;
+  min-width: 0;
+}
+.fe-carnet header h3 small {
+  display: block;
+  font: 400 11.5px/1.2 var(--font-body);
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.fe-figs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px 6px;
+  border-top: 1px solid var(--rule-mid);
+  border-bottom: 1px solid var(--rule-mid);
+  padding: 5px 0 !important;
+}
+.fe-figs dt {
+  font: 600 8.5px/1 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.fe-figs dd {
+  margin: 2px 0 0;
+  font: 500 12.5px/1 var(--font-mono);
+}
+.fe-figs dd.best {
+  color: var(--critical);
+  font-weight: 600;
+}
+.fe-out {
+  font: italic 12.5px/1.35 var(--font-text);
+  color: var(--critical);
+}
+.fe-line {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr;
+  gap: 14px;
+}
+.fe-line.compact {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.fe-line h4 {
+  font: 700 9.5px/1 var(--font-body);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 4px;
+  margin-bottom: 3px !important;
+}
+.fe-line li {
+  font: 12.5px/1.3 var(--font-body);
+  padding: 2px 0 2px 11px;
+  position: relative;
+}
+.fe-line li::before {
+  content: '+';
+  position: absolute;
+  left: 0;
+  font-weight: 700;
+  color: var(--valid);
+}
+.fe-line .losses li::before {
+  content: '−';
+  color: var(--critical);
+}
+.fe-line .coup p {
+  font: 13px/1.45 var(--font-text);
+}
+.fe-line .coup b {
+  font-family: var(--font-display);
+}
+
+/* l'oreille suit : en descendant sous le pli, elle se replie en une bande collée */
+.fe-pin {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 26px;
+  background: var(--paper-hi);
+  border-bottom: 2px solid var(--ink);
+  width: 100%;
+}
+/* au bureau, la bande se pose sur la page sans la pousser : le pli ne bouge pas sous elle */
+.fe-pin.floating {
+  position: sticky;
+  margin-bottom: -46px;
+  box-shadow: 0 6px 14px rgb(0 0 0 / 18%);
+}
+.fe-pin .rk {
+  font: 800 22px/1 var(--font-display);
+  color: var(--critical);
+}
+.fe-pin .nm {
+  font: 700 15px/1 var(--font-display);
+}
+.fe-pin p {
+  flex: 1;
+  min-width: 0;
+  font: 13px/1.3 var(--font-text);
+}
+
+/* le feuillet, ouvert depuis l'oreille */
+.fe-feuillet {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 24px;
+}
+.fe-feuillet .id {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  justify-items: start;
+  border-right: 1px solid var(--ink);
+  padding-right: 20px;
+}
+.fe-feuillet .id .rk {
+  font: 800 84px/0.85 var(--font-display);
+  color: var(--critical);
+}
+.fe-feuillet .id .rk sup {
+  font-size: 32px;
+}
+.fe-feuillet .id h2 {
+  font: 800 30px/1 var(--font-display);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fe-feuillet .totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  font-size: 13.5px;
+  width: 100%;
+}
+.fe-feuillet .totals > span > span:first-child::first-letter {
+  text-transform: uppercase;
+}
+.fe-feuillet .totals > span > span:last-child {
+  font: 500 13px/1.3 var(--font-mono);
+  text-align: right;
+}
+.fe-feuillet .spark {
+  width: 100%;
+  height: 120px;
+  display: block;
+  border-bottom: 1px solid var(--ink);
+}
+.fe-others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fe-others button {
+  border: 1px solid var(--ink) !important;
+  padding: 6px 8px !important;
+  font: 600 12px/1 var(--font-body) !important;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.fe-others button[aria-pressed='true'] {
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+}
+
+/* la une, en image : la feuille qui l'enregistre */
+.fe-veil {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-window, 40) + 40);
+  background: rgb(15 10 4 / 78%);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.fe-une {
+  background: var(--paper-hi);
+  border: 1px solid var(--ink);
+  display: grid;
+  grid-template-columns: auto 300px;
+  gap: 18px;
+  padding: 18px;
+  max-height: calc(100vh - 48px);
+  color: var(--ink);
+}
+.fe-une canvas {
+  display: block;
+  height: min(760px, calc(100vh - 84px));
+  width: auto;
+  aspect-ratio: 1080 / 1350;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+.fe-une aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fe-une aside h2 {
+  font: 700 24px/1.1 var(--font-display);
+  margin: 0;
+}
+.fe-une aside p {
+  font: 14px/1.45 var(--font-text);
+  color: var(--ink-quiet);
+  margin: 0;
+}
+.fe-une .seg {
+  display: flex;
+}
+.fe-une .seg button {
+  flex: 1;
+  border: 1px solid var(--ink);
+  padding: 8px 6px;
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.fe-une .seg button + button {
+  border-left: 0;
+}
+.fe-une .seg button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.fe-une .saved {
+  font: italic 13px/1.3 var(--font-text);
+  color: var(--valid);
+  min-height: 1.3em;
+}
+.fe-une .fe-btn {
+  justify-content: center;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* téléphone : la même page en colonne, la carte d'abord ; l'oreille devient la bande collée */
+.fe.phone .fe-broad {
+  padding: 10px 14px 22px;
+}
+.fe.phone .fe-bar {
+  padding: 6px 10px;
+  gap: 8px;
+  min-height: 48px;
+}
+.fe.phone .hide-phone,
+.fe.phone .fe-top .fe-ear.mine {
+  display: none;
+}
+.fe.phone .fe-top {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.fe.phone .fe-top .fe-ear {
+  order: 2;
+}
+.fe.phone .fe-mast .title {
+  font-size: 38px;
+}
+.fe.phone .fe-mast .title i {
+  font-size: 18px;
+  vertical-align: 10px;
+}
+.fe.phone .fe-mast .meta {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 10px;
+}
+.fe.phone .fe-headline {
+  font-size: 38px;
+}
+.fe.phone .fe-deck {
+  font-size: 15px;
+}
+.fe.phone .fe-cols {
+  grid-template-columns: 1fr;
+}
+.fe.phone .fe-cols > section {
+  padding: 10px 0;
+  border-left: 0;
+}
+.fe.phone .fe-cols > section + section {
+  border-top: 1px solid var(--ink);
+}
+.fe.phone .fe-cols .center {
+  order: -1;
+}
+.fe.phone .fe-sept {
+  grid-template-columns: repeat(4, 1fr);
+}
+.fe.phone .fe-sept > div:nth-child(5) {
+  border-left: 0;
+}
+.fe.phone .fe-sept > div:nth-child(n + 5) {
+  border-top: 1px solid var(--rule-mid);
+}
+.fe.phone .fe-carnet,
+.fe.phone .fe-feuillet,
+.fe.phone .fe-line {
+  grid-template-columns: 1fr;
+}
+.fe.phone .fe-carnet article {
+  border-left: 0;
+}
+.fe.phone .fe-feuillet .id {
+  border-right: 0;
+  padding-right: 0;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 12px;
+}
+.fe.phone .fe-feuillet .id .rk {
+  font-size: 64px;
+}
+.fe.phone .fe-fold-title {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.fe.phone .fe-fold-title h2 {
+  font-size: 24px;
+}
+.fe.phone .fe-pin {
+  padding: 6px 12px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.fe.phone .fe-pin .fe-link {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.fe.phone .fe-pin p {
+  flex-basis: 100%;
+  font-size: 12.5px;
+}
+/* repliée, la bande tient sur une ligne même dans la fenêtre du plateau, plus étroite que l'écran */
+.fe.phone .fe-pin.closed {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.fe.phone .fe-pin.closed p {
+  display: none;
+}
+.fe-veil.phone {
+  padding: 0;
+  place-items: end stretch;
+}
+.fe-veil.phone .fe-une {
+  grid-template-columns: 1fr;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 12px 12px 16px;
+  gap: 12px;
+  border-width: 1px 0 0;
+}
+.fe-veil.phone .fe-une canvas {
+  width: 100%;
+  height: auto;
+}
+
+/* l'accueil : les dernières éditions finales, un bloc qui ne restyle pas la page (#446) */
+.fe-recent {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+}
+.fe-recent > .eyebrow.h {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ink);
+}
+.fe-recent ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.fe-recent li a {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--ink);
+  padding: 8px 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.fe-recent li b {
+  font: 700 17px/1.15 var(--font-display);
+}
+.fe-recent li span:not(.eyebrow) {
+  font: 13px/1.3 var(--font-text);
+}
+.fe-recent li em {
+  font: 600 10.5px/1 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-style: normal;
+  text-decoration: underline;
+}

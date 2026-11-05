@@ -11,7 +11,7 @@ import { outpostsOf as outpostsOfPlayer } from './movement/forces';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn, pointIn } from './seats.fixture';
+import { foundSeat, joinSeat, placeHq, seatIn, pointIn, surveyOutpost } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -177,6 +177,69 @@ describe('démanteler un avant-poste', () => {
     const said = await noticesOf(t, seat, 'outpostDismantled');
     expect(said).toHaveLength(1);
     expect(said[0]).toMatchObject({ hostCountry: 'ROU', level: 1, buildings: 1 });
+  });
+
+  /** **L'Évacuation au démantèlement** (décision (a) du 04/11, #450) : un point soviétique met en
+   *  réserve les niveaux des mâts qu'il emporte, comme un rasage. */
+  it('met en réserve les niveaux des mâts soviétiques qu’il emporte', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    const point = await plant(t, guest);
+    await anchor(t, guest, 'oilWell', PRAHOVA, point, 2);
+
+    await t.mutation(api.outposts.dismantle, { ...guest, outpostId: point });
+
+    expect((await t.query(api.view.playerView, guest)).me.evacuated).toEqual([
+      { key: 'oilWell', level: 2 },
+    ]);
+  });
+
+  it('ne garde rien en Blitz', async () => {
+    const t = boot();
+    const { guest } = await launchedSeason(t);
+    const point = await plant(t, guest);
+    await anchor(t, guest, 'oilWell', PRAHOVA, point, 2);
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, guest);
+      await ctx.db.patch(player.seasonId, { mode: 'blitz' });
+    });
+
+    await t.mutation(api.outposts.dismantle, { ...guest, outpostId: point });
+
+    const reserve = await t.run(async (ctx) => (await seatIn(ctx, guest)).evacuated ?? []);
+    expect(reserve).toEqual([]);
+  });
+
+  /** **Démanteler n'annule pas une prise** (#450) : une capture qui court sur le point ou un mât
+   *  qu'il ancre retient le geste, pour toute nation ; la vue le sert, la fiche le dit. */
+  it('refuse tant qu’une capture court sur un bâtiment qu’il ancre', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const point = await plant(t, guest);
+    const well = await anchor(t, guest, 'oilWell', PRAHOVA, point, 3);
+    await t.run(async (ctx) => {
+      const defender = await seatIn(ctx, guest);
+      const capturer = await seatIn(ctx, seat);
+      await ctx.db.insert('captures', {
+        seasonId: defender.seasonId,
+        playerId: capturer._id,
+        defenderId: defender._id,
+        target: { kind: 'building', buildingId: well },
+        site: { kind: 'building', building: 'oilWell', regionId: PRAHOVA },
+        point: pointIn(PRAHOVA),
+        progress: 0,
+        progressAt: Date.now(),
+        rate: 1,
+        durationMs: 3_600_000,
+        rest: null,
+        completesAt: Date.now() + 3_600_000,
+      });
+    });
+
+    expect((await outpostsOf(t, guest))[0]).toMatchObject({ besieged: true });
+    await expect(
+      t.mutation(api.outposts.dismantle, { ...guest, outpostId: point }),
+    ).rejects.toThrow(/DISMANTLE_UNDER_CAPTURE/);
   });
 
   /**
@@ -419,6 +482,16 @@ describe('entrer en garnison dans son propre avant-poste', () => {
     const mine = await plant(t, seat, 'ROU-311');
     const troop = await station(t, seat, mine);
 
+    await expect(
+      t.mutation(api.movements.enterOutpost, {
+        ...seat,
+        origin: { kind: 'outpost', outpostId: mine },
+        troopIds: [troop],
+        outpostId: theirs,
+      }),
+    ).rejects.toThrow('UNKNOWN_OUTPOST');
+    /** Relevé, il se vise — et une marche n'y entre toujours pas. */
+    await surveyOutpost(t, seat, theirs);
     await expect(
       t.mutation(api.movements.enterOutpost, {
         ...seat,

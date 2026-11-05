@@ -14,6 +14,8 @@ import {
 } from 'three';
 import { asClockTime } from '@/domain/duration';
 import { nationInk } from '@/domain/nations';
+import type { BuildingKey, UnitRole } from '@/domain/ids';
+import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import type { Pin } from '@/domain/pins';
 import type { Rect } from '@/domain/poster-placement';
 import { ANONYMOUS_SPAN, pieceStands, type PinnedBy } from './figurines/figurine';
@@ -38,11 +40,15 @@ export type PinHit =
       readonly y: number;
     };
 
-/** Pins closer than this on screen, in CSS pixels, range into one cluster (maquette, `R`). */
-const CLUSTER_PX = 11;
-const CLUSTER_TOUCH_PX = 13;
-/** A cluster's disc grows with the log of its count: 2 reads, 500 does not cover a country. */
-const clusterRadius = (count: number): number => 7 + 5.2 * Math.log10(count);
+/** Pins closer than this on screen, in CSS pixels, range into one cluster: mine, then surveys
+ *  (maquette `carte-lisible` C, #441). @a-mesurer */
+const CLUSTER_PX = { mine: 30, seen: 22 } as const;
+const CLUSTER_TOUCH_PX = { mine: 34, seen: 26 } as const;
+/** A disc that writes its troops grows with their log: 2 reads, 500 does not cover a country
+ *  (maquette C, `radius`). */
+const countedRadius = (troops: number): number => Math.min(13, 6.5 + 2.4 * Math.log2(troops));
+const UNREAD_RADIUS = 6.5;
+const CLUSTER_RADIUS = 5.5;
 /** **Approcher** (#234) : jusqu'aux figurines pleines, ou ce qui cadre les pièces d'une grappe. */
 export const PIN_APPROACH_DISTANCE = 28;
 /** What a single pin measures, in CSS pixels, by its shape and side. @a-mesurer */
@@ -84,6 +90,11 @@ type Mark = {
   readonly trail: readonly [number, number];
   readonly ring: number;
   readonly hour: string | null;
+  /** What its disc writes: my troops, a survey's pile read under a Guet, « ? » before. */
+  readonly disc: string | null;
+  /** **The label of a pin in a contact** (#441, label of maquette A): a picto per role or site
+   *  and its count, on a band of paper beside it. */
+  readonly tag: string | null;
   /** How far it has tipped onto its low point, in radians (a dismantled outpost's pin). */
   readonly tilt: number;
 };
@@ -98,12 +109,14 @@ type Cluster = { sx: number; sy: number; points: Point[] };
 
 /**
  * **Clusters, on screen** (maquette `points-au-loin`, `cluster` then `settle`): greedy on a grid
- * of `radius` cells, then two clusters whose discs touch merge until none do. One pass costs
- * O(n) plus the clusters squared — computed when the camera moves, never at every frame.
+ * of `radius` cells, then two clusters whose drawn discs (`measure`) touch merge until none do.
+ * One pass costs O(n) plus the clusters squared — computed when the camera moves, never at every
+ * frame.
  */
 function clusterPoints<P extends { readonly sx: number; readonly sy: number }>(
   points: ReadonlyArray<P>,
   radius: number,
+  measure: (points: ReadonlyArray<P>) => number,
 ): Array<{ sx: number; sy: number; points: P[] }> {
   const cells = new Map<string, Array<{ sx: number; sy: number; points: P[] }>>();
   const groups: Array<{ sx: number; sy: number; points: P[] }> = [];
@@ -128,8 +141,7 @@ function clusterPoints<P extends { readonly sx: number; readonly sy: number }>(
     group.sx = group.points.reduce((sum, point) => sum + point.sx, 0) / group.points.length;
     group.sy = group.points.reduce((sum, point) => sum + point.sy, 0) / group.points.length;
   }
-  const radiusOf = (group: (typeof groups)[number]) =>
-    group.points.length > 1 ? clusterRadius(group.points.length) : radius / 2;
+  const radiusOf = (group: (typeof groups)[number]) => measure(group.points);
   // A pass merges every touching pair it meets and carries on; passes repeat until none touch.
   for (let merged = true; merged;) {
     merged = false;
@@ -153,8 +165,9 @@ function clusterPoints<P extends { readonly sx: number; readonly sy: number }>(
  * **Au loin, chaque pièce est une épingle** (#234, ADR 0026 §3 précisé) : rond pour une pile,
  * carré pour un bâtiment, losange pour un avant-poste ; plein à l'encre de sa nation pour ce qui
  * est à soi, creux à l'encre adverse pour un relevé, gris en pointillé avec son heure pour une
- * dernière position connue. Les épingles qui se touchent se rangent en grappe numérotée. Elle
- * monte quand sa pièce devient trop petite à l'écran (`pieceStands`, ADR 0035 §3, ADR 0038 §7).
+ * dernière position connue. Son rond porte ses troupes (« ? » pour un relevé qu'aucun Guet n'a
+ * lu), et les épingles qui se touchent se rangent en grappe. Une épingle d'accrochage porte son
+ * étiquette (#441). Elle monte quand sa pièce devient trop petite à l'écran (`pieceStands`, ADR 0035 §3, ADR 0038 §7).
  *
  * Deux maillages instanciés, deux appels de dessin : les formes, tracées par leur distance signée
  * dans le shader, et les chiffres. Elle ne demande aucune image à elle seule (`frame-demand`) :
@@ -167,6 +180,8 @@ export class PinLayer {
   /** The marks that stand still, clustered: redone only when the eye or the pins change. */
   private settled: Mark[] = [];
   private marks: Mark[] = [];
+  /** Each pin's own mark, as `rectOf` reads it for every label at every image. */
+  private markOfPin = new Map<string, Mark>();
   private held: string | null = null;
   private hovered: string | null = null;
   private carried: Vector3 | null = null;
@@ -183,6 +198,10 @@ export class PinLayer {
   private readonly viewport: Viewport = { value: [1, 1] };
   private readonly selectInk = { value: new Color(PALETTE.border) };
   private selected: string | null = null;
+  /** The pins of a contact: theirs are the only labelled marks. */
+  private engaged: ReadonlySet<string> = new Set();
+  /** Which of its spots each label took when the camera stopped; by its pins' ids. */
+  private tagSpots = new Map<string, number>();
   private readonly shapes: InstancedDraw<typeof SHAPE_ATTRIBUTES>;
   private readonly glyphs: InstancedDraw<typeof GLYPH_ATTRIBUTES>;
 
@@ -265,6 +284,43 @@ export class PinLayer {
     this.selectInk.value.set(ink);
   }
 
+  /** **The pins of the contacts** (#441): theirs wear their label. */
+  engage(ids: ReadonlySet<string>): void {
+    this.engaged = ids;
+    this.dirty = true;
+  }
+
+  /**
+   * **The labels stand where the camera stopped** (as the edge's tokens do), on the first of
+   * their spots (maquette A) that covers no mark nor label, the surveys' first: they are what
+   * one looks for at the front. Between two rests a label keeps its spot. Says whether one
+   * moved: the board owes a frame then.
+   */
+  settle(): boolean {
+    const taken = this.marks.map((mark) => discRect(mark));
+    const spots = new Map<string, number>();
+    const tagged = this.marks.filter((mark) => mark.tag !== null && mark.ids.length > 0);
+    for (const mark of [...tagged.filter((m) => !m.mine), ...tagged.filter((m) => m.mine)]) {
+      const k = Math.max(
+        0,
+        tagSpotsOf(mark).findIndex((spot) => free(spot, taken)),
+      );
+      spots.set(mark.ids.join(' '), k);
+      taken.push(tagSpotsOf(mark)[k]!);
+    }
+    const changed =
+      spots.size !== this.tagSpots.size ||
+      [...spots].some(([key, k]) => this.tagSpots.get(key) !== k);
+    this.tagSpots = spots;
+    this.dirty ||= changed;
+    return changed;
+  }
+
+  /** Where a mark's label stands now: the spot its last rest chose. */
+  private tagRectOf(mark: Mark): Rect {
+    return tagSpotsOf(mark)[this.tagSpots.get(mark.ids.join(' ')) ?? 0]!;
+  }
+
   hover(id: string | null): void {
     if (id !== this.hovered) this.dirty = true;
     this.hovered = id;
@@ -331,10 +387,13 @@ export class PinLayer {
         else points[placed.pin.side === 'mine' ? 'mine' : 'seen'].push(point);
       }
       const radius = this.touch ? CLUSTER_TOUCH_PX : CLUSTER_PX;
+      const measure = (group: ReadonlyArray<Point>) =>
+        discOf(group.map((point) => point.placed.pin)).radius;
       this.settled = [
-        ...[...clusterPoints(points.mine, radius), ...clusterPoints(points.seen, radius)].map(
-          (cluster) => this.markOf(cluster),
-        ),
+        ...[
+          ...clusterPoints(points.mine, radius.mine, measure),
+          ...clusterPoints(points.seen, radius.seen, measure),
+        ].map((cluster) => this.markOf(cluster)),
         ...alone.map((point) => this.markOf({ sx: point.sx, sy: point.sy, points: [point] })),
       ];
     }
@@ -401,6 +460,10 @@ export class PinLayer {
           weight: Math.min(1, home.weight / 0.55),
         });
     }
+    this.markOfPin.clear();
+    for (const mark of this.marks)
+      if (mark.ids.length === 1 && !this.markOfPin.has(mark.ids[0]!))
+        this.markOfPin.set(mark.ids[0]!, mark);
     this.draw();
   }
 
@@ -419,8 +482,17 @@ export class PinLayer {
     return null;
   }
 
+  /** Every mark on the canvas: what a name of the decor never covers (#440). */
+  rects(): Rect[] {
+    return this.marks.flatMap((mark) =>
+      mark.weight <= 0
+        ? []
+        : [discRect(mark), ...(mark.tag === null ? [] : [this.tagRectOf(mark)])],
+    );
+  }
+
   rectOf(id: string): Rect | null {
-    const mark = this.marks.find((each) => each.ids.length === 1 && each.ids[0] === id);
+    const mark = this.markOfPin.get(id);
     if (mark === undefined || mark.weight < TAKES_POINTER) return null;
     const r = mark.radius + 2;
     return { left: mark.sx - r, right: mark.sx + r, top: mark.sy - r, bottom: mark.sy + r };
@@ -435,6 +507,13 @@ export class PinLayer {
           (Math.min(GLOW_PER_RADIUS * mark.radius, GLOW_MAX_PX) * unitsPerPixel) / REACH,
           mark.weight,
         );
+  }
+
+  /** **What each disc covers of the board**, its paper rim (1.6 px) included: a contact's circle
+   *  must clear it (#441). */
+  discs(emit: (at: Vector3, radius: number, near: number) => void, unitsPerPixel: number): void {
+    for (const mark of this.marks)
+      if (mark.weight > 0) emit(mark.center, (mark.radius + 1.6) * unitsPerPixel, mark.weight);
   }
 
   dispose(): void {
@@ -452,6 +531,8 @@ export class PinLayer {
       .divideScalar(cluster.points.length);
     const weight = Math.max(...cluster.points.map((point) => point.weight));
     const ids = pins.map((pin) => pin.id);
+    const { disc, radius } = discOf(pins);
+    const tag = pins.some((pin) => this.engaged.has(pin.id)) ? tagOf(pins) : null;
     // Dotted is what is not there yet or no longer: a site under the crane, a last known position.
     const style =
       single && (first.side === 'lost' || (first.side === 'mine' && first.works === true))
@@ -461,19 +542,19 @@ export class PinLayer {
           : STYLE.hollow;
     return {
       ids,
-      shape: single ? first.shape : 'pile',
+      shape: single
+        ? first.shape
+        : pins.some((pin) => pin.shape === 'pile')
+          ? 'pile'
+          : pins.every((pin) => pin.shape === 'outpost')
+            ? 'outpost'
+            : 'building',
       style,
       ink: inkOf(first),
       center,
       sx: cluster.sx,
       sy: cluster.sy,
-      radius: single
-        ? first.side === 'mine'
-          ? SINGLE_RADIUS[first.shape]
-          : first.shape === 'building'
-            ? SINGLE_RADIUS.building + 0.5
-            : SEEN_RADIUS
-        : clusterRadius(pins.length),
+      radius,
       weight: first.id === this.held && single ? weight * 0.55 : weight,
       mine: first.side === 'mine',
       trail: [0, 0],
@@ -486,6 +567,8 @@ export class PinLayer {
               ? RING.hover
               : RING.none,
       hour: single && first.side === 'lost' ? asClockTime(first.seenAt) : null,
+      disc,
+      tag,
       tilt: 0,
     };
   }
@@ -494,9 +577,7 @@ export class PinLayer {
     const shapes = this.shapes.reserve(this.marks.length);
     const glyphCount = this.marks.reduce(
       (sum, mark) =>
-        sum +
-        (mark.ids.length > 1 ? countText(mark.ids.length).length : 0) +
-        (mark.hour?.length ?? 0),
+        sum + (mark.disc?.length ?? 0) + (mark.hour?.length ?? 0) + (mark.tag?.length ?? 0),
       0,
     );
     const glyphs = this.glyphs.reserve(glyphCount);
@@ -506,12 +587,26 @@ export class PinLayer {
       shapes.aCenter.set([mark.center.x, mark.center.y, mark.center.z], k * 3);
       shapes.aColor.set([color.r, color.g, color.b], k * 3);
       shapes.aShape.set([SHAPE_INDEX[mark.shape], mark.style, mark.radius, mark.weight], k * 4);
-      shapes.aExtra.set([mark.trail[0], mark.trail[1], mark.ring, mark.tilt], k * 4);
-      const write = (text: string, x: number, size: number, ink: Color, background: number) => {
+      const tag = mark.tag === null ? null : this.tagRectOf(mark);
+      const leader = tag === null ? null : leaderOf(mark, tag);
+      shapes.aExtra.set(
+        leader === null
+          ? [mark.trail[0], mark.trail[1], mark.ring, mark.tilt]
+          : [leader[0], leader[1], mark.ring, LEADER],
+        k * 4,
+      );
+      const write = (
+        text: string,
+        x: number,
+        size: number,
+        ink: Color,
+        background: number,
+        y = 0,
+      ) => {
         const advance = size * GLYPH_ASPECT;
         [...text].forEach((char, i) => {
           glyphs.aCenter.set([mark.center.x, mark.center.y, mark.center.z], g * 3);
-          glyphs.aOffset.set([x + i * advance, 0], g * 2);
+          glyphs.aOffset.set([x + i * advance, y], g * 2);
           glyphs.aGlyph.set(
             [Math.max(0, GLYPHS.indexOf(char)), size, mark.weight, background],
             g * 4,
@@ -520,13 +615,21 @@ export class PinLayer {
           g += 1;
         });
       };
-      if (mark.ids.length > 1) {
-        const text = countText(mark.ids.length);
-        const size = mark.ids.length > 99 ? 9.5 : 10.5;
+      if (mark.disc !== null) {
+        const size = mark.disc.length > 2 ? 9.5 : 10.5;
         const ink = mark.style === STYLE.filled ? paper : color;
-        write(text, (-(text.length - 1) / 2) * size * GLYPH_ASPECT, size, ink.clone(), 0);
+        write(mark.disc, (-(mark.disc.length - 1) / 2) * size * GLYPH_ASPECT, size, ink.clone(), 0);
       }
       if (mark.hour !== null) write(mark.hour, mark.radius + 7, 10, pen, 1);
+      if (mark.tag !== null && tag !== null)
+        write(
+          mark.tag,
+          tag.left - mark.sx + TAG_ADVANCE / 2,
+          TAG_SIZE,
+          color.clone(),
+          1,
+          (tag.top + tag.bottom) / 2 - mark.sy,
+        );
     });
     this.shapes.commit(this.marks.length);
     this.glyphs.commit(g);
@@ -545,6 +648,113 @@ function inkOf(pin: Pin): string {
   if (pin.neutral === true) return PALETTE.border;
   return pin.nation === undefined ? ARC_COLORS.enemyDetected.trace : nationInk(pin.nation);
 }
+
+const total = (stack: Readonly<Partial<Record<UnitRole, number>>>): number =>
+  Object.values(stack).reduce((sum: number, count) => sum + (count ?? 0), 0);
+
+/** What a disc writes — my troops, or a survey's pile once every one of them was read, « ? »
+ *  until then — and the radius it is drawn at. */
+function discOf(pins: ReadonlyArray<Pin>): { disc: string | null; radius: number } {
+  const first = pins[0]!;
+  const bare =
+    pins.length > 1
+      ? CLUSTER_RADIUS
+      : first.side === 'mine'
+        ? SINGLE_RADIUS[first.shape]
+        : first.shape === 'building'
+          ? SINGLE_RADIUS.building + 0.5
+          : SEEN_RADIUS;
+  const counted = (troops: number, from: number) =>
+    troops > from
+      ? { disc: countText(troops), radius: countedRadius(troops) }
+      : { disc: null, radius: bare };
+  if (first.side === 'lost') return { disc: null, radius: bare };
+  if (first.side === 'mine')
+    return counted(
+      pins.reduce((sum, pin) => sum + (pin.side === 'mine' ? total(pin.stack) : 0), 0),
+      1,
+    );
+  if (!pins.every((pin) => pin.side === 'seen' && pin.pierced !== undefined))
+    return { disc: '?', radius: UNREAD_RADIUS };
+  return counted(
+    pins.reduce((sum, pin) => sum + (pin.side === 'seen' ? total(pin.pierced ?? {}) : 0), 0),
+    0,
+  );
+}
+
+/** The label's text: a picto and its count per kind, « ? » for a pile no Guet has read. */
+export function tagOf(pins: ReadonlyArray<Pin>): string {
+  const counts = new Map<Picto, number>();
+  const add = (picto: Picto, count: number) =>
+    count > 0 && counts.set(picto, (counts.get(picto) ?? 0) + count);
+  let unread = 0;
+  for (const pin of pins) {
+    if (pin.side === 'lost') continue;
+    const stack = pin.side === 'mine' ? pin.stack : pin.pierced;
+    if (pin.shape === 'building') add(pin.side === 'mine' ? pictoOfSite(pin.key) : 'building', 1);
+    else if (pin.shape === 'outpost') add('outpost', 1);
+    else if (stack === undefined) unread += 1;
+    for (const [role, count] of Object.entries(stack ?? {}))
+      add(pictoOfRole(role as UnitRole), count ?? 0);
+  }
+  const rows = PICTOS.flatMap((picto) =>
+    counts.has(picto) ? [`${pictoText(picto)}${counts.get(picto)}`] : [],
+  );
+  if (unread > 0) rows.push(unread > 1 ? `?×${unread}` : '?');
+  return ` ${rows.join(' ')} `;
+}
+
+/** A label's band, in CSS pixels. */
+const TAG_SIZE = 10;
+const TAG_ADVANCE = TAG_SIZE * 0.62;
+/** Its spots stand this far from the pin, near first (maquette A, `tag`), measured from a disc
+ *  of the maquette's size: a bigger disc pushes them out by the difference. */
+const TAG_REACH = [10, 34, 58];
+const MAQUETTE_DISC = 6.5;
+/** Further than this from its pin, a label hangs from it by a thread. */
+const LEADER_PX = 16;
+/** The fourth component of `aExtra` that says its first two are a label's thread, not a trail. */
+const LEADER = -1;
+
+/** A label's spots, in the order tried: right, left, below, above, then the four corners, at
+ *  each reach of `TAG_REACH`. */
+function tagSpotsOf(mark: Mark): Rect[] {
+  const [w, h] = [mark.tag!.length * TAG_ADVANCE, TAG_SIZE * 1.3];
+  const { sx: x, sy: y } = mark;
+  const at = (left: number, top: number) => ({ left, top, right: left + w, bottom: top + h });
+  return TAG_REACH.flatMap((reach) => {
+    const o = reach + Math.max(0, mark.radius - MAQUETTE_DISC);
+    return [
+      at(x + o, y - h / 2),
+      at(x - o - w, y - h / 2),
+      at(x - w / 2, y + o),
+      at(x - w / 2, y - o - h),
+      at(x + o, y + o * 0.6),
+      at(x - o - w, y - o * 0.6 - h),
+      at(x + o, y - o * 0.6 - h),
+      at(x - o - w, y + o * 0.6),
+    ];
+  });
+}
+
+/** The thread to a label stood off its pin: to its nearest point, `null` when it is close. */
+function leaderOf(mark: Mark, tag: Rect): readonly [number, number] | null {
+  const dx = Math.max(tag.left, Math.min(mark.sx, tag.right)) - mark.sx;
+  const dy = Math.max(tag.top, Math.min(mark.sy, tag.bottom)) - mark.sy;
+  return Math.hypot(dx, dy) < LEADER_PX ? null : [dx, dy];
+}
+function discRect(mark: Mark): Rect {
+  const r = mark.radius + 2;
+  return { left: mark.sx - r, right: mark.sx + r, top: mark.sy - r, bottom: mark.sy + r };
+}
+const free = (rect: Rect, others: ReadonlyArray<Rect>): boolean =>
+  others.every(
+    (other) =>
+      rect.right <= other.left ||
+      rect.left >= other.right ||
+      rect.bottom <= other.top ||
+      rect.top >= other.bottom,
+  );
 
 /** « 24 », « 519 », « 1,2 k » : a count past a thousand would outgrow its disc. */
 const countText = (count: number): string =>
@@ -687,7 +897,11 @@ function shapeMaterial(viewport: Viewport, select: { value: Color }): ShaderMate
         if (trail > 0.5) {
           vec2 dir = vExtra.xy / trail;
           float h = clamp(dot(p, dir) / trail, 0.0, 1.0);
-          col = over(vec4(vColor, 0.55 * (1.0 - h) * fill(length(p - dir * h * trail) - 2.0)), col);
+          float line = length(p - dir * h * trail);
+          // A label's thread is a hair of ink at a steady 0.6; a trail thickens and fades.
+          col = vExtra.w < 0.0
+            ? over(vec4(vColor, 0.6 * fill(line - 0.5)), col)
+            : over(vec4(vColor, 0.55 * (1.0 - h) * fill(line - 2.0)), col);
         }
         float d = shapeDistance(p, shape, r);
         if (style < 0.5) {
@@ -725,10 +939,116 @@ function shapeMaterial(viewport: Viewport, select: { value: Color }): ShaderMate
   });
 }
 
-/** The characters a pin ever writes: a count, an hour. */
-const GLYPHS = ' 0123456789:,kh';
+/** The pictos a label writes, each over two cells of the atlas (maquette A, `picto`). */
+const PICTOS = [
+  'infantry',
+  'armor',
+  'artillery',
+  'truck',
+  'sea',
+  'air',
+  'hq',
+  'research',
+  'building',
+  'outpost',
+] as const;
+type Picto = (typeof PICTOS)[number];
+/** A land role has its own picto; at sea or in the air, its domain's. */
+const LAND_PICTO: Readonly<Partial<Record<UnitRole, Picto>>> = {
+  infantry: 'infantry',
+  armor: 'armor',
+  artillery: 'artillery',
+  landTransport: 'truck',
+};
+const pictoOfRole = (role: UnitRole): Picto => {
+  const domain = DOMAIN_BY_ROLE[role];
+  return domain === 'land' ? (LAND_PICTO[role] ?? 'infantry') : domain;
+};
+const pictoOfSite = (key: BuildingKey | undefined): Picto =>
+  key === 'hq' ? 'hq' : key === 'researchCenter' ? 'research' : 'building';
+export const pictoText = (picto: Picto): string => {
+  const k = 0xe000 + 2 * PICTOS.indexOf(picto);
+  return String.fromCharCode(k, k + 1);
+};
+
+/** The characters a pin ever writes: a count, an hour, « ? », a label's pictos. */
+const GLYPHS = ` 0123456789:,kh?×${PICTOS.map(pictoText).join('')}`;
 const GLYPH_ASPECT = 0.62;
 const CELL = 48;
+
+/** A picto in the maquette's units (about twelve wide), centred on the origin. */
+function paintPicto(context: CanvasRenderingContext2D, picto: Picto): void {
+  context.beginPath();
+  switch (picto) {
+    case 'infantry':
+      context.arc(0, 1.5, 4.6, Math.PI, 0);
+      context.rect(-6, 1.2, 12, 1.8);
+      break;
+    case 'armor':
+      context.roundRect(-5.5, -0.5, 11, 4, 2);
+      context.rect(-2.5, -3.2, 5, 2.8);
+      context.rect(2, -2.4, 5, 1.2);
+      break;
+    case 'artillery':
+      context.arc(-1.5, 2.2, 2.4, 0, 2 * Math.PI);
+      context.moveTo(-2.2, 0.6);
+      context.lineTo(4.8, -4.9);
+      context.lineTo(6.2, -3.1);
+      context.lineTo(-0.8, 2.4);
+      break;
+    case 'truck':
+      context.rect(-6, -2, 7.5, 5);
+      context.rect(2, 0, 4, 3);
+      context.moveTo(-2, 4);
+      context.arc(-3.5, 4, 1.5, 0, 2 * Math.PI);
+      context.moveTo(5, 4);
+      context.arc(3.5, 4, 1.5, 0, 2 * Math.PI);
+      break;
+    case 'sea':
+      context.moveTo(-6, 0.5);
+      context.lineTo(6, 0.5);
+      context.lineTo(4, 3.5);
+      context.lineTo(-4.5, 3.5);
+      context.closePath();
+      context.rect(-1.5, -3.5, 2.4, 4);
+      break;
+    case 'air':
+      context.rect(-6, -0.8, 12, 1.8);
+      context.rect(-0.9, -5, 1.8, 9.5);
+      context.rect(-3, 3.2, 6, 1.4);
+      break;
+    case 'hq':
+      context.rect(-5, -1, 10, 5);
+      context.rect(-0.6, -6.5, 1.2, 6);
+      context.rect(0.6, -6.5, 4.5, 2.6);
+      break;
+    case 'research':
+      context.arc(0, 1, 4.5, Math.PI, 0);
+      context.rect(-6, 1, 12, 3);
+      break;
+    case 'building':
+      context.moveTo(-6, 4);
+      for (const [x, y] of [
+        [-6, -1],
+        [-3, -3.5],
+        [-3, -1],
+        [0, -3.5],
+        [0, -1],
+        [3, -3.5],
+        [3, -1],
+        [6, -1],
+        [6, 4],
+      ] as const)
+        context.lineTo(x, y);
+      context.closePath();
+      break;
+    case 'outpost':
+      context.rect(-3.5, -6, 1.4, 10.5);
+      context.rect(-2.1, -6, 6.5, 3.6);
+      break;
+  }
+  context.fill('nonzero');
+}
 
 function glyphAtlas(repainted: () => void): CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -744,7 +1064,19 @@ function glyphAtlas(repainted: () => void): CanvasTexture {
     context.textBaseline = 'middle';
     context.fillStyle = '#fff';
     const advance = canvas.width / GLYPHS.length;
-    [...GLYPHS].forEach((char, k) => context.fillText(char, (k + 0.5) * advance, CELL * 0.54));
+    [...GLYPHS].forEach((char, k) => {
+      if (char.charCodeAt(0) < 0xe000) context.fillText(char, (k + 0.5) * advance, CELL * 0.54);
+    });
+    // A picto spans two cells, widened as much as the quad narrows a cell of the atlas.
+    const unit = CELL * 0.066;
+    const stretch = (advance * 1.3) / (GLYPH_ASPECT * CELL);
+    for (const picto of PICTOS) {
+      context.save();
+      context.translate(GLYPHS.indexOf(pictoText(picto)) * advance + advance, CELL * 0.56);
+      context.scale(unit * stretch, unit);
+      paintPicto(context, picto);
+      context.restore();
+    }
     texture.needsUpdate = true;
   };
   paint();

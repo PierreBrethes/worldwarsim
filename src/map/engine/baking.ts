@@ -13,17 +13,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export type Part = { readonly geometry: BufferGeometry; readonly material: Material };
 
 /**
- * **The diorama round a building** (ADR 0038 §1-§5, §7): what stays whole while the building
- * alone is cut by its works, by what each does at a distance — the socle and its liseré stand to
- * the pin, the yard shrinks with the building, the sign grows on its foot. The rest of the scene
- * is the building.
+ * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
+ * is cut by its works — the socle and its liseré, the yard, the sign. The rest of the scene is the
+ * building.
  */
-const DRESSING: Readonly<Record<string, 'dressing' | 'yard' | 'sign'>> = {
-  socle: 'dressing',
-  lisere: 'dressing',
-  cour: 'yard',
-  signe: 'sign',
-};
+const DRESSING = new Set(['socle', 'lisere', 'cour', 'signe']);
 
 /** **The accessory groups of the yard** (ADR 0038 §5), baked apart: the engine shows them by
  *  level and state (`accessoriesShown`). */
@@ -51,7 +45,7 @@ const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 /** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one —
  *  a file without a socle (the well's, the objectives') may name a node `chantier` for itself.
  *  The port's slip is `cale`, and its `chantier` is a yard group like any. */
-const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
+export const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
 
 /**
  * **What no bake of `scene` draws**: on a socle, the accessories of a later level or state. The
@@ -70,28 +64,21 @@ const FLAG = 'drapeau';
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
  * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
  * draw calls. Meshes whose attributes do not match stay apart. A site is baked apart in what the
- * distance draws apart (ADR 0038 §7): its building; the socle and liseré it stands on; its yard;
- * its sign, with its foot — the `signe` node's place — and its height over it, in the scene's
- * units; and each accessory group, for the engine to show by level and state. A model without a
- * socle is all building.
+ * engine draws apart: its building, what a cut and a raze reach; its dressing — the socle and
+ * liseré it stands on, its yard, its sign —; and each accessory group, for the engine to show by
+ * level and state. A model without a socle is all building.
  */
 export function bakedSite(scene: Object3D): {
   building: Part[];
   dressing: Part[];
-  yard: Part[];
-  sign: { parts: Part[]; foot: Vector3; height: number } | null;
-  /** The flag, apart from its sign: it grows with it, and is inked per instance (#279). */
+  /** The flag, apart from its dressing: it runs on its pole, and is inked per instance (#279). */
   flag: Part[];
+  /** Where its sign stands (the `signe` node), in the scene's units: a capture's pile stands by. */
+  signFoot: Vector3 | null;
   accessories: Map<string, Part[]>;
 } {
   scene.updateMatrixWorld(true);
-  const kinds = {
-    building: [] as Mesh[],
-    dressing: [] as Mesh[],
-    yard: [] as Mesh[],
-    sign: [] as Mesh[],
-    flag: [] as Mesh[],
-  };
+  const kinds = { building: [] as Mesh[], dressing: [] as Mesh[], flag: [] as Mesh[] };
   const accessories = new Map<string, Mesh[]>();
   const socle = onSocle(scene);
   const visit = (node: Object3D, kind: keyof typeof kinds, accessory: string | null) => {
@@ -99,8 +86,8 @@ export function bakedSite(scene: Object3D): {
     const here =
       node.name === FLAG
         ? 'flag'
-        : kind === 'building' && socle
-          ? (DRESSING[node.name] ?? kind)
+        : kind === 'building' && socle && DRESSING.has(node.name)
+          ? 'dressing'
           : kind;
     if ((node as Mesh).isMesh) {
       if (group !== null) accessories.set(group, [...(accessories.get(group) ?? []), node as Mesh]);
@@ -110,25 +97,12 @@ export function bakedSite(scene: Object3D): {
   };
   visit(scene, 'building', null);
   const merged = (meshes: Mesh[]) => mergedByMaterial(meshes, new Matrix4());
-  const signNode = socle ? scene.getObjectByName('signe') : undefined;
-  const signParts = merged(kinds.sign);
-  const top = Math.max(
-    ...signParts.map(({ geometry }) => {
-      geometry.computeBoundingBox();
-      return geometry.boundingBox!.max.y;
-    }),
-  );
-  const foot = signNode?.getWorldPosition(new Vector3());
-  const sign =
-    foot === undefined || signParts.length === 0
-      ? null
-      : { parts: signParts, foot, height: top - foot.y };
   return {
     building: merged(kinds.building),
     dressing: merged(kinds.dressing),
-    yard: merged(kinds.yard),
-    sign,
     flag: merged(kinds.flag),
+    signFoot:
+      (socle ? scene.getObjectByName('signe') : undefined)?.getWorldPosition(new Vector3()) ?? null,
     accessories: new Map([...accessories].map(([name, meshes]) => [name, merged(meshes)])),
   };
 }

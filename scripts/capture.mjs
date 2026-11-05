@@ -2,7 +2,7 @@
  * **Une capture du jeu en local**, connecté avec un compte de démo (`npm run demo:mondiale`).
  *
  *     PLAYWRIGHT_DIR=/chemin/vers/pw npm run capture -- <url> <sortie.png> \
- *       [--heure 2026-10-21T12:00Z] [--horloge 2026-11-04T13:00:00.250Z] [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
+ *       [--heure 2026-10-21T12:00Z] [--horloge 2026-11-04T13:00:00.250Z] [--compris ms] [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
  *
  * `PLAYWRIGHT_DIR` : un dossier hors du dépôt où `npm i playwright-core@1.58` a été fait. L'URL
  * peut être un chemin (`/plateau`) pris sur http://localhost:5173 ; `{saison}` y devient
@@ -23,6 +23,8 @@
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
+ * `--compris ms` borne l'attente de la notice « Entrée en campagne » (8 s par défaut) : un état
+ * qui part à l'ouverture (le rejeu d'absence, #439) se capture dès le chargement.
  * `--horloge` tient l'heure du jeu (`Date.now`) à cet instant ISO ; `horloge=ISO[,ms]` la déplace en
  * cours de route et capture `ms` après : le milieu d'un fondu d'une demi-seconde.
  * `--heure` tient le soleil à cet instant ISO (avec Z ; midi UTC sans l'option) : il s'ajoute à l'URL
@@ -55,6 +57,7 @@ const flags = new Set([
   '--geste',
   '--heure',
   '--horloge',
+  '--compris',
 ]);
 /** `--tactile` : un écran tactile, pour les gestes du doigt (`toucher=x,y`, la rose s'ouvre au toucher). */
 const touch = args.includes('--tactile');
@@ -65,7 +68,7 @@ const positional = args.filter((arg, k) => !arg.startsWith('--') && !flags.has(a
 const [target, out] = positional;
 if (!target || !out) {
   console.error(
-    'usage : capture.mjs <url> <sortie.png> [--compte a|b] [--largeur N --hauteur N] [--attendre ms]',
+    'usage : capture.mjs <url> <sortie.png> [--compte a|b] [--largeur N --hauteur N] [--attendre ms] [--compris ms]',
   );
   process.exit(2);
 }
@@ -128,7 +131,7 @@ try {
   /** La notice « Entrée en campagne » couvre le plateau d'une place neuve : on la tamponne. */
   const understood = page.getByRole('button', { name: /compris/i }).first();
   if (
-    await understood.waitFor({ timeout: 8000 }).then(
+    await understood.waitFor({ timeout: Math.max(1, Number(option('compris', 8000))) }).then(
       () => true,
       () => false,
     )

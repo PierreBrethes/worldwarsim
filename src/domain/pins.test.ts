@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { MapMarker } from './labels';
 import type { ArcView } from './player-view';
@@ -17,11 +18,14 @@ const stack = {
     ground: 'land',
     coastal: false,
   },
+  stack: { infantry: 3, armor: 1 },
   ink: MY_INK,
 } as unknown as MapMarker;
 const building = {
   kind: 'building',
   id: 'barracks-1',
+  buildingId: 'b1',
+  key: 'barracks',
   lonLat: null,
   regionId: 'FRA-5333',
   ink: MY_INK,
@@ -30,6 +34,7 @@ const outpost = {
   kind: 'outpost',
   id: 'outpost-1',
   lonLat: [4, 50],
+  station: { kind: 'outpost', outpostId: 'o1' },
   ink: MY_INK,
 } as unknown as MapMarker;
 const camp = (extra: object = {}) =>
@@ -43,6 +48,7 @@ const camp = (extra: object = {}) =>
     since: 1000,
     seenMinutesAgo: null,
     lastSeenAt: null,
+    identification: { pierced: false },
     ...extra,
   }) as unknown as MapMarker;
 const installation = {
@@ -66,6 +72,7 @@ describe('pinsOf — what a pin far away says', () => {
         shape: 'pile',
         side: 'mine',
         ink: MY_INK,
+        stack: { infantry: 3, armor: 1 },
       },
       {
         id: 'barracks-1',
@@ -73,6 +80,8 @@ describe('pinsOf — what a pin far away says', () => {
         shape: 'building',
         side: 'mine',
         ink: MY_INK,
+        key: 'barracks',
+        stack: {},
       },
       {
         id: 'outpost-1',
@@ -80,6 +89,7 @@ describe('pinsOf — what a pin far away says', () => {
         shape: 'outpost',
         side: 'mine',
         ink: MY_INK,
+        stack: {},
       },
     ]);
   });
@@ -122,8 +132,8 @@ describe('pinsOf — what a pin far away says', () => {
       pinsOf(
         [],
         [
-          arc('mine'),
-          arc('enemyDetected', { nation: 'italy' }),
+          arc('mine', { stack: { fighter: 2 } }),
+          arc('enemyDetected', { nation: 'italy', identification: { pierced: false } }),
           arc('lastKnown', { lastSeenAt: 7000, nation: 'italy' }),
           arc('seaControl'),
         ],
@@ -136,6 +146,7 @@ describe('pinsOf — what a pin far away says', () => {
         shape: 'pile',
         side: 'mine',
         ink: MY_INK,
+        stack: { fighter: 2 },
         moving: true,
       },
       {
@@ -154,6 +165,46 @@ describe('pinsOf — what a pin far away says', () => {
         seenAt: 7000,
       },
     ]);
+  });
+
+  it('carries the troops of each of my pins: a pile’s, a building’s or an outpost’s garrison', () => {
+    const garrisons: Record<string, object> = { b1: { infantry: 2 }, o1: { artillery: 1 } };
+    const garrisonOf = (station: { kind: string; buildingId?: string; outpostId?: string }) =>
+      garrisons[station.buildingId ?? station.outpostId ?? ''] ?? {};
+    expect(
+      pinsOf([stack, building, outpost], [], MY_INK, garrisonOf as never).map((pin) =>
+        pin.side === 'mine' ? pin.stack : null,
+      ),
+    ).toEqual([{ infantry: 3, armor: 1 }, { infantry: 2 }, { artillery: 1 }]);
+  });
+
+  it('reads a surveyed pile only where a Guet pierced it, and never on a last known position', () => {
+    const read = { pierced: true, stack: { infantry: 5 }, readAt: null };
+    const pins = pinsOf(
+      [
+        camp({ identification: read }),
+        camp({ id: 'camp-2', identification: { pierced: false } }),
+        camp({ id: 'camp-3', lastKnown: true, lastSeenAt: 5, identification: read }),
+      ],
+      [
+        arc('enemyDetected', { identification: read }),
+        arc('lastKnown', { lastSeenAt: 7, identification: read }),
+      ],
+      MY_INK,
+    );
+    expect(pins.map((pin) => ('pierced' in pin ? pin.pierced : null))).toEqual([
+      { infantry: 5 },
+      null,
+      null,
+      { infantry: 5 },
+      null,
+    ]);
+  });
+
+  it('fills `pierced` from the pierced branch of a Composition, and from nowhere else', () => {
+    const source = readFileSync(new URL('./pins.ts', import.meta.url), 'utf-8');
+    expect(source.match(/pierced:/g)).toHaveLength(1);
+    expect(source).toMatch(/\.pierced \? \{ pierced: identification\.stack \}/);
   });
 
   it('marks a building of mine still under the crane, and not one raising a level', () => {

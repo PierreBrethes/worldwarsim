@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : c00c7d5 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : fe76855 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-105 valeurs marquées dans `convex/` et `src/domain/`.
+140 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -84,25 +84,53 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1322` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
 | `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1342` | une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h |
 | `BLITZ` | `{ startingFunds: 200, fundsPerMinute: { hq: 30, city: 15 } as Readonly<Partial<Record<BuildingKey, number>>>, rolePrice: { infantry: 60, landTransport: 90, armor: 180, artillery: 160, fighter: 200, bomber: 260, airTransport: 150, escort: 200, cargo: 140, carrier: 320 } as Readonly<Record<UnitRole, number>>, recruitMinutes: 0.8, /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */ troopBound: 80, mend: { stepMinutes: 0.8, /** La part de la force nominale rendue à chaque pas. */ sharePerStep: 0.1, /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */ priceShare: 0.5 }, map: { /** Le cercle des QG, posé sur la terre (A2) : son rayon en part du théâtre — 950 km en * Europe —, et l'écart cible entre QG en est la corde. */ hqRadius: 0.225, hqRadiusSpread: 0.5, /** Combien de tablées on tire au plus, chacune d'une région au hasard. */ hqDraws: 1000, /** Combien de tablées régulières on éprouve en entier (E6 : une douzaine) avant de refuser. */ hqTries: 12, /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */ hqEvenness: 0.6, /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */ tolerance: 0.35, /** La caserne de départ, à soi, à cette part du théâtre (A2) en route depuis le QG — 120 km * en Europe. */ starting: [{ key: 'barracks', share: 0.0284 }], /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous : 250, 450, * 350 et 400 km en Europe. */ near: [ { key: 'city', share: 0.0592 }, { key: 'city', share: 0.1065 }, { key: 'port', share: 0.0828 }, { key: 'airfield', share: 0.0947 }, ], /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */ disputed: ['city', 'airfield'], /** Le plus court écart à vol d'oiseau entre deux bâtiments posés — 80 km en Europe. */ spread: 0.0189, fairness: 0.8 } as const } as const` | `convex/constants.ts:1353` | toutes, posées pour qu'une partie de deux heures se lise sur le papier : le pécule |
+| `MESSAGES_PAGE` | `2000` | `convex/finalEdition.ts:42` | posés à l'œil, sans banc sur une saison de huit joueurs |
+| `NOTICES_PAGE` | `2000` | `convex/finalEdition.ts:43` | posés à l'œil, sans banc sur une saison de huit joueurs |
+| `PASSES_PAGE` | `100` | `convex/finalEdition.ts:44` | posés à l'œil, sans banc sur une saison de huit joueurs |
+| `ERASE_FALLBACK_MS` | `30 * 60_000` | `convex/finalEdition.ts:52` | assez pour que la chaîne de clôture compte les dépêches avant |
+| `INTRO_MS` | `1400` | `src/domain/absence-tour.ts:18` | le minutage de la maquette (`scenes.js`, la tournée) — l'intro, un arrêt, un vol. |
+| `STOP_MS` | `1600` | `src/domain/absence-tour.ts:19` | le minutage de la maquette (`scenes.js`, la tournée) — l'intro, un arrêt, un vol. |
+| `FLY_MS` | `700` | `src/domain/absence-tour.ts:20` | le minutage de la maquette (`scenes.js`, la tournée) — l'intro, un arrêt, un vol. |
+| `REDUCED_LAND_MS` | `250` | `src/domain/absence-tour.ts:22` | réduites, pas de vol ; le tampon se pose un quart de seconde après l'arrêt. |
+| `LAST_HOLD_MS` | `1400` | `src/domain/absence-tour.ts:24` | du dernier tampon au retour, sous `SETTLE_MS` pour que le moteur ne s'endorme pas. |
+| `RETURN_MS` | `1400` | `src/domain/absence-tour.ts:26` | le vol du retour, et la bande de fin qui le suit. |
+| `END_BAND_MS` | `1600` | `src/domain/absence-tour.ts:27` | le vol du retour, et la bande de fin qui le suit. |
+| `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
+| `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:171` | le temps de lire « nos pièces » et de l'ouvrir. |
 | `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:206` | « voir » |
-| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:70` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
+| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:72` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
+| `BEFORE_CITY_KM` | `30` | `src/domain/contacts.ts:35` | la maquette C le pose à 0,35 unité, environ 30 km |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:105` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `MOON_ELEVATION_DEG` | `53` | `src/domain/daylight.ts:106` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `BASIN_KM` | `24` | `src/domain/deposit-basins.ts:22` | le rayon du bassin dessiné : plus étroit que l'aimant, c'est le terrain qu'on lit. |
 | `SWEEP_RANGE_KM` | `1000` | `src/domain/deposit-sweep.ts:16` | décisions du 23/10 sur #249 : l'Europe de l'Ouest d'un coup d'œil |
 | `SWEEP_MS` | `3000` | `src/domain/deposit-sweep.ts:19` | décisions du 23/10 sur #249 : assez long pour suivre le front |
 | `BUILDING_SPACING_KM` | `30` | `src/domain/economy.ts:89` | l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test |
+| `FRAMES` | `{ world: [0, 0, 400, 208], europe: [187, 14, 248, 61], 'europe-med': [180, 14, 271, 89] }` | `src/domain/final-edition-read.ts:66` | cadres posés à l'œil, sans capture |
 | `NEAR_KM` | `250` | `src/domain/front-sound.ts:43` | 250 et 550 km, maquette D du 02/11, jamais jouée |
 | `MID_KM` | `550` | `src/domain/front-sound.ts:44` | 250 et 550 km, maquette D du 02/11, jamais jouée |
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `HEARD_ON_RETURN` | `3` | `src/domain/front-sound.ts:149` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `PHRASE_GAP_MS` | `6_000` | `src/domain/front-sound.ts:150` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
+| `FLAG_SWAP_MS` | `1600` | `src/domain/ink-bursts.ts:68` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
+| `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:69` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
+| `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:72` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |
+| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:75` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
+| `FLY_MS` | `1000` | `src/domain/moments.ts:96` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `FALL_HOLD_MS` | `3200` | `src/domain/moments.ts:97` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `PULL_MS` | `2000` | `src/domain/moments.ts:98` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `SEAL_GAP_MS` | `450` | `src/domain/moments.ts:99` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `TRACE_AFTER_MS` | `1900` | `src/domain/moments.ts:100` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `TRACE_PEN_MS` | `1200` | `src/domain/moments.ts:101` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `BIG_AFTER_MS` | `{ full: 1400, reduced: 300 } as const` | `src/domain/moments.ts:102` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `SEPIA_AFTER_MS` | `600` | `src/domain/moments.ts:103` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `OPEN_AFTER_MS` | `1600` | `src/domain/moments.ts:104` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:355` | deux, d'après la décision du 19/10, jamais joué |
 | `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:908` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
 | `MONDIALE_DURATION_DAYS` | `[3, 5, 7, 10, 14] as const` | `src/domain/operation-order.ts:37` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
@@ -112,6 +140,13 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `ARMOR_METRES` | `{ france: [4.02, 6.37], // Renault R35, Char B1 bis uk: [3.96, 5.61], // Vickers Light Tank Mk VI, Matilda II usa: [4.84, 5.84], // M5 Stuart, M4 Sherman ussr: [5.66, 6.68], // BT-7, T-34 (1941) germany: [4.81, 5.92], // Panzer II, Panzer IV japan: [4.38, 5.52], // Type 95 Ha-Go, Type 97 Chi-Ha italy: [3.17, 4.92], // L3/35, M13/40 china: [4.88, 4.62], // Vickers 6-Ton, T-26 }` | `src/domain/piece-size.ts:43` | longueurs de caisse publiées (fiches Wikipédia des modèles), sans canon ni garde-boue |
 | `BUILDING_METRES` | `{ hq: 60, farm: 40, mine: 50, oilWell: 25, arsenal: 80, barracks: 50, airfield: 110, port: 210, listening: 30, researchCenter: 50, warehouse: 60, depot: 60, city: 50 }` | `src/domain/piece-size.ts:60` | la ville seule, un symbole sans mesure réelle ; le reste suit l'ADR 0035 |
 | `OBJECTIVE_METRES` | `{ abandonedStores: 40, stalledConvoy: 30, fuelDump: 40, irregularArsenal: 40 }` | `src/domain/piece-size.ts:123` | lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel |
+| `NAMES_GONE_DISTANCE` | `65` | `src/domain/place-names.ts:117` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
+| `CITY_TIERS` | `[NAMES_GONE_DISTANCE, 55, 34, 0]` | `src/domain/place-names.ts:118` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
+| `MILLION` | `1_000_000` | `src/domain/place-names.ts:119` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
+| `SMALL_CAPITAL` | `300_000` | `src/domain/place-names.ts:120` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
+| `SEA_TIERS` | `[NAMES_GONE_DISTANCE, 45, 0]` | `src/domain/place-names.ts:161` | paliers lus sur la maquette A, aucune capture des mers seules |
+| `SEA_RANKS` | `[2, 4]` | `src/domain/place-names.ts:162` | paliers lus sur la maquette A, aucune capture des mers seules |
+| `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:176` | lu sur la maquette A, qui en écrit onze sur l'Europe |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |

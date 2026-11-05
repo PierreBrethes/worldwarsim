@@ -5,11 +5,13 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
 import type { OrderAction } from '@/domain/compass-rose';
 import type { MovementType } from '@/domain/ids';
+import type { Steered } from '@/domain/carrier-doctrine';
 import type { MovementAim } from '@/domain/movement-orders';
 import type { MarchStation } from '@/domain/troops';
 import { placeLabel } from '@/domain/station-name';
 import type {
   CapturePreviewed,
+  CoursePreviewed,
   LootCollectionPreviewed,
   MovementPreviewed,
   PlunderPreviewed,
@@ -19,7 +21,11 @@ import type { Seat } from '@/data/session';
 /** **Un seul aperçu pour quatre missions** : la même route et les mêmes heures ; ce qui les
  *  sépare — le relais, la charge, la présence sur site — se lit là où il existe. */
 export type Previewed =
-  MovementPreviewed | PlunderPreviewed | CapturePreviewed | LootCollectionPreviewed;
+  | MovementPreviewed
+  | PlunderPreviewed
+  | CapturePreviewed
+  | LootCollectionPreviewed
+  | CoursePreviewed;
 
 /** Ce que le fil demande à cet envoi-ci — la mutation, jamais un champ de plus sur `march`. */
 type PreviewMission =
@@ -143,6 +149,8 @@ export function useSendOrder(seat: Seat) {
       troopIds: ReadonlyArray<string>,
       { aim, type, mission }: OrderChoice,
       preview?: Previewed,
+      /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : l'attaque la porte. */
+      then?: MovementAim,
     ): Promise<Sent> => {
       // `PlayerView` carries plain strings: the branded ids go back on at the call itself.
       const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
@@ -210,6 +218,7 @@ export function useSendOrder(seat: Seat) {
                           origin: from,
                           troopIds: ids,
                           target: wireTarget(aim),
+                          ...(then === undefined ? {} : { then: wireTarget(then) }),
                         });
       return {
         movementId: sent.movementId,
@@ -285,3 +294,30 @@ export function choiceOf(action: OrderAction): OrderChoice {
 /** La clé d'un ordre de groupe : son genre et sa cible, ce que chaque pile relit. */
 export const groupKeyOf = (action: OrderAction): string =>
   `${action.key}:${JSON.stringify(choiceOf(action).aim)}`;
+
+/** **Changer de cap** (Doctrine du porte-avions, ADR 0039 §4) : la flotte reprise en mer part de
+ *  sa position vers la cible lâchée, même slot ; le serveur relit tout. Une mission garde son cap
+ *  (décision du 04/11) : seule une marche, une attaque ou une expédition sans mission part ici. */
+export function useChangeCourse(seat: Seat) {
+  const changeCourse = useMutation(api.movements.changeCourse);
+  return useCallback(
+    async (
+      movementId: string,
+      { aim, type }: OrderChoice & { readonly type: Steered },
+      preview?: Previewed,
+    ): Promise<Sent> => {
+      const sent = await changeCourse({
+        ...seat,
+        movementId: movementId as Id<'movements'>,
+        type,
+        target: wireTarget(aim),
+      });
+      return {
+        movementId: sent.movementId,
+        arrivesAt: sent.arrivesAt,
+        destination: destinationOf(aim, preview),
+      };
+    },
+    [seat, changeCourse],
+  );
+}

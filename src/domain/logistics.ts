@@ -1,5 +1,6 @@
 import { AIR_STOP_LEVEL, LOAD_CAPACITY_BY_ROLE, TOUR_MAX_STOPS } from '../../convex/constants';
 import type { BuildingKey, ResourceKey, UnitRole } from './ids';
+import type { Asset } from './nation-assets';
 import { topUp, type Carrying, type Supplies, type SupplyStocks } from './supplies';
 import { carrierIn, type Seated } from './troops';
 
@@ -183,6 +184,44 @@ export function deliverRefusalOf(
   if (!tour && loadTotal(outpost.depot) >= outpost.capacity)
     return { code: 'DEPOT_FULL', capacity: outpost.capacity };
   return null;
+}
+
+export type LendLeaseRefusal =
+  | { readonly code: 'UNKNOWN_OUTPOST' }
+  | { readonly code: 'FOREIGN_DEPOT' }
+  | { readonly code: 'LEND_LEASE_TRANSPORTS_ONLY' }
+  | { readonly code: 'NOTHING_TO_DELIVER' };
+
+/**
+ * **À quel dépôt une colonne livre** (ADR 0039 §3) : au sien, ou, par le Prêt-bail, à celui d'un
+ * avant-poste étranger que son relevé garde. Rien du dépôt de l'autre n'est lu ici : plein,
+ * démantelé ou désactivé, il se relit à l'arrivée. Un dépôt étranger qu'on n'a pas relevé se
+ * refuse du mot d'un dépôt qui n'existe pas. `troops` est toute la colonne, passagers compris :
+ * on ne pose pas de garnison chez l'autre. `deliver`, `unloadAt` et la rose la lisent.
+ */
+export function depotAccessOf({
+  mine,
+  surveyed,
+  asset,
+  troops,
+}: {
+  readonly mine: boolean;
+  readonly surveyed: boolean;
+  readonly asset: Asset | null;
+  readonly troops: ReadonlyArray<{ readonly role: UnitRole; readonly load?: SupplyLoad }>;
+}):
+  | { readonly kind: 'own' }
+  | { readonly kind: 'lendLease' }
+  | { readonly kind: 'refused'; readonly refusal: LendLeaseRefusal } {
+  if (mine) return { kind: 'own' };
+  const refused = (refusal: LendLeaseRefusal) => ({ kind: 'refused' as const, refusal });
+  if (!surveyed) return refused({ code: 'UNKNOWN_OUTPOST' });
+  if (asset !== 'lendLease') return refused({ code: 'FOREIGN_DEPOT' });
+  if (troops.some((troop) => loadCapacityOf(troop.role) === 0))
+    return refused({ code: 'LEND_LEASE_TRANSPORTS_ONLY' });
+  if (!troops.some((troop) => loadTotal(troop.load) > 0))
+    return refused({ code: 'NOTHING_TO_DELIVER' });
+  return { kind: 'lendLease' };
 }
 
 /** **Un transport en tournée, une troupe en ronde, ne prennent pas d'autre ordre** (ADR 0028,

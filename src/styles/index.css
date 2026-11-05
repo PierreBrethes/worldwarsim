@@ -472,6 +472,90 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* **La saison close** (#442, `victoire.html`) : la carte passe au sépia, sous ses étiquettes,
+   une fois la scène de la fin jouée ; en 1,4 s, sauf animations coupées. */
+.map-sepia {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgb(150 120 80 / 38%);
+  animation: map-sepia-in 1.4s ease-out;
+}
+
+@keyframes map-sepia-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* **Le grand tampon de la fin** : rouge du tampon, de travers, pressé (`stampAnim`). */
+.moment-bigstamp {
+  position: absolute;
+  top: 46%;
+  z-index: var(--z-band);
+  padding: 10px 26px 12px;
+  border: 4px solid #7a1f2e;
+  color: #7a1f2e;
+  background: rgb(233 222 196 / 86%);
+  box-shadow:
+    0 0 0 2px rgb(233 222 196 / 86%),
+    inset 0 0 0 1.5px rgb(122 31 46 / 50%);
+  text-align: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  animation: moment-press 0.14s ease-out;
+}
+
+.moment-bigstamp b {
+  display: block;
+  font: 700 46px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.moment-bigstamp span {
+  display: block;
+  margin-top: 4px;
+  font: 600 13px/1.4 var(--font-body);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.moment-bigstamp span + span {
+  font: 500 13px/1.3 var(--font-mono);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+@keyframes moment-press {
+  from {
+    transform: translate(-50%, -50%) scale(1.7) rotate(-4deg);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .moment-bigstamp {
+    top: 32%;
+    padding: 8px 16px 10px;
+  }
+
+  .moment-bigstamp b {
+    font-size: 32px;
+  }
+
+  .moment-bigstamp span {
+    font-size: 11px;
+  }
+}
+
+/* Réduites : le tampon se pose à plat, le sépia monte encore (un fondu, pas un mouvement). */
+:root[data-motion='reduced'] .moment-bigstamp,
+:root[data-motion='off'] :is(.map-sepia, .moment-bigstamp) {
+  animation: none;
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .map-grain {
     display: none;

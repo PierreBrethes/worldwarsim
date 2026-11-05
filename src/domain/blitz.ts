@@ -105,10 +105,10 @@ export function mendPlan<T extends Wounded & { readonly id: string }>(
   });
 }
 
-/** Pourquoi une Blitz s'est conclue : le dernier debout — QG pris ou capitulation —, ou
- *  l'horloge, au revenu ou à égalité (B10, B11). */
+/** Pourquoi une saison s'est conclue : le dernier debout — QG pris ou capitulation —,
+ *  l'horloge, au revenu ou à égalité (B10, B11), les points (M1, M12), ou la main du fondateur. */
 export type VerdictReason =
-  'hqTaken' | 'lastStanding' | 'income' | 'draw' | 'points' | 'clock' | 'territory';
+  'hqTaken' | 'lastStanding' | 'income' | 'draw' | 'points' | 'clock' | 'territory' | 'closed';
 
 /**
  * **À deux heures, le plus gros revenu gagne** (B11) : les fonds par minute tenus à l'instant,

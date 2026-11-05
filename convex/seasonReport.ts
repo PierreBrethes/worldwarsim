@@ -9,6 +9,7 @@ import { seasonMovements, seasonOutposts, seasonTroops } from './movement/forces
 import type { OutpostEvent, ReportInput, ReportTroop } from '../src/domain/season-report';
 import { modeOf } from '../src/domain/season-mode';
 import type { LonLat } from '../src/domain/geo';
+import { loadTotal } from '../src/domain/logistics';
 
 /**
  * **La lecture du rapport de saison** (ADR 0027 §7) : elle range les faits que la base garde,
@@ -152,7 +153,7 @@ export const facts = internalQuery({
   },
 });
 
-/** Les dépêches d'avant-postes d'un joueur, par pages de `PAGE` lignes (`next: null` à la fin). */
+/** Les dépêches d'avant-postes d'un joueur et ses usages d'atout, par pages de `PAGE` lignes (`next: null` à la fin). */
 const PAGE = 3000;
 
 export const outpostEvents = internalQuery({
@@ -163,11 +164,25 @@ export const outpostEvents = internalQuery({
       .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
       .paginate({ numItems: PAGE, cursor });
     const events: OutpostEvent[] = [];
+    let uses = 0;
     for (const notice of page.page) {
       const kind = outpostKindOf(notice);
       if (kind !== null) events.push({ playerId, at: notice.at, kind });
+      /** **Un rasage évacué** (ADR 0039 §5) : la dépêche porte la réserve. **Un Prêt-bail**
+       *  (§3) : une livraison réelle au dépôt d'un autre, jamais un convoi revenu plein. */
+      if (notice.kind === 'buildingDemolished' && notice.kept !== undefined) uses += 1;
+      /** **Un cap changé** (§4) : la dépêche que la mutation écrit à son auteur. */
+      if (notice.kind === 'courseChanged') uses += 1;
+      /** **Une seconde jambe partie** (§6), jamais une tombée ni une restée sur place. */
+      if (notice.kind === 'blitzkrieg' && notice.outcome === 'onward') uses += 1;
+      if (
+        notice.kind === 'supplyDelivered' &&
+        notice.abroad === true &&
+        loadTotal(notice.delivered) > 0
+      )
+        uses += 1;
     }
-    return { events, next: page.isDone ? null : page.continueCursor };
+    return { events, uses, next: page.isDone ? null : page.continueCursor };
   },
 });
 

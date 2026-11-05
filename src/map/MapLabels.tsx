@@ -30,9 +30,10 @@ import {
 import { isHqSite } from '@/domain/capture';
 import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
+import { FLAG_SWAP_MS } from '@/domain/ink-bursts';
 import { useMapMotion } from '@/data/mapMotion';
 import { shareUnchanged } from '@/data/shareUnchanged';
-import { CaptureGauge, LoadingGauge, MarchGauge, ResearchLine } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge, RaceGauge, ResearchLine } from './LoadingGauge';
 import { useLayerSize } from './layer-size';
 import {
   NEUTRAL_FLAG,
@@ -68,6 +69,9 @@ import {
   type Rect,
 } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
+import { NameSheet } from './map-names';
+import { bandOf, matBand } from './board-band';
+import { useBoardInsets } from '@/shell/viewport';
 
 /** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
 export type TakeDepot = (
@@ -214,6 +218,7 @@ export function MapLabels({
   groupFar?: boolean;
 }) {
   const labels = useSameLabels(served);
+  const flags = useFlagSwaps(labels);
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
   const blocks = useRef(new Map<string, HTMLElement>());
@@ -253,6 +258,12 @@ export function MapLabels({
   }, []);
   /** La largeur mesurée de chaque cartouche, pour savoir de combien rapprocher la caméra. */
   const widths = useRef(new Map<string, number>());
+  /**
+   * **La boîte de chaque étiquette autour de son point**, mesurée au repli (`degrade`) : chaque
+   * image la repose sous ses nouvelles coordonnées, et les noms du décor l'évitent (#440).
+   */
+  const boxes = useRef(new Map<string, ScreenBox>());
+  const namesCanvas = useRef<HTMLCanvasElement>(null);
   /** `click` does not say which pointer made it everywhere Safari runs: the press does. */
   const pressedWith = useRef('mouse');
   /** La pile de mâts ouverte en liste, par son identifiant — elle se referme si elle se défait. */
@@ -281,6 +292,9 @@ export function MapLabels({
   barLabels.current = selectionBar?.labelIds ?? [];
   const layer = useRef<HTMLDivElement>(null);
   const layerSize = useLayerSize(layer);
+  const shellInsets = useBoardInsets();
+  const boardInsets = useRef(shellInsets);
+  boardInsets.current = shellInsets;
   const posterPlace = useRef<PosterPlace | null>(null);
   const posterSide = useRef<{ id: string; side: PosterSpot['side'] } | null>(null);
   const point = useCallback(
@@ -315,6 +329,11 @@ export function MapLabels({
     const timers = folding.current;
     return () => timers.forEach((timer) => clearTimeout(timer));
   }, []);
+  /** A worked deposit's label → the piece whose plinth its name hangs below (#445). */
+  const clearing = useRef<ReadonlyMap<string, string>>(new Map());
+  clearing.current = new Map(
+    labels.flatMap((label) => (label.clears === undefined ? [] : [[label.id, label.clears]])),
+  );
   /** The labels that carry a transport's tag: only they look for their figurines each frame. */
   const cargoed = useRef<ReadonlySet<string>>(new Set());
   cargoed.current = new Set(
@@ -413,7 +432,8 @@ export function MapLabels({
         return (
           state?.visible === true &&
           (state.lod === 'expanded' || (groupFar && site(label))) &&
-          label.type !== 'arrival'
+          label.type !== 'arrival' &&
+          label.type !== 'course-mark'
         );
       })
       .slice()
@@ -574,6 +594,28 @@ export function MapLabels({
     groupsNow.current = shown;
     setGroups((previous) => (sameGroups(previous, shown) ? previous : shown));
     for (const group of shown) writeLift(group.id);
+    const origin = layer.current?.getBoundingClientRect();
+    boxes.current.clear();
+    if (origin !== undefined)
+      for (const [id, state] of states.current) {
+        const anchor = anchors.current.get(id);
+        const box = state.visible && anchor !== undefined ? drawnBox(anchor) : null;
+        // A shared cartouche stands at its first member's foot: kept under that member's id.
+        const groups = formed.filter((group) => group.members[0] === id);
+        const shared = groups.flatMap((group) => {
+          const node = groupAnchors.current.get(group.id);
+          return node === undefined ? [] : [drawnBox(node)];
+        });
+        const all = [box, ...shared].filter((each) => each !== null);
+        if (all.length === 0) continue;
+        const [x, y] = [origin.left + state.x, origin.top + state.y];
+        boxes.current.set(id, {
+          left: Math.min(...all.map((each) => each.left)) - x,
+          top: Math.min(...all.map((each) => each.top)) - y,
+          right: Math.max(...all.map((each) => each.right)) - x,
+          bottom: Math.max(...all.map((each) => each.bottom)) - y,
+        });
+      }
     point(held);
   }, [labels, apply, engine, point, groupFar, writeLift]);
 
@@ -678,7 +720,9 @@ export function MapLabels({
   }, [engine, labels]);
 
   useEffect(() => {
-    if (!engine) return;
+    if (!engine || namesCanvas.current === null) return;
+    const names = new NameSheet(namesCanvas.current);
+    const coarse = matchMedia('(pointer: coarse)').matches;
     engine.onLabels = (projections: ReadonlyArray<LabelProjection>) => {
       for (const projection of projections) {
         const anchor = anchors.current.get(projection.id);
@@ -728,9 +772,14 @@ export function MapLabels({
           tether.style.transform = `rotate(${turn})`;
         }
 
-        anchor.style.transform = `translate3d(${projection.x}px, ${projection.y}px, 0)`;
+        // A worked deposit's name hangs under the maquette that stands on it: its plinth is
+        // wider than the basin the name was written below (#445).
+        const standing = clearing.current.get(projection.id);
+        const plinth = standing === undefined ? null : engine.pieceRect(standing);
+        const y = plinth === null ? projection.y : Math.max(projection.y, plinth.bottom);
+        anchor.style.transform = `translate3d(${projection.x}px, ${y}px, 0)`;
         state.x = projection.x;
-        state.y = projection.y;
+        state.y = y;
         // A transport's tag hangs over its figurines, not its point: on a shore they stand inland.
         if (cargoed.current.has(projection.id)) {
           const rect =
@@ -880,6 +929,33 @@ export function MapLabels({
         anchor.style.setProperty('--dressed', String(dressed));
         anchor.classList.toggle('label-anchor--dressed', dressed >= 0.5);
       }
+
+      // Les noms du décor viennent après le jeu, et lui cèdent (#440).
+      const occupied: ScreenBox[] = [];
+      for (const [id, state] of states.current) {
+        const box = boxes.current.get(id);
+        if (state.visible && box !== undefined)
+          occupied.push({
+            left: state.x + box.left,
+            top: state.y + box.top,
+            right: state.x + box.right,
+            bottom: state.y + box.bottom,
+          });
+        const piece = engine.pieceRect(id);
+        if (piece !== null) occupied.push(piece);
+      }
+      // A sea's name stands whole off the shell's bands, as the contacts' tokens do (#457).
+      const { width, height } = layerSize.current;
+      const band = bandOf({
+        ...boardInsets.current,
+        bottom: Math.max(boardInsets.current.bottom, matBand(layer.current)),
+      });
+      names.paint(engine.nameSpots(), occupied, layerSize.current, coarse, {
+        left: band.left,
+        top: band.top,
+        right: width - band.right,
+        bottom: height - band.bottom,
+      });
     };
     const unsubscribe = engine.subscribeRest(degrade);
     return () => {
@@ -1051,7 +1127,11 @@ export function MapLabels({
     pointerDown: (label, event) => {
       pressedWith.current = event.pointerType;
       // Une de mes piles se porte aussi depuis son étiquette (glisser-déposer, 15/10).
-      if (label.type === 'stack' && label.station !== null && !muted)
+      // Une flotte en mer se reprend par sa fiche (Doctrine du porte-avions, #449).
+      if (
+        ((label.type === 'stack' && label.station !== null) || label.type === 'my-movement') &&
+        !muted
+      )
         engine?.pressOnLabel(label.id, event.nativeEvent);
       // Un clic ouvre ce que la pièce ouvre — garnison, site, cartouche : l'affiche le
       // doublerait. Elle revient au survol suivant.
@@ -1093,6 +1173,7 @@ export function MapLabels({
       ref={layer}
       className={`map-labels${muted ? ' pointer-events-none' : ''}${carriersShown ? ' map-labels--loading' : ''}`}
     >
+      <canvas ref={namesCanvas} className="map-names" aria-hidden="true" />
       {labels.map((label) => (
         <LabelNode
           key={label.id}
@@ -1114,6 +1195,7 @@ export function MapLabels({
           available={carriersShown || availableLabels.has(label.id)}
           gestures={gestures}
           nodes={nodes}
+          flagFrom={flags.get(label.id)}
         />
       ))}
       {groups.map((group) => {
@@ -1255,6 +1337,9 @@ type LabelNodeProps = {
   readonly available: boolean;
   readonly gestures: RefObject<LabelGestures>;
   readonly nodes: LabelNodes;
+  /** **Le drapeau d'un des Sept change de mains** (#442) : l'encre qui descend, `null` du neutre
+   *  (il ne fait que monter) ; absent hors d'un changement. */
+  readonly flagFrom: string | null | undefined;
 };
 
 /**
@@ -1277,6 +1362,7 @@ const LabelNode = memo(function LabelNode({
   available,
   gestures,
   nodes,
+  flagFrom,
 }: LabelNodeProps) {
   return (
     <div
@@ -1304,11 +1390,18 @@ const LabelNode = memo(function LabelNode({
         ref={(node) => {
           register(nodes.roots.current, label.id, node);
         }}
-        className={classesOf(label, selected)}
+        className={`${classesOf(label, selected)}${flagFrom === undefined ? '' : flagFrom === null ? ' label--flag-rise' : ' label--flag-swap'}`}
         role={label.lootSightingId === null ? undefined : 'button'}
         tabIndex={label.lootSightingId === null ? undefined : 0}
         aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
-        style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
+        style={
+          label.ink === null && !flagFrom
+            ? undefined
+            : ({
+                ...(label.ink === null ? {} : { '--label-ink': label.ink }),
+                ...(flagFrom ? { '--flag-from': flagFrom } : {}),
+              } as CSSProperties)
+        }
         onPointerEnter={(event) => gestures.current.enter(label, event)}
         onPointerMove={(event) => gestures.current.move(label, event)}
         onPointerLeave={(event) => gestures.current.leave(label, event)}
@@ -1445,6 +1538,14 @@ const LabelNode = memo(function LabelNode({
                       </button>
                     ))}
                 </div>
+              ) : line.role === 'race' ? (
+                <RaceGauge
+                  key={rank}
+                  endsAt={line.endsAt}
+                  ink={line.ink}
+                  fading={line.fading}
+                  fresh={line.fresh}
+                />
               ) : line.role === 'capture' ? (
                 <CaptureGauge
                   key={rank}
@@ -1454,7 +1555,10 @@ const LabelNode = memo(function LabelNode({
                   completesAt={line.completesAt}
                 />
               ) : (
-                <div key={rank} className={`label-line label-line--${line.role}`}>
+                <div
+                  key={rank}
+                  className={`label-line label-line--${line.role}${line.fold ? ' label-line--fold' : ''}`}
+                >
                   {line.text}
                 </div>
               ),
@@ -1486,6 +1590,37 @@ function sameLabelProps(before: LabelNodeProps, after: LabelNodeProps): boolean 
     if (!Object.is(before[key], after[key])) return false;
   }
   return shareUnchanged(before.label, after.label) === before.label;
+}
+
+/**
+ * What a label draws, in the page: its root has no size, its parts are placed around it. A
+ * glyph keeps its block in the layout, transparent; a grouped label hides its words and keeps
+ * its plates.
+ * ponytail: every part read once a second and at rest; a cached box per label if a phone feels it.
+ */
+function drawnBox(anchor: HTMLElement): ScreenBox | null {
+  const root = anchor.querySelector('.label');
+  const hidden = root?.classList.contains('label--glyph')
+    ? '.label-block'
+    : root?.classList.contains('label--grouped')
+      ? '.label-lines, .label-bar'
+      : null;
+  let box: ScreenBox | null = null;
+  for (const node of anchor.querySelectorAll('*')) {
+    if (hidden !== null && node.closest(hidden) !== null) continue;
+    const { left, top, right, bottom } = node.getBoundingClientRect();
+    if (right <= left || bottom <= top) continue;
+    box =
+      box === null
+        ? { left, top, right, bottom }
+        : {
+            left: Math.min(box.left, left),
+            top: Math.min(box.top, top),
+            right: Math.max(box.right, right),
+            bottom: Math.max(box.bottom, bottom),
+          };
+  }
+  return box;
 }
 
 /** Where the poster stands relative to its label's anchor, measured once per render of it. */
@@ -1735,6 +1870,7 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
   'building',
   'construction',
   'outpost',
+  'foreign-outpost',
   'camp',
   'installation',
   'my-movement',
@@ -1745,11 +1881,54 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
 /** How long a transport's sheet waits before folding once the pointer has left. @a-mesurer */
 const SHEET_FOLD_MS = 300;
 
+/**
+ * **Le drapeau d'un des Sept qui change de mains** (#442), d'après les vues successives : l'encre
+ * d'avant, le temps que le CSS le descende et monte l'autre. En direct seulement — rien à
+ * l'ouverture — et sans image de carte : c'est du DOM.
+ */
+function useFlagSwaps(labels: ReadonlyArray<MapLabel>): ReadonlyMap<string, string | null> {
+  const inks = useRef<ReadonlyMap<string, string | null> | null>(null);
+  const [swaps, setSwaps] = useState<ReadonlyMap<string, string | null>>(new Map());
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useLayoutEffect(() => {
+    const before = inks.current;
+    const masts = labels.filter((label) => label.type === 'strategic');
+    inks.current = new Map(masts.map((label) => [label.id, label.ink]));
+    if (before === null) return;
+    const changed = masts.filter(
+      (label) => before.has(label.id) && before.get(label.id) !== label.ink,
+    );
+    if (changed.length === 0) return;
+    setSwaps(
+      (current) =>
+        new Map([
+          ...current,
+          ...changed.map((label) => [label.id, before.get(label.id)!] as const),
+        ]),
+    );
+    const timer = setTimeout(() => {
+      timers.current.delete(timer);
+      setSwaps(
+        (current) =>
+          new Map([...current].filter(([id]) => !changed.some((label) => label.id === id))),
+      );
+    }, FLAG_SWAP_MS);
+    timers.current.add(timer);
+  }, [labels]);
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach(clearTimeout);
+  }, []);
+  return swaps;
+}
+
 function classesOf(label: MapLabel, selected: boolean): string {
   return [
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
-    label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
+    label.lines.some((line) => line.role === 'capture' || line.role === 'race')
+      ? 'label--capturing'
+      : '',
     'label--glyph',
     `label--${label.type}`,
     PINNED.has(label.type) ? 'label--pinned' : '',

@@ -1,9 +1,10 @@
 import { isHqSite } from './capture';
 import { asClockTime, asLocalTime } from './duration';
-import { cardinalLabel, countryLabel, fr, ofName, theBuilding } from '../i18n/fr';
+import { cardinalLabel, countryLabel, fr, nationLabel, ofName, theBuilding } from '../i18n/fr';
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
+import { placeLabel } from './station-name';
 import { FIRST_SEVEN } from './strategic-points';
 import type { BuildingKey } from './ids';
 import type { ResourceAmounts } from './loot';
@@ -60,16 +61,19 @@ export function journalDispatches(
   readAt: number | null = null,
 ): ReadonlyArray<JournalDispatch> {
   const verdict = outcome?.verdict ?? null;
+  /** Une clôture à la main a déjà sa dépêche (`seasonClosed`) : la ligne la doublerait. */
   const closing =
-    verdict !== null
-      ? fr.victory.verdictConcluded(
-          verdict.reason,
-          verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
-          verdict.perMinute,
-        )
-      : outcome === null || outcome.winnerNation === null
-        ? null
-        : fr.victory.concluded(nationName(outcome.winnerNation));
+    verdict?.reason === 'closed'
+      ? null
+      : verdict !== null
+        ? fr.victory.verdictConcluded(
+            verdict.reason,
+            verdict.winnerNation === null ? null : nationName(verdict.winnerNation),
+            verdict.perMinute,
+          )
+        : outcome === null || outcome.winnerNation === null
+          ? null
+          : fr.victory.concluded(nationName(outcome.winnerNation));
   const concluded: ReadonlyArray<Written> =
     outcome === null || outcome.concludedAt === null || closing === null
       ? []
@@ -104,6 +108,8 @@ export function journalDispatches(
       place: entry.place ?? null,
       ...(entry.delivered === undefined ? {} : { delivered: entry.delivered }),
       ...(entry.built === true ? { built: true as const } : {}),
+      ...(entry.stood === undefined ? {} : { stood: entry.stood }),
+      ...(entry.point === undefined ? {} : { point: entry.point }),
     }));
 }
 
@@ -120,6 +126,8 @@ type Written = {
   readonly place?: MapPlace | null;
   readonly delivered?: SupplyLoad;
   readonly built?: true;
+  readonly stood?: NonNullable<JournalDispatch['stood']>;
+  readonly point?: NonNullable<JournalDispatch['point']>;
 };
 
 /**
@@ -171,6 +179,7 @@ function written(notice: Notice): Written {
           fr.buildings[notice.building],
           notice.regionName,
           notice.level,
+          notice.kept,
         ),
       };
     case 'recruitmentDelivered':
@@ -198,6 +207,47 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    case 'courseChanged':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'column',
+        /** Au large, aucun pays : la mer se dit en degrés, comme un naufrage. */
+        text: said.courseChanged(
+          notice.hostCountry === '' && notice.point !== undefined
+            ? fr.aim.pointAt(notice.point.lon, notice.point.lat)
+            : countryLabel(notice.hostCountry),
+          asLocalTime(notice.arrivesAt),
+        ),
+      };
+    case 'blitzkrieg': {
+      const reason =
+        notice.refusal === undefined || !(notice.refusal in fr.errors)
+          ? null
+          : fr.errors[notice.refusal as keyof typeof fr.errors]({ ...notice.details });
+      const first = placeLabel(notice.name);
+      return {
+        at: notice.at,
+        severity: notice.outcome === 'onward' ? 'notable' : 'critical',
+        kind: 'column',
+        text: said.blitzkrieg(
+          notice.outcome,
+          first,
+          placeLabel(notice.then.name),
+          notice.arrivesAt === undefined ? null : asLocalTime(notice.arrivesAt),
+          reason,
+        ),
+        ...(notice.outcome === 'halted'
+          ? {
+              stood: {
+                text: fr.blitzkrieg.stood(first, reason ?? '…'),
+                reread: fr.blitzkrieg.reread(asClockTime(notice.at)),
+                troopIds: notice.troopIds ?? [],
+              },
+            }
+          : {}),
+      };
+    }
     case 'storeResupplied':
       return {
         at: notice.at,
@@ -467,12 +517,23 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'supplyDelivered',
-        text: said.supplyDelivered(
+        text: (notice.abroad === true ? said.lendLeaseDelivered : said.supplyDelivered)(
           countryLabel(notice.hostCountry),
           supplyWords(notice.delivered),
           supplyWords(notice.kept),
         ),
         delivered: notice.delivered,
+      };
+    case 'lendLeaseReceived':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.lendLeaseReceived(
+          nationLabel(notice.nation),
+          supplyWords(notice.delivered),
+          countryLabel(notice.hostCountry),
+        ),
       };
     case 'researchDone':
       return {
@@ -577,6 +638,9 @@ function written(notice: Notice): Written {
                 notice.from === undefined ? null : nationName(notice.from),
               )
             : fr.points.taken(nationName(notice.nation), notice.key),
+        ...(notice.held === undefined
+          ? {}
+          : { point: { key: notice.key, nation: notice.nation, held: notice.held } }),
       };
     case 'captureDispatch':
       return {

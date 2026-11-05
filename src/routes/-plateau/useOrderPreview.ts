@@ -4,12 +4,24 @@ import { api } from '../../../convex/_generated/api';
 import { RELAY_SPEED_MULTIPLIER } from '../../../convex/constants';
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { ArmedColumn } from '@/domain/armed-column';
+import { chainRefusalOf } from '@/domain/blitzkrieg';
 import { asLocalTime, asSpan } from '@/domain/duration';
 import { kmOf } from '@/domain/routing';
 import type { LonLat } from '@/domain/geo';
 import { fr } from '@/i18n/fr';
+import { placeLabel } from '@/domain/station-name';
 import type { DropFuel, DropNote } from '@/map/DropHint';
 import type { Seat } from '@/data/session';
+import {
+  courseOfArc,
+  courseRefusalOf,
+  courseTargetRefusalOf,
+  steersCourse,
+} from '@/domain/carrier-doctrine';
+import type { Asset } from '@/domain/nation-assets';
+import type { ArcView } from '@/domain/player-view';
+import type { MarchStation } from '@/domain/troops';
+import type { MovementPreviewed } from '@/data/serverView';
 import {
   wireCaptureTarget,
   wireOrigin,
@@ -33,6 +45,7 @@ function fuelRefusalText({ fuel }: NonNullable<Previewed>): string | null {
         ...fuel.short,
         km: fuel.km,
         roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
+        course: 'course' in fuel && fuel.course,
       });
 }
 
@@ -89,8 +102,24 @@ export function useOrderPreview(
   seat: Seat,
   column: ArmedColumn | null,
   resting: OrderChoice | null,
-  /** Ce qui fait taire la ligne de distance (#302) : un ordre groupé, une Blitz. */
-  { grouped, blitz }: { readonly grouped: boolean; readonly blitz: boolean },
+  /** Ce qui fait taire la ligne de distance (#302) : un ordre groupé, une Blitz. `course` : la
+   *  flotte reprise en mer (#449), que `previewCourse` mesure à la place. */
+  {
+    grouped,
+    blitz,
+    course = null,
+    chain = null,
+  }: {
+    readonly grouped: boolean;
+    readonly blitz: boolean;
+    readonly course?: {
+      readonly arc: Extract<ArcView, { state: 'mine' }>;
+      readonly asset: Asset | null;
+    } | null;
+    /** **La première jambe posée d'une Guerre éclair** (#451) : l'aperçu mesure l'attaque
+     *  depuis où la colonne se tient, et la seconde cible sous la main en `then`. */
+    readonly chain?: ChainedFirst | null;
+  },
 ) {
   /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
@@ -103,23 +132,47 @@ export function useOrderPreview(
       ? null
       : {
           ...seat,
-          origin: wireOrigin(column.station),
+          origin: wireOrigin(chain?.station ?? column.station),
           troopIds: column.troopIds.map((troopId) => troopId as Id<'troops'>),
         };
   const mission = aimed?.mission ?? null;
   /** **Une réponse périmée ne s'affiche jamais** : un argument neuf rend `undefined` jusqu'à sa
    *  propre réponse, et l'abonnement précédent est remplacé, pas empilé (ADR 0026 §6). */
-  const marchPreview = useQuery(
-    api.movements.preview,
-    dispatch === null || aimed === null || mission?.kind !== 'march'
+  const steered = course !== null && aimed !== null && steersCourse(aimed) ? aimed.type : null;
+  const coursePreview = useQuery(
+    api.movements.previewCourse,
+    course === null || aimed === null || steered === null
       ? 'skip'
       : {
-          ...dispatch,
+          ...seat,
+          movementId: course.arc.id as Id<'movements'>,
+          type: steered,
           target: wireTarget(aimed.aim),
-          type: aimed.type,
-          ...(mission.roundTrip === true ? { roundTrip: true } : {}),
         },
   );
+  /** Une marche, un raid, une tournée n'enchaînent pas : rien à peser, la pastille le dit. */
+  const unchained =
+    chain !== null && aimed !== null && chainRefusalOf('blitzkrieg', aimed, null) !== null;
+  const marchPreview = useQuery(
+    api.movements.preview,
+    dispatch === null || aimed === null || mission?.kind !== 'march' || course !== null || unchained
+      ? 'skip'
+      : chain !== null
+        ? {
+            ...dispatch,
+            target: wireTarget(chain.first.aim),
+            type: 'attack' as const,
+            then: wireTarget(aimed.aim),
+          }
+        : {
+            ...dispatch,
+            target: wireTarget(aimed.aim),
+            type: aimed.type,
+            ...(mission.roundTrip === true ? { roundTrip: true } : {}),
+          },
+  );
+  /** La seconde jambe telle que le serveur la pèse : son refus en valeur, ou sa route. */
+  const then = chain === null || !marchPreview ? undefined : (marchPreview.then ?? undefined);
   const plunderPreview = useQuery(
     api.movements.previewPlunder,
     dispatch === null || mission?.kind !== 'plunder'
@@ -141,32 +194,69 @@ export function useOrderPreview(
   const preview =
     mission === null
       ? undefined
-      : mission.kind === 'plunder'
-        ? plunderPreview
-        : mission.kind === 'capture'
-          ? capturePreview
-          : mission.kind === 'collect'
-            ? collectPreview
-            : marchPreview;
+      : course !== null
+        ? /** Une mission garde son cap : rien à mesurer, le lâcher le dira. */
+          steered === null
+          ? null
+          : coursePreview
+        : mission.kind === 'plunder'
+          ? plunderPreview
+          : mission.kind === 'capture'
+            ? capturePreview
+            : mission.kind === 'collect'
+              ? collectPreview
+              : marchPreview;
+  /** **Le refus du cap, dit avant l'aperçu** (#449) : la mi-parcours passée pendant le glisser,
+   *  ou une cible qui donnerait une mission. Relu à chaque arrêt de la main, à l'heure du client. */
+  const courseRefusal = useMemo(() => {
+    if (course === null || resting === null) return null;
+    const refusal =
+      courseRefusalOf(course.asset, courseOfArc(course.arc), Date.now()) ??
+      courseTargetRefusalOf(resting);
+    return refusal === null ? null : fr.errors[refusal]({});
+  }, [course, resting]);
   /** No card before the order any more: what would change it is said under the verb, at the stop. */
   const dropNotes = useMemo(
     (): ReadonlyArray<DropNote> =>
-      resting === null || preview === undefined
-        ? []
-        : preview === null
-          ? [{ text: fr.aim.noRoute, alarm: true, refusal: true }]
-          : [
-              ...distanceNotesOf(preview, { grouped, blitz }),
-              { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
-              ...(preview.holdUntil === null
-                ? []
-                : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
-              ...('spared' in preview && preview.spared !== null
-                ? [{ text: fr.aim.sparedAtDakar(preview.spared), alarm: false }]
-                : []),
-              ...fuelNotes(preview),
-            ],
-    [resting, preview, grouped, blitz],
+      chain !== null
+        ? then === undefined
+          ? []
+          : then.refusal !== null
+            ? [{ text: refusalText(then.refusal), alarm: true, refusal: true }]
+            : [
+                {
+                  text: fr.aim.distance(kmOf(then.route.distanceUnits), asSpan(then.minutes)),
+                  alarm: false,
+                },
+                /** **Le plein court ne se refuse pas au lâcher** (décision du 05/11) : le point de
+                 *  la première cible peut le combler, et le départ le relit. */
+                ...((then.fuel.gauge?.short ?? 0) > 0
+                  ? [
+                      {
+                        text: fr.blitzkrieg.fuelReread(placeLabel(chain.preview.destinationName)),
+                        alarm: true,
+                      },
+                    ]
+                  : []),
+              ]
+        : courseRefusal !== null
+          ? [{ text: courseRefusal, alarm: true, refusal: true }]
+          : resting === null || preview === undefined
+            ? []
+            : preview === null
+              ? [{ text: fr.aim.noRoute, alarm: true, refusal: true }]
+              : [
+                  ...distanceNotesOf(preview, { grouped, blitz }),
+                  { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
+                  ...(preview.holdUntil === null
+                    ? []
+                    : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
+                  ...('spared' in preview && typeof preview.spared === 'number'
+                    ? [{ text: fr.aim.sparedAtDakar(preview.spared), alarm: false }]
+                    : []),
+                  ...fuelNotes(preview),
+                ],
+    [chain, then, courseRefusal, resting, preview, grouped, blitz],
   );
 
   /** **The server's road, a ribbon under the hand** (POC « Manipuler les pions »): no preview arc
@@ -175,24 +265,51 @@ export function useOrderPreview(
     () =>
       column === null || aimed === null || !preview
         ? null
-        : preview.route.points.map((point) => [point.lon, point.lat] as LonLat),
-    [column, aimed, preview],
+        : ((chain === null
+            ? preview.route
+            : then?.refusal === null
+              ? then.route
+              : null
+          )?.points.map((point) => [point.lon, point.lat] as LonLat) ?? null),
+    [column, aimed, preview, chain, then],
   );
 
   /** **The fuel the road would eat, a gauge under the hand** (#250), on the server's road. */
   const dropFuel = useMemo(
     (): DropFuel | null =>
-      resting === null || !preview || preview.fuel.gauge === null
-        ? null
-        : {
-            ...preview.fuel.gauge,
-            roundTrip: 'roundTrip' in preview.fuel && preview.fuel.roundTrip,
-          },
-    [resting, preview],
+      chain !== null
+        ? then?.refusal === null && then.fuel.gauge !== null
+          ? { ...then.fuel.gauge, roundTrip: false }
+          : null
+        : resting === null || !preview || preview.fuel.gauge === null
+          ? null
+          : {
+              ...preview.fuel.gauge,
+              roundTrip: 'roundTrip' in preview.fuel && preview.fuel.roundTrip,
+            },
+    [chain, then, resting, preview],
   );
 
-  return { preview, dropNotes, dropFuel, aimRoute };
+  return { preview, dropNotes, dropFuel, aimRoute, then };
 }
+
+/** La colonne d'une Guerre éclair entre ses deux cibles : d'où elle part, et la première. */
+export type ChainedFirst = {
+  readonly station: MarchStation;
+  readonly first: OrderChoice;
+  /** L'aperçu de la première jambe, au lâcher : son nom, sa route, son heure. */
+  readonly preview: NonNullable<MovementPreviewed>;
+};
+
+/** Un refus servi en valeur, par son texte unique (`fr.errors`). */
+export const refusalText = ({
+  code,
+  details,
+}: {
+  readonly code: string;
+  readonly details: Readonly<Record<string, string | number | boolean>>;
+}): string =>
+  code in fr.errors ? fr.errors[code as keyof typeof fr.errors]({ ...details } as never) : code;
 
 /** **Le refus du plein, dit avant le clic** (ADR 0028 §3) ; ce que la route mange, la jauge le
  *  montre (`dropFuel`). */

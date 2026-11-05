@@ -64,6 +64,11 @@
  * France, un QG à Paris (niveau 2), une colonne débarquée à La Valette par une coque venue du
  * large, un avant-poste qu'une de ses infanteries y fonde, un port en chantier sur le quai de La
  * Valette et une infanterie à Syracuse, d'où viser Malte à pied.
+ * `--accrochages` (#441) pose des piles françaises au contact de britanniques relevées : deux
+ * piles françaises à Metz et Thionville face à une colonne sur la Moselle, deux escorteurs en
+ * Manche face à deux autres, une pile devant Francfort (que `--guet` lit) et une à Alexandrie, hors
+ * champ depuis la France (`@accrochages`, `@accrochage-metz`, `@accrochage-manche`,
+ * `@accrochage-loin`).
  * `--epingles [N]` (#234) sème N piles sur la France (1000 par défaut, une sur deux en Lorraine),
  * pose en face trois camps britanniques relevés en Sarre et en Alsace, un quatrième perdu de vue près de
  * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une
@@ -129,7 +134,25 @@
  *
  * `--huit` (#211) fait jouer huit comptes, a à h, une nation chacun (france, uk, germany, italy,
  * ussr, usa, japan, china) : une revue de deux fantassins et d'un blindé à chaque capitale, lieux
- * `capitale-<nation>`. `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
+ * `capitale-<nation>`. `--evacuation` (#450, avec `--huit`) donne à l'URSS une caserne de niveau 2 à
+ * Pskov et une caserne de niveau 3 en réserve (`evacuation`, compte e), un entrepôt sans réserve
+ * (`evacuation-neuf`), un arsenal gardé au niveau 5 sous un QG de niveau 4, un avant-poste en
+ * Roumanie dont le puits est sous capture française (`demantelement`), et pose sur une caserne
+ * française de la Marne une capture soviétique qui court (`sous-capture`, compte a).
+ * `--pret-bail` (#448, avec `--huit`) pose un avant-poste américain à Aix-la-Chapelle et son camion
+ * chargé (`pret-bail-convoi`, compte f), deux avant-postes français que le relevé américain garde,
+ * Namur au dépôt entamé (`pret-bail`) et Liège (`pret-bail-recu`), un camion français chargé à
+ * Namur qui a relevé Aix-la-Chapelle (le refus, compte a), et un Prêt-bail déjà livré à Liège : le
+ * convoi et le receveur (compte a) lisent chacun leur dépêche.
+ * `--porte-avions` (#449, avec `--huit`) fait partir au large de Honshu une escadre japonaise au
+ * cap libre (`porte-avions`, compte g) et une escadre française du même point au même instant
+ * (compte a), et pose une seconde escadre japonaise passée la mi-parcours (`porte-avions-tenu`).
+ * `--guerre-eclair` (#451, avec `--huit`) pose trois chars allemands devant Aix-la-Chapelle
+ * (`guerre-eclair`, compte c), deux avant-postes français relevés (`liege`, `namur`), un point de
+ * marche (`spa`) et un avant-poste allemand (`bastogne`) ; puis une attaque à deux cibles en vol
+ * (`guerre-eclair-lancee`), une seconde jambe partie (`guerre-eclair-tenue`, que la France voit
+ * repartir), une tombée (`guerre-eclair-perdue`) et une restée faute de coups (`guerre-eclair-restee`).
+ * `--rangs` pose, à côté de Paris (`rangs`), infanterie et blindé des deux
  * rangs et une artillerie, et une escorte et un porte-avions en golfe de Gascogne (`rangs-mer`).
  * `--recrue [s]` forme une infanterie de rang 2 à la caserne de `--niveaux` et la fait sortir dans
  * `s` secondes (25 par défaut) : lieu `recrue`. `--rejeu` joue le combat de `--combat` tout de
@@ -139,9 +162,34 @@
  * français sur l'entrepôt adverse relevé en Pologne, et recule leur présence d'une heure et demie :
  * trois caisses sur quatre sont tombées (`pillage`).
  *
+ * `--absence` (#439) rend au Royaume-Uni (compte b) une absence de neuf heures : douze dépêches à
+ * lieu autour de Londres, son rejeu jamais vu, ses premiers pas passés (`absence`). À rejouer sans
+ * refonder : `npx convex run dev:absenceScene '{"playerId":"…"}'`.
+ *
+ * `--moments` (#442) pose les QG de Paris et de Londres et donne à la France Narvik, Istanbul et
+ * Bakou (`moments` cadre les Sept, `tanger`, `narvik`, `londres`), puis écrit les commandes qui
+ * jouent chaque moment à l'heure voulue, dans l'ordre : Tanger prise (le cachet « IV », la course
+ * et ses anneaux), Narvik reprise (« compte rompu »), Londres prise (le QG tombé). La victoire aux
+ * points se joue à part, sur une scène refondée : Tanger prise, puis la course close. Avec
+ * `--huit`, un tiers les lit aussi.
+ *
  * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
  * doit s'animer (`saboteur`).
+ * `--mine-chantier` (#454) pose pour la France le QG à Paris, la mine offerte du charbon du Nord et
+ * une seconde mine de charbon, payée, sur le gisement de Lorraine : elle reste en chantier
+ * (`mine-chantier` cadre le gisement). `--salon-huit` (#454) inscrit huit comptes, a à h, à une
+ * saison de huit nations réservées et prêtes, sans la lancer : `/plateau?season={saison}` fait
+ * entrer le compte dans le salon (`capture.mjs` y met la saison ; la route tombe sur
+ * `SEASON_NOT_LAUNCHED`, une erreur de console attendue, puis renvoie au salon). `--huit` passe un compte qui
+ * existe en base sans mot de passe connu : un pseudo neuf est inscrit à sa place, et écrit dans
+ * le fichier des comptes — à chaque exécution, `--huit` ou non. Une connexion trop rapprochée
+ * (`LOGIN_TOO_FAST`) attend trois secondes et retente, sans renommer.
+ *
+ * `--conclue <raison>` (#455) conclut la partie à huit (`points`, `clock`, `draw`, `closed`) :
+ * son édition finale au lieu `edition`, une saison détruite après archive (`edition-detruite`)
+ * pour l'accueil ; `--en-attente` retient l'édition sous presse, `--sans-archive` la laisse absente.
+ * Voir `scripts/demo-conclusion.mjs`.
  *
  * `--prise [s]` (#279) pose en Belgique, pour la France contre le Royaume-Uni : une infanterie
  * française qui ramasse dans une minute une caisse à Tournai (`ramassage`), une autre 15 s après
@@ -163,6 +211,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api.js';
+import { conclusionAsked, concludeDemo } from './demo-conclusion.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', import.meta.url));
@@ -171,7 +220,10 @@ const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', impo
 const places = {};
 /** The guns of `--bombarder` and their targets, fired once the accounts are written. */
 const shelling = [];
-const bare = process.argv.includes('--nu') || process.argv.includes('--tutoriel');
+const bare =
+  process.argv.includes('--nu') ||
+  process.argv.includes('--tutoriel') ||
+  process.argv.includes('--salon-huit');
 const steps = process.argv.includes('--crans');
 const harvest = process.argv.includes('--recolte');
 /** `--bac-plein` : avec `--recolte`, le bac de charbon plein et sa mine qui tourne : du perdu. */
@@ -191,8 +243,11 @@ const artillery = process.argv.includes('--artillerie');
 const points = process.argv.includes('--points');
 /** `--pillage` (#211) : `--points`, sans l'escorte en mer, plus un pillage en phase de présence. */
 const pillaging = process.argv.includes('--pillage');
+/** `--conclue <raison>` (#455, `scripts/demo-conclusion.mjs`) : une Mondiale à huit, conclue. */
+const conclusion = conclusionAsked(process.argv);
 /** `--huit` (#211) : huit comptes, une nation chacun, une revue à chaque capitale. */
-const eight = process.argv.includes('--huit');
+const lobbying = process.argv.includes('--salon-huit');
+const eight = process.argv.includes('--huit') || lobbying || conclusion !== null;
 /** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
 const ranks = process.argv.includes('--rangs');
 /** `--chargement [s]` : deux camions chargés dans `s` secondes, à l'entrepôt et au QG (#271). */
@@ -280,6 +335,8 @@ const stores = process.argv.includes('--magasin');
 const forts = process.argv.includes('--fort');
 /** `--guet` (#373) : un Guet qui lit une colonne et un camp britanniques, un généraliste qui non. */
 const lookout = process.argv.includes('--guet');
+/** `--accrochages` (#441) : des accrochages en Lorraine, en Manche, devant Francfort et en Égypte. */
+const contacts = process.argv.includes('--accrochages');
 const dryCoal = process.argv.includes('--sans-charbon');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
@@ -376,21 +433,50 @@ const accounts = Object.fromEntries(
 const client = new ConvexHttpClient(url);
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
+const LOGIN_MIN_INTERVAL_MS = 3_000; // src/domain/account.ts
+
+/** Connexion, puis inscription seulement si le compte n'existe pas (`BAD_CREDENTIALS`) : une
+ *  connexion trop rapprochée (`LOGIN_TOO_FAST`, une capture vient de se connecter) attend, puis
+ *  retente — elle ne dit rien du compte. */
 async function signIn({ nickname, password }) {
+  for (;;) {
+    try {
+      return (await client.action(api.auth.login, { nickname, password })).token;
+    } catch (error) {
+      if (String(error).includes('LOGIN_TOO_FAST')) {
+        await pause(LOGIN_MIN_INTERVAL_MS + 200);
+        continue;
+      }
+      if (!String(error).includes('BAD_CREDENTIALS')) throw error;
+      await pause(400);
+      return (await client.action(api.auth.register, { nickname, password })).token;
+    }
+  }
+}
+
+/** **À chaque exécution, pas seulement avec `--huit`** (#454) : un compte qui existe en base sans
+ *  que son mot de passe soit connu (`BAD_CREDENTIALS` puis `NICKNAME_TAKEN`) reçoit un pseudo neuf,
+ *  écrit dans le fichier des comptes. */
+async function signInOrRename(key, k) {
   try {
-    return (await client.action(api.auth.login, { nickname, password })).token;
-  } catch {
-    await pause(400);
-    return (await client.action(api.auth.register, { nickname, password })).token;
+    return await signIn(accounts[key]);
+  } catch (error) {
+    if (!String(error).includes('NICKNAME_TAKEN')) throw error;
+    accounts[key] = {
+      nickname: `Demo${NICKNAMES[k]}${randomBytes(2).toString('hex')}`,
+      password: randomBytes(9).toString('base64url'),
+    };
+    console.log(`${key} : pseudo pris, nouveau pseudo ${accounts[key].nickname}`);
+    return await signIn(accounts[key]);
   }
 }
 
 const cli = (args) => execFileSync('npx', ['convex', ...args], { cwd: root, encoding: 'utf8' });
 
 const tokens = [];
-for (const key of KEYS.slice(0, seats)) {
+for (const [k, key] of KEYS.slice(0, seats).entries()) {
   if (tokens.length > 0) await pause(400);
-  tokens.push(await signIn(accounts[key]));
+  tokens.push(await signInOrRename(key, k));
 }
 const [tokenA, tokenB] = tokens;
 
@@ -405,7 +491,7 @@ for (const [k, token] of tokens.entries()) {
   await client.mutation(api.players.reserveNation, { token, seasonId, nation });
   await client.mutation(api.players.declareReady, { token, seasonId, ready: true });
 }
-await client.mutation(api.seasons.launch, { token: tokenA, seasonId });
+if (!lobbying) await client.mutation(api.seasons.launch, { token: tokenA, seasonId });
 
 const scene = { a: null, b: null };
 if (!bare) {
@@ -443,6 +529,42 @@ if (!bare) {
     );
     for (const [nation, point] of Object.entries(capitals)) places[`capitale-${nation}`] = point;
   }
+  /** `--evacuation` : la réserve soviétique et une capture qui court sur une caserne française. */
+  if (eight && process.argv.includes('--evacuation'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:evacuationScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
+      ),
+    );
+  /** `--pret-bail` : un camion américain chargé, deux avant-postes français relevés, une livraison
+   *  déjà reçue. */
+  if (eight && process.argv.includes('--pret-bail'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:lendLeaseScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
+      ),
+    );
+  /** `--porte-avions` : deux escadres japonaises, l'une au cap libre, l'autre passée la
+   *  mi-parcours, et une escadre française au même point que la première. */
+  if (eight && process.argv.includes('--porte-avions'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:carrierDoctrineScene', JSON.stringify({ seasonId })]).match(
+          /\{[\s\S]*\}/,
+        )[0],
+      ),
+    );
+  /** `--guerre-eclair` : la colonne en main, et les quatre suites d'une attaque à deux cibles. */
+  if (eight && process.argv.includes('--guerre-eclair'))
+    Object.assign(
+      places,
+      JSON.parse(
+        cli(['run', 'dev:blitzkriegScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
+      ),
+    );
   /** `--rangs` : les deux rangs, une artillerie à côté de Paris ; une flotte au large de la Bretagne. */
   if (ranks && scene.a !== null) {
     const beside = { lon: 2.47, lat: 48.85 };
@@ -472,6 +594,9 @@ if (!bare) {
     places['hors-portee'] = [ruhr.lon, ruhr.lat];
     cli(['run', 'dev:unreachedMineScene', JSON.stringify({ playerId: scene.a })]);
   }
+  if (process.argv.includes('--absence') && scene.b !== null) absenceScene(scene.b);
+  if (process.argv.includes('--moments') && scene.a !== null && scene.b !== null)
+    await momentsScene();
   /** `--pile-mixte` : un camion, un chasseur et deux fantassins sur un même point (#286). */
   if (process.argv.includes('--pile-mixte') && scene.a !== null)
     for (const [role, count] of [
@@ -619,6 +744,29 @@ if (!bare) {
         point: { lon: site.lon, lat: site.lat },
       });
     }
+  }
+  /** `--mine-chantier` (#454) : la mine offerte du Nord, puis une seconde sur le charbon, payée. */
+  if (process.argv.includes('--mine-chantier') && scene.a !== null) {
+    const deposits = JSON.parse(readFileSync(`${root}public/deposits.json`, 'utf8'));
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const paris = me.regions.find((region) => region.id === 'FRA-5333');
+    const sites = [
+      ['hq', paris.id, paris.point],
+      ...['coal-FRA-5334', 'coal-FRA-5328'].map((id) => {
+        const site = deposits.find((deposit) => deposit.id === id);
+        return ['mine', site.regionId, [site.lon, site.lat]];
+      }),
+    ];
+    for (const [building, regionId, [lon, lat]] of sites)
+      await client.mutation(api.constructions.start, {
+        token: tokenA,
+        seasonId,
+        building,
+        regionId,
+        point: { lon, lat },
+      });
+    const [lon, lat] = sites[2][2];
+    places['mine-chantier'] = [lon, lat];
   }
   if (risingBarracks && scene.a !== null) {
     const point = (
@@ -1387,6 +1535,7 @@ if (!bare) {
       }
     }
   }
+  if (contacts && scene.a !== null && scene.b !== null) contactsScene(scene.a, scene.b);
   if (seaCombatIn !== null && scene.a !== null && scene.b !== null) {
     const moored = { lon: -1.6, lat: 50.05 };
     // Framed between the two lines, three hulls apart (storyboard), not on the moored one: the
@@ -1528,6 +1677,12 @@ if (editions)
     cli(['run', 'press:writeEditionJob', JSON.stringify({ seasonId })]);
   }
 
+if (conclusion !== null)
+  Object.assign(
+    places,
+    await concludeDemo({ client, cli, pause, tokens, seasonId, ...conclusion }),
+  );
+
 writeFileSync(
   accountsFile,
   `${JSON.stringify({ ...saved, ...accounts, code, seasonId, places }, null, 2)}\n`,
@@ -1662,4 +1817,76 @@ for (let salvo = 0; salvo < salvoes && shelling.length > 0; salvo++) {
     });
   }
   console.log(`Salve ${salvo + 1}/${salvoes} tirée à ${new Date().toISOString()}`);
+}
+
+/** `--absence` : la scène du rejeu, et son lieu, la capitale. */
+function absenceScene(playerId) {
+  const answer = cli(['run', 'dev:absenceScene', JSON.stringify({ playerId })]);
+  places.absence = JSON.parse(answer.match(/\[[\s\S]*\]/)[0]);
+}
+
+/** `--moments` (#442) : les deux QG, trois des Sept à la France, et les commandes des moments. */
+async function momentsScene() {
+  for (const [token, id, at] of [
+    [tokenA, 'FRA-5333', null],
+    [tokenB, null, [-0.12, 51.5]],
+  ]) {
+    const { me } = await client.query(api.view.playerView, { token, seasonId });
+    const region =
+      id !== null
+        ? me.regions.find((one) => one.id === id)
+        : me.regions.reduce((near, one) =>
+            Math.hypot(one.point[0] - at[0], one.point[1] - at[1]) <
+            Math.hypot(near.point[0] - at[0], near.point[1] - at[1])
+              ? one
+              : near,
+          );
+    await client.mutation(api.constructions.start, {
+      token,
+      seasonId,
+      building: 'hq',
+      regionId: region.id,
+      point: { lon: region.point[0], lat: region.point[1] },
+    });
+    if (token === tokenB) places.londres = region.point;
+  }
+  for (const key of ['narvik', 'istanbul', 'baku'])
+    cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key })]);
+  places.moments = [20, 40];
+  places.tanger = [-5.8, 35.78];
+  places.narvik = [17.43, 68.44];
+  const run = (name, args) => `npx convex run dev:${name} '${JSON.stringify(args)}'`;
+  console.log(
+    [
+      'Les moments (#442), dans cet ordre :',
+      `  1. Tanger prise, le cachet IV et la course : ${run('captureSoon', { playerId: scene.a, point: 'tangier', inSeconds: 20 })}`,
+      `  2. Narvik reprise, compte rompu : ${run('captureSoon', { playerId: scene.b, point: 'narvik', inSeconds: 20 })}`,
+      `  3. Londres prise, le QG tombé (à deux sièges, la saison se clôt : l'autre fin) : ${run('captureSoon', { playerId: scene.a, hqOf: scene.b, inSeconds: 20 })}`,
+      'À part, sur une scène refondée — elle clôt la saison, et le compte doit courir :',
+      `  1. Tanger prise, comme plus haut, puis la victoire aux points : ${run('raceEndsSoon', { seasonId, inSeconds: 20 })}`,
+    ].join('\n'),
+  );
+}
+
+/** The stacks of `--accrochages` (#441): each French one stands within sight of a British one. */
+function contactsScene(france, uk) {
+  const spawn = (playerId, role, count, [lon, lat]) =>
+    cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId, role, count, lon, lat })]);
+  const metz = [6.18, 49.12];
+  const channel = [-1.95, 50.0];
+  const cairo = [29.92, 31.2];
+  spawn(france, 'infantry', 3, metz);
+  spawn(france, 'armor', 2, [6.17, 49.36]);
+  spawn(uk, 'infantry', 4, [6.6, 49.27]);
+  spawn(uk, 'armor', 1, [6.6, 49.27]);
+  spawn(france, 'escort', 2, channel);
+  spawn(uk, 'escort', 2, [-1.6, 50.05]);
+  spawn(france, 'infantry', 2, [8.45, 49.92]);
+  spawn(france, 'infantry', 2, cairo);
+  spawn(uk, 'infantry', 3, [30.25, 31.05]);
+  cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+  places.accrochages = [3.2, 49.6];
+  places['accrochage-metz'] = [6.35, 49.24];
+  places['accrochage-manche'] = [-1.78, 50.02];
+  places['accrochage-loin'] = cairo;
 }

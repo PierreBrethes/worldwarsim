@@ -2,6 +2,7 @@ import { modeOf } from '@/domain/season-mode';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
+import { assetOf } from '@/domain/nation-assets';
 import {
   RESOURCES,
   type BuildCostKey,
@@ -39,6 +40,8 @@ export type ServerView = FunctionReturnType<typeof api.view.playerView>;
 
 /** What the aiming card reads. `null` is an unreachable target, never an error. */
 export type MovementPreviewed = FunctionReturnType<typeof api.movements.preview>;
+/** **Le cap neuf d'une flotte reprise en mer** (#449), mesuré comme un départ. */
+export type CoursePreviewed = FunctionReturnType<typeof api.movements.previewCourse>;
 export type PlunderPreviewed = FunctionReturnType<typeof api.movements.previewPlunder>;
 export type CapturePreviewed = FunctionReturnType<typeof api.movements.previewCapture>;
 export type LootCollectionPreviewed = FunctionReturnType<
@@ -84,9 +87,7 @@ function adaptedView(server: ServerView): PlayerView {
       capitalPoint: (server.me.capitalPoint as LonLat | null | undefined) ?? null,
       openingPoint: (server.me.openingPoint as LonLat | null | undefined) ?? null,
       ink: server.me.ink,
-      power: isNation(server.me.nation)
-        ? `${fr.nationAssets[server.me.nation].name} — ${fr.nationAssets[server.me.nation].rule}`
-        : '',
+      asset: assetOf(server.me.nation, modeOf(server.mode)),
       progress: server.me.progress,
       restWindow: formatWindow(asLocalWindow(server.me.restWindow)),
       resources: server.me.resources,
@@ -97,6 +98,8 @@ function adaptedView(server: ServerView): PlayerView {
         ? { ...server.me.research, queue: server.me.research.queue ?? [] }
         : { researched: [], running: null, queue: [] },
       foundation: server.me.foundation ?? [],
+      /** Une version de retard ne sert pas la réserve : vide, comme sans l'atout. */
+      evacuated: server.me.evacuated ?? [],
       /** Un déploiement d'une version de retard n'en sert aucun : le mât retombe sur la région,
        *  ce qu'il a toujours fait — jamais un port planté à un point inventé ici. */
       buildings: server.me.buildings.map((building) => ({
@@ -138,6 +141,9 @@ function adaptedView(server: ServerView): PlayerView {
               ? {}
               : { minutes: server.me.construction.minutes }),
             level: server.me.construction.level ?? 1,
+            ...(server.me.construction.kept === undefined
+              ? {}
+              : { kept: server.me.construction.kept }),
             specialty: server.me.construction.specialty ?? null,
             respecialize: server.me.construction.respecialize ?? false,
           }
@@ -151,6 +157,7 @@ function adaptedView(server: ServerView): PlayerView {
         regionName: entry.regionName,
         point: entry.point ?? null,
         level: entry.level,
+        ...(entry.kept === undefined ? {} : { kept: entry.kept }),
         specialty: entry.specialty ?? null,
         respecialize: entry.respecialize ?? false,
       })),
@@ -191,6 +198,7 @@ function adaptedView(server: ServerView): PlayerView {
         /** Une version de retard ne connaît pas le chantier : un point sans date est debout,
          *  ce qui est la même lecture que le serveur en fait (`isStanding`). */
         standsAt: outpost.standsAt ?? null,
+        besieged: outpost.besieged ?? false,
       })),
     },
     buildCatalog: server.buildCatalog,
@@ -199,6 +207,7 @@ function adaptedView(server: ServerView): PlayerView {
     outpostFoundation: server.outpostFoundation ?? { cost: {}, minutes: 0 },
     storageCapPerLevel: server.storageCapPerLevel ?? 0,
     surveyedInstallations: server.surveyedInstallations ?? [],
+    surveyedOutposts: server.surveyedOutposts ?? [],
     lootSightings: server.lootSightings ?? [],
     /** **Servie telle quelle, jamais recomposée.** L'adaptateur ne calcule rien ici — un delta
      *  reconstitué côté client aurait besoin de l'édition précédente, que la vue ne sert pas et
@@ -228,14 +237,14 @@ function adaptedView(server: ServerView): PlayerView {
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,
     ),
+    journalReadAt: server.journalReadAt ?? null,
+    absenceTourAt: server.absenceTourAt ?? null,
     boardRead: server.boardRead ?? null,
     firstSteps: server.firstSteps ?? { done: [], shown: 'open' },
     opponents: server.opponents.map((opponent) => ({
       nation: opponent.nation,
       ink: opponent.ink,
-      power: isNation(opponent.nation)
-        ? `${fr.nationAssets[opponent.nation].name} — ${fr.nationAssets[opponent.nation].rule}`
-        : '',
+      asset: assetOf(opponent.nation, modeOf(server.mode)),
       restWindow: formatWindow(asLocalWindow(opponent.restWindow)),
     })),
     coverage: { visible: 0, total: 0 },
@@ -269,6 +278,23 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
     mission: movement.mission ?? null,
     ...(movement.delivery === true ? { delivery: true } : {}),
     ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop }),
+    ...(movement.onMission ? { onMission: true } : {}),
+    ...(movement.courseChange == null
+      ? {}
+      : {
+          courseChange: {
+            at: movement.courseChange.at,
+            ran: movement.courseChange.ran.map((point) => [point.lon, point.lat] as LonLat),
+          },
+        }),
+    ...(movement.then == null
+      ? {}
+      : {
+          then: {
+            name: placeLabel(movement.then.name),
+            points: movement.then.points.map((point) => [point.lon, point.lat] as LonLat),
+          },
+        }),
     schedule: {
       departedAt: movement.departedAt,
       arrivesAt: movement.arrivesAt,

@@ -83,6 +83,10 @@ export const NATION_BY_ADM0: ReadonlyMap<string, Nation> = new Map(
 export const isNation = (value: unknown): value is Nation =>
   typeof value === 'string' && (NATIONS as ReadonlyArray<string>).includes(value);
 
+/** L'encre noire d'une perte, qu'aucune nation ne porte : « QG tombé », « compte rompu » (#442,
+ *  `.stamp.lost` des storyboards). Celle de `--ink`, que le canvas ne lit pas. */
+export const LOSS_INK = '#2a2118';
+
 export function nationInk(nation: string | null): string {
   return nation !== null && isNation(nation) ? INK_BY_NATION[nation] : '#6e6a5e';
 }

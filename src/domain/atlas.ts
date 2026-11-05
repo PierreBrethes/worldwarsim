@@ -6,7 +6,12 @@
  * `public/atlas.json` holds the regions and the far arcs; `public/atlas-near.json` the near
  * arcs, in the same order. A point is `[x, y]` in map units, a line or ring a flat
  * `Float32Array` of x, y pairs; a ring does not repeat its first point.
+ *
+ * Beside the regions, the decor (#440), read by no rule: the cities and the seas (#457) in
+ * `atlas.json`, and the rivers of each level in its own file, outside the arcs. Since #440 the two levels no longer
+ * carry the same objects.
  */
+import type { LonLat } from './geo';
 
 export type Detail = 'near' | 'far';
 
@@ -32,6 +37,39 @@ export type AtlasFile = {
     };
   };
   arcs: number[][][];
+  /** `[lon × 100, lat × 100, name, capital (1) or not (0), agglomeration]`, the capitals
+   *  first, then by population. */
+  cities?: [number, number, string, 0 | 1, number][];
+  rivers?: RiverRow[];
+  /** `[name, scalerank, [lon × 100, lat × 100, radius × 100][]]`: the points inside the sea,
+   *  each with the radius of the disc that fits there in map units, the widest first. */
+  seas?: [string, number, [number, number, number][]][];
+};
+
+/** `[name, scalerank, lines]`, each line delta-encoded as the arcs are; unnamed, `null`. */
+type RiverRow = [string | null, number, number[][][]];
+
+/** A city of the decor: a point and a name, never a rule's. */
+export type City = {
+  readonly lonLat: LonLat;
+  readonly name: string;
+  readonly capital: boolean;
+  readonly population: number;
+};
+
+/** A sea of the decor (#457): Natural Earth's `scalerank`, 0 the oceans, and the points where
+ *  its name may stand, each with the radius of the water around it, in map units. */
+type Sea = {
+  readonly name: string;
+  readonly rank: number;
+  readonly spots: ReadonlyArray<{ readonly lonLat: LonLat; readonly radius: number }>;
+};
+
+/** A river of one level: Natural Earth's `scalerank`, 0 the greatest. */
+export type River = {
+  readonly name: string | null;
+  readonly rank: number;
+  readonly lines: readonly Float32Array[];
 };
 
 /**
@@ -49,6 +87,12 @@ type Shape = { readonly outer: Float32Array; readonly holes: readonly Float32Arr
 
 export type Atlas = {
   readonly regions: readonly AtlasRegion[];
+  /** The cities, capitals first, then by population. */
+  cities(): readonly City[];
+  /** The seas, by rank. */
+  seas(): readonly Sea[];
+  /** The far level's rivers; the near ones come with the near file (`decodeRivers`). */
+  rivers(): readonly River[];
   /** The outer ring of each great lake. */
   lakes(detail: Detail): Float32Array[];
   /** The arcs whose two sides `differ` tells apart, each once. */
@@ -71,8 +115,15 @@ export type Atlas = {
   regionAt(point: readonly [number, number], detail: Detail): AtlasRegion | null;
 };
 
-/** `public/atlas-near.json`: the near arcs, in the atlas's order, with their quantum. */
-export type NearFile = Pick<AtlasFile, 'transform' | 'arcs'>;
+/** `public/atlas-near.json`: the near arcs, in the atlas's order, with their quantum, and the
+ *  near rivers. */
+export type NearFile = Pick<AtlasFile, 'transform' | 'arcs' | 'rivers'>;
+
+export const decodeRivers = (
+  rows: readonly RiverRow[],
+  transform: AtlasFile['transform'],
+): River[] =>
+  rows.map(([name, rank, lines]) => ({ name, rank, lines: decodeArcs(lines, transform) }));
 
 /** The near arcs as a worker hands them over, already decoded: one buffer, cut at `offsets`. */
 export type DecodedArcs = { readonly points: Float32Array; readonly offsets: Uint32Array };
@@ -151,8 +202,29 @@ export function decodeAtlas(file: AtlasFile, near?: NearFile | DecodedArcs): Atl
     return (boxCache[detail] = boxes);
   };
 
+  const cities = (file.cities ?? []).map(([lon, lat, name, capital, population]) => ({
+    lonLat: [lon / 100, lat / 100] as const,
+    name,
+    capital: capital === 1,
+    population,
+  }));
+
+  const seas = (file.seas ?? []).map(([name, rank, spots]) => ({
+    name,
+    rank,
+    spots: spots.map(([lon, lat, radius]) => ({
+      lonLat: [lon / 100, lat / 100] as const,
+      radius: radius / 100,
+    })),
+  }));
+
+  const rivers = decodeRivers(file.rivers ?? [], file.transform);
+
   return {
     regions,
+    cities: () => cities,
+    seas: () => seas,
+    rivers: () => rivers,
     lakes(detail) {
       return (file.objects.lakes?.geometries ?? [])
         .flatMap((lake) => (lake.type === 'Polygon' ? [lake.arcs] : lake.arcs))

@@ -86,6 +86,16 @@ côtières, Malte, Singapour et les Bermudes le sont, et un port s'y pose (ADR 0
 côté serveur : `generate-coast.mjs` cuit aussi les anneaux des régions sans cellule (ADR 0023
 amendée). Le refus « sur l'eau, seul un port se pose » (`NOT_ON_LAND`) lit cette terre.
 
+**Précisée le 05/11/2026 (#440).** Les deux niveaux n'ont plus les mêmes objets : `atlas.json`
+porte les villes et les grands fleuves (rang ≤ 4), `atlas-near.json` les fleuves jusqu'au rang 6
+et le front de 1940. Ce décor est hors de `arcs` et ne change ni région ni arc : la chaîne en
+aval reste identique octet pour octet, et la base n'est pas vidée.
+
+**Précisée le 05/11/2026 (#457).** Une septième source, `ne_10m_geography_marine_polys`, donne
+les mers et les océans : une ligne `seas` dans `atlas.json`, jusqu'à six points par mer avec le
+rayon de l'eau autour, hors de `arcs` comme les villes. `atlas-near.json` ne change pas, la
+chaîne en aval non plus, et la base n'est pas vidée.
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :

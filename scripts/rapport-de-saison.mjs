@@ -27,19 +27,21 @@ const run = (fn, args) =>
     }),
   );
 
-/** Les dépêches d'avant-postes de chaque joueur, page après page. */
-function readOutpostEvents(players) {
+/** Les dépêches d'avant-postes de chaque joueur, et ses usages d'atout, page après page. */
+function readJournal(players) {
   const events = [];
+  const assetUses = {};
   for (const { id, irregular } of players) {
     if (irregular) continue;
     let cursor = null;
     do {
       const page = run('seasonReport:outpostEvents', { playerId: id, cursor });
       events.push(...page.events);
+      assetUses[id] = (assetUses[id] ?? 0) + (page.uses ?? 0);
       cursor = page.next;
     } while (cursor !== null);
   }
-  return events;
+  return { outposts: events, assetUses };
 }
 
 /* ---------- mise en page ---------- */
@@ -220,6 +222,15 @@ export function renderReport({ code, launchedAt, now, players, report }) {
     ),
   );
 
+  say(
+    '## 8. Atouts nationaux',
+    "Usage de chaque atout (ADR 0039 §2), compté au journal ; à zéro tant que son lot n'est pas codé. L'Évacuation compte chaque rasage soviétique, le Prêt-bail chaque convoi qui a livré au dépôt d'un autre, la Doctrine du porte-avions chaque cap changé.",
+    table(
+      ['Nation', 'Atout', 'Usages'],
+      report.assets.map((row) => [row.nation, row.asset, row.uses]),
+    ),
+  );
+
   return (
     out
       .join('\n')
@@ -241,7 +252,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const report = seasonReportOf({
     ...input,
     stepHours: Number(flag('pas') ?? 24),
-    outposts: readOutpostEvents(input.players),
+    ...readJournal(input.players),
   });
   process.stdout.write(
     renderReport({

@@ -139,6 +139,37 @@ describe('MapLabels', () => {
   });
 });
 
+/** **Un des Sept change de mains** (#442) : le drapeau du perdant descend, celui du preneur
+ *  monte ; depuis le neutre, il monte seulement. En direct seulement : rien à l'ouverture. */
+describe('the flag on a strategic mast', () => {
+  const mast = (ink: string | null) =>
+    ({
+      ...outpost('narvik', 'Narvik'),
+      type: 'strategic',
+      pictogram: 'strategic',
+      ink,
+    }) as MapLabel;
+  const root = () => document.querySelector('[data-label-id="narvik"]')!;
+
+  it('changes hands on the mast, the loser’s ink first, then lets the swap go', () => {
+    vi.useFakeTimers();
+    const { rerender } = render(layer([mast('#a83f68')]));
+    expect(root().className).not.toMatch(/label--flag/);
+    rerender(layer([mast('#2b6974')]));
+    expect(root().className).toContain('label--flag-swap');
+    expect((root() as HTMLElement).style.getPropertyValue('--flag-from')).toBe('#a83f68');
+    act(() => vi.advanceTimersByTime(1600));
+    expect(root().className).not.toMatch(/label--flag/);
+    vi.useRealTimers();
+  });
+
+  it('only rises from neutral', () => {
+    const { rerender } = render(layer([mast(null)]));
+    rerender(layer([mast('#2b6974')]));
+    expect(root().className).toContain('label--flag-rise');
+  });
+});
+
 /**
  * **Les passagers d'un transport, au survol seulement** (#238) : au repos un petit signe dit leur
  * nombre ; la fiche (planches, « tout débarquer ») s'ouvre au survol, à la sélection, au toucher
@@ -358,6 +389,73 @@ describe('a deposit on the map', () => {
     expect(container.querySelector('.label--deposit img')).toBeNull();
     expect(container.querySelector('.label--deposit')?.textContent).toContain('charbon');
   });
+
+  /** #445 : le nom s'écrit sous le bassin, mais la maquette bâtie dessus a un socle plus large. */
+  it('hangs its name below the building that stands on it, not under its plinth', () => {
+    const engine: Record<string, unknown> = {
+      setLabelAnchors: () => {},
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
+      pieceRect: (id: string) =>
+        id === 'building-mine@3,50' ? { left: 700, right: 860, top: 160, bottom: 269 } : null,
+      cameraDistance: () => 20,
+    };
+    const worked = { ...deposit('held', [3, 50]), clears: 'building-mine@3,50' } as MapLabel;
+    render(
+      <MapLabels
+        labels={[worked, deposit('free', [4, 50])]}
+        engine={engine as never}
+        selected={null}
+        secondarySelected={null}
+        onMovementHover={noop}
+        onReachHover={noop}
+        poster={() => null}
+        onSelect={noop}
+        onOpenBuilding={noop}
+        onOpenStack={noop}
+        onOpenLoot={noop}
+        onOpenCamp={noop}
+        onOpenObjective={noop}
+        onOpenStrategic={noop}
+        onAct={noop}
+        onCancelHeld={noop}
+        mapping={CLASSIC_MAPPING}
+        holding={false}
+        onHoldOver={noop}
+        muted
+      />,
+    );
+    const project = (id: string) => ({
+      id,
+      visible: true,
+      x: 796,
+      y: 246,
+      lod: 'expanded',
+      fade: 1,
+      dressed: 0,
+      far: false,
+      drawnX: 0,
+      drawnY: 0,
+      distance: 20,
+      atEdge: false,
+      edgeX: 0,
+      edgeY: 0,
+      heading: 0,
+    });
+    act(() =>
+      (engine.onLabels as (projections: ReadonlyArray<unknown>) => void)([
+        project('held'),
+        project('free'),
+      ]),
+    );
+    const at = (id: string) =>
+      (document.querySelector(`[data-label-id="${id}"]`)?.parentElement as HTMLElement).style
+        .transform;
+    expect(at('held')).toBe('translate3d(796px, 269px, 0)');
+    expect(at('free')).toBe('translate3d(796px, 246px, 0)');
+  });
 });
 
 /**
@@ -433,6 +531,7 @@ describe('a ring of buildings around a stack', () => {
       subscribeRest: () => () => {},
       atZoomFloor: () => false,
       invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
       pieceRect: () => null,
       cameraDistance: () => 20,
     };

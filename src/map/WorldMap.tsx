@@ -4,7 +4,14 @@
 'use no memo';
 
 import { SweepOverlay, type SweepRequest } from './SweepOverlay';
+import { AbsenceTourBand, useAbsenceTour } from './AbsenceTour';
+import { BigStamp, useMomentScene } from './MomentScene';
+import type { Moment } from '@/domain/moments';
+import type { AbsenceTour } from '@/domain/absence-tour';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
+import type { Contact } from '@/domain/contacts';
+import { nationInk } from '@/domain/nations';
+import { ContactMarks } from './ContactMarks';
 import { ClusterSheet } from './ClusterSheet';
 import type { TourAct } from '@/domain/cargo-tag';
 import {
@@ -49,6 +56,7 @@ import {
 } from '@/domain/player-view';
 import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
+import type { RaceLead } from '@/domain/race-rings';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
 import {
@@ -75,6 +83,7 @@ import { shareUnchanged } from '@/data/shareUnchanged';
 import { useDayCycle } from '@/data/dayCycle';
 import { useContourWeight } from '@/data/contourWeight';
 import { useMapMotion } from '@/data/mapMotion';
+import type { MapMotion } from '@/domain/map-motion';
 import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
@@ -92,6 +101,8 @@ import {
   DropHintChip,
   hintOfReading,
   ringOfHint,
+  secondRefusalOn,
+  type ChainChip,
   type DropHint,
   type DropFuel,
   type DropNote,
@@ -138,6 +149,9 @@ type Props = {
   columns: ReadonlyMap<string, PilePieces>;
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
+  /** **Le meneur de la course aux Sept et ses mâts**, `null` quand elle ne court pas ou que la
+   *  saison est close : tombé entre deux vues, il fait tamponner « compte rompu » (#442). */
+  raceLead?: RaceLead | null;
   labels: ReadonlyArray<MapLabel>;
   /** My piles standing at a point, which the board dresses in figurines up close. */
   standing: ReadonlyArray<StandingPile>;
@@ -145,6 +159,8 @@ type Props = {
   camps: ReadonlyArray<SurveyedCamp>;
   /** Every piece far away, a pin (#234): mine at my ink, what I surveyed hollow. */
   pins: ReadonlyArray<Pin>;
+  /** **Les accrochages** (#441): where my forces touch what I surveyed. */
+  contacts?: ReadonlyArray<Contact>;
   /** Buildings, surveyed installations and objectives, which the board stands as maquettes up close. */
   maquettes: ReadonlyArray<StandingMaquette>;
   /**
@@ -308,6 +324,13 @@ type Props = {
   dropFuel?: DropFuel | null;
   /** **The server's road under the resting pointer**: the ribbon of the piece in hand follows it. */
   aimRoute?: ReadonlyArray<LonLat> | null;
+  /** **Une flotte reprise en mer** (#449), par son mouvement : sa route pâlit, et la pastille dit
+   *  « Changer de cap ». */
+  course?: string | null;
+  /** **La Guerre éclair sous la main** (#451) : ce que la pastille ajoute ou change. */
+  chain?: ChainChip | null;
+  /** **La première jambe posée** (#451) : sa route, en pointillés, le temps de viser la seconde. */
+  chainRun?: ReadonlyArray<LonLat> | null;
   /** My piles whose transport could take the hand: their rings beat while it is held. */
   availablePiles?: ReadonlyArray<string>;
   /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
@@ -352,6 +375,22 @@ type Props = {
   /** Une fenêtre couvre le plateau sous le seuil : une rose ouverte n'y désignerait plus rien, et
    *  la carte cesse de dessiner (#189). */
   covered?: boolean;
+  /** **Le rejeu d'absence** (#439), figé à l'ouverture : il part quand la carte se voit. `lift`
+   *  monte chaque lieu au-dessus d'une feuille basse ; `onSeen` le marque vu. */
+  absenceTour?: {
+    readonly queue: (landAt: (at: LonLat) => boolean, motion: MapMotion) => AbsenceTour | null;
+    readonly lift: number;
+    readonly onSeen: () => void;
+  } | null;
+  /** **Un grand moment** (#442) à jouer avant sa feuille, que `onEnd` ouvre ; `lift` comme au
+   *  rejeu. */
+  moment?: {
+    readonly moment: Moment;
+    readonly lift: number;
+    readonly onEnd: () => void;
+  } | null;
+  /** La saison est close : la carte passe au sépia, une fois la scène de la fin jouée. */
+  concluded?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
   /**
@@ -414,6 +453,8 @@ export type PlacingBuilding = {
   readonly nearest: string | null;
 };
 
+const NO_CONTACTS: ReadonlyArray<Contact> = [];
+
 /** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
  *  effects that read it do not run again for nothing. */
 function useShared<T>(value: T): T {
@@ -465,10 +506,12 @@ export function WorldMap({
   troops,
   columns,
   journal,
+  raceLead = null,
   labels: servedLabels,
   standing: servedStanding,
   camps: servedCamps,
   pins: servedPins,
+  contacts: servedContacts = NO_CONTACTS,
   maquettes,
   held,
   outposts,
@@ -527,6 +570,9 @@ export function WorldMap({
   dropNotes,
   dropFuel = null,
   aimRoute = null,
+  course = null,
+  chain = null,
+  chainRun = null,
   availablePiles = NO_PILES,
   onCarryEnd,
   onDisembark,
@@ -547,6 +593,9 @@ export function WorldMap({
   selectionBar = null,
   tourLoops = NO_LOOPS,
   covered = false,
+  absenceTour = null,
+  moment = null,
+  concluded = false,
   reveal = null,
   replay = null,
   onReplayStep,
@@ -559,6 +608,7 @@ export function WorldMap({
   const standing = useShared(useRankKept(servedStanding));
   const camps = useShared(servedCamps);
   const pins = useShared(servedPins);
+  const contacts = useShared(servedContacts);
   const selectedPiles = useShared(servedSelection);
   const container = useRef<HTMLDivElement>(null);
   const insets = useBoardInsets();
@@ -692,11 +742,11 @@ export function WorldMap({
       if (next === null) return;
       event.preventDefault();
       choice.current.index = next;
-      setHint(hintOfReading(read, chosenOf, holding.forbidden ?? null));
+      setHint(hintOfReading(read, chosenOf, holding.forbidden ?? null, fingerRose !== null));
     };
     addEventListener('keydown', turn);
     return () => removeEventListener('keydown', turn);
-  }, [holding, chosenOf]);
+  }, [holding, chosenOf, fingerRose]);
 
   // One rose at a time, and the camera holds still while it is open: aiming at an action on
   // a map drifting under the pointer is aiming twice.
@@ -1091,7 +1141,9 @@ export function WorldMap({
         from:
           (label?.type === 'stack' || label?.type === 'outpost') && label.station !== null
             ? { kind: 'stack', station: label.station }
-            : null,
+            : label?.type === 'my-movement'
+              ? { kind: 'movement', arcId: label.id }
+              : null,
         label,
       };
     };
@@ -1184,7 +1236,9 @@ export function WorldMap({
               );
             })();
       reading.current = dropReadingOf(aimed === null ? null : compassOf(aimed));
-      tell(hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null));
+      tell(
+        hintOfReading(reading.current, chosenOf, holding?.forbidden ?? null, fingerRose !== null),
+      );
     };
   }, [
     holding,
@@ -1202,6 +1256,7 @@ export function WorldMap({
     coastPendingAt,
     walkableAt,
     chosenOf,
+    fingerRose,
     onDropRefused,
     onCarryEnd,
     withLiaison,
@@ -1388,8 +1443,12 @@ export function WorldMap({
   useEffect(() => {
     finger.current = fingerRose !== null;
   }, [fingerRose]);
+  /** **Le rejeu d'absence cède** (#439) à une dépêche localisée et à un combat rejoué : les deux
+   *  effets passent avant le sien, d'où la référence. */
+  const stopTourNow = useRef<() => boolean>(() => false);
   useEffect(() => {
     if (focus === null) return;
+    stopTourNow.current();
     if (finger.current) setRose(null);
     readyEngine?.journeyTo(focus.ids, focus.places ?? [], focus.lift ?? 0, focus.distance);
   }, [readyEngine, focus]);
@@ -1404,6 +1463,7 @@ export function WorldMap({
   const replayView = replay?.view ?? null;
   useEffect(() => {
     if (!readyEngine || replayView === null) return;
+    stopTourNow.current();
     setRose(null);
     // « Terrain tenu », the account's own stamp, pressed on the board too as the account opens.
     const held = replayView.won
@@ -1495,9 +1555,36 @@ export function WorldMap({
     readyEngine?.setAimRoute(aimRoute);
   }, [readyEngine, aimRoute]);
 
+  /** **La seconde cible refusée** (Guerre éclair, maquette A) : le trait de la première à elle
+   *  prend l'encre du refus, comme la pastille ; le refus arrive après le pointeur. */
   useEffect(() => {
-    readyEngine?.showTours(tourLoops);
-  }, [readyEngine, tourLoops]);
+    if (chain?.kind !== 'second' || hint === null || hint.tone === 'calm') return;
+    const refused = secondRefusalOn(hint, chain) !== null;
+    readyEngine?.markDrop(refused ? 'refused' : hint.tone, refused ? 'bad' : ringOfHint(hint));
+  }, [readyEngine, chain, hint]);
+
+  /** **La route courue avant un cap changé** (#449) : le fil neuf part du coude. **La seconde
+   *  jambe d'une Guerre éclair** (#451), suspendue au terrain tenu, de la même encre pointillée. */
+  const courseRuns = useMemo(
+    () => [
+      ...arcs.flatMap((arc) =>
+        arc.state !== 'mine'
+          ? []
+          : [
+              ...(arc.courseChange === undefined ? [] : [arc.courseChange.ran]),
+              ...(arc.then === undefined ? [] : [arc.then.points]),
+            ],
+      ),
+      ...(chainRun === null ? [] : [chainRun]),
+    ],
+    [arcs, chainRun],
+  );
+  useEffect(() => {
+    readyEngine?.showTours(tourLoops, courseRuns);
+  }, [readyEngine, tourLoops, courseRuns]);
+  useEffect(() => {
+    readyEngine?.fadeArc(course);
+  }, [readyEngine, course]);
 
   useEffect(() => {
     readyEngine?.setAvailable(availablePiles);
@@ -1554,6 +1641,10 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.displayPins(pins);
   }, [readyEngine, pins]);
+
+  useEffect(() => {
+    readyEngine?.displayContacts(contacts);
+  }, [readyEngine, contacts]);
 
   useEffect(() => {
     readyEngine?.selectPin(selectedLabel);
@@ -1784,6 +1875,43 @@ export function WorldMap({
     };
   }, [dropReports]);
 
+  const noSeen = useCallback(() => {}, []);
+  const {
+    tour,
+    band: tourBand,
+    stop: stopTour,
+  } = useAbsenceTour(readyEngine, absenceTour?.queue ?? null, {
+    covered,
+    motion,
+    lift: absenceTour?.lift ?? 0,
+    // A combat played on the map, or replayed, is what the map looks at.
+    scene: combats.length > 0 || replay !== null,
+    onSeen: absenceTour?.onSeen ?? noSeen,
+  });
+  useEffect(() => {
+    stopTourNow.current = stopTour;
+  }, [stopTour]);
+  const noEnd = useCallback(() => {}, []);
+  const {
+    big,
+    sepiaHeld,
+    skip: skipMoment,
+  } = useMomentScene(readyEngine, moment?.moment ?? null, {
+    covered,
+    motion,
+    lift: moment?.lift ?? 0,
+    onDone: moment?.onEnd ?? noEnd,
+  });
+  // A hand on the board stops the tour, or skips a moment to its end, and the gesture goes on
+  // doing what it does.
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.onHandOnBoard = () => skipMoment() || stopTour();
+    return () => {
+      readyEngine.onHandOnBoard = undefined;
+    };
+  }, [readyEngine, stopTour, skipMoment]);
+
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());
   useEffect(() => {
@@ -1796,9 +1924,11 @@ export function WorldMap({
       )
         continue;
       combatsCued.current.set(combat.id, withView);
+      // A combat played live is what the map looks at: the absence tour gives way (#439).
+      stopTour();
       readyEngine.cue({ kind: 'combat', ...combat });
     }
-  }, [combats, readyEngine]);
+  }, [combats, readyEngine, stopTour]);
 
   // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.
   const aboardKnown = useRef<ReadonlyMap<string, string> | null>(null);
@@ -1882,21 +2012,31 @@ export function WorldMap({
         readyEngine.inkCut(regionId, { word: fr.stamps.unlinked, hour });
   }, [cut, readyEngine]);
 
-  const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
+  const inked = useRef<{
+    arcs: ReadonlyArray<ArcView>;
+    seenAt: number;
+    raceLead: RaceLead | null;
+  } | null>(null);
   useEffect(() => {
     const latest = Math.max(0, ...journal.map((dispatch) => dispatch.at));
     const before = inked.current;
-    inked.current = { arcs, seenAt: latest };
+    inked.current = { arcs, seenAt: latest, raceLead };
     if (before === null) return;
     const vanished = before.arcs.flatMap((arc) =>
       arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
     const ground = engine.current;
-    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null, (at) =>
-      ground === null ? true : ground.landAt(at),
+    const broken = raceLead === null ? before.raceLead : null;
+    for (const burst of inkBursts(
+      journal,
+      before.seenAt,
+      vanished,
+      blitz === null,
+      (at) => (ground === null ? true : ground.landAt(at)),
+      broken,
     ))
       engine.current?.inkBurst(burst);
-  }, [arcs, journal, blitz]);
+  }, [arcs, journal, blitz, raceLead]);
 
   useEffect(() => {
     engine.current?.showHeldRegions(held);
@@ -1917,6 +2057,9 @@ export function WorldMap({
     <div ref={container} className="relative h-full w-full overflow-hidden">
       <div aria-hidden className="map-veil" />
       <div aria-hidden className="map-grain" />
+      {concluded && !sepiaHeld && <div aria-hidden className="map-sepia" />}
+      {big !== null && <BigStamp moment={big} />}
+      {tour !== null && tourBand !== null && <AbsenceTourBand tour={tour} band={tourBand} />}
       <MapLabels
         labels={labels}
         engine={readyEngine}
@@ -1958,6 +2101,12 @@ export function WorldMap({
         onOpen={onOpenReport ?? (() => {})}
         onLift={liftReport}
       />
+      <ContactMarks
+        contacts={contacts}
+        engine={readyEngine}
+        intel={indicators.intel}
+        ink={playerNation === null ? null : nationInk(playerNation)}
+      />
       <EdgeIndicators
         labels={labels}
         engine={readyEngine}
@@ -1993,6 +2142,9 @@ export function WorldMap({
           ref={hintNode}
           hint={hint}
           fuel={dropFuel}
+          course={course !== null}
+          chain={chain}
+          rose={fingerRose !== null}
           {...(dropNotes ? { notes: dropNotes } : {})}
         />
       )}
@@ -2465,6 +2617,17 @@ export function targetOfLabel(
       hostCountry: label.hostCountry,
       name: lineText(label, 'nature') ?? fr.compass.fallbackOutpost,
       coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
+    };
+  }
+  /** **Un avant-poste étranger relevé** (ADR 0039 §3) : la poignée est le relevé, et la rose
+   *  le lit comme un point qui n'est pas à moi. */
+  if (label.foreignOutpost !== undefined && label.anchor.kind === 'ground') {
+    return {
+      kind: 'outpost',
+      id: label.foreignOutpost.id,
+      hostCountry: label.foreignOutpost.hostCountry,
+      name: lineText(label, 'nature') ?? fr.labels.foreignOutpost,
+      coastal: coastAt(label.anchor.lonLat),
     };
   }
   /**

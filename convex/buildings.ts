@@ -1,12 +1,21 @@
 import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internal } from './_generated/api';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
-import { demolitionRefusalOf } from '../src/domain/construction';
+import {
+  besieged,
+  demolitionRefusalOf,
+  evacuationOf,
+  keeping,
+  type Evacuated,
+  type Siege,
+} from '../src/domain/construction';
+import { assetOf } from '../src/domain/nation-assets';
+import { modeOf } from '../src/domain/season-mode';
 import { buildCost, recruitmentCost, type Costs, type FoundationDebt } from './constants';
-import { playerBuildings } from './buildingReads';
+import { playerBuildings, samePoint } from './buildingReads';
 import { fail } from './errors';
 import { reassessDetection } from './movement/detection';
 import { foundationOwedBy, pointOfBuilding } from './regions';
@@ -55,6 +64,7 @@ export const demolish = mutation({
     const refusal = demolitionRefusalOf({
       key: building?.key ?? 'hq',
       mine: building !== null && building.playerId === player._id,
+      underCapture: besieged(await siegesOf(ctx, player._id), [buildingId]),
     });
     if (refusal !== null || building === null) fail(refusal ?? 'NOT_YOURS');
 
@@ -73,6 +83,33 @@ export const demolish = mutation({
     return { refunded, clipped };
   },
 });
+
+/** **Les captures que ce joueur subit**, telles que le refus de raser et de démanteler les lit
+ *  (`besieged`) : la cible, et si elle court. */
+export async function siegesOf(ctx: QueryCtx, defenderId: Id<'players'>): Promise<Siege[]> {
+  const rows = await ctx.db
+    .query('captures')
+    .withIndex('byDefender', (q) => q.eq('defenderId', defenderId))
+    .collect();
+  return rows.map(({ target, stoppedAt }) => ({
+    targetId:
+      target.kind === 'building'
+        ? target.buildingId
+        : target.kind === 'outpost'
+          ? target.outpostId
+          : target.pointId,
+    ...(stoppedAt === undefined ? {} : { stoppedAt }),
+  }));
+}
+
+/** **Ce qu'une capture sur un avant-poste vise** : le point, et les bâtiments qu'il ancre. */
+export const siegeTargetsOf = (
+  outpost: Doc<'outposts'>,
+  buildings: ReadonlyArray<Doc<'buildings'>>,
+): string[] => [
+  outpost._id,
+  ...buildings.filter((building) => building.outpostId === outpost._id).map(({ _id }) => _id),
+];
 
 /**
  * **La chute d'un mât, sans la porte qui l'ordonne.** Extraite de `demolish` le 16/09 parce
@@ -95,6 +132,16 @@ export async function razeBuilding(
   if (player === null) return { refunded: {}, clipped: null };
   const refunded = await releaseBuilding(ctx, player, building, now);
   await ctx.db.delete(building._id);
+  /** **L'Évacuation industrielle** (ADR 0039 §5) : le niveau rasé passe en réserve. Le démantèlement
+   *  passe ici aussi (décision (a) du 04/11) ; la capture, qui ne rase pas, jamais. */
+  const season = await ctx.db.get(player.seasonId);
+  const reserve = (await ctx.db.get(player._id))?.evacuated ?? [];
+  const evacuation = evacuationOf(assetOf(player.nation, modeOf(season?.mode)), reserve, building);
+  if (evacuation !== null) {
+    await ctx.db.patch(player._id, {
+      evacuated: [...keeping(reserve, building.key, building.level)],
+    });
+  }
   /** Réglé avant le `delete` : une mine de charbon rasée rapproche le réveil des vigies. */
   await rearmDryWakeUp(ctx, player._id, now);
   if (building.key === 'researchCenter') await followCenter(ctx, player._id, now);
@@ -110,6 +157,7 @@ export async function razeBuilding(
     building: canonicalBuildingKey(building.key),
     regionId: building.regionId,
     level: building.level,
+    ...(evacuation === null ? {} : { kept: evacuation.level }),
   });
   return { refunded, clipped };
 }
@@ -170,15 +218,25 @@ async function cancelWorkOn(
     }
   };
 
-  /** Une entrée par région (`constructions.ts`), donc celle de cette région est l'élévation de
-   *  ce bâtiment-ci — une élévation d'avant-poste ne prend aucun sol et ne compte pas. */
+  /** **L'élévation de ce bâtiment-ci**, et elle seule : sa clé à son point (ADR 0029). Une pose
+   *  voisine de la même région n'est pas à lui, et une élévation d'avant-poste ne prend aucun sol. */
   const queued = await ctx.db
     .query('constructions')
     .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
     .collect();
   for (const entry of queued) {
-    if (entry.outpostId !== undefined || entry.regionId !== building.regionId) continue;
-    if (entry.finishesAt === null) add(buildCost(entry.building, entry.level));
+    if (
+      entry.outpostId !== undefined ||
+      entry.building === 'outpost' ||
+      entry.point === undefined ||
+      !samePoint(entry.point, building.point) ||
+      canonicalBuildingKey(entry.building) !== canonicalBuildingKey(building.key)
+    )
+      continue;
+    if (entry.finishesAt === null) {
+      add(buildCost(entry.building, entry.level));
+      await restoreKept(ctx, player._id, entry);
+    }
     await ctx.db.delete(entry._id);
   }
 
@@ -198,6 +256,20 @@ async function cancelWorkOn(
   const costs = refunded as Costs;
   await credit(ctx, player._id, costs, now);
   return costs;
+}
+
+/**
+ * **Le niveau gardé revient avec le remboursement** (#450) : une pose soviétique qui n'a pas
+ * commencé rend sa facture et la réserve qu'elle avait prise, au plus haut des deux.
+ */
+export async function restoreKept(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  entry: Doc<'constructions'>,
+): Promise<void> {
+  if (entry.kept === undefined || entry.building === 'outpost') return;
+  const reserve: Evacuated = (await ctx.db.get(playerId))?.evacuated ?? [];
+  await ctx.db.patch(playerId, { evacuated: [...keeping(reserve, entry.building, entry.kept)] });
 }
 
 /**

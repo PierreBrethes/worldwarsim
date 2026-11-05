@@ -14,6 +14,7 @@ import { lootWords } from '@/domain/journal';
 import { destinationPoint, type LonLat } from '@/domain/geo';
 import { BASIN_FLATTENING, BASIN_KM } from '@/domain/deposit-basins';
 import { DEPOSIT_POINTS } from '@/domain/world';
+import { buildingLabelId } from '@/domain/building-label-id';
 import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
 import type { IndicatorToggles } from '@/domain/indicators';
@@ -25,7 +26,7 @@ import {
   type TroopView,
 } from '@/domain/player-view';
 import { DOMAIN_BY_ROLE, PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
-import { outpostPinId } from '@/domain/pins';
+import { campPinId, outpostPinId } from '@/domain/pins';
 import { stackLabelId } from '@/domain/force-highlight';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { surveyedAt } from '@/domain/survey-ink';
@@ -84,7 +85,7 @@ export function markersOf(
             // Its name is written below its basin, as a massif's (#239).
             lonLat: destinationPoint(point.lonLat, BASIN_KM * BASIN_FLATTENING, 180),
             deposit: point.deposit,
-            ...(holder === undefined ? {} : { held: holder }),
+            ...(holder === undefined ? {} : { held: holder, clears: holder.piece }),
             ...(wake === undefined ? {} : { wake }),
           };
         })
@@ -151,28 +152,19 @@ export function markersOf(
    * injouable — un adversaire camperait chez le joueur sans que rien ne le lui dise. Le
    * marqueur ne porte que ce que le relevé sert : un point, un milieu, deux dates.
    */
-  /** **Éteindre les objectifs emporte leur garnison relevée** : elle se tient au point exact
-   *  de la réserve (`convex/objectives.ts`), et un bloc sans la réserve qu'il garde ne dirait
-   *  plus rien. */
-  const isObjectivePoint = (point: LonLat): boolean =>
-    view.objectives.some(
-      (objective) => objective.point[0] === point[0] && objective.point[1] === point[1],
-    );
-  const camps: ReadonlyArray<MapMarker> = view.camps
-    .filter((camp) => toggles.objectives || !isObjectivePoint(camp.point))
-    .map((camp) => ({
-      kind: 'camp' as const,
-      id: `camp-${camp.id}`,
-      campId: camp.id,
-      lonLat: camp.point,
-      medium: camp.medium,
-      lastKnown: camp.lastKnown,
-      since: camp.since,
-      seenMinutesAgo: camp.seenMinutesAgo,
-      lastSeenAt: camp.lastSeenAt,
-      ...(camp.nation === undefined ? {} : { nation: camp.nation }),
-      identification: camp.identification,
-    }));
+  const camps: ReadonlyArray<MapMarker> = campsShown(view, toggles).map((camp) => ({
+    kind: 'camp' as const,
+    id: campPinId(camp.id),
+    campId: camp.id,
+    lonLat: camp.point,
+    medium: camp.medium,
+    lastKnown: camp.lastKnown,
+    since: camp.since,
+    seenMinutesAgo: camp.seenMinutesAgo,
+    lastSeenAt: camp.lastSeenAt,
+    ...(camp.nation === undefined ? {} : { nation: camp.nation }),
+    identification: camp.identification,
+  }));
 
   /**
    * **Les objectifs neutres se tiennent sur la carte, pour tout le monde** (17/09/2026). C'est
@@ -239,8 +231,28 @@ export function markersOf(
     neutral: { lonLat: site.point },
   }));
 
+  /** **Les avant-postes étrangers relevés** (ADR 0039 §3) : un point et un pays, le relevé n'en
+   *  sert pas plus. Ils se tiennent comme les camps, hors de l'interrupteur des mâts. */
+  const foreign: ReadonlyArray<MapMarker> = view.surveyedOutposts.map((outpost) => ({
+    kind: 'foreignOutpost' as const,
+    id: `foreign-outpost-${outpost.id}`,
+    outpostId: outpost.id,
+    lonLat: outpost.point,
+    hostCountry: outpost.hostCountry,
+    washed: knownRegionById.get(outpost.regionId)?.state !== 'current',
+  }));
+
   if (!toggles.buildings)
-    return [...deposits, ...loot, ...camps, ...objectives, ...points, ...outposts, ...stacks];
+    return [
+      ...deposits,
+      ...loot,
+      ...camps,
+      ...objectives,
+      ...points,
+      ...outposts,
+      ...foreign,
+      ...stacks,
+    ];
   const host = isNation(view.me.nation) ? COUNTRY_BY_NATION[view.me.nation] : null;
   const works = workSitesOf(view.me, view.buildCatalog, view.loadedAt);
   const worksOn = (point: LonLat, key: string) =>
@@ -334,11 +346,29 @@ export function markersOf(
     ...surveyed,
     ...neutral,
     ...outposts,
+    ...foreign,
     ...stacks,
     ...standing,
     ...raising,
   ];
 }
+
+/**
+ * **Éteindre les objectifs emporte leur garnison relevée** : elle se tient au point exact de la
+ * réserve (`convex/objectives.ts`), et un bloc sans la réserve qu'il garde ne dirait plus rien.
+ * Les accrochages lisent les mêmes camps : un cercle sans relevé dedans ne dirait rien non plus.
+ */
+export const campsShown = (
+  view: Pick<PlayerView, 'camps' | 'objectives'>,
+  toggles: Pick<IndicatorToggles, 'objectives'>,
+): PlayerView['camps'] =>
+  view.camps.filter(
+    (camp) =>
+      toggles.objectives ||
+      !view.objectives.some(
+        (objective) => objective.point[0] === camp.point[0] && objective.point[1] === camp.point[1],
+      ),
+  );
 
 export function standingPilesOf(
   me: PlayerView['me'],
@@ -535,10 +565,7 @@ function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): Standi
   return { ...pile, pieces: unitPieces(troops.filter((troop) => here.has(troop.id))) };
 }
 
-/** Le mât d'un bâtiment, et la maquette qui le remplace au rapproché — par son point (ADR 0029) :
- *  deux mines d'une même région sont deux mâts. */
-export const buildingLabelId = ({ key, point }: { key: string; point: LonLat | null }): string =>
-  point === null ? `building-${key}` : `building-${key}@${point[0]},${point[1]}`;
+export { buildingLabelId };
 
 /** **Les maquettes rasées que la vue sert encore** (#326) : la carte joue l'affaissement de celle
  *  que la vue perd, puis l'id s'oublie. La même liste quand rien n'est parti. */

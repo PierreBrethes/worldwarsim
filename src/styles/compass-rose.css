@@ -393,6 +393,8 @@
 .drop-chip-fuel {
   grid-column: 2;
   display: flex;
+  /* Deux tubes et le compte d'un cap neuf (#449) passent la largeur de la pastille. */
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
   margin: 3px 0 1px;
@@ -585,4 +587,71 @@
   border-top: 1px solid var(--critical);
   color: var(--critical);
   font: 500 11px/1.3 var(--font-mono);
+}
+
+/* **La flotte reprise en mer** (Doctrine du porte-avions, #449) : l'atout au-dessus du verbe, et
+   le plein déjà payé cerclé de l'ocre de la route. */
+.drop-chip--course .drop-chip-icon {
+  grid-row: 1 / span 3;
+}
+.drop-chip-eyebrow {
+  grid-column: 2;
+  font: 600 9px/1.2 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--arc-mine);
+}
+.fuel-tube--paid {
+  border-color: var(--arc-mine);
+}
+.fuel-step--paid {
+  background: var(--fuel-ink);
+  box-shadow: inset 0 0 0 1.5px var(--arc-mine);
+}
+
+/* **La Guerre éclair** (#451, maquette A « Maj ») : l'atout en pied de la pastille, souligné de
+   l'ocre de la route ; le refus d'enchaîner, en rouge, sans retirer l'ordre. */
+.drop-chip-atout {
+  color: var(--notable-paper);
+  border-bottom: 1.5px solid var(--arc-mine);
+}
+.drop-chip-atout--alarm {
+  color: var(--critical);
+  border-bottom: none;
+}
+
+/* **La languette « puis »** (#451, maquette A) : au téléphone, au bord droit sous le pouce libre ;
+   tenue, elle arme la seconde cible comme Maj. */
+.chain-tab {
+  position: absolute;
+  right: 8px;
+  bottom: 148px;
+  z-index: 30;
+  width: 86px;
+  padding: 9px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  background: var(--paper);
+  box-shadow: 0 2px 0 rgb(42 33 24 / 40%);
+  text-align: center;
+  font: 700 12px/1.1 var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  touch-action: none;
+  user-select: none;
+}
+.chain-tab small {
+  display: block;
+  margin-top: 3px;
+  font: 500 10px/1.2 var(--font-mono);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+}
+.chain-tab--held {
+  background: var(--arc-mine);
+}
+.chain-tab--held small {
+  color: var(--ink);
 }

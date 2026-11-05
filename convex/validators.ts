@@ -74,6 +74,13 @@ export const SURVEYED_INSTALLATION = v.object({
   point: LON_LAT,
 });
 
+/** **Un avant-poste étranger relevé** (ADR 0039 §3) : où il se tient et chez qui, rien de plus. */
+export const SURVEYED_OUTPOST = v.object({
+  outpostId: v.id('outposts'),
+  point: LON_LAT,
+  hostCountry: v.string(),
+});
+
 export const RESOURCE_KEY = v.union(
   v.literal('food'),
   v.literal('steel'),
@@ -359,6 +366,9 @@ export const NOTICE = v.union(
     building: BUILDING_KEY,
     regionId: v.string(),
     level: v.number(),
+    /** **La réserve de l'Évacuation après le rasage** (ADR 0039 §5) : absente sans l'atout. Le
+     *  rapport de saison compte ces lignes. */
+    kept: v.optional(v.number()),
   }),
   v.object({
     ...NOTICE_HEAD,
@@ -529,6 +539,49 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     delivered: SUPPLY_LOAD,
     kept: SUPPLY_LOAD,
+    /** **Au dépôt d'un autre, par le Prêt-bail** (ADR 0039 §3) : la dépêche dit le lieu, jamais
+     *  le teneur. Le rapport de saison compte ces lignes. */
+    abroad: v.optional(v.literal(true)),
+  }),
+  /** **Le receveur d'un Prêt-bail** (ADR 0039 §3) : la nation qui livre et ce qu'elle a livré à
+   *  son dépôt — la seconde brèche voulue au brouillard sur la nation, bornée à ce dépôt. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('lendLeaseReceived'),
+    nation: v.string(),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    delivered: SUPPLY_LOAD,
+  }),
+  /** **Un cap changé** (Doctrine du porte-avions, ADR 0039 §4), chez son seul auteur : la
+   *  destination neuve et l'arrivée. Le rapport de saison y compte l'usage de l'atout. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('courseChanged'),
+    hostCountry: v.string(),
+    /** La destination : au large, la dépêche la dit en degrés (`hostCountry` vide). */
+    point: v.optional(LON_LAT),
+    arrivesAt: v.number(),
+  }),
+  /**
+   * **La seconde jambe d'une Guerre éclair** (ADR 0039 §6), chez son seul auteur : partie
+   * (`onward`, l'arrivée), tombée sur une défaite (`lost`), ou restée sur place parce que le
+   * plein, les coups ou la cible manquaient (`halted`, le refus et ses détails). Le point et le nom
+   * sont ceux de la première cible, `then` la seconde. Le rapport de saison compte les `onward`.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('blitzkrieg'),
+    outcome: v.union(v.literal('onward'), v.literal('lost'), v.literal('halted')),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    name: v.string(),
+    then: v.object({ hostCountry: v.string(), point: LON_LAT, name: v.string() }),
+    arrivesAt: v.optional(v.number()),
+    refusal: v.optional(v.string()),
+    details: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+    /** `halted` : les troupes restées, que la pièce au point reconnaît. */
+    troopIds: v.optional(v.array(v.id('troops'))),
   }),
   /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses
    *  dépôts sont pleins (`full`), ou sa route est refusée (`road`, le plein manque). */
@@ -694,6 +747,9 @@ export const NOTICE = v.union(
     by: v.optional(v.string()),
     /** En Mondiale, ce qu'il tenait passe au siège irrégulier (M16) ; absent en Blitz. */
     irregulars: v.optional(v.literal(true)),
+    /** **Où le QG est tombé** (#442, Mondiale) : à l'éliminé, au preneur, et à qui l'avait
+     *  déjà relevé ; absent ailleurs. */
+    point: v.optional(LON_LAT),
   }),
   /** **Un point stratégique change de teneur** (P2) : public, déposé chez toute la table. */
   v.object({
@@ -702,6 +758,8 @@ export const NOTICE = v.union(
     key: STRATEGIC_POINT_KEY,
     nation: v.string(),
     point: v.optional(LON_LAT),
+    /** Les points que le preneur tient après la prise (#442) ; absent avant. */
+    held: v.optional(v.number()),
     /** **Hong Kong** : la copie de son teneur seul, qui dit aussi à qui le point est pris
      *  (absent : neutre). `hongKong` la fait lire « dépêche de Hong Kong ». */
     hongKong: v.optional(v.literal(true)),
@@ -1042,6 +1100,149 @@ export const VERDICT = v.object({
     v.literal('points'),
     v.literal('clock'),
     v.literal('territory'),
+    /** Close à la main (`seasons.conclude`) : personne n'est vainqueur, vaincu ni à égalité. */
+    v.literal('closed'),
   ),
   perMinute: v.optional(v.number()),
+  /** La nation qui a clos à la main. */
+  closedBy: v.optional(v.string()),
 });
+
+/**
+ * **L'édition finale d'une Mondiale, figée** (#443, `src/domain/final-edition.ts`) : les formes
+ * de l'archive, et celles que la chaîne de clôture se passe d'un maillon à l'autre.
+ */
+const NATION_OR_IRREGULARS = v.union(v.string(), v.null());
+
+export const FINAL_PASS = v.object({
+  at: v.number(),
+  regionId: v.union(v.string(), v.null()),
+  attacker: NATION_OR_IRREGULARS,
+  defender: NATION_OR_IRREGULARS,
+  winner: COMBAT_SIDE,
+  engaged: v.number(),
+  attackerLost: v.number(),
+  defenderLost: v.number(),
+});
+
+export const PASS_TALLY = v.object({
+  pieces: v.record(v.string(), v.object({ destroyed: v.number(), lost: v.number() })),
+  firstContact: v.union(FINAL_PASS, v.null()),
+  biggest: v.union(FINAL_PASS, v.null()),
+  worst: v.record(v.string(), FINAL_PASS),
+  finest: v.record(v.string(), FINAL_PASS),
+});
+
+/** Ce que le journal d'une place dit de sa fin et de ses avant-postes. */
+export const SEAT_JOURNAL = v.object({
+  surrenderedAt: v.union(v.number(), v.null()),
+  eliminatedBy: v.union(v.string(), v.null()),
+  hqRegionId: v.union(v.string(), v.null()),
+  outpostsCaptured: v.number(),
+  outpostsLost: v.number(),
+});
+
+const NATIONS_OF_FEAT = v.array(v.string());
+
+export const FEAT = v.union(
+  v.object({
+    kind: v.union(v.literal('contact'), v.literal('battle'), v.literal('pass')),
+    at: v.number(),
+    regionId: v.union(v.string(), v.null()),
+    nations: NATIONS_OF_FEAT,
+    forces: v.object({
+      engaged: v.number(),
+      attackerLost: v.number(),
+      defenderLost: v.number(),
+      winner: COMBAT_SIDE,
+    }),
+  }),
+  v.object({
+    kind: v.literal('hqTaken'),
+    at: v.number(),
+    regionId: v.union(v.string(), v.null()),
+    nations: NATIONS_OF_FEAT,
+  }),
+  v.object({
+    kind: v.union(v.literal('pointTaken'), v.literal('race')),
+    at: v.number(),
+    regionId: v.string(),
+    key: STRATEGIC_POINT_KEY,
+    nations: NATIONS_OF_FEAT,
+  }),
+  v.object({
+    kind: v.literal('verdict'),
+    at: v.number(),
+    regionId: v.null(),
+    nations: NATIONS_OF_FEAT,
+  }),
+);
+
+const FIGURES = {
+  territory: v.number(),
+  general: v.number(),
+  industry: v.number(),
+  military: v.number(),
+  deeds: v.number(),
+};
+
+export const NATION_PAGE = v.object({
+  nation: v.string(),
+  nickname: v.string(),
+  /** Le compte qui l'a jouée : la lecture est réservée aux participants. Jamais servi. */
+  accountId: v.optional(v.id('accounts')),
+  rank: v.number(),
+  figures: v.object({
+    ...FIGURES,
+    destroyed: v.number(),
+    lost: v.number(),
+    pointHeldMs: v.number(),
+    /** Les dépêches du canal général, les messages privés jamais (décision du 04/11). */
+    dispatches: v.number(),
+  }),
+  exit: v.union(
+    v.object({
+      kind: v.union(v.literal('eliminated'), v.literal('surrendered')),
+      at: v.union(v.number(), v.null()),
+    }),
+    v.null(),
+  ),
+  gains: v.object({
+    points: v.array(
+      v.object({ key: STRATEGIC_POINT_KEY, at: v.number(), from: v.union(v.string(), v.null()) }),
+    ),
+    hqs: v.array(
+      v.object({ at: v.number(), regionId: v.union(v.string(), v.null()), nation: v.string() }),
+    ),
+    outposts: v.number(),
+  }),
+  losses: v.object({
+    points: v.array(
+      v.object({ key: STRATEGIC_POINT_KEY, at: v.number(), to: v.union(v.string(), v.null()) }),
+    ),
+    hq: v.union(
+      v.object({
+        at: v.number(),
+        regionId: v.union(v.string(), v.null()),
+        by: v.union(v.string(), v.null()),
+      }),
+      v.null(),
+    ),
+    outposts: v.number(),
+    worstPass: v.union(FINAL_PASS, v.null()),
+  }),
+  finest: v.union(FEAT, v.null()),
+  series: v.array(v.object({ at: v.number(), ...FIGURES })),
+});
+
+export const FINAL_POINT = v.object({
+  key: STRATEGIC_POINT_KEY,
+  regionId: v.string(),
+  /** Chaque prise et chaque retour au neutre, dans l'ordre ; neutre au lancement. */
+  hands: v.array(v.object({ at: v.number(), nation: v.union(v.string(), v.null()) })),
+  heldMs: v.array(v.object({ nation: v.string(), ms: v.number() })),
+});
+
+/** **La carte de la fin, en paires** : une recuisson de l'atlas (ADR 0034) ne casse pas une
+ *  archive, et une région inconnue se dessine neutre. Les régions neutres n'y sont pas. */
+export const HELD_REGION = v.object({ regionId: v.string(), nation: v.string() });

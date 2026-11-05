@@ -43,7 +43,7 @@ import {
   routeBetween,
   walkableAtPoint,
 } from '../routes';
-import { surveyFromPoint } from '../surveys';
+import { surveyFromPoint, surveyedOutposts, surveysWithInstallations } from '../surveys';
 import { collapseIfAbandoned } from '../outposts';
 import { reassessDetection } from './detection';
 import { pacedMinutes } from './pace';
@@ -211,12 +211,7 @@ export async function surveyedTarget(
   player: Doc<'players'>,
   buildingId: Id<'buildings'>,
 ): Promise<SurveyedPlunderTarget> {
-  const surveys = await ctx.db
-    .query('regionSightings')
-    .withIndex('byPlayerHasInstallations', (q) =>
-      q.eq('playerId', player._id).eq('hasInstallations', true),
-    )
-    .collect();
+  const surveys = await surveysWithInstallations(ctx, player._id);
   const seen = surveys
     .flatMap((survey) =>
       (survey.installations ?? []).map((installation) => ({
@@ -507,11 +502,28 @@ export async function aimOf(
   }
   if (target.kind === 'outpost') {
     const outpost = await ctx.db.get(target.outpostId);
-    /** **Un point d'une autre saison n'existe pas dans celle-ci**, et il se refuse du mot d'un
-     *  identifiant inconnu : un compte assis à deux tables tient les identifiants de l'une, et
-     *  sans ce contrôle ses colonnes de l'autre venaient s'y battre et désactiver le point. */
-    if (!outpost || outpost.seasonId !== (await seasonIdOf(ctx, playerId))) {
-      fail('UNKNOWN_OUTPOST', { outpostId: target.outpostId });
+    /** **L'avant-poste d'un autre se lit à mon relevé, jamais à sa ligne** (ADR 0039 §3), comme
+     *  un bâtiment relevé (`surveyedTarget`) : non relevé, il se refuse qu'il existe ou non ;
+     *  démantelé depuis, il se vise encore à son point, et l'arrivée ne trouve personne. Un point
+     *  d'une autre saison n'est dans aucun relevé de celle-ci. */
+    if (outpost?.playerId !== playerId) {
+      const seen = surveyedOutposts(await surveysWithInstallations(ctx, playerId)).find(
+        (one) => one.outpostId === target.outpostId,
+      );
+      if (seen === undefined) fail('UNKNOWN_OUTPOST', { outpostId: target.outpostId });
+      const anchor = pointOf(seen.point);
+      return {
+        aim: {
+          kind: 'outpost',
+          outpostId: target.outpostId,
+          hostCountry: seen.hostCountry,
+          coastal: coastAtPoint(anchor),
+        },
+        target: { kind: 'outpost', outpostId: target.outpostId },
+        point: anchor,
+        name: seen.hostCountry,
+        host: seen.hostCountry,
+      };
     }
     const anchor = pointOf(outpost.point);
     return {

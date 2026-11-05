@@ -536,7 +536,7 @@ async function layerCosts() {
     ['pièces', hide([E.standing.group, E.maquettes.group, E.camps.group])],
     ['fils', hide([E.arcs.group, E.ink.group])],
     ['pays', hide(E.countries)],
-    ['frontières', hide([E.borders, E.coast])],
+    ['frontières', hide([E.sheet.borders, E.sheet.coast])],
     [
       'mer (shader)',
       () => {
@@ -1340,10 +1340,15 @@ async function play(profileName, pass) {
   // puis le fantôme suit le pointeur au large de Calais — l'aimant à chaque pas.
   await page.evaluate(frameAt, [[1.6, 50.9], 12]);
   await page.waitForTimeout(2500);
-  // Une fiche ouverte par les gestes d'avant tient la place du plateau, au téléphone.
+  // Une fiche ouverte par les gestes d'avant tient la place du plateau, au téléphone. Celle du
+  // pays survolé (« Nation adverse ») suit la souris que `--couches` a posée sur la carte : aucun
+  // doigt ne la fait sortir, ni Échap ; on la fait sortir de la carte.
+  const sheet = page.locator('section[role="dialog"].board-sheet').first();
   for (let k = 0; k < 3; k++) {
-    if (!(await button(/^fermer$/i).isVisible())) break;
+    if (!(await button(/^fermer$/i).isVisible()) && !(await sheet.isVisible())) break;
     await close();
+    for (const canvas of await page.locator('canvas').all())
+      await canvas.dispatchEvent('pointerleave');
     await page.waitForTimeout(800);
   }
   // Au téléphone, le plateau tiré par un geste d'avant peut être déjà déplié : on ne le déplie

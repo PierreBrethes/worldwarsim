@@ -25,7 +25,7 @@ import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
 import { ReserveCell } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
-import { placementOf, reachesOf, upgradeHold } from '@/domain/construction';
+import { keptLevelOf, keptOf, placementOf, reachesOf, upgradeHold } from '@/domain/construction';
 import { outpostReachKm } from '../../../convex/constants';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
@@ -876,7 +876,7 @@ function TileFrame({
         className={`leading-[1.1] ${
           locked
             ? `${wide && !narrow ? 'line-clamp-3' : 'line-clamp-2'} font-semibold text-[var(--critical)]`
-            : `${narrow ? 'line-clamp-2' : 'truncate'} font-(family-name:--font-mono) text-[var(--ink-soft)]`
+            : `line-clamp-2 font-(family-name:--font-mono) text-[var(--ink-soft)]`
         } ${narrow ? 'text-[9px]' : 'text-[9.5px]'}`}
       >
         {meta}
@@ -922,6 +922,10 @@ function Tile({
   );
   const free = view.me.foundation.some((due) => due.key === buildingKey);
   const refusal = tileRefusalOf(view, buildingKey);
+  /** **La réserve de l'Évacuation** (ADR 0039 §5) : la prochaine pose payée coûte un niveau 1 et
+   *  sort au niveau gardé, sous le plafond du QG. Elle prend la ligne et le prix de la tuile : une
+   *  ligne de plus serait tronquée au bureau ; posée sur sa pareille, la main dit l'élévation. */
+  const kept = keptOf(view.me.evacuated, buildingKey);
   const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
   return (
     <TileFrame
@@ -934,16 +938,22 @@ function Tile({
       picture={<BuildingPlate building={buildingKey} height={narrow ? 34 : 50} />}
       meta={
         refusal ??
-        (lowest === null
-          ? time
-          : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`)
+        (kept !== null
+          ? fr.personalBoard.tileKept(kept, keptLevelOf(kept, view.me.hqLevel))
+          : lowest === null
+            ? time
+            : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`)
       }
       price={
         free ? (
           fr.construction.free
         ) : (
           <Price
-            costs={lowest === null ? view.buildCatalog[buildingKey].cost : lowest.nextLevelCost}
+            costs={
+              lowest === null || kept !== null
+                ? view.buildCatalog[buildingKey].cost
+                : lowest.nextLevelCost
+            }
             size={10}
           />
         )
@@ -964,7 +974,7 @@ function FocusedBuilding({ building, view }: { building: Building; view: PlayerV
         <b className="font-semibold text-[var(--ink)]">{building.name}</b>
         {region === undefined ? '' : ` · ${region}`}
       </p>
-      <RazeButton building={building} className="px-[10px] pb-[9px]" />
+      <RazeButton view={view} building={building} className="px-[10px] pb-[9px]" />
     </section>
   );
 }
@@ -1182,7 +1192,11 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   return (
     <>
       <b className="font-semibold text-[var(--ink)]">
-        {fr.personalBoard.workAt(running.name, running.level, running.regionName)}
+        {fr.personalBoard.workAt(
+          running.name,
+          running.kept === undefined ? running.level : keptLevelOf(running.kept, view.me.hqLevel),
+          running.regionName,
+        )}
       </b>
       {fr.personalBoard.workTail(
         countdownLabel(currentMinutes(running.minutesLeft, view.loadedAt, now) * 60_000),
@@ -1245,7 +1259,13 @@ function Works({
           <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
             <span className="flex items-baseline gap-2">
               <b className="min-w-0 flex-1 truncate font-semibold">
-                {fr.personalBoard.workRank(index + 1, fr.personalBoard.work(work.name, work.level))}
+                {fr.personalBoard.workRank(
+                  index + 1,
+                  fr.personalBoard.work(
+                    work.name,
+                    work.kept === undefined ? work.level : keptLevelOf(work.kept, view.me.hqLevel),
+                  ),
+                )}
               </b>
               {running && (
                 <small className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">

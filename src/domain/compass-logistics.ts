@@ -7,10 +7,12 @@ import {
   type Boarding,
   type Column,
   type MovementAim,
+  withoutOrigin,
 } from './movement-orders';
 import {
   carriersAmong,
   deliverRefusalOf,
+  depotAccessOf,
   airdropRefusalOf,
   squadTarget,
   hullsAmong,
@@ -19,7 +21,7 @@ import {
   tourRefusalOf,
   type LoadingPlace,
 } from './logistics';
-import { fareOf, PROJECTION_BY_DOMAIN, seatsOf, stationKeyOf } from './troops';
+import { cargoOf, fareOf, PROJECTION_BY_DOMAIN, seatsOf, stationKeyOf } from './troops';
 import {
   type OutpostView,
   type PlayerView,
@@ -89,6 +91,61 @@ export function withDelivery(
   return { ...fan, actions: [deliver, ...drop, ...tour, ...fan.actions], refusal: null };
 }
 
+/**
+ * **Le Prêt-bail, lâché sur un avant-poste étranger relevé** (ADR 0039 §3) : livrer, une fois, ou
+ * le motif de `depotAccessOf` — la même fonction que `logistics.deliver`. Rien du dépôt de l'autre
+ * ne se lit ici : la marche va au point relevé. Une main sans transport chargé garde l'éventail
+ * ordinaire du point.
+ */
+export function withLendLease(
+  fan: Compass,
+  target: { readonly id: string; readonly name: string; readonly coastal: boolean },
+  view: PlayerView,
+  column: Column,
+  heldTroopIds: ReadonlyArray<string>,
+): Compass {
+  const held = view.me.troops.filter((troop) => heldTroopIds.includes(troop.id));
+  if (!carriesLoad(held)) return fan;
+  const seen = view.surveyedOutposts.find((outpost) => outpost.id === target.id);
+  const pile = held[0] === undefined ? [] : pileAt(held[0].stationedAt, view);
+  const riders = held.flatMap((troop) => cargoOf(troop, pile));
+  const access = depotAccessOf({
+    mine: false,
+    surveyed: seen !== undefined,
+    asset: view.me.asset,
+    troops: [...held, ...riders.filter((rider) => !heldTroopIds.includes(rider.id))],
+  });
+  if (access.kind === 'refused') {
+    const { code } = access.refusal;
+    /** Le motif se dit à côté des branches qui restent : c'est livrer que la main portait. */
+    return { ...fan, refusal: fr.errors[code]() };
+  }
+  const walk = fanOf(target.name, view, withoutOrigin(column), [
+    {
+      kind: 'point',
+      lon: seen!.point[0],
+      lat: seen!.point[1],
+      coastal: target.coastal,
+      ground: 'land',
+      surveyed: false,
+    },
+  ]);
+  const marching = marchOf(walk);
+  if (marching === undefined) return { ...fan, refusal: walk.refusal };
+  const deliver: CompassAction = {
+    key: 'deliver',
+    pictogram: 'crate',
+    label: fr.compass.lendLease,
+    cost: slotCost(view),
+    consequence: fr.compass.lendLeaseConsequence,
+    outpostId: target.id,
+    destination: target.name,
+    aim: marching.aim,
+    lendLease: true,
+  };
+  return { ...fan, actions: [deliver, ...fan.actions], refusal: null };
+}
+
 /** **Le dépôt d'un de mes points**, tel que livrer et tourner le lisent — la lecture de
  *  `logistics.depotOf`. */
 const depotOfView = (outpost: OutpostView) => ({
@@ -138,8 +195,15 @@ export function traceCompass(target: CompassTarget, view: PlayerView, trace: Tou
       : undefined;
   const name = target.kind === 'outpost' ? target.name : fr.compass.fallbackOutpost;
   const kicker = fr.compass.tracing(trace.stops.length);
+  const abroad =
+    target.kind === 'outpost' && view.surveyedOutposts.some((one) => one.id === target.id);
   if (carrier === undefined || outpost === undefined)
-    return { kicker, name, actions: [], refusal: fr.compass.traceElsewhere };
+    return {
+      kicker,
+      name,
+      actions: [],
+      refusal: abroad ? fr.compass.traceAbroad : fr.compass.traceElsewhere,
+    };
   const stops = [...trace.stops, outpost.id];
   const refusal =
     tourRefusalOfView(view, carrier, stops) ??

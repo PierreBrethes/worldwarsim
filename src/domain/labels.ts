@@ -1,13 +1,17 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
-import { asDatedClock, asLocalTime } from '@/domain/duration';
+import { asClockTime, asDatedClock, asLocalTime } from '@/domain/duration';
 import { aimRefusalShort, countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
 import type { LonLat } from './geo';
 import type { PilePieces } from './pile-pieces';
 import { loadingUntilOf } from './loading';
 import { borderResolution } from './arc-timing';
+import { courseNoteOf, courseOfArc, halfwayOf, type CourseNote } from './carrier-doctrine';
+import { positionAt } from './interception';
+import type { Asset } from './nation-assets';
+import type { SeasonMode } from './season-mode';
 import { detectionRangeOf, sightingReachKm } from '../../convex/constants';
 import { RESOURCES, type BuildingKey, type DepositKey, type Specialty, type UnitRole } from './ids';
 import type {
@@ -19,6 +23,7 @@ import type {
   TroopStation,
 } from './player-view';
 import type { AimVerdict, WorkSite } from './construction';
+import type { RaceRings } from './race-rings';
 
 /**
  * What the map knows how to plant on the ground. A discriminated union rather than a marker
@@ -54,6 +59,20 @@ export type MapMarker =
       readonly washed: boolean;
       /** **Un neutre de la Blitz** (lot 4) : public et jamais délavé ; `null` hors Blitz. */
       readonly neutral: { readonly lonLat: LonLat } | null;
+    }
+  | {
+      /**
+       * **Un avant-poste étranger relevé** (ADR 0039 §3) : un point et un pays hôte, ni niveau,
+       * ni dépôt, ni encre — le relevé n'en sert pas davantage. Attaque, raid, capture et
+       * Prêt-bail le visent à ce relevé.
+       */
+      readonly kind: 'foreignOutpost';
+      readonly id: string;
+      readonly outpostId: string;
+      readonly lonLat: LonLat;
+      readonly hostCountry: string;
+      /** Le relevé date : délavé tant que la région n'est pas couverte à l'instant. */
+      readonly washed: boolean;
     }
   | {
       /**
@@ -243,6 +262,8 @@ export type MapMarker =
       readonly deposit: DepositKey;
       /** Who is known to work it (`depositHolders`), absent while it is free. */
       readonly held?: { readonly mine: boolean; readonly level: number | null };
+      /** The label id of the piece standing on it (`depositHolders`), absent while it is free. */
+      readonly clears?: string;
       /** **Woken by a key in hand** (#239): the pose takes it (`open`), or the refusal it would
        *  give on its point. */
       readonly wake?: 'open' | NonNullable<AimVerdict['refusal']>;
@@ -301,6 +322,8 @@ export type LabelType =
   | 'objective'
   | 'strategic'
   | 'outpost'
+  /** Un avant-poste étranger relevé (ADR 0039 §3). */
+  | 'foreign-outpost'
   | 'stack'
   | 'construction'
   | 'building'
@@ -310,7 +333,10 @@ export type LabelType =
   | 'intel'
   /** **Le drapeau planté au bout d'un de mes mouvements** (carte-lisible, 03/10). Il n'existe
    *  que sur la branche `mine` de l'arc : un relevé adverse ne sert pas de destination (4a). */
-  | 'arrival';
+  | 'arrival'
+  /** **Un trait sur le fil d'une de mes flottes** (#449) : sa mi-parcours, ou le coude du cap
+   *  changé. Ni clic ni repli, comme le drapeau. */
+  | 'course-mark';
 
 /**
  * A line's role, not its shape: the mockup decides that a nature line is spaced capitals and
@@ -318,7 +344,13 @@ export type LabelType =
  * time, the display layer counts it down once per second and nothing recomputes in between.
  */
 export type LabelLine =
-  | { readonly role: 'nature' | 'figures' | 'headcount' | 'mention'; readonly text: string }
+  | {
+      /** `free` et `alarm` : le cap d'une flotte (Doctrine du porte-avions, #449), libre ou tenu. */
+      readonly role: 'nature' | 'figures' | 'headcount' | 'mention' | 'free' | 'alarm';
+      readonly text: string;
+      /** Dite sous le pointeur ou le doigt seulement : au repos, la fiche garde sa taille. */
+      readonly fold?: true;
+    }
   | {
       readonly role: 'countdown';
       readonly dueAt: number;
@@ -349,6 +381,16 @@ export type LabelLine =
   | { readonly role: 'patrol'; readonly text: string; readonly recall: string | null }
   /** **Une charge** (ADR 0028 §4) : le dépôt d'un avant-poste, en barre découpée par couleur. */
   | { readonly role: 'charge'; readonly load: SupplyLoad; readonly capacity: number }
+  /** **Le compte à rebours de la course aux Sept** (#442) : l'anneau du meneur, qui se vide
+   *  jusqu'à `endsAt` ; `fading`, le compte tombé qui s'efface. */
+  | {
+      readonly role: 'race';
+      readonly endsAt: number;
+      readonly ink: string;
+      readonly fading: boolean;
+      /** Parti sous les yeux du joueur : l'anneau se trace. */
+      readonly fresh: boolean;
+    }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
    *  victoire chez le capteur, de perte chez le défenseur. */
   | {
@@ -417,6 +459,9 @@ export type MapLabel = {
   /** **A deposit woken by a key in hand** (#239): written in its resource's ink, in red when the
    *  pose would refuse it. */
   readonly wake?: { readonly deposit: DepositKey; readonly open: boolean };
+  /** **The label of the maquette standing on this deposit** (#445): its name hangs below that
+   *  piece's plinth, not below the basin the plinth overruns. */
+  readonly clears?: string;
   /** The private sighting a click opens; every other label carries null. */
   readonly lootSightingId: string | null;
   /** False gives a known crate its stale, dashed treatment. */
@@ -446,6 +491,9 @@ export type MapLabel = {
   readonly building: BuildingHandle | null;
   /** Le mât adverse relevé, la cible de l'expédition — jamais confondu avec `building`. */
   readonly installation: InstallationHandle | null;
+  /** **L'avant-poste étranger relevé** (ADR 0039 §3) : ce que la rose vise — attaque, raid,
+   *  capture, Prêt-bail. Absent ailleurs. */
+  readonly foreignOutpost?: { readonly id: string; readonly hostCountry: string };
   /**
    * **Le camp adverse relevé** (ADR 0024 §1) : ce qu'un clic gauche ouvre en cartouche et ce
    * qu'un clic droit vise. Il porte son milieu parce que c'est tout son portrait — la
@@ -502,6 +550,7 @@ const NAMED_WHEN_POINTED: ReadonlySet<LabelType> = new Set([
   'building',
   'stack',
   'outpost',
+  'foreign-outpost',
   'objective',
   'strategic',
   'installation',
@@ -515,7 +564,7 @@ export const cartoucheShown = (
   !NAMED_WHEN_POINTED.has(label.type) ||
   pointed ||
   selected ||
-  label.lines.some((line) => isCountdown(line) || line.role === 'capture');
+  label.lines.some((line) => isCountdown(line) || line.role === 'capture' || line.role === 'race');
 
 /**
  * The overlap-degradation order. Sheet 11 gives it for five types; intel — an enemy movement
@@ -533,6 +582,8 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   construction: 4,
   loot: 3,
   outpost: 3,
+  /** Le point d'un autre ne prend jamais la place des siens. */
+  'foreign-outpost': 1,
   /** Un camp relevé se lit avant un mât : c'est une force, et elle peut partir. */
   camp: 3,
   /** **Un objectif se lit avant tout ce qui ne bouge pas** : c'est le seul endroit de la carte
@@ -548,6 +599,7 @@ const PRIORITY: Readonly<Record<LabelType, number>> = {
   deposit: 0,
   /** Le drapeau ne repousse rien et n'est repoussé par rien : il est hors du repli. */
   arrival: 0,
+  'course-mark': 0,
 };
 
 /** Below this remainder, the label switches to the mockup's urgency accent. */
@@ -598,16 +650,35 @@ export function ownerFlags(
 
 export function buildLabels(
   view: Pick<PlayerView, 'arcs' | 'loadedAt' | 'captures'> & {
-    readonly me: Pick<PlayerView['me'], 'ink' | 'troops'>;
+    readonly mode?: SeasonMode;
+    /** Les dépêches d'où une pièce restée tire sa ligne (Guerre éclair, #451). */
+    readonly journal?: PlayerView['journal'];
+    /** Le compte à rebours sur les mâts du meneur (#442). */
+    readonly raceRings?: RaceRings | null;
+    readonly me: Pick<PlayerView['me'], 'ink' | 'troops'> & {
+      readonly asset?: Asset | null;
+    };
   },
   markers: ReadonlyArray<MapMarker>,
+  /** L'heure du client, où la fiche relit le cap (#449) ; celle de la vue par défaut. */
+  now = view.loadedAt,
 ): ReadonlyArray<MapLabel> {
+  const course = { asset: view.me.asset ?? null, now, mode: view.mode ?? 'mondiale' } as const;
   return [
     ...withCaptures(
-      markers.map((marker) => markerLabel(marker, view.loadedAt)),
+      withRaceRings(
+        withStood(
+          markers.map((marker) => markerLabel(marker, view.loadedAt)),
+          markers,
+          view.journal ?? [],
+        ),
+        view.raceRings ?? null,
+      ),
       view.captures,
     ),
-    ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt, view.me.troops)).filter(exists),
+    ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt, view.me.troops, course)).filter(exists),
+    ...view.arcs.flatMap((arc) => courseMarksOf(arc, course)),
+    ...view.arcs.flatMap(gateOf),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
 }
@@ -615,7 +686,53 @@ export function buildLabels(
 const carriesSite = (label: MapLabel, target: CaptureView['target']): boolean =>
   target.kind === 'building'
     ? label.building?.id === target.id || label.installation?.id === target.id
-    : label.station?.kind === 'outpost' && label.station.outpostId === target.id;
+    : target.kind === 'point'
+      ? label.strategic?.id === target.id
+      : label.station?.kind === 'outpost' && label.station.outpostId === target.id;
+
+/** **Le compte sous chaque mât du meneur** (#442), au-dessus d'une capture qui le menace. */
+function withRaceRings(
+  labels: ReadonlyArray<MapLabel>,
+  rings: RaceRings | null,
+): ReadonlyArray<MapLabel> {
+  if (rings === null) return labels;
+  const { endsAt, ink, fading, fresh } = rings;
+  return labels.map((label) =>
+    label.strategic !== null && rings.pointIds.includes(label.strategic.id)
+      ? { ...label, lines: [...label.lines, { role: 'race', endsAt, ink, fading, fresh }] }
+      : label,
+  );
+}
+
+/** **La pièce restée dit pourquoi** (Guerre éclair, ADR 0039 §6) : la dépêche qui l'a laissée là,
+ *  tant que ses troupes y tiennent. `labels` suit `markers`, un à un. */
+function withStood(
+  labels: ReadonlyArray<MapLabel>,
+  markers: ReadonlyArray<MapMarker>,
+  journal: NonNullable<PlayerView['journal']>,
+): ReadonlyArray<MapLabel> {
+  const stood = journal.flatMap((dispatch) =>
+    dispatch.stood === undefined ? [] : [dispatch.stood],
+  );
+  if (stood.length === 0) return labels;
+  return labels.map((label, index) => {
+    const marker = markers[index]!;
+    const said =
+      marker.kind === 'stack'
+        ? stood.find((one) => one.troopIds.some((id) => marker.pieces.troopIds.includes(id)))
+        : undefined;
+    return said === undefined
+      ? label
+      : {
+          ...label,
+          lines: [
+            ...label.lines,
+            { role: 'alarm', text: said.text },
+            { role: 'mention', text: said.reread },
+          ],
+        };
+  });
+}
 
 /**
  * **Le site visé porte sa capture** — l'anneau pend à son étiquette. Un site que la carte ne
@@ -735,6 +852,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
       marker.kind === 'deposit' ||
       marker.kind === 'loot' ||
       marker.kind === 'installation' ||
+      marker.kind === 'foreignOutpost' ||
       marker.kind === 'camp' ||
       /** **Un objectif n'appartient à personne** : il n'a donc pas d'encre à porter, et c'est la
        *  forme qui le dit — la couleur est un attribut de possession. */
@@ -745,7 +863,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
     lootSightingId: null,
     lootCurrent: true,
     washed:
-      (marker.kind === 'installation' && marker.washed) ||
+      ((marker.kind === 'installation' || marker.kind === 'foreignOutpost') && marker.washed) ||
       (marker.kind === 'camp' && marker.lastKnown),
     identified: false,
     idle: false,
@@ -807,6 +925,19 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
           ...(marker.neutral === null
             ? []
             : [{ role: 'mention', text: fr.blitz.neutral } as const]),
+        ],
+      };
+    case 'foreignOutpost':
+      return {
+        ...common,
+        type: 'foreign-outpost',
+        priority: PRIORITY['foreign-outpost'],
+        pictogram: 'outpost',
+        foreignOutpost: { id: marker.outpostId, hostCountry: marker.hostCountry },
+        hostCountry: null,
+        lines: [
+          { role: 'nature', text: fr.labels.foreignOutpost },
+          { role: 'mention', text: countryLabel(marker.hostCountry) },
         ],
       };
     /**
@@ -982,6 +1113,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
         // A click on a deposit says nothing the ground does not: the region's own click
         // already selects the country.
         hostCountry: null,
+        ...(marker.clears === undefined ? {} : { clears: marker.clears }),
         ...(marker.wake === undefined || marker.held !== undefined
           ? {}
           : { wake: { deposit: marker.deposit, open: marker.wake === 'open' } }),
@@ -1042,9 +1174,11 @@ function arcLabel(
   arc: ArcView,
   loadedAt: number,
   troops: PlayerView['me']['troops'],
+  reading: CourseReading,
 ): MapLabel | null {
   if (arc.state === 'mine') {
     const mission = arc.mission ?? null;
+    const course = courseNoteOf(reading.asset, arc, reading.now, reading.mode);
     const patrol = troops.find(
       (troop) => troop.patrol !== undefined && arc.troopIds.includes(troop.id),
     );
@@ -1093,6 +1227,13 @@ function arcLabel(
           ? [{ role: 'figures', text: resourceAmountsLabel(cargo.loot) } as const]
           : []),
         ...(mission === null ? [] : [{ role: 'mention', text: missionLabel(mission) } as const]),
+        ...(course === null ? [] : courseLines(course)),
+        ...(arc.then === undefined
+          ? []
+          : ([
+              { role: 'free', text: fr.blitzkrieg.then(arc.then.name) },
+              { role: 'mention', text: fr.blitzkrieg.oneSlot },
+            ] as const)),
         ...(patrol === undefined
           ? []
           : [
@@ -1174,6 +1315,107 @@ function arcLabel(
     lines: [schedule, second, ...lisbonLine(arc.nation)],
   };
 }
+
+/** Ce que la fiche lit pour dire le cap : l'atout, l'heure du client, le mode. */
+type CourseReading = {
+  readonly asset: Asset | null;
+  readonly now: number;
+  readonly mode: SeasonMode;
+};
+
+/** **Le cap d'une flotte, sur sa fiche** (maquette A, #449) : libre et comment le reprendre, ou
+ *  pourquoi il ne change plus, en encre d'alarme — dit avant le geste. */
+function courseLines(note: CourseNote): ReadonlyArray<LabelLine> {
+  return courseText(note).map((line) => ({ ...line, fold: true }));
+}
+
+function courseText(note: CourseNote): ReadonlyArray<LabelLine & { readonly text: string }> {
+  switch (note.kind) {
+    case 'free':
+      return [
+        { role: 'free', text: fr.course.free(asClockTime(note.until)) },
+        { role: 'mention', text: fr.course.grab },
+      ];
+    case 'changed':
+      return [{ role: 'alarm', text: fr.course.changed(asClockTime(note.at)) }];
+    case 'pastHalfway':
+      return [{ role: 'alarm', text: fr.errors.PAST_HALFWAY({ at: asClockTime(note.at) }) }];
+    case 'ashore':
+      return [{ role: 'alarm', text: fr.errors.NOT_AT_SEA() }];
+    case 'others':
+      return [{ role: 'mention', text: fr.errors.NO_CARRIER_DOCTRINE() }];
+  }
+}
+
+/** **Les traits du fil** (maquette A, #449) : la mi-parcours d'un cap que l'atout tient encore ou
+ *  vient de tenir, et le coude où le cap a changé. */
+function courseMarksOf(arc: ArcView, reading: CourseReading): MapLabel[] {
+  if (arc.state !== 'mine') return [];
+  const note = courseNoteOf(reading.asset, arc, reading.now, reading.mode);
+  const force = courseOfArc(arc).force;
+  const mark = (id: string, lonLat: LonLat, text: string): MapLabel => ({
+    ...arrivalLabel(arc, '')!,
+    id: `${id}-${arc.id}`,
+    type: 'course-mark',
+    priority: PRIORITY['course-mark'],
+    anchor: { kind: 'ground', lonLat },
+    ink: null,
+    lines: [{ role: 'mention', text }],
+  });
+  return [
+    ...(note?.kind === 'free' || note?.kind === 'pastHalfway'
+      ? [
+          mark(
+            'halfway',
+            positionAt(force, halfwayOf(force)),
+            fr.course.halfway(asClockTime(halfwayOf(force))),
+          ),
+        ]
+      : []),
+    ...(arc.courseChange === undefined
+      ? []
+      : [
+          mark(
+            'elbow',
+            arc.route.points[0] ?? arc.from,
+            fr.course.elbow(asClockTime(arc.courseChange.at)),
+          ),
+        ]),
+  ];
+}
+
+/** **Le losange du fil** (Guerre éclair, maquette A) : au point de la première cible, la seconde
+ *  jambe y est suspendue au terrain tenu. */
+function gateOf(arc: ArcView): MapLabel[] {
+  return arc.state !== 'mine' || arc.then === undefined ? [] : [gateLabel(arc.id, arc.to)];
+}
+
+/** Le losange, aussi sous la main entre les deux cibles (`plateau.tsx`). */
+export const gateLabel = (id: string, lonLat: LonLat): MapLabel => ({
+  id: `gate-${id}`,
+  type: 'course-mark',
+  priority: PRIORITY['course-mark'],
+  anchor: { kind: 'ground', lonLat },
+  reach: null,
+  ink: null,
+  pictogram: null,
+  plate: null,
+  lootSightingId: null,
+  lootCurrent: true,
+  washed: false,
+  lines: [{ role: 'mention', text: fr.blitzkrieg.gate }],
+  identified: false,
+  idle: false,
+  works: null,
+  hostCountry: null,
+  building: null,
+  installation: null,
+  camp: null,
+  objective: null,
+  strategic: null,
+  station: null,
+  force: null,
+});
 
 /** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile, abrégée — « 3 INF · 1 BLD » —, jamais l'ordre ;
  *  figée, l'heure de sa dernière lecture, parce qu'elle a pu changer depuis. */

@@ -1,8 +1,9 @@
 import type { Ref } from 'react';
-import type { CompassAction } from '@/domain/compass-rose';
+import { isOrder, type CompassAction } from '@/domain/compass-rose';
 import { chipOf, type DropChip, type DropReading, type Forbidden } from '@/domain/drop-order';
 import { fr } from '@/i18n/fr';
 import type { FuelGauge } from '@/domain/supplies';
+import { COARSE } from '@/shell/viewport';
 import { ResourcePlate } from '@/emblems/Plate';
 import type { TroopStation } from '@/domain/player-view';
 import type { PieceClick } from './engine';
@@ -12,7 +13,9 @@ import type { RingState } from './engine/ink-ring';
  *  d'une de mes piles. */
 export type PieceFrom =
   | { readonly kind: 'piece'; readonly hit: PieceClick }
-  | { readonly kind: 'stack'; readonly station: TroopStation };
+  | { readonly kind: 'stack'; readonly station: TroopStation }
+  /** **Une de mes flottes en mer**, saisie par sa fiche (Doctrine du porte-avions, #449). */
+  | { readonly kind: 'movement'; readonly arcId: string };
 
 /** **What letting go would do, said under the pointer** (POC, `#hint`): a sign in a round, the
  *  verb, its consequence — or the refusal in red, or « reposer » when nothing moves. */
@@ -30,13 +33,20 @@ export type DropHint = {
   readonly boarding?: { readonly carrierId: string; readonly need: number; readonly fits: boolean };
   /** **Une branche refusée à côté** (#376) : son motif, sous le verbe gardé. */
   readonly aside?: string;
+  /** Le verbe est un ordre de colonne (`isOrder`), seul à prendre une seconde cible. */
+  readonly order?: true;
 };
+
+/** Un doigt n'a ni Tab ni Échap : la pastille parle alors son geste. */
+const onTouch = (): boolean => globalThis.matchMedia?.(COARSE).matches === true;
 
 /** La pastille d'une lecture du lâcher (`dropReadingOf`) : le verbe choisi, ou le refus. */
 export function hintOfReading(
   reading: DropReading,
   chosenOf: (verbs: ReadonlyArray<CompassAction>) => number,
   forbidden: Forbidden,
+  /** Une rose s'ouvre au lâcher sous le doigt (`fingerRose`) : seule elle laisse choisir. */
+  rose = true,
 ): DropHint | null {
   if (reading.kind === 'none') return null;
   if (reading.kind === 'refused')
@@ -58,14 +68,19 @@ export function hintOfReading(
     ...(verb.key === 'aim' && verb.join !== undefined ? { joins: true } : {}),
     ...(boarding === null ? {} : { boarding }),
     ...(reading.aside === undefined ? {} : { aside: reading.aside }),
+    ...(isOrder(verb) ? { order: true as const } : {}),
     detail:
       verb.key === 'aim' && verb.join !== undefined
         ? fr.drop.pieces(verb.join.pieces)
         : verb.key === 'aim' && chip.tone === 'fight'
           ? strikeOf(verb.cost)
           : verb.cost,
-    ...(verbs.length > 1
-      ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
+    ...(verbs.length > 1 && !(onTouch() && !rose)
+      ? {
+          choice: onTouch()
+            ? fr.drop.choiceTouch(verbs.length)
+            : fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label),
+        }
       : {}),
   };
 }
@@ -99,7 +114,11 @@ export type DropFuel = FuelGauge & { readonly roundTrip: boolean };
  *  the road eats pale and hatched, those Singapore spares ringed, what is missing spilling red
  *  past the tube. Drawn like the personal board's tubes, lying down. */
 function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
-  const eaten = Math.min(fuel.eaten, fuel.held);
+  /** **Ce que l'ancienne route a payé et pas couru** (Doctrine du porte-avions, #449) : la route
+   *  neuve le mange d'abord, cerclé d'ocre, et le réservoir ne paie que le surplus. */
+  const credit = fuel.paid ?? 0;
+  const paid = Math.min(credit, fuel.eaten);
+  const eaten = Math.min(fuel.eaten - paid, fuel.held);
   const kept = fuel.held - eaten;
   /** Singapore's steps stay in the tube when the fuel holds them; past it, they are the spill the
    *  plain price would have made, ringed and empty. */
@@ -128,6 +147,13 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
       <span aria-hidden className="inline-flex">
         <ResourcePlate resource={fuel.resource} height={13} width={13} />
       </span>
+      {paid > 0 && (
+        <span className="fuel-tube fuel-tube--paid" aria-hidden>
+          {Array.from({ length: paid }, (_, at) => (
+            <i key={at} className="fuel-step fuel-step--paid" />
+          ))}
+        </span>
+      )}
       <span className="fuel-tube" aria-hidden>
         {cells.map((cell, at) => (
           <i key={at} className={`fuel-step fuel-step--${cell}`} />
@@ -141,7 +167,19 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
         </span>
       )}
       <span className={`fuel-count${fuel.short > 0 ? ' fuel-count--short' : ''}`} aria-hidden>
-        {fuel.held} → {kept}
+        {/* Un cap neuf dit ce que le stock paie au-delà du plein déjà payé (maquette A). */}
+        {credit === 0 ? (
+          `${fuel.held} → ${kept}`
+        ) : fuel.eaten > credit ? (
+          <>
+            {fr.course.surplus(fuel.eaten - credit, fr.resources[fuel.resource])}
+            <small> · {fr.course.paid(credit)}</small>
+          </>
+        ) : (
+          <>
+            {fr.course.within(fuel.eaten)} <small>{fr.course.paid(credit)}</small>
+          </>
+        )}
         {fuel.short > 0 && ` · ${fr.supplies.lacking(fuel.short)}`}
         {fuel.roundTrip && <small> · {fr.supplies.roundTrip}</small>}
       </span>
@@ -149,18 +187,53 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
   );
 }
 
+/**
+ * **La Guerre éclair sous la main** (ADR 0039 §6, maquette A « Maj ») : l'atout offert en pied
+ * d'une attaque, Maj tenue qui l'arme, l'ordre qui n'enchaîne pas, puis la seconde cible.
+ */
+export type ChainChip =
+  | { readonly kind: 'offer' }
+  | { readonly kind: 'armed'; readonly first: string; readonly span: string }
+  | { readonly kind: 'refused'; readonly reason: string }
+  | {
+      readonly kind: 'second';
+      readonly first: string;
+      readonly then: string | null;
+      readonly span: string | null;
+      /** Le refus de `secondTargetRefusalOf`, dit avant l'aperçu. */
+      readonly refusal: string | null;
+    };
+
+/** **La seconde cible refusée sous la main** : son refus, ou ce qui n'est pas un ordre (embarquer,
+ *  rejoindre, une garnison). La pastille et le trait de la carte le lisent. */
+export const secondRefusalOn = (hint: DropHint, chain: ChainChip | null): string | null =>
+  chain?.kind !== 'second' || hint.tone === 'calm' || hint.tone === 'refused'
+    ? null
+    : (chain.refusal ?? (hint.order === true ? null : fr.blitzkrieg.notAnOrder));
+
 /** Collée au pointeur par le moteur (`onCarryOver`), qui la place sans repasser par React. */
 export function DropHintChip({
   hint,
   notes = [],
   fuel = null,
+  course = false,
+  chain = null,
+  rose = true,
   ref,
 }: {
   hint: DropHint;
   notes?: ReadonlyArray<DropNote>;
   fuel?: DropFuel | null;
+  /** **Une flotte reprise en mer** (#449) : l'ordre est un cap neuf, et la pastille le dit. */
+  course?: boolean;
+  chain?: ChainChip | null;
+  /** Une rose s'ouvre au lâcher sous le doigt : sinon le verbe affiché part tel quel. */
+  rose?: boolean;
   ref: Ref<HTMLDivElement>;
 }) {
+  const second = chain?.kind === 'second' ? chain : null;
+  const unchained = secondRefusalOn(hint, chain);
+  if (unchained !== null) hint = { icon: '✕', tone: 'refused', verb: unchained, detail: null };
   /** **A refusal only the server's preview knows** (#258) turns the sign, as a refusal read on
    *  the client does; the gauge stays, the rest of the road is no longer worth saying. */
   const refusal = hint.tone === 'refused' ? undefined : notes.find((note) => note.refusal);
@@ -168,8 +241,99 @@ export function DropHintChip({
     hint = { icon: '✕', tone: 'refused', verb: refusal.text, detail: null };
     notes = [];
   }
+  const steering = course && hint.tone !== 'refused' && hint.tone !== 'calm';
+  if (steering)
+    hint = {
+      ...hint,
+      icon: '↻',
+      verb: fr.course.verb,
+      /** Le verbe de la rose, sans son prix en slots : le cap neuf garde le sien. */
+      detail: hint.verb,
+    };
+  const touch = onTouch();
+  const armed = chain?.kind === 'armed' && hint.tone === 'fight' ? chain : null;
+  if (armed !== null)
+    hint = {
+      ...hint,
+      verb: fr.blitzkrieg.armedVerb,
+      detail: fr.blitzkrieg.armedDetail(armed.first, armed.span),
+    };
+  const onward = second !== null && hint.tone !== 'refused' && hint.tone !== 'calm';
+  if (second !== null && onward)
+    hint = {
+      ...hint,
+      icon: '2',
+      verb: fr.blitzkrieg.secondVerb(second.then ?? '…'),
+      /** Ce que la cible est d'abord, comme toute attaque ; puis quand la jambe part. */
+      detail:
+        second.span === null
+          ? hint.detail
+          : [hint.detail, fr.blitzkrieg.secondDetail(second.span, second.first)]
+              .filter((part) => part !== null)
+              .join(' · '),
+    };
+  const eyebrow = steering
+    ? fr.course.eyebrow
+    : armed !== null
+      ? fr.blitzkrieg.eyebrow
+      : second !== null && hint.tone !== 'calm'
+        ? fr.blitzkrieg.secondEyebrow
+        : null;
+  const keys =
+    second !== null && hint.tone !== 'calm'
+      ? hint.tone === 'refused'
+        ? touch
+          ? fr.blitzkrieg.secondRefusedKeysTouch
+          : fr.blitzkrieg.secondRefusedKeys(second.first)
+        : touch
+          ? fr.blitzkrieg.secondKeysTouch
+          : fr.blitzkrieg.secondKeys(second.first)
+      : armed !== null
+        ? touch
+          ? fr.blitzkrieg.armedKeysTouch(armed.first)
+          : fr.blitzkrieg.armedKeys(armed.first)
+        : hint.tone === 'refused'
+          ? course
+            ? touch
+              ? fr.course.refusedTouch
+              : fr.course.refused
+            : touch
+              ? fr.drop.refusedTouch
+              : fr.drop.refused
+          : hint.tone === 'calm'
+            ? fr.drop.still
+            : steering
+              ? touch
+                ? fr.course.keysTouch
+                : fr.course.keys
+              : touch
+                ? !rose
+                  ? fr.drop.releaseDirectTouch
+                  : hint.choice === undefined
+                    ? fr.drop.releaseTouch
+                    : fr.drop.releaseChoiceTouch
+                : fr.drop.release;
+  /** Maj sur un ordre qui n'enchaîne pas : l'ordre reste offert, le pied dit pourquoi. */
+  const atout =
+    hint.tone === 'refused' || hint.tone === 'calm'
+      ? null
+      : chain?.kind === 'offer'
+        ? { text: touch ? fr.blitzkrieg.offerTouch : fr.blitzkrieg.offer, alarm: false }
+        : chain?.kind === 'refused'
+          ? {
+              text: touch
+                ? fr.blitzkrieg.refusedKeyTouch(chain.reason)
+                : fr.blitzkrieg.refusedKey(chain.reason),
+              alarm: true,
+            }
+          : null;
   return (
-    <div ref={ref} role="status" className={`drop-chip paper-grain float drop-chip--${hint.tone}`}>
+    <div
+      ref={ref}
+      role="status"
+      className={`drop-chip paper-grain float drop-chip--${hint.tone}${steering || eyebrow !== null ? ' drop-chip--course' : ''}`}
+    >
+      {eyebrow !== null && <span className="drop-chip-eyebrow">{eyebrow}</span>}
       {/* Keyed by what it says: a new verb pops its sign. */}
       <span key={hint.icon + hint.verb} className="drop-chip-icon" aria-hidden>
         {hint.icon}
@@ -191,13 +355,26 @@ export function DropHintChip({
       {hint.tone !== 'refused' && hint.aside !== undefined && (
         <span className="drop-chip-detail drop-chip-detail--alarm">{hint.aside}</span>
       )}
+      {second !== null && onward && second.then !== null && (
+        <span className="drop-chip-detail drop-chip-detail--alarm">
+          {fr.blitzkrieg.secondLost(second.then)}
+        </span>
+      )}
       {hint.choice !== undefined && <span className="drop-chip-detail">{hint.choice}</span>}
       <span className="drop-chip-keys">
-        {hint.tone === 'refused'
-          ? fr.drop.refused
-          : hint.tone === 'calm'
-            ? fr.drop.still
-            : fr.drop.release}
+        {atout?.alarm === true ? (
+          <span className="drop-chip-atout drop-chip-atout--alarm">{atout.text}</span>
+        ) : (
+          <>
+            {keys}
+            {atout !== null && (
+              <>
+                {' · '}
+                <span className="drop-chip-atout">{atout.text}</span>
+              </>
+            )}
+          </>
+        )}
       </span>
     </div>
   );

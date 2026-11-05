@@ -12,7 +12,11 @@ const demolish = vi.fn(() => {
 });
 vi.mock('convex/react', () => ({ useMutation: () => demolish }));
 vi.mock('../../../convex/_generated/api', () => ({ api: { buildings: { demolish: 'demolish' } } }));
-vi.mock('@/domain/construction', () => ({ pledgedWork: () => [], demolitionClipping: () => [] }));
+vi.mock('@/domain/construction', () => ({
+  pledgedWork: () => [],
+  demolitionClipping: () => [],
+  evacuationOf: () => null,
+}));
 afterEach(() => {
   cleanup();
   calls.length = 0;

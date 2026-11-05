@@ -154,6 +154,52 @@ describe('seasonReport.outpostEvents', () => {
         site: { kind: 'building', building: 'mine', regionId: MARNE },
         point,
       } as never);
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 5,
+        kind: 'buildingDemolished',
+        building: 'mine',
+        regionId: MARNE,
+        level: 2,
+        kept: 2,
+      });
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 6,
+        kind: 'buildingDemolished',
+        building: 'mine',
+        regionId: MARNE,
+        level: 1,
+      });
+      const load = { ammunition: 40, oil: 0, coal: 0 };
+      const none = { ammunition: 0, oil: 0, coal: 0 };
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 7,
+        kind: 'supplyDelivered',
+        hostCountry: 'FRA',
+        delivered: load,
+        kept: none,
+        abroad: true,
+      });
+      /** Un convoi arrivé à un dépôt qui n'a rien pris n'a rien livré. */
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 7,
+        kind: 'supplyDelivered',
+        hostCountry: 'FRA',
+        delivered: none,
+        kept: load,
+        abroad: true,
+      });
+      await ctx.db.insert('notices', {
+        ...head,
+        at: 8,
+        kind: 'supplyDelivered',
+        hostCountry: 'FRA',
+        delivered: load,
+        kept: none,
+      });
     });
 
     const page = await t.query(internal.seasonReport.outpostEvents, {
@@ -163,5 +209,8 @@ describe('seasonReport.outpostEvents', () => {
 
     expect(page.next).toBeNull();
     expect(page.events.map((event) => event.kind)).toEqual(['stands', 'raised', 'taken']);
+    /** Un rasage évacué et un Prêt-bail livré ; ni le convoi revenu plein, ni la livraison à son
+     *  propre dépôt ne comptent. */
+    expect(page.uses).toBe(2);
   });
 });

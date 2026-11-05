@@ -4,6 +4,7 @@ import projectionAsset from '../../public/projection.json';
 import { projectLonLat } from './routing';
 import {
   decodeAtlas,
+  decodeRivers,
   findCrossings,
   type AtlasFile,
   type AtlasRegion,
@@ -340,5 +341,127 @@ describe('public/atlas.json', () => {
       lat,
     ]);
     expect([atlas.regionAt(point, 'near'), atlas.regionAt(point, 'far')]).toEqual([null, null]);
+  });
+
+  /** The decor of #440: read by no rule, but it must stand where it says. */
+  it('names its cities, within the globe, Paris a capital', () => {
+    const cities = decodeAtlas(file).cities();
+    expect(cities.length).toBeGreaterThan(900);
+    const astray = cities.filter(
+      ({ lonLat: [lon, lat], name }) =>
+        name.trim() === '' || Math.abs(lon) > 180 || Math.abs(lat) > 90,
+    );
+    expect(astray).toEqual([]);
+    const paris = cities.find(({ name }) => name === 'Paris');
+    expect(paris).toMatchObject({ capital: true });
+    expect(paris!.lonLat[0]).toBeCloseTo(2.35, 1);
+    expect(paris!.lonLat[1]).toBeCloseTo(48.86, 1);
+  });
+
+  it('names its seas, the maquette A ones among them, each point at sea', () => {
+    const atlas = decodeAtlas(file);
+    const seas = atlas.seas();
+    expect(seas.length).toBeGreaterThan(90);
+    expect(seas.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'océan Atlantique',
+        'mer du Nord',
+        'Manche',
+        'mer Méditerranée',
+        'golfe de Gascogne',
+        'mer Baltique',
+        'mer Noire',
+        'mer Tyrrhénienne',
+        'mer Adriatique',
+        'mer Égée',
+        'mer Ionienne',
+      ]),
+    );
+    expect(new Set(seas.map(({ name }) => name)).size).toBe(seas.length);
+    const dry = seas.flatMap(({ name, rank, spots }) =>
+      rank > 4 || spots.length === 0 || spots.length > 6
+        ? [name]
+        : spots.flatMap(({ lonLat, radius }) => {
+            const point = projectLonLat(
+              projectionAsset.outline as never,
+              projectionAsset.sphere,
+              lonLat,
+            );
+            return radius < 0.5 || atlas.regionAt(point, 'far') !== null ? [name] : [];
+          }),
+    );
+    expect(dry).toEqual([]);
+  });
+
+  /** #457, revue du 05/11 : the radius is the water's, up to the nearest land, not the sea's
+   *  own border with its neighbours. */
+  it.each([
+    'océan Atlantique',
+    'mer du Nord',
+    'mer Baltique',
+    'mer Méditerranée',
+    'mer Noire',
+    'mer Égée',
+  ])('measures the %s from its points to the nearest land', (name) => {
+    const atlas = decodeAtlas(file);
+    const sea = atlas.seas().find((each) => each.name === name)!;
+    const rings = [...atlas.shapes(() => 'land', 'far').values()]
+      .flat()
+      .flatMap(({ outer, holes }) => [outer, ...holes]);
+    // Every point of the land's shores, and the nearest one to a spot: the segments between them
+    // are no longer than the far level's simplification, a fraction of the slack.
+    const shoreDistance = ([x, y]: readonly [number, number]) => {
+      let least = Infinity;
+      for (const ring of rings)
+        for (let i = 0; i < ring.length; i += 2)
+          least = Math.min(least, Math.hypot(ring[i]! - x, ring[i + 1]! - y));
+      return least;
+    };
+    for (const { lonLat, radius } of sea.spots) {
+      const at = projectLonLat(projectionAsset.outline as never, projectionAsset.sphere, lonLat);
+      expect(atlas.regionAt(at, 'far')).toBeNull();
+      expect(Math.abs(shoreDistance(at) - radius)).toBeLessThan(0.3);
+    }
+  });
+
+  it('draws the great rivers far, and the front of 1940 near, each named once', () => {
+    const names = (rivers: ReturnType<typeof decodeRivers>) => rivers.map(({ name }) => name);
+    const far = decodeRivers(file.rivers!, file.transform);
+    const close = decodeRivers(near.rivers!, near.transform);
+    expect(far.every(({ rank }) => rank <= 4)).toBe(true);
+    expect(names(far)).toEqual(expect.arrayContaining(['Rhin', 'Seine', 'Oder', 'Dniepr']));
+    for (const river of ['Rhin', 'Seine', 'Meuse', 'Moselle', 'Marne', 'Escaut', 'Rhône', 'Pô'])
+      expect(names(close).filter((name) => name === river)).toHaveLength(1);
+  });
+
+  it.each(['far', 'near'] as const)('keeps the %s rivers on the land of that level', (detail) => {
+    const atlas = decodeAtlas(file, near);
+    const rivers =
+      detail === 'far'
+        ? decodeRivers(file.rivers!, file.transform)
+        : decodeRivers(near.rivers!, near.transform);
+    // A middle of a segment, every 50th: the ends sit on the coast the clip cut along, and
+    // rounding to the quantum may set a middle a few metres off it.
+    const SLACK = 0.002;
+    const dry = ([x, y]: readonly [number, number]) =>
+      [
+        [0, 0],
+        [SLACK, 0],
+        [-SLACK, 0],
+        [0, SLACK],
+        [0, -SLACK],
+      ].some(([dx, dy]) => atlas.regionAt([x + dx!, y + dy!], detail) !== null);
+    const wet = rivers
+      .flatMap(({ name, lines }) =>
+        lines.flatMap((line) =>
+          Array.from({ length: Math.floor((line.length / 2 - 1) / 50) }, (_, k) => {
+            const i = 2 * (k * 50 + 1);
+            const at = [(line[i - 2]! + line[i]!) / 2, (line[i - 1]! + line[i + 1]!) / 2] as const;
+            return dry(at) ? [] : [`${name} ${at}`];
+          }).flat(),
+        ),
+      )
+      .slice(0, 5);
+    expect(wet).toEqual([]);
   });
 });

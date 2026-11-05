@@ -9,7 +9,7 @@ import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, seatIn, unclocked } from './seats.fixture';
+import { attacking, foundSeat, joinSeat, raiding, seatIn, unclocked } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -370,7 +370,7 @@ describe('what the jobs file for the journal', () => {
     )[0]!._id;
 
     const barracks = await raise(t, seat, 'barracks', MARNE);
-    const sent = await t.mutation(api.movements.raid, {
+    const sent = await raiding(t, {
       ...seat,
       origin: { kind: 'building', buildingId: barracks },
       troopIds: [await form(t, seat, 'infantry', barracks)],
@@ -514,5 +514,47 @@ describe('read and unread', () => {
     vi.advanceTimersByTime(3_600_000);
     await t.mutation(api.journal.markRead, seat);
     expect((await t.query(api.view.playerView, seat)).journalReadAt).toBeGreaterThan(stamped!);
+  });
+});
+
+/**
+ * **Le rejeu d'absence se marque à part** (#439) : sa fin ou son arrêt pose une heure qui n'est
+ * pas celle du journal — les dépêches restent neuves au journal, mais la carte ne les rejoue
+ * pas une seconde fois, sur aucun appareil du compte.
+ */
+describe('the absence tour', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('stamps its own hour, and leaves the journal unread', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    expect((await t.query(api.view.playerView, seat)).absenceTourAt).toBeNull();
+
+    await t.mutation(api.journal.markToured, seat);
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.absenceTourAt).toBe(Date.now());
+    expect(view.journalReadAt).toBeNull();
+  });
+
+  it('is refused once the season is over', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seat.seasonId, { status: 'concluded', concludedAt: Date.now() });
+    });
+    await expect(t.mutation(api.journal.markToured, seat)).rejects.toThrow('SEASON_CONCLUDED');
+  });
+
+  it('is refused to a stranger to the season', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const { seat: other } = await foundSeat(t, 'Zoé', 0.5);
+    await expect(
+      t.mutation(api.journal.markToured, { token: other.token, seasonId: seat.seasonId }),
+    ).rejects.toThrow();
   });
 });

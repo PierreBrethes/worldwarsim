@@ -23,6 +23,7 @@ import {
   sightingReachKm,
 } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
+import type { Asset } from '../domain/nation-assets';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
 import { effectiveSpecialty, lookoutKmOf, type Specialized } from '../domain/outposts';
@@ -138,6 +139,19 @@ type RefusalContext = {
 };
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
+/** « 1 pièce perdue », « 3 pièces adverses détruites » : le nom et ses adjectifs s'accordent. */
+const pieces = (count: number, ...words: string[]): string =>
+  [`${decimal(count, 0)} pièce`, ...words].map((word) => word + plural(count, '', 's')).join(' ');
+
+/** « de Metz », « d’Amiens », « du Havre », « des Sables-d’Olonne ». */
+const ofCity = (city: string): string =>
+  city.startsWith('Le ')
+    ? `du ${city.slice(3)}`
+    : city.startsWith('Les ')
+      ? `des ${city.slice(4)}`
+      : /^[AEIOUYÉÈÊÂÎÔ]/i.test(city)
+        ? `d’${city}`
+        : `de ${city}`;
 
 /** **Ce qu'un Magasin verse en passant**, en crans (ADR 0037 §4) ; `null` quand rien. */
 const resupplyWords = (rounds: number, fuel: number): string | null => {
@@ -237,6 +251,51 @@ const facedWords = (faced: Faced): string => {
 const facedNation = (nation: string | null): string =>
   nation !== null && isNation(nation) ? fr.nations[nation] : 'garnison irrégulière';
 
+/** Les nations de l'édition finale avec leur article ; les garnisons irrégulières comprises. */
+const THE_NATION: Readonly<Record<string, string>> = {
+  france: 'la France',
+  uk: 'le Royaume-Uni',
+  usa: 'les États-Unis',
+  ussr: 'l’URSS',
+  germany: 'l’Allemagne',
+  japan: 'le Japon',
+  italy: 'l’Italie',
+  china: 'la Chine',
+  irregular: 'les irréguliers',
+};
+
+const theNation = (nation: string): string => THE_NATION[nation] ?? nation;
+
+/** `de la France`, `du Japon`, `des États-Unis`. */
+const ofTheNation = (nation: string): string => {
+  const the = theNation(nation);
+  return the.startsWith('les ')
+    ? `des ${the.slice(4)}`
+    : the.startsWith('le ')
+      ? `du ${the.slice(3)}`
+      : `de ${the}`;
+};
+
+/** Le verbe s'accorde à un sujet pluriel : les États-Unis, les irréguliers. */
+const agrees = (nation: string, one: string, many: string): string =>
+  nation === 'usa' || nation === 'irregular' ? many : one;
+
+/** `près de Kiev`, `près d’Oslo` ; sans région connue, le front. */
+const near = (place: string): string => (place === '' ? 'sur le front' : `près ${ofName(place)}`);
+
+const EDITION_DAY = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+const EDITION_WHEN = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** `3 nov.` ; `dim. 3 nov., 15:04` — une saison dure des jours, l'heure seule mentirait. */
+const editionDay = (at: number): string => EDITION_DAY.format(at);
+const editionWhen = (at: number): string => EDITION_WHEN.format(at);
+
 const longDate = (date: string, options: Intl.DateTimeFormatOptions): string =>
   new Date(`${date}T12:00Z`)
     .toLocaleDateString('fr-FR', { timeZone: 'UTC', ...options })
@@ -255,35 +314,26 @@ export const fr = {
     china: 'Chine',
   } satisfies Record<Nation, string>,
 
-  /** **L'atout d'une nation, en clair** (fiche 06, N3 du 14/10) : un nom et la règle qu'il casse. */
+  /** **L'atout d'une nation, en clair** (ADR 0039 §1) : un nom et la règle qu'il casse. Quatre
+   *  atouts seulement ; la table qui dit à qui ils vont est `ASSET_BY_NATION`. */
   nationAssets: {
-    france: {
-      name: 'Le rayon impérial',
-      rule: 'vos avant-postes ouvrent un rayon plus large, sans contrainte d’adjacence',
+    lendLease: {
+      name: 'Prêt-bail',
+      rule: 'un transport livre au dépôt d’un avant-poste étranger que vous avez relevé, allié ou ennemi, sans l’accord du receveur',
     },
-    uk: {
-      name: 'Maîtrise des mers',
-      rule: 'votre écoute relève tous les mouvements maritimes, sans origine ni destination',
+    carrierDoctrine: {
+      name: 'Doctrine du porte-avions',
+      rule: 'un mouvement en mer change une fois de destination, avant la mi-parcours',
     },
-    usa: { name: 'Prêt-bail', rule: 'vos envois de ressources ne sont jamais relevés' },
-    ussr: {
+    industrialEvacuation: {
       name: 'Évacuation industrielle',
-      rule: 'vous démontez un bâtiment et le rebâtissez ailleurs, à coût réduit',
+      rule: 'un bâtiment rasé laisse son niveau en réserve : la prochaine pose du même type coûte un niveau 1 et sort au niveau gardé',
     },
-    germany: {
+    blitzkrieg: {
       name: 'Guerre éclair',
-      rule: 'deux mouvements offensifs s’enchaînent sans attendre de slot',
+      rule: 'une attaque à terre porte deux cibles, la seconde ne part qu’après une victoire à la première',
     },
-    japan: { name: 'Banzaï', rule: 'votre infanterie capture à pleine vitesse, même entamée' },
-    italy: {
-      name: 'Mare Nostrum',
-      rule: 'un mouvement maritime part d’un avant-poste côtier, sans port',
-    },
-    china: {
-      name: 'Terre brûlée',
-      rule: 'un bâtiment chinois capturé est détruit au lieu d’être pris',
-    },
-  } satisfies Record<Nation, { name: string; rule: string }>,
+  } satisfies Record<Asset, { name: string; rule: string }>,
 
   roles: {
     infantry: { one: 'infanterie', many: 'infanterie' },
@@ -443,11 +493,18 @@ export const fr = {
       won: 'VICTOIRE',
       lost: 'DÉFAITE',
       draw: 'ÉGALITÉ',
+      closed: 'SAISON CLOSE',
       eliminated: (time: string) => `ÉLIMINÉ À ${time} — votre quartier général est tombé`,
       home: 'retour à l’accueil',
       watch: 'regarder la carte',
       observe: 'observer',
-      outcome: { winner: 'vainqueur', loser: 'vaincu', out: 'éliminé', draw: 'égalité' },
+      outcome: {
+        winner: 'vainqueur',
+        loser: 'vaincu',
+        out: 'éliminé',
+        draw: 'égalité',
+        closed: 'saison close',
+      },
     },
     fundsLabel: (stock: number, perMinute: number) =>
       `fonds : ${num(Math.floor(stock))}, ${num(perMinute)} de plus chaque minute`,
@@ -567,6 +624,11 @@ export const fr = {
    * **Les points stratégiques** (P1-P12) : un nom de 1940, une règle cassée pour qui le tient.
    */
   points: {
+    /** **L'heure qui reste au compte**, sous chaque mât du meneur (#442) : « 6 h 00 ». */
+    raceLeft: (milliseconds: number) => {
+      const minutes = Math.floor(milliseconds / 60_000);
+      return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    },
     names: {
       tangier: 'Tanger',
       istanbul: 'Istanbul',
@@ -716,6 +778,11 @@ export const fr = {
     SEAT_TAKEN: () => 'vous avez déjà une place dans cette partie — elle est à l’accueil',
     SEASON_GONE: () => 'cette saison n’existe plus',
     SEASON_NOT_LAUNCHED: () => 'la saison n’est pas lancée',
+    SEASON_NOT_CONCLUDED: () => 'l’édition finale paraît à la fin de la saison',
+    UNKNOWN_EDITION: () => 'cette édition finale n’existe pas',
+    NOT_A_PARTICIPANT: () => 'cette édition finale est réservée aux joueurs de la saison',
+    EDITION_PENDING: () =>
+      'l’édition finale s’imprime encore — la partie pourra être supprimée dans quelques minutes',
     SEASON_ALREADY_LAUNCHED: () => 'la saison est déjà lancée',
     SEASON_CONCLUDED: () =>
       'la saison est conclue — on la relit, on n’y joue plus (le fondateur l’efface)',
@@ -809,6 +876,9 @@ export const fr = {
     /** **Le QG ne se rase pas** (question 39, 15/09) : sa destruction serait une révision de
      *  « jamais éliminé », et elle n'est pas tranchée. */
     HQ_NEVER_DEMOLISHED: () => 'le quartier général ne se rase pas',
+    DEMOLITION_UNDER_CAPTURE: () => 'une capture court sur ce bâtiment : il ne se rase pas',
+    DISMANTLE_UNDER_CAPTURE: () =>
+      'une capture court sur ce point ou un bâtiment qu’il ancre : il ne se démantèle pas',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
@@ -830,8 +900,29 @@ export const fr = {
     MOVEMENT_IN_FLIGHT: (d) =>
       `slots de mouvement tous engagés (${num(d.maximum)}) — chaque carte Transmissions en ouvre un`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
+    /** `course` : un cap changé en mer (#449) — le compte tient le plein déjà payé, et l'ancre est
+     *  loin. */
     NOT_ENOUGH_FUEL: (d) =>
-      `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
+      `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)}${d.course === true ? ', plein déjà payé compris' : ' — rechargez-la à l’ancre'}`,
+    /** **La Doctrine du porte-avions** (ADR 0039 §4) : la fiche et la pastille le disent avant. */
+    UNKNOWN_MOVEMENT: () => 'mouvement inconnu',
+    NO_CARRIER_DOCTRINE: () => 'un mouvement parti ne se reprend pas',
+    COURSE_ON_MISSION: () => 'ce mouvement porte une mission : son cap ne change pas',
+    COURSE_TARGET_ON_MISSION: () =>
+      'un cap neuf ne prend pas de mission : marche, attaque ou expédition seulement',
+    COURSE_ALREADY_CHANGED: () => 'cap déjà changé : une fois par mouvement',
+    /** `at` : l'heure de la mi-parcours, que la fiche dit (#449). */
+    PAST_HALFWAY: (d) =>
+      `mi-parcours passée${d.at === undefined ? '' : ` à ${str(d.at)}`} : le cap ne change plus`,
+    NOT_AT_SEA: () => 'la doctrine ne vaut qu’en mer',
+    /** **La Guerre éclair** (ADR 0039 §6) : la pastille le dit avant le lâcher. `type` : l'ordre
+     *  qui n'enchaîne pas, absent pour une capture. */
+    NO_BLITZKRIEG: () => 'une attaque vise une cible : seule la Guerre éclair en enchaîne deux',
+    CHAIN_ATTACK_ONLY: (d) =>
+      `${d.type === 'march' ? 'une marche' : d.type === 'raid' ? 'un raid' : 'une capture'} n’enchaîne pas — la Guerre éclair est une attaque à terre`,
+    CHAIN_ASHORE_ONLY: () =>
+      'la Guerre éclair est une attaque à terre : ni mer ni air sur ses deux routes',
+    SAME_TARGET: () => 'la seconde cible n’est pas la première',
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
       'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
@@ -854,6 +945,10 @@ export const fr = {
     NOTHING_TO_DELIVER: () => 'le transport est vide : chargez-le d’abord',
     DEPOT_NOT_STANDING: () => 'le point est encore en chantier : son dépôt n’existe pas',
     DEPOT_FULL: (d) => `le dépôt est plein : ${num(d.capacity)} au total`,
+    FOREIGN_DEPOT: () =>
+      'on ne livre qu’à ses propres dépôts : seul le Prêt-bail américain livre chez un autre',
+    LEND_LEASE_TRANSPORTS_ONLY: () =>
+      'un Prêt-bail ne porte que des transports : pas de garnison chez l’autre, débarquez d’abord',
     AIRDROP_AIR_ONLY: () => 'seul un avion de transport largue : camions et cargos se posent',
     NO_SQUAD_THERE: () => 'aucune de vos escouades ne se tient là',
     SQUAD_ANCHORED: () => 'cette escouade est ancrée : elle se recharge seule, sans paquet',
@@ -1220,7 +1315,7 @@ export const fr = {
       ['terrain', 'le monde entier'],
       ['capture d’un QG', `${capture} heures, suspendue pendant le repos du défenseur`],
       ['vos engagements', 'une plage de repos de 7 h, publique'],
-      ['nations', 'une chacune, avec son atout'],
+      ['nations', 'une chacune ; quatre ont un atout'],
     ],
     reply: 'répondre',
     takeSeat: (founder: string) =>
@@ -1323,11 +1418,11 @@ export const fr = {
     opening: 'Ouverture du salon…',
     quit: 'quitter',
     founder: 'fondateur',
-    toBalance: 'à équilibrer',
     destroy: 'supprimer la partie',
-    destroyConfirm: 'confirmer — tout est effacé',
+    destroyConfirm: 'confirmer — tout est effacé, sauf l’édition finale d’une Mondiale',
     destroyCancel: 'annuler',
-    destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
+    destroyNote:
+      'la partie disparaît pour tous les joueurs, sans retour ; en Mondiale, l’édition finale reste à chacun.',
     pace: (hours: number) =>
       hours < 72 ? `${num(hours)} heures` : `${num(Math.round(hours / 24))} jours`,
     paceNone: 'sans horloge',
@@ -1356,7 +1451,7 @@ export const fr = {
         span: 'quelques jours',
         facts: [
           ['horloge', '3 à 14 jours, deux ou trois visites par jour'],
-          ['table', '2 à 8 joueurs, une nation et son atout'],
+          ['table', '2 à 8 joueurs, une nation chacun'],
           ['terrain', 'le monde entier'],
           ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
         ],
@@ -1620,7 +1715,7 @@ export const fr = {
     ): ReadonlyArray<readonly [string, string]> => [
       ['horloge', `${clockLabel(durationHours)}, deux ou trois visites par jour`],
       ['terrain', 'le monde entier'],
-      ['nations', 'une chacune, avec son atout'],
+      ['nations', 'une chacune ; quatre ont un atout'],
       ['victoire', 'quatre des Sept tenus 24 h, ou tous les QG adverses'],
       ['après le départ', 'la table se ferme'],
       ['départ', founder === null ? 'quand vous lancez' : `quand ${founder} lance`],
@@ -2253,6 +2348,226 @@ export const fr = {
     frozen: 'Entre deux éditions, recruter ne déplace pas un chiffre de la page.',
   },
 
+  /**
+   * **L'édition finale d'une Mondiale** (#455, maquette « La grande une ») : l'archive ne porte
+   * que des faits typés (`convex/finalEdition.ts`), chaque phrase se compose ici. Une nation se
+   * nomme avec son article (`theNation`), et le verbe s'accorde aux États-Unis.
+   */
+  finalEdition: {
+    stamp: 'édition finale',
+    meta: (code: string) => `Saison ${code} · Mondiale`,
+    span: (from: number, to: number) => `du ${editionDay(from)} au ${editionDay(to)}`,
+    concludedOn: (at: number) => `conclue ${editionWhen(at)}`,
+    verdictKicker: 'le verdict',
+    ahead: (hours: number) => `${hours} h`,
+    aheadNote: 'avant l’horloge',
+    atClock: 'à l’horloge',
+    /** La phrase sous le chiffre de l'oreille : pourquoi, et quand. */
+    verdictLine: (input: {
+      reason: VerdictReason;
+      winner: string | null;
+      closedBy: string | null;
+      at: number;
+      clockAt: number | null;
+    }): string => {
+      const when = editionWhen(input.at);
+      const clock =
+        input.clockAt === null ? '' : `, l’horloge tombait ${editionWhen(input.clockAt)}`;
+      if (input.reason === 'closed')
+        return input.closedBy === null
+          ? `close à la main ${when}${clock}.`
+          : `close à la main par ${theNation(input.closedBy)} ${when}${clock}.`;
+      if (input.reason === 'draw')
+        return `conclue ${when} : heures de points et territoire se valent, personne ne l’emporte.`;
+      /** Sous « à l'horloge », la raison ne le redit pas. */
+      const why = fr.victory.verdictWhy(input.reason, null).replace(/^à l’horloge, /, '');
+      return `${why}, ${when}${clock}.`;
+    },
+    headline: (reason: VerdictReason, winner: string | null): string =>
+      reason === 'closed'
+        ? 'La saison est close'
+        : winner === null
+          ? 'Égalité à l’horloge'
+          : `${upperFirst(theNation(winner))} ${agrees(winner, 'l’emporte', 'l’emportent')}`,
+    /** Le chapeau : le verdict, et les Sept que le vainqueur tient à la fin. */
+    deck: (input: {
+      reason: VerdictReason;
+      points: ReadonlyArray<StrategicPointKey>;
+      at: number;
+    }) =>
+      `${
+        input.points.length === 0
+          ? ''
+          : `${andList(input.points.map((key) => fr.points.names[key]))} : ${plural(input.points.length, 'tenu', 'tenus')} à la conclusion. `
+      }${input.reason === 'closed' ? 'Close' : 'Conclue'} ${editionWhen(input.at)}.`,
+    mine: {
+      won: 'Vous l’emportez.',
+      fell: (kind: 'eliminated' | 'surrendered', at: number | null) =>
+        `${kind === 'eliminated' ? 'Tombé' : 'Capitulé'}${at === null ? '' : ` ${editionWhen(at)}`}.`,
+      rank: (rank: number, of: number) => `${ordinal(rank)} sur ${of}.`,
+      share: (territory: number) => `${decimal(territory, 1)} % du sol.`,
+      open: 'votre feuillet',
+      pinned: 'votre ligne',
+    },
+    /** Les tampons de l'édition : une clôture à la main ne tamponne que les éliminés. */
+    outcome: {
+      winner: 'vainqueur',
+      loser: 'vaincu',
+      draw: 'égalité',
+      eliminated: 'éliminé',
+      surrendered: 'capitulé',
+    },
+    exit: (kind: 'eliminated' | 'surrendered', at: number | null) =>
+      `${kind === 'eliminated' ? 'Éliminé' : 'Capitulé'}${at === null ? '' : ` ${editionWhen(at)}`}. Son sol est passé aux irréguliers ; le télégraphe lui restait.`,
+    momentsTitle: (count: number) =>
+      `La saison en ${spelled(count)} moment${plural(count, '', 's')}`,
+    when: (at: number) => editionWhen(at),
+    moment: {
+      contact: (a: string, b: string, place: string) => ({
+        title: 'Premier contact',
+        text: `${upperFirst(theNation(a))} ${agrees(a, 'frappe', 'frappent')} ${theNation(b)} ${near(place)} : la première passe de résolution entre deux nations.`,
+      }),
+      battle: (input: {
+        winner: string;
+        engaged: number;
+        destroyed: number;
+        lost: number;
+        place: string;
+      }) => ({
+        title: 'La plus grande bataille',
+        text: `${pieces(input.engaged, 'engagée')} ${near(input.place)}. ${upperFirst(theNation(input.winner))} ${agrees(input.winner, 'l’emporte', 'l’emportent')} : ${pieces(input.destroyed, 'détruite')} contre ${decimal(input.lost, 0)}.`,
+      }),
+      hqTaken: (by: string | null, fallen: string, place: string) => ({
+        title: `Le quartier général ${ofTheNation(fallen)} tombe`,
+        text: `${by === null ? 'Il est capturé' : `${upperFirst(theNation(by))} le ${agrees(by, 'capture', 'capturent')}`} ${near(place)} : ${theNation(fallen)} ${agrees(fallen, 'sort', 'sortent')} de la course.`,
+      }),
+      race: (nation: string, key: StrategicPointKey) => ({
+        title: `${upperFirst(theNation(nation))} dans la course`,
+        text: `${fr.points.names[key]} : quatre des Sept tenus, le compte de vingt-quatre heures commence.`,
+      }),
+      verdict: (reason: VerdictReason, winner: string | null) => ({
+        title: reason === 'closed' ? 'La saison est close' : 'La saison est conclue',
+        text:
+          reason === 'closed'
+            ? 'Close à la main : personne n’est vainqueur ni vaincu.'
+            : winner === null
+              ? 'À l’horloge, heures de points et territoire se valent : personne ne l’emporte.'
+              : `${upperFirst(theNation(winner))} ${agrees(winner, 'l’emporte', 'l’emportent')} : ${fr.victory.verdictWhy(reason, null)}.`,
+      }),
+    },
+    /** Le plus beau coup d'une nation, ou la phrase de repli. */
+    finest: {
+      hqTaken: (fallen: string, at: number) => ({
+        title: `Le quartier général ${ofTheNation(fallen)}`,
+        text: `${upperFirst(`pris ${editionWhen(at)}`)}.`,
+      }),
+      pointTaken: (key: StrategicPointKey, from: string | null, at: number) => ({
+        title: fr.points.names[key],
+        text: `${upperFirst(`pris ${from === null ? 'au neutre' : `à ${theNation(from)}`} ${editionWhen(at)}`)}.`,
+      }),
+      pass: (place: string, destroyed: number, lost: number, at: number) => ({
+        title: upperFirst(near(place)),
+        text: `${upperFirst(editionWhen(at))} : ${pieces(destroyed, 'détruite')} contre ${decimal(lost, 0)}.`,
+      }),
+      none: 'Aucun engagement gagné contre une nation.',
+    },
+    line: {
+      gains: 'prises',
+      losses: 'pertes',
+      finest: 'plus beau coup',
+      pointGained: (key: StrategicPointKey, from: string | null, at: number) =>
+        `${fr.points.names[key]}, ${from === null ? 'au neutre' : `sur ${theNation(from)}`}, ${editionDay(at)}`,
+      hqGained: (nation: string) => `le quartier général ${ofTheNation(nation)}`,
+      outpostsCaptured: (count: number) =>
+        `${decimal(count, 0)} avant-poste${plural(count, '', 's')} capturé${plural(count, '', 's')}`,
+      destroyed: (count: number) => `${pieces(count, 'adverse', 'détruite')}`,
+      pointLost: (key: StrategicPointKey, to: string | null, at: number) =>
+        `${fr.points.names[key]}, ${to === null ? 'rendu au neutre' : `à ${theNation(to)}`}, ${editionDay(at)}`,
+      hqLost: (at: number) => `le quartier général, ${editionWhen(at)}`,
+      outpostsLost: (count: number) =>
+        `${decimal(count, 0)} avant-poste${plural(count, '', 's')} pris`,
+      lost: (count: number) => `${pieces(count, 'perdue')}`,
+      worstPass: (lost: number, place: string, at: number) =>
+        `la pire passe : ${pieces(lost)} ${near(place)}, ${editionDay(at)}`,
+      nothing: 'rien',
+    },
+    map: {
+      title: 'La carte de la fin · sans brouillard',
+      caption:
+        'Chaque région à l’encre de qui la tenait à la conclusion, irréguliers en gris ; les Sept, carrés, à l’encre du dernier teneur.',
+      irregular: 'irréguliers',
+      neutral: 'neutre',
+      sept: 'les Sept, à l’encre du teneur',
+    },
+    palmares: 'Le palmarès des Sept · le plus long tenu',
+    neverHeld: 'jamais tenu',
+    band: 'Les Sept de main en main',
+    ranking: 'Le classement final',
+    rankingCaption: 'Rang au territoire, comme toute édition ; dessous, le général.',
+    you: 'vous',
+    points: (value: number) => `${decimal(value, 0)} pts`,
+    percent: (value: number) => `${decimal(value, 1)} %`,
+    carnet: (count: number) => `Le carnet des ${spelled(count)} nations`,
+    carnetKicker: 'Le brouillard est tombé : chacun lit les chiffres et la ligne de tous',
+    columns: {
+      territory: 'Terr.',
+      general: 'Général',
+      industry: 'Indus.',
+      military: 'Milit.',
+      deeds: 'Faits',
+      destroyed: 'Détruit',
+      lost: 'Perdu',
+      pointHeld: 'H. points',
+      dispatches: 'Dépêches',
+    },
+    hours: (ms: number) => `${decimal(Math.round(ms / 3_600_000), 0)} h`,
+    carnetCaption:
+      'Terr. : part du sol à la conclusion. H. points : heures de points stratégiques tenus. Dépêches : le canal général seul. En rouge, le meilleur de la colonne.',
+    feuillet: {
+      own: 'Votre feuillet',
+      of: (nation: string) => `Le feuillet ${ofTheNation(nation)}`,
+      season: 'prises, pertes, plus beau coup',
+      curve: 'Le territoire, édition par édition',
+      others: 'Les feuillets des autres',
+      back: 'revenir à la une',
+    },
+    une: {
+      open: 'Enregistrer la une',
+      openShort: 'La une',
+      kicker: 'La une, en image',
+      title: 'Enregistrer la une pour la partager',
+      note: 'L’image est la une de l’édition finale, au format d’une page de journal (1080 × 1350). Le brouillard est tombé : la carte et le classement sont ceux de tout le monde.',
+      foot: 'En pied de page',
+      mine: 'Ma saison',
+      neutral: 'Rien de moi',
+      mineNote:
+        '« Ma saison » ajoute votre nation, votre rang et votre plus beau coup en pied de page.',
+      save: 'Enregistrer l’image',
+      close: 'Fermer',
+      saved: (file: string) => `Enregistrée : ${file}`,
+      file: (code: string) => `la-manchette-saison-${code.toLowerCase()}-une.png`,
+      neutralFoot: () => `Une partie de ${fr.masthead.title}, le monde en jeu.`,
+      mineHead: (nation: string, nickname: string) =>
+        `MA SAISON · ${nationLabel(nation).toUpperCase()} · ${nickname.toUpperCase()}`,
+      rankingHead: 'LE CLASSEMENT FINAL · PART DU SOL TENUE',
+      players: (count: number) => `${count} NATIONS`,
+    },
+    home: 'Accueil',
+    close: 'Fermer',
+    /** La page de presse d'une Mondiale conclue, quand l'archive manque. */
+    pending: 'L’édition finale s’imprime : elle paraît ici dans quelques minutes.',
+    absent:
+      'Pas d’édition finale pour cette saison : elle s’est conclue avant l’archive, ou l’impression a échoué. Voici la dernière édition ordinaire.',
+    recent: {
+      title: 'Les dernières éditions finales',
+      note: 'gardées après la saison',
+      kicker: (code: string, at: number) => `Mondiale · saison ${code} · ${editionDay(at)}`,
+      line: (nation: string, rank: number, of: number) =>
+        `${nationLabel(nation)}, ${ordinal(rank)} sur ${of}`,
+      read: 'lire l’édition',
+    },
+  },
+
   rail: {
     /** L'onglet « prod. » est mort avec la fenêtre Production (59a) ; l'abaque prend sa place
      *  parce qu'il est la seule lecture des unités qui ne demande de posséder rien (contrat 06). */
@@ -2479,11 +2794,13 @@ export const fr = {
     concluded: (nation: string) => `LA SAISON EST CONCLUE — ${nation} l’emporte`,
     /** **La fin d'une partie dit pourquoi** (B10, B11, M1, M12) : le journal et l'édition finale. */
     verdictConcluded: (reason: VerdictReason, nation: string | null, perMinute: number | null) =>
-      reason === 'draw'
-        ? perMinute === null
-          ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
-          : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
-        : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
+      reason === 'closed'
+        ? 'LA SAISON EST CLOSE'
+        : reason === 'draw'
+          ? perMinute === null
+            ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
+            : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
+          : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
       reason === 'hqTaken'
         ? 'son infanterie a capturé le dernier quartier général adverse'
@@ -2584,6 +2901,12 @@ export const fr = {
     shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
     captured: 'capturé',
+    /** **Un QG pris** (#442) : chez son preneur, au lieu de « capturé » ; chez l'éliminé et qui
+     *  l'avait relevé, en noir. */
+    hqTaken: 'QG pris',
+    hqFallen: 'QG tombé',
+    /** **La course aux Sept** (#442) : le meneur a perdu un de ses quatre, en noir sur ce point. */
+    raceBroken: 'compte rompu',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
     finished: 'achevé',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */
@@ -2724,8 +3047,12 @@ export const fr = {
           : `${building} en ${region} passe au niveau ${level}.`,
       /** Rasé sur ordre : la phrase dit le niveau, parce que c'est ce qui est parti — et rien
        *  ne revient (décision 5a du 15/09). */
-      buildingDemolished: (building: string, region: string, level: number) =>
-        `${building} en ${region} a été rasé — niveau ${level} perdu, rien n’est rendu.`,
+      buildingDemolished: (building: string, region: string, level: number, kept?: number) =>
+        kept === undefined
+          ? `${building} en ${region} a été rasé — niveau ${level} perdu, rien n’est rendu.`
+          : kept > level
+            ? `${building} en ${region} a été évacué — réserve inchangée, niveau ${kept}.`
+            : `${building} en ${region} a été évacué — niveau ${level} gardé en réserve.`,
       delivered: (building: string, region: string, role: string) =>
         `${building} en ${region} a livré une compagnie — ${role}.`,
       deliveredHome: (role: string) =>
@@ -2736,6 +3063,23 @@ export const fr = {
           return `Une colonne de ${column} a reflué sur ses arrières — ${country}.`;
         return `Une colonne de ${column} a pris position — ${country}.`;
       },
+      /** **Le cap changé** (ADR 0039 §4) : une fois, et la dépêche le rappelle. */
+      courseChanged: (country: string, arrival: string) =>
+        `La flotte a changé de cap vers ${country} — arrivée à ${arrival}. C’était l’unique fois.`,
+      /** **La seconde jambe d'une Guerre éclair** (ADR 0039 §6) : partie, tombée, ou restée,
+       *  et pourquoi (`reason`, le texte du refus). */
+      blitzkrieg: (
+        outcome: 'onward' | 'lost' | 'halted',
+        first: string,
+        then: string,
+        arrival: string | null,
+        reason: string | null,
+      ) =>
+        outcome === 'onward'
+          ? `${first} : terrain tenu. La colonne file sur ${then}${arrival === null ? '' : ` — arrivée à ${arrival}`}.`
+          : outcome === 'lost'
+            ? `${first} : terrain perdu. ${then} tombe : les survivants rentrent.`
+            : `${first} : terrain tenu, mais la colonne ne file pas sur ${then} — ${reason ?? '…'}. Elle reste sur place.`,
       /** **Le Magasin traversé** (ADR 0037 §4) : ce qu'il a versé, ou pourquoi rien. */
       storeResupplied: (
         outcome: 'served' | 'short' | 'captured' | 'closed',
@@ -2886,6 +3230,12 @@ export const fr = {
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
           : `Livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le transport rentre.`,
+      lendLeaseDelivered: (country: string, delivered: string, kept: string) =>
+        delivered === ''
+          ? `Prêt-bail sans livraison — ${country} : le dépôt n’a rien pu prendre, ${kept} encore à bord. Le convoi rentre.`
+          : `Prêt-bail livré — ${country} : ${delivered} au dépôt${kept === '' ? '' : `, ${kept} à bord faute de place`}. Le convoi rentre.`,
+      lendLeaseReceived: (nation: string, delivered: string, country: string) =>
+        `Prêt-bail reçu — ${nation} : ${delivered} à votre dépôt, ${country}.`,
       researchDone: (card: ResearchCard) =>
         `Recherche achevée — ${cardName(card)} : ${RESEARCH_UNLOCKS[card]}, désormais à vous.`,
       airdropped: (country: string, delivered: string, kept: string, squad: boolean) =>
@@ -3097,6 +3447,21 @@ export const fr = {
       `${count} bâtiment${plural(count, '', 's')} relevé${plural(count, '', 's')}`,
     note: 'On ne lève pas une grappe : on approche, et elle s’ouvre en figurines.',
     approach: 'approcher',
+  },
+
+  /** **Les accrochages** (#441) : là où mes forces touchent ce que j'ai relevé, nommés d'après
+   *  la ville la plus proche. */
+  contacts: {
+    before: (city: string) => `devant ${city}`,
+    /** Du nord, puis dans le sens des aiguilles d'une montre, par huitièmes. */
+    toward: (direction: number, city: string) =>
+      `${['au nord', 'au nord-est', 'à l’est', 'au sud-est', 'au sud', 'au sud-ouest', 'à l’ouest', 'au nord-ouest'][direction]} ${ofCity(city)}`,
+    offshore: (city: string) => `au large ${ofCity(city)}`,
+    title: (number: number, name: string) => `${number} · ${name}`,
+    mine: (troops: number) => `${troops} à vous`,
+    seen: (count: number) => `${count} relevé${plural(count, '', 's')}`,
+    edge: (numbers: string) => `Accrochage ${numbers} hors champ : y aller`,
+    none: 'Aucun accrochage : rien de relevé au contact de vos forces.',
   },
 
   hand: {
@@ -3397,6 +3762,38 @@ export const fr = {
     later: 'plus tard',
   },
 
+  /** **Les grands moments de la Mondiale** (#442) : le grand tampon de la fin, sur la carte. */
+  moments: {
+    won: 'Victoire',
+    closed: 'Saison close',
+    byPoints: 'quatre des Sept, vingt-quatre heures',
+    takes: (nation: string) => `${nation} prend la saison`,
+    draw: 'égalité',
+  },
+  /**
+   * **Le rejeu d'absence** (#439, la maquette « la tournée ») : la bande au bas de la carte, un
+   * texte par moment. « Rejeu » seul est la vue rapprochée d'un combat (`replay`).
+   */
+  absenceTour: {
+    eyebrow: 'Pendant votre absence',
+    /** `since` est l'heure de la dernière lecture du journal, `null` s'il ne s'est jamais fermé. */
+    intro: (fresh: number, since: string | null, placed: number) =>
+      `${fresh} dépêche${plural(fresh, '', 's')}${since === null ? '' : ` depuis ${since}`}. ` +
+      (placed > 1
+        ? `La carte rejoue les ${placed} qui ont un lieu ; touchez-la pour l’arrêter.`
+        : 'La carte rejoue celle qui a un lieu ; touchez-la pour l’arrêter.'),
+    stop: (index: number, count: number) => `Pendant votre absence · ${index} sur ${count}`,
+    endEyebrow: 'Fin du rejeu',
+    end: (leftOut: number) =>
+      leftOut === 0
+        ? 'Le journal garde les dépêches rejouées.'
+        : `${leftOut === 1 ? 'Une autre dépêche' : `${leftOut} autres dépêches`}, sans lieu ou plus ancienne${plural(leftOut, '', 's')}, se ${plural(leftOut, 'lit', 'lisent')} au journal.`,
+    stoppedEyebrow: 'Rejeu arrêté',
+    stopped: (fresh: number) =>
+      fresh > 1
+        ? `La carte est à vous. Les ${fresh} dépêches restent au journal.`
+        : 'La carte est à vous. La dépêche reste au journal.',
+  },
   /**
    * **Le rejeu d'un combat** (surface 4.7, ADR 0026 §7) : lancé depuis sa dépêche, une dizaine de
    * secondes, et un cartouche à la fin — chez nous par rôle, en face par rôle sous sa nation (F1),
@@ -3832,6 +4229,9 @@ export const fr = {
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
     tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
+    /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
+    tileKept: (kept: number, stands: number) =>
+      stands < kept ? `réserve ${kept} → niv.\u00a0${stands}` : `réserve niv.\u00a0${kept}`,
     /** **Le site sélectionné** (#163) : la bande montre ce qu'il forme. */
     siteCards: (building: string) => `Troupes que forme ${lowerFirst(building)}`,
     siteSheet: 'fiche du site',
@@ -4060,7 +4460,7 @@ export const fr = {
     kicker: 'fiche de nation',
     readOnly:
       'Fiche de lecture — rien ne s’y commande. Ce qui se pose et ce qui coule est dans le plateau personnel.',
-    powerHeader: 'pouvoir national',
+    assetHeader: 'atout national',
     /**
      * The counterpart of the power, and it belongs beside it: the ADR 0015 gap is a design
      * decision, not an accident of the map, and today a player only discovers it by searching
@@ -4411,6 +4811,7 @@ export const fr = {
     marker: 'sélection',
     hoverMarker: 'survol',
     restWindow: 'plage de repos',
+    asset: 'atout',
     /**
      * **Deux questions, deux lignes** (correctif du 31/08). « Avant-poste » répond de *ce
      * pays-ci* — ai-je un point planté dedans — et c'est juste ; c'est l'étiquette qui mentait
@@ -4540,12 +4941,78 @@ export const fr = {
     noSquadHere: 'aucune de ces piles ne se tient sur le plateau',
     reread: 'la sélection a changé sous la main — reprenez-la et lâchez-la de nouveau',
     atLeastTwo: 'choisissez au moins deux piles — Maj + clic, ou le lasso (Maj + glisser)',
+    atLeastTwoTouch: 'touchez au moins deux piles',
     label: 'Sélection',
+  },
+  /** **La Doctrine du porte-avions** (ADR 0039 §4, maquette A « la reprise ») : la fiche, les
+   *  marques du fil et la pastille de la flotte reprise en mer. */
+  course: {
+    eyebrow: 'Doctrine du porte-avions',
+    verb: 'Changer de cap',
+    free: (until: string) => `cap libre jusqu’à ${until} · une fois`,
+    grab: 'saisissez-la pour changer de cap',
+    changed: (at: string) => `cap changé à ${at} · c’était l’unique fois`,
+    halfway: (at: string) => `mi-parcours · ${at}`,
+    elbow: (at: string) => `cap changé · ${at}`,
+    paid: (steps: number) => `${steps} déjà payé${steps > 1 ? 's' : ''}`,
+    surplus: (steps: number, resource: string) => `+${steps} ${resource}`,
+    within: (steps: number) => `plein : ${steps} /`,
+    keys: 'relâcher : nouveau cap, même slot · une seule fois · Échap annule',
+    keysTouch: 'lever le doigt : nouveau cap, même slot · une seule fois',
+    refused: 'relâcher : la flotte reste sur son cap · Échap',
+    refusedTouch: 'lever le doigt : la flotte reste sur son cap',
+    sent: 'Nouveau cap',
+  },
+  /** **La Guerre éclair** (ADR 0039 §6, maquette A « Maj ») : la pastille, la languette, le fil. */
+  blitzkrieg: {
+    eyebrow: 'Guerre éclair',
+    secondEyebrow: 'Guerre éclair · seconde cible',
+    offer: 'Maj en lâchant : une seconde cible',
+    offerTouch: '« puis » : une seconde cible',
+    armedVerb: 'Attaquer, puis…',
+    armedDetail: (first: string, span: string) =>
+      `lâchez : la première jambe se pose sur ${first} · ${span}`,
+    armedKeys: (first: string) => `relâchez Maj avant de lâcher : ${first} seule`,
+    armedKeysTouch: (first: string) => `levez le pouce de « puis » : ${first} seule`,
+    /** Maj sur un ordre qui n'enchaîne pas : l'ordre reste offert, l'atout dit pourquoi. */
+    refusedKey: (reason: string) => `Maj : ${reason}`,
+    refusedKeyTouch: (reason: string) => `« puis » : ${reason}`,
+    secondVerb: (then: string) => `Puis ${then}`,
+    secondDetail: (span: string, first: string) => `+${span} après terrain tenu à ${first}`,
+    /** Défaite à la première (décision du 05/11) : la seconde tombe, les survivants rentrent. */
+    secondLost: (then: string) => `terrain perdu : ${then} tombe, les survivants rentrent`,
+    secondKeys: (first: string) => `relâcher : deux cibles, un slot · Échap : ${first} seule`,
+    secondKeysTouch: 'lever le doigt : deux cibles, un slot',
+    fuelReread: (first: string) => `plein relu à ${first}`,
+    secondRefusedKeys: (first: string) =>
+      `relâcher : rien ne part, la colonne revient · Échap : ${first} seule`,
+    secondRefusedKeysTouch: 'lever le doigt : rien ne part',
+    tab: 'puis ▸',
+    tabIdle: 'tenir : 2ᵉ cible',
+    tabHeld: 'tenu : 2ᵉ cible',
+    /** Sur la fiche du mouvement et sur son fil. */
+    then: (then: string) => `puis ${then}, si terrain tenu`,
+    oneSlot: 'un slot pour les deux',
+    gate: '◆ si terrain tenu',
+    /** Sur la pièce restée : ce que la dépêche a dit. */
+    stood: (first: string, reason: string) => `reste à ${first} — ${reason}`,
+    reread: (hour: string) => `relu à ${hour}, au départ de la seconde jambe · slot rendu`,
+    /** Le bandeau d'envoi : la première cible, puis la seconde. */
+    sent: (first: string, then: string) => `${first}, puis ${then}`,
+    /** Lâchée sur ce qui n'est pas un ordre : embarquer, sa pile, une garnison. */
+    notAnOrder: 'la seconde cible est une attaque : lâchez sur une cible',
   },
   drop: {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
+    /** Au doigt, ni Tab ni Échap : plusieurs ordres, la rose les propose au lâcher. */
+    choiceTouch: (count: number) => `${count} ordres au choix`,
+    releaseTouch: 'lever le doigt pour ordonner · sur la pièce, rien ne part',
+    releaseChoiceTouch: 'lever le doigt : choisir l’ordre · sur la pièce, rien ne part',
+    /** Sans rose sous le doigt (écran large), le verbe affiché est celui qui part. */
+    releaseDirectTouch: 'lever le doigt : l’ordre affiché part · sur la pièce, rien ne part',
+    refusedTouch: 'lever le doigt : la pièce revient · sur la pièce, rien ne part',
     still: 'relâcher · rien ne change',
     putBack: 'Reposer',
     putBackDetail: 'rien ne bouge',
@@ -4558,6 +5025,7 @@ export const fr = {
       join: 'Rejoindre l’escouade',
       board: 'Embarquer',
       deliver: 'Livrer',
+      lendLease: 'Livrer en Prêt-bail',
       airdrop: 'Larguer',
       tour: 'Tracer une tournée',
       patrol: 'Tenir la ronde',
@@ -4604,6 +5072,12 @@ export const fr = {
     tourConsequence:
       'Une boucle depuis le chargement, quatre dépôts au plus : il recharge sa consigne à chaque tour, saute un dépôt plein, et garde son slot.',
     tracing: (count: number) => `tournée à tracer · ${count} arrêt${plural(count, '', 's')}`,
+    /** **Une tournée ne s'arrête pas chez l'autre** (ADR 0039 §3) : le Prêt-bail livre une fois. */
+    traceAbroad:
+      'Une tournée ne s’arrête qu’à vos dépôts : chez un autre, le Prêt-bail livre une fois, transport lâché dessus',
+    lendLease: 'livrer en Prêt-bail',
+    lendLeaseConsequence:
+      'Décharge au dépôt de l’autre ce qui y tient, puis rentre seul avec le reste. Plein, démantelé ou désactivé, son dépôt ne se lit qu’à l’arrivée, et le receveur apprend qui a livré.',
     traceElsewhere:
       'Une tournée se trace de dépôt en dépôt : lâchez le transport sur un de vos avant-postes, ou lancez-la depuis son étiquette',
     /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
@@ -4708,6 +5182,9 @@ export const fr = {
     heading: (building: string, level: number) => `${building} — niveau ${level}`,
     /** La phrase de la décision 5a, imprimée : ce qui est bâti est dépensé. */
     noRefund: 'aucun remboursement de l’acier payé',
+    /** L'Évacuation industrielle (ADR 0039 §5) : la ligne que lit un Soviétique avant le clic. */
+    kept: (level: number) => `niveau ${level} gardé en réserve`,
+    keptUnchanged: (level: number) => `réserve inchangée — niveau ${level} déjà gardé`,
     freed: (region: string) => `libère ${region}`,
     /** Le chantier repris, et ce que la file en rend : une entrée qui court a déjà consommé son
      *  tour, et elle ne rend rien — la même règle qu'une annulation ordinaire. */
@@ -4879,6 +5356,8 @@ export const fr = {
     /** **Un chantier n'a pas de niveau** : il n'en aura un qu'au lever. Ce que le mât doit dire
      *  est ce qui le tient — la garnison — et dans combien de temps il tiendra debout. */
     outpostUnderConstruction: 'avant-poste en chantier',
+    /** Un avant-poste étranger relevé (ADR 0039 §3) : ni niveau ni nation. */
+    foreignOutpost: 'avant-poste étranger',
     outpostGarrison: (garrison: number) => `GARNISON ${garrison}`,
     buildingLevel: (level: number) => `NIVEAU ${level}`,
     /** A deposit's name in ink beside its basin (#239), and who is known to work it: mine (a

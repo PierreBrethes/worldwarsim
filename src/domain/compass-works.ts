@@ -10,6 +10,7 @@ import {
 import {
   availabilityOf,
   demolitionRefusalOf,
+  underCaptureOf,
   foundationHold,
   outpostDismantleRefusalOf,
   outpostRaiseHold,
@@ -50,6 +51,11 @@ function countryAllegiance(country: string, view: PlayerView): Allegiance {
  * qu'elle coûte — le niveau, le chantier, l'écrêtage — ne tient pas dans une bulle. C'est la
  * confirmation qui le dit, et c'est pour ça qu'il y en a une.
  */
+/** **Deux branches retenues se disent toutes deux** (#450) : la rose n'a qu'une ligne de refus, et
+ *  celui de l'élévation ne doit pas cacher celui de raser ou de démanteler. */
+const saidTogether = (...refusals: ReadonlyArray<string | null>): string | null =>
+  refusals.filter((refusal) => refusal !== null).join(' · ') || null;
+
 const demolishOf = (buildingId: string): CompassAction => ({
   key: 'demolish',
   pictogram: 'rubble',
@@ -218,6 +224,7 @@ export function build(
       const dismantles = outpostDismantleRefusalOf({
         mine: true,
         serving: mine.serving,
+        besieged: mine.besieged,
       });
       return {
         kicker: fr.compass.myOutpost(mine.level),
@@ -226,7 +233,7 @@ export function build(
         /** Le motif de l'élévation d'abord : c'est la seule branche que le joueur cherche et ne
          *  trouve pas. Le démantèlement retenu se lit sur le point lui-même — une colonne y
          *  marche. */
-        refusal: raise.refusal ?? (dismantles === null ? null : fr.errors[dismantles]()),
+        refusal: saidTogether(raise.refusal, dismantles === null ? null : fr.errors[dismantles]()),
       };
     }
     /**
@@ -245,10 +252,18 @@ export function build(
        * **Raser vient en dernier** (demande du 15/09) : la plate se lit du nord dans le sens des
        * aiguilles, et ce qu'on efface n'est jamais ce qu'on cherche en ouvrant un menu. Le
        * quartier général n'a pas la branche — `demolitionRefusalOf` est la fonction que la
-       * mutation refuse avec, et un mât que la vue ne porte pas n'est pas à nous.
+       * mutation refuse avec, et un mât que la vue ne porte pas n'est pas à nous. Une capture qui
+       * court le retient, et le refus se dit (#450).
        */
-      const razes =
-        standing !== null && demolitionRefusalOf({ key: standing.key, mine: true }) === null;
+      const razeRefusal =
+        standing === null
+          ? null
+          : demolitionRefusalOf({
+              key: standing.key,
+              mine: true,
+              underCapture: underCaptureOf(view, standing.id),
+            });
+      const razes = standing !== null && razeRefusal === null;
       return {
         kicker: fr.compass.building(target.level),
         name: standing?.name ?? fr.buildings[target.key],
@@ -256,7 +271,10 @@ export function build(
           ...(raise?.action == null ? [] : [raise.action]),
           ...(razes && standing !== null ? [demolishOf(standing.id)] : []),
         ],
-        refusal: raise?.refusal ?? null,
+        refusal: saidTogether(
+          raise?.refusal ?? null,
+          razeRefusal === 'DEMOLITION_UNDER_CAPTURE' ? fr.errors[razeRefusal]() : null,
+        ),
       };
     }
     /**

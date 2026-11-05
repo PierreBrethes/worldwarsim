@@ -194,6 +194,22 @@ describe('taking a strategic point', () => {
     }
   });
 
+  /** **Le cachet des Sept** (#442) : la dépêche dit combien le preneur en tient, prise comprise. */
+  it('tells the table how many points its taker now holds', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await holdPoint(t, seat, 'narvik');
+    const lisbon = await pointCalled(t, 'lisbon');
+    await capture(t, seat, await postedAt(t, seat, lisbon), lisbon);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    for (const who of [seat, guest]) {
+      const served = (await t.query(api.view.playerView, who)).notices;
+      expect(served.filter((notice) => notice.kind === 'pointTaken')).toMatchObject([
+        { key: 'lisbon', nation: 'france', held: 2 },
+      ]);
+    }
+  });
+
   it('wants infantry, and is not taken from oneself', async () => {
     const t = boot();
     const { seat } = await launched(t);

@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
+  ATTACK_TARGET,
   BUILDING_KEY,
   LINE_KEY,
   BUILD_COST_KEY,
@@ -32,6 +33,7 @@ import {
   SPECIALIZATION,
   SPECIALTY,
   SURVEYED_INSTALLATION,
+  SURVEYED_OUTPOST,
   STRIKE,
   TROOP_STATE,
   TROOP_ADDRESS,
@@ -41,6 +43,10 @@ import {
   SEASON_MODE,
   LAUNCH_REFUSAL,
   VERDICT,
+  FEAT,
+  FINAL_POINT,
+  HELD_REGION,
+  NATION_PAGE,
   TOUR_WAIT,
 } from './validators';
 
@@ -287,6 +293,9 @@ export default defineSchema({
      * s'acquitte que sur du fer (`settlesDebt`), et une clé seule en solderait deux.
      */
     settledFoundation: v.optional(v.array(FOUNDATION_DEBT)),
+    /** **La réserve de l'Évacuation industrielle** (ADR 0039 §5) : un niveau par type, le plus
+     *  haut rasé, que la prochaine pose payée consomme. Absente : vide. */
+    evacuated: v.optional(v.array(v.object({ key: BUILDING_KEY, level: v.number() }))),
     /** **Les fonds de la Blitz** à `fundsAt` : le débit se relit sur les villes et le QG tenus
      *  (`convex/blitz.ts`), donc rien d'autre n'est stocké. Absent hors Blitz. */
     funds: v.optional(v.number()),
@@ -720,7 +729,14 @@ export default defineSchema({
     /** **Une livraison** (ADR 0028 §4) : à l'arrivée sur cet avant-poste, les transports
      *  déchargent dans la limite du dépôt, puis rentrent seuls ; ce qu'ils portaient d'autre y
      *  reste en garnison. */
-    delivery: v.optional(v.object({ outpostId: v.id('outposts') })),
+    delivery: v.optional(
+      v.object({
+        outpostId: v.id('outposts'),
+        /** **Le Prêt-bail** (ADR 0039 §3) : le dépôt d'un autre, relevé à l'ordre. Son état se
+         *  relit à l'arrivée, et le convoi rentre avec ce qu'il n'a pas pris. */
+        lendLease: v.optional(v.literal(true)),
+      }),
+    ),
     /** **Un largage** (ADR 0028 §4) : à l'arrivée, l'avion lâche son paquet sur cet avant-poste ou
      *  sur l'escouade isolée de ce point, sans se poser, puis rentre ; son retour porte `back`,
      *  pour que le fil le dessine en vol. */
@@ -736,6 +752,29 @@ export default defineSchema({
     tourLeg: v.optional(v.union(v.literal('stop'), v.literal('base'))),
     /** **Une étape de ronde** (#376) : vers l'autre bout de sa liaison. */
     patrolLeg: v.optional(v.boolean()),
+    /** **Le cap changé** (Doctrine du porte-avions, ADR 0039 §4) : l'instant du coude, et la route
+     *  que l'ancien mouvement avait courue jusque-là, que son auteur voit encore. Présent, le cap
+     *  ne change plus. */
+    courseChange: v.optional(
+      v.object({
+        at: v.number(),
+        ran: v.array(LON_LAT),
+        /** Le départ de l'ancien mouvement : le Magasin longé avant le coude se règle à
+         *  l'arrivée sur ce tronçon-là (#449). Absent des premières lignes. */
+        since: v.optional(v.number()),
+      }),
+    ),
+    /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6), au seul propriétaire : telle que
+     *  l'ordre l'a nommée (relue au départ de la jambe), son point, son pays et la route prévue
+     *  depuis la première, que le fil dessine en suspens. Jamais dans `sightings`. */
+    blitzkrieg: v.optional(
+      v.object({
+        then: ATTACK_TARGET,
+        point: LON_LAT,
+        hostCountry: v.string(),
+        points: v.array(LON_LAT),
+      }),
+    ),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId'])
@@ -968,6 +1007,12 @@ export default defineSchema({
      *  suivante (`powerReady`) ; un nouveau teneur ne l'hérite pas usé. */
     usedAt: v.optional(v.number()),
     usedBy: v.optional(v.id('players')),
+    /** **Le journal des teneurs** (#443) : chaque prise et chaque retour au neutre, écrit dans
+     *  la même écriture que la main (`handOver`). L'édition finale en tire la bande des Sept et
+     *  l'entrée dans la course. Absent sur un point d'avant le champ. */
+    hands: v.optional(
+      v.array(v.object({ at: v.number(), holderId: v.union(v.id('players'), v.null()) })),
+    ),
   }).index('bySeason', ['seasonId']),
 
   objectives: defineTable({
@@ -1120,6 +1165,10 @@ export default defineSchema({
      *  sa barre sans la recalculer au niveau d'aujourd'hui. Absent tant qu'il attend, et sur les
      *  lignes d'avant le champ. */
     minutes: v.optional(v.number()),
+    /** **Le niveau gardé** qu'une pose soviétique a pris à la réserve (ADR 0039 §5) : `level`
+     *  vaut 1, son prix et sa durée ; `finish` le pose à ce niveau. Revient à la réserve avec le
+     *  remboursement. */
+    kept: v.optional(v.number()),
     /** The point the building is ordered on (ADR 0029), carried through the queue so the mast
      *  is drawn there from the moment it is enqueued and `finish` has nothing left to choose.
      *  Absent on an outpost's raise only: the point already stands on its own row. */
@@ -1191,6 +1240,9 @@ export default defineSchema({
   readMarks: defineTable({
     playerId: v.id('players'),
     journalReadAt: v.optional(v.number()),
+    /** **La fin ou l'arrêt du rejeu d'absence** (#439) : la carte ne rejoue que ce qui est plus
+     *  récent que cette heure et que la fermeture du journal. */
+    absenceTourAt: v.optional(v.number()),
     telegraphReadAt: v.optional(v.number()),
     /** The hour each private channel was last closed, keyed by the other player's id. */
     telegraphDirectReadAt: v.optional(v.record(v.string(), v.number())),
@@ -1450,7 +1502,11 @@ export default defineSchema({
     seenAt: v.number(),
     /** Snapshot at `seenAt`. Absent rows predate installation surveys and reveal nothing. */
     installations: v.optional(v.array(SURVEYED_INSTALLATION)),
-    /** Indexed read gate for PlayerView; absent legacy rows are the same as false. */
+    /** **Les avant-postes étrangers debout à `seenAt`** (ADR 0039 §3) : id, point et pays hôte,
+     *  ni niveau ni dépôt. Absent : aucun. */
+    outposts: v.optional(v.array(SURVEYED_OUTPOST)),
+    /** Indexed read gate for PlayerView: installations or outposts to serve. Absent legacy rows
+     *  are the same as false. */
     hasInstallations: v.optional(v.boolean()),
   })
     .index('byPlayer', ['playerId'])
@@ -1484,4 +1540,32 @@ export default defineSchema({
     .index('bySeason', ['seasonId'])
     .index('byPlayer', ['playerId'])
     .index('byDefender', ['defenderId']),
+
+  /**
+   * **L'édition finale d'une Mondiale, figée à la conclusion** (#443, ADR 0040) : une archive
+   * qui se suffit, hors des tables de jeu — elle survit au « détruire » du fondateur et au wipe
+   * (`ARCHIVE_TABLES`, `convex/dev.ts`). Écrite une fois par le dernier maillon de la chaîne de
+   * clôture (`convex/finalEdition.ts`), jamais réécrite. `seasonId` peut ne plus désigner rien.
+   */
+  finalEditions: defineTable({
+    seasonId: v.id('seasons'),
+    code: v.string(),
+    launchedAt: v.number(),
+    concludedAt: v.number(),
+    durationHours: v.union(v.number(), v.null()),
+    playableRegion: v.string(),
+    verdict: v.object({ ...VERDICT.fields, winnerNation: v.union(v.string(), v.null()) }),
+    /** Dans l'ordre du rang (le territoire). */
+    nations: v.array(NATION_PAGE),
+    points: v.array(FINAL_POINT),
+    moments: v.array(FEAT),
+    regions: v.array(HELD_REGION),
+  }).index('bySeason', ['seasonId']),
+
+  /** **Qui peut relire une édition finale**, par compte : l'accueil lit les dernières. */
+  finalEditionReaders: defineTable({
+    accountId: v.id('accounts'),
+    editionId: v.id('finalEditions'),
+    concludedAt: v.number(),
+  }).index('byAccountAt', ['accountId', 'concludedAt']),
 });

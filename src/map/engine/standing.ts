@@ -921,6 +921,7 @@ export class StandingLayer implements SequenceHost {
     }
     for (const [id, { pileId }] of this.boarders) if (!next.has(pileId)) this.boarders.delete(id);
     this.dressed = next;
+    if (this.held !== null && this.carried === null) this.lift(this.held);
     this.rebuild();
   }
 
@@ -1190,6 +1191,12 @@ export class StandingLayer implements SequenceHost {
       this.aimed = null;
       return;
     }
+    this.lift(held);
+  }
+
+  /** **The copy that follows the hand**, made once the held pile is dressed: a fleet taken at sea
+   *  (#449) is dressed by the same answer that takes it. */
+  private lift(held: PieceHold): void {
     const entry = this.dressed.get(held.pileId);
     if (entry === undefined) return;
     // A sequence's copy gives the model back first: the model is what is washed out.

@@ -35,8 +35,7 @@ d'écrire la frappe aérienne, pas après.
 **La soupape anti-élimination des bâtiments de projection.** Sans port, pas de départ
 maritime (ADR 0013). Un joueur qui perd ses ports peut se retrouver enfermé chez lui. Pistes
 non tranchées : port de fortune coûteux et temporaire, embarquement depuis un avant-poste
-côtier (c'est l'atout italien *Mare Nostrum* — un atout qui casse cette règle pour une nation
-ne règle pas la soupape des sept autres), ou domaine dégradé plutôt que fermé.
+côtier (il n'y a plus d'atout italien : ADR 0039), ou domaine dégradé plutôt que fermé.
 
 **Le sol national dans la part du théâtre.** `heldRegions` compte tout le sol d'origine, qui ne
 se perd jamais (ADR 0004), et les admin-1 de Natural Earth sont inégales : Royaume-Uni 232,
@@ -73,7 +72,7 @@ de ravitaillement (ADR 0028, précision du 18/10) couvre le besoin sans nouvelle
 figurine ni comportement automatique de plus. À reprendre si bâtir loin doit un jour exiger une
 présence physique.
 
-**Les atouts nationaux et l'unité spéciale.** La fiche 06 décrit huit atouts qui cassent
+**Les atouts nationaux et l'unité spéciale.** *(04/11 : quatre atouts tranchés par l'ADR 0039 — États-Unis, Japon, URSS, Allemagne ; restent les quatre autres nations et les troupes signature, hors V1.)* La fiche 06 décrit huit atouts qui cassent
 chacun une règle, et huit troupes signature ; **aucun n'est codé** — les nations se distinguent
 par la géographie, les gisements et les sprites. C'est le pitch d'origine (« chaque pays a son
 identité réelle »). Deux contraintes déjà posées : un atout casse une règle, il ne bonifie
@@ -82,9 +81,7 @@ médecin OU parachutiste pour l'infanterie mk1) et attend la recherche (ADR 0028
 nations d'abord, jamais huit d'un coup. Le *nerf du Japon* (doctrine du porte-avions annule
 l'irréversibilité) et le *pouvoir italien jamais simulé* se jugent quand ils existent.
 
-**Le nombre de nations.** Huit aujourd'hui, huit atouts à équilibrer pour un dev solo ; six
-serait plus sage pour la première saison avec atouts. La saison test se joue à huit, sans
-atout (ADR 0027 §4).
+**Le nombre de nations.** Tranché : huit nations, quatre atouts (ADR 0039).
 
 **L'auto-battler à plans (option B).** Plan de bataille enregistré à l'avance, résolution
 déterministe — seule façon connue de rendre de la décision tactique sans casser l'asynchrone.

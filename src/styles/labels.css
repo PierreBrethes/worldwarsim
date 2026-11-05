@@ -854,8 +854,48 @@
   transform: rotate(-4deg);
 }
 
+/* **Le compte à rebours des Sept** (#442) : l'anneau de capture, à l'encre du meneur. Il se trace
+   en 1,4 s quand on le voit partir, après le cachet du quatrième ; il s'efface en 0,9 s quand le
+   compte tombe. Réduites : posé d'un coup ; coupées, ni tracé ni effacement. */
+.race-gauge {
+  --capture-ink: currentColor;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.race-gauge--traced .capture-ring-fill {
+  animation: race-trace 1.4s 1.8s ease-in-out backwards;
+}
+
+.race-gauge--fading {
+  animation: race-fade 0.9s forwards;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off']) .race-gauge--traced .capture-ring-fill {
+  animation: none;
+}
+
+:root[data-motion='off'] .race-gauge--fading {
+  display: none;
+}
+
+@keyframes race-trace {
+  from {
+    stroke-dasharray: 0 1;
+  }
+}
+
+@keyframes race-fade {
+  to {
+    opacity: 0;
+  }
+}
+
 /* Un site qu'on capture garde ses mots à tous les niveaux de détail : l'anneau est ce qui se lit
-   de loin, et le repli des étiquettes ne doit pas le taire. */
+   de loin, et le repli des étiquettes ne doit pas le taire. Le compte des Sept de même (#442). */
 .label--capturing.label--glyph .label-lines {
   display: block;
 }
@@ -1138,6 +1178,48 @@
   pointer-events: auto;
 }
 
+/* **Le drapeau d'un des Sept** (#442) : à l'encre de son teneur. Quand il change de mains, celui
+   du perdant descend la hampe et celui du preneur monte, 0,8 s chacun ; du neutre, il ne fait que
+   monter. Réduites et coupées : d'un coup. */
+.label--strategic .label-pictogram {
+  color: var(--label-ink);
+}
+
+.label--flag-swap .label-pictogram {
+  animation: flag-swap 1.6s ease-in-out both;
+}
+
+.label--flag-rise .label-pictogram {
+  animation: flag-rise 0.8s 0.8s ease-out both;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off']) .label-pictogram {
+  animation: none;
+}
+
+@keyframes flag-swap {
+  0% {
+    color: var(--flag-from);
+  }
+
+  50% {
+    color: var(--flag-from);
+    opacity: 0;
+    translate: 0 14px;
+  }
+
+  50.1% {
+    color: var(--label-ink);
+  }
+}
+
+@keyframes flag-rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
 /* **Au loin, un signe pèse ce que pèse une épingle** (#234) : le coffre d'un objectif, le drapeau
    d'un point stratégique et celui d'une arrivée prennent la taille d'une épingle de bâtiment,
    à l'encre, sans flaque ni mât. Lisibles, ils ne dominent plus les pièces. */
@@ -1266,4 +1348,71 @@
 .cargo-tag[data-aim='refused'] {
   filter: drop-shadow(1px 0 0 var(--critical)) drop-shadow(-1px 0 0 var(--critical))
     drop-shadow(0 1px 0 var(--critical)) drop-shadow(0 -1px 0 var(--critical));
+}
+
+/* **Le cap d'une flotte** (Doctrine du porte-avions, #449) : libre à l'encre de l'arc, tenu à
+   l'encre d'alarme. */
+.label-line--free,
+.label-line--alarm {
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.label-line--free {
+  color: var(--arc-mine);
+}
+.label-line--alarm {
+  color: var(--critical);
+}
+/* Au survol de la flotte ou au toucher seulement (maquette A) : au loin, la fiche reste un compte. */
+.label-line--fold {
+  display: none;
+}
+.label-anchor--hovered .label-line--fold,
+.label--pointed .label-line--fold {
+  display: block;
+  /* Au téléphone, la fiche touchée tient dans l'écran : la raison passe à la ligne. */
+  width: max-content;
+  max-width: 170px;
+  white-space: normal;
+}
+
+/* **Un trait sur le fil** (#449) : la mi-parcours ou le coude, un tiret court et l'heure, sans
+   mât ni clic — le sol dessous reste celui que la main vise. */
+.label--course-mark::before,
+.label--course-mark .label-bar {
+  content: none;
+  display: none;
+}
+.label--course-mark .label-block {
+  pointer-events: none;
+  /* Sous le point, le tiret le montrant : au-dessus, la fiche de la flotte qui vient d'y virer. */
+  transform: translate(-50%, 9px);
+  bottom: auto;
+}
+.label--course-mark .label-lines {
+  position: relative;
+  padding: 0 4px;
+  border-color: var(--arc-mine);
+  box-shadow: none;
+  white-space: nowrap;
+}
+.label--course-mark .label-lines::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 2px;
+  height: 8px;
+  background: var(--arc-mine);
+}
+
+/* Les noms du décor (#440) : sous les étiquettes, sans pointeur. */
+.map-names {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }

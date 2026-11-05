@@ -16,6 +16,7 @@ import { accountOf, everySeatOf, isAtWar, playerOf, seatOf, seatsOf } from './se
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
+import { ERASE_FALLBACK_MS, editionPending } from './finalEdition';
 import { layOut, seasonPoints } from './strategicPoints';
 import { SEASON_MODE, VERDICT } from './validators';
 import { MODE_RULES, modeOf, seatRangeOf, type SeasonMode } from '../src/domain/season-mode';
@@ -629,11 +630,14 @@ export const launch = mutation({
 });
 
 /**
- * **The one exit a season has**, whichever door it takes: the test victory when a pass crosses
- * the threshold (`victory.ts`), and the founder's own hand when there is no clock to end it
- * (`conclude`). Three fields, written once, so a season taken and a season closed cannot end up
- * in two subtly different states — `winnerId: null` is the whole difference, and it is the
- * honest one: nobody won.
+ * **The one exit a season has**, whichever door it takes: the points, the clock, the last one
+ * standing, and the founder's own hand (`conclude`). The fields are written once, so a season
+ * taken and a season closed cannot end up in two subtly different states — `winnerId: null` is
+ * the honest difference, and a Mondiale closed by hand says so in its verdict, `closed`, with
+ * the nation that closed it. A Blitz closed by hand keeps no verdict.
+ *
+ * A Mondiale then starts its closing chain (`convex/finalEdition.ts`), and the telegraph's
+ * fallback erase `ERASE_FALLBACK_MS` later.
  */
 export async function concludeSeason(
   ctx: MutationCtx,
@@ -659,7 +663,25 @@ export async function concludeSeason(
     concludedAt: at,
     ...(verdict === undefined ? {} : { verdict }),
   });
-  await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby: false });
+  /**
+   * **Une Mondiale garde son édition finale** (#443) : la chaîne de clôture compte les dépêches,
+   * efface le télégraphe derrière elles et écrit l'archive. Elle tourne après ce `patch`, donc
+   * son échec ne retient pas la conclusion ; le repli efface le télégraphe si elle s'est arrêtée
+   * avant.
+   */
+  if (modeOf((await ctx.db.get(seasonId))?.mode) === 'mondiale') {
+    await ctx.scheduler.runAfter(0, internal.finalEdition.countDispatches, {
+      seasonId,
+      cursor: null,
+      counts: {},
+    });
+    await ctx.scheduler.runAfter(ERASE_FALLBACK_MS, internal.messages.erase, {
+      seasonId,
+      lobby: false,
+    });
+  } else {
+    await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby: false });
+  }
   for (const entry of await seatsOf(ctx, seasonId)) {
     await notifyPlayer(ctx, entry._id, {
       type: 'season',
@@ -752,7 +774,16 @@ export const conclude = mutation({
     const refusal = concludeRefusal(player, present, season, now);
     if (refusal !== null) fail(refusal);
 
-    await concludeSeason(ctx, season._id, null, now);
+    /** Une Mondiale close à la main a son verdict (#443) ; la Blitz garde sa fin sans verdict. */
+    await concludeSeason(
+      ctx,
+      season._id,
+      null,
+      now,
+      modeOf(season.mode) === 'mondiale'
+        ? { reason: 'closed', closedBy: player.nation ?? player.nickname }
+        : undefined,
+    );
     for (const entry of present) {
       await ctx.db.insert('notices', { playerId: entry._id, at: now, kind: 'seasonClosed' });
     }
@@ -773,6 +804,8 @@ export const destroy = mutation({
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
+    /** Détruite avant que son édition finale soit écrite, la saison l'emporterait avec elle. */
+    if (await editionPending(ctx, season, Date.now())) fail('EDITION_PENDING');
 
     const present = await everySeatOf(ctx, season._id);
     for (const entry of present) {

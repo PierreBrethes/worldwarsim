@@ -119,22 +119,32 @@ export type FuelShortfall = {
   readonly role: UnitRole;
 };
 
+/** Un moteur, et **le plein que son ancienne route a payé sans le courir** (Doctrine du
+ *  porte-avions, ADR 0039 §4) : il paie la route neuve avant le réservoir. Absent, rien. */
+type Driving = Carrying & { readonly credit?: number };
+
 /** **Le moteur qui borne la route** : celui à qui il reste le moins une fois la route payée, le
  *  plus vide à égalité. Le refus et la jauge lisent le même. `null` sans moteur. */
 function bindingEngineOf(
-  drivers: ReadonlyArray<Carrying>,
+  drivers: ReadonlyArray<Driving>,
   km: number,
   holdsSingapore: boolean,
-): { readonly role: UnitRole; readonly held: number; readonly needed: number } | null {
-  let worst: { role: UnitRole; held: number; needed: number } | null = null;
+): {
+  readonly role: UnitRole;
+  readonly held: number;
+  readonly credit: number;
+  readonly needed: number;
+} | null {
+  let worst: { role: UnitRole; held: number; credit: number; needed: number } | null = null;
   for (const troop of drivers) {
     if (fullSupplies(troop.role).fuel === 0) continue;
     const held = suppliesOf(troop).fuel;
+    const credit = troop.credit ?? 0;
     const needed = fuelStepsOf(troop.role, km, holdsSingapore);
-    const left = held - needed;
-    const worstLeft = worst === null ? Infinity : worst.held - worst.needed;
+    const left = held + credit - needed;
+    const worstLeft = worst === null ? Infinity : worst.held + worst.credit - worst.needed;
     if (left < worstLeft || (left === worstLeft && held < worst!.held))
-      worst = { role: troop.role, held, needed };
+      worst = { role: troop.role, held, credit, needed };
   }
   return worst;
 }
@@ -142,12 +152,13 @@ function bindingEngineOf(
 /** **Une route plus longue que le plein d'un moteur de l'escouade est refusée** ; le refus nomme
  *  celui qui manque le plus, et de combien. Les troupes sans moteur ne comptent pas. */
 export function fuelRefusalOf(
-  drivers: ReadonlyArray<Carrying>,
+  drivers: ReadonlyArray<Driving>,
   km: number,
   holdsSingapore = false,
 ): FuelShortfall | null {
   const engine = bindingEngineOf(drivers, km, holdsSingapore);
-  return engine !== null && engine.held < engine.needed ? engine : null;
+  if (engine === null || engine.held + engine.credit >= engine.needed) return null;
+  return { role: engine.role, held: engine.held + engine.credit, needed: engine.needed };
 }
 
 /** **La jauge qu'une route ronge** (#250) : le plein du moteur qui borne la route, les crans
@@ -159,25 +170,28 @@ export type FuelGauge = {
   readonly eaten: number;
   readonly spared: number;
   readonly short: number;
+  /** **Déjà payés** par l'ancienne route d'un cap changé : ils paient la route d'abord. */
+  readonly paid?: number;
 };
 
 /** La jauge du moteur qui borne la route (`bindingEngineOf`). `null` sans moteur (à pied, en
  *  Blitz). */
 export function fuelGaugeOf(
-  drivers: ReadonlyArray<Carrying>,
+  drivers: ReadonlyArray<Driving>,
   km: number,
   holdsSingapore = false,
 ): FuelGauge | null {
   const engine = bindingEngineOf(drivers, km, holdsSingapore);
   if (engine === null) return null;
-  const { role, held, needed } = engine;
+  const { role, held, credit, needed } = engine;
   return {
     held,
     full: fullSupplies(role).fuel,
     resource: fuelResourceOf(role),
     eaten: needed,
     spared: fuelStepsOf(role, km) - needed,
-    short: Math.max(0, needed - held),
+    short: Math.max(0, needed - held - credit),
+    ...(credit > 0 ? { paid: credit } : {}),
   };
 }
 

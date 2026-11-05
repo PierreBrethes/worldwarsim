@@ -1,5 +1,5 @@
 import { build } from './compass-works';
-import { boardingAt, towardsMyPile, withDelivery } from './compass-logistics';
+import { boardingAt, towardsMyPile, withDelivery, withLendLease } from './compass-logistics';
 import { bombardFan, captureBranch, collectFan, plunderFan } from './compass-strike';
 import { fanOf, posted } from './compass-fan';
 import { fr } from '@/i18n/fr';
@@ -467,6 +467,8 @@ export type CompassAction =
       readonly destination: string;
       /** La visée de la marche : l'aperçu de route en tire l'heure et le plein. */
       readonly aim: MovementAim;
+      /** **Au dépôt d'un autre** (ADR 0039 §3) : la pastille le dit, l'Américain livre chez lui. */
+      readonly lendLease?: true;
     }
   /**
    * **Larguer** (ADR 0028 §4) : l'avion chargé ne se pose pas, il lâche son paquet sur un de mes
@@ -709,6 +711,9 @@ function aim(
       };
     }
     if (isMine) return withDelivery(fan, target.id, view, heldTroopIds ?? []);
+    /** **Le Prêt-bail s'ajoute aux branches, il n'en retire aucune** : un camion chargé qui porte
+     *  de l'infanterie garde sa capture, et le refus de livrer se dit à côté. */
+    const lent = withLendLease(fan, target, view, column, heldTroopIds ?? []);
     const capture = captureBranch(
       { kind: 'outpost' },
       { kind: 'outpost', id: target.id },
@@ -717,8 +722,12 @@ function aim(
       column,
       false,
     );
-    if (capture.action === null) return fan;
-    return { ...fan, actions: [...fan.actions, capture.action], refusal: null };
+    if (capture.action === null) return lent;
+    return {
+      ...lent,
+      actions: [...lent.actions, capture.action],
+      refusal: lent === fan ? null : lent.refusal,
+    };
   }
   if (target.kind === 'strategic') {
     const aimed: MovementAim = {

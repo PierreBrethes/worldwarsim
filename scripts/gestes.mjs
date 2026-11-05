@@ -6,7 +6,8 @@
  *     PLAYWRIGHT_DIR=/chemin/pw npm run gestes -- [--profil bureau|telephone] [--heure instant]
  *       [--sortie dossier] [--seul motif]
  *
- * Prérequis de `npm run capture` : Docker levé, fonctions déployées, `npm run dev` sur :5173. La
+ * Prérequis de `npm run capture` : Docker levé, fonctions déployées, `npm run dev` sur :5173, ou
+ * sur le port que nomme `GESTES_ORIGIN` (un clone dont le client tourne à côté de celui de Pierre). La
  * suite fonde elle-même sa démo, une par profil (`demo-mondiale.mjs --pile-mixte --deux-camions
  * --passagers`), et ne tourne pas dans `npm run verifier` : la CI n'a ni backend ni démo. Un geste qui échoue
  * laisse sa capture dans `--sortie` ; le code de sortie dit s'il en reste un.
@@ -57,7 +58,7 @@ if (!backend) throw new Error('VITE_CONVEX_URL absent (.env.local)');
 if (!['127.0.0.1', 'localhost'].includes(new URL(backend).hostname))
   throw new Error(`Refus : ${backend} n'est pas un backend local.`);
 const client = new ConvexHttpClient(backend);
-const origin = 'http://localhost:5173';
+const origin = process.env.GESTES_ORIGIN ?? 'http://localhost:5173';
 const accountsFile = `${root}scripts/demo-mondiale.accounts.json`;
 
 /** Une démo neuve : chaque profil part du même état. */

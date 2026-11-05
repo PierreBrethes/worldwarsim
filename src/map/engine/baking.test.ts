@@ -150,11 +150,9 @@ describe('bakedSite (ADR 0038)', () => {
   };
 
   it.each(files)('bakes %s, which has no socle, as before: all building', (url) => {
-    const { building, dressing, yard, sign } = bakedSite(sceneOfFile(url));
+    const { building, dressing } = bakedSite(sceneOfFile(url));
     const today = before(url);
     expect(dressing).toEqual([]);
-    expect(yard).toEqual([]);
-    expect(sign).toBeNull();
     expect(building.map((part) => part.material.name)).toEqual(
       today.map((part) => part.material.name),
     );
@@ -178,38 +176,32 @@ describe('bakedSite (ADR 0038)', () => {
     expect(trianglesOf(building)).toBe(1851);
   });
 
-  it('bakes the yard and the sign apart, the sign with its foot (ADR 0038 §7)', () => {
-    const { dressing, yard, sign } = bakedSite(sceneOfFile(SOCLE));
-    // The socle and its liseré stand to the pin; the yard shrinks with the building.
-    // The flank and the paper are one atlas look, one part; the liseré is inked apart.
+  it('bakes the socle, its yard and its sign as one dressing, one part per material (#465)', () => {
+    const { dressing } = bakedSite(sceneOfFile(SOCLE));
+    // The flank, the paper, the yard's gravel and the sign share one atlas: one part, one draw
+    // call; the liseré is inked apart.
     expect(dressing.map((part) => part.material.name).sort()).toEqual(['lisere', 'socle_papier']);
-    expect(boxOf(dressing).max.y).toBeLessThan(2.5);
-    expect(yard.map((part) => part.material.name)).toEqual(['gravier']);
-    expect(boxOf(yard).min.y).toBeGreaterThan(2.2);
-    // The sign grows on its foot, the signe node's place on the socle top; its mast and pole in it.
-    expect(sign!.foot.toArray()).toEqual([-22, 2.2, 17]);
-    expect(boxOf(sign!.parts).min.y).toBeCloseTo(2.2, 3);
-    expect(sign!.height).toBeGreaterThanOrEqual(24);
-    expect(sign!.height).toBeLessThan(32);
+    expect(boxOf(dressing).min.y).toBeCloseTo(0, 3);
   });
 
-  it('on a socle, bakes the flagpole into the sign, where the file hangs it', () => {
+  it('on a socle, bakes the flagpole into the dressing with the sign, where the file hangs it', () => {
     const scene = sceneOfFile(SOCLE);
     const sign = scene.getObjectByName('signe')!;
     const top = new Box3().setFromObject(scene.getObjectByName('hampe')!).max.y;
-    const { building, sign: baked } = bakedSite(scene);
+    const { building, dressing } = bakedSite(scene);
     expect(scene.getObjectByName('hampe')!.parent).toBe(sign);
     expect(scene.getObjectByName('drapeau')!.parent).toBe(sign);
-    // The pole stands in the sign's parts: it grows on its foot, and no cut reaches it.
-    expect(boxOf(baked!.parts).max.y).toBeGreaterThanOrEqual(top);
+    // The pole stands in the dressing: no cut reaches it.
+    expect(boxOf(dressing).max.y).toBeGreaterThanOrEqual(top);
     expect(boxOf(building).max.y).toBeLessThan(top);
   });
 
-  it('bakes the flag apart from its sign, in its own material, to be inked (#279)', () => {
+  it('bakes the flag apart from its dressing, in its own material, to be inked (#279)', () => {
     const scene = sceneOfFile(SOCLE);
-    const { flag, sign } = bakedSite(scene);
+    const { flag, dressing, signFoot } = bakedSite(scene);
     expect(flag.map((part) => part.material.name)).toEqual(['drapeau']);
-    expect(sign!.parts.some((part) => part.material.name === 'drapeau')).toBe(false);
+    expect(dressing.some((part) => part.material.name === 'drapeau')).toBe(false);
+    expect(signFoot).toEqual(scene.getObjectByName('signe')!.getWorldPosition(new Vector3()));
     expect(boxOf(flag).max.y).toBeCloseTo(
       new Box3().setFromObject(scene.getObjectByName('drapeau')!).max.y,
       6,
@@ -305,8 +297,6 @@ describe('bakedRig', () => {
     for (const { geometry, material } of [
       ...site.building,
       ...site.dressing,
-      ...site.yard,
-      ...(site.sign?.parts ?? []),
       ...site.flag,
       ...(site.accessories.get('niveau_1') ?? []),
     ])

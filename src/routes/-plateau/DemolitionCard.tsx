@@ -4,7 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { Price } from '@/shell/Price';
 import { fr } from '@/i18n/fr';
-import { demolitionClipping, pledgedWork } from '@/domain/construction';
+import { demolitionClipping, evacuationOf, pledgedWork } from '@/domain/construction';
 import type { Building, PlayerView } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
@@ -62,6 +62,7 @@ export function DemolitionCard({
    *  s'arrête, et le détail se lit dans la modale du site — qui ne survivra pas au clic. */
   const recruiting = view.me.recruiting.includes(building.id);
   const clipping = demolitionClipping(building, view, view.loadedAt);
+  const evacuation = evacuationOf(view.me.asset, view.me.evacuated, building);
 
   const raze = () => {
     setError(null);
@@ -133,10 +134,18 @@ export function DemolitionCard({
           )}
 
           {/* La phrase de la décision 5a, à part et en dernier : c'est ce qu'on lit juste avant
-              d'appuyer. */}
+              d'appuyer. L'acier reste perdu sous l'Évacuation (ADR 0039 §5) : la réserve s'ajoute
+              dessous, elle ne remplace pas la phrase. */}
           <p className="mt-[8px] border-t border-(color:--ink)/40 pt-[6px] text-[11px] leading-[1.4] text-[var(--critical)]">
             {fr.demolition.noRefund}
           </p>
+          {evacuation !== null && (
+            <p className="mt-[3px] text-[11px] leading-[1.4] font-semibold text-[var(--ink)]">
+              {evacuation.unchanged
+                ? fr.demolition.keptUnchanged(evacuation.level)
+                : fr.demolition.kept(evacuation.level)}
+            </p>
+          )}
 
           {error && (
             <p className="mt-[9px] border border-[var(--critical)] px-2 py-[5px] text-[11.5px] text-[var(--ink)]">

@@ -16,6 +16,7 @@ import {
   type Aim,
   type OutpostRaise,
   type SpecialtyChange,
+  keptLevelOf,
 } from './construction';
 import { respecialtyBill } from '../../convex/constants';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResearchCard, type ResourceKey } from './ids';
@@ -224,10 +225,15 @@ describe('the point aimed at', () => {
 
   it('names who is known to work a deposit, mine with its level, a survey unnamed', () => {
     const mine = view({ buildings: [{ key: 'mine', point: COAL.lonLat, level: 2 } as never] });
-    expect(depositHolders(mine).get(COAL.id)).toEqual({ mine: true, level: 2 });
+    expect(depositHolders(mine).get(COAL.id)).toEqual({
+      mine: true,
+      level: 2,
+      piece: `building-mine@${COAL.lonLat}`,
+    });
     expect(depositHolders(view({ surveyed: [COAL.lonLat] })).get(COAL.id)).toEqual({
       mine: false,
       level: null,
+      piece: 'installation-seen-0',
     });
     expect(depositHolders(view({})).has(COAL.id)).toBe(false);
   });
@@ -701,5 +707,13 @@ describe('workSitesOf', () => {
         LOADED,
       ),
     ).toEqual([]);
+  });
+});
+
+describe('keptLevelOf (#450)', () => {
+  it('stands at the kept level under the headquarters ceiling, never below the first', () => {
+    expect(keptLevelOf(3, 5)).toBe(3);
+    expect(keptLevelOf(4, 3)).toBe(3);
+    expect(keptLevelOf(2, 0)).toBe(1);
   });
 });

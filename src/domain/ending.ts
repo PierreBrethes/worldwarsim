@@ -5,9 +5,12 @@ import type { PlayerView, SeasonVerdict } from './player-view';
 export type EndingFacts = {
   readonly nation: string;
   readonly eliminatedAt: string | null;
+  /** **Qui a pris mon QG** (Q6 de #442) : ma dépêche de chute, en Mondiale — elle dit aussi que
+   *  le reste passe aux irréguliers. `null` ailleurs. */
+  readonly fall: string | null;
 };
 
-export type Outcome = 'winner' | 'loser' | 'out' | 'draw';
+export type Outcome = 'winner' | 'loser' | 'out' | 'draw' | 'closed';
 
 /**
  * **Comment une partie finit pour moi**, dans les deux modes : l'édition finale quand la saison
@@ -24,19 +27,32 @@ export function endingOf(view: PlayerView): { key: 'final' | 'out' | null; facts
     facts: {
       nation: me.nation,
       eliminatedAt: !concluded && out ? asLocalTime(me.eliminatedAt!) : null,
+      fall:
+        !concluded && out && view.mode === 'mondiale'
+          ? (view.journal.find(
+              (dispatch) => dispatch.kind === 'elimination' && dispatch.at === me.eliminatedAt,
+            )?.text ?? null)
+          : null,
     },
   };
 }
 
-/** L'issue d'un joueur à la conclusion : le vainqueur, l'égalité, le tombé, le vaincu. */
+/**
+ * L'issue d'un joueur à la conclusion : le vainqueur, l'égalité, le tombé, le vaincu. Une saison
+ * close à la main n'a ni vainqueur, ni vaincu, ni égalité : seul le tombé l'est.
+ */
 export const outcomeOf = (
   line: { readonly nation: string | null; readonly defeated: boolean },
   verdict: SeasonVerdict | null,
 ): Outcome =>
-  verdict?.winnerNation === null && verdict !== null
-    ? 'draw'
-    : line.nation !== null && line.nation === verdict?.winnerNation
-      ? 'winner'
-      : line.defeated
-        ? 'out'
-        : 'loser';
+  verdict?.reason === 'closed'
+    ? line.defeated
+      ? 'out'
+      : 'closed'
+    : verdict?.winnerNation === null && verdict !== null
+      ? 'draw'
+      : line.nation !== null && line.nation === verdict?.winnerNation
+        ? 'winner'
+        : line.defeated
+          ? 'out'
+          : 'loser';

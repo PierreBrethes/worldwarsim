@@ -113,6 +113,58 @@ describe('buildLabels', () => {
     });
   });
 
+  /** **Le compte en anneaux** (#442) : sous le mât de chaque point du meneur ; un point du meneur
+   *  qu'on capture empile le compte au-dessus, la jauge de capture dessous. */
+  it('rings the leader’s points with the countdown, above the gauge of a capture', () => {
+    const mast = (pointId: string): MapMarker => ({
+      kind: 'strategic',
+      id: `strategic-${pointId}`,
+      pointId,
+      lonLat: [17.43, 68.44],
+      name: 'Narvik',
+      ink: '#2b6974',
+      state: 'Allemagne',
+    });
+    const capture = {
+      id: 'c-3',
+      side: 'defender' as const,
+      target: { kind: 'point' as const, id: 'p-1' },
+      site: { kind: 'point' as const, key: 'narvik' as const },
+      regionName: null,
+      point: [17.5, 68.44] as const,
+      clock: { progress: 0, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
+      completesAt: LOADED_AT + 3_600_000,
+      stoppedAt: null,
+    };
+    const rings = {
+      leaderNation: 'germany',
+      ink: '#2b6974',
+      endsAt: LOADED_AT + 86_400_000,
+      pointIds: ['p-1'],
+      fading: false,
+      fresh: false,
+    };
+    const [ringed, bare, ...others] = buildLabels(
+      { ...viewWith([], [capture]), raceRings: rings },
+      [mast('p-1'), mast('p-2')],
+    );
+    expect(others).toEqual([]);
+    expect(ringed!.lines.map((line) => line.role)).toEqual([
+      'nature',
+      'figures',
+      'race',
+      'capture',
+    ]);
+    expect(ringed!.lines[2]).toEqual({
+      role: 'race',
+      endsAt: rings.endsAt,
+      ink: '#2b6974',
+      fading: false,
+      fresh: false,
+    });
+    expect(bare!.lines.map((line) => line.role)).toEqual(['nature', 'figures']);
+  });
+
   it('stands a capture on its own label when no site of the map carries it', () => {
     const capture = {
       id: 'c-2',
@@ -553,6 +605,14 @@ describe('buildLabels', () => {
     ]);
   });
 
+  it('carries the piece a worked deposit clears, and none for a free one (#445)', () => {
+    const [worked, free] = buildLabels(viewWith([]), [
+      { kind: 'deposit', id: 'd1', lonLat: [2.4, 49.4], deposit: 'coal', clears: 'building-x' },
+      { kind: 'deposit', id: 'd2', lonLat: [2.5, 49.4], deposit: 'coal' },
+    ]);
+    expect([worked?.clears, free?.clears]).toEqual(['building-x', undefined]);
+  });
+
   it('wakes a deposit a held key calls, in its own ink, and says why the pose would refuse it (#239)', () => {
     const woken = (wake: NonNullable<(MapMarker & { kind: 'deposit' })['wake']>) =>
       buildLabels(viewWith([]), [
@@ -695,5 +755,135 @@ describe('ownerFlags', () => {
 
   it('never plants a flag under an enemy piece', () => {
     expect(flagOf({ type: 'camp', ink: null })).toBeUndefined();
+  });
+});
+
+/** **La Doctrine du porte-avions sur la fiche** (#449) : le cap se dit avant le geste, par la
+ *  règle même du serveur (`courseRefusalOf`). */
+describe('the course of a fleet at sea', () => {
+  const atSea = (schedule = march(30)) =>
+    mineArc({ route: directRoute([140, 30], [150, 30], 'sea', 10), schedule });
+  const japanese = (arcs: ReadonlyArray<ArcView>) =>
+    ({
+      ...viewWith(arcs),
+      me: { ink: '#6a4796', troops: [], asset: 'carrierDoctrine' },
+    }) as unknown as PlayerView;
+
+  it('frees a Japanese course until halfway, and marks halfway on its thread', () => {
+    const labels = buildLabels(japanese([atSea(march(90))]), []);
+    const fleet = labels.find((label) => label.type === 'my-movement')!;
+    const until = asClockTime(LOADED_AT - 30 * MINUTE + 60 * MINUTE);
+    expect(fleet.lines).toContainEqual({ role: 'free', text: fr.course.free(until), fold: true });
+    expect(fleet.lines).toContainEqual({ role: 'mention', text: fr.course.grab, fold: true });
+    const mark = labels.find((label) => label.type === 'course-mark')!;
+    expect(texts(mark.lines)).toEqual([fr.course.halfway(until)]);
+  });
+
+  it('reads the course at the client’s hour, not at the view’s', () => {
+    const halfway = LOADED_AT + 30 * MINUTE;
+    const [fleet] = buildLabels(japanese([atSea(march(90))]), [], halfway + MINUTE);
+    expect(fleet!.lines).toContainEqual({
+      role: 'alarm',
+      text: fr.errors.PAST_HALFWAY({ at: asClockTime(halfway) }),
+      fold: true,
+    });
+  });
+
+  it('says why the course no longer changes past halfway, or once changed', () => {
+    const [past] = buildLabels(japanese([atSea(march(10))]), []);
+    expect(past!.lines).toContainEqual({
+      role: 'alarm',
+      text: fr.errors.PAST_HALFWAY({ at: asClockTime(LOADED_AT - 10 * MINUTE) }),
+      fold: true,
+    });
+    const turned = mineArc({
+      route: directRoute([140, 30], [150, 30], 'sea', 10),
+      courseChange: {
+        at: LOADED_AT - 5 * MINUTE,
+        ran: [
+          [139, 31],
+          [140, 30],
+        ],
+      },
+    });
+    const labels = buildLabels(japanese([turned]), []);
+    expect(labels[0]!.lines).toContainEqual({
+      role: 'alarm',
+      text: fr.course.changed(asClockTime(LOADED_AT - 5 * MINUTE)),
+      fold: true,
+    });
+    expect(
+      labels.filter((label) => label.type === 'course-mark').map((l) => texts(l.lines)),
+    ).toEqual([[fr.course.elbow(asClockTime(LOADED_AT - 5 * MINUTE))]]);
+  });
+
+  it('tells another nation’s fleet that a movement under way is not taken back', () => {
+    const labels = buildLabels(viewWith([atSea()]), []);
+    expect(labels[0]!.lines).toContainEqual({
+      role: 'mention',
+      text: fr.errors.NO_CARRIER_DOCTRINE(),
+      fold: true,
+    });
+    expect(labels.some((label) => label.type === 'course-mark')).toBe(false);
+  });
+});
+
+/** **La Guerre éclair sur la fiche et sur le fil** (ADR 0039 §6, maquette A) : la seconde cible,
+ *  à son seul auteur ; la pièce restée dit pourquoi. */
+describe('the second target of a blitzkrieg', () => {
+  const chained = mineArc({
+    then: {
+      name: 'Namur',
+      points: [
+        [1, 1],
+        [2, 1],
+      ],
+    },
+  });
+
+  it('says the second target and the one slot on the column, and hangs the gate on its thread', () => {
+    const labels = buildLabels(viewWith([chained]), []);
+    const column = labels.find((label) => label.type === 'my-movement')!;
+    expect(column.lines).toContainEqual({ role: 'free', text: fr.blitzkrieg.then('Namur') });
+    expect(column.lines).toContainEqual({ role: 'mention', text: fr.blitzkrieg.oneSlot });
+    const gate = labels.find((label) => label.type === 'course-mark')!;
+    expect(gate.anchor).toEqual({ kind: 'ground', lonLat: [1, 1] });
+    expect(texts(gate.lines)).toEqual([fr.blitzkrieg.gate]);
+  });
+
+  it('says nothing of the kind on a plain attack', () => {
+    const labels = buildLabels(viewWith([mineArc({})]), []);
+    expect(labels.some((label) => label.type === 'course-mark')).toBe(false);
+    expect(texts(labels[0]!.lines)).not.toContain(fr.blitzkrieg.oneSlot);
+  });
+
+  it('writes on the pile that stayed what its dispatch said, while its troops hold there', () => {
+    const pile = (troopIds: ReadonlyArray<string>): MapMarker => ({
+      kind: 'stack',
+      id: `stack-${troopIds.join('-')}`,
+      lonLat: [5.57, 50.63],
+      station: {
+        kind: 'point',
+        lonLat: [5.57, 50.63],
+        country: 'BEL',
+        afloat: false,
+        ground: 'land',
+        coastal: false,
+      },
+      stack: { armor: 3 },
+      place: 'Belgique',
+      pieces: { groups: [], troopIds, squad: false },
+      ink: '#000',
+    });
+    const stood = {
+      text: 'reste à Liège — plus de coups',
+      reread: 'relu à 13:10',
+      troopIds: ['t1'],
+    };
+    const view = { ...viewWith([]), journal: [{ place: null, stood }] } as unknown as PlayerView;
+    const [stayed, other] = buildLabels(view, [pile(['t1', 't2']), pile(['t3'])]);
+    expect(stayed!.lines).toContainEqual({ role: 'alarm', text: stood.text });
+    expect(stayed!.lines).toContainEqual({ role: 'mention', text: stood.reread });
+    expect(texts(other!.lines)).not.toContain(stood.text);
   });
 });

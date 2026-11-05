@@ -202,3 +202,11 @@
     font-size: 15px;
   }
 }
+
+/* Le cap d'une flotte (#449), comme sur sa fiche. */
+.map-poster-course--free {
+  color: var(--arc-mine);
+}
+.map-poster-course--alarm {
+  color: var(--critical);
+}

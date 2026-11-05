@@ -986,6 +986,47 @@ describe('a Mondiale headquarters', () => {
     expect(after.season.status).toBe('launched');
   });
 
+  /** **Le QG tombé se voit où il est** (#442) : à l'éliminé, au preneur, et au tiers qui l'avait
+   *  déjà relevé — jamais au tiers qui ne le connaît pas, ni à qui n'a relevé que la région. Le
+   *  tiers ne lit toujours pas qui l'a pris. */
+  it.each([
+    ['who had surveyed it', 'hq', true],
+    ['who surveyed its region without it', 'other', false],
+    ['who never surveyed it', 'none', false],
+  ] as const)(
+    'places its fall for the fallen, the taker, and a third %s',
+    async (_, seen, told) => {
+      const t = boot();
+      const { seat, guest, third } = await threeAtTable(t);
+      const hq = await headquartersOf(t, guest);
+      if (seen === 'hq') await surveyRegion(t, third, hq.regionId);
+      if (seen === 'other')
+        await t.run(async (ctx) =>
+          ctx.db.insert('regionSightings', {
+            playerId: (await seatIn(ctx, third))._id,
+            regionId: hq.regionId,
+            ownerId: null,
+            seenAt: Date.now(),
+            installations: [],
+            hasInstallations: false,
+          }),
+        );
+
+      await take(t, seat, hq);
+      await finish(t);
+
+      const place = { lon: hq.point.lon, lat: hq.point.lat };
+      for (const who of [seat, guest])
+        expect(await noticesOf(t, who, 'playerEliminated')).toMatchObject([
+          { nation: 'ussr', by: 'france', point: place },
+        ]);
+      const [aside] = await noticesOf(t, third, 'playerEliminated');
+      expect(aside).not.toHaveProperty('by');
+      if (told) expect(aside).toMatchObject({ point: place });
+      else expect(aside).not.toHaveProperty('point');
+    },
+  );
+
   /** **Une colonne à Malte est à terre** (#224) : elle s'arrête où elle est, au siège irrégulier,
    *  au lieu de sombrer comme au large — la grille de 25 km n'y voit que la mer. */
   it('keeps the column of the fallen that stands on Malta, and hands it over', async () => {
@@ -1240,6 +1281,35 @@ describe('a Mondiale headquarters', () => {
     expect(season!.status).toBe('concluded');
     expect(season!.winnerId).toBe((await playerOf(t, seat))._id);
     expect(season!.verdict?.reason).toBe('hqTaken');
+  });
+
+  /** **L'édition finale signe la chute** (#443) : le QG perdu, sa région, qui l'a pris. */
+  it('writes the fallen headquarters into the final edition, with its region and its taker', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const hq = await headquartersOf(t, guest);
+    await take(t, seat, hq);
+    await finish(t);
+    for (let link = 0; link < 40; link++) {
+      await vi.advanceTimersByTimeAsync(1);
+      await t.finishInProgressScheduledFunctions();
+    }
+
+    const read = await t.query(api.finalEdition.ofSeason, guest);
+    if (read.state !== 'ready') throw new Error(read.state);
+    const ussr = read.edition.nations.find((page) => page.nation === 'ussr')!;
+    expect(ussr.exit).toEqual({ kind: 'eliminated', at: MIDDAY + 12 * HOUR });
+    expect(ussr.losses.hq).toEqual({
+      at: MIDDAY + 12 * HOUR,
+      regionId: hq.regionId,
+      by: 'france',
+    });
+    expect(read.edition.moments).toContainEqual({
+      kind: 'hqTaken',
+      at: MIDDAY + 12 * HOUR,
+      regionId: hq.regionId,
+      nations: ['france', 'ussr'],
+    });
   });
 
   it('does not eliminate a capturer who loses a headquarters he had taken', async () => {
