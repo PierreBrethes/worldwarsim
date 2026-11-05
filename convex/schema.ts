@@ -1230,6 +1230,9 @@ export default defineSchema({
   readMarks: defineTable({
     playerId: v.id('players'),
     journalReadAt: v.optional(v.number()),
+    /** **La fin ou l'arrêt du rejeu d'absence** (#439) : la carte ne rejoue que ce qui est plus
+     *  récent que cette heure et que la fermeture du journal. */
+    absenceTourAt: v.optional(v.number()),
     telegraphReadAt: v.optional(v.number()),
     /** The hour each private channel was last closed, keyed by the other player's id. */
     telegraphDirectReadAt: v.optional(v.record(v.string(), v.number())),

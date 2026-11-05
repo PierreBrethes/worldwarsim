@@ -4,6 +4,7 @@ import type { FirstSteps } from '../src/domain/first-steps';
 
 type Marks = {
   readonly journalReadAt: number | null;
+  readonly absenceTourAt: number | null;
   readonly telegraphReadAt: number | null;
   readonly telegraphPushedAt: number | null;
   readonly telegraphDirectReadAt: Readonly<Record<string, number>>;
@@ -30,6 +31,7 @@ export async function readMarksOf(ctx: QueryCtx, player: Doc<'players'>): Promis
     .first();
   return {
     journalReadAt: row?.journalReadAt ?? player.journalReadAt ?? null,
+    absenceTourAt: row?.absenceTourAt ?? null,
     telegraphReadAt: row?.telegraphReadAt ?? player.telegraphReadAt ?? null,
     telegraphPushedAt: row?.telegraphPushedAt ?? player.telegraphPushedAt ?? null,
     telegraphDirectReadAt: row?.telegraphDirectReadAt ?? {},
@@ -46,6 +48,7 @@ export async function stampReadMark(
   playerId: Id<'players'>,
   mark:
     | { journalReadAt: number }
+    | { absenceTourAt: number }
     | { telegraphReadAt: number }
     | { telegraphPushedAt: number }
     | { telegraphDirectReadAt: Record<string, number> }

@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { mutation } from './_generated/server';
 import { stampReadMark } from './readMarks';
-import { playerOf, requireStarted } from './seats';
+import { playerOf, requirePlayable, requireStarted } from './seats';
 
 /**
  * **Lu, c'est ce qu'on a eu le temps de voir.** The hour is stamped when the window is *closed*,
@@ -23,5 +23,19 @@ export const markRead = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireStarted(season);
     await stampReadMark(ctx, player._id, { journalReadAt: Date.now() });
+  },
+});
+
+/**
+ * **Le rejeu d'absence est vu** (#439), joué jusqu'au bout ou arrêté d'un geste : la carte ne
+ * le rejoue plus, sur aucun appareil du compte. Le journal, lui, garde ses dépêches neuves —
+ * c'est une autre heure que `journalReadAt`. `requirePlayable` : une saison close ne rejoue rien.
+ */
+export const markToured = mutation({
+  args: { token: v.string(), seasonId: v.id('seasons') },
+  handler: async (ctx, { token, seasonId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    await stampReadMark(ctx, player._id, { absenceTourAt: Date.now() });
   },
 });

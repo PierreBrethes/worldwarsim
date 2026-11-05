@@ -1184,6 +1184,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     /** The hour he last closed the window, `null` while he never has: the client decides what
      *  is unread from it, and nothing on the server counts dispatches. */
     journalReadAt: marks.journalReadAt,
+    /** The end or the stop of the last absence tour (#439), `null` before the first. */
+    absenceTourAt: marks.absenceTourAt,
     /** The last opening of the personal board and the stocks it showed: the harvest of the
      *  next one is read against them. */
     boardRead: marks.boardRead,
