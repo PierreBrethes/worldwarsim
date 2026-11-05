@@ -130,6 +130,8 @@ export type Cue =
       readonly siteId: string;
       readonly pileId: string;
       readonly groups: ReadonlyArray<number>;
+      /** Where a `retour` flew or sailed from: whether its thread came in moored. */
+      readonly from?: readonly [number, number];
     }
   /** **A movement of mine just born** (#269, #270): its plane takes off from its airfield, its
    *  hull puts to sea from its mole, when its thread leaves one. */

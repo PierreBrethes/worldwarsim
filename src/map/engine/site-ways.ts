@@ -163,3 +163,29 @@ export function homing(sequence: Sequence): Sequence {
     },
   };
 }
+
+/**
+ * **A landing or a docking on a way too short to moor its thread** (#269, #270): the piece starts
+ * where its pawn came in, `from` its rest, and joins its track over its first part, the reverse of
+ * `homing`.
+ */
+export function arriving(sequence: Sequence, from: NonNullable<PartPose['travel']>): Sequence {
+  const until = sequence.ms * HOMING_SHARE;
+  return {
+    ...sequence,
+    at(t) {
+      const pose = sequence.at(t);
+      const travel = pose.root?.travel;
+      if (t >= until || travel === undefined) return pose;
+      const k = ease.inOut(span(t, 0, until));
+      const mix = (a: number, b: number) => a + (b - a) * k;
+      return {
+        ...pose,
+        root: {
+          ...pose.root,
+          travel: [mix(from[0], travel[0]), mix(from[1], travel[1]), mix(from[2], travel[2])],
+        },
+      };
+    },
+  };
+}

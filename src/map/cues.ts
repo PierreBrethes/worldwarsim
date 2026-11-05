@@ -460,19 +460,22 @@ export function formationsOf(
 }
 
 /** **Ce qui rentre à un aérodrome ou à un port** : l'avion qui s'y pose, la coque qui y accoste,
- *  portés par une de mes colonnes de la vue d'avant (comme `entreesOf`). */
+ *  portés par une de mes colonnes de la vue d'avant (comme `entreesOf`). `from`, d'où la colonne
+ *  partait : le moteur juge si son fil est arrivé amarré. */
 export function retoursOf(
   before: ReadonlyArray<Column>,
   piles: ReadonlyArray<StandingPile>,
-): ReadonlyArray<Sortie> {
-  const carried = new Set(
-    before.flatMap(({ state, troopIds }) => (state === 'mine' ? (troopIds ?? []) : [])),
+): ReadonlyArray<Sortie & { readonly from?: LonLat }> {
+  const carried = new Map(
+    before.flatMap(({ state, troopIds, route }) =>
+      state === 'mine' ? (troopIds ?? []).map((troop) => [troop, route?.points[0]] as const) : [],
+    ),
   );
   return piles.flatMap((pile) => {
     const groups = kitGroups(pile, (troop) => carried.has(troop));
-    return groups.length === 0 || !('beside' in pile.at)
-      ? []
-      : [{ siteId: pile.at.beside, pileId: pile.id, groups }];
+    if (groups.length === 0 || !('beside' in pile.at)) return [];
+    const from = carried.get(pile.pieces.groups[groups[0]!]!.troopIds[0]!);
+    return [{ siteId: pile.at.beside, pileId: pile.id, groups, ...(from ? { from } : {}) }];
   });
 }
 

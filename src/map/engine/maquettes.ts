@@ -1336,6 +1336,11 @@ export class MaquetteLayer implements SequenceHost {
     return dressed === undefined ? null : pinnedBy(dressed.lot.model, dressed.item);
   }
 
+  /** **The point a maquette stands for**, where threads reach it; `null` for none drawn here. */
+  pointOf(id: string): Vector3 | null {
+    return this.byId.get(id)?.item.ground ?? null;
+  }
+
   /** **Where a maquette is drawn when a ring carried it off its point** — the label's fanion stays
    *  on the point, a thread of ink runs to here. `null` while it stands on its point, or is not
    *  drawn. */

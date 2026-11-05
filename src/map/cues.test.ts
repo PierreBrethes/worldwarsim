@@ -509,9 +509,19 @@ describe('the airfield and the port (#269, #270)', () => {
   });
 
   it('a plane that flew in lands, a hull that sailed in docks: carried by a column of mine', () => {
-    const flew = { state: 'mine', troopIds: ['a'] };
+    const flew = {
+      state: 'mine',
+      troopIds: ['a'],
+      route: {
+        points: [
+          [4.35, 50.85],
+          [2, 48],
+        ] as [number, number][],
+      },
+    };
+    // Where it flew from: the engine judges whether its thread came in moored.
     expect(retoursOf([flew], [at(airfield, 'bomber', 'a', 'b')])).toEqual([
-      { siteId: airfield, pileId: 'p', groups: [0] },
+      { siteId: airfield, pileId: 'p', groups: [0], from: [4.35, 50.85] },
     ]);
     expect(retoursOf([{ ...flew, state: 'enemyDetected' }], [at(airfield, 'bomber', 'a')])).toEqual(
       [],
