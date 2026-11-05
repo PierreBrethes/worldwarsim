@@ -668,7 +668,11 @@ const SEA_RANK = 4;
 const SEA_MIN_RADIUS = 0.5;
 const SEA_SPOTS = 6;
 const SEA_APART = 25;
-/** Where `name_fr` is wrong, keyed by the GeoJSON's `name`. */
+/**
+ * Where `name_fr` is wrong, keyed by the GeoJSON's `name`. The Seto inland sea plays no part
+ * today: its widest water is under `SEA_MIN_RADIUS`, so it is left out. The guard keeps it from
+ * coming in under a Scottish name if the radius or the rank ever lets it in.
+ */
 const SEA_NAMES = {
   'Inner Sea': 'mer intérieure de Seto', // NAME_FR « Mers intérieures de la côte occidentale de l'Écosse »
 };
