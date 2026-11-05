@@ -4,6 +4,7 @@ import { depositHolders } from '@/domain/construction';
 import { DEPOSIT_POINTS } from '@/domain/world';
 import {
   buildingsOfMaquette,
+  campsShown,
   markersOf,
   leavingStill,
   marchingPiecesOf,
@@ -208,5 +209,21 @@ describe('the deposits markersOf draws', () => {
     expect(clears(ordered!.id)).toBe(`building-mine@${ordered!.lonLat}`);
     expect(clears(seen!.id)).toBe('installation-s1');
     expect(clears(free!.id)).toBeUndefined();
+  });
+});
+
+describe('campsShown (#441)', () => {
+  it('drops the garrison surveyed at an objective with its layer, for the map and the contacts alike', () => {
+    const view = {
+      objectives: [{ point: [10, 45] }],
+      camps: [
+        { id: 'guard', point: [10, 45] },
+        { id: 'field', point: [11, 45] },
+      ],
+    } as never;
+    const ids = (objectives: boolean) =>
+      campsShown(view, { objectives } as never).map(({ id }) => id);
+    expect(ids(true)).toEqual(['guard', 'field']);
+    expect(ids(false)).toEqual(['field']);
   });
 });

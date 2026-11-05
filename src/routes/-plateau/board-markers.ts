@@ -152,28 +152,19 @@ export function markersOf(
    * injouable — un adversaire camperait chez le joueur sans que rien ne le lui dise. Le
    * marqueur ne porte que ce que le relevé sert : un point, un milieu, deux dates.
    */
-  /** **Éteindre les objectifs emporte leur garnison relevée** : elle se tient au point exact
-   *  de la réserve (`convex/objectives.ts`), et un bloc sans la réserve qu'il garde ne dirait
-   *  plus rien. */
-  const isObjectivePoint = (point: LonLat): boolean =>
-    view.objectives.some(
-      (objective) => objective.point[0] === point[0] && objective.point[1] === point[1],
-    );
-  const camps: ReadonlyArray<MapMarker> = view.camps
-    .filter((camp) => toggles.objectives || !isObjectivePoint(camp.point))
-    .map((camp) => ({
-      kind: 'camp' as const,
-      id: campPinId(camp.id),
-      campId: camp.id,
-      lonLat: camp.point,
-      medium: camp.medium,
-      lastKnown: camp.lastKnown,
-      since: camp.since,
-      seenMinutesAgo: camp.seenMinutesAgo,
-      lastSeenAt: camp.lastSeenAt,
-      ...(camp.nation === undefined ? {} : { nation: camp.nation }),
-      identification: camp.identification,
-    }));
+  const camps: ReadonlyArray<MapMarker> = campsShown(view, toggles).map((camp) => ({
+    kind: 'camp' as const,
+    id: campPinId(camp.id),
+    campId: camp.id,
+    lonLat: camp.point,
+    medium: camp.medium,
+    lastKnown: camp.lastKnown,
+    since: camp.since,
+    seenMinutesAgo: camp.seenMinutesAgo,
+    lastSeenAt: camp.lastSeenAt,
+    ...(camp.nation === undefined ? {} : { nation: camp.nation }),
+    identification: camp.identification,
+  }));
 
   /**
    * **Les objectifs neutres se tiennent sur la carte, pour tout le monde** (17/09/2026). C'est
@@ -340,6 +331,23 @@ export function markersOf(
     ...raising,
   ];
 }
+
+/**
+ * **Éteindre les objectifs emporte leur garnison relevée** : elle se tient au point exact de la
+ * réserve (`convex/objectives.ts`), et un bloc sans la réserve qu'il garde ne dirait plus rien.
+ * Les accrochages lisent les mêmes camps : un cercle sans relevé dedans ne dirait rien non plus.
+ */
+export const campsShown = (
+  view: Pick<PlayerView, 'camps' | 'objectives'>,
+  toggles: Pick<IndicatorToggles, 'objectives'>,
+): PlayerView['camps'] =>
+  view.camps.filter(
+    (camp) =>
+      toggles.objectives ||
+      !view.objectives.some(
+        (objective) => objective.point[0] === camp.point[0] && objective.point[1] === camp.point[1],
+      ),
+  );
 
 export function standingPilesOf(
   me: PlayerView['me'],

@@ -79,6 +79,7 @@ import {
   razingStill,
   leavingStill,
   campsOf,
+  campsShown,
   markerOfStation,
   markersOf,
   standingPilesOf,
@@ -2011,7 +2012,10 @@ function BoardContent({
     [view.arcs, view.me.troops, blitz],
   );
   /** **Les accrochages** (#441), nommés d'après toutes les villes de l'atlas. */
-  const contacts = useMemo(() => contactsOf(view, atlas.cities()), [view, atlas]);
+  const contacts = useMemo(
+    () => contactsOf({ ...view, camps: campsShown(view, toggles) }, atlas.cities()),
+    [view, toggles, atlas],
+  );
   const pins = useMemo(
     () =>
       pinsOf(markers, arcs, ink, (station) =>
