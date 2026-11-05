@@ -1174,6 +1174,15 @@ describe('a site on its socle (ADR 0038)', () => {
       expect(drawn.ruins).toBeDefined();
     });
 
+    it('hands a raze from afar, its pin standing, its place whole for a ring of ink (#465)', async () => {
+      const layer = seenFrom(await layerOf([socled()]), 50);
+      expect(layer.drawnOf(MINE)).toBeNull();
+      const whole = layer.wholeOf(MINE)!;
+      expect(whole.parts).toEqual([]);
+      expect(new Vector3().setFromMatrixScale(whole.matrix).x).toBeCloseTo(FULL, 9);
+      expect(layer.wholeOf('building-hq@0,0')).toBeNull();
+    });
+
     it('lets the smoke rest once its building has shrunk away', async () => {
       const layer = seenFrom(await layerOf([socled({ smoking: true })]), 20);
       expect(layer.smoke.idle!()).toBe(false);

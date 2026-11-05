@@ -1661,8 +1661,16 @@ export class MapEngine {
     // The pin a dismantled outpost or a razed building leaves (#465) is copied as it stands
     // before the list drops it; up close it weighs nothing, and the maquette falls instead.
     const now = performance.now();
-    for (const id of [...razedOf(this.dismantling, pins), ...razedOf(this.razing, pins)])
+    for (const id of razedOf(this.dismantling, pins))
       this.pins.leave(id, now, this.ambience.motion);
+    for (const id of razedOf(this.razing, pins)) {
+      // In reduced motion it does not tip: where only its pin stood, its place is ringed in ink,
+      // as a raze up close is — that one plays from `displayMaquettes`.
+      const stood = this.pins.leave(id, now, this.ambience.motion);
+      const whole =
+        stood === null || this.maquettes.drawnOf(id) !== null ? null : this.maquettes.wholeOf(id);
+      if (whole !== null) this.razes.play(id, whole, now);
+    }
     this.pins.display(pins);
   }
 

@@ -1132,6 +1132,25 @@ export class MaquetteLayer implements SequenceHost {
     };
   }
 
+  /** **Where a maquette stands whole, and how large** (#465): what a raze from afar, where only
+   *  its pin stood, rings in ink — nothing of it to fall. `null` for an unknown id or a model not
+   *  landed. */
+  wholeOf(id: string): Drawn | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    if (dressed === undefined || !model) return null;
+    const { item } = dressed;
+    return {
+      parts: [],
+      matrix: new Matrix4().compose(
+        item.at,
+        item.turn,
+        new Vector3().setScalar(sizeOf(model, item)),
+      ),
+      box: model.building,
+    };
+  }
+
   /** **A maquette's own frame on the board**, drawn whole: its markers (`fx_sortie`…) and
    *  bounds in its model's units — metres, for a model in metres —, and the way between the two.
    *  What a recruit's way out of its door is laid on (#268). */
