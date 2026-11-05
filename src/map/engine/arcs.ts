@@ -286,8 +286,11 @@ export class ArcLayer {
       foot = hi;
     }
     foot ??= end;
-    // Already past its foot: held, it would step back.
-    if (arcProgressAt(rendered.arc, Date.now()) > foot) return null;
+    // Already past its foot: held, it would step back — but a pawn set off a moment ago steps
+    // back by nothing, and a taking reaches the view after its column's departure (#279).
+    const clock = Date.now();
+    const fresh = clock - rendered.arc.schedule.departedAt <= FRESH_DEPARTURE_MS;
+    if (!fresh && arcProgressAt(rendered.arc, clock) > foot) return null;
     this.holds.set(id, { foot, end, until, release: null });
     at(foot);
     return point;

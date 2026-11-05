@@ -501,6 +501,20 @@ describe('ArcLayer.hold (#278)', () => {
     vi.mocked(Date.now).mockRestore();
   });
 
+  /** #279 : la prise arrive à la vue quand la colonne est déjà partie de quelques instants ; sur
+   *  une caisse, ou d'une pile posée hors du socle, son pied est son départ. */
+  it('holds at its start a pawn set off a moment ago, though it left no socle', () => {
+    const arcs = layer();
+    vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    arcs.display([mine('a')]);
+    arcs.animate();
+    const start = arcs.hold('a', () => false, Infinity);
+    vi.mocked(Date.now).mockRestore();
+    expect(start).not.toBeNull();
+    arcs.animate();
+    expect(at(arcs).distanceTo(start!)).toBeLessThan(1e-6);
+  });
+
   it('finds the foot at the edge of the socle however long its road', () => {
     const arcs = layer();
     vi.spyOn(Date, 'now').mockReturnValue(0);
