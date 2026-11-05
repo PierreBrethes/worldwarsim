@@ -78,6 +78,21 @@ describe('momentOf', () => {
     expect(momentOf('out', facts({ ...fallen, journal: [fall(null)] }))).toBeNull();
   });
 
+  /** **Le dernier QG de la saison** : son éliminé le voit tomber avant que la saison se close. */
+  it('plays the fall first when the season ends on it', () => {
+    const verdict = { reason: 'lastStanding', winnerNation: 'germany', perMinute: null } as const;
+    const journal = [fall({ lon: 12.5, lat: 41.9 })];
+    const last = { nation: 'italy', verdict, journal };
+    expect(momentOf('final', facts({ ...last, eliminatedAt: NOON }))).toMatchObject({
+      kind: 'victory',
+      fall: { at: [12.5, 41.9], hour: hour(NOON) },
+    });
+    // Fallen before, he has had his scene.
+    expect(momentOf('final', facts({ ...last, eliminatedAt: NOON - 1 }))).toMatchObject({
+      fall: null,
+    });
+  });
+
   it('plays nothing in a Blitz, nor before an end', () => {
     expect(momentOf('final', facts({ mode: 'blitz' }))).toBeNull();
     expect(momentOf(null, facts())).toBeNull();
@@ -112,6 +127,29 @@ describe('momentBeatsOf', () => {
       'sepia@0',
       'open@0',
     ]);
+  });
+
+  it('lands on the last headquarters, stamps it, then closes the season', () => {
+    const verdict = { reason: 'lastStanding', winnerNation: 'germany', perMinute: null } as const;
+    const last = momentOf(
+      'final',
+      facts({ nation: 'italy', verdict, eliminatedAt: NOON, journal: [fall({ lon: 1, lat: 2 })] }),
+    )!;
+    expect(does(momentBeatsOf(last, 'full'))).toEqual([
+      'fly@0',
+      'stamp@1000',
+      'big@4200',
+      'sepia@4800',
+      'open@6400',
+    ]);
+    expect(does(momentBeatsOf(last, 'reduced'))).toEqual([
+      'fly@0',
+      'stamp@0',
+      'big@400',
+      'sepia@1000',
+      'open@2600',
+    ]);
+    expect(does(momentBeatsOf(last, 'off'))).toEqual(['fly@0', 'sepia@0', 'open@0']);
   });
 
   it('lands on the fallen headquarters, stamps it, then opens his sheet', () => {
