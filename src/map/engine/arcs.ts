@@ -604,9 +604,10 @@ export class ArcLayer {
   }
 
   /** The pawn under `ray`, by its movement's id — the id its head label carries. */
-  pawnUnder(ray: Raycaster): PieceHit | null {
+  pawnUnder(ray: Raycaster, mine = false): PieceHit | null {
     let best: PieceHit | null = null;
     for (const { arc, pawn } of this.rendered) {
+      if (mine && arc.state !== 'mine') continue;
       const distance =
         drawnHit(ray, pawn.object) ?? (pawn.standing ? leastHit(ray, pawn.object.position) : null);
       if (distance !== null) best = nearer(best, { id: arc.id, distance });

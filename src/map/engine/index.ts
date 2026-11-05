@@ -2745,7 +2745,14 @@ export class MapEngine {
     if (!this.castAt(clientX, clientY)) return null;
     const pick = this.pieceToTake();
     if (pick !== null) return pick.carried ? null : { kind: 'canvas', pick };
-    return this.pileOfPin(this.pinUnder(this.aim));
+    return this.pileOfPin(this.pinUnder(this.aim)) ?? this.movementToTake();
+  }
+
+  /** **My column on its road is taken by its pawn**, as by its label (Doctrine du porte-avions,
+   *  #449): the host says whether it may change course. */
+  private movementToTake(): Extract<CarryTarget, { kind: 'label' }> | null {
+    const pawn = this.arcs.pawnUnder(this.ray, true);
+    return pawn === null ? null : { kind: 'label', labelId: pawn.id };
   }
 
   /** A pin of one of my piles carries it, as its label does. */
@@ -4309,7 +4316,9 @@ export class MapEngine {
 
     const take = !this.fingerOnBoard && onScreen ? this.pieceToTake() : null;
     const piece =
-      take !== null || this.pileOfPin(pin) !== null
+      take !== null ||
+      this.pileOfPin(pin) !== null ||
+      (under !== null && this.movementToTake()?.labelId === under)
         ? PIECE_CURSOR
         : label !== null || pin !== null
           ? 'pointer'
