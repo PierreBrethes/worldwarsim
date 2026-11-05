@@ -63,7 +63,9 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
 - **Node** : si `npm --version` imprime plus d'une ligne (le Mac), préfixe chaque commande node
   par `unfunction node npm npx nvm 2>/dev/null; export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH";`.
 - **Un seul vérifieur à la fois** sur la machine : `ps -Ao pid,command | grep "[n]pm run verifier"`,
-  lancé dans une commande à part, doit ne rien rendre avant `npm run verifier`. Des timeouts
+  lancé dans une commande à part, doit ne rien rendre avant `npm run verifier`, et le fichier
+  `base-occupee` du scratchpad ne doit pas annoncer des gestes ni un banc : ton vérifieur à côté
+  les fait échouer sous la charge (05/11, charge 46, cinq gestes en échec). Des timeouts
   dans `convex/` qui changent d'un passage à l'autre viennent de la charge : relance ces
   fichiers seuls.
 - **Attendre un processus** : attends son pid (`while kill -0 <pid>; do sleep 5; done`).
@@ -75,11 +77,14 @@ Obligatoire dès que le lot touche un écran. Le mode d'emploi est dans `deploie
 section « Voir une partie Mondiale en local ».
 
 1. Docker `worldwarsim-backend-1` levé ; `npm run dev` sur 5173 (`lsof -i :5173` dit s'il tourne).
-2. `grep CONVEX_SELF_HOSTED_URL .env.local` doit viser `127.0.0.1`, puis `npx convex deploy`.
+2. Prends `base-occupee` et tiens-le de la démo à ta dernière capture. La base tourne les
+   fonctions de `main` : déploie seulement si ta branche touche `convex/`, car un déploiement
+   depuis une branche plus ancienne les ramène en arrière (05/11 : une démo de #487 cassée).
+   `grep CONVEX_SELF_HOSTED_URL .env.local` doit viser `127.0.0.1`, puis `npx convex deploy`.
    Pierre a autorisé ce déploiement local. Si le contrôle des permissions le refuse quand même,
    n'essaie pas une autre commande qui ferait la même chose (`convex dev --once`, script) :
    capture ce qui est déjà déployé, et dis dans ton rapport que le déploiement manque, avec la
-   liste des captures qu'il bloque. Le contrôle refuse aussi l'orchestrateur : c'est Pierre qui
+   liste des captures qu'il bloque. S'il refuse aussi l'orchestrateur, c'est Pierre qui
    déploie, puis l'orchestrateur te renvoie capturer.
 3. `npm run demo:mondiale`. Si le lot a besoin d'une scène, ajoute-la en option à
    `scripts/demo-mondiale.mjs` : un état que l'issue montre et qu'aucune scène ne produit est une
