@@ -13,7 +13,7 @@ import type { UnitRole } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import { pilePieces, postedAt, unitPieces } from '@/domain/pile-pieces';
 import { AIRFIELD } from '@/emblems/kits/manifest';
-import { apron, berths } from './timelines/rest';
+import { apron, berths, layout, type Place } from './timelines/rest';
 import type { WorldFrame } from './frame';
 import {
   besideSites,
@@ -1077,6 +1077,70 @@ describe('pieces resting at their post', () => {
     const pieces = pilePieces([unit('fighter', 'a')]);
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces }]);
     expect(layer.placeOf('p/0')!.at.distanceTo(SITE)).toBeLessThan(0.1);
+  });
+
+  const planes = (...ids: string[]) =>
+    postedAt(pilePieces(ids.map((id) => unit('fighter', id))), 'airfield');
+  const spot = (layer: StandingLayer, k: number) => {
+    const { at } = layer.placeOf(`p/${k}`)!;
+    return at;
+  };
+  const wanted = (place: Place) =>
+    toBoard(
+      new Vector3(
+        layout([{ role: 'fighter', place }], 1, growthOf('fighter'))[0]!.x,
+        AIRFIELD.top,
+        layout([{ role: 'fighter', place }], 1, growthOf('fighter'))[0]!.z,
+      ),
+    );
+
+  it('does not draw a fifth fighter: the apron holds four', async () => {
+    const layer = await standing([
+      { id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b', 'c', 'd', 'e') },
+    ]);
+    const { figurines } = (
+      layer as unknown as { dressed: Map<string, { figurines: Array<{ object: Group }> }> }
+    ).dressed.get('p')!;
+    expect(figurines.map(({ object }) => object.visible)).toEqual([true, true, true, true, false]);
+  });
+
+  it('keeps the place of a plane while it stays: the one before it leaving moves no other', async () => {
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
+    const before = spot(layer, 1).clone();
+    layer.display([{ id: 'p', at: { beside: 'site' }, pieces: planes('b') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    layer.orient(eye);
+    near(spot(layer, 0), before);
+  });
+
+  it('sends a plane formed at its hangar ahead, and one come home to the back', async () => {
+    for (const [how, place] of [
+      ['formed', { lane: 1, rank: 1 }],
+      ['returned', { lane: 1, rank: 0 }],
+    ] as const) {
+      const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a') }]);
+      layer.display([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
+      await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+      layer.arrivedAt('p', [1], how);
+      layer.orient(eye);
+      near(spot(layer, 1), wanted(place));
+    }
+  });
+
+  it('draws the ring of a posted pile round the pieces where they rest', async () => {
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
+    const { ring, figurines, outline } = (
+      layer as unknown as {
+        dressed: Map<
+          string,
+          { ring: Group; figurines: Array<{ object: Group }>; outline: { x: number; z: number } }
+        >;
+      }
+    ).dressed.get('p')!;
+    const [a, b] = figurines.map(({ object }) => object.position);
+    expect(ring.position.x).toBeCloseTo((a!.x + b!.x) / 2, 9);
+    expect(ring.position.z).toBeCloseTo((a!.z + b!.z) / 2, 9);
+    expect(outline.z).toBeGreaterThan(Math.abs(a!.z - b!.z) / 2);
   });
 
   it('takes a posted piece in hand with the others, not at its post', () => {

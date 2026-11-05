@@ -3383,6 +3383,11 @@ export class MapEngine {
       case 'formation':
       case 'retour':
         if (this.blitz) break;
+        this.standing.arrivedAt(
+          cue.pileId,
+          cue.groups,
+          cue.kind === 'formation' ? 'formed' : 'returned',
+        );
         this.standing.inkArrival(cue.pileId);
         this.siteWays.push({ cue, since: performance.now() });
         break;
