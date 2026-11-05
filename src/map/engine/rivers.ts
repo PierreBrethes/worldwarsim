@@ -51,7 +51,7 @@ export function riverData(rivers: readonly River[], frame: WorldFrame): RiverDat
 }
 
 /** A spot as the board holds it: its middle and the two ends of its straight run. */
-export type RiverNameSpot = { readonly at: Vector3; readonly from: Vector3; readonly to: Vector3 };
+type RiverNameSpot = { readonly at: Vector3; readonly from: Vector3; readonly to: Vector3 };
 
 type Level = {
   readonly lines: Group;
