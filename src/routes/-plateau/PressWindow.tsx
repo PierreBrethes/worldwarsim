@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import type { Seat } from '@/data/session';
 import { countdownLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
 import { outcomeOf, type EndingFacts, type Outcome } from '@/domain/ending';
@@ -14,6 +17,7 @@ import type {
   StrategicPointView,
 } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
+import { FinalEditionPage } from '@/shell/final-edition/FinalEditionPage';
 import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -43,9 +47,11 @@ export function PressWindow({
   blitz,
   points,
   race,
+  seat,
   onClose,
   ...windowProps
 }: WindowProps & {
+  seat: Seat;
   press: PressEdition | null;
   verdict: SeasonVerdict | null;
   ending: EndingFacts;
@@ -56,6 +62,25 @@ export function PressWindow({
 }) {
   const narrow = useNarrowScreen();
   const [sort, setSort] = useState<PressSortKey>('territory');
+  /** **Une Mondiale conclue lit son archive** (#455) : l'édition finale en grande feuille quand
+   *  elle est imprimée, la page d'aujourd'hui avec une ligne d'attente ou d'absence sinon. */
+  const archive = useQuery(
+    api.finalEdition.ofSeason,
+    !blitz && press?.final === true ? seat : 'skip',
+  );
+
+  if (archive?.state === 'ready')
+    return (
+      <FloatingWindow
+        name="press"
+        onClose={onClose}
+        {...windowProps}
+        {...(narrow ? {} : { alignment: 'top' as const })}
+        width={1340}
+      >
+        <FinalEditionPage edition={archive.edition} onClose={onClose} />
+      </FloatingWindow>
+    );
 
   if (blitz)
     return (
@@ -84,6 +109,7 @@ export function PressWindow({
         ending={ending}
         points={points}
         race={race}
+        archive={archive?.state ?? null}
         sort={sort}
         onSort={setSort}
         onClose={onClose}
@@ -235,6 +261,7 @@ function PressColumn({
   ending,
   points,
   race,
+  archive,
   sort,
   onSort,
   onClose,
@@ -244,6 +271,8 @@ function PressColumn({
   ending: EndingFacts;
   points: ReadonlyArray<StrategicPointView>;
   race: RaceCountdown | null;
+  /** L'archive d'une Mondiale conclue qui manque : elle s'imprime, ou elle n'existe pas. */
+  archive: 'pending' | 'none' | null;
   sort: PressSortKey;
   onSort: (key: PressSortKey) => void;
   onClose: () => void;
@@ -327,6 +356,14 @@ function PressColumn({
           ending={ending}
           onClose={onClose}
         />
+        {archive !== null && (
+          <p
+            role="status"
+            className="border-b border-[var(--ink)] px-4 py-[10px] text-center font-(family-name:--font-text) text-[13px] text-[var(--ink-quiet)] italic"
+          >
+            {archive === 'pending' ? fr.finalEdition.pending : fr.finalEdition.absent}
+          </p>
+        )}
         {mine !== null && registersOpen && <Registers own={mine} />}
         <Race points={points} race={race} />
         {press === null ? (

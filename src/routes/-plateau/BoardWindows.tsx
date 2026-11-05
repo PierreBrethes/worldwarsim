@@ -130,6 +130,7 @@ export function BoardWindows({
         return (
           <PressWindow
             key={name}
+            seat={seat}
             press={view.press}
             verdict={view.season.verdict}
             ending={ending}
