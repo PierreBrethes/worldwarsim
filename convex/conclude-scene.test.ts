@@ -80,4 +80,16 @@ describe('the demo scene that concludes a Mondiale', () => {
     await closeTheSeason(t);
     expect(await t.query(api.finalEdition.ofSeason, seat)).toEqual({ state: 'pending' });
   });
+
+  it('concludes past the fallback window when asked, so the edition reads none', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await t.mutation(internal.dev.concludeScene, {
+      seasonId: seat.seasonId,
+      reason: 'clock',
+      stale: true,
+    });
+    await closeTheSeason(t);
+    expect(await t.query(api.finalEdition.ofSeason, seat)).toEqual({ state: 'none' });
+  });
 });

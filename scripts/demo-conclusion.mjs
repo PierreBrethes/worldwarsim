@@ -4,6 +4,8 @@
  * `edition`). Pour l'accueil, une seconde Mondiale à deux se conclut d'abord, attend son archive,
  * puis est détruite : sa une reste lisible, sa saison n'est plus là (`edition-detruite`).
  * `--en-attente` retient la chaîne de clôture : l'édition reste « sous presse », à capturer.
+ * `--sans-archive` conclut la saison il y a plus d'une demi-heure, la chaîne retenue : l'édition
+ * n'existe pas, comme pour une saison conclue avant le déploiement.
  *
  * À part du script principal, qui change sur d'autres branches : il n'appelle que `concludeDemo`.
  */
@@ -30,11 +32,15 @@ export function conclusionAsked(argv) {
   const reason = argv[at + 1];
   if (!REASONS.includes(reason))
     throw new Error(`--conclue attend ${REASONS.join(', ')} ; reçu ${reason}`);
-  return { reason, hold: argv.includes('--en-attente') };
+  return {
+    reason,
+    hold: argv.includes('--en-attente'),
+    stale: argv.includes('--sans-archive'),
+  };
 }
 
 /** Conclut la saison de la démo, après une saison détruite pour l'accueil ; rend les lieux. */
-export async function concludeDemo({ client, cli, pause, tokens, seasonId, reason, hold }) {
+export async function concludeDemo({ client, cli, pause, tokens, seasonId, reason, hold, stale }) {
   const [tokenA, tokenB] = tokens;
   const past = await client.mutation(api.seasons.create, {
     token: tokenA,
@@ -58,8 +64,9 @@ export async function concludeDemo({ client, cli, pause, tokens, seasonId, reaso
   const pastId = await archiveOf(client, pause, tokenA, past.seasonId);
   await client.mutation(api.seasons.destroy, { token: tokenA, seasonId: past.seasonId });
 
-  cli(['run', 'dev:concludeScene', JSON.stringify({ seasonId, reason, hold })]);
+  cli(['run', 'dev:concludeScene', JSON.stringify({ seasonId, reason, hold, stale })]);
   const places = { 'edition-detruite': `/edition/${pastId}` };
-  if (!hold) places.edition = `/edition/${await archiveOf(client, pause, tokenA, seasonId)}`;
+  if (!hold && !stale)
+    places.edition = `/edition/${await archiveOf(client, pause, tokenA, seasonId)}`;
   return places;
 }
