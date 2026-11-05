@@ -59,7 +59,7 @@ export type City = {
 
 /** A sea of the decor (#457): Natural Earth's `scalerank`, 0 the oceans, and the points where
  *  its name may stand, each with the radius of the water around it, in map units. */
-export type Sea = {
+type Sea = {
   readonly name: string;
   readonly rank: number;
   readonly spots: ReadonlyArray<{ readonly lonLat: LonLat; readonly radius: number }>;
