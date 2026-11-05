@@ -33,6 +33,15 @@ describe('the glow on the pieces themselves', () => {
     expect(half).toBeCloseTo(material.emissive.r / 2);
   });
 
+  it("gives a site's liseré the same glow as an instance (white, inked per instance) and as its copy (inked)", () => {
+    const instance = new MeshStandardMaterial({ color: '#ffffff', name: 'lisere' });
+    const copy = instance.clone();
+    copy.color.set('#2a4f9c');
+    warmPieces(piece(instance), 1);
+    warmPieces(piece(copy), 1);
+    expect(copy.emissive.toArray()).toEqual(instance.emissive.toArray());
+  });
+
   it('warms a textured piece through its own map', () => {
     const map = new Texture();
     const material = new MeshStandardMaterial({ map });
