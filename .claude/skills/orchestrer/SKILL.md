@@ -68,8 +68,8 @@ taille se coupe d'abord (skill `ticket`).
 |---|---|
 | relevé de faits (noms de nœuds, grep, une mesure à lancer), retouche de prototype, texte, doc | Haiku, low |
 | mécanique, spec fermée (brancher des GLB, déplacer du code, scène de démo) | Sonnet, low |
-| spec claire : fonctions pures d'un storyboard, écran d'une maquette choisie, corrections de revue ; revue d'un écran ou d'outillage | Sonnet, medium |
-| conception (variantes, storyboard neuf), diagnostic d'un bug non reproduit, revue d'un lot 3D | Opus, medium |
+| spec claire : fonctions pures d'un storyboard, écran d'une maquette choisie, corrections de revue ; revue d'un lot, relecture à froid d'une issue | Sonnet, medium |
+| conception (variantes, storyboard neuf), diagnostic d'un bug non reproduit | Opus, medium |
 | brouillard, serveur près de la limite d'une seconde, fondation, audit | Opus, high |
 
 ## 4. Quand Pierre est absent
