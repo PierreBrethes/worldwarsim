@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 3434350 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : e29b911 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-109 valeurs marquées dans `convex/` et `src/domain/`.
+110 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -90,6 +90,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:171` | le temps de lire « nos pièces » et de l'ouvrir. |
 | `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:206` | « voir » |
 | `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:71` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
+| `BEFORE_CITY_KM` | `30` | `src/domain/contacts.ts:36` | la maquette C le pose à 0,35 unité, environ 30 km |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:105` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `MOON_ELEVATION_DEG` | `53` | `src/domain/daylight.ts:106` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `BASIN_KM` | `24` | `src/domain/deposit-basins.ts:22` | le rayon du bassin dessiné : plus étroit que l'aimant, c'est le terrain qu'on lit. |

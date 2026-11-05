@@ -31,7 +31,8 @@ export type Contact = {
   readonly city: string;
 };
 
-/** Closer than this to its city, a contact stands « devant » it. @a-mesurer (maquette C : 0,35 unité ≈ 30 km) */
+/** Closer than this to its city, a contact stands « devant » it.
+ *  @a-mesurer la maquette C le pose à 0,35 unité, environ 30 km */
 const BEFORE_CITY_KM = 30;
 
 type Node = { readonly pinId: string; readonly at: LonLat };
