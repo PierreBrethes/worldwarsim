@@ -36,6 +36,7 @@ function fuelRefusalText({ fuel }: NonNullable<Previewed>): string | null {
         ...fuel.short,
         km: fuel.km,
         roundTrip: 'roundTrip' in fuel && fuel.roundTrip,
+        course: 'course' in fuel && fuel.course,
       });
 }
 

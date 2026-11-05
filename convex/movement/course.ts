@@ -157,7 +157,7 @@ export async function changeCourse(
   const plan = await plotCourse(ctx, player, season, movementId, type, target, now);
   const { movement, here, aimed, route, arrivesAt, fuel } = plan;
   if (fuel.short !== null)
-    fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: false });
+    fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: false, course: true });
 
   const ran = seenSegment(marchingForce(movement), movement.departedAt, now).points;
   /** **Qui la guettait la voit repartir sans seconde dépêche** (décision du 04/11) : relevé avant

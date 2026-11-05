@@ -7,6 +7,7 @@ import {
   type Course,
 } from './carrier-doctrine';
 import { fuelGaugeOf, fuelRefusalOf } from './supplies';
+import { fr } from '@/i18n/fr';
 
 const HOUR = 3_600_000;
 /** Yokosuka out to sea, ten hours of open water. */
@@ -88,5 +89,21 @@ describe('the fuel of a new course', () => {
     expect(fuelRefusalOf([cargo], 2400)).toEqual({ role: 'cargo', held: 4, needed: 5 });
     expect(fuelRefusalOf([cargo], 2000)).toBeNull();
     expect(fuelGaugeOf([{ role: 'cargo', fuel: 1 }], 400)).not.toHaveProperty('paid');
+  });
+});
+
+/** **Le plein d'un cap changé, refusé** : le compte tient déjà le crédit, et l'ancre est loin. */
+describe('a course change short of fuel', () => {
+  it('says the paid fuel is counted, and sends nobody to anchor', () => {
+    const said = fr.errors.NOT_ENOUGH_FUEL({
+      role: 'cargo',
+      held: 4,
+      needed: 5,
+      km: 2400,
+      roundTrip: false,
+      course: true,
+    });
+    expect(said).toContain('plein déjà payé compris');
+    expect(said).not.toContain('ancre');
   });
 });

@@ -629,6 +629,8 @@ export const previewCourse = query({
         short: fuel.short,
         km: fuel.km,
         roundTrip: false,
+        /** Le refus dit le plein déjà payé, sans renvoyer à l’ancre (`fr.errors.NOT_ENOUGH_FUEL`). */
+        course: true as const,
         eased: fuel.eased,
         resupply: await passingEstimate(
           ctx,

@@ -825,8 +825,10 @@ export const fr = {
     MOVEMENT_IN_FLIGHT: (d) =>
       `slots de mouvement tous engagés (${num(d.maximum)}) — chaque carte Transmissions en ouvre un`,
     NO_LAND_ROUTE: (d) => `aucune route terrestre de ${str(d.from)} à ${str(d.to)}`,
+    /** `course` : un cap changé en mer (#449) — le compte tient le plein déjà payé, et l'ancre est
+     *  loin. */
     NOT_ENOUGH_FUEL: (d) =>
-      `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)} — rechargez-la à l’ancre`,
+      `plein trop court : ${d.roundTrip === true ? 'l’aller-retour de ' : ''}${num(d.km)} km demande${d.roundTrip === true ? '' : 'nt'} ${num(d.needed)} cran${plural(Number(d.needed), '', 's')} de plein, ${roleLabel(str(d.role) as UnitRole, 1).toLowerCase()} n’en porte que ${num(d.held)}${d.course === true ? ', plein déjà payé compris' : ' — rechargez-la à l’ancre'}`,
     /** **La Doctrine du porte-avions** (ADR 0039 §4) : la fiche et la pastille le disent avant. */
     UNKNOWN_MOVEMENT: () => 'mouvement inconnu',
     NO_CARRIER_DOCTRINE: () => 'un mouvement parti ne se reprend pas',
