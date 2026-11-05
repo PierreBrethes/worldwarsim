@@ -35,13 +35,13 @@ export type FilmCut = 'wide' | 'tall';
 export const FILM_CUTS = {
   wide: {
     video: FRONT_FILM_URLS.wide,
-    poster: '/film/accueil-affiche-16x9.jpg',
-    gestures: '/film/gestes-16x9.jpg',
+    poster: '/film/accueil-affiche-16x9.webp',
+    gestures: '/film/gestes-16x9.webp',
   },
   tall: {
     video: FRONT_FILM_URLS.tall,
-    poster: '/film/accueil-affiche-9x16.jpg',
-    gestures: '/film/gestes-9x16.jpg',
+    poster: '/film/accueil-affiche-9x16.webp',
+    gestures: '/film/gestes-9x16.webp',
   },
 } as const satisfies Record<FilmCut, object>;
 
