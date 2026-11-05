@@ -119,6 +119,12 @@ export type ArcView =
       readonly onMission?: true;
       /** **Son cap a changé** (ADR 0039 §4) : l'instant du coude, et la route courue avant lui. */
       readonly courseChange?: { readonly at: number; readonly ran: ReadonlyArray<LonLat> };
+      /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : son nom, et la route prévue
+       *  depuis la première, suspendue au terrain tenu. */
+      readonly then?: {
+        readonly name: string;
+        readonly points: ReadonlyArray<LonLat>;
+      };
       /**
        * **Its four dates, as served — never a share or a countdown against the clock** (#183):
        * the arc keeps its identity until its trip changes, and whoever draws or counts reads
@@ -1285,6 +1291,9 @@ export type JournalDispatch = {
   /** **Un chantier achevé**, que `construction` ne distingue pas d'un annulé ou d'un rasé : le
    *  front le sonne (#405). Absent de toute autre dépêche. */
   readonly built?: true;
+  /** **Une Guerre éclair restée sur place** (ADR 0039 §6) : ce que sa pièce dit, au point de la
+   *  dépêche. Absent de toute autre dépêche. */
+  readonly stood?: string;
 };
 
 export type SeasonVerdict = {

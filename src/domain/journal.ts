@@ -105,6 +105,7 @@ export function journalDispatches(
       place: entry.place ?? null,
       ...(entry.delivered === undefined ? {} : { delivered: entry.delivered }),
       ...(entry.built === true ? { built: true as const } : {}),
+      ...(entry.stood === undefined ? {} : { stood: entry.stood }),
     }));
 }
 
@@ -121,6 +122,7 @@ type Written = {
   readonly place?: MapPlace | null;
   readonly delivered?: SupplyLoad;
   readonly built?: true;
+  readonly stood?: string;
 };
 
 /**
@@ -213,21 +215,28 @@ function written(notice: Notice): Written {
           asLocalTime(notice.arrivesAt),
         ),
       };
-    case 'blitzkrieg':
+    case 'blitzkrieg': {
+      const reason =
+        notice.refusal === undefined || !(notice.refusal in fr.errors)
+          ? null
+          : fr.errors[notice.refusal as keyof typeof fr.errors]({ ...notice.details });
+      const first = placeLabel(notice.name);
       return {
         at: notice.at,
         severity: notice.outcome === 'onward' ? 'notable' : 'critical',
         kind: 'column',
         text: said.blitzkrieg(
           notice.outcome,
-          placeLabel(notice.name),
+          first,
           placeLabel(notice.then.name),
           notice.arrivesAt === undefined ? null : asLocalTime(notice.arrivesAt),
-          notice.refusal === undefined || !(notice.refusal in fr.errors)
-            ? null
-            : fr.errors[notice.refusal as keyof typeof fr.errors]({ ...notice.details }),
+          reason,
         ),
+        ...(notice.outcome === 'halted'
+          ? { stood: fr.blitzkrieg.stood(first, reason ?? '…') }
+          : {}),
       };
+    }
     case 'storeResupplied':
       return {
         at: notice.at,

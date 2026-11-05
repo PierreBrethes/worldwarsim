@@ -35,7 +35,17 @@ import { forbiddenGroundOf } from '@/domain/drop-order';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { useHeldRegions } from './-plateau/useHeldRegions';
-import { dropRefusalOf, useOrderPreview } from './-plateau/useOrderPreview';
+import { dropRefusalOf, useOrderPreview, type ChainedFirst } from './-plateau/useOrderPreview';
+import {
+  ChainTab,
+  chainChipOf,
+  firstPointOf,
+  marchPreviewOf,
+  secondRefusalOf,
+  useChainKey,
+} from './-plateau/blitzkrieg-hand';
+import { chainRefusalOf } from '@/domain/blitzkrieg';
+import { gateLabel } from '@/domain/labels';
 import { useTours } from './-plateau/useTours';
 import { usePlacing } from './-plateau/usePlacing';
 import { BoardWindows } from './-plateau/BoardWindows';
@@ -434,6 +444,12 @@ function BoardContent({
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
+  /** **La première jambe posée d'une Guerre éclair** (ADR 0039 §6) : la main tient la colonne au
+   *  point de la première cible, le temps de viser la seconde. */
+  const [chain, setChain] = useState<ChainedFirst | null>(null);
+  const chainKey = useChainKey(
+    hand.kind === 'held' && view.me.asset === 'blitzkrieg' && chain === null,
+  );
   /** **Plusieurs piles prises ensemble** (#130) : Maj + clic, le lasso, ou au doigt l'appui long
    *  sur le plateau puis les touchers (`picking`). Levée, une pile choisie emmène les autres. */
   const [selection, setSelection] = useState<Selection>([]);
@@ -737,6 +753,7 @@ function BoardContent({
 
   const liftHand = useCallback((next: Hand) => {
     setHand(next);
+    setChain(null);
     setLifts((count) => count + 1);
     setGarrison(null);
     setOrderError(null);
@@ -744,6 +761,7 @@ function BoardContent({
 
   const dropHand = useCallback(() => {
     setHand(EMPTY_HAND);
+    setChain(null);
     setResting(null);
   }, []);
 
@@ -1150,6 +1168,10 @@ function BoardContent({
   );
   /** L'aperçu du serveur sous la main, lu par l'envoi pour nommer la destination. */
   const previewNow = useRef<{ choice: OrderChoice; preview: Previewed } | undefined>(undefined);
+  /** La seconde jambe que le serveur a pesée sous la main (Guerre éclair), lue au lâcher. */
+  const thenNow = useRef<
+    { choice: OrderChoice; then: ReturnType<typeof useOrderPreview>['then'] } | undefined
+  >(undefined);
   const actOnCompass = useCallback(
     (action: CompassAction, at: { x: number; y: number }) => {
       /** **Un ordre de colonne en vol, une fois** : le second lâcher n'envoie pas les mêmes troupes
@@ -1178,6 +1200,35 @@ function BoardContent({
         dropHand();
         return true;
       };
+      /** **La seconde cible lâchée** (Guerre éclair) : la règle de l'ordre d'abord ; refusée, rien
+       *  ne part, ni l'une ni l'autre, et le refus est dit (ADR 0015). */
+      if (chain !== null) {
+        if (column === null) return;
+        const chosen = isOrder(action) ? choiceOf(action) : null;
+        const seen = thenNow.current;
+        const refusal =
+          chosen === null
+            ? fr.errors.CHAIN_ATTACK_ONLY({ type: 'march' })
+            : secondRefusalOf(
+                view.me.asset,
+                chain,
+                chosen,
+                seen !== undefined && JSON.stringify(seen.choice.aim) === JSON.stringify(chosen.aim)
+                  ? seen.then
+                  : undefined,
+                column.rule,
+              );
+        if (chosen === null || refusal !== null) {
+          setOrderError(refusal);
+          dropHand();
+          return;
+        }
+        sendColumn(
+          () => sendOrder(chain.station, column.troopIds, chain.first, chain.preview, chosen.aim),
+          chain.first.label,
+        );
+        return;
+      }
       switch (action.key) {
         /**
          * **L'élévation part de la carte, par la mutation d'`UpgradeControl` et pas une autre**
@@ -1344,6 +1395,29 @@ function BoardContent({
             );
             return;
           }
+          /** **Maj tenue au lâcher** (Guerre éclair) : la première jambe se pose, la colonne reste
+           *  en main au point de la première cible ; rien ne part encore. */
+          const first = (() => {
+            const chosen = choiceOf(action);
+            const seen = previewNow.current;
+            if (!chainKey.ref.current || seen === undefined) return null;
+            if (JSON.stringify(seen.choice.aim) !== JSON.stringify(chosen.aim)) return null;
+            const marched = marchPreviewOf(chosen, seen.preview);
+            return marched !== null &&
+              chainRefusalOf(view.me.asset, chosen, marched.route.legs) === null
+              ? { chosen, marched }
+              : null;
+          })();
+          if (first !== null) {
+            liftHand({
+              kind: 'held',
+              station: firstPointOf(first.marched),
+              troopIds: column.troopIds,
+            });
+            setChain({ station: column.station, first: first.chosen, preview: first.marched });
+            setResting(null);
+            return;
+          }
           sendColumn(() => {
             const chosen = choiceOf(action);
             const seen = previewNow.current;
@@ -1397,19 +1471,44 @@ function BoardContent({
       grouped,
       setTrace,
       launchPatrol,
+      chain,
+      chainKey.ref,
+      liftHand,
+      view.me.asset,
     ],
   );
 
   /** **Échap repose la pièce en main** (ADR 0026 §6). La rose arrête la touche avant nous quand
    *  elle est ouverte. */
+  /** **Échap garde la première seule** (Guerre éclair) : la première jambe posée part en attaque
+   *  simple. */
+  const sendFirstAlone = useCallback(() => {
+    if (chain === null || hand.kind !== 'held' || inFlight.current) return;
+    inFlight.current = true;
+    setOrderError(null);
+    const { station, first, preview } = chain;
+    sendOrder(station, hand.troopIds, first, preview).then(
+      (filed) => {
+        settle();
+        afterSent(filed, first.label);
+      },
+      (problem: unknown) => {
+        settle();
+        handleError(problem, setOrderError);
+        dropHand();
+      },
+    );
+  }, [chain, hand, sendOrder, settle, afterSent, dropHand]);
   useEffect(() => {
     if (hand.kind === 'empty') return;
     const putBack = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') dropHand();
+      if (event.key !== 'Escape') return;
+      if (chain !== null) sendFirstAlone();
+      else dropHand();
     };
     document.addEventListener('keydown', putBack);
     return () => document.removeEventListener('keydown', putBack);
-  }, [hand.kind, dropHand]);
+  }, [hand.kind, chain, sendFirstAlone, dropHand]);
 
   /** **Une pièce dont les troupes ne sont plus là se repose seule** — parties, tombées, ou un
    *  observateur qui vient de capituler : la main ne tient pas ce que la vue ne sert plus. */
@@ -1422,10 +1521,12 @@ function BoardContent({
             view.arcs.find((arc) => arc.id === hand.course && arc.state === 'mine') as
               { troopIds: ReadonlyArray<string> } | undefined
           )?.troopIds
-        : troopsAt(view.me, stationKeyOf(hand.station), marching).map((troop) => troop.id),
+        : troopsAt(view.me, stationKeyOf(chain?.station ?? hand.station), marching).map(
+            (troop) => troop.id,
+          ),
     );
     if (view.me.defeated || !hand.troopIds.every((troopId) => here.has(troopId))) dropHand();
-  }, [hand, view.me, view.arcs, marching, dropHand]);
+  }, [hand, chain, view.me, view.arcs, marching, dropHand]);
 
   /** **Les cases de la fiche latérale composent la main**, sans la lâcher (`composeHand`). Un
    *  ordre choisi pour l'ancienne composition ne vaut plus pour la nouvelle. */
@@ -1579,7 +1680,7 @@ function BoardContent({
     ],
   );
 
-  const { arcs, loadedAt, captures, mode } = view;
+  const { arcs, loadedAt, captures, mode, journal } = view;
   const ink = view.me.ink;
   const troops = view.me.troops;
   const asset = view.me.asset;
@@ -1595,7 +1696,7 @@ function BoardContent({
   }, [courseTurn]);
   const labels = useMemo(() => {
     const built = buildLabels(
-      { arcs, loadedAt, captures, mode, me: { ink, troops, asset } },
+      { arcs, loadedAt, captures, mode, journal, me: { ink, troops, asset } },
       markers,
       courseNow,
     );
@@ -1609,7 +1710,19 @@ function BoardContent({
           ink,
         )
       : built;
-  }, [arcs, loadedAt, captures, mode, ink, troops, asset, markers, knownRegionById, courseNow]);
+  }, [
+    arcs,
+    loadedAt,
+    captures,
+    mode,
+    journal,
+    ink,
+    troops,
+    asset,
+    markers,
+    knownRegionById,
+    courseNow,
+  ]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment ou d'un avant-poste se lève par ses
@@ -1732,6 +1845,16 @@ function BoardContent({
   );
   const carryPiece = useCallback(
     (from: PieceFrom, single: boolean): boolean => {
+      /** Entre ses deux cibles, la colonne se reprend où elle se tient (Guerre éclair). */
+      if (
+        chain !== null &&
+        hand.kind === 'held' &&
+        from.kind === 'piece' &&
+        from.hit.pileId === pileIdOf(hand.station)
+      ) {
+        setDragged(hand);
+        return true;
+      }
       if (from.kind === 'movement') {
         const taken = takeCourse(from.arcId);
         setDragged(taken);
@@ -1743,7 +1866,7 @@ function BoardContent({
       setDragged(next);
       return next !== null;
     },
-    [takePiece, takeCourse, chosen, clearSelection],
+    [takePiece, takeCourse, chosen, clearSelection, chain, hand],
   );
   /** Released where a long press took one troop, the click lifts that troop alone. */
   const pieceClick = useCallback(
@@ -2095,7 +2218,12 @@ function BoardContent({
    *  que la main soulève, et son ombre qui reste sur le fil. */
   const standing = useMemo(() => {
     const piles = standingPilesOf(view.me, markers, marching, blitz);
-    if (hand.kind !== 'held' || hand.course === undefined || hand.station.kind !== 'point')
+    /** Comme elle, la colonne d'une Guerre éclair entre ses deux cibles se tient à la première. */
+    if (
+      hand.kind !== 'held' ||
+      (hand.course === undefined && chain === null) ||
+      hand.station.kind !== 'point'
+    )
       return piles;
     const troops = view.me.troops.filter((troop) => hand.troopIds.includes(troop.id));
     return [
@@ -2106,7 +2234,7 @@ function BoardContent({
         pieces: pilePieces(troops),
       },
     ];
-  }, [markers, view.me, marching, blitz, hand]);
+  }, [markers, view.me, marching, blitz, hand, chain]);
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return withVitrine(
@@ -2473,13 +2601,41 @@ function BoardContent({
     const arc = view.arcs.find((one) => one.id === heldCourse);
     return arc?.state === 'mine' ? { arc, asset: view.me.asset } : null;
   }, [view.arcs, view.me.asset, heldCourse]);
-  const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting, {
+  const { preview, dropNotes, dropFuel, aimRoute, then } = useOrderPreview(seat, column, resting, {
     grouped,
     blitz,
     course: courseHand,
+    chain,
   });
   previewNow.current =
     resting === null || preview === undefined ? undefined : { choice: resting, preview };
+  thenNow.current = resting === null ? undefined : { choice: resting, then };
+  const chainChip = useMemo(
+    () =>
+      grouped || hand.kind !== 'held' || hand.course !== undefined
+        ? null
+        : chainChipOf({
+            asset: view.me.asset,
+            key: chainKey.held,
+            chain,
+            resting,
+            preview,
+            then,
+            column: column?.rule ?? null,
+          }),
+    [grouped, hand, view.me.asset, chainKey.held, chain, resting, preview, then, column],
+  );
+  const chainRun = useMemo(
+    () => chain?.preview.route.points.map((point) => [point.lon, point.lat] as LonLat) ?? null,
+    [chain],
+  );
+  const shownLabels = useMemo(
+    () =>
+      chain === null || hand.kind !== 'held' || hand.station.kind !== 'point'
+        ? labels
+        : [...labels, gateLabel('hand', hand.station.lonLat)],
+    [labels, chain, hand],
+  );
 
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
@@ -2643,6 +2799,13 @@ function BoardContent({
                   </div>
                 )}
                 {tokens.chip}
+                {/* **La languette « puis »** (Guerre éclair) : au doigt, elle tient lieu de Maj. */}
+                {hand.kind === 'held' &&
+                  chain === null &&
+                  view.me.asset === 'blitzkrieg' &&
+                  globalThis.matchMedia?.('(pointer: coarse)').matches === true && (
+                    <ChainTab held={chainKey.held} onHold={chainKey.hold} />
+                  )}
                 <WorldMap
                   blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
                   atlas={atlas}
@@ -2651,7 +2814,7 @@ function BoardContent({
                   troops={view.me.troops}
                   columns={columns}
                   journal={view.journal}
-                  labels={labels}
+                  labels={shownLabels}
                   standing={standing}
                   camps={camps}
                   pins={pins}
@@ -2717,6 +2880,8 @@ function BoardContent({
                   dropFuel={dropFuel}
                   aimRoute={aimRoute}
                   course={hand.kind === 'held' ? (hand.course ?? null) : null}
+                  chain={chainChip}
+                  chainRun={chainRun}
                   availablePiles={availablePiles}
                   onCarryEnd={carryEnded}
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}

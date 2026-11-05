@@ -640,6 +640,8 @@ export function ownerFlags(
 export function buildLabels(
   view: Pick<PlayerView, 'arcs' | 'loadedAt' | 'captures'> & {
     readonly mode?: SeasonMode;
+    /** Les dépêches d'où une pièce restée tire sa ligne (Guerre éclair, #451). */
+    readonly journal?: PlayerView['journal'];
     readonly me: Pick<PlayerView['me'], 'ink' | 'troops'> & {
       readonly asset?: Asset | null;
     };
@@ -651,11 +653,15 @@ export function buildLabels(
   const course = { asset: view.me.asset ?? null, now, mode: view.mode ?? 'mondiale' } as const;
   return [
     ...withCaptures(
-      markers.map((marker) => markerLabel(marker, view.loadedAt)),
+      withStood(
+        markers.map((marker) => markerLabel(marker, view.loadedAt)),
+        view.journal ?? [],
+      ),
       view.captures,
     ),
     ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt, view.me.troops, course)).filter(exists),
     ...view.arcs.flatMap((arc) => courseMarksOf(arc, course)),
+    ...view.arcs.flatMap(gateOf),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
 }
@@ -670,6 +676,26 @@ const carriesSite = (label: MapLabel, target: CaptureView['target']): boolean =>
  * dessine pas (un avant-poste adverse jamais relevé en mât) a la sienne, posée au point où
  * l'infanterie se tient : on ne perd pas une capture parce que la carte n'a rien sous elle.
  */
+/** **La pièce restée dit pourquoi** (Guerre éclair, ADR 0039 §6) : la dernière dépêche qui l'a
+ *  laissée à ce point, tant qu'une de mes piles y tient. */
+function withStood(
+  labels: ReadonlyArray<MapLabel>,
+  journal: NonNullable<PlayerView['journal']>,
+): ReadonlyArray<MapLabel> {
+  const stood = journal.filter((dispatch) => dispatch.stood !== undefined && dispatch.place);
+  if (stood.length === 0) return labels;
+  return labels.map((label) => {
+    const at = label.station?.kind === 'point' ? label.station.lonLat : null;
+    const said =
+      at === null
+        ? undefined
+        : stood.find((dispatch) => dispatch.place!.lon === at[0] && dispatch.place!.lat === at[1]);
+    return said === undefined
+      ? label
+      : { ...label, lines: [...label.lines, { role: 'alarm', text: said.stood! }] };
+  });
+}
+
 function withCaptures(
   labels: ReadonlyArray<MapLabel>,
   captures: ReadonlyArray<CaptureView>,
@@ -1159,6 +1185,12 @@ function arcLabel(
           : []),
         ...(mission === null ? [] : [{ role: 'mention', text: missionLabel(mission) } as const]),
         ...(course === null ? [] : courseLines(course)),
+        ...(arc.then === undefined
+          ? []
+          : ([
+              { role: 'free', text: fr.blitzkrieg.then(arc.then.name) },
+              { role: 'mention', text: fr.blitzkrieg.oneSlot },
+            ] as const)),
         ...(patrol === undefined
           ? []
           : [
@@ -1308,6 +1340,39 @@ function courseMarksOf(arc: ArcView, reading: CourseReading): MapLabel[] {
         ]),
   ];
 }
+
+/** **Le losange du fil** (Guerre éclair, maquette A) : au point de la première cible, la seconde
+ *  jambe y est suspendue au terrain tenu. */
+function gateOf(arc: ArcView): MapLabel[] {
+  return arc.state !== 'mine' || arc.then === undefined ? [] : [gateLabel(arc.id, arc.to)];
+}
+
+/** Le losange, aussi sous la main entre les deux cibles (`plateau.tsx`). */
+export const gateLabel = (id: string, lonLat: LonLat): MapLabel => ({
+  id: `gate-${id}`,
+  type: 'course-mark',
+  priority: PRIORITY['course-mark'],
+  anchor: { kind: 'ground', lonLat },
+  reach: null,
+  ink: null,
+  pictogram: null,
+  plate: null,
+  lootSightingId: null,
+  lootCurrent: true,
+  washed: false,
+  lines: [{ role: 'mention', text: fr.blitzkrieg.gate }],
+  identified: false,
+  idle: false,
+  works: null,
+  hostCountry: null,
+  building: null,
+  installation: null,
+  camp: null,
+  objective: null,
+  strategic: null,
+  station: null,
+  force: null,
+});
 
 /** **Ce qu'un Guet a lu** (ADR 0037 §5) : la pile, abrégée — « 3 INF · 1 BLD » —, jamais l'ordre ;
  *  figée, l'heure de sa dernière lecture, parce qu'elle a pu changer depuis. */

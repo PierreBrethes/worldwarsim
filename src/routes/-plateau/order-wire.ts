@@ -149,6 +149,8 @@ export function useSendOrder(seat: Seat) {
       troopIds: ReadonlyArray<string>,
       { aim, type, mission }: OrderChoice,
       preview?: Previewed,
+      /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : l'attaque la porte. */
+      then?: MovementAim,
     ): Promise<Sent> => {
       // `PlayerView` carries plain strings: the branded ids go back on at the call itself.
       const ids = troopIds.map((troopId) => troopId as Id<'troops'>);
@@ -216,6 +218,7 @@ export function useSendOrder(seat: Seat) {
                           origin: from,
                           troopIds: ids,
                           target: wireTarget(aim),
+                          ...(then === undefined ? {} : { then: wireTarget(then) }),
                         });
       return {
         movementId: sent.movementId,

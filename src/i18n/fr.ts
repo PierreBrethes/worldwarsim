@@ -2772,7 +2772,7 @@ export const fr = {
         outcome === 'onward'
           ? `${first} : terrain tenu. La colonne file sur ${then}${arrival === null ? '' : ` — arrivée à ${arrival}`}.`
           : outcome === 'lost'
-            ? `${first} : terrain perdu. La colonne ne file pas sur ${then} : la Guerre éclair ne part qu’après terrain tenu.`
+            ? `${first} : terrain perdu. ${then} tombe : les survivants rentrent.`
             : `${first} : terrain tenu, mais la colonne ne file pas sur ${then} — ${reason ?? '…'}. Elle reste sur place.`,
       /** **Le Magasin traversé** (ADR 0037 §4) : ce qu'il a versé, ou pourquoi rien. */
       storeResupplied: (
@@ -4608,6 +4608,40 @@ export const fr = {
     refused: 'relâcher : la flotte reste sur son cap · Échap',
     refusedTouch: 'lever le doigt : la flotte reste sur son cap',
     sent: 'Nouveau cap',
+  },
+  /** **La Guerre éclair** (ADR 0039 §6, maquette A « Maj ») : la pastille, la languette, le fil. */
+  blitzkrieg: {
+    eyebrow: 'Guerre éclair',
+    secondEyebrow: 'Guerre éclair · seconde cible',
+    offer: 'Maj en lâchant : une seconde cible',
+    offerTouch: '« puis » : une seconde cible',
+    armedVerb: 'Attaquer, puis…',
+    armedDetail: (first: string, span: string) =>
+      `lâchez : la première jambe se pose sur ${first} · ${span}`,
+    armedKeys: (first: string) => `relâchez Maj avant de lâcher : ${first} seule`,
+    armedKeysTouch: (first: string) => `levez le pouce de « puis » : ${first} seule`,
+    /** Maj sur un ordre qui n'enchaîne pas : l'ordre reste offert, l'atout dit pourquoi. */
+    refusedKey: (reason: string) => `Maj : ${reason}`,
+    refusedKeyTouch: (reason: string) => `« puis » : ${reason}`,
+    secondVerb: (then: string) => `Puis ${then}`,
+    secondDetail: (span: string, first: string) => `+${span} après terrain tenu à ${first}`,
+    /** Défaite à la première (décision du 05/11) : la seconde tombe, les survivants rentrent. */
+    secondLost: (then: string) => `terrain perdu : ${then} tombe, les survivants rentrent`,
+    secondKeys: (first: string) => `relâcher : deux cibles, un slot · Échap : ${first} seule`,
+    secondKeysTouch: 'lever le doigt : deux cibles, un slot',
+    secondRefusedKeys: (first: string) =>
+      `relâcher : rien ne part, la colonne revient · Échap : ${first} seule`,
+    secondRefusedKeysTouch: 'lever le doigt : rien ne part',
+    tab: 'puis ▸',
+    tabIdle: 'tenir : 2ᵉ cible',
+    tabHeld: 'tenu : 2ᵉ cible',
+    /** Sur la fiche du mouvement et sur son fil. */
+    then: (then: string) => `puis ${then}, si terrain tenu`,
+    oneSlot: 'un slot pour les deux',
+    gate: '◆ si terrain tenu',
+    /** Sur la pièce restée : ce que la dépêche a dit. */
+    stood: (first: string, reason: string) => `reste à ${first} — ${reason}`,
+    sent: (first: string, then: string) => `Attaque — ${first}, puis ${then}`,
   },
   drop: {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,

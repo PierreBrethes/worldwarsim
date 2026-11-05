@@ -775,3 +775,60 @@ describe('the course of a fleet at sea', () => {
     expect(labels.some((label) => label.type === 'course-mark')).toBe(false);
   });
 });
+
+/** **La Guerre éclair sur la fiche et sur le fil** (ADR 0039 §6, maquette A) : la seconde cible,
+ *  à son seul auteur ; la pièce restée dit pourquoi. */
+describe('the second target of a blitzkrieg', () => {
+  const chained = mineArc({
+    then: {
+      name: 'Namur',
+      points: [
+        [1, 1],
+        [2, 1],
+      ],
+    },
+  });
+
+  it('says the second target and the one slot on the column, and hangs the gate on its thread', () => {
+    const labels = buildLabels(viewWith([chained]), []);
+    const column = labels.find((label) => label.type === 'my-movement')!;
+    expect(column.lines).toContainEqual({ role: 'free', text: fr.blitzkrieg.then('Namur') });
+    expect(column.lines).toContainEqual({ role: 'mention', text: fr.blitzkrieg.oneSlot });
+    const gate = labels.find((label) => label.type === 'course-mark')!;
+    expect(gate.anchor).toEqual({ kind: 'ground', lonLat: [1, 1] });
+    expect(texts(gate.lines)).toEqual([fr.blitzkrieg.gate]);
+  });
+
+  it('says nothing of the kind on a plain attack', () => {
+    const labels = buildLabels(viewWith([mineArc({})]), []);
+    expect(labels.some((label) => label.type === 'course-mark')).toBe(false);
+    expect(texts(labels[0]!.lines)).not.toContain(fr.blitzkrieg.oneSlot);
+  });
+
+  it('writes on the pile that stayed what its dispatch said', () => {
+    const pile = (lonLat: [number, number]): MapMarker => ({
+      kind: 'stack',
+      id: `stack-${String(lonLat[0])}`,
+      lonLat,
+      station: {
+        kind: 'point',
+        lonLat,
+        country: 'BEL',
+        afloat: false,
+        ground: 'land',
+        coastal: false,
+      },
+      stack: { armor: 3 },
+      place: 'Belgique',
+      pieces: { groups: [], troopIds: [], squad: false },
+      ink: '#000',
+    });
+    const view = {
+      ...viewWith([]),
+      journal: [{ place: { lon: 5.57, lat: 50.63 }, stood: 'reste à Liège — plus de coups' }],
+    } as unknown as PlayerView;
+    const [stayed, elsewhere] = buildLabels(view, [pile([5.57, 50.63]), pile([6, 50])]);
+    expect(stayed!.lines).toContainEqual({ role: 'alarm', text: 'reste à Liège — plus de coups' });
+    expect(texts(elsewhere!.lines)).not.toContain('reste à Liège — plus de coups');
+  });
+});

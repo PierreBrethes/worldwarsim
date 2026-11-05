@@ -174,12 +174,30 @@ function FuelGaugeLine({ fuel }: { fuel: DropFuel }) {
   );
 }
 
+/**
+ * **La Guerre éclair sous la main** (ADR 0039 §6, maquette A « Maj ») : l'atout offert en pied
+ * d'une attaque, Maj tenue qui l'arme, l'ordre qui n'enchaîne pas, puis la seconde cible.
+ */
+export type ChainChip =
+  | { readonly kind: 'offer' }
+  | { readonly kind: 'armed'; readonly first: string; readonly span: string }
+  | { readonly kind: 'refused'; readonly reason: string }
+  | {
+      readonly kind: 'second';
+      readonly first: string;
+      readonly then: string | null;
+      readonly span: string | null;
+      /** Le refus de `secondTargetRefusalOf`, dit avant l'aperçu. */
+      readonly refusal: string | null;
+    };
+
 /** Collée au pointeur par le moteur (`onCarryOver`), qui la place sans repasser par React. */
 export function DropHintChip({
   hint,
   notes = [],
   fuel = null,
   course = false,
+  chain = null,
   ref,
 }: {
   hint: DropHint;
@@ -187,8 +205,12 @@ export function DropHintChip({
   fuel?: DropFuel | null;
   /** **Une flotte reprise en mer** (#449) : l'ordre est un cap neuf, et la pastille le dit. */
   course?: boolean;
+  chain?: ChainChip | null;
   ref: Ref<HTMLDivElement>;
 }) {
+  const second = chain?.kind === 'second' ? chain : null;
+  if (second?.refusal != null && hint.tone !== 'calm')
+    hint = { icon: '✕', tone: 'refused', verb: second.refusal, detail: null };
   /** **A refusal only the server's preview knows** (#258) turns the sign, as a refusal read on
    *  the client does; the gauge stays, the rest of the road is no longer worth saying. */
   const refusal = hint.tone === 'refused' ? undefined : notes.find((note) => note.refusal);
@@ -206,13 +228,76 @@ export function DropHintChip({
       detail: hint.verb,
     };
   const touch = globalThis.matchMedia?.('(pointer: coarse)').matches === true;
+  const armed = chain?.kind === 'armed' && hint.tone === 'fight' ? chain : null;
+  if (armed !== null)
+    hint = {
+      ...hint,
+      verb: fr.blitzkrieg.armedVerb,
+      detail: fr.blitzkrieg.armedDetail(armed.first, armed.span),
+    };
+  const onward = second !== null && hint.tone !== 'refused' && hint.tone !== 'calm';
+  if (second !== null && onward)
+    hint = {
+      ...hint,
+      icon: '2',
+      verb: fr.blitzkrieg.secondVerb(second.then ?? '…'),
+      detail:
+        second.span === null ? hint.detail : fr.blitzkrieg.secondDetail(second.span, second.first),
+    };
+  const eyebrow = steering
+    ? fr.course.eyebrow
+    : armed !== null
+      ? fr.blitzkrieg.eyebrow
+      : second !== null && hint.tone !== 'calm'
+        ? fr.blitzkrieg.secondEyebrow
+        : null;
+  const keys =
+    second !== null && hint.tone !== 'calm'
+      ? hint.tone === 'refused'
+        ? touch
+          ? fr.blitzkrieg.secondRefusedKeysTouch
+          : fr.blitzkrieg.secondRefusedKeys(second.first)
+        : touch
+          ? fr.blitzkrieg.secondKeysTouch
+          : fr.blitzkrieg.secondKeys(second.first)
+      : armed !== null
+        ? touch
+          ? fr.blitzkrieg.armedKeysTouch(armed.first)
+          : fr.blitzkrieg.armedKeys(armed.first)
+        : hint.tone === 'refused'
+          ? course
+            ? touch
+              ? fr.course.refusedTouch
+              : fr.course.refused
+            : fr.drop.refused
+          : hint.tone === 'calm'
+            ? fr.drop.still
+            : steering
+              ? touch
+                ? fr.course.keysTouch
+                : fr.course.keys
+              : fr.drop.release;
+  /** Maj sur un ordre qui n'enchaîne pas : l'ordre reste offert, le pied dit pourquoi. */
+  const atout =
+    hint.tone === 'refused' || hint.tone === 'calm'
+      ? null
+      : chain?.kind === 'offer'
+        ? { text: touch ? fr.blitzkrieg.offerTouch : fr.blitzkrieg.offer, alarm: false }
+        : chain?.kind === 'refused'
+          ? {
+              text: touch
+                ? fr.blitzkrieg.refusedKeyTouch(chain.reason)
+                : fr.blitzkrieg.refusedKey(chain.reason),
+              alarm: true,
+            }
+          : null;
   return (
     <div
       ref={ref}
       role="status"
-      className={`drop-chip paper-grain float drop-chip--${hint.tone}${steering ? ' drop-chip--course' : ''}`}
+      className={`drop-chip paper-grain float drop-chip--${hint.tone}${steering || eyebrow !== null ? ' drop-chip--course' : ''}`}
     >
-      {steering && <span className="drop-chip-eyebrow">{fr.course.eyebrow}</span>}
+      {eyebrow !== null && <span className="drop-chip-eyebrow">{eyebrow}</span>}
       {/* Keyed by what it says: a new verb pops its sign. */}
       <span key={hint.icon + hint.verb} className="drop-chip-icon" aria-hidden>
         {hint.icon}
@@ -234,21 +319,26 @@ export function DropHintChip({
       {hint.tone !== 'refused' && hint.aside !== undefined && (
         <span className="drop-chip-detail drop-chip-detail--alarm">{hint.aside}</span>
       )}
+      {second !== null && onward && second.then !== null && (
+        <span className="drop-chip-detail drop-chip-detail--alarm">
+          {fr.blitzkrieg.secondLost(second.then)}
+        </span>
+      )}
       {hint.choice !== undefined && <span className="drop-chip-detail">{hint.choice}</span>}
       <span className="drop-chip-keys">
-        {hint.tone === 'refused'
-          ? course
-            ? touch
-              ? fr.course.refusedTouch
-              : fr.course.refused
-            : fr.drop.refused
-          : hint.tone === 'calm'
-            ? fr.drop.still
-            : steering
-              ? touch
-                ? fr.course.keysTouch
-                : fr.course.keys
-              : fr.drop.release}
+        {atout?.alarm === true ? (
+          <span className="drop-chip-atout drop-chip-atout--alarm">{atout.text}</span>
+        ) : (
+          <>
+            {keys}
+            {atout !== null && (
+              <>
+                {' · '}
+                <span className="drop-chip-atout">{atout.text}</span>
+              </>
+            )}
+          </>
+        )}
       </span>
     </div>
   );

@@ -285,6 +285,14 @@ function asArc(movement: NonNullable<ServerView['movements']>[number]): ArcView 
             ran: movement.courseChange.ran.map((point) => [point.lon, point.lat] as LonLat),
           },
         }),
+    ...(movement.then == null
+      ? {}
+      : {
+          then: {
+            name: placeLabel(movement.then.name),
+            points: movement.then.points.map((point) => [point.lon, point.lat] as LonLat),
+          },
+        }),
     schedule: {
       departedAt: movement.departedAt,
       arrivesAt: movement.arrivesAt,

@@ -608,3 +608,50 @@
   background: var(--fuel-ink);
   box-shadow: inset 0 0 0 1.5px var(--arc-mine);
 }
+
+/* **La Guerre éclair** (#451, maquette A « Maj ») : l'atout en pied de la pastille, souligné de
+   l'ocre de la route ; le refus d'enchaîner, en rouge, sans retirer l'ordre. */
+.drop-chip-atout {
+  color: var(--notable-paper);
+  border-bottom: 1.5px solid var(--arc-mine);
+}
+.drop-chip-atout--alarm {
+  color: var(--critical);
+  border-bottom: none;
+}
+
+/* **La languette « puis »** (#451, maquette A) : au téléphone, au bord droit sous le pouce libre ;
+   tenue, elle arme la seconde cible comme Maj. */
+.chain-tab {
+  position: absolute;
+  right: 8px;
+  bottom: 148px;
+  z-index: 30;
+  width: 86px;
+  padding: 9px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  background: var(--paper);
+  box-shadow: 0 2px 0 rgb(42 33 24 / 40%);
+  text-align: center;
+  font: 700 12px/1.1 var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  touch-action: none;
+  user-select: none;
+}
+.chain-tab small {
+  display: block;
+  margin-top: 3px;
+  font: 500 10px/1.2 var(--font-mono);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+}
+.chain-tab--held {
+  background: var(--arc-mine);
+}
+.chain-tab--held small {
+  color: var(--ink);
+}

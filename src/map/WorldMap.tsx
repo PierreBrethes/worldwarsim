@@ -91,6 +91,7 @@ import {
   DropHintChip,
   hintOfReading,
   ringOfHint,
+  type ChainChip,
   type DropHint,
   type DropFuel,
   type DropNote,
@@ -310,6 +311,10 @@ type Props = {
   /** **Une flotte reprise en mer** (#449), par son mouvement : sa route pâlit, et la pastille dit
    *  « Changer de cap ». */
   course?: string | null;
+  /** **La Guerre éclair sous la main** (#451) : ce que la pastille ajoute ou change. */
+  chain?: ChainChip | null;
+  /** **La première jambe posée** (#451) : sa route, en pointillés, le temps de viser la seconde. */
+  chainRun?: ReadonlyArray<LonLat> | null;
   /** My piles whose transport could take the hand: their rings beat while it is held. */
   availablePiles?: ReadonlyArray<string>;
   /** Le glisser est fini — lâché, reposé ou annulé : la fiche peut revenir. */
@@ -530,6 +535,8 @@ export function WorldMap({
   dropFuel = null,
   aimRoute = null,
   course = null,
+  chain = null,
+  chainRun = null,
   availablePiles = NO_PILES,
   onCarryEnd,
   onDisembark,
@@ -1500,13 +1507,21 @@ export function WorldMap({
     readyEngine?.setAimRoute(aimRoute);
   }, [readyEngine, aimRoute]);
 
-  /** **La route courue avant un cap changé** (#449) : le fil neuf part du coude. */
+  /** **La route courue avant un cap changé** (#449) : le fil neuf part du coude. **La seconde
+   *  jambe d'une Guerre éclair** (#451), suspendue au terrain tenu, de la même encre pointillée. */
   const courseRuns = useMemo(
-    () =>
-      arcs.flatMap((arc) =>
-        arc.state === 'mine' && arc.courseChange !== undefined ? [arc.courseChange.ran] : [],
+    () => [
+      ...arcs.flatMap((arc) =>
+        arc.state !== 'mine'
+          ? []
+          : [
+              ...(arc.courseChange === undefined ? [] : [arc.courseChange.ran]),
+              ...(arc.then === undefined ? [] : [arc.then.points]),
+            ],
       ),
-    [arcs],
+      ...(chainRun === null ? [] : [chainRun]),
+    ],
+    [arcs, chainRun],
   );
   useEffect(() => {
     readyEngine?.showTours(tourLoops, courseRuns);
@@ -2001,6 +2016,7 @@ export function WorldMap({
           hint={hint}
           fuel={dropFuel}
           course={course !== null}
+          chain={chain}
           {...(dropNotes ? { notes: dropNotes } : {})}
         />
       )}

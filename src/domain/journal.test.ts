@@ -519,13 +519,16 @@ describe('the second leg of a blitzkrieg (ADR 0039 §6)', () => {
   });
 
   it('says the second leg fell with the first', () => {
-    expect(said({ ...base, outcome: 'lost' }).text).toContain('ne file pas sur Namur');
+    expect(said({ ...base, outcome: 'lost' }).text).toContain(
+      'Namur tombe : les survivants rentrent',
+    );
   });
 
   it('says why the column stayed, by the refusal’s own words', () => {
     const dispatch = said({ ...base, outcome: 'halted', refusal: 'NO_ROUNDS', details: {} });
     expect(dispatch.text).toContain(fr.errors.NO_ROUNDS());
     expect(dispatch.text).toContain('Elle reste sur place');
+    expect(dispatch.stood).toBe(`reste à Liège — ${fr.errors.NO_ROUNDS()}`);
     expect(dispatch.severity).toBe('critical');
   });
 });

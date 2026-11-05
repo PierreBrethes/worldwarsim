@@ -87,3 +87,50 @@ describe('a refusal beside the offered order', () => {
     expect(markup).toContain('drop-chip-detail--alarm">liaison déjà tenue<');
   });
 });
+
+/** **La Guerre éclair sous la main** (#451, maquette A « Maj »). */
+describe('the blitzkrieg chip', () => {
+  const fight = { icon: '⚔', tone: 'fight' as const, verb: 'Attaquer', detail: 'initiative' };
+  const said = (chain: Parameters<typeof DropHintChip>[0]['chain'], on = fight) =>
+    renderToStaticMarkup(<DropHintChip hint={on} chain={chain} ref={null} />).replaceAll(
+      '&#x27;',
+      '’',
+    );
+
+  it('offers the second target at the foot of an attack, and arms it under Shift', () => {
+    expect(said({ kind: 'offer' })).toContain('Maj en lâchant : une seconde cible');
+    const armed = said({ kind: 'armed', first: 'Liège', span: '4 h 10' });
+    expect(armed).toContain('Attaquer, puis…');
+    expect(armed).toContain('lâchez : la première jambe se pose sur Liège · 4 h 10');
+    expect(armed).toContain('relâchez Maj avant de lâcher : Liège seule');
+  });
+
+  it('keeps a march offered under Shift, and says why it does not chain', () => {
+    const march = said({ kind: 'refused', reason: 'une marche n’enchaîne pas' }, hint);
+    expect(march).toContain('marcher');
+    expect(march).toContain('Maj : une marche n’enchaîne pas');
+  });
+
+  it('names the second target and what it waits for, or turns red on its refusal', () => {
+    const second = said({
+      kind: 'second',
+      first: 'Liège',
+      then: 'Namur',
+      span: '3 h 05',
+      refusal: null,
+    });
+    expect(second).toContain('Puis Namur');
+    expect(second).toContain('+3 h 05 après terrain tenu à Liège');
+    expect(second).toContain('terrain perdu : Namur tombe, les survivants rentrent');
+    expect(second).toContain('relâcher : deux cibles, un slot · Échap : Liège seule');
+    const refused = said({
+      kind: 'second',
+      first: 'Liège',
+      then: null,
+      span: null,
+      refusal: 'pas les siens',
+    });
+    expect(refused).toContain('drop-chip--refused');
+    expect(refused).toContain('relâcher : rien ne part, la colonne revient · Échap : Liège seule');
+  });
+});
