@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { countdownLabel, fr, nationLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
-import { outcomeOf, type EndingFacts } from '@/domain/ending';
+import { outcomeOf, type EndingFacts, type Outcome } from '@/domain/ending';
 import { nationInk } from '@/domain/nations';
 import { PRESS_SORT_KEYS, sortPressRows, type PressSortKey } from '@/domain/press-sort';
 import type {
@@ -146,6 +146,14 @@ function BlitzEnding({
   );
 }
 
+const HEADLINE: Readonly<Record<Outcome, string>> = {
+  winner: fr.blitz.ending.won,
+  loser: fr.blitz.ending.lost,
+  out: fr.blitz.ending.lost,
+  draw: fr.blitz.ending.draw,
+  closed: fr.blitz.ending.closed,
+};
+
 /**
  * **L'édition finale d'une Blitz dit le vainqueur et pourquoi** (B10, B11) : c'est l'écran de
  * fin, avec ses deux issues. Éliminé en cours de partie, la même page me dit l'heure de la chute
@@ -161,16 +169,11 @@ function Ending({
   onClose: () => void;
 }) {
   if (verdict === null && ending.eliminatedAt === null) return null;
+  /** La manchette dit l'issue du lecteur, celle que la liste tamponne (`outcomeOf`). */
   const outcome =
     verdict === null
       ? null
-      : verdict.reason === 'closed'
-        ? fr.blitz.ending.closed
-        : verdict.winnerNation === null
-          ? fr.blitz.ending.draw
-          : verdict.winnerNation === ending.nation
-            ? fr.blitz.ending.won
-            : fr.blitz.ending.lost;
+      : HEADLINE[outcomeOf({ nation: ending.nation, defeated: false }, verdict)];
   return (
     <div className="shrink-0 border-b border-[var(--ink)] px-4 py-[12px] text-center">
       {outcome !== null && (

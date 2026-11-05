@@ -21,8 +21,10 @@ montrer d'une Mondiale jouée puis détruite, et le télégraphe s'efface déjà
    `PlayerView` ; elle ne se lit que la saison conclue, et par ses seuls participants.
 4. **Une chaîne de petites mutations l'écrit après la conclusion** (`convex/finalEdition.ts`) :
    les dépêches du canal général, puis l'effacement du télégraphe, le journal de chaque place,
-   les passes, la carte par tranches, et l'archive. Son échec ne retient pas la conclusion ; un
-   effacement de repli part une demi-heure après.
+   les passes, la carte en un maillon (le coût de `heldOver` est presque tout fixe), et
+   l'archive. Son échec ne retient pas la conclusion ; un effacement de repli part une
+   demi-heure après. D'ici là, la page de fin lit « en attente » et le fondateur ne peut pas
+   détruire la saison (`EDITION_PENDING`) ; passé ce délai sans archive, elle lit « aucune ».
 
 ## Conséquences
 

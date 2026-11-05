@@ -2,6 +2,8 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import { EMPTY_TALLY } from '../src/domain/final-edition';
+import { ERASE_FALLBACK_MS } from './finalEdition';
+import { blitzLaunchedOn } from './blitz.fixture';
 import { nominalStrength } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -16,16 +18,27 @@ import { foundSeat, holdPoint, joinSeat, seatDoc, signIn, type Seat } from './se
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 const MIDDAY = new Date(2026, 7, 17, 12, 0, 0);
 
-async function launchedSeason(t: ReturnType<typeof boot>) {
+async function launchedSeason(t: ReturnType<typeof boot>, third?: 'germany') {
   const { seat, code } = await foundSeat(t, 'Pierre');
   const guest = await joinSeat(t, code, 'Léa');
-  await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
-  await t.mutation(api.players.declareReady, { ...seat, ready: true });
-  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
-  await t.mutation(api.players.declareReady, { ...guest, ready: true });
+  const seats: Array<[Seat, string]> = [
+    [seat, 'france'],
+    [guest, 'ussr'],
+  ];
+  if (third !== undefined) seats.push([await joinSeat(t, code, 'Marc'), third]);
+  for (const [who, nation] of seats) {
+    await t.mutation(api.players.reserveNation, { ...who, nation });
+    await t.mutation(api.players.declareReady, { ...who, ready: true });
+  }
   await t.mutation(api.seasons.launch, seat);
-  return { seat, guest };
+  return { seat, guest, third: seats[2]?.[0] };
 }
+
+const finalEditionsOf = (t: ReturnType<typeof boot>) =>
+  t.run(async (ctx) => ({
+    editions: await ctx.db.query('finalEditions').collect(),
+    readers: await ctx.db.query('finalEditionReaders').collect(),
+  }));
 
 /** Une dépêche toutes les deux secondes : le télégraphe en refuse deux dans la même. */
 async function post(t: ReturnType<typeof boot>, seat: Seat, text: string, to?: Seat) {
@@ -45,6 +58,13 @@ async function closeTheSeason(t: ReturnType<typeof boot>) {
     await t.finishInProgressScheduledFunctions();
   }
   await t.finishAllScheduledFunctions(vi.runAllTimers);
+}
+
+/** L'archive écrite, ou l'échec du test qui l'attendait. */
+async function editionOf(t: ReturnType<typeof boot>, seat: Seat) {
+  const read = await t.query(api.finalEdition.ofSeason, seat);
+  if (read.state !== 'ready') throw new Error(`no final edition: ${read.state}`);
+  return read.edition;
 }
 
 const messagesOf = (t: ReturnType<typeof boot>, seat: Seat) =>
@@ -121,7 +141,7 @@ describe('the final edition of a Mondiale', () => {
     await t.mutation(api.seasons.conclude, seat);
     await closeTheSeason(t);
 
-    const edition = (await t.query(api.finalEdition.ofSeason, seat))!;
+    const edition = await editionOf(t, seat);
     expect(edition.verdict).toEqual({ reason: 'closed', closedBy: 'france', winnerNation: null });
     const page = Object.fromEntries(edition.nations.map((one) => [one.nation, one]));
     /** Le canal général seul : les deux messages privés ne comptent pas (décision du 04/11). */
@@ -152,7 +172,7 @@ describe('the final edition of a Mondiale', () => {
     await t.mutation(api.players.surrender, seat);
     await closeTheSeason(t);
 
-    const edition = (await t.query(api.finalEdition.ofSeason, guest))!;
+    const edition = await editionOf(t, guest);
     expect(edition.verdict).toMatchObject({ reason: 'lastStanding', winnerNation: 'ussr' });
     const narvik = edition.points.find((point) => point.key === 'narvik')!;
     expect(narvik.hands.map((hand) => hand.nation)).toEqual(['france', null]);
@@ -169,7 +189,7 @@ describe('the final edition of a Mondiale', () => {
     const { seat } = await launchedSeason(t);
     await t.mutation(api.seasons.conclude, seat);
     await closeTheSeason(t);
-    const { _id: editionId } = (await t.query(api.finalEdition.ofSeason, seat))!;
+    const { _id: editionId } = await editionOf(t, seat);
 
     const stranger = await signIn(t, 'Nour');
     await expect(
@@ -192,7 +212,6 @@ describe('the final edition of a Mondiale', () => {
 
     await t.mutation(internal.finalEdition.publish, {
       seasonId: seat.seasonId,
-      from: 0,
       dispatches: {},
       journal: {},
       tally: EMPTY_TALLY,
@@ -212,11 +231,15 @@ describe('the final edition of a Mondiale', () => {
         if (job.name.includes('countDispatches') && job.state.kind === 'pending')
           await ctx.scheduler.cancel(job._id);
     });
+    /** La chaîne a encore le temps : l'édition s'imprime. */
+    expect(await t.query(api.finalEdition.ofSeason, seat)).toEqual({ state: 'pending' });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     expect((await t.run(async (ctx) => ctx.db.get(seat.seasonId)))!.status).toBe('concluded');
     expect(await messagesOf(t, seat)).toEqual([]);
-    expect(await t.query(api.finalEdition.ofSeason, seat)).toBeNull();
+    /** Le repli est passé, l'archive n'est pas venue : il n'y en aura pas. */
+    expect(Date.now()).toBeGreaterThanOrEqual(MIDDAY.getTime() + ERASE_FALLBACK_MS);
+    expect(await t.query(api.finalEdition.ofSeason, seat)).toEqual({ state: 'none' });
   });
 
   it("survives the founder's destroy, and stays on the account's home page", async () => {
@@ -224,7 +247,7 @@ describe('the final edition of a Mondiale', () => {
     const { seat, guest } = await launchedSeason(t);
     await t.mutation(api.seasons.conclude, seat);
     await closeTheSeason(t);
-    const { _id: editionId } = (await t.query(api.finalEdition.ofSeason, seat))!;
+    const { _id: editionId } = await editionOf(t, seat);
 
     await t.mutation(api.seasons.destroy, seat);
 
@@ -233,5 +256,121 @@ describe('the final edition of a Mondiale', () => {
     expect(await t.query(api.finalEdition.recent, { token: guest.token })).toMatchObject([
       { editionId, nation: 'ussr', verdict: { reason: 'closed' } },
     ]);
+  });
+
+  /** Détruite avant son archive, la saison l'emporterait : le fondateur attend l'impression. */
+  it('refuses the destroy between the conclusion and the archive', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.mutation(api.seasons.conclude, seat);
+    await expect(t.mutation(api.seasons.destroy, seat)).rejects.toThrow('EDITION_PENDING');
+
+    await closeTheSeason(t);
+    await t.mutation(api.seasons.destroy, seat);
+    expect((await finalEditionsOf(t)).editions).toHaveLength(1);
+  });
+
+  it('is written once, a second publish finding it there', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.mutation(api.seasons.conclude, seat);
+    await closeTheSeason(t);
+    await t.mutation(internal.finalEdition.publish, {
+      seasonId: seat.seasonId,
+      dispatches: {},
+      journal: {},
+      tally: EMPTY_TALLY,
+      regions: [],
+    });
+    const { editions, readers } = await finalEditionsOf(t);
+    expect(editions).toHaveLength(1);
+    expect(readers).toHaveLength(2);
+  });
+
+  /** Un `dev:reset` passé entre la conclusion et la chaîne a emporté l'édition ordinaire. */
+  it('writes nothing when the final edition line is gone', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await t.mutation(api.seasons.conclude, seat);
+    await t.run(async (ctx) => {
+      for (const line of await ctx.db.query('editions').collect()) await ctx.db.delete(line._id);
+    });
+    await closeTheSeason(t);
+    expect((await finalEditionsOf(t)).editions).toEqual([]);
+  });
+
+  /** Une place qui n'est pas entrée en guerre n'a pas de page : elle n'a rien joué. */
+  it('leaves out a seat that never went to war', async () => {
+    const t = boot();
+    const { seat, third } = await launchedSeason(t, 'germany');
+    const late = (await seatDoc(t, third!))._id;
+    await t.run(async (ctx) => ctx.db.patch(late, { enteredWarAt: null }));
+    await t.mutation(api.seasons.conclude, seat);
+    await closeTheSeason(t);
+    const edition = await editionOf(t, seat);
+    expect(edition.nations.map((page) => page.nation).sort()).toEqual(['france', 'ussr']);
+    expect((await finalEditionsOf(t)).readers).toHaveLength(2);
+  });
+
+  /** Chaque place lit les capitulations de toutes : la sienne seule date sa sortie. */
+  it('dates each surrender by its own nation, when two of three give up', async () => {
+    const t = boot();
+    const { seat, guest, third } = await launchedSeason(t, 'germany');
+    vi.advanceTimersByTime(3_600_000);
+    await t.mutation(api.players.surrender, guest);
+    vi.advanceTimersByTime(2 * 3_600_000);
+    await t.mutation(api.players.surrender, third!);
+    await closeTheSeason(t);
+
+    const edition = await editionOf(t, seat);
+    const exitOf = (nation: string) => edition.nations.find((page) => page.nation === nation)!.exit;
+    expect(exitOf('ussr')).toEqual({ kind: 'surrendered', at: MIDDAY.getTime() + 3_600_000 });
+    expect(exitOf('germany')).toEqual({
+      kind: 'surrendered',
+      at: MIDDAY.getTime() + 3 * 3_600_000,
+    });
+    expect(exitOf('france')).toBeNull();
+  });
+
+  /** Un point pris avant le journal des mains (#443) n'a que son teneur et l'heure de sa prise. */
+  it('starts a point held before the hands were kept at its holding', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const pointId = await holdPoint(t, seat, 'narvik');
+    await t.run(async (ctx) => ctx.db.patch(pointId, { hands: undefined }));
+    vi.advanceTimersByTime(3_600_000);
+    await t.mutation(api.seasons.conclude, seat);
+    await closeTheSeason(t);
+
+    const narvik = (await editionOf(t, seat)).points.find((point) => point.key === 'narvik')!;
+    expect(narvik.hands).toEqual([{ at: MIDDAY.getTime(), nation: 'france' }]);
+  });
+});
+
+/** **La Blitz garde sa fin** (#443) : ni verdict à la main, ni archive, le télégraphe effacé. */
+describe('a Blitz closed by hand', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('has no verdict, no closing chain, and its telegraph erased at once', async () => {
+    const t = boot();
+    const [seat] = await blitzLaunchedOn(t, 'europe', 2);
+    await post(t, seat!, 'dernier mot');
+    await t.mutation(api.seasons.conclude, seat!);
+
+    const jobs = await t.run(async (ctx) => ctx.db.system.query('_scheduled_functions').collect());
+    expect(jobs.filter((job) => job.name.includes('finalEdition'))).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    await t.finishInProgressScheduledFunctions();
+    expect(await messagesOf(t, seat!)).toEqual([]);
+
+    const season = await t.run(async (ctx) => ctx.db.get(seat!.seasonId));
+    expect(season!.status).toBe('concluded');
+    expect(season!.verdict).toBeUndefined();
+    expect(await t.query(api.finalEdition.ofSeason, seat!)).toEqual({ state: 'none' });
+    await t.mutation(api.seasons.destroy, seat!);
   });
 });

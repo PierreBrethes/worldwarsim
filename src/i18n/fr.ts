@@ -718,6 +718,8 @@ export const fr = {
     SEASON_NOT_CONCLUDED: () => 'l’édition finale paraît à la fin de la saison',
     UNKNOWN_EDITION: () => 'cette édition finale n’existe pas',
     NOT_A_PARTICIPANT: () => 'cette édition finale est réservée aux joueurs de la saison',
+    EDITION_PENDING: () =>
+      'l’édition finale s’imprime encore — la partie pourra être supprimée dans quelques minutes',
     SEASON_ALREADY_LAUNCHED: () => 'la saison est déjà lancée',
     SEASON_CONCLUDED: () =>
       'la saison est conclue — on la relit, on n’y joue plus (le fondateur l’efface)',
@@ -1326,9 +1328,10 @@ export const fr = {
     quit: 'quitter',
     founder: 'fondateur',
     destroy: 'supprimer la partie',
-    destroyConfirm: 'confirmer — tout est effacé',
+    destroyConfirm: 'confirmer — tout est effacé, sauf l’édition finale d’une Mondiale',
     destroyCancel: 'annuler',
-    destroyNote: 'la partie disparaît pour tous les joueurs, sans retour.',
+    destroyNote:
+      'la partie disparaît pour tous les joueurs, sans retour ; en Mondiale, l’édition finale reste à chacun.',
     pace: (hours: number) =>
       hours < 72 ? `${num(hours)} heures` : `${num(Math.round(hours / 24))} jours`,
     paceNone: 'sans horloge',

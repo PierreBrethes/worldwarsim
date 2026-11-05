@@ -431,6 +431,16 @@ describe('the sort a dispatch is stamped with', () => {
     expect(income!.text).toMatch(/40 fonds par minute/);
   });
 
+  /** Une Mondiale close à la main a déjà sa dépêche `seasonClosed` : pas de seconde ligne. */
+  it('writes no closing line for a season closed by hand (#443)', () => {
+    const closed = journalDispatches([], {
+      concludedAt: NOON,
+      winnerNation: null,
+      verdict: { reason: 'closed', winnerNation: null, perMinute: null },
+    });
+    expect(closed).toEqual([]);
+  });
+
   /** Chaque sorte a son mot : un tampon sans libellé serait un cadre vide dans la marge. */
   it('gives every sort a label of its own', () => {
     const labels = Object.values(fr.stamps.dispatches);

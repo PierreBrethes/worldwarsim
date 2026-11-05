@@ -22,8 +22,9 @@ import { HELD_REGION, PASS_TALLY, SEAT_JOURNAL } from './validators';
 /**
  * **La chaîne de clôture d'une Mondiale** (#443, ADR 0040). `concludeSeason` la lance après le
  * passage en `concluded` : chaque maillon est une petite mutation qui lit une page, plie ce qu'il
- * y trouve et passe le pli au suivant ; le dernier écrit l'archive. Le dépouillement des 4 605
- * régions a déjà dépassé la seconde d'une mutation (`convex/press.ts`), d'où les tranches.
+ * y trouve et passe le pli au suivant ; le dernier écrit l'archive. La carte se lit en
+ * un seul maillon : le coût de `heldOver` est presque tout fixe (la couleur de la saison lue
+ * une fois), et le monde entier tient sous 500 ms (`view-budget.test.ts`).
  *
  * L'état est figé : plus aucun ordre, plus aucun travail ne s'écrit sur une saison conclue
  * (`requirePlayable`, `seasonStillPlays`), et la carte se relit à l'heure de la conclusion. Un
@@ -35,13 +36,20 @@ import { HELD_REGION, PASS_TALLY, SEAT_JOURNAL } from './validators';
  */
 
 /**
- * Messages, dépêches et passes par page, régions par tranche : chaque maillon loin de la seconde.
+ * Messages, dépêches et passes par page : chaque maillon loin de la seconde.
  * @a-mesurer posés à l'œil, sans banc sur une saison de huit joueurs
  */
 const MESSAGES_PAGE = 2000;
 const NOTICES_PAGE = 2000;
-const PASSES_PAGE = 200;
-const MAP_SLICE = 1200;
+const PASSES_PAGE = 100;
+
+/**
+ * Le télégraphe d'une Mondiale s'efface au plus tard ce délai après la conclusion, et c'est
+ * aussi le temps que la chaîne a pour écrire l'archive : « en attente » jusque-là, « aucune »
+ * ensuite.
+ * @a-mesurer assez pour que la chaîne de clôture compte les dépêches avant
+ */
+export const ERASE_FALLBACK_MS = 30 * 60_000;
 
 type SeatJournal = Infer<typeof SEAT_JOURNAL>;
 const FRESH_JOURNAL: SeatJournal = {
@@ -55,7 +63,11 @@ const FRESH_JOURNAL: SeatJournal = {
 const DISPATCHES = v.record(v.id('players'), v.number());
 const JOURNAL = v.record(v.id('players'), SEAT_JOURNAL);
 
-/** La saison qu'un maillon peut encore écrire : une Mondiale conclue, sans archive. */
+/**
+ * La saison qu'un maillon peut encore écrire : une Mondiale conclue, sans archive, et dont
+ * l'édition finale ordinaire est encore là — un `dev:reset` passé entre-temps l'a emportée, et
+ * une archive vide ne s'écrit jamais.
+ */
 async function closing(ctx: QueryCtx, seasonId: Id<'seasons'>) {
   const season = await ctx.db.get(seasonId);
   if (season === null || season.status !== 'concluded' || modeOf(season.mode) !== 'mondiale')
@@ -63,7 +75,31 @@ async function closing(ctx: QueryCtx, seasonId: Id<'seasons'>) {
   const { launchedAt, concludedAt } = season;
   if (launchedAt === null || concludedAt === undefined || concludedAt === null) return null;
   if ((await editionOfSeason(ctx, seasonId)) !== null) return null;
+  const lines = await ctx.db
+    .query('editions')
+    .withIndex('bySeasonAt', (q) => q.eq('seasonId', seasonId).eq('at', concludedAt))
+    .collect();
+  if (!lines.some((line) => line.final)) return null;
   return { ...season, launchedAt, concludedAt };
+}
+
+/**
+ * **L'archive s'écrit encore** : une Mondiale conclue, sans archive, dans le délai du repli.
+ * Passé ce délai, la chaîne a échoué ou n'a jamais tourné (saison d'avant l'archive).
+ */
+export async function editionPending(
+  ctx: QueryCtx,
+  season: Doc<'seasons'>,
+  now: number,
+): Promise<boolean> {
+  const concludedAt = season.concludedAt ?? null;
+  return (
+    season.status === 'concluded' &&
+    modeOf(season.mode) === 'mondiale' &&
+    concludedAt !== null &&
+    now < concludedAt + ERASE_FALLBACK_MS &&
+    (await editionOfSeason(ctx, season._id)) === null
+  );
 }
 
 const editionOfSeason = (ctx: QueryCtx, seasonId: Id<'seasons'>) =>
@@ -185,11 +221,9 @@ export const readPasses = internalMutation({
     if (attacker === undefined) {
       await ctx.scheduler.runAfter(0, internal.finalEdition.readMap, {
         seasonId,
-        from: 0,
         dispatches,
         journal,
         tally,
-        regions: [],
       });
       return;
     }
@@ -228,46 +262,40 @@ export const readPasses = internalMutation({
   },
 });
 
-/** 4. **La carte de la fin**, tranche par tranche, à l'heure de la conclusion (`heldOver`). */
+/** 4. **La carte de la fin**, le monde entier à l'heure de la conclusion (`heldOver`). */
 export const readMap = internalMutation({
   args: {
     seasonId: v.id('seasons'),
-    from: v.number(),
     dispatches: DISPATCHES,
     journal: JOURNAL,
     tally: PASS_TALLY,
-    regions: v.array(HELD_REGION),
   },
   handler: async (ctx, args) => {
     const season = await closing(ctx, args.seasonId);
     if (season === null) return;
-    const all = allRegions();
-    const slice = all.slice(args.from, args.from + MAP_SLICE);
-    const held = await heldOver(ctx, season._id, slice, season.concludedAt);
+    const held = await heldOver(ctx, season._id, allRegions(), season.concludedAt);
     const names = new Map(
       (await everySeatOf(ctx, season._id)).map((seat) => [seat._id as string, nameOf(seat)]),
     );
-    const regions = [
-      ...args.regions,
-      ...[...held].flatMap(([regionId, owner]) => {
-        const nation = names.get(owner);
-        return nation === undefined ? [] : [{ regionId, nation }];
-      }),
-    ];
-    const from = args.from + MAP_SLICE;
-    await ctx.scheduler.runAfter(
-      0,
-      from < all.length ? internal.finalEdition.readMap : internal.finalEdition.publish,
-      { ...args, from, regions },
-    );
+    const regions = [...held].flatMap(([regionId, owner]) => {
+      const nation = names.get(owner);
+      return nation === undefined ? [] : [{ regionId, nation }];
+    });
+    await ctx.scheduler.runAfter(0, internal.finalEdition.publish, { ...args, regions });
   },
 });
+
+/** Un point tenu depuis avant le journal des mains (#443) commence à la prise de son teneur. */
+const handsOf = (point: Doc<'strategicPoints'>) =>
+  point.hands ??
+  (point.holderId === null || point.heldSince === null
+    ? []
+    : [{ at: point.heldSince, holderId: point.holderId }]);
 
 /** 5. **L'archive**, écrite une fois : l'édition, et une ligne par compte qui l'a jouée. */
 export const publish = internalMutation({
   args: {
     seasonId: v.id('seasons'),
-    from: v.number(),
     dispatches: DISPATCHES,
     journal: JOURNAL,
     tally: PASS_TALLY,
@@ -338,7 +366,7 @@ export const publish = internalMutation({
       points: points.map((point) => ({
         key: point.key,
         regionId: point.regionId,
-        hands: (point.hands ?? []).map(({ at, holderId }) => ({
+        hands: handsOf(point).map(({ at, holderId }) => ({
           at,
           nation: holderId === null ? null : (names.get(holderId) ?? null),
         })),
@@ -402,8 +430,12 @@ async function readerOf(ctx: QueryCtx, token: string) {
 
 /**
  * **L'édition finale d'une saison, depuis le plateau.** Refusée tant que la saison n'est pas
- * conclue ; `null` tant que la chaîne n'a pas écrit l'archive (en cours, en échec, ou saison
- * d'avant l'archive). Une saison détruite se relit encore par son identifiant.
+ * conclue. Sans archive, `pending` tant que la chaîne a le temps de l'écrire, `none` ensuite
+ * (chaîne en échec, Blitz, saison d'avant l'archive). Une saison détruite se relit encore par
+ * son identifiant.
+ *
+ * L'heure est celle de la lecture : une page ouverte en `pending` ne passe pas seule à `none`,
+ * elle passe à `ready` quand l'archive s'écrit, ou à `none` à la lecture suivante.
  */
 export const ofSeason = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
@@ -416,7 +448,13 @@ export const ofSeason = query({
       if (season.status !== 'concluded') fail('SEASON_NOT_CONCLUDED');
     }
     const edition = await editionOfSeason(ctx, seasonId);
-    return edition === null ? null : served(edition, account);
+    if (edition !== null) return { state: 'ready' as const, edition: served(edition, account) };
+    return {
+      state:
+        season !== null && (await editionPending(ctx, season, Date.now()))
+          ? ('pending' as const)
+          : ('none' as const),
+    };
   },
 });
 

@@ -16,6 +16,7 @@ import { accountOf, everySeatOf, isAtWar, playerOf, seatOf, seatsOf } from './se
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
+import { ERASE_FALLBACK_MS, editionPending } from './finalEdition';
 import { layOut, seasonPoints } from './strategicPoints';
 import { SEASON_MODE, VERDICT } from './validators';
 import { MODE_RULES, modeOf, seatRangeOf, type SeasonMode } from '../src/domain/season-mode';
@@ -629,18 +630,15 @@ export const launch = mutation({
 });
 
 /**
- * **The one exit a season has**, whichever door it takes: the test victory when a pass crosses
- * the threshold (`victory.ts`), and the founder's own hand when there is no clock to end it
- * (`conclude`). Three fields, written once, so a season taken and a season closed cannot end up
- * in two subtly different states — `winnerId: null` is the whole difference, and it is the
- * honest one: nobody won.
+ * **The one exit a season has**, whichever door it takes: the points, the clock, the last one
+ * standing, and the founder's own hand (`conclude`). The fields are written once, so a season
+ * taken and a season closed cannot end up in two subtly different states — `winnerId: null` is
+ * the honest difference, and a Mondiale closed by hand says so in its verdict, `closed`, with
+ * the nation that closed it. A Blitz closed by hand keeps no verdict.
+ *
+ * A Mondiale then starts its closing chain (`convex/finalEdition.ts`), and the telegraph's
+ * fallback erase `ERASE_FALLBACK_MS` later.
  */
-/**
- * Le télégraphe d'une Mondiale s'efface au plus tard ce délai après la conclusion.
- * @a-mesurer assez pour que la chaîne de clôture compte les dépêches avant
- */
-const ERASE_FALLBACK_MS = 30 * 60_000;
-
 export async function concludeSeason(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
@@ -806,6 +804,8 @@ export const destroy = mutation({
   handler: async (ctx, { token, seasonId }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
+    /** Détruite avant que son édition finale soit écrite, la saison l'emporterait avec elle. */
+    if (await editionPending(ctx, season, Date.now())) fail('EDITION_PENDING');
 
     const present = await everySeatOf(ctx, season._id);
     for (const entry of present) {
