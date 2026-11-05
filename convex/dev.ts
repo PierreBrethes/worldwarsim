@@ -1214,7 +1214,7 @@ export const blitzkriegScene = internalMutation({
 /**
  * **Le banc de la seconde jambe** (#451) : deux attaques allemandes sur un même genre de cible
  * gardée, l'une simple, l'autre à deux cibles, ramenées à leur arrivée. Le banc mesure chacune
- * par `movements:arrive` : la seconde jambe ne doit pas alourdir la passe.
+ * par `movements:arrive`, puis la seconde jambe par `movements:pressOn`, que l'arrivée planifie.
  */
 export const benchBlitzkrieg = internalMutation({
   args: { attackerId: v.id('players'), defenderId: v.id('players'), from: LON_LAT },

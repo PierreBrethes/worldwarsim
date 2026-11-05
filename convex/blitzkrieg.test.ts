@@ -138,10 +138,22 @@ const codeOf = (promise: Promise<unknown>) =>
 
 const movements = (t: Bench) => t.run(async (ctx) => ctx.db.query('movements').collect());
 
-const arrive = async (t: Bench, movementId: Id<'movements'>) => {
+/** L'arrivée seule : la seconde jambe attend sa propre mutation, planifiée par l'arrivée. */
+const land = async (t: Bench, movementId: Id<'movements'>) => {
   const movement = await t.run(async (ctx) => ctx.db.get(movementId));
   vi.setSystemTime(movement!.arrivesAt + 1);
   await t.mutation(internal.movements.arrive, { movementId });
+};
+
+/** Ce qui est dû à l'instant : la seconde jambe qui part dans la seconde de l'arrivée. */
+const runDue = async (t: Bench) => {
+  vi.advanceTimersByTime(1);
+  await t.finishInProgressScheduledFunctions();
+};
+
+const arrive = async (t: Bench, movementId: Id<'movements'>) => {
+  await land(t, movementId);
+  await runDue(t);
 };
 
 const blitzNotices = (t: Bench, seat: Seat) =>
@@ -457,6 +469,39 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect((await t3.query(api.view.playerView, gone.germany)).me.slots.used).toBe(0);
   });
 
+  it('rereads the second leg in its own mutation: a map changed since the arrival halts it', async () => {
+    const t = boot();
+    const { germany, liege, namur, tanks } = await scene(t);
+    const order = await attack(t, germany, tanks, liege, namur);
+    await land(t, order.movementId);
+    /** Rien n'est encore parti : la colonne attend sa jambe, ni posée ni relancée. */
+    expect(await blitzNotices(t, germany)).toEqual([]);
+    expect((await movements(t)).filter((movement) => movement.type === 'attack')).toHaveLength(1);
+    /** Namur pris par l'Allemagne entre l'arrivée et la jambe : la cible relue est la sienne. */
+    const germanyId = await playerOf(t, germany);
+    await t.run(async (ctx) => ctx.db.patch(namur, { playerId: germanyId }));
+    await runDue(t);
+    expect(await blitzNotices(t, germany)).toMatchObject([
+      { outcome: 'halted', refusal: 'FRIENDLY_TARGET' },
+    ]);
+    expect((await movements(t)).filter((movement) => movement.type === 'attack')).toEqual([]);
+    expect((await t.run(async (ctx) => ctx.db.get(tanks[0]!)))!.stationedAt).toEqual(at(LIEGE));
+  });
+
+  it('plans nothing after a lost first attack', async () => {
+    const t = boot();
+    const { germany, france, liege, namur, tanks } = await scene(t);
+    await post(t, france, 'armor', liege, 6);
+    const lost = await attack(t, germany, tanks, liege, namur);
+    await land(t, lost.movementId);
+    const planned = await t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) => job.name.includes('pressOn') && job.state.kind === 'pending',
+      ),
+    );
+    expect(planned).toEqual([]);
+  });
+
   it('shows the column leaving the first target to a watcher as a departure, without a second dispatch', async () => {
     const t = boot();
     const { germany, france, liege, namur, tanks } = await scene(t);
@@ -519,8 +564,9 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     const { germany, france } = await launchedSeason(t);
     const places = await t.mutation(internal.dev.blitzkriegScene, { seasonId: germany.seasonId });
     expect(Object.keys(places)).toContain('guerre-eclair-tenue');
-    vi.advanceTimersByTime(1);
-    await t.finishInProgressScheduledFunctions();
+    /** Les arrivées, puis les jambes qu'elles planifient. */
+    await runDue(t);
+    await runDue(t);
     expect((await blitzNotices(t, germany)).map((notice) => notice.outcome).sort()).toEqual([
       'halted',
       'lost',

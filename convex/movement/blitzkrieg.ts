@@ -1,8 +1,7 @@
 /**
  * **La Guerre éclair** (ADR 0039 §6) : une attaque allemande à terre porte deux cibles. La seconde
  * se pèse à l'ordre depuis le point de la première ; à l'arrivée, si l'attaquant tient le terrain,
- * les vainqueurs s'y posent et repartent vers elle sous le même slot, comme un pas de tournée
- * (`march(…, { keepsSlot: true })`), avant l'unique réévaluation de l'arrivée.
+ * les vainqueurs repartent vers elle sous le même slot, dans une mutation à part (`pressOn`).
  *
  * **Rien n'échoue à l'échéance** : la cible, les coups, la route et le plein se lisent comme des
  * valeurs (`weighSecondLeg`) avant `march` ; si l'un manque, la colonne reste sur place et le dit.
@@ -12,6 +11,7 @@
 
 import { ConvexError } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
+import { internal } from '../_generated/api';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { fail, type ErrorCode } from '../errors';
 import { stationCargoLoads, type HomewardCargo } from '../cargo';
@@ -21,7 +21,7 @@ import { holdsPoint } from '../strategicPoints';
 import { toppedUp } from '../supplies';
 import { surveyFromPoint } from '../surveys';
 import { forgetMovement, standAt } from './arrival';
-import { watchersOf } from './detection';
+import { reassessDetection, watchersOf } from './detection';
 import { asPoint, pointOf } from './forces';
 import {
   aimOf,
@@ -137,39 +137,24 @@ export async function chainSecondTarget(
 
 const nameAt = (point: LonLat, hostCountry: string) => regionNameAt(point) ?? hostCountry;
 
-/**
- * **Après la première attaque** : `held` sont les vainqueurs et ce qu'ils portent, `null` sur une
- * défaite (ils sont déjà rentrés, `engageAt`). Rend le mouvement neuf et ceux qui guettaient
- * l'ancien, pour l'unique réévaluation de l'arrivée ; `null` si rien ne repart.
- */
-export async function pressOn(
-  ctx: MutationCtx,
-  movement: Doc<'movements'>,
-  held: {
-    readonly winners: ReadonlyArray<Doc<'troops'>>;
-    readonly cargo: ReadonlyArray<HomewardCargo>;
-  } | null,
-  now: number,
-): Promise<{
-  readonly movementId: Id<'movements'>;
-  readonly by: ReadonlySet<Id<'players'>>;
-} | null> {
-  const chain = movement.blitzkrieg!;
-  const here = pointOf(movement.to);
-  const tell = (fields: {
+/** **La dépêche de la Guerre éclair**, à la première cible : partie, tombée ou restée. */
+const tellOf =
+  (ctx: MutationCtx, movement: Doc<'movements'>, now: number) =>
+  (fields: {
     outcome: 'onward' | 'lost' | 'halted';
     arrivesAt?: number;
     refusal?: string;
     details?: Details;
     troopIds?: Id<'troops'>[];
-  }) =>
-    ctx.db.insert('notices', {
+  }) => {
+    const chain = movement.blitzkrieg!;
+    return ctx.db.insert('notices', {
       playerId: movement.playerId,
       at: now,
       kind: 'blitzkrieg',
       hostCountry: movement.hostCountry,
       point: movement.to,
-      name: nameAt(here, movement.hostCountry),
+      name: nameAt(pointOf(movement.to), movement.hostCountry),
       then: {
         hostCountry: chain.hostCountry,
         point: chain.point,
@@ -177,34 +162,73 @@ export async function pressOn(
       },
       ...fields,
     });
+  };
+
+/**
+ * **Après la première attaque** : `held` sont les vainqueurs et ce qu'ils portent, `null` sur une
+ * défaite (ils sont déjà rentrés, `engageAt`). La charge se pose au point, et la seconde jambe part
+ * dans sa propre mutation (`pressOn`), sa seconde à elle : l'arrivée et la marche ne tiennent pas
+ * ensemble sous la limite d'une mutation (banc du 05/11). Le mouvement reste jusque-là : ses
+ * troupes ne sont ni posées ni en route, donc ni camp ni colonne pour personne. Rend vrai si la
+ * jambe est planifiée.
+ */
+export async function holdGround(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  held: {
+    readonly winners: ReadonlyArray<Doc<'troops'>>;
+    readonly cargo: ReadonlyArray<HomewardCargo>;
+  } | null,
+  now: number,
+): Promise<boolean> {
   /** Une colonne toute en déroute ne gagne pas : la victoire laisse toujours un vainqueur. */
   if (held === null) {
-    await tell({ outcome: 'lost' });
-    return null;
+    await tellOf(ctx, movement, now)({ outcome: 'lost' });
+    return false;
   }
-
-  /** **Les vainqueurs tiennent le terrain** : posés au point, leur charge avec eux (la cargaison
-   *  suit la colonne), avant que l'ancien mouvement ne s'oublie. */
-  const winnerIds = held.winners.map((troop) => troop._id);
-  const emptied = (await ctx.db.get(movement._id))!;
-  await standAt(ctx, { ...emptied, troopIds: winnerIds }, movement.to);
+  const troopIds = held.winners.map((troop) => troop._id);
+  /** La cargaison suit la colonne : posée au point, la marche la reprend au départ. */
   await stationCargoLoads(ctx, {
     seasonId: movement.seasonId,
     playerId: movement.playerId,
-    troopIds: winnerIds,
+    troopIds,
     stationedAt: movement.to,
     loads: held.cargo.flatMap((load) => load.loads),
   });
-  /** Guettée jusqu'au bout : la fenêtre se ferme à l'arrivée, que le job lit un instant après. */
-  const watching = await watchersOf(ctx, movement._id, movement.arrivesAt);
-  await forgetMovement(ctx, movement._id, now);
+  await ctx.scheduler.runAfter(0, internal.movements.pressOn, {
+    movementId: movement._id,
+    troopIds,
+  });
+  return true;
+}
+
+/**
+ * **La seconde jambe** (`holdGround` la planifie) : les vainqueurs se posent au point, l'ancien
+ * mouvement s'oublie, et la jambe se relit à son échéance (cible, coups, route, plein) avant de
+ * repartir sous le même slot, comme un pas de tournée (`march(…, { keepsSlot: true })`). La carte
+ * a pu changer depuis l'arrivée : un refus laisse la colonne au point, et la dépêche le dit.
+ */
+export async function pressOn(
+  ctx: MutationCtx,
+  movementId: Id<'movements'>,
+  winnerIds: ReadonlyArray<Id<'troops'>>,
+  now: number,
+): Promise<void> {
+  const movement = await ctx.db.get(movementId);
+  if (movement === null) return;
+  const tell = tellOf(ctx, movement, now);
+  const here = pointOf(movement.to);
+  /** Guettée jusqu'au bout : la fenêtre se ferme à l'arrivée, le passé des relevés reste. */
+  const watching = await watchersOf(ctx, movementId, movement.arrivesAt);
+  await standAt(ctx, { ...movement, troopIds: [...winnerIds] }, movement.to);
+  await forgetMovement(ctx, movementId, now);
 
   const player = (await ctx.db.get(movement.playerId))!;
   const season = (await ctx.db.get(movement.seasonId))!;
   const { troops } = await toppedUp(
     ctx,
     player._id,
-    await troopsAmong(ctx, player._id, winnerIds),
+    await troopsAmong(ctx, player._id, [...winnerIds]),
     now,
   );
   const leg = await weighSecondLeg(
@@ -212,7 +236,7 @@ export async function pressOn(
     player,
     season,
     { point: here, legs: movement.legs },
-    chain.then,
+    movement.blitzkrieg!.then,
     troops,
     true,
   );
@@ -229,19 +253,24 @@ export async function pressOn(
       outcome: 'halted',
       refusal: leg.refusal.code,
       details: leg.refusal.details,
-      troopIds: winnerIds,
+      troopIds: troops.map((troop) => troop._id),
     });
-    return null;
+    await reassessDetection(ctx, movement.seasonId, now, player._id);
+    return;
   }
   const sent = await march(ctx, {
     playerId: player._id,
     season,
     type: 'attack',
     origin: { kind: 'point', point: movement.to },
-    troopIds: winnerIds,
+    troopIds: troops.map((troop) => troop._id),
     aim: leg.aimed,
     keepsSlot: true,
   });
   await tell({ outcome: 'onward', arrivesAt: sent.arrivesAt });
-  return { movementId: sent.movementId, by: watching };
+  /** **Comme un départ** : qui guettait la colonne la voit repartir, sans seconde dépêche. */
+  await reassessDetection(ctx, movement.seasonId, now, player._id, {
+    movementId: sent.movementId,
+    by: watching,
+  });
 }
