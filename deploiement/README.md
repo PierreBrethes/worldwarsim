@@ -329,8 +329,6 @@ dans le même ordre : le script apparie un tracé et un enregistrement par nom, 
 `generate-region-index`, `generate-region-grid`, `generate-europe-sheet`,
 `generate-region-types <dossier des rasters>` (qui écrit aussi `terrain-cells.json`, le terrain
 des dessins par cellule), `generate-deposits`, `generate-deposit-basins`.
-`region-index.json` ne se recommite pas tel que la chaîne le rend : il en diffère, pour une cause
-antérieure à #440 suivie à part.
 
 **Déployer le socle de l'atlas vide la base** (ADR 0034) quand ses arcs changent, en
 pré-production comme en production : le sol, les points des régions, les gisements et la côte
