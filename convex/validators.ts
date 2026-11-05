@@ -747,6 +747,9 @@ export const NOTICE = v.union(
     by: v.optional(v.string()),
     /** En Mondiale, ce qu'il tenait passe au siège irrégulier (M16) ; absent en Blitz. */
     irregulars: v.optional(v.literal(true)),
+    /** **Où le QG est tombé** (#442, Mondiale) : à l'éliminé, au preneur, et à qui l'avait
+     *  déjà relevé ; absent ailleurs. */
+    point: v.optional(LON_LAT),
   }),
   /** **Un point stratégique change de teneur** (P2) : public, déposé chez toute la table. */
   v.object({
@@ -755,6 +758,8 @@ export const NOTICE = v.union(
     key: STRATEGIC_POINT_KEY,
     nation: v.string(),
     point: v.optional(LON_LAT),
+    /** Les points que le preneur tient après la prise (#442) ; absent avant. */
+    held: v.optional(v.number()),
     /** **Hong Kong** : la copie de son teneur seul, qui dit aussi à qui le point est pris
      *  (absent : neutre). `hongKong` la fait lire « dépêche de Hong Kong ». */
     hongKong: v.optional(v.literal(true)),
