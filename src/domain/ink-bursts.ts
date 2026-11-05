@@ -43,8 +43,9 @@ export type InkBurst = {
   /** **Sa taille**, part de celle d'un cachet seul : la victoire en pose quatre côte à côte. */
   readonly scale?: number;
   /** Pressed just above its point rather than beside it: the absence tour has no piece there to
-   *  keep readable, and a stamp aside reads as the neighbouring country's (#439). A seal of the
-   *  Seven and the fall of a headquarters, as the storyboard has them (#442). */
+   *  keep readable, and a stamp aside reads as the neighbouring country's (#439). The fall of a
+   *  headquarters, as the storyboard has it (#442). A point of the Seven keeps its stamps aside:
+   *  its mast's cartouche stands above it. */
   readonly over?: true;
   /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
    *  compte-rendu le remplace, et celui-ci ne se pose pas. Sur le coup de ma batterie, le trait
@@ -147,7 +148,6 @@ export function inkBursts(
         at: burst.at,
         words: stamped(fr.stamps.raceBroken, dispatch.at),
         ink: LOSS_INK,
-        over: true,
         delayMs: FLAG_SWAP_MS,
       };
     }),
@@ -235,7 +235,6 @@ export function placedBursts(
         held,
         ...(held === 4 ? { roman: 'IV' } : {}),
         holdMs: SEAL_HOLD_MS,
-        over: true,
       },
     ];
   }
