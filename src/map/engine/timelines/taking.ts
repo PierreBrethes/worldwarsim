@@ -1,3 +1,4 @@
+import type { MapMotion } from '@/domain/map-motion';
 import { MAN_METRES } from '@/domain/piece-size';
 import type { PartPose, Pose, Sequence } from '../sequences';
 import { ease, span } from './curves';
@@ -227,3 +228,8 @@ export function sabotageOf({
     smokeAt,
   };
 }
+
+/** **What a taking under the eyes plays** (#279, storyboard « Réduites et coupées »): its
+ *  sequence at full motion; at reduced, a ring of ink on the site or the pile; cut, nothing. */
+export const takingStepOf = (motion: MapMotion): 'play' | 'ring' | 'nothing' =>
+  motion === 'full' ? 'play' : motion === 'reduced' ? 'ring' : 'nothing';

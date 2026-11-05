@@ -96,6 +96,7 @@ import {
   perronOf,
   plunderOf,
   sabotageOf,
+  takingStepOf,
   type Trip,
 } from './timelines/taking';
 import {
@@ -3323,7 +3324,8 @@ export class MapEngine {
         this.touring.push({ cue, since: performance.now() });
         break;
       case 'prise':
-        if (this.sequences.motion === 'full') this.takings.push({ cue, since: performance.now() });
+        if (takingStepOf(this.sequences.motion) !== 'nothing')
+          this.takings.push({ cue, since: performance.now() });
         break;
       case 'combat':
         this.playCombat(cue);
@@ -3984,10 +3986,25 @@ export class MapEngine {
    * retenu au départ, au pied du socle ; un homme va à la caisse et la rapporte à l'épaule, ou deux
    * vont à la porte du site — ils en reviennent chargés (pillage), ou s'effacent dans son noir le
    * temps d'une fumée noire (sabotage). La caisse s'efface au rang, l'étiquette de cargaison prend
-   * le relais ; les scellés restent. Rien hors de `full`, hors de vue, ou pour un pion déjà parti.
+   * le relais ; les scellés restent. En réduites, un anneau d'encre sur le site ou la colonne ;
+   * rien coupées, hors de vue, ou pour un pion déjà parti.
    * Vrai quand c'est réglé, joué ou non.
    */
   private takeOf({ cue }: (typeof this.takings)[number], now: number): boolean {
+    if (takingStepOf(this.sequences.motion) === 'ring') {
+      // At reduced motion, a ring of ink on the site, or on the column that took a crate.
+      const drawn =
+        cue.siteId === undefined
+          ? (this.arcs.squads.pieceOf(cue.arcId)?.box ?? this.arcs.boxOf(cue.arcId))
+          : this.maquettes.boxOf(cue.siteId);
+      if (drawn === null || drawn.isEmpty()) return false;
+      const size = drawn.getSize(new Vector3());
+      this.standing.rippleAt(
+        drawn.getCenter(new Vector3()).setY(drawn.min.y),
+        Math.max(size.x, size.z) / 2,
+      );
+      return true;
+    }
     const site = cue.siteId === undefined ? null : this.maquettes.siteOf(cue.siteId);
     if (cue.siteId !== undefined && site === null) return false;
     const inside = (point: Vector3) => {

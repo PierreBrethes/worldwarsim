@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { MAN_METRES } from '@/domain/piece-size';
-import { crateSearch, crateTaking, perronOf, plunderOf, sabotageOf, TAKING } from './taking';
+import {
+  crateSearch,
+  crateTaking,
+  perronOf,
+  plunderOf,
+  sabotageOf,
+  TAKING,
+  takingStepOf,
+} from './taking';
 
 const to = [3, 0, 4] as const;
 /** He stops where the crate lies at his feet, before him (`crateOnMan(0)`). */
@@ -119,5 +127,13 @@ describe('sabotageOf (#279, « Saboter »)', () => {
     expect(sabotage.at(sabotage.smokeAt + 100).man_1?.fade).toBe(0);
     expect(sabotage.at(sabotage.ms - 1).man_0?.fade).toBe(1);
     expect(sabotage.at(sabotage.ms - 1).man_0?.carry).toBeUndefined();
+  });
+});
+
+describe('takingStepOf (#279, « Réduites et coupées »)', () => {
+  it('plays at full motion, rings the site or the pile at reduced, and shows nothing cut', () => {
+    expect(takingStepOf('full')).toBe('play');
+    expect(takingStepOf('reduced')).toBe('ring');
+    expect(takingStepOf('off')).toBe('nothing');
   });
 });
