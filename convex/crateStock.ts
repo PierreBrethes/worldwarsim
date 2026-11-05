@@ -86,12 +86,12 @@ export type CrateTake = {
   readonly loot: ResourceAmounts;
 };
 
-/** Atomic physical take used after the S6c coordinator has sorted every due mission. Convex then
- * serializes each remainder update, so no two collectors can receive the same unit. */
 /** **A crate gone by its hour** (24 h, `expiresAt`): no column takes from it any more. */
 export const crateExpired = (crate: { readonly expiresAt: number }, at: number): boolean =>
   at >= crate.expiresAt;
 
+/** Atomic physical take used after the S6c coordinator has sorted every due mission. Convex then
+ * serializes each remainder update, so no two collectors can receive the same unit. */
 export async function takeLootFromCrate(
   ctx: MutationCtx,
   crateId: Id<'lootCrates'>,

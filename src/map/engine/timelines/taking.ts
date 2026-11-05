@@ -94,7 +94,6 @@ function walking(from: Point, to: Point, t: number, start: number, end: number, 
   } satisfies PartPose;
 }
 
-/** **A man's trip, leg by leg**: out until `there`, his work until `back`, home by `home`. */
 /** Along `way`, leg by leg, between `start` and `end`: each leg its share of the length. */
 function walkingAlong(
   way: ReadonlyArray<Point>,
@@ -114,6 +113,7 @@ function walkingAlong(
   return walking(way.at(-2)!, way.at(-1)!, t, from, end, perMetre);
 }
 
+/** **A man's trip, leg by leg**: out until `there`, his work until `back`, home by `home`. */
 function tripOf(
   { to, via = [] }: Trip,
   hours: { readonly there: number; readonly back: number; readonly home: number },
