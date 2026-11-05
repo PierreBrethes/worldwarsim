@@ -167,7 +167,8 @@
  * entrer le compte dans le salon (`capture.mjs` y met la saison ; la route tombe sur
  * `SEASON_NOT_LAUNCHED`, une erreur de console attendue, puis renvoie au salon). `--huit` passe un compte qui
  * existe en base sans mot de passe connu : un pseudo neuf est inscrit à sa place, et écrit dans
- * le fichier des comptes.
+ * le fichier des comptes — à chaque exécution, `--huit` ou non. Une connexion trop rapprochée
+ * (`LOGIN_TOO_FAST`) attend trois secondes et retente, sans renommer.
  *
  *     npm run demo:mondiale
  *
@@ -395,16 +396,30 @@ const accounts = Object.fromEntries(
 const client = new ConvexHttpClient(url);
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
+const LOGIN_MIN_INTERVAL_MS = 3_000; // src/domain/account.ts
+
+/** Connexion, puis inscription seulement si le compte n'existe pas (`BAD_CREDENTIALS`) : une
+ *  connexion trop rapprochée (`LOGIN_TOO_FAST`, une capture vient de se connecter) attend, puis
+ *  retente — elle ne dit rien du compte. */
 async function signIn({ nickname, password }) {
-  try {
-    return (await client.action(api.auth.login, { nickname, password })).token;
-  } catch {
-    await pause(400);
-    return (await client.action(api.auth.register, { nickname, password })).token;
+  for (;;) {
+    try {
+      return (await client.action(api.auth.login, { nickname, password })).token;
+    } catch (error) {
+      if (String(error).includes('LOGIN_TOO_FAST')) {
+        await pause(LOGIN_MIN_INTERVAL_MS + 200);
+        continue;
+      }
+      if (!String(error).includes('BAD_CREDENTIALS')) throw error;
+      await pause(400);
+      return (await client.action(api.auth.register, { nickname, password })).token;
+    }
   }
 }
 
-/** `--huit` (#454) : un compte qui existe en base sans mot de passe connu reçoit un pseudo neuf. */
+/** **À chaque exécution, pas seulement avec `--huit`** (#454) : un compte qui existe en base sans
+ *  que son mot de passe soit connu (`BAD_CREDENTIALS` puis `NICKNAME_TAKEN`) reçoit un pseudo neuf,
+ *  écrit dans le fichier des comptes. */
 async function signInOrRename(key, k) {
   try {
     return await signIn(accounts[key]);
