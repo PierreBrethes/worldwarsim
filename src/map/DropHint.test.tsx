@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CompassAction } from '@/domain/compass-rose';
+import type { DropReading } from '@/domain/drop-order';
 import { fr } from '@/i18n/fr';
 import {
   DropHintChip,
@@ -161,5 +162,52 @@ describe('the blitzkrieg chip', () => {
     expect(said(second, board)).toContain('drop-chip--refused');
     expect(secondRefusalOn(fight, second)).toBeNull();
     expect(secondRefusalOn(board, { kind: 'offer' })).toBeNull();
+  });
+});
+
+describe('the chip under a finger (#456)', () => {
+  const verbs = [
+    { key: 'aim', label: 'attaque' },
+    { key: 'raid', label: 'raid d’avant-poste' },
+  ] as unknown as ReadonlyArray<CompassAction>;
+  const withTouch = <T,>(coarse: boolean, run: () => T): T => {
+    vi.stubGlobal('matchMedia', () => ({ matches: coarse }));
+    try {
+      return run();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  };
+  const chipOnTouch = (coarse: boolean, choice?: string) =>
+    withTouch(coarse, () =>
+      renderToStaticMarkup(
+        <DropHintChip hint={{ ...hint, ...(choice === undefined ? {} : { choice }) }} ref={null} />,
+      ),
+    );
+
+  it('names no key of a keyboard, and says what lifting the finger does', () => {
+    const lone = chipOnTouch(true);
+    expect(lone).not.toMatch(/Tab|Échap/);
+    expect(lone).toContain('lever le doigt');
+    const several = chipOnTouch(true, '2 ordres');
+    expect(several).not.toMatch(/Tab|Échap/);
+    const refused = withTouch(true, () =>
+      renderToStaticMarkup(
+        <DropHintChip hint={{ ...hint, tone: 'refused', verb: 'non' }} ref={null} />,
+      ),
+    );
+    expect(refused).not.toMatch(/Tab|Échap/);
+  });
+
+  it('keeps Tab and Échap under a mouse', () => {
+    expect(chipOnTouch(false)).toContain('Échap annule');
+  });
+
+  it('counts the verbs instead of naming Tab when a finger reads them', () => {
+    const read = { kind: 'orders', verbs } as unknown as DropReading;
+    const said = (touch: boolean) =>
+      withTouch(touch, () => hintOfReading(read, () => 0, null)?.choice);
+    expect(said(true)).not.toContain('Tab');
+    expect(said(false)).toBe('1/2 · Tab : raid d’avant-poste');
   });
 });

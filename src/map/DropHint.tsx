@@ -36,6 +36,9 @@ export type DropHint = {
   readonly order?: true;
 };
 
+/** Un doigt n'a ni Tab ni Échap : la pastille parle alors son geste. */
+const onTouch = (): boolean => globalThis.matchMedia?.('(pointer: coarse)').matches === true;
+
 /** La pastille d'une lecture du lâcher (`dropReadingOf`) : le verbe choisi, ou le refus. */
 export function hintOfReading(
   reading: DropReading,
@@ -70,7 +73,11 @@ export function hintOfReading(
           ? strikeOf(verb.cost)
           : verb.cost,
     ...(verbs.length > 1
-      ? { choice: fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label) }
+      ? {
+          choice: onTouch()
+            ? fr.drop.choiceTouch(verbs.length)
+            : fr.drop.choice(at + 1, verbs.length, verbs[(at + 1) % verbs.length]!.label),
+        }
       : {}),
   };
 }
@@ -237,7 +244,7 @@ export function DropHintChip({
       /** Le verbe de la rose, sans son prix en slots : le cap neuf garde le sien. */
       detail: hint.verb,
     };
-  const touch = globalThis.matchMedia?.('(pointer: coarse)').matches === true;
+  const touch = onTouch();
   const armed = chain?.kind === 'armed' && hint.tone === 'fight' ? chain : null;
   if (armed !== null)
     hint = {
@@ -284,14 +291,20 @@ export function DropHintChip({
             ? touch
               ? fr.course.refusedTouch
               : fr.course.refused
-            : fr.drop.refused
+            : touch
+              ? fr.drop.refusedTouch
+              : fr.drop.refused
           : hint.tone === 'calm'
             ? fr.drop.still
             : steering
               ? touch
                 ? fr.course.keysTouch
                 : fr.course.keys
-              : fr.drop.release;
+              : touch
+                ? hint.choice === undefined
+                  ? fr.drop.releaseTouch
+                  : fr.drop.releaseChoiceTouch
+                : fr.drop.release;
   /** Maj sur un ordre qui n'enchaîne pas : l'ordre reste offert, le pied dit pourquoi. */
   const atout =
     hint.tone === 'refused' || hint.tone === 'calm'

@@ -4652,6 +4652,11 @@ export const fr = {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
+    /** Au doigt, ni Tab ni Échap : plusieurs ordres, la rose les propose au lâcher. */
+    choiceTouch: (count: number) => `${count} ordres au choix`,
+    releaseTouch: 'lever le doigt pour ordonner',
+    releaseChoiceTouch: 'lever le doigt : choisir l’ordre',
+    refusedTouch: 'lever le doigt : la pièce revient',
     still: 'relâcher · rien ne change',
     putBack: 'Reposer',
     putBackDetail: 'rien ne bouge',
