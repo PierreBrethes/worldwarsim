@@ -15,6 +15,7 @@ import {
   type Object3D,
 } from 'three';
 import { TANK_SHARE } from './figurines/figurine';
+import { INKED_PER_INSTANCE } from './baking';
 import { LAMP } from './site-kits';
 
 /**
@@ -207,6 +208,9 @@ export function warmPieces(root: Object3D, night: number, beat = 0): void {
       material.needsUpdate = true;
     }
     material.emissive.copy(WARM).multiplyScalar(strength);
-    if (material.map === null) material.emissive.multiply(material.color);
+    // A site's liseré and flag are white in its file and inked per instance, which an emission cannot see:
+    // its copy, inked in its colour, must not tint the glow either, or it blues when a sequence plays.
+    if (material.map === null && !INKED_PER_INSTANCE.has(material.name))
+      material.emissive.multiply(material.color);
   });
 }
