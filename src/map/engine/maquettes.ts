@@ -28,7 +28,7 @@ import {
   sceneOf,
 } from './figurines/figurine';
 import { washedOf } from './standing';
-import { accessoriesShown, bakedSite, type Part } from './baking';
+import { accessoriesShown, bakedSite, onSocle, type Part } from './baking';
 import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
@@ -165,12 +165,11 @@ const STUMP = 3;
 type Model = {
   /** Its building: what a site at work cuts, and a plan in the queue does not stand yet. */
   readonly parts: ReadonlyArray<Part>;
-  /** Its socle and liseré (ADR 0038): whole in every state, to the pin. Empty without a socle. */
+  /** Its socle and liseré, its yard and its sign (ADR 0038): whole in every state, no cut reaches
+   *  them. Empty without a socle. */
   readonly dressing: ReadonlyArray<Part>;
-  /** Its yard: whole in every state. */
-  readonly yard: ReadonlyArray<Part>;
-  /** Its sign, mast and flag: whole in every state, no cut reaches it. */
-  readonly sign: ReadonlyArray<Part>;
+  /** It stands on a socle (`onSocle`): a site, pinned with my piles and turned off the sea. */
+  readonly socle: boolean;
   /** Its accessory groups by name (`niveau_1`…`ruines`), shown by level and state; none without
    *  a socle. */
   readonly accessories: ReadonlyMap<string, ReadonlyArray<Part>>;
@@ -205,7 +204,8 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
   if (!model) {
     model = (pose === undefined ? sceneOf(url) : posedScene(url, pose)).then((cached) => {
       const scene = cached;
-      const { building: parts, dressing, yard, sign, accessories } = bakedSite(scene);
+      const { building: parts, dressing, accessories } = bakedSite(scene);
+      const socle = onSocle(scene);
       const boundsOf = (of: ReadonlyArray<Part>) => {
         const bounds = new Box3();
         for (const { geometry } of of) {
@@ -215,11 +215,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
         return bounds;
       };
       const building = boundsOf(parts);
-      const box = building
-        .clone()
-        .union(boundsOf(dressing))
-        .union(boundsOf(yard))
-        .union(boundsOf(sign));
+      const box = building.clone().union(boundsOf(dressing));
       const chimneys: Vector3[] = [];
       const markers = new Map<string, Vector3>();
       const fronts = new Map<string, Vector3>();
@@ -240,7 +236,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
         const top = building.getCenter(new Vector3());
         chimneys.push(top.setY(building.max.y));
       }
-      const ranked = dressing.length > 0 ? scene.getObjectByName('fx_rang') : undefined;
+      const ranked = socle ? scene.getObjectByName('fx_rang') : undefined;
       const rank =
         ranked === undefined
           ? null
@@ -259,8 +255,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
       return {
         parts,
         dressing,
-        yard,
-        sign,
+        socle,
         accessories,
         scale: 1 / (metres ?? Math.max(size.x, size.z)),
         box,
@@ -900,7 +895,7 @@ export class MaquetteLayer implements SequenceHost {
         }
         at.set(at.x + step * sx, at.y, at.z + step * sz);
       }
-    } else if (model.dressing.length > 0) {
+    } else if (model.socle) {
       const wet = (turn: number) => {
         const { min, max } = model.box;
         const [cos, sin] = [Math.cos(turn), Math.sin(turn)];
@@ -946,7 +941,7 @@ export class MaquetteLayer implements SequenceHost {
           model.parts.map(({ geometry }) => geometry),
           model.building,
         ),
-        model.dressing.length > 0 ? model.box : null,
+        model.socle ? model.box : null,
         // Its file brings its own works: the ink scaffold gives way.
         !model.accessories.has('chantier'),
       );
@@ -968,7 +963,7 @@ export class MaquetteLayer implements SequenceHost {
     // A plan in the queue has no volume yet.
     const building = atWork?.works.phase === 'queued' ? [] : model.parts;
     const dressing = model.dressing.map((part) => instanced(part, false));
-    // One lot for every side: its liseré is inked per instance (ADR 0038 §2).
+    // Its socle, yard and sign. One lot for every side: its liseré is inked per instance (ADR 0038 §2).
     for (const mesh of dressing) {
       if ((mesh.material as Material).name !== 'lisere') continue;
       lot.items.forEach((item, k) => mesh.setColorAt(k, item.lisere ?? WHITE));
@@ -977,11 +972,9 @@ export class MaquetteLayer implements SequenceHost {
     const accessories = lot.shown.flatMap((name) =>
       (model.accessories.get(name) ?? []).map((part) => instanced(part, false, name)),
     );
-    const yard = model.yard.map((part) => instanced(part, false, 'cour'));
     lot.shell = building.map((part) => instanced(part, true));
     lot.accessories = accessories;
-    const sign = model.sign.map((part) => instanced(part, false, 'signe'));
-    lot.meshes = [...lot.shell, ...dressing, ...yard, ...sign, ...accessories];
+    lot.meshes = [...lot.shell, ...dressing, ...accessories];
     if (lot.meshes.length > 0) lot.group.add(...lot.meshes);
     for (const item of lot.items) {
       if (!item.smoking) continue;
@@ -1017,7 +1010,7 @@ export class MaquetteLayer implements SequenceHost {
     placedBox.copy(model.box).applyMatrix4(matrix);
     // A rising site is drawn up to its cut only, a plan lies flat: the box the poster clears
     // stops there too — but on a socle, whose sign stands whole and above the building.
-    const atWork = model.dressing.length > 0 ? null : dressed.lot.atWork;
+    const atWork = model.socle ? null : dressed.lot.atWork;
     const cut = atWork?.dressing?.cut ?? null;
     if (atWork?.works.phase === 'queued') placedBox.max.y = placedBox.min.y;
     else if (cut !== null)
@@ -1429,7 +1422,7 @@ const hundredths = (weight: number): number => Math.round(weight * 100) / 100;
 /** **What a site gives way to its pin by** — its socle when it is flagged on one and its file,
  *  once landed, has one; else its span —: what its maquette is read by and its pin and plate. */
 const pinnedBy = (model: Model | null, item: Placed): PinnedBy =>
-  item.socle && (model === null || model.dressing.length > 0) ? 'socle' : item.span;
+  item.socle && (model === null || model.socle) ? 'socle' : item.span;
 
 /** **Its own units to the board** at full near weight: its span at the player's size, in its group's. */
 const sizeOf = (model: Model, item: Placed): number =>

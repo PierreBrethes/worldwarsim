@@ -1129,12 +1129,10 @@ describe('a site on its socle (ADR 0038)', () => {
     const isSocle = (mesh: InstancedMesh) =>
       mesh.name === '' && ['socle_papier', 'socle_flanc', 'lisere'].includes(nameOf(mesh));
     const isBuilding = (mesh: InstancedMesh) => mesh.name === '' && !isSocle(mesh);
-    const isYard = (mesh: InstancedMesh) => mesh.name === 'cour' || mesh.name.startsWith('niveau_');
-    const isSign = (mesh: InstancedMesh) => mesh.name === 'signe';
 
-    it('stands whole up close: building, yard, socle and sign at one size', async () => {
+    it('stands whole up close: its building and its dressing, every mesh at one size', async () => {
       const layer = seenFrom(await layerOf([socled()]), 20);
-      for (const which of [isBuilding, isSocle, isYard, isSign]) {
+      for (const which of [isBuilding, isSocle, () => true]) {
         const drawn = drawnAs(layer, which);
         expect(drawn.length).toBeGreaterThan(0);
         for (const placed of drawn) expect(scaleOf(placed)).toBeCloseTo(FULL, 9);

@@ -16,12 +16,7 @@ export type Part = { readonly geometry: BufferGeometry; readonly material: Mater
  * is cut by its works — the socle and its liseré, the yard, the sign. The rest of the scene is the
  * building.
  */
-const DRESSING: Readonly<Record<string, 'dressing' | 'yard' | 'sign'>> = {
-  socle: 'dressing',
-  lisere: 'dressing',
-  cour: 'yard',
-  signe: 'sign',
-};
+const DRESSING = new Set(['socle', 'lisere', 'cour', 'signe']);
 
 /** **The accessory groups of the yard** (ADR 0038 §5), baked apart: the engine shows them by
  *  level and state (`accessoriesShown`). */
@@ -49,7 +44,7 @@ const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 /** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one —
  *  a file without a socle (the well's, the objectives') may name a node `chantier` for itself.
  *  The port's slip is `cale`, and its `chantier` is a yard group like any. */
-const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
+export const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socle') !== undefined;
 
 /**
  * **What no bake of `scene` draws**: the flag, painted by its owner's colours later (#279) —
@@ -69,30 +64,23 @@ const flagless = (node: Object3D): boolean => node.name !== 'drapeau';
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
  * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
  * draw calls. Meshes whose attributes do not match stay apart. A site is baked apart in what the
- * engine draws apart: its building, what a cut and a raze reach; the socle and liseré it stands
- * on; its yard; its sign; and each accessory group, for the engine to show by level and state. A
- * model without a socle is all building.
+ * engine draws apart: its building, what a cut and a raze reach; its dressing — the socle and
+ * liseré it stands on, its yard, its sign —; and each accessory group, for the engine to show by
+ * level and state. A model without a socle is all building.
  */
 export function bakedSite(scene: Object3D): {
   building: Part[];
   dressing: Part[];
-  yard: Part[];
-  sign: Part[];
   accessories: Map<string, Part[]>;
 } {
   scene.updateMatrixWorld(true);
-  const kinds = {
-    building: [] as Mesh[],
-    dressing: [] as Mesh[],
-    yard: [] as Mesh[],
-    sign: [] as Mesh[],
-  };
+  const kinds = { building: [] as Mesh[], dressing: [] as Mesh[] };
   const accessories = new Map<string, Mesh[]>();
   const socle = onSocle(scene);
   const visit = (node: Object3D, kind: keyof typeof kinds, accessory: string | null) => {
     if (!flagless(node)) return;
     const group = accessory ?? (socle && ACCESSORIES.has(node.name) ? node.name : null);
-    const here = kind === 'building' && socle ? (DRESSING[node.name] ?? kind) : kind;
+    const here = kind === 'building' && socle && DRESSING.has(node.name) ? 'dressing' : kind;
     if ((node as Mesh).isMesh) {
       if (group !== null) accessories.set(group, [...(accessories.get(group) ?? []), node as Mesh]);
       else kinds[here].push(node as Mesh);
@@ -104,8 +92,6 @@ export function bakedSite(scene: Object3D): {
   return {
     building: merged(kinds.building),
     dressing: merged(kinds.dressing),
-    yard: merged(kinds.yard),
-    sign: merged(kinds.sign),
     accessories: new Map([...accessories].map(([name, meshes]) => [name, merged(meshes)])),
   };
 }
