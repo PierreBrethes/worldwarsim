@@ -116,7 +116,7 @@ au même cadrage que sa référence. Un état que la démo ne sait pas montrer d
 
 ## 6. Fin
 
-1. `npm run verifier` vert sur ton dernier commit.
+1. `npm run verifier` vert sur ton dernier commit : un commit fait après lui le relance.
 2. Issue : ni `RESTE-A-CODER.md` ni GitHub, Pierre met l'issue à jour depuis ton rapport.
    Feature de la file : barre-la dans `WWS/docs/RESTE-A-CODER.md`.
 3. Rapport en français, 15 lignes au plus : commits ; ce que le joueur voit ; **décisions prises
