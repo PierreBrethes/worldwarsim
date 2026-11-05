@@ -25,7 +25,8 @@ import { destinationPoint, samePoint, type LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PilePieces } from '@/domain/pile-pieces';
-import type { UnitTier } from '@/domain/ids';
+import type { UnitRole, UnitTier } from '@/domain/ids';
+import { AIRFIELD } from '@/emblems/kits/manifest';
 import { nationInk } from '@/domain/nations';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
@@ -46,7 +47,10 @@ import {
 import { dropLift, DROP_DONE, followShare, RETURN_DONE, returnAt, swayAt } from './landing';
 import { InkRing, type RingState } from './ink-ring';
 import type { SequenceHost } from './sequences';
+import type { AirRole } from './timelines/airfield';
 import { ease } from './timelines/curves';
+import type { SeaRole } from './timelines/port';
+import { berths, layout, type Place, type Plane, settle } from './timelines/rest';
 import { playTableSound } from '../table-sound';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
@@ -141,6 +145,8 @@ export type GarrisonAt = (
   deep: readonly [number, number];
   /** The size its ring draws the site at: a fleet at its quay is drawn at it (#433). */
   scale: number;
+  /** The site's metres to the board, as it is drawn now (#475): where its pieces rest. */
+  toBoard(point: Vector3): Vector3;
 } | null;
 
 /**
@@ -343,10 +349,13 @@ export function pileObject(
 } | null {
   const figurines = dressedGroups(nation, pieces);
   if (figurines === null) return null;
-  const layout = formationOf(
-    pieces.groups.map(({ role }) => (DOMAIN_BY_ROLE[role] === 'sea' ? 'sea' : 'land')),
+  // A piece posted at its site (#475) leaves the formation: the engine stands it at its post.
+  const free = pieces.groups.flatMap((group, k) => (group.posted ? [] : [k]));
+  const placed = formationOf(
+    free.map((k) => (DOMAIN_BY_ROLE[pieces.groups[k]!.role] === 'sea' ? 'sea' : 'land')),
     seaward,
   );
+  const layout = pieces.groups.map((_, k) => placed[free.indexOf(k)] ?? { x: 0, z: 0 });
   const object = new Group();
   const smokes: Smoke[] = [];
   const targets: Mesh[] = [];
@@ -382,10 +391,10 @@ export function pileObject(
       if (group.wear === 'burning') blacken(model);
     });
   });
-  if (pieces.squad) object.add(squadMarks(layout, nation, pieces.count));
+  if (pieces.squad && placed.length > 0) object.add(squadMarks(placed, nation, pieces.count));
   const margin = GROUP_SPACING * 0.62;
-  const xs = layout.map(({ x }) => x);
-  const zs = layout.map(({ z }) => z);
+  const xs = placed.length === 0 ? [0] : placed.map(({ x }) => x);
+  const zs = placed.length === 0 ? [0] : placed.map(({ z }) => z);
   return {
     object,
     span,
@@ -517,6 +526,11 @@ export function blacken(figurine: Object3D): void {
   });
 }
 
+/** Where a posted piece rests on the board, its heading; `at` null when it has no post. */
+type Post = { k: number; at: Vector3 | null; heading: number };
+/** A footprint kept out of every ray. */
+const OUT_OF_REACH = -1e6;
+
 /** `ready` flips once every figurine is in: until then the pile is not on the layer and its plate stays. */
 type Dressed = {
   readonly key: string;
@@ -544,6 +558,9 @@ type Dressed = {
   /** What it is to the hand right now (POC, `ringStyle`), round its footprint. */
   readonly ring: InkRing;
   readonly extent: { readonly x: number; readonly z: number };
+  /** What its ring, its foot and its halo are drawn round: `extent`, until posted pieces stand
+   *  elsewhere than the formation (#475). */
+  outline: { readonly x: number; readonly z: number };
 };
 
 /** A piece in hand: the pile it was lifted from, and the troops lifted (ADR 0026 §6). */
@@ -733,7 +750,10 @@ function discard(carried: Carried): void {
 /** The held pieces only: a troop taken out of its squad is carried alone, no outline. */
 function heldPieces(pieces: PilePieces, troopIds: ReadonlyArray<string>): PilePieces {
   const held = new Set(troopIds);
-  const groups = pieces.groups.filter((group) => group.troopIds.some((id) => held.has(id)));
+  // In hand it is carried with the others: no post to stand at.
+  const groups = pieces.groups
+    .filter((group) => group.troopIds.some((id) => held.has(id)))
+    .map(({ posted: _, ...group }) => group);
   return { groups, troopIds, squad: pieces.squad && groups.length > 1 };
 }
 
@@ -756,7 +776,7 @@ export const drawnKey = (
   JSON.stringify([
     nation,
     count,
-    groups.map((g) => [g.role, g.figures, g.wear, g.aboard, restPoseOf(g, now)]),
+    groups.map((g) => [g.role, g.figures, g.wear, g.aboard, restPoseOf(g, now), g.posted]),
   ]);
 
 /**
@@ -875,6 +895,10 @@ export class StandingLayer implements SequenceHost {
       const ring = new InkRing();
       ring.position.set(built.center.x, RETICLE_LIFT, built.center.z);
       built.object.add(ring);
+      const extent = {
+        x: built.extent.x + (pile.pieces.squad ? 0.08 : 0.02),
+        z: built.extent.z + (pile.pieces.squad ? 0.08 : 0.02),
+      };
       const entry: Dressed = {
         key,
         at: pile.at,
@@ -893,10 +917,8 @@ export class StandingLayer implements SequenceHost {
         targets: built.targets,
         ring,
         // Round a squad, outside its dashed outline.
-        extent: {
-          x: built.extent.x + (pile.pieces.squad ? 0.08 : 0.02),
-          z: built.extent.z + (pile.pieces.squad ? 0.08 : 0.02),
-        },
+        extent,
+        outline: extent,
       };
       next.set(pile.id, entry);
       // A model that fails to load leaves the pile in its plate.
@@ -945,6 +967,11 @@ export class StandingLayer implements SequenceHost {
   /** The figurines a sequence has stood a copy in, by `${pileId}/${group}`: a pile dressed again
    *  has other figurines, and the sequence on the old ones is over. */
   private readonly stoodIn = new Map<string, Figurine>();
+
+  /** **The place of each plane at the site it rests on** (#475), by site then troop. */
+  private readonly places = new Map<string, Map<string, Place>>();
+  /** How the planes just formed or come home reach their places, until they have one. */
+  private readonly arrivals = new Map<string, 'formed' | 'returned'>();
 
   private figurineOf(id: string): { figurine: Figurine; placed: boolean } | null {
     const at = id.lastIndexOf('/');
@@ -1327,7 +1354,7 @@ export class StandingLayer implements SequenceHost {
     const scale = entry.object.scale.x;
     return {
       at: entry.ring.getWorldPosition(new Vector3()),
-      radius: Math.max(entry.extent.x, entry.extent.z) * scale,
+      radius: Math.max(entry.outline.x, entry.outline.z) * scale,
       scale,
     };
   }
@@ -1410,10 +1437,10 @@ export class StandingLayer implements SequenceHost {
   /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
     const lent = new Set(this.stoodIn.values());
-    for (const { object, extent, ready, near, figurines } of this.dressed.values()) {
+    for (const { object, outline, ready, near, figurines } of this.dressed.values()) {
       // A pile whose every group plays away (a truck backing to its quay) glows with it, not at its rank.
       if (!ready || !object.visible || figurines.every((figurine) => lent.has(figurine))) continue;
-      emit(object.position, Math.max(extent.x, extent.z) * object.scale.x, near);
+      emit(object.position, Math.max(outline.x, outline.z) * object.scale.x, near);
     }
   }
 
@@ -1667,9 +1694,12 @@ export class StandingLayer implements SequenceHost {
     const ranked = new Map<string, Dressed[]>();
     for (const entry of order) {
       if (!('beside' in entry.at) || entry.at.quay !== undefined) continue;
+      // What rests at its post does not take a place in the rank (#475).
+      if (entry.pieces.groups.every((group) => group.posted)) continue;
       if (this.garrisonAt(entry.at.beside, entry.span, false)?.rank)
         ranked.set(entry.at.beside, [...(ranked.get(entry.at.beside) ?? []), entry]);
     }
+    const posts = this.postsOf(order, cameraPosition);
     const laid = new Map<Dressed, { x: number; z: number }>();
     for (const [site, entries] of ranked) {
       const { width } = this.garrisonAt(site, entries[0]!.span, false)!;
@@ -1739,14 +1769,15 @@ export class StandingLayer implements SequenceHost {
       const scale = troopScale(distance, span) * pileUnitOf(span);
       object.scale.setScalar(scale);
       hover(object);
+      this.post(entry, posts.get(entry), scale);
       const growth = targetGrowth(scale, distance);
       for (const target of targets) target.scale.setScalar(growth);
     }
     const now = performance.now();
-    for (const [id, { ring, extent }] of this.dressed) {
+    for (const [id, { ring, outline }] of this.dressed) {
       ring.style(this.rings.get(id) ?? null, now / 1000, this.motion !== 'full');
       const beat = ring.beat;
-      ring.scale.set(extent.x * beat, 1, extent.z * beat);
+      ring.scale.set(outline.x * beat, 1, outline.z * beat);
     }
     if (this.leaving !== null) this.orientCarried(this.leaving, cameraPosition, now);
     if (this.carried !== null) this.orientCarried(this.carried, cameraPosition, now);
@@ -1760,6 +1791,146 @@ export class StandingLayer implements SequenceHost {
       effect.end();
       return false;
     });
+  }
+
+  /**
+   * **Where the pieces posted at their site rest, on the board** (#475): the planes of an airfield
+   * on its apron, the hulls of a port along its mole, a slot per piece by its rank across the
+   * site's piles, the figurines drawn as large as they are up close.
+   */
+  private postsOf(order: ReadonlyArray<Dressed>, eye: Vector3): Map<Dressed, Post[]> {
+    const bySite = new Map<
+      string,
+      Array<{ entry: Dressed; k: number; role: UnitRole; troop: string }>
+    >();
+    for (const entry of order) {
+      if (!('beside' in entry.at)) continue;
+      const { beside } = entry.at;
+      entry.pieces.groups.forEach(({ role, posted, troopIds }, k) => {
+        if (posted)
+          bySite.set(beside, [
+            ...(bySite.get(beside) ?? []),
+            { entry, k, role, troop: troopIds[0]! },
+          ]);
+      });
+    }
+    const posts = new Map<Dressed, Post[]>();
+    const alive = new Set<string>();
+    for (const [site, members] of bySite) {
+      alive.add(site);
+      const sea = DOMAIN_BY_ROLE[members[0]!.role] === 'sea';
+      const frame = this.garrisonAt(site, members[0]!.entry.span, sea);
+      if (frame === null) continue;
+      // Each piece is laid out at the growth it is drawn at.
+      const growth = members.map(
+        ({ entry }) => floorGrowth(frame.at.distanceTo(eye), entry.span) * pieceScale.size,
+      );
+      const rests = sea
+        ? berths(
+            members.map(({ role }) => role as SeaRole),
+            1,
+            growth,
+          )
+        : layout(this.planesOf(site, members), 1, growth);
+      members.forEach(({ entry, k }, n) => {
+        const rest = rests[n];
+        let post: Post = { k, at: null, heading: 0 };
+        if (rest !== null && rest !== undefined) {
+          const y = sea ? 0 : AIRFIELD.top;
+          const at = frame.toBoard(new Vector3(rest.x, y, rest.z));
+          const ahead = frame
+            .toBoard(new Vector3(rest.x + Math.sin(rest.yaw), y, rest.z + Math.cos(rest.yaw)))
+            .sub(at);
+          post = { k, at, heading: Math.atan2(ahead.x, ahead.z) };
+        }
+        posts.set(entry, [...(posts.get(entry) ?? []), post]);
+      });
+    }
+    for (const site of this.places.keys()) if (!alive.has(site)) this.places.delete(site);
+    return posts;
+  }
+
+  /**
+   * **The apron's planes with their places**: a place is a state of its troop, kept while it
+   * stays on the apron; a troop that left frees it and no other moves. A new one takes it by how
+   * it came (`arrivedAt`), else in the order of the role.
+   */
+  private planesOf(
+    site: string,
+    members: ReadonlyArray<{ role: UnitRole; troop: string }>,
+  ): Plane[] {
+    const kept = this.places.get(site) ?? new Map<string, Place>();
+    this.places.set(site, kept);
+    const roles = new Map(members.map(({ role, troop }) => [troop, role as AirRole]));
+    for (const troop of [...kept.keys()]) if (!roles.has(troop)) kept.delete(troop);
+    for (const troop of this.arrivals.keys()) if (roles.has(troop)) kept.delete(troop);
+    const heldNow = (): Plane[] =>
+      [...kept].map(([troop, place]) => ({ role: roles.get(troop)!, place }));
+    for (const { troop } of members) {
+      if (kept.has(troop)) continue;
+      const place = settle(heldNow(), roles.get(troop)!, this.arrivals.get(troop) ?? 'initial');
+      this.arrivals.delete(troop);
+      if (place !== null) kept.set(troop, place);
+    }
+    return members.map(({ role, troop }) => ({
+      role: role as AirRole,
+      place: kept.get(troop) ?? null,
+    }));
+  }
+
+  /** **A plane formed at its hangar, or come home from its runway** (#475): it takes its place by
+   *  how it came. Told once its pile is drawn again. */
+  arrivedAt(pileId: string, groups: ReadonlyArray<number>, how: 'formed' | 'returned'): void {
+    const pieces = this.piecesOf(pileId);
+    for (const k of groups) {
+      const group = pieces?.groups[k];
+      if (group?.posted) this.arrivals.set(group.troopIds[0]!, how);
+    }
+  }
+
+  /**
+   * Stands the posted pieces of a pile at their posts, in the pile's own frame; one with no post
+   * (the apron or the mole is full) is not drawn, its label says how many. The pile's ring, foot
+   * and halo then fit the pieces as they stand.
+   */
+  private post(entry: Dressed, posts: ReadonlyArray<Post> | undefined, scale: number): void {
+    if (posts === undefined || scale <= 0) return;
+    const { object } = entry;
+    const [cos, sin] = [Math.cos(object.rotation.y), Math.sin(object.rotation.y)];
+    for (const { k, at, heading } of posts) {
+      const figurine = entry.figurines[k]!;
+      figurine.object.visible = at !== null;
+      if (at === null) {
+        // Its footprint is out of every ray.
+        entry.targets[k]!.position.y = OUT_OF_REACH;
+        continue;
+      }
+      const [dx, dy, dz] = [
+        at.x - object.position.x,
+        at.y - object.position.y,
+        at.z - object.position.z,
+      ];
+      const [x, y, z] = [(dx * cos - dz * sin) / scale, dy / scale, (dx * sin + dz * cos) / scale];
+      figurine.object.position.set(x, y, z);
+      figurine.object.rotation.y = heading - object.rotation.y;
+      entry.targets[k]!.position.set(x, y, z);
+    }
+    // The ring, the foot and the halo are round the pieces that are drawn.
+    const drawn = entry.figurines.filter((figurine) => figurine.object.visible);
+    entry.ring.visible = drawn.length > 0;
+    if (drawn.length === 0) return;
+    const xs = drawn.map(({ object: { position } }) => position.x);
+    const zs = drawn.map(({ object: { position } }) => position.z);
+    const margin = GROUP_SPACING * 0.62 + (entry.pieces.squad ? 0.08 : 0.02);
+    entry.ring.position.set(
+      (Math.min(...xs) + Math.max(...xs)) / 2,
+      RETICLE_LIFT,
+      (Math.min(...zs) + Math.max(...zs)) / 2,
+    );
+    entry.outline = {
+      x: (Math.max(...xs) - Math.min(...xs)) / 2 + margin,
+      z: (Math.max(...zs) - Math.min(...zs)) / 2 + margin,
+    };
   }
 
   /** Its time in seconds since `since`, or past every animation when motion is not full. */

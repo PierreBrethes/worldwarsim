@@ -1,7 +1,15 @@
 import type { UnitRole, UnitTier } from './ids';
 import { batterySince } from './indirect-fire';
 import type { ArcView, TroopView } from './player-view';
-import { cargoOf, carrierIn, DOMAIN_BY_ROLE, ROLE_ORDER, unitsOf, type UnitDomain } from './troops';
+import {
+  cargoOf,
+  carrierIn,
+  DOMAIN_BY_ROLE,
+  PROJECTION_BY_DOMAIN,
+  ROLE_ORDER,
+  unitsOf,
+  type UnitDomain,
+} from './troops';
 
 /**
  * Une pile posée se lit en groupes de figurines (ADR 0026 §5). La règle vit ici, pure, pour que
@@ -26,6 +34,10 @@ type PieceGroup = {
   readonly wear: Wear;
   /** **En Blitz, un avion reste en l'air** (décision de Pierre, 15/10) : posé, il plane. */
   readonly aloft?: true;
+  /** **Au repos à son poste** (#475, Mondiale) : l'avion sur l'aire de son aérodrome, la coque
+   *  à son quai. Il n'est plus dans la formation de la pile : la carte le pose là où le site le
+   *  range (`apron`, `berths`). */
+  readonly posted?: true;
   /** **Ce que ses transports portent** (15/10), à tous les étages : les passagers ne se voient
    *  pas, le jeton « N à bord » les compte. Absent sans passager. */
   readonly aboard?: number;
@@ -147,6 +159,27 @@ export function pilePieces(
     members.map((troop) => piece(bucketsOf([troop])[0]!)),
   );
   return { groups, troopIds: ids, squad: groups.length > 1 };
+}
+
+/**
+ * **Les pièces d'une garnison qui se rangent au poste de leur site** (#475) : les avions d'un
+ * aérodrome, les coques d'un port ; les hommes restent au rang. En Mondiale seulement — la Blitz
+ * ne passe pas par ici (`unitPieces`).
+ */
+export function postedAt(pieces: PilePieces, building?: string): PilePieces {
+  const kind =
+    building === PROJECTION_BY_DOMAIN.air
+      ? 'air'
+      : building === PROJECTION_BY_DOMAIN.sea
+        ? 'sea'
+        : null;
+  if (kind === null) return pieces;
+  return {
+    ...pieces,
+    groups: pieces.groups.map((group) =>
+      DOMAIN_BY_ROLE[group.role] === kind ? { ...group, posted: true as const } : group,
+    ),
+  };
 }
 
 /**
