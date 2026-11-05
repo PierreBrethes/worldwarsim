@@ -652,6 +652,8 @@ export class MapEngine {
    *  their flag comes down (#279), by their building. */
   private servedMaquettes: ReadonlyArray<StandingMaquette> = [];
   private readonly lowering = new Map<string, StandingMaquette>();
+  /** The hour each held site is let go: a second taking of the same site moves it. */
+  private readonly lettingGo = new Map<string, ReturnType<typeof setTimeout>>();
   /** Gone (`dispose`): a timer that falls after reads nothing of it. */
   private disposed = false;
   /** The piles as last served: a garrison handed back to the ground is drawn at the foot of the
@@ -1563,11 +1565,18 @@ export class MapEngine {
       if (buildingId === undefined || !seenBefore(buildingId)) continue;
       this.lowering.set(buildingId, held);
       this.maquettes.runFlag(held.id, { from: 1, to: 0, start: Date.now(), ms: LOWER_MS });
-      setTimeout(() => {
-        if (this.disposed) return;
-        this.lowering.delete(buildingId);
-        this.displayMaquettes(this.servedMaquettes);
-      }, LOWER_MS);
+      clearTimeout(this.lettingGo.get(buildingId));
+      this.lettingGo.set(
+        buildingId,
+        setTimeout(() => {
+          if (this.disposed) return;
+          this.lettingGo.delete(buildingId);
+          this.lowering.delete(buildingId);
+          this.displayMaquettes(this.servedMaquettes);
+          // The decor's names return with the next frame, whether or not the view changed.
+          this.invalidate();
+        }, LOWER_MS),
+      );
     }
     return hoisted.filter((id) =>
       seenBefore(served.find((maquette) => maquette.id === id)?.buildingId),
