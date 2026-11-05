@@ -6,17 +6,15 @@ import {
   Matrix4,
   Mesh,
   type Object3D,
-  Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export type Part = { readonly geometry: BufferGeometry; readonly material: Material };
 
 /**
- * **The diorama round a building** (ADR 0038 §1-§5, §7): what stays whole while the building
- * alone is cut by its works, by what each does at a distance — the socle and its liseré stand to
- * the pin, the yard shrinks with the building, the sign grows on its foot. The rest of the scene
- * is the building.
+ * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
+ * is cut by its works — the socle and its liseré, the yard, the sign. The rest of the scene is the
+ * building.
  */
 const DRESSING: Readonly<Record<string, 'dressing' | 'yard' | 'sign'>> = {
   socle: 'dressing',
@@ -71,16 +69,15 @@ const flagless = (node: Object3D): boolean => node.name !== 'drapeau';
  * **A sculpted scene flattened into one geometry per material**, every node's placement baked
  * in: a shipyard has some 270 meshes, and drawn one by one per exemplar it would cost as many
  * draw calls. Meshes whose attributes do not match stay apart. A site is baked apart in what the
- * distance draws apart (ADR 0038 §7): its building; the socle and liseré it stands on; its yard;
- * its sign, with its foot — the `signe` node's place — and its height over it, in the scene's
- * units; and each accessory group, for the engine to show by level and state. A model without a
- * socle is all building.
+ * engine draws apart: its building, what a cut and a raze reach; the socle and liseré it stands
+ * on; its yard; its sign; and each accessory group, for the engine to show by level and state. A
+ * model without a socle is all building.
  */
 export function bakedSite(scene: Object3D): {
   building: Part[];
   dressing: Part[];
   yard: Part[];
-  sign: { parts: Part[]; foot: Vector3; height: number } | null;
+  sign: Part[];
   accessories: Map<string, Part[]>;
 } {
   scene.updateMatrixWorld(true);
@@ -104,24 +101,11 @@ export function bakedSite(scene: Object3D): {
   };
   visit(scene, 'building', null);
   const merged = (meshes: Mesh[]) => mergedByMaterial(meshes, new Matrix4());
-  const signNode = socle ? scene.getObjectByName('signe') : undefined;
-  const signParts = merged(kinds.sign);
-  const top = Math.max(
-    ...signParts.map(({ geometry }) => {
-      geometry.computeBoundingBox();
-      return geometry.boundingBox!.max.y;
-    }),
-  );
-  const foot = signNode?.getWorldPosition(new Vector3());
-  const sign =
-    foot === undefined || signParts.length === 0
-      ? null
-      : { parts: signParts, foot, height: top - foot.y };
   return {
     building: merged(kinds.building),
     dressing: merged(kinds.dressing),
     yard: merged(kinds.yard),
-    sign,
+    sign: merged(kinds.sign),
     accessories: new Map([...accessories].map(([name, meshes]) => [name, merged(meshes)])),
   };
 }

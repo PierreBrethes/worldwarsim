@@ -9,7 +9,6 @@ import {
   pieceStands,
   pieceWeight,
   setNearFloor,
-  siteReading,
   troopWeight,
 } from './figurine';
 import { crewOf, squadOf, stand, stride } from './infantry';
@@ -80,42 +79,22 @@ describe('pieceWeight', () => {
 });
 
 /** A site on its socle gives way to its pin as my piles do (#465, ADR 0038 §7 amendé le 05/11):
- *  at the troops' floor, whatever its socle — the barracks' sign stands some 27 m over it. */
-describe('siteReading', () => {
-  const sign = (buildingSpan('barracks') * 27) / 50;
+ *  at the troops' floor, whatever its socle. */
+describe('pieceStands on a socle', () => {
   afterEach(() => {
-    setNearFloor(0);
     pieceScale.size = 1;
   });
 
   it('stands whole until d ≈ 30 and is its pin by d ≈ 36', () => {
-    expect(siteReading(30, sign)).toEqual({ diorama: 1, socle: 1, signGrowth: 1 });
     expect(pieceStands(30, 'socle')).toBe(1);
     expect(pieceStands(33, 'socle')).toBeLessThan(1);
     expect(pieceStands(33, 'socle')).toBeGreaterThan(0);
     expect(pieceStands(36, 'socle')).toBe(0);
   });
 
-  it('gives way with my piles, at the same distance: never a socle alone', () => {
-    for (let d = 20; d < 90; d += 0.5) {
-      const read = siteReading(d, sign);
-      expect(read.diorama).toBe(read.socle);
-      expect(read.socle).toBe(troopWeight(d, troopSpan('infantry')));
-    }
-  });
-
-  it('grows the sign to keep 12 px tall, twice its height at most', () => {
-    expect(siteReading(45, sign).signGrowth).toBe(1);
-    // Its 27 m read 610 px over d: 8.7 px at d = 70, grown by 12 / 8.7.
-    expect(siteReading(70, sign).signGrowth).toBeCloseTo(1.377, 2);
-    expect(siteReading(200, sign).signGrowth).toBe(2);
-  });
-
-  it('hands the pin what the socle gives up: never both, never neither', () => {
-    for (let d = 20; d < 90; d += 0.5) {
-      const pin = 1 - pieceStands(d, 'socle');
-      expect(pin + siteReading(d, sign).socle).toBeCloseTo(1, 9);
-    }
+  it('gives way with my piles, at the same distance', () => {
+    for (let d = 20; d < 90; d += 0.5)
+      expect(pieceStands(d, 'socle')).toBe(troopWeight(d, troopSpan('infantry')));
     // A piece without a socle gives way as it always did.
     expect(pieceStands(57, buildingSpan('barracks'))).toBe(
       pieceWeight(57, buildingSpan('barracks')),
@@ -124,7 +103,7 @@ describe('siteReading', () => {
 
   it('measures at the player size, as pieceWeight does', () => {
     pieceScale.size = 1.25;
-    expect(siteReading(40, sign).socle).toBeGreaterThan(0);
+    expect(pieceStands(40, 'socle')).toBeGreaterThan(0);
   });
 });
 

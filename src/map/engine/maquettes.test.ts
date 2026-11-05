@@ -38,7 +38,13 @@ import {
 import { GROUP_SPACING, pileLayout } from '@/domain/pile-layout';
 import { articulatedOf } from './sequences';
 import { sceneOfFile } from './gltf-scene.fixture';
-import { ANONYMOUS_SPAN, LAID_OUT_FOR, pieceWeight, troopPinSpan } from './figurines/figurine';
+import {
+  ANONYMOUS_SPAN,
+  LAID_OUT_FOR,
+  pieceStands,
+  pieceWeight,
+  troopPinSpan,
+} from './figurines/figurine';
 
 /** The box the last works were dressed round. */
 const dressed: { box: Box3 | null; scaffolded: boolean | undefined } = {
@@ -613,7 +619,7 @@ describe('a maquette lent to a sequence (ADR 0036)', () => {
     maquettes.display([{ ...stand(), working: true, metres: 50, level: 2 }]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(maquettes.working().map(({ id }) => id)).toEqual([ID]);
-    // Its diorama no longer whole: it rests.
+    // No longer drawn whole: it rests.
     maquettes.orient(new Vector3(0, 900, 0), null, 0);
     expect(maquettes.working()).toEqual([]);
   });
@@ -1149,18 +1155,14 @@ describe('a site on its socle (ADR 0038)', () => {
       for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBe(0);
     });
 
-    it('grows the sign of a copy standing in for it as the instance grows its own (#273)', async () => {
-      const layer = seenFrom(await layerOf([socled()]), 20);
-      const sign = new Group();
-      sign.name = 'signe';
-      layer.standIn(MINE, new Group().add(sign));
-      seenFrom(layer, 72);
-      const grown = new Vector3();
-      sign.updateWorldMatrix(true, false);
-      grown.setFromMatrixScale(sign.matrixWorld);
-      layer.standIn(MINE, null);
-      seenFrom(layer, 72);
-      expect(grown.x).toBeCloseTo(scaleOf(drawnAs(layer, isSign)[0]!), 9);
+    it('hands its pin what it gives up: never both, never neither (ADR 0038 §7)', async () => {
+      const layer = await layerOf([socled()]);
+      const by = layer.spanOf(MINE)!;
+      for (let d = 20; d < 45; d += 0.5) {
+        seenFrom(layer, d);
+        const drawn = scaleOf(drawnAs(layer, isSocle)[0]!) / FULL;
+        expect(drawn + 1 - pieceStands(d, by)).toBeCloseTo(1, 2);
+      }
     });
 
     it('hands a raze from afar its whole site, ruins and all, at the size it shrank to', async () => {
@@ -1170,7 +1172,6 @@ describe('a site on its socle (ADR 0038)', () => {
       expect(named).toContain('fond_sombre');
       expect(named).toContain('lisere');
       expect(drawn.ruins).toBeDefined();
-      expect(drawn.parts.every((part) => part.within === undefined)).toBe(true);
     });
 
     it('lets the smoke rest once its building has shrunk away', async () => {

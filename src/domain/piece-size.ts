@@ -98,7 +98,7 @@ export const BUILDING_FOOTPRINT_METRES: Readonly<Record<BuildingKey, number>> = 
  * **La portée de chaque site depuis son point, en mètres** : la distance de l'origine au coin le
  * plus loin de la boîte de son `socle`, quel que soit son tour. Le socle n'est pas centré (la cour
  * déborde de 20 à 25 m côté façade) : c'est elle, et non la moitié du côté, qui espace deux sites
- * voisins. Elle n'entre pas dans `siteReading`, qui lit `BUILDING_FOOTPRINT_METRES`.
+ * voisins.
  */
 export const BUILDING_REACH_METRES: Readonly<Record<BuildingKey, number>> = {
   hq: 64,
