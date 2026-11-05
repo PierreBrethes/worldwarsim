@@ -1,4 +1,5 @@
 import { fr } from '@/i18n/fr';
+import type { BuildingKey } from './ids';
 import { anchorOf, type LabelAnchor, type LabelType, type MapMarker } from './labels';
 import type { ArcView, Composition, Stack, TroopStation } from './player-view';
 
@@ -25,6 +26,8 @@ export type Pin =
       readonly ink: string;
       /** The troops it stands for: a pile's, a column's, a building's or an outpost's garrison. */
       readonly stack: Stack;
+      /** A building's family: its picto in a contact's label (#441). */
+      readonly key?: BuildingKey;
       readonly moving?: true;
       /** A building still under the crane: nothing stands there yet. */
       readonly works?: true;
@@ -84,6 +87,7 @@ function markerPin(
           shape: 'building',
           side: 'mine',
           ink: marker.ink,
+          key: marker.key,
           stack:
             marker.buildingId === null
               ? {}

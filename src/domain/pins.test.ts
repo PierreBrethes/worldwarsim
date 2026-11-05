@@ -25,6 +25,7 @@ const building = {
   kind: 'building',
   id: 'barracks-1',
   buildingId: 'b1',
+  key: 'barracks',
   lonLat: null,
   regionId: 'FRA-5333',
   ink: MY_INK,
@@ -79,6 +80,7 @@ describe('pinsOf — what a pin far away says', () => {
         shape: 'building',
         side: 'mine',
         ink: MY_INK,
+        key: 'barracks',
         stack: {},
       },
       {
