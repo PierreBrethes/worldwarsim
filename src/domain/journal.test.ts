@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { combatsSince, isAlarm, journalDispatches, latestDispatchAt } from './journal';
 import { fr } from '@/i18n/fr';
-import { asLocalTime } from './duration';
+import { asClockTime } from './duration';
 import type { BuildingKey } from './ids';
 import type { CombatReport, Notice } from './player-view';
 
@@ -537,7 +537,7 @@ describe('the second leg of a blitzkrieg (ADR 0039 §6)', () => {
     expect(dispatch.text).toContain('Elle reste sur place');
     expect(dispatch.stood).toEqual({
       text: `reste à Liège — ${fr.errors.NO_ROUNDS()}`,
-      reread: fr.blitzkrieg.reread(asLocalTime(NOON)),
+      reread: fr.blitzkrieg.reread(asClockTime(NOON)),
       troopIds: ['t1'],
     });
     expect(dispatch.severity).toBe('critical');

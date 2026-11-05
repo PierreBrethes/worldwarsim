@@ -236,7 +236,7 @@ function written(notice: Notice): Written {
           ? {
               stood: {
                 text: fr.blitzkrieg.stood(first, reason ?? '…'),
-                reread: fr.blitzkrieg.reread(asLocalTime(notice.at)),
+                reread: fr.blitzkrieg.reread(asClockTime(notice.at)),
                 troopIds: notice.troopIds ?? [],
               },
             }
