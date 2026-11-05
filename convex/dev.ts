@@ -3304,7 +3304,8 @@ export const takingScene = internalMutation({
       inMs: number,
     ) => {
       const troopIds = [];
-      for (let k = 0; k < squads; k++) troopIds.push(await infantry(target.point));
+      // Stationed at home, at Lille: a column with no road home stays where it raided, unseen.
+      for (let k = 0; k < squads; k++) troopIds.push(await infantry({ lon: 3.06, lat: 50.63 }));
       const until = now + inMs;
       const returnPlan = await planCargoReturn(ctx, {
         seasonId,

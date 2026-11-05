@@ -534,7 +534,8 @@ describe('dev.takingScene', () => {
           (await ctx.db.query('movements').collect()).filter((m) => m.plunder !== undefined),
         );
       expect((await raids()).map((m) => m.plunder?.phase)).toEqual(['presence', 'presence']);
-      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      vi.advanceTimersByTime(110_001);
+      await t.finishInProgressScheduledFunctions();
       const reports = await t.run(async (ctx) =>
         Promise.all(
           (await ctx.db.query('plunderReports').collect()).map(
@@ -543,6 +544,13 @@ describe('dev.takingScene', () => {
         ),
       );
       expect(reports.sort()).toEqual(['mine', 'warehouse']);
+      // Each raid leaves by a column home: one that stays where it raided cues nothing.
+      const homes = await t.run(async (ctx) =>
+        (await ctx.db.query('movements').collect())
+          .filter((m) => m.type === 'return')
+          .map((m) => String([m.from.lon, m.from.lat])),
+      );
+      expect(homes).toEqual(expect.arrayContaining([places.pillage, places.sabotage].map(String)));
     } finally {
       vi.useRealTimers();
     }
