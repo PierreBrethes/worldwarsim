@@ -1,6 +1,17 @@
 import type { CSSProperties } from 'react';
 import { fr } from '@/i18n/fr';
+import { useCoarsePointer } from '@/shell/viewport';
 import { FILM_CUTS, type FilmCut } from './film';
+
+/** The rose's two verbs on the target, as the game words them. */
+const PETALS = [fr.drop.verbs.attack, fr.drop.verbs.inland];
+
+/** A desk the demo scene shows: the stocks are staged, their words are the game's. */
+const BINS = [
+  { key: 'food', amount: 382, note: fr.resourceBand.drySoonShort(10), dry: true },
+  { key: 'steel', amount: 400, note: fr.resourceBand.full, dry: false },
+  { key: 'coal', amount: 398, note: fr.ledger.perHour(-3), dry: false },
+] as const;
 
 /** Where the pile stands in the capture and where its order goes, as a share of the tile. Read
  *  off the two captures (`gestes-16x9.jpg`, `gestes-9x16.jpg`), which frame the same contact. */
@@ -15,6 +26,7 @@ const SPOTS = {
  * « réduites » ou « coupées », c'est le geste fini qui reste, image fixe (`.lp[data-still]`).
  */
 export function Gestures({ cut }: { cut: FilmCut }) {
+  const finger = useCoarsePointer();
   const g = fr.front.gestures;
   const spot = SPOTS[cut];
   const style = {
@@ -24,29 +36,25 @@ export function Gestures({ cut }: { cut: FilmCut }) {
     '--ty': `${spot.ty}%`,
     aspectRatio: spot.aspect,
   } as CSSProperties;
-  const x0 = (spot.px / 100) * 100;
-  const y0 = (spot.py / 100) * 100;
-  const x1 = (spot.tx / 100) * 100;
-  const y1 = (spot.ty / 100) * 100;
-  const route = `M${x0},${y0} Q${(x0 + x1) / 2},${Math.min(y0, y1) - 12} ${x1},${y1}`;
+  const route = `M${spot.px},${spot.py} Q${(spot.px + spot.tx) / 2},${Math.min(spot.py, spot.ty) - 12} ${spot.tx},${spot.ty}`;
 
   const tiles = [
     {
       key: 'lift',
-      copy: g.lift,
+      copy: { title: g.lift.title, text: g.lift.text(finger) },
       overlay: (
         <>
           <span className="lp-g lp-g-pile" />
-          <span className="lp-g lp-g-tag">{g.lift.tag}</span>
+          <span className="lp-g lp-g-tag">{fr.drop.pieces(5)}</span>
         </>
       ),
     },
     {
       key: 'place',
-      copy: g.place,
+      copy: { title: g.place.title, text: g.place.text(fr.errors.DISEMBARK_AT_SEA()) },
       overlay: (
         <span className="lp-g lp-g-rose">
-          {g.place.petals.map((petal, index) => (
+          {PETALS.map((petal, index) => (
             <span key={petal} className={`lp-petal lp-petal-${index}`}>
               {petal}
             </span>
@@ -62,7 +70,7 @@ export function Gestures({ cut }: { cut: FilmCut }) {
           <svg className="lp-g lp-g-route" viewBox="0 0 100 100" preserveAspectRatio="none">
             <path d={route} vectorEffect="non-scaling-stroke" />
           </svg>
-          <span className="lp-g lp-g-stamp">{g.send.stamp}</span>
+          <span className="lp-g lp-g-stamp">{fr.aim.submit}</span>
         </>
       ),
     },
@@ -71,7 +79,7 @@ export function Gestures({ cut }: { cut: FilmCut }) {
       copy: g.desk,
       overlay: (
         <span className="lp-g lp-g-desk">
-          {g.desk.bins.map((bin) => (
+          {BINS.map((bin) => (
             <span key={bin.key}>
               <i>{fr.resources[bin.key]}</i>
               <b>{bin.amount}</b>

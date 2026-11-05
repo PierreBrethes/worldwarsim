@@ -40,7 +40,7 @@ import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
 import type { TheatreId } from '../domain/theatres';
-import type { StrategicPointKey } from '../domain/strategic-points';
+import { RACE_TO_WIN, type StrategicPointKey } from '../domain/strategic-points';
 import type { ReplayStep } from '../domain/replay';
 import type { CombatProfile } from '../domain/combat';
 import type { StatKey } from '../domain/stat-sheet';
@@ -1873,8 +1873,8 @@ export const fr = {
       night: 'Le soleil passe sur la table.',
       piece: 'On lève une pièce, on la pose.',
       order: 'L’ordre part. Il ne revient pas.',
-      seven: 'Sept lieux réels à tenir.',
-      day: 'Vingt-quatre heures pour l’emporter.',
+      seven: `Il y a sept points, il en faut ${RACE_TO_WIN}.`,
+      day: 'Tenus vingt-quatre heures, la saison est gagnée.',
       edition: 'Et le journal raconte la guerre.',
     },
   },
@@ -1898,9 +1898,9 @@ export const fr = {
     caption:
       'Notre photographie : la table, ce matin, de la Manche à Narvik. Rien n’y est retouché : c’est le jeu.',
     kicker: 'Huit nations · la carte du monde réel · 1940',
-    posterAlt: 'La table de jeu vue de haut : l’Europe, au jour, de la Manche à la mer du Nord.',
+    posterAlt: 'La table de jeu vue de haut : l’Europe, de la Manche à Ankara.',
     headline: 'Une soirée ou sept jours pour refaire le monde',
-    lede: 'Vos pièces se lèvent et se posent sur la carte du monde réel ; l’ordre part et ne revient pas. Ce que vous savez de l’ennemi, vous l’avez relevé. Et chaque soir, le journal raconte la guerre.',
+    lede: 'Vos pièces se lèvent et se posent sur la carte du monde réel ; l’ordre part et ne revient pas. Ce que vous savez de l’ennemi, vous l’avez relevé. Et le journal raconte la guerre.',
     editions: [
       {
         kicker: 'L’édition du soir',
@@ -1923,27 +1923,24 @@ export const fr = {
       label: 'Les gestes de la table',
       lift: {
         title: 'Lever',
-        text: 'Un clic sur une de vos piles la prend en main : elle suit la main.',
-        tag: 'levée · 5 pièces',
+        /** Comme l'aide du jeu : le texte suit la main, le doigt ou la souris. */
+        text: (finger: boolean) =>
+          finger
+            ? 'Touchez une de vos piles pour la lever : elle suit le doigt.'
+            : 'Un clic sur une de vos piles la prend en main : elle suit la main.',
       },
       place: {
         title: 'Poser : la rose',
-        text: 'Posée sur un point, la rose dit ce qu’il accepte. Ce qui ne se peut pas est dit, pas grisé : « débarquer — refusé : aucun quai ici ».',
-        petals: ['attaquer ici', 'tenir', 'relever'],
+        text: (refusal: string) =>
+          `Posée sur un point, la rose dit ce qu’il accepte. Ce qui ne se peut pas est dit, pas grisé : « ${refusal} ».`,
       },
       send: {
         title: 'Envoyer',
         text: 'L’ordre part avec sa route et son heure d’arrivée. Il ne revient pas.',
-        stamp: 'envoyé — irréversible',
       },
       desk: {
         title: 'Le sous-main',
         text: 'Au pied de la carte, vos bacs et vos chantiers, pendant que l’ordre roule.',
-        bins: [
-          { key: 'food', amount: '382', note: 'à sec 10 h', dry: true },
-          { key: 'steel', amount: '400', note: 'plein', dry: false },
-          { key: 'coal', amount: '398', note: '−3/h', dry: false },
-        ],
       },
     },
     /** Les deux portes, au bout de l'édition : on n'entre pas seul. */

@@ -124,3 +124,20 @@ it('ouvre l’invitation au sixième caractère, en capitales', async () => {
 
   await waitFor(() => expect(router.state.location.pathname).toBe('/rejoindre/K7Q2PX'));
 });
+
+it('dit « touchez » au doigt et « un clic » à la souris, avec les mots du jeu', async () => {
+  mount();
+  expect(await screen.findByText(fr.front.gestures.lift.text(false))).toBeTruthy();
+  expect(screen.getByText(fr.front.gestures.place.text(fr.errors.DISEMBARK_AT_SEA()))).toBeTruthy();
+  expect(screen.getByText(fr.aim.submit)).toBeTruthy();
+  cleanup();
+
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(pointer: coarse)',
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+  mount();
+  expect(await screen.findByText(fr.front.gestures.lift.text(true))).toBeTruthy();
+});

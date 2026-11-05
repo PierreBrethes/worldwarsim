@@ -402,7 +402,8 @@ body.lp-scroll {
   top: var(--py);
   width: 15cqw;
   aspect-ratio: 1.3;
-  transform: translate(-50%, -62%);
+  --at: translate(-50%, -62%);
+  transform: var(--at);
   border: 2px solid var(--interaction);
   box-shadow: 0 8px 12px rgb(0 0 0 / 35%);
 }
@@ -420,7 +421,8 @@ body.lp-scroll {
 .lp-g-tag {
   left: var(--px);
   top: var(--py);
-  transform: translate(-50%, -190%);
+  --at: translate(-50%, -190%);
+  transform: var(--at);
 }
 
 .lp-g-rose {
@@ -428,7 +430,8 @@ body.lp-scroll {
   top: var(--ty);
   width: 38cqw;
   height: 38cqw;
-  transform: translate(-50%, -50%);
+  --at: translate(-50%, -50%);
+  transform: var(--at);
   border: 1px solid var(--ink);
   border-radius: 50%;
   background: rgb(239 229 204 / 35%);
@@ -450,11 +453,6 @@ body.lp-scroll {
   left: 50%;
   bottom: -4px;
   transform: translateX(-50%);
-}
-
-.lp-petal-2 {
-  left: -12cqw;
-  top: 44%;
 }
 
 .lp-g-route {
@@ -480,7 +478,8 @@ body.lp-scroll {
   font: 800 clamp(10px, 4.2cqw, 15px) / 1 var(--font-display);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  transform: rotate(-8deg);
+  --at: rotate(-8deg);
+  transform: var(--at);
 }
 
 .lp-g-desk {
@@ -568,23 +567,6 @@ body.lp-scroll {
   100% {
     opacity: 0;
   }
-}
-
-/* The shown state of each overlay is its own `transform`: the loop must land on it. */
-.lp:not([data-still]) .lp-g-pile {
-  --at: translate(-50%, -62%);
-}
-
-.lp:not([data-still]) .lp-g-tag {
-  --at: translate(-50%, -190%);
-}
-
-.lp:not([data-still]) .lp-g-rose {
-  --at: translate(-50%, -50%);
-}
-
-.lp:not([data-still]) .lp-g-stamp {
-  --at: rotate(-8deg);
 }
 
 /* ---------- le film entier ---------- */
