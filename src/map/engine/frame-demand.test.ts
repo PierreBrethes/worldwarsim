@@ -329,6 +329,10 @@ describe('a dismantling is declared to the loop (#340)', () => {
     expect(pins.slice(0, pins.indexOf('\n  }\n'))).toMatch(
       /razedOf\(this\.dismantling, pins\)[\s\S]*this\.pins\.leave\([\s\S]*this\.pins\.display\(pins\)/,
     );
+    // A building razed from afar lets its pin tip the same way, by the same id (#465).
+    expect(pins.slice(0, pins.indexOf('\n  }\n'))).toMatch(
+      /razedOf\(this\.razing, pins\)[\s\S]*this\.pins\.leave\([\s\S]*this\.pins\.display\(pins\)/,
+    );
     const erase = source.slice(source.indexOf('  eraseReach('));
     expect(erase.slice(0, erase.indexOf('\n  }\n'))).toMatch(
       /this\.invalidate\(\);[\s\S]*this\.ink\.eraseReach/,

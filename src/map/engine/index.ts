@@ -1658,9 +1658,10 @@ export class MapEngine {
   displayPins(pins: ReadonlyArray<Pin>): void {
     this.invalidate();
     this.pinShapes = new Map(pins.map((pin) => [pin.id, pin.shape]));
-    // The pin a dismantled outpost leaves is copied as it stands before the list drops it.
+    // The pin a dismantled outpost or a razed building leaves (#465) is copied as it stands
+    // before the list drops it; up close it weighs nothing, and the maquette falls instead.
     const now = performance.now();
-    for (const id of razedOf(this.dismantling, pins))
+    for (const id of [...razedOf(this.dismantling, pins), ...razedOf(this.razing, pins)])
       this.pins.leave(id, now, this.ambience.motion);
     this.pins.display(pins);
   }
