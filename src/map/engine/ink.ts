@@ -40,8 +40,9 @@ const WORDED_ASIDE = [0.95, 0.7] as const;
 const WORDED_OVER = [0, -0.5] as const;
 const STAMP_RED = '#9d4638';
 
-/** @a-mesurer : le cachet, un peu plus grand que le tampon (84 contre 68 dans la maquette). */
-const SEAL_PX = 190;
+/** @a-mesurer : le cachet, à l'écran comme dans la maquette (84 px, `scenes.js`) : ses pastilles
+ *  se lisent, et il ne couvre pas le pays voisin. */
+const SEAL_PX = 84;
 /** @a-mesurer : les deux ondes du cachet (`scenes.js`, `ripples`) — à 0 et 0,22 s, 0,9 s chacune,
  *  de 10 à 70 px, d'une opacité de 0,7 qui tombe à rien. */
 const RIPPLE_DELAYS_MS = [0, 220] as const;
