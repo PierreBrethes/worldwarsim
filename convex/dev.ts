@@ -697,6 +697,64 @@ export const reviewScene = internalMutation({
 });
 
 /**
+ * **Une absence à rejouer** (#439, `--absence`) : le joueur a fermé son journal `hours` heures
+ * plus tôt, son dernier rejeu est effacé, ses premiers pas passés, et douze dépêches à lieu sont
+ * tombées depuis, en couronne autour de sa capitale ; ce qui était tombé depuis recule d'autant,
+ * avant la fermeture. Rejouable à volonté :
+ * `npx convex run dev:absenceScene '{"playerId":"…"}'`. Rend le point de la capitale.
+ */
+export const absenceScene = internalMutation({
+  args: { playerId: v.id('players'), hours: v.optional(v.number()) },
+  handler: async (ctx, { playerId, hours = 9 }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null || !isNation(player.nation)) throw new Error('no such nation');
+    const capital = pointOfRegion(capitalRegionOf(player.nation));
+    const now = Date.now();
+    const away = now - hours * 3_600_000;
+    const marks = await ctx.db
+      .query('readMarks')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .unique();
+    if (marks !== null) await ctx.db.patch(marks._id, { absenceTourAt: undefined });
+    // What fell since — the launch's objectives, a previous scene — goes behind the closing: the
+    // tour would fly to them first, being the newest.
+    const since = await ctx.db
+      .query('notices')
+      .withIndex('byPlayerAt', (q) => q.eq('playerId', playerId).gt('at', away))
+      .collect();
+    for (const notice of since) await ctx.db.patch(notice._id, { at: notice.at - (now - away) });
+    await stampReadMark(ctx, playerId, { journalReadAt: away });
+    await stampReadMark(ctx, playerId, { firstSteps: { done: [], shown: 'skipped' } });
+    for (let k = 0; k < 12; k++) {
+      const turn = (k / 12) * 2 * Math.PI;
+      const reach = 0.7 + (k % 3) * 0.35;
+      const point = {
+        lon: capital.lon + reach * 1.4 * Math.cos(turn),
+        lat: capital.lat + reach * Math.sin(turn),
+      };
+      const region = nearestRegion([point.lon, point.lat]);
+      if (region === null) throw new Error('no region near the capital');
+      const head = { playerId, at: away + ((k + 1) / 13) * (now - away) };
+      const hostCountry = region.country;
+      const rows = [
+        { kind: 'columnArrived', movementType: 'march', hostCountry, point, troops: 3 },
+        { kind: 'constructionFinished', building: 'barracks', regionId: region.id, level: 2 },
+        { kind: 'outpostFounded', hostCountry, point },
+        {
+          kind: 'recruitmentDelivered',
+          role: 'infantry',
+          site: { building: 'barracks', regionId: region.id },
+        },
+        { kind: 'fortHeld', hostCountry, point, headingDegrees: 90, arrivesAt: head.at },
+        { kind: 'outpostDisabled', hostCountry, point },
+      ] as const;
+      await ctx.db.insert('notices', { ...head, ...rows[k % rows.length]! });
+    }
+    return [capital.lon, capital.lat] as [number, number];
+  },
+});
+
+/**
  * **Une mine qu'aucun avant-poste ne couvre** (`--hors-portee`) : le QG à Paris, et une mine sur le
  * charbon de la Ruhr, en sol étranger où le joueur n'a posé aucun point. La fiche de la mine lit
  * `unreached` : la montée y est refusée, et dite. Rend le point de la mine.

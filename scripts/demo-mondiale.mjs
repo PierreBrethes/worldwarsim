@@ -157,6 +157,10 @@
  * français sur l'entrepôt adverse relevé en Pologne, et recule leur présence d'une heure et demie :
  * trois caisses sur quatre sont tombées (`pillage`).
  *
+ * `--absence` (#439) rend au Royaume-Uni (compte b) une absence de neuf heures : douze dépêches à
+ * lieu autour de Londres, son rejeu jamais vu, ses premiers pas passés (`absence`). À rejouer sans
+ * refonder : `npx convex run dev:absenceScene '{"playerId":"…"}'`.
+ *
  * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
  * doit s'animer (`saboteur`).
@@ -515,6 +519,7 @@ if (!bare) {
     places['hors-portee'] = [ruhr.lon, ruhr.lat];
     cli(['run', 'dev:unreachedMineScene', JSON.stringify({ playerId: scene.a })]);
   }
+  if (process.argv.includes('--absence') && scene.b !== null) absenceScene(scene.b);
   /** `--pile-mixte` : un camion, un chasseur et deux fantassins sur un même point (#286). */
   if (process.argv.includes('--pile-mixte') && scene.a !== null)
     for (const [role, count] of [
@@ -1687,4 +1692,10 @@ for (let salvo = 0; salvo < salvoes && shelling.length > 0; salvo++) {
     });
   }
   console.log(`Salve ${salvo + 1}/${salvoes} tirée à ${new Date().toISOString()}`);
+}
+
+/** `--absence` : la scène du rejeu, et son lieu, la capitale. */
+function absenceScene(playerId) {
+  const answer = cli(['run', 'dev:absenceScene', JSON.stringify({ playerId })]);
+  places.absence = JSON.parse(answer.match(/\[[\s\S]*\]/)[0]);
 }

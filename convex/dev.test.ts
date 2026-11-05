@@ -186,6 +186,25 @@ describe('dev scenes read by the capture', () => {
   });
 });
 
+describe('dev.absenceScene', () => {
+  it('opens a fresh absence: both marks behind the dispatches, first steps passed, a dozen placed near the capital', async () => {
+    const { t, seat, playerId } = await twoNations();
+    await t.mutation(api.journal.markToured, seat);
+    await t.mutation(api.journal.markRead, seat);
+    const capital = await t.mutation(internal.dev.absenceScene, { playerId });
+    const view = await t.query(api.view.playerView, seat);
+    expect(view.absenceTourAt).toBeNull();
+    expect(view.firstSteps.shown).toBe('skipped');
+    const fresh = view.notices.filter((notice) => notice.at > (view.journalReadAt ?? 0));
+    expect(fresh).toHaveLength(12);
+    for (const notice of fresh) {
+      expect(notice.place).not.toBeNull();
+      expect(distanceKm(capital, [notice.place!.lon, notice.place!.lat])).toBeLessThan(250);
+    }
+    expect(new Set(fresh.map((notice) => notice.kind)).size).toBeGreaterThan(3);
+  });
+});
+
 describe('dev.levelsScene', () => {
   it('keeps the cards the player already holds', async () => {
     const { t, playerId } = await twoNations();
