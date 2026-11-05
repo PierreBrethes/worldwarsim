@@ -29,12 +29,12 @@ export const OFFSHORE = { x: -160, z: 640 } as const;
 /** **A hull's beam**, a share of its length, until the models are measured for it (#270).
  *  `@a-mesurer` */
 export const HULL_BEAM_SHARE = 0.14;
-/** **Its berth**: along the mole's basin face, the stem to the land, 3 m off the quay. */
 /** Where it stands at rest, its middle in the model's metres, and its heading there. */
 export type Berth = { readonly x: number; readonly z: number; readonly yaw: number };
 const toward = (from: number, to: number): number =>
   Math.atan2(Math.sin(to - from), Math.cos(to - from));
 
+/** **Its berth**: along the mole's basin face, the stem to the land, 3 m off the quay. */
 export const berthOf = (role: SeaRole, beam: number): Berth => ({
   x: MOLE.inner - 1 - beam / 2,
   z: MOLE.quay + 3 + troopMetres(role) / 2,

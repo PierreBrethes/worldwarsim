@@ -38,6 +38,23 @@ describe('the apron: where planes rest before their hangars (#475)', () => {
     expect(b).not.toEqual(a);
   });
 
+  it('never lets the growth push the last plane of a lane past the ramp', () => {
+    const [a, b] = apron(fighters(2), 1, 1.5);
+    expect(b!.z + 11 / 2).toBeLessThanOrEqual(AIRFIELD.ramp.from + 1e-9);
+    expect(b!.z).toBeGreaterThan(a!.z);
+  });
+
+  it('widens each step by the growth of the plane that takes it', () => {
+    const [a, b] = apron(fighters(2), 1, [1, 1.2]);
+    expect(b!.z - a!.z).toBeCloseTo(11 / 2 + 2 + (1.2 * 11) / 2, 9);
+  });
+
+  it('follows the growth the figurines are drawn at: the pitch widens, the rail stays', () => {
+    const [a, b] = apron(fighters(2), 1, 1.2);
+    expect(b!.z - a!.z).toBeCloseTo(1.2 * 13, 9);
+    expect(a!.z - AIRFIELD.facade).toBeCloseTo(2 + 1.2 * 5.5, 9);
+  });
+
   it('mirrors on the other side of the site', () => {
     const [a, b] = [apron(fighters(3)), apron(fighters(3), -1)];
     b.forEach((slot, k) => {
@@ -45,12 +62,6 @@ describe('the apron: where planes rest before their hangars (#475)', () => {
       expect(slot!.z).toBeCloseTo(a[k]!.z, 9);
       expect(Math.cos(slot!.yaw)).toBeCloseTo(1, 9);
     });
-  });
-
-  it('follows the growth the figurines are drawn at: the pitch widens, the rail stays', () => {
-    const [a, b] = apron(fighters(2), 1, 2);
-    expect(b!.z - a!.z).toBeCloseTo(26, 9);
-    expect(a!.z - AIRFIELD.facade).toBeCloseTo(2 * (2 + 5.5), 9);
   });
 });
 
@@ -75,14 +86,22 @@ describe('the berths: where hulls rest along the mole (#475)', () => {
     expect(b!.z - 110 / 2).toBeCloseTo(a!.z - 130 / 2, 9);
   });
 
-  it('anchors the third in the roads, well off the mole', () => {
-    const [, b, c] = berths(hulls('cargo', 'cargo', 'cargo'));
-    expect(b!.x - c!.x).toBeGreaterThan(beamOf(130) + 10);
+  it('anchors the third in the roads, past the mole head, off to sea', () => {
+    const [a, , c] = berths(hulls('cargo', 'cargo', 'cargo'));
+    // Its stem is clear of the mole's head, and it does not slip back along the quay.
+    expect(c!.z - 130 / 2).toBeGreaterThan(MOLE.quay + MOLE.length + MOLE.head);
+    expect(c!.x).toBeCloseTo(a!.x, 9);
     expect(c!.x).toBeLessThan(MOLE.inner);
   });
 
   it('keeps a fourth hull at its label', () => {
     expect(berths(hulls('cargo', 'cargo', 'cargo', 'cargo'))[3]).toBeNull();
+  });
+
+  it('gives each hull the growth it is drawn at', () => {
+    const [a, b] = berths(hulls('cargo', 'escort'), 1, [2, 1]);
+    expect(a!.z - MOLE.quay).toBeCloseTo(2 * (3 + 65), 9);
+    expect(b!.z - MOLE.quay).toBeCloseTo(3 + 55, 9);
   });
 
   it('mirrors, and grows with the figurines', () => {
