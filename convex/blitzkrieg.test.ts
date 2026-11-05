@@ -513,6 +513,18 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     );
   });
 
+  it('only stands the column when the season closed between the arrival and the leg', async () => {
+    const t = boot();
+    const { germany, liege, namur, tanks } = await scene(t);
+    const order = await attack(t, germany, tanks, liege, namur);
+    await land(t, order.movementId);
+    await t.run(async (ctx) => ctx.db.patch(germany.seasonId, { status: 'concluded' }));
+    await runDue(t);
+    expect(await blitzNotices(t, germany)).toEqual([]);
+    expect(await movements(t)).toEqual([]);
+    expect((await t.run(async (ctx) => ctx.db.get(tanks[0]!)))!.stationedAt).toEqual(at(LIEGE));
+  });
+
   it('plans nothing after a lost first attack', async () => {
     const t = boot();
     const { germany, france, liege, namur, tanks } = await scene(t);

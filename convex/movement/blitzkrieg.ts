@@ -18,6 +18,7 @@ import { stationCargoLoads, type HomewardCargo } from '../cargo';
 import { regionNameAt } from '../placeNames';
 import { routeBetween } from '../routes';
 import { holdsPoint } from '../strategicPoints';
+import { playingSeason } from '../seats';
 import { resupply, toppedUp } from '../supplies';
 import { surveyFromPoint } from '../surveys';
 import { forgetMovement, standAt } from './arrival';
@@ -222,9 +223,11 @@ export async function pressOn(
   const watching = await watchersOf(ctx, movementId, movement.arrivesAt);
   await standAt(ctx, { ...movement, troopIds: [...winnerIds] }, movement.to);
   await forgetMovement(ctx, movementId, now);
+  /** Une saison close depuis l'arrivée : la colonne reste posée, rien ne part ni ne se dit. */
+  const season = await playingSeason(ctx, movement.playerId);
+  if (season === null) return;
 
   const player = (await ctx.db.get(movement.playerId))!;
-  const season = (await ctx.db.get(movement.seasonId))!;
   const standing = await troopsAmong(ctx, player._id, [...winnerIds]);
   const { troops } = await toppedUp(ctx, player._id, standing, now);
   const leg = await weighSecondLeg(
