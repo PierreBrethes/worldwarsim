@@ -29,6 +29,7 @@ import { resumeSeat } from '@/data/resumeSeat';
 import { forgetSession, useSession } from '@/data/session';
 import { currentPushEndpoint } from '@/data/pushDevice';
 import { downloadRendezvous } from '@/data/rendezvous';
+import '@/styles/final-edition.css';
 
 export const Route = createFileRoute('/accueil')({ component: Home });
 
@@ -59,13 +60,14 @@ const awaits = (seat: Seat): boolean => {
  * pressante à la une, et deux petites annonces — composer une partie, ouvrir un code. Supprimer
  * n'est plus ici : au salon pour un salon, au pli d'une partie conclue pour le reste.
  */
-function ConnectedHome() {
+export function ConnectedHome() {
   const navigate = useNavigate();
   const destroy = useMutation(api.seasons.destroy);
   const logout = useMutation(api.accounts.logout);
   const token = useSession() ?? '';
   const me = useQuery(api.accounts.me, { token });
   const seats = useQuery(api.accounts.seats, { token });
+  const editions = useQuery(api.finalEdition.recent, { token });
   const [resuming, setResuming] = useState<Seat | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -81,11 +83,22 @@ function ConnectedHome() {
   const [lead, ...others] = ordered;
 
   const toBoard = useCallback(() => void navigate({ to: '/plateau' }), [navigate]);
-  const resume = (seat: Seat) =>
+  /** **L'article d'une saison qui a son archive ouvre l'édition** au lieu de la doubler (#455). */
+  const editionOf = new Map(
+    (editions ?? []).map((edition) => [edition.seasonId, edition.editionId]),
+  );
+  const resume = (seat: Seat) => {
+    const editionId = seat.status === 'concluded' ? editionOf.get(seat.seasonId) : undefined;
+    if (editionId !== undefined) {
+      void navigate({ to: '/edition/$id', params: { id: editionId } });
+      return;
+    }
     resumeSeat(seat, {
       salon: () => void navigate({ to: '/salon' }),
       plateau: () => setResuming(seat),
     });
+  };
+  const present = new Set((seats ?? []).map((seat) => seat.seasonId as string));
 
   const openCode = (event: FormEvent) => {
     event.preventDefault();
@@ -213,6 +226,9 @@ function ConnectedHome() {
               </section>
             )}
           </div>
+          <RecentEditions
+            editions={(editions ?? []).filter((edition) => !present.has(edition.seasonId))}
+          />
           <div className="colophon">
             <span>{fr.home.footerLeft}</span>
             <Link to="/credits">{fr.credits.open}</Link>
@@ -246,6 +262,41 @@ function ConnectedHome() {
         />
       )}
     </OffSeasonPage>
+  );
+}
+
+/**
+ * **Les dernières éditions finales du compte** (#455), lues dans l'archive : elles restent après
+ * un « détruire ». Un bloc à part, qui ne restyle pas la page (refaite par #446).
+ */
+function RecentEditions({
+  editions,
+}: {
+  editions: FunctionReturnType<typeof api.finalEdition.recent>;
+}) {
+  if (editions.length === 0) return null;
+  const said = fr.finalEdition.recent;
+  return (
+    <section className="fe-recent" aria-labelledby="t-editions">
+      <div className="eyebrow h">
+        <span id="t-editions">{said.title}</span>
+        <span>{said.note}</span>
+      </div>
+      <ul>
+        {editions.map((edition) => (
+          <li key={edition.editionId}>
+            <Link to="/edition/$id" params={{ id: edition.editionId }}>
+              <span className="eyebrow">{said.kicker(edition.code, edition.concludedAt)}</span>
+              <b>
+                {fr.finalEdition.headline(edition.verdict.reason, edition.verdict.winnerNation)}
+              </b>
+              <span>{said.line(edition.nation, edition.rank, edition.nations)}</span>
+              <em>{said.read}</em>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
