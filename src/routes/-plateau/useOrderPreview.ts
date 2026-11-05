@@ -193,7 +193,7 @@ export function useOrderPreview(
     const refusal =
       courseRefusalOf(course.asset, courseOfArc(course.arc), Date.now()) ??
       courseTargetRefusalOf(resting);
-    return refusal === null ? null : fr.errors[refusal]();
+    return refusal === null ? null : fr.errors[refusal]({});
   }, [course, resting]);
   /** No card before the order any more: what would change it is said under the verb, at the stop. */
   const dropNotes = useMemo(

@@ -836,7 +836,9 @@ export const fr = {
     COURSE_TARGET_ON_MISSION: () =>
       'un cap neuf ne prend pas de mission : marche, attaque ou expédition seulement',
     COURSE_ALREADY_CHANGED: () => 'cap déjà changé : une fois par mouvement',
-    PAST_HALFWAY: () => 'mi-parcours passée : le cap ne change plus',
+    /** `at` : l'heure de la mi-parcours, que la fiche dit (#449). */
+    PAST_HALFWAY: (d) =>
+      `mi-parcours passée${d.at === undefined ? '' : ` à ${str(d.at)}`} : le cap ne change plus`,
     NOT_AT_SEA: () => 'la doctrine ne vaut qu’en mer',
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
@@ -4574,9 +4576,6 @@ export const fr = {
     free: (until: string) => `cap libre jusqu’à ${until} · une fois`,
     grab: 'saisissez-la pour changer de cap',
     changed: (at: string) => `cap changé à ${at} · c’était l’unique fois`,
-    pastHalfway: (at: string) => `mi-parcours passée à ${at} : le cap ne change plus`,
-    ashore: 'la doctrine ne vaut qu’en mer',
-    others: 'un mouvement parti ne se reprend pas',
     halfway: (at: string) => `mi-parcours · ${at}`,
     elbow: (at: string) => `cap changé · ${at}`,
     paid: (steps: number) => `${steps} déjà payé${steps > 1 ? 's' : ''}`,

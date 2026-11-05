@@ -1264,11 +1264,11 @@ function courseText(note: CourseNote): ReadonlyArray<LabelLine & { readonly text
     case 'changed':
       return [{ role: 'alarm', text: fr.course.changed(asClockTime(note.at)) }];
     case 'pastHalfway':
-      return [{ role: 'alarm', text: fr.course.pastHalfway(asClockTime(note.at)) }];
+      return [{ role: 'alarm', text: fr.errors.PAST_HALFWAY({ at: asClockTime(note.at) }) }];
     case 'ashore':
-      return [{ role: 'alarm', text: fr.course.ashore }];
+      return [{ role: 'alarm', text: fr.errors.NOT_AT_SEA() }];
     case 'others':
-      return [{ role: 'mention', text: fr.course.others }];
+      return [{ role: 'mention', text: fr.errors.NO_CARRIER_DOCTRINE() }];
   }
 }
 

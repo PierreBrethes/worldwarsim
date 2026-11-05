@@ -732,7 +732,7 @@ describe('the course of a fleet at sea', () => {
     const [fleet] = buildLabels(japanese([atSea(march(90))]), [], halfway + MINUTE);
     expect(fleet!.lines).toContainEqual({
       role: 'alarm',
-      text: fr.course.pastHalfway(asClockTime(halfway)),
+      text: fr.errors.PAST_HALFWAY({ at: asClockTime(halfway) }),
       fold: true,
     });
   });
@@ -741,7 +741,7 @@ describe('the course of a fleet at sea', () => {
     const [past] = buildLabels(japanese([atSea(march(10))]), []);
     expect(past!.lines).toContainEqual({
       role: 'alarm',
-      text: fr.course.pastHalfway(asClockTime(LOADED_AT - 10 * MINUTE)),
+      text: fr.errors.PAST_HALFWAY({ at: asClockTime(LOADED_AT - 10 * MINUTE) }),
       fold: true,
     });
     const turned = mineArc({
@@ -769,7 +769,7 @@ describe('the course of a fleet at sea', () => {
     const labels = buildLabels(viewWith([atSea()]), []);
     expect(labels[0]!.lines).toContainEqual({
       role: 'mention',
-      text: fr.course.others,
+      text: fr.errors.NO_CARRIER_DOCTRINE(),
       fold: true,
     });
     expect(labels.some((label) => label.type === 'course-mark')).toBe(false);

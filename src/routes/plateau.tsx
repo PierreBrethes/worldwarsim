@@ -1707,7 +1707,7 @@ function BoardContent({
       const course = courseOfArc(arc);
       const refusal = courseRefusalOf(view.me.asset, course, now);
       if (refusal !== null) {
-        setOrderError(fr.errors[refusal]());
+        setOrderError(fr.errors[refusal]({}));
         return null;
       }
       const next: Hand = {
