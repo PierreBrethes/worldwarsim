@@ -196,8 +196,9 @@
  * sur une caisse déjà partie à Mons, « caisse introuvable » au journal (`caisse`) ; une caserne
  * britannique à Namur que deux fantassins capturent dans `s` secondes (90 par défaut), l'agrafe
  * court d'ici là autour du socle, le drapeau monte chez le capteur et descend chez le teneur
- * (`--compte b`) (`prise`) ; un entrepôt à Liège pillé à `s` + 30 s (`pillage`) et une mine à Huy
- * sabotée à `s` + 50 s (`sabotage`), scellés ensuite douze heures. L'heure de chacun s'affiche.
+ * (`--compte b`) (`prise`) ; un entrepôt à Liège pillé à `s` + 30 s (`pillage`) et une mine du
+ * Luxembourg belge sabotée à `s` + 50 s (`sabotage`), scellés ensuite douze heures. L'heure de
+ * chacun s'affiche.
  *
  *     npm run demo:mondiale
  *

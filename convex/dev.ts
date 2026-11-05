@@ -3136,8 +3136,8 @@ export const benchPlayers = internalQuery({
 /**
  * **La prise se voit** (#279), pour la démo, en Belgique, pour `playerId` contre `enemyId` : une
  * caserne à Namur, relevée, que deux fantassins capturent — la capture aboutit dans `captureInMs`
- * (`@prise`) ; un entrepôt à Liège que deux escouades pillent, et une mine à Huy qu'une escouade
- * sabote, leurs présences finies dans `raidInMs` et 20 s après (`@pillage`, `@sabotage`) ; une
+ * (`@prise`) ; un entrepôt à Liège que deux escouades pillent, et une mine du Luxembourg belge,
+ * dans sa propre province, qu'une escouade sabote, leurs présences finies dans `raidInMs` et 20 s après (`@pillage`, `@sabotage`) ; une
  * infanterie qui arrive dans `crateInMs` sur une caisse relevée à Tournai et la ramasse
  * (`@ramassage`), une autre 15 s après à Mons, sur une caisse qu'un autre a prise (`@caisse`, « caisse
  * introuvable »).
@@ -3198,7 +3198,7 @@ export const takingScene = internalMutation({
       return { id, point, region };
     };
     const warehouse = await site('warehouse', [5.57, 50.63]);
-    const mine = await site('mine', [5.24, 50.52]);
+    const mine = await site('mine', [5.4, 50.0]);
     await recordLinkage(ctx, seasonId);
     for (const point of [namur.point, warehouse.region.point, mine.region.point])
       await fileSurvey(ctx, playerId, [{ point, radiusKm: 1 }], now);

@@ -519,13 +519,16 @@ describe('dev.takingScene', () => {
         async (ctx) =>
           (await ctx.db.query('players').collect()).find((player) => player._id !== playerId)!._id,
       );
-      await t.mutation(internal.dev.takingScene, {
+      const places = await t.mutation(internal.dev.takingScene, {
         playerId,
         enemyId,
         captureInMs: 60_000,
         crateInMs: 30_000,
         raidInMs: 90_000,
       });
+      // Each site its own region: two on one point stand on each other.
+      const sites = [places.prise, places.pillage, places.sabotage].map(String);
+      expect(new Set(sites).size).toBe(3);
       const raids = () =>
         t.run(async (ctx) =>
           (await ctx.db.query('movements').collect()).filter((m) => m.plunder !== undefined),
