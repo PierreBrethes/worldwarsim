@@ -1,9 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { CompassAction } from '@/domain/compass-rose';
+import { fr } from '@/i18n/fr';
 import {
   DropHintChip,
   hintOfReading,
+  secondRefusalOn,
   type ChainChip,
   type DropFuel,
   type DropHint,
@@ -96,7 +98,13 @@ describe('a refusal beside the offered order', () => {
 
 /** **La Guerre éclair sous la main** (#451, maquette A « Maj »). */
 describe('the blitzkrieg chip', () => {
-  const fight: DropHint = { icon: '⚔', tone: 'fight', verb: 'Attaquer', detail: 'initiative' };
+  const fight: DropHint = {
+    icon: '⚔',
+    tone: 'fight',
+    verb: 'Attaquer',
+    detail: 'initiative',
+    order: true,
+  };
   const said = (chain: ChainChip, on: DropHint = fight) =>
     renderToStaticMarkup(<DropHintChip hint={on} chain={chain} ref={null} />).replaceAll(
       '&#x27;',
@@ -126,7 +134,7 @@ describe('the blitzkrieg chip', () => {
       refusal: null,
     });
     expect(second).toContain('Puis Namur');
-    expect(second).toContain('+3 h 05 après terrain tenu à Liège');
+    expect(second).toContain('initiative · +3 h 05 après terrain tenu à Liège');
     expect(second).toContain('terrain perdu : Namur tombe, les survivants rentrent');
     expect(second).toContain('relâcher : deux cibles, un slot · Échap : Liège seule');
     const refused = said({
@@ -138,5 +146,20 @@ describe('the blitzkrieg chip', () => {
     });
     expect(refused).toContain('drop-chip--refused');
     expect(refused).toContain('relâcher : rien ne part, la colonne revient · Échap : Liège seule');
+  });
+
+  it('refuses as a second target what is no order: boarding, joining, a garrison', () => {
+    const second: ChainChip = {
+      kind: 'second',
+      first: 'Liège',
+      then: null,
+      span: null,
+      refusal: null,
+    };
+    const board: DropHint = { icon: '⤓', tone: 'order', verb: 'Embarquer', detail: null };
+    expect(secondRefusalOn(board, second)).toBe(fr.blitzkrieg.notAnOrder);
+    expect(said(second, board)).toContain('drop-chip--refused');
+    expect(secondRefusalOn(fight, second)).toBeNull();
+    expect(secondRefusalOn(board, { kind: 'offer' })).toBeNull();
   });
 });

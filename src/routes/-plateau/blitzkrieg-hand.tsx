@@ -53,8 +53,19 @@ export function useChainKey(active: boolean) {
 
 type SecondFacts = NonNullable<NonNullable<MovementPreviewed>['then']> | undefined;
 
-/** **La seconde cible, refusée** : la même règle que l'ordre, puis ce que seul le serveur pèse
- *  (la route, le plein après la première jambe). `null` : elle part. */
+/** Le nom qu'un refus d'enchaîner donne à l'ordre : une capture se dit capture. */
+const kindOf = (chosen: OrderChoice) =>
+  chosen.mission.kind === 'capture' ? 'capture' : chosen.type;
+
+/** **L'ordre qui n'enchaîne pas, dit d'un mot** : une marche, un raid, une capture. */
+const chainOrderRefusalOf = (asset: Asset | null, chosen: OrderChoice): string | null => {
+  const code = chainRefusalOf(asset, chosen, null);
+  return code === null ? null : refusalText({ code, details: { type: kindOf(chosen) } });
+};
+
+/** **La seconde cible, refusée** : l'ordre qui n'enchaîne pas, puis le refus que le serveur a
+ *  pesé (la route, le plein, la colonne au point) ; tant qu'il manque, la même règle que lui.
+ *  `null` : elle part. */
 export function secondRefusalOf(
   asset: Asset | null,
   chain: ChainedFirst,
@@ -62,22 +73,60 @@ export function secondRefusalOf(
   then: SecondFacts,
   column: Column,
 ): string | null {
-  if (chosen.mission.kind !== 'march')
-    return fr.errors.CHAIN_ATTACK_ONLY({
-      type: chosen.mission.kind === 'capture' ? 'capture' : chosen.type,
-    });
+  const order = chainOrderRefusalOf(asset, chosen);
+  if (order !== null) return order;
+  if (then !== undefined) return then.refusal === null ? null : refusalText(then.refusal);
   const code = secondTargetRefusalOf(
     asset,
     { aim: chain.first.aim, legs: chain.preview.route.legs },
     chosen.aim,
     column,
   );
-  if (code !== null)
-    return refusalText({
-      code,
-      details: refusalDetails(chosen.aim, column) as Record<string, string | number | boolean>,
-    });
-  return then?.refusal != null ? refusalText(then.refusal) : null;
+  return code === null
+    ? null
+    : refusalText({
+        code,
+        details: refusalDetails(chosen.aim, column) as Record<string, string | number | boolean>,
+      });
+}
+
+/** **La seconde cible lâchée** : ce qui part, ou le refus qui le dit — et rien ne part, ni l'une
+ *  ni l'autre (ADR 0015). `chosen` est `null` quand le lâcher n'est pas un ordre (embarquer, la
+ *  pile même, une garnison) ; `seen`, la seconde jambe que le serveur a pesée sous la main. */
+export function secondDropOf(
+  asset: Asset | null,
+  chain: ChainedFirst,
+  chosen: OrderChoice | null,
+  seen: { readonly choice: OrderChoice; readonly then: SecondFacts } | undefined,
+  column: Column,
+): { readonly refusal: string } | { readonly refusal: null; readonly then: string | null } {
+  if (chosen === null) return { refusal: fr.blitzkrieg.notAnOrder };
+  const then =
+    seen !== undefined && JSON.stringify(seen.choice.aim) === JSON.stringify(chosen.aim)
+      ? seen.then
+      : undefined;
+  const refusal = secondRefusalOf(asset, chain, chosen, then, column);
+  if (refusal !== null) return { refusal };
+  return { refusal: null, then: then?.refusal === null ? placeLabel(then.destinationName) : null };
+}
+
+/** **Échap**, la main tenue (ADR 0026 §6) : repose la pièce ; entre deux cibles, envoie la
+ *  première seule. La rose arrête la touche avant nous quand elle est ouverte. */
+export function useEscapeKey(
+  held: boolean,
+  chained: boolean,
+  { sendFirst, putBack }: { readonly sendFirst: () => void; readonly putBack: () => void },
+) {
+  useEffect(() => {
+    if (!held) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (chained) sendFirst();
+      else putBack();
+    };
+    document.addEventListener('keydown', escape);
+    return () => document.removeEventListener('keydown', escape);
+  }, [held, chained, sendFirst, putBack]);
 }
 
 /** Ce que la pastille ajoute ou change, à l'arrêt de la main : `null` hors de l'atout. */
@@ -117,10 +166,7 @@ export function chainChipOf({
   if (refusal !== null)
     return {
       kind: 'refused',
-      reason: refusalText({
-        code: refusal,
-        details: { type: resting.mission.kind === 'capture' ? 'capture' : resting.type },
-      }),
+      reason: refusalText({ code: refusal, details: { type: kindOf(resting) } }),
     };
   return marched === null
     ? { kind: 'offer' }

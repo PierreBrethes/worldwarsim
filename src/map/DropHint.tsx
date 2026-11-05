@@ -1,5 +1,5 @@
 import type { Ref } from 'react';
-import type { CompassAction } from '@/domain/compass-rose';
+import { isOrder, type CompassAction } from '@/domain/compass-rose';
 import { chipOf, type DropChip, type DropReading, type Forbidden } from '@/domain/drop-order';
 import { fr } from '@/i18n/fr';
 import type { FuelGauge } from '@/domain/supplies';
@@ -32,6 +32,8 @@ export type DropHint = {
   readonly boarding?: { readonly carrierId: string; readonly need: number; readonly fits: boolean };
   /** **Une branche refusée à côté** (#376) : son motif, sous le verbe gardé. */
   readonly aside?: string;
+  /** Le verbe est un ordre de colonne (`isOrder`), seul à prendre une seconde cible. */
+  readonly order?: true;
 };
 
 /** La pastille d'une lecture du lâcher (`dropReadingOf`) : le verbe choisi, ou le refus. */
@@ -60,6 +62,7 @@ export function hintOfReading(
     ...(verb.key === 'aim' && verb.join !== undefined ? { joins: true } : {}),
     ...(boarding === null ? {} : { boarding }),
     ...(reading.aside === undefined ? {} : { aside: reading.aside }),
+    ...(isOrder(verb) ? { order: true as const } : {}),
     detail:
       verb.key === 'aim' && verb.join !== undefined
         ? fr.drop.pieces(verb.join.pieces)
@@ -191,6 +194,13 @@ export type ChainChip =
       readonly refusal: string | null;
     };
 
+/** **La seconde cible refusée sous la main** : son refus, ou ce qui n'est pas un ordre (embarquer,
+ *  rejoindre, une garnison). La pastille et le trait de la carte le lisent. */
+export const secondRefusalOn = (hint: DropHint, chain: ChainChip | null): string | null =>
+  chain?.kind !== 'second' || hint.tone === 'calm' || hint.tone === 'refused'
+    ? null
+    : (chain.refusal ?? (hint.order === true ? null : fr.blitzkrieg.notAnOrder));
+
 /** Collée au pointeur par le moteur (`onCarryOver`), qui la place sans repasser par React. */
 export function DropHintChip({
   hint,
@@ -209,8 +219,8 @@ export function DropHintChip({
   ref: Ref<HTMLDivElement>;
 }) {
   const second = chain?.kind === 'second' ? chain : null;
-  if (second?.refusal != null && hint.tone !== 'calm')
-    hint = { icon: '✕', tone: 'refused', verb: second.refusal, detail: null };
+  const unchained = secondRefusalOn(hint, chain);
+  if (unchained !== null) hint = { icon: '✕', tone: 'refused', verb: unchained, detail: null };
   /** **A refusal only the server's preview knows** (#258) turns the sign, as a refusal read on
    *  the client does; the gauge stays, the rest of the road is no longer worth saying. */
   const refusal = hint.tone === 'refused' ? undefined : notes.find((note) => note.refusal);
@@ -241,8 +251,13 @@ export function DropHintChip({
       ...hint,
       icon: '2',
       verb: fr.blitzkrieg.secondVerb(second.then ?? '…'),
+      /** Ce que la cible est d'abord, comme toute attaque ; puis quand la jambe part. */
       detail:
-        second.span === null ? hint.detail : fr.blitzkrieg.secondDetail(second.span, second.first),
+        second.span === null
+          ? hint.detail
+          : [hint.detail, fr.blitzkrieg.secondDetail(second.span, second.first)]
+              .filter((part) => part !== null)
+              .join(' · '),
     };
   const eyebrow = steering
     ? fr.course.eyebrow

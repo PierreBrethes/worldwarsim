@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { combatsSince, isAlarm, journalDispatches, latestDispatchAt } from './journal';
 import { fr } from '@/i18n/fr';
+import { asLocalTime } from './duration';
 import type { BuildingKey } from './ids';
 import type { CombatReport, Notice } from './player-view';
 
@@ -525,10 +526,20 @@ describe('the second leg of a blitzkrieg (ADR 0039 §6)', () => {
   });
 
   it('says why the column stayed, by the refusal’s own words', () => {
-    const dispatch = said({ ...base, outcome: 'halted', refusal: 'NO_ROUNDS', details: {} });
+    const dispatch = said({
+      ...base,
+      outcome: 'halted',
+      refusal: 'NO_ROUNDS',
+      details: {},
+      troopIds: ['t1'],
+    });
     expect(dispatch.text).toContain(fr.errors.NO_ROUNDS());
     expect(dispatch.text).toContain('Elle reste sur place');
-    expect(dispatch.stood).toBe(`reste à Liège — ${fr.errors.NO_ROUNDS()}`);
+    expect(dispatch.stood).toEqual({
+      text: `reste à Liège — ${fr.errors.NO_ROUNDS()}`,
+      reread: fr.blitzkrieg.reread(asLocalTime(NOON)),
+      troopIds: ['t1'],
+    });
     expect(dispatch.severity).toBe('critical');
   });
 });

@@ -255,6 +255,49 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect(await movements(t)).toEqual([]);
   });
 
+  it('chains ashore only: a mixed column does not sail its second road', async () => {
+    const t = boot();
+    const { germany, france } = await scene(t);
+    const KIEL: LonLat = [10.14, 54.32];
+    const KOLDING: LonLat = [9.47, 55.49];
+    const GOTHENBURG: LonLat = [11.97, 57.7];
+    const germanyId = await playerOf(t, germany);
+    const harbour = await t.run(async (ctx) =>
+      ctx.db.insert('buildings', {
+        seasonId: germany.seasonId,
+        playerId: germanyId,
+        key: 'port',
+        regionId: regionAtPoint(KIEL)!.id,
+        point: at(KIEL),
+        level: 1,
+      }),
+    );
+    const kolding = await plant(t, france, KOLDING);
+    const gothenburg = await plant(t, france, GOTHENBURG);
+    await t.run((ctx) =>
+      fileSurvey(
+        ctx,
+        germanyId,
+        [KOLDING, GOTHENBURG].map((point) => ({ point, radiusKm: 1 })),
+        Date.now(),
+      ),
+    );
+    /** Un cargo dans la colonne la fait `combined` : à terre jusqu'au Jutland, en mer au-delà. */
+    const column = [
+      ...(await post(t, germany, 'infantry', harbour, 2)),
+      ...(await post(t, germany, 'cargo', harbour)),
+    ];
+    const sent = t.mutation(api.movements.attack, {
+      ...germany,
+      origin: { kind: 'building', buildingId: harbour },
+      troopIds: column,
+      target: { kind: 'outpost', outpostId: kolding },
+      then: { kind: 'outpost', outpostId: gothenburg },
+    });
+    expect(await codeOf(sent)).toBe('CHAIN_ASHORE_ONLY');
+    expect(await movements(t)).toEqual([]);
+  });
+
   it('previews a march with a second target as an order that does not chain', async () => {
     const t = boot();
     const { germany, namur, tanks } = await scene(t);
@@ -377,8 +420,9 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect((await movements(t)).filter((movement) => movement.type === 'attack')).toEqual([]);
     const standing = await t.run(async (ctx) => ctx.db.get(tanks[0]!));
     expect(standing!.stationedAt).toEqual(at(LIEGE));
+    /** Les troupes restées, que leur pièce reconnaît. */
     expect(await blitzNotices(t, germany)).toMatchObject([
-      { outcome: 'halted', refusal: 'NO_ROUNDS' },
+      { outcome: 'halted', refusal: 'NO_ROUNDS', troopIds: expect.arrayContaining([tanks[0]]) },
     ]);
     expect((await t.query(api.view.playerView, germany)).me.slots.used).toBe(0);
 

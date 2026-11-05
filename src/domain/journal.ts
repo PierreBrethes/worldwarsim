@@ -122,7 +122,7 @@ type Written = {
   readonly place?: MapPlace | null;
   readonly delivered?: SupplyLoad;
   readonly built?: true;
-  readonly stood?: string;
+  readonly stood?: NonNullable<JournalDispatch['stood']>;
 };
 
 /**
@@ -233,7 +233,13 @@ function written(notice: Notice): Written {
           reason,
         ),
         ...(notice.outcome === 'halted'
-          ? { stood: fr.blitzkrieg.stood(first, reason ?? '…') }
+          ? {
+              stood: {
+                text: fr.blitzkrieg.stood(first, reason ?? '…'),
+                reread: fr.blitzkrieg.reread(asLocalTime(notice.at)),
+                troopIds: notice.troopIds ?? [],
+              },
+            }
           : {}),
       };
     }

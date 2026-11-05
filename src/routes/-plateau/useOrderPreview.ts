@@ -4,6 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import { RELAY_SPEED_MULTIPLIER } from '../../../convex/constants';
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { ArmedColumn } from '@/domain/armed-column';
+import { chainRefusalOf } from '@/domain/blitzkrieg';
 import { asLocalTime, asSpan } from '@/domain/duration';
 import { kmOf } from '@/domain/routing';
 import type { LonLat } from '@/domain/geo';
@@ -149,9 +150,12 @@ export function useOrderPreview(
           target: wireTarget(aimed.aim),
         },
   );
+  /** Une marche, un raid, une tournée n'enchaînent pas : rien à peser, la pastille le dit. */
+  const unchained =
+    chain !== null && aimed !== null && chainRefusalOf('blitzkrieg', aimed, null) !== null;
   const marchPreview = useQuery(
     api.movements.preview,
-    dispatch === null || aimed === null || mission?.kind !== 'march' || course !== null
+    dispatch === null || aimed === null || mission?.kind !== 'march' || course !== null || unchained
       ? 'skip'
       : chain !== null
         ? {

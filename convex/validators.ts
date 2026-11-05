@@ -580,6 +580,8 @@ export const NOTICE = v.union(
     arrivesAt: v.optional(v.number()),
     refusal: v.optional(v.string()),
     details: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+    /** `halted` : les troupes restées, que la pièce au point reconnaît. */
+    troopIds: v.optional(v.array(v.id('troops'))),
   }),
   /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses
    *  dépôts sont pleins (`full`), ou sa route est refusée (`road`, le plein manque). */

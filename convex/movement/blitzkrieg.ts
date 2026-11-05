@@ -32,7 +32,7 @@ import {
   troopsAmong,
   type AimTarget,
 } from './orders';
-import { secondTargetRefusalOf } from '../../src/domain/blitzkrieg';
+import { chainRefusalOf, secondTargetRefusalOf } from '../../src/domain/blitzkrieg';
 import type { LonLat } from '../../src/domain/geo';
 import type { MovementAim } from '../../src/domain/movement-orders';
 import { isQuay, landCostOf, refusalDetails, routeModeOf } from '../../src/domain/movement-orders';
@@ -89,6 +89,10 @@ export async function weighSecondLeg(
     isQuay(aimed.aim),
   );
   if (route === null) return refused('NO_LAND_ROUTE', { from: departure.name, to: aimed.name });
+  /** **À terre, la seconde route aussi** : une colonne mixte, partie à terre, passerait un
+   *  détroit (`combined`). */
+  const ashore = chainRefusalOf(asset, { type: 'attack', mission: { kind: 'march' } }, route.legs);
+  if (ashore !== null) return refused(ashore);
 
   const fuel = fuelBill(
     [...troops],
@@ -157,6 +161,7 @@ export async function pressOn(
     arrivesAt?: number;
     refusal?: string;
     details?: Details;
+    troopIds?: Id<'troops'>[];
   }) =>
     ctx.db.insert('notices', {
       playerId: movement.playerId,
@@ -220,7 +225,12 @@ export async function pressOn(
       now,
       troops.map((troop) => troop.role),
     );
-    await tell({ outcome: 'halted', refusal: leg.refusal.code, details: leg.refusal.details });
+    await tell({
+      outcome: 'halted',
+      refusal: leg.refusal.code,
+      details: leg.refusal.details,
+      troopIds: winnerIds,
+    });
     return null;
   }
   const sent = await march(ctx, {

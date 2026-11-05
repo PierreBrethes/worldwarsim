@@ -655,6 +655,7 @@ export function buildLabels(
     ...withCaptures(
       withStood(
         markers.map((marker) => markerLabel(marker, view.loadedAt)),
+        markers,
         view.journal ?? [],
       ),
       view.captures,
@@ -671,31 +672,41 @@ const carriesSite = (label: MapLabel, target: CaptureView['target']): boolean =>
     ? label.building?.id === target.id || label.installation?.id === target.id
     : label.station?.kind === 'outpost' && label.station.outpostId === target.id;
 
+/** **La pièce restée dit pourquoi** (Guerre éclair, ADR 0039 §6) : la dépêche qui l'a laissée là,
+ *  tant que ses troupes y tiennent. `labels` suit `markers`, un à un. */
+function withStood(
+  labels: ReadonlyArray<MapLabel>,
+  markers: ReadonlyArray<MapMarker>,
+  journal: NonNullable<PlayerView['journal']>,
+): ReadonlyArray<MapLabel> {
+  const stood = journal.flatMap((dispatch) =>
+    dispatch.stood === undefined ? [] : [dispatch.stood],
+  );
+  if (stood.length === 0) return labels;
+  return labels.map((label, index) => {
+    const marker = markers[index]!;
+    const said =
+      marker.kind === 'stack'
+        ? stood.find((one) => one.troopIds.some((id) => marker.pieces.troopIds.includes(id)))
+        : undefined;
+    return said === undefined
+      ? label
+      : {
+          ...label,
+          lines: [
+            ...label.lines,
+            { role: 'alarm', text: said.text },
+            { role: 'mention', text: said.reread },
+          ],
+        };
+  });
+}
+
 /**
  * **Le site visé porte sa capture** — l'anneau pend à son étiquette. Un site que la carte ne
  * dessine pas (un avant-poste adverse jamais relevé en mât) a la sienne, posée au point où
  * l'infanterie se tient : on ne perd pas une capture parce que la carte n'a rien sous elle.
  */
-/** **La pièce restée dit pourquoi** (Guerre éclair, ADR 0039 §6) : la dernière dépêche qui l'a
- *  laissée à ce point, tant qu'une de mes piles y tient. */
-function withStood(
-  labels: ReadonlyArray<MapLabel>,
-  journal: NonNullable<PlayerView['journal']>,
-): ReadonlyArray<MapLabel> {
-  const stood = journal.filter((dispatch) => dispatch.stood !== undefined && dispatch.place);
-  if (stood.length === 0) return labels;
-  return labels.map((label) => {
-    const at = label.station?.kind === 'point' ? label.station.lonLat : null;
-    const said =
-      at === null
-        ? undefined
-        : stood.find((dispatch) => dispatch.place!.lon === at[0] && dispatch.place!.lat === at[1]);
-    return said === undefined
-      ? label
-      : { ...label, lines: [...label.lines, { role: 'alarm', text: said.stood! }] };
-  });
-}
-
 function withCaptures(
   labels: ReadonlyArray<MapLabel>,
   captures: ReadonlyArray<CaptureView>,

@@ -56,8 +56,8 @@ const keyOf = (aim: MovementAim): string => {
 
 /**
  * **La seconde cible**, pesée depuis le point de la première : ce qu'une attaque peut viser
- * (`refusalOf`), distinct de la première. « À terre » se lit sur la route de la première : la
- * même colonne garde son mode, et une route de colonne à terre ne foule que la terre. `column`
+ * (`refusalOf`), distinct de la première. « À terre » se lit sur chaque route, par
+ * `chainRefusalOf` : celle de la seconde n'est connue qu'après la pesée de sa cible. `column`
  * est la colonne qui s'y tiendra — à l'ordre, celle qui part ; au départ de la jambe, celle qui a
  * tenu le terrain, ses coups relus. `first.aim` manque au départ : l'ordre a déjà dit que les deux
  * différaient.

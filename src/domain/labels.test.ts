@@ -805,14 +805,14 @@ describe('the second target of a blitzkrieg', () => {
     expect(texts(labels[0]!.lines)).not.toContain(fr.blitzkrieg.oneSlot);
   });
 
-  it('writes on the pile that stayed what its dispatch said', () => {
-    const pile = (lonLat: [number, number]): MapMarker => ({
+  it('writes on the pile that stayed what its dispatch said, while its troops hold there', () => {
+    const pile = (troopIds: ReadonlyArray<string>): MapMarker => ({
       kind: 'stack',
-      id: `stack-${String(lonLat[0])}`,
-      lonLat,
+      id: `stack-${troopIds.join('-')}`,
+      lonLat: [5.57, 50.63],
       station: {
         kind: 'point',
-        lonLat,
+        lonLat: [5.57, 50.63],
         country: 'BEL',
         afloat: false,
         ground: 'land',
@@ -820,15 +820,18 @@ describe('the second target of a blitzkrieg', () => {
       },
       stack: { armor: 3 },
       place: 'Belgique',
-      pieces: { groups: [], troopIds: [], squad: false },
+      pieces: { groups: [], troopIds, squad: false },
       ink: '#000',
     });
-    const view = {
-      ...viewWith([]),
-      journal: [{ place: { lon: 5.57, lat: 50.63 }, stood: 'reste à Liège — plus de coups' }],
-    } as unknown as PlayerView;
-    const [stayed, elsewhere] = buildLabels(view, [pile([5.57, 50.63]), pile([6, 50])]);
-    expect(stayed!.lines).toContainEqual({ role: 'alarm', text: 'reste à Liège — plus de coups' });
-    expect(texts(elsewhere!.lines)).not.toContain('reste à Liège — plus de coups');
+    const stood = {
+      text: 'reste à Liège — plus de coups',
+      reread: 'relu à 13:10',
+      troopIds: ['t1'],
+    };
+    const view = { ...viewWith([]), journal: [{ place: null, stood }] } as unknown as PlayerView;
+    const [stayed, other] = buildLabels(view, [pile(['t1', 't2']), pile(['t3'])]);
+    expect(stayed!.lines).toContainEqual({ role: 'alarm', text: stood.text });
+    expect(stayed!.lines).toContainEqual({ role: 'mention', text: stood.reread });
+    expect(texts(other!.lines)).not.toContain(stood.text);
   });
 });

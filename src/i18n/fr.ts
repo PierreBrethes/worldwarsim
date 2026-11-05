@@ -4642,7 +4642,11 @@ export const fr = {
     gate: '◆ si terrain tenu',
     /** Sur la pièce restée : ce que la dépêche a dit. */
     stood: (first: string, reason: string) => `reste à ${first} — ${reason}`,
-    sent: (first: string, then: string) => `Attaque — ${first}, puis ${then}`,
+    reread: (hour: string) => `relu à ${hour}, au départ de la seconde jambe · slot rendu`,
+    /** Le bandeau d'envoi : la première cible, puis la seconde. */
+    sent: (first: string, then: string) => `${first}, puis ${then}`,
+    /** Lâchée sur ce qui n'est pas un ordre : embarquer, sa pile, une garnison. */
+    notAnOrder: 'la seconde cible est une attaque : lâchez sur une cible',
   },
   drop: {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,

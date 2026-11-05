@@ -91,6 +91,7 @@ import {
   DropHintChip,
   hintOfReading,
   ringOfHint,
+  secondRefusalOn,
   type ChainChip,
   type DropHint,
   type DropFuel,
@@ -1506,6 +1507,14 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.setAimRoute(aimRoute);
   }, [readyEngine, aimRoute]);
+
+  /** **La seconde cible refusée** (Guerre éclair, maquette A) : le trait de la première à elle
+   *  prend l'encre du refus, comme la pastille ; le refus arrive après le pointeur. */
+  useEffect(() => {
+    if (chain?.kind !== 'second' || hint === null || hint.tone === 'calm') return;
+    const refused = secondRefusalOn(hint, chain) !== null;
+    readyEngine?.markDrop(refused ? 'refused' : hint.tone, refused ? 'bad' : ringOfHint(hint));
+  }, [readyEngine, chain, hint]);
 
   /** **La route courue avant un cap changé** (#449) : le fil neuf part du coude. **La seconde
    *  jambe d'une Guerre éclair** (#451), suspendue au terrain tenu, de la même encre pointillée. */
