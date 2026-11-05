@@ -50,6 +50,13 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
 5. **Revue** : un agent `relecteur` après chaque lot. Ses findings repartent au même `dev` (SendMessage), les bloquants d'abord.
 6. **Rendu** : tu regardes toi-même les captures, à côté de leur référence, avant de dire que c'est fait. Tu les envoies à Pierre (SendUserFile) quand le rendu change.
 7. **Fusion** : vérifieur vert sur la pointe (relance seuls les timeouts de `convex/`), PR (skill `pr`). Avant chaque fusion groupée, une passe de `PLAYWRIGHT_DIR=<pw> npm run gestes` sur la pointe de la branche d'intégration, avec ses fonctions déployées et son `npm run dev` (≈ 2 min 30, bureau et téléphone) : un geste en échec bloque la fusion, sa capture va dans une issue. Les lots prêts attendent en PR ; tu proposes à Pierre une fusion groupée (une seule poussée sur `main`) et tu fusionnes à son accord. Un lot qui exige de vider la pré-prod attend aussi qu'il l'ait vidée. Dès que deux lots en attente touchent `convex/schema.ts`, Pierre déploie en local depuis la branche d'intégration, jamais depuis une branche de lot : la base garde les champs de l'autre lot et refuse le schéma qui les ignore.
+
+   La branche d'intégration se monte dans un clone du scratchpad (le checkout sert Pierre) :
+   - copie-lui les fichiers de comptes du checkout (`scripts/*.accounts.json`, hors git), sinon les démos se réinscrivent sous des pseudos déjà pris ;
+   - son `npm run dev` prend un autre port que celui de Pierre, et `GESTES_ORIGIN=http://localhost:<port>` y mène les gestes ;
+   - un conflit dans `WWS/docs/technique/a-mesurer.md` se règle en le régénérant (`node scripts/generate-a-mesurer.mjs`).
+
+   La base locale est une seule : un banc, une capture ou un déploiement la prend par un fichier `base-occupee` du scratchpad, et la consigne d'un agent qui doit s'en servir lui dit d'attendre que ce fichier disparaisse.
 8. **Tes propres commits** suivent la section Git de `lot` : `git add <fichiers>`, jamais `-a` ni `-A`. Les fichiers de Pierre (`.claude/launch.json`, `WWS/prototypes/`) restent hors de toute PR.
 
 | Le lot | Modèle, effort |
