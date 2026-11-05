@@ -63,7 +63,9 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
 - **Node** : si `npm --version` imprime plus d'une ligne (le Mac), préfixe chaque commande node
   par `unfunction node npm npx nvm 2>/dev/null; export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH";`.
 - **Un seul vérifieur à la fois** sur la machine : `ps -Ao pid,command | grep "[n]pm run verifier"`,
-  lancé dans une commande à part, doit ne rien rendre avant `npm run verifier`. Des timeouts
+  lancé dans une commande à part, doit ne rien rendre avant `npm run verifier`, et le fichier
+  `base-occupee` du scratchpad ne doit pas annoncer des gestes ni un banc : ton vérifieur à côté
+  les fait échouer sous la charge (05/11, charge 46, cinq gestes en échec). Des timeouts
   dans `convex/` qui changent d'un passage à l'autre viennent de la charge : relance ces
   fichiers seuls.
 - **Attendre un processus** : attends son pid (`while kill -0 <pid>; do sleep 5; done`).
