@@ -103,6 +103,44 @@ const codeOf = (promise: Promise<unknown>) =>
     (error: { data?: { code?: string } }) => error.data?.code,
   );
 
+const HUALIEN = { lon: 121.6, lat: 23.97 };
+const OFF_TAIWAN = { lon: 122.3, lat: 23.6 };
+
+/** Un Magasin japonais à Hualien, longé par une flotte qui vire au large, à 40 % de sa route. */
+async function turnedPastHualien(t: Bench) {
+  const { japan, france } = await launchedSeason(t);
+  const japanId = await playerOf(t, japan);
+  const region = regionAtPoint([HUALIEN.lon, HUALIEN.lat])!;
+  const outpostId = await t.run(async (ctx) =>
+    ctx.db.insert('outposts', {
+      seasonId: (await ctx.db.get(japanId))!.seasonId,
+      playerId: japanId,
+      point: HUALIEN,
+      hostCountry: region.country,
+      regionId: region.id,
+      level: 3,
+      specialty: 'store',
+      foundedAt: MIDDAY.getTime() - 1,
+      disabledUntil: null,
+      immuneUntil: null,
+      depot: { ammunition: 400, oil: 400, coal: 400 },
+    }),
+  );
+  const troopIds = [
+    await postAt(t, japan, 'escort', OFF_TAIWAN),
+    await postAt(t, japan, 'cargo', OFF_TAIWAN),
+  ];
+  const filed = await t.mutation(api.movements.marchTo, {
+    ...japan,
+    origin: { kind: 'point', point: OFF_TAIWAN },
+    troopIds,
+    point: { lon: 131, lat: 26 },
+  });
+  vi.setSystemTime(MIDDAY.getTime() + (filed.arrivesAt - MIDDAY.getTime()) * 0.4);
+  const turned = await turning(t, japan, filed.movementId, { lon: 130, lat: 20 });
+  return { france, japanId, region, outpostId, turned };
+}
+
 const movements = (t: Bench) => t.run(async (ctx) => ctx.db.query('movements').collect());
 
 describe('the carrier doctrine (ADR 0039 §4)', () => {
@@ -229,41 +267,50 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     expect(lines.find((one) => one.movementId === turned.movementId)?.noticeFiled).toBe(true);
   });
 
-  it('settles the road run before the turn at arrival: the survey and the Magasin passed', async () => {
+  it('tells a watcher who lost the fleet before the turn when the new road brings it back', async () => {
+    const t = boot();
+    const { japan, france } = await launchedSeason(t);
+    await postAt(t, france, 'escort', { lon: 146, lat: 27.6 });
+    const { movementId, arrivesAt } = await sailing(t, japan);
+    const watcher = await playerOf(t, france);
+    const told = () =>
+      t.run(async (ctx) =>
+        (await ctx.db.query('notices').collect()).filter(
+          (notice) => notice.playerId === watcher && notice.kind === 'movementSighted',
+        ),
+      );
+    expect(await told()).toHaveLength(1);
+    /** Passé l'horizon de l'escorte française, et avant la mi-parcours. */
+    vi.setSystemTime(MIDDAY.getTime() + (arrivesAt - MIDDAY.getTime()) / 4);
+
+    await turning(t, japan, movementId, { lon: 144, lat: 27 });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await told()).toHaveLength(2);
+  });
+
+  it('says a turn short of fuel counts the paid fuel', async () => {
     const t = boot();
     const { japan } = await launchedSeason(t);
-    const HUALIEN = { lon: 121.6, lat: 23.97 };
-    const OFF_TAIWAN = { lon: 122.3, lat: 23.6 };
-    const japanId = await playerOf(t, japan);
-    const region = regionAtPoint([HUALIEN.lon, HUALIEN.lat])!;
-    await t.run(async (ctx) =>
-      ctx.db.insert('outposts', {
-        seasonId: (await ctx.db.get(japanId))!.seasonId,
-        playerId: japanId,
-        point: HUALIEN,
-        hostCountry: region.country,
-        regionId: region.id,
-        level: 3,
-        specialty: 'store',
-        foundedAt: MIDDAY.getTime() - 1,
-        disabledUntil: null,
-        immuneUntil: null,
-        depot: { ammunition: 400, oil: 400, coal: 400 },
-      }),
-    );
-    const troopIds = [
-      await postAt(t, japan, 'escort', OFF_TAIWAN),
-      await postAt(t, japan, 'cargo', OFF_TAIWAN),
-    ];
-    const filed = await t.mutation(api.movements.marchTo, {
-      ...japan,
-      origin: { kind: 'point', point: OFF_TAIWAN },
-      troopIds,
-      point: { lon: 131, lat: 26 },
+    const { movementId, troopIds, arrivesAt } = await sailing(t, japan);
+    await t.run(async (ctx) => {
+      for (const id of troopIds) await ctx.db.patch(id, { fuel: 0 });
     });
-    vi.setSystemTime(MIDDAY.getTime() + (filed.arrivesAt - MIDDAY.getTime()) * 0.4);
-    const turned = await turning(t, japan, filed.movementId, { lon: 130, lat: 20 });
-    vi.setSystemTime(turned.arrivesAt + 1);
+    vi.setSystemTime(MIDDAY.getTime() + (arrivesAt - MIDDAY.getTime()) / 10);
+
+    const refused = await turning(t, japan, movementId, { lon: 165, lat: 10 }).then(
+      () => null,
+      (error: { data?: { code?: string; course?: boolean } }) => error.data,
+    );
+
+    expect(refused).toMatchObject({ code: 'NOT_ENOUGH_FUEL', course: true });
+  });
+
+  it('settles the road run before the turn at arrival: the survey and the Magasin passed', async () => {
+    const t = boot();
+    const { japanId, region, turned } = await turnedPastHualien(t);
+    const arrived = turned.arrivesAt + 1;
+    vi.setSystemTime(arrived);
     await t.mutation(internal.movements.arrive, { movementId: turned.movementId });
 
     const facts = await t.run(async (ctx) => ({
@@ -275,7 +322,25 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
       ),
     }));
     expect(facts.served).toHaveLength(1);
-    expect(facts.surveyed).toHaveLength(1);
+    /** Hualien, relevé au départ, ne l'est de nouveau à l'arrivée que par le tronçon d'avant le
+     *  coude : la route neuve passe à plus de 400 km. */
+    expect(facts.surveyed.map((survey) => survey.seenAt)).toEqual([arrived]);
+  });
+
+  it('says a Magasin passed before the turn and captured since gave nothing', async () => {
+    const t = boot();
+    const { france, japanId, outpostId, turned } = await turnedPastHualien(t);
+    const captor = await playerOf(t, france);
+    await t.run(async (ctx) => ctx.db.patch(outpostId, { playerId: captor }));
+    vi.setSystemTime(turned.arrivesAt + 1);
+    await t.mutation(internal.movements.arrive, { movementId: turned.movementId });
+
+    const told = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).filter(
+        (notice) => notice.playerId === japanId && notice.kind === 'storeResupplied',
+      ),
+    );
+    expect(told.map((notice) => notice.outcome)).toEqual(['captured']);
   });
 
   it('turns a fleet while every slot is held, and frees none', async () => {
