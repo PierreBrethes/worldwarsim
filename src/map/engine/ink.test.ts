@@ -103,4 +103,16 @@ describe('InkLayer, the seal of the Seven', () => {
     ink.burst(seal, 0);
     expect(ink.group.children).toHaveLength(0);
   });
+
+  /** La victoire en pose quatre côte à côte : à 50 contre 84 dans la maquette, ils ne se
+   *  recouvrent plus (revue de #442). */
+  it('shrinks to its scale, the victory’s', () => {
+    const ink = new InkLayer(new WorldFrame(PROJECTION), true);
+    ink.motion = 'reduced';
+    ink.burst(seal, 0);
+    ink.burst({ ...seal, scale: 0.6 }, 0);
+    ink.animate(50, 1);
+    const [full, small] = ink.group.children.map((child) => child.scale.x);
+    expect(small! / full!).toBeCloseTo(0.6);
+  });
 });

@@ -163,9 +163,10 @@
  *
  * `--moments` (#442) pose les QG de Paris et de Londres et donne à la France Narvik, Istanbul et
  * Bakou (`moments` cadre les Sept, `tanger`, `narvik`, `londres`), puis écrit les commandes qui
- * jouent chaque moment à l'heure voulue : Tanger prise (le cachet « IV », la course et ses
- * anneaux), Narvik reprise (« compte rompu »), Londres prise (le QG tombé), la course close (la
- * victoire aux points). Avec `--huit`, un tiers les lit aussi.
+ * jouent chaque moment à l'heure voulue, dans l'ordre : Tanger prise (le cachet « IV », la course
+ * et ses anneaux), Narvik reprise (« compte rompu »), Londres prise (le QG tombé). La victoire aux
+ * points se joue à part, sur une scène refondée : Tanger prise, puis la course close. Avec
+ * `--huit`, un tiers les lit aussi.
  *
  * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
@@ -1820,11 +1821,12 @@ async function momentsScene() {
   const run = (name, args) => `npx convex run dev:${name} '${JSON.stringify(args)}'`;
   console.log(
     [
-      'Les moments (#442), chacun à son heure :',
-      `  Tanger prise, le cachet IV et la course : ${run('captureSoon', { playerId: scene.a, point: 'tangier', inSeconds: 20 })}`,
-      `  Narvik reprise, compte rompu : ${run('captureSoon', { playerId: scene.b, point: 'narvik', inSeconds: 20 })}`,
-      `  Londres prise, le QG tombé : ${run('captureSoon', { playerId: scene.a, hqOf: scene.b, inSeconds: 20 })}`,
-      `  La course close, la victoire aux points : ${run('raceEndsSoon', { seasonId, inSeconds: 20 })}`,
+      'Les moments (#442), dans cet ordre :',
+      `  1. Tanger prise, le cachet IV et la course : ${run('captureSoon', { playerId: scene.a, point: 'tangier', inSeconds: 20 })}`,
+      `  2. Narvik reprise, compte rompu : ${run('captureSoon', { playerId: scene.b, point: 'narvik', inSeconds: 20 })}`,
+      `  3. Londres prise, le QG tombé (à deux sièges, la saison se clôt : l'autre fin) : ${run('captureSoon', { playerId: scene.a, hqOf: scene.b, inSeconds: 20 })}`,
+      'À part, sur une scène refondée — elle clôt la saison, et le compte doit courir :',
+      `  1. Tanger prise, comme plus haut, puis la victoire aux points : ${run('raceEndsSoon', { seasonId, inSeconds: 20 })}`,
     ].join('\n'),
   );
 }

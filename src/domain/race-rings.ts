@@ -1,5 +1,6 @@
 import { nationInk } from './nations';
 import type { RaceCountdown, StrategicPointView } from './player-view';
+import type { StrategicPointKey } from './strategic-points';
 
 /**
  * **Le compte à rebours en anneaux** (#442, `storyboard-moments/compte-anneaux.html`) : un anneau
@@ -13,6 +14,8 @@ export type RaceRings = {
   readonly pointIds: ReadonlyArray<string>;
   /** Le compte est tombé en cours de partie : les anneaux qui restent s'effacent. */
   readonly fading: boolean;
+  /** Le compte est parti entre deux vues, sous les yeux du joueur : ses anneaux se tracent. */
+  readonly fresh: boolean;
 };
 
 export function raceRingsOf(
@@ -28,6 +31,7 @@ export function raceRingsOf(
       .filter((point) => point.holder?.nation === race.leaderNation)
       .map((point) => point.id),
     fading: false,
+    fresh: false,
   };
 }
 
@@ -44,3 +48,22 @@ export const fadingRingsOf = (
   }),
   fading: true,
 });
+
+/** **Le meneur et ses mâts** : « compte rompu » ne se pose que sur l'un d'eux, repris (#442). */
+export type RaceLead = {
+  readonly leaderNation: string;
+  readonly keys: ReadonlyArray<StrategicPointKey>;
+};
+
+export const raceLeadOf = (
+  race: RaceCountdown | null,
+  points: ReadonlyArray<StrategicPointView>,
+): RaceLead | null =>
+  race === null
+    ? null
+    : {
+        leaderNation: race.leaderNation,
+        keys: points
+          .filter((point) => point.holder?.nation === race.leaderNation)
+          .map((point) => point.key),
+      };

@@ -17,8 +17,6 @@ const START: CameraPose = { target: [0, 0, 0], distance: 60, orientation: [0, 1,
 const fall: Moment = { kind: 'fall', at: [2, 49], hour: '21:04:00' };
 const victory: Moment = {
   kind: 'victory',
-  won: true,
-  winnerNation: 'germany',
   ink: '#444',
   hour: '21:04:00',
   word: 'Victoire',
@@ -91,6 +89,8 @@ describe('useMomentScene', () => {
       'Narvik',
       'Suez',
     ]);
+    // Four side by side: smaller than a seal alone (the mockup's 50 against 84).
+    expect(engine.inkBurst).toHaveBeenCalledWith(expect.objectContaining({ scale: 0.6 }));
     act(() => void vi.advanceTimersByTime(1450));
     expect(engine.traceThrough).toHaveBeenCalledWith(
       [
@@ -110,11 +110,11 @@ describe('useMomentScene', () => {
     expect(result.current.big).toBeNull();
   });
 
-  it('cut motion lays the end at once, the sepia released', () => {
+  it('cut motion lays the end at once over the Seven, the sepia released', () => {
     const engine = fakeEngine();
     const { result, onDone } = play(engine, victory, { motion: 'off' });
     expect(onDone).toHaveBeenCalledOnce();
-    expect(engine.pullBack).not.toHaveBeenCalled();
+    expect(engine.pullBack).toHaveBeenCalledWith(victory.seven, 0, 0);
     expect(result.current.sepiaHeld).toBe(false);
   });
 

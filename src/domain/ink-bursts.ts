@@ -4,6 +4,7 @@ import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
 import { LOSS_INK, nationInk } from './nations';
 import type { JournalDispatch } from './player-view';
+import type { RaceLead } from './race-rings';
 
 /** What a stamp says: a word and the hour, the prototype's `★ 14:32 ★`. */
 export type StampWords = { readonly word: string; readonly hour: string };
@@ -39,6 +40,8 @@ export type InkBurst = {
   /** **Le cachet** : combien de pastilles sont pleines, et « IV » au quatrième seul. */
   readonly held?: number;
   readonly roman?: string;
+  /** **Sa taille**, part de celle d'un cachet seul : la victoire en pose quatre côte à côte. */
+  readonly scale?: number;
   /** Pressed just above its point rather than beside it: the absence tour has no piece there to
    *  keep readable, and a stamp aside reads as the neighbouring country's (#439). */
   readonly over?: true;
@@ -110,8 +113,9 @@ export function inkBursts(
   mapPlays = false,
   /** The ground under a point (`groundOf`): a combat won at sea holds no ground (#324). */
   landAt: (at: LonLat) => boolean = () => true,
-  /** **Le meneur dont le compte vient de tomber** en cours de partie (#442), `null` sinon. */
-  brokenRace: string | null = null,
+  /** **Le meneur dont le compte vient de tomber** en cours de partie, et les points qu'il tenait
+   *  (#442) ; `null` sinon. */
+  brokenRace: RaceLead | null = null,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
   const combats = fresh.flatMap((dispatch) => combatBursts(dispatch, mapPlays, landAt));
@@ -124,12 +128,18 @@ export function inkBursts(
   const arrivals = paired
     ? vanishedEnds.map((at): InkBurst => ({ kind: 'arrival', at, words }))
     : [];
-  // The seal waits for the flag to change on its mast (`FLAG_SWAP_MS`). Where another took a point
-  // as the leader's count fell, it is « compte rompu » that the point wears.
+  // The seal waits for the flag to change on its mast (`FLAG_SWAP_MS`). Where another took one of
+  // the leader's points as his count fell, it is « compte rompu » that the point wears.
   const placed = fresh.flatMap((dispatch) =>
     placedBursts(dispatch, fresh).map((burst): InkBurst => {
       if (burst.kind !== 'seal') return burst;
-      if (brokenRace === null || dispatch.point?.nation === brokenRace)
+      const point = dispatch.point;
+      if (
+        brokenRace === null ||
+        point === undefined ||
+        point.nation === brokenRace.leaderNation ||
+        !brokenRace.keys.includes(point.key)
+      )
         return { ...burst, delayMs: FLAG_SWAP_MS };
       return {
         kind: 'raceBroken',

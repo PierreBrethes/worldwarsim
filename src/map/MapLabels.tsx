@@ -1475,7 +1475,13 @@ const LabelNode = memo(function LabelNode({
                     ))}
                 </div>
               ) : line.role === 'race' ? (
-                <RaceGauge key={rank} endsAt={line.endsAt} ink={line.ink} fading={line.fading} />
+                <RaceGauge
+                  key={rank}
+                  endsAt={line.endsAt}
+                  ink={line.ink}
+                  fading={line.fading}
+                  fresh={line.fresh}
+                />
               ) : line.role === 'capture' ? (
                 <CaptureGauge
                   key={rank}

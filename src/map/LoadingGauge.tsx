@@ -122,8 +122,6 @@ export function CaptureGauge({
 }
 
 const RACE_MS = RACE_HOLD_HOURS * 3_600_000;
-/** @a-mesurer : un compte parti depuis moins que ça est un compte qu'on voit partir — en direct. */
-const JUST_STARTED_MS = 10_000;
 
 /**
  * **Le compte à rebours sous un mât du meneur** (#442, `compte-anneaux.html`) : un anneau à son
@@ -135,13 +133,16 @@ export function RaceGauge({
   endsAt,
   ink,
   fading,
+  fresh,
 }: {
   endsAt: number;
   ink: string;
   fading: boolean;
+  /** Parti entre deux vues (`useRaceRings`) : tracé à sa pose, et pas à la suivante. */
+  fresh: boolean;
 }) {
   const now = useClock(60_000);
-  const [traced] = useState(() => RACE_MS - (endsAt - Date.now()) < JUST_STARTED_MS);
+  const [traced] = useState(fresh);
   const left = Math.max(0, endsAt - now);
   const said = fr.points.raceLeft(left);
   return (

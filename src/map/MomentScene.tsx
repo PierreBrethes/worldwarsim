@@ -17,6 +17,8 @@ import { useBoardInsets } from '@/shell/viewport';
 
 /** @a-mesurer : les cachets et le trait de la victoire tiennent jusqu'à l'édition. */
 const VICTORY_HOLD_MS = 8000;
+/** @a-mesurer : les cachets de la victoire, à 50 contre 84 dans la maquette (`victoire`). */
+const VICTORY_SEAL_SCALE = 0.6;
 
 /**
  * **Un grand moment, joué sur la carte avant sa feuille** (#442) : la chute de mon QG, la fin de
@@ -96,6 +98,7 @@ export function useMomentScene(
           words: { word: held[index]!.name, hour: moment.hour },
           ink: moment.ink,
           held: held.length,
+          scale: VICTORY_SEAL_SCALE,
           holdMs: VICTORY_HOLD_MS,
           over: true,
         });

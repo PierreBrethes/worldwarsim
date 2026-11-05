@@ -142,6 +142,7 @@ describe('buildLabels', () => {
       endsAt: LOADED_AT + 86_400_000,
       pointIds: ['p-1'],
       fading: false,
+      fresh: false,
     };
     const [ringed, bare, ...others] = buildLabels(
       { ...viewWith([], [capture]), raceRings: rings },
@@ -159,6 +160,7 @@ describe('buildLabels', () => {
       endsAt: rings.endsAt,
       ink: '#2b6974',
       fading: false,
+      fresh: false,
     });
     expect(bare!.lines.map((line) => line.role)).toEqual(['nature', 'figures']);
   });
