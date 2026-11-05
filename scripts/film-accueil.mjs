@@ -136,6 +136,13 @@ const CUTS = {
   tall: { width: 390, height: 844, density: 2, file: 'accueil-9x16.webm', kbps: 950 },
 };
 const FPS = 25;
+/**
+ * L'affiche se prend dans le plan 1, quand la carte remplit l'écran : au premier instant la caméra
+ * est la plus haute et montre le bord du plateau, la réglette sur une bande sombre.
+ */
+const POSTER_AT = 3;
+/** La durée d'un plan, par sa clé de sous-titre : jamais par sa place dans la liste. */
+const lengthOf = (subtitle) => SHOTS.find((shot) => shot.subtitle === subtitle).length;
 /** Une prise de la démo, posée par `dev:` (le serveur local). */
 const lay = (fn, payload) =>
   run('npx', ['convex', 'run', `dev:${fn}`, JSON.stringify(payload)], { cwd: root });
@@ -167,6 +174,7 @@ class Reel {
     this.written = 0;
     this.limit = Infinity;
     this.screen = null;
+    this.next = null;
   }
 
   /** Les images vont dans un fichier : l'encodage se fait après, sans la cadence du direct. */
@@ -211,12 +219,17 @@ class Reel {
     const until = Date.now() + 1500;
     while (slot.frame === null && Date.now() < until)
       await new Promise((done) => setTimeout(done, 20));
+    /** Un plan sans image à lui reprendrait celle du plan d'avant : le tournage ne vaut plus rien. */
+    if (slot.frame === null) throw new Error("la page n'a rendu aucune image avant son plan");
     this.next = slot;
   }
 
   /** Le plan passe à la page amorcée : la précédente se tait. */
   async switchTo() {
     const slot = this.next;
+    if (slot === null || slot === this.screen)
+      throw new Error("le plan n'a pas de page amorcée : il montrerait celle d'avant");
+    this.next = null;
     if (this.screen) {
       this.screen.cdp.removeAllListeners('Page.screencastFrame');
       await this.screen.cdp.send('Page.stopScreencast').catch(() => {});
@@ -442,7 +455,7 @@ async function shoot(name) {
   const tall = name === 'tall';
 
   // Où l'œil se pose à chaque plan (degrés ; `d` en unités de la carte, 60 = l'Europe entière).
-  const europe = { lon: 9, lat: 50.5, d: tall ? 80 : 58, p: 44 };
+  const europe = { lon: 9, lat: 50.5, d: tall ? 62 : 44, p: 50 };
   const pile = [6.17, 49.36]; // la pile française devant Luxembourg
   const drop = [7.0, 50.9]; // un sol vide au nord-est : Cologne
   const around = { lon: 6.6, lat: 50.1, d: tall ? 20 : 14, p: 40 };
@@ -542,14 +555,26 @@ async function shoot(name) {
    * et son plan reste ce que la page montrait.
    */
   const tasks = [];
+  /** Les plans ratés : le tournage échoue à la fin, avant d'écrire le manifeste ni les affiches. */
+  const failed = [];
   const at = (seconds, job) =>
     tasks.push(
       wait(seconds)
         .then(job)
-        .catch((error) =>
-          console.log(`[plan à ${seconds}] ${String(error.message ?? error).slice(0, 120)}`),
-        ),
+        .catch((error) => {
+          const said = `[plan à ${seconds}] ${String(error.message ?? error).slice(0, 160)}`;
+          failed.push(said);
+          console.log(said);
+        }),
     );
+  /** Ce que le plan doit montrer, lu dans sa page : sinon il est raté (et le dit). */
+  const expectIn = async (page, pattern, what) => {
+    const seen = await page.evaluate(
+      ([source]) => new RegExp(source, 'i').test(globalThis.document.body.innerText),
+      [pattern.source],
+    );
+    if (!seen) throw new Error(`${what} : absent de la page de son plan`);
+  };
   const sinceFilm = () => (Date.now() - reel.begun) / 1000;
   /** Un plan : la page s'amorce une seconde avant, la pellicule y passe à l'heure, la précédente se ferme. */
   const cutTo = (seconds, opening, previous) => {
@@ -601,6 +626,9 @@ async function shoot(name) {
     }
   });
 
+  // La pièce est bien portée : la fiche du mouvement (« Marcher… ») est dans la page.
+  at(orderAt - 0.5, () => expectIn(piece, /march/, 'plan 3, la pièce portée'));
+
   // 4. L'ordre part : on lâche ; le fil et l'heure d'arrivée s'écrivent, la caméra recule.
   at(orderAt, async () => {
     await piece.mouse.up();
@@ -624,12 +652,16 @@ async function shoot(name) {
     const scrollTotal = tall ? 520 : 380;
     await edition.mouse.move(cutting.width / 2, cutting.height * 0.55);
     for (let done = 0, k = 0; k < 1;) {
-      k = Math.min(1, (sinceFilm() - editionAt) / (SHOTS[6].length - 0.3));
+      k = Math.min(1, (sinceFilm() - editionAt) / (lengthOf('edition') - 0.3));
       await edition.mouse.wheel(0, scrollTotal * k - done);
       done = scrollTotal * k;
       await edition.waitForTimeout(40);
     }
   });
+
+  at(editionAt + 0.5, async () =>
+    expectIn(await editionOpen, /édition finale/, "plan 7, le titre de l'édition"),
+  );
 
   // 8. La Blitz : le théâtre sous le chronomètre, la caméra y descend.
   cutTo(blitzAt, blitzOpen, editionOpen);
@@ -641,29 +673,47 @@ async function shoot(name) {
     );
   });
 
+  at(blitzAt + 1, async () =>
+    expectIn(await blitzOpen, /fin\s+\d\d:\d\d:\d\d/, 'plan 8, le chronomètre de la Blitz'),
+  );
+
   await wait(length);
   await Promise.allSettled(tasks);
   await reel.stop();
   await browser.close();
+  if (failed.length > 0) throw new Error(`plans ratés, aucun film retenu :\n${failed.join('\n')}`);
 
   const bytes = statSync(out).size;
   console.log(
     `film ${name} : ${out} — ${(bytes / 1024 / 1024).toFixed(2)} Mo, ${reel.written} images`,
   );
   if (bytes > MAX_BYTES)
-    console.log(`[poids] ${name} dépasse ${MAX_BYTES / 1024 / 1024} Mo : baisser kbps`);
+    throw new Error(
+      `${name} pèse ${(bytes / 1024 / 1024).toFixed(2)} Mo : plus de ${MAX_BYTES / 1024 / 1024} Mo, baisser kbps`,
+    );
   return { out, starts, length, bytes };
 }
 
 /* ------------------------------------------------------------------ le manifeste et les affiches */
 
 /**
- * L'affiche d'une découpe, son premier instant : l'image que la une montre avant que le film
+ * L'affiche d'une découpe, une image du plan 1 (`POSTER_AT`) : l'image que la une montre avant que le film
  * joue, et qu'il prolonge sans saut. Prise dans le film (ffmpeg), passée en WebP par un canvas.
  */
 async function poster(name, file) {
   const png = `${file}.affiche.png`;
-  await run(ffmpeg, ['-y', '-loglevel', 'error', '-ss', '0.1', '-i', file, '-frames:v', '1', png]);
+  await run(ffmpeg, [
+    '-y',
+    '-loglevel',
+    'error',
+    '-ss',
+    String(POSTER_AT),
+    '-i',
+    file,
+    '-frames:v',
+    '1',
+    png,
+  ]);
   const browser = await chromium.launch({ executablePath: chromiumPath() });
   const page = await browser.newPage();
   const webp = await page.evaluate(async (b64) => {
