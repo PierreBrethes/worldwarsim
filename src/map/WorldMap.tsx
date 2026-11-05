@@ -45,6 +45,7 @@ import {
 import {
   type ArcView,
   type JournalDispatch,
+  type RaceCountdown,
   type ReplayView,
   type TroopStation,
   type TroopView,
@@ -142,6 +143,9 @@ type Props = {
   columns: ReadonlyMap<string, PilePieces>;
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
+  /** **Le compte de la course aux Sept**, `null` quand il ne court pas ou que la saison est close :
+   *  tombé entre deux vues, il fait tamponner « compte rompu » (#442). */
+  race?: RaceCountdown | null;
   labels: ReadonlyArray<MapLabel>;
   /** My piles standing at a point, which the board dresses in figurines up close. */
   standing: ReadonlyArray<StandingPile>;
@@ -483,6 +487,7 @@ export function WorldMap({
   troops,
   columns,
   journal,
+  race = null,
   labels: servedLabels,
   standing: servedStanding,
   camps: servedCamps,
@@ -1959,21 +1964,31 @@ export function WorldMap({
         readyEngine.inkCut(regionId, { word: fr.stamps.unlinked, hour });
   }, [cut, readyEngine]);
 
-  const inked = useRef<{ arcs: ReadonlyArray<ArcView>; seenAt: number } | null>(null);
+  const inked = useRef<{
+    arcs: ReadonlyArray<ArcView>;
+    seenAt: number;
+    race: RaceCountdown | null;
+  } | null>(null);
   useEffect(() => {
     const latest = Math.max(0, ...journal.map((dispatch) => dispatch.at));
     const before = inked.current;
-    inked.current = { arcs, seenAt: latest };
+    inked.current = { arcs, seenAt: latest, race };
     if (before === null) return;
     const vanished = before.arcs.flatMap((arc) =>
       arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
     const ground = engine.current;
-    for (const burst of inkBursts(journal, before.seenAt, vanished, blitz === null, (at) =>
-      ground === null ? true : ground.landAt(at),
+    const broken = race === null && before.race !== null ? before.race.leaderNation : null;
+    for (const burst of inkBursts(
+      journal,
+      before.seenAt,
+      vanished,
+      blitz === null,
+      (at) => (ground === null ? true : ground.landAt(at)),
+      broken,
     ))
       engine.current?.inkBurst(burst);
-  }, [arcs, journal, blitz]);
+  }, [arcs, journal, blitz, race]);
 
   useEffect(() => {
     engine.current?.showHeldRegions(held);

@@ -854,8 +854,48 @@
   transform: rotate(-4deg);
 }
 
+/* **Le compte à rebours des Sept** (#442) : l'anneau de capture, à l'encre du meneur. Il se trace
+   en 1,4 s quand on le voit partir, après le cachet du quatrième ; il s'efface en 0,9 s quand le
+   compte tombe. Réduites : posé d'un coup ; coupées, ni tracé ni effacement. */
+.race-gauge {
+  --capture-ink: currentColor;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.race-gauge--traced .capture-ring-fill {
+  animation: race-trace 1.4s 1.8s ease-in-out backwards;
+}
+
+.race-gauge--fading {
+  animation: race-fade 0.9s forwards;
+}
+
+:root:is([data-motion='reduced'], [data-motion='off']) .race-gauge--traced .capture-ring-fill {
+  animation: none;
+}
+
+:root[data-motion='off'] .race-gauge--fading {
+  display: none;
+}
+
+@keyframes race-trace {
+  from {
+    stroke-dasharray: 0 1;
+  }
+}
+
+@keyframes race-fade {
+  to {
+    opacity: 0;
+  }
+}
+
 /* Un site qu'on capture garde ses mots à tous les niveaux de détail : l'anneau est ce qui se lit
-   de loin, et le repli des étiquettes ne doit pas le taire. */
+   de loin, et le repli des étiquettes ne doit pas le taire. Le compte des Sept de même (#442). */
 .label--capturing.label--glyph .label-lines {
   display: block;
 }

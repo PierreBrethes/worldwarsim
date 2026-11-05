@@ -559,6 +559,11 @@ export const fr = {
    * **Les points stratégiques** (P1-P12) : un nom de 1940, une règle cassée pour qui le tient.
    */
   points: {
+    /** **L'heure qui reste au compte**, sous chaque mât du meneur (#442) : « 6 h 00 ». */
+    raceLeft: (milliseconds: number) => {
+      const minutes = Math.floor(milliseconds / 60_000);
+      return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    },
     names: {
       tangier: 'Tanger',
       istanbul: 'Istanbul',

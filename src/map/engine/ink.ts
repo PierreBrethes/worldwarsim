@@ -327,9 +327,9 @@ export class InkLayer {
     if (!this.enabled || this.motion === 'off') return;
     const point = this.frame.projectLonLat(at);
     const seal = kind === 'seal';
-    // A seal waits for its flag to change; reduced motion changes the flag at once.
-    const delayMs = seal && this.motion !== 'full' ? 0 : asked;
-    if (seal && this.motion === 'full')
+    // A seal, or the count it broke, waits for its flag to change; reduced motion changes it at once.
+    const delayMs = (seal || kind === 'raceBroken') && this.motion !== 'full' ? 0 : asked;
+    if ((seal || kind === 'raceBroken') && this.motion === 'full')
       for (const behind of RIPPLE_DELAYS_MS)
         this.ripple(point, ink ?? STAMP_RED, now + delayMs + behind);
     if (words !== undefined) {

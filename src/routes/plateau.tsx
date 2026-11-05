@@ -34,6 +34,7 @@ import {
 import { forbiddenGroundOf } from '@/domain/drop-order';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
+import { useRaceRings } from './-plateau/useRaceRings';
 import { useHeldRegions } from './-plateau/useHeldRegions';
 import { dropRefusalOf, useOrderPreview, type ChainedFirst } from './-plateau/useOrderPreview';
 import {
@@ -1681,6 +1682,11 @@ function BoardContent({
   );
 
   const { arcs, loadedAt, captures, mode, journal } = view;
+  const raceRings = useRaceRings(
+    view.season.race,
+    view.strategicPoints,
+    view.season.outcome.concludedAt !== null,
+  );
   const ink = view.me.ink;
   const troops = view.me.troops;
   const asset = view.me.asset;
@@ -1696,7 +1702,7 @@ function BoardContent({
   }, [courseTurn]);
   const labels = useMemo(() => {
     const built = buildLabels(
-      { arcs, loadedAt, captures, mode, journal, me: { ink, troops, asset } },
+      { arcs, loadedAt, captures, mode, journal, raceRings, me: { ink, troops, asset } },
       markers,
       courseNow,
     );
@@ -1716,6 +1722,7 @@ function BoardContent({
     captures,
     mode,
     journal,
+    raceRings,
     ink,
     troops,
     asset,
@@ -2859,6 +2866,7 @@ function BoardContent({
                   troops={view.me.troops}
                   columns={columns}
                   journal={view.journal}
+                  race={view.season.outcome.concludedAt === null ? view.season.race : null}
                   labels={shownLabels}
                   standing={standing}
                   camps={camps}

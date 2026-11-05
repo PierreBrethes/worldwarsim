@@ -65,6 +65,23 @@ describe('inkBursts', () => {
       expect(inkBursts([taken(3), twin('captured'), twin('siteLost')], 10, [])).toEqual([seal(3)]);
     });
 
+    /** **Compte rompu** (#442) : le compte tombé en cours de partie, à l'instant où un autre
+     *  reprend un point — le tampon noir sur ce point, au lieu de son cachet. */
+    it('stamps « compte rompu » in black on the point that broke the leader’s count', () => {
+      const retaken = { ...taken(2), point: { key: 'narvik' as const, nation: 'france', held: 2 } };
+      expect(inkBursts([retaken], 10, [], false, () => true, 'germany')).toEqual([
+        {
+          kind: 'raceBroken',
+          at: [17.43, 68.44],
+          words: { word: 'compte rompu', hour: hour(20) },
+          ink: '#2a2118',
+          delayMs: 1600,
+        },
+      ]);
+      // The leader taking a point himself breaks nothing.
+      expect(inkBursts([taken(3)], 10, [], false, () => true, 'germany')).toEqual([seal(3)]);
+    });
+
     it('but not in place of a capture of another hour', () => {
       const other = { ...dispatch(19, 'captured'), place: narvik };
       expect(inkBursts([taken(3), other], 10, [])).toHaveLength(2);

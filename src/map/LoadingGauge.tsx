@@ -2,6 +2,8 @@ import { progressAt, type CaptureClock } from '@/domain/capture';
 import { asClockTime } from '@/domain/duration';
 import { loadingAt } from '@/domain/loading';
 import { fr } from '@/i18n/fr';
+import { RACE_HOLD_HOURS } from '@/domain/strategic-points';
+import { useState } from 'react';
 import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 
@@ -115,6 +117,52 @@ export function CaptureGauge({
       </svg>
       <span className="capture-stamp">{fr.capture.stamp}</span>
       {narrow && <span>{said}</span>}
+    </div>
+  );
+}
+
+const RACE_MS = RACE_HOLD_HOURS * 3_600_000;
+/** @a-mesurer : un compte parti depuis moins que ça est un compte qu'on voit partir — en direct. */
+const JUST_STARTED_MS = 10_000;
+
+/**
+ * **Le compte à rebours sous un mât du meneur** (#442, `compte-anneaux.html`) : un anneau à son
+ * encre qui se vide comme une horloge sur 24 h, l'heure restante dessous. Une horloge, pas une
+ * animation : il reste en réduites et en coupées, et son heure tourne à la minute sans demander
+ * d'image à la carte. Il se trace à l'encre quand on le voit partir, s'efface quand il tombe.
+ */
+export function RaceGauge({
+  endsAt,
+  ink,
+  fading,
+}: {
+  endsAt: number;
+  ink: string;
+  fading: boolean;
+}) {
+  const now = useClock(60_000);
+  const [traced] = useState(() => RACE_MS - (endsAt - Date.now()) < JUST_STARTED_MS);
+  const left = Math.max(0, endsAt - now);
+  const said = fr.points.raceLeft(left);
+  return (
+    <div
+      className={`label-line race-gauge${traced ? ' race-gauge--traced' : ''}${fading ? ' race-gauge--fading' : ''}`}
+      style={{ color: ink }}
+      role="img"
+      aria-label={said}
+    >
+      <svg className="capture-ring" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" pathLength={1} className="capture-ring-track" />
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          pathLength={1}
+          className="capture-ring-fill"
+          strokeDasharray={`${Math.round((left / RACE_MS) * 1000) / 1000} 1`}
+        />
+      </svg>
+      <span>{said}</span>
     </div>
   );
 }

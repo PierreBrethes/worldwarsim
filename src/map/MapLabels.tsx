@@ -33,7 +33,7 @@ import { fr } from '@/i18n/fr';
 import { FLAG_SWAP_MS } from '@/domain/ink-bursts';
 import { useMapMotion } from '@/data/mapMotion';
 import { shareUnchanged } from '@/data/shareUnchanged';
-import { CaptureGauge, LoadingGauge, MarchGauge, ResearchLine } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge, RaceGauge, ResearchLine } from './LoadingGauge';
 import { useLayerSize } from './layer-size';
 import {
   NEUTRAL_FLAG,
@@ -1474,6 +1474,8 @@ const LabelNode = memo(function LabelNode({
                       </button>
                     ))}
                 </div>
+              ) : line.role === 'race' ? (
+                <RaceGauge key={rank} endsAt={line.endsAt} ink={line.ink} fading={line.fading} />
               ) : line.role === 'capture' ? (
                 <CaptureGauge
                   key={rank}
@@ -1823,7 +1825,9 @@ function classesOf(label: MapLabel, selected: boolean): string {
   return [
     'label',
     cartoucheShown(label, { pointed: false, selected }) ? '' : 'label--quiet',
-    label.lines.some((line) => line.role === 'capture') ? 'label--capturing' : '',
+    label.lines.some((line) => line.role === 'capture' || line.role === 'race')
+      ? 'label--capturing'
+      : '',
     'label--glyph',
     `label--${label.type}`,
     PINNED.has(label.type) ? 'label--pinned' : '',

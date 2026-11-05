@@ -23,6 +23,7 @@ import type {
   TroopStation,
 } from './player-view';
 import type { AimVerdict, WorkSite } from './construction';
+import type { RaceRings } from './race-rings';
 
 /**
  * What the map knows how to plant on the ground. A discriminated union rather than a marker
@@ -380,6 +381,14 @@ export type LabelLine =
   | { readonly role: 'patrol'; readonly text: string; readonly recall: string | null }
   /** **Une charge** (ADR 0028 §4) : le dépôt d'un avant-poste, en barre découpée par couleur. */
   | { readonly role: 'charge'; readonly load: SupplyLoad; readonly capacity: number }
+  /** **Le compte à rebours de la course aux Sept** (#442) : l'anneau du meneur, qui se vide
+   *  jusqu'à `endsAt` ; `fading`, le compte tombé qui s'efface. */
+  | {
+      readonly role: 'race';
+      readonly endsAt: number;
+      readonly ink: string;
+      readonly fading: boolean;
+    }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
    *  victoire chez le capteur, de perte chez le défenseur. */
   | {
@@ -553,7 +562,7 @@ export const cartoucheShown = (
   !NAMED_WHEN_POINTED.has(label.type) ||
   pointed ||
   selected ||
-  label.lines.some((line) => isCountdown(line) || line.role === 'capture');
+  label.lines.some((line) => isCountdown(line) || line.role === 'capture' || line.role === 'race');
 
 /**
  * The overlap-degradation order. Sheet 11 gives it for five types; intel — an enemy movement
@@ -642,6 +651,8 @@ export function buildLabels(
     readonly mode?: SeasonMode;
     /** Les dépêches d'où une pièce restée tire sa ligne (Guerre éclair, #451). */
     readonly journal?: PlayerView['journal'];
+    /** Le compte à rebours sur les mâts du meneur (#442). */
+    readonly raceRings?: RaceRings | null;
     readonly me: Pick<PlayerView['me'], 'ink' | 'troops'> & {
       readonly asset?: Asset | null;
     };
@@ -653,10 +664,13 @@ export function buildLabels(
   const course = { asset: view.me.asset ?? null, now, mode: view.mode ?? 'mondiale' } as const;
   return [
     ...withCaptures(
-      withStood(
-        markers.map((marker) => markerLabel(marker, view.loadedAt)),
-        markers,
-        view.journal ?? [],
+      withRaceRings(
+        withStood(
+          markers.map((marker) => markerLabel(marker, view.loadedAt)),
+          markers,
+          view.journal ?? [],
+        ),
+        view.raceRings ?? null,
       ),
       view.captures,
     ),
@@ -670,7 +684,23 @@ export function buildLabels(
 const carriesSite = (label: MapLabel, target: CaptureView['target']): boolean =>
   target.kind === 'building'
     ? label.building?.id === target.id || label.installation?.id === target.id
-    : label.station?.kind === 'outpost' && label.station.outpostId === target.id;
+    : target.kind === 'point'
+      ? label.strategic?.id === target.id
+      : label.station?.kind === 'outpost' && label.station.outpostId === target.id;
+
+/** **Le compte sous chaque mât du meneur** (#442), au-dessus d'une capture qui le menace. */
+function withRaceRings(
+  labels: ReadonlyArray<MapLabel>,
+  rings: RaceRings | null,
+): ReadonlyArray<MapLabel> {
+  if (rings === null) return labels;
+  const { endsAt, ink, fading } = rings;
+  return labels.map((label) =>
+    label.strategic !== null && rings.pointIds.includes(label.strategic.id)
+      ? { ...label, lines: [...label.lines, { role: 'race', endsAt, ink, fading }] }
+      : label,
+  );
+}
 
 /** **La pièce restée dit pourquoi** (Guerre éclair, ADR 0039 §6) : la dépêche qui l'a laissée là,
  *  tant que ses troupes y tiennent. `labels` suit `markers`, un à un. */

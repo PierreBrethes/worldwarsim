@@ -26,7 +26,9 @@ export type InkBurst = {
     /** Any other dispatch the absence tour stamps, with its word of the journal's margin (#439). */
     | 'dispatch'
     /** **Le cachet des Sept** (#442) : rond, le nom du point en arc, l'heure, sept pastilles. */
-    | 'seal';
+    | 'seal'
+    /** **Compte rompu** (#442) : le point repris au meneur de la course, en noir. */
+    | 'raceBroken';
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;
@@ -110,6 +112,8 @@ export function inkBursts(
   mapPlays = false,
   /** The ground under a point (`groundOf`): a combat won at sea holds no ground (#324). */
   landAt: (at: LonLat) => boolean = () => true,
+  /** **Le meneur dont le compte vient de tomber** en cours de partie (#442), `null` sinon. */
+  brokenRace: string | null = null,
 ): ReadonlyArray<InkBurst> {
   const fresh = journal.filter((dispatch) => dispatch.at > seenAt);
   const combats = fresh.flatMap((dispatch) => combatBursts(dispatch, mapPlays, landAt));
@@ -122,10 +126,22 @@ export function inkBursts(
   const arrivals = paired
     ? vanishedEnds.map((at): InkBurst => ({ kind: 'arrival', at, words }))
     : [];
-  // The seal waits for the flag to change on its mast (`FLAG_SWAP_MS`).
-  const placed = fresh
-    .flatMap((dispatch) => placedBursts(dispatch, fresh))
-    .map((burst) => (burst.kind === 'seal' ? { ...burst, delayMs: FLAG_SWAP_MS } : burst));
+  // The seal waits for the flag to change on its mast (`FLAG_SWAP_MS`). Where another took a point
+  // as the leader's count fell, it is « compte rompu » that the point wears.
+  const placed = fresh.flatMap((dispatch) =>
+    placedBursts(dispatch, fresh).map((burst): InkBurst => {
+      if (burst.kind !== 'seal') return burst;
+      if (brokenRace === null || dispatch.point?.nation === brokenRace)
+        return { ...burst, delayMs: FLAG_SWAP_MS };
+      return {
+        kind: 'raceBroken',
+        at: burst.at,
+        words: stamped(fr.stamps.raceBroken, dispatch.at),
+        ink: LOSS_INK,
+        delayMs: FLAG_SWAP_MS,
+      };
+    }),
+  );
   return [...combats, ...arrivals, ...placed];
 }
 

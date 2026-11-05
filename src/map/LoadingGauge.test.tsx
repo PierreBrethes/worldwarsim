@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CaptureGauge, LoadingGauge, MarchGauge } from './LoadingGauge';
+import { CaptureGauge, LoadingGauge, MarchGauge, RaceGauge } from './LoadingGauge';
 
 const phone = (narrow: boolean) =>
   vi.stubGlobal('matchMedia', () => ({
@@ -84,5 +84,36 @@ describe('CaptureGauge', () => {
         />,
       ),
     ).toContain('aria-label="75 % · QG perdu vers');
+  });
+});
+
+/** **Le compte en anneaux** (#442) : l'anneau du meneur se vide sur 24 h, l'heure restante dessous ;
+ *  il se trace à l'apparition seulement quand le compte vient de partir. */
+describe('RaceGauge', () => {
+  afterEach(() => vi.useRealTimers());
+  const NOW = Date.UTC(2026, 10, 5, 12);
+  const left = (minutes: number) => NOW + minutes * 60_000;
+
+  it('empties its ring like a clock, and says the hours left', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const markup = renderToStaticMarkup(
+      <RaceGauge endsAt={left(6 * 60)} ink="#2b6974" fading={false} />,
+    );
+    expect(markup).toContain('6 h 00');
+    expect(markup).toContain('stroke-dasharray="0.25 1"');
+    expect(markup).toContain('#2b6974');
+    expect(markup).not.toContain('race-gauge--traced');
+  });
+
+  it('is traced when the count has just started, and fades when it falls', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    expect(
+      renderToStaticMarkup(<RaceGauge endsAt={left(24 * 60)} ink="#2b6974" fading={false} />),
+    ).toContain('race-gauge--traced');
+    expect(renderToStaticMarkup(<RaceGauge endsAt={left(60)} ink="#2b6974" fading />)).toContain(
+      'race-gauge--fading',
+    );
   });
 });
