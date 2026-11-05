@@ -1344,19 +1344,25 @@ async function play(profileName, pass) {
   // pays survolé (« Nation adverse ») suit la souris que `--couches` a posée sur la carte : aucun
   // doigt ne la fait sortir, ni Échap ; on la fait sortir de la carte.
   const sheet = page.locator('section[role="dialog"].board-sheet').first();
-  for (let k = 0; k < 3; k++) {
-    if (!(await button(/^fermer$/i).isVisible()) && !(await sheet.isVisible())) break;
-    await close();
-    for (const canvas of await page.locator('canvas').all())
-      await canvas.dispatchEvent('pointerleave');
-    await page.waitForTimeout(800);
-  }
+  const clearSheets = async () => {
+    for (let k = 0; k < 3; k++) {
+      if (!(await button(/^fermer$/i).isVisible()) && !(await sheet.isVisible())) break;
+      await close();
+      for (const canvas of await page.locator('canvas').all())
+        await canvas.dispatchEvent('pointerleave');
+      await page.waitForTimeout(800);
+    }
+  };
+  await clearSheets();
   // Au téléphone, le plateau tiré par un geste d'avant peut être déjà déplié : on ne le déplie
   // qu'au besoin. Au bureau, il est replié et sa tuile est dans le DOM, cachée : on le déplie.
-  if (!phone) await button(/^Plateau personnel$/).click();
-  else if (await button(/déplier le plateau personnel/).isVisible())
-    await tap(button(/déplier le plateau personnel/));
-  await page.waitForTimeout(800);
+  const unfoldBoard = async () => {
+    if (!phone) await button(/^Plateau personnel$/).click();
+    else if (await button(/déplier le plateau personnel/).isVisible())
+      await tap(button(/déplier le plateau personnel/));
+    await page.waitForTimeout(800);
+  };
+  await unfoldBoard();
   // Les étiquettes de la carte portent les mêmes mots (le port d'une garnison, la mine du Nord) :
   // la tuile est celle du plateau, hors des étiquettes.
   const tile = (name) =>
@@ -1390,6 +1396,13 @@ async function play(profileName, pass) {
   // proche, puis l'aimant le prend au passage du bassin du Nord.
   await page.evaluate(frameAt, [[2.9, 50.3], 12]);
   await page.waitForTimeout(2500);
+  // Prendre une tuile replie le plateau au téléphone (la carte se découvre pour la poser) : la
+  // tuile « Mine » reste dans le DOM, sous la bande des bacs. Un joueur redéplie ; le banc aussi.
+  // Au bureau, le plateau ne se replie pas : on ne le rebascule pas.
+  if (phone) {
+    await clearSheets();
+    await unfoldBoard();
+  }
   await gesture('prendre une mine', () => tile('Mine').click(), 2500);
   const coalfield = await free([Math.round(width / 2), Math.round(height * 0.35)]);
   await gesture('aimant de la mine', async () => {
