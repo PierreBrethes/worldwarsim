@@ -167,6 +167,8 @@ export class PinLayer {
   /** The marks that stand still, clustered: redone only when the eye or the pins change. */
   private settled: Mark[] = [];
   private marks: Mark[] = [];
+  /** Each pin's own mark, as `rectOf` reads it for every label at every image. */
+  private markOfPin = new Map<string, Mark>();
   private held: string | null = null;
   private hovered: string | null = null;
   private carried: Vector3 | null = null;
@@ -401,6 +403,10 @@ export class PinLayer {
           weight: Math.min(1, home.weight / 0.55),
         });
     }
+    this.markOfPin.clear();
+    for (const mark of this.marks)
+      if (mark.ids.length === 1 && !this.markOfPin.has(mark.ids[0]!))
+        this.markOfPin.set(mark.ids[0]!, mark);
     this.draw();
   }
 
@@ -429,7 +435,7 @@ export class PinLayer {
   }
 
   rectOf(id: string): Rect | null {
-    const mark = this.marks.find((each) => each.ids.length === 1 && each.ids[0] === id);
+    const mark = this.markOfPin.get(id);
     if (mark === undefined || mark.weight < TAKES_POINTER) return null;
     const r = mark.radius + 2;
     return { left: mark.sx - r, right: mark.sx + r, top: mark.sy - r, bottom: mark.sy + r };
