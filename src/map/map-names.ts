@@ -7,13 +7,14 @@ import {
   type NameCandidate,
 } from '@/domain/place-names';
 import type { NameSpots } from './engine';
+import { inkAt } from './engine/contact-rings';
 
 /**
  * **Le décor de l'atlas, à la plume** (#440, variante A de `carte-lisible`) : capitale en point
  * cerclé, grande ville en point plein, noms de villes en romain, de fleuves en italique bleu,
  * tous détourés de papier ; les mers (#457) en capitales italiques espacées, bleu de mer, sans
- * liseré. One canvas under the labels, repainted with them; it keeps its ink at
- * night, as the labels do.
+ * liseré. One canvas under the labels, repainted with them; the cities and rivers keep their
+ * ink at night, as the labels do, the seas' climbs to a pale blue (`inkAt`).
  */
 const CITY_INK = '#3a2c1e';
 const RIVER_INK = '#3f6c8c';
@@ -203,7 +204,8 @@ export class NameSheet {
     context.letterSpacing = `${SEA_SPACING_PX}px`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillStyle = SEA_INK;
+    // Blue on the night's blue would vanish: under the moon the ink climbs to a pale blue.
+    context.fillStyle = inkAt(SEA_INK, spots.night);
     for (const { index, spot } of seas) {
       const name = seaDrawn[index]![spot]!;
       if (name.kind !== 'sea') continue;

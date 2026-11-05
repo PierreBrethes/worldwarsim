@@ -132,7 +132,7 @@ const rim = new Vector3();
 const scratch = new Vector3();
 
 /** Under the moon an ink climbs toward a pale blue to stay legible (maquette `inkAt`). */
-function inkAt(hex: string, night: number): string {
+export function inkAt(hex: string, night: number): string {
   const channels = [1, 3, 5].map((at, k) => {
     const v = parseInt(hex.slice(at, at + 2), 16);
     const lifted = (v * 0.55 + MOON[k]! * 255) * 1.2;

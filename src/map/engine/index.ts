@@ -2892,7 +2892,7 @@ export class MapEngine {
    */
   nameSpots(): NameSpots {
     const distance = this.cameraDistance();
-    const none = { cities: [], rivers: [], seas: [], pins: [] };
+    const none = { cities: [], rivers: [], seas: [], pins: [], night: this.warmed };
     const replaying = this.replay !== null;
     if (!namesShown(distance, replaying)) return none;
     const onScreen = (at: Vector3, margin: number) => {
@@ -2943,6 +2943,7 @@ export class MapEngine {
         },
       ),
       pins: [...this.pins.rects(), ...this.namesReserved],
+      night: this.warmed,
     };
   }
 
@@ -4981,6 +4982,8 @@ export type NameSpots = {
     }>;
   }>;
   readonly pins: readonly Rect[];
+  /** The night where one looks, 0 to 1, as the pieces were last warmed by. */
+  readonly night: number;
 };
 
 /** The screen's edge, eight points a side, in device coordinates (`fullDayInView`). */
