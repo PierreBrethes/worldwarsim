@@ -38,7 +38,7 @@ const toward = (from: number, to: number): number =>
 /** The taxi's quarter turn onto the runway. */
 const TURN_R = 12;
 /** How far its tail stands from the hangar's rail, parked (storyboard, question 1). */
-const TAIL_GAP = 2;
+export const TAIL_GAP = 2;
 /** Seconds: the motor starts, it holds on the runway, its thread takes it, its U-turn. */
 const T = { lead: 0.6, hold: 0.45, fil: 1.2, uturn: 2.4, doors: 1.4, born: 0.6, bounce: 0.5 };
 /** Its thread's speed, m/s: where it slows to after its climb. */

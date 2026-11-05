@@ -109,7 +109,7 @@ import {
   parkingZ,
   takeoff,
 } from './timelines/airfield';
-import { berthOf, docking, launch, OFFSHORE, undocking } from './timelines/port';
+import { berthOf, docking, HULL_BEAM_SHARE, launch, OFFSHORE, undocking } from './timelines/port';
 import { troopMetres } from '@/domain/piece-size';
 import { movementRoles } from '@/emblems/units/manifest';
 import {
@@ -543,9 +543,7 @@ const MEN_GAP_MS = 400;
 const CLOSE_AFTER_MS = 150;
 /** A pile that does not stand within this time has its recruits in place, unwalked. */
 const SORTIE_WAIT_MS = 2000;
-/** **A hull's beam, and its keel under its middle on the slip**, shares of its length, until the
- *  models are measured for it (#270). `@a-mesurer` */
-const HULL_BEAM_SHARE = 0.14;
+/** **Its keel under its middle on the slip**, a share of its length (#270). `@a-mesurer` */
 const KEEL_SHARE = 0.02;
 /** **En réduites, la file tient 0,6 s**, puis la pile se pose (storyboard de la marche, #362). */
 const FILE_HOLD_MS = 600;
