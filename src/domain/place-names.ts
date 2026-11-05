@@ -124,6 +124,12 @@ export function namesShown(distance: number, replaying: boolean): boolean {
   return !replaying && distance < NAMES_GONE_DISTANCE;
 }
 
+/** The continent's zoom: the capitals-only tier, where names are shown but no million-city yet
+ *  (#466, the « Aucun accrochage » banner stands only here). */
+export function continentZoom(distance: number): boolean {
+  return distance >= CITY_TIERS[1]! && distance < NAMES_GONE_DISTANCE;
+}
+
 /** The cities to name at this distance, in their order. */
 export function namedCities<
   City extends { readonly capital: boolean; readonly population: number },

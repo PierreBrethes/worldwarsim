@@ -3,6 +3,7 @@
 'use no memo';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { continentZoom } from '@/domain/place-names';
 import { asClockTime } from '@/domain/duration';
 import type { Contact } from '@/domain/contacts';
 import {
@@ -61,6 +62,8 @@ export function ContactMarks({
   /** The board's insets, and the personal board's band at the bottom, read at rest. */
   const edgeInsets = useRef<BoardInsets>(insets);
   const [drawn, setDrawn] = useState(false);
+  /** Read at rest: the banner is for the continent's zoom only. */
+  const [continent, setContinent] = useState(false);
 
   const cardRect = useCallback(
     (spot: ContactSpot, node: HTMLElement): Rect | null => {
@@ -79,6 +82,7 @@ export function ContactMarks({
 
   const place = useCallback(() => {
     if (engine === null) return;
+    setContinent(continentZoom(engine.cameraDistance()));
     const spots = latest.current ?? [];
     const { width, height } = size.current;
     edgeInsets.current = { ...insets, bottom: Math.max(insets.bottom, matBand(layer.current)) };
@@ -293,7 +297,7 @@ export function ContactMarks({
           </button>
         </div>
       ))}
-      {drawn && contacts.length === 0 && (
+      {drawn && continent && contacts.length === 0 && (
         <p
           className="contact-none"
           style={
