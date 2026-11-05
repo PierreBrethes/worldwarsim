@@ -5,6 +5,7 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import { fr } from '@/i18n/fr';
 import type { OrderAction } from '@/domain/compass-rose';
 import type { MovementType } from '@/domain/ids';
+import type { Steered } from '@/domain/carrier-doctrine';
 import type { MovementAim } from '@/domain/movement-orders';
 import type { MarchStation } from '@/domain/troops';
 import { placeLabel } from '@/domain/station-name';
@@ -297,9 +298,11 @@ export const groupKeyOf = (action: OrderAction): string =>
 export function useChangeCourse(seat: Seat) {
   const changeCourse = useMutation(api.movements.changeCourse);
   return useCallback(
-    async (movementId: string, { aim, type }: OrderChoice, preview?: Previewed): Promise<Sent> => {
-      if (type !== 'march' && type !== 'attack' && type !== 'raid')
-        throw new Error('COURSE_ON_MISSION');
+    async (
+      movementId: string,
+      { aim, type }: OrderChoice & { readonly type: Steered },
+      preview?: Previewed,
+    ): Promise<Sent> => {
       const sent = await changeCourse({
         ...seat,
         movementId: movementId as Id<'movements'>,
@@ -315,11 +318,3 @@ export function useChangeCourse(seat: Seat) {
     [seat, changeCourse],
   );
 }
-
-/** Ce que la flotte reprise peut faire au lâcher : une marche, une attaque ou une expédition sans
- *  mission ni embarquement — le reste garde son cap, comme au serveur (`onMission`). */
-export const steersCourse = (choice: OrderChoice): boolean =>
-  choice.mission.kind === 'march' &&
-  choice.mission.boardsOn === undefined &&
-  choice.mission.roundTrip !== true &&
-  (choice.type === 'march' || choice.type === 'attack' || choice.type === 'raid');

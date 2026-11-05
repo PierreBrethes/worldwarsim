@@ -21,7 +21,12 @@ import { aimOf, columnOf, departureOf, fuelBill, type AimTarget } from './orders
 import { asPoint } from './forces';
 import { assetOf } from '../../src/domain/nation-assets';
 import { modeOf } from '../../src/domain/season-mode';
-import { courseRefusalOf, fuelAfterCourse, fuelCreditOf } from '../../src/domain/carrier-doctrine';
+import {
+  courseRefusalOf,
+  fuelAfterCourse,
+  fuelCreditOf,
+  type Steered,
+} from '../../src/domain/carrier-doctrine';
 import { distanceProgressAt, positionAt } from '../../src/domain/interception';
 import {
   isQuay,
@@ -34,8 +39,6 @@ import { kmOf } from '../../src/domain/routing';
 import { seenSegment } from '../../src/domain/sighting-segment';
 import { windowAt, windowsOf } from '../../src/domain/sighting-windows';
 import { fuelGaugeOf, fuelRefusalOf, suppliesOf } from '../../src/domain/supplies';
-
-export type Steered = 'march' | 'attack' | 'raid';
 
 /** **Ce qu'une mission accroche à un mouvement** : il garde alors son cap (décision du 04/11). */
 export const onMission = (movement: Doc<'movements'>): boolean =>

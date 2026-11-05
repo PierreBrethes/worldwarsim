@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
@@ -21,6 +21,7 @@ import {
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
+import { STEERED } from '../src/domain/carrier-doctrine';
 import { isNation } from '../src/domain/nations';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { cargoOf, carrierIn } from '../src/domain/troops';
@@ -577,7 +578,7 @@ export const raid = mutation({
   },
 });
 
-const STEERED_TYPE = v.union(v.literal('march'), v.literal('attack'), v.literal('raid'));
+const STEERED_TYPE = v.union(...STEERED.map((type) => v.literal(type)));
 
 /**
  * **Changer de cap** (Doctrine du porte-avions, ADR 0039 §4) : une flotte japonaise en mer, avant
@@ -611,8 +612,13 @@ export const previewCourse = query({
   handler: async (ctx, { token, seasonId, movementId, type, target }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     const now = Date.now();
+    /** Un refus de la règle rend `null` : la pastille l'a dit elle-même (`courseRefusalOf`,
+     *  `courseTargetRefusalOf`, `refusalOf`). Une panne, elle, remonte. */
     const plan = await plotCourse(ctx, player, season, movementId, type, target, now).catch(
-      () => null,
+      (error: unknown) => {
+        if (error instanceof ConvexError) return null;
+        throw error;
+      },
     );
     if (plan === null) return null;
     const { route, minutes, arrivesAt, fuel } = plan;

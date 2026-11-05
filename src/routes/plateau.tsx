@@ -73,7 +73,12 @@ import {
 import { atAirfieldOf, boardPlacesOf, traceCompass } from '@/domain/compass-logistics';
 import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
-import { courseOfArc, courseRefusalOf } from '@/domain/carrier-doctrine';
+import {
+  courseOfArc,
+  courseRefusalOf,
+  nextCourseTurnAt,
+  steersCourse,
+} from '@/domain/carrier-doctrine';
 import { positionAt } from '@/domain/interception';
 import { pilePieces } from '@/domain/pile-pieces';
 import {
@@ -166,7 +171,6 @@ import { RazeContext, razeOf } from './-plateau/RazeButton';
 import {
   useSendOrder,
   useChangeCourse,
-  steersCourse,
   wireOrigin,
   choiceOf,
   groupKeyOf,
@@ -1319,8 +1323,9 @@ function BoardContent({
           if (hand.kind === 'held' && hand.course !== undefined) {
             const movementId = hand.course;
             const chosen = choiceOf(action);
+            /** La même règle que la pastille (`courseTargetRefusalOf`). */
             if (!steersCourse(chosen)) {
-              setOrderError(fr.errors.COURSE_ON_MISSION());
+              setOrderError(fr.errors.COURSE_TARGET_ON_MISSION());
               dropHand();
               return;
             }
@@ -1578,8 +1583,22 @@ function BoardContent({
   const ink = view.me.ink;
   const troops = view.me.troops;
   const asset = view.me.asset;
+  /** **La fiche relit le cap à l'heure du client** (#449) : à la mi-parcours, sans attendre une
+   *  vue neuve, que la Mondiale calme peut faire attendre des heures. */
+  const [courseAt, setCourseAt] = useState(() => Date.now());
+  const courseNow = Math.max(loadedAt, courseAt);
+  const courseTurn = nextCourseTurnAt(arcs, asset, courseNow);
+  useEffect(() => {
+    if (courseTurn === null) return;
+    const timer = setTimeout(() => setCourseAt(Date.now()), Math.max(0, courseTurn - Date.now()));
+    return () => clearTimeout(timer);
+  }, [courseTurn]);
   const labels = useMemo(() => {
-    const built = buildLabels({ arcs, loadedAt, captures, me: { ink, troops, asset } }, markers);
+    const built = buildLabels(
+      { arcs, loadedAt, captures, mode, me: { ink, troops, asset } },
+      markers,
+      courseNow,
+    );
     return mode === 'blitz'
       ? ownerFlags(
           built,
@@ -1590,7 +1609,7 @@ function BoardContent({
           ink,
         )
       : built;
-  }, [arcs, loadedAt, captures, mode, ink, troops, asset, markers, knownRegionById]);
+  }, [arcs, loadedAt, captures, mode, ink, troops, asset, markers, knownRegionById, courseNow]);
 
   /** La pile entière, par n'importe laquelle de ses pièces — ou, `single`, la troupe pressée
    *  longuement (POC du 16/10). La garnison d'un bâtiment ou d'un avant-poste se lève par ses
@@ -1682,7 +1701,8 @@ function BoardContent({
   const takeCourse = useCallback(
     (arcId: string): Hand | null => {
       const arc = view.arcs.find((one) => one.id === arcId);
-      if (arc?.state !== 'mine') return null;
+      /** L'atout est de la Mondiale seule : en Blitz, la flotte ne se saisit pas. */
+      if (arc?.state !== 'mine' || blitz) return null;
       const now = Date.now();
       const course = courseOfArc(arc);
       const refusal = courseRefusalOf(view.me.asset, course, now);
@@ -1708,7 +1728,7 @@ function BoardContent({
       liftHand(next);
       return next;
     },
-    [view.arcs, view.me.asset, clearSelection, liftHand],
+    [view.arcs, view.me.asset, blitz, clearSelection, liftHand],
   );
   const carryPiece = useCallback(
     (from: PieceFrom, single: boolean): boolean => {
@@ -2448,10 +2468,15 @@ function BoardContent({
       ),
     [],
   );
+  const heldCourse = hand.kind === 'held' ? (hand.course ?? null) : null;
+  const courseHand = useMemo(() => {
+    const arc = view.arcs.find((one) => one.id === heldCourse);
+    return arc?.state === 'mine' ? { arc, asset: view.me.asset } : null;
+  }, [view.arcs, view.me.asset, heldCourse]);
   const { preview, dropNotes, dropFuel, aimRoute } = useOrderPreview(seat, column, resting, {
     grouped,
     blitz,
-    course: hand.kind === 'held' ? (hand.course ?? null) : null,
+    course: courseHand,
   });
   previewNow.current =
     resting === null || preview === undefined ? undefined : { choice: resting, preview };

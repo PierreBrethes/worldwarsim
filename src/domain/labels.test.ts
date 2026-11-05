@@ -727,6 +727,16 @@ describe('the course of a fleet at sea', () => {
     expect(texts(mark.lines)).toEqual([fr.course.halfway(until)]);
   });
 
+  it('reads the course at the client’s hour, not at the view’s', () => {
+    const halfway = LOADED_AT + 30 * MINUTE;
+    const [fleet] = buildLabels(japanese([atSea(march(90))]), [], halfway + MINUTE);
+    expect(fleet!.lines).toContainEqual({
+      role: 'alarm',
+      text: fr.course.pastHalfway(asClockTime(halfway)),
+      fold: true,
+    });
+  });
+
   it('says why the course no longer changes past halfway, or once changed', () => {
     const [past] = buildLabels(japanese([atSea(march(10))]), []);
     expect(past!.lines).toContainEqual({

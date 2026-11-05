@@ -2,6 +2,7 @@ import type { MovementType, UnitRole } from './ids';
 import { mediumAt, type MarchingForce } from './interception';
 import type { Asset } from './nation-assets';
 import type { ArcView } from './player-view';
+import type { SeasonMode } from './season-mode';
 import { fuelStepsOf } from './supplies';
 
 /**
@@ -25,7 +26,33 @@ export type Course = {
   readonly force: MarchingForce;
 };
 
-const STEERED: ReadonlyArray<MovementType> = ['march', 'attack', 'raid'];
+/** Ce qui change de cap, et ce qu'on lui donne au lâcher : une marche, une attaque, une
+ *  expédition. */
+export const STEERED = ['march', 'attack', 'raid'] as const;
+export type Steered = (typeof STEERED)[number];
+export const isSteered = (type: MovementType): type is Steered =>
+  (STEERED as ReadonlyArray<MovementType>).includes(type);
+
+/** L'ordre que la flotte reprise reçoit au lâcher, tel que la rose le propose. */
+export type CourseTarget = {
+  readonly type: MovementType;
+  readonly mission: {
+    readonly kind: string;
+    readonly boardsOn?: unknown;
+    readonly roundTrip?: boolean;
+  };
+};
+
+/** **La cible du cap neuf** (décision du 04/11) : ni mission (caisse, pillage, capture), ni
+ *  embarquement, ni aller-retour — la cible en porterait une, le cap reste. */
+export const steersCourse = <T extends CourseTarget>(order: T): order is T & { type: Steered } =>
+  order.mission.kind === 'march' &&
+  order.mission.boardsOn === undefined &&
+  order.mission.roundTrip !== true &&
+  isSteered(order.type);
+
+export const courseTargetRefusalOf = (order: CourseTarget): 'COURSE_TARGET_ON_MISSION' | null =>
+  steersCourse(order) ? null : 'COURSE_TARGET_ON_MISSION';
 
 /** La moitié de la durée du trajet (`departedAt` à `arrivesAt`). */
 export const halfwayOf = ({
@@ -39,7 +66,7 @@ export function courseRefusalOf(
   now: number,
 ): CourseRefusal | null {
   if (asset !== 'carrierDoctrine') return 'NO_CARRIER_DOCTRINE';
-  if (!STEERED.includes(course.type) || course.onMission) return 'COURSE_ON_MISSION';
+  if (!isSteered(course.type) || course.onMission) return 'COURSE_ON_MISSION';
   if (course.courseChangedAt !== null) return 'COURSE_ALREADY_CHANGED';
   /** Retenue à la frontière, la colonne est arrivée : sa mi-parcours est loin derrière. */
   if (course.force.heldAt !== undefined || now >= halfwayOf(course.force)) return 'PAST_HALFWAY';
@@ -92,7 +119,14 @@ export type CourseNote =
   | { readonly kind: 'ashore' }
   | { readonly kind: 'others' };
 
-export function courseNoteOf(asset: Asset | null, arc: MyArc, now: number): CourseNote | null {
+export function courseNoteOf(
+  asset: Asset | null,
+  arc: MyArc,
+  now: number,
+  mode: SeasonMode,
+): CourseNote | null {
+  /** L'atout est de la Mondiale seule : en Blitz, la fiche n'a rien à dire du cap. */
+  if (mode === 'blitz') return null;
   const course = courseOfArc(arc);
   switch (courseRefusalOf(asset, course, now)) {
     case null:
@@ -104,10 +138,26 @@ export function courseNoteOf(asset: Asset | null, arc: MyArc, now: number): Cour
     case 'NOT_AT_SEA':
       return { kind: 'ashore' };
     case 'NO_CARRIER_DOCTRINE':
-      return STEERED.includes(course.type) && mediumAt(course.force, now) === 'sea'
+      return isSteered(course.type) && mediumAt(course.force, now) === 'sea'
         ? { kind: 'others' }
         : null;
     case 'COURSE_ON_MISSION':
       return null;
   }
+}
+
+/** **La prochaine heure où une fiche change d'avis** (#449) : la mi-parcours à venir d'une de mes
+ *  flottes, que le client attend pour relire le cap — `null` sans atout ou sans mi-parcours devant. */
+export function nextCourseTurnAt(
+  arcs: ReadonlyArray<ArcView>,
+  asset: Asset | null,
+  now: number,
+): number | null {
+  if (asset !== 'carrierDoctrine') return null;
+  const turns = arcs.flatMap((arc) => {
+    if (arc.state !== 'mine') return [];
+    const halfway = halfwayOf(courseOfArc(arc).force);
+    return halfway > now ? [halfway] : [];
+  });
+  return turns.length === 0 ? null : Math.min(...turns);
 }

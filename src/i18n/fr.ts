@@ -833,6 +833,8 @@ export const fr = {
     UNKNOWN_MOVEMENT: () => 'mouvement inconnu',
     NO_CARRIER_DOCTRINE: () => 'un mouvement parti ne se reprend pas',
     COURSE_ON_MISSION: () => 'ce mouvement porte une mission : son cap ne change pas',
+    COURSE_TARGET_ON_MISSION: () =>
+      'un cap neuf ne prend pas de mission : marche, attaque ou expédition seulement',
     COURSE_ALREADY_CHANGED: () => 'cap déjà changé : une fois par mouvement',
     PAST_HALFWAY: () => 'mi-parcours passée : le cap ne change plus',
     NOT_AT_SEA: () => 'la doctrine ne vaut qu’en mer',

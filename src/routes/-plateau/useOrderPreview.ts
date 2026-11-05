@@ -11,15 +11,20 @@ import { fr } from '@/i18n/fr';
 import type { DropFuel, DropNote } from '@/map/DropHint';
 import type { Seat } from '@/data/session';
 import {
+  courseOfArc,
+  courseRefusalOf,
+  courseTargetRefusalOf,
   steersCourse,
+} from '@/domain/carrier-doctrine';
+import type { Asset } from '@/domain/nation-assets';
+import type { ArcView } from '@/domain/player-view';
+import {
   wireCaptureTarget,
   wireOrigin,
   wireTarget,
   type OrderChoice,
   type Previewed,
 } from './order-wire';
-
-type Steered = 'march' | 'attack' | 'raid';
 
 /** **Le refus que seul l'aperçu du serveur connaît** (#258) : pas de route, ou plein trop court.
  *  Même fonction que le serveur (`fuelRefusalOf`) ; `null` tant que l'aperçu n'est pas là. */
@@ -93,13 +98,20 @@ export function useOrderPreview(
   seat: Seat,
   column: ArmedColumn | null,
   resting: OrderChoice | null,
-  /** Ce qui fait taire la ligne de distance (#302) : un ordre groupé, une Blitz. `course` : le
-   *  mouvement d'une flotte reprise en mer (#449), que `previewCourse` mesure à la place. */
+  /** Ce qui fait taire la ligne de distance (#302) : un ordre groupé, une Blitz. `course` : la
+   *  flotte reprise en mer (#449), que `previewCourse` mesure à la place. */
   {
     grouped,
     blitz,
     course = null,
-  }: { readonly grouped: boolean; readonly blitz: boolean; readonly course?: string | null },
+  }: {
+    readonly grouped: boolean;
+    readonly blitz: boolean;
+    readonly course?: {
+      readonly arc: Extract<ArcView, { state: 'mine' }>;
+      readonly asset: Asset | null;
+    } | null;
+  },
 ) {
   /**
    * **Un aperçu par mission, et le serveur date toujours seul.** Les trois requêtes coexistent
@@ -118,15 +130,14 @@ export function useOrderPreview(
   const mission = aimed?.mission ?? null;
   /** **Une réponse périmée ne s'affiche jamais** : un argument neuf rend `undefined` jusqu'à sa
    *  propre réponse, et l'abonnement précédent est remplacé, pas empilé (ADR 0026 §6). */
-  const steered =
-    course !== null && aimed !== null && steersCourse(aimed) ? (aimed.type as Steered) : null;
+  const steered = course !== null && aimed !== null && steersCourse(aimed) ? aimed.type : null;
   const coursePreview = useQuery(
     api.movements.previewCourse,
     course === null || aimed === null || steered === null
       ? 'skip'
       : {
           ...seat,
-          movementId: course as Id<'movements'>,
+          movementId: course.arc.id as Id<'movements'>,
           type: steered,
           target: wireTarget(aimed.aim),
         },
@@ -175,25 +186,36 @@ export function useOrderPreview(
             : mission.kind === 'collect'
               ? collectPreview
               : marchPreview;
+  /** **Le refus du cap, dit avant l'aperçu** (#449) : la mi-parcours passée pendant le glisser,
+   *  ou une cible qui donnerait une mission. Relu à chaque arrêt de la main, à l'heure du client. */
+  const courseRefusal = useMemo(() => {
+    if (course === null || resting === null) return null;
+    const refusal =
+      courseRefusalOf(course.asset, courseOfArc(course.arc), Date.now()) ??
+      courseTargetRefusalOf(resting);
+    return refusal === null ? null : fr.errors[refusal]();
+  }, [course, resting]);
   /** No card before the order any more: what would change it is said under the verb, at the stop. */
   const dropNotes = useMemo(
     (): ReadonlyArray<DropNote> =>
-      resting === null || preview === undefined
-        ? []
-        : preview === null
-          ? [{ text: fr.aim.noRoute, alarm: true, refusal: true }]
-          : [
-              ...distanceNotesOf(preview, { grouped, blitz }),
-              { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
-              ...(preview.holdUntil === null
-                ? []
-                : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
-              ...('spared' in preview && typeof preview.spared === 'number'
-                ? [{ text: fr.aim.sparedAtDakar(preview.spared), alarm: false }]
-                : []),
-              ...fuelNotes(preview),
-            ],
-    [resting, preview, grouped, blitz],
+      courseRefusal !== null
+        ? [{ text: courseRefusal, alarm: true, refusal: true }]
+        : resting === null || preview === undefined
+          ? []
+          : preview === null
+            ? [{ text: fr.aim.noRoute, alarm: true, refusal: true }]
+            : [
+                ...distanceNotesOf(preview, { grouped, blitz }),
+                { text: fr.aim.arrival(asLocalTime(preview.arrivesAt)), alarm: false },
+                ...(preview.holdUntil === null
+                  ? []
+                  : [{ text: fr.aim.restBite(asLocalTime(preview.holdUntil)), alarm: true }]),
+                ...('spared' in preview && typeof preview.spared === 'number'
+                  ? [{ text: fr.aim.sparedAtDakar(preview.spared), alarm: false }]
+                  : []),
+                ...fuelNotes(preview),
+              ],
+    [courseRefusal, resting, preview, grouped, blitz],
   );
 
   /** **The server's road, a ribbon under the hand** (POC « Manipuler les pions »): no preview arc

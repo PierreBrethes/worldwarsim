@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  courseNoteOf,
   courseRefusalOf,
+  courseTargetRefusalOf,
+  nextCourseTurnAt,
   fuelAfterCourse,
   fuelCreditOf,
   halfwayOf,
@@ -68,6 +71,49 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
   it('holds a column stopped at the border', () => {
     const held = { ...atSea, force: { ...atSea.force, heldAt: HOUR } };
     expect(courseRefusalOf('carrierDoctrine', held, HOUR)).toBe('PAST_HALFWAY');
+  });
+});
+
+describe('the target a fleet is let go on (#449)', () => {
+  const march = { kind: 'march' } as const;
+  it('takes a march, an attack or a plain raid', () => {
+    for (const type of ['march', 'attack', 'raid'] as const)
+      expect(courseTargetRefusalOf({ type, mission: march })).toBeNull();
+  });
+  it('refuses a target that would give the fleet a mission, a boarding or a round trip', () => {
+    for (const mission of [
+      { kind: 'plunder' },
+      { kind: 'collect' },
+      { kind: 'march', boardsOn: 'tr' },
+      { kind: 'march', roundTrip: true },
+    ])
+      expect(courseTargetRefusalOf({ type: 'march', mission })).toBe('COURSE_TARGET_ON_MISSION');
+    expect(courseTargetRefusalOf({ type: 'outpost', mission: march })).toBe(
+      'COURSE_TARGET_ON_MISSION',
+    );
+  });
+});
+
+describe('the fiche of a fleet at sea', () => {
+  const arc = {
+    state: 'mine',
+    id: 'm',
+    type: 'march',
+    from: [140, 35],
+    to: [150, 30],
+    route: { points: atSea.force.points, legs: atSea.force.legs, distanceUnits: 10 },
+    schedule: { departedAt: 0, arrivesAt: 10 * HOUR, heldAt: null, holdUntil: null },
+  } as unknown as Parameters<typeof courseNoteOf>[1];
+  it('tells another nation at sea in Mondiale that a departed movement stays its course', () => {
+    expect(courseNoteOf(null, arc, HOUR, 'mondiale')).toEqual({ kind: 'others' });
+  });
+  it('says nothing in Blitz, where the doctrine does not exist', () => {
+    expect(courseNoteOf(null, arc, HOUR, 'blitz')).toBeNull();
+  });
+  it('is read again at the next halfway of a Japanese fleet', () => {
+    expect(nextCourseTurnAt([arc], 'carrierDoctrine', HOUR)).toBe(5 * HOUR);
+    expect(nextCourseTurnAt([arc], 'carrierDoctrine', 6 * HOUR)).toBeNull();
+    expect(nextCourseTurnAt([arc], null, HOUR)).toBeNull();
   });
 });
 

@@ -11,6 +11,7 @@ import { borderResolution } from './arc-timing';
 import { courseNoteOf, courseOfArc, halfwayOf, type CourseNote } from './carrier-doctrine';
 import { positionAt } from './interception';
 import type { Asset } from './nation-assets';
+import type { SeasonMode } from './season-mode';
 import { detectionRangeOf, sightingReachKm } from '../../convex/constants';
 import { RESOURCES, type BuildingKey, type DepositKey, type Specialty, type UnitRole } from './ids';
 import type {
@@ -638,21 +639,23 @@ export function ownerFlags(
 
 export function buildLabels(
   view: Pick<PlayerView, 'arcs' | 'loadedAt' | 'captures'> & {
+    readonly mode?: SeasonMode;
     readonly me: Pick<PlayerView['me'], 'ink' | 'troops'> & {
       readonly asset?: Asset | null;
     };
   },
   markers: ReadonlyArray<MapMarker>,
+  /** L'heure du client, où la fiche relit le cap (#449) ; celle de la vue par défaut. */
+  now = view.loadedAt,
 ): ReadonlyArray<MapLabel> {
+  const course = { asset: view.me.asset ?? null, now, mode: view.mode ?? 'mondiale' } as const;
   return [
     ...withCaptures(
       markers.map((marker) => markerLabel(marker, view.loadedAt)),
       view.captures,
     ),
-    ...view.arcs
-      .map((arc) => arcLabel(arc, view.loadedAt, view.me.troops, view.me.asset ?? null))
-      .filter(exists),
-    ...view.arcs.flatMap((arc) => courseMarksOf(arc, view.loadedAt, view.me.asset ?? null)),
+    ...view.arcs.map((arc) => arcLabel(arc, view.loadedAt, view.me.troops, course)).filter(exists),
+    ...view.arcs.flatMap((arc) => courseMarksOf(arc, course)),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
   ];
 }
@@ -1102,11 +1105,11 @@ function arcLabel(
   arc: ArcView,
   loadedAt: number,
   troops: PlayerView['me']['troops'],
-  asset: Asset | null,
+  reading: CourseReading,
 ): MapLabel | null {
   if (arc.state === 'mine') {
     const mission = arc.mission ?? null;
-    const course = courseNoteOf(asset, arc, loadedAt);
+    const course = courseNoteOf(reading.asset, arc, reading.now, reading.mode);
     const patrol = troops.find(
       (troop) => troop.patrol !== undefined && arc.troopIds.includes(troop.id),
     );
@@ -1238,6 +1241,13 @@ function arcLabel(
   };
 }
 
+/** Ce que la fiche lit pour dire le cap : l'atout, l'heure du client, le mode. */
+type CourseReading = {
+  readonly asset: Asset | null;
+  readonly now: number;
+  readonly mode: SeasonMode;
+};
+
 /** **Le cap d'une flotte, sur sa fiche** (maquette A, #449) : libre et comment le reprendre, ou
  *  pourquoi il ne change plus, en encre d'alarme — dit avant le geste. */
 function courseLines(note: CourseNote): ReadonlyArray<LabelLine> {
@@ -1264,9 +1274,9 @@ function courseText(note: CourseNote): ReadonlyArray<LabelLine & { readonly text
 
 /** **Les traits du fil** (maquette A, #449) : la mi-parcours d'un cap que l'atout tient encore ou
  *  vient de tenir, et le coude où le cap a changé. */
-function courseMarksOf(arc: ArcView, loadedAt: number, asset: Asset | null): MapLabel[] {
+function courseMarksOf(arc: ArcView, reading: CourseReading): MapLabel[] {
   if (arc.state !== 'mine') return [];
-  const note = courseNoteOf(asset, arc, loadedAt);
+  const note = courseNoteOf(reading.asset, arc, reading.now, reading.mode);
   const force = courseOfArc(arc).force;
   const mark = (id: string, lonLat: LonLat, text: string): MapLabel => ({
     ...arrivalLabel(arc, '')!,

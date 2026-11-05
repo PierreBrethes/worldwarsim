@@ -116,6 +116,8 @@ export type ErrorCode =
   | 'UNKNOWN_MOVEMENT'
   | 'NO_CARRIER_DOCTRINE'
   | 'COURSE_ON_MISSION'
+  /** Dit par le client seul : la cible lâchée donnerait une mission à la flotte reprise. */
+  | 'COURSE_TARGET_ON_MISSION'
   | 'COURSE_ALREADY_CHANGED'
   | 'PAST_HALFWAY'
   | 'NOT_AT_SEA'

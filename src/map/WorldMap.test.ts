@@ -27,7 +27,12 @@ describe('targetOfLabel', () => {
       reach: null,
       ink: '#000',
     };
-    const view = { arcs: [], captures: [], loadedAt: 0 } as unknown as PlayerView;
+    const view = {
+      arcs: [],
+      captures: [],
+      loadedAt: 0,
+      me: { ink: '#000', troops: [] },
+    } as unknown as PlayerView;
     const labels = buildLabels(view, [marker]);
     expect(labels).toHaveLength(1);
     const label = labels[0]!;
@@ -54,7 +59,12 @@ describe('targetOfLabel', () => {
       hostCountry: 'FRA',
       washed: false,
     };
-    const view = { arcs: [], captures: [], loadedAt: 0 } as unknown as PlayerView;
+    const view = {
+      arcs: [],
+      captures: [],
+      loadedAt: 0,
+      me: { ink: '#000', troops: [] },
+    } as unknown as PlayerView;
     const [label] = buildLabels(view, [marker]);
     expect(label).toMatchObject({ type: 'foreign-outpost', ink: null, station: null });
     expect(label!.lines.map((line) => ('text' in line ? line.text : null))).toEqual([
