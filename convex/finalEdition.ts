@@ -469,8 +469,9 @@ export const read = query({
   },
 });
 
-/** Les éditions finales que l'accueil montre, les plus récentes d'abord. */
-const RECENT = 3;
+/** Les éditions finales que l'accueil lit, les plus récentes d'abord : il en montre trois, et
+ *  les autres font ouvrir l'édition depuis l'article d'une saison encore présente. */
+const RECENT = 24;
 
 /** **Les dernières éditions finales du compte**, même d'une saison détruite : de quoi les nommer. */
 export const recent = query({
