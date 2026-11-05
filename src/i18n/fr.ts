@@ -23,6 +23,7 @@ import {
   sightingReachKm,
 } from '../../convex/constants';
 import { isNation, NATION_BY_ADM0 } from '../domain/nations';
+import { MONDIALE_DURATION_DAYS } from '../domain/operation-order';
 import type { Asset } from '../domain/nation-assets';
 import { LIFT_CAPACITY, LIFT_COST, tierLabel } from '../domain/troops';
 import { levelGain } from '../domain/level-speed';
@@ -1866,6 +1867,17 @@ export const fr = {
     open: 'voir le film d’annonce — 30 s',
     title: 'le film d’annonce',
     unavailable: 'Le film n’est pas disponible pour l’instant.',
+    /** Le film est muet : ces lignes sont ses sous-titres, posés au temps de chaque plan
+     *  (`FILM_SHOTS`, `src/routes/-index/film.ts`). */
+    subtitles: {
+      map: 'La carte du monde réel, en 1940.',
+      night: 'Le soleil passe sur la table.',
+      piece: 'On lève une pièce, on la pose.',
+      order: 'L’ordre part. Il ne revient pas.',
+      seven: 'Sept lieux réels à tenir.',
+      day: 'Vingt-quatre heures pour l’emporter.',
+      edition: 'Et le journal raconte la guerre.',
+    },
   },
 
   /** **La une** (`/` sans session, page publique du 14/10/2026) : une édition qu'on déplie — la
@@ -1883,13 +1895,15 @@ export const fr = {
     dateline: 'le monde en jeu',
     datelineLong: ' — édition de guerre',
     onInvitation: 'sur invitation',
-    film: 'voir le film (30 s)',
+    film: 'voir le film · 30 s',
     unfold: 'dépliez l’édition',
     engraving: 'gravure de la carte…',
     caption:
-      'Notre photographie : la table, ce matin, au-dessus de la Manche. Rien n’y est retouché : c’est le jeu.',
+      'Notre photographie : la table, ce matin, de la Manche à Narvik. Rien n’y est retouché : c’est le jeu.',
+    kicker: 'Huit nations · la carte du monde réel · 1940',
+    posterAlt: 'La table de jeu vue de haut : l’Europe, au jour, de la Manche à la mer du Nord.',
     headline: 'Une soirée ou sept jours pour refaire le monde',
-    lede: 'Huit nations de 1940 sur la carte du monde réel, des ordres qui partent et ne reviennent pas. Deux éditions, une même table.',
+    lede: 'Vos pièces se lèvent et se posent sur la carte du monde réel ; l’ordre part et ne revient pas. Ce que vous savez de l’ennemi, vous l’avez relevé. Et chaque soir, le journal raconte la guerre.',
     editions: [
       {
         kicker: 'L’édition du soir',
@@ -1900,12 +1914,41 @@ export const fr = {
       {
         kicker: 'L’hebdomadaire',
         name: 'Mondiale',
-        meta: '7 jours · 2 à 8 joueurs · le monde',
+        meta: `${Math.min(...MONDIALE_DURATION_DAYS)} à ${Math.max(...MONDIALE_DURATION_DAYS)} jours · 2 à 8 joueurs · le monde`,
         text: 'Deux ou trois visites par jour, sept points à tenir, une presse toutes les trois heures.',
       },
     ],
     haveCode: 'j’ai un code',
     signIn: 'se connecter',
+    enter: 'entrer',
+    /** Les quatre vignettes sous le pli : les gestes d'aujourd'hui, un par vignette. */
+    gestures: {
+      label: 'Les gestes de la table',
+      lift: {
+        title: 'Lever',
+        text: 'Un clic sur une de vos piles la prend en main : elle suit la main.',
+        tag: 'levée · 5 pièces',
+      },
+      place: {
+        title: 'Poser : la rose',
+        text: 'Posée sur un point, la rose dit ce qu’il accepte. Ce qui ne se peut pas est dit, pas grisé : « débarquer — refusé : aucun quai ici ».',
+        petals: ['attaquer ici', 'tenir', 'relever'],
+      },
+      send: {
+        title: 'Envoyer',
+        text: 'L’ordre part avec sa route et son heure d’arrivée. Il ne revient pas.',
+        stamp: 'envoyé — irréversible',
+      },
+      desk: {
+        title: 'Le sous-main',
+        text: 'Au pied de la carte, vos bacs et vos chantiers, pendant que l’ordre roule.',
+        bins: [
+          { key: 'food', amount: '382', note: 'à sec 10 h', dry: true },
+          { key: 'steel', amount: '400', note: 'plein', dry: false },
+          { key: 'coal', amount: '398', note: '−3/h', dry: false },
+        ],
+      },
+    },
     briefs: [
       {
         kicker: 'Le front',
@@ -2136,9 +2179,21 @@ export const fr = {
       codeTitle: 'J’ai un code d’invitation',
       codeHint: 'Six caractères, reçus avec l’invitation.',
       open: 'ouvrir l’invitation',
+      /** Ce que le champ dit avant le geste, jamais un bouton grisé : un code incomplet dit
+       *  combien de caractères lui manquent. */
+      say: {
+        empty: 'Six caractères, reçus avec l’invitation. Un lien reçu ? Il mène droit à la table.',
+        missing: (count: number) =>
+          `Il en manque ${count} : l’invitation ne s’ouvre qu’avec les six.`,
+        ready: (code: string) =>
+          `Ouvre l’invitation ${code} : nation, salon, puis un dossier si vous n’en avez pas.`,
+      },
+      noCode: 'Pas de code ?',
+      found: 'fonder une partie',
+      haveFile: 'j’ai un dossier, entrer',
     },
     footer: 'La Manchette · le monde en jeu, édition de guerre · Fond de carte : Natural Earth',
-    staged: 'Les scènes sont jouées : aucune partie réelle n’y figure.',
+    staged: 'Les plans sont pris dans le jeu ; aucune partie réelle n’y figure.',
     credits: 'crédits',
     /** Le chemin inverse, au pied de la connexion et de l'invitation (`SheetExit`). */
     back: 'retour à la une',

@@ -6,11 +6,17 @@ import { convexClient } from '@/data/convexClient';
 import { AccountForm } from '@/shell/AccountForm';
 import { OffSeasonPage, romanDate } from '@/shell/OffSeason';
 
-export const Route = createFileRoute('/connexion')({ component: SignIn });
+/** `?ouvrir` : « fonder une partie », sur la une, arrive à l'ouverture d'un dossier. */
+export const Route = createFileRoute('/connexion')({
+  component: SignIn,
+  validateSearch: (search: Record<string, unknown>): { ouvrir?: true } =>
+    search.ouvrir === true ? { ouvrir: true } : {},
+});
 
 function SignIn() {
+  const { ouvrir } = Route.useSearch();
   return convexClient ? (
-    <ConnectedSignIn />
+    <ConnectedSignIn opening={ouvrir === true} />
   ) : (
     <Card>{<p className="note">{fr.auth.noBackend}</p>}</Card>
   );
@@ -49,11 +55,12 @@ function Card({ children }: { children: ReactNode }) {
   );
 }
 
-export function ConnectedSignIn() {
+export function ConnectedSignIn({ opening = false }: { opening?: boolean }) {
   const navigate = useNavigate();
   return (
     <Card>
       <AccountForm
+        opening={opening}
         /** La une prend la place du formulaire : le retour du navigateur ne ramène pas un
          *  joueur connecté devant ses deux champs. Le tampon a le temps de tomber. */
         onSignedIn={() =>
