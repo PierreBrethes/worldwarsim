@@ -51,6 +51,7 @@ describe('inkBursts', () => {
       held,
       ...(roman === undefined ? {} : { roman }),
       holdMs: 3400,
+      over: true,
       delayMs: 1600,
     });
 
@@ -76,6 +77,7 @@ describe('inkBursts', () => {
           at: [17.43, 68.44],
           words: { word: 'compte rompu', hour: hour(20) },
           ink: '#2a2118',
+          over: true,
           delayMs: 1600,
         },
       ]);
@@ -106,7 +108,12 @@ describe('inkBursts', () => {
 
     it('stamps « QG pris » for its taker, once', () => {
       expect(inkBursts([fall, twin('captured')], 10, [])).toEqual([
-        { kind: 'captured', at: [12.5, 41.9], words: { word: 'QG pris', hour: hour(20) } },
+        {
+          kind: 'captured',
+          at: [12.5, 41.9],
+          words: { word: 'QG pris', hour: hour(20) },
+          over: true,
+        },
       ]);
     });
 
@@ -117,12 +124,15 @@ describe('inkBursts', () => {
           at: [12.5, 41.9],
           words: { word: 'QG tombé', hour: hour(20) },
           ink: '#2a2118',
+          over: true,
         },
       ]);
     });
 
     it('stamps nothing for the fallen, whose scene it is', () => {
       expect(inkBursts([fall, twin('siteLost')], 10, [])).toEqual([]);
+      // The camps his territory sights as it falls share its hour and its place.
+      expect(inkBursts([fall, twin('campSighted'), twin('siteLost')], 10, [])).toEqual([]);
     });
 
     it('stamps nothing where nobody knows it', () => {

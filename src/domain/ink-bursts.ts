@@ -43,7 +43,8 @@ export type InkBurst = {
   /** **Sa taille**, part de celle d'un cachet seul : la victoire en pose quatre côte à côte. */
   readonly scale?: number;
   /** Pressed just above its point rather than beside it: the absence tour has no piece there to
-   *  keep readable, and a stamp aside reads as the neighbouring country's (#439). */
+   *  keep readable, and a stamp aside reads as the neighbouring country's (#439). A seal of the
+   *  Seven and the fall of a headquarters, as the storyboard has them (#442). */
   readonly over?: true;
   /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
    *  compte-rendu le remplace, et celui-ci ne se pose pas. Sur le coup de ma batterie, le trait
@@ -146,6 +147,7 @@ export function inkBursts(
         at: burst.at,
         words: stamped(fr.stamps.raceBroken, dispatch.at),
         ink: LOSS_INK,
+        over: true,
         delayMs: FLAG_SWAP_MS,
       };
     }),
@@ -233,17 +235,31 @@ export function placedBursts(
         held,
         ...(held === 4 ? { roman: 'IV' } : {}),
         holdMs: SEAL_HOLD_MS,
+        over: true,
       },
     ];
   }
   /** **Un QG tombé, servi avec son lieu** à qui le connaît : son preneur (sa capture l'escorte),
    *  et qui l'avait relevé. Chez l'éliminé, que sa perte escorte, la scène de sa chute le dit. */
   if (dispatch.kind === 'elimination') {
-    const escort = journal.find((other) => twins(dispatch, other));
+    // Not any twin: the camps the fallen's territory sights as it falls share its hour and place.
+    const escort = journal.find(
+      (other) => (other.kind === 'captured' || other.kind === 'siteLost') && twins(dispatch, other),
+    );
     if (escort?.kind === 'siteLost') return [];
-    return escort?.kind === 'captured'
-      ? [{ kind: 'captured', at, words: stamped(fr.stamps.hqTaken, dispatch.at) }]
-      : [{ kind: 'captured', at, words: stamped(fr.stamps.hqFallen, dispatch.at), ink: LOSS_INK }];
+    const words = stamped(
+      escort === undefined ? fr.stamps.hqFallen : fr.stamps.hqTaken,
+      dispatch.at,
+    );
+    return [
+      {
+        kind: 'captured',
+        at,
+        words,
+        ...(escort === undefined ? { ink: LOSS_INK } : {}),
+        over: true,
+      },
+    ];
   }
   if (dispatch.kind === 'airdrop')
     return [{ kind: 'airdropped', at, words: stamped(fr.stamps.airdropped, dispatch.at) }];

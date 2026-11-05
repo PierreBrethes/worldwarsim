@@ -3,7 +3,6 @@ import { asClockTime } from '@/domain/duration';
 import { loadingAt } from '@/domain/loading';
 import { fr } from '@/i18n/fr';
 import { RACE_HOLD_HOURS } from '@/domain/strategic-points';
-import { useState } from 'react';
 import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 
@@ -138,16 +137,15 @@ export function RaceGauge({
   endsAt: number;
   ink: string;
   fading: boolean;
-  /** Parti entre deux vues (`useRaceRings`) : tracé à sa pose, et pas à la suivante. */
+  /** Parti entre deux vues (`useRaceRings`) : tracé tant qu'il l'est, même sous un mât déjà posé. */
   fresh: boolean;
 }) {
   const now = useClock(60_000);
-  const [traced] = useState(fresh);
   const left = Math.max(0, endsAt - now);
   const said = fr.points.raceLeft(left);
   return (
     <div
-      className={`label-line race-gauge${traced ? ' race-gauge--traced' : ''}${fading ? ' race-gauge--fading' : ''}`}
+      className={`label-line race-gauge${fresh ? ' race-gauge--traced' : ''}${fading ? ' race-gauge--fading' : ''}`}
       style={{ color: ink }}
       role="img"
       aria-label={said}
