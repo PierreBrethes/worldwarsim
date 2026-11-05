@@ -51,7 +51,6 @@ describe('inkBursts', () => {
       held,
       ...(roman === undefined ? {} : { roman }),
       holdMs: 3400,
-      over: true,
       delayMs: 1600,
     });
 
@@ -77,7 +76,6 @@ describe('inkBursts', () => {
           at: [17.43, 68.44],
           words: { word: 'compte rompu', hour: hour(20) },
           ink: '#2a2118',
-          over: true,
           delayMs: 1600,
         },
       ]);
