@@ -91,6 +91,11 @@ porte les villes et les grands fleuves (rang ≤ 4), `atlas-near.json` les fleuv
 et le front de 1940. Ce décor est hors de `arcs` et ne change ni région ni arc : la chaîne en
 aval reste identique octet pour octet, et la base n'est pas vidée.
 
+**Précisée le 05/11/2026 (#457).** Une septième source, `ne_10m_geography_marine_polys`, donne
+les mers et les océans : une ligne `seas` dans `atlas.json`, jusqu'à six points par mer avec le
+rayon de l'eau autour, hors de `arcs` comme les villes. `atlas-near.json` ne change pas, la
+chaîne en aval non plus, et la base n'est pas vidée.
+
 ## Contexte
 
 La carte lit deux géographies cuites séparément :
