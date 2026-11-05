@@ -125,6 +125,15 @@ it('ouvre l’invitation au sixième caractère, en capitales', async () => {
   await waitFor(() => expect(router.state.location.pathname).toBe('/rejoindre/K7Q2PX'));
 });
 
+/** Un collage « ·K7Q2PX » porte une espace de tête : un `maxlength` natif la compterait et
+ *  couperait le dernier caractère avant que `accept` ne la retire. Pas de `userEvent` ici : le
+ *  garde est l'attribut absent, que `fireEvent.change` ne peut pas contourner. */
+it('ne borne pas le champ avant le nettoyage du collage', async () => {
+  mount();
+  const field = await screen.findByLabelText(fr.front.bureau.codeTitle);
+  expect(field.hasAttribute('maxlength')).toBe(false);
+});
+
 it('dit « touchez » au doigt et « un clic » à la souris, avec les mots du jeu', async () => {
   mount();
   expect(await screen.findByText(fr.front.gestures.lift.text(false))).toBeTruthy();

@@ -69,7 +69,6 @@ export function Bureau() {
               aria-describedby={HINT_ID}
               value={code}
               onChange={(event) => accept(event.target.value)}
-              maxLength={CODE_LENGTH}
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
