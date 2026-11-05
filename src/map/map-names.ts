@@ -35,14 +35,15 @@ export class NameSheet {
     if (display !== '') this.family = display;
   }
 
-  /** Measured once a name and a font. */
+  /** Measured once a name and a font, once the font has come: a width taken on the fallback
+   *  font would stay wrong. */
   private widthOf(font: string, text: string): number {
     const key = `${font}|${text}`;
     let width = this.widths.get(key);
     if (width === undefined && this.context !== null) {
       this.context.font = `${font} ${this.family}`;
       width = this.context.measureText(text).width;
-      this.widths.set(key, width);
+      if (document.fonts.status === 'loaded') this.widths.set(key, width);
     }
     return width ?? 0;
   }

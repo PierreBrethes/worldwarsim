@@ -17,8 +17,8 @@ const RIVER_INK = '#3f6c8c';
 const RIVER_OPACITY = 0.85;
 /** One width per class of rank, no taper (the maquette tapered them, one segment at a time).
  *  @a-mesurer */
-const MAJOR_PX = 1.6;
-const MINOR_PX = 1;
+const MAJOR_PX = 2.2;
+const MINOR_PX = 1.4;
 /** They come in early, between these distances, then stay full: the continent view shows the
  *  Rhine and the Danube, as on the maquette. @a-mesurer */
 const RIVERS_GONE_DISTANCE = 65;
@@ -111,7 +111,7 @@ export class RiverLayer {
   }
 
   /** Their own ramp, steeper than the regions' borders. */
-  fade(distance: number): number {
+  fade(distance: number): void {
     const share = Math.min(
       1,
       Math.max(
@@ -121,7 +121,6 @@ export class RiverLayer {
     );
     for (const material of this.materials) material.opacity = RIVER_OPACITY * share;
     this.group.visible = share > 0;
-    return share;
   }
 
   resize(width: number, height: number): void {
