@@ -39,7 +39,6 @@ describe('momentOf', () => {
     const moment = momentOf('final', facts());
     expect(moment).toMatchObject({
       kind: 'victory',
-      won: true,
       ink: '#2b6974',
       word: 'Victoire',
       line: 'quatre des Sept, vingt-quatre heures',
@@ -52,7 +51,6 @@ describe('momentOf', () => {
     });
     expect(moment!.kind === 'victory' && moment!.seven).toHaveLength(5);
     expect(momentOf('final', facts({ nation: 'france' }))).toMatchObject({
-      won: false,
       word: 'Saison close',
       line: 'Allemagne prend la saison',
     });
@@ -105,10 +103,15 @@ describe('momentBeatsOf', () => {
     ]);
   });
 
-  it('cuts to the Seven when motion is reduced, and opens at once when it is cut', () => {
+  it('cuts to the Seven when motion is reduced, and opens at once over them when it is cut', () => {
     expect(does(momentBeatsOf(victory, 'reduced'))[0]).toBe('pull@0');
     expect(does(momentBeatsOf(victory, 'reduced')).at(-1)).toBe('open@4400');
-    expect(does(momentBeatsOf(victory, 'off'))).toEqual(['sepia@0', 'open@0']);
+    expect(does(momentBeatsOf(victory, 'off'))).toEqual(['pull@0', 'sepia@0', 'open@0']);
+    const elsewise = { reason: 'hqTaken', winnerNation: 'germany', perMinute: null } as const;
+    expect(does(momentBeatsOf(momentOf('final', facts({ verdict: elsewise }))!, 'off'))).toEqual([
+      'sepia@0',
+      'open@0',
+    ]);
   });
 
   it('lands on the fallen headquarters, stamps it, then opens his sheet', () => {

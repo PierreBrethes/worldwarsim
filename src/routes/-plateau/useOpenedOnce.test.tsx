@@ -17,18 +17,23 @@ const view = (patch: Record<string, unknown>) =>
 describe('useOpenedOnce', () => {
   beforeEach(() => localStorage.clear());
 
-  it('opens once, not at every render nor at the next visit', () => {
+  it('opens once, not at every render nor at the next visit once marked', () => {
     const open = vi.fn();
-    const { rerender, unmount } = renderHook(() => {
-      useOpenedOnce('k', open);
-    });
+    const { result, rerender, unmount } = renderHook(() => useOpenedOnce('k', open));
     rerender();
     expect(open).toHaveBeenCalledTimes(1);
+    result.current();
     unmount();
-    renderHook(() => {
-      useOpenedOnce('k', open);
-    });
+    renderHook(() => useOpenedOnce('k', open));
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  /** Revue de #442 : un rechargement en pleine scène la rejoue, et la feuille avec. */
+  it('opens again at the next visit when it was never marked', () => {
+    const open = vi.fn();
+    renderHook(() => useOpenedOnce('k', open)).unmount();
+    renderHook(() => useOpenedOnce('k', open));
+    expect(open).toHaveBeenCalledTimes(2);
   });
 
   it('waits for an ending', () => {

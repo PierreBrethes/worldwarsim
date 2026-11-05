@@ -47,13 +47,13 @@ import {
 import {
   type ArcView,
   type JournalDispatch,
-  type RaceCountdown,
   type ReplayView,
   type TroopStation,
   type TroopView,
 } from '@/domain/player-view';
 import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
+import type { RaceLead } from '@/domain/race-rings';
 import { bindSpots } from '@/shell/flights';
 import type { ReplayStep } from '@/domain/replay';
 import {
@@ -145,9 +145,9 @@ type Props = {
   columns: ReadonlyMap<string, PilePieces>;
   /** The dispatches the player already receives: the only thing the map is allowed to stamp. */
   journal: ReadonlyArray<JournalDispatch>;
-  /** **Le compte de la course aux Sept**, `null` quand il ne court pas ou que la saison est close :
-   *  tombé entre deux vues, il fait tamponner « compte rompu » (#442). */
-  race?: RaceCountdown | null;
+  /** **Le meneur de la course aux Sept et ses mâts**, `null` quand elle ne court pas ou que la
+   *  saison est close : tombé entre deux vues, il fait tamponner « compte rompu » (#442). */
+  raceLead?: RaceLead | null;
   labels: ReadonlyArray<MapLabel>;
   /** My piles standing at a point, which the board dresses in figurines up close. */
   standing: ReadonlyArray<StandingPile>;
@@ -498,7 +498,7 @@ export function WorldMap({
   troops,
   columns,
   journal,
-  race = null,
+  raceLead = null,
   labels: servedLabels,
   standing: servedStanding,
   camps: servedCamps,
@@ -1992,18 +1992,18 @@ export function WorldMap({
   const inked = useRef<{
     arcs: ReadonlyArray<ArcView>;
     seenAt: number;
-    race: RaceCountdown | null;
+    raceLead: RaceLead | null;
   } | null>(null);
   useEffect(() => {
     const latest = Math.max(0, ...journal.map((dispatch) => dispatch.at));
     const before = inked.current;
-    inked.current = { arcs, seenAt: latest, race };
+    inked.current = { arcs, seenAt: latest, raceLead };
     if (before === null) return;
     const vanished = before.arcs.flatMap((arc) =>
       arc.state === 'mine' && !arcs.some((still) => still.id === arc.id) ? [arc.to] : [],
     );
     const ground = engine.current;
-    const broken = race === null && before.race !== null ? before.race.leaderNation : null;
+    const broken = raceLead === null ? before.raceLead : null;
     for (const burst of inkBursts(
       journal,
       before.seenAt,
@@ -2013,7 +2013,7 @@ export function WorldMap({
       broken,
     ))
       engine.current?.inkBurst(burst);
-  }, [arcs, journal, blitz, race]);
+  }, [arcs, journal, blitz, raceLead]);
 
   useEffect(() => {
     engine.current?.showHeldRegions(held);

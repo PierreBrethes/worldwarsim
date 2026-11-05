@@ -36,6 +36,7 @@ import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { momentOf, type Moment } from '@/domain/moments';
 import { useRaceRings } from './-plateau/useRaceRings';
+import { raceLeadOf } from '@/domain/race-rings';
 import { useHeldRegions } from './-plateau/useHeldRegions';
 import { dropRefusalOf, useOrderPreview, type ChainedFirst } from './-plateau/useOrderPreview';
 import {
@@ -1688,6 +1689,14 @@ function BoardContent({
     view.strategicPoints,
     view.season.outcome.concludedAt !== null,
   );
+  const raceLead = useMemo(
+    () =>
+      raceLeadOf(
+        view.season.outcome.concludedAt === null ? view.season.race : null,
+        view.strategicPoints,
+      ),
+    [view.season.outcome.concludedAt, view.season.race, view.strategicPoints],
+  );
   const ink = view.me.ink;
   const troops = view.me.troops;
   const asset = view.me.asset;
@@ -2345,19 +2354,23 @@ function BoardContent({
   /** **Le grand moment d'une fin** (#442) : la carte le joue, puis la feuille s'ouvre ; sans
    *  moment (Blitz, une fin sans lieu), la feuille s'ouvre tout de suite. */
   const [moment, setMoment] = useState<Moment | null>(null);
-  useOpenedOnce(ending.key === null ? null : `wws-ending-${seat.seasonId}-${ending.key}`, () => {
-    const played = momentOf(ending.key, {
-      mode: view.mode,
-      nation: view.me.nation,
-      eliminatedAt: view.me.eliminatedAt,
-      journal: view.journal,
-      verdict: view.season.verdict,
-      concludedAt: view.season.outcome.concludedAt,
-      strategicPoints: view.strategicPoints,
-    });
-    if (played === null) openWindow('press');
-    else setMoment(played);
-  });
+  const markEnded = useOpenedOnce(
+    ending.key === null ? null : `wws-ending-${seat.seasonId}-${ending.key}`,
+    () => {
+      const played = momentOf(ending.key, {
+        mode: view.mode,
+        nation: view.me.nation,
+        eliminatedAt: view.me.eliminatedAt,
+        journal: view.journal,
+        verdict: view.season.verdict,
+        concludedAt: view.season.outcome.concludedAt,
+        strategicPoints: view.strategicPoints,
+      });
+      if (played !== null) return setMoment(played);
+      markEnded();
+      openWindow('press');
+    },
+  );
 
   /**
    * **Une pile composée, mise en main** — depuis le panneau d'une garnison ou depuis la modale
@@ -2495,11 +2508,12 @@ function BoardContent({
             moment,
             lift: narrow ? sheetLift('peek') : 0,
             onEnd: () => {
+              markEnded();
               setMoment(null);
               openWindow('press');
             },
           },
-    [moment, narrow, openWindow],
+    [moment, narrow, openWindow, markEnded],
   );
 
   const editionServed = useRef(false);
@@ -2895,7 +2909,7 @@ function BoardContent({
                   troops={view.me.troops}
                   columns={columns}
                   journal={view.journal}
-                  race={view.season.outcome.concludedAt === null ? view.season.race : null}
+                  raceLead={raceLead}
                   labels={shownLabels}
                   standing={standing}
                   camps={camps}

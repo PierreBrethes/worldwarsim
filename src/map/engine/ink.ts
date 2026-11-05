@@ -334,7 +334,7 @@ export class InkLayer {
   /** A worded burst is the prototype's stamp; a combat keeps its splash under it, an arrival
    *  wears the stamp alone. */
   burst(
-    { kind, at, words, delayMs: asked = 0, holdMs, over, ink, held, roman }: InkBurst,
+    { kind, at, words, delayMs: asked = 0, holdMs, over, ink, held, roman, scale = 1 }: InkBurst,
     now: number,
   ): void {
     if (!this.enabled || this.motion === 'off') return;
@@ -353,7 +353,7 @@ export class InkLayer {
         holdMs,
         over,
       });
-      if (seal) stamp.mesh.userData.seal = true;
+      if (seal) stamp.mesh.userData.seal = scale;
       const timer = setTimeout(() => {
         this.heard.delete(timer);
         playTableSound('stamp');
@@ -573,7 +573,8 @@ export class InkLayer {
         return false;
       }
       mesh.material.opacity = at.opacity;
-      const size = (mesh.userData.seal === true ? SEAL_PX : WORDED_PX) * unitsPerPixel;
+      const seal = mesh.userData.seal as number | undefined;
+      const size = (seal === undefined ? WORDED_PX : SEAL_PX * seal) * unitsPerPixel;
       mesh.scale.setScalar(at.scale * size);
       const [dx, dz] = stamp.over === true ? WORDED_OVER : WORDED_ASIDE;
       mesh.position.set(stamp.at.x + dx * size, stamp.at.y, stamp.at.z + dz * size);

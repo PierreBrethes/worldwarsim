@@ -98,7 +98,7 @@ describe('RaceGauge', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     const markup = renderToStaticMarkup(
-      <RaceGauge endsAt={left(6 * 60)} ink="#2b6974" fading={false} />,
+      <RaceGauge endsAt={left(6 * 60)} ink="#2b6974" fading={false} fresh={false} />,
     );
     expect(markup).toContain('6 h 00');
     expect(markup).toContain('stroke-dasharray="0.25 1"');
@@ -106,14 +106,14 @@ describe('RaceGauge', () => {
     expect(markup).not.toContain('race-gauge--traced');
   });
 
-  it('is traced when the count has just started, and fades when it falls', () => {
+  it('is traced when the count started under the eyes, and fades when it falls', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     expect(
-      renderToStaticMarkup(<RaceGauge endsAt={left(24 * 60)} ink="#2b6974" fading={false} />),
+      renderToStaticMarkup(<RaceGauge endsAt={left(60)} ink="#2b6974" fading={false} fresh />),
     ).toContain('race-gauge--traced');
-    expect(renderToStaticMarkup(<RaceGauge endsAt={left(60)} ink="#2b6974" fading />)).toContain(
-      'race-gauge--fading',
-    );
+    expect(
+      renderToStaticMarkup(<RaceGauge endsAt={left(60)} ink="#2b6974" fading fresh={false} />),
+    ).toContain('race-gauge--fading');
   });
 });

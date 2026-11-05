@@ -1321,10 +1321,15 @@ export class MapEngine {
   /**
    * **Le recul de la victoire** (#442) : la caméra prend du champ jusqu'à tenir les Sept, en
    * `durationMs` — coupé net hors des actives. Le voyage tient la boucle jusqu'à son arrivée.
+   * Au téléphone, debout, des Sept dispersés passent le plafond ordinaire de l'orbite : il se lève
+   * jusqu'à eux, et le reste — la saison est close, la carte n'a plus qu'à se regarder.
    */
   pullBack(places: ReadonlyArray<LonLat>, durationMs: number, lift = 0): void {
     this.invalidate();
-    this.poseCamera(this.cameraPose(places), durationMs, lift);
+    this.controls.maxDistance = Infinity;
+    const pose = this.cameraPose(places);
+    this.controls.maxDistance = Math.max(DEFAULT_MAX_DISTANCE, pose.distance);
+    this.poseCamera(pose, durationMs, lift);
   }
 
   /** **Le trait de la victoire** (#442) : une ligne d'encre d'un point tenu au suivant, dans

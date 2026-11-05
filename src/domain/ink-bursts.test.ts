@@ -69,7 +69,8 @@ describe('inkBursts', () => {
      *  reprend un point — le tampon noir sur ce point, au lieu de son cachet. */
     it('stamps « compte rompu » in black on the point that broke the leader’s count', () => {
       const retaken = { ...taken(2), point: { key: 'narvik' as const, nation: 'france', held: 2 } };
-      expect(inkBursts([retaken], 10, [], false, () => true, 'germany')).toEqual([
+      const lead = { leaderNation: 'germany', keys: ['narvik', 'baku'] as const };
+      expect(inkBursts([retaken], 10, [], false, () => true, lead)).toEqual([
         {
           kind: 'raceBroken',
           at: [17.43, 68.44],
@@ -79,11 +80,19 @@ describe('inkBursts', () => {
         },
       ]);
       // The leader taking a point himself breaks nothing.
-      expect(inkBursts([taken(3)], 10, [], false, () => true, 'germany')).toEqual([seal(3)]);
+      expect(inkBursts([taken(3)], 10, [], false, () => true, lead)).toEqual([seal(3)]);
+      // Nor a point taken elsewhere as the count fell: only one of the leader's masts broke it.
+      const elsewhere = { leaderNation: 'germany', keys: ['baku'] as const };
+      expect(inkBursts([retaken], 10, [], false, () => true, elsewhere)[0]?.kind).toBe('seal');
     });
 
     it('but not in place of a capture of another hour', () => {
       const other = { ...dispatch(19, 'captured'), place: narvik };
+      expect(inkBursts([taken(3), other], 10, [])).toHaveLength(2);
+    });
+
+    it('nor in place of a capture of the same hour, more than half a degree away', () => {
+      const other = { ...dispatch(20, 'captured'), place: { lon: 18.2, lat: 68.44 } };
       expect(inkBursts([taken(3), other], 10, [])).toHaveLength(2);
     });
   });

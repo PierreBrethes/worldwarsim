@@ -34,6 +34,18 @@ describe('useRaceRings', () => {
     expect(result.current).toBeNull();
   });
 
+  /** Revue de #442 : le tracé se voit en direct, d'après les vues, jamais à l'horloge. */
+  it('is fresh only when the count starts between two views, and for its trace alone', () => {
+    vi.useFakeTimers();
+    const opened = hook({ race, points: four, concluded: false });
+    expect(opened.result.current?.fresh).toBe(false);
+    const { result, rerender } = hook({ race: null, points: four, concluded: false });
+    rerender({ race, points: four, concluded: false });
+    expect(result.current?.fresh).toBe(true);
+    act(() => vi.advanceTimersByTime(3200));
+    expect(result.current?.fresh).toBe(false);
+  });
+
   it('lets them go at once when the season concludes', () => {
     const { result, rerender } = hook({ race, points: four, concluded: false });
     rerender({ race: null, points: four, concluded: true });

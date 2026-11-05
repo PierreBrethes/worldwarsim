@@ -139,12 +139,6 @@ describe('MapLabels', () => {
   });
 });
 
-/**
- * **Les passagers d'un transport, au survol seulement** (#238) : au repos un petit signe dit leur
- * nombre ; la fiche (planches, « tout débarquer ») s'ouvre au survol, à la sélection, au toucher
- * (`label--pointed`) et sous un glisser qui la vise. Les règles sont celles de `labels.css`,
- * chargées ici : jsdom les applique.
- */
 /** **Un des Sept change de mains** (#442) : le drapeau du perdant descend, celui du preneur
  *  monte ; depuis le neutre, il monte seulement. En direct seulement : rien à l'ouverture. */
 describe('the flag on a strategic mast', () => {
@@ -176,6 +170,12 @@ describe('the flag on a strategic mast', () => {
   });
 });
 
+/**
+ * **Les passagers d'un transport, au survol seulement** (#238) : au repos un petit signe dit leur
+ * nombre ; la fiche (planches, « tout débarquer ») s'ouvre au survol, à la sélection, au toucher
+ * (`label--pointed`) et sous un glisser qui la vise. Les règles sont celles de `labels.css`,
+ * chargées ici : jsdom les applique.
+ */
 describe('a loaded transport', () => {
   const tag = (over: Partial<CargoTag> = {}): CargoTag => ({
     carrierId: 'truck',

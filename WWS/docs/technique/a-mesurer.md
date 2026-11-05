@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : e3f533d -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6f69508 -->
 
 # Les constantes à mesurer
 
@@ -110,21 +110,21 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `HEARD_ON_RETURN` | `3` | `src/domain/front-sound.ts:149` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `PHRASE_GAP_MS` | `6_000` | `src/domain/front-sound.ts:150` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
-| `FLAG_SWAP_MS` | `1600` | `src/domain/ink-bursts.ts:62` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
-| `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:63` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
-| `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:66` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |
-| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:69` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
+| `FLAG_SWAP_MS` | `1600` | `src/domain/ink-bursts.ts:65` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
+| `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:66` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
+| `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:69` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |
+| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:72` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
-| `FLY_MS` | `1000` | `src/domain/moments.ts:91` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `FALL_HOLD_MS` | `3200` | `src/domain/moments.ts:92` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `PULL_MS` | `2000` | `src/domain/moments.ts:93` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `SEAL_GAP_MS` | `450` | `src/domain/moments.ts:94` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `TRACE_AFTER_MS` | `1900` | `src/domain/moments.ts:95` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `TRACE_PEN_MS` | `1200` | `src/domain/moments.ts:96` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `BIG_AFTER_MS` | `{ full: 1400, reduced: 300 } as const` | `src/domain/moments.ts:97` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `SEPIA_AFTER_MS` | `600` | `src/domain/moments.ts:98` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `OPEN_AFTER_MS` | `1600` | `src/domain/moments.ts:99` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `FLY_MS` | `1000` | `src/domain/moments.ts:87` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `FALL_HOLD_MS` | `3200` | `src/domain/moments.ts:88` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `PULL_MS` | `2000` | `src/domain/moments.ts:89` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `SEAL_GAP_MS` | `450` | `src/domain/moments.ts:90` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `TRACE_AFTER_MS` | `1900` | `src/domain/moments.ts:91` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `TRACE_PEN_MS` | `1200` | `src/domain/moments.ts:92` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `BIG_AFTER_MS` | `{ full: 1400, reduced: 300 } as const` | `src/domain/moments.ts:93` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `SEPIA_AFTER_MS` | `600` | `src/domain/moments.ts:94` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
+| `OPEN_AFTER_MS` | `1600` | `src/domain/moments.ts:95` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:355` | deux, d'après la décision du 19/10, jamais joué |
 | `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:908` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
 | `MONDIALE_DURATION_DAYS` | `[3, 5, 7, 10, 14] as const` | `src/domain/operation-order.ts:37` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |

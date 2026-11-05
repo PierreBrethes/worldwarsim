@@ -388,6 +388,8 @@ export type LabelLine =
       readonly endsAt: number;
       readonly ink: string;
       readonly fading: boolean;
+      /** Parti sous les yeux du joueur : l'anneau se trace. */
+      readonly fresh: boolean;
     }
   /** **Une capture sur ce site** (14/10) : l'anneau qui se remplit et l'heure de fin — de
    *  victoire chez le capteur, de perte chez le défenseur. */
@@ -694,10 +696,10 @@ function withRaceRings(
   rings: RaceRings | null,
 ): ReadonlyArray<MapLabel> {
   if (rings === null) return labels;
-  const { endsAt, ink, fading } = rings;
+  const { endsAt, ink, fading, fresh } = rings;
   return labels.map((label) =>
     label.strategic !== null && rings.pointIds.includes(label.strategic.id)
-      ? { ...label, lines: [...label.lines, { role: 'race', endsAt, ink, fading }] }
+      ? { ...label, lines: [...label.lines, { role: 'race', endsAt, ink, fading, fresh }] }
       : label,
   );
 }

@@ -80,6 +80,17 @@ describe('absenceTourOf', () => {
     ]);
   });
 
+  it('keeps its own stop for a capture of the same hour, but elsewhere', () => {
+    const journal = [
+      {
+        ...dispatch(20, 'pointTaken', { lon: 17.43, lat: 68.44 }),
+        point: { key: 'narvik', nation: 'germany', held: 4 },
+      },
+      dispatch(20, 'captured', { lon: 18.2, lat: 68.44 }),
+    ] as JournalDispatch[];
+    expect(absenceTourOf(journal, marks(10), open)!.stops).toHaveLength(2);
+  });
+
   it('takes the twelve latest that have a place, and leaves the placeless to the journal', () => {
     const ats = Array.from({ length: 15 }, (_, i) => i + 1);
     const journal = [...journalOf(...ats), dispatch(16, 'research', null)].sort(

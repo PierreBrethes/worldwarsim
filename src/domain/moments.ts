@@ -17,8 +17,6 @@ export type Moment =
   | { readonly kind: 'fall'; readonly at: LonLat; readonly hour: string }
   | {
       readonly kind: 'victory';
-      readonly won: boolean;
-      readonly winnerNation: string | null;
       readonly ink: string;
       readonly hour: string;
       /** Le grand tampon : « Victoire » au vainqueur, « Saison close » aux autres, et sa ligne. */
@@ -57,8 +55,6 @@ export function momentOf(ending: 'final' | 'out' | null, facts: MomentFacts): Mo
   const won = winner !== null && winner === facts.nation;
   return {
     kind: 'victory',
-    won,
-    winnerNation: winner,
     ink: nationInk(winner),
     hour: asClockTime(facts.concludedAt ?? 0),
     word: won ? fr.moments.won : fr.moments.closed,
@@ -100,7 +96,8 @@ const OPEN_AFTER_MS = 1600;
 /** Réduites : la feuille paraît peu après le tampon posé à plat (`qg`, `T_STAMP + 0.4`). */
 const REDUCED_OPEN_MS = 400;
 
-/** **Le minutage d'un moment**, en ms depuis son départ. Coupées : la pose finale et la feuille. */
+/** **Le minutage d'un moment**, en ms depuis son départ. Coupées : la pose finale (les Sept, à
+ *  une victoire aux points) et la feuille. */
 export function momentBeatsOf(moment: Moment, motion: MapMotion): ReadonlyArray<MomentBeat> {
   if (moment.kind === 'fall') {
     if (motion === 'off')
@@ -117,6 +114,7 @@ export function momentBeatsOf(moment: Moment, motion: MapMotion): ReadonlyArray<
   }
   if (motion === 'off')
     return [
+      ...(moment.held === null ? [] : [{ at: 0, does: 'pull' } as const]),
       { at: 0, does: 'sepia' },
       { at: 0, does: 'open' },
     ];
