@@ -41,6 +41,10 @@ import {
   SEASON_MODE,
   LAUNCH_REFUSAL,
   VERDICT,
+  FEAT,
+  FINAL_POINT,
+  HELD_REGION,
+  NATION_PAGE,
   TOUR_WAIT,
 } from './validators';
 
@@ -968,6 +972,12 @@ export default defineSchema({
      *  suivante (`powerReady`) ; un nouveau teneur ne l'hérite pas usé. */
     usedAt: v.optional(v.number()),
     usedBy: v.optional(v.id('players')),
+    /** **Le journal des teneurs** (#443) : chaque prise et chaque retour au neutre, écrit dans
+     *  la même écriture que la main (`handOver`). L'édition finale en tire la bande des Sept et
+     *  l'entrée dans la course. Absent sur un point d'avant le champ. */
+    hands: v.optional(
+      v.array(v.object({ at: v.number(), holderId: v.union(v.id('players'), v.null()) })),
+    ),
   }).index('bySeason', ['seasonId']),
 
   objectives: defineTable({
@@ -1484,4 +1494,32 @@ export default defineSchema({
     .index('bySeason', ['seasonId'])
     .index('byPlayer', ['playerId'])
     .index('byDefender', ['defenderId']),
+
+  /**
+   * **L'édition finale d'une Mondiale, figée à la conclusion** (#443, ADR 0040) : une archive
+   * qui se suffit, hors des tables de jeu — elle survit au « détruire » du fondateur et au wipe
+   * (`ARCHIVE_TABLES`, `convex/dev.ts`). Écrite une fois par le dernier maillon de la chaîne de
+   * clôture (`convex/finalEdition.ts`), jamais réécrite. `seasonId` peut ne plus désigner rien.
+   */
+  finalEditions: defineTable({
+    seasonId: v.id('seasons'),
+    code: v.string(),
+    launchedAt: v.number(),
+    concludedAt: v.number(),
+    durationHours: v.union(v.number(), v.null()),
+    playableRegion: v.string(),
+    verdict: v.object({ ...VERDICT.fields, winnerNation: v.union(v.string(), v.null()) }),
+    /** Dans l'ordre du rang (le territoire). */
+    nations: v.array(NATION_PAGE),
+    points: v.array(FINAL_POINT),
+    moments: v.array(FEAT),
+    regions: v.array(HELD_REGION),
+  }).index('bySeason', ['seasonId']),
+
+  /** **Qui peut relire une édition finale**, par compte : l'accueil lit les dernières. */
+  finalEditionReaders: defineTable({
+    accountId: v.id('accounts'),
+    editionId: v.id('finalEditions'),
+    concludedAt: v.number(),
+  }).index('byAccountAt', ['accountId', 'concludedAt']),
 });

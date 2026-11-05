@@ -635,6 +635,9 @@ export const launch = mutation({
  * in two subtly different states — `winnerId: null` is the whole difference, and it is the
  * honest one: nobody won.
  */
+/** Le télégraphe d'une Mondiale s'efface au plus tard ce délai après la conclusion. @a-mesurer */
+const ERASE_FALLBACK_MS = 30 * 60_000;
+
 export async function concludeSeason(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
@@ -659,7 +662,25 @@ export async function concludeSeason(
     concludedAt: at,
     ...(verdict === undefined ? {} : { verdict }),
   });
-  await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby: false });
+  /**
+   * **Une Mondiale garde son édition finale** (#443) : la chaîne de clôture compte les dépêches,
+   * efface le télégraphe derrière elles et écrit l'archive. Elle tourne après ce `patch`, donc
+   * son échec ne retient pas la conclusion ; le repli efface le télégraphe si elle s'est arrêtée
+   * avant.
+   */
+  if (modeOf((await ctx.db.get(seasonId))?.mode) === 'mondiale') {
+    await ctx.scheduler.runAfter(0, internal.finalEdition.countDispatches, {
+      seasonId,
+      cursor: null,
+      counts: {},
+    });
+    await ctx.scheduler.runAfter(ERASE_FALLBACK_MS, internal.messages.erase, {
+      seasonId,
+      lobby: false,
+    });
+  } else {
+    await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId, lobby: false });
+  }
   for (const entry of await seatsOf(ctx, seasonId)) {
     await notifyPlayer(ctx, entry._id, {
       type: 'season',

@@ -1041,3 +1041,142 @@ export const VERDICT = v.object({
   /** La nation qui a clos à la main. */
   closedBy: v.optional(v.string()),
 });
+
+/**
+ * **L'édition finale d'une Mondiale, figée** (#443, `src/domain/final-edition.ts`) : les formes
+ * de l'archive, et celles que la chaîne de clôture se passe d'un maillon à l'autre.
+ */
+const NATION_OR_IRREGULARS = v.union(v.string(), v.null());
+
+export const FINAL_PASS = v.object({
+  at: v.number(),
+  regionId: v.union(v.string(), v.null()),
+  attacker: NATION_OR_IRREGULARS,
+  defender: NATION_OR_IRREGULARS,
+  winner: COMBAT_SIDE,
+  engaged: v.number(),
+  attackerLost: v.number(),
+  defenderLost: v.number(),
+});
+
+export const PASS_TALLY = v.object({
+  pieces: v.record(v.string(), v.object({ destroyed: v.number(), lost: v.number() })),
+  firstContact: v.union(FINAL_PASS, v.null()),
+  biggest: v.union(FINAL_PASS, v.null()),
+  worst: v.record(v.string(), FINAL_PASS),
+  finest: v.record(v.string(), FINAL_PASS),
+});
+
+/** Ce que le journal d'une place dit de sa fin et de ses avant-postes. */
+export const SEAT_JOURNAL = v.object({
+  surrenderedAt: v.union(v.number(), v.null()),
+  eliminatedBy: v.union(v.string(), v.null()),
+  hqRegionId: v.union(v.string(), v.null()),
+  outpostsCaptured: v.number(),
+  outpostsLost: v.number(),
+});
+
+const NATIONS_OF_FEAT = v.array(v.string());
+
+export const FEAT = v.union(
+  v.object({
+    kind: v.union(v.literal('contact'), v.literal('battle'), v.literal('pass')),
+    at: v.number(),
+    regionId: v.union(v.string(), v.null()),
+    nations: NATIONS_OF_FEAT,
+    forces: v.object({
+      engaged: v.number(),
+      attackerLost: v.number(),
+      defenderLost: v.number(),
+      winner: COMBAT_SIDE,
+    }),
+  }),
+  v.object({
+    kind: v.literal('hqTaken'),
+    at: v.number(),
+    regionId: v.union(v.string(), v.null()),
+    nations: NATIONS_OF_FEAT,
+  }),
+  v.object({
+    kind: v.union(v.literal('pointTaken'), v.literal('race')),
+    at: v.number(),
+    regionId: v.string(),
+    key: STRATEGIC_POINT_KEY,
+    nations: NATIONS_OF_FEAT,
+  }),
+  v.object({
+    kind: v.literal('verdict'),
+    at: v.number(),
+    regionId: v.null(),
+    nations: NATIONS_OF_FEAT,
+  }),
+);
+
+const FIGURES = {
+  territory: v.number(),
+  general: v.number(),
+  industry: v.number(),
+  military: v.number(),
+  deeds: v.number(),
+};
+
+export const NATION_PAGE = v.object({
+  nation: v.string(),
+  nickname: v.string(),
+  /** Le compte qui l'a jouée : la lecture est réservée aux participants. Jamais servi. */
+  accountId: v.optional(v.id('accounts')),
+  rank: v.number(),
+  figures: v.object({
+    ...FIGURES,
+    destroyed: v.number(),
+    lost: v.number(),
+    pointHeldMs: v.number(),
+    /** Les dépêches du canal général, les messages privés jamais (décision du 04/11). */
+    dispatches: v.number(),
+  }),
+  exit: v.union(
+    v.object({
+      kind: v.union(v.literal('eliminated'), v.literal('surrendered')),
+      at: v.union(v.number(), v.null()),
+    }),
+    v.null(),
+  ),
+  gains: v.object({
+    points: v.array(
+      v.object({ key: STRATEGIC_POINT_KEY, at: v.number(), from: v.union(v.string(), v.null()) }),
+    ),
+    hqs: v.array(
+      v.object({ at: v.number(), regionId: v.union(v.string(), v.null()), nation: v.string() }),
+    ),
+    outposts: v.number(),
+  }),
+  losses: v.object({
+    points: v.array(
+      v.object({ key: STRATEGIC_POINT_KEY, at: v.number(), to: v.union(v.string(), v.null()) }),
+    ),
+    hq: v.union(
+      v.object({
+        at: v.number(),
+        regionId: v.union(v.string(), v.null()),
+        by: v.union(v.string(), v.null()),
+      }),
+      v.null(),
+    ),
+    outposts: v.number(),
+    worstPass: v.union(FINAL_PASS, v.null()),
+  }),
+  finest: v.union(FEAT, v.null()),
+  series: v.array(v.object({ at: v.number(), ...FIGURES })),
+});
+
+export const FINAL_POINT = v.object({
+  key: STRATEGIC_POINT_KEY,
+  regionId: v.string(),
+  /** Chaque prise et chaque retour au neutre, dans l'ordre ; neutre au lancement. */
+  hands: v.array(v.object({ at: v.number(), nation: v.union(v.string(), v.null()) })),
+  heldMs: v.array(v.object({ nation: v.string(), ms: v.number() })),
+});
+
+/** **La carte de la fin, en paires** : une recuisson de l'atlas (ADR 0034) ne casse pas une
+ *  archive, et une région inconnue se dessine neutre. Les régions neutres n'y sont pas. */
+export const HELD_REGION = v.object({ regionId: v.string(), nation: v.string() });

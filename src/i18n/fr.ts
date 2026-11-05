@@ -715,6 +715,9 @@ export const fr = {
     SEAT_TAKEN: () => 'vous avez déjà une place dans cette partie — elle est à l’accueil',
     SEASON_GONE: () => 'cette saison n’existe plus',
     SEASON_NOT_LAUNCHED: () => 'la saison n’est pas lancée',
+    SEASON_NOT_CONCLUDED: () => 'l’édition finale paraît à la fin de la saison',
+    UNKNOWN_EDITION: () => 'cette édition finale n’existe pas',
+    NOT_A_PARTICIPANT: () => 'cette édition finale est réservée aux joueurs de la saison',
     SEASON_ALREADY_LAUNCHED: () => 'la saison est déjà lancée',
     SEASON_CONCLUDED: () =>
       'la saison est conclue — on la relit, on n’y joue plus (le fondateur l’efface)',

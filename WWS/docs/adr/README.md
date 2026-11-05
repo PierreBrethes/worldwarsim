@@ -8,7 +8,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 
 | # | Décision | Statut |
 |---|---|---|
-| [0001](0001-saison-longue-asynchrone.md) | Saison longue asynchrone plutôt que parties de 30 min | acceptée, révisée par 0027 (deux modes, durée réglée au salon) |
+| [0001](0001-saison-longue-asynchrone.md) | Saison longue asynchrone plutôt que parties de 30 min | acceptée, révisée par 0027 (deux modes, durée réglée au salon), dérogation de 0040 (l'édition finale survit) |
 | [0002](0002-plan-incline-plutot-que-globe.md) | Plan incliné à faux horizon plutôt que globe | acceptée |
 | [0003](0003-courbure-cpu.md) | Courbure appliquée CPU et non dans le vertex shader | acceptée |
 | [0004](0004-avant-postes-plutot-que-conquete.md) | Avant-postes ponctuels plutôt que conquête de provinces | acceptée, spécialisation révisée par 0037 |
@@ -47,3 +47,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0037](0037-un-avant-poste-qui-stocke-et-guette.md) | Un avant-poste qui stocke et guette, trois spécialisations au niveau 2 | acceptée (01/11) — révise 0004, 0021 §1/§4, 0024 §1, 0028 (§1, relais) ; précise 0019 §4, 0020 §8 ; les rondes en second lot |
 | [0038](0038-le-batiment-est-un-diorama-sur-son-socle.md) | Le bâtiment est un diorama sur son socle | acceptée (01/11) — précise 0035 §8 (socle et cour sans mètres réels) et le rendu de 0026 |
 | [0039](0039-quatre-atouts-qui-cassent-une-regle.md) | Quatre atouts nationaux, qui cassent chacun une règle | acceptée (04/11) — remplace les atouts de la fiche 06 pour la V1 ; Mondiale seule ; seconde brèche au brouillard sur la nation (Prêt-bail) |
+| [0040](0040-l-edition-finale-survit-a-sa-saison.md) | L'édition finale survit à sa saison | acceptée (05/11) — déroge à 0001 pour l'édition finale d'une Mondiale |

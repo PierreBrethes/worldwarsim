@@ -8,7 +8,7 @@ import type { Doc } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { landCostOf } from '../src/domain/movement-orders';
 import { DETECTION_RANGE_KM, nominalStrength, routeMinutes } from './constants';
-import { GAME_TABLES, IDENTITY_TABLES } from './dev';
+import { ARCHIVE_TABLES, GAME_TABLES, IDENTITY_TABLES } from './dev';
 import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
@@ -324,12 +324,16 @@ describe('no table is swept whole', () => {
     expect(sources.length).toBeGreaterThan(10);
   });
 
-  /** `dev.reset` purges disposable games while durable identity survives. Keeping both lists
-   * exhaustive prevents a new table from silently falling on either side of that boundary. */
-  it('classifies every schema table as game or identity state', () => {
+  /** `dev.reset` purges disposable games while durable identity and the archive of the final
+   * editions survive. Keeping the three lists exhaustive prevents a new table from silently
+   * falling on either side of that boundary. */
+  it('classifies every schema table as game, identity or archive state', () => {
     expect(IDENTITY_TABLES).toEqual(['accounts', 'sessions', 'pushSubscriptions', 'authThrottle']);
-    const identity = new Set<string>(IDENTITY_TABLES);
-    expect(GAME_TABLES.filter((table) => identity.has(table))).toEqual([]);
-    expect([...GAME_TABLES, ...IDENTITY_TABLES].sort()).toEqual(Object.keys(schema.tables).sort());
+    expect(ARCHIVE_TABLES).toEqual(['finalEditions', 'finalEditionReaders']);
+    const durable = new Set<string>([...IDENTITY_TABLES, ...ARCHIVE_TABLES]);
+    expect(GAME_TABLES.filter((table) => durable.has(table))).toEqual([]);
+    expect([...GAME_TABLES, ...IDENTITY_TABLES, ...ARCHIVE_TABLES].sort()).toEqual(
+      Object.keys(schema.tables).sort(),
+    );
   });
 });

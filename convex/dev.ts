@@ -76,6 +76,13 @@ export const IDENTITY_TABLES = [
   'authThrottle',
 ] as const;
 
+/**
+ * **The final editions of the Mondiales, frozen per account** (#443, ADR 0040): an archive that
+ * survives both the founder's « détruire » and the reset, like identity — which is why it is
+ * neither of the two lists above.
+ */
+export const ARCHIVE_TABLES = ['finalEditions', 'finalEditionReaders'] as const;
+
 /** Documents per transaction: well under the system-operation cap of a single mutation. */
 const WIPE_BATCH = 200;
 
