@@ -1,4 +1,5 @@
 import type { fr } from '@/i18n/fr';
+import { FRONT_FILM_URLS } from '@/shell/media';
 
 export type SubtitleKey = keyof typeof fr.film.subtitles;
 
@@ -33,12 +34,12 @@ export type FilmCut = 'wide' | 'tall';
 
 export const FILM_CUTS = {
   wide: {
-    video: '/film/accueil-16x9.webm',
+    video: FRONT_FILM_URLS.wide,
     poster: '/film/accueil-affiche-16x9.jpg',
     gestures: '/film/gestes-16x9.jpg',
   },
   tall: {
-    video: '/film/accueil-9x16.webm',
+    video: FRONT_FILM_URLS.tall,
     poster: '/film/accueil-affiche-9x16.jpg',
     gestures: '/film/gestes-9x16.jpg',
   },

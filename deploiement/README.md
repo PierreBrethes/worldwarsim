@@ -346,15 +346,15 @@ orpheline une capitale, un gisement ou une saison en cours.
 Les films ne sont pas dans le dépôt (plan-4b-2026-10-02) : le conteneur `front` monte
 `/opt/worldwarsim-media` (ou `WWS_MEDIA_DIR` dans `.env`) en lecture seule sur `/media/`. Le
 dossier se crée à la main **avant** le premier `up` — sinon Docker le crée vide, au nom de root.
-Trois fichiers, que `/connexion` et `/rejoindre/CODE` chargent (`src/shell/media.ts`) :
+Quatre fichiers (`src/shell/media.ts`) :
 
-- `la-manchette-boucle-8s.mp4` et `la-manchette-boucle-poster.jpg` — le fond des pages d'entrée ;
-- `la-manchette-film-30s-leger.mp4` — le film qu'ouvre le lien « voir le film d'annonce ».
+- `la-manchette-boucle-8s.mp4` et `la-manchette-boucle-poster.jpg` — le fond de `/connexion` et de `/rejoindre/CODE` ;
+- `accueil-16x9.webm` et `accueil-9x16.webm` — le film de la une (`/`), bureau et téléphone : sa boucle muette en photographie, et le film entier qu'ouvre « voir le film ». Absents, la une montre ses affiches (`public/film/`).
 
 ```bash
 scp "Claude outputs/film/la-manchette-boucle-8s.mp4" \
     "Claude outputs/film/la-manchette-boucle-poster.jpg" \
-    "Claude outputs/film/la-manchette-film-30s-leger.mp4" \
+    "Claude outputs/film/accueil-16x9.webm" "Claude outputs/film/accueil-9x16.webm" \
     <vps>:/opt/worldwarsim-media/
 ssh <vps> 'chmod 755 /opt/worldwarsim-media && chmod 644 /opt/worldwarsim-media/*'
 ```
