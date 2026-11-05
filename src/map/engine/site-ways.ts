@@ -138,8 +138,9 @@ export function slipSequence(
   };
 }
 
-/** The share of a take-off spent flying home when its thread is not moored to the runway. */
-const HOMING_SHARE = 0.35; // @a-mesurer
+/** The share of a take-off spent flying home when its thread is not moored to the runway.
+ *  `@a-mesurer` */
+const HOMING_SHARE = 0.35;
 
 /**
  * **A take-off on a flight too short to moor its thread** (#269, Pierre's decision): the plane
