@@ -2750,7 +2750,10 @@ export class MapEngine {
         : { x, y };
     };
     const shown = (city: City) =>
-      tier >= 2 || (city.capital ? tier >= 0 : tier >= 1 && city.population > MILLION);
+      tier >= 2 ||
+      (city.capital
+        ? tier >= 0 && city.population >= SMALL_CAPITAL
+        : tier >= 1 && city.population > MILLION);
     return {
       cities: this.cities.flatMap(({ city, at }) => {
         const point = shown(city) ? onScreen(at, 0) : null;
@@ -4743,11 +4746,13 @@ export class MapEngine {
 
 /**
  * **Les villes selon la distance** (#440) : au-delà de 65 rien ; puis les capitales ; sous 55 les
- * villes de plus d'un million ; sous 34 toutes. Au doigt, un palier de moins. @a-mesurer
+ * villes de plus d'un million ; sous 34 toutes. Au doigt, un palier de moins. Une capitale de
+ * moins de 300 000 habitants (Vaduz, Monaco) attend le palier de toutes. @a-mesurer
  */
 const NAMES_GONE_DISTANCE = REGIONS_GONE_DISTANCE;
 const CITY_TIERS = [55, 34, 0];
 const MILLION = 1_000_000;
+const SMALL_CAPITAL = 300_000;
 
 /** Where the decor's names may go (`nameSpots`), in the layer's pixels. */
 export type NameSpots = {

@@ -6,7 +6,6 @@ import type { Detail, River } from '@/domain/atlas';
 import { riverSpots, type RiverSpot } from '@/domain/place-names';
 import { lineGeometry } from './atlas-geometry';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
-import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from './regions';
 
 /**
  * **Les fleuves à l'encre bleue** (#440, variante A de `carte-lisible`) : deux niveaux comme la
@@ -20,6 +19,10 @@ const RIVER_OPACITY = 0.85;
  *  @a-mesurer */
 const MAJOR_PX = 1.6;
 const MINOR_PX = 1;
+/** They come in early, between these distances, then stay full: the continent view shows the
+ *  Rhine and the Danube, as on the maquette. @a-mesurer */
+const RIVERS_GONE_DISTANCE = 65;
+const RIVERS_FULL_DISTANCE = 55;
 /** Rank 4 and greater are the far level's rivers: the near ones beyond them draw thinner. */
 const MAJOR_RANK = 4;
 const LIFT = 0.002;
@@ -107,13 +110,13 @@ export class RiverLayer {
       level.lines.visible = each === this.shown;
   }
 
-  /** They come in with the regions' borders, on the same ramp (`borders.opacity`). */
+  /** Their own ramp, steeper than the regions' borders. */
   fade(distance: number): number {
     const share = Math.min(
       1,
       Math.max(
         0,
-        (REGIONS_GONE_DISTANCE - distance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
+        (RIVERS_GONE_DISTANCE - distance) / (RIVERS_GONE_DISTANCE - RIVERS_FULL_DISTANCE),
       ),
     );
     for (const material of this.materials) material.opacity = RIVER_OPACITY * share;
