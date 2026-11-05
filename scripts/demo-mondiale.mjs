@@ -103,11 +103,11 @@
  * est lancé ; vingt encore, le chasseur décolle aussi loin que porte son plein (un fil amarré à la
  * piste) et le cargo appareille vers Malte ; vingt encore, le largage arrive et le transport rentre
  * se poser. Lieux `aerodrome` et `port`.
- * `--poste` (#475, #487, avec `--piste-mole`) garnit d'abord l'aérodrome de deux chasseurs de plus,
- *  puis forme deux chasseurs et deux cargos ensemble : l'aire en tient quatre, la rade accueille le
- *  second cargo. Cinq secondes après le transport, le cargo du môle appareille (l'escorte, à couple,
- *  monte au môle) ; vingt secondes plus tard les deux cargos sont lancés ensemble ; vingt encore, un
- *  des chasseurs d'avant décolle de sa place.
+ * `--poste` (#475, #487, avec `--piste-mole`) garnit d'abord l'aérodrome de deux chasseurs de plus.
+ *  Cinq secondes après le transport, le cargo du môle appareille (l'escorte, à couple, monte au
+ *  môle) ; vingt secondes plus tard, deux chasseurs et deux cargos sont formés ensemble (l'aire en
+ *  tient quatre, les deux cargos vont à couple et en rade) ; vingt encore, un chasseur formé
+ *  décolle de sa place.
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
@@ -1767,15 +1767,30 @@ if (runwayScene !== null) {
     }),
   );
   console.log(`Le transport décolle pour un largage à ${new Date().toISOString()}`);
-  await pause(40_000);
-  // `--poste`: the fighters and cargos formed together stay at their posts, and a fighter that
-  // was already on the apron takes off from its place.
+  if (crowded) {
+    // Twenty seconds on, two fighters and two cargos come out together: the apron holds four, the
+    // mole's side and the roads take the hulls.
+    await pause(20_000);
+    for (const [role, buildingId] of [
+      ['fighter', flight.from],
+      ['cargo', launched.from],
+    ])
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, count: 2, lon: 0, lat: 0, buildingId }),
+      ]);
+    console.log(`Deux chasseurs et deux cargos sont formés à ${new Date().toISOString()}`);
+    await pause(20_000);
+  } else await pause(40_000);
+  // `--poste`: the fighters and cargos formed together stay at their posts, and a fighter formed
+  // there takes off from its place, in the lane the two before it left free.
   if (crowded) {
     const { me } = await again(() =>
       client.query(api.view.playerView, { token: tokenA, seasonId }),
     );
     const resting = me.troops.filter(
-      (troop) => troop.role === 'fighter' && launched.known.has(troop.id),
+      (troop) => troop.role === 'fighter' && !launched.known.has(troop.id),
     );
     await march({
       from: flight.from,
@@ -2102,17 +2117,13 @@ async function runwayAndMole() {
       cards: ['transmissions1', 'transmissions2', 'transmissions3'],
     }),
   ]);
-  // `--poste`: two of each, formed together.
-  for (const [building, role] of [
-    [airfield, 'fighter'],
-    [port, 'cargo'],
-    ...(crowded
-      ? [
-          [airfield, 'fighter'],
-          [port, 'cargo'],
-        ]
-      : []),
-  ])
+  // `--poste` forms its pieces later, together (`spawnTroops`, in the page's view): no recruit.
+  for (const [building, role] of crowded
+    ? []
+    : [
+        [airfield, 'fighter'],
+        [port, 'cargo'],
+      ])
     await client.mutation(api.troops.recruit, {
       token: tokenA,
       seasonId,
