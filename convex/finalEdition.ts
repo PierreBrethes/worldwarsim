@@ -34,7 +34,10 @@ import { HELD_REGION, PASS_TALLY, SEAT_JOURNAL } from './validators';
  * journal de chaque place, les passes, la carte, et l'archive.
  */
 
-/** Messages, dépêches et passes par page ; régions par tranche. @a-mesurer */
+/**
+ * Messages, dépêches et passes par page, régions par tranche : chaque maillon loin de la seconde.
+ * @a-mesurer posés à l'œil, sans banc sur une saison de huit joueurs
+ */
 const MESSAGES_PAGE = 2000;
 const NOTICES_PAGE = 2000;
 const PASSES_PAGE = 200;

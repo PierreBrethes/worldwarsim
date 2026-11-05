@@ -635,7 +635,10 @@ export const launch = mutation({
  * in two subtly different states — `winnerId: null` is the whole difference, and it is the
  * honest one: nobody won.
  */
-/** Le télégraphe d'une Mondiale s'efface au plus tard ce délai après la conclusion. @a-mesurer */
+/**
+ * Le télégraphe d'une Mondiale s'efface au plus tard ce délai après la conclusion.
+ * @a-mesurer assez pour que la chaîne de clôture compte les dépêches avant
+ */
 const ERASE_FALLBACK_MS = 30 * 60_000;
 
 export async function concludeSeason(
