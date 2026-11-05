@@ -581,7 +581,7 @@ function Band({ edition, mine, narrow }: { edition: FinalEdition; mine: string; 
   /** Au téléphone la bande se dessine à sa largeur : réduite, son texte ne se lisait plus. */
   const W = narrow ? 358 : 760;
   const LEFT = narrow ? 72 : 86;
-  const RIGHT = narrow ? 58 : 70;
+  const RIGHT = narrow ? 66 : 70;
   const ROW = 21;
   const span = Math.max(1, edition.concludedAt - edition.launchedAt);
   const x = (at: number) => LEFT + ((at - edition.launchedAt) / span) * (W - LEFT - RIGHT);

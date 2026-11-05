@@ -2501,7 +2501,7 @@ export const fr = {
       close: 'Fermer',
       saved: (file: string) => `Enregistrée : ${file}`,
       file: (code: string) => `la-manchette-saison-${code.toLowerCase()}-une.png`,
-      neutralFoot: 'Une partie de La Manchette, le monde en jeu.',
+      neutralFoot: () => `Une partie de ${fr.masthead.title}, le monde en jeu.`,
       mineHead: (nation: string, nickname: string) =>
         `MA SAISON · ${nationLabel(nation).toUpperCase()} · ${nickname.toUpperCase()}`,
       rankingHead: 'LE CLASSEMENT FINAL · PART DU SOL TENUE',

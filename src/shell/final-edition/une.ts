@@ -60,24 +60,40 @@ export async function drawUne(
   c.fillRect(0, 0, W, UNE_HEIGHT);
   c.fillStyle = INK;
   const rule = (y: number, height = 1) => c.fillRect(M, y, W - 2 * M, height);
+  /** Les petites capitales de la maquette sont espacées ; le reste du canvas ne l'est pas. */
+  const spaced = (px: number, draw: () => void) => {
+    c.letterSpacing = `${px}px`;
+    draw();
+    c.letterSpacing = '0px';
+  };
 
   c.font = '600 19px "Archivo Narrow"';
-  c.fillText(
-    `${said.meta(edition.code).toUpperCase()} · ${said.une.players(edition.nations.length)}`,
-    M,
-    78,
-  );
-  c.textAlign = 'right';
-  c.fillText(said.span(edition.launchedAt, edition.concludedAt).toUpperCase(), W - M, 78);
+  spaced(4, () => {
+    c.fillText(
+      `${said.meta(edition.code).toUpperCase()} · ${said.une.players(edition.nations.length)}`,
+      M,
+      78,
+    );
+    c.textAlign = 'right';
+    c.fillText(said.span(edition.launchedAt, edition.concludedAt).toUpperCase(), W - M, 78);
+  });
   rule(94, 3);
-  c.textAlign = 'center';
+  /** Le titre comme à l'écran : l'article petit et penché, le mot en grand. */
+  c.textAlign = 'left';
   c.font = '800 112px "Bodoni Moda"';
-  c.fillText(`${fr.masthead.article} ${fr.masthead.word}`, W / 2, 196);
+  const word = c.measureText(fr.masthead.word).width;
+  c.font = 'italic 500 40px "Bodoni Moda"';
+  const article = c.measureText(`${fr.masthead.article} `).width;
+  const left = W / 2 - (word + article) / 2;
+  c.fillText(fr.masthead.article, left, 168);
+  c.font = '800 112px "Bodoni Moda"';
+  c.fillText(fr.masthead.word, left + article, 196);
+  c.textAlign = 'center';
   rule(222);
   rule(227, 3);
   c.font = '700 22px "Archivo Narrow"';
   c.fillStyle = RED;
-  c.fillText(said.stamp.toUpperCase(), W / 2, 264);
+  spaced(8, () => c.fillText(said.stamp.toUpperCase(), W / 2, 264));
   c.fillStyle = INK;
   const headline = said
     .headline(edition.verdict.reason, edition.verdict.winnerNation)
@@ -149,7 +165,7 @@ export async function drawUne(
   c.textAlign = 'left';
   c.fillStyle = INK;
   c.font = '700 18px "Archivo Narrow"';
-  c.fillText(said.une.rankingHead, M, top - 18);
+  spaced(5, () => c.fillText(said.une.rankingHead, M, top - 18));
   rule(top - 8, 2);
   edition.nations.forEach((page, index) => {
     const x = M + (index < 4 ? 0 : column + 40);
@@ -176,7 +192,7 @@ export async function drawUne(
     if (page.exit !== null) {
       c.fillStyle = RED;
       c.font = '700 14px "Bodoni Moda"';
-      c.fillText(said.outcome[page.exit.kind].toUpperCase(), x + 230, y + 24);
+      spaced(3, () => c.fillText(said.outcome[page.exit!.kind].toUpperCase(), x + 230, y + 24));
     }
     c.fillStyle = INK;
     c.globalAlpha = 0.18;
@@ -191,7 +207,7 @@ export async function drawUne(
     c.fillRect(0, y, W, 102);
     c.fillStyle = tokenOf('--paper');
     c.font = '600 18px "Archivo Narrow"';
-    c.fillText(said.une.mineHead(mine.nation, mine.nickname), M, y + 38);
+    spaced(4, () => c.fillText(said.une.mineHead(mine.nation, mine.nickname), M, y + 38));
     c.font = 'italic 500 29px "Bodoni Moda"';
     c.fillText(
       `${fr.press.ordinal(mine.rank)} · ${said.percent(mine.figures.territory)} · ${finestWords(mine, edition, map)?.title ?? said.finest.none}`,
@@ -203,6 +219,6 @@ export async function drawUne(
     c.font = 'italic 400 22px "Source Serif 4"';
     c.fillStyle = tokenOf('--ink-soft');
     c.textAlign = 'center';
-    c.fillText(said.une.neutralFoot, W / 2, UNE_HEIGHT - 52);
+    c.fillText(said.une.neutralFoot(), W / 2, UNE_HEIGHT - 52);
   }
 }
