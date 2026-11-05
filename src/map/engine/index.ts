@@ -989,7 +989,13 @@ export class MapEngine {
     if (this.sea) this.ambience.add(this.sea);
     this.sea?.shore(this.frame, shore);
     this.surface = board.surface;
-    this.night = new NightSky(this.scene, this.frame, this.sea, board.surface.geometry);
+    this.night = new NightSky(
+      this.scene,
+      this.frame,
+      this.sea,
+      board.surface.geometry,
+      atlas.cities().map(({ lonLat }) => lonLat),
+    );
     this.halos = new Halos();
     this.scene.add(this.halos.object);
     this.theatreFrame = new TheatreFrame(this.scene, board.surface.geometry);
