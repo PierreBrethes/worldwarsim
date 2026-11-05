@@ -12,6 +12,7 @@ import {
   type Track,
 } from './timelines/airfield';
 import type { HullTrack, SeaRole } from './timelines/port';
+import { ease, span } from './timelines/curves';
 import { WALK_MIN_PX } from './timelines/walk';
 
 /** A site's frame on the board (`MaquetteLayer.siteOf`). */
@@ -133,6 +134,31 @@ export function slipSequence(
       for (const k of SHORES)
         pose[`accore_${k}`] = { turn: [0, 0, (k <= 3 ? 1 : -1) * SHORE_FALL * shores(t, k - 1)] };
       return pose as Pose<'port'>;
+    },
+  };
+}
+
+/** The share of a take-off spent flying home when its thread is not moored to the runway. */
+const HOMING_SHARE = 0.35; // @a-mesurer
+
+/**
+ * **A take-off on a flight too short to moor its thread** (#269, Pierre's decision): the plane
+ * still rolls and lifts off its runway, then flies back to its pawn, where the thread leaves from
+ * the pile as before the lot.
+ */
+export function homing(sequence: Sequence): Sequence {
+  const from = sequence.ms * (1 - HOMING_SHARE);
+  return {
+    ...sequence,
+    at(t) {
+      const pose = sequence.at(t);
+      const travel = pose.root?.travel;
+      if (t <= from || travel === undefined) return pose;
+      const keep = 1 - ease.inOut(span(t, from, sequence.ms));
+      return {
+        ...pose,
+        root: { ...pose.root, travel: [travel[0] * keep, travel[1] * keep, travel[2] * keep] },
+      };
     },
   };
 }

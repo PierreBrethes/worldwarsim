@@ -104,6 +104,7 @@ import { troopMetres } from '@/domain/piece-size';
 import { movementRoles } from '@/emblems/units/manifest';
 import {
   airfieldSequence,
+  homing,
   isAirRole,
   isSeaRole,
   slipSequence,
@@ -3486,9 +3487,11 @@ export class MapEngine {
     const from = arc?.route.points[0];
     if (arc === null || start === null || from === undefined) return true;
     const origin = this.frame.projectLonLat(from);
-    // Not moored: its thread leaves from its point, as it always did.
-    if (Math.hypot(start.at.x - origin.x, start.at.z - origin.z) < 1e-6) return true;
+    // Not moored, the flight is too short: its thread leaves from its point, as it always did.
+    const moored = Math.hypot(start.at.x - origin.x, start.at.z - origin.z) >= 1e-6;
     const air = start.medium === 'air';
+    // A hull with no offshore to sail to keeps its berth: only a plane plays whatever the flight.
+    if (!moored && !air) return true;
     const id = this.maquettes.kitSiteAt(air ? 'airfield' : 'port', origin.x, origin.z);
     const site = id === null ? null : this.maquettes.siteOf(id);
     const role = movementRoles(arc)?.[air ? 'air' : 'sea'] ?? null;
@@ -3498,15 +3501,16 @@ export class MapEngine {
     if (rest === null || piece === null) return false;
     const length = troopMetres(role);
     let sequence = null;
-    if (air && isAirRole(role))
-      sequence = trackSequence(
+    if (air && isAirRole(role)) {
+      const way = trackSequence(
         site,
         takeoff(role, { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) }),
         rest,
         role,
         piece.url !== undefined,
       );
-    else if (!air && isSeaRole(role)) {
+      sequence = moored ? way : homing(way);
+    } else if (!air && isSeaRole(role)) {
       const beam = HULL_BEAM_SHARE * length;
       sequence = trackSequence(site, undocking(role, beam, berthOf(role, beam)), rest, role, false);
     }
