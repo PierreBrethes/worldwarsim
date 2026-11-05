@@ -33,8 +33,7 @@ const TEXT_HEIGHT = 14;
 
 type Drawn =
   | { kind: 'city'; x: number; y: number; capital: boolean; name: string; box: ScreenBox }
-  | { kind: 'river'; x: number; y: number; angle: number; name: string; box: ScreenBox }
-  | { kind: 'sea'; lines: string[]; box: ScreenBox };
+  | { kind: 'river'; x: number; y: number; angle: number; name: string; box: ScreenBox };
 
 export class NameSheet {
   private readonly context: CanvasRenderingContext2D | null;
@@ -147,7 +146,7 @@ export class NameSheet {
     );
 
     // The seas after the cities, on a budget of their own, around what the cities took.
-    const seaDrawn: Drawn[][] = [];
+    const seaDrawn: { lines: string[]; box: ScreenBox }[][] = [];
     const seaCandidates: NameCandidate[] = [];
     for (const { name, spots: inside } of spots.seas) {
       const lines = seaLines(name.toUpperCase());
@@ -157,7 +156,7 @@ export class NameSheet {
       const boxes = seaSpots(inside, { width: w, height: lines.length * TEXT_HEIGHT }, field);
       if (boxes.length === 0) continue;
       seaCandidates.push({ anchor: null, spots: boxes });
-      seaDrawn.push(boxes.map((box) => ({ kind: 'sea', lines, box })));
+      seaDrawn.push(boxes.map((box) => ({ lines, box })));
     }
     const seas = placeNames(
       seaCandidates,
@@ -176,7 +175,6 @@ export class NameSheet {
     context.lineWidth = 3;
     for (const { index, spot, point } of chosen) {
       const name = drawn[index]![spot]!;
-      if (name.kind === 'sea') continue;
       if (name.kind === 'city') {
         if (point) dot(context, name.x, name.y, name.capital);
         context.font = `${name.capital ? CAPITAL_FONT : CITY_FONT} ${this.family}`;
@@ -207,9 +205,7 @@ export class NameSheet {
     // Blue on the night's blue would vanish: under the moon the ink climbs to a pale blue.
     context.fillStyle = inkAt(SEA_INK, spots.night);
     for (const { index, spot } of seas) {
-      const name = seaDrawn[index]![spot]!;
-      if (name.kind !== 'sea') continue;
-      const { box, lines } = name;
+      const { box, lines } = seaDrawn[index]![spot]!;
       const x = (box.left + box.right) / 2;
       lines.forEach((line, k) => context.fillText(line, x, box.top + (k + 0.5) * TEXT_HEIGHT));
     }
