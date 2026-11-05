@@ -51,6 +51,8 @@ describe('inkBursts', () => {
       held,
       ...(roman === undefined ? {} : { roman }),
       holdMs: 3400,
+      // Above its point, as the storyboard has it, but where the count runs: its cartouche is there.
+      ...(held < 4 ? { over: true } : {}),
       delayMs: 1600,
     });
 
@@ -76,6 +78,7 @@ describe('inkBursts', () => {
           at: [17.43, 68.44],
           words: { word: 'compte rompu', hour: hour(20) },
           ink: '#2a2118',
+          over: true,
           delayMs: 1600,
         },
       ]);
