@@ -455,7 +455,7 @@ async function shoot(name) {
   const tall = name === 'tall';
 
   // Où l'œil se pose à chaque plan (degrés ; `d` en unités de la carte, 60 = l'Europe entière).
-  const europe = { lon: 9, lat: 50.5, d: tall ? 62 : 44, p: 50 };
+  const europe = { lon: 9, lat: 50.5, d: tall ? 56 : 44, p: tall ? 44 : 50 };
   const pile = [6.17, 49.36]; // la pile française devant Luxembourg
   const drop = [7.0, 50.9]; // un sol vide au nord-est : Cologne
   const around = { lon: 6.6, lat: 50.1, d: tall ? 20 : 14, p: 40 };
@@ -598,7 +598,7 @@ async function shoot(name) {
   at(mapAt, () =>
     front.evaluate(
       ([spec]) => globalThis.__rig.fly(spec, 4200),
-      [{ lon: 3.5, lat: 50.2, d: tall ? 50 : 36, p: 54 }],
+      [{ lon: 3.5, lat: 50.2, d: tall ? 44 : 36, p: tall ? 44 : 54 }],
     ),
   );
 
