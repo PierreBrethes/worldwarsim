@@ -105,9 +105,11 @@ import { movementRoles } from '@/emblems/units/manifest';
 import {
   airfieldSequence,
   arriving,
+  departs,
   homing,
   isAirRole,
   isSeaRole,
+  moors,
   slipSequence,
   spotOf,
   trackSequence,
@@ -251,9 +253,6 @@ export type { ZoneFocus, ZonePoint } from './outpost-zones';
  *  about a pile's reach: a formation's 0.6 for a tank, at a tank's span (ADR 0035). */
 const SHORE_REACH = 0.6 * TANK_SHARE;
 const SHORE_PROBES = 8;
-/** **A flight or a voyage shorter than so many of its offsets** is not moored to its runway or
- *  its offshore (#269, #270): the site's way out would eat it whole. `@a-mesurer` */
-const MOORED_CHORDS = 3;
 const endKey = (at: Vector3): string => `${at.x.toFixed(5)},${at.z.toFixed(5)}`;
 
 /** **A port reads the coast it faces within this many km of its point**, and its normal from the
@@ -1557,16 +1556,11 @@ export class MapEngine {
   /** **The offshore of the port at `at`** (#270), `null` for none, or a way too short to moor
    *  there (`far`, its other end). Its way there is kept for `endOf`. */
   private offshoreOf(at: Vector3, far?: Vector3): Vector3 | null {
-    const port = this.blitz ? null : this.maquettes.kitSiteAt('port', at.x, at.z);
+    const port = this.maquettes.kitSiteAt('port', at.x, at.z);
     const site = port === null ? null : this.maquettes.siteOf(port);
     if (site === null) return null;
     const offshore = site.toBoard(new Vector3(OFFSHORE.x, 0, OFFSHORE.z));
-    if (
-      far !== undefined &&
-      Math.hypot(far.x - at.x, far.z - at.z) <
-        MOORED_CHORDS * Math.hypot(offshore.x - at.x, offshore.z - at.z)
-    )
-      return null;
+    if (!moors(at, offshore, far ?? null, this.blitz)) return null;
     const way = site.toBoard(new Vector3(OFFSHORE.x, 0, OFFSHORE.z + 100)).sub(offshore);
     this.mooredEnds.set(endKey(offshore), [way.x, way.z]);
     return offshore;
@@ -1579,15 +1573,13 @@ export class MapEngine {
    * other end). Its way there is kept for `endOf`.
    */
   private runwayEndOf(which: 'start' | 'end', at: Vector3, far: Vector3): Vector3 | null {
-    if (this.blitz) return null;
     const id = this.maquettes.kitSiteAt('airfield', at.x, at.z);
     const site = id === null ? null : this.maquettes.siteOf(id);
     const axis = this.maquettes.runwayAt(at.x, at.z);
     if (site === null || axis === null) return null;
     const { x, y, z } = which === 'start' ? FIL : APPROACH;
     const end = site.toBoard(new Vector3(x, y, z));
-    const offset = Math.hypot(end.x - at.x, end.z - at.z);
-    if (Math.hypot(far.x - at.x, far.z - at.z) < MOORED_CHORDS * offset) return null;
+    if (!moors(at, end, far, this.blitz)) return null;
     this.mooredEnds.set(endKey(end), which === 'start' ? axis : [-axis[0], -axis[1]]);
     return end;
   }
@@ -3521,8 +3513,7 @@ export class MapEngine {
     // Not moored, the flight is too short: its thread leaves from its point, as it always did.
     const moored = Math.hypot(start.at.x - origin.x, start.at.z - origin.z) >= 1e-6;
     const air = start.medium === 'air';
-    // A hull with no offshore to sail to keeps its berth: only a plane plays whatever the flight.
-    if (!moored && !air) return true;
+    if (!departs(air, moored)) return true;
     const id = this.maquettes.kitSiteAt(air ? 'airfield' : 'port', origin.x, origin.z);
     const site = id === null ? null : this.maquettes.siteOf(id);
     const role = movementRoles(arc)?.[air ? 'air' : 'sea'] ?? null;

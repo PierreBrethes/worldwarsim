@@ -22,10 +22,30 @@ import { AIRFIELD, KITS, MOLE, POSITION_LIGHTS } from '@/emblems/kits/manifest';
 /** **The lamps the night lights** (`warmPieces`): a kit's `feux`, the position lights. */
 export const LAMP = 'feux';
 /** **The runway's edge lights, out** (#269): lit only while a plane moves on it, by the airfield's
- *  copy (`litRunway`). Never merged with a lamp (`bakedSite`). */
+ *  copy (`lightRunway`). Never merged with a lamp (`bakedSite`). */
 export const RUNWAY_LIGHTS = 'feux_piste';
 
 type Load = (url: string) => Promise<Object3D>;
+
+const lit = new Map<string, Material>();
+/**
+ * **The runway's edge lights on, in a copy of its airfield** (#269): its `feux_piste` become lamps
+ * (`LAMP`), which the night lights (`warmPieces`); the airfield standing keeps them out.
+ */
+export function lightRunway(copy: Object3D): void {
+  copy.traverse((node) => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh || (mesh.material as Material).name !== RUNWAY_LIGHTS) return;
+    const out = mesh.material as Material;
+    let lamp = lit.get(out.uuid);
+    if (lamp === undefined) {
+      lamp = out.clone();
+      lamp.name = LAMP;
+      lit.set(out.uuid, lamp);
+    }
+    mesh.material = lamp;
+  });
+}
 
 /** The roles that wear position lights, by their files. */
 const LIT = new Map<string, UnitRole>(

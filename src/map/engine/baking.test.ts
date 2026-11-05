@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  BufferAttribute,
   BufferGeometry,
   Box3,
   Group,
@@ -11,7 +12,7 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { RIG_PARTS } from '@/emblems/rigs';
 import { BUILDING_MAQUETTES, buildingMaquette } from '@/emblems/buildings/manifest';
@@ -47,6 +48,26 @@ describe('bakedSite, as one geometry per material', () => {
     const parts = mergedByMaterial(meshes, new Matrix4());
     expect(parts.map((part) => part.material.name)).toEqual(['paper', 'lisere', 'fond_sombre']);
     expect(parts[0]!.geometry.attributes.position!.count).toBe(2 * 24);
+  });
+
+  it('lays a kit beside a file whose arrays are typed otherwise, each apart, no merge failing', () => {
+    const concrete = new MeshStandardMaterial();
+    const kit = new Mesh(new BoxGeometry(1, 1, 1), concrete);
+    const file = new BoxGeometry(1, 1, 1);
+    const uv = file.attributes.uv!;
+    file.setAttribute(
+      'uv',
+      new BufferAttribute(
+        Uint16Array.from(uv.array, (v) => v * 65535),
+        2,
+        true,
+      ),
+    );
+    const failed = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const parts = mergedByMaterial([kit, new Mesh(file, concrete)], new Matrix4());
+    expect(failed).not.toHaveBeenCalled();
+    failed.mockRestore();
+    expect(parts).toHaveLength(2);
   });
 
   it('bakes a rotated parent too', () => {

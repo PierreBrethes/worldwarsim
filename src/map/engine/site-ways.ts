@@ -189,3 +189,24 @@ export function arriving(sequence: Sequence, from: NonNullable<PartPose['travel'
     },
   };
 }
+
+/** **A flight or a voyage shorter than so many of its offsets** is not moored to its runway or
+ *  its offshore (#269, #270): the site's way out would eat it whole. `@a-mesurer` */
+const MOORED_CHORDS = 3;
+
+type Flat = { readonly x: number; readonly z: number };
+const apart = (a: Flat, b: Flat) => Math.hypot(a.x - b.x, a.z - b.z);
+
+/**
+ * **Whether a thread at a site's point `at` moors at the site's `end`** (its runway's end, its
+ * offshore): never under a theatre, where distances are shares of it (Blitz); not on a way
+ * whose other end `far` is too near; always when nothing says where it goes.
+ */
+export function moors(at: Flat, end: Flat, far: Flat | null, blitz: boolean): boolean {
+  if (blitz) return false;
+  return far === null || apart(far, at) >= MOORED_CHORDS * apart(end, at);
+}
+
+/** **Whether a departure plays** (#269, #270): a hull with no offshore to sail to keeps its berth,
+ *  a plane takes off whatever its flight. */
+export const departs = (air: boolean, moored: boolean): boolean => air || moored;
