@@ -162,7 +162,9 @@
   font: 600 10.5px/1 var(--font-body) !important;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  border-bottom: 1px solid var(--ink) !important;
+  /* souligné au texte, pas au bord : au toucher, le bouton grandit à sa cible de doigt */
+  text-decoration: underline;
+  text-underline-offset: 4px;
   padding: 2px 0 !important;
 }
 .fe-mast {
@@ -259,12 +261,13 @@
   border: 1px solid var(--ink);
   background: #cfdbd2;
   overflow: hidden;
-  height: 440px;
 }
+/* la carte prend la forme de son cadre : une hauteur fixe la laissait flotter dans une colonne étroite */
 .fe-map svg {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: 520px;
 }
 .fe-map-label {
   font-family: var(--font-body);
@@ -713,9 +716,6 @@
 .fe.phone .fe-cols .center {
   order: -1;
 }
-.fe.phone .fe-map {
-  height: 220px;
-}
 .fe.phone .fe-sept {
   grid-template-columns: repeat(4, 1fr);
 }
@@ -755,9 +755,18 @@
   flex-wrap: wrap;
   gap: 4px 8px;
 }
+.fe.phone .fe-pin .fe-link {
+  margin-left: auto;
+  white-space: nowrap;
+}
 .fe.phone .fe-pin p {
   flex-basis: 100%;
   font-size: 12.5px;
+}
+/* repliée, la bande tient sur une ligne même dans la fenêtre du plateau, plus étroite que l'écran */
+.fe.phone .fe-pin.closed {
+  flex-wrap: nowrap;
+  gap: 6px;
 }
 .fe.phone .fe-pin.closed p {
   display: none;
