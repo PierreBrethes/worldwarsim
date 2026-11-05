@@ -2603,6 +2603,12 @@ export const fr = {
     shelled: 'bombardé',
     /** Un site qui change de main, chez ses deux tenants (14/10). */
     captured: 'capturé',
+    /** **Un QG pris** (#442) : chez son preneur, au lieu de « capturé » ; chez l'éliminé et qui
+     *  l'avait relevé, en noir. */
+    hqTaken: 'QG pris',
+    hqFallen: 'QG tombé',
+    /** **La course aux Sept** (#442) : le meneur a perdu un de ses quatre, en noir sur ce point. */
+    raceBroken: 'compte rompu',
     /** Un chantier à moi qui s'achève sous les yeux du joueur : l'échafaudage tombe, le tampon. */
     finished: 'achevé',
     /** En tête du journal quand la saison est prise : elle se relit, elle ne se joue plus. */

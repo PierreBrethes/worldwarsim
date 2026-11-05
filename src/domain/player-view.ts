@@ -1123,6 +1123,8 @@ type NoticeBody =
       readonly at: number;
       readonly key: StrategicPointKey;
       readonly nation: string;
+      /** Les points que le preneur tient après la prise (#442) ; absent des dépêches d'avant. */
+      readonly held?: number;
       /** Hong Kong : la copie de son teneur seul, avec le détenteur d'avant (absent : neutre). */
       readonly hongKong?: true;
       readonly from?: string;
@@ -1298,6 +1300,13 @@ export type JournalDispatch = {
     readonly text: string;
     readonly reread: string;
     readonly troopIds: ReadonlyArray<string>;
+  };
+  /** **Un des Sept a changé de mains** (#442) : lequel, à qui, et combien il en tient — le cachet
+   *  des Sept. Absent de toute autre dépêche, et d'une prise d'avant le compte. */
+  readonly point?: {
+    readonly key: StrategicPointKey;
+    readonly nation: string;
+    readonly held: number;
   };
 };
 

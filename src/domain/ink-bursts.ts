@@ -2,6 +2,7 @@ import { fr } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
+import { nationInk } from './nations';
 import type { JournalDispatch } from './player-view';
 
 /** What a stamp says: a word and the hour, the prototype's `★ 14:32 ★`. */
@@ -23,12 +24,19 @@ export type InkBurst = {
     | 'airdropped'
     | 'delivered'
     /** Any other dispatch the absence tour stamps, with its word of the journal's margin (#439). */
-    | 'dispatch';
+    | 'dispatch'
+    /** **Le cachet des Sept** (#442) : rond, le nom du point en arc, l'heure, sept pastilles. */
+    | 'seal';
   readonly at: LonLat;
   readonly words?: StampWords;
   readonly delayMs?: number;
   /** How long it is held before it lifts, 3 s unless said (`stampAt`). */
   readonly holdMs?: number;
+  /** Its ink, the stamp's red unless said: a seal wears its taker's, a loss is black (#442). */
+  readonly ink?: string;
+  /** **Le cachet** : combien de pastilles sont pleines, et « IV » au quatrième seul. */
+  readonly held?: number;
+  readonly roman?: string;
   /** Pressed just above its point rather than beside it: the absence tour has no piece there to
    *  keep readable, and a stamp aside reads as the neighbouring country's (#439). */
   readonly over?: true;
@@ -46,6 +54,16 @@ const HOLD_MS = 3000;
 const PEAK = 0.88;
 const LIFT_PER_MS = 0.0015;
 export const STAMP_MS = HOLD_MS + PEAK / LIFT_PER_MS;
+
+/** @a-mesurer : `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis
+ *  l'autre monte (0,8 s + 0,8 s), le cachet se pose ensuite et tient 3,4 s. */
+export const FLAG_SWAP_MS = 1600;
+const SEAL_HOLD_MS = 3400;
+/** L'encre noire d'une perte : « QG tombé », « compte rompu » (`.stamp.lost` des storyboards). */
+export const LOSS_INK = '#2a2118';
+/** @a-mesurer : la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant
+ *  et à ce près : le point de la capture est celui où l'infanterie s'est arrêtée. */
+const TWIN_DEGREES = 0.5;
 
 /** @a-mesurer : un geste lève tout en 0,25 s (#439, la maquette « la tournée »). */
 export const TAKEN_UP_MS = 250;
@@ -104,8 +122,33 @@ export function inkBursts(
   const arrivals = paired
     ? vanishedEnds.map((at): InkBurst => ({ kind: 'arrival', at, words }))
     : [];
-  return [...combats, ...arrivals, ...fresh.flatMap(placedBursts)];
+  // The seal waits for the flag to change on its mast (`FLAG_SWAP_MS`).
+  const placed = fresh
+    .flatMap((dispatch) => placedBursts(dispatch, fresh))
+    .map((burst) => (burst.kind === 'seal' ? { ...burst, delayMs: FLAG_SWAP_MS } : burst));
+  return [...combats, ...arrivals, ...placed];
 }
+
+const twins = (a: JournalDispatch, b: JournalDispatch): boolean =>
+  a !== b &&
+  a.at === b.at &&
+  a.place !== null &&
+  b.place !== null &&
+  Math.abs(a.place.lon - b.place.lon) <= TWIN_DEGREES &&
+  Math.abs(a.place.lat - b.place.lat) <= TWIN_DEGREES;
+
+/** **Ce qu'une prise des Sept ou la chute d'un QG dit mieux que « capturé »** (#442). */
+const saysMore = (dispatch: JournalDispatch): boolean =>
+  (dispatch.kind === 'pointTaken' && dispatch.point !== undefined) ||
+  (dispatch.kind === 'elimination' && dispatch.place !== null);
+
+/** **La capture qu'une prise des Sept ou la chute d'un QG remplace** : même instant, même lieu. */
+export const twinnedCapture = (
+  dispatch: JournalDispatch,
+  journal: ReadonlyArray<JournalDispatch>,
+): boolean =>
+  (dispatch.kind === 'captured' || dispatch.kind === 'siteLost') &&
+  journal.some((other) => saysMore(other) && twins(dispatch, other));
 
 /** A combat's stamps: « engagé » (or « bombardé »), then what the ground says when it was held. */
 export function combatBursts(
@@ -145,11 +188,39 @@ export function combatBursts(
  * **Un paquet est descendu** (ADR 0028 §4) : le parachute et le tampon. Chacun à la place que
  * sa dépêche porte.
  */
-export function placedBursts(dispatch: JournalDispatch): InkBurst[] {
+export function placedBursts(
+  dispatch: JournalDispatch,
+  /** Ce qui est arrivé avec elle : une capture que la prise d'un point dit déjà se tait. */
+  journal: ReadonlyArray<JournalDispatch> = [],
+): InkBurst[] {
   if (dispatch.place === null) return [];
   const at: LonLat = [dispatch.place.lon, dispatch.place.lat];
+  if (twinnedCapture(dispatch, journal)) return [];
   if (dispatch.kind === 'captured' || dispatch.kind === 'siteLost')
     return [{ kind: 'captured', at, words: stamped(fr.stamps.captured, dispatch.at) }];
+  if (dispatch.kind === 'pointTaken' && dispatch.point !== undefined) {
+    const { key, nation, held } = dispatch.point;
+    return [
+      {
+        kind: 'seal',
+        at,
+        words: stamped(fr.points.names[key], dispatch.at),
+        ink: nationInk(nation),
+        held,
+        ...(held === 4 ? { roman: 'IV' } : {}),
+        holdMs: SEAL_HOLD_MS,
+      },
+    ];
+  }
+  /** **Un QG tombé, servi avec son lieu** à qui le connaît : son preneur (sa capture l'escorte),
+   *  et qui l'avait relevé. Chez l'éliminé, que sa perte escorte, la scène de sa chute le dit. */
+  if (dispatch.kind === 'elimination') {
+    const escort = journal.find((other) => twins(dispatch, other));
+    if (escort?.kind === 'siteLost') return [];
+    return escort?.kind === 'captured'
+      ? [{ kind: 'captured', at, words: stamped(fr.stamps.hqTaken, dispatch.at) }]
+      : [{ kind: 'captured', at, words: stamped(fr.stamps.hqFallen, dispatch.at), ink: LOSS_INK }];
+  }
   if (dispatch.kind === 'airdrop')
     return [{ kind: 'airdropped', at, words: stamped(fr.stamps.airdropped, dispatch.at) }];
   return [];

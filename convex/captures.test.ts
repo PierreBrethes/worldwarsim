@@ -993,36 +993,39 @@ describe('a Mondiale headquarters', () => {
     ['who had surveyed it', 'hq', true],
     ['who surveyed its region without it', 'other', false],
     ['who never surveyed it', 'none', false],
-  ] as const)('places its fall for the fallen, the taker, and a third %s', async (_, seen, told) => {
-    const t = boot();
-    const { seat, guest, third } = await threeAtTable(t);
-    const hq = await headquartersOf(t, guest);
-    if (seen === 'hq') await surveyRegion(t, third, hq.regionId);
-    if (seen === 'other')
-      await t.run(async (ctx) =>
-        ctx.db.insert('regionSightings', {
-          playerId: (await seatIn(ctx, third))._id,
-          regionId: hq.regionId,
-          ownerId: null,
-          seenAt: Date.now(),
-          installations: [],
-          hasInstallations: false,
-        }),
-      );
+  ] as const)(
+    'places its fall for the fallen, the taker, and a third %s',
+    async (_, seen, told) => {
+      const t = boot();
+      const { seat, guest, third } = await threeAtTable(t);
+      const hq = await headquartersOf(t, guest);
+      if (seen === 'hq') await surveyRegion(t, third, hq.regionId);
+      if (seen === 'other')
+        await t.run(async (ctx) =>
+          ctx.db.insert('regionSightings', {
+            playerId: (await seatIn(ctx, third))._id,
+            regionId: hq.regionId,
+            ownerId: null,
+            seenAt: Date.now(),
+            installations: [],
+            hasInstallations: false,
+          }),
+        );
 
-    await take(t, seat, hq);
-    await finish(t);
+      await take(t, seat, hq);
+      await finish(t);
 
-    const place = { lon: hq.point.lon, lat: hq.point.lat };
-    for (const who of [seat, guest])
-      expect(await noticesOf(t, who, 'playerEliminated')).toMatchObject([
-        { nation: 'ussr', by: 'france', point: place },
-      ]);
-    const [aside] = await noticesOf(t, third, 'playerEliminated');
-    expect(aside).not.toHaveProperty('by');
-    if (told) expect(aside).toMatchObject({ point: place });
-    else expect(aside).not.toHaveProperty('point');
-  });
+      const place = { lon: hq.point.lon, lat: hq.point.lat };
+      for (const who of [seat, guest])
+        expect(await noticesOf(t, who, 'playerEliminated')).toMatchObject([
+          { nation: 'ussr', by: 'france', point: place },
+        ]);
+      const [aside] = await noticesOf(t, third, 'playerEliminated');
+      expect(aside).not.toHaveProperty('by');
+      if (told) expect(aside).toMatchObject({ point: place });
+      else expect(aside).not.toHaveProperty('point');
+    },
+  );
 
   /** **Une colonne à Malte est à terre** (#224) : elle s'arrête où elle est, au siège irrégulier,
    *  au lieu de sombrer comme au large — la grille de 25 km n'y voit que la mer. */

@@ -54,6 +54,32 @@ describe('absenceTourOf', () => {
     expect(tour).toMatchObject({ fresh: 3, leftOut: 1, since: 10 });
   });
 
+  /** **Le cachet des Sept au rejeu** (#442), un seul arrêt pour la prise : son « capturé » se tait. */
+  it('presses the seal of the Seven, at one stop for the point and its capture', () => {
+    const narvik = { lon: 17.43, lat: 68.44 };
+    const journal = [
+      {
+        ...dispatch(20, 'pointTaken', narvik),
+        point: { key: 'narvik', nation: 'germany', held: 4 },
+      },
+      dispatch(20, 'captured', narvik),
+    ] as JournalDispatch[];
+    const tour = absenceTourOf(journal, marks(10), open)!;
+    expect(tour.stops).toHaveLength(1);
+    expect(tour.stops[0]!.stamps).toEqual([
+      {
+        kind: 'seal',
+        at: [17.43, 68.44],
+        words: { word: 'Narvik', hour: hour(20) },
+        ink: '#2b6974',
+        held: 4,
+        roman: 'IV',
+        holdMs: TOUR_HOLD_MS,
+        over: true,
+      },
+    ]);
+  });
+
   it('takes the twelve latest that have a place, and leaves the placeless to the journal', () => {
     const ats = Array.from({ length: 15 }, (_, i) => i + 1);
     const journal = [...journalOf(...ats), dispatch(16, 'research', null)].sort(
