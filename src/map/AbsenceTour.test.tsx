@@ -87,7 +87,7 @@ describe('useAbsenceTour', () => {
     const { result, onSeen } = play(engine);
     act(() => void vi.advanceTimersByTime(1400));
     expect(result.current.band).toEqual({ kind: 'stop', index: 0 });
-    expect(engine.poseCamera).toHaveBeenLastCalledWith({ ...START, target: [1, 0, 0] }, 700, 0);
+    expect(engine.poseCamera).toHaveBeenLastCalledWith({ ...START, target: [1, 0, 0] }, 700, 0, 80);
     act(() => void vi.advanceTimersByTime(700));
     expect(engine.inkBurst).toHaveBeenCalledWith(tour.stops[0]!.stamps[0]);
     act(() => void vi.advanceTimersByTime(3000));
@@ -148,6 +148,10 @@ describe('what stops the tour', () => {
     '  pressOnLabel(',
   ])('%s tells the hand on the board', (from) => {
     expect(body(from)).toMatch(/this\.onHandOnBoard\?\.\(\);/);
+  });
+
+  it('leaves the camera where Escape found it', () => {
+    expect(body('private onKeyDown = ')).toMatch(/'Escape'\) this\.journey = null;/);
   });
 
   it('stops for a combat the map plays', () => {

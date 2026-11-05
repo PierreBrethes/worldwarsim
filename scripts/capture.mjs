@@ -23,6 +23,8 @@
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
+ * `--compris ms` borne l'attente de la notice « Entrée en campagne » (8 s par défaut) : un état
+ * qui part à l'ouverture (le rejeu d'absence, #439) se capture dès le chargement.
  * `--horloge` tient l'heure du jeu (`Date.now`) à cet instant ISO ; `horloge=ISO[,ms]` la déplace en
  * cours de route et capture `ms` après : le milieu d'un fondu d'une demi-seconde.
  * `--heure` tient le soleil à cet instant ISO (avec Z ; midi UTC sans l'option) : il s'ajoute à l'URL
@@ -55,6 +57,7 @@ const flags = new Set([
   '--geste',
   '--heure',
   '--horloge',
+  '--compris',
 ]);
 /** `--tactile` : un écran tactile, pour les gestes du doigt (`toucher=x,y`, la rose s'ouvre au toucher). */
 const touch = args.includes('--tactile');
@@ -128,7 +131,7 @@ try {
   /** La notice « Entrée en campagne » couvre le plateau d'une place neuve : on la tamponne. */
   const understood = page.getByRole('button', { name: /compris/i }).first();
   if (
-    await understood.waitFor({ timeout: 8000 }).then(
+    await understood.waitFor({ timeout: Number(option('compris', 8000)) }).then(
       () => true,
       () => false,
     )

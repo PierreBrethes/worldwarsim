@@ -10,7 +10,7 @@ import { asDatedClock } from '@/domain/duration';
 import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { fr } from '@/i18n/fr';
-import { useBoardInsets, useNarrowScreen } from '@/shell/viewport';
+import { MAT_LIFT, useBoardInsets, useNarrowScreen } from '@/shell/viewport';
 import type { CameraPose, MapEngine } from './engine';
 
 /** What the band says: the intro, a stop, the end, or the gesture that stopped it. */
@@ -22,6 +22,9 @@ export type TourBand =
 
 /** @a-mesurer : le temps que la bande « Rejeu arrêté » reste lue. */
 const STOPPED_BAND_MS = 2200;
+/** @a-mesurer : le lieu se pose à gauche du centre, son tampon à droite (`WORDED_ASIDE`) : au
+ *  téléphone, centré, le tampon sortait de l'écran. */
+const STAMP_ASIDE_PX = 80;
 
 /**
  * **Le rejeu d'absence, joué sur la carte** (#439). Il part une fois, quand la carte se voit
@@ -95,7 +98,12 @@ export function useAbsenceTour(
       else if (does === 'fly') {
         setBand({ kind: 'stop', index });
         if (motion === 'full')
-          engine.poseCamera(engine.cameraPose([stop.at], from().distance), FLY_MS, lift);
+          engine.poseCamera(
+            engine.cameraPose([stop.at], from().distance),
+            FLY_MS,
+            lift,
+            STAMP_ASIDE_PX,
+          );
         else engine.poseCamera(wide(), 0, lift);
       } else if (does === 'stamp') for (const burst of stop.stamps) engine.inkBurst(burst);
       else if (does === 'return') {
@@ -145,42 +153,48 @@ export function AbsenceTourBand({ tour, band }: { tour: AbsenceTour; band: TourB
           ? [said.endEyebrow, said.end(tour.leftOut)]
           : [said.stoppedEyebrow, said.stopped(tour.fresh)];
   const stop = band.kind === 'stop' ? tour.stops[band.index]! : null;
+  /** Placé hors du `.hud`, qui porte un `zoom` : sa position serait zoomée avec lui. Au bureau,
+   *  au-dessus du plateau personnel (`MAT_LIFT`), comme l'aide des gestes. */
   return (
     <div
-      role="status"
-      data-absence-tour={band.kind}
-      className="hud paper-grain float pointer-events-none absolute z-[var(--z-band)] overflow-hidden border border-l-[4px] border-[var(--ink)] px-[14px] pt-[8px] pb-[10px] font-(family-name:--font-body) text-[var(--ink)]"
+      className="pointer-events-none absolute z-[var(--z-band)]"
       style={
         narrow
           ? { top: insets.top + 6, left: 6, right: 6 }
           : {
-              bottom: 24,
+              bottom: `calc(16px + ${MAT_LIFT})`,
               left: `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`,
               transform: 'translateX(-50%)',
               width: `min(560px, calc(100% - ${insets.left + insets.right + 48}px))`,
             }
       }
     >
-      <b className="eyebrow block">{eyebrow}</b>
-      <p className="mt-[4px] text-[13px] leading-[1.38]">
-        {stop === null ? (
-          line
-        ) : (
-          <>
-            <span className="mr-[4px] font-(family-name:--font-mono) text-[11.5px]">
-              {stop.hour}
-            </span>
-            {stop.text}
-          </>
+      <div
+        role="status"
+        data-absence-tour={band.kind}
+        className="hud paper-grain float relative overflow-hidden border border-l-[4px] border-[var(--ink)] px-[14px] pt-[8px] pb-[10px] font-(family-name:--font-body) text-[var(--ink)]"
+      >
+        <b className="eyebrow block">{eyebrow}</b>
+        <p className="mt-[4px] text-[13px] leading-[1.38]">
+          {stop === null ? (
+            line
+          ) : (
+            <>
+              <span className="mr-[4px] font-(family-name:--font-mono) text-[11.5px]">
+                {stop.hour}
+              </span>
+              {stop.text}
+            </>
+          )}
+        </p>
+        {band.kind === 'stop' && (
+          <span
+            aria-hidden
+            className="absolute bottom-0 left-0 h-[3px] bg-[var(--notable)]"
+            style={{ width: `${((band.index + 1) / tour.stops.length) * 100}%` }}
+          />
         )}
-      </p>
-      {band.kind === 'stop' && (
-        <span
-          aria-hidden
-          className="absolute bottom-0 left-0 h-[3px] bg-[var(--notable)]"
-          style={{ width: `${((band.index + 1) / tour.stops.length) * 100}%` }}
-        />
-      )}
+      </div>
     </div>
   );
 }

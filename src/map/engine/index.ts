@@ -1300,12 +1300,13 @@ export class MapEngine {
   }
 
   /** **La caméra, rendue** (#439) : un voyage de `durationMs`, coupé net hors des actives ; `lift`
-   *  monte le sujet au-dessus d'une feuille basse, comme `journeyTo`. */
-  poseCamera(pose: CameraPose, durationMs: number, lift = 0): void {
+   *  monte le sujet au-dessus d'une feuille basse, comme `journeyTo`, et `aside` le pousse à
+   *  gauche de tant de pixels, pour que le tampon posé à sa droite tienne dans l'écran. */
+  poseCamera(pose: CameraPose, durationMs: number, lift = 0, aside = 0): void {
     this.invalidate();
     const orientation = new Vector3(...pose.orientation);
     const arrival = new Vector3(...pose.target).add(
-      this.groundShift(0, -lift, pose.distance, orientation),
+      this.groundShift(-aside, -lift, pose.distance, orientation),
     );
     this.travel(arrival, orientation, pose.distance, durationMs);
   }
@@ -2917,6 +2918,8 @@ export class MapEngine {
 
   private onKeyDown = (event: KeyboardEvent): void => {
     this.onHandOnBoard?.();
+    // Échap arrête le rejeu d'absence là où la caméra se trouve, comme une main sur la carte.
+    if (event.key === 'Escape') this.journey = null;
     if (event.code !== 'Space' || isTyping()) return;
     // Without this, the page scrolls under the map on every press.
     event.preventDefault();
