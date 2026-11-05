@@ -338,8 +338,8 @@ function installRig() {
  * { spec, sun }) ; `map: false` pour une page sans carte (l'édition). Si la vue ne vient pas (`liaison interrompue`, le serveur local chargé), on
  * recharge : une vue en panne ne se relit qu'au prochain changement, le film n'attendrait pas.
  */
-async function openPage(context, path, { fold = true, map = true, eye } = {}) {
-  const page = await context.newPage();
+async function openPage(context, path, { fold = true, map = true, eye } = {}, again = null) {
+  const page = again ?? (await context.newPage());
   for (let attempt = 0; attempt < 4; attempt++) {
     await page.goto(`${ORIGIN}${path}`);
     /** La notice d'entrée d'une place neuve, s'il y en a une. */
@@ -448,7 +448,7 @@ async function shoot(name) {
   const piece = await openPage(context, mondiale, { eye: { spec: around, sun: sunMs(12) } });
   const seven = await openPage(context, mondiale, {
     eye: {
-      spec: { lon: narvik[0] - 1, lat: narvik[1] - 0.2, d: tall ? 22 : 15, p: 58, a: 0 },
+      spec: { lon: narvik[0], lat: narvik[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
       sun: sunMs(11),
     },
   });
@@ -542,7 +542,7 @@ async function shoot(name) {
   );
 
   // 3. Pièce en main : on lève la pile et on la porte jusqu'au sol visé, sans la poser.
-  cutTo(pieceAt, piece, front);
+  cutTo(pieceAt, piece, null);
   at(pieceAt + 0.1, async () => {
     const grab = await piece.evaluate((lonLat) => globalThis.__rig.screenOf(lonLat), pile);
     const to = await piece.evaluate((lonLat) => globalThis.__rig.screenOf(lonLat), drop);
@@ -568,31 +568,43 @@ async function shoot(name) {
 
   // 5. Les Sept : Narvik contesté, une prise est en cours.
   cutTo(sevenAt, seven, piece);
-  at(sevenAt, () =>
-    seven.evaluate(
-      ([spec]) => globalThis.__rig.fly(spec, 4000),
-      [{ lon: narvik[0] - 0.5, lat: narvik[1] - 0.1, d: tall ? 16 : 11, p: 56, a: 6 }],
-    ),
-  );
 
   // 6. Vingt-quatre heures : Tanger, de nuit, vient de tomber ; l'anneau compte.
-  at(dayAt, async () => {
-    await seven.evaluate(
+  /**
+   * Les étiquettes (la bulle, l'anneau) ne se posent qu'au repos de la caméra : Narvik et Tanger
+   * sont cadrés une fois pour toutes, à trois unités du point, sur deux pages qui attendent leur
+   * plan. Tanger prend la page de l'ouverture, libre depuis qu'elle a cédé la place à la pièce.
+   */
+  const tangerEye = {
+    spec: { lon: tanger[0], lat: tanger[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
+    sun: sunMs(21.5),
+  };
+  const narvikEye = {
+    spec: { lon: narvik[0], lat: narvik[1], d: tall ? 3.6 : 3, p: 50, a: 0 },
+    sun: sunMs(11),
+  };
+  /**
+   * La ligne d'une page qui attend peut tomber (le serveur local, chargé par le film) : la vue
+   * reste alors celle d'avant, sans prise ni anneau. On le revoit juste avant son plan, et la page
+   * se recharge cadrée si c'est le cas.
+   */
+  const revive = async (page, eye) => {
+    if ((await page.getByText('liaison interrompue').count()) === 0) return;
+    console.log('[liaison] page rechargée avant son plan');
+    await openPage(context, mondiale, { eye }, page);
+  };
+  at(8, async () => {
+    await front.evaluate(
       ([spec, sun]) => globalThis.__rig.frame(spec, sun),
-      [
-        { lon: tanger[0] + 0.3, lat: tanger[1] + 0.2, d: tall ? 20 : 13, p: 55, a: -8 },
-        sunMs(21.5),
-      ],
+      [tangerEye.spec, tangerEye.sun],
     );
-    await seven.waitForTimeout(150);
-    await seven.evaluate(
-      ([spec]) => globalThis.__rig.fly(spec, 2800),
-      [{ lon: tanger[0], lat: tanger[1] + 0.1, d: tall ? 15 : 9.5, p: 52, a: 2 }],
-    );
+    await revive(front, tangerEye);
   });
+  at(9, () => revive(seven, narvikEye));
+  cutTo(dayAt, front, seven);
 
   // 7. L'édition finale : la une, puis la carte de la fin ; la page défile lentement.
-  cutTo(editionAt, editionOpen, seven);
+  cutTo(editionAt, editionOpen, front);
   at(editionAt + 0.1, async () => {
     const edition = await editionOpen;
     const scrollTotal = tall ? 520 : 380;
