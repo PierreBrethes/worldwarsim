@@ -43,6 +43,7 @@ export function maquettesOf(
     );
     return {
       buildingId,
+      buildingKey: key,
       ...(capture !== undefined && {
         capture: {
           clock: capture.clock,

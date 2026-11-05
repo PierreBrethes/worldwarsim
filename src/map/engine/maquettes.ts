@@ -37,6 +37,7 @@ import type { SequenceHost } from './sequences';
 import { Smoke, type Plume } from './smoke';
 import { groundFootprint, SOCLE_TOP, WorksDressing, type Works } from './works';
 import type { CaptureClock } from '@/domain/capture';
+import type { BuildingKey } from '@/domain/ids';
 import {
   FLAG_DROP,
   flagHeight,
@@ -127,6 +128,8 @@ export type StandingMaquette = {
   readonly flag?: string;
   /** The building it stands for: what a capture names, mine or the one I surveyed. */
   readonly buildingId?: string;
+  /** Its key: what a raid on it does (`raidLoots`). */
+  readonly buildingKey?: BuildingKey;
   /** **A capture on it** (#279): its staple runs round the socle at its clock. `capturer` when I
    *  lead it; `stopped`, frozen and pale — served to the capturer alone. */
   readonly capture?: {

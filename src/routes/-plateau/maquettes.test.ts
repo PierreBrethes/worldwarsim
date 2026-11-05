@@ -52,6 +52,7 @@ describe('maquettesOf', () => {
         ink: '#000',
         flag: '#000',
         buildingId: 'b1',
+        buildingKey: 'mine',
         level: 1,
       },
       {
@@ -68,6 +69,7 @@ describe('maquettesOf', () => {
         ink: '#000',
         flag: '#000',
         buildingId: 'b1',
+        buildingKey: 'port',
         level: 1,
       },
     ]);
@@ -256,6 +258,7 @@ describe('maquettesOf', () => {
         side: 'seen',
         level: 1,
         buildingId: 'x',
+        buildingKey: 'farm',
       },
       {
         id: 'objective-o',

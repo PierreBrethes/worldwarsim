@@ -2,8 +2,13 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { emptyStocks } from '../src/domain/economy';
-import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
-import { carryCapacityOf, lootFromSurplus, sparedPerResourceOf } from '../src/domain/loot';
+import { RESOURCES } from '../src/domain/ids';
+import {
+  carryCapacityOf,
+  lootFromSurplus,
+  raidLoots,
+  sparedPerResourceOf,
+} from '../src/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE, PLUNDER_DISABLED_HOURS, PLUNDER_HOURS_PRESENT } from './constants';
 import { resolveContact } from './combat';
 import { heldOver } from './holding';
@@ -237,7 +242,7 @@ export async function completePresence(
   }
 
   await settleBeforeChange(ctx, movement.seasonId, now);
-  const isWarehouse = canonicalBuildingKey(target.key) === 'warehouse';
+  const isWarehouse = raidLoots(target.key);
   const existingLoads = movementCargoLoads(movement);
   const existingAmounts = cargoTotal(existingLoads);
   const existingCargo = RESOURCES.reduce((sum, key) => sum + existingAmounts[key], 0);

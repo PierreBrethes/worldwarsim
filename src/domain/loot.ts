@@ -1,5 +1,11 @@
 import { BASE_CAP, DAKAR_SPARED_PER_RESOURCE } from '../../convex/constants';
-import { RESOURCES, type ResourceKey, type UnitRole } from './ids';
+import {
+  canonicalBuildingKey,
+  RESOURCES,
+  type BuildingKey,
+  type ResourceKey,
+  type UnitRole,
+} from './ids';
 
 export type ResourceAmounts = Readonly<Record<ResourceKey, number>>;
 
@@ -22,6 +28,12 @@ export function carryCapacityOf(
 
 export const emptyAmounts = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
+
+/** **A raid on a warehouse loots it; on any other site, it sabotages it** (`completePresence`). */
+export const raidLoots = (key: BuildingKey): boolean => canonicalBuildingKey(key) === 'warehouse';
+
+/** **A column that carries nothing** (`CargoView`): what my arcs are served without a cargo. */
+export const emptyCargo = () => ({ loot: emptyAmounts(), carried: 0, capacity: 0, free: 0 });
 
 export const difference = (
   before: ResourceAmounts,
