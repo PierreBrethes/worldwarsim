@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
+  ATTACK_TARGET,
   BUILDING_KEY,
   LINE_KEY,
   BUILD_COST_KEY,
@@ -757,6 +758,17 @@ export default defineSchema({
         /** Le départ de l'ancien mouvement : le Magasin longé avant le coude se règle à
          *  l'arrivée sur ce tronçon-là (#449). Absent des premières lignes. */
         since: v.optional(v.number()),
+      }),
+    ),
+    /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6), au seul propriétaire : telle que
+     *  l'ordre l'a nommée (relue au départ de la jambe), son point, son pays et la route prévue
+     *  depuis la première, que le fil dessine en suspens. Jamais dans `sightings`. */
+    blitzkrieg: v.optional(
+      v.object({
+        then: ATTACK_TARGET,
+        point: LON_LAT,
+        hostCountry: v.string(),
+        points: v.array(LON_LAT),
       }),
     ),
   })

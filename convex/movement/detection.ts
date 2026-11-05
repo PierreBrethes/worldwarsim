@@ -119,6 +119,28 @@ type PassiveWatcher = Watcher &
   };
 
 /**
+ * **Ceux qui guettent ce mouvement à l'instant**, sa dépêche déjà dite : le mouvement qui lui
+ * succède (un cap changé, une seconde jambe) naît dit pour eux (`watching` ci-dessous). Lu avant
+ * l'oubli, qui fige les lignes.
+ */
+export async function watchersOf(
+  ctx: MutationCtx,
+  movementId: Id<'movements'>,
+  now: number,
+): Promise<ReadonlySet<Id<'players'>>> {
+  return new Set(
+    (
+      await ctx.db
+        .query('sightings')
+        .withIndex('byMovement', (q) => q.eq('movementId', movementId))
+        .collect()
+    )
+      .filter((row) => row.noticeFiled === true && windowAt(windowsOf(row), now) !== null)
+      .map((row) => row.playerId),
+  );
+}
+
+/**
  * Replaces every prediction affected by the current board. It is called only from mutations that
  * changed a route, a manifest or a detector; no query and no periodic loop enters here.
  *
@@ -138,8 +160,9 @@ export async function reassessDetection(
   seasonId: Id<'seasons'>,
   now = Date.now(),
   changed?: Id<'players'> | ReadonlyArray<Id<'players'>>,
-  /** **Ceux qui la guettaient déjà** (cap changé, #449) : leur relevé de ce mouvement naît dit,
-   *  sans seconde dépêche. Jamais stocké : le joueur apprendrait qui le guette. */
+  /** **Ceux qui la guettaient déjà** (cap changé #449, seconde jambe #451) : leur relevé de ce
+   *  mouvement naît dit, sans seconde dépêche. Jamais stocké : le joueur apprendrait qui le
+   *  guette. */
   watching?: { readonly movementId: Id<'movements'>; readonly by: ReadonlySet<Id<'players'>> },
 ): Promise<void> {
   const season = await ctx.db.get(seasonId);

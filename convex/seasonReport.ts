@@ -173,6 +173,8 @@ export const outpostEvents = internalQuery({
       if (notice.kind === 'buildingDemolished' && notice.kept !== undefined) uses += 1;
       /** **Un cap changé** (§4) : la dépêche que la mutation écrit à son auteur. */
       if (notice.kind === 'courseChanged') uses += 1;
+      /** **Une seconde jambe partie** (§6), jamais une tombée ni une restée sur place. */
+      if (notice.kind === 'blitzkrieg' && notice.outcome === 'onward') uses += 1;
       if (
         notice.kind === 'supplyDelivered' &&
         notice.abroad === true &&

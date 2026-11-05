@@ -4,6 +4,7 @@ import { cardinalLabel, countryLabel, fr, nationLabel, ofName, theBuilding } fro
 import { isNation } from './nations';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
+import { placeLabel } from './station-name';
 import { FIRST_SEVEN } from './strategic-points';
 import type { BuildingKey } from './ids';
 import type { ResourceAmounts } from './loot';
@@ -210,6 +211,21 @@ function written(notice: Notice): Written {
             ? fr.aim.pointAt(notice.point.lon, notice.point.lat)
             : countryLabel(notice.hostCountry),
           asLocalTime(notice.arrivesAt),
+        ),
+      };
+    case 'blitzkrieg':
+      return {
+        at: notice.at,
+        severity: notice.outcome === 'onward' ? 'notable' : 'critical',
+        kind: 'column',
+        text: said.blitzkrieg(
+          notice.outcome,
+          placeLabel(notice.name),
+          placeLabel(notice.then.name),
+          notice.arrivesAt === undefined ? null : asLocalTime(notice.arrivesAt),
+          notice.refusal === undefined || !(notice.refusal in fr.errors)
+            ? null
+            : fr.errors[notice.refusal as keyof typeof fr.errors]({ ...notice.details }),
         ),
       };
     case 'storeResupplied':

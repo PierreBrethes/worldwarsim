@@ -1017,6 +1017,18 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
            *  ligne, et le coude d'un cap déjà changé, avec la route courue avant lui. */
           onMission: onMission(movement),
           courseChange: movement.courseChange ?? null,
+          /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6), au seul propriétaire : son
+           *  point, son nom et la route prévue depuis la première, que le fil tient en suspens. */
+          then:
+            movement.blitzkrieg === undefined
+              ? null
+              : {
+                  point: movement.blitzkrieg.point,
+                  name:
+                    regionNameAt(pointOf(movement.blitzkrieg.point)) ??
+                    movement.blitzkrieg.hostCountry,
+                  points: movement.blitzkrieg.points,
+                },
           /** **Un largage** (ADR 0028 §4) : le fil de l'avion ne se pose qu'à sa base. */
           ...(movement.airdrop === undefined ? {} : { airdrop: movement.airdrop.leg }),
           roles: movement.troopIds.flatMap((troopId) => {

@@ -14,7 +14,7 @@ import { movementCargoFields, movementCargoLoads } from '../cargo';
 import { holdsPoint } from '../strategicPoints';
 import { routeBetween } from '../routes';
 import { storesCrossed } from '../supplies';
-import { reassessDetection, marchingForce } from './detection';
+import { reassessDetection, marchingForce, watchersOf } from './detection';
 import { forgetMovement } from './arrival';
 import { pacedMinutes } from './pace';
 import { aimOf, columnOf, departureOf, fuelBill, type AimTarget } from './orders';
@@ -37,7 +37,6 @@ import {
 } from '../../src/domain/movement-orders';
 import { kmOf } from '../../src/domain/routing';
 import { seenSegment } from '../../src/domain/sighting-segment';
-import { windowAt, windowsOf } from '../../src/domain/sighting-windows';
 import { fuelGaugeOf, fuelRefusalOf, suppliesOf } from '../../src/domain/supplies';
 
 /** **Ce qu'une mission accroche à un mouvement** : il garde alors son cap (décision du 04/11). */
@@ -163,18 +162,8 @@ export async function changeCourse(
     fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: false, course: true });
 
   const ran = seenSegment(marchingForce(movement), movement.departedAt, now).points;
-  /** **Qui la guettait la voit repartir sans seconde dépêche** (décision du 04/11) : relevé avant
-   *  l'oubli, qui fige les lignes. */
-  const watching = new Set(
-    (
-      await ctx.db
-        .query('sightings')
-        .withIndex('byMovement', (q) => q.eq('movementId', movement._id))
-        .collect()
-    )
-      .filter((row) => row.noticeFiled === true && windowAt(windowsOf(row), now) !== null)
-      .map((row) => row.playerId),
-  );
+  /** **Qui la guettait la voit repartir sans seconde dépêche** (décision du 04/11). */
+  const watching = await watchersOf(ctx, movement._id, now);
   for (const troop of plan.troops)
     await ctx.db.patch(troop._id, {
       ...(fuel.after.has(troop._id) ? { fuel: fuel.after.get(troop._id)! } : {}),

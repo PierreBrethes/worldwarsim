@@ -121,6 +121,11 @@ export type ErrorCode =
   | 'COURSE_ALREADY_CHANGED'
   | 'PAST_HALFWAY'
   | 'NOT_AT_SEA'
+  /** **La Guerre éclair** (ADR 0039 §6), `chainRefusalOf` et `secondTargetRefusalOf`. */
+  | 'NO_BLITZKRIEG'
+  | 'CHAIN_ATTACK_ONLY'
+  | 'CHAIN_ASHORE_ONLY'
+  | 'SAME_TARGET'
   | 'NO_ROUNDS'
   | 'UNKNOWN_TROOP'
   | 'DUPLICATE_TROOP'

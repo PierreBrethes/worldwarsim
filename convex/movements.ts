@@ -1,4 +1,4 @@
-import { ConvexError, v } from 'convex/values';
+import { ConvexError, v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
@@ -17,6 +17,7 @@ import {
   plunderRefusalOf,
   refusalOf,
   routeModeOf,
+  type MovementAim,
 } from '../src/domain/movement-orders';
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
@@ -26,7 +27,7 @@ import { isNation } from '../src/domain/nations';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
 import { cargoOf, carrierIn } from '../src/domain/troops';
 import { inPileOrder } from '../src/domain/pile-pieces';
-import { bearingDegrees } from '../src/domain/geo';
+import { bearingDegrees, type LonLat } from '../src/domain/geo';
 import { crownSeats } from '../src/domain/pile-layout';
 import type { ComputedRoute } from '../src/domain/routing';
 import { levelOf, playerBuildings } from './buildingReads';
@@ -108,6 +109,7 @@ import { bombard as bombardFrom } from './movement/bombard';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { arriveForCapture } from './captures';
 import { changeCourse as steer, plotCourse } from './movement/course';
+import { chainSecondTarget, pressOn, weighSecondLeg } from './movement/blitzkrieg';
 
 export { restHold } from './movement/rest';
 import {
@@ -507,8 +509,10 @@ export const attack = mutation({
     origin: MOVEMENT_ORIGIN,
     troopIds: v.array(v.id('troops')),
     target: ATTACK_TARGET,
+    /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : refusée, rien ne part. */
+    then: v.optional(ATTACK_TARGET),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, target }) => {
+  handler: async (ctx, { token, seasonId, origin, troopIds, target, then }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
 
@@ -523,15 +527,20 @@ export const attack = mutation({
      *  (#418). */
     if (chasing) await reassessDetection(ctx, seasonId, Date.now(), []);
     const hunted = chasing ? await quarryOf(ctx, player._id, target, Date.now()) : null;
-    return march(ctx, {
+    const aimed = await aimOf(ctx, player._id, target);
+    const filed = await march(ctx, {
       playerId: player._id,
       season,
       type: 'attack',
       origin,
       troopIds,
-      aim: await aimOf(ctx, player._id, target),
+      aim: aimed,
       ...(hunted === null ? {} : { pursuit: { troopId: hunted.troopId } }),
     });
+    /** Pesée sur la colonne partie, sa première jambe payée : un refus défait tout l'ordre. */
+    if (then !== undefined)
+      await chainSecondTarget(ctx, player, season, filed.movementId, aimed.aim, then);
+    return filed;
   },
 });
 
@@ -749,9 +758,11 @@ export const preview = query({
     type: MOVEMENT_TYPE,
     /** **Un largage** (ADR 0028 §4) : le plein de l'aller-retour, dit avant le lâcher. */
     roundTrip: v.optional(v.boolean()),
+    /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : sa jambe, ou son refus. */
+    then: v.optional(ATTACK_TARGET),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip }) => {
-    const { player } = await playerOf(ctx, token, seasonId);
+  handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip, then }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
     if (namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
     if (departure === null) return null;
@@ -801,9 +812,61 @@ export const preview = query({
         type === 'attack' &&
         column.blitz !== undefined &&
         (target.kind === 'camp' || target.kind === 'track'),
+      then:
+        then === undefined
+          ? null
+          : await secondLegFacts(
+              ctx,
+              player,
+              season,
+              troops,
+              { aim, point, route, arrivesAt },
+              then,
+            ),
     };
   },
 });
+
+/**
+ * **La seconde jambe d'une Guerre éclair, telle que la pastille la dit** (ADR 0039 §6) : son
+ * refus, en valeur — `secondTargetRefusalOf`, la route, le plein après la première jambe —, ou
+ * son heure après le terrain tenu, sa route et son plein. La même pesée que l'ordre.
+ */
+async function secondLegFacts(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  season: Doc<'seasons'>,
+  troops: ReadonlyArray<Doc<'troops'>>,
+  first: { aim: MovementAim; point: LonLat; route: ComputedRoute; arrivesAt: number },
+  then: Infer<typeof ATTACK_TARGET>,
+) {
+  const { drivers, stepsOf } = fuelBill(
+    troops,
+    first.route.distanceUnits,
+    false,
+    false,
+    await holdsPoint(ctx, player, 'singapore'),
+  );
+  const paying = new Set(drivers.map((troop) => troop._id));
+  const leg = await weighSecondLeg(
+    ctx,
+    player,
+    season,
+    { aim: first.aim, point: first.point, legs: first.route.legs },
+    then,
+    troops.map((troop) =>
+      paying.has(troop._id) ? { ...troop, fuel: suppliesOf(troop).fuel - stepsOf(troop) } : troop,
+    ),
+  );
+  if ('refusal' in leg) return { refusal: leg.refusal };
+  return {
+    refusal: null,
+    minutes: await pacedMinutes(ctx, player._id, leg.route, first.arrivesAt),
+    destinationName: leg.aimed.name,
+    route: routeFacts(leg.route),
+    fuel: { gauge: leg.fuel.gauge, km: leg.fuel.km },
+  };
+}
 
 const cargoPreviewOf = async (
   ctx: Parameters<typeof selectedStationedCargo>[0],
@@ -1204,8 +1267,11 @@ export const arrive = internalMutation({
      *  player's; razed or lost since, the column stands on the point reached (rule 3) and the
      *  journal says so in the plain words of an arrival. */
     let garrisoned = false;
+    let onward: Awaited<ReturnType<typeof pressOn>> = null;
     if (movement.type === 'attack' || movement.type === 'raid') {
-      await engageAt(ctx, movement, movement.type, now);
+      const held = await engageAt(ctx, movement, movement.type, now);
+      /** **La seconde jambe** (Guerre éclair, ADR 0039 §6) part d'ici, avant la réévaluation. */
+      if (movement.blitzkrieg !== undefined) onward = await pressOn(ctx, movement, held, now);
     } else if (movement.type === 'march') {
       const door = await garrisonOf(ctx, movement);
       /** **Une unité par bâtiment** (B15) : une autre de mes troupes y est entrée la première,
@@ -1256,7 +1322,8 @@ export const arrive = internalMutation({
       });
     }
 
-    await forgetMovement(ctx, movementId);
+    /** Une Guerre éclair tenue l'a déjà oubliée, avant de repartir (`pressOn`). */
+    if ((await ctx.db.get(movementId)) !== null) await forgetMovement(ctx, movementId);
     /** **Arrivée à l'ancre, elle se recharge** (ADR 0028 §3) : la pièce dit ses crans pleins dès
      *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
     const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);
@@ -1268,6 +1335,8 @@ export const arrive = internalMutation({
       movement.seasonId,
       now,
       movement.type === 'attack' || movement.type === 'raid' ? undefined : movement.playerId,
+      /** **Comme un départ** : qui guettait la colonne la voit repartir, sans seconde dépêche. */
+      onward ?? undefined,
     );
   },
 });

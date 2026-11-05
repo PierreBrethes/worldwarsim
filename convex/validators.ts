@@ -563,6 +563,24 @@ export const NOTICE = v.union(
     point: v.optional(LON_LAT),
     arrivesAt: v.number(),
   }),
+  /**
+   * **La seconde jambe d'une Guerre éclair** (ADR 0039 §6), chez son seul auteur : partie
+   * (`onward`, l'arrivée), tombée sur une défaite (`lost`), ou restée sur place parce que le
+   * plein, les coups ou la cible manquaient (`halted`, le refus et ses détails). Le point et le nom
+   * sont ceux de la première cible, `then` la seconde. Le rapport de saison compte les `onward`.
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('blitzkrieg'),
+    outcome: v.union(v.literal('onward'), v.literal('lost'), v.literal('halted')),
+    hostCountry: v.string(),
+    point: LON_LAT,
+    name: v.string(),
+    then: v.object({ hostCountry: v.string(), point: LON_LAT, name: v.string() }),
+    arrivesAt: v.optional(v.number()),
+    refusal: v.optional(v.string()),
+    details: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean()))),
+  }),
   /** **Une tournée qui attend** au chargement : le plateau personnel manque (`stock`), tous ses
    *  dépôts sont pleins (`full`), ou sa route est refusée (`road`, le plein manque). */
   v.object({

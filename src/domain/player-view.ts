@@ -867,6 +867,24 @@ type NoticeBody =
       readonly point?: MapPlace;
       readonly arrivesAt: number;
     }
+  /** **La seconde jambe d'une Guerre éclair** (ADR 0039 §6) : la première cible, la seconde, et
+   *  ce qu'il en est advenu — l'arrivée si elle part, le refus si la colonne reste. */
+  | {
+      readonly kind: 'blitzkrieg';
+      readonly at: number;
+      readonly outcome: 'onward' | 'lost' | 'halted';
+      readonly hostCountry: string;
+      readonly point: MapPlace;
+      readonly name: string;
+      readonly then: {
+        readonly hostCountry: string;
+        readonly point: MapPlace;
+        readonly name: string;
+      };
+      readonly arrivesAt?: number;
+      readonly refusal?: string;
+      readonly details?: Readonly<Record<string, string | number | boolean>>;
+    }
   /** **Ce qu'un Magasin a versé à la colonne qui le traversait** (ADR 0037 §4), en crans. */
   | {
       readonly kind: 'storeResupplied';

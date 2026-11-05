@@ -840,6 +840,14 @@ export const fr = {
     PAST_HALFWAY: (d) =>
       `mi-parcours passée${d.at === undefined ? '' : ` à ${str(d.at)}`} : le cap ne change plus`,
     NOT_AT_SEA: () => 'la doctrine ne vaut qu’en mer',
+    /** **La Guerre éclair** (ADR 0039 §6) : la pastille le dit avant le lâcher. `type` : l'ordre
+     *  qui n'enchaîne pas, absent pour une capture. */
+    NO_BLITZKRIEG: () => 'une attaque vise une cible : seule la Guerre éclair en enchaîne deux',
+    CHAIN_ATTACK_ONLY: (d) =>
+      `${d.type === 'march' ? 'une marche' : d.type === 'raid' ? 'un raid' : 'une capture'} n’enchaîne pas — la Guerre éclair est une attaque à terre`,
+    CHAIN_ASHORE_ONLY: () =>
+      'la Guerre éclair est une attaque à terre : ni mer ni air sur ses deux routes',
+    SAME_TARGET: () => 'la seconde cible n’est pas la première',
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
       'un transport ne prend ni vivres ni acier : munitions, pétrole, charbon',
@@ -2752,6 +2760,20 @@ export const fr = {
       /** **Le cap changé** (ADR 0039 §4) : une fois, et la dépêche le rappelle. */
       courseChanged: (country: string, arrival: string) =>
         `La flotte a changé de cap vers ${country} — arrivée à ${arrival}. C’était l’unique fois.`,
+      /** **La seconde jambe d'une Guerre éclair** (ADR 0039 §6) : partie, tombée, ou restée,
+       *  et pourquoi (`reason`, le texte du refus). */
+      blitzkrieg: (
+        outcome: 'onward' | 'lost' | 'halted',
+        first: string,
+        then: string,
+        arrival: string | null,
+        reason: string | null,
+      ) =>
+        outcome === 'onward'
+          ? `${first} : terrain tenu. La colonne file sur ${then}${arrival === null ? '' : ` — arrivée à ${arrival}`}.`
+          : outcome === 'lost'
+            ? `${first} : terrain perdu. La colonne ne file pas sur ${then} : la Guerre éclair ne part qu’après terrain tenu.`
+            : `${first} : terrain tenu, mais la colonne ne file pas sur ${then} — ${reason ?? '…'}. Elle reste sur place.`,
       /** **Le Magasin traversé** (ADR 0037 §4) : ce qu'il a versé, ou pourquoi rien. */
       storeResupplied: (
         outcome: 'served' | 'short' | 'captured' | 'closed',

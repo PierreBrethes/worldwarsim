@@ -188,18 +188,28 @@ const surveyedInstallationAt = async (
   return (surveyed?.installations ?? [])[0]?.key;
 };
 
+/** **Ce qu'une Guerre éclair garde sur le terrain tenu** (ADR 0039 §6) : les vainqueurs et leur
+ *  charge, que `pressOn` relance vers la seconde cible au lieu de les ramener. */
+export type HeldGround = {
+  readonly winners: ReadonlyArray<Doc<'troops'>>;
+  readonly cargo: ReadonlyArray<HomewardCargo>;
+};
+
 /** **A column that finds nobody has not fought**: buildings are not looted yet, so an attack on
- *  empty ground turns around with no engagement and nothing to show for the walk. */
+ *  empty ground turns around with no engagement and nothing to show for the walk. A Guerre éclair
+ *  that holds the ground (an empty one counts, decision of 04/11) keeps its winners there and
+ *  hands them back; the routed walk home all the same. */
 export async function engageAt(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   /** Narrowed by the caller: the stored `type` is the whole vocabulary, two of its words walk in here. */
   type: 'attack' | 'raid',
   now: number,
-): Promise<void> {
+): Promise<HeldGround | null> {
   const owner = await ctx.db.get(movement.playerId);
   const marching = await troopsCarriedBy(ctx, movement);
-  if (!owner || marching.length === 0) return;
+  if (!owner || marching.length === 0) return null;
+  const chained = movement.blitzkrieg !== undefined;
 
   const outpost =
     movement.target.kind === 'outpost' ? await ctx.db.get(movement.target.outpostId) : null;
@@ -230,11 +240,12 @@ export async function engageAt(
         ...(installation === undefined ? {} : { installation }),
       });
     }
+    if (chained) return { winners: marching, cargo: [...carried, ...spoils] };
     await walkHome(ctx, { winners: marching, beaten: [] }, pointOf(movement.to), now, [
       ...carried,
       ...spoils,
     ]);
-    return;
+    return null;
   }
 
   const { engagementId, engagement, routed, routedCargo } = await resolveContact(ctx, {
@@ -273,8 +284,17 @@ export async function engageAt(
     engagement.winner === 'attacker'
       ? await emptyObjective(ctx, movement, survivors, carried, now)
       : [];
+  if (chained && engagement.winner === 'attacker') {
+    const beaten = new Set(routed.map((troop) => troop._id));
+    await walkHome(ctx, { winners: [], beaten: routed }, pointOf(movement.to), now, routedCargo);
+    return {
+      winners: survivors.filter((troop) => !beaten.has(troop._id)),
+      cargo: [...carried, ...spoils],
+    };
+  }
   const cargo = [...carried, ...spoils, ...routedCargo];
   await walkHome(ctx, { winners: survivors, beaten: routed }, pointOf(movement.to), now, cargo);
+  return null;
 }
 
 /**

@@ -500,3 +500,32 @@ describe('a course changed towards the open sea', () => {
     expect(dispatch!.text).toContain(fr.aim.pointAt(130, 20));
   });
 });
+
+describe('the second leg of a blitzkrieg (ADR 0039 §6)', () => {
+  const base = {
+    kind: 'blitzkrieg' as const,
+    at: NOON,
+    hostCountry: 'BEL',
+    point: { lon: 5.57, lat: 50.63 },
+    name: 'Liège',
+    then: { hostCountry: 'BEL', point: { lon: 4.87, lat: 50.47 }, name: 'Namur' },
+  };
+  const said = (notice: Notice) => journalDispatches([], null, [notice])[0]!;
+
+  it('says the column runs on, held, and when it reaches the second target', () => {
+    const dispatch = said({ ...base, outcome: 'onward', arrivesAt: NOON + HOUR });
+    expect(dispatch.text).toMatch(/^Liège : terrain tenu\. La colonne file sur Namur — arrivée à/);
+    expect(dispatch.severity).toBe('notable');
+  });
+
+  it('says the second leg fell with the first', () => {
+    expect(said({ ...base, outcome: 'lost' }).text).toContain('ne file pas sur Namur');
+  });
+
+  it('says why the column stayed, by the refusal’s own words', () => {
+    const dispatch = said({ ...base, outcome: 'halted', refusal: 'NO_ROUNDS', details: {} });
+    expect(dispatch.text).toContain(fr.errors.NO_ROUNDS());
+    expect(dispatch.text).toContain('Elle reste sur place');
+    expect(dispatch.severity).toBe('critical');
+  });
+});
