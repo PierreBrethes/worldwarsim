@@ -1290,6 +1290,10 @@
 .label-anchor--hovered .label-line--fold,
 .label--pointed .label-line--fold {
   display: block;
+  /* Au téléphone, la fiche touchée tient dans l'écran : la raison passe à la ligne. */
+  width: max-content;
+  max-width: 170px;
+  white-space: normal;
 }
 
 /* **Un trait sur le fil** (#449) : la mi-parcours ou le coude, un tiret court et l'heure, sans
@@ -1301,7 +1305,8 @@
 }
 .label--course-mark .label-block {
   pointer-events: none;
-  transform: translate(-50%, -50%);
+  /* Sous le point, le tiret le montrant : au-dessus, la fiche de la flotte qui vient d'y virer. */
+  transform: translate(-50%, 9px);
   bottom: auto;
 }
 .label--course-mark .label-lines {

@@ -393,6 +393,8 @@
 .drop-chip-fuel {
   grid-column: 2;
   display: flex;
+  /* Deux tubes et le compte d'un cap neuf (#449) passent la largeur de la pastille. */
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
   margin: 3px 0 1px;

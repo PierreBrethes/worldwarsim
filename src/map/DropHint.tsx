@@ -237,7 +237,11 @@ export function DropHintChip({
       {hint.choice !== undefined && <span className="drop-chip-detail">{hint.choice}</span>}
       <span className="drop-chip-keys">
         {hint.tone === 'refused'
-          ? fr.drop.refused
+          ? course
+            ? touch
+              ? fr.course.refusedTouch
+              : fr.course.refused
+            : fr.drop.refused
           : hint.tone === 'calm'
             ? fr.drop.still
             : steering

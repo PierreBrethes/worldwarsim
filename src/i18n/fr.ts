@@ -4583,6 +4583,8 @@ export const fr = {
     within: (steps: number) => `plein : ${steps} /`,
     keys: 'relâcher : nouveau cap, même slot · une seule fois · Échap annule',
     keysTouch: 'lever le doigt : nouveau cap, même slot · une seule fois',
+    refused: 'relâcher : la flotte reste sur son cap · Échap',
+    refusedTouch: 'lever le doigt : la flotte reste sur son cap',
     sent: 'Nouveau cap',
   },
   drop: {
