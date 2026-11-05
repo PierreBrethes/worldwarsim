@@ -5,10 +5,16 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { asClockTime } from '@/domain/duration';
 import type { Contact } from '@/domain/contacts';
-import { clampToEdge, cluster, sideOf, type IndicatorGroup } from '@/domain/indicators';
+import {
+  clampToEdge,
+  cluster,
+  sideOf,
+  type EdgePoint,
+  type IndicatorGroup,
+} from '@/domain/indicators';
 import type { Rect } from '@/domain/poster-placement';
 import { fr } from '@/i18n/fr';
-import { useBoardInsets, useCoarsePointer } from '@/shell/viewport';
+import { useBoardInsets, useCoarsePointer, type BoardInsets } from '@/shell/viewport';
 import type { ContactSpot } from './engine/contact-rings';
 import { ARC_COLORS } from './engine/palette';
 import { PIN_APPROACH_DISTANCE } from './engine/pins';
@@ -40,7 +46,8 @@ export function ContactMarks({
   const compact = useCoarsePointer();
   const insets = useBoardInsets();
   const latest = useRef<ReadonlyArray<ContactSpot> | null>(null);
-  /** The spot each cartouche took at the last rest, by number; `-1`, none was free. */
+  /** The spot each cartouche took at the last rest, by number: `ASIDE`, none was free, and it
+   *  stands by its circle; `NONE`, that would cover another cartouche, and the number alone says it. */
   const chosen = useRef(new Map<number, number>());
   const cards = useRef(new Map<number, HTMLElement>());
   /** Each cartouche's size, measured at rest: a frame does not read the layout. */
@@ -49,15 +56,18 @@ export function ContactMarks({
   const threads = useRef(new Map<number, SVGLineElement>());
   const tokens = useRef(new Map<string, HTMLElement>());
   const [edges, setEdges] = useState<ReadonlyArray<IndicatorGroup>>([]);
+  /** The board's insets, and the personal board's band at the bottom, read at rest. */
+  const edgeInsets = useRef<BoardInsets>(insets);
   const [drawn, setDrawn] = useState(false);
 
   const cardRect = useCallback(
-    (spot: ContactSpot, node: HTMLElement): Rect => {
+    (spot: ContactSpot, node: HTMLElement): Rect | null => {
       const [w, h] = sizes.current.get(spot.number) ?? measure(sizes.current, spot.number, node);
-      const spots = cartoucheSpots(spot.x, spot.y, spot.radius, w, h);
+      const spots = cartoucheSpots(spot, w, h);
       const k = chosen.current.get(spot.number) ?? 0;
-      if (k >= 0) return spots[k]!;
-      const left = Math.max(6, Math.min(size.current.width - w - 6, spot.x + spot.radius + 6));
+      if (k === NONE) return null;
+      if (k !== ASIDE) return spots[k]!;
+      const left = Math.max(6, Math.min(size.current.width - w - 6, spot.x + spot.rx + 6));
       const top = spot.y - h / 2;
       return { left, top, right: left + w, bottom: top + h };
     },
@@ -68,40 +78,45 @@ export function ContactMarks({
     if (engine === null) return;
     const spots = latest.current ?? [];
     const { width, height } = size.current;
+    edgeInsets.current = { ...insets, bottom: Math.max(insets.bottom, matBand(layer.current)) };
     const taken: Rect[] = engine.markRects();
     const held: Rect[] = [];
     const inside = spots.filter((spot) => !spot.away);
-    for (const { x, y, radius } of inside)
-      held.push({ left: x - radius, top: y - radius, right: x + radius, bottom: y + radius });
-    const free = (rect: Rect) =>
-      rect.left >= 0 &&
-      rect.top >= 0 &&
-      rect.right <= width &&
-      rect.bottom <= height &&
-      [...taken, ...held].every(
+    for (const { x, y, rx, ry } of inside)
+      held.push({ left: x - rx, top: y - ry, right: x + rx, bottom: y + ry });
+    const placed: Rect[] = [];
+    const clear = (rect: Rect, others: ReadonlyArray<Rect>) =>
+      others.every(
         (other) =>
           rect.right <= other.left ||
           rect.left >= other.right ||
           rect.bottom <= other.top ||
           rect.top >= other.bottom,
       );
+    const free = (rect: Rect) =>
+      rect.left >= 0 &&
+      rect.top >= 0 &&
+      rect.right <= width &&
+      rect.bottom <= height &&
+      clear(rect, [...taken, ...held]);
     for (const spot of inside) {
       const node = cards.current.get(spot.number);
       if (node === undefined) continue;
-      const k = cartoucheSpots(
-        spot.x,
-        spot.y,
-        spot.radius,
-        ...measure(sizes.current, spot.number, node),
-      ).findIndex(free);
-      chosen.current.set(spot.number, k);
-      held.push(cardRect(spot, node));
+      const k = cartoucheSpots(spot, ...measure(sizes.current, spot.number, node)).findIndex(free);
+      chosen.current.set(spot.number, k < 0 ? ASIDE : k);
+      const rect = cardRect(spot, node)!;
+      if (!clear(rect, placed)) {
+        chosen.current.set(spot.number, NONE);
+        continue;
+      }
+      placed.push(rect);
+      held.push(rect);
     }
     engine.reserveNames(held);
     const away = intel
       ? spots.flatMap((spot) => {
           if (!spot.away) return [];
-          const edge = clampToEdge(spot.x, spot.y, width, height);
+          const edge = edgeOf(spot, width, height, edgeInsets.current);
           return [
             {
               id: String(spot.number),
@@ -116,7 +131,7 @@ export function ContactMarks({
       : [];
     const composed = cluster(away, width, height);
     setEdges((previous) => (edgeKey(previous) === edgeKey(composed) ? previous : composed));
-  }, [engine, size, intel, cardRect]);
+  }, [engine, size, intel, cardRect, insets]);
 
   useEffect(() => {
     if (engine === null) return;
@@ -136,19 +151,21 @@ export function ContactMarks({
         const badge = badges.current.get(spot.number);
         const thread = threads.current.get(spot.number);
         const shown = !spot.away;
-        for (const node of [card, badge]) if (node) node.style.visibility = shown ? '' : 'hidden';
-        thread?.setAttribute('visibility', shown ? 'visible' : 'hidden');
-        if (!shown || card === undefined) continue;
-        const rect = cardRect(spot, card);
+        const rect = shown && card !== undefined ? cardRect(spot, card) : null;
+        if (badge) badge.style.visibility = shown ? '' : 'hidden';
+        if (card) card.style.visibility = rect === null ? 'hidden' : '';
+        thread?.setAttribute('visibility', rect === null ? 'hidden' : 'visible');
+        if (badge && shown)
+          badge.style.transform = `translate3d(${spot.x + Math.SQRT1_2 * spot.rx}px, ${spot.y - Math.SQRT1_2 * spot.ry}px, 0)`;
+        if (rect === null || card === undefined) continue;
         card.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
-        const corner = Math.SQRT1_2 * spot.radius;
-        if (badge)
-          badge.style.transform = `translate3d(${spot.x + corner}px, ${spot.y - corner}px, 0)`;
         const kx = Math.max(rect.left, Math.min(spot.x, rect.right));
         const ky = Math.max(rect.top, Math.min(spot.y, rect.bottom));
-        const angle = Math.atan2(ky - spot.y, kx - spot.x);
-        thread?.setAttribute('x1', String(spot.x + Math.cos(angle) * spot.radius));
-        thread?.setAttribute('y1', String(spot.y + Math.sin(angle) * spot.radius));
+        // Where the line from the centre to the cartouche leaves the ellipse.
+        const [dx, dy] = [kx - spot.x, ky - spot.y];
+        const out = 1 / Math.hypot(dx / spot.rx, dy / spot.ry);
+        thread?.setAttribute('x1', String(spot.x + dx * out));
+        thread?.setAttribute('y1', String(spot.y + dy * out));
         thread?.setAttribute('x2', String(kx));
         thread?.setAttribute('y2', String(ky));
       }
@@ -163,14 +180,15 @@ export function ContactMarks({
           (spot) =>
             spot.away &&
             group.members.includes(String(spot.number)) &&
-            sideOf(...edgePoint(spot, width, height), width, height) === group.side,
+            sideOf(...edgePoint(spot, width, height, edgeInsets.current), width, height) ===
+              group.side,
         );
         if (token === undefined) continue;
         if (members.length === 0) {
           token.style.display = 'none';
           continue;
         }
-        const points = members.map((spot) => clampToEdge(spot.x, spot.y, width, height));
+        const points = members.map((spot) => edgeOf(spot, width, height, edgeInsets.current));
         const x = points.reduce((sum, point) => sum + point.x, 0) / points.length;
         const y = points.reduce((sum, point) => sum + point.y, 0) / points.length;
         token.style.display = '';
@@ -284,8 +302,36 @@ export function ContactMarks({
   );
 }
 
-const edgePoint = (spot: ContactSpot, width: number, height: number): [number, number] => {
-  const { x, y } = clampToEdge(spot.x, spot.y, width, height);
+/** What the personal board's band covers of the layer's bottom, as `MapLabels` reads it. */
+function matBand(layer: HTMLElement | null): number {
+  const pixelsOf = (name: string) =>
+    Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
+  const bottom = layer?.getBoundingClientRect().bottom ?? window.innerHeight;
+  return Math.max(
+    0,
+    Math.max(pixelsOf('--mat-rise'), pixelsOf('--board-bottom')) - (window.innerHeight - bottom),
+  );
+}
+
+/** At the edge of the board left free by the chrome, as `labels.ts` sets the indicators. */
+function edgeOf(spot: ContactSpot, width: number, height: number, insets: BoardInsets): EdgePoint {
+  const { top, right, bottom, left } = insets;
+  const edge = clampToEdge(
+    spot.x - left,
+    spot.y - top,
+    width - left - right,
+    height - top - bottom,
+  );
+  return { ...edge, x: edge.x + left, y: edge.y + top };
+}
+
+const edgePoint = (
+  spot: ContactSpot,
+  width: number,
+  height: number,
+  insets: BoardInsets,
+): [number, number] => {
+  const { x, y } = edgeOf(spot, width, height, insets);
   return [x, y];
 };
 
@@ -296,6 +342,9 @@ function register<K, E>(map: Map<K, E>, key: K, node: E | null): void {
   if (node) map.set(key, node);
   else map.delete(key);
 }
+
+const ASIDE = -1;
+const NONE = -2;
 
 function measure(
   sizes: Map<number, readonly [number, number]>,
@@ -309,11 +358,11 @@ function measure(
 
 /**
  * **Where a contact's cartouche may stand** (maquette C), in the order tried: by the circle's
- * shoulders, above and below it, then further out at its sides. `R` is the circle's radius on
- * screen; the rectangles are `width` × `height`.
+ * shoulders, above and below it, then further out at its sides; the rectangles are `width` ×
+ * `height`.
  */
-function cartoucheSpots(x: number, y: number, R: number, width: number, height: number): Rect[] {
-  const a = R * 0.72;
+function cartoucheSpots({ x, y, rx, ry }: ContactSpot, width: number, height: number): Rect[] {
+  const [ax, ay] = [rx * 0.72, ry * 0.72];
   const at = (left: number, top: number) => ({
     left,
     top,
@@ -321,13 +370,13 @@ function cartoucheSpots(x: number, y: number, R: number, width: number, height: 
     bottom: top + height,
   });
   return [
-    at(x + a + 6, y - a - height / 2),
-    at(x - a - 6 - width, y - a - height / 2),
-    at(x + a + 6, y + a - height / 2),
-    at(x - a - 6 - width, y + a - height / 2),
-    at(x - width / 2, y - R - height - 8),
-    at(x - width / 2, y + R + 8),
-    at(x + R + 30, y - height / 2),
-    at(x - R - 30 - width, y - height / 2),
+    at(x + ax + 6, y - ay - height / 2),
+    at(x - ax - 6 - width, y - ay - height / 2),
+    at(x + ax + 6, y + ay - height / 2),
+    at(x - ax - 6 - width, y + ay - height / 2),
+    at(x - width / 2, y - ry - height - 8),
+    at(x - width / 2, y + ry + 8),
+    at(x + rx + 30, y - height / 2),
+    at(x - rx - 30 - width, y - height / 2),
   ];
 }

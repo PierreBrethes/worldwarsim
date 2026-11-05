@@ -4701,6 +4701,11 @@ export class MapEngine {
       this.unitsPerPixel(distance),
       this.replay !== null,
       night,
+      (emit) => {
+        this.standing.lights(emit);
+        this.maquettes.lights(emit);
+        this.pins.discs(emit, this.unitsPerPixel(distance));
+      },
     );
     this.clearReplayGround();
     this.renderer.shadowMap.needsUpdate = whole;

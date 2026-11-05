@@ -509,6 +509,13 @@ export class PinLayer {
         );
   }
 
+  /** **What each disc covers of the board**, its paper rim (1.6 px) included: a contact's circle
+   *  must clear it (#441). */
+  discs(emit: (at: Vector3, radius: number, near: number) => void, unitsPerPixel: number): void {
+    for (const mark of this.marks)
+      if (mark.weight > 0) emit(mark.center, (mark.radius + 1.6) * unitsPerPixel, mark.weight);
+  }
+
   dispose(): void {
     this.shapes.dispose();
     this.glyphs.dispose();

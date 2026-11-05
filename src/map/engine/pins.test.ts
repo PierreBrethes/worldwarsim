@@ -335,6 +335,15 @@ describe('PinLayer — the pieces far away', () => {
     layer.lights((_, radius) => glows.push(radius * REACH), 1);
     expect(glows).toEqual([3 * 4]);
   });
+
+  it('says what each disc covers of the board, mine and surveyed, for a contact to ring it (#441)', () => {
+    const eye = eyeOver(paris, 120);
+    const layer = laidOut([mine('a', paris), seen('camp', lyon)], eye);
+    const covered: number[] = [];
+    layer.discs((_, radius) => covered.push(radius), 0.5);
+    expect(covered).toHaveLength(2);
+    expect(Math.min(...covered)).toBeGreaterThan(0.5 * 5);
+  });
 });
 
 describe('isPinOf', () => {
