@@ -210,7 +210,14 @@ export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4
     const key = [
       lookOf(mesh.material),
       geometry.index === null,
-      ...Object.keys(geometry.attributes).sort(),
+      // Laid alike too: a kit's geometry drawn by the engine (`site-kits.ts`) does not merge with
+      // a file's whose arrays are typed otherwise.
+      ...Object.entries(geometry.attributes)
+        .map(
+          ([name, at]) =>
+            `${name}:${at.array.constructor.name}:${'gpuType' in at ? at.gpuType : ''}:${at.normalized}`,
+        )
+        .sort(),
     ].join();
     const group = groups.get(key) ?? { material: mesh.material, geometries: [] };
     group.geometries.push(geometry);
