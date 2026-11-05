@@ -106,7 +106,7 @@ export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
  * being centered on the clamped point, half a badge is added to the mockup's fourteen pixels
  * — otherwise half the glyph would fall off the bottom of the map.
  */
-const HALF_BADGE = 15;
+export const HALF_BADGE = 15;
 export const EDGE_MARGIN = 14 + HALF_BADGE;
 
 export type EdgePoint = { readonly x: number; readonly y: number; readonly heading: number };

@@ -8,6 +8,8 @@ import type { Contact } from '@/domain/contacts';
 import {
   clampToEdge,
   cluster,
+  EDGE_MARGIN,
+  HALF_BADGE,
   sideOf,
   type EdgePoint,
   type IndicatorGroup,
@@ -67,7 +69,8 @@ export function ContactMarks({
       const k = chosen.current.get(spot.number) ?? 0;
       if (k === NONE) return null;
       if (k !== ASIDE) return spots[k]!;
-      const left = Math.max(6, Math.min(size.current.width - w - 6, spot.x + spot.rx + 6));
+      const { left: from, right: to } = bandOf(edgeInsets.current);
+      const left = Math.max(from, Math.min(size.current.width - to - w, spot.x + spot.rx + 6));
       const top = spot.y - h / 2;
       return { left, top, right: left + w, bottom: top + h };
     },
@@ -79,6 +82,8 @@ export function ContactMarks({
     const spots = latest.current ?? [];
     const { width, height } = size.current;
     edgeInsets.current = { ...insets, bottom: Math.max(insets.bottom, matBand(layer.current)) };
+    // Inside the band the indicators' tokens keep at the edge, whether they stand there yet or not.
+    const box = bandOf(edgeInsets.current);
     const taken: Rect[] = engine.markRects();
     const held: Rect[] = [];
     const inside = spots.filter((spot) => !spot.away);
@@ -94,10 +99,10 @@ export function ContactMarks({
           rect.top >= other.bottom,
       );
     const free = (rect: Rect) =>
-      rect.left >= 0 &&
-      rect.top >= 0 &&
-      rect.right <= width &&
-      rect.bottom <= height &&
+      rect.left >= box.left &&
+      rect.top >= box.top &&
+      rect.right <= width - box.right &&
+      rect.bottom <= height - box.bottom &&
       clear(rect, [...taken, ...held]);
     for (const spot of inside) {
       const node = cards.current.get(spot.number);
@@ -163,7 +168,7 @@ export function ContactMarks({
         const ky = Math.max(rect.top, Math.min(spot.y, rect.bottom));
         // Where the line from the centre to the cartouche leaves the ellipse.
         const [dx, dy] = [kx - spot.x, ky - spot.y];
-        const out = 1 / Math.hypot(dx / spot.rx, dy / spot.ry);
+        const out = dx === 0 && dy === 0 ? 0 : 1 / Math.hypot(dx / spot.rx, dy / spot.ry);
         thread?.setAttribute('x1', String(spot.x + dx * out));
         thread?.setAttribute('y1', String(spot.y + dy * out));
         thread?.setAttribute('x2', String(kx));
@@ -301,6 +306,12 @@ export function ContactMarks({
     </div>
   );
 }
+
+/** The board's insets widened by the band where the edge tokens stand. */
+const bandOf = ({ top, right, bottom, left }: BoardInsets): BoardInsets => {
+  const band = EDGE_MARGIN + HALF_BADGE;
+  return { top: top + band, right: right + band, bottom: bottom + band, left: left + band };
+};
 
 /** What the personal board's band covers of the layer's bottom, as `MapLabels` reads it. */
 function matBand(layer: HTMLElement | null): number {
