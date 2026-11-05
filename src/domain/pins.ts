@@ -1,9 +1,11 @@
 import { fr } from '@/i18n/fr';
 import { anchorOf, type LabelAnchor, type LabelType, type MapMarker } from './labels';
-import type { ArcView } from './player-view';
+import type { ArcView, Composition, Stack, TroopStation } from './player-view';
 
 /** The id an outpost's marker, label and pin share on the board. */
 export const outpostPinId = (outpostId: string): string => `outpost-${outpostId}`;
+/** The id a surveyed camp's marker, label and pin share. */
+export const campPinId = (campId: string): string => `camp-${campId}`;
 
 export type PinShape = 'pile' | 'building' | 'outpost';
 
@@ -21,6 +23,8 @@ export type Pin =
       readonly shape: PinShape;
       readonly side: 'mine';
       readonly ink: string;
+      /** The troops it stands for: a pile's, a column's, a building's or an outpost's garrison. */
+      readonly stack: Stack;
       readonly moving?: true;
       /** A building still under the crane: nothing stands there yet. */
       readonly works?: true;
@@ -34,6 +38,9 @@ export type Pin =
       /** Un neutre de la Blitz : public, et à personne. */
       readonly neutral?: true;
       readonly moving?: true;
+      /** **Sa pile, sous un Guet** (ADR 0037 §5) : la seule branche `pierced` d'une `Composition`
+       *  la remplit (`piercedOf`). */
+      readonly pierced?: Stack;
     }
   | {
       readonly id: string;
@@ -49,17 +56,27 @@ export function pinsOf(
   markers: ReadonlyArray<MapMarker>,
   arcs: ReadonlyArray<ArcView>,
   ink: string,
+  /** The troops standing at an address: a garrison's pin counts them. */
+  garrisonOf: (station: TroopStation) => Stack = () => ({}),
 ): ReadonlyArray<Pin> {
-  return [...markers.flatMap(markerPin), ...arcs.flatMap((arc) => arcPin(arc, ink))];
+  return [
+    ...markers.flatMap((marker) => markerPin(marker, garrisonOf)),
+    ...arcs.flatMap((arc) => arcPin(arc, ink)),
+  ];
 }
 
 const nationOf = (nation: string | undefined) => (nation === undefined ? {} : { nation });
+const piercedOf = (identification: Composition) =>
+  identification.pierced ? { pierced: identification.stack } : {};
 
-function markerPin(marker: MapMarker): ReadonlyArray<Pin> {
+function markerPin(
+  marker: MapMarker,
+  garrisonOf: (station: TroopStation) => Stack,
+): ReadonlyArray<Pin> {
   const at = { id: marker.id, anchor: anchorOf(marker) };
   switch (marker.kind) {
     case 'stack':
-      return [{ ...at, shape: 'pile', side: 'mine', ink: marker.ink }];
+      return [{ ...at, shape: 'pile', side: 'mine', ink: marker.ink, stack: marker.stack }];
     case 'building':
       return [
         {
@@ -67,13 +84,25 @@ function markerPin(marker: MapMarker): ReadonlyArray<Pin> {
           shape: 'building',
           side: 'mine',
           ink: marker.ink,
+          stack:
+            marker.buildingId === null
+              ? {}
+              : garrisonOf({ kind: 'building', buildingId: marker.buildingId }),
           ...(marker.level === null ? { works: true } : {}),
         },
       ];
     case 'construction':
-      return [{ ...at, shape: 'building', side: 'mine', ink: marker.ink, works: true }];
+      return [{ ...at, shape: 'building', side: 'mine', ink: marker.ink, stack: {}, works: true }];
     case 'outpost':
-      return [{ ...at, shape: 'outpost', side: 'mine', ink: marker.ink }];
+      return [
+        {
+          ...at,
+          shape: 'outpost',
+          side: 'mine',
+          ink: marker.ink,
+          stack: garrisonOf(marker.station),
+        },
+      ];
     case 'installation':
       return [
         {
@@ -87,7 +116,13 @@ function markerPin(marker: MapMarker): ReadonlyArray<Pin> {
       return [
         marker.lastKnown
           ? { ...at, shape: 'pile', side: 'lost', seenAt: marker.lastSeenAt ?? marker.since }
-          : { ...at, shape: 'pile', side: 'seen', ...nationOf(marker.nation) },
+          : {
+              ...at,
+              shape: 'pile',
+              side: 'seen',
+              ...nationOf(marker.nation),
+              ...piercedOf(marker.identification),
+            },
       ];
     default:
       return [];
@@ -102,9 +137,17 @@ function arcPin(arc: ArcView, ink: string): ReadonlyArray<Pin> {
   } as const;
   switch (arc.state) {
     case 'mine':
-      return [{ ...at, side: 'mine', ink, moving: true }];
+      return [{ ...at, side: 'mine', ink, stack: arc.stack, moving: true }];
     case 'enemyDetected':
-      return [{ ...at, side: 'seen', ...nationOf(arc.nation), moving: true }];
+      return [
+        {
+          ...at,
+          side: 'seen',
+          ...nationOf(arc.nation),
+          ...piercedOf(arc.identification),
+          moving: true,
+        },
+      ];
     case 'lastKnown':
       return [{ ...at, side: 'lost', seenAt: arc.lastSeenAt }];
     default:

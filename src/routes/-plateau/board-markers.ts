@@ -26,7 +26,7 @@ import {
   type TroopView,
 } from '@/domain/player-view';
 import { DOMAIN_BY_ROLE, PROJECTION_BY_DOMAIN, stationKeyOf, troopsAt } from '@/domain/troops';
-import { outpostPinId } from '@/domain/pins';
+import { campPinId, outpostPinId } from '@/domain/pins';
 import { stackLabelId } from '@/domain/force-highlight';
 import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { surveyedAt } from '@/domain/survey-ink';
@@ -163,7 +163,7 @@ export function markersOf(
     .filter((camp) => toggles.objectives || !isObjectivePoint(camp.point))
     .map((camp) => ({
       kind: 'camp' as const,
-      id: `camp-${camp.id}`,
+      id: campPinId(camp.id),
       campId: camp.id,
       lonLat: camp.point,
       medium: camp.medium,

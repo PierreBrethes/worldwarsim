@@ -30,6 +30,7 @@ const mine = (id: string, lonLat: LonLat): Pin => ({
   shape: 'pile',
   side: 'mine',
   ink: '#2a5ba8',
+  stack: { infantry: 1 },
 });
 
 type Hook = (...args: never[]) => unknown;

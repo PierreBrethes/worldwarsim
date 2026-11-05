@@ -140,6 +140,16 @@ type RefusalContext = {
 
 const plural = (count: number, one: string, many: string): string => (count > 1 ? many : one);
 
+/** « de Metz », « d’Amiens », « du Havre », « des Sables-d’Olonne ». */
+const ofCity = (city: string): string =>
+  city.startsWith('Le ')
+    ? `du ${city.slice(3)}`
+    : city.startsWith('Les ')
+      ? `des ${city.slice(4)}`
+      : /^[AEIOUYÉÈÊÂÎÔ]/i.test(city)
+        ? `d’${city}`
+        : `de ${city}`;
+
 /** **Ce qu'un Magasin verse en passant**, en crans (ADR 0037 §4) ; `null` quand rien. */
 const resupplyWords = (rounds: number, fuel: number): string | null => {
   const steps = (count: number) => `${count} cran${plural(count, '', 's')}`;
@@ -3086,6 +3096,21 @@ export const fr = {
       `${count} bâtiment${plural(count, '', 's')} relevé${plural(count, '', 's')}`,
     note: 'On ne lève pas une grappe : on approche, et elle s’ouvre en figurines.',
     approach: 'approcher',
+  },
+
+  /** **Les accrochages** (#441) : là où mes forces touchent ce que j'ai relevé, nommés d'après
+   *  la ville la plus proche. */
+  contacts: {
+    before: (city: string) => `devant ${city}`,
+    /** Du nord, puis dans le sens des aiguilles d'une montre, par huitièmes. */
+    toward: (direction: number, city: string) =>
+      `${['au nord', 'au nord-est', 'à l’est', 'au sud-est', 'au sud', 'au sud-ouest', 'à l’ouest', 'au nord-ouest'][direction]} ${ofCity(city)}`,
+    offshore: (city: string) => `au large ${ofCity(city)}`,
+    title: (number: number, name: string) => `${number} · ${name}`,
+    mine: (troops: number) => `${troops} à vous`,
+    seen: (count: number) => `${count} relevé${plural(count, '', 's')}`,
+    edge: (numbers: string) => `Accrochage ${numbers} hors champ : y aller`,
+    none: 'Aucun accrochage : rien de relevé au contact de vos forces.',
   },
 
   hand: {

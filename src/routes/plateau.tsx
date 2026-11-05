@@ -120,6 +120,7 @@ import {
   type DisbandGround,
 } from '@/domain/movement-orders';
 import {
+  stackOf,
   type CombatReport,
   type JournalDispatch,
   type ReplayView,
@@ -2008,7 +2009,13 @@ function BoardContent({
     () => marchingPiecesOf(view.arcs, view.me.troops, blitz),
     [view.arcs, view.me.troops, blitz],
   );
-  const pins = useMemo(() => pinsOf(markers, arcs, ink), [markers, arcs, ink]);
+  const pins = useMemo(
+    () =>
+      pinsOf(markers, arcs, ink, (station) =>
+        stackOf(troopsAt(view.me, stationKeyOf(station), marching).map(({ role }) => role)),
+      ),
+    [markers, arcs, ink, view.me, marching],
+  );
 
   /**
    * **La troupe touchée ou cochée grossit** (carte-lisible, 03/10), et c'est `highlightOf` qui

@@ -34,6 +34,7 @@ const mine = (id: string, lonLat: LonLat, moving = false): Pin => ({
   shape: 'pile',
   side: 'mine',
   ink: '#2a5ba8',
+  stack: { infantry: 1 },
   ...(moving ? { moving: true as const } : {}),
 });
 const seen = (id: string, lonLat: LonLat): Pin => ({
