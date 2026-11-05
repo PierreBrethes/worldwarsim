@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INK_BY_NATION, typeInk, type Nation } from '@/domain/nations';
-import { contrastRatio, lavis, nationShades, PALETTE, PEN_OPACITY, penOf } from './palette';
+import { contrastRatio, lavis, PALETTE, PEN_OPACITY, penOf } from './palette';
 
 const channels = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
@@ -82,19 +82,17 @@ const NEIGHBOURS: ReadonlyArray<[Nation, Nation]> = [
 
 describe('the eight nation inks', () => {
   it.each(NEIGHBOURS)('keep %s and %s apart once washed on the sheet', (first, second) => {
-    expect(
-      deltaE(nationShades(INK_BY_NATION[first]).sheet, nationShades(INK_BY_NATION[second]).sheet),
-    ).toBeGreaterThan(20);
+    expect(deltaE(lavis(INK_BY_NATION[first]), lavis(INK_BY_NATION[second]))).toBeGreaterThan(20);
   });
 
   it('keep any two nations apart, neighbours or not — a legend reads them all', () => {
     for (const [rank, [, first]] of inks.entries())
       for (const [, second] of inks.slice(rank + 1))
-        expect(deltaE(nationShades(first).sheet, nationShades(second).sheet)).toBeGreaterThan(18);
+        expect(deltaE(lavis(first), lavis(second))).toBeGreaterThan(18);
   });
 
   it.each(inks)('lays %s clearly off the bare land', (_nation, ink) => {
-    expect(deltaE(nationShades(ink).sheet, PALETTE.neutralLand)).toBeGreaterThan(25);
+    expect(deltaE(lavis(ink), PALETTE.neutralLand)).toBeGreaterThan(25);
   });
 
   /** The mast, the telegraph's sender: the ink is also read as type on paper. */
@@ -109,31 +107,24 @@ describe('the eight nation inks', () => {
   });
 });
 
-describe('the shades of one nation', () => {
+describe('the wash of one nation', () => {
   /**
    * A wash pulls every ink toward the sand, so a family is a **direction away from the paper**:
    * the angle of a shade's offset from the bare land, in the colour plane. Every step of a nation
    * leaves the paper the way its ink does, and nearer that way than any other nation's.
    */
   it.each(inks)('keeps every shade of %s in its own family', (_nation, ink) => {
-    const { sheet, surveyed } = nationShades(ink);
-    for (const shade of [sheet, surveyed]) {
-      expect(angleGap(direction(shade), direction(ink))).toBeLessThan(20);
-      for (const [, other] of inks.filter(([, candidate]) => candidate !== ink))
-        expect(angleGap(direction(shade), direction(ink))).toBeLessThan(
-          angleGap(direction(shade), direction(other)),
-        );
-    }
-  });
-
-  it.each(inks)('tells a fresh ground of %s from an old survey', (_nation, ink) => {
-    const { sheet, surveyed } = nationShades(ink);
-    expect(deltaE(sheet, surveyed)).toBeGreaterThan(15);
+    const shade = lavis(ink);
+    expect(angleGap(direction(shade), direction(ink))).toBeLessThan(20);
+    for (const [, other] of inks.filter(([, candidate]) => candidate !== ink))
+      expect(angleGap(direction(shade), direction(ink))).toBeLessThan(
+        angleGap(direction(shade), direction(other)),
+      );
   });
 
   it('never leaves the byte range, whatever it is handed', () => {
     for (const hex of ['#000000', '#ffffff', PALETTE.neutralLand]) {
-      for (const shade of Object.values(nationShades(hex))) expect(shade).toMatch(/^#[0-9a-f]{6}$/);
+      expect(lavis(hex)).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
 });

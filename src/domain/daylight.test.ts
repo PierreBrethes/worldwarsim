@@ -8,7 +8,7 @@ import {
   lampDirection,
   MOON_AZIMUTH_DEG,
   MOON_ELEVATION_DEG,
-  nightAt,
+  nightOfAltitude,
   subsolarPoint,
   sunAltitude,
   sunLightAt,
@@ -16,6 +16,8 @@ import {
 
 const PARIS: LonLat = [2.35, 48.86];
 const HOUR_MS = 3_600_000;
+const nightAt = (epochMs: number, at: LonLat): number =>
+  nightOfAltitude(sunAltitude(subsolarPoint(epochMs), at));
 
 describe('subsolarPoint', () => {
   it('stands near 0°/0° at noon UTC on the March equinox', () => {

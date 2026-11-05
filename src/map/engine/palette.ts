@@ -39,8 +39,6 @@ export const PALETTE = {
  * the lavis is left to the nation-colour tests below, which still paint a nation's sheet.
  */
 const HELD_OPACITY = 0.65;
-/** An old survey's share of that load. */
-const SURVEYED_LOAD = 0.35;
 
 const channelsOf = (hex: string): ReadonlyArray<number> => {
   const value = parseInt(hex.replace('#', ''), 16);
@@ -61,14 +59,6 @@ export function lavis(
         .padStart(2, '0'),
     )
     .join('')}`;
-}
-
-/** A nation's ground as a sheet would wash it: held, and known by an old survey. */
-export function nationShades(ink: string) {
-  return {
-    sheet: lavis(ink),
-    surveyed: lavis(ink, HELD_OPACITY * SURVEYED_LOAD),
-  };
 }
 
 const linear = (channel: number): number => {

@@ -1861,9 +1861,8 @@ export const fr = {
     >,
   },
 
-  /** Le film de 30 s, à la demande : un lien discret sur les deux pages d'entrée. */
+  /** Le film de 30 s, à la demande : le cartouche de la photo de la une l'ouvre, muet. */
   film: {
-    open: 'voir le film d’annonce — 30 s',
     title: 'le film d’annonce',
     unavailable: 'Le film n’est pas disponible pour l’instant.',
     /** Le film est muet : ces lignes sont ses sous-titres, posés au temps de chaque plan
@@ -1916,7 +1915,6 @@ export const fr = {
       },
     ],
     haveCode: 'j’ai un code',
-    signIn: 'se connecter',
     enter: 'entrer',
     /** Les quatre vignettes sous le pli : les gestes d'aujourd'hui, un par vignette. */
     gestures: {
@@ -1946,10 +1944,7 @@ export const fr = {
     /** Les deux portes, au bout de l'édition : on n'entre pas seul. */
     bureau: {
       folio: 'Bureau des engagements',
-      title: 'Prenez votre place à la table',
-      chapo: 'On n’entre pas seul : un ami vous a envoyé un lien, ou un code.',
       codeTitle: 'J’ai un code d’invitation',
-      codeHint: 'Six caractères, reçus avec l’invitation.',
       open: 'ouvrir l’invitation',
       /** Ce que le champ dit avant le geste, jamais un bouton grisé : un code incomplet dit
        *  combien de caractères lui manquent. */
