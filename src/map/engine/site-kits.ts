@@ -64,6 +64,14 @@ const materialOf = (root: Object3D, name: string): Material | null => {
   return found;
 };
 
+/** **A material of the file, as the engine's own**: a geometry drawn here never merges with the
+ *  file's, whose attributes are laid otherwise (`bakedSite` merges by material). */
+function ownCopy(material: Material | null, color: string, name: string): Material {
+  const copy = material?.clone() ?? new MeshStandardMaterial({ color });
+  copy.name = name;
+  return copy;
+}
+
 async function airfieldKit(site: Object3D, load: Load): Promise<Object3D[]> {
   const [kit, windsock] = await Promise.all([load(KITS.piste), load(KITS.manche)]);
   const runway = new Group();
@@ -84,7 +92,7 @@ async function airfieldKit(site: Object3D, load: Load): Promise<Object3D[]> {
     runway.add(module);
     along += metres;
   }
-  const concrete = materialOf(site, 'beton_aire') ?? new MeshStandardMaterial({ color: '#cfc6b2' });
+  const concrete = ownCopy(materialOf(site, 'beton_aire'), '#cfc6b2', 'beton_rampe');
   for (const x of AIRFIELD.lanes) {
     const ramp = new Mesh(rampGeometry(x), concrete);
     ramp.name = 'rampe';
@@ -145,7 +153,7 @@ async function moleKit(load: Load): Promise<Object3D> {
   head.position.set(MOLE.x, MOLE.lift, tip);
   mole.add(head);
   // The skirt under the raised kit, from the water to its own foot.
-  const stone = materialOf(kit, 'pierre') ?? new MeshStandardMaterial({ color: '#bdb3a0' });
+  const stone = ownCopy(materialOf(kit, 'pierre'), '#bdb3a0', 'pierre_jupe');
   const tall = MOLE.lift - MOLE.skirt;
   const along = new Mesh(new BoxGeometry(2 * (MOLE.x - MOLE.inner), tall, MOLE.length), stone);
   along.position.set(MOLE.x, MOLE.skirt + tall / 2, MOLE.quay + MOLE.length / 2);

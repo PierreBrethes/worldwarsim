@@ -96,6 +96,11 @@
  * l'échelle commune (ADR 0035). L'avion de l'aérodrome est le transport du largage : un chasseur
  * ne part d'un point sans piste. Deux chars restent seuls à Orléans : une pile hors garnison, pour la
  * figurine plancher (#266).
+ * `--piste-mole [s]` (#269, #270) pose la scène de `--largage` et de `--navire` ; dans `s` secondes
+ * (40 par défaut) une escorte venue de la mer d'Alboran accoste à Marseille ; dix secondes après, un
+ * chasseur sort du hangar et un cargo neuf est lancé ; cinq encore, le transport décolle vers Naples
+ * et le cargo de Marseille appareille vers Alexandrie ; vingt encore, le transport, porté près de
+ * Naples, fait demi-tour et se pose vingt-cinq secondes après. Lieux `aerodrome` et `port`.
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
@@ -224,7 +229,11 @@ const tours = process.argv.includes('--tournee');
 /** `--sans-depart` : la scène des tournées, mais aucune lancée — à lancer page ouverte (#128). */
 const held = process.argv.includes('--sans-depart');
 const rangoon = process.argv.includes('--rangoun');
-const airdrops = process.argv.includes('--largage') || process.argv.includes('--echelle');
+/** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
+const runwayAt = process.argv.indexOf('--piste-mole');
+const runwayIn = runwayAt < 0 ? null : Number(process.argv[runwayAt + 1]) || 40;
+const airdrops =
+  runwayIn !== null || process.argv.includes('--largage') || process.argv.includes('--echelle');
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
 /** `--sites` (#273) : les sites qui vivent au repos, le Centre qui cherche compris. */
@@ -253,6 +262,8 @@ const touringAt = process.argv.indexOf('--en-tournee');
 const touringIn = touringAt < 0 ? null : Number(process.argv[touringAt + 1]) || 25;
 const yard = process.argv.includes('--cour');
 let touringTrucks = null;
+/** What `--piste-mole` sends off at the end: from its building, toward a far point. */
+let runwayScene = null;
 /** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
@@ -288,6 +299,7 @@ const denseQuay = process.argv.includes('--quai-dense');
 const navy =
   denseQuay ||
   coastIn !== null ||
+  runwayIn !== null ||
   process.argv.includes('--navire') ||
   process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
@@ -667,6 +679,7 @@ if (!bare) {
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
     cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
+  if (runwayIn !== null && scene.a !== null) runwayScene = await runwayAndMole();
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
    *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
    *  donne des traversées toutes en mer, jamais un trajet terre puis mer (aucune marche avant
@@ -1661,6 +1674,45 @@ writeFileSync(
 console.log(`Mondiale lancée : code ${code}, saison ${seasonId}`);
 console.log(`Comptes : ${accounts.a.nickname} (a), ${accounts.b.nickname} (b) → ${accountsFile}`);
 
+/** `--piste-mole` : what leaves, once the page has the view before it (#269, #270); the plane
+ *  turns back to its airfield and lands, both arrivals brought forward. */
+if (runwayScene !== null) {
+  await pause((runwayIn + 15) * 1000);
+  const ids = [];
+  for (const { from, troopIds, to } of runwayScene)
+    ids.push(
+      await client.mutation(api.movements.marchTo, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'building', buildingId: from },
+        troopIds,
+        point: to,
+      }),
+    );
+  console.log(`Départs de la piste et du môle à ${new Date().toISOString()}`, ids);
+  // Its take-off played, the plane is brought near Naples, turned back, and lands in 25 s.
+  await pause(20_000);
+  cli([
+    'run',
+    'dev:arriveNow',
+    JSON.stringify({ playerId: scene.a, afterMs: 300_000, onTime: true }),
+  ]);
+  const flight = ids[0];
+  await client.mutation(api.movements.changeCourse, {
+    token: tokenA,
+    seasonId,
+    movementId: typeof flight === 'string' ? flight : flight.movementId,
+    type: 'march',
+    target: { kind: 'building', buildingId: runwayScene[0].from },
+  });
+  cli([
+    'run',
+    'dev:arriveNow',
+    JSON.stringify({ playerId: scene.a, afterMs: 25_000, onTime: true }),
+  ]);
+  console.log(`Retour à la piste dans 25 s, à ${new Date().toISOString()}`);
+}
+
 /** `--chargement` : the trucks load, the HQ's twice a second apart: the second load joins. */
 if (loadingTrucks !== null) {
   await pause(loadingIn * 1000);
@@ -1860,4 +1912,67 @@ function contactsScene(france, uk) {
   places['accrochage-metz'] = [6.35, 49.24];
   places['accrochage-manche'] = [-1.78, 50.02];
   places['accrochage-loin'] = cairo;
+}
+
+/**
+ * **`--piste-mole`** (#269, #270): an escort from
+ * the Alboran Sea docks at Marseille in `runwayIn` seconds; a fighter and a cargo are recruited
+ * there, finished ten seconds after. Returns what leaves at the end: the transport for Naples, the
+ * cargo of Marseille for Alexandria.
+ */
+async function runwayAndMole() {
+  const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+  const airfield = me.buildings.find((building) => building.key === 'airfield');
+  const port = me.buildings.find((building) => building.key === 'port');
+  places.aerodrome = {
+    id: `building-airfield@${airfield.point[0]},${airfield.point[1]}`,
+    lonLat: airfield.point,
+  };
+  places.port = { id: `building-port@${port.point[0]},${port.point[1]}`, lonLat: port.point };
+  const leaving = [
+    { from: airfield.id, role: 'airTransport', to: { lon: 14.25, lat: 40.85 } },
+    { from: port.id, role: 'cargo', to: { lon: 29.9, lat: 31.3 } },
+  ].map(({ from, role, to }) => ({
+    from,
+    to,
+    troopIds: me.troops.filter((troop) => troop.role === role).map((troop) => troop.id),
+  }));
+  for (const [role, start, building] of [['escort', { lon: -3.0, lat: 36.0 }, port]]) {
+    const spawned = JSON.parse(
+      cli([
+        'run',
+        'dev:spawnTroops',
+        JSON.stringify({ playerId: scene.a, role, count: 1, ...start }),
+      ]).match(/\[[^\]]*\]/)[0],
+    );
+    await client.mutation(api.movements.enterGarrison, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: start },
+      troopIds: spawned,
+      buildingId: building.id,
+    });
+  }
+  cli([
+    'run',
+    'dev:arriveNow',
+    JSON.stringify({ playerId: scene.a, afterMs: runwayIn * 1000, onTime: true }),
+  ]);
+  for (const [building, role] of [
+    [airfield, 'fighter'],
+    [port, 'cargo'],
+  ])
+    await client.mutation(api.troops.recruit, {
+      token: tokenA,
+      seasonId,
+      buildingId: building.id,
+      role,
+      tier: 1,
+    });
+  cli([
+    'run',
+    'dev:finishRecruitments',
+    JSON.stringify({ playerId: scene.a, afterMs: (runwayIn + 10) * 1000 }),
+  ]);
+  return leaving;
 }
