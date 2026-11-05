@@ -358,6 +358,41 @@ describe('public/atlas.json', () => {
     expect(paris!.lonLat[1]).toBeCloseTo(48.86, 1);
   });
 
+  it('names its seas, the maquette A ones among them, each point at sea', () => {
+    const atlas = decodeAtlas(file);
+    const seas = atlas.seas();
+    expect(seas.length).toBeGreaterThan(90);
+    expect(seas.map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'océan Atlantique',
+        'mer du Nord',
+        'Manche',
+        'mer Méditerranée',
+        'golfe de Gascogne',
+        'mer Baltique',
+        'mer Noire',
+        'mer Tyrrhénienne',
+        'mer Adriatique',
+        'mer Égée',
+        'mer Ionienne',
+      ]),
+    );
+    expect(new Set(seas.map(({ name }) => name)).size).toBe(seas.length);
+    const dry = seas.flatMap(({ name, rank, spots }) =>
+      rank > 4 || spots.length === 0 || spots.length > 6
+        ? [name]
+        : spots.flatMap(({ lonLat, radius }) => {
+            const point = projectLonLat(
+              projectionAsset.outline as never,
+              projectionAsset.sphere,
+              lonLat,
+            );
+            return radius < 0.5 || atlas.regionAt(point, 'far') !== null ? [name] : [];
+          }),
+    );
+    expect(dry).toEqual([]);
+  });
+
   it('draws the great rivers far, and the front of 1940 near, each named once', () => {
     const names = (rivers: ReturnType<typeof decodeRivers>) => rivers.map(({ name }) => name);
     const far = decodeRivers(file.rivers!, file.transform);

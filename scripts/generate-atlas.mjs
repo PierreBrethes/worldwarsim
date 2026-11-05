@@ -11,14 +11,15 @@
  *    the sheet. Two levels keep the same arcs and region objects: near (30 % of the points) and
  *    far (6 %), quantized at 0.001 u (~110 m). Each level is repaired until no arc crosses
  *    another and every region keeps a shape (`level`).
- * 4. Decor, read by no rule (#440): the cities (capitals and agglomerations over 500 000) in
- *    `atlas.json`, the rivers at each level, outside the arcs and so outside `level`'s repairs.
+ * 4. Decor, read by no rule (#440): the cities (capitals and agglomerations over 500 000) and
+ *    the seas (#457) in `atlas.json`, the rivers at each level, outside the arcs and so outside
+ *    `level`'s repairs.
  * 5. The `regionId` diff against the atlas being replaced is printed: an id that moves orphans
  *    a capital, a deposit or a saved season.
  *
  * Usage: node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson>
  *   <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson> <ne_10m_populated_places.geojson>
- *   <ne_10m_rivers_lake_centerlines.geojson> <rivers10.dbf>
+ *   <ne_10m_rivers_lake_centerlines.geojson> <rivers10.dbf> <ne_10m_geography_marine_polys.geojson>
  * Sources, pinned by SHA-256 below:
  * - Natural Earth v5.1.2, github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/
  *   ne_10m_admin_1_states_provinces.geojson
@@ -33,12 +34,15 @@
  *   dropped), `name_fr` from raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/
  *   10m_physical/ne_10m_rivers_lake_centerlines.dbf, saved as `rivers10.dbf`. See
  *   `frenchRiverNames`.
+ * - Natural Earth v5.1.2, raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/
+ *   ne_10m_geography_marine_polys.geojson (#457)
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync, inflateRawSync } from 'node:zlib';
 import { geoArea, geoNaturalEarth1 } from 'd3-geo';
 import mapshaper from 'mapshaper';
+import polylabel from 'polylabel';
 import { presimplify } from 'topojson-simplify';
 import { decodeAtlas, findCrossings } from '../src/domain/atlas.ts';
 import { attributesOf, germanDistricts } from './german-districts.mjs';
@@ -56,6 +60,10 @@ const SOURCES = [
     'Natural Earth rivers, v5.1.2 attributes',
     '68079fde5fde6167d0c7c4f03e498164badcc3b687a93c436278ade83882b564',
   ],
+  [
+    'Natural Earth marine polygons',
+    '53f865e8ffa966cdd402145c82c5cd14ee7ce974cd0eb9a3f59f03a4cfd2d66c',
+  ],
 ];
 const WIDTH = 400;
 const HEIGHT = 208;
@@ -68,20 +76,19 @@ const FAR_SHARE = 0.06;
 const paths = process.argv.slice(2);
 if (paths.length !== SOURCES.length) {
   console.error(
-    'usage: node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson> <ne_10m_populated_places.geojson> <ne_10m_rivers_lake_centerlines.geojson> <rivers10.dbf>',
+    'usage: node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> <vg2500_12-31.utm32s.shape.zip> <ne_10m_lakes.geojson> <ne_10m_populated_places.geojson> <ne_10m_rivers_lake_centerlines.geojson> <rivers10.dbf> <ne_10m_geography_marine_polys.geojson>',
   );
   process.exit(1);
 }
-const [admin1, vg2500, lakeSource, placeSource, riverSource, riverAttributes] = paths.map(
-  (path, i) => {
+const [admin1, vg2500, lakeSource, placeSource, riverSource, riverAttributes, seaSource] =
+  paths.map((path, i) => {
     const [name, expected] = SOURCES[i];
     const bytes = readFileSync(path);
     const actual = createHash('sha256').update(bytes).digest('hex');
     if (actual !== expected)
       throw new Error(`${name} (${path}): SHA-256 ${actual}, expected ${expected}`);
     return bytes;
-  },
-);
+  });
 
 // ---------- 1. The regions, in lon/lat ----------
 
@@ -647,6 +654,102 @@ near.rivers = await riversOf(
   ({ scalerank, name }) => scalerank <= RIVER_RANKS.near || FRONT_RIVERS.has(name),
   landOf(decodeAtlas(atlas, near), 'near'),
 );
+
+/**
+ * **Les mers et les océans** (#457) : océans, mers, golfes, baies, canaux, détroits et sounds de
+ * rang ≤ 4, sous leur `name_fr`, les entités d'un même nom réunies (Atlantique Nord et Sud). Each
+ * sea keeps up to six points inside it, 25 u apart at least, each with the radius of the disc
+ * that fits there: the map writes the name only where that disc spans it. Across the
+ * antimeridian, the points come from the largest projected piece. @a-mesurer
+ */
+const SEA_CLASSES = new Set(['ocean', 'sea', 'gulf', 'bay', 'channel', 'strait', 'sound']);
+const SEA_RANK = 4;
+const SEA_MIN_RADIUS = 0.5;
+const SEA_SPOTS = 6;
+const SEA_APART = 25;
+/** Where `name_fr` is wrong, keyed by the GeoJSON's `name`. */
+const SEA_NAMES = {
+  'Inner Sea': 'mer intérieure de Seto', // NAME_FR « Mers intérieures de la côte occidentale de l'Écosse »
+};
+
+/** The points inside one projected polygon with the radius of the water there, polylabel's
+ *  best and a grid's, the widest first. */
+function seaCandidates(polygon) {
+  const segments = polygon.flatMap((ring) => ring.slice(1).map((b, i) => [ring[i], b]));
+  const inside = (x, y) => {
+    let odd = false;
+    for (const [[ax, ay], [bx, by]] of segments)
+      if (ay > y !== by > y && x < ((bx - ax) * (y - ay)) / (by - ay) + ax) odd = !odd;
+    return odd;
+  };
+  const radius = (x, y) => {
+    let least = Infinity;
+    for (const [[ax, ay], [bx, by]] of segments) {
+      const l = (bx - ax) ** 2 + (by - ay) ** 2;
+      const t = l ? Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l)) : 0;
+      least = Math.min(least, Math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)));
+    }
+    return least;
+  };
+  const best = polylabel(polygon, 0.01);
+  const out = [[best[0], best[1], best.distance]];
+  const [xs, ys] = [0, 1].map((k) => polygon[0].map((point) => point[k]));
+  const [left, right, top, bottom] = [
+    Math.min(...xs),
+    Math.max(...xs),
+    Math.min(...ys),
+    Math.max(...ys),
+  ];
+  const step = Math.max(0.25, Math.min(2, (right - left) / 20));
+  for (let x = left; x <= right; x += step)
+    for (let y = top; y <= bottom; y += step) if (inside(x, y)) out.push([x, y, radius(x, y)]);
+  return out;
+}
+
+const seaGroups = new Map();
+for (const { properties, geometry } of JSON.parse(seaSource.toString('utf8')).features) {
+  if (!SEA_CLASSES.has(properties.featurecla) || properties.scalerank > SEA_RANK) continue;
+  const name = SEA_NAMES[properties.name] ?? properties.name_fr;
+  if (!name) continue;
+  const parts = (geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates).map(
+    (polygon) => polygon.map((ring) => ring.map((point) => projection(point))),
+  );
+  const areaOfRing = (ring) =>
+    Math.abs(ring.slice(1).reduce((sum, [x, y], i) => sum + ring[i][0] * y - x * ring[i][1], 0)) /
+    2;
+  const areaOfPart = ([outer, ...holes]) =>
+    areaOfRing(outer) - holes.reduce((sum, hole) => sum + areaOfRing(hole), 0);
+  const largest = parts.reduce((a, b) => (areaOfPart(b) > areaOfPart(a) ? b : a));
+  const group = seaGroups.get(name) ?? { rank: Infinity, candidates: [] };
+  group.rank = Math.min(group.rank, properties.scalerank);
+  group.candidates.push(...seaCandidates(largest));
+  seaGroups.set(name, group);
+}
+const seas = [...seaGroups].flatMap(([name, { rank, candidates }]) => {
+  const spots = [];
+  for (const spot of candidates
+    .filter(([, , r]) => r >= SEA_MIN_RADIUS)
+    .toSorted((a, b) => b[2] - a[2])) {
+    if (spots.length === SEA_SPOTS) break;
+    if (spots.every(([x, y]) => Math.hypot(x - spot[0], y - spot[1]) >= SEA_APART))
+      spots.push(spot);
+  }
+  return spots.length === 0 ? [] : [{ name, rank, spots }];
+});
+console.log(
+  `${seaGroups.size} seas, ${seas.length} wide enough, ${seas.reduce((sum, { spots }) => sum + spots.length, 0)} spots`,
+);
+/** `[name, rank, [lon, lat, radius][]]`, × 100: the ranks first, then the widest. */
+atlas.seas = seas
+  .toSorted((a, b) => a.rank - b.rank || b.spots[0][2] - a.spots[0][2])
+  .map(({ name, rank, spots }) => [
+    name,
+    rank,
+    spots.map(([x, y, radius]) => [
+      ...projection.invert([x, y]).map((degrees) => Math.round(degrees * 100)),
+      Math.round(radius * 100),
+    ]),
+  ]);
 
 // ---------- 5. Outputs and the id diff ----------
 
