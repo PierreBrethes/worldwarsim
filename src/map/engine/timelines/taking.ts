@@ -16,17 +16,46 @@ export type Trip = {
   readonly via?: ReadonlyArray<Point>;
 };
 
+/** Whether the segment `a`→`b` cuts the rectangle (slabs): the building, in the site's axes. */
+function crosses(
+  [ax, az]: readonly [number, number],
+  [bx, bz]: readonly [number, number],
+  box: { minX: number; maxX: number; minZ: number; maxZ: number },
+): boolean {
+  let [from, until] = [0, 1];
+  for (const [a, d, lo, hi] of [
+    [ax, bx - ax, box.minX, box.maxX],
+    [az, bz - az, box.minZ, box.maxZ],
+  ] as const) {
+    if (Math.abs(d) < 1e-9) {
+      if (a < lo || a > hi) return false;
+      continue;
+    }
+    const [t0, t1] = [(lo - a) / d, (hi - a) / d];
+    from = Math.max(from, Math.min(t0, t1));
+    until = Math.min(until, Math.max(t0, t1));
+  }
+  return from < until;
+}
+
 /**
  * **His way round the building to its perron** (#279, storyboard « Piller »): a man standing
- * behind the front of the door goes along the socle's side, round its corner, and comes to the
- * crate before the door; the crate leaves by the door on his shoulder. In the site's own units,
- * `[x, z]`; the door faces `yaw` (`StandingMaquette['seal']`), `box` is the socle's.
+ * whom the building stands in the way of goes along the socle's side, round its corner, and
+ * comes to the crate before the door; the crate leaves by the door on his shoulder. In the site's
+ * own units, `[x, z]`; the door faces `yaw` (`StandingMaquette['seal']`), `box` is the socle's,
+ * `building` the building's. A man the building does not stand in the way of goes straight.
  */
 export function aroundTheFront(
   from: readonly [number, number],
   to: readonly [number, number],
   yaw: number,
   box: {
+    readonly minX: number;
+    readonly maxX: number;
+    readonly minZ: number;
+    readonly maxZ: number;
+  },
+  building: {
     readonly minX: number;
     readonly maxX: number;
     readonly minZ: number;
@@ -40,7 +69,7 @@ export function aroundTheFront(
   const site = ([u, v]: Flat): Flat => [u * cos + v * sin, -u * sin + v * cos];
   const [fu, fv] = door(from);
   const [tu, tv] = door(to);
-  if (fv >= tv) return [];
+  if (!crosses(from, to, building)) return [];
   const across = [box.minX, box.maxX].flatMap((x) =>
     [box.minZ, box.maxZ].map((z) => door([x, z])[0]),
   );
@@ -116,20 +145,27 @@ function walkingAlong(
 /** **A man's trip, leg by leg**: out until `there`, his work until `back`, home by `home`. */
 function tripOf(
   { to, via = [] }: Trip,
-  hours: { readonly there: number; readonly back: number; readonly home: number },
+  hours: {
+    readonly there: number;
+    readonly back: number;
+    readonly home: number;
+    /** How long his own way takes, out and back (default: `there`): a longer way, a longer walk. */
+    readonly walk?: number;
+  },
   work: (t: number) => PartPose,
   homeward: (t: number) => PartPose,
   perMetre: number,
 ) {
   const way = [ORIGIN, ...via, to];
   const from = way.at(-2)!;
+  const walk = hours.walk ?? hours.there;
   return (t: number): PartPose => {
-    if (t < hours.there) return walkingAlong(way, t, 0, hours.there, perMetre);
+    if (t < walk) return walkingAlong(way, t, 0, walk, perMetre);
     if (t < hours.back)
       return { travel: to, heading: Math.atan2(to[0] - from[0], to[2] - from[2]), ...work(t) };
-    if (t < hours.home)
+    if (t < hours.back + walk)
       return {
-        ...walkingAlong([...way].reverse(), t, hours.back, hours.home, perMetre),
+        ...walkingAlong([...way].reverse(), t, hours.back, hours.back + walk, perMetre),
         ...homeward(t),
       };
     return { travel: ORIGIN, ...homeward(t) };
@@ -217,17 +253,33 @@ export function plunderOf({
   readonly trips: ReadonlyArray<Trip>;
   readonly perMetre: number;
 }): Sequence & { readonly takenAt: number } {
-  const there = TAKING.walk * 1.4;
+  // He walks the pace a straight way takes `TAKING.walk * 1.4`: a longer way takes longer.
+  const legs = trips.map(({ part, to, via }) => {
+    const target = shortOf(to, perMetre, via?.at(-1));
+    const way = [ORIGIN, ...(via ?? []), target];
+    const metres = way.slice(1).reduce((sum, p, k) => {
+      const [x, z] = [p[0] - way[k]![0], p[2] - way[k]![2]];
+      return sum + Math.hypot(x, z);
+    }, 0);
+    const straight = Math.max(Math.hypot(target[0], target[2]), 1e-6);
+    return {
+      part,
+      to: target,
+      ...(via !== undefined && { via }),
+      walk: TAKING.walk * 1.4 * Math.max(1, metres / straight),
+    };
+  });
+  const there = Math.max(TAKING.walk * 1.4, ...legs.map(({ walk }) => walk));
   const back = there + TAKING.lift + 150;
-  const home = back + TAKING.walk * 1.4;
+  const home = back + there;
   const ms = home + TAKING.tag + 300;
   const sequence = sequenceOf(
     ms,
-    trips.map(({ part, to, via }) => [
+    legs.map(({ part, to, via, walk }) => [
       part,
       tripOf(
-        { part, to: shortOf(to, perMetre, via?.at(-1)), ...(via !== undefined && { via }) },
-        { there, back, home },
+        { part, to, ...(via !== undefined && { via }) },
+        { there, back, home, walk },
         (t) => {
           // He takes it at hand's height off the pile, and swings it up to his shoulder.
           const lifted = 0.6 + 0.4 * ease.out3(span(t, there, there + TAKING.lift));

@@ -101,7 +101,7 @@ describe('plunderOf (#279, « Piller »)', () => {
   it('walks a man round by his way, there and back, when the perron is not in his sight', () => {
     const via = [[6, 0, 0] as const, [6, 0, 4] as const];
     const round = plunderOf({ trips: [{ part: 'man_0', to, via }], perMetre: 1 });
-    const out = TAKING.walk * 1.4;
+    const out = round.takenAt;
     const passes = (from: number, until: number) =>
       via.every((point) =>
         Array.from(
@@ -162,27 +162,71 @@ describe('takingStepOf (#279, « Réduites et coupées »)', () => {
 
 /** #279 : la caisse prise sort par la porte, à l'épaule d'un homme (storyboard « Piller »). */
 describe('aroundTheFront (#279, « Piller »)', () => {
+  // The socle, and the building on it: the door looks to +z, the crate lies before it.
   const box = { minX: -38, maxX: 38, minZ: -28, maxZ: 48 };
-  const crate = [-4.7, 21] as const;
+  const building = { minX: -30, maxX: 30, minZ: -20, maxZ: 20 };
+  const crate = [-4.7, 24] as const;
 
   it('takes a man behind the building round its side, to the front of its door', () => {
-    expect(aroundTheFront([0, -10], crate, 0, box)).toEqual([
-      [38, -10],
-      [38, 21],
+    expect(aroundTheFront([0, -26], crate, 0, box, building)).toEqual([
+      [38, -26],
+      [38, 24],
     ]);
-    expect(aroundTheFront([-30, -20], crate, 0, box)).toEqual([
-      [-38, -20],
-      [-38, 21],
+    expect(aroundTheFront([-30, -25], crate, 0, box, building)).toEqual([
+      [-38, -25],
+      [-38, 24],
     ]);
   });
 
-  it('lets a man before the door go straight', () => {
-    expect(aroundTheFront([-20, 44], crate, 0, box)).toEqual([]);
+  it('lets a man go straight whom nothing stands in the way of, just short of the crate too', () => {
+    expect(aroundTheFront([-20, 44], crate, 0, box, building)).toEqual([]);
+    // A hair behind the crate's depth, beside the building: he is clear of it, not "behind" it.
+    expect(aroundTheFront([35, 23.9], crate, 0, box, building)).toEqual([]);
+    expect(aroundTheFront([-4.7, 23.9], crate, 0, box, building)).toEqual([]);
   });
 
   it('reads the front by the door, however the site is turned', () => {
-    const [[x, z]] = aroundTheFront([10, 0], [21, 0], Math.PI / 2, box) as [[number, number]];
+    const [[x, z]] = aroundTheFront([10, 0], [21, 0], Math.PI / 2, box, {
+      minX: -10,
+      maxX: 14,
+      minZ: -20,
+      maxZ: 20,
+    }) as [[number, number]];
     expect(x).toBeCloseTo(10);
     expect(z).toBeCloseTo(-28);
+  });
+
+  it('does the same for a door turned half a turn', () => {
+    const behind = aroundTheFront([0, 26], [4.7, -24], Math.PI, box, building);
+    expect(behind).toHaveLength(2);
+    expect(Math.abs(behind[0]![0])).toBeCloseTo(38);
+    expect(behind[0]![1]).toBeCloseTo(26);
+    expect(behind[1]![1]).toBeCloseTo(-24);
+    expect(aroundTheFront([35, -23.9], [4.7, -24], Math.PI, box, building)).toEqual([]);
+  });
+});
+
+describe('plunderOf, round the building (#279)', () => {
+  const via: ReadonlyArray<readonly [number, number, number]> = [
+    [6, 0, 0],
+    [6, 0, 4],
+  ];
+  const target = [3, 0, 4] as const;
+  const straight = plunderOf({ trips: [{ part: 'man_0', to: target }], perMetre: 1 });
+  const round = plunderOf({ trips: [{ part: 'man_0', to: target, via }], perMetre: 1 });
+
+  it('keeps his pace: the longer way takes as much longer as it is longer', () => {
+    const shorted = (p: readonly [number, number, number]) => {
+      const end = via[1]!;
+      const k = 1 - (0.35 * MAN_METRES) / Math.hypot(p[0] - end[0], p[2] - end[2]);
+      return [end[0] + (p[0] - end[0]) * k, end[2] + (p[2] - end[2]) * k] as const;
+    };
+    const [tx, tz] = shorted(target);
+    const direct = Math.hypot(tx, tz);
+    const way = 6 + 4 + Math.hypot(tx - 6, tz - 4);
+    expect(round.takenAt / straight.takenAt).toBeCloseTo(way / direct, 2);
+    // He comes back at the same pace.
+    const back = (plan: typeof round) => plan.ms - plan.takenAt;
+    expect((back(round) - TAKING.lift) / (back(straight) - TAKING.lift)).toBeGreaterThan(1.3);
   });
 });

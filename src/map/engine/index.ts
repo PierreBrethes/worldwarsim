@@ -4049,12 +4049,18 @@ export class MapEngine {
         minZ: site.box.min.z,
         maxZ: site.box.max.z,
       };
+      const building = {
+        minX: site.building.min.x,
+        maxX: site.building.max.x,
+        minZ: site.building.min.z,
+        maxZ: site.building.max.z,
+      };
       const trips: Trip[] = [first, second].flatMap((man, k) => {
         const crate = top[k]?.at;
         if (man === undefined || crate === undefined) return [];
         const from = site.toModel(man);
-        const via = aroundTheFront([from.x, from.z], [crate.x, crate.z], yaw, box).map(([x, z]) =>
-          offset(man, site.toBoard(new Vector3(x, SOCLE_TOP, z))),
+        const via = aroundTheFront([from.x, from.z], [crate.x, crate.z], yaw, box, building).map(
+          ([x, z]) => offset(man, site.toBoard(new Vector3(x, SOCLE_TOP, z))),
         );
         return [{ part: `man_${k}`, to: offset(man, site.toBoard(crate)), via }];
       });
