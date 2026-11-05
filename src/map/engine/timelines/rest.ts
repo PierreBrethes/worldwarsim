@@ -27,45 +27,92 @@ const COUPLE_GAP = 1;
 /** **How far past the mole's head a third hull rides at anchor.** `@a-mesurer` */
 const ROADS_GAP = 60;
 
+/** **A place on the apron**: a lane (0 the right hangar's, 1 the left's) and a rank from the rail. */
+export type Place = { readonly lane: 0 | 1; readonly rank: number };
+export type Plane = { readonly role: AirRole; readonly place: Place | null };
+/** **How a plane comes by its place**: out of its hangar, home from the runway, or with no history
+ *  (the view as it loads: the order of the role). */
+export type Arrival = 'formed' | 'returned' | 'initial';
+
+const FIGHTER = troopMetres('fighter');
+/** A fighter's pitch, and how many a lane holds. */
+const PITCH = FIGHTER + PLANE_GAP;
+const RANKS = Math.floor((LANE_ROOM + PLANE_GAP) / PITCH);
+const isBig = (role: AirRole) => role !== 'fighter';
+
 /**
- * **The apron**: the right lane fills first, each plane a pitch behind the one before it, its tail
- * 2 m from the rail; what does not fit goes on to the left lane, and a big plane is alone in its
- * own. The steps widen with the growth, but never past the ramp: the last plane of a lane keeps
- * its nose on the yard.
+ * **The place a plane takes among those held** (décision du 05/11): never across a parked plane.
+ * Formed, it drives out of its hangar to the most advanced free place before any plane of its
+ * lane, else the neighbouring lane's; come home, it comes up its lane to the deepest free place
+ * past the planes parked. With no history, the first free place in order (right lane first). A big
+ * plane is alone in its lane. `null` when the apron is full.
  */
+export function settle(held: ReadonlyArray<Plane>, role: AirRole, arrival: Arrival): Place | null {
+  const planes = held.flatMap(({ place, role: kind }) => (place === null ? [] : [{ place, kind }]));
+  const free: Array<Place & { before: boolean; past: boolean }> = [];
+  for (const lane of [0, 1] as const) {
+    const ranks = planes.filter(({ place }) => place.lane === lane).map(({ place }) => place.rank);
+    const alone = planes.some(({ place, kind }) => place.lane === lane && isBig(kind));
+    if (alone || (isBig(role) && ranks.length > 0)) continue;
+    for (let rank = 0; rank < (isBig(role) ? 1 : RANKS); rank++)
+      if (!ranks.includes(rank))
+        free.push({
+          lane,
+          rank,
+          before: ranks.every((taken) => taken > rank),
+          past: ranks.every((taken) => taken < rank),
+        });
+  }
+  const best = (reach: (place: (typeof free)[number]) => boolean, deepest: boolean) => {
+    const pool = free.some(reach) ? free.filter(reach) : free;
+    return pool.reduce<(typeof free)[number] | null>(
+      (top, each) =>
+        top === null || (deepest ? each.rank > top.rank : each.rank < top.rank) ? each : top,
+      null,
+    );
+  };
+  const found =
+    arrival === 'initial'
+      ? (free[0] ?? null)
+      : arrival === 'formed'
+        ? best(({ before }) => before, true)
+        : best(({ past }) => past, false);
+  return found === null ? null : { lane: found.lane, rank: found.rank };
+}
+
+/**
+ * **The apron**: each plane where its place says, nose to the runway, its tail 2 m from the rail
+ * for the first rank, a pitch of 13 m a rank. The steps widen with the growth (a number or one
+ * per plane), but never past the ramp: a plane keeps its nose on the yard. A plane with no place
+ * is `null`.
+ */
+export function layout(
+  planes: ReadonlyArray<Plane>,
+  side: Side = 1,
+  growth: Growth = 1,
+): Array<Rest | null> {
+  return planes.map(({ role, place }, k) => {
+    if (place === null) return null;
+    const length = troopMetres(role);
+    const depth = place.rank * PITCH;
+    const g = Math.min(growthOf(growth, k), LANE_ROOM / (depth + length));
+    return {
+      x: side * AIRFIELD.lanes[place.lane],
+      z: AIRFIELD.facade + TAIL_GAP + g * (depth + length / 2),
+      yaw: 0,
+    };
+  });
+}
+
+/** **The apron with no history**: the places in the order of the roles (`settle`, `initial`). */
 export function apron(
   roles: ReadonlyArray<AirRole>,
   side: Side = 1,
   growth: Growth = 1,
 ): Array<Rest | null> {
-  const lanes = AIRFIELD.lanes.map((x) => ({ x, used: 0, count: 0, big: false, cursor: TAIL_GAP }));
-  const homes = roles.map((role) => {
-    const length = troopMetres(role);
-    const big = role !== 'fighter';
-    const lane = lanes.find((each) =>
-      big ? each.count === 0 : !each.big && each.used + length <= LANE_ROOM,
-    );
-    if (lane === undefined) return null;
-    lane.used += length + PLANE_GAP;
-    lane.count += 1;
-    lane.big = big;
-    return lane;
-  });
-  // The nose of the last plane of each lane, at true size: what the growth may not push past.
-  const cap = Math.min(
-    ...lanes
-      .filter(({ count }) => count > 0)
-      .map(({ used }) => YARD / (TAIL_GAP + used - PLANE_GAP)),
-  );
-  return roles.map((role, k) => {
-    const lane = homes[k];
-    if (lane === null || lane === undefined) return null;
-    const length = troopMetres(role);
-    const g = Math.min(growthOf(growth, k), cap);
-    const z = AIRFIELD.facade + lane.cursor + (g * length) / 2;
-    lane.cursor += g * (length + PLANE_GAP);
-    return { x: side * lane.x, z, yaw: 0 };
-  });
+  const planes: Plane[] = [];
+  for (const role of roles) planes.push({ role, place: settle(planes, role, 'initial') });
+  return layout(planes, side, growth);
 }
 
 /**
