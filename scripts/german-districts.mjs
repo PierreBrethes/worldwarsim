@@ -20,7 +20,7 @@ export const SPLIT_LÄNDER = {
   '09': 'DEU-1591', // Bayern
 };
 
-const attributesOf = (dbf) => {
+export const attributesOf = (dbf) => {
   const count = dbf.readUInt32LE(4);
   const headerLength = dbf.readUInt16LE(8);
   const recordLength = dbf.readUInt16LE(10);
@@ -35,7 +35,11 @@ const attributesOf = (dbf) => {
     let offset = headerLength + record * recordLength + 1;
     const row = {};
     for (const field of fields) {
-      row[field.name] = dbf.toString('utf8', offset, offset + field.length).trim();
+      // A field is padded with spaces, or with zeros by some writers (Natural Earth's rivers).
+      row[field.name] = dbf
+        .toString('utf8', offset, offset + field.length)
+        .replaceAll('\0', '')
+        .trim();
       offset += field.length;
     }
     return row;
