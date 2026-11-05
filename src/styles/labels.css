@@ -1283,6 +1283,14 @@
 .label-line--alarm {
   color: var(--critical);
 }
+/* Au survol de la flotte ou au toucher seulement (maquette A) : au loin, la fiche reste un compte. */
+.label-line--fold {
+  display: none;
+}
+.label-anchor--hovered .label-line--fold,
+.label--pointed .label-line--fold {
+  display: block;
+}
 
 /* **Un trait sur le fil** (#449) : la mi-parcours ou le coude, un tiret court et l'heure, sans
    mât ni clic — le sol dessous reste celui que la main vise. */

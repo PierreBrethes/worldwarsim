@@ -24,7 +24,8 @@ type PosterLine =
       readonly chip: string;
       readonly tone: 'ok' | 'cut';
     }
-  | { readonly kind: 'text'; readonly text: string };
+  /** `tone` : le cap d'une flotte (#449), libre à l'encre de l'arc ou tenu à l'encre d'alarme. */
+  | { readonly kind: 'text'; readonly text: string; readonly tone?: 'free' | 'alarm' };
 
 /**
  * **What the hovered piece says of itself** (table d'état-major) — the press card that stands
@@ -179,7 +180,9 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
           ...label.lines.flatMap((line) =>
             line.role === 'figures' || line.role === 'mention'
               ? [{ kind: 'text', text: line.text } as const]
-              : [],
+              : line.role === 'free' || line.role === 'alarm'
+                ? [{ kind: 'text', text: line.text, tone: line.role } as const]
+                : [],
           ),
         ],
         bar: arcProgressAt(arc, now),

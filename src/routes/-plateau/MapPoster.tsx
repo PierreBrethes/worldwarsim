@@ -27,7 +27,9 @@ export function MapPoster({ poster }: { poster: Poster }) {
       {poster.pile !== null && <PileSheet {...poster.pile} />}
       {poster.lines.map((line, rank) =>
         line.kind === 'text' ? (
-          <div key={rank}>{line.text}</div>
+          <div key={rank} className={line.tone && `map-poster-course--${line.tone}`}>
+            {line.text}
+          </div>
         ) : (
           <div key={rank} className="map-poster-row">
             <span>{line.label}</span>

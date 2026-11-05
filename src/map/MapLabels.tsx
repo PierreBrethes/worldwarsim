@@ -1469,7 +1469,10 @@ const LabelNode = memo(function LabelNode({
                   completesAt={line.completesAt}
                 />
               ) : (
-                <div key={rank} className={`label-line label-line--${line.role}`}>
+                <div
+                  key={rank}
+                  className={`label-line label-line--${line.role}${line.fold ? ' label-line--fold' : ''}`}
+                >
                   {line.text}
                 </div>
               ),

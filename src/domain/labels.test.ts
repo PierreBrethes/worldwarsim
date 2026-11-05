@@ -721,8 +721,8 @@ describe('the course of a fleet at sea', () => {
     const labels = buildLabels(japanese([atSea(march(90))]), []);
     const fleet = labels.find((label) => label.type === 'my-movement')!;
     const until = asClockTime(LOADED_AT - 30 * MINUTE + 60 * MINUTE);
-    expect(fleet.lines).toContainEqual({ role: 'free', text: fr.course.free(until) });
-    expect(fleet.lines).toContainEqual({ role: 'mention', text: fr.course.grab });
+    expect(fleet.lines).toContainEqual({ role: 'free', text: fr.course.free(until), fold: true });
+    expect(fleet.lines).toContainEqual({ role: 'mention', text: fr.course.grab, fold: true });
     const mark = labels.find((label) => label.type === 'course-mark')!;
     expect(texts(mark.lines)).toEqual([fr.course.halfway(until)]);
   });
@@ -732,6 +732,7 @@ describe('the course of a fleet at sea', () => {
     expect(past!.lines).toContainEqual({
       role: 'alarm',
       text: fr.course.pastHalfway(asClockTime(LOADED_AT - 10 * MINUTE)),
+      fold: true,
     });
     const turned = mineArc({
       route: directRoute([140, 30], [150, 30], 'sea', 10),
@@ -747,6 +748,7 @@ describe('the course of a fleet at sea', () => {
     expect(labels[0]!.lines).toContainEqual({
       role: 'alarm',
       text: fr.course.changed(asClockTime(LOADED_AT - 5 * MINUTE)),
+      fold: true,
     });
     expect(
       labels.filter((label) => label.type === 'course-mark').map((l) => texts(l.lines)),
@@ -755,7 +757,11 @@ describe('the course of a fleet at sea', () => {
 
   it('tells another nation’s fleet that a movement under way is not taken back', () => {
     const labels = buildLabels(viewWith([atSea()]), []);
-    expect(labels[0]!.lines).toContainEqual({ role: 'mention', text: fr.course.others });
+    expect(labels[0]!.lines).toContainEqual({
+      role: 'mention',
+      text: fr.course.others,
+      fold: true,
+    });
     expect(labels.some((label) => label.type === 'course-mark')).toBe(false);
   });
 });

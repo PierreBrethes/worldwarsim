@@ -346,6 +346,8 @@ export type LabelLine =
       /** `free` et `alarm` : le cap d'une flotte (Doctrine du porte-avions, #449), libre ou tenu. */
       readonly role: 'nature' | 'figures' | 'headcount' | 'mention' | 'free' | 'alarm';
       readonly text: string;
+      /** Dite sous le pointeur ou le doigt seulement : au repos, la fiche garde sa taille. */
+      readonly fold?: true;
     }
   | {
       readonly role: 'countdown';
@@ -1239,6 +1241,10 @@ function arcLabel(
 /** **Le cap d'une flotte, sur sa fiche** (maquette A, #449) : libre et comment le reprendre, ou
  *  pourquoi il ne change plus, en encre d'alarme — dit avant le geste. */
 function courseLines(note: CourseNote): ReadonlyArray<LabelLine> {
+  return courseText(note).map((line) => ({ ...line, fold: true }));
+}
+
+function courseText(note: CourseNote): ReadonlyArray<LabelLine & { readonly text: string }> {
   switch (note.kind) {
     case 'free':
       return [

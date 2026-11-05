@@ -3,7 +3,7 @@ import { buildLabels, type MapMarker } from './labels';
 import { posterOf, type Poster } from './map-poster';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
-import { stackLabel } from '@/i18n/fr';
+import { fr, stackLabel } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import type { WorkSite } from './construction';
 
@@ -286,6 +286,33 @@ describe('posterOf', () => {
       kind: 'row',
       label: 'Marne → Meuse',
       value: asClockTime(LOADED_AT + 90 * 60_000),
+    });
+  });
+
+  it('says on its poster how long a Japanese fleet at sea keeps its course free (#449)', () => {
+    const fleet: ArcView = {
+      state: 'mine',
+      id: 'fleet',
+      from: [140, 30],
+      to: [150, 30],
+      route: directRoute([140, 30], [150, 30], 'sea', 10),
+      originLabel: '',
+      destinationLabel: '',
+      type: 'march',
+      stack: { carrier: 1 },
+      troopIds: [],
+      schedule: {
+        departedAt: LOADED_AT - 30 * 60_000,
+        arrivesAt: LOADED_AT + 90 * 60_000,
+        heldAt: null,
+        holdUntil: null,
+      },
+    };
+    const japanese = view({ arcs: [fleet], me: { ...me, asset: 'carrierDoctrine' } });
+    expect(posterFor(japanese, [], 'fleet')?.lines).toContainEqual({
+      kind: 'text',
+      text: fr.course.free(asClockTime(LOADED_AT + 30 * 60_000)),
+      tone: 'free',
     });
   });
 
