@@ -238,6 +238,51 @@ const facedWords = (faced: Faced): string => {
 const facedNation = (nation: string | null): string =>
   nation !== null && isNation(nation) ? fr.nations[nation] : 'garnison irrégulière';
 
+/** Les nations de l'édition finale avec leur article ; les garnisons irrégulières comprises. */
+const THE_NATION: Readonly<Record<string, string>> = {
+  france: 'la France',
+  uk: 'le Royaume-Uni',
+  usa: 'les États-Unis',
+  ussr: 'l’URSS',
+  germany: 'l’Allemagne',
+  japan: 'le Japon',
+  italy: 'l’Italie',
+  china: 'la Chine',
+  irregular: 'les irréguliers',
+};
+
+const theNation = (nation: string): string => THE_NATION[nation] ?? nation;
+
+/** `de la France`, `du Japon`, `des États-Unis`. */
+const ofTheNation = (nation: string): string => {
+  const the = theNation(nation);
+  return the.startsWith('les ')
+    ? `des ${the.slice(4)}`
+    : the.startsWith('le ')
+      ? `du ${the.slice(3)}`
+      : `de ${the}`;
+};
+
+/** Le verbe s'accorde à un sujet pluriel : les États-Unis, les irréguliers. */
+const agrees = (nation: string, one: string, many: string): string =>
+  nation === 'usa' || nation === 'irregular' ? many : one;
+
+/** `près de Kiev`, `près d’Oslo` ; sans région connue, le front. */
+const near = (place: string): string => (place === '' ? 'sur le front' : `près ${ofName(place)}`);
+
+const EDITION_DAY = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+const EDITION_WHEN = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** `3 nov.` ; `dim. 3 nov., 15:04` — une saison dure des jours, l'heure seule mentirait. */
+const editionDay = (at: number): string => EDITION_DAY.format(at);
+const editionWhen = (at: number): string => EDITION_WHEN.format(at);
+
 const longDate = (date: string, options: Intl.DateTimeFormatOptions): string =>
   new Date(`${date}T12:00Z`)
     .toLocaleDateString('fr-FR', { timeZone: 'UTC', ...options })
@@ -2255,6 +2300,224 @@ export const fr = {
     /** Ce que la page tient de son propre dispositif — la seule phrase d'explication qu'elle
      *  s'autorise, sous la table. */
     frozen: 'Entre deux éditions, recruter ne déplace pas un chiffre de la page.',
+  },
+
+  /**
+   * **L'édition finale d'une Mondiale** (#455, maquette « La grande une ») : l'archive ne porte
+   * que des faits typés (`convex/finalEdition.ts`), chaque phrase se compose ici. Une nation se
+   * nomme avec son article (`theNation`), et le verbe s'accorde aux États-Unis.
+   */
+  finalEdition: {
+    stamp: 'édition finale',
+    meta: (code: string) => `Saison ${code} · Mondiale`,
+    span: (from: number, to: number) => `du ${editionDay(from)} au ${editionDay(to)}`,
+    concludedOn: (at: number) => `conclue ${editionWhen(at)}`,
+    verdictKicker: 'le verdict',
+    ahead: (hours: number) => `${hours} h`,
+    aheadNote: 'avant l’horloge',
+    atClock: 'à l’horloge',
+    /** La phrase sous le chiffre de l'oreille : pourquoi, et quand. */
+    verdictLine: (input: {
+      reason: VerdictReason;
+      winner: string | null;
+      closedBy: string | null;
+      at: number;
+      clockAt: number | null;
+    }): string => {
+      const when = editionWhen(input.at);
+      const clock =
+        input.clockAt === null ? '' : `, l’horloge tombait ${editionWhen(input.clockAt)}`;
+      if (input.reason === 'closed')
+        return input.closedBy === null
+          ? `close à la main ${when}${clock}.`
+          : `close à la main par ${theNation(input.closedBy)} ${when}${clock}.`;
+      if (input.reason === 'draw')
+        return `conclue ${when} : heures de points et territoire se valent, personne ne l’emporte.`;
+      return `${fr.victory.verdictWhy(input.reason, null)}, ${when}${clock}.`;
+    },
+    headline: (reason: VerdictReason, winner: string | null): string =>
+      reason === 'closed'
+        ? 'La saison est close'
+        : winner === null
+          ? 'Égalité à l’horloge'
+          : `${upperFirst(theNation(winner))} ${agrees(winner, 'l’emporte', 'l’emportent')}`,
+    /** Le chapeau : le verdict, et les Sept que le vainqueur tient à la fin. */
+    deck: (input: {
+      reason: VerdictReason;
+      points: ReadonlyArray<StrategicPointKey>;
+      at: number;
+    }) =>
+      `${
+        input.points.length === 0
+          ? ''
+          : `${andList(input.points.map((key) => fr.points.names[key]))} : ${plural(input.points.length, 'tenu', 'tenus')} à la conclusion. `
+      }${input.reason === 'closed' ? 'Close' : 'Conclue'} ${editionWhen(input.at)}.`,
+    mine: {
+      won: 'Vous l’emportez.',
+      fell: (kind: 'eliminated' | 'surrendered', at: number | null) =>
+        `${kind === 'eliminated' ? 'Tombé' : 'Capitulé'}${at === null ? '' : ` ${editionWhen(at)}`}.`,
+      rank: (rank: number, of: number) => `${ordinal(rank)} sur ${of}.`,
+      share: (territory: number) => `${decimal(territory, 1)} % du sol.`,
+      open: 'votre feuillet',
+      pinned: 'votre ligne',
+    },
+    /** Les tampons de l'édition : une clôture à la main ne tamponne que les éliminés. */
+    outcome: {
+      winner: 'vainqueur',
+      loser: 'vaincu',
+      draw: 'égalité',
+      eliminated: 'éliminé',
+      surrendered: 'capitulé',
+    },
+    exit: (kind: 'eliminated' | 'surrendered', at: number | null) =>
+      `${kind === 'eliminated' ? 'Éliminé' : 'Capitulé'}${at === null ? '' : ` ${editionWhen(at)}`}. Son sol est passé aux irréguliers ; le télégraphe lui restait.`,
+    momentsTitle: (count: number) =>
+      `La saison en ${spelled(count)} moment${plural(count, '', 's')}`,
+    when: (at: number) => editionWhen(at),
+    moment: {
+      contact: (a: string, b: string, place: string) => ({
+        title: 'Premier contact',
+        text: `${upperFirst(theNation(a))} ${agrees(a, 'frappe', 'frappent')} ${theNation(b)} ${near(place)} : la première passe de résolution entre deux nations.`,
+      }),
+      battle: (input: {
+        winner: string;
+        engaged: number;
+        destroyed: number;
+        lost: number;
+        place: string;
+      }) => ({
+        title: 'La plus grande bataille',
+        text: `${decimal(input.engaged, 0)} pièces engagées ${near(input.place)}. ${upperFirst(theNation(input.winner))} ${agrees(input.winner, 'l’emporte', 'l’emportent')} : ${decimal(input.destroyed, 0)} pièces détruites contre ${decimal(input.lost, 0)}.`,
+      }),
+      hqTaken: (by: string | null, fallen: string, place: string) => ({
+        title: `Le quartier général ${ofTheNation(fallen)} tombe`,
+        text: `${by === null ? 'Il est capturé' : `${upperFirst(theNation(by))} le ${agrees(by, 'capture', 'capturent')}`} ${near(place)} : ${theNation(fallen)} ${agrees(fallen, 'sort', 'sortent')} de la course.`,
+      }),
+      race: (nation: string, key: StrategicPointKey) => ({
+        title: `${upperFirst(theNation(nation))} dans la course`,
+        text: `${fr.points.names[key]} : quatre des Sept tenus, le compte de vingt-quatre heures commence.`,
+      }),
+      verdict: (reason: VerdictReason, winner: string | null) => ({
+        title: reason === 'closed' ? 'La saison est close' : 'La saison est conclue',
+        text:
+          reason === 'closed'
+            ? 'Close à la main : personne n’est vainqueur ni vaincu.'
+            : winner === null
+              ? 'À l’horloge, heures de points et territoire se valent : personne ne l’emporte.'
+              : `${upperFirst(theNation(winner))} ${agrees(winner, 'l’emporte', 'l’emportent')} : ${fr.victory.verdictWhy(reason, null)}.`,
+      }),
+    },
+    /** Le plus beau coup d'une nation, ou la phrase de repli. */
+    finest: {
+      hqTaken: (fallen: string, at: number) => ({
+        title: `Le quartier général ${ofTheNation(fallen)}`,
+        text: `pris ${editionWhen(at)}.`,
+      }),
+      pointTaken: (key: StrategicPointKey, from: string | null, at: number) => ({
+        title: fr.points.names[key],
+        text: `pris ${from === null ? 'au neutre' : `à ${theNation(from)}`} ${editionWhen(at)}.`,
+      }),
+      pass: (place: string, destroyed: number, lost: number, at: number) => ({
+        title: upperFirst(near(place)),
+        text: `${editionWhen(at)} : ${decimal(destroyed, 0)} pièces détruites contre ${decimal(lost, 0)}.`,
+      }),
+      none: 'Aucun engagement gagné contre une nation.',
+    },
+    line: {
+      gains: 'prises',
+      losses: 'pertes',
+      finest: 'plus beau coup',
+      pointGained: (key: StrategicPointKey, from: string | null, at: number) =>
+        `${fr.points.names[key]}, ${from === null ? 'au neutre' : `sur ${theNation(from)}`}, ${editionDay(at)}`,
+      hqGained: (nation: string) => `le quartier général ${ofTheNation(nation)}`,
+      outpostsCaptured: (count: number) =>
+        `${decimal(count, 0)} avant-poste${plural(count, '', 's')} capturé${plural(count, '', 's')}`,
+      destroyed: (count: number) => `${decimal(count, 0)} pièces adverses détruites`,
+      pointLost: (key: StrategicPointKey, to: string | null, at: number) =>
+        `${fr.points.names[key]}, ${to === null ? 'rendu au neutre' : `à ${theNation(to)}`}, ${editionDay(at)}`,
+      hqLost: (at: number) => `le quartier général, ${editionWhen(at)}`,
+      outpostsLost: (count: number) =>
+        `${decimal(count, 0)} avant-poste${plural(count, '', 's')} pris`,
+      lost: (count: number) => `${decimal(count, 0)} pièces perdues`,
+      worstPass: (lost: number, place: string, at: number) =>
+        `la pire passe : ${decimal(lost, 0)} pièces ${near(place)}, ${editionDay(at)}`,
+      nothing: 'rien',
+    },
+    map: {
+      title: 'La carte de la fin · sans brouillard',
+      caption:
+        'Chaque région à l’encre de qui la tenait à la conclusion, irréguliers en gris ; les Sept, carrés, à l’encre du dernier teneur.',
+      irregular: 'irréguliers',
+      neutral: 'neutre',
+      sept: 'les Sept, à l’encre du teneur',
+    },
+    palmares: 'Le palmarès des Sept · le plus long tenu',
+    neverHeld: 'jamais tenu',
+    band: 'Les Sept de main en main',
+    ranking: 'Le classement final',
+    rankingCaption: 'Rang au territoire, comme toute édition ; dessous, le général.',
+    you: 'vous',
+    points: (value: number) => `${decimal(value, 0)} pts`,
+    percent: (value: number) => `${decimal(value, 1)} %`,
+    carnet: (count: number) => `Le carnet des ${spelled(count)} nations`,
+    carnetKicker: 'Le brouillard est tombé : chacun lit les chiffres et la ligne de tous',
+    columns: {
+      territory: 'Terr.',
+      general: 'Général',
+      industry: 'Indus.',
+      military: 'Milit.',
+      deeds: 'Faits',
+      destroyed: 'Détruit',
+      lost: 'Perdu',
+      pointHeld: 'H. points',
+      dispatches: 'Dépêches',
+    },
+    hours: (ms: number) => `${decimal(Math.round(ms / 3_600_000), 0)} h`,
+    carnetCaption:
+      'Terr. : part du sol à la conclusion. H. points : heures de points stratégiques tenus. Dépêches : le canal général seul. En rouge, le meilleur de la colonne.',
+    feuillet: {
+      own: 'Votre feuillet',
+      of: (nation: string) => `Le feuillet ${ofTheNation(nation)}`,
+      season: 'prises, pertes, plus beau coup',
+      curve: 'Le territoire, édition par édition',
+      others: 'Les feuillets des autres',
+      back: 'revenir à la une',
+    },
+    une: {
+      open: 'Enregistrer la une',
+      openShort: 'La une',
+      kicker: 'La une, en image',
+      title: 'Enregistrer la une pour la partager',
+      note: 'L’image est la une de l’édition finale, au format d’une page de journal (1080 × 1350). Le brouillard est tombé : la carte et le classement sont ceux de tout le monde.',
+      foot: 'En pied de page',
+      mine: 'Ma saison',
+      neutral: 'Rien de moi',
+      mineNote:
+        '« Ma saison » ajoute votre nation, votre rang et votre plus beau coup en pied de page.',
+      save: 'Enregistrer l’image',
+      close: 'Fermer',
+      saved: (file: string) => `Enregistrée : ${file}`,
+      file: (code: string) => `la-manchette-saison-${code.toLowerCase()}-une.png`,
+      neutralFoot: 'Une partie de La Manchette, le monde en jeu.',
+      mineHead: (nation: string, nickname: string) =>
+        `MA SAISON · ${nationLabel(nation).toUpperCase()} · ${nickname.toUpperCase()}`,
+      rankingHead: 'LE CLASSEMENT FINAL · PART DU SOL TENUE',
+      players: (count: number) => `${count} NATIONS`,
+    },
+    home: 'Accueil',
+    close: 'Fermer',
+    /** La page de presse d'une Mondiale conclue, quand l'archive manque. */
+    pending: 'L’édition finale s’imprime : elle paraît ici dans quelques minutes.',
+    absent:
+      'Pas d’édition finale pour cette saison : elle s’est conclue avant l’archive, ou l’impression a échoué. Voici la dernière édition ordinaire.',
+    recent: {
+      title: 'Les dernières éditions finales',
+      note: 'gardées après la saison',
+      kicker: (code: string, at: number) => `Mondiale · saison ${code} · ${editionDay(at)}`,
+      line: (nation: string, rank: number, of: number) =>
+        `${nationLabel(nation)}, ${ordinal(rank)} sur ${of}`,
+      read: 'lire l’édition',
+    },
   },
 
   rail: {
