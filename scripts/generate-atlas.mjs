@@ -23,12 +23,16 @@
  * - Natural Earth v5.1.2, github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/
  *   ne_10m_admin_1_states_provinces.geojson
  * - Natural Earth v5.1.2, same folder, ne_10m_lakes.geojson
- * - Natural Earth 10m, ne_10m_populated_places.geojson (the full file: `_simple` has no NAME_FR)
+ * - Natural Earth v5.1.2, raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/
+ *   ne_10m_populated_places.geojson (the full file: `_simple` has no NAME_FR)
  * - BKG VG2500 (© GeoBasis-DE / BKG, dl-de/by-2-0), daten.gdz.bkg.bund.de/produkte/vg/vg2500/
  *   aktuell/vg2500_12-31.utm32s.shape.zip
- * - Natural Earth 10m rivers and lake centerlines: the GeoJSON for the lines, an older release
- *   with names only in English; the `.dbf` of the v5.1.2 shapefile (naciscdn.org/naturalearth/
- *   10m/physical/ne_10m_rivers_lake_centerlines.zip) for `name_fr`. See `frenchRiverNames`.
+ * - Natural Earth v5.1.2 rivers and lake centerlines, two files of the same tag: the lines from
+ *   raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/
+ *   ne_10m_rivers_lake_centerlines.geojson (left behind by the tag: English names only, accents
+ *   dropped), `name_fr` from raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/
+ *   10m_physical/ne_10m_rivers_lake_centerlines.dbf, saved as `rivers10.dbf`. See
+ *   `frenchRiverNames`.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';

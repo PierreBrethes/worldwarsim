@@ -317,24 +317,29 @@ node scripts/generate-atlas.mjs <ne_10m_admin_1_states_provinces.geojson> \
   <ne_10m_rivers_lake_centerlines.geojson> <rivers10.dbf>
 ```
 
-Natural Earth 10m admin-1 et lacs v5.1.2 (dossier `geojson/` du dépôt
-`nvkelso/natural-earth-vector`), ses lieux habités 10m (le fichier complet : `_simple` n'a pas
-`NAME_FR`), et le VG2500 du BKG (« © GeoBasis-DE / BKG », dl-de/by-2-0).
-Les fleuves (#440) viennent de deux fichiers : la géométrie du GeoJSON
-`ne_10m_rivers_lake_centerlines`, d'une version antérieure sans nom français, et `name_fr` du
-`.dbf` du shapefile v5.1.2 (`naciscdn.org/naturalearth/10m/physical/`), renommé `rivers10.dbf`.
-Les deux ne sont pas dans le même ordre : le script apparie un tracé et un enregistrement par
-nom, `rivernum`, `scalerank` et classe. Puis, dans cet ordre : `generate-grid`, `generate-coast`, `generate-region-index`,
-`generate-region-grid`, `generate-europe-sheet`, `generate-region-types <dossier des rasters>`
-(qui écrit aussi `terrain-cells.json`, le terrain des dessins par cellule),
-`generate-deposits`, `generate-deposit-basins`.
-**Déployer le socle de l'atlas vide la base** (ADR 0034) quand ses arcs changent, en
-pré-production comme en production : le sol, les points des régions, les gisements et la côte changent sous une saison
-en cours, et aucune migration ne la porte. Base vidée d'abord, fonctions déployées ensuite. Un ajout qui laisse les arcs tels quels (les
-villes et les fleuves, #440) laisse la chaîne en aval identique octet pour octet : pas de vidage.
+Natural Earth v5.1.2, tag du dépôt `nvkelso/natural-earth-vector` : admin-1, lacs et lieux
+habités 10m (le fichier complet : `_simple` n'a pas `NAME_FR`), tous trois sous
+`https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/`, et le VG2500
+du BKG (« © GeoBasis-DE / BKG », dl-de/by-2-0). Les fleuves (#440) viennent de deux fichiers du
+même tag : la géométrie de `geojson/ne_10m_rivers_lake_centerlines.geojson`, restée ancienne
+(noms anglais seuls, sans accents), et `name_fr` de
+`10m_physical/ne_10m_rivers_lake_centerlines.dbf`, renommé `rivers10.dbf`. Les deux ne sont pas
+dans le même ordre : le script apparie un tracé et un enregistrement par nom, `rivernum`,
+`scalerank` et classe. Puis, dans cet ordre : `generate-grid`, `generate-coast`,
+`generate-region-index`, `generate-region-grid`, `generate-europe-sheet`,
+`generate-region-types <dossier des rasters>` (qui écrit aussi `terrain-cells.json`, le terrain
+des dessins par cellule), `generate-deposits`, `generate-deposit-basins`.
+`region-index.json` ne se recommite pas tel que la chaîne le rend : il en diffère, pour une cause
+antérieure à #440 suivie à part.
 
-Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît orpheline une
-capitale, un gisement ou une saison en cours.
+**Déployer le socle de l'atlas vide la base** (ADR 0034) quand ses arcs changent, en
+pré-production comme en production : le sol, les points des régions, les gisements et la côte
+changent sous une saison en cours, et aucune migration ne la porte. Base vidée d'abord, fonctions
+déployées ensuite. Un ajout qui laisse les arcs tels quels (les villes et les fleuves, #440) ne
+vide pas la base.
+
+Le script affiche le diff des `regionId` contre l'atlas qu'il remplace : un id qui disparaît
+orpheline une capitale, un gisement ou une saison en cours.
 
 ## Médias
 
