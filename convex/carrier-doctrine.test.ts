@@ -335,12 +335,12 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     vi.setSystemTime(turned.arrivesAt + 1);
     await t.mutation(internal.movements.arrive, { movementId: turned.movementId });
 
-    const told = await t.run(async (ctx) =>
-      (await ctx.db.query('notices').collect()).filter(
-        (notice) => notice.playerId === japanId && notice.kind === 'storeResupplied',
+    const outcomes = await t.run(async (ctx) =>
+      (await ctx.db.query('notices').collect()).flatMap((notice) =>
+        notice.playerId === japanId && notice.kind === 'storeResupplied' ? [notice.outcome] : [],
       ),
     );
-    expect(told.map((notice) => notice.outcome)).toEqual(['captured']);
+    expect(outcomes).toEqual(['captured']);
   });
 
   it('turns a fleet while every slot is held, and frees none', async () => {
