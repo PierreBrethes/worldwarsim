@@ -146,7 +146,7 @@ function Une({
   const finest = finestWords(mine, edition, map);
   const mineStamp = stampOf(mine, edition);
   const mineLine = `${said.mine.share(mine.figures.territory)} ${
-    finest === null ? said.finest.none : `${finest.title} : ${finest.text}`
+    finest === null ? said.finest.none : `${finest.title}. ${finest.text}`
   }`;
 
   return (
@@ -279,7 +279,7 @@ function Une({
             <h2 className="rubric">{said.palmares}</h2>
             <Palmares edition={edition} />
             <h2 className="rubric">{said.band}</h2>
-            <Band edition={edition} mine={mine.nation} />
+            <Band edition={edition} mine={mine.nation} narrow={narrow} />
           </section>
           <section>
             <h2 className="rubric">{said.ranking}</h2>
@@ -500,18 +500,26 @@ function EndMapSvg({ edition, map, mine }: { edition: FinalEdition; map: EndMap;
         if (anchor === undefined) return null;
         const side = 10 * unit;
         return (
-          <rect
-            key={point.key}
-            x={anchor[0] - side / 2}
-            y={anchor[1] - side / 2}
-            width={side}
-            height={side}
-            fill={inkOf(point.hands.at(-1)?.nation ?? null)}
-            stroke="var(--ink)"
-            strokeWidth={1.6 * unit}
-          >
-            <title>{fr.points.names[point.key]}</title>
-          </rect>
+          <g key={point.key} transform={`translate(${anchor[0]} ${anchor[1]})`}>
+            <rect
+              x={-side / 2}
+              y={-side / 2}
+              width={side}
+              height={side}
+              fill={inkOf(point.hands.at(-1)?.nation ?? null)}
+              stroke="var(--ink)"
+              strokeWidth={1.6 * unit}
+            />
+            <text
+              x={8 * unit}
+              y={4 * unit}
+              fontSize={12 * unit}
+              className="fe-map-label"
+              strokeWidth={3 * unit}
+            >
+              {fr.points.names[point.key]}
+            </text>
+          </g>
         );
       })}
     </svg>
@@ -569,10 +577,11 @@ function Palmares({ edition }: { edition: FinalEdition }) {
 }
 
 /** **Les Sept de main en main** (bande de la variante C) : qui a tenu chaque point, et quand. */
-function Band({ edition, mine }: { edition: FinalEdition; mine: string }) {
-  const W = 760;
-  const LEFT = 86;
-  const RIGHT = 70;
+function Band({ edition, mine, narrow }: { edition: FinalEdition; mine: string; narrow: boolean }) {
+  /** Au téléphone la bande se dessine à sa largeur : réduite, son texte ne se lisait plus. */
+  const W = narrow ? 358 : 760;
+  const LEFT = narrow ? 72 : 86;
+  const RIGHT = narrow ? 58 : 70;
   const ROW = 21;
   const span = Math.max(1, edition.concludedAt - edition.launchedAt);
   const x = (at: number) => LEFT + ((at - edition.launchedAt) / span) * (W - LEFT - RIGHT);
