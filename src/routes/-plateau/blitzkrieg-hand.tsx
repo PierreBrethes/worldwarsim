@@ -69,7 +69,7 @@ export function secondRefusalOf(
   const code = secondTargetRefusalOf(
     asset,
     { aim: chain.first.aim, legs: chain.preview.route.legs },
-    { aim: chosen.aim, legs: then?.refusal === null ? then.route.legs : null },
+    chosen.aim,
     column,
   );
   if (code !== null)

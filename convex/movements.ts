@@ -22,6 +22,8 @@ import {
 import { carryCapacityOf, trimLootToCapacity } from '../src/domain/loot';
 import { captureDurationAt, captureRate } from '../src/domain/capture';
 import { modeOf } from '../src/domain/season-mode';
+import { chainRefusalOf } from '../src/domain/blitzkrieg';
+import { assetOf } from '../src/domain/nation-assets';
 import { STEERED } from '../src/domain/carrier-doctrine';
 import { isNation } from '../src/domain/nations';
 import { canonicalBuildingKey, RESOURCES } from '../src/domain/ids';
@@ -515,6 +517,16 @@ export const attack = mutation({
   handler: async (ctx, { token, seasonId, origin, troopIds, target, then }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
+    /** **La Guerre éclair d'abord** : une autre nation, ou la Blitz, ne porte qu'une cible. */
+    const gate =
+      then === undefined
+        ? null
+        : chainRefusalOf(
+            assetOf(player.nation ?? null, modeOf(season.mode)),
+            { type: 'attack', mission: { kind: 'march' } },
+            null,
+          );
+    if (gate !== null) fail(gate);
 
     /** **En Blitz l'attaque vise une unité, et la poursuit** (B18). Hors Blitz, ou sur ce qui
      *  n'est pas une unité, `refusalOf` dit le mot — la troupe n'est cherchée que si elle compte. */
@@ -791,6 +803,11 @@ export const preview = query({
 
     const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
+    const chained = chainRefusalOf(
+      assetOf(player.nation ?? null, modeOf(season.mode)),
+      { type, mission: { kind: 'march' } },
+      route.legs,
+    );
     return {
       minutes,
       arrivesAt,
@@ -812,17 +829,20 @@ export const preview = query({
         type === 'attack' &&
         column.blitz !== undefined &&
         (target.kind === 'camp' || target.kind === 'track'),
+      /** Une marche ou un raid n'enchaîne pas : l'aperçu le dit par la règle même de l'ordre. */
       then:
         then === undefined
           ? null
-          : await secondLegFacts(
-              ctx,
-              player,
-              season,
-              troops,
-              { aim, point, route, arrivesAt },
-              then,
-            ),
+          : chained !== null
+            ? { refusal: { code: chained, details: { type } } }
+            : await secondLegFacts(
+                ctx,
+                player,
+                season,
+                troops,
+                { aim, point, route, arrivesAt },
+                then,
+              ),
     };
   },
 });

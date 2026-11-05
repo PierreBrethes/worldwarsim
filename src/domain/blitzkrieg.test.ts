@@ -50,56 +50,19 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
 
   it('takes as second target what an attack may aim at, from the first', () => {
     const first = { aim: LIEGE, legs: ROAD };
-    expect(secondTargetRefusalOf('blitzkrieg', first, { aim: NAMUR, legs: ROAD }, tanks)).toBe(
-      null,
-    );
-    expect(secondTargetRefusalOf('blitzkrieg', first, { aim: NAMUR, legs: null }, tanks)).toBe(
-      null,
-    );
-    expect(secondTargetRefusalOf('blitzkrieg', first, { aim: BASTOGNE, legs: ROAD }, tanks)).toBe(
-      'FRIENDLY_TARGET',
-    );
-    expect(secondTargetRefusalOf('blitzkrieg', first, { aim: LIEGE, legs: ROAD }, tanks)).toBe(
-      'SAME_TARGET',
-    );
-    expect(secondTargetRefusalOf('blitzkrieg', first, { aim: NAMUR, legs: FERRY }, tanks)).toBe(
+    expect(secondTargetRefusalOf('blitzkrieg', first, NAMUR, tanks)).toBe(null);
+    expect(secondTargetRefusalOf('blitzkrieg', first, BASTOGNE, tanks)).toBe('FRIENDLY_TARGET');
+    expect(secondTargetRefusalOf('blitzkrieg', first, LIEGE, tanks)).toBe('SAME_TARGET');
+    expect(
+      secondTargetRefusalOf('blitzkrieg', first, NAMUR, {
+        ...tanks,
+        outOfRounds: true,
+      }),
+    ).toBe('NO_ROUNDS');
+    expect(secondTargetRefusalOf(null, first, NAMUR, tanks)).toBe('NO_BLITZKRIEG');
+    expect(secondTargetRefusalOf('blitzkrieg', { aim: LIEGE, legs: FERRY }, NAMUR, tanks)).toBe(
       'CHAIN_ASHORE_ONLY',
     );
-    expect(
-      secondTargetRefusalOf(
-        'blitzkrieg',
-        first,
-        { aim: NAMUR, legs: ROAD },
-        {
-          ...tanks,
-          outOfRounds: true,
-        },
-      ),
-    ).toBe('NO_ROUNDS');
-    expect(secondTargetRefusalOf(null, first, { aim: NAMUR, legs: ROAD }, tanks)).toBe(
-      'NO_BLITZKRIEG',
-    );
-    expect(
-      secondTargetRefusalOf(
-        'blitzkrieg',
-        { aim: LIEGE, legs: FERRY },
-        { aim: NAMUR, legs: ROAD },
-        tanks,
-      ),
-    ).toBe('CHAIN_ASHORE_ONLY');
-  });
-
-  it('weighs the second target as if the column stood nowhere in particular', () => {
-    /** Standing on its own outpost, an attack on another target is not « already here ». */
-    const home = column(['armor'], { originId: 'namur' });
-    expect(
-      secondTargetRefusalOf(
-        'blitzkrieg',
-        { aim: LIEGE, legs: ROAD },
-        { aim: NAMUR, legs: ROAD },
-        home,
-      ),
-    ).toBeNull();
   });
 
   it('tells two points apart by where they are', () => {
@@ -112,11 +75,7 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
       surveyed: true,
     });
     const first = { aim: point(5), legs: ROAD };
-    expect(secondTargetRefusalOf('blitzkrieg', first, { aim: point(5), legs: ROAD }, tanks)).toBe(
-      'SAME_TARGET',
-    );
-    expect(
-      secondTargetRefusalOf('blitzkrieg', first, { aim: point(6), legs: ROAD }, tanks),
-    ).toBeNull();
+    expect(secondTargetRefusalOf('blitzkrieg', first, point(5), tanks)).toBe('SAME_TARGET');
+    expect(secondTargetRefusalOf('blitzkrieg', first, point(6), tanks)).toBeNull();
   });
 });

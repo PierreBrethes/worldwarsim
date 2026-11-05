@@ -1234,7 +1234,13 @@ export const benchBlitzkrieg = internalMutation({
         hostCountry: 'BENCH',
       });
       if (!chained) await ctx.db.patch(staged.movementId, { blitzkrieg: undefined });
-      await ctx.db.patch(staged.movementId, { arrivesAt: Date.now() - 1 });
+      /** Échue tout de suite, sa durée gardée : la vue lit la part parcourue sur les deux. */
+      const movement = (await ctx.db.get(staged.movementId))!;
+      const due = Date.now() - 1;
+      await ctx.db.patch(staged.movementId, {
+        departedAt: movement.departedAt - (movement.arrivesAt - due),
+        arrivesAt: due,
+      });
       ids.push(staged.movementId);
     }
     await reassessDetection(ctx, attacker.seasonId, Date.now(), attackerId);

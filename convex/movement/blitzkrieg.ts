@@ -6,6 +6,8 @@
  *
  * **Rien n'échoue à l'échéance** : la cible, les coups, la route et le plein se lisent comme des
  * valeurs (`weighSecondLeg`) avant `march` ; si l'un manque, la colonne reste sur place et le dit.
+ * Le plein se montre à l'ordre et ne s'y refuse pas : le point de la première cible peut le
+ * combler (`toppedUp`), et il se relit au départ (décision de l'orchestrateur du 05/11).
  */
 
 import { ConvexError } from 'convex/values';
@@ -45,7 +47,7 @@ type Details = Record<string, string | number | boolean>;
  * **La seconde jambe, pesée** depuis le point de la première, pour ces troupes-là : un refus
  * comme une valeur, ou la visée, la route et le plein. L'ordre en fait un échec, l'aperçu une
  * ligne de la pastille, le départ une colonne qui reste. `first.aim` manque au départ : l'ordre a
- * déjà dit que les deux cibles différaient.
+ * déjà dit que les deux cibles différaient. `departing` : le départ seul refuse un plein court.
  */
 export async function weighSecondLeg(
   ctx: QueryCtx,
@@ -58,6 +60,7 @@ export async function weighSecondLeg(
   },
   then: AimTarget,
   troops: ReadonlyArray<Doc<'troops'>>,
+  departing = false,
 ) {
   const refused = (code: ErrorCode, details: Details = {}): Refused => ({
     refusal: { code, details },
@@ -75,9 +78,8 @@ export async function weighSecondLeg(
   });
   if ('refusal' in aimed) return aimed;
   const asset = assetOf(player.nation ?? null, modeOf(season.mode));
-  const second = { aim: aimed.aim, legs: null };
-  const before = secondTargetRefusalOf(asset, first, second, column);
-  if (before !== null) return refused(before, refusalDetails(aimed.aim, column) as Details);
+  const refusal = secondTargetRefusalOf(asset, first, aimed.aim, column);
+  if (refusal !== null) return refused(refusal, refusalDetails(aimed.aim, column) as Details);
 
   const route = routeBetween(
     departure.point,
@@ -87,8 +89,6 @@ export async function weighSecondLeg(
     isQuay(aimed.aim),
   );
   if (route === null) return refused('NO_LAND_ROUTE', { from: departure.name, to: aimed.name });
-  const ashore = secondTargetRefusalOf(asset, first, { ...second, legs: route.legs }, column);
-  if (ashore !== null) return refused(ashore);
 
   const fuel = fuelBill(
     [...troops],
@@ -97,7 +97,7 @@ export async function weighSecondLeg(
     false,
     await holdsPoint(ctx, player, 'singapore'),
   );
-  if (fuel.short !== null)
+  if (departing && fuel.short !== null)
     return refused('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: false });
   return { aimed, route, fuel, column };
 }
@@ -172,7 +172,8 @@ export async function pressOn(
       },
       ...fields,
     });
-  if (held === null || held.winners.length === 0) {
+  /** Une colonne toute en déroute ne gagne pas : la victoire laisse toujours un vainqueur. */
+  if (held === null) {
     await tell({ outcome: 'lost' });
     return null;
   }
@@ -208,6 +209,7 @@ export async function pressOn(
     { point: here, legs: movement.legs },
     chain.then,
     troops,
+    true,
   );
   if ('refusal' in leg) {
     /** Le sol où elle s'est battue, relevé comme `walkHome` le fait pour qui rentre. */

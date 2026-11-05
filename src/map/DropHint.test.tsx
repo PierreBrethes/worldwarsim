@@ -1,7 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { CompassAction } from '@/domain/compass-rose';
-import { DropHintChip, hintOfReading, type DropFuel } from './DropHint';
+import {
+  DropHintChip,
+  hintOfReading,
+  type ChainChip,
+  type DropFuel,
+  type DropHint,
+} from './DropHint';
 
 const hint = { icon: '→', tone: 'order' as const, verb: 'marcher', detail: null };
 const gauge = (fuel: Partial<DropFuel>): DropFuel => ({
@@ -90,8 +96,8 @@ describe('a refusal beside the offered order', () => {
 
 /** **La Guerre éclair sous la main** (#451, maquette A « Maj »). */
 describe('the blitzkrieg chip', () => {
-  const fight = { icon: '⚔', tone: 'fight' as const, verb: 'Attaquer', detail: 'initiative' };
-  const said = (chain: Parameters<typeof DropHintChip>[0]['chain'], on = fight) =>
+  const fight: DropHint = { icon: '⚔', tone: 'fight', verb: 'Attaquer', detail: 'initiative' };
+  const said = (chain: ChainChip, on: DropHint = fight) =>
     renderToStaticMarkup(<DropHintChip hint={on} chain={chain} ref={null} />).replaceAll(
       '&#x27;',
       '’',

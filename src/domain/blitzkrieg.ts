@@ -1,11 +1,5 @@
 import type { Medium, MovementType } from './ids';
-import {
-  refusalOf,
-  withoutOrigin,
-  type Column,
-  type MovementAim,
-  type OrderRefusal,
-} from './movement-orders';
+import { refusalOf, type Column, type MovementAim, type OrderRefusal } from './movement-orders';
 import type { Asset } from './nation-assets';
 
 /**
@@ -62,21 +56,20 @@ const keyOf = (aim: MovementAim): string => {
 
 /**
  * **La seconde cible**, pesée depuis le point de la première : ce qu'une attaque peut viser
- * (`refusalOf`), distinct de la première, par une route à terre. `column` est la colonne qui s'y
- * tiendra — à l'ordre, celle qui part ; au départ de la jambe, celle qui a tenu le terrain, ses
- * coups relus. `first.aim` manque au départ : l'ordre a déjà dit que les deux différaient.
+ * (`refusalOf`), distinct de la première. « À terre » se lit sur la route de la première : la
+ * même colonne garde son mode, et une route de colonne à terre ne foule que la terre. `column`
+ * est la colonne qui s'y tiendra — à l'ordre, celle qui part ; au départ de la jambe, celle qui a
+ * tenu le terrain, ses coups relus. `first.aim` manque au départ : l'ordre a déjà dit que les deux
+ * différaient.
  */
 export function secondTargetRefusalOf(
   asset: Asset | null,
   first: { readonly aim?: MovementAim; readonly legs: Legs | null },
-  second: { readonly aim: MovementAim; readonly legs: Legs | null },
+  second: MovementAim,
   column: Column,
 ): SecondTargetRefusal | null {
   const chain = chainRefusalOf(asset, { type: 'attack', mission: { kind: 'march' } }, first.legs);
   if (chain !== null) return chain;
-  if (first.aim !== undefined && keyOf(first.aim) === keyOf(second.aim)) return 'SAME_TARGET';
-  return (
-    refusalOf('attack', second.aim, withoutOrigin(column)) ??
-    chainRefusalOf(asset, { type: 'attack', mission: { kind: 'march' } }, second.legs)
-  );
+  if (first.aim !== undefined && keyOf(first.aim) === keyOf(second)) return 'SAME_TARGET';
+  return refusalOf('attack', second, column);
 }

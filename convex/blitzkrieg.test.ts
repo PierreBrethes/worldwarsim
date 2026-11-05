@@ -73,7 +73,7 @@ async function post(
   t: Bench,
   seat: Seat,
   role: UnitRole,
-  stationedAt: Id<'outposts'> | { lon: number; lat: number },
+  stationedAt: Id<'outposts'> | Id<'buildings'> | { lon: number; lat: number },
   count = 1,
 ) {
   const playerId = await playerOf(t, seat);
@@ -212,21 +212,86 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect((await preview(bastogne))!.then).toMatchObject({ refusal: { code: 'FRIENDLY_TARGET' } });
   });
 
-  it('is Germany’s alone', async () => {
+  it('is Germany’s alone, and the Mondiale’s', async () => {
     const t = boot();
     const { germany, liege, namur, tanks } = await scene(t, 'italy');
     expect(await codeOf(attack(t, germany, tanks, liege, namur))).toBe('NO_BLITZKRIEG');
     expect(await movements(t)).toEqual([]);
+
+    const t2 = boot();
+    const blitz = await scene(t2);
+    await t2.run((ctx) =>
+      ctx.db.patch(blitz.germany.seasonId, { mode: 'blitz', theatre: 'europe' }),
+    );
+    expect(await codeOf(attack(t2, blitz.germany, blitz.tanks, blitz.liege, blitz.namur))).toBe(
+      'NO_BLITZKRIEG',
+    );
+    expect(await movements(t2)).toEqual([]);
   });
 
-  it('refuses a second leg the fuel cannot carry, at the order', async () => {
+  it('chains ashore only: an air road does not chain', async () => {
+    const t = boot();
+    const { germany, liege, namur } = await scene(t);
+    const germanyId = await playerOf(t, germany);
+    const airfield = await t.run(async (ctx) =>
+      ctx.db.insert('buildings', {
+        seasonId: germany.seasonId,
+        playerId: germanyId,
+        key: 'airfield',
+        regionId: regionAtPoint(AACHEN)!.id,
+        point: at(AACHEN),
+        level: 1,
+      }),
+    );
+    const fighters = await post(t, germany, 'fighter', airfield, 2);
+    const flown = t.mutation(api.movements.attack, {
+      ...germany,
+      origin: { kind: 'building', buildingId: airfield },
+      troopIds: fighters,
+      target: { kind: 'outpost', outpostId: liege },
+      then: { kind: 'outpost', outpostId: namur },
+    });
+    expect(await codeOf(flown)).toBe('CHAIN_ASHORE_ONLY');
+    expect(await movements(t)).toEqual([]);
+  });
+
+  it('previews a march with a second target as an order that does not chain', async () => {
+    const t = boot();
+    const { germany, namur, tanks } = await scene(t);
+    const preview = await t.query(api.movements.preview, {
+      ...germany,
+      origin: { kind: 'point', point: at(AACHEN) },
+      troopIds: tanks,
+      target: { kind: 'point', point: at([5.86, 50.49]) },
+      type: 'march',
+      then: { kind: 'outpost', outpostId: namur },
+    });
+    expect(preview!.then).toEqual({
+      refusal: { code: 'CHAIN_ATTACK_ONLY', details: { type: 'march' } },
+    });
+  });
+
+  it('shows a short second leg at the order, and stays at its departure when nothing filled it', async () => {
     const t = boot();
     const { germany, liege, namur, tanks } = await scene(t);
     await t.run(async (ctx) => {
       for (const id of tanks) await ctx.db.patch(id, { fuel: 1 });
     });
-    expect(await codeOf(attack(t, germany, tanks, liege, namur))).toBe('NOT_ENOUGH_FUEL');
-    expect(await movements(t)).toEqual([]);
+    const preview = await t.query(api.movements.preview, {
+      ...germany,
+      origin: { kind: 'point', point: at(AACHEN) },
+      troopIds: tanks,
+      target: { kind: 'outpost', outpostId: liege },
+      type: 'attack',
+      then: { kind: 'outpost', outpostId: namur },
+    });
+    expect(preview!.then).toMatchObject({ refusal: null, fuel: { gauge: { short: 1 } } });
+    const first = await attack(t, germany, tanks, liege, namur);
+    await arrive(t, first.movementId);
+    expect(await blitzNotices(t, germany)).toMatchObject([
+      { outcome: 'halted', refusal: 'NOT_ENOUGH_FUEL' },
+    ]);
+    expect((await t.run(async (ctx) => ctx.db.get(tanks[0]!)))!.stationedAt).toEqual(at(LIEGE));
   });
 
   it('runs on from an empty first target to the second, the same slot held, and says so', async () => {
@@ -271,6 +336,8 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     await arrive(t, first.movementId);
     const onward = (await movements(t)).find((movement) => movement.type === 'attack')!;
     expect(onward.troopIds).toEqual(tanks.slice(1));
+    const home = (await movements(t)).find((movement) => movement.type === 'return');
+    expect(home?.troopIds).toEqual([tanks[0]]);
   });
 
   it('runs on after a won engagement, and lets the beaten second leg fall', async () => {
@@ -325,6 +392,25 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect(await blitzNotices(t2, lost.germany)).toMatchObject([
       { outcome: 'halted', refusal: 'FRIENDLY_TARGET' },
     ]);
+
+    /** Namur rasé en route, et son relevé avec lui : la cible relue n'existe plus. */
+    const t3 = boot();
+    const gone = await scene(t3);
+    const sent = await attack(t3, gone.germany, gone.tanks, gone.liege, gone.namur);
+    await t3.run(async (ctx) => {
+      await ctx.db.delete(gone.namur);
+      for (const row of await ctx.db.query('regionSightings').collect())
+        await ctx.db.delete(row._id);
+    });
+    await arrive(t3, sent.movementId);
+    expect(await blitzNotices(t3, gone.germany)).toMatchObject([
+      { outcome: 'halted', refusal: 'UNKNOWN_OUTPOST' },
+    ]);
+    expect((await t3.run(async (ctx) => ctx.db.get(gone.tanks[0]!)))!.stationedAt).toEqual(
+      at(LIEGE),
+    );
+    expect((await movements(t3)).filter((movement) => movement.type === 'attack')).toEqual([]);
+    expect((await t3.query(api.view.playerView, gone.germany)).me.slots.used).toBe(0);
   });
 
   it('shows the column leaving the first target to a watcher as a departure, without a second dispatch', async () => {

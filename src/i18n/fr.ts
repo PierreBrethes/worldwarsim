@@ -4629,6 +4629,7 @@ export const fr = {
     secondLost: (then: string) => `terrain perdu : ${then} tombe, les survivants rentrent`,
     secondKeys: (first: string) => `relâcher : deux cibles, un slot · Échap : ${first} seule`,
     secondKeysTouch: 'lever le doigt : deux cibles, un slot',
+    fuelReread: (first: string) => `plein relu à ${first}`,
     secondRefusedKeys: (first: string) =>
       `relâcher : rien ne part, la colonne revient · Échap : ${first} seule`,
     secondRefusedKeysTouch: 'lever le doigt : rien ne part',

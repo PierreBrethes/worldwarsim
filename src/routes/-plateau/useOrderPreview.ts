@@ -8,6 +8,7 @@ import { asLocalTime, asSpan } from '@/domain/duration';
 import { kmOf } from '@/domain/routing';
 import type { LonLat } from '@/domain/geo';
 import { fr } from '@/i18n/fr';
+import { placeLabel } from '@/domain/station-name';
 import type { DropFuel, DropNote } from '@/map/DropHint';
 import type { Seat } from '@/data/session';
 import {
@@ -223,6 +224,16 @@ export function useOrderPreview(
                   text: fr.aim.distance(kmOf(then.route.distanceUnits), asSpan(then.minutes)),
                   alarm: false,
                 },
+                /** **Le plein court ne se refuse pas au lâcher** (décision du 05/11) : le point de
+                 *  la première cible peut le combler, et le départ le relit. */
+                ...((then.fuel.gauge?.short ?? 0) > 0
+                  ? [
+                      {
+                        text: fr.blitzkrieg.fuelReread(placeLabel(chain.preview.destinationName)),
+                        alarm: true,
+                      },
+                    ]
+                  : []),
               ]
         : courseRefusal !== null
           ? [{ text: courseRefusal, alarm: true, refusal: true }]
