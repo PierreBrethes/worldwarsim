@@ -18,7 +18,7 @@ import { stationCargoLoads, type HomewardCargo } from '../cargo';
 import { regionNameAt } from '../placeNames';
 import { routeBetween } from '../routes';
 import { holdsPoint } from '../strategicPoints';
-import { toppedUp } from '../supplies';
+import { resupply, toppedUp } from '../supplies';
 import { surveyFromPoint } from '../surveys';
 import { forgetMovement, standAt } from './arrival';
 import { reassessDetection, watchersOf } from './detection';
@@ -225,12 +225,8 @@ export async function pressOn(
 
   const player = (await ctx.db.get(movement.playerId))!;
   const season = (await ctx.db.get(movement.seasonId))!;
-  const { troops } = await toppedUp(
-    ctx,
-    player._id,
-    await troopsAmong(ctx, player._id, [...winnerIds]),
-    now,
-  );
+  const standing = await troopsAmong(ctx, player._id, [...winnerIds]);
+  const { troops } = await toppedUp(ctx, player._id, standing, now);
   const leg = await weighSecondLeg(
     ctx,
     player,
@@ -241,6 +237,9 @@ export async function pressOn(
     true,
   );
   if ('refusal' in leg) {
+    /** **Posée, elle se recharge** (ADR 0028 §3), comme toute arrivée : l'arrivée l'a vue en
+     *  route et l'a sautée. */
+    await resupply(ctx, player._id, standing, now);
     /** Le sol où elle s'est battue, relevé comme `walkHome` le fait pour qui rentre. */
     await surveyFromPoint(
       ctx,

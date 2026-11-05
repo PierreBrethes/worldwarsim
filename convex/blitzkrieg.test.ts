@@ -5,6 +5,7 @@ import type { Id } from './_generated/dataModel';
 import type { UnitRole } from '../src/domain/ids';
 import type { LonLat } from '../src/domain/geo';
 import { nominalStrength } from './constants';
+import { fullSupplies } from '../src/domain/supplies';
 import { regionAtPoint } from './regionGeometry';
 import { fileSurvey } from './surveys';
 import schema from './schema';
@@ -486,6 +487,30 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     ]);
     expect((await movements(t)).filter((movement) => movement.type === 'attack')).toEqual([]);
     expect((await t.run(async (ctx) => ctx.db.get(tanks[0]!)))!.stationedAt).toEqual(at(LIEGE));
+  });
+
+  it('rearms a halted column from the depot it stands by, as any arrival does', async () => {
+    const t = boot();
+    const { germany, france, liege, namur, tanks } = await scene(t);
+    /** Un dépôt allemand au bord de Liège : la colonne posée s'y recharge (ADR 0028 §3). */
+    const depot = await plant(t, germany, [5.6, 50.64]);
+    await t.run(async (ctx) =>
+      ctx.db.patch(depot, { depot: { ammunition: 400, oil: 400, coal: 0 } }),
+    );
+    await post(t, france, 'infantry', liege);
+    await t.run(async (ctx) => {
+      for (const id of tanks) await ctx.db.patch(id, { rounds: 1 });
+    });
+    const order = await attack(t, germany, tanks, liege, namur);
+    const germanyId = await playerOf(t, germany);
+    await t.run(async (ctx) => ctx.db.patch(namur, { playerId: germanyId }));
+    await arrive(t, order.movementId);
+    expect(await blitzNotices(t, germany)).toMatchObject([
+      { outcome: 'halted', refusal: 'FRIENDLY_TARGET' },
+    ]);
+    expect((await t.run(async (ctx) => ctx.db.get(tanks[1]!)))!.rounds).toBe(
+      fullSupplies('armor').rounds,
+    );
   });
 
   it('plans nothing after a lost first attack', async () => {
