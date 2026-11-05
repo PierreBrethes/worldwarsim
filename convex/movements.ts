@@ -111,7 +111,12 @@ import { bombard as bombardFrom } from './movement/bombard';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { arriveForCapture } from './captures';
 import { changeCourse as steer, plotCourse } from './movement/course';
-import { chainSecondTarget, pressOn, weighSecondLeg } from './movement/blitzkrieg';
+import {
+  chainSecondTarget,
+  holdGround,
+  pressOn as pressOnward,
+  weighSecondLeg,
+} from './movement/blitzkrieg';
 
 export { restHold } from './movement/rest';
 import {
@@ -1287,11 +1292,12 @@ export const arrive = internalMutation({
      *  player's; razed or lost since, the column stands on the point reached (rule 3) and the
      *  journal says so in the plain words of an arrival. */
     let garrisoned = false;
-    let onward: Awaited<ReturnType<typeof pressOn>> = null;
+    /** **La seconde jambe** (Guerre éclair, ADR 0039 §6) part dans sa propre mutation : le
+     *  mouvement reste jusque-là, elle l'oubliera. */
+    let pressing = false;
     if (movement.type === 'attack' || movement.type === 'raid') {
       const held = await engageAt(ctx, movement, movement.type, now);
-      /** **La seconde jambe** (Guerre éclair, ADR 0039 §6) part d'ici, avant la réévaluation. */
-      if (movement.blitzkrieg !== undefined) onward = await pressOn(ctx, movement, held, now);
+      if (movement.blitzkrieg !== undefined) pressing = await holdGround(ctx, movement, held, now);
     } else if (movement.type === 'march') {
       const door = await garrisonOf(ctx, movement);
       /** **Une unité par bâtiment** (B15) : une autre de mes troupes y est entrée la première,
@@ -1342,8 +1348,7 @@ export const arrive = internalMutation({
       });
     }
 
-    /** Une Guerre éclair tenue l'a déjà oubliée, avant de repartir (`pressOn`). */
-    if ((await ctx.db.get(movementId)) !== null) await forgetMovement(ctx, movementId);
+    if (!pressing) await forgetMovement(ctx, movementId);
     /** **Arrivée à l'ancre, elle se recharge** (ADR 0028 §3) : la pièce dit ses crans pleins dès
      *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
     const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);
@@ -1355,10 +1360,14 @@ export const arrive = internalMutation({
       movement.seasonId,
       now,
       movement.type === 'attack' || movement.type === 'raid' ? undefined : movement.playerId,
-      /** **Comme un départ** : qui guettait la colonne la voit repartir, sans seconde dépêche. */
-      onward ?? undefined,
     );
   },
+});
+
+/** **La seconde jambe d'une Guerre éclair** (`holdGround`), relue à son échéance. */
+export const pressOn = internalMutation({
+  args: { movementId: v.id('movements'), troopIds: v.array(v.id('troops')) },
+  handler: (ctx, { movementId, troopIds }) => pressOnward(ctx, movementId, troopIds, Date.now()),
 });
 
 /** **Un regard de poursuite** (Blitz, B18) : frapper, abandonner, ou recourber la route. */

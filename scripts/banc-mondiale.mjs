@@ -85,8 +85,8 @@ async function logPage(cursor) {
 let cursor = (await logPage(0)).newCursor;
 
 /** Lance `call`, puis lit dans le flux la complétion de `identifier` : durée et documents lus. */
-async function measured(identifier, call) {
-  const from = cursor;
+/** `from` : un curseur d'avant, pour une exécution qu'une autre a planifiée (la seconde jambe). */
+async function measured(identifier, call, from = cursor) {
   let failure = null;
   try {
     await call();
@@ -325,19 +325,22 @@ const fall = await measured('captures:complete', () =>
 );
 
 /** **La seconde jambe d'une Guerre éclair** (#451) : la même arrivée sur une garnison, simple puis
- *  à deux cibles — la jambe déposée à l'échéance ne doit pas alourdir la passe. */
+ *  à deux cibles — la jambe part dans sa propre mutation (`movements:pressOn`), que l'arrivée
+ *  planifie : chacune doit tenir sa seconde. */
 const blitz = await admin.mutation(internal('dev:benchBlitzkrieg'), {
   attackerId: playerOf(nations.indexOf('germany')),
   defenderId: playerOf(MEASURED),
   from: around(0.8),
 });
 const arrivals = [];
+const beforeArrivals = cursor;
 for (const movementId of [blitz.plain, blitz.chained])
   arrivals.push(
     await measured('movements:arrive', () =>
       admin.mutation(internal('movements:arrive'), { movementId }),
     ),
   );
+const pressed = await measured('movements:pressOn', async () => {}, beforeArrivals);
 
 const fixed = (n, d = 1) => n.toFixed(d);
 /** Une exécution qui dépasse la seconde permise est coupée et ne laisse rien : on le dit. */
@@ -373,6 +376,9 @@ for (const [k, run] of arrivals.entries())
   console.log(
     `| arrivée d'une attaque ${k === 0 ? 'simple' : 'à deux cibles (Guerre éclair)'} (\`arrive\`) | ${cell(run)} | ${String(run.read)} | ${String(run.written)} |`,
   );
+console.log(
+  `| seconde jambe de la Guerre éclair (\`pressOn\`, planifiée par l'arrivée) | ${cell(pressed)} | ${String(pressed.read)} | ${String(pressed.written)} |`,
+);
 console.log(`| Jobs planifiés en attente | ${String(stats.pendingJobs)} | | |`);
 for (const [name, count] of stats.pendingByName)
   console.log(`| ↳ \`${name}\` | ${String(count)} | | |`);
