@@ -103,9 +103,11 @@
  * est lancé ; vingt encore, le chasseur décolle aussi loin que porte son plein (un fil amarré à la
  * piste) et le cargo appareille vers Malte ; vingt encore, le largage arrive et le transport rentre
  * se poser. Lieux `aerodrome` et `port`.
- * `--poste` (#475, avec `--piste-mole`) garnit d'abord l'aérodrome de deux chasseurs de plus : avec
- *  celui qui y est formé, l'aire en tient trois ; le cargo du port, l'escorte qui y accoste et le
- *  cargo lancé font trois coques, la troisième en rade.
+ * `--poste` (#475, #487, avec `--piste-mole`) garnit d'abord l'aérodrome de deux chasseurs de plus,
+ *  puis forme deux chasseurs et deux cargos ensemble : l'aire en tient quatre, la rade accueille le
+ *  second cargo. Cinq secondes après le transport, le cargo du môle appareille (l'escorte, à couple,
+ *  monte au môle) ; vingt secondes plus tard les deux cargos sont lancés ensemble ; vingt encore, un
+ *  des chasseurs d'avant décolle de sa place.
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
@@ -1745,6 +1747,11 @@ if (runwayScene !== null) {
   };
   const [flight, launched] = runwayScene;
   await pause((runwayIn + 5) * 1000);
+  // `--poste`: the hull at the mole puts to sea; the escort at its side is hauled up to the mole.
+  if (crowded) {
+    await march(launched);
+    console.log(`Le cargo du môle appareille à ${new Date().toISOString()}`);
+  }
   // A short flight out and back: the airdrop on the outpost of Brussels (ADR 0028 §4).
   const { me: before } = await again(() =>
     client.query(api.view.playerView, { token: tokenA, seasonId }),
@@ -1761,8 +1768,22 @@ if (runwayScene !== null) {
   );
   console.log(`Le transport décolle pour un largage à ${new Date().toISOString()}`);
   await pause(40_000);
-  // `--poste` stops here: the new fighter and cargo stay at their posts.
-  if (!crowded) {
+  // `--poste`: the fighters and cargos formed together stay at their posts, and a fighter that
+  // was already on the apron takes off from its place.
+  if (crowded) {
+    const { me } = await again(() =>
+      client.query(api.view.playerView, { token: tokenA, seasonId }),
+    );
+    const resting = me.troops.filter(
+      (troop) => troop.role === 'fighter' && launched.known.has(troop.id),
+    );
+    await march({
+      from: flight.from,
+      troopIds: [resting[0].id],
+      to: { lon: 4.85, lat: 45.76 },
+    });
+    console.log(`Un chasseur décolle de sa place à ${new Date().toISOString()}`);
+  } else {
     // Formed at runwayIn + 25 (`runwayAndMole`): the fighter and the new cargo leave in turn, the
     // fighter as far as its fuel holds, so that its thread moors at the runway's end.
     const { me } = await again(() =>
@@ -2081,9 +2102,16 @@ async function runwayAndMole() {
       cards: ['transmissions1', 'transmissions2', 'transmissions3'],
     }),
   ]);
+  // `--poste`: two of each, formed together.
   for (const [building, role] of [
     [airfield, 'fighter'],
     [port, 'cargo'],
+    ...(crowded
+      ? [
+          [airfield, 'fighter'],
+          [port, 'cargo'],
+        ]
+      : []),
   ])
     await client.mutation(api.troops.recruit, {
       token: tokenA,
