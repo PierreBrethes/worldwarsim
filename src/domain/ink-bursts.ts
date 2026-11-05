@@ -5,6 +5,7 @@ import type { MapMotion } from './map-motion';
 import { LOSS_INK, nationInk } from './nations';
 import type { JournalDispatch } from './player-view';
 import type { RaceLead } from './race-rings';
+import { RACE_TO_WIN } from './strategic-points';
 
 /** What a stamp says: a word and the hour, the prototype's `★ 14:32 ★`. */
 export type StampWords = { readonly word: string; readonly hour: string };
@@ -43,9 +44,9 @@ export type InkBurst = {
   /** **Sa taille**, part de celle d'un cachet seul : la victoire en pose quatre côte à côte. */
   readonly scale?: number;
   /** Pressed just above its point rather than beside it: the absence tour has no piece there to
-   *  keep readable, and a stamp aside reads as the neighbouring country's (#439). The fall of a
-   *  headquarters, as the storyboard has it (#442). A point of the Seven keeps its stamps aside:
-   *  its mast's cartouche stands above it. */
+   *  keep readable, and a stamp aside reads as the neighbouring country's (#439). The seals of the
+   *  Seven, « compte rompu » and the fall of a headquarters, as the storyboard has them (#442) —
+   *  but a seal where the count runs, whose mast's cartouche stands there. */
   readonly over?: true;
   /** **Le combat dont « terrain tenu » dit l'issue** (#327) : si la carte l'a joué, son tampon de
    *  compte-rendu le remplace, et celui-ci ne se pose pas. Sur le coup de ma batterie, le trait
@@ -148,6 +149,7 @@ export function inkBursts(
         at: burst.at,
         words: stamped(fr.stamps.raceBroken, dispatch.at),
         ink: LOSS_INK,
+        over: true,
         delayMs: FLAG_SWAP_MS,
       };
     }),
@@ -235,6 +237,8 @@ export function placedBursts(
         held,
         ...(held === 4 ? { roman: 'IV' } : {}),
         holdMs: SEAL_HOLD_MS,
+        // Where the count starts or runs, the mast's cartouche stands above the point.
+        ...(held < RACE_TO_WIN ? { over: true as const } : {}),
       },
     ];
   }
