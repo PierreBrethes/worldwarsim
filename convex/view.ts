@@ -255,20 +255,20 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       point: pointOfBuilding(installation),
     })),
   );
-  /** **Dakar** : ce que le pillage d'un entrepôt de son teneur laisse par ressource, de la fonction
-   *  même que le serveur applique (`sparedPerResourceOf`). Absent quand c'est le plancher commun. */
   /** **Mes scellés** (#279) : ce que j'ai mis hors service, lu dans mes propres rapports — jamais
-   *  dans l'état du site, que le relevé ne sert pas. */
+   *  dans l'état du site, que le relevé ne sert pas. Les seuls encore hors service. */
   const sealedUntil = new Map<string, number>();
   for (const report of await ctx.db
     .query('plunderReports')
-    .withIndex('byAttacker', (q) => q.eq('attackerId', player._id))
+    .withIndex('byAttackerSealed', (q) => q.eq('attackerId', player._id).gte('disabledUntil', now))
     .collect())
-    if (report.disabledUntil > now)
+    if (!inService(report.disabledUntil, now))
       sealedUntil.set(
         report.buildingId,
         Math.max(report.disabledUntil, sealedUntil.get(report.buildingId) ?? 0),
       );
+  /** **Dakar** : ce que le pillage d'un entrepôt de son teneur laisse par ressource, de la fonction
+   *  même que le serveur applique (`sparedPerResourceOf`). Absent quand c'est le plancher commun. */
   const surveyedInstallations = await Promise.all(
     surveyed.map(async (installation) => {
       const row =

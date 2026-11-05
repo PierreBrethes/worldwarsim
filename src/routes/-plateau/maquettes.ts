@@ -1,5 +1,6 @@
 import type { MapMarker } from '@/domain/labels';
 import { depositAt } from '@/domain/world';
+import { inService } from '@/domain/loot';
 import type { LonLat } from '@/domain/geo';
 import { BUILDING_SEALS, buildingMaquette } from '@/emblems/buildings/manifest';
 import type { CaptureView } from '@/domain/player-view';
@@ -158,6 +159,6 @@ export const sealedSites = (
   new Set([
     ...view.me.buildings.filter((building) => building.disabled).map(({ id }) => id),
     ...view.surveyedInstallations
-      .filter(({ sealedUntil }) => sealedUntil !== undefined && sealedUntil > now)
+      .filter(({ sealedUntil }) => sealedUntil !== undefined && !inService(sealedUntil, now))
       .map(({ id }) => id),
   ]);

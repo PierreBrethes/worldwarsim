@@ -29,6 +29,10 @@ export function carryCapacityOf(
 export const emptyAmounts = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
 
+/** A raided site is out of service until its date has passed: the one bound every reading uses. */
+export const inService = (disabledUntil: number | null | undefined, now: number): boolean =>
+  disabledUntil == null || disabledUntil < now;
+
 /** **A raid on a warehouse loots it; on any other site, it sabotages it** (`completePresence`). */
 export const raidLoots = (key: BuildingKey): boolean => canonicalBuildingKey(key) === 'warehouse';
 

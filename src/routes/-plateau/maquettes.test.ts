@@ -146,7 +146,7 @@ describe('maquettesOf', () => {
       me: { buildings: [{ id: 'b1', disabled: true as const }, { id: 'b2' }] },
       surveyedInstallations: [
         { id: 'x', sealedUntil: 20 },
-        { id: 'y', sealedUntil: 10 },
+        { id: 'y', sealedUntil: 9 },
         { id: 'z' },
       ],
     };
