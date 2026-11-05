@@ -227,7 +227,9 @@ export function ConnectedHome() {
             )}
           </div>
           <RecentEditions
-            editions={(editions ?? []).filter((edition) => !present.has(edition.seasonId))}
+            editions={(editions ?? [])
+              .filter((edition) => !present.has(edition.seasonId))
+              .slice(0, RECENT_SHOWN)}
           />
           <div className="colophon">
             <span>{fr.home.footerLeft}</span>
@@ -299,6 +301,10 @@ function RecentEditions({
     </section>
   );
 }
+
+/** Le bloc en montre trois ; le serveur en rend davantage, pour que l'article d'une saison
+ *  encore là ouvre son édition même quand trois plus récentes la précèdent. */
+const RECENT_SHOWN = 3;
 
 const EAR_LINK = { fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase' } as const;
 

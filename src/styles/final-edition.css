@@ -785,6 +785,14 @@
   gap: 8px;
   padding: 10px 0;
 }
+.fe-recent > .eyebrow.h {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ink);
+}
 .fe-recent ul {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -804,7 +812,7 @@
 .fe-recent li b {
   font: 700 17px/1.15 var(--font-display);
 }
-.fe-recent li span {
+.fe-recent li span:not(.eyebrow) {
   font: 13px/1.3 var(--font-text);
 }
 .fe-recent li em {

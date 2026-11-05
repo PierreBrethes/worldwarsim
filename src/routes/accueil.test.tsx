@@ -60,7 +60,9 @@ function mount() {
     'accounts:seats': [SEAT],
     'finalEdition:recent': [
       edition('season-here', 'edition-here', 'HERE01'),
-      edition('season-gone', 'edition-gone', 'GONE02'),
+      ...['GONE02', 'GONE03', 'GONE04', 'GONE05'].map((code) =>
+        edition(`season-${code}`, `edition-${code}`, code),
+      ),
     ],
   };
   const client = {
@@ -99,8 +101,11 @@ function mount() {
 it('montre les dernières éditions finales, sans doubler la saison encore là', async () => {
   mount();
   await screen.findByText(fr.finalEdition.recent.title);
-  expect(screen.getByText(/saison GONE02/)).toBeTruthy();
   expect(screen.queryByText(/saison HERE01/)).toBeNull();
+  /** Trois, comptés après la saison encore là : le serveur en rend plus pour les articles. */
+  for (const code of ['GONE02', 'GONE03', 'GONE04'])
+    expect(screen.getByText(new RegExp(`saison ${code}`))).toBeTruthy();
+  expect(screen.queryByText(/saison GONE05/)).toBeNull();
 });
 
 it('ouvre l’édition depuis l’article d’une saison conclue qui a son archive', async () => {
