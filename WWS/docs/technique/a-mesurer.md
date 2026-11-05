@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 7f3ad04 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 125f737 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-116 valeurs marquées dans `convex/` et `src/domain/`.
+115 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -110,8 +110,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `HEARD_ON_RETURN` | `3` | `src/domain/front-sound.ts:149` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `PHRASE_GAP_MS` | `6_000` | `src/domain/front-sound.ts:150` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
-| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:46` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
-| `STAMP_MS` | `HOLD_MS + PEAK / LIFT_PER_MS` | `src/domain/ink-bursts.ts:47` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
+| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:48` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
 | `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:355` | deux, d'après la décision du 19/10, jamais joué |

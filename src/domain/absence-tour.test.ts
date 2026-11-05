@@ -108,6 +108,18 @@ describe('tourStampsOf', () => {
     ]);
   });
 
+  it('draws no battery shot, which a gesture could not take up', () => {
+    const fired = {
+      ...combat,
+      won: false,
+      cause: 'bombardment',
+      firedFrom: { lon: 1, lat: 48 },
+    } as CombatReport;
+    const [shelled] = tourStampsOf(dispatch(20, 'assault', { lon: 2, lat: 49 }, fired), land);
+    expect(shelled).toMatchObject({ kind: 'combat', words: { word: 'bombardé' } });
+    expect(shelled).not.toHaveProperty('from');
+  });
+
   it('stamps a lost combat once', () => {
     const lost = { ...combat, won: false };
     expect(tourStampsOf(dispatch(20, 'attacked', { lon: 2, lat: 49 }, lost), land)).toEqual([

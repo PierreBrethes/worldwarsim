@@ -12,7 +12,7 @@ import {
   ShapeGeometry,
   Vector3,
 } from 'three';
-import { stampAt, type InkBurst, type StampWords } from '@/domain/ink-bursts';
+import { TAKEN_UP_MS, stampAt, type InkBurst, type StampWords } from '@/domain/ink-bursts';
 import type { MapMotion } from '@/domain/map-motion';
 import type { WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
@@ -37,8 +37,6 @@ const WORDED_PX = 170;
 /** Beside the point, not on it: the piece stays readable under its stamp (`+3.5, +2.5` of 6). */
 const WORDED_ASIDE = [0.95, 0.7] as const;
 const STAMP_RED = '#9d4638';
-/** A splash taken up with its stamp goes as fast (`stampAt`). */
-const LIFTED_MS = 250;
 
 /** The ring of ink a dismantled pin leaves, in CSS pixels. @a-mesurer */
 const PIN_RING_PX = 14;
@@ -423,7 +421,7 @@ export class InkLayer {
       );
       return true;
     }
-    if (age >= LIFE_MS || (stamp.liftedAt !== undefined && age >= stamp.liftedAt + LIFTED_MS)) {
+    if (age >= LIFE_MS || (stamp.liftedAt !== undefined && age >= stamp.liftedAt + TAKEN_UP_MS)) {
       unstamp(stamp);
       return false;
     }

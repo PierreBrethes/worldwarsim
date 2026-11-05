@@ -308,7 +308,6 @@ export type PlacingSpot = {
   readonly onLand: boolean;
 };
 
-/** A deposit the sweep names (#249), and when its front reaches it, in ms from its start. */
 /** **Où la caméra se tient** (#439) : le point visé, sa distance et le côté d'où elle regarde,
  *  en unités du plateau — de quoi la rendre telle quelle. */
 export type CameraPose = {
@@ -317,6 +316,7 @@ export type CameraPose = {
   readonly orientation: readonly [number, number, number];
 };
 
+/** A deposit the sweep names (#249), and when its front reaches it, in ms from its start. */
 export type SweepTarget = { readonly id: string; readonly lonLat: LonLat; readonly hitMs: number };
 
 /**
@@ -415,7 +415,7 @@ const CAMERA_REST_MS = 180;
  */
 const JOURNEY_MS = 500;
 /** @a-mesurer : la marge autour des lieux que la caméra cadre, le `fit(…, 1.12)` de la maquette. */
-const TOUR_FRAME_MARGIN = 1.15;
+const TOUR_FRAME_MARGIN = 1.12;
 const SEARCH_AREA_MARGIN = 1.3;
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
@@ -875,7 +875,7 @@ export class MapEngine {
   onReportsLift?: ((stays?: (point: LonLat) => boolean) => void) | undefined;
   /** **Une main sur la carte** — un appui, la molette, une touche (#439) : le rejeu d'absence
    *  s'arrête. Le geste n'est pas avalé, il fait ce qu'il fait. */
-  onHandOnBoard?: (() => void) | undefined;
+  onHandOnBoard?: (() => boolean) | undefined;
   /** **A press that begins on a report stamp** (#327) is not a press on the board: a tap on it
    *  selects nothing. */
   pressedOnStamp?: (() => boolean) | undefined;
@@ -2917,9 +2917,8 @@ export class MapEngine {
   }
 
   private onKeyDown = (event: KeyboardEvent): void => {
-    this.onHandOnBoard?.();
-    // Échap arrête le rejeu d'absence là où la caméra se trouve, comme une main sur la carte.
-    if (event.key === 'Escape') this.journey = null;
+    // A key that stopped the absence tour leaves the camera where it was, like a hand on the board.
+    if (this.onHandOnBoard?.() === true) this.journey = null;
     if (event.code !== 'Space' || isTyping()) return;
     // Without this, the page scrolls under the map on every press.
     event.preventDefault();

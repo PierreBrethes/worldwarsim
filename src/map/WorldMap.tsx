@@ -76,6 +76,7 @@ import { shareUnchanged } from '@/data/shareUnchanged';
 import { useDayCycle } from '@/data/dayCycle';
 import { useContourWeight } from '@/data/contourWeight';
 import { useMapMotion } from '@/data/mapMotion';
+import type { MapMotion } from '@/domain/map-motion';
 import { usePieceScale } from '@/data/pieceScale';
 import { useMouseMapping } from '@/data/mouseMapping';
 import type { MouseMapping } from '@/domain/mouse-mapping';
@@ -365,7 +366,7 @@ type Props = {
   /** **Le rejeu d'absence** (#439), figé à l'ouverture : il part quand la carte se voit. `lift`
    *  monte chaque lieu au-dessus d'une feuille basse ; `onSeen` le marque vu. */
   absenceTour?: {
-    readonly queue: (landAt: (at: LonLat) => boolean) => AbsenceTour | null;
+    readonly queue: (landAt: (at: LonLat) => boolean, motion: MapMotion) => AbsenceTour | null;
     readonly lift: number;
     readonly onSeen: () => void;
   } | null;
@@ -1411,8 +1412,12 @@ export function WorldMap({
   useEffect(() => {
     finger.current = fingerRose !== null;
   }, [fingerRose]);
+  /** **Le rejeu d'absence cède** (#439) à une dépêche localisée et à un combat rejoué : les deux
+   *  effets passent avant le sien, d'où la référence. */
+  const stopTourNow = useRef<() => boolean>(() => false);
   useEffect(() => {
     if (focus === null) return;
+    stopTourNow.current();
     if (finger.current) setRose(null);
     readyEngine?.journeyTo(focus.ids, focus.places ?? [], focus.lift ?? 0, focus.distance);
   }, [readyEngine, focus]);
@@ -1427,6 +1432,7 @@ export function WorldMap({
   const replayView = replay?.view ?? null;
   useEffect(() => {
     if (!readyEngine || replayView === null) return;
+    stopTourNow.current();
     setRose(null);
     // « Terrain tenu », the account's own stamp, pressed on the board too as the account opens.
     const held = replayView.won
@@ -1843,8 +1849,13 @@ export function WorldMap({
     covered,
     motion,
     lift: absenceTour?.lift ?? 0,
+    // A combat played on the map, or replayed, is what the map looks at.
+    scene: combats.length > 0 || replay !== null,
     onSeen: absenceTour?.onSeen ?? noSeen,
   });
+  useEffect(() => {
+    stopTourNow.current = stopTour;
+  }, [stopTour]);
   // A hand on the board stops it, and the gesture goes on doing what it does.
   useEffect(() => {
     if (readyEngine === null) return;

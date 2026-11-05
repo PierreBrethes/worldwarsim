@@ -206,6 +206,7 @@ import { BriefingSheet } from './-plateau/BriefingSheet';
 import { FirstStepsList, useFirstSteps } from './-plateau/FirstSteps';
 import { shownStepOf } from '@/domain/first-steps';
 import { absenceTourOf } from '@/domain/absence-tour';
+import type { MapMotion } from '@/domain/map-motion';
 import { HandSheet } from './-plateau/HandSheet';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
@@ -2427,7 +2428,7 @@ function BoardContent({
    */
   const markToured = useMutation(api.journal.markToured);
   const [absenceQueue] = useState(
-    () => (landAt: (at: LonLat) => boolean) =>
+    () => (landAt: (at: LonLat) => boolean, motion: MapMotion) =>
       absenceTourOf(
         view.journal,
         { journalReadAt: view.journalReadAt, absenceTourAt: view.absenceTourAt },

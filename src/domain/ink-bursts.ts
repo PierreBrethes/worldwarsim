@@ -42,9 +42,10 @@ const PRESS_MS = 140;
 const HOLD_MS = 3000;
 const PEAK = 0.88;
 const LIFT_PER_MS = 0.0015;
-/** @a-mesurer : un geste lève tout en 0,25 s (#439, la maquette « la tournée »). */
-const TAKEN_UP_MS = 250;
 export const STAMP_MS = HOLD_MS + PEAK / LIFT_PER_MS;
+
+/** @a-mesurer : un geste lève tout en 0,25 s (#439, la maquette « la tournée »). */
+export const TAKEN_UP_MS = 250;
 
 /** A stamp at `age` ms: its scale and opacity, `null` once lifted. Reduced motion lays it flat
  *  at once — no press, the same hold. `liftedAt` is the age at which a gesture took it up. */

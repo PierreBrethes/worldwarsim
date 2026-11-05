@@ -29,25 +29,31 @@ const STAMP_ASIDE_PX = 80;
 /**
  * **Le rejeu d'absence, joué sur la carte** (#439). Il part une fois, quand la carte se voit
  * (`covered` faux, onglet visible) ; la file est figée. Chaque battement de `tourBeatsOf` rappelle
- * le moteur. `stop` — une main sur la carte, une scène de combat — lève les tampons et laisse la
- * caméra où elle est. `onSeen` marque le rejeu vu, à la fin comme à l'arrêt.
+ * le moteur. `stop` — une main sur la carte, une scène de combat, une dépêche localisée, une
+ * feuille qui couvre la carte, l'onglet masqué — lève les tampons et laisse la caméra où elle est ;
+ * il dit s'il a arrêté quelque chose. `onSeen` marque le rejeu vu, au retour comme à l'arrêt.
+ * Une scène de combat annoncée à l'ouverture passe avant : le rejeu ne part pas, rien n'est vu.
  */
 export function useAbsenceTour(
   engine: MapEngine | null,
-  /** La file, tirée au départ : elle lit le sol sous chaque lieu (« eaux tenues »). */
-  queue: ((landAt: (at: LonLat) => boolean) => AbsenceTour | null) | null,
+  /** La file, tirée au départ : elle lit le sol sous chaque lieu (« eaux tenues ») et le réglage
+   *  des animations de ce moment-là. */
+  queue: ((landAt: (at: LonLat) => boolean, motion: MapMotion) => AbsenceTour | null) | null,
   {
     covered,
     motion,
     lift,
+    scene,
     onSeen,
   }: {
     covered: boolean;
     motion: MapMotion;
     lift: number;
+    /** Une scène de combat se joue sur la carte. */
+    scene: boolean;
     onSeen: () => void;
   },
-): { tour: AbsenceTour | null; band: TourBand | null; stop: () => void } {
+): { tour: AbsenceTour | null; band: TourBand | null; stop: () => boolean } {
   const [tour, setTour] = useState<AbsenceTour | null>(null);
   const [band, setBand] = useState<TourBand | null>(null);
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
@@ -64,20 +70,26 @@ export function useAbsenceTour(
     return () => document.removeEventListener('visibilitychange', watch);
   }, []);
 
-  const stop = useCallback(() => {
-    if (state.current !== 'running') return;
+  const stop = useCallback((): boolean => {
+    if (state.current !== 'running') return false;
     state.current = 'over';
     for (const timer of timers.current) clearTimeout(timer);
     engine?.liftStamps();
     seen.current();
     setBand({ kind: 'stopped' });
     timers.current = [setTimeout(() => setBand(null), STOPPED_BAND_MS)];
+    return true;
   }, [engine]);
+
+  // A sheet over the map or a hidden tab: the beats would play blind, and mark it seen.
+  useEffect(() => {
+    if (covered || !visible) stop();
+  }, [covered, visible, stop]);
 
   useEffect(() => {
     if (engine === null || queue === null || covered || !visible || state.current !== 'idle')
       return;
-    const tour = queue((at) => engine.landAt(at));
+    const tour = scene ? null : queue((at) => engine.landAt(at), motion);
     if (tour === null) {
       state.current = 'over';
       return;
@@ -107,18 +119,17 @@ export function useAbsenceTour(
         else engine.poseCamera(wide(), 0, lift);
       } else if (does === 'stamp') for (const burst of stop.stamps) engine.inkBurst(burst);
       else if (does === 'return') {
+        // Over from here: a gesture over the end band stops nothing, and marks nothing twice.
+        state.current = 'over';
         engine.poseCamera(from(), motion === 'full' ? RETURN_MS : 0);
         setBand({ kind: 'end' });
         seen.current();
-      } else {
-        state.current = 'over';
-        setBand(null);
-      }
+      } else setBand(null);
     };
     timers.current = tourBeatsOf(tour.stops.length, motion).map((beat) =>
       setTimeout(() => play(beat), beat.at),
     );
-    // Motion and lift are read once, at the start: the tour does not change course midway.
+    // Motion, lift and the scene are read once, at the start: the tour does not change course.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, queue, covered, visible]);
 

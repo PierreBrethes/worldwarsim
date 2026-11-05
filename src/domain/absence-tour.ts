@@ -116,7 +116,8 @@ export function tourStampsOf(
             },
           ];
   return own.map((burst, i) => {
-    const { delayMs: _, ...rest } = burst;
+    // Ni délai ordinaire, ni trait de batterie : le trait ne se lève pas avec les tampons.
+    const { delayMs: _, from: __, ...rest } = burst;
     return {
       ...rest,
       ...(i > 0 ? { delayMs: SECOND_STAMP_MS * i } : {}),
