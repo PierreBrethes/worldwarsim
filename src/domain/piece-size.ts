@@ -117,6 +117,16 @@ export const BUILDING_REACH_METRES: Readonly<Record<BuildingKey, number>> = {
 };
 
 /**
+ * **La portée d'un site avec le kit que le moteur pose à côté** (ADR 0038 §10, #269-#270) : le coin
+ * lointain de la piste de l'aérodrome, la tête du môle du port. L'anneau réserve cette emprise en
+ * plus du socle. `kits.test.ts` la mesure sur le plan des kits.
+ */
+export const KIT_REACH_METRES: Readonly<Partial<Record<BuildingKey, number>>> = {
+  airfield: 169,
+  port: 302,
+};
+
+/**
  * Les objectifs neutres, au plus grand côté de leur modèle.
  * @a-mesurer lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel
  */
@@ -144,6 +154,10 @@ export const troopSpan = (role: UnitRole, nation?: Nation, tier?: UnitTier): num
     (role === 'infantry' ? MAN_EXAGGERATION : 1) * (DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1),
   );
 
+/** **La mesure réelle d'un rôle, en mètres** (`TROOP_METRES`) : ce sur quoi un repère posé à la
+ *  boîte du modèle (les feux de position, #269) prend sa taille. */
+export const troopMetres = (role: UnitRole): number => TROOP_METRES[role];
+
 /** **La taille d'un homme debout, en mètres** : ce que mesure un fantassin dessiné en mètres, quelle que soit sa pose. */
 export const MAN_METRES = TROOP_METRES.infantry;
 
@@ -160,7 +174,7 @@ export const buildingFootprint = (key: BuildingKey): number =>
 
 /** **La portée d'un site depuis son point**, en unités : ce dont l'anneau l'espace d'un voisin. */
 export const buildingReach = (key: BuildingKey): number =>
-  onBoard(BUILDING_REACH_METRES[key], key === 'port' ? SEA_SHARE : 1);
+  onBoard(KIT_REACH_METRES[key] ?? BUILDING_REACH_METRES[key], key === 'port' ? SEA_SHARE : 1);
 
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>

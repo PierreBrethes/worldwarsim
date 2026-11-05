@@ -344,6 +344,16 @@ export class Pawn {
     return this.marchers.find(({ men }) => men.length > 0)?.figurine ?? null;
   }
 
+  /** **The plane or the hull it wears** (#269, #270), standing; `null` on land, or a silhouette. */
+  get rider(): Figurine | null {
+    return this.medium !== 'land' && this.standing ? this.riderFigurine : null;
+  }
+
+  /** The same figurine, standing or not. */
+  get riderFigurine(): Figurine | null {
+    return this.medium === 'land' ? null : (this.figurines.get(this.medium) ?? null);
+  }
+
   /** The span it gives way to its pin by: its worn figurine's, a tank's for a silhouette. */
   get span(): number {
     if (this.medium === 'land' && this.file !== null) return this.fileSpan;

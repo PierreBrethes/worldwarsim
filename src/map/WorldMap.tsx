@@ -65,6 +65,9 @@ import {
   descentesOf,
   dispersionsOf,
   entreesOf,
+  departuresOf,
+  formationsOf,
+  retoursOf,
   loadsOf,
   takingsOf,
   tourneesOf,
@@ -1761,6 +1764,9 @@ export function WorldMap({
     if (known === null) return;
     for (const sortie of sortiesOf(known, standing))
       readyEngine?.cue({ kind: 'sortie', ...sortie });
+    // A new plane rolls out of its hangar, a new hull is launched (#269, #270).
+    for (const formed of formationsOf(known, standing))
+      readyEngine?.cue({ kind: 'formation', ...formed });
   }, [troops, standing, readyEngine]);
 
   // A column entered a garrison: it walks from the end of its route to its rank (décision de
@@ -1776,6 +1782,9 @@ export function WorldMap({
           ? { kind: 'deploiement', pileId: entree.pileId, groups: entree.groups }
           : { kind: 'entree', siteId, ...entree },
       );
+    // A plane lands on its runway, a hull docks at its mole; a movement born leaves them (#269, #270).
+    for (const back of retoursOf(before, standing)) readyEngine?.cue({ kind: 'retour', ...back });
+    for (const arcId of departuresOf(before, arcs)) readyEngine?.cue({ kind: 'depart', arcId });
   }, [arcs, standing, readyEngine]);
 
   useEffect(() => {

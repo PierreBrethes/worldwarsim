@@ -48,6 +48,7 @@ import {
   stapleShare,
   traceStaple,
 } from './site-marks';
+import { lightRunway } from './site-kits';
 
 export { SOCLE_TOP };
 
@@ -171,6 +172,9 @@ export type SeaFront = {
   readonly line: readonly [number, number] | null;
 };
 
+/** **An airfield's runway** (#269): the kit the engine lays (`dressedScene`), what its turn keeps on land. */
+const RUNWAY = 'piste';
+
 /** **A port's water edge** (#436): its quay, the marker its model lays on the coast line. */
 const WATER_EDGE = 'fx_bord_eau';
 
@@ -249,6 +253,8 @@ type Model = {
   readonly socleBox: Box3;
   /** Its sign's foot (`bakedSite`): the pile that captures stands by it. */
   readonly signFoot: Vector3 | null;
+  /** It has a runway laid beside it (#269): its turn keeps it on land too. */
+  readonly runway: boolean;
 };
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
@@ -327,6 +333,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> 
         fronts,
         crates,
         rank,
+        runway: scene.getObjectByName(RUNWAY) !== undefined,
       };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
@@ -436,6 +443,11 @@ export function clusterFootprints(
 }
 
 const FACINGS = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => (k * Math.PI) / 4);
+/** Every 15°, nearest the hashed turn first: an airfield's runway turned to find its land. */
+const RUNWAY_TURNS = Array.from(
+  { length: 24 },
+  (_, k) => (((k + 1) >> 1) * (k % 2 === 0 ? 1 : -1) * Math.PI) / 12,
+);
 
 /** The placement as it may stand, `null` when it strays or steps off the land. A lone site turns
  *  its garrison when its front is the sea or a neighbour's maquette — inland, away from the other
@@ -867,17 +879,30 @@ export class MaquetteLayer implements SequenceHost {
   }
 
   /**
-   * **The axis of the airfield standing at (`x`, `z`)**, as a unit vector on the board, or `null`
-   * for none: its hangar's door faces along it, and so does the runway a plane rolls on (#129).
+   * **The way a plane takes off from the airfield standing at (`x`, `z`)**, a unit vector on the
+   * board, or `null` for none: along its runway toward its free end (#269); it lands the other way.
    * An airfield is read by its label's id, `building-airfield@…`.
    */
   runwayAt(x: number, z: number): readonly [number, number] | null {
     for (const [id, { item }] of this.byId) {
       if (!id.startsWith('building-airfield')) continue;
       if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
-      const yaw = yawOf(id);
-      return [Math.sin(yaw), Math.cos(yaw)];
+      // Toward its free end, its model's -x, as the site was turned to keep it on land (#436).
+      return [-Math.cos(item.yaw), Math.sin(item.yaw)];
     }
+    return null;
+  }
+
+  /** **The landed airfield or port standing at (`x`, `z`)**, by its id (#269, #270): what a thread
+   *  is moored to and a sequence plays on (`siteOf`). */
+  kitSiteAt(kind: 'airfield' | 'port', x: number, z: number): string | null {
+    for (const [id, { item, lot }] of this.byId)
+      if (
+        id.startsWith(`building-${kind}`) &&
+        lot.model !== null &&
+        Math.hypot(item.ground.x - x, item.ground.z - z) <= RUNWAY_TOLERANCE
+      )
+        return id;
     return null;
   }
 
@@ -1011,7 +1036,10 @@ export class MaquetteLayer implements SequenceHost {
         return count / SOCLE_SAMPLES ** 2;
       };
       if (wet(yaw) > SOCLE_WET) {
-        const turns = FACINGS.map((facing) => yaw + facing);
+        // An airfield's runway finds its land by steps of 15° (Décisions du 23/10), any other
+        // socle by the eight facings.
+        const steps = model.runway ? RUNWAY_TURNS : FACINGS;
+        const turns = steps.map((facing) => yaw + facing);
         const wets = turns.map(wet);
         yaw = turns[wets.indexOf(Math.min(...wets))]!;
       }
@@ -1319,6 +1347,8 @@ export class MaquetteLayer implements SequenceHost {
     }
     if (copy === null) this.copies.delete(id);
     else {
+      // A plane moves on the airfield: its runway's edge lights come on, by night (#269).
+      lightRunway(copy);
       copy.matrixAutoUpdate = false;
       this.copies.set(id, copy);
       this.group.add(copy);
@@ -1454,6 +1484,11 @@ export class MaquetteLayer implements SequenceHost {
   spanOf(id: string): PinnedBy | null {
     const dressed = this.byId.get(id);
     return dressed === undefined ? null : pinnedBy(dressed.lot.model, dressed.item);
+  }
+
+  /** **The point a maquette stands for**, where threads reach it; `null` for none drawn here. */
+  pointOf(id: string): Vector3 | null {
+    return this.byId.get(id)?.item.ground ?? null;
   }
 
   /** **Where a maquette is drawn when a ring carried it off its point** — the label's fanion stays

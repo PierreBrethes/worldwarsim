@@ -342,9 +342,41 @@ export class ArcLayer {
     };
   }
 
-  /** The copy takes the truck's place on its pawn, which stands where it is held. */
+  /** A clone of the truck, the plane or the hull as drawn, for a sequence that moves it whole. */
+  copyOf(id: string): Object3D | null {
+    return this.truckOf(id)?.copy?.() ?? null;
+  }
+
+  /** My movement as last displayed, `null` for none. */
+  viewOf(id: string): ArcView | null {
+    return this.rendered.find(({ arc }) => arc.id === id)?.arc ?? null;
+  }
+
+  /** The copy takes the truck's place on its pawn, which stands where it is held; or its plane's
+   *  or its hull's, leaving its site (#269, #270). */
   standIn(id: string, copy: Object3D | null): void {
-    this.pawnById.get(id)?.truckFigurine?.standIn?.(copy);
+    const pawn = this.pawnById.get(id);
+    (pawn?.truckFigurine ?? pawn?.riderFigurine)?.standIn?.(copy);
+  }
+
+  /** **Where the plane or hull of my movement stands now**, on the board: what its way off its
+   *  site is drawn to (#269, #270). `null` for none standing. */
+  riderAt(id: string): Vector3 | null {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    const rider = rendered?.arc.state === 'mine' ? rendered.pawn.rider : null;
+    if (rider === null) return null;
+    rider.object.updateMatrixWorld(true);
+    return rider.object.getWorldPosition(new Vector3());
+  }
+
+  /** **Where my movement's thread starts**, on the board, and its first leg's medium. */
+  startOf(id: string): { at: Vector3; medium: Medium } | null {
+    const rendered = this.rendered.find(({ arc }) => arc.id === id);
+    const leg = rendered?.arc.state === 'mine' ? rendered.thread.legs[0] : undefined;
+    const first = leg?.strands[0]?.vertices[0];
+    return leg === undefined || first === undefined
+      ? null
+      : { at: first.clone(), medium: leg.medium };
   }
 
   /**
@@ -386,7 +418,7 @@ export class ArcLayer {
 
   private truckOf(id: string) {
     const rendered = this.rendered.find(({ arc }) => arc.id === id);
-    return rendered?.arc.state === 'mine' ? rendered.pawn.truck : null;
+    return rendered?.arc.state === 'mine' ? (rendered.pawn.truck ?? rendered.pawn.rider) : null;
   }
 
   /** Kept across displays, which come at every step of any column: a crate falls once. */
@@ -402,7 +434,15 @@ export class ArcLayer {
     private readonly quays: (
       at: Vector3,
       span: number,
+      far?: Vector3,
     ) => { at: Vector3; scale: number } | null = () => null,
+    /** **Where a plane of mine leaves or reaches the airfield at this point** (#269): the end of
+     *  its runway at its height, `null` for none there or a flight too short, toward `far`. */
+    private readonly runways: (
+      which: 'start' | 'end',
+      at: Vector3,
+      far: Vector3,
+    ) => Vector3 | null = () => null,
   ) {}
 
   setPlayerNation(nation: string | null): void {
@@ -502,11 +542,15 @@ export class ArcLayer {
     const roles = movementRoles(arc);
     const hull = roles?.sea ?? null;
     const quays = { start: 1, end: 1 };
+    const [from, to] = [arc.route.points[0], arc.route.points.at(-1)];
     const moor: Moor | undefined =
-      hull === null
+      hull === null && (roles?.air ?? null) === null
         ? undefined
-        : (which, at) => {
-            const quay = this.quays(at, troopSpan(hull));
+        : (which, at, medium) => {
+            const far = (which === 'start' ? to : from) ?? arc.to;
+            if (medium === 'air') return this.runways(which, at, this.frame.projectLonLat(far));
+            if (hull === null) return null;
+            const quay = this.quays(at, troopSpan(hull), this.frame.projectLonLat(far));
             if (quay === null) return null;
             quays[which] = quay.scale;
             return quay.at;
