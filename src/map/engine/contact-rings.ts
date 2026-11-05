@@ -21,7 +21,9 @@ const MIN_RADIUS_PX = 22;
 const BAND_PX = 1.8;
 /** Five pixels of ink, three of paper. */
 const DASH_PX = 8;
-const WASH = 0.07;
+/** The wash inside, by day and under the moon (maquette C). */
+const WASH = { day: 0.07, night: 0.12 };
+const MOON = [0.2, 0.23, 0.34];
 const ELEVATION = COUNTRY_THICKNESS + 0.005;
 
 /**
@@ -56,6 +58,7 @@ export class ContactRings {
     height: number,
     unitsPerPixel: number,
     hidden: boolean,
+    night: number,
   ): ReadonlyArray<ContactSpot> | null {
     this.group.visible = !hidden;
     if (hidden) return null;
@@ -63,6 +66,8 @@ export class ContactRings {
       const v = scratch.copy(at).project(eye);
       return [((v.x + 1) / 2) * width, ((1 - v.y) / 2) * height] as const;
     };
+    const ink = inkAt(ARC_COLORS.enemyDetected.trace, night);
+    const wash = WASH.day + (WASH.night - WASH.day) * night;
     return this.contacts.map(({ number, points }, k) => {
       const center = points
         .reduce((sum, point) => sum.add(point), new Vector3())
@@ -78,12 +83,7 @@ export class ContactRings {
       const ring = this.rings[k]!;
       ring.position.copy(center);
       ring.scale.setScalar(radius * unitsPerPixel);
-      ring.outline(
-        ARC_COLORS.enemyDetected.trace,
-        1 - BAND_PX / radius,
-        Math.round((2 * Math.PI * radius) / DASH_PX),
-        WASH,
-      );
+      ring.outline(ink, 1 - BAND_PX / radius, Math.round((2 * Math.PI * radius) / DASH_PX), wash);
       const away = x + radius < 0 || y + radius < 0 || x - radius > width || y - radius > height;
       return { number, x, y, radius, away };
     });
@@ -91,3 +91,13 @@ export class ContactRings {
 }
 
 const scratch = new Vector3();
+
+/** Under the moon an ink climbs toward a pale blue to stay legible (maquette `inkAt`). */
+function inkAt(hex: string, night: number): string {
+  const channels = [1, 3, 5].map((at, k) => {
+    const v = parseInt(hex.slice(at, at + 2), 16);
+    const lifted = (v * 0.55 + MOON[k]! * 255) * 1.2;
+    return Math.round(Math.min(255, v + (lifted - v) * 0.7 * night));
+  });
+  return `rgb(${channels.join(',')})`;
+}

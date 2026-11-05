@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Vector3, type Color } from 'three';
 import type { Contact } from '@/domain/contacts';
 import type { LonLat } from '@/domain/geo';
 import { ContactRings } from './contact-rings';
 import { PROJECTION, WorldFrame } from './frame';
+import type { InkRing } from './ink-ring';
 
 const W = 1440;
 const H = 900;
@@ -32,7 +33,7 @@ describe('ContactRings — the circles of the contacts (#441)', () => {
       ]),
       contact(2, [[-70, -30]]),
     ]);
-    const [near, away] = rings.layout(eyeOver(metz, 60), W, H, 0.05, false)!;
+    const [near, away] = rings.layout(eyeOver(metz, 60), W, H, 0.05, false, 0)!;
     expect(near).toMatchObject({ number: 1, away: false });
     expect(near!.x).toBeCloseTo(W / 2, -1);
     expect(near!.radius).toBeGreaterThan(22);
@@ -42,7 +43,20 @@ describe('ContactRings — the circles of the contacts (#441)', () => {
   it('draws none during a replay', () => {
     const rings = new ContactRings(frame);
     rings.display([contact(1, [metz])]);
-    expect(rings.layout(eyeOver(metz, 60), W, H, 0.05, true)).toBeNull();
+    expect(rings.layout(eyeOver(metz, 60), W, H, 0.05, true, 0)).toBeNull();
     expect(rings.group.visible).toBe(false);
+  });
+
+  it('washes deeper under the moon, in an ink lifted toward its blue (maquette C)', () => {
+    const rings = new ContactRings(frame);
+    rings.display([contact(1, [metz])]);
+    const uniforms = () => (rings.group.children[0] as InkRing).material.uniforms;
+    rings.layout(eyeOver(metz, 60), W, H, 0.05, false, 0);
+    const day = (uniforms().uColor!.value as Color).clone();
+    expect(uniforms().uFill!.value).toBeCloseTo(0.07);
+    rings.layout(eyeOver(metz, 60), W, H, 0.05, false, 1);
+    const night = uniforms().uColor!.value as Color;
+    expect(uniforms().uFill!.value).toBeCloseTo(0.12);
+    expect(night.b).toBeGreaterThan(day.b);
   });
 });

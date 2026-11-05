@@ -172,13 +172,14 @@ describe('contactsOf — where my forces touch what I surveyed', () => {
   it('reads the range off the theatre in a Blitz: the Pacific sees further than the Mondiale', () => {
     const tokyo: LonLat = [139.7, 35.7];
     const at: LonLat = [tokyo[0] + 150 / 90, tokyo[1]];
-    const blitz = (theatre: string | null) => ({
-      ...view({ troops: [troop('infantry', point(tokyo))], camps: [camp('c', at)] }),
-      mode: theatre === null ? 'mondiale' : 'blitz',
-      theatre,
-    });
+    const blitz = (theatre: string | null) =>
+      ({
+        ...view({ troops: [troop('infantry', point(tokyo))], camps: [camp('c', at)] }),
+        mode: theatre === null ? 'mondiale' : 'blitz',
+        theatre,
+      }) as PlayerView;
     expect(contactsOf(blitz(null), cities)).toEqual([]);
-    expect(contactsOf(blitz('pacific') as PlayerView, cities)).toHaveLength(1);
+    expect(contactsOf(blitz('pacific'), cities)).toHaveLength(1);
   });
 
   it('draws no contact once nothing is surveyed', () => {

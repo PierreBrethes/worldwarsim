@@ -4700,6 +4700,7 @@ export class MapEngine {
       this.screenHeight,
       this.unitsPerPixel(distance),
       this.replay !== null,
+      night,
     );
     this.clearReplayGround();
     this.renderer.shadowMap.needsUpdate = whole;
