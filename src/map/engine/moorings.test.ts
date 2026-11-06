@@ -136,14 +136,36 @@ describe('the lines are cast off before the hull leaves (#500)', () => {
     expect(shown()).toBe(0);
   });
 
+  it('stay a moment on a hull that has just left its pile, until its cast off is ordered', () => {
+    const hulls = [MOLED()];
+    const { moorings, shown } = layer(hulls);
+    moorings.update(0);
+    hulls.length = 0;
+    moorings.update(700);
+    expect(shown()).toBe(4);
+    expect(moorings.active).toBe(true);
+    // The order comes late: the lines are cast off from where they stand, not from nothing.
+    moorings.release('t-p/mole', 0);
+    moorings.update(800);
+    // 800 ms on, the stern's two lines are aboard and the stem's second is half in.
+    expect(shown()).toBe(2);
+    // A hull that was only gone, no order for it, lets them go.
+    const gone = layer([MOLED()]);
+    gone.moorings.update(0);
+    gone.hulls.length = 0;
+    gone.moorings.update(5000);
+    expect(gone.shown()).toBe(0);
+  });
+
   it('let the hull at the side go with the one at the mole', () => {
     const hulls = [MOLED(), hullAt(MOLE.inner - 36, 190, 'couple')];
     const { moorings, shown } = layer(hulls);
     moorings.update(0);
     hulls.shift();
+    moorings.release('t-p/mole', 50);
     moorings.releaseBeside('port', 50);
     moorings.update(50);
-    expect(shown()).toBe(4);
+    expect(shown()).toBe(8);
     moorings.update(50 + RUN_MS);
     expect(shown()).toBe(0);
   });

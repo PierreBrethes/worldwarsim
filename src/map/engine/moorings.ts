@@ -37,6 +37,9 @@ export type MooringHost = {
 const PENDING_MS = 2500;
 /** How long the lines of a hull no longer drawn are kept for its cast off (`standing`'s `SEEN_MS`). */
 const KEPT_MS = 10000;
+/** How long the lines of a hull that has just left its pile stand, waiting for its cast off
+ *  (the order reaches the map a few frames after the pile is drawn again). */
+const HOLD_MS = 1500;
 /** **A hawser's width**, in metres. `@a-mesurer` */
 const WIDTH_M = 0.4;
 const NAMES = [
@@ -153,6 +156,8 @@ export class Moorings {
       const frame = frameOf(hull.site);
       marked.set(hull.id, frame === null ? null : this.marksOf(hull.object, frame));
     }
+    /** The hulls whose lines this frame decides: what is tied to nothing yet is not among them. */
+    const settled = new Set<string>();
     for (const hull of hulls) {
       const [frame, marks] = [frameOf(hull.site), marked.get(hull.id)];
       if (frame === null || marks === undefined || marks === null) continue;
@@ -167,6 +172,7 @@ export class Moorings {
       if (against.length === 0) continue;
       const lines = mooringLines(marks, against).map((line) => this.toBoard(frame, line));
       const order = this.docking.get(hull.id);
+      settled.add(hull.troop);
       // Stood still, its lines are what a cast off lets go of.
       if (order === undefined) this.kept.set(hull.troop, { lines, seen: now });
       lines.forEach((line, i) =>
@@ -174,7 +180,12 @@ export class Moorings {
       );
       if (order !== undefined && order.touch !== Infinity) running = true;
     }
-    if (on)
+    if (on) {
+      for (const [troop, { lines, seen }] of this.kept)
+        if (!settled.has(troop) && !this.releasing.has(troop) && now - seen <= HOLD_MS) {
+          for (const line of lines) draw(line, 1);
+          running = true;
+        }
       for (const [troop, at] of this.releasing) {
         const kept = this.kept.get(troop);
         if (kept === undefined || now - at >= RUN_MS) {
@@ -186,7 +197,7 @@ export class Moorings {
         kept.lines.forEach((line, i) => draw(line, lineRun(i, now - at, true)));
         running = true;
       }
-    else this.releasing.clear();
+    } else this.releasing.clear();
     for (const [troop, { seen }] of this.kept) if (now - seen > KEPT_MS) this.kept.delete(troop);
     for (let k = used; k < this.spans.length; k++) this.spans[k]!.clear();
     this.running = running;
