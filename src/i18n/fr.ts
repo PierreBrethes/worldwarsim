@@ -3645,12 +3645,18 @@ export const fr = {
       sea: { won: 'engagement gagné', lost: 'engagement perdu' },
       /** Un bombardement (#325) : personne n'y prend ni ne tient rien. */
       bombardment: { attacker: 'coup au but', defender: 'pilonnés' },
+      /** **Le naufrage** (#514) : la cargaison perdue (#513) prend le tampon, chez le seul camp qui la perd. */
+      drowned: 'coulés en mer',
       ours: 'nos pièces',
       noLoss: 'aucune perte',
       destroyed: (n: number) => `${n} détruite${n > 1 ? 's' : ''}`,
       routed: (n: number) => `${n} en déroute`,
       open: 'ouvrir le rejeu',
     },
+    /** **L'étiquette de places d'une coque qui coule** (#514), « Crg · 9/12 » : le transport en trois
+     *  lettres, puis les places prises sur celles qu'il avait. */
+    seatsTag: (hull: 'cargo' | 'carrier' | 'airTransport', used: number, seats: number) =>
+      `${{ cargo: 'Crg', carrier: 'PA', airTransport: 'Avt' }[hull]} · ${used}/${seats}`,
   },
 
   /** **Le combat qui arrive pendant qu'on regarde la carte** (ADR 0026 §7) : la phrase de la

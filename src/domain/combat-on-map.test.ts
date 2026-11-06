@@ -11,6 +11,7 @@ import {
   playsWhole,
   reportOf,
   sceneOf,
+  seatsTagOf,
   stampStays,
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
@@ -256,6 +257,41 @@ describe('reportOf at sea', () => {
       'engagement perdu',
     );
     expect(reportOf(view).title).toBe('position enlevée');
+  });
+});
+
+describe('the sinking told to the side that loses its passengers (#514)', () => {
+  const sunk: ReplayView = {
+    ...view,
+    side: 'defender',
+    won: false,
+    mine: [
+      { role: 'cargo', tier: 1, troops: 1, lost: 12, routed: 0, destroyed: 1 },
+      { role: 'infantry', tier: 1, troops: 3, lost: 90, routed: 0, destroyed: 3 },
+    ],
+    drowned: { men: 100, machines: 48, seats: 9 },
+  };
+
+  it('stamps « coulés en mer » over the engagement, once the cargo is lost', () => {
+    expect(reportOf(sunk, 'sea').title).toBe('coulés en mer');
+    // The other side sees the ship go down and was told nothing of the cargo.
+    const { drowned: _drowned, ...seen } = sunk;
+    expect(reportOf(seen, 'sea').title).toBe('engagement perdu');
+  });
+
+  it('tags the hull with the seats it carried, of those it had', () => {
+    expect(seatsTagOf(sunk)).toBe('Crg · 9/12');
+    const { drowned: _drowned, ...seen } = sunk;
+    expect(seatsTagOf(seen)).toBeNull();
+  });
+
+  it('tags the lot once for several hulls: their seats added, not one tag each', () => {
+    const fleet = {
+      ...sunk,
+      mine: [{ ...sunk.mine[0]!, troops: 3, destroyed: 2 }, ...sunk.mine.slice(1)],
+      drowned: { men: 200, machines: 90, seats: 20 },
+    };
+    expect(seatsTagOf(fleet)).toBe('Crg · 20/24');
   });
 });
 

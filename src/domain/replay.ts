@@ -215,3 +215,65 @@ export function hullPose(
 ): { heel: number; pitch: number; depth: number } {
   return { heel: HEEL * fall + (FINAL_HEEL - HEEL) * sunk, pitch: PITCH * sunk, depth: sunk };
 }
+
+/** @a-mesurer — la nappe s'étale jusqu'à 1,5 s après la fin de la coulée (storyboard : `sink[1] + 1,5`) */
+const SLICK_TAIL_MS = 1500;
+/** @a-mesurer — les bulles montent 0,6 s avant la fin de la coulée (storyboard : `sink[1] - 0,6`) */
+const BUBBLES_LEAD_MS = 600;
+/** @a-mesurer — les bulles vivent 1,4 s (storyboard : `life: 1.4`) */
+const BUBBLES_MS = 1400;
+/** @a-mesurer — l'étiquette de places se barre 1,6 s après le début de la coulée (storyboard : `sink[0] + 1,6`) */
+const STRIKE_MS = 1600;
+
+const clockOf = (frame: ReplayFrame) =>
+  stepBounds(frame.step).start + frame.progress * STEP_MS[frame.step];
+
+/**
+ * **Où en est la nappe sous une coque coulée**, 0..1 : de sa coulée (`sinkOf`) à `SLICK_TAIL_MS`
+ * après qu'elle finit. `still` (temps figés) : toute au compte-rendu, rien avant.
+ */
+export function slickOf(frame: ReplayFrame, fellAt: number, still: boolean): number {
+  if (still) return frame.step === 'compte-rendu' ? 1 : 0;
+  const from = fellAt + SINK_LAG_MS;
+  const to = stepBounds('compte-rendu').start + SINK_MS + SLICK_TAIL_MS;
+  return Math.min(1, Math.max(0, (clockOf(frame) - from) / (to - from)));
+}
+
+/** **L'âge des bulles**, 0..1, ou `null` hors de leur vie ; figées, elles ne montent pas. */
+export function bubblesOf(frame: ReplayFrame, still: boolean): number | null {
+  if (still) return null;
+  const born = stepBounds('compte-rendu').start + SINK_MS - BUBBLES_LEAD_MS;
+  const age = (clockOf(frame) - born) / BUBBLES_MS;
+  return age >= 0 && age <= 1 ? age : null;
+}
+
+/** Quand l'étiquette de places d'un camp qui perd sa cargaison se barre, et quand la coque a fini de couler. */
+export type SeatsTagWindow = { readonly struckAt: number; readonly goneAt: number };
+
+/** **La vie de l'étiquette de places** : la première coque de mon camp qui tombe fixe l'heure où elle
+ *  se barre ; `null` quand aucune ne tombe. */
+export function seatsTagWindow(view: ReplayView): SeatsTagWindow | null {
+  const fells = replayAt(view, REPLAY_MS).pieces.flatMap((piece) =>
+    piece.side === 'mine' && piece.fate === 'fallen' && piece.fellAt !== undefined
+      ? [piece.fellAt]
+      : [],
+  );
+  if (fells.length === 0) return null;
+  return {
+    struckAt: Math.min(...fells) + SINK_LAG_MS + STRIKE_MS,
+    goneAt: stepBounds('compte-rendu').start + SINK_MS,
+  };
+}
+
+/** **L'étiquette de places à cet instant** : entière, barrée, ou plus là — la mer est vide. Aux temps
+ *  figés, entière jusqu'au compte-rendu. */
+export function seatsTagAt(
+  window: SeatsTagWindow | null,
+  frame: ReplayFrame,
+  still: boolean,
+): 'whole' | 'struck' | null {
+  if (window === null) return null;
+  if (still) return frame.step === 'compte-rendu' ? null : 'whole';
+  const clock = clockOf(frame);
+  return clock >= window.goneAt ? null : clock >= window.struckAt ? 'struck' : 'whole';
+}

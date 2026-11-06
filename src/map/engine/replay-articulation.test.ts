@@ -4,6 +4,7 @@ import {
   BoxGeometry,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   type Object3D,
   Quaternion,
@@ -15,6 +16,7 @@ import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, STEP_MS } from '@/domain/replay';
 import type { UnitRole } from '@/domain/ids';
 import { metresOnBoard, troopSpan } from '@/domain/piece-size';
+import { warmPieces } from './halo';
 import { GUNS, Guns, turretLimitOf } from './articulation';
 import { REPLAY_STAGE, ReplayScene, sinceDeparture } from './replay';
 
@@ -550,5 +552,99 @@ describe('a combat at sea', () => {
     expect(shot(0)).toBe(false);
     scene.show(replayAt(v, stepBounds('riposte').start + 40), 0, false);
     expect(shot(1)).toBe(true);
+  });
+});
+
+describe('the slick and the bubbles of a hull going down (#514)', () => {
+  const sea = (v: ReplayView) =>
+    new ReplayScene('france', replayAt(v, 0).pieces, 'sea', null, 'germany', null, sceneSpan(v));
+  const sunk = (): ReplayView => {
+    const v = fleet(1, 1);
+    return {
+      ...v,
+      theirs: { ...v.theirs, destroyed: 1 },
+      faced: { ...v.faced!, forces: v.faced!.forces.map((f) => ({ ...f, destroyed: 1 })) },
+    };
+  };
+  const slickOf = (scene: ReplayScene) =>
+    scene.object.children.filter((part) => part.name === 'slick') as Mesh[];
+  const bubblesOf = (scene: ReplayScene) =>
+    scene.object.children.filter((part) => part.name === 'bubbles');
+
+  it('spreads a dark slick under the hull as it sinks, thinning as it grows', () => {
+    const v = sunk();
+    const scene = sea(v);
+    // Theirs is the hull the shots fell.
+    const slick = slickOf(scene)[1];
+    scene.show(replayAt(v, stepBounds('frappe').start + 1), 0, false);
+    expect(slick!.visible).toBe(false);
+    const fell = stepBounds('frappe').end;
+    scene.show(replayAt(v, fell + 1000 + 600), 0, false);
+    const early = [slick!.scale.z, (slick!.material as MeshBasicMaterial).opacity];
+    expect(slick!.visible).toBe(true);
+    scene.show(replayAt(v, REPLAY_MS), 0, false);
+    expect(slick!.scale.z).toBeGreaterThan(early[0]!);
+    expect((slick!.material as MeshBasicMaterial).opacity).toBeLessThan(early[1]!);
+    expect((slick!.material as MeshBasicMaterial).opacity).toBeGreaterThan(0.25);
+    // It lies under the hull that went down: where that hull's holder stands.
+    expect(slick!.position.x).toBeCloseTo(scene.object.children[1]!.position.x);
+    expect(slick!.position.z).toBeCloseTo(scene.object.children[1]!.position.z);
+  });
+
+  it('sinks the same under both sides: the shooter sees it as the loser does', () => {
+    const both = sunk();
+    const v: ReplayView = { ...both, mine: both.mine.map((force) => ({ ...force, destroyed: 1 })) };
+    const scene = sea(v);
+    scene.show(replayAt(v, REPLAY_MS), 0, false);
+    expect(slickOf(scene).map((slick) => slick.visible)).toEqual([true, true]);
+  });
+
+  it('leaves a hull that floats without a slick', () => {
+    const v = fleet(1, 1);
+    const scene = sea(v);
+    scene.show(replayAt(v, REPLAY_MS), 0, false);
+    expect(slickOf(scene).map((slick) => slick.visible)).toEqual([false, false]);
+  });
+
+  it('never lights it by night: ink that no emission reaches', () => {
+    const v = sunk();
+    const scene = sea(v);
+    scene.show(replayAt(v, REPLAY_MS), 0, false);
+    // Theirs is the hull the shots fell.
+    const slick = slickOf(scene)[1];
+    expect(slick!.material).toBeInstanceOf(MeshBasicMaterial);
+    warmPieces(scene.object, 1, 1);
+    expect((slick!.material as MeshBasicMaterial).color.getHexString()).toBe('1d1a16');
+  });
+
+  it('lets bubbles rise from the sinking hull in the last of the sinking, not at frozen steps', () => {
+    const v = sunk();
+    const scene = sea(v);
+    const bubbles = bubblesOf(scene)[1];
+    scene.show(replayAt(v, stepBounds('compte-rendu').start), 0, false);
+    expect(bubbles!.visible).toBe(false);
+    scene.show(replayAt(v, stepBounds('compte-rendu').start + 1500), 0, false);
+    expect(bubbles!.visible).toBe(true);
+    scene.show(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), 0, true);
+    expect(bubbles!.visible).toBe(false);
+  });
+
+  it('holds the slick whole in the account of a frozen scene, and in the final pose', () => {
+    const v = sunk();
+    const scene = sea(v);
+    // Theirs is the hull the shots fell.
+    const slick = slickOf(scene)[1];
+    scene.show(replayAt(v, stepBounds('deroute').start, 'reduced'), 0, true);
+    expect(slick!.visible).toBe(false);
+    scene.show(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), 0, true);
+    expect(slick!.visible).toBe(true);
+    expect((slick!.material as MeshBasicMaterial).opacity).toBeCloseTo(0.25);
+  });
+
+  it('draws nothing of the kind on land', () => {
+    const v = view('armor');
+    const scene = new ReplayScene('france', replayAt(v, 0).pieces, 'land', null, null, null);
+    expect(slickOf(scene)).toHaveLength(0);
+    expect(bubblesOf(scene)).toHaveLength(0);
   });
 });

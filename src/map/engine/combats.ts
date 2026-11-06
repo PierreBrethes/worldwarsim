@@ -3,14 +3,16 @@ import {
   afloat,
   COMBAT_LIMITS,
   combatAt,
+  type CombatShown,
   playsWhole,
   sceneOf,
+  seatsTagOf,
   sceneSpan,
 } from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
-import { replayAt } from '@/domain/replay';
+import { replayAt, seatsTagAt, seatsTagWindow, type SeatsTagWindow } from '@/domain/replay';
 import { BatteryShot, type BatteryHost } from './bombardment';
 import { warmPieces, type Flash } from './halo';
 import { lineCentre, REPLAY_STAGE, ReplayScene, replayReach } from './replay';
@@ -39,6 +41,11 @@ type Played = {
   reported: boolean;
   /** It has stood at a scale above zero: the map showed it. */
   shown: boolean;
+  /** **Its seats tag** (#514): when it is struck through, for the side that loses its passengers
+   *  in a scene that plays; `null` for the rest. */
+  readonly tagWindow: SeatsTagWindow | null;
+  /** What the tag last said, so a change is told once. */
+  tag: 'whole' | 'struck' | null;
 };
 
 /** A point waits this long for its view before it shows again. @a-mesurer: a slow `replayOf`
@@ -66,6 +73,8 @@ export class CombatLayer {
   onReport: (view: ReplayView) => void = () => {};
   /** **The map showed this combat's scene** (#327), from the first image above the floor. */
   onShown: (id: string) => void = () => {};
+  /** **The seats tag of a hull going down changes** (#514): whole, struck through, or taken down. */
+  onSeatsTag: (view: ReplayView, tag: 'whole' | 'struck' | null) => void = () => {};
   /** **What lends my guns** to a bombardment's shot (#325): the standing piles. */
   host: BatteryHost | null = null;
   private readonly seen = new Set<string>();
@@ -165,6 +174,8 @@ export class CombatLayer {
       step: null,
       reported: false,
       shown: false,
+      tagWindow: plays && seatsTagOf(told) !== null ? seatsTagWindow(view) : null,
+      tag: null,
     });
   }
 
@@ -188,6 +199,7 @@ export class CombatLayer {
       const scale = scaleAt(each.point, each.span);
       const object = each.scene.object;
       object.visible = scale > 0;
+      this.hangTag(each, scale > 0 ? shown : null);
       if (scale === 0) return true;
       if (!each.shown) {
         each.shown = true;
@@ -224,6 +236,17 @@ export class CombatLayer {
     }
     this.veils = veils;
     return due;
+  }
+
+  /** Tells the map when the seats tag changes: `null` for a scene out of sight, where it hangs no more. */
+  private hangTag(each: Played, shown: CombatShown | null): void {
+    const state =
+      shown === null
+        ? null
+        : seatsTagAt(each.tagWindow, shown.frame, this.motion !== 'full' || !each.plays);
+    if (state === each.tag) return;
+    each.tag = state;
+    this.onSeatsTag(each.told, state);
   }
 
   /** At night a combat glows like a pile (`StandingLayer.lights`): it stood in the dark. */
@@ -282,6 +305,7 @@ export class CombatLayer {
   }
 
   private end(each: Played): void {
+    this.hangTag(each, null);
     each.scene.dispose();
     each.shot?.dispose();
     // A stamp up carries the dispatch with it: its lifting settles the combat.

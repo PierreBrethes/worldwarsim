@@ -4,6 +4,7 @@ import {
   Box3,
   BoxGeometry,
   CanvasTexture,
+  CircleGeometry,
   Group,
   Mesh,
   MeshBasicMaterial,
@@ -20,9 +21,11 @@ import { sceneSpan } from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
 import { metresOnBoard } from '@/domain/piece-size';
 import {
+  bubblesOf,
   hullPose,
   REPLAY_MS,
   sinkOf,
+  slickOf,
   STEP_MS,
   VOLLEY_SHARE,
   type ReplayFrame,
@@ -47,7 +50,7 @@ import { ANONYMOUS_SPAN, FIGURINE_SCALE, figurineFor, TANK_SHARE } from './figur
 import { shoulder } from './figurines/infantry';
 import { pieceScale } from './piece-scale';
 import { articulatedOf } from './sequences';
-import { charred, PLUME_BY_WEAR, Smoke, type Plume } from './smoke';
+import { Bubbles, charred, PLUME_BY_WEAR, Smoke, type Plume } from './smoke';
 import { washedOf } from './standing';
 
 /**
@@ -306,6 +309,18 @@ const SEA_AIM = 0.05;
 /** A block at sea is drawn this share of the longest hull wide. `@a-mesurer` */
 const SEA_BLOCK = 0.4;
 
+/** **La nappe sous une coque qui coule** (#514, storyboard : 70 m de rayon sous un cargo de 130 m,
+ *  allongée d'un quart dans le sens de la coque) : un disque d'encre qui s'étale et s'éclaircit.
+ *  Du `MeshBasicMaterial`, que la lueur de nuit ne touche pas. `@a-mesurer` */
+const SLICK_HULLS = 0.54;
+const SLICK_LONG = 1.25;
+const SLICK_INK = '#1d1a16';
+const SLICK_OPACITY = 0.4;
+const SLICK_THIN = 0.15;
+/** Just over the water. */
+const SLICK_LIFT = 0.01;
+const SLICK_DISC = new CircleGeometry(1, 48).rotateX(-Math.PI / 2);
+
 const SHOT_LENGTH = 0.24;
 const SHOT = new BoxGeometry(0.02, 0.02, SHOT_LENGTH);
 /** How high above its target an unseen shell is first seen: it falls, it does not come from anyone. */
@@ -390,6 +405,8 @@ type Piece = {
   /** **Bombardée, la gerbe qui monte sur elle** à l'impact (#325) ; `null` hors d'un
    *  bombardement, et pour le camp qui tire. */
   readonly gerbe: { readonly burst: Sprite; readonly dust: Smoke; salvo: number } | null;
+  /** **Une coque en mer laisse sa nappe et ses bulles** en coulant (#514) ; `null` à terre. */
+  readonly foam: { readonly slick: Mesh; readonly bubbles: Bubbles } | null;
 };
 
 /** One tube's flash and puff; `salvo`, how lively its flash is at the frame drawn, 0 to 1. */
@@ -471,6 +488,8 @@ export class ReplayScene {
     );
     // After the holders, which keep the pieces' order.
     this.object.add(...this.pieces.map((piece) => piece.shot));
+    for (const { foam } of this.pieces)
+      if (foam !== null) this.object.add(foam.slick, foam.bubbles.object);
     this.object.scale.setScalar(REPLAY_STAGE * pieceScale.size);
   }
 
@@ -515,6 +534,7 @@ export class ReplayScene {
       men: [],
       turretLimit: null,
       gerbe: this.struck(piece.side) ? this.gerbeOf(holder) : null,
+      foam: this.sea ? this.foamOf() : null,
     };
     if (built.burns) {
       built.burning = new Smoke(PLUME_BY_WEAR.burning!);
@@ -620,6 +640,29 @@ export class ReplayScene {
     built.shot.userData.ground = true;
     this.object.add(holder);
     return built;
+  }
+
+  /** Its slick and bubbles, hidden until the hull goes down; its own ink, as its opacity is its own. */
+  private foamOf(): Piece['foam'] {
+    const slick = new Mesh(
+      SLICK_DISC,
+      new MeshBasicMaterial({
+        color: SLICK_INK,
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+      }),
+    );
+    slick.name = 'slick';
+    slick.visible = false;
+    slick.renderOrder = 1;
+    // Ink on the water, not the hull: the pointer through it is on the sea.
+    slick.userData.ground = true;
+    const bubbles = new Bubbles();
+    bubbles.object.name = 'bubbles';
+    bubbles.object.visible = false;
+    return { slick, bubbles };
   }
 
   /** **The side a bombardment strikes**: theirs, under my battery; mine, shelled from nowhere. */
@@ -799,6 +842,7 @@ export class ReplayScene {
         // Backwards, away from the other line: the holder's +z faces it — a block onto its back.
         pivot.rotation.set(-(Math.PI / 2) * fall, 0, 0);
       }
+      if (piece.foam !== null) this.foam(piece.foam, holder, state, frame, still);
       const burnt = piece.burns && fall > 0;
       if (piece.burning) {
         piece.burning.object.visible = burnt && sink < 1;
@@ -882,6 +926,33 @@ export class ReplayScene {
     this.articulate(frame, still);
   }
 
+  /** **The slick spreads and the bubbles rise** where a hull goes down (#514), under it. */
+  private foam(
+    { slick, bubbles }: NonNullable<Piece['foam']>,
+    holder: Group,
+    state: ReplayPiece,
+    frame: ReplayFrame,
+    still: boolean,
+  ): void {
+    const down = state.fate === 'fallen';
+    const spread = down ? slickOf(frame, state.fellAt ?? 0, still) : 0;
+    const age = down ? bubblesOf(frame, still) : null;
+    const radius = SLICK_HULLS * this.hull;
+    slick.visible = spread > 0;
+    if (slick.visible) {
+      slick.position.set(holder.position.x, SLICK_LIFT, holder.position.z);
+      slick.rotation.y = holder.rotation.y;
+      const reach = radius * (1 - (1 - spread) ** 3);
+      slick.scale.set(reach, 1, reach * SLICK_LONG);
+      (slick.material as MeshBasicMaterial).opacity = SLICK_OPACITY - SLICK_THIN * spread;
+    }
+    bubbles.object.visible = age !== null;
+    if (age !== null) {
+      bubbles.object.position.set(holder.position.x, SLICK_LIFT, holder.position.z);
+      bubbles.frame(age, radius);
+    }
+  }
+
   /**
    * **Les pièces en joue** (#331) : chaque tourelle pivote vers sa cible au plus court, chaque
    * tube recule à son départ, l'homme de rang 1 s'agenouille et épaule. Tenu à `readyOf`, qui
@@ -943,7 +1014,10 @@ export class ReplayScene {
   }
 
   dispose(): void {
-    for (const piece of this.pieces) dress(piece.body, null);
+    for (const piece of this.pieces) {
+      dress(piece.body, null);
+      (piece.foam?.slick.material as MeshBasicMaterial | undefined)?.dispose();
+    }
     // Not `dispose()`d: the copies share their programs and textures with the models', and the
     // renderer's release of twelve of them cost a long task on a phone. They go with the garbage.
     this.own.clear();

@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : a8a66ec -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ccd24b3 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-145 valeurs marquées dans `convex/` et `src/domain/`.
+149 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -101,7 +101,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:179` | le temps de lire « nos pièces » et de l'ouvrir. |
-| `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:214` | « voir » |
+| `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:230` | « voir » |
 | `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:72` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
 | `BEFORE_CITY_KM` | `30` | `src/domain/contacts.ts:35` | la maquette C le pose à 0,35 unité, environ 30 km |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:102` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
@@ -153,6 +153,10 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `FINAL_HEEL` | `(22 * Math.PI) / 180` | `src/domain/replay.ts:191` | la gîte où la coque finit, 22° (storyboard), tenue par l'épave de la pose finale |
 | `SINK_MS` | `1600` | `src/domain/replay.ts:193` | la coulée finit 1,6 s après le début du compte-rendu : à juger à l'œil, avant l'effacement du tampon |
 | `SINK_LAG_MS` | `1000` | `src/domain/replay.ts:195` | la coulée commence 1 s après la fin de la chute de la coque (storyboard : `P.sink[0] = P.hit + 1,0`) |
+| `SLICK_TAIL_MS` | `1500` | `src/domain/replay.ts:220` | la nappe s'étale jusqu'à 1,5 s après la fin de la coulée (storyboard : `sink[1] + 1,5`) |
+| `BUBBLES_LEAD_MS` | `600` | `src/domain/replay.ts:222` | les bulles montent 0,6 s avant la fin de la coulée (storyboard : `sink[1] - 0,6`) |
+| `BUBBLES_MS` | `1400` | `src/domain/replay.ts:224` | les bulles vivent 1,4 s (storyboard : `life: 1.4`) |
+| `STRIKE_MS` | `1600` | `src/domain/replay.ts:226` | l'étiquette de places se barre 1,6 s après le début de la coulée (storyboard : `sink[0] + 1,6`) |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:978` | measured against the medium on 340 routes (#231), not against a play need |

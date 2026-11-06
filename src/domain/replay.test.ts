@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bubblesOf,
   hullPose,
   REPLAY_MS,
   REPLAY_STEPS,
   replayAt,
+  seatsTagAt,
+  seatsTagWindow,
   sinkOf,
+  slickOf,
   stepBounds,
   steppedFrom,
   VOLLEY_SHARE,
@@ -248,5 +252,62 @@ describe('a hull going down', () => {
     for (const step of ['frappe', 'riposte', 'deroute'] as const)
       expect(sinkOf(replayAt(v, stepBounds(step).start, 'reduced'), fell, true)).toBe(0);
     expect(sinkOf(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), fell, true)).toBe(1);
+  });
+});
+
+describe('the sinking told at sea (#514)', () => {
+  const cargo: ReplayView = {
+    ...view,
+    side: 'defender',
+    won: false,
+    mine: [{ role: 'cargo', tier: 1, troops: 1, lost: 12, routed: 0, destroyed: 1 }],
+    theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+    drowned: { men: 100, machines: 48, seats: 9 },
+  };
+  const fell = replayAt(cargo, REPLAY_MS).pieces.find((p) => p.fate === 'fallen')!.fellAt!;
+  const account = stepBounds('compte-rendu').start;
+
+  it('spreads the slick from the sinking begun to a second and a half after it ends', () => {
+    const at = (t: number) => slickOf(replayAt(cargo, t), fell, false);
+    expect(at(fell + 999)).toBe(0);
+    expect(at(fell + 1500)).toBeGreaterThan(0);
+    // Written as the storyboard has it: `sink[1] + 1.5`; the account ends before it does.
+    const end = account + 1600 + 1500;
+    expect(at(REPLAY_MS)).toBeCloseTo((REPLAY_MS - fell - 1000) / (end - fell - 1000));
+    expect(at(REPLAY_MS)).toBeLessThan(1);
+  });
+
+  it('at frozen steps lays the whole slick at the account and nothing before', () => {
+    expect(slickOf(replayAt(cargo, stepBounds('deroute').start, 'reduced'), fell, true)).toBe(0);
+    expect(slickOf(replayAt(cargo, account, 'reduced'), fell, true)).toBe(1);
+  });
+
+  it('lets the bubbles rise 0.6 s before the sinking ends, for 1.4 s, never frozen', () => {
+    const born = account + 1600 - 600;
+    expect(bubblesOf(replayAt(cargo, born - 1), false)).toBeNull();
+    expect(bubblesOf(replayAt(cargo, born + 700), false)).toBeCloseTo(0.5);
+    expect(bubblesOf(replayAt(cargo, REPLAY_MS), false)).toBeCloseTo((REPLAY_MS - born) / 1400);
+    expect(bubblesOf(replayAt(cargo, account, 'reduced'), true)).toBeNull();
+  });
+
+  it('keeps the seats tag whole until 1.6 s into the sinking, struck till the hull is gone', () => {
+    const window = seatsTagWindow(cargo)!;
+    const at = (t: number) => seatsTagAt(window, replayAt(cargo, t), false);
+    expect(at(0)).toBe('whole');
+    expect(at(fell + 1000 + 1599)).toBe('whole');
+    expect(at(fell + 1000 + 1600)).toBe('struck');
+    expect(at(account + 1600)).toBeNull();
+  });
+
+  it('at frozen steps shows the tag whole, then the empty sea at the account', () => {
+    const window = seatsTagWindow(cargo)!;
+    expect(seatsTagAt(window, replayAt(cargo, stepBounds('frappe').start, 'reduced'), true)).toBe(
+      'whole',
+    );
+    expect(seatsTagAt(window, replayAt(cargo, account, 'reduced'), true)).toBeNull();
+  });
+
+  it('has no tag window when no hull of mine goes down', () => {
+    expect(seatsTagWindow({ ...cargo, mine: [{ ...cargo.mine[0]!, destroyed: 0 }] })).toBeNull();
   });
 });

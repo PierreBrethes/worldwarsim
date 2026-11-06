@@ -316,8 +316,8 @@ describe('CombatLayer, at sea (#324)', () => {
     const told: ReplayView[] = [];
     layer.onReport = (each) => told.push(each);
     layer.play(view, 'france', at, 0, 0, 'sea');
-    // Two ships and their two shots.
-    expect(layer.group.children[0]!.children).toHaveLength(4);
+    // Two ships, their two shots, and each its slick and its bubbles (#514).
+    expect(layer.group.children[0]!.children).toHaveLength(8);
     layer.advance(stepBounds('compte-rendu').start + 1, scale);
     expect(told[0]!.mine).toHaveLength(2);
   });
@@ -336,8 +336,8 @@ describe('CombatLayer, at sea (#324)', () => {
     };
     const layer = new CombatLayer();
     layer.play(view, 'france', at, 0, 0, 'sea');
-    // Two bombers, one escort, and their three shots.
-    expect(layer.group.children[0]!.children).toHaveLength(6);
+    // Two bombers, one escort, their three shots, and each of the three its slick and bubbles.
+    expect(layer.group.children[0]!.children).toHaveLength(12);
   });
 
   it('veils a waiting point by hulls of the ship it is seen by, not by a tank', () => {
@@ -397,6 +397,102 @@ describe('CombatLayer, at sea (#324)', () => {
     layer.play(view, 'france', at, 0, 0, 'sea');
     expect(layer.group.children).toHaveLength(0);
     expect(settled).toEqual(['carried']);
+  });
+});
+
+describe('CombatLayer, the seats tag of a hull going down (#514)', () => {
+  const escort = {
+    role: 'escort' as const,
+    tier: 1 as const,
+    troops: 1,
+    lost: 0,
+    routed: 0,
+    destroyed: 0,
+  };
+  /** My loaded cargo, shot down by their escort: mine when I lose the cargo, theirs when I shoot. */
+  const drowning = (id: string, drowned = true, hulls = 1): ReplayView => ({
+    ...combat(id),
+    side: 'defender',
+    won: false,
+    mine: [{ role: 'cargo', tier: 1, troops: hulls, lost: 12, routed: 0, destroyed: hulls }],
+    theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+    faced: { nation: 'germany', forces: [{ ...escort, strength: 100 }] },
+    ...(drowned ? { drowned: { men: 100, machines: 48, seats: 9 } } : {}),
+  });
+  const watched = (layer: CombatLayer) => {
+    const seen: Array<[string, string | null]> = [];
+    layer.onSeatsTag = (view, tag) => seen.push([view.combatId, tag]);
+    return seen;
+  };
+  const sinkingAt = stepBounds('frappe').end + 1000 + 1600;
+
+  it('hangs it whole, strikes it through, and takes it down as the sea empties', () => {
+    const layer = new CombatLayer();
+    const seen = watched(layer);
+    layer.play(drowning('a'), 'france', at, 0, 0, 'sea');
+    for (const t of [0, 1000, sinkingAt - 1, sinkingAt, sinkingAt + 100, REPLAY_MS - 1])
+      layer.advance(t, scale);
+    layer.advance(REPLAY_MS, scale);
+    expect(seen).toEqual([
+      ['a', 'whole'],
+      ['a', 'struck'],
+      ['a', null],
+    ]);
+  });
+
+  it('is told once per change, however many frames draw it', () => {
+    const layer = new CombatLayer();
+    const seen = watched(layer);
+    layer.play(drowning('a'), 'france', at, 0, 0, 'sea');
+    for (let t = 0; t < 4000; t += 50) layer.advance(t, scale);
+    expect(seen).toEqual([['a', 'whole']]);
+  });
+
+  it('hangs none for the side that watches the hull go down: it was told nothing of the cargo', () => {
+    const layer = new CombatLayer();
+    const seen = watched(layer);
+    layer.play(drowning('a', false), 'france', at, 0, 0, 'sea');
+    for (const t of [0, sinkingAt, REPLAY_MS - 1]) layer.advance(t, scale);
+    expect(seen).toEqual([]);
+  });
+
+  it('hangs one for several hulls, not one each', () => {
+    const layer = new CombatLayer();
+    const seen = watched(layer);
+    layer.play(drowning('a', true, 2), 'france', at, 0, 0, 'sea');
+    layer.advance(0, scale);
+    expect(seen).toEqual([['a', 'whole']]);
+  });
+
+  it('hangs none in the final pose a phone gives past six hulls, the sea being empty there', () => {
+    const layer = new CombatLayer();
+    layer.phone = true;
+    const seen = watched(layer);
+    layer.play(drowning('a', true, 7), 'france', at, 0, 0, 'sea');
+    layer.advance(0, scale);
+    expect(seen).toEqual([]);
+  });
+
+  it('keeps the frozen steps whole, then empty at the account', () => {
+    const layer = new CombatLayer();
+    layer.motion = 'reduced';
+    const seen = watched(layer);
+    layer.play(drowning('a'), 'france', at, 0, 0, 'sea');
+    layer.advance(stepBounds('frappe').start + 1, scale);
+    layer.advance(stepBounds('compte-rendu').start + 1, scale);
+    expect(seen).toEqual([
+      ['a', 'whole'],
+      ['a', null],
+    ]);
+  });
+
+  it('takes it down when the scene is cleared under it', () => {
+    const layer = new CombatLayer();
+    const seen = watched(layer);
+    layer.play(drowning('a'), 'france', at, 0, 0, 'sea');
+    layer.advance(0, scale);
+    layer.clear();
+    expect(seen.at(-1)).toEqual(['a', null]);
   });
 });
 

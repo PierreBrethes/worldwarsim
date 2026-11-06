@@ -1799,6 +1799,10 @@ export function WorldMap({
   // and each one that goes tells the plateau, whose dispatch of that combat waited for it.
   const [reports, setReports] = useState<ReadonlyArray<ReplayView>>([]);
   const reportsNow = useRef<ReadonlyArray<ReplayView>>([]);
+  // The seats tag of a hull going down (#514), per combat, while its scene plays.
+  const [seatTags, setSeatTags] = useState<
+    ReadonlyArray<{ readonly view: ReplayView; readonly struck: boolean }>
+  >([]);
   const lifted = useRef(onReportLifted);
   const pressed = useRef<{ id: string; x: number; y: number } | null>(null);
   useEffect(() => {
@@ -1820,6 +1824,11 @@ export function WorldMap({
       ];
       setReports(reportsNow.current);
     };
+    readyEngine.onCombatSeats = (view, tag) =>
+      setSeatTags((now) => [
+        ...now.filter((one) => one.view.combatId !== view.combatId),
+        ...(tag === null ? [] : [{ view, struck: tag === 'struck' }]),
+      ]);
     // A press that began on a stamp acts on no country: it opens the replay, or it is a drag.
     readyEngine.pressedOnStamp = () => pressed.current !== null;
     readyEngine.onReportsLift = (stays) => {
@@ -1829,6 +1838,7 @@ export function WorldMap({
     };
     return () => {
       readyEngine.onCombatReport = undefined;
+      readyEngine.onCombatSeats = undefined;
       readyEngine.onReportsLift = undefined;
       readyEngine.pressedOnStamp = undefined;
     };
@@ -2106,6 +2116,7 @@ export function WorldMap({
       />
       <CombatReports
         reports={reports}
+        tags={seatTags}
         engine={readyEngine}
         onOpen={onOpenReport ?? (() => {})}
         onLift={liftReport}

@@ -2,7 +2,7 @@ import { fr } from '@/i18n/fr';
 import type { Medium, UnitRole } from './ids';
 import { troopSpan } from './piece-size';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
-import { DOMAIN_BY_ROLE } from './troops';
+import { DOMAIN_BY_ROLE, seatsOf } from './troops';
 import { REPLAY_MS, STEP_MS, replayAt, type ReplayFrame } from './replay';
 import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
@@ -203,10 +203,26 @@ export function reportOf(
     title:
       view.bombardment !== undefined
         ? words.bombardment[view.side]
-        : (medium === 'sea' ? words.sea : words[view.side])[view.won ? 'won' : 'lost'],
+        : view.drowned !== undefined
+          ? words.drowned
+          : (medium === 'sea' ? words.sea : words[view.side])[view.won ? 'won' : 'lost'],
     losses: `${words.ours} : ${lost.length > 0 ? lost.join(', ') : words.noLoss}`,
     won: view.won,
   };
+}
+
+/**
+ * **L'étiquette de places de la coque qui coule** (#514), une pour tout le point : les places prises
+ * sur celles des coques tombées — `drowned.seats`, que seul le camp qui les perd reçoit (#513).
+ * `null` pour qui voit couler : il ne sait rien de la cargaison.
+ */
+export function seatsTagOf(view: ReplayView): string | null {
+  if (view.drowned === undefined) return null;
+  const hulls = view.mine.filter((entry) => entry.destroyed > 0 && seatsOf(entry.role) > 0);
+  const first = hulls[0]?.role;
+  if (first !== 'cargo' && first !== 'carrier' && first !== 'airTransport') return null;
+  const seats = hulls.reduce((sum, entry) => sum + seatsOf(entry.role) * entry.destroyed, 0);
+  return fr.replay.seatsTag(first, view.drowned.seats, seats);
 }
 
 /** A journey ends « by the combat » within this share of its camera distance. @a-mesurer : « voir »
