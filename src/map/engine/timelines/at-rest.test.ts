@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   CRANE_S,
   craneAt,
+  craneParts,
+  craneToward,
+  craneVisit,
   DOME_S,
   domeAt,
   HEADFRAME_S,
   headframeAt,
+  PORT_CRANE,
   PUMP_S,
   pumpAt,
   type PumpRig,
@@ -99,5 +103,81 @@ describe('the loops at rest (#273)', () => {
     expect(over(13)).toBeCloseTo(3);
     expect(over(29.5)).toBeCloseTo(7.4);
     expect(craneAt(40, CRANE)).toEqual(craneAt(0, CRANE));
+  });
+});
+
+describe('the crane comes to a hull at the mole (#477)', () => {
+  const { rig, ring } = PORT_CRANE;
+  const jib = Math.hypot(rig.head[0] - rig.foot[0], rig.head[1] - rig.foot[1]);
+  const rest = Math.atan2(rig.head[1] - rig.foot[1], rig.foot[0] - rig.head[0]);
+  // A cargo's fore deck at the mole: its stem 3 m off the quay, the hook 6 m abaft it.
+  const from = (point: { x: number; z: number }) => ({ x: point.x - ring.x, z: point.z - ring.z });
+  const deck = from({ x: 60, z: 114 });
+
+  it('turns the jib over the point, raises it within 10° to 45°, and stops the hook 7,4 m up', () => {
+    const to = craneToward(rig, deck)!;
+    // The head's way, about up from −x, points at the deck; the jib's foot to its head reaches it.
+    expect(Math.atan2(deck.z, -deck.x)).toBeCloseTo(to.slew, 9);
+    const angle = rest + to.lift;
+    expect(angle / DEG).toBeGreaterThanOrEqual(10);
+    expect(angle / DEG).toBeLessThanOrEqual(45);
+    expect(-rig.foot[0] + jib * Math.cos(angle)).toBeCloseTo(Math.hypot(deck.x, deck.z), 9);
+    expect(to.head[1] - to.cable + rig.height).toBeCloseTo(7.4, 9);
+  });
+
+  it('keeps its loop out of reach: a hull at its side (37 m), in the roads, or too near', () => {
+    expect(craneToward(rig, from({ x: 41, z: 114 }))).toBeNull();
+    expect(craneToward(rig, from({ x: 41, z: 400 }))).toBeNull();
+    expect(craneToward(rig, { x: 5, z: 5 })).toBeNull();
+  });
+
+  it('turns every part of the loop by the same pose as the loop does', () => {
+    const state = craneAt(13, rig);
+    expect(craneParts(rig, state).grue_couronne.turn[1]).toBe(state.slew);
+    expect(craneParts(rig, craneAt(0, rig)).cable.stretch).toBe(1);
+  });
+
+  describe('a visit', () => {
+    const to = craneToward(rig, deck)!;
+    const loop = craneAt(13, rig);
+    const visit = craneVisit(rig, loop, to);
+
+    it('leaves the crane where the loop had it until the jib turns, then comes over the hull', () => {
+      expect(visit.at(0)).toEqual(loop);
+      const over = visit.at(3000);
+      expect([over.slew, over.lift]).toEqual([to.slew, to.lift]);
+      expect(over.cable).toBeCloseTo(rig.cable, 9);
+    });
+
+    it('lowers the hook to the deck, holds 1,6 s, hoists in 0,25 s, and goes back to rest — the loop at 0', () => {
+      expect(visit.at(4400).cable).toBeCloseTo(to.cable, 9);
+      expect(visit.at(6000).cable).toBeCloseTo(to.cable, 9);
+      for (const key of ['slew', 'lift', 'cable'] as const)
+        expect(visit.at(visit.ms)[key]).toBeCloseTo(craneAt(0, rig)[key], 9);
+      expect(visit.at(visit.ms + 5000)).toEqual(visit.at(visit.ms));
+    });
+
+    it('follows the storyboard B+: starts 0,6 s after the touch, 2,4 s to turn, 1,4 s of hook, 2,4 s home', () => {
+      expect(visit.at(600)).toEqual(loop);
+      expect(visit.at(601).slew).not.toBe(loop.slew);
+      expect(visit.at(3000).slew).toBe(to.slew);
+      expect(visit.at(3000).cable).toBeCloseTo(rig.cable, 9);
+      expect(visit.at(4400).cable).toBeCloseTo(to.cable, 9);
+      expect(visit.at(6000).cable).toBeCloseTo(to.cable, 9);
+      expect(visit.at(6250).cable).toBeCloseTo(rig.cable, 9);
+      expect(visit.at(6250).slew).toBe(to.slew);
+      expect(visit.ms).toBe(8650);
+    });
+
+    it('moves without a leap, frame to frame', () => {
+      let last = visit.at(0);
+      for (let t = 16; t <= visit.ms; t += 16) {
+        const now = visit.at(t);
+        expect(Math.abs(now.slew - last.slew)).toBeLessThan(0.05);
+        expect(Math.abs(now.lift - last.lift)).toBeLessThan(0.05);
+        expect(Math.abs(now.cable - last.cable)).toBeLessThan(1.5);
+        last = now;
+      }
+    });
   });
 });

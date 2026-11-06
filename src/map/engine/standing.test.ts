@@ -1164,6 +1164,13 @@ describe('pieces resting at their post', () => {
     expect(layer.takePromotions()).toEqual([]);
   });
 
+  it('tells the post of the piece a sequence plays for: the mole, the side, the roads, none (#477)', async () => {
+    const layer = await standing(port('a', 'b', 'c'));
+    expect([0, 1, 2].map((k) => layer.postOf(`p/${k}`))).toEqual(['mole', 'couple', 'roads']);
+    expect(layer.postOf('p/9')).toBeNull();
+    expect(layer.postOf('nobody/0')).toBeNull();
+  });
+
   it('remembers where a plane rested when it leaves, for its take-off (#487)', async () => {
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
     const at = layer.restOf('b');

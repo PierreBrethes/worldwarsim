@@ -510,3 +510,50 @@ describe('SequenceLayer', () => {
     });
   });
 });
+
+describe('a part stretched, and the end of a sequence (#477)', () => {
+  const lengthening: Sequence<'barracks'> = {
+    family: 'barracks',
+    ms: 1000,
+    at: (t) => ({ porte_gauche: { stretch: 1 + t / 1000 } }),
+  };
+
+  it('lengthens a part along its y from its rest, and no other axis', async () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    layer.play(host, 'a', lengthening, 0);
+    await flush();
+    layer.step(500);
+    const { scale } = doorOf(host, 'a');
+    expect([scale.x, scale.y, scale.z]).toEqual([1, 1.5, 1]);
+  });
+
+  it('gives a part back its rest scale when a pose drops its stretch', async () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    const once: Sequence<'barracks'> = {
+      family: 'barracks',
+      ms: 1000,
+      at: (t) => (t < 500 ? { porte_gauche: { stretch: 2 } } : {}),
+    };
+    layer.play(host, 'a', once, 0);
+    await flush();
+    layer.step(100);
+    expect(doorOf(host, 'a').scale.y).toBe(2);
+    layer.step(600);
+    expect(doorOf(host, 'a').scale.y).toBe(1);
+  });
+
+  it('says when a piece last played to its end, on the clock of its steps', async () => {
+    const { layer } = layerOf();
+    const host = new FakeHost();
+    expect(layer.endedAt(host, 'a')).toBeUndefined();
+    layer.play(host, 'a', turning, 0);
+    await flush();
+    layer.step(400);
+    expect(layer.endedAt(host, 'a')).toBeUndefined();
+    layer.step(1200);
+    expect(layer.endedAt(host, 'a')).toBe(1200);
+    expect(layer.endedAt(host, 'b')).toBeUndefined();
+  });
+});

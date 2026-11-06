@@ -5,7 +5,15 @@ import { isRigPart, type RigFamily } from '@/emblems/rigs';
 import type { AmbientLayer } from './ambience';
 import type { RestPose } from './figurines/figurine';
 import { articulatedOf, type SequenceHost } from './sequences';
-import { craneAt, domeAt, type Flat, headframeAt, pumpAt } from './timelines/at-rest';
+import {
+  type CraneRig,
+  craneAt,
+  craneParts,
+  domeAt,
+  type Flat,
+  headframeAt,
+  pumpAt,
+} from './timelines/at-rest';
 
 /** **Une pièce lisible** (#273) : la boucle joue tant que sa pièce mobile fait au moins tant de
  *  px à l'écran, sur la fenêtre de référence de 900 px. `@a-mesurer` */
@@ -95,35 +103,30 @@ const DOME: SiteLoop = {
   },
 };
 
+/** **The crane as its file stands it**: the rig `craneAt` reads, in the ring's plane, and the
+ *  ring's place over the port in the file's metres. */
+export function craneRigOf(rig: Object3D): { rig: CraneRig; ring: { x: number; z: number } } {
+  rig.updateMatrixWorld(true);
+  const ring = named(rig, 'grue_couronne');
+  const head = ring.worldToLocal(world(named(rig, 'fx_tete_fleche')));
+  const at = world(ring);
+  return {
+    rig: {
+      foot: [named(rig, 'fleche').position.x, named(rig, 'fleche').position.y],
+      head: [head.x, head.y],
+      cable: named(rig, 'cable').position.y - named(rig, 'crochet').position.y,
+      height: ring.position.y,
+    },
+    ring: { x: at.x, z: at.z },
+  };
+}
+
 const CRANE: SiteLoop = {
   family: 'port',
   part: 45,
   posesOf(rig) {
-    rig.updateMatrixWorld(true);
-    const ring = named(rig, 'grue_couronne');
-    const cable = named(rig, 'cable');
-    const head = ring.worldToLocal(world(named(rig, 'fx_tete_fleche')));
-    const frame = {
-      foot: [named(rig, 'fleche').position.x, named(rig, 'fleche').position.y] as Flat,
-      head: [head.x, head.y] as Flat,
-      cable: cable.position.y - named(rig, 'crochet').position.y,
-      height: ring.position.y,
-    };
-    return (seconds) => {
-      const {
-        slew,
-        lift,
-        head: [x, y],
-        cable: length,
-      } = craneAt(seconds, frame);
-      const [dx, dy] = [x - frame.head[0], y - frame.head[1]];
-      return {
-        grue_couronne: { turn: [0, slew, 0] },
-        fleche: { turn: [0, 0, -lift] },
-        cable: { shift: [dx, dy, 0], stretch: length / frame.cable },
-        crochet: { shift: [dx, dy - (length - frame.cable), 0] },
-      };
-    };
+    const { rig: frame } = craneRigOf(rig);
+    return (seconds) => craneParts(frame, craneAt(seconds, frame));
   },
 };
 
@@ -189,6 +192,7 @@ export class SiteLoopLayer implements AmbientLayer {
     private readonly sequences: {
       playsOn(host: SequenceHost, id: string): boolean;
       holds(host: SequenceHost, id: string): boolean;
+      endedAt(host: SequenceHost, id: string): number | undefined;
     },
     /** Ce que voit l'œil : la boîte coupe le champ, et fait au moins `px`. */
     private readonly sees: (box: Box3, px: number) => boolean,
@@ -216,7 +220,20 @@ export class SiteLoopLayer implements AmbientLayer {
         this.release(id, life);
     }
     for (const site of chosen.values()) if (!this.living.has(site.id)) this.take(site);
-    for (const life of this.living.values()) this.pose(life);
+    for (const [id, life] of this.living) this.pose(id, life);
+  }
+
+  /** **How far into its loop a living site stands**, seconds: counted from the end of the last
+   *  sequence on it, so that the loop starts again at its phase 0 (the sequence leaves it at
+   *  rest). `null` for a site that does not live: its copy stands at rest. */
+  phaseOf(id: string): number | null {
+    const life = this.living.get(id);
+    return life === undefined || life.copy === null ? null : this.phase(id);
+  }
+
+  private phase(id: string): number {
+    const ended = this.sequences.endedAt(this.host, id);
+    return ended === undefined ? this.time : Math.max(0, this.time - ended / 1000);
   }
 
   /** How many sites live now: what the banc reads. */
@@ -281,7 +298,7 @@ export class SiteLoopLayer implements AmbientLayer {
         });
         life.poses = loop.posesOf(copy);
         life.copy = copy;
-        this.pose(life);
+        this.pose(site.id, life);
         this.host.standIn(site.id, copy);
       },
       (error: unknown) => console.error(`boucle ${site.url}`, error),
@@ -297,9 +314,9 @@ export class SiteLoopLayer implements AmbientLayer {
     if (life.copy !== null && !this.sequences.holds(this.host, id)) this.host.standIn(id, null);
   }
 
-  private pose(life: Living): void {
+  private pose(id: string, life: Living): void {
     if (life.poses === null) return;
-    for (const [name, { turn: by, shift, stretch }] of Object.entries(life.poses(this.time))) {
+    for (const [name, { turn: by, shift, stretch }] of Object.entries(life.poses(this.phase(id)))) {
       const part = life.parts.get(name);
       if (part === undefined) continue;
       const { node, rest } = part;

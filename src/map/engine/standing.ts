@@ -1960,6 +1960,15 @@ export class StandingLayer implements SequenceHost {
     return kept === undefined ? null : { site: kept.site, rest: kept.rest, post: kept.post };
   }
 
+  /** **The post of the hull `id` holds at its port** (#477): the mole, the side, the roads; `null`
+   *  for a piece that holds none. */
+  postOf(id: string): HullPost | null {
+    const at = id.lastIndexOf('/');
+    const troop = this.dressed.get(id.slice(0, at))?.pieces.groups[Number(id.slice(at + 1))]
+      ?.troopIds[0];
+    return troop === undefined ? null : (this.lastRest.get(troop)?.post ?? null);
+  }
+
   /** The hulls that moved up to the mole since the last call (#487). */
   takePromotions(): Promotion[] {
     return this.promotions.splice(0);

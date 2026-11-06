@@ -27,12 +27,16 @@ import {
   moors,
   playable,
   restAt,
+  dockLeads,
+  craneSequence,
   slipSequence,
+  alongside,
   UNDOCK_STAGGER_MS,
   undockLead,
 } from './site-ways';
 import { FIL_STRETCH_MS, formation, landing, parkingZ, takeoff } from './timelines/airfield';
-import { launch } from './timelines/port';
+import { docking, launch } from './timelines/port';
+import { craneAt, craneParts, craneVisit, PORT_CRANE, craneToward } from './timelines/at-rest';
 
 const still: Sequence = { ms: 1000, at: () => ({ root: { travel: [1, 0, 0] } }) };
 
@@ -143,6 +147,26 @@ describe('a landing whose thread came in to its pile (#269)', () => {
     expect(land.at(0).root?.travel).toEqual([-5, 0, 7]);
     expect(land.at(1000).root?.travel).toEqual([40, 30, -20]);
     expect(land.ms).toBe(1000);
+  });
+});
+
+describe('a hull whose thread came in to its port (#521)', () => {
+  // Offshore 40 out, in at its berth by the end; its pawn stood 5 out.
+  const docking: Sequence = {
+    ms: 1000,
+    at: (t) => ({ root: { travel: [40 * (1 - t / 1000), 0, 0], heading: 1 } }),
+  };
+  const dock = arriving(docking, [5, 0, 0], true);
+  const out = (t: number) => Math.hypot(...dock.at(t).root!.travel!);
+
+  it('never sails farther out than its pawn stood, which would take it off the screen', () => {
+    for (let t = 0; t <= 1000; t += 10) expect(out(t)).toBeLessThanOrEqual(5 + 1e-9);
+  });
+
+  it('starts where the pawn stood and ends on its track, at its berth', () => {
+    expect(dock.at(0).root?.travel).toEqual([5, 0, 0]);
+    expect(out(1000)).toBeCloseTo(0, 9);
+    expect(dock.ms).toBe(1000);
   });
 });
 
@@ -392,5 +416,95 @@ describe('the hull at the side hauled up to the mole (#487)', () => {
     const [x] = way.at(way.ms).root!.travel!;
     expect(x).toBeCloseTo(0, 6);
     expect(way.ms).toBeGreaterThan(HAUL_LEAD_MS);
+  });
+});
+
+const spot = { x: 60, z: 160, yaw: Math.PI };
+
+describe('hulls that come home together dock one after the other (#477)', () => {
+  const cargo = docking('cargo', 15, spot);
+  const escort = docking('escort', 14, spot);
+  const carrier = docking('carrier', 17, spot);
+
+  it('has the second touch when the first is moored, 1,6 s after its own touch', () => {
+    const [first, second] = dockLeads([cargo, escort]);
+    expect(first).toEqual({ lead: 0, touch: cargo.ms });
+    expect(second!.touch).toBe(first!.touch + 1600);
+    expect(second!.lead).toBe(second!.touch - escort.ms);
+  });
+
+  it('keeps 2,4 s at least before a slow hull starts, and chains the third on the second', () => {
+    const [, slow] = dockLeads([cargo, carrier]);
+    expect(slow!.lead).toBe(2400);
+    const [, second, third] = dockLeads([cargo, escort, escort]);
+    expect(third!.touch).toBe(second!.touch + 1600);
+  });
+
+  it('is the lone hull as it is', () => {
+    expect(dockLeads([cargo])).toEqual([{ lead: 0, touch: cargo.ms }]);
+    expect(dockLeads([])).toEqual([]);
+  });
+});
+
+describe('the crane comes to the hull that touches the mole (#477)', () => {
+  const { rig, ring } = PORT_CRANE;
+  const cargo = { post: 'mole', length: 110, yaw: Math.PI } as const;
+  /** Where a cargo's middle rests at the mole: its stem 3 m off the quay. */
+  const mole = { x: 60.5, z: 105 + 3 + 55 };
+  const touch = 11000;
+  const sequence = (
+    hull: Parameters<typeof craneSequence>[0] = { ...cargo, ...mole },
+    loop0 = 13,
+  ) => craneSequence(hull, touch, loop0)!;
+  /** A pose as plain numbers, to 6 digits: the hull's yaw of π leaves a sine's dust. */
+  const plain = (pose: unknown) =>
+    JSON.parse(
+      JSON.stringify(pose, (_, v) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 || 0 : v)),
+    );
+  const parts = (state: ReturnType<typeof craneAt>) => plain(craneParts(rig, state));
+  const posed = (seq: Sequence, t: number) => plain(seq.at(t));
+
+  it('plays for the hull at the mole, and for no other: at its side, in the roads, or none', () => {
+    expect(sequence()).not.toBeNull();
+    for (const post of ['couple', 'roads', null] as const)
+      expect(craneSequence({ ...cargo, ...mole, post }, touch, 13)).toBeNull();
+  });
+
+  it('keeps its loop out of reach of a hull the jib cannot serve', () => {
+    expect(craneSequence({ ...cargo, ...mole, x: 20 }, touch, 13)).toBeNull();
+  });
+
+  it('goes on with the loop until the hull touches, with no leap where it takes over', () => {
+    const seq = sequence();
+    expect(posed(seq, 0)).toEqual(parts(craneAt(13, rig)));
+    expect(posed(seq, 4000)).toEqual(parts(craneAt(17, rig)));
+    expect(posed(seq, touch)).toEqual(parts(craneAt(13 + touch / 1000, rig)));
+  });
+
+  it("comes over the stem the hook is 6 m abaft, and ends at the loop's rest", () => {
+    const seq = sequence();
+    const deck = { x: mole.x + 0 - ring.x, z: mole.z - 55 + 6 - ring.z };
+    const to = craneToward(rig, deck)!;
+    const visit = craneVisit(rig, craneAt(13 + touch / 1000, rig), to);
+    expect(seq.ms).toBeCloseTo(touch + visit.ms, 6);
+    expect(posed(seq, touch + 3900)).toEqual(parts(visit.at(3900)));
+    expect(posed(seq, seq.ms)).toEqual(parts(craneAt(0, rig)));
+    expect(seq.pool).toBe('site');
+    expect(seq.family).toBe('port');
+  });
+
+  it('stands at rest until the touch when the loop did not live there', () => {
+    const seq = craneSequence({ ...cargo, ...mole }, touch, null)!;
+    expect(posed(seq, 5000)).toEqual(parts(craneAt(0, rig)));
+    expect(posed(seq, touch)).toEqual(parts(craneAt(0, rig)));
+  });
+
+  it('plays with the slip of a launch, each its own parts', () => {
+    const first = launch('cargo', 15, 3, { x: 10, z: 175, yaw: Math.PI });
+    const slip = slipSequence([{ lead: 0, ...first }]);
+    const both = alongside(slip, sequence());
+    expect(both.ms).toBe(Math.max(slip.ms, sequence().ms));
+    const pose = both.at(2000);
+    expect(Object.keys(pose)).toEqual(expect.arrayContaining(['coque_cale', 'accore_1', 'cable']));
   });
 });

@@ -137,6 +137,11 @@
  * de Marseille (le QG de `--chantiers` d'abord) : un anneau trop large pour sa côte, dessiné à son
  * plus petit (×0,4), le cargo à quai. Avec `--appareille`, le cargo part pour Agde, et l'heure du
  * départ s'imprime, pour `--horloge` de la capture (le fondu de 0,5 s). `lieu=@quai-dense`.
+ * `--grue [s]` (#477) pose la scène de `--navire`, fait appareiller son cargo pour libérer le môle, puis
+ * dans `s` secondes (40 par défaut) deux cargos venus d'Alboran rentrent ensemble au port : le premier
+ * touche le môle et la grue vient sur lui, le second vient à couple quand le premier est amarré.
+ * Un cargo est en chantier sur la cale : la grue boucle, puis reprend sa boucle après sa visite. Avec
+ * `--port-miroir`, au port d'Almería, en miroir. `lieu=@port` cadre le port.
  * `--flotte-cote [s]` (#395) pose la scène de `--navire` et envoie le cargo de Marseille vers un
  * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
  * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
@@ -256,6 +261,9 @@ const crowded = process.argv.includes('--poste');
 /** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
 const runwayAt = process.argv.indexOf('--piste-mole');
 const runwayIn = runwayAt < 0 ? null : Number(process.argv[runwayAt + 1]) || 40;
+/** `--grue [s]` (#477) : le môle libre, deux cargos rentrent ensemble dans s secondes. */
+const craneAt = process.argv.indexOf('--grue');
+const craneIn = craneAt < 0 ? null : Number(process.argv[craneAt + 1]) || 40;
 /** `--file [s]` (#478) : l'aérodrome sans transport tient deux chasseurs et un bombardier ; dans s
  *  secondes (40 par défaut) ils décollent ensemble pour Lyon, puis rentrent se poser ensemble. */
 const queueAt = process.argv.indexOf('--file');
@@ -297,6 +305,7 @@ let touringTrucks = null;
 let runwayScene = null;
 /** What `--file` sends off: the troop ids of its three planes, and the airfield they leave from. */
 let queueScene = null;
+let craneScene = null;
 /** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
@@ -336,6 +345,7 @@ const mirrorPort = process.argv.includes('--port-miroir');
 const thresholdPorts = process.argv.includes('--ports-seuil');
 const navy =
   denseQuay ||
+  craneIn !== null ||
   coastIn !== null ||
   runwayIn !== null ||
   mirrorPort ||
@@ -740,6 +750,7 @@ if (!bare) {
   if (thresholdPorts) places['ports-seuil'] = places.sites = [0.07, 46.86];
   if (runwayIn !== null && scene.a !== null) runwayScene = await runwayAndMole();
   if (queueIn !== null && scene.a !== null) queueScene = await queuedPlanes();
+  if (craneIn !== null && scene.a !== null) craneScene = await freeTheMole();
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
    *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
    *  donne des traversées toutes en mer, jamais un trajet terre puis mer (aucune marche avant
@@ -1868,6 +1879,43 @@ if (runwayScene !== null) {
   }
 }
 
+/** `--grue` (#477): two cargos come home together, the first to the mole, the second to its side. */
+if (craneScene !== null) {
+  // A local base under load times a call out at 1 s: it is asked again.
+  const again = async (call, tries = 4) => {
+    try {
+      return await call();
+    } catch (error) {
+      if (tries <= 1 || !String(error.message).includes('timed out')) throw error;
+      return again(call, tries - 1);
+    }
+  };
+  await pause(craneIn * 1000);
+  const at = { lon: -3.0, lat: 36.0 };
+  const spawned = JSON.parse(
+    cli([
+      'run',
+      'dev:spawnTroops',
+      JSON.stringify({ playerId: scene.a, role: 'cargo', count: 2, ...at }),
+    ]).match(/\[[^\]]*\]/)[0],
+  );
+  await again(() =>
+    client.mutation(api.movements.enterGarrison, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: at },
+      troopIds: spawned,
+      buildingId: craneScene.id,
+    }),
+  );
+  cli([
+    'run',
+    'dev:arriveNow',
+    JSON.stringify({ playerId: scene.a, afterMs: 3_000, onTime: true }),
+  ]);
+  console.log(`Deux cargos rentrent dans 3 s, à ${new Date().toISOString()}`);
+}
+
 /** `--file` (#478): the three planes leave together, then come home together. */
 if (queueScene !== null) {
   const again = async (call, tries = 3) => {
@@ -2244,6 +2292,38 @@ async function runwayAndMole() {
     JSON.stringify({ playerId: scene.a, afterMs: (runwayIn + 25) * 1000 }),
   ]);
   return leaving;
+}
+
+/**
+ * **`--grue`** (#477): the port's cargo puts to sea, which frees the mole. Returns the port.
+ */
+async function freeTheMole() {
+  const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+  const port = me.buildings.find((building) => building.key === 'port');
+  places.port = { id: `building-port@${port.point[0]},${port.point[1]}`, lonLat: port.point };
+  cli(['run', 'dev:grantCards', JSON.stringify({ playerId: scene.a, cards: ['transmissions1'] })]);
+  // A hull on the slip: the crane's loop plays, which the visit takes over and gives back.
+  await client.mutation(api.troops.recruit, {
+    token: tokenA,
+    seasonId,
+    buildingId: port.id,
+    role: 'cargo',
+    tier: 1,
+  });
+  for (let tries = 1; ; tries++)
+    try {
+      await client.mutation(api.movements.marchTo, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'building', buildingId: port.id },
+        troopIds: me.troops.filter((troop) => troop.role === 'cargo').map((troop) => troop.id),
+        point: { lon: 14.6, lat: 35.8 },
+      });
+      return port;
+    } catch (error) {
+      // A local base under load times a call out at 1 s: it is asked again.
+      if (tries >= 4 || !String(error.message).includes('timed out')) throw error;
+    }
 }
 
 /**

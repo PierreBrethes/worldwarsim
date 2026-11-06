@@ -12,6 +12,14 @@ import {
   type Spot,
   type Track,
 } from './timelines/airfield';
+import {
+  craneAt,
+  craneParts,
+  craneToward,
+  craneVisit,
+  HOOK_ABAFT_STEM,
+  PORT_CRANE,
+} from './timelines/at-rest';
 import { type Berth, hauling, type HullTrack, type SeaRole } from './timelines/port';
 import type { HullPost, Rest } from './timelines/rest';
 import { troopMetres } from '@/domain/piece-size';
@@ -235,16 +243,31 @@ export function homing(sequence: Sequence): Sequence {
 /**
  * **A landing or a docking on a way too short to moor its thread** (#269, #270): the piece starts
  * where its pawn came in, `from` its rest, and joins its track over its first part, the reverse of
- * `homing`.
+ * `homing`. `inward`, a hull never sails farther out than its pawn stood (#521): it joins its
+ * track at its point nearest the pawn among those no farther out, instead of backing out to its
+ * offshore and off the screen.
  */
-export function arriving(sequence: Sequence, from: NonNullable<PartPose['travel']>): Sequence {
-  const until = sequence.ms * HOMING_SHARE;
+export function arriving(
+  sequence: Sequence,
+  from: NonNullable<PartPose['travel']>,
+  inward = false,
+): Sequence {
+  const near = Math.hypot(...from);
+  // ponytail: sampled, 1/200 of the way.
+  let join = 0;
+  for (let k = 0, best = Infinity; inward && k <= 200; k++) {
+    const t = (sequence.ms * k) / 200;
+    const at = sequence.at(t).root?.travel ?? [0, 0, 0];
+    const gap = Math.hypot(at[0] - from[0], at[1] - from[1], at[2] - from[2]);
+    if (Math.hypot(...at) <= near && gap < best) [best, join] = [gap, t];
+  }
+  const until = Math.max(sequence.ms * HOMING_SHARE, join);
   return {
     ...sequence,
     at(t) {
-      const pose = sequence.at(t);
+      const pose = sequence.at(Math.max(t, join));
       const travel = pose.root?.travel;
-      if (t >= until || travel === undefined) return pose;
+      if (t >= until || travel === undefined) return sequence.at(t);
       const k = ease.inOut(span(t, 0, until));
       const mix = (a: number, b: number) => a + (b - a) * k;
       return {
@@ -358,6 +381,74 @@ export const formationLead = (turn: number): number => turn * FORMATION_STAGGER_
 /** **When a hull is launched**: when the ones launched before it are moored (#487). */
 export const launchLead = (before: ReadonlyArray<{ readonly ms: number }>): number =>
   before.reduce((sum, each) => sum + each.ms, 0);
+
+/** **The least a hull that comes home waits before its approach**, and **how long a hull takes to
+ *  moor** once it touches: four lines at 0,3 s and the last 0,4 s (storyboard `port`, « À couple »,
+ *  `commun/port.js`, scénario `suite`). `@a-mesurer` */
+const DOCK_MIN_LEAD_MS = 2400;
+const MOORING_MS = 1600;
+
+/**
+ * **When hulls that come home together dock** (#477, « À couple »): each touches when the one
+ * before is moored, but not sooner than `DOCK_MIN_LEAD_MS` after the order. `docks` is each hull's
+ * approach, in ms to its touch; the result is, for each, its `lead` (its approach starts then) and
+ * the instant `touch` it touches, from the first order.
+ */
+export function dockLeads(
+  docks: ReadonlyArray<{ readonly ms: number }>,
+): Array<{ lead: number; touch: number }> {
+  const out: Array<{ lead: number; touch: number }> = [];
+  for (const [n, { ms }] of docks.entries()) {
+    const before = out[n - 1];
+    const lead =
+      before === undefined ? 0 : Math.max(DOCK_MIN_LEAD_MS, before.touch + MOORING_MS - ms);
+    out.push({ lead, touch: lead + ms });
+  }
+  return out;
+}
+
+/**
+ * **The crane's visit to the hull that touches the mole** (#477): the crane goes on with its loop
+ * `loop0` seconds in (`null`: it stood at rest) until the hull touches, `touch` ms after the
+ * sequence starts, then its jib comes over the hull's fore deck, the hook goes down, and it goes
+ * back to its rest, where its loop starts again at its phase 0. `null` for a hull that is not at
+ * the mole, or whose fore deck the jib cannot reach: the crane keeps its loop.
+ */
+export function craneSequence(
+  hull: {
+    readonly post: HullPost | null;
+    readonly length: number;
+    readonly x: number;
+    readonly z: number;
+    readonly yaw: number;
+  },
+  touch: number,
+  loop0: number | null,
+): Sequence<'port'> | null {
+  if (hull.post !== 'mole') return null;
+  const { rig, ring } = PORT_CRANE;
+  const abaft = hull.length / 2 - HOOK_ABAFT_STEM;
+  const to = craneToward(rig, {
+    x: hull.x + abaft * Math.sin(hull.yaw) - ring.x,
+    z: hull.z + abaft * Math.cos(hull.yaw) - ring.z,
+  });
+  if (to === null) return null;
+  const loop = (ms: number) => (loop0 === null ? craneAt(0, rig) : craneAt(loop0 + ms / 1000, rig));
+  const visit = craneVisit(rig, loop(touch), to);
+  return {
+    family: 'port',
+    pool: 'site',
+    ms: touch + visit.ms,
+    minPx: WALK_MIN_PX,
+    at: (t) => craneParts(rig, t < touch ? loop(t) : visit.at(t - touch)) as Pose<'port'>,
+  };
+}
+
+/** **Two sequences of one site played as one** (a site plays one at a time): the parts of each
+ *  move as it says, until the longer is done. */
+export function alongside<F extends RigFamily>(a: Sequence<F>, b: Sequence<F>): Sequence<F> {
+  return { ...a, ms: Math.max(a.ms, b.ms), at: (t) => ({ ...a.at(t), ...b.at(t) }) };
+}
 
 /** The order hulls put to sea in: the roads first, the side next, the mole last. */
 const SAILS: Readonly<Record<HullPost, number>> = { roads: 0, couple: 1, mole: 2 };
