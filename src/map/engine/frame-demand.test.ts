@@ -170,6 +170,8 @@ describe('FrameDemand', () => {
 describe('every public method of the engine asks for a frame', () => {
   const READ_ONLY: ReadonlySet<string> = new Set([
     'invalidate',
+    /** Only a listener: the cue that fills the tag asked for its frames. */
+    'watchBoarded',
     'pieceRect',
     'ownsPile',
     'screenOf',
@@ -267,6 +269,18 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
     // A cue plays nothing itself: it stirs the loop, and its walk is laid out on a frame (#277).
     expect(cue.slice(0, cue.indexOf('\n  }\n'))).toMatch(
       /this\.invalidate\(\);[\s\S]*\.push\(\{ cue/,
+    );
+  });
+});
+
+describe('a plane boarding is cued but not played yet (#480)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('lets only a truck hold its pile and queue a boarding: a plane waits for #502', () => {
+    const montee = source.slice(source.indexOf("      case 'montee':"));
+    expect(montee.slice(0, montee.indexOf("      case 'dispersion':"))).toMatch(
+      /cue\.carrier !== 'landTransport'[^;]*\) break;[\s\S]*this\.standing\.expect\([\s\S]*this\.boardings\.push/,
     );
   });
 });

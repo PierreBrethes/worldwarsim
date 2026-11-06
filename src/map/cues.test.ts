@@ -11,6 +11,7 @@ import {
   formationsOf,
   retoursOf,
   descentesOf,
+  embarquementsOf,
   dispersionsOf,
   entreesOf,
   loadsOf,
@@ -112,7 +113,9 @@ describe('boardsUnderTheEyes (#277)', () => {
     expect(boardsUnderTheEyes('landTransport', true)).toBe(false);
   });
 
-  it('keeps a ship or a plane swallowing the piece dropped on it', () => {
+  // A drop on a plane stays `board` (the squad glides to the drop point and is swallowed): the
+  // engine plays no plane boarding before #502, and `boardHome` would leave the men without a gesture.
+  it('keeps a ship or a plane swallowing the piece dropped on it, until #502 plays the plane', () => {
     expect(boardsUnderTheEyes('cargo', false)).toBe(false);
     expect(boardsUnderTheEyes('airTransport', false)).toBe(false);
   });
@@ -136,14 +139,27 @@ describe('monteesOf (#277)', () => {
   it('names the truck men just boarded, and each of them', () => {
     const before = aboardOf(view(truck, man('a'), man('b', 'truck'), man('c')));
     const now = view(truck, man('a', 'truck'), man('b', 'truck'), man('c', 'truck'));
-    expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'c'] }]);
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([
+      { truck: 'p/0', carrier: 'landTransport', riders: ['a', 'c'] },
+    ]);
   });
 
   it('names the men a column brings aboard at its arrival: they board from their file', () => {
     // On the road the men stand in no pile; at the end of it they are aboard (`boardsOn`).
     const before = aboardOf(view(truck, man('a'), man('b')));
     const now = view(truck, man('a', 'truck'), man('b', 'truck'));
-    expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'b'] }]);
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([
+      { truck: 'p/0', carrier: 'landTransport', riders: ['a', 'b'] },
+    ]);
+  });
+
+  it('names the plane men just boarded, as a plane', () => {
+    const plane = { id: 'plane', role: 'airTransport' as const, tier: 1 as const };
+    const before = aboardOf(view(plane, man('a'), man('b')));
+    const now = view(plane, man('a', 'plane'), man('b', 'plane'));
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([
+      { truck: 'p/0', carrier: 'airTransport', riders: ['a', 'b'] },
+    ]);
   });
 
   it('names nothing for a landing, a rider that stays, or a column leaving aboard', () => {
@@ -153,6 +169,99 @@ describe('monteesOf (#277)', () => {
     expect(monteesOf(aboardOf(now), down, pilesOf(down))).toEqual([]);
     // Seated at its departure (`seatLoose`), the column stands in no pile.
     expect(monteesOf(aboardOf(view(truck, man('a'))), now, [])).toEqual([]);
+  });
+});
+
+describe('embarquementsOf (#504)', () => {
+  const port = { kind: 'building' as const, buildingId: 'building-port@2,48' };
+  const shore = {
+    kind: 'point' as const,
+    lonLat: [2, 48] as const,
+    country: 'FR',
+    afloat: false,
+    ground: 'land' as const,
+    coastal: true,
+  };
+  const offshore = { ...shore, afloat: true, ground: 'sea' as const, coastal: false };
+  const troop = (
+    id: string,
+    role: UnitRole,
+    stationedAt: typeof port | typeof shore | typeof offshore,
+    carriedBy?: string,
+  ) => ({
+    id,
+    role,
+    tier: 1 as const,
+    strength: 10,
+    nominalStrength: 10,
+    stationedAt,
+    ...(carriedBy === undefined ? {} : { carriedBy }),
+  });
+  const pilesOf = (troops: ReturnType<typeof troop>[]): StandingPile[] => [
+    { id: 'p', at: { lonLat: [2, 48] }, pieces: pilePieces(troops) },
+  ];
+  const before = (troops: ReturnType<typeof troop>[]) => aboardOf(troops);
+
+  it('names a hull at a quay that men and vehicles just boarded, with the ground and each rider', () => {
+    const was = [
+      troop('h', 'cargo', port),
+      troop('a', 'infantry', port),
+      troop('t', 'armor', port),
+    ];
+    const now = [
+      troop('h', 'cargo', port),
+      troop('a', 'infantry', port, 'h'),
+      troop('t', 'armor', port, 'h'),
+    ];
+    expect(embarquementsOf(before(was), now, pilesOf(now), false)).toEqual([
+      { hull: 'p/0', carrierId: 'h', ground: 'quay', riders: ['a', 't'] },
+    ]);
+  });
+
+  it('names a carrier as it names a cargo, and a hull before a beach as a beach', () => {
+    const now = [troop('c', 'carrier', shore), troop('a', 'infantry', shore, 'c')];
+    expect(embarquementsOf(new Map(), now, pilesOf(now), false)).toEqual([
+      { hull: 'p/0', carrierId: 'c', ground: 'beach', riders: ['a'] },
+    ]);
+  });
+
+  it('names every hull of one group that took passengers, not the first one only', () => {
+    const now = [
+      troop('h1', 'cargo', port),
+      troop('h2', 'cargo', port),
+      troop('a', 'infantry', port, 'h1'),
+      troop('b', 'infantry', port, 'h2'),
+    ];
+    const [group] = pilePieces(now.slice(0, 2)).groups;
+    const together: StandingPile[] = [
+      {
+        id: 'p',
+        at: { lonLat: [2, 48] },
+        pieces: {
+          groups: [{ ...group!, troopIds: ['h1', 'h2'] }],
+          troopIds: ['h1', 'h2'],
+          squad: false,
+        },
+      },
+    ];
+    expect(embarquementsOf(new Map(), now, together, false)).toEqual([
+      { hull: 'p/0', carrierId: 'h1', ground: 'quay', riders: ['a'] },
+      { hull: 'p/0', carrierId: 'h2', ground: 'quay', riders: ['b'] },
+    ]);
+  });
+
+  it('names nothing in Blitz', () => {
+    const now = [troop('h', 'cargo', port), troop('a', 'infantry', port, 'h')];
+    expect(embarquementsOf(new Map(), now, pilesOf(now), true)).toEqual([]);
+  });
+
+  it('names nothing for a hull at sea, a rider already aboard, or a truck', () => {
+    const open = [troop('h', 'cargo', offshore), troop('a', 'infantry', offshore, 'h')];
+    expect(embarquementsOf(new Map(), open, pilesOf(open), false)).toEqual([]);
+    const quay = [troop('h', 'cargo', port), troop('a', 'infantry', port, 'h')];
+    expect(embarquementsOf(aboardOf(quay), quay, pilesOf(quay), false)).toEqual([]);
+    const lorry = [troop('t', 'landTransport', port), troop('a', 'infantry', port, 't')];
+    expect(embarquementsOf(new Map(), lorry, pilesOf(lorry), false)).toEqual([]);
   });
 });
 

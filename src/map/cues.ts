@@ -1,6 +1,7 @@
 import { distanceKm, samePoint, type LonLat } from '@/domain/geo';
 import { disbandRadiusKm, disbandSpanKm } from '@/domain/movement-orders';
 import type { BuildingKey, UnitRole } from '@/domain/ids';
+import type { TroopStation } from '@/domain/player-view';
 import { raidLoots } from '@/domain/loot';
 import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
@@ -51,6 +52,18 @@ export function aboardOf(troops: ReadonlyArray<Seated>): ReadonlyMap<string, str
   return new Map(troops.flatMap((troop) => (troop.carriedBy ? [[troop.id, troop.carriedBy]] : [])));
 }
 
+/** Who climbed aboard whom since the view `aboard` remembers: carrier id → its new riders. */
+function boardedSince(
+  aboard: ReadonlyMap<string, string>,
+  troops: ReadonlyArray<Seated>,
+): ReadonlyMap<string, string[]> {
+  const boarded = new Map<string, string[]>();
+  for (const troop of troops)
+    if (troop.carriedBy && aboard.get(troop.id) !== troop.carriedBy)
+      boarded.set(troop.carriedBy, [...(boarded.get(troop.carriedBy) ?? []), troop.id]);
+  return boarded;
+}
+
 /** **Un camion et ses passagers** (#277) : l'id (`${pile}/${groupe}`, celui que `StandingLayer`
  *  prête aux séquences) du groupe du camion, et ce qui en descend ou y monte. */
 export type Descente = {
@@ -92,14 +105,22 @@ export function descentesOf(
 }
 
 /** **Les hommes montent sous les yeux** (#277) : en camion, en Mondiale. Ailleurs — un navire,
- *  un avion, une unité Blitz qui n'est pas trois hommes — la pièce lâchée dessus s'y engouffre. */
+ *  un avion (jusqu'à #502), une unité Blitz qui n'est pas trois hommes — la pièce lâchée dessus
+ *  s'y engouffre. */
 export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
   return carrier === 'landTransport' && !blitz;
 }
 
-/** **Un camion où des hommes montent** (#277) : le groupe du camion, et chaque passager neuf. */
+/** Ce qui embarque des hommes sous les yeux : un camion ou un avion de transport. */
+export type Carrier = 'landTransport' | 'airTransport';
+const isCarrier = (role: UnitRole): role is Carrier =>
+  role === 'landTransport' || role === 'airTransport';
+
+/** **Un porteur où des hommes montent** (#277) : son groupe (`truck`, même pour un avion), ce
+ *  qu'il est, et chaque passager neuf. */
 export type Montee = {
   readonly truck: string;
+  readonly carrier: Carrier;
   readonly riders: ReadonlyArray<string>;
 };
 
@@ -113,15 +134,61 @@ export function monteesOf(
   troops: ReadonlyArray<Seated>,
   piles: ReadonlyArray<StandingPile>,
 ): ReadonlyArray<Montee> {
-  const boarded = new Map<string, string[]>();
-  for (const troop of troops)
-    if (troop.carriedBy && aboard.get(troop.id) !== troop.carriedBy)
-      boarded.set(troop.carriedBy, [...(boarded.get(troop.carriedBy) ?? []), troop.id]);
+  const boarded = boardedSince(aboard, troops);
   return piles.flatMap(({ id, pieces }) =>
     pieces.groups.flatMap(({ role, troopIds }, k) => {
       const riders = troopIds.flatMap((troop) => boarded.get(troop) ?? []);
-      return role === 'landTransport' && riders.length > 0 ? [{ truck: `${id}/${k}`, riders }] : [];
+      return isCarrier(role) && riders.length > 0
+        ? [{ truck: `${id}/${k}`, carrier: role, riders }]
+        : [];
     }),
+  );
+}
+
+/** **Une coque où des pièces viennent d'embarquer** (#504) : son groupe (`hull`), son troupe, la
+ *  terre qui la tient (`quay` : un port ; `beach` : devant une plage, #510) et chaque passager
+ *  neuf, hommes et véhicules. */
+export type Embarquement = {
+  readonly hull: string;
+  readonly carrierId: string;
+  readonly ground: 'quay' | 'beach';
+  readonly riders: ReadonlyArray<string>;
+};
+
+const embarkGroundOf = (station: TroopStation): Embarquement['ground'] | null =>
+  station.kind === 'building'
+    ? 'quay'
+    : station.kind === 'point' && station.coastal
+      ? 'beach'
+      : null;
+
+/**
+ * **Les coques où des pièces viennent d'embarquer** (#504) : un cargo ou un porte-avions d'une
+ * pile posée, à quai ou devant une plage, dont un passager n'était pas à bord à la vue d'avant.
+ * Une coque au large ailleurs, un camion, un avion n'en donnent pas : la pose finale.
+ */
+export function embarquementsOf(
+  aboard: ReadonlyMap<string, string>,
+  troops: ReadonlyArray<Seated & { readonly stationedAt: TroopStation }>,
+  piles: ReadonlyArray<StandingPile>,
+  blitz: boolean,
+): ReadonlyArray<Embarquement> {
+  if (blitz) return [];
+  const boarded = boardedSince(aboard, troops);
+  const stations = new Map(troops.map((troop) => [troop.id, troop.stationedAt]));
+  return piles.flatMap(({ id, pieces }) =>
+    pieces.groups.flatMap(({ role, troopIds }, k) =>
+      role !== 'cargo' && role !== 'carrier'
+        ? []
+        : troopIds.flatMap((carrierId) => {
+            const station = stations.get(carrierId);
+            const ground = station === undefined ? null : embarkGroundOf(station);
+            const riders = boarded.get(carrierId);
+            return ground !== null && riders !== undefined
+              ? [{ hull: `${id}/${k}`, carrierId, ground, riders }]
+              : [];
+          }),
+    ),
   );
 }
 

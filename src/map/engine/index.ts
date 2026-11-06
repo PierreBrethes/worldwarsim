@@ -756,6 +756,8 @@ export class MapEngine {
     readonly since: number;
     boards?: ReadonlyArray<string>;
   }> = [];
+  /** Told which riders a hull's tag may now show (`watchBoarded`). */
+  private onBoarded: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined;
   /** **Men coming down from a truck** (#277), waiting for their pile to stand. */
   private landings: Array<{
     readonly cue: Extract<Cue, { kind: 'descente' }>;
@@ -3425,10 +3427,21 @@ export class MapEngine {
         this.landings.push({ cue, since: performance.now() });
         break;
       case 'montee':
-        if (this.sequences.motion === 'off') break;
+        // A plane's men board too (#480); its sequence is wired by #502.
+        if (cue.carrier !== 'landTransport' || this.sequences.motion === 'off') break;
         // The truck holds where it stood until its men are under the tarp (`boardOf`).
         this.standing.expect(cue.truck.slice(0, cue.truck.lastIndexOf('/')));
         this.boardings.push({ cue, since: performance.now() });
+        break;
+      case 'embarquement':
+        // No sequence plays a hull's boarding yet (#505, #506 will wait for the hull here): the
+        // final pose, its ring of ink at reduced motion, and the tag takes every rider.
+        if (ringsLeft(this.sequences.motion, { veiled: false, unplayable: false }))
+          this.standing.inkArrival(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
+        this.onBoarded?.(
+          cue.carrierId,
+          cue.riders.map(({ troopId }) => troopId),
+        );
         break;
       case 'dispersion':
         if (this.sequences.motion === 'off') break;
@@ -4828,6 +4841,14 @@ export class MapEngine {
   private rasterLoading = false;
   /** Coast and raster are both here: the squad bar can say U's refusal before the gesture (#295). */
   private onDisbandGround: ((ground: DisbandGround) => void) | undefined;
+
+  /** **The tag fills as the sequence feeds it** (#504): `callback` hears the riders of a carrier
+   *  that its boarding has now brought aboard. `undefined` withdraws. */
+  watchBoarded(
+    callback: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined,
+  ): void {
+    this.onBoarded = callback;
+  }
 
   /**
    * Whoever says U's refusal asks for the raster (Mondiale only: Blitz has no squads, and the

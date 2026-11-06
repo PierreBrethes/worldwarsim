@@ -77,7 +77,7 @@ const gap = (a: Flat, b: Flat): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const headingOf = (a: Flat, b: Flat): number => Math.atan2(b[0] - a[0], b[1] - a[1]);
 
 /** A way of straight legs, `k` of the way along it (0..1): where, and the way it faces. */
-function wayOf(points: ReadonlyArray<Flat>) {
+export function wayOf(points: ReadonlyArray<Flat>) {
   const legs = points
     .slice(1)
     .map((to, i) => ({ from: points[i]!, to, length: gap(points[i]!, to) }));
