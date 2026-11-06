@@ -125,7 +125,7 @@ import {
   inFormationOrder,
   landingOrder,
   launchLead,
-  retourLead,
+  dockLeads,
   craneSequence,
   alongside,
   playable,
@@ -3649,12 +3649,13 @@ export class MapEngine {
         if (out !== null) door = [laneOf(spot.x), { lead, doors: out.doors, closing: out.closing }];
       } else if (!airfield && isSeaRole(role)) {
         const beam = HULL_BEAM_SHARE * length;
-        // Hulls formed together are launched, and hulls come home docked, one after the other: the
-        // next when the last is moored.
-        const lead = cue.kind === 'formation' ? launchLead(slips) : retourLead(docked);
         const launched =
           cue.kind === 'formation' ? launch(role, beam, KEEL_SHARE * length, spot) : null;
         const track = launched ?? docking(role, beam, spot);
+        // Hulls formed together are launched one after the other, the next when the last is
+        // moored; hulls come home each touching when the one before is moored (`dockLeads`).
+        const lead =
+          cue.kind === 'formation' ? launchLead(slips) : dockLeads([...docked, track]).at(-1)!.lead;
         sequence = delayed(
           from(trackSequence(site, track, place.at, role, false, launched?.dressed)),
           lead,
@@ -3667,7 +3668,6 @@ export class MapEngine {
         visit = craneSequence(
           {
             post: this.standing.postOf(id),
-            role,
             length: (this.standing.lengthOf(id) ?? length * metreOf(site)) / metreOf(site),
             ...spot,
           },

@@ -209,19 +209,24 @@ export function craneParts(rig: CraneRig, { slew, lift, head: [x, y], cable }: C
   } as const;
 }
 
-/** **A visit of the crane to a hull's deck**, from where the loop left it: the jib comes over the
- *  hull 0,9 s after the touch, the hook goes down, the crane waits, hoists and goes back to its
- *  rest, where its loop starts again at its phase 0. Seconds, stretched by the hull's pace.
- *  `@a-mesurer` */
-const VISIT = { after: 0.9, slew: 2, hook: 1, hold: 2.5, up: 0.8, back: 2 } as const;
+/**
+ * **A visit of the crane to a hull's deck**, from where the loop left it (storyboard `port`, B+
+ * du 03/11, « La grue vient sur lui »), in seconds from the touch. The four first are the
+ * storyboard's, `@a-mesurer` against `commun/port.js` (`craneOn`): it starts 0,6 s after the
+ * touch, the jib turns in 2,4 s (`smooth`), the hook goes down in 1,4 s (`ease.out3`); the crane
+ * goes back to its rest in 2,4 s, as the B+ casting off. What the storyboard does not say, decided
+ * on 06/11: the hook holds 1,6 s (the mooring's), and hoists in 0,25 s (`avant-b-plus`).
+ * The loop then starts again at its phase 0.
+ */
+const VISIT = { after: 0.6, slew: 2.4, hook: 1.4, hold: 1.6, up: 0.25, back: 2.4 } as const;
 
-export function craneVisit(rig: CraneRig, from: CraneState, to: CraneState, pace: number) {
+export function craneVisit(rig: CraneRig, from: CraneState, to: CraneState) {
   const come = VISIT.after;
-  const over = come + VISIT.slew * pace;
+  const over = come + VISIT.slew;
   const down = over + VISIT.hook;
   const up = down + VISIT.hold;
   const hoisted = up + VISIT.up;
-  const end = hoisted + VISIT.back * pace;
+  const end = hoisted + VISIT.back;
   const home = rig.cable;
   return {
     /** From the touch, ms. */
@@ -236,7 +241,7 @@ export function craneVisit(rig: CraneRig, from: CraneState, to: CraneState, pace
       const lift = lerp(lerp(from.lift, to.lift, swing), 0, back);
       const cable =
         s < up
-          ? lerp(lerp(from.cable, home, swing), to.cable, io(over, down))
+          ? lerp(lerp(from.cable, home, swing), to.cable, ease.out3(span(s, over, down)))
           : lerp(to.cable, home, io(up, hoisted));
       return craneState(rig, slew, lift, cable);
     },

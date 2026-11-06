@@ -140,21 +140,33 @@ describe('the crane comes to a hull at the mole (#477)', () => {
   describe('a visit', () => {
     const to = craneToward(rig, deck)!;
     const loop = craneAt(13, rig);
-    const visit = craneVisit(rig, loop, to, 1);
+    const visit = craneVisit(rig, loop, to);
 
     it('leaves the crane where the loop had it until the jib turns, then comes over the hull', () => {
       expect(visit.at(0)).toEqual(loop);
-      const over = visit.at(2900);
+      const over = visit.at(3000);
       expect([over.slew, over.lift]).toEqual([to.slew, to.lift]);
       expect(over.cable).toBeCloseTo(rig.cable, 9);
     });
 
-    it('lowers the hook to the deck, holds, hoists, and goes back to rest — the loop at 0', () => {
-      expect(visit.at(3900).cable).toBeCloseTo(to.cable, 9);
-      expect(visit.at(6400).cable).toBeCloseTo(to.cable, 9);
+    it('lowers the hook to the deck, holds 1,6 s, hoists in 0,25 s, and goes back to rest — the loop at 0', () => {
+      expect(visit.at(4400).cable).toBeCloseTo(to.cable, 9);
+      expect(visit.at(6000).cable).toBeCloseTo(to.cable, 9);
       for (const key of ['slew', 'lift', 'cable'] as const)
         expect(visit.at(visit.ms)[key]).toBeCloseTo(craneAt(0, rig)[key], 9);
       expect(visit.at(visit.ms + 5000)).toEqual(visit.at(visit.ms));
+    });
+
+    it('follows the storyboard B+: starts 0,6 s after the touch, 2,4 s to turn, 1,4 s of hook, 2,4 s home', () => {
+      expect(visit.at(600)).toEqual(loop);
+      expect(visit.at(601).slew).not.toBe(loop.slew);
+      expect(visit.at(3000).slew).toBe(to.slew);
+      expect(visit.at(3000).cable).toBeCloseTo(rig.cable, 9);
+      expect(visit.at(4400).cable).toBeCloseTo(to.cable, 9);
+      expect(visit.at(6000).cable).toBeCloseTo(to.cable, 9);
+      expect(visit.at(6250).cable).toBeCloseTo(rig.cable, 9);
+      expect(visit.at(6250).slew).toBe(to.slew);
+      expect(visit.ms).toBe(8650);
     });
 
     it('moves without a leap, frame to frame', () => {
@@ -163,7 +175,7 @@ describe('the crane comes to a hull at the mole (#477)', () => {
         const now = visit.at(t);
         expect(Math.abs(now.slew - last.slew)).toBeLessThan(0.05);
         expect(Math.abs(now.lift - last.lift)).toBeLessThan(0.05);
-        expect(Math.abs(now.cable - last.cable)).toBeLessThan(0.5);
+        expect(Math.abs(now.cable - last.cable)).toBeLessThan(1.5);
         last = now;
       }
     });

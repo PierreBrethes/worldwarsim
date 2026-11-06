@@ -500,8 +500,8 @@ export class SequenceLayer {
         node.quaternion.copy(rest.quaternion);
         if (own?.shift) node.position.add(new Vector3(...own.shift));
         if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
-        if (own?.stretch !== undefined)
-          node.scale.set(rest.scale.x, rest.scale.y * own.stretch, rest.scale.z);
+        node.scale.copy(rest.scale);
+        if (own?.stretch !== undefined) node.scale.y *= own.stretch;
         if (own?.travel || own?.heading !== undefined) onTheBoard(node, rest, own);
         if (own?.stride !== undefined) stride(node, own.stride);
         else if (own?.hop !== undefined) hop(node, own.hop);

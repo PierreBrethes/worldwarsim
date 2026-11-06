@@ -27,7 +27,7 @@ import {
   moors,
   playable,
   restAt,
-  retourLead,
+  dockLeads,
   craneSequence,
   slipSequence,
   alongside,
@@ -35,7 +35,7 @@ import {
   undockLead,
 } from './site-ways';
 import { FIL_STRETCH_MS, formation, landing, parkingZ, takeoff } from './timelines/airfield';
-import { launch } from './timelines/port';
+import { docking, launch } from './timelines/port';
 import { craneAt, craneParts, craneVisit, PORT_CRANE, craneToward } from './timelines/at-rest';
 
 const still: Sequence = { ms: 1000, at: () => ({ root: { travel: [1, 0, 0] } }) };
@@ -399,17 +399,36 @@ describe('the hull at the side hauled up to the mole (#487)', () => {
   });
 });
 
+const spot = { x: 60, z: 160, yaw: Math.PI };
+
 describe('hulls that come home together dock one after the other (#477)', () => {
-  it('waits for the hulls docked before, as a launch does', () => {
-    expect(retourLead([])).toBe(0);
-    expect(retourLead([{ ms: 10900 }, { ms: 9000 }])).toBe(19900);
-    expect(retourLead([{ ms: 15000 }])).toBe(launchLead([{ ms: 15000 }]));
+  const cargo = docking('cargo', 15, spot);
+  const escort = docking('escort', 14, spot);
+  const carrier = docking('carrier', 17, spot);
+
+  it('has the second touch when the first is moored, 1,6 s after its own touch', () => {
+    const [first, second] = dockLeads([cargo, escort]);
+    expect(first).toEqual({ lead: 0, touch: cargo.ms });
+    expect(second!.touch).toBe(first!.touch + 1600);
+    expect(second!.lead).toBe(second!.touch - escort.ms);
+  });
+
+  it('keeps 2,4 s at least before a slow hull starts, and chains the third on the second', () => {
+    const [, slow] = dockLeads([cargo, carrier]);
+    expect(slow!.lead).toBe(2400);
+    const [, second, third] = dockLeads([cargo, escort, escort]);
+    expect(third!.touch).toBe(second!.touch + 1600);
+  });
+
+  it('is the lone hull as it is', () => {
+    expect(dockLeads([cargo])).toEqual([{ lead: 0, touch: cargo.ms }]);
+    expect(dockLeads([])).toEqual([]);
   });
 });
 
 describe('the crane comes to the hull that touches the mole (#477)', () => {
   const { rig, ring } = PORT_CRANE;
-  const cargo = { post: 'mole', role: 'cargo', length: 110, yaw: Math.PI } as const;
+  const cargo = { post: 'mole', length: 110, yaw: Math.PI } as const;
   /** Where a cargo's middle rests at the mole: its stem 3 m off the quay. */
   const mole = { x: 60.5, z: 105 + 3 + 55 };
   const touch = 11000;
@@ -446,7 +465,7 @@ describe('the crane comes to the hull that touches the mole (#477)', () => {
     const seq = sequence();
     const deck = { x: mole.x + 0 - ring.x, z: mole.z - 55 + 6 - ring.z };
     const to = craneToward(rig, deck)!;
-    const visit = craneVisit(rig, craneAt(13 + touch / 1000, rig), to, 1);
+    const visit = craneVisit(rig, craneAt(13 + touch / 1000, rig), to);
     expect(seq.ms).toBeCloseTo(touch + visit.ms, 6);
     expect(posed(seq, touch + 3900)).toEqual(parts(visit.at(3900)));
     expect(posed(seq, seq.ms)).toEqual(parts(craneAt(0, rig)));
