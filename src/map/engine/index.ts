@@ -77,7 +77,7 @@ import {
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
-import { RELEASE_MS } from './mooring';
+import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
@@ -3434,9 +3434,16 @@ export class MapEngine {
             this.moorings.pending(`${cue.pileId}/${k}`, performance.now());
         this.siteWays.push({ cue, since: performance.now() });
         break;
-      case 'depart':
-        if (!this.blitz) this.siteWays.push({ cue, since: performance.now() });
+      case 'depart': {
+        if (this.blitz) break;
+        // Its hawsers stand a moment past its pile, until it casts them off (#500).
+        const arc = this.arcs.viewOf(cue.arcId);
+        const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
+        if (this.sequences.motion === 'full' && troop !== undefined)
+          this.moorings.expectCastOff(troop, performance.now());
+        this.siteWays.push({ cue, since: performance.now() });
         break;
+      }
       case 'descente':
         if (this.sequences.motion === 'off') break;
         // The truck and its rank hold where they stood until the men are down (`landOf`).
@@ -3711,9 +3718,10 @@ export class MapEngine {
       if (slip !== null) slips.push(slip);
       if (dock !== null) docked.push(dock);
       // The hawsers run from the instant the hull touches.
-      if (!airfield && this.standing.postOf(id) !== 'roads') {
+      const touch = airfield ? null : touchOf(this.standing.postOf(id), since, sequence.ms);
+      if (touch !== null) {
         touching.add(id);
-        this.moorings.dock(id, since + sequence.ms);
+        this.moorings.dock(id, touch);
       }
       crane ??= visit;
     }
@@ -3764,8 +3772,7 @@ export class MapEngine {
     let sequence = null;
     let plane: Departing | null = null;
     let wait = 0;
-    let lined = false;
-    let castOff = since;
+    let castOff: number | null = null;
     if (air && isAirRole(role)) {
       const at = place ?? { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) };
       const flight = takeoff(role, at);
@@ -3800,9 +3807,9 @@ export class MapEngine {
       // Several hulls putting to sea together: the outer one first, the others when it is clear.
       const lead = undockLead({ post: kept?.post ?? null, since }, this.otherDepartures(arcId, id));
       // Its hawsers come aboard before it backs out (storyboard « Largue »).
-      lined = kept?.post === 'mole' || kept?.post === 'couple';
-      sequence = delayed(sequence, lead + (lined ? RELEASE_MS : 0), false);
-      castOff = since + lead;
+      const leaving = departureOf(kept?.post ?? null, since, lead);
+      castOff = leaving.castOff;
+      sequence = delayed(sequence, leaving.wait, false);
     }
     if (sequence === null) return true;
     // Only a plane that plays holds the runway, or makes the others wait.
@@ -3818,7 +3825,8 @@ export class MapEngine {
       () => this.sequences.play(this.arcs, arcId, sequence, since, now),
     );
     if (played && plane !== null) this.lightUp(id, since, now, since + sequence.ms);
-    if (played && lined && troop !== undefined) {
+    if (troop !== undefined && !(played && castOff !== null)) this.moorings.forget(troop);
+    if (played && castOff !== null && troop !== undefined) {
       this.moorings.release(troop, castOff);
       // The hull at the mole's side was moored to the one that leaves.
       if (kept?.post === 'mole') this.moorings.releaseBeside(id, castOff);
@@ -3884,8 +3892,10 @@ export class MapEngine {
     const { role } = promotion;
     if (!isSeaRole(role)) return true;
     const way = haulSequence(site, role, promotion.from, promotion.to, place.at);
-    if (this.sequences.play(this.standing, promotion.id, way, since, now))
-      this.moorings.dock(promotion.id, since + way.ms);
+    const touch = touchOf('mole', since, way.ms);
+    if (this.sequences.play(this.standing, promotion.id, way, since, now) && touch !== null)
+      this.moorings.dock(promotion.id, touch);
+    else this.moorings.settle(promotion.id);
     return true;
   }
 
@@ -5437,7 +5447,6 @@ export class MapEngine {
     const sun = sunLightAt(instant, lookedAt);
     const night = nightOfAltitude(sun.altitude);
     this.night.apply(instant, night);
-    this.moorings.setNight(night);
     if (whole)
       this.night.veil(
         distance > REGIONS_GONE_DISTANCE || !this.fullDayInView(subsolarPoint(instant)),
@@ -5470,7 +5479,6 @@ export class MapEngine {
     this.sequences.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
     this.standing.orient(this.camera.position);
-    this.moorings.update(now, !this.blitz);
     // A pile that never stands (a view gone, its pin far away) does not keep its recruits waiting.
     this.sorties = this.sorties.filter(
       (sortie) => !this.walkOutOf(sortie, now) && now - sortie.since < SORTIE_WAIT_MS,
@@ -5481,8 +5489,11 @@ export class MapEngine {
     this.siteWays = this.siteWays.filter(
       (way) => !this.siteWayOf(way, now) && now - way.since < SORTIE_WAIT_MS,
     );
-    for (const promotion of this.standing.takePromotions())
+    for (const promotion of this.standing.takePromotions()) {
+      // Promoted to the mole's post, it is hauled there: its lines wait for that (#500).
+      if (this.sequences.motion === 'full') this.moorings.pending(promotion.id, now);
       this.hauls.push({ promotion, since: now });
+    }
     this.hauls = this.hauls.filter(
       (haul) => !this.haulOf(haul, now) && now - haul.since < SORTIE_WAIT_MS,
     );
@@ -5493,6 +5504,8 @@ export class MapEngine {
       (taking) => !this.takeOf(taking, now) && now - taking.since < SORTIE_WAIT_MS,
     );
     this.undock(now);
+    // After every order of this frame has said where the hulls are bound: the hawsers follow.
+    if (whole) this.moorings.update(now, this.unitsPerPixel(distance));
     this.boardings = this.boardings.filter((boarding) => {
       if (this.boardOf(boarding, now)) return false;
       if (now - boarding.since < SORTIE_WAIT_MS) return true;

@@ -1,4 +1,5 @@
-import { hasBollard, BOLLARDS, MOLE } from '@/emblems/kits/manifest';
+import { BOLLARDS, hasBollard, MOLE } from '@/emblems/kits/manifest';
+import type { HullPost } from './timelines/rest';
 
 /** A point, in the site's metres. */
 export type P = { readonly x: number; readonly y: number; readonly z: number };
@@ -87,19 +88,46 @@ export function mooringLines(marks: HullMarks, anchors: ReadonlyArray<P>): Line[
 }
 
 /**
- * **The rail of the hull `beside`** that faces `marks`: the points of its near flank, from its
- * stem mark to its stern mark, a bollard's pitch apart — what a hull at the side is moored to.
+ * **The lines of a hull that lies at the side of `beside`** (storyboard `commun/port.js`): straight
+ * across, each from its mark to the point of the neighbour's near flank at the same station, two
+ * from the stem and two from the stern.
  */
-export function railOf(marks: HullMarks, beside: HullMarks): P[] {
+export function acrossLines(marks: HullMarks, beside: HullMarks): Line[] {
   const centre = mid(mid(marks.fore[0], marks.fore[1]), mid(marks.aft[0], marks.aft[1]));
   const gap = (f: 0 | 1) => apart(mid(beside.fore[f], beside.aft[f]), centre);
-  const flank = gap(1) < gap(0) ? 1 : 0;
-  const [a, b] = [beside.fore[flank], beside.aft[flank]];
-  const pitch = BOLLARDS.every * MOLE.module;
-  const steps = Math.max(1, Math.ceil(apart(a, b) / pitch));
-  return Array.from({ length: steps + 1 }, (_, k) => ({
-    x: a.x + ((b.x - a.x) * k) / steps,
-    y: a.y + ((b.y - a.y) * k) / steps,
-    z: a.z + ((b.z - a.z) * k) / steps,
-  }));
+  const rail = gap(1) < gap(0) ? 1 : 0;
+  const [a, b] = [beside.fore[rail], beside.aft[rail]];
+  const own = flankOf(marks, [a, b]);
+  const reach = (from: P): P => {
+    const run = b.z - a.z || 1;
+    const k = Math.min(1, Math.max(0, (from.z - a.z) / run));
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: from.z };
+  };
+  return Array.from({ length: LINES }, (_, i) => {
+    const from = (i < LINES / 2 ? marks.fore : marks.aft)[own];
+    return { from, to: reach(from) };
+  });
 }
+
+/** **A post with hawsers**: the mole and its side; the roads have an anchor. */
+export const isLined = (post: HullPost | null): post is 'mole' | 'couple' =>
+  post === 'mole' || post === 'couple';
+
+/**
+ * **When a hull casts off, and how long it waits for it** (storyboard « Largue »): its lines come
+ * aboard from `since + lead`, and it backs out `RELEASE_MS` after that. A hull with no hawsers
+ * leaves as it did, and casts nothing off.
+ */
+export const departureOf = (
+  post: HullPost | null,
+  since: number,
+  lead: number,
+): { readonly wait: number; readonly castOff: number | null } =>
+  isLined(post)
+    ? { wait: lead + RELEASE_MS, castOff: since + lead }
+    : { wait: lead, castOff: null };
+
+/** **The instant a hull touches**, from its order and its approach in ms; `null` where it has no
+ *  hawsers (the roads, no post). */
+export const touchOf = (post: HullPost | null, since: number, ms: number): number | null =>
+  isLined(post) ? since + ms : null;

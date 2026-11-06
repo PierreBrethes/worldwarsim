@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MOLE } from '@/emblems/kits/manifest';
+import { KITS, MOLE } from '@/emblems/kits/manifest';
 import {
   bollardsOf,
   type HullMarks,
@@ -9,7 +11,10 @@ import {
   MOORING_MS,
   mooringLines,
   RELEASE_MS,
-  railOf,
+  acrossLines,
+  departureOf,
+  isLined,
+  touchOf,
 } from './mooring';
 
 /** A hull at the mole as the model carries it: stem to the land (-z), its marks at 70 m from the
@@ -92,16 +97,60 @@ describe('the lines of a hull at the mole (#500)', () => {
     }
   });
 
-  it('go to the first hull’s rail when the second lies at its side, and not all to one point', () => {
+  it('run straight across to the hull beside, level with their marks, and back to no spring', () => {
     const first = hull(55, 190);
     const second = hull(55 - 24, 190);
-    const rail = railOf(second, first);
-    expect(rail[0]!.x).toBeCloseTo(55 - 10);
-    const lines = mooringLines(second, rail);
+    const lines = acrossLines(second, first);
+    expect(lines).toHaveLength(4);
     for (const { from, to } of lines) {
       expect(from.x).toBeCloseTo(55 - 24 + 10);
       expect(to.x).toBeCloseTo(55 - 10);
+      expect(to.z).toBeCloseTo(from.z);
     }
-    expect(new Set(lines.map(({ to }) => to.z)).size).toBeGreaterThan(2);
+    expect(lines.map(({ from }) => from.z)).toEqual([120, 120, 260, 260]);
+  });
+});
+
+describe('which hulls have hawsers, and when they cast off and touch (#500)', () => {
+  it('only the mole and its side, not the roads nor a hull with no post', () => {
+    expect([isLined('mole'), isLined('couple'), isLined('roads'), isLined(null)]).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it('a lined hull waits for its lines to come aboard, which leave as it is its turn', () => {
+    expect(departureOf('mole', 1000, 3500)).toEqual({ wait: 3500 + RELEASE_MS, castOff: 4500 });
+    expect(departureOf('couple', 1000, 0)).toEqual({ wait: RELEASE_MS, castOff: 1000 });
+  });
+
+  it('a hull in the roads or with no post leaves as before, casting nothing off', () => {
+    expect(departureOf('roads', 1000, 3500)).toEqual({ wait: 3500, castOff: null });
+    expect(departureOf(null, 1000, 0)).toEqual({ wait: 0, castOff: null });
+  });
+
+  it('touches when its approach is done, if it has hawsers', () => {
+    expect(touchOf('mole', 1000, 9000)).toBe(10000);
+    expect(touchOf('roads', 1000, 9000)).toBeNull();
+    expect(touchOf(null, 1000, 9000)).toBeNull();
+  });
+});
+
+describe('the bollards are those the mole kit lays (#500)', () => {
+  it('each at the top of its fx_amarre in mole.glb, in x and in y', () => {
+    const bytes = readFileSync(join(process.cwd(), KITS.mole));
+    const json = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString('utf8')) as {
+      nodes: Array<{ name?: string; translation?: number[] }>;
+    };
+    const at = (name: string) => json.nodes.find((node) => node.name === name)!.translation!;
+    const [bx, by] = [at('bitte')[0]!, at('bitte')[1]!];
+    const mark = at('fx_amarre');
+    const top = { x: MOLE.x + bx + mark[0]!, y: MOLE.lift + by + mark[1]! };
+    for (const bollard of bollardsOf()) {
+      expect(bollard.x).toBeCloseTo(top.x, 5);
+      expect(bollard.y).toBeCloseTo(top.y, 5);
+    }
   });
 });

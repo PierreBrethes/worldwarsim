@@ -2,6 +2,7 @@ import { Group, type Object3D, Vector3 } from 'three';
 import type { HullPost } from './timelines/rest';
 import { markOf } from './figurines/marks';
 import {
+  acrossLines,
   bollardsOf,
   type HullMarks,
   type Line,
@@ -9,7 +10,6 @@ import {
   MOORING_MS,
   mooringLines,
   type P,
-  railOf,
   RUN_MS,
 } from './mooring';
 import { Span } from './span';
@@ -37,11 +37,13 @@ export type MooringHost = {
 const PENDING_MS = 2500;
 /** How long the lines of a hull no longer drawn are kept for its cast off (`standing`'s `SEEN_MS`). */
 const KEPT_MS = 10000;
-/** How long the lines of a hull that has just left its pile stand, waiting for its cast off
+/** How long the lines of a hull that has just left its pile stand when a cast off is expected
  *  (the order reaches the map a few frames after the pile is drawn again). */
 const HOLD_MS = 1500;
-/** **A hawser's width**, in metres. `@a-mesurer` */
+/** **A hawser's width**, in metres, and the least it is drawn at, in screen pixels: like the other
+ *  strokes of the map, it does not melt away at a distance. `@a-mesurer` */
 const WIDTH_M = 0.4;
+const WIDTH_PX = 2;
 const NAMES = [
   ['fx_amarre_avant_babord', 'fx_amarre_avant_tribord'],
   ['fx_amarre_arriere_babord', 'fx_amarre_arriere_tribord'],
@@ -66,8 +68,12 @@ export class Moorings {
   /** By troop: when its lines are cast off. */
   private readonly releasing = new Map<string, number>();
   /** By troop: the lines it last stood with, on the board. */
-  private readonly kept = new Map<string, { lines: Drawn[]; seen: number }>();
-  private night = 0;
+  private readonly kept = new Map<
+    string,
+    { lines: Drawn[]; seen: number; site: string; post: MooredHull['post'] }
+  >();
+  /** By troop: until when a cast off is expected, a played departure whose order is on its way. */
+  private readonly awaiting = new Map<string, number>();
   private running = false;
 
   constructor(private readonly host: MooringHost) {}
@@ -97,15 +103,22 @@ export class Moorings {
     this.releasing.set(troop, at);
   }
 
-  /** The hull at the mole's side of `site` casts off at `at`, with the one it lay against. */
+  /** The hull at the mole's side of `site` casts off at `at`, with the one it lay against: read
+   *  from the lines it stood with, as its post may already be the mole's. */
   releaseBeside(site: string, at: number): void {
-    for (const hull of this.host.hulls())
-      if (hull.site === site && hull.post === 'couple') this.release(hull.troop, at);
+    for (const [troop, entry] of this.kept)
+      if (entry.site === site && entry.post === 'couple') this.release(troop, at);
   }
 
-  setNight(night: number): void {
-    this.night = night;
-    for (const span of this.spans) span.setNight(night);
+  /** A played departure is ordered for `troop`: its lines stand a moment past its pile, until
+   *  `release` (or `forget`). Without it they go with the hull. */
+  expectCastOff(troop: string, now: number): void {
+    this.awaiting.set(troop, now + HOLD_MS);
+  }
+
+  /** The departure plays nothing for this troop after all. */
+  forget(troop: string): void {
+    this.awaiting.delete(troop);
   }
 
   /** The marks of a hull as drawn, in its site's metres; `null` while its model has none. */
@@ -127,20 +140,23 @@ export class Moorings {
     return { from: board(from), to: board(to), width: WIDTH_M * frame.metre };
   }
 
-  /** **Draws the lines of this frame**; `on` off (a theatre), none. */
-  update(now: number, on = true): void {
+  /** **Draws the lines of this frame**, `unitsPerPixel` the board's units to a screen pixel. */
+  update(now: number, unitsPerPixel: number): void {
     let used = 0;
     const draw = (line: Drawn, progress: number) => {
       if (progress <= 0) return;
       let span = this.spans[used];
       if (span === undefined) {
         span = new Span();
-        span.setNight(this.night);
         this.spans.push(span);
         this.group.add(span.mesh);
       }
       used++;
-      span.set(line.from, line.from.clone().lerp(line.to, progress), line.width);
+      span.set(
+        line.from,
+        line.from.clone().lerp(line.to, progress),
+        Math.max(line.width, WIDTH_PX * unitsPerPixel),
+      );
     };
     let running = false;
     for (const [id, { touch, stale }] of this.docking)
@@ -150,7 +166,7 @@ export class Moorings {
       if (!frames.has(site)) frames.set(site, this.host.frameOf(site));
       return frames.get(site)!;
     };
-    const hulls = on ? this.host.hulls() : [];
+    const hulls = this.host.hulls();
     const marked = new Map<string, HullMarks | null>();
     for (const hull of hulls) {
       const frame = frameOf(hull.site);
@@ -161,43 +177,45 @@ export class Moorings {
     for (const hull of hulls) {
       const [frame, marks] = [frameOf(hull.site), marked.get(hull.id)];
       if (frame === null || marks === undefined || marks === null) continue;
-      const against =
+      const mole = hulls.find((each) => each.site === hull.site && each.post === 'mole');
+      const beside = mole === undefined ? null : marked.get(mole.id);
+      const raw =
         hull.post === 'mole'
-          ? bollardsOf()
-          : (() => {
-              const mole = hulls.find((each) => each.site === hull.site && each.post === 'mole');
-              const beside = mole === undefined ? null : marked.get(mole.id);
-              return beside === null || beside === undefined ? [] : railOf(marks, beside);
-            })();
-      if (against.length === 0) continue;
-      const lines = mooringLines(marks, against).map((line) => this.toBoard(frame, line));
+          ? mooringLines(marks, bollardsOf())
+          : beside === null || beside === undefined
+            ? []
+            : acrossLines(marks, beside);
+      if (raw.length === 0) continue;
+      const lines = raw.map((line) => this.toBoard(frame, line));
       const order = this.docking.get(hull.id);
       settled.add(hull.troop);
       // Stood still, its lines are what a cast off lets go of.
-      if (order === undefined) this.kept.set(hull.troop, { lines, seen: now });
+      if (order === undefined)
+        this.kept.set(hull.troop, { lines, seen: now, site: hull.site, post: hull.post });
       lines.forEach((line, i) =>
         draw(line, order === undefined ? 1 : lineRun(i, now - order.touch, false)),
       );
       if (order !== undefined && order.touch !== Infinity) running = true;
     }
-    if (on) {
-      for (const [troop, { lines, seen }] of this.kept)
-        if (!settled.has(troop) && !this.releasing.has(troop) && now - seen <= HOLD_MS) {
-          for (const line of lines) draw(line, 1);
-          running = true;
-        }
-      for (const [troop, at] of this.releasing) {
-        const kept = this.kept.get(troop);
-        if (kept === undefined || now - at >= RUN_MS) {
-          this.releasing.delete(troop);
-          this.kept.delete(troop);
-          continue;
-        }
-        kept.seen = now;
-        kept.lines.forEach((line, i) => draw(line, lineRun(i, now - at, true)));
+    for (const [troop, until] of this.awaiting) {
+      const entry = this.kept.get(troop);
+      if (now >= until || this.releasing.has(troop)) this.awaiting.delete(troop);
+      else if (entry !== undefined && !settled.has(troop)) {
+        for (const line of entry.lines) draw(line, 1);
         running = true;
       }
-    } else this.releasing.clear();
+    }
+    for (const [troop, at] of this.releasing) {
+      const kept = this.kept.get(troop);
+      if (kept === undefined || now - at >= RUN_MS) {
+        this.releasing.delete(troop);
+        this.kept.delete(troop);
+        continue;
+      }
+      kept.seen = now;
+      kept.lines.forEach((line, i) => draw(line, lineRun(i, now - at, true)));
+      running = true;
+    }
     for (const [troop, { seen }] of this.kept) if (now - seen > KEPT_MS) this.kept.delete(troop);
     for (let k = used; k < this.spans.length; k++) this.spans[k]!.clear();
     this.running = running;
