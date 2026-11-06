@@ -2,16 +2,15 @@ import { Euler, Group, type Object3D, Quaternion, Vector3 } from 'three';
 import { isRigPart, type RigFamily } from '@/emblems/rigs';
 import type { RestPose } from './figurines/figurine';
 import { markOf } from './figurines/marks';
-import { articulatedOf, type PartPose, type Pose, type SequenceHost } from './sequences';
+import { articulatedOf, type PartPose, type Pose } from './sequences';
 import { gearPose } from './site-ways';
 
 const turn = new Quaternion();
 const euler = new Euler();
 
 /**
- * **The articulated copy of a transport in flight** (#507): the pawn's plane, its gear folded, its
- * parts posed by what a timeline says (`bay_door`, #481). It stands in the figurine, so it is
- * where the pawn is and faces where it faces; the pose's `root` is the pawn's own and is not read.
+ * **The articulated copy of a transport in flight** (#507): its gear folded, its parts posed by
+ * what a timeline says (`bay_door`, #481). Free of any figurine.
  */
 export class FlightCopy {
   readonly copy = new Group();
@@ -48,25 +47,14 @@ export class FlightCopy {
     this.copy.updateWorldMatrix(true, true);
     return markOf(this.copy, 'fx_parachute', into);
   }
-
-  /** The figurine takes its own model back. */
-  giveBack(host: Pick<SequenceHost, 'standIn'>, id: string): void {
-    host.standIn(id, null);
-  }
 }
 
-/** Cooks the copy of the plane `id` at its rest pose and stands it in; `null` when the piece is
- *  not drawn (gone while the file cooked) or has no file. */
+/** Cooks the copy of a transport at its rest pose, free of any figurine: the caller puts `copy`
+ *  in the scene. `null` when the piece has no file. */
 export async function lendFlightCopy(
-  host: Pick<SequenceHost, 'pieceOf' | 'standIn'>,
-  id: string,
+  piece: { readonly url?: string; readonly pose?: RestPose },
   cook: (url: string, family: RigFamily, pose?: RestPose) => Promise<Group> = articulatedOf,
 ): Promise<FlightCopy | null> {
-  const piece = host.pieceOf(id);
-  if (piece?.url === undefined) return null;
-  const cooked = await cook(piece.url, 'airTransport', piece.pose);
-  if (host.pieceOf(id) === null) return null;
-  const flight = new FlightCopy(cooked.clone(true));
-  host.standIn(id, flight.copy);
-  return flight;
+  if (piece.url === undefined) return null;
+  return new FlightCopy((await cook(piece.url, 'airTransport', piece.pose)).clone(true));
 }
