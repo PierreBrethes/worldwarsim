@@ -141,6 +141,17 @@ try {
   await page.waitForTimeout(Number(option('attendre', 6000)));
   /** Le doigt de `doigt=` : où il est, et s'il touche. */
   let finger = null;
+  /** Un cadrage qui n'a pas pris laisse la carte large : on le dit au lieu de la photographier. */
+  const checkFramed = async (gesture, distance) => {
+    const away = await page.evaluate(() => {
+      const { camera, controls } = globalThis.mapEngine;
+      return camera.position.distanceTo(controls.target);
+    });
+    if (Math.abs(away - distance) > 0.05 * distance + 0.01)
+      throw new Error(
+        `${gesture} : cadrage perdu, l'œil est à ${away.toFixed(2)} au lieu de ${distance}`,
+      );
+  };
   /** `@id` : où la pièce est à l'écran — son étiquette, sinon son point de la carte. */
   const screenPointOf = async (spec) => {
     const spot = spotOf(spec, accounts.places);
@@ -282,6 +293,7 @@ try {
           await page.waitForTimeout(1000);
         }
       }
+      await checkFramed(gesture, distance);
     } else if (kind === 'horloge') {
       // L'heure du jeu passe là, la carte redessine, et la capture tombe `ms` après, sans l'attente
       // commune : le milieu d'un fondu d'une demi-seconde (#433).
