@@ -1,3 +1,4 @@
+import { Euler, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { isRigPart } from '@/emblems/rigs';
 import { beachBoatsOf, type Assault } from './beach-boats';
@@ -25,14 +26,16 @@ const scene = (over: Partial<Assault> = {}): Assault => ({
   ...over,
 });
 
+const bowHeight = (turn: readonly [number, number, number]): number =>
+  new Vector3(0, 0, 3.8).applyEuler(new Euler(...turn, 'XYZ')).y;
 const boat = (a: ReturnType<typeof beachBoatsOf>, node: 'boat_left' | 'boat_right', t: number) => {
   const pose = a.cargo!.at(t)[node]!;
   const rest = node === 'boat_left' ? [7.18, 6.5, -10.3] : [-7.18, 6.5, -10.3];
   const s = pose.shift ?? [0, 0, 0];
   return {
     at: [rest[0]! + s[0], rest[1]! + s[1], rest[2]! + s[2]] as const,
-    pitch: pose.turn?.[0] ?? 0,
-    yaw: pose.turn?.[1] ?? 0,
+    // How high the bow stands over the stern's level, once the turn is read as the pose is.
+    bowUp: bowHeight(pose.turn ?? [0, 0, 0]),
   };
 };
 const times = (ms: number) => Array.from({ length: Math.ceil(ms / 20) }, (_, k) => k * 20);
@@ -90,11 +93,11 @@ describe('beachBoatsOf, the boats (#482)', () => {
   it('grounds with the bow up 4 degrees, then goes back to its davit', () => {
     const a = beachBoatsOf(scene());
     const pitched = times(a.cargo!.ms).filter(
-      (t) => Math.abs(boat(a, 'boat_left', t).pitch + 4 * DEG) < 1e-9,
+      (t) => Math.abs(boat(a, 'boat_left', t).bowUp - 3.8 * Math.sin(4 * DEG)) < 1e-9,
     );
     expect(pitched.length).toBeGreaterThan(10);
     // It never pitches while it sails or hangs.
-    expect(boat(a, 'boat_left', 2000).pitch).toBe(0);
+    expect(boat(a, 'boat_left', 2000).bowUp).toBeCloseTo(0, 9);
     expect(boat(a, 'boat_left', a.cargo!.ms - 1).at[0]).toBeCloseTo(7.18, 0);
   });
 
@@ -111,7 +114,7 @@ describe('beachBoatsOf, the boats (#482)', () => {
 
 describe('beachBoatsOf, the men (#482)', () => {
   const grounded = (a: ReturnType<typeof beachBoatsOf>) =>
-    times(a.cargo!.ms).find((t) => boat(a, 'boat_left', t).pitch !== 0)!;
+    times(a.cargo!.ms).find((t) => boat(a, 'boat_left', t).bowUp > 0.1)!;
 
   it('hides them aboard, shows them one by one at the bow of the grounded boat, and ends at rest', () => {
     const a = beachBoatsOf(scene());
@@ -152,7 +155,7 @@ describe('beachBoatsOf, the men (#482)', () => {
       ...times(s.ms).filter((t) => [0, 1, 2].some((k) => (s.at(t)[`man_${k}`]?.hop ?? 0) > 0)),
     );
     const leaves = times(a.cargo!.ms).find(
-      (t) => t > grounded(a) && boat(a, 'boat_left', t).pitch === 0,
+      (t) => t > grounded(a) && boat(a, 'boat_left', t).bowUp < 0.1,
     )!;
     expect(leaves).toBeGreaterThanOrEqual(lastHop);
   });
@@ -183,7 +186,10 @@ describe('beachBoatsOf, reduced and off motion (#482)', () => {
     const a = beachBoatsOf(scene(), 'reduced');
     expect(a.cargo).toBeNull();
     expect(a.squads).toEqual([]);
-    expect(a.ring).toEqual({ at: [0.3, -0.13], ms: 600 });
+    // On the men, not on the boats' landing: the mean of the six places.
+    expect(a.ring!.ms).toBe(600);
+    expect(a.ring!.at[0]).toBeCloseTo(0.38, 9);
+    expect(a.ring!.at[1]).toBeCloseTo(-0.13, 9);
     expect(a.settled).toBe(600);
   });
 
@@ -194,5 +200,98 @@ describe('beachBoatsOf, reduced and off motion (#482)', () => {
 
   it('draws no ring when the motion is full', () => {
     expect(beachBoatsOf(scene()).ring).toBeNull();
+  });
+});
+
+describe('beachBoatsOf, the hull turned and the odd cases (#482)', () => {
+  const REST_L: [number, number, number] = [7.18, 6.5, -10.3];
+
+  it('lifts the bow whatever way the boat faces: broadside to the hull as along it', () => {
+    // From the davit at z = -10.3 to a landing at the same depth, the boat faces +x (yaw 90 degrees).
+    const side = beachBoatsOf(scene({ squads: [{ ...squad(-0.103), landing: [0.3, -0.103] }] }));
+    const lifted = (a: ReturnType<typeof beachBoatsOf>) =>
+      Math.max(...times(a.cargo!.ms).map((t) => boat(a, 'boat_left', t).bowUp));
+    expect(lifted(side)).toBeCloseTo(3.8 * Math.sin(4 * DEG), 9);
+    // And along the hull (landing dead astern of the davit), as before.
+    const along = beachBoatsOf(
+      scene({ squads: [{ ...squad(-0.5), landing: [0.0718 + 0.025, -0.5] }] }),
+    );
+    expect(lifted(along)).toBeGreaterThan(0.2);
+  });
+
+  it('starts every man ashore at once, and settles at 0, when there is no boat', () => {
+    const a = beachBoatsOf(scene({ boats: [] }));
+    expect(a.cargo).toBeNull();
+    expect(a.settled).toBe(0);
+    expect(a.squads.map((s) => s.ms)).toEqual([0, 0]);
+    expect(a.squads[0]!.at(0)).toEqual({});
+  });
+
+  it('turns the hull a quarter: the first jump starts at the bow of the boat, on the board', () => {
+    // heading pi/2: a hull's (x, z) is the board's (z, -x) by `metre`. The landing is local (30, -16).
+    const landing: [number, number] = [-0.16, -0.3];
+    const crew = (z: number) => ({
+      men: [
+        [-0.16, -0.36],
+        [-0.19, -0.38],
+        [-0.13, -0.38],
+      ] as [number, number][],
+      heading: 0,
+      landing: [landing[0], landing[1] + z] as [number, number],
+    });
+    const a = beachBoatsOf(
+      scene({
+        hull: { at: [0, 0], heading: Math.PI / 2, metre: 0.01, astern: -45 },
+        squads: [crew(0), crew(0.2)],
+      }),
+    );
+    const s = a.squads[0]!;
+    const t = times(s.ms).find((x) => (s.at(x)['man_0']?.fade ?? 0) > 0)!;
+    const m = s.at(t)['man_0']!;
+    // The boat's last leg, in the hull's frame, from its swung-out davit to the landing.
+    const from = [REST_L[0] + 2.5, REST_L[2]];
+    const to = [30, -16];
+    const h = Math.atan2(to[0]! - from[0]!, to[1]! - from[1]!);
+    const bow = [to[0]! + Math.sin(h) * 3.2, to[1]! + Math.cos(h) * 3.2];
+    const expected = [0.01 * bow[1]!, -0.01 * bow[0]!];
+    expect(-0.16 + m.travel![0]).toBeCloseTo(expected[0]!, 2);
+    expect(-0.36 + m.travel![2]).toBeCloseTo(expected[1]!, 2);
+    // A wrong sign in the turn would put it a metre-scale away, a third of the board.
+    expect(Math.abs(-0.16 + m.travel![0] - expected[0]!)).toBeLessThan(0.003);
+    expect(Math.abs(-0.36 + m.travel![2] - expected[1]!)).toBeLessThan(0.003);
+  });
+
+  it('sends only the boat of the shore flank for a single squad', () => {
+    const a = beachBoatsOf(scene({ squads: [squad(-0.16)] }));
+    expect(Object.keys(a.cargo!.at(2000))).toEqual(['boat_left']);
+    expect(a.squads).toHaveLength(1);
+  });
+
+  it('sends the junk round the stern when the shore is on its blind side', () => {
+    const away = scene({
+      boats: [{ node: 'boat_left', rest: REST_L }],
+      squads: [squad(-0.16, -0.36)].map((s) => ({
+        ...s,
+        landing: [-0.3, -0.16] as [number, number],
+      })),
+    });
+    const a = beachBoatsOf(away);
+    const zs = times(a.cargo!.ms).map((t) => boat(a, 'boat_left', t).at[2]);
+    expect(Math.min(...zs)).toBeLessThanOrEqual(-45);
+    expect(Math.min(...zs.slice(0, 1))).toBe(-10.3);
+  });
+
+  it('takes the +x flank, the left boat, when the landings sit on the hull axis: a tie goes to +x', () => {
+    const mid = scene({
+      squads: [squad(-0.16), squad(-0.1)].map((s) => ({
+        ...s,
+        landing: [0, s.landing[1]] as [number, number],
+      })),
+    });
+    const a = beachBoatsOf(mid);
+    const zs = (node: 'boat_left' | 'boat_right') =>
+      times(a.cargo!.ms).map((t) => boat(a, node, t).at[2]);
+    expect(Math.min(...zs('boat_left'))).toBeGreaterThan(-45);
+    expect(Math.min(...zs('boat_right'))).toBeLessThanOrEqual(-45);
   });
 });

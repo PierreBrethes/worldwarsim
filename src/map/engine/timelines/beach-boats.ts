@@ -1,3 +1,4 @@
+import { Euler, Quaternion, Vector3 } from 'three';
 import type { MapMotion } from '@/domain/map-motion';
 import { wrap } from '../articulation';
 import type { PartPose, Sequence } from '../sequences';
@@ -97,6 +98,20 @@ function wayOf(points: ReadonlyArray<Flat>) {
   };
 }
 
+const UP = new Vector3(0, 1, 0);
+const ACROSS = new Vector3(1, 0, 0);
+const up = new Quaternion();
+const nose = new Quaternion();
+/** The boat turns about the up first, then lifts its bow in its own frame: Ry(yaw)·Rx(pitch).
+ *  A pose's `turn` is read as Euler XYZ, Rx·Ry·Rz, which would bank a boat aground broadside. */
+const turnOf = (yaw: number, pitch: number): Vec3 => {
+  const e = new Euler().setFromQuaternion(
+    up.setFromAxisAngle(UP, yaw).multiply(nose.setFromAxisAngle(ACROSS, pitch)),
+    'XYZ',
+  );
+  return [e.x, e.y, e.z];
+};
+
 type Trip = {
   readonly node: 'boat_left' | 'boat_right';
   readonly rest: Vec3;
@@ -139,7 +154,7 @@ export function beachBoatsOf(
   ];
   if (motion !== 'full') {
     const ring =
-      motion === 'reduced' ? { at: centre(squads.map((s) => s.landing)), ms: RAZE_RING_MS } : null;
+      motion === 'reduced' ? { at: centre(squads.flatMap((s) => s.men)), ms: RAZE_RING_MS } : null;
     return { cargo: null, squads: [], ring, settled: ring?.ms ?? 0 };
   }
 
@@ -251,7 +266,7 @@ export function beachBoatsOf(
         const { at, yaw, pitch } = boatAt(trip, t);
         pose[trip.node] = {
           shift: [at[0] - trip.rest[0], at[1] - trip.rest[1], at[2] - trip.rest[2]],
-          turn: [pitch, yaw, 0],
+          turn: turnOf(yaw, pitch),
         };
       }
       return pose;
@@ -263,7 +278,8 @@ export function beachBoatsOf(
     const trip = trips[i];
     if (trip === undefined) {
       // Past the boats: aboard and gone until the first boat grounds, then at their places.
-      const appear = Math.min(...trips.map((x) => x.beach));
+      // With no boat at all, they are ashore from the start.
+      const appear = trips.length > 0 ? Math.min(...trips.map((x) => x.beach)) : 0;
       return {
         ms: appear,
         at(t) {
