@@ -317,8 +317,8 @@ const coastIn = coastAt < 0 ? null : Number(process.argv[coastAt + 1]) || 25;
 const denseQuay = process.argv.includes('--quai-dense');
 /** `--port-miroir` (#476) : le port de `--navire` à Almería, où la côte serre le môle du côté de la grue. */
 const mirrorPort = process.argv.includes('--port-miroir');
-/** `--ports-seuil` (#476) : deux ports du golfe du Lion, à 35 km l'un de l'autre, de part et d'autre du
- *  seuil de la pose en miroir : le premier (Leucate) en miroir, le second (Argelès) droit, à peine en deçà. */
+/** `--ports-seuil` (#476) : deux ports de part et d'autre du seuil de la pose en miroir, assez loin l'un
+ *  de l'autre pour ne pas s'annelter (plus de 6 unités) : Biarritz en miroir, la côte d'Opale droite, à peine en deçà. */
 const thresholdPorts = process.argv.includes('--ports-seuil');
 const navy =
   denseQuay ||
@@ -717,13 +717,13 @@ if (!bare) {
   if (navy && scene.a !== null)
     for (const port of thresholdPorts
       ? [
-          { lon: 3.054, lat: 42.985 },
-          { lon: 3.042, lat: 42.644 },
+          { lon: -1.5136, lat: 43.5409 },
+          { lon: 1.6545, lat: 50.1863 },
         ]
       : [mirrorPort ? { lon: -1.84, lat: 37.12 } : undefined])
       cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a, ...(port && { port }) })]);
   // Les deux ports dans le champ ; `sites` est le lieu que lit `banc:client -- --sites`.
-  if (thresholdPorts) places['ports-seuil'] = places.sites = [3.05, 42.81];
+  if (thresholdPorts) places['ports-seuil'] = places.sites = [0.07, 46.86];
   if (runwayIn !== null && scene.a !== null) runwayScene = await runwayAndMole();
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
    *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
