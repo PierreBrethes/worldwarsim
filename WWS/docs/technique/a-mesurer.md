@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 87f2454 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 701c6c9 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-144 valeurs marquées dans `convex/` et `src/domain/`.
+145 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -148,10 +148,11 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `SEA_RANKS` | `[2, 4]` | `src/domain/place-names.ts:162` | paliers lus sur la maquette A, aucune capture des mers seules |
 | `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:176` | lu sur la maquette A, qui en écrit onze sur l'Europe |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:8` | a short replay, read through in about ten seconds (grilling of 13/10). |
-| `HEEL` | `(14 * Math.PI) / 180` | `src/domain/replay.ts:182` | ` |
-| `PITCH` | `(9 * Math.PI) / 180` | `src/domain/replay.ts:183` | ` |
-| `FINAL_HEEL` | `(22 * Math.PI) / 180` | `src/domain/replay.ts:184` | ` |
-| `SINK_MS` | `1600` | `src/domain/replay.ts:187` | ` |
+| `HEEL` | `(14 * Math.PI) / 180` | `src/domain/replay.ts:187` | la gîte à la chute, 14° sur le bord touché (storyboard) |
+| `PITCH` | `(9 * Math.PI) / 180` | `src/domain/replay.ts:189` | le tangage de la coulée par l'arrière, 9° (storyboard) |
+| `FINAL_HEEL` | `(22 * Math.PI) / 180` | `src/domain/replay.ts:191` | la gîte où la coque finit, 22° (storyboard), tenue par l'épave de la pose finale |
+| `SINK_MS` | `1600` | `src/domain/replay.ts:193` | la coulée finit 1,6 s après le début du compte-rendu : à juger à l'œil, avant l'effacement du tampon |
+| `SINK_LAG_MS` | `1000` | `src/domain/replay.ts:195` | la coulée commence 1 s après la fin de la chute de la coque (storyboard : `P.sink[0] = P.hit + 1,0`) |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:978` | measured against the medium on 340 routes (#231), not against a play need |

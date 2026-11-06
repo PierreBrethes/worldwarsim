@@ -482,6 +482,36 @@ describe('a combat at sea', () => {
     return least;
   };
 
+  it('keeps a sinking hull opaque to the middle of its sinking, then fades it', async () => {
+    const v = sunk();
+    const scene = sea(v);
+    await landed();
+    const theirs = scene.object.children[1]!;
+    const pivot = theirs.children[0]!;
+    // Its fall ended at the strike's end: it sinks from a second after to the account's 1.6 s.
+    const fell = stepBounds('frappe').end;
+    const to = stepBounds('compte-rendu').start + 1600;
+    scene.show(replayAt(v, fell + 0.4 * (to - fell - 1000) + 1000), 0, false);
+    expect(pivot.position.y).toBeLessThan(0);
+    expect(opacityOf(theirs)).toBe(1);
+    scene.show(replayAt(v, to - 100), 0, false);
+    expect(opacityOf(theirs)).toBeLessThan(0.5);
+  });
+
+  it('heels each hull towards the other line, on the side the shots struck', async () => {
+    const both = sunk();
+    const v: ReplayView = {
+      ...both,
+      mine: both.mine.map((force) => ({ ...force, destroyed: 1 })),
+    };
+    const scene = sea(v);
+    await landed();
+    const [mine, theirs] = scene.object.children as Object3D[];
+    scene.show(replayAt(v, stepBounds('deroute').start), 0, false);
+    expect(mine!.children[0]!.rotation.z).toBeGreaterThan(0);
+    expect(theirs!.children[0]!.rotation.z).toBeLessThan(0);
+  });
+
   it('on the map, fades the attacker in over the voyage and out as the account ends', async () => {
     const v = fleet(1, 1);
     const scene = new ReplayScene(

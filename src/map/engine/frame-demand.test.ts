@@ -317,6 +317,17 @@ describe('a combat on the map is declared to the loop (#272)', () => {
   });
 });
 
+describe('a replay opened with the map motion cut (#483)', () => {
+  it('holds the wreck, as the combats on the map do: the sea is not left empty', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+    const advance = source.slice(source.indexOf('  private advanceReplay('));
+    expect(advance.slice(0, advance.indexOf('\n  }\n'))).toMatch(
+      /replay\.scene\.final = this\.ambience\.motion === 'off';\s+replay\.scene\.show\(/,
+    );
+  });
+});
+
 describe('a dismantling is declared to the loop (#340)', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');

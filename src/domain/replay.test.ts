@@ -211,20 +211,42 @@ describe('a hull going down', () => {
     theirs: { troops: 1, lost: 0, routed: 0, destroyed: 1 },
   });
 
-  it('sinks from the rout to the end of the account, whichever side the shots felled', () => {
-    for (const side of ['attacker', 'defender'] as const) {
-      const v = sunk(side);
-      expect(sinkOf(replayAt(v, stepBounds('riposte').end - 1), false)).toBe(0);
-      expect(sinkOf(replayAt(v, stepBounds('deroute').end), false)).toBeGreaterThan(0);
-      expect(sinkOf(replayAt(v, stepBounds('compte-rendu').start + 1600), false)).toBe(1);
-      expect(sinkOf(replayAt(v, REPLAY_MS), false)).toBe(1);
+  /** The first fallen piece of the side the shots felled, for its `fellAt`. */
+  const fellAtOf = (v: ReplayView, side: 'mine' | 'theirs') =>
+    replayAt(v, REPLAY_MS).pieces.find((p) => p.side === side && p.fate === 'fallen')!.fellAt!;
+
+  it('anchors the sinking on the end of the fall plus a second, in the account, for both sides', () => {
+    // The attacker's hull falls at the riposte, the defender's at the strike.
+    for (const [side, fall] of [
+      ['attacker', 'riposte'],
+      ['defender', 'frappe'],
+    ] as const) {
+      const v = sunk('attacker');
+      const hull = side === 'attacker' ? 'mine' : 'theirs';
+      const fell = fellAtOf(v, hull);
+      expect(fell).toBe(stepBounds(fall).end);
+      const at = (t: number) => sinkOf(replayAt(v, t), fell, false);
+      expect(at(fell + 999)).toBe(0);
+      expect(at(fell + 1500)).toBeGreaterThan(0);
+      expect(at(stepBounds('compte-rendu').start + 1600)).toBe(1);
+      expect(at(REPLAY_MS)).toBe(1);
     }
+  });
+
+  it('a defender hull sinks a second after its strike fall, not waiting for the rout', () => {
+    const v = sunk('attacker');
+    // `theirs` is the defender, struck in the strike.
+    const fell = fellAtOf(v, 'theirs');
+    expect(fell).toBe(stepBounds('frappe').end);
+    expect(sinkOf(replayAt(v, fell + 1200), fell, false)).toBeGreaterThan(0);
+    expect(fell + 1000).toBeLessThan(stepBounds('deroute').start);
   });
 
   it('at reduced motion plays the frozen steps and sinks all at once at the account', () => {
     const v = sunk('attacker');
+    const fell = fellAtOf(v, 'mine');
     for (const step of ['frappe', 'riposte', 'deroute'] as const)
-      expect(sinkOf(replayAt(v, stepBounds(step).start, 'reduced'), true)).toBe(0);
-    expect(sinkOf(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), true)).toBe(1);
+      expect(sinkOf(replayAt(v, stepBounds(step).start, 'reduced'), fell, true)).toBe(0);
+    expect(sinkOf(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), fell, true)).toBe(1);
   });
 });

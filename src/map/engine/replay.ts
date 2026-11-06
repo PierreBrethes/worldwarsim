@@ -292,9 +292,9 @@ export const FLASH_MS = 160;
 const TUBE_LAG_MS = 70;
 const SEA_FLASH = 0.09;
 const SEA_SMOKE = 3;
-/** **Le coulé** (`hullPose`) s'enfonce de 0,6 de sa hauteur, et ne s'efface que sur la seconde
- *  moitié de sa coulée. `@a-mesurer` */
+/** **Le coulé** (`hullPose`) s'enfonce de 0,6 de sa hauteur. `@a-mesurer` */
 const SINK_DEPTH = 0.6;
+/** @a-mesurer — il ne s'efface que sur la seconde moitié de sa coulée : la coque se lit gîtée avant de disparaître */
 const FADE_FROM = 0.5;
 /** **Sur la carte, l'attaquant en mer** (#324) : il paraît au fil du voyage et s'efface sur les
  *  dernières 600 ms du compte-rendu, où son pion de retour le reprend. `@a-mesurer` */
@@ -769,7 +769,9 @@ export class ReplayScene {
       // the account (`hullPose`). The final pose keeps the wreck: heeled and down by the stern,
       // afloat, never faded.
       const hull =
-        this.sea && state.fate === 'fallen' ? hullPose(fall, ease(sinkOf(frame, still))) : null;
+        this.sea && state.fate === 'fallen'
+          ? hullPose(fall, ease(sinkOf(frame, state.fellAt ?? 0, still)))
+          : null;
       const sink = hull === null || this.final ? 0 : hull.depth;
       pivot.position.y = -SINK_DEPTH * piece.height * sink;
       if (piece.burns) {
