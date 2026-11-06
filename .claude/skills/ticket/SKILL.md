@@ -20,6 +20,10 @@ Une issue tirée d'un storyboard ou d'une maquette en reprend chaque ligne de mo
 coupées, Blitz, adversaire, nuit) telle que la source l'écrit, avec le fichier ; ce que la source
 tait reste hors de l'issue (06/11 : des gerbes d'accostage inventées, des feux allumés en
 réduites).
+Une tranche qui promet « rien ne change à l'écran » ne demande rien que l'écran lise avant la
+tranche qui joue : suis le geste du joueur à travers chaque tâche (06/11 : #480 élargissait
+`boardsUnderTheEyes`, et la pièce lâchée repartait sans geste ; #504 attendait une séquence
+absente, et l'étiquette mentait 2 s).
 Fini quand chaque affirmation du Pourquoi est vérifiée dans le code ou la source.
 
 ## 2. Écrire le corps
