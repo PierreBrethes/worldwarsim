@@ -125,6 +125,9 @@ import {
   inFormationOrder,
   landingOrder,
   launchLead,
+  retourLead,
+  craneSequence,
+  alongside,
   playable,
   THREAD_GAP_M,
   type Doors,
@@ -3606,6 +3609,9 @@ export class MapEngine {
     let longest = 0;
     const hangars = new Map<number, Array<Parameters<typeof doorsOf>[0][number]>>();
     const slips: Array<Parameters<typeof slipSequence>[0][number]> = [];
+    // The hulls docked before this one, and the crane's visit to the hull that touches the mole.
+    const docked: Array<{ ms: number }> = [];
+    let crane: Sequence<'port'> | null = null;
     let turn = 0;
     for (const { id, role, place, drawn } of parts) {
       const spot = spots.get(id)!;
@@ -3620,6 +3626,8 @@ export class MapEngine {
       // What the site plays for this piece, once it plays.
       let door: [number, Parameters<typeof doorsOf>[0][number]] | null = null;
       let slip: Parameters<typeof slipSequence>[0][number] | null = null;
+      let visit: Sequence<'port'> | null = null;
+      let dock: { ms: number } | null = null;
       if (airfield && isAirRole(role)) {
         const out = cue.kind === 'formation' ? formation(role, spot, length / 2) : null;
         const down = out === null ? landing(role, spot) : null;
@@ -3641,8 +3649,9 @@ export class MapEngine {
         if (out !== null) door = [laneOf(spot.x), { lead, doors: out.doors, closing: out.closing }];
       } else if (!airfield && isSeaRole(role)) {
         const beam = HULL_BEAM_SHARE * length;
-        // Hulls formed together are launched one after the other: the next when the last is moored.
-        const lead = cue.kind === 'formation' ? launchLead(slips) : 0;
+        // Hulls formed together are launched, and hulls come home docked, one after the other: the
+        // next when the last is moored.
+        const lead = cue.kind === 'formation' ? launchLead(slips) : retourLead(docked);
         const launched =
           cue.kind === 'formation' ? launch(role, beam, KEEL_SHARE * length, spot) : null;
         const track = launched ?? docking(role, beam, spot);
@@ -3651,6 +3660,20 @@ export class MapEngine {
           lead,
         );
         if (launched !== null) slip = { lead, ...launched };
+        else dock = { ms: track.ms };
+        // The crane comes when the hull touches the mole: its loop goes on till then, from the
+        // phase it stood at when the order was given.
+        const phase = this.loops.phaseOf(cue.siteId);
+        visit = craneSequence(
+          {
+            post: this.standing.postOf(id),
+            role,
+            length: (this.standing.lengthOf(id) ?? length * metreOf(site)) / metreOf(site),
+            ...spot,
+          },
+          lead + track.ms,
+          phase === null ? null : phase - (now - since) / 1000,
+        );
       }
       if (sequence === null) continue;
       // Past `MAX_PLAYING` it stands at its place, and the doors, the slip and the turns of the
@@ -3664,9 +3687,13 @@ export class MapEngine {
       turn++;
       if (door !== null) hangars.set(door[0], [...(hangars.get(door[0]) ?? []), door[1]]);
       if (slip !== null) slips.push(slip);
+      if (dock !== null) docked.push(dock);
+      crane ??= visit;
     }
-    if (slips.length > 0)
-      this.sequences.play(this.maquettes, cue.siteId, slipSequence(slips), since, now);
+    const slipping = slips.length > 0 ? slipSequence(slips) : null;
+    const working =
+      slipping === null ? crane : crane === null ? slipping : alongside(slipping, crane);
+    if (working !== null) this.sequences.play(this.maquettes, cue.siteId, working, since, now);
     else if (airfield && longest > 0) {
       const doors = [...hangars].map(([lane, planes]) => ({ lane, open: doorsOf(planes) }));
       this.lightUp(cue.siteId, since, now, since + longest, doors);

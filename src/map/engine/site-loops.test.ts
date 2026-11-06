@@ -12,7 +12,8 @@ import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { RIG_PARTS } from '@/emblems/rigs';
 import { castShadows } from './lamp';
 import { SequenceLayer, type Sequence } from './sequences';
-import { LIVE_PX, loopOf, type LoopHost, SiteLoopLayer } from './site-loops';
+import { craneRigOf, LIVE_PX, loopOf, type LoopHost, SiteLoopLayer } from './site-loops';
+import { PORT_CRANE } from './timelines/at-rest';
 import { bakedRig } from './baking';
 import { movesOnItsOwn } from './figurines/figurine';
 import { sceneOfFile } from './gltf-scene.fixture';
@@ -217,6 +218,61 @@ describe('the sites at rest (#273)', () => {
     loops.frame(0.1, 'full');
     await flush();
     expect(host.copies.size).toBe(0);
+  });
+});
+
+describe('a loop starts again at its phase 0 when a sequence gives the site back (#477)', () => {
+  it('counts the loop from the end of the sequence, not from the clock', async () => {
+    const { host, loops, sequences } = setup();
+    host.sites = [site('a', 5)];
+    loops.frame(0, 'full');
+    await flush();
+    const door: Sequence<'mine'> = { family: 'mine', ms: 1000, at: () => ({}) };
+    sequences.play(host, 'a', door, 0);
+    await flush();
+    loops.frame(0.5, 'full');
+    sequences.step(1000);
+    expect(sequences.endedAt(host, 'a')).toBe(1000);
+    // At its end the wheel stands where the loop rests, whatever the clock said.
+    loops.frame(1.0, 'full');
+    await flush();
+    expect(wheel(host.copies.get('a')!)).toBeCloseTo(0, 9);
+    loops.frame(3.0, 'full');
+    // Two seconds into its own loop, as a site that never played would be at 2.
+    const fresh = setup();
+    fresh.host.sites = [site('a', 5)];
+    fresh.loops.frame(2.0, 'full');
+    await flush();
+    expect(wheel(host.copies.get('a')!)).toBeCloseTo(wheel(fresh.host.copies.get('a')!), 9);
+  });
+
+  it('says its phase to a sequence that goes on with it, null for a site that does not live', async () => {
+    const { host, loops } = setup();
+    host.sites = [site('a', 5)];
+    expect(loops.phaseOf('a')).toBeNull();
+    loops.frame(2.5, 'full');
+    await flush();
+    loops.frame(2.5, 'full');
+    expect(loops.phaseOf('a')).toBe(2.5);
+  });
+});
+
+describe('the crane read off its file (#477)', () => {
+  it('is the rig `PORT_CRANE` holds, and its ring where the port stands it', () => {
+    const url = buildingMaquette('port', null)!;
+    const rig = bakedRig(
+      sceneOfFile(url),
+      (node) => isRigPart('port', node.name) || movesOnItsOwn(node),
+    );
+    const { rig: read, ring } = craneRigOf(rig);
+    expect(read.foot[0]).toBeCloseTo(PORT_CRANE.rig.foot[0], 6);
+    expect(read.foot[1]).toBeCloseTo(PORT_CRANE.rig.foot[1], 6);
+    expect(read.head[0]).toBeCloseTo(PORT_CRANE.rig.head[0], 6);
+    expect(read.head[1]).toBeCloseTo(PORT_CRANE.rig.head[1], 6);
+    expect(read.cable).toBeCloseTo(PORT_CRANE.rig.cable, 6);
+    expect(read.height).toBeCloseTo(PORT_CRANE.rig.height, 6);
+    expect(ring.x).toBeCloseTo(PORT_CRANE.ring.x, 6);
+    expect(ring.z).toBeCloseTo(PORT_CRANE.ring.z, 6);
   });
 });
 

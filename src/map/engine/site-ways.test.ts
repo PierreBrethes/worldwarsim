@@ -27,12 +27,16 @@ import {
   moors,
   playable,
   restAt,
+  retourLead,
+  craneSequence,
   slipSequence,
+  alongside,
   UNDOCK_STAGGER_MS,
   undockLead,
 } from './site-ways';
 import { FIL_STRETCH_MS, formation, landing, parkingZ, takeoff } from './timelines/airfield';
 import { launch } from './timelines/port';
+import { craneAt, craneParts, craneVisit, PORT_CRANE, craneToward } from './timelines/at-rest';
 
 const still: Sequence = { ms: 1000, at: () => ({ root: { travel: [1, 0, 0] } }) };
 
@@ -392,5 +396,76 @@ describe('the hull at the side hauled up to the mole (#487)', () => {
     const [x] = way.at(way.ms).root!.travel!;
     expect(x).toBeCloseTo(0, 6);
     expect(way.ms).toBeGreaterThan(HAUL_LEAD_MS);
+  });
+});
+
+describe('hulls that come home together dock one after the other (#477)', () => {
+  it('waits for the hulls docked before, as a launch does', () => {
+    expect(retourLead([])).toBe(0);
+    expect(retourLead([{ ms: 10900 }, { ms: 9000 }])).toBe(19900);
+    expect(retourLead([{ ms: 15000 }])).toBe(launchLead([{ ms: 15000 }]));
+  });
+});
+
+describe('the crane comes to the hull that touches the mole (#477)', () => {
+  const { rig, ring } = PORT_CRANE;
+  const cargo = { post: 'mole', role: 'cargo', length: 110, yaw: Math.PI } as const;
+  /** Where a cargo's middle rests at the mole: its stem 3 m off the quay. */
+  const mole = { x: 60.5, z: 105 + 3 + 55 };
+  const touch = 11000;
+  const sequence = (
+    hull: Parameters<typeof craneSequence>[0] = { ...cargo, ...mole },
+    loop0 = 13,
+  ) => craneSequence(hull, touch, loop0)!;
+  /** A pose as plain numbers, to 6 digits: the hull's yaw of π leaves a sine's dust. */
+  const plain = (pose: unknown) =>
+    JSON.parse(
+      JSON.stringify(pose, (_, v) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 || 0 : v)),
+    );
+  const parts = (state: ReturnType<typeof craneAt>) => plain(craneParts(rig, state));
+  const posed = (seq: Sequence, t: number) => plain(seq.at(t));
+
+  it('plays for the hull at the mole, and for no other: at its side, in the roads, or none', () => {
+    expect(sequence()).not.toBeNull();
+    for (const post of ['couple', 'roads', null] as const)
+      expect(craneSequence({ ...cargo, ...mole, post }, touch, 13)).toBeNull();
+  });
+
+  it('keeps its loop out of reach of a hull the jib cannot serve', () => {
+    expect(craneSequence({ ...cargo, ...mole, x: 20 }, touch, 13)).toBeNull();
+  });
+
+  it('goes on with the loop until the hull touches, with no leap where it takes over', () => {
+    const seq = sequence();
+    expect(posed(seq, 0)).toEqual(parts(craneAt(13, rig)));
+    expect(posed(seq, 4000)).toEqual(parts(craneAt(17, rig)));
+    expect(posed(seq, touch)).toEqual(parts(craneAt(13 + touch / 1000, rig)));
+  });
+
+  it("comes over the stem the hook is 6 m abaft, and ends at the loop's rest", () => {
+    const seq = sequence();
+    const deck = { x: mole.x + 0 - ring.x, z: mole.z - 55 + 6 - ring.z };
+    const to = craneToward(rig, deck)!;
+    const visit = craneVisit(rig, craneAt(13 + touch / 1000, rig), to, 1);
+    expect(seq.ms).toBeCloseTo(touch + visit.ms, 6);
+    expect(posed(seq, touch + 3900)).toEqual(parts(visit.at(3900)));
+    expect(posed(seq, seq.ms)).toEqual(parts(craneAt(0, rig)));
+    expect(seq.pool).toBe('site');
+    expect(seq.family).toBe('port');
+  });
+
+  it('stands at rest until the touch when the loop did not live there', () => {
+    const seq = craneSequence({ ...cargo, ...mole }, touch, null)!;
+    expect(posed(seq, 5000)).toEqual(parts(craneAt(0, rig)));
+    expect(posed(seq, touch)).toEqual(parts(craneAt(0, rig)));
+  });
+
+  it('plays with the slip of a launch, each its own parts', () => {
+    const first = launch('cargo', 15, 3, { x: 10, z: 175, yaw: Math.PI });
+    const slip = slipSequence([{ lead: 0, ...first }]);
+    const both = alongside(slip, sequence());
+    expect(both.ms).toBe(Math.max(slip.ms, sequence().ms));
+    const pose = both.at(2000);
+    expect(Object.keys(pose)).toEqual(expect.arrayContaining(['coque_cale', 'accore_1', 'cable']));
   });
 });

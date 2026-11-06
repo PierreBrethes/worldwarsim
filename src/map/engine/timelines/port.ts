@@ -19,7 +19,7 @@ export type HullTrack = { readonly ms: number; at(t: number): Hull };
 export type SeaRole = 'cargo' | 'escort' | 'carrier';
 
 /** The manoeuvres stretch by hull: the escort brisk, the carrier heavy (23/10). */
-const PACE: Readonly<Record<SeaRole, number>> = { cargo: 1, escort: 0.85, carrier: 1.25 };
+export const PACE: Readonly<Record<SeaRole, number>> = { cargo: 1, escort: 0.85, carrier: 1.25 };
 const DEG = Math.PI / 180;
 /** The mole's head, where the basin opens. */
 const MUSOIR = MOLE.quay + MOLE.length + MOLE.head;

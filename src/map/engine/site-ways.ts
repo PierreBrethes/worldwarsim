@@ -12,7 +12,15 @@ import {
   type Spot,
   type Track,
 } from './timelines/airfield';
-import { type Berth, hauling, type HullTrack, type SeaRole } from './timelines/port';
+import {
+  craneAt,
+  craneParts,
+  craneToward,
+  craneVisit,
+  HOOK_ABAFT_STEM,
+  PORT_CRANE,
+} from './timelines/at-rest';
+import { type Berth, hauling, type HullTrack, PACE, type SeaRole } from './timelines/port';
 import type { HullPost, Rest } from './timelines/rest';
 import { troopMetres } from '@/domain/piece-size';
 import { ease, span } from './timelines/curves';
@@ -358,6 +366,55 @@ export const formationLead = (turn: number): number => turn * FORMATION_STAGGER_
 /** **When a hull is launched**: when the ones launched before it are moored (#487). */
 export const launchLead = (before: ReadonlyArray<{ readonly ms: number }>): number =>
   before.reduce((sum, each) => sum + each.ms, 0);
+
+/** **When a hull that comes home docks**: when the hulls docked before it are moored (#477), as
+ *  for a launch. */
+export const retourLead = (before: ReadonlyArray<{ readonly ms: number }>): number =>
+  launchLead(before);
+
+/**
+ * **The crane's visit to the hull that touches the mole** (#477): the crane goes on with its loop
+ * `loop0` seconds in (`null`: it stood at rest) until the hull touches, `touch` ms after the
+ * sequence starts, then its jib comes over the hull's fore deck, the hook goes down, and it goes
+ * back to its rest, where its loop starts again at its phase 0. `null` for a hull that is not at
+ * the mole, or whose fore deck the jib cannot reach: the crane keeps its loop.
+ */
+export function craneSequence(
+  hull: {
+    readonly post: HullPost | null;
+    readonly role: SeaRole;
+    readonly length: number;
+    readonly x: number;
+    readonly z: number;
+    readonly yaw: number;
+  },
+  touch: number,
+  loop0: number | null,
+): Sequence<'port'> | null {
+  if (hull.post !== 'mole') return null;
+  const { rig, ring } = PORT_CRANE;
+  const abaft = hull.length / 2 - HOOK_ABAFT_STEM;
+  const to = craneToward(rig, {
+    x: hull.x + abaft * Math.sin(hull.yaw) - ring.x,
+    z: hull.z + abaft * Math.cos(hull.yaw) - ring.z,
+  });
+  if (to === null) return null;
+  const loop = (ms: number) => (loop0 === null ? craneAt(0, rig) : craneAt(loop0 + ms / 1000, rig));
+  const visit = craneVisit(rig, loop(touch), to, PACE[hull.role]);
+  return {
+    family: 'port',
+    pool: 'site',
+    ms: touch + visit.ms,
+    minPx: WALK_MIN_PX,
+    at: (t) => craneParts(rig, t < touch ? loop(t) : visit.at(t - touch)) as Pose<'port'>,
+  };
+}
+
+/** **Two sequences of one site played as one** (a site plays one at a time): the parts of each
+ *  move as it says, until the longer is done. */
+export function alongside<F extends RigFamily>(a: Sequence<F>, b: Sequence<F>): Sequence<F> {
+  return { ...a, ms: Math.max(a.ms, b.ms), at: (t) => ({ ...a.at(t), ...b.at(t) }) };
+}
 
 /** The order hulls put to sea in: the roads first, the side next, the mole last. */
 const SAILS: Readonly<Record<HullPost, number>> = { roads: 0, couple: 1, mole: 2 };

@@ -56,6 +56,8 @@ export type PartPose = {
   /** A man only: his crate lies on the ground at `at` (board units from his rest, like
    *  `travel`), shown so much, until he takes it up (`carry`). */
   readonly lying?: { readonly at: Vec3; readonly shown: number };
+  /** A part only: its y lengthened this many times, about its own origin (the crane's cable). */
+  readonly stretch?: number;
   /** A marker (`fx_*`) only: a motor's breath (`EXHAUST`) there, at this many seconds and this
    *  share of its strength. */
   readonly exhaust?: readonly [seconds: number, fade: number];
@@ -217,7 +219,11 @@ export type Cue =
 const ceilingOf = (pool: Sequence['pool']): number =>
   pool === 'deployment' ? MAX_DEPLOYING : pool === 'site' ? Infinity : MAX_PLAYING;
 
-type Rest = { readonly position: Vector3; readonly quaternion: Quaternion };
+type Rest = {
+  readonly position: Vector3;
+  readonly quaternion: Quaternion;
+  readonly scale: Vector3;
+};
 
 const cooked = new Map<string, Promise<Group>>();
 /** Cuite une fois par fichier, au premier signal ; les copies en partagent géométries et matériaux. */
@@ -306,6 +312,9 @@ export class SequenceLayer {
    *  finit les séquences en cours à la prochaine image. */
   motion: MapMotion = 'full';
   private readonly playing: Playing[] = [];
+  /** When the last sequence on each piece ended, on the clock `step` is given (ms). */
+  private readonly ended = new WeakMap<SequenceHost, Map<string, number>>();
+  private clock = 0;
 
   constructor(
     /** Ce que voit l'œil cette image : la boîte coupe le champ, et fait au moins `px`. */
@@ -384,6 +393,7 @@ export class SequenceLayer {
         playing.rests.set(node, {
           position: node.position.clone(),
           quaternion: node.quaternion.clone(),
+          scale: node.scale.clone(),
         }),
     );
     const copy = new Group().add(posed);
@@ -395,6 +405,7 @@ export class SequenceLayer {
   /** Pose chaque copie à son `t` ; finit ce qui est au bout, parti, hors de vue ou hors de
    *  `full`. La boucle l'appelle à chaque image dessinée. */
   step(now: number): void {
+    this.clock = now;
     for (const playing of [...this.playing]) {
       const t = now - playing.start;
       const piece = playing.host.pieceOf(playing.id);
@@ -419,6 +430,13 @@ export class SequenceLayer {
     if (playing === undefined) return false;
     playing.sequence = sequence as Sequence;
     return true;
+  }
+
+  /** **When the last sequence on the piece `id` of `host` ended** (ms, the clock of `step`): what
+   *  a loop that starts again at its phase 0 counts from. `undefined` for a piece that never
+   *  played. */
+  endedAt(host: SequenceHost, id: string): number | undefined {
+    return this.ended.get(host)?.get(id);
   }
 
   /** Whether the piece `id` of `host` plays a sequence now. */
@@ -460,6 +478,10 @@ export class SequenceLayer {
   private finish(playing: Playing): void {
     if (playing.over) return;
     playing.over = true;
+    this.ended.set(
+      playing.host,
+      (this.ended.get(playing.host) ?? new Map()).set(playing.id, this.clock),
+    );
     this.playing.splice(this.playing.indexOf(playing), 1);
     if (playing.copy !== null) playing.host.standIn(playing.id, null);
     for (const { material } of playing.faded.values()) material.dispose();
@@ -478,6 +500,8 @@ export class SequenceLayer {
         node.quaternion.copy(rest.quaternion);
         if (own?.shift) node.position.add(new Vector3(...own.shift));
         if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+        if (own?.stretch !== undefined)
+          node.scale.set(rest.scale.x, rest.scale.y * own.stretch, rest.scale.z);
         if (own?.travel || own?.heading !== undefined) onTheBoard(node, rest, own);
         if (own?.stride !== undefined) stride(node, own.stride);
         else if (own?.hop !== undefined) hop(node, own.hop);
