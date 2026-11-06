@@ -1,6 +1,7 @@
 import { distanceKm, samePoint, type LonLat } from '@/domain/geo';
 import { disbandRadiusKm, disbandSpanKm } from '@/domain/movement-orders';
 import type { BuildingKey, UnitRole } from '@/domain/ids';
+import type { TroopStation } from '@/domain/player-view';
 import { raidLoots } from '@/domain/loot';
 import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
@@ -130,6 +131,50 @@ export function monteesOf(
       const riders = troopIds.flatMap((troop) => boarded.get(troop) ?? []);
       return isCarrier(role) && riders.length > 0
         ? [{ truck: `${id}/${k}`, carrier: role, riders }]
+        : [];
+    }),
+  );
+}
+
+/** **Une coque où des pièces viennent d'embarquer** (#504) : son groupe (`hull`), son troupe, la
+ *  terre qui la tient (`quay` : un port ; `beach` : devant une plage, #510) et chaque passager
+ *  neuf, hommes et véhicules. */
+export type Embarquement = {
+  readonly hull: string;
+  readonly carrierId: string;
+  readonly ground: 'quay' | 'beach';
+  readonly riders: ReadonlyArray<string>;
+};
+
+const groundOf = (station: TroopStation): Embarquement['ground'] | null =>
+  station.kind === 'building'
+    ? 'quay'
+    : station.kind === 'point' && station.coastal
+      ? 'beach'
+      : null;
+
+/**
+ * **Les coques où des pièces viennent d'embarquer** (#504) : un cargo ou un porte-avions d'une
+ * pile posée, à quai ou devant une plage, dont un passager n'était pas à bord à la vue d'avant.
+ * Une coque au large ailleurs, un camion, un avion n'en donnent pas : la pose finale.
+ */
+export function embarquementsOf(
+  aboard: ReadonlyMap<string, string>,
+  troops: ReadonlyArray<Seated & { readonly stationedAt: TroopStation }>,
+  piles: ReadonlyArray<StandingPile>,
+): ReadonlyArray<Embarquement> {
+  const boarded = new Map<string, string[]>();
+  for (const troop of troops)
+    if (troop.carriedBy && aboard.get(troop.id) !== troop.carriedBy)
+      boarded.set(troop.carriedBy, [...(boarded.get(troop.carriedBy) ?? []), troop.id]);
+  const stations = new Map(troops.map((troop) => [troop.id, troop.stationedAt]));
+  return piles.flatMap(({ id, pieces }) =>
+    pieces.groups.flatMap(({ role, troopIds }, k) => {
+      const carrierId = troopIds.find((troop) => boarded.has(troop));
+      const station = carrierId === undefined ? undefined : stations.get(carrierId);
+      const ground = station === undefined ? null : groundOf(station);
+      return (role === 'cargo' || role === 'carrier') && carrierId !== undefined && ground !== null
+        ? [{ hull: `${id}/${k}`, carrierId, ground, riders: boarded.get(carrierId)! }]
         : [];
     }),
   );

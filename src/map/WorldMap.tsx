@@ -13,7 +13,7 @@ import type { Contact } from '@/domain/contacts';
 import { nationInk } from '@/domain/nations';
 import { ContactMarks } from './ContactMarks';
 import { ClusterSheet } from './ClusterSheet';
-import type { TourAct } from '@/domain/cargo-tag';
+import { heldLabels, type TourAct } from '@/domain/cargo-tag';
 import {
   useCallback,
   useEffect,
@@ -64,6 +64,7 @@ import {
   chargementsOf,
   descentesOf,
   dispersionsOf,
+  embarquementsOf,
   entreesOf,
   departuresOf,
   formationsOf,
@@ -607,7 +608,16 @@ export function WorldMap({
   // **Une liste rebâtie mais égale reste la même** (#199) : marquer le journal lu change la vue du
   // joueur, le plateau rebâtit piles, camps, sélection et étiquettes à l'identique, et chaque effet
   // qui les lit réveillait la carte une seconde et demie à soixante images.
-  const labels = useShared(servedLabels);
+  const keptLabels = useShared(servedLabels);
+  /** **A hull's tag fills as its boarding feeds it** (#504): per carrier, the riders it has not
+   *  been fed yet. Without a sequence the engine feeds them all at once. */
+  const [heldBackRiders, setHeldBack] = useState<ReadonlyMap<string, ReadonlySet<string>>>(
+    new Map(),
+  );
+  const labels = useMemo(
+    () => heldLabels(keptLabels, heldBackRiders),
+    [keptLabels, heldBackRiders],
+  );
   const standing = useShared(useRankKept(servedStanding));
   const camps = useShared(servedCamps);
   const pins = useShared(servedPins);
@@ -1938,6 +1948,42 @@ export function WorldMap({
       readyEngine.cue({ kind: 'combat', ...combat });
     }
   }, [combats, readyEngine, stopTour]);
+
+  // Pieces board a hull at its quay (#504): its tag keeps the old count until the engine feeds it.
+  const hullsKnown = useRef<ReadonlyMap<string, string> | null>(null);
+  useLayoutEffect(() => {
+    const known = hullsKnown.current;
+    hullsKnown.current = aboardOf(troops);
+    if (known === null || readyEngine === null || blitz !== null) return;
+    const boardings = embarquementsOf(known, troops, standing);
+    if (boardings.length === 0) return;
+    setHeldBack((before) => {
+      const next = new Map(before);
+      for (const { carrierId, riders } of boardings)
+        next.set(carrierId, new Set([...(next.get(carrierId) ?? []), ...riders]));
+      return next;
+    });
+    for (const boarding of boardings) readyEngine.cue({ kind: 'embarquement', ...boarding });
+  }, [troops, standing, readyEngine, blitz]);
+  useEffect(() => {
+    if (readyEngine === null) return;
+    readyEngine.watchBoarded((carrierId, riders) =>
+      setHeldBack((before) => {
+        const left = new Set(before.get(carrierId));
+        for (const rider of riders) left.delete(rider);
+        if (left.size === before.get(carrierId)?.size) return before;
+        const next = new Map(before);
+        if (left.size === 0) next.delete(carrierId);
+        else next.set(carrierId, left);
+        return next;
+      }),
+    );
+    return () => readyEngine.watchBoarded(undefined);
+  }, [readyEngine]);
+  // The tags are placed from the labels: a filling one asks for its frames (CLAUDE.md, carte à la demande).
+  useEffect(() => {
+    readyEngine?.invalidate();
+  }, [readyEngine, heldBackRiders]);
 
   // A troop steps down from a truck: its tailgate falls (ADR 0036). Nothing on the first view.
   const aboardKnown = useRef<ReadonlyMap<string, string> | null>(null);

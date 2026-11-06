@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from './ids';
-import { cargoTagsOf, carriersFor } from './cargo-tag';
+import { cargoTagsOf, carriersFor, heldBack, heldLabels } from './cargo-tag';
 
 const troop = (id: string, role: UnitRole, carriedBy?: string) => ({
   id,
@@ -127,5 +127,42 @@ describe('carriersFor', () => {
     expect(
       carriersFor([troop('i1', 'infantry')], [troop('p1', 'airTransport')]).map(({ id }) => id),
     ).toEqual(['p1']);
+  });
+});
+
+describe('heldBack (#504)', () => {
+  const pile = [
+    troop('h', 'cargo'),
+    troop('i1', 'infantry', 'h'),
+    troop('i2', 'infantry', 'h'),
+    troop('a1', 'armor', 'h'),
+  ];
+  const [tag] = cargoTagsOf(pile, ashore);
+
+  it('keeps the riders the sequence has not fed yet off the tag, and their seats with them', () => {
+    const held = heldBack(tag!, new Set(['i2', 'a1']));
+    expect(held.riders.map((rider) => rider.id)).toEqual(['i1']);
+    expect(held.used).toBe(held.riders.reduce((sum, rider) => sum + rider.seats, 0));
+    expect(held.used).toBeLessThan(tag!.used);
+  });
+
+  it('is the tag itself when nothing is held', () => {
+    expect(heldBack(tag!, undefined)).toBe(tag);
+    expect(heldBack(tag!, new Set(['other']))).toBe(tag);
+  });
+});
+
+describe('heldLabels (#504)', () => {
+  const [tag] = cargoTagsOf([troop('h', 'cargo'), troop('i1', 'infantry', 'h')], ashore);
+  const labels = [{ id: 'a', cargo: [tag!] }, { id: 'b' }];
+
+  it('holds the riders back on the label of their carrier, and leaves the others as they are', () => {
+    const held = heldLabels(labels, new Map([['h', new Set(['i1'])]]));
+    expect(held[0]!.cargo![0]!.riders).toEqual([]);
+    expect(held[1]).toBe(labels[1]);
+  });
+
+  it('is the same list when nothing is held', () => {
+    expect(heldLabels(labels, new Map())).toBe(labels);
   });
 });

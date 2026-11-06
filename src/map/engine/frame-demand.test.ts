@@ -170,6 +170,8 @@ describe('FrameDemand', () => {
 describe('every public method of the engine asks for a frame', () => {
   const READ_ONLY: ReadonlySet<string> = new Set([
     'invalidate',
+    /** Only a listener: the cue that fills the tag asked for its frames. */
+    'watchBoarded',
     'pieceRect',
     'ownsPile',
     'screenOf',
@@ -365,6 +367,24 @@ describe('a dismantling is declared to the loop (#340)', () => {
     const erase = source.slice(source.indexOf('  eraseReach('));
     expect(erase.slice(0, erase.indexOf('\n  }\n'))).toMatch(
       /this\.invalidate\(\);[\s\S]*this\.ink\.eraseReach/,
+    );
+  });
+});
+
+describe('a hull boarding is answered once, played or not (#504)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('feeds the tag at once, or queues one boarding per hull for the frame that stands it', () => {
+    const board = source.slice(source.indexOf("      case 'embarquement':"));
+    expect(board.slice(0, board.indexOf("      case 'dispersion':"))).toMatch(
+      /embarkingOf\([\s\S]*pending: this\.embarkments\.has\(hull\)[\s\S]*this\.onBoarded\?\.\([\s\S]*this\.embarkments\.set\(hull/,
+    );
+  });
+
+  it('feeds a hull that never stood within the wait, and clears it', () => {
+    expect(source).toMatch(
+      /this\.embarkOf\(hull, embarkment\)\)[\s\S]*SORTIE_WAIT_MS[\s\S]*this\.onBoarded\?\.\([\s\S]*this\.embarkments\.delete\(hull\)/,
     );
   });
 });

@@ -185,6 +185,16 @@ export type Cue =
         readonly figures: ReadonlyArray<UnitTier>;
       }>;
     }
+  /** **Men and vehicles board a hull** (#504): `hull` is its group, `carrierId` its troop, and
+   *  each rider is named by its troop. The engine answers every one by feeding its riders to the
+   *  tag (`watchBoarded`), played or not. */
+  | {
+      readonly kind: 'embarquement';
+      readonly hull: string;
+      readonly carrierId: string;
+      readonly ground: 'quay' | 'beach';
+      readonly riders: ReadonlyArray<string>;
+    }
   /** **A squad disbanded at its point** (#277, U): what stays of `pileId` glides to the point,
    *  each piece set apart (`groupId`, by its `troopId`) walks from its `rank` to its place in the
    *  crown. A pile drawn `whole` (ADR 0028 §6) does not walk: rings of ink. */

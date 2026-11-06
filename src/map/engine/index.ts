@@ -110,6 +110,7 @@ import {
   parkingZ,
   takeoff,
 } from './timelines/airfield';
+import { embarkingOf } from './hull-boardings';
 import { berthOf, docking, HULL_BEAM_SHARE, launch, OFFSHORE, undocking } from './timelines/port';
 import { troopMetres } from '@/domain/piece-size';
 import type { UnitRole } from '@/domain/ids';
@@ -756,6 +757,13 @@ export class MapEngine {
     readonly since: number;
     boards?: ReadonlyArray<string>;
   }> = [];
+  /** **Men and vehicles boarding a hull** (#504), one per hull, waiting for it to stand. */
+  private readonly embarkments = new Map<
+    string,
+    { readonly cue: Extract<Cue, { kind: 'embarquement' }>; readonly since: number }
+  >();
+  /** Told which riders a hull's tag may now show (`watchBoarded`). */
+  private onBoarded: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined;
   /** **Men coming down from a truck** (#277), waiting for their pile to stand. */
   private landings: Array<{
     readonly cue: Extract<Cue, { kind: 'descente' }>;
@@ -3431,6 +3439,16 @@ export class MapEngine {
         this.standing.expect(cue.truck.slice(0, cue.truck.lastIndexOf('/')));
         this.boardings.push({ cue, since: performance.now() });
         break;
+      case 'embarquement': {
+        const hull = cue.hull;
+        const next = embarkingOf(this.sequences.motion, {
+          pending: this.embarkments.has(hull),
+          docking: this.sequences.playsOn(this.standing, hull),
+        });
+        if (next === 'now') this.onBoarded?.(cue.carrierId, cue.riders);
+        else this.embarkments.set(hull, { cue, since: performance.now() });
+        break;
+      }
       case 'dispersion':
         if (this.sequences.motion === 'off') break;
         // What stays glides to the point once the crown is laid out (`disperseOf`).
@@ -4199,6 +4217,25 @@ export class MapEngine {
   }
 
   /**
+   * **Men and vehicles board a hull** (#504): its sequences are for #479 and after, so the final
+   * pose — the hull stands with its ring of ink at reduced motion, and its tag takes every rider.
+   * Whatever the hull does not stand for within `SORTIE_WAIT_MS` is fed all the same. `false`
+   * until the hull stands.
+   */
+  private embarkOf(
+    hull: string,
+    { cue }: { readonly cue: Extract<Cue, { kind: 'embarquement' }> },
+  ): boolean {
+    const pileId = hull.slice(0, hull.lastIndexOf('/'));
+    const place = this.standing.placeOf(hull);
+    if (place === null) return false;
+    if (ringsLeft(this.sequences.motion, { veiled: this.veiled(place.at), unplayable: false }))
+      this.standing.inkArrival(pileId);
+    this.onBoarded?.(cue.carrierId, cue.riders);
+    return true;
+  }
+
+  /**
    * **Men come down from a truck under the eyes** (#277): the tailgate falls, the dark gives them
    * back one by one, they hop down, the first out going furthest, and walk to their places; the
    * tailgate shuts behind the last (`boardingOf`); with no man to come down (a squad drawn by
@@ -4830,6 +4867,14 @@ export class MapEngine {
   /** Coast and raster are both here: the squad bar can say U's refusal before the gesture (#295). */
   private onDisbandGround: ((ground: DisbandGround) => void) | undefined;
 
+  /** **The tag fills as the sequence feeds it** (#504): `callback` hears the riders of a carrier
+   *  that its boarding has now brought aboard. `undefined` withdraws. */
+  watchBoarded(
+    callback: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined,
+  ): void {
+    this.onBoarded = callback;
+  }
+
   /**
    * Whoever says U's refusal asks for the raster (Mondiale only: Blitz has no squads, and the
    * 123 Ko would be for nothing). `undefined` withdraws; the callback fires once both files are here.
@@ -5459,6 +5504,12 @@ export class MapEngine {
       for (const id of boarding.boards ?? []) this.standing.unboard(id);
       return false;
     });
+    for (const [hull, embarkment] of this.embarkments)
+      if (this.embarkOf(hull, embarkment)) this.embarkments.delete(hull);
+      else if (now - embarkment.since >= SORTIE_WAIT_MS) {
+        this.onBoarded?.(embarkment.cue.carrierId, embarkment.cue.riders);
+        this.embarkments.delete(hull);
+      }
     this.landings = this.landings.filter(
       (landing) => !this.landOf(landing, now) && now - landing.since < SORTIE_WAIT_MS,
     );
