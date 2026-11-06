@@ -18,7 +18,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
-import { AIRFIELD } from '@/emblems/kits/manifest';
+import { AIRFIELD, CRANE, MOLE } from '@/emblems/kits/manifest';
 import {
   buildingFootprint,
   buildingMetres,
@@ -1603,6 +1603,108 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
     const kept = corner.clone().applyMatrix4(hashed);
     expect(drawn.x).toBeCloseTo(kept.x, 6);
     expect(drawn.z).toBeCloseTo(kept.z, 6);
+  });
+
+  describe('in mirror when the side of its mole is blocked (#476)', () => {
+    /** The coast bends under the mole: land to the board's -z, where the east-facing port's +x is. */
+    const bent = (x: number, z: number) => x < COAST || z < 0;
+    const moleAt = (layer: MaquetteLayer, id = PORT) =>
+      layer.siteOf(id)!.toBoard(new Vector3(MOLE.x, 0, MOLE.quay + 100));
+    const second = {
+      ...port,
+      id: 'building-port@10,0',
+      at: { lonLat: [10, 0] as const },
+    };
+
+    it('lays its mole on the free side, and keeps the plain one on a straight coast', async () => {
+      const plain = await layerOf([port], () => east);
+      expect(moleAt(plain).z).toBeLessThan(0);
+      const layer = await layerOf([port], () => east, bent);
+      expect(moleAt(layer).z).toBeGreaterThan(0);
+    });
+
+    it('keeps its crane and its hulls on the mirrored side, in the water off the mole', async () => {
+      const layer = await layerOf([port], () => east, bent);
+      const site = layer.siteOf(PORT)!;
+      // The crane flips to the mole's side; the hull berthed against the mole's inner face
+      // stands in the roads of the same side, the water, not on the coast.
+      expect(site.toBoard(new Vector3(CRANE.x, 0, CRANE.z)).z).toBeGreaterThan(0);
+      const hull = site.toBoard(new Vector3(MOLE.inner - 8, 0, MOLE.quay + 40));
+      expect(bent(hull.x, hull.z)).toBe(false);
+      // Model metres out, model metres back.
+      const back = site.toModel(site.toBoard(new Vector3(12, 3, 34)));
+      expect(back.x).toBeCloseTo(12, 6);
+      expect(back.z).toBeCloseTo(34, 6);
+      // A garrison's frame (where the rests are laid) reads the same site.
+      const frame = layer.garrisonAt(PORT, troopSpan('cargo'), true)!;
+      const [a, b] = [
+        frame.toBoard(new Vector3(MOLE.x, 0, 200)),
+        site.toBoard(new Vector3(MOLE.x, 0, 200)),
+      ];
+      expect(a.distanceTo(b)).toBeLessThan(1e-9);
+    });
+
+    it('draws its geometry mirrored, its faces still outward', async () => {
+      const layer = await layerOf([port], () => east, bent);
+      const plain = await layerOf([port], () => east);
+      const bounds = (l: MaquetteLayer) => {
+        const box = new Box3();
+        for (const { geometry } of l.drawnOf(PORT)!.parts) {
+          geometry.computeBoundingBox();
+          box.union(geometry.boundingBox!);
+        }
+        return box;
+      };
+      const [m, p] = [bounds(layer), bounds(plain)];
+      expect(m.min.x).toBeCloseTo(-p.max.x, 6);
+      expect(m.max.x).toBeCloseTo(-p.min.x, 6);
+      // A reflection turns the volume the faces enclose inside out, unless the faces are turned
+      // about too: the signed volume stays the same.
+      const volume = (l: MaquetteLayer) => {
+        let sum = 0;
+        for (const { geometry } of l.drawnOf(PORT)!.parts) {
+          const at = geometry.getAttribute('position');
+          const corner = (k: number) => (geometry.index ? geometry.index.getX(k) : k);
+          const count = geometry.index ? geometry.index.count : at.count;
+          for (let k = 0; k + 2 < count; k += 3) {
+            const [a, b, c] = [0, 1, 2].map((i) =>
+              new Vector3().fromBufferAttribute(at, corner(k + i)),
+            );
+            sum += a!.dot(b!.clone().cross(c!)) / 6;
+          }
+        }
+        return sum;
+      };
+      expect(Math.abs(volume(plain))).toBeGreaterThan(1);
+      expect(volume(layer)).toBeCloseTo(volume(plain), 0);
+    });
+
+    it('never mixes a mirrored port and a plain one in a lot: each its own side', async () => {
+      // Land bends under the first port's mole only: the second stands on a straight coast.
+      const layer = await layerOf(
+        [port, second],
+        () => east,
+        (x, z) => x < COAST || (z < 0 && x < 5),
+      );
+      expect(moleAt(layer).z).toBeGreaterThan(0);
+      expect(moleAt(layer, second.id).z).toBeLessThan(0);
+    });
+
+    it('waits for the coast: with its line unknown it stays plain', async () => {
+      const layer = await layerOf([port], () => ({ seaward: [1, 0], line: null }), bent);
+      expect(moleAt(layer).z).toBeLessThan(0);
+    });
+
+    it('turns up when the coast lands: the next placement mirrors the port it already drew', async () => {
+      let line: SeaFront['line'] = null;
+      const layer = await layerOf([port], () => ({ seaward: [1, 0], line }), bent);
+      expect(moleAt(layer).z).toBeLessThan(0);
+      line = [COAST, 0.3];
+      layer.resize();
+      await vi.waitFor(() => expect(layer.isDressed(PORT)).toBe(true));
+      layer.orient(new Vector3(0, 0.5, 0.5), null, 0);
+      expect(moleAt(layer).z).toBeGreaterThan(0);
+    });
   });
 
   it('turns a socle its hashed turn wets onto the land, and leaves a dry one as it was', async () => {

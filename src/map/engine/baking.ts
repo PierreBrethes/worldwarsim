@@ -245,6 +245,13 @@ export function mergedByMaterial(meshes: ReadonlyArray<Mesh>, fromWorld: Matrix4
   });
 }
 
+/** **A part in mirror** (#476), x to -x: its faces turned about so they still face outward. */
+export function mirroredPart({ geometry, material }: Part): Part {
+  const flipped = geometry.clone().scale(-1, 1, 1);
+  reverseWinding(flipped);
+  return { geometry: flipped, material };
+}
+
 function reverseWinding(geometry: BufferGeometry): void {
   const index = geometry.index;
   if (index !== null) {

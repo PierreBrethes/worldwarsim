@@ -156,6 +156,8 @@ export type GarrisonAt = (
   scale: number;
   /** The site's metres to the board, as it is drawn now (#475): where its pieces rest. */
   toBoard(point: Vector3): Vector3;
+  /** The site is drawn in mirror (#476): a rest kept from the other side is not where it was. */
+  mirrored?: boolean;
 } | null;
 
 /**
@@ -999,6 +1001,9 @@ export class StandingLayer implements SequenceHost {
     string,
     { site: string; rest: Rest; post: HullPost | null }
   >();
+  /** **The side each site was last laid out on** (#476): when it turns over, what rested on it
+   *  is no longer where it rested, and the rests kept for its departures are dropped. */
+  private readonly mirroredSites = new Map<string, boolean>();
   /** **Where a piece rested when it left its site** (#487), for the sequence of its departure:
    *  kept `SEEN_MS`. */
   private readonly left = new Map<
@@ -1858,6 +1863,11 @@ export class StandingLayer implements SequenceHost {
       const sea = DOMAIN_BY_ROLE[members[0]!.role] === 'sea';
       const frame = this.garrisonAt(site, members[0]!.entry.span, sea);
       if (frame === null) continue;
+      const mirrored = frame.mirrored === true;
+      if (this.mirroredSites.get(site) !== undefined && this.mirroredSites.get(site) !== mirrored)
+        for (const kept of [this.lastRest, this.left])
+          for (const [troop, rest] of kept) if (rest.site === site) kept.delete(troop);
+      this.mirroredSites.set(site, mirrored);
       // Each piece is laid out at the growth it is drawn at.
       const growth = members.map(
         ({ entry }) => floorGrowth(frame.at.distanceTo(eye), entry.span) * pieceScale.size,
@@ -1898,6 +1908,8 @@ export class StandingLayer implements SequenceHost {
         posts.set(entry, [...(posts.get(entry) ?? []), post]);
       });
     }
+    for (const site of this.mirroredSites.keys())
+      if (!alive.has(site)) this.mirroredSites.delete(site);
     for (const site of this.places.keys()) if (!alive.has(site)) this.places.delete(site);
     for (const site of this.hullPosts.keys()) if (!alive.has(site)) this.hullPosts.delete(site);
     // What no longer rests is remembered where it rested, for its departure.

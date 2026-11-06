@@ -28,7 +28,8 @@ import {
   sceneOf,
 } from './figurines/figurine';
 import { washedOf } from './standing';
-import { accessoriesShown, bakedSite, onSocle, type Part } from './baking';
+import { accessoriesShown, bakedSite, mirroredPart, onSocle, type Part } from './baking';
+import { mirroredPort } from './port-side';
 import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
@@ -255,10 +256,55 @@ type Model = {
   readonly signFoot: Vector3 | null;
   /** It has a runway laid beside it (#269): its turn keeps it on land too. */
   readonly runway: boolean;
+  /** Set on a model in mirror (#476): the model it was mirrored from, in the frame its sequences
+   *  and rests are written in. */
+  readonly authored?: Model;
 };
+
+/** **A site's model in mirror** (#476), x to -x: its parts baked apart, its markers and bounds
+ *  with them, so that every board placement reads it as any other. What a sequence reads
+ *  (`siteOf`) stays in the model's own metres, `authored`. */
+function mirroredModel(model: Model): Model {
+  const flip = (v: Vector3) => new Vector3(-v.x, v.y, v.z);
+  const flipBox = ({ min, max }: Box3) =>
+    new Box3(new Vector3(-max.x, min.y, min.z), new Vector3(-min.x, max.y, max.z));
+  const flipAll = <K>(map: ReadonlyMap<K, Vector3>) =>
+    new Map([...map].map(([key, v]) => [key, flip(v)] as const));
+  const parts = (of: ReadonlyArray<Part>) => of.map(mirroredPart);
+  return {
+    ...model,
+    authored: model,
+    parts: parts(model.parts),
+    dressing: parts(model.dressing),
+    flag: parts(model.flag),
+    accessories: new Map([...model.accessories].map(([name, of]) => [name, parts(of)] as const)),
+    box: flipBox(model.box),
+    building: flipBox(model.building),
+    socleBox: flipBox(model.socleBox),
+    rank:
+      model.rank === null
+        ? null
+        : { at: flip(model.rank.at), along: flip(model.rank.along), deep: flip(model.rank.deep) },
+    chimneys: model.chimneys.map(flip),
+    markers: flipAll(model.markers),
+    fronts: flipAll(model.fronts),
+    crates: model.crates.map(({ name, at }) => ({ name, at: flip(at) })),
+    signFoot: model.signFoot === null ? null : flip(model.signFoot),
+  };
+}
 /** By file and width: the scale depends on both. */
 const models = new Map<string, Promise<Model>>();
-function modelOf(url: string, metres?: number, pose?: RestPose): Promise<Model> {
+function modelOf(url: string, metres?: number, pose?: RestPose, mirrored = false): Promise<Model> {
+  if (mirrored) {
+    const key = `${url} ${metres ?? ''} ${pose ?? ''} mirror`;
+    let model = models.get(key);
+    if (!model) {
+      model = modelOf(url, metres, pose).then(mirroredModel);
+      model.catch(() => {});
+      models.set(key, model);
+    }
+    return model;
+  }
   const key = `${url} ${metres ?? ''} ${pose ?? ''}`;
   let model = models.get(key);
   if (!model) {
@@ -656,6 +702,8 @@ type Lot = {
   readonly washed: boolean;
   /** The lasting state its file is baked in (`REST_POSES`). */
   readonly pose?: RestPose;
+  /** Drawn in mirror (#476): a lot never mixes mirrored and plain exemplars. */
+  readonly mirrored: boolean;
   readonly items: Placed[];
   readonly group: Group;
   model: Model | null;
@@ -678,6 +726,8 @@ const RUNWAY_TOLERANCE = 0.05;
 /** A site that stands under the eyes gives a little: up, down, still. */
 const BOUNCE_MS = 450;
 const matrix = new Matrix4();
+/** A site's own scene turned over: a copy of a port drawn in mirror (#476). */
+const MIRROR = new Matrix4().makeScale(-1, 1, 1);
 const shrunk = new Matrix4();
 const flagMatrix = new Matrix4();
 const flagDown = new Matrix4();
@@ -706,6 +756,9 @@ export class MaquetteLayer implements SequenceHost {
     string,
     { readonly item: Placed; readonly model: Model; readonly lonLat: LonLat | null }
   >();
+  /** **The ports drawn in mirror** (#476), by id: decided once their model and the coast are
+   *  there (`mirrorPorts`), kept over a rebuild, which draws each in its own lot. */
+  private readonly mirrored = new Set<string>();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
   /** **A flag running up or down its pole** (#279), by the maquette's id: kept over a rebuild. */
@@ -772,15 +825,17 @@ export class MaquetteLayer implements SequenceHost {
       ground.setY(COUNTRY_THICKNESS);
       // The level and the state: two barracks of two levels do not share their meshes.
       const shown = accessoriesShown(maquette.level ?? 1, maquette.works?.phase);
+      const mirrored = this.mirrored.has(maquette.id);
       const key = maquette.works
-        ? `${maquette.url} works ${maquette.id}`
-        : `${maquette.url} ${maquette.washed} ${shown.join()} ${maquette.pose ?? ''}`;
+        ? `${maquette.url} works ${maquette.id} ${mirrored}`
+        : `${maquette.url} ${maquette.washed} ${shown.join()} ${maquette.pose ?? ''} ${mirrored}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
         lot = {
           url: maquette.url,
           washed: maquette.washed,
           ...(maquette.pose !== undefined && { pose: maquette.pose }),
+          mirrored,
           items: [],
           group: new Group(),
           model: null,
@@ -795,7 +850,7 @@ export class MaquetteLayer implements SequenceHost {
         this.group.add(lot.group);
         const landing = lot;
         // A model that fails to load leaves the plates; `modelOf` has said why.
-        modelOf(maquette.url, maquette.metres, maquette.pose).then(
+        modelOf(maquette.url, maquette.metres, maquette.pose, mirrored).then(
           (model) => this.landed(landing, model, maquette.washed),
           () => {},
         );
@@ -848,7 +903,7 @@ export class MaquetteLayer implements SequenceHost {
       .filter(([id]) => id.startsWith('building-airfield') || id.startsWith('building-port'))
       .map(([id, { item, lot }]) =>
         id.startsWith('building-port')
-          ? `${id}:${item.at.x.toFixed(4)},${item.at.z.toFixed(4)},${item.scale},${lot.model !== null}`
+          ? `${id}:${item.at.x.toFixed(4)},${item.at.z.toFixed(4)},${item.scale},${lot.model !== null},${lot.mirrored}`
           : `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)}`,
       )
       .sort()
@@ -978,6 +1033,47 @@ export class MaquetteLayer implements SequenceHost {
       const model = models.get(item);
       if (model) this.pose(item, model);
     });
+    // Every site is placed: the ports' sides read their neighbours as they stand.
+    if (this.mirrorPorts()) this.rebuild();
+  }
+
+  /**
+   * **Which ports are drawn in mirror** (#476), once the coast's line is known (before it a port
+   * keeps its side, so that none turns over under the eyes when `coast.json` lands for ports
+   * that had stood alike): the decision is `mirroredPort`'s, on the ground under the mole and the
+   * crane as the port stands now and the sites about it. `true` when any side changed: the
+   * lots are drawn again, each port in the lot of its own side.
+   */
+  private mirrorPorts(): boolean {
+    let changed = false;
+    for (const { item, lot } of this.byId.values()) {
+      const model = lot.model?.authored ?? lot.model;
+      if (model === null || !model.markers.has(WATER_EDGE)) continue;
+      if (this.seaFront(item.ground.x, item.ground.z)?.line == null) continue;
+      const size = sizeOf(model, item);
+      const [cos, sin] = [Math.cos(item.yaw), Math.sin(item.yaw)];
+      const at = (x: number, z: number): Point => [
+        item.at.x + size * (x * cos + z * sin),
+        item.at.z + size * (-x * sin + z * cos),
+      ];
+      const others = this.placedItems().filter((other) => other !== item);
+      const mirrored = mirroredPort({
+        land: (x, z) => this.onLand(...at(x, z)),
+        taken: (x, z) => {
+          const [bx, bz] = at(x, z);
+          return others.some(
+            (other) =>
+              Math.hypot(bx - other.at.x, bz - other.at.z) <
+              (other.spacing * other.scale * pieceScale.size) / 2,
+          );
+        },
+      });
+      if (mirrored === lot.mirrored) continue;
+      if (mirrored) this.mirrored.add(item.id);
+      else this.mirrored.delete(item.id);
+      changed = true;
+    }
+    return changed;
   }
 
   /**
@@ -1058,6 +1154,11 @@ export class MaquetteLayer implements SequenceHost {
     lot.model = model;
     // Its turn, and a port's place on its coast, waited on its model: each stands on its ring.
     for (const item of lot.items) this.pose(item, model);
+    // A port the coast turns over is drawn again, in the lot of its side: not this one.
+    if (this.mirrorPorts()) {
+      this.rebuild();
+      return;
+    }
     const atWork = lot.atWork;
     if (atWork !== null) {
       // The building alone is at work: its socle stands whole (ADR 0038 §5).
@@ -1323,14 +1424,20 @@ export class MaquetteLayer implements SequenceHost {
       new Vector3().setScalar(sizeOf(model, item)),
     );
     const back = placed.clone().invert();
+    // A port in mirror is read in its file's metres, all the same: only the board's frame turns.
+    const source = model.authored ?? model;
+    const way = flipOf(model);
     return {
-      marker: (name) => model.markers.get(name)?.clone() ?? null,
-      front: (name) => model.fronts.get(name)?.clone() ?? null,
-      crates: model.crates,
-      box: model.box,
-      building: model.building,
-      toBoard: (point) => point.clone().applyMatrix4(placed),
-      toModel: (point) => point.clone().applyMatrix4(back),
+      marker: (name) => source.markers.get(name)?.clone() ?? null,
+      front: (name) => source.fronts.get(name)?.clone() ?? null,
+      crates: source.crates,
+      box: source.box,
+      building: source.building,
+      toBoard: (point) => new Vector3(way * point.x, point.y, point.z).applyMatrix4(placed),
+      toModel: (point) => {
+        const here = point.clone().applyMatrix4(back);
+        return here.setX(way * here.x);
+      },
       door: item.seal,
     };
   }
@@ -1375,7 +1482,9 @@ export class MaquetteLayer implements SequenceHost {
     const { lot } = dressed ?? {};
     if (copy !== null && lot?.model)
       for (const name of lot.shown.filter((each) => each === 'niveau_2' || each === 'niveau_3'))
-        for (const { geometry, material } of lot.model.accessories.get(name) ?? [])
+        for (const { geometry, material } of (lot.model.authored ?? lot.model).accessories.get(
+          name,
+        ) ?? [])
           copy.add(new Mesh(geometry, material));
     if (dressed !== undefined) dressed.item.near = -1;
   }
@@ -1408,8 +1517,11 @@ export class MaquetteLayer implements SequenceHost {
     deep: readonly [number, number];
     /** The size its ring draws the site at: the hulls of a port are drawn at it (#433). */
     scale: number;
-    /** The site's metres to the board, as it is drawn now (#475): where its pieces rest. */
+    /** The site's metres to the board, as it is drawn now (#475): where its pieces rest. In the
+     *  metres of its file, drawn in mirror or not (#476). */
     toBoard(point: Vector3): Vector3;
+    /** Drawn in mirror (#476): the rests kept from the other side are no longer where they were. */
+    mirrored: boolean;
   } | null {
     const held = this.held.get(id);
     const dressed = this.byId.get(id);
@@ -1422,8 +1534,13 @@ export class MaquetteLayer implements SequenceHost {
     const model = (held?.model ?? dressed!.lot.model)!;
     const { rank } = model;
     const metre = near * sizeOf(model, item);
+    const way = flipOf(model);
+    const mirrored = way < 0;
     const toBoard = (point: Vector3) =>
-      point.clone().multiplyScalar(metre).applyQuaternion(item.turn).add(at);
+      new Vector3(way * point.x, point.y, point.z)
+        .multiplyScalar(metre)
+        .applyQuaternion(item.turn)
+        .add(at);
     // **The pile that captures stands at the foot of its sign** (décision 1, #279): where the
     // flag it takes flies, on the socle — off the mast's own footing, toward the yard.
     const { signFoot } = model;
@@ -1443,6 +1560,7 @@ export class MaquetteLayer implements SequenceHost {
         deep: [0, 0],
         scale,
         toBoard,
+        mirrored,
       };
     }
     // The hulls of a port keep its quay.
@@ -1460,6 +1578,7 @@ export class MaquetteLayer implements SequenceHost {
         deep: [deep.x, deep.z],
         scale,
         toBoard,
+        mirrored,
       };
     }
     const edge = quay ? quayStep(item, model, pile * pieceScale.size) : null;
@@ -1473,6 +1592,7 @@ export class MaquetteLayer implements SequenceHost {
         deep: [0, 0],
         scale,
         toBoard,
+        mirrored,
       };
     // The site is drawn at its ring's scale; the pile, at the size it is handed in at (#433).
     const foot = garrisonFoot(span * scale, pile) * pieceScale.size * near;
@@ -1485,6 +1605,7 @@ export class MaquetteLayer implements SequenceHost {
       deep: [0, 0],
       scale,
       toBoard,
+      mirrored,
     };
   }
 
@@ -1576,7 +1697,9 @@ export class MaquetteLayer implements SequenceHost {
           for (const mesh of lot.meshes)
             mesh.setMatrixAt(k, lot.flag.includes(mesh) ? flagMatrix : matrix);
         else {
+          // The copy is the file's own scene: in mirror, flipped in the file's metres (#476).
           copy.matrix.copy(matrix);
+          if (lot.mirrored) copy.matrix.multiply(MIRROR);
           copy.matrixWorldNeedsUpdate = true;
           const away = shrunk.compose(item.at, item.turn, scale.setScalar(0));
           for (const mesh of lot.meshes) mesh.setMatrixAt(k, away);
@@ -1703,6 +1826,9 @@ function flagMatrixOf(out: Matrix4, item: Placed, height: number): void {
 }
 
 /** **Its own units to the board** at full near weight: its span at the player's size, in its group's. */
+/** **-1 for a model in mirror** (#476): a point in its file's metres is flipped before it is placed. */
+const flipOf = (model: Model): 1 | -1 => (model.authored === undefined ? 1 : -1);
+
 const sizeOf = (model: Model, item: Placed): number =>
   model.scale * item.span * pieceScale.size * item.scale;
 

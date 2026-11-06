@@ -1176,6 +1176,28 @@ describe('pieces resting at their post', () => {
     expect(layer.restOf('nobody')).toBeNull();
   });
 
+  it('drops the rests kept for a site that turns over: they are no longer where they were (#476)', async () => {
+    let mirrored = false;
+    const layer = new StandingLayer(
+      { projectLonLat: () => new Vector3() } as unknown as WorldFrame,
+      () => {},
+      () => ({ ...stub, mirrored }),
+      () => null,
+    );
+    layer.setNation('france');
+    const at = { beside: 'site' };
+    layer.display([{ id: 'p', at, pieces: planes('a', 'b') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    layer.orient(eye);
+    expect(layer.restOf('b')).not.toBeNull();
+    mirrored = true;
+    layer.display([{ id: 'p', at, pieces: planes('a') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    layer.orient(eye);
+    expect(layer.restOf('a')).not.toBeNull();
+    expect(layer.restOf('b')).toBeNull();
+  });
+
   it('forgets where a plane rested after SEEN_MS, and keeps the place of one come back (#487)', async () => {
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
     const first = layer.restOf('b');

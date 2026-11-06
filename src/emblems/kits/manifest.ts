@@ -72,6 +72,10 @@ export const MOLE = {
   skirt: -1,
 } as const;
 
+/** **The port's crane, in `port.glb`'s metres** (node `grue`): its foot, 15 m inside the quay on
+ *  the socle's `+x` edge, the side the mole runs on (#476). */
+export const CRANE = { x: 70, z: 90 } as const;
+
 /**
  * **Position lights, a stand-in** until the models have them (`feu_gauche`, `feu_droit`,
  * `feu_queue` of the planes, `feu_babord`, `feu_tribord`, `feu_mat` of the hulls, storyboard du
