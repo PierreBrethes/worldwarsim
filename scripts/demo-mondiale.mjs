@@ -111,6 +111,8 @@
  * `--file [s]` (#478) pose un aérodrome sans transport où attendent deux chasseurs et un bombardier ;
  *  dans `s` secondes (40 par défaut) ils décollent ensemble pour Lyon (l'aire garde la scène de
  *  `--largage`), vingt-cinq secondes après ils y arrivent, huit de plus ils rentrent ensemble.
+ *  Avec `--loin`, chaque avion vole aussi loin que porte son plein (un fil amarré au bout de la
+ *  piste) et ne rentre pas.
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
@@ -1877,22 +1879,53 @@ if (queueScene !== null) {
       ),
     );
   await pause(queueIn * 1000);
-  await fly(from, lyon);
-  console.log(`Les trois avions décollent à ${new Date().toISOString()}`);
-  await pause(25_000);
-  cli([
-    'run',
-    'dev:arriveNow',
-    JSON.stringify({ playerId: scene.a, afterMs: 3_000, onTime: true }),
-  ]);
-  await pause(15_000);
-  await fly(lyon, from, true);
-  cli([
-    'run',
-    'dev:arriveNow',
-    JSON.stringify({ playerId: scene.a, afterMs: 25_000, onTime: true }),
-  ]);
-  console.log(`Les trois avions se posent dans 25 s, à ${new Date().toISOString()}`);
+  if (process.argv.includes('--loin')) {
+    // `--loin`: each plane flies as far as its fuel holds, so that its thread moors at the
+    // runway's end and the planes stop on it in file; no way home.
+    await Promise.all(
+      planes.map(async (id) => {
+        for (const to of [
+          { lon: 12.57, lat: 55.68 },
+          { lon: 13.4, lat: 52.52 },
+          { lon: 8.68, lat: 50.11 },
+          { lon: 4.85, lat: 45.76 },
+        ]) {
+          const done = await again(() =>
+            client.mutation(api.movements.marchTo, {
+              token: tokenA,
+              seasonId,
+              origin: { kind: 'building', buildingId: from },
+              troopIds: [id],
+              point: to,
+            }),
+          ).catch((error) => {
+            if (error.data?.code !== 'NOT_ENOUGH_FUEL') throw error;
+            return null;
+          });
+          if (done !== null) return;
+        }
+      }),
+    );
+    console.log(`Les trois avions décollent loin à ${new Date().toISOString()}`);
+    await pause(60_000);
+  } else {
+    await fly(from, lyon);
+    console.log(`Les trois avions décollent à ${new Date().toISOString()}`);
+    await pause(25_000);
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: 3_000, onTime: true }),
+    ]);
+    await pause(15_000);
+    await fly(lyon, from, true);
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: 25_000, onTime: true }),
+    ]);
+    console.log(`Les trois avions se posent dans 25 s, à ${new Date().toISOString()}`);
+  }
 }
 
 /** `--chargement` : the trucks load, the HQ's twice a second apart: the second load joins. */
