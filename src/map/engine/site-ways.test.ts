@@ -16,6 +16,10 @@ import {
   HAUL_LEAD_MS,
   homing,
   inFormationOrder,
+  landingOrder,
+  QUEUE_MAX,
+  queueLeads,
+  takeoffLead,
   launchLead,
   moors,
   playable,
@@ -155,9 +159,70 @@ describe('a departure (#269, #270)', () => {
   });
 });
 
+const [RIGHT, LEFT] = AIRFIELD.lanes as [number, number];
+const plane = (side: 0 | 1, z: number, name = '') => ({ x: side === 0 ? RIGHT : LEFT, z, name });
+const names = (parts: ReadonlyArray<{ name: string }>) => parts.map(({ name }) => name);
+
+describe('planes of a pile take off and land in a queue (#478)', () => {
+  // The right lane is the nearer to the runway's free end.
+  const cases = [
+    {
+      what: 'two fighters in different lanes: the right lane first',
+      planes: [plane(1, 60, 'L60'), plane(0, 40, 'R40')],
+      out: ['R40', 'L60'],
+    },
+    {
+      what: 'two fighters in one lane: the place in front first',
+      planes: [plane(0, 40, 'R40'), plane(0, 60, 'R60')],
+      out: ['R60', 'R40'],
+    },
+    {
+      what: 'a bomber alone in the left lane leaves after the right lane',
+      planes: [plane(1, 50, 'bomber'), plane(0, 60, 'R60'), plane(0, 40, 'R40')],
+      out: ['R60', 'R40', 'bomber'],
+    },
+  ];
+  for (const { what, planes, out } of cases)
+    it(`${what}; it lands in the reverse order`, () => {
+      expect(names(inFormationOrder(planes))).toEqual(out);
+      expect(names(landingOrder(planes))).toEqual([...out].reverse());
+    });
+
+  it('starts each plane when the one before has left the ground, the gap kept to what is left', () => {
+    // 4 s to the runway and 10 s to leave the ground for each: the next is aligned as it leaves.
+    const slot = { align: 4000, free: 10000 };
+    expect(queueLeads([slot, slot, slot])).toEqual([0, 6000, 12000]);
+    // Already further along than the one before leaves: no wait, never ahead of the one before.
+    expect(
+      queueLeads([
+        { align: 0, free: 3000 },
+        { align: 9000, free: 12000 },
+      ]),
+    ).toEqual([0, 0]);
+  });
+
+  it('counts only the departures cued together, and sends the ones past the queue by their thread', () => {
+    const at = (side: 0 | 1, z: number, since = 0) => ({
+      ...plane(side, z),
+      since,
+      align: 4000,
+      free: 10000,
+    });
+    const mine = at(1, 60);
+    expect(takeoffLead(at(0, 60), [mine])).toBe(0);
+    expect(takeoffLead(mine, [at(0, 60)])).toBe(6000);
+    expect(takeoffLead(mine, [at(0, 60, DEPARTURE_WINDOW_MS + 1)])).toBe(0);
+    const line = Array.from({ length: QUEUE_MAX }, (_, k) => at(0, 100 - 10 * k));
+    expect(takeoffLead(mine, line)).toBeNull();
+    expect(takeoffLead(line[QUEUE_MAX - 1]!, [...line.slice(0, -1), mine])).toBe(
+      6000 * (QUEUE_MAX - 1),
+    );
+  });
+});
+
 describe('planes formed together leave in turn (#487)', () => {
   it('sends the most advanced place first, and each a stagger after the one before', () => {
-    const order = inFormationOrder([{ z: 20 }, { z: 60 }, { z: 40 }]);
+    const order = inFormationOrder([plane(1, 20), plane(1, 60), plane(1, 40)]);
     expect(order.map(({ z }) => z)).toEqual([60, 40, 20]);
     expect([0, 1, 2].map(formationLead)).toEqual([0, 1, 2].map((n) => n * FORMATION_STAGGER_MS));
   });

@@ -125,8 +125,13 @@ import {
   formationLead,
   haulSequence,
   inFormationOrder,
+  landingOrder,
   launchLead,
   playable,
+  QUEUE_MAX,
+  queueLeads,
+  takeoffLead,
+  type Departing,
   restAt,
   arrivalRings,
   undockLead,
@@ -719,6 +724,7 @@ export class MapEngine {
     site: string;
     post: HullPost | null;
     since: number;
+    plane?: Departing;
   }> = [];
   /** **Une Blitz** : ni piste ni môle n'y jouent, rien n'y est amarré (Mondiale seule). */
   private blitz = false;
@@ -3595,12 +3601,15 @@ export class MapEngine {
         this.standing.rippleAt(at, radius);
       return true;
     }
-    // Planes formed together leave one after the other, the most advanced place first.
+    // Planes leave one after the other in the order of the lanes then of the places, and come
+    // home in the reverse order (#478).
     const spots = new Map(parts.map(({ id, place }) => [id, spotOf(site, place.at, place.front)]));
-    if (cue.kind === 'formation') {
-      const order = inFormationOrder(parts.map((part) => ({ part, z: spots.get(part.id)!.z })));
+    if (airfield) {
+      const line = parts.map((part) => ({ part, ...spots.get(part.id)! }));
+      const order = cue.kind === 'formation' ? inFormationOrder(line) : landingOrder(line);
       parts.splice(0, parts.length, ...order.map(({ part }) => part));
     }
+    const queue: Array<{ align: number; free: number }> = [];
     let longest = 0;
     const hangars = new Map<number, Array<Parameters<typeof doorsOf>[0][number]>>();
     const slips: Array<Parameters<typeof slipSequence>[0][number]> = [];
@@ -3613,14 +3622,19 @@ export class MapEngine {
       const from = (way: Sequence) =>
         pawn === null ? way : arriving(way, [pawn.x - place.at.x, 0, pawn.z - place.at.z]);
       let sequence: Sequence | null = null;
+      let queued: { align: number; free: number } | null = null;
       // What the site plays for this piece, once it plays.
       let door: [number, Parameters<typeof doorsOf>[0][number]] | null = null;
       let slip: Parameters<typeof slipSequence>[0][number] | null = null;
       if (airfield && isAirRole(role)) {
         const out = cue.kind === 'formation' ? formation(role, spot, length / 2) : null;
-        const track = out ?? landing(role, spot);
+        const down = out === null ? landing(role, spot) : null;
+        const track = out ?? down!;
         const articulated = drawn.url !== undefined;
-        const lead = out === null ? 0 : formationLead(turn);
+        // Home, each touches as the one before leaves the runway; past the queue, it stands.
+        if (down !== null && queue.length >= QUEUE_MAX) continue;
+        queued = down === null ? null : { align: down.touch, free: down.clear };
+        const lead = queued !== null ? queueLeads([...queue, queued]).at(-1)! : formationLead(turn);
         sequence = delayed(
           from(trackSequence(site, track, place.at, role, articulated, out?.born)),
           lead,
@@ -3643,6 +3657,7 @@ export class MapEngine {
       // Past `MAX_PLAYING` it stands at its place, and the doors, the slip and the turns of the
       // others do not wait for it.
       if (!this.sequences.play(this.standing, id, sequence, since, now)) continue;
+      if (queued !== null) queue.push(queued);
       longest = Math.max(longest, sequence.ms);
       turn++;
       if (door !== null) hangars.set(door[0], [...(hangars.get(door[0]) ?? []), door[1]]);
@@ -3689,15 +3704,22 @@ export class MapEngine {
     const kept = troop === undefined ? null : this.standing.restOf(troop);
     const place = restAt(kept, id);
     let sequence = null;
+    let plane: Departing | null = null;
     if (air && isAirRole(role)) {
-      const way = trackSequence(
-        site,
-        takeoff(role, place ?? { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) }),
-        rest,
-        role,
-        piece.url !== undefined,
+      const at = place ?? { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) };
+      const flight = takeoff(role, at);
+      plane = { x: at.x, z: at.z, align: flight.ready, free: flight.leaves };
+      const way = trackSequence(site, flight, rest, role, piece.url !== undefined);
+      // Several planes taking off together: the right lane first, one on the runway at a time.
+      const lead = takeoffLead(
+        { ...plane, since },
+        this.otherDepartures(arcId, id).flatMap(({ plane: each, since: at }) =>
+          each === undefined ? [] : [{ ...each, since: at }],
+        ),
       );
-      sequence = moored ? way : homing(way);
+      this.departures.push({ arcId, site: id, post: null, since, plane });
+      if (lead === null) return true;
+      sequence = delayed(moored ? way : homing(way), lead, false);
     } else if (!air && isSeaRole(role)) {
       const beam = HULL_BEAM_SHARE * length;
       sequence = trackSequence(
@@ -3712,7 +3734,7 @@ export class MapEngine {
       sequence = delayed(sequence, lead, false);
     }
     if (sequence === null) return true;
-    this.departures.push({ arcId, site: id, post: kept?.post ?? null, since });
+    if (plane === null) this.departures.push({ arcId, site: id, post: kept?.post ?? null, since });
     if (this.sequences.play(this.arcs, arcId, sequence, since, now) && air)
       this.sequences.play(this.maquettes, id, airfieldSequence(sequence.ms), since, now);
     return true;
@@ -3726,8 +3748,27 @@ export class MapEngine {
       const arc = cue.kind === 'depart' ? this.arcs.viewOf(cue.arcId) : null;
       const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
       const kept = troop === undefined ? null : this.standing.restOf(troop);
+      const role = arc === null ? null : (movementRoles(arc)?.air ?? null);
+      const flight =
+        role !== null && isAirRole(role) && kept?.site === siteId ? takeoff(role, kept.rest) : null;
       return cue.kind === 'depart' && kept?.site === siteId
-        ? [{ arcId: cue.arcId, post: kept.post, since }]
+        ? [
+            {
+              arcId: cue.arcId,
+              post: kept.post,
+              since,
+              ...(flight === null
+                ? {}
+                : {
+                    plane: {
+                      x: kept.rest.x,
+                      z: kept.rest.z,
+                      align: flight.ready,
+                      free: flight.leaves,
+                    },
+                  }),
+            },
+          ]
         : [];
     });
     return [...this.departures.filter((each) => each.site === siteId), ...pending].filter(
