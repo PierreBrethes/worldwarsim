@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { isRigPart } from '@/emblems/rigs';
-import { type PlaneBoarding, planeBoardingOf } from './plane-boarding';
+import { type PlaneBoarding, type PlaneRig, planeBoardingOf } from './plane-boarding';
+
+/** The French plane's, measured on its GLB: a trial set, the engine reads the rig it draws. */
+const FRENCH: PlaneRig = {
+  hinge: [0.6915, 3.1025, -5.9439],
+  foot: [2.1795, -6.3439],
+  pitch: Math.atan2(2.16, 12.1),
+};
 
 /** The storyboard's yard at the board's origin: a metre of it 0.01 of the board, the plane facing
  *  +z (heading 0), its door on the +x flank; two squads of three, men 0.0175 tall. */
@@ -12,7 +19,7 @@ const squad = (x: number): PlaneBoarding['squads'][number] => ({
   ],
 });
 const scene = (over: Partial<PlaneBoarding> = {}): PlaneBoarding => ({
-  plane: { at: [0, 0], heading: 0, metre: 0.01 },
+  plane: { at: [0, 0], heading: 0, metre: 0.01, rig: FRENCH },
   man: 0.0175,
   squads: [squad(0.15), squad(0.3)],
   ...over,
@@ -64,8 +71,23 @@ describe('planeBoardingOf, the door and the plank (#480, « 2. En avion »)', ()
     expect(down.to[2]).toBeLessThan(0);
   });
 
+  it('runs the plank from the sill of the rig it is given to its foot, wherever they are', () => {
+    // The Japanese door sits further forward and lower, the nose a little higher.
+    const rig: PlaneRig = { hinge: [0.7, 2.6, -4.78], foot: [2.4, -5.2], pitch: 0 };
+    const down = planeBoardingOf(scene({ plane: { ...scene().plane, rig } })).plank(1400)!;
+    // No pitch: the sill is the hinge's lower edge, at the storyboard's offset, 0.01 a metre.
+    expect(down.from[0]).toBeCloseTo((0.7 + 0.05) * 0.01);
+    expect(down.from[1]).toBeCloseTo((2.6 - 0.88) * 0.01);
+    expect(down.from[2]).toBeCloseTo((-4.78 - 0.4) * 0.01);
+    expect(down.to[0]).toBeGreaterThan(down.from[0]);
+    expect(down.to[2]).toBeCloseTo(-5.2 * 0.01, 5);
+    expect(down.to[1]).toBeCloseTo(0, 5);
+  });
+
   it('turns the sill and the foot with the plane', () => {
-    const a = planeBoardingOf(scene({ plane: { at: [0, 0], heading: Math.PI / 2, metre: 0.01 } }));
+    const a = planeBoardingOf(
+      scene({ plane: { at: [0, 0], heading: Math.PI / 2, metre: 0.01, rig: FRENCH } }),
+    );
     const down = a.plank(1400)!;
     // Facing +x, its +x flank is -z, and aft is -x.
     expect(down.to[2]).toBeLessThan(down.from[2]);

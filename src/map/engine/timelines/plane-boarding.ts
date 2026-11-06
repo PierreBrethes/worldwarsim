@@ -34,18 +34,17 @@ const SIDE: Flat = [0.6, -0.2];
  *  storyboard rules). */
 const DOOR_ANGLE = (100 * Math.PI) / 180;
 
-/** The plane in metres of the model, measured on `france/airTransport.glb`: its root is where the
- *  wheels touch (the main wheels' underside is at 0.015 m), the door's hinge, its sill — a point
- *  of the door's lower edge, at the storyboard's offset (`mer-air.js:558`) — and `fx_porte`, the
- *  plank's foot. Rested tail down by 10.1° (the storyboard's; the tail wheel measures 10.0°, the
- *  GLB brief's 11.5° is not the model's), the sill stands 1.08 m up. */
-const HINGE: Vec3 = [0.6915, 3.1025, -5.9439];
+/** The door's sill is a point of its lower edge, at the storyboard's offset from the hinge
+ *  (`mer-air.js:558`, `cabin_door.localToWorld`), in metres of the model. */
 const SILL_FROM_HINGE: Vec3 = [0.05, -0.88, -0.4];
-const FOOT_M: Flat = [2.1795, -6.3439];
-const REST_PITCH = Math.atan2(2.16, 12.1);
 /** The provisional plank, 0.5 m wide and 0.08 thick, while the GLB has no `echelle`. */
 const PLANK_WIDTH_M = 0.5;
 const PLANK_THICK_M = 0.08;
+
+/** What the plane drawn gives, in metres of its model, root at its wheels: the `cabin_door`'s hinge,
+ *  `fx_porte` (x across, z along: the plank's foot, on the ground) and the tail-down rest, in
+ *  radians. The eight GLB differ by metres, so the engine reads them off the rig (#502). */
+export type PlaneRig = { readonly hinge: Vec3; readonly foot: Flat; readonly pitch: number };
 
 /**
  * **A boarding by plane to play** (#480), on the board: the plane at its wheels (`metre` board
@@ -53,7 +52,12 @@ const PLANK_THICK_M = 0.08;
  * each squad's men at their places.
  */
 export type PlaneBoarding = {
-  readonly plane: { readonly at: Flat; readonly heading: number; readonly metre: number };
+  readonly plane: {
+    readonly at: Flat;
+    readonly heading: number;
+    readonly metre: number;
+    readonly rig: PlaneRig;
+  };
   readonly man: number;
   readonly squads: ReadonlyArray<{ readonly men: ReadonlyArray<Flat> }>;
 };
@@ -103,21 +107,21 @@ export function planeBoardingOf(
     const dz = p[1] - plane.at[1];
     return [dx * cos - dz * sin, dx * sin + dz * cos];
   };
-  const m = plane.metre;
+  const { metre: m, rig } = plane;
   // The sill: the model's metres, turned about the wheels by the tail-down rest.
   const sillM: Vec3 = [
-    HINGE[0] + SILL_FROM_HINGE[0],
-    HINGE[1] + SILL_FROM_HINGE[1],
-    HINGE[2] + SILL_FROM_HINGE[2],
+    rig.hinge[0] + SILL_FROM_HINGE[0],
+    rig.hinge[1] + SILL_FROM_HINGE[1],
+    rig.hinge[2] + SILL_FROM_HINGE[2],
   ];
-  const pitch = -REST_PITCH;
+  const pitch = -rig.pitch;
   const sillLocal: Flat = [
     sillM[0] * m,
     (sillM[1] * Math.sin(pitch) + sillM[2] * Math.cos(pitch)) * m,
   ];
   const sillY = (sillM[1] * Math.cos(pitch) - sillM[2] * Math.sin(pitch)) * m;
   // The foot stands on the ground, whatever the tail's tilt does to the marker's height.
-  const footLocal: Flat = [FOOT_M[0] * m, FOOT_M[1] * Math.cos(pitch) * m];
+  const footLocal: Flat = [rig.foot[0] * m, rig.foot[1] * Math.cos(pitch) * m];
   const sill = toBoard(sillLocal);
   const foot = toBoard(footLocal);
   const toSill = Math.atan2(sill[0] - foot[0], sill[1] - foot[1]);
