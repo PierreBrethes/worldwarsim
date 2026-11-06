@@ -66,8 +66,11 @@ describe('which side a port is laid on (#476)', () => {
     );
   });
 
-  it('leaves the ragged first rows of the shore out', () => {
-    const ragged = (x: number, z: number) => z < MOLE.quay + 14 || (x > 0 && z < MOLE.quay + 30);
+  it('leaves the ragged first row of the shore out', () => {
+    // Ten cells of thirty-six on land, three of them in the first row: a quarter and a bit, then
+    // seven of thirty-three, under it.
+    const ragged = (x: number, z: number) =>
+      z < MOLE.quay || (x > 0 && (z < MOLE.quay + 43 || (z < MOLE.quay + 55 && x < 75)));
     expect(mirroredPort(ground(ragged))).toBe(false);
   });
 
