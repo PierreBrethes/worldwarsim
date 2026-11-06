@@ -140,7 +140,8 @@
  * `--grue [s]` (#477) pose la scène de `--navire`, fait appareiller son cargo pour libérer le môle, puis
  * dans `s` secondes (40 par défaut) deux cargos venus d'Alboran rentrent ensemble au port : le premier
  * touche le môle et la grue vient sur lui, le second vient à couple quand le premier est amarré.
- * Avec `--port-miroir`, au port d'Almería, en miroir. `lieu=@port` cadre le port.
+ * Un cargo est en chantier sur la cale : la grue boucle, puis reprend sa boucle après sa visite. Avec
+ * `--port-miroir`, au port d'Almería, en miroir. `lieu=@port` cadre le port.
  * `--flotte-cote [s]` (#395) pose la scène de `--navire` et envoie le cargo de Marseille vers un
  * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
  * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
@@ -1880,6 +1881,15 @@ if (runwayScene !== null) {
 
 /** `--grue` (#477): two cargos come home together, the first to the mole, the second to its side. */
 if (craneScene !== null) {
+  // A local base under load times a call out at 1 s: it is asked again.
+  const again = async (call, tries = 4) => {
+    try {
+      return await call();
+    } catch (error) {
+      if (tries <= 1 || !String(error.message).includes('timed out')) throw error;
+      return again(call, tries - 1);
+    }
+  };
   await pause(craneIn * 1000);
   const at = { lon: -3.0, lat: 36.0 };
   const spawned = JSON.parse(
@@ -1889,13 +1899,15 @@ if (craneScene !== null) {
       JSON.stringify({ playerId: scene.a, role: 'cargo', count: 2, ...at }),
     ]).match(/\[[^\]]*\]/)[0],
   );
-  await client.mutation(api.movements.enterGarrison, {
-    token: tokenA,
-    seasonId,
-    origin: { kind: 'point', point: at },
-    troopIds: spawned,
-    buildingId: craneScene.id,
-  });
+  await again(() =>
+    client.mutation(api.movements.enterGarrison, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: at },
+      troopIds: spawned,
+      buildingId: craneScene.id,
+    }),
+  );
   cli([
     'run',
     'dev:arriveNow',
@@ -2290,14 +2302,28 @@ async function freeTheMole() {
   const port = me.buildings.find((building) => building.key === 'port');
   places.port = { id: `building-port@${port.point[0]},${port.point[1]}`, lonLat: port.point };
   cli(['run', 'dev:grantCards', JSON.stringify({ playerId: scene.a, cards: ['transmissions1'] })]);
-  await client.mutation(api.movements.marchTo, {
+  // A hull on the slip: the crane's loop plays, which the visit takes over and gives back.
+  await client.mutation(api.troops.recruit, {
     token: tokenA,
     seasonId,
-    origin: { kind: 'building', buildingId: port.id },
-    troopIds: me.troops.filter((troop) => troop.role === 'cargo').map((troop) => troop.id),
-    point: { lon: 14.6, lat: 35.8 },
+    buildingId: port.id,
+    role: 'cargo',
+    tier: 1,
   });
-  return port;
+  for (let tries = 1; ; tries++)
+    try {
+      await client.mutation(api.movements.marchTo, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'building', buildingId: port.id },
+        troopIds: me.troops.filter((troop) => troop.role === 'cargo').map((troop) => troop.id),
+        point: { lon: 14.6, lat: 35.8 },
+      });
+      return port;
+    } catch (error) {
+      // A local base under load times a call out at 1 s: it is asked again.
+      if (tries >= 4 || !String(error.message).includes('timed out')) throw error;
+    }
 }
 
 /**
