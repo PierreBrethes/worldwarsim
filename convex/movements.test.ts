@@ -4555,6 +4555,114 @@ describe('rester en mer', () => {
   });
 
   /**
+   * **La cargaison d'une coque coulée se sert au seul camp qui la perd** (#513, décision 8 du
+   * 05/11) : celui qui voit couler voit la scène, jamais ce qu'elle portait. La dépêche porte
+   * l'engagement dont elle attend la scène.
+   */
+  describe('the cargo a sunk hull took', () => {
+    /** Un chasseur à quai contre une pile mouillée du convoi : l'escorte coule les coques. */
+    const sink = async (t: ReturnType<typeof boot>, hunter: Seat, escorts = 2) => {
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const quay = await raise(t, hunter, 'port', NORD);
+      const hunters = [];
+      for (let rank = 0; rank < escorts; rank += 1)
+        hunters.push(await form(t, hunter, 'escort', quay));
+      const campId = await surveyCamp(t, hunter, water);
+      await t.mutation(api.movements.attack, {
+        ...hunter,
+        origin: { kind: 'building', buildingId: quay },
+        troopIds: hunters,
+        target: { kind: 'camp', campId },
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const [account] = await engagementsIn(t);
+      return account!;
+    };
+
+    it('serves it to the side that lost it, and nothing of it to the side that saw it sink', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      await postAt(t, guest, 'cargo', water);
+      await postAt(t, guest, 'infantry', water);
+      const account = await sink(t, seat);
+
+      const lost = await t.query(api.replay.replayOf, { ...guest, combatId: account._id });
+      expect(lost).toMatchObject({
+        drowned: { men: nominalStrength('infantry', 1), machines: 0, seats: 1 },
+      });
+      const saw = await t.query(api.replay.replayOf, { ...seat, combatId: account._id });
+      expect(saw).not.toHaveProperty('drowned');
+      expect(JSON.stringify(saw)).not.toContain('drowned');
+
+      /** La dépêche de la perte attend la scène de cet engagement. */
+      const [notice] = await t.run(async (ctx) =>
+        ctx.db
+          .query('notices')
+          .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+          .collect(),
+      );
+      expect(notice).toMatchObject({ combatId: account._id });
+    });
+
+    it("serves the attacker's own convoy its loss when its hull goes down on arrival", async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const cargo = await postAt(t, guest, 'cargo', water, 4 / 8);
+      const infantry = await postAt(t, guest, 'infantry', water);
+      await t.run(async (ctx) => ctx.db.patch(infantry, { carriedBy: cargo }));
+      await postAt(t, seat, 'escort', water);
+      await postAt(t, seat, 'escort', water);
+      const campId = await surveyCamp(t, guest, water);
+      await t.mutation(api.movements.attack, {
+        ...guest,
+        origin: { kind: 'point', point: water },
+        troopIds: [cargo, infantry],
+        target: { kind: 'camp', campId },
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const [account] = await engagementsIn(t);
+      expect(account!.attackerId).toBe(await playerOf(t, guest));
+      const lost = await t.query(api.replay.replayOf, { ...guest, combatId: account!._id });
+      expect(lost).toMatchObject({ side: 'attacker', drowned: { machines: 0, seats: 1 } });
+      const saw = await t.query(api.replay.replayOf, { ...seat, combatId: account!._id });
+      expect(saw).not.toHaveProperty('drowned');
+    });
+
+    it('counts the men, the machines and the seats of every hull, one notice for the side', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const first = await postAt(t, guest, 'cargo', water, 4 / 8);
+      const second = await postAt(t, guest, 'cargo', water, 4 / 8);
+      const infantry = await postAt(t, guest, 'infantry', water);
+      const armor = await postAt(t, guest, 'armor', water);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(infantry, { carriedBy: first });
+        await ctx.db.patch(armor, { carriedBy: second });
+      });
+      const account = await sink(t, seat, 3);
+
+      const lost = await t.query(api.replay.replayOf, { ...guest, combatId: account._id });
+      /** L'effectif compté est celui d'après la passe : ce qui restait debout a coulé. */
+      const after = (id: Id<'troops'>) =>
+        account.troops.find((one) => one.troopId === id)!.strengthAfter;
+      expect(lost).toMatchObject({
+        drowned: { men: after(infantry), machines: after(armor), seats: 4 },
+      });
+      const notices = await t.run(async (ctx) =>
+        ctx.db
+          .query('notices')
+          .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+          .collect(),
+      );
+      expect(notices).toHaveLength(1);
+    });
+  });
+
+  /**
    * Règle 4, sa seconde moitié : **une coque déroutée emporte ses passagers dans son repli**, et
    * ce qu'aucune coque ne porte coule. Douze à bord, un treizième à l'eau.
    */

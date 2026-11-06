@@ -23,6 +23,7 @@ import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { type Dismantled, type MapCombat, WorldMap } from '@/map/WorldMap';
 import { freshCombats, homewardOf, REPORT_HOLD_MS } from '@/domain/combat-on-map';
+import { withoutHeld } from '@/domain/journal';
 import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
 import {
@@ -2633,6 +2634,12 @@ function BoardContent({
       }),
     [],
   );
+  /** Ce que le journal montre : une cargaison coulée attend la scène de son combat. */
+  const shownJournal = useMemo(
+    () => withoutHeld(view.journal, heldDispatches),
+    [view.journal, heldDispatches],
+  );
+  const shownView = useMemo(() => ({ ...view, journal: shownJournal }), [view, shownJournal]);
   useEffect(() => {
     const reports = view.journal.flatMap((dispatch) => dispatch.combat ?? []);
     const fresh = blitz ? [] : freshCombats(combatsKnown.current, reports, Date.now());
@@ -2887,7 +2894,7 @@ function BoardContent({
 
   return (
     <Shell
-      view={view}
+      view={shownView}
       telegraphUnread={telegraph.unread}
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
@@ -2928,7 +2935,7 @@ function BoardContent({
                   arcs={view.arcs}
                   troops={view.me.troops}
                   columns={columns}
-                  journal={view.journal}
+                  journal={shownJournal}
                   raceLead={raceLead}
                   labels={shownLabels}
                   standing={standing}
@@ -3413,7 +3420,7 @@ function BoardContent({
               se charge sans cacher celle qu'elle remplace, qui peut alors se replier. */}
               <BoardWindows
                 surfaces={surfaces}
-                view={view}
+                view={shownView}
                 seat={seat}
                 telegraph={telegraph}
                 theatre={blitzTheatre}

@@ -536,6 +536,9 @@ export type ReplayView = {
   readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };
   /** Aux mêmes conditions que `CombatReport.atSea`. */
   readonly atSea?: true;
+  /** **Ce que les coques coulées de mon camp emportaient** (#513) : hommes, machines et places à
+   *  bord. Servi au seul camp qui le perd — l'autre voit couler et ne sait rien de la cargaison. */
+  readonly drowned?: { readonly men: number; readonly machines: number; readonly seats: number };
 };
 
 /**
@@ -960,6 +963,8 @@ type NoticeBody =
       readonly point: { readonly lon: number; readonly lat: number };
       readonly men: number;
       readonly machines: number;
+      /** L'engagement dont la dépêche attend la scène (#513) ; absent d'une dépêche d'avant. */
+      readonly combatId?: string;
     }
   /**
    * **Un avant-poste qui a grandi** (précision du 15/09). Chez le seul propriétaire : ce qu'un
@@ -1294,6 +1299,9 @@ export type JournalDispatch = {
   readonly combat: CombatReport | null;
   /** Where it happened, for « Localiser »; `null` for what happened nowhere. */
   readonly place: MapPlace | null;
+  /** **Le combat dont la scène précède cette dépêche** (#513) : la carte la retient tant qu'elle
+   *  le joue (`withoutHeld`). Absent de toute autre dépêche. */
+  readonly scene?: string;
   /** **Ce qu'une livraison a versé au dépôt** : les pastilles qui volent du transport le lisent
    *  ici, jamais dans la phrase. Absent de toute autre dépêche. */
   readonly delivered?: SupplyLoad;

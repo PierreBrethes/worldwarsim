@@ -48,6 +48,7 @@ import {
   HELD_REGION,
   NATION_PAGE,
   TOUR_WAIT,
+  DROWNED,
 } from './validators';
 
 // Balancing placeholders: numeric values live in constants.ts, never here.
@@ -1087,6 +1088,12 @@ export default defineSchema({
      * prochain wipe (ADR 0001).
      */
     strikes: v.optional(v.array(v.object(STRIKE))),
+    /**
+     * **Ce que le large a pris à chaque camp** (#513) : hommes, machines et places des coques
+     * coulées. Servi au seul camp qui le perd (`replayOf`) : celui qui voit couler voit la scène
+     * et rien de la cargaison. Absent d'un engagement où rien n'a coulé, ou d'avant ce champ.
+     */
+    drowned: v.optional(v.object({ attacker: v.optional(DROWNED), defender: v.optional(DROWNED) })),
     troops: v.array(
       v.object({
         troopId: v.id('troops'),

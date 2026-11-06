@@ -110,6 +110,7 @@ export function journalDispatches(
       ...(entry.built === true ? { built: true as const } : {}),
       ...(entry.stood === undefined ? {} : { stood: entry.stood }),
       ...(entry.point === undefined ? {} : { point: entry.point }),
+      ...(entry.scene === undefined ? {} : { scene: entry.scene }),
     }));
 }
 
@@ -128,6 +129,7 @@ type Written = {
   readonly built?: true;
   readonly stood?: NonNullable<JournalDispatch['stood']>;
   readonly point?: NonNullable<JournalDispatch['point']>;
+  readonly scene?: string;
 };
 
 /**
@@ -334,6 +336,7 @@ function written(notice: Notice): Written {
           notice.machines,
           fr.aim.pointAt(notice.point.lon, notice.point.lat),
         ),
+        ...(notice.combatId === undefined ? {} : { scene: notice.combatId }),
       };
     case 'outpostRaised':
       return {
@@ -903,6 +906,19 @@ export const combatsSince = (
   seenAt: number,
 ): ReadonlyArray<JournalDispatch> =>
   journal.filter((dispatch) => dispatch.combat !== null && dispatch.at > seenAt);
+
+/**
+ * **Ce qui attend encore la scène de son combat** (#513) : la perte d'une cargaison se lirait
+ * avant le naufrage. `held` est l'ensemble des combats que la carte joue encore ; la Blitz et
+ * l'interception n'y mettent rien, et leur dépêche paraît aussitôt.
+ */
+export const withoutHeld = (
+  journal: ReadonlyArray<JournalDispatch>,
+  held: ReadonlySet<string>,
+): ReadonlyArray<JournalDispatch> =>
+  held.size === 0
+    ? journal
+    : journal.filter((dispatch) => dispatch.scene === undefined || !held.has(dispatch.scene));
 
 export const latestDispatchAt = (journal: ReadonlyArray<JournalDispatch>): number =>
   Math.max(0, ...journal.map((dispatch) => dispatch.at));
