@@ -91,11 +91,11 @@ export function descentesOf(
   );
 }
 
-/** **Les hommes montent sous les yeux** (#277, #480) : en camion ou en avion de transport, en
- *  Mondiale. Ailleurs — un navire, une unité Blitz qui n'est pas trois hommes — la pièce lâchée
- *  dessus s'y engouffre. */
+/** **Les hommes montent sous les yeux** (#277) : en camion, en Mondiale. Ailleurs — un navire,
+ *  un avion (jusqu'à #502), une unité Blitz qui n'est pas trois hommes — la pièce lâchée dessus
+ *  s'y engouffre. */
 export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
-  return (carrier === 'landTransport' || carrier === 'airTransport') && !blitz;
+  return carrier === 'landTransport' && !blitz;
 }
 
 /** Ce qui embarque des hommes sous les yeux : un camion ou un avion de transport. */

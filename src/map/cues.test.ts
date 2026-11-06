@@ -112,13 +112,11 @@ describe('boardsUnderTheEyes (#277)', () => {
     expect(boardsUnderTheEyes('landTransport', true)).toBe(false);
   });
 
-  it('lets the men of a transport plane board under the eyes too, in a Mondiale only', () => {
-    expect(boardsUnderTheEyes('airTransport', false)).toBe(true);
-    expect(boardsUnderTheEyes('airTransport', true)).toBe(false);
-  });
-
-  it('keeps a ship swallowing the piece dropped on it', () => {
+  // A drop on a plane stays `board` (the squad glides to the drop point and is swallowed): the
+  // engine plays no plane boarding before #502, and `boardHome` would leave the men without a gesture.
+  it('keeps a ship or a plane swallowing the piece dropped on it, until #502 plays the plane', () => {
     expect(boardsUnderTheEyes('cargo', false)).toBe(false);
+    expect(boardsUnderTheEyes('airTransport', false)).toBe(false);
   });
 });
 
