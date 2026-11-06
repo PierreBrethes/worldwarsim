@@ -118,7 +118,30 @@ export function cargoTagsOf<T extends Aboard>(
 export function heldBack(tag: CargoTag, held: ReadonlySet<string> | undefined): CargoTag {
   if (held === undefined || !tag.riders.some((rider) => held.has(rider.id))) return tag;
   const riders = tag.riders.filter((rider) => !held.has(rider.id));
-  return { ...tag, riders, used: riders.reduce((sum, rider) => sum + rider.seats, 0) };
+  return {
+    ...tag,
+    riders,
+    used: riders.reduce((sum, rider) => sum + rider.seats, 0),
+    // What a view with nobody aboard serves (`cargoTagsOf`).
+    refusal: riders.length === 0 ? 'NOT_ABOARD' : tag.refusal,
+  };
+}
+
+/** **What is held once `riders` of `carrierId` are fed** (#504): the same map when none of them
+ *  was held, a hull with nobody left held is forgotten. */
+export function fedRiders(
+  held: ReadonlyMap<string, ReadonlySet<string>>,
+  carrierId: string,
+  riders: ReadonlyArray<string>,
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const before = held.get(carrierId);
+  const left = new Set(before);
+  for (const rider of riders) left.delete(rider);
+  if (before === undefined || left.size === before.size) return held;
+  const next = new Map(held);
+  if (left.size === 0) next.delete(carrierId);
+  else next.set(carrierId, left);
+  return next;
 }
 
 /** **The labels as a boarding in progress shows them** (#504): `held` is, per carrier, the

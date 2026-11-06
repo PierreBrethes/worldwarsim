@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitRole } from './ids';
-import { cargoTagsOf, carriersFor, heldBack, heldLabels } from './cargo-tag';
+import { cargoTagsOf, carriersFor, heldBack, heldLabels, fedRiders } from './cargo-tag';
 
 const troop = (id: string, role: UnitRole, carriedBy?: string) => ({
   id,
@@ -146,6 +146,13 @@ describe('heldBack (#504)', () => {
     expect(held.used).toBeLessThan(tag!.used);
   });
 
+  it('says nobody is aboard when every rider is held, as a view without them would', () => {
+    const held = heldBack(tag!, new Set(['i1', 'i2', 'a1']));
+    expect(held.riders).toEqual([]);
+    expect(held.used).toBe(0);
+    expect(held.refusal).toBe('NOT_ABOARD');
+  });
+
   it('is the tag itself when nothing is held', () => {
     expect(heldBack(tag!, undefined)).toBe(tag);
     expect(heldBack(tag!, new Set(['other']))).toBe(tag);
@@ -164,5 +171,22 @@ describe('heldLabels (#504)', () => {
 
   it('is the same list when nothing is held', () => {
     expect(heldLabels(labels, new Map())).toBe(labels);
+  });
+});
+
+describe('fedRiders (#504)', () => {
+  const before = new Map([['h', new Set(['a', 'b'])]]);
+
+  it('takes the fed riders off what is held', () => {
+    expect(fedRiders(before, 'h', ['a'])).toEqual(new Map([['h', new Set(['b'])]]));
+  });
+
+  it('forgets a hull once its last rider is fed', () => {
+    expect(fedRiders(before, 'h', ['a', 'b']).size).toBe(0);
+  });
+
+  it('is the same map when nothing it held is fed', () => {
+    expect(fedRiders(before, 'h', ['z'])).toBe(before);
+    expect(fedRiders(before, 'other', ['a'])).toBe(before);
   });
 });
