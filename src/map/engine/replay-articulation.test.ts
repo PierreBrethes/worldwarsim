@@ -461,7 +461,7 @@ describe('a combat at sea', () => {
 
   it('heels and sinks a block with no role the same way', async () => {
     const v = sunk();
-    const blind: ReplayView = { ...v, faced: undefined };
+    const { faced: _faced, ...blind } = v;
     const scene = sea(blind);
     await landed();
     const pivot = scene.object.children[1]!.children[0]!;
