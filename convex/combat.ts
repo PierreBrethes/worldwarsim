@@ -12,7 +12,7 @@ import {
 import { landAtPoint } from './routes';
 import { movementsOf, seatedOf } from './movement/forces';
 import { outpostShelters } from '../src/domain/outposts';
-import { LIFT_COST } from '../src/domain/troops';
+import { carrierIn, fareOf } from '../src/domain/troops';
 import { isBlitz } from './blitz';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
@@ -414,13 +414,13 @@ async function drownAtSea(
       strength:
         outcomes.find((outcome) => outcome.id === id)?.strengthAfter ??
         byId.get(id)!.currentStrength,
-      /** **Une place de coque, pas une place de camion** : le fusilier d'un camion tient la place
-       *  du camion, qui est déjà comptée. */
-      seats:
-        byId.get(byId.get(id)!.carriedBy ?? '')?.role === 'landTransport'
-          ? 0
-          : (LIFT_COST[byId.get(id)!.role] ?? 0),
     }));
+    /** **Les places comme la règle les compte** (`fareOf`) : chaque troupe que plus rien ne porte
+     *  paie pour elle et sa cargaison, un camion chargé compris. */
+    const pile = fate.drowned.map((id) => seatedOf(byId.get(id)!));
+    const seats = pile
+      .filter((unit) => carrierIn(unit, pile) === null)
+      .reduce((sum, unit) => sum + (fareOf('cargo', unit, pile) ?? 0), 0);
     const of = (role: 'infantry' | 'other') =>
       gone
         .filter((one) => (role === 'infantry' ? one.role === 'infantry' : one.role !== 'infantry'))
@@ -432,7 +432,7 @@ async function drownAtSea(
       cargo: {
         men: of('infantry'),
         machines: of('other'),
-        seats: gone.reduce((sum, one) => sum + one.seats, 0),
+        seats,
       },
     });
   }

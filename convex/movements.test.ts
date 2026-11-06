@@ -4631,6 +4631,65 @@ describe('rester en mer', () => {
       expect(saw).not.toHaveProperty('drowned');
     });
 
+    /** Une passe posée directement : en Blitz ou à la rencontre sur la route, aucun ordre
+     *  d'attaque sur un camp ne la produit. */
+    const meet = async (
+      t: ReturnType<typeof boot>,
+      seat: Seat,
+      guest: Seat,
+      cause: 'arrival' | 'interception',
+    ) => {
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const cargo = await postAt(t, guest, 'cargo', water);
+      const infantry = await postAt(t, guest, 'infantry', water);
+      const hunters = [
+        await postAt(t, seat, 'escort', water),
+        await postAt(t, seat, 'escort', water),
+      ];
+      return t.run(async (ctx) => {
+        const troops = (ids: ReadonlyArray<Id<'troops'>>) =>
+          Promise.all(ids.map(async (id) => (await ctx.db.get(id))!));
+        const { resolveContact } = await import('./combat');
+        const { engagementId } = await resolveContact(ctx, {
+          seasonId: seat.seasonId,
+          attacker: {
+            playerId: (await ctx.db.get(hunters[0]!))!.playerId,
+            troops: await troops(hunters),
+          },
+          defender: {
+            playerId: (await ctx.db.get(cargo))!.playerId,
+            troops: await troops([cargo, infantry]),
+          },
+          cause,
+          point: water,
+          hostCountry: '',
+          outpostId: null,
+          disabledUntil: null,
+          at: Date.now(),
+        });
+        const [notice] = await ctx.db
+          .query('notices')
+          .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+          .collect();
+        return { engagementId, notice };
+      });
+    };
+
+    it('files the notice with its combat in a Blitz too, which plays no scene', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      await t.run(async (ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));
+      const { engagementId, notice } = await meet(t, seat, guest, 'arrival');
+      expect(notice).toMatchObject({ combatId: engagementId });
+    });
+
+    it('files the notice with its combat when the hull is caught on the road', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const { engagementId, notice } = await meet(t, seat, guest, 'interception');
+      expect(notice).toMatchObject({ combatId: engagementId });
+    });
+
     it('counts the men, the machines and the seats of every hull, one notice for the side', async () => {
       const t = boot();
       const { seat, guest } = await launchedSeason(t);
@@ -4639,9 +4698,17 @@ describe('rester en mer', () => {
       const second = await postAt(t, guest, 'cargo', water, 4 / 8);
       const infantry = await postAt(t, guest, 'infantry', water);
       const armor = await postAt(t, guest, 'armor', water);
+      /** Un camion et deux fusiliers sur la coque : `fareOf` fait payer 2 + 1 + 1 places. */
+      const truck = await postAt(t, guest, 'landTransport', water);
+      const riders = [
+        await postAt(t, guest, 'infantry', water),
+        await postAt(t, guest, 'infantry', water),
+      ];
       await t.run(async (ctx) => {
         await ctx.db.patch(infantry, { carriedBy: first });
         await ctx.db.patch(armor, { carriedBy: second });
+        await ctx.db.patch(truck, { carriedBy: second });
+        for (const rider of riders) await ctx.db.patch(rider, { carriedBy: truck });
       });
       const account = await sink(t, seat, 3);
 
@@ -4650,7 +4717,11 @@ describe('rester en mer', () => {
       const after = (id: Id<'troops'>) =>
         account.troops.find((one) => one.troopId === id)!.strengthAfter;
       expect(lost).toMatchObject({
-        drowned: { men: after(infantry), machines: after(armor), seats: 4 },
+        drowned: {
+          men: [infantry, ...riders].reduce((sum, id) => sum + after(id), 0),
+          machines: after(armor) + after(truck),
+          seats: 1 + 3 + 4,
+        },
       });
       const notices = await t.run(async (ctx) =>
         ctx.db

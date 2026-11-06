@@ -603,10 +603,9 @@ describe('the dispatch of a drowned cargo', () => {
     expect(withoutHeld(filed('c1'), new Set())).toHaveLength(1);
   });
 
-  it('is never held without a scene: a notice from before the field, a Blitz or an interception', () => {
-    /** Blitz et interception ne tiennent aucune dépêche (`freshCombats`) : l'ensemble est vide. */
+  it('is not held when it names no combat, or a combat the map does not hold', () => {
     expect(withoutHeld(filed(), new Set(['c1']))).toHaveLength(1);
-    expect(withoutHeld(filed('c1'), new Set())).toHaveLength(1);
+    expect(withoutHeld(filed('c1'), new Set(['c2']))).toHaveLength(1);
   });
 
   it('holds no other dispatch', () => {

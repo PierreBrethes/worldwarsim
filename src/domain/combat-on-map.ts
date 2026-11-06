@@ -48,6 +48,14 @@ export function freshCombats(
   );
 }
 
+/** **La Blitz ne joue aucune scène** : ses dépêches ne se retiennent pas, elles partent aussitôt. */
+export const scenesToPlay = (
+  blitz: boolean,
+  known: ReadonlySet<string> | null,
+  reports: ReadonlyArray<CombatReport>,
+  now: number,
+): ReadonlyArray<CombatReport> => (blitz ? [] : freshCombats(known, reports, now));
+
 /** **Au-delà de `COMBAT_LIMITS` pièces par camp, le combat ne joue pas** : la pose finale, la
  *  dépêche et le rejeu. */
 export function playsWhole(view: ReplayView, phone: boolean): boolean {
