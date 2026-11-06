@@ -1679,6 +1679,18 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
       expect(volume(layer)).toBeCloseTo(volume(plain), 0);
     });
 
+    it("turns the copy a sequence stands in for it the same way, in its file's metres", async () => {
+      const layer = await layerOf([port], () => east, bent);
+      const copy = new Group().add(new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial()));
+      layer.standIn(PORT, copy);
+      layer.orient(new Vector3(0, 0.5, 0.5), null, 1);
+      copy.updateMatrixWorld(true);
+      const site = layer.siteOf(PORT)!;
+      const point = new Vector3(MOLE.x, 0, 200);
+      expect(copy.localToWorld(point.clone()).distanceTo(site.toBoard(point))).toBeLessThan(1e-9);
+      expect(copy.matrixWorld.determinant()).toBeLessThan(0);
+    });
+
     it('never mixes a mirrored port and a plain one in a lot: each its own side', async () => {
       // Land bends under the first port's mole only: the second stands on a straight coast.
       const layer = await layerOf(
