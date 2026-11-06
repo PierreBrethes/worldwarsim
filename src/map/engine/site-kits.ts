@@ -251,7 +251,7 @@ const FLANK_WINDOW = 0.05;
  * the plane `y`, within `FLANK_WINDOW` of its length round `z`. The box says the deck's or the
  * sponsons' edge, not the plate the door is cut in. `null` when the plane cuts nothing there.
  */
-export function flankAt(scene: Object3D, y: number, z: number, side: 1 | -1): number | null {
+function flankAt(scene: Object3D, y: number, z: number, side: 1 | -1): number | null {
   scene.updateMatrixWorld(true);
   const length = new Box3().setFromObject(scene).getSize(new Vector3()).z;
   const corners = [new Vector3(), new Vector3(), new Vector3()] as const;
