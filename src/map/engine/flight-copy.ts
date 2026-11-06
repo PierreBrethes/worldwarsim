@@ -1,6 +1,7 @@
 import { Group, type Object3D, type Quaternion, Vector3 } from 'three';
+import { troopSpan } from '@/domain/piece-size';
 import { isRigPart, type RigFamily } from '@/emblems/rigs';
-import type { RestPose } from './figurines/figurine';
+import { measureOf, type RestPose } from './figurines/figurine';
 import { markOf } from './figurines/marks';
 import { articulatedOf, bentFromRest, type PartPose, type Pose } from './sequences';
 import { gearPose } from './site-ways';
@@ -10,11 +11,17 @@ import { gearPose } from './site-ways';
  * what a timeline says (`bay_door`, #481). Free of any figurine.
  */
 export class FlightCopy {
+  /** Stands where the caller puts it: its origin is the airdrop's target, in board units. */
   readonly copy = new Group();
+  /** The plane's root: placed and turned by the pose's `root`, from the origin of `copy`. */
+  private readonly root = new Group();
   private readonly rests = new Map<Object3D, { position: Vector3; quaternion: Quaternion }>();
 
   constructor(rig: Object3D) {
-    this.copy.add(rig);
+    // At its real size on the board, as the figurine is at the common scale.
+    rig.scale.setScalar(troopSpan('airTransport') / measureOf(rig, 'airTransport'));
+    this.root.add(rig);
+    this.copy.add(this.root);
     rig.traverse((node) => {
       if (!isRigPart('airTransport', node.name)) return;
       this.rests.set(node, {
@@ -25,8 +32,11 @@ export class FlightCopy {
     this.pose({});
   }
 
-  /** Every part from its rest, the gear up, then moved as `pose` says. */
+  /** The plane where `root` puts it (`travel` and `heading`; no pitch nor roll, a level pass),
+   *  every part from its rest, the gear up, then moved as `pose` says. */
   pose(pose: Pose<'airTransport'>): void {
+    this.root.position.set(...(pose.root?.travel ?? [0, 0, 0]));
+    this.root.rotation.y = pose.root?.heading ?? 0;
     const gear = gearPose('airTransport', 1) as Record<string, PartPose>;
     const given = pose as Record<string, PartPose | undefined>;
     for (const [node, rest] of this.rests) {
@@ -35,11 +45,20 @@ export class FlightCopy {
     }
   }
 
-  /** Where the crate leaves the plane, in map coordinates; `null` when the model has no
-   *  `fx_parachute`. */
-  release(into = new Vector3()): Vector3 | null {
+  /**
+   * **Where the crate leaves the plane**, as `airdrop({ release })` takes it: `fx_parachute`'s
+   * offset from the plane's root, in board units, in the flight's frame (x along the flight, y
+   * up, z to its right) — read with the root at the origin, level and at heading zero, whatever
+   * the pose placed. `null` when the model has no `fx_parachute`.
+   */
+  release(): readonly [x: number, y: number, z: number] | null {
     this.copy.updateWorldMatrix(true, true);
-    return markOf(this.copy, 'fx_parachute', into);
+    const at = markOf(this.root, 'fx_parachute');
+    if (at === null) return null;
+    // The model faces +z and has its x to the left of its flight: the flight's frame is turned
+    // a quarter from it (`airdrop`'s `turned`).
+    const { x, y, z } = this.root.worldToLocal(at);
+    return [z, y, -x];
   }
 }
 
