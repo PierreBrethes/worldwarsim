@@ -79,7 +79,11 @@ section « Voir une partie Mondiale en local ».
 1. Docker `worldwarsim-backend-1` levé ; `npm run dev` sur 5173 (`lsof -i :5173` dit s'il tourne).
 2. Prends `base-occupee` et tiens-le de la démo à ta dernière capture. La base tourne les
    fonctions de `main` : déploie seulement si ta branche touche `convex/`, car un déploiement
-   depuis une branche plus ancienne les ramène en arrière (05/11 : une démo de #487 cassée).
+   depuis une branche plus ancienne les ramène en arrière (05/11 : une démo de #487 cassée ;
+   06/11 : #478, partie d'une `main` d'avant #476, a retiré un argument de `dev:navyScene`).
+   Déploie depuis une branche qui contient la `main` du jour : après `git fetch`,
+   `git merge-base --is-ancestor <remote>/main HEAD` réussit ; sinon, demande le déploiement à
+   l'orchestrateur, qui le fait depuis l'intégration.
    `grep CONVEX_SELF_HOSTED_URL .env.local` doit viser `127.0.0.1`, puis `npx convex deploy`.
    Pierre a autorisé ce déploiement local. Si le contrôle des permissions le refuse quand même,
    n'essaie pas une autre commande qui ferait la même chose (`convex dev --once`, script) :
@@ -111,7 +115,9 @@ au même cadrage que sa référence. Un état que la démo ne sait pas montrer d
 ## 5. Git
 
 - Branche courante (`git branch --show-current`) : tu n'en changes pas, et l'historique se garde
-  tel quel : ni `stash`, ni `rebase` (son `--autostash` remue les fichiers de Pierre).
+  tel quel : ni `stash`, ni `rebase` (son `--autostash` remue les fichiers de Pierre). Pour voir
+  un test tomber sans ta correction, retire la ligne gardée puis remets-la, ou lis l'ancienne
+  version par `git show HEAD:<fichier>` (#466 et #503 ont pris `stash` faute de cette voie).
 - Un commit par étape logique terminée et vérifiée ; message en anglais au style de
   `git log --oneline -15`, terminé par la ligne `Co-Authored-By` de ta consigne.
 - `git add <fichiers>` : seulement les tiens. `.claude/launch.json`, `WWS/prototypes/` et

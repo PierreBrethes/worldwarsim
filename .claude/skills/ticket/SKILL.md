@@ -8,12 +8,18 @@ description: Écrit une issue GitHub de La Manchette au format du projet. Use wh
 Une issue = **un agent** : un lot qu'un seul agent de code (skill `lot`) mène jusqu'au dernier
 commit, à la taille d'un Sonnet. Plus gros, coupe en issues qui se citent, une par tranche :
 pour une animation, les timelines en fonctions pures, la pose sur la carte, puis le branchement
-au moteur avec ses captures.
+au moteur avec ses captures. Un support neuf du moteur (un matériau par tronçon, un trait entre
+deux repères, un accesseur de repère) est une tranche à lui (06/11 : #477 et #478 redécoupées en
+sept).
 
 ## 1. Lire avant d'écrire
 
 Lis le code qui existe et la source du besoin (retour de Pierre, ADR, `WWS/docs/RESTE-A-CODER.md`,
 `WWS/QUESTIONS.md`). Le constat du **Pourquoi** cite ce que le code fait aujourd'hui, avec le fichier.
+Une issue tirée d'un storyboard ou d'une maquette en reprend chaque ligne de mode (réduites,
+coupées, Blitz, adversaire, nuit) telle que la source l'écrit, avec le fichier ; ce que la source
+tait reste hors de l'issue (06/11 : des gerbes d'accostage inventées, des feux allumés en
+réduites).
 Fini quand chaque affirmation du Pourquoi est vérifiée dans le code ou la source.
 
 ## 2. Écrire le corps
