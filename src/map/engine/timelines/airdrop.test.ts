@@ -71,6 +71,14 @@ describe('airdrop (#481, « 3. Largage »)', () => {
     expect(full.packet(PASS_MS + FALL_MS / 2)!.at[0]).toBeGreaterThan(0);
   });
 
+  it('drifts on the storyboard curve: most of it in the first 0.25 s, then easing out', () => {
+    const at = (ms: number) => full.packet(PASS_MS + ms)!.at[0];
+    const total = board(DRIFT_METRES);
+    expect(at(250) / total).toBeCloseTo(0.596, 2);
+    expect(at(FALL_MS / 2) / total).toBeCloseTo(0.941, 2);
+    expect(at(FALL_MS)).toBeCloseTo(total);
+  });
+
   it('holds the canopy to the ground, sinks it over 0.5 s, then clears it with the crate', () => {
     const touch = full.packet(PASS_MS + FALL_MS)!;
     expect(touch.canopy).toBeGreaterThan(0);

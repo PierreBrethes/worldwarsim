@@ -35,6 +35,13 @@ const SETTLE_MS = 500;
 export const CANOPY_METRES = 8;
 /** It lands this far past its target, in the flight's direction. */
 export const DRIFT_METRES = 6;
+/** The crate's drift follows the storyboard's curve (`mer-air.js:906`): it keeps the plane's
+ *  speed for 0.25 s, then eases out exponentially (12 m, 0.35 s); scaled to land `DRIFT_METRES` out. */
+const driftRaw = (tau: number): number =>
+  tau < 0.25 ? SPEED_MPS * tau : SPEED_MPS * 0.25 + 12 * (1 - Math.exp(-(tau - 0.25) / 0.35));
+const driftShare = (age: number): number =>
+  driftRaw(Math.min(age, FALL_MS) / 1000) / driftRaw(FALL_MS / 1000);
+
 /** Planes of a column drop this far apart. `@a-mesurer` — the storyboard's file. */
 export const COLUMN_GAP_MS = 400;
 
@@ -114,7 +121,7 @@ export function airdrop(
     const age = t - origin;
     const state = parachuteAt(age, motion);
     if (state === null) return null;
-    const fell = 1 - state.height;
+    const fell = reduced ? 1 : driftShare(age);
     const taken = reduced
       ? span(age, STILL_MS - FADE_MS, STILL_MS)
       : span(age, FALL_MS + REST_MS, PARACHUTE_MS);
