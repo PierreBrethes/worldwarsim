@@ -48,29 +48,20 @@ describe('the apron: where planes rest before their hangars (#475)', () => {
   });
 
   it('never lets the growth push the last plane of a lane past the ramp', () => {
-    const [a, b] = apron(fighters(2), 1, 1.5);
+    const [a, b] = apron(fighters(2), 1.5);
     expect(b!.z + 11 / 2).toBeLessThanOrEqual(AIRFIELD.ramp.from + 1e-9);
     expect(b!.z).toBeGreaterThan(a!.z);
   });
 
   it('widens each step by the growth of the plane that takes it', () => {
-    const [a, b] = apron(fighters(2), 1, [1, 1.2]);
+    const [a, b] = apron(fighters(2), [1, 1.2]);
     expect(b!.z - a!.z).toBeCloseTo(1.2 * 18.5 - 5.5, 9);
   });
 
   it('follows the growth the figurines are drawn at: the pitch widens, the rail stays', () => {
-    const [a, b] = apron(fighters(2), 1, 1.2);
+    const [a, b] = apron(fighters(2), 1.2);
     expect(b!.z - a!.z).toBeCloseTo(1.2 * 13, 9);
     expect(a!.z - AIRFIELD.facade).toBeCloseTo(2 + 1.2 * 5.5, 9);
-  });
-
-  it('mirrors on the other side of the site', () => {
-    const [a, b] = [apron(fighters(3)), apron(fighters(3), -1)];
-    b.forEach((slot, k) => {
-      expect(slot!.x).toBeCloseTo(-a[k]!.x, 9);
-      expect(slot!.z).toBeCloseTo(a[k]!.z, 9);
-      expect(Math.cos(slot!.yaw)).toBeCloseTo(1, 9);
-    });
   });
 });
 
@@ -147,16 +138,14 @@ describe('the berths: where hulls rest along the mole (#475)', () => {
   });
 
   it('gives each hull the growth it is drawn at', () => {
-    const [a, b] = berths(hulls('cargo', 'escort'), 1, [2, 1]);
+    const [a, b] = berths(hulls('cargo', 'escort'), [2, 1]);
     expect(a!.z - MOLE.quay).toBeCloseTo(2 * (3 + 65), 9);
     expect(b!.z - MOLE.quay).toBeCloseTo(3 + 55, 9);
   });
 
-  it('mirrors, and grows with the figurines', () => {
+  it('grows with the figurines', () => {
     const [a] = berths(hulls('cargo'));
-    const [m] = berths(hulls('cargo'), -1);
-    expect(m!.x).toBeCloseTo(-a!.x, 9);
-    const [g] = berths(hulls('cargo'), 1, 2);
+    const [g] = berths(hulls('cargo'), 2);
     expect(g!.z - MOLE.quay).toBeCloseTo(2 * (a!.z - MOLE.quay), 9);
   });
 });
@@ -178,14 +167,14 @@ describe('the posts of a mole, one state per hull (#487, décision du 05/11)', (
     const [a, b] = berths(hulls('cargo', 'escort'));
     const posts: HullPost[] = ['couple'];
     // Alone at its side, a hull keeps its own berth: the mole's hull is not there to measure from.
-    const [alone] = berths(hulls('escort'), 1, 1, posts);
+    const [alone] = berths(hulls('escort'), 1, posts);
     expect(alone!.z).toBeCloseTo(b!.z, 9);
     expect(a).not.toBeNull();
   });
 
   it('keeps the roads hull where it is when the hull at the mole leaves', () => {
     const [, , roads] = berths(hulls('cargo', 'cargo', 'escort'));
-    const [again] = berths(hulls('escort'), 1, 1, ['roads']);
+    const [again] = berths(hulls('escort'), 1, ['roads']);
     expect(again!.z - 110 / 2).toBeCloseTo(roads!.z - 110 / 2, 9);
   });
 });

@@ -1876,11 +1876,10 @@ export class StandingLayer implements SequenceHost {
       const rests = hullPosts
         ? berths(
             members.map(({ role }) => role as SeaRole),
-            1,
             growth,
             hullPosts.posts,
           )
-        : layout(this.planesOf(site, members), 1, growth);
+        : layout(this.planesOf(site, members), growth);
       members.forEach(({ entry, k, role, troop }, n) => {
         const rest = rests[n];
         standing.add(troop);

@@ -1007,7 +1007,7 @@ describe('pieces resting at their post', () => {
     );
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces }]);
     const g = growthOf('fighter');
-    const slots = apron(['fighter', 'fighter'], 1, g);
+    const slots = apron(['fighter', 'fighter'], g);
     pieces.groups.forEach(({ role }, k) => {
       const at = layer.placeOf(`p/${k}`)!.at;
       if (role !== 'fighter') return expect(at.distanceTo(SITE)).toBeLessThan(0.1);
@@ -1025,7 +1025,6 @@ describe('pieces resting at their post', () => {
     const g = growthOf('cargo');
     const slots = berths(
       pieces.groups.map(({ role }) => role as 'cargo' | 'escort'),
-      1,
       g,
     );
     pieces.groups.forEach((_, k) => {
@@ -1088,9 +1087,9 @@ describe('pieces resting at their post', () => {
   const wanted = (place: Place) =>
     toBoard(
       new Vector3(
-        layout([{ role: 'fighter', place }], 1, growthOf('fighter'))[0]!.x,
+        layout([{ role: 'fighter', place }], growthOf('fighter'))[0]!.x,
         AIRFIELD.top,
-        layout([{ role: 'fighter', place }], 1, growthOf('fighter'))[0]!.z,
+        layout([{ role: 'fighter', place }], growthOf('fighter'))[0]!.z,
       ),
     );
 

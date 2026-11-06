@@ -6,12 +6,10 @@ import { berthOf, HULL_BEAM_SHARE, type SeaRole } from './port';
 /**
  * **Where the pieces of a site rest** (#475, storyboards `aerodrome` « Plusieurs avions » and
  * `port` « À couple »): pure, in the site's metres — the airfield's yard, the port's mole —, one
- * slot per piece in the order given, `null` for one that does not fit (it is not drawn). `side`
- * mirrors the site (#476); `growth` is how much larger than true size each figurine is drawn up
+ * slot per piece in the order given, `null` for one that does not fit (it is not drawn). `growth` is how much larger than true size each figurine is drawn up
  * close (`floorGrowth`), a number or one per piece: it widens the steps, never what fits.
  */
 export type Rest = { readonly x: number; readonly z: number; readonly yaw: number };
-type Side = 1 | -1;
 type Growth = number | ReadonlyArray<number>;
 const growthOf = (growth: Growth, k: number): number =>
   typeof growth === 'number' ? growth : (growth[k] ?? 1);
@@ -86,18 +84,14 @@ export function settle(held: ReadonlyArray<Plane>, role: AirRole, arrival: Arriv
  * per plane), but never past the ramp: a plane keeps its nose on the yard. A plane with no place
  * is `null`.
  */
-export function layout(
-  planes: ReadonlyArray<Plane>,
-  side: Side = 1,
-  growth: Growth = 1,
-): Array<Rest | null> {
+export function layout(planes: ReadonlyArray<Plane>, growth: Growth = 1): Array<Rest | null> {
   return planes.map(({ role, place }, k) => {
     if (place === null) return null;
     const length = troopMetres(role);
     const depth = place.rank * PITCH;
     const g = Math.min(growthOf(growth, k), LANE_ROOM / (depth + length));
     return {
-      x: side * AIRFIELD.lanes[place.lane],
+      x: AIRFIELD.lanes[place.lane],
       z: AIRFIELD.facade + TAIL_GAP + g * (depth + length / 2),
       yaw: 0,
     };
@@ -105,14 +99,10 @@ export function layout(
 }
 
 /** **The apron with no history**: the places in the order of the roles (`settle`, `initial`). */
-export function apron(
-  roles: ReadonlyArray<AirRole>,
-  side: Side = 1,
-  growth: Growth = 1,
-): Array<Rest | null> {
+export function apron(roles: ReadonlyArray<AirRole>, growth: Growth = 1): Array<Rest | null> {
   const planes: Plane[] = [];
   for (const role of roles) planes.push({ role, place: settle(planes, role, 'initial') });
-  return layout(planes, side, growth);
+  return layout(planes, growth);
 }
 
 /** **A post along the mole**: against its fenders, at its side, or in the roads past its head. */
@@ -131,7 +121,6 @@ export const settleHull = (held: ReadonlyArray<HullPost>): HullPost | null =>
  */
 export function berths(
   roles: ReadonlyArray<SeaRole>,
-  side: Side = 1,
   growth: Growth = 1,
   posts: ReadonlyArray<HullPost | null> = roles.map((_, k) => POSTS[k] ?? null),
 ): Array<Rest | null> {
@@ -162,6 +151,6 @@ export function berths(
       post === 'roads'
         ? MOLE.quay + g * (MOLE.length + MOLE.head + ROADS_GAP + length / 2)
         : MOLE.quay + g * (berth.z - MOLE.quay);
-    return { x: side * x, z, yaw: side * berth.yaw };
+    return { x, z, yaw: berth.yaw };
   });
 }
