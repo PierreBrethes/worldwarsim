@@ -80,7 +80,8 @@ Ce sont les défauts que les revues ont réellement trouvés.
   Deux autres formes vues (#433, #436) : un test qui passe par un chemin qu'aucun fichier livré
   ne prend (un GLB simulé sans le repère que tous les vrais portent), et des cas choisis parmi
   ceux qui passent (cinq ports sur les huit de l'enquête). Les cas de l'issue et de son enquête
-  sont tous dans le test.
+  sont tous dans le test. Un test que le lot retire alors que sa fonction vit encore est un
+  finding (#487 : quatre tests de `site-ways` supprimés).
 - **Ce qu'un rendu remplace** : quand un lot remplace un rendu par un autre (trait droit → arc,
   pion → scène), liste les cas où l'ancien jouait (scène non jouée, au-delà des limites, rejeu
   ouvert, animations coupées) ; un cas où plus rien ne s'affiche est un finding.
