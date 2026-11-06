@@ -20,6 +20,8 @@
  * `doigt=x,y` (avec `--tactile`) pose un doigt, puis le glisse à chaque `doigt` suivant, et
  * `lever` le relève : une tuile portée du doigt, capturée main pleine avant `lever`.
  * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
+ * `recharger` recharge la page dans le même navigateur, son stockage gardé, puis attend comme à
+ * l'ouverture : un `lieu=` après lui recadre.
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
@@ -209,7 +211,10 @@ try {
       }
       Object.assign(finger, { down: type !== 'touchEnd', x, y });
     } else if (kind === 'photo') await page.screenshot({ path: value });
-    else if (kind === 'pause') await page.waitForTimeout(x);
+    else if (kind === 'recharger') {
+      await page.reload();
+      await page.waitForTimeout(Number(option('attendre', 6000)));
+    } else if (kind === 'pause') await page.waitForTimeout(x);
     else if (kind === 'camera') {
       // `mapEngine` n'est exposé qu'en dev (`WorldMap.tsx`).
       const [, , distance = 60, polar = 0, azimuth = 0] = value.split(',').map(Number);
