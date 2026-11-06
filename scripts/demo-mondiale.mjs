@@ -124,6 +124,11 @@
  * `--combat-mer [s]` (#324) mouille deux escorteurs britanniques en Manche, au nord de
  * Cherbourg, et lance sur eux deux escorteurs français, qui arrivent dans `s` secondes (25 par
  * défaut) : le combat se joue en mer, et `lieu=@combat-mer` cadre son point.
+ * `--naufrage [s]` (#514) mouille un cargo britannique en Manche, au nord de Cherbourg, chargé de six
+ * fantassins et d'un char (9 places sur 12), et lance sur lui deux escorteurs français, qui arrivent dans
+ * `s` secondes (25 par défaut) : le cargo coule, et `lieu=@naufrage` cadre son point. Le compte `b` perd
+ * la cargaison (nappe, bulles, étiquette barrée, tampon « coulés en mer »), le `a` la voit couler.
+ * `--coques N` y mouille `N` cargos, le premier seul chargé.
  * `--bombarder [s]` (#325) met une pièce française en batterie au nord de Paris (`@batterie`), une
  * garnison britannique de douze troupes à 78 km, vers Amiens (`@bombarder`), et, en mer, une pièce
  * sur la côte du Cotentin (`@batterie-mer`) face à six escorteurs mouillés à 50 km (`@bombarder-mer`) ; un
@@ -422,6 +427,12 @@ const combatIn = combatAt < 0 ? null : Number(process.argv[combatAt + 1]) || 25;
 /** `--combat-mer [s]` : deux escorteurs français sur deux britanniques en Manche (#324). */
 const seaCombatAt = process.argv.indexOf('--combat-mer');
 const seaCombatIn = seaCombatAt < 0 ? null : Number(process.argv[seaCombatAt + 1]) || 25;
+/** `--naufrage [s]` : un cargo chargé britannique coulé par deux escorteurs français en Manche (#514). */
+const sinkingAt = process.argv.indexOf('--naufrage');
+const sinkingIn = sinkingAt < 0 ? null : Number(process.argv[sinkingAt + 1]) || 25;
+/** `--coques N` : avec `--naufrage`, `N` cargos au mouillage (le premier seul est chargé) : au-delà de six, un téléphone ne joue pas le combat. */
+const hullsAt = process.argv.indexOf('--coques');
+const hulls = hullsAt < 0 ? 1 : Number(process.argv[hullsAt + 1]) || 1;
 /** `--bombarder [s]` : deux pièces en batterie qui tirent dans s secondes, `--salves N` fois (#325). */
 const shellingAt = process.argv.indexOf('--bombarder');
 const shellingIn = shellingAt < 0 ? null : Number(process.argv[shellingAt + 1]) || 40;
@@ -1643,6 +1654,43 @@ if (!bare) {
       'run',
       'dev:arriveNow',
       JSON.stringify({ playerId: scene.a, afterMs: seaCombatIn * 1000 }),
+    ]);
+  }
+  if (sinkingIn !== null && scene.a !== null && scene.b !== null) {
+    const moored = { lon: -1.6, lat: 50.05 };
+    places.naufrage = [moored.lon - 0.9, moored.lat];
+    const from = { lon: -1.95, lat: 50.0 };
+    const spawn = (playerId, role, count, at, extra = {}) =>
+      JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({ playerId, role, count, ...at, ...extra }),
+        ]).match(/\[[^\]]*\]/)[0],
+      );
+    // Nine seats of twelve: six riflemen at one each and a tank at three.
+    const [cargo] = spawn(scene.b, 'cargo', hulls, moored);
+    spawn(scene.b, 'infantry', 6, moored, { carriedBy: cargo });
+    spawn(scene.b, 'armor', 1, moored, { carriedBy: cargo });
+    const fleet = spawn(scene.a, 'escort', 2, from);
+    cli(['run', 'dev:benchReassess', JSON.stringify({ seasonId })]);
+    const { camps } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const camp = camps.find(
+      (one) =>
+        Math.abs(one.point[0] - moored.lon) < 0.05 && Math.abs(one.point[1] - moored.lat) < 0.05,
+    );
+    if (camp === undefined) throw new Error('naufrage : le cargo mouillé n’est pas relevé');
+    await client.mutation(api.movements.attack, {
+      token: tokenA,
+      seasonId,
+      origin: { kind: 'point', point: from },
+      troopIds: fleet,
+      target: { kind: 'camp', campId: camp.id },
+    });
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: sinkingIn * 1000 }),
     ]);
   }
   if (shellingIn !== null && scene.a !== null && scene.b !== null) {
