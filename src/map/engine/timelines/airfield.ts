@@ -41,6 +41,9 @@ const TURN_R = 12;
 export const TAIL_GAP = 2;
 /** Seconds: the motor starts, it holds on the runway, its thread takes it, its U-turn. */
 const T = { lead: 0.6, hold: 0.45, fil: 1.2, uturn: 2.4, doors: 1.4, born: 0.6, bounce: 0.5 };
+/** **The last stretch of a take-off**, ms: it slows onto its thread, and closes the gap that its
+ *  rank in a queue left short of the thread's start (`takeoff`'s `back`). */
+export const FIL_STRETCH_MS = T.fil * 1000;
 /** Its thread's speed, m/s: where it slows to after its climb. */
 const FIL_SPEED = 3;
 /** **Nose up on its tail wheel, at rest**, lifted level at the roll. `@a-mesurer` (10 to 11°
@@ -48,6 +51,9 @@ const FIL_SPEED = 3;
 const TAIL_DOWN = 10 * DEG;
 /** **It bounces once on touching**, this high. `@a-mesurer` */
 const BOUNCE = 1.2;
+
+/** Smootherstep: 0 to 1 with no speed nor acceleration at either end. */
+const smoother = (k: number): number => k * k * k * (k * (6 * k - 15) + 10);
 
 const { runway, ramp, top, facade, lanes } = AIRFIELD;
 /** The hangars' lanes, right (`A`) then left (`B`): a plane leaving waits in the left one. */
@@ -143,9 +149,15 @@ function track(phases: ReadonlyArray<Phase>): Track {
  * free end, holds, rolls, lifts its tail then its nose, climbs folding its gear, and slows onto its
  * thread (`FIL`).
  */
-export function takeoff(role: AirRole, from: { readonly x: number; readonly z: number }): Track {
+export function takeoff(
+  role: AirRole,
+  from: { readonly x: number; readonly z: number },
+  back = 0,
+): Track & { ready: number; leaves: number } {
   const a = AIR[role];
   const lane = laneOf(from.x);
+  // It climbs out `back` metres short of where its thread starts (a queue of planes).
+  const filX = FIL.x + back;
   const way = polyline([
     [from.x, from.z],
     ...(Math.abs(from.x - lane) > 0.5 ? [[lane, from.z + 4] as const] : []),
@@ -158,52 +170,58 @@ export function takeoff(role: AirRole, from: { readonly x: number; readonly z: n
   const xs = lane - TURN_R;
   const xl = xs - a.roll;
   const fil = ((a.vLift + FIL_SPEED) / 2) * T.fil;
-  const climb = (xl - (FIL.x + fil)) / a.vLift;
+  const climb = (xl - (filX + fil)) / a.vLift;
   const dec = (a.vLift - FIL_SPEED) / T.fil;
   const tTaxi = T.lead + taxi;
   const tRoll = tTaxi + T.hold;
   const tLift = tRoll + roll;
   const tClimb = tLift + climb;
-  return track([
-    { until: T.lead, at: () => rolling(way.at(0)) },
-    { until: tTaxi, at: (_, k) => rolling(way.at(way.length * ease.drive(k))) },
-    { until: tRoll, at: () => rolling(way.at(way.length)) },
-    {
-      until: tLift,
-      at: (τ) => {
-        const s = 0.5 * acc * τ * τ;
-        const pitch =
-          -TAIL_DOWN * ease.inOut(span(s, 0.3 * a.roll, 0.55 * a.roll)) +
-          (TAIL_DOWN + 4 * DEG) * ease.inOut(span(s, 0.85 * a.roll, a.roll));
-        return { x: xs - s, y: 0.1, z: runway.z, yaw: -Math.PI / 2, pitch, gear: 0 };
+  return {
+    ready: tTaxi * 1000,
+    leaves: tLift * 1000,
+    ...track([
+      { until: T.lead, at: () => rolling(way.at(0)) },
+      { until: tTaxi, at: (_, k) => rolling(way.at(way.length * ease.drive(k))) },
+      { until: tRoll, at: () => rolling(way.at(way.length)) },
+      {
+        until: tLift,
+        at: (τ) => {
+          const s = 0.5 * acc * τ * τ;
+          const pitch =
+            -TAIL_DOWN * ease.inOut(span(s, 0.3 * a.roll, 0.55 * a.roll)) +
+            (TAIL_DOWN + 4 * DEG) * ease.inOut(span(s, 0.85 * a.roll, a.roll));
+          return { x: xs - s, y: 0.1, z: runway.z, yaw: -Math.PI / 2, pitch, gear: 0 };
+        },
       },
-    },
-    {
-      until: tClimb,
-      at: (τ, k) => {
-        const slope = ((ALT * Math.PI) / (2 * (xl - FIL.x - fil))) * Math.sin(Math.PI * k);
-        return {
-          x: xl - a.vLift * τ,
-          y: 0.1 + ((ALT - 0.1) * (1 - Math.cos(Math.PI * k))) / 2,
+      {
+        until: tClimb,
+        at: (τ, k) => {
+          const slope = ((ALT * Math.PI) / (2 * (xl - filX - fil))) * Math.sin(Math.PI * k);
+          return {
+            x: xl - a.vLift * τ,
+            y: 0.1 + ((ALT - 0.1) * (1 - Math.cos(Math.PI * k))) / 2,
+            z: runway.z,
+            yaw: -Math.PI / 2,
+            pitch: 4 * DEG * (1 - k) + Math.atan(slope),
+            gear: ease.inOut(span(τ, 0.3, 1.1)),
+          };
+        },
+      },
+      {
+        until: tClimb + T.fil,
+        at: (τ) => ({
+          // Short of its thread's start by `back`, it closes the gap over this last stretch: the pawn
+          // of its movement stands at the start, and the plane meets it there without a jump.
+          x: FIL.x + back * (1 - smoother(τ / T.fil)) + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
+          y: ALT,
           z: runway.z,
           yaw: -Math.PI / 2,
-          pitch: 4 * DEG * (1 - k) + Math.atan(slope),
-          gear: ease.inOut(span(τ, 0.3, 1.1)),
-        };
+          pitch: 0,
+          gear: 1,
+        }),
       },
-    },
-    {
-      until: tClimb + T.fil,
-      at: (τ) => ({
-        x: FIL.x + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
-        y: ALT,
-        z: runway.z,
-        yaw: -Math.PI / 2,
-        pitch: 0,
-        gear: 1,
-      }),
-    },
-  ]);
+    ]),
+  };
 }
 
 /**
@@ -213,7 +231,7 @@ export function takeoff(role: AirRole, from: { readonly x: number; readonly z: n
  * the ramp, rolls up its lane to its place, and turns about by the outside of the site, nose to
  * the runway.
  */
-export function landing(role: AirRole, to: Spot): Track {
+export function landing(role: AirRole, to: Spot): Track & { touch: number; clear: number } {
   const a = AIR[role];
   const lane = laneOf(to.x);
   const vA = a.vLift * 1.05;
@@ -234,38 +252,42 @@ export function landing(role: AirRole, to: Spot): Track {
   const side = lane > 0 ? -1 : 1;
   const rest = to.yaw ?? 0;
   const turn = ((((side * (rest - Math.PI)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) * side;
-  return track([
-    {
-      until: tTouch,
-      at: (τ, k) => ({
-        x: APPROACH.x + vA * τ,
-        y: 0.1 + (ALT - 0.1) * (1 - ease.inOut(k)),
-        z: runway.z,
-        yaw: Math.PI / 2,
-        pitch: (-2 * DEG - TAIL_DOWN) * (1 - ease.inOut(span(k, 0.72, 1))),
-        gear: 1 - ease.inOut(span(τ, 0, 0.9)),
-      }),
-    },
-    {
-      until: tTurn,
-      at: (τ) => ({
-        x: TOUCH + vA * τ - 0.5 * br * τ * τ,
-        y: 0.1 + BOUNCE * Math.sin(Math.PI * span(τ, 0, T.bounce)),
-        z: runway.z,
-        yaw: Math.PI / 2,
-        pitch: 0,
-        gear: 0,
-      }),
-    },
-    {
-      until: tPark,
-      at: (_, k) => rolling(way.at(way.length * (1 - (1 - k) ** 2 * (1 - 0.2 * k)))),
-    },
-    {
-      until: tPark + T.uturn,
-      at: (_, k) => rolling({ x: to.x, z: to.z, yaw: Math.PI + turn * ease.inOut(k) }),
-    },
-  ]);
+  return {
+    touch: tTouch * 1000,
+    clear: tTurn * 1000,
+    ...track([
+      {
+        until: tTouch,
+        at: (τ, k) => ({
+          x: APPROACH.x + vA * τ,
+          y: 0.1 + (ALT - 0.1) * (1 - ease.inOut(k)),
+          z: runway.z,
+          yaw: Math.PI / 2,
+          pitch: (-2 * DEG - TAIL_DOWN) * (1 - ease.inOut(span(k, 0.72, 1))),
+          gear: 1 - ease.inOut(span(τ, 0, 0.9)),
+        }),
+      },
+      {
+        until: tTurn,
+        at: (τ) => ({
+          x: TOUCH + vA * τ - 0.5 * br * τ * τ,
+          y: 0.1 + BOUNCE * Math.sin(Math.PI * span(τ, 0, T.bounce)),
+          z: runway.z,
+          yaw: Math.PI / 2,
+          pitch: 0,
+          gear: 0,
+        }),
+      },
+      {
+        until: tPark,
+        at: (_, k) => rolling(way.at(way.length * (1 - (1 - k) ** 2 * (1 - 0.2 * k)))),
+      },
+      {
+        until: tPark + T.uturn,
+        at: (_, k) => rolling({ x: to.x, z: to.z, yaw: Math.PI + turn * ease.inOut(k) }),
+      },
+    ]),
+  };
 }
 
 /** The hangar of a lane: `''` for the right one (`A`), `'_b'` for the left. */

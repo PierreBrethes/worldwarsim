@@ -1363,8 +1363,13 @@ export const pastPresence = internalMutation({
  * `npx convex run dev:airdropScene '{"playerId":"…"}'`
  */
 export const airdropScene = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+  args: {
+    playerId: v.id('players'),
+    /** Sans l'avion de transport, qui tient seul un couloir de l'aire, et avec un second
+     *  aérodrome à Lyon : la file de deux chasseurs et d'un bombardier (#478). */
+    bare: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { playerId, bare }) => {
     const player = await ctx.db.get(playerId);
     if (player === null || !isNation(player.nation)) throw new Error('no such player');
     await headquartersOf(ctx, player);
@@ -1379,16 +1384,31 @@ export const airdropScene = internalMutation({
       point: pointOfRegion(regionId),
       level: 1,
     });
-    await ctx.db.insert('troops', {
-      seasonId: player.seasonId,
-      playerId,
-      role: 'airTransport',
-      tier: 1,
-      nominalStrength: nominalStrength('airTransport', 1),
-      currentStrength: nominalStrength('airTransport', 1),
-      stationedAt: airfield,
-      load: { ammunition: 80, oil: 40, coal: 0 },
-    });
+    if (bare === true) {
+      // A second airfield, at Lyon: the planes fly there and come back (a wing at a point cannot leave).
+      const lyon = { lon: 4.85, lat: 45.76 };
+      const region = nearestRegion([lyon.lon, lyon.lat]);
+      if (region === null) throw new Error('no region at Lyon');
+      await ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId,
+        key: 'airfield',
+        regionId: region.id,
+        point: lyon,
+        level: 1,
+      });
+    }
+    if (bare !== true)
+      await ctx.db.insert('troops', {
+        seasonId: player.seasonId,
+        playerId,
+        role: 'airTransport',
+        tier: 1,
+        nominalStrength: nominalStrength('airTransport', 1),
+        currentStrength: nominalStrength('airTransport', 1),
+        stationedAt: airfield,
+        load: { ammunition: 80, oil: 40, coal: 0 },
+      });
     await ctx.db.insert('outposts', {
       seasonId: player.seasonId,
       playerId,

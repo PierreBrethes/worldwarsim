@@ -7,6 +7,7 @@ import {
   type AirRole,
   doorCourse,
   hangarOf,
+  AIRFIELD_LANES,
   laneOf,
   type Spot,
   type Track,
@@ -112,25 +113,32 @@ export function delayed(sequence: Sequence, lead: number, hidden = true): Sequen
 }
 
 /** One hangar's doors: its lane, how open they are at `ms`. */
-type Doors = { readonly lane: number; open(ms: number): number };
+export type Doors = { readonly lane: number; open(ms: number): number };
 
 /** **The airfield while a plane moves on it** (#269): its runway lit by night (the copy's own
  *  lamps, `MaquetteLayer.standIn`), and the doors of each hangar a new plane comes out of. */
 export function airfieldSequence(
-  ms: number,
+  ms: number | (() => number),
   doors: Doors | ReadonlyArray<Doors> = [],
 ): Sequence<'airfield'> {
   const hangars = 'lane' in doors ? [doors] : doors;
   return {
     family: 'airfield',
     pool: 'site',
-    ms,
+    // A function: the lights stay on as long as the last plane queued on the runway needs them.
+    get ms() {
+      return typeof ms === 'number' ? ms : ms();
+    },
     minPx: WALK_MIN_PX,
     at(t) {
       const pose: Record<string, PartPose> = {};
-      for (const { lane, open } of hangars) {
-        const suffix = hangarOf(laneOf(lane));
-        const { inner, outer } = doorCourse(open(t));
+      // A hangar's doors may come from several orders (#478): the most open one rules.
+      const opened = new Map<number, number>();
+      for (const { lane, open } of hangars)
+        opened.set(laneOf(lane), Math.max(opened.get(laneOf(lane)) ?? 0, open(t)));
+      for (const [lane, open] of opened) {
+        const suffix = hangarOf(lane);
+        const { inner, outer } = doorCourse(open);
         // The left leaves run to +x, the right to -x (storyboard).
         const by = (x: number): PartPose => ({ shift: [x, 0, 0] });
         pose[`porte_gauche_1${suffix}`] = by(inner);
@@ -274,9 +282,75 @@ export const departs = (air: boolean, moored: boolean): boolean => air || moored
 /** Hulls cued within this of each other put to sea together (#487). `@a-mesurer` */
 export const DEPARTURE_WINDOW_MS = 1000;
 
-/** **Planes formed together leave one after the other, the most advanced place first** (#487). */
-export const inFormationOrder = <T extends { readonly z: number }>(parts: ReadonlyArray<T>): T[] =>
-  [...parts].sort((a, b) => b.z - a.z);
+/** The hangars' lanes by their nearness to the runway's free end: the right one, then the left. */
+const laneRank = (x: number): number => (AIRFIELD_LANES as readonly number[]).indexOf(laneOf(x));
+
+/** **Planes leave one after the other** (#478): the right lane before the left, in a lane the
+ *  place in front (the most advanced, `z`) before the one at the back. */
+export const inFormationOrder = <T extends { readonly x: number; readonly z: number }>(
+  parts: ReadonlyArray<T>,
+): T[] => [...parts].sort((a, b) => laneRank(a.x) - laneRank(b.x) || b.z - a.z);
+
+/** **Planes come home in the reverse order** they leave in: the back of the left lane first. */
+export const landingOrder = <T extends { readonly x: number; readonly z: number }>(
+  parts: ReadonlyArray<T>,
+): T[] => inFormationOrder(parts).reverse();
+
+/** **Past so many planes in a queue**, the others stand at their place, as one past
+ *  `MAX_PLAYING` does (#478). `@a-mesurer` */
+export const QUEUE_MAX = 3;
+
+/** One plane's turn on the runway: when it is on it (`align`) and when it has left it (`free`,
+ *  off the ground, or off the runway), in ms of its own track. */
+type Slot = { readonly align: number; readonly free: number };
+
+/**
+ * **When each plane of a queue starts** (#478): the next is on the runway as the one before leaves
+ * it, so only one is on it at a time, and never starts before the one before.
+ */
+export function queueLeads(slots: ReadonlyArray<Slot>, busy = 0): number[] {
+  const leads: number[] = [];
+  for (const [k, { align }] of slots.entries()) {
+    const before = slots[k - 1];
+    leads.push(
+      before === undefined
+        ? Math.max(0, busy - align)
+        : leads[k - 1]! + Math.max(0, before.free - align),
+    );
+  }
+  return leads;
+}
+
+/** **How long the plane that lands after `queue` waits** (#478): `busy` ms, the runway taken
+ *  still by what landed or took off before; `null` past `QUEUE_MAX`, it stands at its place. */
+export const landingLead = (queue: ReadonlyArray<Slot>, mine: Slot, busy = 0): number | null =>
+  queue.length >= QUEUE_MAX ? null : queueLeads([...queue, mine], busy).at(-1)!;
+
+/** **How far short of its thread's start each plane of a queue stops on it** (#478, « en file à
+ *  30 m »), by rank. `@a-mesurer` */
+export const THREAD_GAP_M = 30;
+
+/** A plane cued to take off: where it rests, and its slot. */
+export type Departing = Slot & { readonly x: number; readonly z: number };
+export type Waiting = Departing & { readonly since: number };
+
+/**
+ * **How long a plane waits to take off** (#478, calqué sur `undockLead`): the planes of the same
+ * airfield cued within `DEPARTURE_WINDOW_MS` that leave before it make a queue, the right lane
+ * first. `null` past `QUEUE_MAX`: it leaves by its thread, with no takeoff.
+ */
+export function takeoffLead(
+  mine: Waiting,
+  others: ReadonlyArray<Waiting>,
+  busy = 0,
+): { lead: number; turn: number } | null {
+  const line = inFormationOrder([
+    mine,
+    ...others.filter(({ since }) => Math.abs(since - mine.since) < DEPARTURE_WINDOW_MS),
+  ]);
+  const turn = line.indexOf(mine);
+  return turn >= QUEUE_MAX ? null : { lead: queueLeads(line, busy)[turn]!, turn };
+}
 
 /** **When the `turn`th piece formed leaves**, from the first's start (#487). */
 export const formationLead = (turn: number): number => turn * FORMATION_STAGGER_MS;

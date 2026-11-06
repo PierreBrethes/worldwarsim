@@ -109,6 +109,11 @@
  *  môle) ; vingt secondes plus tard, deux chasseurs et deux cargos sont formés ensemble (l'aire en
  *  tient quatre, les deux cargos vont à couple et en rade) ; vingt encore, un chasseur formé
  *  décolle de sa place.
+ * `--file [s]` (#478) pose un aérodrome sans transport où attendent deux chasseurs et un bombardier ;
+ *  dans `s` secondes (40 par défaut) ils décollent ensemble pour Lyon (l'aire garde la scène de
+ *  `--largage`), vingt-cinq secondes après ils y arrivent, huit de plus ils rentrent ensemble.
+ *  Avec `--loin`, chaque avion vole aussi loin que porte son plein (un fil amarré au bout de la
+ *  piste) et ne rentre pas.
  * `--raser` (#326) pose la caserne de `--niveaux` et y fait entrer la garnison de `--echelle` :
  * une caserne à raser dans l'interface, sa garnison posée au point.
  * `--demanteler` (#340) pose l'avant-poste de `--livraison` près de Bruxelles, un camion en
@@ -251,8 +256,15 @@ const crowded = process.argv.includes('--poste');
 /** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
 const runwayAt = process.argv.indexOf('--piste-mole');
 const runwayIn = runwayAt < 0 ? null : Number(process.argv[runwayAt + 1]) || 40;
+/** `--file [s]` (#478) : l'aérodrome sans transport tient deux chasseurs et un bombardier ; dans s
+ *  secondes (40 par défaut) ils décollent ensemble pour Lyon, puis rentrent se poser ensemble. */
+const queueAt = process.argv.indexOf('--file');
+const queueIn = queueAt < 0 ? null : Number(process.argv[queueAt + 1]) || 40;
 const airdrops =
-  runwayIn !== null || process.argv.includes('--largage') || process.argv.includes('--echelle');
+  queueIn !== null ||
+  runwayIn !== null ||
+  process.argv.includes('--largage') ||
+  process.argv.includes('--echelle');
 /** `--centre` : le Centre de `--recherche`, mais aucune carte posée — à poser depuis l'arbre. */
 const idleCenter = process.argv.includes('--centre');
 /** `--sites` (#273) : les sites qui vivent au repos, le Centre qui cherche compris. */
@@ -283,6 +295,8 @@ const yard = process.argv.includes('--cour');
 let touringTrucks = null;
 /** What `--piste-mole` sends off at the end: from its building, toward a far point. */
 let runwayScene = null;
+/** What `--file` sends off: the troop ids of its three planes, and the airfield they leave from. */
+let queueScene = null;
 /** `--recrue [s]` (#211) : une infanterie de rang 2 formée à la caserne, sortie dans s secondes. */
 const recruitAt = process.argv.indexOf('--recrue');
 const recruitIn = recruitAt < 0 ? null : Number(process.argv[recruitAt + 1]) || 25;
@@ -712,7 +726,7 @@ if (!bare) {
     ]);
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
   if (airdrops && scene.a !== null)
-    cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a })]);
+    cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a, bare: queueIn !== null })]);
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
     for (const port of thresholdPorts
@@ -725,6 +739,7 @@ if (!bare) {
   // Les deux ports dans le champ ; `sites` est le lieu que lit `banc:client -- --sites`.
   if (thresholdPorts) places['ports-seuil'] = places.sites = [0.07, 46.86];
   if (runwayIn !== null && scene.a !== null) runwayScene = await runwayAndMole();
+  if (queueIn !== null && scene.a !== null) queueScene = await queuedPlanes();
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
    *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
    *  donne des traversées toutes en mer, jamais un trajet terre puis mer (aucune marche avant
@@ -1853,6 +1868,82 @@ if (runwayScene !== null) {
   }
 }
 
+/** `--file` (#478): the three planes leave together, then come home together. */
+if (queueScene !== null) {
+  const again = async (call, tries = 3) => {
+    try {
+      return await call();
+    } catch (error) {
+      if (tries <= 1 || !String(error.message).includes('timed out')) throw error;
+      return again(call, tries - 1);
+    }
+  };
+  const { from, planes, lyon } = queueScene;
+  // Out one movement per plane (three takeoffs at once); home as one column (one pile lands).
+  const fly = (origin, buildingId, together) =>
+    Promise.all(
+      (together ? [planes] : planes.map((id) => [id])).map((troopIds) =>
+        again(() =>
+          client.mutation(api.movements.enterGarrison, {
+            token: tokenA,
+            seasonId,
+            origin: { kind: 'building', buildingId: origin },
+            troopIds,
+            buildingId,
+          }),
+        ),
+      ),
+    );
+  await pause(queueIn * 1000);
+  if (process.argv.includes('--loin')) {
+    // `--loin`: each plane flies as far as its fuel holds, so that its thread moors at the
+    // runway's end and the planes stop on it in file; no way home.
+    await Promise.all(
+      planes.map(async (id) => {
+        for (const to of [
+          { lon: 12.57, lat: 55.68 },
+          { lon: 13.4, lat: 52.52 },
+          { lon: 8.68, lat: 50.11 },
+          { lon: 4.85, lat: 45.76 },
+        ]) {
+          const done = await again(() =>
+            client.mutation(api.movements.marchTo, {
+              token: tokenA,
+              seasonId,
+              origin: { kind: 'building', buildingId: from },
+              troopIds: [id],
+              point: to,
+            }),
+          ).catch((error) => {
+            if (error.data?.code !== 'NOT_ENOUGH_FUEL') throw error;
+            return null;
+          });
+          if (done !== null) return;
+        }
+      }),
+    );
+    console.log(`Les trois avions décollent loin à ${new Date().toISOString()}`);
+    await pause(60_000);
+  } else {
+    await fly(from, lyon);
+    console.log(`Les trois avions décollent à ${new Date().toISOString()}`);
+    await pause(25_000);
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: 3_000, onTime: true }),
+    ]);
+    await pause(15_000);
+    await fly(lyon, from, true);
+    cli([
+      'run',
+      'dev:arriveNow',
+      JSON.stringify({ playerId: scene.a, afterMs: 25_000, onTime: true }),
+    ]);
+    console.log(`Les trois avions se posent dans 25 s, à ${new Date().toISOString()}`);
+  }
+}
+
 /** `--chargement` : the trucks load, the HQ's twice a second apart: the second load joins. */
 if (loadingTrucks !== null) {
   await pause(loadingIn * 1000);
@@ -2153,4 +2244,50 @@ async function runwayAndMole() {
     JSON.stringify({ playerId: scene.a, afterMs: (runwayIn + 25) * 1000 }),
   ]);
   return leaving;
+}
+
+/**
+ * **`--file`** (#478): two fighters and a bomber at the airfield, which has no transport. Their
+ * places are the apron's order: the fighters in the right lane, the bomber alone in the left.
+ * Returns the airfield and the three troop ids.
+ */
+async function queuedPlanes() {
+  const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+  const airfield = me.buildings.find(
+    (building) => building.key === 'airfield' && building.point[1] > 47,
+  );
+  places.aerodrome = {
+    id: `building-airfield@${airfield.point[0]},${airfield.point[1]}`,
+    lonLat: airfield.point,
+  };
+  const planes = [];
+  for (const role of ['fighter', 'fighter', 'bomber'])
+    planes.push(
+      ...JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({
+            playerId: scene.a,
+            role,
+            count: 1,
+            lon: 0,
+            lat: 0,
+            buildingId: airfield.id,
+          }),
+        ]).match(/\[[^\]]*\]/)[0],
+      ),
+    );
+  cli([
+    'run',
+    'dev:grantCards',
+    JSON.stringify({
+      playerId: scene.a,
+      cards: ['transmissions1', 'transmissions2', 'transmissions3'],
+    }),
+  ]);
+  const lyon = me.buildings.find(
+    (building) => building.key === 'airfield' && building.id !== airfield.id,
+  );
+  return { from: airfield.id, planes, lyon: lyon.id };
 }

@@ -112,21 +112,23 @@ import {
 } from './timelines/airfield';
 import { berthOf, docking, HULL_BEAM_SHARE, launch, OFFSHORE, undocking } from './timelines/port';
 import { troopMetres } from '@/domain/piece-size';
-import type { HullPost } from './timelines/rest';
 import type { UnitRole } from '@/domain/ids';
 import { movementRoles } from '@/emblems/units/manifest';
+import { Runways } from './runway';
 import {
-  airfieldSequence,
   arriving,
   delayed,
   departs,
   doorsOf,
-  DEPARTURE_WINDOW_MS,
   formationLead,
   haulSequence,
   inFormationOrder,
+  landingOrder,
   launchLead,
   playable,
+  THREAD_GAP_M,
+  type Doors,
+  type Departing,
   restAt,
   arrivalRings,
   undockLead,
@@ -713,13 +715,9 @@ export class MapEngine {
   private siteWays: Array<{ readonly cue: SiteWayCue; readonly since: number }> = [];
   /** The hulls that moved up to the mole when the one there put to sea, waiting to be hauled. */
   private hauls: Array<{ readonly promotion: Promotion; readonly since: number }> = [];
-  /** The departures played, for the hulls putting to sea together to wait their turn (#487). */
-  private departures: Array<{
-    arcId: string;
-    site: string;
-    post: HullPost | null;
-    since: number;
-  }> = [];
+  /** The departures played, the runways held and the lights on: what the hulls putting to sea
+   *  together and the planes of a queue wait for (#487, #478). */
+  private airfields = new Runways();
   /** **Une Blitz** : ni piste ni môle n'y jouent, rien n'y est amarré (Mondiale seule). */
   private blitz = false;
   /** Columns waiting for their pile to stand before they deploy (#362). */
@@ -3595,12 +3593,16 @@ export class MapEngine {
         this.standing.rippleAt(at, radius);
       return true;
     }
-    // Planes formed together leave one after the other, the most advanced place first.
+    // Planes leave one after the other in the order of the lanes then of the places, and come
+    // home in the reverse order (#478).
     const spots = new Map(parts.map(({ id, place }) => [id, spotOf(site, place.at, place.front)]));
-    if (cue.kind === 'formation') {
-      const order = inFormationOrder(parts.map((part) => ({ part, z: spots.get(part.id)!.z })));
+    if (airfield) {
+      const line = parts.map((part) => ({ part, ...spots.get(part.id)! }));
+      const order = cue.kind === 'formation' ? inFormationOrder(line) : landingOrder(line);
       parts.splice(0, parts.length, ...order.map(({ part }) => part));
     }
+    const queue: Array<{ align: number; free: number }> = [];
+    // What came or left before holds the runway still: the first to land waits for it.
     let longest = 0;
     const hangars = new Map<number, Array<Parameters<typeof doorsOf>[0][number]>>();
     const slips: Array<Parameters<typeof slipSequence>[0][number]> = [];
@@ -3613,14 +3615,25 @@ export class MapEngine {
       const from = (way: Sequence) =>
         pawn === null ? way : arriving(way, [pawn.x - place.at.x, 0, pawn.z - place.at.z]);
       let sequence: Sequence | null = null;
+      let queued: { align: number; free: number } | null = null;
+      let wait = 0;
       // What the site plays for this piece, once it plays.
       let door: [number, Parameters<typeof doorsOf>[0][number]] | null = null;
       let slip: Parameters<typeof slipSequence>[0][number] | null = null;
       if (airfield && isAirRole(role)) {
         const out = cue.kind === 'formation' ? formation(role, spot, length / 2) : null;
-        const track = out ?? landing(role, spot);
+        const down = out === null ? landing(role, spot) : null;
+        const track = out ?? down!;
         const articulated = drawn.url !== undefined;
-        const lead = out === null ? 0 : formationLead(turn);
+        // Home, each touches as the one before leaves the runway; past the queue, it stands.
+        queued = down === null ? null : { align: down.touch, free: down.clear };
+        const waits =
+          queued === null
+            ? formationLead(turn)
+            : this.airfields.landingLead(cue.siteId, since, queue, queued);
+        if (waits === null) continue;
+        const lead = waits;
+        wait = lead;
         sequence = delayed(
           from(trackSequence(site, track, place.at, role, articulated, out?.born)),
           lead,
@@ -3643,6 +3656,10 @@ export class MapEngine {
       // Past `MAX_PLAYING` it stands at its place, and the doors, the slip and the turns of the
       // others do not wait for it.
       if (!this.sequences.play(this.standing, id, sequence, since, now)) continue;
+      if (queued !== null) {
+        queue.push(queued);
+        this.airfields.landed(cue.siteId, since, since + wait + queued.free);
+      }
       longest = Math.max(longest, sequence.ms);
       turn++;
       if (door !== null) hangars.set(door[0], [...(hangars.get(door[0]) ?? []), door[1]]);
@@ -3652,7 +3669,7 @@ export class MapEngine {
       this.sequences.play(this.maquettes, cue.siteId, slipSequence(slips), since, now);
     else if (airfield && longest > 0) {
       const doors = [...hangars].map(([lane, planes]) => ({ lane, open: doorsOf(planes) }));
-      this.sequences.play(this.maquettes, cue.siteId, airfieldSequence(longest, doors), since, now);
+      this.lightUp(cue.siteId, since, now, since + longest, doors);
     }
     if (longest > 0) this.standing.arrive(cue.pileId, [since + longest - now]);
     return true;
@@ -3689,15 +3706,30 @@ export class MapEngine {
     const kept = troop === undefined ? null : this.standing.restOf(troop);
     const place = restAt(kept, id);
     let sequence = null;
+    let plane: Departing | null = null;
+    let wait = 0;
     if (air && isAirRole(role)) {
+      const at = place ?? { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) };
+      const flight = takeoff(role, at);
+      plane = { x: at.x, z: at.z, align: flight.ready, free: flight.leaves };
+      // Planes taking off together leave right lane first, one on the runway at a time, and what
+      // holds the runway from earlier orders is waited for.
+      const queued = this.airfields.takeoffLead(
+        id,
+        { ...plane, since },
+        this.otherDepartures(arcId, id),
+      );
+      if (queued === null) return true;
+      wait = queued.lead;
+      // Each stops on its thread short of the one before, in file.
       const way = trackSequence(
         site,
-        takeoff(role, place ?? { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) }),
+        takeoff(role, at, queued.turn * THREAD_GAP_M),
         rest,
         role,
         piece.url !== undefined,
       );
-      sequence = moored ? way : homing(way);
+      sequence = delayed(moored ? way : homing(way), queued.lead, false);
     } else if (!air && isSeaRole(role)) {
       const beam = HULL_BEAM_SHARE * length;
       sequence = trackSequence(
@@ -3712,27 +3744,68 @@ export class MapEngine {
       sequence = delayed(sequence, lead, false);
     }
     if (sequence === null) return true;
-    this.departures.push({ arcId, site: id, post: kept?.post ?? null, since });
-    if (this.sequences.play(this.arcs, arcId, sequence, since, now) && air)
-      this.sequences.play(this.maquettes, id, airfieldSequence(sequence.ms), since, now);
+    // Only a plane that plays holds the runway, or makes the others wait.
+    const played = this.airfields.depart(
+      {
+        arcId,
+        site: id,
+        post: kept?.post ?? null,
+        since,
+        ...(plane === null ? {} : { plane }),
+      },
+      wait,
+      () => this.sequences.play(this.arcs, arcId, sequence, since, now),
+    );
+    if (played && plane !== null) this.lightUp(id, since, now, since + sequence.ms);
     return true;
+  }
+
+  /** **The airfield's lights** (`Runways.lightUp`), on until `end`. */
+  private lightUp(
+    siteId: string,
+    since: number,
+    now: number,
+    end: number,
+    doors: ReadonlyArray<Doors> = [],
+  ): void {
+    this.airfields.lightUp(siteId, since, end, doors, {
+      playing: () => this.sequences.playsOn(this.maquettes, siteId),
+      play: (sequence) => this.sequences.play(this.maquettes, siteId, sequence, since, now),
+    });
   }
 
   /** **The other hulls cued or put to sea from this port** (#487), those not yet played and those
    *  already playing, each once. */
   private otherDepartures(arcId: string, siteId: string) {
-    const seen = new Set<string>([arcId]);
     const pending = this.siteWays.flatMap(({ cue, since }) => {
       const arc = cue.kind === 'depart' ? this.arcs.viewOf(cue.arcId) : null;
       const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
       const kept = troop === undefined ? null : this.standing.restOf(troop);
+      const role = arc === null ? null : (movementRoles(arc)?.air ?? null);
+      const flight =
+        role !== null && isAirRole(role) && kept?.site === siteId ? takeoff(role, kept.rest) : null;
       return cue.kind === 'depart' && kept?.site === siteId
-        ? [{ arcId: cue.arcId, post: kept.post, since }]
+        ? [
+            {
+              arcId: cue.arcId,
+              site: siteId,
+              post: kept.post,
+              since,
+              ...(flight === null
+                ? {}
+                : {
+                    plane: {
+                      x: kept.rest.x,
+                      z: kept.rest.z,
+                      align: flight.ready,
+                      free: flight.leaves,
+                    },
+                  }),
+            },
+          ]
         : [];
     });
-    return [...this.departures.filter((each) => each.site === siteId), ...pending].filter(
-      (each) => !seen.has(each.arcId) && seen.add(each.arcId),
-    );
+    return this.airfields.others(arcId, siteId, pending);
   }
 
   /** **The hull at the mole's side is hauled up to the mole** when the one there has put to sea
@@ -5341,7 +5414,7 @@ export class MapEngine {
     this.hauls = this.hauls.filter(
       (haul) => !this.haulOf(haul, now) && now - haul.since < SORTIE_WAIT_MS,
     );
-    this.departures = this.departures.filter(({ since }) => now - since < DEPARTURE_WINDOW_MS);
+    this.airfields.purge(now);
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
     this.touring = stillWaiting(this.touring, now, (tour) => this.tourOf(tour, now));
     this.takings = this.takings.filter(
