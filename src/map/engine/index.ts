@@ -3619,7 +3619,9 @@ export class MapEngine {
       // Come in unmoored, it starts where its pawn stood at its thread's end.
       const pawn = cue.kind === 'retour' ? this.unmooredEnd(cue.siteId, airfield, cue.from) : null;
       const from = (way: Sequence) =>
-        pawn === null ? way : arriving(way, [pawn.x - place.at.x, 0, pawn.z - place.at.z]);
+        pawn === null
+          ? way
+          : arriving(way, [pawn.x - place.at.x, 0, pawn.z - place.at.z], !airfield);
       let sequence: Sequence | null = null;
       let queued: { align: number; free: number } | null = null;
       let wait = 0;

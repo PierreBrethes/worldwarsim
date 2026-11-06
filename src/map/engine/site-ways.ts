@@ -243,16 +243,31 @@ export function homing(sequence: Sequence): Sequence {
 /**
  * **A landing or a docking on a way too short to moor its thread** (#269, #270): the piece starts
  * where its pawn came in, `from` its rest, and joins its track over its first part, the reverse of
- * `homing`.
+ * `homing`. `inward`, a hull never sails farther out than its pawn stood (#521): it joins its
+ * track at its point nearest the pawn among those no farther out, instead of backing out to its
+ * offshore and off the screen.
  */
-export function arriving(sequence: Sequence, from: NonNullable<PartPose['travel']>): Sequence {
-  const until = sequence.ms * HOMING_SHARE;
+export function arriving(
+  sequence: Sequence,
+  from: NonNullable<PartPose['travel']>,
+  inward = false,
+): Sequence {
+  const near = Math.hypot(...from);
+  // ponytail: sampled, 1/200 of the way.
+  let join = 0;
+  for (let k = 0, best = Infinity; inward && k <= 200; k++) {
+    const t = (sequence.ms * k) / 200;
+    const at = sequence.at(t).root?.travel ?? [0, 0, 0];
+    const gap = Math.hypot(at[0] - from[0], at[1] - from[1], at[2] - from[2]);
+    if (Math.hypot(...at) <= near && gap < best) [best, join] = [gap, t];
+  }
+  const until = Math.max(sequence.ms * HOMING_SHARE, join);
   return {
     ...sequence,
     at(t) {
-      const pose = sequence.at(t);
+      const pose = sequence.at(Math.max(t, join));
       const travel = pose.root?.travel;
-      if (t >= until || travel === undefined) return pose;
+      if (t >= until || travel === undefined) return sequence.at(t);
       const k = ease.inOut(span(t, 0, until));
       const mix = (a: number, b: number) => a + (b - a) * k;
       return {

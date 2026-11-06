@@ -150,6 +150,26 @@ describe('a landing whose thread came in to its pile (#269)', () => {
   });
 });
 
+describe('a hull whose thread came in to its port (#521)', () => {
+  // Offshore 40 out, in at its berth by the end; its pawn stood 5 out.
+  const docking: Sequence = {
+    ms: 1000,
+    at: (t) => ({ root: { travel: [40 * (1 - t / 1000), 0, 0], heading: 1 } }),
+  };
+  const dock = arriving(docking, [5, 0, 0], true);
+  const out = (t: number) => Math.hypot(...dock.at(t).root!.travel!);
+
+  it('never sails farther out than its pawn stood, which would take it off the screen', () => {
+    for (let t = 0; t <= 1000; t += 10) expect(out(t)).toBeLessThanOrEqual(5 + 1e-9);
+  });
+
+  it('starts where the pawn stood and ends on its track, at its berth', () => {
+    expect(dock.at(0).root?.travel).toEqual([5, 0, 0]);
+    expect(out(1000)).toBeCloseTo(0, 9);
+    expect(dock.ms).toBe(1000);
+  });
+});
+
 describe('a thread moored to its runway end or offshore (#269, #270)', () => {
   const at = { x: 0, z: 0 };
   const end = { x: 1, z: 0 };
