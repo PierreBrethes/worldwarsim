@@ -56,7 +56,7 @@ Tout le reste, tu le tranches toi-même et tu le notes dans la section « Décis
    - son `npm run dev` prend un autre port que celui de Pierre, et `GESTES_ORIGIN=http://localhost:<port>` y mène les gestes ;
    - un conflit dans `WWS/docs/technique/a-mesurer.md` se règle en le régénérant (`node scripts/generate-a-mesurer.mjs`).
 
-   La base locale est une seule : un banc, une capture ou un déploiement la prend par un fichier `base-occupee` du scratchpad, et la consigne d'un agent qui doit s'en servir lui dit d'attendre que ce fichier disparaisse.
+   La base locale est une seule : un banc, une capture ou un déploiement la prend par un fichier `base-occupee` du scratchpad, créé sans écraser (`set -C`, skill `lot` §4), et la consigne d'un agent qui doit s'en servir lui dit d'attendre que ce fichier disparaisse.
 
    Le banc serveur de l'intégration se poste en commentaire de la PR fusionnée qui touche `convex/` : c'est la référence de la fusion suivante. Une base qui a reçu un schéma plus neuf refuse de redéployer une version plus ancienne, et l'avant ne se remesure plus.
 8. **Tes propres commits** suivent la section Git de `lot` : `git add <fichiers>`, jamais `-a` ni `-A`. Les fichiers de Pierre (`.claude/launch.json`, `WWS/prototypes/`) restent hors de toute PR.

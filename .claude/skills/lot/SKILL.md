@@ -93,7 +93,10 @@ Obligatoire dès que le lot touche un écran. Le mode d'emploi est dans `deploie
 section « Voir une partie Mondiale en local ».
 
 1. Docker `worldwarsim-backend-1` levé ; `npm run dev` sur 5173 (`lsof -i :5173` dit s'il tourne).
-2. Prends `base-occupee` et tiens-le de la démo à ta dernière capture. La base tourne les
+2. Prends `base-occupee` d'un coup, sans jamais l'écraser :
+   `until (set -C; echo "#N : captures" > "$S/base-occupee") 2>/dev/null; do sleep 15; done`
+   (06/11 : un agent a écrit par-dessus celui d'un autre et relancé la saison sous ses captures).
+   Tiens-le de la démo à ta dernière capture, puis retire-le. La base tourne les
    fonctions de `main` : déploie seulement si ta branche touche `convex/`, car un déploiement
    depuis une branche plus ancienne les ramène en arrière (05/11 : une démo de #487 cassée ;
    06/11 : #478, partie d'une `main` d'avant #476, a retiré un argument de `dev:navyScene`).
@@ -118,6 +121,9 @@ section « Voir une partie Mondiale en local ».
    Captures rangées hors du dépôt, dans ton dossier temporaire.
 5. Regarde chaque capture avec l'outil Read, à côté de sa référence : la maquette choisie, ou
    la capture d'avant le lot. Un écart se corrige, ou se rapporte s'il vient d'une décision.
+   Un storyboard se rend aux instants de tes captures (son curseur de temps) et se compare
+   image à image : instant, taille, axe, couleur de nuit (06/11 : sur #500 et #514, ce sont
+   les relecteurs qui ont rendu le storyboard et trouvé les écarts, pas le dev).
    Une animation se prouve en déroulé réel : la scène la déclenche par un ordre, comme un joueur.
    Une séquence lancée à la main dans le moteur ne prouve pas qu'elle joue en partie.
    La capture ou le banc d'avant se prend dans un clone du scratchpad (`git clone --shared`,
