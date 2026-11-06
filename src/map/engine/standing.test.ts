@@ -8,7 +8,7 @@ import {
   Vector3,
 } from 'three';
 import { pileLayout } from '@/domain/pile-layout';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import { pilePieces, postedAt, unitPieces } from '@/domain/pile-pieces';
@@ -1124,6 +1124,62 @@ describe('pieces resting at their post', () => {
       layer.orient(eye);
       near(spot(layer, 1), wanted(place));
     }
+  });
+
+  /** A browser's storage, kept from one layer to the next: a reload (#524). */
+  const browser = (places?: Record<string, Place>) => {
+    const stored = new Map<string, string>();
+    if (places) stored.set('wws-apron-places', JSON.stringify(places));
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+    });
+    return stored;
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('keeps the places of a transport and of a fighter formed beside it across a reload (#524)', async () => {
+    browser();
+    const pile = (...roles: UnitRole[]) => ({
+      id: 'p',
+      at: { beside: 'site' },
+      pieces: postedAt(pilePieces(roles.map((role, k) => unit(role, `t${k}`))), 'airfield'),
+    });
+    const live = await standing([pile('airTransport')]);
+    live.display([pile('airTransport', 'fighter')]);
+    await vi.waitFor(() => expect(live.isDressed('p')).toBe(true));
+    live.arrivedAt(
+      'p',
+      [live.piecesOf('p')!.groups.findIndex((g) => g.role === 'fighter')],
+      'formed',
+    );
+    live.orient(eye);
+    const reloaded = await standing([pile('airTransport', 'fighter')]);
+    for (const troop of ['t0', 't1']) {
+      const k = (layer: StandingLayer) =>
+        layer.piecesOf('p')!.groups.findIndex((g) => g.troopIds[0] === troop);
+      near(spot(reloaded, k(reloaded)), spot(live, k(live)));
+    }
+  });
+
+  it('lays out afresh two planes recalled at one place, and one formed since (#524)', async () => {
+    browser({ a: { lane: 1, rank: 0 }, b: { lane: 1, rank: 0 } });
+    const both = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
+    near(spot(both, 0), wanted({ lane: 1, rank: 0 }));
+    near(spot(both, 1), wanted({ lane: 0, rank: 0 }));
+    const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('c') }]);
+    layer.display([{ id: 'p', at: { beside: 'site' }, pieces: planes('c', 'a') }]);
+    await vi.waitFor(() => expect(layer.isDressed('p')).toBe(true));
+    layer.arrivedAt('p', [1], 'formed');
+    layer.orient(eye);
+    near(spot(layer, 1), wanted({ lane: 1, rank: 1 }));
+  });
+
+  it('stores nothing from a view that loads empty: the next reload still finds its places (#524)', async () => {
+    const stored = browser({ a: { lane: 1, rank: 0 } });
+    const layer = await standing([]);
+    layer.orient(eye);
+    expect(JSON.parse(stored.get('wws-apron-places')!)).toEqual({ a: { lane: 1, rank: 0 } });
   });
 
   const hullsAt = (...ids: string[]) =>

@@ -178,6 +178,16 @@ const GLIDE_MS = 500;
 const EXPECT_MS = 2500;
 /** How long where a group stood is kept (`lastSeen`): the view that moved it is long in. */
 const SEEN_MS = 3000;
+/** **The apron's places as this browser last drew them** (#524): a view loaded cold takes them
+ *  back, so that a reload does not reshuffle the planes. */
+const APRON_KEY = 'wws-apron-places';
+function recalledPlaces(): Map<string, Place> {
+  try {
+    return new Map(Object.entries(JSON.parse(localStorage.getItem(APRON_KEY) ?? '{}')));
+  } catch {
+    return new Map();
+  }
+}
 /** **A column joining a pile halts at its edge** (#277): so far out of its footprint, in steps. */
 const HALT_STEPS = 0.55;
 /** **The staple** (#277, storyboard « une pile vivante ») : a stroke of ink round the squad just
@@ -991,6 +1001,9 @@ export class StandingLayer implements SequenceHost {
 
   /** **The place of each plane at the site it rests on** (#475), by site then troop. */
   private readonly places = new Map<string, Map<string, Place>>();
+  /** The places this browser kept at its last visit, and whether `places` changed since stored. */
+  private readonly recalled = recalledPlaces();
+  private placesMoved = false;
   /** How the planes just formed or come home reach their places, until they have one. */
   private readonly arrivals = new Map<string, 'formed' | 'returned'>();
   /** **The post of each hull at the port it rests at** (#487), by site then troop: a state of its
@@ -1910,6 +1923,7 @@ export class StandingLayer implements SequenceHost {
     for (const site of this.mirroredSites.keys())
       if (!alive.has(site)) this.mirroredSites.delete(site);
     for (const site of this.places.keys()) if (!alive.has(site)) this.places.delete(site);
+    if (this.placesMoved) this.storePlaces();
     for (const site of this.hullPosts.keys()) if (!alive.has(site)) this.hullPosts.delete(site);
     // What no longer rests is remembered where it rested, for its departure.
     const now = performance.now();
@@ -2002,8 +2016,19 @@ export class StandingLayer implements SequenceHost {
     const kept = this.places.get(site) ?? new Map<string, Place>();
     this.places.set(site, kept);
     const roles = new Map(members.map(({ role, troop }) => [troop, role as AirRole]));
-    for (const troop of [...kept.keys()]) if (!roles.has(troop)) kept.delete(troop);
-    for (const troop of this.arrivals.keys()) if (roles.has(troop)) kept.delete(troop);
+    for (const troop of [...kept.keys()])
+      if (!roles.has(troop) || this.arrivals.has(troop)) {
+        kept.delete(troop);
+        this.placesMoved = true;
+      }
+    const held = (place: Place) =>
+      [...kept.values()].some(({ lane, rank }) => lane === place.lane && rank === place.rank);
+    // A plane with no history takes back the place it had at the last visit, if still free.
+    for (const { troop } of members) {
+      const place = this.recalled.get(troop);
+      if (!kept.has(troop) && !this.arrivals.has(troop) && place !== undefined && !held(place))
+        kept.set(troop, place);
+    }
     const heldNow = (): Plane[] =>
       [...kept].map(([troop, place]) => ({ role: roles.get(troop)!, place }));
     for (const { troop } of members) {
@@ -2011,11 +2036,24 @@ export class StandingLayer implements SequenceHost {
       const place = settle(heldNow(), roles.get(troop)!, this.arrivals.get(troop) ?? 'initial');
       this.arrivals.delete(troop);
       if (place !== null) kept.set(troop, place);
+      this.placesMoved = true;
     }
     return members.map(({ role, troop }) => ({
       role: role as AirRole,
       place: kept.get(troop) ?? null,
     }));
+  }
+
+  /** Stores the places of the planes on the aprons, once one moved: a view that loads empty
+   *  stores nothing. */
+  private storePlaces(): void {
+    const all = [...this.places.values()].flatMap((kept) => [...kept]);
+    this.placesMoved = false;
+    try {
+      localStorage.setItem(APRON_KEY, JSON.stringify(Object.fromEntries(all)));
+    } catch {
+      // No storage (private browsing, tests): the next load lays the apron out afresh.
+    }
   }
 
   /** **A plane formed at its hangar, or come home from its runway** (#475): it takes its place by
