@@ -289,6 +289,18 @@ const along = new Vector3(0, 0, 1);
 const across = new Vector3(1, 0, 0);
 const parentTurn = new Quaternion();
 
+/** **A part back at its rest, then shifted and turned** as its pose says: what a door does. */
+export function bentFromRest(
+  node: Object3D,
+  rest: Pick<Rest, 'position' | 'quaternion'>,
+  own?: Pick<PartPose, 'shift' | 'turn'>,
+): void {
+  node.position.copy(rest.position);
+  node.quaternion.copy(rest.quaternion);
+  if (own?.shift) node.position.add(new Vector3(...own.shift));
+  if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+}
+
 /** **`travel` and `heading` are read on the board**, through whatever turns and scales the
  *  node's parent: a pile faces away from its building and grows with its floor. */
 function onTheBoard(node: Object3D, rest: Rest, { travel, heading, roll, pitch }: PartPose): void {
@@ -496,10 +508,7 @@ export class SequenceLayer {
           : undefined;
       if (own?.exhaust) this.breathe(playing, node, own.exhaust);
       if (rest !== undefined) {
-        node.position.copy(rest.position);
-        node.quaternion.copy(rest.quaternion);
-        if (own?.shift) node.position.add(new Vector3(...own.shift));
-        if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+        bentFromRest(node, rest, own);
         node.scale.copy(rest.scale);
         if (own?.stretch !== undefined) node.scale.y *= own.stretch;
         if (own?.travel || own?.heading !== undefined) onTheBoard(node, rest, own);

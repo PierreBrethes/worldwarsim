@@ -1,12 +1,9 @@
-import { Euler, Group, type Object3D, Quaternion, Vector3 } from 'three';
+import { Group, type Object3D, type Quaternion, Vector3 } from 'three';
 import { isRigPart, type RigFamily } from '@/emblems/rigs';
 import type { RestPose } from './figurines/figurine';
 import { markOf } from './figurines/marks';
-import { articulatedOf, type PartPose, type Pose } from './sequences';
+import { articulatedOf, bentFromRest, type PartPose, type Pose } from './sequences';
 import { gearPose } from './site-ways';
-
-const turn = new Quaternion();
-const euler = new Euler();
 
 /**
  * **The articulated copy of a transport in flight** (#507): its gear folded, its parts posed by
@@ -34,10 +31,7 @@ export class FlightCopy {
     const given = pose as Record<string, PartPose | undefined>;
     for (const [node, rest] of this.rests) {
       const own = given[node.name] ?? gear[node.name];
-      node.position.copy(rest.position);
-      node.quaternion.copy(rest.quaternion);
-      if (own?.shift) node.position.add(new Vector3(...own.shift));
-      if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+      bentFromRest(node, rest, own);
     }
   }
 
