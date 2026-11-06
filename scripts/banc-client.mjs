@@ -1357,8 +1357,10 @@ async function play(profileName, pass) {
   // Au téléphone, le plateau tiré par un geste d'avant peut être déjà déplié : on ne le déplie
   // qu'au besoin. Au bureau, il est replié et sa tuile est dans le DOM, cachée : on le déplie.
   const unfoldBoard = async () => {
-    if (!phone) await button(/^Plateau personnel$/).click();
-    else if (await button(/déplier le plateau personnel/).isVisible())
+    if (!phone) {
+      const toggle = button(/^Plateau personnel$/);
+      if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
+    } else if (await button(/déplier le plateau personnel/).isVisible())
       await tap(button(/déplier le plateau personnel/));
     await page.waitForTimeout(800);
   };
@@ -1398,11 +1400,17 @@ async function play(profileName, pass) {
   await page.waitForTimeout(2500);
   // Prendre une tuile replie le plateau au téléphone (la carte se découvre pour la poser) : la
   // tuile « Mine » reste dans le DOM, sous la bande des bacs. Un joueur redéplie ; le banc aussi.
-  // Au bureau, le plateau ne se replie pas : on ne le rebascule pas.
-  if (phone) {
-    await clearSheets();
-    await unfoldBoard();
-  }
+  // Au bureau aussi, le plateau se replie sur la bande du bas : `unfoldBoard` ne le déplie que
+  // s'il est replié.
+  // Au téléphone, la fiche du pays survolé se pose sous le plateau déplié : le joueur replie le
+  // plateau (la poignée passe par « agrandir » avant « replier ») pour atteindre son « fermer ».
+  if (phone)
+    for (let k = 0; k < 3 && !(await button(/déplier le plateau personnel/).isVisible()); k++) {
+      await tap(button(/(agrandir|replier) le plateau personnel/));
+      await page.waitForTimeout(800);
+    }
+  await clearSheets();
+  await unfoldBoard();
   await gesture('prendre une mine', () => tile('Mine').click(), 2500);
   const coalfield = await free([Math.round(width / 2), Math.round(height * 0.35)]);
   await gesture('aimant de la mine', async () => {
