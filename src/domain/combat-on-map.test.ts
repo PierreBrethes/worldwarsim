@@ -16,7 +16,7 @@ import {
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
 import { troopSpan } from './piece-size';
-import { REPLAY_MS, stepBounds } from './replay';
+import { REPLAY_MS, SINK_HOLD_MS, stepBounds } from './replay';
 import type { ArcView, CombatReport, ReplayView } from './player-view';
 
 const NOW = 1_800_000_000_000;
@@ -125,6 +125,41 @@ describe('combatAt', () => {
     const end = combatAt(view, REPLAY_MS - 1, 'full', true).turns;
     expect(end.map((turn) => Math.round(turn * 100) / 100)).toEqual([0, 1, 1, 0, 1, 0]);
     expect(combatAt(view, 0, 'off', true).turns).toEqual([0, 1, 1, 0, 1, 0]);
+  });
+});
+
+describe('a scene where a hull sinks lasts past the six steps (#514)', () => {
+  const sinking: ReplayView = {
+    ...view,
+    atSea: true,
+    mine: [{ role: 'cargo', tier: 1, troops: 1, lost: 12, routed: 0, destroyed: 1 }],
+    theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+  };
+
+  it('holds the empty sea two seconds more, the stamp posed as the six steps end', () => {
+    expect(combatAt(sinking, REPLAY_MS, 'full', true).over).toBe(false);
+    expect(combatAt(sinking, REPLAY_MS + SINK_HOLD_MS - 1, 'full', true).over).toBe(false);
+    expect(combatAt(sinking, REPLAY_MS + SINK_HOLD_MS, 'full', true).over).toBe(true);
+    expect(combatAt(sinking, REPLAY_MS + 700, 'full', true).frame.overtime).toBe(700);
+    expect(combatAt(sinking, REPLAY_MS - 1, 'full', true).reportDue).toBe(false);
+    expect(combatAt(sinking, REPLAY_MS, 'full', true).reportDue).toBe(true);
+  });
+
+  it('leaves every other combat its six steps, and stamps it as its account begins', () => {
+    expect(combatAt(view, REPLAY_MS, 'full', true).over).toBe(true);
+    // At sea, with nothing of a ship going down but men: no overtime.
+    const standing = { ...sinking, mine: [{ ...sinking.mine[0]!, destroyed: 0 }] };
+    expect(combatAt(standing, REPLAY_MS, 'full', true).over).toBe(true);
+    const account = stepBounds('compte-rendu').start;
+    expect(combatAt(view, account - 1, 'full', true).reportDue).toBe(false);
+    expect(combatAt(view, account, 'full', true).reportDue).toBe(true);
+  });
+
+  it('holds the six steps alone at reduced motion and in the final pose, the stamp with the account', () => {
+    expect(combatAt(sinking, REPLAY_MS, 'reduced', true).over).toBe(true);
+    expect(combatAt(sinking, 0, 'off', true).reportDue).toBe(true);
+    expect(combatAt(sinking, 0, 'full', false).reportDue).toBe(true);
+    expect(combatAt(sinking, stepBounds('frappe').start, 'reduced', true).reportDue).toBe(false);
   });
 });
 

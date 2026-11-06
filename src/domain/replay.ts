@@ -1,6 +1,7 @@
 import type { UnitRole, UnitTier } from './ids';
 import type { ReplayView } from './player-view';
 import type { MapMotion } from './map-motion';
+import { DOMAIN_BY_ROLE } from './troops';
 
 export type ReplayStep = 'voyage' | 'pose' | 'frappe' | 'riposte' | 'deroute' | 'compte-rendu';
 
@@ -34,6 +35,23 @@ const FIRING_SIDE: Partial<Record<ReplayStep, ReplayView['side']>> = {
 };
 
 export const REPLAY_MS = REPLAY_STEPS.reduce((sum, step) => sum + STEP_MS[step], 0);
+
+/** @a-mesurer — le tampon se pose 0,4 s après la coulée, soit à la fin du compte-rendu, et tient 2 s
+ *  sur la mer vide sous sa nappe (storyboard : `report = sink[1] + 0,4`, `total = report + 2,0`) */
+export const SINK_HOLD_MS = 2000;
+
+/** **Combien dure la scène d'une vue** (#514) : les six temps, et `SINK_HOLD_MS` de plus quand une
+ *  coque coule en mer. Les autres combats gardent `REPLAY_MS`. */
+export function sceneMsOf(view: ReplayView): number {
+  if (view.atSea !== true) return REPLAY_MS;
+  /** What goes down is a hull or a wing: what a ship carries is not drawn (`afloat`). */
+  const afloat = (entry: { readonly role: UnitRole; readonly destroyed: number }) =>
+    entry.destroyed > 0 && DOMAIN_BY_ROLE[entry.role] !== 'land';
+  const sinks =
+    view.mine.some(afloat) ||
+    (view.faced === undefined ? view.theirs.destroyed > 0 : view.faced.forces.some(afloat));
+  return sinks ? REPLAY_MS + SINK_HOLD_MS : REPLAY_MS;
+}
 
 export function stepBounds(step: ReplayStep): { start: number; end: number } {
   let start = 0;
@@ -76,6 +94,11 @@ export type ReplayFrame = {
   readonly firing: 'mine' | 'theirs' | null;
   /** Mine first, in the view's order and one per troop; then the enemy's blocks. */
   readonly pieces: ReadonlyArray<ReplayPiece>;
+  /** **Past the six steps** (#514), ms: where a scene in which a hull sinks holds its empty sea, slick
+   *  and stamp. 0 for every other frame. */
+  readonly overtime: number;
+  /** Where this scene ends, ms: `REPLAY_MS`, or past it by `SINK_HOLD_MS` when a hull sinks. */
+  readonly end: number;
 };
 
 /**
@@ -98,6 +121,8 @@ function destinies(troops: number, destroyed: number, routed: number): PieceFate
  */
 export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'): ReplayFrame {
   const shown = motion === 'off' ? REPLAY_MS : Math.min(REPLAY_MS, Math.max(0, t));
+  const end = sceneMsOf(view);
+  const overtime = motion === 'full' ? Math.min(end - REPLAY_MS, Math.max(0, t - REPLAY_MS)) : 0;
   const step = REPLAY_STEPS.find((each) => shown < stepBounds(each).end) ?? REPLAY_STEPS.at(-1)!;
   const bounds = stepBounds(step);
   const at = motion === 'reduced' ? bounds.end : shown;
@@ -157,6 +182,8 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
   return {
     step,
     progress,
+    overtime,
+    end,
     firing: firing === undefined ? null : firing === view.side ? 'mine' : 'theirs',
     pieces: [
       ...mine.map((piece): ReplayPiece => ({
@@ -202,7 +229,7 @@ const SINK_LAG_MS = 1000;
 export function sinkOf(frame: ReplayFrame, fellAt: number, still: boolean): number {
   if (still) return frame.step === 'compte-rendu' ? 1 : 0;
   const from = fellAt + SINK_LAG_MS;
-  const clock = stepBounds(frame.step).start + frame.progress * STEP_MS[frame.step];
+  const clock = clockOf(frame);
   const to = stepBounds('compte-rendu').start + SINK_MS;
   return Math.min(1, Math.max(0, (clock - from) / (to - from)));
 }
@@ -226,7 +253,7 @@ const BUBBLES_MS = 1400;
 const STRIKE_MS = 1600;
 
 const clockOf = (frame: ReplayFrame) =>
-  stepBounds(frame.step).start + frame.progress * STEP_MS[frame.step];
+  stepBounds(frame.step).start + frame.progress * STEP_MS[frame.step] + frame.overtime;
 
 /**
  * **Où en est la nappe sous une coque coulée**, 0..1 : de sa coulée (`sinkOf`) à `SLICK_TAIL_MS`

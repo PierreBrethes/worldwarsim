@@ -70,6 +70,9 @@ export type CombatShown = {
   readonly turns: ReadonlyArray<number>;
   /** The scene has played: the board takes over. */
   readonly over: boolean;
+  /** **The account begins** (#327): the stamp goes up. Where a hull sinks, at the end of the six
+   *  steps, with the empty sea (#514); everywhere else as the account step begins. */
+  readonly reportDue: boolean;
 };
 
 /**
@@ -98,7 +101,14 @@ export function combatAt(
         ? home
         : 0,
   );
-  return { frame, turns, over: t >= (still ? FINAL_POSE_MS : REPLAY_MS) };
+  const full = !still && motion === 'full';
+  const sinks = frame.end > REPLAY_MS;
+  return {
+    frame,
+    turns,
+    over: t >= (still ? FINAL_POSE_MS : full ? frame.end : REPLAY_MS),
+    reportDue: full && sinks ? t >= REPLAY_MS : frame.step === 'compte-rendu',
+  };
 }
 
 /** Within this many degrees, a column's start is the combat's point. */

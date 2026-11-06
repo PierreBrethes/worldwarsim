@@ -414,6 +414,7 @@ describe('CombatLayer, the seats tag of a hull going down (#514)', () => {
     ...combat(id),
     side: 'defender',
     won: false,
+    atSea: true,
     mine: [{ role: 'cargo', tier: 1, troops: hulls, lost: 12, routed: 0, destroyed: hulls }],
     theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
     faced: { nation: 'germany', forces: [{ ...escort, strength: 100 }] },
@@ -484,6 +485,21 @@ describe('CombatLayer, the seats tag of a hull going down (#514)', () => {
       ['a', 'whole'],
       ['a', null],
     ]);
+  });
+
+  it('stamps as the six steps end and holds the empty sea two seconds more', () => {
+    const layer = new CombatLayer();
+    const told: string[] = [];
+    layer.onReport = (view) => told.push(view.combatId);
+    layer.play(drowning('a'), 'france', at, 0, 0, 'sea');
+    layer.advance(REPLAY_MS - 1, scale);
+    expect(told).toEqual([]);
+    layer.advance(REPLAY_MS, scale);
+    expect(told).toEqual(['a']);
+    layer.advance(REPLAY_MS + 1500, scale);
+    expect(layer.group.children).toHaveLength(1);
+    layer.advance(REPLAY_MS + 2000, scale);
+    expect(layer.group.children).toHaveLength(0);
   });
 
   it('takes it down when the scene is cleared under it', () => {

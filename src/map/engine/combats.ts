@@ -206,7 +206,7 @@ export class CombatLayer {
         this.seen.add(each.view.combatId);
         this.onShown(each.view.combatId);
       }
-      if (!each.reported && shown.frame.step === 'compte-rendu') {
+      if (!each.reported && shown.reportDue) {
         each.reported = true;
         this.onReport(each.told);
       }

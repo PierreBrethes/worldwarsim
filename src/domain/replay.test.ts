@@ -277,6 +277,18 @@ describe('the sinking told at sea (#514)', () => {
     expect(at(REPLAY_MS)).toBeLessThan(1);
   });
 
+  it('ends the slick and the bubbles inside the overtime, the pose it ends on whole', () => {
+    const sinking: ReplayView = { ...cargo, atSea: true };
+    const over = (after: number) => replayAt(sinking, REPLAY_MS + after);
+    expect(slickOf(over(1100), fell, false)).toBe(1);
+    expect(slickOf(over(2000), fell, false)).toBe(1);
+    expect(bubblesOf(over(400), false)).toBeCloseTo(1);
+    expect(seatsTagAt(seatsTagWindow(sinking), over(0), false)).toBeNull();
+    // Another combat, or a scene held still, has no overtime.
+    expect(replayAt(cargo, REPLAY_MS + 500).overtime).toBe(0);
+    expect(replayAt(sinking, REPLAY_MS + 500, 'reduced').overtime).toBe(0);
+  });
+
   it('at frozen steps lays the whole slick at the account and nothing before', () => {
     expect(slickOf(replayAt(cargo, stepBounds('deroute').start, 'reduced'), fell, true)).toBe(0);
     expect(slickOf(replayAt(cargo, account, 'reduced'), fell, true)).toBe(1);

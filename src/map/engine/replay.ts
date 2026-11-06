@@ -23,7 +23,6 @@ import { metresOnBoard } from '@/domain/piece-size';
 import {
   bubblesOf,
   hullPose,
-  REPLAY_MS,
   sinkOf,
   slickOf,
   STEP_MS,
@@ -853,7 +852,8 @@ export class ReplayScene {
         this.sea && this.onMap === piece.side && !still
           ? step === 'voyage'
             ? ease(progress)
-            : 1 - ease(Math.max(0, 1 - (REPLAY_MS - clockOf(frame)) / SEA_LEAVE_MS))
+            : 1 -
+              ease(Math.max(0, 1 - (frame.end - clockOf(frame) - frame.overtime) / SEA_LEAVE_MS))
           : 1;
       const opacity = Math.min(1 - Math.max(0, (sink - FADE_FROM) / (1 - FADE_FROM)), ghost);
       const wear = burnt || sink > 0 ? 'burnt' : retreat > 0 ? 'washed' : 'whole';
