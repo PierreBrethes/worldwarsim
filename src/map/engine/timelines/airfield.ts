@@ -150,7 +150,7 @@ export function takeoff(
 ): Track & { ready: number; leaves: number } {
   const a = AIR[role];
   const lane = laneOf(from.x);
-  // It slows onto its thread `back` metres short of where the thread starts (a queue of planes).
+  // It climbs out `back` metres short of where its thread starts (a queue of planes).
   const filX = FIL.x + back;
   const way = polyline([
     [from.x, from.z],
@@ -204,7 +204,9 @@ export function takeoff(
       {
         until: tClimb + T.fil,
         at: (τ) => ({
-          x: filX + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
+          // Short of its thread's start by `back`, it closes the gap over this last stretch: the pawn
+          // of its movement stands at the start, and the plane meets it there without a jump.
+          x: FIL.x + back * (1 - τ / T.fil) + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
           y: ALT,
           z: runway.z,
           yaw: -Math.PI / 2,

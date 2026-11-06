@@ -285,12 +285,15 @@ describe('a queue of the real tracks (#478)', () => {
     }
   });
 
-  it('stops on its thread short of where it starts, by the gap of its rank', () => {
+  it('trails its rank on the thread, then meets its pawn at the thread start without a jump', () => {
     const at = spots[0]!;
-    const end = (back: number) => takeoff(at.role, at, back);
-    const x = (back: number) => end(back).at(end(back).ms).x;
-    expect(x(THREAD_GAP_M) - x(0)).toBeCloseTo(THREAD_GAP_M, 3);
-    expect(end(0).ready).toBe(end(THREAD_GAP_M).ready);
+    const track = (back: number) => takeoff(at.role, at, back);
+    const x = (back: number, t: number) => track(back).at(t).x;
+    const last = (back: number) => track(back).ms - 1200;
+    // Before the last stretch the ranks are `THREAD_GAP_M` apart; at the end they stand together.
+    expect(x(THREAD_GAP_M, last(THREAD_GAP_M)) - x(0, last(0))).toBeCloseTo(THREAD_GAP_M, 3);
+    expect(x(THREAD_GAP_M, track(THREAD_GAP_M).ms)).toBeCloseTo(x(0, track(0).ms), 6);
+    expect(track(0).ready).toBe(track(THREAD_GAP_M).ready);
   });
 });
 
