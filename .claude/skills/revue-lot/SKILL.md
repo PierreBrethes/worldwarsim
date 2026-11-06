@@ -54,7 +54,9 @@ Ce sont les défauts que les revues ont réellement trouvés.
 - **Doublons** : la même logique, la même table ou le même texte dans deux fichiers.
 - **Décisions de Pierre** : le lot suit les « Décisions » de l'issue, l'ADR et la maquette
   choisie. Compare les captures du lot à celles de la maquette, au même cadrage ; un écart pris
-  seul par l'agent (une valeur, un réglage, une couche retirée) est un finding.
+  seul par l'agent (une valeur, un réglage, une couche retirée) est un finding. Chaque ligne de
+  mode de la maquette (réduites, coupées, Blitz, adversaire, nuit) se retrouve dans le code : un
+  mode sauté sans raison écrite est un finding (#474 : la Blitz sautée, contre le storyboard).
 - **Ce qui s'affiche fait foi** : un état lu sur l'URL ou sur un compteur, alors que le composant
   ne se monte pas (feuille d'un bâtiment tombé), laisse l'écran mentir.
 - **Ce qui ne s'affiche plus** : quand un lot masque une fiche, un cartouche ou un compteur, liste
