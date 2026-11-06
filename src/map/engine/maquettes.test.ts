@@ -1709,7 +1709,7 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
 
     it('decides two neighbouring ports once both are posed: the same sides, whichever lands first', async () => {
       const near = { ...second, at: { lonLat: [0.12, 0.02] as const } };
-      const sides = async (order: (typeof port)[]) => {
+      const sides = async (order: Parameters<MaquetteLayer['display']>[0]) => {
         const layer = await layerOf(
           order,
           () => east,
