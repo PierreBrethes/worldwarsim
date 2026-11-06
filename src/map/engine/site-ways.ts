@@ -42,7 +42,7 @@ export function spotOf(site: Frame, at: Vector3, front: Vector3): Spot & { yaw: 
 
 /** **The gear folds** (`gear`, 0 down, 1 up): in toward the belly for a fighter, back for the
  *  others (storyboard). Axes and course `@a-mesurer` until the models are read for it. */
-function gearPose(role: AirRole, gear: number): Record<string, PartPose> {
+export function gearPose(role: AirRole, gear: number): Record<string, PartPose> {
   if (gear <= 0) return {};
   const fold = (Math.PI / 2) * gear;
   return AIR[role].fold === 'in'
