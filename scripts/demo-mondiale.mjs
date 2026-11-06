@@ -22,7 +22,8 @@
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--brest` (#436) y ajoute un chantier
- * de port à Brest, sur sa rade. `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
+ * de port à Brest, sur sa rade. `--port-miroir` (#476) pose le port de `--navire` à Almería, sur une côte
+ * qui serre son môle : le port y est posé en miroir (`id` du port : `building-port@-1.84,37.12`). `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
  * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
@@ -314,10 +315,13 @@ const coastAt = process.argv.indexOf('--flotte-cote');
 const coastIn = coastAt < 0 ? null : Number(process.argv[coastAt + 1]) || 25;
 /** `--quai-dense` : deux ports dans un anneau à ×0,4, un cargo à quai, un qui appareille (#433). */
 const denseQuay = process.argv.includes('--quai-dense');
+/** `--port-miroir` (#476) : le port de `--navire` à Almería, où la côte serre le môle du côté de la grue. */
+const mirrorPort = process.argv.includes('--port-miroir');
 const navy =
   denseQuay ||
   coastIn !== null ||
   runwayIn !== null ||
+  mirrorPort ||
   process.argv.includes('--navire') ||
   process.argv.includes('--echelle');
 /** `--deux-camions` : la scène de `--livraison`, avec un second camion vide au QG (#319). */
@@ -707,7 +711,14 @@ if (!bare) {
     cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a })]);
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
-    cli(['run', 'dev:navyScene', JSON.stringify({ playerId: scene.a })]);
+    cli([
+      'run',
+      'dev:navyScene',
+      JSON.stringify({
+        playerId: scene.a,
+        ...(mirrorPort && { port: { lon: -1.84, lat: 37.12 } }),
+      }),
+    ]);
   if (runwayIn !== null && scene.a !== null) runwayScene = await runwayAndMole();
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
    *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène

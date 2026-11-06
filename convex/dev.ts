@@ -2499,17 +2499,18 @@ export const guetScene = internalMutation({
 /**
  * **La scène du navire** (#129), pour la démo : un port à Marseille, un cargo à quai, un avant-poste
  * côtier à Agde. Le cargo est de la démo, le départ et l'arrivée le long du quai se jouent à l'écran.
+ * `port` pose le port ailleurs qu'à Marseille : sur une côte qui serre son môle (#476).
  *
  * `npx convex run dev:navyScene '{"playerId":"…"}'`
  */
 export const navyScene = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+  args: { playerId: v.id('players'), port: v.optional(LON_LAT) },
+  handler: async (ctx, { playerId, port: at }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
-    const point = { lon: 5.37, lat: 43.3 };
+    const point = at ?? { lon: 5.37, lat: 43.3 };
     const region = nearestRegion([point.lon, point.lat]);
-    if (region === null) throw new Error('no region at Marseille');
+    if (region === null) throw new Error('no region at the port');
     const port = await ctx.db.insert('buildings', {
       seasonId: player.seasonId,
       playerId,

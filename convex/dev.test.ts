@@ -604,3 +604,16 @@ describe('dev.captureSoon and dev.raceEndsSoon', () => {
     }
   });
 });
+
+describe('dev.navyScene', () => {
+  it('stands its port at Marseille, or where the demo asks for it (#476)', async () => {
+    const { t, playerId } = await twoNations();
+    await t.mutation(internal.dev.navyScene, { playerId });
+    await t.mutation(internal.dev.navyScene, { playerId, port: { lon: -1.84, lat: 37.12 } });
+    const ports = (await buildingsOf(t, playerId)).filter(({ key }) => key === 'port');
+    expect(ports.map(({ point }) => point)).toEqual([
+      { lon: 5.37, lat: 43.3 },
+      { lon: -1.84, lat: 37.12 },
+    ]);
+  });
+});
