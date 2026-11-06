@@ -67,12 +67,18 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
 
 - **Node** : si `npm --version` imprime plus d'une ligne (le Mac), préfixe chaque commande node
   par `unfunction node npm npx nvm 2>/dev/null; export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH";`.
-- **Un seul vérifieur à la fois** sur la machine : `ps -Ao pid,command | grep "[n]pm run verifier"`,
-  lancé dans une commande à part, doit ne rien rendre avant `npm run verifier`, et le fichier
-  `base-occupee` du scratchpad ne doit pas annoncer des gestes ni un banc : ton vérifieur à côté
-  les fait échouer sous la charge (05/11, charge 46, cinq gestes en échec). Des timeouts
-  dans `convex/` qui changent d'un passage à l'autre viennent de la charge : relance ces
-  fichiers seuls.
+- **Un seul vérifieur à la fois** sur la machine, tenu par un verrou que `mkdir` prend d'un coup
+  (06/11 : deux devs ont vu `ps` vide en même temps, et leurs vérifieurs se sont fait tomber) :
+
+  ```bash
+  L="${TMPDIR:-/tmp}/worldwarsim-verifieur.lock"; until mkdir "$L" 2>/dev/null; do sleep 15; done
+  npm run verifier; rc=$?; rmdir "$L"; echo "rc=$rc"
+  ```
+
+  Un verrou de plus de 30 min (`ls -ld`) est mort : retire-le. Le fichier `base-occupee` du
+  scratchpad ne doit pas annoncer des gestes ni un banc : ton vérifieur à côté les fait échouer
+  sous la charge (05/11, charge 46, cinq gestes en échec). Des timeouts dans `convex/` qui
+  changent d'un passage à l'autre viennent de la charge : relance ces fichiers seuls.
 - **Attendre un processus** : attends son pid (`while kill -0 <pid>; do sleep 5; done`).
   `pgrep -f <motif>` dans une boucle trouve la boucle elle-même et ne rend jamais la main.
 
