@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { AIRFIELD } from '@/emblems/kits/manifest';
+import { troopMetres } from '@/domain/piece-size';
 import type { Sequence } from './sequences';
 import {
   airfieldSequence,
@@ -16,6 +17,8 @@ import {
   HAUL_LEAD_MS,
   homing,
   inFormationOrder,
+  landingLead,
+  THREAD_GAP_M,
   landingOrder,
   QUEUE_MAX,
   queueLeads,
@@ -28,7 +31,7 @@ import {
   UNDOCK_STAGGER_MS,
   undockLead,
 } from './site-ways';
-import { formation } from './timelines/airfield';
+import { formation, landing, parkingZ, takeoff } from './timelines/airfield';
 import { launch } from './timelines/port';
 
 const still: Sequence = { ms: 1000, at: () => ({ root: { travel: [1, 0, 0] } }) };
@@ -79,6 +82,14 @@ describe('the doors of a hangar, one set for all its planes (#487)', () => {
 });
 
 describe('the airfield with a door set per hangar (#487)', () => {
+  it('stays lit as long as its last queued plane asks (#478)', () => {
+    let end = 3000;
+    const lit = airfieldSequence(() => end);
+    expect(lit.ms).toBe(3000);
+    end = 9000;
+    expect(lit.ms).toBe(9000);
+  });
+
   it('moves each hangar its doors name, the right one and the left one', () => {
     const both = airfieldSequence(3000, [
       { lane: AIRFIELD.lanes[0], open: () => 1 },
@@ -209,14 +220,77 @@ describe('planes of a pile take off and land in a queue (#478)', () => {
       free: 10000,
     });
     const mine = at(1, 60);
-    expect(takeoffLead(at(0, 60), [mine])).toBe(0);
-    expect(takeoffLead(mine, [at(0, 60)])).toBe(6000);
-    expect(takeoffLead(mine, [at(0, 60, DEPARTURE_WINDOW_MS + 1)])).toBe(0);
+    const lead = (...args: Parameters<typeof takeoffLead>) => takeoffLead(...args)?.lead ?? null;
+    expect(lead(at(0, 60), [mine])).toBe(0);
+    expect(lead(mine, [at(0, 60)])).toBe(6000);
+    expect(lead(mine, [at(0, 60, DEPARTURE_WINDOW_MS + 1)])).toBe(0);
     const line = Array.from({ length: QUEUE_MAX }, (_, k) => at(0, 100 - 10 * k));
     expect(takeoffLead(mine, line)).toBeNull();
-    expect(takeoffLead(line[QUEUE_MAX - 1]!, [...line.slice(0, -1), mine])).toBe(
-      6000 * (QUEUE_MAX - 1),
-    );
+    expect(takeoffLead(line[QUEUE_MAX - 1]!, [...line.slice(0, -1), mine])).toEqual({
+      lead: 6000 * (QUEUE_MAX - 1),
+      turn: QUEUE_MAX - 1,
+    });
+  });
+
+  it('waits for the runway a plane cued earlier still holds, and for none it has left', () => {
+    const slot = { align: 4000, free: 10000 };
+    expect(queueLeads([slot], 0)).toEqual([0]);
+    expect(queueLeads([slot], 9000)).toEqual([5000]);
+    expect(queueLeads([slot, slot], 9000)).toEqual([5000, 11000]);
+    expect(queueLeads([slot], 3000)).toEqual([0]);
+    const mine = { ...plane(0, 60), since: 0, ...slot };
+    expect(takeoffLead(mine, [], 9000)).toEqual({ lead: 5000, turn: 0 });
+  });
+
+  it('sends the plane past the queue to stand at its place when it lands', () => {
+    const slot = { align: 4000, free: 10000 };
+    const full = Array.from({ length: QUEUE_MAX }, () => slot);
+    expect(landingLead(full.slice(0, -1), slot)).toBe(6000 * (QUEUE_MAX - 1));
+    expect(landingLead(full, slot)).toBeNull();
+    expect(landingLead([], slot, 7000)).toBe(3000);
+  });
+});
+
+describe('a queue of the real tracks (#478)', () => {
+  const roles = ['fighter', 'bomber', 'airTransport'] as const;
+  const spots = roles.flatMap((role) =>
+    ([RIGHT, LEFT] as const).map((x) => ({ role, x, z: parkingZ(troopMetres(role) / 2) })),
+  );
+  const pairs = spots.flatMap((a, i) =>
+    spots.flatMap((b, j) => (i === j ? [] : [[a, b] as const])),
+  );
+
+  it('takes off with the runway free: each aligned only once the one before is off the ground', () => {
+    for (const [a, b] of pairs) {
+      const [first, second] = [takeoff(a.role, a), takeoff(b.role, b)];
+      expect(first.leaves).toBeGreaterThan(first.ready);
+      const [, lead] = queueLeads([
+        { align: first.ready, free: first.leaves },
+        { align: second.ready, free: second.leaves },
+      ]);
+      expect(lead! + second.ready).toBeGreaterThanOrEqual(first.leaves);
+      expect(lead! + second.ready - first.leaves).toBeLessThan(second.ready);
+    }
+  });
+
+  it('lands with the runway free: each touches once the one before has left it', () => {
+    for (const [a, b] of pairs) {
+      const [first, second] = [landing(a.role, a), landing(b.role, b)];
+      expect(first.clear).toBeGreaterThan(first.touch);
+      const [, lead] = queueLeads([
+        { align: first.touch, free: first.clear },
+        { align: second.touch, free: second.clear },
+      ]);
+      expect(lead! + second.touch).toBeGreaterThanOrEqual(first.clear);
+    }
+  });
+
+  it('stops on its thread short of where it starts, by the gap of its rank', () => {
+    const at = spots[0]!;
+    const end = (back: number) => takeoff(at.role, at, back);
+    const x = (back: number) => end(back).at(end(back).ms).x;
+    expect(x(THREAD_GAP_M) - x(0)).toBeCloseTo(THREAD_GAP_M, 3);
+    expect(end(0).ready).toBe(end(THREAD_GAP_M).ready);
   });
 });
 

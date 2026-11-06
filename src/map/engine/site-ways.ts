@@ -118,14 +118,17 @@ type Doors = { readonly lane: number; open(ms: number): number };
 /** **The airfield while a plane moves on it** (#269): its runway lit by night (the copy's own
  *  lamps, `MaquetteLayer.standIn`), and the doors of each hangar a new plane comes out of. */
 export function airfieldSequence(
-  ms: number,
+  ms: number | (() => number),
   doors: Doors | ReadonlyArray<Doors> = [],
 ): Sequence<'airfield'> {
   const hangars = 'lane' in doors ? [doors] : doors;
   return {
     family: 'airfield',
     pool: 'site',
-    ms,
+    // A function: the lights stay on as long as the last plane queued on the runway needs them.
+    get ms() {
+      return typeof ms === 'number' ? ms : ms();
+    },
     minPx: WALK_MIN_PX,
     at(t) {
       const pose: Record<string, PartPose> = {};
@@ -301,14 +304,27 @@ type Slot = { readonly align: number; readonly free: number };
  * **When each plane of a queue starts** (#478): the next is on the runway as the one before leaves
  * it, so only one is on it at a time, and never starts before the one before.
  */
-export function queueLeads(slots: ReadonlyArray<Slot>): number[] {
+export function queueLeads(slots: ReadonlyArray<Slot>, busy = 0): number[] {
   const leads: number[] = [];
   for (const [k, { align }] of slots.entries()) {
     const before = slots[k - 1];
-    leads.push(before === undefined ? 0 : leads[k - 1]! + Math.max(0, before.free - align));
+    leads.push(
+      before === undefined
+        ? Math.max(0, busy - align)
+        : leads[k - 1]! + Math.max(0, before.free - align),
+    );
   }
   return leads;
 }
+
+/** **How long the plane that lands after `queue` waits** (#478): `busy` ms, the runway taken
+ *  still by what landed or took off before; `null` past `QUEUE_MAX`, it stands at its place. */
+export const landingLead = (queue: ReadonlyArray<Slot>, mine: Slot, busy = 0): number | null =>
+  queue.length >= QUEUE_MAX ? null : queueLeads([...queue, mine], busy).at(-1)!;
+
+/** **How far short of its thread's start each plane of a queue stops on it** (#478, « en file à
+ *  30 m »), by rank. `@a-mesurer` */
+export const THREAD_GAP_M = 30;
 
 /** A plane cued to take off: where it rests, and its slot. */
 export type Departing = Slot & { readonly x: number; readonly z: number };
@@ -319,13 +335,17 @@ type Waiting = Departing & { readonly since: number };
  * airfield cued within `DEPARTURE_WINDOW_MS` that leave before it make a queue, the right lane
  * first. `null` past `QUEUE_MAX`: it leaves by its thread, with no takeoff.
  */
-export function takeoffLead(mine: Waiting, others: ReadonlyArray<Waiting>): number | null {
+export function takeoffLead(
+  mine: Waiting,
+  others: ReadonlyArray<Waiting>,
+  busy = 0,
+): { lead: number; turn: number } | null {
   const line = inFormationOrder([
     mine,
     ...others.filter(({ since }) => Math.abs(since - mine.since) < DEPARTURE_WINDOW_MS),
   ]);
   const turn = line.indexOf(mine);
-  return turn >= QUEUE_MAX ? null : queueLeads(line)[turn]!;
+  return turn >= QUEUE_MAX ? null : { lead: queueLeads(line, busy)[turn]!, turn };
 }
 
 /** **When the `turn`th piece formed leaves**, from the first's start (#487). */

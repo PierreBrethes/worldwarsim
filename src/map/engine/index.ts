@@ -128,8 +128,8 @@ import {
   landingOrder,
   launchLead,
   playable,
-  QUEUE_MAX,
-  queueLeads,
+  landingLead,
+  THREAD_GAP_M,
   takeoffLead,
   type Departing,
   restAt,
@@ -726,6 +726,16 @@ export class MapEngine {
     since: number;
     plane?: Departing;
   }> = [];
+  /** **Who holds each runway**, until when (`busy`, on the clock of `since`): a plane takes off or
+   *  lands when the one before has left it, whichever cue it came by (#478). */
+  private runway: Array<{
+    site: string;
+    kind: 'depart' | 'land';
+    since: number;
+    busy: number;
+  }> = [];
+  /** The lights of an airfield, on until the last plane queued on its runway is through. */
+  private lights = new Map<string, { start: number; end: number }>();
   /** **Une Blitz** : ni piste ni môle n'y jouent, rien n'y est amarré (Mondiale seule). */
   private blitz = false;
   /** Columns waiting for their pile to stand before they deploy (#362). */
@@ -3610,6 +3620,8 @@ export class MapEngine {
       parts.splice(0, parts.length, ...order.map(({ part }) => part));
     }
     const queue: Array<{ align: number; free: number }> = [];
+    // What came or left before holds the runway still: the first to land waits for it.
+    const busy = airfield ? this.runwayBusy(cue.siteId, since, false) : 0;
     let longest = 0;
     const hangars = new Map<number, Array<Parameters<typeof doorsOf>[0][number]>>();
     const slips: Array<Parameters<typeof slipSequence>[0][number]> = [];
@@ -3623,6 +3635,7 @@ export class MapEngine {
         pawn === null ? way : arriving(way, [pawn.x - place.at.x, 0, pawn.z - place.at.z]);
       let sequence: Sequence | null = null;
       let queued: { align: number; free: number } | null = null;
+      let wait = 0;
       // What the site plays for this piece, once it plays.
       let door: [number, Parameters<typeof doorsOf>[0][number]] | null = null;
       let slip: Parameters<typeof slipSequence>[0][number] | null = null;
@@ -3632,9 +3645,11 @@ export class MapEngine {
         const track = out ?? down!;
         const articulated = drawn.url !== undefined;
         // Home, each touches as the one before leaves the runway; past the queue, it stands.
-        if (down !== null && queue.length >= QUEUE_MAX) continue;
         queued = down === null ? null : { align: down.touch, free: down.clear };
-        const lead = queued !== null ? queueLeads([...queue, queued]).at(-1)! : formationLead(turn);
+        const waits = queued === null ? formationLead(turn) : landingLead(queue, queued, busy);
+        if (waits === null) continue;
+        const lead = waits;
+        wait = lead;
         sequence = delayed(
           from(trackSequence(site, track, place.at, role, articulated, out?.born)),
           lead,
@@ -3657,7 +3672,15 @@ export class MapEngine {
       // Past `MAX_PLAYING` it stands at its place, and the doors, the slip and the turns of the
       // others do not wait for it.
       if (!this.sequences.play(this.standing, id, sequence, since, now)) continue;
-      if (queued !== null) queue.push(queued);
+      if (queued !== null) {
+        queue.push(queued);
+        this.runway.push({
+          site: cue.siteId,
+          kind: 'land',
+          since,
+          busy: since + wait + queued.free,
+        });
+      }
       longest = Math.max(longest, sequence.ms);
       turn++;
       if (door !== null) hangars.set(door[0], [...(hangars.get(door[0]) ?? []), door[1]]);
@@ -3667,7 +3690,7 @@ export class MapEngine {
       this.sequences.play(this.maquettes, cue.siteId, slipSequence(slips), since, now);
     else if (airfield && longest > 0) {
       const doors = [...hangars].map(([lane, planes]) => ({ lane, open: doorsOf(planes) }));
-      this.sequences.play(this.maquettes, cue.siteId, airfieldSequence(longest, doors), since, now);
+      this.lightUp(cue.siteId, since, now, since + longest, doors);
     }
     if (longest > 0) this.standing.arrive(cue.pileId, [since + longest - now]);
     return true;
@@ -3705,21 +3728,31 @@ export class MapEngine {
     const place = restAt(kept, id);
     let sequence = null;
     let plane: Departing | null = null;
+    let wait = 0;
     if (air && isAirRole(role)) {
       const at = place ?? { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) };
       const flight = takeoff(role, at);
       plane = { x: at.x, z: at.z, align: flight.ready, free: flight.leaves };
-      const way = trackSequence(site, flight, rest, role, piece.url !== undefined);
-      // Several planes taking off together: the right lane first, one on the runway at a time.
-      const lead = takeoffLead(
+      // Planes taking off together leave right lane first, one on the runway at a time, and what
+      // holds the runway from earlier orders is waited for.
+      const queued = takeoffLead(
         { ...plane, since },
         this.otherDepartures(arcId, id).flatMap(({ plane: each, since: at }) =>
           each === undefined ? [] : [{ ...each, since: at }],
         ),
+        this.runwayBusy(id, since, true),
       );
-      this.departures.push({ arcId, site: id, post: null, since, plane });
-      if (lead === null) return true;
-      sequence = delayed(moored ? way : homing(way), lead, false);
+      if (queued === null) return true;
+      wait = queued.lead;
+      // Each stops on its thread short of the one before, in file.
+      const way = trackSequence(
+        site,
+        takeoff(role, at, queued.turn * THREAD_GAP_M),
+        rest,
+        role,
+        piece.url !== undefined,
+      );
+      sequence = delayed(moored ? way : homing(way), queued.lead, false);
     } else if (!air && isSeaRole(role)) {
       const beam = HULL_BEAM_SHARE * length;
       sequence = trackSequence(
@@ -3734,10 +3767,63 @@ export class MapEngine {
       sequence = delayed(sequence, lead, false);
     }
     if (sequence === null) return true;
-    if (plane === null) this.departures.push({ arcId, site: id, post: kept?.post ?? null, since });
-    if (this.sequences.play(this.arcs, arcId, sequence, since, now) && air)
-      this.sequences.play(this.maquettes, id, airfieldSequence(sequence.ms), since, now);
+    // Only a plane that plays holds the runway, or makes the others wait.
+    if (!this.sequences.play(this.arcs, arcId, sequence, since, now)) return true;
+    this.departures.push({
+      arcId,
+      site: id,
+      post: kept?.post ?? null,
+      since,
+      ...(plane === null ? {} : { plane }),
+    });
+    if (plane !== null) {
+      this.runway.push({ site: id, kind: 'depart', since, busy: since + wait + plane.free });
+      this.lightUp(id, since, now, since + sequence.ms);
+    }
     return true;
+  }
+
+  /** **How long the runway of an airfield is held** from `since` by planes that took off or
+   *  landed before, in ms. A takeoff ordered within the window of `since` is a plane of its queue,
+   *  already counted (`keepWindow`). */
+  private runwayBusy(siteId: string, since: number, keepWindow: boolean): number {
+    return this.runway
+      .filter(
+        (each) =>
+          each.site === siteId &&
+          !(
+            keepWindow &&
+            each.kind === 'depart' &&
+            Math.abs(each.since - since) < DEPARTURE_WINDOW_MS
+          ),
+      )
+      .reduce((most, each) => Math.max(most, each.busy - since), 0);
+  }
+
+  /** **The airfield's lights**, on until `end`: a plane queued behind another extends them. */
+  private lightUp(
+    siteId: string,
+    since: number,
+    now: number,
+    end: number,
+    doors: Parameters<typeof airfieldSequence>[1] = [],
+  ): void {
+    const lit = this.lights.get(siteId);
+    if (lit !== undefined && this.sequences.playsOn(this.maquettes, siteId)) {
+      lit.end = Math.max(lit.end, end);
+      return;
+    }
+    const state = { start: since, end };
+    if (
+      this.sequences.play(
+        this.maquettes,
+        siteId,
+        airfieldSequence(() => state.end - state.start, doors),
+        since,
+        now,
+      )
+    )
+      this.lights.set(siteId, state);
   }
 
   /** **The other hulls cued or put to sea from this port** (#487), those not yet played and those
@@ -5383,6 +5469,7 @@ export class MapEngine {
       (haul) => !this.haulOf(haul, now) && now - haul.since < SORTIE_WAIT_MS,
     );
     this.departures = this.departures.filter(({ since }) => now - since < DEPARTURE_WINDOW_MS);
+    this.runway = this.runway.filter(({ busy }) => busy > now);
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
     this.touring = stillWaiting(this.touring, now, (tour) => this.tourOf(tour, now));
     this.takings = this.takings.filter(

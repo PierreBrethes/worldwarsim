@@ -146,9 +146,12 @@ function track(phases: ReadonlyArray<Phase>): Track {
 export function takeoff(
   role: AirRole,
   from: { readonly x: number; readonly z: number },
+  back = 0,
 ): Track & { ready: number; leaves: number } {
   const a = AIR[role];
   const lane = laneOf(from.x);
+  // It slows onto its thread `back` metres short of where the thread starts (a queue of planes).
+  const filX = FIL.x + back;
   const way = polyline([
     [from.x, from.z],
     ...(Math.abs(from.x - lane) > 0.5 ? [[lane, from.z + 4] as const] : []),
@@ -161,7 +164,7 @@ export function takeoff(
   const xs = lane - TURN_R;
   const xl = xs - a.roll;
   const fil = ((a.vLift + FIL_SPEED) / 2) * T.fil;
-  const climb = (xl - (FIL.x + fil)) / a.vLift;
+  const climb = (xl - (filX + fil)) / a.vLift;
   const dec = (a.vLift - FIL_SPEED) / T.fil;
   const tTaxi = T.lead + taxi;
   const tRoll = tTaxi + T.hold;
@@ -187,7 +190,7 @@ export function takeoff(
       {
         until: tClimb,
         at: (τ, k) => {
-          const slope = ((ALT * Math.PI) / (2 * (xl - FIL.x - fil))) * Math.sin(Math.PI * k);
+          const slope = ((ALT * Math.PI) / (2 * (xl - filX - fil))) * Math.sin(Math.PI * k);
           return {
             x: xl - a.vLift * τ,
             y: 0.1 + ((ALT - 0.1) * (1 - Math.cos(Math.PI * k))) / 2,
@@ -201,7 +204,7 @@ export function takeoff(
       {
         until: tClimb + T.fil,
         at: (τ) => ({
-          x: FIL.x + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
+          x: filX + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
           y: ALT,
           z: runway.z,
           yaw: -Math.PI / 2,
