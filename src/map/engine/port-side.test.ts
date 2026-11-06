@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CRANE, MOLE } from '@/emblems/kits/manifest';
-import { mirroredPort, MOLE_LAND_MAX, type PortGround } from './port-side';
+import { MIRROR_MARGIN, mirroredPort, MOLE_LAND_MAX, type PortGround } from './port-side';
 
 /** A ground in the port's metres: land where `land` says, no neighbour unless `taken` does. */
 const ground = (
@@ -40,10 +40,10 @@ describe('which side a port is laid on (#476)', () => {
     expect(mirroredPort(ground(STRAIGHT, (x, z) => Math.hypot(x - x0, z - z0) < 40))).toBe(true);
   });
 
-  it('puts up with a sliver of land under the mole, the bar being a tenth of it', () => {
+  it('puts up with a sliver of land under the mole, the bar being a quarter of it', () => {
     const sliver = (x: number, z: number) =>
       SEA_FROM_QUAY(z) || (x > MOLE.inner && z > MOLE.quay && z < MOLE.quay + 10);
-    expect(MOLE_LAND_MAX).toBeCloseTo(0.1);
+    expect(MOLE_LAND_MAX).toBeCloseTo(0.25);
     expect(mirroredPort(ground(sliver))).toBe(false);
   });
 
@@ -52,6 +52,23 @@ describe('which side a port is laid on (#476)', () => {
     const less = (x: number, z: number) => SEA_FROM_QUAY(z) || (x > 0 ? z < MOLE.quay + 100 : true);
     expect(mirroredPort(ground(more))).toBe(true);
     expect(mirroredPort(ground(less))).toBe(false);
+  });
+
+  it('does not turn a port over for a hair: the other side must be the less blocked by a margin', () => {
+    // Land from 75 m past the quay on both sides, bar one cell of the mirrored side.
+    const land = (x: number, z: number) =>
+      z < MOLE.quay || (z > MOLE.quay + 75 && !(x < -85 && z > MOLE.quay + 160));
+    expect(MIRROR_MARGIN).toBeCloseTo(0.05);
+    expect(mirroredPort(ground(land))).toBe(false);
+    // A whole row less, and it turns over.
+    expect(mirroredPort(ground((x, z) => land(x, z) && !(x < 0 && z > MOLE.quay + 155)))).toBe(
+      true,
+    );
+  });
+
+  it('leaves the ragged first rows of the shore out', () => {
+    const ragged = (x: number, z: number) => z < MOLE.quay + 14 || (x > 0 && z < MOLE.quay + 30);
+    expect(mirroredPort(ground(ragged))).toBe(false);
   });
 
   it('keeps the plain side when both are blocked alike', () => {
