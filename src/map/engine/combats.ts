@@ -42,7 +42,7 @@ type Played = {
   /** It has stood at a scale above zero: the map showed it. */
   shown: boolean;
   /** **Its seats tag** (#514): when it is struck through, for the side that loses its passengers
-   *  in a scene that plays; `null` for the rest. */
+   *  `null` for the rest. A final pose draws no tag by itself: its only frame is the empty sea. */
   readonly tagWindow: SeatsTagWindow | null;
   /** What the tag last said, so a change is told once. */
   tag: 'whole' | 'struck' | null;
@@ -174,7 +174,7 @@ export class CombatLayer {
       step: null,
       reported: false,
       shown: false,
-      tagWindow: plays && seatsTagOf(told) !== null ? seatsTagWindow(view) : null,
+      tagWindow: seatsTagOf(told) !== null ? seatsTagWindow(view) : null,
       tag: null,
     });
   }

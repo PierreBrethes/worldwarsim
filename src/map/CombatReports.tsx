@@ -55,14 +55,16 @@ export function CombatReports({
       for (const { view } of tags) {
         const node = tagNodes.current.get(view.combatId);
         const at = engine.screenOf([view.point.lon, view.point.lat]);
-        if (!node || at === null) continue;
+        if (!node) continue;
         const inside =
+          at !== null &&
           at.x >= parent.left &&
           at.x <= parent.right &&
           at.y >= parent.top &&
           at.y <= parent.bottom;
         node.style.visibility = inside ? 'visible' : 'hidden';
-        node.parentElement!.style.transform = `translate(${at.x - parent.left}px, ${at.y - parent.top}px)`;
+        if (inside)
+          node.parentElement!.style.transform = `translate(${at.x - parent.left}px, ${at.y - parent.top}px)`;
       }
       for (const view of reports) {
         const node = nodes.current.get(view.combatId);
@@ -104,7 +106,7 @@ export function CombatReports({
       {tags.map(({ view, struck }) => (
         <SeatsTag
           key={view.combatId}
-          text={seatsTagOf(view)}
+          tag={seatsTagOf(view)}
           struck={struck}
           register={(node) =>
             node
@@ -135,11 +137,11 @@ export function CombatReports({
  * passagers a reçu (#513) : l'autre n'en a pas.
  */
 function SeatsTag({
-  text,
+  tag,
   struck,
   register,
 }: {
-  text: string | null;
+  tag: { readonly sign: string; readonly whole: string } | null;
   struck: boolean;
   register: (node: HTMLElement | null) => void;
 }) {
@@ -155,7 +157,7 @@ function SeatsTag({
           transform: `translate(-50%, calc(-100% - ${TAG_LIFT_PX}px / var(--hud-scale)))`,
         }}
       >
-        {struck ? <s>{text}</s> : text}
+        {struck ? <s>{tag?.sign}</s> : tag?.whole}
       </div>
     </div>
   );

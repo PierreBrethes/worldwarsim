@@ -306,27 +306,53 @@ describe('the sinking told to the side that loses its passengers (#514)', () => 
     ],
     drowned: { men: 100, machines: 48, seats: 9 },
   };
+  const { drowned: _drowned, ...seen } = sunk;
 
-  it('stamps « coulés en mer » over the engagement, once the cargo is lost', () => {
+  it('stamps « coulés en mer » over an engagement lost with its cargo', () => {
     expect(reportOf(sunk, 'sea').title).toBe('coulés en mer');
     // The other side sees the ship go down and was told nothing of the cargo.
-    const { drowned: _drowned, ...seen } = sunk;
     expect(reportOf(seen, 'sea').title).toBe('engagement perdu');
   });
 
-  it('tags the hull with the seats it carried, of those it had', () => {
-    expect(seatsTagOf(sunk)).toBe('Crg · 9/12');
-    const { drowned: _drowned, ...seen } = sunk;
+  it('keeps « engagement gagné » on an engagement won, the line under it telling the sea took pieces', () => {
+    const won = { ...sunk, won: true };
+    expect(reportOf(won, 'sea').title).toBe('engagement gagné');
+    expect(reportOf(won, 'sea').losses).toBe('nos pièces : 1 détruite, 3 coulées en mer');
+    expect(reportOf(sunk, 'sea').losses).toBe('nos pièces : 1 détruite, 3 coulées en mer');
+    expect(reportOf(seen, 'sea').losses).toBe('nos pièces : 4 détruites');
+  });
+
+  it("tags the hull with the sign of the pile's label and the seats it carried, of those it had", () => {
+    expect(seatsTagOf(sunk)).toEqual({ sign: 'CGO', whole: 'CGO · 9/12' });
     expect(seatsTagOf(seen)).toBeNull();
   });
 
-  it('tags the lot once for several hulls: their seats added, not one tag each', () => {
-    const fleet = {
+  it('counts the seats of the hulls that carried, in one tag for the point', () => {
+    const fleet = (seats: number) => ({
       ...sunk,
-      mine: [{ ...sunk.mine[0]!, troops: 3, destroyed: 2 }, ...sunk.mine.slice(1)],
-      drowned: { men: 200, machines: 90, seats: 20 },
+      mine: [
+        { role: 'carrier' as const, tier: 1 as const, troops: 1, lost: 6, routed: 0, destroyed: 1 },
+        { role: 'cargo' as const, tier: 1 as const, troops: 2, lost: 24, routed: 0, destroyed: 2 },
+      ],
+      drowned: { men: 100, machines: 48, seats },
+    });
+    // Nine seats fit the one biggest hull: the others sank empty.
+    expect(seatsTagOf(fleet(9))?.whole).toBe('CGO · 9/12');
+    // Fifteen take two cargos; the carrier did not carry.
+    expect(seatsTagOf(fleet(15))?.whole).toBe('CGO · 15/24');
+    // Thirty fill both cargos and the carrier: the sign is the most loaded hull's.
+    expect(seatsTagOf(fleet(30))).toEqual({ sign: 'CGO', whole: 'CGO · 30/30' });
+  });
+
+  it('signs a lone carrier by its own abbreviation', () => {
+    const carrier = {
+      ...sunk,
+      mine: [
+        { role: 'carrier' as const, tier: 1 as const, troops: 1, lost: 6, routed: 0, destroyed: 1 },
+      ],
+      drowned: { men: 5, machines: 0, seats: 5 },
     };
-    expect(seatsTagOf(fleet)).toBe('Crg · 20/24');
+    expect(seatsTagOf(carrier)).toEqual({ sign: 'PAV', whole: 'PAV · 5/6' });
   });
 });
 
