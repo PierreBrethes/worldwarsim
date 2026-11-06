@@ -17,7 +17,9 @@ const ALONG = 12;
 const FAR = MOLE.quay + MOLE.length + MOLE.head;
 
 /** **How blocked the mole's side is**: the share of its footprint on land or taken by another
- *  site, and a whole one more when its crane's foot is off land or taken. `sign` is -1 mirrored. */
+ *  site, and a whole one more when its crane's foot is taken. `sign` is -1 mirrored. The crane
+ *  stands on the port's own socle, which a coast that bends may hang over the water: only a
+ *  neighbour can take its place, the ground under it blocks nothing. */
 function blocked(ground: PortGround, sign: 1 | -1): number {
   let hit = 0;
   for (let i = 0; i < ACROSS; i++)
@@ -28,7 +30,7 @@ function blocked(ground: PortGround, sign: 1 | -1): number {
       if (ground.land(x, z) || ground.taken(x, z)) hit++;
     }
   const [cx, cz] = [sign * CRANE.x, CRANE.z];
-  const crane = !ground.land(cx, cz) || ground.taken(cx, cz) ? 1 : 0;
+  const crane = ground.taken(cx, cz) ? 1 : 0;
   return hit / (ACROSS * ALONG) + crane;
 }
 

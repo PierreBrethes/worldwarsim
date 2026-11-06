@@ -25,9 +25,14 @@ describe('which side a port is laid on (#476)', () => {
     expect(mirroredPort(ground((x, z) => SEA_FROM_QUAY(z) || x < -MOLE.inner))).toBe(false);
   });
 
-  it('mirrors for a crane that would stand in the water, its mirror standing on land', () => {
-    const shortOfCrane = (x: number, z: number) => z < MOLE.quay && x < CRANE.x - 5 && x > -90;
-    expect(mirroredPort(ground(shortOfCrane))).toBe(true);
+  it('does not read the ground under the crane: its socle may hang over the water', () => {
+    const hanging = (x: number, z: number) => z < MOLE.quay && x < CRANE.x - 5 && x > -90;
+    expect(mirroredPort(ground(hanging))).toBe(false);
+  });
+
+  it('mirrors for a neighbour on the crane', () => {
+    const [x0, z0] = [CRANE.x, CRANE.z];
+    expect(mirroredPort(ground(STRAIGHT, (x, z) => Math.hypot(x - x0, z - z0) < 8))).toBe(true);
   });
 
   it('mirrors for a neighbour on the mole, a site standing where the mole would run', () => {
