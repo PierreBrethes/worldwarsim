@@ -151,12 +151,29 @@ describe('a landing whose thread came in to its pile (#269)', () => {
 });
 
 describe('a hull whose thread came in to its port (#521)', () => {
-  // Offshore 40 out, in at its berth by the end; its pawn stood 5 out.
-  const docking: Sequence = {
+  /** A way in by straight legs, evenly over a second, its berth at the origin. */
+  const along = (...legs: Array<[number, number]>): Sequence => ({
     ms: 1000,
-    at: (t) => ({ root: { travel: [40 * (1 - t / 1000), 0, 0], heading: 1 } }),
+    at(t) {
+      const s = (Math.min(t, 1000) / 1000) * (legs.length - 1);
+      const k = Math.min(Math.floor(s), legs.length - 2);
+      const [[ax, az], [bx, bz]] = [legs[k]!, legs[k + 1]!];
+      const u = s - k;
+      return { root: { travel: [ax + (bx - ax) * u, 0, az + (bz - az) * u], heading: 1 } };
+    },
+  });
+  /** How far out from its berth the hull ever sails, coming in from `from`. */
+  const farthest = (way: Sequence, from: [number, number, number]) => {
+    const dock = arriving(way, from, true);
+    let most = 0;
+    for (let t = 0; t <= way.ms; t += way.ms / 500)
+      most = Math.max(most, Math.hypot(...dock.at(t).root!.travel!));
+    return most;
   };
-  const dock = arriving(docking, [5, 0, 0], true);
+
+  // Offshore 40 out, in at its berth by the end; its pawn stood 5 out.
+  const straight = along([40, 0], [0, 0]);
+  const dock = arriving(straight, [5, 0, 0], true);
   const out = (t: number) => Math.hypot(...dock.at(t).root!.travel!);
 
   it('never sails farther out than its pawn stood, which would take it off the screen', () => {
@@ -167,6 +184,38 @@ describe('a hull whose thread came in to its port (#521)', () => {
     expect(dock.at(0).root?.travel).toEqual([5, 0, 0]);
     expect(out(1000)).toBeCloseTo(0, 9);
     expect(dock.ms).toBe(1000);
+  });
+
+  it('keeps in from a pawn off its way, whose nearest point on the way is farther out', () => {
+    // Down a leg 10 across, then in along the quay: the leg passes 5 from the pawn, 12.8 out.
+    const pawn: [number, number, number] = [5, 0, 8];
+    expect(farthest(along([10, 40], [10, 0], [0, 0]), pawn)).toBeLessThanOrEqual(
+      Math.hypot(...pawn) + 1e-9,
+    );
+  });
+
+  it('waits to join its way at its berth when the way only comes that near there', () => {
+    // It runs past 6 out, swings round and comes in along the quay: the pawn stood 5 out.
+    const hook = along([20, 6], [-20, 6], [-20, 0], [0, 0]);
+    const pawn: [number, number, number] = [0, 0, 5];
+    expect(farthest(hook, pawn)).toBeLessThanOrEqual(5 + 1e-9);
+    // It never swings round the hook: it slides straight from the pawn to its berth.
+    expect(arriving(hook, pawn, true).at(667).root!.travel![0]).toBeCloseTo(0, 9);
+  });
+
+  it('keeps in on the storyboard way, from a pawn on the port front, as captured', () => {
+    const berth = { x: 60, z: 160, yaw: Math.PI };
+    const track = docking('cargo', 15, berth);
+    const way: Sequence = {
+      ms: track.ms,
+      at(t) {
+        const q = track.at(t);
+        return { root: { travel: [q.x - berth.x, 0, q.z - berth.z], heading: q.yaw } };
+      },
+    };
+    // In the basin's mouth, off the way: its nearest point on it is 159 out, the pawn 152.
+    const pawn: [number, number, number] = [0 - berth.x, 0, 300 - berth.z];
+    expect(farthest(way, pawn)).toBeLessThanOrEqual(Math.hypot(...pawn) + 1e-9);
   });
 });
 
