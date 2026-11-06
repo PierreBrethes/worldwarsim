@@ -213,25 +213,55 @@ describe('embarquementsOf (#504)', () => {
       troop('a', 'infantry', port, 'h'),
       troop('t', 'armor', port, 'h'),
     ];
-    expect(embarquementsOf(before(was), now, pilesOf(now))).toEqual([
+    expect(embarquementsOf(before(was), now, pilesOf(now), false)).toEqual([
       { hull: 'p/0', carrierId: 'h', ground: 'quay', riders: ['a', 't'] },
     ]);
   });
 
   it('names a carrier as it names a cargo, and a hull before a beach as a beach', () => {
     const now = [troop('c', 'carrier', shore), troop('a', 'infantry', shore, 'c')];
-    expect(embarquementsOf(new Map(), now, pilesOf(now))).toEqual([
+    expect(embarquementsOf(new Map(), now, pilesOf(now), false)).toEqual([
       { hull: 'p/0', carrierId: 'c', ground: 'beach', riders: ['a'] },
     ]);
   });
 
+  it('names every hull of one group that took passengers, not the first one only', () => {
+    const now = [
+      troop('h1', 'cargo', port),
+      troop('h2', 'cargo', port),
+      troop('a', 'infantry', port, 'h1'),
+      troop('b', 'infantry', port, 'h2'),
+    ];
+    const [group] = pilePieces(now.slice(0, 2)).groups;
+    const together: StandingPile[] = [
+      {
+        id: 'p',
+        at: { lonLat: [2, 48] },
+        pieces: {
+          groups: [{ ...group!, troopIds: ['h1', 'h2'] }],
+          troopIds: ['h1', 'h2'],
+          squad: false,
+        },
+      },
+    ];
+    expect(embarquementsOf(new Map(), now, together, false)).toEqual([
+      { hull: 'p/0', carrierId: 'h1', ground: 'quay', riders: ['a'] },
+      { hull: 'p/0', carrierId: 'h2', ground: 'quay', riders: ['b'] },
+    ]);
+  });
+
+  it('names nothing in Blitz', () => {
+    const now = [troop('h', 'cargo', port), troop('a', 'infantry', port, 'h')];
+    expect(embarquementsOf(new Map(), now, pilesOf(now), true)).toEqual([]);
+  });
+
   it('names nothing for a hull at sea, a rider already aboard, or a truck', () => {
     const open = [troop('h', 'cargo', offshore), troop('a', 'infantry', offshore, 'h')];
-    expect(embarquementsOf(new Map(), open, pilesOf(open))).toEqual([]);
+    expect(embarquementsOf(new Map(), open, pilesOf(open), false)).toEqual([]);
     const quay = [troop('h', 'cargo', port), troop('a', 'infantry', port, 'h')];
-    expect(embarquementsOf(aboardOf(quay), quay, pilesOf(quay))).toEqual([]);
+    expect(embarquementsOf(aboardOf(quay), quay, pilesOf(quay), false)).toEqual([]);
     const lorry = [troop('t', 'landTransport', port), troop('a', 'infantry', port, 't')];
-    expect(embarquementsOf(new Map(), lorry, pilesOf(lorry))).toEqual([]);
+    expect(embarquementsOf(new Map(), lorry, pilesOf(lorry), false)).toEqual([]);
   });
 });
 

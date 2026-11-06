@@ -186,14 +186,18 @@ export type Cue =
       }>;
     }
   /** **Men and vehicles board a hull** (#504): `hull` is its group, `carrierId` its troop, and
-   *  each rider is named by its troop. The engine answers every one by feeding its riders to the
-   *  tag (`watchBoarded`), played or not. */
+   *  each rider is drawn by its `figures` — where it last stood is read in the engine, as
+   *  `boardOf` does (`lastSeen`, `fileLeftBy`). The engine answers every one by feeding its riders
+   *  to the tag (`watchBoarded`), played or not. */
   | {
       readonly kind: 'embarquement';
       readonly hull: string;
       readonly carrierId: string;
       readonly ground: 'quay' | 'beach';
-      readonly riders: ReadonlyArray<string>;
+      readonly riders: ReadonlyArray<{
+        readonly troopId: string;
+        readonly figures: ReadonlyArray<UnitTier>;
+      }>;
     }
   /** **A squad disbanded at its point** (#277, U): what stays of `pileId` glides to the point,
    *  each piece set apart (`groupId`, by its `troopId`) walks from its `rank` to its place in the

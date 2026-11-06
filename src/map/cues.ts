@@ -52,6 +52,18 @@ export function aboardOf(troops: ReadonlyArray<Seated>): ReadonlyMap<string, str
   return new Map(troops.flatMap((troop) => (troop.carriedBy ? [[troop.id, troop.carriedBy]] : [])));
 }
 
+/** Who climbed aboard whom since the view `aboard` remembers: carrier id → its new riders. */
+function boardedSince(
+  aboard: ReadonlyMap<string, string>,
+  troops: ReadonlyArray<Seated>,
+): ReadonlyMap<string, string[]> {
+  const boarded = new Map<string, string[]>();
+  for (const troop of troops)
+    if (troop.carriedBy && aboard.get(troop.id) !== troop.carriedBy)
+      boarded.set(troop.carriedBy, [...(boarded.get(troop.carriedBy) ?? []), troop.id]);
+  return boarded;
+}
+
 /** **Un camion et ses passagers** (#277) : l'id (`${pile}/${groupe}`, celui que `StandingLayer`
  *  prête aux séquences) du groupe du camion, et ce qui en descend ou y monte. */
 export type Descente = {
@@ -122,10 +134,7 @@ export function monteesOf(
   troops: ReadonlyArray<Seated>,
   piles: ReadonlyArray<StandingPile>,
 ): ReadonlyArray<Montee> {
-  const boarded = new Map<string, string[]>();
-  for (const troop of troops)
-    if (troop.carriedBy && aboard.get(troop.id) !== troop.carriedBy)
-      boarded.set(troop.carriedBy, [...(boarded.get(troop.carriedBy) ?? []), troop.id]);
+  const boarded = boardedSince(aboard, troops);
   return piles.flatMap(({ id, pieces }) =>
     pieces.groups.flatMap(({ role, troopIds }, k) => {
       const riders = troopIds.flatMap((troop) => boarded.get(troop) ?? []);
@@ -146,7 +155,7 @@ export type Embarquement = {
   readonly riders: ReadonlyArray<string>;
 };
 
-const groundOf = (station: TroopStation): Embarquement['ground'] | null =>
+const embarkGroundOf = (station: TroopStation): Embarquement['ground'] | null =>
   station.kind === 'building'
     ? 'quay'
     : station.kind === 'point' && station.coastal
@@ -162,21 +171,24 @@ export function embarquementsOf(
   aboard: ReadonlyMap<string, string>,
   troops: ReadonlyArray<Seated & { readonly stationedAt: TroopStation }>,
   piles: ReadonlyArray<StandingPile>,
+  blitz: boolean,
 ): ReadonlyArray<Embarquement> {
-  const boarded = new Map<string, string[]>();
-  for (const troop of troops)
-    if (troop.carriedBy && aboard.get(troop.id) !== troop.carriedBy)
-      boarded.set(troop.carriedBy, [...(boarded.get(troop.carriedBy) ?? []), troop.id]);
+  if (blitz) return [];
+  const boarded = boardedSince(aboard, troops);
   const stations = new Map(troops.map((troop) => [troop.id, troop.stationedAt]));
   return piles.flatMap(({ id, pieces }) =>
-    pieces.groups.flatMap(({ role, troopIds }, k) => {
-      const carrierId = troopIds.find((troop) => boarded.has(troop));
-      const station = carrierId === undefined ? undefined : stations.get(carrierId);
-      const ground = station === undefined ? null : groundOf(station);
-      return (role === 'cargo' || role === 'carrier') && carrierId !== undefined && ground !== null
-        ? [{ hull: `${id}/${k}`, carrierId, ground, riders: boarded.get(carrierId)! }]
-        : [];
-    }),
+    pieces.groups.flatMap(({ role, troopIds }, k) =>
+      role !== 'cargo' && role !== 'carrier'
+        ? []
+        : troopIds.flatMap((carrierId) => {
+            const station = stations.get(carrierId);
+            const ground = station === undefined ? null : embarkGroundOf(station);
+            const riders = boarded.get(carrierId);
+            return ground !== null && riders !== undefined
+              ? [{ hull: `${id}/${k}`, carrierId, ground, riders }]
+              : [];
+          }),
+    ),
   );
 }
 

@@ -13,7 +13,7 @@ import type { Contact } from '@/domain/contacts';
 import { nationInk } from '@/domain/nations';
 import { ContactMarks } from './ContactMarks';
 import { ClusterSheet } from './ClusterSheet';
-import { heldLabels, type TourAct } from '@/domain/cargo-tag';
+import { fedRiders, heldLabels, type TourAct } from '@/domain/cargo-tag';
 import {
   useCallback,
   useEffect,
@@ -1954,8 +1954,8 @@ export function WorldMap({
   useLayoutEffect(() => {
     const known = hullsKnown.current;
     hullsKnown.current = aboardOf(troops);
-    if (known === null || readyEngine === null || blitz !== null) return;
-    const boardings = embarquementsOf(known, troops, standing);
+    if (known === null || readyEngine === null) return;
+    const boardings = embarquementsOf(known, troops, standing, blitz !== null);
     if (boardings.length === 0) return;
     setHeldBack((before) => {
       const next = new Map(before);
@@ -1963,20 +1963,23 @@ export function WorldMap({
         next.set(carrierId, new Set([...(next.get(carrierId) ?? []), ...riders]));
       return next;
     });
-    for (const boarding of boardings) readyEngine.cue({ kind: 'embarquement', ...boarding });
+    const byId = new Map(troops.map((troop) => [troop.id, troop]));
+    for (const boarding of boardings)
+      readyEngine.cue({
+        ...boarding,
+        kind: 'embarquement',
+        riders: boarding.riders.flatMap((troopId) => {
+          const troop = byId.get(troopId);
+          if (troop === undefined) return [];
+          const { carriedBy: _, ...alone } = troop;
+          return [{ troopId, figures: pilePieces([alone]).groups[0]?.figures ?? [] }];
+        }),
+      });
   }, [troops, standing, readyEngine, blitz]);
   useEffect(() => {
     if (readyEngine === null) return;
     readyEngine.watchBoarded((carrierId, riders) =>
-      setHeldBack((before) => {
-        const left = new Set(before.get(carrierId));
-        for (const rider of riders) left.delete(rider);
-        if (left.size === before.get(carrierId)?.size) return before;
-        const next = new Map(before);
-        if (left.size === 0) next.delete(carrierId);
-        else next.set(carrierId, left);
-        return next;
-      }),
+      setHeldBack((before) => fedRiders(before, carrierId, riders)),
     );
     return () => readyEngine.watchBoarded(undefined);
   }, [readyEngine]);

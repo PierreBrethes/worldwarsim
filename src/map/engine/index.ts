@@ -110,7 +110,6 @@ import {
   parkingZ,
   takeoff,
 } from './timelines/airfield';
-import { embarkingOf } from './hull-boardings';
 import { berthOf, docking, HULL_BEAM_SHARE, launch, OFFSHORE, undocking } from './timelines/port';
 import { troopMetres } from '@/domain/piece-size';
 import type { UnitRole } from '@/domain/ids';
@@ -757,11 +756,6 @@ export class MapEngine {
     readonly since: number;
     boards?: ReadonlyArray<string>;
   }> = [];
-  /** **Men and vehicles boarding a hull** (#504), one per hull, waiting for it to stand. */
-  private readonly embarkments = new Map<
-    string,
-    { readonly cue: Extract<Cue, { kind: 'embarquement' }>; readonly since: number }
-  >();
   /** Told which riders a hull's tag may now show (`watchBoarded`). */
   private onBoarded: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined;
   /** **Men coming down from a truck** (#277), waiting for their pile to stand. */
@@ -3439,16 +3433,16 @@ export class MapEngine {
         this.standing.expect(cue.truck.slice(0, cue.truck.lastIndexOf('/')));
         this.boardings.push({ cue, since: performance.now() });
         break;
-      case 'embarquement': {
-        const hull = cue.hull;
-        const next = embarkingOf(this.sequences.motion, {
-          pending: this.embarkments.has(hull),
-          docking: this.sequences.playsOn(this.standing, hull),
-        });
-        if (next === 'now') this.onBoarded?.(cue.carrierId, cue.riders);
-        else this.embarkments.set(hull, { cue, since: performance.now() });
+      case 'embarquement':
+        // No sequence plays a hull's boarding yet (#505, #506 will wait for the hull here): the
+        // final pose, its ring of ink at reduced motion, and the tag takes every rider.
+        if (ringsLeft(this.sequences.motion, { veiled: false, unplayable: false }))
+          this.standing.inkArrival(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
+        this.onBoarded?.(
+          cue.carrierId,
+          cue.riders.map(({ troopId }) => troopId),
+        );
         break;
-      }
       case 'dispersion':
         if (this.sequences.motion === 'off') break;
         // What stays glides to the point once the crown is laid out (`disperseOf`).
@@ -4213,25 +4207,6 @@ export class MapEngine {
       return true;
     }
     this.standing.arrive(pileId, [plan.settled]);
-    return true;
-  }
-
-  /**
-   * **Men and vehicles board a hull** (#504): its sequences are for #479 and after, so the final
-   * pose — the hull stands with its ring of ink at reduced motion, and its tag takes every rider.
-   * Whatever the hull does not stand for within `SORTIE_WAIT_MS` is fed all the same. `false`
-   * until the hull stands.
-   */
-  private embarkOf(
-    hull: string,
-    { cue }: { readonly cue: Extract<Cue, { kind: 'embarquement' }> },
-  ): boolean {
-    const pileId = hull.slice(0, hull.lastIndexOf('/'));
-    const place = this.standing.placeOf(hull);
-    if (place === null) return false;
-    if (ringsLeft(this.sequences.motion, { veiled: this.veiled(place.at), unplayable: false }))
-      this.standing.inkArrival(pileId);
-    this.onBoarded?.(cue.carrierId, cue.riders);
     return true;
   }
 
@@ -5504,12 +5479,6 @@ export class MapEngine {
       for (const id of boarding.boards ?? []) this.standing.unboard(id);
       return false;
     });
-    for (const [hull, embarkment] of this.embarkments)
-      if (this.embarkOf(hull, embarkment)) this.embarkments.delete(hull);
-      else if (now - embarkment.since >= SORTIE_WAIT_MS) {
-        this.onBoarded?.(embarkment.cue.carrierId, embarkment.cue.riders);
-        this.embarkments.delete(hull);
-      }
     this.landings = this.landings.filter(
       (landing) => !this.landOf(landing, now) && now - landing.since < SORTIE_WAIT_MS,
     );
