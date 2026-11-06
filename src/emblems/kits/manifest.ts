@@ -89,3 +89,20 @@ export const POSITION_LIGHTS = {
   green: '#5cff7a',
   white: '#fff6dc',
 } as const;
+
+/**
+ * **Gangway marks and black planes, stand-ins** until the hulls have them (`fx_passerelle_tribord`,
+ * `fond_sombre_coupee_*` of the cargo, `fx_passerelle` and `fond_sombre_coupee` of the carrier, a
+ * deck's `fond_sombre` under the `ascenseur`; prompt du 05/11, storyboard `mer-air`), laid by the
+ * engine where a file lacks them. In metres of the model's box, `@a-mesurer`: the door's sill above
+ * the waterline, its plane (the 2 cm off the plate, the plane's bottom at the sill), how far from
+ * the middle of the hull's length the gangway stands (a share of the half length, cargo; the
+ * carrier's stands at the foot of the island, mid-length), and how far the lift drops.
+ */
+export const GANGWAY = {
+  sill: { cargo: 3.6, carrier: 4 },
+  plane: { width: 1.4, height: 2.2, off: 0.02 },
+  aft: 0.2,
+  lift: 6.5,
+  dark: '#15110c',
+} as const;

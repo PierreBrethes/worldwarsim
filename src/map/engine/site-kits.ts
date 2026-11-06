@@ -3,12 +3,14 @@ import {
   BoxGeometry,
   BufferGeometry,
   CylinderGeometry,
+  DoubleSide,
   Float32BufferAttribute,
   Group,
   type Material,
   Mesh,
   MeshStandardMaterial,
-  type Object3D,
+  Object3D,
+  PlaneGeometry,
   SphereGeometry,
   Vector3,
 } from 'three';
@@ -17,7 +19,7 @@ import { troopMetres } from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { BUILDING_MAQUETTES } from '@/emblems/buildings/manifest';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
-import { AIRFIELD, KITS, MOLE, POSITION_LIGHTS } from '@/emblems/kits/manifest';
+import { AIRFIELD, GANGWAY, KITS, MOLE, POSITION_LIGHTS } from '@/emblems/kits/manifest';
 
 /** **The lamps the night lights** (`warmPieces`): a kit's `feux`, the position lights. */
 export const LAMP = 'feux';
@@ -70,7 +72,10 @@ export async function dressedScene(url: string, scene: Object3D, load: Load): Pr
   else if (url === BUILDING_MAQUETTES.port) scene.add(await moleKit(load));
   else {
     const role = LIT.get(url);
-    if (role !== undefined) positionLights(scene, role);
+    if (role !== undefined) {
+      if (role === 'cargo' || role === 'carrier') seaStandIns(scene, role);
+      positionLights(scene, role);
+    }
   }
   return scene;
 }
@@ -226,4 +231,76 @@ function positionLights(scene: Object3D, role: UnitRole): void {
     light.position.set(x, y, z);
     scene.add(light);
   }
+}
+
+let dark: Material | null = null;
+const darkOf = (): Material => {
+  dark ??= new MeshStandardMaterial({ color: GANGWAY.dark, roughness: 1, side: DoubleSide });
+  return dark;
+};
+
+/**
+ * **The gangway marks and the black planes a hull lacks** (`GANGWAY`): a mark at a flank, its mirror
+ * for the cargo, a black door plane at each, and a black deck under a carrier's lift. A name the
+ * file carries is left to the file.
+ */
+function seaStandIns(scene: Object3D, role: 'cargo' | 'carrier'): void {
+  scene.updateMatrixWorld(true);
+  const box = new Box3().setFromObject(scene);
+  const size = box.getSize(new Vector3());
+  const metre = Math.max(size.x, size.z) / troopMetres(role);
+  const mid = (box.min.z + box.max.z) / 2;
+  const have = (name: string) => scene.getObjectByName(name) !== undefined;
+  const mark = (name: string, x: number, y: number, z: number): Object3D => {
+    const found = scene.getObjectByName(name);
+    if (found !== undefined) return found;
+    const node = new Object3D();
+    node.name = name;
+    node.position.set(x, y, z);
+    scene.add(node);
+    return node;
+  };
+  const door = (name: string, at: Object3D): void => {
+    if (have(name)) return;
+    const { width, height, off } = GANGWAY.plane;
+    const plane = new Mesh(new PlaneGeometry(width * metre, height * metre), darkOf());
+    const side = Math.sign(at.position.x) || 1;
+    plane.name = name;
+    plane.rotation.y = (side * Math.PI) / 2;
+    plane.position.set(
+      at.position.x + side * off * metre,
+      at.position.y + (height * metre) / 2,
+      at.position.z,
+    );
+    scene.add(plane);
+  };
+  const sill = GANGWAY.sill[role] * metre;
+  if (role === 'cargo') {
+    const port = mark('fx_passerelle', box.max.x, sill, box.min.z * GANGWAY.aft);
+    const starboard = mark(
+      'fx_passerelle_tribord',
+      -port.position.x,
+      port.position.y,
+      port.position.z,
+    );
+    door('fond_sombre_coupee_babord', port);
+    door('fond_sombre_coupee_tribord', starboard);
+    return;
+  }
+  door('fond_sombre_coupee', mark('fx_passerelle', box.min.x, sill, mid));
+  const lift = scene.getObjectByName('ascenseur');
+  if (lift === undefined || have('fond_sombre')) return;
+  const lifted = new Box3().setFromObject(lift);
+  const floor = new Mesh(
+    new PlaneGeometry(lifted.max.x - lifted.min.x, lifted.max.z - lifted.min.z),
+    darkOf(),
+  );
+  floor.name = 'fond_sombre';
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(
+    (lifted.min.x + lifted.max.x) / 2,
+    lifted.min.y - GANGWAY.lift * metre,
+    (lifted.min.z + lifted.max.z) / 2,
+  );
+  scene.add(floor);
 }

@@ -21,6 +21,8 @@ export const RIG_PARTS = {
   bomber: PLANE_GEAR,
   airTransport: [...PLANE_GEAR, 'cabin_door', 'bay_door'],
   cargo: ['hold_hatch_*', 'mat_charge_*'],
+  // The lift of the flight deck, which takes the troops below (#503).
+  carrier: ['ascenseur'],
   // The loops at rest (#273): what each site moves while it works. The iron and the coal mines
   // share their names; the shutter is baked open (`REST_POSES.observing`), not moved.
   oilWell: ['balancier', 'manivelle', 'bielle', 'bielle_2', 'tige'],
