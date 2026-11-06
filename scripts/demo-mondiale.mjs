@@ -1687,11 +1687,7 @@ if (!bare) {
       troopIds: fleet,
       target: { kind: 'camp', campId: camp.id },
     });
-    cli([
-      'run',
-      'dev:arriveNow',
-      JSON.stringify({ playerId: scene.a, afterMs: sinkingIn * 1000 }),
-    ]);
+    cli(['run', 'dev:arriveNow', JSON.stringify({ playerId: scene.a, afterMs: sinkingIn * 1000 })]);
   }
   if (shellingIn !== null && scene.a !== null && scene.b !== null) {
     const spawn = (playerId, role, count, at) =>
