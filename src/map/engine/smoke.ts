@@ -281,7 +281,7 @@ const BUBBLE_RISE = 0.12;
 const BUBBLE_SIZE = 0.2;
 const BUBBLE_INK = '#e8efec';
 
-export function bubbleAt(rank: number, age: number) {
+function bubbleAt(rank: number, age: number) {
   const angle = (rank / BUBBLES) * Math.PI * 2 + rank * 0.7;
   const out = 1 - (1 - age) ** 2;
   return {
