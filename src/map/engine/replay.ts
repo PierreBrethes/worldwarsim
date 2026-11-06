@@ -51,6 +51,7 @@ import { pieceScale } from './piece-scale';
 import { articulatedOf } from './sequences';
 import { Bubbles, charred, PLUME_BY_WEAR, Smoke, type Plume } from './smoke';
 import { washedOf } from './standing';
+import { offLand } from './veil';
 
 /**
  * **The scene is laid out for a tank of `LAID_OUT_FOR`**, and drawn at a tank's real span (ADR
@@ -309,10 +310,10 @@ const SEA_AIM = 0.05;
 const SEA_BLOCK = 0.4;
 
 /** **La nappe sous une coque qui coule** (#514, storyboard : 70 m de rayon sous un cargo de 130 m,
- *  allongée d'un quart dans le sens de la coque) : un disque d'encre qui s'étale et s'éclaircit.
+ *  élargie d'un quart en travers de la coque) : un disque d'encre qui s'étale et s'éclaircit.
  *  Du `MeshBasicMaterial`, que la lueur de nuit ne touche pas. `@a-mesurer` */
 const SLICK_HULLS = 0.54;
-const SLICK_LONG = 1.25;
+const SLICK_BEAM = 1.25;
 const SLICK_INK = '#1d1a16';
 const SLICK_OPACITY = 0.4;
 const SLICK_THIN = 0.15;
@@ -653,6 +654,8 @@ export class ReplayScene {
         polygonOffsetFactor: -1,
       }),
     );
+    // On the water only: the carry veil's stencil, no pass of its own (veil.ts).
+    offLand(slick.material);
     slick.name = 'slick';
     slick.visible = false;
     slick.renderOrder = 1;
@@ -943,7 +946,8 @@ export class ReplayScene {
       slick.position.set(holder.position.x, SLICK_LIFT, holder.position.z);
       slick.rotation.y = holder.rotation.y;
       const reach = radius * (1 - (1 - spread) ** 3);
-      slick.scale.set(reach, 1, reach * SLICK_LONG);
+      // A hull lies along its holder's z: the quarter is added across it, on x.
+      slick.scale.set(reach * SLICK_BEAM, 1, reach);
       (slick.material as MeshBasicMaterial).opacity = SLICK_OPACITY - SLICK_THIN * spread;
     }
     bubbles.object.visible = age !== null;

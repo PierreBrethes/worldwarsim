@@ -6,6 +6,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  NotEqualStencilFunc,
   type Object3D,
   Quaternion,
   Sprite,
@@ -16,6 +17,7 @@ import type { ReplayView } from '@/domain/player-view';
 import { REPLAY_MS, replayAt, stepBounds, VOLLEY_SHARE, STEP_MS } from '@/domain/replay';
 import type { UnitRole } from '@/domain/ids';
 import { metresOnBoard, troopSpan } from '@/domain/piece-size';
+import { LAND_STENCIL } from './frame';
 import { warmPieces } from './halo';
 import { GUNS, Guns, turretLimitOf } from './articulation';
 import { REPLAY_STAGE, ReplayScene, sinceDeparture } from './replay';
@@ -589,6 +591,24 @@ describe('the slick and the bubbles of a hull going down (#514)', () => {
     // It lies under the hull that went down: where that hull's holder stands.
     expect(slick!.position.x).toBeCloseTo(scene.object.children[1]!.position.x);
     expect(slick!.position.z).toBeCloseTo(scene.object.children[1]!.position.z);
+  });
+
+  it('stretches the slick a quarter across the hull, not along it', () => {
+    const v = sunk();
+    const scene = sea(v);
+    scene.show(replayAt(v, REPLAY_MS), 0, false);
+    const slick = slickOf(scene)[1]!;
+    expect(slick.scale.x / slick.scale.z).toBeCloseTo(1.25);
+    // The hull's axis is the holder's z: its bow along the file.
+    expect(slick.rotation.y).toBeCloseTo(scene.object.children[1]!.rotation.y);
+  });
+
+  it('lays the slick on the water only: the land stencil cuts it, as it cuts the carry veil', () => {
+    const scene = sea(sunk());
+    const material = slickOf(scene)[1]!.material as MeshBasicMaterial;
+    expect(material.stencilWrite).toBe(true);
+    expect(material.stencilRef).toBe(LAND_STENCIL);
+    expect(material.stencilFunc).toBe(NotEqualStencilFunc);
   });
 
   it('sinks the same under both sides: the shooter sees it as the loser does', () => {

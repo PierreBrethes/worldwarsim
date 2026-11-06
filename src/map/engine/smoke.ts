@@ -276,9 +276,9 @@ export class Wake {
 const BUBBLES = 9;
 const BUBBLES_OPACITY = 0.7;
 /** How far a bubble spreads, how high it rises and how big it grows, in shares of the slick's radius. */
-const BUBBLE_SPREAD = 0.7;
-const BUBBLE_RISE = 0.12;
-const BUBBLE_SIZE = 0.2;
+const BUBBLE_SPREAD = 0.18;
+const BUBBLE_RISE = 0.03;
+const BUBBLE_SIZE = 0.12;
 const BUBBLE_INK = '#e8efec';
 
 function bubbleAt(rank: number, age: number) {
