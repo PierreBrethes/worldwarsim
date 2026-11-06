@@ -33,7 +33,10 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   première ligne de code, et le rapport cite ce rouge. Le test vise le chemin que prend le
   joueur (moteur, rose, porte serveur), pas seulement la fonction pure. Un bug sans rouge :
   rapporte la cause « à vérifier » et ne corrige rien. Un test écrit après son code se voit
-  rouge en neutralisant la ligne qu'il garde, et le rapport cite ce rouge-là.
+  rouge en neutralisant la ligne qu'il garde, et le rapport cite ce rouge-là. Chaque garde que
+  tu poses (une prolongation, une purge, un `if` qui écarte un cas) a son rouge ; une garde du
+  moteur qu'aucun test n'atteint se sort en fonction pure ou en petite classe testée (#478 :
+  `Runways`).
 - **Banc** : avant et après au même cadrage et au même état (même `--heure`, même base Convex,
   mêmes fichiers non suivis comme `public/media` et `scripts/demo-mondiale.accounts.json`, donc la
   même saison), sur secteur, machine au repos. Les appels de dessin
@@ -52,7 +55,9 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   code se rapporte, et tu attends la réponse. Laisser de côté un élément de la maquette choisie
   (une couche, une ligne d'état, un fondu) est un tel conflit, jamais une décision prise seul.
 - **Décisions prises seul** : quand tout se tait, prends l'option la plus simple qui reste
-  cohérente avec eux, et note-la pour le rapport, même petite. Tout chiffre neuf porte
+  cohérente avec eux, et note-la pour le rapport, même petite. Un instant, une valeur ou un
+  ordre que l'issue ou sa maquette écrit ne se tait pas : il se code tel qu'écrit (#483 : la
+  coulée partait de la déroute, l'issue et le storyboard disaient « à la chute »). Tout chiffre neuf porte
   `@a-mesurer`. Ce qu'un joueur apprend de l'autre (relevé, vue, rayon d'un relevé) ne se
   tranche pas seul : prends le plus étroit, et dis dans le rapport ce que l'autre choix révélerait.
 - **Un fichier livré qui contredit un test** (GLB, données cuites) : le test garde son contrat,
