@@ -41,6 +41,9 @@ const TURN_R = 12;
 export const TAIL_GAP = 2;
 /** Seconds: the motor starts, it holds on the runway, its thread takes it, its U-turn. */
 const T = { lead: 0.6, hold: 0.45, fil: 1.2, uturn: 2.4, doors: 1.4, born: 0.6, bounce: 0.5 };
+/** **The last stretch of a take-off**, ms: it slows onto its thread, and closes the gap that its
+ *  rank in a queue left short of the thread's start (`takeoff`'s `back`). */
+export const FIL_STRETCH_MS = T.fil * 1000;
 /** Its thread's speed, m/s: where it slows to after its climb. */
 const FIL_SPEED = 3;
 /** **Nose up on its tail wheel, at rest**, lifted level at the roll. `@a-mesurer` (10 to 11°
@@ -48,6 +51,9 @@ const FIL_SPEED = 3;
 const TAIL_DOWN = 10 * DEG;
 /** **It bounces once on touching**, this high. `@a-mesurer` */
 const BOUNCE = 1.2;
+
+/** Smootherstep: 0 to 1 with no speed nor acceleration at either end. */
+const smoother = (k: number): number => k * k * k * (k * (6 * k - 15) + 10);
 
 const { runway, ramp, top, facade, lanes } = AIRFIELD;
 /** The hangars' lanes, right (`A`) then left (`B`): a plane leaving waits in the left one. */
@@ -206,7 +212,7 @@ export function takeoff(
         at: (τ) => ({
           // Short of its thread's start by `back`, it closes the gap over this last stretch: the pawn
           // of its movement stands at the start, and the plane meets it there without a jump.
-          x: FIL.x + back * (1 - τ / T.fil) + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
+          x: FIL.x + back * (1 - smoother(τ / T.fil)) + fil - (a.vLift * τ - 0.5 * dec * τ * τ),
           y: ALT,
           z: runway.z,
           yaw: -Math.PI / 2,

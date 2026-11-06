@@ -112,25 +112,22 @@ import {
 } from './timelines/airfield';
 import { berthOf, docking, HULL_BEAM_SHARE, launch, OFFSHORE, undocking } from './timelines/port';
 import { troopMetres } from '@/domain/piece-size';
-import type { HullPost } from './timelines/rest';
 import type { UnitRole } from '@/domain/ids';
 import { movementRoles } from '@/emblems/units/manifest';
+import { Runways } from './runway';
 import {
-  airfieldSequence,
   arriving,
   delayed,
   departs,
   doorsOf,
-  DEPARTURE_WINDOW_MS,
   formationLead,
   haulSequence,
   inFormationOrder,
   landingOrder,
   launchLead,
   playable,
-  landingLead,
   THREAD_GAP_M,
-  takeoffLead,
+  type Doors,
   type Departing,
   restAt,
   arrivalRings,
@@ -718,24 +715,9 @@ export class MapEngine {
   private siteWays: Array<{ readonly cue: SiteWayCue; readonly since: number }> = [];
   /** The hulls that moved up to the mole when the one there put to sea, waiting to be hauled. */
   private hauls: Array<{ readonly promotion: Promotion; readonly since: number }> = [];
-  /** The departures played, for the hulls putting to sea together to wait their turn (#487). */
-  private departures: Array<{
-    arcId: string;
-    site: string;
-    post: HullPost | null;
-    since: number;
-    plane?: Departing;
-  }> = [];
-  /** **Who holds each runway**, until when (`busy`, on the clock of `since`): a plane takes off or
-   *  lands when the one before has left it, whichever cue it came by (#478). */
-  private runway: Array<{
-    site: string;
-    kind: 'depart' | 'land';
-    since: number;
-    busy: number;
-  }> = [];
-  /** The lights of an airfield, on until the last plane queued on its runway is through. */
-  private lights = new Map<string, { start: number; end: number }>();
+  /** The departures played, the runways held and the lights on: what the hulls putting to sea
+   *  together and the planes of a queue wait for (#487, #478). */
+  private airfields = new Runways();
   /** **Une Blitz** : ni piste ni môle n'y jouent, rien n'y est amarré (Mondiale seule). */
   private blitz = false;
   /** Columns waiting for their pile to stand before they deploy (#362). */
@@ -3621,7 +3603,6 @@ export class MapEngine {
     }
     const queue: Array<{ align: number; free: number }> = [];
     // What came or left before holds the runway still: the first to land waits for it.
-    const busy = airfield ? this.runwayBusy(cue.siteId, since, false) : 0;
     let longest = 0;
     const hangars = new Map<number, Array<Parameters<typeof doorsOf>[0][number]>>();
     const slips: Array<Parameters<typeof slipSequence>[0][number]> = [];
@@ -3646,7 +3627,10 @@ export class MapEngine {
         const articulated = drawn.url !== undefined;
         // Home, each touches as the one before leaves the runway; past the queue, it stands.
         queued = down === null ? null : { align: down.touch, free: down.clear };
-        const waits = queued === null ? formationLead(turn) : landingLead(queue, queued, busy);
+        const waits =
+          queued === null
+            ? formationLead(turn)
+            : this.airfields.landingLead(cue.siteId, since, queue, queued);
         if (waits === null) continue;
         const lead = waits;
         wait = lead;
@@ -3674,12 +3658,7 @@ export class MapEngine {
       if (!this.sequences.play(this.standing, id, sequence, since, now)) continue;
       if (queued !== null) {
         queue.push(queued);
-        this.runway.push({
-          site: cue.siteId,
-          kind: 'land',
-          since,
-          busy: since + wait + queued.free,
-        });
+        this.airfields.landed(cue.siteId, since, since + wait + queued.free);
       }
       longest = Math.max(longest, sequence.ms);
       turn++;
@@ -3735,12 +3714,10 @@ export class MapEngine {
       plane = { x: at.x, z: at.z, align: flight.ready, free: flight.leaves };
       // Planes taking off together leave right lane first, one on the runway at a time, and what
       // holds the runway from earlier orders is waited for.
-      const queued = takeoffLead(
+      const queued = this.airfields.takeoffLead(
+        id,
         { ...plane, since },
-        this.otherDepartures(arcId, id).flatMap(({ plane: each, since: at }) =>
-          each === undefined ? [] : [{ ...each, since: at }],
-        ),
-        this.runwayBusy(id, since, true),
+        this.otherDepartures(arcId, id),
       );
       if (queued === null) return true;
       wait = queued.lead;
@@ -3768,68 +3745,38 @@ export class MapEngine {
     }
     if (sequence === null) return true;
     // Only a plane that plays holds the runway, or makes the others wait.
-    if (!this.sequences.play(this.arcs, arcId, sequence, since, now)) return true;
-    this.departures.push({
-      arcId,
-      site: id,
-      post: kept?.post ?? null,
-      since,
-      ...(plane === null ? {} : { plane }),
-    });
-    if (plane !== null) {
-      this.runway.push({ site: id, kind: 'depart', since, busy: since + wait + plane.free });
-      this.lightUp(id, since, now, since + sequence.ms);
-    }
+    const played = this.airfields.depart(
+      {
+        arcId,
+        site: id,
+        post: kept?.post ?? null,
+        since,
+        ...(plane === null ? {} : { plane }),
+      },
+      wait,
+      () => this.sequences.play(this.arcs, arcId, sequence, since, now),
+    );
+    if (played && plane !== null) this.lightUp(id, since, now, since + sequence.ms);
     return true;
   }
 
-  /** **How long the runway of an airfield is held** from `since` by planes that took off or
-   *  landed before, in ms. A takeoff ordered within the window of `since` is a plane of its queue,
-   *  already counted (`keepWindow`). */
-  private runwayBusy(siteId: string, since: number, keepWindow: boolean): number {
-    return this.runway
-      .filter(
-        (each) =>
-          each.site === siteId &&
-          !(
-            keepWindow &&
-            each.kind === 'depart' &&
-            Math.abs(each.since - since) < DEPARTURE_WINDOW_MS
-          ),
-      )
-      .reduce((most, each) => Math.max(most, each.busy - since), 0);
-  }
-
-  /** **The airfield's lights**, on until `end`: a plane queued behind another extends them. */
+  /** **The airfield's lights** (`Runways.lightUp`), on until `end`. */
   private lightUp(
     siteId: string,
     since: number,
     now: number,
     end: number,
-    doors: Parameters<typeof airfieldSequence>[1] = [],
+    doors: ReadonlyArray<Doors> = [],
   ): void {
-    const lit = this.lights.get(siteId);
-    if (lit !== undefined && this.sequences.playsOn(this.maquettes, siteId)) {
-      lit.end = Math.max(lit.end, end);
-      return;
-    }
-    const state = { start: since, end };
-    if (
-      this.sequences.play(
-        this.maquettes,
-        siteId,
-        airfieldSequence(() => state.end - state.start, doors),
-        since,
-        now,
-      )
-    )
-      this.lights.set(siteId, state);
+    this.airfields.lightUp(siteId, since, end, doors, {
+      playing: () => this.sequences.playsOn(this.maquettes, siteId),
+      play: (sequence) => this.sequences.play(this.maquettes, siteId, sequence, since, now),
+    });
   }
 
   /** **The other hulls cued or put to sea from this port** (#487), those not yet played and those
    *  already playing, each once. */
   private otherDepartures(arcId: string, siteId: string) {
-    const seen = new Set<string>([arcId]);
     const pending = this.siteWays.flatMap(({ cue, since }) => {
       const arc = cue.kind === 'depart' ? this.arcs.viewOf(cue.arcId) : null;
       const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
@@ -3841,6 +3788,7 @@ export class MapEngine {
         ? [
             {
               arcId: cue.arcId,
+              site: siteId,
               post: kept.post,
               since,
               ...(flight === null
@@ -3857,9 +3805,7 @@ export class MapEngine {
           ]
         : [];
     });
-    return [...this.departures.filter((each) => each.site === siteId), ...pending].filter(
-      (each) => !seen.has(each.arcId) && seen.add(each.arcId),
-    );
+    return this.airfields.others(arcId, siteId, pending);
   }
 
   /** **The hull at the mole's side is hauled up to the mole** when the one there has put to sea
@@ -5468,8 +5414,7 @@ export class MapEngine {
     this.hauls = this.hauls.filter(
       (haul) => !this.haulOf(haul, now) && now - haul.since < SORTIE_WAIT_MS,
     );
-    this.departures = this.departures.filter(({ since }) => now - since < DEPARTURE_WINDOW_MS);
-    this.runway = this.runway.filter(({ busy }) => busy > now);
+    this.airfields.purge(now);
     this.loadings = stillWaiting(this.loadings, now, (loading) => this.loadOf(loading, now));
     this.touring = stillWaiting(this.touring, now, (tour) => this.tourOf(tour, now));
     this.takings = this.takings.filter(

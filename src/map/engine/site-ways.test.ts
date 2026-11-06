@@ -31,7 +31,7 @@ import {
   UNDOCK_STAGGER_MS,
   undockLead,
 } from './site-ways';
-import { formation, landing, parkingZ, takeoff } from './timelines/airfield';
+import { FIL_STRETCH_MS, formation, landing, parkingZ, takeoff } from './timelines/airfield';
 import { launch } from './timelines/port';
 
 const still: Sequence = { ms: 1000, at: () => ({ root: { travel: [1, 0, 0] } }) };
@@ -289,11 +289,27 @@ describe('a queue of the real tracks (#478)', () => {
     const at = spots[0]!;
     const track = (back: number) => takeoff(at.role, at, back);
     const x = (back: number, t: number) => track(back).at(t).x;
-    const last = (back: number) => track(back).ms - 1200;
+    const last = (back: number) => track(back).ms - FIL_STRETCH_MS;
     // Before the last stretch the ranks are `THREAD_GAP_M` apart; at the end they stand together.
     expect(x(THREAD_GAP_M, last(THREAD_GAP_M)) - x(0, last(0))).toBeCloseTo(THREAD_GAP_M, 3);
     expect(x(THREAD_GAP_M, track(THREAD_GAP_M).ms)).toBeCloseTo(x(0, track(0).ms), 6);
     expect(track(0).ready).toBe(track(THREAD_GAP_M).ready);
+  });
+
+  it('closes its gap with no jump of speed, in or out of the last stretch', () => {
+    const at = spots[0]!;
+    const back = 2 * THREAD_GAP_M;
+    const track = takeoff(at.role, at, back);
+    const plain = takeoff(at.role, at, 0);
+    // m/s, between two steps of 5 ms.
+    const speed = (t: number) => Math.abs(track.at(t + 5).x - track.at(t).x) / 0.005;
+    const entry = track.ms - FIL_STRETCH_MS;
+    // (a plane that decelerates loses about 0.5 m/s in this time; a linear catch-up jumped by 50.)
+    expect(Math.abs(speed(entry + 5) - speed(entry - 10))).toBeLessThan(1);
+    // Out of it, as fast as the plane that had no gap to close.
+    const out = track.ms - 20;
+    const gone = (t: number) => Math.abs(plain.at(t + 5).x - plain.at(t).x) / 0.005;
+    expect(Math.abs(speed(out) - gone(plain.ms - 20))).toBeLessThan(1);
   });
 });
 

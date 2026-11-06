@@ -113,7 +113,7 @@ export function delayed(sequence: Sequence, lead: number, hidden = true): Sequen
 }
 
 /** One hangar's doors: its lane, how open they are at `ms`. */
-type Doors = { readonly lane: number; open(ms: number): number };
+export type Doors = { readonly lane: number; open(ms: number): number };
 
 /** **The airfield while a plane moves on it** (#269): its runway lit by night (the copy's own
  *  lamps, `MaquetteLayer.standIn`), and the doors of each hangar a new plane comes out of. */
@@ -132,9 +132,13 @@ export function airfieldSequence(
     minPx: WALK_MIN_PX,
     at(t) {
       const pose: Record<string, PartPose> = {};
-      for (const { lane, open } of hangars) {
-        const suffix = hangarOf(laneOf(lane));
-        const { inner, outer } = doorCourse(open(t));
+      // A hangar's doors may come from several orders (#478): the most open one rules.
+      const opened = new Map<number, number>();
+      for (const { lane, open } of hangars)
+        opened.set(laneOf(lane), Math.max(opened.get(laneOf(lane)) ?? 0, open(t)));
+      for (const [lane, open] of opened) {
+        const suffix = hangarOf(lane);
+        const { inner, outer } = doorCourse(open);
         // The left leaves run to +x, the right to -x (storyboard).
         const by = (x: number): PartPose => ({ shift: [x, 0, 0] });
         pose[`porte_gauche_1${suffix}`] = by(inner);
@@ -328,7 +332,7 @@ export const THREAD_GAP_M = 30;
 
 /** A plane cued to take off: where it rests, and its slot. */
 export type Departing = Slot & { readonly x: number; readonly z: number };
-type Waiting = Departing & { readonly since: number };
+export type Waiting = Departing & { readonly since: number };
 
 /**
  * **How long a plane waits to take off** (#478, calqué sur `undockLead`): the planes of the same
