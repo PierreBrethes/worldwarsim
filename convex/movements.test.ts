@@ -4555,6 +4555,185 @@ describe('rester en mer', () => {
   });
 
   /**
+   * **La cargaison d'une coque coulée se sert au seul camp qui la perd** (#513, décision 8 du
+   * 05/11) : celui qui voit couler voit la scène, jamais ce qu'elle portait. La dépêche porte
+   * l'engagement dont elle attend la scène.
+   */
+  describe('the cargo a sunk hull took', () => {
+    /** Un chasseur à quai contre une pile mouillée du convoi : l'escorte coule les coques. */
+    const sink = async (t: ReturnType<typeof boot>, hunter: Seat, escorts = 2) => {
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const quay = await raise(t, hunter, 'port', NORD);
+      const hunters = [];
+      for (let rank = 0; rank < escorts; rank += 1)
+        hunters.push(await form(t, hunter, 'escort', quay));
+      const campId = await surveyCamp(t, hunter, water);
+      await t.mutation(api.movements.attack, {
+        ...hunter,
+        origin: { kind: 'building', buildingId: quay },
+        troopIds: hunters,
+        target: { kind: 'camp', campId },
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const [account] = await engagementsIn(t);
+      return account!;
+    };
+
+    it('serves it to the side that lost it, and nothing of it to the side that saw it sink', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      await postAt(t, guest, 'cargo', water);
+      await postAt(t, guest, 'infantry', water);
+      const account = await sink(t, seat);
+
+      const lost = await t.query(api.replay.replayOf, { ...guest, combatId: account._id });
+      expect(lost).toMatchObject({
+        drowned: { men: nominalStrength('infantry', 1), machines: 0, seats: 1 },
+      });
+      const saw = await t.query(api.replay.replayOf, { ...seat, combatId: account._id });
+      expect(saw).not.toHaveProperty('drowned');
+      expect(JSON.stringify(saw)).not.toContain('drowned');
+
+      /** La dépêche de la perte attend la scène de cet engagement. */
+      const [notice] = await t.run(async (ctx) =>
+        ctx.db
+          .query('notices')
+          .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+          .collect(),
+      );
+      expect(notice).toMatchObject({ combatId: account._id });
+    });
+
+    it("serves the attacker's own convoy its loss when its hull goes down on arrival", async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const cargo = await postAt(t, guest, 'cargo', water, 4 / 8);
+      const infantry = await postAt(t, guest, 'infantry', water);
+      await t.run(async (ctx) => ctx.db.patch(infantry, { carriedBy: cargo }));
+      await postAt(t, seat, 'escort', water);
+      await postAt(t, seat, 'escort', water);
+      const campId = await surveyCamp(t, guest, water);
+      await t.mutation(api.movements.attack, {
+        ...guest,
+        origin: { kind: 'point', point: water },
+        troopIds: [cargo, infantry],
+        target: { kind: 'camp', campId },
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const [account] = await engagementsIn(t);
+      expect(account!.attackerId).toBe(await playerOf(t, guest));
+      const lost = await t.query(api.replay.replayOf, { ...guest, combatId: account!._id });
+      expect(lost).toMatchObject({ side: 'attacker', drowned: { machines: 0, seats: 1 } });
+      const saw = await t.query(api.replay.replayOf, { ...seat, combatId: account!._id });
+      expect(saw).not.toHaveProperty('drowned');
+    });
+
+    /** Une passe posée directement : en Blitz ou à la rencontre sur la route, aucun ordre
+     *  d'attaque sur un camp ne la produit. */
+    const meet = async (
+      t: ReturnType<typeof boot>,
+      seat: Seat,
+      guest: Seat,
+      cause: 'arrival' | 'interception',
+    ) => {
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const cargo = await postAt(t, guest, 'cargo', water);
+      const infantry = await postAt(t, guest, 'infantry', water);
+      const hunters = [
+        await postAt(t, seat, 'escort', water),
+        await postAt(t, seat, 'escort', water),
+      ];
+      return t.run(async (ctx) => {
+        const troops = (ids: ReadonlyArray<Id<'troops'>>) =>
+          Promise.all(ids.map(async (id) => (await ctx.db.get(id))!));
+        const { resolveContact } = await import('./combat');
+        const { engagementId } = await resolveContact(ctx, {
+          seasonId: seat.seasonId,
+          attacker: {
+            playerId: (await ctx.db.get(hunters[0]!))!.playerId,
+            troops: await troops(hunters),
+          },
+          defender: {
+            playerId: (await ctx.db.get(cargo))!.playerId,
+            troops: await troops([cargo, infantry]),
+          },
+          cause,
+          point: water,
+          hostCountry: '',
+          outpostId: null,
+          disabledUntil: null,
+          at: Date.now(),
+        });
+        const [notice] = await ctx.db
+          .query('notices')
+          .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+          .collect();
+        return { engagementId, notice };
+      });
+    };
+
+    it('files the notice with its combat in a Blitz too, which plays no scene', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      await t.run(async (ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));
+      const { engagementId, notice } = await meet(t, seat, guest, 'arrival');
+      expect(notice).toMatchObject({ combatId: engagementId });
+    });
+
+    it('files the notice with its combat when the hull is caught on the road', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const { engagementId, notice } = await meet(t, seat, guest, 'interception');
+      expect(notice).toMatchObject({ combatId: engagementId });
+    });
+
+    it('counts the men, the machines and the seats of every hull, one notice for the side', async () => {
+      const t = boot();
+      const { seat, guest } = await launchedSeason(t);
+      const water = { lon: DOGGER[0], lat: DOGGER[1] };
+      const first = await postAt(t, guest, 'cargo', water, 4 / 8);
+      const second = await postAt(t, guest, 'cargo', water, 4 / 8);
+      const infantry = await postAt(t, guest, 'infantry', water);
+      const armor = await postAt(t, guest, 'armor', water);
+      /** Un camion et deux fusiliers sur la coque : `fareOf` fait payer 2 + 1 + 1 places. */
+      const truck = await postAt(t, guest, 'landTransport', water);
+      const riders = [
+        await postAt(t, guest, 'infantry', water),
+        await postAt(t, guest, 'infantry', water),
+      ];
+      await t.run(async (ctx) => {
+        await ctx.db.patch(infantry, { carriedBy: first });
+        await ctx.db.patch(armor, { carriedBy: second });
+        await ctx.db.patch(truck, { carriedBy: second });
+        for (const rider of riders) await ctx.db.patch(rider, { carriedBy: truck });
+      });
+      const account = await sink(t, seat, 3);
+
+      const lost = await t.query(api.replay.replayOf, { ...guest, combatId: account._id });
+      /** L'effectif compté est celui d'après la passe : ce qui restait debout a coulé. */
+      const after = (id: Id<'troops'>) =>
+        account.troops.find((one) => one.troopId === id)!.strengthAfter;
+      expect(lost).toMatchObject({
+        drowned: {
+          men: [infantry, ...riders].reduce((sum, id) => sum + after(id), 0),
+          machines: after(armor) + after(truck),
+          seats: 1 + 3 + 4,
+        },
+      });
+      const notices = await t.run(async (ctx) =>
+        ctx.db
+          .query('notices')
+          .filter((q) => q.eq(q.field('kind'), 'drownedAtSea'))
+          .collect(),
+      );
+      expect(notices).toHaveLength(1);
+    });
+  });
+
+  /**
    * Règle 4, sa seconde moitié : **une coque déroutée emporte ses passagers dans son repli**, et
    * ce qu'aucune coque ne porte coule. Douze à bord, un treizième à l'eau.
    */

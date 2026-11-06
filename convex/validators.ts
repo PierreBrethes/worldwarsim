@@ -712,6 +712,8 @@ export const NOTICE = v.union(
     point: LON_LAT,
     men: v.number(),
     machines: v.number(),
+    /** L'engagement dont la dépêche attend la scène (#513) ; absent d'une dépêche d'avant. */
+    combatId: v.optional(v.id('engagements')),
   }),
   /** **La saison close à la main par son fondateur** (`seasons.conclude`) — la seule fin qui ne
    *  désigne personne : elle n'a pas de vainqueur, et le journal ne doit pas en inventer un. */
@@ -1028,6 +1030,10 @@ export const ATTACK_TARGET = v.union(
 export const MOVEMENT_TARGET = v.union(STORED_TARGET, v.object({ kind: v.literal('home') }));
 
 export const COMBAT_SIDE = v.union(v.literal('attacker'), v.literal('defender'));
+
+/** **Ce qu'une coque coulée emportait** (#513) : des hommes et des machines (ADR 0014), et les
+ *  places qu'ils tenaient à bord. */
+export const DROWNED = v.object({ men: v.number(), machines: v.number(), seats: v.number() });
 
 export const TROOP_STATE = v.union(
   v.literal('standing'),

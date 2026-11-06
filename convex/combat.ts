@@ -12,6 +12,7 @@ import {
 import { landAtPoint } from './routes';
 import { movementsOf, seatedOf } from './movement/forces';
 import { outpostShelters } from '../src/domain/outposts';
+import { carrierIn, fareOf } from '../src/domain/troops';
 import { isBlitz } from './blitz';
 import { COMBAT_RULES } from './constants';
 import { REPORTS_SERVED } from '../src/domain/player-view';
@@ -201,7 +202,6 @@ export async function resolveContact(
     point,
     outcomes: engagement.outcomes,
     byId: new Map([...byId, ...aboard.map((troop) => [troop._id, troop] as const)]),
-    at,
     sides: mode === 'indirect' ? ['defender'] : ['attacker', 'defender'],
     aboard,
   });
@@ -236,6 +236,11 @@ export async function resolveContact(
       defender: (await ctx.db.get(defender.playerId))?.nation ?? null,
     },
     ...(firedFrom === undefined ? {} : { firedFrom }),
+    ...(sunk.lost.length === 0
+      ? {}
+      : {
+          drowned: Object.fromEntries(sunk.lost.map((one) => [one.side, one.cargo])),
+        }),
     troops: outcomes.map((outcome) => {
       const troop = byId.get(outcome.id)!;
       return {
@@ -250,6 +255,18 @@ export async function resolveContact(
       };
     }),
   });
+
+  /** **Chez le seul camp qui perd la cargaison** ; la dépêche attend la scène de cet engagement. */
+  for (const one of sunk.lost)
+    await ctx.db.insert('notices', {
+      playerId: one.playerId,
+      at,
+      kind: 'drownedAtSea',
+      point,
+      men: one.cargo.men,
+      machines: one.cargo.machines,
+      combatId: engagementId,
+    });
 
   /** **Le défenseur, et lui seul** : l'attaquant a donné l'ordre, il n'a pas à être averti. */
   await notifyPlayer(ctx, defender.playerId, {
@@ -357,21 +374,20 @@ async function drownAtSea(
     point,
     outcomes,
     byId,
-    at,
     sides,
     aboard,
   }: {
     point: { lon: number; lat: number };
     outcomes: ReadonlyArray<CombatantOutcome>;
     byId: Map<string, Doc<'troops'>>;
-    at: number;
     sides: ReadonlyArray<'attacker' | 'defender'>;
     aboard: ReadonlyArray<Doc<'troops'>>;
   },
-): Promise<{ readonly drowned: ReadonlySet<string>; readonly withdrawn: ReadonlySet<string> }> {
+): Promise<SeaLoss> {
   const drowned = new Set<string>();
   const withdrawn = new Set<string>();
-  if (landAtPoint([point.lon, point.lat])) return { drowned, withdrawn };
+  const lost: Array<{ side: 'attacker' | 'defender'; playerId: Id<'players'>; cargo: Cargo }> = [];
+  if (landAtPoint([point.lon, point.lat])) return { drowned, withdrawn, lost };
 
   for (const side of sides) {
     const survivors = outcomes.filter(
@@ -393,30 +409,51 @@ async function drownAtSea(
      * dans l'unité où la passe se raconte, et l'effectif compté est celui d'**après** la passe —
      * ce qui a coulé est ce qui restait debout.
      */
-    const lost = fate.drowned.map((id) => ({
+    const gone = fate.drowned.map((id) => ({
       role: byId.get(id)!.role,
       strength:
         outcomes.find((outcome) => outcome.id === id)?.strengthAfter ??
         byId.get(id)!.currentStrength,
     }));
+    /** **Les places comme la règle les compte** (`fareOf`) : chaque troupe que plus rien ne porte
+     *  paie pour elle et sa cargaison, un camion chargé compris. */
+    const pile = fate.drowned.map((id) => seatedOf(byId.get(id)!));
+    const seats = pile
+      .filter((unit) => carrierIn(unit, pile) === null)
+      .reduce((sum, unit) => sum + (fareOf('cargo', unit, pile) ?? 0), 0);
     const of = (role: 'infantry' | 'other') =>
-      lost
+      gone
         .filter((one) => (role === 'infantry' ? one.role === 'infantry' : one.role !== 'infantry'))
         .reduce((sum, one) => sum + one.strength, 0);
     for (const id of fate.drowned) drowned.add(id);
-    await ctx.db.insert('notices', {
+    lost.push({
+      side,
       playerId: byId.get(fate.drowned[0]!)!.playerId,
-      at,
-      kind: 'drownedAtSea',
-      point,
-      men: of('infantry'),
-      machines: of('other'),
+      cargo: {
+        men: of('infantry'),
+        machines: of('other'),
+        seats,
+      },
     });
   }
 
   for (const id of drowned) await ctx.db.delete(byId.get(id)!._id);
-  return { drowned, withdrawn };
+  return { drowned, withdrawn, lost };
 }
+
+type Cargo = { readonly men: number; readonly machines: number; readonly seats: number };
+
+/** **Ce que le large a pris**, par camp : la dépêche et le compte s'écrivent après l'engagement,
+ *  qui seul donne leur `combatId`. */
+type SeaLoss = {
+  readonly drowned: ReadonlySet<string>;
+  readonly withdrawn: ReadonlySet<string>;
+  readonly lost: ReadonlyArray<{
+    readonly side: 'attacker' | 'defender';
+    readonly playerId: Id<'players'>;
+    readonly cargo: Cargo;
+  }>;
+};
 
 /**
  * **The last passes of a player, both sides of the field, and nothing older.** The window is the

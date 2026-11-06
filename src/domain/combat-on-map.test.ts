@@ -6,6 +6,7 @@ import {
   combatAt,
   FINAL_POSE_MS,
   freshCombats,
+  scenesToPlay,
   homewardOf,
   playsWhole,
   reportOf,
@@ -33,6 +34,14 @@ const view: ReplayView = {
   ],
   theirs: { troops: 3, lost: 300, routed: 1, destroyed: 1 },
 };
+
+describe('scenesToPlay', () => {
+  it('plays a fresh combat in Mondiale and none in a Blitz, so nothing is held there', () => {
+    const known = new Set(['a']);
+    expect(scenesToPlay(false, known, [report('b')], NOW).map((one) => one.id)).toEqual(['b']);
+    expect(scenesToPlay(true, known, [report('b')], NOW)).toEqual([]);
+  });
+});
 
 describe('freshCombats', () => {
   it('plays nothing on the first view', () => {

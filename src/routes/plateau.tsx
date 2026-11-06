@@ -6,7 +6,16 @@ import { boardsUnderTheEyes } from '@/map/cues';
 import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
 import { Navigate, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useConvex, useMutation, useQuery } from 'convex/react';
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
@@ -22,7 +31,8 @@ import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
 import { type Dismantled, type MapCombat, WorldMap } from '@/map/WorldMap';
-import { freshCombats, homewardOf, REPORT_HOLD_MS } from '@/domain/combat-on-map';
+import { homewardOf, REPORT_HOLD_MS, scenesToPlay } from '@/domain/combat-on-map';
+import { withoutHeld } from '@/domain/journal';
 import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
 import {
@@ -2633,9 +2643,16 @@ function BoardContent({
       }),
     [],
   );
-  useEffect(() => {
+  /** Ce que le journal montre : une cargaison coulée attend la scène de son combat. */
+  const shownJournal = useMemo(
+    () => withoutHeld(view.journal, heldDispatches),
+    [view.journal, heldDispatches],
+  );
+  const shownView = useMemo(() => ({ ...view, journal: shownJournal }), [view, shownJournal]);
+  /** Avant la peinture : une dépêche qui attend une scène ne paraît pas une image trop tôt. */
+  useLayoutEffect(() => {
     const reports = view.journal.flatMap((dispatch) => dispatch.combat ?? []);
-    const fresh = blitz ? [] : freshCombats(combatsKnown.current, reports, Date.now());
+    const fresh = scenesToPlay(blitz, combatsKnown.current, reports, Date.now());
     combatsKnown.current = new Set(reports.map((report) => report.id));
     if (fresh.length === 0) return;
     setHeldDispatches((current) => new Set([...current, ...fresh.map((report) => report.id)]));
@@ -2887,7 +2904,7 @@ function BoardContent({
 
   return (
     <Shell
-      view={view}
+      view={shownView}
       telegraphUnread={telegraph.unread}
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
@@ -2928,7 +2945,7 @@ function BoardContent({
                   arcs={view.arcs}
                   troops={view.me.troops}
                   columns={columns}
-                  journal={view.journal}
+                  journal={shownJournal}
                   raceLead={raceLead}
                   labels={shownLabels}
                   standing={standing}
@@ -3413,7 +3430,7 @@ function BoardContent({
               se charge sans cacher celle qu'elle remplace, qui peut alors se replier. */}
               <BoardWindows
                 surfaces={surfaces}
-                view={view}
+                view={shownView}
                 seat={seat}
                 telegraph={telegraph}
                 theatre={blitzTheatre}

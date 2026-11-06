@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combatsSince, isAlarm, journalDispatches, latestDispatchAt } from './journal';
+import { combatsSince, isAlarm, journalDispatches, latestDispatchAt, withoutHeld } from './journal';
 import { fr } from '@/i18n/fr';
 import { asClockTime } from './duration';
 import type { BuildingKey } from './ids';
@@ -582,5 +582,34 @@ describe('the second leg of a blitzkrieg (ADR 0039 §6)', () => {
       troopIds: ['t1'],
     });
     expect(dispatch.severity).toBe('critical');
+  });
+});
+
+/** **La cargaison coulée attend la scène** (#513) : sa dépêche disait la perte avant le naufrage. */
+describe('the dispatch of a drowned cargo', () => {
+  const drowned = (combatId?: string): Notice => ({
+    kind: 'drownedAtSea',
+    at: NOON,
+    point: { lon: 2.5, lat: 54.5 },
+    men: 40,
+    machines: 0,
+    ...(combatId === undefined ? {} : { combatId }),
+  });
+  const filed = (combatId?: string) => journalDispatches([], null, [drowned(combatId)]);
+
+  it('waits for the scene of its own engagement, and only while the map holds it', () => {
+    expect(withoutHeld(filed('c1'), new Set(['c1']))).toEqual([]);
+    expect(withoutHeld(filed('c1'), new Set(['c2']))).toHaveLength(1);
+    expect(withoutHeld(filed('c1'), new Set())).toHaveLength(1);
+  });
+
+  it('is not held when it names no combat, or a combat the map does not hold', () => {
+    expect(withoutHeld(filed(), new Set(['c1']))).toHaveLength(1);
+    expect(withoutHeld(filed('c1'), new Set(['c2']))).toHaveLength(1);
+  });
+
+  it('holds no other dispatch', () => {
+    const journal = journalDispatches([battle(NOON)], null, [finished(NOON), drowned('c1')]);
+    expect(withoutHeld(journal, new Set(['c1']))).toHaveLength(2);
   });
 });
