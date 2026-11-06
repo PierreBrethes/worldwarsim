@@ -20,7 +20,8 @@ export const RIG_PARTS = {
   fighter: PLANE_GEAR,
   bomber: PLANE_GEAR,
   airTransport: [...PLANE_GEAR, 'cabin_door', 'bay_door'],
-  cargo: ['hold_hatch_*', 'mat_charge_*'],
+  // The boats the assault puts to water (#482); the junk carries `boat_left` only.
+  cargo: ['hold_hatch_*', 'mat_charge_*', 'boat_left', 'boat_right'],
   // The lift of the flight deck, which takes the troops below (#503).
   carrier: ['ascenseur'],
   // The loops at rest (#273): what each site moves while it works. The iron and the coal mines

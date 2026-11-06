@@ -169,9 +169,11 @@ describe.runIf(files.length > 0)('sculpted figurines', () => {
   const rigged = files.filter(([, role]) => role in RIG_PARTS);
   /** What an articulated copy keeps (ADR 0036 §11): each name of `RIG_PARTS` is in the file, and
    *  one node carries it — a name twice would move one of the two. */
-  it.each(rigged)('%s carries each name of its articulated copy once', (_, role, url) => {
+  it.each(rigged)('%s carries each name of its articulated copy once', (label, role, url) => {
     const names = (readGlb(url).nodes ?? []).map((node) => node.name);
     for (const part of RIG_PARTS[role as RigFamily]) {
+      // The junk has one boat, `boat_left` (#482).
+      if (part === 'boat_right' && label.startsWith('china')) continue;
       // The prefix rule is copied here on purpose: presence is checked per pattern, which
       // `isRigPart` (any pattern) cannot say.
       const found = names.filter((name) =>
