@@ -416,9 +416,13 @@ describe('a combat at sea', () => {
     await landed();
     const pivot = scene.object.children[1]!.children[0]!;
     scene.show(replayAt(v, stepBounds('riposte').start), 0, false);
-    expect(Math.abs(pivot.rotation.z)).toBeCloseTo(0.12);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((14 * Math.PI) / 180);
+    expect(pivot.rotation.x).toBeCloseTo(0);
     expect(pivot.position.y).toBeCloseTo(0);
     scene.show(replayAt(v, stepBounds('compte-rendu').start + 1600), 0, false);
+    // Down by the stern: the bow rises, the heel has gone on to 22 degrees.
+    expect(pivot.rotation.x).toBeCloseTo((-9 * Math.PI) / 180);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((22 * Math.PI) / 180);
     // Its rig's guns stand a tenth of a unit high, drawn at the scene's scale.
     expect(pivot.position.y).toBeCloseTo((-0.6 * 0.1) / REPLAY_STAGE);
     const opacities: number[] = [];
@@ -437,9 +441,35 @@ describe('a combat at sea', () => {
     await landed();
     const pivot = scene.object.children[1]!.children[0]!;
     scene.show(replayAt(v, REPLAY_MS), 0, true);
-    expect(Math.abs(pivot.rotation.z)).toBeCloseTo(0.12);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((22 * Math.PI) / 180);
+    expect(pivot.rotation.x).toBeCloseTo((-9 * Math.PI) / 180);
     expect(pivot.position.y).toBeCloseTo(0);
     expect(scene.smoking).toBe(true);
+  });
+
+  it('at reduced motion holds the frozen steps, then sinks the hull whole at the account', async () => {
+    const v = sunk();
+    const scene = sea(v);
+    await landed();
+    const pivot = scene.object.children[1]!.children[0]!;
+    scene.show(replayAt(v, stepBounds('deroute').start, 'reduced'), 0, true);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((14 * Math.PI) / 180);
+    expect(pivot.position.y).toBeCloseTo(0);
+    scene.show(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), 0, true);
+    expect(pivot.position.y).toBeCloseTo((-0.6 * 0.1) / REPLAY_STAGE);
+  });
+
+  it('heels and sinks a block with no role the same way', async () => {
+    const v = sunk();
+    const { faced: _faced, ...blind } = v;
+    const scene = sea(blind);
+    await landed();
+    const pivot = scene.object.children[1]!.children[0]!;
+    scene.show(replayAt(blind, stepBounds('riposte').start), 0, false);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((14 * Math.PI) / 180);
+    expect(pivot.rotation.x).toBeCloseTo(0);
+    scene.show(replayAt(blind, REPLAY_MS), 0, false);
+    expect(pivot.position.y).toBeLessThan(0);
   });
 
   /** The lowest opacity a piece wears: 1 when nothing on it is see-through. */
@@ -451,6 +481,36 @@ describe('a combat at sea', () => {
     });
     return least;
   };
+
+  it('keeps a sinking hull opaque to the middle of its sinking, then fades it', async () => {
+    const v = sunk();
+    const scene = sea(v);
+    await landed();
+    const theirs = scene.object.children[1]!;
+    const pivot = theirs.children[0]!;
+    // Its fall ended at the strike's end: it sinks from a second after to the account's 1.6 s.
+    const fell = stepBounds('frappe').end;
+    const to = stepBounds('compte-rendu').start + 1600;
+    scene.show(replayAt(v, fell + 0.4 * (to - fell - 1000) + 1000), 0, false);
+    expect(pivot.position.y).toBeLessThan(0);
+    expect(opacityOf(theirs)).toBe(1);
+    scene.show(replayAt(v, to - 100), 0, false);
+    expect(opacityOf(theirs)).toBeLessThan(0.5);
+  });
+
+  it('heels each hull towards the other line, on the side the shots struck', async () => {
+    const both = sunk();
+    const v: ReplayView = {
+      ...both,
+      mine: both.mine.map((force) => ({ ...force, destroyed: 1 })),
+    };
+    const scene = sea(v);
+    await landed();
+    const [mine, theirs] = scene.object.children as Object3D[];
+    scene.show(replayAt(v, stepBounds('deroute').start), 0, false);
+    expect(mine!.children[0]!.rotation.z).toBeGreaterThan(0);
+    expect(theirs!.children[0]!.rotation.z).toBeLessThan(0);
+  });
 
   it('on the map, fades the attacker in over the voyage and out as the account ends', async () => {
     const v = fleet(1, 1);

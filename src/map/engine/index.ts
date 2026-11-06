@@ -5019,6 +5019,8 @@ export class MapEngine {
       replay.ended = ended;
       replay.onStep(frame.step, ended);
     }
+    // Cut motion holds the wreck, as the combats on the map do (#324).
+    replay.scene.final = this.ambience.motion === 'off';
     replay.scene.show(frame, now / 1000, this.ambience.motion !== 'full');
     // Frames are due while it plays, and while a hull burns at full motion; held, it is still.
     if (replay.t < replay.until || (this.ambience.motion === 'full' && replay.scene.smoking))

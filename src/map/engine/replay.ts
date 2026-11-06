@@ -20,9 +20,10 @@ import { sceneSpan } from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
 import { metresOnBoard } from '@/domain/piece-size';
 import {
+  hullPose,
   REPLAY_MS,
+  sinkOf,
   STEP_MS,
-  stepBounds,
   VOLLEY_SHARE,
   type ReplayFrame,
   type ReplayPiece,
@@ -291,11 +292,10 @@ export const FLASH_MS = 160;
 const TUBE_LAG_MS = 70;
 const SEA_FLASH = 0.09;
 const SEA_SMOKE = 3;
-/** **Le coulé** : il gîte de 0,12 rad à sa chute, puis s'enfonce de 0,6 de sa hauteur et s'efface
- *  sur 1,6 s au compte-rendu. */
-const HEEL = 0.12;
+/** **Le coulé** (`hullPose`) s'enfonce de 0,6 de sa hauteur. `@a-mesurer` */
 const SINK_DEPTH = 0.6;
-const SINK_MS = 1600;
+/** @a-mesurer — il ne s'efface que sur la seconde moitié de sa coulée : la coque se lit gîtée avant de disparaître */
+const FADE_FROM = 0.5;
 /** **Sur la carte, l'attaquant en mer** (#324) : il paraît au fil du voyage et s'efface sur les
  *  dernières 600 ms du compte-rendu, où son pion de retour le reprend. `@a-mesurer` */
 const SEA_LEAVE_MS = 600;
@@ -765,25 +765,33 @@ export class ReplayScene {
           piece.home[0] + sign * (this.onMap === null ? RETREAT * retreat : ARRIVAL * arriving);
       if (turns !== null) holder.rotation.y = piece.yaw + Math.PI * ease(turns[k] ?? 0);
       holder.rotation.z = shakeOf(frame, still);
-      // A hull that went down heels with its fall, then sinks and fades at the account — held,
-      // never, by the final pose.
-      const sink =
-        this.sea && state.fate === 'fallen' && !this.final
-          ? ease(
-              Math.min(
-                1,
-                Math.max(0, (clockOf(frame) - stepBounds('compte-rendu').start) / SINK_MS),
-              ),
-            )
-          : 0;
+      // A hull that went down heels with its fall, then sinks by the stern and fades to the end of
+      // the account (`hullPose`). The final pose keeps the wreck: heeled and down by the stern,
+      // afloat, never faded.
+      const hull =
+        this.sea && state.fate === 'fallen'
+          ? hullPose(fall, ease(sinkOf(frame, state.fellAt ?? 0, still)))
+          : null;
+      const sink = hull === null || this.final ? 0 : hull.depth;
       pivot.position.y = -SINK_DEPTH * piece.height * sink;
       if (piece.burns) {
         // A tank rears and a gun slides back as its shot leaves (`since`); nothing at reduced motion.
         const gun = piece.gunKind === null ? null : GUNS[piece.gunKind];
         const recoil = still ? 0 : recoilAt(since);
-        const heel = this.sea ? (piece.side === 'mine' ? 1 : -1) * HEEL * fall : 0;
-        pivot.rotation.set(gun === null ? 0 : ((gun.rock * Math.PI) / 180) * recoil, 0, heel);
+        const rock = gun === null ? 0 : ((gun.rock * Math.PI) / 180) * recoil;
+        pivot.rotation.set(
+          rock - (hull?.pitch ?? 0),
+          0,
+          (piece.side === 'mine' ? 1 : -1) * (hull?.heel ?? 0),
+        );
         if (gun !== null) piece.body.position.z = -gun.piece * piece.length * recoil;
+      } else if (this.sea) {
+        // A block that stands for a ship goes down as a hull does.
+        pivot.rotation.set(
+          -(hull?.pitch ?? 0),
+          0,
+          (piece.side === 'mine' ? 1 : -1) * (hull?.heel ?? 0),
+        );
       } else if (piece.card) {
         // Away from the eye: mine's +x is the scene's -z, theirs' is its +z.
         pivot.rotation.set(0, 0, (piece.side === 'mine' ? -1 : 1) * (Math.PI / 2) * fall);
@@ -803,7 +811,7 @@ export class ReplayScene {
             ? ease(progress)
             : 1 - ease(Math.max(0, 1 - (REPLAY_MS - clockOf(frame)) / SEA_LEAVE_MS))
           : 1;
-      const opacity = Math.min(1 - sink, ghost);
+      const opacity = Math.min(1 - Math.max(0, (sink - FADE_FROM) / (1 - FADE_FROM)), ghost);
       const wear = burnt || sink > 0 ? 'burnt' : retreat > 0 ? 'washed' : 'whole';
       const clear = opacity < 1;
       const look: Look = clear ? `${wear}-clear` : wear;

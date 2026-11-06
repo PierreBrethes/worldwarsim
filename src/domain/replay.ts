@@ -58,12 +58,15 @@ export type ReplayPiece =
       readonly tier: UnitTier;
       readonly fate: PieceFate;
       readonly progress: number;
+      /** A fallen piece: the clock (ms) at which its fall ends, what its sinking is anchored on. */
+      readonly fellAt?: number;
     }
   | {
       readonly side: 'theirs';
       readonly seen?: { readonly role: UnitRole; readonly tier: UnitTier };
       readonly fate: PieceFate;
       readonly progress: number;
+      readonly fellAt?: number;
     };
 
 export type ReplayFrame = {
@@ -134,14 +137,18 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
   const rout = stepBounds('deroute');
   const share = (from: number, length: number) => Math.min(1, Math.max(0, (at - from) / length));
   const playOut = (fate: PieceFate, side: 'mine' | 'theirs') => {
+    let fellAt: number | undefined;
     const fall = () => {
       const { from, length } = struckIn(side);
       const slot = length / fallCount[side];
-      return share(from + ranks[side]++ * slot, slot);
+      const begins = from + ranks[side]++ * slot;
+      fellAt = begins + slot;
+      return share(begins, slot);
     };
     const progress =
       fate === 'routed' ? share(rout.start, rout.end - rout.start) : fate === 'fallen' ? fall() : 0;
-    return progress > 0 ? { fate, progress } : { fate: 'standing' as const, progress: 0 };
+    if (progress <= 0) return { fate: 'standing' as const, progress: 0 };
+    return fellAt === undefined ? { fate, progress } : { fate, progress, fellAt };
   };
 
   /** Un bombardement n'a pas de riposte (B20). */
@@ -174,4 +181,37 @@ export function steppedFrom(t: number, direction: 1 | -1): number {
   if (index <= 0) return 0;
   const step = REPLAY_STEPS[index];
   return step === undefined ? REPLAY_MS : stepBounds(step).start;
+}
+
+/** **Le naufrage** (#483, storyboard « 5. Le naufrage »). @a-mesurer — la gîte à la chute, 14° sur le bord touché (storyboard) */
+const HEEL = (14 * Math.PI) / 180;
+/** @a-mesurer — le tangage de la coulée par l'arrière, 9° (storyboard) */
+const PITCH = (9 * Math.PI) / 180;
+/** @a-mesurer — la gîte où la coque finit, 22° (storyboard), tenue par l'épave de la pose finale */
+const FINAL_HEEL = (22 * Math.PI) / 180;
+/** @a-mesurer — la coulée finit 1,6 s après le début du compte-rendu : à juger à l'œil, avant l'effacement du tampon */
+const SINK_MS = 1600;
+/** @a-mesurer — la coulée commence 1 s après la fin de la chute de la coque (storyboard : `P.sink[0] = P.hit + 1,0`) */
+const SINK_LAG_MS = 1000;
+
+/**
+ * **Où en est une coque coulée**, 0..1 : de 1 s après sa chute (`fellAt`, d'une pièce tombée) à
+ * `SINK_MS` du compte-rendu. `still` (temps figés) : rien avant le compte-rendu, tout d'un coup à
+ * lui — les étapes se jouent comme le code les joue (décision 9 du 05/11).
+ */
+export function sinkOf(frame: ReplayFrame, fellAt: number, still: boolean): number {
+  if (still) return frame.step === 'compte-rendu' ? 1 : 0;
+  const from = fellAt + SINK_LAG_MS;
+  const clock = stepBounds(frame.step).start + frame.progress * STEP_MS[frame.step];
+  const to = stepBounds('compte-rendu').start + SINK_MS;
+  return Math.min(1, Math.max(0, (clock - from) / (to - from)));
+}
+
+/** **La pose d'une coque coulée**, en radians ; `depth` est la part de sa coulée, 0..1. `fall` et
+ *  `sunk` valent 0..1, lissés par l'appelant. */
+export function hullPose(
+  fall: number,
+  sunk: number,
+): { heel: number; pitch: number; depth: number } {
+  return { heel: HEEL * fall + (FINAL_HEEL - HEEL) * sunk, pitch: PITCH * sunk, depth: sunk };
 }
