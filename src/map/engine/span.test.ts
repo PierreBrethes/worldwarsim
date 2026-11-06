@@ -8,7 +8,7 @@ const B = new Vector3(0, 3, 4);
 
 describe('Span, a stroke of ink between two points (#503)', () => {
   it('draws nothing until a sequence sets it, and nothing once it clears it', () => {
-    const span = new Span('full');
+    const span = new Span();
     expect(span.mesh.visible).toBe(false);
     span.set(A, B, 0.2);
     expect(span.mesh.visible).toBe(true);
@@ -17,7 +17,7 @@ describe('Span, a stroke of ink between two points (#503)', () => {
   });
 
   it('runs from one point to the other', () => {
-    const span = new Span('full');
+    const span = new Span();
     span.set(A, B, 0.2, 0.1);
     span.mesh.updateMatrixWorld(true);
     expect(span.mesh.scale.z).toBeCloseTo(5);
@@ -25,14 +25,8 @@ describe('Span, a stroke of ink between two points (#503)', () => {
     expect(span.mesh.localToWorld(new Vector3(0, 0, 0)).distanceTo(A)).toBeCloseTo(0);
   });
 
-  it('draws nothing with the motion off, outside any sequence', () => {
-    const span = new Span('off');
-    span.set(A, B, 0.2);
-    expect(span.mesh.visible).toBe(false);
-  });
-
   it('lightens its ink with the night, which a dark ink on dark ground would lose', () => {
-    const span = new Span('full');
+    const span = new Span();
     span.setNight(0);
     const day = span.material.color.getHex();
     span.setNight(1);

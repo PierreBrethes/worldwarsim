@@ -5,12 +5,15 @@ import {
   MeshStandardMaterial,
   type Object3D,
   BoxGeometry,
+  PlaneGeometry,
 } from 'three';
 import { describe, expect, it } from 'vitest';
 
 import { BUILDING_MAQUETTES } from '@/emblems/buildings/manifest';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { AIRFIELD, KITS } from '@/emblems/kits/manifest';
+import { warmPieces } from './halo';
+import { sceneOfFile } from './gltf-scene.fixture';
 import { LAMP, RUNWAY_LIGHTS, dressedScene, lightRunway } from './site-kits';
 
 /** The runway kit as its file lays it: each module wearing the kit's lamps. */
@@ -122,4 +125,53 @@ describe('the stand-in marks and black planes of the sea (#503)', () => {
       1,
     );
   });
+
+  it("takes the night: a black plane lights as the file's doorways do, which only its material name says", async () => {
+    const cargo = await dressedScene(urlOf('cargo'), hullFile(), load);
+    const doorway = new MeshStandardMaterial({ name: 'fond_sombre' });
+    const reference = new Mesh(new BoxGeometry(), doorway);
+    warmPieces(cargo, 1);
+    warmPieces(reference, 1);
+    const door = cargo.getObjectByName('fond_sombre_coupee_babord') as Mesh;
+    expect((door.material as MeshStandardMaterial).emissive.getHex()).toBe(
+      doorway.emissive.getHex(),
+    );
+    expect(doorway.emissive.getHex()).not.toBe(0);
+  });
+});
+
+describe('the stand-ins on the real hulls (#503 review)', () => {
+  const real = (nation: 'france' | 'japan' | 'uk' | 'ussr', role: 'cargo' | 'carrier') => {
+    const entry = (FIGURINE_FILES[nation] as Record<string, string | ReadonlyArray<string>>)[role]!;
+    const url = typeof entry === 'string' ? entry : entry[0]!;
+    return dressedScene(url, sceneOfFile(url), load);
+  };
+
+  it.each([
+    ['france', 13.6],
+    ['uk', 14.6],
+    ['japan', 15.6],
+  ] as const)(
+    "puts a %s carrier's gangway on its flank, not on the deck's edge",
+    async (nation, flank) => {
+      const carrier = await real(nation, 'carrier');
+      expect(Math.abs(carrier.getObjectByName('fx_passerelle')!.position.x + flank)).toBeLessThan(
+        0.3,
+      );
+      const door = carrier.getObjectByName('fond_sombre_coupee')!;
+      expect(Math.abs(door.position.x + flank)).toBeLessThan(0.5);
+    },
+  );
+
+  it.each(['france', 'ussr'] as const)(
+    "keeps a %s cargo's black door under the deck, where the wall stands out to the flank",
+    async (nation) => {
+      const cargo = await real(nation, 'cargo');
+      const door = cargo.getObjectByName('fond_sombre_coupee_babord') as Mesh;
+      const top = door.position.y + (door.geometry as PlaneGeometry).parameters.height / 2;
+      // The wall falls back from the flank above y = 5 (4.7 in the Soviet ship).
+      expect(top).toBeLessThanOrEqual(5.01);
+      expect(top).toBeGreaterThan(cargo.getObjectByName('fx_passerelle')!.position.y);
+    },
+  );
 });

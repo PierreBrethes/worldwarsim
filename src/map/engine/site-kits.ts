@@ -235,9 +235,53 @@ function positionLights(scene: Object3D, role: UnitRole): void {
 
 let dark: Material | null = null;
 const darkOf = (): Material => {
-  dark ??= new MeshStandardMaterial({ color: GANGWAY.dark, roughness: 1, side: DoubleSide });
+  dark ??= new MeshStandardMaterial({
+    name: 'fond_sombre',
+    color: GANGWAY.dark,
+    roughness: 1,
+    side: DoubleSide,
+  });
   return dark;
 };
+
+const FLANK_WINDOW = 0.05;
+
+/**
+ * **A hull's flank at a height** (`side` +1 or -1): the furthest `x` the hull's own surface cuts
+ * the plane `y`, within `FLANK_WINDOW` of its length round `z`. The box says the deck's or the
+ * sponsons' edge, not the plate the door is cut in. `null` when the plane cuts nothing there.
+ */
+export function flankAt(scene: Object3D, y: number, z: number, side: 1 | -1): number | null {
+  scene.updateMatrixWorld(true);
+  const length = new Box3().setFromObject(scene).getSize(new Vector3()).z;
+  const corners = [new Vector3(), new Vector3(), new Vector3()] as const;
+  let reach: number | null = null;
+  scene.traverse((node) => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh) return;
+    // Not the marks, the black planes and the lift: they are not the hull's plate.
+    for (let up: Object3D | null = node; up !== null; up = up.parent)
+      if (/^(fx_|fond|ascenseur)/.test(up.name)) return;
+    const { index, attributes } = mesh.geometry;
+    const count = index?.count ?? attributes.position!.count;
+    for (let t = 0; t < count; t += 3) {
+      corners.forEach((corner, k) =>
+        corner
+          .fromBufferAttribute(attributes.position!, index?.getX(t + k) ?? t + k)
+          .applyMatrix4(mesh.matrixWorld),
+      );
+      for (let k = 0; k < 3; k++) {
+        const [a, b] = [corners[k]!, corners[(k + 1) % 3]!];
+        if ((a.y - y) * (b.y - y) >= 0) continue;
+        const f = (y - a.y) / (b.y - a.y);
+        const at = [a.x + f * (b.x - a.x), a.z + f * (b.z - a.z)] as const;
+        if (Math.abs(at[1] - z) > length * FLANK_WINDOW) continue;
+        if (reach === null || side * at[0] > side * reach) reach = at[0];
+      }
+    }
+  });
+  return reach;
+}
 
 /**
  * **The gangway marks and the black planes a hull lacks** (`GANGWAY`): a mark at a flank, its mirror
@@ -260,34 +304,49 @@ function seaStandIns(scene: Object3D, role: 'cargo' | 'carrier'): void {
     scene.add(node);
     return node;
   };
-  const door = (name: string, at: Object3D): void => {
+  const door = (name: string, at: Object3D, tall: number): void => {
     if (have(name)) return;
-    const { width, height, off } = GANGWAY.plane;
-    const plane = new Mesh(new PlaneGeometry(width * metre, height * metre), darkOf());
+    const { width, off } = GANGWAY.plane;
+    const plane = new Mesh(new PlaneGeometry(width * metre, tall), darkOf());
     const side = Math.sign(at.position.x) || 1;
     plane.name = name;
     plane.rotation.y = (side * Math.PI) / 2;
-    plane.position.set(
-      at.position.x + side * off * metre,
-      at.position.y + (height * metre) / 2,
-      at.position.z,
-    );
+    plane.position.set(at.position.x + side * off * metre, at.position.y + tall / 2, at.position.z);
     scene.add(plane);
   };
   const sill = GANGWAY.sill[role] * metre;
+  /** The door's plane stops where the wall falls back from the flank at the sill (a cargo's deck:
+   *  the wall is 1.5 to 2 m in from the hull's side above it). */
+  const cap = (z: number, side: 1 | -1): number => {
+    const flank = flankAt(scene, sill + 0.1 * metre, z, side);
+    const full = GANGWAY.plane.height * metre;
+    if (flank === null) return full;
+    for (let up = 0.25 * metre; up < full; up += 0.25 * metre) {
+      const wall = flankAt(scene, sill + up, z, side);
+      if (wall === null || Math.abs(wall - flank) > 0.3 * metre) return up - 0.25 * metre;
+    }
+    return full;
+  };
   if (role === 'cargo') {
-    const port = mark('fx_passerelle', box.max.x, sill, box.min.z * GANGWAY.aft);
+    const z = box.min.z * GANGWAY.aft;
+    const port = mark(
+      'fx_passerelle',
+      flankAt(scene, sill + 0.1 * metre, z, 1) ?? box.max.x,
+      sill,
+      z,
+    );
     const starboard = mark(
       'fx_passerelle_tribord',
       -port.position.x,
       port.position.y,
       port.position.z,
     );
-    door('fond_sombre_coupee_babord', port);
-    door('fond_sombre_coupee_tribord', starboard);
+    door('fond_sombre_coupee_babord', port, cap(port.position.z, 1));
+    door('fond_sombre_coupee_tribord', starboard, cap(port.position.z, -1));
     return;
   }
-  door('fond_sombre_coupee', mark('fx_passerelle', box.min.x, sill, mid));
+  const flank = flankAt(scene, sill + 0.1 * metre, mid, -1) ?? box.min.x;
+  door('fond_sombre_coupee', mark('fx_passerelle', flank, sill, mid), cap(mid, -1));
   const lift = scene.getObjectByName('ascenseur');
   if (lift === undefined || have('fond_sombre')) return;
   const lifted = new Box3().setFromObject(lift);

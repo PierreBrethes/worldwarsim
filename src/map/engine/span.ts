@@ -1,5 +1,4 @@
 import { BoxGeometry, Color, Mesh, MeshBasicMaterial, type Vector3 } from 'three';
-import type { MapMotion } from '@/domain/map-motion';
 import { PALETTE } from './palette';
 
 const BAR = new BoxGeometry(1, 1, 1).translate(0, 0, 0.5);
@@ -8,22 +7,21 @@ const NIGHT = new Color(PALETTE.paper);
 
 /**
  * **A stroke of ink between two points** (a gangway plank, a cable, a hook's sling): a bar laid
- * from `a` to `b`, not a piece of a model. It shows only while a sequence sets it, and never with
- * the motion off, where no sequence plays. Its ink lightens with the night, as a dark ink on a
+ * from `a` to `b`, not a piece of a model. It shows only while a sequence sets it; the sequences
+ * play nothing with the motion off, so it is never set there, and a lasting line may draw in every mode. Its ink lightens with the night, as a dark ink on a
  * dark ground would be lost (`TourInk`'s casing).
  */
 export class Span {
   readonly material = new MeshBasicMaterial({ color: DAY });
   readonly mesh = new Mesh(BAR, this.material);
 
-  constructor(private readonly motion: MapMotion) {
+  constructor() {
     this.mesh.visible = false;
     this.mesh.frustumCulled = false;
   }
 
   /** `width` across, `thick` deep (a cable is as thick as wide; a plank is not). */
   set(a: Vector3, b: Vector3, width: number, thick = width): void {
-    if (this.motion === 'off') return;
     this.mesh.position.copy(a);
     this.mesh.scale.set(width, thick, Math.max(1e-5, a.distanceTo(b)));
     this.mesh.lookAt(b);
