@@ -91,15 +91,21 @@ export function descentesOf(
   );
 }
 
-/** **Les hommes montent sous les yeux** (#277) : en camion, en Mondiale. Ailleurs — un navire,
- *  un avion, une unité Blitz qui n'est pas trois hommes — la pièce lâchée dessus s'y engouffre. */
+/** **Les hommes montent sous les yeux** (#277, #480) : en camion ou en avion de transport, en
+ *  Mondiale. Ailleurs — un navire, une unité Blitz qui n'est pas trois hommes — la pièce lâchée
+ *  dessus s'y engouffre. */
 export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
-  return carrier === 'landTransport' && !blitz;
+  return (carrier === 'landTransport' || carrier === 'airTransport') && !blitz;
 }
 
-/** **Un camion où des hommes montent** (#277) : le groupe du camion, et chaque passager neuf. */
+/** Ce qui embarque des hommes sous les yeux : un camion ou un avion de transport. */
+export type Carrier = 'landTransport' | 'airTransport';
+
+/** **Un porteur où des hommes montent** (#277) : son groupe (`truck`, même pour un avion), ce
+ *  qu'il est, et chaque passager neuf. */
 export type Montee = {
   readonly truck: string;
+  readonly carrier: Carrier;
   readonly riders: ReadonlyArray<string>;
 };
 
@@ -120,7 +126,9 @@ export function monteesOf(
   return piles.flatMap(({ id, pieces }) =>
     pieces.groups.flatMap(({ role, troopIds }, k) => {
       const riders = troopIds.flatMap((troop) => boarded.get(troop) ?? []);
-      return role === 'landTransport' && riders.length > 0 ? [{ truck: `${id}/${k}`, riders }] : [];
+      return (role === 'landTransport' || role === 'airTransport') && riders.length > 0
+        ? [{ truck: `${id}/${k}`, carrier: role, riders }]
+        : [];
     }),
   );
 }

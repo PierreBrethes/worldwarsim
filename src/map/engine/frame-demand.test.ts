@@ -271,6 +271,18 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
   });
 });
 
+describe('a plane boarding is cued but not played yet (#480)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('lets only a truck hold its pile and queue a boarding: a plane waits for #502', () => {
+    const montee = source.slice(source.indexOf("      case 'montee':"));
+    expect(montee.slice(0, montee.indexOf("      case 'dispersion':"))).toMatch(
+      /cue\.carrier !== 'landTransport'[^;]*\) break;[\s\S]*this\.standing\.expect\([\s\S]*this\.boardings\.push/,
+    );
+  });
+});
+
 describe('a raze is declared to the loop, and copies its maquette before it goes (#326)', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');

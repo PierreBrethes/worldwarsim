@@ -112,9 +112,13 @@ describe('boardsUnderTheEyes (#277)', () => {
     expect(boardsUnderTheEyes('landTransport', true)).toBe(false);
   });
 
-  it('keeps a ship or a plane swallowing the piece dropped on it', () => {
+  it('lets the men of a transport plane board under the eyes too, in a Mondiale only', () => {
+    expect(boardsUnderTheEyes('airTransport', false)).toBe(true);
+    expect(boardsUnderTheEyes('airTransport', true)).toBe(false);
+  });
+
+  it('keeps a ship swallowing the piece dropped on it', () => {
     expect(boardsUnderTheEyes('cargo', false)).toBe(false);
-    expect(boardsUnderTheEyes('airTransport', false)).toBe(false);
   });
 });
 
@@ -136,14 +140,27 @@ describe('monteesOf (#277)', () => {
   it('names the truck men just boarded, and each of them', () => {
     const before = aboardOf(view(truck, man('a'), man('b', 'truck'), man('c')));
     const now = view(truck, man('a', 'truck'), man('b', 'truck'), man('c', 'truck'));
-    expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'c'] }]);
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([
+      { truck: 'p/0', carrier: 'landTransport', riders: ['a', 'c'] },
+    ]);
   });
 
   it('names the men a column brings aboard at its arrival: they board from their file', () => {
     // On the road the men stand in no pile; at the end of it they are aboard (`boardsOn`).
     const before = aboardOf(view(truck, man('a'), man('b')));
     const now = view(truck, man('a', 'truck'), man('b', 'truck'));
-    expect(monteesOf(before, now, pilesOf(now))).toEqual([{ truck: 'p/0', riders: ['a', 'b'] }]);
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([
+      { truck: 'p/0', carrier: 'landTransport', riders: ['a', 'b'] },
+    ]);
+  });
+
+  it('names the plane men just boarded, as a plane', () => {
+    const plane = { id: 'plane', role: 'airTransport' as const, tier: 1 as const };
+    const before = aboardOf(view(plane, man('a'), man('b')));
+    const now = view(plane, man('a', 'plane'), man('b', 'plane'));
+    expect(monteesOf(before, now, pilesOf(now))).toEqual([
+      { truck: 'p/0', carrier: 'airTransport', riders: ['a', 'b'] },
+    ]);
   });
 
   it('names nothing for a landing, a rider that stays, or a column leaving aboard', () => {

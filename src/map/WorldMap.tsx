@@ -1950,10 +1950,11 @@ export function WorldMap({
     // Men board a truck one by one (#277); a Blitz unit is not three men.
     if (blitz !== null) return;
     const byId = new Map(troops.map((troop) => [troop.id, troop]));
-    for (const { truck, riders } of monteesOf(known, troops, standing))
+    for (const { truck, carrier, riders } of monteesOf(known, troops, standing))
       readyEngine?.cue({
         kind: 'montee',
         truck,
+        carrier,
         riders: riders.flatMap((troopId) => {
           const troop = byId.get(troopId);
           if (troop?.role !== 'infantry') return [];

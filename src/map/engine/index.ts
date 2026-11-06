@@ -3425,7 +3425,8 @@ export class MapEngine {
         this.landings.push({ cue, since: performance.now() });
         break;
       case 'montee':
-        if (this.sequences.motion === 'off') break;
+        // A plane's men board too (#480); its sequence is wired by #502.
+        if (cue.carrier !== 'landTransport' || this.sequences.motion === 'off') break;
         // The truck holds where it stood until its men are under the tarp (`boardOf`).
         this.standing.expect(cue.truck.slice(0, cue.truck.lastIndexOf('/')));
         this.boardings.push({ cue, since: performance.now() });

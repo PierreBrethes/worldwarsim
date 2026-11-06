@@ -13,6 +13,7 @@ import type { UnitTier } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
+import type { Carrier } from '../cues';
 import { bakedRig } from './baking';
 import { crateOf } from './crate';
 import { SLATS, WOOD } from './crates';
@@ -177,6 +178,8 @@ export type Cue =
   | {
       readonly kind: 'montee';
       readonly truck: string;
+      /** A plane's men board too (#480), but the engine plays only a truck's until #502. */
+      readonly carrier: Carrier;
       readonly riders: ReadonlyArray<{
         readonly troopId: string;
         readonly figures: ReadonlyArray<UnitTier>;
