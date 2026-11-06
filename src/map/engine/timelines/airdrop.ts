@@ -37,7 +37,7 @@ export const COLUMN_GAP_MS = 400;
 
 /** What the packet looks like at an instant: where its crate is, how wide its canopy is open
  *  (0 shut), the crate's side, and its opacity. */
-export type Packet = {
+type Packet = {
   readonly at: Vec3;
   readonly canopy: number;
   readonly crate: number;
