@@ -109,6 +109,8 @@
  *  môle) ; vingt secondes plus tard, deux chasseurs et deux cargos sont formés ensemble (l'aire en
  *  tient quatre, les deux cargos vont à couple et en rade) ; vingt encore, un chasseur formé
  *  décolle de sa place.
+ * `--renfort [s]` (#472) pose l'aérodrome de `--largage`, son transport en garnison, et y recrute un
+ *  chasseur qui sort dans `s` secondes (25 par défaut) : une pile de deux avions. Lieu `aerodrome`.
  * `--file [s]` (#478) pose un aérodrome sans transport où attendent deux chasseurs et un bombardier ;
  *  dans `s` secondes (40 par défaut) ils décollent ensemble pour Lyon (l'aire garde la scène de
  *  `--largage`), vingt-cinq secondes après ils y arrivent, huit de plus ils rentrent ensemble.
@@ -268,7 +270,11 @@ const craneIn = craneAt < 0 ? null : Number(process.argv[craneAt + 1]) || 40;
  *  secondes (40 par défaut) ils décollent ensemble pour Lyon, puis rentrent se poser ensemble. */
 const queueAt = process.argv.indexOf('--file');
 const queueIn = queueAt < 0 ? null : Number(process.argv[queueAt + 1]) || 40;
+/** `--renfort [s]` (#472) : l'aérodrome de `--largage`, un chasseur recruté qui sort dans s secondes. */
+const reinforceAt = process.argv.indexOf('--renfort');
+const reinforceIn = reinforceAt < 0 ? null : Number(process.argv[reinforceAt + 1]) || 25;
 const airdrops =
+  reinforceIn !== null ||
   queueIn !== null ||
   runwayIn !== null ||
   process.argv.includes('--largage') ||
@@ -751,6 +757,27 @@ if (!bare) {
   if (runwayIn !== null && scene.a !== null) runwayScene = await runwayAndMole();
   if (queueIn !== null && scene.a !== null) queueScene = await queuedPlanes();
   if (craneIn !== null && scene.a !== null) craneScene = await freeTheMole();
+  /** `--renfort` : la pile du transport reçoit un chasseur neuf, formé par un ordre (#472). */
+  if (reinforceIn !== null && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const airfield = me.buildings.find((building) => building.key === 'airfield');
+    places.aerodrome = {
+      id: `building-airfield@${airfield.point[0]},${airfield.point[1]}`,
+      lonLat: airfield.point,
+    };
+    await client.mutation(api.troops.recruit, {
+      token: tokenA,
+      seasonId,
+      buildingId: airfield.id,
+      role: 'fighter',
+      tier: 1,
+    });
+    cli([
+      'run',
+      'dev:finishRecruitments',
+      JSON.stringify({ playerId: scene.a, afterMs: reinforceIn * 1000 }),
+    ]);
+  }
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
    *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
    *  donne des traversées toutes en mer, jamais un trajet terre puis mer (aucune marche avant
