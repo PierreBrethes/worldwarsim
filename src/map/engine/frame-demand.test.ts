@@ -334,6 +334,8 @@ describe('a dismantling is declared to the loop (#340)', () => {
 
   it('keeps whole frames coming while a pin tips and an area is erased', () => {
     expect(source).toMatch(/this\.razes\.active \|\|\s+this\.pins\.active \|\|/);
+    // The hawsers of a hull that touches run past its sequence (#500).
+    expect(source).toMatch(/this\.pins\.active \|\|\s+this\.moorings\.active \|\|/);
   });
 
   it('copies the pin a dismantled point leaves before the list drops it, and erases its area from a stirring method', () => {

@@ -72,6 +72,14 @@ export const MOLE = {
   skirt: -1,
 } as const;
 
+/**
+ * **The mole's bollards** (storyboard B+ du 03/11, `fx_amarre` « au sommet des bittes, y = 2,8 »):
+ * one every `every` modules, 0.8 m in from the mole's inner face, their tops `rise` above its deck.
+ * The kit and the hawsers (`mooring.ts`) read the one rule.
+ */
+export const BOLLARDS = { every: 3, inset: 0.8, rise: 0.6 } as const;
+export const hasBollard = (module: number): boolean => module % BOLLARDS.every === 0;
+
 /** **The port's crane, in `port.glb`'s metres** (node `grue`): its foot, 15 m inside the quay on
  *  the socle's `+x` edge, the side the mole runs on (#476). */
 export const CRANE = { x: 70, z: 90 } as const;

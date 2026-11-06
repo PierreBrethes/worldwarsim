@@ -1171,6 +1171,15 @@ describe('pieces resting at their post', () => {
     expect(layer.postOf('nobody/0')).toBeNull();
   });
 
+  it('lists the hulls at the mole and at its side for their hawsers, not the one in the roads (#500)', async () => {
+    const layer = await standing(port('a', 'b', 'c'));
+    expect(layer.mooredHulls().map(({ id, post, site }) => [id, post, site])).toEqual([
+      ['p/0', 'mole', 'site'],
+      ['p/1', 'couple', 'site'],
+    ]);
+    expect(layer.mooredHulls()[0]!.troop).toBe('a');
+  });
+
   it('remembers where a plane rested when it leaves, for its take-off (#487)', async () => {
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces: planes('a', 'b') }]);
     const at = layer.restOf('b');

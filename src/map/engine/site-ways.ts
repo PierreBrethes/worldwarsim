@@ -25,6 +25,7 @@ import type { HullPost, Rest } from './timelines/rest';
 import { troopMetres } from '@/domain/piece-size';
 import { ease, span } from './timelines/curves';
 import { WALK_MIN_PX } from './timelines/walk';
+import { MOORING_MS } from './mooring';
 
 /** A site's frame on the board (`MaquetteLayer.siteOf`). */
 type Frame = { toBoard(point: Vector3): Vector3; toModel(point: Vector3): Vector3 };
@@ -386,7 +387,6 @@ export const launchLead = (before: ReadonlyArray<{ readonly ms: number }>): numb
  *  moor** once it touches: four lines at 0,3 s and the last 0,4 s (storyboard `port`, « À couple »,
  *  `commun/port.js`, scénario `suite`). `@a-mesurer` */
 const DOCK_MIN_LEAD_MS = 2400;
-const MOORING_MS = 1600;
 
 /**
  * **When hulls that come home together dock** (#477, « À couple »): each touches when the one
