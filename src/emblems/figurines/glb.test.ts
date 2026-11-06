@@ -104,7 +104,7 @@ const BRIEF: Readonly<
       'fx_amarre_arriere_tribord',
     ],
   },
-  carrier: { triangles: 4000, parts: ['hull', 'fx_smoke'] },
+  carrier: { triangles: 4000, parts: ['hull', 'fx_smoke', 'ascenseur'] },
 };
 
 /** The files that overshoot their role's ceiling, by `<nation> <role>-<tier>`. */
