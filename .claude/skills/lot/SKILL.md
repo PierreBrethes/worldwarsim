@@ -71,11 +71,16 @@ Fini quand tu sais nommer la fonction pure de `src/domain/` qui porte la règle,
   (06/11 : deux devs ont vu `ps` vide en même temps, et leurs vérifieurs se sont fait tomber) :
 
   ```bash
-  L="${TMPDIR:-/tmp}/worldwarsim-verifieur.lock"; until mkdir "$L" 2>/dev/null; do sleep 15; done
-  npm run verifier; rc=$?; rmdir "$L"; echo "rc=$rc"
+  L="${TMPDIR:-/tmp}/worldwarsim-verifieur.lock"
+  until mkdir "$L" 2>/dev/null; do
+    p=$(cat "$L/pid" 2>/dev/null) && ! kill -0 "$p" 2>/dev/null && rm -rf "$L"; sleep 15
+  done
+  echo $$ > "$L/pid"; npm run verifier; rc=$?; rm -rf "$L"; echo "rc=$rc"
   ```
 
-  Un verrou de plus de 30 min (`ls -ld`) est mort : retire-le. Le fichier `base-occupee` du
+  Le verrou porte le pid de son détenteur, et la boucle retire celui dont le détenteur est mort.
+  L'âge ne dit rien : la passe d'intégration le tient le temps du vérifieur, des gestes et du banc
+  (06/11 : 45 min). Le fichier `base-occupee` du
   scratchpad ne doit pas annoncer des gestes ni un banc : ton vérifieur à côté les fait échouer
   sous la charge (05/11, charge 46, cinq gestes en échec). Des timeouts dans `convex/` qui
   changent d'un passage à l'autre viennent de la charge : relance ces fichiers seuls.
