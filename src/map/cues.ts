@@ -100,7 +100,7 @@ export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
 
 /** Ce qui embarque des hommes sous les yeux : un camion ou un avion de transport. */
 export type Carrier = 'landTransport' | 'airTransport';
-export const isCarrier = (role: UnitRole): role is Carrier =>
+const isCarrier = (role: UnitRole): role is Carrier =>
   role === 'landTransport' || role === 'airTransport';
 
 /** **Un porteur où des hommes montent** (#277) : son groupe (`truck`, même pour un avion), ce
