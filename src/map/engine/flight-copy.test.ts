@@ -78,4 +78,21 @@ describe('the copy of a plane in flight (#507)', () => {
       expect(crate[2]).toBeCloseTo(mark.z);
     }
   });
+
+  it('keeps the release right for a marker off the model’s axis, to its left or right', async () => {
+    const flight = (await lendFlightCopy(piece, articulatedOf))!;
+    // The file's marker is on the axis: move it 2 model units to the model's left.
+    flight.copy.getObjectByName('fx_parachute')!.position.x += 2;
+    const release = flight.release()!;
+    expect(Math.abs(release[2])).toBeGreaterThan(0.01);
+    for (const heading of [Math.PI / 2, 0.7]) {
+      const drop = airdrop({ delivered: true, motion: 'full', heading, release });
+      flight.pose(drop.plane(PASS_MS));
+      flight.copy.updateWorldMatrix(true, true);
+      const mark = markOf(flight.copy, 'fx_parachute')!;
+      const crate = drop.packet(PASS_MS)!.at;
+      expect(crate[0]).toBeCloseTo(mark.x);
+      expect(crate[2]).toBeCloseTo(mark.z);
+    }
+  });
 });
