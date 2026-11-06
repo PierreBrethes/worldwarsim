@@ -7,6 +7,7 @@ import {
   RedFormat,
   ShaderMaterial,
   type BufferGeometry,
+  type Material,
   type Scene,
 } from 'three';
 import type { Forbidden } from '@/domain/drop-order';
@@ -108,7 +109,7 @@ function maskTexture(bytes: Uint8Array<ArrayBuffer>, grid: RouteGrid): DataTextu
 }
 
 /** Seulement hors de la terre dessinée : la mer, et les lacs que ses pays laissent en creux. */
-function offLand(material: ShaderMaterial): ShaderMaterial {
+export function offLand<M extends Material>(material: M): M {
   material.stencilWrite = true;
   material.stencilRef = LAND_STENCIL;
   material.stencilFunc = NotEqualStencilFunc;

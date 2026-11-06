@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { REPORT_HOLD_MS, reportOf } from '@/domain/combat-on-map';
+import { REPORT_HOLD_MS, reportOf, seatsTagOf } from '@/domain/combat-on-map';
 import type { ReplayView } from '@/domain/player-view';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
@@ -9,6 +9,8 @@ import type { MapEngine } from './engine';
 /** The stamp stands this far above the combat's point, on the screen. */
 const LIFT_PX = 52;
 const MARGIN_PX = 8;
+/** The seats tag hangs this far above the hull's point, under the stamp. */
+const TAG_LIFT_PX = 22;
 /** A finger needs at least this much to hit. */
 const TOUCH_PX = 44;
 
@@ -23,21 +25,25 @@ const TOUCH_PX = 44;
  */
 export function CombatReports({
   reports,
+  tags,
   engine,
   onOpen,
   onLift,
 }: {
   reports: ReadonlyArray<ReplayView>;
+  /** **The seats tags of the hulls going down** (#514), one per combat: hung before the stamp. */
+  tags: ReadonlyArray<{ readonly view: ReplayView; readonly struck: boolean }>;
   engine: MapEngine | null;
   onOpen: (combatId: string) => void;
   onLift: (combatId: string) => void;
 }) {
   const insets = useBoardInsets();
   const nodes = useRef(new Map<string, HTMLElement>());
+  const tagNodes = useRef(new Map<string, HTMLElement>());
   const layer = useRef<HTMLDivElement>(null);
 
   // Nodes are born hidden: the next whole frame is the one that places them.
-  useEffect(() => engine?.invalidate(), [engine, reports]);
+  useEffect(() => engine?.invalidate(), [engine, reports, tags]);
 
   // The stamps follow the map: placed at every whole frame the engine draws, which a drag, its
   // inertia, a resize and a turn all ask for — and as they are born.
@@ -46,6 +52,20 @@ export function CombatReports({
     const place = () => {
       const parent = layer.current?.getBoundingClientRect();
       if (parent === undefined) return;
+      for (const { view } of tags) {
+        const node = tagNodes.current.get(view.combatId);
+        const at = engine.screenOf([view.point.lon, view.point.lat]);
+        if (!node) continue;
+        const inside =
+          at !== null &&
+          at.x >= parent.left &&
+          at.x <= parent.right &&
+          at.y >= parent.top &&
+          at.y <= parent.bottom;
+        node.style.visibility = inside ? 'visible' : 'hidden';
+        if (inside)
+          node.parentElement!.style.transform = `translate(${at.x - parent.left}px, ${at.y - parent.top}px)`;
+      }
       for (const view of reports) {
         const node = nodes.current.get(view.combatId);
         const at = engine.screenOf([view.point.lon, view.point.lat]);
@@ -79,10 +99,22 @@ export function CombatReports({
     return () => {
       engine.onReportsFrame = undefined;
     };
-  }, [engine, reports, insets]);
+  }, [engine, reports, tags, insets]);
 
   return (
     <div ref={layer} className="pointer-events-none absolute inset-0 z-[var(--z-band)]">
+      {tags.map(({ view, struck }) => (
+        <SeatsTag
+          key={view.combatId}
+          tag={seatsTagOf(view)}
+          struck={struck}
+          register={(node) =>
+            node
+              ? tagNodes.current.set(view.combatId, node)
+              : tagNodes.current.delete(view.combatId)
+          }
+        />
+      ))}
       {reports.map((view) => (
         <ReportStamp
           key={view.combatId}
@@ -95,6 +127,38 @@ export function CombatReports({
           onLift={() => onLift(view.combatId)}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * **L'étiquette de places de la coque qui coule** (#514, storyboard « 5. Le naufrage ») : « Crg · 9/12 »
+ * au-dessus d'elle, barrée quand elle s'enfonce. Elle ne dit que ce que le camp qui perd ses
+ * passagers a reçu (#513) : l'autre n'en a pas.
+ */
+function SeatsTag({
+  tag,
+  struck,
+  register,
+}: {
+  tag: { readonly sign: string; readonly whole: string } | null;
+  struck: boolean;
+  register: (node: HTMLElement | null) => void;
+}) {
+  return (
+    <div className="absolute top-0 left-0">
+      <div
+        ref={register}
+        data-seats-tag
+        className="hud pointer-events-none border-[1.5px] border-[var(--ink)] px-[6px] py-[1px] font-(family-name:--font-body) text-[11px] leading-[1.3] font-semibold tracking-[.04em] whitespace-nowrap text-[var(--ink)]"
+        style={{
+          visibility: 'hidden',
+          background: 'color-mix(in srgb, var(--paper) 88%, transparent)',
+          transform: `translate(-50%, calc(-100% - ${TAG_LIFT_PX}px / var(--hud-scale)))`,
+        }}
+      >
+        {struck ? <s>{tag?.sign}</s> : tag?.whole}
+      </div>
     </div>
   );
 }

@@ -3645,6 +3645,10 @@ export const fr = {
       sea: { won: 'engagement gagné', lost: 'engagement perdu' },
       /** Un bombardement (#325) : personne n'y prend ni ne tient rien. */
       bombardment: { attacker: 'coup au but', defender: 'pilonnés' },
+      /** **Le naufrage** (#514) : la cargaison perdue (#513) prend le tampon, chez le seul camp qui la perd. */
+      drowned: 'coulés en mer',
+      /** Les pièces que le large a prises sur les nôtres, dans la ligne du tampon (#514). */
+      drownedPieces: (n: number) => `${n} coulée${n > 1 ? 's' : ''} en mer`,
       ours: 'nos pièces',
       noLoss: 'aucune perte',
       destroyed: (n: number) => `${n} détruite${n > 1 ? 's' : ''}`,

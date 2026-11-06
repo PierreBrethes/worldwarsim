@@ -269,6 +269,72 @@ export class Wake {
 }
 
 /**
+ * **Bubbles over a hull gone down** (#514, storyboard « 5. Le naufrage », `W.bubbles`): nine pale
+ * discs thrown up and out of the water, swelling and fading over their life. Like a puff, each is a
+ * function of `age`, 0 to 1, and `radius` is what they spread over — the slick's. `@a-mesurer`
+ */
+const BUBBLES = 9;
+const BUBBLES_OPACITY = 0.7;
+/** How far a bubble spreads, how high it rises and how big it grows, in shares of the slick's radius. */
+const BUBBLE_SPREAD = 0.18;
+const BUBBLE_RISE = 0.03;
+const BUBBLE_SIZE = 0.12;
+const BUBBLE_INK = '#e8efec';
+
+function bubbleAt(rank: number, age: number) {
+  const angle = (rank / BUBBLES) * Math.PI * 2 + rank * 0.7;
+  const out = 1 - (1 - age) ** 2;
+  return {
+    x: Math.cos(angle) * (0.6 + (rank % 3) * 0.2) * BUBBLE_SPREAD * out,
+    y: (0.6 + (rank % 4) * 0.15) * BUBBLE_RISE * out,
+    z: Math.sin(angle) * (0.6 + (rank % 2) * 0.3) * BUBBLE_SPREAD * out,
+    size: BUBBLE_SIZE * (0.35 + 1.1 * Math.sqrt(age)),
+    opacity: BUBBLES_OPACITY * (age < 0.15 ? age / 0.15 : 1 - (age - 0.15) / 0.85),
+  };
+}
+
+let bubbleSteps: SpriteMaterial[] | null = null;
+
+/** One burst of bubbles, its pool fixed at birth; materials and texture are the module's. */
+export class Bubbles {
+  readonly object = new Group();
+
+  constructor() {
+    puffTexture ??= drawPuff();
+    bubbleSteps ??= Array.from(
+      { length: OPACITY_STEPS + 1 },
+      (_, k) =>
+        new SpriteMaterial({
+          map: puffTexture,
+          color: BUBBLE_INK,
+          transparent: true,
+          depthWrite: false,
+          opacity: (BUBBLES_OPACITY * k) / OPACITY_STEPS,
+        }),
+    );
+    for (let k = 0; k < BUBBLES; k++) {
+      const bubble = new Sprite(bubbleSteps[0]);
+      bubble.renderOrder = 3;
+      // Foam on the water: the pointer through it is on the sea.
+      bubble.userData.ground = true;
+      this.object.add(bubble);
+    }
+  }
+
+  frame(age: number, radius: number): void {
+    this.object.children.forEach((child, rank) => {
+      const bubble = child as Sprite;
+      const { x, y, z, size, opacity } = bubbleAt(rank, age);
+      const step = Math.round((opacity / BUBBLES_OPACITY) * OPACITY_STEPS);
+      bubble.visible = step > 0;
+      bubble.material = bubbleSteps![step]!;
+      bubble.position.set(x * radius, y * radius, z * radius);
+      bubble.scale.setScalar(size * radius);
+    });
+  }
+}
+
+/**
  * **A burnt hull, without blackening every other hull of its file**: figurines share their
  * model's materials, so a burning one wears a darkened copy — one per source material, kept
  * for the page's life like the models themselves.

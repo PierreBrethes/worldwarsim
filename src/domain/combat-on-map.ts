@@ -2,7 +2,7 @@ import { fr } from '@/i18n/fr';
 import type { Medium, UnitRole } from './ids';
 import { troopSpan } from './piece-size';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
-import { DOMAIN_BY_ROLE } from './troops';
+import { DOMAIN_BY_ROLE, seatsOf } from './troops';
 import { REPLAY_MS, STEP_MS, replayAt, type ReplayFrame } from './replay';
 import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
@@ -70,6 +70,9 @@ export type CombatShown = {
   readonly turns: ReadonlyArray<number>;
   /** The scene has played: the board takes over. */
   readonly over: boolean;
+  /** **The account begins** (#327): the stamp goes up. Where a hull sinks, at the end of the six
+   *  steps, with the empty sea (#514); everywhere else as the account step begins. */
+  readonly reportDue: boolean;
 };
 
 /**
@@ -98,7 +101,14 @@ export function combatAt(
         ? home
         : 0,
   );
-  return { frame, turns, over: t >= (still ? FINAL_POSE_MS : REPLAY_MS) };
+  const full = !still && motion === 'full';
+  const sinks = frame.end > REPLAY_MS;
+  return {
+    frame,
+    turns,
+    over: t >= (still ? FINAL_POSE_MS : full ? frame.end : REPLAY_MS),
+    reportDue: full && sinks ? t >= REPLAY_MS : frame.step === 'compte-rendu',
+  };
 }
 
 /** Within this many degrees, a column's start is the combat's point. */
@@ -193,20 +203,57 @@ export function reportOf(
   readonly won: boolean;
 } {
   const words = fr.replay.report;
-  const destroyed = view.mine.reduce((sum, entry) => sum + entry.destroyed, 0);
-  const routed = view.mine.reduce((sum, entry) => sum + entry.routed, 0);
+  const ship = (entry: { readonly role: UnitRole }) => DOMAIN_BY_ROLE[entry.role] !== 'land';
+  /** **Ce que le large a pris** (#514) : de mes pièces détruites, celles qui ne flottent pas. */
+  const sea = view.drowned === undefined ? 0 : sum(view.mine.filter((entry) => !ship(entry)));
+  const destroyed = sum(view.mine) - sea;
+  const routed = view.mine.reduce((total, entry) => total + entry.routed, 0);
   const lost = [
     ...(destroyed > 0 ? [words.destroyed(destroyed)] : []),
+    ...(sea > 0 ? [words.drownedPieces(sea)] : []),
     ...(routed > 0 ? [words.routed(routed)] : []),
   ];
   return {
     title:
       view.bombardment !== undefined
         ? words.bombardment[view.side]
-        : (medium === 'sea' ? words.sea : words[view.side])[view.won ? 'won' : 'lost'],
+        : view.drowned !== undefined && !view.won
+          ? words.drowned
+          : (medium === 'sea' ? words.sea : words[view.side])[view.won ? 'won' : 'lost'],
     losses: `${words.ours} : ${lost.length > 0 ? lost.join(', ') : words.noLoss}`,
     won: view.won,
   };
+}
+
+const sum = (entries: ReadonlyArray<{ readonly destroyed: number }>): number =>
+  entries.reduce((total, entry) => total + entry.destroyed, 0);
+
+/**
+ * **L'étiquette de places de la coque qui coule** (#514), une pour tout le point : les places prises
+ * (`drowned.seats`, que seul le camp qui les perd reçoit, #513) sur celles des coques tombées qui
+ * les portaient. La vue ne dit pas quelle coque portait quoi : les plus grandes sont chargées
+ * d'abord, jusqu'à tenir les places prises, et son sigle — celui de l'étiquette de la pile — est
+ * celui de la plus chargée. `null` pour qui voit couler : il ne sait rien de la cargaison.
+ */
+export function seatsTagOf(
+  view: ReplayView,
+): { readonly sign: string; readonly whole: string } | null {
+  if (view.drowned === undefined) return null;
+  const hulls = view.mine
+    .filter((entry) => seatsOf(entry.role) > 0)
+    .flatMap((entry) => Array.from({ length: entry.destroyed }, () => entry.role))
+    .sort((a, b) => seatsOf(b) - seatsOf(a));
+  const carrying: UnitRole[] = [];
+  let room = 0;
+  for (const role of hulls) {
+    if (room >= view.drowned.seats) break;
+    carrying.push(role);
+    room += seatsOf(role);
+  }
+  const first = carrying[0];
+  if (first === undefined) return null;
+  const sign = fr.roleAbbreviations[first];
+  return { sign, whole: `${sign} · ${view.drowned.seats}/${room}` };
 }
 
 /** A journey ends « by the combat » within this share of its camera distance. @a-mesurer : « voir »

@@ -982,6 +982,8 @@ export class MapEngine {
   dismantling: ReadonlySet<string> = new Set();
   /** **A combat's account begins on the map** (#327): its outcome is stamped over it. */
   onCombatReport?: ((view: ReplayView) => void) | undefined;
+  /** **A hull going down changes its seats tag** (#514): whole, struck through, or taken down (`null`). */
+  onCombatSeats?: ((view: ReplayView, tag: 'whole' | 'struck' | null) => void) | undefined;
   /** **The first hand on the board, or the camera leaving** (#327): the stamps lift — all but
    *  those `stays` says a journey ends by. */
   onReportsLift?: ((stays?: (point: LonLat) => boolean) => void) | undefined;
@@ -1206,6 +1208,7 @@ export class MapEngine {
       this.shots.shown(id);
     };
     this.combats.onReport = (view) => this.onCombatReport?.(view);
+    this.combats.onSeatsTag = (view, tag) => this.onCombatSeats?.(view, tag);
     this.combats.host = this.standing;
     this.maquettes = new MaquetteLayer(
       this.frame,

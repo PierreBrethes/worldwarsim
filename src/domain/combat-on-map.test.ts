@@ -11,11 +11,12 @@ import {
   playsWhole,
   reportOf,
   sceneOf,
+  seatsTagOf,
   stampStays,
 } from './combat-on-map';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
 import { troopSpan } from './piece-size';
-import { REPLAY_MS, stepBounds } from './replay';
+import { REPLAY_MS, SINK_HOLD_MS, stepBounds } from './replay';
 import type { ArcView, CombatReport, ReplayView } from './player-view';
 
 const NOW = 1_800_000_000_000;
@@ -124,6 +125,41 @@ describe('combatAt', () => {
     const end = combatAt(view, REPLAY_MS - 1, 'full', true).turns;
     expect(end.map((turn) => Math.round(turn * 100) / 100)).toEqual([0, 1, 1, 0, 1, 0]);
     expect(combatAt(view, 0, 'off', true).turns).toEqual([0, 1, 1, 0, 1, 0]);
+  });
+});
+
+describe('a scene where a hull sinks lasts past the six steps (#514)', () => {
+  const sinking: ReplayView = {
+    ...view,
+    atSea: true,
+    mine: [{ role: 'cargo', tier: 1, troops: 1, lost: 12, routed: 0, destroyed: 1 }],
+    theirs: { troops: 1, lost: 0, routed: 0, destroyed: 0 },
+  };
+
+  it('holds the empty sea two seconds more, the stamp posed as the six steps end', () => {
+    expect(combatAt(sinking, REPLAY_MS, 'full', true).over).toBe(false);
+    expect(combatAt(sinking, REPLAY_MS + SINK_HOLD_MS - 1, 'full', true).over).toBe(false);
+    expect(combatAt(sinking, REPLAY_MS + SINK_HOLD_MS, 'full', true).over).toBe(true);
+    expect(combatAt(sinking, REPLAY_MS + 700, 'full', true).frame.overtime).toBe(700);
+    expect(combatAt(sinking, REPLAY_MS - 1, 'full', true).reportDue).toBe(false);
+    expect(combatAt(sinking, REPLAY_MS, 'full', true).reportDue).toBe(true);
+  });
+
+  it('leaves every other combat its six steps, and stamps it as its account begins', () => {
+    expect(combatAt(view, REPLAY_MS, 'full', true).over).toBe(true);
+    // At sea, with nothing of a ship going down but men: no overtime.
+    const standing = { ...sinking, mine: [{ ...sinking.mine[0]!, destroyed: 0 }] };
+    expect(combatAt(standing, REPLAY_MS, 'full', true).over).toBe(true);
+    const account = stepBounds('compte-rendu').start;
+    expect(combatAt(view, account - 1, 'full', true).reportDue).toBe(false);
+    expect(combatAt(view, account, 'full', true).reportDue).toBe(true);
+  });
+
+  it('holds the six steps alone at reduced motion and in the final pose, the stamp with the account', () => {
+    expect(combatAt(sinking, REPLAY_MS, 'reduced', true).over).toBe(true);
+    expect(combatAt(sinking, 0, 'off', true).reportDue).toBe(true);
+    expect(combatAt(sinking, 0, 'full', false).reportDue).toBe(true);
+    expect(combatAt(sinking, stepBounds('frappe').start, 'reduced', true).reportDue).toBe(false);
   });
 });
 
@@ -256,6 +292,67 @@ describe('reportOf at sea', () => {
       'engagement perdu',
     );
     expect(reportOf(view).title).toBe('position enlevée');
+  });
+});
+
+describe('the sinking told to the side that loses its passengers (#514)', () => {
+  const sunk: ReplayView = {
+    ...view,
+    side: 'defender',
+    won: false,
+    mine: [
+      { role: 'cargo', tier: 1, troops: 1, lost: 12, routed: 0, destroyed: 1 },
+      { role: 'infantry', tier: 1, troops: 3, lost: 90, routed: 0, destroyed: 3 },
+    ],
+    drowned: { men: 100, machines: 48, seats: 9 },
+  };
+  const { drowned: _drowned, ...seen } = sunk;
+
+  it('stamps « coulés en mer » over an engagement lost with its cargo', () => {
+    expect(reportOf(sunk, 'sea').title).toBe('coulés en mer');
+    // The other side sees the ship go down and was told nothing of the cargo.
+    expect(reportOf(seen, 'sea').title).toBe('engagement perdu');
+  });
+
+  it('keeps « engagement gagné » on an engagement won, the line under it telling the sea took pieces', () => {
+    const won = { ...sunk, won: true };
+    expect(reportOf(won, 'sea').title).toBe('engagement gagné');
+    expect(reportOf(won, 'sea').losses).toBe('nos pièces : 1 détruite, 3 coulées en mer');
+    expect(reportOf(sunk, 'sea').losses).toBe('nos pièces : 1 détruite, 3 coulées en mer');
+    expect(reportOf(seen, 'sea').losses).toBe('nos pièces : 4 détruites');
+  });
+
+  it("tags the hull with the sign of the pile's label and the seats it carried, of those it had", () => {
+    expect(seatsTagOf(sunk)).toEqual({ sign: 'CGO', whole: 'CGO · 9/12' });
+    expect(seatsTagOf(seen)).toBeNull();
+  });
+
+  it('counts the seats of the hulls that carried, in one tag for the point', () => {
+    const fleet = (seats: number) => ({
+      ...sunk,
+      mine: [
+        { role: 'carrier' as const, tier: 1 as const, troops: 1, lost: 6, routed: 0, destroyed: 1 },
+        { role: 'cargo' as const, tier: 1 as const, troops: 2, lost: 24, routed: 0, destroyed: 2 },
+      ],
+      drowned: { men: 100, machines: 48, seats },
+    });
+    // Nine seats fit the one biggest hull: the others sank empty.
+    expect(seatsTagOf(fleet(9))?.whole).toBe('CGO · 9/12');
+    // Fifteen take two cargos; the carrier did not carry.
+    expect(seatsTagOf(fleet(15))?.whole).toBe('CGO · 15/24');
+    // Thirty fill both cargos and the carrier: the sign is the most loaded hull's.
+    expect(seatsTagOf(fleet(30))).toEqual({ sign: 'CGO', whole: 'CGO · 30/30' });
+  });
+
+  it('signs a lone carrier by its own abbreviation', () => {
+    const carrier = {
+      ...sunk,
+      mine: [
+        { role: 'carrier' as const, tier: 1 as const, troops: 1, lost: 6, routed: 0, destroyed: 1 },
+      ],
+      drowned: { men: 5, machines: 0, seats: 5 },
+    };
+    expect(seatsTagOf(carrier)).toEqual({ sign: 'PAV', whole: 'PAV · 5/6' });
   });
 });
 
