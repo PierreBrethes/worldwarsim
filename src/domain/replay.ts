@@ -42,7 +42,7 @@ export const SINK_HOLD_MS = 2000;
 
 /** **Combien dure la scène d'une vue** (#514) : les six temps, et `SINK_HOLD_MS` de plus quand une
  *  coque coule en mer. Les autres combats gardent `REPLAY_MS`. */
-export function sceneMsOf(view: ReplayView): number {
+function sceneMsOf(view: ReplayView): number {
   if (view.atSea !== true) return REPLAY_MS;
   /** What goes down is a hull or a wing: what a ship carries is not drawn (`afloat`). */
   const afloat = (entry: { readonly role: UnitRole; readonly destroyed: number }) =>
