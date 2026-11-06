@@ -416,9 +416,13 @@ describe('a combat at sea', () => {
     await landed();
     const pivot = scene.object.children[1]!.children[0]!;
     scene.show(replayAt(v, stepBounds('riposte').start), 0, false);
-    expect(Math.abs(pivot.rotation.z)).toBeCloseTo(0.12);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((14 * Math.PI) / 180);
+    expect(pivot.rotation.x).toBeCloseTo(0);
     expect(pivot.position.y).toBeCloseTo(0);
     scene.show(replayAt(v, stepBounds('compte-rendu').start + 1600), 0, false);
+    // Down by the stern: the bow rises, the heel has gone on to 22 degrees.
+    expect(pivot.rotation.x).toBeCloseTo((-9 * Math.PI) / 180);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((22 * Math.PI) / 180);
     // Its rig's guns stand a tenth of a unit high, drawn at the scene's scale.
     expect(pivot.position.y).toBeCloseTo((-0.6 * 0.1) / REPLAY_STAGE);
     const opacities: number[] = [];
@@ -437,9 +441,35 @@ describe('a combat at sea', () => {
     await landed();
     const pivot = scene.object.children[1]!.children[0]!;
     scene.show(replayAt(v, REPLAY_MS), 0, true);
-    expect(Math.abs(pivot.rotation.z)).toBeCloseTo(0.12);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((22 * Math.PI) / 180);
+    expect(pivot.rotation.x).toBeCloseTo((-9 * Math.PI) / 180);
     expect(pivot.position.y).toBeCloseTo(0);
     expect(scene.smoking).toBe(true);
+  });
+
+  it('at reduced motion holds the frozen steps, then sinks the hull whole at the account', async () => {
+    const v = sunk();
+    const scene = sea(v);
+    await landed();
+    const pivot = scene.object.children[1]!.children[0]!;
+    scene.show(replayAt(v, stepBounds('deroute').start, 'reduced'), 0, true);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((14 * Math.PI) / 180);
+    expect(pivot.position.y).toBeCloseTo(0);
+    scene.show(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), 0, true);
+    expect(pivot.position.y).toBeCloseTo((-0.6 * 0.1) / REPLAY_STAGE);
+  });
+
+  it('heels and sinks a block with no role the same way', async () => {
+    const v = sunk();
+    const blind: ReplayView = { ...v, faced: undefined };
+    const scene = sea(blind);
+    await landed();
+    const pivot = scene.object.children[1]!.children[0]!;
+    scene.show(replayAt(blind, stepBounds('riposte').start), 0, false);
+    expect(Math.abs(pivot.rotation.z)).toBeCloseTo((14 * Math.PI) / 180);
+    expect(pivot.rotation.x).toBeCloseTo(0);
+    scene.show(replayAt(blind, REPLAY_MS), 0, false);
+    expect(pivot.position.y).toBeLessThan(0);
   });
 
   /** The lowest opacity a piece wears: 1 when nothing on it is see-through. */

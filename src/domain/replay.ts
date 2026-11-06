@@ -175,3 +175,34 @@ export function steppedFrom(t: number, direction: 1 | -1): number {
   const step = REPLAY_STEPS[index];
   return step === undefined ? REPLAY_MS : stepBounds(step).start;
 }
+
+/** **Le naufrage** (#483, storyboard « 5. Le naufrage ») : la coque gîte de 14° sur le bord
+ *  touché à sa chute ; puis elle coule par l'arrière, tangage de 9°, la gîte allant à 22°.
+ *  `@a-mesurer` */
+const HEEL = (14 * Math.PI) / 180;
+const PITCH = (9 * Math.PI) / 180;
+const FINAL_HEEL = (22 * Math.PI) / 180;
+/** La coulée court de la déroute à `SINK_MS` après le début du compte-rendu : toute coque tombée a
+ *  fini sa chute avant, au coup de l'un ou de l'autre camp. `@a-mesurer` */
+const SINK_MS = 1600;
+
+/**
+ * **Où en est une coque coulée**, 0..1. `still` (temps figés) : rien avant le compte-rendu, tout
+ * d'un coup à lui — les étapes se jouent comme le code les joue (décision 9 du 05/11).
+ */
+export function sinkOf(frame: ReplayFrame, still: boolean): number {
+  if (still) return frame.step === 'compte-rendu' ? 1 : 0;
+  const from = stepBounds('deroute').start;
+  const clock = stepBounds(frame.step).start + frame.progress * STEP_MS[frame.step];
+  const to = stepBounds('compte-rendu').start + SINK_MS;
+  return Math.min(1, Math.max(0, (clock - from) / (to - from)));
+}
+
+/** **La pose d'une coque coulée**, en radians ; `depth` est la part de sa coulée, 0..1. `fall` et
+ *  `sunk` valent 0..1, lissés par l'appelant. */
+export function hullPose(
+  fall: number,
+  sunk: number,
+): { heel: number; pitch: number; depth: number } {
+  return { heel: HEEL * fall + (FINAL_HEEL - HEEL) * sunk, pitch: PITCH * sunk, depth: sunk };
+}

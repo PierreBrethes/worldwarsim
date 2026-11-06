@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hullPose,
   REPLAY_MS,
   REPLAY_STEPS,
   replayAt,
+  sinkOf,
   stepBounds,
   steppedFrom,
   VOLLEY_SHARE,
@@ -189,5 +191,40 @@ describe('the replay of a bombardment (B20, A4)', () => {
     expect(replayAt(shelled, during('riposte')).firing).toBeNull();
     expect(replayAt(firing, during('riposte')).firing).toBeNull();
     expect(replayAt(firing, during('frappe')).firing).toBe('mine');
+  });
+});
+
+describe('a hull going down', () => {
+  const deg = (degrees: number) => (degrees * Math.PI) / 180;
+
+  it('heels 14 degrees on its fall, then settles by the stern to 22 degrees heel and 9 pitch', () => {
+    expect(hullPose(0, 0)).toEqual({ heel: 0, pitch: 0, depth: 0 });
+    expect(hullPose(1, 0)).toEqual({ heel: deg(14), pitch: 0, depth: 0 });
+    expect(hullPose(1, 1)).toEqual({ heel: deg(22), pitch: deg(9), depth: 1 });
+    expect(hullPose(1, 0.5).heel).toBeCloseTo(deg(18));
+  });
+
+  const sunk = (side: 'attacker' | 'defender'): ReplayView => ({
+    ...view,
+    side,
+    mine: [{ role: 'escort', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 1 }],
+    theirs: { troops: 1, lost: 0, routed: 0, destroyed: 1 },
+  });
+
+  it('sinks from the rout to the end of the account, whichever side the shots felled', () => {
+    for (const side of ['attacker', 'defender'] as const) {
+      const v = sunk(side);
+      expect(sinkOf(replayAt(v, stepBounds('riposte').end - 1), false)).toBe(0);
+      expect(sinkOf(replayAt(v, stepBounds('deroute').end), false)).toBeGreaterThan(0);
+      expect(sinkOf(replayAt(v, stepBounds('compte-rendu').start + 1600), false)).toBe(1);
+      expect(sinkOf(replayAt(v, REPLAY_MS), false)).toBe(1);
+    }
+  });
+
+  it('at reduced motion plays the frozen steps and sinks all at once at the account', () => {
+    const v = sunk('attacker');
+    for (const step of ['frappe', 'riposte', 'deroute'] as const)
+      expect(sinkOf(replayAt(v, stepBounds(step).start, 'reduced'), true)).toBe(0);
+    expect(sinkOf(replayAt(v, stepBounds('compte-rendu').start, 'reduced'), true)).toBe(1);
   });
 });
