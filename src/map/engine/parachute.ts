@@ -17,11 +17,11 @@ import type { WorldFrame } from './frame';
 
 /** The descent, the rest on the ground, and the fade: a packet is a moment, never ambience. */
 export const FALL_MS = 1800;
-const REST_MS = 700;
-const FADE_MS = 500;
+export const REST_MS = 700;
+export const FADE_MS = 500;
 export const PARACHUTE_MS = FALL_MS + REST_MS + FADE_MS;
 /** Reduced motion lays the packet down at once, for as long as a stamp's first beat. */
-const STILL_MS = 1400;
+export const STILL_MS = 1400;
 
 /** On screen, in pixels: the canopy's width and the height it falls from. */
 const CANOPY_PX = 34;
