@@ -61,6 +61,7 @@ import {
   settleHull,
 } from './timelines/rest';
 import { playTableSound } from '../table-sound';
+import type { MooredHull } from './moorings';
 import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
@@ -1967,6 +1968,40 @@ export class StandingLayer implements SequenceHost {
     const troop = this.dressed.get(id.slice(0, at))?.pieces.groups[Number(id.slice(at + 1))]
       ?.troopIds[0];
     return troop === undefined ? null : (this.lastRest.get(troop)?.post ?? null);
+  }
+
+  /**
+   * **The hulls that lie at a port's mole or at its side, drawn** (#500): what the hawsers are
+   * run from. Not a pile in hand, nor one drawn as its pin, nor a hull the mole has no room for.
+   */
+  mooredHulls(): MooredHull[] {
+    const hulls: MooredHull[] = [];
+    for (const [pileId, entry] of this.dressed) {
+      if (!entry.ready || !entry.placed || !entry.object.visible || this.held?.pileId === pileId)
+        continue;
+      entry.pieces.groups.forEach(({ troopIds, posted }, k) => {
+        const troop = troopIds[0];
+        const kept = troop === undefined || !posted ? undefined : this.lastRest.get(troop);
+        const figurine = entry.figurines[k];
+        if (
+          troop === undefined ||
+          kept === undefined ||
+          kept.post === null ||
+          kept.post === 'roads' ||
+          figurine === undefined ||
+          !figurine.object.visible
+        )
+          return;
+        hulls.push({
+          id: `${pileId}/${k}`,
+          troop,
+          site: kept.site,
+          post: kept.post,
+          object: figurine.object,
+        });
+      });
+    }
+    return hulls;
   }
 
   /** The hulls that moved up to the mole since the last call (#487). */

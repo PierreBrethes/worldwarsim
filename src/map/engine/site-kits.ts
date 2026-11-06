@@ -19,7 +19,14 @@ import { troopMetres } from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { BUILDING_MAQUETTES } from '@/emblems/buildings/manifest';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
-import { AIRFIELD, GANGWAY, KITS, MOLE, POSITION_LIGHTS } from '@/emblems/kits/manifest';
+import {
+  AIRFIELD,
+  GANGWAY,
+  hasBollard,
+  KITS,
+  MOLE,
+  POSITION_LIGHTS,
+} from '@/emblems/kits/manifest';
 
 /** **The lamps the night lights** (`warmPieces`): a kit's `feux`, the position lights. */
 export const LAMP = 'feux';
@@ -168,7 +175,7 @@ async function moleKit(load: Load): Promise<Object3D> {
     const module = kit.getObjectByName('mole_troncon')!.clone(true);
     module.position.set(MOLE.x, MOLE.lift, MOLE.quay + MOLE.module / 2 + k * MOLE.module);
     // A bollard every third module, a fender every second, a lamp every fourth (storyboard).
-    const keep = { bitte: k % 3 === 0, defense: k % 2 === 0, lampadaire: k % 4 === 2 };
+    const keep = { bitte: hasBollard(k), defense: k % 2 === 0, lampadaire: k % 4 === 2 };
     for (const [name, kept] of Object.entries(keep))
       if (!kept) module.getObjectByName(name)?.removeFromParent();
     mole.add(module);

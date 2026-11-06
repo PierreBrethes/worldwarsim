@@ -77,6 +77,8 @@ import {
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
+import { departureOf, touchOf } from './mooring';
+import { Moorings } from './moorings';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
 import { veiledPiles } from './veils';
@@ -688,6 +690,8 @@ export class MapEngine {
   private readonly maquettes: MaquetteLayer;
   /** My sites at work, alive at rest (#273): an ambience that borrows their copies. */
   private readonly loops: SiteLoopLayer;
+  /** **The hawsers of the hulls at a port** (#500). */
+  private readonly moorings: Moorings;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
   private readonly sequences = new SequenceLayer((box, px) => this.seenBig(box, px));
   /** The combats played at their point (#272), on a budget of their own. */
@@ -1241,6 +1245,16 @@ export class MapEngine {
       this.touch ? MAX_LIVING.touch : MAX_LIVING.desk,
     );
     this.ambience.add(this.loops);
+    this.moorings = new Moorings({
+      hulls: () => this.standing.mooredHulls(),
+      frameOf: (id) => {
+        const site = this.maquettes.siteOf(id);
+        return site === null
+          ? null
+          : { toBoard: site.toBoard, toModel: site.toModel, metre: metreOf(site) };
+      },
+    });
+    this.scene.add(this.moorings.group);
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.pins = new PinLayer(
@@ -2602,6 +2616,7 @@ export class MapEngine {
     this.ghost.dispose();
     this.standing.dispose();
     this.loops.dispose();
+    this.moorings.dispose();
     this.sequences.dispose();
     this.combats.dispose();
     this.razes.dispose();
@@ -3418,11 +3433,22 @@ export class MapEngine {
           cue.groups,
           cue.kind === 'formation' ? 'formed' : 'returned',
         );
+        // Its hawsers come with the hull's touch, not before (#500).
+        if (this.sequences.motion === 'full')
+          for (const k of cue.groups)
+            this.moorings.pending(`${cue.pileId}/${k}`, performance.now());
         this.siteWays.push({ cue, since: performance.now() });
         break;
-      case 'depart':
-        if (!this.blitz) this.siteWays.push({ cue, since: performance.now() });
+      case 'depart': {
+        if (this.blitz) break;
+        // Its hawsers stand a moment past its pile, until it casts them off (#500).
+        const arc = this.arcs.viewOf(cue.arcId);
+        const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
+        if (this.sequences.motion === 'full' && troop !== undefined)
+          this.moorings.expectCastOff(troop, performance.now());
+        this.siteWays.push({ cue, since: performance.now() });
         break;
+      }
       case 'descente':
         if (this.sequences.motion === 'off') break;
         // The truck and its rank hold where they stood until the men are down (`landOf`).
@@ -3627,6 +3653,7 @@ export class MapEngine {
     const slips: Array<Parameters<typeof slipSequence>[0][number]> = [];
     // The hulls docked before this one, and the crane's visit to the hull that touches the mole.
     const docked: Array<{ ms: number }> = [];
+    const touching = new Set<string>();
     let crane: Sequence<'port'> | null = null;
     let turn = 0;
     for (const { id, role, place, drawn } of parts) {
@@ -3706,6 +3733,12 @@ export class MapEngine {
       if (door !== null) hangars.set(door[0], [...(hangars.get(door[0]) ?? []), door[1]]);
       if (slip !== null) slips.push(slip);
       if (dock !== null) docked.push(dock);
+      // The hawsers run from the instant the hull touches.
+      const touch = airfield ? null : touchOf(this.standing.postOf(id), since, sequence.ms);
+      if (touch !== null) {
+        touching.add(id);
+        this.moorings.dock(id, touch);
+      }
       crane ??= visit;
     }
     const slipping = slips.length > 0 ? slipSequence(slips) : null;
@@ -3717,6 +3750,8 @@ export class MapEngine {
       this.lightUp(cue.siteId, since, now, since + longest, doors);
     }
     if (longest > 0) this.standing.arrive(cue.pileId, [since + longest - now]);
+    // A hull the site plays nothing for stands with its hawsers at rest.
+    for (const { id } of parts) if (!touching.has(id)) this.moorings.settle(id);
     return true;
   }
 
@@ -3753,6 +3788,7 @@ export class MapEngine {
     let sequence = null;
     let plane: Departing | null = null;
     let wait = 0;
+    let castOff: number | null = null;
     if (air && isAirRole(role)) {
       const at = place ?? { x: AIRFIELD_LANES[1], z: parkingZ(length / 2) };
       const flight = takeoff(role, at);
@@ -3786,7 +3822,10 @@ export class MapEngine {
       );
       // Several hulls putting to sea together: the outer one first, the others when it is clear.
       const lead = undockLead({ post: kept?.post ?? null, since }, this.otherDepartures(arcId, id));
-      sequence = delayed(sequence, lead, false);
+      // Its hawsers come aboard before it backs out (storyboard « Largue »).
+      const leaving = departureOf(kept?.post ?? null, since, lead);
+      castOff = leaving.castOff;
+      sequence = delayed(sequence, leaving.wait, false);
     }
     if (sequence === null) return true;
     // Only a plane that plays holds the runway, or makes the others wait.
@@ -3802,6 +3841,12 @@ export class MapEngine {
       () => this.sequences.play(this.arcs, arcId, sequence, since, now),
     );
     if (played && plane !== null) this.lightUp(id, since, now, since + sequence.ms);
+    if (troop !== undefined && !(played && castOff !== null)) this.moorings.forget(troop);
+    if (played && castOff !== null && troop !== undefined) {
+      this.moorings.release(troop, castOff);
+      // The hull at the mole's side was moored to the one that leaves.
+      if (kept?.post === 'mole') this.moorings.releaseBeside(id, castOff);
+    }
     return true;
   }
 
@@ -3863,7 +3908,10 @@ export class MapEngine {
     const { role } = promotion;
     if (!isSeaRole(role)) return true;
     const way = haulSequence(site, role, promotion.from, promotion.to, place.at);
-    this.sequences.play(this.standing, promotion.id, way, since, now);
+    const touch = touchOf('mole', since, way.ms);
+    if (this.sequences.play(this.standing, promotion.id, way, since, now) && touch !== null)
+      this.moorings.dock(promotion.id, touch);
+    else this.moorings.settle(promotion.id);
     return true;
   }
 
@@ -5372,6 +5420,7 @@ export class MapEngine {
       this.combats.active ||
       this.razes.active ||
       this.pins.active ||
+      this.moorings.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -5464,8 +5513,11 @@ export class MapEngine {
     this.siteWays = this.siteWays.filter(
       (way) => !this.siteWayOf(way, now) && now - way.since < SORTIE_WAIT_MS,
     );
-    for (const promotion of this.standing.takePromotions())
+    for (const promotion of this.standing.takePromotions()) {
+      // Promoted to the mole's post, it is hauled there: its lines wait for that (#500).
+      if (this.sequences.motion === 'full') this.moorings.pending(promotion.id, now);
       this.hauls.push({ promotion, since: now });
+    }
     this.hauls = this.hauls.filter(
       (haul) => !this.haulOf(haul, now) && now - haul.since < SORTIE_WAIT_MS,
     );
@@ -5476,6 +5528,8 @@ export class MapEngine {
       (taking) => !this.takeOf(taking, now) && now - taking.since < SORTIE_WAIT_MS,
     );
     this.undock(now);
+    // After every order of this frame has said where the hulls are bound: the hawsers follow.
+    if (whole) this.moorings.update(now, this.unitsPerPixel(distance));
     this.boardings = this.boardings.filter((boarding) => {
       if (this.boardOf(boarding, now)) return false;
       if (now - boarding.since < SORTIE_WAIT_MS) return true;

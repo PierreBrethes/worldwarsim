@@ -1164,11 +1164,28 @@ describe('pieces resting at their post', () => {
     expect(layer.takePromotions()).toEqual([]);
   });
 
+  it('lists the hull at the side as the mole’s in the pass that sends the first away, for the hawsers (#500)', async () => {
+    const layer = await standing(port('a', 'b', 'c'));
+    await redraw(layer, 'b', 'c');
+    expect(layer.mooredHulls().map(({ id, troop, post }) => [id, troop, post])).toEqual([
+      ['p/0', 'b', 'mole'],
+    ]);
+  });
+
   it('tells the post of the piece a sequence plays for: the mole, the side, the roads, none (#477)', async () => {
     const layer = await standing(port('a', 'b', 'c'));
     expect([0, 1, 2].map((k) => layer.postOf(`p/${k}`))).toEqual(['mole', 'couple', 'roads']);
     expect(layer.postOf('p/9')).toBeNull();
     expect(layer.postOf('nobody/0')).toBeNull();
+  });
+
+  it('lists the hulls at the mole and at its side for their hawsers, not the one in the roads (#500)', async () => {
+    const layer = await standing(port('a', 'b', 'c'));
+    expect(layer.mooredHulls().map(({ id, post, site }) => [id, post, site])).toEqual([
+      ['p/0', 'mole', 'site'],
+      ['p/1', 'couple', 'site'],
+    ]);
+    expect(layer.mooredHulls()[0]!.troop).toBe('a');
   });
 
   it('remembers where a plane rested when it leaves, for its take-off (#487)', async () => {
