@@ -100,6 +100,8 @@ export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
 
 /** Ce qui embarque des hommes sous les yeux : un camion ou un avion de transport. */
 export type Carrier = 'landTransport' | 'airTransport';
+export const isCarrier = (role: UnitRole): role is Carrier =>
+  role === 'landTransport' || role === 'airTransport';
 
 /** **Un porteur où des hommes montent** (#277) : son groupe (`truck`, même pour un avion), ce
  *  qu'il est, et chaque passager neuf. */
@@ -126,7 +128,7 @@ export function monteesOf(
   return piles.flatMap(({ id, pieces }) =>
     pieces.groups.flatMap(({ role, troopIds }, k) => {
       const riders = troopIds.flatMap((troop) => boarded.get(troop) ?? []);
-      return (role === 'landTransport' || role === 'airTransport') && riders.length > 0
+      return isCarrier(role) && riders.length > 0
         ? [{ truck: `${id}/${k}`, carrier: role, riders }]
         : [];
     }),
