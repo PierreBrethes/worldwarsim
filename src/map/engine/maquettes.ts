@@ -756,8 +756,9 @@ export class MaquetteLayer implements SequenceHost {
     string,
     { readonly item: Placed; readonly model: Model; readonly lonLat: LonLat | null }
   >();
-  /** **The ports drawn in mirror** (#476), by id: decided once their model and the coast are
-   *  there (`mirrorPorts`), kept over a rebuild, which draws each in its own lot. */
+  /** **The ports drawn in mirror** (#476), by id: decided once every port's model has landed and
+   *  the coast's line is known (`mirrorPorts`), kept over a rebuild, which draws each in its own
+   *  lot; a port gone is forgotten. */
   private readonly mirrored = new Set<string>();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
@@ -815,6 +816,8 @@ export class MaquetteLayer implements SequenceHost {
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
     this.byId.clear();
+    const standing = new Set(this.maquettes.map(({ id }) => id));
+    for (const id of this.mirrored) if (!standing.has(id)) this.mirrored.delete(id);
     for (const maquette of this.maquettes) {
       this.held.delete(maquette.id);
       const ground =
@@ -1038,18 +1041,20 @@ export class MaquetteLayer implements SequenceHost {
   }
 
   /**
-   * **Which ports are drawn in mirror** (#476), once the coast's line is known (before it a port
-   * keeps its side, so that none turns over under the eyes when `coast.json` lands for ports
-   * that had stood alike): the decision is `mirroredPort`'s, on the ground under the mole and the
+   * **Which ports are drawn in mirror** (#476), once the coast's line is known (before it, plain):
+   * the decision is `mirroredPort`'s, on the ground under the mole and the
    * crane as the port stands now and the sites about it. `true` when any side changed: the
    * lots are drawn again, each port in the lot of its own side.
    */
   private mirrorPorts(): boolean {
+    // A side reads the ports about it as they stand: none is decided while one is not posed yet.
+    const ports = [...this.byId].filter(([id]) => id.startsWith('building-port'));
+    if (ports.some(([, { lot }]) => lot.model === null)) return false;
     let changed = false;
-    for (const { item, lot } of this.byId.values()) {
-      const model = lot.model?.authored ?? lot.model;
-      if (model === null || !model.markers.has(WATER_EDGE)) continue;
-      if (this.seaFront(item.ground.x, item.ground.z)?.line == null) continue;
+    for (const [, { item, lot }] of ports) {
+      const model = lot.model!.authored ?? lot.model!;
+      if (!model.markers.has(WATER_EDGE)) continue;
+      const lined = this.seaFront(item.ground.x, item.ground.z)?.line != null;
       const size = sizeOf(model, item);
       const [cos, sin] = [Math.cos(item.yaw), Math.sin(item.yaw)];
       const at = (x: number, z: number): Point => [
@@ -1057,17 +1062,19 @@ export class MaquetteLayer implements SequenceHost {
         item.at.z + size * (-x * sin + z * cos),
       ];
       const others = this.placedItems().filter((other) => other !== item);
-      const mirrored = mirroredPort({
-        land: (x, z) => this.onLand(...at(x, z)),
-        taken: (x, z) => {
-          const [bx, bz] = at(x, z);
-          return others.some(
-            (other) =>
-              Math.hypot(bx - other.at.x, bz - other.at.z) <
-              (other.spacing * other.scale * pieceScale.size) / 2,
-          );
-        },
-      });
+      const mirrored =
+        lined &&
+        mirroredPort({
+          land: (x, z) => this.onLand(...at(x, z)),
+          taken: (x, z) => {
+            const [bx, bz] = at(x, z);
+            return others.some(
+              (other) =>
+                Math.hypot(bx - other.at.x, bz - other.at.z) <
+                (other.spacing * other.scale * pieceScale.size) / 2,
+            );
+          },
+        });
       if (mirrored === lot.mirrored) continue;
       if (mirrored) this.mirrored.add(item.id);
       else this.mirrored.delete(item.id);
@@ -1825,10 +1832,10 @@ function flagMatrixOf(out: Matrix4, item: Placed, height: number): void {
   else out.copy(matrix).multiply(flagDown.makeTranslation(0, -(1 - height) * FLAG_DROP, 0));
 }
 
-/** **Its own units to the board** at full near weight: its span at the player's size, in its group's. */
 /** **-1 for a model in mirror** (#476): a point in its file's metres is flipped before it is placed. */
 const flipOf = (model: Model): 1 | -1 => (model.authored === undefined ? 1 : -1);
 
+/** **Its own units to the board** at full near weight: its span at the player's size, in its group's. */
 const sizeOf = (model: Model, item: Placed): number =>
   model.scale * item.span * pieceScale.size * item.scale;
 

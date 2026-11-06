@@ -1707,6 +1707,69 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
       expect(moleAt(layer).z).toBeLessThan(0);
     });
 
+    it('decides two neighbouring ports once both are posed: the same sides, whichever lands first', async () => {
+      const near = { ...second, at: { lonLat: [0.12, 0.02] as const } };
+      const sides = async (order: (typeof port)[]) => {
+        const layer = await layerOf(
+          order,
+          () => east,
+          (x, z) => x < COAST || (z < 0.01 && x < 0.2),
+        );
+        const rebuild = vi.spyOn(layer, 'rebuild');
+        layer.resize();
+        await new Promise((r) => setTimeout(r, 20));
+        layer.resize();
+        await new Promise((r) => setTimeout(r, 20));
+        // Settled: placing again redraws nothing.
+        expect(rebuild).not.toHaveBeenCalled();
+        return [PORT, near.id].map((id) => moleAt(layer, id).z > 0);
+      };
+      const [a, b] = [await sides([port, near]), await sides([near, port])];
+      expect(a).toEqual(b);
+    });
+
+    it('draws the key of a port again when its side turns, its place unmoved', async () => {
+      let land = (x: number, z: number) => x < COAST || z > 5;
+      const layer = await layerOf(
+        [port],
+        () => east,
+        (x, z) => land(x, z),
+      );
+      const before = layer.runwaysKey();
+      land = bent;
+      layer.resize();
+      await vi.waitFor(() => expect(layer.isDressed(PORT)).toBe(true));
+      expect(moleAt(layer).z).toBeGreaterThan(0);
+      expect(layer.runwaysKey()).not.toBe(before);
+    });
+
+    it('turns the heading of a hull at rest over with the port, by the real frame', async () => {
+      const heading = async (onLand: (x: number, z: number) => boolean) => {
+        const layer = await layerOf([port], () => east, onLand);
+        const site = layer.siteOf(PORT)!;
+        const at = site.toBoard(new Vector3(30, 0, 200));
+        // A hull whose stem points to the model's +x.
+        const ahead = site.toBoard(new Vector3(31, 0, 200)).sub(at);
+        return Math.atan2(ahead.x, ahead.z);
+      };
+      const [plain, mirrored] = [await heading((x) => x < COAST), await heading(bent)];
+      // The port faces east: its model's +x points along the board's -z, and +z once in mirror.
+      expect(Math.cos(plain)).toBeCloseTo(-1, 9);
+      expect(Math.cos(mirrored)).toBeCloseTo(1, 9);
+    });
+
+    it('forgets a port that is gone, and one whose coast line is lost goes back to plain', async () => {
+      let line: SeaFront['line'] = [COAST, 0.3];
+      const layer = await layerOf([port], () => ({ seaward: [1, 0], line }), bent);
+      expect(moleAt(layer).z).toBeGreaterThan(0);
+      line = null;
+      layer.resize();
+      await vi.waitFor(() => expect(layer.isDressed(PORT)).toBe(true));
+      expect(moleAt(layer).z).toBeLessThan(0);
+      layer.display([]);
+      expect((layer as unknown as { mirrored: Set<string> }).mirrored.size).toBe(0);
+    });
+
     it('turns up when the coast lands: the next placement mirrors the port it already drew', async () => {
       let line: SeaFront['line'] = null;
       const layer = await layerOf([port], () => ({ seaward: [1, 0], line }), bent);
