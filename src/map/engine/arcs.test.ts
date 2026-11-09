@@ -230,6 +230,44 @@ describe('ArcLayer.display', () => {
   });
 });
 
+describe('ArcLayer.isFlowing', () => {
+  const fieldOf = (eye: PerspectiveCamera) => {
+    eye.updateMatrixWorld();
+    return new Frustum().setFromProjectionMatrix(
+      new Matrix4().multiplyMatrices(eye.projectionMatrix, eye.matrixWorldInverse),
+    );
+  };
+
+  it('flows while a thread crosses the field, and no longer once every thread is out of it', () => {
+    const arcs = layer();
+    arcs.display([mine('a')]);
+    // No frame yet: the field is unknown, and a thread shown must not wait for one.
+    expect(arcs.isFlowing).toBe(true);
+    const head = arcs.headPositions.get('a')!.clone();
+    const eye = new PerspectiveCamera(30, 1, 0.001, 100);
+    eye.position.copy(head).add(new Vector3(0, 0.5, 0.2));
+    eye.lookAt(head);
+    arcs.animate(eye, 0.001, undefined, fieldOf(eye));
+    expect(arcs.isFlowing).toBe(true);
+    // The eye turned away, toward what lies beyond the thread's end: nothing of it is drawn.
+    eye.position.copy(head).add(new Vector3(0, 20, -60));
+    eye.lookAt(head.clone().add(new Vector3(0, 0, -120)));
+    arcs.animate(eye, 0.001, undefined, fieldOf(eye));
+    expect(arcs.isFlowing).toBe(false);
+  });
+
+  it('flows for a long road whose middle alone crosses the field', () => {
+    const arcs = layer();
+    arcs.display([mine('a', [60, 30])]);
+    const middle = new WorldFrame(world).projectLonLat([30, 15], 0);
+    const eye = new PerspectiveCamera(30, 1, 0.001, 100);
+    eye.position.copy(middle).add(new Vector3(0, 0.5, 0.2));
+    eye.lookAt(middle);
+    arcs.animate(eye, 0.001, undefined, fieldOf(eye));
+    expect(arcs.isFlowing).toBe(true);
+  });
+});
+
 describe('ArcLayer.veil (#272)', () => {
   it('hides the thread of a column leaving a combat played on the map, and shows it again', () => {
     const arcs = layer();

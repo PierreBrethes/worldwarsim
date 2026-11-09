@@ -1,6 +1,6 @@
 import { samePoint, type LonLat } from '@/domain/geo';
 import {
-  type Box3,
+  Box3,
   type Frustum,
   Group,
   type Object3D,
@@ -69,6 +69,8 @@ type RenderedArc = {
   ink: string | null;
   /** **A thread of one point** — an expedition on site — has no leg to walk: it stands here. */
   rest: Vector3 | null;
+  /** Where it is drawn, in boxes: what `isFlowing` looks for in the field. */
+  readonly sight: ReadonlyArray<Box3>;
   loadingUntil: number | null;
   /** The size of the port it leaves and the one it reaches, its hull drawn at it there (#433);
    *  1 away from a port of mine. */
@@ -624,6 +626,8 @@ export class ArcLayer {
       this.group.add(relic);
     }
 
+    const rest =
+      thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null;
     return {
       key,
       arc,
@@ -634,7 +638,8 @@ export class ArcLayer {
       headPosition: new Vector3(),
       aheadPosition: new Vector3(),
       ink: lastKnownInk(arc, clock),
-      rest: thread.legs.length === 0 ? this.frame.projectLonLat(arc.to, COUNTRY_THICKNESS) : null,
+      rest,
+      sight: sightOf(thread.legs, rest),
       loadingUntil: null,
       quays,
     };
@@ -654,10 +659,19 @@ export class ArcLayer {
   }
 
   /** Un fil affiché n'est jamais immobile : ses tirets dérivent vers l'arrivée et son pion
-   *  marche. Tant qu'il y en a un, la boucle demande une image par pas de fil (`flowPaceOf`,
-   *  `frame-demand.ts`), pas une à chaque rafraîchissement. */
+   *  marche. Tant qu'il y en a un dans le champ, la boucle demande une image par pas de fil
+   *  (`flowPaceOf`, `frame-demand.ts`), pas une à chaque rafraîchissement. **Hors du champ, il ne
+   *  demande rien** : un seul mouvement à l'autre bout du monde tenait la carte à trente images
+   *  complètes par seconde, ombres et étiquettes refaites, pour des tirets que personne ne voit. */
   get isFlowing(): boolean {
-    return this.motion !== 'off' && this.rendered.length > 0;
+    if (this.motion === 'off') return false;
+    const inView = this.inView;
+    // No frame yet: a thread shown does not wait for the field to be known.
+    if (inView === null) return this.rendered.length > 0;
+    const margin = SIGHT_MARGIN + SIGHT_MARGIN_PX * this.unitsPerPixel;
+    return this.rendered.some(({ sight }) =>
+      sight.some((box) => inView.intersectsBox(SEEN.copy(box).expandByScalar(margin))),
+    );
   }
 
   /**
@@ -880,6 +894,26 @@ export class ArcLayer {
     this.aheadPositions.clear();
     this.pawnById.clear();
   }
+}
+
+/** A thread's vertices to a box of its sight: one box for a long road would hold half a continent. */
+const SIGHT_RUN = 16;
+/** What is drawn round a thread's line, in pixels: its width, a dock's mark, a piece at its floor. */
+const SIGHT_MARGIN_PX = 24;
+/** The longest piece on a road, at the largest size a player sets (125 %). */
+const SIGHT_MARGIN = 1.25 * troopSpan('carrier');
+const SEEN = new Box3();
+
+function sightOf(legs: ReadonlyArray<ThreadLeg>, rest: Vector3 | null): Box3[] {
+  const boxes = rest === null ? [] : [new Box3().setFromPoints([rest])];
+  for (const { strands } of legs)
+    for (const { vertices } of strands)
+      // A run shares its last vertex with the next: the stretch between them is in a box too.
+      for (let k = 0; k < vertices.length - 1; k += SIGHT_RUN)
+        boxes.push(new Box3().setFromPoints(vertices.slice(k, k + SIGHT_RUN + 1)));
+  // A flight's shadow, its tether and its pawn's own stand on the ground under it.
+  for (const box of boxes) box.min.y = Math.min(box.min.y, 0);
+  return boxes;
 }
 
 /** **Where a pawn let go runs on its way** (#278): held at the socle's `foot` while its truck
