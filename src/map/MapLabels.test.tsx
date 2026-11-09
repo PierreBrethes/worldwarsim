@@ -26,6 +26,11 @@ beforeEach(() => {
       disconnect() {}
     },
   );
+  // jsdom has no font set, and the names' sheet waits there for a face to land (`NameSheet`).
+  Object.defineProperty(document, 'fonts', {
+    value: { status: 'loaded', addEventListener: () => {}, removeEventListener: () => {} },
+    configurable: true,
+  });
 });
 afterEach(() => {
   cleanup();

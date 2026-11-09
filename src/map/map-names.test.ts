@@ -37,14 +37,27 @@ function sheet() {
     paint: (drawn: NameSpots, occupied: Parameters<NameSheet['paint']>[1] = []) =>
       names.paint(drawn, occupied, size, false, field),
     wiped: () => wiped,
+    dispose: () => names.dispose(),
   };
 }
 
+/** Who waits for a face to land (`loadingdone`). */
+const waiting: Array<() => void> = [];
 const fonts = (status: 'loading' | 'loaded') =>
-  Object.defineProperty(document, 'fonts', { value: { status }, configurable: true });
+  Object.defineProperty(document, 'fonts', {
+    value: {
+      status,
+      addEventListener: (_: string, run: () => void) => waiting.push(run),
+      removeEventListener: (_: string, run: () => void) => waiting.splice(waiting.indexOf(run), 1),
+    },
+    configurable: true,
+  });
 
 describe('NameSheet.paint', () => {
-  beforeEach(() => fonts('loaded'));
+  beforeEach(() => {
+    waiting.length = 0;
+    fonts('loaded');
+  });
 
   it('paints the same names once, however many frames ask for them', () => {
     const names = sheet();
@@ -72,6 +85,17 @@ describe('NameSheet.paint', () => {
     fonts('loaded');
     names.paint(spots());
     expect(names.wiped()).toBe(2);
+  });
+
+  it('paints again once a face has landed after a paint, though nothing else changed', () => {
+    const names = sheet();
+    // The italic is only asked for by the first name written in it: `loaded` was said too soon.
+    names.paint(spots());
+    for (const run of waiting) run();
+    names.paint(spots());
+    expect(names.wiped()).toBe(2);
+    names.dispose();
+    expect(waiting).toHaveLength(0);
   });
 
   it('keeps its ink through a night too faint to change it, and takes the moon’s when it does', () => {

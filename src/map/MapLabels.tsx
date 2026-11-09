@@ -961,6 +961,7 @@ export function MapLabels({
     const unsubscribe = engine.subscribeRest(degrade);
     return () => {
       engine.onLabels = () => {};
+      names.dispose();
       unsubscribe();
       if (pendingDegrade.current !== 0) cancelAnimationFrame(pendingDegrade.current);
       pendingDegrade.current = 0;

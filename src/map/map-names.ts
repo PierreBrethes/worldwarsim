@@ -46,6 +46,19 @@ export class NameSheet {
     this.context = canvas.getContext('2d');
     const display = getComputedStyle(canvas).getPropertyValue('--font-display').trim();
     if (display !== '') this.family = display;
+    document.fonts.addEventListener('loadingdone', this.faceLanded);
+  }
+
+  /** **A face lands after a paint**: the italic is only asked for by the first name written in
+   *  it, when `document.fonts` already said `loaded`. What was painted in the fallback, and the
+   *  widths taken on it, are painted and taken again at the next frame. */
+  private readonly faceLanded = (): void => {
+    this.widths.clear();
+    this.painted = '';
+  };
+
+  dispose(): void {
+    document.fonts.removeEventListener('loadingdone', this.faceLanded);
   }
 
   /** Measured once a name and a font, once the font has come: a width taken on the fallback
