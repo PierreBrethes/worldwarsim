@@ -705,6 +705,42 @@ describe('a pile lent to a sequence', () => {
   });
 });
 
+describe('StandingLayer.pileOfLabel', () => {
+  const pieces = pilePieces([troop('infantry')]);
+  const layer = () => {
+    const standing = new StandingLayer(
+      { projectLonLat: () => new Vector3(0, 0, 0) } as unknown as WorldFrame,
+      () => {},
+      () => null,
+    );
+    standing.setNation('france');
+    return standing;
+  };
+
+  it('finds the pile a label stands for: its own, the first garrison at a mast, the one hung from it', () => {
+    const standing = layer();
+    standing.display([
+      { id: 'p', at: { lonLat: [2, 48] }, pieces },
+      { id: 'g1', at: { beside: 'building-hq' }, pieces },
+      { id: 'g2', at: { beside: 'building-hq' }, pieces },
+      { id: 'o', label: 'outpost-1', at: { lonLat: [0, 0] }, pieces },
+    ]);
+    expect(standing.pileOfLabel('p')).toBe('p');
+    expect(standing.pileOfLabel('building-hq')).toBe('g1');
+    expect(standing.pileOfLabel('outpost-1')).toBe('o');
+    expect(standing.pileOfLabel('deposit-7')).toBeNull();
+  });
+
+  it('answers by the piles last served: one that left the view stands for nothing', () => {
+    const standing = layer();
+    const second = { id: 'g2', at: { beside: 'building-hq' }, pieces };
+    standing.display([{ id: 'g1', at: { beside: 'building-hq' }, pieces }, second]);
+    standing.display([second]);
+    expect(standing.pileOfLabel('building-hq')).toBe('g2');
+    expect(standing.pileOfLabel('g1')).toBeNull();
+  });
+});
+
 describe('labelOfPile', () => {
   const pieces = pilePieces([troop('infantry')]);
   it('names the mast a garrison stands beside, the label it hangs from, or its own', () => {

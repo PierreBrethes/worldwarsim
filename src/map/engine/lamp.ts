@@ -50,9 +50,11 @@ export function shadowReach(distance: number): number | null {
 }
 
 /** Une pièce éclairée et opaque porte son ombre ; une planche, un disque, un fil, non — ni la
- *  pièce qui tourne en boucle (`shadowless`, #273) : une image d'ambiance ne refait pas l'ombre. */
+ *  pièce qui tourne en boucle (`shadowless`, #273) : une image d'ambiance ne refait pas l'ombre.
+ *  Ce qui n'est pas dessiné n'est pas parcouru : une pile rendue à son épingle attend l'image qui
+ *  la redresse, et mille piles au loin ne se relisent plus à chaque image. */
 export function castShadows(root: Object3D): void {
-  root.traverse((object) => {
+  root.traverseVisible((object) => {
     const mesh = object as Mesh;
     if (!mesh.isMesh || mesh.castShadow || mesh.userData.shadowless === true) return;
     const material = mesh.material as MeshStandardMaterial;

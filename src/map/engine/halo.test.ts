@@ -33,6 +33,23 @@ describe('the glow on the pieces themselves', () => {
     expect(half).toBeCloseTo(material.emissive.r / 2);
   });
 
+  it('warms by night what is drawn, and puts out at dawn every piece, drawn or not', () => {
+    const material = new MeshStandardMaterial({ color: '#c0a080' });
+    const pile = piece(material);
+    const board = new Group().add(pile);
+    // Gone to its pin: the frame that draws it again warms it.
+    pile.visible = false;
+    warmPieces(board, 1);
+    expect(material.emissive.getHex()).toBe(0);
+    pile.visible = true;
+    warmPieces(board, 1);
+    expect(material.emissive.getHex()).not.toBe(0);
+    // No frame comes back to a pile at its pin once the day is up.
+    pile.visible = false;
+    warmPieces(board, 0);
+    expect(material.emissive.getHex()).toBe(0);
+  });
+
   it('warms a textured piece through its own map', () => {
     const map = new Texture();
     const material = new MeshStandardMaterial({ map });

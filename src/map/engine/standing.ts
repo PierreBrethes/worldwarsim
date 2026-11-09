@@ -814,6 +814,10 @@ export class StandingLayer implements SequenceHost {
   private time = 0;
   private nation: string | null = null;
   private piles: ReadonlyArray<StandingPile> = [];
+  /** The dressed pile a label stands for when it is not the pile's own, the first served
+   *  (`pileOfLabel`): every label asks at every frame, and a search through the piles for each
+   *  was their product. */
+  private owned = new Map<string, string>();
   private dressed = new Map<string, Dressed>();
   private held: PieceHold | null = null;
   motion: MapMotion = 'full';
@@ -965,6 +969,11 @@ export class StandingLayer implements SequenceHost {
     }
     for (const [id, { pileId }] of this.boarders) if (!next.has(pileId)) this.boarders.delete(id);
     this.dressed = next;
+    this.owned = new Map();
+    for (const pile of piles) {
+      const label = labelOfPile(pile, pile.id);
+      if (next.has(pile.id) && !this.owned.has(label)) this.owned.set(label, pile.id);
+    }
     if (this.held !== null && this.carried === null) this.lift(this.held);
     this.rebuild();
   }
@@ -1403,11 +1412,7 @@ export class StandingLayer implements SequenceHost {
   /** The pile a label stands for: a pile's own, the garrison at a mast's foot, or the one hung
    *  from it (`StandingPile.label`). */
   pileOfLabel(labelId: string): string | null {
-    if (this.dressed.has(labelId)) return labelId;
-    const owned = this.piles.find(
-      (pile) => this.dressed.has(pile.id) && labelOfPile(pile, pile.id) === labelId,
-    );
-    return owned?.id ?? null;
+    return this.dressed.has(labelId) ? labelId : (this.owned.get(labelId) ?? null);
   }
 
   /** A ring turns or pulses: the frames must keep coming. */

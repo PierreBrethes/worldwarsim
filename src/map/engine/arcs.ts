@@ -698,8 +698,8 @@ export class ArcLayer {
   }
 
   boxOf(id: string): Box3 | null {
-    const rendered = this.rendered.find(({ arc }) => arc.id === id);
-    return rendered?.pawn.object.visible ? boxOfObject(rendered.pawn.object) : null;
+    const pawn = this.pawnById.get(id);
+    return pawn?.object.visible ? boxOfObject(pawn.object) : null;
   }
 
   /** The pawn under `ray`, by its movement's id — the id its head label carries. */

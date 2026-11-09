@@ -229,6 +229,8 @@ describe('the glow of a scene is its own (#332)', () => {
   it('beats in the scene that fires and leaves another of the same models at rest', () => {
     const first = sceneOf();
     const second = sceneOf();
+    // The night warms what is drawn (`warmPieces`): every part of both scenes, here.
+    for (const scene of [first, second]) scene.object.traverse((part) => (part.visible = true));
     warmPieces(first.object, 1, 1);
     warmPieces(second.object, 1, 0);
     const [lit] = standard(first.object);

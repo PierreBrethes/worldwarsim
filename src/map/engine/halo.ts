@@ -188,7 +188,7 @@ export class Halos {
 export function warmPieces(root: Object3D, night: number, beat = 0): void {
   // `beat`, 0 to 1: a shot's flash standing in the scene swells the glow of its pieces (#332).
   const strength = PIECE_GAIN * MathUtils.clamp(night, 0, 1) * (1 + BEAT_GAIN * beat);
-  root.traverse((object) => {
+  const warm = (object: Object3D): void => {
     const material = (object as Mesh).material as MeshStandardMaterial | undefined;
     if (!material?.isMeshStandardMaterial) return;
     // The dark of a doorway is a lit hall by night: a recruit comes out of it in silhouette.
@@ -212,5 +212,9 @@ export function warmPieces(root: Object3D, night: number, beat = 0): void {
     // its copy, inked in its colour, must not tint the glow either, or it blues when a sequence plays.
     if (material.map === null && !INKED_PER_INSTANCE.has(material.name))
       material.emissive.multiply(material.color);
-  });
+  };
+  // By night, what is drawn: a pile gone to its pin is warmed by the frame that draws it again.
+  // At dawn every piece is put out, drawn or not: no later frame comes back to it.
+  if (night > 0) root.traverseVisible(warm);
+  else root.traverse(warm);
 }

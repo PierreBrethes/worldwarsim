@@ -53,4 +53,16 @@ describe('castShadows', () => {
     castShadows(new Group().add(wall, beam));
     expect([wall.castShadow, beam.castShadow]).toEqual([true, false]);
   });
+
+  it('leaves a pile gone to its pin to the frame that draws it again', () => {
+    const pile = new Group();
+    const man = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    const board = new Group().add(pile.add(man));
+    pile.visible = false;
+    castShadows(board);
+    expect(man.castShadow).toBe(false);
+    pile.visible = true;
+    castShadows(board);
+    expect(man.castShadow).toBe(true);
+  });
 });
