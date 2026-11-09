@@ -84,6 +84,32 @@ describe('FrameDemand', () => {
     expect(ambientFrames(0)).toBeGreaterThan(10 * 50);
   });
 
+  it('tells the frames a flowing thread asks from the heartbeat, which still beats once a second', () => {
+    const demand = new FrameDemand(0);
+    demand.due(SETTLE_MS);
+    const reasons: string[] = [];
+    for (let now = SETTLE_MS + 16; now <= SETTLE_MS + 10_000; now += 16) {
+      const reason = demand.due(now, FLOW_FULL_MS);
+      if (reason !== null) reasons.push(reason);
+    }
+    const beats = reasons.filter((reason) => reason === 'heartbeat').length;
+    expect(beats).toBeGreaterThanOrEqual(9);
+    expect(beats).toBeLessThanOrEqual(10);
+    expect(reasons.filter((reason) => reason === 'flow').length).toBeGreaterThanOrEqual(10 * 26);
+  });
+
+  it('answers a whole frame asked for, and a sheet lifted, as a heartbeat under a flowing thread', () => {
+    const demand = new FrameDemand(0);
+    demand.due(SETTLE_MS);
+    expect(demand.due(SETTLE_MS + 40, FLOW_FULL_MS)).toBe('flow');
+    demand.whole();
+    expect(demand.due(SETTLE_MS + 56, FLOW_FULL_MS)).toBe('heartbeat');
+    expect(demand.due(SETTLE_MS + 96, FLOW_FULL_MS)).toBe('flow');
+    demand.cover(true);
+    demand.cover(false);
+    expect(demand.due(SETTLE_MS + 112, FLOW_FULL_MS)).toBe('heartbeat');
+  });
+
   it('paces a flowing thread: ten whole frames a second reduced, thirty active, none when hidden', () => {
     const wholeFrames = (pace: number): number => {
       const demand = new FrameDemand(0);

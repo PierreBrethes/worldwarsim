@@ -5615,7 +5615,8 @@ export class MapEngine {
       },
     );
     this.clearReplayGround();
-    this.renderer.shadowMap.needsUpdate = whole;
+    // A thread's frame moved no piece but a pawn on its road: the shadows of the frame before stand.
+    this.renderer.shadowMap.needsUpdate = whole && (reason !== 'flow' || this.arcs.marching);
     const shadowed = this.lamp.follow(this.controls.target, distance);
     const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
     if (this.replay) pieces.push(this.replay.scene.object);

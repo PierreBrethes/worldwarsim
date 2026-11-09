@@ -19,6 +19,11 @@ import type { MapMotion } from '@/domain/map-motion';
  * de shader (mer, vent, fumées), donc la carte d'ombres et les étiquettes de l'image d'avant
  * valent encore — les refaire trente fois par seconde ne servait à rien. Le battement se compte
  * depuis la dernière image complète, sans quoi l'ambiance le repousserait sans fin.
+ *
+ * **Une image de fil** (`flow`) est complète — étiquettes et tirets s'y replacent — mais n'est
+ * venue qu'au pas d'un fil qui coule ou d'un anneau qui bat : aucune pièce n'y a bougé, sauf un
+ * pion sur sa route. La carte d'ombres de l'image d'avant y vaut donc encore, et le battement,
+ * une fois par seconde, la refait quoi qu'il arrive.
  */
 export const SETTLE_MS = 1500;
 export const HEARTBEAT_MS = 1000;
@@ -34,13 +39,15 @@ export const FLOW_TOUCH_MS = 66;
 export const flowPaceOf = (motion: MapMotion, touch: boolean): number =>
   motion === 'reduced' ? FLOW_REDUCED_MS : touch ? FLOW_TOUCH_MS : FLOW_FULL_MS;
 
-export type FrameReason = 'stirred' | 'heartbeat' | 'ambient';
+export type FrameReason = 'stirred' | 'heartbeat' | 'flow' | 'ambient';
 
 export class FrameDemand {
   private stirredAt: number;
   /** The stir before the last one: lifting a sheet undoes its own, never another's. */
   private stirredBefore = Number.NEGATIVE_INFINITY;
   private fullAt = Number.NEGATIVE_INFINITY;
+  /** The last stirred or heartbeat frame: a whole frame sooner after it is a thread's (`flow`). */
+  private beatAt = Number.NEGATIVE_INFINITY;
   private drawnAt = Number.NEGATIVE_INFINITY;
   private requested = false;
   private covered = false;
@@ -69,7 +76,7 @@ export class FrameDemand {
   cover(covered: boolean): void {
     if (this.covered && !covered) {
       this.stirredAt = this.stirredBefore;
-      this.fullAt = Number.NEGATIVE_INFINITY;
+      this.whole();
     }
     this.covered = covered;
   }
@@ -78,6 +85,7 @@ export class FrameDemand {
    *  (#272), et `stir` lui aurait donné une seconde et demie d'images pour une seule. */
   whole(): void {
     this.fullAt = Number.NEGATIVE_INFINITY;
+    this.beatAt = Number.NEGATIVE_INFINITY;
   }
 
   /** Une image seule, sans ouvrir la fenêtre : l'ambiance la demande à chaque pas. */
@@ -86,7 +94,7 @@ export class FrameDemand {
   }
 
   /** Pourquoi cette image est due, ou `null` ; `pace` est l'écart voulu entre deux images complètes
-   *  au repos (battement, fil qui coule, `Infinity` onglet caché) ; une image remuée ou de battement compte comme complète.
+   *  au repos (battement, fil qui coule, `Infinity` onglet caché) ; une image remuée, de battement ou de fil compte comme complète.
    *  **Un fil qui coule porte l'ambiance** (#189) : ses images complètes jouent aussi le pas de la mer
    *  et du vent, qui n'en demande plus d'autre entre elles — 45 à 60 images par seconde au repos
    *  au lieu de 30, pour la même mer à 32 ms près. */
@@ -98,11 +106,14 @@ export class FrameDemand {
       now - this.stirredAt <= SETTLE_MS
         ? 'stirred'
         : now - this.fullAt >= pace
-          ? 'heartbeat'
+          ? now - this.beatAt >= HEARTBEAT_MS
+            ? 'heartbeat'
+            : 'flow'
           : requested && pace >= HEARTBEAT_MS && now - this.drawnAt >= this.ambientFloor
             ? 'ambient'
             : null;
-    if (reason === 'stirred' || reason === 'heartbeat') this.fullAt = now;
+    if (reason === 'stirred' || reason === 'heartbeat') this.beatAt = now;
+    if (reason !== null && reason !== 'ambient') this.fullAt = now;
     if (reason !== null) this.drawnAt = now;
     return reason;
   }

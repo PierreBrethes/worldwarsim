@@ -256,6 +256,20 @@ describe('ArcLayer.isFlowing', () => {
     expect(arcs.isFlowing).toBe(false);
   });
 
+  it('says a pawn marches while its figurine stands, and none once it is its pin', () => {
+    const arcs = layer();
+    arcs.setPlayerNation('france');
+    arcs.display([mine('a')]);
+    const head = arcs.headPositions.get('a')!.clone();
+    const eye = new PerspectiveCamera(30, 1, 0.001, 100);
+    eye.position.copy(head).add(new Vector3(0, 0.5, 0.2));
+    eye.lookAt(head);
+    arcs.animate(eye, 0.001, undefined, fieldOf(eye));
+    expect(arcs.marching).toBe(true);
+    arcs.animate({ position: new Vector3(0, 1e4, 0) } as PerspectiveCamera);
+    expect(arcs.marching).toBe(false);
+  });
+
   it('flows for a long road whose middle alone crosses the field', () => {
     const arcs = layer();
     arcs.display([mine('a', [60, 30])]);

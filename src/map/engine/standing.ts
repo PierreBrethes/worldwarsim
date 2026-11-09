@@ -1717,6 +1717,8 @@ export class StandingLayer implements SequenceHost {
       if (expected !== undefined && performance.now() - expected < EXPECT_MS) continue;
       this.expected.delete(id);
       for (const { figurine, by } of entry.held) figurine.object.position.sub(by);
+      // Pieces moved outside any gesture: their shadows are redrawn with the frames this asks.
+      if (entry.held.length > 0) this.changed();
       entry.held = [];
       if (this.grown.delete(id)) this.merged(id);
       if (this.inked.delete(id)) {

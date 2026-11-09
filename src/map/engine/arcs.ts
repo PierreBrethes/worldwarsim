@@ -674,6 +674,12 @@ export class ArcLayer {
     );
   }
 
+  /** **A piece on a road moves with the frames its thread asks**, and nothing else does: a pawn
+   *  whose figurine stands, the crates that pile up at its quay. Its shadow follows it. */
+  get marching(): boolean {
+    return this.crates.size > 0 || this.rendered.some(({ pawn }) => pawn.standing);
+  }
+
   /**
    * Hover comes from the timeline or the pointer, but the accent never climbs back to
    * React: an id comes in, opacities change, the loop keeps running at sixty frames.
