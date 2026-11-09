@@ -407,9 +407,17 @@ export class RibbonLayer implements AmbientLayer {
         }
       }
     }
-    for (const attribute of [this.positions, this.toward, this.halfWidth, this.alpha, this.index]) {
-      attribute.needsUpdate = true;
-    }
     this.mesh.geometry.setDrawRange(0, index);
+    // Nothing drawn, nothing sent: an empty range would send the whole buffer.
+    if (index === 0) return;
+    // Only what is drawn goes up: the buffers hold four screens of ribbons, thirty times a second.
+    const send = (attribute: BufferAttribute, count: number): void => {
+      attribute.clearUpdateRanges();
+      attribute.addUpdateRange(0, count);
+      attribute.needsUpdate = true;
+    };
+    for (const attribute of [this.positions, this.toward, this.halfWidth, this.alpha])
+      send(attribute, vertex * attribute.itemSize);
+    send(this.index, index);
   }
 }
