@@ -485,6 +485,22 @@ describe('a pile lent to a sequence', () => {
     expect(layer.pieceOf(TRUCK)).toBeNull();
   });
 
+  it('says when it moved pieces of its own, for their shadows to follow, and no longer once they rest', async () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+    const layer = await standing('infantry');
+    expect(layer.orient(eye)).toBe(false);
+    layer.display([pileOf('infantry', 'armor')]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // It stands first, its men held where they stood; the frame after lets them go to their rank.
+    expect(layer.orient(eye)).toBe(false);
+    expect(layer.orient(eye)).toBe(true);
+    // The ripple and the dust of the pile that grew run their time, then nothing moves.
+    clock.mockReturnValue(60_000);
+    layer.orient(eye);
+    expect(layer.orient(eye)).toBe(false);
+    clock.mockRestore();
+  });
+
   describe('a pile that grows by a troop walking to its rank', () => {
     const grown = async (
       claim: ReadonlyArray<number> | null,

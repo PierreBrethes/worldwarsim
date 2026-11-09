@@ -256,6 +256,71 @@ describe('ArcLayer.isFlowing', () => {
     expect(arcs.isFlowing).toBe(false);
   });
 
+  const lookingAt = (arcs: ArcLayer, at: Vector3) => {
+    const eye = new PerspectiveCamera(30, 1, 0.001, 100);
+    eye.position.copy(at).add(new Vector3(0, 0.5, 0.2));
+    eye.lookAt(at);
+    arcs.animate(eye, 0.001, undefined, fieldOf(eye));
+  };
+
+  it('does not flow for a road that turns round the field, though one box of it would hold it', () => {
+    const east = Array.from({ length: 41 }, (_, k) => [k * 2, 0] as const);
+    const north = Array.from({ length: 40 }, (_, k) => [80, (k + 1) * 1.5] as const);
+    const turning: ArcView = {
+      ...mine('a', [80, 60]),
+      route: {
+        mode: 'land',
+        points: [...east, ...north],
+        distanceUnits: 140,
+        costUnits: 140,
+        legs: [{ medium: 'land', distanceUnits: 140 }],
+        landCost: 1.6,
+      },
+    };
+    const arcs = layer();
+    arcs.display([turning]);
+    lookingAt(arcs, new WorldFrame(world).projectLonLat([20, 50], 0));
+    expect(arcs.isFlowing).toBe(false);
+    lookingAt(arcs, new WorldFrame(world).projectLonLat([80, 30], 0));
+    expect(arcs.isFlowing).toBe(true);
+  });
+
+  it('keeps its pace for a movement out of the field whose head slides on the screen, label or token at the edge', () => {
+    const arcs = layer();
+    arcs.display([mine('a')]);
+    lookingAt(arcs, new WorldFrame(world).projectLonLat([120, -40], 0));
+    expect(arcs.isFlowing).toBe(false);
+    const label = (x: number, y: number) => ({ id: 'a', visible: true, x, y, edgeX: 0, edgeY: 0 });
+    const token = (edgeX: number, edgeY: number) => ({
+      id: 'a',
+      visible: false,
+      x: -5000,
+      y: 9000,
+      edgeX,
+      edgeY,
+    });
+    // First told: how fast it slides is not known yet.
+    arcs.tell([label(100, 100)], 0);
+    expect(arcs.isFlowing).toBe(true);
+    // A fifth of a pixel in a second: the heartbeat moves it as well as thirty frames would.
+    arcs.tell([label(100.2, 100)], 1000);
+    expect(arcs.isFlowing).toBe(false);
+    // Read once a second, whatever the frames in between.
+    arcs.tell([label(140, 100)], 1500);
+    expect(arcs.isFlowing).toBe(false);
+    arcs.tell([label(103, 100)], 2000);
+    expect(arcs.isFlowing).toBe(true);
+    // Gone off the frame, its token parks at the edge, and is read there.
+    arcs.tell([token(0, 300)], 3000);
+    arcs.tell([token(0, 300.1)], 4000);
+    expect(arcs.isFlowing).toBe(false);
+    arcs.tell([token(0, 302)], 5000);
+    expect(arcs.isFlowing).toBe(true);
+    // Another label is no head of this layer's, however fast it goes.
+    arcs.tell([{ id: 'building-hq', visible: true, x: 0, y: 0, edgeX: 0, edgeY: 0 }], 6000);
+    expect(arcs.isFlowing).toBe(false);
+  });
+
   it('says a pawn marches while its figurine stands, and none once it is its pin', () => {
     const arcs = layer();
     arcs.setPlayerNation('france');

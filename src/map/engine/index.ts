@@ -5502,7 +5502,7 @@ export class MapEngine {
     // The maquettes first: a garrison stands at its maquette's foot as drawn this frame.
     this.sequences.step(now);
     this.maquettes.orient(this.camera.position, this.replay, Date.now());
-    this.standing.orient(this.camera.position);
+    const pilesMoved = this.standing.orient(this.camera.position);
     // A pile that never stands (a view gone, its pin far away) does not keep its recruits waiting.
     this.sorties = this.sorties.filter(
       (sortie) => !this.walkOutOf(sortie, now) && now - sortie.since < SORTIE_WAIT_MS,
@@ -5615,8 +5615,10 @@ export class MapEngine {
       },
     );
     this.clearReplayGround();
-    // A thread's frame moved no piece but a pawn on its road: the shadows of the frame before stand.
-    this.renderer.shadowMap.needsUpdate = whole && (reason !== 'flow' || this.arcs.marching);
+    // A thread's frame moved no piece but a pawn on its road, or a pile that let its own go: the
+    // shadows of the frame before stand.
+    this.renderer.shadowMap.needsUpdate =
+      whole && (reason !== 'flow' || this.arcs.marching || pilesMoved);
     const shadowed = this.lamp.follow(this.controls.target, distance);
     const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
     if (this.replay) pieces.push(this.replay.scene.object);
@@ -5685,6 +5687,7 @@ export class MapEngine {
       this.arcs.headPositions,
       this.camera.position,
     );
+    this.arcs.tell(projections);
     this.onLabels(this.outsideReplay(projections, distance));
     this.onContacts(contactSpots);
     this.onReportsFrame?.();

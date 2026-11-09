@@ -154,6 +154,8 @@ export class ArcLayer {
   private cameraYaw = 0;
   /** The eye's field at the last frame: a file out of it is not laid out. */
   private inView: Frustum | null = null;
+  /** Where each head was last read on the screen, and whether it slides there (`tell`). */
+  private readonly told = new Map<string, { x: number; y: number; at: number; slides: boolean }>();
   private playerNation: string | null = null;
   private rendered: RenderedArc[] = [];
 
@@ -662,16 +664,51 @@ export class ArcLayer {
    *  marche. Tant qu'il y en a un dans le champ, la boucle demande une image par pas de fil
    *  (`flowPaceOf`, `frame-demand.ts`), pas une à chaque rafraîchissement. **Hors du champ, il ne
    *  demande rien** : un seul mouvement à l'autre bout du monde tenait la carte à trente images
-   *  complètes par seconde, ombres et étiquettes refaites, pour des tirets que personne ne voit. */
+   *  complètes par seconde, ombres et étiquettes refaites, pour des tirets que personne ne voit.
+   *  Sa tête dite à l'écran (`tell`) le garde au pas : elle y glisse encore. */
   get isFlowing(): boolean {
     if (this.motion === 'off') return false;
     const inView = this.inView;
     // No frame yet: a thread shown does not wait for the field to be known.
     if (inView === null) return this.rendered.length > 0;
+    for (const { slides } of this.told.values()) if (slides) return true;
     const margin = SIGHT_MARGIN + SIGHT_MARGIN_PX * this.unitsPerPixel;
     return this.rendered.some(({ sight }) =>
       sight.some((box) => inView.intersectsBox(SEEN.copy(box).expandByScalar(margin))),
     );
+  }
+
+  /**
+   * **What the screen says of the heads**, after each whole frame. A movement out of the field
+   * still has its label a little past the frame, or its token at the edge: one that slides there
+   * keeps the map at its thread's pace (a column in Blitz seen from close, a plane), and one that
+   * creeps is moved by the heartbeat, by less than half a pixel at a time. Read once a heartbeat:
+   * between two frames a slide is noise.
+   */
+  tell(
+    labels: ReadonlyArray<{
+      readonly id: string;
+      readonly visible: boolean;
+      readonly x: number;
+      readonly y: number;
+      readonly edgeX: number;
+      readonly edgeY: number;
+    }>,
+    now: number = performance.now(),
+  ): void {
+    const heads = new Set<string>();
+    for (const { id, visible, x, y, edgeX, edgeY } of labels) {
+      if (!this.pawnById.has(id)) continue;
+      heads.add(id);
+      const was = this.told.get(id);
+      if (was !== undefined && now - was.at < HEARTBEAT_MS) continue;
+      const [sx, sy] = visible ? [x, y] : [edgeX, edgeY];
+      // First told, it keeps the pace: how fast it slides is not known yet.
+      const slides =
+        was === undefined || Math.hypot(sx - was.x, sy - was.y) * 1000 > TOLD_PX_S * (now - was.at);
+      this.told.set(id, { x: sx, y: sy, at: now, slides });
+    }
+    for (const id of this.told.keys()) if (!heads.has(id)) this.told.delete(id);
   }
 
   /** **A piece on a road moves with the frames its thread asks**, and nothing else does: a pawn
@@ -904,11 +941,15 @@ export class ArcLayer {
 
 /** A thread's vertices to a box of its sight: one box for a long road would hold half a continent. */
 const SIGHT_RUN = 16;
-/** What is drawn round a thread's line, in pixels: its width, a dock's mark, a piece at its floor. */
-const SIGHT_MARGIN_PX = 24;
+/** What is drawn round a thread's line, in pixels: its width, a dock's mark, a piece at its floor,
+ *  the halo of its pin (34), the outer rank of its column (40). */
+const SIGHT_MARGIN_PX = 48;
 /** The longest piece on a road, at the largest size a player sets (125 %). */
 const SIGHT_MARGIN = 1.25 * troopSpan('carrier');
 const SEEN = new Box3();
+/** **A head told on the screen slides there from this speed**, in pixels a second: under it, a
+ *  frame a second moves it by less than half a pixel. `@a-mesurer` */
+const TOLD_PX_S = 0.5;
 
 function sightOf(legs: ReadonlyArray<ThreadLeg>, rest: Vector3 | null): Box3[] {
   const boxes = rest === null ? [] : [new Box3().setFromPoints([rest])];

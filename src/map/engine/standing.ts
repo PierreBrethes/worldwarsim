@@ -1714,7 +1714,10 @@ export class StandingLayer implements SequenceHost {
     this.dust(foot.at, 8, 0.8, foot.scale);
   }
 
-  orient(cameraPosition: Vector3): void {
+  /** Says whether it moved pieces of its own — held ones let go, an effect running: nothing else
+   *  asks for the frame they move in, and their shadows must follow them (`loop`). */
+  orient(cameraPosition: Vector3): boolean {
+    let moved = this.effects.length > 0;
     // What no walk claimed by the frame after its pile first stood stands at once (`arrive`).
     for (const [id, entry] of this.dressed) {
       if (!entry.stood) continue;
@@ -1722,8 +1725,7 @@ export class StandingLayer implements SequenceHost {
       if (expected !== undefined && performance.now() - expected < EXPECT_MS) continue;
       this.expected.delete(id);
       for (const { figurine, by } of entry.held) figurine.object.position.sub(by);
-      // Pieces moved outside any gesture: their shadows are redrawn with the frames this asks.
-      if (entry.held.length > 0) this.changed();
+      moved ||= entry.held.length > 0;
       entry.held = [];
       if (this.grown.delete(id)) this.merged(id);
       if (this.inked.delete(id)) {
@@ -1839,6 +1841,7 @@ export class StandingLayer implements SequenceHost {
       effect.end();
       return false;
     });
+    return moved;
   }
 
   /**
