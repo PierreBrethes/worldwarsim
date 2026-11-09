@@ -39,6 +39,8 @@ export class NameSheet {
   private readonly context: CanvasRenderingContext2D | null;
   private readonly widths = new Map<string, number>();
   private family = 'serif';
+  /** What the sheet holds was painted from this (`paint`). */
+  private painted = '';
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.context = canvas.getContext('2d');
@@ -70,6 +72,22 @@ export class NameSheet {
     const context = this.context;
     if (context === null) return;
     const ratio = devicePixelRatio;
+    // Blue on the night's blue would vanish: under the moon the ink climbs to a pale blue.
+    const seaInk = inkAt(SEA_INK, spots.night);
+    // **The same names are painted once.** A whole frame comes thirty times a second while a
+    // thread flows or a ring beats, and each wiped a canvas the size of the screen to paint the
+    // image it held. The font's landing counts: a width taken on the fallback is not kept.
+    const asked = JSON.stringify([
+      { ...spots, night: seaInk },
+      occupied,
+      size,
+      touch,
+      field,
+      ratio,
+      document.fonts.status,
+    ]);
+    if (asked === this.painted) return;
+    this.painted = asked;
     const [width, height] = [Math.round(size.width * ratio), Math.round(size.height * ratio)];
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
@@ -202,8 +220,7 @@ export class NameSheet {
     context.letterSpacing = `${SEA_SPACING_PX}px`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    // Blue on the night's blue would vanish: under the moon the ink climbs to a pale blue.
-    context.fillStyle = inkAt(SEA_INK, spots.night);
+    context.fillStyle = seaInk;
     for (const { index, spot } of seas) {
       const { box, lines } = seaDrawn[index]![spot]!;
       const x = (box.left + box.right) / 2;
