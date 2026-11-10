@@ -14,6 +14,7 @@ import type { Wear } from '@/domain/pile-pieces';
 import type { UnitRole } from '@/domain/ids';
 import type { Medium } from '@/domain/routing';
 import { faceCamera } from './billboard';
+import { leaveHiddenPartsUnplaced } from './hidden-parts';
 import {
   altitudeShadow,
   ANONYMOUS_SPAN,
@@ -235,6 +236,8 @@ export class Pawn {
     column: ReadonlyArray<ColumnPiece> | null = null,
   ) {
     this.color = color;
+    // The figurines of the mediums it does not wear, and its file once it is its pin, wait hidden.
+    leaveHiddenPartsUnplaced(this.object);
     const marching = column !== null && column.length > 0;
     for (const medium of ['land', 'sea', 'air'] as const) {
       if (medium === 'land' && marching) continue;

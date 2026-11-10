@@ -24,6 +24,7 @@ import type { Forbidden } from '@/domain/drop-order';
 import { destinationPoint, samePoint, type LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { leaveHiddenPartsUnplaced } from './hidden-parts';
 import type { PilePieces } from '@/domain/pile-pieces';
 import type { UnitRole, UnitTier } from '@/domain/ids';
 import { AIRFIELD } from '@/emblems/kits/manifest';
@@ -875,7 +876,10 @@ export class StandingLayer implements SequenceHost {
     private readonly garrisonAt: GarrisonAt,
     /** Toward the water from a point on a shore, `null` inland (`formationOf`). */
     private readonly seaward: (lonLat: LonLat) => readonly [number, number] | null = () => null,
-  ) {}
+  ) {
+    // A pile gone to its pin keeps its place, and its figurines are not walked at every frame.
+    leaveHiddenPartsUnplaced(this.group);
+  }
 
   setNation(nation: string | null): void {
     this.nation = nation;
