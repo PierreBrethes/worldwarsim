@@ -78,10 +78,10 @@ function useLobbyBeat(seat: Seat, beating: boolean) {
 }
 
 /**
- * **La table d'état-major** (choix 2) : la carte gravée du théâtre ou du monde au centre, un carton
- * par place autour, l'ordre d'opérations replié à gauche, le télégraphe en fenêtre à droite, et
- * « votre place » dessous. Le salon trie : il ne montre que ce qui sert la décision du moment, et
- * dit en une phrase ce que la table attend.
+ * **La table d'état-major** (choix 2) : un carton par joueur au-dessus de la carte gravée du
+ * théâtre ou du monde, « ma place » dessous, l'ordre d'opérations et le télégraphe dans la
+ * colonne. Le salon dit en un regard qui est là, et en une phrase ce que la table attend ; il
+ * n'offre qu'un geste à la fois, celui que `tableStepOf` désigne.
  */
 export function ConnectedLobby({ seat }: { seat: Seat }) {
   const navigate = useNavigate();

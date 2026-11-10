@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { fr } from '@/i18n/fr';
 import type { LonLat } from '@/domain/geo';
 import { CAPITAL_BY_NATION, INK_BY_NATION, NATIONS, typeInk, type Nation } from '@/domain/nations';
@@ -110,7 +110,7 @@ export function Situation({ world }: { world: boolean }) {
         labelPx={world ? 15 : 13}
       >
         <defs>
-          {ORDERS.map(([nation, point]) => (
+          {ORDERS.map(([nation, point], index) => (
             <mask
               key={point}
               id={`lp-reveal-${point}`}
@@ -122,6 +122,7 @@ export function Situation({ world }: { world: boolean }) {
             >
               <path
                 className="lp-order-reveal"
+                style={rankOf(index)}
                 d={routeOf(plot, nation, point).d}
                 pathLength={1}
                 fill="none"
@@ -136,7 +137,7 @@ export function Situation({ world }: { world: boolean }) {
           const ink = typeInk(INK_BY_NATION[nation]);
           const [x, y] = spot(plot, CAPITAL_BY_NATION[nation]);
           return (
-            <g key={point} className="lp-order" style={{ '--rank': index } as React.CSSProperties}>
+            <g key={point} className="lp-order" style={rankOf(index)}>
               <path
                 d={route.d}
                 mask={`url(#lp-reveal-${point})`}
@@ -185,6 +186,9 @@ export function Situation({ world }: { world: boolean }) {
     </div>
   );
 }
+
+/** Le rang d'un ordre, que la feuille de style lit pour les faire partir l'un après l'autre. */
+const rankOf = (rank: number) => ({ '--rank': rank }) as CSSProperties;
 
 type Route = { readonly d: string; readonly end: Point; readonly bend: Point };
 type Point = readonly [number, number];

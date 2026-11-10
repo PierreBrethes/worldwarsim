@@ -192,7 +192,7 @@
 
 :root[data-motion='full'] .lp-map[data-drawn] .lp-order-head {
   animation: lp-land 0.25s var(--ease-out) both;
-  animation-delay: calc(1.6s + var(--rank) * 0.22s);
+  animation-delay: calc(1.75s + var(--rank) * 0.22s);
 }
 
 @keyframes lp-trace {
@@ -288,10 +288,11 @@
   position: relative;
 }
 
+/* Ancré par sa gauche : sa largeur change quand sa fonte arrive, pas sa place. */
 .lp-coupon-stamp {
   position: absolute;
   top: -13px;
-  right: 14px;
+  left: 50%;
   background: color-mix(in srgb, var(--paper) 62%, white);
 }
 
