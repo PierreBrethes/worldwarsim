@@ -3,6 +3,7 @@ import {
   Group,
   Mesh,
   MeshStandardMaterial,
+  type Object3D,
   Raycaster,
   type RingGeometry,
   Vector3,
@@ -483,6 +484,19 @@ describe('a pile lent to a sequence', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     layer.orient(eye);
     expect(layer.pieceOf(TRUCK)).toBeNull();
+  });
+
+  it('leaves the figurines of a pile gone to its pin unplaced, frame after frame', async () => {
+    const layer = await standing('infantry');
+    let part: Object3D = layer.group;
+    while (part.children[0] !== undefined) part = part.children[0];
+    const placed = vi.spyOn(part, 'updateMatrixWorld');
+    layer.group.updateMatrixWorld();
+    expect(placed).toHaveBeenCalled();
+    placed.mockClear();
+    layer.orient(new Vector3(0, 1e4, 0));
+    layer.group.updateMatrixWorld();
+    expect(placed).not.toHaveBeenCalled();
   });
 
   it('says when it moved pieces of its own, for their shadows to follow, and no longer once they rest', async () => {

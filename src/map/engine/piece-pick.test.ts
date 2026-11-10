@@ -8,7 +8,8 @@ import {
   Raycaster,
   Vector3,
 } from 'three';
-import { drawnHit, leastHit, nearer } from './piece-pick';
+import { leaveHiddenPartsUnplaced } from './hidden-parts';
+import { drawnHit, footedHit, leastHit, nearer } from './piece-pick';
 import { pieceScale } from './piece-scale';
 
 const down = (x: number) => new Raycaster(new Vector3(x, 10, 0), new Vector3(0, -1, 0));
@@ -39,6 +40,23 @@ describe('drawnHit', () => {
     hidden.add(object);
     hidden.visible = false;
     expect(drawnHit(down(0), object)).toBeNull();
+  });
+});
+
+describe('footedHit', () => {
+  it('casts at the footprints where they stand now, not where the last frame placed them', () => {
+    const board = new Group();
+    const copy = new Group();
+    const foot = new Mesh(new BoxGeometry(1, 0.1, 1), new MeshBasicMaterial());
+    board.add(copy.add(foot));
+    leaveHiddenPartsUnplaced(board);
+    board.updateMatrixWorld();
+    expect(footedHit(down(0), copy, [foot])).not.toBeNull();
+    // A copy let go, then left behind by the eye: hidden and shrunk to nothing, it takes no press.
+    copy.visible = false;
+    copy.scale.setScalar(0);
+    board.updateMatrixWorld();
+    expect(footedHit(down(0), copy, [foot])).toBeNull();
   });
 });
 

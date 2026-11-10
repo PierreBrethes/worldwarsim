@@ -1,5 +1,5 @@
 import { troopSpan } from '@/domain/piece-size';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Group, Vector3 } from 'three';
 import type { Medium } from '@/domain/routing';
 import type { Figurine } from './figurines/figurine';
@@ -120,6 +120,18 @@ describe('the life of a piece of mine on its road', () => {
     pawn.orient(close, 0);
   };
   const dustOf = (land: Figurine) => land.object.children.find((child) => child.type === 'Group')!;
+
+  it('leaves the figurine it does not wear unplaced, and places it once it stands', () => {
+    const { pawn, land } = tank(false);
+    const part = new Group();
+    land.object.add(part);
+    const placed = vi.spyOn(part, 'updateMatrixWorld');
+    pawn.object.updateMatrixWorld();
+    expect(placed).not.toHaveBeenCalled();
+    roll(pawn, false);
+    pawn.object.updateMatrixWorld();
+    expect(placed).toHaveBeenCalled();
+  });
 
   it('raises dust and jolts a vehicle that rolls, at full motion only', () => {
     const { pawn, land } = tank(true);

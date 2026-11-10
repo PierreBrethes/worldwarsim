@@ -28,13 +28,19 @@ export function drawnHit(ray: Raycaster, object: Object3D): number | null {
   return nearest;
 }
 
-/** A piece drawn or, where a rifle is a pixel wide, the footprints it is taken by. */
-export const footedHit = (
+/** A piece drawn or, where a rifle is a pixel wide, the footprints it is taken by — placed here,
+ *  where they stand now: the frame leaves the parts of a hidden piece where it last drew them
+ *  (`leaveHiddenPartsUnplaced`), and a copy shrunk to nothing would be taken there. */
+export function footedHit(
   ray: Raycaster,
   object: Object3D,
   footprints: ReadonlyArray<Object3D>,
-): number | null =>
-  drawnHit(ray, object) ?? ray.intersectObjects([...footprints], false)[0]?.distance ?? null;
+): number | null {
+  const drawn = drawnHit(ray, object);
+  if (drawn !== null) return drawn;
+  for (const footprint of footprints) footprint.updateWorldMatrix(true, false);
+  return ray.intersectObjects([...footprints], false)[0]?.distance ?? null;
+}
 
 /** **The least width a piece takes on screen**, in CSS pixels (ADR 0035 §4): a small piece stays
  *  easy to take. `@a-mesurer` */

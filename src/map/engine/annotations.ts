@@ -17,7 +17,6 @@ import type { Medium } from '@/domain/routing';
 import { surveyInk } from '@/domain/survey-ink';
 import { ANONYMOUS_SPAN, FIGURINE_SCALE, troopScale, type Figurine } from './figurines/figurine';
 import { COUNTRY_THICKNESS, SEA_LEVEL, type WorldFrame } from './frame';
-import { leaveHiddenPartsUnplaced } from './hidden-parts';
 import { boxOfObject, drawnHit, leastHit, nearer, type PieceHit } from './piece-pick';
 import { SILHOUETTES } from './silhouettes';
 import { InkRing, type RingState } from './ink-ring';
@@ -203,9 +202,7 @@ export class CampLayer {
   private marked: { readonly id: string; readonly state: RingState } | null = null;
   motion: MapMotion = 'full';
 
-  constructor(private readonly frame: WorldFrame) {
-    leaveHiddenPartsUnplaced(this.group);
-  }
+  constructor(private readonly frame: WorldFrame) {}
 
   /** Diffed by sighting id: the view is re-served at every step of any column. */
   display(camps: ReadonlyArray<SurveyedCamp>): void {
