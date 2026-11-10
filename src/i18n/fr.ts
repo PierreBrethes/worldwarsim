@@ -1861,7 +1861,7 @@ export const fr = {
   /** **Le champ de code** (`CodeField`), sur la une et sur l'accueil : ce qu'il dit avant le
    *  geste, jamais un bouton grisé. */
   codeField: {
-    hint: 'Six caractères, reçus avec l’invitation : elle s’ouvre au sixième.',
+    hint: 'Au sixième caractère, l’invitation s’ouvre.',
     missing: (count: number) =>
       `Il en manque ${count === 1 ? 'un' : spelled(count)} : l’invitation ne s’ouvre qu’avec les six.`,
     stray: (letter: string) =>

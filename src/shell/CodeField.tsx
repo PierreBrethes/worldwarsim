@@ -7,7 +7,9 @@ import './code-field.css';
  * **Le code d'invitation : six cases, et aucun bouton.** Un seul champ, dessiné comme six cases —
  * six champs casseraient le collage, la saisie automatique et la correction, que tout le monde
  * attend d'un champ. L'invitation s'ouvre au sixième caractère, et la ligne sous les cases le dit
- * avant la frappe : la page ne change jamais sans l'avoir annoncé.
+ * avant la frappe : la page ne change jamais sans l'avoir annoncé. Chaque caractère tapé est
+ * frappé dans sa case (`data-struck`, `code-field.css`) ; ce que la page fait du code complet,
+ * un coupon qui part sur la une, est son affaire (`onOpen`).
  *
  * Rien n'est grisé : une lettre qu'aucun code ne porte est dite en rouge à la frappe, par
  * l'alphabet même du tirage (`gameCodeEntry`), et un code incomplet validé dit ce qui lui manque.
@@ -24,6 +26,7 @@ export function CodeField({
   const field = useRef<HTMLInputElement>(null);
   const [typed, setTyped] = useState('');
   const [asked, setAsked] = useState(false);
+  const [struck, setStruck] = useState<number | null>(null);
   const entry = gameCodeEntry(typed);
   const missing = GAME_CODE_LENGTH - entry.typed.length;
 
@@ -31,6 +34,8 @@ export function CodeField({
    *  compterait avant qu'on ne la retire. */
   const accept = (raw: string) => {
     const next = gameCodeEntry(raw);
+    /** Une frappe pose un caractère, un collage plusieurs : il ne rejoue pas six frappes. */
+    setStruck(next.typed.length === entry.typed.length + 1 ? next.typed.length - 1 : null);
     setTyped(next.typed);
     setAsked(false);
     if (next.code !== null) onOpen(next.code);
@@ -62,6 +67,7 @@ export function CodeField({
             key={index}
             aria-hidden
             data-full={index < entry.typed.length ? '' : undefined}
+            data-struck={index === struck ? '' : undefined}
             style={{ left: `${index * CELL_EM}em` }}
           />
         ))}

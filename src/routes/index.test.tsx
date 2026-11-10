@@ -11,12 +11,15 @@ import {
 import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { peekArrival, takeArrival } from '@/data/arrival';
+import { setMapMotionSetting } from '@/data/mapMotion';
 import { forgetSession, keepSession } from '@/data/session';
-import { Landing } from './-index/Landing';
+import { COUPON_DEPARTURE_MS, Landing } from './-index/Landing';
 import { Route as ConnexionRoute } from './connexion';
 import { Route as IndexRoute } from './index';
 
 afterEach(() => {
+  vi.useRealTimers();
+  setMapMotionSetting('auto');
   cleanup();
   forgetSession();
   takeArrival();
@@ -122,17 +125,85 @@ it('mène « fonder une partie » à l’ouverture d’un dossier puis à la fon
   await waitFor(() => expect(router.state.location.search).toEqual({}));
 });
 
-it('ouvre l’invitation au sixième caractère, en capitales, sans bouton', async () => {
+const coupon = () => screen.getByRole('region', { name: fr.front.coupon });
+const struckCells = () => document.querySelectorAll('.code-cells [data-struck]').length;
+
+/** Rendre l'horloge sans l'avancer laisse tomber tout délai encore en attente : une navigation
+ *  qui arrive ensuite n'en attendait aucun. */
+const opened = async (router: ReturnType<typeof mount>, code: string) => {
+  vi.useRealTimers();
+  await waitFor(() => expect(router.state.location.pathname).toBe(`/rejoindre/${code}`));
+};
+
+it('ouvre l’invitation au sixième caractère, en capitales, sans bouton, le temps que le coupon parte', async () => {
   const router = mount();
   const field = await codeField();
   expect(screen.queryByRole('button', { name: /invitation/ })).toBeNull();
+  vi.useFakeTimers();
 
   fireEvent.change(field, { target: { value: 'k7q2p' } });
-  expect(router.state.location.pathname).toBe('/');
+  expect(coupon().hasAttribute('data-leaving')).toBe(false);
   fireEvent.change(field, { target: { value: ' k7q2px ' } });
+  expect(coupon().hasAttribute('data-leaving')).toBe(true);
 
-  await waitFor(() => expect(router.state.location.pathname).toBe('/rejoindre/K7Q2PX'));
+  await vi.advanceTimersByTimeAsync(COUPON_DEPARTURE_MS - 1);
+  expect(router.state.location.pathname).toBe('/');
+  await vi.advanceTimersByTimeAsync(1);
+  await opened(router, 'K7Q2PX');
 });
+
+/** Le délai décide seul : jsdom ne joue aucune animation et n'émet jamais `animationend`, et
+ *  l'invitation s'ouvre quand même. Il reste court : l'animation récompense, elle ne retient pas. */
+it('borne le départ du coupon à une demi-seconde', () => {
+  expect(COUPON_DEPARTURE_MS).toBeGreaterThan(0);
+  expect(COUPON_DEPARTURE_MS).toBeLessThanOrEqual(500);
+});
+
+it.each(['reduced', 'off'] as const)(
+  'ouvre l’invitation sans délai ni départ quand les animations sont « %s »',
+  async (setting) => {
+    setMapMotionSetting(setting);
+    const router = mount();
+    const field = await codeField();
+    vi.useFakeTimers();
+
+    fireEvent.change(field, { target: { value: 'k7q2px' } });
+
+    expect(coupon().hasAttribute('data-leaving')).toBe(false);
+    await opened(router, 'K7Q2PX');
+  },
+);
+
+it('frappe la case du caractère tapé, et aucune quand le code est collé', async () => {
+  mount();
+  const field = await codeField();
+
+  fireEvent.change(field, { target: { value: 'k' } });
+  expect(document.querySelectorAll('.code-cells span')[0]?.hasAttribute('data-struck')).toBe(true);
+  fireEvent.change(field, { target: { value: 'k7' } });
+  expect(document.querySelectorAll('.code-cells span')[1]?.hasAttribute('data-struck')).toBe(true);
+  expect(struckCells()).toBe(1);
+
+  fireEvent.change(field, { target: { value: 'k7q2p' } });
+  expect(struckCells()).toBe(0);
+});
+
+it.each(['k7q2px', 'https://exemple.test/rejoindre/k7q2px?depuis=sms'])(
+  'remplit les six cases d’un coup pour « %s » collé, puis détache le coupon',
+  async (pasted) => {
+    const router = mount();
+    const field = await codeField();
+    vi.useFakeTimers();
+
+    fireEvent.change(field, { target: { value: pasted } });
+
+    expect(struckCells()).toBe(0);
+    expect(document.querySelectorAll('.code-cells [data-full]').length).toBe(6);
+    expect(coupon().hasAttribute('data-leaving')).toBe(true);
+    await vi.advanceTimersByTimeAsync(COUPON_DEPARTURE_MS);
+    await opened(router, 'K7Q2PX');
+  },
+);
 
 it('prévient avant la frappe que l’invitation s’ouvre au sixième caractère', async () => {
   mount();
@@ -158,13 +229,17 @@ it('dit en rouge ce qui manque à un code incomplet qu’on valide, et garde la 
 
 /** Un code que l'alphabet ne tire jamais n'ouvre rien : la page d'invitation n'aurait fait que
  *  le refuser, un écran plus loin. */
-it('refuse à la frappe la lettre qu’aucun code ne porte, et n’ouvre pas avec elle', async () => {
+it('refuse à la frappe la lettre qu’aucun code ne porte : rien ne s’ouvre, le coupon reste', async () => {
   const router = mount();
   const field = await codeField();
+
+  vi.useFakeTimers();
 
   fireEvent.change(field, { target: { value: 'k7q2p0' } });
 
   expect(screen.getByText(fr.codeField.stray('0'))).toBeTruthy();
+  expect(coupon().hasAttribute('data-leaving')).toBe(false);
+  await vi.advanceTimersByTimeAsync(COUPON_DEPARTURE_MS * 2);
   expect(router.state.location.pathname).toBe('/');
 });
 

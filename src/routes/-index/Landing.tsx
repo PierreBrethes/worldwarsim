@@ -1,6 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { fr } from '@/i18n/fr';
+import { useMapMotion } from '@/data/mapMotion';
 import { EngravedDefs } from '@/emblems/EngravedMap';
 import { CodeField } from '@/shell/CodeField';
 import { Wordmark } from '@/shell/Masthead';
@@ -27,14 +28,40 @@ function useWideSheet(): boolean {
  * **La une publique : une feuille, une carte, un coupon.** Comme la une d'un quotidien de 1940,
  * elle porte sa manchette, un titre en bandeau et la carte de la situation — qui est le jeu : la
  * carte du monde réel, huit nations, sept points, des ordres qui partent. Posé sur la carte, le
- * coupon-réponse : le code d'invitation, et les deux autres portes (fonder, entrer).
+ * coupon-réponse : le code d'invitation, et les deux autres portes (fonder, entrer). Au sixième
+ * caractère le coupon se détache et part, puis l'invitation s'ouvre ; animations réduites ou
+ * coupées, elle s'ouvre aussitôt.
  *
  * Tout tient dans l'écran. Aucune donnée de partie, aucune requête au serveur ; le film ne se
  * charge que si on le demande.
  */
+/**
+ * Le temps que le coupon met à se détacher avant que l'invitation ne s'ouvre, animations actives.
+ * C'est ce délai qui ouvre, pas la fin de l'animation : un onglet en arrière-plan ou un style
+ * absent ne rendent jamais `animationend`. `landing.css` le lit par `--departure`.
+ * @a-mesurer
+ */
+export const COUPON_DEPARTURE_MS = 420;
+
 export function Landing() {
   const navigate = useNavigate();
   const world = useWideSheet();
+  const motion = useMapMotion();
+  const [leaving, setLeaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (leaving === null) return;
+    const departure = setTimeout(
+      () => void navigate({ to: '/rejoindre/$code', params: { code: leaving } }),
+      COUPON_DEPARTURE_MS,
+    );
+    return () => clearTimeout(departure);
+  }, [leaving, navigate]);
+
+  const open = (code: string) => {
+    if (motion === 'full') setLeaving(code);
+    else void navigate({ to: '/rejoindre/$code', params: { code } });
+  };
 
   return (
     <div className="lp">
@@ -65,14 +92,16 @@ export function Landing() {
             </figcaption>
           </figure>
 
-          <section className="lp-coupon" aria-label={fr.front.coupon}>
+          <section
+            className="lp-coupon"
+            aria-label={fr.front.coupon}
+            data-leaving={leaving === null ? undefined : ''}
+            style={{ '--departure': `${COUPON_DEPARTURE_MS}ms` } as CSSProperties}
+          >
             <span className="lp-coupon-stamp">
               <Stamp label={fr.front.onInvitation} tone="critical" />
             </span>
-            <CodeField
-              label={fr.front.codeLabel}
-              onOpen={(code) => void navigate({ to: '/rejoindre/$code', params: { code } })}
-            />
+            <CodeField label={fr.front.codeLabel} onOpen={open} />
             <p className="lp-doors">
               <span>{fr.front.noCode}</span>
               <Link to="/connexion" search={{ ouvrir: true, suite: 'fonder' }}>

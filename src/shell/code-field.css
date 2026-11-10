@@ -37,10 +37,55 @@
   background: color-mix(in srgb, var(--paper) 60%, white);
 }
 
+/* La frappe, animations actives seulement : la case cède sous le caractère et l'encre s'écrase
+   autour de lui, le temps d'une touche de machine. Le collage ne frappe aucune case. */
+:root[data-motion='full'] .code-cells span[data-struck] {
+  animation: code-strike var(--dur-quick) var(--ease-out);
+}
+
+:root[data-motion='full'] .code-cells span[data-struck]::after {
+  content: '';
+  position: absolute;
+  inset: 16% 10%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--ink) 60%, transparent),
+    transparent
+  );
+  opacity: 0;
+  animation: code-ink var(--dur-quick) linear;
+}
+
+@keyframes code-strike {
+  from {
+    transform: translateY(1.5px) scale(0.95);
+    background: color-mix(in srgb, var(--ink) 14%, var(--paper));
+  }
+}
+
+@keyframes code-ink {
+  from {
+    opacity: 0.6;
+    transform: scale(0.55);
+  }
+
+  35% {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+/* Un pas plus large que les cases : l'interlettrage suit aussi le sixième caractère, et un champ
+   à la largeur des cases défilait pour montrer le curseur, décalant les six lettres. */
 .code-cells input {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  inset: 0 auto 0 0;
+  width: calc(100% + 2.5em);
   padding: 0 0 0 calc(1.1em - 0.5ch);
   border: 0;
   outline: none;
