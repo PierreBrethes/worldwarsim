@@ -9,6 +9,19 @@ import { EngravedMap, plotterOf, useEngravedLand, type Box } from '@/emblems/Eng
 const EUROPE_BOX: Box = [-28, 26, 52, 72];
 
 /**
+ * L'Europe au format de son cadre : du 26ᵉ au 72ᵉ nord toujours, et plus large vers l'Atlantique
+ * et la Russie si le cadre l'est — rogner le nord emporterait Narvik.
+ */
+const europeBoxOf = (size: { readonly width: number; readonly height: number }): Box => {
+  const [west, south, east, north] = EUROPE_BOX;
+  const plot = plotterOf(EUROPE_BOX);
+  const tall = plot(0, south)[1] - plot(0, north)[1];
+  const reach = Math.max(east - west, (tall * size.width) / Math.max(1, size.height));
+  const middle = (west + east) / 2;
+  return [middle - reach / 2, south, middle + reach / 2, north];
+};
+
+/**
  * Le monde au format de son cadre : depuis le 80ᵉ nord et le milieu du Pacifique, vers l'est
  * jusqu'au Japon au moins et jusqu'au tour complet si le cadre est large, et vers le sud aussi
  * loin que le cadre est haut. C'est le sud qui s'ajuste : Narvik reste, et le coin sud-ouest est
@@ -85,7 +98,7 @@ export function Situation({ world }: { world: boolean }) {
     return () => observer.disconnect();
   }, []);
 
-  const box = world ? worldBoxOf(size) : EUROPE_BOX;
+  const box = world ? worldBoxOf(size) : europeBoxOf(size);
   const plot = plotterOf(box, { flat: world });
   const [west, north] = plot(box[0], box[3]);
   const [east, south] = plot(box[2], box[1]);

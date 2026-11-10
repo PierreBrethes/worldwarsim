@@ -491,7 +491,7 @@
   }
 
   .lp-plate figure > div {
-    height: min(39dvh, 92vw);
+    height: min(36dvh, 92vw);
   }
 
   .lp-plate figcaption {
