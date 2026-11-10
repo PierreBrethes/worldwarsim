@@ -318,6 +318,10 @@
   text-underline-offset: 4px;
 }
 
+.lp-coupon .code-field {
+  font-size: 20px;
+}
+
 /* La phrase sous les cases tient sa hauteur : une ligne ici, deux sur l'écran étroit. */
 .lp-coupon .code-say {
   height: 1.35em;

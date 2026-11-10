@@ -645,6 +645,10 @@ function TableMap({
     return () => observer.disconnect();
   }, []);
   const held = lobby.players.filter((player) => isNation(player.nation));
+  const width = size?.width ?? 780;
+  /** Sur une carte de téléphone, les lignes d'eau s'affinent et les noms de mers se taisent :
+   *  à cette taille ils se posaient sur les côtes. */
+  const narrow = width < 520;
   const sheet =
     blitz && lobby.theatre !== null ? fr.table.sheets[lobby.theatre as TheatreId] : null;
   return (
@@ -652,19 +656,13 @@ function TableMap({
       <div className="mapbox" ref={box2}>
         <EngravedMap
           box={box}
-          px={size?.width ?? 780}
+          px={width}
           frame={blitz ? box : undefined}
           veil={0.3}
           pad={blitz ? 0.04 : 0.01}
           flat={!blitz}
           gratStep={blitz ? 5 : 15}
-          rings={
-            (size?.width ?? 780) < 520
-              ? [5, 2.4]
-              : blitz
-                ? [16, 11.5, 7.5, 4.2, 1.9]
-                : [9, 5.5, 2.6]
-          }
+          rings={narrow ? [5, 2.4] : blitz ? [16, 11.5, 7.5, 4.2, 1.9] : [9, 5.5, 2.6]}
           nations={
             blitz
               ? {}
@@ -672,7 +670,7 @@ function TableMap({
                   held.map((player) => [player.nation!, { mine: player.nation === meNation }]),
                 )
           }
-          labels={sheet?.seas ?? fr.table.worldSeas}
+          labels={narrow ? [] : (sheet?.seas ?? fr.table.worldSeas)}
           labelPx={blitz ? 19 : 15}
         />
       </div>

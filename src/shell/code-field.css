@@ -1,12 +1,12 @@
 /* Le champ de code (`CodeField.tsx`) : un champ, six cases. Les cases font 2,2em de large et
-   2,5em de pas ; les lettres du champ sont espacées pour y tomber. Tout se mesure en `em` : la
-   page qui le porte règle sa taille par `font-size` sur `.code-field`. */
+   2,5em de pas ; les lettres du champ sont espacées pour y tomber. Tout se mesure en `em`, et
+   aucune taille n'est écrite ici : la page qui porte le champ la règle par `font-size` sur
+   `.code-field` (20 px sur la une, 17 dans l'annonce de l'accueil). */
 
 .code-field {
   display: grid;
   gap: 0.45em;
   justify-items: start;
-  font-size: 20px;
 }
 
 .code-field label {
