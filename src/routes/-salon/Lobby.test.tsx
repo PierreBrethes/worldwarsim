@@ -255,15 +255,21 @@ it('launches in one click once the others are ready: the founder’s « prêt »
  */
 it('says a refused launch and does not offer the founder to lift a « prêt » nobody waits for', async () => {
   const founder = player('Pierre', { creator: true, mine: true, nation: 'france' });
-  const { sent } = mount([founder, player('Léa', { nation: 'germany', ready: true })], (name, serve) => {
-    if (name === 'players:declareReady') {
-      serve(
-        lobbyOf([{ ...founder, ready: true }, player('Léa', { nation: 'germany', ready: false })]),
-      );
-      return Promise.resolve(null);
-    }
-    return Promise.reject(new ConvexError({ code: 'PLAYERS_NOT_READY', details: {} }));
-  });
+  const { sent } = mount(
+    [founder, player('Léa', { nation: 'germany', ready: true })],
+    (name, serve) => {
+      if (name === 'players:declareReady') {
+        serve(
+          lobbyOf([
+            { ...founder, ready: true },
+            player('Léa', { nation: 'germany', ready: false }),
+          ]),
+        );
+        return Promise.resolve(null);
+      }
+      return Promise.reject(new ConvexError({ code: 'PLAYERS_NOT_READY', details: {} }));
+    },
+  );
 
   fireEvent.click(await screen.findByRole('button', { name: fr.table.launchSeason }));
 

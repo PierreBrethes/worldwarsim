@@ -51,8 +51,7 @@ export function normalizeGameCode(raw: string): string | null {
 
 /** Un lien d'invitation collé (`invitationUrl`, ou son seul chemin) rend le code qui suit
  *  `/rejoindre/`, sans barre finale ni paramètres ; tout autre texte reste tel quel. */
-const codeOfInput = (raw: string): string =>
-  /\/rejoindre\/([^/?#\s]*)/i.exec(raw)?.[1] ?? raw;
+const codeOfInput = (raw: string): string => /\/rejoindre\/([^/?#\s]*)/i.exec(raw)?.[1] ?? raw;
 
 /**
  * **Un code en cours de frappe** : ce qu'il en reste une fois rogné, la première lettre qu'aucun
