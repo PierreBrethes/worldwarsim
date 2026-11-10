@@ -15,7 +15,7 @@ import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { forgetSession, keepSession, readSeat } from '@/data/session';
-import { InvitationPage } from './rejoindre.$code';
+import { InvitationPage } from './Invitation';
 
 beforeEach(() => forgetSession());
 afterEach(cleanup);
@@ -155,12 +155,34 @@ it.each([
   'REGISTRATION_CLOSED',
   'BLITZ_STARTED',
 ] as const)('answers a %s refusal with a telegram of regrets and a way out', async (refusal) => {
-  mount({ invitation: { ...OPEN, refusal } });
+  keepSession('jeton-connu');
+  mount({ invitation: { ...OPEN, refusal }, me: { nickname: 'Léa' } });
 
   const title = fr.table.refusals[refusal](context).title;
   expect((await screen.findByRole('alert')).textContent).toBe(title);
-  expect(screen.getByRole('link', { name: fr.invitation.myGames })).toBeTruthy();
+  expect(screen.getByRole('link', { name: fr.invitation.myGames }).getAttribute('href')).toBe(
+    '/accueil',
+  );
   expect(screen.queryByLabelText(fr.auth.nicknameLabel)).toBeNull();
+});
+
+/**
+ * **Qui n'a pas de compte n'a pas de parties** : son issue est la une, où le code se retape —
+ * l'accueil ne ferait que le renvoyer à la connexion.
+ */
+it('leads a refused stranger back to the front page, never to games he does not have', async () => {
+  mount({ invitation: { ...OPEN, refusal: 'LOBBY_FULL' } });
+
+  await screen.findByRole('alert');
+  expect(screen.queryByRole('link', { name: fr.invitation.myGames })).toBeNull();
+  expect(screen.getByRole('link', { name: fr.front.back }).getAttribute('href')).toBe('/');
+});
+
+it('sends a stranger with a wrong code back to the code field of the front page', async () => {
+  mount({ invitation: { ...OPEN, refusal: 'UNKNOWN_GAME_CODE' } });
+
+  await screen.findByRole('alert');
+  expect(screen.getByRole('link', { name: fr.invitation.retype }).getAttribute('href')).toBe('/');
 });
 
 it('offers to found the same kind of game from a full table', async () => {
@@ -170,6 +192,26 @@ it('offers to found the same kind of game from a full table', async () => {
     name: fr.table.refusals.LOBBY_FULL(context).found!,
   });
   expect(found.getAttribute('href')).toBe('/fonder?mode=mondiale');
+});
+
+/**
+ * **Un lien d'invitation ouvert sans session, c'est un premier passage** : la carte s'ouvre sur
+ * le dossier à ouvrir, deux champs et un envoi mènent au salon.
+ */
+it('opens on the tab that opens a file for a stranger, and joins in one send', async () => {
+  const { action, join } = mount({ invitation: OPEN });
+
+  const tab = await screen.findByRole('tab', { name: fr.auth.openFile });
+  expect(tab.getAttribute('aria-selected')).toBe('true');
+  fireEvent.change(screen.getByLabelText(fr.auth.nicknameLabel), { target: { value: 'Nouveau' } });
+  fireEvent.change(screen.getByLabelText(fr.auth.passwordLabel), {
+    target: { value: 'un-mot-de-passe' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: fr.auth.registerAndJoin }));
+
+  await waitFor(() => expect(readSeat()).toEqual({ token: 'jeton-neuf', seasonId: 'season-1' }));
+  expect(action).toHaveBeenCalledOnce();
+  expect(join).toHaveBeenCalledOnce();
 });
 
 it('answers a code that cannot be one without asking the server anything', async () => {

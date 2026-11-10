@@ -34,6 +34,9 @@ function useGeo(): Geo | null {
   return geo;
 }
 
+/** Vrai quand les côtes sont là : ce qui se dessine par-dessus attend la terre pour partir. */
+export const useEngravedLand = (): boolean => useGeo() !== null;
+
 export function EngravedDefs() {
   const geo = useGeo();
   if (geo === null) return null;
@@ -104,6 +107,18 @@ export function projectOn(
   return [
     (size.width - vw * k) / 2 + (x - frame.x0) * k,
     (size.height - vh * k) / 2 + ((90 - lat) * sy - frame.y0) * k,
+  ];
+}
+
+/**
+ * Où tombe un point lon/lat dans les unités du dessin lui-même : ce qu'une carte reçoit en
+ * `children` (un tracé, un cercle) se pose avec ces coordonnées, sous les mêmes `box` et `flat`.
+ */
+export function plotterOf(box: Box, { flat = false }: { flat?: boolean } = {}) {
+  const { sy } = frameOf(box, 0, flat);
+  return (lon: number, lat: number): readonly [number, number] => [
+    lon + 180 + (box[2] > 180 && lon < box[0] ? 360 : 0),
+    (90 - lat) * sy,
   ];
 }
 

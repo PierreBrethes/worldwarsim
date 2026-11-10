@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
+import { peekArrival, takeArrival } from '@/data/arrival';
 import { forgetSession, keepSession } from '@/data/session';
 import { Landing } from './-index/Landing';
 import { Route as ConnexionRoute } from './connexion';
@@ -18,16 +19,23 @@ import { Route as IndexRoute } from './index';
 afterEach(() => {
   cleanup();
   forgetSession();
+  takeArrival();
 });
 
-/** jsdom n'évalue aucune requête média et ne joue aucune vidéo : la une doit tenir avec sa
- *  photographie fixe. */
+/** jsdom n'évalue aucune requête média, ne mesure rien et ne joue aucune vidéo. */
 vi.stubGlobal('matchMedia', (query: string) => ({
   matches: false,
   media: query,
   addEventListener: () => undefined,
   removeEventListener: () => undefined,
 }));
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe() {}
+    disconnect() {}
+  },
+);
 
 /** La vraie garde de `/`, et deux pages témoins à la place des surfaces qu'elle ouvre : l'arbre
  *  réel monterait le plateau, three.js compris, pour vérifier une redirection. */
@@ -65,89 +73,119 @@ const mount = () => {
   return router;
 };
 
-it('sert la une à qui n’a pas de session', async () => {
+const codeField = () => screen.findByLabelText(fr.front.codeLabel);
+
+it('sert la une à qui n’a pas de session : son titre, sa carte, son coupon', async () => {
   mount();
   expect(await screen.findByRole('heading', { name: fr.front.headline })).toBeTruthy();
-  expect(screen.getByLabelText(fr.front.bureau.codeTitle)).toBeTruthy();
+  expect(screen.getByRole('img', { name: fr.front.mapLabel })).toBeTruthy();
+  expect(await codeField()).toBeTruthy();
 });
 
-it('dit les deux éditions, la Mondiale en jours', async () => {
-  mount();
-  expect(await screen.findByText(/^3 à 14 jours/)).toBeTruthy();
-  expect(screen.getByText(/^1 à 2 h/)).toBeTruthy();
-});
-
-it('met une image fixe à la place du film, qui n’est pas encore là', async () => {
+it('cercle les sept points de la course sur la carte, par leur nom', async () => {
   mount();
   await screen.findByRole('heading', { name: fr.front.headline });
-  expect(screen.getByRole('img', { name: fr.front.posterAlt })).toBeTruthy();
+  for (const name of [
+    'Narvik',
+    'Tanger',
+    'Lisbonne',
+    'Istanbul',
+    'Halifax',
+    'Hong Kong',
+    'Rangoun',
+  ])
+    expect(screen.getByText(name.toUpperCase())).toBeTruthy();
 });
 
-it('mène « fonder une partie » à l’ouverture d’un dossier, « j’ai un dossier » à la connexion', async () => {
+/** Rien du film ne se télécharge pour qui ne le demande pas : ni la vidéo ni son affiche. */
+it('ne monte le film qu’à la demande', async () => {
+  HTMLDialogElement.prototype.showModal ??= function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+  mount();
+  const open = await screen.findByRole('button', { name: fr.front.film });
+  expect(document.querySelector('video')).toBeNull();
+  expect(document.querySelector('img')).toBeNull();
+
+  fireEvent.click(open);
+  expect(document.querySelector('video')).not.toBeNull();
+});
+
+it('mène « fonder une partie » à l’ouverture d’un dossier puis à la fondation, « entrer » à la connexion', async () => {
   const router = mount();
-  fireEvent.click(await screen.findByRole('link', { name: fr.front.bureau.found }));
+  fireEvent.click(await screen.findByRole('link', { name: fr.front.found }));
   await waitFor(() => expect(router.state.location.pathname).toBe('/connexion'));
-  expect(router.state.location.search).toEqual({ ouvrir: true });
+  expect(router.state.location.search).toEqual({ ouvrir: true, suite: 'fonder' });
 
   await router.navigate({ to: '/' });
-  fireEvent.click(await screen.findByRole('link', { name: fr.front.bureau.haveFile }));
+  fireEvent.click(await screen.findByRole('link', { name: fr.front.enter }));
   await waitFor(() => expect(router.state.location.search).toEqual({}));
 });
 
-it('dit en rouge ce qui manque à un code incomplet, sans griser le bouton', async () => {
+it('ouvre l’invitation au sixième caractère, en capitales, sans bouton', async () => {
   const router = mount();
-  const field = await screen.findByLabelText(fr.front.bureau.codeTitle);
-  const open = screen.getByRole('button', { name: fr.front.bureau.open });
-  expect(open).toHaveProperty('disabled', false);
+  const field = await codeField();
+  expect(screen.queryByRole('button', { name: /invitation/ })).toBeNull();
 
-  fireEvent.change(field, { target: { value: 'k7m2' } });
-  const say = screen.getByText(fr.front.bureau.say.missing(2));
-  expect(say.className).toContain('lp-refus');
-
-  fireEvent.click(open);
+  fireEvent.change(field, { target: { value: 'k7q2p' } });
   expect(router.state.location.pathname).toBe('/');
-  expect(document.activeElement).toBe(field);
-});
-
-it('renvoie à l’accueil qui a une session', async () => {
-  keepSession('un-jeton');
-  const router = mount();
-  expect(await screen.findByText('accueil')).toBeTruthy();
-  expect(router.state.location.pathname).toBe('/accueil');
-});
-
-it('ouvre l’invitation au sixième caractère, en capitales', async () => {
-  const router = mount();
-  const field = await screen.findByLabelText(fr.front.bureau.codeTitle);
-
   fireEvent.change(field, { target: { value: ' k7q2px ' } });
-  fireEvent.submit(field);
 
   await waitFor(() => expect(router.state.location.pathname).toBe('/rejoindre/K7Q2PX'));
 });
 
+it('prévient avant la frappe que l’invitation s’ouvre au sixième caractère', async () => {
+  mount();
+  const field = await codeField();
+  const said = document.getElementById(field.getAttribute('aria-describedby')!);
+  expect(said?.textContent).toBe(fr.codeField.hint);
+});
+
+it('dit en rouge ce qui manque à un code incomplet qu’on valide, et garde la main dans le champ', async () => {
+  const router = mount();
+  const field = await codeField();
+
+  fireEvent.change(field, { target: { value: 'k7m2' } });
+  expect(screen.queryByText(fr.codeField.missing(2))).toBeNull();
+  fireEvent.submit(field);
+
+  const say = screen.getByText(fr.codeField.missing(2));
+  expect(say.parentElement?.hasAttribute('data-refusal')).toBe(true);
+  expect(field.getAttribute('aria-invalid')).toBe('true');
+  expect(router.state.location.pathname).toBe('/');
+  expect(document.activeElement).toBe(field);
+});
+
+/** Un code que l'alphabet ne tire jamais n'ouvre rien : la page d'invitation n'aurait fait que
+ *  le refuser, un écran plus loin. */
+it('refuse à la frappe la lettre qu’aucun code ne porte, et n’ouvre pas avec elle', async () => {
+  const router = mount();
+  const field = await codeField();
+
+  fireEvent.change(field, { target: { value: 'k7q2p0' } });
+
+  expect(screen.getByText(fr.codeField.stray('0'))).toBeTruthy();
+  expect(router.state.location.pathname).toBe('/');
+});
+
 /** Un collage « ·K7Q2PX » porte une espace de tête : un `maxlength` natif la compterait et
- *  couperait le dernier caractère avant que `accept` ne la retire. Pas de `userEvent` ici : le
+ *  couperait le dernier caractère avant que le champ ne la retire. Pas de `userEvent` ici : le
  *  garde est l'attribut absent, que `fireEvent.change` ne peut pas contourner. */
 it('ne borne pas le champ avant le nettoyage du collage', async () => {
   mount();
-  const field = await screen.findByLabelText(fr.front.bureau.codeTitle);
-  expect(field.hasAttribute('maxlength')).toBe(false);
+  expect((await codeField()).hasAttribute('maxlength')).toBe(false);
 });
 
-it('dit « touchez » au doigt et « un clic » à la souris, avec les mots du jeu', async () => {
-  mount();
-  expect(await screen.findByText(fr.front.gestures.lift.text(false))).toBeTruthy();
-  expect(screen.getByText(fr.front.gestures.place.text(fr.errors.DISEMBARK_AT_SEA()))).toBeTruthy();
-  expect(screen.getByText(fr.aim.submit)).toBeTruthy();
-  cleanup();
+it('renvoie à l’accueil qui a une session, et dit qu’on arrive', async () => {
+  keepSession('un-jeton');
+  const router = mount();
+  expect(await screen.findByText('accueil')).toBeTruthy();
+  expect(router.state.location.pathname).toBe('/accueil');
+  expect(peekArrival()).toBe(true);
+});
 
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query === '(pointer: coarse)',
-    media: query,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-  }));
+it('n’annonce aucune arrivée à qui lit la une', async () => {
   mount();
-  expect(await screen.findByText(fr.front.gestures.lift.text(true))).toBeTruthy();
+  await screen.findByRole('heading', { name: fr.front.headline });
+  expect(peekArrival()).toBe(false);
 });

@@ -13,9 +13,16 @@ import type { ConvexReactClient } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
-import { ConnectedSignIn, Route } from './connexion';
+import { takeArrival, peekArrival } from '@/data/arrival';
+import { forgetSession } from '@/data/session';
+import { ConnectedSignIn } from './-connexion/SignIn';
+import { Route } from './connexion';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  forgetSession();
+  takeArrival();
+});
 
 /** jsdom n'évalue aucune requête média : la feuille d'entrée en lit une pour choisir son fond. */
 vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
@@ -25,7 +32,12 @@ const refusingClient = {
   action: () => Promise.reject(new ConvexError({ code: 'BAD_CREDENTIALS' })),
 } as unknown as ConvexReactClient;
 
-const mount = (url = '/') => {
+/** A client whose actions hand out a session, as a good password does. */
+const acceptingClient = {
+  action: () => Promise.resolve({ token: 'jeton-neuf' }),
+} as unknown as ConvexReactClient;
+
+const mount = (url = '/', client = refusingClient) => {
   const root = createRootRoute({ component: Outlet });
   const index = createRoute({
     getParentRoute: () => root,
@@ -33,16 +45,28 @@ const mount = (url = '/') => {
     component: ConnectedSignIn,
     validateSearch: Route.options.validateSearch,
   });
-  return render(
-    <ConvexProvider client={refusingClient}>
-      <RouterProvider
-        router={createRouter({
-          routeTree: root.addChildren([index]),
-          history: createMemoryHistory({ initialEntries: [url] }),
-        })}
-      />
+  const witness = (path: string) =>
+    createRoute({ getParentRoute: () => root, path, component: () => <p>{path}</p> });
+  const router = createRouter({
+    routeTree: root.addChildren([index, witness('/accueil'), witness('/fonder')]),
+    history: createMemoryHistory({ initialEntries: [url] }),
+  });
+  render(
+    <ConvexProvider client={client}>
+      <RouterProvider router={router} />
     </ConvexProvider>,
   );
+  return router;
+};
+
+const signIn = async () => {
+  fireEvent.change(await screen.findByLabelText(fr.auth.nicknameLabel), {
+    target: { value: 'Pierre' },
+  });
+  fireEvent.change(screen.getByLabelText(fr.auth.passwordLabel), {
+    target: { value: 'un-mot-de-passe' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: fr.auth.loginSubmit }));
 };
 
 /**
@@ -94,4 +118,48 @@ it('opens on the tab for a file already held otherwise', async () => {
   mount();
   const tab = await screen.findByRole('tab', { name: fr.auth.haveFile });
   expect(tab.getAttribute('aria-selected')).toBe('true');
+});
+
+/**
+ * **Le bouton n'est jamais grisé** (ADR 0015) : validée sans ses deux champs, la carte dit sous
+ * chacun ce qui lui manque, en rouge, et met la main dans le premier.
+ */
+it('says what is missing under each field instead of greying the button', async () => {
+  mount();
+  const submit = await screen.findByRole('button', { name: fr.auth.loginSubmit });
+  expect(submit.getAttribute('aria-disabled')).toBeNull();
+  expect(screen.queryByText(fr.auth.nicknameMissing)).toBeNull();
+
+  fireEvent.click(submit);
+
+  const nickname = screen.getByLabelText(fr.auth.nicknameLabel);
+  expect(screen.getByText(fr.auth.nicknameMissing).className).toContain('bad');
+  expect(screen.getByText(fr.auth.passwordMissing).className).toContain('bad');
+  expect(nickname.getAttribute('aria-invalid')).toBe('true');
+  expect(document.activeElement).toBe(nickname);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+/** Qui venait fonder arrive à la fondation, sans passer par une une vide. */
+it('leads whoever came to found straight to the founding page', async () => {
+  const router = mount('/?ouvrir&suite=fonder', acceptingClient);
+  fireEvent.change(await screen.findByLabelText(fr.auth.nicknameLabel), {
+    target: { value: 'Pierre' },
+  });
+  fireEvent.change(screen.getByLabelText(fr.auth.passwordLabel), {
+    target: { value: 'un-mot-de-passe' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: fr.auth.registerSubmit }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe('/fonder'));
+  expect(peekArrival()).toBe(false);
+});
+
+/** Les autres arrivent à l'accueil, d'où une partie seule à attendre s'ouvre d'elle-même. */
+it('leads the others home, and says they are arriving', async () => {
+  const router = mount('/', acceptingClient);
+  await signIn();
+
+  await waitFor(() => expect(router.state.location.pathname).toBe('/accueil'));
+  expect(peekArrival()).toBe(true);
 });

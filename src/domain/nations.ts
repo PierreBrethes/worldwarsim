@@ -52,6 +52,19 @@ export const HOME_BY_NATION: Readonly<Record<Nation, LonLat>> = {
   china: [106.98, 34.14],
 };
 
+/** The capitals of 1940, where a nation's flag is planted and its orders leave from on the
+ *  engraved maps of the off-season. */
+export const CAPITAL_BY_NATION: Readonly<Record<Nation, LonLat>> = {
+  france: [2.35, 48.86],
+  uk: [-0.13, 51.5],
+  usa: [-77.04, 38.9],
+  ussr: [37.62, 55.75],
+  germany: [13.4, 52.52],
+  japan: [139.69, 35.69],
+  italy: [12.5, 41.9],
+  china: [106.55, 29.56],
+};
+
 /**
  * The Natural Earth `adm0_a3` of each nation — the code the atlas and `deposits.json`
  * key a region by. `COUNTRY_BY_NATION` above names the same country in English, the key the
