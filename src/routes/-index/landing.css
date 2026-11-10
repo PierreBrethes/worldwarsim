@@ -346,8 +346,10 @@
 
 /* ---------- le film entier ---------- */
 
+/* `margin: auto` : la remise à zéro des marges retire au dialogue celle qui le centre. */
 .lp-projection {
   width: min(94vw, 1100px);
+  margin: auto;
   padding: 0;
   border: 1px solid var(--ink);
   background: var(--desk);
