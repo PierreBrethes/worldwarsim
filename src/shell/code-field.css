@@ -81,11 +81,13 @@
 }
 
 /* Un pas plus large que les cases : l'interlettrage suit aussi le sixième caractère, et un champ
-   à la largeur des cases défilait pour montrer le curseur, décalant les six lettres. */
+   à la largeur des cases défilait pour montrer le curseur, décalant les six lettres. Ce pas de
+   trop est rogné : il ne se clique pas hors des cases. */
 .code-cells input {
   position: absolute;
   inset: 0 auto 0 0;
   width: calc(100% + 2.5em);
+  clip-path: inset(0 2.5em 0 0);
   padding: 0 0 0 calc(1.1em - 0.5ch);
   border: 0;
   outline: none;
