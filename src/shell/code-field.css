@@ -65,5 +65,5 @@
 }
 
 .code-say[data-refusal] {
-  color: var(--critical);
+  color: var(--critical-paper);
 }

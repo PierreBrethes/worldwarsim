@@ -288,8 +288,40 @@
   position: relative;
 }
 
+/* Le sixième caractère détache le coupon : coupé le long de son pointillé, il part, et
+   l'invitation s'ouvre. `--departure` est le délai de `Landing.tsx`, qui ouvre sans attendre la
+   fin de cette animation. `translate` et `rotate` s'ajoutent au penché du coupon sans le redire. */
+:root[data-motion='full'] .lp-coupon[data-leaving] {
+  pointer-events: none;
+  animation: lp-detach var(--departure) both;
+}
+
+@keyframes lp-detach {
+  from {
+    clip-path: inset(0);
+    animation-timing-function: var(--ease-out);
+  }
+
+  25% {
+    clip-path: inset(5px);
+    translate: 0 0;
+    rotate: 0deg;
+    opacity: 1;
+    animation-timing-function: ease-in;
+  }
+
+  to {
+    clip-path: inset(5px);
+    translate: 34px -62px;
+    rotate: 4deg;
+    opacity: 0;
+  }
+}
+
 /* Ancré par sa gauche : sa largeur change quand sa fonte arrive, pas sa place. */
 .lp-coupon-stamp {
+  --stamp-critical: var(--critical-paper);
+
   position: absolute;
   top: -13px;
   left: 50%;

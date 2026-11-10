@@ -180,8 +180,8 @@
       cursor: not-allowed;
     }
     .btn.alarm {
-      background: var(--critical);
-      border-color: var(--critical);
+      background: var(--critical-paper);
+      border-color: var(--critical-paper);
       color: var(--paper);
     }
     @media (hover: hover) {
@@ -245,7 +245,7 @@
       place-items: center;
       padding: 6px 12px 5px;
       border: 2.5px solid currentColor;
-      color: var(--critical);
+      color: var(--critical-paper);
       font: 700 15px/1 var(--display);
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -547,7 +547,7 @@
       color: var(--valid);
     }
     .field .hint.bad {
-      color: var(--critical);
+      color: var(--critical-paper);
     }
     .pass .fields {
       display: grid;
@@ -797,7 +797,7 @@
       min-width: 18px;
       height: 18px;
       padding: 0 5px;
-      background: var(--critical);
+      background: var(--critical-paper);
       color: var(--paper);
       font: 600 10px var(--num);
     }

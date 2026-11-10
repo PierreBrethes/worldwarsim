@@ -587,9 +587,9 @@
   top: 11px;
   left: 50%;
   padding: 1px 3px;
-  border: 1.5px solid var(--critical);
+  border: 1.5px solid var(--critical-paper);
   background: rgb(239 230 207 / 85%);
-  color: var(--critical);
+  color: var(--critical-paper);
   font: 700 8.5px var(--ui);
   font-style: normal;
   letter-spacing: 0.1em;
@@ -763,7 +763,7 @@
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
-  background: var(--critical);
+  background: var(--critical-paper);
   color: var(--paper);
   font: 600 11px var(--num);
 }
