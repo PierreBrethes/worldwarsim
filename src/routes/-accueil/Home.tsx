@@ -6,8 +6,8 @@ import { api } from '../../../convex/_generated/api';
 import { fr, nationLabel, rendezvousLabel, countdownLabel } from '@/i18n/fr';
 import { typo } from '@/i18n/typo';
 import { frontPageOrder, soleAwaitingSeat } from '@/domain/front-page';
-import { presenceOf } from '@/domain/operation-order';
-import { MODE_RULES } from '@/domain/season-mode';
+import { founderLaunchOf, presenceOf, tableStepOf, type TableStep } from '@/domain/operation-order';
+import { MODE_RULES, seatRangeOf } from '@/domain/season-mode';
 import { theatreById } from '@/domain/theatres';
 import { CodeField } from '@/shell/CodeField';
 import { Wordmark } from '@/shell/Masthead';
@@ -37,12 +37,34 @@ export function Home() {
 
 type Seat = FunctionReturnType<typeof api.accounts.seats>[number];
 
+/**
+ * **Ce que le salon attend de ce joueur**, par la fonction même de la table (`tableStepOf`) : la
+ * une et le salon ne peuvent pas dire deux choses de la même place. `null` hors d'un salon.
+ */
+function stepAt(seat: Seat, now: number): TableStep | null {
+  const mine = seat.table.findIndex((entry) => entry.mine);
+  const me = seat.table[mine];
+  if (seat.status !== 'lobby' || me === undefined) return null;
+  const plan = founderLaunchOf({
+    mode: seat.mode,
+    scheduledAt: seat.orders.scheduledAt,
+    range: seatRangeOf(seat.mode, seat.theatre),
+    now,
+    caller: seat.table.findIndex((entry) => entry.creator),
+    seats: seat.table.map((entry, id) => ({ ...entry, id })),
+  });
+  return tableStepOf({
+    nation: me.nation,
+    ready: me.ready,
+    founder: me.creator,
+    launchRefusal: plan.refusal,
+  });
+}
+
 /** Un salon qui attend ce joueur : sa nation, son « prêt », ou — fondateur — son lancement. */
-const awaits = (seat: Seat): boolean => {
-  const me = seat.table.find((entry) => entry.mine);
-  if (me === undefined) return false;
-  if (me.nation === null || !me.ready) return true;
-  return seat.creator && seat.table.every((entry) => entry.ready);
+const awaits = (seat: Seat, now: number): boolean => {
+  const step = stepAt(seat, now);
+  return step === 'nation' || step === 'ready' || step === 'launch';
 };
 
 /**
@@ -102,7 +124,7 @@ function Front({ seats, token }: { seats: ReadonlyArray<Seat>; token: string }) 
     seats.map((seat) => ({
       ...seat,
       scheduledAt: seat.orders.scheduledAt,
-      awaited: awaits(seat),
+      awaited: awaits(seat, now),
     })),
     now,
   );
@@ -477,15 +499,15 @@ function storyOf(seat: Seat, now: number): Told {
     };
   }
   const ready = seat.table.filter((entry) => entry.ready).length;
-  const me = seat.table.find((entry) => entry.mine);
   const founder = seat.table.find((entry) => entry.creator);
   const free = Math.max(0, seat.maximum - seat.table.length);
+  const step = stepAt(seat, now);
   const waiting =
-    me?.nation === null
+    step === 'nation'
       ? fr.home.waitingNation(seat.mode === 'blitz')
-      : me?.ready === false
+      : step === 'ready'
         ? fr.home.waitingReady
-        : seat.creator && ready === seat.table.length
+        : step === 'launch'
           ? fr.home.waitingLaunch
           : fr.home.waitingOthers;
   if (seat.mode === 'blitz') {

@@ -199,3 +199,34 @@ it('ouvre l’invitation au sixième caractère du code, et fonde par un lien', 
 
   await waitFor(() => expect(router.state.location.pathname).toBe('/rejoindre/K7Q2PX'));
 });
+
+/**
+ * **La une et le salon disent la même chose de la même place** (`tableStepOf`) : le « prêt » du
+ * fondateur part avec son lancement, la une ne le lui réclame donc pas — elle l'attend pour
+ * lancer, dès que les autres sont prêts.
+ */
+it('attend le fondateur pour lancer, jamais pour son « prêt »', async () => {
+  const seated = (rest: object) => ({
+    nickname: 'Léa',
+    nation: 'germany',
+    ready: true,
+    creator: false,
+    mine: false,
+    seenAt: null,
+    ...rest,
+  });
+  mount([
+    {
+      ...LOBBY,
+      creator: true,
+      nation: 'france',
+      table: [
+        seated({ nickname: 'Pierre', nation: 'france', ready: false, creator: true, mine: true }),
+        seated({}),
+      ],
+    },
+  ]);
+
+  expect(await screen.findByText(new RegExp(fr.home.waitingLaunch))).toBeTruthy();
+  expect(screen.queryByText(new RegExp(fr.home.waitingReady))).toBeNull();
+});

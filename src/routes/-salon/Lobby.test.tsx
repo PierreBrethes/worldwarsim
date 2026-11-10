@@ -16,15 +16,18 @@ import { invitationUrl } from '@/domain/off-season';
 import type { Seat } from '@/data/session';
 import { ConnectedLobby } from './Lobby';
 
-afterEach(cleanup);
-
 /** jsdom n'évalue aucune requête média et ne mesure rien. */
-vi.stubGlobal('matchMedia', (query: string) => ({
+const noMedia = (query: string) => ({
   matches: false,
   media: query,
   addEventListener: () => undefined,
   removeEventListener: () => undefined,
-}));
+});
+vi.stubGlobal('matchMedia', noMedia);
+afterEach(() => {
+  cleanup();
+  vi.stubGlobal('matchMedia', noMedia);
+});
 vi.stubGlobal(
   'ResizeObserver',
   class {
@@ -163,6 +166,24 @@ it('has a founder alone invite: one click copies the invitation link', async () 
 
   expect(writeText).toHaveBeenCalledWith(invitationUrl(window.location.origin, 'K7Q2PX'));
   expect((await screen.findAllByText(fr.table.linkSent)).length).toBeGreaterThan(0);
+});
+
+/** Au doigt, le même geste ouvre la feuille de partage du téléphone, le lien dedans. */
+it('shares the invitation link through the phone’s own sheet under a finger', async () => {
+  const share = vi.fn((_shared: { url: string }) => Promise.resolve());
+  vi.stubGlobal('navigator', { ...navigator, share });
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(pointer: coarse)',
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+  mount([player('Pierre', { creator: true, mine: true, nation: 'france' })]);
+
+  fireEvent.click(await screen.findByRole('button', { name: fr.table.inviteNow(true) }));
+
+  expect(share).toHaveBeenCalledOnce();
+  expect(share.mock.calls[0]?.[0].url).toBe(invitationUrl(window.location.origin, 'K7Q2PX'));
 });
 
 it('makes the empty chairs one card, which invites too', async () => {
