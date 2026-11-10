@@ -403,7 +403,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
               {blitz ? fr.table.launchBlitz : fr.table.launchSeason}
             </button>
           )}
-          {open && lobby.me.ready && step !== 'launch' && (
+          {open && lobby.me.ready && !founder && step !== 'launch' && (
             <button
               type="button"
               className="link"

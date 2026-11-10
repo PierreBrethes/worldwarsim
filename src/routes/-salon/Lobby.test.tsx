@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-router';
 import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { getFunctionName } from 'convex/server';
+import { ConvexError } from 'convex/values';
 import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { invitationUrl } from '@/domain/off-season';
@@ -77,16 +78,33 @@ const lobbyOf = (players: ReturnType<typeof player>[]) => {
   };
 };
 
-function mount(players: ReturnType<typeof player>[]) {
+/** `answer` : ce que le serveur répond à une mutation ; il peut aussi changer le salon servi. */
+function mount(
+  players: ReturnType<typeof player>[],
+  answer: (
+    name: string,
+    serve: (lobby: ReturnType<typeof lobbyOf>) => void,
+  ) => Promise<unknown> = () => Promise.resolve(null),
+) {
   const answers: Record<string, unknown> = {
     'seasons:lobby': lobbyOf(players),
     'messages:recent': { messages: [], readAt: 0, direct: [] },
   };
-  const mutation = vi.fn((_reference: unknown, _args: unknown) => Promise.resolve(null));
+  const listeners = new Set<() => void>();
+  const serve = (lobby: ReturnType<typeof lobbyOf>) => {
+    answers['seasons:lobby'] = lobby;
+    listeners.forEach((notify) => notify());
+  };
+  const mutation = vi.fn((reference: unknown, _args: unknown) =>
+    answer(getFunctionName(reference as Parameters<typeof getFunctionName>[0]), serve),
+  );
   const client = {
     watchQuery: (query: Parameters<typeof getFunctionName>[0]) => ({
       localQueryResult: () => answers[getFunctionName(query)],
-      onUpdate: () => () => {},
+      onUpdate: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
       journal: () => undefined,
     }),
     mutation,
@@ -229,6 +247,29 @@ it('launches in one click once the others are ready: the founder’s « prêt »
       ['seasons:launch', SEAT],
     ]),
   );
+});
+
+/**
+ * Le « prêt » du fondateur n'est jamais attendu : si le lancement tombe après lui (un invité a
+ * repris le sien), l'écran dit le refus et ne lui offre pas de le lever.
+ */
+it('says a refused launch and does not offer the founder to lift a « prêt » nobody waits for', async () => {
+  const founder = player('Pierre', { creator: true, mine: true, nation: 'france' });
+  const { sent } = mount([founder, player('Léa', { nation: 'germany', ready: true })], (name, serve) => {
+    if (name === 'players:declareReady') {
+      serve(
+        lobbyOf([{ ...founder, ready: true }, player('Léa', { nation: 'germany', ready: false })]),
+      );
+      return Promise.resolve(null);
+    }
+    return Promise.reject(new ConvexError({ code: 'PLAYERS_NOT_READY', details: {} }));
+  });
+
+  fireEvent.click(await screen.findByRole('button', { name: fr.table.launchSeason }));
+
+  await waitFor(() => expect(sent().map(([name]) => name)).toContain('seasons:launch'));
+  expect((await screen.findByRole('alert')).textContent).toMatch(/prêt/i);
+  expect(screen.queryByRole('button', { name: fr.table.readyLift })).toBeNull();
 });
 
 it('says who holds a nation instead of handing it over', async () => {
