@@ -39,12 +39,14 @@ export function Found() {
     void run(async () => {
       setError(null);
       try {
+        /** Relue au clic : `evening` ne sert qu'à l'étiquette, il date du dernier battement. */
+        const scheduledAt = nextEvening(new Date());
         const { seasonId } = await create({
           token,
           compensation: 0.5,
           mode,
           ...(mode === 'blitz'
-            ? { theatre: theatre.id, scheduledAt: evening, remind: true }
+            ? { theatre: theatre.id, scheduledAt, remind: true }
             : {
                 hqCaptureHours: DEFAULT_HQ_CAPTURE_HOURS,
                 durationHours: MODE_RULES.mondiale.clockHours,
@@ -71,13 +73,10 @@ export function Found() {
           <h1 id="t-order">{fr.found.headline}</h1>
           <div className="fd-wars">
             {(['blitz', 'mondiale'] as const).map((mode) => (
-              <button
+              <article
                 key={mode}
-                type="button"
                 className="fd-war"
                 data-asked={search.mode === mode ? '' : undefined}
-                aria-busy={pending}
-                onClick={() => found(mode)}
               >
                 <div className="mapbox">
                   {mode === 'blitz' ? (
@@ -102,7 +101,7 @@ export function Found() {
                   )}
                 </div>
                 <div className="fd-body">
-                  <h2>
+                  <h2 id={`fd-${mode}`}>
                     {fr.modes[mode].name}
                     <small>{fr.found.modes[mode].span}</small>
                   </h2>
@@ -112,15 +111,21 @@ export function Found() {
                     ))}
                   </dl>
                 </div>
-                <span className="fd-go">
+                <button
+                  type="button"
+                  className="fd-go"
+                  aria-describedby={`fd-${mode}`}
+                  aria-busy={pending}
+                  onClick={() => found(mode)}
+                >
                   {mode === 'blitz'
                     ? fr.found.foundBlitz(
                         fr.modes.theatres[theatre.id as TheatreId],
                         rendezvousLabel(evening, now),
                       )
                     : fr.found.foundMondiale}
-                </span>
-              </button>
+                </button>
+              </article>
             ))}
           </div>
           {error && (

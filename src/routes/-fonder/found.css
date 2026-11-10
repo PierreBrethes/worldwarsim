@@ -33,6 +33,7 @@
 }
 
 .os .fd-war {
+  position: relative;
   display: grid;
   grid-template-rows: clamp(120px, 20vw, 200px) 1fr auto;
   padding: 0;
@@ -90,8 +91,11 @@
   margin: 0;
 }
 
-/* Le pied de la carte est son bouton : toute la carte fonde, lui le dit. */
+/* Le pied de la carte est son bouton : toute la carte fonde, lui le dit. Son pseudo-élément
+   couvre la carte, qui reste un article (titre, liste) et non un bouton qui les contient. */
 .os .fd-go {
+  border: 0;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -103,6 +107,21 @@
   letter-spacing: 0.18em;
   text-align: center;
   text-transform: uppercase;
+}
+
+.os .fd-go::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.os .fd-go:focus-visible {
+  outline: none;
+}
+
+.os .fd-go:focus-visible::after {
+  outline: 2px solid var(--interaction);
+  outline-offset: 2px;
 }
 
 /* La table qu'on vient de se voir refuser : sa guerre est déjà désignée. */

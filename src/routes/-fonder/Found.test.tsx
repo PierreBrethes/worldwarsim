@@ -28,8 +28,8 @@ vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }
 
 const NOW = new Date(2026, 10, 10, 14, 0);
 
-function mount(url = '/fonder', create?: () => Promise<unknown>) {
-  vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+function mount(url = '/fonder', create?: () => Promise<unknown>, at: Date = NOW) {
+  vi.useFakeTimers({ toFake: ['Date'], now: at });
   const mutation = vi.fn((_reference: unknown, _args: unknown) =>
     (create ?? (() => Promise.resolve({ code: 'K7Q2PX', seasonId: 'season-1' })))(),
   );
@@ -116,7 +116,7 @@ it('founds the refused table’s kind of game on its theatre', async () => {
 
   const card = await screen.findByRole('button', { name: /fonder une Blitz/ });
   expect(card.textContent).toContain(fr.modes.theatres.pacific);
-  expect(card.hasAttribute('data-asked')).toBe(true);
+  expect(card.closest('article')?.hasAttribute('data-asked')).toBe(true);
   fireEvent.click(card);
 
   await waitFor(() => expect(created()).toHaveLength(1));
@@ -132,4 +132,27 @@ it('says the server’s refusal on the page, and stays there', async () => {
 
   expect((await screen.findByRole('alert')).textContent).toBe(fr.errors.UNKNOWN_SESSION());
   expect(router.state.location.pathname).toBe('/fonder');
+});
+
+/** L'horloge de la page bat toutes les 30 s : le clic relit l'heure, pas le dernier battement. */
+it('asks for the evening that is next when the click lands, not when the page last drew', async () => {
+  const { created } = mount('/fonder', undefined, new Date(2026, 10, 10, 20, 59, 50));
+  const card = await screen.findByRole('button', { name: /fonder une Blitz/ });
+
+  vi.setSystemTime(new Date(2026, 10, 10, 21, 0, 5));
+  fireEvent.click(card);
+
+  await waitFor(() => expect(created()).toHaveLength(1));
+  expect(created()[0]?.[1]).toMatchObject({ scheduledAt: new Date(2026, 10, 11, 21, 0).getTime() });
+});
+
+it('gives each war a heading of its own and a button named after it', async () => {
+  mount();
+
+  const button = await screen.findByRole('button', { name: /fonder une Mondiale/ });
+  expect(button.querySelector('h2, dl, svg')).toBeNull();
+  expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(2);
+  expect(button.getAttribute('aria-describedby')).toBe(
+    screen.getByRole('heading', { name: /Mondiale/ }).id,
+  );
 });
