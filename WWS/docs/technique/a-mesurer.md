@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 1f20042 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : d8800f2 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-150 valeurs marquées dans `convex/` et `src/domain/`.
+155 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -161,6 +161,11 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:978` | measured against the medium on 340 routes (#231), not against a play need |
+| `LAND_SHARE` | `1` | `src/domain/site-ceiling.ts:9` | the middle of three thresholds captured (1.25, 1, 0.75); Pierre picks one (retour du 10/11) |
+| `LEAST_SITE_SCALE` | `0.4` | `src/domain/site-ceiling.ts:17` | the ring's smallest step, kept as the floor; never measured on a phone |
+| `SHORE_REACH` | `0.25` | `src/domain/site-ceiling.ts:34` | wide enough for Reggio and Le Havre, whose points the far level leaves at sea |
+| `SHORE_STEPS` | `[0.25, 0.5, 1]` | `src/domain/site-ceiling.ts:35` | wide enough for Reggio and Le Havre, whose points the far level leaves at sea |
+| `BEARINGS` | `Array.from({ length: 8 }, (_, k) => (k * Math.PI) / 4)` | `src/domain/site-ceiling.ts:36` | wide enough for Reggio and Le Havre, whose points the far level leaves at sea |
 | `POINT_TRAITS` | `{ tangier: { family: 'economy', stars: 2 }, istanbul: { family: 'intel', stars: 2 }, rangoon: { family: 'diplomacy', stars: 1 }, hongKong: { family: 'intel', stars: 1 }, halifax: { family: 'sea', stars: 1 }, narvik: { family: 'economy', stars: 2 }, lisbon: { family: 'intel', stars: 2 }, baku: { family: 'supply', stars: 3 }, dakar: { family: 'economy', stars: 2 }, singapore: { family: 'supply', stars: 1 } } as const satisfies Record<StrategicPointKey, { family: PointFamily; stars: 1 \| 2 \| 3 }>` | `src/domain/strategic-points.ts:40` | familles et étoiles posées par jugement, aucune doc ne les fixait |
 | `TANGIER_LOT` | `{ give: 300, get: 100 } as const` | `src/domain/strategic-points.ts:146` | posé pour la saison test ; rien ne mesure ce que vaut un échange par édition |
 | `SURVEY_INK_FADED` | `0.2` | `src/domain/survey-ink.ts:4` | the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. |
