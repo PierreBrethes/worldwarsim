@@ -302,11 +302,12 @@ describe('ArcLayer.isFlowing', () => {
     // First told: how fast it slides is not known yet.
     arcs.tell([label(100, 100)], 0);
     expect(arcs.isFlowing).toBe(true);
-    // A fifth of a pixel in a second: the heartbeat moves it as well as thirty frames would.
-    arcs.tell([label(100.2, 100)], 1000);
+    // A fifth of a pixel in a second: the heartbeat moves it as well as thirty frames would. A
+    // beat that comes a hair short of its second is read all the same.
+    arcs.tell([label(100.2, 100)], 999);
     expect(arcs.isFlowing).toBe(false);
-    // Read once a second, whatever the frames in between.
-    arcs.tell([label(140, 100)], 1500);
+    // Not at every frame: between two of them a slide is noise.
+    arcs.tell([label(140, 100)], 1300);
     expect(arcs.isFlowing).toBe(false);
     arcs.tell([label(103, 100)], 2000);
     expect(arcs.isFlowing).toBe(true);

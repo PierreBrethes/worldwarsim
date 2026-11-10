@@ -682,8 +682,8 @@ export class ArcLayer {
    * **What the screen says of the heads**, after each whole frame. A movement out of the field
    * still has its label a little past the frame, or its token at the edge: one that slides there
    * keeps the map at its thread's pace (a column in Blitz seen from close, a plane), and one that
-   * creeps is moved by the heartbeat, by less than half a pixel at a time. Read once a heartbeat:
-   * between two frames a slide is noise.
+   * creeps is moved by the heartbeat, by less than half a pixel at a time. Read at most twice a
+   * heartbeat (`TOLD_EVERY_MS`): between two frames a slide is noise.
    */
   tell(
     labels: ReadonlyArray<{
@@ -701,7 +701,7 @@ export class ArcLayer {
       if (!this.pawnById.has(id)) continue;
       heads.add(id);
       const was = this.told.get(id);
-      if (was !== undefined && now - was.at < HEARTBEAT_MS) continue;
+      if (was !== undefined && now - was.at < TOLD_EVERY_MS) continue;
       const [sx, sy] = visible ? [x, y] : [edgeX, edgeY];
       // First told, it keeps the pace: how fast it slides is not known yet.
       const slides =
@@ -950,6 +950,9 @@ const SEEN = new Box3();
 /** **A head told on the screen slides there from this speed**, in pixels a second: under it, a
  *  frame a second moves it by less than half a pixel. `@a-mesurer` */
 const TOLD_PX_S = 0.5;
+/** Half a heartbeat between two readings of a head: a beat that comes a hair short of its second
+ *  is read all the same, and a head that starts to slide is caught by the next one. */
+const TOLD_EVERY_MS = HEARTBEAT_MS / 2;
 
 function sightOf(legs: ReadonlyArray<ThreadLeg>, rest: Vector3 | null): Box3[] {
   const boxes = rest === null ? [] : [new Box3().setFromPoints([rest])];
