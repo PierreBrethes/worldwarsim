@@ -220,6 +220,7 @@ import type { NearSheet } from './near-sheet';
 import { RiverLayer, riverData } from './rivers';
 import type { City } from '@/domain/atlas';
 import { namedCities, namedSeas, namesShown } from '@/domain/place-names';
+import { landSideAt } from '@/domain/site-ceiling';
 import { fromGeometryData } from './atlas-geometry';
 import {
   RegionLayer,
@@ -1234,6 +1235,7 @@ export class MapEngine {
         }),
       (x, z) => this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
       (x, z) => this.seaFrontOf(x, z),
+      (x, z) => landSideAt(atlas, [x + this.frame.centerX, z + this.frame.centerY]),
     );
     this.scene.add(this.maquettes.group);
     this.ambience.add(this.maquettes.smoke);

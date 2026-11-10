@@ -26,6 +26,7 @@ import {
   buildingSpan,
   troopSpan,
 } from '@/domain/piece-size';
+import { LEAST_SITE_SCALE, siteCeiling } from '@/domain/site-ceiling';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
   clusterFootprints,
@@ -325,6 +326,81 @@ describe('clusterFootprints', () => {
       for (const other of placed)
         if (other !== site) expect(gap(at, other.at)).toBeGreaterThan(S / 2);
     }
+  });
+
+  describe('under ceilings (the land that carries each site)', () => {
+    const everywhere = { maxShift: 0.5, onLand: () => true };
+
+    it('draws a lone site at its ceiling: it no longer waits for a group to shrink', () => {
+      expect(clusterFootprints([[0, 0]], S, FOOT, undefined, [0.6])).toEqual([
+        { at: [0, 0], facing: 0, scale: 0.6 },
+      ]);
+    });
+
+    it('leaves on their points two sites that touch at full size and no longer at their ceilings', () => {
+      const points = [
+        [0, 0],
+        [0.8 * S, 0],
+      ] as const;
+      expect(gap(clusterFootprints(points, S)[0]!.at, points[0])).toBeGreaterThan(0);
+      expect(clusterFootprints(points, S, FOOT, undefined, [0.6, 0.6])).toEqual([
+        { at: [0, 0], facing: 0, scale: 0.6 },
+        { at: [0.8 * S, 0], facing: 0, scale: 0.6 },
+      ]);
+    });
+
+    it("rings a group from each site's own ceiling, spaced by the sizes they are drawn at", () => {
+      const placed = clusterFootprints(
+        [
+          [0, 0],
+          [0, 0],
+        ],
+        S,
+        FOOT,
+        undefined,
+        [0.8, 0.5],
+      );
+      expect(placed.map(({ scale }) => scale)).toEqual([0.8, 0.5]);
+      expect(gap(placed[0]!.at, placed[1]!.at)).toBeCloseTo((S * (0.8 + 0.5)) / 2);
+    });
+
+    it('shrinks a group too tight for its bound further, from its ceilings', () => {
+      const points = Array.from({ length: 3 }, (_, k) => [k * 0.1, 0] as const);
+      const whole = clusterFootprints(points, S, S / 2, everywhere);
+      const capped = clusterFootprints(
+        points,
+        S,
+        S / 2,
+        everywhere,
+        points.map(() => 0.9),
+      );
+      capped.forEach(({ scale }, k) => {
+        expect(whole[k]!.scale).toBeGreaterThan(LEAST_SITE_SCALE / 0.9);
+        expect(scale).toBeLessThanOrEqual(0.9 * whole[k]!.scale + 1e-9);
+      });
+    });
+
+    it('never shrinks a site under the least size, whatever its ceiling and its group', () => {
+      const crowd = Array.from({ length: 12 }, () => [0, 0] as const);
+      const placed = clusterFootprints(
+        crowd,
+        S,
+        S / 2,
+        everywhere,
+        crowd.map((_, k) => (k % 2 === 0 ? LEAST_SITE_SCALE : 0.5)),
+      );
+      for (const { scale } of placed) expect(scale).toBeCloseTo(LEAST_SITE_SCALE, 9);
+      // A ceiling under the least is kept as it is given: the floor is the ceiling's to hold.
+      expect(
+        clusterFootprints(
+          crowd,
+          S,
+          S / 2,
+          everywhere,
+          crowd.map(() => 0.3),
+        )[0]!.scale,
+      ).toBe(0.3);
+    });
   });
 
   describe('within bounds', () => {
@@ -753,6 +829,45 @@ describe('a garrison at the foot of a site drawn smaller (#433)', () => {
     const pile = reach(maquettes.garrisonAt('building-barracks@0,0', 1)!.step);
     // The bare foot is the site's 8/7 of its span at 0.4; a pile of span 1 adds its 1/2, whole.
     expect((pile - reach(bare.step)) / reach(bare.step)).toBeCloseTo(0.5 / ((8 / 7) * 0.4), 9);
+  });
+
+  it("draws a lone site at the ceiling of the land that carries it, its garrison's foot with it", async () => {
+    const ID = 'building-barracks@3,4';
+    const asked: Array<readonly [number, number]> = [];
+    const lone = async (land: number | null) => {
+      const maquettes = new MaquetteLayer(
+        frame,
+        () => null,
+        () => {},
+        () => {},
+        () => true,
+        () => null,
+        (x, z) => {
+          asked.push([x, z]);
+          return land;
+        },
+      );
+      maquettes.display([
+        {
+          id: ID,
+          at: { lonLat: [3, 4] as const },
+          url: `${ID}.glb`,
+          span: 1,
+          footprint: 1.5,
+          washed: false,
+        },
+      ]);
+      await vi.waitFor(() => expect(maquettes.isDressed(ID)).toBe(true));
+      maquettes.orient(new Vector3(3, 2, 6), null, 0);
+      return maquettes.garrisonAt(ID, 0)!;
+    };
+    const ceiling = siteCeiling(1.5, 0.9);
+    expect(ceiling).toBeLessThan(1);
+    const [capped, whole] = [await lone(0.9), await lone(null)];
+    expect(asked[0]).toEqual([3, 4]);
+    expect(capped.scale).toBeCloseTo(ceiling, 9);
+    expect(whole.scale).toBe(1);
+    expect(reach(capped.step) / reach(whole.step)).toBeCloseTo(ceiling, 9);
   });
 
   it('hands the scale of a port to its hulls, and docks a cargo drawn at it clear of the port', async () => {
