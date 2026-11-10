@@ -349,7 +349,7 @@ dossier se crée à la main **avant** le premier `up` — sinon Docker le crée 
 Quatre fichiers (`src/shell/media.ts`) :
 
 - `la-manchette-boucle-8s.mp4` et `la-manchette-boucle-poster.jpg` — le fond de `/connexion` et de `/rejoindre/CODE` ;
-- `accueil-16x9.webm` et `accueil-9x16.webm` — le film de la une (`/`), bureau et téléphone : sa boucle muette en photographie, et le film entier qu'ouvre « voir le film ». Absents, la une montre ses affiches (`public/film/`). `npm run film` les tourne en local sur trois parties de démo et écrit `public/media/` (l'en-tête de `scripts/film-accueil.mjs` donne l'ordre) ; il est dans `scripts/`, il n'en sort rien vers un serveur.
+- `accueil-16x9.webm` et `accueil-9x16.webm` — le film de la une (`/`), bureau et téléphone : il ne se charge qu'à la demande, quand on ouvre « voir le film », sur son affiche (`public/film/`). Absents, la fenêtre dit qu'il n'est pas disponible. `npm run film` les tourne en local sur trois parties de démo et écrit `public/media/` (l'en-tête de `scripts/film-accueil.mjs` donne l'ordre) ; il est dans `scripts/`, il n'en sort rien vers un serveur.
 
 ```bash
 scp "Claude outputs/film/la-manchette-boucle-8s.mp4" \

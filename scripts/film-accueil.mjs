@@ -127,8 +127,6 @@ const SHOTS = [
   { subtitle: 'edition', length: 4 },
   { subtitle: 'blitz', length: 5 },
 ];
-/** La boucle muette de la une : les quatre premiers plans, qui n'ont pas besoin du reste. */
-const LOOP_SHOTS = 4;
 
 /** Les découpes : taille CSS de la fenêtre et densité (780 × 1688 pour le téléphone, comme son affiche). */
 const CUTS = {
@@ -747,10 +745,9 @@ if (!args.includes('--sans-manifeste') && last) {
     end: last.starts[k] + shot.length,
     subtitle: shot.subtitle,
   }));
-  const loop = { from: 0, to: last.starts[LOOP_SHOTS] };
   writeFileSync(
     `${root}src/routes/-index/film-shots.json`,
-    `${JSON.stringify({ shots, loop }, null, 2)}\n`,
+    `${JSON.stringify({ shots }, null, 2)}\n`,
   );
-  console.log(`manifeste : ${shots.length} plans, boucle ${loop.from}–${loop.to} s`);
+  console.log(`manifeste : ${shots.length} plans`);
 }
