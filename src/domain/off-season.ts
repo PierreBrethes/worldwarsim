@@ -49,6 +49,11 @@ export function normalizeGameCode(raw: string): string | null {
   return valid ? code : null;
 }
 
+/** Un lien d'invitation collé (`invitationUrl`, ou son seul chemin) rend le code qui suit
+ *  `/rejoindre/`, sans barre finale ni paramètres ; tout autre texte reste tel quel. */
+const codeOfInput = (raw: string): string =>
+  /\/rejoindre\/([^/?#\s]*)/i.exec(raw)?.[1] ?? raw;
+
 /**
  * **Un code en cours de frappe** : ce qu'il en reste une fois rogné, la première lettre qu'aucun
  * code ne porte, et le code entier dès la sixième. La une ouvre l'invitation sur `code` sans
@@ -59,7 +64,7 @@ export function gameCodeEntry(raw: string): {
   readonly stray: string | null;
   readonly code: string | null;
 } {
-  const typed = raw.replace(/\s/g, '').toUpperCase().slice(0, GAME_CODE_LENGTH);
+  const typed = codeOfInput(raw).replace(/\s/g, '').toUpperCase().slice(0, GAME_CODE_LENGTH);
   const stray = [...typed].find((letter) => !CODE_ALPHABET.includes(letter)) ?? null;
   return {
     typed,

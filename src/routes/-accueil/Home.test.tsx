@@ -189,13 +189,23 @@ it('reprend une guerre droit sur le plateau, sans sas', async () => {
   expect(readSeat()?.seasonId).toBe('season-war');
 });
 
-it('ouvre l’invitation au sixième caractère du code, et fonde par un lien', async () => {
+it('ouvre l’invitation au sixième caractère du code, et offre de fonder', async () => {
   const router = mount([]);
 
   expect(
     (await screen.findAllByRole('link', { name: fr.home.foundSubmit }))[0]?.getAttribute('href'),
   ).toBe('/fonder');
   fireEvent.change(screen.getByLabelText(fr.home.codeLabel), { target: { value: 'k7q2px' } });
+
+  await waitFor(() => expect(router.state.location.pathname).toBe('/rejoindre/K7Q2PX'));
+});
+
+it('ouvre l’invitation d’un lien collé dans le coupon', async () => {
+  const router = mount([]);
+
+  fireEvent.change(await screen.findByLabelText(fr.home.codeLabel), {
+    target: { value: 'https://exemple.test/rejoindre/k7q2px?depuis=sms' },
+  });
 
   await waitFor(() => expect(router.state.location.pathname).toBe('/rejoindre/K7Q2PX'));
 });

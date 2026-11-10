@@ -78,6 +78,24 @@ describe('gameCodeEntry', () => {
     expect(gameCodeEntry('K7Q2P0')).toEqual({ typed: 'K7Q2P0', stray: '0', code: null });
   });
 
+  /** Le geste le plus fréquent d'un invité : coller le lien reçu, pas retaper le code. */
+  it('reads the code out of a pasted invitation link', () => {
+    const opened = { typed: 'K7Q2PX', stray: null, code: 'K7Q2PX' };
+    expect(gameCodeEntry('https://exemple.test/rejoindre/K7Q2PX')).toEqual(opened);
+    expect(gameCodeEntry(' https://exemple.test/rejoindre/k7q2px/ ')).toEqual(opened);
+    expect(gameCodeEntry('https://exemple.test/rejoindre/K7Q2PX?utm=sms#haut')).toEqual(opened);
+    expect(gameCodeEntry('/rejoindre/k7q2px')).toEqual(opened);
+    expect(gameCodeEntry(invitationUrl('https://exemple.test', 'K7Q2PX'))).toEqual(opened);
+  });
+
+  it('still names the stray letter of a link whose code cannot be one', () => {
+    expect(gameCodeEntry('https://exemple.test/rejoindre/K7O2PX')).toEqual({
+      typed: 'K7O2PX',
+      stray: 'O',
+      code: null,
+    });
+  });
+
   it('opens exactly what normalizeGameCode accepts', () => {
     for (const raw of ['K7Q2PX', 'k7q2px', 'K7Q2P1', 'ABCDE', 'É7Q2PX']) {
       expect(gameCodeEntry(raw).code).toBe(normalizeGameCode(raw));
