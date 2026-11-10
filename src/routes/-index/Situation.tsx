@@ -110,27 +110,33 @@ export function Situation({ world }: { world: boolean }) {
         labelPx={world ? 15 : 13}
       >
         <defs>
-          {ORDERS.map(([nation, point], index) => (
-            <mask
-              key={point}
-              id={`lp-reveal-${point}`}
-              maskUnits="userSpaceOnUse"
-              x={west - 360}
-              y={north - 90}
-              width={span.width + 720}
-              height={span.height + 180}
-            >
-              <path
-                className="lp-order-reveal"
-                style={rankOf(index)}
-                d={routeOf(plot, nation, point).d}
-                pathLength={1}
-                fill="none"
-                stroke="white"
-                strokeWidth={8 * unit}
-              />
-            </mask>
-          ))}
+          {ORDERS.map(([nation, point], index) => {
+            const route = routeOf(plot, nation, point);
+            /** Le masque tient dans le cadre de sa route : à la taille de la carte, sept
+             *  masques retardaient la première image. */
+            const [left, top, right, bottom] = frameOf(route, 6 * unit);
+            return (
+              <mask
+                key={point}
+                id={`lp-reveal-${point}`}
+                maskUnits="userSpaceOnUse"
+                x={left}
+                y={top}
+                width={right - left}
+                height={bottom - top}
+              >
+                <path
+                  className="lp-order-reveal"
+                  style={rankOf(index)}
+                  d={route.d}
+                  pathLength={1}
+                  fill="none"
+                  stroke="white"
+                  strokeWidth={8 * unit}
+                />
+              </mask>
+            );
+          })}
         </defs>
         {ORDERS.map(([nation, point], index) => {
           const route = routeOf(plot, nation, point);
@@ -190,7 +196,12 @@ export function Situation({ world }: { world: boolean }) {
 /** Le rang d'un ordre, que la feuille de style lit pour les faire partir l'un après l'autre. */
 const rankOf = (rank: number) => ({ '--rank': rank }) as CSSProperties;
 
-type Route = { readonly d: string; readonly end: Point; readonly bend: Point };
+type Route = {
+  readonly d: string;
+  readonly start: Point;
+  readonly end: Point;
+  readonly bend: Point;
+};
 type Point = readonly [number, number];
 type Plotter = (lon: number, lat: number) => Point;
 
@@ -221,7 +232,24 @@ function routeOf(plot: Plotter, nation: Nation, point: StrategicPointKey): Route
   /** La courbe coupée à `SHORT` (de Casteljau) : même tracé, arrêté avant le point. */
   const end = at(SHORT);
   const cut: Point = [x0 + (bend[0] - x0) * SHORT, y0 + (bend[1] - y0) * SHORT];
-  return { d: `M${x0},${y0}Q${cut[0]},${cut[1]} ${end[0]},${end[1]}`, end, bend: cut };
+  return {
+    d: `M${x0},${y0}Q${cut[0]},${cut[1]} ${end[0]},${end[1]}`,
+    start: [x0, y0],
+    end,
+    bend: cut,
+  };
+}
+
+/** Le cadre d'une route, sa marge comprise : ses trois points de contrôle la contiennent. */
+function frameOf(route: Route, margin: number): readonly [number, number, number, number] {
+  const xs = [route.start[0], route.bend[0], route.end[0]];
+  const ys = [route.start[1], route.bend[1], route.end[1]];
+  return [
+    Math.min(...xs) - margin,
+    Math.min(...ys) - margin,
+    Math.max(...xs) + margin,
+    Math.max(...ys) + margin,
+  ];
 }
 
 /** La pointe de flèche, au bout de la route et dans son axe. */

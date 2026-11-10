@@ -11,6 +11,9 @@ import { Landing } from './-index/Landing';
  * qui le renvoie à la connexion.
  */
 export const Route = createFileRoute('/')({
+  /** La une part avec le chunk d'entrée : détachée comme les autres pages, elle attendait un
+   *  aller-retour de plus pour se peindre, et c'est la seule page qu'on ouvre sans rien en cache. */
+  codeSplitGroupings: [],
   beforeLoad: () => {
     if (readSession() === null) return;
     announceArrival();

@@ -8,7 +8,7 @@ import { expect, it } from 'vitest';
  * autres options (`loader`, `beforeLoad`, `validateSearch`), reste dans le chunk d'entrée. C'est
  * ainsi que la une publique chargeait three.js (le `loader` du plateau lisait le cadre du moteur)
  * et l'édition finale (une page exportée pour son test). Mesuré le 10/11/2026 : 430 Ko de
- * JavaScript compressé à froid sur `/`, 216 une fois ces deux règles tenues.
+ * JavaScript compressé à froid sur `/`, 212 une fois ces deux règles tenues.
  */
 const routes = join(import.meta.dirname);
 /** La racine est le chunk d'entrée : ce qu'elle exporte n'y ajoute rien. */
