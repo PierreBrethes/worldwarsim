@@ -11,9 +11,9 @@ import {
 import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { getFunctionName } from 'convex/server';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { Id } from '../../convex/_generated/dataModel';
+import type { Id } from '../../../convex/_generated/dataModel';
 import { editionFixture } from '@/shell/final-edition/edition.fixture';
-import { EditionPage } from './edition.$id';
+import { EditionPage } from './Edition';
 
 afterEach(cleanup);
 vi.stubGlobal('matchMedia', (query: string) => ({
