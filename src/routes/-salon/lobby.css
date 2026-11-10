@@ -150,7 +150,8 @@
 }
 
 .os .seat.me .seat-tag {
-  background: var(--notable-paper);
+  /* The brass alone leaves paper letters of this size under 4,5:1. */
+  background: color-mix(in srgb, var(--notable-paper) 80%, var(--ink));
 }
 
 .os .seat .who b {

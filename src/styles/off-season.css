@@ -116,9 +116,6 @@
       text-transform: uppercase;
       color: var(--ink-soft);
     }
-    .eyebrow.dark {
-      color: var(--paper-dim-2);
-    }
     .note {
       font: 12px/1.45 var(--ui);
       color: var(--ink-note);
@@ -531,7 +528,9 @@
       min-height: 44px;
     }
     .field input::placeholder {
-      color: color-mix(in srgb, var(--ink) 35%, transparent);
+      /* A placeholder here is the field's only hint: it keeps the floor of small text, and its
+         italic alone tells it from a typed value. */
+      color: var(--ink-note);
       font-family: var(--text);
       font-style: italic;
       font-size: 16px;
@@ -1032,9 +1031,6 @@
     .invit .masthin > [role='img'] {
       font-size: 26px;
     }
-    .invit .masthin .eyebrow {
-      color: var(--paper-dim-2);
-    }
     .reply {
       padding: 16px 20px 18px;
       display: grid;
@@ -1345,6 +1341,13 @@
       display: inline-block;
     }
   }
+}
+
+/* Out of the layer: `.eyebrow` in index.css is unlayered, and a layered rule never outranks it.
+   Inside, these two left the desk's labels in the ink of the paper, at 2,4:1. */
+.os .eyebrow.dark,
+.os .invit .masthin .eyebrow {
+  color: var(--paper-dim-2);
 }
 
 @keyframes os-stamp {
