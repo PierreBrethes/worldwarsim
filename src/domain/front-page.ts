@@ -33,3 +33,17 @@ export const frontPageOrder = <Seat extends FrontSeat>(
   [...seats].sort(
     (left, right) => rankOf(left, now) - rankOf(right, now) || right.createdAt - left.createdAt,
   );
+
+/**
+ * **La partie qui attend, quand il n'y en a qu'une** : c'est là que l'adresse nue mène, sans
+ * passer par la une. Une saison conclue se relit et une guerre perdue se regarde : ni l'une ni
+ * l'autre n'attend personne.
+ */
+export const soleAwaitingSeat = <
+  Seat extends { readonly status: SeasonStatus; readonly defeated: boolean },
+>(
+  seats: ReadonlyArray<Seat>,
+): Seat | null => {
+  const awaiting = seats.filter((seat) => seat.status !== 'concluded' && !seat.defeated);
+  return awaiting.length === 1 ? awaiting[0]! : null;
+};

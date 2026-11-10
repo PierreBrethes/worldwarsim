@@ -1,0 +1,175 @@
+/* La fondation (`Found.tsx`) : deux cartes, une par guerre, et le clic fonde. Sous `.os` pour
+   ses variables et ses pièces imprimées (`off-season.css`). */
+
+.os .fd {
+  display: grid;
+  justify-items: center;
+  padding: 28px var(--gutter) 60px;
+}
+
+.os .fd-sheet {
+  width: min(960px, 100%);
+  padding: 0 30px 20px;
+}
+
+.os .fd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0 10px;
+}
+
+.os .fd-sheet h1 {
+  margin: 14px 0 16px;
+  font: 800 clamp(27px, 4vw, 38px) / 1 var(--display);
+  text-wrap: balance;
+}
+
+.os .fd-wars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.os .fd-war {
+  position: relative;
+  display: grid;
+  grid-template-rows: clamp(120px, 20vw, 200px) 1fr auto;
+  padding: 0;
+  border: 1px solid var(--ink);
+  background: var(--paper-3);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    transform var(--dur-quick) var(--ease-out),
+    box-shadow var(--dur-quick) var(--ease-out);
+}
+
+.os .fd-war .mapbox {
+  border-bottom: 1px solid var(--ink);
+}
+
+.os .fd-body {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px 14px 14px;
+}
+
+.os .fd-body h2 {
+  margin: 0;
+  font: 800 30px/1 var(--display);
+  letter-spacing: 0.01em;
+}
+
+.os .fd-body h2 small {
+  margin-left: 9px;
+  font: 600 11px var(--ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: var(--ink-note);
+}
+
+.os .fd-body dl {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 4px 8px;
+  margin: 0;
+  font: 13px/1.3 var(--ui);
+}
+
+.os .fd-body dt {
+  font: 600 9.5px/1.7 var(--ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-note);
+}
+
+.os .fd-body dd {
+  margin: 0;
+}
+
+/* Le pied de la carte est son bouton : toute la carte fonde, lui le dit. Son pseudo-élément
+   couvre la carte, qui reste un article (titre, liste) et non un bouton qui les contient. */
+.os .fd-go {
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 8px 12px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 11px/1.3 var(--ui);
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.os .fd-go::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.os .fd-go:focus-visible {
+  outline: none;
+}
+
+.os .fd-go:focus-visible::after {
+  outline: 2px solid var(--interaction);
+  outline-offset: 2px;
+}
+
+/* La table qu'on vient de se voir refuser : sa guerre est déjà désignée. */
+.os .fd-war[data-asked] {
+  outline: 2px solid var(--notable);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .os .fd-war:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-float);
+  }
+
+  .os .fd-war:hover .fd-go {
+    background: var(--interaction);
+  }
+}
+
+.os .fd-later {
+  margin: 16px 0 0;
+  font: italic 14px/1.4 var(--text);
+  color: var(--ink-soft);
+}
+
+@media (max-width: 760px) {
+  .os .fd {
+    padding: 12px var(--gutter) 40px;
+  }
+
+  .os .fd-sheet {
+    padding: 0 14px 16px;
+  }
+
+  .os .fd-wars {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .os .fd-war {
+    grid-template-rows: 96px auto auto;
+  }
+
+  .os .fd-body h2 {
+    font-size: 25px;
+  }
+}
+
+:root[data-motion='reduced'] .os .fd-war {
+  transition: none;
+}

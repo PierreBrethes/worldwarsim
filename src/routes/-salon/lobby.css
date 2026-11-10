@@ -1,0 +1,969 @@
+/* Le salon (`Lobby.tsx`) : la table d'état-major. À gauche qui est là, au centre la carte, dessous
+   « ma place » — une phrase et une seule action —, à droite le télégraphe. Sous `.os` pour ses
+   variables et ses pièces imprimées (`off-season.css`). */
+
+.os .sl {
+  display: grid;
+  grid-template:
+    'bar bar' auto
+    'seats side' auto
+    'map side' minmax(0, 1fr)
+    'dock side' auto
+    / minmax(0, 1fr) 316px;
+  gap: 14px 22px;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 660px;
+  padding: 12px var(--gutter) 16px;
+}
+
+/* ---------- la réglette : la partie, son code, inviter ---------- */
+
+.os .sl-bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 54px;
+  padding: 7px 12px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-float);
+}
+
+.os .sl-title {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding-left: 16px;
+  border-left: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
+  white-space: nowrap;
+}
+
+.os .sl-title b {
+  font: 800 21px/1 var(--display);
+}
+
+.os .sl-title span {
+  font: 600 11px/1 var(--ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.os .sl-rdv {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto;
+}
+
+.os .sl-rdv svg {
+  width: 28px;
+  height: 28px;
+}
+
+.os .sl-rdv .when {
+  font: 700 15px var(--display);
+}
+
+.os .sl-rdv .big {
+  font: 600 22px/1 var(--num);
+}
+
+.os .sl-tail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Le code, façon petite annonce encadrée : il se copie d'un clic. */
+.os .sl-code {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 4px 10px 3px;
+  border: 1px solid var(--ink);
+  outline: 1px solid var(--ink);
+  outline-offset: -4px;
+  background: var(--paper-3);
+}
+
+.os .sl-code .eyebrow {
+  font-size: 8px;
+}
+
+.os .sl-code b {
+  font: 600 17px/1 var(--num);
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+}
+
+@media (hover: hover) {
+  .os .sl-code:hover {
+    background: var(--paper);
+  }
+}
+
+/* ---------- la table : qui est là, autour de la carte ---------- */
+
+.os .sl-seats {
+  grid-area: seats;
+  min-width: 0;
+}
+
+.os .sl-seats > [role='list'] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+  gap: 12px 10px;
+}
+
+.os .seat {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  align-content: center;
+  min-width: 0;
+  min-height: 70px;
+  padding: 8px 10px 7px 56px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-lift);
+}
+
+.os .seat.me {
+  outline: 2px solid var(--notable);
+  outline-offset: 1px;
+}
+
+.os .seat-tag {
+  position: absolute;
+  top: -8px;
+  left: 52px;
+  padding: 3px 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 8.5px/1 var(--ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.os .seat.me .seat-tag {
+  /* The brass alone leaves paper letters of this size under 4,5:1. */
+  background: color-mix(in srgb, var(--notable-paper) 80%, var(--ink));
+}
+
+.os .seat .who b {
+  display: block;
+  overflow: hidden;
+  font: 700 17px/1.1 var(--display);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.os .seat .what {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font: 12px/1.25 var(--ui);
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+.os .seat .what i {
+  font-style: italic;
+  color: var(--ink-note);
+}
+
+.os .seat .atout {
+  overflow: hidden;
+  font: italic 11.5px/1.2 var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+.os .seat .state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 11px var(--ui);
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+.os .seat .stamp {
+  top: 8px;
+  right: 7px;
+  padding: 4px 6px 3px;
+  border-width: 2px;
+  font-size: 11px;
+}
+
+.os .seat.away .fig {
+  filter: grayscale(0.8) opacity(0.45);
+}
+
+.os .seat.away .who b {
+  color: var(--ink-soft);
+}
+
+/* Les chaises vides sont une seule carte, et cette carte invite. */
+.os .seat.empty {
+  width: 100%;
+  place-items: center;
+  gap: 4px;
+  padding: 8px;
+  border: 1px dashed color-mix(in srgb, var(--paper) 55%, transparent);
+  background: color-mix(in srgb, var(--paper) 8%, transparent);
+  box-shadow: none;
+  color: var(--paper-dim-2);
+  text-align: center;
+}
+
+.os .seat.empty b {
+  font: italic 500 16px var(--display);
+  color: var(--paper);
+}
+
+.os .seat.empty span {
+  font: 600 10px var(--ui);
+  letter-spacing: 0.16em;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-transform: uppercase;
+}
+
+@media (hover: hover) {
+  .os .seat.empty:hover {
+    border-color: var(--paper);
+    background: color-mix(in srgb, var(--paper) 14%, transparent);
+    color: var(--paper);
+  }
+}
+
+.os .fig {
+  position: absolute;
+  z-index: 1;
+  bottom: 6px;
+  left: 7px;
+  width: 40px;
+  height: 78px;
+  object-fit: contain;
+  object-position: bottom;
+  pointer-events: none;
+  filter: drop-shadow(1px 2px 1px rgb(0 0 0 / 30%));
+}
+
+.os .fig.ghost {
+  display: grid;
+  place-items: center;
+  bottom: 10px;
+  height: 50px;
+  border: 1px dashed color-mix(in srgb, var(--ink) 45%, transparent);
+  font: 700 22px var(--display);
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+  filter: none;
+}
+
+.os .fig + .contact {
+  position: absolute;
+  bottom: 3px;
+  left: 8px;
+  width: 38px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(26 18 10 / 45%), transparent);
+  pointer-events: none;
+}
+
+/* ---------- la colonne : l'ordre d'opérations, puis le télégraphe ---------- */
+
+.os .sl-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.os .sl .panel {
+  flex: none;
+  padding: 10px 12px 10px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-lift);
+}
+
+.os .sl .panel h3 {
+  margin: 0;
+  font: 700 16px/1.1 var(--display);
+}
+
+.os .sl .panel .ph {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.os .orders dl {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  margin: 0;
+}
+
+.os .orders dt,
+.os .orders dd {
+  margin: 0;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+.os .orders dt {
+  font: 600 9.5px/1.5 var(--ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-note);
+}
+
+.os .orders dd {
+  font: 13px/1.3 var(--ui);
+}
+
+.os .orders dd b {
+  font-weight: 600;
+}
+
+.os .orders dd .note {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.os .orders .edit {
+  display: grid;
+  gap: 5px;
+}
+
+.os .orders .custom {
+  display: grid;
+  gap: 3px;
+  font: 11px var(--ui);
+  color: var(--ink-note);
+}
+
+.os .orders .custom input {
+  min-height: 30px;
+  padding: 4px 6px;
+  border: 1px solid var(--ink);
+  background: var(--paper-3);
+  color: var(--ink);
+  font: 500 12px var(--num);
+}
+
+.os .orders .more {
+  margin-top: 6px;
+}
+
+.os .orders .more summary {
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+  font: 600 10px var(--ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-note);
+}
+
+.os .orders .more summary::-webkit-details-marker {
+  display: none;
+}
+
+.os .orders .more summary::before {
+  content: '+ ';
+  font-family: var(--num);
+}
+
+.os .orders .more[open] summary::before {
+  content: '− ';
+}
+
+.os .orders .more dt {
+  font-size: 9px;
+}
+
+.os .orders .more dd {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+/* ---------- la carte ---------- */
+
+.os .sl-map {
+  grid-area: map;
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--ink);
+  box-shadow:
+    0 1px 0 var(--plinth-top),
+    0 3px 0 #9c8a66,
+    0 4px 0 var(--ink-soft),
+    var(--shadow-float-hi);
+}
+
+.os .sl-map .mapbox {
+  position: absolute;
+  inset: 0;
+}
+
+.os .sl-map .cartouche {
+  top: 12px;
+  right: 12px;
+}
+
+.os .sl-map .rose {
+  bottom: 10px;
+  left: 12px;
+}
+
+.os .sl-map .thswitch {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.os .sl-map .thswitch button {
+  padding: 6px 9px;
+  border: 0;
+  background: transparent;
+  font: 600 10px var(--ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.os .sl-map .thswitch button + button {
+  border-left: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.os .sl-map .thswitch button[aria-checked='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.os .capital {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+
+.os .capital .flag {
+  width: 22px;
+}
+
+.os .capital i {
+  width: 1px;
+  height: 9px;
+  background: var(--ink);
+}
+
+.os .capital u {
+  width: 5px;
+  height: 5px;
+  margin-top: -1px;
+  border-radius: 50%;
+  background: var(--ink);
+  text-decoration: none;
+}
+
+.os .capital.mine .flag {
+  box-shadow: 0 0 0 2px var(--notable);
+}
+
+/* ---------- ma place : une phrase, une action ---------- */
+
+.os .sl-dock {
+  grid-area: dock;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 232px;
+  gap: 10px 18px;
+  align-items: center;
+  padding: 11px 13px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-float-hi);
+}
+
+.os .sl-mine {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.os .tokens {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Tant que la nation manque, c'est la rangée des drapeaux qui est l'action. */
+.os .sl[data-step='nation'] .tokens {
+  outline: 2px solid var(--notable);
+  outline-offset: 5px;
+}
+
+.os .token {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 4px 3px 3px;
+  border: 1px solid color-mix(in srgb, var(--ink) 45%, transparent);
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.os .token .flag {
+  width: min(36px, 100%);
+}
+
+.os .token span {
+  max-width: 100%;
+  overflow: hidden;
+  font: 600 8.5px/1 var(--ui);
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .os .token:not(.taken):hover {
+    border-color: var(--ink);
+    transform: translateY(-2px);
+  }
+}
+
+.os .token[aria-checked='true'] {
+  border: 2px solid var(--notable);
+  background: #f4e8cf;
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-3px);
+}
+
+.os .token.taken {
+  border-style: dashed;
+  background: transparent;
+  cursor: help;
+}
+
+.os .token.taken .flag {
+  opacity: 0.45;
+}
+
+.os .token.taken span {
+  color: var(--ink-note);
+}
+
+.os .token.taken em {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  padding: 1px 3px;
+  border: 1.5px solid var(--critical-paper);
+  background: rgb(239 230 207 / 85%);
+  color: var(--critical-paper);
+  font: 700 8.5px var(--ui);
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translateX(-50%) rotate(-12deg);
+}
+
+.os .nfiche {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.os .nfiche .rule-broken {
+  flex: 1;
+  min-width: 0;
+  font: 12px/1.3 var(--ui);
+}
+
+.os .nfiche .rule-broken b {
+  font: 700 14px var(--display);
+}
+
+.os .nfiche .rule-broken em {
+  font: italic 12.5px var(--text);
+}
+
+.os .rest {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 12px var(--ui);
+}
+
+.os .rest input {
+  min-height: 30px;
+  padding: 4px 5px;
+  border: 1px solid var(--ink);
+  background: var(--paper-3);
+  color: var(--ink);
+  font: 500 13px var(--num);
+}
+
+.os .sl-act {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  justify-items: stretch;
+  min-width: 0;
+}
+
+.os .sl-say {
+  margin: 0;
+  font: italic 500 16px/1.25 var(--display);
+  text-wrap: balance;
+}
+
+.os .sl-act .btn {
+  min-height: 46px;
+}
+
+.os .sl-act .link {
+  justify-self: start;
+  min-height: 24px;
+}
+
+.os .sl-dock .wire-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* ---------- le télégraphe ---------- */
+
+.os .sl-side > .wirewin {
+  flex: 1;
+}
+
+.os .sl-side > .wiretab {
+  margin-top: auto;
+}
+
+/* Trois enfants : la barre, le canal, et le widget (onglets, fil, champ) qui prend le reste —
+   sans quoi le champ remonte sous le dernier message. La colonne ne s'élargit pas sur son
+   contenu : « conversation privée avec … », sans retour à la ligne, poussait tout à droite. */
+.os .wirewin {
+  display: grid;
+  grid-template: auto auto minmax(0, 1fr) / minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-float-hi);
+}
+
+.os .wirewin > div:last-child {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.os .wbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 8px 14px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.os .wbar .eyebrow {
+  flex: none;
+}
+
+.os .wbar .ctitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: italic 400 12px var(--display);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-quiet);
+}
+
+.os .wclose {
+  padding: 5px 9px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: 600 9px var(--ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+@media (hover: hover) {
+  .os .wclose:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+}
+
+.os .wcanal {
+  padding: 5px 14px 4px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--ink) 35%, transparent);
+  font: italic 11.5px var(--text);
+  color: var(--ink-note);
+}
+
+.os .wiretab {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-float-hi);
+  color: var(--ink);
+  text-align: left;
+}
+
+.os .wiretab .t {
+  font: 700 17px var(--display);
+}
+
+.os .wiretab .badge {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  background: var(--critical-paper);
+  color: var(--paper);
+  font: 600 11px var(--num);
+}
+
+.os .wiretab .last {
+  display: -webkit-box;
+  grid-column: 1 / -1;
+  overflow: hidden;
+  font: 12px/1.3 var(--ui);
+  color: var(--ink-soft);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.os .wiretab .open {
+  grid-column: 1 / -1;
+  justify-self: end;
+  font: 600 10px var(--ui);
+  letter-spacing: 0.16em;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-transform: uppercase;
+}
+
+/* ---------- l'écran moyen : les colonnes se resserrent ---------- */
+
+@media (max-width: 1180px) and (min-width: 761px) {
+  .os .sl {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    column-gap: 16px;
+  }
+
+  .os .sl-bar > [role='img'] {
+    display: none !important;
+  }
+
+  .os .sl-title {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+/* ---------- le téléphone : une colonne — qui est là, ma place, la carte, le fil ---------- */
+
+@media (max-width: 760px) {
+  .os .sl {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: auto;
+    min-height: 100dvh;
+    padding: 8px var(--gutter) calc(20px + var(--safe-bottom));
+  }
+
+  .os .sl-bar {
+    position: sticky;
+    z-index: 5;
+    top: 6px;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 7px 10px;
+  }
+
+  /* La manchette porte `inline-flex` en utilitaire, qui passe devant la couche `components`. */
+  .os .sl-bar > [role='img'] {
+    display: none !important;
+  }
+
+  .os .sl-title {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .os .sl-title b {
+    font-size: 19px;
+  }
+
+  .os .sl-rdv {
+    order: 5;
+    flex-basis: 100%;
+    margin: 0;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+  }
+
+  .os .sl-rdv .big {
+    margin-left: auto;
+    font-size: 18px;
+  }
+
+  .os .sl-code {
+    padding: 3px 8px 2px;
+  }
+
+  .os .sl-code b {
+    font-size: 15px;
+  }
+
+  .os .sl-seats > [role='list'] {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 8px;
+  }
+
+  .os .seat {
+    min-height: 62px;
+    padding: 8px 6px 6px 40px;
+  }
+
+  .os .seat-tag {
+    left: 36px;
+  }
+
+  .os .fig {
+    left: 4px;
+    width: 31px;
+    height: 62px;
+  }
+
+  .os .fig.ghost {
+    height: 42px;
+    font-size: 16px;
+  }
+
+  .os .fig + .contact {
+    left: 5px;
+    width: 29px;
+  }
+
+  .os .seat .who b {
+    font-size: 15px;
+  }
+
+  .os .seat .what,
+  .os .seat .state {
+    font-size: 10.5px;
+  }
+
+  .os .seat .atout {
+    display: none;
+  }
+
+  .os .seat .stamp {
+    top: 4px;
+    right: 3px;
+    font-size: 9px;
+  }
+
+  /* La table d'abord, puis ce que j'y fais ; la carte, l'ordre et le fil viennent dessous. */
+  .os .sl-seats {
+    order: 1;
+  }
+
+  .os .sl-dock {
+    order: 2;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .os .sl-act {
+    order: -1;
+  }
+
+  .os .sl-map {
+    order: 3;
+    height: 210px;
+  }
+
+  .os .sl-map .cartouche,
+  .os .sl-map .rose {
+    display: none;
+  }
+
+  .os .sl-map .thswitch {
+    top: 6px;
+    left: 6px;
+  }
+
+  .os .sl-map .thswitch button {
+    padding: 5px 6px;
+    font-size: 9px;
+  }
+
+  .os .sl-side {
+    order: 4;
+  }
+
+  .os .sl-side > .wirewin {
+    flex: none;
+    height: 62dvh;
+  }
+
+  .os .tokens {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .os .token {
+    min-height: 44px;
+  }
+
+  .os .nfiche .rest .note {
+    display: none;
+  }
+}

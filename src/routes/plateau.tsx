@@ -178,7 +178,6 @@ import { pilePlace, stationNames, type RegionAt } from '@/domain/station-name';
 import { highlightOf, stackLabelId } from '@/domain/force-highlight';
 import { useIndicatorToggles } from '@/data/indicatorToggles';
 import { briefingSeen, markBriefingSeen } from '@/data/settings';
-import { loadGame } from '@/data/loadGame';
 import { adoptSeason } from '@/data/adoptSeason';
 import { convexClient } from '@/data/convexClient';
 import { usePresence } from '@/data/presence';
@@ -332,7 +331,10 @@ export const Route = createFileRoute('/plateau')({
   },
   // The loader only fetches the atlas and the seat; the view comes from the subscription,
   // so the errors that used to surface here now surface at render — see `BoardError`.
-  loader: loadGame,
+  // Imported at the call: the router keeps a route's loader in the entry chunk, and this one
+  // reads the engine's frame, so every page of the game, the public front page first, was
+  // downloading three.js to show a sheet of paper.
+  loader: () => import('@/data/loadGame').then((module) => module.loadGame()),
   pendingComponent: Loading,
   errorComponent: ({ error, reset }) => <BoardError error={error} reset={reset} />,
   component: Board,

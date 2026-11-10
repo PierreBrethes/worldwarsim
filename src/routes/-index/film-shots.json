@@ -40,9 +40,5 @@
       "end": 30,
       "subtitle": "blitz"
     }
-  ],
-  "loop": {
-    "from": 0,
-    "to": 14
-  }
+  ]
 }

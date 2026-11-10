@@ -105,6 +105,10 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
 - **Figurines GLB.** Textures en WebP avant commit
   (`npx @gltf-transform/cli webp <in.glb> <out.glb> --quality 90`, hors du dépôt) ; ni meshopt ni
   quantification. `glb.test.ts` tient triangles et noms de pièces.
+- **Chunk d'entrée.** Un fichier de `src/routes/` n'exporte que `Route` : le routeur n'en détache
+  que le `component`, tout le reste (une page exportée, ce que lit un `loader`) part avec chaque
+  page, la une publique comprise. La page vit dans `routes/-<route>/`, et le chargeur du plateau
+  s'importe à l'appel, sans quoi three.js se charge partout (`entry-chunk.test.ts`).
 - **Schéma Convex.** Un champ ajouté à une table existante est `v.optional`, lu avec un défaut
   par `??`, ou s'accompagne d'une migration de backfill : un champ obligatoire sans migration fait
   refuser la poussée en production.

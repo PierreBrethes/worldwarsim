@@ -49,6 +49,12 @@
 
   /* semantic */
   --critical: #9d4638;
+  /* The same red one step darker, for small text on paper and for the ground of small paper text
+     (the off-season: a refusal under a field, a stamp, the launch button). --critical is 4.41:1
+     on --paper, under the 4.5:1 of small text; this one is 4.71:1 there and 5.36:1 on the
+     off-season's lighter --paper-3. Paper only: on the desk --critical is already the dim one,
+     and the board keeps it. */
+  --critical-paper: #964336;
   --valid: #2b6b46;
   /* The same verdict lit for the desk's dark glass. The bottle green above is read on paper;
      at four pixels over black it goes out, exactly as --notable-paper would. */

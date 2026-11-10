@@ -163,6 +163,35 @@ export function launchPlanOf<Id>(input: {
   return { refusal: null };
 }
 
+/**
+ * **Le lancement tel que le fondateur l'obtiendrait en lançant maintenant** : son « prêt » part
+ * avec l'ordre — l'écran l'envoie juste avant —, la table n'attend donc que celui des autres.
+ */
+export const founderLaunchOf = <Id>(input: Parameters<typeof launchPlanOf<Id>>[0]): LaunchPlan =>
+  launchPlanOf({
+    ...input,
+    seats: input.seats.map((seat) => (seat.id === input.caller ? { ...seat, ready: true } : seat)),
+  });
+
+export type TableStep = 'nation' | 'ready' | 'invite' | 'launch' | 'wait';
+
+/**
+ * **Ce que la table attend de celui qui la regarde, une chose à la fois** : sa nation, puis son
+ * « prêt » ; pour le fondateur, inviter tant que la table est trop courte, puis lancer dès que
+ * les autres sont prêts (`founderLaunchOf`). Le reste du temps, rien : on attend les autres.
+ */
+export function tableStepOf(input: {
+  readonly nation: string | null;
+  readonly ready: boolean;
+  readonly founder: boolean;
+  readonly launchRefusal: LaunchPlan['refusal'];
+}): TableStep {
+  if (input.nation === null) return 'nation';
+  if (!input.founder) return input.ready ? 'wait' : 'ready';
+  if (input.launchRefusal === null) return 'launch';
+  return input.launchRefusal === 'NOT_ENOUGH_PLAYERS' ? 'invite' : 'wait';
+}
+
 /** Le théâtre « au sort » : parmi ceux qui assoient la table, par la graine de la saison. */
 export function drawTheatre(seed: number, seated: number): TheatreId {
   const fitting = THEATRES.filter(

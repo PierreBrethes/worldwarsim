@@ -15,8 +15,9 @@ const PASS_HINT = 'auth-password-hint';
  * **La carte d'accréditation** : deux champs, et rien d'autre (ADR 0022) — pas d'e-mail, donc
  * pas de « mot de passe oublié ». Deux onglets pour les deux gestes, qui demandent la même chose ;
  * à l'ouverture d'un dossier, les règles du pseudo et du mot de passe s'écrivent sous chaque champ
- * pendant la frappe, par les fonctions mêmes du serveur (`src/domain/account.ts`). Le refus du
- * serveur se lit sous le formulaire, là où est la main.
+ * pendant la frappe, par les fonctions mêmes du serveur (`src/domain/account.ts`). Le bouton
+ * n'est jamais grisé : un champ qui manque est dit sous lui, en rouge, et prend la main. Le refus
+ * du serveur se lit sous le formulaire.
  *
  * Partagée par `/connexion` et l'invitation : la session est gardée dès que le serveur la donne,
  * puis chacun enchaîne sa suite avec `onSignedIn`.
@@ -41,16 +42,21 @@ export function AccountForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [accredited, setAccredited] = useState(false);
+  /** Ce que la carte refuse ne se dit qu'une fois demandé : pas de rouge sous un champ vide que
+   *  personne n'a encore touché. */
+  const [asked, setAsked] = useState(false);
 
-  const nickOk = nicknameRefusal(nickname) === null;
-  const passOk = passwordRefusal(password) === null;
-  const refused = registering
-    ? !nickOk || !passOk
-    : nickname.trim().length === 0 || password.length === 0;
+  const nickOk = registering ? nicknameRefusal(nickname) === null : nickname.trim().length > 0;
+  const passOk = registering ? passwordRefusal(password) === null : password.length > 0;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (refused || pending) return;
+    if (pending) return;
+    if (!nickOk || !passOk) {
+      setAsked(true);
+      document.getElementById(nickOk ? 'auth-password' : 'auth-nickname')?.focus();
+      return;
+    }
     setError(null);
     setPending(true);
     try {
@@ -68,6 +74,7 @@ export function AccountForm({
   const switchTo = (next: boolean) => {
     setRegistering(next);
     setError(null);
+    setAsked(false);
   };
   const describedBy = (hint: string) => (error ? `${hint} ${ERROR_ID}` : hint);
   const sprite = spriteUrl(portrait, 'infantry', 1);
@@ -108,21 +115,23 @@ export function AccountForm({
               value={nickname}
               maxLength={40}
               placeholder={fr.auth.nicknamePlaceholder}
-              aria-invalid={error ? true : undefined}
+              aria-invalid={error || (asked && !nickOk) ? true : undefined}
               aria-describedby={describedBy(NICK_HINT)}
               onChange={(event) => setNickname(event.target.value)}
             />
             <span
               id={NICK_HINT}
-              className={`hint ${registering && nickname ? (nickOk ? 'ok' : 'bad') : ''}`}
+              className={`hint ${nickOk ? (registering && nickname ? 'ok' : '') : nickname || asked ? 'bad' : ''}`}
             >
               {registering
-                ? nickname
+                ? nickname || asked
                   ? nickOk
                     ? fr.auth.nicknameFree
                     : fr.auth.nicknameRule
                   : fr.auth.nicknameNote
-                : ' '}
+                : asked && !nickOk
+                  ? fr.auth.nicknameMissing
+                  : ' '}
             </span>
           </div>
           <div className="field">
@@ -134,19 +143,18 @@ export function AccountForm({
               autoComplete={registering ? 'new-password' : 'current-password'}
               value={password}
               placeholder={fr.auth.passwordPlaceholder}
-              aria-invalid={error ? true : undefined}
+              aria-invalid={error || (asked && !passOk) ? true : undefined}
               aria-describedby={describedBy(PASS_HINT)}
               onChange={(event) => setPassword(event.target.value)}
             />
-            <span
-              id={PASS_HINT}
-              className={`hint ${registering && password && !passOk ? 'bad' : ''}`}
-            >
+            <span id={PASS_HINT} className={`hint ${!passOk && (password || asked) ? 'bad' : ''}`}>
               {registering
-                ? password && !passOk
+                ? !passOk && (password || asked)
                   ? fr.auth.passwordRule
                   : fr.auth.passwordNote
-                : ' '}
+                : asked && !passOk
+                  ? fr.auth.passwordMissing
+                  : ' '}
             </span>
           </div>
         </div>
@@ -161,12 +169,7 @@ export function AccountForm({
           {error}
         </p>
       )}
-      <button
-        type="submit"
-        form="authform"
-        className="btn primary wide"
-        aria-disabled={refused || pending ? true : undefined}
-      >
+      <button type="submit" form="authform" className="btn primary wide" aria-busy={pending}>
         {pending
           ? fr.auth.pending
           : invited

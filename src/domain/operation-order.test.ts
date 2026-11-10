@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   drawTheatre,
+  founderLaunchOf,
   launchPlanOf,
   nextEvening,
   presenceOf,
   seatCapOf,
   settingsRefusalOf,
+  tableStepOf,
   type Settings,
 } from './operation-order';
 
@@ -168,6 +170,61 @@ describe('launchPlanOf', () => {
         seats: [seat('a', true, null), seat('b', true, null)],
       }).refusal,
     ).toBeNull();
+  });
+});
+
+/**
+ * **Le fondateur tamponne en lançant** : son « prêt » part avec l'ordre de lancement, la table ne
+ * l'attend donc pas. La porte du serveur ne bouge pas (`launchPlanOf`) : l'écran envoie le
+ * « prêt », puis le lancement.
+ */
+describe('founderLaunchOf', () => {
+  const seat = (id: string, ready: boolean) => ({ id, nickname: id, ready, seenAt: null });
+  const table = (seats: ReturnType<typeof seat>[]) => ({
+    mode: 'mondiale' as const,
+    scheduledAt: null,
+    range: { min: 2, max: 8 },
+    now: NOW,
+    caller: 'founder',
+    seats,
+  });
+
+  it('does not wait for the founder’s own « prêt », only for the others’', () => {
+    const ready = table([seat('founder', false), seat('b', true)]);
+    expect(launchPlanOf(ready).refusal).toBe('PLAYERS_NOT_READY');
+    expect(founderLaunchOf(ready)).toEqual({ refusal: null });
+    expect(founderLaunchOf(table([seat('founder', false), seat('b', false)]))).toEqual({
+      refusal: 'PLAYERS_NOT_READY',
+      nicknames: ['b'],
+    });
+  });
+
+  it('still needs a second player', () => {
+    expect(founderLaunchOf(table([seat('founder', false)])).refusal).toBe('NOT_ENOUGH_PLAYERS');
+  });
+});
+
+/** **Une seule chose à faire à la fois** : ce que la table attend de celui qui la regarde. */
+describe('tableStepOf', () => {
+  const guest = { nation: 'france', ready: false, founder: false, launchRefusal: null };
+  const founder = { ...guest, founder: true };
+
+  it('asks for the nation first, whoever looks', () => {
+    expect(tableStepOf({ ...guest, nation: null })).toBe('nation');
+    expect(tableStepOf({ ...founder, nation: null })).toBe('nation');
+  });
+
+  it('asks a guest for his « prêt », then lets him wait', () => {
+    expect(tableStepOf(guest)).toBe('ready');
+    expect(tableStepOf({ ...guest, ready: true })).toBe('wait');
+  });
+
+  it('has the founder invite while the table is short, wait for the others, then launch', () => {
+    expect(tableStepOf({ ...founder, launchRefusal: 'NOT_ENOUGH_PLAYERS' })).toBe('invite');
+    expect(tableStepOf({ ...founder, launchRefusal: 'PLAYERS_NOT_READY' })).toBe('wait');
+    expect(tableStepOf({ ...founder, launchRefusal: 'PLAYERS_ABSENT' })).toBe('wait');
+    expect(tableStepOf(founder)).toBe('launch');
+    expect(tableStepOf({ ...founder, ready: true })).toBe('launch');
   });
 });
 

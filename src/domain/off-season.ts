@@ -45,8 +45,31 @@ export function joinRefusalOf(input: {
 export function normalizeGameCode(raw: string): string | null {
   const code = raw.trim().toUpperCase();
   const valid =
-    code.length === CODE_LENGTH && [...code].every((letter) => CODE_ALPHABET.includes(letter));
+    code.length === GAME_CODE_LENGTH && [...code].every((letter) => CODE_ALPHABET.includes(letter));
   return valid ? code : null;
+}
+
+/** Un lien d'invitation collé (`invitationUrl`, ou son seul chemin) rend le code qui suit
+ *  `/rejoindre/`, sans barre finale ni paramètres ; tout autre texte reste tel quel. */
+const codeOfInput = (raw: string): string => /\/rejoindre\/([^/?#\s]*)/i.exec(raw)?.[1] ?? raw;
+
+/**
+ * **Un code en cours de frappe** : ce qu'il en reste une fois rogné, la première lettre qu'aucun
+ * code ne porte, et le code entier dès la sixième. La une ouvre l'invitation sur `code` sans
+ * rien demander au serveur : il ne vaut que ce que `normalizeGameCode` accepterait.
+ */
+export function gameCodeEntry(raw: string): {
+  readonly typed: string;
+  readonly stray: string | null;
+  readonly code: string | null;
+} {
+  const typed = codeOfInput(raw).replace(/\s/g, '').toUpperCase().slice(0, GAME_CODE_LENGTH);
+  const stray = [...typed].find((letter) => !CODE_ALPHABET.includes(letter)) ?? null;
+  return {
+    typed,
+    stray,
+    code: typed.length === GAME_CODE_LENGTH ? normalizeGameCode(typed) : null,
+  };
 }
 
 /** Le lien qui ouvre la saison à un invité : l'origine d'où le joueur la lit, jamais une adresse
@@ -65,11 +88,11 @@ export function playableRegion(playerCount: number): PlayableRegion {
 }
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const CODE_LENGTH = 6;
+export const GAME_CODE_LENGTH = 6;
 
 export function gameCode(random: () => number): string {
   return Array.from(
-    { length: CODE_LENGTH },
+    { length: GAME_CODE_LENGTH },
     () => CODE_ALPHABET[Math.floor(random() * CODE_ALPHABET.length)],
   ).join('');
 }

@@ -9,7 +9,7 @@ import {
   createRouter,
 } from '@tanstack/react-router';
 import { afterEach, expect, it, vi } from 'vitest';
-import { Credits } from './credits';
+import { Credits } from './Credits';
 
 afterEach(cleanup);
 

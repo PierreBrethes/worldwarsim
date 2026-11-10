@@ -1,0 +1,533 @@
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useMutation, useQuery } from 'convex/react';
+import type { FunctionReturnType } from 'convex/server';
+import { useEffect, useState } from 'react';
+import { api } from '../../../convex/_generated/api';
+import { fr, nationLabel, rendezvousLabel, countdownLabel } from '@/i18n/fr';
+import { typo } from '@/i18n/typo';
+import { frontPageOrder, soleAwaitingSeat } from '@/domain/front-page';
+import { founderLaunchOf, presenceOf, tableStepOf, type TableStep } from '@/domain/operation-order';
+import { MODE_RULES, seatRangeOf } from '@/domain/season-mode';
+import { theatreById } from '@/domain/theatres';
+import { CodeField } from '@/shell/CodeField';
+import { Wordmark } from '@/shell/Masthead';
+import { DestroyButton } from '@/shell/DestroyButton';
+import { EngravedMap } from '@/emblems/EngravedMap';
+import { FlagChip, OffSeasonPage, boxOf, romanDate } from '@/shell/OffSeason';
+import { peekArrival, takeArrival } from '@/data/arrival';
+import { convexClient } from '@/data/convexClient';
+import { handleError } from '@/data/errors';
+import { resumeSeat } from '@/data/resumeSeat';
+import { forgetSession, useSession } from '@/data/session';
+import { currentPushEndpoint } from '@/data/pushDevice';
+import { downloadRendezvous } from '@/data/rendezvous';
+import '@/styles/final-edition.css';
+
+export function Home() {
+  return convexClient ? (
+    <ConnectedHome />
+  ) : (
+    <OffSeasonPage>
+      <p className="note" style={{ padding: 40, color: 'var(--paper)' }}>
+        {fr.auth.noBackend}
+      </p>
+    </OffSeasonPage>
+  );
+}
+
+type Seat = FunctionReturnType<typeof api.accounts.seats>[number];
+
+/**
+ * **Ce que le salon attend de ce joueur**, par la fonction même de la table (`tableStepOf`) : la
+ * une et le salon ne peuvent pas dire deux choses de la même place. `null` hors d'un salon.
+ */
+function stepAt(seat: Seat, now: number): TableStep | null {
+  const mine = seat.table.findIndex((entry) => entry.mine);
+  const me = seat.table[mine];
+  if (seat.status !== 'lobby' || me === undefined) return null;
+  const plan = founderLaunchOf({
+    mode: seat.mode,
+    scheduledAt: seat.orders.scheduledAt,
+    range: seatRangeOf(seat.mode, seat.theatre),
+    now,
+    caller: seat.table.findIndex((entry) => entry.creator),
+    seats: seat.table.map((entry, id) => ({ ...entry, id })),
+  });
+  return tableStepOf({
+    nation: me.nation,
+    ready: me.ready,
+    founder: me.creator,
+    launchRefusal: plan.refusal,
+  });
+}
+
+/** Un salon qui attend ce joueur : sa nation, son « prêt », ou — fondateur — son lancement. */
+const awaits = (seat: Seat, now: number): boolean => {
+  const step = stepAt(seat, now);
+  return step === 'nation' || step === 'ready' || step === 'launch';
+};
+
+/**
+ * **La porte de l'accueil** : rien tant que les places ne sont pas lues — un titre « aucune
+ * partie » qui clignote avant la réponse serait faux une fois sur deux —, puis la une, ou droit
+ * la partie quand on arrive et qu'une seule attend (`soleAwaitingSeat`).
+ */
+export function ConnectedHome() {
+  const token = useSession() ?? '';
+  const seats = useQuery(api.accounts.seats, { token });
+  const [arriving] = useState(peekArrival);
+  useEffect(() => {
+    takeArrival();
+  }, []);
+  if (seats === undefined) return <OffSeasonPage>{null}</OffSeasonPage>;
+  return <Door seats={seats} arriving={arriving} token={token} />;
+}
+
+/** Le choix se fait une fois, sur les places lues à l'arrivée : une partie qui se conclut
+ *  pendant qu'on lit la une n'emmène personne. */
+function Door({
+  seats,
+  arriving,
+  token,
+}: {
+  seats: ReadonlyArray<Seat>;
+  arriving: boolean;
+  token: string;
+}) {
+  const navigate = useNavigate();
+  const [straight] = useState(() => (arriving ? soleAwaitingSeat(seats) : null));
+  useEffect(() => {
+    if (straight === null) return;
+    resumeSeat(straight, {
+      salon: () => void navigate({ to: '/salon', replace: true }),
+      plateau: () => void navigate({ to: '/plateau', replace: true }),
+    });
+  }, [straight, navigate]);
+  if (straight !== null) return <OffSeasonPage>{null}</OffSeasonPage>;
+  return <Front seats={seats} token={token} />;
+}
+
+/**
+ * **La une de mon édition** (choix 13) : mes parties en articles triés par urgence, la plus
+ * pressante à la une, et deux petites annonces — fonder une partie, ouvrir un code. Supprimer
+ * n'est plus ici : au salon pour un salon, au pli d'une partie conclue pour le reste.
+ */
+function Front({ seats, token }: { seats: ReadonlyArray<Seat>; token: string }) {
+  const navigate = useNavigate();
+  const destroy = useMutation(api.seasons.destroy);
+  const logout = useMutation(api.accounts.logout);
+  const me = useQuery(api.accounts.me, { token });
+  const editions = useQuery(api.finalEdition.recent, { token });
+  const [error, setError] = useState<string | null>(null);
+  const now = Date.now();
+  const ordered = frontPageOrder(
+    seats.map((seat) => ({
+      ...seat,
+      scheduledAt: seat.orders.scheduledAt,
+      awaited: awaits(seat, now),
+    })),
+    now,
+  );
+  const [lead, ...others] = ordered;
+
+  /** **L'article d'une saison qui a son archive ouvre l'édition** au lieu de la doubler (#455). */
+  const editionOf = new Map(
+    (editions ?? []).map((edition) => [edition.seasonId, edition.editionId]),
+  );
+  /** Reprendre mène droit au salon ou au plateau : le plateau a son propre temps de chargement,
+   *  et le sceau du lancement ne se rejoue pas à chaque visite. */
+  const resume = (seat: Seat) => {
+    const editionId = seat.status === 'concluded' ? editionOf.get(seat.seasonId) : undefined;
+    if (editionId !== undefined) {
+      void navigate({ to: '/edition/$id', params: { id: editionId } });
+      return;
+    }
+    resumeSeat(seat, {
+      salon: () => void navigate({ to: '/salon' }),
+      plateau: () => void navigate({ to: '/plateau' }),
+    });
+  };
+  const present = new Set(seats.map((seat) => seat.seasonId as string));
+
+  const signOut = () =>
+    void currentPushEndpoint()
+      .then((endpoint) => logout({ token, ...(endpoint === null ? {} : { endpoint }) }))
+      .finally(() => {
+        forgetSession();
+        void navigate({ to: '/connexion' });
+      });
+
+  return (
+    <OffSeasonPage>
+      <div className="front-wrap">
+        <article className="sheet pile front" aria-labelledby="t-front">
+          <div className="ears">
+            <span className="eyebrow">
+              {fr.auth.signedIn(me?.nickname ?? '')} ·{' '}
+              <button type="button" className="link" style={EAR_LINK} onClick={signOut}>
+                {fr.auth.logout}
+              </button>
+            </span>
+            <span className="eyebrow">{fr.front.date(new Date(now))}</span>
+          </div>
+          <header className="mast">
+            <div className="top" />
+            <div className="top2" />
+            <div className="wm" id="t-front">
+              <Wordmark size={76} />
+            </div>
+            <div className="rule" />
+            <div className="dl">
+              <span>{fr.home.edition(me?.nickname ?? '')}</span>
+              <span>{romanDate(new Date(now))}</span>
+            </div>
+          </header>
+          <div className="rule double" />
+
+          <div className="front-grid">
+            {lead === undefined ? (
+              <section className="lead" aria-labelledby="t-lead">
+                <div>
+                  <h1 id="t-lead">{typo(fr.home.emptyHeadline)}</h1>
+                  <p className="italic stand">{fr.home.emptyStand}</p>
+                </div>
+              </section>
+            ) : (
+              <Lead seat={lead} now={now} onResume={() => resume(lead)} />
+            )}
+
+            <aside className="ads vrule" aria-label={fr.home.adsLabel}>
+              <div className="ad ad-found">
+                <span className="corner">{fr.home.adCorner}</span>
+                <h3>{typo(fr.home.foundTitle)}</h3>
+                <p className="note">{fr.home.foundNote}</p>
+                <Link className="btn primary wide" to="/fonder">
+                  {fr.home.foundSubmit}
+                </Link>
+              </div>
+              <div className="ad code" id={CODE_AD}>
+                <CodeField
+                  label={fr.home.codeLabel}
+                  onOpen={(code) => void navigate({ to: '/rejoindre/$code', params: { code } })}
+                />
+              </div>
+              {error && (
+                <p role="alert" className="wire-note">
+                  {error}
+                </p>
+              )}
+            </aside>
+
+            {others.length > 0 && (
+              <section className="others" aria-labelledby="t-others">
+                <div className="eyebrow h">
+                  <span id="t-others">{fr.home.othersHeader}</span>
+                  <span>{fr.home.othersNote}</span>
+                </div>
+                <div className="others-grid">
+                  {others.map((seat) => (
+                    <Story
+                      key={seat.seasonId}
+                      seat={seat}
+                      now={now}
+                      onResume={() => resume(seat)}
+                      onDestroy={() =>
+                        void destroy({ token, seasonId: seat.seasonId }).catch((problem: unknown) =>
+                          handleError(problem, setError),
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+          <RecentEditions
+            editions={(editions ?? [])
+              .filter((edition) => !present.has(edition.seasonId))
+              .slice(0, RECENT_SHOWN)}
+          />
+          <div className="colophon">
+            <span>{fr.home.footerLeft}</span>
+            <Link to="/credits">{fr.credits.open}</Link>
+          </div>
+        </article>
+        <div className="mbar">
+          <Link className="btn primary" to="/fonder">
+            {fr.home.foundSubmit}
+          </Link>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => document.querySelector<HTMLInputElement>(`#${CODE_AD} input`)?.focus()}
+          >
+            {fr.home.haveCode}
+          </button>
+        </div>
+      </div>
+    </OffSeasonPage>
+  );
+}
+
+const CODE_AD = 'home-code';
+
+/**
+ * **Les dernières éditions finales du compte** (#455), lues dans l'archive : elles restent après
+ * un « détruire ». Un bloc à part, qui ne restyle pas la page (refaite par #446).
+ */
+function RecentEditions({
+  editions,
+}: {
+  editions: FunctionReturnType<typeof api.finalEdition.recent>;
+}) {
+  if (editions.length === 0) return null;
+  const said = fr.finalEdition.recent;
+  return (
+    <section className="fe-recent" aria-labelledby="t-editions">
+      <div className="eyebrow h">
+        <span id="t-editions">{said.title}</span>
+        <span>{said.note}</span>
+      </div>
+      <ul>
+        {editions.map((edition) => (
+          <li key={edition.editionId}>
+            <Link to="/edition/$id" params={{ id: edition.editionId }}>
+              <span className="eyebrow">{said.kicker(edition.code, edition.concludedAt)}</span>
+              <b>
+                {fr.finalEdition.headline(edition.verdict.reason, edition.verdict.winnerNation)}
+              </b>
+              <span>{said.line(edition.nation, edition.rank, edition.nations)}</span>
+              <em>{said.read}</em>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Le bloc en montre trois ; le serveur en rend davantage, pour que l'article d'une saison
+ *  encore là ouvre son édition même quand trois plus récentes la précèdent. */
+const RECENT_SHOWN = 3;
+
+const EAR_LINK = { fontSize: 10, letterSpacing: '.18em', textTransform: 'uppercase' } as const;
+
+const theatreName = (theatre: string | null): string =>
+  theatre === null ? '' : ((fr.modes.theatres as Record<string, string>)[theatre] ?? fr.table.draw);
+
+/** La une : une Blitz qui se prépare a son heure et sa table ; tout le reste, un titre et un geste. */
+function Lead({ seat, now, onResume }: { seat: Seat; now: number; onResume: () => void }) {
+  const theatre = theatreById(seat.theatre ?? '');
+  const blitzLobby = seat.mode === 'blitz' && seat.status === 'lobby';
+  const story = storyOf(seat, now);
+  const free = Math.max(0, seat.maximum - seat.table.length);
+  return (
+    <section className="lead" aria-labelledby="t-lead">
+      <div>
+        <div className="kicker">
+          <span className="chip solid">{fr.home.onTheFront}</span>
+          <span className="eyebrow">{story.kicker}</span>
+        </div>
+        <h1 id="t-lead">{typo(story.headline)}</h1>
+        {story.stand && <p className="italic stand">{story.stand}</p>}
+        {blitzLobby && seat.orders.scheduledAt !== null && (
+          <div className="countbox" role="group" aria-label={fr.table.rendezvous}>
+            <div>
+              <div className="eyebrow">{fr.table.rendezvous}</div>
+              <div className="big">{fr.table.hour(seat.orders.scheduledAt)}</div>
+            </div>
+            <div>
+              <div className="eyebrow">{fr.table.in}</div>
+              <div className="big">{countdownLabel(seat.orders.scheduledAt - now)}</div>
+            </div>
+          </div>
+        )}
+        {seat.status === 'lobby' && (
+          <div className="seatsmini" aria-label={fr.home.atTable}>
+            {seat.table.map((entry) => {
+              const presence = presenceOf(entry.seenAt, now);
+              return (
+                <span key={`${entry.nickname}${entry.mine}`}>
+                  <FlagChip nation={entry.nation} width={18} />
+                  {entry.mine ? fr.table.you : entry.nickname}
+                  {seat.mode === 'blitz' && !entry.mine && presence.kind !== 'unknown' && (
+                    <span
+                      className={`lamp ${presence.kind === 'present' ? 'on' : 'off'}`}
+                      title={presence.kind === 'present' ? fr.table.atTable : fr.table.away}
+                    />
+                  )}
+                </span>
+              );
+            })}
+            {free > 0 && <span className="free">{fr.home.freeSeats(free)}</span>}
+          </div>
+        )}
+        <div className="actions">
+          <button type="button" className="btn primary" onClick={onResume}>
+            {story.action}
+          </button>
+          {blitzLobby && seat.orders.scheduledAt !== null && (
+            <button
+              type="button"
+              className="link"
+              onClick={() =>
+                downloadRendezvous({
+                  at: seat.orders.scheduledAt!,
+                  title: fr.home.calendarTitle(theatreName(seat.theatre)),
+                  code: seat.code,
+                })
+              }
+            >
+              {fr.home.addToCalendar}
+            </button>
+          )}
+        </div>
+      </div>
+      <figure className="illus" style={{ margin: 0 }}>
+        <div className="mapbox">
+          {theatre !== null ? (
+            <EngravedMap
+              box={boxOf(theatre.box)}
+              px={420}
+              frame={boxOf(theatre.box)}
+              veil={0.25}
+              pad={0.02}
+              rings={[9, 6, 3.6, 1.6]}
+            />
+          ) : (
+            <EngravedMap
+              box={[-170, -56, 190, 76]}
+              px={420}
+              flat
+              gratStep={30}
+              rings={[5, 2.4]}
+              pad={0.01}
+            />
+          )}
+          <div
+            className="cartouche"
+            style={{ right: 8, top: 8, transform: 'scale(.78)', transformOrigin: 'top right' }}
+          >
+            <div className="eyebrow">
+              {seat.mode === 'blitz' ? fr.table.theatreSheet : fr.table.worldSheet}
+            </div>
+            <h4>{seat.mode === 'blitz' ? theatreName(seat.theatre) : fr.table.world}</h4>
+          </div>
+        </div>
+      </figure>
+    </section>
+  );
+}
+
+function Story({
+  seat,
+  now,
+  onResume,
+  onDestroy,
+}: {
+  seat: Seat;
+  now: number;
+  onResume: () => void;
+  onDestroy: () => void;
+}) {
+  const story = storyOf(seat, now);
+  return (
+    <div className="story">
+      {seat.status === 'concluded' && (
+        <span className="stamp ink" style={{ top: 4, right: 8 }} aria-hidden>
+          {fr.home.concluded}
+        </span>
+      )}
+      <span className="kicker" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <FlagChip nation={seat.nation} width={22} />
+        <span className="eyebrow">{story.kicker}</span>
+      </span>
+      <h2>{typo(story.headline)}</h2>
+      {story.stand && <span className="meta">{story.stand}</span>}
+      <button type="button" className="go btn small" onClick={onResume}>
+        {story.action}
+      </button>
+      {seat.status === 'concluded' && seat.creator && (
+        <details className="more-menu">
+          <summary className="link">{fr.home.moreMenu}</summary>
+          <DestroyButton
+            label={fr.lobby.destroy}
+            confirm={fr.lobby.destroyConfirm}
+            note={fr.lobby.destroyNote}
+            onDestroy={onDestroy}
+          />
+        </details>
+      )}
+    </div>
+  );
+}
+
+type Told = { kicker: string; headline: string; stand: string | null; action: string };
+
+/** Ce qu'un article dit de la partie : de quoi décider, et rien d'autre. */
+function storyOf(seat: Seat, now: number): Told {
+  const place = seat.mode === 'blitz' ? theatreName(seat.theatre) : fr.table.world;
+  const mode = fr.modes[seat.mode].name;
+  if (seat.status === 'concluded') {
+    return {
+      kicker: `${mode} · ${place}${seat.concludedAt === null ? '' : ` · ${fr.home.day(seat.concludedAt)}`}`,
+      headline:
+        seat.winnerNation === null
+          ? fr.home.concludedNoWinner
+          : fr.home.won(nationLabel(seat.winnerNation)),
+      stand: seat.defeated ? fr.home.youWereDefeated : null,
+      action: fr.home.readBack,
+    };
+  }
+  if (seat.status === 'launched') {
+    const left =
+      seat.launchedAt === null || seat.durationHours === null
+        ? null
+        : seat.launchedAt + seat.durationHours * 3_600_000 - now;
+    return {
+      kicker:
+        seat.mode === 'blitz'
+          ? `${mode} · ${place}`
+          : `${mode} · ${fr.home.dayOf(seat.launchedAt ?? now, now, seat.durationHours ?? MODE_RULES.mondiale.clockHours)}`,
+      headline: seat.defeated
+        ? fr.home.observing(nationLabel(seat.nation))
+        : seat.mode === 'blitz'
+          ? fr.home.blitzRunning(place)
+          : fr.home.mondialeRunning(nationLabel(seat.nation)),
+      stand: left === null ? null : fr.home.endsIn(countdownLabel(Math.max(0, left))),
+      action: seat.defeated ? fr.home.observe : fr.home.resumeAs(nationLabel(seat.nation)),
+    };
+  }
+  const ready = seat.table.filter((entry) => entry.ready).length;
+  const founder = seat.table.find((entry) => entry.creator);
+  const free = Math.max(0, seat.maximum - seat.table.length);
+  const step = stepAt(seat, now);
+  const waiting =
+    step === 'nation'
+      ? fr.home.waitingNation(seat.mode === 'blitz')
+      : step === 'ready'
+        ? fr.home.waitingReady
+        : step === 'launch'
+          ? fr.home.waitingLaunch
+          : fr.home.waitingOthers;
+  if (seat.mode === 'blitz') {
+    return {
+      kicker: `${mode} · ${
+        seat.orders.scheduledAt === null
+          ? fr.table.whenFull
+          : rendezvousLabel(seat.orders.scheduledAt, now)
+      }`,
+      headline: fr.home.blitzLobbyHeadline(seat.orders.scheduledAt, now, place, seat.maximum),
+      stand: seat.creator
+        ? fr.home.yourTable(free)
+        : fr.home.keptForYou(founder?.nickname ?? '', free),
+      action: fr.home.joinTable,
+    };
+  }
+  return {
+    kicker: `${mode} · ${fr.home.lobbyCode(seat.code)}`,
+    headline: fr.home.lobbyHeadline(seat.table.length, seat.maximum, ready, waiting),
+    stand: null,
+    action: fr.home.toLobby,
+  };
+}

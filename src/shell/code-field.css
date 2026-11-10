@@ -1,0 +1,116 @@
+/* Le champ de code (`CodeField.tsx`) : un champ, six cases. Les cases font 2,2em de large et
+   2,5em de pas ; les lettres du champ sont espacées pour y tomber. Tout se mesure en `em`, et
+   aucune taille n'est écrite ici : la page qui porte le champ la règle par `font-size` sur
+   `.code-field` (20 px sur la une, 17 dans l'annonce de l'accueil). */
+
+.code-field {
+  display: grid;
+  gap: 0.45em;
+  justify-items: start;
+}
+
+.code-field label {
+  font: 600 0.55em/1.15 var(--font-body);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.code-cells {
+  position: relative;
+  width: 14.7em;
+  max-width: 100%;
+  height: max(2.5em, 48px);
+}
+
+.code-cells span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.2em;
+  border: 1px solid color-mix(in srgb, var(--ink) 45%, transparent);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.code-cells span[data-full] {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--paper) 60%, white);
+}
+
+/* La frappe, animations actives seulement : la case cède sous le caractère et l'encre s'écrase
+   autour de lui, le temps d'une touche de machine. Le collage ne frappe aucune case. */
+:root[data-motion='full'] .code-cells span[data-struck] {
+  animation: code-strike var(--dur-quick) var(--ease-out);
+}
+
+:root[data-motion='full'] .code-cells span[data-struck]::after {
+  content: '';
+  position: absolute;
+  inset: 16% 10%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--ink) 60%, transparent),
+    transparent
+  );
+  opacity: 0;
+  animation: code-ink var(--dur-quick) linear;
+}
+
+@keyframes code-strike {
+  from {
+    transform: translateY(1.5px) scale(0.95);
+    background: color-mix(in srgb, var(--ink) 14%, var(--paper));
+  }
+}
+
+@keyframes code-ink {
+  from {
+    opacity: 0.6;
+    transform: scale(0.55);
+  }
+
+  35% {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+/* Un pas plus large que les cases : l'interlettrage suit aussi le sixième caractère, et un champ
+   à la largeur des cases défilait pour montrer le curseur, décalant les six lettres. Ce pas de
+   trop est rogné : il ne se clique pas hors des cases. */
+.code-cells input {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(100% + 2.5em);
+  clip-path: inset(0 2.5em 0 0);
+  padding: 0 0 0 calc(1.1em - 0.5ch);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: 500 1em var(--font-mono);
+  letter-spacing: calc(2.5em - 1ch);
+  text-transform: uppercase;
+  caret-color: var(--interaction);
+}
+
+.code-cells:focus-within {
+  outline: 2px solid var(--interaction);
+  outline-offset: 4px;
+}
+
+.code-say {
+  min-height: 1.35em;
+  margin: 0;
+  font: 0.65em/1.35 var(--font-body);
+  color: var(--ink-soft);
+}
+
+.code-say[data-refusal] {
+  color: var(--critical-paper);
+}

@@ -40,9 +40,13 @@ export function Stamp({
          * **Le support décide de son encre, pas le composant.** `--ink` sur papier, et un fond
          * sombre — le widget de troupes, le bandeau — pose `--stamp-ink` sur un ancêtre : deux
          * encres à l'API, une lisibilité partout, plutôt qu'un troisième ton à choisir à chaque
-         * appel.
+         * appel. Le rouge de même : un papier clair de l'avant-partie pose `--stamp-critical`
+         * (`--critical-paper`), le plateau garde `--critical`.
          */
-        color: tone === 'critical' ? 'var(--critical)' : 'var(--stamp-ink, var(--ink))',
+        color:
+          tone === 'critical'
+            ? 'var(--stamp-critical, var(--critical))'
+            : 'var(--stamp-ink, var(--ink))',
         border: '1.5px solid currentColor',
         transform: `rotate(${tiltOf(label)}deg)`,
         fontFamily: 'var(--font-display)',
