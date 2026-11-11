@@ -347,6 +347,18 @@ describe('clusterFootprints', () => {
       });
     });
 
+    it('shrinks only the sites whose footprints touch, not one a wide ring took in', () => {
+      // Six sites in a line ring too wide for the bound; a seventh, a footprint and a bit past the
+      // last, touches none of them — only their ring reaches it (Naples dragging Rome, 11/11).
+      const line = Array.from({ length: 6 }, (_, k) => [k * 0.1, 0] as const);
+      const far = [0.5 + 1.1 * S, 0] as const;
+      const points = [...line, far];
+      expect(clusterFootprints(points, S)[6]!.at).not.toEqual(far);
+      const bounded = clusterFootprints(points, S, S / 2, everywhere);
+      line.forEach((_, k) => expect(bounded[k]!.scale).toBeLessThan(1));
+      expect(bounded[6]).toEqual({ at: far, facing: 0, scale: 1 });
+    });
+
     it('leaves a pair that fits the bound at full size', () => {
       const bounded = clusterFootprints(
         [
@@ -758,6 +770,33 @@ describe('a garrison at the foot of a site drawn smaller (#433)', () => {
     const pile = reach(maquettes.garrisonAt('building-barracks@0,0', 1)!.step);
     // The bare foot is the site's 8/7 of its span at 0.6; a pile of span 1 adds its 1/2, whole.
     expect((pile - reach(bare.step)) / reach(bare.step)).toBeCloseTo(0.5 / ((8 / 7) * 0.6), 9);
+  });
+
+  it("follows the player's size: at 80 % the foot of a garrison is 0.8 of what it was", async () => {
+    const ID = 'building-barracks@3,4';
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    maquettes.display([
+      { id: ID, at: { lonLat: [3, 4] as const }, url: `${ID}.glb`, span: 1, washed: false },
+    ]);
+    await vi.waitFor(() => expect(maquettes.isDressed(ID)).toBe(true));
+    const foot = () => {
+      maquettes.orient(new Vector3(3, 2, 6), null, 0);
+      return reach(maquettes.garrisonAt(ID, 0)!.step);
+    };
+    const whole = foot();
+    pieceScale.size = 0.8;
+    try {
+      maquettes.resize();
+      expect(foot() / whole).toBeCloseTo(0.8, 9);
+    } finally {
+      pieceScale.size = 1;
+    }
   });
 
   it('hands the scale of a port to its hulls, and docks a cargo drawn at it clear of the port', async () => {
@@ -1251,7 +1290,7 @@ describe('a site on its socle (ADR 0038)', () => {
   describe('read at a distance on its socle (ADR 0038 §7, #465)', () => {
     // Its 50 m to one board unit: the fixture's socle of 80 m is 1.6 units. Whatever its size, it
     // stands whole to d ≈ 43 and gives way to its pin by d ≈ 51, with my piles, at the full common
-    // scale (nearer by the share pieces are drawn at: d ≈ 15 and 18).
+    // scale (nearer by the share pieces are drawn at: d ≈ 11 and 13).
     const socled = (more: Parameters<typeof site>[1] = {}) =>
       site(MINE, {
         side: 'mine',
