@@ -38,7 +38,9 @@ import {
   figurineFor,
   hideAltitudeShadows,
   LAID_OUT_FOR,
+  FLOOR_PX,
   floorGrowth,
+  GARRISON_FLOOR_PX,
   troopPinSpan,
   troopScale,
   troopWeight,
@@ -333,7 +335,8 @@ export function nearestGroup(
 }
 
 /** **A hovering plane holds its thread's height**, whatever the pile's scale: the plane shrinks
- *  with the pieces, its altitude — three wingspans (ADR 0035 §7) — does not. */
+ *  with the pieces, its altitude — three wingspans of the full common scale, drawn at `DRAWN_SHARE` (ADR 0035 §7)
+ *  — does not follow the pile's own scale. */
 function hover(object: Object3D): void {
   const scale = Math.max(object.scale.y, 1e-3);
   for (const part of object.children)
@@ -1781,7 +1784,7 @@ export class StandingLayer implements SequenceHost {
           site &&
           this.garrisonAt(
             at.beside,
-            span * floorGrowth(site.at.distanceTo(cameraPosition), span),
+            span * floorGrowth(site.at.distanceTo(cameraPosition), span, GARRISON_FLOOR_PX),
             quay,
           );
         if (foot !== null) {
@@ -1820,7 +1823,9 @@ export class StandingLayer implements SequenceHost {
       entry.placed = true;
       entry.stood ||= entry.ready;
       object.visible = near > 0;
-      const scale = troopScale(distance, span) * pileUnitOf(span);
+      // A garrison keeps near its site's proportion; a pile in the field, its own floor.
+      const floor = 'beside' in at ? GARRISON_FLOOR_PX : FLOOR_PX;
+      const scale = troopScale(distance, span, floor) * pileUnitOf(span);
       object.scale.setScalar(scale);
       hover(object);
       this.post(entry, posts.get(entry), scale);
@@ -1885,7 +1890,8 @@ export class StandingLayer implements SequenceHost {
       this.mirroredSites.set(site, mirrored);
       // Each piece is laid out at the growth it is drawn at.
       const growth = members.map(
-        ({ entry }) => floorGrowth(frame.at.distanceTo(eye), entry.span) * pieceScale.size,
+        ({ entry }) =>
+          floorGrowth(frame.at.distanceTo(eye), entry.span, GARRISON_FLOOR_PX) * pieceScale.size,
       );
       const hullPosts = sea ? this.postsOfHulls(site, members) : null;
       const rests = hullPosts

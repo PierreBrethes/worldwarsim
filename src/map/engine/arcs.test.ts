@@ -19,6 +19,11 @@ import { figurineFor, troopScale } from './figurines/figurine';
 import { WorldFrame } from './frame';
 import type { InkLayer } from './ink';
 import { Pawn } from './pawn';
+import { pieceScale } from './piece-scale';
+
+// The geometry and the thresholds are read at the full common scale: the share pieces are drawn
+// at multiplies every size alike, and has its own tests (`figurine.test.ts`).
+pieceScale.size = 1;
 
 vi.mock('./figurines/figurine', async (original) => ({
   ...(await original<typeof import('./figurines/figurine')>()),

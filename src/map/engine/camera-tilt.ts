@@ -25,3 +25,11 @@ export function boardHoldOf(at: number, half: number, rate: number): number {
   if (over === 0) return 0;
   return Math.abs(over) < 1e-3 ? -over : -over * rate;
 }
+
+/**
+ * **Le plan proche suit le zoom** : 0,5 depuis toujours, au sixième de la distance quand on descend
+ * plus près (le zoom le plus proche est à d = 0,75 depuis que les pièces sont dessinées petites).
+ * À 0,5, un avion en vol (`HOVER_ALTITUDE`) en bas d'écran, caméra penchée au plus, passait en
+ * deçà du plan et se rognait. `@a-mesurer`
+ */
+export const nearPlaneAt = (distance: number): number => Math.min(0.5, distance / 6);

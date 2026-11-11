@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 1f20042 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 8a118e8 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-150 valeurs marquées dans `convex/` et `src/domain/`.
+151 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -140,6 +140,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `ARMOR_METRES` | `{ france: [4.02, 6.37], // Renault R35, Char B1 bis uk: [3.96, 5.61], // Vickers Light Tank Mk VI, Matilda II usa: [4.84, 5.84], // M5 Stuart, M4 Sherman ussr: [5.66, 6.68], // BT-7, T-34 (1941) germany: [4.81, 5.92], // Panzer II, Panzer IV japan: [4.38, 5.52], // Type 95 Ha-Go, Type 97 Chi-Ha italy: [3.17, 4.92], // L3/35, M13/40 china: [4.88, 4.62], // Vickers 6-Ton, T-26 }` | `src/domain/piece-size.ts:43` | longueurs de caisse publiées (fiches Wikipédia des modèles), sans canon ni garde-boue |
 | `BUILDING_METRES` | `{ hq: 60, farm: 40, mine: 50, oilWell: 25, arsenal: 80, barracks: 50, airfield: 110, port: 210, listening: 30, researchCenter: 50, warehouse: 60, depot: 60, city: 50 }` | `src/domain/piece-size.ts:60` | la ville seule, un symbole sans mesure réelle ; le reste suit l'ADR 0035 |
 | `OBJECTIVE_METRES` | `{ abandonedStores: 40, stalledConvoy: 30, fuelDump: 40, irregularArsenal: 40 }` | `src/domain/piece-size.ts:133` | lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel |
+| `DRAWN_SHARE` | `0.25` | `src/domain/piece-size.ts:188` | 0,25, choix de Pierre du 11/11/2026 après captures à 0,5, 0,35 et 0,25 ; à revoir en partie |
 | `NAMES_GONE_DISTANCE` | `65` | `src/domain/place-names.ts:117` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `CITY_TIERS` | `[NAMES_GONE_DISTANCE, 55, 34, 0]` | `src/domain/place-names.ts:118` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `MILLION` | `1_000_000` | `src/domain/place-names.ts:119` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |

@@ -423,8 +423,13 @@ export type Placement = {
   readonly scale: number;
 };
 
-/** The group's sizes tried in turn, before every site falls back on its own point. */
-const SHRINK_STEPS = [1, 0.85, 0.7, 0.55, 0.4];
+/**
+ * The group's sizes tried in turn, before every site falls back on its own point. Captured on four
+ * sites of Naples, 11/11: under 0.6 a group is clean and no smaller than it needs; a ring takes in
+ * what it grows into, so each step further down drags its neighbours with it.
+ * @a-mesurer 0.6: the same drawn size as the 0.3 of a site at 0.5 the captures of 11/11 settled on
+ */
+const SHRINK_STEPS = [1, 0.8, 0.6];
 
 /**
  * **Maquettes clear one another on the board, not on the screen**: sites whose footprints — a
@@ -457,35 +462,63 @@ export function clusterFootprints(
     const spaced = members.map(spacingOf);
     const footed = members.map(footOf);
     const within = { ...bounds, maxShift: bounds.maxShift * Math.max(...spaced) };
-    let fitted: Placement[] | null = null;
-    for (const scale of SHRINK_STEPS) {
+    const touching = touchingSites(own, spaced);
+    // A step shrinks only the sites that touch another; one a wide ring took in keeps its size.
+    const scaledBy = (step: number) => touching.map((touches) => (touches ? step : 1));
+    const tryStep = (steps: ReadonlyArray<number>): Placement[] | null => {
       const trial = ringed(
         own,
-        spaced.map((spacing) => spacing * scale),
+        spaced.map((spacing, r) => spacing * steps[r]!),
       ).placed.map((place, r) =>
-        fitting(own[r]!, place, footed[r]! * scale, spaced[r]! * scale, scale, within, points),
+        fitting(
+          own[r]!,
+          place,
+          footed[r]! * steps[r]!,
+          spaced[r]! * steps[r]!,
+          steps[r]!,
+          within,
+          points,
+        ),
       );
-      if (trial.every((place) => place !== null)) {
-        fitted = trial as Placement[];
-        break;
-      }
+      return trial.every((place) => place !== null) ? (trial as Placement[]) : null;
+    };
+    let fitted: Placement[] | null = null;
+    for (const step of SHRINK_STEPS) {
+      fitted = tryStep(scaledBy(step));
+      if (fitted !== null) break;
     }
-    const smallest = SHRINK_STEPS.at(-1)!;
+    const smallest = scaledBy(SHRINK_STEPS.at(-1)!);
     members.forEach((k, r) => {
       placed[k] =
         fitted?.[r] ??
         fitting(
           points[k]!,
           { at: points[k]!, ring: [0, 0] },
-          footed[r]! * smallest,
-          spaced[r]! * smallest,
-          smallest,
+          footed[r]! * smallest[r]!,
+          spaced[r]! * smallest[r]!,
+          smallest[r]!,
           { ...within, onLand: () => true },
           points,
         )!;
     });
   }
   return placed;
+}
+
+/**
+ * **Which sites touch another at their own points** (their footprints, a disc of half their
+ * spacing, overlap): the ones a group shrinks. Those of a contact chain all touch one; a site
+ * that only a ring grown over its neighbours reaches touches none.
+ */
+function touchingSites(points: ReadonlyArray<Point>, spacings: ReadonlyArray<number>): boolean[] {
+  return points.map((point, i) =>
+    points.some(
+      (other, j) =>
+        j !== i &&
+        Math.hypot(point[0] - other[0], point[1] - other[1]) <
+          (spacings[i]! + spacings[j]!) / 2 - 1e-9,
+    ),
+  );
 }
 
 const FACINGS = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => (k * Math.PI) / 4);

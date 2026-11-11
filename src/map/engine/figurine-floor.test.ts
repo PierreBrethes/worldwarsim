@@ -7,7 +7,7 @@ import { garrisonFoot } from './maquettes';
 import { Pawn } from './pawn';
 import { pieceScale } from './piece-scale';
 import { StandingLayer } from './standing';
-import type { Figurine } from './figurines/figurine';
+import { FLOOR_PX, GARRISON_FLOOR_PX, type Figurine } from './figurines/figurine';
 
 // Every sculpted file lands as a tank-shaped box, 2.6 long: the pile stands as in the game.
 vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
@@ -20,9 +20,12 @@ vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
   },
 }));
 
+// Read at the full common scale; the share pieces are drawn at has its tests in `figurine.test.ts`.
+pieceScale.size = 1;
+
 /** CSS pixels per board unit seen from one unit away, on the reference window 900 px tall. */
 const REFERENCE = 900 / (2 * Math.tan((21 * Math.PI) / 180));
-const DISTANCES = [4, 5, 6, 8, 10, 15, 20, 25, 30];
+const DISTANCES = [4, 5, 6, 8, 10, 15, 20, 25, 30, 43];
 const BARRACKS = buildingSpan('barracks');
 
 const troop = (k: number) => ({
@@ -71,15 +74,22 @@ function drawnBox(object: Group): Box3 {
   return box;
 }
 
-/** **The figurine floor** (ADR 0035 §10): a troop never reads under ~20 px until d ≈ 30. */
+/** **The figurine floor** (ADR 0035 §10), read at the full common scale: a troop in the field never
+ *  reads under 16 px until d ≈ 43, one in a garrison under 8 px — and no more than that once its
+ *  own size is under it, so that a garrison stays near its site's proportion. */
 describe('the figurine floor', () => {
   afterEach(() => {
     pieceScale.size = 1;
     pieceScale.pxPerUnit = 1172;
   });
 
+  const lengthOn = (pile: Group, eye: Vector3) => {
+    const box = drawnBox(pile);
+    return ((box.max.z - box.min.z) * REFERENCE) / pile.position.distanceTo(eye);
+  };
+
   for (const height of [650, 900])
-    it(`stands a garrison's tanks at 20 px or more from d = 4 to 30, on a window ${height} px tall`, async () => {
+    it(`stands a garrison's tanks at 8 px or more from d = 4 to 43, on a window ${height} px tall`, async () => {
       pieceScale.pxPerUnit = height / (2 * Math.tan((21 * Math.PI) / 180));
       const { layer, object } = await garrison();
       for (const d of DISTANCES) {
@@ -87,30 +97,52 @@ describe('the figurine floor', () => {
         layer.orient(eye);
         const pile = object();
         expect(pile.visible).toBe(true);
-        const box = drawnBox(pile);
-        const length = box.max.z - box.min.z;
-        const px = (length * REFERENCE) / pile.position.distanceTo(eye);
-        expect(px).toBeGreaterThanOrEqual(19.49);
+        expect(lengthOn(pile, eye)).toBeGreaterThanOrEqual(GARRISON_FLOOR_PX - 0.01);
         // Grown, it still stands clear of its barracks turned any way (half its diagonal).
-        expect(box.min.z).toBeGreaterThan(BARRACKS / Math.SQRT2);
+        expect(drawnBox(pile).min.z).toBeGreaterThan(BARRACKS / Math.SQRT2);
       }
     });
 
-  it('gives way to its pin past d ≈ 30, and later when the player grows the pieces', async () => {
+  it("holds a garrison at its own floor, not the field's: 8 px where a pile in the field reads 16", async () => {
     const { layer, object } = await garrison();
-    layer.orient(new Vector3(0, 40, 1));
+    for (const d of [20, 25, 30, 43]) {
+      const eye = new Vector3(0, d, 1);
+      layer.orient(eye);
+      expect(lengthOn(object(), eye)).toBeCloseTo(GARRISON_FLOOR_PX, 1);
+    }
+    const field = new StandingLayer(
+      { projectLonLat: () => new Vector3(0, 0, 0) } as unknown as WorldFrame,
+      () => {},
+      () => null,
+    );
+    field.setNation('france');
+    field.display([
+      { id: 'stack-field', at: { lonLat: [0, 0] }, pieces: pilePieces([troop(1), troop(2)]) },
+    ]);
+    await vi.waitFor(() => expect(field.group.children.length).toBeGreaterThan(0));
+    const pile = field.group.children.find((child) => child instanceof Group)!;
+    for (const d of [20, 25, 30, 43]) {
+      const eye = new Vector3(0, d, 1);
+      field.orient(eye);
+      expect(lengthOn(pile, eye)).toBeCloseTo(FLOOR_PX, 1);
+    }
+  });
+
+  it('gives way to its pin past d ≈ 43, and later when the player grows the pieces', async () => {
+    const { layer, object } = await garrison();
+    layer.orient(new Vector3(0, 55, 1));
     expect(object().visible).toBe(false);
     pieceScale.size = 1.25;
-    layer.orient(new Vector3(0, 36, 1));
+    layer.orient(new Vector3(0, 52, 1));
     expect(object().visible).toBe(true);
-    layer.orient(new Vector3(0, 50, 1));
+    layer.orient(new Vector3(0, 70, 1));
     expect(object().visible).toBe(false);
   });
 
-  it('melts into its pin without a jump: smaller on screen with every step back past d = 29', async () => {
+  it('melts into its pin without a jump: smaller on screen with every step back past d = 42', async () => {
     const { layer, object } = await garrison();
     const sizes: number[] = [];
-    for (let d = 29; d <= 40; d += 0.5) {
+    for (let d = 42; d <= 55; d += 0.5) {
       const eye = new Vector3(0, d, 1);
       layer.orient(eye);
       sizes.push(object().visible ? object().scale.x / object().position.distanceTo(eye) : 0);
@@ -124,8 +156,8 @@ describe('the figurine floor', () => {
 
   it('pins a pile by its floor, as its label and its pin read it', async () => {
     const { layer } = await garrison();
-    // Its pin span reads 20 px at d = 30: the label and the pin give way with the piece.
-    expect((layer.spanOf('stack-paris')! * REFERENCE) / 30).toBeCloseTo(19.5, 1);
+    // Its pin span reads 20 px at d = 43: the label and the pin give way with the piece.
+    expect((layer.spanOf('stack-paris')! * REFERENCE) / 43).toBeCloseTo(19.5, 1);
   });
 
   /** A man of his span, standing on a pawn's point. */
@@ -147,15 +179,15 @@ describe('the figurine floor', () => {
     expect(new Box3().setFromObject(object).getSize(new Vector3()).y).toBeCloseTo(span, 9);
   });
 
-  it("stands a moving man at 20 px or more until d = 30, and his pin's beyond", () => {
+  it("stands a moving man at 16 px or more until d = 43, and his pin's beyond", () => {
     const { pawn, object } = manPawn();
     for (const d of DISTANCES) {
       pawn.orient(new Vector3(0, d, 0), 0);
       expect(object.visible).toBe(true);
       const height = new Box3().setFromObject(object).getSize(new Vector3()).y;
-      expect((height * REFERENCE) / d).toBeGreaterThanOrEqual(19.49);
+      expect((height * REFERENCE) / d).toBeGreaterThanOrEqual(FLOOR_PX - 0.01);
     }
-    pawn.orient(new Vector3(0, 40, 0), 0);
+    pawn.orient(new Vector3(0, 55, 0), 0);
     expect(object.visible).toBe(false);
   });
 });

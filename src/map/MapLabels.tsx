@@ -534,7 +534,7 @@ export function MapLabels({
         if (standing === undefined) {
           // Des planches de sites réunies ne se replient pas devant une pile : repliées, elles
           // restaient l'amas qu'elles devaient résumer. Depuis la figurine plancher (ADR 0035
-          // §10) la pile garde son étiquette jusqu'à d ≈ 30, et l'anneau son « N sites » avec
+          // §10) la pile garde son étiquette jusqu'à son épingle, et l'anneau son « N sites » avec
           // elle (#285) : la pile n'est pas ce qui le replie.
           const against = (box: ScreenBox) =>
             !kept.some(

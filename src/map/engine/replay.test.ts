@@ -6,6 +6,11 @@ import type { ReplayView } from '@/domain/player-view';
 import { FIGURINE_SCALE } from './figurines/figurine';
 import { warmPieces } from './halo';
 import { BATTERY_REACH, batteryAt, ReplayScene, salvoTarget, shakeOf, shotShare } from './replay';
+import { pieceScale } from './piece-scale';
+
+// The geometry and the thresholds are read at the full common scale: the share pieces are drawn
+// at multiplies every size alike, and has its own tests (`figurine.test.ts`).
+pieceScale.size = 1;
 
 // The scene draws its pictograms and flashes on a canvas: a node run has none, a stub does.
 beforeAll(() => {

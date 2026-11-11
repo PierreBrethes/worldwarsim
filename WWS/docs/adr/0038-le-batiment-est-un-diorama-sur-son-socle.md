@@ -63,6 +63,12 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    Aucun accessoire ne ressemble à une pièce du jeu. La garnison
    se range sur la cour, à partir du repère `fx_rang` (premier homme, +z vers le rang), dans un
    rectangle libre de 30 × 14 m, au lieu du pied des murs (`garrisonFoot`).
+   > **Amendé le 11/11/2026, décisions de Pierre** (ADR 0035 §1 amendé, second temps du même
+   > jour) : la cour, son bâtiment **et sa garnison** sont dessinés à la même part de leur taille
+   > (0,25, décision de Pierre du 11/11/2026 : 0,35 d'abord, puis 0,25) : le rectangle de 30 × 14 m et le rang de `fx_rang` portent des pièces à leur
+   > proportion, comme avant le 11/11. La réduction des seuls bâtiments (0,5, la garnison à 1,
+   > serrée sur une cour deux fois plus petite) n'a tenu que quelques heures. De loin, la garnison
+   > garde un plancher de 8 px, le tiers de sa caserne au seuil d'épingle (ADR 0035 §10 amendé).
 
 6. **Deux sites voisins ne se touchent pas.** L'emprise d'un site est la boîte de son socle,
    lue sur le GLB (`BUILDING_FOOTPRINT_METRES`, tenue par `maquettes.test.ts`) ; l'anneau espace
@@ -75,6 +81,19 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    > 52 km de côté, alors que deux sites d'un joueur sont à 30 km au moins
    > (`BUILDING_SPACING_KM`). Ils ne se superposent jamais entièrement : deux sites d'un joueur
    > ne partagent pas un point.
+   > **Amendé le 11/11/2026, décisions de Pierre** (second temps du même jour) : tout site est
+   > dessiné à la part commune des pièces (0,25, ADR 0035 §1 amendé), et non plus à 0,5 à part.
+   > L'anneau espace les sites par leurs tailles dessinées, puis rétrécit à **0,8 puis 0,6** de
+   > cette taille avant de laisser chaque site à son point (`SHRINK_STEPS`, `@a-mesurer`) : le
+   > même plancher à l'écran que le 0,3 retenu le matin sur les quatre sites de Naples (0,21 de
+   > la taille pleine), et la garnison, réduite avec son site, ne cache plus sa façade. Deux sites
+   > à 30 km (`BUILDING_SPACING_KM`) se touchent encore à 0,25 (une caserne y a un socle de
+   > 33 km) : le repli reste nécessaire. **La cascade, close** : un anneau prend dans son groupe ce
+   > où il grandit. À 0,35 il pouvait entraîner le QG de Rome et l'arsenal de Foggia (160 km) ;
+   > à 0,25 Naples ne compte que ses quatre sites, Rome et Foggia restent seuls. Le défaut restait
+   > atteignable (six sites en ligne et un septième hors de leur contact, que seul l'anneau
+   > atteint) : le repli ne rétrécit plus que les sites dont le socle en touche un autre à leur
+   > point, `touchingSites` ; un site que l'anneau a ramassé garde sa taille.
 
 7. **La lecture par distance**, en pixels du socle, pour garder la règle de l'ADR 0035 §3 (chaque
    pièce pesée par sa taille à l'écran, `pieceWeight`) : tout le diorama tant que le socle fait
@@ -96,9 +115,16 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    > que dans l'étiquette d'un accrochage, le niveau seulement sur la fiche. Un bâtiment rasé au
    > loin fait tomber son épingle, comme un avant-poste démantelé.
 
+   > **Amendé le 11/11/2026** (ADR 0035 §3 et §10 amendés) : le seuil suit la part dessinée. À
+   > 0,25, un site reste entier jusqu'à d ≈ 11, où une caserne fait 26 px et son socle 43, et se
+   > fond dans son épingle vers d ≈ 13, toujours avec mes piles.
+
 8. **Le socle et la cour n'ont pas de mètres réels** (écart à l'ADR 0035, accepté) : ils
    agrandissent l'emprise d'un site de 30 à 60 % au sol (la caserne passe de 65 à 80 m), pas le
    bâtiment. Une figurine se mesure toujours au bâtiment, jamais au socle.
+   > **Amendé le 11/11/2026, décisions de Pierre** : le socle et la cour, comme le bâtiment et la
+   > figurine, sont dessinés à la part commune (0,25) : « une figurine se mesure au bâtiment »
+   > tient à toute distance où elle n'est pas tenue par son plancher.
 
 9. **Budget : 3 500 triangles par site**, dans n'importe quel état : 2 500 au plus pour le
    bâtiment, 700 pour le socle, le liseré, la cour et le signe, 150 par groupe d'accessoires. Le
@@ -113,6 +139,10 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
     un socle : il porte ses deux hangars (storyboard du 23/10, « deux hangars un peu plus petits »,
     #269), le second aux pièces suffixées `_b`. Le chantier naval garde son
     socle sur sa part de terre : le bord côté mer est son quai.
+    > **Amendé le 11/11/2026, décisions de Pierre** : la piste et le môle suivent la taille
+    > dessinée du site qui les porte (la part commune, ou moins dans un groupe serré), comme son
+    > socle : un môle ne déborde pas d'un chantier réduit, et une piste n'est pas plus longue que
+    > son aérodrome.
 
 11. **L'avant-poste** (#298) prend le même liseré sur un socle rond, son cercle de sacs de sable
     de 30 m, plutôt que le rectangle : le rond le distingue d'un bâtiment de près, comme le

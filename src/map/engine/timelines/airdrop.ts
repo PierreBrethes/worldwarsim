@@ -10,7 +10,9 @@ import { ease, span } from './curves';
  * a transport flies level at `AIR_ALTITUDE`, opens its bay door, and its crate (1.2 m) leaves
  * `fx_parachute` under a canopy (8 m) that brakes it, drifting with the flight to land 6 m past
  * the target. Everything is in board units, from the target, `x` along the flight, `y` up. Times
- * in ms. The fall's own curve is `parachuteAt`'s, unchanged.
+ * in ms. The fall's own curve is `parachuteAt`'s, unchanged. No scene hosts it yet (the live
+ * packet is `ParachuteLayer`, in screen pixels): a host that draws it scales these units by
+ * `pieceScale.size`, `AIR_ALTITUDE` being at the full common scale like every span here.
  */
 type Vec3 = readonly [x: number, y: number, z: number];
 

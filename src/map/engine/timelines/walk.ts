@@ -8,7 +8,7 @@ type Point = readonly [x: number, y: number, z: number];
 const TURN_SHARE = 0.04;
 
 /** **A walk plays as long as its piece stands** (`minPx` 0): the figurine's floor holds it up to
- *  d ≈ 30, its pin walks on beyond. The doors it passes play as far off (#268). */
+ *  its pin's distance, its pin walks on beyond. The doors it passes play as far off (#268). */
 export const WALK_MIN_PX = 0;
 
 export type WalkOut = {

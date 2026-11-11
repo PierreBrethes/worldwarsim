@@ -3,6 +3,11 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import { PROJECTION, WorldFrame } from './frame';
 import { LabelLayer } from './labels';
+import { pieceScale } from './piece-scale';
+
+// The geometry and the thresholds are read at the full common scale: the share pieces are drawn
+// at multiplies every size alike, and has its own tests (`figurine.test.ts`).
+pieceScale.size = 1;
 
 const W = 1440;
 const H = 900;

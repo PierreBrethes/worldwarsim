@@ -5,7 +5,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import type { LonLat } from '@/domain/geo';
-import { AIR_ALTITUDE } from '@/domain/piece-size';
+import { AIR_ALTITUDE, DRAWN_SHARE } from '@/domain/piece-size';
 import type { ComputedRoute, Medium } from '@/domain/routing';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { PALETTE } from './palette';
@@ -25,10 +25,11 @@ const SURFACE_ALTITUDE = COUNTRY_THICKNESS + 0.006;
 export const AIR_RISE_SHARE = 0.045;
 export const AIR_RISE_MAX = 6;
 
-/** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers some three wingspans
- *  up (ADR 0035 §7), and its thread leaves and stops at that height; also the air arc's rise
- *  floor. */
-export const HOVER_ALTITUDE = AIR_ALTITUDE;
+/** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers three wingspans
+ *  up (ADR 0035 §7) of the full common scale — `DRAWN_SHARE` of that, a plane drawn at the same
+ *  share is up twelve of its own at 0.25, off its floor —, and its thread leaves and stops at
+ *  that height; also the air arc's rise floor. */
+export const HOVER_ALTITUDE = AIR_ALTITUDE * DRAWN_SHARE;
 
 /**
  * Without the floor, a hundred-kilometer hop draws flat and can no longer be told from a
@@ -55,10 +56,11 @@ export function flightAltitude(share: number): number {
 
 /**
  * **The ribbon's true width on the sheet, per pixel of its floor** (`route-ribbon.ts`): a thread
- * of thickness 2.5 is a band of 0.0625 units — some seven kilometres — which the eye reads as
- * the plate's ribbon from thirty units down, and as its floor of 2.5 px beyond.
+ * of thickness 2.5 was a band of 0.0625 units — half a tank — at the common scale, and stays half
+ * a tank as pieces are drawn: the eye reads it as the plate's ribbon from thirty units down at
+ * that scale, nearer by the drawn share, and as its floor of 2.5 px beyond.
  */
-const WIDTH_PER_FLOOR_PX = 0.025;
+const WIDTH_PER_FLOOR_PX = 0.025 * DRAWN_SHARE;
 export const threadWidth = (thickness: number): number => thickness * WIDTH_PER_FLOOR_PX;
 
 /**

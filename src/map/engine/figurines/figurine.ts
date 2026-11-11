@@ -11,7 +11,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
-import { MAN_METRES, troopSpan } from '@/domain/piece-size';
+import { DRAWN_SHARE, MAN_METRES, troopSpan } from '@/domain/piece-size';
 import { type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
@@ -79,9 +79,9 @@ export const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
 /**
  * **How much of a piece stands, rather than its pin, by its size on screen** (ADR 0035 §3): 1
  * while its `span` — board units, at the common scale — reads at `PIN_PX`, eased to 0 a little
- * below. A man reads under it from d ≈ 3, a tank from 7 — both held by their floor until d ≈ 30
- * (`troopWeight`) —, a barracks from 58, a hangar from 70 — the
- * fighter from 13, the carrier from 145.
+ * below. At the full common scale a man reads under it from d ≈ 3, a tank from 7 — both held by
+ * their floor until `FLOOR_UNTIL` (`troopWeight`) —, a barracks from 58, a hangar from 70 — the
+ * fighter from 13, the carrier from 145; each nearer by the share pieces are drawn at.
  */
 export function pieceWeight(distance: number, span: number): number {
   const whole = PIN_PX - 0.5;
@@ -101,11 +101,27 @@ export const pieceStands = (distance: number, by: PinnedBy): number =>
 const pxOf = (distance: number, span: number): number =>
   (span * pieceScale.size * REFERENCE_PX_PER_UNIT) / Math.max(distance, nearFloor);
 
-/** **A troop holds its floor until here** (ADR 0035 §10), at 100 %: further at a larger size,
- *  nearer at a smaller. `@a-mesurer` */
-const FLOOR_UNTIL = 30;
+/**
+ * **A troop holds its floor until here** (ADR 0035 §10), at the full common scale: nearer by the
+ * share pieces are drawn at and the player's size (d ≈ 11 at `DRAWN_SHARE` 0.25, where a barracks
+ * still reads 26 px), a site on its socle with it (`pieceStands`).
+ * @a-mesurer 43: the barracks at 26 px, three times a garrison's floor, on the captures of 11/11
+ */
+const FLOOR_UNTIL = 43;
+/** **Until where my piles and my sites stand whole**, at the player's 100 %: what a camera that
+ *  comes to see pieces stays within. */
+export const STANDS_UNTIL = FLOOR_UNTIL * DRAWN_SHARE;
 /** What reads at the pin's size at `FLOOR_UNTIL`. */
 const FLOOR_SPAN = ((PIN_PX - 0.5) * FLOOR_UNTIL) / REFERENCE_PX_PER_UNIT;
+
+/**
+ * **The least a troop reads on screen, in CSS pixels, until its pin** (ADR 0035 §10): a pile in
+ * the field, on a thread or in the hand keeps `FLOOR_PX`; one in a garrison, `GARRISON_FLOOR_PX` —
+ * a third of its barracks at the pin's distance, so a pile never outgrows the site it guards.
+ * @a-mesurer 16 and 8, read on the captures of 11/11 (20 for both before: a pile hid its HQ)
+ */
+export const FLOOR_PX = 16;
+export const GARRISON_FLOOR_PX = 8;
 
 /** **The span a troop gives way to its pin by** (ADR 0035 §10): its own, or the floor's — a man
  *  as late as a tank, a hull later. */
@@ -117,18 +133,18 @@ export const troopWeight = (distance: number, span: number): number =>
 
 /**
  * **How much larger than its span a troop is drawn** (the figurine floor, ADR 0035 §10): enough
- * never to read under `PIN_PX`, 1 while it reads larger. Between d ≈ 5 and 30 a troop grows
- * against its building; up close the two stay bound.
+ * never to read under `floor`, 1 while it reads larger. Out in the field a troop grows against a
+ * building from where a tank reads under `FLOOR_PX`; up close the two stay bound, and a garrison
+ * stays near its site's proportion.
  */
-export function floorGrowth(distance: number, span: number): number {
-  // Read rounded like the pin's threshold: a man of 19.8 px at the closest zoom keeps his size.
-  return Math.max(1, (PIN_PX - 0.5) / pxOf(distance, span));
+export function floorGrowth(distance: number, span: number, floor = FLOOR_PX): number {
+  return Math.max(1, floor / pxOf(distance, span));
 }
 
-/** **The scale a troop is drawn at**, its span at 1: its weight, its floor and the player's size;
- *  0 once it is its pin. */
-export const troopScale = (distance: number, span: number): number =>
-  troopWeight(distance, span) * floorGrowth(distance, span) * pieceScale.size;
+/** **The scale a troop is drawn at**, its span at 1: its weight, its floor and the size pieces
+ *  are drawn at; 0 once it is its pin. */
+export const troopScale = (distance: number, span: number, floor = FLOOR_PX): number =>
+  troopWeight(distance, span) * floorGrowth(distance, span, floor) * pieceScale.size;
 
 export type Figurine = {
   /** Origin on the ground at the pawn's point, front towards +z, already at board scale. */

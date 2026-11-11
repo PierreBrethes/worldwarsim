@@ -176,6 +176,17 @@ export const buildingFootprint = (key: BuildingKey): number =>
 export const buildingReach = (key: BuildingKey): number =>
   onBoard(KIT_REACH_METRES[key] ?? BUILDING_REACH_METRES[key], key === 'port' ? SEA_SHARE : 1);
 
+/**
+ * **Toute pièce, troupe ou bâtiment, est dessinée à cette part de l'échelle commune** (Pierre,
+ * 11/11/2026 : « une impression de grandeur », « que tout scale bien ensemble »). Le dessin seul :
+ * les mesures de ce fichier, et les règles qui en sortent (la couronne de dissolution,
+ * `movement-orders.ts`), restent à `EXAGGERATION`. Le curseur « Taille des pièces » s'applique
+ * par-dessus, et le zoom le plus proche, le plancher et le seuil d'épingle la suivent
+ * (`src/map/engine/figurines/figurine.ts`).
+ * @a-mesurer 0,25, choix de Pierre du 11/11/2026 après captures à 0,5, 0,35 et 0,25 ; à revoir en partie
+ */
+export const DRAWN_SHARE = 0.25;
+
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>
   onBoard(OBJECTIVE_METRES[key] ?? BUILDING_METRES.warehouse);

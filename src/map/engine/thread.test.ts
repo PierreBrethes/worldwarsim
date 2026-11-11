@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3 } from 'three';
+import { Vector3, type Object3D } from 'three';
 import { pawnTarget, temporalPosition, unrollRoute } from '@/domain/route-timing';
 import type { World } from '@/domain/world';
 import { buildGrid, computeRoute, directRoute, groundAt } from '@/domain/routing';
@@ -10,6 +10,7 @@ import {
   HOVER_ALTITUDE,
   leadIn,
   pointOnLeg,
+  threadWidth,
   AIR_RISE_MAX,
   AIR_RISE_SHARE,
   DRIFT_CEILING_PX_S,
@@ -17,6 +18,13 @@ import {
 } from './thread';
 import { COUNTRY_THICKNESS, WorldFrame } from './frame';
 import type { Ribbon } from './route-ribbon';
+import { DRAWN_SHARE, troopSpan } from '@/domain/piece-size';
+import { pieceScale } from './piece-scale';
+import { RibbonMaterial } from './route-ribbon';
+
+// The geometry and the thresholds are read at the full common scale: the share pieces are drawn
+// at multiplies every size alike, and has its own tests (`figurine.test.ts`).
+pieceScale.size = 1;
 
 /** The toy world of `routing.test.ts`: two islands separated by ten units of sea. */
 function toyWorld(): World {
@@ -222,7 +230,48 @@ describe('the relay diamonds', () => {
   });
 });
 
+describe('a thread at the scale pieces are delivered at', () => {
+  const route = () => directRoute(toLonLat(5, 25), toLonLat(95, 25), 'air', 1);
+  const delivered = <T>(run: () => T): T => {
+    pieceScale.size = DRAWN_SHARE;
+    try {
+      return run();
+    } finally {
+      pieceScale.size = 1;
+    }
+  };
+
+  it('prints its ribbon half a drawn tank wide, and no wider than the plate would at the common scale', () => {
+    delivered(() => {
+      const thread = buildThread(route(), frame, colors, thickness, opacities);
+      const widths: number[] = [];
+      thread.object.traverse((node: Object3D) => {
+        const material = (node as { material?: unknown }).material;
+        if (material instanceof RibbonMaterial) widths.push(material.width);
+      });
+      expect(widths).toContain(thickness * 0.025 * pieceScale.size);
+      expect(Math.max(...widths)).toBeLessThan(0.0625 * thickness);
+    });
+  });
+
+  it('hovers a Blitz plane three common-scale wingspans up, drawn at the share its pieces are', () => {
+    delivered(() => {
+      const ground = buildThread(route(), frame, colors, thickness, opacities).legs[0]!.strands[0]!
+        .vertices;
+      const aloft = buildThread(route(), frame, colors, thickness, opacities, { aloft: true })
+        .legs[0]!.strands[0]!.vertices;
+      expect(aloft[0]!.y - ground[0]!.y).toBeCloseTo(3 * troopSpan('fighter') * pieceScale.size, 9);
+    });
+  });
+});
+
 describe('the air arc', () => {
+  it('hovers three wingspans up as wingspans are drawn (ADR 0035 §7), and draws a thread half a drawn tank wide', () => {
+    expect(HOVER_ALTITUDE).toBeCloseTo(3 * troopSpan('fighter') * DRAWN_SHARE, 9);
+    expect(threadWidth(2.5)).toBeCloseTo(0.0625 * DRAWN_SHARE, 9);
+    expect(threadWidth(2.5)).toBeLessThan(troopSpan('armor') * DRAWN_SHARE);
+  });
+
   it('the rise follows the chord between its two bounds, and stops there', () => {
     expect(airRise(1)).toBe(HOVER_ALTITUDE);
     expect(airRise(100)).toBeCloseTo(100 * AIR_RISE_SHARE, 10);
@@ -419,7 +468,8 @@ describe('an air thread moored at its runway', () => {
 
   it('leaves from the end of its runway at its height, and lands on the other unmoored', () => {
     const start = frame.projectLonLat(air.points[0]!);
-    const fil = at(32.6, 25.1).setY(start.y + 0.4);
+    // The end of a runway, at the height a take-off leaves it as pieces are drawn.
+    const fil = at(32.6, 25.1).setY(start.y + 0.4 * DRAWN_SHARE);
     const thread = buildThread(air, frame, colors, thickness, opacities, {
       moor: (which, point, medium) =>
         medium === 'air' && which === 'start' && flat(point, start) < 1e-6 ? fil : null,

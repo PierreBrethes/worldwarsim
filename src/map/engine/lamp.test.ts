@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { REGIONS_GONE_DISTANCE } from './regions';
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
-import { castShadows, lampIntensity, shadowReach } from './lamp';
+import { DRAWN_SHARE, troopSpan } from '@/domain/piece-size';
+import { castShadows, lampIntensity, shadowBias, shadowReach } from './lamp';
 
 /**
  * La carte d'ombres ne couvre que ce que la caméra regarde, et rien au loin : il n'y a plus de
@@ -24,6 +25,19 @@ describe('how much table the lamp shades', () => {
   /** Recadrée en continu, la carte d'ombres frémirait à chaque cran de molette. */
   it('moves by steps, not with every turn of the wheel', () => {
     expect(shadowReach(10)).toBe(shadowReach(10.3));
+  });
+});
+
+describe('how far a shadow is read off its surface', () => {
+  it('keeps the bias it had from the former closest zoom outwards', () => {
+    for (const distance of [3, 10, 30, 60]) expect(shadowBias(shadowReach(distance)!)).toBe(0.02);
+  });
+
+  it('stays under the height of a man as he is drawn, at the closest zoom: he keeps his shadow', () => {
+    const closest = 3 * DRAWN_SHARE;
+    expect(shadowBias(shadowReach(closest)!)).toBeLessThan(
+      (troopSpan('infantry') * DRAWN_SHARE) / 2,
+    );
   });
 });
 

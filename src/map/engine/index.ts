@@ -170,11 +170,11 @@ import {
   type DayCycle,
 } from '@/domain/daylight';
 import { parseFx, type MapMotion } from '@/domain/map-motion';
-import { pieceScale } from './piece-scale';
-import { MAN_METRES, troopSpan } from '@/domain/piece-size';
+import { drawnSizeAt, pieceScale } from './piece-scale';
+import { DRAWN_SHARE, MAN_METRES, troopSpan } from '@/domain/piece-size';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { boardHoldOf, steepestTiltAt } from './camera-tilt';
+import { boardHoldOf, nearPlaneAt, steepestTiltAt } from './camera-tilt';
 import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
 import { brightest, Halos, warmPieces } from './halo';
@@ -487,8 +487,17 @@ const JOURNEY_MS = 500;
 /** @a-mesurer : la marge autour des lieux que la caméra cadre, le `fit(…, 1.12)` de la maquette. */
 const TOUR_FRAME_MARGIN = 1.12;
 const SEARCH_AREA_MARGIN = 1.3;
+/** Une zone de recherche se lit sur la carte (un disque, un anneau), non en figurines : elle ne
+ *  suit pas la part dessinée des pièces, et ses 18 restent au-delà de l'approche des pièces.
+ *  @a-mesurer */
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
+/**
+ * **Au plus près, l'homme se voit à sa proportion** (ADR 0035 §10, 20 px de haut) : à 3 quand les
+ * pièces étaient dessinées à l'échelle commune, d'autant plus près qu'elles sont dessinées
+ * petites — on descend voir ses hommes d'aussi près qu'avant. Au-delà, le plancher.
+ */
+const CLOSEST_DISTANCE = 3 * DRAWN_SHARE;
 /** The share of its overshoot a target past the board's edge takes back each frame (#187).
  *  @a-mesurer */
 const BOARD_HOLD_RATE = 0.12;
@@ -1095,8 +1104,7 @@ export class MapEngine {
      *  et la carte tourne sur elle-même au moindre tremblement de la main. */
     this.controls.minPolarAngle = 0.05;
     // Le plafond suit la distance, recalé à chaque tour de boucle (`steepestTiltAt`).
-    // Au plus près, l'homme se voit à sa proportion (ADR 0035 §10) ; au-delà, son plancher.
-    this.controls.minDistance = 3;
+    this.controls.minDistance = CLOSEST_DISTANCE;
     this.controls.maxDistance = DEFAULT_MAX_DISTANCE;
     this.controls.screenSpacePanning = false;
     // **Le doigt ne lit pas le réglage de la souris** (décision mobile-1c) : un doigt déplace,
@@ -3382,6 +3390,11 @@ export class MapEngine {
       .multiplyScalar(EYE_BACKOFF)
       .add(target);
     this.eye.quaternion.copy(this.camera.quaternion);
+    const near = nearPlaneAt(this.camera.position.distanceTo(target));
+    if (this.eye.near !== near) {
+      this.eye.near = near;
+      this.eye.updateProjectionMatrix();
+    }
     this.eye.updateMatrixWorld();
     return this.eye;
   }
@@ -3407,7 +3420,7 @@ export class MapEngine {
   /** The one percentage from the settings (ADR 0035 §6); the pieces re-measure on the next frame. */
   setPieceScale(percent: number): void {
     this.invalidate();
-    pieceScale.size = percent / 100;
+    pieceScale.size = drawnSizeAt(percent);
     this.maquettes.resize();
     this.pins.rebuild();
   }
@@ -5796,9 +5809,10 @@ type Replay = {
   readonly onStep: (step: ReplayStep, ended: boolean) => void;
 };
 
-/** The eye's elevation over a replay, and its least distance: the figurines full (`nearWeight`). */
+/** The eye's elevation over a replay, and its least distance: the figurines full (`nearWeight`),
+ *  nearer as its stage is drawn smaller. */
 const REPLAY_ELEVATION = (40 * Math.PI) / 180;
-const REPLAY_MIN_DISTANCE = 5;
+const REPLAY_MIN_DISTANCE = 5 * DRAWN_SHARE;
 
 /**
  * Frees one scene node's GPU resources. A material's texture is only released when the
