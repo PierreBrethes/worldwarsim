@@ -7,6 +7,7 @@ import {
   playsWhole,
   sceneOf,
   seatsTagOf,
+  sceneDomain,
   sceneSpan,
 } from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
@@ -15,6 +16,7 @@ import type { ReplayView } from '@/domain/player-view';
 import { replayAt, seatsTagAt, seatsTagWindow, type SeatsTagWindow } from '@/domain/replay';
 import { BatteryShot, type BatteryHost } from './bombardment';
 import { warmPieces, type Flash } from './halo';
+import { floorSpanOf } from './figurines/figurine';
 import { lineCentre, REPLAY_STAGE, ReplayScene, replayReach } from './replay';
 
 type Played = {
@@ -24,6 +26,8 @@ type Played = {
   readonly told: ReplayView;
   /** Its longest piece, on the board: what it is drawn and seen by (`sceneSpan`). */
   readonly span: number;
+  /** What its floor is read on (`floorSpanOf`), by its longest piece's domain (`sceneDomain`). */
+  readonly floorSpan: number;
   readonly scene: ReplayScene;
   /** The combat's point on the board, where the defender's line stands. */
   readonly point: Vector3;
@@ -81,7 +85,14 @@ export class CombatLayer {
   private played: Played[] = [];
   private readonly waiting = new Map<
     string,
-    { readonly point: Vector3; readonly span: number; readonly since: number }
+    {
+      readonly point: Vector3;
+      readonly span: number;
+      /** Its view not yet come, the floor reads the domain of the point (land or sea), not of a
+       *  longest piece (`sceneDomain`): the scene, once played, reads its own. */
+      readonly floorSpan: number;
+      readonly since: number;
+    }
   >();
   /** What the scenes cover on the board, as of the last `advance`: the ground there is hidden. */
   veils: ReadonlyArray<{ readonly center: Vector3; readonly reach: number }> = [];
@@ -101,8 +112,8 @@ export class CombatLayer {
 
   /** A combat is known before its view comes: its point is hidden from now, as far as `span`,
    *  the piece it is seen by (`playCombat`), takes. */
-  wait(id: string, point: Vector3, span: number, now: number): void {
-    this.waiting.set(id, { point, span, since: now });
+  wait(id: string, point: Vector3, span: number, floorSpan: number, now: number): void {
+    this.waiting.set(id, { point, span, floorSpan, since: now });
   }
 
   waits(id: string): boolean {
@@ -160,6 +171,7 @@ export class CombatLayer {
       view,
       told,
       span,
+      floorSpan: floorSpanOf(sceneDomain(view), span),
       scene,
       point,
       offset: lineCentre(
@@ -184,7 +196,10 @@ export class CombatLayer {
    * 0 past the figurines' floor, where nothing shows nor sounds. `true` when a whole frame is due: a scene came, went,
    * or a held step changed.
    */
-  advance(now: number, scaleAt: (point: Vector3, span: number) => number): boolean {
+  advance(
+    now: number,
+    scaleAt: (point: Vector3, span: number, floorSpan: number) => number,
+  ): boolean {
     let due = false;
     const veils: Array<{ center: Vector3; reach: number }> = [];
     this.played = this.played.filter((each) => {
@@ -196,7 +211,7 @@ export class CombatLayer {
       }
       // Its arc and its gun show whichever end is in the field (#325).
       each.shot?.show(shown.frame, this.motion, each.plays);
-      const scale = scaleAt(each.point, each.span);
+      const scale = scaleAt(each.point, each.span, each.floorSpan);
       const object = each.scene.object;
       object.visible = scale > 0;
       this.hangTag(each, scale > 0 ? shown : null);
@@ -223,7 +238,7 @@ export class CombatLayer {
       veils.push({ center: object.position, reach: each.reach * scale });
       return true;
     });
-    for (const [id, { point, span, since }] of this.waiting) {
+    for (const [id, { point, span, floorSpan, since }] of this.waiting) {
       if (now - since > WAIT_MS) {
         this.waiting.delete(id);
         this.onSettled(id);
@@ -231,7 +246,7 @@ export class CombatLayer {
       } else
         veils.push({
           center: point,
-          reach: ((WAITING_HULLS * span) / REPLAY_STAGE) * scaleAt(point, span),
+          reach: ((WAITING_HULLS * span) / REPLAY_STAGE) * scaleAt(point, span, floorSpan),
         });
     }
     this.veils = veils;

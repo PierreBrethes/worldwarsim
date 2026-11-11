@@ -108,6 +108,25 @@ describe('CombatLayer', () => {
     expect(theirs!.getWorldPosition(new Vector3()).x).toBeCloseTo(0);
   });
 
+  it('reads its floor on the man for a scene of the land, and on its own for planes (#534)', () => {
+    const floors = (view: ReplayView) => {
+      const layer = new CombatLayer();
+      layer.play(view, null, at, 0, 0);
+      const seen: number[][] = [];
+      layer.advance(0, (_, span, floorSpan) => (seen.push([span, floorSpan]), 1));
+      return seen[0]!;
+    };
+    const [span, floor] = floors(combat('a'));
+    expect(floor).toBe(troopSpan('infantry'));
+    expect(span).toBe(troopSpan('armor'));
+    const planes: ReplayView = {
+      ...combat('p'),
+      mine: [{ role: 'fighter', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    };
+    const [planeSpan, planeFloor] = floors(planes);
+    expect(planeFloor).toBe(planeSpan);
+  });
+
   it('shows nothing past the floor, and veils nothing there', () => {
     const layer = new CombatLayer();
     layer.play(combat('a'), null, at, 0, 0);
@@ -122,7 +141,7 @@ describe('CombatLayer, after the review', () => {
     const layer = new CombatLayer();
     const settled: string[] = [];
     layer.onSettled = (id) => settled.push(id);
-    layer.wait('a', at, ANONYMOUS_SPAN, 0);
+    layer.wait('a', at, ANONYMOUS_SPAN, ANONYMOUS_SPAN, 0);
     expect(layer.advance(10, scale)).toBe(false);
     expect(layer.veils).toHaveLength(1);
     expect(layer.advance(WAIT_MS + 1, scale)).toBe(true);
@@ -135,7 +154,7 @@ describe('CombatLayer, after the review', () => {
     const settled: string[] = [];
     layer.onSettled = (id) => settled.push(id);
     layer.play(combat('a'), null, at, 0, 0);
-    layer.wait('b', at, ANONYMOUS_SPAN, 0);
+    layer.wait('b', at, ANONYMOUS_SPAN, ANONYMOUS_SPAN, 0);
     layer.advance(0, scale);
     layer.clear();
     expect(layer.group.children).toHaveLength(0);
@@ -230,7 +249,7 @@ describe('CombatLayer, the report stamp (#327)', () => {
     const told: string[] = [];
     layer.onShown = (id) => told.push(id);
     layer.play(combat('a'), null, at, 0, 0);
-    layer.wait('w', at, ANONYMOUS_SPAN, 0);
+    layer.wait('w', at, ANONYMOUS_SPAN, ANONYMOUS_SPAN, 0);
     expect(layer.shown('a')).toBe(false);
     layer.advance(0, () => 0);
     expect(layer.shown('a')).toBe(false);
@@ -343,7 +362,7 @@ describe('CombatLayer, at sea (#324)', () => {
   it('veils a waiting point by hulls of the ship it is seen by, not by a tank', () => {
     const reachOf = (span: number) => {
       const layer = new CombatLayer();
-      layer.wait('w', at, span, 0);
+      layer.wait('w', at, span, span, 0);
       layer.advance(1, scale);
       return layer.veils[0]!.reach;
     };

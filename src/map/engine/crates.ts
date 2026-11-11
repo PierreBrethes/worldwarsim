@@ -1,6 +1,12 @@
 import { Group, MeshStandardMaterial, type Vector3 } from 'three';
 import { CRATE_METRES, CRATE_SLATS, CRATE_WOOD, crateOf } from './crate';
-import { ANONYMOUS_SPAN, FIGURINE_SCALE, TANK_MODEL_UNITS, troopScale } from './figurines/figurine';
+import {
+  ANONYMOUS_SPAN,
+  FIGURINE_SCALE,
+  TANK_MODEL_UNITS,
+  floorSpanOf,
+  troopScale,
+} from './figurines/figurine';
 
 /** Lit like the pieces: the stack, and the HQ's own crates of a loading (#271). */
 export const WOOD = new MeshStandardMaterial({ color: CRATE_WOOD, roughness: 0.8 });
@@ -51,8 +57,12 @@ export class CratePile {
 
   place(ground: Vector3, cameraPosition: Vector3): void {
     this.object.position.copy(ground);
-    // Beside its pawn, they grow with it by the floor (ADR 0035 §10), measured as a tank.
-    const scale = troopScale(ground.distanceTo(cameraPosition), ANONYMOUS_SPAN);
+    // Beside its pawn, they grow with it by the floor (ADR 0035 §10): the man's, as a vehicle on land.
+    const scale = troopScale(
+      ground.distanceTo(cameraPosition),
+      ANONYMOUS_SPAN,
+      floorSpanOf('land', ANONYMOUS_SPAN),
+    );
     this.object.visible = scale > 0;
     this.object.scale.setScalar(FIGURINE_SCALE * scale);
   }

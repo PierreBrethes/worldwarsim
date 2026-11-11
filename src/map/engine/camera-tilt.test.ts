@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { boardHoldOf, nearPlaneAt, steepestTiltAt } from './camera-tilt';
-import { HOVER_ALTITUDE } from './thread';
+import { boardHoldOf, EYE_BACKOFF, EYE_FOV, nearPlaneAt, steepestTiltAt } from './camera-tilt';
+import { CLOSEST_DISTANCE } from './closest-distance';
+import { COUNTRY_THICKNESS, SEA_LEVEL } from './frame';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -28,23 +29,38 @@ describe('the tilt the table allows', () => {
   });
 });
 
+/** Below d = 0.75 the ceiling lifts to show pieces in profile (#535), up to 1.3 from d = 0.4. */
+describe('the tilt the closest zoom allows', () => {
+  it('is the old ceiling at d = 0.75, and 1.3 from d = 0.4 down to the closest zoom', () => {
+    expect(steepestTiltAt(0.75)).toBeCloseTo(1.15);
+    for (const d of [0.4, 0.3, CLOSEST_DISTANCE]) expect(steepestTiltAt(d)).toBeCloseTo(1.3);
+  });
+
+  it('leans further and further as the zoom comes in, never back', () => {
+    const tilts: number[] = [];
+    for (let d = 1; d >= CLOSEST_DISTANCE; d -= 0.01) tilts.push(steepestTiltAt(d));
+    for (let k = 1; k < tilts.length; k++) expect(tilts[k]).toBeGreaterThanOrEqual(tilts[k - 1]!);
+  });
+});
+
 /** The camera's near plane keeps its 0.5 where the table was always seen from (d ≥ 3), and comes
- *  in with the closest zoom, which pieces drawn small brought down to d = 0.75. */
+ *  in with the closest zoom, which pieces drawn small brought down to d = 0.25. */
 describe('the near plane', () => {
   it('stays at 0.5 from d = 3, as before the closest zoom came down', () => {
     expect(nearPlaneAt(3)).toBe(0.5);
     expect(nearPlaneAt(300)).toBe(0.5);
   });
 
-  it('does not clip a plane hovering at the bottom of the screen at the closest zoom, tilted to the full', () => {
+  it('keeps the ground at the bottom of the screen out of the near plane at the closest zoom, tilted to the full', () => {
     // The eye the board renders through: 30° of field, backed off to frame what 42° did.
-    const back = Math.tan((21 * Math.PI) / 180) / Math.tan((15 * Math.PI) / 180);
-    const distance = 0.75;
-    const tilt = steepestTiltAt(distance);
-    const height = distance * back * Math.cos(tilt) - HOVER_ALTITUDE;
-    const bottomRay = Math.PI / 2 - tilt + (15 * Math.PI) / 180;
-    const depth = (height / Math.sin(bottomRay)) * Math.cos((15 * Math.PI) / 180);
-    expect(depth).toBeGreaterThan(nearPlaneAt(distance));
+    const half = (EYE_FOV * Math.PI) / 360;
+    const tilt = steepestTiltAt(CLOSEST_DISTANCE);
+    // Above the sheet, not the target: the game aims at the top of the land (`COUNTRY_THICKNESS`),
+    // the sea lies lower (`SEA_LEVEL`).
+    const height = CLOSEST_DISTANCE * EYE_BACKOFF * Math.cos(tilt) + COUNTRY_THICKNESS - SEA_LEVEL;
+    const bottomRay = Math.PI / 2 - tilt + half;
+    const depth = (height / Math.sin(bottomRay)) * Math.cos(half);
+    expect(depth).toBeGreaterThan(nearPlaneAt(CLOSEST_DISTANCE));
   });
 });
 

@@ -4,6 +4,7 @@ import { Group, Vector3 } from 'three';
 import type { Medium } from '@/domain/routing';
 import type { Figurine } from './figurines/figurine';
 import { Pawn } from './pawn';
+import { troopScale } from './figurines/figurine';
 
 /**
  * Costumes are stored in `land`, `sea`, `air` order: the index says which one is worn,
@@ -247,5 +248,36 @@ describe('my column on the road', () => {
     await landed();
     go(pawn, 0.01, null);
     expect(leg()).toBeCloseTo(0, 6);
+  });
+});
+
+/** The floor is read on the man for what is really a man's side of the board (#534). */
+describe('the floor of a pawn on land', () => {
+  const eye = new Vector3(0, 5, 0);
+  const sizeOf = (figurine: Figurine) => figurine.object.scale.x;
+
+  it('draws a mixed file with a tank as much larger than the men as it is', async () => {
+    const men: Figurine = {
+      object: new Group(),
+      span: troopSpan('infantry'),
+      ready: Promise.resolve(),
+      spin() {},
+    };
+    const armor: Figurine = {
+      object: new Group(),
+      span: troopSpan('armor'),
+      ready: Promise.resolve(),
+      spin() {},
+    };
+    const pawn = new Pawn('#000', null, null, null, [
+      { figurine: men, role: 'infantry', wear: 'whole', troopId: 't1' },
+      { figurine: armor, role: 'armor', wear: 'whole', troopId: 't2' },
+    ]);
+    pawn.place(new Vector3(0, 0, 0), new Vector3(1, 0, 0));
+    pawn.step(0.1, false);
+    pawn.orient(eye, 0);
+    // Each piece is drawn at one scale on its own real size: the man's floor, not the tank's.
+    expect(sizeOf(armor) / sizeOf(men)).toBeCloseTo(1, 12);
+    expect(sizeOf(men)).toBeCloseTo(troopScale(5, armor.span, men.span), 12);
   });
 });

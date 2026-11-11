@@ -36,10 +36,10 @@ const MOON_COLOR = new Color('#a9bde6');
 /** Assez loin pour que tout le cadre d'ombre tienne devant elle, à n'importe quel zoom permis. */
 const LAMP_DISTANCE = 300;
 const NORMAL_BIAS = 0.02;
-const NORMAL_BIAS_PER_REACH = 0.005;
+const NORMAL_BIAS_PER_REACH = 0.004;
 /**
  * **How far a shadow is read off its surface**, in board units, for a shadow frame of half side
- * `reach`: 0.02 at most, and as many texels as at the former closest zoom (0.02 for a reach of 4) —
+ * `reach`: 0.02 at most, and four texels at the closest zoom, so that the man at his real height (#534) keeps his shadow —
  * a man drawn small is shorter than the bias a wide frame needs, and would stand without a shadow.
  * `@a-mesurer`
  */

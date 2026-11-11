@@ -2,7 +2,7 @@ import { fr } from '@/i18n/fr';
 import type { Medium, UnitRole } from './ids';
 import { troopSpan } from './piece-size';
 import { SQUAD_DRAWN_WHOLE } from './pile-pieces';
-import { DOMAIN_BY_ROLE, seatsOf } from './troops';
+import { DOMAIN_BY_ROLE, seatsOf, type UnitDomain } from './troops';
 import { REPLAY_MS, STEP_MS, replayAt, type ReplayFrame } from './replay';
 import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
@@ -182,6 +182,17 @@ export function sceneOf(view: ReplayView): ReplayView {
 export function sceneSpan(view: ReplayView): number {
   const roles = [...view.mine, ...(view.faced?.forces ?? [])].map((entry) => entry.role);
   return Math.max(troopSpan('armor'), ...roles.map((role) => troopSpan(role)));
+}
+
+/** **Le domaine de la plus longue pièce d'une scène** (#534) : ce qui dit sur quel plancher elle se
+ *  lit — l'homme sur terre, la pièce elle-même en mer et dans l'air. Un bloc ennemi est un char. */
+export function sceneDomain(view: ReplayView): UnitDomain {
+  const roles = [...view.mine, ...(view.faced?.forces ?? [])].map((entry) => entry.role);
+  const longest = roles.reduce<UnitRole>(
+    (best, role) => (troopSpan(role) > troopSpan(best) ? role : best),
+    'armor',
+  );
+  return DOMAIN_BY_ROLE[longest];
 }
 
 /** **Combien de temps le tampon du compte-rendu reste posé**, de son apparition : le reste du

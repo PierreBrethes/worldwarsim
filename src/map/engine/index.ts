@@ -73,7 +73,9 @@ import {
   TANK_SHARE,
   troopPinSpan,
   type PinnedBy,
+  floorSpanOf,
   troopScale,
+  troopWeight,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
@@ -174,7 +176,15 @@ import { drawnSizeAt, pieceScale } from './piece-scale';
 import { DRAWN_SHARE, MAN_METRES, troopSpan } from '@/domain/piece-size';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { boardHoldOf, nearPlaneAt, steepestTiltAt } from './camera-tilt';
+import {
+  boardHoldOf,
+  CAMERA_FOV,
+  EYE_BACKOFF,
+  EYE_FOV,
+  nearPlaneAt,
+  steepestTiltAt,
+} from './camera-tilt';
+import { CLOSEST_DISTANCE } from './closest-distance';
 import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
 import { brightest, Halos, warmPieces } from './halo';
@@ -492,12 +502,6 @@ const SEARCH_AREA_MARGIN = 1.3;
  *  @a-mesurer */
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
-/**
- * **Au plus près, l'homme se voit à sa proportion** (ADR 0035 §10, 20 px de haut) : à 3 quand les
- * pièces étaient dessinées à l'échelle commune, d'autant plus près qu'elles sont dessinées
- * petites — on descend voir ses hommes d'aussi près qu'avant. Au-delà, le plancher.
- */
-const CLOSEST_DISTANCE = 3 * DRAWN_SHARE;
 /** The share of its overshoot a target past the board's edge takes back each frame (#187).
  *  @a-mesurer */
 const BOARD_HOLD_RATE = 0.12;
@@ -3546,7 +3550,7 @@ export class MapEngine {
       return;
     }
     if (cue.view === null) {
-      this.combats.wait(cue.id, point, span, now);
+      this.combats.wait(cue.id, point, span, floorSpanOf(medium, span), now);
       return;
     }
     let yaw: number;
@@ -3576,7 +3580,7 @@ export class MapEngine {
     );
     return (
       this.eyeFrustum.containsPoint(point) &&
-      troopScale(this.camera.position.distanceTo(point), span) > 0
+      troopWeight(this.camera.position.distanceTo(point), span) > 0
     );
   }
 
@@ -5143,9 +5147,8 @@ export class MapEngine {
 
   /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile of its
    *  longest piece (#324). */
-  private combatScaleAt(at: Vector3, span: number): number {
-    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span);
-  }
+  private readonly combatScaleAt = (at: Vector3, span: number, floorSpan: number): number =>
+    REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span, floorSpan);
 
   /** What the replay and the combats on the map cover: the board there would show the after. */
   private get veils(): ReadonlyArray<{ readonly center: Vector3; readonly reach: number }> {
@@ -5451,7 +5454,7 @@ export class MapEngine {
         ),
       );
     }
-    if (this.combats.advance(now, (at, span) => this.combatScaleAt(at, span))) this.demand.whole();
+    if (this.combats.advance(now, this.combatScaleAt)) this.demand.whole();
     this.razes.advance(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
@@ -5769,13 +5772,6 @@ const TOUCH_PIXEL_RATIO = 1.5;
 const TOUCH_SHADOW_MAP = 1024;
 const FOG_NEAR = 460;
 const FOG_FAR = 950;
-/** The driven camera's field: every distance threshold was measured through it. */
-const CAMERA_FOV = 42;
-/** The prototype's telephoto, through which the board renders (`eye`). */
-const EYE_FOV = 30;
-const halfTan = (fov: number): number => Math.tan((fov * Math.PI) / 360);
-/** How far the eye backs off along the camera's axis to frame the same plane at `EYE_FOV`. */
-const EYE_BACKOFF = halfTan(CAMERA_FOV) / halfTan(EYE_FOV);
 
 /** Une marge au-dessus du plancher : la molette s'arrête rarement pile sur `minDistance`. */
 const ZOOM_FLOOR_SLACK = 1.15;

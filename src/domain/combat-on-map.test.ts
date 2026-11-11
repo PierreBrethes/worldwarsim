@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   afloat,
   COMBAT_LIMITS,
+  sceneDomain,
   sceneSpan,
   combatAt,
   FINAL_POSE_MS,
@@ -282,6 +283,19 @@ describe('sceneSpan', () => {
   it("reads a scene on its longest piece, never below a tank's", () => {
     expect(sceneSpan(view)).toBe(troopSpan('armor'));
     expect(sceneSpan(atSea)).toBe(troopSpan('cargo'));
+  });
+});
+
+describe('sceneDomain', () => {
+  it('reads the domain of the longest piece of a scene: a tank land, a cargo sea, a fighter air', () => {
+    expect(sceneDomain(view)).toBe('land');
+    expect(sceneDomain(atSea)).toBe('sea');
+    const planes: ReplayView = {
+      ...view,
+      mine: [{ role: 'fighter', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    };
+    // Planes fighting over land keep the plane's own floor.
+    expect(sceneDomain(planes)).toBe('air');
   });
 });
 

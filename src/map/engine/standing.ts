@@ -40,6 +40,7 @@ import {
   LAID_OUT_FOR,
   FLOOR_PX,
   floorGrowth,
+  floorSpanOf,
   GARRISON_FLOOR_PX,
   troopPinSpan,
   troopScale,
@@ -354,6 +355,8 @@ export function pileObject(
   object: Group;
   /** Its largest piece's span (`troopSpan`): what the pile is laid out and pinned by. */
   span: number;
+  /** What its floor is read on (`floorSpanOf`): its largest piece's domain decides, the man's on land. */
+  floorSpan: number;
   /** Where its pieces stand round, and half their width and depth: its ring is drawn there. */
   center: { readonly x: number; readonly z: number };
   extent: { readonly x: number; readonly z: number };
@@ -376,6 +379,8 @@ export function pileObject(
   const smokes: Smoke[] = [];
   const targets: Mesh[] = [];
   const span = Math.max(...figurines.map((figurine) => figurine.span));
+  const largest = figurines.findIndex((figurine) => figurine.span === span);
+  const floorSpan = floorSpanOf(DOMAIN_BY_ROLE[pieces.groups[largest]!.role], span);
   figurines.forEach((figurine, k) => {
     const slot = layout[k]!;
     figurine.object.position.set(slot.x, 0, slot.z);
@@ -414,6 +419,7 @@ export function pileObject(
   return {
     object,
     span,
+    floorSpan,
     // A pile on a shore stands inland of its point (`formationOf`): its ring is round its pieces.
     center: {
       x: (Math.min(...xs) + Math.max(...xs)) / 2,
@@ -565,6 +571,7 @@ type Dressed = {
   pieces: PilePieces;
   readonly object: Group;
   readonly span: number;
+  readonly floorSpan: number;
   /** **The size of its site it is drawn at** (#433): a port's, at its quay; 1 anywhere else. */
   sized: number;
   ready: boolean;
@@ -655,6 +662,7 @@ type Carried = {
   readonly object: Group;
   readonly piece: Group;
   readonly span: number;
+  readonly floorSpan: number;
   readonly shadow: { readonly object: Group; readonly materials: MeshBasicMaterial[] };
   /** The ring on the ground where it would land, and the line that drops to it. */
   readonly marks: Marks;
@@ -939,6 +947,7 @@ export class StandingLayer implements SequenceHost {
         pieces: pile.pieces,
         object: built.object,
         span: built.span,
+        floorSpan: built.floorSpan,
         sized: 1,
         ready: false,
         near: 0,
@@ -1312,6 +1321,7 @@ export class StandingLayer implements SequenceHost {
       object,
       piece,
       span: copy.span,
+      floorSpan: copy.floorSpan,
       shadow,
       marks,
       width,
@@ -1824,8 +1834,11 @@ export class StandingLayer implements SequenceHost {
       entry.stood ||= entry.ready;
       object.visible = near > 0;
       // A garrison keeps near its site's proportion; a pile in the field, its own floor.
-      const floor = 'beside' in at ? GARRISON_FLOOR_PX : FLOOR_PX;
-      const scale = troopScale(distance, span, floor) * pileUnitOf(span);
+      // A garrison also keeps its pieces' own span: it stays under a third of its barracks (#534).
+      const garrisoned = 'beside' in at;
+      const floor = garrisoned ? GARRISON_FLOOR_PX : FLOOR_PX;
+      const scale =
+        troopScale(distance, span, garrisoned ? span : entry.floorSpan, floor) * pileUnitOf(span);
       object.scale.setScalar(scale);
       hover(object);
       this.post(entry, posts.get(entry), scale);
@@ -2138,7 +2151,7 @@ export class StandingLayer implements SequenceHost {
     const dt = Math.min(0.1, (now - carried.clock) / 1000);
     carried.clock = now;
     const scale =
-      troopScale(object.position.distanceTo(cameraPosition), carried.span) *
+      troopScale(object.position.distanceTo(cameraPosition), carried.span, carried.floorSpan) *
       pileUnitOf(carried.span);
     const full = this.motion === 'full';
     let tilt = { x: 0, z: 0 };

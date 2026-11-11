@@ -275,7 +275,11 @@ export class CampLayer {
   orient(cameraPosition: Vector3, yaw: number): void {
     const seconds = performance.now() / 1000;
     for (const [id, { object, ring }] of this.placed) {
-      const scale = troopScale(object.position.distanceTo(cameraPosition), ANONYMOUS_SPAN);
+      const scale = troopScale(
+        object.position.distanceTo(cameraPosition),
+        ANONYMOUS_SPAN,
+        ANONYMOUS_SPAN,
+      );
       object.visible = scale > 0;
       object.scale.setScalar(scale);
       object.rotation.set(0, yaw, 0);

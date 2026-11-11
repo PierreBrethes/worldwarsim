@@ -1053,9 +1053,23 @@ export function disbandSpotsAt(
   );
 }
 
+/**
+ * **L'homme de la couronne garde sa mesure d'avant le 11/11** : 1,75 m × 1,5. Le rendu lui a rendu
+ * sa taille réelle (ADR 0035 §2, #534), mais la couronne de dissolution est une règle serveur, qui
+ * ne bouge pas avec un lot de dessin.
+ */
+const DISBAND_MAN_SHARE = 1.5;
+
 /** La plus grande pièce de la couronne, en kilomètres : ce que `disbandPointsOf` lit. */
 export const disbandSpanKm = (
   pieces: ReadonlyArray<{ readonly role: UnitRole; readonly tier?: UnitTier }>,
   nation?: Nation,
 ): number =>
-  Math.max(...pieces.map((piece) => troopSpan(piece.role, nation, piece.tier) * BOARD_KM));
+  Math.max(
+    ...pieces.map(
+      (piece) =>
+        troopSpan(piece.role, nation, piece.tier) *
+        (piece.role === 'infantry' ? DISBAND_MAN_SHARE : 1) *
+        BOARD_KM,
+    ),
+  );

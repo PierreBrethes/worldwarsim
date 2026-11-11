@@ -988,7 +988,7 @@ describe('a fleet docked at a port drawn smaller', () => {
     expect(small.piles.some((pile) => Math.abs(pile - span * 0.4) < 1e-12)).toBe(true);
     const d = eye.length();
     expect(small.size / whole.size).toBeCloseTo(
-      (0.4 * troopScale(d, span * 0.4)) / troopScale(d, span),
+      (0.4 * troopScale(d, span * 0.4, span * 0.4)) / troopScale(d, span, span),
       9,
     );
     expect(small.pin).toBeCloseTo(troopPinSpan(span * 0.4), 12);

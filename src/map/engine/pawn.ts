@@ -20,6 +20,7 @@ import {
   ANONYMOUS_SPAN,
   FIGURINE_SCALE,
   LAID_OUT_FOR,
+  floorSpanOf,
   troopScale,
   troopWeight,
   type Figurine,
@@ -432,7 +433,12 @@ export class Pawn {
     const figurine = this.figurines.get(this.medium);
     const span = this.span;
     // Drawn as a piece of its sized span: its pin and its floor follow (#433).
-    const drawn = troopScale(distance, span * this.sized) * this.sized;
+    // On land a real figurine or a file reads its floor on the man's span; a silhouette, an enemy's
+    // annotation (`facesEye`: it would tell a tank from a squad) and the other mediums, on their own.
+    const sized = span * this.sized;
+    const real = this.file !== null || (figurine !== undefined && figurine.facesEye !== true);
+    const floorSpan = real ? floorSpanOf(this.medium, sized) : sized;
+    const drawn = troopScale(distance, sized, floorSpan) * this.sized;
     // The silhouette fades with it: its own size is a share of the screen.
     const close = troopWeight(distance, span * this.sized);
     // The wake and the altitude disc are drawn for a tank: they follow the piece's own size.

@@ -3,7 +3,7 @@
 **Statut :** acceptée (23/10/2026). Pierre a choisi la variante D, tranché ses suites (Q2 à Q7),
 puis la figurine plancher (Q1, §10) et la plage du curseur (Q3, §6). **Précise l'ADR 0026** (la
 carte en figurines) sur la taille des pièces. Précisée le 23/10 sur le storyboard de la caserne :
-l'homme ×1,5 (§2), et chaque char à la longueur de son modèle (§1). Amendée le 26/10 (#286) : le
+l'homme ×1,5 (§2, tombé le 11/11 : taille réelle), et chaque char à la longueur de son modèle (§1). Amendée le 26/10 (#286) : le
 hangar fait 50 m, celui du modèle neuf (§1) ; les deux hangars viendront au lot des kits de terrain.
 
 ## Contexte
@@ -44,6 +44,13 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    lisible. La mer est à demi-échelle : ports et navires restent liés entre eux, mais un port fait
    168 km et un cargo 104 km au lieu de 340 et 210.
 
+   > **Amendé le 11/11/2026, décisions de Pierre** (#534) : **l'écart de l'homme tombe.** Il
+   > reprend sa taille réelle, 1,75 m (`MAN_EXAGGERATION` disparaît) : sous la porte de sa caserne
+   > à 3,4 m, qui reste, le R35 fait 2,3 fois l'homme et le Sherman 3,3. Il ne reste qu'un écart
+   > déclaré, la mer ; les « ×1,5 » de l'en-tête, du §3 et du §10 se lisent à ce nouveau rapport.
+   > **La couronne de dissolution ne bouge pas** : règle serveur, elle garde l'homme d'avant
+   > (`DISBAND_MAN_SHARE`, `movement-orders.ts`, 4,2 km).
+
    > **Précisée le 04/11/2026** (#433, décisions de Pierre) : le lien port-navire tient **à
    > quai, pas en mer**. Un anneau qui réduit un port (jusqu'à ×0,4) réduit aussi sa garnison à
    > quai, escorteur et porte-avions compris : son seuil d'épingle, son plancher (§10) et son pied
@@ -54,10 +61,10 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    > sans `fx_rang` — aucun des treize bâtiments aujourd'hui — ne multiplie plus la demi-pile par
    > l'échelle du site.
 3. **Deux distances d'épingle.** Une pièce devient épingle selon sa taille à l'écran, non plus à
-   une distance commune : les troupes vers d ≈ 3 à 7 (tenues jusqu'à d ≈ 30 par le plancher,
+   une distance commune : les troupes vers d ≈ 2 à 7 (tenues jusqu'à d ≈ 30 par le plancher,
    §10), les bâtiments vers d ≈ 56 à 68. Le fondu des régions et des ombres garde ses propres
    seuils. Mesuré dans le code (`pieceWeight`, 20 px lus sur une fenêtre de 900 px de haut,
-   quelle que soit la fenêtre) : de l'homme à d ≈ 3,0, le R35 à 4,7, le char à 7,0, le chasseur à
+   quelle que soit la fenêtre) : de l'homme à d ≈ 2,0 (3,0 quand il était ×1,5), le R35 à 4,7, le char à 7,0, le chasseur à
    12,7, la caserne à 58 et le hangar à 70, jusqu'au port à 122 et au porte-avions à 145.
 
    > **Amendé le 05/11/2026** (#465, décisions de Pierre) : un bâtiment sur son socle ne se pèse
@@ -105,7 +112,7 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
     devient épingle : ni jeton 2D, ni cadrage déplacé. Entre d ≈ 3 et 30 elle grandit donc par
     rapport à son bâtiment ; le lien strict tient au rapproché, là où se jouent les sorties
     (POC `WWS/prototypes/echelle-commune/lisibilite.html`, #266). Le zoom descend à d = 3 (24/10),
-    où l'homme ×1,5 se voit à sa proportion ; au-delà, le plancher.
+    où l'homme se voit à sa proportion (×1,5 alors, réel depuis le 11/11) ; au-delà, le plancher.
 
     > **Amendé le 11/11/2026, décisions de Pierre** (§1 amendé) : **le zoom descend à trois fois
     > la part dessinée** (d = 0,75 à 0,25), où l'homme se lit à ses 20 px d'avant : on descend voir
@@ -115,6 +122,30 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
     > `@a-mesurer`). Une pile ne paraît plus jamais plus grosse que le site qu'elle garde ; une
     > troupe qui sort de sa garnison grandit de 8 à 16 px à mi-distance, et pas du tout au
     > rapproché. Le plancher tient jusqu'à d ≈ 11 au lieu de 30.
+
+    > **Amendé le 11/11/2026, décisions de Pierre** (#534) : **le plancher de ce qui roule se lit
+    > sur l'homme** (`floorSpanOf`). Sur terre, tant que l'homme est tenu à 16 px, char, camion et
+    > artillerie grandissent du même facteur que lui : un char reste aussi gros qu'il l'est devant
+    > l'escouade (le rapport de leurs spans, ≈ 2,3 pour le R35, 3,3 pour le Sherman) à toute
+    > distance où les pièces tiennent debout. Cela vaut pour un tas seul, pour une pile mêlée (elle
+    > prend le domaine de sa plus grande pièce), pour un fil en marche (tous ses rangs) et dans la
+    > main. L'avion et le navire gardent leur plancher propre, y compris dans une scène de combat
+    > dont la plus longue pièce est un avion (`sceneDomain`). **Ce qui n'a pas de rôle** garde le
+    > sien (bloc ennemi, relique, annotation d'un arc détecté, silhouette : `facesEye`, et
+    > `ANONYMOUS_SPAN`) : un bloc grossi ×2,3 trahirait un char. **Garnison** : le plancher reste
+    > celui de la pièce (8 px sur son propre span), sans plafond neuf ; un char y vaut à peu près
+    > l'escouade. **Deux limites connues** : sur un très petit site (puits, station d'écoute), une
+    > pile peut dépasser le tiers du bâtiment ; dans un tas mêlé en garnison, l'homme descend sous
+    > les 8 px, calé sur le plancher de la plus grande pièce. Le seuil d'épingle (`troopPinSpan`)
+    > ne change pas : le char grandi s'épingle au même d que l'homme, par le fondu existant.
+
+    > **Amendé le 11/11/2026, décisions de Pierre** (#535) : **le zoom descend à d = 0,25**
+    > (`CLOSEST_DISTANCE`, une part dessinée), où l'homme se lit à ≈ 40 px et le R35 à ≈ 90 px,
+    > bien au-delà de leur plancher : toutes les pièces grandissent avec le zoom, à leur vraie
+    > proportion. Les côtes à grands pans du niveau près sont acceptées. **La caméra se penche davantage sous d = 0,75** :
+    > le plafond d'inclinaison monte de 1,15 à 1,3 rad à d = 0,4 et y reste (`steepestTiltAt`,
+    > `camera-tilt.ts`) ; un avion en vol, plus haut que l'œil, peut sortir du cadre par le haut au
+    > plus près. Le retour au QG, la recherche et le replay gardent leurs distances.
 
 ## Ce qu'on abandonne
 

@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 8a118e8 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 07108c3 -->
 
 # Les constantes à mesurer
 
@@ -100,8 +100,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
-| `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:189` | le temps de lire « nos pièces » et de l'ouvrir. |
-| `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:261` | « voir » |
+| `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
+| `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:272` | « voir » |
 | `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:72` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
 | `BEFORE_CITY_KM` | `30` | `src/domain/contacts.ts:35` | la maquette C le pose à 0,35 unité, environ 30 km |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:102` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
@@ -137,10 +137,10 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `REMINDER_MINUTES` | `15` | `src/domain/operation-order.ts:38` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `MIN_PIECE_SCALE` | `80` | `src/domain/piece-scale.ts:11` | recommandation du designer (POC de lisibilité, 23/10), Q3 ouverte à Pierre |
 | `MAX_PIECE_SCALE` | `125` | `src/domain/piece-scale.ts:12` | recommandation du designer (POC de lisibilité, 23/10), Q3 ouverte à Pierre |
-| `ARMOR_METRES` | `{ france: [4.02, 6.37], // Renault R35, Char B1 bis uk: [3.96, 5.61], // Vickers Light Tank Mk VI, Matilda II usa: [4.84, 5.84], // M5 Stuart, M4 Sherman ussr: [5.66, 6.68], // BT-7, T-34 (1941) germany: [4.81, 5.92], // Panzer II, Panzer IV japan: [4.38, 5.52], // Type 95 Ha-Go, Type 97 Chi-Ha italy: [3.17, 4.92], // L3/35, M13/40 china: [4.88, 4.62], // Vickers 6-Ton, T-26 }` | `src/domain/piece-size.ts:43` | longueurs de caisse publiées (fiches Wikipédia des modèles), sans canon ni garde-boue |
-| `BUILDING_METRES` | `{ hq: 60, farm: 40, mine: 50, oilWell: 25, arsenal: 80, barracks: 50, airfield: 110, port: 210, listening: 30, researchCenter: 50, warehouse: 60, depot: 60, city: 50 }` | `src/domain/piece-size.ts:60` | la ville seule, un symbole sans mesure réelle ; le reste suit l'ADR 0035 |
-| `OBJECTIVE_METRES` | `{ abandonedStores: 40, stalledConvoy: 30, fuelDump: 40, irregularArsenal: 40 }` | `src/domain/piece-size.ts:133` | lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel |
-| `DRAWN_SHARE` | `0.25` | `src/domain/piece-size.ts:188` | 0,25, choix de Pierre du 11/11/2026 après captures à 0,5, 0,35 et 0,25 ; à revoir en partie |
+| `ARMOR_METRES` | `{ france: [4.02, 6.37], // Renault R35, Char B1 bis uk: [3.96, 5.61], // Vickers Light Tank Mk VI, Matilda II usa: [4.84, 5.84], // M5 Stuart, M4 Sherman ussr: [5.66, 6.68], // BT-7, T-34 (1941) germany: [4.81, 5.92], // Panzer II, Panzer IV japan: [4.38, 5.52], // Type 95 Ha-Go, Type 97 Chi-Ha italy: [3.17, 4.92], // L3/35, M13/40 china: [4.88, 4.62], // Vickers 6-Ton, T-26 }` | `src/domain/piece-size.ts:41` | longueurs de caisse publiées (fiches Wikipédia des modèles), sans canon ni garde-boue |
+| `BUILDING_METRES` | `{ hq: 60, farm: 40, mine: 50, oilWell: 25, arsenal: 80, barracks: 50, airfield: 110, port: 210, listening: 30, researchCenter: 50, warehouse: 60, depot: 60, city: 50 }` | `src/domain/piece-size.ts:58` | la ville seule, un symbole sans mesure réelle ; le reste suit l'ADR 0035 |
+| `OBJECTIVE_METRES` | `{ abandonedStores: 40, stalledConvoy: 30, fuelDump: 40, irregularArsenal: 40 }` | `src/domain/piece-size.ts:131` | lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel |
+| `DRAWN_SHARE` | `0.25` | `src/domain/piece-size.ts:186` | 0,25, choix de Pierre du 11/11/2026 après captures à 0,5, 0,35 et 0,25 ; à revoir en partie |
 | `NAMES_GONE_DISTANCE` | `65` | `src/domain/place-names.ts:117` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `CITY_TIERS` | `[NAMES_GONE_DISTANCE, 55, 34, 0]` | `src/domain/place-names.ts:118` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `MILLION` | `1_000_000` | `src/domain/place-names.ts:119` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |

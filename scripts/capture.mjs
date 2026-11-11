@@ -217,10 +217,13 @@ try {
         ([tx, tz, d, p, a]) => {
           const engine = globalThis.mapEngine;
           const rad = Math.PI / 180;
-          engine.controls.target.set(tx, 0, tz);
+          // The game aims at the top of the sheet (`COUNTRY_THICKNESS`, `frame.ts`): aimed at 0, the
+          // eye sinks by as much and the near plane cuts the sheet at the closest zoom.
+          const table = 0.08;
+          engine.controls.target.set(tx, table, tz);
           engine.camera.position.set(
             tx + d * Math.sin(p * rad) * Math.sin(a * rad),
-            d * Math.cos(p * rad),
+            table + d * Math.cos(p * rad),
             tz + d * Math.sin(p * rad) * Math.cos(a * rad),
           );
           engine.invalidate();
@@ -239,18 +242,20 @@ try {
         page.evaluate(
           ([lon, lat, d, p, a, id]) => {
             const engine = globalThis.mapEngine;
-            let target = engine.frame.projectLonLat([lon, lat], 0);
+            // Aimed at the top of the sheet, as the game aims (`COUNTRY_THICKNESS`, `frame.ts`).
+            let target = engine.frame.projectLonLat([lon, lat]);
+            const table = target.y;
             if (id) {
               // La garnison se dessine au pied de sa maquette, pas au point de la carte.
               // A movement walks off its point: its head is aimed at, then its drawn pieces —
               // whose box is empty while it is its pin.
               const head = engine.arcs.headPositions.get(id);
-              if (head) target = head.clone().setY(0);
+              if (head) target = head.clone().setY(table);
               const box = [engine.standing.boxOf(id), engine.arcs.boxOf(id)].find(
                 (found) => found && !found.isEmpty(),
               );
               const drawn = box ? box.getCenter(target.clone()) : engine.maquettes.drawnAt(id);
-              if (drawn) target = drawn.clone().setY(0);
+              if (drawn) target = drawn.clone().setY(table);
             }
             const away = engine.camera.position.clone().sub(engine.controls.target).normalize();
             if (!Number.isNaN(p))
