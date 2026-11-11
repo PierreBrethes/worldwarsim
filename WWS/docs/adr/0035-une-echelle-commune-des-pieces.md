@@ -44,6 +44,11 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    lisible. La mer est à demi-échelle : ports et navires restent liés entre eux, mais un port fait
    168 km et un cargo 104 km au lieu de 340 et 210.
 
+   > **Amendé le 11/11/2026, décisions de Pierre** (#534) : **l'écart de l'homme tombe.** Il
+   > reprend sa taille réelle, 1,75 m (`MAN_EXAGGERATION` disparaît) : sous la porte de sa caserne
+   > à 3,4 m, qui reste, le R35 fait 2,3 fois l'homme et le Sherman 3,3. Il ne reste qu'un écart
+   > déclaré, la mer ; les « ×1,5 » du §10 se lisent à ce nouveau rapport.
+
    > **Précisée le 04/11/2026** (#433, décisions de Pierre) : le lien port-navire tient **à
    > quai, pas en mer**. Un anneau qui réduit un port (jusqu'à ×0,4) réduit aussi sa garnison à
    > quai, escorteur et porte-avions compris : son seuil d'épingle, son plancher (§10) et son pied
@@ -118,14 +123,19 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
 
     > **Amendé le 11/11/2026, décisions de Pierre** (#534) : **le plancher de ce qui roule se lit
     > sur l'homme** (`floorSpanOf`). Sur terre, tant que l'homme est tenu à 16 px, char, camion et
-    > artillerie grandissent du même facteur que lui : un char reste ≈ 2,3 fois l'escouade à toute
-    > distance où les pièces tiennent debout, seul, dans une pile mêlée (elle prend le domaine de
-    > sa plus grande pièce), sur un fil et dans la main. L'avion et le navire gardent leur plancher
-    > propre ; le bloc anonyme (ennemi, relique, annotation) aussi, sinon un bloc grossi ×2,3
-    > trahirait un char. **Garnison** : le plancher reste celui de la pièce (8 px sur son propre
-    > span), donc un char y vaut à peu près l'escouade et ne dépasse jamais le tiers de son
-    > bâtiment. Le seuil d'épingle (`troopPinSpan`) ne change pas : le char grandi s'épingle au
-    > même d que l'homme, par le fondu existant.
+    > artillerie grandissent du même facteur que lui : un char reste aussi gros qu'il l'est devant
+    > l'escouade (le rapport de leurs spans, ≈ 2,3 pour le R35, 3,3 pour le Sherman) à toute
+    > distance où les pièces tiennent debout. Cela vaut pour un tas seul, pour une pile mêlée (elle
+    > prend le domaine de sa plus grande pièce), pour un fil en marche (tous ses rangs) et dans la
+    > main. L'avion et le navire gardent leur plancher propre, y compris dans une scène de combat
+    > dont la plus longue pièce est un avion (`sceneDomain`). **Ce qui n'a pas de rôle** garde le
+    > sien (bloc ennemi, relique, annotation d'un arc détecté, silhouette : `facesEye`, et
+    > `ANONYMOUS_SPAN`) : un bloc grossi ×2,3 trahirait un char. **Garnison** : le plancher reste
+    > celui de la pièce (8 px sur son propre span), sans plafond neuf ; un char y vaut à peu près
+    > l'escouade. **Deux limites connues** : sur un très petit site (puits, station d'écoute), une
+    > pile peut dépasser le tiers du bâtiment ; dans un tas mêlé en garnison, l'homme descend sous
+    > les 8 px, calé sur le plancher de la plus grande pièce. Le seuil d'épingle (`troopPinSpan`)
+    > ne change pas : le char grandi s'épingle au même d que l'homme, par le fondu existant.
 
     > **Amendé le 11/11/2026, décisions de Pierre** (#535) : **le zoom descend à d = 0,25**
     > (`CLOSEST_DISTANCE`, une part dessinée), où l'homme se lit à ≈ 60 px et le char à ≈ 135 px,
