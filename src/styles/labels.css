@@ -138,6 +138,14 @@
   transform: none;
 }
 
+/* An objective's chest is centred on its point, at the foot of the block: under the pointer the
+   words unfold upward, and a chest centred on them jumped from under the click (#537). */
+.label--objective .label-pictogram {
+  top: auto;
+  bottom: 0;
+  transform: translateY(50%);
+}
+
 /* A deposit is its basin, drawn in the terrain by the engine (#239), and its name in ink below
    it, as an atlas writes a massif: italic, no slip of paper, no mast, no shadow pool — a
    potential, never a possession. Its anchor is the basin's southern edge; the name hangs
