@@ -3,11 +3,16 @@ import { PerspectiveCamera, Vector3, type BufferGeometry } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { Pin } from '@/domain/pins';
 import { PROJECTION, WorldFrame } from './frame';
-import { isPinOf, pictoText, PinLayer, tagOf } from './pins';
+import { isPinOf, PIN_APPROACH_DISTANCE, pictoText, PinLayer, tagOf } from './pins';
 import { REACH } from './halo';
-import { troopPinSpan, type PinnedBy } from './figurines/figurine';
-import { buildingSpan, troopSpan } from '@/domain/piece-size';
+import { pieceStands, STANDS_UNTIL, troopPinSpan, type PinnedBy } from './figurines/figurine';
+import { buildingSpan, DRAWN_SHARE, troopSpan } from '@/domain/piece-size';
 import { PIN_FALL_MS, PIN_TILT_MS } from './timelines/dismantle';
+import { pieceScale } from './piece-scale';
+
+// The geometry and the thresholds are read at the full common scale: the share pieces are drawn
+// at multiplies every size alike, and has its own tests (`figurine.test.ts`).
+pieceScale.size = 1;
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ width: 10 }) });
@@ -180,10 +185,10 @@ describe('PinLayer — the pieces far away', () => {
     };
     // Its walls alone give way by d = 68; on its socle, at the troops' floor, as a pile's pin.
     expect(pinAt(68, buildingSpan('barracks'))).toEqual({ kind: 'pin', id: 'b' });
-    expect(pinAt(30, 'socle')).toBeNull();
-    expect(pinAt(36, 'socle')).toEqual({ kind: 'pin', id: 'b' });
-    expect(pinAt(30, troopPinSpan(troopSpan('infantry')))).toBeNull();
-    expect(pinAt(36, troopPinSpan(troopSpan('infantry')))).toEqual({ kind: 'pin', id: 'b' });
+    expect(pinAt(43, 'socle')).toBeNull();
+    expect(pinAt(52, 'socle')).toEqual({ kind: 'pin', id: 'b' });
+    expect(pinAt(43, troopPinSpan(troopSpan('infantry')))).toBeNull();
+    expect(pinAt(52, troopPinSpan(troopSpan('infantry')))).toEqual({ kind: 'pin', id: 'b' });
   });
 
   it('stands where a ring carried its maquette, not on the point the maquette left', () => {
@@ -454,5 +459,17 @@ describe('PinLayer — a dismantled outpost’s pin leaves (#340)', () => {
     layer.display([]);
     layer.layout(eye, W, H, new Map(), new Map(), eye.position, 1100);
     expect(layer.active).toBe(false);
+  });
+});
+
+describe('approaching a pin (#234)', () => {
+  it('comes down to where its piece stands whole, at the smallest size a player sets too', () => {
+    expect(PIN_APPROACH_DISTANCE).toBeLessThan(0.8 * STANDS_UNTIL);
+    pieceScale.size = 0.8 * DRAWN_SHARE;
+    try {
+      expect(pieceStands(PIN_APPROACH_DISTANCE, 'socle')).toBe(1);
+    } finally {
+      pieceScale.size = 1;
+    }
   });
 });

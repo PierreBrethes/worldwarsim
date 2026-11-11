@@ -35,6 +35,16 @@ const NIGHT_INTENSITY = 0.9;
 const MOON_COLOR = new Color('#a9bde6');
 /** Assez loin pour que tout le cadre d'ombre tienne devant elle, à n'importe quel zoom permis. */
 const LAMP_DISTANCE = 300;
+const NORMAL_BIAS = 0.02;
+const NORMAL_BIAS_PER_REACH = 0.005;
+/**
+ * **How far a shadow is read off its surface**, in board units, for a shadow frame of half side
+ * `reach`: 0.02 at most, and as many texels as at the former closest zoom (0.02 for a reach of 4) —
+ * a man drawn small is shorter than the bias a wide frame needs, and would stand without a shadow.
+ * `@a-mesurer`
+ */
+export const shadowBias = (reach: number): number =>
+  Math.min(NORMAL_BIAS, reach * NORMAL_BIAS_PER_REACH);
 /** La carte d'ombres du bureau ; au doigt, le moteur en demande une plus petite (`index.ts`). */
 export const SHADOW_MAP = 2048;
 
@@ -86,7 +96,7 @@ export class Lamp {
   ) {
     this.light.shadow.mapSize.set(shadowMap, shadowMap);
     this.light.shadow.bias = -0.0004;
-    this.light.shadow.normalBias = 0.02;
+    this.light.shadow.normalBias = NORMAL_BIAS;
     scene.add(this.light, this.light.target);
   }
 
@@ -138,6 +148,7 @@ export class Lamp {
     if (camera.right !== reach) {
       camera.left = camera.bottom = -reach;
       camera.right = camera.top = reach;
+      this.light.shadow.normalBias = shadowBias(reach);
       camera.near = LAMP_DISTANCE - 2 * reach;
       camera.far = LAMP_DISTANCE + 2 * reach;
       camera.updateProjectionMatrix();

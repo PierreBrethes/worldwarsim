@@ -4,6 +4,7 @@ import { decodeAtlas } from '@/domain/atlas';
 import type { World } from '@/domain/world';
 import projection from '../../../public/projection.json';
 import {
+  COAST_CEILING_PX,
   COAST_FLOOR_PX,
   COUNTRY_BORDER_MAX,
   COUNTRY_BORDER_REST,
@@ -58,7 +59,14 @@ describe('coastWidthPx', () => {
 
   it('grows with the zoom like ink on the sheet', () => {
     expect(coastWidthPx(0.001)).toBeGreaterThan(coastWidthPx(0.004));
-    expect(coastWidthPx(0.001)).toBeGreaterThan(COAST_FLOOR_PX);
+    expect(coastWidthPx(0.004)).toBeGreaterThan(COAST_FLOOR_PX);
+  });
+
+  it('stops growing at its ceiling: closer than the former closest zoom, the coast is no fatter', () => {
+    // A board unit is 1172 px tall seen from one unit away: d = 3, then the closest of today.
+    expect(coastWidthPx(3 / 1172)).toBeLessThan(COAST_CEILING_PX);
+    expect(coastWidthPx(1.05 / 1172)).toBe(COAST_CEILING_PX);
+    expect(coastWidthPx(0.0001)).toBe(COAST_CEILING_PX);
   });
 });
 

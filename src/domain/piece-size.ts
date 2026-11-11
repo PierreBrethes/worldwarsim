@@ -177,13 +177,15 @@ export const buildingReach = (key: BuildingKey): number =>
   onBoard(KIT_REACH_METRES[key] ?? BUILDING_REACH_METRES[key], key === 'port' ? SEA_SHARE : 1);
 
 /**
- * **Un bâtiment est dessiné à cette part de sa taille pleine, partout** (Pierre, 11/11/2026) :
- * une échelle pour tout site (sur socle, objectif neutre, site relevé), quelle que soit la terre
- * qui le porte. Une troupe n'en est pas réduite : elle reste à 1. Le curseur « Taille des pièces »
- * s'applique par-dessus (à 80 %, 0,4). Le repli d'un groupe serré part de cette échelle.
- * @a-mesurer le niveau « moyen » des captures, où le QG de Rome est dessiné à 50 %
+ * **Toute pièce, troupe ou bâtiment, est dessinée à cette part de l'échelle commune** (Pierre,
+ * 11/11/2026 : « une impression de grandeur », « que tout scale bien ensemble »). Le dessin seul :
+ * les mesures de ce fichier, et les règles qui en sortent (la couronne de dissolution,
+ * `movement-orders.ts`), restent à `EXAGGERATION`. Le curseur « Taille des pièces » s'applique
+ * par-dessus, et le zoom le plus proche, le plancher et le seuil d'épingle la suivent
+ * (`src/map/engine/figurines/figurine.ts`).
+ * @a-mesurer 0,35 retenu sur captures entre 0,5 (sage) et 0,25 (radical) ; Pierre choisit
  */
-export const BUILDING_SCALE = 0.5;
+export const DRAWN_SHARE = 0.35;
 
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>

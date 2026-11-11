@@ -32,7 +32,6 @@ import { accessoriesShown, bakedSite, mirroredPart, onSocle, type Part } from '.
 import { mirroredPort } from './port-side';
 import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
-import { BUILDING_SCALE } from '@/domain/piece-size';
 import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
 import type { SequenceHost } from './sequences';
@@ -420,17 +419,15 @@ export type Placement = {
   readonly at: Point;
   /** Where its garrison stands from it: outward from the ring, inland when the front is sea. */
   readonly facing: number;
-  /** The start scale, or less: a group too tight for its bound shrinks rather than spreads. */
+  /** A group too tight for its bound shrinks rather than spreads. */
   readonly scale: number;
 };
 
 /**
- * The group's sizes tried in turn, each a share of the start scale, before every site falls back
- * on its own point: 0.5, 0.4, then 0.3 for buildings. Captured on four sites of Naples, 11/11:
- * at 0.2 the group is clean but a tank hides the facade it stands before, and a ring takes in what
- * it grows into, so a tight group would drag the sites of a whole country down to it; at 0.4 their
- * socles lie across one another.
- * @a-mesurer 0.3 of 0.5: between those two captures; Pierre confirms the floor
+ * The group's sizes tried in turn, before every site falls back on its own point. Captured on four
+ * sites of Naples, 11/11: under 0.6 a group is clean and no smaller than it needs; a ring takes in
+ * what it grows into, so each step further down drags its neighbours with it.
+ * @a-mesurer 0.6: the same drawn size as the 0.3 of a site at 0.5 the captures of 11/11 settled on
  */
 const SHRINK_STEPS = [1, 0.8, 0.6];
 
@@ -445,16 +442,12 @@ const SHRINK_STEPS = [1, 0.8, 0.6];
  * **Within `bounds`, a ring never carries a maquette far from its point** (the city of Coimbra
  * drawn in Porto, 15/10): a group that would spread past `maxShift`, or off the land, is ringed
  * again smaller — its maquettes shrink instead of standing away.
- *
- * **A group starts from `start`** (`BUILDING_SCALE` for sites): `spacings` and `feet` are full
- * sizes, sites touch, ring and shrink from the start scale, each step a share of it.
  */
 export function clusterFootprints(
   points: ReadonlyArray<Point>,
   spacings: number | ReadonlyArray<number>,
   feet?: number | ReadonlyArray<number>,
   bounds: PlacementBounds = { maxShift: Infinity, onLand: () => true },
-  start = 1,
 ): Placement[] {
   const spacingOf = (k: number) => (typeof spacings === 'number' ? spacings : spacings[k]!);
   // A footprint reaches its foot at least: half its spacing.
@@ -463,15 +456,14 @@ export function clusterFootprints(
   const placed = new Array<Placement>(points.length);
   for (const members of ringed(
     points,
-    points.map((_, k) => spacingOf(k) * start),
+    points.map((_, k) => spacingOf(k)),
   ).clusters) {
     const own = members.map((k) => points[k]!);
     const spaced = members.map(spacingOf);
     const footed = members.map(footOf);
-    const within = { ...bounds, maxShift: bounds.maxShift * Math.max(...spaced) * start };
+    const within = { ...bounds, maxShift: bounds.maxShift * Math.max(...spaced) };
     let fitted: Placement[] | null = null;
-    for (const step of SHRINK_STEPS) {
-      const scale = start * step;
+    for (const scale of SHRINK_STEPS) {
       const trial = ringed(
         own,
         spaced.map((spacing) => spacing * scale),
@@ -483,7 +475,7 @@ export function clusterFootprints(
         break;
       }
     }
-    const smallest = start * SHRINK_STEPS.at(-1)!;
+    const smallest = SHRINK_STEPS.at(-1)!;
     members.forEach((k, r) => {
       placed[k] =
         fitted?.[r] ??
@@ -675,8 +667,7 @@ type Placed = {
   /** Its turn about the vertical (`pose`): hashed from its id, to the sea for a port, inland for
    *  a socle the hashed one wets. */
   yaw: number;
-  /** The size it is drawn at against its full size: `BUILDING_SCALE`, or less in a tight group,
-   *  which shrinks rather than spreads. */
+  /** Its group's size against a lone maquette's: a tight group shrinks rather than spreads. */
   scale: number;
   readonly turn: Quaternion;
   /** Inside a replay's ground: it steps aside, and its plate with it. */
@@ -888,7 +879,7 @@ export class MaquetteLayer implements SequenceHost {
         at: ground.clone(),
         facing: 0,
         yaw: yawOf(maquette.id),
-        scale: BUILDING_SCALE,
+        scale: 1,
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         socle: maquette.socle === true,
@@ -1036,8 +1027,6 @@ export class MaquetteLayer implements SequenceHost {
       // known here: a tank's stands for it.
       items.map(({ span }) => garrisonFoot(span, ANONYMOUS_SPAN) * pieceScale.size),
       { maxShift: MAX_SHIFT, onLand: this.onLand },
-      // Before the player's size: the slider still sizes every piece, a building with them.
-      BUILDING_SCALE,
     );
     const models = new Map([
       ...[...this.byId.values()].map(({ item, lot }) => [item, lot.model] as const),

@@ -18,7 +18,7 @@ import type { BuildingKey, UnitRole } from '@/domain/ids';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import type { Pin } from '@/domain/pins';
 import type { Rect } from '@/domain/poster-placement';
-import { ANONYMOUS_SPAN, pieceStands, type PinnedBy } from './figurines/figurine';
+import { ANONYMOUS_SPAN, pieceStands, STANDS_UNTIL, type PinnedBy } from './figurines/figurine';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { ARC_COLORS, PALETTE } from './palette';
 import { REACH } from './halo';
@@ -49,8 +49,9 @@ const CLUSTER_TOUCH_PX = { mine: 34, seen: 26 } as const;
 const countedRadius = (troops: number): number => Math.min(13, 6.5 + 2.4 * Math.log2(troops));
 const UNREAD_RADIUS = 6.5;
 const CLUSTER_RADIUS = 5.5;
-/** **Approcher** (#234) : jusqu'aux figurines pleines, ou ce qui cadre les pièces d'une grappe. */
-export const PIN_APPROACH_DISTANCE = 28;
+/** **Approcher** (#234) : jusqu'aux figurines pleines, au réglage de taille le plus petit aussi
+ *  (80 %), ou ce qui cadre les pièces d'une grappe. */
+export const PIN_APPROACH_DISTANCE = 0.75 * STANDS_UNTIL;
 /** What a single pin measures, in CSS pixels, by its shape and side. @a-mesurer */
 const SINGLE_RADIUS = { pile: 4, building: 4, outpost: 5.5 } as const;
 const SEEN_RADIUS = 4.6;

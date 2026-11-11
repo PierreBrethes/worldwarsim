@@ -136,8 +136,12 @@ export const COAST_FLOOR_PX = 0.75;
  *  comme l'encre du prototype, gravée dans sa texture. */
 const COAST_WIDTH = 0.015;
 
+/** Le plafond : sa largeur au rapproché d'avant (d = 3). Plus près, où l'on descend voir des
+ *  pièces dessinées plus petites, elle ne grossit plus. `@a-mesurer` */
+export const COAST_CEILING_PX = 6;
+
 export const coastWidthPx = (unitsPerPixel: number): number =>
-  Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel);
+  Math.min(COAST_CEILING_PX, Math.max(COAST_FLOOR_PX, COAST_WIDTH / unitsPerPixel));
 
 const COAST_OPACITY = 0.92;
 /** The country border's sepia (`PALETTE.frontier`) far out (`REST`) and up close (`MAX`), dotted

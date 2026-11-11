@@ -10,6 +10,7 @@ import {
   HOVER_ALTITUDE,
   leadIn,
   pointOnLeg,
+  threadWidth,
   AIR_RISE_MAX,
   AIR_RISE_SHARE,
   DRIFT_CEILING_PX_S,
@@ -17,6 +18,12 @@ import {
 } from './thread';
 import { COUNTRY_THICKNESS, WorldFrame } from './frame';
 import type { Ribbon } from './route-ribbon';
+import { DRAWN_SHARE, troopSpan } from '@/domain/piece-size';
+import { pieceScale } from './piece-scale';
+
+// The geometry and the thresholds are read at the full common scale: the share pieces are drawn
+// at multiplies every size alike, and has its own tests (`figurine.test.ts`).
+pieceScale.size = 1;
 
 /** The toy world of `routing.test.ts`: two islands separated by ten units of sea. */
 function toyWorld(): World {
@@ -223,6 +230,12 @@ describe('the relay diamonds', () => {
 });
 
 describe('the air arc', () => {
+  it('hovers three wingspans up as wingspans are drawn (ADR 0035 §7), and draws a thread half a drawn tank wide', () => {
+    expect(HOVER_ALTITUDE).toBeCloseTo(3 * troopSpan('fighter') * DRAWN_SHARE, 9);
+    expect(threadWidth(2.5)).toBeCloseTo(0.0625 * DRAWN_SHARE, 9);
+    expect(threadWidth(2.5)).toBeLessThan(troopSpan('armor') * DRAWN_SHARE);
+  });
+
   it('the rise follows the chord between its two bounds, and stops there', () => {
     expect(airRise(1)).toBe(HOVER_ALTITUDE);
     expect(airRise(100)).toBeCloseTo(100 * AIR_RISE_SHARE, 10);
@@ -419,7 +432,8 @@ describe('an air thread moored at its runway', () => {
 
   it('leaves from the end of its runway at its height, and lands on the other unmoored', () => {
     const start = frame.projectLonLat(air.points[0]!);
-    const fil = at(32.6, 25.1).setY(start.y + 0.4);
+    // The end of a runway, at the height a take-off leaves it as pieces are drawn.
+    const fil = at(32.6, 25.1).setY(start.y + 0.4 * DRAWN_SHARE);
     const thread = buildThread(air, frame, colors, thickness, opacities, {
       moor: (which, point, medium) =>
         medium === 'air' && which === 'start' && flat(point, start) < 1e-6 ? fil : null,
