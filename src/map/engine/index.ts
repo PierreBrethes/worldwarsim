@@ -487,6 +487,9 @@ const JOURNEY_MS = 500;
 /** @a-mesurer : la marge autour des lieux que la caméra cadre, le `fit(…, 1.12)` de la maquette. */
 const TOUR_FRAME_MARGIN = 1.12;
 const SEARCH_AREA_MARGIN = 1.3;
+/** Une zone de recherche se lit sur la carte (un disque, un anneau), non en figurines : elle ne
+ *  suit pas la part dessinée des pièces, et ses 18 restent au-delà de l'approche des pièces.
+ *  @a-mesurer */
 const SEARCH_AREA_MIN_DISTANCE = 18;
 const DEFAULT_MAX_DISTANCE = 300;
 /**

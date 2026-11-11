@@ -335,7 +335,8 @@ export function nearestGroup(
 }
 
 /** **A hovering plane holds its thread's height**, whatever the pile's scale: the plane shrinks
- *  with the pieces, its altitude — three wingspans (ADR 0035 §7) — does not. */
+ *  with the pieces, its altitude — three wingspans of the full common scale, drawn at `DRAWN_SHARE` (ADR 0035 §7)
+ *  — does not follow the pile's own scale. */
 function hover(object: Object3D): void {
   const scale = Math.max(object.scale.y, 1e-3);
   for (const part of object.children)

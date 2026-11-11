@@ -25,9 +25,10 @@ const SURFACE_ALTITUDE = COUNTRY_THICKNESS + 0.006;
 export const AIR_RISE_SHARE = 0.045;
 export const AIR_RISE_MAX = 6;
 
-/** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers some three wingspans
- *  up (ADR 0035 §7) as wingspans are drawn, and its thread leaves and stops at that height; also
- *  the air arc's rise floor. */
+/** **Where a plane stands in a Blitz** (15/10): it never lands, it hovers three wingspans
+ *  up (ADR 0035 §7) of the full common scale — `DRAWN_SHARE` of that, a plane drawn at the same
+ *  share is up twelve of its own at 0.25, off its floor —, and its thread leaves and stops at
+ *  that height; also the air arc's rise floor. */
 export const HOVER_ALTITUDE = AIR_ALTITUDE * DRAWN_SHARE;
 
 /**
