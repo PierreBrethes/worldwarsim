@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { boardHoldOf, steepestTiltAt } from './camera-tilt';
+import { boardHoldOf, nearPlaneAt, steepestTiltAt } from './camera-tilt';
+import { HOVER_ALTITUDE } from './thread';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -24,6 +25,26 @@ describe('the tilt the table allows', () => {
 
   it('holds past the usual ceiling, where a search area may lift it', () => {
     expect(steepestTiltAt(900)).toBeCloseTo(0.9);
+  });
+});
+
+/** The camera's near plane keeps its 0.5 where the table was always seen from (d ≥ 3), and comes
+ *  in with the closest zoom, which pieces drawn small brought down to d = 0.75. */
+describe('the near plane', () => {
+  it('stays at 0.5 from d = 3, as before the closest zoom came down', () => {
+    expect(nearPlaneAt(3)).toBe(0.5);
+    expect(nearPlaneAt(300)).toBe(0.5);
+  });
+
+  it('does not clip a plane hovering at the bottom of the screen at the closest zoom, tilted to the full', () => {
+    // The eye the board renders through: 30° of field, backed off to frame what 42° did.
+    const back = Math.tan((21 * Math.PI) / 180) / Math.tan((15 * Math.PI) / 180);
+    const distance = 0.75;
+    const tilt = steepestTiltAt(distance);
+    const height = distance * back * Math.cos(tilt) - HOVER_ALTITUDE;
+    const bottomRay = Math.PI / 2 - tilt + (15 * Math.PI) / 180;
+    const depth = (height / Math.sin(bottomRay)) * Math.cos((15 * Math.PI) / 180);
+    expect(depth).toBeGreaterThan(nearPlaneAt(distance));
   });
 });
 

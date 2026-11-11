@@ -174,7 +174,7 @@ import { drawnSizeAt, pieceScale } from './piece-scale';
 import { DRAWN_SHARE, MAN_METRES, troopSpan } from '@/domain/piece-size';
 import { ArcLayer, ARC_HOVER_THRESHOLD } from './arcs';
 import { cameraYaw } from './billboard';
-import { boardHoldOf, steepestTiltAt } from './camera-tilt';
+import { boardHoldOf, nearPlaneAt, steepestTiltAt } from './camera-tilt';
 import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
 import { brightest, Halos, warmPieces } from './halo';
@@ -3387,6 +3387,11 @@ export class MapEngine {
       .multiplyScalar(EYE_BACKOFF)
       .add(target);
     this.eye.quaternion.copy(this.camera.quaternion);
+    const near = nearPlaneAt(this.camera.position.distanceTo(target));
+    if (this.eye.near !== near) {
+      this.eye.near = near;
+      this.eye.updateProjectionMatrix();
+    }
     this.eye.updateMatrixWorld();
     return this.eye;
   }
