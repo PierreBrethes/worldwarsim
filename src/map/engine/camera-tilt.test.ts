@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { boardHoldOf, EYE_BACKOFF, nearPlaneAt, steepestTiltAt } from './camera-tilt';
 import { CLOSEST_DISTANCE } from './closest-distance';
-import { HOVER_ALTITUDE } from './thread';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -29,38 +28,17 @@ describe('the tilt the table allows', () => {
   });
 });
 
-/** Below d = 0.75 the ceiling lifts to show pieces in profile (#535), but the render eye keeps
- *  above a plane hovering at the target. */
+/** Below d = 0.75 the ceiling lifts to show pieces in profile (#535), up to 1.3 from d = 0.4. */
 describe('the tilt the closest zoom allows', () => {
-  const distances = (): number[] => {
-    const out: number[] = [];
-    for (let d = CLOSEST_DISTANCE; d <= 1; d += 0.01) out.push(d);
-    return out;
-  };
-
-  it('is the old ceiling from d = 0.75 outwards, and leans further under it', () => {
+  it('is the old ceiling at d = 0.75, and 1.3 from d = 0.4 down to the closest zoom', () => {
     expect(steepestTiltAt(0.75)).toBeCloseTo(1.15);
-    expect(steepestTiltAt(0.65)).toBeGreaterThan(1.17);
+    for (const d of [0.4, 0.3, CLOSEST_DISTANCE]) expect(steepestTiltAt(d)).toBeCloseTo(1.3);
   });
 
-  it('keeps the render eye above a plane hovering at the target, at every closer distance', () => {
-    for (const d of distances())
-      expect(d * EYE_BACKOFF * Math.cos(steepestTiltAt(d))).toBeGreaterThanOrEqual(
-        HOVER_ALTITUDE - 1e-9,
-      );
-  });
-
-  it('keeps it a near plane above it, so a plane at the bottom of the screen is not cut', () => {
-    for (const d of distances())
-      expect(d * EYE_BACKOFF * Math.cos(steepestTiltAt(d))).toBeGreaterThanOrEqual(
-        HOVER_ALTITUDE + nearPlaneAt(d) - 1e-9,
-      );
-  });
-
-  it('moves without a jump as the zoom comes in', () => {
-    const tilts = distances().map(steepestTiltAt);
-    for (let k = 1; k < tilts.length; k++)
-      expect(Math.abs(tilts[k]! - tilts[k - 1]!)).toBeLessThan(0.05);
+  it('leans further and further as the zoom comes in, never back', () => {
+    const tilts: number[] = [];
+    for (let d = 1; d >= CLOSEST_DISTANCE; d -= 0.01) tilts.push(steepestTiltAt(d));
+    for (let k = 1; k < tilts.length; k++) expect(tilts[k]).toBeGreaterThanOrEqual(tilts[k - 1]!);
   });
 });
 
@@ -72,15 +50,8 @@ describe('the near plane', () => {
     expect(nearPlaneAt(300)).toBe(0.5);
   });
 
-  it('does not clip a plane hovering at the bottom of the screen at the closest zoom, tilted to the full', () => {
-    // The eye the board renders through: 30° of field, backed off to frame what 42° did.
-    const back = EYE_BACKOFF;
-    const distance = CLOSEST_DISTANCE;
-    const tilt = steepestTiltAt(distance);
-    const height = distance * back * Math.cos(tilt) - HOVER_ALTITUDE;
-    const bottomRay = Math.PI / 2 - tilt + (15 * Math.PI) / 180;
-    const depth = (height / Math.sin(bottomRay)) * Math.cos((15 * Math.PI) / 180);
-    expect(depth).toBeGreaterThan(nearPlaneAt(distance));
+  it('keeps the piece at the target out of the near plane at the closest zoom, tilted to the full', () => {
+    expect(CLOSEST_DISTANCE * EYE_BACKOFF).toBeGreaterThan(nearPlaneAt(CLOSEST_DISTANCE));
   });
 });
 

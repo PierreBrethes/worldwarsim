@@ -1,5 +1,3 @@
-import { HOVER_ALTITUDE } from './thread';
-
 /**
  * **Penché sur la table au rapproché, plus haut pour lire le monde** (13/10/2026). La pente
  * permise — l'angle polaire d'`OrbitControls` — suit la distance : à hauteur de pays on se
@@ -22,30 +20,20 @@ export const EYE_BACKOFF = halfTan(CAMERA_FOV) / halfTan(EYE_FOV);
 
 /**
  * **Plus près que d = 0,75, on se penche encore** (#535) pour voir les pièces de profil : le
- * plafond monte de `LEANING` à `CLOSE_LEANING` jusqu'à d = `LEAN_UNTIL`, mais l'œil de rendu reste
- * au-dessus d'un avion en vol au point visé (`HOVER_ALTITUDE`), sans quoi il passe sous lui.
- * La feuille (`COUNTRY_THICKNESS`, 0,08) monte l'avion d'autant : à d = 0,25, l'œil reste 0,04 sous
- * lui, et l'avion sort du cadre par le haut. L'y ajouter ramènerait l'inclinaison à 38° à d = 0,25.
+ * plafond monte de `LEANING` à `CLOSE_LEANING` à d = `LEAN_UNTIL`, et y reste jusqu'au zoom le plus
+ * proche. Un avion en vol, plus haut que l'œil, sort alors du cadre par le haut : accepté.
  * @a-mesurer sur capture
  */
 const LEAN_FROM = 0.75;
 const LEAN_UNTIL = 0.4;
 const CLOSE_LEANING = 1.3;
 
-/** L'angle polaire où l'œil, à cette distance, est à la hauteur de l'avion en vol plus de quoi
- *  que le plan proche ne le rogne pas, au bas de l'écran. */
-const airborneCeilingAt = (distance: number): number => {
-  const clear = HOVER_ALTITUDE + nearPlaneAt(distance) / Math.cos((EYE_FOV * Math.PI) / 360);
-  return Math.acos(Math.min(1, clear / (distance * EYE_BACKOFF)));
-};
-
 export function steepestTiltAt(distance: number): number {
   const t = Math.min(1, Math.max(0, (distance - NEAR) / (FAR - NEAR)));
   const usual = LEANING - (LEANING - OVERLOOKING) * t;
   if (distance >= LEAN_FROM) return usual;
   const closeness = Math.min(1, (LEAN_FROM - distance) / (LEAN_FROM - LEAN_UNTIL));
-  const leaning = LEANING + (CLOSE_LEANING - LEANING) * closeness;
-  return Math.min(leaning, airborneCeilingAt(distance));
+  return LEANING + (CLOSE_LEANING - LEANING) * closeness;
 }
 
 /**

@@ -130,10 +130,10 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
     > **Amendé le 11/11/2026, décisions de Pierre** (#535) : **le zoom descend à d = 0,25**
     > (`CLOSEST_DISTANCE`, une part dessinée), où l'homme se lit à ≈ 60 px et le char à ≈ 135 px,
     > bien au-delà de leur plancher : toutes les pièces grandissent avec le zoom, à leur vraie
-    > proportion. Les côtes à grands pans du niveau près sont acceptées. **La caméra se penche un
-    > peu plus sous d = 0,75, bornée par l'avion en vol** : l'œil de rendu reste au-dessus de son
-    > altitude (`steepestTiltAt`, `camera-tilt.ts`), d'où un plafond qui remonte puis retombe à
-    > 56° à d = 0,25. Le retour au QG, la recherche et le replay gardent leurs distances.
+    > proportion. Les côtes à grands pans du niveau près sont acceptées. **La caméra se penche davantage sous d = 0,75** :
+    > le plafond d'inclinaison monte de 1,15 à 1,3 rad à d = 0,4 et y reste (`steepestTiltAt`,
+    > `camera-tilt.ts`) ; un avion en vol, plus haut que l'œil, peut sortir du cadre par le haut au
+    > plus près. Le retour au QG, la recherche et le replay gardent leurs distances.
 
 ## Ce qu'on abandonne
 
