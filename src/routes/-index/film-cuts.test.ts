@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { fr } from '@/i18n/fr';
-import { FILM_SHOTS, subtitleAt } from './film';
+import { FILM_SHOTS, subtitleAt } from './film-cuts';
 
 it('pose le sous-titre du plan qui passe, et aucun entre deux plans', () => {
   const first = FILM_SHOTS[0]!;
