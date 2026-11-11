@@ -203,9 +203,9 @@ describe('the figurine floor', () => {
     return { pawn, object, span };
   };
 
-  it('draws the man at his own ×1.5 at the closest zoom, d = 3: no floor there', () => {
+  it('draws the man at his own size where he reads over the floor, d = 2: no floor there', () => {
     const { pawn, object, span } = manPawn();
-    pawn.orient(new Vector3(0, 3, 0), 0);
+    pawn.orient(new Vector3(0, 2, 0), 0);
     expect(new Box3().setFromObject(object).getSize(new Vector3()).y).toBeCloseTo(span, 9);
   });
 

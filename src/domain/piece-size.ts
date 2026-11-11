@@ -4,11 +4,9 @@ import { DOMAIN_BY_ROLE, type UnitTier } from './troops';
 /**
  * **Une échelle commune des pièces** (ADR 0035) : chaque troupe et chaque bâtiment à sa taille
  * réelle, multipliée par une seule exagération — ce qui sort d'un bâtiment garde sa taille en
- * sortant. Deux écarts déclarés : l'homme agrandi, la mer à demi-échelle.
+ * sortant. Un seul écart déclaré : la mer à demi-échelle (l'homme a repris sa taille, 11/11).
  */
 const EXAGGERATION = 1600;
-/** L'homme ×1,5 (§2, 2,6 m) : à hauteur du char, et sous la porte de sa caserne (3,4 m). */
-const MAN_EXAGGERATION = 1.5;
 /** La mer à demi-échelle (§2) : ports et navires liés entre eux, sans couvrir la côte. */
 const SEA_SHARE = 0.5;
 
@@ -151,7 +149,7 @@ export const troopSpan = (role: UnitRole, nation?: Nation, tier?: UnitTier): num
     (role === 'armor' && nation !== undefined && tier !== undefined
       ? ARMOR_METRES[nation][tier - 1]
       : undefined) ?? TROOP_METRES[role],
-    (role === 'infantry' ? MAN_EXAGGERATION : 1) * (DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1),
+    DOMAIN_BY_ROLE[role] === 'sea' ? SEA_SHARE : 1,
   );
 
 /** **La mesure réelle d'un rôle, en mètres** (`TROOP_METRES`) : ce sur quoi un repère posé à la

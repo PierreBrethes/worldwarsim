@@ -30,8 +30,8 @@ describe('how much table the lamp shades', () => {
 });
 
 describe('how far a shadow is read off its surface', () => {
-  it('keeps the bias it had from the former closest zoom outwards', () => {
-    for (const distance of [3, 10, 30, 60]) expect(shadowBias(shadowReach(distance)!)).toBe(0.02);
+  it('keeps its ceiling from the former closest zoom outwards', () => {
+    for (const distance of [10, 30, 60]) expect(shadowBias(shadowReach(distance)!)).toBe(0.02);
   });
 
   it('stays under the height of a man as he is drawn, at the closest zoom: he keeps his shadow', () => {

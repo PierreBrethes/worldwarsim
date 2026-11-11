@@ -55,9 +55,9 @@ describe('pieceWeight', () => {
     pieceScale.pxPerUnit = 1172;
   });
 
-  it('reads a man under the pin from d ≈ 3, a tank from 7, and pins the buildings from 58 to 70', () => {
-    expect(pieceWeight(3, troopSpan('infantry'))).toBe(1);
-    expect(pieceWeight(3.7, troopSpan('infantry'))).toBe(0);
+  it('reads a man under the pin from d ≈ 2, a tank from 7, and pins the buildings from 58 to 70', () => {
+    expect(pieceWeight(2, troopSpan('infantry'))).toBe(1);
+    expect(pieceWeight(2.5, troopSpan('infantry'))).toBe(0);
     expect(pieceWeight(6.9, troopSpan('armor'))).toBe(1);
     expect(pieceWeight(8.2, troopSpan('armor'))).toBe(0);
     expect(pieceWeight(57, buildingSpan('barracks'))).toBe(1);
@@ -138,10 +138,10 @@ describe('the share every piece is drawn at', () => {
     expect(pieceScale.size).toBe(DRAWN_SHARE);
   });
 
-  it('reads a man at his proportion, 60 px, at the closest zoom, with no floor holding him', () => {
+  it('reads a man at his proportion, 40 px, at the closest zoom, with no floor holding him', () => {
     const closest = CLOSEST_DISTANCE;
     expect(floorGrowth(closest, man)).toBe(1);
-    expect(px(closest, man, troopScale(closest, man, man))).toBeCloseTo(59.3, 0);
+    expect(px(closest, man, troopScale(closest, man, man))).toBeCloseTo(39.5, 0);
   });
 
   it('stands my piles and my sites whole until STANDS_UNTIL, and pins both past it', () => {
