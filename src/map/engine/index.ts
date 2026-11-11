@@ -5145,9 +5145,8 @@ export class MapEngine {
 
   /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile of its
    *  longest piece (#324). */
-  private combatScaleAt(at: Vector3, span: number, floorSpan: number): number {
-    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span, floorSpan);
-  }
+  private readonly combatScaleAt = (at: Vector3, span: number, floorSpan: number): number =>
+    REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span, floorSpan);
 
   /** What the replay and the combats on the map cover: the board there would show the after. */
   private get veils(): ReadonlyArray<{ readonly center: Vector3; readonly reach: number }> {
@@ -5453,8 +5452,7 @@ export class MapEngine {
         ),
       );
     }
-    if (this.combats.advance(now, (at, span, floorSpan) => this.combatScaleAt(at, span, floorSpan)))
-      this.demand.whole();
+    if (this.combats.advance(now, this.combatScaleAt)) this.demand.whole();
     this.razes.advance(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();
