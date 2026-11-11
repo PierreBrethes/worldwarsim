@@ -5,6 +5,7 @@ import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
 import { NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 import { WASH } from './deposit-basins';
+import { TRAME_SCALE } from './regions';
 
 /** The circle's rings and spokes: enough that the front reads round at a thousand kilometres. */
 const RINGS = 40;
@@ -16,8 +17,23 @@ const LIFT = 0.0035;
 /** The paper the wash fades into by night, the maquette's `nightWash`. */
 const PAPER = '#efe6cf';
 
+/**
+ * From the opening view the whole range is a few hundred CSS pixels: the wave grows to be read.
+ * `far` is 0 while the range spans `NEAR_RANGE_PX` CSS pixels or more, 1 at `FAR_RANGE_PX` or less.
+ * @a-mesurer #536 : lu sur la capture d'ouverture (portée ~230 px) et de près (~1 400 px)
+ */
+const NEAR_RANGE_PX = 900;
+const FAR_RANGE_PX = 300;
+/** At `far` = 1: the front's band, in pixels (56 close up); the washes and the rim, as factors.
+ *  @a-mesurer #536 */
+const FAR_BAND_PX = 100;
+const FAR_INNER_WASH = 4;
+const FAR_BAND_WASH = 1.5;
+const FAR_RIM = 2;
+
 // Distances in kilometres along the ground, so the front meets a basin when the rule says it does
-// (`depositSweep`'s `hitMs`); widths in screen pixels, as the maquette draws them.
+// (`depositSweep`'s `hitMs`); widths in screen pixels, as the maquette draws them close up and
+// grown by `far` from afar.
 const VERTEX = `
 attribute float aKm;
 attribute vec2 aDir;
@@ -38,6 +54,7 @@ uniform vec3 uPaper;
 uniform float uFront;
 uniform float uFade;
 uniform float uTime;
+uniform float uPixelRatio;
 varying float vKm;
 varying vec2 vDir;
 varying vec2 vWorld;
@@ -47,25 +64,24 @@ void main() {
   float wobble = 5.0 * sin(theta * 6.0 + 1.3) + 3.0 * sin(theta * 17.0 + uTime / 260.0) + 2.0 * sin(theta * 31.0);
   // Close to its start the wobble would star the drop: it swells with the radius.
   float front = uFront + wobble * kmPerPx * min(1.0, uFront / (120.0 * kmPerPx));
-  // From the opening view the whole range is a few hundred pixels: the wave widens and
-  // thickens, up to double, so it reads as at close range (@a-mesurer, #536).
-  float far = smoothstep(900.0, 300.0, ${SWEEP_RANGE_KM.toFixed(1)} / kmPerPx);
-  float band = mix(56.0, 100.0, far) * kmPerPx;
+  // Buffer pixels per CSS pixel: the thresholds are in CSS pixels, whatever the screen's density.
+  float far = smoothstep(${NEAR_RANGE_PX.toFixed(1)}, ${FAR_RANGE_PX.toFixed(1)}, ${SWEEP_RANGE_KM.toFixed(1)} / kmPerPx / uPixelRatio);
+  float band = mix(56.0, ${FAR_BAND_PX.toFixed(1)}, far) * kmPerPx;
   float lip = 8.0 * kmPerPx;
   if (vKm > front + lip) discard;
   float night = nightAtWorld(vWorld);
   // By night the wash goes light, the species' ink melted into the paper.
   vec3 ink = mix(uInk, uInk * 0.3 + uPaper * 0.7, night);
   float alpha;
-  if (vKm < front - band) alpha = 0.5 * mix(0.03, 0.06, night) * mix(1.0, 4.0, far);
+  if (vKm < front - band) alpha = 0.5 * mix(0.03, 0.06, night) * mix(1.0, ${FAR_INNER_WASH.toFixed(1)}, far);
   else {
     float s = (vKm - (front - band)) / (band + lip);
     alpha = s < 0.7
       ? mix(0.0, mix(0.14, 0.18, night), s / 0.7)
       : mix(mix(0.14, 0.18, night), mix(0.36, 0.4, night), (s - 0.7) / 0.3);
-    alpha *= mix(1.0, 1.5, far);
+    alpha *= mix(1.0, ${FAR_BAND_WASH.toFixed(1)}, far);
   }
-  float edge = 1.0 - smoothstep(0.9, 1.6, abs(vKm - front) / (kmPerPx * mix(1.0, 2.0, far)));
+  float edge = 1.0 - smoothstep(0.9, 1.6, abs(vKm - front) / (kmPerPx * mix(1.0, ${FAR_RIM.toFixed(1)}, far)));
   alpha = max(alpha, 0.8 * edge);
   gl_FragColor = vec4(ink, alpha * uFade);
   #include <colorspace_fragment>
@@ -95,6 +111,7 @@ export class SweepWave {
         uFront: { value: 0 },
         uFade: { value: 0 },
         uTime: { value: 0 },
+        uPixelRatio: TRAME_SCALE,
         ...night,
       },
     });
