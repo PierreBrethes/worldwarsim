@@ -176,6 +176,30 @@ describe('the flag on a strategic mast', () => {
   });
 });
 
+/** **Un objectif neutre est sa maquette ou son signe, jamais les deux** (#537) : de près, son
+ *  coffre cède à la maquette comme son mât, au même poids (`--dressed`). */
+describe('a neutral objective in maquette', () => {
+  /** jsdom drops `calc(var())`: the rules that give way by `--dressed` are read in the sheet. */
+  const givingWay = [
+    ...readFileSync('src/styles/labels.css', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .matchAll(/([^{}]+)\{\s*opacity: calc\(1 - var\(--dressed, 0\)\);\s*\}/g),
+  ].flatMap(([, selectors]) => selectors!.split(',').map((selector) => selector.trim()));
+
+  it('gives its chest way to the maquette as its mast does', () => {
+    const objective = {
+      ...outpost('objective-o', 'réserves abandonnées'),
+      type: 'objective',
+      pictogram: 'objective',
+    } as MapLabel;
+    const { container } = render(layer([objective]));
+    const giving = (part: string) =>
+      givingWay.some((selector) => container.querySelector(selector)?.matches(part) === true);
+    expect(giving('.label-bar')).toBe(true);
+    expect(giving('.label-pictogram')).toBe(true);
+  });
+});
+
 /**
  * **Les passagers d'un transport, au survol seulement** (#238) : au repos un petit signe dit leur
  * nombre ; la fiche (planches, « tout débarquer ») s'ouvre au survol, à la sélection, au toucher

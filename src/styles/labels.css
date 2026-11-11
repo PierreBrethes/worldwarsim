@@ -511,8 +511,9 @@
   transform: none;
 }
 
-/* Up close an objective's maquette stands where its sign hung (ADR 0026 §1): its mast and pool
-   give way by as much, the words stay. */
+/* Up close an objective's maquette stands where its sign hung (ADR 0026 §1): its chest, mast and
+   pool give way by as much, the words stay — never the chest beside the maquette (#537). */
+.label--objective .label-pictogram,
 .label--objective .label-bar,
 .label--objective:not(.label--selected)::before {
   opacity: calc(1 - var(--dressed, 0));
