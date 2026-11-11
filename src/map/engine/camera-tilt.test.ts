@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardHoldOf, EYE_BACKOFF, nearPlaneAt, steepestTiltAt } from './camera-tilt';
+import { boardHoldOf, EYE_BACKOFF, EYE_FOV, nearPlaneAt, steepestTiltAt } from './camera-tilt';
 import { CLOSEST_DISTANCE } from './closest-distance';
 
 /**
@@ -43,15 +43,21 @@ describe('the tilt the closest zoom allows', () => {
 });
 
 /** The camera's near plane keeps its 0.5 where the table was always seen from (d ≥ 3), and comes
- *  in with the closest zoom, which pieces drawn small brought down to d = 0.75. */
+ *  in with the closest zoom, which pieces drawn small brought down to d = 0.25. */
 describe('the near plane', () => {
   it('stays at 0.5 from d = 3, as before the closest zoom came down', () => {
     expect(nearPlaneAt(3)).toBe(0.5);
     expect(nearPlaneAt(300)).toBe(0.5);
   });
 
-  it('keeps the piece at the target out of the near plane at the closest zoom, tilted to the full', () => {
-    expect(CLOSEST_DISTANCE * EYE_BACKOFF).toBeGreaterThan(nearPlaneAt(CLOSEST_DISTANCE));
+  it('keeps the ground at the bottom of the screen out of the near plane at the closest zoom, tilted to the full', () => {
+    // The eye the board renders through: 30° of field, backed off to frame what 42° did.
+    const half = (EYE_FOV * Math.PI) / 360;
+    const tilt = steepestTiltAt(CLOSEST_DISTANCE);
+    const height = CLOSEST_DISTANCE * EYE_BACKOFF * Math.cos(tilt);
+    const bottomRay = Math.PI / 2 - tilt + half;
+    const depth = (height / Math.sin(bottomRay)) * Math.cos(half);
+    expect(depth).toBeGreaterThan(nearPlaneAt(CLOSEST_DISTANCE));
   });
 });
 
