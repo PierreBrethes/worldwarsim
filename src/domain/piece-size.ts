@@ -183,9 +183,9 @@ export const buildingReach = (key: BuildingKey): number =>
  * `movement-orders.ts`), restent à `EXAGGERATION`. Le curseur « Taille des pièces » s'applique
  * par-dessus, et le zoom le plus proche, le plancher et le seuil d'épingle la suivent
  * (`src/map/engine/figurines/figurine.ts`).
- * @a-mesurer 0,35 retenu sur captures entre 0,5 (sage) et 0,25 (radical) ; Pierre choisit
+ * @a-mesurer 0,25, choix de Pierre du 11/11/2026 après captures à 0,5, 0,35 et 0,25 ; à revoir en partie
  */
-export const DRAWN_SHARE = 0.35;
+export const DRAWN_SHARE = 0.25;
 
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>

@@ -65,7 +65,7 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    rectangle libre de 30 × 14 m, au lieu du pied des murs (`garrisonFoot`).
    > **Amendé le 11/11/2026, décisions de Pierre** (ADR 0035 §1 amendé, second temps du même
    > jour) : la cour, son bâtiment **et sa garnison** sont dessinés à la même part de leur taille
-   > (0,35) : le rectangle de 30 × 14 m et le rang de `fx_rang` portent des pièces à leur
+   > (0,25, décision de Pierre du 11/11/2026 : 0,35 d'abord, puis 0,25) : le rectangle de 30 × 14 m et le rang de `fx_rang` portent des pièces à leur
    > proportion, comme avant le 11/11. La réduction des seuls bâtiments (0,5, la garnison à 1,
    > serrée sur une cour deux fois plus petite) n'a tenu que quelques heures. De loin, la garnison
    > garde un plancher de 8 px, le tiers de sa caserne au seuil d'épingle (ADR 0035 §10 amendé).
@@ -82,15 +82,18 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    > (`BUILDING_SPACING_KM`). Ils ne se superposent jamais entièrement : deux sites d'un joueur
    > ne partagent pas un point.
    > **Amendé le 11/11/2026, décisions de Pierre** (second temps du même jour) : tout site est
-   > dessiné à la part commune des pièces (0,35, ADR 0035 §1 amendé), et non plus à 0,5 à part.
+   > dessiné à la part commune des pièces (0,25, ADR 0035 §1 amendé), et non plus à 0,5 à part.
    > L'anneau espace les sites par leurs tailles dessinées, puis rétrécit à **0,8 puis 0,6** de
    > cette taille avant de laisser chaque site à son point (`SHRINK_STEPS`, `@a-mesurer`) : le
    > même plancher à l'écran que le 0,3 retenu le matin sur les quatre sites de Naples (0,21 de
    > la taille pleine), et la garnison, réduite avec son site, ne cache plus sa façade. Deux sites
-   > à 30 km (`BUILDING_SPACING_KM`) se touchent encore à 0,35 (une caserne y a un socle de
-   > 46 km) : le repli reste nécessaire. **La cascade reste** : un anneau prend dans son groupe ce
-   > où il grandit, et les quatre sites de Naples entraînent encore le QG de Rome et l'arsenal de
-   > Foggia à 0,6, à 160 km (à traiter à part).
+   > à 30 km (`BUILDING_SPACING_KM`) se touchent encore à 0,25 (une caserne y a un socle de
+   > 33 km) : le repli reste nécessaire. **La cascade, close** : un anneau prend dans son groupe ce
+   > où il grandit. À 0,35 il pouvait entraîner le QG de Rome et l'arsenal de Foggia (160 km) ;
+   > à 0,25 Naples ne compte que ses quatre sites, Rome et Foggia restent seuls. Le défaut restait
+   > atteignable (six sites en ligne et un septième hors de leur contact, que seul l'anneau
+   > atteint) : le repli ne rétrécit plus que les sites dont le socle en touche un autre à leur
+   > point, `touchingSites` ; un site que l'anneau a ramassé garde sa taille.
 
 7. **La lecture par distance**, en pixels du socle, pour garder la règle de l'ADR 0035 §3 (chaque
    pièce pesée par sa taille à l'écran, `pieceWeight`) : tout le diorama tant que le socle fait
@@ -113,14 +116,14 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    > loin fait tomber son épingle, comme un avant-poste démantelé.
 
    > **Amendé le 11/11/2026** (ADR 0035 §3 et §10 amendés) : le seuil suit la part dessinée. À
-   > 0,35, un site reste entier jusqu'à d ≈ 15, où une caserne fait 26 px et son socle 43, et se
-   > fond dans son épingle vers d ≈ 18, toujours avec mes piles.
+   > 0,25, un site reste entier jusqu'à d ≈ 11, où une caserne fait 26 px et son socle 43, et se
+   > fond dans son épingle vers d ≈ 13, toujours avec mes piles.
 
 8. **Le socle et la cour n'ont pas de mètres réels** (écart à l'ADR 0035, accepté) : ils
    agrandissent l'emprise d'un site de 30 à 60 % au sol (la caserne passe de 65 à 80 m), pas le
    bâtiment. Une figurine se mesure toujours au bâtiment, jamais au socle.
    > **Amendé le 11/11/2026, décisions de Pierre** : le socle et la cour, comme le bâtiment et la
-   > figurine, sont dessinés à la part commune (0,35) : « une figurine se mesure au bâtiment »
+   > figurine, sont dessinés à la part commune (0,25) : « une figurine se mesure au bâtiment »
    > tient à toute distance où elle n'est pas tenue par son plancher.
 
 9. **Budget : 3 500 triangles par site**, dans n'importe quel état : 2 500 au plus pour le
