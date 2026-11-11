@@ -116,6 +116,17 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
     > troupe qui sort de sa garnison grandit de 8 à 16 px à mi-distance, et pas du tout au
     > rapproché. Le plancher tient jusqu'à d ≈ 11 au lieu de 30.
 
+    > **Amendé le 11/11/2026, décisions de Pierre** (#534) : **le plancher de ce qui roule se lit
+    > sur l'homme** (`floorSpanOf`). Sur terre, tant que l'homme est tenu à 16 px, char, camion et
+    > artillerie grandissent du même facteur que lui : un char reste ≈ 2,3 fois l'escouade à toute
+    > distance où les pièces tiennent debout, seul, dans une pile mêlée (elle prend le domaine de
+    > sa plus grande pièce), sur un fil et dans la main. L'avion et le navire gardent leur plancher
+    > propre ; le bloc anonyme (ennemi, relique, annotation) aussi, sinon un bloc grossi ×2,3
+    > trahirait un char. **Garnison** : le plancher reste celui de la pièce (8 px sur son propre
+    > span), donc un char y vaut à peu près l'escouade et ne dépasse jamais le tiers de son
+    > bâtiment. Le seuil d'épingle (`troopPinSpan`) ne change pas : le char grandi s'épingle au
+    > même d que l'homme, par le fondu existant.
+
 ## Ce qu'on abandonne
 
 - **Le lien strict à toute distance.** Entre d ≈ 5 et 30, la figurine plancher (§10) garde une
