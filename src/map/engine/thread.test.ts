@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3 } from 'three';
+import { Vector3, type Object3D } from 'three';
 import { pawnTarget, temporalPosition, unrollRoute } from '@/domain/route-timing';
 import type { World } from '@/domain/world';
 import { buildGrid, computeRoute, directRoute, groundAt } from '@/domain/routing';
@@ -20,6 +20,7 @@ import { COUNTRY_THICKNESS, WorldFrame } from './frame';
 import type { Ribbon } from './route-ribbon';
 import { DRAWN_SHARE, troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
+import { RibbonMaterial } from './route-ribbon';
 
 // The geometry and the thresholds are read at the full common scale: the share pieces are drawn
 // at multiplies every size alike, and has its own tests (`figurine.test.ts`).
@@ -226,6 +227,41 @@ describe('the relay diamonds', () => {
     const marks = thread.object.children.filter((child) => child.type === 'Group');
     // Departure, arrival, two docks — and not one more grid node.
     expect(marks).toHaveLength(2 + thread.docks.length);
+  });
+});
+
+describe('a thread at the scale pieces are delivered at', () => {
+  const route = () => directRoute(toLonLat(5, 25), toLonLat(95, 25), 'air', 1);
+  const delivered = <T>(run: () => T): T => {
+    pieceScale.size = DRAWN_SHARE;
+    try {
+      return run();
+    } finally {
+      pieceScale.size = 1;
+    }
+  };
+
+  it('prints its ribbon half a drawn tank wide, and no wider than the plate would at the common scale', () => {
+    delivered(() => {
+      const thread = buildThread(route(), frame, colors, thickness, opacities);
+      const widths: number[] = [];
+      thread.object.traverse((node: Object3D) => {
+        const material = (node as { material?: unknown }).material;
+        if (material instanceof RibbonMaterial) widths.push(material.width);
+      });
+      expect(widths).toContain(thickness * 0.025 * pieceScale.size);
+      expect(Math.max(...widths)).toBeLessThan(0.0625 * thickness);
+    });
+  });
+
+  it('hovers a Blitz plane three common-scale wingspans up, drawn at the share its pieces are', () => {
+    delivered(() => {
+      const ground = buildThread(route(), frame, colors, thickness, opacities).legs[0]!.strands[0]!
+        .vertices;
+      const aloft = buildThread(route(), frame, colors, thickness, opacities, { aloft: true })
+        .legs[0]!.strands[0]!.vertices;
+      expect(aloft[0]!.y - ground[0]!.y).toBeCloseTo(3 * troopSpan('fighter') * pieceScale.size, 9);
+    });
   });
 });
 

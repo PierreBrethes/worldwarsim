@@ -24,6 +24,7 @@ import {
   buildingMetres,
   buildingReach,
   buildingSpan,
+  DRAWN_SHARE,
   troopSpan,
 } from '@/domain/piece-size';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
@@ -1878,5 +1879,41 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
       if (before < 0.06) expect(after, site.id).toBeCloseTo(before, 9);
     }
     expect(turned).toBeGreaterThan(0);
+  });
+});
+
+// `clusterFootprints` takes spacings already multiplied by `pieceScale.size` (`MaquetteLayer`), so
+// the delivered scale reaches it as a shrunk geometry: a group must come out the same at 0.25.
+describe.each([1, DRAWN_SHARE])('a group of sites drawn at %s of the common scale', (k) => {
+  const spacing = S * k;
+  const everywhere = { maxShift: 0.5, onLand: () => true };
+  const at = (x: number) => [x * k, 0] as const;
+
+  it('shrinks only the sites that touch another, not one a wide ring took in', () => {
+    const line = Array.from({ length: 6 }, (_, i) => at(i * 0.1));
+    const far = at(0.5 + 1.1 * S);
+    const bounded = clusterFootprints([...line, far], spacing, spacing / 2, everywhere);
+    line.forEach((_, i) => expect(bounded[i]!.scale).toBeLessThan(1));
+    expect(bounded[6]).toEqual({ at: far, facing: 0, scale: 1 });
+  });
+
+  it('shrinks by the steps and no further: 1, 0.8 or 0.6, where a tighter bound keeps each at its point', () => {
+    const line = Array.from({ length: 6 }, (_, i) => at(i * 0.1));
+    for (const maxShift of [0.5, 0.05]) {
+      const placed = clusterFootprints(line, spacing, spacing / 2, {
+        maxShift,
+        onLand: () => true,
+      });
+      for (const { scale } of placed)
+        expect([1, 0.8, 0.6].some((c) => Math.abs(c - scale) < 1e-9)).toBe(true);
+    }
+    const tight = clusterFootprints(line, spacing, spacing / 2, {
+      maxShift: 0.05,
+      onLand: () => true,
+    });
+    tight.forEach(({ at: place, scale }, i) => {
+      expect(scale).toBeCloseTo(0.6, 9);
+      expect(place).toEqual(line[i]);
+    });
   });
 });

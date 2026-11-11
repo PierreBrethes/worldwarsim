@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { decodeAtlas } from '@/domain/atlas';
+import { DRAWN_SHARE } from '@/domain/piece-size';
 import type { World } from '@/domain/world';
 import projection from '../../../public/projection.json';
 import {
@@ -67,6 +68,13 @@ describe('coastWidthPx', () => {
     expect(coastWidthPx(3 / 1172)).toBeLessThan(COAST_CEILING_PX);
     expect(coastWidthPx(1.05 / 1172)).toBe(COAST_CEILING_PX);
     expect(coastWidthPx(0.0001)).toBe(COAST_CEILING_PX);
+  });
+
+  it('holds its ceiling over the whole of the delivered zoom, down to its closest', () => {
+    // The closest zoom is 3 × DRAWN_SHARE; from there the coast is no fatter than at the old d = 3.
+    const closest = 3 * DRAWN_SHARE;
+    for (const d of [closest, 1, 1.05, 2]) expect(coastWidthPx(d / 1172)).toBe(COAST_CEILING_PX);
+    expect(coastWidthPx(3 / 1172)).toBeLessThan(COAST_CEILING_PX);
   });
 });
 
