@@ -79,7 +79,7 @@ export const REFERENCE_PX_PER_UNIT = 900 / (2 * Math.tan((21 * Math.PI) / 180));
 /**
  * **How much of a piece stands, rather than its pin, by its size on screen** (ADR 0035 §3): 1
  * while its `span` — board units, at the common scale — reads at `PIN_PX`, eased to 0 a little
- * below. At the full common scale a man reads under it from d ≈ 3, a tank from 7 — both held by
+ * below. At the full common scale a man reads under it from d ≈ 2, a tank from 7 — both held by
  * their floor until `FLOOR_UNTIL` (`troopWeight`) —, a barracks from 58, a hangar from 70 — the
  * fighter from 13, the carrier from 145; each nearer by the share pieces are drawn at.
  */
@@ -105,7 +105,7 @@ const pxOf = (distance: number, span: number): number =>
  * **A troop holds its floor until here** (ADR 0035 §10), at the full common scale: nearer by the
  * share pieces are drawn at and the player's size (d ≈ 11 at `DRAWN_SHARE` 0.25, where a barracks
  * still reads 26 px), a site on its socle with it (`pieceStands`). The closest zoom, d = 0.25, is
- * nearer still: the man stands at 60 px there, above the floor, and everything grows with the zoom.
+ * nearer still: the man stands at 40 px there, above the floor, and everything grows with the zoom.
  * @a-mesurer 43: the barracks at 26 px, three times a garrison's floor, on the captures of 11/11
  */
 const FLOOR_UNTIL = 43;

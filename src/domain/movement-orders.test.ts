@@ -5,6 +5,7 @@ import {
   boardingRefusalDetails,
   boardingRefusalOf,
   disbandPointsOf,
+  disbandSpanKm,
   disbandRefusalOf,
   disbandSpotsAt,
   disembarkRefusalOf,
@@ -1130,5 +1131,13 @@ describe('a march to where the column already stands (#296)', () => {
 
   it('still lets a column at another address enter it', () => {
     expect(refusalOf('march', outpost, { ...here, originId: 'op2' })).toBeNull();
+  });
+});
+
+describe('the span of a dissolution crown (#534)', () => {
+  it('keeps the man at his former 1.75 m × 1.5, whatever the drawing does: 4.2 km', () => {
+    expect(disbandSpanKm([{ role: 'infantry' }])).toBeCloseTo(4.2, 9);
+    expect(2.1 * disbandSpanKm([{ role: 'infantry' }])).toBeCloseTo(8.82, 9);
+    expect(disbandSpanKm([{ role: 'infantry' }, { role: 'armor' }])).toBeCloseTo(9.6, 9);
   });
 });

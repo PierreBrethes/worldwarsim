@@ -88,6 +88,8 @@ export class CombatLayer {
     {
       readonly point: Vector3;
       readonly span: number;
+      /** Its view not yet come, the floor reads the domain of the point (land or sea), not of a
+       *  longest piece (`sceneDomain`): the scene, once played, reads its own. */
       readonly floorSpan: number;
       readonly since: number;
     }
