@@ -25,14 +25,19 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    multipliée par **E = 1 600**. Une caserne fait alors la largeur d'un département (80 km), un
    char 9,6 km. Ce qui sort d'un bâtiment garde sa taille en sortant.
 
-   > **Amendé le 11/11/2026, décisions de Pierre** : un bâtiment est **dessiné à 0,5** de cette
-   > taille réelle, partout (`BUILDING_SCALE`, `src/domain/piece-size.ts`), une troupe à 1.
-   > « Ce qui sort d'un bâtiment garde sa taille » ne tient plus : le bâtiment est réduit de
-   > moitié, la troupe pas, et de près un char paraît **deux fois plus gros** devant son garage
-   > qu'avant (coût accepté par Pierre, qui trouvait les bâtiments « énormes » en Italie et en
-   > France). Une échelle pour tout site, sur socle, objectif neutre ou site relevé, sans lire la
-   > terre : la mesure par région (le QG de Paris sortait plus petit qu'une caserne de Gironde) et
-   > l'échelle par pays sont écartées. L'exagération E = 1 600 ne change pas.
+   > **Amendé le 11/11/2026, décisions de Pierre, en deux temps le même jour.** D'abord les seuls
+   > bâtiments à 0,5 (`BUILDING_SCALE`), les troupes à 1 : sur les captures, les piles tenues par
+   > leur plancher masquaient les bâtiments de loin, et de près un char paraissait deux fois trop
+   > gros devant son garage. Pierre est revenu dessus : « il faudrait encore réduire la taille des
+   > bâtiments et troupes, que tout "scale" bien ensemble […] j'ai vraiment envie d'avoir une
+   > impression de grandeur, et jouer sur le zoom / dézoom ». Désormais **toute pièce, troupe ou
+   > bâtiment, est dessinée à la même part de cette taille** : `DRAWN_SHARE` = 0,35
+   > (`src/domain/piece-size.ts`, `@a-mesurer` : retenu sur captures entre 0,5 et 0,25, à
+   > confirmer par Pierre). « Ce qui sort d'un bâtiment garde sa taille » tient de nouveau.
+   > C'est le dessin seul : E = 1 600, les mesures et les règles qui en sortent ne changent pas.
+   > La couronne de dissolution (`movement-orders.ts`) reste donc à 2,1 longueurs de pièce
+   > *pleines*, soit 6 longueurs *dessinées* : des chars dissous se posent à 20 km de leur point
+   > quand ils en paraissent 3,4. Le plafond par région et l'échelle par pays restent écartés.
 2. **Deux écarts déclarés.** L'homme est agrandi ×1,5 (2,6 m), à hauteur du char : il passe sous
    la porte de sa caserne, à régénérer à 3,4 m (#268) ; la figurine plancher (§10) le garde
    lisible. La mer est à demi-échelle : ports et navires restent liés entre eux, mais un port fait
@@ -59,23 +64,37 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    > (§10, d ≈ 30 à 35), quelle que soit la taille de son socle (ADR 0038 §7 amendé). Un
    > objectif neutre, sans socle, et une pièce plus grande que le plancher (un navire) gardent la
    > règle des pixels.
+
+   > **Amendé le 11/11/2026** (§1 amendé) : ces distances se lisent à l'échelle pleine ; chacune
+   > est plus proche de la part dessinée. À 0,35 : l'homme se lit à 20 px à d ≈ 1,05, mes piles et
+   > mes sites tiennent debout jusqu'à d ≈ 15 et sont leur épingle à d ≈ 18 (`FLOOR_UNTIL` = 43 à
+   > l'échelle pleine, là où la caserne fait encore 26 px, `@a-mesurer`) ; un objectif neutre
+   > passe à d ≈ 16, l'escorteur à 22, le cargo à 26, le porte-avions à 51. Le fondu des régions
+   > (30 à 65), des ombres (65) et des noms ne bouge pas : entre d ≈ 18 et 65, la carte se lit en
+   > épingles sur ses régions.
 4. **Le clic ne suit pas la taille dessinée.** La zone qu'on vise garde une taille minimale à
    l'écran ; une figurine petite reste facile à prendre.
 5. **Les bâtiments gardent leur disposition** en anneau autour d'un site, agrandie dans la même
    proportion (×1,37).
 
    > **Amendé le 11/11/2026, décisions de Pierre** : l'anneau espace les sites par leur taille
-   > dessinée, soit la moitié de la taille pleine (§1 amendé) : un site seul se pose à son point,
-   > et deux sites ne se gênent plus qu'à moitié de la distance d'avant.
+   > dessinée (§1 amendé, 0,35 de la taille pleine) : un site seul se pose à son point, et deux
+   > sites ne se gênent plus qu'à un tiers de la distance d'avant. Un groupe trop serré rétrécit
+   > encore à 0,8 puis 0,6 de cette taille avant de laisser chaque site à son point
+   > (`SHRINK_STEPS`, ADR 0038 §6).
 6. **Un seul curseur de taille** remplace les deux du joueur (troupes, bâtiments) : régler l'un
    sans l'autre casserait le lien. Sa valeur par défaut est l'échelle de cet ADR (100 %), sa
    plage 80 à 125 % : en dessous, le plancher (§10) porte presque seul les troupes et le curseur ne change plus rien qu'aux bâtiments ; au-dessus, une caserne
    dépasse 100 km.
 
-   > **Amendé le 11/11/2026, décisions de Pierre** : le curseur s'applique **par-dessus** l'échelle
-   > des bâtiments : un joueur à 80 % voit un bâtiment à 0,4 de sa pleine taille (0,5 × 0,8), une
-   > troupe à 0,8. Les 100 % du curseur restent « l'échelle de cet ADR », bâtiments à 0,5 compris.
+   > **Amendé le 11/11/2026, décisions de Pierre** : le curseur s'applique **par-dessus** la part
+   > dessinée (§1 amendé), pour toutes les pièces : un joueur à 80 % voit tout à 0,28 de la taille
+   > pleine, à 125 % à 0,44. Les 100 % du curseur sont la part dessinée ; le plancher et le seuil
+   > d'épingle le suivent comme avant.
 7. **Les avions volent à environ trois envergures** au-dessus du sol, au lieu d'une altitude fixe.
+
+   > **Amendé le 11/11/2026** (§1 amendé) : trois envergures *dessinées* (`HOVER_ALTITUDE`). La
+   > largeur d'un fil de mouvement, d'une flèche de visée et le halo d'une lampe suivent de même.
 8. **Ce qui appartient au bâtiment vit dans son modèle** (portes à battants nommées, remise de la
    caserne, portes de hangar) ; **ce qui appartient au terrain est dessiné par le moteur** (piste
    d'aérodrome, môle du port). Une piste à la bonne proportion ferait plus de 1 000 km : elle est
@@ -86,6 +105,15 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
     rapport à son bâtiment ; le lien strict tient au rapproché, là où se jouent les sorties
     (POC `WWS/prototypes/echelle-commune/lisibilite.html`, #266). Le zoom descend à d = 3 (24/10),
     où l'homme ×1,5 se voit à sa proportion ; au-delà, le plancher.
+
+    > **Amendé le 11/11/2026, décisions de Pierre** (§1 amendé) : **le zoom descend à trois fois
+    > la part dessinée** (d = 1,05 à 0,35), où l'homme se lit à ses 20 px d'avant : on descend voir
+    > ses hommes d'aussi près, sur une carte trois fois plus grande. **Deux planchers** remplacent
+    > les 20 px : **16 px pour une pile en campagne**, sur un fil ou dans la main, **8 px pour une
+    > garnison**, le tiers de sa caserne au seuil d'épingle (`FLOOR_PX`, `GARRISON_FLOOR_PX`,
+    > `@a-mesurer`). Une pile ne paraît plus jamais plus grosse que le site qu'elle garde ; une
+    > troupe qui sort de sa garnison grandit de 8 à 16 px à mi-distance, et pas du tout au
+    > rapproché. Le plancher tient jusqu'à d ≈ 15 au lieu de 30.
 
 ## Ce qu'on abandonne
 
