@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SWEEP_RANGE_KM, sweepCandidates } from '@/domain/deposit-sweep';
+import { SWEEP_MS, SWEEP_RANGE_KM, sweepCandidates } from '@/domain/deposit-sweep';
 import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
 import type { MapEngine, SweepTag } from './engine';
 import { fr } from '@/i18n/fr';
-import { SweepOverlay } from './SweepOverlay';
+import { RUNNING_OPACITY, SweepOverlay } from './SweepOverlay';
 
 vi.mock('@/data/mapMotion', () => ({ useMapMotion: () => 'full' }));
 
@@ -68,6 +68,30 @@ describe('SweepOverlay', () => {
     expect(screen.getAllByRole('button')).toHaveLength(1);
     act(() => void vi.advanceTimersByTime(2000));
     expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('stands faded while the wave runs, full at its end or under the pointer', () => {
+    const engine = fakeEngine();
+    render(
+      <SweepOverlay
+        engine={engine as unknown as MapEngine}
+        sweep={{ nonce: 1, species: 'coal', candidates: sweepCandidates(view, 'coal', []) }}
+        onEnd={vi.fn()}
+      />,
+    );
+    const [first] = engine.sweepDeposits.mock.calls[0]![0].targets as { id: string }[];
+    act(() =>
+      engine.onSweep!([{ id: first!.id, x: 100, y: 100, off: false, angle: 0, radius: 12 }]),
+    );
+    act(() => void vi.advanceTimersByTime(100));
+    const card = screen.getByRole('button');
+    expect(card.style.opacity).toBe(String(RUNNING_OPACITY));
+    fireEvent.pointerEnter(card);
+    expect(card.style.opacity).toBe('1');
+    fireEvent.pointerLeave(card);
+    expect(card.style.opacity).toBe(String(RUNNING_OPACITY));
+    act(() => void vi.advanceTimersByTime(SWEEP_MS));
+    expect(card.style.opacity).toBe('1');
   });
 
   it('says the wave running, each basin it reaches, then what it found', () => {
