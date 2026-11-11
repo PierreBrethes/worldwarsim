@@ -295,6 +295,8 @@ const lobbying = process.argv.includes('--salon-huit');
 const eight = process.argv.includes('--huit') || lobbying || conclusion !== null;
 /** `--rangs` (#211) : les deux rangs d'infanterie et de blindé, une artillerie, une flotte. */
 const ranks = process.argv.includes('--rangs');
+/** `--chars` (#534) : en campagne, une pile mêlée (deux escouades et un char) et un tas de chars seuls. */
+const tanks = process.argv.includes('--chars');
 /** `--chargement [s]` : deux camions chargés dans `s` secondes, à l'entrepôt et au QG (#271). */
 const loadingAt = process.argv.indexOf('--chargement');
 const loadingIn = loadingAt < 0 ? null : Number(process.argv[loadingAt + 1]) || 25;
@@ -638,6 +640,18 @@ if (!bare) {
         cli(['run', 'dev:blitzkriegScene', JSON.stringify({ seasonId })]).match(/\{[\s\S]*\}/)[0],
       ),
     );
+  if (tanks && scene.a !== null) {
+    const mixed = { lon: 1.0, lat: 47.3 };
+    const alone = { lon: 2.4, lat: 47.3 };
+    places['chars-mixte'] = [mixed.lon, mixed.lat];
+    places['chars-seuls'] = [alone.lon, alone.lat];
+    for (const [role, count, at] of [
+      ['infantry', 2, mixed],
+      ['armor', 1, mixed],
+      ['armor', 3, alone],
+    ])
+      cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, role, count, ...at })]);
+  }
   /** `--rangs` : les deux rangs, une artillerie à côté de Paris ; une flotte au large de la Bretagne. */
   if (ranks && scene.a !== null) {
     const beside = { lon: 2.47, lat: 48.85 };
