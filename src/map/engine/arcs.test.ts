@@ -712,14 +712,15 @@ describe('a hull leaving a port drawn smaller', () => {
         arcs.animate(camera);
         const hull = vi.mocked(figurineFor).mock.results.at(-1)!.value.object as Group;
         const d = camera.position.distanceTo(head);
-        return { share: hull.scale.x / troopScale(d, SPAN), head, d };
+        return { share: hull.scale.x / troopScale(d, SPAN, SPAN), head, d };
       } finally {
         page.mockRestore();
         vi.useRealTimers();
       }
     };
   };
-  const docked = (d: number) => (0.4 * troopScale(d, SPAN * 0.4)) / troopScale(d, SPAN);
+  const docked = (d: number) =>
+    (0.4 * troopScale(d, SPAN * 0.4, SPAN * 0.4)) / troopScale(d, SPAN, SPAN);
 
   it('leaves from the quay as drawn, at the port scale', () => {
     const { share, head, d } = voyage('full')(0, 1_000);

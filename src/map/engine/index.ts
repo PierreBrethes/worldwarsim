@@ -73,6 +73,7 @@ import {
   TANK_SHARE,
   troopPinSpan,
   type PinnedBy,
+  floorSpanOf,
   troopScale,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
@@ -3539,14 +3540,15 @@ export class MapEngine {
               .distanceTo(this.frame.projectLonLat(cue.from, COUNTRY_THICKNESS)),
           };
     const seen =
-      this.seenWhole(point, span) ||
-      (battery !== null && this.seenWhole(battery.at, troopSpan('artillery')));
+      this.seenWhole(point, span, floorSpanOf(medium, span)) ||
+      (battery !== null &&
+        this.seenWhole(battery.at, troopSpan('artillery'), floorSpanOf('land', 0)));
     if (this.replay !== null || (!this.combats.waits(cue.id) && !seen)) {
       this.settleCombat(cue.id);
       return;
     }
     if (cue.view === null) {
-      this.combats.wait(cue.id, point, span, now);
+      this.combats.wait(cue.id, point, span, floorSpanOf(medium, span), now);
       return;
     }
     let yaw: number;
@@ -3570,13 +3572,13 @@ export class MapEngine {
   }
 
   /** In the field, and near enough for a troop of `span` to stand rather than its pin. */
-  private seenWhole(point: Vector3, span = ANONYMOUS_SPAN): boolean {
+  private seenWhole(point: Vector3, span = ANONYMOUS_SPAN, floorSpan = span): boolean {
     this.eyeFrustum.setFromProjectionMatrix(
       this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
     );
     return (
       this.eyeFrustum.containsPoint(point) &&
-      troopScale(this.camera.position.distanceTo(point), span) > 0
+      troopScale(this.camera.position.distanceTo(point), span, floorSpan) > 0
     );
   }
 
@@ -5143,8 +5145,8 @@ export class MapEngine {
 
   /** A combat on the map is a replay's stage grown by the figurines' floor, like a pile of its
    *  longest piece (#324). */
-  private combatScaleAt(at: Vector3, span: number): number {
-    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span);
+  private combatScaleAt(at: Vector3, span: number, floorSpan: number): number {
+    return REPLAY_STAGE * troopScale(this.camera.position.distanceTo(at), span, floorSpan);
   }
 
   /** What the replay and the combats on the map cover: the board there would show the after. */
@@ -5451,7 +5453,8 @@ export class MapEngine {
         ),
       );
     }
-    if (this.combats.advance(now, (at, span) => this.combatScaleAt(at, span))) this.demand.whole();
+    if (this.combats.advance(now, (at, span, floorSpan) => this.combatScaleAt(at, span, floorSpan)))
+      this.demand.whole();
     this.razes.advance(now);
     if (this.held !== null && this.rest.due(now)) this.tellRest();
     if (this.ambience.advance(now)) this.demand.request();

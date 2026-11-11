@@ -6,7 +6,7 @@ import type { WorldFrame } from './frame';
 import { garrisonFoot } from './maquettes';
 import { Pawn } from './pawn';
 import { pieceScale } from './piece-scale';
-import { StandingLayer } from './standing';
+import { pileObject, StandingLayer } from './standing';
 import { FLOOR_PX, GARRISON_FLOOR_PX, type Figurine } from './figurines/figurine';
 
 // Every sculpted file lands as a tank-shaped box, 2.6 long: the pile stands as in the game.
@@ -103,7 +103,7 @@ describe('the figurine floor', () => {
       }
     });
 
-  it("holds a garrison at its own floor, not the field's: 8 px where a pile in the field reads 16", async () => {
+  it("holds a garrison at its own floor, not the field's: 8 px where a pile of tanks in the field reads the man's 16, times the tank's share", async () => {
     const { layer, object } = await garrison();
     for (const d of [20, 25, 30, 43]) {
       const eye = new Vector3(0, d, 1);
@@ -124,8 +124,38 @@ describe('the figurine floor', () => {
     for (const d of [20, 25, 30, 43]) {
       const eye = new Vector3(0, d, 1);
       field.orient(eye);
-      expect(lengthOn(pile, eye)).toBeCloseTo(FLOOR_PX, 1);
+      // A tank grows by the man's factor: the squad's 16 px make it that many times larger (#534).
+      expect(lengthOn(pile, eye)).toBeCloseTo(
+        (FLOOR_PX * troopSpan('armor', 'france', 1)) / troopSpan('infantry'),
+        1,
+      );
     }
+  });
+
+  it('keeps a tank as large as it is against the squad it marches with, in the field', async () => {
+    const field = new StandingLayer(
+      { projectLonLat: () => new Vector3(0, 0, 0) } as unknown as WorldFrame,
+      () => {},
+      () => null,
+    );
+    field.setNation('france');
+    const squad = { ...troop(3), id: 'inf-3', role: 'infantry' as const };
+    field.display([
+      { id: 'inf', at: { lonLat: [0, 0] }, pieces: pilePieces([squad]) },
+      { id: 'mix', at: { lonLat: [0, 0] }, pieces: pilePieces([squad, troop(1)]) },
+    ]);
+    await vi.waitFor(() => expect(field.group.children.length).toBeGreaterThan(1));
+    const eye = new Vector3(0, 25, 1);
+    field.orient(eye);
+    const [alone, mixed] = field.group.children.filter((child) => child instanceof Group);
+    const spans = (...roles: Array<'infantry' | 'armor'>) =>
+      pileObject('france', pilePieces(roles.map((role) => ({ ...troop(1), id: role, role }))))!
+        .span;
+    // The mixed pile is drawn at its tank's span over the man's: the ratio of the two spans.
+    expect(mixed!.scale.x / alone!.scale.x).toBeCloseTo(
+      spans('infantry', 'armor') / spans('infantry'),
+      6,
+    );
   });
 
   it('gives way to its pin past d ≈ 43, and later when the player grows the pieces', async () => {

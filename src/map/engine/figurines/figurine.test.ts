@@ -11,6 +11,7 @@ import {
   setNearFloor,
   FLOOR_PX,
   floorGrowth,
+  floorSpanOf,
   GARRISON_FLOOR_PX,
   REFERENCE_PX_PER_UNIT,
   STANDS_UNTIL,
@@ -139,7 +140,7 @@ describe('the share every piece is drawn at', () => {
   it('reads a man at his proportion, 20 px, at the closest zoom: three times the share', () => {
     const closest = 3 * DRAWN_SHARE;
     expect(floorGrowth(closest, man)).toBe(1);
-    expect(px(closest, man, troopScale(closest, man))).toBeCloseTo(19.8, 1);
+    expect(px(closest, man, troopScale(closest, man, man))).toBeCloseTo(19.8, 1);
   });
 
   it('stands my piles and my sites whole until STANDS_UNTIL, and pins both past it', () => {
@@ -151,22 +152,39 @@ describe('the share every piece is drawn at', () => {
     }
   });
 
-  it('keeps a pile in the field at 16 px, and one in a garrison at 8, until their pin', () => {
-    for (const span of [man, tank])
-      for (const d of [0.5 * STANDS_UNTIL, STANDS_UNTIL]) {
-        expect(px(d, span, troopScale(d, span))).toBeCloseTo(FLOOR_PX, 6);
-        expect(px(d, span, troopScale(d, span, GARRISON_FLOOR_PX))).toBeCloseTo(
+  it('keeps a man in the field at 16 px until his pin, and a tank at his factor: 2.3 times the squad', () => {
+    for (const d of [0.5 * STANDS_UNTIL, STANDS_UNTIL]) {
+      const onLand = (span: number) => px(d, span, troopScale(d, span, floorSpanOf('land', span)));
+      expect(onLand(man)).toBeCloseTo(FLOOR_PX, 6);
+      expect(onLand(tank) / onLand(man)).toBeCloseTo(tank / man, 6);
+      expect(onLand(tank)).toBeGreaterThan(FLOOR_PX);
+    }
+  });
+
+  it('keeps a tank at its own span in the garrison, so it never outgrows its barracks', () => {
+    for (const d of [0.5 * STANDS_UNTIL, STANDS_UNTIL])
+      for (const span of [man, tank])
+        expect(px(d, span, troopScale(d, span, span, GARRISON_FLOOR_PX))).toBeCloseTo(
           GARRISON_FLOOR_PX,
           6,
         );
-      }
+  });
+
+  it('gives a plane and a hull their own floor, at 16 px', () => {
+    const ship = tank * 3;
+    for (const medium of ['air', 'sea'] as const)
+      for (const span of [tank, ship])
+        for (const d of [0.5 * STANDS_UNTIL, STANDS_UNTIL])
+          expect(
+            px(d, span, troopScale(d, span, floorSpanOf(medium, span))),
+          ).toBeGreaterThanOrEqual(FLOOR_PX - 1e-6);
   });
 
   it('never draws a piece of a garrison larger than a third of its barracks, at any distance it stands at', () => {
     for (let d = 3 * DRAWN_SHARE; d <= STANDS_UNTIL; d += 0.25) {
       const site = px(d, barracks, pieceScale.size);
       for (const span of [man, tank])
-        expect(px(d, span, troopScale(d, span, GARRISON_FLOOR_PX))).toBeLessThanOrEqual(
+        expect(px(d, span, troopScale(d, span, span, GARRISON_FLOOR_PX))).toBeLessThanOrEqual(
           site / 3 + 1e-9,
         );
     }

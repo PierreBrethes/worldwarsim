@@ -779,6 +779,7 @@ export class ArcLayer {
         const scale = troopScale(
           rendered.relic.position.distanceTo(this.cameraPosition),
           ANONYMOUS_SPAN,
+          ANONYMOUS_SPAN,
         );
         rendered.relic.visible = scale > 0;
         rendered.relic.scale.setScalar(scale);

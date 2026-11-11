@@ -122,7 +122,7 @@ describe('CombatLayer, after the review', () => {
     const layer = new CombatLayer();
     const settled: string[] = [];
     layer.onSettled = (id) => settled.push(id);
-    layer.wait('a', at, ANONYMOUS_SPAN, 0);
+    layer.wait('a', at, ANONYMOUS_SPAN, ANONYMOUS_SPAN, 0);
     expect(layer.advance(10, scale)).toBe(false);
     expect(layer.veils).toHaveLength(1);
     expect(layer.advance(WAIT_MS + 1, scale)).toBe(true);
@@ -135,7 +135,7 @@ describe('CombatLayer, after the review', () => {
     const settled: string[] = [];
     layer.onSettled = (id) => settled.push(id);
     layer.play(combat('a'), null, at, 0, 0);
-    layer.wait('b', at, ANONYMOUS_SPAN, 0);
+    layer.wait('b', at, ANONYMOUS_SPAN, ANONYMOUS_SPAN, 0);
     layer.advance(0, scale);
     layer.clear();
     expect(layer.group.children).toHaveLength(0);
@@ -230,7 +230,7 @@ describe('CombatLayer, the report stamp (#327)', () => {
     const told: string[] = [];
     layer.onShown = (id) => told.push(id);
     layer.play(combat('a'), null, at, 0, 0);
-    layer.wait('w', at, ANONYMOUS_SPAN, 0);
+    layer.wait('w', at, ANONYMOUS_SPAN, ANONYMOUS_SPAN, 0);
     expect(layer.shown('a')).toBe(false);
     layer.advance(0, () => 0);
     expect(layer.shown('a')).toBe(false);
@@ -343,7 +343,7 @@ describe('CombatLayer, at sea (#324)', () => {
   it('veils a waiting point by hulls of the ship it is seen by, not by a tank', () => {
     const reachOf = (span: number) => {
       const layer = new CombatLayer();
-      layer.wait('w', at, span, 0);
+      layer.wait('w', at, span, span, 0);
       layer.advance(1, scale);
       return layer.veils[0]!.reach;
     };
