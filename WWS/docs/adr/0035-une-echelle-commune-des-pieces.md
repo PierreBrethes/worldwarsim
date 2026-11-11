@@ -24,6 +24,15 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    T-34 de 6,7 m —, chasseur 11 m d'envergure, cargo 130 m, caserne 50 m, hangar 60 m…)
    multipliée par **E = 1 600**. Une caserne fait alors la largeur d'un département (80 km), un
    char 9,6 km. Ce qui sort d'un bâtiment garde sa taille en sortant.
+
+   > **Amendé le 11/11/2026, décisions de Pierre** : un bâtiment est **dessiné à 0,5** de cette
+   > taille réelle, partout (`BUILDING_SCALE`, `src/domain/piece-size.ts`), une troupe à 1.
+   > « Ce qui sort d'un bâtiment garde sa taille » ne tient plus : le bâtiment est réduit de
+   > moitié, la troupe pas, et de près un char paraît **deux fois plus gros** devant son garage
+   > qu'avant (coût accepté par Pierre, qui trouvait les bâtiments « énormes » en Italie et en
+   > France). Une échelle pour tout site, sur socle, objectif neutre ou site relevé, sans lire la
+   > terre : la mesure par région (le QG de Paris sortait plus petit qu'une caserne de Gironde) et
+   > l'échelle par pays sont écartées. L'exagération E = 1 600 ne change pas.
 2. **Deux écarts déclarés.** L'homme est agrandi ×1,5 (2,6 m), à hauteur du char : il passe sous
    la porte de sa caserne, à régénérer à 3,4 m (#268) ; la figurine plancher (§10) le garde
    lisible. La mer est à demi-échelle : ports et navires restent liés entre eux, mais un port fait
@@ -54,10 +63,18 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
    l'écran ; une figurine petite reste facile à prendre.
 5. **Les bâtiments gardent leur disposition** en anneau autour d'un site, agrandie dans la même
    proportion (×1,37).
+
+   > **Amendé le 11/11/2026, décisions de Pierre** : l'anneau espace les sites par leur taille
+   > dessinée, soit la moitié de la taille pleine (§1 amendé) : un site seul se pose à son point,
+   > et deux sites ne se gênent plus qu'à moitié de la distance d'avant.
 6. **Un seul curseur de taille** remplace les deux du joueur (troupes, bâtiments) : régler l'un
    sans l'autre casserait le lien. Sa valeur par défaut est l'échelle de cet ADR (100 %), sa
    plage 80 à 125 % : en dessous, le plancher (§10) porte presque seul les troupes et le curseur ne change plus rien qu'aux bâtiments ; au-dessus, une caserne
    dépasse 100 km.
+
+   > **Amendé le 11/11/2026, décisions de Pierre** : le curseur s'applique **par-dessus** l'échelle
+   > des bâtiments : un joueur à 80 % voit un bâtiment à 0,4 de sa pleine taille (0,5 × 0,8), une
+   > troupe à 0,8. Les 100 % du curseur restent « l'échelle de cet ADR », bâtiments à 0,5 compris.
 7. **Les avions volent à environ trois envergures** au-dessus du sol, au lieu d'une altitude fixe.
 8. **Ce qui appartient au bâtiment vit dans son modèle** (portes à battants nommées, remise de la
    caserne, portes de hangar) ; **ce qui appartient au terrain est dessiné par le moteur** (piste

@@ -63,6 +63,12 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    Aucun accessoire ne ressemble à une pièce du jeu. La garnison
    se range sur la cour, à partir du repère `fx_rang` (premier homme, +z vers le rang), dans un
    rectangle libre de 30 × 14 m, au lieu du pied des murs (`garrisonFoot`).
+   > **Amendé le 11/11/2026, décisions de Pierre** : la cour rétrécit avec son bâtiment (§6
+   > amendé, 0,5 de sa pleine taille), **pas la garnison de terre**, qui reste à 1 : le rectangle
+   > de 30 × 14 m et le rang de `fx_rang` se lisent à l'échelle dessinée du site, et les pièces
+   > qui s'y rangent gardent leur taille. Une garnison chargée y tient serrée, en piles de
+   > fantassins, de chars et de canons sur une cour deux fois plus petite ; la garnison à quai
+   > d'un port suit la taille dessinée du port (ADR 0035 §2, précisée le 04/11).
 
 6. **Deux sites voisins ne se touchent pas.** L'emprise d'un site est la boîte de son socle,
    lue sur le GLB (`BUILDING_FOOTPRINT_METRES`, tenue par `maquettes.test.ts`) ; l'anneau espace
@@ -75,6 +81,15 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    > 52 km de côté, alors que deux sites d'un joueur sont à 30 km au moins
    > (`BUILDING_SPACING_KM`). Ils ne se superposent jamais entièrement : deux sites d'un joueur
    > ne partagent pas un point.
+   > **Amendé le 11/11/2026, décisions de Pierre** : **un site seul n'est plus à 1.** Tout
+   > bâtiment est dessiné à 0,5 de sa pleine taille (ADR 0035 §1 amendé), sans lire la terre qui le
+   > porte, et le repli d'un groupe serré **part de 0,5**, non de 1 : l'anneau espace les sites par
+   > leurs tailles dessinées, puis rétrécit à 0,4 puis à 0,3 avant de laisser chaque site à son
+   > point. Le plancher est de **0,3** (il était de 0,4 de la pleine taille) : à 0,2, un groupe de
+   > quatre sites autour de Naples se range proprement, mais un char cache la façade devant
+   > laquelle il se tient ; à 0,4, les socles se traversent. Valeur à confirmer par Pierre
+   > (`@a-mesurer`). Un anneau prend dans son groupe ce où il grandit : dans un pays dense, un
+   > groupe serré rétrécit aussi les sites que la chaîne a pris avec lui.
 
 7. **La lecture par distance**, en pixels du socle, pour garder la règle de l'ADR 0035 §3 (chaque
    pièce pesée par sa taille à l'écran, `pieceWeight`) : tout le diorama tant que le socle fait
@@ -99,6 +114,10 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
 8. **Le socle et la cour n'ont pas de mètres réels** (écart à l'ADR 0035, accepté) : ils
    agrandissent l'emprise d'un site de 30 à 60 % au sol (la caserne passe de 65 à 80 m), pas le
    bâtiment. Une figurine se mesure toujours au bâtiment, jamais au socle.
+   > **Amendé le 11/11/2026, décisions de Pierre** : le socle et la cour, comme le bâtiment, sont
+   > dessinés à 0,5 de leur taille (§6 amendé). « Une figurine se mesure au bâtiment » tient, mais
+   > la figurine reste à 1 quand le bâtiment est à 0,5 : de près, elle vaut le double de ce
+   > qu'elle valait face à lui.
 
 9. **Budget : 3 500 triangles par site**, dans n'importe quel état : 2 500 au plus pour le
    bâtiment, 700 pour le socle, le liseré, la cour et le signe, 150 par groupe d'accessoires. Le
@@ -113,6 +132,10 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
     un socle : il porte ses deux hangars (storyboard du 23/10, « deux hangars un peu plus petits »,
     #269), le second aux pièces suffixées `_b`. Le chantier naval garde son
     socle sur sa part de terre : le bord côté mer est son quai.
+    > **Amendé le 11/11/2026, décisions de Pierre** : la piste et le môle suivent la taille
+    > dessinée du site qui les porte (0,5, ou moins dans un groupe serré), comme son socle : un
+    > môle ne déborde pas d'un chantier réduit, et une piste n'est pas plus longue que son
+    > aérodrome.
 
 11. **L'avant-poste** (#298) prend le même liseré sur un socle rond, son cercle de sacs de sable
     de 30 m, plutôt que le rectangle : le rond le distingue d'un bâtiment de près, comme le
