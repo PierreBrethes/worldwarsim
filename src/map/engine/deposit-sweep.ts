@@ -47,21 +47,25 @@ void main() {
   float wobble = 5.0 * sin(theta * 6.0 + 1.3) + 3.0 * sin(theta * 17.0 + uTime / 260.0) + 2.0 * sin(theta * 31.0);
   // Close to its start the wobble would star the drop: it swells with the radius.
   float front = uFront + wobble * kmPerPx * min(1.0, uFront / (120.0 * kmPerPx));
-  float band = 56.0 * kmPerPx;
+  // From the opening view the whole range is a few hundred pixels: the wave widens and
+  // thickens, up to double, so it reads as at close range (@a-mesurer, #536).
+  float far = smoothstep(900.0, 300.0, ${SWEEP_RANGE_KM.toFixed(1)} / kmPerPx);
+  float band = mix(56.0, 100.0, far) * kmPerPx;
   float lip = 8.0 * kmPerPx;
   if (vKm > front + lip) discard;
   float night = nightAtWorld(vWorld);
   // By night the wash goes light, the species' ink melted into the paper.
   vec3 ink = mix(uInk, uInk * 0.3 + uPaper * 0.7, night);
   float alpha;
-  if (vKm < front - band) alpha = 0.5 * mix(0.03, 0.06, night);
+  if (vKm < front - band) alpha = 0.5 * mix(0.03, 0.06, night) * mix(1.0, 4.0, far);
   else {
     float s = (vKm - (front - band)) / (band + lip);
     alpha = s < 0.7
       ? mix(0.0, mix(0.14, 0.18, night), s / 0.7)
       : mix(mix(0.14, 0.18, night), mix(0.36, 0.4, night), (s - 0.7) / 0.3);
+    alpha *= mix(1.0, 1.5, far);
   }
-  float edge = 1.0 - smoothstep(0.9, 1.6, abs(vKm - front) / kmPerPx);
+  float edge = 1.0 - smoothstep(0.9, 1.6, abs(vKm - front) / (kmPerPx * mix(1.0, 2.0, far)));
   alpha = max(alpha, 0.8 * edge);
   gl_FragColor = vec4(ink, alpha * uFade);
   #include <colorspace_fragment>
