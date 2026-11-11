@@ -1,6 +1,7 @@
 import { outpostPinId, pinsOf } from '@/domain/pins';
 import { contactsOf } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
+import { DISPATCH_VIEW_DISTANCE, HOME_VIEW_DISTANCE } from './-plateau/view-distance';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { boardsUnderTheEyes } from '@/map/cues';
 import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
@@ -2856,12 +2857,12 @@ function BoardContent({
    *  pour y lire ses pièces, pas pour revoir le monde autour. */
   const recenterOnHome = useCallback(() => {
     const hq = view.me.buildings.find((building) => building.key === 'hq');
-    if (hq !== undefined) focusBuilding(hq, DISPATCH_VIEW_DISTANCE);
+    if (hq !== undefined) focusBuilding(hq, HOME_VIEW_DISTANCE);
     else if (view.me.capitalPoint !== null)
       setFocus({
         ids: [],
         places: [view.me.capitalPoint],
-        distance: DISPATCH_VIEW_DISTANCE,
+        distance: HOME_VIEW_DISTANCE,
         nonce: Date.now(),
       });
   }, [view.me.buildings, view.me.capitalPoint, focusBuilding]);
@@ -3482,11 +3483,6 @@ function BoardContent({
   );
 }
 
-/**
- * **D'où l'on regarde le lieu d'une dépêche**, et son QG quand on y rentre : assez près pour lire
- * les régions et les mâts autour — la place d'une passe est un lieu, pas un continent.
- */
-const DISPATCH_VIEW_DISTANCE = 20;
 const NO_IDS: ReadonlySet<string> = new Set();
 /** **A combat's dispatch waits for its scene at most this long** (#272): a map that never tells
  *  does not keep it. @a-mesurer : un combat de dix secondes, l'attente de sa vue, une marge. */
