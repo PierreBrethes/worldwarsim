@@ -20,13 +20,13 @@ import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { AIRFIELD, CRANE, MOLE } from '@/emblems/kits/manifest';
 import {
+  BUILDING_SCALE,
   buildingFootprint,
   buildingMetres,
   buildingReach,
   buildingSpan,
   troopSpan,
 } from '@/domain/piece-size';
-import { LEAST_SITE_SCALE, siteCeiling } from '@/domain/site-ceiling';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import {
   clusterFootprints,
@@ -40,6 +40,7 @@ import {
   yawOf,
 } from './maquettes';
 import { GROUP_SPACING, pileLayout } from '@/domain/pile-layout';
+import { pieceScale } from './piece-scale';
 import { articulatedOf } from './sequences';
 import { warmPieces } from './halo';
 import { sceneOfFile } from './gltf-scene.fixture';
@@ -328,28 +329,28 @@ describe('clusterFootprints', () => {
     }
   });
 
-  describe('under ceilings (the land that carries each site)', () => {
+  describe('from a start scale (the one every building is drawn at)', () => {
     const everywhere = { maxShift: 0.5, onLand: () => true };
 
-    it('draws a lone site at its ceiling: it no longer waits for a group to shrink', () => {
-      expect(clusterFootprints([[0, 0]], S, FOOT, undefined, [0.6])).toEqual([
-        { at: [0, 0], facing: 0, scale: 0.6 },
+    it('draws a lone site at the start scale: it no longer waits for a group to shrink', () => {
+      expect(clusterFootprints([[0, 0]], S, FOOT, undefined, 0.5)).toEqual([
+        { at: [0, 0], facing: 0, scale: 0.5 },
       ]);
     });
 
-    it('leaves on their points two sites that touch at full size and no longer at their ceilings', () => {
+    it('leaves on their points two sites that touch at full size and no longer at the start scale', () => {
       const points = [
         [0, 0],
         [0.8 * S, 0],
       ] as const;
       expect(gap(clusterFootprints(points, S)[0]!.at, points[0])).toBeGreaterThan(0);
-      expect(clusterFootprints(points, S, FOOT, undefined, [0.6, 0.6])).toEqual([
-        { at: [0, 0], facing: 0, scale: 0.6 },
-        { at: [0.8 * S, 0], facing: 0, scale: 0.6 },
+      expect(clusterFootprints(points, S, FOOT, undefined, 0.5)).toEqual([
+        { at: [0, 0], facing: 0, scale: 0.5 },
+        { at: [0.8 * S, 0], facing: 0, scale: 0.5 },
       ]);
     });
 
-    it("rings a group from each site's own ceiling, spaced by the sizes they are drawn at", () => {
+    it('rings a group spaced by the sizes it is drawn at', () => {
       const placed = clusterFootprints(
         [
           [0, 0],
@@ -358,48 +359,25 @@ describe('clusterFootprints', () => {
         S,
         FOOT,
         undefined,
-        [0.8, 0.5],
+        0.5,
       );
-      expect(placed.map(({ scale }) => scale)).toEqual([0.8, 0.5]);
-      expect(gap(placed[0]!.at, placed[1]!.at)).toBeCloseTo((S * (0.8 + 0.5)) / 2);
+      expect(placed.map(({ scale }) => scale)).toEqual([0.5, 0.5]);
+      expect(gap(placed[0]!.at, placed[1]!.at)).toBeCloseTo(S * 0.5);
     });
 
-    it('shrinks a group too tight for its bound further, from its ceilings', () => {
+    it('shrinks a group too tight for its bound further, from the start scale', () => {
       const points = Array.from({ length: 3 }, (_, k) => [k * 0.1, 0] as const);
       const whole = clusterFootprints(points, S, S / 2, everywhere);
-      const capped = clusterFootprints(
-        points,
-        S,
-        S / 2,
-        everywhere,
-        points.map(() => 0.9),
-      );
-      capped.forEach(({ scale }, k) => {
-        expect(whole[k]!.scale).toBeGreaterThan(LEAST_SITE_SCALE / 0.9);
-        expect(scale).toBeLessThanOrEqual(0.9 * whole[k]!.scale + 1e-9);
+      const started = clusterFootprints(points, S, S / 2, everywhere, 0.5);
+      started.forEach(({ scale }, k) => {
+        expect(scale).toBeLessThanOrEqual(0.5 * whole[k]!.scale + 1e-9);
       });
     });
 
-    it('never shrinks a site under the least size, whatever its ceiling and its group', () => {
+    it('never shrinks a crowd under 0.3, the least a building is drawn at', () => {
       const crowd = Array.from({ length: 12 }, () => [0, 0] as const);
-      const placed = clusterFootprints(
-        crowd,
-        S,
-        S / 2,
-        everywhere,
-        crowd.map((_, k) => (k % 2 === 0 ? LEAST_SITE_SCALE : 0.5)),
-      );
-      for (const { scale } of placed) expect(scale).toBeCloseTo(LEAST_SITE_SCALE, 9);
-      // A ceiling under the least is kept as it is given: the floor is the ceiling's to hold.
-      expect(
-        clusterFootprints(
-          crowd,
-          S,
-          S / 2,
-          everywhere,
-          crowd.map(() => 0.3),
-        )[0]!.scale,
-      ).toBe(0.3);
+      for (const { scale } of clusterFootprints(crowd, S, S / 2, everywhere, 0.5))
+        expect(scale).toBeCloseTo(0.3, 9);
     });
   });
 
@@ -825,60 +803,81 @@ describe('a garrison at the foot of a site drawn smaller (#433)', () => {
   it('stands a pile on land off a model without `fx_rang` by its own half, not by its half at the site scale', async () => {
     const maquettes = await crowded('building-barracks@0,0');
     const bare = maquettes.garrisonAt('building-barracks@0,0', 0)!;
-    expect(bare.scale).toBeCloseTo(0.4, 9);
+    expect(bare.scale).toBeCloseTo(BUILDING_SCALE * 0.6, 9);
     const pile = reach(maquettes.garrisonAt('building-barracks@0,0', 1)!.step);
-    // The bare foot is the site's 8/7 of its span at 0.4; a pile of span 1 adds its 1/2, whole.
-    expect((pile - reach(bare.step)) / reach(bare.step)).toBeCloseTo(0.5 / ((8 / 7) * 0.4), 9);
+    // The bare foot is the site's 8/7 of its span at its scale; a pile of span 1 adds its 1/2, whole.
+    expect((pile - reach(bare.step)) / reach(bare.step)).toBeCloseTo(
+      0.5 / ((8 / 7) * BUILDING_SCALE * 0.6),
+      9,
+    );
   });
 
-  it("draws a lone site at the ceiling of the land that carries it, its garrison's foot with it", async () => {
+  it("draws a lone site at the building scale, its garrison's foot with it", async () => {
     const ID = 'building-barracks@3,4';
-    const asked: Array<readonly [number, number]> = [];
-    const lone = async (land: number | null) => {
-      const maquettes = new MaquetteLayer(
-        frame,
-        () => null,
-        () => {},
-        () => {},
-        () => true,
-        () => null,
-        (x, z) => {
-          asked.push([x, z]);
-          return land;
-        },
-      );
-      maquettes.display([
-        {
-          id: ID,
-          at: { lonLat: [3, 4] as const },
-          url: `${ID}.glb`,
-          span: 1,
-          footprint: 1.5,
-          washed: false,
-        },
-      ]);
-      await vi.waitFor(() => expect(maquettes.isDressed(ID)).toBe(true));
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    maquettes.display([
+      {
+        id: ID,
+        at: { lonLat: [3, 4] as const },
+        url: `${ID}.glb`,
+        span: 1,
+        footprint: 1.5,
+        washed: false,
+      },
+    ]);
+    await vi.waitFor(() => expect(maquettes.isDressed(ID)).toBe(true));
+    maquettes.orient(new Vector3(3, 2, 6), null, 0);
+    const lone = maquettes.garrisonAt(ID, 0)!;
+    expect(BUILDING_SCALE).toBe(0.5);
+    expect(lone.scale).toBe(BUILDING_SCALE);
+    // The court is the building's, drawn at its scale: the bare foot is 8/7 of the span at it.
+    expect(reach(lone.step)).toBeCloseTo((8 / 7) * BUILDING_SCALE, 9);
+  });
+
+  it("lays the player's size over the building scale: at 80 % a building stands at 0.4 of its full size", async () => {
+    const ID = 'building-barracks@3,4';
+    const maquettes = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    maquettes.display([
+      { id: ID, at: { lonLat: [3, 4] as const }, url: `${ID}.glb`, span: 1, washed: false },
+    ]);
+    await vi.waitFor(() => expect(maquettes.isDressed(ID)).toBe(true));
+    const foot = () => {
       maquettes.orient(new Vector3(3, 2, 6), null, 0);
-      return maquettes.garrisonAt(ID, 0)!;
+      return reach(maquettes.garrisonAt(ID, 0)!.step);
     };
-    const ceiling = siteCeiling(1.5, 0.9);
-    expect(ceiling).toBeLessThan(1);
-    const [capped, whole] = [await lone(0.9), await lone(null)];
-    expect(asked[0]).toEqual([3, 4]);
-    expect(capped.scale).toBeCloseTo(ceiling, 9);
-    expect(whole.scale).toBe(1);
-    expect(reach(capped.step) / reach(whole.step)).toBeCloseTo(ceiling, 9);
+    const whole = foot();
+    pieceScale.size = 0.8;
+    try {
+      maquettes.resize();
+      expect(maquettes.garrisonAt(ID, 0)!.scale).toBe(BUILDING_SCALE);
+      expect(foot() / whole).toBeCloseTo(0.8, 9);
+      expect(foot()).toBeCloseTo((8 / 7) * 0.4, 9);
+    } finally {
+      pieceScale.size = 1;
+    }
   });
 
   it('hands the scale of a port to its hulls, and docks a cargo drawn at it clear of the port', async () => {
     const PORT = 'building-port@0,0';
     const maquettes = await crowded(PORT);
     const { scale } = maquettes.garrisonAt(PORT, 0, true)!;
-    expect(scale).toBeCloseTo(0.4, 9);
+    expect(scale).toBeCloseTo(BUILDING_SCALE * 0.6, 9);
     // The hull, a group's spacing to seaward of where its quay is read, past the port's edge.
     const cargo = troopSpan('cargo');
     const quay = maquettes.quayAt(0, 0, cargo)!;
-    expect(quay.scale).toBeCloseTo(0.4, 9);
+    expect(quay.scale).toBeCloseTo(BUILDING_SCALE * 0.6, 9);
     const off = (GROUP_SPACING * cargo * scale) / LAID_OUT_FOR;
     const site = maquettes.siteOf(PORT)!;
     const edge = site.toBoard(site.marker('fx_bord_eau')!);
@@ -1370,7 +1369,8 @@ describe('a site on its socle (ADR 0038)', () => {
         footprint: 1.6,
         ...more,
       });
-    const FULL = 1 / 50;
+    // The size a lone site is drawn at: its full 1/50, at the building scale.
+    const FULL = BUILDING_SCALE / 50;
     const seenFrom = (layer: MaquetteLayer, distance: number) => {
       const at = layer.siteOf(MINE)!.toBoard(new Vector3());
       layer.orient(at.clone().setY(at.y + distance), null, 0);
@@ -1615,13 +1615,16 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
       (_, z) => z < COAST,
     );
     const cargo = troopSpan('cargo');
-    const { at, step } = layer.garrisonAt(PORT, cargo, true)!;
-    // The formation steps its hulls a group's spacing to seaward of the pile's point.
-    const hull = at.z + step[1] + (GROUP_SPACING * cargo) / LAID_OUT_FOR;
-    expect(Math.abs(hull - cargo / 2 - COAST)).toBeLessThan(cargo / 10);
+    // A fleet at its quay is drawn at its port's size, and docked as such (`standing.ts`).
+    const { scale } = layer.garrisonAt(PORT, 0, true)!;
+    const { at, step } = layer.garrisonAt(PORT, cargo * scale, true)!;
+    // The formation steps its hulls a group's spacing, at the port's scale, to seaward of the
+    // pile's point.
+    const off = (GROUP_SPACING * cargo * scale) / LAID_OUT_FOR;
+    const hull = at.z + step[1] + off;
+    expect(Math.abs(hull - (cargo * scale) / 2 - COAST)).toBeLessThan((cargo * scale) / 10);
     // The thread leaves from where the hull stands.
     const quay = layer.quayAt(0, 0, cargo)!;
-    const off = (GROUP_SPACING * cargo) / LAID_OUT_FOR;
     expect(quay.at.z + quay.front[1] * off).toBeCloseTo(hull, 9);
   });
 
@@ -1634,7 +1637,8 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
       reach: ((82 / 50) * Math.SQRT2) / 2,
       metre: 1 / 50,
     });
-    const apart = (portSpacing + barracksSpacing) / 2;
+    // Sites are drawn at the building scale: a ring spaces them by the half of their spacings.
+    const apart = (BUILDING_SCALE * (portSpacing + barracksSpacing)) / 2;
     const BARRACKS = 'building-barracks@-9,0';
     const barracks = {
       id: BARRACKS,
@@ -1683,7 +1687,7 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
     const hashed = new Matrix4().compose(
       new Vector3(),
       new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yawOf(id)),
-      new Vector3().setScalar(1 / 50),
+      new Vector3().setScalar(BUILDING_SCALE / 50),
     );
     // The barracks' socle, in metres (its file): the sea starts where a twentieth of it lies past.
     const xs: number[] = [];
@@ -1898,7 +1902,8 @@ describe('a port faces its water, a coastal site its land (#436)', () => {
   });
 
   it('turns a socle its hashed turn wets onto the land, and leaves a dry one as it was', async () => {
-    const SEA = 0.6;
+    // The shore a socle drawn at the building scale reaches.
+    const SEA = 0.6 * BUILDING_SCALE;
     const ids = Array.from({ length: 12 }, (_, k) => `building-barracks@${k},0`);
     const sites = ids.map((id) => ({
       id,

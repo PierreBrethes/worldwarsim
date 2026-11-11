@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : d8800f2 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 673fc48 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-155 valeurs marquées dans `convex/` et `src/domain/`.
+151 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -140,6 +140,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `ARMOR_METRES` | `{ france: [4.02, 6.37], // Renault R35, Char B1 bis uk: [3.96, 5.61], // Vickers Light Tank Mk VI, Matilda II usa: [4.84, 5.84], // M5 Stuart, M4 Sherman ussr: [5.66, 6.68], // BT-7, T-34 (1941) germany: [4.81, 5.92], // Panzer II, Panzer IV japan: [4.38, 5.52], // Type 95 Ha-Go, Type 97 Chi-Ha italy: [3.17, 4.92], // L3/35, M13/40 china: [4.88, 4.62], // Vickers 6-Ton, T-26 }` | `src/domain/piece-size.ts:43` | longueurs de caisse publiées (fiches Wikipédia des modèles), sans canon ni garde-boue |
 | `BUILDING_METRES` | `{ hq: 60, farm: 40, mine: 50, oilWell: 25, arsenal: 80, barracks: 50, airfield: 110, port: 210, listening: 30, researchCenter: 50, warehouse: 60, depot: 60, city: 50 }` | `src/domain/piece-size.ts:60` | la ville seule, un symbole sans mesure réelle ; le reste suit l'ADR 0035 |
 | `OBJECTIVE_METRES` | `{ abandonedStores: 40, stalledConvoy: 30, fuelDump: 40, irregularArsenal: 40 }` | `src/domain/piece-size.ts:133` | lus sur les modèles (un convoi de quelques camions, un dépôt), sans plan réel |
+| `BUILDING_SCALE` | `0.5` | `src/domain/piece-size.ts:186` | le niveau « moyen » des captures, où le QG de Rome est dessiné à 50 % |
 | `NAMES_GONE_DISTANCE` | `65` | `src/domain/place-names.ts:117` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `CITY_TIERS` | `[NAMES_GONE_DISTANCE, 55, 34, 0]` | `src/domain/place-names.ts:118` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `MILLION` | `1_000_000` | `src/domain/place-names.ts:119` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
@@ -161,11 +162,6 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:978` | measured against the medium on 340 routes (#231), not against a play need |
-| `LAND_SHARE` | `1` | `src/domain/site-ceiling.ts:9` | the middle of three thresholds captured (1.25, 1, 0.75); Pierre picks one (retour du 10/11) |
-| `LEAST_SITE_SCALE` | `0.4` | `src/domain/site-ceiling.ts:17` | the ring's smallest step, kept as the floor; never measured on a phone |
-| `SHORE_REACH` | `0.25` | `src/domain/site-ceiling.ts:34` | wide enough for Reggio and Le Havre, whose points the far level leaves at sea |
-| `SHORE_STEPS` | `[0.25, 0.5, 1]` | `src/domain/site-ceiling.ts:35` | wide enough for Reggio and Le Havre, whose points the far level leaves at sea |
-| `BEARINGS` | `Array.from({ length: 8 }, (_, k) => (k * Math.PI) / 4)` | `src/domain/site-ceiling.ts:36` | wide enough for Reggio and Le Havre, whose points the far level leaves at sea |
 | `POINT_TRAITS` | `{ tangier: { family: 'economy', stars: 2 }, istanbul: { family: 'intel', stars: 2 }, rangoon: { family: 'diplomacy', stars: 1 }, hongKong: { family: 'intel', stars: 1 }, halifax: { family: 'sea', stars: 1 }, narvik: { family: 'economy', stars: 2 }, lisbon: { family: 'intel', stars: 2 }, baku: { family: 'supply', stars: 3 }, dakar: { family: 'economy', stars: 2 }, singapore: { family: 'supply', stars: 1 } } as const satisfies Record<StrategicPointKey, { family: PointFamily; stars: 1 \| 2 \| 3 }>` | `src/domain/strategic-points.ts:40` | familles et étoiles posées par jugement, aucune doc ne les fixait |
 | `TANGIER_LOT` | `{ give: 300, get: 100 } as const` | `src/domain/strategic-points.ts:146` | posé pour la saison test ; rien ne mesure ce que vaut un échange par édition |
 | `SURVEY_INK_FADED` | `0.2` | `src/domain/survey-ink.ts:4` | the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. |

@@ -176,6 +176,15 @@ export const buildingFootprint = (key: BuildingKey): number =>
 export const buildingReach = (key: BuildingKey): number =>
   onBoard(KIT_REACH_METRES[key] ?? BUILDING_REACH_METRES[key], key === 'port' ? SEA_SHARE : 1);
 
+/**
+ * **Un bâtiment est dessiné à cette part de sa taille pleine, partout** (Pierre, 11/11/2026) :
+ * une échelle pour tout site (sur socle, objectif neutre, site relevé), quelle que soit la terre
+ * qui le porte. Une troupe n'en est pas réduite : elle reste à 1. Le curseur « Taille des pièces »
+ * s'applique par-dessus (à 80 %, 0,4). Le repli d'un groupe serré part de cette échelle.
+ * @a-mesurer le niveau « moyen » des captures, où le QG de Rome est dessiné à 50 %
+ */
+export const BUILDING_SCALE = 0.5;
+
 /** Un archétype sans mesure prend celle d'un entrepôt. */
 export const objectiveSpan = (key: string): number =>
   onBoard(OBJECTIVE_METRES[key] ?? BUILDING_METRES.warehouse);

@@ -32,7 +32,7 @@ import { accessoriesShown, bakedSite, mirroredPart, onSocle, type Part } from '.
 import { mirroredPort } from './port-side';
 import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
-import { LEAST_SITE_SCALE, siteCeiling } from '@/domain/site-ceiling';
+import { BUILDING_SCALE } from '@/domain/piece-size';
 import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
 import type { SequenceHost } from './sequences';
@@ -420,13 +420,19 @@ export type Placement = {
   readonly at: Point;
   /** Where its garrison stands from it: outward from the ring, inland when the front is sea. */
   readonly facing: number;
-  /** Its ceiling, or less: a group too tight for its bound shrinks rather than spreads. */
+  /** The start scale, or less: a group too tight for its bound shrinks rather than spreads. */
   readonly scale: number;
 };
 
-/** The group's sizes tried in turn, each site from its own ceiling, before every site falls back
- *  on its own point. */
-const SHRINK_STEPS = [1, 0.85, 0.7, 0.55, LEAST_SITE_SCALE];
+/**
+ * The group's sizes tried in turn, each a share of the start scale, before every site falls back
+ * on its own point: 0.5, 0.4, then 0.3 for buildings. Captured on four sites of Naples, 11/11:
+ * at 0.2 the group is clean but a tank hides the facade it stands before, and a ring takes in what
+ * it grows into, so a tight group would drag the sites of a whole country down to it; at 0.4 their
+ * socles lie across one another.
+ * @a-mesurer 0.3 of 0.5: between those two captures; Pierre confirms the floor
+ */
+const SHRINK_STEPS = [1, 0.8, 0.6];
 
 /**
  * **Maquettes clear one another on the board, not on the screen**: sites whose footprints — a
@@ -440,60 +446,45 @@ const SHRINK_STEPS = [1, 0.85, 0.7, 0.55, LEAST_SITE_SCALE];
  * drawn in Porto, 15/10): a group that would spread past `maxShift`, or off the land, is ringed
  * again smaller — its maquettes shrink instead of standing away.
  *
- * **No site is drawn larger than its ceiling** (`siteCeiling`, the land that carries it), alone or
- * in a group: `spacings` and `feet` are full sizes, `ceilings` what each may be drawn at. Sites
- * touch, ring and shrink from there, and none goes under `LEAST_SITE_SCALE` for its group.
+ * **A group starts from `start`** (`BUILDING_SCALE` for sites): `spacings` and `feet` are full
+ * sizes, sites touch, ring and shrink from the start scale, each step a share of it.
  */
 export function clusterFootprints(
   points: ReadonlyArray<Point>,
   spacings: number | ReadonlyArray<number>,
   feet?: number | ReadonlyArray<number>,
   bounds: PlacementBounds = { maxShift: Infinity, onLand: () => true },
-  ceilings?: ReadonlyArray<number>,
+  start = 1,
 ): Placement[] {
   const spacingOf = (k: number) => (typeof spacings === 'number' ? spacings : spacings[k]!);
   // A footprint reaches its foot at least: half its spacing.
   const footOf = (k: number) =>
     feet === undefined ? spacingOf(k) / 2 : typeof feet === 'number' ? feet : feet[k]!;
-  const ceilingOf = (k: number) => ceilings?.[k] ?? 1;
-  const scaleOf = (k: number, step: number) =>
-    Math.max(ceilingOf(k) * step, Math.min(ceilingOf(k), LEAST_SITE_SCALE));
   const placed = new Array<Placement>(points.length);
   for (const members of ringed(
     points,
-    points.map((_, k) => spacingOf(k) * ceilingOf(k)),
+    points.map((_, k) => spacingOf(k) * start),
   ).clusters) {
     const own = members.map((k) => points[k]!);
     const spaced = members.map(spacingOf);
     const footed = members.map(footOf);
-    const within = {
-      ...bounds,
-      maxShift: bounds.maxShift * Math.max(...members.map((k) => spacingOf(k) * ceilingOf(k))),
-    };
+    const within = { ...bounds, maxShift: bounds.maxShift * Math.max(...spaced) * start };
     let fitted: Placement[] | null = null;
     for (const step of SHRINK_STEPS) {
-      const scales = members.map((k) => scaleOf(k, step));
+      const scale = start * step;
       const trial = ringed(
         own,
-        spaced.map((spacing, r) => spacing * scales[r]!),
+        spaced.map((spacing) => spacing * scale),
       ).placed.map((place, r) =>
-        fitting(
-          own[r]!,
-          place,
-          footed[r]! * scales[r]!,
-          spaced[r]! * scales[r]!,
-          scales[r]!,
-          within,
-          points,
-        ),
+        fitting(own[r]!, place, footed[r]! * scale, spaced[r]! * scale, scale, within, points),
       );
       if (trial.every((place) => place !== null)) {
         fitted = trial as Placement[];
         break;
       }
     }
+    const smallest = start * SHRINK_STEPS.at(-1)!;
     members.forEach((k, r) => {
-      const smallest = scaleOf(k, SHRINK_STEPS.at(-1)!);
       placed[k] =
         fitted?.[r] ??
         fitting(
@@ -684,10 +675,8 @@ type Placed = {
   /** Its turn about the vertical (`pose`): hashed from its id, to the sea for a port, inland for
    *  a socle the hashed one wets. */
   yaw: number;
-  /** The largest it is drawn, against its full size, on the land that carries it (`siteCeiling`). */
-  readonly ceiling: number;
-  /** The size it is drawn at against its full size: its ceiling, or less in a tight group, which
-   *  shrinks rather than spreads. */
+  /** The size it is drawn at against its full size: `BUILDING_SCALE`, or less in a tight group,
+   *  which shrinks rather than spreads. */
   scale: number;
   readonly turn: Quaternion;
   /** Inside a replay's ground: it steps aside, and its plate with it. */
@@ -803,9 +792,6 @@ export class MaquetteLayer implements SequenceHost {
     private readonly onLand: (x: number, z: number) => boolean,
     /** The sea a port at this board point faces, `null` for none known. */
     private readonly seaFront: (x: number, z: number) => SeaFront | null = () => null,
-    /** The land that carries a board point, as the side of its square (`landSideAt`), in board
-     *  units; `null` for none known. */
-    private readonly landSide: (x: number, z: number) => number | null = () => null,
   ) {}
 
   /** Re-served at every step of any column: says whether anything changed, and only then
@@ -902,11 +888,7 @@ export class MaquetteLayer implements SequenceHost {
         at: ground.clone(),
         facing: 0,
         yaw: yawOf(maquette.id),
-        ceiling: siteCeiling(
-          maquette.footprint ?? maquette.span,
-          this.landSide(ground.x, ground.z),
-        ),
-        scale: 1,
+        scale: BUILDING_SCALE,
         turn: new Quaternion().setFromAxisAngle(UP, yawOf(maquette.id)),
         cleared: false,
         socle: maquette.socle === true,
@@ -1054,8 +1036,8 @@ export class MaquetteLayer implements SequenceHost {
       // known here: a tank's stands for it.
       items.map(({ span }) => garrisonFoot(span, ANONYMOUS_SPAN) * pieceScale.size),
       { maxShift: MAX_SHIFT, onLand: this.onLand },
-      // Before the player's size: the slider still sizes every piece, a capped site with them.
-      items.map(({ ceiling }) => ceiling),
+      // Before the player's size: the slider still sizes every piece, a building with them.
+      BUILDING_SCALE,
     );
     const models = new Map([
       ...[...this.byId.values()].map(({ item, lot }) => [item, lot.model] as const),
