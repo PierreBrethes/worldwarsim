@@ -48,3 +48,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0038](0038-le-batiment-est-un-diorama-sur-son-socle.md) | Le bâtiment est un diorama sur son socle | acceptée (01/11) — précise 0035 §8 (socle et cour sans mètres réels) et le rendu de 0026 |
 | [0039](0039-quatre-atouts-qui-cassent-une-regle.md) | Quatre atouts nationaux, qui cassent chacun une règle | acceptée (04/11) — remplace les atouts de la fiche 06 pour la V1 ; Mondiale seule ; seconde brèche au brouillard sur la nation (Prêt-bail) |
 | [0040](0040-l-edition-finale-survit-a-sa-saison.md) | L'édition finale survit à sa saison | acceptée (05/11) — déroge à 0001 pour l'édition finale d'une Mondiale |
+| [0041](0041-la-recolte-se-rapporte.md) | La récolte se rapporte : un tas par exploitation, ramassé en tournée | proposée (11/11) — révise 0028 §4 ; précise 0039 (atout américain) ; Mondiale seule ; le niveau d'une exploitation de fondation attend Pierre |
