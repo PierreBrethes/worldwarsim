@@ -27,6 +27,13 @@ export type SweepRequest = {
 const TAG_MS = 12_000;
 const FADE_IN_MS = 250;
 const FADE_OUT_MS = 1200;
+/** A card born while the front still runs stands this faded, to leave the wave readable under it;
+ *  full once the wave ends or when the pointer is over it. @a-mesurer */
+export const RUNNING_OPACITY = 0.35;
+
+/** What a card shows: nothing before it is held or after it leaves, faded while the wave runs. */
+export const cardOpacity = (held: boolean, running: boolean, hovered: boolean): number =>
+  !held ? 0 : running && !hovered ? RUNNING_OPACITY : 1;
 /** The card stands clear of the basin's rim, which is flattened north to south (maquette). */
 const RIM_SHARE = 0.8;
 const TAG_GAP_PX = 6;
@@ -142,6 +149,7 @@ export function SweepOverlay({
             hit={hit}
             place={place}
             still={still}
+            running={!ran}
             bottomInset={insets.bottom}
             onGo={() => goTo(hit)}
           />
@@ -185,6 +193,7 @@ function SweepTagCard({
   hit,
   place: where,
   still,
+  running,
   bottomInset,
   onGo,
 }: {
@@ -192,11 +201,14 @@ function SweepTagCard({
   hit: SweepHit;
   place: string;
   still: boolean;
+  /** The wave is still running: the card stands faded unless hovered. */
+  running: boolean;
   bottomInset: number;
   onGo: () => void;
 }) {
   const species = hit.deposit.deposit;
   // Told when the front reaches its basin, the card lives TAG_MS from its own mount.
+  const [hovered, setHovered] = useState(false);
   const [phase, setPhase] = useState<'entering' | 'held' | 'leaving' | 'gone'>('entering');
   useEffect(() => {
     const held = requestAnimationFrame(() => setPhase('held'));
@@ -251,7 +263,7 @@ function SweepTagCard({
       : `translate(-50%, ${sin > 0 ? 'calc(-100% - 18px)' : '18px'})`;
   if (phase === 'gone') return null;
   const fade = {
-    opacity: phase === 'held' ? 1 : 0,
+    opacity: cardOpacity(phase === 'held', running, hovered),
     transition: still
       ? 'none'
       : `opacity ${phase === 'leaving' ? FADE_OUT_MS : FADE_IN_MS}ms linear`,
@@ -278,6 +290,8 @@ function SweepTagCard({
         type="button"
         title={fr.sweep.goTo(species, where)}
         onClick={onGo}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
         className="group pointer-events-auto absolute w-max border border-(color:--ink)/60 bg-[rgb(241_232_210/95%)] px-[8px] pt-[3px] pb-[4px] text-left font-(family-name:--font-body) text-[var(--ink)] shadow-[0_4px_10px_rgb(20_14_6/25%)]"
         style={{
           left: tag.x,
