@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { boardHoldOf, EYE_BACKOFF, EYE_FOV, nearPlaneAt, steepestTiltAt } from './camera-tilt';
 import { CLOSEST_DISTANCE } from './closest-distance';
+import { COUNTRY_THICKNESS, SEA_LEVEL } from './frame';
 
 /**
  * Penché sur la table au rapproché, la carte entière lue de plus haut : l'inclinaison permise
@@ -54,7 +55,9 @@ describe('the near plane', () => {
     // The eye the board renders through: 30° of field, backed off to frame what 42° did.
     const half = (EYE_FOV * Math.PI) / 360;
     const tilt = steepestTiltAt(CLOSEST_DISTANCE);
-    const height = CLOSEST_DISTANCE * EYE_BACKOFF * Math.cos(tilt);
+    // Above the sheet, not the target: the game aims at the top of the land (`COUNTRY_THICKNESS`),
+    // the sea lies lower (`SEA_LEVEL`).
+    const height = CLOSEST_DISTANCE * EYE_BACKOFF * Math.cos(tilt) + COUNTRY_THICKNESS - SEA_LEVEL;
     const bottomRay = Math.PI / 2 - tilt + half;
     const depth = (height / Math.sin(bottomRay)) * Math.cos(half);
     expect(depth).toBeGreaterThan(nearPlaneAt(CLOSEST_DISTANCE));
