@@ -108,6 +108,25 @@ describe('CombatLayer', () => {
     expect(theirs!.getWorldPosition(new Vector3()).x).toBeCloseTo(0);
   });
 
+  it('reads its floor on the man for a scene of the land, and on its own for planes (#534)', () => {
+    const floors = (view: ReplayView) => {
+      const layer = new CombatLayer();
+      layer.play(view, null, at, 0, 0);
+      const seen: number[][] = [];
+      layer.advance(0, (_, span, floorSpan) => (seen.push([span, floorSpan]), 1));
+      return seen[0]!;
+    };
+    const [span, floor] = floors(combat('a'));
+    expect(floor).toBe(troopSpan('infantry'));
+    expect(span).toBe(troopSpan('armor'));
+    const planes: ReplayView = {
+      ...combat('p'),
+      mine: [{ role: 'fighter', tier: 1, troops: 1, lost: 0, routed: 0, destroyed: 0 }],
+    };
+    const [planeSpan, planeFloor] = floors(planes);
+    expect(planeFloor).toBe(planeSpan);
+  });
+
   it('shows nothing past the floor, and veils nothing there', () => {
     const layer = new CombatLayer();
     layer.play(combat('a'), null, at, 0, 0);

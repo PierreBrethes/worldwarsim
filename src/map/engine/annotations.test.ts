@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Box3, Mesh, type MeshBasicMaterial } from 'three';
+import { Box3, Mesh, Vector3, type MeshBasicMaterial } from 'three';
 import { annotationFigurine, eraseAnnotation, inkAnnotation } from './annotations';
 import { Pawn } from './pawn';
+import { troopScale } from './figurines/figurine';
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ addColorStop() {} }) });
@@ -70,5 +71,16 @@ describe('the ink an annotation is drawn with', () => {
     const pawn = new Pawn('#000', { land: null, sea: figurine, air: null });
     pawn.dispose();
     expect(seen).toEqual({ material: true, map: true });
+  });
+});
+
+/** The floor is read on the man for real figurines only: a land block that grew by his factor would tell a tank (#534). */
+describe('the floor of an enemy annotation on land', () => {
+  it('stays at its own, like its sea and air sisters', () => {
+    const note = annotationFigurine('land', 0);
+    const pawn = new Pawn('#000', { land: note, sea: null, air: null });
+    pawn.place(new Vector3(0, 0, 0), new Vector3(1, 0, 0));
+    pawn.orient(new Vector3(0, 5, 0), 0);
+    expect(note.object.scale.x).toBeCloseTo(troopScale(5, note.span, note.span), 12);
   });
 });

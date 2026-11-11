@@ -7,8 +7,9 @@ import {
   playsWhole,
   sceneOf,
   seatsTagOf,
+  sceneDomain,
   sceneSpan,
-} from '@/domain/combat-on-map';
+} from '@/domain/combat-on-map';;
 import type { Medium } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
@@ -25,7 +26,7 @@ type Played = {
   readonly told: ReplayView;
   /** Its longest piece, on the board: what it is drawn and seen by (`sceneSpan`). */
   readonly span: number;
-  /** What its floor is read on (`floorSpanOf`): the man's on land. */
+  /** What its floor is read on (`floorSpanOf`), by its longest piece's domain (`sceneDomain`). */
   readonly floorSpan: number;
   readonly scene: ReplayScene;
   /** The combat's point on the board, where the defender's line stands. */
@@ -168,7 +169,7 @@ export class CombatLayer {
       view,
       told,
       span,
-      floorSpan: floorSpanOf(medium, span),
+      floorSpan: floorSpanOf(sceneDomain(view), span),
       scene,
       point,
       offset: lineCentre(

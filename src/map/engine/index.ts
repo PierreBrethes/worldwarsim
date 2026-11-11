@@ -75,6 +75,7 @@ import {
   type PinnedBy,
   floorSpanOf,
   troopScale,
+  troopWeight,
 } from './figurines/figurine';
 import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
@@ -3542,9 +3543,8 @@ export class MapEngine {
               .distanceTo(this.frame.projectLonLat(cue.from, COUNTRY_THICKNESS)),
           };
     const seen =
-      this.seenWhole(point, span, floorSpanOf(medium, span)) ||
-      (battery !== null &&
-        this.seenWhole(battery.at, troopSpan('artillery'), floorSpanOf('land', 0)));
+      this.seenWhole(point, span) ||
+      (battery !== null && this.seenWhole(battery.at, troopSpan('artillery')));
     if (this.replay !== null || (!this.combats.waits(cue.id) && !seen)) {
       this.settleCombat(cue.id);
       return;
@@ -3574,13 +3574,13 @@ export class MapEngine {
   }
 
   /** In the field, and near enough for a troop of `span` to stand rather than its pin. */
-  private seenWhole(point: Vector3, span = ANONYMOUS_SPAN, floorSpan = span): boolean {
+  private seenWhole(point: Vector3, span = ANONYMOUS_SPAN): boolean {
     this.eyeFrustum.setFromProjectionMatrix(
       this.eyeMatrix.multiplyMatrices(this.eye.projectionMatrix, this.eye.matrixWorldInverse),
     );
     return (
       this.eyeFrustum.containsPoint(point) &&
-      troopScale(this.camera.position.distanceTo(point), span, floorSpan) > 0
+      troopWeight(this.camera.position.distanceTo(point), span) > 0
     );
   }
 
