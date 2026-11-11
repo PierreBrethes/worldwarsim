@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REGIONS_GONE_DISTANCE } from './regions';
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
 import { DRAWN_SHARE, troopSpan } from '@/domain/piece-size';
+import { CLOSEST_DISTANCE } from './closest-distance';
 import { castShadows, lampIntensity, shadowBias, shadowReach } from './lamp';
 
 /**
@@ -34,7 +35,7 @@ describe('how far a shadow is read off its surface', () => {
   });
 
   it('stays under the height of a man as he is drawn, at the closest zoom: he keeps his shadow', () => {
-    const closest = 3 * DRAWN_SHARE;
+    const closest = CLOSEST_DISTANCE;
     expect(shadowBias(shadowReach(closest)!)).toBeLessThan(
       (troopSpan('infantry') * DRAWN_SHARE) / 2,
     );

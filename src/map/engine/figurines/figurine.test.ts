@@ -20,6 +20,7 @@ import {
 } from './figurine';
 import { crewOf, squadOf, stand, stride } from './infantry';
 import { pieceScale } from '../piece-scale';
+import { CLOSEST_DISTANCE } from '../closest-distance';
 import { buildingSpan, DRAWN_SHARE, MAN_METRES, troopSpan } from '@/domain/piece-size';
 
 describe('nearWeight', () => {
@@ -137,10 +138,10 @@ describe('the share every piece is drawn at', () => {
     expect(pieceScale.size).toBe(DRAWN_SHARE);
   });
 
-  it('reads a man at his proportion, 20 px, at the closest zoom: three times the share', () => {
-    const closest = 3 * DRAWN_SHARE;
+  it('reads a man at his proportion, 60 px, at the closest zoom, with no floor holding him', () => {
+    const closest = CLOSEST_DISTANCE;
     expect(floorGrowth(closest, man)).toBe(1);
-    expect(px(closest, man, troopScale(closest, man, man))).toBeCloseTo(19.8, 1);
+    expect(px(closest, man, troopScale(closest, man, man))).toBeCloseTo(59.3, 0);
   });
 
   it('stands my piles and my sites whole until STANDS_UNTIL, and pins both past it', () => {
@@ -181,7 +182,7 @@ describe('the share every piece is drawn at', () => {
   });
 
   it('never draws a piece of a garrison larger than a third of its barracks, at any distance it stands at', () => {
-    for (let d = 3 * DRAWN_SHARE; d <= STANDS_UNTIL; d += 0.25) {
+    for (let d = CLOSEST_DISTANCE; d <= STANDS_UNTIL; d += 0.25) {
       const site = px(d, barracks, pieceScale.size);
       for (const span of [man, tank])
         expect(px(d, span, troopScale(d, span, span, GARRISON_FLOOR_PX))).toBeLessThanOrEqual(

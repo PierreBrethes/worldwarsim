@@ -104,7 +104,8 @@ const pxOf = (distance: number, span: number): number =>
 /**
  * **A troop holds its floor until here** (ADR 0035 §10), at the full common scale: nearer by the
  * share pieces are drawn at and the player's size (d ≈ 11 at `DRAWN_SHARE` 0.25, where a barracks
- * still reads 26 px), a site on its socle with it (`pieceStands`).
+ * still reads 26 px), a site on its socle with it (`pieceStands`). The closest zoom, d = 0.25, is
+ * nearer still: the man stands at 60 px there, above the floor, and everything grows with the zoom.
  * @a-mesurer 43: the barracks at 26 px, three times a garrison's floor, on the captures of 11/11
  */
 const FLOOR_UNTIL = 43;

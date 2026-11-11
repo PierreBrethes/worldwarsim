@@ -649,6 +649,8 @@ if (!bare) {
       ['infantry', 2, mixed],
       ['armor', 1, mixed],
       ['armor', 3, alone],
+      // En Blitz un chasseur ne se pose jamais : il plane sur le point visé (#535, borne d'inclinaison).
+      ...(blitzTheatre === null ? [] : [['fighter', 1, mixed]]),
     ])
       cli(['run', 'dev:spawnTroops', JSON.stringify({ playerId: scene.a, role, count, ...at })]);
   }

@@ -127,6 +127,14 @@ chiffrée et maquette comparée : `WWS/prototypes/echelle-commune/`.
     > bâtiment. Le seuil d'épingle (`troopPinSpan`) ne change pas : le char grandi s'épingle au
     > même d que l'homme, par le fondu existant.
 
+    > **Amendé le 11/11/2026, décisions de Pierre** (#535) : **le zoom descend à d = 0,25**
+    > (`CLOSEST_DISTANCE`, une part dessinée), où l'homme se lit à ≈ 60 px et le char à ≈ 135 px,
+    > bien au-delà de leur plancher : toutes les pièces grandissent avec le zoom, à leur vraie
+    > proportion. Les côtes à grands pans du niveau près sont acceptées. **La caméra se penche un
+    > peu plus sous d = 0,75, bornée par l'avion en vol** : l'œil de rendu reste au-dessus de son
+    > altitude (`steepestTiltAt`, `camera-tilt.ts`), d'où un plafond qui remonte puis retombe à
+    > 56° à d = 0,25. Le retour au QG, la recherche et le replay gardent leurs distances.
+
 ## Ce qu'on abandonne
 
 - **Le lien strict à toute distance.** Entre d ≈ 5 et 30, la figurine plancher (§10) garde une
