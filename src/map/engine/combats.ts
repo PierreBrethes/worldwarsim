@@ -9,7 +9,7 @@ import {
   seatsTagOf,
   sceneDomain,
   sceneSpan,
-} from '@/domain/combat-on-map';;
+} from '@/domain/combat-on-map';
 import type { Medium } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
