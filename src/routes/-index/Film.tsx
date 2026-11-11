@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
-import { FILM_CUTS, subtitleAt, type FilmCut } from './film';
+import { FILM_CUTS, subtitleAt, type FilmCut } from './film-cuts';
 
 /**
  * **Le film, à la demande** : trente secondes du jeu tel qu'il se joue, muettes et sous-titrées,

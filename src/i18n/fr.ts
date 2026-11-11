@@ -1814,7 +1814,7 @@ export const fr = {
     title: 'le film d’annonce',
     unavailable: 'Le film n’est pas disponible pour l’instant.',
     /** Le film est muet : ces lignes sont ses sous-titres, posés au temps de chaque plan
-     *  (`FILM_SHOTS`, `src/routes/-index/film.ts`). */
+     *  (`FILM_SHOTS`, `src/routes/-index/film-cuts.ts`). */
     subtitles: {
       map: 'La carte du monde réel, en 1940.',
       night: 'Le soleil passe sur la table.',
