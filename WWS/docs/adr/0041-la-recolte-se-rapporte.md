@@ -47,6 +47,8 @@ national qu'**une fois rapporté**.
 
 Le tas se règle (intégration paresseuse, comme le stock) à chaque prise, à chaque élévation et
 dans `settleBeforeChange` avant un changement de couleur. Il n'est jamais servi à l'adversaire.
+**Capturée, l'exploitation passe au capteur avec son tas** (Pierre, 12/11), comme le dépôt d'un
+avant-poste se capture avec son point ; rasée, son tas disparaît.
 
 ### 2. La tournée de ramassage
 
