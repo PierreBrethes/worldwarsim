@@ -12,6 +12,7 @@ const boot = () => convexTest({ schema, modules, transactionLimits: true });
 type Bench = ReturnType<typeof boot>;
 
 const MOSELLE = 'FRA-5328'; // coal
+const NORD = 'FRA-5334'; // coal, the second one
 
 async function launched(t: Bench) {
   const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
@@ -68,9 +69,13 @@ describe('the foundation mark (ADR 0041 §3)', () => {
 
     // The coal debt is settled: a second coal mine is paid for, and stands unmarked.
     await enrich(t, seat);
-    const paid = await placeMine(t, seat, MOSELLE).catch(() => null);
-    expect((await mines(t)).filter((b) => b.foundationMark)).toHaveLength(1);
-    void paid;
+    await placeMine(t, seat, NORD);
+    const work = (await t.run((ctx) => ctx.db.query('constructions').collect()))[0]!;
+    await t.run((ctx) => ctx.db.patch(work._id, { finishesAt: Date.now() }));
+    await t.mutation(internal.constructions.finish, { constructionId: work._id });
+    const standing = await mines(t);
+    expect(standing).toHaveLength(2);
+    expect(standing.find((b) => b.regionId === NORD)).not.toHaveProperty('foundationMark');
   });
 
   it('serves the mark to its owner, in me.buildings', async () => {
