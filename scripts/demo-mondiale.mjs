@@ -326,7 +326,10 @@ const oilLine = process.argv.includes('--petrole');
 /** `--feuille` (#551) : la scène de la feuille de route d'un transport — des exploitations qui ont un tas
  *  (pleine et arrêtée, à moitié, presque vide), des dépôts (un plein), un camion chargé au QG, un camion en
  *  tournée et un cargo à quai. */
-const sheetScene = process.argv.includes('--feuille');
+/** `--tas` (#548) : la même scène, pour l'écran des tas — fondation au niveau 1 et élevée, un tas plein
+ *  depuis trente heures, et les dépêches de la règle (mise en service, retour, pas, pillage). */
+const heapScreen = process.argv.includes('--tas');
+const sheetScene = process.argv.includes('--feuille') || heapScreen;
 const mines = process.argv.includes('--exploitations') || sheetScene;
 /** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 (ADR 0031). */
 /** `--raser` (#326) : la caserne de `--niveaux` et la garnison de `--echelle`, à raser. */
@@ -856,7 +859,14 @@ if (!bare) {
   }
   /** `--feuille` : des tas aux exploitations, et le camion de l'avant-poste en tournée (sa feuille se lit). */
   if (sheetScene && scene.a !== null) {
-    cli(['run', 'dev:heapsScene', JSON.stringify({ playerId: scene.a })]);
+    cli([
+      'run',
+      'dev:heapsScene',
+      JSON.stringify({
+        playerId: scene.a,
+        ...(heapScreen ? { foundations: true, looterId: scene.b ?? undefined } : {}),
+      }),
+    ]);
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
     const lille = me.outposts.find((outpost) => Math.abs(outpost.lonLat[0] - 3.06) < 0.05);
     const truck = me.troops.find(

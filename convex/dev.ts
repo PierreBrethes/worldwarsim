@@ -673,8 +673,16 @@ export const logisticsScene = internalMutation({
  * `npx convex run dev:heapsScene '{"playerId":"…"}'`
  */
 export const heapsScene = internalMutation({
-  args: { playerId: v.id('players') },
-  handler: async (ctx, { playerId }) => {
+  args: {
+    playerId: v.id('players'),
+    /** #548 : l'écran des tas. La ferme garde sa marque au niveau 1 (elle rapporte seule), la mine de
+     *  charbon la garde élevée au niveau 2 (son surplus s'entasse, à moitié), la mine de fer perd la
+     *  sienne, élevée et pleine depuis trente heures. Les dépêches de la règle se posent aussi. */
+    foundations: v.optional(v.boolean()),
+    /** Le pilleur du tas de charbon : il reçoit sa dépêche. */
+    looterId: v.optional(v.id('players')),
+  },
+  handler: async (ctx, { playerId, foundations, looterId }) => {
     const player = await ctx.db.get(playerId);
     if (player === null) throw new Error('no such player');
     const now = Date.now();
@@ -682,16 +690,85 @@ export const heapsScene = internalMutation({
     const sites = (await playerBuildings(ctx, playerId))
       .filter(isExploitation)
       .sort((a, b) => a._creationTime - b._creationTime);
-    const heaps = [
-      { amount: 288, hoursAgo: 30 },
-      { amount: 110, hoursAgo: 0 },
-      { amount: 12, hoursAgo: 0 },
+    if (foundations !== true) {
+      const heaps = [
+        { amount: 288, hoursAgo: 30 },
+        { amount: 110, hoursAgo: 0 },
+        { amount: 12, hoursAgo: 0 },
+      ];
+      for (const [rank, site] of sites.entries()) {
+        await ctx.db.patch(site._id, { foundationMark: undefined });
+        const heap = heaps[rank % heaps.length]!;
+        await stampHeap(ctx, site, playerId, heap.amount, now - heap.hoursAgo * HOUR);
+      }
+      return sites.length;
+    }
+    const scene = [
+      { foundation: true, level: 1, amount: 0, hoursAgo: 0 },
+      { foundation: true, level: 2, amount: 110, hoursAgo: 0 },
+      { foundation: false, level: 2, amount: 384, hoursAgo: 30 },
     ];
     for (const [rank, site] of sites.entries()) {
-      await ctx.db.patch(site._id, { foundationMark: undefined });
-      const heap = heaps[rank % heaps.length]!;
-      await stampHeap(ctx, site, playerId, heap.amount, now - heap.hoursAgo * HOUR);
+      const { foundation, level, amount, hoursAgo } = scene[rank % scene.length]!;
+      await ctx.db.patch(site._id, {
+        foundationMark: foundation ? true : undefined,
+        level,
+      });
+      await stampHeap(ctx, site, playerId, amount, now - hoursAgo * HOUR);
     }
+    const coal = sites[1];
+    if (coal === undefined) return sites.length;
+    /** Le camion de l'avant-poste part en tournée avec une récolte à bord : « ce qui arrive ». */
+    for (const troop of await ctx.db
+      .query('troops')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect())
+      if (
+        troop.role === 'landTransport' &&
+        ctx.db.normalizeId('outposts', troop.stationedAt as string) !== null
+      )
+        await ctx.db.patch(troop._id, {
+          harvest: { food: 0, steel: 40, coal: 120, oil: 0, ammunition: 0 },
+        });
+    const none = { food: 0, steel: 0, coal: 0, oil: 0, ammunition: 0 };
+    const told = await ctx.db
+      .query('notices')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    if (!told.some((notice) => notice.kind === 'harvestCommissioned'))
+      await ctx.db.insert('notices', { playerId, at: now - 4 * HOUR, kind: 'harvestCommissioned' });
+    await ctx.db.insert('notices', {
+      playerId,
+      at: now - 3 * HOUR,
+      kind: 'harvestReturned',
+      delivered: { ...none, coal: 200 },
+      kept: { ...none, steel: 40 },
+      skipped: 1,
+    });
+    await ctx.db.insert('notices', {
+      playerId,
+      at: now - 2 * HOUR,
+      kind: 'tourCrawling',
+      role: 'landTransport',
+    });
+    await ctx.db.insert('notices', {
+      playerId,
+      at: now - HOUR,
+      kind: 'sitePlundered',
+      building: coal.key,
+      regionId: coal.regionId,
+      taken: { ...none, coal: 170 },
+      storageLost: none,
+    });
+    if (looterId !== undefined)
+      await ctx.db.insert('notices', {
+        playerId: looterId,
+        at: now - HOUR,
+        kind: 'lootTaken',
+        building: coal.key,
+        regionId: coal.regionId,
+        loot: { ...none, coal: 170 },
+      });
     return sites.length;
   },
 });
