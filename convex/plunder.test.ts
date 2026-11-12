@@ -1067,7 +1067,8 @@ describe('a raid on an exploitation carries its heap off (ADR 0041 §4)', () => 
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const owner = await playerOf(t, seat);
-    if (blitz) await t.run((ctx) => ctx.db.patch(owner.seasonId, { mode: 'blitz', theatre: 'europe' }));
+    if (blitz)
+      await t.run((ctx) => ctx.db.patch(owner.seasonId, { mode: 'blitz', theatre: 'europe' }));
     await t.run((ctx) =>
       ctx.db.insert('outposts', {
         seasonId: owner.seasonId,
