@@ -483,7 +483,7 @@ export class Pawn {
       figurine.object.rotation.set(sway.pitch, figurine.facesEye ? yaw : this.heading, sway.roll);
       figurine.object.position.y = sway.lift * FIGURINE_SCALE * scale;
       figurine.object.scale.setScalar(scale);
-      if (rolled > 0 && near > 0) figurine.roll?.(rolled);
+      if (rolled > 0) figurine.roll?.(rolled);
       if (this.dust !== null)
         this.dust.object.visible =
           this.lively && this.moving && this.gaits.get(this.medium) === 'rolling';

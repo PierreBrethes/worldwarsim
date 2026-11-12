@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { UnitRole } from '@/domain/ids';
 import { bakedFigurine } from './figurines/figurine';
 import { sceneOfFile } from './gltf-scene.fixture';
-import { rolledAngle, rollersOf, rolls } from './rolling';
+import { bakedRig } from './baking';
+import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
+import { movesOnItsOwn } from './figurines/figurine';
+import { Group } from 'three';
+import { meshesOf } from './gltf-scene.fixture';
+import { rolledAngle, rollersOf, rolls, Wheels } from './rolling';
 
 const FILES = {
   truck: 'src/emblems/figurines/germany/landTransport.glb',
@@ -24,7 +29,7 @@ describe('what a wheel turns by', () => {
 });
 
 describe('the wheels the bake keeps apart', () => {
-  const baked = (url: string, role: UnitRole) => bakedFigurine(sceneOfFile(url), role);
+  const baked = (url: string, role: UnitRole) => bakedFigurine(sceneOfFile(url), role, true);
 
   it('keeps the wheels of a truck, each at its own hub, at the radius of its tyre', () => {
     const wheels = rollersOf(baked(FILES.truck, 'landTransport'), 'landTransport');
@@ -54,6 +59,81 @@ describe('the wheels the bake keeps apart', () => {
     for (const url of [FILES.tank, FILES.bigTank]) {
       expect(rollersOf(baked(url, 'armor'), 'armor')).toHaveLength(0);
       sceneOfFile(url).traverse((node) => expect(rolls(node, 'armor'), node.name).toBe(false));
+    }
+  });
+});
+
+describe('the wheels a figurine turns', () => {
+  const truck = () => bakedFigurine(sceneOfFile(FILES.truck), 'landTransport', true);
+
+  it('turns by the road over the radius at the model scale, whole turn per circumference', () => {
+    const model = truck();
+    const wheels = new Wheels('landTransport');
+    const radius = rollersOf(model, 'landTransport')[0]!.radius;
+    wheels.roll(model, 2 * Math.PI * radius * 2, 2);
+    for (const { part } of rollersOf(model, 'landTransport'))
+      expect(part.rotation.x).toBeCloseTo(2 * Math.PI, 6);
+  });
+
+  it('finds the wheels of the copy that took the model in place, not those of the first', () => {
+    const [first, copy] = [truck(), truck()];
+    const wheels = new Wheels('landTransport');
+    wheels.roll(first, 1, 1);
+    wheels.forget();
+    wheels.roll(copy, 1, 1);
+    for (const { part } of rollersOf(copy, 'landTransport'))
+      expect(part.rotation.x).toBeGreaterThan(0);
+    // Not forgotten, the copy's wheels would have stayed still and the old ones turned twice.
+    for (const { part } of rollersOf(first, 'landTransport'))
+      expect(part.rotation.x).toBeCloseTo(1 / part.position.y, 1);
+  });
+});
+
+/** **What a figurine costs in draw calls**: a mesh per material and per part kept apart. */
+describe('the meshes of a baked figurine', () => {
+  const distinct = (url: string) => {
+    const scene = sceneOfFile(url);
+    // The fixture's materials are alike: told apart by name, as the file's are by their look.
+    for (const mesh of meshesOf(scene)) {
+      const material = mesh.material as unknown as { name: string; roughness: number };
+      material.roughness =
+        [...material.name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 7) / 997;
+    }
+    return scene;
+  };
+  const all = Object.values(FIGURINE_FILES).flatMap((roles) =>
+    Object.entries(roles ?? {}).flatMap(([role, entry]) =>
+      (typeof entry === 'string' ? [entry] : entry).flatMap((url) =>
+        url === null ? [] : [[`${role} ${url}`, role as UnitRole, url] as const],
+      ),
+    ),
+  );
+  const count = (object: Group) => meshesOf(object).length;
+
+  it.each(all)(
+    '%s at rest is drawn in the calls it was before the wheels turned',
+    (_, role, url) => {
+      expect(count(bakedFigurine(distinct(url), role))).toBe(
+        count(bakedRig(distinct(url), movesOnItsOwn)),
+      );
+    },
+  );
+
+  it.each(all.filter(([, role]) => role !== 'landTransport' && role !== 'artillery'))(
+    '%s walking is drawn in the same calls',
+    (_, role, url) => {
+      expect(count(bakedFigurine(distinct(url), role, true))).toBe(
+        count(bakedFigurine(distinct(url), role)),
+      );
+    },
+  );
+
+  it('walks a truck in 6 to 10 more calls, a gun in 3 more', () => {
+    for (const [, role, url] of all.filter(([, r]) => r === 'landTransport' || r === 'artillery')) {
+      const more =
+        count(bakedFigurine(distinct(url), role, true)) - count(bakedFigurine(distinct(url), role));
+      if (role === 'artillery') expect(more).toBe(3);
+      else expect([6, 10]).toContain(more);
     }
   });
 });

@@ -1,5 +1,5 @@
 import { troopSpan } from '@/domain/piece-size';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Group, Vector3 } from 'three';
 import type { Medium } from '@/domain/routing';
 import type { Figurine } from './figurines/figurine';
@@ -348,12 +348,15 @@ describe('the wheels and the screws of a piece on its road', () => {
     expect(total(turned)).toBe(0);
   });
 
-  it('turns the screws of a plane that flies, and stops them once it stands', async () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ['performance'] }));
+  afterEach(() => vi.useRealTimers());
+
+  it('turns the screws of a plane that flies, and stops them once it stands', () => {
     const { go, spun } = rolling('fighter');
     go(0.1, 0.1);
     go(0.2, 0.1);
     expect(total(spun)).toBeGreaterThan(0);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    vi.advanceTimersByTime(300);
     const before = total(spun);
     go(0.2, 0.1);
     go(0.2, 0.1);
@@ -367,5 +370,78 @@ describe('the wheels and the screws of a piece on its road', () => {
     go(0.2, null, true);
     go(0.3, null);
     expect(total(spun)).toBe(before);
+  });
+});
+
+describe('the wheels of my column on its road', () => {
+  const eye = new Vector3(0, 0.05, 0);
+  const column = () => {
+    const turned: number[] = [];
+    const armor: Figurine = {
+      object: new Group(),
+      span: troopSpan('armor'),
+      ready: Promise.resolve(),
+      spin() {},
+      roll: (travelled) => turned.push(travelled),
+    };
+    const pawn = new Pawn('#000', null, null, null, [
+      { figurine: armor, role: 'armor', wear: 'whole', troopId: 't' },
+    ]);
+    const go = (x: number, near = true) => {
+      pawn.place(new Vector3(x, 0, 0), new Vector3(x + 1, 0, 0));
+      pawn.step(0.1);
+      pawn.orient(near ? eye.clone().setX(x) : new Vector3(x, 1e4, 0), 0);
+    };
+    return { go, turned };
+  };
+  beforeEach(() => vi.useFakeTimers({ toFake: ['performance'] }));
+  afterEach(() => vi.useRealTimers());
+
+  it('rolls each piece that walks, and none that stands', () => {
+    const { go, turned } = column();
+    go(0.01);
+    go(0.02);
+    expect(turned.length).toBeGreaterThan(0);
+    const walked = turned.length;
+    vi.advanceTimersByTime(300);
+    go(0.02);
+    expect(turned).toHaveLength(walked);
+  });
+
+  it('rolls nothing of a piece too far to be drawn', () => {
+    const { go, turned } = column();
+    go(0.01, false);
+    go(0.02, false);
+    expect(turned).toHaveLength(0);
+  });
+});
+
+describe('the wheels of a file whose rear has not entered the leg', () => {
+  it('rolls the head that walks, and not the piece still waiting at the leg start', () => {
+    const turned = { head: 0, rear: 0 };
+    const piece = (key: 'head' | 'rear'): Figurine => ({
+      object: new Group(),
+      span: troopSpan('armor'),
+      ready: Promise.resolve(),
+      spin() {},
+      roll: (travelled) => (turned[key] += travelled),
+    });
+    const [head, rear] = [piece('head'), piece('rear')];
+    const pawn = new Pawn('#000', null, null, null, [
+      { figurine: head, role: 'armor', wear: 'whole', troopId: 'a' },
+      { figurine: rear, role: 'armor', wear: 'whole', troopId: 'b' },
+    ]);
+    const leg = {
+      medium: 'land' as const,
+      length: 1,
+      strands: [{ vertices: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)], lengths: [1] }],
+    };
+    for (const x of [0.0004, 0.0005]) {
+      pawn.place(new Vector3(x, 0, 0), new Vector3(x + 0.01, 0, 0), 0, 0, { leg, local: x });
+      pawn.step(0.1);
+      pawn.orient(new Vector3(x, 0.05, 0), 0);
+    }
+    expect(turned.head).toBeGreaterThan(0);
+    expect(turned.rear).toBe(0);
   });
 });

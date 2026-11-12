@@ -17,7 +17,7 @@ import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { bakedRig } from '../baking';
 import { pieceScale } from '../piece-scale';
-import { rolledAngle, rollersOf, rolls, type Roller } from '../rolling';
+import { rolls, Wheels } from '../rolling';
 import { dressedScene } from '../site-kits';
 import { crewOf, hasGun, POSED, squadOf } from './infantry';
 
@@ -230,8 +230,8 @@ export function movesOnItsOwn(node: Object3D): boolean {
  * call each and as many again for the lamp's shadow; his joints keep their names, their pivot
  * and what hangs from them, so `squadOf` poses him and `spin` turns his propellers as before.
  */
-export const bakedFigurine = (scene: Object3D, role: UnitRole): Group =>
-  bakedRig(scene, (node) => movesOnItsOwn(node) || rolls(node, role));
+export const bakedFigurine = (scene: Object3D, role: UnitRole, walking = false): Group =>
+  bakedRig(scene, (node) => movesOnItsOwn(node) || (walking && rolls(node, role)));
 
 /** **How far a gun in battery opens its trails** (#325), each to its own side, in radians: the
  *  storyboard's 0,32. @a-mesurer: its breech, raised to 35°, clears their hinge? */
@@ -279,11 +279,11 @@ export function posedScene(url: string, pose?: RestPose): Promise<Object3D> {
 
 const baked = new Map<string, Promise<Group>>();
 /** Baked once per file and pose, cloned per figurine: the clones share its geometry and materials. */
-function bakedOf(url: string, role: UnitRole, pose?: RestPose): Promise<Group> {
-  const key = pose === undefined ? url : `${url} ${pose}`;
+function bakedOf(url: string, role: UnitRole, walking: boolean, pose?: RestPose): Promise<Group> {
+  const key = `${url} ${pose ?? ''} ${walking ? 'walking' : ''}`;
   let figurine = baked.get(key);
   if (!figurine) {
-    figurine = posedScene(url, pose).then((scene) => bakedFigurine(scene, role));
+    figurine = posedScene(url, pose).then((scene) => bakedFigurine(scene, role, walking));
     baked.set(key, figurine);
   }
   return figurine;
@@ -309,6 +309,9 @@ export function figurineFor(
   marks: ReadonlyArray<UnitTier>,
   /** A lasting state of the model (`REST_POSES`), its own bake; at rest without. */
   pose?: RestPose,
+  /** A piece that walks its road keeps its wheels apart to turn them (#539): a pile at rest
+   *  does not, and is drawn in as few calls as before. */
+  walking = false,
 ): Figurine | null {
   if (nation === null || !isNation(nation) || marks.length === 0) return null;
   const crew = role === 'infantry' ? crewOf(nation, marks) : marks.slice(0, 1);
@@ -326,7 +329,7 @@ export function figurineFor(
   let standing: Object3D | null = null;
   const dressers: Array<(model: Object3D, origin: boolean) => void> = [];
   const spinning: Object3D[] = [];
-  let wheels: Roller[] | null = null;
+  const wheels = new Wheels(role);
   const markers = (root: Object3D): Map<string, Object3D> => {
     const found = new Map<string, Object3D>();
     root.traverse((part) => part.name.startsWith('fx_') && found.set(part.name, part));
@@ -343,7 +346,7 @@ export function figurineFor(
     standing?.removeFromParent();
     standing = copy;
     spinning.length = 0;
-    wheels = null;
+    wheels.forget();
     if (drawn === null) return;
     if (copy === null) model.add(drawn);
     else {
@@ -354,8 +357,8 @@ export function figurineFor(
     }
   };
   const ready = Promise.all([
-    bakedOf(files[0]!, role),
-    ...files.map((file) => bakedOf(file!, role, pose)),
+    bakedOf(files[0]!, role, walking),
+    ...files.map((file) => bakedOf(file!, role, walking, pose)),
   ]).then(
     ([rest, ...scenes]) => {
       const makers = scenes.map((scene, k) => ({
@@ -413,10 +416,7 @@ export function figurineFor(
     roll(travelled) {
       // Before the file lands there is nothing to find, and nothing to remember it by.
       if (drawn === null) return;
-      wheels ??= rollersOf(model, role);
-      // A wheel's radius is the model's own: the file's units at the scale the role brings it to.
-      for (const { part, radius } of wheels)
-        part.rotation.x += rolledAngle(travelled, radius * model.scale.x);
+      wheels.roll(model, travelled, model.scale.x);
     },
   };
 }

@@ -26,7 +26,7 @@ const files = Object.entries(FIGURINE_FILES).flatMap(([nation, roles]) =>
 describe.runIf(files.length > 0)('baked figurines', () => {
   it.each(files)('%s keeps every name the code reads, where it was', (_, role, url) => {
     const scene = sceneOfFile(url);
-    const baked = bakedFigurine(scene, role as UnitRole);
+    const baked = bakedFigurine(scene, role as UnitRole, true);
     baked.updateMatrixWorld(true);
     scene.updateMatrixWorld(true);
 

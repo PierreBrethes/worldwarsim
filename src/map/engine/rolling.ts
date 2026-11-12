@@ -43,3 +43,25 @@ export function rollersOf(root: Object3D, role: UnitRole): Roller[] {
   });
   return found;
 }
+
+/**
+ * **The wheels a figurine turns**, found once on its model and forgotten when a copy takes the
+ * model's place (`standIn`): the copy has wheels of its own. `scale` is the model's, so that
+ * the radius is the one on the board.
+ */
+export class Wheels {
+  private found: Roller[] | null = null;
+
+  constructor(private readonly role: UnitRole) {}
+
+  forget(): void {
+    this.found = null;
+  }
+
+  /** Rolls each wheel of `model` by `travelled`, the road walked in the object's units. */
+  roll(model: Object3D, travelled: number, scale: number): void {
+    this.found ??= rollersOf(model, this.role);
+    for (const { part, radius } of this.found)
+      part.rotation.x += rolledAngle(travelled, radius * scale);
+  }
+}
