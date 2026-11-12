@@ -7,11 +7,14 @@ import {
   addLoads,
   deliverRefusalOf,
   emptyLoad,
+  loadCapacityOf,
   loadTotal,
   missingOf,
   tourRefusalOf,
   visitPlan,
+  type SupplyLoad,
 } from '../src/domain/logistics';
+import { emptyStocks } from '../src/domain/economy';
 import { isStanding } from '../src/domain/outposts';
 import { isBlitz } from './blitz';
 import { TOUR_ROAD_WAITS, TOUR_RETRY_MINUTES } from './constants';
@@ -65,7 +68,7 @@ export const start = mutation({
       place: at.place,
       busy: await busyOf(ctx, troop),
       load: troop.load,
-      stops,
+      stops: stops.map((id) => ({ kind: 'depot' as const, id })),
       baseOutpostId: 'outpost' in at ? at.outpost._id : null,
     });
     if (refusal !== null) {
@@ -153,6 +156,20 @@ async function stopsOf(ctx: MutationCtx, troop: Doc<'troops'>, tour: Tour, now: 
   return stops;
 }
 
+/** **Le plan d'une tournée de dépôts**, en ids d'avant-poste : ce que la tournée stocke. */
+function depotPlan(
+  troop: Doc<'troops'>,
+  load: SupplyLoad,
+  stops: ReadonlyArray<Doc<'outposts'>>,
+  now: number,
+) {
+  const plan = visitPlan(
+    { load, harvest: emptyStocks(), capacity: loadCapacityOf(troop.role) },
+    stops.map((stop) => ({ kind: 'depot' as const, id: stop._id, ...depotOf(stop, now) })),
+  );
+  return { visit: plan.visit.map((stop) => stop.id), skipped: plan.skipped.map((stop) => stop.id) };
+}
+
 /** L'adresse d'où part le pas suivant, dans la forme qu'une marche prend. */
 async function departureOf(
   ctx: MutationCtx,
@@ -232,10 +249,7 @@ async function atBase(ctx: MutationCtx, troopId: Id<'troops'>, now: number): Pro
   const loaded = addLoads(held, need);
   await ctx.db.patch(troopId, { load: loaded });
 
-  const plan = visitPlan(
-    loaded,
-    stops.map((stop) => ({ id: stop._id, ...depotOf(stop, now) })),
-  );
+  const plan = depotPlan(troop, loaded, stops, now);
   const first = plan.visit[0];
   if (first === undefined)
     return wait(ctx, { ...troop, tour: { ...tour, skipped: [...plan.skipped] } }, now, {
@@ -283,10 +297,7 @@ export async function arriveOnTour(
       continue;
     }
     const ahead = stops.filter((stop) => tour.stops.indexOf(stop._id) >= tour.next);
-    const plan = visitPlan(
-      here.load ?? emptyLoad(),
-      ahead.map((stop) => ({ id: stop._id, ...depotOf(stop, now) })),
-    );
+    const plan = depotPlan(here, here.load ?? emptyLoad(), ahead, now);
     const next = tour.recalled === true ? undefined : plan.visit[0];
     const moved =
       next === undefined

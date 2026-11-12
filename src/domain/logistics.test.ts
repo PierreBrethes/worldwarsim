@@ -13,8 +13,12 @@ import {
   takeAcross,
   missingOf,
   visitPlan,
+  roomAboard,
+  takeFromHeap,
   type SupplyLoad,
+  type TourStop,
 } from './logistics';
+import { emptyStocks } from './economy';
 
 const load = (ammunition = 0, oil = 0, coal = 0): SupplyLoad => ({ ammunition, oil, coal });
 
@@ -170,13 +174,53 @@ describe('the tour', () => {
     expect(missingOf(load(60, 40), load(10, 40))).toEqual(load(50));
   });
 
+  const truck = (held: SupplyLoad, harvest = emptyStocks()) => ({
+    load: held,
+    harvest,
+    capacity: 200,
+  });
+  const depot = (id: string) => ({ kind: 'depot' as const, id });
+  const site = (id: string) => ({ kind: 'site' as const, id });
+
   it('skips a depot that cannot take what is left aboard', () => {
     const stops = [
-      { id: 'a', depot: load(400), capacity: 400 },
-      { id: 'b', depot: load(20), capacity: 400 },
+      { ...depot('a'), depot: load(400), capacity: 400 },
+      { ...depot('b'), depot: load(20), capacity: 400 },
     ];
-    expect(visitPlan(load(60), stops)).toEqual({ visit: ['b'], skipped: ['a'] });
-    expect(visitPlan(load(), stops)).toEqual({ visit: [], skipped: ['a', 'b'] });
+    expect(visitPlan(truck(load(60)), stops)).toEqual({
+      visit: [depot('b')],
+      skipped: [depot('a')],
+    });
+    expect(visitPlan(truck(load()), stops)).toEqual({
+      visit: [],
+      skipped: [depot('a'), depot('b')],
+    });
+  });
+
+  it('skips a site with less than a unit heaped, or when nothing more fits aboard', () => {
+    const stops = [
+      { ...site('dry'), heap: 0.6 },
+      { ...site('mine'), heap: 300 },
+      { ...site('farm'), heap: 50 },
+    ];
+    expect(visitPlan(truck(load()), stops)).toEqual({
+      visit: [site('mine')],
+      skipped: [site('dry'), site('farm')],
+    });
+  });
+
+  it('makes room at a depot for a site further on, in the order traced', () => {
+    const full = truck(load(150), { ...emptyStocks(), steel: 50 });
+    const pickup = { ...site('mine'), heap: 40 };
+    const drop = { ...depot('a'), depot: load(), capacity: 400 };
+    expect(visitPlan(full, [pickup, drop])).toEqual({
+      visit: [depot('a')],
+      skipped: [site('mine')],
+    });
+    expect(visitPlan(full, [drop, pickup])).toEqual({
+      visit: [depot('a'), site('mine')],
+      skipped: [],
+    });
   });
 });
 
@@ -202,8 +246,14 @@ describe('tracing a tour', () => {
     place: { kind: 'building', key: 'warehouse' } as const,
     busy: null,
     load: load(60),
-    stops: ['a', 'b'],
+    stops: [
+      { kind: 'depot', id: 'a' },
+      { kind: 'depot', id: 'b' },
+    ] as ReadonlyArray<TourStop>,
   };
+  const d = (id: string): TourStop => ({ kind: 'depot', id });
+  const s = (id: string): TourStop => ({ kind: 'site', id });
+  const mine = { ours: true, exploitation: true, hasQuay: false };
 
   it('leaves from a loading point, four stops at most, each once', () => {
     expect(tourRefusalOf(base)).toBeNull();
@@ -211,11 +261,14 @@ describe('tracing a tour', () => {
       code: 'TOUR_NOT_AT_LOADING_POINT',
       role: 'landTransport',
     });
-    expect(tourRefusalOf({ ...base, stops: ['a', 'b', 'c', 'd', 'e'] })?.code).toBe(
+    expect(tourRefusalOf({ ...base, stops: ['a', 'b', 'c', 'd', 'e'].map(d) })?.code).toBe(
       'TOUR_TOO_LONG',
     );
     expect(tourRefusalOf({ ...base, stops: [] })?.code).toBe('TOUR_NO_STOP');
-    expect(tourRefusalOf({ ...base, stops: ['a', 'a'] })?.code).toBe('TOUR_STOP_TWICE');
+    expect(tourRefusalOf({ ...base, stops: [d('a'), d('a')] })?.code).toBe('TOUR_STOP_TWICE');
+    expect(
+      tourRefusalOf({ ...base, stops: [d('a'), s('a')], sites: new Map([['a', mine]]) }),
+    ).toBeNull();
     expect(
       tourRefusalOf({ ...base, place: { kind: 'outpost', level: 1 }, baseOutpostId: 'a' })?.code,
     ).toBe('TOUR_STOP_TWICE');
@@ -224,6 +277,40 @@ describe('tracing a tour', () => {
   it('needs a standing order to reload, and an idle transport', () => {
     expect(tourRefusalOf({ ...base, load: load() })?.code).toBe('NOTHING_TO_DELIVER');
     expect(tourRefusalOf({ ...base, busy: 'touring' })?.code).toBe('TRANSPORT_ON_TOUR');
+  });
+
+  it('picks up at its own exploitations, empty-handed or not', () => {
+    const pickup = { ...base, load: load(), stops: [s('m')], sites: new Map([['m', mine]]) };
+    expect(tourRefusalOf(pickup)).toBeNull();
+    expect(tourRefusalOf({ ...pickup, stops: [s('m'), s('m')] })?.code).toBe('TOUR_STOP_TWICE');
+    expect(
+      tourRefusalOf({ ...pickup, sites: new Map([['m', { ...mine, ours: false }]]) })?.code,
+    ).toBe('TOUR_PICKUP_NOT_OURS');
+    expect(tourRefusalOf({ ...pickup, sites: new Map() })?.code).toBe('TOUR_PICKUP_NOT_OURS');
+    expect(
+      tourRefusalOf({ ...pickup, sites: new Map([['m', { ...mine, exploitation: false }]]) })?.code,
+    ).toBe('TOUR_PICKUP_NOT_A_SITE');
+  });
+
+  it('sends a cargo only to a site whose region has a quay; a plane, anywhere', () => {
+    const atSea = {
+      ...base,
+      role: 'cargo' as const,
+      place: { kind: 'building', key: 'port' } as const,
+      stops: [s('m')],
+      sites: new Map([['m', mine]]),
+    };
+    expect(tourRefusalOf(atSea)?.code).toBe('TOUR_PICKUP_NO_QUAY');
+    expect(
+      tourRefusalOf({ ...atSea, sites: new Map([['m', { ...mine, hasQuay: true }]]) }),
+    ).toBeNull();
+    expect(
+      tourRefusalOf({
+        ...atSea,
+        role: 'airTransport',
+        place: { kind: 'building', key: 'airfield' },
+      }),
+    ).toBeNull();
   });
 
   it('takes no other order while it tours', () => {
@@ -320,5 +407,33 @@ describe('dropping a packet by air', () => {
 
   it('keeps the rest aboard, taking from each plane in turn', () => {
     expect(takeAcross([load(30, 5), load(30, 5)], load(40, 10))).toEqual([load(0, 0), load(20, 0)]);
+  });
+});
+
+describe('the harvest aboard (ADR 0041 §2)', () => {
+  it('shares one capacity between supplies and harvest', () => {
+    expect(roomAboard(200, load(50), { ...emptyStocks(), steel: 30, food: 20 })).toBe(100);
+    expect(roomAboard(200, undefined, undefined)).toBe(200);
+  });
+
+  it('loads supplies only in the room the harvest leaves', () => {
+    expect(
+      loadRefusalOf({
+        role: 'landTransport',
+        place: { kind: 'building', key: 'hq' },
+        busy: null,
+        held: load(),
+        harvest: { ...emptyStocks(), steel: 180 },
+        resource: 'ammunition',
+        amount: 50,
+        store: 500,
+      }),
+    ).toEqual({ code: 'LOAD_FULL', room: 20, capacity: 200 });
+  });
+
+  it('takes whole units from a heap and leaves the fraction', () => {
+    expect(takeFromHeap(40.7, 100)).toEqual({ taken: 40, left: 40.7 - 40 });
+    expect(takeFromHeap(300, 120)).toEqual({ taken: 120, left: 180 });
+    expect(takeFromHeap(0.9, 100)).toEqual({ taken: 0, left: 0.9 });
   });
 });

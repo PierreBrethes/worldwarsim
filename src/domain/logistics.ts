@@ -1,5 +1,5 @@
 import { AIR_STOP_LEVEL, LOAD_CAPACITY_BY_ROLE, TOUR_MAX_STOPS } from '../../convex/constants';
-import type { BuildingKey, ResourceKey, UnitRole } from './ids';
+import { RESOURCES, type BuildingKey, type ResourceKey, type UnitRole } from './ids';
 import type { Asset } from './nation-assets';
 import { topUp, type Carrying, type Supplies, type SupplyStocks } from './supplies';
 import { carrierIn, type Seated } from './troops';
@@ -19,6 +19,33 @@ export const loadTotal = (load: SupplyLoad | undefined): number =>
   load === undefined ? 0 : load.ammunition + load.oil + load.coal;
 
 export const loadCapacityOf = (role: UnitRole): number => LOAD_CAPACITY_BY_ROLE[role];
+
+/**
+ * **La récolte à bord** (ADR 0041 §2) : ce qu'un transport a pris aux tas, cinq ressources, à
+ * part de sa charge (`load`, trois clés). Les deux partagent une seule capacité ; un dépôt, un
+ * largage ou une caisse ne lisent que la charge.
+ */
+export type HarvestLoad = Readonly<Record<ResourceKey, number>>;
+
+const harvestTotal = (harvest: HarvestLoad | undefined): number =>
+  harvest === undefined ? 0 : RESOURCES.reduce((sum, key) => sum + harvest[key], 0);
+
+/** **La place à bord** : la capacité, moins la charge, moins la récolte. */
+export const roomAboard = (
+  capacity: number,
+  load: SupplyLoad | undefined,
+  harvest: HarvestLoad | undefined,
+): number => capacity - loadTotal(load) - harvestTotal(harvest);
+
+/** **Prendre au tas** (ADR 0041 §2) : des unités entières dans la place à bord ; la fraction
+ *  reste au tas. */
+export function takeFromHeap(
+  heap: number,
+  room: number,
+): { readonly taken: number; readonly left: number } {
+  const taken = Math.max(0, Math.floor(Math.min(heap, room)));
+  return { taken, left: heap - taken };
+}
 
 /**
  * **Les transports hors bord d'une colonne** : ceux qui portent une charge et ne sont pas à bord
@@ -103,6 +130,7 @@ export function loadRefusalOf({
   place,
   busy,
   held,
+  harvest,
   resource,
   amount,
   store,
@@ -111,6 +139,7 @@ export function loadRefusalOf({
   readonly place: LoadingPlace;
   readonly busy: Busy;
   readonly held: SupplyLoad;
+  readonly harvest?: HarvestLoad | undefined;
   readonly resource: ResourceKey;
   readonly amount: number;
   readonly store: number;
@@ -123,7 +152,7 @@ export function loadRefusalOf({
   if (idle !== null) return idle;
   const here = loadsHere(role, place);
   if (here !== null) return here;
-  const room = capacity - loadTotal(held);
+  const room = roomAboard(capacity, held, harvest);
   if (amount > room) return { code: 'LOAD_FULL', room, capacity };
   if (amount > store)
     return { code: 'INSUFFICIENT_RESOURCE', resource, needed: amount, available: store };
@@ -249,21 +278,56 @@ export const missingOf = (consigne: SupplyLoad, held: SupplyLoad): SupplyLoad =>
   coal: Math.max(0, consigne.coal - held.coal),
 });
 
+/**
+ * **Un arrêt de tournée** (ADR 0041 §2) : un dépôt d'avant-poste, qui reçoit de la charge, ou une
+ * exploitation, où le transport prend le tas. L'ordre est celui que le joueur a tracé.
+ */
+export type TourStop<D extends string = string, S extends string = string> =
+  { readonly kind: 'depot'; readonly id: D } | { readonly kind: 'site'; readonly id: S };
+
+/** Un arrêt tel que le plan le lit : la place d'un dépôt, ou ce qu'un tas tient. */
+export type PlannedStop<D extends string, S extends string> =
+  | {
+      readonly kind: 'depot';
+      readonly id: D;
+      readonly depot: SupplyLoad;
+      readonly capacity: number;
+    }
+  | { readonly kind: 'site'; readonly id: S; readonly heap: number };
+
 /** **Les arrêts qu'un tour visite vraiment** : un dépôt qui ne prendrait rien de ce qui reste à
- *  bord est sauté. */
-export function visitPlan<T extends string>(
-  load: SupplyLoad,
-  stops: ReadonlyArray<{ readonly id: T; readonly depot: SupplyLoad; readonly capacity: number }>,
-): { readonly visit: ReadonlyArray<T>; readonly skipped: ReadonlyArray<T> } {
-  let left = load;
-  const visit: Array<T> = [];
-  const skipped: Array<T> = [];
+ *  bord est sauté, comme un tas de moins d'une unité ou un site quand plus rien ne tient à bord. */
+export function visitPlan<D extends string, S extends string = never>(
+  aboard: {
+    readonly load: SupplyLoad;
+    readonly harvest: HarvestLoad;
+    readonly capacity: number;
+  },
+  stops: ReadonlyArray<PlannedStop<D, S>>,
+): {
+  readonly visit: ReadonlyArray<TourStop<D, S>>;
+  readonly skipped: ReadonlyArray<TourStop<D, S>>;
+} {
+  let left = aboard.load;
+  let harvested = harvestTotal(aboard.harvest);
+  const visit: Array<TourStop<D, S>> = [];
+  const skipped: Array<TourStop<D, S>> = [];
   for (const stop of stops) {
-    const { moved, kept } = deliveryOf(left, stop.depot, stop.capacity);
-    if (loadTotal(moved) === 0) skipped.push(stop.id);
+    const tourStop = { kind: stop.kind, id: stop.id } as TourStop<D, S>;
+    if (stop.kind === 'depot') {
+      const { moved, kept } = deliveryOf(left, stop.depot, stop.capacity);
+      if (loadTotal(moved) === 0) skipped.push(tourStop);
+      else {
+        visit.push(tourStop);
+        left = kept;
+      }
+      continue;
+    }
+    const { taken } = takeFromHeap(stop.heap, aboard.capacity - loadTotal(left) - harvested);
+    if (taken === 0) skipped.push(tourStop);
     else {
-      visit.push(stop.id);
-      left = kept;
+      visit.push(tourStop);
+      harvested += taken;
     }
   }
   return { visit, skipped };
@@ -301,12 +365,33 @@ export type TourRefusal =
   | { readonly code: 'TOUR_NO_STOP' }
   | { readonly code: 'TOUR_TOO_LONG'; readonly maximum: number }
   | { readonly code: 'TOUR_STOP_TWICE' }
+  | { readonly code: 'TOUR_PICKUP_NOT_OURS' }
+  | { readonly code: 'TOUR_PICKUP_NOT_A_SITE' }
+  | { readonly code: 'TOUR_PICKUP_NO_QUAY' }
   | { readonly code: 'NOTHING_TO_DELIVER' };
 
+/** **Ce que l'appelant sait d'une exploitation visée** : à soi, une exploitation, et un quai dans
+ *  sa région (`quayOfRegion(…) !== null`). Un site inconnu se lit comme pas à soi. */
+export type PickupFacts = {
+  readonly ours: boolean;
+  readonly exploitation: boolean;
+  readonly hasQuay: boolean;
+};
+
+/** **Ramasser à ce site ?** Le camion ramasse partout sur sa route (une route refusée est une
+ *  attente du serveur), l'avion partout sans escale, le cargo là où la région a un quai. */
+const pickupRefusalOf = (role: UnitRole, facts: PickupFacts | undefined) => {
+  if (facts === undefined || !facts.ours) return { code: 'TOUR_PICKUP_NOT_OURS' } as const;
+  if (!facts.exploitation) return { code: 'TOUR_PICKUP_NOT_A_SITE' } as const;
+  if (role === 'cargo' && !facts.hasQuay) return { code: 'TOUR_PICKUP_NO_QUAY' } as const;
+  return null;
+};
+
 /**
- * **Une tournée** (ADR 0028, précision du 18/10) : elle part de son point de chargement et y
- * revient, quatre dépôts au plus, chacun une fois, et ce qu'elle porte devient sa consigne.
- * Chaque arrêt se lit en plus par `deliverRefusalOf(…, true)`.
+ * **Une tournée** (ADR 0028, précision du 18/10 ; ADR 0041 §2) : elle part de son point de
+ * chargement et y revient, quatre arrêts au plus, chacun une fois, et ce qu'elle porte devient sa
+ * consigne. Un dépôt donne, un site prend. Chaque dépôt se lit en plus par
+ * `deliverRefusalOf(…, true)` ; chaque site, par les `sites` que l'appelant a lus.
  */
 export function tourRefusalOf({
   role,
@@ -314,13 +399,15 @@ export function tourRefusalOf({
   busy,
   load,
   stops,
+  sites = new Map(),
   baseOutpostId = null,
 }: {
   readonly role: UnitRole;
   readonly place: LoadingPlace;
   readonly busy: Busy;
   readonly load: SupplyLoad | undefined;
-  readonly stops: ReadonlyArray<string>;
+  readonly stops: ReadonlyArray<TourStop>;
+  readonly sites?: ReadonlyMap<string, PickupFacts>;
   readonly baseOutpostId?: string | null;
 }): TourRefusal | null {
   if (loadCapacityOf(role) === 0) return { code: 'NOT_A_TRANSPORT' };
@@ -331,12 +418,19 @@ export function tourRefusalOf({
   if (here !== null) return here;
   if (stops.length === 0) return { code: 'TOUR_NO_STOP' };
   if (stops.length > TOUR_MAX_STOPS) return { code: 'TOUR_TOO_LONG', maximum: TOUR_MAX_STOPS };
+  const keys = stops.map((stop) => `${stop.kind}:${stop.id}`);
   if (
-    new Set(stops).size !== stops.length ||
-    (baseOutpostId !== null && stops.includes(baseOutpostId))
+    new Set(keys).size !== keys.length ||
+    (baseOutpostId !== null && keys.includes(`depot:${baseOutpostId}`))
   )
     return { code: 'TOUR_STOP_TWICE' };
-  if (loadTotal(load) === 0) return { code: 'NOTHING_TO_DELIVER' };
+  for (const stop of stops) {
+    if (stop.kind !== 'site') continue;
+    const refused = pickupRefusalOf(role, sites.get(stop.id));
+    if (refused !== null) return refused;
+  }
+  if (loadTotal(load) === 0 && !stops.some((stop) => stop.kind === 'site'))
+    return { code: 'NOTHING_TO_DELIVER' };
   return null;
 }
 

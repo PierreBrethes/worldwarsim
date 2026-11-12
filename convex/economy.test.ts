@@ -333,22 +333,29 @@ describe('what the industry window reads', () => {
     const view = await t.query(api.view.playerView, seat);
     expect(view.me.extraction).toEqual([
       {
+        buildingId: expect.any(String),
         key: 'farm',
         regionId: MARNE,
         level: 1,
         deposit: 'food',
         perHour: EXTRACTION_PER_HOUR.food,
+        // Sans marque de fondation (#549), tout s'entasse (ADR 0041).
+        nationalPerHour: 0,
+        heapPerHour: EXTRACTION_PER_HOUR.food,
         linked: true,
         share: 1,
       },
       // Le sol national est toujours relié (ADR 0020 §6) : ce zéro-là est celui du gisement
       // absent, et le site le dit à côté — muet n'est pas coupé.
       {
+        buildingId: expect.any(String),
         key: 'mine',
         regionId: ARDENNES,
         level: 1,
         deposit: null,
         perHour: 0,
+        nationalPerHour: 0,
+        heapPerHour: 0,
         linked: true,
         share: 1,
       },

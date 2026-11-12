@@ -1,4 +1,4 @@
-import { NARVIK_UNLINKED_SHARE } from '../../convex/constants';
+import { EXTRACTION_PER_HOUR, HEAP_CAP_HOURS, NARVIK_UNLINKED_SHARE } from '../../convex/constants';
 import {
   canonicalBuildingKey,
   RESOURCES,
@@ -8,6 +8,7 @@ import {
   type ResourceKey,
 } from './ids';
 import { distanceKm, type LonLat } from './geo';
+import type { SeasonMode } from './season-mode';
 
 export type Stocks = Readonly<Record<ResourceKey, number>>;
 
@@ -318,6 +319,68 @@ export const isLinked = (
  */
 export const outputShareOf = (linked: boolean, holdsNarvik: boolean): number =>
   linked ? 1 : holdsNarvik ? NARVIK_UNLINKED_SHARE : 0;
+
+/**
+ * **Une exploitation, comme la récolte la partage** (ADR 0041). `deposit` est ce qu'elle tire du
+ * sol, `null` si elle n'en tire rien (rien d'exploitable sous elle, ou désactivée) ; `share`,
+ * `outputShareOf` ; `foundation`, la marque d'une pose de fondation offerte.
+ */
+export type HarvestSite = {
+  readonly deposit: DepositKey | null;
+  readonly level: number;
+  readonly share: number;
+  readonly foundation: boolean;
+};
+
+/** Les niveaux dont la production s'entasse : tous, sauf le premier d'une fondation (§3). */
+const heapedLevels = ({ level, foundation }: Pick<HarvestSite, 'level' | 'foundation'>): number =>
+  foundation ? Math.max(0, level - 1) : level;
+
+/**
+ * **Où va le débit d'une exploitation** (ADR 0041 §1, §3) : au tas, sauf le niveau 1 d'une
+ * fondation, qui verse seul au stock national. En Blitz, tout au national, comme avant.
+ */
+export function outputSplitOf(
+  site: HarvestSite,
+  mode: SeasonMode,
+): { readonly national: number; readonly heap: number } {
+  if (site.deposit === null) return { national: 0, heap: 0 };
+  const perLevel = EXTRACTION_PER_HOUR[site.deposit] * site.share;
+  if (mode === 'blitz') return { national: perLevel * site.level, heap: 0 };
+  return {
+    national: site.foundation ? perLevel : 0,
+    heap: perLevel * heapedLevels(site),
+  };
+}
+
+/** **Le plafond du tas** (ADR 0041 §1) : un jour du débit de ses niveaux, **sans la part** —
+ *  une part qui tombe ne vide jamais un tas. */
+export const heapCapOf = (site: HarvestSite): number =>
+  site.deposit === null
+    ? 0
+    : HEAP_CAP_HOURS * EXTRACTION_PER_HOUR[site.deposit] * heapedLevels(site);
+
+/**
+ * **Le tas à `now`**, intégré sur un débit constant depuis son règlement : l'appelant le règle à
+ * chaque changement de débit. Au-dessus du plafond, il ne perd rien ; il cesse de monter.
+ */
+export function heapAt(
+  {
+    heap,
+    settledAt,
+    heapPerHour,
+    cap,
+  }: {
+    readonly heap: number;
+    readonly settledAt: number;
+    readonly heapPerHour: number;
+    readonly cap: number;
+  },
+  now: number,
+): number {
+  const grown = heap + (heapPerHour * Math.max(0, now - settledAt)) / 3_600_000;
+  return Math.max(heap, Math.min(cap, grown));
+}
 
 export const emptyStocks = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;

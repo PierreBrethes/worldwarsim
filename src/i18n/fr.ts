@@ -960,9 +960,14 @@ export const fr = {
             : 'le camion au QG ou à un entrepôt'
       }, ou au dépôt d’un avant-poste`,
     TOUR_NO_STOP: () =>
-      'une tournée passe par un dépôt au moins : lâchez le transport sur un de vos avant-postes',
+      'une tournée passe par un arrêt au moins : lâchez le transport sur un de vos avant-postes ou une de vos exploitations',
     TOUR_TOO_LONG: (d) => `une tournée compte ${num(d.maximum)} arrêts au plus`,
-    TOUR_STOP_TWICE: () => 'ce dépôt est déjà un arrêt de la tournée',
+    TOUR_STOP_TWICE: () => 'ce point est déjà un arrêt de la tournée',
+    TOUR_PICKUP_NOT_OURS: () => 'on ne ramasse qu’à ses propres exploitations',
+    TOUR_PICKUP_NOT_A_SITE: () =>
+      'seule une exploitation a un tas à ramasser : ferme, mine ou puits',
+    TOUR_PICKUP_NO_QUAY: () =>
+      'aucun quai dans la région de cette exploitation : un cargo n’y accoste pas, envoyez un camion ou un avion',
     NOT_ON_TOUR: () => 'ce transport n’est pas en tournée',
     /** **La ronde** (ADR 0037 §10, #376). */
     PATROL_ONE_TROOP: () => 'une ronde se fait à une seule troupe : n’en tenez qu’une',

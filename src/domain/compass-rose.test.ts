@@ -467,7 +467,7 @@ describe('in aim', () => {
     it('adds stops while tracing, never the same twice', () => {
       const traced = traceCompass(target, atHq(0), { carrierId: 'T1', stops: ['AP-01'] });
       expect(traced.actions).toEqual([]);
-      expect(traced.refusal).toBe('ce dépôt est déjà un arrêt de la tournée');
+      expect(traced.refusal).toBe('ce point est déjà un arrêt de la tournée');
     });
   });
 

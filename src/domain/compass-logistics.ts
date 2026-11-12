@@ -162,7 +162,7 @@ const tourRefusalOfView = (view: PlayerView, carrier: TroopView, stops: Readonly
     place: loadingPlaceOf(view, carrier),
     busy: carrier.tour === undefined ? null : 'touring',
     load: carrier.load,
-    stops,
+    stops: stops.map((id) => ({ kind: 'depot' as const, id })),
     baseOutpostId: carrier.stationedAt.kind === 'outpost' ? carrier.stationedAt.outpostId : null,
   });
 

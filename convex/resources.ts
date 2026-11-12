@@ -16,6 +16,7 @@ import {
   exploits,
   isLinked,
   outputShareOf,
+  outputSplitOf,
   produces,
   settleStocks,
   shortfallOf,
@@ -37,6 +38,7 @@ import {
 import { fail } from './errors';
 import { cancelJob, isPending } from './scheduledJobs';
 import { heldOver } from './holding';
+import { modeOf, type SeasonMode } from '../src/domain/season-mode';
 import { holdsPoint } from './strategicPoints';
 import { pointOfBuilding, regionFacts } from './regions';
 import { depositAt } from '../src/domain/world';
@@ -61,11 +63,17 @@ export async function resourceRows(
  * which is a mistake a player must be able to see. A mute building is not an absent one.
  */
 export type ExtractionSite = {
+  readonly buildingId: Id<'buildings'>;
   readonly key: BuildingKey;
   readonly regionId: string;
   readonly level: number;
   readonly deposit: DepositKey | null;
+  /** Tout ce qu'elle sort du sol, tas et national (ADR 0041) : ce que la vue et l'industrie lisent. */
   readonly perHour: number;
+  /** Ce qui entre seul au stock national : le niveau 1 d'une fondation, tout en Blitz. */
+  readonly nationalPerHour: number;
+  /** Ce qui s'entasse au pied du bâtiment (`outputSplitOf`). */
+  readonly heapPerHour: number;
   /**
    * **Sa région porte-t-elle encore sa couleur** (ADR 0020 §6). Servi à côté du débit plutôt que
    * déduit d'un zéro : une mine posée sur du pétrole rend zéro elle aussi, et les deux se
@@ -87,6 +95,7 @@ export function extractionSites(
   held: ReadonlyMap<string, string>,
   ownerId: string,
   holdsNarvik: boolean,
+  mode: SeasonMode,
 ): ReadonlyArray<ExtractionSite> {
   return buildings
     .filter((building) => EXPLOITED_DEPOSITS[building.key] !== undefined)
@@ -96,12 +105,20 @@ export function extractionSites(
       const yielding = deposit !== null && exploits(building.key, deposit);
       const linked = isLinked(building, held, ownerId);
       const share = outputShareOf(linked, holdsNarvik);
+      // ponytail: no foundation mark yet (#549 lays it): every site reads as gathered.
+      const split = outputSplitOf(
+        { deposit: yielding ? deposit : null, level: building.level, share, foundation: false },
+        mode,
+      );
       return {
+        buildingId: building._id,
         key: building.key,
         regionId: building.regionId,
         level: building.level,
         deposit,
         perHour: yielding ? EXTRACTION_PER_HOUR[deposit] * building.level * share : 0,
+        nationalPerHour: split.national,
+        heapPerHour: split.heap,
         linked,
         share,
       };
@@ -122,9 +139,11 @@ export function extractionRates(
   held: ReadonlyMap<string, string>,
   ownerId: string,
   holdsNarvik: boolean,
+  mode: SeasonMode,
 ): Record<ResourceKey, number> {
   const rates = emptyStocks();
-  for (const site of extractionSites(buildings, held, ownerId, holdsNarvik)) {
+  // Still the total until #545 moves the heaped share off the national rate.
+  for (const site of extractionSites(buildings, held, ownerId, holdsNarvik, mode)) {
     if (site.deposit !== null) rates[YIELD_OF[site.deposit]] += site.perHour;
   }
   return rates;
@@ -285,6 +304,7 @@ export async function economyOf(
   /** **Narvik** (ADR 0032) : ses exploitations coupées produisent un quart, au lieu de rien. */
   const holdsNarvik =
     read?.holdsNarvik ?? (player !== null && (await holdsPoint(ctx, player, 'narvik')));
+  const mode = modeOf(player === null ? undefined : (await ctx.db.get(player.seasonId))?.mode);
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -308,7 +328,7 @@ export async function economyOf(
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
   const upkeep = await upkeepOf(ctx, playerId, now, read);
-  const ratePerHour = extractionRates(active, held, playerId, holdsNarvik);
+  const ratePerHour = extractionRates(active, held, playerId, holdsNarvik, mode);
   /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
    *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */
   ratePerHour.food -= upkeep.foodPerHour + upkeep.outpostFoodPerHour;
@@ -377,7 +397,7 @@ export async function economyOf(
     unlinked: active.filter(
       (building) => produces(building.key) && !isLinked(building, held, playerId),
     ),
-    extraction: extractionSites(active, held, playerId, holdsNarvik),
+    extraction: extractionSites(active, held, playerId, holdsNarvik, mode),
   };
 }
 

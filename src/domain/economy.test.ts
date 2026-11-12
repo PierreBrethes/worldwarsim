@@ -7,6 +7,9 @@ import {
   emptyStocks,
   isLinked,
   outputShareOf,
+  outputSplitOf,
+  heapCapOf,
+  heapAt,
   produces,
   shortfallOf,
   settleStocks,
@@ -526,5 +529,52 @@ describe('the synthetic oil line', () => {
     expect(report.made).toBe(0);
     expect(stocks.coal).toBe(100);
     expect(report.state).toBe('overflowing');
+  });
+});
+
+describe('the harvest heap (ADR 0041)', () => {
+  const site = { deposit: 'iron' as const, level: 3, share: 1, foundation: false };
+
+  it('heaps the whole yield of a gathered site, and none of it nationally', () => {
+    expect(outputSplitOf(site, 'mondiale')).toEqual({ national: 0, heap: 24 });
+  });
+
+  it('lets a foundation site deliver a level 1 rate on its own and heaps the rest', () => {
+    expect(outputSplitOf({ ...site, foundation: true }, 'mondiale')).toEqual({
+      national: 8,
+      heap: 16,
+    });
+    expect(outputSplitOf({ ...site, foundation: true, share: 0.25 }, 'mondiale')).toEqual({
+      national: 2,
+      heap: 4,
+    });
+  });
+
+  it('heaps nothing in Blitz: the whole yield goes national', () => {
+    expect(outputSplitOf(site, 'blitz')).toEqual({ national: 24, heap: 0 });
+  });
+
+  it('gives nothing either way from a cut or mute site', () => {
+    expect(outputSplitOf({ ...site, share: 0 }, 'mondiale')).toEqual({ national: 0, heap: 0 });
+    expect(outputSplitOf({ ...site, deposit: null }, 'mondiale')).toEqual({
+      national: 0,
+      heap: 0,
+    });
+  });
+
+  it('caps the heap at a day of its heaped levels, whatever the share', () => {
+    expect(heapCapOf(site)).toBe(24 * 8 * 3);
+    expect(heapCapOf({ ...site, foundation: true })).toBe(24 * 8 * 2);
+    expect(heapCapOf({ ...site, share: 0 })).toBe(24 * 8 * 3);
+    expect(heapCapOf({ ...site, deposit: null })).toBe(0);
+  });
+
+  it('grows the heap at its rate until the cap, and never shrinks one above it', () => {
+    const HOUR = 3_600_000;
+    const heap = { heap: 10, settledAt: 0, heapPerHour: 6, cap: 100 };
+    expect(heapAt(heap, 2 * HOUR)).toBe(22);
+    expect(heapAt(heap, 48 * HOUR)).toBe(100);
+    expect(heapAt({ ...heap, heap: 130 }, 5 * HOUR)).toBe(130);
+    expect(heapAt(heap, 0)).toBe(10);
   });
 });

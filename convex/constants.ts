@@ -48,6 +48,13 @@ export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
 };
 
 /**
+ * **Le tas plafonne à un jour de production** (ADR 0041 §1) : 24 h du débit de ses niveaux qui
+ * s'entassent, sans la part.
+ * @a-mesurer l'ADR le pose, aucune partie ne l'a joué
+ */
+export const HEAP_CAP_HOURS = 24;
+
+/**
  * The one chain left (ADR 0028 §1): the arsenal, with two lines to assign. Ammunition casts a
  * round from a coal and a steel, both of which have a direct use of their own; synthetic oil
  * (after its card, `lineLockOf`) turns three coal into one barrel. Reassigning is free: a lot

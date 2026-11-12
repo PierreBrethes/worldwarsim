@@ -198,6 +198,10 @@ export type ErrorCode =
   | 'TOUR_NO_STOP'
   | 'TOUR_TOO_LONG'
   | 'TOUR_STOP_TWICE'
+  /** **L'arrêt de ramassage** (ADR 0041 §2). */
+  | 'TOUR_PICKUP_NOT_OURS'
+  | 'TOUR_PICKUP_NOT_A_SITE'
+  | 'TOUR_PICKUP_NO_QUAY'
   | 'NOT_ON_TOUR'
   /** **La ronde** (ADR 0037 §10, #376). */
   | 'PATROL_ONE_TROOP'
