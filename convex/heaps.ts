@@ -126,21 +126,53 @@ export async function stampHeap(
   amount: number,
   at: number,
 ): Promise<void> {
-  const row = await ctx.db
-    .query('heaps')
-    .withIndex('byBuilding', (q) => q.eq('buildingId', building._id))
-    .unique();
+  await writeHeapRow(ctx, building, playerId, amount, at);
+  /** Le débit change : son plein se recalcule (#555), dans une transaction à part qui lit
+   *  l'événement fini. */
+  await watchHeap(ctx, building._id);
+}
+
+/** La ligne d'un tas, sans rien planifier : `stampHeap` s'en sert, et `heapFull` quand il lui faut
+ *  une ligne où poser son job sans changer ce que le tas lit. Rend l'id de la ligne. */
+export async function writeHeapRow(
+  ctx: MutationCtx,
+  building: Pick<Doc<'buildings'>, '_id' | 'seasonId'>,
+  playerId: Id<'players'>,
+  amount: number,
+  at: number,
+): Promise<Id<'heaps'>> {
+  const row = await heapRowOf(ctx, building._id);
   const next = { playerId, amount, settledAt: at };
   if (row === null)
-    await ctx.db.insert('heaps', {
+    return ctx.db.insert('heaps', {
       buildingId: building._id,
       seasonId: building.seasonId,
       ...next,
     });
-  else await ctx.db.patch(row._id, next);
-  /** Le débit change : son plein se recalcule (#555), dans une transaction à part qui lit l'événement fini. */
-  await watchHeap(ctx, building._id);
+  await ctx.db.patch(row._id, next);
+  return row._id;
 }
+
+export const heapRowOf = (ctx: QueryCtx, buildingId: Id<'buildings'>) =>
+  ctx.db
+    .query('heaps')
+    .withIndex('byBuilding', (q) => q.eq('buildingId', buildingId))
+    .unique();
+
+/** **Une exploitation neuve a son tas vide dès sa pose** : la ligne s'écrit à cet instant, où le
+ *  job du plein s'accroche (#555). */
+export const bearHeap = (ctx: MutationCtx, building: Doc<'buildings'>, at: number) =>
+  stampHeap(ctx, building, building.playerId, 0, at);
+
+/** Ce que `heapFull` retient d'un tas : à qui son plein est dit, et le job qui l'examinera. */
+export const setHeapWatch = (
+  ctx: MutationCtx,
+  rowId: Id<'heaps'>,
+  watch: {
+    fullToldTo?: Id<'players'> | undefined;
+    fullJob?: Id<'_scheduled_functions'> | undefined;
+  },
+) => ctx.db.patch(rowId, watch);
 
 /**
  * **Réécrit les tas dont le débit a changé entre deux lectures**, au montant de la première, à son
@@ -173,10 +205,7 @@ export async function passHeap(
   to: Id<'players'>,
   at: number,
 ): Promise<void> {
-  const row = await ctx.db
-    .query('heaps')
-    .withIndex('byBuilding', (q) => q.eq('buildingId', building._id))
-    .unique();
+  const row = await heapRowOf(ctx, building._id);
   await stampHeap(ctx, building, to, heaps[building._id]?.amount ?? row?.amount ?? 0, at);
 }
 

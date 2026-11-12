@@ -2,7 +2,7 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { dropHeap, passHeap, stampHeap, takeHeap } from './heaps';
+import { bearHeap, dropHeap, passHeap, stampHeap, takeHeap } from './heaps';
 import { economyOf } from './resources';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -68,9 +68,9 @@ async function exploitation(t: Bench, seat: Seat, regionId = MOSELLE, foundation
   );
 }
 
-/** What the building's birth schedules: the constructions call this once the row is written. */
+/** What the building's birth writes: the constructions call this once the row is written. */
 const born = (t: Bench, id: Id<'buildings'>) =>
-  t.mutation(internal.heapFull.check, { buildingId: id });
+  t.run(async (ctx) => bearHeap(ctx, (await ctx.db.get(id))!, Date.now()));
 
 const settleAll = (t: Bench) => t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -183,7 +183,7 @@ describe('the heap-full dispatch', () => {
       await stampHeap(ctx, (await ctx.db.get(mine))!, owner._id, 288, Date.now());
     });
     await settleAll(t);
-    await born(t, mine);
+    await t.mutation(internal.heapFull.check, { buildingId: mine });
     await settleAll(t);
     expect(await noticesOf(t, seat)).toHaveLength(1);
   });
@@ -215,9 +215,11 @@ describe('the heap-full dispatch', () => {
     const { seat } = await launched(t);
     const mine = await exploitation(t, seat, MOSELLE, true);
     await born(t, mine);
-    const jobs = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect());
-    expect(jobs.filter((job) => job.name.includes('heapFull'))).toEqual([]);
     await settleAll(t);
+    const jobs = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect());
+    expect(
+      jobs.filter((job) => job.name.includes('heapFull') && job.scheduledTime > MIDDAY + HOUR),
+    ).toEqual([]);
     expect(await noticesOf(t, seat)).toEqual([]);
   });
 
@@ -227,7 +229,7 @@ describe('the heap-full dispatch', () => {
     const mine = await exploitation(t, seat);
     vi.setSystemTime(MIDDAY + 30 * HOUR);
     expect((await readingOf(t, seat, mine)).fullSince).toBeCloseTo(MIDDAY + 24 * HOUR, 0);
-    await born(t, mine);
+    await t.mutation(internal.heapFull.check, { buildingId: mine });
     expect(await noticesOf(t, seat)).toMatchObject([{ at: MIDDAY + 24 * HOUR }]);
   });
 });
@@ -268,5 +270,97 @@ describe('the commissioning of the heap-full dispatch', () => {
     await t.mutation(internal.dev.commissionHeapFull, {});
     const jobs = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect());
     expect(jobs.filter((job) => job.name.includes('heapFull:commission'))).toHaveLength(2);
+  });
+});
+
+describe('one pending job per heap (#555)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** The jobs waiting for a fill: those of the heap check dated after now, not the ones a write
+   *  has just queued to run at once. */
+  const waiting = (t: Bench) =>
+    t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) =>
+          job.name.includes('heapFull:check') &&
+          job.state.kind === 'pending' &&
+          job.scheduledTime > Date.now() + 500,
+      ),
+    );
+
+  /** Runs only the jobs due now, as the server does between two player gestures. */
+  const runDue = async (t: Bench) => {
+    await t.finishInProgressScheduledFunctions();
+    const due = await t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) =>
+          job.name.includes('heapFull:check') &&
+          job.state.kind === 'pending' &&
+          job.scheduledTime <= Date.now() + 500,
+      ),
+    );
+    for (const job of due) await t.mutation(internal.heapFull.check, job.args[0] as never);
+  };
+
+  it('keeps one job after several writes and a take', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const mine = await exploitation(t, seat);
+    await born(t, mine);
+    for (const hour of [2, 4, 6]) {
+      vi.setSystemTime(MIDDAY + hour * HOUR);
+      await take(t, seat, mine, 5);
+      await runDue(t);
+    }
+    expect(await waiting(t)).toHaveLength(1);
+  });
+
+  it('does not add a job when the commissioning runs twice', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const mine = await exploitation(t, seat);
+    await born(t, mine);
+    vi.setSystemTime(MIDDAY + 3 * HOUR);
+    const player = await playerOf(t, seat);
+    for (let run = 0; run < 2; run += 1)
+      await t.mutation(internal.heapFull.commission, { playerId: player._id });
+    expect(await waiting(t)).toHaveLength(1);
+  });
+
+  it('gives an old exploitation without a row a single job, whatever the commissioning does', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await exploitation(t, seat);
+    vi.setSystemTime(MIDDAY + 3 * HOUR);
+    const player = await playerOf(t, seat);
+    for (let run = 0; run < 2; run += 1)
+      await t.mutation(internal.heapFull.commission, { playerId: player._id });
+    expect(await waiting(t)).toHaveLength(1);
+  });
+
+  it('never reschedules the job dated at the fill when the heap was taken meanwhile', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const mine = await exploitation(t, seat);
+    await born(t, mine);
+    await runDue(t);
+    vi.setSystemTime(MIDDAY + 24 * HOUR + 2_000);
+    // The heap was emptied without the write that would have replanned: the job must not chain.
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query('heaps').first();
+      await ctx.db.patch(row!._id, { amount: 0, settledAt: Date.now() });
+    });
+    const job = (await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect())).find(
+      (one) => one.name.includes('heapFull:check') && one.scheduledTime > MIDDAY + HOUR,
+    )!;
+    await t.mutation(internal.heapFull.check, {
+      ...(job.args[0] as object),
+      due: true,
+    } as never);
+    expect(await waiting(t)).toEqual([]);
   });
 });

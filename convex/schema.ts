@@ -413,6 +413,9 @@ export default defineSchema({
      *  absent tant que le tas n'est pas plein, ou si son propriétaire n'en a rien lu. Écrit et
      *  effacé par `heapFull.check` seul ; une réécriture de la ligne ne le touche pas. */
     fullToldTo: v.optional(v.id('players')),
+    /** Le job en attente qui examinera ce tas à l'heure de son plein (#555) : un seul par tas, annulé
+     *  avant d'en planifier un neuf. Écrit par `heaps.setHeapWatch` seul. */
+    fullJob: v.optional(v.id('_scheduled_functions')),
   })
     .index('byBuilding', ['buildingId'])
     .index('bySeasonPlayer', ['seasonId', 'playerId']),

@@ -5,7 +5,7 @@ import { internalMutation, type MutationCtx } from './_generated/server';
 import { heapFullSince } from '../src/domain/economy';
 import { modeOf } from '../src/domain/season-mode';
 import { economyOf } from './resources';
-import type { HeapReading } from './heaps';
+import { heapRowOf, setHeapWatch, writeHeapRow, type HeapReading } from './heaps';
 
 /**
  * **La dépêche « tas plein »** (#555). Le tas se lit paresseusement : l'instant où il devient plein
@@ -32,37 +32,57 @@ export const watchHeap = (ctx: Pick<MutationCtx, 'scheduler'>, buildingId: Id<'b
  * **Examine un tas à `now`** à partir d'une économie déjà lue : le dit s'il est plein et ne l'a pas
  * été, sinon efface le « déjà dit » d'un tas qui ne l'est plus et planifie son plein. `silent` : la
  * mise en service, qui marque un tas déjà plein comme dit sans l'annoncer.
+ *
+ * **Un job au plus par tas** : son id est sur la ligne, annulé avant d'en planifier un neuf.
+ * `due` : c'est ce job-là qui tourne, à l'heure du plein ; trouvant le tas pas plein, il ne se
+ * replanifie pas, l'écriture qui l'a vidé a déjà planifié le suivant.
  */
 export async function examineHeap(
   ctx: MutationCtx,
   building: Doc<'buildings'>,
   reading: HeapReading,
   now: number,
-  silent: boolean,
+  { silent = false, due = false }: { silent?: boolean; due?: boolean } = {},
 ): Promise<void> {
-  const row = await ctx.db
-    .query('heaps')
-    .withIndex('byBuilding', (q) => q.eq('buildingId', building._id))
-    .unique();
+  const known = await heapRowOf(ctx, building._id);
+  /** Un tas sans ligne se lit vide depuis la pose : la ligne qui le dit, au même montant, porte le job. */
+  const rowId =
+    known?._id ??
+    (await writeHeapRow(
+      ctx,
+      building,
+      building.playerId,
+      reading.fullSince === undefined ? reading.amount : reading.cap,
+      reading.fullSince ?? now,
+    ));
+  const waiting = known?.fullJob;
+  if (waiting !== undefined && !due) await ctx.scheduler.cancel(waiting);
   if (reading.fullSince === undefined) {
-    if (row?.fullToldTo !== undefined) await ctx.db.patch(row._id, { fullToldTo: undefined });
-    if (reading.cap <= 0 || reading.heapPerHour <= 0) return;
-    const settled = {
-      heap: row?.amount ?? 0,
-      settledAt: row?.settledAt ?? building._creationTime,
-      heapPerHour: reading.heapPerHour,
-      cap: reading.cap,
-    };
-    const full = heapFullSince(settled, Infinity)!;
-    await ctx.scheduler.runAt(
-      Math.max(Math.ceil(full) + AFTER_FULL_MS, now + AFTER_FULL_MS),
-      internal.heapFull.check,
-      { buildingId: building._id },
-    );
+    const fullJob =
+      due || reading.cap <= 0 || reading.heapPerHour <= 0
+        ? undefined
+        : await ctx.scheduler.runAt(
+            Math.max(
+              Math.ceil(
+                heapFullSince(
+                  {
+                    heap: known?.amount ?? reading.amount,
+                    settledAt: known?.settledAt ?? now,
+                    heapPerHour: reading.heapPerHour,
+                    cap: reading.cap,
+                  },
+                  Infinity,
+                )!,
+              ) + AFTER_FULL_MS,
+              now + AFTER_FULL_MS,
+            ),
+            internal.heapFull.check,
+            { buildingId: building._id, due: true },
+          );
+    await setHeapWatch(ctx, rowId, { fullToldTo: undefined, fullJob });
     return;
   }
-  if (row?.fullToldTo === building.playerId) return;
-  if (!silent)
+  if (known?.fullToldTo !== building.playerId && !silent)
     await ctx.db.insert('notices', {
       playerId: building.playerId,
       at: Math.round(reading.fullSince),
@@ -73,18 +93,7 @@ export async function examineHeap(
       resource: reading.resource,
       amount: reading.amount,
     });
-  if (row !== null) await ctx.db.patch(row._id, { fullToldTo: building.playerId });
-  /** Pas de ligne : le tas est plein depuis son règlement, que la ligne écrite ici date de
-   *  `fullSince` au plafond, ce qui se lit à tout instant comme le tas sans ligne. */
-  else
-    await ctx.db.insert('heaps', {
-      buildingId: building._id,
-      seasonId: building.seasonId,
-      playerId: building.playerId,
-      amount: reading.cap,
-      settledAt: reading.fullSince,
-      fullToldTo: building.playerId,
-    });
+  await setHeapWatch(ctx, rowId, { fullToldTo: building.playerId, fullJob: undefined });
 }
 
 /** Les exploitations d'une Mondiale en cours seulement : en Blitz il n'y a pas de tas, et une
@@ -97,14 +106,14 @@ async function readingOfBuilding(ctx: MutationCtx, building: Doc<'buildings'>, n
 }
 
 export const check = internalMutation({
-  args: { buildingId: v.id('buildings') },
-  handler: async (ctx, { buildingId }) => {
+  args: { buildingId: v.id('buildings'), due: v.optional(v.boolean()) },
+  handler: async (ctx, { buildingId, due }) => {
     const building = await ctx.db.get(buildingId);
     if (building === null) return;
     const now = Date.now();
     const reading = await readingOfBuilding(ctx, building, now);
     if (reading === null) return;
-    await examineHeap(ctx, building, reading, now, false);
+    await examineHeap(ctx, building, reading, now, { due: due === true });
   },
 });
 
@@ -121,7 +130,7 @@ export const commission = internalMutation({
     const { heaps } = await economyOf(ctx, playerId, now);
     for (const [id, reading] of Object.entries(heaps)) {
       const building = await ctx.db.get(id as Id<'buildings'>);
-      if (building !== null) await examineHeap(ctx, building, reading, now, true);
+      if (building !== null) await examineHeap(ctx, building, reading, now, { silent: true });
     }
   },
 });

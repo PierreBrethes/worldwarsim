@@ -62,8 +62,7 @@ import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seats';
 import { BUILDING_KEY, CHOSEN_SPECIALTY, LON_LAT } from './validators';
 import { reportChange, settleBeforeChange } from './production';
-import { stampHeap } from './heaps';
-import { watchHeap } from './heapFull';
+import { bearHeap, stampHeap } from './heaps';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
@@ -511,7 +510,7 @@ export const finish = internalMutation({
       });
       /** Une exploitation sans ligne lit un tas vide depuis sa pose : son plein se planifie ici. */
       if (EXPLOITED_DEPOSITS[canonicalBuildingKey(construction.building)] !== undefined)
-        await watchHeap(ctx, born);
+        await bearHeap(ctx, (await ctx.db.get(born))!, Date.now());
     }
     await ctx.db.delete(constructionId);
     /** Réglé avant le niveau neuf : une station, un arsenal ou une mine qui monte change ce que
