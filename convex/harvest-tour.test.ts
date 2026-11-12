@@ -1071,4 +1071,42 @@ describe('a dry tour crawls (ADR 0041 §4)', () => {
     expect((await get(t, truck))!.fuel).toBe(0);
     expect((await get(t, truck))!.harvest).toMatchObject({ coal: 200 });
   });
+
+  it('fills a truck at an oil heap before it loads: the oil aboard rises, the heap drops by as much, the harvest fits the room left', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const hq = await building(t, seat, 'hq');
+    const truck = await form(t, seat, 'landTransport', hq);
+    const well = await exploitation(t, seat, MOSELLE, { key: 'oilWell' });
+    vi.setSystemTime(MIDDAY + 24 * HOUR);
+    await setStock(t, seat, 'oil', 0);
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('heaps')
+        .withIndex('byBuilding', (q) => q.eq('buildingId', well))
+        .unique();
+      const settled = { amount: 260, settledAt: Date.now() };
+      if (row) await ctx.db.patch(row._id, settled);
+      else {
+        const player = await seatIn(ctx, seat);
+        await ctx.db.insert('heaps', {
+          buildingId: well,
+          seasonId: player.seasonId,
+          playerId: player._id,
+          ...settled,
+        });
+      }
+      await ctx.db.patch(truck, { fuel: 0 });
+    });
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [site(well)] });
+
+    await arriveNext(t);
+
+    const aboard = (await get(t, truck))!.harvest!.oil;
+    expect((await get(t, truck))!.fuel).toBeGreaterThan(0);
+    // Four steps of ten (it sails home on them: one step is paid) come off the 260 first; the
+    // 220 left overfill the truck, so it carries its 200 and the heap keeps the 20.
+    expect(aboard).toBe(200);
+    expect((await heapRow(t, well))!.amount).toBeCloseTo(20, 0);
+  });
 });
