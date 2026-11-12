@@ -316,9 +316,6 @@ function SheetBody({ sheet }: { sheet: TourSheetState }) {
       <footer className="tour-sheet-foot">
         {!touring && analysis.order !== null && stops.length > 1 && <OrderLine sheet={sheet} />}
         {refusalNote !== null && <div className="tour-refusal">{refusalNote}</div>}
-        <p className="tour-sum-line">
-          {text.sumLine(loop.km, loop.minutes, Math.round(loop.ratePerHour), loop.peak, capacity)}
-        </p>
         <dl className="tour-sum">
           <dt>{text.loopLabel}</dt>
           <dd>{text.loop(loop.km, loop.minutes)}</dd>

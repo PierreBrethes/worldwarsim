@@ -3152,8 +3152,6 @@ export const fr = {
     peakLabel: 'Au plus fort',
     peak: (peak: number, capacity: number) => `${peak} / ${capacity} à bord`,
     bankedLabel: 'Au stock, par boucle',
-    sumLine: (km: number, minutes: number, rate: number, peak: number, capacity: number) =>
-      `${km} km · ${spanText(minutes)} · ${rate} déplacés / h · ${peak} / ${capacity} à bord`,
     orderSame: (km: number) => `Ordre déjà au mieux : ${km} km, rien de perdu.`,
     orderMoves: (after: number, before: number) =>
       `Un autre ordre rapporte plus : ${after} déplacés au lieu de ${before}.`,
