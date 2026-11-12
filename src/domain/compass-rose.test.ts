@@ -1,7 +1,6 @@
 import { theatreById } from './theatres';
 import { describe, expect, it } from 'vitest';
 import { compassOf, type CompassTarget } from './compass-rose';
-import { traceCompass } from './compass-logistics';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, Cost, PlayerView, TroopStation } from './player-view';
 import { fr } from '../i18n/fr';
@@ -436,15 +435,11 @@ describe('in aim', () => {
       } as unknown as PlayerView;
     };
 
-    it('offers to trace a tour from a loading point, even past a full depot', () => {
+    it('no longer offers to trace a tour: the transport sheet does (#551)', () => {
       expect(
         compassOf(target, atHq(0), trucking, null, 0, ['T1'])?.actions.map((action) => action.key),
-      ).toEqual(['deliver', 'tour', 'aim']);
-      expect(
-        compassOf(target, atHq(400), trucking, null, 0, ['T1'])?.actions.map(
-          (action) => action.key,
-        ),
-      ).toEqual(['tour']);
+      ).toEqual(['deliver', 'aim']);
+      expect(compassOf(target, atHq(400), trucking, null, 0, ['T1'])?.actions).toEqual([]);
     });
 
     it('says a transport on tour takes no other order', () => {
@@ -468,12 +463,6 @@ describe('in aim', () => {
       const compass = compassOf(target, touring, trucking, null, 0, ['T1']);
       expect(compass?.actions).toEqual([]);
       expect(compass?.refusal).toBe('ce transport est en tournée : rappelez-le d’abord');
-    });
-
-    it('adds stops while tracing, never the same twice', () => {
-      const traced = traceCompass(target, atHq(0), { carrierId: 'T1', stops: ['AP-01'] });
-      expect(traced.actions).toEqual([]);
-      expect(traced.refusal).toBe('ce point est déjà un arrêt de la tournée');
     });
   });
 
@@ -533,12 +522,6 @@ describe('in aim', () => {
       const compass = compassOf(target, lent('lendLease', rifles), carrying, null, 0, ['T1']);
       expect(compass?.actions.map((action) => action.key)).toContain('capture');
       expect(compass?.refusal).toBe(fr.errors.LEND_LEASE_TRANSPORTS_ONLY());
-    });
-
-    it('never stops a tour there, and says so on the trace', () => {
-      const traced = traceCompass(target, lent('lendLease'), { carrierId: 'T1', stops: [] });
-      expect(traced.actions).toEqual([]);
-      expect(traced.refusal).toBe(fr.compass.traceAbroad);
     });
   });
 

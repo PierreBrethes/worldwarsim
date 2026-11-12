@@ -254,7 +254,6 @@ describe('the deposits markersOf draws', () => {
   const deposits = () =>
     markersOf(view, {
       marching: new Set(),
-      trace: null,
       regionAt: null,
       toggles: { deposits: true, buildings: false } as never,
       calls: null,

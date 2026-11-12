@@ -14,8 +14,6 @@ const DROPPABLE: ReadonlySet<CompassAction['key']> = new Set([
   'collect',
   'deliver',
   'airdrop',
-  'tour',
-  'tourStop',
   'patrol',
   'board',
   'bombard',
@@ -90,8 +88,6 @@ export function chipOf(action: CompassAction, forbidden: Forbidden): DropChip {
     };
   if (action.key === 'airdrop') return { icon: '⇣', tone: 'order', verb: verbs.airdrop };
   if (action.key === 'patrol') return { icon: '⇄', tone: 'order', verb: verbs.patrol };
-  if (action.key === 'tour' || action.key === 'tourStop')
-    return { icon: '↻', tone: 'order', verb: action.key === 'tour' ? verbs.tour : capital };
   if (action.key !== 'aim')
     return {
       icon: HOSTILE.has(action.key) ? '⚔' : '✓',

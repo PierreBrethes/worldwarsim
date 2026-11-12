@@ -249,10 +249,9 @@ export function choiceOf(action: OrderAction): OrderChoice {
             ? { kind: 'march' }
             : { kind: 'march', boardsOn: action.boardsOn },
       };
-    /** Livrer, tourner, larguer : une marche vers le point, lue par le même aperçu ; le largage
+    /** Livrer, larguer : une marche vers le point, lue par le même aperçu ; le largage
      *  paie l'aller-retour, et l'aperçu le dit. */
     case 'deliver':
-    case 'tour':
     case 'airdrop':
       return {
         ...said,

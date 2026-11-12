@@ -490,31 +490,6 @@ export type CompassAction =
       readonly destination: string;
     }
   /**
-   * **Tracer une tournée** (ADR 0028, précision du 18/10) : le premier dépôt d'une boucle qui
-   * part du point de chargement où le transport se tient ; les suivants s'ajoutent (`tourStop`),
-   * et l'étiquette du transport la lance. Rien ne part avant.
-   */
-  | {
-      readonly key: 'tour';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly outpostId: string;
-      readonly carrierId: string;
-      /** La visée de la marche : l'aperçu en tire l'heure et le plein du premier pas. */
-      readonly aim: MovementAim;
-    }
-  | {
-      readonly key: 'tourStop';
-      readonly pictogram: CompassPictogram;
-      readonly label: string;
-      readonly cost: string | null;
-      readonly consequence: string;
-      readonly outpostId: string;
-      readonly carrierId: string;
-    }
-  /**
    * **Tenir la ronde** (ADR 0037 §10, #376) : la troupe en main part sur-le-champ vers l'autre
    * bout de la liaison, et tourne. La règle est `patrolRefusalOf`, celle que `patrols.start` relit.
    */
@@ -546,7 +521,7 @@ export type CompassAction =
  *  téléphone offre en onglets (refonte mobile, 1c). */
 export type OrderAction = Extract<
   CompassAction,
-  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' | 'airdrop' | 'deliver' | 'tour' }
+  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' | 'airdrop' | 'deliver' }
 >;
 
 export const isOrder = (action: CompassAction): action is OrderAction =>
@@ -555,8 +530,7 @@ export const isOrder = (action: CompassAction): action is OrderAction =>
   action.key === 'capture' ||
   action.key === 'collect' ||
   action.key === 'airdrop' ||
-  action.key === 'deliver' ||
-  action.key === 'tour';
+  action.key === 'deliver';
 
 type Fan = {
   /** The tooltip's context line: the target's nature and qualification. */

@@ -1,5 +1,4 @@
 import { pileSupplies } from '@/domain/supplies';
-import type { TourTrace } from '@/domain/cargo-tag';
 import { cargoTagsOf } from '@/domain/cargo-tag';
 import { objectiveArchetype } from '../../../convex/constants';
 import { cardName, fr, nationLabel } from '@/i18n/fr';
@@ -34,7 +33,6 @@ export function markersOf(
   view: PlayerView,
   {
     marching,
-    trace,
     regionAt,
     toggles,
     calls,
@@ -42,7 +40,6 @@ export function markersOf(
     knownRegionById,
   }: {
     marching: ReadonlySet<string>;
-    trace: TourTrace | null;
     regionAt: RegionAt | null;
     toggles: IndicatorToggles;
     /** The deposits a key in hand calls (`usePlacing`): they wake (#239). */
@@ -127,7 +124,7 @@ export function markersOf(
     /** Ses transports en garnison : on y charge depuis son dépôt (ADR 0028 §4). */
     cargo: cargoTagsOf(
       troopsAt(view.me, stationKeyOf({ kind: 'outpost', outpostId: outpost.id }), marching),
-      { afloat: false, atAirfield: false, trace },
+      { afloat: false, atAirfield: false },
     ),
   }));
 
@@ -279,7 +276,6 @@ export function markersOf(
       cargo: cargoTagsOf(held, {
         afloat: false,
         atAirfield: building.key === PROJECTION_BY_DOMAIN.air,
-        trace,
       }),
     };
   };
