@@ -62,7 +62,10 @@ arrêts au plus, comme aujourd'hui (`TOUR_MAX_STOPS`).
   porte quatre fois plus et brûle du charbon.
 - **L'air.** L'avion va chercher les tas d'une enclave ou d'une île sans quai, peu à la fois.
 
-Un transport porte désormais les **cinq ressources** (`SUPPLY_KEYS` gagne vivres et acier).
+Un transport porte désormais les **cinq ressources** : sa récolte voyage à part de son ravitaillement,
+sous la même capacité, et un dépôt d'avant-poste ne reçoit jamais de vivres ni d'acier. **Rien ne se
+perd** : ce que l'entrepôt ne prend pas au retour reste à bord, et la récolte d'un transport qui
+ne rentre pas en tournée se verse à son prochain retour.
 Chaque étape reste un mouvement : un arc sans type, relevable et interceptable (ADR 0021, 0024).
 Un transport détruit laisse une caisse chargée de ce qu'il ramassait.
 
@@ -85,12 +88,12 @@ le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
 
 - **Blitz** : exemptée. La production verse au stock comme aujourd'hui ; les tournées y restent
   refusées.
-- **Pillage** : le raid sur une exploitation emporte son tas (`raidLoots`, `src/domain/loot.ts`,
-  qui n'en donnait rien).
+- **Pillage** : le raid sur une exploitation emporte son tas, sans plancher épargné, dans la
+  place de la colonne (`raidLoots`, `src/domain/loot.ts`, qui n'en donnait rien).
 - **À sec**, un camion ou un cargo en tournée **roule au pas** : deux fois plus lent
   (`@a-mesurer`), sans coût. C'est une pénurie qui casse une règle (ADR 0028 §1), jamais un arrêt.
-  Un avion à sec reste au sol. Un camion qui s'arrête à un puits fait son plein sur le tas avant
-  de charger.
+  Un avion à sec reste au sol. Un transport qui s'arrête à un tas de la ressource de son moteur
+  (pétrole pour le camion et l'avion, charbon pour le cargo) y fait son plein avant de charger.
 - **Atout américain** : la question posée le 11/11 (« vos ravitaillements ne sont jamais relevés »)
   est sans objet. Cet atout de l'ADR 0028 a été remplacé par le Prêt-bail (ADR 0039,
   `src/domain/nation-assets.ts`), qui ne touche pas le ramassage.
