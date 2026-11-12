@@ -968,6 +968,8 @@ export const fr = {
       'seule une exploitation a un tas à ramasser : ferme, mine ou puits',
     TOUR_PICKUP_NO_QUAY: () =>
       'aucun quai dans la région de cette exploitation : un cargo n’y accoste pas, envoyez un camion ou un avion',
+    TOUR_PICKUP_NO_ROUTE: (d) =>
+      `aucune route de ${str(d.from)} à ${str(d.to)} pour ce transport : il n’y ramassera pas`,
     NOT_ON_TOUR: () => 'ce transport n’est pas en tournée',
     /** **La ronde** (ADR 0037 §10, #376). */
     PATROL_ONE_TROOP: () => 'une ronde se fait à une seule troupe : n’en tenez qu’une',

@@ -202,6 +202,7 @@ export type ErrorCode =
   | 'TOUR_PICKUP_NOT_OURS'
   | 'TOUR_PICKUP_NOT_A_SITE'
   | 'TOUR_PICKUP_NO_QUAY'
+  | 'TOUR_PICKUP_NO_ROUTE'
   | 'NOT_ON_TOUR'
   /** **La ronde** (ADR 0037 §10, #376). */
   | 'PATROL_ONE_TROOP'

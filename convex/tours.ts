@@ -288,7 +288,7 @@ function pickupPointOf(role: Doc<'troops'>['role'], building: Doc<'buildings'>):
 }
 
 /** **Un site sans route depuis le point de chargement se refuse au tracé**, non à l'arrivée
- *  (#546) : le camion a une route ou n'a pas d'arrêt là. Une route refusée en cours de tournée reste,
+ *  (#546) : le transport a une route ou n'a pas d'arrêt là, quel que soit son mode. Une route refusée en cours de tournée reste,
  *  elle, une attente (`leg`). */
 async function refuseWithoutRoute(
   ctx: MutationCtx,
@@ -303,7 +303,7 @@ async function refuseWithoutRoute(
       ? null
       : routeBetween(from, to, routeModeOf([troop.role]), landCostOf([troop.role]));
   if (route === null)
-    fail('NO_LAND_ROUTE', {
+    fail('TOUR_PICKUP_NO_ROUTE', {
       from: from === null ? '' : (regionNameAt(from) ?? ''),
       to: regionNameAt(pointOfBuilding(building)) ?? building.regionId,
     });
@@ -348,8 +348,9 @@ async function leg(
       troopIds: [troop._id],
       aim: await aimOf(ctx, troop.playerId, target),
       keepsSlot: true,
-      /** D'un tas, d'un point d'arrêt : ni aérodrome ni port n'y sont, et la tournée n'en demande pas. */
-      anyDoor: troop.stationedAt !== base,
+      /** D'un tas, d'un point d'arrêt : ni aérodrome ni port n'y sont, et la tournée n'en demande
+       *  pas. Posé à un dépôt ou au chargement, il repart par sa porte comme une marche. */
+      anyDoor: typeof troop.stationedAt !== 'string',
       ...mission,
     });
     await ctx.db.patch(movementId, { tourLeg: to.kind });
@@ -399,28 +400,30 @@ export async function bankWhereLoaded(
   for (const troop of troops) {
     if (troop.harvest === undefined || troop.tour !== undefined) continue;
     const at = await placeOf(ctx, troop, now);
-    const loading =
-      at.place.kind === 'building' ||
-      (at.place.kind === 'outpost' && troop.role === 'airTransport');
-    if (loading && loadsHere(troop.role, at.place) === null)
+    if (at.place.kind !== 'elsewhere' && loadsHere(troop.role, at.place) === null)
       await bankHarvest(ctx, troop, now, true);
   }
 }
 
-/** Les exploitations du tracé que la tournée ne peut plus ramasser : perdues, rasées ou désactivées. */
-async function skippedSites(
+/** **Les exploitations que la tournée a trouvées perdues, rasées ou désactivées** depuis l'arrêt
+ *  `from` du tracé : celles qu'elle saute, et nulles autres. Ajoutées à ce que le tour en compte
+ *  déjà, sans doublon, pour que la dépêche du retour dise ce qui a été sauté et non ce qui est
+ *  tombé depuis une visite. */
+async function lostSites(
   ctx: MutationCtx,
   troop: Doc<'troops'>,
   tour: Tour,
+  known: ReadonlyArray<Id<'buildings'>>,
+  from: number,
   now: number,
-): Promise<number> {
-  let count = 0;
-  for (const stored of tour.stops) {
+): Promise<Array<Id<'buildings'>>> {
+  const lost = new Set(known);
+  for (const stored of tour.stops.slice(from)) {
     const stop = stopOf(stored);
-    if (stop.kind !== 'site') continue;
-    if (!isPickable(await ctx.db.get(stop.id), troop.playerId, now)) count += 1;
+    if (stop.kind === 'site' && !isPickable(await ctx.db.get(stop.id), troop.playerId, now))
+      lost.add(stop.id);
   }
-  return count;
+  return [...lost];
 }
 
 /**
@@ -436,21 +439,21 @@ async function atBase(
   arrived = false,
 ): Promise<void> {
   const fresh = await ctx.db.get(troopId);
-  const tour = fresh?.tour;
-  if (fresh === null || tour === undefined) return;
-  /** La récolte se verse **avant** tout : une tournée rappelée finit sans plus rien lui devoir. */
-  await bankHarvest(
-    ctx,
-    fresh,
-    now,
-    arrived,
-    arrived ? await skippedSites(ctx, fresh, tour, now) : 0,
-  );
+  const counted = fresh?.tour;
+  if (fresh === null || counted === undefined) return;
+  /** La récolte se verse **avant** tout : une tournée rappelée finit sans plus rien lui devoir.
+   *  Mais au chargement seulement : une base perdue en route renvoie le transport par `walkHome`,
+   *  qui verse à l'arrivée (`bankWhereLoaded`), et rien ne se verse sur un point nu. */
+  const where = await placeOf(ctx, fresh, now);
+  if (fresh.stationedAt === counted.base && where.place.kind !== 'elsewhere')
+    await bankHarvest(ctx, fresh, now, arrived, (counted.lost ?? []).length);
   const troop = (await ctx.db.get(troopId))!;
-  if (tour.recalled === true) return endTour(ctx, troop, now, 'recalled');
+  if (counted.recalled === true) return endTour(ctx, troop, now, 'recalled');
   const at = await placeOf(ctx, troop, now);
-  if (troop.stationedAt !== tour.base || at.place.kind === 'elsewhere')
+  if (troop.stationedAt !== counted.base || at.place.kind === 'elsewhere')
     return endTour(ctx, troop, now, 'cut');
+  /** Un nouveau tour : ce qu'il trouve déjà tombé, il le saute. */
+  const tour = { ...counted, lost: await lostSites(ctx, troop, counted, [], 0, now) };
   const stops = await stopsOf(ctx, troop, tour, now);
   if (stops.length === 0) return endTour(ctx, troop, now, 'cut');
 
@@ -532,8 +535,8 @@ export async function arriveOnTour(
   const carriers =
     unloaded?.carriers ?? (await troopsAmong(ctx, movement.playerId, movement.troopIds));
   for (const carrier of carriers) {
-    const tour = carrier.tour;
-    if (tour === undefined) {
+    const stored = carrier.tour;
+    if (stored === undefined) {
       await walkHome(ctx, { winners: [carrier], beaten: [] }, pointOf(movement.to), now);
       continue;
     }
@@ -543,6 +546,21 @@ export async function arriveOnTour(
     if (pickup !== undefined)
       await pickUp(ctx, { ...carrier, stationedAt }, pickup.buildingId, now);
     const here = (await ctx.db.get(carrier._id))!;
+    /** Ce qui tombe devant lui, ou à l'arrêt qu'il vient de manquer, est sauté ce tour. */
+    const tour = {
+      ...stored,
+      lost: await lostSites(
+        ctx,
+        here,
+        stored,
+        stored.lost ?? [],
+        pickup === undefined
+          ? stored.next
+          : Math.max(0, indexOfStop(stored, { kind: 'site', id: pickup.buildingId })),
+        now,
+      ),
+    };
+    await ctx.db.patch(carrier._id, { tour });
     const stops = await stopsOf(ctx, here, tour, now);
     if (stops.length === 0) {
       await endTour(ctx, here, now, 'cut');

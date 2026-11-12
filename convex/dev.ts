@@ -26,7 +26,8 @@ import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './const
 import {
   capitalRegionOf,
   foundationOf,
-  foundationOwedBy,
+  foundationOwed,
+  heldPairs,
   nearestRegion,
   pointOfBuilding,
   pointOfRegion,
@@ -331,77 +332,93 @@ export const backfillListeningSilent = internalMutation({
 /**
  * **La mise en service de la récolte rapportée** (ADR 0041, #546) : sur une base d'avant la règle,
  * pour chaque belligérant d'une Mondiale en cours, (1) la plus ancienne exploitation debout qui
- * acquitte chaque dette de fondation reçoit la marque — sans elle, un joueur en cours perdrait
- * son revenu de base —, (2) chaque exploitation sans ligne reçoit un tas à 0 réglé à cet
- * instant (une exploitation sans ligne lirait un tas de 24 h), (3) une dépêche dit la règle.
+ * acquitte chaque dette de fondation — acquittée par un bâtiment debout, non par un socle rasé
+ * (`settledFoundation`) — reçoit la marque : sans elle, un joueur en cours perdrait son revenu
+ * de base ; (2) chaque exploitation sans ligne reçoit un tas à 0 réglé à cet instant (une
+ * exploitation sans ligne lirait un tas de 24 h) ; (3) une dépêche dit la règle.
  *
- * **Idempotente par sa dépêche** : un joueur qui l'a déjà reçue n'est plus touché, de sorte qu'une
- * exploitation posée depuis ne reçoit jamais de marque. Les marques d'abord, les tas ensuite.
+ * Ce balayage ne fait que **planifier un joueur par mutation** (`commissionHarvestFor`) : sur une
+ * vraie base, tous les joueurs d'un coup passeraient la limite de lectures d'une transaction.
+ * Idempotente par la dépêche de chaque joueur.
  *
  * `npx convex run dev:commissionHarvest`
  */
 export const commissionHarvest = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const now = Date.now();
     let players = 0;
     for (const season of await ctx.db.query('seasons').collect()) {
       if (season.status !== 'launched' || modeOf(season.mode) === 'blitz') continue;
       for (const player of await belligerents(ctx, season._id)) {
-        const told = await ctx.db
-          .query('notices')
-          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-          .collect();
-        if (told.some((notice) => notice.kind === 'harvestCommissioned')) continue;
-        await settle(ctx, player._id, now);
-        const buildings = await playerBuildings(ctx, player._id);
-        const standing = buildings
-          .filter((one) => isExploitation(one) && one.capturedAt === undefined)
-          .sort((a, b) => a._creationTime - b._creationTime);
-        const pairOf = (one: Doc<'buildings'>) => ({
-          key: one.key,
-          deposit: depositAt(pointOfBuilding(one))?.deposit ?? null,
-        });
-        const acquitted = [...foundationOf(player.nation)];
-        for (const owed of foundationOwedBy(player, buildings)) {
-          const rank = acquitted.findIndex(
-            (due) => due.key === owed.key && due.deposit === owed.deposit,
-          );
-          if (rank >= 0) acquitted.splice(rank, 1);
-        }
-        const used = new Set<Id<'buildings'>>();
-        for (const due of acquitted) {
-          const fits = standing.filter(
-            (one) => !used.has(one._id) && settlesDebt(due, pairOf(one)),
-          );
-          const bearer = fits.find((one) => one.foundationMark === true) ?? fits[0];
-          if (bearer === undefined) continue;
-          used.add(bearer._id);
-          if (bearer.foundationMark !== true)
-            await ctx.db.patch(bearer._id, { foundationMark: true });
-        }
-        const rows = new Set(
-          (
-            await ctx.db
-              .query('heaps')
-              .withIndex('bySeasonPlayer', (q) =>
-                q.eq('seasonId', season._id).eq('playerId', player._id),
-              )
-              .collect()
-          ).map((row) => row.buildingId),
-        );
-        for (const one of buildings)
-          if (isExploitation(one) && !rows.has(one._id))
-            await stampHeap(ctx, one, player._id, 0, now);
-        await ctx.db.insert('notices', {
+        await ctx.scheduler.runAfter(0, internal.dev.commissionHarvestFor, {
           playerId: player._id,
-          at: now,
-          kind: 'harvestCommissioned',
         });
         players += 1;
       }
     }
     return { players };
+  },
+});
+
+/** **La mise en service d'un joueur** : les marques d'abord, les tas ensuite, la dépêche en dernier.
+ *  Un joueur qui l'a déjà reçue n'est plus touché, de sorte qu'une exploitation posée depuis ne
+ *  reçoit jamais de marque. */
+export const commissionHarvestFor = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) return;
+    const told = await ctx.db
+      .query('notices')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect();
+    if (told.some((notice) => notice.kind === 'harvestCommissioned')) return;
+    const now = Date.now();
+    await settle(ctx, playerId, now);
+    const buildings = await playerBuildings(ctx, playerId);
+    const standing = buildings
+      .filter((one) => isExploitation(one) && one.capturedAt === undefined)
+      .sort((a, b) => a._creationTime - b._creationTime);
+    const pairOf = (one: Doc<'buildings'>) => ({
+      key: one.key,
+      deposit: depositAt(pointOfBuilding(one))?.deposit ?? null,
+    });
+    /** Ce que des bâtiments debout acquittent, moins ce que le socle rasé avait déjà acquitté :
+     *  une mine rebâtie après une mine rasée se paie, elle ne porte pas la marque. */
+    const razed = [...(player.settledFoundation ?? [])];
+    const acquitted = [...foundationOf(player.nation)];
+    for (const owed of foundationOwed(player.nation, heldPairs(buildings))) {
+      const rank = acquitted.findIndex(
+        (due) => due.key === owed.key && due.deposit === owed.deposit,
+      );
+      if (rank >= 0) acquitted.splice(rank, 1);
+    }
+    const used = new Set<Id<'buildings'>>();
+    for (const due of acquitted) {
+      const settledBefore = razed.findIndex((held) => settlesDebt(due, held));
+      if (settledBefore >= 0) {
+        razed.splice(settledBefore, 1);
+        continue;
+      }
+      const fits = standing.filter((one) => !used.has(one._id) && settlesDebt(due, pairOf(one)));
+      const bearer = fits.find((one) => one.foundationMark === true) ?? fits[0];
+      if (bearer === undefined) continue;
+      used.add(bearer._id);
+      if (bearer.foundationMark !== true) await ctx.db.patch(bearer._id, { foundationMark: true });
+    }
+    const rows = new Set(
+      (
+        await ctx.db
+          .query('heaps')
+          .withIndex('bySeasonPlayer', (q) =>
+            q.eq('seasonId', player.seasonId).eq('playerId', playerId),
+          )
+          .collect()
+      ).map((row) => row.buildingId),
+    );
+    for (const one of buildings)
+      if (isExploitation(one) && !rows.has(one._id)) await stampHeap(ctx, one, playerId, 0, now);
+    await ctx.db.insert('notices', { playerId, at: now, kind: 'harvestCommissioned' });
   },
 });
 

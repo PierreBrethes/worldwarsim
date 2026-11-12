@@ -556,6 +556,8 @@ export default defineSchema({
         consigne: SUPPLY_LOAD,
         next: v.number(),
         skipped: v.optional(v.array(TOUR_STOP)),
+        /** Les exploitations que ce tour a trouvées perdues ou désactivées : celles qu'il saute. */
+        lost: v.optional(v.array(v.id('buildings'))),
         waiting: v.optional(
           v.object({ since: v.number(), roads: v.optional(v.number()), ...TOUR_WAIT.fields }),
         ),
