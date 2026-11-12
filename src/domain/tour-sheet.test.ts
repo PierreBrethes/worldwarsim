@@ -110,6 +110,12 @@ describe('the loop of a tour', () => {
     expect(loop.ratePerHour).toBeCloseTo(loop.moved / (loop.minutes / 60), 6);
   });
 
+  it('keeps the unrounded kilometres to break ties on (#550)', () => {
+    const loop = loopOf(truck(), [verdunDepot]);
+    expect(Math.round(loop.exactKm)).toBe(loop.km);
+    expect(Number.isInteger(loop.exactKm)).toBe(false);
+  });
+
   it('keeps aboard what the store has no room for', () => {
     const loop = loopOf(truck(80, 100), [lensSite]);
     expect(loop.banked.coal).toBe(100);

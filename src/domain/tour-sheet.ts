@@ -139,6 +139,8 @@ export type Loop = {
   readonly skipped: ReadonlyArray<SkippedStop>;
   readonly moved: number;
   readonly km: number;
+  /** Les kilomètres avant l'arrondi : ce sur quoi on départage deux boucles. */
+  readonly exactKm: number;
   readonly minutes: number;
   /** Ce que la boucle déplace par heure de boucle : 0 si elle ne déplace rien. */
   readonly ratePerHour: number;
@@ -214,6 +216,7 @@ export function loopOf(sheet: TourSheet, stops: ReadonlyArray<SheetStop>): Loop 
     ),
     moved,
     km: Math.round(km),
+    exactKm: km,
     minutes,
     ratePerHour: moved === 0 ? 0 : moved / (Math.max(minutes, 1) / 60),
     peak,
@@ -275,7 +278,8 @@ export function placeStop(
     const better =
       best === null ||
       loop.ratePerHour > best.loop.ratePerHour + RATE_TIE ||
-      (Math.abs(loop.ratePerHour - best.loop.ratePerHour) <= RATE_TIE && loop.km < best.loop.km);
+      (Math.abs(loop.ratePerHour - best.loop.ratePerHour) <= RATE_TIE &&
+        loop.exactKm < best.loop.exactKm);
     if (better) best = { at, loop };
   }
   return {
@@ -430,7 +434,10 @@ export function orderBest(sheet: TourSheet, stops: ReadonlyArray<SheetStop>) {
   if (stops.length <= TOUR_MAX_STOPS)
     for (const candidate of permutations(stops)) {
       const tried = loopOf(sheet, candidate);
-      if (tried.moved > loop.moved || (tried.moved === loop.moved && tried.km < loop.km)) {
+      if (
+        tried.moved > loop.moved ||
+        (tried.moved === loop.moved && tried.exactKm < loop.exactKm)
+      ) {
         order = candidate;
         loop = tried;
       }
