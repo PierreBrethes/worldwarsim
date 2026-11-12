@@ -1382,9 +1382,15 @@ export function lonLatAtProjected(
   return [Math.max(-180, Math.min(180, longitude)), latitude];
 }
 
-function projectedDistance(grid: RouteGrid, a: LonLat, b: LonLat): number {
-  const [ax, ay] = projectLonLat(grid.outline, grid.sphere, a);
-  const [bx, by] = projectLonLat(grid.outline, grid.sphere, b);
+/** **La droite entre deux points, dans la projection de la grille** : la distance que l'air vole,
+ *  et ce qu'une route se mesure à elle-même pour son détour. */
+export function projectedDistance(
+  world: Pick<RouteGrid, 'outline' | 'sphere'>,
+  a: LonLat,
+  b: LonLat,
+): number {
+  const [ax, ay] = projectLonLat(world.outline, world.sphere, a);
+  const [bx, by] = projectLonLat(world.outline, world.sphere, b);
   return Math.hypot(bx - ax, by - ay);
 }
 

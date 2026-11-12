@@ -1,0 +1,319 @@
+import { describe, expect, it } from 'vitest';
+import { emptyStocks } from './economy';
+import type { LonLat } from './geo';
+import { costMinutes } from './pace';
+import { computeRoute, decodeGrid } from './routing';
+import {
+  legMinutes,
+  loopOf,
+  orderBest,
+  placeStop,
+  proposeTour,
+  rankStops,
+  type SheetDepot,
+  type SheetSite,
+  type TourSheet,
+} from './tour-sheet';
+import type { Projection } from './world';
+import gridAsset from '../../public/grid.json';
+import projectionAsset from '../../public/projection.json';
+
+const projection = projectionAsset as unknown as Projection;
+const paris: LonLat = [2.35, 48.86];
+const verdun: LonLat = [5.38, 49.16];
+const belfort: LonLat = [6.86, 47.64];
+const lens: LonLat = [2.83, 50.43];
+const briey: LonLat = [5.95, 49.25];
+
+const depot = (id: string, point: LonLat, held: number, capacity = 150): SheetDepot => ({
+  kind: 'depot',
+  id,
+  point,
+  depot: { ammunition: held, oil: 0, coal: 0 },
+  capacity,
+  level: 2,
+  standing: true,
+});
+const site = (
+  id: string,
+  point: LonLat,
+  heap: number,
+  extra: Partial<SheetSite> = {},
+): SheetSite => ({
+  kind: 'site',
+  id,
+  point,
+  resource: 'coal',
+  heap,
+  cap: 384,
+  perHour: 48,
+  stoppedForHours: null,
+  facts: { ours: true, exploitation: true, hasQuay: false },
+  ...extra,
+});
+
+const truck = (consigne = 80, stockRoom = 1000): TourSheet => ({
+  world: projection,
+  role: 'landTransport',
+  base: paris,
+  consigne: { ammunition: consigne, oil: 0, coal: 0 },
+  stockRoom: { ...emptyStocks(), coal: stockRoom },
+  rules: { place: { kind: 'building', key: 'hq' }, busy: null, baseOutpostId: null },
+});
+
+const verdunDepot = depot('verdun', verdun, 60);
+const belfortDepot = depot('belfort', belfort, 20);
+const lensSite = site('lens', lens, 170);
+const brieySite = site('briey', briey, 290);
+const lensDepot = depot('lens-depot', lens, 0);
+
+describe('the leg estimate', () => {
+  const grid = decodeGrid(gridAsset, projection);
+
+  it('stays within a tenth of the real route a truck is dated at', () => {
+    for (const [from, to] of [
+      [paris, verdun],
+      [paris, belfort],
+      [verdun, lens],
+    ] as const) {
+      const real = computeRoute(grid, from, to, 'land', 1.15)!;
+      const dated = costMinutes(real.costUnits, null);
+      const estimated = legMinutes(projection, 'landTransport', from, to);
+      expect(estimated / dated).toBeGreaterThan(0.9);
+      expect(estimated / dated).toBeLessThan(1.1);
+    }
+  });
+
+  it('is the real thing for a plane, which flies straight', () => {
+    const real = computeRoute(grid, paris, belfort, 'air')!;
+    expect(legMinutes(projection, 'airTransport', paris, belfort)).toBe(
+      costMinutes(real.costUnits, null),
+    );
+  });
+});
+
+describe('the loop of a tour', () => {
+  it('moves what it gives plus what it takes, and says what it banks', () => {
+    const loop = loopOf(truck(), [verdunDepot, lensSite]);
+    expect(loop.rows.map((row) => [row.id, row.moved])).toEqual([
+      ['verdun', 80],
+      ['lens', 170],
+    ]);
+    expect(loop.moved).toBe(250);
+    expect(loop.peak).toBe(170 + 0);
+    expect(loop.banked.coal).toBe(170);
+    expect(loop.kept.coal).toBe(0);
+    expect(loop.km).toBeGreaterThan(0);
+    expect(loop.ratePerHour).toBeCloseTo(loop.moved / (loop.minutes / 60), 6);
+  });
+
+  it('keeps aboard what the store has no room for', () => {
+    const loop = loopOf(truck(80, 100), [lensSite]);
+    expect(loop.banked.coal).toBe(100);
+    expect(loop.kept.coal).toBe(20);
+  });
+
+  it('skips a stop that would move nothing, and does not drive to it', () => {
+    const full = loopOf(truck(0), [brieySite, lensSite]);
+    expect(full.skipped.map((stop) => stop.id)).toEqual(['lens']);
+    expect(full.rows.map((row) => row.id)).toEqual(['briey']);
+    expect(full.skipped[0]).toMatchObject({ heap: 170, earlier: 170 });
+  });
+
+  it('reads a depot that is full as skipped', () => {
+    const loop = loopOf(truck(), [depot('verdun', verdun, 150)]);
+    expect(loop.skipped.map((stop) => stop.id)).toEqual(['verdun']);
+    expect(loop.ratePerHour).toBe(0);
+  });
+
+  it('crawls at half pace when dry', () => {
+    const sheet = truck();
+    const normal = loopOf(sheet, [verdunDepot]);
+    const slow = loopOf({ ...sheet, slow: true }, [verdunDepot]);
+    expect(slow.minutes).toBe(normal.minutes * 2);
+  });
+});
+
+describe('the place of a stop', () => {
+  it('takes the slot where the rate rises most, a heap before the depot that empties the hold', () => {
+    const sheet = truck(150);
+    const slot = placeStop(sheet, [verdunDepot], brieySite);
+    expect(slot.at).toBeGreaterThanOrEqual(0);
+    for (let at = 0; at <= 1; at++) {
+      const order = at === 0 ? [brieySite, verdunDepot] : [verdunDepot, brieySite];
+      expect(slot.rate).toBeGreaterThanOrEqual(loopOf(sheet, order).ratePerHour - 1e-9);
+    }
+    expect(slot.rateBefore).toBe(loopOf(sheet, [verdunDepot]).ratePerHour);
+  });
+
+  it('breaks a tie of rates by the shorter loop', () => {
+    const sheet = truck(1);
+    const near = depot('near', [5.38, 49.16], 0);
+    const far = depot('far', [5.33, 49.16], 0);
+    const [shorter, longer] = [near, far].sort(
+      (a, b) => loopOf(sheet, [a]).km - loopOf(sheet, [b]).km,
+    );
+    expect(
+      Math.abs(loopOf(sheet, [near]).ratePerHour - loopOf(sheet, [far]).ratePerHour),
+    ).toBeLessThan(0.05);
+    expect(loopOf(sheet, [shorter!]).km).toBeLessThan(loopOf(sheet, [longer!]).km);
+    expect(placeStop(sheet, [shorter!], longer!).at).toBe(1);
+  });
+
+  it('says how many kilometres it adds', () => {
+    const sheet = truck();
+    const slot = placeStop(sheet, [verdunDepot], lensSite);
+    const loop = loopOf(sheet, [verdunDepot]);
+    expect(slot.addedKm).toBe(slot.km - loop.km);
+  });
+});
+
+describe('the ranking of stops', () => {
+  it('ranks by what each makes the rate gain, a refusal never offered but served apart', () => {
+    const foreign = site('sarre', [7.0, 49.23], 300, {
+      facts: { ours: false, exploitation: true, hasQuay: false },
+    });
+    const ranked = rankStops(truck(), [], [verdunDepot, lensSite, brieySite, foreign]);
+    expect(ranked.offered.map((o) => o.stop.id)).not.toContain('sarre');
+    expect(ranked.refused).toEqual([{ stop: foreign, refusal: { code: 'TOUR_PICKUP_NOT_OURS' } }]);
+    const gains = ranked.offered.map((o) => o.gain);
+    expect(gains).toEqual([...gains].sort((a, b) => b - a));
+  });
+
+  it('leaves out the stops already on the sheet', () => {
+    const ranked = rankStops(truck(), [lensSite], [verdunDepot, lensSite]);
+    expect([...ranked.offered, ...ranked.refused].map((o) => o.stop.id)).toEqual(['verdun']);
+  });
+
+  it('does not push a stopped exploitation ahead, and says so in its reason', () => {
+    const live = site('live', briey, 384, { stoppedForHours: null });
+    const stopped = site('stopped', briey, 384, { stoppedForHours: 3 });
+    const ranked = rankStops(truck(), [], [live, stopped]);
+    const [a, b] = ranked.offered;
+    expect(a!.gain).toBe(b!.gain);
+    const reasons = Object.fromEntries(ranked.offered.map((o) => [o.stop.id, o.reason]));
+    expect(reasons.stopped).toEqual({ code: 'siteStopped', hours: 3, lostPerHour: 48 });
+    expect(reasons.live).toMatchObject({ code: 'heapFilling' });
+  });
+
+  it('gives each kind of reason', () => {
+    const sheet = truck();
+    const reasonOf = (stop: SheetSite | SheetDepot, tour: Array<SheetSite | SheetDepot> = []) =>
+      rankStops(sheet, tour, [stop]).offered[0]!.reason;
+    expect(reasonOf(site('a', briey, 290))).toEqual({
+      code: 'heapFilling',
+      heap: 290,
+      cap: 384,
+      hoursToFull: (384 - 290) / 48,
+    });
+    expect(reasonOf(site('b', briey, 0))).toEqual({ code: 'heapEmpty', perHour: 48 });
+    expect(reasonOf(site('c', briey, 0, { cap: 0, perHour: 0 }))).toEqual({ code: 'noHeap' });
+    expect(reasonOf(depot('d', verdun, 20))).toMatchObject({
+      code: 'depotRoom',
+      depot: 20,
+      capacity: 150,
+    });
+    expect(rankStops(truck(200), [], [lensSite]).offered[0]!.reason).toEqual({
+      code: 'aboardFull',
+      heap: 170,
+    });
+    const depots = rankStops(truck(), [], [verdunDepot, belfortDepot]).offered;
+    expect(depots.find((o) => o.stop.id === 'belfort')!.reason).toMatchObject({ emptiest: true });
+    expect(depots.find((o) => o.stop.id === 'verdun')!.reason).toMatchObject({ emptiest: false });
+  });
+
+  it('refuses a depot a plane cannot land at, through the depot rule', () => {
+    const sheet: TourSheet = {
+      ...truck(),
+      role: 'airTransport',
+      rules: { ...truck().rules, place: { kind: 'building', key: 'airfield' } },
+    };
+    const small = { ...verdunDepot, level: 1 };
+    expect(rankStops(sheet, [], [small]).refused[0]!.refusal).toMatchObject({
+      code: 'NO_AIR_STOP',
+    });
+  });
+
+  it('refuses everyone when the sheet is already four stops long', () => {
+    const four = [verdunDepot, belfortDepot, lensSite, brieySite];
+    const ranked = rankStops(truck(), four, [site('extra', briey, 10)]);
+    expect(ranked.offered).toEqual([]);
+    expect(ranked.refused[0]!.refusal).toMatchObject({ code: 'TOUR_TOO_LONG' });
+  });
+});
+
+describe('the order that wastes', () => {
+  it('names a stop the order makes useless, and what it would take earlier', () => {
+    const loop = loopOf(truck(0), [brieySite, lensSite]);
+    expect(loop.skipped[0]).toMatchObject({ id: 'lens', heap: 170, earlier: 170 });
+  });
+
+  it('puts the order that moves most first, then the one that drives least', () => {
+    const sheet = truck();
+    const wasteful = [brieySite, verdunDepot];
+    const best = orderBest(sheet, wasteful);
+    expect(best.same).toBe(false);
+    expect(best.order).toEqual([verdunDepot, brieySite]);
+    expect(best.loop.moved).toBeGreaterThan(loopOf(sheet, wasteful).moved);
+    expect(best.gain.moved).toBe(best.loop.moved - loopOf(sheet, wasteful).moved);
+  });
+
+  it('keeps the current order when none does better', () => {
+    const sheet = truck();
+    const first = orderBest(sheet, [verdunDepot, belfortDepot]);
+    const again = orderBest(sheet, first.order);
+    expect(again.same).toBe(true);
+    expect(again.gain).toEqual({ moved: 0, km: 0 });
+  });
+
+  it('does not permute a sheet longer than the rule allows', () => {
+    const six = Array.from({ length: 6 }, (_, i) => depot(`d${i}`, verdun, 0));
+    expect(orderBest(truck(), six).same).toBe(true);
+  });
+
+  it('drives least among orders that move the same', () => {
+    const sheet = truck(150);
+    const stops = [belfortDepot, lensDepot, verdunDepot];
+    const orders = [
+      [0, 1, 2],
+      [0, 2, 1],
+      [1, 0, 2],
+      [1, 2, 0],
+      [2, 0, 1],
+      [2, 1, 0],
+    ].map((order) =>
+      loopOf(
+        sheet,
+        order.map((i) => stops[i]!),
+      ),
+    );
+    expect(new Set(orders.map((loop) => loop.moved)).size).toBe(1);
+    expect(orderBest(sheet, stops).loop.km).toBe(Math.min(...orders.map((loop) => loop.km)));
+  });
+});
+
+describe('proposing a tour on an empty sheet', () => {
+  it('adds the stop that lifts the rate most, while it lifts it, never past four', () => {
+    const sheet = truck();
+    const proposed = proposeTour(sheet, [verdunDepot, belfortDepot, lensSite, brieySite]);
+    expect(proposed.length).toBeGreaterThan(0);
+    expect(proposed.length).toBeLessThanOrEqual(4);
+    const rate = loopOf(sheet, proposed).ratePerHour;
+    for (const dropped of proposed) {
+      const without = proposed.filter((stop) => stop !== dropped);
+      expect(rate).toBeGreaterThanOrEqual(loopOf(sheet, without).ratePerHour - 1e-9);
+    }
+  });
+
+  it('proposes nothing when no stop would move anything', () => {
+    const empty = site('dry', briey, 0);
+    expect(proposeTour(truck(0), [empty, depot('d', verdun, 20)])).toEqual([]);
+  });
+
+  it('never proposes a refused stop', () => {
+    const foreign = site('sarre', [7.0, 49.23], 300, {
+      facts: { ours: false, exploitation: true, hasQuay: false },
+    });
+    expect(proposeTour(truck(0), [foreign])).toEqual([]);
+  });
+});
