@@ -3,6 +3,7 @@ import { emptyStocks } from './economy';
 import { emptyLoad } from './logistics';
 import type { LonLat } from './geo';
 import { costMinutes } from './pace';
+import { fullSupplies, refuelAtHeap } from './supplies';
 import { computeRoute, decodeGrid } from './routing';
 import {
   legMinutes,
@@ -150,6 +151,32 @@ describe('an exploitation that is out of service or cut off (#550)', () => {
     const ranked = rankStops(truck(0), [], [down]);
     expect(ranked.offered[0]!.reason).toEqual({ code: 'siteDisabled' });
     expect(proposeTour(truck(0), [down])).toEqual([]);
+  });
+});
+
+describe("the fill-up taken at a heap of the engine's resource (#550)", () => {
+  const oil = (heap: number) => site('oil', briey, heap, { resource: 'oil' });
+  const dry: TourSheet = {
+    ...truck(0),
+    fuelHeld: fullSupplies('landTransport').fuel - 2,
+  };
+
+  it('is taken first: the hold gets what is left of the heap, not all of it', () => {
+    const fill = refuelAtHeap('landTransport', dry.fuelHeld!, { resource: 'oil', amount: 100 });
+    expect(fill.steps).toBe(2);
+    expect(loopOf(dry, [oil(100)]).moved).toBe(100 - fill.cost);
+  });
+
+  it('is nothing for a full tank, or a heap of another resource', () => {
+    expect(loopOf(truck(0), [oil(100)]).moved).toBe(100);
+    expect(loopOf(dry, [site('coal', briey, 100)]).moved).toBe(100);
+  });
+
+  it('is paid once: a second heap finds the engine full', () => {
+    const second = { ...oil(100), id: 'oil2' };
+    const loop = loopOf(dry, [oil(100), second]);
+    const fill = refuelAtHeap('landTransport', dry.fuelHeld!, { resource: 'oil', amount: 100 });
+    expect(loop.rows.map((row) => row.moved)).toEqual([100 - fill.cost, 100]);
   });
 });
 

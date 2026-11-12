@@ -21,6 +21,7 @@ import {
 } from './logistics';
 import { costMinutes, crawledMinutes, paceCostOf } from './pace';
 import { KM_PER_UNIT, projectedDistance, type RouteGrid } from './routing';
+import { fullSupplies, refuelAtHeap } from './supplies';
 import { DOMAIN_BY_ROLE } from './troops';
 
 /**
@@ -77,6 +78,9 @@ export type TourSheet = {
   readonly consigne: SupplyLoad;
   /** La place libre de chaque bac du plateau personnel, où la récolte se verse au retour. */
   readonly stockRoom: Stocks;
+  /** Les crans de moteur à bord au départ (défaut : le plein). Le premier tas de la ressource du
+   *  moteur rend le plein d'abord (ADR 0041 §4), avant la récolte. */
+  readonly fuelHeld?: number;
   /** Une tournée à sec roule au pas (`crawledMinutes`). */
   readonly slow?: boolean;
   readonly rules: {
@@ -163,6 +167,7 @@ export function loopOf(sheet: TourSheet, stops: ReadonlyArray<SheetStop>): Loop 
   let load = sheet.consigne;
   const harvest: Record<ResourceKey, number> = { ...none };
   let peak = loadTotal(load);
+  let fuel = sheet.fuelHeld ?? fullSupplies(sheet.role).fuel;
   let moved = 0;
   const rows: LoopRow[] = [];
   for (const visited of plan.visit) {
@@ -173,7 +178,12 @@ export function loopOf(sheet: TourSheet, stops: ReadonlyArray<SheetStop>): Loop 
       n = loadTotal(delivery.moved);
       load = delivery.kept;
     } else {
-      n = takeFromHeap(takableOf(stop), roomAboard(capacity, load, harvest)).taken;
+      const fill = refuelAtHeap(sheet.role, fuel, {
+        resource: stop.resource,
+        amount: takableOf(stop),
+      });
+      fuel += fill.steps;
+      n = takeFromHeap(takableOf(stop) - fill.cost, roomAboard(capacity, load, harvest)).taken;
       harvest[stop.resource] += n;
     }
     moved += n;
@@ -225,11 +235,15 @@ function earlierOf(sheet: TourSheet, stop: SheetStop): SkippedStop {
       earlier: loadTotal(deliveryOf(sheet.consigne, stop.depot, stop.capacity).moved),
     };
   const room = roomAboard(loadCapacityOf(sheet.role), sheet.consigne, undefined);
+  const fill = refuelAtHeap(sheet.role, sheet.fuelHeld ?? fullSupplies(sheet.role).fuel, {
+    resource: stop.resource,
+    amount: takableOf(stop),
+  });
   return {
     id: stop.id,
     kind: 'site',
     heap: stop.heap,
-    earlier: takeFromHeap(takableOf(stop), room).taken,
+    earlier: takeFromHeap(takableOf(stop) - fill.cost, room).taken,
   };
 }
 
