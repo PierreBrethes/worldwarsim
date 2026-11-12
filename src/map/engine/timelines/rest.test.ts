@@ -2,64 +2,45 @@ import { describe, expect, it } from 'vitest';
 import { AIRFIELD, MOLE } from '@/emblems/kits/manifest';
 import type { AirRole } from './airfield';
 import { berthOf, type SeaRole } from './port';
-import {
-  apron,
-  berths,
-  type HullPost,
-  layout,
-  type Place,
-  type Plane,
-  settle,
-  settleHull,
-} from './rest';
+import { berths, type HullPost, layout, type Place, type Plane, settle, settleHull } from './rest';
 
 const [right, left] = AIRFIELD.lanes;
 const rail = AIRFIELD.facade + 2;
-const fighters = (n: number): AirRole[] => Array(n).fill('fighter');
+
+/** A held plane: its place is kept while it stays. */
+const held = (...places: Array<[Place['lane'], number, AirRole?]>): Plane[] =>
+  places.map(([lane, rank, role = 'fighter']) => ({ role, place: { lane, rank } }));
 
 describe('the apron: where planes rest before their hangars (#475)', () => {
   it('stands the first fighter in the right lane, its tail 2 m from the rail, nose to the runway', () => {
-    const [first] = apron(['fighter']);
+    const [first] = layout(held([0, 0]));
     expect(first).toEqual({ x: right, z: rail + 5.5, yaw: 0 });
   });
 
-  it('steps the next one back by a pitch of 13 m, and fills the right lane before the left', () => {
-    const slots = apron(fighters(4));
+  it('steps the next one back by a pitch of 13 m, the right lane before the left', () => {
+    const slots = layout(held([0, 0], [0, 1], [1, 0], [1, 1]));
     expect(slots.map((s) => s!.x)).toEqual([right, right, left, left]);
     expect(slots[1]!.z - slots[0]!.z).toBeCloseTo(13, 9);
     expect(slots[3]!.z).toBeCloseTo(slots[1]!.z, 9);
   });
 
   it('keeps a fifth fighter at its label: the apron holds four', () => {
-    expect(apron(fighters(5))[4]).toBeNull();
-  });
-
-  it('keeps a big plane alone in its lane', () => {
-    const slots = apron(['bomber', 'fighter', 'fighter', 'fighter']);
-    expect(slots.map((s) => s?.x)).toEqual([right, left, left, undefined]);
-    expect(apron(['bomber', 'airTransport', 'bomber'])[2]).toBeNull();
-    expect(apron(['fighter', 'bomber', 'fighter']).map((s) => s?.x)).toEqual([right, left, right]);
-  });
-
-  it('gives a slot by rank: when the first leaves, the next stands where it stood', () => {
-    const [a, b] = apron(fighters(2));
-    expect(apron(fighters(1))[0]).toEqual(a);
-    expect(b).not.toEqual(a);
+    expect(settle(held([0, 0], [0, 1], [1, 0], [1, 1]), 'fighter', 'formed')).toBeNull();
   });
 
   it('never lets the growth push the last plane of a lane past the ramp', () => {
-    const [a, b] = apron(fighters(2), 1.5);
+    const [a, b] = layout(held([0, 0], [0, 1]), 1.5);
     expect(b!.z + 11 / 2).toBeLessThanOrEqual(AIRFIELD.ramp.from + 1e-9);
     expect(b!.z).toBeGreaterThan(a!.z);
   });
 
   it('widens each step by the growth of the plane that takes it', () => {
-    const [a, b] = apron(fighters(2), [1, 1.2]);
+    const [a, b] = layout(held([0, 0], [0, 1]), [1, 1.2]);
     expect(b!.z - a!.z).toBeCloseTo(1.2 * 18.5 - 5.5, 9);
   });
 
   it('follows the growth the figurines are drawn at: the pitch widens, the rail stays', () => {
-    const [a, b] = apron(fighters(2), 1.2);
+    const [a, b] = layout(held([0, 0], [0, 1]), 1.2);
     expect(b!.z - a!.z).toBeCloseTo(1.2 * 13, 9);
     expect(a!.z - AIRFIELD.facade).toBeCloseTo(2 + 1.2 * 5.5, 9);
   });
@@ -68,10 +49,6 @@ describe('the apron: where planes rest before their hangars (#475)', () => {
 const hulls = (...roles: SeaRole[]) => roles;
 /** The hull's beam, a share of its length (`HULL_BEAM_SHARE`). */
 const beamOf = (length: number) => 0.14 * length;
-
-/** A held plane: its place is kept while it stays. */
-const held = (...places: Array<[Place['lane'], number, AirRole?]>): Plane[] =>
-  places.map(([lane, rank, role = 'fighter']) => ({ role, place: { lane, rank } }));
 
 describe('the places of an apron, one state per plane (#475, décision du 05/11)', () => {
   it('sends a plane formed at its hangar to the most advanced free place, not crossing a parked plane', () => {
@@ -88,16 +65,10 @@ describe('the places of an apron, one state per plane (#475, décision du 05/11)
     expect(settle(held([0, 0], [1, 0]), 'fighter', 'returned')).toEqual({ lane: 0, rank: 1 });
   });
 
-  it('follows the order of the role when there is no history', () => {
-    expect(settle(held([0, 0]), 'fighter', 'initial')).toEqual({ lane: 0, rank: 1 });
-    expect(settle(held([0, 0], [0, 1]), 'fighter', 'initial')).toEqual({ lane: 1, rank: 0 });
-    expect(settle(held([0, 0], [0, 1], [1, 0], [1, 1]), 'fighter', 'initial')).toBeNull();
-  });
-
   it('keeps a big plane alone in its lane, and out of a lane with a plane in it', () => {
     expect(settle(held([0, 0]), 'bomber', 'formed')).toEqual({ lane: 1, rank: 0 });
-    expect(settle(held([0, 0, 'bomber']), 'fighter', 'initial')).toEqual({ lane: 1, rank: 0 });
-    expect(settle(held([0, 0], [1, 0]), 'bomber', 'initial')).toBeNull();
+    expect(settle(held([0, 0, 'bomber']), 'fighter', 'formed')).toEqual({ lane: 1, rank: 1 });
+    expect(settle(held([0, 0], [1, 0]), 'bomber', 'formed')).toBeNull();
   });
 
   it('lays a place out where it says, and a plane leaving moves no other', () => {

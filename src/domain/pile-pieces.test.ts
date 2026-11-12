@@ -37,6 +37,13 @@ describe('passengers on the board', () => {
 /** **Une escouade montre toutes ses troupes** (POC « Manipuler les pions », 16/10) : une pièce
  *  par troupe, sans « +N » ni « ×N » — on ne voit plus la première troupe seule. */
 describe('pilePieces', () => {
+  it('dates a piece by the formation of its troop, and leaves it undated without one (#524)', () => {
+    const [dated, undated] = [{ ...troop('fighter'), formedAt: 42 }, troop('infantry')];
+    const [fighter, infantry] = pilePieces([undated, dated]).groups;
+    expect(fighter?.formedAt ?? infantry?.formedAt).toBe(42);
+    expect(pilePieces([undated]).groups[0]).not.toHaveProperty('formedAt');
+  });
+
   it('is empty for no troops', () => {
     expect(pilePieces([])).toEqual({ groups: [], troopIds: [], squad: false });
     expect(pileSheet([])).toEqual([]);

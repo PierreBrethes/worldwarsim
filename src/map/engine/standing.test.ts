@@ -1066,9 +1066,14 @@ describe('pieces resting at their post', () => {
     pieceScale.size;
   const near = (at: Vector3, to: Vector3) => expect(at.distanceTo(to)).toBeLessThan(1e-9);
 
-  it('stands the planes of an airfield on its apron, the men in the pile', async () => {
+  it('stands the planes of an airfield on its apron, in the order formed, the men in the pile', async () => {
+    // The pile lists the fighters in the order below; they were formed the other way round.
     const pieces = postedAt(
-      pilePieces([unit('fighter', 'a'), unit('fighter', 'b'), unit('infantry', 'i')]),
+      pilePieces([
+        { ...unit('fighter', 'a'), formedAt: 2 },
+        { ...unit('fighter', 'b'), formedAt: 1 },
+        unit('infantry', 'i'),
+      ]),
       'airfield',
     );
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces }]);
@@ -1077,10 +1082,12 @@ describe('pieces resting at their post', () => {
     for (let n = 0; n < 2; n++)
       held.push({ role: 'fighter', place: settle(held, 'fighter', 'formed') });
     const slots = layout(held, g);
-    pieces.groups.forEach(({ role }, k) => {
+    // `b` was formed first: it takes the first slot, `a` the second.
+    const slotOf = { b: slots[0]!, a: slots[1]! };
+    pieces.groups.forEach(({ role, troopIds }, k) => {
       const at = layer.placeOf(`p/${k}`)!.at;
       if (role !== 'fighter') return expect(at.distanceTo(SITE)).toBeLessThan(0.1);
-      const slot = slots[pieces.groups.slice(0, k).filter((x) => x.role === 'fighter').length]!;
+      const slot = slotOf[troopIds[0] as 'a' | 'b'];
       near(at, toBoard(new Vector3(slot.x, AIRFIELD.top, slot.z)));
     });
   });
@@ -1217,6 +1224,31 @@ describe('pieces resting at their post', () => {
       live.orient(eye);
       const cold = await standing([{ id: 'p', at: { beside: 'site' }, pieces: both }]);
       for (const id of ['t', 'f']) near(at(cold, both, id), at(live, both, id));
+    });
+
+    it('takes a troop with no date before the dated ones, the order of the pile among them', async () => {
+      const [a, b] = [unit('fighter', 'a'), { ...unit('fighter', 'b'), formedAt: 1 }];
+      const mixed = postedAt(pilePieces([b, a]), 'airfield');
+      const cold = await standing([{ id: 'p', at: { beside: 'site' }, pieces: mixed }]);
+      const first = settle([], 'fighter', 'formed')!;
+      near(at(cold, mixed, 'a'), wanted(first));
+    });
+
+    it('does not find again the place of a plane come home: it joins at the back live, in its formation order cold (limit)', async () => {
+      const [x, y] = [dated('fighter', 'x', 1), dated('fighter', 'y', 2)];
+      const lone = postedAt(pilePieces([y]), 'airfield');
+      const both = postedAt(pilePieces([x, y]), 'airfield');
+      const live = await standing([{ id: 'p', at: { beside: 'site' }, pieces: lone }]);
+      live.display([{ id: 'p', at: { beside: 'site' }, pieces: both }]);
+      await vi.waitFor(() => expect(live.isDressed('p')).toBe(true));
+      live.arrivedAt(
+        'p',
+        [both.groups.findIndex(({ troopIds }) => troopIds[0] === 'x')],
+        'returned',
+      );
+      live.orient(eye);
+      const cold = await standing([{ id: 'p', at: { beside: 'site' }, pieces: both }]);
+      expect(at(cold, both, 'x').distanceTo(at(live, both, 'x'))).toBeGreaterThan(1e-3);
     });
 
     it('moors the hulls of a port in the order they were formed', async () => {

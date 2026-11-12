@@ -141,10 +141,13 @@ export const besideSites = (
       });
 
 /** **Newcomers take their place in the order they were formed** (#524): a view served whole stands
- *  as one that grew, whatever order the pile lists its roles in. A view with no date keeps its order. */
-const inFormationOrder = <T extends { formedAt?: number | undefined }>(
-  members: ReadonlyArray<T>,
-): T[] => [...members].sort((a, b) => (a.formedAt ?? 0) - (b.formedAt ?? 0));
+ *  as one that grew, whatever order the pile lists its roles in. A view with no date keeps its order.
+ *  The view serves no instant of entering a garrison (that would be a field written in every place
+ *  a troop is stationed), so only what was formed on the spot and never left finds its exact place
+ *  again: a plane come home (`'returned'`) or from another field, a hull back from the roads, may
+ *  change place on reload. */
+const byFormedAt = <T extends { formedAt?: number | undefined }>(members: ReadonlyArray<T>): T[] =>
+  [...members].sort((a, b) => (a.formedAt ?? 0) - (b.formedAt ?? 0));
 
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
 export type GarrisonAt = (
@@ -1989,7 +1992,7 @@ export class StandingLayer implements SequenceHost {
           promoted.push(troop);
           break;
         }
-    for (const { troop } of inFormationOrder(members)) {
+    for (const { troop } of byFormedAt(members)) {
       if (kept.has(troop)) continue;
       const post = settleHull(held());
       this.arrivals.delete(troop);
@@ -2086,7 +2089,7 @@ export class StandingLayer implements SequenceHost {
     for (const troop of this.arrivals.keys()) if (roles.has(troop)) kept.delete(troop);
     const heldNow = (): Plane[] =>
       [...kept].map(([troop, place]) => ({ role: roles.get(troop)!, place }));
-    for (const { troop } of inFormationOrder(members)) {
+    for (const { troop } of byFormedAt(members)) {
       if (kept.has(troop)) continue;
       const place = settle(heldNow(), roles.get(troop)!, this.arrivals.get(troop) ?? 'formed');
       this.arrivals.delete(troop);

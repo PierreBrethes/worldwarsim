@@ -28,9 +28,8 @@ const ROADS_GAP = 60;
 /** **A place on the apron**: a lane (0 the right hangar's, 1 the left's) and a rank from the rail. */
 export type Place = { readonly lane: 0 | 1; readonly rank: number };
 export type Plane = { readonly role: AirRole; readonly place: Place | null };
-/** **How a plane comes by its place**: out of its hangar, home from the runway, or the first free
- *  place in order (`apron`). */
-export type Arrival = 'formed' | 'returned' | 'initial';
+/** **How a plane comes by its place**: out of its hangar, or home from the runway. */
+export type Arrival = 'formed' | 'returned';
 
 const FIGHTER = troopMetres('fighter');
 /** A fighter's pitch, and how many a lane holds. */
@@ -42,7 +41,7 @@ const isBig = (role: AirRole) => role !== 'fighter';
  * **The place a plane takes among those held** (décision du 05/11): never across a parked plane.
  * Formed, it drives out of its hangar to the most advanced free place before any plane of its
  * lane, else the neighbouring lane's; come home, it comes up its lane to the deepest free place
- * past the planes parked. With no history, the first free place in order (right lane first). A big
+ * past the planes parked. A big
  * plane is alone in its lane. `null` when the apron is full.
  */
 export function settle(held: ReadonlyArray<Plane>, role: AirRole, arrival: Arrival): Place | null {
@@ -70,11 +69,7 @@ export function settle(held: ReadonlyArray<Plane>, role: AirRole, arrival: Arriv
     );
   };
   const found =
-    arrival === 'initial'
-      ? (free[0] ?? null)
-      : arrival === 'formed'
-        ? best(({ before }) => before, true)
-        : best(({ past }) => past, false);
+    arrival === 'formed' ? best(({ before }) => before, true) : best(({ past }) => past, false);
   return found === null ? null : { lane: found.lane, rank: found.rank };
 }
 
@@ -96,13 +91,6 @@ export function layout(planes: ReadonlyArray<Plane>, growth: Growth = 1): Array<
       yaw: 0,
     };
   });
-}
-
-/** **The apron with no history**: the places in the order of the roles (`settle`, `initial`). */
-export function apron(roles: ReadonlyArray<AirRole>, growth: Growth = 1): Array<Rest | null> {
-  const planes: Plane[] = [];
-  for (const role of roles) planes.push({ role, place: settle(planes, role, 'initial') });
-  return layout(planes, growth);
 }
 
 /** **A post along the mole**: against its fenders, at its side, or in the roads past its head. */
