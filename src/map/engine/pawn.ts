@@ -195,6 +195,9 @@ export class Pawn {
   /** Its road bends here — positive to the left —, and it has gone forward since the last frame. */
   private turn = 0;
   private moving = false;
+  /** The road walked since the last `orient`, on the board: what its wheels turn by (#539). */
+  private travelled = 0;
+  private placed = false;
   /** Full motion only: reduced and cut motion leave every piece upright and the road clear. */
   private lively = false;
   private readonly wake = new Wake();
@@ -393,6 +396,9 @@ export class Pawn {
   ): void {
     this.moving = !position.equals(this.object.position);
     if (this.moving) this.movedAt = performance.now();
+    // Where it first stands it has walked nothing: the object still sits at the origin.
+    if (this.placed) this.travelled += position.distanceTo(this.object.position);
+    this.placed = true;
     this.road = road;
     this.turn = turn;
     this.object.position.copy(position);
@@ -411,7 +417,9 @@ export class Pawn {
     this.held = held;
     if (elapsedSeconds === null) return;
     for (const { smoke } of this.marchers) smoke?.frame(this.clock);
-    this.figurines.get(this.medium)?.spin(elapsedSeconds);
+    // A screw turns while the plane flies, and stops with it (#539).
+    if (performance.now() - this.movedAt < WALKING_MS)
+      this.figurines.get(this.medium)?.spin(elapsedSeconds);
     this.clock += elapsedSeconds;
     if (this.wake.object.visible) this.wake.frame(this.clock);
     this.smokes.get(this.medium)?.frame(this.clock);
@@ -439,6 +447,9 @@ export class Pawn {
     const real = this.file !== null || (figurine !== undefined && figurine.facesEye !== true);
     const floorSpan = real ? floorSpanOf(this.medium, sized) : sized;
     const drawn = troopScale(distance, sized, floorSpan) * this.sized;
+    // Its wheels turn by the road walked, in the figurine's units: the road over its scale.
+    const rolled = this.lively && drawn > 0 ? this.travelled / drawn : 0;
+    this.travelled = 0;
     // The silhouette fades with it: its own size is a share of the screen.
     const close = troopWeight(distance, span * this.sized);
     // The wake and the altitude disc are drawn for a tank: they follow the piece's own size.
@@ -457,7 +468,7 @@ export class Pawn {
         this.file.visible &&
         (inView === null ||
           inView.intersectsSphere(REACH.set(this.object.position, this.fileReach * drawn)));
-      if (this.laidOut) this.march(drawn);
+      if (this.laidOut) this.march(drawn, rolled);
     }
     const near = figurine === undefined ? 0 : close;
     if (figurine !== undefined) {
@@ -472,6 +483,7 @@ export class Pawn {
       figurine.object.rotation.set(sway.pitch, figurine.facesEye ? yaw : this.heading, sway.roll);
       figurine.object.position.y = sway.lift * FIGURINE_SCALE * scale;
       figurine.object.scale.setScalar(scale);
+      if (rolled > 0 && near > 0) figurine.roll?.(rolled);
       if (this.dust !== null)
         this.dust.object.visible =
           this.lively && this.moving && this.gaits.get(this.medium) === 'rolling';
@@ -492,7 +504,7 @@ export class Pawn {
    * its end. A rank faces the rank ahead of it, the first the road. The men step on the pawn's
    * clock, each vehicle sways (`swayOf`).
    */
-  private march(drawn: number): void {
+  private march(drawn: number, rolled: number): void {
     this.drawn = drawn;
     const head = this.object.position;
     const road = this.road !== null && this.road.leg.length > 0 ? this.road : null;
@@ -533,6 +545,7 @@ export class Pawn {
         );
         object.rotation.set(sway.pitch, heading, sway.roll);
         object.scale.setScalar(drawn);
+        if (walking && rolled > 0) marcher.figurine.roll?.(rolled);
         // A still or held pose is put once, when the man comes to it.
         if (posed === marcher.posed && posed !== 'walking') continue;
         marcher.posed = posed;

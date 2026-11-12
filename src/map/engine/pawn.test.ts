@@ -281,3 +281,91 @@ describe('the floor of a pawn on land', () => {
     expect(sizeOf(men)).toBeCloseTo(troopScale(5, armor.span, men.span), 12);
   });
 });
+
+/** **Les roues tournent de la route faite**, pas du temps (#539). */
+describe('the wheels and the screws of a piece on its road', () => {
+  const close = new Vector3(0, 5, 0);
+  const rolling = (role: 'armor' | 'fighter') => {
+    const turned: number[] = [];
+    const spun: number[] = [];
+    const figurine: Figurine = {
+      object: new Group(),
+      span: troopSpan(role),
+      ready: Promise.resolve(),
+      spin: (seconds) => spun.push(seconds),
+      roll: (travelled) => turned.push(travelled),
+    };
+    const medium = role === 'fighter' ? 'air' : 'land';
+    const pawn = new Pawn('#000', { land: null, sea: null, air: null, [medium]: figurine }, null, {
+      land: null,
+      sea: null,
+      air: null,
+      [medium]: role,
+    });
+    pawn.wear(medium);
+    const go = (x: number, elapsed: number | null, held = false) => {
+      pawn.place(new Vector3(x, 0, 0), new Vector3(x + 1, 0, 0));
+      pawn.step(elapsed, held);
+      pawn.orient(close.clone().setX(x), 0);
+    };
+    const scale = () => figurine.object.scale.x;
+    return { go, turned, spun, scale };
+  };
+  const total = (distances: number[]) => distances.reduce((sum, d) => sum + d, 0);
+
+  it('rolls by the road walked in figurine units: twice the road, twice the turn', () => {
+    const { go, turned, scale } = rolling('armor');
+    go(0.1, 0.1);
+    go(0.2, 0.1);
+    const slow = total(turned) * scale();
+    expect(slow).toBeCloseTo(0.1, 6);
+    go(0.4, 0.1);
+    expect(total(turned) * scale()).toBeCloseTo(0.3, 6);
+  });
+
+  it('rolls the same road in a long frame as in a short one', () => {
+    const [short, long] = [rolling('armor'), rolling('armor')];
+    short.go(0.1, 0.01);
+    short.go(0.2, 0.01);
+    long.go(0.1, 5);
+    long.go(0.2, 5);
+    expect(total(short.turned) * short.scale()).toBeCloseTo(total(long.turned) * long.scale(), 6);
+  });
+
+  it('does not roll where it first stands, nor when it stands still', () => {
+    const { go, turned } = rolling('armor');
+    go(0.5, 0.1);
+    go(0.5, 0.1);
+    go(0.5, 0.1);
+    expect(total(turned)).toBe(0);
+  });
+
+  it('rolls nothing in reduced or cut motion', () => {
+    const { go, turned } = rolling('armor');
+    go(0.1, 0.1);
+    go(0.2, null, true);
+    go(0.3, null);
+    expect(total(turned)).toBe(0);
+  });
+
+  it('turns the screws of a plane that flies, and stops them once it stands', async () => {
+    const { go, spun } = rolling('fighter');
+    go(0.1, 0.1);
+    go(0.2, 0.1);
+    expect(total(spun)).toBeGreaterThan(0);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const before = total(spun);
+    go(0.2, 0.1);
+    go(0.2, 0.1);
+    expect(total(spun)).toBe(before);
+  });
+
+  it('turns no screw in reduced or cut motion', () => {
+    const { go, spun } = rolling('fighter');
+    go(0.1, 0.1);
+    const before = total(spun);
+    go(0.2, null, true);
+    go(0.3, null);
+    expect(total(spun)).toBe(before);
+  });
+});
