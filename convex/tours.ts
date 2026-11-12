@@ -308,12 +308,23 @@ async function isRouted(
 ): Promise<boolean> {
   const from = await pointOfAddress(ctx, troop.stationedAt);
   const to = pickupPointOf(troop.role, building);
-  return (
-    from !== null &&
-    to !== null &&
-    routeBetween(from, to, routeModeOf([troop.role]), landCostOf([troop.role])) !== null
-  );
+  if (from === null || to === null) return false;
+  const mode = routeModeOf([troop.role]);
+  const key = `${from}|${to}|${troop.role}`;
+  let routed = routedMemo.get(key);
+  if (routed === undefined) {
+    if (routedMemo.size >= ROUTED_MEMO_MAX) routedMemo.clear();
+    routed = routeBetween(from, to, mode, landCostOf([troop.role])) !== null;
+    routedMemo.set(key, routed);
+  }
+  return routed;
 }
+
+/** The grid is baked, so a road between two points is a fact of the map: `pickups` reruns on every
+ *  write it reads (an unreachable site costs ~100 ms of search each time), the answer does not
+ *  change. Keyed by role: it fixes the mode and the land cost. */
+const routedMemo = new Map<string, boolean>();
+const ROUTED_MEMO_MAX = 2000;
 
 /**
  * **Ce que la feuille de route ne sait pas lire seule** (#551) : pour un transport à moi, ses
