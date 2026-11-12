@@ -32,7 +32,7 @@ describe('HeapBinLines', () => {
     const out = renderToStaticMarkup(<HeapBinLines view={view} resource="coal" now={NOW} />);
     expect(out).toContain('au pied 288');
     expect(out).toContain('⚑ 1 plein');
-    expect(out).toContain('▲ 120');
+    expect(out).toContain('▲ 120 · étape ');
   });
 
   it('says « tas » on a phone, and nothing of a resource no site yields', () => {
@@ -48,7 +48,7 @@ describe('HeapBoardNotes', () => {
     const out = renderToStaticMarkup(<HeapBoardNotes view={view} now={NOW} />);
     expect(out).toContain('Mine');
     expect(out).toContain('arrêtée 3 h');
-    expect(out).toContain('120 charbon');
+    expect(out).toContain('120 charbon · étape ');
   });
 
   it('says so when nothing is on the road or full', () => {

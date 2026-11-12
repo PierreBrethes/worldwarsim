@@ -4060,6 +4060,8 @@ export const fr = {
     board: {
       atFoot: 'au pied',
       atFootShort: 'tas',
+      /** L'heure est celle de l'étape, pas de l'arrivée au stock : le mot le dit. */
+      legEnds: (countdown: string) => `étape ${countdown}`,
       fullCount: (count: number) => `${count} plein${count > 1 ? 's' : ''}`,
       coming: 'Ce qu’un transport rapporte : la récolte à bord, et la fin de son étape',
       foundationOnly: 'fondation seule',

@@ -46,7 +46,7 @@ export function HeapBinLines({
           ▲ {Math.floor(bin.come.amount)}
           {bin.come.arrivesAt === null
             ? ''
-            : ` · ${countdownLabel(Math.max(0, bin.come.arrivesAt - now))}`}
+            : ` · ${fr.heap.board.legEnds(countdownLabel(Math.max(0, bin.come.arrivesAt - now)))}`}
         </small>
       )}
     </span>
@@ -77,7 +77,9 @@ export function HeapBoardNotes({ view, now }: { view: PlayerView; now: number })
             {RESOURCES.filter((key) => one.harvest[key] > 0)
               .map((key) => `${Math.floor(one.harvest[key])} ${fr.resources[key]}`)
               .join(' · ')}
-            {one.arrivesAt === null ? '' : ` · ${countdownLabel(Math.max(0, one.arrivesAt - now))}`}
+            {one.arrivesAt === null
+              ? ''
+              : ` · ${fr.heap.board.legEnds(countdownLabel(Math.max(0, one.arrivesAt - now)))}`}
           </span>
         </span>
       ))}
