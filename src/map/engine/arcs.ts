@@ -582,7 +582,7 @@ export class ArcLayer {
 
     const column = arc.state === 'mine' ? this.columnOf(arc.id) : null;
     const figurineOf = (role: UnitRole | null) =>
-      role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1], undefined, true);
+      role === null ? null : figurineFor(this.playerNation, role, [1, 1, 1]);
     const pawn = new Pawn(
       ARC_COLORS[arc.state].progress,
       // The fog serves an enemy no roles: up close it is an ink annotation, sliding along
@@ -650,8 +650,7 @@ export class ArcLayer {
   /** My movement's pieces on land, dressed whole or not at all (`dressedGroups`). */
   private columnOf(id: string): ReadonlyArray<ColumnPiece> | null {
     const pieces = this.columns.get(id);
-    const figurines =
-      pieces === undefined ? null : dressedGroups(this.playerNation, pieces, undefined, true);
+    const figurines = pieces === undefined ? null : dressedGroups(this.playerNation, pieces);
     if (pieces === undefined || figurines === null) return null;
     return pieces.groups.map(({ role, wear, troopIds }, k) => ({
       figurine: figurines[k]!,

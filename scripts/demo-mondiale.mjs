@@ -138,8 +138,10 @@
  * `--arrivee [s]` (#362) fait marcher de Reims vers l'est-nord-est une pile mêlée française (trois
  * fantassins, deux chars, un canon) qui arrive sur un point vide dans `s` secondes (25 par
  * défaut) : la colonne s'y déploie, et `lieu=@arrivee` cadre son point.
- * `--roues [s]` (#539) fait avancer sur 2 km, de l'ouest vers l'est, une colonne française (camion,
- * canon, char) ; les hélices se voient avec `--file` ; arrivée dans `s` secondes (300 par défaut) : leurs roues tournent de la route faite ; `lieu=@roues` cadre le milieu de leur route.
+ * `--colonne [s]` (#538, #539) fait avancer sur 2 km, de l'ouest vers l'est, une colonne française
+ * (camion, canon, char) qui arrive dans `s` secondes (300 par défaut) : de quoi juger sa marche, au
+ * plus près ; `lieu=@colonne` cadre le milieu de sa route. Un chasseur ne part que d'un aérodrome :
+ * `--file` fait voler les avions.
  * `--quai-dense` (#433) pose la scène de `--navire` et huit chantiers dans les régions voisines
  * de Marseille (le QG de `--chantiers` d'abord) : un anneau trop large pour sa côte, dessiné à son
  * plus petit (×0,4), le cargo à quai. Avec `--appareille`, le cargo part pour Agde, et l'heure du
@@ -454,9 +456,9 @@ const shellingAt = process.argv.indexOf('--bombarder');
 const shellingIn = shellingAt < 0 ? null : Number(process.argv[shellingAt + 1]) || 40;
 const salvoesAt = process.argv.indexOf('--salves');
 const salvoes = salvoesAt < 0 ? 1 : Number(process.argv[salvoesAt + 1]) || 1;
-/** `--roues [s]` : une colonne (camion, canon, char) qui avance sur 2 km, arrivée dans s secondes (#539). */
-const wheelsAt = process.argv.indexOf('--roues');
-const wheelsIn = wheelsAt < 0 ? null : Number(process.argv[wheelsAt + 1]) || 300;
+/** `--colonne [s]` : une colonne (camion, canon, char) qui avance sur 2 km, arrivée dans s secondes (#539). */
+const columnAt = process.argv.indexOf('--colonne');
+const columnIn = columnAt < 0 ? null : Number(process.argv[columnAt + 1]) || 300;
 /** `--arrivee [s]` : une pile mêlée française qui arrive sur un point vide dans s secondes (#362). */
 const arrivalAt = process.argv.indexOf('--arrivee');
 const arrivalIn = arrivalAt < 0 ? null : Number(process.argv[arrivalAt + 1]) || 25;
@@ -1549,10 +1551,10 @@ if (!bare) {
       JSON.stringify({ playerId: scene.a, afterMs: arrivalIn * 1000, onTime: true }),
     ]);
   }
-  if (wheelsIn !== null && scene.a !== null) {
+  if (columnIn !== null && scene.a !== null) {
     // A fighter leaves an airfield only: `--file` flies the planes.
     const from = { lon: 2.2, lat: 48.4 };
-    places.roues = [2.2 + 0.0135, 48.4];
+    places.colonne = [2.2 + 0.0135, 48.4];
     const spawn = (role, at) =>
       JSON.parse(
         cli([
@@ -1571,7 +1573,7 @@ if (!bare) {
     cli([
       'run',
       'dev:arriveNow',
-      JSON.stringify({ playerId: scene.a, afterMs: wheelsIn * 1000, onTime: true }),
+      JSON.stringify({ playerId: scene.a, afterMs: columnIn * 1000, onTime: true }),
     ]);
   }
   if (denseQuay && scene.a !== null) {

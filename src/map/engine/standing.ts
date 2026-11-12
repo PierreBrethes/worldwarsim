@@ -277,18 +277,10 @@ export function dressedGroups(
   nation: string | null,
   pieces: PilePieces,
   now = Date.now(),
-  /** My column on its road, whose wheels turn (#539). */
-  walking = false,
 ): Figurine[] | null {
   const figurines: Figurine[] = [];
   for (const group of pieces.groups) {
-    const figurine = figurineFor(
-      nation,
-      group.role,
-      group.figures,
-      restPoseOf(group, now),
-      walking,
-    );
+    const figurine = figurineFor(nation, group.role, group.figures, restPoseOf(group, now));
     if (figurine === null) return null;
     figurines.push(figurine);
   }

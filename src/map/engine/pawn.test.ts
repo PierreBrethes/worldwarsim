@@ -282,77 +282,36 @@ describe('the floor of a pawn on land', () => {
   });
 });
 
-/** **Les roues tournent de la route faite**, pas du temps (#539). */
-describe('the wheels and the screws of a piece on its road', () => {
+/** A screw turns while the plane flies, and stops with it (#539). */
+describe('the screws of a plane on its road', () => {
   const close = new Vector3(0, 5, 0);
-  const rolling = (role: 'armor' | 'fighter') => {
-    const turned: number[] = [];
+  const total = (seconds: number[]) => seconds.reduce((sum, s) => sum + s, 0);
+  const plane = () => {
     const spun: number[] = [];
     const figurine: Figurine = {
       object: new Group(),
-      span: troopSpan(role),
+      span: troopSpan('fighter'),
       ready: Promise.resolve(),
       spin: (seconds) => spun.push(seconds),
-      roll: (travelled) => turned.push(travelled),
     };
-    const medium = role === 'fighter' ? 'air' : 'land';
-    const pawn = new Pawn('#000', { land: null, sea: null, air: null, [medium]: figurine }, null, {
+    const pawn = new Pawn('#000', { land: null, sea: null, air: figurine }, null, {
       land: null,
       sea: null,
-      air: null,
-      [medium]: role,
+      air: 'fighter',
     });
-    pawn.wear(medium);
+    pawn.wear('air');
     const go = (x: number, elapsed: number | null, held = false) => {
       pawn.place(new Vector3(x, 0, 0), new Vector3(x + 1, 0, 0));
       pawn.step(elapsed, held);
       pawn.orient(close.clone().setX(x), 0);
     };
-    const scale = () => figurine.object.scale.x;
-    return { go, turned, spun, scale };
+    return { go, spun };
   };
-  const total = (distances: number[]) => distances.reduce((sum, d) => sum + d, 0);
-
-  it('rolls by the road walked in figurine units: twice the road, twice the turn', () => {
-    const { go, turned, scale } = rolling('armor');
-    go(0.1, 0.1);
-    go(0.2, 0.1);
-    const slow = total(turned) * scale();
-    expect(slow).toBeCloseTo(0.1, 6);
-    go(0.4, 0.1);
-    expect(total(turned) * scale()).toBeCloseTo(0.3, 6);
-  });
-
-  it('rolls the same road in a long frame as in a short one', () => {
-    const [short, long] = [rolling('armor'), rolling('armor')];
-    short.go(0.1, 0.01);
-    short.go(0.2, 0.01);
-    long.go(0.1, 5);
-    long.go(0.2, 5);
-    expect(total(short.turned) * short.scale()).toBeCloseTo(total(long.turned) * long.scale(), 6);
-  });
-
-  it('does not roll where it first stands, nor when it stands still', () => {
-    const { go, turned } = rolling('armor');
-    go(0.5, 0.1);
-    go(0.5, 0.1);
-    go(0.5, 0.1);
-    expect(total(turned)).toBe(0);
-  });
-
-  it('rolls nothing in reduced or cut motion', () => {
-    const { go, turned } = rolling('armor');
-    go(0.1, 0.1);
-    go(0.2, null, true);
-    go(0.3, null);
-    expect(total(turned)).toBe(0);
-  });
-
   beforeEach(() => vi.useFakeTimers({ toFake: ['performance'] }));
   afterEach(() => vi.useRealTimers());
 
-  it('turns the screws of a plane that flies, and stops them once it stands', () => {
-    const { go, spun } = rolling('fighter');
+  it('turns while the plane flies, and stops 250 ms after it stands', () => {
+    const { go, spun } = plane();
     go(0.1, 0.1);
     go(0.2, 0.1);
     expect(total(spun)).toBeGreaterThan(0);
@@ -364,84 +323,11 @@ describe('the wheels and the screws of a piece on its road', () => {
   });
 
   it('turns no screw in reduced or cut motion', () => {
-    const { go, spun } = rolling('fighter');
+    const { go, spun } = plane();
     go(0.1, 0.1);
     const before = total(spun);
     go(0.2, null, true);
     go(0.3, null);
     expect(total(spun)).toBe(before);
-  });
-});
-
-describe('the wheels of my column on its road', () => {
-  const eye = new Vector3(0, 0.05, 0);
-  const column = () => {
-    const turned: number[] = [];
-    const armor: Figurine = {
-      object: new Group(),
-      span: troopSpan('armor'),
-      ready: Promise.resolve(),
-      spin() {},
-      roll: (travelled) => turned.push(travelled),
-    };
-    const pawn = new Pawn('#000', null, null, null, [
-      { figurine: armor, role: 'armor', wear: 'whole', troopId: 't' },
-    ]);
-    const go = (x: number, near = true) => {
-      pawn.place(new Vector3(x, 0, 0), new Vector3(x + 1, 0, 0));
-      pawn.step(0.1);
-      pawn.orient(near ? eye.clone().setX(x) : new Vector3(x, 1e4, 0), 0);
-    };
-    return { go, turned };
-  };
-  beforeEach(() => vi.useFakeTimers({ toFake: ['performance'] }));
-  afterEach(() => vi.useRealTimers());
-
-  it('rolls each piece that walks, and none that stands', () => {
-    const { go, turned } = column();
-    go(0.01);
-    go(0.02);
-    expect(turned.length).toBeGreaterThan(0);
-    const walked = turned.length;
-    vi.advanceTimersByTime(300);
-    go(0.02);
-    expect(turned).toHaveLength(walked);
-  });
-
-  it('rolls nothing of a piece too far to be drawn', () => {
-    const { go, turned } = column();
-    go(0.01, false);
-    go(0.02, false);
-    expect(turned).toHaveLength(0);
-  });
-});
-
-describe('the wheels of a file whose rear has not entered the leg', () => {
-  it('rolls the head that walks, and not the piece still waiting at the leg start', () => {
-    const turned = { head: 0, rear: 0 };
-    const piece = (key: 'head' | 'rear'): Figurine => ({
-      object: new Group(),
-      span: troopSpan('armor'),
-      ready: Promise.resolve(),
-      spin() {},
-      roll: (travelled) => (turned[key] += travelled),
-    });
-    const [head, rear] = [piece('head'), piece('rear')];
-    const pawn = new Pawn('#000', null, null, null, [
-      { figurine: head, role: 'armor', wear: 'whole', troopId: 'a' },
-      { figurine: rear, role: 'armor', wear: 'whole', troopId: 'b' },
-    ]);
-    const leg = {
-      medium: 'land' as const,
-      length: 1,
-      strands: [{ vertices: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)], lengths: [1] }],
-    };
-    for (const x of [0.0004, 0.0005]) {
-      pawn.place(new Vector3(x, 0, 0), new Vector3(x + 0.01, 0, 0), 0, 0, { leg, local: x });
-      pawn.step(0.1);
-      pawn.orient(new Vector3(x, 0.05, 0), 0);
-    }
-    expect(turned.head).toBeGreaterThan(0);
-    expect(turned.rear).toBe(0);
   });
 });

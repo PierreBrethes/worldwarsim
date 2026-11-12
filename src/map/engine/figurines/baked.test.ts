@@ -1,19 +1,16 @@
-import type { UnitRole } from '@/domain/ids';
 import { Box3, type Object3D, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { isRigPart, type RigFamily, RIG_PARTS } from '@/emblems/rigs';
 import { bakedRig } from '../baking';
-import { rolls } from '../rolling';
 import { meshesOf, sceneOfFile, sweptVolume } from '../gltf-scene.fixture';
 import { bakedFigurine, REST_POSES } from './figurine';
 import { JOINTS, POSED, squadOf, stride } from './infantry';
 
-const readByName = (node: Object3D, role: string) =>
-  (POSED as ReadonlyArray<string>).includes(node.name) ||
-  node.name.startsWith('fx_') ||
-  node.name.startsWith('prop') ||
-  rolls(node, role as UnitRole);
+const readByName = (name: string) =>
+  (POSED as ReadonlyArray<string>).includes(name) ||
+  name.startsWith('fx_') ||
+  name.startsWith('prop');
 
 const files = Object.entries(FIGURINE_FILES).flatMap(([nation, roles]) =>
   Object.entries(roles ?? {}).flatMap(([role, entry]) =>
@@ -26,13 +23,13 @@ const files = Object.entries(FIGURINE_FILES).flatMap(([nation, roles]) =>
 describe.runIf(files.length > 0)('baked figurines', () => {
   it.each(files)('%s keeps every name the code reads, where it was', (_, role, url) => {
     const scene = sceneOfFile(url);
-    const baked = bakedFigurine(scene, role as UnitRole, true);
+    const baked = bakedFigurine(scene);
     baked.updateMatrixWorld(true);
     scene.updateMatrixWorld(true);
 
     scene.traverse((node) => {
       // A blade rides its hub: the spin finds the hub, never the blade.
-      if (!readByName(node, role) || node.parent?.name.startsWith('prop')) return;
+      if (!readByName(node.name) || node.parent?.name.startsWith('prop')) return;
       const kept = baked.getObjectByName(node.name);
       expect(kept, node.name).toBeDefined();
       const was = node.getWorldPosition(new Vector3());
@@ -89,9 +86,7 @@ describe.runIf(files.length > 0)('baked figurines', () => {
 describe.runIf(files.length > 0)('a sculpted mark 2 marching', () => {
   const rank2 = files.filter(([, role, url]) => role === 'infantry' && url.includes('infantry-2'));
   it.each(rank2)('%s keeps its feet on the plateau', (_, __, url) => {
-    const squad = squadOf([
-      { make: () => bakedFigurine(sceneOfFile(url), 'infantry'), sculpted: true },
-    ]);
+    const squad = squadOf([{ make: () => bakedFigurine(sceneOfFile(url)), sculpted: true }]);
     const bottom = () => {
       squad.updateMatrixWorld(true);
       return new Box3().setFromObject(squad, true).min.y;
@@ -119,7 +114,7 @@ describe.runIf(files.length > 0)('articulated copies of the figurines', () => {
   it.each(rigged)('%s draws at rest what the resting figurine does', (_, role, url) => {
     const scene = sceneOfFile(url);
     const rig = bakedRig(scene, (node) => isRigPart(role as RigFamily, node.name));
-    const rest = bakedFigurine(sceneOfFile(url), role as UnitRole);
+    const rest = bakedFigurine(sceneOfFile(url));
     for (const made of [rig, rest]) made.updateMatrixWorld(true);
     const [a, b] = [rig, rest].map((made) => new Box3().setFromObject(made, true));
     expect(a!.min.distanceTo(b!.min)).toBeLessThan(1e-4);
@@ -161,5 +156,39 @@ describe('a gun in battery', () => {
     expect(emplaced!('trail_left').max.x).toBeGreaterThan(rest!('trail_left').max.x + 0.05);
     expect(emplaced!('trail_right').min.x).toBeLessThan(rest!('trail_right').min.x - 0.05);
     expect(scene.getObjectByName('trail_left')!.rotation.y).toBe(0);
+  });
+});
+
+/** **What a figurine costs in draw calls**, a mesh per material and per part kept apart: a part
+ *  more kept apart is a call more for every piece on the map, and the counts are the ones the
+ *  figurines were drawn in when the wheels were let be (#539). */
+describe.runIf(files.length > 0)('the meshes of a baked figurine', () => {
+  const COUNTS: Readonly<Record<string, readonly [number, number]>> = {
+    infantry: [19, 21],
+    armor: [5, 5],
+    artillery: [3, 3],
+    landTransport: [9, 10],
+    fighter: [6, 6],
+    bomber: [6, 9],
+    airTransport: [8, 9],
+    escort: [5, 5],
+    cargo: [7, 8],
+    carrier: [7, 7],
+  };
+
+  it('keeps each role in its calls', () => {
+    const found = new Map<string, number[]>();
+    for (const [, role, url] of files) {
+      const scene = sceneOfFile(url);
+      // The fixture's materials are alike: told apart by name, as the file's are by their look.
+      for (const mesh of meshesOf(scene)) {
+        const material = mesh.material as unknown as { name: string; roughness: number };
+        material.roughness =
+          [...material.name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 7) / 997;
+      }
+      found.set(role, [...(found.get(role) ?? []), meshesOf(bakedFigurine(scene)).length]);
+    }
+    const span = (role: string) => [Math.min(...found.get(role)!), Math.max(...found.get(role)!)];
+    for (const role of found.keys()) expect(span(role), role).toEqual(COUNTS[role]);
   });
 });
