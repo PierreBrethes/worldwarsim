@@ -31,6 +31,7 @@ describe('cargoTagsOf', () => {
         ],
         refusal: null,
         load: { ammunition: 0, oil: 0, coal: 0 },
+        harvest: { food: 0, steel: 0, coal: 0, oil: 0, ammunition: 0 },
         loadCapacity: 200,
         tour: null,
       },
@@ -43,6 +44,7 @@ describe('cargoTagsOf', () => {
         riders: [],
         refusal: 'NOT_ABOARD',
         load: { ammunition: 0, oil: 0, coal: 0 },
+        harvest: { food: 0, steel: 0, coal: 0, oil: 0, ammunition: 0 },
         loadCapacity: 200,
         tour: null,
       },
@@ -55,6 +57,20 @@ describe('cargoTagsOf', () => {
       ashore,
     );
     expect(truck).toMatchObject({ load: { ammunition: 60, oil: 20 }, loadCapacity: 200 });
+  });
+
+  it('carries the harvest aboard beside the load, under the same capacity (#551)', () => {
+    const [truck] = cargoTagsOf(
+      [
+        {
+          ...troop('t1', 'landTransport'),
+          load: { ammunition: 60, oil: 0, coal: 0 },
+          harvest: { food: 0, steel: 0, coal: 90, oil: 0, ammunition: 0 },
+        },
+      ],
+      ashore,
+    );
+    expect(truck).toMatchObject({ harvest: { coal: 90 }, loadCapacity: 200 });
   });
 
   it('says why its tour waits (ADR 0028)', () => {

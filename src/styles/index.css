@@ -5,6 +5,7 @@
 @import './indicators.css';
 @import './compass-rose.css';
 @import './off-season.css';
+@import './tour-sheet.css';
 
 @theme {
   --font-display: 'Bodoni Moda', Georgia, serif;

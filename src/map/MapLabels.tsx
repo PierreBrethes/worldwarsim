@@ -5,6 +5,7 @@
 
 import { stationKeyOf } from '@/domain/troops';
 import type { TourAct } from '@/domain/cargo-tag';
+import type { SheetMark } from '@/domain/tour-sheet-marks';
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { ChargeBar } from '@/shell/ChargeBar';
 import { SUPPLY_KEYS, type SupplyLoad } from '@/domain/logistics';
@@ -140,6 +141,7 @@ export function MapLabels({
   carriersShown = false,
   onTakeDepot,
   onTour,
+  onSheetPick,
   onRecallPatrol,
   cue = null,
   selectionBar = null,
@@ -152,6 +154,8 @@ export function MapLabels({
   cue?: { readonly labelId: string; readonly text: string } | null;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** Un clic sur la marque qu'un arrêt de la feuille de route porte sur sa carte (#551). */
+  onSheetPick?: ((stop: SheetMark['pick']) => void) | undefined;
   /** **Rappeler une ronde** depuis l'étiquette de sa colonne en route (#376). */
   onRecallPatrol?: ((troopId: string) => void) | undefined;
   /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
@@ -1156,6 +1160,7 @@ export function MapLabels({
     takeDepot: (outpostId, key, event) => onTakeDepot?.(outpostId, key, event),
     disembark: (troopIds) => onDisembark?.(troopIds),
     tour: (carrierId, act) => onTour?.(carrierId, act),
+    sheetPick: (stop) => onSheetPick?.(stop),
     recallPatrol: (troopId) => onRecallPatrol?.(troopId),
   };
   const disembark = useCallback(
@@ -1321,6 +1326,7 @@ type LabelGestures = {
   readonly takeDepot: TakeDepot;
   readonly disembark: (troopIds: ReadonlyArray<string>) => void;
   readonly tour: (carrierId: string, act: TourAct) => void;
+  readonly sheetPick: (stop: SheetMark['pick']) => void;
   readonly recallPatrol: (troopId: string) => void;
 };
 
@@ -1431,6 +1437,19 @@ const LabelNode = memo(function LabelNode({
               <path className="label-owner-cloth" d="M2.6 1.5h11.5l-2.6 3.6 2.6 3.6H2.6z" />
             </svg>
           </span>
+        )}
+        {label.sheetMark !== undefined && (
+          <button
+            type="button"
+            className={`label-sheetmark label-sheetmark--${label.sheetMark.tone}`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              gestures.current.sheetPick(label.sheetMark!.pick);
+            }}
+          >
+            {label.sheetMark.text}
+          </button>
         )}
         <div
           className="label-block"

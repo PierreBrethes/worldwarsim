@@ -1425,3 +1425,45 @@
   height: 100%;
   pointer-events: none;
 }
+
+/* **Un arrêt de la feuille de route allumé sur la carte** (#551, maquette `feuille-intelligente`) :
+   le rang dans la boucle (encre pleine), dans le classement (ocre, halo), ou un refus (barré, rouge).
+   Il se pose au-dessus du mât, et prend le pointeur : un clic sur lui remplit la carte vide. */
+.label-sheetmark {
+  position: absolute;
+  left: -11px;
+  top: -44px;
+  z-index: 3;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  font: 700 11px/1 var(--font-mono);
+  pointer-events: auto;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 35%);
+}
+
+.label-sheetmark--stop {
+  border: 1.5px solid var(--paper);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.label-sheetmark--cand {
+  border: 1.5px solid var(--ink);
+  background: var(--arc-mine, var(--ink));
+  color: var(--ink);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--arc-mine, var(--ink)) 35%, transparent),
+    0 1px 0 rgb(0 0 0 / 35%);
+}
+
+.label-sheetmark--nope {
+  border: 1.5px solid var(--critical);
+  background: var(--paper);
+  color: var(--critical);
+  cursor: not-allowed;
+}

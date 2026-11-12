@@ -1,6 +1,7 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
+import type { SheetMark } from './tour-sheet-marks';
 import { asClockTime, asDatedClock, asLocalTime } from '@/domain/duration';
 import { aimRefusalShort, countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
 import type { CaptureClock } from './capture';
@@ -450,6 +451,8 @@ export type MapLabel = {
   readonly pictogram: LabelPictogram | null;
   /** **A pile's loaded transports**, each with its tag (POC du 16/10); absent elsewhere. */
   readonly cargo?: ReadonlyArray<CargoTag>;
+  /** **Un arrêt de la feuille de route allumé** (#551) : sa marque se pose sur cette étiquette. */
+  readonly sheetMark?: SheetMark;
   /**
    * A drawn plate hung where the pictogram would go — the building itself rather than a sign
    * for it. The two are exclusive: a plate is a portrait, a pictogram is a category, and the

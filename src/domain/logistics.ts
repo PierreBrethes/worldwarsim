@@ -27,7 +27,7 @@ export const loadCapacityOf = (role: UnitRole): number => LOAD_CAPACITY_BY_ROLE[
  */
 export type HarvestLoad = Readonly<Record<ResourceKey, number>>;
 
-const harvestTotal = (harvest: HarvestLoad | undefined): number =>
+export const harvestTotal = (harvest: HarvestLoad | undefined): number =>
   harvest === undefined ? 0 : RESOURCES.reduce((sum, key) => sum + harvest[key], 0);
 
 /** **La place à bord**, sur des totaux : la capacité, moins la charge, moins la récolte. */

@@ -2,7 +2,8 @@
 // elle dit qui est à bord et ce qui reste de place, et c'est d'elle qu'on tire un passager
 // pour le faire descendre. Remplace le jeton « N à bord ».
 import type { UnitRole, UnitTier } from './ids';
-import { emptyLoad, loadCapacityOf, type SupplyLoad } from './logistics';
+import { emptyStocks } from './economy';
+import { emptyLoad, loadCapacityOf, type HarvestLoad, type SupplyLoad } from './logistics';
 import {
   boardingRefusalOf,
   disembarkRefusalOf,
@@ -15,23 +16,22 @@ import type { TourWait, TroopView } from './player-view';
 type Aboard = Seated & {
   readonly tier: UnitTier;
   readonly load?: SupplyLoad;
+  readonly harvest?: HarvestLoad;
   readonly tour?: Pick<NonNullable<TroopView['tour']>, 'stops' | 'waiting' | 'recalled' | 'veiled'>;
 };
 
-/** **Ce que l'étiquette dit de la tournée** (ADR 0028) : en tracé, en route, en attente et
- *  pourquoi, rappelée. */
+/** **Ce que l'étiquette dit de la tournée** (ADR 0028) : en route, en attente et pourquoi,
+ *  rappelée. */
 export type TagTour = {
-  readonly state: 'tracing' | 'running' | 'waiting' | 'recalled';
+  readonly state: 'running' | 'waiting' | 'recalled';
   readonly stops: number;
   readonly waiting: TourWait | null;
   readonly veiled?: true;
 };
 
-/** **La tournée que la main trace** : son transport et ses dépôts dans l'ordre. */
-export type TourTrace = { readonly carrierId: string; readonly stops: ReadonlyArray<string> };
-
-/** **Ce que l'étiquette fait de la tournée** : lancer celle qu'on trace, l'effacer, la rappeler. */
-export type TourAct = 'launch' | 'clear' | 'recall';
+/** **Ce que l'étiquette fait de la tournée** : ouvrir la feuille de route du transport (#551), ou
+ *  rappeler la tournée qui tourne. */
+export type TourAct = 'open' | 'recall';
 
 export type CargoTag = {
   readonly carrierId: string;
@@ -51,6 +51,8 @@ export type CargoTag = {
   readonly refusal: DisembarkRefusal | null;
   /** **Sa charge** (ADR 0028 §4), dans sa seule capacité : munitions, pétrole, charbon. */
   readonly load: SupplyLoad;
+  /** **Sa récolte à bord** (ADR 0041 §2), sous la même capacité : la place qui reste la compte. */
+  readonly harvest: HarvestLoad;
   readonly loadCapacity: number;
   readonly tour: TagTour | null;
 };
@@ -62,8 +64,6 @@ export function cargoTagsOf<T extends Aboard>(
   where: {
     readonly afloat: boolean;
     readonly atAirfield: boolean;
-    /** La tournée que la main trace, s'il y en a une : son transport le dit sur son étiquette. */
-    readonly trace?: TourTrace | null;
   },
 ): ReadonlyArray<CargoTag> {
   return pile.flatMap((carrier) => {
@@ -86,26 +86,21 @@ export function cargoTagsOf<T extends Aboard>(
           ...where,
         }),
         load: carrier.load ?? emptyLoad(),
+        harvest: carrier.harvest ?? emptyStocks(),
         loadCapacity: loadCapacityOf(carrier.role),
         tour:
-          where.trace?.carrierId === carrier.id
-            ? {
-                state: 'tracing' as const,
-                stops: where.trace.stops.length,
-                waiting: null,
-              }
-            : carrier.tour === undefined
-              ? null
-              : {
-                  state: carrier.tour.recalled
-                    ? ('recalled' as const)
-                    : carrier.tour.waiting !== null
-                      ? ('waiting' as const)
-                      : ('running' as const),
-                  stops: carrier.tour.stops.length,
-                  waiting: carrier.tour.waiting,
-                  ...(carrier.tour.veiled === true ? { veiled: true as const } : {}),
-                },
+          carrier.tour === undefined
+            ? null
+            : {
+                state: carrier.tour.recalled
+                  ? ('recalled' as const)
+                  : carrier.tour.waiting !== null
+                    ? ('waiting' as const)
+                    : ('running' as const),
+                stops: carrier.tour.stops.length,
+                waiting: carrier.tour.waiting,
+                ...(carrier.tour.veiled === true ? { veiled: true as const } : {}),
+              },
       },
     ];
   });

@@ -1,5 +1,6 @@
 import { resourceColor } from '@/emblems/resource-color';
-import { SUPPLY_KEYS, loadTotal, type SupplyLoad } from '@/domain/logistics';
+import { RESOURCES, type ResourceKey } from '@/domain/ids';
+import type { HarvestLoad, SupplyLoad } from '@/domain/logistics';
 import { fr } from '@/i18n/fr';
 import { useMapMotion } from '@/data/mapMotion';
 
@@ -10,20 +11,30 @@ import { useMapMotion } from '@/data/mapMotion';
  */
 export function ChargeBar({
   load,
+  harvest,
   capacity,
   width = 72,
 }: {
   load: SupplyLoad;
+  /** **La récolte à bord** (ADR 0041) : elle prend sa part de la même capacité, par ressource. */
+  harvest?: HarvestLoad | undefined;
   capacity: number;
   width?: number;
 }) {
-  const total = loadTotal(load);
+  /** Ce que la barre compte, par ressource : la charge d'abord, la récolte ensuite. */
+  const held = Object.fromEntries(
+    RESOURCES.map((key) => [
+      key,
+      ((load as Partial<Record<ResourceKey, number>>)[key] ?? 0) + (harvest?.[key] ?? 0),
+    ]),
+  ) as Record<ResourceKey, number>;
+  const total = RESOURCES.reduce((sum, key) => sum + held[key], 0);
   /** La barre glisse selon le réglage : actives, réduites, coupées. */
   const motion = useMapMotion();
   const transition =
     motion === 'off' ? 'none' : `width ${motion === 'reduced' ? 150 : 500}ms ease-out`;
-  const said = SUPPLY_KEYS.filter((key) => load[key] > 0)
-    .map((key) => `${load[key]} ${fr.resources[key]}`)
+  const said = RESOURCES.filter((key) => held[key] > 0)
+    .map((key) => `${held[key]} ${fr.resources[key]}`)
     .join(', ');
   return (
     <span
@@ -35,13 +46,13 @@ export function ChargeBar({
         className="flex h-[6px] overflow-hidden bg-(--ink)/14 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--ink)_35%,transparent)]"
         style={{ width }}
       >
-        {SUPPLY_KEYS.map((key) => (
+        {RESOURCES.map((key) => (
           <i
             key={key}
             className="block h-full"
             style={{
               transition,
-              width: `${capacity > 0 ? (load[key] / capacity) * 100 : 0}%`,
+              width: `${capacity > 0 ? (held[key] / capacity) * 100 : 0}%`,
               background: resourceColor(key, true),
             }}
           />

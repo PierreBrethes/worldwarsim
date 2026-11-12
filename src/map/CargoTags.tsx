@@ -3,7 +3,7 @@ import type { TourAct } from '@/domain/cargo-tag';
 import type { CargoTag } from '@/domain/cargo-tag';
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
-import { loadTotal } from '@/domain/logistics';
+import { harvestTotal, loadTotal } from '@/domain/logistics';
 import { ChargeBar } from '@/shell/ChargeBar';
 
 /** Past this many pixels a press on a passenger is a pull, not a click. */
@@ -39,8 +39,8 @@ export function CargoTags({
   selected = false,
   onTour,
 }: {
-  /** **La tournée depuis l'étiquette** (ADR 0028) : la lancer ou l'effacer une fois tracée, la
-   *  rappeler quand elle tourne. */
+  /** **La tournée depuis l'étiquette** : ouvrir la feuille de route du transport (#551), rappeler
+   *  la tournée qui tourne (ADR 0028). */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
   tags: ReadonlyArray<CargoTag>;
   nation: string | null;
@@ -111,8 +111,10 @@ export function CargoTags({
         const aimed = aim?.carrierId === tag.carrierId;
         const empty = Math.max(0, tag.seats - tag.used);
         const want = aimed ? aim.need : 0;
-        const loaded = loadTotal(tag.load) > 0;
-        const sign = tag.riders.length > 0 || loaded || tag.tour !== null;
+        const loaded = loadTotal(tag.load) + harvestTotal(tag.harvest) > 0;
+        /** Un transport porte toujours son signe quand la feuille s'ouvre d'un clic dessus. */
+        const opens = onTour !== undefined && tag.loadCapacity > 0;
+        const sign = tag.riders.length > 0 || loaded || tag.tour !== null || opens;
         const shown = sign || available || aimed;
         const riding = tag.riders[0];
         return (
@@ -123,7 +125,16 @@ export function CargoTags({
           >
             {sign && (
               <span
-                className="cargo-tag-sign float paper-grain"
+                role={opens ? 'button' : undefined}
+                onClick={
+                  opens
+                    ? (event) => {
+                        keep(event);
+                        onTour(tag.carrierId, 'open');
+                      }
+                    : undefined
+                }
+                className={`cargo-tag-sign float paper-grain${opens ? ' cargo-tag-sign--opens' : ''}`}
                 title={[
                   tag.riders.length > 0 ? fr.cargo.aboard(tag.riders.length) : null,
                   tag.tour === null ? null : fr.logistics.tourLine(tag.tour),
@@ -154,6 +165,11 @@ export function CargoTags({
                     ▣
                   </span>
                 )}
+                {riding === undefined && !loaded && tag.tour === null && (
+                  <span aria-hidden className="cargo-tag-mark">
+                    ▤
+                  </span>
+                )}
               </span>
             )}
             <div className="cargo-tag-body float paper-grain">
@@ -163,8 +179,26 @@ export function CargoTags({
               </div>
               {tag.loadCapacity > 0 && (
                 <div className="cargo-tag-charge">
-                  <ChargeBar load={tag.load} capacity={tag.loadCapacity} width={54} />
+                  <ChargeBar
+                    load={tag.load}
+                    harvest={tag.harvest}
+                    capacity={tag.loadCapacity}
+                    width={54}
+                  />
                 </div>
+              )}
+              {onTour !== undefined && tag.loadCapacity > 0 && (
+                <button
+                  type="button"
+                  className="cargo-tag-out cargo-tag-sheet"
+                  title={fr.tourSheet.openTitle}
+                  onClick={(event) => {
+                    keep(event);
+                    onTour(tag.carrierId, 'open');
+                  }}
+                >
+                  {fr.tourSheet.open}
+                </button>
               )}
               {tag.tour !== null && (
                 <div className="cargo-tag-tour">
@@ -173,42 +207,18 @@ export function CargoTags({
                   >
                     {fr.logistics.tourLine(tag.tour)}
                   </span>
-                  {onTour !== undefined &&
-                    (tag.tour.state === 'tracing' ? (
-                      <>
-                        <button
-                          type="button"
-                          className="cargo-tag-out"
-                          onClick={(event) => {
-                            keep(event);
-                            onTour(tag.carrierId, 'launch');
-                          }}
-                        >
-                          {fr.logistics.launch}
-                        </button>
-                        <button
-                          type="button"
-                          className="cargo-tag-out"
-                          onClick={(event) => {
-                            keep(event);
-                            onTour(tag.carrierId, 'clear');
-                          }}
-                        >
-                          {fr.logistics.clear}
-                        </button>
-                      </>
-                    ) : tag.tour.state === 'recalled' ? null : (
-                      <button
-                        type="button"
-                        className="cargo-tag-out"
-                        onClick={(event) => {
-                          keep(event);
-                          onTour(tag.carrierId, 'recall');
-                        }}
-                      >
-                        {fr.logistics.recall}
-                      </button>
-                    ))}
+                  {onTour !== undefined && tag.tour.state !== 'recalled' && (
+                    <button
+                      type="button"
+                      className="cargo-tag-out"
+                      onClick={(event) => {
+                        keep(event);
+                        onTour(tag.carrierId, 'recall');
+                      }}
+                    >
+                      {fr.logistics.recall}
+                    </button>
+                  )}
                 </div>
               )}
               <div className="cargo-tag-slots">

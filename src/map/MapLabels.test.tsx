@@ -215,6 +215,7 @@ describe('a loaded transport', () => {
     riders: [{ id: 'rider', role: 'infantry', tier: 1, seats: 1 }],
     refusal: null,
     load: { ammunition: 0, oil: 0, coal: 0 },
+    harvest: { food: 0, steel: 0, coal: 0, oil: 0, ammunition: 0 },
     loadCapacity: 0,
     tour: null,
     ...over,

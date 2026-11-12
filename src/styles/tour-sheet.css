@@ -1,0 +1,521 @@
+/* **La feuille de route d'un transport** (ADR 0041, #551 ; maquette `feuille-intelligente`) : au
+   bureau un panneau posé à gauche, au téléphone le contenu d'une demi-feuille basse (`BottomSheet`).
+   Les cartes se glissent par leur poignée ou un appui long ; tout se recalcule au lâcher. */
+.tour-sheet {
+  position: fixed;
+  /* Dans une surface `.hud` les longueurs se divisent par l'échelle pour dire une mesure d'écran. */
+  top: calc((var(--board-top, 64px) + 12px) / var(--hud-scale));
+  bottom: calc((max(var(--mat-rise, 0px), var(--table-margin)) + 8px) / var(--hud-scale));
+  left: calc(16px / var(--hud-scale));
+  z-index: var(--z-menu);
+  display: grid;
+  width: 404px;
+  grid-template-rows: auto auto 1fr auto auto;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+}
+
+.tour-sheet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 14px 0;
+}
+
+.tour-sheet-x {
+  padding: 4px 8px;
+  border: 1px solid var(--ink);
+  font: 600 10px/1 var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tour-sheet-title {
+  display: grid;
+  gap: 3px;
+  padding: 4px 14px 9px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.tour-sheet-title h2 {
+  margin: 0;
+  font: 700 21px/1.05 var(--font-display);
+}
+
+.tour-sheet-title p {
+  margin: 0;
+  font: italic 12px/1.3 var(--font-text);
+  color: var(--ink-soft);
+}
+
+.tour-sheet-body {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 8px 12px 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.tour-sheet-foot {
+  display: grid;
+  gap: 7px;
+  padding: 8px 14px 8px;
+  border-top: 1px solid var(--ink);
+}
+
+/* Dans la feuille basse, seuls les boutons restent sous les doigts : les sommes défilent avec les cartes. */
+.board-sheet .tour-btns {
+  position: sticky;
+  bottom: 0;
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.board-sheet .tour-sheet-body {
+  overflow: visible;
+}
+
+.board-sheet .tour-sheet-title {
+  padding: 4px 12px 6px;
+}
+
+.board-sheet .tour-sheet-title h2 {
+  font-size: 17px;
+}
+
+.board-sheet .tour-sheet-title p {
+  display: none;
+}
+
+.tour-sheet button,
+.board-sheet .tour-sheet-body button,
+.board-sheet .tour-sheet-foot button {
+  font-family: var(--font-body);
+}
+
+.tour-btns {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+
+.tour-btns button {
+  flex: 1;
+  padding: 9px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  font: 600 12px/1 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tour-btns .tour-solid {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.tour-sum {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  margin: 0;
+  font: 500 11px/1.25 var(--font-mono);
+}
+
+.tour-sum dt {
+  font: 600 11px/1.25 var(--font-body);
+  color: var(--ink-soft);
+}
+
+.tour-sum dd {
+  margin: 0;
+}
+
+.tour-propose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  font: 12px/1.3 var(--font-text);
+}
+
+.tour-propose button {
+  padding: 5px 9px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  font: 600 10px/1 var(--font-body);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tour-propose--done {
+  border-color: var(--arc-mine);
+  background: color-mix(in srgb, var(--arc-mine) 14%, var(--paper));
+}
+
+.tour-refusal {
+  color: var(--critical);
+  font: 600 11.5px/1.3 var(--font-body);
+}
+
+/* une carte d'arrêt */
+.tour-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 22px 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 7px 8px 7px 4px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 0 2px 0 var(--ink);
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.tour-card--fixed {
+  grid-template-columns: 22px 1fr auto;
+  padding-left: 8px;
+  border-style: dotted;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tour-card--fresh {
+  box-shadow:
+    0 2px 0 var(--ink),
+    0 0 0 3px var(--arc-mine);
+}
+
+.tour-card--lifted {
+  position: fixed;
+  z-index: var(--z-window);
+  rotate: -1.5deg;
+  box-shadow: var(--shadow-float);
+  pointer-events: none;
+}
+
+.tour-slot {
+  border: 2px dashed var(--arc-mine);
+  background: color-mix(in srgb, var(--arc-mine) 10%, transparent);
+}
+
+.tour-grip {
+  display: grid;
+  grid-row: 1 / span 3;
+  align-self: stretch;
+  place-items: center;
+  color: var(--ink-soft);
+  font: 700 13px/1 var(--font-mono);
+  letter-spacing: -2px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tour-n {
+  display: grid;
+  grid-row: 1 / span 2;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  font: 700 11px/1 var(--font-mono);
+}
+
+.tour-n--give {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.tour-n--take {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.tour-n--base {
+  font-size: 8.5px;
+  box-shadow: inset 0 0 0 1px var(--ink-soft);
+}
+
+.tour-nm {
+  font: 600 13px/1.1 var(--font-body);
+}
+
+.tour-eff {
+  grid-column: 3;
+  font: 500 11px/1.25 var(--font-mono);
+}
+
+.tour-card--fixed .tour-eff {
+  grid-column: 2;
+}
+
+.tour-note {
+  grid-column: 3 / -1;
+  font: italic 10.5px/1.3 var(--font-text);
+  color: var(--ink-soft);
+}
+
+.tour-card--fixed .tour-note {
+  grid-column: 2 / -1;
+}
+
+.tour-note--warn {
+  color: var(--critical);
+  font: 600 10.5px/1.3 var(--font-body);
+}
+
+.tour-aboard {
+  display: grid;
+  grid-row: 1 / span 2;
+  grid-column: 4;
+  justify-items: end;
+  gap: 3px;
+  text-align: right;
+}
+
+.tour-card--fixed .tour-aboard {
+  grid-column: 3;
+}
+
+.tour-aboard b {
+  font: 600 12px/1 var(--font-mono);
+}
+
+.tour-aboard small {
+  font: 600 8px/1 var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.tour-bar {
+  display: flex;
+  width: 64px;
+  height: 5px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+.tour-bar i {
+  height: 100%;
+  background: var(--ink);
+}
+
+.tour-rm {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  display: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  font-size: 11px;
+  line-height: 1;
+  translate: 40% -40%;
+  cursor: pointer;
+}
+
+.tour-card:hover .tour-rm,
+.board-sheet .tour-rm {
+  display: block;
+}
+
+/* la carte d'ajout, puis la carte vide qui propose */
+.tour-add {
+  padding: 11px;
+  border: 1.5px dashed var(--ink);
+  background: transparent;
+  font: 600 12px/1 var(--font-body);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tour-add:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.tour-add--no {
+  border-color: var(--critical);
+  color: var(--critical);
+  font: 600 12px/1.3 var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: default;
+}
+
+.tour-pick {
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px 6px;
+  border: 2px dashed var(--arc-mine);
+  background: var(--paper);
+}
+
+.tour-pick-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tour-pick-head b {
+  font: 700 14px/1.1 var(--font-display);
+}
+
+.tour-pick-head button {
+  padding: 4px 7px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  font: 600 10px/1 var(--font-body);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tour-hint {
+  font: italic 11px/1.3 var(--font-text);
+  color: var(--ink-soft);
+}
+
+.tour-hint--warn {
+  color: var(--critical);
+  font: 600 11px/1.3 var(--font-body);
+}
+
+.tour-opt {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 1px 8px;
+  padding: 6px 4px;
+  border: 0;
+  border-top: var(--rule-light, 1px solid rgb(0 0 0 / 20%));
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tour-opt:hover {
+  background: color-mix(in srgb, var(--arc-mine) 14%, transparent);
+}
+
+.tour-opt b {
+  font: 600 12.5px/1.15 var(--font-body);
+}
+
+.tour-r {
+  display: grid;
+  grid-row: 1 / span 2;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--arc-mine);
+  color: var(--ink);
+  font: 700 10px/1 var(--font-mono);
+}
+
+.tour-r--no {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--critical);
+  color: var(--critical);
+}
+
+.tour-why {
+  grid-column: 2;
+  font: italic 10.5px/1.3 var(--font-text);
+  color: var(--ink-soft);
+}
+
+.tour-opt .tour-eff {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  font: 500 10.5px/1.2 var(--font-mono);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tour-opt--no {
+  cursor: not-allowed;
+}
+
+.tour-opt--no b,
+.tour-opt--no .tour-why {
+  color: var(--critical);
+}
+
+.tour-group {
+  padding: 6px 0 2px;
+  font: 600 8.5px/1 var(--font-body);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.cargo-tag-sheet {
+  margin-top: 4px;
+}
+
+/* Un refus qu'on a choisi quand même : la ligne s'entoure, sa raison déjà dite. */
+.tour-opt--pinned {
+  outline: 2px solid var(--critical);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--critical) 8%, transparent);
+}
+
+/* Au téléphone la feuille n'a qu'une moitié d'écran : les sommes tiennent sur une ligne, et
+   les boutons gardent la hauteur d'un doigt sans plus. */
+.board-sheet .tour-sheet-foot {
+  gap: 5px;
+  padding: 6px 12px 8px;
+  border-top: 0;
+}
+
+.tour-sum-line {
+  display: none;
+  margin: 0;
+  font: 500 11px/1.3 var(--font-mono);
+}
+
+.board-sheet .tour-sum {
+  display: none;
+}
+
+.board-sheet .tour-sum-line {
+  display: block;
+}
+
+.board-sheet .tour-btns button {
+  min-height: 44px;
+  padding: 6px;
+}
+
+/* Au doigt la croix reste dans la feuille : la marge du corps la retient, sans la rogner. */
+.board-sheet .tour-rm {
+  top: -9px;
+  right: -7px;
+  translate: none;
+}
+
+.tour-rm,
+.board-sheet .tour-rm {
+  min-width: 0;
+  min-height: 0;
+}

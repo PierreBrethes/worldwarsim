@@ -328,14 +328,9 @@ export type Refused = {
   readonly refusal: TourRefusal | DeliverRefusal;
 };
 
-/** **L'arrêt est-il refusé ?** Les deux règles du serveur : la tournée, puis le dépôt. */
-function refusalOf(
-  sheet: TourSheet,
-  stops: ReadonlyArray<SheetStop>,
-  stop: SheetStop,
-): TourRefusal | DeliverRefusal | null {
-  const all = [...stops, stop];
-  const refused = tourRefusalOf({
+/** La règle de la tournée sur ces arrêts, comme le serveur la lit. */
+const tourRefusalFor = (sheet: TourSheet, all: ReadonlyArray<SheetStop>) =>
+  tourRefusalOf({
     role: sheet.role,
     place: sheet.rules.place,
     busy: sheet.rules.busy,
@@ -346,12 +341,39 @@ function refusalOf(
     ),
     baseOutpostId: sheet.rules.baseOutpostId,
   });
-  if (refused !== null || stop.kind === 'site') return refused;
-  return deliverRefusalOf(
+
+const deliverRefusalFor = (sheet: TourSheet, stop: SheetDepot) =>
+  deliverRefusalOf(
     [{ role: sheet.role, load: sheet.consigne }],
     { level: stop.level, standing: stop.standing, depot: stop.depot, capacity: stop.capacity },
     true,
   );
+
+/** **L'arrêt est-il refusé ?** Les deux règles du serveur : la tournée, puis le dépôt. */
+function refusalOf(
+  sheet: TourSheet,
+  stops: ReadonlyArray<SheetStop>,
+  stop: SheetStop,
+): TourRefusal | DeliverRefusal | null {
+  const refused = tourRefusalFor(sheet, [...stops, stop]);
+  if (refused !== null || stop.kind === 'site') return refused;
+  return deliverRefusalFor(sheet, stop);
+}
+
+/** **La feuille telle qu'elle est, partirait-elle ?** Ce que `tours.start` lui dirait : la tournée,
+ *  puis chaque dépôt. `null` : elle part. */
+export function launchRefusalOf(
+  sheet: TourSheet,
+  stops: ReadonlyArray<SheetStop>,
+): TourRefusal | DeliverRefusal | null {
+  const refused = tourRefusalFor(sheet, stops);
+  if (refused !== null) return refused;
+  for (const stop of stops) {
+    if (stop.kind === 'site') continue;
+    const dead = deliverRefusalFor(sheet, stop);
+    if (dead !== null) return dead;
+  }
+  return null;
 }
 
 function reasonOf(stop: SheetStop, moved: number, emptiest: boolean): StopReason {

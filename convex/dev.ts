@@ -666,6 +666,37 @@ export const logisticsScene = internalMutation({
 });
 
 /**
+ * **La scène de la feuille de route** (#551), pour la démo : les exploitations du joueur sortent de
+ * la fondation (leur tas se ramasse) et chacune reçoit un tas à sa mesure — la première pleine (288) depuis
+ * trente heures, donc arrêtée, la deuxième à moitié, la dernière presque vide.
+ *
+ * `npx convex run dev:heapsScene '{"playerId":"…"}'`
+ */
+export const heapsScene = internalMutation({
+  args: { playerId: v.id('players') },
+  handler: async (ctx, { playerId }) => {
+    const player = await ctx.db.get(playerId);
+    if (player === null) throw new Error('no such player');
+    const now = Date.now();
+    const HOUR = 3_600_000;
+    const sites = (await playerBuildings(ctx, playerId))
+      .filter(isExploitation)
+      .sort((a, b) => a._creationTime - b._creationTime);
+    const heaps = [
+      { amount: 288, hoursAgo: 30 },
+      { amount: 110, hoursAgo: 0 },
+      { amount: 12, hoursAgo: 0 },
+    ];
+    for (const [rank, site] of sites.entries()) {
+      await ctx.db.patch(site._id, { foundationMark: undefined });
+      const heap = heaps[rank % heaps.length]!;
+      await stampHeap(ctx, site, playerId, heap.amount, now - heap.hoursAgo * HOUR);
+    }
+    return sites.length;
+  },
+});
+
+/**
  * **La scène du chargement** (#271), pour la démo : un entrepôt dans l'Oise et le QG à la
  * capitale, un camion vide en garnison à chacun. La démo les charge plus tard (`--chargement`).
  *

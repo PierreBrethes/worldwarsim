@@ -35,6 +35,7 @@ import type {
 } from '../domain/construction';
 import type { DispatchKind, Faced, PatrolEnd, TourEnd } from '../domain/player-view';
 import type { TagTour } from '../domain/cargo-tag';
+import type { Offered } from '../domain/tour-sheet';
 import type { SeasonMode } from '../domain/season-mode';
 import type { JoinRefusal } from '../domain/off-season';
 import type { VerdictReason } from '../domain/blitz';
@@ -3058,23 +3059,115 @@ export const fr = {
     tourLine: (tour: TagTour): string =>
       `${fr.logistics.tourState(tour)}${tour.veiled === true ? ' · relevée à mi-portée, Rangoun' : ''}`,
     tourState: ({ state, stops, waiting }: TagTour): string =>
-      state === 'tracing'
-        ? `tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`
-        : state === 'recalled'
-          ? 'tournée rappelée · finit au chargement'
-          : waiting === null
-            ? `tournée · ${stops} arrêt${plural(stops, '', 's')}`
-            : `tournée · attend : ${
-                waiting.why === 'full'
-                  ? 'dépôts pleins'
-                  : waiting.why === 'road'
-                    ? 'route refusée'
-                    : `${waiting.resource === undefined ? 'stock' : fr.resources[waiting.resource]} à sec au chargement`
-              }`,
-    launch: 'lancer',
-    clear: 'effacer',
+      state === 'recalled'
+        ? 'tournée rappelée · finit au chargement'
+        : waiting === null
+          ? `tournée · ${stops} arrêt${plural(stops, '', 's')}`
+          : `tournée · attend : ${
+              waiting.why === 'full'
+                ? 'dépôts pleins'
+                : waiting.why === 'road'
+                  ? 'route refusée'
+                  : `${waiting.resource === undefined ? 'stock' : fr.resources[waiting.resource]} à sec au chargement`
+            }`,
     recall: 'rappeler',
     tourStarted: 'Tournée lancée',
+  },
+  /** **La feuille de route d'un transport** (ADR 0041, #551) : ses cartes, ses raisons, ses sommes. */
+  tourSheet: {
+    open: 'feuille de route',
+    openTitle: 'Ouvrir la feuille de route de ce transport',
+    close: 'fermer',
+    eyebrow: (role: string, from: string) =>
+      `Feuille de route · ${role}${from === '' ? '' : ` · ${from}`}`,
+    titleTracing: (stops: number) => `Tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`,
+    titleRunning: (stops: number) => `En tournée · ${stops} arrêt${plural(stops, '', 's')}`,
+    hintTracing: (touch: boolean) =>
+      `▼ donne, ▲ prend ; ${touch ? 'un appui long saisit une carte' : 'glissez une carte par ses ⋮⋮'} pour changer l’ordre, tout se recalcule.`,
+    hintRunning: 'En tournée : rappelez-le pour retracer sa feuille.',
+    hintReading: '▼ donne, ▲ prend ; la tournée tourne, sa feuille se lit.',
+    grip: 'glisser pour réordonner',
+    remove: 'ôter cet arrêt',
+    loads: (said: string) => `charge la consigne : ${said}`,
+    loadsNothing: 'part à vide',
+    returnTo: (name: string) => `Retour · ${name}`,
+    banks: (said: string) => `verse au stock : ${said}`,
+    banksNothing: 'rien',
+    keptAboard: (said: string) => `l’entrepôt est plein : ${said} restent à bord`,
+    aboard: 'à bord',
+    gives: (amount: number) => `▼ donne ${amount}`,
+    takes: (amount: number, resource: string) => `▲ prend ${amount} ${resource}`,
+    depotAfter: (before: number, after: number, capacity: number) =>
+      `dépôt ${before} → ${after} sur ${capacity}`,
+    heapAfter: (before: number, after: number, restarts: boolean) =>
+      `tas ${before} → ${after}${restarts ? ' · la remet en marche' : ''}`,
+    skipped: (earlier: number, kind: 'depot' | 'site') =>
+      `la tournée le saute : ${kind === 'depot' ? 'rien à y donner' : 'rien à y prendre'} ici${
+        earlier > 0
+          ? ` — plus tôt dans la boucle, ${kind === 'depot' ? 'il recevrait' : 'il prendrait'} ${earlier}`
+          : ''
+      }`,
+    placed: (at: number, from: number, to: number) =>
+      `posé en ${at}, là où le rendement monte le plus : ${from} → ${to} / h`,
+    add: '+ ajouter un arrêt',
+    full: (max: number) => `Une tournée compte ${max} arrêts au plus : ôtez-en un pour en ajouter.`,
+    pickTitle: (rank: number) => `Arrêt ${rank} · à choisir`,
+    cancel: 'annuler',
+    pickHint: (rate: number) =>
+      `Touchez une ligne, ou un arrêt allumé sur la carte. Classés par ce qu’ils font gagner au rendement de la boucle (déplacé par heure, aujourd’hui ${rate} / h).`,
+    pickUseless:
+      'Le transport repart déjà plein : un arrêt de plus ne rapporte rien à cette boucle. Ôtez-en un, ou tracez une seconde tournée.',
+    pickLoading: 'Les exploitations se lisent…',
+    pickNone: 'Aucun arrêt possible.',
+    refusedGroup: 'Ne s’ajoutent pas',
+    slot: (at: number, km: number, gain: number) =>
+      `en ${at} · ${km >= 0 ? '+' : '−'}${Math.abs(km)} km · ${gain >= 0 ? '+' : '−'}${Math.abs(gain)} / h`,
+    lit: 'ne s’ajoute pas',
+    reason: (reason: Offered['reason']): string => {
+      switch (reason.code) {
+        case 'heapFilling':
+          return `tas ${reason.heap} sur ${reason.cap} · plein dans ${hoursText(reason.hoursToFull)}`;
+        case 'siteDisabled':
+          return 'hors service ou coupée du réseau : son tas ne se prend pas';
+        case 'siteStopped':
+          return `arrêtée depuis ${hoursText(reason.hours)} : perd ${Math.round(reason.lostPerHour)} / h`;
+        case 'heapEmpty':
+          return `tas vide à cette heure · ${Math.round(reason.perHour)} / h`;
+        case 'noHeap':
+          return 'fondation : verse seule son niveau 1 au stock, rien ne s’y entasse';
+        case 'heapStill':
+          return `tas ${reason.heap} sur ${reason.cap} · ne grossit plus`;
+        case 'aboardFull':
+          return `prendrait 0 sur ${reason.heap} : le transport repart déjà plein`;
+        case 'depotRoom':
+          return `dépôt ${reason.depot} sur ${reason.capacity}${reason.emptiest ? ', le plus vide' : ''}`;
+        case 'depotGivesNothing':
+          return 'ne recevrait rien : la consigne est toute donnée avant';
+      }
+    },
+    loopLabel: 'La boucle',
+    loop: (km: number, minutes: number) => `${km} km · ${spanText(minutes)}, puis recommence`,
+    rateLabel: 'Rendement',
+    rate: (rate: number) => `${rate} déplacés / h`,
+    peakLabel: 'Au plus fort',
+    peak: (peak: number, capacity: number) => `${peak} / ${capacity} à bord`,
+    bankedLabel: 'Au stock, par boucle',
+    sumLine: (km: number, minutes: number, rate: number, peak: number, capacity: number) =>
+      `${km} km · ${spanText(minutes)} · ${rate} déplacés / h · ${peak} / ${capacity} à bord`,
+    orderSame: (km: number) => `Ordre déjà au mieux : ${km} km, rien de perdu.`,
+    orderMoves: (after: number, before: number) =>
+      `Un autre ordre rapporte plus : ${after} déplacés au lieu de ${before}.`,
+    orderShorter: (after: number, before: number) =>
+      `Plus court : ${after} km au lieu de ${before}.`,
+    order: 'ordonner au mieux',
+    propose: 'proposer',
+    proposeAsk: 'Une tournée toute faite, à partir des tas et des dépôts.',
+    proposeNone: 'Rien à proposer : aucun arrêt ne fait gagner le rendement.',
+    proposed: 'Tournée proposée : rien ne part sans « lancer ». Glissez, ôtez, remplacez.',
+    launch: 'lancer la tournée',
+    clear: 'effacer',
+    recall: 'rappeler',
+    unavailable: 'Ce transport n’est plus là.',
   },
   /** **La ronde** (ADR 0037 §10, #376) : la ligne de la fiche, « En cours », la notification. */
   patrol: {
@@ -4762,7 +4855,6 @@ export const fr = {
       deliver: 'Livrer',
       lendLease: 'Livrer en Prêt-bail',
       airdrop: 'Larguer',
-      tour: 'Tracer une tournée',
       patrol: 'Tenir la ronde',
       sea: 'Marcher',
       inland: 'Faire route',
@@ -4802,19 +4894,9 @@ export const fr = {
     patrol: 'tenir la ronde',
     patrolConsequence:
       'Part sur-le-champ vers l’autre bout, fait halte une heure en garnison à chaque bout, et garde son slot.',
-    tour: 'tracer une tournée',
-    tourStop: (count: number) => `arrêt ${count} de la tournée`,
-    tourConsequence:
-      'Une boucle depuis le chargement, quatre dépôts au plus : il recharge sa consigne à chaque tour, saute un dépôt plein, et garde son slot.',
-    tracing: (count: number) => `tournée à tracer · ${count} arrêt${plural(count, '', 's')}`,
-    /** **Une tournée ne s'arrête pas chez l'autre** (ADR 0039 §3) : le Prêt-bail livre une fois. */
-    traceAbroad:
-      'Une tournée ne s’arrête qu’à vos dépôts : chez un autre, le Prêt-bail livre une fois, transport lâché dessus',
     lendLease: 'livrer en Prêt-bail',
     lendLeaseConsequence:
       'Décharge au dépôt de l’autre ce qui y tient, puis rentre seul avec le reste. Plein, démantelé ou désactivé, son dépôt ne se lit qu’à l’arrivée, et le receveur apprend qui a livré.',
-    traceElsewhere:
-      'Une tournée se trace de dépôt en dépôt : lâchez le transport sur un de vos avant-postes, ou lancez-la depuis son étiquette',
     /** **Bombarder** (B20) : le tir part sur-le-champ, et rien ne revient. */
     bombard: 'bombarder',
     bombardConsequence: (km: number) =>
@@ -5450,6 +5532,14 @@ export function countdownLabel(milliseconds: number): string {
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '—');
+/** Des heures en mots : « 7 h » plein, « 1 h 30 » sinon. */
+const hoursText = (hours: number): string => spanText(hours * 60);
+const spanText = (minutes: number): string => {
+  const whole = Math.round(minutes);
+  const h = Math.floor(whole / 60);
+  const m = whole % 60;
+  return m === 0 ? `${h} h` : h === 0 ? `${m} min` : `${h} h ${String(m).padStart(2, '0')}`;
+};
 const num = (value: unknown): string => (typeof value === 'number' ? String(value) : '—');
 const nationName = (value: unknown): string =>
   typeof value === 'string' && value in fr.nations ? fr.nations[value as Nation] : str(value);

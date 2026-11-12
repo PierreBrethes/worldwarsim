@@ -323,7 +323,11 @@ const unreached = process.argv.includes('--hors-portee');
 /** `--edition` : deux éditions de presse tout de suite, la seconde avec ses variations (#180). */
 const editions = process.argv.includes('--edition');
 const oilLine = process.argv.includes('--petrole');
-const mines = process.argv.includes('--exploitations');
+/** `--feuille` (#551) : la scène de la feuille de route d'un transport — des exploitations qui ont un tas
+ *  (pleine et arrêtée, à moitié, presque vide), des dépôts (un plein), un camion chargé au QG, un camion en
+ *  tournée et un cargo à quai. */
+const sheetScene = process.argv.includes('--feuille');
+const mines = process.argv.includes('--exploitations') || sheetScene;
 /** `--niveaux` : `--chantiers`, plus une caserne de niveau 3 (ADR 0031). */
 /** `--raser` (#326) : la caserne de `--niveaux` et la garnison de `--echelle`, à raser. */
 const razing = process.argv.includes('--raser');
@@ -365,7 +369,12 @@ const twinTrucks = process.argv.includes('--deux-camions');
  *  l'interface : son épingle, l'aire qu'il colore, un camion en garnison. */
 const dismantling = process.argv.includes('--demanteler');
 const logistics =
-  dismantling || tours || twinTrucks || touringIn !== null || process.argv.includes('--livraison');
+  dismantling ||
+  tours ||
+  twinTrucks ||
+  touringIn !== null ||
+  sheetScene ||
+  process.argv.includes('--livraison');
 /** `--voisins` : un avant-poste britannique en Hainaut, contre le Nord français (#217). */
 const neighbours = process.argv.includes('--voisins');
 /** `--quais` : trois avant-postes français, à La Valette, à Singapour et à Florence (#221). */
@@ -759,7 +768,7 @@ if (!bare) {
     cli([
       'run',
       'dev:logisticsScene',
-      JSON.stringify({ playerId: scene.a, fullDepot: tours, twin: twinTrucks }),
+      JSON.stringify({ playerId: scene.a, fullDepot: tours || sheetScene, twin: twinTrucks }),
     ]);
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
   if (airdrops && scene.a !== null)
@@ -844,6 +853,23 @@ if (!bare) {
         point: { lon: site.lon, lat: site.lat },
       });
     }
+  }
+  /** `--feuille` : des tas aux exploitations, et le camion de l'avant-poste en tournée (sa feuille se lit). */
+  if (sheetScene && scene.a !== null) {
+    cli(['run', 'dev:heapsScene', JSON.stringify({ playerId: scene.a })]);
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const lille = me.outposts.find((outpost) => Math.abs(outpost.lonLat[0] - 3.06) < 0.05);
+    const truck = me.troops.find(
+      (troop) => troop.role === 'landTransport' && troop.stationedAt.kind === 'outpost',
+    );
+    if (lille !== undefined && truck !== undefined)
+      await client.mutation(api.tours.start, {
+        token: tokenA,
+        seasonId,
+        troopId: truck.id,
+        stops: [lille.id],
+      });
+    places.feuille = [3.0, 49.4];
   }
   /** `--mine-chantier` (#454) : la mine offerte du Nord, puis une seconde sur le charbon, payée. */
   if (process.argv.includes('--mine-chantier') && scene.a !== null) {

@@ -62,7 +62,8 @@ import {
 } from './-plateau/blitzkrieg-hand';
 import { chainRefusalOf } from '@/domain/blitzkrieg';
 import { gateLabel } from '@/domain/labels';
-import { useTours } from './-plateau/useTours';
+import { useTourSheet } from './-plateau/useTourSheet';
+import { TourSheet } from './-plateau/TourSheet';
 import { usePlacing } from './-plateau/usePlacing';
 import { BoardWindows } from './-plateau/BoardWindows';
 import { SheetCount } from './-plateau/Window';
@@ -96,7 +97,7 @@ import {
   type OrderAction,
   isOrder,
 } from '@/domain/compass-rose';
-import { atAirfieldOf, boardPlacesOf, traceCompass } from '@/domain/compass-logistics';
+import { atAirfieldOf, boardPlacesOf } from '@/domain/compass-logistics';
 import { MapButtons, type Corner } from './-plateau/MapButtons';
 import { armedColumn, freeCapacityOf } from '@/domain/armed-column';
 import {
@@ -1010,7 +1011,7 @@ function BoardContent({
     [column, view.me],
   );
 
-  const { trace, setTrace, onTour, tourLoops } = useTours(seat, view.me, setOrderError);
+  const tourSheet = useTourSheet(seat, view, setOrderError);
   /** **La rose d'une pile de la sélection**, lue comme si elle était en main. */
   const pileCompass = useCallback(
     (target: CompassTarget, station: MarchStation, troopIds: ReadonlyArray<string>) =>
@@ -1063,18 +1064,16 @@ function BoardContent({
             hand,
             chosen.filter((station) => stationKeyOf(station) !== stationKeyOf(hand.station)),
           )
-        : trace !== null && column?.troopIds.includes(trace.carrierId) === true
-          ? traceCompass(target, view, trace)
-          : compassOf(
-              target,
-              view,
-              column?.rule ?? null,
-              column?.station ?? null,
-              freeCapacity,
-              column?.troopIds ?? null,
-              Date.now(),
-            ),
-    [view, column, freeCapacity, trace, grouped, hand, chosen, readGroup],
+        : compassOf(
+            target,
+            view,
+            column?.rule ?? null,
+            column?.station ?? null,
+            freeCapacity,
+            column?.troopIds ?? null,
+            Date.now(),
+          ),
+    [view, column, freeCapacity, grouped, hand, chosen, readGroup],
   );
 
   const motion = useMapMotion();
@@ -1351,19 +1350,6 @@ function BoardContent({
           );
           return;
         }
-        /** **Tracer une tournée** (ADR 0028) : le premier dépôt, puis les suivants ; rien ne part
-         *  avant que l'étiquette du transport la lance. */
-        case 'tour':
-          setOrderError(null);
-          setTrace({ carrierId: action.carrierId, stops: [action.outpostId] });
-          dropHand();
-          return;
-        case 'tourStop':
-          setTrace((was) =>
-            was === null ? was : { ...was, stops: [...was.stops, action.outpostId] },
-          );
-          dropHand();
-          return;
         case 'patrol':
           launchPatrol(action.troopId, action.ends);
           return;
@@ -1496,7 +1482,6 @@ function BoardContent({
       afterSent,
       settle,
       grouped,
-      setTrace,
       launchPatrol,
       chain,
       chainKey.ref,
@@ -1673,12 +1658,11 @@ function BoardContent({
     [view.me, view.surveyedInstallations],
   );
   const markers = useMemo<ReadonlyArray<MapMarker>>(
-    () => markersOf(view, { marching, trace, regionAt, toggles, calls, holders, knownRegionById }),
+    () => markersOf(view, { marching, regionAt, toggles, calls, holders, knownRegionById }),
     // Les champs de `view` que les marqueurs lisent, pas la vue entière : elle se réinvalide sans cesse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       marching,
-      trace,
       regionAt,
       view.me,
       view.loadedAt,
@@ -3023,9 +3007,11 @@ function BoardContent({
                   onCarryEnd={carryEnded}
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}
                   carriersShown={carryingTokens}
-                  onTour={view.me.defeated ? undefined : onTour}
+                  onTour={view.me.defeated || blitz ? undefined : tourSheet.onTour}
+                  sheetMarks={tourSheet.marks}
+                  onSheetPick={tourSheet.pick}
                   onRecallPatrol={view.me.defeated ? undefined : recallPatrolNow}
-                  tourLoops={tourLoops}
+                  tourLoops={tourSheet.loops}
                   cue={mapCue}
                   combats={mapCombats}
                   onCombatSettled={releaseDispatch}
@@ -3154,6 +3140,8 @@ function BoardContent({
                     }}
                   />
                 )}
+                {/* **La feuille de route d'un transport** (#551) : ouverte depuis son étiquette. */}
+                {!blitz && <TourSheet sheet={tourSheet} />}
                 {/* Sous le seuil la feuille de visée prend sa place dès qu'une destination est nommée :
             une surface à la fois, et c'est la visée qui parle alors. */}
                 {hand.kind === 'held' && hand !== dragged && (

@@ -6,6 +6,7 @@ import { costMinutes } from './pace';
 import { fullSupplies, refuelAtHeap } from './supplies';
 import { computeRoute, decodeGrid } from './routing';
 import {
+  launchRefusalOf,
   legMinutes,
   loopOf,
   orderBest,
@@ -426,5 +427,28 @@ describe('proposing a tour on an empty sheet', () => {
       facts: { ours: false, exploitation: true, hasQuay: false, routed: true },
     });
     expect(proposeTour(truck(0), [foreign])).toEqual([]);
+  });
+});
+
+describe('what refuses the sheet as it stands (#551)', () => {
+  it('says an empty sheet has no stop', () => {
+    expect(launchRefusalOf(truck(), [])).toEqual({ code: 'TOUR_NO_STOP' });
+  });
+
+  it('refuses a depot that is no longer standing, as the server does', () => {
+    const razed = { ...depot('razed', verdun, 20), standing: false };
+    expect(launchRefusalOf(truck(), [lensSite, razed])).toMatchObject({
+      code: 'DEPOT_NOT_STANDING',
+    });
+  });
+
+  it('refuses a site the road does not reach, and lets a good sheet go', () => {
+    const cut = site('cut', briey, 100, {
+      facts: { ours: true, exploitation: true, hasQuay: false, routed: false },
+    });
+    expect(launchRefusalOf(truck(), [verdunDepot, cut])).toMatchObject({
+      code: 'TOUR_PICKUP_NO_ROUTE',
+    });
+    expect(launchRefusalOf(truck(), [verdunDepot, lensSite])).toBeNull();
   });
 });

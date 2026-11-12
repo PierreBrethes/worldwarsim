@@ -14,6 +14,7 @@ import { nationInk } from '@/domain/nations';
 import { ContactMarks } from './ContactMarks';
 import { ClusterSheet } from './ClusterSheet';
 import { fedRiders, heldLabels, type TourAct } from '@/domain/cargo-tag';
+import { markedLabels, type SheetMark } from '@/domain/tour-sheet-marks';
 import {
   useCallback,
   useEffect,
@@ -119,6 +120,7 @@ import type { TourLoop } from './engine/tour-ink';
 export type { TourLoop };
 
 const NO_LOOPS: ReadonlyArray<TourLoop> = [];
+const NO_MARKS: ReadonlyMap<string, SheetMark> = new Map();
 import {
   DETACH_MS,
   MapEngine,
@@ -347,6 +349,9 @@ type Props = {
   onTakeDepot?: TakeDepot | undefined;
   /** La tournée depuis l'étiquette d'un transport : lancer, effacer, rappeler. */
   onTour?: ((carrierId: string, act: TourAct) => void) | undefined;
+  /** **Les arrêts de la feuille de route allumés** (#551), par étiquette ; un clic sur l'un d'eux. */
+  sheetMarks?: ReadonlyMap<string, SheetMark>;
+  onSheetPick?: ((stop: SheetMark['pick']) => void) | undefined;
   /** **Rappeler une ronde** depuis l'étiquette de sa colonne en route (#376). */
   onRecallPatrol?: ((troopId: string) => void) | undefined;
   /** La bulle des premiers pas, sur la pièce à lever. */
@@ -583,6 +588,8 @@ export function WorldMap({
   carriersShown = false,
   onTakeDepot,
   onTour,
+  sheetMarks = NO_MARKS,
+  onSheetPick,
   onRecallPatrol,
   cue = null,
   combats = NO_COMBATS,
@@ -615,8 +622,8 @@ export function WorldMap({
     new Map(),
   );
   const labels = useMemo(
-    () => heldLabels(keptLabels, heldBackRiders),
-    [keptLabels, heldBackRiders],
+    () => markedLabels(heldLabels(keptLabels, heldBackRiders), sheetMarks),
+    [keptLabels, heldBackRiders, sheetMarks],
   );
   const standing = useShared(useRankKept(servedStanding));
   const camps = useShared(servedCamps);
@@ -2163,6 +2170,7 @@ export function WorldMap({
         carriersShown={carriersShown}
         onTakeDepot={onTakeDepot}
         onTour={onTour}
+        onSheetPick={onSheetPick}
         onRecallPatrol={onRecallPatrol}
         cue={cue}
         cargoAim={cargoAim}
