@@ -6,7 +6,9 @@ import { RESOURCES } from '../src/domain/ids';
 import {
   carryCapacityOf,
   lootFromSurplus,
+  lootFromHeap,
   raidLoots,
+  raidsStock,
   sparedPerResourceOf,
 } from '../src/domain/loot';
 import { CARRY_CAPACITY_BY_ROLE, PLUNDER_DISABLED_HOURS, PLUNDER_HOURS_PRESENT } from './constants';
@@ -17,7 +19,8 @@ import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
-import { stampHeap } from './heaps';
+import { takeHeap } from './heaps';
+import { isBlitz } from './blitz';
 import { dakarSparedAt } from './strategicPoints';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
@@ -243,32 +246,39 @@ export async function completePresence(
   }
 
   const before = await settleBeforeChange(ctx, movement.seasonId, now);
-  const isWarehouse = raidLoots(target.key);
+  const isWarehouse = raidsStock(target.key);
+  /** **Un tas se pille en Mondiale** (ADR 0041 §4) ; en Blitz, l'exploitation se sabote. */
+  const loots = raidLoots(
+    target.key,
+    (await isBlitz(ctx, movement.seasonId)) ? 'blitz' : 'mondiale',
+  );
+  const heap = before.heaps[target._id];
   const existingLoads = movementCargoLoads(movement);
   const existingAmounts = cargoTotal(existingLoads);
   const existingCargo = RESOURCES.reduce((sum, key) => sum + existingAmounts[key], 0);
   const dakar = await dakarSparedAt(ctx, target);
   const spared = dakar ?? sparedPerResourceOf(false);
+  /** La place qui reste à la colonne, pour l'entrepôt comme pour le tas. */
+  const room =
+    carryCapacityOf(
+      troops.map((troop) => ({
+        role: troop.role,
+        strength: troop.currentStrength,
+        nominalStrength: troop.nominalStrength,
+      })),
+      CARRY_CAPACITY_BY_ROLE,
+    ) - Math.max(0, existingCargo);
   const taken = isWarehouse
-    ? lootFromSurplus(
-        (await economyOf(ctx, target.playerId, now)).stocks,
-        spared,
-        carryCapacityOf(
-          troops.map((troop) => ({
-            role: troop.role,
-            strength: troop.currentStrength,
-            nominalStrength: troop.nominalStrength,
-          })),
-          CARRY_CAPACITY_BY_ROLE,
-        ) - Math.max(0, existingCargo),
-      )
-    : emptyStocks();
+    ? lootFromSurplus((await economyOf(ctx, target.playerId, now)).stocks, spared, room)
+    : loots && heap !== undefined
+      ? lootFromHeap(heap, room)
+      : emptyStocks();
   if (isWarehouse) await debit(ctx, target.playerId, taken, now);
 
   const disabledUntil = now + PLUNDER_DISABLED_HOURS * 3_600_000;
-  /** Hors service, son tas ne monte plus : réglé à l'heure du raid, au débit qui l'a fait. */
-  const heap = before.heaps[target._id];
-  if (heap !== undefined) await stampHeap(ctx, target, target.playerId, heap.amount, now);
+  /** Hors service, son tas ne monte plus : réglé à l'heure du raid, au débit qui l'a fait, moins
+   *  ce que la colonne emporte (le reste du tas y reste). */
+  if (heap !== undefined) await takeHeap(ctx, target, heap, loots ? taken[heap.resource] : 0, now);
   await ctx.db.patch(target._id, { disabledUntil });
   const storageLost = isWarehouse
     ? await clipToStorage(ctx, target.playerId, now, spared)
@@ -287,7 +297,7 @@ export async function completePresence(
     taken,
     storageLost,
   });
-  if (isWarehouse) {
+  if (loots) {
     await ctx.db.insert('notices', {
       playerId: movement.playerId,
       at: now,
@@ -307,7 +317,7 @@ export async function completePresence(
   }
   await ctx.db.insert(
     'notices',
-    isWarehouse
+    loots
       ? {
           playerId: target.playerId,
           at: now,
@@ -326,7 +336,7 @@ export async function completePresence(
           regionId: target.regionId,
         },
   );
-  if (isWarehouse) {
+  if (loots) {
     const takenLoad = { loot: taken, plunderReportId: reportId };
     const allLoads = [...existingLoads, takenLoad];
     if ((await plannedReturnStillHeld(ctx, movement, now)) === false) {

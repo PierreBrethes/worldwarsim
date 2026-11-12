@@ -2066,9 +2066,14 @@ export function WorldMap({
   useEffect(() => {
     const before = takersKnown.current;
     takersKnown.current = arcs;
-    for (const { kind, ...taking } of takingsOf(before, arcs, maquettes))
+    for (const { kind, ...taking } of takingsOf(
+      before,
+      arcs,
+      maquettes,
+      blitz === null ? 'mondiale' : 'blitz',
+    ))
       readyEngine?.cue({ kind: 'prise', act: kind, ...taking });
-  }, [arcs, maquettes, readyEngine]);
+  }, [arcs, maquettes, readyEngine, blitz]);
 
   const cutBefore = useRef<ReadonlyArray<string> | null>(null);
   useEffect(() => {

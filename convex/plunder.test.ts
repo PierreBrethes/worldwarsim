@@ -7,6 +7,7 @@ import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import {
   BASE_CAP,
   EXTRACTION_PER_HOUR,
+  HEAP_CAP_HOURS,
   nominalStrength,
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
@@ -1027,8 +1028,11 @@ describe('plunder presence', () => {
 
     const at = await completePresence(t, movementId);
 
+    // The raid carries off the whole units of the heap (the infantry holds 40 of the ~6 made).
+    const made = ((at - MIDDAY) / HOUR) * EXTRACTION_PER_HOUR.oil;
+    const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
     const amount = (await t.run((ctx) => ctx.db.query('heaps').collect()))[0]?.amount;
-    expect(amount).toBeCloseTo(((at - MIDDAY) / HOUR) * EXTRACTION_PER_HOUR.oil, 4);
+    expect(amount).toBeCloseTo(made - report!.taken.oil, 4);
     vi.setSystemTime(at + 6 * HOUR);
     const served = (await t.query(api.view.playerView, seat)).me.buildings.find(
       (site) => site.id === wellId,
@@ -1045,5 +1049,100 @@ describe('plunder presence', () => {
       (site) => site.id === wellId,
     );
     expect(restored?.heap?.amount).toBeCloseTo(amount! + 2 * EXTRACTION_PER_HOUR.oil, 4);
+  });
+});
+
+describe('a raid on an exploitation carries its heap off (ADR 0041 §4)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function wellRaided(heap: number, withTransport = true) {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const owner = await playerOf(t, seat);
+    await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        point: pointOfRegion(PRAHOVA),
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 1,
+        foundedAt: MIDDAY - HOUR,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+    const wellId = await t.run((ctx) =>
+      ctx.db.insert('buildings', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        key: 'oilWell',
+        regionId: PRAHOVA,
+        point: pointIn(PRAHOVA),
+        level: 1,
+        outpostId: null,
+      }),
+    );
+    await t.run((ctx) =>
+      ctx.db.insert('heaps', {
+        buildingId: wellId,
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        amount: heap,
+        settledAt: MIDDAY,
+      }),
+    );
+    const barracks = await building(t, guest, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, guest, 'infantry', barracks);
+    const columns = withTransport
+      ? [infantry, await troop(t, guest, 'landTransport', barracks)]
+      : [infantry];
+    const movementId = await plunderArrival(t, guest, wellId, columns, barracks);
+    const at = await completePresence(t, movementId);
+    return { t, seat, guest, wellId, at };
+  }
+
+  it('takes the room the column has left, leaves the rest at the heap, and tells both sides', async () => {
+    const { t, seat, guest, wellId, at } = await wellRaided(100, false);
+
+    const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
+    // The infantry alone holds 40: that much goes, whatever the national stock keeps.
+    expect(report?.taken).toMatchObject({ oil: 40 });
+    const row = await t.run((ctx) => ctx.db.query('heaps').collect());
+    const cap = HEAP_CAP_HOURS * EXTRACTION_PER_HOUR.oil;
+    const made = ((at - MIDDAY) / HOUR) * EXTRACTION_PER_HOUR.oil;
+    expect(row[0]!.amount).toBeCloseTo(Math.min(cap, 100 + made) - 40, 4);
+    const [back] = await returnsOf(t, guest);
+    expect(back?.loot).toEqual(report?.taken);
+    const raider = (await t.query(api.view.playerView, guest)).notices;
+    expect(raider.find((notice) => notice.kind === 'lootTaken')).toMatchObject({
+      loot: { oil: 40 },
+    });
+    const owner = (await t.query(api.view.playerView, seat)).notices;
+    expect(owner.find((notice) => notice.kind === 'sitePlundered')).toMatchObject({
+      taken: { oil: 40 },
+    });
+    expect(owner.find((notice) => notice.kind === 'siteSabotaged')).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get(wellId)))?.disabledUntil).toBe(
+      at + PLUNDER_DISABLED_HOURS * HOUR,
+    );
+  });
+
+  it('takes the whole heap when the column has room, and nothing from an empty one', async () => {
+    const rich = await wellRaided(100);
+    const [report] = await rich.t.run((ctx) => ctx.db.query('plunderReports').collect());
+    const made = ((rich.at - MIDDAY) / HOUR) * EXTRACTION_PER_HOUR.oil;
+    expect(report?.taken.oil).toBe(Math.floor(100 + made));
+    expect((await rich.t.run((ctx) => ctx.db.query('heaps').collect()))[0]!.amount).toBeLessThan(1);
+
+    const bare = await wellRaided(0);
+    const [empty] = await bare.t.run((ctx) => ctx.db.query('plunderReports').collect());
+    expect(empty?.taken.oil).toBe(
+      Math.floor(((bare.at - MIDDAY) / HOUR) * EXTRACTION_PER_HOUR.oil),
+    );
   });
 });

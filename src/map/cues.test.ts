@@ -626,28 +626,48 @@ describe('takingsOf (#279)', () => {
 
   it('takes a crate up where my column leaves its point loaded', () => {
     const home = arc('b', [5, 50], [1, 1], { cargo: cargo(30) });
-    expect(takingsOf([crate], [home], sites)).toEqual([{ kind: 'ramassage', arcId: 'b' }]);
+    expect(takingsOf([crate], [home], sites, 'mondiale')).toEqual([
+      { kind: 'ramassage', arcId: 'b' },
+    ]);
   });
 
   it('searches for a crate gone where my column leaves its point empty', () => {
     const empty = arc('b', [5, 50], [1, 1], { cargo: emptyCargo() });
-    expect(takingsOf([crate], [empty], sites)).toEqual([{ kind: 'recherche', arcId: 'b' }]);
+    expect(takingsOf([crate], [empty], sites, 'mondiale')).toEqual([
+      { kind: 'recherche', arcId: 'b' },
+    ]);
   });
 
   it('plunders a warehouse and sabotages the rest, whatever the raid carries away', () => {
     const away = arc('b', [6, 49], [1, 1], { cargo: emptyCargo() });
-    expect(takingsOf([raid('w')], [away], sites)).toEqual([
+    const withBarracks = [
+      ...sites,
+      { id: 'installation-b', buildingId: 'b', buildingKey: 'barracks' as const },
+    ];
+    expect(takingsOf([raid('w')], [away], sites, 'mondiale')).toEqual([
       { kind: 'pillage', arcId: 'b', siteId: 'installation-w' },
     ]);
-    expect(takingsOf([raid('m')], [{ ...away, cargo: cargo(0) }], sites)).toEqual([
+    expect(
+      takingsOf([raid('b')], [{ ...away, cargo: cargo(0) }], withBarracks, 'mondiale'),
+    ).toEqual([{ kind: 'sabotage', arcId: 'b', siteId: 'installation-b' }]);
+  });
+
+  it('says a Mondiale exploitation is plundered, its heap carried off, and a Blitz one sabotaged', () => {
+    const away = arc('b', [6, 49], [1, 1], { cargo: cargo(0) });
+    expect(takingsOf([raid('m')], [away], sites, 'mondiale')).toEqual([
+      { kind: 'pillage', arcId: 'b', siteId: 'installation-m' },
+    ]);
+    expect(takingsOf([raid('m')], [away], sites, 'blitz')).toEqual([
       { kind: 'sabotage', arcId: 'b', siteId: 'installation-m' },
     ]);
   });
 
   it('plays nothing for a raid still there, a site unseen, or a first view', () => {
-    expect(takingsOf([raid('w')], [raid('w'), arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
-    expect(takingsOf([raid('x')], [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
-    expect(takingsOf(null, [arc('b', [6, 49], [1, 1])], sites)).toEqual([]);
+    expect(
+      takingsOf([raid('w')], [raid('w'), arc('b', [6, 49], [1, 1])], sites, 'mondiale'),
+    ).toEqual([]);
+    expect(takingsOf([raid('x')], [arc('b', [6, 49], [1, 1])], sites, 'mondiale')).toEqual([]);
+    expect(takingsOf(null, [arc('b', [6, 49], [1, 1])], sites, 'mondiale')).toEqual([]);
   });
 });
 

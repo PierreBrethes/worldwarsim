@@ -7,7 +7,9 @@ import {
   difference,
   emptyAmounts,
   hasLoot,
+  lootFromHeap,
   lootFromSurplus,
+  raidLoots,
   sparedPerResourceOf,
   trimLootToCapacity,
 } from './loot';
@@ -132,5 +134,26 @@ describe('the amounts every loot module shares', () => {
     const left = difference(resources({ food: 10, oil: 2 }), resources({ food: 4, oil: 5 }));
     expect(left.food).toBe(6);
     expect(left.oil).toBe(0);
+  });
+});
+
+describe('a raid on an exploitation (ADR 0041 §4)', () => {
+  it('loots a warehouse in any mode, and an exploitation in a Mondiale only', () => {
+    expect(raidLoots('warehouse', 'blitz')).toBe(true);
+    expect(raidLoots('warehouse', 'mondiale')).toBe(true);
+    expect(raidLoots('mine', 'mondiale')).toBe(true);
+    expect(raidLoots('mine', 'blitz')).toBe(false);
+    expect(raidLoots('barracks', 'mondiale')).toBe(false);
+  });
+
+  it('carries the heap off whole, in the room that is left', () => {
+    expect(lootFromHeap({ resource: 'coal', amount: 120.7 }, 200)).toMatchObject({ coal: 120 });
+    expect(lootFromHeap({ resource: 'coal', amount: 120.7 }, 50.5)).toMatchObject({ coal: 50 });
+  });
+
+  it('loots nothing from an empty heap or a full column', () => {
+    expect(hasLoot(lootFromHeap({ resource: 'oil', amount: 0 }, 100))).toBe(false);
+    expect(hasLoot(lootFromHeap({ resource: 'oil', amount: 90 }, 0))).toBe(false);
+    expect(hasLoot(lootFromHeap({ resource: 'oil', amount: 90 }, -5))).toBe(false);
   });
 });

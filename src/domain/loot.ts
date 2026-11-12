@@ -1,4 +1,6 @@
 import { BASE_CAP, DAKAR_SPARED_PER_RESOURCE } from '../../convex/constants';
+import { EXPLOITED_DEPOSITS } from './economy';
+import type { SeasonMode } from './season-mode';
 import {
   canonicalBuildingKey,
   RESOURCES,
@@ -33,8 +35,26 @@ export const emptyAmounts = (): Record<ResourceKey, number> =>
 export const inService = (disabledUntil: number | null | undefined, now: number): boolean =>
   disabledUntil == null || disabledUntil < now;
 
-/** **A raid on a warehouse loots it; on any other site, it sabotages it** (`completePresence`). */
-export const raidLoots = (key: BuildingKey): boolean => canonicalBuildingKey(key) === 'warehouse';
+/**
+ * **A raid on a warehouse loots it; on any other site, it sabotages it** (`completePresence`). In a
+ * Mondiale an exploitation loots too: it carries its heap off (ADR 0041 §4).
+ */
+export const raidLoots = (key: BuildingKey, mode: SeasonMode): boolean =>
+  raidsStock(key) || (mode === 'mondiale' && EXPLOITED_DEPOSITS[key] !== undefined);
+
+/** **A warehouse is looted from the national stock** (surplus above the spared floor). */
+export const raidsStock = (key: BuildingKey): boolean => canonicalBuildingKey(key) === 'warehouse';
+
+/** **What a raid carries off a heap**: whole units, in the room the column has left. The rest stays
+ *  at the heap, and no spared floor applies (that one is the national stock's). */
+export function lootFromHeap(
+  heap: { readonly resource: ResourceKey; readonly amount: number },
+  room: number,
+): Record<ResourceKey, number> {
+  const loot = emptyAmounts();
+  loot[heap.resource] = Math.max(0, Math.floor(Math.min(heap.amount, room)));
+  return loot;
+}
 
 /** **A column that carries nothing** (`CargoView`): what my arcs are served without a cargo. */
 export const emptyCargo = () => ({ loot: emptyAmounts(), carried: 0, capacity: 0, free: 0 });

@@ -3,6 +3,7 @@ import { disbandRadiusKm, disbandSpanKm } from '@/domain/movement-orders';
 import type { BuildingKey, UnitRole } from '@/domain/ids';
 import type { TroopStation } from '@/domain/player-view';
 import { raidLoots } from '@/domain/loot';
+import type { SeasonMode } from '@/domain/season-mode';
 import { loadsAt, loadTotal, type SupplyLoad } from '@/domain/logistics';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { cameFrom } from '@/domain/pile-facing';
@@ -515,8 +516,8 @@ type Taker = {
  * **Les prises qui viennent de se faire** (#279) : un arc à moi neuf part du point où finit un arc
  * à moi disparu. Celui-là ramassait une caisse : il repart plus chargé qu'il n'est venu, c'est un
  * ramassage ; sinon, la caisse était partie : il l'a cherchée. Celui-là pillait un site que je
- * vois : un entrepôt, c'est un pillage ; un autre site, un sabotage (`raidLoots`), quoi qu'il
- * emporte. Rien à la première vue.
+ * vois : un entrepôt, c'est un pillage, et en Mondiale une exploitation aussi ; un autre site, un
+ * sabotage (`raidLoots`), quoi qu'il emporte. Rien à la première vue.
  */
 export function takingsOf(
   before: ReadonlyArray<Taker> | null,
@@ -526,6 +527,8 @@ export function takingsOf(
     readonly buildingId?: string;
     readonly buildingKey?: BuildingKey;
   }>,
+  /** En Mondiale une exploitation se pille (son tas, ADR 0041 §4) ; en Blitz elle se sabote. */
+  mode: SeasonMode,
 ): ReadonlyArray<Taking> {
   if (before === null) return [];
   const ids = new Set(arcs.map(({ id }) => id));
@@ -546,7 +549,7 @@ export function takingsOf(
       ? []
       : [
           {
-            kind: raidLoots(site.buildingKey) ? 'pillage' : 'sabotage',
+            kind: raidLoots(site.buildingKey, mode) ? 'pillage' : 'sabotage',
             arcId: arc.id,
             siteId: site.id,
           },
