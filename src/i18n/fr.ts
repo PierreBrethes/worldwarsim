@@ -3136,7 +3136,6 @@ export const fr = {
     refusedGroup: 'Ne s’ajoutent pas',
     slot: (at: number, km: number, gain: number) =>
       `en ${at} · ${km >= 0 ? '+' : '−'}${Math.abs(km)} km · ${gain >= 0 ? '+' : '−'}${Math.abs(gain)} / h`,
-    lit: 'ne s’ajoute pas',
     reason: (reason: Offered['reason']): string => {
       switch (reason.code) {
         case 'heapFilling':
