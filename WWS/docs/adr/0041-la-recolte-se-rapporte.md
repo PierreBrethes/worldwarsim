@@ -10,8 +10,7 @@ les exploitations de fondation rapportent seules (« Oui, le socle rapporte »).
 point, et « Le niveau 1 seul » (12/11) en a fixé le débit (§3). **Mondiale seule.**
 
 **Révise** ADR 0028 §4 (un transport ne porte ni vivres ni acier ; la récolte n'est plus un
-débit national lissé) et le glossaire (**Tournée**). **Précise** ADR 0039 (l'atout américain
-couvre le ramassage).
+débit national lissé) et le glossaire (**Tournée**).
 
 ## Contexte
 
@@ -92,8 +91,9 @@ le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
   (`@a-mesurer`), sans coût. C'est une pénurie qui casse une règle (ADR 0028 §1), jamais un arrêt.
   Un avion à sec reste au sol. Un camion qui s'arrête à un puits fait son plein sur le tas avant
   de charger.
-- **Atout américain** (« vos ravitaillements ne sont jamais relevés ») : il couvre les tournées
-  de ramassage.
+- **Atout américain** : la question posée le 11/11 (« vos ravitaillements ne sont jamais relevés »)
+  est sans objet. Cet atout de l'ADR 0028 a été remplacé par le Prêt-bail (ADR 0039,
+  `src/domain/nation-assets.ts`), qui ne touche pas le ramassage.
 - **Mise en service** : les tas naissent vides, et une dépêche dit la nouvelle règle.
 
 ## Conséquences
