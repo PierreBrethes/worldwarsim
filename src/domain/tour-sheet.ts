@@ -57,6 +57,9 @@ export type SheetSite = {
   readonly heap: number;
   readonly cap: number;
   readonly perHour: number;
+  /** Encore à soi, en service et reliée : une exploitation hors service ou coupée ne donne rien, et
+   *  la tournée la saute (`isPickable`). */
+  readonly working: boolean;
   readonly stoppedForHours: number | null;
   readonly facts: PickupFacts;
 };
@@ -139,10 +142,13 @@ export type Loop = {
   readonly kept: Stocks;
 };
 
+/** Le tas qu'une tournée peut prendre : celui d'une exploitation qui ne travaille pas ne se prend pas. */
+const takableOf = (stop: SheetSite) => (stop.working ? stop.heap : 0);
+
 const plannedOf = (stop: SheetStop) =>
   stop.kind === 'depot'
     ? ({ kind: 'depot', id: stop.id, depot: stop.depot, capacity: stop.capacity } as const)
-    : ({ kind: 'site', id: stop.id, heap: stop.heap } as const);
+    : ({ kind: 'site', id: stop.id, heap: takableOf(stop) } as const);
 
 /** **Ce que la boucle donne et prend**, arrêt par arrêt, comme la tournée la jouera : les arrêts
  *  qu'elle saute (`visitPlan`) ne sont pas roulés. */
@@ -165,7 +171,7 @@ export function loopOf(sheet: TourSheet, stops: ReadonlyArray<SheetStop>): Loop 
       n = loadTotal(delivery.moved);
       load = delivery.kept;
     } else {
-      n = takeFromHeap(stop.heap, roomAboard(capacity, load, harvest)).taken;
+      n = takeFromHeap(takableOf(stop), roomAboard(capacity, load, harvest)).taken;
       harvest[stop.resource] += n;
     }
     moved += n;
@@ -221,7 +227,7 @@ function earlierOf(sheet: TourSheet, stop: SheetStop): SkippedStop {
     id: stop.id,
     kind: 'site',
     heap: stop.heap,
-    earlier: takeFromHeap(stop.heap, room).taken,
+    earlier: takeFromHeap(takableOf(stop), room).taken,
   };
 }
 
@@ -272,9 +278,11 @@ type StopReason =
       readonly cap: number;
       readonly hoursToFull: number;
     }
+  | { readonly code: 'siteDisabled' }
   | { readonly code: 'siteStopped'; readonly hours: number; readonly lostPerHour: number }
   | { readonly code: 'heapEmpty'; readonly perHour: number }
   | { readonly code: 'noHeap' }
+  | { readonly code: 'heapStill'; readonly heap: number; readonly cap: number }
   | { readonly code: 'aboardFull'; readonly heap: number }
   | {
       readonly code: 'depotRoom';
@@ -331,10 +339,12 @@ function reasonOf(stop: SheetStop, moved: number, emptiest: boolean): StopReason
       ? { code: 'depotGivesNothing' }
       : { code: 'depotRoom', depot: loadTotal(stop.depot), capacity: stop.capacity, emptiest };
   if (stop.cap === 0) return { code: 'noHeap' };
+  if (!stop.working) return { code: 'siteDisabled' };
   if (stop.heap > 0 && moved === 0) return { code: 'aboardFull', heap: stop.heap };
   if (stop.stoppedForHours !== null)
     return { code: 'siteStopped', hours: stop.stoppedForHours, lostPerHour: stop.perHour };
   if (stop.heap === 0) return { code: 'heapEmpty', perHour: stop.perHour };
+  if (stop.perHour === 0) return { code: 'heapStill', heap: stop.heap, cap: stop.cap };
   return {
     code: 'heapFilling',
     heap: stop.heap,

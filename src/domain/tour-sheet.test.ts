@@ -47,6 +47,7 @@ const site = (
   heap,
   cap: 384,
   perHour: 48,
+  working: true,
   stoppedForHours: null,
   facts: { ours: true, exploitation: true, hasQuay: false, routed: true },
   ...extra,
@@ -131,6 +132,23 @@ describe('the loop of a tour', () => {
     const normal = loopOf(sheet, [verdunDepot]);
     const slow = loopOf({ ...sheet, slow: true }, [verdunDepot]);
     expect(slow.minutes).toBe(normal.minutes * 2);
+  });
+});
+
+describe('an exploitation that is out of service or cut off (#550)', () => {
+  const down = site('down', briey, 290, { working: false });
+
+  it('gives nothing, like the tour that skips it, and is not driven to', () => {
+    const loop = loopOf(truck(0), [down]);
+    expect(loop.rows).toEqual([]);
+    expect(loop.moved).toBe(0);
+    expect(loop.skipped).toMatchObject([{ id: 'down', earlier: 0 }]);
+  });
+
+  it('says why, and is never proposed', () => {
+    const ranked = rankStops(truck(0), [], [down]);
+    expect(ranked.offered[0]!.reason).toEqual({ code: 'siteDisabled' });
+    expect(proposeTour(truck(0), [down])).toEqual([]);
   });
 });
 
