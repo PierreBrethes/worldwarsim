@@ -3,9 +3,11 @@
  * language, where French has an established name (#553). Keyed `<ISO3>|<source name>`; a region
  * absent from the table keeps its source name, which is right for the hundreds that French
  * writes as the locals do (Plzeňský, Kagoshima, Tizi Ouzou). Ids never change: only what the
- * player reads does. Read by `generate-region-index.mjs`, which bakes `region-index.json`.
+ * player reads does. Read by `generate-atlas.mjs`, which names the regions: the atlas, and `region-index.json` after it,
+ * carry the French name. An entry never writes the key of another of its country: the table
+ * is a fixed point (`region-names.test.ts`).
  */
-const T = {
+export const FRENCH_REGION_NAMES = {
   BEL: {
     Brussels: 'Bruxelles',
     'West Flanders': 'Flandre-Occidentale',
@@ -204,8 +206,8 @@ const T = {
     Chernihiv: 'Tchernihiv',
     Volyn: 'Volhynie',
     Zhytomyr: 'Jytomyr',
-    Kiev: 'Oblast de Kiev',
-    'Kiev City': 'Kiev',
+    Kiev: 'Oblast de Kyiv',
+    'Kiev City': 'Kyiv',
     Transcarpathia: 'Transcarpatie',
     Chernivtsi: 'Tchernivtsi',
     "Ivano-Frankivs'k": 'Ivano-Frankivsk',
@@ -315,10 +317,13 @@ const T = {
     Georgia: 'Géorgie',
     Hawaii: 'Hawaï',
   },
-  MEX: { Mexico: 'État de Mexico', México: 'État de Mexico', 'Distrito Federal': 'Mexico' },
+  MEX: {
+    México: 'État de Mexico',
+    'Distrito Federal': 'Ville de Mexico',
+  },
   CHN: { 'Inner Mongol': 'Mongolie-Intérieure', Xizang: 'Tibet', Beijing: 'Pékin' },
   JPN: { Kyōto: 'Kyoto', Ōsaka: 'Osaka', Hokkaidō: 'Hokkaido' },
 };
 
 /** The French name of a region, or the source's own when French has none. */
-export const frenchRegionName = (country, name) => T[country]?.[name] ?? name;
+export const frenchRegionName = (country, name) => FRENCH_REGION_NAMES[country]?.[name] ?? name;

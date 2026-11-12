@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import atlasFile from '../../public/atlas.json';
 import index from '../../public/region-index.json';
+import { FRENCH_REGION_NAMES, frenchRegionName } from '../../scripts/region-names-fr.mjs';
 
 const nameOf = (id: string) => (index.name as Record<string, string>)[id];
 
@@ -39,5 +40,30 @@ describe('region names', () => {
             .slice(4),
       ),
     ).toBe('Ossétie du Nord');
+  });
+
+  it('names two regions of one country alike never (Kiev and its oblast, Mexico and its state)', () => {
+    // The source repeats some names (two Chitipa); a name the table wrote is never one of them.
+    const written = new Set(
+      Object.entries(FRENCH_REGION_NAMES).flatMap(([country, names]) =>
+        Object.values(names).map((name) => `${country}|${name}`),
+      ),
+    );
+    const seen = new Map<string, string>();
+    for (const [id, name] of Object.entries(index.name)) {
+      const key = `${index.country[id as keyof typeof index.country]}|${name}`;
+      if (!written.has(key)) continue;
+      expect(seen.get(key), `${id} and ${seen.get(key)} are both ${name}`).toBeUndefined();
+      seen.set(key, id);
+    }
+    expect(nameOf('UKR-4826')).toBe('Kyiv');
+    expect(nameOf('UKR-321')).toBe('Oblast de Kyiv');
+    expect(nameOf('MEX-2727')).not.toBe(nameOf('MEX-2731'));
+  });
+
+  it('is a fixed point: a French name is never translated a second time', () => {
+    for (const [country, names] of Object.entries(FRENCH_REGION_NAMES))
+      for (const [from, to] of Object.entries(names))
+        expect(frenchRegionName(country, to), `${country}: ${from} → ${to}`).toBe(to);
   });
 });

@@ -46,6 +46,7 @@ import polylabel from 'polylabel';
 import { presimplify } from 'topojson-simplify';
 import { decodeAtlas, findCrossings } from '../src/domain/atlas.ts';
 import { attributesOf, germanDistricts } from './german-districts.mjs';
+import { frenchRegionName } from './region-names-fr.mjs';
 
 const SOURCES = [
   ['Natural Earth admin-1', '22d0e3ad85eb3e27f17cabf8ba2d50e554fbc27a87796ff891d958185da62fb5'],
@@ -101,7 +102,7 @@ const features = JSON.parse(admin1.toString('utf8'))
       properties: {
         id: properties.adm1_code,
         country: properties.adm0_a3,
-        name: properties.name ?? properties.admin,
+        name: frenchRegionName(properties.adm0_a3, properties.name ?? properties.admin),
       },
       geometry,
     };
@@ -166,7 +167,10 @@ async function cutIntoDistricts(land, districts) {
     properties: {
       id,
       country: land.properties.country,
-      name: districts.find((district) => district.properties.id === id).properties.name,
+      name: frenchRegionName(
+        land.properties.country,
+        districts.find((district) => district.properties.id === id).properties.name,
+      ),
     },
     geometry,
   }));
