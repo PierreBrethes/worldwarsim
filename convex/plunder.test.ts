@@ -6,6 +6,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import {
   BASE_CAP,
+  EXTRACTION_PER_HOUR,
   nominalStrength,
   PLUNDER_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
@@ -24,6 +25,7 @@ import {
   joinSeat,
   placeHq,
   plantGuet,
+  pointIn,
   seatIn,
 } from './seats.fixture';
 import type { Seat } from './seats.fixture';
@@ -987,5 +989,61 @@ describe('plunder presence', () => {
 
     expect(await t.run((ctx) => ctx.db.query('plunderReports').collect())).toHaveLength(1);
     expect((await t.run((ctx) => ctx.db.get(warehouseId)))?.disabledUntil).toBeDefined();
+  });
+
+  /** **Hors service, le tas ne monte plus** (ADR 0041) : le sabotage le règle à l'heure du raid, au
+   *  débit qui l'a fait, et la lecture qui suit ne le fait pas remonter. */
+  it('settles the heap of a sabotaged exploitation at the hour of the raid, and keeps it while it is sealed', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const owner = await playerOf(t, seat);
+    await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        point: pointOfRegion(PRAHOVA),
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 1,
+        foundedAt: MIDDAY - HOUR,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+    const wellId = await t.run((ctx) =>
+      ctx.db.insert('buildings', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        key: 'oilWell',
+        regionId: PRAHOVA,
+        point: pointIn(PRAHOVA),
+        level: 1,
+        outpostId: null,
+      }),
+    );
+    const barracks = await building(t, guest, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, guest, 'infantry', barracks);
+    const movementId = await plunderArrival(t, guest, wellId, [infantry], barracks);
+
+    const at = await completePresence(t, movementId);
+
+    const amount = (await t.run((ctx) => ctx.db.query('heaps').collect()))[0]?.amount;
+    expect(amount).toBeCloseTo(((at - MIDDAY) / HOUR) * EXTRACTION_PER_HOUR.oil, 4);
+    vi.setSystemTime(at + 6 * HOUR);
+    const served = (await t.query(api.view.playerView, seat)).me.buildings.find(
+      (site) => site.id === wellId,
+    );
+    expect(served?.heap?.amount).toBeCloseTo(amount!, 4);
+
+    const back = at + PLUNDER_DISABLED_HOURS * HOUR;
+    vi.setSystemTime(back + 2 * HOUR);
+    await t.mutation(internal.production.restoreAfterDisabling, {
+      seasonId: owner.seasonId,
+      at: back,
+    });
+    const restored = (await t.query(api.view.playerView, seat)).me.buildings.find(
+      (site) => site.id === wellId,
+    );
+    expect(restored?.heap?.amount).toBeCloseTo(amount! + 2 * EXTRACTION_PER_HOUR.oil, 4);
   });
 });

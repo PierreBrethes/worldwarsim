@@ -18,17 +18,14 @@ export function producingSites(me: {
     readonly disabled?: true;
   }>;
   readonly regions: ReadonlyArray<{ readonly id: string; readonly linked: boolean }>;
-  readonly extraction: ReadonlyArray<{
-    readonly key: BuildingKey;
-    readonly regionId: string;
-    readonly perHour: number;
-  }>;
+  readonly extraction: ReadonlyArray<{ readonly buildingId: string; readonly perHour: number }>;
   readonly chains: ReadonlyArray<{ readonly by: BuildingKey; readonly perHour: number }>;
 }): ReadonlySet<string> {
   const linked = new Set(me.regions.filter((region) => region.linked).map((region) => region.id));
-  const rateOf = (building: { readonly key: BuildingKey; readonly regionId: string }) =>
-    me.extraction.find((site) => site.key === building.key && site.regionId === building.regionId)
-      ?.perHour ??
+  /** Tout ce qu'un extracteur sort du sol, tas compris : il tourne tant qu'il entasse, même
+   *  quand rien n'entre au stock. */
+  const rateOf = (building: { readonly id: string; readonly key: BuildingKey }) =>
+    me.extraction.find((site) => site.buildingId === building.id)?.perHour ??
     me.chains.find((chain) => chain.by === building.key)?.perHour ??
     0;
   return new Set(

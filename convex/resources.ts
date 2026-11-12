@@ -24,6 +24,7 @@ import {
   type Conversion,
 } from '../src/domain/economy';
 import { activeBuildings, playerBuildings, totalLevelOf } from './buildingReads';
+import { heapRowsOf, heapsOf, type Heaps } from './heaps';
 import {
   BASE_CAP,
   COMMANDED_CHAINS,
@@ -129,28 +130,22 @@ export function extractionSites(
 }
 
 /**
- * What a nation produces every hour, read off the map rather than off a stored number: an
- * exploitation building only yields what the region under it holds, so a mine gives coal on a
- * coal deposit and steel on an iron one, and nothing at all on neither.
+ * What a nation produces every hour **into its stock**, read off the map rather than off a stored
+ * number: an exploitation building only yields what the region under it holds, so a mine gives
+ * coal on a coal deposit and steel on an iron one, and nothing at all on neither. What piles at the
+ * foot of an exploitation does not enter it (ADR 0041).
  *
  * It sums the sites rather than walking the buildings a second time: the national rate and the
  * per-site detail are the same numbers, and two readings of "does this building yield" would
  * let the industry window disagree with the stock it explains.
  */
-export function extractionRates(
-  buildings: ReadonlyArray<Doc<'buildings'>>,
-  held: ReadonlyMap<string, string>,
-  ownerId: string,
-  holdsNarvik: boolean,
-  mode: SeasonMode,
-): Record<ResourceKey, number> {
+const nationalRatesOf = (sites: ReadonlyArray<ExtractionSite>): Record<ResourceKey, number> => {
   const rates = emptyStocks();
-  // Still the total until #545 moves the heaped share off the national rate.
-  for (const site of extractionSites(buildings, held, ownerId, holdsNarvik, mode)) {
-    if (site.deposit !== null) rates[YIELD_OF[site.deposit]] += site.perHour;
+  for (const site of sites) {
+    if (site.deposit !== null) rates[YIELD_OF[site.deposit]] += site.nationalPerHour;
   }
   return rates;
-}
+};
 
 export function storageCaps(
   buildings: ReadonlyArray<Doc<'buildings'>>,
@@ -270,6 +265,9 @@ export type Economy = {
   /** Ce que chaque exploitation sort du sol, site par site — le détail que le taux national
    *  résume, servi depuis le même règlement pour qu'aucune des deux lectures ne dérive. */
   readonly extraction: ReadonlyArray<ExtractionSite>;
+  /** **Les tas de mes exploitations à `now`** (ADR 0041), la désactivée comprise ; vide en Blitz.
+   *  Lus sans écrire : `convex/heaps.ts` dit quand une ligne se réécrit. */
+  readonly heaps: Heaps;
 };
 
 /**
@@ -338,7 +336,8 @@ export async function economyOf(
     now,
     read?.troops && read.outposts ? { troops: read.troops, outposts: read.outposts } : undefined,
   );
-  const ratePerHour = extractionRates(active, held, playerId, holdsNarvik, mode);
+  const extraction = extractionSites(active, held, playerId, holdsNarvik, mode);
+  const ratePerHour = nationalRatesOf(extraction);
   /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
    *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */
   ratePerHour.food -= upkeep.foodPerHour + upkeep.outpostFoodPerHour;
@@ -407,7 +406,14 @@ export async function economyOf(
     unlinked: active.filter(
       (building) => produces(building.key) && !isLinked(building, held, playerId),
     ),
-    extraction: extractionSites(active, held, playerId, holdsNarvik, mode),
+    extraction,
+    heaps: heapsOf(
+      player === null || mode === 'blitz' ? [] : await heapRowsOf(ctx, player.seasonId, playerId),
+      buildings,
+      extraction,
+      mode,
+      now,
+    ),
   };
 }
 

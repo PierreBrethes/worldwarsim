@@ -395,6 +395,23 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('byPlayer', ['playerId']),
 
+  /**
+   * **Le tas d'une exploitation** (ADR 0041 §1), mondiale seule : ce qu'elle a produit et que
+   * personne n'a ramassé, réglé à `settledAt` et lu paresseusement après (`heapAt`). Une table à
+   * part, jamais un champ de `buildings` : la couleur relit ces lignes (`bySeasonCaptured`), et un
+   * champ qui bouge à chaque règlement les réinvaliderait toutes. Écrite seulement quand le débit
+   * du tas change (`convex/heaps.ts`) ; absente, le tas est vide depuis la pose du bâtiment.
+   */
+  heaps: defineTable({
+    buildingId: v.id('buildings'),
+    playerId: v.id('players'),
+    seasonId: v.id('seasons'),
+    amount: v.number(),
+    settledAt: v.number(),
+  })
+    .index('byBuilding', ['buildingId'])
+    .index('bySeasonPlayer', ['seasonId', 'playerId']),
+
   /** One row per building **instance**: a nation holds as many mines as it has regions with
    *  iron or coal, each with its own level. The `regionId` is the `id` of the atlas region (`adm1_code`). */
   buildings: defineTable({

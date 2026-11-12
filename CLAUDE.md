@@ -72,6 +72,11 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   changement de couleur, `settleBeforeChange` règle les stocks à l'ancienne couleur, puis
   `reportChange` (`convex/production.ts`). La vue lit la couleur retenue (`players.linkage`) :
   un changement de couleur hors de `reportChange` appelle `recordLinkage` (`convex/holding.ts`).
+- **Tas** (ADR 0041, Mondiale seule). `heaps` se lit au débit courant depuis `settledAt` (`heapAt`) :
+  une ligne s'écrit à l'instant où le débit ou le plafond de son tas change, au montant de l'ancien
+  débit, par `convex/heaps.ts` et pas autrement. Un règlement des stocks n'écrit rien. Un
+  événement qui change ce débit (élévation, couleur, Narvik, désactivation, capture) appelle
+  `stampHeap`, `restampChanged` ou `passHeap` lui-même ; rasée, l'exploitation emporte sa ligne.
 - **Porte serveur.** Chaque fonction de jeu prend `{ token, seasonId }` et passe par `playerOf`
   puis `requirePlayable` (`convex/seats.ts`) ; le serveur ne rend que des codes d'erreur
   (`convex/errors.ts`), le texte vit dans `src/i18n/fr.ts`. Aucune phrase n'écrit « clic droit » :

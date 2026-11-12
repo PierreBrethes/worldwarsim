@@ -11,6 +11,7 @@ import { seasonOutposts } from './movement/forces';
 import { seasonBuildings } from './buildingReads';
 import { recordLinkage } from './holding';
 import { holdsPoint } from './strategicPoints';
+import { restampChanged, type Heaps } from './heaps';
 
 /**
  * **La production reliée, du côté de l'horloge qu'il n'y a pas** (ADR 0020 §6).
@@ -40,20 +41,33 @@ import { holdsPoint } from './strategicPoints';
  *  n'aurait rien lu de ce qui vient de lui arriver. */
 type Cuts = ReadonlyMap<Id<'players'>, ReadonlyArray<Id<'buildings'>>>;
 
+/**
+ * Ce que la couleur change se lit avant et après : les sites coupés, et **les tas de chaque
+ * exploitation à `at`**. Un tas se lit au débit courant depuis son règlement ; celui que la couleur
+ * change doit donc s'écrire à l'ancien débit, et seulement lui (`restampChanged`).
+ */
+export type Before = {
+  readonly at: number;
+  readonly cuts: Cuts;
+  readonly heaps: Heaps;
+};
+
 export async function settleBeforeChange(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
   now: number,
-): Promise<Cuts> {
+): Promise<Before> {
   const cuts = new Map<Id<'players'>, ReadonlyArray<Id<'buildings'>>>();
+  const heaps: Record<string, Heaps[string]> = {};
   for (const player of await belligerents(ctx, seasonId)) {
     const economy = await settle(ctx, player._id, now);
     cuts.set(
       player._id,
       economy.unlinked.map((building) => building._id),
     );
+    Object.assign(heaps, economy.heaps);
   }
-  return cuts;
+  return { at: now, cuts, heaps };
 }
 
 /**
@@ -67,12 +81,14 @@ export async function settleBeforeChange(
 export async function reportChange(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
-  before: Cuts,
+  before: Before,
   now: number,
 ): Promise<void> {
   for (const player of await belligerents(ctx, seasonId)) {
-    const was = new Set(before.get(player._id) ?? []);
-    const nowCut = (await settle(ctx, player._id, now)).unlinked;
+    const was = new Set(before.cuts.get(player._id) ?? []);
+    const economy = await settle(ctx, player._id, now);
+    await restampChanged(ctx, economy.heaps, before.heaps, before.at);
+    const nowCut = economy.unlinked;
     const ids = new Set(nowCut.map((building) => building._id));
 
     const cut = nowCut.filter((building) => !was.has(building._id));

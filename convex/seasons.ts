@@ -18,6 +18,7 @@ import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
 import { ERASE_FALLBACK_MS, editionPending } from './finalEdition';
 import { layOut, seasonPoints } from './strategicPoints';
+import { heapRowsOf } from './heaps';
 import { SEASON_MODE, VERDICT } from './validators';
 import { MODE_RULES, modeOf, seatRangeOf, type SeasonMode } from '../src/domain/season-mode';
 import {
@@ -951,6 +952,7 @@ async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<v
     ...(await byPlayer('recruitments')),
     ...(await byPlayer('troops')),
     ...(await byPlayer('buildings')),
+    ...(player === null ? [] : await heapRowsOf(ctx, player.seasonId, playerId)),
     ...(await byPlayer('resources')),
     ...(await byPlayer('orders')),
     ...(await byPlayer('movements')),

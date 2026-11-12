@@ -92,7 +92,7 @@ import {
 import { anchorOf, isAnchored } from './upkeep';
 import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, groundAtPoint, hostAtPoint, landAtPoint } from './routes';
-import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll } from './resources';
+import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll, type Economy } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
 import { belligerentOf, isAtWar, seatsOf } from './seats';
 import { modeOf } from '../src/domain/season-mode';
@@ -634,6 +634,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
         ...(building.capturedAt === undefined ? {} : { captured: true as const }),
         ...(building.foundationMark === true ? { foundationMark: true as const } : {}),
+        /** **Mon tas, et à moi seul** (ADR 0041) : jamais dans un relevé ni un bâtiment adverse.
+         *  Une exploitation qui ne rend rien en a un, vide ; la Blitz n'en sert aucun. */
+        ...heapOf(economy, building._id),
       })),
       regions: [...carrying.values()].map((facts) => ({
         id: facts.id,
@@ -1664,4 +1667,11 @@ async function neutralSitesOf(ctx: QueryCtx, seasonId: Id<'seasons'>, playerId: 
 const isReachedBuilding = (building: Doc<'buildings'>, sites: Sites): boolean => {
   const region = regionFacts(building.regionId);
   return region === null || isReached(pointOfBuilding(building), region, sites);
+};
+
+const heapOf = (economy: Economy, buildingId: Id<'buildings'>) => {
+  const heap = economy.heaps[buildingId];
+  return heap === undefined
+    ? {}
+    : { heap: { amount: heap.amount, cap: heap.cap, resource: heap.resource } };
 };

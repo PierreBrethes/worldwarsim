@@ -29,6 +29,7 @@ import { endowIrregular, irregularSeat } from './objectives';
 import { handOver, holdsPoint, seasonPoints } from './strategicPoints';
 import { emptyLoad } from '../src/domain/logistics';
 import { reportChange, settleBeforeChange } from './production';
+import { passHeap, type Heaps } from './heaps';
 import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
@@ -525,6 +526,7 @@ export const complete = internalMutation({
     const touched = [capture.playerId, loser._id];
     if (falls && mode === 'mondiale') {
       await releaseBuilding(ctx, loser, site, now);
+      await passHeap(ctx, site, before.heaps, capture.playerId, now);
       await ctx.db.patch(site._id, {
         playerId: capture.playerId,
         capturedAt: now,
@@ -533,12 +535,13 @@ export const complete = internalMutation({
       taken.push(site);
       // La saisie à la chute du QG n'est pas un pillage : Dakar ne la bloque pas.
       await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
-      touched.push(await toIrregulars(ctx, capture, loser, now));
+      touched.push(await toIrregulars(ctx, capture, loser, before.heaps, now));
     } else if (isPoint(site)) {
       await takePoint(ctx, site, capture.playerId, now);
     } else if (isBuilding(site)) {
       for (const building of falls ? await playerBuildings(ctx, loser._id) : [site]) {
         await releaseBuilding(ctx, loser, building, now);
+        await passHeap(ctx, building, before.heaps, capture.playerId, now);
         await ctx.db.patch(building._id, {
           playerId: capture.playerId,
           capturedAt: now,
@@ -560,6 +563,7 @@ export const complete = internalMutation({
       ).filter((building) => building.outpostId === site._id);
       for (const building of anchored) {
         await releaseBuilding(ctx, loser, building, now);
+        await passHeap(ctx, building, before.heaps, capture.playerId, now);
         await ctx.db.patch(building._id, { playerId: capture.playerId, foundationMark: undefined });
       }
       taken.push(...anchored);
@@ -718,11 +722,13 @@ async function toIrregulars(
   ctx: MutationCtx,
   fall: Capture,
   loser: Doc<'players'>,
+  heaps: Heaps,
   now: number,
 ): Promise<Id<'players'>> {
   const irregularId = await irregularSeat(ctx, fall.seasonId);
   for (const building of await playerBuildings(ctx, loser._id)) {
     await releaseBuilding(ctx, loser, building, now);
+    await passHeap(ctx, building, heaps, irregularId, now);
     await ctx.db.patch(building._id, {
       playerId: irregularId,
       capturedAt: now,

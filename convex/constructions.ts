@@ -62,6 +62,7 @@ import { fileSurvey, surveyFoundation } from './surveys';
 import { playerOf, playingSeason, requirePlayable } from './seats';
 import { BUILDING_KEY, CHOSEN_SPECIALTY, LON_LAT } from './validators';
 import { reportChange, settleBeforeChange } from './production';
+import { stampHeap } from './heaps';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
@@ -445,7 +446,8 @@ export const finish = internalMutation({
     /** The hours up to now were worked by the buildings as they stood: settle them before the
      *  level or the building below changes the rates, or the new shape is paid backwards over
      *  the whole build time. */
-    await settle(ctx, construction.playerId, Date.now());
+    const now = Date.now();
+    const economy = await settle(ctx, construction.playerId, now);
     const buildings = await playerBuildings(ctx, construction.playerId);
     const point = construction.point;
     let stood = construction.level;
@@ -454,6 +456,10 @@ export const finish = internalMutation({
         ? undefined
         : buildingAt(buildings, canonicalBuildingKey(construction.building), point);
     if (standing) {
+      /** Le tas se lit au débit d'aujourd'hui : l'élévation le change, donc le tas s'écrit avant,
+       *  au montant que l'ancien niveau lui a fait (`heaps.stampHeap`). */
+      const heap = economy.heaps[standing._id];
+      if (heap !== undefined) await stampHeap(ctx, standing, standing.playerId, heap.amount, now);
       await ctx.db.patch(standing._id, { level: construction.level });
     } else if (point !== undefined) {
       /**

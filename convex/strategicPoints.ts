@@ -27,6 +27,7 @@ import { RESOURCE_KEY } from './validators';
 import { regionAtPoint } from './regionGeometry';
 import { reassessDetection } from './movement/detection';
 import { modeOf } from '../src/domain/season-mode';
+import { restampChanged, type Heaps } from './heaps';
 
 /**
  * **Les sept, tirés par la graine de la saison et posés neutres au lancement d'une Mondiale**
@@ -200,8 +201,10 @@ export async function handOver(
   if (point.key === 'baku' && former !== null) await settleBaku(ctx, point, former, now);
   /** **Narvik** : le quart des sites coupés change de main. Les stocks se règlent au débit d'avant
    *  chez les deux, et l'ancien teneur lit ce qu'il perd. */
+  const narvikHeaps: Record<string, Heaps[string]> = {};
   if (point.key === 'narvik') {
-    for (const id of [former, holderId]) if (id !== null) await settle(ctx, id, now);
+    for (const id of [former, holderId])
+      if (id !== null) Object.assign(narvikHeaps, (await settle(ctx, id, now)).heaps);
     if (former !== null && holderId !== null)
       await ctx.db.insert('notices', { playerId: former, at: now, kind: 'narvikLost' });
   }
@@ -213,6 +216,11 @@ export async function handOver(
       ? {}
       : { heldMs: { ...point.heldMs, [former]: heldMsOn(point, former, now) } }),
   });
+  /** Narvik change la part de toutes les exploitations coupées des deux teneurs, donc le débit de
+   *  leurs tas : ceux-là, et eux seuls, s'écrivent au débit d'avant. */
+  for (const id of [former, holderId])
+    if (id !== null && point.key === 'narvik')
+      await restampChanged(ctx, (await economyOf(ctx, id, now)).heaps, narvikHeaps, now);
   await tallyRace(ctx, point.seasonId, now);
   /** **Rangoun** : la mi-portée des tournées suit le point, donc le brouillard se relit à la prise
    *  comme à la perte — sur les tournées de ses deux teneurs, les seules dont la portée change.

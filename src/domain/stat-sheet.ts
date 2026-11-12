@@ -485,16 +485,15 @@ export function buildingStats(
  * a site's share is its level's.
  */
 function rateOf(
-  building: { readonly key: BuildingKey; readonly regionId: string; readonly level: number },
+  building: { readonly id: string; readonly key: BuildingKey; readonly level: number },
   view: PlayerView,
 ): { readonly resource: ResourceKey; readonly perHour: number } | null {
-  const site = view.me.extraction.find(
-    (candidate) => candidate.key === building.key && candidate.regionId === building.regionId,
-  );
+  const site = view.me.extraction.find((candidate) => candidate.buildingId === building.id);
+  /** Ce que le site verse au stock : ce qu'il entasse se ramasse, et se lit sur son tas. */
   if (site !== undefined)
     return site.deposit === null
       ? null
-      : { resource: YIELD_OF[site.deposit], perHour: site.perHour };
+      : { resource: YIELD_OF[site.deposit], perHour: site.nationalPerHour };
   const chain = view.me.chains.find((candidate) => candidate.by === building.key);
   if (chain === undefined || chain.level === 0) return null;
   return { resource: chain.output, perHour: (chain.perHour * building.level) / chain.level };

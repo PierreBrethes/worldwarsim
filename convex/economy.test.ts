@@ -140,6 +140,7 @@ async function raise(
   key: BuildingKey,
   regionId: string,
   level = 1,
+  foundation = true,
 ) {
   await t.run(async (ctx) => {
     const player = await seatIn(ctx, seat);
@@ -150,6 +151,8 @@ async function raise(
       regionId,
       point: pointIn(regionId),
       level,
+      /** Une exploitation de fondation verse seule le débit de son niveau 1 : on mesure ici ce débit, pas le tas (ADR 0041). */
+      ...(foundation ? { foundationMark: true as const } : {}),
     });
   });
 }
@@ -327,7 +330,7 @@ describe('what the industry window reads', () => {
   it('reports the site of every exploitation, mute ones included', async () => {
     const t = boot();
     const seat = await launchedSeason(t);
-    await raise(t, seat, 'farm', MARNE);
+    await raise(t, seat, 'farm', MARNE, 1, false);
     await raise(t, seat, 'mine', ARDENNES); // no deposit at all under it
 
     const view = await t.query(api.view.playerView, seat);

@@ -945,6 +945,13 @@ describe('scrapping a season', () => {
           detectorRegion: null,
           noticeFiled: true,
         });
+        await ctx.db.insert('heaps', {
+          buildingId: barracks,
+          playerId,
+          seasonId: player.seasonId,
+          amount: 5,
+          settledAt: Date.now(),
+        });
         await ctx.db.insert('recruitments', {
           playerId,
           buildingId: barracks,

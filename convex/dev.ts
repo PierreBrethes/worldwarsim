@@ -71,6 +71,7 @@ export const GAME_TABLES = [
   'strategicPoints',
   'troops',
   'buildings',
+  'heaps',
   'resources',
   'players',
   'seasons',

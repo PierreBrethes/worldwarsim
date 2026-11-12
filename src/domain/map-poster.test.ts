@@ -32,7 +32,17 @@ const me = {
     { id: 'b-barracks', key: 'barracks', regionId: 'r-plain', level: 1, nextLevelMinutes: 60 },
   ],
   extraction: [
-    { key: 'mine', regionId: 'r-coal', level: 2, deposit: 'coal', perHour: 12, linked: true },
+    {
+      buildingId: 'b-mine',
+      key: 'mine',
+      regionId: 'r-coal',
+      level: 2,
+      deposit: 'coal',
+      perHour: 12,
+      nationalPerHour: 12,
+      heapPerHour: 0,
+      linked: true,
+    },
   ],
   chains: [
     {

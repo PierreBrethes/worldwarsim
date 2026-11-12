@@ -107,6 +107,8 @@ async function raise(
       regionId,
       point: pointIn(regionId),
       level,
+      /** Une exploitation de fondation verse seule le débit de son niveau 1 : ici on mesure ce débit, pas le tas (ADR 0041). */
+      foundationMark: true,
     }),
   );
 }

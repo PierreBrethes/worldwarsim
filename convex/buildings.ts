@@ -22,6 +22,7 @@ import { foundationOwedBy, pointOfBuilding } from './regions';
 import { clipToStorage, credit, rearmDryWakeUp, settle } from './resources';
 import { playerOf, requirePlayable } from './seats';
 import { reportChange, settleBeforeChange } from './production';
+import { dropHeap } from './heaps';
 import { refuseInBlitz } from './blitz';
 import { followCenter } from './research';
 
@@ -132,6 +133,7 @@ export async function razeBuilding(
   if (player === null) return { refunded: {}, clipped: null };
   const refunded = await releaseBuilding(ctx, player, building, now);
   await ctx.db.delete(building._id);
+  await dropHeap(ctx, building._id);
   /** **L'Évacuation industrielle** (ADR 0039 §5) : le niveau rasé passe en réserve. Le démantèlement
    *  passe ici aussi (décision (a) du 04/11) ; la capture, qui ne rase pas, jamais. */
   const season = await ctx.db.get(player.seasonId);

@@ -599,6 +599,9 @@ export type Building = {
   readonly captured?: true;
   /** **Posé en fondation offerte** (ADR 0041 §3) : son premier niveau verse au stock national. */
   readonly foundationMark?: true;
+  /** **Le tas au pied de l'exploitation** (ADR 0041), à moi seul, jamais dans un relevé : ce qu'elle
+   *  a produit et que personne n'a ramassé, et son plafond. Absent d'un autre bâtiment et en Blitz. */
+  readonly heap?: { readonly amount: number; readonly cap: number; readonly resource: ResourceKey };
 };
 
 /**
@@ -639,11 +642,19 @@ export type ChainView = {
 /** One exploitation and its yield. `deposit` is what the region holds — a building over a
  *  deposit it cannot work reads with a rate of zero, never as an absent line. */
 type ExtractionSiteView = {
+  /** Le bâtiment de `me.buildings` dont c'est le site : deux mines d'une même région ne se
+   *  distinguent pas par leur clé. */
+  readonly buildingId: string;
   readonly key: BuildingKey;
   readonly regionId: string;
   readonly level: number;
   readonly deposit: DepositKey | null;
+  /** Tout ce qu'il sort du sol, tas et national (ADR 0041). */
   readonly perHour: number;
+  /** Ce qui entre seul au stock : le niveau 1 d'une fondation, tout en Blitz. */
+  readonly nationalPerHour: number;
+  /** Ce qui s'entasse à son pied. */
+  readonly heapPerHour: number;
   /** Sa région porte-t-elle encore sa couleur (ADR 0020 §6) — coupé, il rend zéro, et c'est un
    *  état, pas une panne : rien ne se répare sur le site, tout se reprend sur la carte. */
   readonly linked: boolean;

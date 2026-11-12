@@ -14,9 +14,9 @@ const me = {
     { id: 'cut', linked: false },
   ],
   extraction: [
-    { key: 'farm', regionId: 'home', perHour: 12 },
-    { key: 'farm', regionId: 'cut', perHour: 0 },
-    { key: 'oilWell', regionId: 'home', perHour: 0 },
+    { buildingId: 'farm', perHour: 12 },
+    { buildingId: 'cutFarm', perHour: 0 },
+    { buildingId: 'dryWell', perHour: 0 },
   ],
   chains: [{ by: 'arsenal', perHour: 4 }],
 } as const;
@@ -39,7 +39,7 @@ describe('producingSites, a sabotaged site (#432)', () => {
   it('does not smoke a disabled mine because its neighbour of the same key produces', () => {
     const twins = {
       ...me,
-      extraction: [{ key: 'mine', regionId: 'home', perHour: 8 }],
+      extraction: [{ buildingId: 'mine', perHour: 8 }],
       buildings: [
         { id: 'mine', key: 'mine', regionId: 'home', level: 1 },
         { id: 'sabotaged', key: 'mine', regionId: 'home', level: 1, disabled: true },

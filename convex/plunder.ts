@@ -17,6 +17,7 @@ import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
+import { stampHeap } from './heaps';
 import { dakarSparedAt } from './strategicPoints';
 import { regionFacts } from './regions';
 import { isRouteEntryPoint } from './regionGeometry';
@@ -241,7 +242,7 @@ export async function completePresence(
     return;
   }
 
-  await settleBeforeChange(ctx, movement.seasonId, now);
+  const before = await settleBeforeChange(ctx, movement.seasonId, now);
   const isWarehouse = raidLoots(target.key);
   const existingLoads = movementCargoLoads(movement);
   const existingAmounts = cargoTotal(existingLoads);
@@ -265,6 +266,9 @@ export async function completePresence(
   if (isWarehouse) await debit(ctx, target.playerId, taken, now);
 
   const disabledUntil = now + PLUNDER_DISABLED_HOURS * 3_600_000;
+  /** Hors service, son tas ne monte plus : réglé à l'heure du raid, au débit qui l'a fait. */
+  const heap = before.heaps[target._id];
+  if (heap !== undefined) await stampHeap(ctx, target, target.playerId, heap.amount, now);
   await ctx.db.patch(target._id, { disabledUntil });
   const storageLost = isWarehouse
     ? await clipToStorage(ctx, target.playerId, now, spared)

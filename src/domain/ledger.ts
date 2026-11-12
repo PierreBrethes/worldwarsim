@@ -83,7 +83,7 @@ export function ledgerOf(view: PlayerView, resource: ResourceKey): Ledger {
             linked: site.linked,
             share: site.share,
           },
-          perHour: site.perHour,
+          perHour: site.nationalPerHour,
         }));
       return { id: 'buildings', perHour: sum(rows), rows };
     },
