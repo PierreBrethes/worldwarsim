@@ -249,6 +249,12 @@ describe('heapBinOf', () => {
     expect(heapBinOf(view, 'food', NOW)).toEqual({ kind: 'foundationOnly' });
   });
 
+  it('says nothing in a Blitz, which has no heap', () => {
+    const blitz = { ...view, mode: 'blitz' } as unknown as PlayerView;
+    expect(heapBinOf(blitz, 'coal', NOW)).toBeNull();
+    expect(heapBinOf(blitz, 'ammunition', NOW)).toBeNull();
+  });
+
   it('says munitions come out of the arsenal, and nothing of a resource no site yields', () => {
     expect(heapBinOf(view, 'ammunition', NOW)).toEqual({ kind: 'arsenal' });
     expect(heapBinOf(view, 'oil', NOW)).toBeNull();

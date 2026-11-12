@@ -179,6 +179,7 @@ export type HeapBin =
     };
 
 export function heapBinOf(view: PlayerView, resource: ResourceKey, now: number): HeapBin | null {
+  if (view.mode === 'blitz') return null;
   if (resource === 'ammunition') return { kind: 'arsenal' };
   const { me } = view;
   const marks = me.buildings.flatMap((building) => {

@@ -123,9 +123,11 @@ export function GaugeBin({
           {fr.personalBoard.rate(held.ratePerHour)}
         </small>
       )}
-      <span className="flex min-h-[30px] w-full items-start justify-center">
-        <HeapBinLines view={view} resource={resource} now={now} />
-      </span>
+      {view.mode !== 'blitz' && (
+        <span className="flex min-h-[30px] w-full items-start justify-center">
+          <HeapBinLines view={view} resource={resource} now={now} />
+        </span>
+      )}
     </button>
   );
 }
