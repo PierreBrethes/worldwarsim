@@ -774,6 +774,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           : {
               tour: {
                 baseId: troop.tour.base,
+                consigne: troop.tour.consigne,
                 stops: troop.tour.stops.map((stop) =>
                   typeof stop === 'string'
                     ? { kind: 'depot' as const, id: stop as string }

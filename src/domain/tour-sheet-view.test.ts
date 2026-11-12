@@ -79,6 +79,26 @@ describe('reading a transport sheet from the view', () => {
     expect(read.sheet.base).toEqual([2.35, 48.86]);
   });
 
+  it('reads a running tour from its own consigne and base, not from what is aboard now', () => {
+    const running = view({}, [mine('a')]);
+    const carrier = running.me.troops[0] as unknown as Record<string, unknown>;
+    carrier.load = { ammunition: 10, oil: 0, coal: 0 };
+    carrier.stationedAt = { kind: 'point', lonLat: [4, 49] };
+    carrier.tour = {
+      baseId: 'hq',
+      consigne: { ammunition: 80, oil: 0, coal: 0 },
+      stops: [{ kind: 'depot', id: 'O' }],
+      waiting: null,
+      recalled: false,
+      skipped: [],
+    };
+    const read = readSheet(running, 'T', pickups('a'), world, NOW)!;
+    expect(read.sheet.consigne.ammunition).toBe(80);
+    expect(read.sheet.base).toEqual([2.35, 48.86]);
+    expect(read.baseName).toBe('QG');
+    expect(read.sheet.rules.place).toEqual({ kind: 'building', key: 'hq' });
+  });
+
   it('marks an exploitation cut off or out of service as not working', () => {
     const read = readSheet(
       view({}, [mine('b'), mine('c', { disabled: true })]),

@@ -341,6 +341,9 @@ export type TroopView = {
    *  attend au chargement, si elle finit, rappelée, et les dépôts pleins que ce tour saute. */
   readonly tour?: {
     readonly baseId: string;
+    /** **Sa consigne** (ADR 0028) : ce que la tournée recharge à chaque tour, au seul maître du
+     *  transport. Absente d'une vue plus ancienne : la feuille lit alors la charge à bord. */
+    readonly consigne?: SupplyLoad;
     /** **Ses arrêts dans l'ordre du tracé** : un dépôt à livrer ou une exploitation à ramasser
      *  (ADR 0041 §2), en une seule liste. */
     readonly stops: ReadonlyArray<{ readonly kind: 'depot' | 'site'; readonly id: string }>;

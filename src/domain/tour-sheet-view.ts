@@ -51,7 +51,14 @@ export function readSheet(
   const carrier = view.me.troops.find((troop) => troop.id === carrierId);
   if (view.mode === 'blitz' || carrier === undefined) return null;
   const { me } = view;
-  const at = carrier.stationedAt;
+  /** Une tournée en cours a son point de chargement à elle : le transport peut être en route. */
+  const baseId = carrier.tour?.baseId;
+  const at: TroopView['stationedAt'] =
+    baseId === undefined
+      ? carrier.stationedAt
+      : me.buildings.some((b) => b.id === baseId)
+        ? { kind: 'building', buildingId: baseId }
+        : { kind: 'outpost', outpostId: baseId };
   const baseBuilding =
     at.kind === 'building' ? me.buildings.find((b) => b.id === at.buildingId) : undefined;
   const baseOutpost =
@@ -130,11 +137,11 @@ export function readSheet(
       world,
       role: carrier.role,
       base,
-      consigne: carrier.load ?? emptyLoad(),
+      consigne: carrier.tour?.consigne ?? carrier.load ?? emptyLoad(),
       stockRoom,
       fuelHeld: suppliesOf(carrier).fuel,
       rules: {
-        place: loadingPlaceOf(view, carrier),
+        place: loadingPlaceOf(view, { ...carrier, stationedAt: at }),
         busy: carrier.tour === undefined ? null : 'touring',
         baseOutpostId: at.kind === 'outpost' ? at.outpostId : null,
       },

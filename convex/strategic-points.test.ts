@@ -522,6 +522,8 @@ describe('the rules the points break', () => {
     const tourOf = async () =>
       (await t.query(api.view.playerView, seat)).me.troops.find((one) => one.id === truck)?.tour;
     expect(await tourOf()).not.toHaveProperty('veiled');
+    // The sheet of a running tour reads its standing order here, not the load aboard.
+    expect(await tourOf()).toMatchObject({ consigne: { ammunition: 0, oil: 0, coal: 0 } });
     await holdPoint(t, seat, 'rangoon');
     expect(await tourOf()).toMatchObject({ veiled: true });
   });
