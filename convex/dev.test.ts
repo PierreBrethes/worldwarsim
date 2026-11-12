@@ -189,6 +189,17 @@ describe('dev scenes read by the capture', () => {
 describe('dev.absenceScene', () => {
   it('opens a fresh absence: both marks behind the dispatches, first steps passed, a dozen placed near the capital', async () => {
     const { t, seat, playerId } = await twoNations();
+    // The launch draws its objectives in a scheduled job: on a slow runner they land after the
+    // scene, newer than the closing, and the dozen reads seventeen.
+    await vi.waitFor(async () => {
+      const notices = await t.run((ctx) =>
+        ctx.db
+          .query('notices')
+          .withIndex('byPlayerAt', (q) => q.eq('playerId', playerId))
+          .collect(),
+      );
+      expect(notices.some((notice) => notice.kind === 'objectiveRevealed')).toBe(true);
+    });
     await t.mutation(api.journal.markToured, seat);
     await t.mutation(api.journal.markRead, seat);
     const capital = await t.mutation(internal.dev.absenceScene, { playerId });
