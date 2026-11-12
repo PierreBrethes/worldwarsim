@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
@@ -31,6 +31,16 @@ type Stop = { readonly kind: 'depot' | 'site'; readonly id: string };
 const keyOf = (stop: Stop) => `${stop.kind}:${stop.id}`;
 const THIRTY_SECONDS = 30_000;
 
+/** **Le même objet tant que le contenu ne change pas** : la carte repeint chaque fois qu'on lui
+ *  donne un nœud neuf (`invalidate()`, 1,5 s d'images), et le tick d'horloge ou une vue poussée
+ *  recalculent des marques et des boucles qui n'ont pas bougé. */
+function useStable<T>(value: T, signature: string): T {
+  const kept = useRef<{ readonly signature: string; readonly value: T } | null>(null);
+  if (kept.current === null || kept.current.signature !== signature)
+    kept.current = { signature, value };
+  return kept.current.value;
+}
+
 /**
  * **La feuille de route d'un transport** (ADR 0041, #551) : le transport dont elle est ouverte, les
  * arrêts que la main a posés, et tout ce que l'Ordonnance en tire (`tour-sheet.ts`) — la boucle, les
@@ -55,6 +65,8 @@ export function useTourSheet(
     readonly to: number;
   } | null>(null);
   const [proposed, setProposed] = useState(false);
+  const [proposing, setProposing] = useState(false);
+  const launching = useRef(false);
   const [pinned, setPinned] = useState<Stop | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const startTour = useMutation(api.tours.start);
@@ -78,6 +90,29 @@ export function useTourSheet(
     [view, carrierId, pickups, now],
   );
   const touring = reading?.carrier.tour !== undefined;
+
+  /** Le transport a disparu (détruit, perdu) : la feuille se ferme, et le dit. */
+  useEffect(() => {
+    if (carrierId === null || reading !== null) return;
+    setCarrierId(null);
+    setDraft([]);
+    setPicking(false);
+    setFresh(null);
+    setProposed(false);
+    setProposing(false);
+    setPinned(null);
+    notify(fr.tourSheet.unavailable, 'info');
+  }, [carrierId, reading]);
+
+  /** « proposer » attend que le serveur ait lu les exploitations : sans elles, le calcul ne verrait que les dépôts. */
+  useEffect(() => {
+    if (!proposing || pickups === undefined || reading === null) return;
+    setProposing(false);
+    setDraft(proposeTour(reading.sheet, reading.candidates));
+    setFresh(null);
+    setProposed(true);
+    setPicking(false);
+  }, [proposing, pickups, reading]);
 
   /** Les arrêts de la feuille, résolus : un arrêt qu'on ne sait pas encore lire attend `pickups`. */
   const stops = useMemo((): ReadonlyArray<SheetStop> => {
@@ -110,7 +145,9 @@ export function useTourSheet(
     setPicking(false);
     setFresh(null);
     setProposed(false);
+    setProposing(false);
     setPinned(null);
+    launching.current = false;
   };
   const open = useCallback(
     (id: string) => {
@@ -151,9 +188,11 @@ export function useTourSheet(
     [reading, analysis, touring, picking, stops],
   );
 
+  /** Une main qui retouche la tournée proposée n'a plus à lire « proposée ». */
   const change = (next: ReadonlyArray<Stop>) => {
     setDraft(next);
     setFresh(null);
+    setProposed(false);
   };
   const remove = (at: number) => change(stops.filter((_, rank) => rank !== at));
   const move = (from: number, to: number) => {
@@ -177,12 +216,7 @@ export function useTourSheet(
   const orderBestNow = () => {
     if (analysis?.order !== null && analysis?.order !== undefined) change(analysis.order.order);
   };
-  const propose = () => {
-    if (reading === null) return;
-    change(proposeTour(reading.sheet, reading.candidates));
-    setProposed(true);
-    setPicking(false);
-  };
+  const propose = () => setProposing(true);
 
   const launch = () => {
     if (carrierId === null || analysis === null) return;
@@ -191,6 +225,8 @@ export function useTourSheet(
       setOrderError(fr.errors[code](details));
       return;
     }
+    if (launching.current) return;
+    launching.current = true;
     setOrderError(null);
     startTour({
       ...seat,
@@ -205,7 +241,10 @@ export function useTourSheet(
         notify(fr.logistics.tourStarted, 'info');
         close();
       },
-      (problem: unknown) => handleError(problem, setOrderError),
+      (problem: unknown) => {
+        launching.current = false;
+        handleError(problem, setOrderError);
+      },
     );
   };
 
@@ -227,7 +266,7 @@ export function useTourSheet(
 
   /** **Les arrêts allumés sur la carte** : le rang de chacun dans la boucle ; les possibles, avec
    *  leur rang au classement ; les refusés, barrés. */
-  const marks = useMemo((): ReadonlyMap<string, SheetMark> => {
+  const freshMarks = useMemo((): ReadonlyMap<string, SheetMark> => {
     const result = new Map<string, SheetMark>();
     if (reading === null || analysis === null) return result;
     const labelOf = (stop: Stop) => {
@@ -247,7 +286,7 @@ export function useTourSheet(
 
   /** **Les boucles à l'encre** : chaque tournée qui tourne, du chargement au chargement par ses
    *  arrêts ; celle de la feuille ouverte, en pointillés tant qu'elle n'est pas lancée. */
-  const loops = useMemo((): ReadonlyArray<TourLoop> => {
+  const freshLoops = useMemo((): ReadonlyArray<TourLoop> => {
     const pointOfStation = (id: string) =>
       view.me.buildings.find((building) => building.id === id)?.point ??
       view.me.outposts.find((outpost) => outpost.id === id)?.lonLat;
@@ -273,6 +312,8 @@ export function useTourSheet(
           ];
     return [...running, ...tracing];
   }, [view.me.troops, view.me.buildings, view.me.outposts, reading, touring, stops]);
+  const marks = useStable(freshMarks, JSON.stringify([...freshMarks]));
+  const loops = useStable(freshLoops, JSON.stringify(freshLoops));
 
   return {
     carrierId,
@@ -283,6 +324,7 @@ export function useTourSheet(
     stopPicking,
     pinned,
     proposed,
+    proposing,
     stops,
     cards,
     analysis,

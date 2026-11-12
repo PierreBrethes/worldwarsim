@@ -90,6 +90,7 @@ function stateOf(
     stopPicking: vi.fn(),
     pinned: null,
     proposed: false,
+    proposing: false,
     stops,
     cards: cardsOf(stops, loop, reading.nameOf, null),
     analysis: {
@@ -176,6 +177,12 @@ describe('the transport route sheet', () => {
     fireEvent.click(screen.getByText(fr.tourSheet.recall));
     expect(sheet.recall).toHaveBeenCalledWith('T');
     expect(screen.queryByText(fr.tourSheet.launch)).toBeNull();
+  });
+
+  it('says the exploitations are being read while « proposer » waits for them', () => {
+    render(<TourSheet sheet={stateOf([], { proposing: true })} />);
+    expect(screen.getByText(fr.tourSheet.pickLoading)).toBeTruthy();
+    expect(screen.queryByText(fr.tourSheet.proposeAsk)).toBeNull();
   });
 
   it('says why an empty sheet cannot leave only once it has a stop', () => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { TOUR_MAX_STOPS } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { loadCapacityOf, type TourRefusal } from '@/domain/logistics';
 import type { StopCard } from '@/domain/tour-sheet-view';
@@ -273,7 +274,13 @@ function SheetBody({ sheet }: { sheet: TourSheetState }) {
       <div className="tour-sheet-body">
         {!touring && stops.length === 0 && !picking && (
           <div className="tour-propose">
-            <span>{sheet.proposed ? text.proposeNone : text.proposeAsk}</span>
+            <span>
+              {sheet.proposing
+                ? text.pickLoading
+                : sheet.proposed
+                  ? text.proposeNone
+                  : text.proposeAsk}
+            </span>
             <button type="button" onClick={sheet.propose}>
               {text.propose}
             </button>
@@ -305,8 +312,8 @@ function SheetBody({ sheet }: { sheet: TourSheetState }) {
           <div className="tour-add tour-add--no">{text.hintRunning}</div>
         ) : picking ? (
           <PickCard sheet={sheet} />
-        ) : stops.length >= 4 ? (
-          <div className="tour-add tour-add--no">{text.full(4)}</div>
+        ) : stops.length >= TOUR_MAX_STOPS ? (
+          <div className="tour-add tour-add--no">{text.full(TOUR_MAX_STOPS)}</div>
         ) : (
           <button type="button" className="tour-add" data-act="add" onClick={sheet.startPicking}>
             {text.add}
