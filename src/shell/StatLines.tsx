@@ -32,6 +32,7 @@ const RUBRIC_OF: Readonly<Record<StatKey, Rubric>> = {
   training: 'form',
   levelGain: 'site',
   production: 'site',
+  heap: 'site',
   storage: 'site',
   listening: 'site',
   consumption: 'site',
@@ -68,6 +69,7 @@ const PATH_OF: Readonly<Record<StatKey, string>> = {
   listening:
     'M11 10h2v12h-2zM12 2a8 8 0 0 1 8 8h-2a6 6 0 0 0-12 0H4a8 8 0 0 1 8-8zm0 4a4 4 0 0 1 4 4h-2a2 2 0 0 0-4 0H8a4 4 0 0 1 4-4z',
   production: 'M3 4h18v3H3zm2 5h14v11H5zm3 3v2h8v-2z',
+  heap: 'M3 18h18v3H3zm2-5h14v3H5zm3-5h8v3H8z',
   storage: 'M3 4h18v3H3zm2 5h14v11H5zm3 3v2h8v-2z',
   consumption: 'M3 4h18v3H3zm2 5h14v11H5zm3 3v2h8v-2z',
   upkeep: 'M4 10c0-3 3.6-5 8-5s8 2 8 5v2H4zm0 4h16v5H4z',
@@ -141,6 +143,7 @@ export function statValue(key: StatKey, reading: StatReading, short = false): Re
         case 'levelGain':
           return fr.stats.gainOfLevel(value);
         case 'production':
+        case 'heap':
           return fr.stats.perHour(fr.stats.count(value), reading.resource);
         default:
           return of === undefined ? fr.stats.count(value) : fr.stats.of(value, of);

@@ -1968,6 +1968,10 @@ export const fr = {
     dry: 'À sec.',
     fullIn: (hours: number) => `Plein dans ${Math.max(1, Math.round(hours))} h.`,
     steady: 'Stable.',
+    /** Ce qui s'entasse au pied des exploitations : à part du solde, rien n'en est entré au stock. */
+    atFoot: (amount: number, sites: number, full: number, perHour: number) =>
+      `Au pied : ${amount} sur ${sites} tas${full > 0 ? `, ${full} plein${full > 1 ? 's' : ''}` : ''}` +
+      `${perHour > 0 ? ` · + ${tenths(perHour)} / h s’y entasse` : ''}. Rien n’entre au stock avant qu’un transport ne le ramasse.`,
     sections: {
       buildings: 'Bâtiments',
       troops: 'Troupes',
@@ -2726,6 +2730,16 @@ export const fr = {
       ) =>
         `${building} de ${region} pillé — ${taken} emporté ; ${storageLost} perdu faute de place.` +
         (spared === undefined ? '' : ` ${sparedAtDakarWords(spared)}.`),
+      /** **Le tas d'une exploitation pillé** (ADR 0041 §4), dit au propriétaire puis au pilleur : ce que
+       *  la colonne a pu porter, le reste demeure au pied. */
+      heapPlundered: (building: string, region: string, taken: string) =>
+        taken === 'rien'
+          ? `Tas pillé — ${building} de ${region} : le tas était vide, rien emporté. L’exploitation s’arrête quelques heures.`
+          : `Tas pillé — ${building} de ${region} : ${taken} emporté au pied de l’exploitation, qui s’arrête quelques heures. Ce que la colonne n’a pu porter y reste.`,
+      heapLooted: (building: string, region: string, loot: string) =>
+        loot === 'rien'
+          ? `Tas neutralisé — ${building} de ${region} : rien à prendre au pied.`
+          : `Tas pillé — ${building} de ${region} : charge embarquée, ${loot}.`,
       siteSabotaged: (building: string, region: string) =>
         `${building} de ${region} saboté — production interrompue.`,
       /** Le relevé datait : l'ordre est parti sur sa foi, et c'est le terrain qui répond. */
@@ -3786,6 +3800,7 @@ export const fr = {
       upkeep: 'entretien',
       levelGain: 'niveau',
       production: 'production',
+      heap: 'au tas',
       storage: 'stock',
       listening: 'écoute',
       consumption: 'consomme',
@@ -3818,7 +3833,8 @@ export const fr = {
       upkeep:
         'Ce que la pile mange par heure : chaque troupe paie le taux de son rang dans l’armée, plus cher hors de toute ancre.',
       levelGain: 'Chaque niveau retire une part de la durée de ce que le bâtiment fait.',
-      production: 'Ce que le site verse par heure, au niveau où il est.',
+      production: 'Ce que le site verse par heure au stock, au niveau où il est.',
+      heap: 'Ce que le site entasse par heure à son pied : un transport en tournée le ramasse pour le verser au stock.',
       storage: 'Ce que le niveau ajoute au plafond de chaque ressource.',
       listening: 'Il entend ce qui bouge dans ce rayon, il n’attrape rien.',
       consumption: 'Il brûle ce charbon tant qu’il écoute.',
@@ -4030,6 +4046,33 @@ export const fr = {
    * **Le plateau personnel** (ADR 0028 §7) : un panneau à soi, sous la table au bureau, en tiroir
    * au téléphone. Toujours nommé en entier — « le plateau » seul désigne la table.
    */
+  /** **Le tas au pied d'une exploitation** (ADR 0041, #548) : sur la carte, au plateau personnel,
+   *  dans la fiche. Une exploitation de fondation verse seule le débit d'un niveau 1. */
+  heap: {
+    full: 'PLEIN · ARRÊTÉE',
+    since: (span: string) => `depuis ${span}`,
+    aloneAtOne: (perHour: number, resource: ResourceKey) =>
+      `rapporte seule · ${perHour} ${fr.resources[resource]} / h`,
+    aloneBeside: (perHour: number) => `+ ${perHour} / h seul`,
+    seal: 'F',
+    sealTitle: 'Exploitation de fondation : son niveau 1 verse seul au stock',
+    title: (resource: ResourceKey, amount: number, cap: number) =>
+      `Tas de ${fr.resources[resource]} au pied : ${amount} sur ${cap}`,
+    board: {
+      atFoot: 'au pied',
+      atFootShort: 'tas',
+      fullCount: (count: number) => `${count} plein${count > 1 ? 's' : ''}`,
+      coming: 'Ce qu’un transport rapporte : la récolte à bord, et la fin de son étape',
+      foundationOnly: 'fondation seule',
+      fromArsenal: 'sort de l’arsenal',
+      onTheRoad: 'En route',
+      overflow: 'Débordent',
+      noTour: 'aucune tournée',
+      noOverflow: 'aucun tas plein',
+      stoppedFor: (span: string) => `arrêtée ${span}`,
+    },
+  },
+
   personalBoard: {
     header: 'Plateau personnel',
     previous: 'précédentes',

@@ -13,6 +13,7 @@ import { lootWords } from '@/domain/journal';
 import { destinationPoint, type LonLat } from '@/domain/geo';
 import { BASIN_FLATTENING, BASIN_KM } from '@/domain/deposit-basins';
 import { DEPOSIT_POINTS } from '@/domain/world';
+import { heapMarkOf } from '@/domain/heap-reading';
 import { buildingLabelId } from '@/domain/building-label-id';
 import { workSitesOf, type DepositCall, type depositHolders } from '@/domain/construction';
 import { reachOfStation, withRangoonPile } from '@/domain/board-reach';
@@ -280,6 +281,10 @@ export function markersOf(
     };
   };
   const searcher = searcherOf(view.me.buildings);
+  const heapOf = (building: PlayerView['me']['buildings'][number]) => {
+    const heap = heapMarkOf(building, view.me.extraction, view.loadedAt);
+    return heap === null ? {} : { heap };
+  };
   const standing = view.me.buildings.map((building) => ({
     kind: 'building' as const,
     id: buildingLabelId(building),
@@ -306,6 +311,7 @@ export function markersOf(
       reachOfStation(building.key, pointOfRegion.get(building.regionId)),
     ),
     ...garrisonOf(building),
+    ...heapOf(building),
     ...(building === searcher ? researchOnCenter(view.me) : {}),
     ink: view.me.ink,
   }));

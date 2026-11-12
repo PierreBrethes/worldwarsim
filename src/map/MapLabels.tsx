@@ -11,6 +11,7 @@ import { ChargeBar } from '@/shell/ChargeBar';
 import { SUPPLY_KEYS, type SupplyLoad } from '@/domain/logistics';
 import { ResourcePlate } from '@/emblems/Plate';
 import { CargoTags, type CargoAim } from './CargoTags';
+import { HeapFoot } from './HeapFoot';
 import { CueBubble } from '@/shell/CueBubble';
 import {
   Fragment,
@@ -338,6 +339,9 @@ export function MapLabels({
   clearing.current = new Map(
     labels.flatMap((label) => (label.clears === undefined ? [] : [[label.id, label.clears]])),
   );
+  /** Les exploitations qui portent un tas : il se pose sous leur socle (#548), seules elles le mesurent. */
+  const heaped = useRef<ReadonlySet<string>>(new Set());
+  heaped.current = new Set(labels.flatMap((label) => (label.heap === undefined ? [] : [label.id])));
   /** The labels that carry a transport's tag: only they look for their figurines each frame. */
   const cargoed = useRef<ReadonlySet<string>>(new Set());
   cargoed.current = new Set(
@@ -799,6 +803,30 @@ export function MapLabels({
             const [x, y] = hang.split('/');
             anchor.style.setProperty('--cargo-x', hang === '' ? '0px' : `${x}px`);
             anchor.style.setProperty('--cargo-y', hang === '' ? '-46px' : `${y}px`);
+          }
+        }
+        // Le tas au pied d'une exploitation se pose au coin bas-droit de son socle dessiné : dessous, le
+        // nom du gisement pend déjà (#445). Sans socle (de loin), il reste contre le point.
+        if (heaped.current.has(projection.id)) {
+          const plinth = engine.pieceRect(projection.id);
+          const beside =
+            plinth === null
+              ? ''
+              : `${Math.round(plinth.right - projection.x)}/${Math.round(plinth.bottom - projection.y)}`;
+          if (anchor.dataset.heapBeside !== beside) {
+            anchor.dataset.heapBeside = beside;
+            const [right, bottom] = beside === '' ? [] : beside.split('/').map(Number);
+            // Mesuré en pixels d'écran, posé sous le `zoom` de l'interface : on le défait.
+            const root = roots.current.get(projection.id);
+            const zoom = (root === undefined ? 1 : Number(getComputedStyle(root).zoom)) || 1;
+            anchor.style.setProperty(
+              '--heap-x',
+              right === undefined ? '14px' : `${Math.round(right / zoom) + 4}px`,
+            );
+            anchor.style.setProperty(
+              '--heap-y',
+              bottom === undefined ? '2px' : `${Math.round(bottom / zoom) - 30}px`,
+            );
           }
         }
         if (projection.lod !== state.lod) {
@@ -1488,6 +1516,11 @@ const LabelNode = memo(function LabelNode({
           )}
           <span className="label-bar" />
           <div className="label-lines">
+            {label.heap?.foundation != null && (
+              <span className="label-seal" title={fr.heap.sealTitle}>
+                {fr.heap.seal}
+              </span>
+            )}
             {label.lines.map((line, rank) =>
               line.role === 'countdown' ? (
                 <Fragment key={rank}>
@@ -1586,6 +1619,7 @@ const LabelNode = memo(function LabelNode({
             )}
           </div>
         </div>
+        {label.heap !== undefined && <HeapFoot heap={label.heap} />}
         {label.cargo !== undefined &&
           label.cargo.length > 0 &&
           onDisembark !== undefined &&
@@ -1954,6 +1988,7 @@ function classesOf(label: MapLabel, selected: boolean): string {
     `label--${label.type}`,
     PINNED.has(label.type) ? 'label--pinned' : '',
     label.identified ? 'label--identified' : '',
+    label.heap?.foundation == null ? '' : 'label--foundation',
     label.type === 'loot' && !label.lootCurrent ? 'label--loot-stale' : '',
     label.washed ? 'label--washed' : '',
     label.wake === undefined

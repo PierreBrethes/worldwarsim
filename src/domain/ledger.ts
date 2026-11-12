@@ -5,6 +5,7 @@ import {
   UPKEEP_UNSUPPLIED_MULTIPLIER,
 } from '../../convex/constants';
 import { PRODUCER_OF, YIELD_OF } from './economy';
+import { heapMarkOf, heapsAtFoot } from './heap-reading';
 import type { BuildingKey, ResourceKey } from './ids';
 import type { PlayerView } from './player-view';
 import { lookoutCoalPerHour } from './outposts';
@@ -228,4 +229,27 @@ export function ledgerNotesOf(view: PlayerView, resource: ResourceKey): Readonly
       : []),
     ...(unproduced ? [{ kind: 'noProducer' as const, producer }] : []),
   ];
+}
+
+/**
+ * **Ce qui s'entasse au pied pour une ressource** (ADR 0041, #548) : le registre ne le compte pas,
+ * puisque rien n'en est entré au stock avant la tournée ; il le dit à part. `null` quand aucune
+ * exploitation de cette ressource n'a de tas.
+ */
+export function heapLedgerOf(
+  view: PlayerView,
+  resource: ResourceKey,
+  now: number,
+): { amount: number; sites: number; full: number; perHour: number } | null {
+  const { me } = view;
+  const marks = me.buildings.flatMap((building) => {
+    const mark = heapMarkOf(building, me.extraction, view.loadedAt);
+    return mark === null ? [] : [mark];
+  });
+  const foot = heapsAtFoot(marks, now)[resource];
+  if (foot.sites === 0) return null;
+  const perHour = me.extraction
+    .filter((site) => site.deposit !== null && YIELD_OF[site.deposit] === resource)
+    .reduce((total, site) => total + site.heapPerHour, 0);
+  return { ...foot, perHour };
 }

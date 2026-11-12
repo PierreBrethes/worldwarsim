@@ -249,6 +249,33 @@ describe('buildingStats', () => {
     });
   });
 
+  it('reads what lands in the stock apart from what piles up at the foot (#548)', () => {
+    const rows = buildingStats(
+      { ...base, key: 'mine' },
+      {
+        ...mondiale,
+        production: { resource: 'coal', perHour: 12 },
+        heap: { resource: 'coal', perHour: 12 },
+      },
+    );
+    expect(rowOf(rows, 'production')).toMatchObject({ value: 12, resource: 'coal' });
+    expect(rowOf(rows, 'heap')).toMatchObject({ value: 12, resource: 'coal' });
+    const keys = rows.map((row) => row.key);
+    expect(keys.indexOf('heap')).toBe(keys.indexOf('production') + 1);
+  });
+
+  it('says no heap row when nothing piles up', () => {
+    const rows = buildingStats(
+      { ...base, key: 'mine' },
+      {
+        ...mondiale,
+        production: { resource: 'coal', perHour: 12 },
+        heap: { resource: 'coal', perHour: 0 },
+      },
+    );
+    expect(rows.map((row) => row.key)).not.toContain('heap');
+  });
+
   it('asks nothing of a Blitz site but its capture', () => {
     const keys = buildingStats({ ...base, key: 'hq' }, { mode: 'blitz', production: null }).map(
       (row) => row.key,

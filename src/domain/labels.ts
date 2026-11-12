@@ -1,6 +1,7 @@
 import type { SupplyLoad } from './logistics';
 import type { PileSupplies } from './supplies';
 import type { CargoTag } from './cargo-tag';
+import type { HeapMark } from './heap-reading';
 import type { SheetMark } from './tour-sheet-marks';
 import { asClockTime, asDatedClock, asLocalTime } from '@/domain/duration';
 import { aimRefusalShort, countryLabel, fr, nationLabel, specialtyNowText } from '@/i18n/fr';
@@ -244,6 +245,8 @@ export type MapMarker =
       readonly cargo?: ReadonlyArray<CargoTag>;
       /** Mon Centre de recherche seul : la carte qu'il cherche. */
       readonly research?: Extract<LabelLine, { role: 'research' }>;
+      /** Mon exploitation seule : son tas au pied et sa marque de fondation (#548). */
+      readonly heap?: HeapMark;
       readonly ink: string;
     }
   | {
@@ -453,6 +456,9 @@ export type MapLabel = {
   readonly cargo?: ReadonlyArray<CargoTag>;
   /** **Un arrêt de la feuille de route allumé** (#551) : sa marque se pose sur cette étiquette. */
   readonly sheetMark?: SheetMark;
+  /** **Le tas au pied de mon exploitation** (ADR 0041, #548) : sa pile, son chiffre, sa jauge, le
+   *  sceau de fondation. Jamais sur l'étiquette d'un autre : la vue ne le sert qu'à son maître. */
+  readonly heap?: HeapMark;
   /**
    * A drawn plate hung where the pictogram would go — the building itself rather than a sign
    * for it. The two are exclusive: a plate is a portrait, a pictogram is a category, and the
@@ -1098,6 +1104,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
         works: marker.works,
         hostCountry: marker.hostCountry,
         ...(marker.cargo !== undefined && marker.cargo.length > 0 ? { cargo: marker.cargo } : {}),
+        ...(marker.heap === undefined ? {} : { heap: marker.heap }),
         lines: [
           { role: 'nature', text: marker.name },
           ...(marker.level === null

@@ -582,6 +582,39 @@ describe('buildLabels', () => {
     expect(deposit?.priority).toBeLessThan(building?.priority ?? 0);
   });
 
+  it("hangs my exploitation's heap on its label, and nothing on any other (#548)", () => {
+    const heap = {
+      resource: 'coal' as const,
+      amount: 40,
+      cap: 288,
+      perHour: 12,
+      asOf: 0,
+      fullSince: null,
+      foundation: null,
+    };
+    const site = (extra: object) =>
+      ({
+        kind: 'building',
+        id: 'building-FR-60-mine',
+        buildingId: 'b-1',
+        key: 'mine',
+        regionId: 'FR-60',
+        regionName: 'Oise',
+        lonLat: null,
+        hostCountry: 'France',
+        name: 'Mine',
+        level: 2,
+        plate: '/mine.webp',
+        works: null,
+        reach: null,
+        ink: '#2f4f78',
+        ...extra,
+      }) as const;
+    const [mine, other] = buildLabels(viewWith([]), [site({ heap }), site({})]);
+    expect(mine?.heap).toEqual(heap);
+    expect(other?.heap).toBeUndefined();
+  });
+
   it('writes in one line who is known to work a deposit, what the fog lets it say (#239)', () => {
     const said = (held?: { mine: boolean; level: number | null }) =>
       buildLabels(viewWith([]), [

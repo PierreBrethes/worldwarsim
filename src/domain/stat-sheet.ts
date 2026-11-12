@@ -74,6 +74,7 @@ export type PileStatKey =
 export type BuildingStatKey =
   | 'levelGain'
   | 'production'
+  | 'heap'
   | 'storage'
   | 'listening'
   | 'consumption'
@@ -428,6 +429,8 @@ export function buildingStats(
   context: {
     readonly mode: SeasonMode;
     readonly production: { readonly resource: ResourceKey; readonly perHour: number } | null;
+    /** Ce qui s'entasse au pied (ADR 0041) : la fiche le dit à part de ce qui entre au stock. */
+    readonly heap?: { readonly resource: ResourceKey; readonly perHour: number } | null;
   },
 ): ReadonlyArray<StatRow<BuildingStatKey>> {
   const { key, level } = building;
@@ -447,6 +450,14 @@ export function buildingStats(
         Math.max(...Object.values(EXTRACTION_PER_HOUR)) * MAX_HQ_LEVEL,
       ),
       resource: context.production.resource,
+    });
+  if (context.heap != null && context.heap.perHour > 0)
+    add('heap', {
+      ...ceiling(
+        context.heap.perHour,
+        Math.max(...Object.values(EXTRACTION_PER_HOUR)) * MAX_HQ_LEVEL,
+      ),
+      resource: context.heap.resource,
     });
   if (key === 'warehouse' || key === 'depot')
     add('storage', ceiling(STORAGE_CAP_PER_LEVEL * level, STORAGE_CAP_PER_LEVEL * MAX_HQ_LEVEL));
@@ -487,16 +498,28 @@ export function buildingStats(
 function rateOf(
   building: { readonly id: string; readonly key: BuildingKey; readonly level: number },
   view: PlayerView,
-): { readonly resource: ResourceKey; readonly perHour: number } | null {
+): {
+  readonly resource: ResourceKey;
+  readonly perHour: number;
+  readonly heapPerHour: number;
+} | null {
   const site = view.me.extraction.find((candidate) => candidate.buildingId === building.id);
   /** Ce que le site verse au stock : ce qu'il entasse se ramasse, et se lit sur son tas. */
   if (site !== undefined)
     return site.deposit === null
       ? null
-      : { resource: YIELD_OF[site.deposit], perHour: site.nationalPerHour };
+      : {
+          resource: YIELD_OF[site.deposit],
+          perHour: site.nationalPerHour,
+          heapPerHour: site.heapPerHour,
+        };
   const chain = view.me.chains.find((candidate) => candidate.by === building.key);
   if (chain === undefined || chain.level === 0) return null;
-  return { resource: chain.output, perHour: (chain.perHour * building.level) / chain.level };
+  return {
+    resource: chain.output,
+    perHour: (chain.perHour * building.level) / chain.level,
+    heapPerHour: 0,
+  };
 }
 
 /** **Un bâtiment à moi tel que la vue le sert** : son niveau suivant, son plafond, et le débit
@@ -516,5 +539,6 @@ export function buildingStatsOf(
   return buildingStats(built, {
     mode: view.mode,
     production: rate === null ? null : { resource: rate.resource, perHour: rate.perHour },
+    heap: rate === null ? null : { resource: rate.resource, perHour: rate.heapPerHour },
   });
 }

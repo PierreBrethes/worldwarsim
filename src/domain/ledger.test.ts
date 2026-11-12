@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RESOURCES } from './ids';
-import { horizonOf, ledgerNotesOf, ledgerOf } from './ledger';
+import { heapLedgerOf, horizonOf, ledgerNotesOf, ledgerOf } from './ledger';
 import type { PlayerView } from './player-view';
 import { armyUpkeep } from './upkeep';
 
@@ -167,6 +167,56 @@ describe('the ledger', () => {
     const coal = ledgerOf(view, 'coal');
     expect(coal.production).toBe(12);
     expect(coal.consumption).toBe(-10);
+  });
+});
+
+describe('what piles up at the foot, apart from the stock (#548)', () => {
+  const HOUR = 3_600_000;
+  const withHeaps = {
+    ...view,
+    loadedAt: 10 * HOUR,
+    me: {
+      ...view.me,
+      buildings: [
+        { id: 'b3', key: 'mine', heap: { amount: 100, cap: 288, resource: 'coal' } },
+        {
+          id: 'b5',
+          key: 'mine',
+          heap: { amount: 288, cap: 288, resource: 'coal', fullSince: 5 * HOUR },
+        },
+        { id: 'b1', key: 'farm', heap: { amount: 50, cap: 576, resource: 'food' } },
+      ],
+      extraction: [
+        ...view.me.extraction.map((site) =>
+          site.buildingId === 'b3' ? { ...site, heapPerHour: 12 } : site,
+        ),
+        {
+          buildingId: 'b5',
+          key: 'mine',
+          regionId: 'r1',
+          level: 2,
+          deposit: 'coal',
+          perHour: 24,
+          nationalPerHour: 0,
+          heapPerHour: 24,
+          linked: true,
+        },
+      ],
+    },
+  } as unknown as PlayerView;
+
+  it('sums the heaps of a resource, the full ones, and the rate still piling up', () => {
+    expect(heapLedgerOf(withHeaps, 'coal', withHeaps.loadedAt)).toEqual({
+      amount: 388,
+      sites: 2,
+      full: 1,
+      perHour: 36,
+    });
+  });
+
+  it('says nothing of a resource nothing piles up for', () => {
+    expect(heapLedgerOf(withHeaps, 'oil', withHeaps.loadedAt)).toBeNull();
+    expect(heapLedgerOf(view, 'coal', view.loadedAt)).toBeNull();
   });
 });
 

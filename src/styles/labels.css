@@ -1467,3 +1467,141 @@
   color: var(--critical);
   cursor: not-allowed;
 }
+
+/* **Le tas au pied de mon exploitation** (ADR 0041, #548, maquette « Au pied ») : une pile de jetons
+   à la couleur de la ressource, le chiffre sur le plafond, une jauge ; plein, le tampon et depuis
+   quand. Posé sous le point, jamais sur le pointeur : le clic reste à l'exploitation. */
+.heap-foot {
+  position: absolute;
+  top: var(--heap-y, 2px);
+  left: var(--heap-x, 14px);
+  z-index: 1;
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.heap-stack {
+  position: relative;
+  width: 22px;
+  height: 26px;
+}
+
+.heap-stack i {
+  position: absolute;
+  left: 0;
+  width: 22px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--heap-ink) 60%, var(--paper));
+  box-shadow:
+    inset 0 0 0 1.3px var(--heap-ink-paper),
+    0 1px 0 rgb(0 0 0 / 35%);
+}
+
+.heap-tag {
+  display: grid;
+  gap: 2px;
+  padding: 2px 4px 3px;
+  background: var(--paper-hi);
+  border: 1px solid var(--ink);
+}
+
+.heap-tag b {
+  font: 600 10.5px/1 var(--font-mono);
+  white-space: nowrap;
+}
+
+.heap-tag b small {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.heap-gauge {
+  height: 3px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.heap-gauge i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.heap-foot--full .heap-tag {
+  border-color: var(--critical);
+}
+
+.heap-foot--full .heap-gauge i {
+  background: var(--critical);
+}
+
+.heap-alone {
+  font: italic 9.5px/1 var(--font-text);
+  white-space: nowrap;
+}
+
+.heap-stamp {
+  font: 700 9.5px/1 var(--font-display);
+  letter-spacing: 0.1em;
+  color: var(--critical);
+  border: 1.5px solid var(--critical);
+  padding: 2px 4px 1px;
+  rotate: -5deg;
+  background: color-mix(in srgb, var(--paper-hi) 85%, transparent);
+  white-space: nowrap;
+}
+
+/* Rapporter seule : un mot au pied, sans pile ni jauge. */
+.heap-foot--alone {
+  font: italic 500 10px/1 var(--font-text);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--paper-hi) 80%, transparent);
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+/* De loin, le tas se réduit à son chiffre : la pile, le tampon et le mot de fondation reviennent au
+   rapproché ; une étiquette réunie à d'autres le laisse à leur liste. */
+.label--glyph .heap-stack,
+.label--glyph .heap-stamp,
+.label--glyph .heap-alone,
+.label--glyph .heap-foot--alone,
+.label--grouped .heap-foot {
+  display: none;
+}
+
+/* La marque de fondation : un liseré double au cartouche et un sceau « F ». */
+.label--foundation .label-lines {
+  position: relative;
+  border: 3px double var(--ink);
+  padding-right: 22px;
+}
+
+.label-seal {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font: italic 700 9px/1 var(--font-display);
+}
+
+@media (max-width: 760px) {
+  .heap-stack,
+  .heap-stamp,
+  .heap-alone,
+  .heap-foot--alone {
+    display: none;
+  }
+
+  .heap-tag b {
+    font-size: 9.5px;
+  }
+}

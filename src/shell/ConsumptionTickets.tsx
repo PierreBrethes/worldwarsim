@@ -3,6 +3,7 @@ import { aBuilding, fr, noBuilding } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import {
   horizonOf,
+  heapLedgerOf,
   ledgerNotesOf,
   ledgerOf,
   type LedgerNote,
@@ -135,6 +136,7 @@ function Ledger({ view, resource }: { view: PlayerView; resource: ResourceKey })
     reserve.ratePerHour,
   );
   const full = marksOf(view, now)[resource];
+  const heap = heapLedgerOf(view, resource, now);
   return (
     <div className="px-[10px] pb-[10px]">
       <div className="grid grid-cols-3 border-y border-[var(--ink)]">
@@ -153,6 +155,11 @@ function Ledger({ view, resource }: { view: PlayerView; resource: ResourceKey })
               ? fr.ledger.fullIn(horizon.hours)
               : fr.ledger.steady}
       </p>
+      {heap !== null && (
+        <p className="m-0 px-[2px] pb-[4px] font-(family-name:--font-text) text-[12.5px] leading-[1.35] text-[var(--ink-soft)]">
+          {fr.ledger.atFoot(heap.amount, heap.sites, heap.full, heap.perHour)}
+        </p>
+      )}
       {ledgerNotesOf(view, resource).map((note) => (
         <p
           key={noteKey(note)}
