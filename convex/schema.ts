@@ -27,6 +27,7 @@ import {
   PLUNDER_MISSION,
   RESOURCE_AMOUNTS,
   SUPPLY_LOAD,
+  TOUR_STOP,
   REST_WINDOW,
   RESOURCE_KEY,
   SEASON_STATUS,
@@ -538,6 +539,9 @@ export default defineSchema({
     /** **La charge d'un transport** (ADR 0028 §4) : munitions, pétrole et charbon dans une seule
      *  capacité (`LOAD_CAPACITY_BY_ROLE`), séparée de ses places. Absente, vide. */
     load: v.optional(SUPPLY_LOAD),
+    /** **La récolte à bord** (ADR 0041 §2) : ce qu'un transport a pris aux tas, cinq clés, à part de
+     *  sa charge et sous la même capacité. Absent : rien. */
+    harvest: v.optional(RESOURCE_AMOUNTS),
     /**
      * **Sa tournée** (ADR 0028, précision du 18/10) : une boucle depuis son point de chargement
      * (`base`), quatre dépôts au plus, et la **consigne** qu'elle recharge à chaque tour. `next`
@@ -548,10 +552,10 @@ export default defineSchema({
     tour: v.optional(
       v.object({
         base: v.union(v.id('buildings'), v.id('outposts')),
-        stops: v.array(v.id('outposts')),
+        stops: v.array(TOUR_STOP),
         consigne: SUPPLY_LOAD,
         next: v.number(),
-        skipped: v.optional(v.array(v.id('outposts'))),
+        skipped: v.optional(v.array(TOUR_STOP)),
         waiting: v.optional(
           v.object({ since: v.number(), roads: v.optional(v.number()), ...TOUR_WAIT.fields }),
         ),
@@ -771,6 +775,9 @@ export default defineSchema({
     /** **Un pas de tournée** : vers un de ses dépôts (`stop`), ou de retour au chargement
      *  (`base`), où elle recharge sa consigne et repart. */
     tourLeg: v.optional(v.union(v.literal('stop'), v.literal('base'))),
+    /** **Un pas de ramassage** (ADR 0041 §2) : à l'arrivée, le transport prend le tas de cette
+     *  exploitation, à côté de `delivery` qui décharge à un dépôt. */
+    pickup: v.optional(v.object({ buildingId: v.id('buildings') })),
     /** **Une étape de ronde** (#376) : vers l'autre bout de sa liaison. */
     patrolLeg: v.optional(v.boolean()),
     /** **Le cap changé** (Doctrine du porte-avions, ADR 0039 §4) : l'instant du coude, et la route

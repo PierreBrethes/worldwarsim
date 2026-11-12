@@ -7,25 +7,38 @@ import {
   addLoads,
   deliverRefusalOf,
   emptyLoad,
+  fitToRoom,
   loadCapacityOf,
   loadTotal,
+  loadsHere,
   missingOf,
+  roomAboard,
+  takeFromHeap,
   tourRefusalOf,
   visitPlan,
+  type PickupFacts,
   type SupplyLoad,
+  type TourStop,
 } from '../src/domain/logistics';
 import { emptyStocks } from '../src/domain/economy';
+import { RESOURCES } from '../src/domain/ids';
+import { inService } from '../src/domain/loot';
 import { isStanding } from '../src/domain/outposts';
+import { landCostOf, routeModeOf } from '../src/domain/movement-orders';
 import { isBlitz } from './blitz';
 import { TOUR_ROAD_WAITS, TOUR_RETRY_MINUTES } from './constants';
 import { fail } from './errors';
+import { isExploitation, takeHeap } from './heaps';
+import { regionNameAt } from './placeNames';
+import { quayOfRegion, routeBetween } from './routes';
 import type { TOUR_END, TOUR_WAIT } from './validators';
+import { TOUR_STOP } from './validators';
 import { busyOf, depotOf, placeOf, unloadAt } from './logistics';
 import { forgetMovement, standAt, walkHome } from './movement/arrival';
 import { movementsOf, pointOf } from './movement/forces';
 import { aimOf, claimSlot, march, troopsAmong, type MarchOrigin } from './movement/orders';
 import { reassessDetection } from './movement/detection';
-import { debit, economyOf } from './resources';
+import { creditToStorage, debit, economyOf } from './resources';
 import { cancelJob } from './scheduledJobs';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { resupply, takeFromDepot } from './supplies';
@@ -43,6 +56,29 @@ import type { LonLat } from '../src/domain/geo';
 
 type Tour = NonNullable<Doc<'troops'>['tour']>;
 type TourEnd = Infer<typeof TOUR_END>;
+type StoredStop = Infer<typeof TOUR_STOP>;
+type Stop = TourStop<Id<'outposts'>, Id<'buildings'>>;
+
+/** **Un arrêt, tel que la tournée le stocke** : l'id d'un avant-poste seul (les tournées d'avant le
+ *  ramassage restent valides), ou `{ kind: 'site', id }` pour une exploitation. */
+const stopOf = (stored: StoredStop): Stop =>
+  typeof stored === 'string' ? { kind: 'depot', id: stored } : stored;
+const storedOf = (stop: Stop): StoredStop => (stop.kind === 'depot' ? stop.id : stop);
+const indexOfStop = (tour: Tour, stop: Stop): number =>
+  tour.stops.findIndex((stored) => {
+    const one = stopOf(stored);
+    return one.kind === stop.kind && one.id === stop.id;
+  });
+
+/** **Une exploitation qu'on peut ramasser** : encore à soi, en service. */
+const isPickable = (building: Doc<'buildings'> | null, playerId: Id<'players'>, now: number) =>
+  building !== null &&
+  building.playerId === playerId &&
+  isExploitation(building) &&
+  inService(building.disabledUntil, now);
+
+const harvestTotal = (harvest: Doc<'troops'>['harvest']): number =>
+  harvest === undefined ? 0 : RESOURCES.reduce((sum, key) => sum + harvest[key], 0);
 
 /**
  * **Lancer une tournée** : le transport chargé, à son point de chargement, et ses arrêts dans
@@ -53,9 +89,9 @@ export const start = mutation({
     token: v.string(),
     seasonId: v.id('seasons'),
     troopId: v.id('troops'),
-    stops: v.array(v.id('outposts')),
+    stops: v.array(TOUR_STOP),
   },
-  handler: async (ctx, { token, seasonId, troopId, stops }) => {
+  handler: async (ctx, { token, seasonId, troopId, stops: stored }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     requirePlayable(player, season);
     if (await isBlitz(ctx, seasonId)) fail('NOT_IN_BLITZ');
@@ -63,23 +99,42 @@ export const start = mutation({
     if (troop === null || troop.playerId !== player._id) fail('UNKNOWN_TROOP', { troopId });
     const now = Date.now();
     const at = await placeOf(ctx, troop, now);
+    const stops = stored.map(stopOf);
+    /** **Ce que le serveur sait d'une exploitation visée** : le client ne lui dit rien. Celle d'un
+     *  autre se lit « pas à vous », comme un bâtiment qui n'existe pas. */
+    const sites = new Map<string, PickupFacts>();
+    for (const stop of stops) {
+      if (stop.kind !== 'site') continue;
+      const building = await ctx.db.get(stop.id);
+      if (building === null) continue;
+      sites.set(stop.id, {
+        ours: building.playerId === player._id,
+        exploitation: isExploitation(building),
+        hasQuay: quayOfRegion(building.regionId, pointOfBuilding(building)) !== null,
+      });
+    }
     const refusal = tourRefusalOf({
       role: troop.role,
       place: at.place,
       busy: await busyOf(ctx, troop),
       load: troop.load,
-      stops: stops.map((id) => ({ kind: 'depot' as const, id })),
+      stops,
+      sites,
       baseOutpostId: 'outpost' in at ? at.outpost._id : null,
     });
     if (refusal !== null) {
       const { code, ...details } = refusal;
       fail(code, details);
     }
-    for (const stopId of stops) {
-      const stop = await ctx.db.get(stopId);
-      if (stop === null || stop.playerId !== player._id)
-        fail('UNKNOWN_OUTPOST', { outpostId: stopId });
-      const refused = deliverRefusalOf([troop], depotOf(stop, now), true);
+    for (const stop of stops) {
+      if (stop.kind === 'site') {
+        await refuseWithoutRoute(ctx, troop, stop.id);
+        continue;
+      }
+      const outpost = await ctx.db.get(stop.id);
+      if (outpost === null || outpost.playerId !== player._id)
+        fail('UNKNOWN_OUTPOST', { outpostId: stop.id });
+      const refused = deliverRefusalOf([troop], depotOf(outpost, now), true);
       if (refused !== null) {
         const { code, ...details } = refused;
         fail(code, details);
@@ -89,7 +144,7 @@ export const start = mutation({
     await ctx.db.patch(troopId, {
       tour: {
         base: troop.stationedAt as Tour['base'],
-        stops,
+        stops: stored,
         consigne: troop.load ?? emptyLoad(),
         next: 0,
       },
@@ -145,29 +200,71 @@ export const retry = internalMutation({
   },
 });
 
-/** Ses arrêts encore à elle et debout, dans l'ordre du tracé. */
-async function stopsOf(ctx: MutationCtx, troop: Doc<'troops'>, tour: Tour, now: number) {
-  const stops: Array<Doc<'outposts'>> = [];
-  for (const stopId of tour.stops) {
-    const stop = await ctx.db.get(stopId);
-    if (stop !== null && stop.playerId === troop.playerId && isStanding(stop, now))
-      stops.push(stop);
+/** Un arrêt encore à elle et debout, avec ce que son plan lit de lui. */
+type Standing =
+  | { readonly kind: 'depot'; readonly outpost: Doc<'outposts'> }
+  | { readonly kind: 'site'; readonly building: Doc<'buildings'> };
+
+const stopOfStanding = (standing: Standing): Stop =>
+  standing.kind === 'depot'
+    ? { kind: 'depot', id: standing.outpost._id }
+    : { kind: 'site', id: standing.building._id };
+
+/** Ses arrêts encore à elle et debout, dans l'ordre du tracé : un dépôt perdu ou démantelé, une
+ *  exploitation perdue, rasée ou désactivée sont sautés (invariant « Échéance »). */
+async function stopsOf(
+  ctx: MutationCtx,
+  troop: Doc<'troops'>,
+  tour: Tour,
+  now: number,
+): Promise<Standing[]> {
+  const stops: Standing[] = [];
+  for (const stored of tour.stops) {
+    const stop = stopOf(stored);
+    if (stop.kind === 'depot') {
+      const outpost = await ctx.db.get(stop.id);
+      if (outpost !== null && outpost.playerId === troop.playerId && isStanding(outpost, now))
+        stops.push({ kind: 'depot', outpost });
+      continue;
+    }
+    const building = await ctx.db.get(stop.id);
+    if (building !== null && isPickable(building, troop.playerId, now))
+      stops.push({ kind: 'site', building });
   }
   return stops;
 }
 
-/** **Le plan d'une tournée de dépôts**, en ids d'avant-poste : ce que la tournée stocke. */
-function depotPlan(
+/**
+ * **Le plan d'une tournée** (`visitPlan`), en ids : ce que la tournée stocke. Un dépôt se lit à
+ * sa place, un site au tas qu'il a à `now`.
+ */
+async function planOf(
+  ctx: MutationCtx,
   troop: Doc<'troops'>,
   load: SupplyLoad,
-  stops: ReadonlyArray<Doc<'outposts'>>,
+  stops: ReadonlyArray<Standing>,
   now: number,
 ) {
+  const heaps = stops.some((stop) => stop.kind === 'site')
+    ? (await economyOf(ctx, troop.playerId, now)).heaps
+    : {};
   const plan = visitPlan(
-    { load, harvest: emptyStocks(), capacity: loadCapacityOf(troop.role) },
-    stops.map((stop) => ({ kind: 'depot' as const, id: stop._id, ...depotOf(stop, now) })),
+    {
+      load,
+      harvest: troop.harvest ?? emptyStocks(),
+      capacity: loadCapacityOf(troop.role),
+    },
+    stops.map((stop) =>
+      stop.kind === 'depot'
+        ? ({ kind: 'depot', id: stop.outpost._id, ...depotOf(stop.outpost, now) } as const)
+        : ({
+            kind: 'site',
+            id: stop.building._id,
+            heap: heaps[stop.building._id]?.amount ?? 0,
+          } as const),
+    ),
   );
-  return { visit: plan.visit.map((stop) => stop.id), skipped: plan.skipped.map((stop) => stop.id) };
+  return { visit: plan.visit, skipped: plan.skipped.map(storedOf) };
 }
 
 /** L'adresse d'où part le pas suivant, dans la forme qu'une marche prend. */
@@ -183,22 +280,65 @@ async function departureOf(
   return outpostId === null ? null : { kind: 'outpost', outpostId };
 }
 
+/** **Où le transport va, pour ramasser** : le tas lui-même, ou le quai de la région pour un cargo,
+ *  qui prend le tas à distance. `null` : un cargo dont la région n'a plus de quai. */
+function pickupPointOf(role: Doc<'troops'>['role'], building: Doc<'buildings'>): LonLat | null {
+  const point = pointOfBuilding(building);
+  return role === 'cargo' ? quayOfRegion(building.regionId, point) : point;
+}
+
+/** **Un site sans route depuis le point de chargement se refuse au tracé**, non à l'arrivée
+ *  (#546) : le camion a une route ou n'a pas d'arrêt là. Une route refusée en cours de tournée reste,
+ *  elle, une attente (`leg`). */
+async function refuseWithoutRoute(
+  ctx: MutationCtx,
+  troop: Doc<'troops'>,
+  buildingId: Id<'buildings'>,
+): Promise<void> {
+  const building = (await ctx.db.get(buildingId))!;
+  const from = await pointOfAddress(ctx, troop.stationedAt);
+  const to = pickupPointOf(troop.role, building);
+  const route =
+    from === null || to === null
+      ? null
+      : routeBetween(from, to, routeModeOf([troop.role]), landCostOf([troop.role]));
+  if (route === null)
+    fail('NO_LAND_ROUTE', {
+      from: from === null ? '' : (regionNameAt(from) ?? ''),
+      to: regionNameAt(pointOfBuilding(building)) ?? building.regionId,
+    });
+}
+
 /** **Un pas** : une marche qui garde le slot de la tournée. `false` : la route le refuse. */
 async function leg(
   ctx: MutationCtx,
   troop: Doc<'troops'>,
-  to: { readonly kind: 'stop'; readonly outpostId: Id<'outposts'> } | { readonly kind: 'base' },
+  to: { readonly kind: 'stop'; readonly stop: Stop } | { readonly kind: 'base' },
 ): Promise<boolean> {
   const origin = await departureOf(ctx, troop.stationedAt);
   const season = await ctx.db.get(troop.seasonId);
   if (origin === null || season === null) return false;
   const base = troop.tour!.base;
-  const target =
-    to.kind === 'stop'
-      ? ({ kind: 'outpost', outpostId: to.outpostId } as const)
-      : ctx.db.normalizeId('buildings', base) !== null
-        ? ({ kind: 'building', buildingId: base as Id<'buildings'> } as const)
-        : ({ kind: 'outpost', outpostId: base as Id<'outposts'> } as const);
+  let target: Parameters<typeof aimOf>[2];
+  let mission:
+    | { delivery: { outpostId: Id<'outposts'> } }
+    | { pickup: { buildingId: Id<'buildings'> } }
+    | null = null;
+  if (to.kind === 'base')
+    target =
+      ctx.db.normalizeId('buildings', base) !== null
+        ? { kind: 'building', buildingId: base as Id<'buildings'> }
+        : { kind: 'outpost', outpostId: base as Id<'outposts'> };
+  else if (to.stop.kind === 'depot') {
+    target = { kind: 'outpost', outpostId: to.stop.id };
+    mission = { delivery: { outpostId: to.stop.id } };
+  } else {
+    const building = await ctx.db.get(to.stop.id);
+    const point = building === null ? null : pickupPointOf(troop.role, building);
+    if (point === null) return false;
+    target = { kind: 'point', point: { lon: point[0], lat: point[1] } };
+    mission = { pickup: { buildingId: to.stop.id } };
+  }
   try {
     const { movementId } = await march(ctx, {
       playerId: troop.playerId,
@@ -208,7 +348,9 @@ async function leg(
       troopIds: [troop._id],
       aim: await aimOf(ctx, troop.playerId, target),
       keepsSlot: true,
-      ...(to.kind === 'stop' ? { delivery: { outpostId: to.outpostId } } : {}),
+      /** D'un tas, d'un point d'arrêt : ni aérodrome ni port n'y sont, et la tournée n'en demande pas. */
+      anyDoor: troop.stationedAt !== base,
+      ...mission,
     });
     await ctx.db.patch(movementId, { tourLeg: to.kind });
     return true;
@@ -219,14 +361,92 @@ async function leg(
 }
 
 /**
- * **Au point de chargement** : recharger la consigne, voir quels dépôts prendraient quelque
- * chose, partir pour le premier. Sinon attendre — le plateau personnel manque, tous les dépôts
- * sont pleins, ou la route est refusée (le plein manque).
+ * **Verser la récolte à bord au stock national**, quel que soit le point de chargement, dans la
+ * place libre de l'entrepôt (ADR 0041 §2). Rien ne se perd : ce que l'entrepôt ne prend pas reste
+ * à bord, et occupe la place. Une dépêche dit ce qui est versé et ce qui reste ; `announce` la
+ * fait aussi quand rien n'entre (un retour), sinon seul un versement la mérite (une tournée qui
+ * regarde de nouveau n'écrit pas toutes les demi-heures).
  */
-async function atBase(ctx: MutationCtx, troopId: Id<'troops'>, now: number): Promise<void> {
-  const troop = await ctx.db.get(troopId);
-  const tour = troop?.tour;
-  if (troop === null || tour === undefined) return;
+async function bankHarvest(
+  ctx: MutationCtx,
+  troop: Doc<'troops'>,
+  now: number,
+  announce: boolean,
+  skipped = 0,
+): Promise<void> {
+  const aboard = troop.harvest;
+  if (aboard === undefined || harvestTotal(aboard) === 0) return;
+  const { delivered, lost } = await creditToStorage(ctx, troop.playerId, aboard, now);
+  await ctx.db.patch(troop._id, { harvest: harvestTotal(lost) === 0 ? undefined : lost });
+  if (!announce && harvestTotal(delivered) === 0) return;
+  await ctx.db.insert('notices', {
+    playerId: troop.playerId,
+    at: now,
+    kind: 'harvestReturned',
+    delivered,
+    kept: lost,
+    skipped,
+  });
+}
+
+/** **Le transport qui se pose à un point de chargement à soi y verse sa récolte** (ADR 0041 §2) :
+ *  la tournée finie ou coupée qui rentre seule, une marche qui s'y arrête. */
+export async function bankWhereLoaded(
+  ctx: MutationCtx,
+  troops: ReadonlyArray<Doc<'troops'>>,
+  now: number,
+): Promise<void> {
+  for (const troop of troops) {
+    if (troop.harvest === undefined || troop.tour !== undefined) continue;
+    const at = await placeOf(ctx, troop, now);
+    const loading =
+      at.place.kind === 'building' ||
+      (at.place.kind === 'outpost' && troop.role === 'airTransport');
+    if (loading && loadsHere(troop.role, at.place) === null)
+      await bankHarvest(ctx, troop, now, true);
+  }
+}
+
+/** Les exploitations du tracé que la tournée ne peut plus ramasser : perdues, rasées ou désactivées. */
+async function skippedSites(
+  ctx: MutationCtx,
+  troop: Doc<'troops'>,
+  tour: Tour,
+  now: number,
+): Promise<number> {
+  let count = 0;
+  for (const stored of tour.stops) {
+    const stop = stopOf(stored);
+    if (stop.kind !== 'site') continue;
+    if (!isPickable(await ctx.db.get(stop.id), troop.playerId, now)) count += 1;
+  }
+  return count;
+}
+
+/**
+ * **Au point de chargement** : verser la récolte, recharger la consigne dans la place qui reste,
+ * voir quels arrêts prendraient ou donneraient quelque chose, partir pour le premier. Sinon
+ * attendre — le plateau personnel manque, rien à livrer ni à ramasser, ou la route est refusée
+ * (le plein manque). `arrived` : on vient de rentrer d'un tour.
+ */
+async function atBase(
+  ctx: MutationCtx,
+  troopId: Id<'troops'>,
+  now: number,
+  arrived = false,
+): Promise<void> {
+  const fresh = await ctx.db.get(troopId);
+  const tour = fresh?.tour;
+  if (fresh === null || tour === undefined) return;
+  /** La récolte se verse **avant** tout : une tournée rappelée finit sans plus rien lui devoir. */
+  await bankHarvest(
+    ctx,
+    fresh,
+    now,
+    arrived,
+    arrived ? await skippedSites(ctx, fresh, tour, now) : 0,
+  );
+  const troop = (await ctx.db.get(troopId))!;
   if (tour.recalled === true) return endTour(ctx, troop, now, 'recalled');
   const at = await placeOf(ctx, troop, now);
   if (troop.stationedAt !== tour.base || at.place.kind === 'elsewhere')
@@ -235,7 +455,12 @@ async function atBase(ctx: MutationCtx, troopId: Id<'troops'>, now: number): Pro
   if (stops.length === 0) return endTour(ctx, troop, now, 'cut');
 
   const held = troop.load ?? emptyLoad();
-  const need = missingOf(tour.consigne, held);
+  /** La place à bord est celle que la récolte laisse : ce qui ne tient pas se recharge au tour
+   *  suivant, et la tournée n'attend pas pour ça. */
+  const need = fitToRoom(
+    missingOf(tour.consigne, held),
+    roomAboard(loadCapacityOf(troop.role), held, troop.harvest),
+  );
   const store =
     'outpost' in at
       ? (at.outpost.depot ?? emptyLoad())
@@ -249,32 +474,57 @@ async function atBase(ctx: MutationCtx, troopId: Id<'troops'>, now: number): Pro
   const loaded = addLoads(held, need);
   await ctx.db.patch(troopId, { load: loaded });
 
-  const plan = depotPlan(troop, loaded, stops, now);
+  const plan = await planOf(ctx, troop, loaded, stops, now);
   const first = plan.visit[0];
   if (first === undefined)
     return wait(ctx, { ...troop, tour: { ...tour, skipped: [...plan.skipped] } }, now, {
       why: 'full',
     });
-  const next = tour.stops.indexOf(first) + 1;
+  const next = indexOfStop(tour, first) + 1;
   const ready = { ...(await ctx.db.get(troopId))!, tour: { ...tour, next } };
-  if (!(await leg(ctx, ready, { kind: 'stop', outpostId: first })))
+  if (!(await leg(ctx, ready, { kind: 'stop', stop: first })))
     return wait(ctx, ready, now, { why: 'road' });
   const { waiting: _waiting, retryJobId: _job, ...rolling } = tour;
   await ctx.db.patch(troopId, { tour: { ...rolling, next, skipped: [...plan.skipped] } });
 }
 
+/** **Prendre le tas d'une exploitation** dans la place à bord (ADR 0041 §2). Perdue, rasée ou
+ *  désactivée depuis l'ordre, elle ne donne rien : l'arrivée relit sa règle. */
+async function pickUp(
+  ctx: MutationCtx,
+  carrier: Doc<'troops'>,
+  buildingId: Id<'buildings'>,
+  now: number,
+): Promise<void> {
+  const building = await ctx.db.get(buildingId);
+  if (building === null || !isPickable(building, carrier.playerId, now)) return;
+  const reading = (await economyOf(ctx, carrier.playerId, now)).heaps[building._id];
+  if (reading === undefined) return;
+  const { taken } = takeFromHeap(
+    reading.amount,
+    roomAboard(loadCapacityOf(carrier.role), carrier.load, carrier.harvest),
+  );
+  if (taken === 0) return;
+  await takeHeap(ctx, building, reading, taken, now);
+  const aboard = carrier.harvest ?? emptyStocks();
+  await ctx.db.patch(carrier._id, {
+    harvest: { ...aboard, [reading.resource]: aboard[reading.resource] + taken },
+  });
+}
+
 /**
- * **À un arrêt de la tournée** : décharger, puis le prochain dépôt qui prendrait quelque chose,
- * ou le retour au chargement. Un arrêt perdu ou tombé en route est sauté, comme au chargement ;
- * la tournée finit, et le transport rentre seul, s'il ne lui reste aucun arrêt ou que la route
- * est refusée.
+ * **À un arrêt de la tournée** : décharger au dépôt ou prendre le tas, puis le prochain arrêt qui
+ * donnerait ou prendrait quelque chose, ou le retour au chargement. Un arrêt perdu ou tombé en
+ * route est sauté, comme au chargement ; la tournée finit, et le transport rentre seul, s'il ne
+ * lui reste aucun arrêt ou que la route est refusée.
  */
 export async function arriveOnTour(
   ctx: MutationCtx,
   movement: Doc<'movements'>,
   now: number,
 ): Promise<void> {
-  const unloaded = await unloadAt(ctx, movement, now);
+  const pickup = movement.pickup;
+  const unloaded = pickup === undefined ? await unloadAt(ctx, movement, now) : null;
   if (unloaded === null) {
     await standAt(ctx, movement, movement.to);
     await forgetMovement(ctx, movement._id, now);
@@ -290,31 +540,34 @@ export async function arriveOnTour(
     /** Il se tient au point, d'où il repart : un point côtier est une côte pour un cargo. */
     const stationedAt = unloaded === null ? carrier.stationedAt : unloaded.outpost._id;
     await ctx.db.patch(carrier._id, { stationedAt });
-    const here = { ...carrier, stationedAt };
+    if (pickup !== undefined)
+      await pickUp(ctx, { ...carrier, stationedAt }, pickup.buildingId, now);
+    const here = (await ctx.db.get(carrier._id))!;
     const stops = await stopsOf(ctx, here, tour, now);
     if (stops.length === 0) {
       await endTour(ctx, here, now, 'cut');
       continue;
     }
-    const ahead = stops.filter((stop) => tour.stops.indexOf(stop._id) >= tour.next);
-    const plan = depotPlan(here, here.load ?? emptyLoad(), ahead, now);
+    const ahead = stops.filter((stop) => indexOfStop(tour, stopOfStanding(stop)) >= tour.next);
+    const plan = await planOf(ctx, here, here.load ?? emptyLoad(), ahead, now);
     const next = tour.recalled === true ? undefined : plan.visit[0];
     const moved =
       next === undefined
         ? await leg(ctx, here, { kind: 'base' })
         : await (async () => {
             await ctx.db.patch(carrier._id, {
-              tour: { ...tour, next: tour.stops.indexOf(next) + 1 },
+              tour: { ...tour, next: indexOfStop(tour, next) + 1 },
             });
-            return leg(ctx, here, { kind: 'stop', outpostId: next });
+            return leg(ctx, here, { kind: 'stop', stop: next });
           })();
     if (!moved) await endTour(ctx, (await ctx.db.get(carrier._id))!, now, 'cut');
   }
 }
 
 /**
- * **De retour au chargement** : elle s'y pose, s'y recharge et repart — ou s'y arrête, rappelée.
- * Perdu entre-temps, le chargement la laisse au point atteint, et la tournée finit.
+ * **De retour au chargement** : elle s'y pose, y verse sa récolte, s'y recharge et repart — ou s'y
+ * arrête, rappelée. Perdu entre-temps, le chargement la laisse au point atteint, et la tournée
+ * finit.
  */
 export async function arriveAtBase(
   ctx: MutationCtx,
@@ -336,7 +589,7 @@ export async function arriveAtBase(
     await troopsAmong(ctx, movement.playerId, movement.troopIds),
     now,
   );
-  for (const troopId of movement.troopIds) await atBase(ctx, troopId, now);
+  for (const troopId of movement.troopIds) await atBase(ctx, troopId, now, true);
 }
 
 async function wait(

@@ -51,6 +51,17 @@ export function takeFromHeap(
   return { taken, left: heap - taken };
 }
 
+/** **Une recharge bornée par la place à bord** : chaque ressource, dans l'ordre, tant qu'il en tient. */
+export function fitToRoom(need: SupplyLoad, room: number): SupplyLoad {
+  const fitted: { -readonly [K in keyof SupplyLoad]: number } = emptyLoad();
+  let left = Math.max(0, room);
+  for (const key of SUPPLY_KEYS) {
+    fitted[key] = Math.min(need[key], left);
+    left -= fitted[key];
+  }
+  return fitted;
+}
+
 /**
  * **Les transports hors bord d'une colonne** : ceux qui portent une charge et ne sont pas à bord
  * d'un autre de la même colonne — ceux qui déchargent à une livraison. Le serveur et la rose
@@ -117,7 +128,7 @@ const idleRefusal = (busy: Busy) =>
 
 /** **Est-ce un point de chargement pour ce transport ?** Le même lieu sert à charger et à
  *  partir en tournée. */
-const loadsHere = (role: UnitRole, place: LoadingPlace) => {
+export const loadsHere = (role: UnitRole, place: LoadingPlace) => {
   if (place.kind === 'outpost') return airStopRefusal(role, place.level);
   if (place.kind === 'elsewhere' || !loadsAt(role).includes(place.key))
     return { code: 'LOAD_NOT_HERE', role } as const;

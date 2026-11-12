@@ -515,6 +515,19 @@ function written(notice: Notice): Written {
           countryLabel(notice.hostCountry),
         ),
       };
+    case 'harvestReturned':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supplyDelivered',
+        text: said.harvestReturned(
+          harvestWords(notice.delivered),
+          harvestWords(notice.kept),
+          notice.skipped,
+        ),
+      };
+    case 'harvestCommissioned':
+      return { at: notice.at, severity: 'notable', kind: 'supply', text: said.harvestCommissioned };
     case 'supplyDelivered':
       return {
         at: notice.at,
@@ -835,6 +848,11 @@ export const lootWords = (loot: ResourceAmounts): string => {
 };
 
 /** Une charge de munitions, pétrole et charbon en toutes lettres ; vide, rien. */
+const harvestWords = (load: ResourceAmounts): string =>
+  RESOURCES.filter((key) => load[key] > 0)
+    .map((key) => `${load[key]} ${fr.resources[key]}`)
+    .join(', ');
+
 const supplyWords = (load: SupplyLoad): string =>
   SUPPLY_KEYS.filter((key) => load[key] > 0)
     .map((key) => `${load[key]} ${fr.resources[key]}`)

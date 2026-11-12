@@ -182,3 +182,18 @@ export async function dropHeap(ctx: MutationCtx, buildingId: Id<'buildings'>): P
     .unique();
   if (row !== null) await ctx.db.delete(row._id);
 }
+
+/**
+ * **Prendre au tas** (ADR 0041 §2) : un transport emporte `taken` unités, et le reste se réécrit à
+ * cet instant, au débit d'aujourd'hui. La seule prise au tas, avec le plein de #547 : `reading`
+ * vient d'une économie réglée à `now`, jamais d'une ligne relue seule.
+ */
+export async function takeHeap(
+  ctx: MutationCtx,
+  building: Pick<Doc<'buildings'>, '_id' | 'seasonId'>,
+  reading: HeapReading,
+  taken: number,
+  now: number,
+): Promise<void> {
+  await stampHeap(ctx, building, reading.playerId, reading.amount - taken, now);
+}

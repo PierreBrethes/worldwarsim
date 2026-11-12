@@ -9,6 +9,7 @@ import {
   type Engagement,
   type PassMode,
 } from '../src/domain/combat';
+import { emptyLoad } from '../src/domain/logistics';
 import { landAtPoint } from './routes';
 import { movementsOf, seatedOf } from './movement/forces';
 import { outpostShelters } from '../src/domain/outposts';
@@ -308,13 +309,18 @@ export async function resolveContact(
   for (const outcome of outcomes) {
     const troop = byId.get(outcome.id)!;
     const finderId = troop.playerId === attacker.playerId ? defender.playerId : attacker.playerId;
-    if (ashore && outcome.state === 'destroyed' && troop.load !== undefined)
+    if (
+      ashore &&
+      outcome.state === 'destroyed' &&
+      (troop.load !== undefined || troop.harvest !== undefined)
+    )
       await dropTransportCrate(ctx, {
         seasonId,
         engagementId,
         ownerId: troop.playerId,
         finderId,
-        load: troop.load,
+        load: troop.load ?? emptyLoad(),
+        harvest: troop.harvest,
         point,
         at,
       });

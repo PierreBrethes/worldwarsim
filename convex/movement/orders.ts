@@ -789,8 +789,10 @@ export async function march(
     pursuit,
     boardsOn,
     delivery,
+    pickup,
     airdrop,
     keepsSlot = false,
+    anyDoor = false,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -811,6 +813,8 @@ export async function march(
     boardsOn?: Id<'troops'> | undefined;
     /** **Une livraison** (ADR 0028 §4) : les transports déchargent à l'arrivée et rentrent. */
     delivery?: NonNullable<Doc<'movements'>['delivery']>;
+    /** **Un ramassage** (ADR 0041 §2) : le transport prend le tas de cette exploitation à l'arrivée. */
+    pickup?: NonNullable<Doc<'movements'>['pickup']>;
     /** **Un largage** (ADR 0028 §4) : l'avion lâche son paquet à l'arrivée, sans se poser, et
      *  paie le plein de l'aller-retour. */
     airdrop?:
@@ -818,6 +822,9 @@ export async function march(
     /** **Le pas suivant d'une tournée**, qui garde le slot qu'elle a pris (ADR 0028), et dont
      *  l'appelant relit le brouillard. */
     keepsSlot?: boolean;
+    /** **Une tournée repart de là où elle s'est posée** (ADR 0041 §2) : au tas d'une exploitation,
+     *  l'avion n'a pas d'aérodrome et le cargo pas de port, et la tournée n'en demande pas. */
+    anyDoor?: boolean;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -870,9 +877,21 @@ export async function march(
    *  09), so an order the fan should never have offered costs nothing — the whole of ADR 0015. */
   /** **A delivery or an airdrop on the spot is no march to oneself**: `ALREADY_HERE` refuses the
    *  pure movement only. */
-  const base = await columnOf(ctx, playerId, troops, departure);
+  const grounded = await columnOf(ctx, playerId, troops, departure);
+  const base = anyDoor
+    ? {
+        ...grounded,
+        departureBuildings: new Set([
+          ...grounded.departureBuildings,
+          PROJECTION_BY_DOMAIN.air,
+          PROJECTION_BY_DOMAIN.sea,
+        ]),
+      }
+    : grounded;
   const column = boardingInto(
-    delivery === undefined && airdrop === undefined ? base : withoutOrigin(base),
+    delivery === undefined && pickup === undefined && airdrop === undefined
+      ? base
+      : withoutOrigin(base),
     aim.aim,
     boardsOn,
   );
@@ -969,6 +988,7 @@ export async function march(
     ...(pursuit === undefined ? {} : { pursuit: { troopId: pursuit.troopId, checkAt: now } }),
     ...(boardsOn === undefined ? {} : { boardsOn }),
     ...(delivery === undefined ? {} : { delivery }),
+    ...(pickup === undefined ? {} : { pickup }),
     ...(airdrop === undefined ? {} : { airdrop: { leg: 'out' as const, ...airdrop } }),
     ...movementCargoFields(cargo),
   });

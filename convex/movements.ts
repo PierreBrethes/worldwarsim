@@ -88,7 +88,7 @@ import { suppliesOf } from '../src/domain/supplies';
 import { dakarSparedAt, holdsPoint } from './strategicPoints';
 import { arriveToDeliver, arriveToAirdrop } from './logistics';
 import { onTourRefusalOf } from '../src/domain/logistics';
-import { arriveAtBase, arriveOnTour } from './tours';
+import { arriveAtBase, arriveOnTour, bankWhereLoaded } from './tours';
 import { arriveOnPatrol } from './patrols';
 import { pacedMinutes } from './movement/pace';
 import {
@@ -1353,6 +1353,8 @@ export const arrive = internalMutation({
      *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
     const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);
     await resupply(ctx, movement.playerId, landed, now);
+    /** **Posé à un point de chargement à soi, un transport y verse sa récolte** (ADR 0041 §2). */
+    await bankWhereLoaded(ctx, landed, now);
     /** **Sans combat, l'arrivée ne change que son joueur** : la colonne n'est plus, ses troupes
      *  se posent ; un assaut, lui, touche le défenseur, et tout se relit. */
     await reassessDetection(

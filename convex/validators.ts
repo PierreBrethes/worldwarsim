@@ -123,6 +123,13 @@ export const SUPPLY_LOAD = v.object({
   coal: v.number(),
 });
 
+/** **Un arrêt de tournée** (ADR 0041 §2) : un avant-poste (son id seul, comme avant) ou une
+ *  exploitation à ramasser. Une tournée en base, d'ids d'avant-poste, reste valide. */
+export const TOUR_STOP = v.union(
+  v.id('outposts'),
+  v.object({ kind: v.literal('site'), id: v.id('buildings') }),
+);
+
 /** Le sol sous une chose : la route le porte par tronçon, un camp relevé une fois pour toutes. */
 export const MEDIUM = v.union(v.literal('land'), v.literal('sea'), v.literal('air'));
 
@@ -591,6 +598,18 @@ export const NOTICE = v.union(
     role: UNIT_ROLE,
     ...TOUR_WAIT.fields,
   }),
+  /** **Le retour d'une tournée qui a ramassé** (ADR 0041 §2) : ce que l'entrepôt a pris, ce qui
+   *  reste à bord faute de place, et les exploitations sautées (perdues ou désactivées). */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('harvestReturned'),
+    delivered: RESOURCE_AMOUNTS,
+    kept: RESOURCE_AMOUNTS,
+    skipped: v.number(),
+  }),
+  /** **La mise en service de la récolte rapportée** (ADR 0041) : la règle nouvelle, dite une fois
+   *  à chaque belligérant d'une Mondiale en cours. */
+  v.object({ ...NOTICE_HEAD, kind: v.literal('harvestCommissioned') }),
   /** **Une tournée qui finit** : rappelée, ou coupée — chargement ou dépôts perdus, route refusée. */
   v.object({
     ...NOTICE_HEAD,

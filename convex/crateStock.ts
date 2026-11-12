@@ -1,6 +1,7 @@
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
+import { RESOURCES } from '../src/domain/ids';
 import type { SupplyLoad } from '../src/domain/logistics';
 import {
   difference,
@@ -135,6 +136,7 @@ export async function dropTransportCrate(
     ownerId,
     finderId,
     load,
+    harvest,
     point,
     at,
   }: {
@@ -143,11 +145,14 @@ export async function dropTransportCrate(
     ownerId: Id<'players'>;
     finderId: Id<'players'>;
     load: SupplyLoad;
+    /** **La récolte à bord** (ADR 0041 §2) tombe avec la charge. */
+    harvest?: ResourceAmounts | undefined;
     point: { lon: number; lat: number };
     at: number;
   },
 ): Promise<void> {
   const remainder = { ...emptyAmounts(), ...load };
+  for (const key of RESOURCES) remainder[key] += harvest?.[key] ?? 0;
   if (!hasLoot(remainder)) return;
   const recoveryId = await ctx.db.insert('lootRecoveries', {
     seasonId,

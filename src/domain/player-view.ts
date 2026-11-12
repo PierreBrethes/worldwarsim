@@ -1,6 +1,6 @@
 import type { LineKey } from '../../convex/constants';
 import type { Asset } from './nation-assets';
-import type { SupplyLoad } from './logistics';
+import type { HarvestLoad, SupplyLoad } from './logistics';
 import type { Supplies } from './supplies';
 import type { CaptureClock } from './capture';
 import type { SeasonMode } from './season-mode';
@@ -331,6 +331,9 @@ export type TroopView = {
   readonly facing?: number;
   /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */
   readonly load?: SupplyLoad;
+  /** **La récolte à bord** (ADR 0041 §2) : ce qu'il a pris aux tas, cinq clés, sous la même capacité
+   *  que sa charge. Au propriétaire seul ; absente, rien. */
+  readonly harvest?: HarvestLoad;
   /** **Ancrée** (ADR 0028 §3) : elle se recharge à l'ancre. Absent en Mondiale, c'est une
    *  escouade isolée, que seul un largage ravitaille ; la Blitz ne compte rien. */
   readonly anchored?: true;
@@ -339,6 +342,8 @@ export type TroopView = {
   readonly tour?: {
     readonly baseId: string;
     readonly stops: ReadonlyArray<string>;
+    /** Ses exploitations à ramasser (ADR 0041 §2), dans l'ordre du tracé ; absentes, aucune. */
+    readonly sites?: ReadonlyArray<string>;
     readonly waiting: TourWait | null;
     readonly recalled: boolean;
     readonly skipped: ReadonlyArray<string>;
@@ -1076,6 +1081,16 @@ type NoticeBody =
       readonly role: UnitRole;
       readonly why: TourEnd;
     }
+  /** **Le retour d'une tournée qui a ramassé** (ADR 0041 §2) : versé, resté à bord, sites sautés. */
+  | {
+      readonly kind: 'harvestReturned';
+      readonly at: number;
+      readonly delivered: ResourceAmounts;
+      readonly kept: ResourceAmounts;
+      readonly skipped: number;
+    }
+  /** **La mise en service de la récolte rapportée** (ADR 0041) : la règle nouvelle, dite une fois. */
+  | { readonly kind: 'harvestCommissioned'; readonly at: number }
   | {
       readonly kind: 'supplyDelivered';
       readonly at: number;

@@ -78,6 +78,8 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   événement qui change ce débit (élévation, couleur, Narvik, désactivation, capture) appelle
   `stampHeap`, `restampChanged` ou `passHeap` lui-même ; rasée, l'exploitation emporte sa ligne.
   Une exploitation sans ligne lit un tas vide depuis son `_creationTime`.
+  Une prise au tas (`takeHeap`, `convex/heaps.ts`) réécrit la ligne à l'instant de la prise ; la
+  récolte à bord (`troops.harvest`) est versée par `bankHarvest` (`convex/tours.ts`), jamais au dépôt.
 - **Porte serveur.** Chaque fonction de jeu prend `{ token, seasonId }` et passe par `playerOf`
   puis `requirePlayable` (`convex/seats.ts`) ; le serveur ne rend que des codes d'erreur
   (`convex/errors.ts`), le texte vit dans `src/i18n/fr.ts`. Aucune phrase n'écrit « clic droit » :

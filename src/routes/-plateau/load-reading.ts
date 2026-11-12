@@ -3,6 +3,7 @@ import {
   loadCapacityOf,
   loadRefusalOf,
   loadTotal,
+  roomAboard,
   type LoadingPlace,
   type SupplyLoad,
 } from '@/domain/logistics';
@@ -78,7 +79,7 @@ export function loadReadingOf(
   const capacity = loadCapacityOf(troop.role);
   const store = sourceStockOf(view, source, resource, now);
   const marching = view.arcs.some((arc) => arc.state === 'mine' && arc.troopIds.includes(troop.id));
-  const { max, bound } = fullLoadOf(store, capacity - loadTotal(held));
+  const { max, bound } = fullLoadOf(store, roomAboard(capacity, held, troop.harvest));
   const amount = chosenLoadOf(max, picked);
   // 0 n'est pas un refus : les jetons rentrent. La règle se lit sur le plein, pas sur la valeur.
   const refusal = loadRefusalOf({
@@ -86,6 +87,7 @@ export function loadReadingOf(
     place,
     busy: troop.tour !== undefined ? 'touring' : marching ? 'underway' : null,
     held,
+    harvest: troop.harvest,
     resource,
     amount: Math.max(max, 1),
     store,

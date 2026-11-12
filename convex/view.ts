@@ -768,12 +768,16 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           ? {}
           : { anchored: true as const }),
         ...(troop.load === undefined ? {} : { load: troop.load }),
+        ...(troop.harvest === undefined ? {} : { harvest: troop.harvest }),
         ...(troop.tour === undefined
           ? {}
           : {
               tour: {
                 baseId: troop.tour.base,
-                stops: troop.tour.stops,
+                stops: troop.tour.stops.filter((stop) => typeof stop === 'string'),
+                sites: troop.tour.stops.flatMap((stop) =>
+                  typeof stop === 'string' ? [] : [stop.id as string],
+                ),
                 waiting:
                   troop.tour.waiting === undefined
                     ? null
@@ -784,7 +788,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                           : { resource: troop.tour.waiting.resource }),
                       },
                 recalled: troop.tour.recalled === true,
-                skipped: troop.tour.skipped ?? [],
+                skipped: (troop.tour.skipped ?? []).filter((stop) => typeof stop === 'string'),
                 ...(rangoon ? { veiled: true as const } : {}),
               },
             }),

@@ -2921,7 +2921,7 @@ export const fr = {
         why === 'stock'
           ? `Tournée en attente — ${role} : il manque ${resource} au chargement pour sa consigne. Elle repart quand il y en a.`
           : why === 'full'
-            ? `Tournée en attente — ${role} : tous ses dépôts sont pleins. Elle repart quand l’un d’eux se vide.`
+            ? `Tournée en attente — ${role} : rien à livrer ni à ramasser, dépôts pleins ou tas vides. Elle repart dès qu’un dépôt se vide ou qu’un tas se remplit.`
             : `Tournée en attente — ${role} : sa route est refusée, le plein manque au chargement.`,
       tourEnded: (role: string, why: TourEnd) =>
         why === 'recalled'
@@ -2941,6 +2941,18 @@ export const fr = {
                 : why === 'irregular'
                   ? `Ronde perdue — ${role} : votre QG est tombé, elle passe aux irréguliers, ${country}.`
                   : `Route refusée, ronde arrêtée — ${role} : le plein manque ; elle reste en garnison, ${country}.`,
+      harvestReturned: (delivered: string, kept: string, skipped: number) =>
+        `${
+          delivered === ''
+            ? 'Récolte rapportée sans place — l’entrepôt est plein'
+            : `Récolte rapportée — ${delivered} au stock`
+        }${kept === '' ? '' : `, ${kept} encore à bord faute de place`}${
+          skipped === 0
+            ? ''
+            : ` ; ${skipped} exploitation${plural(skipped, ' sautée', 's sautées')} (perdue${plural(skipped, '', 's')} ou désactivée${plural(skipped, '', 's')})`
+        }.`,
+      harvestCommissioned:
+        'Nouvelle règle — la récolte se rapporte : chaque exploitation entasse sa production à son pied, et un transport en tournée la ramasse pour la verser au stock. Les exploitations de fondation versent seules le débit d’un niveau 1.',
       supplyDelivered: (country: string, delivered: string, kept: string) =>
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`

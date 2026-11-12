@@ -112,6 +112,7 @@ export const load = mutation({
       place: at.place,
       busy: await busyOf(ctx, troop),
       held,
+      harvest: troop.harvest,
       resource,
       amount: taken,
       store,
