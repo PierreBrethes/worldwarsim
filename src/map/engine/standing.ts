@@ -140,6 +140,11 @@ export const besideSites = (
             };
       });
 
+/** **Newcomers take their place in the order they were formed** (#524): a view served whole stands
+ *  as one that grew, whatever order the pile lists its roles in. A view with no date keeps its order. */
+const inFormationOrder = <T extends { formedAt?: number }>(members: ReadonlyArray<T>): T[] =>
+  [...members].sort((a, b) => (a.formedAt ?? 0) - (b.formedAt ?? 0));
+
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
 export type GarrisonAt = (
   maquetteId: string,
@@ -1874,16 +1879,16 @@ export class StandingLayer implements SequenceHost {
   private postsOf(order: ReadonlyArray<Dressed>, eye: Vector3): Map<Dressed, Post[]> {
     const bySite = new Map<
       string,
-      Array<{ entry: Dressed; k: number; role: UnitRole; troop: string }>
+      Array<{ entry: Dressed; k: number; role: UnitRole; troop: string; formedAt?: number }>
     >();
     for (const entry of order) {
       if (!('beside' in entry.at)) continue;
       const { beside } = entry.at;
-      entry.pieces.groups.forEach(({ role, posted, troopIds }, k) => {
+      entry.pieces.groups.forEach(({ role, posted, troopIds, formedAt }, k) => {
         if (posted)
           bySite.set(beside, [
             ...(bySite.get(beside) ?? []),
-            { entry, k, role, troop: troopIds[0]! },
+            { entry, k, role, troop: troopIds[0]!, formedAt },
           ]);
       });
     }
@@ -1961,7 +1966,7 @@ export class StandingLayer implements SequenceHost {
    *  (`promoted`), and no other hull moves. */
   private postsOfHulls(
     site: string,
-    members: ReadonlyArray<{ troop: string }>,
+    members: ReadonlyArray<{ troop: string; formedAt?: number }>,
   ): { posts: Array<HullPost | null>; promoted: string[] } {
     const kept = this.hullPosts.get(site) ?? new Map<string, HullPost>();
     this.hullPosts.set(site, kept);
@@ -1977,7 +1982,7 @@ export class StandingLayer implements SequenceHost {
           promoted.push(troop);
           break;
         }
-    for (const { troop } of members) {
+    for (const { troop } of inFormationOrder(members)) {
       if (kept.has(troop)) continue;
       const post = settleHull(held());
       this.arrivals.delete(troop);
@@ -2061,11 +2066,11 @@ export class StandingLayer implements SequenceHost {
   /**
    * **The apron's planes with their places**: a place is a state of its troop, kept while it
    * stays on the apron; a troop that left frees it and no other moves. A new one takes it by how
-   * it came (`arrivedAt`), else in the order of the role.
+   * it came (`arrivedAt`), else as if formed, in the order they were formed (#524).
    */
   private planesOf(
     site: string,
-    members: ReadonlyArray<{ role: UnitRole; troop: string }>,
+    members: ReadonlyArray<{ role: UnitRole; troop: string; formedAt?: number }>,
   ): Plane[] {
     const kept = this.places.get(site) ?? new Map<string, Place>();
     this.places.set(site, kept);
@@ -2074,9 +2079,9 @@ export class StandingLayer implements SequenceHost {
     for (const troop of this.arrivals.keys()) if (roles.has(troop)) kept.delete(troop);
     const heldNow = (): Plane[] =>
       [...kept].map(([troop, place]) => ({ role: roles.get(troop)!, place }));
-    for (const { troop } of members) {
+    for (const { troop } of inFormationOrder(members)) {
       if (kept.has(troop)) continue;
-      const place = settle(heldNow(), roles.get(troop)!, this.arrivals.get(troop) ?? 'initial');
+      const place = settle(heldNow(), roles.get(troop)!, this.arrivals.get(troop) ?? 'formed');
       this.arrivals.delete(troop);
       if (place !== null) kept.set(troop, place);
     }

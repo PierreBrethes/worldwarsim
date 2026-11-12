@@ -14,7 +14,7 @@ import type { UnitRole } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import { pilePieces, postedAt, unitPieces } from '@/domain/pile-pieces';
 import { AIRFIELD } from '@/emblems/kits/manifest';
-import { apron, berths, layout, type Place } from './timelines/rest';
+import { berths, layout, type Place, type Plane, settle } from './timelines/rest';
 import type { WorldFrame } from './frame';
 import {
   besideSites,
@@ -1073,7 +1073,10 @@ describe('pieces resting at their post', () => {
     );
     const layer = await standing([{ id: 'p', at: { beside: 'site' }, pieces }]);
     const g = growthOf('fighter');
-    const slots = apron(['fighter', 'fighter'], g);
+    const held: Plane[] = [];
+    for (let n = 0; n < 2; n++)
+      held.push({ role: 'fighter', place: settle(held, 'fighter', 'formed') });
+    const slots = layout(held, g);
     pieces.groups.forEach(({ role }, k) => {
       const at = layer.placeOf(`p/${k}`)!.at;
       if (role !== 'fighter') return expect(at.distanceTo(SITE)).toBeLessThan(0.1);
@@ -1190,6 +1193,57 @@ describe('pieces resting at their post', () => {
       layer.orient(eye);
       near(spot(layer, 1), wanted(place));
     }
+  });
+
+  describe('a view served whole stands as one that grew (#524)', () => {
+    const dated = (role: UnitRole, id: string, formedAt: number) => ({
+      ...unit(role, id),
+      formedAt,
+    });
+    const at = (layer: StandingLayer, pieces: ReturnType<typeof pilePieces>, id: string) =>
+      spot(
+        layer,
+        pieces.groups.findIndex(({ troopIds }) => troopIds[0] === id),
+      ).clone();
+
+    it('keeps a transport and the fighter formed after it where they stood', async () => {
+      const [t, f] = [dated('airTransport', 't', 1), dated('fighter', 'f', 2)];
+      const lone = postedAt(pilePieces([t]), 'airfield');
+      const both = postedAt(pilePieces([t, f]), 'airfield');
+      const live = await standing([{ id: 'p', at: { beside: 'site' }, pieces: lone }]);
+      live.display([{ id: 'p', at: { beside: 'site' }, pieces: both }]);
+      await vi.waitFor(() => expect(live.isDressed('p')).toBe(true));
+      live.arrivedAt('p', [both.groups.findIndex(({ role }) => role === 'fighter')], 'formed');
+      live.orient(eye);
+      const cold = await standing([{ id: 'p', at: { beside: 'site' }, pieces: both }]);
+      for (const id of ['t', 'f']) near(at(cold, both, id), at(live, both, id));
+    });
+
+    it('moors the hulls of a port in the order they were formed', async () => {
+      const ships = [dated('cargo', 'a', 1), dated('escort', 'b', 2), dated('cargo', 'c', 3)];
+      const whole = postedAt(pilePieces(ships), 'port');
+      const mooring = (n: number) => [
+        {
+          id: 'p',
+          at: { beside: 'site', quay: [0, 0] as [number, number] },
+          pieces: postedAt(pilePieces(ships.slice(0, n)), 'port'),
+        },
+      ];
+      const live = await standing(mooring(1));
+      for (const n of [2, 3]) {
+        live.display(mooring(n));
+        await vi.waitFor(() => expect(live.isDressed('p')).toBe(true));
+        const newest = ships[n - 1]!.id;
+        live.arrivedAt(
+          'p',
+          [mooring(n)[0]!.pieces.groups.findIndex(({ troopIds }) => troopIds[0] === newest)],
+          'formed',
+        );
+        live.orient(eye);
+      }
+      const cold = await standing(mooring(3));
+      for (const id of ['a', 'b', 'c']) near(at(cold, whole, id), at(live, whole, id));
+    });
   });
 
   const hullsAt = (...ids: string[]) =>

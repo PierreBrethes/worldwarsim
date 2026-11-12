@@ -18,7 +18,7 @@ import {
 
 type PileTroop = Pick<
   TroopView,
-  'id' | 'role' | 'tier' | 'strength' | 'nominalStrength' | 'carriedBy' | 'emplacedAt'
+  'id' | 'role' | 'tier' | 'strength' | 'nominalStrength' | 'carriedBy' | 'emplacedAt' | 'formedAt'
 >;
 
 export type Wear = 'whole' | 'smoking' | 'burning';
@@ -38,6 +38,8 @@ type PieceGroup = {
    *  à son quai. Il n'est plus dans la formation de la pile : la carte le pose là où le site le
    *  range (`apron`, `berths`). */
   readonly posted?: true;
+  /** **Formée à cet instant** (#524) : l'ordre où les pièces d'un poste sont arrivées. */
+  readonly formedAt?: number;
   /** **Ce que ses transports portent** (15/10), à tous les étages : les passagers ne se voient
    *  pas, le jeton « N à bord » les compte. Absent sans passager. */
   readonly aboard?: number;
@@ -141,6 +143,7 @@ export function pilePieces(
       troopIds: [...bucket.troops, ...riders].map((t) => t.id),
       figures: figuresOf(bucket),
       wear: wearOf(bucket.ratio),
+      ...(bucket.troops[0]?.formedAt === undefined ? {} : { formedAt: bucket.troops[0].formedAt }),
       ...(riders.length === 0 ? {} : { aboard: riders.length }),
       ...(battery === null ? {} : { battery }),
     };

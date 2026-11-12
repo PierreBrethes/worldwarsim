@@ -28,8 +28,8 @@ const ROADS_GAP = 60;
 /** **A place on the apron**: a lane (0 the right hangar's, 1 the left's) and a rank from the rail. */
 export type Place = { readonly lane: 0 | 1; readonly rank: number };
 export type Plane = { readonly role: AirRole; readonly place: Place | null };
-/** **How a plane comes by its place**: out of its hangar, home from the runway, or with no history
- *  (the view as it loads: the order of the role). */
+/** **How a plane comes by its place**: out of its hangar, home from the runway, or the first free
+ *  place in order (`apron`). */
 export type Arrival = 'formed' | 'returned' | 'initial';
 
 const FIGHTER = troopMetres('fighter');

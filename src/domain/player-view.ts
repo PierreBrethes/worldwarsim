@@ -327,6 +327,9 @@ export type TroopView = {
   /** **Le transport qui la porte** (révision de l'ADR 0025, 15/10), absent à pied ; il ne vaut
    *  qu'à la même adresse que lui (`carrierIn`). */
   readonly carriedBy?: string;
+  /** **L'instant de sa formation** (#524) : ce qui range les avions d'une aire et les coques d'un
+   *  quai dans l'ordre où ils sont arrivés. Troupes de soi seules, comme toute cette liste. */
+  readonly formedAt?: number;
   /** **Le cap de sa pile posée** (#362), en degrés depuis le nord ; absent, le sud du plateau. */
   readonly facing?: number;
   /** **Sa charge, si c'est un transport** (ADR 0028 §4) : absente, vide. */

@@ -745,6 +745,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         strength: troop.currentStrength,
         nominalStrength: troop.nominalStrength,
         stationedAt: stationOf(troop),
+        formedAt: troop._creationTime,
         /** Read off the same pass that priced it: the badge on the card and the food rate in
          *  the strip cannot disagree, because only one of them was ever computed. */
         supplied: !unsupplied.has(troop._id),
