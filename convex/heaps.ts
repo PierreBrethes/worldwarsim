@@ -162,7 +162,8 @@ export async function restampChanged(
 }
 
 /** **Capturé, le tas passe au capteur avec le bâtiment**, réglé à l'instant de la capture
- *  (Pierre, 12/11) : sa ligne change de `playerId`. */
+ *  (Pierre, 12/11) : sa ligne change de `playerId`. Un belligérant le lit dans `heaps` ; un siège
+ *  irrégulier ne produit pas, son tas est celui que sa ligne a gelé, vide sans ligne. */
 export async function passHeap(
   ctx: MutationCtx,
   building: Pick<Doc<'buildings'>, '_id' | 'seasonId'>,
@@ -170,8 +171,11 @@ export async function passHeap(
   to: Id<'players'>,
   at: number,
 ): Promise<void> {
-  const held = heaps[building._id];
-  if (held !== undefined) await stampHeap(ctx, building, to, held.amount, at);
+  const row = await ctx.db
+    .query('heaps')
+    .withIndex('byBuilding', (q) => q.eq('buildingId', building._id))
+    .unique();
+  await stampHeap(ctx, building, to, heaps[building._id]?.amount ?? row?.amount ?? 0, at);
 }
 
 /** **Rasée, l'exploitation emporte son tas.** */

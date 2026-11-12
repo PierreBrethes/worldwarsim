@@ -15,6 +15,7 @@ import { recordLinkage } from './holding';
 import { reportChange, settleBeforeChange } from './production';
 import { handOver } from './strategicPoints';
 import { leaveTheWar } from './players';
+import { endowIrregular, irregularSeat } from './objectives';
 import { regionFacts } from './regions';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
@@ -497,6 +498,34 @@ describe('a heap and its raid, its capture, its fog', () => {
     expect(row!.amount).toBeCloseTo(((takenAt - MIDDAY) / HOUR) * 3 * COAL, 4);
     expect((await heapOf(t, guest, mine))!.amount).toBeGreaterThanOrEqual(row!.amount);
     expect(await heapOf(t, seat, mine)).toBeUndefined();
+  });
+
+  it('hands the captor an empty heap, not a full one, from an exploitation of the irregulars', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    const captor = await playerOf(t, guest);
+    const mine = await t.run(async (ctx) => {
+      const irregular = await irregularSeat(ctx, captor.seasonId);
+      await endowIrregular(ctx, irregular, Date.now());
+      return ctx.db.insert('buildings', {
+        seasonId: captor.seasonId,
+        playerId: irregular,
+        key: 'mine',
+        regionId: MOSELLE,
+        point: pointIn(MOSELLE),
+        level: 3,
+        outpostId: null,
+      });
+    });
+    expect(seat).toBeDefined();
+    at(6);
+
+    const takenAt = await takeOver(t, guest, (await t.run((ctx) => ctx.db.get(mine)))!);
+
+    expect(await rowsOf(t)).toMatchObject([
+      { buildingId: mine, playerId: captor._id, amount: 0, settledAt: takenAt },
+    ]);
+    expect((await heapOf(t, guest, mine))!.amount).toBe(0);
   });
 
   it('never serves a heap through a survey or an enemy building', async () => {
