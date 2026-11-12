@@ -103,9 +103,11 @@ le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
 
 ## Conséquences
 
-- **Schéma** : un tas par bâtiment et son heure de règlement, en `v.optional` lu à vide ; la
-  marque de fondation, en `v.optional` (absente : ramassée). Aucune migration de données : les
-  exploitations déjà posées en pré-prod n'ont pas la marque. La dépêche de mise en service le dit.
+- **Schéma** : un tas par bâtiment et son heure de règlement, dans une table à part ; la marque
+  de fondation, en `v.optional` (absente : ramassée). À la mise en service, une migration marque
+  en pré-prod, pour chaque dette de fondation acquittée, la plus ancienne exploitation debout qui
+  l'acquitte : un joueur en cours de partie garde son revenu de base. La dépêche de mise en service
+  dit la règle.
 - **Une règle, une fonction** : le refus d'un arrêt de ramassage (`tourRefusalOf`) et le versement
   sortent du domaine, lus par l'interface et le serveur.
 - **Le plateau personnel** montre les tas qui débordent, sans job : c'est une lecture paresseuse.
