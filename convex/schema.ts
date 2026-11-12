@@ -440,6 +440,9 @@ export default defineSchema({
     /** **Posé neutre par la carte de départ d'une Blitz**, et resté marqué après sa prise : la
      *  liste des neutres se sert figée, et seul un relevé apprend qu'un autre l'a pris. */
     startedNeutral: v.optional(v.literal(true)),
+    /** **Posée en pose de fondation offerte** (ADR 0041 §3) : seule une exploitation la porte, et
+     *  son premier niveau verse alors seul au stock national. Effacée à la capture. */
+    foundationMark: v.optional(v.literal(true)),
     /** **Le QG de départ, et de qui** — posé par la carte d'une Blitz, ou par le joueur au socle
      *  d'une Mondiale : sa chute élimine ce joueur-là (B10, M2a), pas celui qui le tenait après
      *  l'avoir pris. */

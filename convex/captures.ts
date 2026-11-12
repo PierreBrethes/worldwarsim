@@ -542,6 +542,7 @@ export const complete = internalMutation({
         await ctx.db.patch(building._id, {
           playerId: capture.playerId,
           capturedAt: now,
+          foundationMark: undefined,
           level: mode === 'mondiale' ? Math.max(1, building.level - 1) : building.level,
         });
         taken.push(building);
@@ -559,7 +560,7 @@ export const complete = internalMutation({
       ).filter((building) => building.outpostId === site._id);
       for (const building of anchored) {
         await releaseBuilding(ctx, loser, building, now);
-        await ctx.db.patch(building._id, { playerId: capture.playerId });
+        await ctx.db.patch(building._id, { playerId: capture.playerId, foundationMark: undefined });
       }
       taken.push(...anchored);
       await groundGarrison(ctx, site);
@@ -722,7 +723,11 @@ async function toIrregulars(
   const irregularId = await irregularSeat(ctx, fall.seasonId);
   for (const building of await playerBuildings(ctx, loser._id)) {
     await releaseBuilding(ctx, loser, building, now);
-    await ctx.db.patch(building._id, { playerId: irregularId, capturedAt: now });
+    await ctx.db.patch(building._id, {
+      playerId: irregularId,
+      capturedAt: now,
+      foundationMark: undefined,
+    });
   }
   for (const outpost of await ctx.db
     .query('outposts')

@@ -890,6 +890,58 @@ describe('a Mondiale headquarters', () => {
       [await troop(t, seat, 'infantry', null)],
     );
 
+  const marked = async (t: Bench, seat: Seat, regionId: string) => {
+    const id = await building(t, seat, regionId, 2, 'mine');
+    await t.run((ctx) => ctx.db.patch(id, { foundationMark: true }));
+    return id;
+  };
+  const markOf = (t: Bench, id: Id<'buildings'>) =>
+    t.run(async (ctx) => (await ctx.db.get(id))!.foundationMark === true);
+
+  it('wipes the foundation mark of an exploitation that is captured', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const mine = await marked(t, guest, PSKOV);
+    await take(t, seat, (await t.run((ctx) => ctx.db.get(mine)))!);
+    await finish(t);
+    expect(await markOf(t, mine)).toBe(false);
+  });
+
+  it('wipes the mark of an exploitation anchored to a captured outpost', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const owner = await playerOf(t, guest);
+    const point = pointOfRegion(PRAHOVA);
+    const outpostId = await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        point,
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 2,
+        foundedAt: MIDDAY - 10 * HOUR,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+    const mine = await marked(t, guest, PRAHOVA);
+    await t.run((ctx) => ctx.db.patch(mine, { outpostId }));
+    const infantry = await troop(t, seat, 'infantry', null);
+    await captureArrival(t, seat, { kind: 'outpost', outpostId }, point, 'ROU', [infantry]);
+    await finish(t);
+    expect(await markOf(t, mine)).toBe(false);
+  });
+
+  it('wipes the mark of the exploitations a fallen nation hands to the irregulars', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const mine = await marked(t, guest, PSKOV);
+    await take(t, seat, await headquartersOf(t, guest));
+    await finish(t);
+    expect(await markOf(t, mine)).toBe(false);
+  });
+
   it('takes the twelve hours the lobby set by default, or twenty-four', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);

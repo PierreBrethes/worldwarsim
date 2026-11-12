@@ -632,6 +632,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         ...(isReachedBuilding(building, sites) ? {} : { unreached: true as const }),
         ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
         ...(building.capturedAt === undefined ? {} : { captured: true as const }),
+        ...(building.foundationMark === true ? { foundationMark: true as const } : {}),
       })),
       regions: [...carrying.values()].map((facts) => ({
         id: facts.id,

@@ -105,9 +105,13 @@ export function extractionSites(
       const yielding = deposit !== null && exploits(building.key, deposit);
       const linked = isLinked(building, held, ownerId);
       const share = outputShareOf(linked, holdsNarvik);
-      // ponytail: no foundation mark yet (#549 lays it): every site reads as gathered.
       const split = outputSplitOf(
-        { deposit: yielding ? deposit : null, level: building.level, share, foundation: false },
+        {
+          deposit: yielding ? deposit : null,
+          level: building.level,
+          share,
+          foundation: building.foundationMark === true,
+        },
         mode,
       );
       return {

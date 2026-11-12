@@ -175,6 +175,7 @@ export const start = mutation({
         point,
         level: placed,
         ...anchored(await anchorAt(ctx, player, regionId, point)),
+        ...(EXPLOITED_DEPOSITS[building] === undefined ? {} : { foundationMark: true as const }),
         /** Son QG à lui : sa chute l'élimine (M2a), pas celle d'un QG qu'il aurait pris. */
         ...(building === 'hq' ? { homeOf: player._id } : {}),
       });

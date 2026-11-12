@@ -597,6 +597,8 @@ export type Building = {
   readonly disabled?: true;
   /** **Pris à un autre** : il colore sa région, mais un Centre de recherche pris ne cherche pas. */
   readonly captured?: true;
+  /** **Posé en fondation offerte** (ADR 0041 §3) : son premier niveau verse au stock national. */
+  readonly foundationMark?: true;
 };
 
 /**
