@@ -34,10 +34,13 @@ describe('HeapFoot', () => {
     const out = html(mark({ cap: 0, amount: 0, foundation: { alonePerHour: 12 } }));
     expect(out).toContain('rapporte seule · 12 vivres / h');
     expect(out).not.toContain('heap-stack');
+    expect(out).toContain('label-seal');
   });
 
   it('says what a raised foundation still reports alone beside its heap', () => {
-    expect(html(mark({ foundation: { alonePerHour: 12 } }))).toContain('+ 12 / h seul');
+    const out = html(mark({ foundation: { alonePerHour: 12 } }));
+    expect(out).toContain('+ 12 / h seul');
+    expect(out).toContain('label-seal');
   });
 
   it('draws nothing for an exploitation with neither heap nor mark', () => {

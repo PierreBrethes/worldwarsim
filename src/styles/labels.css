@@ -1501,6 +1501,7 @@
 }
 
 .heap-tag {
+  position: relative;
   display: grid;
   gap: 2px;
   padding: 2px 4px 3px;
@@ -1572,11 +1573,31 @@
   display: none;
 }
 
-/* La marque de fondation : un liseré double au cartouche et un sceau « F ». */
+/* La marque de fondation : un liseré double et un sceau « F », au tas qui se voit toujours et au
+   cartouche quand la pièce est nommée. */
 .label--foundation .label-lines {
   position: relative;
   border: 3px double var(--ink);
   padding-right: 22px;
+}
+
+.heap-foot--foundation .heap-tag,
+.heap-foot--alone.heap-foot--foundation {
+  border: 3px double var(--ink);
+  padding: 1px 4px 2px;
+}
+
+.heap-foot--foundation.heap-foot--full .heap-tag {
+  border-color: var(--critical);
+}
+
+.heap-foot--foundation .label-seal {
+  right: auto;
+  left: -8px;
+}
+
+.heap-foot--alone.heap-foot--foundation {
+  padding-left: 11px;
 }
 
 .label-seal {
@@ -1596,9 +1617,20 @@
 @media (max-width: 760px) {
   .heap-stack,
   .heap-stamp,
-  .heap-alone,
-  .heap-foot--alone {
+  .heap-alone {
     display: none;
+  }
+
+  /* Au téléphone, le mot de fondation se réduit à son sceau. */
+  .heap-foot--alone {
+    padding: 0;
+    font-size: 0;
+    background: none;
+    border: 0;
+  }
+
+  .heap-foot--alone .label-seal {
+    position: static;
   }
 
   .heap-tag b {

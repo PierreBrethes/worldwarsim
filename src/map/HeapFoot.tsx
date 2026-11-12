@@ -17,7 +17,8 @@ export function HeapFoot({ heap }: { heap: HeapMark }) {
   const now = useClock(60_000);
   if (heap.cap === 0) {
     return heap.foundation === null ? null : (
-      <span className="heap-foot heap-foot--alone">
+      <span className="heap-foot heap-foot--alone heap-foot--foundation">
+        <Seal />
         {fr.heap.aloneAtOne(heap.foundation.alonePerHour, heap.resource)}
       </span>
     );
@@ -25,7 +26,7 @@ export function HeapFoot({ heap }: { heap: HeapMark }) {
   const reading = heapReadingOf(heap, now);
   return (
     <span
-      className={`heap-foot${reading.full ? ' heap-foot--full' : ''}`}
+      className={`heap-foot${reading.full ? ' heap-foot--full' : ''}${heap.foundation === null ? '' : ' heap-foot--foundation'}`}
       title={fr.heap.title(heap.resource, reading.amount, reading.cap)}
       style={
         {
@@ -40,6 +41,7 @@ export function HeapFoot({ heap }: { heap: HeapMark }) {
         ))}
       </span>
       <span className="heap-tag">
+        {heap.foundation !== null && <Seal />}
         <b>
           {reading.amount}
           <small> / {reading.cap}</small>
@@ -56,6 +58,15 @@ export function HeapFoot({ heap }: { heap: HeapMark }) {
           {fr.heap.full} {fr.heap.since(asSpan(Math.max(0, now - reading.stoppedSince) / 60_000))}
         </span>
       )}
+    </span>
+  );
+}
+
+/** Le sceau de fondation : à l'exploitation dont le niveau 1 verse seul au stock. */
+function Seal() {
+  return (
+    <span className="label-seal" title={fr.heap.sealTitle}>
+      {fr.heap.seal}
     </span>
   );
 }
