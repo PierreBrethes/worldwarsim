@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyStocks } from './economy';
+import { emptyLoad } from './logistics';
 import type { LonLat } from './geo';
 import { costMinutes } from './pace';
 import { computeRoute, decodeGrid } from './routing';
@@ -28,7 +29,7 @@ const briey: LonLat = [5.95, 49.25];
 const depot = (id: string, point: LonLat, held: number, capacity = 150): SheetDepot => ({
   kind: 'depot',
   id,
-  point,
+  stopPoint: point,
   depot: { ammunition: held, oil: 0, coal: 0 },
   capacity,
   level: 2,
@@ -42,7 +43,7 @@ const site = (
 ): SheetSite => ({
   kind: 'site',
   id,
-  point,
+  stopPoint: point,
   resource: 'coal',
   heap,
   cap: 384,
@@ -149,6 +150,15 @@ describe('an exploitation that is out of service or cut off (#550)', () => {
     const ranked = rankStops(truck(0), [], [down]);
     expect(ranked.offered[0]!.reason).toEqual({ code: 'siteDisabled' });
     expect(proposeTour(truck(0), [down])).toEqual([]);
+  });
+});
+
+describe('where a stop is driven to (#550)', () => {
+  it('is the quay for a cargo, not the heap: the legs follow the stop point', () => {
+    const quay = site('quay', verdun, 100, { facts: { ...lensSite.facts, hasQuay: true } });
+    const ship: TourSheet = { ...truck(50), role: 'cargo', rules: { ...truck().rules } };
+    const there = loopOf(ship, [quay]);
+    expect(there.km).toBe(loopOf(ship, [{ ...verdunDepot, id: 'v', depot: emptyLoad() }]).km);
   });
 });
 

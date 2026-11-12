@@ -40,7 +40,7 @@ export type SheetWorld = Pick<RouteGrid, 'outline' | 'sphere'>;
 export type SheetDepot = {
   readonly kind: 'depot';
   readonly id: string;
-  readonly point: LonLat;
+  readonly stopPoint: LonLat;
   readonly depot: SupplyLoad;
   readonly capacity: number;
   readonly level: number;
@@ -52,7 +52,9 @@ export type SheetDepot = {
 export type SheetSite = {
   readonly kind: 'site';
   readonly id: string;
-  readonly point: LonLat;
+  /** Où la tournée va : le tas pour un camion ou un avion, le quai de la région pour un cargo
+   *  (`pickupPointOf`), non la place de l'exploitation. */
+  readonly stopPoint: LonLat;
   readonly resource: ResourceKey;
   readonly heap: number;
   readonly cap: number;
@@ -212,7 +214,7 @@ export function loopOf(sheet: TourSheet, stops: ReadonlyArray<SheetStop>): Loop 
 const total = (harvest: HarvestLoad) => Object.values(harvest).reduce((sum, n) => sum + n, 0);
 
 const pointOf = (byKey: ReadonlyMap<string, SheetStop>, row: LoopRow) =>
-  byKey.get(`${row.kind}:${row.id}`)!.point;
+  byKey.get(`${row.kind}:${row.id}`)!.stopPoint;
 
 /** Ce qu'un arrêt sauté déplacerait placé en tête de boucle, à bord comme au départ. */
 function earlierOf(sheet: TourSheet, stop: SheetStop): SkippedStop {
