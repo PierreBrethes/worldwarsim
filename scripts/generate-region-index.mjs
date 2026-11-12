@@ -21,6 +21,9 @@
  * them, the nearest land cell's centre replaces it. A pole that rounding puts outside a region
  * too small for a cell falls back on a shape's centroid.
  *
+ * **The name is French where French has one** (#553): the source's English or local name goes
+ * through `region-names-fr.mjs`, and a region the table does not know keeps the source's own.
+ *
  * It also bakes `public/country-names.json`, the French name of every country the game can
  * show — 251 codes against the eight nations that have a hand-written label. The names come
  * from CLDR at bake time, so nothing translates at run time and no code ever reaches a screen.
@@ -31,6 +34,7 @@ import isoCountries from 'i18n-iso-countries';
 import polylabel from 'polylabel';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { decodeGrid, isLandCell, lonLatAtProjected, projectLonLat } from '../src/domain/routing.ts';
+import { frenchRegionName } from './region-names-fr.mjs';
 import { atlas, DETAIL, frame, naturalEarth, pairs, regionRaster, STEP } from './atlas-base.mjs';
 
 const rounded = (value) => Math.round(value * 1000) / 1000;
@@ -50,7 +54,7 @@ const name = {};
 const country = {};
 const point = {};
 for (const region of atlas.regions) {
-  name[region.id] = region.name;
+  name[region.id] = frenchRegionName(region.country, region.name);
   country[region.id] = region.country;
   const shapes = shapesOf.get(region.id) ?? [];
   const largest = shapes.reduce((a, b) => (areaOf(a.outer) >= areaOf(b.outer) ? a : b), shapes[0]);
