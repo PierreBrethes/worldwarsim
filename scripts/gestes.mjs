@@ -540,11 +540,58 @@ async function runProfile(profile) {
           await serverSays(seat, 'le camion porte du charbon', (view) =>
             view.me.troops.some((troop) => troop.id === truck.id && (troop.load?.coal ?? 0) > 0),
           );
-          // L'écran : l'étiquette du camion porte le signe de sa charge.
+          // L'écran : l'étiquette du camion porte le signe de sa charge (▣). Tout transport a son signe,
+          // depuis la feuille de route (#551) : c'est la marque de la charge qui dit la charge.
           await page
-            .locator(`[data-carrier-id="${truck.id}"] .cargo-tag-sign`)
+            .locator(`[data-carrier-id="${truck.id}"] .cargo-tag-sign .cargo-tag-mark`, {
+              hasText: '▣',
+            })
             .waitFor({ state: 'attached', timeout: 5000 })
             .catch(() => assert.fail('écran : l’étiquette du camion ne dit pas sa charge'));
+        },
+      },
+      {
+        name: 'lancer une tournée depuis la feuille de route',
+        run: async () => {
+          // Le camion chargé du geste précédent : son étiquette ouvre sa feuille (#551).
+          const truck = (await client.query(api.view.playerView, seat)).me.troops.find(
+            (troop) =>
+              troop.role === 'landTransport' &&
+              troop.stationedAt.kind === 'building' &&
+              (troop.load?.coal ?? 0) > 0,
+          );
+          assert.ok(truck, 'le camion chargé de charbon manque');
+          await page
+            .locator(`[data-carrier-id="${truck.id}"] .cargo-tag-sign--opens`)
+            .dispatchEvent('click');
+          await page
+            .locator('[data-tour-sheet], [role="dialog"][aria-label*="Feuille de route"]')
+            .first()
+            .waitFor({ timeout: 5000 })
+            .catch(() => assert.fail('écran : la feuille de route ne s’ouvre pas'));
+          // Une feuille vide propose ; rien ne part sans « lancer ».
+          await page.getByRole('button', { name: 'proposer' }).click();
+          await page.waitForTimeout(500);
+          assert.ok(
+            (await page.locator('[data-stop]').count()) > 0,
+            'écran : « proposer » ne pose aucun arrêt',
+          );
+          assert.equal(
+            (await client.query(api.view.playerView, seat)).me.troops.find(
+              (one) => one.id === truck.id,
+            ).tour,
+            undefined,
+            'serveur : la tournée est partie sans « lancer »',
+          );
+          await page.getByRole('button', { name: 'lancer la tournée' }).click();
+          await serverSays(seat, 'le camion est en tournée', (view) =>
+            view.me.troops.some((one) => one.id === truck.id && one.tour !== undefined),
+          );
+          // L'écran : la feuille se referme sur le lancement.
+          await page
+            .locator('[data-tour-sheet]')
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : la feuille reste ouverte après « lancer »'));
         },
       },
     ];
