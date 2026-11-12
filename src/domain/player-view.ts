@@ -606,7 +606,14 @@ export type Building = {
   readonly foundationMark?: true;
   /** **Le tas au pied de l'exploitation** (ADR 0041), à moi seul, jamais dans un relevé : ce qu'elle
    *  a produit et que personne n'a ramassé, et son plafond. Absent d'un autre bâtiment et en Blitz. */
-  readonly heap?: { readonly amount: number; readonly cap: number; readonly resource: ResourceKey };
+  readonly heap?: {
+    readonly amount: number;
+    readonly cap: number;
+    readonly resource: ResourceKey;
+    /** Depuis quand le tas est plein, en ms : absent tant qu'il ne l'est pas. La feuille de route
+     *  en tire les heures où l'exploitation est arrêtée. Une version de retard n'en sert pas. */
+    readonly fullSince?: number;
+  };
 };
 
 /**

@@ -10,6 +10,7 @@ import {
   outputSplitOf,
   heapCapOf,
   heapAt,
+  heapFullSince,
   produces,
   shortfallOf,
   settleStocks,
@@ -576,5 +577,16 @@ describe('the harvest heap (ADR 0041)', () => {
     expect(heapAt(heap, 48 * HOUR)).toBe(100);
     expect(heapAt({ ...heap, heap: 130 }, 5 * HOUR)).toBe(130);
     expect(heapAt(heap, 0)).toBe(10);
+  });
+
+  it('dates the moment a heap became full, never before it is (#550)', () => {
+    const HOUR = 3_600_000;
+    const heap = { heap: 10, settledAt: 0, heapPerHour: 6, cap: 100 };
+    expect(heapFullSince(heap, 10 * HOUR)).toBeNull();
+    expect(heapFullSince(heap, 15 * HOUR)).toBe(15 * HOUR);
+    expect(heapFullSince(heap, 40 * HOUR)).toBe(15 * HOUR);
+    expect(heapFullSince({ ...heap, heap: 100 }, 3 * HOUR)).toBe(0);
+    expect(heapFullSince({ ...heap, heapPerHour: 0 }, 40 * HOUR)).toBeNull();
+    expect(heapFullSince({ ...heap, cap: 0, heap: 0 }, 40 * HOUR)).toBeNull();
   });
 });

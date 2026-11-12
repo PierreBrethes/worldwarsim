@@ -59,7 +59,8 @@ export type SheetSite = {
   readonly resource: ResourceKey;
   readonly heap: number;
   readonly cap: number;
-  readonly perHour: number;
+  /** Le `heapPerHour` de l'extraction du site dans la vue, non son `perHour` : ce qui entre au tas. */
+  readonly heapPerHour: number;
   /** Encore à soi, en service et reliée : une exploitation hors service ou coupée ne donne rien, et
    *  la tournée la saute (`isPickable`). */
   readonly working: boolean;
@@ -358,14 +359,14 @@ function reasonOf(stop: SheetStop, moved: number, emptiest: boolean): StopReason
   if (!stop.working) return { code: 'siteDisabled' };
   if (stop.heap > 0 && moved === 0) return { code: 'aboardFull', heap: stop.heap };
   if (stop.stoppedForHours !== null)
-    return { code: 'siteStopped', hours: stop.stoppedForHours, lostPerHour: stop.perHour };
-  if (stop.heap === 0) return { code: 'heapEmpty', perHour: stop.perHour };
-  if (stop.perHour === 0) return { code: 'heapStill', heap: stop.heap, cap: stop.cap };
+    return { code: 'siteStopped', hours: stop.stoppedForHours, lostPerHour: stop.heapPerHour };
+  if (stop.heap === 0) return { code: 'heapEmpty', perHour: stop.heapPerHour };
+  if (stop.heapPerHour === 0) return { code: 'heapStill', heap: stop.heap, cap: stop.cap };
   return {
     code: 'heapFilling',
     heap: stop.heap,
     cap: stop.cap,
-    hoursToFull: Math.max(0, stop.cap - stop.heap) / stop.perHour,
+    hoursToFull: Math.max(0, stop.cap - stop.heap) / stop.heapPerHour,
   };
 }
 

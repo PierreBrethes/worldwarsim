@@ -561,6 +561,22 @@ describe('a heap and its raid, its capture, its fog', () => {
     ]);
   });
 
+  it('serves the moment a heap became full to its owner alone (#550)', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    const mine = await exploitation(t, seat, 'mine', MOSELLE, { level: 2 });
+    await surveyRegion(t, guest, MOSELLE);
+
+    at(HEAP_CAP_HOURS / 2);
+    expect((await heapOf(t, seat, mine))?.fullSince).toBeUndefined();
+
+    at(HEAP_CAP_HOURS + 5);
+    const full = (await heapOf(t, seat, mine))?.fullSince;
+    expect(full).toBeGreaterThan(0);
+    expect(full).toBeLessThan(MIDDAY + (HEAP_CAP_HOURS + 5) * HOUR);
+    expect(JSON.stringify(await t.query(api.view.playerView, guest))).not.toContain('fullSince');
+  });
+
   it('never serves a heap through a survey or an enemy building', async () => {
     const t = boot();
     const { seat, guest } = await launched(t);

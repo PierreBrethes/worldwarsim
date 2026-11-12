@@ -382,6 +382,17 @@ export function heapAt(
   return Math.max(heap, Math.min(cap, grown));
 }
 
+/**
+ * **Depuis quand le tas est plein** (#550), au plus tôt à son règlement : `null` s'il ne l'est pas
+ * encore ou ne le sera jamais (débit nul, plafond nul). La feuille de route en lit les heures
+ * d'arrêt d'une exploitation, sans rien deviner.
+ */
+export function heapFullSince(heap: Parameters<typeof heapAt>[0], now: number): number | null {
+  if (heap.cap <= 0 || heapAt(heap, now) < heap.cap) return null;
+  if (heap.heap >= heap.cap) return heap.settledAt;
+  return heap.settledAt + ((heap.cap - heap.heap) / heap.heapPerHour) * 3_600_000;
+}
+
 export const emptyStocks = (): Record<ResourceKey, number> =>
   Object.fromEntries(RESOURCES.map((key) => [key, 0])) as Record<ResourceKey, number>;
 

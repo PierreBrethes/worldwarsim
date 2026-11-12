@@ -7,6 +7,7 @@ import {
   heapAt,
   heapCapOf,
   type HarvestSite,
+  heapFullSince,
 } from '../src/domain/economy';
 import type { ResourceKey } from '../src/domain/ids';
 import type { SeasonMode } from '../src/domain/season-mode';
@@ -25,6 +26,8 @@ export type HeapReading = {
   readonly heapPerHour: number;
   readonly cap: number;
   readonly resource: ResourceKey;
+  /** Depuis quand il est plein : absent tant qu'il ne l'est pas. Au propriétaire seul, comme le tas. */
+  readonly fullSince?: number;
 };
 
 /** Par identifiant de bâtiment, en objet simple plutôt qu'en `Map` : l'économie traverse des
@@ -75,20 +78,20 @@ export function heapsOf(
     const cap = heapCapOf(harvest);
     const heapPerHour = rateOf.get(building._id) ?? 0;
     const row = rowOf.get(building._id);
+    const settled = {
+      heap: row?.amount ?? 0,
+      settledAt: row?.settledAt ?? building._creationTime,
+      heapPerHour,
+      cap,
+    };
+    const fullSince = heapFullSince(settled, now);
     readings[building._id] = {
       playerId: building.playerId,
-      amount: heapAt(
-        {
-          heap: row?.amount ?? 0,
-          settledAt: row?.settledAt ?? building._creationTime,
-          heapPerHour,
-          cap,
-        },
-        now,
-      ),
+      amount: heapAt(settled, now),
       heapPerHour,
       cap,
       resource: YIELD_OF[harvest.deposit ?? EXPLOITED_DEPOSITS[building.key]![0]!],
+      ...(fullSince === null ? {} : { fullSince }),
     };
   }
   return readings;

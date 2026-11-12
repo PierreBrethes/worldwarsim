@@ -48,7 +48,7 @@ const site = (
   resource: 'coal',
   heap,
   cap: 384,
-  perHour: 48,
+  heapPerHour: 48,
   working: true,
   stoppedForHours: null,
   facts: { ours: true, exploitation: true, hasQuay: false, routed: true },
@@ -273,7 +273,7 @@ describe('the ranking of stops', () => {
       hoursToFull: (384 - 290) / 48,
     });
     expect(reasonOf(site('b', briey, 0))).toEqual({ code: 'heapEmpty', perHour: 48 });
-    expect(reasonOf(site('c', briey, 0, { cap: 0, perHour: 0 }))).toEqual({ code: 'noHeap' });
+    expect(reasonOf(site('c', briey, 0, { cap: 0, heapPerHour: 0 }))).toEqual({ code: 'noHeap' });
     expect(reasonOf(depot('d', verdun, 20))).toMatchObject({
       code: 'depotRoom',
       depot: 20,

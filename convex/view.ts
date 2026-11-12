@@ -1678,5 +1678,12 @@ const heapOf = (economy: Economy, buildingId: Id<'buildings'>) => {
   const heap = economy.heaps[buildingId];
   return heap === undefined
     ? {}
-    : { heap: { amount: heap.amount, cap: heap.cap, resource: heap.resource } };
+    : {
+        heap: {
+          amount: heap.amount,
+          cap: heap.cap,
+          resource: heap.resource,
+          ...(heap.fullSince === undefined ? {} : { fullSince: heap.fullSince }),
+        },
+      };
 };
