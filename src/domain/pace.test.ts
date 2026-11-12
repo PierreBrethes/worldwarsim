@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MINUTES_PER_ROUTE_UNIT, routeMinutes } from '../../convex/constants';
 import { theatreMinutesPer1000Km } from './blitz';
-import { costMinutes, minutesPer1000KmOf, paceCostOf } from './pace';
+import { costMinutes, crawledMinutes, minutesPer1000KmOf, paceCostOf } from './pace';
 import { COST_BY_MEDIUM, KM_PER_UNIT } from './routing';
 import { THEATRES } from './theatres';
 
@@ -60,5 +60,15 @@ describe('minutesPer1000KmOf', () => {
     expect(minutesPer1000KmOf(['infantry'], europe)).toBeLessThan(
       minutesPer1000KmOf(['infantry'], null),
     );
+  });
+});
+
+describe('crawledMinutes (ADR 0041 §4)', () => {
+  it('leaves an ordinary march alone, with no flag or an off one', () => {
+    expect(crawledMinutes(90, false)).toBe(90);
+  });
+
+  it('doubles the minutes of a crawl', () => {
+    expect(crawledMinutes(90, true)).toBe(180);
   });
 });

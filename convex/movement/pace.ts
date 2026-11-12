@@ -3,7 +3,7 @@ import type { QueryCtx } from '../_generated/server';
 import { drawnLiaisonsOf, isStanding, linkedRelays } from '../../src/domain/outposts';
 import { relayedCostUnits, type Relay } from '../../src/domain/route-timing';
 import type { ComputedRoute } from '../../src/domain/routing';
-import { costMinutes } from '../../src/domain/pace';
+import { costMinutes, crawledMinutes } from '../../src/domain/pace';
 import { RELAY_SPEED_MULTIPLIER, outpostReachKm } from '../constants';
 import { pointOf } from './forces';
 import { blitzTheatreOf } from './theatre';
@@ -19,12 +19,14 @@ export async function pacedMinutes(
   playerId: Id<'players'>,
   route: ComputedRoute,
   at: number,
+  /** **Au pas** (ADR 0041 §4) : une tournée à sec ; absent, la marche ordinaire. */
+  slow = false,
 ): Promise<number> {
   const relays = await liaisonRelaysOf(ctx, playerId, at);
   const costUnits = relayedCostUnits({ route, relays, multiplier: RELAY_SPEED_MULTIPLIER });
   /** **Une Blitz court à l'échelle de son théâtre** (B1), en secondes et non en minutes : un saut
    *  de cent kilomètres y dure une demi-minute, que l'arrondi de la Mondiale portait à une. */
-  return costMinutes(costUnits, await blitzTheatreOf(ctx, playerId));
+  return crawledMinutes(costMinutes(costUnits, await blitzTheatreOf(ctx, playerId)), slow);
 }
 
 /** **Les points d'un joueur qui accélèrent ses colonnes à cet instant** (ADR 0037 §8). */

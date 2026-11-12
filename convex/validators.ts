@@ -598,6 +598,9 @@ export const NOTICE = v.union(
     role: UNIT_ROLE,
     ...TOUR_WAIT.fields,
   }),
+  /** **Une tournée roule au pas** (ADR 0041 §4) : le plein manque, elle part quand même, deux fois
+   *  plus lente. Une seule dépêche par tournée. */
+  v.object({ ...NOTICE_HEAD, kind: v.literal('tourCrawling'), role: UNIT_ROLE }),
   /** **Le retour d'une tournée qui a ramassé** (ADR 0041 §2) : ce que l'entrepôt a pris, ce qui
    *  reste à bord faute de place, et les exploitations sautées (perdues ou désactivées). */
   v.object({

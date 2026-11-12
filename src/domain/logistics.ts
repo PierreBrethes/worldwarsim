@@ -51,6 +51,13 @@ export function takeFromHeap(
   return { taken, left: heap - taken };
 }
 
+/**
+ * **Une tournée à sec roule au pas** (ADR 0041 §4) : un camion ou un cargo que le seul refus du
+ * plein arrête part quand même. Tout autre refus reste une attente, et l'avion à sec reste au sol.
+ */
+export const crawlsOn = (role: UnitRole, code: string): boolean =>
+  (role === 'landTransport' || role === 'cargo') && code === 'NOT_ENOUGH_FUEL';
+
 /** **Une recharge bornée par la place à bord** : chaque ressource, dans l'ordre, tant qu'il en tient. */
 export function fitToRoom(need: SupplyLoad, room: number): SupplyLoad {
   const fitted: { -readonly [K in keyof SupplyLoad]: number } = emptyLoad();

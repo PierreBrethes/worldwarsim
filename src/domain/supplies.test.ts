@@ -3,6 +3,7 @@ import { BAKU_REFUEL_MS } from '../../convex/constants';
 import {
   bakuGainOf,
   bakuRefuel,
+  refuelAtHeap,
   fuelGaugeOf,
   fuelRefusalOf,
   fuelStepsOf,
@@ -377,5 +378,35 @@ describe('the resupply in passing at a Magasin (ADR 0037 §4)', () => {
       [{ id: 'plane', role: 'fighter', fuel: 0 }],
     );
     expect(takes.every((take) => take.cost.oil === 0)).toBe(true);
+  });
+});
+
+describe('refuelling at a heap (ADR 0041 §4)', () => {
+  it('fills a truck in whole steps off an oil heap, up to its tank', () => {
+    expect(refuelAtHeap('landTransport', 1, { resource: 'oil', amount: 1000 })).toEqual({
+      steps: 3,
+      cost: 30,
+    });
+  });
+
+  it('takes only whole steps the heap holds', () => {
+    expect(refuelAtHeap('landTransport', 0, { resource: 'oil', amount: 25 })).toEqual({
+      steps: 2,
+      cost: 20,
+    });
+  });
+
+  it('burns coal for a cargo, oil for a plane, and ignores the other resource', () => {
+    expect(refuelAtHeap('cargo', 0, { resource: 'coal', amount: 1000 }).steps).toBe(6);
+    expect(refuelAtHeap('airTransport', 0, { resource: 'oil', amount: 1000 }).steps).toBe(3);
+    expect(refuelAtHeap('cargo', 0, { resource: 'oil', amount: 1000 })).toEqual({
+      steps: 0,
+      cost: 0,
+    });
+    expect(refuelAtHeap('landTransport', 0, { resource: 'coal', amount: 1000 }).steps).toBe(0);
+  });
+
+  it('takes nothing for a full tank', () => {
+    expect(refuelAtHeap('landTransport', 4, { resource: 'oil', amount: 1000 }).steps).toBe(0);
   });
 });

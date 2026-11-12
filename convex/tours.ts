@@ -5,6 +5,7 @@ import { internalMutation, mutation, type MutationCtx } from './_generated/serve
 import {
   SUPPLY_KEYS,
   addLoads,
+  crawlsOn,
   deliverRefusalOf,
   emptyLoad,
   fitToRoom,
@@ -24,6 +25,7 @@ import { emptyStocks } from '../src/domain/economy';
 import { RESOURCES } from '../src/domain/ids';
 import { inService } from '../src/domain/loot';
 import { isStanding } from '../src/domain/outposts';
+import { refuelAtHeap, suppliesOf } from '../src/domain/supplies';
 import { landCostOf, routeModeOf } from '../src/domain/movement-orders';
 import { isBlitz } from './blitz';
 import { TOUR_ROAD_WAITS, TOUR_RETRY_MINUTES } from './constants';
@@ -339,26 +341,50 @@ async function leg(
     target = { kind: 'point', point: { lon: point[0], lat: point[1] } };
     mission = { pickup: { buildingId: to.stop.id } };
   }
-  try {
+  const aim = await aimOf(ctx, troop.playerId, target);
+  const go = async (crawl: boolean) => {
     const { movementId } = await march(ctx, {
       playerId: troop.playerId,
       season,
       type: 'march',
       origin,
       troopIds: [troop._id],
-      aim: await aimOf(ctx, troop.playerId, target),
+      aim,
       keepsSlot: true,
       /** D'un tas, d'un point d'arrêt : ni aérodrome ni port n'y sont, et la tournée n'en demande
        *  pas. Posé à un dépôt ou au chargement, il repart par sa porte comme une marche. */
       anyDoor: typeof troop.stationedAt !== 'string',
+      crawl,
       ...mission,
     });
     await ctx.db.patch(movementId, { tourLeg: to.kind });
+  };
+  /** **Le plein seul ne l'arrête pas** (ADR 0041 §4) : refusé pour lui, un camion ou un cargo
+   *  repart au pas, gratuitement ; à la prochaine marche il retente son allure ordinaire. */
+  try {
+    await go(false);
     return true;
+  } catch (refused) {
+    if (!(refused instanceof ConvexError)) throw refused;
+    if (!crawlsOn(troop.role, (refused.data as { code?: string }).code ?? '')) return false;
+  }
+  try {
+    await go(true);
   } catch (refused) {
     if (refused instanceof ConvexError) return false;
     throw refused;
   }
+  const crawling = (await ctx.db.get(troop._id))!.tour!;
+  if (crawling.crawled !== true) {
+    await ctx.db.patch(troop._id, { tour: { ...crawling, crawled: true } });
+    await ctx.db.insert('notices', {
+      playerId: troop.playerId,
+      at: Date.now(),
+      kind: 'tourCrawling',
+      role: troop.role,
+    });
+  }
+  return true;
 }
 
 /**
@@ -488,7 +514,16 @@ async function atBase(
   if (!(await leg(ctx, ready, { kind: 'stop', stop: first })))
     return wait(ctx, ready, now, { why: 'road' });
   const { waiting: _waiting, retryJobId: _job, ...rolling } = tour;
-  await ctx.db.patch(troopId, { tour: { ...rolling, next, skipped: [...plan.skipped] } });
+  /** Le pas a pu poser `crawled` sur la tournée : on le garde. */
+  const crawled = (await ctx.db.get(troopId))?.tour?.crawled;
+  await ctx.db.patch(troopId, {
+    tour: {
+      ...rolling,
+      next,
+      skipped: [...plan.skipped],
+      ...(crawled === true ? { crawled } : {}),
+    },
+  });
 }
 
 /** **Prendre le tas d'une exploitation** dans la place à bord (ADR 0041 §2). Perdue, rasée ou
@@ -503,15 +538,21 @@ async function pickUp(
   if (building === null || !isPickable(building, carrier.playerId, now)) return;
   const reading = (await economyOf(ctx, carrier.playerId, now)).heaps[building._id];
   if (reading === undefined) return;
+  /** **Le plein d'abord** (ADR 0041 §4) : ce que le moteur brûle ne se rapporte pas, et ne prend
+   *  donc pas la place de la récolte. */
+  const fuel = refuelAtHeap(carrier.role, suppliesOf(carrier).fuel, reading);
   const { taken } = takeFromHeap(
-    reading.amount,
+    reading.amount - fuel.cost,
     roomAboard(loadCapacityOf(carrier.role), carrier.load, carrier.harvest),
   );
-  if (taken === 0) return;
-  await takeHeap(ctx, building, reading, taken, now);
+  if (fuel.steps === 0 && taken === 0) return;
+  await takeHeap(ctx, building, reading, fuel.cost + taken, now);
   const aboard = carrier.harvest ?? emptyStocks();
   await ctx.db.patch(carrier._id, {
-    harvest: { ...aboard, [reading.resource]: aboard[reading.resource] + taken },
+    ...(fuel.steps === 0 ? {} : { fuel: suppliesOf(carrier).fuel + fuel.steps }),
+    ...(taken === 0
+      ? {}
+      : { harvest: { ...aboard, [reading.resource]: aboard[reading.resource] + taken } }),
   });
 }
 

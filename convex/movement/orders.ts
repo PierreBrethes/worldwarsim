@@ -793,6 +793,7 @@ export async function march(
     airdrop,
     keepsSlot = false,
     anyDoor = false,
+    crawl = false,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -825,6 +826,9 @@ export async function march(
     /** **Une tournée repart de là où elle s'est posée** (ADR 0041 §2) : au tas d'une exploitation,
      *  l'avion n'a pas d'aérodrome et le cargo pas de port, et la tournée n'en demande pas. */
     anyDoor?: boolean;
+    /** **Au pas** (ADR 0041 §4) : une tournée à sec part sans payer le plein ni être refusée pour
+     *  lui, deux fois plus lente. */
+    crawl?: boolean;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -932,14 +936,14 @@ export async function march(
     airdrop !== undefined,
     await holdsPoint(ctx, { _id: playerId, seasonId: season._id }, 'singapore'),
   );
-  if (fuel.short !== null)
+  if (!crawl && fuel.short !== null)
     fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: airdrop !== undefined });
 
   const now = Date.now();
-  const minutes = await pacedMinutes(ctx, playerId, route, now);
+  const minutes = await pacedMinutes(ctx, playerId, route, now, crawl);
   const arrivesAt = now + minutes * 60_000;
   /** Le plein se débite ici, l'arrivée connue : le cran de Bakou se compte depuis l'arrêt. */
-  const paying = new Set(fuel.drivers.map((troop) => troop._id));
+  const paying = new Set(crawl ? [] : fuel.drivers.map((troop) => troop._id));
   for (const troop of troops)
     await ctx.db.patch(troop._id, {
       ...(paying.has(troop._id) ? { fuel: suppliesOf(troop).fuel - fuel.stepsOf(troop) } : {}),

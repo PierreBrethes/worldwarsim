@@ -1081,6 +1081,8 @@ type NoticeBody =
       readonly role: UnitRole;
       readonly why: TourEnd;
     }
+  /** **Une tournée roule au pas** (ADR 0041 §4) : le plein manque, elle part quand même. */
+  | { readonly kind: 'tourCrawling'; readonly at: number; readonly role: UnitRole }
   /** **Le retour d'une tournée qui a ramassé** (ADR 0041 §2) : versé, resté à bord, sites sautés. */
   | {
       readonly kind: 'harvestReturned';

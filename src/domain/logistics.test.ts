@@ -15,6 +15,7 @@ import {
   visitPlan,
   roomAboard,
   takeFromHeap,
+  crawlsOn,
   type SupplyLoad,
   type TourStop,
 } from './logistics';
@@ -435,5 +436,18 @@ describe('the harvest aboard (ADR 0041 §2)', () => {
     expect(takeFromHeap(40.7, 100)).toEqual({ taken: 40, left: 40.7 - 40 });
     expect(takeFromHeap(300, 120)).toEqual({ taken: 120, left: 180 });
     expect(takeFromHeap(0.9, 100)).toEqual({ taken: 0, left: 0.9 });
+  });
+});
+
+describe('crawling on a dry tour (ADR 0041 §4)', () => {
+  it('lets a truck or a cargo crawl on the fuel refusal alone', () => {
+    expect(crawlsOn('landTransport', 'NOT_ENOUGH_FUEL')).toBe(true);
+    expect(crawlsOn('cargo', 'NOT_ENOUGH_FUEL')).toBe(true);
+  });
+
+  it('keeps every other refusal a wait, and a dry plane on the ground', () => {
+    expect(crawlsOn('landTransport', 'NO_LAND_ROUTE')).toBe(false);
+    expect(crawlsOn('cargo', 'NO_LAND_ROUTE')).toBe(false);
+    expect(crawlsOn('airTransport', 'NOT_ENOUGH_FUEL')).toBe(false);
   });
 });

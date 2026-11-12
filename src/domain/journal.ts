@@ -497,6 +497,13 @@ function written(notice: Notice): Written {
           notice.resource === undefined ? '' : fr.resources[notice.resource],
         ),
       };
+    case 'tourCrawling':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.tourCrawling(fr.roles[notice.role].one),
+      };
     case 'tourEnded':
       return {
         at: notice.at,

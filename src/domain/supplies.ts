@@ -113,6 +113,25 @@ export function topUp(
   return { supplies, cost };
 }
 
+/**
+ * **Le plein pris sur un tas** (ADR 0041 §4) : un transport arrêté à un tas de la ressource de son
+ * moteur y reprend ses crans, entiers, jusqu'au plein et tant que le tas en tient. Un tas d'une
+ * autre ressource ne donne rien.
+ */
+export function refuelAtHeap(
+  role: UnitRole,
+  held: number,
+  heap: { readonly resource: string; readonly amount: number },
+): { readonly steps: number; readonly cost: number } {
+  if (heap.resource !== fuelResourceOf(role)) return { steps: 0, cost: 0 };
+  const missing = fullSupplies(role).fuel - held;
+  const steps = Math.max(
+    0,
+    Math.min(missing, Math.floor(Math.max(0, heap.amount) / SUPPLY_STEP_COST)),
+  );
+  return { steps, cost: steps * SUPPLY_STEP_COST };
+}
+
 export type FuelShortfall = {
   readonly needed: number;
   readonly held: number;

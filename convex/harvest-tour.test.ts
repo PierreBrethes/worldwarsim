@@ -932,3 +932,143 @@ describe('the commissioning of the harvest (ADR 0041)', () => {
     expect(marks).toEqual({ first: undefined, second: true });
   });
 });
+
+describe('a dry tour crawls (ADR 0041 §4)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const minutesOf = (movement: { departedAt: number; arrivesAt: number }) =>
+    movement.arrivesAt - movement.departedAt;
+
+  /** A truck at its HQ with a day-old mine ahead; `dry` empties its tank and the oil stock. */
+  async function truckOnTour(dry: boolean) {
+    vi.setSystemTime(MIDDAY);
+    const t = boot();
+    const { seat } = await launched(t);
+    const hq = await building(t, seat, 'hq');
+    const truck = await form(t, seat, 'landTransport', hq);
+    const mine = await exploitation(t, seat, MOSELLE);
+    vi.setSystemTime(MIDDAY + 24 * HOUR);
+    if (dry) {
+      await setStock(t, seat, 'oil', 0);
+      await t.run((ctx) => ctx.db.patch(truck, { fuel: 0 }));
+    }
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [site(mine)] });
+    return { t, seat, truck, mine };
+  }
+
+  it('sets out at half pace on the fuel refusal, pays nothing, and says so once', async () => {
+    const normal = await truckOnTour(false);
+    const dry = await truckOnTour(true);
+    const [easy] = await flying(normal.t);
+    const [slow] = await flying(dry.t);
+
+    expect(minutesOf(slow!)).toBe(2 * minutesOf(easy!));
+    expect((await get(dry.t, dry.truck))!.fuel).toBe(0);
+    expect((await get(dry.t, dry.truck))!.tour?.waiting).toBeUndefined();
+    expect(await noticesOf(dry.t, 'tourCrawling')).toMatchObject([{ role: 'landTransport' }]);
+    expect(await noticesOf(normal.t, 'tourCrawling')).toEqual([]);
+
+    // The way back crawls too, and the dispatch is not written a second time.
+    await arriveNext(dry.t);
+    expect(await flying(dry.t)).toMatchObject([{ tourLeg: 'base' }]);
+    expect(await noticesOf(dry.t, 'tourCrawling')).toHaveLength(1);
+  });
+
+  it('is back at its own pace at the first leg where the tank is there', async () => {
+    const normal = await truckOnTour(false);
+    await arriveNext(normal.t);
+    const [homeward] = await flying(normal.t);
+    const dry = await truckOnTour(true);
+    await t_refill(dry.t, dry.truck);
+
+    await arriveNext(dry.t);
+    const [back] = await flying(dry.t);
+    expect(minutesOf(back!)).toBe(minutesOf(homeward!));
+    expect((await get(dry.t, dry.truck))!.fuel).toBeLessThan(4);
+  });
+
+  it('keeps a plane with no fuel on the ground, waiting, as before', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const field = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        key: 'airfield',
+        regionId: MARNE,
+        point: pointOfRegion(MARNE),
+        level: 1,
+      });
+    });
+    const plane = await form(t, seat, 'airTransport', field);
+    const mine = await exploitation(t, seat, MOSELLE);
+    vi.setSystemTime(MIDDAY + 24 * HOUR);
+    await setStock(t, seat, 'oil', 0);
+    await t.run((ctx) => ctx.db.patch(plane, { fuel: 0 }));
+
+    await t.mutation(api.tours.start, { ...seat, troopId: plane, stops: [site(mine)] });
+
+    expect(await flying(t)).toEqual([]);
+    expect((await get(t, plane))!.tour?.waiting).toMatchObject({ why: 'road' });
+    expect(await noticesOf(t, 'tourCrawling')).toEqual([]);
+  });
+
+  async function t_refill(t: Bench, truck: Id<'troops'>) {
+    await t.run((ctx) => ctx.db.patch(truck, { fuel: 4 }));
+  }
+
+  it('fills a cargo at a coal heap, in whole steps, before it takes the harvest', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const port = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('buildings', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        key: 'port',
+        regionId: 'FRA-5322',
+        point: pointOfRegion('FRA-5322'),
+        level: 1,
+      });
+    });
+    const cargo = await form(t, seat, 'cargo', port);
+    const coastal = await exploitation(t, seat, NORD);
+    vi.setSystemTime(MIDDAY + 24 * HOUR);
+    await setStock(t, seat, 'coal', 0);
+    await t.run((ctx) => ctx.db.patch(cargo, { fuel: 0 }));
+    await t.mutation(api.tours.start, { ...seat, troopId: cargo, stops: [site(coastal)] });
+    expect((await get(t, cargo))!.fuel).toBe(0);
+
+    await arriveNext(t);
+
+    // Six steps of ten coal go to the tank (it sails home on them: one step paid), and the
+    // harvest is what is left of the 288 once they are off the heap.
+    expect((await get(t, cargo))!.fuel).toBeGreaterThan(0);
+    const aboard = (await get(t, cargo))!.harvest!.coal;
+    expect(aboard).toBeGreaterThanOrEqual(227);
+    expect(aboard).toBeLessThanOrEqual(228);
+    expect((await heapRow(t, coastal))!.amount).toBeLessThan(1);
+  });
+
+  it('leaves a truck dry at a coal heap: the tank burns oil, not coal', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const hq = await building(t, seat, 'hq');
+    const truck = await form(t, seat, 'landTransport', hq);
+    const mine = await exploitation(t, seat, MOSELLE);
+    vi.setSystemTime(MIDDAY + 24 * HOUR);
+    await setStock(t, seat, 'oil', 0);
+    await t.run((ctx) => ctx.db.patch(truck, { fuel: 0 }));
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [site(mine)] });
+
+    await arriveNext(t);
+
+    expect((await get(t, truck))!.fuel).toBe(0);
+    expect((await get(t, truck))!.harvest).toMatchObject({ coal: 200 });
+  });
+});

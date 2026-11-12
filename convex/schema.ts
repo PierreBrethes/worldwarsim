@@ -562,6 +562,8 @@ export default defineSchema({
           v.object({ since: v.number(), roads: v.optional(v.number()), ...TOUR_WAIT.fields }),
         ),
         recalled: v.optional(v.boolean()),
+        /** Elle a roulé au pas (ADR 0041 §4) : la dépêche ne se dit qu'une fois par tournée. */
+        crawled: v.optional(v.boolean()),
         retryJobId: v.optional(v.id('_scheduled_functions')),
       }),
     ),

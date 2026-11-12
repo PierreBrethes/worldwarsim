@@ -555,6 +555,14 @@ export const TOUR_MAX_STOPS = 4;
 export const TOUR_RETRY_MINUTES = 30;
 
 /**
+ * **Une tournée à sec roule au pas** (ADR 0041 §4) : ses minutes, relais compris, sont multipliées
+ * par ce facteur.
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const TOUR_CRAWL_FACTOR = 2;
+
+/**
  * **Une route refusée** au chargement autant de fois d'affilée arrête la tournée : elle ne
  * revient pas seule, à la différence d'un plateau à sec ou de dépôts pleins.
  *

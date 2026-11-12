@@ -1,6 +1,7 @@
 import {
   MINUTES_PER_1000_KM_ON_LAND,
   MINUTES_PER_ROUTE_UNIT,
+  TOUR_CRAWL_FACTOR,
   routeMinutes,
 } from '../../convex/constants';
 import { theatreMinutesPer1000Km } from './blitz';
@@ -23,6 +24,11 @@ export function costMinutes(costUnits: number, theatre: Theatre | null): number 
     MINUTES_PER_1000_KM_ON_LAND;
   return Math.max(1, Math.round(minutes * 60)) / 60;
 }
+
+/** **Au pas** (ADR 0041 §4) : une tournée à sec roule deux fois plus lentement. Absent, la marche
+ *  ne change pas : l'aperçu d'un ordre et la carte lisent la durée ordinaire. */
+export const crawledMinutes = (minutes: number, slow: boolean): number =>
+  slow ? minutes * TOUR_CRAWL_FACTOR : minutes;
 
 /** L'air n'a pas de multiplicateur : sa distance est son coût (`airRoute`). */
 const AIR_COST = 1;

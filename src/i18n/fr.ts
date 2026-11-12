@@ -2925,6 +2925,8 @@ export const fr = {
           : why === 'full'
             ? `Tournée en attente — ${role} : rien à livrer ni à ramasser, dépôts pleins ou tas vides. Elle repart dès qu’un dépôt se vide ou qu’un tas se remplit.`
             : `Tournée en attente — ${role} : sa route est refusée, le plein manque au chargement.`,
+      tourCrawling: (role: string) =>
+        `Tournée au pas — ${role} : le plein manque, il roule deux fois plus lentement sans rien payer, et reprend son allure dès qu’un plein l’attend.`,
       tourEnded: (role: string, why: TourEnd) =>
         why === 'recalled'
           ? `Tournée arrêtée — ${role} : rappelé, il reste au chargement.`
