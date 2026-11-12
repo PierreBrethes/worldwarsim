@@ -645,3 +645,74 @@ describe('a harvest dispatch', () => {
     expect(done?.text).not.toContain('187.39');
   });
 });
+
+describe('the dispatches of the harvest brought back (#548)', () => {
+  const none = { food: 0, steel: 0, coal: 0, oil: 0, ammunition: 0 };
+
+  it('says the new rule once, as a notable supply dispatch', () => {
+    const [rule] = journalDispatches([], null, [{ kind: 'harvestCommissioned', at: NOON }], null);
+    expect(rule).toMatchObject({ kind: 'supply', severity: 'notable' });
+    expect(rule?.text).toContain('la récolte se rapporte');
+    expect(rule?.text).toContain('fondation');
+  });
+
+  it('tells a returned tour: what went to the stock, what stayed aboard, the sites it skipped', () => {
+    const [back] = journalDispatches(
+      [],
+      null,
+      [
+        {
+          kind: 'harvestReturned',
+          at: NOON,
+          delivered: { ...none, coal: 200 },
+          kept: { ...none, steel: 40 },
+          skipped: 2,
+        },
+      ],
+      null,
+    );
+    expect(back?.text).toContain('200 charbon au stock');
+    expect(back?.text).toContain('40 acier encore à bord faute de place');
+    expect(back?.text).toContain('2 exploitations sautées');
+  });
+
+  it('tells a plundered heap to its owner and to the raider, not a plundered warehouse', () => {
+    const [owner, raider, warehouse] = journalDispatches(
+      [],
+      null,
+      [
+        {
+          kind: 'sitePlundered',
+          at: NOON,
+          building: 'mine',
+          regionName: 'Nord',
+          taken: { ...none, coal: 170 },
+          storageLost: none,
+        },
+        {
+          kind: 'lootTaken',
+          at: NOON,
+          building: 'mine',
+          regionName: 'Nord',
+          loot: { ...none, coal: 170 },
+        },
+        {
+          kind: 'sitePlundered',
+          at: NOON,
+          building: 'warehouse',
+          regionName: 'Marne',
+          taken: { ...none, coal: 170 },
+          storageLost: none,
+        },
+      ] as unknown as ReadonlyArray<Notice>,
+      null,
+    );
+    expect(owner).toMatchObject({ kind: 'sitePlundered', severity: 'critical' });
+    expect(owner?.text).toContain('Tas pillé');
+    expect(owner?.text).toContain('170 charbon');
+    expect(owner?.text).not.toContain('faute de place');
+    expect(raider?.text).toContain('Tas pillé');
+    expect(raider?.text).toContain('170 charbon');
+    expect(warehouse?.text).not.toContain('Tas pillé');
+  });
+});

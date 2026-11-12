@@ -2,6 +2,7 @@ import { isHqSite } from './capture';
 import { asClockTime, asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr, nationLabel, ofName, theBuilding } from '../i18n/fr';
 import { isNation } from './nations';
+import { EXPLOITED_DEPOSITS } from './economy';
 import { canonicalBuildingKey, isOutpostWork, RESOURCES } from './ids';
 import { isPlunderTarget } from './movement-orders';
 import { placeLabel } from './station-name';
@@ -728,7 +729,9 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'notable',
         kind: 'lootTaken',
-        text: said.lootTaken(
+        text: (EXPLOITED_DEPOSITS[notice.building] === undefined
+          ? said.lootTaken
+          : said.heapLooted)(
           fr.buildings[notice.building],
           notice.regionName,
           lootWords(notice.loot),
@@ -739,13 +742,20 @@ function written(notice: Notice): Written {
         at: notice.at,
         severity: 'critical',
         kind: 'sitePlundered',
-        text: said.sitePlundered(
-          fr.buildings[notice.building],
-          notice.regionName,
-          lootWords(notice.taken),
-          lootWords(notice.storageLost),
-          notice.spared,
-        ),
+        text:
+          EXPLOITED_DEPOSITS[notice.building] === undefined
+            ? said.sitePlundered(
+                fr.buildings[notice.building],
+                notice.regionName,
+                lootWords(notice.taken),
+                lootWords(notice.storageLost),
+                notice.spared,
+              )
+            : said.heapPlundered(
+                fr.buildings[notice.building],
+                notice.regionName,
+                lootWords(notice.taken),
+              ),
       };
     case 'siteSabotaged':
       return {
