@@ -805,8 +805,9 @@ export function MapLabels({
             anchor.style.setProperty('--cargo-y', hang === '' ? '-46px' : `${y}px`);
           }
         }
-        // Le tas au pied d'une exploitation se pose au coin bas-droit de son socle dessiné : dessous, le
-        // nom du gisement pend déjà (#445). Sans socle (de loin), il reste contre le point.
+        // Le tas au pied d'une exploitation se pose au coin bas-droit de son socle dessiné, son bas à
+        // ras du socle : il monte, jamais ne descend sur le nom du gisement qui pend dessous (#445)
+        // ni sur celui d'un voisin. Sans socle (de loin), il reste contre le point.
         if (heaped.current.has(projection.id)) {
           const plinth = engine.pieceRect(projection.id);
           const beside =
@@ -825,8 +826,9 @@ export function MapLabels({
             );
             anchor.style.setProperty(
               '--heap-y',
-              bottom === undefined ? '2px' : `${Math.round(bottom / zoom) - 30}px`,
+              bottom === undefined ? '2px' : `${Math.round(bottom / zoom) - 6}px`,
             );
+            anchor.style.setProperty('--heap-lift', bottom === undefined ? '0%' : '-100%');
           }
         }
         if (projection.lod !== state.lod) {

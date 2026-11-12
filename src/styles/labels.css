@@ -1475,6 +1475,7 @@
   position: absolute;
   top: var(--heap-y, 2px);
   left: var(--heap-x, 14px);
+  translate: 0 var(--heap-lift, 0%);
   z-index: 1;
   display: flex;
   gap: 4px;
