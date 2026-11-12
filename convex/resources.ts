@@ -29,7 +29,6 @@ import {
   COMMANDED_CHAINS,
   DEFAULT_LINE,
   FACTORY_LINES,
-  EXTRACTION_PER_HOUR,
   STORAGE_CAP_PER_LEVEL,
   isCommanded,
   type LineKey,
@@ -120,7 +119,7 @@ export function extractionSites(
         regionId: building.regionId,
         level: building.level,
         deposit,
-        perHour: yielding ? EXTRACTION_PER_HOUR[deposit] * building.level * share : 0,
+        perHour: split.national + split.heap,
         nationalPerHour: split.national,
         heapPerHour: split.heap,
         linked,
@@ -295,9 +294,10 @@ export async function economyOf(
   now: number,
   /** What the caller already read for this player (`viewOf`), the colour of his ground included
    *  (`linkedOn`): the same answer, not a second reading of the season. */
-  read?: Parameters<typeof upkeepOf>[3] & {
+  read?: Partial<NonNullable<Parameters<typeof upkeepOf>[3]>> & {
     held?: ReadonlyMap<string, string>;
     holdsNarvik?: boolean;
+    mode?: SeasonMode;
   },
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
@@ -308,7 +308,8 @@ export async function economyOf(
   /** **Narvik** (ADR 0032) : ses exploitations coupées produisent un quart, au lieu de rien. */
   const holdsNarvik =
     read?.holdsNarvik ?? (player !== null && (await holdsPoint(ctx, player, 'narvik')));
-  const mode = modeOf(player === null ? undefined : (await ctx.db.get(player.seasonId))?.mode);
+  const mode =
+    read?.mode ?? modeOf(player === null ? undefined : (await ctx.db.get(player.seasonId))?.mode);
 
   const stored = emptyStocks();
   let updatedAt = now;
@@ -331,7 +332,12 @@ export async function economyOf(
    * is at risk. Food feeds no chain today, so the ordering costs nothing yet — it is written
    * down because the day one eats food the behaviour differs and the player will feel it.
    */
-  const upkeep = await upkeepOf(ctx, playerId, now, read);
+  const upkeep = await upkeepOf(
+    ctx,
+    playerId,
+    now,
+    read?.troops && read.outposts ? { troops: read.troops, outposts: read.outposts } : undefined,
+  );
   const ratePerHour = extractionRates(active, held, playerId, holdsNarvik, mode);
   /** What eats and what burns (ADR 0028 §2): the army by steps, the standing outposts by level,
    *  the listening posts in coal. All of it goes through the rate, never through a separate debit. */

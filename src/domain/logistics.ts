@@ -30,12 +30,16 @@ export type HarvestLoad = Readonly<Record<ResourceKey, number>>;
 const harvestTotal = (harvest: HarvestLoad | undefined): number =>
   harvest === undefined ? 0 : RESOURCES.reduce((sum, key) => sum + harvest[key], 0);
 
+/** **La place à bord**, sur des totaux : la capacité, moins la charge, moins la récolte. */
+const roomLeft = (capacity: number, loaded: number, harvested: number): number =>
+  capacity - loaded - harvested;
+
 /** **La place à bord** : la capacité, moins la charge, moins la récolte. */
 export const roomAboard = (
   capacity: number,
   load: SupplyLoad | undefined,
   harvest: HarvestLoad | undefined,
-): number => capacity - loadTotal(load) - harvestTotal(harvest);
+): number => roomLeft(capacity, loadTotal(load), harvestTotal(harvest));
 
 /** **Prendre au tas** (ADR 0041 §2) : des unités entières dans la place à bord ; la fraction
  *  reste au tas. */
@@ -323,7 +327,10 @@ export function visitPlan<D extends string, S extends string = never>(
       }
       continue;
     }
-    const { taken } = takeFromHeap(stop.heap, aboard.capacity - loadTotal(left) - harvested);
+    const { taken } = takeFromHeap(
+      stop.heap,
+      roomLeft(aboard.capacity, loadTotal(left), harvested),
+    );
     if (taken === 0) skipped.push(tourStop);
     else {
       visit.push(tourStop);

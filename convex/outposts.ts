@@ -25,6 +25,7 @@ import { credit, creditToStorage, economyOf } from './resources';
 import { depotRefundOf, emptyLoad } from '../src/domain/logistics';
 import { playerOf, requirePlayable } from './seats';
 import { fileSurvey, surveyFoundation } from './surveys';
+import { modeOf } from '../src/domain/season-mode';
 
 /**
  * **Le chantier, entre l'ordre et le point** (révision du 15/09 de l'ADR 0020 §10). Fonder se
@@ -202,7 +203,7 @@ export const dismantle = mutation({
     await groundGarrison(ctx, outpost);
     const refunded = await cancelRaisesOf(ctx, player._id, outpost, now);
     /** **Le dépôt revient au plateau personnel**, dans la limite de l'entrepôt (ADR 0028 §4). */
-    const economy = await economyOf(ctx, player._id, now);
+    const economy = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
     const { returned } = depotRefundOf(outpost.depot ?? emptyLoad(), {
       ammunition: economy.cap.ammunition - economy.stocks.ammunition,
       oil: economy.cap.oil - economy.stocks.oil,

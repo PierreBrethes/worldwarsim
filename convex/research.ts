@@ -17,6 +17,7 @@ import { fail } from './errors';
 import { credit, debit, economyOf } from './resources';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { RESEARCH_CARD } from './validators';
+import { modeOf } from '../src/domain/season-mode';
 
 /** Le niveau du Centre de recherche du joueur, tel que `searcherLevel` le lit. */
 const centerLevelOf = async (ctx: MutationCtx, playerId: Id<'players'>) =>
@@ -62,7 +63,7 @@ export const start = mutation({
     requirePlayable(player, season);
     refuseInBlitz(season);
     const now = Date.now();
-    const { stocks } = await economyOf(ctx, player._id, now);
+    const { stocks } = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
     const centerLevel = await centerLevelOf(ctx, player._id);
     const queued = player.researchQueue ?? [];
     const refusal = researchRefusalOf(card, {

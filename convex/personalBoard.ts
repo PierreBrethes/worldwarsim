@@ -3,6 +3,7 @@ import { mutation } from './_generated/server';
 import { stampReadMark } from './readMarks';
 import { economyOf } from './resources';
 import { playerOf, requireStarted } from './seats';
+import { modeOf } from '../src/domain/season-mode';
 
 /**
  * **Le plateau personnel a été ouvert** : l'heure et les stocks réglés à cette heure, ceux du
@@ -18,7 +19,7 @@ export const markRead = mutation({
     const { player, season } = await playerOf(ctx, token, seasonId);
     requireStarted(season);
     const now = Date.now();
-    const { stocks } = await economyOf(ctx, player._id, now);
+    const { stocks } = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
     await stampReadMark(ctx, player._id, {
       boardReadAt: now,
       boardReadStocks: Object.fromEntries(

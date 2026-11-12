@@ -61,7 +61,7 @@ export const workshop = query({
     const hqLevel = levelOf(buildings, 'hq');
     const troops = await troopsOf(ctx, player._id);
     const waiting = await recruitmentsOf(ctx, player._id);
-    const economy = await economyOf(ctx, player._id, now);
+    const economy = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
 
     const blitz = modeOf(season.mode) === 'blitz';
     /** La Blitz garde son catalogue : une marque par rôle, rien derrière une carte. */
@@ -137,7 +137,7 @@ export const recruit = mutation({
     const queue = await queueOf(ctx, buildingId);
     const now = Date.now();
     const cost = recruitmentCost(role, tier);
-    const { stocks } = await economyOf(ctx, player._id, now);
+    const { stocks } = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
     const refusal = recruitRefusalOf(role, tier, building, {
       researched: player.researched ?? [],
       army,

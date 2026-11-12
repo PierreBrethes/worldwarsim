@@ -26,6 +26,7 @@ import { everySeatOf, playerOf, requirePlayable, seatsOf } from './seats';
 import { RESOURCE_KEY } from './validators';
 import { regionAtPoint } from './regionGeometry';
 import { reassessDetection } from './movement/detection';
+import { modeOf } from '../src/domain/season-mode';
 
 /**
  * **Les sept, tirés par la graine de la saison et posés neutres au lancement d'une Mondiale**
@@ -375,7 +376,7 @@ export const trade = mutation({
     const now = Date.now();
     /** Un lot qui ne tiendrait pas dans ses magasins se refuse avant de rien prendre : le
      *  comptoir ne garde pas la monnaie. */
-    const economy = await economyOf(ctx, player._id, now);
+    const economy = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
     if (economy.cap[get] - economy.stocks[get] < TANGIER_LOT.get) {
       fail('STORAGE_FULL', { resource: get, needed: TANGIER_LOT.get });
     }

@@ -211,6 +211,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     outposts,
     held,
     holdsNarvik: narvik,
+    mode: modeOf(season.mode),
   });
   const hqLevel = levelOf(buildings, 'hq');
   /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
