@@ -596,6 +596,52 @@ describe('the pickup tour', () => {
     ).rejects.toThrow('TOUR_PICKUP_NOT_A_SITE');
   });
 
+  describe('what the sheet reads (#551)', () => {
+    it('serves, for a truck, the own exploitations a road joins, and the ones none does', async () => {
+      const t = boot();
+      const { seat, guest } = await launched(t);
+      const hq = await building(t, seat, 'hq');
+      const truck = await form(t, seat, 'landTransport', hq);
+      const inland = await exploitation(t, seat, MOSELLE);
+      const island = await exploitation(t, seat, CORSICA, { point: pointOfRegion(CORSICA) });
+      const theirs = await exploitation(t, guest, PRAHOVA, { key: 'oilWell' });
+
+      const read = await t.query(api.tours.pickups, { ...seat, troopId: truck });
+      expect(read.find((one) => one.buildingId === inland)).toMatchObject({
+        routed: true,
+        hasQuay: false,
+      });
+      expect(read.find((one) => one.buildingId === island)).toMatchObject({ routed: false });
+      expect(read.map((one) => one.buildingId)).not.toContain(theirs);
+      expect(read.map((one) => one.buildingId)).not.toContain(hq);
+    });
+
+    it('serves the quay of the region as the point a cargo goes to, and no quay inland', async () => {
+      const t = boot();
+      const { seat } = await launched(t);
+      const hq = await building(t, seat, 'hq');
+      const cargo = await form(t, seat, 'cargo', hq);
+      const coastal = await exploitation(t, seat, NORD);
+      const inland = await exploitation(t, seat, MOSELLE);
+
+      const read = await t.query(api.tours.pickups, { ...seat, troopId: cargo });
+      expect(read.find((one) => one.buildingId === coastal)).toMatchObject({ hasQuay: true });
+      expect(read.find((one) => one.buildingId === inland)).toMatchObject({
+        hasQuay: false,
+        stopPoint: null,
+      });
+    });
+
+    it("serves nothing of another player's transport", async () => {
+      const t = boot();
+      const { seat, guest } = await launched(t);
+      const hq = await building(t, guest, 'hq');
+      const theirTruck = await form(t, guest, 'landTransport', hq);
+      await exploitation(t, seat, MOSELLE);
+      expect(await t.query(api.tours.pickups, { ...seat, troopId: theirTruck })).toEqual([]);
+    });
+  });
+
   it('reloads the standing order only into the room the harvest left aboard', async () => {
     const t = boot();
     const { seat } = await launched(t);

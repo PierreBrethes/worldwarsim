@@ -25,6 +25,7 @@ import type * as dev from "../dev.js";
 import type * as errors from "../errors.js";
 import type * as finalEdition from "../finalEdition.js";
 import type * as firstSteps from "../firstSteps.js";
+import type * as heaps from "../heaps.js";
 import type * as holding from "../holding.js";
 import type * as industry from "../industry.js";
 import type * as journal from "../journal.js";
@@ -107,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   errors: typeof errors;
   finalEdition: typeof finalEdition;
   firstSteps: typeof firstSteps;
+  heaps: typeof heaps;
   holding: typeof holding;
   industry: typeof industry;
   journal: typeof journal;

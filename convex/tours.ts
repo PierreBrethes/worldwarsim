@@ -1,7 +1,13 @@
 import { ConvexError, v, type Infer } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, mutation, type MutationCtx } from './_generated/server';
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from './_generated/server';
 import {
   SUPPLY_KEYS,
   addLoads,
@@ -36,6 +42,7 @@ import { quayOfRegion, routeBetween } from './routes';
 import type { TOUR_END, TOUR_WAIT } from './validators';
 import { TOUR_STOP } from './validators';
 import { busyOf, depotOf, placeOf, unloadAt } from './logistics';
+import { playerBuildings } from './buildingReads';
 import { forgetMovement, standAt, walkHome } from './movement/arrival';
 import { movementsOf, pointOf } from './movement/forces';
 import { aimOf, claimSlot, march, troopsAmong, type MarchOrigin } from './movement/orders';
@@ -295,7 +302,7 @@ function pickupPointOf(role: Doc<'troops'>['role'], building: Doc<'buildings'>):
 /** **La route du point de chargement au point où le transport ramasse** (#546) : la donnée que
  *  `pickupRefusalOf` lit. Un cargo sans quai n'en a pas, et le refus du quai passe avant. */
 async function isRouted(
-  ctx: MutationCtx,
+  ctx: QueryCtx,
   troop: Doc<'troops'>,
   building: Doc<'buildings'>,
 ): Promise<boolean> {
@@ -307,6 +314,36 @@ async function isRouted(
     routeBetween(from, to, routeModeOf([troop.role]), landCostOf([troop.role])) !== null
   );
 }
+
+/**
+ * **Ce que la feuille de route ne sait pas lire seule** (#551) : pour un transport à moi, ses
+ * exploitations à moi, avec le point où il irait ramasser, le quai de leur région, et si une route
+ * les relie depuis son point de chargement. Le client n'a ni la grille ni les quais ; la lecture est
+ * celle du refus de `start` (`isRouted`, `pickupPointOf`). Rien d'un bâtiment adverse ; vide en
+ * Blitz, où la feuille ne s'ouvre pas.
+ */
+export const pickups = query({
+  args: { token: v.string(), seasonId: v.id('seasons'), troopId: v.id('troops') },
+  handler: async (ctx, { token, seasonId, troopId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    if (await isBlitz(ctx, seasonId)) return [];
+    const troop = await ctx.db.get(troopId);
+    if (troop === null || troop.playerId !== player._id) return [];
+    const sites = [];
+    for (const building of await playerBuildings(ctx, player._id)) {
+      if (!isExploitation(building)) continue;
+      const stopPoint = pickupPointOf(troop.role, building);
+      sites.push({
+        buildingId: building._id,
+        routed: await isRouted(ctx, troop, building),
+        hasQuay: quayOfRegion(building.regionId, pointOfBuilding(building)) !== null,
+        stopPoint: stopPoint === null ? null : { lon: stopPoint[0], lat: stopPoint[1] },
+      });
+    }
+    return sites;
+  },
+});
 
 /** Les régions que le refus dit, pour le texte. */
 async function noRouteDetails(ctx: MutationCtx, troop: Doc<'troops'>, buildingId: Id<'buildings'>) {
@@ -740,7 +777,7 @@ async function endTour(
 
 /** Où se tient l'adresse : un point, un avant-poste, un bâtiment. */
 async function pointOfAddress(
-  ctx: MutationCtx,
+  ctx: QueryCtx,
   address: Doc<'troops'>['stationedAt'],
 ): Promise<LonLat | null> {
   if (address === null) return null;
