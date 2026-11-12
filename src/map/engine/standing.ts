@@ -142,8 +142,9 @@ export const besideSites = (
 
 /** **Newcomers take their place in the order they were formed** (#524): a view served whole stands
  *  as one that grew, whatever order the pile lists its roles in. A view with no date keeps its order. */
-const inFormationOrder = <T extends { formedAt?: number }>(members: ReadonlyArray<T>): T[] =>
-  [...members].sort((a, b) => (a.formedAt ?? 0) - (b.formedAt ?? 0));
+const inFormationOrder = <T extends { formedAt?: number | undefined }>(
+  members: ReadonlyArray<T>,
+): T[] => [...members].sort((a, b) => (a.formedAt ?? 0) - (b.formedAt ?? 0));
 
 /** Where a maquette's garrison stands (`MaquetteLayer.garrisonAt`). */
 export type GarrisonAt = (
@@ -1879,7 +1880,13 @@ export class StandingLayer implements SequenceHost {
   private postsOf(order: ReadonlyArray<Dressed>, eye: Vector3): Map<Dressed, Post[]> {
     const bySite = new Map<
       string,
-      Array<{ entry: Dressed; k: number; role: UnitRole; troop: string; formedAt?: number }>
+      Array<{
+        entry: Dressed;
+        k: number;
+        role: UnitRole;
+        troop: string;
+        formedAt?: number | undefined;
+      }>
     >();
     for (const entry of order) {
       if (!('beside' in entry.at)) continue;
@@ -1966,7 +1973,7 @@ export class StandingLayer implements SequenceHost {
    *  (`promoted`), and no other hull moves. */
   private postsOfHulls(
     site: string,
-    members: ReadonlyArray<{ troop: string; formedAt?: number }>,
+    members: ReadonlyArray<{ troop: string; formedAt?: number | undefined }>,
   ): { posts: Array<HullPost | null>; promoted: string[] } {
     const kept = this.hullPosts.get(site) ?? new Map<string, HullPost>();
     this.hullPosts.set(site, kept);
@@ -2070,7 +2077,7 @@ export class StandingLayer implements SequenceHost {
    */
   private planesOf(
     site: string,
-    members: ReadonlyArray<{ role: UnitRole; troop: string; formedAt?: number }>,
+    members: ReadonlyArray<{ role: UnitRole; troop: string; formedAt?: number | undefined }>,
   ): Plane[] {
     const kept = this.places.get(site) ?? new Map<string, Place>();
     this.places.set(site, kept);
