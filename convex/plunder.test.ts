@@ -1059,10 +1059,15 @@ describe('a raid on an exploitation carries its heap off (ADR 0041 §4)', () => 
   });
   afterEach(() => vi.useRealTimers());
 
-  async function wellRaided(heap: number, withTransport = true) {
+  async function wellRaided(
+    heap: number,
+    withTransport = true,
+    { blitz = false, foundation = false } = {},
+  ) {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     const owner = await playerOf(t, seat);
+    if (blitz) await t.run((ctx) => ctx.db.patch(owner.seasonId, { mode: 'blitz', theatre: 'europe' }));
     await t.run((ctx) =>
       ctx.db.insert('outposts', {
         seasonId: owner.seasonId,
@@ -1083,8 +1088,9 @@ describe('a raid on an exploitation carries its heap off (ADR 0041 §4)', () => 
         key: 'oilWell',
         regionId: PRAHOVA,
         point: pointIn(PRAHOVA),
-        level: 1,
+        level: foundation ? 2 : 1,
         outpostId: null,
+        ...(foundation ? { foundationMark: true as const } : {}),
       }),
     );
     await t.run((ctx) =>
@@ -1144,5 +1150,24 @@ describe('a raid on an exploitation carries its heap off (ADR 0041 §4)', () => 
     expect(empty?.taken.oil).toBe(
       Math.floor(((bare.at - MIDDAY) / HOUR) * EXTRACTION_PER_HOUR.oil),
     );
+  });
+
+  it('takes nothing off a heap in Blitz, which has none: the exploitation is only sabotaged', async () => {
+    const { t, wellId } = await wellRaided(100, true, { blitz: true });
+
+    const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
+    expect(report?.taken.oil ?? 0).toBe(0);
+    const rows = await t.run((ctx) => ctx.db.query('heaps').collect());
+    expect(rows[0]!.amount).toBeGreaterThanOrEqual(100);
+    expect((await t.run((ctx) => ctx.db.get(wellId)))?.disabledUntil).toBeGreaterThan(MIDDAY);
+  });
+
+  it('leaves a foundation exploitation its level and its mark when the heap goes', async () => {
+    const { t, wellId } = await wellRaided(100, true, { foundation: true });
+
+    const [report] = await t.run((ctx) => ctx.db.query('plunderReports').collect());
+    expect(report?.taken.oil).toBeGreaterThan(0);
+    const well = await t.run((ctx) => ctx.db.get(wellId));
+    expect(well).toMatchObject({ level: 2, foundationMark: true });
   });
 });
