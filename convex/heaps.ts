@@ -126,7 +126,7 @@ export async function stampHeap(
     .query('heaps')
     .withIndex('byBuilding', (q) => q.eq('buildingId', building._id))
     .unique();
-  const next = { playerId, amount, settledAt: Math.max(at, row?.settledAt ?? at) };
+  const next = { playerId, amount, settledAt: at };
   if (row === null)
     await ctx.db.insert('heaps', {
       buildingId: building._id,
@@ -140,7 +140,7 @@ export async function stampHeap(
  * **Réécrit les tas dont le débit a changé entre deux lectures**, au montant de la première, à son
  * heure. `before` vient de `settleBeforeChange` (ou d'un règlement juste avant l'événement),
  * `after` de l'économie relue une fois l'événement écrit. Une exploitation qui change de main
- * n'est pas lue ici : `passHeap` l'a déjà écrite.
+ * l'a déjà vue écrite par `passHeap`, au même montant et à la même heure.
  */
 export async function restampChanged(
   ctx: MutationCtx,
@@ -150,11 +150,7 @@ export async function restampChanged(
 ): Promise<void> {
   for (const [buildingId, reading] of Object.entries(after)) {
     const was = before[buildingId];
-    if (
-      was === undefined ||
-      was.playerId !== reading.playerId ||
-      (was.heapPerHour === reading.heapPerHour && was.cap === reading.cap)
-    )
+    if (was === undefined || (was.heapPerHour === reading.heapPerHour && was.cap === reading.cap))
       continue;
     const building = await ctx.db.get(buildingId as Id<'buildings'>);
     if (building !== null) await stampHeap(ctx, building, reading.playerId, was.amount, at);
