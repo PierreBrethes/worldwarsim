@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import atlasFile from '../../public/atlas.json';
 import index from '../../public/region-index.json';
 
 const nameOf = (id: string) => (index.name as Record<string, string>)[id];
@@ -20,5 +21,23 @@ describe('region names', () => {
 
   it('keeps the source name where French has none', () => {
     expect(nameOf('CZE-10368')).toBe('Ústecký');
+  });
+
+  it('serves the atlas and the index the same names', () => {
+    const atlasNames = Object.fromEntries(
+      atlasFile.objects.regions.geometries.map(({ id, properties }) => [id, properties.name]),
+    );
+    expect(atlasNames).toEqual(index.name);
+  });
+
+  it('reads Russia and Ukraine in French', () => {
+    expect(
+      nameOf(
+        'RUS-' +
+          Object.keys(index.name)
+            .find((k) => index.name[k as keyof typeof index.name] === 'Ossétie du Nord')!
+            .slice(4),
+      ),
+    ).toBe('Ossétie du Nord');
   });
 });

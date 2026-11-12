@@ -22,7 +22,7 @@
  * too small for a cell falls back on a shape's centroid.
  *
  * **The name is French where French has one** (#553): the source's English or local name goes
- * through `region-names-fr.mjs`, and a region the table does not know keeps the source's own.
+ * through `region-names-fr.mjs` (the atlas's too, rewritten here), and a region the table does not know keeps the source's own.
  *
  * It also bakes `public/country-names.json`, the French name of every country the game can
  * show — 251 codes against the eight nations that have a hand-written label. The names come
@@ -131,6 +131,16 @@ if (pointless.length > 0) throw new Error(`regions without a point: ${pointless.
  * sheet says « côtière » exactly where a port may go up.
  */
 const coastal = new Set(JSON.parse(readFileSync('public/coast.json', 'utf8')).coastal);
+
+/**
+ * The atlas names regions too (the hover card, the compass, the last edition's map read
+ * `atlas.json`): its names go through the same table, in place, so there is one French name.
+ * Nothing but the strings changes, and a name already French is a name the table does not know.
+ */
+const atlasFile = JSON.parse(readFileSync('public/atlas.json', 'utf8'));
+for (const { properties } of atlasFile.objects.regions.geometries)
+  properties.name = frenchRegionName(properties.country, properties.name);
+writeFileSync('public/atlas.json', JSON.stringify(atlasFile));
 
 const output = {
   name,

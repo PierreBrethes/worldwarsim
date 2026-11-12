@@ -21,3 +21,7 @@ it('dessine chaque teneur à son encre, et neutre tout le reste, région inconnu
   const [x, y] = map.anchors.get('NOR-921')!;
   expect(atlas.regionAt([x, y], 'far')?.id).toBe('NOR-921');
 });
+
+it('nomme en français la région de la page de fin (#553)', () => {
+  expect(endMapOf(atlas, [], ['BEL-3474']).regionName('BEL-3474')).toBe('Bruxelles');
+});
