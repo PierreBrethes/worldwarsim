@@ -1,13 +1,13 @@
 # ADR 0041 — La récolte se rapporte
 
-**Statut :** proposée (11/11/2026). Retour de Pierre du 11/11 (« un système comme à la Age of
+**Statut :** acceptée (12/11/2026). Retour de Pierre du 11/11 (« un système comme à la Age of
 Empires, de rapporter les ressources à un bâtiment spécifique pour vraiment avoir la ressource »),
 trois systèmes comparés (tournée de ramassage, rayons de ramassage, un transport par
 exploitation), puis ses réponses : tout se rapporte, sol national compris (b) ; la production
 s'entasse au pied de chaque exploitation (b) ; les huit recommandations (« Oui pour tes recos ») ;
 les exploitations de fondation rapportent seules (« Oui, le socle rapporte »). Une mesure du
 11/11 sur les gisements de départ a remplacé la porte de 150 km autour du QG par ce dernier
-point. Reste ouvert le §3, sur le niveau. **Mondiale seule.**
+point, et « Le niveau 1 seul » (12/11) en a fixé le débit (§3). **Mondiale seule.**
 
 **Révise** ADR 0028 §4 (un transport ne porte ni vivres ni acier ; la récolte n'est plus un
 débit national lissé) et le glossaire (**Tournée**). **Précise** ADR 0039 (l'atout américain
@@ -77,10 +77,10 @@ exploitation se ramasse.
 Le bâtiment porte cette marque depuis sa pose. Rasée, capturée ou perdue, l'exploitation la perd ;
 la reconstruire ne la rend pas (la fondation ne se renouvelle pas, `settledFoundation`).
 
-**À trancher par Pierre :** une exploitation de fondation élevée rapporte-t-elle seule tout son
-débit, ou seulement celui d'un niveau 1, le surplus des niveaux allant à son tas ? *Reco : le
-niveau 1 seul.* Sinon, élever les quatre exploitations de fondation sans fin dispense de tout
-transport, puisque le débit croît avec le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
+**Le niveau 1 seul** (Pierre, 12/11) : une exploitation de fondation verse seule le débit d'un
+niveau 1 ; le surplus de ses niveaux va à son tas, et se ramasse. Sinon, élever les quatre
+exploitations de fondation sans fin dispenserait de tout transport, puisque le débit croît avec
+le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
 
 ### 4. Les règles de bord
 
