@@ -613,3 +613,24 @@ describe('the dispatch of a drowned cargo', () => {
     expect(withoutHeld(journal, new Set(['c1']))).toHaveLength(2);
   });
 });
+
+describe('a harvest dispatch', () => {
+  it('writes quantities like a loot line, never a raw float', () => {
+    const [done] = journalDispatches(
+      [],
+      null,
+      [
+        {
+          kind: 'harvestReturned',
+          at: NOON,
+          delivered: { food: 0, steel: 0, coal: 187.39999999999998, oil: 0, ammunition: 0 },
+          kept: { food: 0, steel: 0, coal: 0, oil: 0, ammunition: 0 },
+          skipped: 0,
+        },
+      ],
+      null,
+    );
+    expect(done?.text).toContain('187,4 charbon');
+    expect(done?.text).not.toContain('187.39');
+  });
+});

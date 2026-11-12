@@ -836,23 +836,26 @@ function written(notice: Notice): Written {
   }
 }
 
+const quantity = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+
 /** **Ce qu'une charge dit d'elle-même**, en toutes lettres. Exportée parce que le mât d'un
  *  objectif neutre écrit son dépôt restant de la même façon : deux formats pour la même chose
  *  se seraient désaccordés au premier arrondi. */
 export const lootWords = (loot: ResourceAmounts): string => {
-  const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
   const entries = RESOURCES.filter((resource) => loot[resource] > 0).map(
-    (resource) => `${number.format(loot[resource])} ${fr.resources[resource]}`,
+    (resource) => `${quantity.format(loot[resource])} ${fr.resources[resource]}`,
   );
   return entries.length === 0 ? 'rien' : entries.join(' · ');
 };
 
-/** Une charge de munitions, pétrole et charbon en toutes lettres ; vide, rien. */
+/** **Une récolte en toutes lettres**, au format d'une charge pillée (une récolte est fractionnaire) ;
+ *  vide, une chaîne vide : la phrase de `harvestReturned` en tire sa forme. */
 const harvestWords = (load: ResourceAmounts): string =>
   RESOURCES.filter((key) => load[key] > 0)
-    .map((key) => `${load[key]} ${fr.resources[key]}`)
+    .map((key) => `${quantity.format(load[key])} ${fr.resources[key]}`)
     .join(', ');
 
+/** Une charge de munitions, pétrole et charbon en toutes lettres ; vide, rien. */
 const supplyWords = (load: SupplyLoad): string =>
   SUPPLY_KEYS.filter((key) => load[key] > 0)
     .map((key) => `${load[key]} ${fr.resources[key]}`)
