@@ -384,17 +384,19 @@ export function rankStops(
   const onSheet = new Set(stops.map((stop) => `${stop.kind}:${stop.id}`));
   const pool = candidates.filter((stop) => !onSheet.has(`${stop.kind}:${stop.id}`));
   const fill = (stop: SheetDepot) => loadTotal(stop.depot) / stop.capacity;
-  const depots = pool.filter((stop): stop is SheetDepot => stop.kind === 'depot');
-  const emptiestFill = Math.min(...depots.map(fill));
 
-  const offered: Offered[] = [];
+  const offerable: SheetStop[] = [];
   const refused: Refused[] = [];
   for (const stop of pool) {
     const refusal = refusalOf(sheet, stops, stop);
-    if (refusal !== null) {
-      refused.push({ stop, refusal });
-      continue;
-    }
+    if (refusal === null) offerable.push(stop);
+    else refused.push({ stop, refusal });
+  }
+  const depots = offerable.filter((stop): stop is SheetDepot => stop.kind === 'depot');
+  const emptiestFill = Math.min(...depots.map(fill));
+
+  const offered: Offered[] = [];
+  for (const stop of offerable) {
     const slot = placeStop(sheet, stops, stop);
     const loop = loopOf(sheet, [...stops.slice(0, slot.at), stop, ...stops.slice(slot.at)]);
     const moved = loop.rows.find((row) => row.id === stop.id && row.kind === stop.kind)?.moved ?? 0;

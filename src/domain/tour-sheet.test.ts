@@ -252,14 +252,38 @@ describe('the ranking of stops', () => {
   });
 
   it('does not push a stopped exploitation ahead, and says so in its reason', () => {
-    const live = site('live', briey, 384, { stoppedForHours: null });
-    const stopped = site('stopped', briey, 384, { stoppedForHours: 3 });
-    const ranked = rankStops(truck(), [], [live, stopped]);
-    const [a, b] = ranked.offered;
-    expect(a!.gain).toBe(b!.gain);
+    const live = site('live', briey, 150, { stoppedForHours: null });
+    const stopped = site('stopped', briey, 100, { stoppedForHours: 3 });
+    const ranked = rankStops(truck(0), [], [stopped, live]);
+    expect(ranked.offered.map((o) => o.stop.id)).toEqual(['live', 'stopped']);
+    const alike = rankStops(truck(0), [], [{ ...live, heap: 100 }, stopped]).offered;
+    expect(alike[0]!.gain).toBe(alike[1]!.gain);
     const reasons = Object.fromEntries(ranked.offered.map((o) => [o.stop.id, o.reason]));
     expect(reasons.stopped).toEqual({ code: 'siteStopped', hours: 3, lostPerHour: 48 });
     expect(reasons.live).toMatchObject({ code: 'heapFilling' });
+  });
+
+  it('flags the emptiest of the depots on offer, not of those refused (#550)', () => {
+    const closed = { ...belfortDepot, standing: false };
+    const ranked = rankStops(truck(), [], [verdunDepot, closed, depot('lens', lens, 100)]);
+    expect(ranked.refused.map((r) => r.stop.id)).toEqual(['belfort']);
+    const flags = Object.fromEntries(
+      ranked.offered.map((o) => [o.stop.id, (o.reason as { emptiest: boolean }).emptiest]),
+    );
+    expect(flags).toEqual({ verdun: true, lens: false });
+  });
+
+  it('refuses the depot the tour starts from as a stop twice (#550)', () => {
+    const sheet = { ...truck(), rules: { ...truck().rules, baseOutpostId: 'verdun' } };
+    expect(rankStops(sheet, [], [verdunDepot]).refused[0]!.refusal).toEqual({
+      code: 'TOUR_STOP_TWICE',
+    });
+  });
+
+  it('prices a dry crawl in the rate it ranks by (#550)', () => {
+    const normal = rankStops(truck(), [], [verdunDepot]).offered[0]!;
+    const slow = rankStops({ ...truck(), slow: true }, [], [verdunDepot]).offered[0]!;
+    expect(slow.slot.rate).toBeCloseTo(normal.slot.rate / 2, 6);
   });
 
   it('gives each kind of reason', () => {
@@ -332,6 +356,14 @@ describe('the order that wastes', () => {
     expect(again.gain).toEqual({ moved: 0, km: 0 });
   });
 
+  it('orders a dry crawl like a normal one, twice as slow (#550)', () => {
+    const wasteful = [brieySite, verdunDepot];
+    const normal = orderBest(truck(), wasteful);
+    const slow = orderBest({ ...truck(), slow: true }, wasteful);
+    expect(slow.order).toEqual(normal.order);
+    expect(slow.loop.minutes).toBe(normal.loop.minutes * 2);
+  });
+
   it('does not permute a sheet longer than the rule allows', () => {
     const six = Array.from({ length: 6 }, (_, i) => depot(`d${i}`, verdun, 0));
     expect(orderBest(truck(), six).same).toBe(true);
@@ -369,6 +401,13 @@ describe('proposing a tour on an empty sheet', () => {
       const without = proposed.filter((stop) => stop !== dropped);
       expect(rate).toBeGreaterThanOrEqual(loopOf(sheet, without).ratePerHour - 1e-9);
     }
+  });
+
+  it('stops at four stops however many candidates would still lift the rate (#550)', () => {
+    const many = Array.from({ length: 6 }, (_, i) =>
+      site(`s${i}`, [verdun[0] + i * 0.05, verdun[1]], 10),
+    );
+    expect(proposeTour(truck(0), many)).toHaveLength(4);
   });
 
   it('proposes nothing when no stop would move anything', () => {
