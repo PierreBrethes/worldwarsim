@@ -987,6 +987,22 @@ describe('a Mondiale headquarters', () => {
     });
   });
 
+  it('writes the heap of an exploitation of the fallen onto the irregulars that inherit it', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const mine = await building(t, guest, PSKOV, 1, 'mine');
+
+    await take(t, seat, hq);
+    await finish(t);
+
+    const irregular = (await t.run((ctx) => ctx.db.query('players').collect())).find(
+      (p) => p.irregular === true,
+    )!;
+    const rows = await t.run((ctx) => ctx.db.query('heaps').collect());
+    expect(rows.find((row) => row.buildingId === mine)?.playerId).toBe(irregular._id);
+  });
+
   it('eliminates its player: the HQ and the stock above the seal to the capturer, the rest to the irregulars', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);

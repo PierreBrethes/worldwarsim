@@ -434,7 +434,11 @@ describe('a heap and its raid, its capture, its fog', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  async function takeOver(t: Bench, taker: Seat, site: Doc<'buildings'>) {
+  async function takeOver(t: Bench, taker: Seat, site: Doc<'buildings'> | Doc<'outposts'>) {
+    const target =
+      'key' in site
+        ? ({ kind: 'building', buildingId: site._id } as const)
+        : ({ kind: 'outpost', outpostId: site._id } as const);
     const player = await playerOf(t, taker);
     const troop = await t.run((ctx) =>
       ctx.db.insert('troops', {
@@ -454,7 +458,7 @@ describe('a heap and its raid, its capture, its fog', () => {
         playerId: player._id,
         type: 'attack',
         fromBuildingId: null,
-        target: { kind: 'building', buildingId: site._id },
+        target,
         from: { lon: to.lon - 1, lat: to.lat },
         to,
         hostCountry: 'FRA',
@@ -465,7 +469,7 @@ describe('a heap and its raid, its capture, its fog', () => {
         troopIds: [troop],
         departedAt: Date.now() - HOUR,
         arrivesAt: Date.now(),
-        capture: { kind: 'building', buildingId: site._id },
+        capture: target,
       }),
     );
     await t.mutation(internal.movements.arrive, { movementId });
@@ -526,6 +530,35 @@ describe('a heap and its raid, its capture, its fog', () => {
       { buildingId: mine, playerId: captor._id, amount: 0, settledAt: takenAt },
     ]);
     expect((await heapOf(t, guest, mine))!.amount).toBe(0);
+  });
+
+  it('passes the heaps of the buildings anchored to a captured outpost', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    const outpost = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      return ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        point: { lon: PRAHOVA_POINT[0], lat: PRAHOVA_POINT[1] },
+        hostCountry: 'ROU',
+        regionId: PRAHOVA,
+        level: 1,
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    });
+    const well = await exploitation(t, seat, 'oilWell', PRAHOVA);
+    await t.run((ctx) => ctx.db.patch(well, { outpostId: outpost }));
+    const captor = await playerOf(t, guest);
+    at(6);
+
+    const takenAt = await takeOver(t, guest, (await t.run((ctx) => ctx.db.get(outpost)))!);
+
+    expect(await rowsOf(t)).toMatchObject([
+      { buildingId: well, playerId: captor._id, settledAt: takenAt },
+    ]);
   });
 
   it('never serves a heap through a survey or an enemy building', async () => {
