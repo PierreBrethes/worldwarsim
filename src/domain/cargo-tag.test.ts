@@ -58,7 +58,14 @@ describe('cargoTagsOf', () => {
   });
 
   it('says why its tour waits (ADR 0028)', () => {
-    const tour = { stops: ['a', 'b'], recalled: false, skipped: [] };
+    const tour = {
+      stops: [
+        { kind: 'depot' as const, id: 'a' },
+        { kind: 'site' as const, id: 'b' },
+      ],
+      recalled: false,
+      skipped: [],
+    };
     const [waiting] = cargoTagsOf(
       [
         {

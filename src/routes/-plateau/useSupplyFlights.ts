@@ -110,7 +110,9 @@ export function useSupplyFlights(view: PlayerView, motion: MapMotion): void {
       const [lon, lat] = outpost.lonLat;
       if (
         SUPPLY_KEYS.every((key) => delivered[key] === 0) ||
-        !me.troops.some((troop) => troop.tour?.stops.includes(outpost.id)) ||
+        !me.troops.some((troop) =>
+          troop.tour?.stops.some((stop) => stop.kind === 'depot' && stop.id === outpost.id),
+        ) ||
         told.some((dispatch) => dispatch.place?.lon === lon && dispatch.place?.lat === lat)
       )
         continue;

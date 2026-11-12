@@ -64,7 +64,12 @@ export function useTours(
       ...me.troops.flatMap((troop) =>
         troop.tour === undefined
           ? []
-          : loopOf(troop.tour.baseId, troop.tour.stops, troop.tour.skipped, false),
+          : loopOf(
+              troop.tour.baseId,
+              troop.tour.stops.map((stop) => stop.id),
+              troop.tour.skipped,
+              false,
+            ),
       ),
       ...(trace === null || tracedFrom === undefined
         ? []

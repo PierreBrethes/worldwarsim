@@ -341,9 +341,9 @@ export type TroopView = {
    *  attend au chargement, si elle finit, rappelée, et les dépôts pleins que ce tour saute. */
   readonly tour?: {
     readonly baseId: string;
-    readonly stops: ReadonlyArray<string>;
-    /** Ses exploitations à ramasser (ADR 0041 §2), dans l'ordre du tracé ; absentes, aucune. */
-    readonly sites?: ReadonlyArray<string>;
+    /** **Ses arrêts dans l'ordre du tracé** : un dépôt à livrer ou une exploitation à ramasser
+     *  (ADR 0041 §2), en une seule liste. */
+    readonly stops: ReadonlyArray<{ readonly kind: 'depot' | 'site'; readonly id: string }>;
     readonly waiting: TourWait | null;
     readonly recalled: boolean;
     readonly skipped: ReadonlyArray<string>;

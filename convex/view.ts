@@ -774,9 +774,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           : {
               tour: {
                 baseId: troop.tour.base,
-                stops: troop.tour.stops.filter((stop) => typeof stop === 'string'),
-                sites: troop.tour.stops.flatMap((stop) =>
-                  typeof stop === 'string' ? [] : [stop.id as string],
+                stops: troop.tour.stops.map((stop) =>
+                  typeof stop === 'string'
+                    ? { kind: 'depot' as const, id: stop as string }
+                    : { kind: 'site' as const, id: stop.id as string },
                 ),
                 waiting:
                   troop.tour.waiting === undefined

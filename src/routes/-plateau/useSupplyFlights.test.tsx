@@ -28,7 +28,7 @@ const view = ({
         point: [3, 50],
       })),
       outposts: [{ id: 'O-1', level: 1, lonLat: [4, 51], depot: load(depot) }],
-      troops: [{ id: 'T-1', tour: { stops: ['O-1'], skipped: [] } }],
+      troops: [{ id: 'T-1', tour: { stops: [{ kind: 'depot', id: 'O-1' }], skipped: [] } }],
     },
   }) as unknown as PlayerView;
 
