@@ -534,6 +534,17 @@ function written(notice: Notice): Written {
           notice.skipped,
         ),
       };
+    case 'heapFull':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'supply',
+        text: said.heapFull(
+          notice.building,
+          notice.regionName,
+          `${quantity.format(notice.amount)} ${fr.resources[notice.resource]}`,
+        ),
+      };
     case 'harvestCommissioned':
       return { at: notice.at, severity: 'notable', kind: 'supply', text: said.harvestCommissioned };
     case 'supplyDelivered':

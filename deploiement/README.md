@@ -69,6 +69,18 @@ npx convex run dev:backfillListeningSilent
 Elle rend `{ "players": N }` et planifie un `listening.reassess` par belligérant, qui règle son
 économie et écrit son verdict. **Idempotente** : la relancer ne fait que relire.
 
+### Tas — après le déploiement de #555
+
+La dépêche « tas plein » vit d'un job par tas, que chaque écriture du tas replanifie. Une fois,
+juste après la poussée, sur chaque déploiement qui a des Mondiales lancées :
+
+```bash
+npx convex run dev:commissionHeapFull
+```
+
+Elle rend `{ "players": N }` et planifie un `heapFull.commission` par belligérant : un tas déjà
+plein est marqué dit, **sans dépêche rétroactive** ; les autres planifient leur plein. **Idempotente**.
+
 ### Comptes — récupération administrateur
 
 Après un déploiement autorisé, un administrateur du backend peut exécuter la fonction

@@ -409,6 +409,10 @@ export default defineSchema({
     seasonId: v.id('seasons'),
     amount: v.number(),
     settledAt: v.number(),
+    /** Le propriétaire à qui la dépêche « tas plein » de ce remplissage est déjà tombée (#555) :
+     *  absent tant que le tas n'est pas plein, ou si son propriétaire n'en a rien lu. Écrit et
+     *  effacé par `heapFull.check` seul ; une réécriture de la ligne ne le touche pas. */
+    fullToldTo: v.optional(v.id('players')),
   })
     .index('byBuilding', ['buildingId'])
     .index('bySeasonPlayer', ['seasonId', 'playerId']),

@@ -12,6 +12,7 @@ import {
 import type { ResourceKey } from '../src/domain/ids';
 import type { SeasonMode } from '../src/domain/season-mode';
 import { depositAt } from '../src/domain/world';
+import { watchHeap } from './heapFull';
 import { pointOfBuilding } from './regions';
 import type { ExtractionSite } from './resources';
 
@@ -137,6 +138,8 @@ export async function stampHeap(
       ...next,
     });
   else await ctx.db.patch(row._id, next);
+  /** Le débit change : son plein se recalcule (#555), dans une transaction à part qui lit l'événement fini. */
+  await watchHeap(ctx, building._id);
 }
 
 /**

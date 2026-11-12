@@ -1347,6 +1347,7 @@ function named(notice: Doc<'notices'>) {
     case 'lootTaken':
     case 'sitePlundered':
     case 'siteSabotaged':
+    case 'heapFull':
     case 'expeditionFoundNothing':
     case 'objectiveRevealed':
     case 'objectiveTaken':

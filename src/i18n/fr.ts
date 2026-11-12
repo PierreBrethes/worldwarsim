@@ -2736,6 +2736,10 @@ export const fr = {
         taken === 'rien'
           ? `Tas pillé — ${building} de ${region} : le tas était vide, rien emporté. L’exploitation s’arrête quelques heures.`
           : `Tas pillé — ${building} de ${region} : ${taken} emporté au pied de l’exploitation, qui s’arrête quelques heures. Ce que la colonne n’a pu porter y reste.`,
+      /** **Le tas d'une exploitation est plein** (#555), au propriétaire : elle s'arrête, rien ne se
+       *  perd. Le genre du bâtiment accorde « arrêtée » (la ferme, mais le puits). */
+      heapFull: (building: BuildingKey, region: string, amount: string) =>
+        `${fr.buildings[building]} de ${region} arrêté${fr.buildingGender[building] === 'f' ? 'e' : ''} : son tas est plein, ${amount}. Rien ne se perd. Une tournée qui ramasse le tas remet l’exploitation en marche.`,
       heapLooted: (building: string, region: string, loot: string) =>
         loot === 'rien'
           ? `Tas neutralisé — ${building} de ${region} : rien à prendre au pied.`

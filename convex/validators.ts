@@ -610,6 +610,17 @@ export const NOTICE = v.union(
     kept: RESOURCE_AMOUNTS,
     skipped: v.number(),
   }),
+  /** **Le tas d'une exploitation est plein** (#555) : elle s'arrête, et rien ne se perd. À l'heure
+   *  du plein, au propriétaire seul ; le lieu est le point de l'exploitation. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('heapFull'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    point: LON_LAT,
+    resource: RESOURCE_KEY,
+    amount: v.number(),
+  }),
   /** **La mise en service de la récolte rapportée** (ADR 0041) : la règle nouvelle, dite une fois
    *  à chaque belligérant d'une Mondiale en cours. */
   v.object({ ...NOTICE_HEAD, kind: v.literal('harvestCommissioned') }),

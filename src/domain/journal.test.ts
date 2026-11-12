@@ -715,4 +715,39 @@ describe('the dispatches of the harvest brought back (#548)', () => {
     expect(raider?.text).toContain('170 charbon');
     expect(warehouse?.text).not.toContain('Tas pillé');
   });
+
+  it('tells a full heap in the gender of its building, with the place of its exploitation', () => {
+    const [farm, well] = journalDispatches(
+      [],
+      null,
+      [
+        {
+          kind: 'heapFull',
+          at: NOON,
+          building: 'farm',
+          regionName: 'Bretagne',
+          resource: 'food',
+          amount: 576,
+          place: { lon: -1.7, lat: 48.1 },
+        },
+        {
+          kind: 'heapFull',
+          at: NOON,
+          building: 'oilWell',
+          regionName: 'Prahova',
+          resource: 'oil',
+          amount: 144,
+        },
+      ] as unknown as ReadonlyArray<Notice>,
+      null,
+    );
+    expect(farm).toMatchObject({
+      severity: 'notable',
+      place: { lon: -1.7, lat: 48.1 },
+      text: 'Ferme de Bretagne arrêtée : son tas est plein, 576 vivres. Rien ne se perd. Une tournée qui ramasse le tas remet l’exploitation en marche.',
+    });
+    expect(well?.text).toContain(
+      'Puits de pétrole de Prahova arrêté : son tas est plein, 144 pétrole.',
+    );
+  });
 });

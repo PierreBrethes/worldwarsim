@@ -63,6 +63,7 @@ import { playerOf, playingSeason, requirePlayable } from './seats';
 import { BUILDING_KEY, CHOSEN_SPECIALTY, LON_LAT } from './validators';
 import { reportChange, settleBeforeChange } from './production';
 import { stampHeap } from './heaps';
+import { watchHeap } from './heapFull';
 import { reassessDetection } from './movement/detection';
 import { pointOf } from './movement/forces';
 import { refuseInBlitz } from './blitz';
@@ -493,7 +494,7 @@ export const finish = internalMutation({
           ? construction.level
           : keptLevelOf(construction.kept, hqLevel);
       stood = level;
-      await ctx.db.insert('buildings', {
+      const born = await ctx.db.insert('buildings', {
         seasonId: season._id,
         playerId: construction.playerId,
         key: canonicalBuildingKey(construction.building),
@@ -508,6 +509,9 @@ export const finish = internalMutation({
           ? {}
           : anchored(await anchorAt(ctx, player, construction.regionId, point))),
       });
+      /** Une exploitation sans ligne lit un tas vide depuis sa pose : son plein se planifie ici. */
+      if (EXPLOITED_DEPOSITS[canonicalBuildingKey(construction.building)] !== undefined)
+        await watchHeap(ctx, born);
     }
     await ctx.db.delete(constructionId);
     /** Réglé avant le niveau neuf : une station, un arsenal ou une mine qui monte change ce que

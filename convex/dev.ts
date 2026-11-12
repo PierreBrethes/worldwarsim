@@ -360,6 +360,29 @@ export const commissionHarvest = internalMutation({
   },
 });
 
+/**
+ * **La mise en service de la dépêche « tas plein »** (#555) : planifie, pour chaque belligérant
+ * d'une Mondiale en cours, l'examen de ses tas. Un tas déjà plein est marqué dit sans dépêche
+ * rétroactive ; ceux qui se rempliront ensuite en donnent une. Idempotente : relancée, elle
+ * trouve les tas déjà marqués ou déjà planifiés.
+ *
+ * `npx convex run dev:commissionHeapFull`
+ */
+export const commissionHeapFull = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let players = 0;
+    for (const season of await ctx.db.query('seasons').collect()) {
+      if (season.status !== 'launched' || modeOf(season.mode) === 'blitz') continue;
+      for (const player of await belligerents(ctx, season._id)) {
+        await ctx.scheduler.runAfter(0, internal.heapFull.commission, { playerId: player._id });
+        players += 1;
+      }
+    }
+    return { players };
+  },
+});
+
 /** **La mise en service d'un joueur** : les marques d'abord, les tas ensuite, la dépêche en dernier.
  *  Un joueur qui l'a déjà reçue n'est plus touché, de sorte qu'une exploitation posée depuis ne
  *  reçoit jamais de marque. */

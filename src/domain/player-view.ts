@@ -1093,6 +1093,15 @@ type NoticeBody =
     }
   /** **Une tournée roule au pas** (ADR 0041 §4) : le plein manque, elle part quand même. */
   | { readonly kind: 'tourCrawling'; readonly at: number; readonly role: UnitRole }
+  /** **Le tas d'une exploitation est plein** (#555) : elle s'arrête jusqu'au prochain passage. */
+  | {
+      readonly kind: 'heapFull';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly resource: ResourceKey;
+      readonly amount: number;
+    }
   /** **Le retour d'une tournée qui a ramassé** (ADR 0041 §2) : versé, resté à bord, sites sautés. */
   | {
       readonly kind: 'harvestReturned';
