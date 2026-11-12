@@ -508,6 +508,17 @@ describe('a research card at its end', () => {
   });
 });
 
+describe('a tour crawling at half pace', () => {
+  it('serves a notable supply dispatch naming the role', () => {
+    const [crawling] = journalDispatches([], null, [
+      { kind: 'tourCrawling', at: NOON, role: 'landTransport' },
+    ] as unknown as ReadonlyArray<Notice>);
+    expect(crawling).toMatchObject({ kind: 'supply', severity: 'notable' });
+    expect(crawling?.text).toContain('Tournée au pas');
+    expect(crawling?.text).toContain(fr.roles.landTransport.one);
+  });
+});
+
 describe('a delivery dispatch carries what the depot took', () => {
   it('serves `delivered` for the pastilles, and only on a delivery', () => {
     const delivered = { ammunition: 40, oil: 0, coal: 5 };
