@@ -6,7 +6,7 @@ import { NATIONS, PRESENCE_THROTTLE_MIN, restWindowFrom } from './constants';
 import { fail } from './errors';
 import { concludeSeason } from './seasons';
 import { isAtWar, playerOf, requirePlayable, seatsOf } from './seats';
-import { recordLinkage } from './holding';
+import { reportChange, settleBeforeChange } from './production';
 import { handOver, seasonPoints } from './strategicPoints';
 import { refreshSession } from './sessions';
 
@@ -176,6 +176,9 @@ export async function leaveTheWar(
         };
       },
 ): Promise<void> {
+  /** Sa défaite et ses points rendus changent la couleur des régions : les stocks et les tas se
+   *  règlent à l'ancienne couleur avant, `reportChange` relit après. */
+  const before = await settleBeforeChange(ctx, season._id, now);
   await ctx.db.patch(
     player._id,
     exit.kind === 'playerEliminated' ? { defeated: true, eliminatedAt: now } : { defeated: true },
@@ -187,7 +190,7 @@ export async function leaveTheWar(
   }
   /** Ses points rendus, et son sol perdu s'il est éliminé (`homeGroundsOf`) : la couleur que la
    *  vue lira change (#144). */
-  await recordLinkage(ctx, season._id);
+  await reportChange(ctx, season._id, before, now);
 
   const present = await seatsOf(ctx, season._id);
   const standing = present.filter((seat) => seat._id !== player._id && seat.defeated !== true);

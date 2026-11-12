@@ -14,6 +14,7 @@ import { coalDryAt, economyOf, type Economy } from './resources';
 import { recordLinkage } from './holding';
 import { reportChange, settleBeforeChange } from './production';
 import { handOver } from './strategicPoints';
+import { leaveTheWar } from './players';
 import { regionFacts } from './regions';
 import { surveyFoundation } from './surveys';
 import schema from './schema';
@@ -22,6 +23,7 @@ import {
   foundSeat,
   holdPoint,
   joinSeat,
+  neutralPoint,
   placeHq,
   pointIn,
   seatIn,
@@ -361,6 +363,47 @@ describe('the heap writes itself when its rate changes', () => {
     expect(await rowsOf(t)).toHaveLength(1);
     expect((await heapOf(t, seat, well))!.amount).toBeCloseTo(4 * OIL * NARVIK_UNLINKED_SHARE, 5);
   });
+
+  it.each(['surrender', 'fall'] as const)(
+    'settles at the old colour when a leaving player gives his points back (%s)',
+    async (how) => {
+      const t = boot();
+      const { seat, guest } = await launched(t);
+      await outpostUnder(t, seat);
+      const well = await exploitation(t, seat, 'oilWell', PRAHOVA);
+      const player = await playerOf(t, seat);
+      const leaver = await playerOf(t, guest);
+      const OIL = EXTRACTION_PER_HOUR.oil;
+      const point = await t.run(async (ctx) => {
+        const row = await neutralPoint(ctx, player.seasonId, 'tangier');
+        await ctx.db.patch(row._id, { regionId: PRAHOVA });
+        return row._id;
+      });
+
+      at(3);
+      await colourChange(t, player.seasonId, Date.now(), async (ctx) => {
+        await handOver(ctx, (await ctx.db.get(point))!, leaver._id, Date.now());
+        await recordLinkage(ctx, player.seasonId);
+      });
+
+      at(12);
+      expect((await heapOf(t, seat, well))!.amount).toBeCloseTo(3 * OIL, 5);
+      if (how === 'surrender') await t.mutation(api.players.surrender, guest);
+      else
+        await t.run(async (ctx) => {
+          const season = (await ctx.db.get(player.seasonId))!;
+          await leaveTheWar(ctx, season, (await ctx.db.get(leaver._id))!, Date.now(), {
+            kind: 'playerEliminated',
+            by: 'france',
+            capturerId: player._id,
+            irregulars: false,
+          });
+        });
+
+      at(14);
+      expect((await heapOf(t, seat, well))!.amount).toBeCloseTo(3 * OIL + 2 * OIL, 5);
+    },
+  );
 
   it('razes the heap with the exploitation', async () => {
     const t = boot();
