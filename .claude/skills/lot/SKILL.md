@@ -142,8 +142,11 @@ au même cadrage que sa référence. Un état que la démo ne sait pas montrer d
   version par `git show HEAD:<fichier>` (#466 et #503 ont pris `stash` faute de cette voie).
 - Un commit par étape logique terminée et vérifiée ; message en anglais au style de
   `git log --oneline -15`, terminé par la ligne `Co-Authored-By` de ta consigne.
-- `git add <fichiers>` : seulement les tiens. `.claude/launch.json`, `WWS/prototypes/` et
-  `WWS/GLBs/` sont à Pierre, un autre agent peut coder à côté de toi.
+- `git add <fichiers>` : seulement les tiens, jamais `-a`, `-u` ni `-A`, même pour un commit de
+  formatage. `.claude/launch.json`, `WWS/prototypes/` et `WWS/GLBs/` sont à Pierre, un autre
+  agent peut coder à côté de toi. Avant chaque commit, `git diff --cached --name-only` ne liste
+  que tes fichiers (12/11 : un commit « Format » de #547 a embarqué les deux fichiers de Pierre).
+  Une copie de travail (`*.bak`, script jetable) vit au scratchpad, jamais dans le dépôt.
 - Le dernier commit porte `Closes #N`. L'orchestrateur pousse, ouvre la PR et fusionne : tes
   commits restent locaux.
 
