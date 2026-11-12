@@ -94,6 +94,7 @@ const boardView = {
   me: {
     ...view.me,
     foundation: [],
+    extraction: [],
     evacuated: [],
     outposts: [],
     chains: [],

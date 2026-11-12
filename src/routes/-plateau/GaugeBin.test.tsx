@@ -26,8 +26,12 @@ const NOW = 1_000_000;
 const viewWith = (overrides: Partial<Record<ResourceKey, object>> = {}) =>
   ({
     loadedAt: NOW,
+    arcs: [],
     me: {
       chains: [],
+      buildings: [],
+      extraction: [],
+      troops: [],
       resources: Object.fromEntries(
         RESOURCES.map((key) => [
           key,

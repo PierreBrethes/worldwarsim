@@ -47,6 +47,7 @@ import { conditionText } from './FoundationRows';
 import { LotControl } from './LotControl';
 import { useBandDensity } from './board-density';
 import { GaugeBin } from './GaugeBin';
+import { HeapBinLines, HeapBoardNotes } from './HeapBinLines';
 import { Rail, type Grab, type Grip } from './Rail';
 import { useOverflow } from './useOverflow';
 import { RazeButton } from './RazeButton';
@@ -62,9 +63,9 @@ const DRAG_THRESHOLD_PX = 5;
 /** The air left between the band and what rises over it. */
 const MAT_GAP_PX = 8;
 
-/** The unfolded band's height at the desk: 170px when a site is open, for its troop cards and
- *  their refusals; the 156px it always had otherwise. */
-const BAND_HEIGHT = { site: '170px', rest: '156px' } as const;
+/** The unfolded band's height at the desk: 184px when a site is open, for its troop cards and
+ *  their refusals; 174px otherwise, where each gauge also reads what waits at the foot (#548). */
+const BAND_HEIGHT = { site: '184px', rest: '174px' } as const;
 
 /** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
 const FULL_ROOM =
@@ -362,7 +363,16 @@ export function PersonalBoard({
               {foot?.key}
             </div>
             {!folded && (
-              <div className="h-[54px] shrink-0 border-t border-(color:--ink)/30">{reserves}</div>
+              <>
+                <div className="h-[54px] shrink-0 border-t border-(color:--ink)/30">{reserves}</div>
+                <div className="grid shrink-0 grid-cols-5 items-start px-[1px] pt-[2px]">
+                  {RESOURCES.map((resource) => (
+                    <div key={resource} className="grid min-w-0 justify-items-center">
+                      <HeapBinLines view={view} resource={resource} now={now} short />
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </>
         ) : (
@@ -1313,6 +1323,7 @@ function Works({
         </small>
       )}
       {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
+      <HeapBoardNotes view={view} now={now} />
       <span className="mt-[4px] flex items-baseline gap-2">
         <span className="eyebrow">{fr.personalBoard.harvestHeader}</span>
         {onReplay !== null && (

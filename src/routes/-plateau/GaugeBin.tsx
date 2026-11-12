@@ -1,5 +1,6 @@
 import type { PointerEvent as ReactPointerEvent, Ref } from 'react';
 import { fr } from '@/i18n/fr';
+import { HeapBinLines } from './HeapBinLines';
 import type { Density } from './board-density';
 import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
@@ -122,6 +123,9 @@ export function GaugeBin({
           {fr.personalBoard.rate(held.ratePerHour)}
         </small>
       )}
+      <span className="flex min-h-[30px] w-full items-start justify-center">
+        <HeapBinLines view={view} resource={resource} now={now} />
+      </span>
     </button>
   );
 }
