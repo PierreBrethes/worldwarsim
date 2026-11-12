@@ -107,7 +107,7 @@ export function legMinutes(world: SheetWorld, role: UnitRole, from: LonLat, to: 
 const legKm = (world: SheetWorld, role: UnitRole, from: LonLat, to: LonLat) =>
   projectedDistance(world, from, to) * DETOUR[DOMAIN_BY_ROLE[role]] * KM_PER_UNIT;
 
-export type LoopRow = {
+type LoopRow = {
   readonly id: string;
   readonly kind: 'depot' | 'site';
   /** Ce que l'arrêt déplace : donné pour un dépôt, pris pour une exploitation. */
@@ -117,7 +117,7 @@ export type LoopRow = {
 };
 
 /** Un arrêt que la boucle saute, et ce qu'il déplacerait placé en tête. */
-export type SkippedStop = {
+type SkippedStop = {
   readonly id: string;
   readonly kind: 'depot' | 'site';
   readonly heap?: number;
@@ -265,7 +265,7 @@ export function placeStop(
 }
 
 /** **Pourquoi cet arrêt**, en une ligne que l'écran met en mots (`fr.ts`). */
-export type StopReason =
+type StopReason =
   | {
       readonly code: 'heapFilling';
       readonly heap: number;
