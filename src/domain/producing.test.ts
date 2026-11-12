@@ -14,9 +14,9 @@ const me = {
     { id: 'cut', linked: false },
   ],
   extraction: [
-    { buildingId: 'farm', perHour: 12 },
-    { buildingId: 'cutFarm', perHour: 0 },
-    { buildingId: 'dryWell', perHour: 0 },
+    { buildingId: 'farm', nationalPerHour: 12, heapPerHour: 0 },
+    { buildingId: 'cutFarm', nationalPerHour: 0, heapPerHour: 0 },
+    { buildingId: 'dryWell', nationalPerHour: 0, heapPerHour: 0 },
   ],
   chains: [{ by: 'arsenal', perHour: 4 }],
 } as const;
@@ -35,11 +35,28 @@ describe('producingSites', () => {
   });
 });
 
+describe('producingSites, a full heap (#545)', () => {
+  const site = (id: string, nationalPerHour: number, amount: number) => ({
+    building: { id, key: 'mine', regionId: 'home', level: 1, heap: { amount, cap: 10 } } as const,
+    extraction: { buildingId: id, nationalPerHour, heapPerHour: 5 },
+  });
+  const sites = [site('full', 0, 10), site('filling', 0, 4), site('fullButFed', 2, 10)];
+  const full = {
+    ...me,
+    buildings: sites.map((one) => one.building),
+    extraction: sites.map((one) => one.extraction),
+  };
+
+  it('does not smoke a mine whose heap is full and whose national rate is nil', () => {
+    expect([...producingSites(full)].sort()).toEqual(['filling', 'fullButFed']);
+  });
+});
+
 describe('producingSites, a sabotaged site (#432)', () => {
   it('does not smoke a disabled mine because its neighbour of the same key produces', () => {
     const twins = {
       ...me,
-      extraction: [{ buildingId: 'mine', perHour: 8 }],
+      extraction: [{ buildingId: 'mine', nationalPerHour: 8, heapPerHour: 0 }],
       buildings: [
         { id: 'mine', key: 'mine', regionId: 'home', level: 1 },
         { id: 'sabotaged', key: 'mine', regionId: 'home', level: 1, disabled: true },

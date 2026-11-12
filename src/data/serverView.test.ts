@@ -139,4 +139,26 @@ describe('adaptServerView', () => {
     expect(blitz.opponents[0]!.asset).toBeNull();
     expect(adaptServerView(withNations('mondiale', 'usa')).me.asset).toBe('lendLease');
   });
+  /** **Un serveur d'une version de retard** (#545) : pas de débit national ni de tas, et des sites
+   *  sans bâtiment — le national est le débit entier, le tas nul, le site se retrouve par sa clé et
+   *  sa région. */
+  it('absorbs a server one version behind on the extraction sites', () => {
+    const base = answer(NOW);
+    const old = {
+      ...base,
+      me: {
+        ...base.me,
+        buildings: [{ id: 'b1', key: 'mine', regionId: 'R1', level: 1 }],
+        extraction: [
+          { key: 'mine', regionId: 'R1', level: 1, deposit: 'coal', perHour: 6, linked: true },
+        ],
+      },
+    } as unknown as ServerView;
+    const [site] = adaptServerView(old).me.extraction;
+    expect(site).toMatchObject({
+      buildingId: 'b1',
+      nationalPerHour: 6,
+      heapPerHour: 0,
+    });
+  });
 });

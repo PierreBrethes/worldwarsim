@@ -106,6 +106,16 @@ function adaptedView(server: ServerView): PlayerView {
       /** Une version de retard ne sert pas la part : un site coupé ne produit rien, comme avant Narvik. */
       extraction: server.me.extraction.map((site) => ({
         ...site,
+        /** Une version de retard ne sert ni le bâtiment du site, ni la part du tas : le site se
+         *  retrouve par sa clé et sa région, et tout son débit est national. */
+        buildingId:
+          site.buildingId ??
+          server.me.buildings.find(
+            (building) => building.key === site.key && building.regionId === site.regionId,
+          )?.id ??
+          '',
+        nationalPerHour: site.nationalPerHour ?? site.perHour,
+        heapPerHour: site.heapPerHour ?? 0,
         share: site.share ?? (site.linked ? 1 : 0),
       })),
       unlinkedShare: server.me.unlinkedShare ?? 0,

@@ -16,18 +16,30 @@ export function producingSites(me: {
     readonly regionId: string;
     /** Out of service (`PLUNDER_DISABLED_HOURS`): the served rate is its neighbours', not its own. */
     readonly disabled?: true;
+    /** Its heap, when it is an exploitation: a full one takes nothing more (`heapAt`). */
+    readonly heap?: { readonly amount: number; readonly cap: number };
   }>;
   readonly regions: ReadonlyArray<{ readonly id: string; readonly linked: boolean }>;
-  readonly extraction: ReadonlyArray<{ readonly buildingId: string; readonly perHour: number }>;
+  readonly extraction: ReadonlyArray<{
+    readonly buildingId: string;
+    readonly nationalPerHour: number;
+    readonly heapPerHour: number;
+  }>;
   readonly chains: ReadonlyArray<{ readonly by: BuildingKey; readonly perHour: number }>;
 }): ReadonlySet<string> {
   const linked = new Set(me.regions.filter((region) => region.linked).map((region) => region.id));
-  /** Tout ce qu'un extracteur sort du sol, tas compris : il tourne tant qu'il entasse, même
-   *  quand rien n'entre au stock. */
-  const rateOf = (building: { readonly id: string; readonly key: BuildingKey }) =>
-    me.extraction.find((site) => site.buildingId === building.id)?.perHour ??
-    me.chains.find((chain) => chain.by === building.key)?.perHour ??
-    0;
+  /** What an extractor sends out: the national rate, and its heap's while that one still fills.
+   *  A full heap takes nothing more, so it no longer smokes on its heap's account. */
+  const rateOf = (building: {
+    readonly id: string;
+    readonly key: BuildingKey;
+    readonly heap?: { readonly amount: number; readonly cap: number };
+  }) => {
+    const site = me.extraction.find((one) => one.buildingId === building.id);
+    if (site === undefined) return me.chains.find((chain) => chain.by === building.key)?.perHour ?? 0;
+    const filling = building.heap === undefined || building.heap.amount < building.heap.cap;
+    return site.nationalPerHour + (filling ? site.heapPerHour : 0);
+  };
   return new Set(
     me.buildings
       .filter(
