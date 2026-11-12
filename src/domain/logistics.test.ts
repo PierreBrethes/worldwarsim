@@ -254,7 +254,7 @@ describe('tracing a tour', () => {
   };
   const d = (id: string): TourStop => ({ kind: 'depot', id });
   const s = (id: string): TourStop => ({ kind: 'site', id });
-  const mine = { ours: true, exploitation: true, hasQuay: false };
+  const mine = { ours: true, exploitation: true, hasQuay: false, routed: true };
 
   it('leaves from a loading point, four stops at most, each once', () => {
     expect(tourRefusalOf(base)).toBeNull();
@@ -291,6 +291,13 @@ describe('tracing a tour', () => {
     expect(
       tourRefusalOf({ ...pickup, sites: new Map([['m', { ...mine, exploitation: false }]]) })?.code,
     ).toBe('TOUR_PICKUP_NOT_A_SITE');
+  });
+
+  it('refuses a site the transport has no route to, after the quay rule (#550)', () => {
+    const pickup = { ...base, load: load(), stops: [s('m')] };
+    expect(
+      tourRefusalOf({ ...pickup, sites: new Map([['m', { ...mine, routed: false }]]) }),
+    ).toEqual({ code: 'TOUR_PICKUP_NO_ROUTE', id: 'm' });
   });
 
   it('sends a cargo only to a site whose region has a quay; a plane, anywhere', () => {

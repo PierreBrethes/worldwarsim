@@ -113,6 +113,7 @@ export const start = mutation({
         ours: building.playerId === player._id,
         exploitation: isExploitation(building),
         hasQuay: quayOfRegion(building.regionId, pointOfBuilding(building)) !== null,
+        routed: await isRouted(ctx, troop, building),
       });
     }
     const refusal = tourRefusalOf({
@@ -125,14 +126,16 @@ export const start = mutation({
       baseOutpostId: 'outpost' in at ? at.outpost._id : null,
     });
     if (refusal !== null) {
+      if (refusal.code === 'TOUR_PICKUP_NO_ROUTE')
+        fail(
+          refusal.code,
+          await noRouteDetails(ctx, troop, ctx.db.normalizeId('buildings', refusal.id)!),
+        );
       const { code, ...details } = refusal;
       fail(code, details);
     }
     for (const stop of stops) {
-      if (stop.kind === 'site') {
-        await refuseWithoutRoute(ctx, troop, stop.id);
-        continue;
-      }
+      if (stop.kind === 'site') continue;
       const outpost = await ctx.db.get(stop.id);
       if (outpost === null || outpost.playerId !== player._id)
         fail('UNKNOWN_OUTPOST', { outpostId: stop.id });
@@ -289,26 +292,30 @@ function pickupPointOf(role: Doc<'troops'>['role'], building: Doc<'buildings'>):
   return role === 'cargo' ? quayOfRegion(building.regionId, point) : point;
 }
 
-/** **Un site sans route depuis le point de chargement se refuse au tracé**, non à l'arrivée
- *  (#546) : le transport a une route ou n'a pas d'arrêt là, quel que soit son mode. Une route refusée en cours de tournée reste,
- *  elle, une attente (`leg`). */
-async function refuseWithoutRoute(
+/** **La route du point de chargement au point où le transport ramasse** (#546) : la donnée que
+ *  `pickupRefusalOf` lit. Un cargo sans quai n'en a pas, et le refus du quai passe avant. */
+async function isRouted(
   ctx: MutationCtx,
   troop: Doc<'troops'>,
-  buildingId: Id<'buildings'>,
-): Promise<void> {
-  const building = (await ctx.db.get(buildingId))!;
+  building: Doc<'buildings'>,
+): Promise<boolean> {
   const from = await pointOfAddress(ctx, troop.stationedAt);
   const to = pickupPointOf(troop.role, building);
-  const route =
-    from === null || to === null
-      ? null
-      : routeBetween(from, to, routeModeOf([troop.role]), landCostOf([troop.role]));
-  if (route === null)
-    fail('TOUR_PICKUP_NO_ROUTE', {
-      from: from === null ? '' : (regionNameAt(from) ?? ''),
-      to: regionNameAt(pointOfBuilding(building)) ?? building.regionId,
-    });
+  return (
+    from !== null &&
+    to !== null &&
+    routeBetween(from, to, routeModeOf([troop.role]), landCostOf([troop.role])) !== null
+  );
+}
+
+/** Les régions que le refus dit, pour le texte. */
+async function noRouteDetails(ctx: MutationCtx, troop: Doc<'troops'>, buildingId: Id<'buildings'>) {
+  const building = (await ctx.db.get(buildingId))!;
+  const from = await pointOfAddress(ctx, troop.stationedAt);
+  return {
+    from: from === null ? '' : (regionNameAt(from) ?? ''),
+    to: regionNameAt(pointOfBuilding(building)) ?? building.regionId,
+  };
 }
 
 /** **Un pas** : une marche qui garde le slot de la tournée. `false` : la route le refuse. */

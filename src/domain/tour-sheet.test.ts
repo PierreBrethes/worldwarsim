@@ -48,7 +48,7 @@ const site = (
   cap: 384,
   perHour: 48,
   stoppedForHours: null,
-  facts: { ours: true, exploitation: true, hasQuay: false },
+  facts: { ours: true, exploitation: true, hasQuay: false, routed: true },
   ...extra,
 });
 
@@ -171,13 +171,24 @@ describe('the place of a stop', () => {
 describe('the ranking of stops', () => {
   it('ranks by what each makes the rate gain, a refusal never offered but served apart', () => {
     const foreign = site('sarre', [7.0, 49.23], 300, {
-      facts: { ours: false, exploitation: true, hasQuay: false },
+      facts: { ours: false, exploitation: true, hasQuay: false, routed: true },
     });
     const ranked = rankStops(truck(), [], [verdunDepot, lensSite, brieySite, foreign]);
     expect(ranked.offered.map((o) => o.stop.id)).not.toContain('sarre');
     expect(ranked.refused).toEqual([{ stop: foreign, refusal: { code: 'TOUR_PICKUP_NOT_OURS' } }]);
     const gains = ranked.offered.map((o) => o.gain);
     expect(gains).toEqual([...gains].sort((a, b) => b - a));
+  });
+
+  it('refuses a site the transport has no route to, never offers it (#550)', () => {
+    const island = site('island', briey, 300, {
+      facts: { ours: true, exploitation: true, hasQuay: false, routed: false },
+    });
+    const ranked = rankStops(truck(), [], [island]);
+    expect(ranked.offered).toEqual([]);
+    expect(ranked.refused).toEqual([
+      { stop: island, refusal: { code: 'TOUR_PICKUP_NO_ROUTE', id: 'island' } },
+    ]);
   });
 
   it('leaves out the stops already on the sheet', () => {
@@ -312,7 +323,7 @@ describe('proposing a tour on an empty sheet', () => {
 
   it('never proposes a refused stop', () => {
     const foreign = site('sarre', [7.0, 49.23], 300, {
-      facts: { ours: false, exploitation: true, hasQuay: false },
+      facts: { ours: false, exploitation: true, hasQuay: false, routed: true },
     });
     expect(proposeTour(truck(0), [foreign])).toEqual([]);
   });

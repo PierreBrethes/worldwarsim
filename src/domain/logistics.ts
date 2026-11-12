@@ -393,22 +393,27 @@ export type TourRefusal =
   | { readonly code: 'TOUR_PICKUP_NOT_OURS' }
   | { readonly code: 'TOUR_PICKUP_NOT_A_SITE' }
   | { readonly code: 'TOUR_PICKUP_NO_QUAY' }
+  | { readonly code: 'TOUR_PICKUP_NO_ROUTE'; readonly id: string }
   | { readonly code: 'NOTHING_TO_DELIVER' };
 
-/** **Ce que l'appelant sait d'une exploitation visée** : à soi, une exploitation, et un quai dans
- *  sa région (`quayOfRegion(…) !== null`). Un site inconnu se lit comme pas à soi. */
+/** **Ce que l'appelant sait d'une exploitation visée** : à soi, une exploitation, un quai dans
+ *  sa région (`quayOfRegion(…) !== null`), et une route du point de chargement au point où le
+ *  transport ramasse (le tas, ou le quai pour un cargo). Un site inconnu se lit comme pas à soi. */
 export type PickupFacts = {
   readonly ours: boolean;
   readonly exploitation: boolean;
   readonly hasQuay: boolean;
+  readonly routed: boolean;
 };
 
-/** **Ramasser à ce site ?** Le camion ramasse partout sur sa route (une route refusée est une
- *  attente du serveur), l'avion partout sans escale, le cargo là où la région a un quai. */
-const pickupRefusalOf = (role: UnitRole, facts: PickupFacts | undefined) => {
+/** **Ramasser à ce site ?** Là où le transport a une route (#546) : refusée au tracé, non à
+ *  l'arrivée ; l'avion partout sans escale, le cargo là où la région a un quai. Une route refusée
+ *  en cours de tournée reste, elle, une attente. */
+const pickupRefusalOf = (role: UnitRole, id: string, facts: PickupFacts | undefined) => {
   if (facts === undefined || !facts.ours) return { code: 'TOUR_PICKUP_NOT_OURS' } as const;
   if (!facts.exploitation) return { code: 'TOUR_PICKUP_NOT_A_SITE' } as const;
   if (role === 'cargo' && !facts.hasQuay) return { code: 'TOUR_PICKUP_NO_QUAY' } as const;
+  if (!facts.routed) return { code: 'TOUR_PICKUP_NO_ROUTE', id } as const;
   return null;
 };
 
@@ -451,7 +456,7 @@ export function tourRefusalOf({
     return { code: 'TOUR_STOP_TWICE' };
   for (const stop of stops) {
     if (stop.kind !== 'site') continue;
-    const refused = pickupRefusalOf(role, sites.get(stop.id));
+    const refused = pickupRefusalOf(role, stop.id, sites.get(stop.id));
     if (refused !== null) return refused;
   }
   if (loadTotal(load) === 0 && !stops.some((stop) => stop.kind === 'site'))
