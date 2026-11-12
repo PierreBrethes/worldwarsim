@@ -36,7 +36,8 @@ export function producingSites(me: {
     readonly heap?: { readonly amount: number; readonly cap: number };
   }) => {
     const site = me.extraction.find((one) => one.buildingId === building.id);
-    if (site === undefined) return me.chains.find((chain) => chain.by === building.key)?.perHour ?? 0;
+    if (site === undefined)
+      return me.chains.find((chain) => chain.by === building.key)?.perHour ?? 0;
     const filling = building.heap === undefined || building.heap.amount < building.heap.cap;
     return site.nationalPerHour + (filling ? site.heapPerHour : 0);
   };
