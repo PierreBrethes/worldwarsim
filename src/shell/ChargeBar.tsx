@@ -21,11 +21,14 @@ export function ChargeBar({
   capacity: number;
   width?: number;
 }) {
-  /** Ce que la barre compte, par ressource : la charge d'abord, la récolte ensuite. */
+  /** Ce que la barre compte, par ressource : la charge d'abord, la récolte ensuite, en unités
+   *  entières (la récolte à bord croît au fil de l'eau). */
   const held = Object.fromEntries(
     RESOURCES.map((key) => [
       key,
-      ((load as Partial<Record<ResourceKey, number>>)[key] ?? 0) + (harvest?.[key] ?? 0),
+      Math.floor(
+        ((load as Partial<Record<ResourceKey, number>>)[key] ?? 0) + (harvest?.[key] ?? 0),
+      ),
     ]),
   ) as Record<ResourceKey, number>;
   const total = RESOURCES.reduce((sum, key) => sum + held[key], 0);

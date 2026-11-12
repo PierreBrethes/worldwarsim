@@ -28,6 +28,18 @@ describe('a charge bar', () => {
     expect(container.querySelector('.charge-bar')!.getAttribute('title')).toContain('10 acier');
   });
 
+  it('reads a harvest still growing in whole units, never 69.99…', () => {
+    const { container } = render(
+      <ChargeBar
+        load={{ ammunition: 0, oil: 0, coal: 0 }}
+        harvest={{ ...NONE, coal: 69.9968575 }}
+        capacity={200}
+      />,
+    );
+    expect(container.textContent).toContain('69/200');
+    expect(container.querySelector('.charge-bar')!.getAttribute('title')).toContain('69 charbon');
+  });
+
   it('is the load alone when nothing is harvested', () => {
     const { container } = render(
       <ChargeBar load={{ ammunition: 60, oil: 0, coal: 0 }} capacity={200} />,
