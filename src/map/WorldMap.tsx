@@ -2016,11 +2016,22 @@ export function WorldMap({
     // Men board a truck one by one (#277); a Blitz unit is not three men.
     if (blitz !== null) return;
     const byId = new Map(troops.map((troop) => [troop.id, troop]));
-    for (const { truck, carrier, riders } of monteesOf(known, troops, standing))
+    const boarding = monteesOf(known, troops, standing);
+    // A plane's tag keeps its old count while its men climb: the engine feeds it once they are in.
+    const aboardPlanes = boarding.filter(({ carrier }) => carrier === 'airTransport');
+    if (aboardPlanes.length > 0)
+      setHeldBack((before) => {
+        const next = new Map(before);
+        for (const { carrierId, riders } of aboardPlanes)
+          next.set(carrierId, new Set([...(next.get(carrierId) ?? []), ...riders]));
+        return next;
+      });
+    for (const { truck, carrier, carrierId, riders } of boarding)
       readyEngine?.cue({
         kind: 'montee',
         truck,
         carrier,
+        carrierId,
         riders: riders.flatMap((troopId) => {
           const troop = byId.get(troopId);
           if (troop?.role !== 'infantry') return [];

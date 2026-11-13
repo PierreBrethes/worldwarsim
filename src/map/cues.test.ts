@@ -113,11 +113,11 @@ describe('boardsUnderTheEyes (#277)', () => {
     expect(boardsUnderTheEyes('landTransport', true)).toBe(false);
   });
 
-  // A drop on a plane stays `board` (the squad glides to the drop point and is swallowed): the
-  // engine plays no plane boarding before #502, and `boardHome` would leave the men without a gesture.
-  it('keeps a ship or a plane swallowing the piece dropped on it, until #502 plays the plane', () => {
+  // A ship still swallows the piece dropped on it: `boardHome` would leave its men without a gesture.
+  it("keeps a ship swallowing the piece dropped on it, and lets a plane's men board too (#502)", () => {
     expect(boardsUnderTheEyes('cargo', false)).toBe(false);
-    expect(boardsUnderTheEyes('airTransport', false)).toBe(false);
+    expect(boardsUnderTheEyes('airTransport', false)).toBe(true);
+    expect(boardsUnderTheEyes('airTransport', true)).toBe(false);
   });
 });
 
@@ -140,7 +140,7 @@ describe('monteesOf (#277)', () => {
     const before = aboardOf(view(truck, man('a'), man('b', 'truck'), man('c')));
     const now = view(truck, man('a', 'truck'), man('b', 'truck'), man('c', 'truck'));
     expect(monteesOf(before, now, pilesOf(now))).toEqual([
-      { truck: 'p/0', carrier: 'landTransport', riders: ['a', 'c'] },
+      { truck: 'p/0', carrier: 'landTransport', carrierId: 'truck', riders: ['a', 'c'] },
     ]);
   });
 
@@ -149,7 +149,7 @@ describe('monteesOf (#277)', () => {
     const before = aboardOf(view(truck, man('a'), man('b')));
     const now = view(truck, man('a', 'truck'), man('b', 'truck'));
     expect(monteesOf(before, now, pilesOf(now))).toEqual([
-      { truck: 'p/0', carrier: 'landTransport', riders: ['a', 'b'] },
+      { truck: 'p/0', carrier: 'landTransport', carrierId: 'truck', riders: ['a', 'b'] },
     ]);
   });
 
@@ -158,7 +158,7 @@ describe('monteesOf (#277)', () => {
     const before = aboardOf(view(plane, man('a'), man('b')));
     const now = view(plane, man('a', 'plane'), man('b', 'plane'));
     expect(monteesOf(before, now, pilesOf(now))).toEqual([
-      { truck: 'p/0', carrier: 'airTransport', riders: ['a', 'b'] },
+      { truck: 'p/0', carrier: 'airTransport', carrierId: 'plane', riders: ['a', 'b'] },
     ]);
   });
 

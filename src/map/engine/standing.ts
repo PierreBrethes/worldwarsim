@@ -28,6 +28,7 @@ import { leaveHiddenPartsUnplaced } from './hidden-parts';
 import type { PilePieces } from '@/domain/pile-pieces';
 import type { UnitRole, UnitTier } from '@/domain/ids';
 import { AIRFIELD } from '@/emblems/kits/manifest';
+import { planeRigOf } from './figurines/plane-rig';
 import { nationInk } from '@/domain/nations';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
@@ -1132,6 +1133,13 @@ export class StandingLayer implements SequenceHost {
         .sort((a, b) => (a.name < b.name ? -1 : 1))
         .map((man) => man.getWorldPosition(new Vector3())),
     };
+  }
+
+  /** **What a plane drawn gives its boarding** (#502): its door, its foot, its metre. `null`
+   *  until it is placed and its model has landed. */
+  rigOf(id: string): ReturnType<typeof planeRigOf> {
+    const lent = this.figurineOf(id);
+    return lent?.placed ? planeRigOf(lent.figurine.object) : null;
   }
 
   /** **How long a group is drawn**, nose to tail along its own front, on the board: a turned

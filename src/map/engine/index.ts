@@ -93,6 +93,8 @@ import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
+import { type Plank, planeBoardingOf } from './timelines/plane-boarding';
+import { PlankMesh } from './plank';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
   aroundTheFront,
@@ -771,6 +773,14 @@ export class MapEngine {
     readonly cue: Extract<Cue, { kind: 'montee' }>;
     readonly since: number;
     boards?: ReadonlyArray<string>;
+  }> = [];
+  /** **The planks of the planes taking men aboard** (#502), drawn while their sequence plays. */
+  private planks: Array<{
+    readonly mesh: PlankMesh;
+    readonly plank: (t: number) => Plank | null;
+    readonly since: number;
+    readonly ms: number;
+    readonly lift: number;
   }> = [];
   /** Told which riders a hull's tag may now show (`watchBoarded`). */
   private onBoarded: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined;
@@ -2626,6 +2636,7 @@ export class MapEngine {
     this.tourInk.dispose();
     this.searchArea.dispose();
     this.ghost.dispose();
+    for (const { mesh } of this.planks) mesh.dispose();
     this.standing.dispose();
     this.loops.dispose();
     this.moorings.dispose();
@@ -3473,8 +3484,11 @@ export class MapEngine {
         this.landings.push({ cue, since: performance.now() });
         break;
       case 'montee':
-        // A plane's men board too (#480); its sequence is wired by #502.
-        if (cue.carrier !== 'landTransport' || this.sequences.motion === 'off') break;
+        if (this.sequences.motion === 'off') {
+          // A plane's tag was kept at its old count (`WorldMap`): the pose is final, feed it.
+          this.feedPlane(cue);
+          break;
+        }
         // The truck holds where it stood until its men are under the tarp (`boardOf`).
         this.standing.expect(cue.truck.slice(0, cue.truck.lastIndexOf('/')));
         this.boardings.push({ cue, since: performance.now() });
@@ -4227,6 +4241,101 @@ export class MapEngine {
     if (truck === null || length === null || step === null) return false;
     const motion = this.sequences.motion;
     const unseen = motion !== 'full' || this.veiled(truck.at) || !this.seenWhole(truck.at);
+    const plane = cue.carrier === 'airTransport';
+    // A plane's door and foot are read off the model drawn: not before it stands.
+    const flight = plane && !unseen ? this.standing.rigOf(cue.truck) : null;
+    if (plane && !unseen && flight === null) return false;
+    const seated = this.seatMen(boarding, pileId, unseen);
+    if (seated === null) return false;
+    const { boards, men, height } = seated;
+    const squads = men.map((place) => ({
+      men: place!.men.map(({ x, z }) => [x, z] as const),
+      heading: Math.atan2(place!.front.x, place!.front.z),
+    }));
+    const unplayable =
+      unseen || boards.length === 0 || height === 0 || this.sequences.room < 1 + boards.length;
+    const plan =
+      unplayable || (plane && flight === null)
+        ? null
+        : plane
+          ? planeBoardingOf({
+              plane: {
+                at: [truck.at.x, truck.at.z],
+                heading: Math.atan2(truck.front.x, truck.front.z),
+                metre: flight!.metre,
+                rig: flight!.rig,
+              },
+              man: height,
+              squads,
+            })
+          : boardingOf({
+              down: false,
+              truck: {
+                at: [truck.at.x, truck.at.z],
+                front: [truck.front.x, truck.front.z],
+                length,
+              },
+              man: height,
+              step,
+              squads,
+            });
+    // The men first, drawn whole at once; the truck last, or they stop where they stand.
+    const walking =
+      plan === null
+        ? []
+        : boards.filter((id, n) => this.sequences.play(this.standing, id, plan.squads[n]!, now));
+    const playing = plan === null ? null : 'truck' in plan ? plan.truck : plan.plane;
+    const played =
+      plan !== null &&
+      playing !== null &&
+      walking.length === boards.length &&
+      this.sequences.play(this.standing, cue.truck, playing as Sequence, now);
+    if (!played)
+      for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+    if (!played) {
+      for (const id of boards) this.standing.unboard(id);
+      if (ringsLeft(motion, { veiled: this.veiled(truck.at), unplayable: false }))
+        this.standing.inkArrival(pileId);
+      this.standing.arrive(pileId, []);
+      if (plane) this.feedPlane(cue);
+      return true;
+    }
+    this.standing.arrive(pileId, [plan.settled]);
+    if (plane && 'plank' in plan) {
+      const mesh = new PlankMesh();
+      this.standing.group.add(mesh);
+      this.planks.push({ mesh, plank: plan.plank, since: now, ms: plan.settled, lift: truck.at.y });
+      // Its tag reads « 2/2 » once the last is in and the door shut.
+      this.inkDue.push({ at: now + plan.settled, run: () => this.feedPlane(cue) });
+    }
+    return true;
+  }
+
+  /** **A plane's tag may now show its riders** (#502): kept at its old count while they board. */
+  private feedPlane(cue: Extract<Cue, { kind: 'montee' }>): void {
+    if (cue.carrier === 'airTransport')
+      this.onBoarded?.(
+        cue.carrierId,
+        cue.riders.map(({ troopId }) => troopId),
+      );
+  }
+
+  /**
+   * **The men a boarding draws**, each where it last stood — in its rank, or at the end of its
+   * file — once the carrier's pile stands (`board`): their ids, where they are, and the tallest's
+   * height. Drawn once, at the first frame the boarding is seen whole; `null` while they are not
+   * drawn yet.
+   */
+  private seatMen(
+    boarding: (typeof this.boardings)[number],
+    pileId: string,
+    unseen: boolean,
+  ): {
+    boards: ReadonlyArray<string>;
+    men: ReturnType<StandingLayer['placeOf']>[];
+    height: number;
+  } | null {
+    const { cue } = boarding;
     if (boarding.boards === undefined && !unseen)
       boarding.boards = this.standing.board(
         pileId,
@@ -4237,45 +4346,13 @@ export class MapEngine {
       );
     const boards = boarding.boards ?? [];
     const men = boards.map((id) => this.standing.placeOf(id));
-    if (men.some((place) => place === null)) return false;
+    if (men.some((place) => place === null)) return null;
     const size = new Vector3();
     const height = Math.max(
       0,
       ...boards.map((id) => this.standing.pieceOf(id)?.box?.getSize(size).y ?? 0),
     );
-    const plan =
-      unseen || boards.length === 0 || height === 0 || this.sequences.room < 1 + boards.length
-        ? null
-        : boardingOf({
-            down: false,
-            truck: { at: [truck.at.x, truck.at.z], front: [truck.front.x, truck.front.z], length },
-            man: height,
-            step,
-            squads: men.map((place) => ({
-              men: place!.men.map(({ x, z }) => [x, z] as const),
-              heading: Math.atan2(place!.front.x, place!.front.z),
-            })),
-          });
-    // The men first, drawn whole at once; the truck last, or they stop where they stand.
-    const walking =
-      plan === null
-        ? []
-        : boards.filter((id, n) => this.sequences.play(this.standing, id, plan.squads[n]!, now));
-    const played =
-      plan !== null &&
-      walking.length === boards.length &&
-      this.sequences.play(this.standing, cue.truck, plan.truck, now);
-    if (!played)
-      for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
-    if (!played) {
-      for (const id of boards) this.standing.unboard(id);
-      if (ringsLeft(motion, { veiled: this.veiled(truck.at), unplayable: false }))
-        this.standing.inkArrival(pileId);
-      this.standing.arrive(pileId, []);
-      return true;
-    }
-    this.standing.arrive(pileId, [plan.settled]);
-    return true;
+    return { boards, men, height };
   }
 
   /**
@@ -5432,6 +5509,7 @@ export class MapEngine {
       this.parachutes.active ||
       this.maquettes.settling ||
       this.sequences.active ||
+      this.planks.length > 0 ||
       this.walks.length > 0 ||
       this.combats.active ||
       this.razes.active ||
@@ -5550,6 +5628,15 @@ export class MapEngine {
       if (this.boardOf(boarding, now)) return false;
       if (now - boarding.since < SORTIE_WAIT_MS) return true;
       for (const id of boarding.boards ?? []) this.standing.unboard(id);
+      this.feedPlane(boarding.cue);
+      return false;
+    });
+    // A plank stays while its plane's door is open, and is taken in once its sequence is over.
+    this.planks = this.planks.filter(({ mesh, plank, since, ms, lift }) => {
+      const t = now - since;
+      mesh.place(t < ms ? plank(t) : null, lift);
+      if (t < ms) return true;
+      mesh.dispose();
       return false;
     });
     this.landings = this.landings.filter(
