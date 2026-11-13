@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aimAt, BOOM, type Boom, hoistsOf, HOOK, liftOf, SLING, tipOf } from './derrick';
+import { aimAt, BOOM, type Boom, hoistsOf, HOOK, liftOf, SLING, strokesAt, tipOf } from './derrick';
 import { Group, Object3D } from 'three';
 import { boomsOfScene } from './booms';
 
@@ -107,7 +107,7 @@ describe('the lifts of a boarding (#505)', () => {
     pivot: [0.6, 6.6, -31],
     hatch: { at: [0, 5.3, -24], rim: 5.3 },
   };
-  const vehicle = (drive: number) => ({ drive, height: 3 });
+  const vehicle = (drive: number) => ({ drive: () => drive, height: 3 });
 
   it('lifts one vehicle after another by a mast of its own, the stations alternating', () => {
     const plan = hoistsOf({
@@ -159,6 +159,27 @@ describe('the lifts of a boarding (#505)', () => {
     const plan = hoistsOf({ booms: [stationA], grounds: [SPOT], vehicles: [] });
     expect(plan.lifts).toEqual([]);
     expect(plan.hull.at(10)).toEqual({});
+  });
+});
+
+describe('the strokes of a lift (#505)', () => {
+  const lift = liftOf({ boom: BOOM_1, spot: SPOT, height: 3, start: 1000 });
+  it('draws nothing while the mast is at rest outside its lift', () => {
+    expect(strokesAt(BOOM_1, lift, 0)).toEqual([]);
+    expect(strokesAt(BOOM_1, lift, lift.end)).toEqual([]);
+  });
+
+  it('runs the cable from the tip to the hook, and slings only once the load is slung', () => {
+    const early = strokesAt(BOOM_1, lift, lift.pick + 100);
+    expect(early).toHaveLength(2);
+    const tip = tipOf(BOOM_1.pivot, lift.at(lift.pick + 100).yaw, lift.at(lift.pick + 100).lift);
+    expect(early[0]!.a[0]).toBeCloseTo(tip[0], 6);
+    expect(early[0]!.b).toEqual(lift.at(lift.pick + 100).hook);
+    const slung = strokesAt(BOOM_1, lift, (lift.lifted + lift.over) / 2);
+    expect(slung).toHaveLength(6);
+    // The slings end on the load's top, a hook and a sling under the hook's top.
+    const top = lift.at((lift.lifted + lift.over) / 2);
+    expect(slung[2]!.b[1]).toBeCloseTo(top.hook[1] - HOOK - SLING, 6);
   });
 });
 

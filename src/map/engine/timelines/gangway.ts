@@ -17,6 +17,8 @@ const DECK = MOLE.lift + 0.5;
 const QUAY_LINE = MOLE.quay - 2;
 const OUTER_LANE = MOLE.x + 7;
 const PLANK_ONTO_DECK = 1;
+/** The lane the vehicles drive down the mole by, in from its face (#505). `@a-mesurer` */
+const INNER_LANE = MOLE.inner + 6;
 
 /**
  * **The gangway mark a hull is boarded by**: of its two (`fx_passerelle`, `fx_passerelle_tribord`),
@@ -100,6 +102,7 @@ export function gangwayOf(boarding: {
       ms,
       minPx: WALK_MIN_PX,
       anywhere: true,
+      pool: 'boarding',
       at(t) {
         if (t < 0 || t >= ms) return {};
         const pose: Record<string, PartPose> = {};
@@ -126,7 +129,7 @@ export function gangwayOf(boarding: {
 }
 
 /** A path's length, and the point and heading `s` along it. */
-function measured(path: ReadonlyArray<P3>) {
+export function measured(path: ReadonlyArray<P3>) {
   const legs = path.slice(1).map((to, k) => Math.hypot(...to.map((v, i) => v - path[k]![i]!)));
   const length = legs.reduce((sum, leg) => sum + leg, 0);
   return {
@@ -173,3 +176,19 @@ export function boardingVerdict(hull: {
  *  started; the plank goes with him. Once the last is through, it is taken in on its own. */
 export const cutShort = (elapsed: number, through: ReadonlyArray<number>): boolean =>
   elapsed < Math.max(0, ...through) + 1;
+
+/**
+ * **A vehicle's way to the mast's spot** (#505): from its rank across the ground to the quay line,
+ * along it to the mole's inner lane, down the lane to the spot's station, then in to the spot. The
+ * points after the rest, in the port's metres.
+ */
+export function vehicleWay(from: { readonly x: number; readonly z: number }, spot: Point): P3[] {
+  const way: P3[] = [];
+  if (from.z < QUAY_LINE) way.push([from.x, DECK, QUAY_LINE]);
+  way.push(
+    [INNER_LANE, DECK, Math.min(from.z, QUAY_LINE)],
+    [INNER_LANE, DECK, spot.z],
+    [spot.x, DECK, spot.z],
+  );
+  return way;
+}

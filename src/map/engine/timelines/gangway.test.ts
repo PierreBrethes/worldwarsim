@@ -9,6 +9,7 @@ import {
   plankFoot,
   type P3,
   quayWay,
+  vehicleWay,
 } from './gangway';
 
 /** A cargo's two gangway marks in the port's metres, the mole on the `+x` side. */
@@ -50,6 +51,26 @@ describe('quayWay (#479)', () => {
   });
 });
 
+describe('vehicleWay (#505)', () => {
+  const spot = { x: MOLE.inner + 1, y: 2.2, z: 160 };
+  const way = vehicleWay({ x: 30, z: 99 }, spot);
+
+  it('ends at the mast’s spot, level with the deck', () => {
+    expect(way.at(-1)).toEqual([spot.x, MOLE.lift + 0.5, spot.z]);
+    for (const [, y] of way) expect(y).toBe(MOLE.lift + 0.5);
+  });
+
+  it('goes down the mole by a lane inside its deck, not by its outer edge, to the spot’s station', () => {
+    const lane = way.filter(([, , z]) => z === spot.z);
+    expect(lane[0]![0]).toBeGreaterThan(MOLE.inner);
+    expect(lane[0]![0]).toBeLessThan(MOLE.x);
+  });
+
+  it('crosses the quay line first, from a rank on the land side', () => {
+    expect(way[0]).toEqual([30, MOLE.lift + 0.5, MOLE.quay - 2]);
+  });
+});
+
 /** Two squads of three men a metre apart, 1.8 tall, each on his path from his own rest. */
 const rest = (x: number): P3[] => [
   [x, 0, 0],
@@ -80,6 +101,10 @@ describe('gangwayOf (#479)', () => {
     // Through the door he is gone: the stand-in stays drawn but empty.
     expect(s.at(s.ms - 1).man_0?.fade).toBe(0);
     expect(s.at(s.ms)).toEqual({});
+  });
+
+  it('plays in the pool of the pieces that board, with the lifted vehicles', () => {
+    for (const s of plan.squads) expect(s.pool).toBe('boarding');
   });
 
   it('tells when each squad’s last man is through the door, in order of arrival', () => {

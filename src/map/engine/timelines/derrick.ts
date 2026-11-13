@@ -203,13 +203,16 @@ export function liftOf({
   return { start, pick: a1, lifted: a3, over: a5, dropped: a6, end: a8, at, hatchAt };
 }
 
-/** One vehicle to be lifted: how long it takes to drive to its spot, and its height. */
-export type Hoisted = { readonly drive: number; readonly height: number };
+/** One vehicle to be lifted: how long it takes to drive to the spot of a boom (ms), and its height. */
+export type Hoisted = { readonly drive: (boom: number) => number; readonly height: number };
 
 /** The spots of two masts closer than this (hull metres) are one: a vehicle waits for the other. */
 const SHARED = 6;
 /** The mast starts to come round this long before the vehicle is under it (ms). */
 const LEAD = 200;
+/** No mast starts to come round before this (ms): the hull's copy, cooked on the first signal,
+ *  must stand before it moves. `@a-mesurer` */
+const FIRST = 600;
 /** How soon after a load leaves a spot the next vehicle may stand on it (ms). */
 const CLEAR = 300;
 
@@ -259,7 +262,8 @@ export function hoistsOf({
     const boom = order[k % order.length];
     if (boom === undefined) return [];
     const spot = grounds[boom]!;
-    let arrive = LEAD + drive;
+    const driving = drive(boom);
+    let arrive = Math.max(LEAD + driving, FIRST + T.slew - LEAD);
     for (const other of done) {
       const there = grounds[other.boom]!;
       if (other.boom === boom || Math.hypot(there[0] - spot[0], there[2] - spot[2]) < SHARED)
@@ -268,7 +272,7 @@ export function hoistsOf({
     }
     const lift = liftOf({ boom: booms[boom]!, spot, height, start: arrive - T.slew + LEAD });
     done.push({ boom, lift });
-    return [{ boom, driveStart: arrive - drive, arrive, lift }];
+    return [{ boom, driveStart: arrive - driving, arrive, lift }];
   });
   const end = Math.max(0, ...lifts.map(({ lift }) => lift.end));
   const hull: Sequence<'cargo'> = {
@@ -290,4 +294,33 @@ export function hoistsOf({
     },
   };
   return { hull, lifts, settled: end };
+}
+
+/** What a boarding draws between a mast and its load: the cable to the hook, the hook (`thick`),
+ *  and four slings to the load's top, in the hull's metres. */
+export type Stroke = { readonly a: P3; readonly b: P3; readonly thick: boolean };
+
+/** How far the slings spread on the load's top, in the hull's metres. `@a-mesurer` */
+const SPREAD = 0.4;
+
+/** **The strokes of a lift at `t`**: nothing before the mast starts or once it is home. */
+export function strokesAt(boom: Boom, lift: Lift, t: number): Stroke[] {
+  if (t < lift.start || t >= lift.end) return [];
+  const { hook, cable, hooked } = lift.at(t);
+  const tip = tipOf(boom.pivot, lift.at(t).yaw, lift.at(t).lift, boom.length);
+  const low: P3 = [hook[0], hook[1] - HOOK, hook[2]];
+  const strokes: Stroke[] = [
+    { a: tip, b: hook, thick: false },
+    { a: hook, b: low, thick: true },
+  ];
+  if (!hooked || cable <= 0) return strokes;
+  const top = hook[1] - HOOK - SLING;
+  for (const [dx, dz] of [
+    [1, 1],
+    [1, -1],
+    [-1, 1],
+    [-1, -1],
+  ] as const)
+    strokes.push({ a: low, b: [hook[0] + dx * SPREAD, top, hook[2] + dz * SPREAD], thick: false });
+  return strokes;
 }

@@ -86,7 +86,7 @@ export type Sequence<F extends RigFamily = RigFamily> = {
   readonly minPx?: number;
   /** **A column deploying at its arrival** (#362) plays on a ceiling of its own
    *  (`MAX_DEPLOYING`): a file of six must not wait on the barracks' doors, nor shut them. */
-  readonly pool?: 'deployment' | 'site';
+  readonly pool?: 'deployment' | 'site' | 'boarding';
   /** **Judged elsewhere**: it plays and goes on whether or not its piece is in the field, for
    *  what the caller judged on another piece — the men of a hull's boarding walk in from out of the
    *  image, the hull is the one seen (#479). */
@@ -115,6 +115,10 @@ export type SequenceHost = {
 export const PLAY_PX = 150;
 /** **Au plus tant de copies à la fois** ; au-delà, la pose finale. `@a-mesurer` */
 export const MAX_PLAYING = 4;
+/** **Au plus tant de pièces qui embarquent à la fois sur une coque** (#479, #505) : les hommes de
+ *  ses escouades et ses véhicules hissés, qui ne sont pas des pièces comme les autres.
+ *  `@a-mesurer` */
+export const MAX_BOARDING = 8;
 /** **Au plus tant de pièces qui se déploient à la fois** (#362). Une file plus longue — une
  *  colonne Blitz de neuf unités ou plus (`unitPieces`) — ne se déploie pas du tout : elle se pose
  *  d'un coup. `@a-mesurer` */
@@ -243,7 +247,13 @@ export type Cue =
 
 /** A site's doors and slip (`pool: 'site'`, #487) are no piece: `MAX_PLAYING` counts pieces only. */
 const ceilingOf = (pool: Sequence['pool']): number =>
-  pool === 'deployment' ? MAX_DEPLOYING : pool === 'site' ? Infinity : MAX_PLAYING;
+  pool === 'deployment'
+    ? MAX_DEPLOYING
+    : pool === 'site'
+      ? Infinity
+      : pool === 'boarding'
+        ? MAX_BOARDING
+        : MAX_PLAYING;
 
 type Rest = {
   readonly position: Vector3;
