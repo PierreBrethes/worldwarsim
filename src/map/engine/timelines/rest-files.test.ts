@@ -76,7 +76,12 @@ describe('the mole, with the growth a hull is drawn at (#479)', () => {
       for (const distance of [0.3, 1, 3]) {
         const g = restGrowth(distance, troopSpan(role));
         for (const post of ['mole', 'couple', 'roads'] as const) {
-          const [rest] = berths([role], g, [post]);
+          const [rest] = berths(
+            [role],
+            g,
+            [post],
+            [(2 * Math.max(box.max.x, -box.min.x)) / Math.max(size.x, size.z)],
+          );
           // Facing the land (yaw π): the model's +z is toward -z of the site.
           const half = Math.max(box.max.x, -box.min.x) * k * g;
           const stem = rest!.z - Math.max(box.max.z, -box.min.z) * k * g;
@@ -96,7 +101,8 @@ describe('the mole, with the growth a hull is drawn at (#479)', () => {
       const half = Math.max(box.max.x, -box.min.x) * k;
       for (const distance of [0.3, 1, 3]) {
         const g = restGrowth(distance, troopSpan('cargo'));
-        const [mole, couple] = berths(['cargo', 'cargo'], g, ['mole', 'couple']);
+        const share = (2 * Math.max(box.max.x, -box.min.x)) / Math.max(size.x, size.z);
+        const [mole, couple] = berths(['cargo', 'cargo'], g, ['mole', 'couple'], [share, share]);
         expect(mole!.x + half * g).toBeLessThanOrEqual(MOLE.inner + 0.01);
         expect(couple!.x + half * g).toBeLessThanOrEqual(mole!.x - half * g + 0.01);
       }
@@ -110,7 +116,12 @@ describe('the mole, with the growth a hull is drawn at (#479)', () => {
       const box = new Box3().setFromObject(scene);
       const size = box.getSize(new Vector3());
       const k = troopMetres('cargo') / Math.max(size.x, size.z);
-      const [at] = berths(['cargo'], 1, ['mole']);
+      const [at] = berths(
+        ['cargo'],
+        1,
+        ['mole'],
+        [(2 * Math.max(box.max.x, -box.min.x)) / Math.max(size.x, size.z)],
+      );
       scene.updateMatrixWorld(true);
       // The hull stands stem to the land (yaw π): its x and z are turned over. The file has the
       // port mark; its starboard is its mirror (`site-kits.ts`).
@@ -144,7 +155,12 @@ describe('the derricks of a cargo at the mole, from each file (#505)', () => {
       const box = new Box3().setFromObject(scene);
       const size = box.getSize(new Vector3());
       const k = troopMetres('cargo') / Math.max(size.x, size.z);
-      const [at] = berths(['cargo'], 1, ['mole'], [size.x / Math.max(size.x, size.z)]);
+      const [at] = berths(
+        ['cargo'],
+        1,
+        ['mole'],
+        [(2 * Math.max(box.max.x, -box.min.x)) / Math.max(size.x, size.z)],
+      );
       const booms = boomsOfScene(scene);
       expect(booms.length).toBeGreaterThanOrEqual(1);
       for (const boom of booms) {

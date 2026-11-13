@@ -368,8 +368,10 @@ export function figurineFor(
       // rest: a gun's open trails do not shrink it.
       model.scale.setScalar(span / measureOf(rest!, role));
       if (role !== 'infantry') {
-        const size = new Box3().setFromObject(rest!).getSize(new Vector3());
-        beamShares.set(files[0]!, size.x / Math.max(size.x, size.z));
+        // Its widest side from the origin it stands on, twice: a hull is laid out by its middle.
+        const box = new Box3().setFromObject(rest!);
+        const size = box.getSize(new Vector3());
+        beamShares.set(files[0]!, (2 * Math.max(box.max.x, -box.min.x)) / Math.max(size.x, size.z));
       }
       drawn = role === 'infantry' ? squadOf(makers) : makers[0]!.make();
       model.add(drawn);

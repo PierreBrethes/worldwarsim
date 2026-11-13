@@ -68,6 +68,7 @@ import { GROUP_SPACING } from '@/domain/pile-layout';
 import {
   ANONYMOUS_SPAN,
   LAID_OUT_FOR,
+  beamShareOf,
   posedScene,
   REFERENCE_PX_PER_UNIT,
   setNearFloor,
@@ -83,7 +84,6 @@ import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
 import { Gangplanks } from './gangplanks';
-import { MOLE } from '@/emblems/kits/manifest';
 import { Hoists } from './hoists';
 import { HullBoardings, type Started } from './hull-boardings';
 import {
@@ -91,22 +91,12 @@ import {
   cutShort,
   gangwayDoor,
   gangwayOf,
-  measured,
-  type P3,
   plankFoot,
   quayWay,
-  vehicleWay,
 } from './timelines/gangway';
 import { boomsOfScene } from './timelines/booms';
-import {
-  type Boom,
-  DRIVE_LENGTHS,
-  HOISTED_ROLES,
-  hoistsOf,
-  SPOT_ONTO_DECK,
-  strokesAt,
-} from './timelines/derrick';
-import { hoistedOf } from './timelines/hoisted';
+import { type Boom, HOISTED_ROLES } from './timelines/derrick';
+import { hoistedBoarding } from './timelines/hoisted';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
 import { veiledPiles } from './veils';
@@ -3770,7 +3760,7 @@ export class MapEngine {
         );
         if (out !== null) door = [laneOf(spot.x), { lead, doors: out.doors, closing: out.closing }];
       } else if (!airfield && isSeaRole(role)) {
-        const beam = HULL_BEAM_SHARE * length;
+        const beam = (beamShareOf(drawn.url) ?? HULL_BEAM_SHARE) * length;
         const launched =
           cue.kind === 'formation' ? launch(role, beam, KEEL_SHARE * length, spot) : null;
         const track = launched ?? docking(role, beam, spot);
@@ -3889,7 +3879,8 @@ export class MapEngine {
       );
       sequence = delayed(moored ? way : homing(way), queued.lead, false);
     } else if (!air && isSeaRole(role)) {
-      const beam = HULL_BEAM_SHARE * length;
+      // Where it stood without a place kept: by its file's own beam, as `berths` lays it out.
+      const beam = (beamShareOf(piece.url) ?? HULL_BEAM_SHARE) * length;
       sequence = trackSequence(
         site,
         undocking(role, beam, place ?? berthOf(role, beam)),
@@ -4370,78 +4361,35 @@ export class MapEngine {
             })),
           });
 
-    // The vehicles: each takes a mast, drives to the spot under its tip, and is lifted (#505).
-    const toBoard = (p: P3): P3 => {
-      const v = new Vector3(...p).applyMatrix4(frame);
-      return [v.x, v.y, v.z];
-    };
-    const toHull = new Matrix4().copy(frame).invert();
-    const metre = new Vector3().setFromMatrixScale(frame).x;
     const portMetre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
-    const deck = plankFoot(door)[1];
-    const spots = booms.map((boom) => {
-      const z = site.toModel(new Vector3(...toBoard(boom.pivot))).z;
-      const port = [MOLE.inner + SPOT_ONTO_DECK, deck, z] as const;
-      const at = board(...port).applyMatrix4(toHull);
-      return { port, ground: [at.x, at.y, boom.pivot[2]] as P3 };
-    });
-    const ways = new Map<string, P3[]>();
-    const wayOf = (id: string, k: number): P3[] => {
-      const key = `${id} ${k}`;
-      let way = ways.get(key);
-      if (way === undefined) {
-        const rest = placeOf(id).at;
-        const [x, y, z] = spots[k]!.port;
-        way = [
-          [rest.x, rest.y, rest.z],
-          ...vehicleWay(site.toModel(rest), { x, y, z }).map((at) => {
-            const point = board(...at);
-            return [point.x, point.y, point.z] as P3;
-          }),
-        ];
-        ways.set(key, way);
-      }
-      return way;
-    };
+    // The vehicles: each takes a mast, drives to the spot under its tip, and is lifted (#505).
     const lengthOf = (id: string) => {
       const box = this.standing.pieceOf(id)?.box?.getSize(size);
       return Math.max(box?.x ?? 0, box?.z ?? 0);
     };
-    const driveMs = (id: string, k: number) =>
-      measured(wayOf(id, k)).length / ((lengthOf(id) * DRIVE_LENGTHS) / 1000);
-    const lifts = hoistsOf({
+    const hoist = hoistedBoarding({
       booms,
-      grounds: spots.map(({ ground }) => ground),
+      frame,
+      toModel: site.toModel,
+      toBoard: site.toBoard,
+      deck: plankFoot(door)[1],
       vehicles: carIds.map((id) => ({
-        drive: (k: number) => driveMs(id, k),
-        height: sizeOf(id) / metre,
+        id,
+        rest: placeOf(id).at,
+        length: lengthOf(id),
+        height: sizeOf(id),
       })),
     });
-    const swing = (yaw: number): number => {
-      const [a, b] = [toBoard([0, 0, 0]), toBoard([Math.sin(yaw), 0, Math.cos(yaw)])];
-      return Math.atan2(b[0] - a[0], b[2] - a[2]);
-    };
-
     // All or nothing: the men, the vehicles and the masts play together, or none does.
     const hoisting = carIds.length > 0;
     const playing = [
-      ...menIds.map((id, n) => ({ id, sequence: plan!.squads[n]! })),
-      ...carIds.map((id, n) => ({
-        id,
-        sequence: hoistedOf({
-          path: wayOf(id, lifts.lifts[n]!.boom),
-          driveStart: lifts.lifts[n]!.driveStart,
-          arrive: lifts.lifts[n]!.arrive,
-          lift: lifts.lifts[n]!.lift,
-          toBoard,
-          swing,
-        }),
-      })),
+      ...menIds.map((id, n) => ({ id, sequence: plan!.squads[n]! as Sequence })),
+      ...hoist.playing,
     ];
     const walking = playing.filter(({ id, sequence }) =>
       this.sequences.play(this.standing, id, sequence, now),
     );
-    const mastsPlay = !hoisting || this.sequences.play(this.standing, cue.hull, lifts.hull, now);
+    const mastsPlay = !hoisting || this.sequences.play(this.standing, cue.hull, hoist.hull!, now);
     if (walking.length < playing.length || !mastsPlay) {
       for (const { id } of walking)
         this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
@@ -4449,7 +4397,7 @@ export class MapEngine {
         this.sequences.retime(this.standing, cue.hull, { ms: 0, at: () => ({}) });
       return null;
     }
-    const settled = Math.max(plan?.settled ?? 0, hoisting ? lifts.settled + 1 : 0);
+    const settled = Math.max(plan?.settled ?? 0, hoist.settled);
     this.standing.arrive(pileId, [settled]);
     if (plan !== null)
       this.gangplanks.lay(
@@ -4461,20 +4409,7 @@ export class MapEngine {
         portMetre,
       );
     if (hoisting)
-      this.hoists.lay(
-        cue.hull,
-        (t) =>
-          lifts.lifts.flatMap(({ boom, lift }) =>
-            strokesAt(booms[boom]!, lift, t).map(({ a, b, thick }) => ({
-              a: new Vector3(...toBoard(a)),
-              b: new Vector3(...toBoard(b)),
-              thick,
-            })),
-          ),
-        now,
-        now + lifts.settled,
-        metre,
-      );
+      this.hoists.lay(cue.hull, hoist.strokes, now, now + hoist.settled - 1, hoist.metre);
     const posed = cue.riders
       .map(({ troopId }) => troopId)
       .filter((troopId) => !drawn!.some((id) => troopOf(id) === troopId));
@@ -4483,7 +4418,7 @@ export class MapEngine {
       feeds: [
         ...(posed.length > 0 ? [{ at: 0, riders: posed }] : []),
         ...menIds.map((id, n) => ({ at: plan!.through[n]!, riders: [troopOf(id)] })),
-        ...carIds.map((id, n) => ({ at: lifts.lifts[n]!.lift.dropped, riders: [troopOf(id)] })),
+        ...hoist.feeds.map(({ at, id }) => ({ at, riders: [troopOf(id)] })),
       ].sort((a, b) => a.at - b.at),
       over: () =>
         !drawn!.some((id) => this.sequences.playsOn(this.standing, id)) &&
