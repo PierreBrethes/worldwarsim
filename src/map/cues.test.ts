@@ -10,6 +10,7 @@ import {
   departuresOf,
   formationsOf,
   retoursOf,
+  debarquementsOf,
   descentesOf,
   embarquementsOf,
   dispersionsOf,
@@ -262,6 +263,111 @@ describe('embarquementsOf (#504)', () => {
     expect(embarquementsOf(aboardOf(quay), quay, pilesOf(quay), false)).toEqual([]);
     const lorry = [troop('t', 'landTransport', port), troop('a', 'infantry', port, 't')];
     expect(embarquementsOf(new Map(), lorry, pilesOf(lorry), false)).toEqual([]);
+  });
+});
+
+describe('debarquementsOf (#509)', () => {
+  const port = { kind: 'building' as const, buildingId: 'building-port@2,48' };
+  const shore = {
+    kind: 'point' as const,
+    lonLat: [2, 48] as const,
+    country: 'FR',
+    afloat: false,
+    ground: 'land' as const,
+    coastal: true,
+  };
+  const inland = { ...shore, coastal: false };
+  const troop = (
+    id: string,
+    role: UnitRole,
+    stationedAt: typeof port | typeof shore | typeof inland,
+    carriedBy?: string,
+  ) => ({
+    id,
+    role,
+    tier: 1 as const,
+    strength: 10,
+    nominalStrength: 10,
+    stationedAt,
+    ...(carriedBy === undefined ? {} : { carriedBy }),
+  });
+  const pilesOf = (troops: ReturnType<typeof troop>[]): StandingPile[] => [
+    {
+      id: 'p',
+      at: { lonLat: [2, 48] },
+      pieces: pilePieces(troops.filter(({ carriedBy }) => carriedBy === undefined)),
+    },
+  ];
+  const aboard = (...ids: string[]) => new Map(ids.map((id) => [id, 'h'] as const));
+
+  it('names a cargo that men and a vehicle just left on a beach: its hull, the squads, the vehicles', () => {
+    const now = [
+      troop('h', 'cargo', shore),
+      troop('a', 'infantry', shore),
+      troop('t', 'armor', shore),
+    ];
+    expect(debarquementsOf(aboard('a', 't'), now, pilesOf(now), false)).toEqual([
+      { hull: 'p/2', carrierId: 'h', ground: 'beach', men: ['p/0'], vehicles: ['p/1'] },
+    ]);
+  });
+
+  it('says a quay as a quay: nothing plays there before #512, the engine poses at once', () => {
+    const now = [troop('h', 'cargo', port), troop('a', 'infantry', port)];
+    expect(debarquementsOf(aboard('a'), now, pilesOf(now), false)).toEqual([
+      { hull: 'p/1', carrierId: 'h', ground: 'quay', men: ['p/0'], vehicles: [] },
+    ]);
+  });
+
+  it('names nothing in Blitz', () => {
+    const now = [troop('h', 'cargo', shore), troop('a', 'infantry', shore)];
+    expect(debarquementsOf(aboard('a'), now, pilesOf(now), true)).toEqual([]);
+  });
+
+  it('names nothing for a carrier, a truck, or a hull that is not on a beach or at a quay', () => {
+    const deck = [troop('h', 'carrier', shore), troop('a', 'infantry', shore)];
+    expect(debarquementsOf(aboard('a'), deck, pilesOf(deck), false)).toEqual([]);
+    const lorry = [troop('h', 'landTransport', shore), troop('a', 'infantry', shore)];
+    expect(debarquementsOf(aboard('a'), lorry, pilesOf(lorry), false)).toEqual([]);
+    const far = [troop('h', 'cargo', inland), troop('a', 'infantry', inland)];
+    expect(debarquementsOf(aboard('a'), far, pilesOf(far), false)).toEqual([]);
+  });
+
+  it('names nothing for a rider still aboard, a boarding, or a view that never knew him aboard', () => {
+    const still = [troop('h', 'cargo', shore), troop('a', 'infantry', shore, 'h')];
+    expect(debarquementsOf(aboard('a'), still, pilesOf(still), false)).toEqual([]);
+    const boarding = [troop('h', 'cargo', shore), troop('a', 'infantry', shore, 'h')];
+    expect(debarquementsOf(new Map(), boarding, pilesOf(boarding), false)).toEqual([]);
+    const loose = [troop('h', 'cargo', shore), troop('a', 'infantry', shore)];
+    expect(debarquementsOf(new Map(), loose, pilesOf(loose), false)).toEqual([]);
+  });
+
+  it('never reads a sighted pile: an enemy cargo is not in my troops, so no signal comes from it', () => {
+    const mine = [troop('m', 'infantry', shore)];
+    const enemy: StandingPile = {
+      id: 'e',
+      at: { lonLat: [2, 48] },
+      pieces: pilePieces([troop('h', 'cargo', shore), troop('a', 'infantry', shore)]),
+    };
+    expect(debarquementsOf(aboard('a'), mine, [...pilesOf(mine), enemy], false)).toEqual([]);
+  });
+
+  it('gives no squad for a man melted into a group already known, but still names the hull', () => {
+    const now = [troop('h', 'cargo', shore), troop('a', 'infantry', shore)];
+    const [men, hull] = pilePieces(now).groups;
+    const merged: StandingPile[] = [
+      {
+        id: 'p',
+        at: { lonLat: [2, 48] },
+        pieces: {
+          groups: [{ ...men!, troopIds: ['a', 'b'] }, hull!],
+          troopIds: ['a', 'b', 'h'],
+          squad: false,
+        },
+      },
+    ];
+    expect(debarquementsOf(aboard('a'), now, merged, false)).toEqual([
+      { hull: 'p/1', carrierId: 'h', ground: 'beach', men: [], vehicles: [] },
+    ]);
   });
 });
 

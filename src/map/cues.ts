@@ -195,6 +195,65 @@ export function embarquementsOf(
   );
 }
 
+/** **Une coque d'où des pièces viennent de débarquer** (#509) : son groupe (`hull`), sa troupe, la
+ *  terre qui la tient, et les groupes libérés de sa pile, par leur id : les hommes d'un côté, les
+ *  véhicules de l'autre. */
+export type Debarquement = {
+  readonly hull: string;
+  readonly carrierId: string;
+  readonly ground: Embarquement['ground'];
+  readonly men: ReadonlyArray<string>;
+  readonly vehicles: ReadonlyArray<string>;
+};
+
+/**
+ * **Les cargos d'où des pièces viennent de débarquer** (#509) : un cargo d'une pile posée, à quai
+ * ou devant une plage, dont un passager d'avant, encore là, n'est plus à bord. Les groupes que ces
+ * passagers forment tout seuls sont rendus ; un passager fondu dans un groupe connu (une escouade
+ * dessinée par rôle) n'en donne pas. Le signal vient de ma vue (`aboard`, `troops`), jamais d'une
+ * pile relevée. Un porte-avions, un camion, une coque ailleurs, la Blitz : la pose finale.
+ */
+export function debarquementsOf(
+  aboard: ReadonlyMap<string, string>,
+  troops: ReadonlyArray<Seated & { readonly stationedAt: TroopStation }>,
+  piles: ReadonlyArray<StandingPile>,
+  blitz: boolean,
+): ReadonlyArray<Debarquement> {
+  if (blitz) return [];
+  const freed = new Map(
+    troops.flatMap((troop) => {
+      const carrier = aboard.get(troop.id);
+      return carrier !== undefined && !troop.carriedBy ? [[troop.id, carrier] as const] : [];
+    }),
+  );
+  const stations = new Map(troops.map((troop) => [troop.id, troop.stationedAt]));
+  return piles.flatMap(({ id, pieces }) =>
+    pieces.groups.flatMap(({ role, troopIds }, k) =>
+      role !== 'cargo'
+        ? []
+        : troopIds.flatMap((carrierId) => {
+            const station = stations.get(carrierId);
+            const ground = station === undefined ? null : embarkGroundOf(station);
+            if (ground === null || ![...freed.values()].includes(carrierId)) return [];
+            const own = pieces.groups.flatMap((group, j) =>
+              group.troopIds.every((troop) => freed.get(troop) === carrierId)
+                ? [{ id: `${id}/${j}`, infantry: group.role === 'infantry' }]
+                : [],
+            );
+            return [
+              {
+                hull: `${id}/${k}`,
+                carrierId,
+                ground,
+                men: own.filter(({ infantry }) => infantry).map(({ id: group }) => group),
+                vehicles: own.filter(({ infantry }) => !infantry).map(({ id: group }) => group),
+              },
+            ];
+          }),
+    ),
+  );
+}
+
 /** **Une escouade dissoute** (#277) : la pile qu'elle quitte, et chaque groupe posé à part, par
  *  son id, la troupe qui le porte et sa place au rang d'avant. */
 export type Dispersion = {

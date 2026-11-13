@@ -214,6 +214,18 @@ export type Cue =
         readonly figures: ReadonlyArray<UnitTier>;
       }>;
     }
+  /** **Men and vehicles step down from a cargo** (#509): `hull` is its group, `men` the squads
+   *  and `vehicles` the groups that came down, by their id (`${pileId}/${group}`); `ground` says
+   *  where the hull lies. The canots carry the men to a beach (`beachBoatsOf`); at a quay, and
+   *  for the vehicles, the pose is final until #512 and #511. */
+  | {
+      readonly kind: 'debarquement';
+      readonly hull: string;
+      readonly carrierId: string;
+      readonly ground: 'quay' | 'beach';
+      readonly men: ReadonlyArray<string>;
+      readonly vehicles: ReadonlyArray<string>;
+    }
   /** **A squad disbanded at its point** (#277, U): what stays of `pileId` glides to the point,
    *  each piece set apart (`groupId`, by its `troopId`) walks from its `rank` to its place in the
    *  crown. A pile drawn `whole` (ADR 0028 §6) does not walk: rings of ink. */
