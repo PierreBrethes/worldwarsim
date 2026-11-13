@@ -25,6 +25,9 @@
  * monter sur le cargo, par sa passerelle (lieu : `cargo`). `--cargo-bis` y ajoute, quatre secondes
  * après, une troisième escouade : son embarquement se pose d'un coup. `--cargo-vehicules` (#505) y
  * joint un char et un camion, dans le même ordre : le mât de charge les hisse un par un.
+ * `--sur-porte-avions` (#506, avec `--cargo-monter`) fait appareiller le cargo et accoster un porte-avions à sa place, quatre secondes après la scène :
+ * les escouades montent par la planche au bord du pont et descendent par l'ascenseur ; avec
+ * `--cargo-vehicules`, le char, posé d'un coup.
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--brest` (#436) y ajoute un chantier
  * de port à Brest, sur sa rade. `--port-miroir` (#476) pose le port de `--navire` à Almería, sur une côte
@@ -393,6 +396,8 @@ const hullBoardingAt = process.argv.indexOf('--cargo-monter');
 const hullBoardingIn = hullBoardingAt < 0 ? null : Number(process.argv[hullBoardingAt + 1]) || 25;
 const hullBoardingTwice = process.argv.includes('--cargo-bis');
 const hullBoardingVehicles = process.argv.includes('--cargo-vehicules');
+/** `--sur-porte-avions` (#506) : le navire à quai de `--cargo-monter` est un porte-avions. */
+const carrierAtQuay = process.argv.includes('--sur-porte-avions');
 const navy =
   denseQuay ||
   craneIn !== null ||
@@ -1597,9 +1602,10 @@ if (!bare) {
         buildingId: port.id,
       });
     const first = squads(2);
-    // A tank and a truck at the quay: the cargo's mast lifts them aboard (#505).
+    // A tank and a truck at the quay: the cargo's mast lifts them aboard (#505); a carrier takes
+    // the tank, posed at once (#506).
     const vehicles = hullBoardingVehicles
-      ? ['armor', 'landTransport'].flatMap((role) =>
+      ? (carrierAtQuay ? ['armor'] : ['armor', 'landTransport']).flatMap((role) =>
           spawned({
             role,
             count: 1,
@@ -1609,8 +1615,30 @@ if (!bare) {
           }),
         )
       : [];
+    if (carrierAtQuay) {
+      // The scene's cargo sails off to free the mole, and a carrier berths in its place (#506).
+      cli([
+        'run',
+        'dev:grantCards',
+        JSON.stringify({ playerId: scene.a, cards: ['transmissions1'] }),
+      ]);
+      for (let tries = 1; ; tries++)
+        try {
+          await client.mutation(api.movements.marchTo, {
+            token: tokenA,
+            seasonId,
+            origin: { kind: 'building', buildingId: port.id },
+            troopIds: [cargo.id],
+            point: { lon: 14.6, lat: 35.8 },
+          });
+          break;
+        } catch (error) {
+          if (tries >= 4 || !String(error.message).includes('timed out')) throw error;
+        }
+    }
     pile.cargo = {
       cargo: cargo.id,
+      port,
       riders: [...first, ...vehicles],
       later: hullBoardingTwice ? squads(1) : [],
     };
@@ -2345,6 +2373,28 @@ const gestures = [
       return 'transport parti larguer, arrivée dans 6 s';
     },
   ],
+  carrierAtQuay &&
+    pile.cargo && [
+      4,
+      async () => {
+        const { port } = pile.cargo;
+        [pile.cargo.cargo] = JSON.parse(
+          cli([
+            'run',
+            'dev:spawnTroops',
+            JSON.stringify({
+              playerId: scene.a,
+              role: 'carrier',
+              count: 1,
+              lon: port.point[0],
+              lat: port.point[1],
+              buildingId: port.id,
+            }),
+          ]).match(/\[[^\]]*\]/)[0],
+        );
+        return 'un porte-avions accoste au môle, que le cargo a libéré';
+      },
+    ],
   hullBoardingIn !== null &&
     pile.cargo && [
       hullBoardingIn,
