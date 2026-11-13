@@ -203,6 +203,11 @@ export function liftOf({
   return { start, pick: a1, lifted: a3, over: a5, dropped: a6, end: a8, at, hatchAt };
 }
 
+/** **The roles a mast lifts aboard** (a cargo's land units that are not men), and how fast one
+ *  drives down the mole, in metres of the port a second. `@a-mesurer` */
+export const HOISTED_ROLES: ReadonlySet<string> = new Set(['armor', 'landTransport', 'artillery']);
+export const DRIVE_MPS = 8;
+
 /** One vehicle to be lifted: how long it takes to drive to the spot of a boom (ms), and its height. */
 export type Hoisted = { readonly drive: (boom: number) => number; readonly height: number };
 

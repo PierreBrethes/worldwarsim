@@ -41,8 +41,8 @@ export function hoistedOf({
     pool: 'boarding',
     at(t) {
       if (t < 0 || t >= ms) return {};
-      let pose: PartPose = {};
       if (t < driveStart) return {};
+      let pose: PartPose;
       if (t < arrive) {
         const there = along(ease.drive(span(t, driveStart, arrive)) * length);
         pose = { travel: moved(there.at), heading: there.heading };

@@ -1137,6 +1137,16 @@ export class StandingLayer implements SequenceHost {
     };
   }
 
+  /** **A group's model frame on the board** (#505): the matrix that takes a point of its file, in
+   *  the file's own metres, to the board, where its posed copy stands. `null` until placed. */
+  frameOf(id: string): Matrix4 | null {
+    const lent = this.figurineOf(id);
+    if (!lent?.placed) return null;
+    const { object } = lent.figurine;
+    object.updateWorldMatrix(true, true);
+    return object.children[0]?.matrixWorld.clone() ?? null;
+  }
+
   /** **A marker of a group's model** (`fx_passerelle`…), on the board, where its posed copy has put
    *  it; `null` until placed, or when the model carries none (#479). */
   markOf(id: string, name: string): Vector3 | null {
@@ -1660,13 +1670,15 @@ export class StandingLayer implements SequenceHost {
       readonly figures: ReadonlyArray<UnitTier>;
       readonly at: Vector3;
       readonly heading: number;
+      /** A vehicle lifted aboard a cargo (#505) is drawn like a man, by its own role. */
+      readonly role?: UnitRole;
     }>,
   ): ReadonlyArray<string> {
     const entry = this.dressed.get(pileId);
     if (entry === undefined || !entry.placed) return [];
     entry.object.updateMatrixWorld(true);
-    return riders.flatMap(({ troopId, figures, at, heading }) => {
-      const figurine = figurineFor(this.nation, 'infantry', figures);
+    return riders.flatMap(({ troopId, figures, at, heading, role = 'infantry' }) => {
+      const figurine = figurineFor(this.nation, role, figures);
       if (figurine === null) return [];
       const id = `${pileId}/+${troopId}`;
       this.unboard(id);
