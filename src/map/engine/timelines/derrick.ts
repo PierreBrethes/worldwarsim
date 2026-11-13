@@ -72,7 +72,7 @@ const lerp = (a: number, b: number, k: number): number => a + (b - a) * k;
 
 /** What a lift is at an instant: the mast, the cable to its hook, whether the load is slung, where
  *  the load's bottom hangs (null while it stands on the deck), and how much of it shows. */
-export type Lifting = {
+type Lifting = {
   readonly yaw: number;
   readonly lift: number;
   readonly cable: number;
