@@ -104,6 +104,7 @@ type Live = {
 export class Airdrops {
   readonly group = new Group();
   private lives: Live[] = [];
+  private disposed = false;
 
   constructor(private readonly changed: () => void) {}
 
@@ -124,7 +125,8 @@ export class Airdrops {
     readonly to: readonly [x: number, z: number] | null;
   }): Promise<void> {
     const flight = await lendFlightCopy(o.piece);
-    if (flight === null) return;
+    // Cooked after the engine was gone: nothing is left to put it in.
+    if (flight === null || this.disposed) return;
     const release = flight.release() ?? undefined;
     const drop = airdrop({
       delivered: o.delivered,
@@ -202,6 +204,7 @@ export class Airdrops {
   }
 
   dispose(): void {
+    this.disposed = true;
     for (const live of this.lives)
       for (const material of [live.paper, live.wood, live.slats, live.rope]) material.dispose();
     this.group.clear();
