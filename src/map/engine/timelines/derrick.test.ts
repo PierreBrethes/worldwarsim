@@ -155,6 +155,16 @@ describe('the lifts of a boarding (#505)', () => {
     expect(plan.settled).toBeGreaterThanOrEqual(plan.lifts[0]!.lift.end);
   });
 
+  it('never starts a mast before the hull’s copy has had time to stand', () => {
+    const plan = hoistsOf({
+      booms: [stationA],
+      grounds: [SPOT],
+      vehicles: [vehicle(0)],
+    });
+    expect(plan.lifts[0]!.lift.start).toBeGreaterThanOrEqual(600);
+    expect(plan.lifts[0]!.driveStart).toBeGreaterThanOrEqual(0);
+  });
+
   it('plays nothing with no vehicle', () => {
     const plan = hoistsOf({ booms: [stationA], grounds: [SPOT], vehicles: [] });
     expect(plan.lifts).toEqual([]);

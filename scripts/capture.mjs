@@ -246,7 +246,7 @@ try {
         return [((p.x + 1) / 2) * w.width, ((1 - p.y) / 2) * w.height];
       });
       const vp = page.viewportSize();
-      const [cw, ch] = [Math.min(560, vp.width), Math.min(420, vp.height)];
+      const [cw, ch] = [Math.min(760, vp.width), Math.min(560, vp.height)];
       const [cx, cy] = at ?? [vp.width / 2, vp.height / 2];
       const clip = {
         x: Math.max(0, Math.min(vp.width - cw, cx - cw / 2)),
@@ -296,7 +296,11 @@ try {
           const engine = globalThis.mapEngine;
           for (let i = 0; i < 1200; i++) {
             const laid = [...engine.hoists.laid.values()][0];
-            const tip = laid?.strokes(5000)[0]?.a;
+            // Where the first mast is three seconds into its lift: the lifts start once the
+            // vehicles have driven down the mole.
+            let from = 0;
+            while (laid && from < 150000 && laid.strokes(from).length === 0) from += 250;
+            const tip = laid?.strokes(from + 3000)[0]?.a;
             if (tip) {
               const rad = Math.PI / 180;
               const [tx, tz] = [tip.x + dx, tip.z + dz];

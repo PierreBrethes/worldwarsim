@@ -100,7 +100,7 @@ import {
 import { boomsOfScene } from './timelines/booms';
 import {
   type Boom,
-  DRIVE_MPS,
+  DRIVE_LENGTHS,
   HOISTED_ROLES,
   hoistsOf,
   SPOT_ONTO_DECK,
@@ -3535,7 +3535,7 @@ export class MapEngine {
       case 'embarquement':
         // A cargo's men go up its gangway, and its tag is fed as each is through the door; the
         // second boarding of a hull, a beach, the other settings and a hull that cannot play pose
-        // the end at once (#479; the carrier and the vehicles are #506's and #505's).
+        // the end at once (#479; the carrier is #506's, the vehicles go up by the derrick, #505).
         if (this.sequences.motion === 'full' && cue.ground === 'quay') {
           if (this.hullBoardings.cue(cue, performance.now())) {
             // The rank holds where it stood until the men are up (`startHullBoarding`).
@@ -4403,8 +4403,12 @@ export class MapEngine {
       }
       return way;
     };
+    const lengthOf = (id: string) => {
+      const box = this.standing.pieceOf(id)?.box?.getSize(size);
+      return Math.max(box?.x ?? 0, box?.z ?? 0);
+    };
     const driveMs = (id: string, k: number) =>
-      measured(wayOf(id, k)).length / ((DRIVE_MPS * portMetre) / 1000);
+      measured(wayOf(id, k)).length / ((lengthOf(id) * DRIVE_LENGTHS) / 1000);
     const lifts = hoistsOf({
       booms,
       grounds: spots.map(({ ground }) => ground),

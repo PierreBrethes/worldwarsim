@@ -204,9 +204,10 @@ export function liftOf({
 }
 
 /** **The roles a mast lifts aboard** (a cargo's land units that are not men), and how fast one
- *  drives down the mole, in metres of the port a second. `@a-mesurer` */
+ *  drives down the mole, in its own lengths a second: a man walks 1.7 heights a second, so a tank
+ *  of 3.7 men's length at 1.7 lengths goes at the pace of 6 of his. `@a-mesurer` */
 export const HOISTED_ROLES: ReadonlySet<string> = new Set(['armor', 'landTransport', 'artillery']);
-export const DRIVE_MPS = 8;
+export const DRIVE_LENGTHS = 1.7;
 
 /** One vehicle to be lifted: how long it takes to drive to the spot of a boom (ms), and its height. */
 export type Hoisted = { readonly drive: (boom: number) => number; readonly height: number };

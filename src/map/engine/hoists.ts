@@ -6,8 +6,8 @@ import { Span } from './span';
  *  `@a-mesurer` */
 const CABLE_M = 0.12;
 const HOOK_M = 0.5;
-const CABLE_PX = 1.2;
-const HOOK_PX = 3;
+const CABLE_PX = 2;
+const HOOK_PX = 4;
 
 export type Strokes = (t: number) => ReadonlyArray<{
   readonly a: Vector3;
