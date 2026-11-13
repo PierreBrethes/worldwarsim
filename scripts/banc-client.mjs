@@ -347,15 +347,31 @@ function instrument() {
     }
     return rendered;
   };
-  /** Ce qui fait rendre un composant : son montage, son état, ses props, sinon un contexte. */
-  const causeOf = (node) =>
-    node.alternate === null
-      ? 'montage'
-      : node.memoizedState !== node.alternate.memoizedState
-        ? 'état'
-        : node.memoizedProps !== node.alternate.memoizedProps
-          ? 'props'
-          : 'contexte';
+  const preview = (value) =>
+    value === null || typeof value !== 'object'
+      ? String(value).slice(0, 24)
+      : Array.isArray(value)
+        ? `[${value.length}]`
+        : `{${Object.keys(value).slice(0, 3).join(',')}}`;
+  /** Ce qui fait rendre un composant : son montage, ses props, sinon les hooks à état (useState,
+   *  useSyncExternalStore : ceux qui portent une file) dont la valeur a changé, par leur rang et
+   *  un aperçu de la valeur ; rien de tout ça, un contexte. React recopie la liste des hooks à
+   *  chaque rendu : c'est hook par hook qu'on compare, pas sa tête. */
+  const causeOf = (node) => {
+    if (node.alternate === null) return 'montage';
+    const changed = [];
+    let hook = node.memoizedState;
+    let before = node.alternate.memoizedState;
+    for (let rank = 0; hook?.next !== undefined && before; rank++) {
+      if (hook.queue && hook.memoizedState !== before.memoizedState)
+        changed.push(`#${rank} ${preview(hook.memoizedState)}`);
+      hook = hook.next;
+      before = before.next;
+    }
+    const props = node.memoizedProps !== node.alternate.memoizedProps;
+    if (changed.length > 0) return `${props ? 'props, ' : ''}état ${changed.join(' ')}`;
+    return props ? 'props' : 'contexte';
+  };
   window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
     renderers: new Map(),
     supportsFiber: true,
