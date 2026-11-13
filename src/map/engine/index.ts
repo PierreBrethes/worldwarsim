@@ -83,7 +83,14 @@ import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
 import { Gangplanks } from './gangplanks';
 import { HullBoardings, type Started } from './hull-boardings';
-import { gangwayDoor, gangwayOf, plankFoot, quayWay } from './timelines/gangway';
+import {
+  boardingVerdict,
+  cutShort,
+  gangwayDoor,
+  gangwayOf,
+  plankFoot,
+  quayWay,
+} from './timelines/gangway';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
 import { veiledPiles } from './veils';
@@ -4261,14 +4268,14 @@ export class MapEngine {
     const box = this.standing.pieceOf(cue.hull)?.box;
     if (hull === null || role === undefined || box === undefined || box === null) return 'wait';
     const site = this.maquettes.siteOf(this.standing.restOf(cue.carrierId)?.site ?? '');
-    if (
-      role !== 'cargo' ||
-      this.standing.postOf(cue.hull) !== 'mole' ||
-      this.sequences.motion !== 'full' ||
-      this.veiled(hull.at) ||
-      !this.seenBig(box, BOARDING_PX)
-    )
-      return null;
+    const verdict = boardingVerdict({
+      role,
+      post: this.standing.postOf(cue.hull),
+      motion: this.sequences.motion,
+      veiled: this.veiled(hull.at),
+      big: this.seenBig(box, BOARDING_PX),
+    });
+    if (verdict !== 'play') return verdict;
     if (site === null) return 'wait';
     // The marks in the port's metres, as the file has it, a port laid in mirror turned back.
     const marks = ['fx_passerelle', 'fx_passerelle_tribord'].map((name) =>
@@ -4348,7 +4355,7 @@ export class MapEngine {
       end: () => {
         for (const id of drawn) this.standing.unboard(id);
         // Cut before its time (a hand on the pile, the zoom), the plank goes with the men.
-        if (performance.now() < now + plan.plank.up) this.gangplanks.clear(cue.hull);
+        if (cutShort(performance.now() - now, plan.through)) this.gangplanks.clear(cue.hull);
       },
     };
   }

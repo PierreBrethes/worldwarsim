@@ -145,3 +145,28 @@ function measured(path: ReadonlyArray<P3>) {
     },
   };
 }
+
+/**
+ * **Whether a boarding plays up the gangway**, from what the engine reads of its hull: `'play'`
+ * for a cargo at the mole's post, in the field, at full motion and not under a combat; `null` when
+ * it is posed at once (a carrier, a hull at the mole's side or in the roads, out of the field,
+ * under a combat, another setting); `'wait'` while the hull has no post yet — just docked, or its
+ * view just loaded — which the engine reads again until the wait is over. The role comes first:
+ * a carrier is refused whatever its post.
+ */
+export function boardingVerdict(hull: {
+  readonly role: string;
+  readonly post: string | null;
+  readonly motion: 'full' | 'reduced' | 'off';
+  readonly veiled: boolean;
+  readonly big: boolean;
+}): 'play' | 'wait' | null {
+  if (hull.role !== 'cargo' || hull.motion !== 'full' || hull.veiled || !hull.big) return null;
+  if (hull.post === null) return 'wait';
+  return hull.post === 'mole' ? 'play' : null;
+}
+
+/** **Whether the end of a boarding cuts it short**: a man still walks, `elapsed` ms after it
+ *  started; the plank goes with him. Once the last is through, it is taken in on its own. */
+export const cutShort = (elapsed: number, through: ReadonlyArray<number>): boolean =>
+  elapsed < Math.max(0, ...through) + 1;

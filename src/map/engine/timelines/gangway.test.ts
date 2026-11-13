@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { MOLE } from '@/emblems/kits/manifest';
-import { gangwayDoor, gangwayOf, plankAt, plankFoot, type P3, quayWay } from './gangway';
+import {
+  boardingVerdict,
+  cutShort,
+  gangwayDoor,
+  gangwayOf,
+  plankAt,
+  plankFoot,
+  type P3,
+  quayWay,
+} from './gangway';
 
 /** A cargo's two gangway marks in the port's metres, the mole on the `+x` side. */
 const NEAR = { x: 66, y: 3.6, z: 118 };
@@ -91,5 +100,52 @@ describe('gangwayOf (#479)', () => {
     const none = gangwayOf({ man: 1.8, squads: [{ men: [] }] });
     expect(none.squads[0]!.at(100)).toEqual({});
     expect(none.through).toEqual([0]);
+  });
+});
+
+describe('boardingVerdict (#479)', () => {
+  const ready = {
+    role: 'cargo',
+    post: 'mole',
+    motion: 'full',
+    veiled: false,
+    big: true,
+  } as const;
+
+  it('plays for a cargo at the mole, in the field, at full motion', () => {
+    expect(boardingVerdict(ready)).toBe('play');
+  });
+
+  it('poses a carrier at once: its coupée is #506’s', () => {
+    expect(boardingVerdict({ ...ready, role: 'carrier' })).toBeNull();
+  });
+
+  it('poses at once a hull at the mole’s side or in the roads: no gangway reaches it', () => {
+    expect(boardingVerdict({ ...ready, post: 'couple' })).toBeNull();
+    expect(boardingVerdict({ ...ready, post: 'roads' })).toBeNull();
+  });
+
+  it('waits while the hull has no post yet (just docked, or the view just loaded)', () => {
+    expect(boardingVerdict({ ...ready, post: null })).toBe('wait');
+  });
+
+  it('refuses a carrier whose post is not known either: the role comes first', () => {
+    expect(boardingVerdict({ ...ready, role: 'carrier', post: null })).toBeNull();
+  });
+
+  it('plays nothing under a combat, out of the field, or off full motion', () => {
+    expect(boardingVerdict({ ...ready, veiled: true })).toBeNull();
+    expect(boardingVerdict({ ...ready, big: false })).toBeNull();
+    expect(boardingVerdict({ ...ready, motion: 'reduced' })).toBeNull();
+    expect(boardingVerdict({ ...ready, motion: 'off' })).toBeNull();
+  });
+});
+
+describe('cutShort (#479)', () => {
+  it('is cut while a man still walks, and not once the last is through: the plank is taken in on its own', () => {
+    const through = [3000, 5000];
+    expect(cutShort(4000, through)).toBe(true);
+    expect(cutShort(5001, through)).toBe(false);
+    expect(cutShort(5400, through)).toBe(false);
   });
 });
