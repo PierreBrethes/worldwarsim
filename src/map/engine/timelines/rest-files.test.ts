@@ -49,7 +49,9 @@ describe('the apron, with the growth a plane is drawn at (#502)', () => {
   it('is the growth the engine lays its planes out at', () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const standing = readFileSync(join(here, '..', 'standing.ts'), 'utf-8');
-    expect(standing).toMatch(/restGrowth\(frame\.at\.distanceTo\(eye\), entry\.span \* entry\.sized\)/);
+    expect(standing).toMatch(
+      /restGrowth\(frame\.at\.distanceTo\(eye\), entry\.span \* entry\.sized\)/,
+    );
   });
 });
 
@@ -95,7 +97,11 @@ describe('the mole, with the growth a hull is drawn at (#479)', () => {
       // port mark; its starboard is its mirror (`site-kits.ts`).
       const mark = new Vector3();
       scene.getObjectByName('fx_passerelle')!.getWorldPosition(mark);
-      const marks = [mark.x, -mark.x].map((x) => ({ x: at!.x - x * k, y: 0, z: at!.z - mark.z * k }));
+      const marks = [mark.x, -mark.x].map((x) => ({
+        x: at!.x - x * k,
+        y: 0,
+        z: at!.z - mark.z * k,
+      }));
       const door = gangwayDoor(marks);
       expect(door.x).toBeLessThanOrEqual(MOLE.inner);
       expect(plankFoot(door)[0]).toBeGreaterThanOrEqual(MOLE.inner);
