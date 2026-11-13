@@ -87,7 +87,7 @@ import { maquettesOf, sealedSites } from './-plateau/maquettes';
 import { withVitrine } from './-plateau/vitrine';
 import { producingSites, workingSites } from '@/domain/producing';
 import type { Atlas } from '@/domain/atlas';
-import type { Shore } from '@/map/engine/sea';
+import type { Foundation } from '@/map/engine/sea';
 import { type HoveredRegion } from '@/domain/world';
 import {
   compassOf,
@@ -360,7 +360,7 @@ function BoardError({ error, reset }: { error: unknown; reset: () => void }) {
 function Board() {
   const entry = Route.useLoaderData();
   if (entry.state === 'none') return <NoGame />;
-  return <LiveBoard atlas={entry.atlas} shore={entry.shore} seat={entry.seat} />;
+  return <LiveBoard atlas={entry.atlas} ground={entry.ground} seat={entry.seat} />;
 }
 
 function NoGame() {
@@ -387,7 +387,7 @@ function NoGame() {
   );
 }
 
-function LiveBoard({ atlas, shore, seat }: { atlas: Atlas; shore: Shore; seat: Seat }) {
+function LiveBoard({ atlas, ground, seat }: { atlas: Atlas; ground: Foundation; seat: Seat }) {
   const { server, interrupted } = useBoardView(seat);
   usePresence(seat);
   // The adapted view is memoized because it is the identity every panel keys on: rebuilding
@@ -411,19 +411,19 @@ function LiveBoard({ atlas, shore, seat }: { atlas: Atlas; shore: Shore; seat: S
           {fr.board.linkLost}
         </div>
       )}
-      <BoardContent atlas={atlas} shore={shore} view={view} seat={seat} />
+      <BoardContent atlas={atlas} ground={ground} view={view} seat={seat} />
     </>
   );
 }
 
 function BoardContent({
   atlas,
-  shore,
+  ground,
   view,
   seat,
 }: {
   atlas: Atlas;
-  shore: Shore;
+  ground: Foundation;
   view: PlayerView;
   seat: Seat;
 }) {
@@ -2928,7 +2928,7 @@ function BoardContent({
                 <WorldMap
                   blitz={blitzTheatre === null ? null : { theatre: blitzTheatre }}
                   atlas={atlas}
-                  shore={shore}
+                  ground={ground}
                   arcs={view.arcs}
                   troops={view.me.troops}
                   columns={columns}

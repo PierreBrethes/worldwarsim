@@ -12,6 +12,7 @@ import type { LonLat } from '@/domain/geo';
 import { decodeGrid, landMaskOf, type GridAsset, type RouteGrid } from '@/domain/routing';
 import type { Projection } from '@/domain/world';
 import type { AmbientLayer } from './ambience';
+import type { SheetData } from './countries';
 import { distanceToLand } from './coast-distance';
 import { RECESSION, type WorldFrame } from './frame';
 import { PALETTE } from './palette';
@@ -23,13 +24,20 @@ import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from './regions';
 const TEXTURE_WIDTH = 600;
 const MARBLING_AMPLITUDE = 0.055;
 
+/** The marbling as bare texels, calculated off the main thread (`shore.worker.ts`). */
+export type SeaImage = {
+  readonly image: Uint8Array<ArrayBuffer>;
+  readonly width: number;
+  readonly height: number;
+};
+
 /**
  * The sea is a single ink, shore to open water: the texture only carries the paper's
  * marbling. Everything baked in texels that follows the coast — shadow, depth tint,
  * isobaths — pixelates at zoom; the geometric wash borders the coasts in its place
  * (see `coastal-wash.ts`), and the surf reads a distance field, which interpolates cleanly.
  */
-function seaTexture(world: Projection, anisotropy: number): DataTexture {
+function seaImage(world: Projection): SeaImage {
   const width = TEXTURE_WIDTH;
   const height = Math.round(
     (width * (world.sphere.maxY - world.sphere.minY)) / (world.sphere.maxX - world.sphere.minX),
@@ -61,6 +69,10 @@ function seaTexture(world: Projection, anisotropy: number): DataTexture {
     }
   }
 
+  return { image, width, height };
+}
+
+function seaTexture({ image, width, height }: SeaImage, anisotropy: number): DataTexture {
   const texture = new DataTexture(image, width, height);
   texture.magFilter = texture.minFilter = LinearFilter;
   texture.flipY = true;
@@ -70,9 +82,9 @@ function seaTexture(world: Projection, anisotropy: number): DataTexture {
   return texture;
 }
 
-export function seaMaterial(world: Projection, anisotropy: number): MeshStandardMaterial {
+export function seaMaterial(sea: SeaImage, anisotropy: number): MeshStandardMaterial {
   const material = new MeshStandardMaterial({
-    map: seaTexture(world, anisotropy),
+    map: seaTexture(sea, anisotropy),
     roughness: 0.98,
     metalness: 0,
     polygonOffset: true,
@@ -164,7 +176,7 @@ export class SeaLayer implements AmbientLayer {
     this.paper.value.set(PALETTE.foam).multiplyScalar(1 - 0.6 * night);
   }
 
-  /** The surf along the coast of the routing grid the engine loaded (`loadShore`). */
+  /** The surf along the coast of the routing grid the engine loaded (`shoreOf`). */
   shore(frame: WorldFrame, shore: Shore): void {
     if (this.disposed) return;
     const { grid } = shore;
@@ -347,29 +359,26 @@ export class SeaLayer implements AmbientLayer {
   }
 }
 
-export type Shore = { readonly grid: RouteGrid; readonly bytes: Uint8Array<ArrayBuffer> };
-let shoreField: Promise<Shore> | null = null;
+export type Shore = {
+  readonly grid: RouteGrid;
+  readonly bytes: Uint8Array<ArrayBuffer>;
+  readonly sea: SeaImage;
+};
 
-/** One download and one transform per page, whatever the engines: a remounted board reuses them.
- *  A failure is forgotten, so the next load tries afresh: without the grid the land would read
- *  as sea, which is worth an error. */
-export function loadShore(projection: Projection, url = '/grid.json'): Promise<Shore> {
-  shoreField ??= fetch(url)
-    .then((response) => {
-      if (!response.ok) throw new Error(`grid not found: ${url}`);
-      return response.json() as Promise<GridAsset>;
-    })
-    .then((asset): Shore => {
-      const grid = decodeGrid(asset, projection);
-      const distance = distanceToLand(landMaskOf(grid), grid.width, grid.height);
-      return { grid, bytes: coastBytes(distance, grid.width) };
-    })
-    .catch((error: unknown) => {
-      shoreField = null;
-      throw error;
-    });
-  return shoreField;
+/**
+ * **What the sea costs before it can be drawn**, from the baked grid: the grid itself, the coast's
+ * distance field and the marbling's texels. Pure and deterministic, so the worker that calls it
+ * (`shore.worker.ts`) hands the main thread the very arrays the engine used to calculate itself.
+ */
+export function shoreOf(asset: GridAsset, projection: Projection): Shore {
+  const grid = decodeGrid(asset, projection);
+  const distance = distanceToLand(landMaskOf(grid), grid.width, grid.height);
+  return { grid, bytes: coastBytes(distance, grid.width), sea: seaImage(projection) };
 }
+
+/** The board's ground as the engine takes it: the sea's field and texels, and the far level's
+ *  sheet, all built off the main thread and awaited by the loader (`loadGame`). */
+export type Foundation = Shore & { readonly far: SheetData };
 
 /** One byte per cell is a sixteenth of a cell at the cap: bilinear filtering does the rest. */
 function coastBytes(distance: Float32Array, width: number): Uint8Array<ArrayBuffer> {

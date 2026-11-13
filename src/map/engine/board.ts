@@ -16,7 +16,7 @@ import {
   SRGBColorSpace,
 } from 'three';
 import type { Projection } from '@/domain/world';
-import { seaMaterial, type SeaLayer } from './sea';
+import { seaMaterial, type SeaImage, type SeaLayer } from './sea';
 import { PALETTE } from './palette';
 import { PLINTH_HEIGHT, SEA_LEVEL, type WorldFrame } from './frame';
 
@@ -201,12 +201,13 @@ function woodGrain(anisotropy: number): CanvasTexture {
 export function buildBoard(
   world: Projection,
   frame: WorldFrame,
+  sea: SeaImage,
   anisotropy: number,
   swell: SeaLayer | null,
 ): { surface: Mesh; decor: Object3D[] } {
   const surface = new Mesh(
     buildSurface(world, frame),
-    swell ? swell.swell(seaMaterial(world, anisotropy)) : seaMaterial(world, anisotropy),
+    swell ? swell.swell(seaMaterial(sea, anisotropy)) : seaMaterial(sea, anisotropy),
   );
 
   const plinth = new Mesh(

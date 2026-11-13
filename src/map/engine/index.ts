@@ -215,7 +215,6 @@ import {
   COUNTRY_GAP_PX,
   levelAt,
   levelOf,
-  sheetData,
   showLevel,
   type CountryMesh,
   type CountrySheet,
@@ -243,7 +242,7 @@ import type { DepositCall } from '@/domain/construction';
 import type { DepositKey } from '@/domain/ids';
 import { COUNTRY_THICKNESS, PROJECTION, SEA_LEVEL, WorldFrame, framingDistanceOf } from './frame';
 import { SearchAreaLayer, type SearchArea } from './search-area';
-import { SeaLayer, type Shore } from './sea';
+import { SeaLayer, type Foundation } from './sea';
 import { MaquetteLayer, SOCLE_TOP, type SeaFront, type StandingMaquette } from './maquettes';
 import { BARE_MS, flagCues, HOIST_MS, LOWER_MS } from './site-marks';
 import {
@@ -1063,9 +1062,9 @@ export class MapEngine {
   constructor(
     private readonly container: HTMLElement,
     atlas: Atlas,
-    shore: Shore,
+    ground: Foundation,
   ) {
-    this.routeGrid = shore.grid;
+    this.routeGrid = ground.grid;
     this.frame = new WorldFrame(PROJECTION);
     this.tourInk = new TourInk(this.frame);
 
@@ -1126,11 +1125,12 @@ export class MapEngine {
     const board = buildBoard(
       PROJECTION,
       this.frame,
+      ground.sea,
       this.renderer.capabilities.getMaxAnisotropy(),
       this.sea,
     );
     if (this.sea) this.ambience.add(this.sea);
-    this.sea?.shore(this.frame, shore);
+    this.sea?.shore(this.frame, ground);
     this.surface = board.surface;
     this.night = new NightSky(
       this.scene,
@@ -1147,7 +1147,7 @@ export class MapEngine {
     this.scene.add(board.surface);
     for (const object of board.decor) this.scene.add(object);
 
-    this.farLevel = levelOf(sheetData(atlas, 'far', this.frame));
+    this.farLevel = levelOf(ground.far);
     this.sheet = buildCountries(this.farLevel, this.night.uniforms);
     const { meshes, borders, coast, wash } = this.sheet;
     this.countries = meshes;

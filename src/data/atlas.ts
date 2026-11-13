@@ -1,4 +1,5 @@
 import { decodeAtlas, type Atlas, type AtlasFile } from '@/domain/atlas';
+import type { SheetData } from '@/map/engine/countries';
 import type { NearSheet } from '@/map/engine/near-sheet';
 
 /**
@@ -6,7 +7,7 @@ import type { NearSheet } from '@/map/engine/near-sheet';
  * the board, `atlas-near.json` after it. The far file is kept, since the near arcs decode against
  * its objects. A failure is forgotten, so the next mount tries afresh.
  */
-function once<T>(make: () => Promise<T>): () => Promise<T> {
+export function once<T>(make: () => Promise<T>): () => Promise<T> {
   let promise: Promise<T> | null = null;
   return () =>
     (promise ??= make().catch((error: unknown) => {
@@ -34,14 +35,34 @@ export const loadNearAtlas = once(async (): Promise<NearAtlas> => {
   return { atlas: decodeAtlas(file, sheet.arcs), sheet };
 });
 
-function nearSheet(): Promise<NearSheet> {
+const nearSheet = () =>
+  answerOf<NearSheet>(
+    () =>
+      new Worker(new URL('../map/engine/near-sheet.worker.ts', import.meta.url), {
+        type: 'module',
+      }),
+    'near atlas',
+  );
+
+/** The far level's sheet, built by a worker like the near one (`far-sheet.worker.ts`): the loader
+ *  awaits it, so the engine only wraps arrays and the board never draws without its countries. */
+export const loadFarSheet = once(() =>
+  answerOf<SheetData>(
+    () =>
+      new Worker(new URL('../map/engine/far-sheet.worker.ts', import.meta.url), {
+        type: 'module',
+      }),
+    'far atlas',
+  ),
+);
+
+/** What a worker answers once, `null` for "I gave up"; the worker is gone after it. */
+export function answerOf<T>(make: () => Worker, what: string): Promise<T> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('../map/engine/near-sheet.worker.ts', import.meta.url), {
-      type: 'module',
-    });
-    worker.onmessage = ({ data }: MessageEvent<NearSheet | null>) => {
+    const worker = make();
+    worker.onmessage = ({ data }: MessageEvent<T | null>) => {
       worker.terminate();
-      if (data === null) reject(new Error('near atlas: the worker gave up'));
+      if (data === null) reject(new Error(`${what}: the worker gave up`));
       else resolve(data);
     };
     worker.onerror = (error) => {

@@ -1,7 +1,6 @@
 import type { Atlas } from '@/domain/atlas';
-import { PROJECTION } from '@/map/engine/frame';
-import { loadShore, type Shore } from '@/map/engine/sea';
-import { loadAtlas } from './atlas';
+import type { Foundation, Shore } from '@/map/engine/sea';
+import { answerOf, loadAtlas, loadFarSheet, once } from './atlas';
 import { convexClient } from './convexClient';
 import { readSeat, type Seat } from './session';
 
@@ -13,12 +12,21 @@ import { readSeat, type Seat } from './session';
  * immediately.
  */
 export type GameEntry =
-  { state: 'active'; atlas: Atlas; shore: Shore; seat: Seat } | { state: 'none' };
+  { state: 'active'; atlas: Atlas; ground: Foundation; seat: Seat } | { state: 'none' };
+
+/** The coast's field and the sea's texels, calculated by a worker (`shore.worker.ts`). */
+const loadShore = once(() =>
+  answerOf<Shore>(
+    () => new Worker(new URL('../map/engine/shore.worker.ts', import.meta.url), { type: 'module' }),
+    'grid',
+  ),
+);
 
 export async function loadGame(): Promise<GameEntry> {
   const seat = readSeat();
   if (!seat || !convexClient) return { state: 'none' };
-  /** La grille vient avec l'atlas : sans elle, la visée lirait toute la terre comme de la mer. */
-  const [atlas, shore] = await Promise.all([loadAtlas(), loadShore(PROJECTION)]);
-  return { state: 'active', atlas, shore, seat };
+  /** La grille vient avec l'atlas : sans elle, la visée lirait toute la terre comme de la mer. La
+   *  feuille « loin » aussi : l'écran ne montre jamais la carte sans ses pays. */
+  const [atlas, shore, far] = await Promise.all([loadAtlas(), loadShore(), loadFarSheet()]);
+  return { state: 'active', atlas, ground: { ...shore, far }, seat };
 }

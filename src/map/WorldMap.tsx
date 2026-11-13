@@ -36,7 +36,7 @@ import type { LonLat } from '@/domain/geo';
 import type { DisbandGround } from '@/domain/movement-orders';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
-import type { Shore } from './engine/sea';
+import type { Foundation } from './engine/sea';
 import { loadNearAtlas } from '@/data/atlas';
 import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
@@ -147,7 +147,7 @@ type Props = {
   /** The atlas at its far level; the near one is fetched after the board (ADR 0034). */
   atlas: Atlas;
   /** La grille de routage, chargée avec l'atlas : la visée la lit dès le premier clic. */
-  shore: Shore;
+  ground: Foundation;
   arcs: ReadonlyArray<ArcView>;
   /** My troops: a movement's wear is read on them, the arc does not carry strength. */
   troops: ReadonlyArray<TroopView>;
@@ -510,7 +510,7 @@ const NO_CUT = { unlinked: NO_REGIONS, producing: new Set<string>() };
 
 export function WorldMap({
   atlas,
-  shore,
+  ground,
   arcs,
   troops,
   columns,
@@ -664,7 +664,7 @@ export function WorldMap({
 
   useEffect(() => {
     if (!container.current) return;
-    const instance = new MapEngine(container.current, atlas, shore);
+    const instance = new MapEngine(container.current, atlas, ground);
     engine.current = instance;
     setReadyEngine(instance);
     if (import.meta.env.DEV || import.meta.env.VITE_BANC === '1')
@@ -708,7 +708,7 @@ export function WorldMap({
       engine.current = null;
       setReadyEngine(null);
     };
-  }, [atlas, shore]);
+  }, [atlas, ground]);
 
   // La Blitz n'exploite rien : ses gisements ne diraient rien qu'on puisse en faire.
   const basinsShown = indicators.deposits && blitz === null;
