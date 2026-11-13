@@ -279,6 +279,37 @@ describe('SequenceLayer', () => {
     expect(layer.active).toBe(false);
   });
 
+  describe('a piece judged elsewhere (#479)', () => {
+    class WholeHost extends FakeHost {
+      copyOf(): Object3D | null {
+        const squad = new Group();
+        squad.add(Object.assign(new Group(), { name: 'man_0' }));
+        return squad;
+      }
+    }
+    const walking = (anywhere: boolean): Sequence => ({
+      ms: 1000,
+      minPx: 0,
+      ...(anywhere ? { anywhere: true as const } : {}),
+      at: (t) => (t < 1000 ? { man_0: { travel: [t / 1000, 0, 0] } } : {}),
+    });
+
+    it('stops a squad that stands out of the field, as every piece does', () => {
+      const { layer } = layerOf(false);
+      expect(layer.play(new WholeHost(), 'a', walking(false), 0)).toBe(false);
+    });
+
+    it('plays on a squad that starts out of the field, and goes on while it stays out', () => {
+      const { layer } = layerOf(false);
+      const host = new WholeHost();
+      expect(layer.play(host, 'a', walking(true), 0)).toBe(true);
+      layer.step(500);
+      expect(layer.playsOn(host, 'a')).toBe(true);
+      layer.step(1000);
+      expect(layer.playsOn(host, 'a')).toBe(false);
+    });
+  });
+
   it('leaves what is not a rig part to its own: a hub that spins, a marker with smoke under it', async () => {
     const withHub = rig();
     const hub = new Group();

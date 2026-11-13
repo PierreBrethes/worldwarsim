@@ -99,6 +99,7 @@ export function gangwayOf(boarding: {
     return {
       ms,
       minPx: WALK_MIN_PX,
+      anywhere: true,
       at(t) {
         if (t < 0 || t >= ms) return {};
         const pose: Record<string, PartPose> = {};

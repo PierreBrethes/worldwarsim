@@ -84,6 +84,10 @@ export type Sequence<F extends RigFamily = RigFamily> = {
   /** **A column deploying at its arrival** (#362) plays on a ceiling of its own
    *  (`MAX_DEPLOYING`): a file of six must not wait on the barracks' doors, nor shut them. */
   readonly pool?: 'deployment' | 'site';
+  /** **Judged elsewhere**: it plays and goes on whether or not its piece is in the field, for
+   *  what the caller judged on another piece — the men of a hull's boarding walk in from out of the
+   *  image, the hull is the one seen (#479). */
+  readonly anywhere?: true;
   /** It plays at reduced motion too: a held pose, nothing moves (the file that holds, #362). */
   readonly reduced?: true;
   at(t: number): Pose<F>;
@@ -372,7 +376,8 @@ export class SequenceLayer {
     if (this.playsOn(host, id)) return false;
     const piece = host.pieceOf(id);
     const { family } = sequence;
-    const seen = (box: Box3 | null) => box === null || this.sees(box, sequence.minPx ?? PLAY_PX);
+    const seen = (box: Box3 | null) =>
+      sequence.anywhere === true || box === null || this.sees(box, sequence.minPx ?? PLAY_PX);
     // A box still unknown (a lot just rebuilt) is not judged now: `step` judges it once known. A
     // piece that moves whole is judged once posed: where its walk starts counts as its rank.
     if (piece === null || (family !== undefined && !seen(piece.box))) return false;
@@ -444,7 +449,9 @@ export class SequenceLayer {
         !this.plays(playing.sequence) ||
         t >= playing.sequence.ms ||
         piece === null ||
-        (piece.box !== null && !this.sees(piece.box, playing.sequence.minPx ?? PLAY_PX))
+        (playing.sequence.anywhere !== true &&
+          piece.box !== null &&
+          !this.sees(piece.box, playing.sequence.minPx ?? PLAY_PX))
       ) {
         this.finish(playing);
         continue;

@@ -155,3 +155,10 @@ describe('cutShort (#479)', () => {
     expect(cutShort(5400, through)).toBe(false);
   });
 });
+
+describe('the men of a boarding (#479)', () => {
+  it('walk in from out of the field: the hull is the piece judged, not each man', () => {
+    const { squads } = gangwayOf({ man: 1.8, squads: [squad(0)] });
+    expect(squads[0]!.anywhere).toBe(true);
+  });
+});
