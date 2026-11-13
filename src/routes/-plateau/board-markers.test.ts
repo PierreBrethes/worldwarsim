@@ -85,6 +85,28 @@ describe('standingPilesOf', () => {
     expect(facing.map((pile) => pile.facing)).toEqual([90]);
   });
 
+  it('gives a pile the heading of the first troop of the list that has one, whatever the pile’s order (#560)', () => {
+    const at = { kind: 'point', lonLat: [1, 2] } as const;
+    const piles = standingPilesOf(
+      meWith([
+        troop('a', at),
+        { ...troop('c', at), facing: 270 },
+        { ...troop('b', at), facing: 90 },
+      ]),
+      [
+        {
+          kind: 'stack',
+          id: 'p',
+          lonLat: [1, 2],
+          pieces: { groups: [], troopIds: ['b', 'a', 'c'], squad: false },
+        } as never,
+      ],
+      new Set(),
+      false,
+    );
+    expect(piles.map((pile) => pile.facing)).toEqual([270]);
+  });
+
   it('leaves a marching troop out of the garrison it left', () => {
     const station = { kind: 'outpost', outpostId: 'o1' } as const;
     expect(standingPilesOf(meWith([troop('a', station)]), [], new Set(['a']), false)).toEqual([]);

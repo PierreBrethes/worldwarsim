@@ -378,6 +378,7 @@ export function standingPilesOf(
   marching: ReadonlySet<string>,
   blitz: boolean,
 ): ReadonlyArray<StandingPile> {
+  const headings = headingsOf(me.troops);
   return [
     ...markers.flatMap((marker) =>
       marker.kind === 'stack'
@@ -385,7 +386,7 @@ export function standingPilesOf(
         : [],
     ),
     ...garrisonPiles(me, marching),
-  ].map((pile) => withFacing(blitz ? blitzPile(pile, me.troops) : pile, me.troops));
+  ].map((pile) => withFacing(blitz ? blitzPile(pile, me.troops) : pile, headings));
 }
 
 export const campsOf = (markers: ReadonlyArray<MapMarker>) =>
@@ -558,11 +559,30 @@ export function marchingPiecesOf(
 
 /** **Le cap de la pile** (#362) : celui de ses troupes, qu'une arrivée leur donne à toutes ; une
  *  pile de point seulement — une garnison d'avant-poste pend à son étiquette et ne se tourne pas. */
-function withFacing(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
+function withFacing(
+  pile: StandingPile,
+  headings: ReadonlyMap<string, { readonly rank: number; readonly facing: number }>,
+): StandingPile {
   if (!('lonLat' in pile.at) || pile.label !== undefined) return pile;
-  const here = new Set(pile.pieces.troopIds);
-  const facing = troops.find((troop) => here.has(troop.id) && troop.facing !== undefined)?.facing;
-  return facing === undefined ? pile : { ...pile, facing };
+  let first: { readonly rank: number; readonly facing: number } | undefined;
+  for (const id of pile.pieces.troopIds) {
+    const heading = headings.get(id);
+    if (heading !== undefined && (first === undefined || heading.rank < first.rank))
+      first = heading;
+  }
+  return first === undefined ? pile : { ...pile, facing: first.facing };
+}
+
+/** Each troop's heading and its rank in the list, read once: the pile takes the lowest rank's, as
+ *  a `find` through the list would (#560: a thousand piles made that a thousand scans). */
+function headingsOf(
+  troops: ReadonlyArray<TroopView>,
+): ReadonlyMap<string, { readonly rank: number; readonly facing: number }> {
+  const headings = new Map<string, { readonly rank: number; readonly facing: number }>();
+  troops.forEach(({ id, facing }, rank) => {
+    if (facing !== undefined && !headings.has(id)) headings.set(id, { rank, facing });
+  });
+  return headings;
 }
 
 function blitzPile(pile: StandingPile, troops: ReadonlyArray<TroopView>): StandingPile {
