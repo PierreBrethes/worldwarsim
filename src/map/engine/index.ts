@@ -4243,6 +4243,7 @@ export class MapEngine {
     const motion = this.sequences.motion;
     const unseen = motion !== 'full' || this.veiled(truck.at) || !this.seenWhole(truck.at);
     const plane = cue.carrier === 'airTransport';
+    const yard = plane ? this.standing.yardOf(pileId) : null;
     // A plane's door and foot are read off the model drawn: not before it stands.
     const flight = plane && !unseen ? this.planeRigOf(cue.truck) : null;
     if (plane && !unseen && flight === null) return false;
@@ -4268,6 +4269,7 @@ export class MapEngine {
               },
               man: height,
               squads,
+              ...(yard === null ? {} : { muster: [yard.x, yard.z] as const }),
             })
           : boardingOf({
               down: false,

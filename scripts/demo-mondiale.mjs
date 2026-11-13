@@ -286,9 +286,10 @@ const gestureAfter = (flag) => {
   const at = process.argv.indexOf(flag);
   return at < 0 ? null : Number(process.argv[at + 1]) || 25;
 };
-/** `--avion [s]` (#502) : l'aérodrome de `--largage`, deux fantassins et un char dans sa garnison ;
+/** `--avion [s]` (#502) : l'aérodrome de `--largage`, deux fantassins dans sa garnison ;
  *  dans s secondes (25 par défaut) les deux fantassins montent dans le transport par un ordre de
- *  joueur (`movements.board`). Le char reste : le lâcher sur l'avion est refusé. Lieu `aerodrome`. */
+ *  joueur (`movements.board`). Avec `--char`, un char attend dans la garnison : le lâcher sur
+ *  l'avion est refusé (le rang de la garnison couvre alors le pied de la porte). Lieu `aerodrome`. */
 const planeBoardIn = gestureAfter('--avion');
 const airdrops =
   planeBoardIn !== null ||
@@ -859,7 +860,7 @@ if (!bare) {
     pile.avion = {
       carrier: me.troops.find((troop) => troop.role === 'airTransport').id,
       riders: garrison('infantry', 2),
-      tank: garrison('armor', 1)[0],
+      tank: process.argv.includes('--char') ? garrison('armor', 1)[0] : null,
     };
   }
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
@@ -2278,7 +2279,7 @@ const gestures = [
           troopIds: riders,
           carrierId: carrier,
         });
-        return 'fantassins à bord de l\'avion';
+        return "fantassins à bord de l'avion";
       },
     ],
   landingIn !== null &&

@@ -191,6 +191,8 @@ const GLIDE_MS = 500;
 /** How long a pile waits for the sequence `expect` promised before it stands at once: past the
  *  engine's own wait for a pile to stand (`SORTIE_WAIT_MS`). */
 const EXPECT_MS = 2500;
+/** How far past an airfield's façades its garrison steps out onto the yard, in metres. `@a-mesurer` */
+const YARD_MOUTH = 4;
 /** How long where a group stood is kept (`lastSeen`): the view that moved it is long in. */
 const SEEN_MS = 3000;
 /** **A column joining a pile halts at its edge** (#277): so far out of its footprint, in steps. */
@@ -1133,6 +1135,16 @@ export class StandingLayer implements SequenceHost {
         .sort((a, b) => (a.name < b.name ? -1 : 1))
         .map((man) => man.getWorldPosition(new Vector3())),
     };
+  }
+
+  /** **Where an airfield's garrison steps out onto its yard** (#502), on the board: the mouth of
+   *  the alley between its hangars, a little past their façades. `null` for a pile that stands
+   *  beside no site. */
+  yardOf(pileId: string): Vector3 | null {
+    const entry = this.dressed.get(pileId);
+    if (entry === undefined || !('beside' in entry.at)) return null;
+    const frame = this.garrisonAt(entry.at.beside, entry.span, false);
+    return frame?.toBoard(new Vector3(0, AIRFIELD.top, AIRFIELD.facade + YARD_MOUTH)) ?? null;
   }
 
   /** **A plane drawn, read for its boarding** (#502), with its file's door and foot. `null`

@@ -65,6 +65,9 @@ export type PlaneBoarding = {
   };
   readonly man: number;
   readonly squads: ReadonlyArray<{ readonly men: ReadonlyArray<Flat> }>;
+  /** Where the men step out onto the plane's yard before they head for it, when their rank does
+   *  not stand in its sight: the airfield's garrison stands between its hangars (#502). */
+  readonly muster?: Flat;
 };
 
 /** The provisional plank at an instant: its two ends on the board, and its size in board units. */
@@ -94,7 +97,7 @@ export function planeBoardingOf(
   readonly ring: { readonly at: Flat; readonly ms: number } | null;
   readonly settled: number;
 } {
-  const { plane, man, squads } = boarding;
+  const { plane, man, squads, muster } = boarding;
   if (motion !== 'full') {
     const ring = motion === 'reduced' ? { at: plane.at, ms: RAZE_RING_MS } : null;
     return { plane: null, squads: [], plank: () => null, ring, settled: ring?.ms ?? 0 };
@@ -140,13 +143,19 @@ export function planeBoardingOf(
     start: number;
     climbAt: number;
   };
-  // Each man goes along his column to the foot's depth, across to the side, then in.
+  // Each man goes along his column to the foot's depth, or out to the muster point, across to the
+  // side, then in.
   const men: Man[] = squads.flatMap(({ men: places }, squad) =>
     places.map((place, k) => ({
       squad,
       k,
       place,
-      way: wayOf([place, toBoard([toLocal(place)[0], sideLocal[1]]), toBoard(sideLocal), foot]),
+      way: wayOf([
+        place,
+        muster ?? toBoard([toLocal(place)[0], sideLocal[1]]),
+        toBoard(sideLocal),
+        foot,
+      ]),
       start: 0,
       climbAt: 0,
     })),
@@ -154,7 +163,9 @@ export function planeBoardingOf(
   const speed = (MAN_SPEED * man) / 1000;
   const walk = (x: Man): number => x.way.length / speed;
   // A man waits at his place until he can reach the foot just as the one before has climbed.
-  let free = T.open + T.door + T.plank;
+  // The door opens as the first man nears the foot, or at once when he is there already.
+  const open = Math.max(T.open, T.first + Math.min(...men.map(walk)) - T.door * 0.6 - T.plank);
+  let free = open + T.door + T.plank;
   [...men]
     .sort((a, b) => a.way.length - b.way.length)
     .forEach((x, i) => {
@@ -164,7 +175,7 @@ export function planeBoardingOf(
       free = climb + T.climb * 0.8;
     });
   const lastIn = Math.max(...men.map((x) => x.climbAt)) + T.climb;
-  const plankDown = T.open + T.door * 0.6;
+  const plankDown = open + T.door * 0.6;
   const plankUp = lastIn + T.after;
   const shut = plankUp + T.plank;
   const total = shut + T.doorShut + T.rest;
@@ -176,8 +187,7 @@ export function planeBoardingOf(
     at(t) {
       if (t < 0 || t >= total) return {};
       const k =
-        ease.out3(span(t, T.open, T.open + T.door)) *
-        (1 - ease.in2(span(t, shut, shut + T.doorShut)));
+        ease.out3(span(t, open, open + T.door)) * (1 - ease.in2(span(t, shut, shut + T.doorShut)));
       return k > 0 ? { cabin_door: { turn: [0, -DOOR_ANGLE * k, 0] } } : {};
     },
   };

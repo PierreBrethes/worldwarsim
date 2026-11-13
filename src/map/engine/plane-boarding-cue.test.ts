@@ -22,6 +22,7 @@ describe('a plane boarding cue (#502)', () => {
   } = {}) {
     const { MapEngine } = await import('./index');
     const played: string[] = [];
+    const sequences = new Map<string, unknown>();
     const arrive = vi.fn();
     const unboard = vi.fn();
     const inkArrival = vi.fn();
@@ -45,7 +46,11 @@ describe('a plane boarding cue (#502)', () => {
       sequences: {
         motion,
         room,
-        play: (_host: unknown, id: string) => (played.push(id), true),
+        play: (_host: unknown, id: string, sequence: unknown) => (
+          played.push(id),
+          sequences.set(id, sequence),
+          true
+        ),
         retime: vi.fn(),
       },
       standing: {
@@ -58,6 +63,7 @@ describe('a plane boarding cue (#502)', () => {
           url: 'plane.glb',
           box: { getSize: (to: Vector3) => to.set(0.01, 0.0175, 0.01) },
         }),
+        yardOf: () => new Vector3(-0.1, 0, 0.4),
         rigOf: () => rig,
         lastSeen: () => ({ at: new Vector3(), heading: 0 }),
         board: (_pile: string, riders: Array<{ troopId: string }>) =>
@@ -74,7 +80,7 @@ describe('a plane boarding cue (#502)', () => {
       planks: unknown[];
       inkDue: Array<{ at: number; run: () => void }>;
     };
-    return { run, played, arrive, unboard, inkArrival, add, onBoarded };
+    return { run, played, sequences, arrive, unboard, inkArrival, add, onBoarded };
   }
 
   it('queues the boarding of a plane as of a truck, and holds its pile', async () => {
@@ -111,6 +117,26 @@ describe('a plane boarding cue (#502)', () => {
     const due = run.inkDue.find(({ at }) => at === 1000 + settled)!;
     due.run();
     expect(onBoarded).toHaveBeenCalledWith('plane', ['a', 'b']);
+  });
+
+  it("steps the men out onto the airfield's yard before they head for the plane", async () => {
+    const { run, sequences } = await engineOf();
+    run.cue(cue());
+    run.boardOf(run.boardings[0], 1000);
+    const squad = sequences.get('p/+a') as {
+      ms: number;
+      at(t: number): Record<string, { travel?: readonly number[] }>;
+    };
+    // The man stands at (0.1, 0.2); the yard is at (-0.1, 0.4): he passes it.
+    const nearest = Math.min(
+      ...Array.from({ length: Math.ceil(squad.ms / 20) }, (_, k) => {
+        const travel = squad.at(k * 20).man_0?.travel;
+        return travel === undefined
+          ? Infinity
+          : Math.hypot(0.1 + travel[0]! + 0.1, 0.2 + travel[2]! - 0.4);
+      }),
+    );
+    expect(nearest).toBeLessThan(0.004);
   });
 
   it("waits while the plane's model has not landed: no door to read", async () => {
