@@ -108,6 +108,7 @@ export function journalDispatches(
       combat: entry.combat ?? null,
       place: entry.place ?? null,
       ...(entry.delivered === undefined ? {} : { delivered: entry.delivered }),
+      ...(entry.airdrop === undefined ? {} : { airdrop: entry.airdrop }),
       ...(entry.built === true ? { built: true as const } : {}),
       ...(entry.stood === undefined ? {} : { stood: entry.stood }),
       ...(entry.point === undefined ? {} : { point: entry.point }),
@@ -127,6 +128,7 @@ type Written = {
   readonly combat?: CombatReport;
   readonly place?: MapPlace | null;
   readonly delivered?: SupplyLoad;
+  readonly airdrop?: NonNullable<JournalDispatch['airdrop']>;
   readonly built?: true;
   readonly stood?: NonNullable<JournalDispatch['stood']>;
   readonly point?: NonNullable<JournalDispatch['point']>;
@@ -588,6 +590,10 @@ function written(notice: Notice): Written {
           supplyWords(notice.kept),
           notice.squad === true,
         ),
+        airdrop: {
+          delivered: supplyWords(notice.delivered) !== '',
+          squad: notice.squad === true,
+        },
       };
     case 'firedDry':
       return {

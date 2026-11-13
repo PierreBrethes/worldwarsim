@@ -75,6 +75,8 @@ type RenderedArc = {
   /** The size of the port it leaves and the one it reaches, its hull drawn at it there (#433);
    *  1 away from a port of mine. */
   readonly quays: { start: number; end: number };
+  /** Its pawn waits out of sight for the copy of the plane that dropped (`holdBack`, #508). */
+  heldBack: boolean;
 };
 
 /** **A hull takes its size, or its port's, in this time** as it leaves or reaches the quay (#433):
@@ -233,6 +235,34 @@ export class ArcLayer {
       return last !== undefined && samePoint(last, end);
     });
   }
+  /** **The planes of the outward airdrop arcs that just went** (#508), by their target: what the
+   *  copy that plays the drop takes up (`takeFlown`). */
+  private flown: Array<{
+    readonly to: LonLat;
+    readonly piece: { readonly url: string; readonly pose?: RestPose };
+    readonly heading: number;
+    readonly since: number;
+  }> = [];
+  /** Where the plane drops are playing, until when: the plane of the return arc that starts
+   *  there is the same, and waits (`holdBack`). */
+  private waiting: Array<{ readonly at: LonLat; readonly until: number }> = [];
+
+  /** **The plane of the outward airdrop arc that ended at `at`**, as it was: the model and the
+   *  way it flew. Taken once; `null` for none, or a view that came long after. */
+  takeFlown(at: LonLat): { piece: { url: string; pose?: RestPose }; heading: number } | null {
+    const now = performance.now();
+    const k = this.flown.findIndex(({ to, since }) => samePoint(to, at) && now - since <= LEFT_MS);
+    if (k < 0) return null;
+    const [{ piece, heading }] = this.flown.splice(k, 1) as [(typeof this.flown)[number]];
+    return { piece, heading };
+  }
+
+  /** **The plane that flies home from `at` stays out of sight until `until`** (#508): its copy is
+   *  flying the pass over its target, and two planes would be drawn. */
+  holdBack(at: LonLat, until: number): void {
+    this.waiting = [...this.waiting.filter((held) => !samePoint(held.at, at)), { at, until }];
+  }
+
   /** When each hull of mine was first drawn past its departure (`sailing`), by movement id. */
   private readonly sailedAt = new Map<string, number>();
   /** **Pawns held at their socle's foot** (#278), by movement id: the share of their way they
@@ -521,7 +551,16 @@ export class ArcLayer {
     }
     for (const [troopId, { since }] of this.left)
       if (now - since > LEFT_MS) this.left.delete(troopId);
+    this.flown = this.flown.filter(({ since }) => now - since <= LEFT_MS);
     for (const gone of previous.values()) {
+      const model = gone.pawn.riderFigurine;
+      if (gone.arc.state === 'mine' && gone.arc.airdrop === 'out' && model?.url !== undefined)
+        this.flown.push({
+          to: gone.arc.to,
+          piece: { url: model.url, ...(model.pose === undefined ? {} : { pose: model.pose }) },
+          heading: gone.pawn.facing,
+          since: now,
+        });
       const file = gone.pawn.lastFile();
       for (const piece of file?.pieces ?? [])
         this.left.set(piece.troopId, { ...piece, road: file!.road, since: now });
@@ -644,6 +683,7 @@ export class ArcLayer {
       sight: sightOf(thread.legs, rest),
       loadingUntil: null,
       quays,
+      heldBack: false,
     };
   }
 
@@ -785,6 +825,11 @@ export class ArcLayer {
         rendered.relic.scale.setScalar(scale);
         rendered.relic.rotation.set(0, this.cameraYaw, 0);
       }
+      const waits = this.waitsForCopy(rendered.arc, now);
+      if (waits || rendered.heldBack) {
+        rendered.heldBack = waits;
+        rendered.pawn.visible = !waits && (this.inking.get(rendered.arc.id) ?? 0) <= now;
+      }
       const inkedUntil = this.inking.get(rendered.arc.id);
       if (inkedUntil !== undefined && now >= inkedUntil) {
         this.inking.delete(rendered.arc.id);
@@ -866,6 +911,11 @@ export class ArcLayer {
       }
     }
     if (now - this.inkReadMs >= HEARTBEAT_MS) this.fadeLastKnown(now, clock);
+  }
+
+  private waitsForCopy(arc: ArcView, now: number): boolean {
+    if (arc.state !== 'mine' || arc.airdrop !== 'back') return false;
+    return this.waiting.some(({ at, until }) => until > now && samePoint(at, arc.from));
   }
 
   /**

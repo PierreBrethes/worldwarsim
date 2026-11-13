@@ -1109,6 +1109,19 @@ export class StandingLayer implements SequenceHost {
     return best?.id ?? null;
   }
 
+  /** **Every group standing on the board**, where it is: what a crate dropped on a squad goes to
+   *  the nearest of (#508). */
+  placedGroups(): Array<{ id: string; x: number; z: number }> {
+    const placed: Array<{ id: string; x: number; z: number }> = [];
+    for (const [pileId, entry] of this.dressed)
+      for (const k of entry.pieces.groups.keys()) {
+        const id = `${pileId}/${k}`;
+        const place = this.placeOf(id);
+        if (place !== null) placed.push({ id, x: place.at.x, z: place.at.z });
+      }
+    return placed;
+  }
+
   /** What a pile stands, as dressed here. */
   piecesOf(pileId: string): PilePieces | null {
     return this.dressed.get(pileId)?.pieces ?? null;

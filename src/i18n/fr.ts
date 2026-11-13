@@ -2612,6 +2612,8 @@ export const fr = {
     arrived: 'arrivé',
     /** Un paquet descendu sous parachute (4.8). */
     airdropped: 'largué',
+    /** Un largage où rien n'est descendu : le dépôt plein, l'escouade partie ou déjà pleine. */
+    airdropRefused: 'refusé',
     /** **Les échanges de la Mondiale**, tamponnés à la réponse du serveur ou à la dépêche. */
     exchange: {
       built: 'bâti',

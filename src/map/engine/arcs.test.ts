@@ -33,6 +33,7 @@ vi.mock('./figurines/figurine', async (original) => ({
     return {
       object,
       span: role === 'artillery' ? 0.012 : 0.006,
+      ...(role === 'airTransport' ? { url: 'air-transport.glb' } : {}),
       ready: Promise.resolve(),
       spin() {},
       standIn(copy: Object3D | null) {
@@ -232,6 +233,54 @@ describe('ArcLayer.display', () => {
     vi.useRealTimers();
     expect(arcs.pawns[0]).not.toBe(fresh);
     expect(fresh!.parent).toBeNull();
+  });
+});
+
+describe('ArcLayer: the plane of an airdrop that has just flown (#508)', () => {
+  const flight = (id: string, leg: 'out' | 'back', from: [number, number], to: [number, number]) =>
+    ({
+      ...mine(id, to),
+      from,
+      stack: { airTransport: 1 },
+      route: directRoute(from, to, 'air', 10),
+      airdrop: leg,
+      // Halfway: the pawn has gone forward, so it has a heading.
+      schedule: {
+        departedAt: Date.now() - 1_000,
+        arrivesAt: Date.now() + 1_000,
+        heldAt: null,
+        holdUntil: null,
+      },
+    }) as ArcView;
+
+  it('keeps the model and the heading of the plane whose outward arc goes, taken once', () => {
+    const arcs = layer();
+    arcs.display([flight('a', 'out', [0, 0], [10, 5])]);
+    arcs.display([]);
+    const flown = arcs.takeFlown([10, 5]);
+    expect(flown?.piece.url).toBe('air-transport.glb');
+    expect(Math.abs(flown!.heading)).toBeGreaterThan(0.5);
+    expect(arcs.takeFlown([10, 5])).toBeNull();
+  });
+
+  it('keeps nothing for another arc that goes, nor for a plane that is still flying', () => {
+    const arcs = layer();
+    arcs.display([mine('m', [3, 3]), flight('a', 'out', [0, 0], [10, 5])]);
+    arcs.display([flight('a', 'out', [0, 0], [10, 5])]);
+    expect(arcs.takeFlown([3, 3])).toBeNull();
+    expect(arcs.takeFlown([10, 5])).toBeNull();
+  });
+
+  it('keeps the plane that flies back out of sight until the copy has flown on', () => {
+    const arcs = layer();
+    arcs.display([flight('b', 'back', [10, 5], [0, 0])]);
+    const [pawn] = arcs.pawns;
+    arcs.holdBack([10, 5], performance.now() + 10_000);
+    arcs.animate();
+    expect(pawn!.visible).toBe(false);
+    arcs.holdBack([10, 5], 0);
+    arcs.animate();
+    expect(pawn!.visible).toBe(true);
   });
 });
 

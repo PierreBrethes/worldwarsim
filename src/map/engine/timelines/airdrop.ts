@@ -29,6 +29,12 @@ const BAY_LEAD_MS = 600;
 const BAY_OPEN_MS = 500;
 const BAY_SHUT_MS = 600;
 const BAY_ANGLE = Math.PI / 2;
+/** **Where the host plays the pass from** (#508): the pawn of the outward arc stands over the
+ *  target when it vanishes, so the copy takes it up the instant its door starts to open, a few
+ *  metres short of the target (42 m at 0.6 s), and not 160 m back where the pass begins. */
+export const ENTRY_MS = PASS_MS - BAY_LEAD_MS;
+/** How long a plane of the pass is in view once played from `ENTRY_MS`. */
+export const FLY_ON_MS = 2 * PASS_MS - ENTRY_MS;
 /** The canopy fills over 0.35 s, from 0.25 s into the fall; on the ground it sinks over 0.5 s
  *  (`T.canopy`, `T.settle`). `@a-mesurer` */
 const CANOPY_AT_MS = 250;

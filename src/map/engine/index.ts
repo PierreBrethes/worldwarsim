@@ -88,6 +88,7 @@ import { veiledPiles } from './veils';
 import { HeldBursts } from './held-bursts';
 import { afloat, sceneSpan, stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
+import { FLY_ON_MS } from './timelines/airdrop';
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
 import { deployAt, deployMs } from './timelines/deploy';
@@ -193,6 +194,7 @@ import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
 import { brightest, Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
+import { Airdrops, airdropPlan, takerOffset } from './airdrops';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
@@ -819,6 +821,8 @@ export class MapEngine {
   private heldGround: Vector3 | null = null;
   private readonly ink: InkLayer;
   private readonly parachutes: ParachuteLayer;
+  /** A largage played at true size, a plane over its target (#508). */
+  private readonly airdrops: Airdrops;
   private readonly reach: ReachRing;
   /** My outposts' reaches and liaisons (#375). */
   private readonly zones: OutpostZones;
@@ -1295,6 +1299,8 @@ export class MapEngine {
     this.scene.add(this.ink.group);
     this.parachutes = new ParachuteLayer(this.frame);
     this.scene.add(this.parachutes.group);
+    this.airdrops = new Airdrops(() => this.invalidate());
+    this.scene.add(this.airdrops.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.zones.object);
     this.scene.add(this.aimRibbon.group);
@@ -1424,8 +1430,40 @@ export class MapEngine {
     this.invalidate();
     if (burst.kind === 'held' && burst.combatId !== undefined) return this.groundWords.hold(burst);
     if (burst.from !== undefined) this.shots.hold(burst);
-    if (burst.kind === 'airdropped') this.parachutes.release(burst.at, performance.now());
+    if (burst.kind === 'airdropped') this.dropAt(burst);
     this.ink.burst(burst, performance.now());
+  }
+
+  /**
+   * **A largage is played where the view learns it** (#508, `airdropPlan`): the copy of the plane
+   * that was a pawn flies its pass over the target and the crate falls at true size to the piece
+   * that takes it; the plane that flies home waits out of sight until the copy has flown on.
+   * Far, or with no pawn kept (the absence tour), the packet falls in pixels as it always did.
+   */
+  private dropAt(burst: InkBurst): void {
+    const now = performance.now();
+    const delivered = burst.delivered ?? true;
+    const flown = this.arcs.takeFlown(burst.at);
+    const target = this.frame.projectLonLat(burst.at, COUNTRY_THICKNESS);
+    const plan = airdropPlan({
+      delivered,
+      motion: this.sequences.motion,
+      flown: flown !== null,
+      whole: !this.veiled(target) && this.seenWhole(target, troopSpan('airTransport')),
+    });
+    if (plan === 'pixels') this.parachutes.release(burst.at, now);
+    if (plan !== 'plane' || flown === null) return;
+    this.arcs.holdBack(burst.at, now + FLY_ON_MS);
+    void this.airdrops.play({
+      piece: flown.piece,
+      at: target,
+      heading: flown.heading,
+      delivered,
+      to:
+        delivered && burst.squad === true
+          ? takerOffset(this.standing.placedGroups(), target, pieceScale.size)
+          : null,
+    });
   }
 
   /** The stamps of `kind`, or all of them, taken up in a quarter of a second: a replay that is
@@ -2654,6 +2692,7 @@ export class MapEngine {
     this.arcs.dispose();
     this.ink.dispose();
     this.parachutes.dispose();
+    this.airdrops.dispose();
     this.regions.dispose();
     this.drawings.dispose();
     this.basins.dispose();
@@ -5531,6 +5570,7 @@ export class MapEngine {
     if (
       this.ink.active ||
       this.parachutes.active ||
+      this.airdrops.active ||
       this.maquettes.settling ||
       this.sequences.active ||
       this.walks.length > 0 ||
@@ -5607,6 +5647,7 @@ export class MapEngine {
     this.ink.animate(now, this.unitsPerPixel(distance));
     this.combats.scaleInk(this.unitsPerPixel(distance), this.screenHeight);
     this.parachutes.animate(now, this.unitsPerPixel(distance));
+    this.airdrops.animate(now);
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
@@ -5747,7 +5788,13 @@ export class MapEngine {
     this.renderer.shadowMap.needsUpdate =
       whole && (reason !== 'flow' || this.arcs.marching || pilesMoved);
     const shadowed = this.lamp.follow(this.controls.target, distance);
-    const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
+    const pieces = [
+      this.standing.group,
+      this.maquettes.group,
+      this.camps.group,
+      this.arcs.group,
+      this.airdrops.group,
+    ];
     if (this.replay) pieces.push(this.replay.scene.object);
     pieces.push(this.combats.group, this.razes.group);
     if (shadowed && whole) for (const root of pieces) castShadows(root);

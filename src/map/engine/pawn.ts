@@ -317,6 +317,11 @@ export class Pawn {
     this.object.add(this.shadow);
   }
 
+  /** The way it last went, from +z: what a plane that vanishes at its target leaves (#508). */
+  get facing(): number {
+    return this.heading;
+  }
+
   set visible(value: boolean) {
     this.object.visible = value;
   }

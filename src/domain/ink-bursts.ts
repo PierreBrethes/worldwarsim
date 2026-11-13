@@ -54,6 +54,10 @@ export type InkBurst = {
   readonly combatId?: string;
   /** **D'où ma batterie a tiré** (B20) : le trait d'encre du coup, jusqu'au tampon. */
   readonly from?: LonLat;
+  /** **Un largage** (#508) : si quelque chose est descendu, et si une escouade l'a reçu. Rien de
+   *  livré, la carte ne pose pas de paquet : l'avion passe soute fermée. */
+  readonly delivered?: boolean;
+  readonly squad?: boolean;
 };
 
 /** The prototype's `stampAnim`: pressed from 1.7 to 1 in 0.14 s, held to 3 s, lifted at 1.5/s. */
@@ -264,7 +268,19 @@ export function placedBursts(
       },
     ];
   }
-  if (dispatch.kind === 'airdrop')
-    return [{ kind: 'airdropped', at, words: stamped(fr.stamps.airdropped, dispatch.at) }];
+  if (dispatch.kind === 'airdrop') {
+    const dropped = dispatch.airdrop;
+    return [
+      {
+        kind: 'airdropped',
+        at,
+        words: stamped(
+          dropped?.delivered === false ? fr.stamps.airdropRefused : fr.stamps.airdropped,
+          dispatch.at,
+        ),
+        ...dropped,
+      },
+    ];
+  }
   return [];
 }

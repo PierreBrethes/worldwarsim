@@ -46,14 +46,14 @@ export function parachuteAt(
   return { height: 0, opacity: resting < REST_MS ? 1 : 1 - (resting - REST_MS) / FADE_MS };
 }
 
-const CANOPY = new SphereGeometry(0.5, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2);
+export const CANOPY = new SphereGeometry(0.5, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2);
 const FOUR_CORNERS: ReadonlyArray<readonly [number, number]> = [
   [-0.4, -0.1],
   [0.4, -0.1],
   [-0.1, 0.4],
   [0.1, -0.4],
 ];
-const LINES = (() => {
+export const LINES = (() => {
   const vertices: number[] = [];
   for (const [x, z] of FOUR_CORNERS) vertices.push(x, 0.12, z, 0, -0.45, 0);
   const geometry = new BufferGeometry();
@@ -63,7 +63,7 @@ const LINES = (() => {
 /** The crate's side in canopy units (the one place this layer converts its metres), and how far
  *  its foot hangs under the canopy's origin. */
 const CRATE_SIDE = 0.16;
-const HANG = 0.45 + CRATE_SIDE;
+export const HANG = 0.45 + CRATE_SIDE;
 const SHADOW = new CircleGeometry(0.22, 16);
 
 type Packet = {
