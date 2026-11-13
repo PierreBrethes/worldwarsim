@@ -1925,12 +1925,10 @@ export class StandingLayer implements SequenceHost {
         for (const kept of [this.lastRest, this.left])
           for (const [troop, rest] of kept) if (rest.site === site) kept.delete(troop);
       this.mirroredSites.set(site, mirrored);
-      // Each piece is laid out at the growth it is drawn at: a plane over its site's metres, which
-      // stand at the drawn share as it does (`restGrowth`, #502); a hull, as it was.
+      // Each piece is laid out at the growth it is drawn at over its site's metres: the floor's
+      // alone (`restGrowth`, #502), for the site stands at the drawn share as the piece does.
       const growth = members.map(({ entry }) =>
-        sea
-          ? floorGrowth(frame.at.distanceTo(eye), entry.span, GARRISON_FLOOR_PX) * pieceScale.size
-          : restGrowth(frame.at.distanceTo(eye), entry.span),
+        restGrowth(frame.at.distanceTo(eye), entry.span * entry.sized),
       );
       const hullPosts = sea ? this.postsOfHulls(site, members) : null;
       const rests = hullPosts

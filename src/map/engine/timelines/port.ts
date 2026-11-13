@@ -26,9 +26,9 @@ const MUSOIR = MOLE.quay + MOLE.length + MOLE.head;
 /** **Where its thread meets the port**, out at sea off the basin's open side. `@a-mesurer` */
 export const OFFSHORE = { x: -160, z: 640 } as const;
 
-/** **A hull's beam**, a share of its length, until the models are measured for it (#270).
+/** **A hull's beam**, a share of its length, until the models are measured for it (#270): the widest of the 24 files reads 0.242 (#479).
  *  `@a-mesurer` */
-export const HULL_BEAM_SHARE = 0.14;
+export const HULL_BEAM_SHARE = 0.25;
 /** Where it stands at rest, its middle in the model's metres, and its heading there. */
 export type Berth = { readonly x: number; readonly z: number; readonly yaw: number };
 const toward = (from: number, to: number): number =>

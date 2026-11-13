@@ -1067,14 +1067,9 @@ describe('pieces resting at their post', () => {
     layer.orient(eye);
     return layer;
   };
-  /** A hull is laid out at the floor's growth times the drawn share, a plane at its growth over the
-   *  site's metres (#502). */
-  const growthOf = (role: UnitRole) => {
-    const span = pileObject('france', pilePieces([troop(role)]))!.span;
-    return ['cargo', 'escort', 'carrier'].includes(role)
-      ? floorGrowth(SITE.distanceTo(eye), span) * pieceScale.size
-      : restGrowth(SITE.distanceTo(eye), span);
-  };
+  /** A piece is laid out at its growth over the site's metres (#502). */
+  const growthOf = (role: UnitRole) =>
+    restGrowth(SITE.distanceTo(eye), pileObject('france', pilePieces([troop(role)]))!.span);
   const near = (at: Vector3, to: Vector3) => expect(at.distanceTo(to)).toBeLessThan(1e-9);
 
   it('stands the planes of an airfield on its apron, in the order formed, the men in the pile', async () => {

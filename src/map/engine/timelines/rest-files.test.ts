@@ -5,11 +5,11 @@ import { Box3, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { troopMetres, troopSpan } from '@/domain/piece-size';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
-import { AIRFIELD } from '@/emblems/kits/manifest';
+import { AIRFIELD, MOLE } from '@/emblems/kits/manifest';
 import { sceneOfFile } from '../gltf-scene.fixture';
 import { restGrowth } from '../figurines/figurine';
 import { type AirRole, TAIL_GAP } from './airfield';
-import { layout } from './rest';
+import { berths, layout } from './rest';
 
 /** #502 : un avion posé sur l'aire tient entre le rail des hangars et la rampe, de chaque fichier. */
 const planes = (['fighter', 'bomber', 'airTransport'] as const).flatMap((role) =>
@@ -48,6 +48,43 @@ describe('the apron, with the growth a plane is drawn at (#502)', () => {
   it('is the growth the engine lays its planes out at', () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const standing = readFileSync(join(here, '..', 'standing.ts'), 'utf-8');
-    expect(standing).toMatch(/: restGrowth\(frame\.at\.distanceTo\(eye\), entry\.span\)/);
+    expect(standing).toMatch(/restGrowth\(frame\.at\.distanceTo\(eye\), entry\.span \* entry\.sized\)/);
+  });
+});
+
+/** #479 : une coque à son poste tient hors du môle et son étrave hors du quai, de chaque fichier. */
+const hulls = (['cargo', 'escort', 'carrier'] as const).flatMap((role) =>
+  Object.entries(FIGURINE_FILES).flatMap(([nation, roles]) => {
+    const url = (roles as Record<string, unknown> | undefined)?.[role];
+    return typeof url === 'string' ? [{ role, nation, url }] : [];
+  }),
+);
+
+describe('the mole, with the growth a hull is drawn at (#479)', () => {
+  it.each(hulls)(
+    'stands the $role of $nation off the mole and its stem off the quay, at each post',
+    ({ role, url }) => {
+      const box = new Box3().setFromObject(sceneOfFile(url));
+      const size = box.getSize(new Vector3());
+      const k = troopMetres(role) / Math.max(size.x, size.z);
+      for (const distance of [0.3, 1, 3]) {
+        const g = restGrowth(distance, troopSpan(role));
+        for (const post of ['mole', 'couple', 'roads'] as const) {
+          const [rest] = berths([role], g, [post]);
+          // Facing the land (yaw π): the model's +z is toward -z of the site.
+          const half = Math.max(box.max.x, -box.min.x) * k * g;
+          const stem = rest!.z - Math.max(box.max.z, -box.min.z) * k * g;
+          expect(rest!.x + half).toBeLessThanOrEqual(MOLE.inner + 0.01);
+          expect(stem).toBeGreaterThanOrEqual(MOLE.quay - 0.01);
+        }
+      }
+    },
+  );
+
+  it('is the growth the engine lays its hulls out at', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const standing = readFileSync(join(here, '..', 'standing.ts'), 'utf-8');
+    expect(standing).not.toMatch(/\* pieceScale\.size\s*:\s*restGrowth/);
+    expect(standing).not.toMatch(/GARRISON_FLOOR_PX\) \* pieceScale\.size/);
   });
 });
