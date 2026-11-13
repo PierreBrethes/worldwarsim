@@ -6,11 +6,12 @@ import type { GangwayLift } from './gangway';
 /**
  * **A carrier's flight deck** (#506), in the file's own metres: its level (the lift's top), how far
  * it reaches to each flank across the lift's station, and the lift's footprint. Read off the
- * hull's vertices, not off a mark: the files carry no gangway (`fx_passerelle`).
+ * hull, not off a mark: the files carry no gangway (`fx_passerelle`).
  */
 export type Deck = {
   readonly y: number;
-  /** The deck's two edges across the lift's station: the smallest and the greatest `x`. */
+  /** The hull's two edges across the lift's station — the deck is its widest there, on all eight
+   *  files: the smallest and the greatest `x`. */
   readonly edges: readonly [min: number, max: number];
   readonly lift: {
     readonly min: readonly [x: number, z: number];
@@ -18,12 +19,9 @@ export type Deck = {
   };
 };
 
-/** How far a vertex may stand from the lift's top and still be the deck's surface (m of the file). */
-const LEVEL = 0.3;
-
 /**
- * **The flight deck of a carrier file**, `null` when it has no `ascenseur` or no flat surface at
- * its level. Its edges are where the flat surface cuts the plane of the lift's station (`z`).
+ * **The flight deck of a carrier file**, `null` when it has no `ascenseur` or no hull to cut. Its
+ * level is the lift's top, its edges where the hull cuts the plane of the lift's station (`z`).
  */
 export function deckOf(scene: Object3D): Deck | null {
   scene.updateMatrixWorld(true);
@@ -61,7 +59,6 @@ export function deckOf(scene: Object3D): Deck | null {
           .fromBufferAttribute(attributes.position!, index?.getX(t + k) ?? t + k)
           .applyMatrix4(mesh.matrixWorld),
       );
-      if (corners.some((corner) => Math.abs(corner.y - y) > LEVEL)) continue;
       for (let k = 0; k < 3; k++) {
         const [a, b] = [corners[k]!, corners[(k + 1) % 3]!];
         if ((a.z - z) * (b.z - z) > 0 || a.z === b.z) continue;

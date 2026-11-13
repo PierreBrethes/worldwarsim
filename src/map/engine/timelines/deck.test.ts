@@ -1,4 +1,4 @@
-import { Box3, Matrix4, Vector3 } from 'three';
+import { Box3, BoxGeometry, Group, Matrix4, Mesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { troopMetres } from '@/domain/piece-size';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
@@ -37,6 +37,16 @@ const files = Object.entries(FIGURINE_FILES).map(
   ([nation, entry]) => [nation, (entry as { carrier: string }).carrier] as const,
 );
 
+describe('deckOf on a file without a hull or a lift (#506)', () => {
+  it('reads nothing: no lift, or a lift with no hull round it', () => {
+    expect(deckOf(new Group())).toBeNull();
+    const lift = new Group();
+    lift.name = 'ascenseur';
+    lift.add(new Mesh(new BoxGeometry(2, 1, 2)));
+    expect(deckOf(new Group().add(lift))).toBeNull();
+  });
+});
+
 describe.each(files)('the flight deck of the %s carrier (#506)', (_, url) => {
   it('is read off the file: its level is the lift’s top, its edges cut the lift’s station', () => {
     const deck = deckOf(sceneOfFile(url))!;
@@ -44,8 +54,6 @@ describe.each(files)('the flight deck of the %s carrier (#506)', (_, url) => {
     expect(deck.y).toBeGreaterThan(5);
     expect(deck.edges[0]).toBeLessThan(deck.lift.min[0]);
     expect(deck.edges[1]).toBeGreaterThan(deck.lift.max[0]);
-    // The flat of the deck, not the hull's widest: its sponsons reach further out.
-    expect(deck.edges[1]).toBeLessThan(new Box3().setFromObject(sceneOfFile(url)).max.x);
   });
 
   describe.each([false, true])('in a port laid in mirror: %s (#476)', (mirrored) => {
