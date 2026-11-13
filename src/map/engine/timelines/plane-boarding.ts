@@ -3,6 +3,7 @@ import type { PartPose, Sequence } from '../sequences';
 import { wayOf } from './beach-boats';
 import { ease, span } from './curves';
 import { RAZE_RING_MS } from './raze';
+import { WALK_MIN_PX } from './walk';
 
 export type Flat = readonly [x: number, z: number];
 type Vec3 = readonly [x: number, y: number, z: number];
@@ -26,6 +27,10 @@ const T = {
   /** It all rests this long once the door is shut. */
   rest: 300,
 } as const;
+/** **The door plays from 30 px** (#502), as the truck's tailgate does: the buildings' 150 px
+ *  (`PLAY_PX`) would never let a plane, a quarter of the screen at best, play. `@a-mesurer` against
+ *  a plane on a phone. */
+export const PLANE_BOARDING_PX = 30;
 /** A man's pace, in his heights a second, and where he waits before the plank, in his heights:
  *  out from the foot and aft of it. */
 const MAN_SPEED = 1.9;
@@ -167,6 +172,7 @@ export function planeBoardingOf(
   const planeSequence: Sequence<'airTransport'> = {
     family: 'airTransport',
     ms: total,
+    minPx: PLANE_BOARDING_PX,
     at(t) {
       if (t < 0 || t >= total) return {};
       const k =
@@ -181,6 +187,7 @@ export function planeBoardingOf(
     const ms = Math.max(...mine.map((x) => x.climbAt + T.climb)) + 1;
     return {
       ms,
+      minPx: WALK_MIN_PX,
       at(t) {
         if (t < 0 || t >= ms) return {};
         const pose: Record<string, PartPose> = {};

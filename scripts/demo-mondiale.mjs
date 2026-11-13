@@ -282,7 +282,16 @@ const queueIn = queueAt < 0 ? null : Number(process.argv[queueAt + 1]) || 40;
 /** `--renfort [s]` (#472) : l'aérodrome de `--largage`, un chasseur recruté qui sort dans s secondes. */
 const reinforceAt = process.argv.indexOf('--renfort');
 const reinforceIn = reinforceAt < 0 ? null : Number(process.argv[reinforceAt + 1]) || 25;
+const gestureAfter = (flag) => {
+  const at = process.argv.indexOf(flag);
+  return at < 0 ? null : Number(process.argv[at + 1]) || 25;
+};
+/** `--avion [s]` (#502) : l'aérodrome de `--largage`, deux fantassins et un char dans sa garnison ;
+ *  dans s secondes (25 par défaut) les deux fantassins montent dans le transport par un ordre de
+ *  joueur (`movements.board`). Le char reste : le lâcher sur l'avion est refusé. Lieu `aerodrome`. */
+const planeBoardIn = gestureAfter('--avion');
 const airdrops =
+  planeBoardIn !== null ||
   reinforceIn !== null ||
   queueIn !== null ||
   runwayIn !== null ||
@@ -823,6 +832,35 @@ if (!bare) {
       'dev:finishRecruitments',
       JSON.stringify({ playerId: scene.a, afterMs: reinforceIn * 1000 }),
     ]);
+  }
+  /** `--avion` : deux fantassins et un char dans la garnison de l'aérodrome, que le transport embarque (#502). */
+  if (planeBoardIn !== null && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const airfield = me.buildings.find((building) => building.key === 'airfield');
+    places.aerodrome = {
+      id: `building-airfield@${airfield.point[0]},${airfield.point[1]}`,
+      lonLat: airfield.point,
+    };
+    const garrison = (role, count) =>
+      JSON.parse(
+        cli([
+          'run',
+          'dev:spawnTroops',
+          JSON.stringify({
+            playerId: scene.a,
+            role,
+            count,
+            lon: airfield.point[0],
+            lat: airfield.point[1],
+            buildingId: airfield.id,
+          }),
+        ]).match(/\[[^\]]*\]/)[0],
+      );
+    pile.avion = {
+      carrier: me.troops.find((troop) => troop.role === 'airTransport').id,
+      riders: garrison('infantry', 2),
+      tank: garrison('armor', 1)[0],
+    };
   }
   /** `--trajet-mixte` : un cargo et deux fantassins à bord, sur la côte de Boulogne (#302). Une
    *  colonne embarquée ne débarque que sur une côte et part d'un port ou d'une plage : la scène
@@ -2227,6 +2265,20 @@ const gestures = [
           carrierId: truck,
         });
         return 'fantassins à bord';
+      },
+    ],
+  planeBoardIn !== null &&
+    pile.avion && [
+      planeBoardIn,
+      async () => {
+        const { carrier, riders } = pile.avion;
+        await client.mutation(api.movements.board, {
+          token: tokenA,
+          seasonId,
+          troopIds: riders,
+          carrierId: carrier,
+        });
+        return 'fantassins à bord de l\'avion';
       },
     ],
   landingIn !== null &&

@@ -77,7 +77,8 @@ import {
   troopScale,
   troopWeight,
 } from './figurines/figurine';
-import { type Cue, type Sequence, SequenceLayer } from './sequences';
+import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequences';
+import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
@@ -4243,7 +4244,7 @@ export class MapEngine {
     const unseen = motion !== 'full' || this.veiled(truck.at) || !this.seenWhole(truck.at);
     const plane = cue.carrier === 'airTransport';
     // A plane's door and foot are read off the model drawn: not before it stands.
-    const flight = plane && !unseen ? this.standing.rigOf(cue.truck) : null;
+    const flight = plane && !unseen ? this.planeRigOf(cue.truck) : null;
     if (plane && !unseen && flight === null) return false;
     const seated = this.seatMen(boarding, pileId, unseen);
     if (seated === null) return false;
@@ -4309,6 +4310,24 @@ export class MapEngine {
       this.inkDue.push({ at: now + plan.settled, run: () => this.feedPlane(cue) });
     }
     return true;
+  }
+
+  /** The door and the foot of each plane file, read once off its articulated rig (`null` while it cooks). */
+  private readonly planeFiles = new Map<string, PlaneFile | null>();
+
+  /** **A plane drawn, read for its boarding** (#502): `null` until it stands and its file is read. */
+  private planeRigOf(id: string): ReturnType<StandingLayer['rigOf']> {
+    const url = this.standing.pieceOf(id)?.url;
+    if (url === undefined) return null;
+    if (!this.planeFiles.has(url)) {
+      this.planeFiles.set(url, null);
+      articulatedOf(url, 'airTransport').then(
+        (rig) => this.planeFiles.set(url, planeFileOf(rig)),
+        () => undefined,
+      );
+    }
+    const file = this.planeFiles.get(url) ?? null;
+    return file === null ? null : this.standing.rigOf(id, file);
   }
 
   /** **A plane's tag may now show its riders** (#502): kept at its old count while they board. */

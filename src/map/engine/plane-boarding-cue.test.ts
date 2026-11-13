@@ -18,6 +18,7 @@ describe('a plane boarding cue (#502)', () => {
     motion = 'full' as MapMotion,
     room = 8,
     rig = { rig: FRENCH, metre: 0.01 } as unknown,
+    file = { hinge: FRENCH.hinge, foot: FRENCH.foot } as unknown,
   } = {}) {
     const { MapEngine } = await import('./index');
     const played: string[] = [];
@@ -37,6 +38,7 @@ describe('a plane boarding cue (#502)', () => {
       planks: [] as unknown[],
       inkDue: [] as Array<{ at: number; run: () => void }>,
       onBoarded,
+      planeFiles: new Map([['plane.glb', file]]),
       veiled: () => false,
       seenWhole: () => true,
       arcs: { fileLeftBy: () => null },
@@ -52,11 +54,14 @@ describe('a plane boarding cue (#502)', () => {
         placeOf: (id: string) => (id === 'p/0' ? stands(0.3) : stands(0.1)),
         lengthOf: () => 0.1,
         stepOf: () => 0.03,
+        pieceOf: () => ({
+          url: 'plane.glb',
+          box: { getSize: (to: Vector3) => to.set(0.01, 0.0175, 0.01) },
+        }),
         rigOf: () => rig,
         lastSeen: () => ({ at: new Vector3(), heading: 0 }),
         board: (_pile: string, riders: Array<{ troopId: string }>) =>
           riders.map(({ troopId }) => `p/+${troopId}`),
-        pieceOf: () => ({ box: { getSize: (to: Vector3) => to.set(0.01, 0.0175, 0.01) } }),
         unboard,
         arrive,
         inkArrival,
@@ -110,6 +115,13 @@ describe('a plane boarding cue (#502)', () => {
 
   it("waits while the plane's model has not landed: no door to read", async () => {
     const { run, played } = await engineOf({ rig: null });
+    run.cue(cue());
+    expect(run.boardOf(run.boardings[0], 1000)).toBe(false);
+    expect(played).toEqual([]);
+  });
+
+  it('waits for the file of the plane to be read', async () => {
+    const { run, played } = await engineOf({ file: null });
     run.cue(cue());
     expect(run.boardOf(run.boardings[0], 1000)).toBe(false);
     expect(played).toEqual([]);

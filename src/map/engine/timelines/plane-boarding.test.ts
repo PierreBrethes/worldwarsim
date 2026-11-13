@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { Box3, Group } from 'three';
+import { describe, expect, it, vi } from 'vitest';
+import { SequenceLayer, type SequenceHost } from '../sequences';
 import { isRigPart } from '@/emblems/rigs';
-import { type PlaneBoarding, type PlaneRig, planeBoardingOf } from './plane-boarding';
+import { WALK_MIN_PX } from './walk';
+import {
+  PLANE_BOARDING_PX,
+  type PlaneBoarding,
+  type PlaneRig,
+  planeBoardingOf,
+} from './plane-boarding';
 
 /** The French plane's, measured on its GLB: a trial set, the engine reads the rig it draws. */
 const FRENCH: PlaneRig = {
@@ -101,6 +109,32 @@ describe('planeBoardingOf, the door and the plank (#480, « 2. En avion »)', ()
     expect(door(a, last + 500)).toBeCloseTo((-100 * Math.PI) / 180);
     expect(a.plank(last + 600)).toBeNull();
     expect(door(a, last + 700)).toBeGreaterThan((-100 * Math.PI) / 180);
+  });
+});
+
+describe('planeBoardingOf, what it takes to play (#502)', () => {
+  // A man is a few tens of px tall on screen when the plane reads at a tenth of the buildings'
+  // 150 px: the plane says whether it plays, its men follow it (as the truck's do).
+  it('lets the plane play from its own size, and its men as long as it stands', () => {
+    const a = planeBoardingOf(scene());
+    expect(a.plane!.minPx).toBe(PLANE_BOARDING_PX);
+    expect(PLANE_BOARDING_PX).toBeLessThan(150);
+    for (const squad of a.squads) expect(squad.minPx).toBe(WALK_MIN_PX);
+  });
+
+  it('plays on the layer where a plane and its men read at 40 px, never at the default 150', () => {
+    const host = {
+      pieceOf: () => ({ box: new Box3(), url: 'plane.glb' }),
+      copyOf: () => new Group(),
+      standIn: () => {},
+    } as unknown as SequenceHost;
+    const layer = new SequenceLayer(
+      (_box, px) => px <= 40,
+      vi.fn(() => Promise.resolve(new Group())),
+    );
+    const a = planeBoardingOf(scene());
+    expect(layer.play(host, 'man', a.squads[0]!, 0)).toBe(true);
+    expect(layer.play(host, 'plane', a.plane!, 0)).toBe(true);
   });
 });
 
