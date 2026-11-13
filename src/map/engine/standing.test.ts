@@ -31,13 +31,7 @@ import {
 } from './standing';
 import { troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
-import {
-  floorGrowth,
-  restGrowth,
-  TANK_SHARE,
-  troopPinSpan,
-  troopScale,
-} from './figurines/figurine';
+import { restGrowth, TANK_SHARE, troopPinSpan, troopScale } from './figurines/figurine';
 
 // The loader wants a DOM: every file is a box of a metre.
 vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
