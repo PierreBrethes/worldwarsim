@@ -4,7 +4,7 @@ import { troopMetres } from '@/domain/piece-size';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { MOLE } from '@/emblems/kits/manifest';
 import { sceneOfFile } from '../gltf-scene.fixture';
-import { deckOf, deckLanding, liftSequence } from './deck';
+import { carrierBoarding, deckLanding, deckOf, liftSequence } from './deck';
 import { gangwayOf, plankFoot } from './gangway';
 import { berths } from './rest';
 
@@ -12,7 +12,7 @@ import { berths } from './rest';
 const PLANK_MAX = 30;
 
 /** A carrier of a nation's file at the mole, in a port as drawn or laid in mirror (#476). */
-function berthed(url: string, mirrored: boolean, turned = false) {
+function berthed(url: string, mirrored: boolean, turned = false, pace = 1) {
   const scene = sceneOfFile(url);
   const box = new Box3().setFromObject(scene);
   const size = box.getSize(new Vector3());
@@ -25,12 +25,15 @@ function berthed(url: string, mirrored: boolean, turned = false) {
   );
   const way = mirrored ? -1 : 1;
   // The port's metres to the board: laid in mirror, its x is turned over.
-  const toModel = (p: Vector3) => new Vector3(way * (p.x - 5), p.y, p.z - 3);
+  // `pace`: the board's units to a metre of the port.
+  const toModel = (p: Vector3) => new Vector3(way * (p.x / pace - 5), p.y / pace, p.z / pace - 3);
+  const toBoard = (p: Vector3) => new Vector3(way * p.x + 5, p.y, p.z + 3).multiplyScalar(pace);
   const frame = new Matrix4()
-    .makeTranslation(way * at!.x + 5, 0, at!.z + 3)
+    .makeScale(pace, pace, pace)
+    .multiply(new Matrix4().makeTranslation(way * at!.x + 5, 0, at!.z + 3))
     .multiply(new Matrix4().makeRotationY(mirrored !== turned ? 0 : Math.PI))
     .multiply(new Matrix4().makeScale(k, k, k));
-  return { scene, frame, toModel, metre: k };
+  return { scene, frame, toModel, toBoard, metre: k };
 }
 
 const files = Object.entries(FIGURINE_FILES).map(
@@ -139,5 +142,75 @@ describe('the lift’s sequence (#506)', () => {
   it('plays on the hull’s own pool, whether or not the hull is in the field', () => {
     expect(seq.pool).toBe('site');
     expect(seq.anywhere).toBe(true);
+  });
+});
+
+describe.each(files)('the boarding of the men of the %s carrier (#506)', (_, url) => {
+  describe.each([false, true])('in a port laid in mirror: %s', (mirrored) => {
+    // A board a twentieth of the port's metres: the men's and the lift's units are not the same.
+    const there = berthed(url, mirrored, false, 0.05);
+    const deck = deckOf(there.scene)!;
+    const rest = (x: number) => there.toBoard(new Vector3(30 + x, 2.2, 90));
+    const squads = [[rest(0), rest(1), rest(2)], [rest(5)], [rest(8), rest(9)]];
+    const boarding = carrierBoarding({
+      deck,
+      frame: there.frame,
+      toModel: there.toModel,
+      toBoard: there.toBoard,
+      portMetre: 0.05,
+      height: 0.09,
+      squads,
+    })!;
+    const { lift } = boarding.plan;
+    const spots = deckLanding({
+      deck,
+      frame: there.frame,
+      toModel: there.toModel,
+      metre: there.metre,
+      men: 6,
+    }).spots;
+
+    it('ranks the men on the lift in the order of the squads, and of the men in them', () => {
+      const ends = boarding.plan.squads.flatMap((sequence, s) =>
+        squads[s]!.map((man, k) => {
+          const pose = sequence.at(lift!.start - 1)[`man_${k}`]!;
+          return new Vector3(...pose.travel!).add(man);
+        }),
+      );
+      ends.forEach((end, k) => {
+        const spot = there.toBoard(spots[k]!);
+        expect(end.distanceTo(spot)).toBeLessThan(1e-6);
+      });
+    });
+
+    it('lets the lift down as far as the men go down, the file’s units and the board’s', () => {
+      const man = boarding.plan.squads[0]!.at(lift!.bottom - 1).man_0!;
+      const rested = boarding.plan.squads[0]!.at(lift!.start - 1).man_0!;
+      const walked = rested.travel![1] - man.travel![1];
+      const scale = new Vector3().setFromMatrixScale(there.frame).x;
+      const shift = boarding.hull!.at(lift!.bottom).ascenseur!.shift![1];
+      expect(walked).toBeCloseTo(-shift * scale, 3);
+      expect(walked).toBeGreaterThan(0);
+    });
+
+    it('plays the lift on the hull, and the plank to a head on the board', () => {
+      expect(boarding.hull!.ms).toBe(lift!.end + 1);
+      expect(boarding.headBoard.distanceTo(there.toBoard(boarding.head))).toBeLessThan(1e-6);
+    });
+
+    it('poses them at once when the lift has not room for them all', () => {
+      const crowd = [Array.from({ length: 10_000 }, () => rest(0))];
+      expect(
+        carrierBoarding({
+          deck,
+          frame: there.frame,
+          toModel: there.toModel,
+          toBoard: there.toBoard,
+          portMetre: 0.05,
+          height: 0.09,
+          squads: crowd,
+        }),
+      ).toBeNull();
+    });
   });
 });

@@ -90,14 +90,12 @@ import { HullBoardings, type Started } from './hull-boardings';
 import {
   boardingVerdict,
   cutShort,
-  deckWay,
   gangwayDoor,
   gangwayOf,
   plankFoot,
   quayWay,
 } from './timelines/gangway';
-import { type Deck, deckLanding, deckOf, liftSequence } from './timelines/deck';
-import { GANGWAY } from '@/emblems/kits/manifest';
+import { carrierBoarding, type Deck, deckOf } from './timelines/deck';
 import { boomsOfScene } from './timelines/booms';
 import { type Boom, HOISTED_ROLES } from './timelines/derrick';
 import { hoistedBoarding } from './timelines/hoisted';
@@ -4417,46 +4415,41 @@ export class MapEngine {
     const placeOf = (id: string) => places[drawn!.indexOf(id)]!;
 
     const portMetre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
-    const unit = new Vector3().setFromMatrixScale(frame).x;
-    // Where the plank rests: a cargo's door, or a carrier's deck edge, and a spot on its lift for each man.
+    // A carrier's men go up a plank to its deck and down its lift; a cargo's up its gangway.
     const aboard =
-      deck === null
+      deck === null || menIds.length === 0
         ? null
-        : deckLanding({
+        : carrierBoarding({
             deck,
             frame,
             toModel: site.toModel,
-            metre: unit / portMetre,
-            men: menIds.reduce((sum, id) => sum + placeOf(id).men.length, 0),
+            toBoard: site.toBoard,
+            portMetre,
+            height,
+            squads: menIds.map((id) => placeOf(id).men),
           });
-    const door = aboard?.head ?? cargoDoor!;
+    if (deck !== null && menIds.length > 0 && aboard === null) return null;
+    const door = aboard?.head ?? cargoDoor ?? new Vector3();
     const doorBoard =
-      aboard === null ? marks[inPort.indexOf(cargoDoor!)]! : board(door.x, door.y, door.z);
-    let spot = 0;
+      aboard?.headBoard ?? (cargoDoor === null ? door : marks[inPort.indexOf(cargoDoor)]!);
 
     const plan =
-      menIds.length === 0
-        ? null
-        : gangwayOf({
-            man: height,
-            ...(aboard === null ? {} : { lift: { drop: GANGWAY.lift * portMetre } }),
-            squads: menIds.map((id) => ({
-              men: placeOf(id).men.map((man) => {
-                const from = site.toModel(man);
-                const way =
-                  aboard === null
-                    ? quayWay(from, door)
-                    : deckWay(from, door, aboard.spots[spot++]!);
-                return [
+      aboard !== null
+        ? aboard.plan
+        : menIds.length === 0
+          ? null
+          : gangwayOf({
+              man: height,
+              squads: menIds.map((id) => ({
+                men: placeOf(id).men.map((man) => [
                   [man.x, man.y, man.z] as const,
-                  ...way.map((at) => {
+                  ...quayWay(site.toModel(man), door).map((at) => {
                     const point = board(...at);
                     return [point.x, point.y, point.z] as const;
                   }),
-                ];
-              }),
-            })),
-          });
+                ]),
+              })),
+            });
 
     // The vehicles: each takes a mast, drives to the spot under its tip, and is lifted (#505).
     const lengthOf = (id: string) => {
@@ -4486,11 +4479,7 @@ export class MapEngine {
       this.sequences.play(this.standing, id, sequence, now),
     );
     // The hull's own part: the masts that lift its vehicles, or a carrier's lift that takes its men.
-    const hullPart: Sequence | null = hoisting
-      ? hoist.hull
-      : plan?.lift
-        ? liftSequence(plan.lift, (GANGWAY.lift * portMetre) / unit)
-        : null;
+    const hullPart: Sequence | null = hoisting ? hoist.hull : (aboard?.hull ?? null);
     const mastsPlay =
       hullPart === null || this.sequences.play(this.standing, cue.hull, hullPart, now);
     if (walking.length < playing.length || !mastsPlay) {
@@ -4544,7 +4533,10 @@ export class MapEngine {
     if (known !== undefined) return known;
     if (!this.decksAsked.has(url)) {
       this.decksAsked.add(url);
-      void posedScene(url).then((scene) => this.decks.set(url, deckOf(scene)));
+      void posedScene(url)
+        .then((scene) => this.decks.set(url, deckOf(scene)))
+        // A file that will not load has no deck to read: its boarding is posed at once.
+        .catch(() => this.decks.set(url, null));
     }
     return undefined;
   }
@@ -4556,7 +4548,10 @@ export class MapEngine {
     if (known !== undefined) return known;
     if (!this.boomsAsked.has(url)) {
       this.boomsAsked.add(url);
-      void posedScene(url).then((scene) => this.booms.set(url, boomsOfScene(scene)));
+      void posedScene(url)
+        .then((scene) => this.booms.set(url, boomsOfScene(scene)))
+        // A file that will not load has no mast: its vehicles are posed at once.
+        .catch(() => this.booms.set(url, []));
     }
     return null;
   }

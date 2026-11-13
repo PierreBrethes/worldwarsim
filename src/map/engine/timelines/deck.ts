@@ -1,7 +1,7 @@
 import { type Matrix4, type Mesh, type Object3D, Vector3 } from 'three';
-import { MOLE } from '@/emblems/kits/manifest';
+import { GANGWAY, MOLE } from '@/emblems/kits/manifest';
 import type { Sequence } from '../sequences';
-import type { GangwayLift } from './gangway';
+import { deckWay, gangwayOf, type GangwayLift, type P3 } from './gangway';
 
 /**
  * **A carrier's flight deck** (#506), in the file's own metres: its level (the lift's top), how far
@@ -139,5 +139,62 @@ export function liftSequence(lift: GangwayLift, drop: number): Sequence<'carrier
     ms,
     at: (t) =>
       t < lift.start || t >= ms ? {} : { ascenseur: { shift: [0, -lift.depth(t) * drop, 0] } },
+  };
+}
+
+/**
+ * **What a carrier's boarding plays for its men** (#506): each squad's men walk from their rest
+ * (`squads`, board points) by `deckWay` to the next spot of the lift, in the order of the squads and
+ * of the men in them; the lift sequence goes down the same distance as they do (`GANGWAY.lift`, in
+ * the board's units for the men and the file's for the lift). `height` is a man's, `portMetre` the
+ * board's units to a port metre, `frame` takes the file to the board. `null` when the lift has not
+ * room for them all: they are posed at once.
+ */
+export function carrierBoarding({
+  deck,
+  frame,
+  toModel,
+  toBoard,
+  portMetre,
+  height,
+  squads,
+}: {
+  readonly deck: Deck;
+  readonly frame: Matrix4;
+  readonly toModel: (board: Vector3) => Vector3;
+  readonly toBoard: (model: Vector3) => Vector3;
+  readonly portMetre: number;
+  readonly height: number;
+  readonly squads: ReadonlyArray<ReadonlyArray<Vector3>>;
+}): {
+  readonly plan: ReturnType<typeof gangwayOf>;
+  /** The plank's head, in the port's metres, and on the board. */
+  readonly head: Vector3;
+  readonly headBoard: Vector3;
+  readonly hull: Sequence<'carrier'> | null;
+} | null {
+  const unit = new Vector3().setFromMatrixScale(frame).x;
+  const men = squads.reduce((sum, squad) => sum + squad.length, 0);
+  const { head, spots } = deckLanding({ deck, frame, toModel, metre: unit / portMetre, men });
+  if (spots.length < men) return null;
+  let next = 0;
+  const plan = gangwayOf({
+    man: height,
+    lift: { drop: GANGWAY.lift * portMetre },
+    squads: squads.map((squad) => ({
+      men: squad.map((man): P3[] => [
+        [man.x, man.y, man.z],
+        ...deckWay(toModel(man), head, spots[next++]!).map((at): P3 => {
+          const point = toBoard(new Vector3(...at));
+          return [point.x, point.y, point.z];
+        }),
+      ]),
+    })),
+  });
+  return {
+    plan,
+    head,
+    headBoard: toBoard(head),
+    hull: plan.lift === null ? null : liftSequence(plan.lift, (GANGWAY.lift * portMetre) / unit),
   };
 }
