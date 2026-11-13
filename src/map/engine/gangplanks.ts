@@ -20,7 +20,7 @@ type Laid = {
 
 /**
  * **The gangway planks of the hulls that are boarded** (#479): a stroke of ink from the hull's
- * door (`fx_passerelle`) to the mole's deck, laid by the sequence that sends the men up it and
+ * door (`fx_passerelle`, a carrier's deck edge) to the mole's deck, laid by the sequence that sends the men up it and
  * gone with it. It is not part of any hull's rest: with no sequence — motion cut, a hull out of
  * the field — nothing is ever laid.
  */

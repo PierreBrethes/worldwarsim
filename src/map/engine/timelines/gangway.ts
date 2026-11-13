@@ -48,12 +48,26 @@ export function quayWay(from: { readonly x: number; readonly z: number }, door: 
   return way;
 }
 
+/**
+ * **A man's way to a carrier's lift** (#506): as to a door at the deck's edge (`head`, the plank's
+ * head), then across the deck to his `spot` on the lift. The points after the rest.
+ */
+export const deckWay = (
+  from: { readonly x: number; readonly z: number },
+  head: Point,
+  spot: Point,
+): P3[] => [...quayWay(from, head), [spot.x, spot.y, spot.z]];
+
 /** A man's pace, in his heights a second (`boarding.ts`'s). */
 const MAN_SPEED = 1.7;
 /** The storyboard's hours (« au cargo »), in ms: the plank lies in 400; the first man leaves 300
  *  after it starts, then one every 600; a man is taken by the dark of the door over 200; the plank
  *  is taken in 200 after the last. `@a-mesurer` */
 const T = { plank: 400, first: 300, gap: 600, swallow: 200, after: 200 } as const;
+/** A carrier's lift (#506, `mer-air`): it waits for the last man, goes down in 1.6 s, the dark
+ *  taking the men over the last 40 % of it, rests a beat below and comes up empty in 1.4 s.
+ *  `@a-mesurer` */
+const LIFT = { wait: 500, down: 1600, dark: 0.4, rest: 300, back: 1400 } as const;
 
 /** The plank's two instants, from the sequence's start: it is taken in from `up`. */
 export type Plank = { readonly up: number };
@@ -76,10 +90,14 @@ export const PLANK_MS = T.plank;
 export function gangwayOf(boarding: {
   readonly man: number;
   readonly squads: ReadonlyArray<{ readonly men: ReadonlyArray<ReadonlyArray<P3>> }>;
+  /** A carrier's lift, `drop` board units deep: the men stand on it (their paths end on it) and
+   *  are taken down, not through a door (#506). */
+  readonly lift?: { readonly drop: number };
 }): {
   readonly squads: ReadonlyArray<Sequence<never>>;
   readonly through: ReadonlyArray<number>;
   readonly plank: Plank;
+  readonly lift: GangwayLift | null;
   readonly settled: number;
 } {
   const speed = (MAN_SPEED * boarding.man) / 1000;
@@ -94,10 +112,14 @@ export function gangwayOf(boarding: {
     });
   const last = Math.max(0, ...men.map(({ end }) => end));
   const plank = { up: last + T.after };
+  const lift: GangwayLift | null =
+    boarding.lift === undefined || men.length === 0 ? null : liftOf(last + LIFT.wait);
+  // A man is out of sight when his door has taken him, or the lift has taken him down.
+  const gone = (man: { end: number }): number => lift?.bottom ?? man.end;
 
   const squads = boarding.squads.map((_, squad): Sequence<never> => {
     const mine = men.filter((man) => man.squad === squad);
-    const ms = mine.length === 0 ? 0 : Math.max(...mine.map(({ end }) => end)) + 1;
+    const ms = mine.length === 0 ? 0 : Math.max(...mine.map(gone)) + 1;
     return {
       ms,
       minPx: WALK_MIN_PX,
@@ -111,11 +133,15 @@ export function gangwayOf(boarding: {
           const s = Math.min(t - man.start, man.end - man.start) * speed;
           const { at, heading } = man.at(s);
           const rest = man.path[0]!;
+          const down = lift === null ? 0 : lift.depth(t) * boarding.lift!.drop;
           pose[`man_${man.k}`] = {
-            travel: [at[0] - rest[0], at[1] - rest[1], at[2] - rest[2]],
+            travel: [at[0] - rest[0], at[1] - rest[1] - down, at[2] - rest[2]],
             heading,
             ...(t < man.end ? { stride: (t - man.start) / 1000 } : {}),
-            fade: 1 - span(t, man.end - T.swallow, man.end),
+            fade:
+              lift === null
+                ? 1 - span(t, man.end - T.swallow, man.end)
+                : 1 - span(t, lift.start + (1 - LIFT.dark) * LIFT.down, lift.bottom),
           };
         }
         return pose;
@@ -123,9 +149,36 @@ export function gangwayOf(boarding: {
     };
   });
   const through = boarding.squads.map((_, squad) =>
-    Math.max(0, ...men.filter((man) => man.squad === squad).map(({ end }) => end)),
+    Math.max(0, ...men.filter((man) => man.squad === squad).map(gone)),
   );
-  return { squads, through, plank, settled: plank.up + T.plank };
+  return {
+    squads,
+    through,
+    plank,
+    lift,
+    settled: Math.max(plank.up + T.plank, lift?.end ?? 0),
+  };
+}
+
+/** **A carrier's lift in time** (#506): it starts down at `start`, is at the bottom at `bottom`
+ *  and comes back up empty by `end`; `depth` is how far down, 0 to 1. */
+export type GangwayLift = {
+  readonly start: number;
+  readonly bottom: number;
+  readonly end: number;
+  depth(t: number): number;
+};
+
+function liftOf(start: number): GangwayLift {
+  const bottom = start + LIFT.down;
+  const back = bottom + LIFT.rest;
+  const end = back + LIFT.back;
+  return {
+    start,
+    bottom,
+    end,
+    depth: (t) => ease.inOut(span(t, start, bottom)) * (1 - ease.inOut(span(t, back, end))),
+  };
 }
 
 /** A path's length, and the point and heading `s` along it. */
@@ -154,11 +207,11 @@ export function measured(path: ReadonlyArray<P3>) {
 
 /**
  * **Whether a boarding plays up the gangway**, from what the engine reads of its hull: `'play'`
- * for a cargo at the mole's post, in the field, at full motion and not under a combat; `null` when
- * it is posed at once (a carrier, a hull at the mole's side or in the roads, out of the field,
+ * for a cargo or a carrier (#506) at the mole's post, in the field, at full motion and not under a combat; `null` when
+ * it is posed at once (another hull, a hull at the mole's side or in the roads, out of the field,
  * under a combat, another setting); `'wait'` while the hull has no post yet — just docked, or its
  * view just loaded — which the engine reads again until the wait is over. The role comes first:
- * a carrier is refused whatever its post.
+ * an escort is refused whatever its post.
  */
 export function boardingVerdict(hull: {
   readonly role: string;
@@ -167,7 +220,8 @@ export function boardingVerdict(hull: {
   readonly veiled: boolean;
   readonly big: boolean;
 }): 'play' | 'wait' | null {
-  if (hull.role !== 'cargo' || hull.motion !== 'full' || hull.veiled || !hull.big) return null;
+  const boarded = hull.role === 'cargo' || hull.role === 'carrier';
+  if (!boarded || hull.motion !== 'full' || hull.veiled || !hull.big) return null;
   if (hull.post === null) return 'wait';
   return hull.post === 'mole' ? 'play' : null;
 }

@@ -3,6 +3,7 @@ import { MOLE } from '@/emblems/kits/manifest';
 import {
   boardingVerdict,
   cutShort,
+  deckWay,
   gangwayDoor,
   gangwayOf,
   plankAt,
@@ -134,6 +135,61 @@ describe('gangwayOf (#479)', () => {
   });
 });
 
+describe('deckWay (#506)', () => {
+  const head = { x: 60, y: 17, z: 160 };
+  const spot = { x: 44, y: 17, z: 168 };
+  const way = deckWay({ x: 30, z: 99 }, head, spot);
+
+  it('goes as to a door at the deck’s edge, then walks the deck to its spot on the lift', () => {
+    expect(way.at(-1)).toEqual([spot.x, spot.y, spot.z]);
+    expect(way.at(-2)).toEqual([head.x, head.y, head.z]);
+    expect(way.at(-3)).toEqual(plankFoot(head));
+  });
+});
+
+describe('the men of a carrier’s boarding, taken down by its lift (#506)', () => {
+  const drop = 6.5;
+  const plan = gangwayOf({ man: 1.8, squads: [squad(0), squad(-20)], lift: { drop } });
+  const lift = plan.lift!;
+  const men = (t: number) =>
+    plan.squads.flatMap((s) => [0, 1, 2].map((k) => s.at(t)[`man_${k}`]!)).filter(Boolean);
+
+  it('keeps every man whole on the lift, level, until it starts down', () => {
+    for (const man of men(lift.start - 1)) {
+      expect(man.fade).toBe(1);
+      expect(man.travel![1]).toBeCloseTo(0, 6);
+      expect(man.stride).toBeUndefined();
+    }
+  });
+
+  it('starts only once the last man is on it, and lets the plank go as it does', () => {
+    expect(lift.start).toBeGreaterThan(plan.plank.up - 1);
+    expect(lift.depth(lift.start - 1)).toBe(0);
+  });
+
+  it('takes them down its whole drop and out of sight in the dark, then comes up empty', () => {
+    expect(lift.depth(lift.bottom)).toBe(1);
+    for (const man of men(lift.bottom - 1)) expect(man.fade).toBeLessThan(0.1);
+    for (const man of men(lift.start + (lift.bottom - lift.start) / 2))
+      expect(man.travel![1]).toBeLessThan(0);
+    const last = plan.squads[0]!.at(plan.squads[0]!.ms - 1);
+    expect(last.man_0?.fade).toBe(0);
+    expect(last.man_0?.travel![1]).toBeCloseTo(-drop, 6);
+    expect(lift.depth(lift.end - 200)).toBeLessThan(1);
+    expect(lift.depth(lift.end - 200)).toBeGreaterThan(0);
+    expect(lift.depth(plan.settled)).toBe(0);
+  });
+
+  it('tells the tag the men are through once the dark has taken them', () => {
+    expect(plan.through).toEqual([lift.bottom, lift.bottom]);
+    expect(plan.settled).toBeGreaterThan(lift.bottom);
+  });
+
+  it('has no lift at all for a gangway that opens on a door', () => {
+    expect(gangwayOf({ man: 1.8, squads: [squad(0)] }).lift).toBeNull();
+  });
+});
+
 describe('boardingVerdict (#479)', () => {
   const ready = {
     role: 'cargo',
@@ -147,8 +203,13 @@ describe('boardingVerdict (#479)', () => {
     expect(boardingVerdict(ready)).toBe('play');
   });
 
-  it('poses a carrier at once: its coupée is #506’s', () => {
-    expect(boardingVerdict({ ...ready, role: 'carrier' })).toBeNull();
+  it('plays for a carrier at the mole too: its men go up a plank to the deck (#506)', () => {
+    expect(boardingVerdict({ ...ready, role: 'carrier' })).toBe('play');
+    expect(boardingVerdict({ ...ready, role: 'carrier', post: 'couple' })).toBeNull();
+  });
+
+  it('poses at once any other hull: an escort has nowhere to take its men', () => {
+    expect(boardingVerdict({ ...ready, role: 'escort' })).toBeNull();
   });
 
   it('poses at once a hull at the mole’s side or in the roads: no gangway reaches it', () => {
@@ -160,8 +221,8 @@ describe('boardingVerdict (#479)', () => {
     expect(boardingVerdict({ ...ready, post: null })).toBe('wait');
   });
 
-  it('refuses a carrier whose post is not known either: the role comes first', () => {
-    expect(boardingVerdict({ ...ready, role: 'carrier', post: null })).toBeNull();
+  it('refuses an escort whose post is not known either: the role comes first', () => {
+    expect(boardingVerdict({ ...ready, role: 'escort', post: null })).toBeNull();
   });
 
   it('plays nothing under a combat, out of the field, or off full motion', () => {

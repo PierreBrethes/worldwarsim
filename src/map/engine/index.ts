@@ -90,11 +90,14 @@ import { HullBoardings, type Started } from './hull-boardings';
 import {
   boardingVerdict,
   cutShort,
+  deckWay,
   gangwayDoor,
   gangwayOf,
   plankFoot,
   quayWay,
 } from './timelines/gangway';
+import { type Deck, deckLanding, deckOf, liftSequence } from './timelines/deck';
+import { GANGWAY } from '@/emblems/kits/manifest';
 import { boomsOfScene } from './timelines/booms';
 import { type Boom, HOISTED_ROLES } from './timelines/derrick';
 import { hoistedBoarding } from './timelines/hoisted';
@@ -803,6 +806,9 @@ export class MapEngine {
   /** The masts of each cargo file, once it has landed. */
   private readonly booms = new Map<string, ReadonlyArray<Boom>>();
   private readonly boomsAsked = new Set<string>();
+  /** The flight deck of each carrier file, once it has landed (`null`: it has none to read). */
+  private readonly decks = new Map<string, Deck | null>();
+  private readonly decksAsked = new Set<string>();
   /** The men drawn for a hull's boarding (`${pileId}/+${troopId}`), until it ends. */
   private readonly hullDrawn = new WeakMap<object, ReadonlyArray<string>>();
   /** **The planks of the planes taking men aboard** (#502), drawn while their sequence plays. */
@@ -3582,9 +3588,9 @@ export class MapEngine {
         this.boardings.push({ cue, since: performance.now() });
         break;
       case 'embarquement':
-        // A cargo's men go up its gangway, and its tag is fed as each is through the door; the
+        // A cargo's men go up its gangway, a carrier's up a plank to its deck and down its lift, and the tag is fed as each is through; the
         // second boarding of a hull, a beach, the other settings and a hull that cannot play pose
-        // the end at once (#479; the carrier is #506's, the vehicles go up by the derrick, #505).
+        // the end at once (#479, #506; a cargo's vehicles go up by the derrick, #505).
         if (this.sequences.motion === 'full' && cue.ground === 'quay') {
           if (this.hullBoardings.cue(cue, performance.now())) {
             // The rank holds where it stood until the men are up (`startHullBoarding`).
@@ -4327,9 +4333,12 @@ export class MapEngine {
    * the flank by the mole (`gangwayDoor`), and is taken by the dark of the door; each vehicle is
    * drawn where it last stood, drives down the mole to the spot under a mast's tip, is slung and
    * hoisted, carried over its hold and lowered out of sight (`hoistsOf`). The tag takes its riders
-   * as each is through. A rider with nowhere he stood is posed at once. `'wait'` while the hull,
-   * its port, its masts and the riders are not drawn; `null` where it plays nothing: not a cargo
-   * (#506 plays the carrier), not at the mole (a hull at its side or in the roads is posed at
+   * as each is through. A carrier's men go up a plank laid from the mole to the deck's edge on its
+   * side (`deckOf`: the files carry no door), walk to the lift and are taken down it, to the dark
+   * of the hangar (#506); its vehicles are posed at once, the quay's crane reaches no deck. A rider
+   * with nowhere he stood is posed at once. `'wait'` while the hull,
+   * its port, its masts and the riders are not drawn; `null` where it plays nothing: not a cargo or a carrier,
+   * not at the mole (a hull at its side or in the roads is posed at
    * once), out of the field or too far (`BOARDING_PX`), under a combat, no room left, or one of the
    * pieces would not play.
    */
@@ -4353,14 +4362,20 @@ export class MapEngine {
     });
     if (verdict !== 'play') return verdict;
     if (site === null) return 'wait';
-    // The marks in the port's metres, as the file has it, a port laid in mirror turned back.
-    const marks = ['fx_passerelle', 'fx_passerelle_tribord'].map((name) =>
-      this.standing.markOf(cue.hull, name),
-    );
+    const carrier = role === 'carrier';
+    // A cargo's door, its marks in the port's metres as the file has them, a port laid in mirror
+    // turned back; a carrier has none, its men go up to the deck's edge (read off the file).
+    const marks = carrier
+      ? []
+      : ['fx_passerelle', 'fx_passerelle_tribord'].map((name) =>
+          this.standing.markOf(cue.hull, name),
+        );
     if (marks.some((mark) => mark === null)) return null;
     const inPort = marks.map((mark) => site.toModel(mark!));
-    const door = gangwayDoor(inPort);
-    const doorBoard = marks[inPort.indexOf(door)]!;
+    const cargoDoor = carrier ? null : gangwayDoor(inPort);
+    const deck = carrier ? this.deckOfFile(this.standing.pieceOf(cue.hull)?.url) : null;
+    if (deck === undefined) return 'wait';
+    if (carrier && deck === null) return null;
 
     const kindOf = new Map(cue.riders.map(({ troopId, role: kind }) => [troopId, kind]));
     const troopOf = (id: string) => id.slice(pileId.length + 2);
@@ -4401,17 +4416,40 @@ export class MapEngine {
     const board = (x: number, y: number, z: number) => site.toBoard(new Vector3(x, y, z));
     const placeOf = (id: string) => places[drawn!.indexOf(id)]!;
 
+    const portMetre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+    const unit = new Vector3().setFromMatrixScale(frame).x;
+    // Where the plank rests: a cargo's door, or a carrier's deck edge, and a spot on its lift for each man.
+    const aboard =
+      deck === null
+        ? null
+        : deckLanding({
+            deck,
+            frame,
+            toModel: site.toModel,
+            metre: unit / portMetre,
+            men: menIds.reduce((sum, id) => sum + placeOf(id).men.length, 0),
+          });
+    const door = aboard?.head ?? cargoDoor!;
+    const doorBoard =
+      aboard === null ? marks[inPort.indexOf(cargoDoor!)]! : board(door.x, door.y, door.z);
+    let spot = 0;
+
     const plan =
       menIds.length === 0
         ? null
         : gangwayOf({
             man: height,
+            ...(aboard === null ? {} : { lift: { drop: GANGWAY.lift * portMetre } }),
             squads: menIds.map((id) => ({
               men: placeOf(id).men.map((man) => {
                 const from = site.toModel(man);
+                const way =
+                  aboard === null
+                    ? quayWay(from, door)
+                    : deckWay(from, door, aboard.spots[spot++]!);
                 return [
                   [man.x, man.y, man.z] as const,
-                  ...quayWay(from, door).map((at) => {
+                  ...way.map((at) => {
                     const point = board(...at);
                     return [point.x, point.y, point.z] as const;
                   }),
@@ -4420,7 +4458,6 @@ export class MapEngine {
             })),
           });
 
-    const portMetre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
     // The vehicles: each takes a mast, drives to the spot under its tip, and is lifted (#505).
     const lengthOf = (id: string) => {
       const box = this.standing.pieceOf(id)?.box?.getSize(size);
@@ -4448,11 +4485,18 @@ export class MapEngine {
     const walking = playing.filter(({ id, sequence }) =>
       this.sequences.play(this.standing, id, sequence, now),
     );
-    const mastsPlay = !hoisting || this.sequences.play(this.standing, cue.hull, hoist.hull!, now);
+    // The hull's own part: the masts that lift its vehicles, or a carrier's lift that takes its men.
+    const hullPart: Sequence | null = hoisting
+      ? hoist.hull
+      : plan?.lift
+        ? liftSequence(plan.lift, (GANGWAY.lift * portMetre) / unit)
+        : null;
+    const mastsPlay =
+      hullPart === null || this.sequences.play(this.standing, cue.hull, hullPart, now);
     if (walking.length < playing.length || !mastsPlay) {
       for (const { id } of walking)
         this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
-      if (mastsPlay && hoisting)
+      if (mastsPlay && hullPart !== null)
         this.sequences.retime(this.standing, cue.hull, { ms: 0, at: () => ({}) });
       return null;
     }
@@ -4490,6 +4534,19 @@ export class MapEngine {
           this.gangplanks.clear(cue.hull);
       },
     };
+  }
+
+  /** **The flight deck of a carrier file**, read once the file has landed: `undefined` until then
+   *  (the caller waits), `null` for a file with no lift to read it by. */
+  private deckOfFile(url: string | undefined): Deck | null | undefined {
+    if (url === undefined) return undefined;
+    const known = this.decks.get(url);
+    if (known !== undefined) return known;
+    if (!this.decksAsked.has(url)) {
+      this.decksAsked.add(url);
+      void posedScene(url).then((scene) => this.decks.set(url, deckOf(scene)));
+    }
+    return undefined;
   }
 
   /** **The masts of a cargo file**, read once the file has landed: `null` until then (the caller
