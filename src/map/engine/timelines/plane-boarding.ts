@@ -3,6 +3,7 @@ import type { PartPose, Sequence } from '../sequences';
 import { wayOf } from './beach-boats';
 import { ease, span } from './curves';
 import { RAZE_RING_MS } from './raze';
+import { WALK_MIN_PX } from './walk';
 
 export type Flat = readonly [x: number, z: number];
 type Vec3 = readonly [x: number, y: number, z: number];
@@ -26,6 +27,10 @@ const T = {
   /** It all rests this long once the door is shut. */
   rest: 300,
 } as const;
+/** **The door plays from 30 px** (#502), as the truck's tailgate does: the buildings' 150 px
+ *  (`PLAY_PX`) would never let a plane, a quarter of the screen at best, play. `@a-mesurer` against
+ *  a plane on a phone. */
+export const PLANE_BOARDING_PX = 30;
 /** A man's pace, in his heights a second, and where he waits before the plank, in his heights:
  *  out from the foot and aft of it. */
 const MAN_SPEED = 1.9;
@@ -57,9 +62,15 @@ export type PlaneBoarding = {
     readonly heading: number;
     readonly metre: number;
     readonly rig: PlaneRig;
+    /** How far behind the wheels the men may pass round its tail, in the plane's metres: its tail
+     *  end and half the gap it leaves to the rail. */
+    readonly behind?: number;
   };
   readonly man: number;
   readonly squads: ReadonlyArray<{ readonly men: ReadonlyArray<Flat> }>;
+  /** Where the men step out onto the plane's yard before they head for it, when their rank does
+   *  not stand in its sight: the airfield's garrison stands between its hangars (#502). */
+  readonly muster?: Flat;
 };
 
 /** The provisional plank at an instant: its two ends on the board, and its size in board units. */
@@ -89,7 +100,7 @@ export function planeBoardingOf(
   readonly ring: { readonly at: Flat; readonly ms: number } | null;
   readonly settled: number;
 } {
-  const { plane, man, squads } = boarding;
+  const { plane, man, squads, muster } = boarding;
   if (motion !== 'full') {
     const ring = motion === 'reduced' ? { at: plane.at, ms: RAZE_RING_MS } : null;
     return { plane: null, squads: [], plank: () => null, ring, settled: ring?.ms ?? 0 };
@@ -127,6 +138,21 @@ export function planeBoardingOf(
   const toSill = Math.atan2(sill[0] - foot[0], sill[1] - foot[1]);
   const sideLocal: Flat = [footLocal[0] + SIDE[0] * man, footLocal[1] + SIDE[1] * man];
 
+  // The men step out at the muster point; if it lies on the flank away from the door, they go
+  // round the tail, along the line it leaves clear, before they come to the side.
+  const musterLocal = muster === undefined ? null : toLocal(muster);
+  const roundTail =
+    musterLocal !== null &&
+    plane.behind !== undefined &&
+    Math.sign(musterLocal[0]) !== Math.sign(footLocal[0]);
+  const tailLine = -(plane.behind ?? 0) * m;
+  const route: Flat[] =
+    muster === undefined || musterLocal === null
+      ? []
+      : roundTail
+        ? [muster, toBoard([musterLocal[0], tailLine]), toBoard([sideLocal[0], tailLine])]
+        : [muster];
+
   type Man = {
     readonly squad: number;
     readonly k: number;
@@ -135,13 +161,19 @@ export function planeBoardingOf(
     start: number;
     climbAt: number;
   };
-  // Each man goes along his column to the foot's depth, across to the side, then in.
+  // Each man goes along his column to the foot's depth, or out to the muster point, across to the
+  // side, then in.
   const men: Man[] = squads.flatMap(({ men: places }, squad) =>
     places.map((place, k) => ({
       squad,
       k,
       place,
-      way: wayOf([place, toBoard([toLocal(place)[0], sideLocal[1]]), toBoard(sideLocal), foot]),
+      way: wayOf([
+        place,
+        ...(muster === undefined ? [toBoard([toLocal(place)[0], sideLocal[1]])] : route),
+        toBoard(sideLocal),
+        foot,
+      ]),
       start: 0,
       climbAt: 0,
     })),
@@ -149,7 +181,9 @@ export function planeBoardingOf(
   const speed = (MAN_SPEED * man) / 1000;
   const walk = (x: Man): number => x.way.length / speed;
   // A man waits at his place until he can reach the foot just as the one before has climbed.
-  let free = T.open + T.door + T.plank;
+  // The door opens as the first man nears the foot, or at once when he is there already.
+  const open = Math.max(T.open, T.first + Math.min(...men.map(walk)) - T.door * 0.6 - T.plank);
+  let free = open + T.door + T.plank;
   [...men]
     .sort((a, b) => a.way.length - b.way.length)
     .forEach((x, i) => {
@@ -159,7 +193,7 @@ export function planeBoardingOf(
       free = climb + T.climb * 0.8;
     });
   const lastIn = Math.max(...men.map((x) => x.climbAt)) + T.climb;
-  const plankDown = T.open + T.door * 0.6;
+  const plankDown = open + T.door * 0.6;
   const plankUp = lastIn + T.after;
   const shut = plankUp + T.plank;
   const total = shut + T.doorShut + T.rest;
@@ -167,11 +201,11 @@ export function planeBoardingOf(
   const planeSequence: Sequence<'airTransport'> = {
     family: 'airTransport',
     ms: total,
+    minPx: PLANE_BOARDING_PX,
     at(t) {
       if (t < 0 || t >= total) return {};
       const k =
-        ease.out3(span(t, T.open, T.open + T.door)) *
-        (1 - ease.in2(span(t, shut, shut + T.doorShut)));
+        ease.out3(span(t, open, open + T.door)) * (1 - ease.in2(span(t, shut, shut + T.doorShut)));
       return k > 0 ? { cabin_door: { turn: [0, -DOOR_ANGLE * k, 0] } } : {};
     },
   };
@@ -181,6 +215,7 @@ export function planeBoardingOf(
     const ms = Math.max(...mine.map((x) => x.climbAt + T.climb)) + 1;
     return {
       ms,
+      minPx: WALK_MIN_PX,
       at(t) {
         if (t < 0 || t >= ms) return {};
         const pose: Record<string, PartPose> = {};

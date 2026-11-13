@@ -262,12 +262,16 @@ describe('an airdrop longer than the settle window is declared to the loop', () 
   const here = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');
 
-  it('keeps the frames coming while a packet falls, and starts it from a stirring method', () => {
+  it('keeps the frames coming while a packet falls or a plane flies its pass, and starts them from a stirring method', () => {
     expect(PARACHUTE_MS).toBeGreaterThan(SETTLE_MS);
-    expect(source).toMatch(/this\.ink\.active \|\|\s+this\.parachutes\.active/);
+    expect(source).toMatch(
+      /this\.ink\.active \|\|\s+this\.parachutes\.active \|\|\s+this\.airdrops\.active/,
+    );
     const burst = source.slice(source.indexOf('  inkBurst('));
-    expect(burst.slice(0, burst.indexOf('\n  }\n'))).toMatch(
-      /this\.invalidate\(\);[\s\S]*parachutes\.release/,
+    expect(burst.slice(0, burst.indexOf('\n  }\n'))).toMatch(/this\.invalidate\(\);[\s\S]*dropAt/);
+    const drop = source.slice(source.indexOf('  private dropAt('));
+    expect(drop.slice(0, drop.indexOf('\n  }\n'))).toMatch(
+      /parachutes\.release[\s\S]*airdrops\.play/,
     );
   });
 });
@@ -299,15 +303,19 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
   });
 });
 
-describe('a plane boarding is cued but not played yet (#480)', () => {
+describe("a plane's boarding is cued and played like a truck's (#502)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');
 
-  it('lets only a truck hold its pile and queue a boarding: a plane waits for #502', () => {
+  it('holds the pile and queues a boarding for a plane as for a truck', () => {
     const montee = source.slice(source.indexOf("      case 'montee':"));
-    expect(montee.slice(0, montee.indexOf("      case 'dispersion':"))).toMatch(
-      /cue\.carrier !== 'landTransport'[^;]*\) break;[\s\S]*this\.standing\.expect\([\s\S]*this\.boardings\.push/,
-    );
+    const body = montee.slice(0, montee.indexOf("      case 'dispersion':"));
+    expect(body).not.toMatch(/landTransport/);
+    expect(body).toMatch(/this\.standing\.expect\([\s\S]*this\.boardings\.push/);
+  });
+
+  it('declares the plank it draws to the loop, a sequence longer than SETTLE_MS', () => {
+    expect(source).toMatch(/this\.moorings\.active \|\|\s+this\.planks\.length > 0 \|\|/);
   });
 });
 

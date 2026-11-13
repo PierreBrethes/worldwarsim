@@ -145,9 +145,33 @@ describe('inkBursts', () => {
     const at = (kind: JournalDispatch['kind']) => ({
       ...dispatch(20, kind),
       place: { lon: 9, lat: 52 },
+      ...(kind === 'airdrop' ? { airdrop: { delivered: true, squad: true } } : {}),
     });
     expect(inkBursts([at('airdrop'), at('supply')], 10, [])).toEqual([
-      { kind: 'airdropped', at: [9, 52], words: { word: 'largué', hour: hour(20) } },
+      {
+        kind: 'airdropped',
+        at: [9, 52],
+        words: { word: 'largué', hour: hour(20) },
+        delivered: true,
+        squad: true,
+      },
+    ]);
+  });
+
+  it('stamps a refused largage « refusé », and says nothing came down (#508)', () => {
+    const refused = {
+      ...dispatch(20, 'airdrop'),
+      place: { lon: 9, lat: 52 },
+      airdrop: { delivered: false, squad: false },
+    };
+    expect(inkBursts([refused], 10, [])).toEqual([
+      {
+        kind: 'airdropped',
+        at: [9, 52],
+        words: { word: 'refusé', hour: hour(20) },
+        delivered: false,
+        squad: false,
+      },
     ]);
   });
 

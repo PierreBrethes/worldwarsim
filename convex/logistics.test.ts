@@ -972,6 +972,23 @@ describe('dropping a packet by air', () => {
     for (const secret of ['load', 'airdrop', 'outpostId', 'ammunition'])
       expect(served).not.toContain(secret);
   });
+
+  it('tells the enemy nothing of a drop that came down: the stamp and the dispatch are mine alone (#508)', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const { airfield, plane, outpost } = await flightLine(t, seat);
+    await t.mutation(api.logistics.airdrop, {
+      ...seat,
+      origin: { kind: 'building', buildingId: airfield },
+      troopIds: [plane],
+      target: { kind: 'outpost', outpostId: outpost },
+    });
+    await arriveNext(t);
+    expect(JSON.stringify(await t.query(api.view.playerView, seat))).toContain('airdropped');
+    const served = JSON.stringify(await t.query(api.view.playerView, guest));
+    for (const secret of ['airdropped', '"delivered"', '"kept"'])
+      expect(served).not.toContain(secret);
+  });
 });
 
 const ROME: LonLat = [12.5, 41.9];

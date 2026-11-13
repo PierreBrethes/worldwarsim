@@ -189,8 +189,10 @@ export type Cue =
   | {
       readonly kind: 'montee';
       readonly truck: string;
-      /** A plane's men board too (#480), but the engine plays only a truck's until #502. */
+      /** A plane's men board too (#502): its door, its plank, the men one by one. */
       readonly carrier: Carrier;
+      /** The troop that carries them: a plane's tag is kept at its old count until they are in. */
+      readonly carrierId: string;
       readonly riders: ReadonlyArray<{
         readonly troopId: string;
         readonly figures: ReadonlyArray<UnitTier>;

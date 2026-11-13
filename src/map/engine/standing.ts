@@ -28,6 +28,7 @@ import { leaveHiddenPartsUnplaced } from './hidden-parts';
 import type { PilePieces } from '@/domain/pile-pieces';
 import type { UnitRole, UnitTier } from '@/domain/ids';
 import { AIRFIELD } from '@/emblems/kits/manifest';
+import { type PlaneFile, planeRigOf } from './figurines/plane-rig';
 import { nationInk } from '@/domain/nations';
 import { DOMAIN_BY_ROLE } from '@/domain/troops';
 import { COUNTRY_THICKNESS, type WorldFrame } from './frame';
@@ -193,6 +194,8 @@ const GLIDE_MS = 500;
 /** How long a pile waits for the sequence `expect` promised before it stands at once: past the
  *  engine's own wait for a pile to stand (`SORTIE_WAIT_MS`). */
 const EXPECT_MS = 2500;
+/** How far past an airfield's façades its garrison steps out onto the yard, in metres. `@a-mesurer` */
+const YARD_MOUTH = 4;
 /** How long where a group stood is kept (`lastSeen`): the view that moved it is long in. */
 const SEEN_MS = 3000;
 /** **A column joining a pile halts at its edge** (#277): so far out of its footprint, in steps. */
@@ -1108,6 +1111,19 @@ export class StandingLayer implements SequenceHost {
     return best?.id ?? null;
   }
 
+  /** **Every group standing on the board**, where it is: what a crate dropped on a squad goes to
+   *  the nearest of (#508). */
+  placedGroups(): Array<{ id: string; x: number; z: number }> {
+    const placed: Array<{ id: string; x: number; z: number }> = [];
+    for (const [pileId, entry] of this.dressed)
+      for (const k of entry.pieces.groups.keys()) {
+        const id = `${pileId}/${k}`;
+        const place = this.placeOf(id);
+        if (place !== null) placed.push({ id, x: place.at.x, z: place.at.z });
+      }
+    return placed;
+  }
+
   /** What a pile stands, as dressed here. */
   piecesOf(pileId: string): PilePieces | null {
     return this.dressed.get(pileId)?.pieces ?? null;
@@ -1152,6 +1168,23 @@ export class StandingLayer implements SequenceHost {
   markOf(id: string, name: string): Vector3 | null {
     const lent = this.figurineOf(id);
     return lent?.placed ? markOf(lent.figurine.object, name) : null;
+  }
+
+  /** **Where an airfield's garrison steps out onto its yard** (#502), on the board: the mouth of
+   *  the alley between its hangars, a little past their façades. `null` for a pile that stands
+   *  beside no site. */
+  yardOf(pileId: string): Vector3 | null {
+    const entry = this.dressed.get(pileId);
+    if (entry === undefined || !('beside' in entry.at)) return null;
+    const frame = this.garrisonAt(entry.at.beside, entry.span, false);
+    return frame?.toBoard(new Vector3(0, AIRFIELD.top, AIRFIELD.facade + YARD_MOUTH)) ?? null;
+  }
+
+  /** **A plane drawn, read for its boarding** (#502), with its file's door and foot. `null`
+   *  until it is placed. */
+  rigOf(id: string, file: PlaneFile): ReturnType<typeof planeRigOf> {
+    const lent = this.figurineOf(id);
+    return lent?.placed ? planeRigOf(lent.figurine.object, file) : null;
   }
 
   /** **How long a group is drawn**, nose to tail along its own front, on the board: a turned

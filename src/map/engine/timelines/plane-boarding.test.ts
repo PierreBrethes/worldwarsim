@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { Box3, Group } from 'three';
+import { describe, expect, it, vi } from 'vitest';
+import { SequenceLayer, type SequenceHost } from '../sequences';
 import { isRigPart } from '@/emblems/rigs';
-import { type PlaneBoarding, type PlaneRig, planeBoardingOf } from './plane-boarding';
+import { WALK_MIN_PX } from './walk';
+import {
+  PLANE_BOARDING_PX,
+  type PlaneBoarding,
+  type PlaneRig,
+  planeBoardingOf,
+} from './plane-boarding';
 
 /** The French plane's, measured on its GLB: a trial set, the engine reads the rig it draws. */
 const FRENCH: PlaneRig = {
@@ -24,6 +32,17 @@ const scene = (over: Partial<PlaneBoarding> = {}): PlaneBoarding => ({
   squads: [squad(0.15), squad(0.3)],
   ...over,
 });
+/** The same yard with the men waiting by the foot (0.0218, -0.0634): the door opens at 0.3 s, as in
+ *  the storyboard, where they are a few steps off (#502: it waits for them, or opens at once). */
+const squadByFoot = (x: number): PlaneBoarding['squads'][number] => ({
+  men: [
+    [x, -0.07],
+    [x - 0.005, -0.075],
+    [x + 0.005, -0.08],
+  ],
+});
+const near = (over: Partial<PlaneBoarding> = {}): PlaneBoarding =>
+  scene({ squads: [squadByFoot(0.03), squadByFoot(0.04)], ...over });
 const times = (ms: number) => Array.from({ length: Math.ceil(ms / 20) }, (_, k) => k * 20);
 const door = (a: ReturnType<typeof planeBoardingOf>, t: number) =>
   a.plane!.at(t).cabin_door?.turn?.[1] ?? 0;
@@ -38,7 +57,7 @@ const gone = (a: ReturnType<typeof planeBoardingOf>) =>
 
 describe('planeBoardingOf, the door and the plank (#480, « 2. En avion »)', () => {
   it('is the rest pose before and after its sequence, and names only parts of the plane', () => {
-    const a = planeBoardingOf(scene());
+    const a = planeBoardingOf(near());
     const plane = a.plane!;
     expect(plane.family).toBe('airTransport');
     expect(plane.at(-1)).toEqual({});
@@ -49,7 +68,7 @@ describe('planeBoardingOf, the door and the plank (#480, « 2. En avion »)', ()
   });
 
   it('swings the cabin door forward 100° about y, open from 0.8 s, and shuts it again', () => {
-    const a = planeBoardingOf(scene());
+    const a = planeBoardingOf(near());
     expect(door(a, 0)).toBe(0);
     expect(door(a, 300 + 500)).toBeCloseTo((-100 * Math.PI) / 180);
     expect(door(a, 600)).toBeLessThan(0);
@@ -60,7 +79,7 @@ describe('planeBoardingOf, the door and the plank (#480, « 2. En avion »)', ()
   });
 
   it('stretches a plank, 0.5 m wide, from the sill (1.1 m up) to the foot on the ground', () => {
-    const a = planeBoardingOf(scene());
+    const a = planeBoardingOf(near());
     expect(a.plank(0)).toBeNull();
     const down = a.plank(300 + 300 + 350 + 100)!;
     expect(down.from[1]).toBeCloseTo(0.011, 2);
@@ -74,7 +93,7 @@ describe('planeBoardingOf, the door and the plank (#480, « 2. En avion »)', ()
   it('runs the plank from the sill of the rig it is given to its foot, wherever they are', () => {
     // The Japanese door sits further forward and lower, the nose a little higher.
     const rig: PlaneRig = { hinge: [0.7, 2.6, -4.78], foot: [2.4, -5.2], pitch: 0 };
-    const down = planeBoardingOf(scene({ plane: { ...scene().plane, rig } })).plank(1400)!;
+    const down = planeBoardingOf(near({ plane: { ...scene().plane, rig } })).plank(1400)!;
     // No pitch: the sill is the hinge's lower edge, at the storyboard's offset, 0.01 a metre.
     expect(down.from[0]).toBeCloseTo((0.7 + 0.05) * 0.01);
     expect(down.from[1]).toBeCloseTo((2.6 - 0.88) * 0.01);
@@ -86,21 +105,150 @@ describe('planeBoardingOf, the door and the plank (#480, « 2. En avion »)', ()
 
   it('turns the sill and the foot with the plane', () => {
     const a = planeBoardingOf(
-      scene({ plane: { at: [0, 0], heading: Math.PI / 2, metre: 0.01, rig: FRENCH } }),
+      near({ plane: { at: [0, 0], heading: Math.PI / 2, metre: 0.01, rig: FRENCH } }),
     );
-    const down = a.plank(1400)!;
+    const down = a.plank(Math.max(...gone(a)))!;
     // Facing +x, its +x flank is -z, and aft is -x.
     expect(down.to[2]).toBeLessThan(down.from[2]);
     expect(down.to[0]).toBeLessThan(0);
   });
 
   it('draws the plank in before it shuts the door', () => {
-    const a = planeBoardingOf(scene());
+    const a = planeBoardingOf(near());
     const last = Math.max(...gone(a));
     expect(a.plank(last + 100)).not.toBeNull();
     expect(door(a, last + 500)).toBeCloseTo((-100 * Math.PI) / 180);
     expect(a.plank(last + 600)).toBeNull();
     expect(door(a, last + 700)).toBeGreaterThan((-100 * Math.PI) / 180);
+  });
+});
+
+describe('planeBoardingOf, what it takes to play (#502)', () => {
+  // A man is a few tens of px tall on screen when the plane reads at a tenth of the buildings'
+  // 150 px: the plane says whether it plays, its men follow it (as the truck's do).
+  it('lets the plane play from its own size, and its men as long as it stands', () => {
+    const a = planeBoardingOf(scene());
+    expect(a.plane!.minPx).toBe(PLANE_BOARDING_PX);
+    expect(PLANE_BOARDING_PX).toBeLessThan(150);
+    for (const squad of a.squads) expect(squad.minPx).toBe(WALK_MIN_PX);
+  });
+
+  it('plays on the layer where a plane and its men read at 40 px, never at the default 150', () => {
+    const host = {
+      pieceOf: () => ({ box: new Box3(), url: 'plane.glb' }),
+      copyOf: () => new Group(),
+      standIn: () => {},
+    } as unknown as SequenceHost;
+    const layer = new SequenceLayer(
+      (_box, px) => px <= 40,
+      vi.fn(() => Promise.resolve(new Group())),
+    );
+    const a = planeBoardingOf(scene());
+    expect(layer.play(host, 'man', a.squads[0]!, 0)).toBe(true);
+    expect(layer.play(host, 'plane', a.plane!, 0)).toBe(true);
+  });
+});
+
+describe('planeBoardingOf, a garrison out of sight of the plane (#502)', () => {
+  // The airfield's garrison stands between its hangars: the men step out onto the yard first,
+  // never through a wall.
+  it('walks every man through the muster point before he heads for the plane', () => {
+    const muster = [0.4, 0.5] as const;
+    const a = planeBoardingOf(scene({ muster }));
+    for (const s of [0, 1])
+      for (const k of [0, 1, 2]) {
+        const place = scene().squads[s]!.men[k]!;
+        const nearest = Math.min(
+          ...times(a.settled).map((t) => {
+            const travel = a.squads[s]!.at(t)[`man_${k}`]?.travel;
+            return travel === undefined
+              ? Infinity
+              : Math.hypot(place[0] + travel[0] - muster[0], place[1] + travel[2] - muster[1]);
+          }),
+        );
+        expect(nearest, `man ${s}/${k}`).toBeLessThan(0.004);
+      }
+  });
+
+  it('still reaches the foot and the sill, whatever the muster', () => {
+    const a = planeBoardingOf(scene({ muster: [0.4, 0.5] }));
+    const last = Math.max(...gone(a));
+    expect(last).toBeLessThan(a.settled);
+    expect(a.plank(last)).not.toBeNull();
+  });
+});
+
+describe("planeBoardingOf, a door that turns its back to the yard's mouth (#502)", () => {
+  // The second transport stands in the lane on the far side of the alley: its door (+x) looks to
+  // the island's edge, the mouth is on its other flank. The men go round its tail, never through it.
+  const metre = 0.01;
+  const muster = [-0.3, -0.12] as const;
+  const behind = 14.6;
+  const across = (over: Partial<PlaneBoarding> = {}) =>
+    planeBoardingOf(
+      scene({
+        plane: { ...scene().plane, behind },
+        squads: [{ men: [[-0.3, -0.1]] }],
+        muster,
+        ...over,
+      }),
+    );
+  const throughFuselage = (a: ReturnType<typeof planeBoardingOf>) =>
+    times(a.settled).some((t) => {
+      const travel = a.squads[0]!.at(t).man_0?.travel;
+      // Up the plank, he is on his way in: only the walk counts.
+      if (travel === undefined || travel[1] > 0) return false;
+      const x = -0.3 + travel[0];
+      const z = -0.1 + travel[2];
+      // The fuselage, 3 m across, from its tail to well past the wheels.
+      return Math.abs(x) < 3 * metre * 0.5 && z > -behind * metre && z < 0.05;
+    });
+
+  it('does not walk him through the fuselage', () => {
+    expect(throughFuselage(across())).toBe(false);
+  });
+
+  it('walks him round the tail, behind the line the plane leaves clear', () => {
+    const a = across();
+    const deepest = Math.min(
+      ...times(a.settled).map((t) => {
+        const travel = a.squads[0]!.at(t).man_0?.travel;
+        return travel === undefined ? Infinity : -0.1 + travel[2];
+      }),
+    );
+    expect(deepest).toBeLessThan(-behind * metre * 0.95);
+    expect(deepest).toBeGreaterThan(-behind * metre * 1.05);
+  });
+
+  it('goes straight to the door from a mouth on its own flank', () => {
+    const a = across({ muster: [0.3, -0.12], squads: [{ men: [[0.3, -0.1]] }] });
+    const deepest = Math.min(
+      ...times(a.settled).map((t) => {
+        const travel = a.squads[0]!.at(t).man_0?.travel;
+        return travel === undefined ? Infinity : -0.1 + travel[2];
+      }),
+    );
+    expect(deepest).toBeGreaterThan(-behind * metre * 0.95);
+  });
+});
+
+describe('planeBoardingOf, men a long walk from the plane (#502)', () => {
+  // The airfield's garrison stands in the alley between its hangars, some forty metres off: the
+  // door opens as the first man nears the foot, not twenty seconds before him.
+  const far = scene({ squads: [{ men: [[0.15, 0.9]] }] });
+
+  it('leaves the door shut and the plank in while the first man is still walking', () => {
+    const a = planeBoardingOf(far);
+    expect(door(a, 800)).toBe(0);
+    expect(a.plank(1400)).toBeNull();
+  });
+
+  it('has the door open and the plank down by the time he reaches the foot, and climbs at once', () => {
+    const a = planeBoardingOf(far);
+    const climbs = times(a.settled).find((t) => (a.squads[0]!.at(t).man_0?.travel?.[1] ?? 0) > 0)!;
+    expect(door(a, climbs)).toBeCloseTo((-100 * Math.PI) / 180, 1);
+    expect(a.plank(climbs)).not.toBeNull();
+    expect(a.plank(climbs)!.to[1]).toBeCloseTo(0, 3);
   });
 });
 

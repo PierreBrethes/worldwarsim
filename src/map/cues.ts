@@ -105,23 +105,24 @@ export function descentesOf(
   );
 }
 
-/** **Les hommes montent sous les yeux** (#277) : en camion, en Mondiale. Ailleurs — un navire,
- *  un avion (jusqu'à #502), une unité Blitz qui n'est pas trois hommes — la pièce lâchée dessus
- *  s'y engouffre. */
-export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
-  return carrier === 'landTransport' && !blitz;
-}
-
 /** Ce qui embarque des hommes sous les yeux : un camion ou un avion de transport. */
 export type Carrier = 'landTransport' | 'airTransport';
 const isCarrier = (role: UnitRole): role is Carrier =>
   role === 'landTransport' || role === 'airTransport';
+
+/** **Les hommes montent sous les yeux** (#277, #502) : en camion ou en avion, en Mondiale. Ailleurs
+ *  — un navire, une unité Blitz qui n'est pas trois hommes — la pièce lâchée dessus s'y engouffre. */
+export function boardsUnderTheEyes(carrier: UnitRole, blitz: boolean): boolean {
+  return isCarrier(carrier) && !blitz;
+}
 
 /** **Un porteur où des hommes montent** (#277) : son groupe (`truck`, même pour un avion), ce
  *  qu'il est, et chaque passager neuf. */
 export type Montee = {
   readonly truck: string;
   readonly carrier: Carrier;
+  /** The troop that carries them: whose tag a plane's boarding keeps at its old count (#502). */
+  readonly carrierId: string;
   readonly riders: ReadonlyArray<string>;
 };
 
@@ -139,8 +140,9 @@ export function monteesOf(
   return piles.flatMap(({ id, pieces }) =>
     pieces.groups.flatMap(({ role, troopIds }, k) => {
       const riders = troopIds.flatMap((troop) => boarded.get(troop) ?? []);
-      return isCarrier(role) && riders.length > 0
-        ? [{ truck: `${id}/${k}`, carrier: role, riders }]
+      const carrierId = troopIds.find((troop) => boarded.has(troop));
+      return isCarrier(role) && carrierId !== undefined
+        ? [{ truck: `${id}/${k}`, carrier: role, carrierId, riders }]
         : [];
     }),
   );

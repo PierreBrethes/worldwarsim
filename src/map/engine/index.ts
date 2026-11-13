@@ -79,7 +79,8 @@ import {
   troopScale,
   troopWeight,
 } from './figurines/figurine';
-import { type Cue, type Sequence, SequenceLayer } from './sequences';
+import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequences';
+import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
@@ -109,6 +110,9 @@ import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { BOARDING_PX, boardingOf } from './timelines/boarding';
+import { TAIL_GAP } from './timelines/airfield';
+import { type Plank, planeBoardingOf } from './timelines/plane-boarding';
+import { PlankMesh } from './plank';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
   aroundTheFront,
@@ -205,6 +209,7 @@ import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
 import { brightest, Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
+import { Airdrops, airdropPlan, playDrop, takerOffset } from './airdrops';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
@@ -800,6 +805,14 @@ export class MapEngine {
   private readonly boomsAsked = new Set<string>();
   /** The men drawn for a hull's boarding (`${pileId}/+${troopId}`), until it ends. */
   private readonly hullDrawn = new WeakMap<object, ReadonlyArray<string>>();
+  /** **The planks of the planes taking men aboard** (#502), drawn while their sequence plays. */
+  private planks: Array<{
+    readonly mesh: PlankMesh;
+    readonly plank: (t: number) => Plank | null;
+    readonly since: number;
+    readonly ms: number;
+    readonly lift: number;
+  }> = [];
   /** Told which riders a hull's tag may now show (`watchBoarded`). */
   private onBoarded: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined;
   /** **Men coming down from a truck** (#277), waiting for their pile to stand. */
@@ -835,6 +848,8 @@ export class MapEngine {
   private heldGround: Vector3 | null = null;
   private readonly ink: InkLayer;
   private readonly parachutes: ParachuteLayer;
+  /** A largage played at true size, a plane over its target (#508). */
+  private readonly airdrops: Airdrops;
   private readonly reach: ReachRing;
   /** My outposts' reaches and liaisons (#375). */
   private readonly zones: OutpostZones;
@@ -1324,6 +1339,8 @@ export class MapEngine {
     this.scene.add(this.ink.group);
     this.parachutes = new ParachuteLayer(this.frame);
     this.scene.add(this.parachutes.group);
+    this.airdrops = new Airdrops(() => this.invalidate());
+    this.scene.add(this.airdrops.group);
     this.scene.add(this.reach.object);
     this.scene.add(this.zones.object);
     this.scene.add(this.aimRibbon.group);
@@ -1453,8 +1470,45 @@ export class MapEngine {
     this.invalidate();
     if (burst.kind === 'held' && burst.combatId !== undefined) return this.groundWords.hold(burst);
     if (burst.from !== undefined) this.shots.hold(burst);
-    if (burst.kind === 'airdropped') this.parachutes.release(burst.at, performance.now());
+    if (burst.kind === 'airdropped') this.dropAt(burst);
     this.ink.burst(burst, performance.now());
+  }
+
+  /**
+   * **A largage is played where the view learns it** (#508, `airdropPlan`): the copy of the plane
+   * that was a pawn flies its pass over the target and the crate falls at true size to the piece
+   * that takes it; the plane that flies home waits out of sight until the copy has flown on (see
+   * `playDrop`). Far, or with no pawn kept (the absence tour), the packet falls in pixels as it
+   * always did. On an outpost the crate melts where it lies: its site has no mark for a Magasin.
+   */
+  private dropAt(burst: InkBurst): void {
+    const now = performance.now();
+    const delivered = burst.delivered ?? true;
+    const flown = this.arcs.takeFlown(burst.at);
+    const target = this.frame.projectLonLat(burst.at, COUNTRY_THICKNESS);
+    const plan = airdropPlan({
+      delivered,
+      motion: this.sequences.motion,
+      flown: flown !== null,
+      whole: !this.veiled(target) && this.seenWhole(target, troopSpan('airTransport')),
+    });
+    void playDrop({
+      plan: flown === null && plan === 'plane' ? 'nothing' : plan,
+      delivered,
+      squad: burst.squad === true,
+      pixels: () => this.parachutes.release(burst.at, now),
+      taker: () => takerOffset(this.standing.placedGroups(), target, pieceScale.size),
+      play: (to) =>
+        this.airdrops.play({
+          piece: flown!.piece,
+          at: target,
+          heading: flown!.heading,
+          delivered,
+          to,
+        }),
+      holdBack: (until) => this.arcs.holdBack(burst.at, until),
+      now: () => performance.now(),
+    });
   }
 
   /** The stamps of `kind`, or all of them, taken up in a quarter of a second: a replay that is
@@ -2667,6 +2721,7 @@ export class MapEngine {
     this.tourInk.dispose();
     this.searchArea.dispose();
     this.ghost.dispose();
+    for (const { mesh } of this.planks) mesh.dispose();
     this.standing.dispose();
     this.loops.dispose();
     this.moorings.dispose();
@@ -2684,6 +2739,7 @@ export class MapEngine {
     this.arcs.dispose();
     this.ink.dispose();
     this.parachutes.dispose();
+    this.airdrops.dispose();
     this.regions.dispose();
     this.drawings.dispose();
     this.basins.dispose();
@@ -3516,8 +3572,11 @@ export class MapEngine {
         this.landings.push({ cue, since: performance.now() });
         break;
       case 'montee':
-        // A plane's men board too (#480); its sequence is wired by #502.
-        if (cue.carrier !== 'landTransport' || this.sequences.motion === 'off') break;
+        if (this.sequences.motion === 'off') {
+          // A plane's tag was kept at its old count (`WorldMap`): the pose is final, feed it.
+          this.feedPlane(cue);
+          break;
+        }
         // The truck holds where it stood until its men are under the tarp (`boardOf`).
         this.standing.expect(cue.truck.slice(0, cue.truck.lastIndexOf('/')));
         this.boardings.push({ cue, since: performance.now() });
@@ -4462,6 +4521,123 @@ export class MapEngine {
     if (truck === null || length === null || step === null) return false;
     const motion = this.sequences.motion;
     const unseen = motion !== 'full' || this.veiled(truck.at) || !this.seenWhole(truck.at);
+    const plane = cue.carrier === 'airTransport';
+    const yard = plane ? this.standing.yardOf(pileId) : null;
+    // A plane's door and foot are read off the model drawn: not before it stands.
+    const flight = plane && !unseen ? this.planeRigOf(cue.truck) : null;
+    if (plane && !unseen && flight === null) return false;
+    const seated = this.seatMen(boarding, pileId, unseen);
+    if (seated === null) return false;
+    const { boards, men, height } = seated;
+    const squads = men.map((place) => ({
+      men: place!.men.map(({ x, z }) => [x, z] as const),
+      heading: Math.atan2(place!.front.x, place!.front.z),
+    }));
+    const unplayable =
+      unseen || boards.length === 0 || height === 0 || this.sequences.room < 1 + boards.length;
+    const plan =
+      unplayable || (plane && flight === null)
+        ? null
+        : plane
+          ? planeBoardingOf({
+              plane: {
+                at: [truck.at.x, truck.at.z],
+                heading: Math.atan2(truck.front.x, truck.front.z),
+                metre: flight!.metre,
+                rig: flight!.rig,
+                // Round its tail, along the line it leaves clear: its end and half the gap to the rail.
+                behind: flight!.tail + TAIL_GAP / 2,
+              },
+              man: height,
+              squads,
+              ...(yard === null ? {} : { muster: [yard.x, yard.z] as const }),
+            })
+          : boardingOf({
+              down: false,
+              truck: {
+                at: [truck.at.x, truck.at.z],
+                front: [truck.front.x, truck.front.z],
+                length,
+              },
+              man: height,
+              step,
+              squads,
+            });
+    // The men first, drawn whole at once; the truck last, or they stop where they stand.
+    const walking =
+      plan === null
+        ? []
+        : boards.filter((id, n) => this.sequences.play(this.standing, id, plan.squads[n]!, now));
+    const playing = plan === null ? null : 'truck' in plan ? plan.truck : plan.plane;
+    const played =
+      plan !== null &&
+      playing !== null &&
+      walking.length === boards.length &&
+      this.sequences.play(this.standing, cue.truck, playing as Sequence, now);
+    if (!played)
+      for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+    if (!played) {
+      for (const id of boards) this.standing.unboard(id);
+      if (ringsLeft(motion, { veiled: this.veiled(truck.at), unplayable: false }))
+        this.standing.inkArrival(pileId);
+      this.standing.arrive(pileId, []);
+      if (plane) this.feedPlane(cue);
+      return true;
+    }
+    this.standing.arrive(pileId, [plan.settled]);
+    if (plane && 'plank' in plan) {
+      const mesh = new PlankMesh();
+      this.standing.group.add(mesh);
+      this.planks.push({ mesh, plank: plan.plank, since: now, ms: plan.settled, lift: truck.at.y });
+      // Its tag reads « 2/2 » once the last is in and the door shut.
+      this.inkDue.push({ at: now + plan.settled, run: () => this.feedPlane(cue) });
+    }
+    return true;
+  }
+
+  /** The door and the foot of each plane file, read once off its articulated rig (`null` while it cooks). */
+  private readonly planeFiles = new Map<string, PlaneFile | null>();
+
+  /** **A plane drawn, read for its boarding** (#502): `null` until it stands and its file is read. */
+  private planeRigOf(id: string): ReturnType<StandingLayer['rigOf']> {
+    const url = this.standing.pieceOf(id)?.url;
+    if (url === undefined) return null;
+    if (!this.planeFiles.has(url)) {
+      this.planeFiles.set(url, null);
+      articulatedOf(url, 'airTransport').then(
+        (rig) => this.planeFiles.set(url, planeFileOf(rig)),
+        () => undefined,
+      );
+    }
+    const file = this.planeFiles.get(url) ?? null;
+    return file === null ? null : this.standing.rigOf(id, file);
+  }
+
+  /** **A plane's tag may now show its riders** (#502): kept at its old count while they board. */
+  private feedPlane(cue: Extract<Cue, { kind: 'montee' }>): void {
+    if (cue.carrier === 'airTransport')
+      this.onBoarded?.(
+        cue.carrierId,
+        cue.riders.map(({ troopId }) => troopId),
+      );
+  }
+
+  /**
+   * **The men a boarding draws**, each where it last stood — in its rank, or at the end of its
+   * file — once the carrier's pile stands (`board`): their ids, where they are, and the tallest's
+   * height. Drawn once, at the first frame the boarding is seen whole; `null` while they are not
+   * drawn yet.
+   */
+  private seatMen(
+    boarding: (typeof this.boardings)[number],
+    pileId: string,
+    unseen: boolean,
+  ): {
+    boards: ReadonlyArray<string>;
+    men: ReturnType<StandingLayer['placeOf']>[];
+    height: number;
+  } | null {
+    const { cue } = boarding;
     if (boarding.boards === undefined && !unseen)
       boarding.boards = this.standing.board(
         pileId,
@@ -4472,45 +4648,13 @@ export class MapEngine {
       );
     const boards = boarding.boards ?? [];
     const men = boards.map((id) => this.standing.placeOf(id));
-    if (men.some((place) => place === null)) return false;
+    if (men.some((place) => place === null)) return null;
     const size = new Vector3();
     const height = Math.max(
       0,
       ...boards.map((id) => this.standing.pieceOf(id)?.box?.getSize(size).y ?? 0),
     );
-    const plan =
-      unseen || boards.length === 0 || height === 0 || this.sequences.room < 1 + boards.length
-        ? null
-        : boardingOf({
-            down: false,
-            truck: { at: [truck.at.x, truck.at.z], front: [truck.front.x, truck.front.z], length },
-            man: height,
-            step,
-            squads: men.map((place) => ({
-              men: place!.men.map(({ x, z }) => [x, z] as const),
-              heading: Math.atan2(place!.front.x, place!.front.z),
-            })),
-          });
-    // The men first, drawn whole at once; the truck last, or they stop where they stand.
-    const walking =
-      plan === null
-        ? []
-        : boards.filter((id, n) => this.sequences.play(this.standing, id, plan.squads[n]!, now));
-    const played =
-      plan !== null &&
-      walking.length === boards.length &&
-      this.sequences.play(this.standing, cue.truck, plan.truck, now);
-    if (!played)
-      for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
-    if (!played) {
-      for (const id of boards) this.standing.unboard(id);
-      if (ringsLeft(motion, { veiled: this.veiled(truck.at), unplayable: false }))
-        this.standing.inkArrival(pileId);
-      this.standing.arrive(pileId, []);
-      return true;
-    }
-    this.standing.arrive(pileId, [plan.settled]);
-    return true;
+    return { boards, men, height };
   }
 
   /**
@@ -5665,6 +5809,7 @@ export class MapEngine {
     if (
       this.ink.active ||
       this.parachutes.active ||
+      this.airdrops.active ||
       this.maquettes.settling ||
       this.sequences.active ||
       this.walks.length > 0 ||
@@ -5672,6 +5817,7 @@ export class MapEngine {
       this.razes.active ||
       this.pins.active ||
       this.moorings.active ||
+      this.planks.length > 0 ||
       this.hullBoardings.active ||
       this.gangplanks.active ||
       this.hoists.active ||
@@ -5743,6 +5889,7 @@ export class MapEngine {
     this.ink.animate(now, this.unitsPerPixel(distance));
     this.combats.scaleInk(this.unitsPerPixel(distance), this.screenHeight);
     this.parachutes.animate(now, this.unitsPerPixel(distance));
+    this.airdrops.animate(now);
     // Vingt-cinq kilomètres ne se lisent pas depuis l'orbite : le cercle de contact se retire
     // plutôt que de se poser en point sur le mât qu'il entoure.
     this.reach.animate(this.unitsPerPixel(distance));
@@ -5793,6 +5940,15 @@ export class MapEngine {
       if (this.boardOf(boarding, now)) return false;
       if (now - boarding.since < SORTIE_WAIT_MS) return true;
       for (const id of boarding.boards ?? []) this.standing.unboard(id);
+      this.feedPlane(boarding.cue);
+      return false;
+    });
+    // A plank stays while its plane's door is open, and is taken in once its sequence is over.
+    this.planks = this.planks.filter(({ mesh, plank, since, ms, lift }) => {
+      const t = now - since;
+      mesh.place(t < ms ? plank(t) : null, lift);
+      if (t < ms) return true;
+      mesh.dispose();
       return false;
     });
     this.landings = this.landings.filter(
@@ -5879,7 +6035,13 @@ export class MapEngine {
     this.renderer.shadowMap.needsUpdate =
       whole && (reason !== 'flow' || this.arcs.marching || pilesMoved);
     const shadowed = this.lamp.follow(this.controls.target, distance);
-    const pieces = [this.standing.group, this.maquettes.group, this.camps.group, this.arcs.group];
+    const pieces = [
+      this.standing.group,
+      this.maquettes.group,
+      this.camps.group,
+      this.arcs.group,
+      this.airdrops.group,
+    ];
     if (this.replay) pieces.push(this.replay.scene.object);
     pieces.push(this.combats.group, this.razes.group);
     if (shadowed && whole) for (const root of pieces) castShadows(root);
