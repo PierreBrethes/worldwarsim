@@ -35,7 +35,8 @@
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import { SourceMap, createRequire } from 'node:module';
+import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromiumPath } from './chromium.mjs';
 
@@ -52,7 +53,11 @@ const only = option('profil', null);
 /** `--photos` : une capture après chaque geste de la première passe, pour voir ce qui a été joué. */
 const photos = args.includes('--photos');
 /** `--cpu <motif>` : le profil CPU des gestes dont le nom y répond (première passe), et ses
- *  fonctions les plus coûteuses en temps propre. */
+ *  fonctions les plus coûteuses en temps propre, rendues à leur fichier source. Avec
+ *  `--demarrage`, le motif est ignoré : chaque passe profile du chargement du plateau jusqu'à la
+ *  fin de l'attente (`<profil>-demarrage-<passe>.cpuprofile`), et écrit à côté ses tâches longues
+ *  et ses commits React (`.json` : composants, nombre, temps propre, cause — montage, état,
+ *  props ou contexte). */
 const cpu = option('cpu', null) === null ? null : new RegExp(option('cpu'), 'i');
 /** `--sans-ombres` : la lampe ne porte plus d'ombre, pour lire ce que coûtent les ombres. */
 const shadowless = args.includes('--sans-ombres');
@@ -204,7 +209,7 @@ function instrument() {
   window.__banc = B;
   /** **Le démarrage** : la première image de la carte (son premier appel de dessin) et toutes les
    *  tâches longues depuis l'ouverture du document, sans attendre que le banc mesure. */
-  B.boot = { firstDraw: null, longtasks: [] };
+  B.boot = { firstDraw: null, longtasks: [], commits: [] };
   for (const name of ['drawElements', 'drawArrays']) {
     const draw = WebGL2RenderingContext.prototype[name];
     WebGL2RenderingContext.prototype[name] = function (...rest) {
@@ -327,7 +332,7 @@ function instrument() {
   };
   /** Seuls les sous-arbres qui portent `PerformedWork` sont parcourus : une branche sautée par
    *  React garde les drapeaux de son dernier rendu, qu'il ne faut pas compter. */
-  const walk = (fiber) => {
+  const walk = (fiber, visit) => {
     let rendered = 0;
     const stack = [fiber];
     while (stack.length) {
@@ -336,13 +341,21 @@ function instrument() {
       const component = [0, 11, 14, 15].includes(node.tag);
       if (component && node.flags & PERFORMED_WORK) {
         rendered++;
-        const name = nameOf(node);
-        B.names[name] = (B.names[name] ?? 0) + 1;
+        visit(node, nameOf(node));
       }
       if (node.child && node.subtreeFlags & PERFORMED_WORK) stack.push(node.child);
     }
     return rendered;
   };
+  /** Ce qui fait rendre un composant : son montage, son état, ses props, sinon un contexte. */
+  const causeOf = (node) =>
+    node.alternate === null
+      ? 'montage'
+      : node.memoizedState !== node.alternate.memoizedState
+        ? 'état'
+        : node.memoizedProps !== node.alternate.memoizedProps
+          ? 'props'
+          : 'contexte';
   window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
     renderers: new Map(),
     supportsFiber: true,
@@ -356,10 +369,35 @@ function instrument() {
     onPostCommitFiberRoot() {},
     onScheduleFiberRoot() {},
     onCommitFiberRoot(_id, fiberRoot) {
-      if (!B.on) return;
       const at = performance.now();
-      const rendered = walk(fiberRoot.current);
-      B.commits.push([at, fiberRoot.current.actualDuration ?? 0, rendered]);
+      if (B.on) {
+        const rendered = walk(fiberRoot.current, (_node, name) => {
+          B.names[name] = (B.names[name] ?? 0) + 1;
+        });
+        B.commits.push([at, fiberRoot.current.actualDuration ?? 0, rendered]);
+        return;
+      }
+      if (B.t0 !== 0) return;
+      /** Avant le premier geste, chaque commit du démarrage : ses composants, combien de fois,
+       *  leur temps propre (build de profilage) et ce qui les a fait rendre. */
+      const tally = {};
+      const rendered = walk(fiberRoot.current, (node, name) => {
+        const key = `${name} (${causeOf(node)})`;
+        const [count, ms] = tally[key] ?? [0, 0];
+        tally[key] = [count + 1, ms + (node.selfBaseDuration ?? 0)];
+      });
+      const top = Object.entries(tally)
+        .sort((a, b) => b[1][1] - a[1][1])
+        .slice(0, 8)
+        .map(([key, [count, ms]]) => `${key} ×${count} ${Math.round(ms)} ms`)
+        .join(', ');
+      B.boot.commits.push([
+        Math.round(at),
+        Math.round(fiberRoot.current.actualDuration ?? 0),
+        rendered,
+        top,
+        tally,
+      ]);
     },
   };
   /** La carte, une fois montée : chaque tour de boucle et chaque rendu, chronométrés. */
@@ -609,6 +647,12 @@ async function play(profileName, pass) {
   await page.waitForURL('**/accueil', { timeout: 15000 });
   // Le ralenti avant le plateau : le démarrage se mesure au téléphone qu'il simule.
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
+  const bootProfiled = bootOnly && cpu !== null;
+  if (bootProfiled) {
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.setSamplingInterval', { interval: 200 });
+    await cdp.send('Profiler.start');
+  }
   await page.goto(
     `${origin}/plateau?season=${accounts.seasonId}${heure === null ? '' : `&heure=${heure}`}`,
   );
@@ -637,6 +681,21 @@ async function play(profileName, pass) {
     };
   });
   console.log(`${profileName} : démarrage ${JSON.stringify(boot)}`);
+  if (bootProfiled) {
+    const { profile } = await cdp.send('Profiler.stop');
+    const file = `${out}/${profileName}-demarrage-${pass}`;
+    writeFileSync(`${file}.cpuprofile`, JSON.stringify(profile));
+    const { longtasks, commits } = await page.evaluate(() => window.__banc.boot);
+    writeFileSync(`${file}.json`, JSON.stringify({ longtasks, commits }));
+    if (pass === 0)
+      console.log(
+        `profil CPU du démarrage → ${file}.cpuprofile\n${hottest(profile, 25)}\n` +
+          `commits React (début ms, durée ms, composants) :\n${commits
+            .filter(([, ms]) => ms >= 16)
+            .map(([at, ms, , top]) => `  ${at} +${ms} : ${top}`)
+            .join('\n')}`,
+      );
+  }
   if (bootOnly) {
     await context.close();
     return { boot };
@@ -1446,14 +1505,32 @@ async function play(profileName, pass) {
 
 const BURST_MS = 150;
 
-/** Les fonctions au plus grand temps propre d'un profil CPU, avec leur fichier et leur ligne. */
+/** Les cartes de source du build, par URL de chunk servi (`null` hors du build). */
+const sourceMaps = new Map();
+/** Le fichier source et la ligne d'une position du build : `src/map/…:12`, sinon le chunk. */
+function sourceOf(url, line, column) {
+  if (!sourceMaps.has(url)) {
+    const file = url.startsWith(origin) && `${dist}${new URL(url).pathname}.map`;
+    sourceMaps.set(
+      url,
+      file && existsSync(file) ? new SourceMap(JSON.parse(readFileSync(file, 'utf8'))) : null,
+    );
+  }
+  const found = sourceMaps.get(url)?.findOrigin(line + 1, column + 1);
+  return found?.fileName
+    ? `${relative(root, resolve(`${dist}/assets`, found.fileName))}:${found.lineNumber}`
+    : `${url.split('/').pop()}:${line + 1}`;
+}
+
+/** Les fonctions au plus grand temps propre d'un profil CPU, avec leur fichier source et leur
+ *  ligne (cartes de source du build de banc). */
 function hottest(profile, count = 15) {
   const self = new Map();
   const gaps = profile.timeDeltas;
   const byId = new Map(profile.nodes.map((node) => [node.id, node]));
   profile.samples.forEach((id, k) => {
-    const { functionName, url, lineNumber } = byId.get(id).callFrame;
-    const key = `${functionName || '(anonyme)'} ${url.split('/').pop()}:${lineNumber + 1}`;
+    const { functionName, url, lineNumber, columnNumber } = byId.get(id).callFrame;
+    const key = `${functionName || '(anonyme)'} ${sourceOf(url, lineNumber, columnNumber)}`;
     self.set(key, (self.get(key) ?? 0) + (gaps[k] ?? 0) / 1000);
   });
   return [...self]

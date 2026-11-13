@@ -15,7 +15,7 @@ process.env.TZ = 'UTC';
 process.env.VITE_PUBLIC_ORIGIN ||= 'https://wws.pierrebrethes.cloud';
 
 // `npm run banc:client` (#189) : le build de profilage de React, qui chronomètre chaque rendu, et
-// les noms de fonctions gardés, pour lire quel composant a rendu.
+// les noms de fonctions gardés, pour lire quel composant a rendu, et les cartes de source.
 const bench = process.env.VITE_BANC === '1';
 
 export default defineConfig({
@@ -36,6 +36,7 @@ export default defineConfig({
     },
   },
   build: {
+    sourcemap: bench,
     rollupOptions: {
       output: {
         keepNames: bench,
