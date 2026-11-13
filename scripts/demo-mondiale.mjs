@@ -23,7 +23,8 @@
  * `--cargo-monter [s]` (#479) pose la scène de `--navire` (avec `--port-miroir`, celle d'Almería)
  * et deux escouades de fantassins à son quai ; à `s` secondes (25 par défaut), un ordre les fait
  * monter sur le cargo, par sa passerelle (lieu : `cargo`). `--cargo-bis` y ajoute, quatre secondes
- * après, une troisième escouade : son embarquement se pose d'un coup.
+ * après, une troisième escouade : son embarquement se pose d'un coup. `--cargo-vehicules` (#505) y
+ * joint un char et un camion, dans le même ordre : le mât de charge les hisse un par un.
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--brest` (#436) y ajoute un chantier
  * de port à Brest, sur sa rade. `--port-miroir` (#476) pose le port de `--navire` à Almería, sur une côte
@@ -374,6 +375,7 @@ const thresholdPorts = process.argv.includes('--ports-seuil');
 const hullBoardingAt = process.argv.indexOf('--cargo-monter');
 const hullBoardingIn = hullBoardingAt < 0 ? null : Number(process.argv[hullBoardingAt + 1]) || 25;
 const hullBoardingTwice = process.argv.includes('--cargo-bis');
+const hullBoardingVehicles = process.argv.includes('--cargo-vehicules');
 const navy =
   denseQuay ||
   craneIn !== null ||
@@ -1546,7 +1548,23 @@ if (!bare) {
         buildingId: port.id,
       });
     const first = squads(2);
-    pile.cargo = { cargo: cargo.id, riders: first, later: hullBoardingTwice ? squads(1) : [] };
+    // A tank and a truck at the quay: the cargo's mast lifts them aboard (#505).
+    const vehicles = hullBoardingVehicles
+      ? ['armor', 'landTransport'].flatMap((role) =>
+          spawned({
+            role,
+            count: 1,
+            lon: port.point[0],
+            lat: port.point[1],
+            buildingId: port.id,
+          }),
+        )
+      : [];
+    pile.cargo = {
+      cargo: cargo.id,
+      riders: [...first, ...vehicles],
+      later: hullBoardingTwice ? squads(1) : [],
+    };
   }
   if (landingIn !== null && scene.a !== null) {
     const at = { lon: 3.3, lat: 47.1 };
@@ -2265,7 +2283,9 @@ const gestures = [
           troopIds: riders,
           carrierId: cargo,
         });
-        return 'deux escouades montent au cargo';
+        return hullBoardingVehicles
+          ? 'deux escouades, un char et un camion montent au cargo'
+          : 'deux escouades montent au cargo';
       },
     ],
   hullBoardingIn !== null &&
