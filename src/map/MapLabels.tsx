@@ -112,6 +112,16 @@ export type TakeDepot = (
  */
 const NO_LABELS: ReadonlySet<string> = new Set();
 
+/** The interface `zoom` over a label: its own scale is measured in screen pixels. */
+const zoomUnder = (root: HTMLElement): number => Number(getComputedStyle(root).zoom) || 1;
+
+/** The interface has one `zoom` for every label: a round of degradation reads it once, since each
+ *  class written between two reads makes the next one recalculate the style (#560). */
+const zoomOnce = () => {
+  let zoom: number | undefined;
+  return (root: HTMLElement): number => (zoom ??= zoomUnder(root));
+};
+
 export function MapLabels({
   labels: served,
   engine,
@@ -397,7 +407,7 @@ export function MapLabels({
     return () => document.removeEventListener('pointerdown', elsewhere);
   }, [point]);
 
-  const apply = useCallback((id: string, state: RenderState) => {
+  const apply = useCallback((id: string, state: RenderState, zoomOf = zoomUnder) => {
     const root = roots.current.get(id);
     if (!root) return;
     const expanded = state.lod === 'expanded' && !state.folded;
@@ -408,7 +418,7 @@ export function MapLabels({
     if (root.dataset.stagger !== String(stagger)) {
       root.dataset.stagger = String(stagger);
       // Mesuré en pixels d'écran, posé sous le `zoom` de l'interface : on le défait.
-      const zoom = Number(getComputedStyle(root).zoom) || 1;
+      const zoom = zoomOf(root);
       root.style.setProperty('--label-stagger', `${Math.round(stagger / zoom)}px`);
     }
   }, []);
@@ -429,6 +439,7 @@ export function MapLabels({
     // rendrait en la quittant : on mesure la carte au repos, et on la renomme après.
     const held = pointed.current;
     point(null);
+    const zoomOf = zoomOnce();
     // Une installation relevée n'entre dans « N sites » qu'en Blitz : en Mondiale elle garde sa
     // planche et sa rose, que le cartouche réuni ne sait pas ouvrir.
     const site = (label: MapLabel) =>
@@ -453,7 +464,7 @@ export function MapLabels({
       state.folded = false;
       state.grouped = false;
       state.stagger = 0;
-      apply(label.id, state);
+      apply(label.id, state, zoomOf);
     }
 
     const measured = candidates.flatMap((label) => {
@@ -588,7 +599,7 @@ export function MapLabels({
           if (label.type === 'stack') stacks.push(rect);
         }
       }
-      apply(label.id, state);
+      apply(label.id, state, zoomOf);
     }
     groupLifts.current = lifted;
 

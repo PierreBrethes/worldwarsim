@@ -688,3 +688,21 @@ describe('a ring of buildings around a stack', () => {
     expect(shownGroup()).toBe(false);
   });
 });
+
+describe('the interface zoom under a round of degradation (#560)', () => {
+  /** **Un tour lit le `zoom` une fois** : chaque classe écrite entre deux lectures refait le calcul
+   *  de style, et la première passe le faisait une fois par étiquette (120 à 170 ms sur mille). */
+  it('is read once, not once per label', () => {
+    vi.useFakeTimers();
+    const reads = vi.spyOn(window, 'getComputedStyle');
+    const labels = Array.from({ length: 40 }, (_, i) => outpost(`o${i}`, `Ville ${i}`));
+    render(layer(labels));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    const zoomReads = reads.mock.calls.length;
+    expect(zoomReads).toBeLessThanOrEqual(1);
+    reads.mockRestore();
+    vi.useRealTimers();
+  });
+});
