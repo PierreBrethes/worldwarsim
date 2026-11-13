@@ -24,7 +24,7 @@ export type HullBoardingHost = {
 };
 
 /** **How long a boarding waits for its hull to stand** before the tag takes its count whole. */
-export const HULL_WAIT_MS = 2000;
+const HULL_WAIT_MS = 2000;
 
 type Entry = {
   readonly cue: HullCue;
