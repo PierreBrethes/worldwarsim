@@ -105,11 +105,11 @@ describe('the stand-in marks and black planes of the sea (#503)', () => {
     ]);
   });
 
-  it('gives a carrier its starboard gangway and its door, and a black deck under its lift', async () => {
+  it('gives a carrier a black deck under its lift, and no door: its men go up a plank (#506)', async () => {
     const carrier = await dressedScene(urlOf('carrier'), hullFile(['ascenseur']), load);
-    expect(carrier.getObjectByName('fx_passerelle')!.position.x).toBeLessThan(0);
-    expect(names(carrier).has('fond_sombre_coupee')).toBe(true);
     expect(names(carrier).has('fond_sombre')).toBe(true);
+    expect(names(carrier).has('fx_passerelle')).toBe(false);
+    expect(names(carrier).has('fond_sombre_coupee')).toBe(false);
   });
 
   it('takes nothing the file already carries', async () => {
@@ -146,22 +146,6 @@ describe('the stand-ins on the real hulls (#503 review)', () => {
     const url = typeof entry === 'string' ? entry : entry[0]!;
     return dressedScene(url, sceneOfFile(url), load);
   };
-
-  it.each([
-    ['france', 13.6],
-    ['uk', 14.6],
-    ['japan', 15.6],
-  ] as const)(
-    "puts a %s carrier's gangway on its flank, not on the deck's edge",
-    async (nation, flank) => {
-      const carrier = await real(nation, 'carrier');
-      expect(Math.abs(carrier.getObjectByName('fx_passerelle')!.position.x + flank)).toBeLessThan(
-        0.3,
-      );
-      const door = carrier.getObjectByName('fond_sombre_coupee')!;
-      expect(Math.abs(door.position.x + flank)).toBeLessThan(0.5);
-    },
-  );
 
   it.each(['france', 'ussr'] as const)(
     "keeps a %s cargo's black door under the deck, where the wall stands out to the flank",

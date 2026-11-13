@@ -291,16 +291,15 @@ function flankAt(scene: Object3D, y: number, z: number, side: 1 | -1): number | 
 }
 
 /**
- * **The gangway marks and the black planes a hull lacks** (`GANGWAY`): a mark at a flank, its mirror
- * for the cargo, a black door plane at each, and a black deck under a carrier's lift. A name the
- * file carries is left to the file.
+ * **The gangway marks and the black planes a hull lacks** (`GANGWAY`): a cargo's mark at a flank, its
+ * mirror and a black door plane at each; a carrier has no door (its men go up a plank to the deck,
+ * #506), only a black deck under its lift. A name the file carries is left to the file.
  */
 function seaStandIns(scene: Object3D, role: 'cargo' | 'carrier'): void {
   scene.updateMatrixWorld(true);
   const box = new Box3().setFromObject(scene);
   const size = box.getSize(new Vector3());
   const metre = Math.max(size.x, size.z) / troopMetres(role);
-  const mid = (box.min.z + box.max.z) / 2;
   const have = (name: string) => scene.getObjectByName(name) !== undefined;
   const mark = (name: string, x: number, y: number, z: number): Object3D => {
     const found = scene.getObjectByName(name);
@@ -321,7 +320,7 @@ function seaStandIns(scene: Object3D, role: 'cargo' | 'carrier'): void {
     plane.position.set(at.position.x + side * off * metre, at.position.y + tall / 2, at.position.z);
     scene.add(plane);
   };
-  const sill = GANGWAY.sill[role] * metre;
+  const sill = GANGWAY.sill * metre;
   /** The door's plane stops where the wall falls back from the flank at the sill (a cargo's deck:
    *  the wall is 1.5 to 2 m in from the hull's side above it). */
   const cap = (z: number, side: 1 | -1): number => {
@@ -352,8 +351,6 @@ function seaStandIns(scene: Object3D, role: 'cargo' | 'carrier'): void {
     door('fond_sombre_coupee_tribord', starboard, cap(port.position.z, -1));
     return;
   }
-  const flank = flankAt(scene, sill + 0.1 * metre, mid, -1) ?? box.min.x;
-  door('fond_sombre_coupee', mark('fx_passerelle', flank, sill, mid), cap(mid, -1));
   const lift = scene.getObjectByName('ascenseur');
   if (lift === undefined || have('fond_sombre')) return;
   const lifted = new Box3().setFromObject(lift);
