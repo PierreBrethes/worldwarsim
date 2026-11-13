@@ -85,6 +85,22 @@ describe('the mole, with the growth a hull is drawn at (#479)', () => {
   );
 
   it.each(hulls.filter(({ role }) => role === 'cargo'))(
+    'keeps the mole cargo of $nation between the mole and the one alongside it, at each post',
+    ({ url }) => {
+      const box = new Box3().setFromObject(sceneOfFile(url));
+      const size = box.getSize(new Vector3());
+      const k = troopMetres('cargo') / Math.max(size.x, size.z);
+      const half = Math.max(box.max.x, -box.min.x) * k;
+      for (const distance of [0.3, 1, 3]) {
+        const g = restGrowth(distance, troopSpan('cargo'));
+        const [mole, couple] = berths(['cargo', 'cargo'], g, ['mole', 'couple']);
+        expect(mole!.x + half * g).toBeLessThanOrEqual(MOLE.inner + 0.01);
+        expect(couple!.x + half * g).toBeLessThanOrEqual(mole!.x - half * g + 0.01);
+      }
+    },
+  );
+
+  it.each(hulls.filter(({ role }) => role === 'cargo'))(
     'lets the plank of the $nation cargo run from its door to the mole, no further',
     ({ url }) => {
       const scene = sceneOfFile(url);
