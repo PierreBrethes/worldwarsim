@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Box3, Vector3 } from 'three';
+import { bentFromRest } from '../sequences';
 import { describe, expect, it } from 'vitest';
 import { troopMetres, troopSpan } from '@/domain/piece-size';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
@@ -11,6 +12,8 @@ import { restGrowth } from '../figurines/figurine';
 import { type AirRole, TAIL_GAP } from './airfield';
 import { berths, layout } from './rest';
 import { gangwayDoor, plankFoot } from './gangway';
+import { boomsOfScene } from './booms';
+import { aimAt, SPOT_ONTO_DECK, tipOf } from './derrick';
 
 /** #502 : un avion posé sur l'aire tient entre le rail des hangars et la rampe, de chaque fichier. */
 const planes = (['fighter', 'bomber', 'airTransport'] as const).flatMap((role) =>
@@ -130,5 +133,75 @@ describe('the mole, with the growth a hull is drawn at (#479)', () => {
     const standing = readFileSync(join(here, '..', 'standing.ts'), 'utf-8');
     expect(standing).not.toMatch(/\* pieceScale\.size\s*:\s*restGrowth/);
     expect(standing).not.toMatch(/GARRISON_FLOOR_PX\) \* pieceScale\.size/);
+  });
+});
+
+describe('the derricks of a cargo at the mole, from each file (#505)', () => {
+  it.each(hulls.filter(({ role }) => role === 'cargo'))(
+    'brings the masts of the $nation cargo over the mole’s deck, and over their holds, within reach',
+    ({ url }) => {
+      const scene = sceneOfFile(url);
+      const box = new Box3().setFromObject(scene);
+      const size = box.getSize(new Vector3());
+      const k = troopMetres('cargo') / Math.max(size.x, size.z);
+      const [at] = berths(['cargo'], 1, ['mole'], [size.x / Math.max(size.x, size.z)]);
+      const booms = boomsOfScene(scene);
+      expect(booms.length).toBeGreaterThanOrEqual(1);
+      for (const boom of booms) {
+        // The hull stands stem to the land: its x and z are turned over, in the port's metres.
+        const port = (x: number, z: number) => ({ x: at!.x - x * k, z: at!.z - z * k });
+        // The tip's spot, in the port's metres: just in from the mole's face, back to the hull's.
+        const spot = { x: (at!.x - (MOLE.inner + SPOT_ONTO_DECK)) / k, z: boom.pivot[2] };
+        const { yaw, lift } = aimAt(boom.pivot, spot.x, spot.z, boom.length);
+        const tip = [
+          boom.pivot[0] + boom.length * Math.cos(lift) * Math.sin(yaw),
+          boom.pivot[2] + boom.length * Math.cos(lift) * Math.cos(yaw),
+        ] as const;
+        expect(port(tip[0], tip[1]).x).toBeCloseTo(MOLE.inner + SPOT_ONTO_DECK, 3);
+        // Within reach, not stopped short of it by the clamp.
+        expect(Math.abs(spot.x - boom.pivot[0])).toBeLessThan(0.99 * boom.length);
+        // The station is on the mole: between its quay and its head.
+        const z = port(boom.pivot[0], boom.pivot[2]).z;
+        expect(z).toBeGreaterThan(MOLE.quay);
+        expect(z).toBeLessThan(MOLE.quay + MOLE.length + MOLE.head);
+        // And its hold is within reach of the same mast.
+        const over = Math.hypot(boom.hatch.at[0] - boom.pivot[0], boom.hatch.at[2] - boom.pivot[2]);
+        expect(over).toBeLessThan(0.99 * boom.length);
+      }
+    },
+  );
+});
+
+describe('the mast’s aim, on each file (#505)', () => {
+  it.each(hulls.filter(({ role }) => role === 'cargo'))(
+    'puts the masts of the $nation cargo back at their rest when aimed at it, and over a hold when aimed there',
+    ({ url }) => {
+      const scene = sceneOfFile(url);
+      for (const boom of boomsOfScene(scene)) {
+        const node = scene.getObjectByName(`mat_charge_${boom.n}`)!;
+        const rest = {
+          position: node.position.clone(),
+          quaternion: node.quaternion.clone(),
+        };
+        node.quaternion.set(0, 0, 0, 1);
+        bentFromRest(node, rest, { aim: [boom.rest.yaw, boom.rest.lift] });
+        expect(node.quaternion.angleTo(rest.quaternion)).toBeLessThan(1e-3);
+        // Aimed over its hold, its tip marker stands where the pure tip says.
+        const { yaw, lift } = aimAt(boom.pivot, boom.hatch.at[0], boom.hatch.at[2], boom.length);
+        bentFromRest(node, rest, { aim: [yaw, lift] });
+        scene.updateMatrixWorld(true);
+        const tip = scene.getObjectByName(`fx_charge_${boom.n}`)!.getWorldPosition(new Vector3());
+        const [x, y, z] = tipOf(boom.pivot, yaw, lift, boom.length);
+        expect(tip.distanceTo(new Vector3(x, y, z))).toBeLessThan(0.15);
+      }
+    },
+  );
+});
+
+describe('the hulls laid out by their own beam (#505)', () => {
+  it('is the beam of its file the engine lays a hull out by', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const standing = readFileSync(join(here, '..', 'standing.ts'), 'utf-8');
+    expect(standing).toMatch(/beamShareOf\(entry\.figurines\[k\]\?\.url\)/);
   });
 });

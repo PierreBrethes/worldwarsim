@@ -36,6 +36,9 @@ export type PartPose = {
   /** 1 whole, 0 gone: the part and what hangs from it. The copy takes materials of its own to
    *  fade, drawn last, and gives them back at the end. */
   readonly fade?: number;
+  /** A mast only (`mat_charge_*`, #505): its heading about its parent's up from +z and its lift
+   *  above the horizontal, whatever its rest — not a turn from it. */
+  readonly aim?: readonly [yaw: number, lift: number];
   /** `root` or a man (`man_*`): the piece, or the man, moved from its rest, in board units along
    *  the world's axes — the path from a door to a rank is drawn on the board, whatever the pile's
    *  turn and size. */
@@ -304,6 +307,7 @@ type Playing = {
 
 const turn = new Quaternion();
 const euler = new Euler();
+const aimed = new Euler(0, 0, 0, 'YXZ');
 /** A man of a squad (`squadOf`): a piece that moves whole walks its men in file. */
 const MAN = /^man_\d+$/;
 const up = new Vector3(0, 1, 0);
@@ -316,12 +320,13 @@ const parentTurn = new Quaternion();
 export function bentFromRest(
   node: Object3D,
   rest: Pick<Rest, 'position' | 'quaternion'>,
-  own?: Pick<PartPose, 'shift' | 'turn'>,
+  own?: Pick<PartPose, 'shift' | 'turn' | 'aim'>,
 ): void {
   node.position.copy(rest.position);
   node.quaternion.copy(rest.quaternion);
   if (own?.shift) node.position.add(new Vector3(...own.shift));
   if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+  if (own?.aim) node.quaternion.setFromEuler(aimed.set(-own.aim[1], own.aim[0], 0));
 }
 
 /** **`travel` and `heading` are read on the board**, through whatever turns and scales the
