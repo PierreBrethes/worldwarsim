@@ -88,7 +88,6 @@ import { veiledPiles } from './veils';
 import { HeldBursts } from './held-bursts';
 import { afloat, sceneSpan, stampStays } from '@/domain/combat-on-map';
 import { barracksDoors, type DoorsPassing, joinedDoors, wayIn, wayOut } from './timelines/barracks';
-import { FLY_ON_MS } from './timelines/airdrop';
 import { ease } from './timelines/curves';
 import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/walk';
 import { deployAt, deployMs } from './timelines/deploy';
@@ -194,7 +193,7 @@ import { castShadows, Lamp, LAMP_EXPOSURE, SHADOW_MAP } from './lamp';
 import { NightSky } from './night';
 import { brightest, Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
-import { Airdrops, airdropPlan, takerOffset } from './airdrops';
+import { Airdrops, airdropPlan, playDrop, takerOffset } from './airdrops';
 import { ParachuteLayer } from './parachute';
 import { TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
@@ -1437,8 +1436,9 @@ export class MapEngine {
   /**
    * **A largage is played where the view learns it** (#508, `airdropPlan`): the copy of the plane
    * that was a pawn flies its pass over the target and the crate falls at true size to the piece
-   * that takes it; the plane that flies home waits out of sight until the copy has flown on.
-   * Far, or with no pawn kept (the absence tour), the packet falls in pixels as it always did.
+   * that takes it; the plane that flies home waits out of sight until the copy has flown on (see
+   * `playDrop`). Far, or with no pawn kept (the absence tour), the packet falls in pixels as it
+   * always did. On an outpost the crate melts where it lies: its site has no mark for a Magasin.
    */
   private dropAt(burst: InkBurst): void {
     const now = performance.now();
@@ -1451,18 +1451,22 @@ export class MapEngine {
       flown: flown !== null,
       whole: !this.veiled(target) && this.seenWhole(target, troopSpan('airTransport')),
     });
-    if (plan === 'pixels') this.parachutes.release(burst.at, now);
-    if (plan !== 'plane' || flown === null) return;
-    this.arcs.holdBack(burst.at, now + FLY_ON_MS);
-    void this.airdrops.play({
-      piece: flown.piece,
-      at: target,
-      heading: flown.heading,
+    void playDrop({
+      plan: flown === null && plan === 'plane' ? 'nothing' : plan,
       delivered,
-      to:
-        delivered && burst.squad === true
-          ? takerOffset(this.standing.placedGroups(), target, pieceScale.size)
-          : null,
+      squad: burst.squad === true,
+      pixels: () => this.parachutes.release(burst.at, now),
+      taker: () => takerOffset(this.standing.placedGroups(), target, pieceScale.size),
+      play: (to) =>
+        this.airdrops.play({
+          piece: flown!.piece,
+          at: target,
+          heading: flown!.heading,
+          delivered,
+          to,
+        }),
+      holdBack: (until) => this.arcs.holdBack(burst.at, until),
+      now: () => performance.now(),
     });
   }
 

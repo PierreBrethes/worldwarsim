@@ -13,7 +13,7 @@ import { FlightCopy, lendFlightCopy } from './flight-copy';
 import type { RestPose } from './figurines/figurine';
 import { CANOPY, HANG, LINES } from './parachute';
 import { pieceScale } from './piece-scale';
-import { type Airdrop, airdrop, ENTRY_MS } from './timelines/airdrop';
+import { type Airdrop, airdrop, ENTRY_MS, FLY_ON_MS } from './timelines/airdrop';
 
 /**
  * **What a largage plays, where the view learns it** (#508): the plane and the fall at true size
@@ -79,6 +79,32 @@ export function takerOffset(
   return piece === null ? null : [(piece.x - at.x) / size, (piece.z - at.z) / size];
 }
 
+/**
+ * **A largage, wired** (#508): what `dropAt` does once it has the plan. The copy is put in the
+ * scene (`play` says whether it came), and only then the plane that flies home is held out of
+ * sight, for as long as the copy's pass; if it does not come (no file, a cooking that rejects) the
+ * home plane stays, and a delivered packet falls in pixels instead. The piece that takes the crate
+ * is asked for only on a delivered drop on a squad: on an outpost the site has no mark for its
+ * Magasin (the storyboard's prop), so the crate melts where it lies.
+ */
+export async function playDrop(o: {
+  readonly plan: DropPlan;
+  readonly delivered: boolean;
+  readonly squad: boolean;
+  readonly taker: () => readonly [x: number, z: number] | null;
+  readonly play: (to: readonly [x: number, z: number] | null) => Promise<boolean>;
+  readonly holdBack: (until: number) => void;
+  readonly pixels: () => void;
+  readonly now: () => number;
+}): Promise<void> {
+  if (o.plan === 'pixels') return o.pixels();
+  if (o.plan !== 'plane') return;
+  const to = o.delivered && o.squad ? o.taker() : null;
+  const placed = await o.play(to).catch(() => false);
+  if (placed) o.holdBack(o.now() + FLY_ON_MS);
+  else if (o.delivered) o.pixels();
+}
+
 type Live = {
   readonly origin: Group;
   readonly drop: Airdrop;
@@ -115,7 +141,7 @@ export class Airdrops {
   /**
    * Plays one transport's pass over `at` at `heading`, from the model the pawn wore. `to` is the
    * board offset of the piece that takes the crate, from `at`; `null` for a crate that lies and
-   * melts. Starts when the copy is cooked.
+   * melts. Starts when the copy is cooked; `false` when it does not come.
    */
   async play(o: {
     readonly piece: { readonly url?: string; readonly pose?: RestPose };
@@ -123,10 +149,10 @@ export class Airdrops {
     readonly heading: number;
     readonly delivered: boolean;
     readonly to: readonly [x: number, z: number] | null;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const flight = await lendFlightCopy(o.piece);
     // Cooked after the engine was gone: nothing is left to put it in.
-    if (flight === null || this.disposed) return;
+    if (flight === null || this.disposed) return false;
     const release = flight.release() ?? undefined;
     const drop = airdrop({
       delivered: o.delivered,
@@ -165,6 +191,7 @@ export class Airdrops {
       start: performance.now(),
     });
     this.changed();
+    return true;
   }
 
   animate(now: number): void {

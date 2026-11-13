@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { metresOnBoard } from '@/domain/piece-size';
-import { airdropPlan, inFlightFrame, nearestPiece, takerOffset } from './airdrops';
-import { airdrop, ENTRY_MS } from './timelines/airdrop';
+import { airdropPlan, inFlightFrame, nearestPiece, playDrop, takerOffset } from './airdrops';
+import { airdrop, ENTRY_MS, FLY_ON_MS } from './timelines/airdrop';
 
 describe('airdropPlan: what a largage plays where the view learns it (#508)', () => {
   const near = { motion: 'full', flown: true, whole: true } as const;
@@ -64,41 +64,126 @@ describe('inFlightFrame', () => {
 });
 
 describe('nearestPiece: the piece that takes the crate', () => {
-  const at = { x: 0, z: 0 };
+  const at = { x: 3, z: -2 };
 
-  it('picks the closest piece, within reach', () => {
+  it('picks the closest piece to the target, within reach', () => {
     const pieces = [
-      { id: 'b', x: 5, z: 0 },
-      { id: 'a', x: 2, z: 1 },
+      { id: 'origin', x: 0, z: 0 },
+      { id: 'near', x: 4, z: -2 },
     ];
-    expect(nearestPiece(pieces, at, 10)?.id).toBe('a');
+    expect(nearestPiece(pieces, at, 10)?.id).toBe('near');
   });
 
   it('breaks a tie by id', () => {
     const pieces = [
-      { id: 'q/2', x: 1, z: 0 },
-      { id: 'q/1', x: -1, z: 0 },
+      { id: 'q/2', x: 4, z: -2 },
+      { id: 'q/1', x: 2, z: -2 },
     ];
     expect(nearestPiece(pieces, at, 10)?.id).toBe('q/1');
   });
 
   it('takes none beyond its reach: the crate then melts where it lies', () => {
-    expect(nearestPiece([{ id: 'a', x: 20, z: 0 }], at, 10)).toBeNull();
+    expect(nearestPiece([{ id: 'a', x: 30, z: -2 }], at, 10)).toBeNull();
     expect(nearestPiece([], at, 10)).toBeNull();
   });
 });
 
 describe("takerOffset: where the crate goes, in the flight's own scale", () => {
-  it("says the nearest piece's offset from the target, undone of the size it is drawn at", () => {
-    const metres = metresOnBoard(10);
-    expect(takerOffset([{ id: 'a', x: 2 * metres, z: -metres }], { x: 0, z: 0 }, 2)).toEqual([
-      metres,
-      -metres / 2,
-    ]);
+  const metres = metresOnBoard(10);
+  const at = { x: 3, z: -2 };
+
+  it('says the offset from the target, undone of the size the pieces are drawn at', () => {
+    const [x, z] = takerOffset([{ id: 'a', x: 3 + 2 * metres, z: -2 - metres }], at, 2)!;
+    expect(x).toBeCloseTo(metres, 9);
+    expect(z).toBeCloseTo(-metres / 2, 9);
   });
 
-  it('says none for a pile that is gone, or too far', () => {
-    expect(takerOffset([], { x: 0, z: 0 }, 1)).toBeNull();
-    expect(takerOffset([{ id: 'a', x: metresOnBoard(500), z: 0 }], { x: 0, z: 0 }, 1)).toBeNull();
+  it('reaches 80 m of the size the pieces are drawn at, not 80 m of the common scale', () => {
+    // 120 m of the board away: out of reach at size 1, within it at size 2.
+    const far = [{ id: 'a', x: 3 + metresOnBoard(120), z: -2 }];
+    expect(takerOffset(far, at, 1)).toBeNull();
+    expect(takerOffset(far, at, 2)).not.toBeNull();
+    expect(takerOffset([{ id: 'a', x: 3 + metresOnBoard(200), z: -2 }], at, 2)).toBeNull();
+  });
+
+  it('says none for a pile that is gone', () => {
+    expect(takerOffset([], at, 1)).toBeNull();
+  });
+});
+
+describe('playDrop: how a largage is wired where the view learns it (#508)', () => {
+  const wires = (over: Partial<Parameters<typeof playDrop>[0]> = {}) => {
+    const calls: string[] = [];
+    const given: { to: unknown }[] = [];
+    const base: Parameters<typeof playDrop>[0] = {
+      plan: 'plane',
+      delivered: true,
+      squad: true,
+      taker: () => {
+        calls.push('taker');
+        return [1, 2];
+      },
+      play: async (to) => {
+        calls.push('play');
+        given.push({ to });
+        return true;
+      },
+      holdBack: (until) => calls.push(`hold ${until}`),
+      pixels: () => calls.push('pixels'),
+      now: () => 1000,
+    };
+    return { calls, given, wire: { ...base, ...over } };
+  };
+
+  it('holds the plane home once the copy is in the scene, for the length of its pass', async () => {
+    const { calls, wire } = wires();
+    await playDrop(wire);
+    expect(calls).toEqual(['taker', 'play', `hold ${1000 + FLY_ON_MS}`]);
+  });
+
+  it('gives the copy the piece that takes the crate only for a delivered drop on a squad', async () => {
+    for (const [delivered, squad] of [
+      [true, false],
+      [false, true],
+      [false, false],
+    ] as const) {
+      const { given, wire } = wires({ delivered, squad });
+      await playDrop(wire);
+      expect(given).toEqual([{ to: null }]);
+    }
+    const { given, wire } = wires();
+    await playDrop(wire);
+    expect(given).toEqual([{ to: [1, 2] }]);
+  });
+
+  it('holds nothing and falls back on the pixel parachute when the copy does not come', async () => {
+    const { calls, wire } = wires({ play: async () => false });
+    await playDrop(wire);
+    expect(calls).toEqual(['taker', 'pixels']);
+  });
+
+  it('does the same when cooking it rejects', async () => {
+    const { calls, wire } = wires({
+      play: async () => {
+        throw new Error('glb');
+      },
+    });
+    await playDrop(wire);
+    expect(calls).toEqual(['taker', 'pixels']);
+  });
+
+  it('lays no packet when nothing came down and the copy does not come', async () => {
+    const { calls, wire } = wires({ delivered: false, play: async () => false });
+    await playDrop(wire);
+    expect(calls).toEqual([]);
+  });
+
+  it('puts the pixel parachute down for the pixel plan, and plays nothing for none', async () => {
+    const pixels = wires({ plan: 'pixels' });
+    await playDrop(pixels.wire);
+    expect(pixels.calls).toEqual(['pixels']);
+    const none = wires({ plan: 'nothing' });
+    await playDrop(none.wire);
+    expect(none.calls).toEqual([]);
   });
 });
