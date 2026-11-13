@@ -225,7 +225,7 @@ type Props = {
   onPieceCarry?: ((from: PieceFrom, single: boolean) => boolean) | undefined;
   /** **La pièce portée, lâchée sur une pile à moi** : poser — la rose s'ouvre alors sur sa
    *  cible —, embarquer, ou reposer. */
-  /** `boardHome`: onto a truck whose men board under the eyes (`boardsUnderTheEyes`, #277). */
+  /** `boardHome`: onto a truck or a plane whose men board under the eyes (`boardsUnderTheEyes`, #277, #502). */
   onPieceDrop?:
     ((on: PieceFrom) => 'pose' | 'board' | 'boardHome' | 'back' | 'refused') | undefined;
   /** Ce que le lâcher ferait sur une pièce de la même adresse ; `undefined` ailleurs, où la rose

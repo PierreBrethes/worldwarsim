@@ -5530,12 +5530,12 @@ export class MapEngine {
       this.parachutes.active ||
       this.maquettes.settling ||
       this.sequences.active ||
-      this.planks.length > 0 ||
       this.walks.length > 0 ||
       this.combats.active ||
       this.razes.active ||
       this.pins.active ||
       this.moorings.active ||
+      this.planks.length > 0 ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||

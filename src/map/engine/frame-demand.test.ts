@@ -299,15 +299,19 @@ describe('a sequence longer than the settle window is declared to the loop (ADR 
   });
 });
 
-describe('a plane boarding is cued but not played yet (#480)', () => {
+describe("a plane's boarding is cued and played like a truck's (#502)", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');
 
-  it('lets only a truck hold its pile and queue a boarding: a plane waits for #502', () => {
+  it('holds the pile and queues a boarding for a plane as for a truck', () => {
     const montee = source.slice(source.indexOf("      case 'montee':"));
-    expect(montee.slice(0, montee.indexOf("      case 'dispersion':"))).toMatch(
-      /cue\.carrier !== 'landTransport'[^;]*\) break;[\s\S]*this\.standing\.expect\([\s\S]*this\.boardings\.push/,
-    );
+    const body = montee.slice(0, montee.indexOf("      case 'dispersion':"));
+    expect(body).not.toMatch(/landTransport/);
+    expect(body).toMatch(/this\.standing\.expect\([\s\S]*this\.boardings\.push/);
+  });
+
+  it('declares the plank it draws to the loop, a sequence longer than SETTLE_MS', () => {
+    expect(source).toMatch(/this\.moorings\.active \|\|\s+this\.planks\.length > 0 \|\|/);
   });
 });
 
