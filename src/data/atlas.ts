@@ -16,13 +16,15 @@ export function once<T>(make: () => Promise<T>): () => Promise<T> {
     }));
 }
 
-async function json<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`atlas not found: ${url}`);
-  return (await response.json()) as T;
-}
+/** The far file's text, kept for the far sheet's worker: `no-cache` makes a second request revalidate,
+ *  or download again while the first is still in flight (`deploiement/nginx.conf`). */
+const farText = once(async () => {
+  const response = await fetch('/atlas.json');
+  if (!response.ok) throw new Error('atlas not found: /atlas.json');
+  return response.text();
+});
 
-const farFile = once(() => json<AtlasFile>('/atlas.json'));
+const farFile = once(async () => JSON.parse(await farText()) as AtlasFile);
 
 export const loadAtlas = once(async () => decodeAtlas(await farFile()));
 
@@ -46,20 +48,25 @@ const nearSheet = () =>
 
 /** The far level's sheet, built by a worker like the near one (`far-sheet.worker.ts`): the loader
  *  awaits it, so the engine only wraps arrays and the board never draws without its countries. */
-export const loadFarSheet = once(() =>
+export const loadFarSheet = once(async () =>
   answerOf<SheetData>(
     () =>
       new Worker(new URL('../map/engine/far-sheet.worker.ts', import.meta.url), {
         type: 'module',
       }),
     'far atlas',
+    await farText(),
   ),
 );
 
 /** What a worker answers once, `null` for "I gave up"; the worker is gone after it. */
-export function answerOf<T>(make: () => Worker, what: string): Promise<T> {
+export function answerOf<T>(make: () => Worker, what: string, message?: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     const worker = make();
+    worker.onmessageerror = () => {
+      worker.terminate();
+      reject(new Error(`${what}: unreadable answer`));
+    };
     worker.onmessage = ({ data }: MessageEvent<T | null>) => {
       worker.terminate();
       if (data === null) reject(new Error(`${what}: the worker gave up`));
@@ -69,5 +76,6 @@ export function answerOf<T>(make: () => Worker, what: string): Promise<T> {
       worker.terminate();
       reject(error);
     };
+    if (message !== undefined) worker.postMessage(message);
   });
 }

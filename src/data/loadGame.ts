@@ -22,11 +22,17 @@ const loadShore = once(() =>
   ),
 );
 
+/** One object for the page, like `atlas`: a new one would rebuild the engine that depends on it. */
+const loadGround = once(async (): Promise<Foundation> => {
+  const [shore, far] = await Promise.all([loadShore(), loadFarSheet()]);
+  return { ...shore, far };
+});
+
 export async function loadGame(): Promise<GameEntry> {
   const seat = readSeat();
   if (!seat || !convexClient) return { state: 'none' };
   /** La grille vient avec l'atlas : sans elle, la visée lirait toute la terre comme de la mer. La
    *  feuille « loin » aussi : l'écran ne montre jamais la carte sans ses pays. */
-  const [atlas, shore, far] = await Promise.all([loadAtlas(), loadShore(), loadFarSheet()]);
-  return { state: 'active', atlas, ground: { ...shore, far }, seat };
+  const [atlas, ground] = await Promise.all([loadAtlas(), loadGround()]);
+  return { state: 'active', atlas, ground, seat };
 }
