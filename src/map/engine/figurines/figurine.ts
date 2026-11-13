@@ -149,6 +149,14 @@ export const floorSpanOf = (medium: UnitDomain, span: number): number =>
 export const floorGrowth = (distance: number, floorSpan: number, floor = FLOOR_PX): number =>
   Math.max(1, floor / pxOf(distance, floorSpan));
 
+/**
+ * **How much larger than its site's metres a plane is drawn** (#502), what the apron is laid out
+ * at: the floor's growth, nothing else. A site stands at the share pieces are drawn at, as the
+ * piece does, so a plane is as long as its metres say; the share is not a growth over the site.
+ */
+export const restGrowth = (distance: number, span: number): number =>
+  floorGrowth(distance, span, GARRISON_FLOOR_PX);
+
 /** **The scale a troop is drawn at**, its span at 1: its weight, its floor — read on `floorSpan`,
  *  required so that no caller keeps the old floor unknowingly — and the size pieces are drawn
  *  at; 0 once it is its pin. */

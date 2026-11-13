@@ -31,7 +31,13 @@ import {
 } from './standing';
 import { troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
-import { floorGrowth, TANK_SHARE, troopPinSpan, troopScale } from './figurines/figurine';
+import {
+  floorGrowth,
+  restGrowth,
+  TANK_SHARE,
+  troopPinSpan,
+  troopScale,
+} from './figurines/figurine';
 
 // The loader wants a DOM: every file is a box of a metre.
 vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
@@ -1061,9 +1067,14 @@ describe('pieces resting at their post', () => {
     layer.orient(eye);
     return layer;
   };
-  const growthOf = (role: UnitRole) =>
-    floorGrowth(SITE.distanceTo(eye), pileObject('france', pilePieces([troop(role)]))!.span) *
-    pieceScale.size;
+  /** A hull is laid out at the floor's growth times the drawn share, a plane at its growth over the
+   *  site's metres (#502). */
+  const growthOf = (role: UnitRole) => {
+    const span = pileObject('france', pilePieces([troop(role)]))!.span;
+    return ['cargo', 'escort', 'carrier'].includes(role)
+      ? floorGrowth(SITE.distanceTo(eye), span) * pieceScale.size
+      : restGrowth(SITE.distanceTo(eye), span);
+  };
   const near = (at: Vector3, to: Vector3) => expect(at.distanceTo(to)).toBeLessThan(1e-9);
 
   it('stands the planes of an airfield on its apron, in the order formed, the men in the pile', async () => {
