@@ -2,9 +2,23 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import type { GridAsset } from '@/domain/routing';
+import { decodeAtlas, type AtlasFile } from '@/domain/atlas';
 import { buffersOf } from './atlas-geometry';
-import { PROJECTION } from './frame';
+import { sheetData } from './countries';
+import { PROJECTION, WorldFrame } from './frame';
 import { shoreOf } from './sea';
+
+/** SHA-256 of every typed array under a value, in walk order, each with its length. */
+function hashOf(value: unknown, hash = createHash('sha256')) {
+  if (ArrayBuffer.isView(value))
+    hash
+      .update(`${value.byteLength}:`)
+      .update(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+  else if (typeof value === 'string') hash.update(`s${value};`);
+  else if (value !== null && typeof value === 'object')
+    for (const child of Object.values(value)) hashOf(child, hash);
+  return hash;
+}
 
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
@@ -30,4 +44,12 @@ it('hands every array of the shore over to the main thread, none copied', () => 
   const transfer = buffersOf(shore);
   for (const bytes of [shore.bytes, shore.sea.image, shore.grid.cells, shore.grid.edges])
     expect(transfer).toContain(bytes.buffer);
+});
+
+it('bakes the far level\u2019s sheet as main did, from the same atlas and the same frame', () => {
+  const atlas = decodeAtlas(JSON.parse(readFileSync('public/atlas.json', 'utf8')) as AtlasFile);
+  const sheet = sheetData(atlas, 'far', new WorldFrame(PROJECTION));
+  expect(hashOf(sheet).digest('hex')).toBe(
+    '08f2ebfaf97a2e66e3cb5d411d38d2ab1dfd8184b3d8276e76f7193b742175d0',
+  );
 });

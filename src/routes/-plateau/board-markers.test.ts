@@ -107,6 +107,24 @@ describe('standingPilesOf', () => {
     expect(piles.map((pile) => pile.facing)).toEqual([270]);
   });
 
+  it('leaves a pile alone when no troop of the list is in it, or when it holds none (#560)', () => {
+    const at = { kind: 'point', lonLat: [1, 2] } as const;
+    const stack = (troopIds: string[]) =>
+      ({
+        kind: 'stack',
+        id: `p${troopIds.join('')}`,
+        lonLat: [1, 2],
+        pieces: { groups: [], troopIds, squad: false },
+      }) as never;
+    const piles = standingPilesOf(
+      meWith([{ ...troop('a', at), facing: 90 }]),
+      [stack(['ghost']), stack([])],
+      new Set(),
+      false,
+    );
+    expect(piles.map((pile) => pile.facing)).toEqual([undefined, undefined]);
+  });
+
   it('leaves a marching troop out of the garrison it left', () => {
     const station = { kind: 'outpost', outpostId: 'o1' } as const;
     expect(standingPilesOf(meWith([troop('a', station)]), [], new Set(['a']), false)).toEqual([]);

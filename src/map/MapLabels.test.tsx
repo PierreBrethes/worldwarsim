@@ -700,8 +700,9 @@ describe('the interface zoom under a round of degradation (#560)', () => {
     act(() => {
       vi.advanceTimersByTime(2000);
     });
-    const zoomReads = reads.mock.calls.length;
-    expect(zoomReads).toBeLessThanOrEqual(1);
+    // Only the labels' own reads: the test's helpers read other nodes.
+    const zoomReads = reads.mock.calls.filter(([node]) => node.classList.contains('label'));
+    expect(zoomReads.length).toBeLessThanOrEqual(1);
     reads.mockRestore();
     vi.useRealTimers();
   });
