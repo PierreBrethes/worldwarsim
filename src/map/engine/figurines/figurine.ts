@@ -149,6 +149,14 @@ export const floorSpanOf = (medium: UnitDomain, span: number): number =>
 export const floorGrowth = (distance: number, floorSpan: number, floor = FLOOR_PX): number =>
   Math.max(1, floor / pxOf(distance, floorSpan));
 
+/**
+ * **How much larger than its site's metres a plane is drawn** (#502), what the apron is laid out
+ * at: the floor's growth, nothing else. A site stands at the share pieces are drawn at, as the
+ * piece does, so a plane is as long as its metres say; the share is not a growth over the site.
+ */
+export const restGrowth = (distance: number, span: number): number =>
+  floorGrowth(distance, span, GARRISON_FLOOR_PX);
+
 /** **The scale a troop is drawn at**, its span at 1: its weight, its floor — read on `floorSpan`,
  *  required so that no caller keeps the old floor unknowingly — and the size pieces are drawn
  *  at; 0 once it is its pin. */
@@ -359,6 +367,12 @@ export function figurineFor(
       // Each model brought to its role's real size, whatever it was sculpted at — measured at
       // rest: a gun's open trails do not shrink it.
       model.scale.setScalar(span / measureOf(rest!, role));
+      if (role !== 'infantry') {
+        // Its widest side from the origin it stands on, twice: a hull is laid out by its middle.
+        const box = new Box3().setFromObject(rest!);
+        const size = box.getSize(new Vector3());
+        beamShares.set(files[0]!, (2 * Math.max(box.max.x, -box.min.x)) / Math.max(size.x, size.z));
+      }
       drawn = role === 'infantry' ? squadOf(makers) : makers[0]!.make();
       model.add(drawn);
       for (const fn of dressers) fn(drawn, true);
@@ -405,6 +419,12 @@ export function figurineFor(
     },
   };
 }
+
+/** **Each model's beam, a share of its length**, by file, once the file has landed (#505): what a
+ *  hull stands off the mole by (`berths`). */
+const beamShares = new Map<string, number>();
+export const beamShareOf = (url: string | undefined): number | undefined =>
+  url === undefined ? undefined : beamShares.get(url);
 
 /** **A model's measure in its own units**: a man's height in metres, the widest side at the ground of the rest. */
 export function measureOf(scene: Object3D, role: UnitRole): number {

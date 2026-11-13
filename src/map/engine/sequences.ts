@@ -9,7 +9,7 @@ import {
   Vector3,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
-import type { UnitTier } from '@/domain/ids';
+import type { UnitRole, UnitTier } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
@@ -36,6 +36,9 @@ export type PartPose = {
   /** 1 whole, 0 gone: the part and what hangs from it. The copy takes materials of its own to
    *  fade, drawn last, and gives them back at the end. */
   readonly fade?: number;
+  /** A mast only (`mat_charge_*`, #505): its heading about its parent's up from +z and its lift
+   *  above the horizontal, whatever its rest — not a turn from it. */
+  readonly aim?: readonly [yaw: number, lift: number];
   /** `root` or a man (`man_*`): the piece, or the man, moved from its rest, in board units along
    *  the world's axes — the path from a door to a rank is drawn on the board, whatever the pile's
    *  turn and size. */
@@ -83,7 +86,11 @@ export type Sequence<F extends RigFamily = RigFamily> = {
   readonly minPx?: number;
   /** **A column deploying at its arrival** (#362) plays on a ceiling of its own
    *  (`MAX_DEPLOYING`): a file of six must not wait on the barracks' doors, nor shut them. */
-  readonly pool?: 'deployment' | 'site';
+  readonly pool?: 'deployment' | 'site' | 'boarding';
+  /** **Judged elsewhere**: it plays and goes on whether or not its piece is in the field, for
+   *  what the caller judged on another piece — the men of a hull's boarding walk in from out of the
+   *  image, the hull is the one seen (#479). */
+  readonly anywhere?: true;
   /** It plays at reduced motion too: a held pose, nothing moves (the file that holds, #362). */
   readonly reduced?: true;
   at(t: number): Pose<F>;
@@ -108,6 +115,10 @@ export type SequenceHost = {
 export const PLAY_PX = 150;
 /** **Au plus tant de copies à la fois** ; au-delà, la pose finale. `@a-mesurer` */
 export const MAX_PLAYING = 4;
+/** **Au plus tant de pièces qui embarquent à la fois sur une coque** (#479, #505) : les hommes de
+ *  ses escouades et ses véhicules hissés, qui ne sont pas des pièces comme les autres.
+ *  `@a-mesurer` */
+export const MAX_BOARDING = 8;
 /** **Au plus tant de pièces qui se déploient à la fois** (#362). Une file plus longue — une
  *  colonne Blitz de neuf unités ou plus (`unitPieces`) — ne se déploie pas du tout : elle se pose
  *  d'un coup. `@a-mesurer` */
@@ -188,7 +199,8 @@ export type Cue =
   /** **Men and vehicles board a hull** (#504): `hull` is its group, `carrierId` its troop, and
    *  each rider is drawn by its `figures` — where it last stood is read in the engine, as
    *  `boardOf` does (`lastSeen`, `fileLeftBy`). The engine answers every one by feeding its riders
-   *  to the tag (`watchBoarded`), played or not. */
+   *  to the tag (`watchBoarded`), played or not; at a cargo's quay the men walk up its gangway
+   *  first (#479), and the tag is fed as each is through the door. */
   | {
       readonly kind: 'embarquement';
       readonly hull: string;
@@ -196,6 +208,7 @@ export type Cue =
       readonly ground: 'quay' | 'beach';
       readonly riders: ReadonlyArray<{
         readonly troopId: string;
+        readonly role: UnitRole;
         readonly figures: ReadonlyArray<UnitTier>;
       }>;
     }
@@ -234,7 +247,13 @@ export type Cue =
 
 /** A site's doors and slip (`pool: 'site'`, #487) are no piece: `MAX_PLAYING` counts pieces only. */
 const ceilingOf = (pool: Sequence['pool']): number =>
-  pool === 'deployment' ? MAX_DEPLOYING : pool === 'site' ? Infinity : MAX_PLAYING;
+  pool === 'deployment'
+    ? MAX_DEPLOYING
+    : pool === 'site'
+      ? Infinity
+      : pool === 'boarding'
+        ? MAX_BOARDING
+        : MAX_PLAYING;
 
 type Rest = {
   readonly position: Vector3;
@@ -298,6 +317,7 @@ type Playing = {
 
 const turn = new Quaternion();
 const euler = new Euler();
+const aimed = new Euler(0, 0, 0, 'YXZ');
 /** A man of a squad (`squadOf`): a piece that moves whole walks its men in file. */
 const MAN = /^man_\d+$/;
 const up = new Vector3(0, 1, 0);
@@ -310,12 +330,13 @@ const parentTurn = new Quaternion();
 export function bentFromRest(
   node: Object3D,
   rest: Pick<Rest, 'position' | 'quaternion'>,
-  own?: Pick<PartPose, 'shift' | 'turn'>,
+  own?: Pick<PartPose, 'shift' | 'turn' | 'aim'>,
 ): void {
   node.position.copy(rest.position);
   node.quaternion.copy(rest.quaternion);
   if (own?.shift) node.position.add(new Vector3(...own.shift));
   if (own?.turn) node.quaternion.multiply(turn.setFromEuler(euler.set(...own.turn)));
+  if (own?.aim) node.quaternion.setFromEuler(aimed.set(-own.aim[1], own.aim[0], 0));
 }
 
 /** **`travel` and `heading` are read on the board**, through whatever turns and scales the
@@ -370,7 +391,8 @@ export class SequenceLayer {
     if (this.playsOn(host, id)) return false;
     const piece = host.pieceOf(id);
     const { family } = sequence;
-    const seen = (box: Box3 | null) => box === null || this.sees(box, sequence.minPx ?? PLAY_PX);
+    const seen = (box: Box3 | null) =>
+      sequence.anywhere === true || box === null || this.sees(box, sequence.minPx ?? PLAY_PX);
     // A box still unknown (a lot just rebuilt) is not judged now: `step` judges it once known. A
     // piece that moves whole is judged once posed: where its walk starts counts as its rank.
     if (piece === null || (family !== undefined && !seen(piece.box))) return false;
@@ -442,7 +464,9 @@ export class SequenceLayer {
         !this.plays(playing.sequence) ||
         t >= playing.sequence.ms ||
         piece === null ||
-        (piece.box !== null && !this.sees(piece.box, playing.sequence.minPx ?? PLAY_PX))
+        (playing.sequence.anywhere !== true &&
+          piece.box !== null &&
+          !this.sees(piece.box, playing.sequence.minPx ?? PLAY_PX))
       ) {
         this.finish(playing);
         continue;

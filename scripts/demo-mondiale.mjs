@@ -20,6 +20,11 @@
  * au plein et une escorte envoyée en mer, et les dépêches d'un dépôt brûlé (P11). `--petrole` lui donne un arsenal, la carte du
  * pétrole synthétique et un lot de soixante pétroles en cours (ADR 0028 §1). `--tutoriel` laisse
  * une place neuve, comme `--nu` : les premiers pas commencent au QG à poser (ADR 0027 §2).
+ * `--cargo-monter [s]` (#479) pose la scène de `--navire` (avec `--port-miroir`, celle d'Almería)
+ * et deux escouades de fantassins à son quai ; à `s` secondes (25 par défaut), un ordre les fait
+ * monter sur le cargo, par sa passerelle (lieu : `cargo`). `--cargo-bis` y ajoute, quatre secondes
+ * après, une troisième escouade : son embarquement se pose d'un coup. `--cargo-vehicules` (#505) y
+ * joint un char et un camion, dans le même ordre : le mât de charge les hisse un par un.
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--brest` (#436) y ajoute un chantier
  * de port à Brest, sur sa rade. `--port-miroir` (#476) pose le port de `--navire` à Almería, sur une côte
@@ -367,12 +372,17 @@ const mirrorPort = process.argv.includes('--port-miroir');
 /** `--ports-seuil` (#476) : deux ports de part et d'autre du seuil de la pose en miroir, assez loin l'un
  *  de l'autre pour ne pas s'annelter (plus de 6 unités) : Biarritz en miroir, la côte d'Opale droite, à peine en deçà. */
 const thresholdPorts = process.argv.includes('--ports-seuil');
+const hullBoardingAt = process.argv.indexOf('--cargo-monter');
+const hullBoardingIn = hullBoardingAt < 0 ? null : Number(process.argv[hullBoardingAt + 1]) || 25;
+const hullBoardingTwice = process.argv.includes('--cargo-bis');
+const hullBoardingVehicles = process.argv.includes('--cargo-vehicules');
 const navy =
   denseQuay ||
   craneIn !== null ||
   coastIn !== null ||
   runwayIn !== null ||
   mirrorPort ||
+  hullBoardingIn !== null ||
   thresholdPorts ||
   process.argv.includes('--navire') ||
   process.argv.includes('--echelle');
@@ -1523,6 +1533,39 @@ if (!bare) {
     const [truck] = spawned({ role: 'landTransport', count: 1, ...at });
     pile.monter = { truck, riders: spawned({ role: 'infantry', count: 2, ...at }) };
   }
+  /** `--cargo-monter` (#479) : deux escouades au quai du port de `--navire`, que le cargo attend. */
+  if (hullBoardingIn !== null && scene.a !== null) {
+    const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+    const port = me.buildings.find((building) => building.key === 'port');
+    const cargo = me.troops.find((troop) => troop.role === 'cargo');
+    places.cargo = { id: `building-port@${port.point[0]},${port.point[1]}`, lonLat: port.point };
+    const squads = (count) =>
+      spawned({
+        role: 'infantry',
+        count,
+        lon: port.point[0],
+        lat: port.point[1],
+        buildingId: port.id,
+      });
+    const first = squads(2);
+    // A tank and a truck at the quay: the cargo's mast lifts them aboard (#505).
+    const vehicles = hullBoardingVehicles
+      ? ['armor', 'landTransport'].flatMap((role) =>
+          spawned({
+            role,
+            count: 1,
+            lon: port.point[0],
+            lat: port.point[1],
+            buildingId: port.id,
+          }),
+        )
+      : [];
+    pile.cargo = {
+      cargo: cargo.id,
+      riders: [...first, ...vehicles],
+      later: hullBoardingTwice ? squads(1) : [],
+    };
+  }
   if (landingIn !== null && scene.a !== null) {
     const at = { lon: 3.3, lat: 47.1 };
     places.descendre = [at.lon, at.lat];
@@ -2227,6 +2270,36 @@ const gestures = [
           carrierId: truck,
         });
         return 'fantassins à bord';
+      },
+    ],
+  hullBoardingIn !== null &&
+    pile.cargo && [
+      hullBoardingIn,
+      async () => {
+        const { cargo, riders } = pile.cargo;
+        await client.mutation(api.movements.board, {
+          token: tokenA,
+          seasonId,
+          troopIds: riders,
+          carrierId: cargo,
+        });
+        return hullBoardingVehicles
+          ? 'deux escouades, un char et un camion montent au cargo'
+          : 'deux escouades montent au cargo';
+      },
+    ],
+  hullBoardingIn !== null &&
+    pile.cargo?.later.length > 0 && [
+      hullBoardingIn + 4,
+      async () => {
+        const { cargo, later } = pile.cargo;
+        await client.mutation(api.movements.board, {
+          token: tokenA,
+          seasonId,
+          troopIds: later,
+          carrierId: cargo,
+        });
+        return 'une troisième escouade monte au cargo';
       },
     ],
   landingIn !== null &&

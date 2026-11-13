@@ -40,6 +40,8 @@ import {
   LAID_OUT_FOR,
   FLOOR_PX,
   floorGrowth,
+  beamShareOf,
+  restGrowth,
   floorSpanOf,
   GARRISON_FLOOR_PX,
   troopPinSpan,
@@ -70,6 +72,7 @@ import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { rankLayout } from './rank-layout';
+import { markOf } from './figurines/marks';
 import { block, GROUP_SPACING, SQUAD_SPACING, type Slot } from '@/domain/pile-layout';
 import {
   boxOfObject,
@@ -1134,6 +1137,23 @@ export class StandingLayer implements SequenceHost {
     };
   }
 
+  /** **A group's model frame on the board** (#505): the matrix that takes a point of its file, in
+   *  the file's own metres, to the board, where its posed copy stands. `null` until placed. */
+  frameOf(id: string): Matrix4 | null {
+    const lent = this.figurineOf(id);
+    if (!lent?.placed) return null;
+    const { object } = lent.figurine;
+    object.updateWorldMatrix(true, true);
+    return object.children[0]?.matrixWorld.clone() ?? null;
+  }
+
+  /** **A marker of a group's model** (`fx_passerelle`…), on the board, where its posed copy has put
+   *  it; `null` until placed, or when the model carries none (#479). */
+  markOf(id: string, name: string): Vector3 | null {
+    const lent = this.figurineOf(id);
+    return lent?.placed ? markOf(lent.figurine.object, name) : null;
+  }
+
   /** **How long a group is drawn**, nose to tail along its own front, on the board: a turned
    *  rank does not lengthen it as its world box does (#271). `null` until placed. */
   lengthOf(id: string): number | null {
@@ -1650,13 +1670,15 @@ export class StandingLayer implements SequenceHost {
       readonly figures: ReadonlyArray<UnitTier>;
       readonly at: Vector3;
       readonly heading: number;
+      /** A vehicle lifted aboard a cargo (#505) is drawn like a man, by its own role. */
+      readonly role?: UnitRole;
     }>,
   ): ReadonlyArray<string> {
     const entry = this.dressed.get(pileId);
     if (entry === undefined || !entry.placed) return [];
     entry.object.updateMatrixWorld(true);
-    return riders.flatMap(({ troopId, figures, at, heading }) => {
-      const figurine = figurineFor(this.nation, 'infantry', figures);
+    return riders.flatMap(({ troopId, figures, at, heading, role = 'infantry' }) => {
+      const figurine = figurineFor(this.nation, role, figures);
       if (figurine === null) return [];
       const id = `${pileId}/+${troopId}`;
       this.unboard(id);
@@ -1916,10 +1938,10 @@ export class StandingLayer implements SequenceHost {
         for (const kept of [this.lastRest, this.left])
           for (const [troop, rest] of kept) if (rest.site === site) kept.delete(troop);
       this.mirroredSites.set(site, mirrored);
-      // Each piece is laid out at the growth it is drawn at.
-      const growth = members.map(
-        ({ entry }) =>
-          floorGrowth(frame.at.distanceTo(eye), entry.span, GARRISON_FLOOR_PX) * pieceScale.size,
+      // Each piece is laid out at the growth it is drawn at over its site's metres: the floor's
+      // alone (`restGrowth`, #502), for the site stands at the drawn share as the piece does.
+      const growth = members.map(({ entry }) =>
+        restGrowth(frame.at.distanceTo(eye), entry.span * entry.sized),
       );
       const hullPosts = sea ? this.postsOfHulls(site, members) : null;
       const rests = hullPosts
@@ -1927,6 +1949,7 @@ export class StandingLayer implements SequenceHost {
             members.map(({ role }) => role as SeaRole),
             growth,
             hullPosts.posts,
+            members.map(({ entry, k }) => beamShareOf(entry.figurines[k]?.url)),
           )
         : layout(this.planesOf(site, members), growth);
       members.forEach(({ entry, k, role, troop }, n) => {

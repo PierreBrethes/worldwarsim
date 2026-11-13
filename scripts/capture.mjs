@@ -22,6 +22,10 @@
  * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
  * `recharger` recharge la page dans le même navigateur, son stockage gardé, puis attend comme à
  * l'ouverture : un `lieu=` après lui recadre.
+ * `porte=distance,pente°,azimut°[,dx,dz]` attend la planche d'un cargo (#479) puis cadre sa porte de
+ * coupée ; `photoporte=chemin.png` la prend serrée autour d'elle, vite (la marche dure plus d'une minute).
+ * `levee=distance,pente°,azimut°[,dx,dz]` attend la levée d'un mât de charge (#505) puis cadre son
+ * bout ; `photolevee=chemin.png` prend un cliché serré autour du bout du mât à cet instant.
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
@@ -210,12 +214,113 @@ try {
         await page.waitForTimeout(30);
       }
       Object.assign(finger, { down: type !== 'touchEnd', x, y });
+    } else if (kind === 'photoporte') {
+      // Un cliché serré autour de la porte de coupée : bien plus vite qu'une pleine page.
+      const at = await page.evaluate(() => {
+        const engine = globalThis.mapEngine;
+        const plank = [...engine.gangplanks.laid.values()][0];
+        if (!plank) return null;
+        const w = engine.renderer.domElement.getBoundingClientRect();
+        const p = plank.door.clone().project(engine.camera);
+        return [((p.x + 1) / 2) * w.width, ((1 - p.y) / 2) * w.height];
+      });
+      const vp = page.viewportSize();
+      const [cw, ch] = [Math.min(560, vp.width), Math.min(360, vp.height)];
+      const [cx, cy] = at ?? [vp.width / 2, vp.height / 2];
+      const clip = {
+        x: Math.max(0, Math.min(vp.width - cw, cx - cw / 2)),
+        y: Math.max(0, Math.min(vp.height - ch, cy - ch / 2)),
+        width: cw,
+        height: ch,
+      };
+      await page.screenshot({ path: value, clip });
+    } else if (kind === 'photolevee') {
+      // Un cliché serré autour du bout du mât, là où il est à cet instant (#505).
+      const at = await page.evaluate(() => {
+        const engine = globalThis.mapEngine;
+        const laid = [...engine.hoists.laid.values()][0];
+        const tip = laid?.strokes(performance.now() - laid.since)[0]?.a;
+        if (!tip) return null;
+        const w = engine.renderer.domElement.getBoundingClientRect();
+        const p = tip.clone().project(engine.camera);
+        return [((p.x + 1) / 2) * w.width, ((1 - p.y) / 2) * w.height];
+      });
+      const vp = page.viewportSize();
+      const [cw, ch] = [Math.min(760, vp.width), Math.min(560, vp.height)];
+      const [cx, cy] = at ?? [vp.width / 2, vp.height / 2];
+      const clip = {
+        x: Math.max(0, Math.min(vp.width - cw, cx - cw / 2)),
+        y: Math.max(0, Math.min(vp.height - ch, cy - ch / 2)),
+        width: cw,
+        height: ch,
+      };
+      await page.screenshot({ path: value, clip });
     } else if (kind === 'photo') await page.screenshot({ path: value });
     else if (kind === 'recharger') {
       await page.reload();
       await page.waitForTimeout(Number(option('attendre', 6000)));
     } else if (kind === 'pause') await page.waitForTimeout(x);
-    else if (kind === 'camera') {
+    else if (kind === 'porte') {
+      // `porte=d,pente,azimut,dx,dz` : cadre la porte de coupée, quand la planche est posée.
+      const [d = 0.45, p = 50, a = 0, dx = 0, dz = 0] = value.split(',').map(Number);
+      const found = await page.evaluate(
+        async ([d, p, a, dx, dz]) => {
+          const engine = globalThis.mapEngine;
+          for (let i = 0; i < 400; i++) {
+            const plank = [...engine.gangplanks.laid.values()][0];
+            if (plank) {
+              const rad = Math.PI / 180;
+              const [tx, tz] = [plank.door.x + dx, plank.door.z + dz];
+              engine.controls.target.set(tx, 0.08, tz);
+              engine.camera.position.set(
+                tx + d * Math.sin(p * rad) * Math.sin(a * rad),
+                0.08 + d * Math.cos(p * rad),
+                tz + d * Math.sin(p * rad) * Math.cos(a * rad),
+              );
+              engine.invalidate();
+              return [plank.door.x, plank.door.z];
+            }
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          return null;
+        },
+        [d, p, a, dx, dz],
+      );
+      console.log('porte', found);
+      await page.waitForTimeout(800);
+    } else if (kind === 'levee') {
+      // `levee=d,pente,azimut,dx,dz` : cadre le bout du mât à mi-levée, quand un mât lève (#505).
+      const [d = 0.6, p = 50, a = 0, dx = 0, dz = 0] = value.split(',').map(Number);
+      const found = await page.evaluate(
+        async ([d, p, a, dx, dz]) => {
+          const engine = globalThis.mapEngine;
+          for (let i = 0; i < 1200; i++) {
+            const laid = [...engine.hoists.laid.values()][0];
+            // Where the first mast is three seconds into its lift: the lifts start once the
+            // vehicles have driven down the mole.
+            let from = 0;
+            while (laid && from < 150000 && laid.strokes(from).length === 0) from += 250;
+            const tip = laid?.strokes(from + 3000)[0]?.a;
+            if (tip) {
+              const rad = Math.PI / 180;
+              const [tx, tz] = [tip.x + dx, tip.z + dz];
+              engine.controls.target.set(tx, 0.08, tz);
+              engine.camera.position.set(
+                tx + d * Math.sin(p * rad) * Math.sin(a * rad),
+                0.08 + d * Math.cos(p * rad),
+                tz + d * Math.sin(p * rad) * Math.cos(a * rad),
+              );
+              engine.invalidate();
+              return [tip.x, tip.z];
+            }
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          return null;
+        },
+        [d, p, a, dx, dz],
+      );
+      console.log('levee', found);
+    } else if (kind === 'camera') {
       // `mapEngine` n'est exposé qu'en dev (`WorldMap.tsx`).
       const [, , distance = 60, polar = 0, azimuth = 0] = value.split(',').map(Number);
       await page.evaluate(

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { troopMetres } from '@/domain/piece-size';
 import { AIRFIELD, MOLE } from '@/emblems/kits/manifest';
 import type { AirRole } from './airfield';
-import { berthOf, type SeaRole } from './port';
+import { berthOf, HULL_BEAM_SHARE, type SeaRole } from './port';
 import { berths, type HullPost, layout, type Place, type Plane, settle, settleHull } from './rest';
 
 const [right, left] = AIRFIELD.lanes;
@@ -48,7 +49,17 @@ describe('the apron: where planes rest before their hangars (#475)', () => {
 
 const hulls = (...roles: SeaRole[]) => roles;
 /** The hull's beam, a share of its length (`HULL_BEAM_SHARE`). */
-const beamOf = (length: number) => 0.14 * length;
+const beamOf = (length: number) => HULL_BEAM_SHARE * length;
+
+describe('a hull’s own beam (#505)', () => {
+  it('stands a hull of a known beam off the mole by it, and the widest’s for one of none', () => {
+    const [own] = berths(hulls('cargo'), 1, ['mole'], [0.13]);
+    const [widest] = berths(hulls('cargo'), 1, ['mole']);
+    expect(own!.x).toBeCloseTo(berthOf('cargo', 0.13 * troopMetres('cargo')).x, 9);
+    expect(widest!.x).toBeCloseTo(berthOf('cargo', beamOf(troopMetres('cargo'))).x, 9);
+    expect(own!.x).toBeGreaterThan(widest!.x);
+  });
+});
 
 describe('the places of an apron, one state per plane (#475, décision du 05/11)', () => {
   it('sends a plane formed at its hangar to the most advanced free place, not crossing a parked plane', () => {

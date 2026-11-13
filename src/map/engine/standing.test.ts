@@ -31,7 +31,13 @@ import {
 } from './standing';
 import { troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
-import { floorGrowth, TANK_SHARE, troopPinSpan, troopScale } from './figurines/figurine';
+import {
+  beamShareOf,
+  restGrowth,
+  TANK_SHARE,
+  troopPinSpan,
+  troopScale,
+} from './figurines/figurine';
 
 // The loader wants a DOM: every file is a box of a metre.
 vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
@@ -1061,9 +1067,9 @@ describe('pieces resting at their post', () => {
     layer.orient(eye);
     return layer;
   };
+  /** A piece is laid out at its growth over the site's metres (#502). */
   const growthOf = (role: UnitRole) =>
-    floorGrowth(SITE.distanceTo(eye), pileObject('france', pilePieces([troop(role)]))!.span) *
-    pieceScale.size;
+    restGrowth(SITE.distanceTo(eye), pileObject('france', pilePieces([troop(role)]))!.span);
   const near = (at: Vector3, to: Vector3) => expect(at.distanceTo(to)).toBeLessThan(1e-9);
 
   it('stands the planes of an airfield on its apron, in the order formed, the men in the pile', async () => {
@@ -1102,6 +1108,9 @@ describe('pieces resting at their post', () => {
     const slots = berths(
       pieces.groups.map(({ role }) => role as 'cargo' | 'escort'),
       g,
+      undefined,
+      // Each hull stands off the mole by its own file's beam (#505).
+      pieces.groups.map((_, k) => beamShareOf(layer.pieceOf(`p/${k}`)?.url)),
     );
     pieces.groups.forEach((_, k) => {
       const slot = slots[k]!;
