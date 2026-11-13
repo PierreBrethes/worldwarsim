@@ -38,6 +38,12 @@ describe('quayWay (#479)', () => {
     expect(way[way.length - 2]).toEqual(plankFoot(door));
   });
 
+  it('lays the plank from the door to the deck, on the mole’s side of the door', () => {
+    const [x, y] = plankFoot(door);
+    expect(x).toBeGreaterThan(door.x);
+    expect(y).toBeLessThan(door.y);
+  });
+
   it('keeps every step before the door on the deck, level with the quay', () => {
     const deck = MOLE.lift + 0.5;
     for (const [, y] of way.slice(0, -1)) expect(y).toBe(deck);

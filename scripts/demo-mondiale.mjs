@@ -371,6 +371,9 @@ const mirrorPort = process.argv.includes('--port-miroir');
 /** `--ports-seuil` (#476) : deux ports de part et d'autre du seuil de la pose en miroir, assez loin l'un
  *  de l'autre pour ne pas s'annelter (plus de 6 unités) : Biarritz en miroir, la côte d'Opale droite, à peine en deçà. */
 const thresholdPorts = process.argv.includes('--ports-seuil');
+const hullBoardingAt = process.argv.indexOf('--cargo-monter');
+const hullBoardingIn = hullBoardingAt < 0 ? null : Number(process.argv[hullBoardingAt + 1]) || 25;
+const hullBoardingTwice = process.argv.includes('--cargo-bis');
 const navy =
   denseQuay ||
   craneIn !== null ||
@@ -490,8 +493,6 @@ const gestureIn = (flag) => {
 const formingIn = gestureIn('--former');
 const disbandingIn = gestureIn('--dissoudre');
 const boardingIn = gestureIn('--monter');
-const hullBoardingIn = gestureIn('--cargo-monter');
-const hullBoardingTwice = process.argv.includes('--cargo-bis');
 const landingIn = gestureIn('--descendre');
 const marchAboardIn = gestureIn('--embarquer');
 /** What the gestures of `--former`… act on, once the accounts are written. */
