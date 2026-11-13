@@ -289,7 +289,8 @@ const gestureAfter = (flag) => {
 /** `--avion [s]` (#502) : l'aérodrome de `--largage`, deux fantassins dans sa garnison ;
  *  dans s secondes (25 par défaut) les deux fantassins montent dans le transport par un ordre de
  *  joueur (`movements.board`). Avec `--char`, un char attend dans la garnison : le lâcher sur
- *  l'avion est refusé (le rang de la garnison couvre alors le pied de la porte). Lieu `aerodrome`. */
+ *  l'avion est refusé (le rang de la garnison couvre alors le pied de la porte). Avec `--deux`,
+ *  les fantassins montent dans un second transport, celui de la voie d'en face. Lieu `aerodrome`. */
 const planeBoardIn = gestureAfter('--avion');
 const airdrops =
   planeBoardIn !== null ||
@@ -858,7 +859,10 @@ if (!bare) {
         ]).match(/\[[^\]]*\]/)[0],
       );
     pile.avion = {
-      carrier: me.troops.find((troop) => troop.role === 'airTransport').id,
+      // Avec `--deux`, un second transport, dans la voie d'en face : sa porte regarde le bord.
+      carrier: process.argv.includes('--deux')
+        ? garrison('airTransport', 1)[0]
+        : me.troops.find((troop) => troop.role === 'airTransport').id,
       riders: garrison('infantry', 2),
       tank: process.argv.includes('--char') ? garrison('armor', 1)[0] : null,
     };
