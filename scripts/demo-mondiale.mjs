@@ -292,7 +292,13 @@ const gestureAfter = (flag) => {
  *  l'avion est refusé (le rang de la garnison couvre alors le pied de la porte). Avec `--deux`,
  *  les fantassins montent dans un second transport, celui de la voie d'en face. Lieu `aerodrome`. */
 const planeBoardIn = gestureAfter('--avion');
+/** `--lache [s]` (#508) : l'aérodrome de `--largage` ; dans s secondes (25 par défaut) le transport
+ *  part larguer sur l'avant-poste de Bruxelles par un ordre de joueur (`logistics.airdrop`), et
+ *  arrive six secondes plus tard. Avec `--escouade`, sur l'escouade à sec de Rhénanie, qui reprend
+ *  la caisse. Lieu : `lieu=4.35,50.85,0.2,55` (avant-poste), `lieu=7.1,50.4,0.2,55` (escouade). */
+const dropIn = gestureAfter('--lache');
 const airdrops =
+  dropIn !== null ||
   planeBoardIn !== null ||
   reinforceIn !== null ||
   queueIn !== null ||
@@ -2272,6 +2278,30 @@ const gestures = [
         return 'fantassins à bord';
       },
     ],
+  dropIn !== null && [
+    dropIn,
+    async () => {
+      const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+      const airfield = me.buildings.find((building) => building.key === 'airfield');
+      const plane = me.troops.find((troop) => troop.role === 'airTransport');
+      const outpost = me.outposts.find(({ lonLat }) => Math.abs(lonLat[0] - 4.35) < 0.01);
+      await client.mutation(api.logistics.airdrop, {
+        token: tokenA,
+        seasonId,
+        origin: { kind: 'building', buildingId: airfield.id },
+        troopIds: [plane.id],
+        target: process.argv.includes('--escouade')
+          ? { kind: 'squad', point: { lon: 7.1, lat: 50.4 } }
+          : { kind: 'outpost', outpostId: outpost.id },
+      });
+      cli([
+        'run',
+        'dev:arriveNow',
+        JSON.stringify({ playerId: scene.a, afterMs: 6_000, onTime: true }),
+      ]);
+      return 'transport parti larguer, arrivée dans 6 s';
+    },
+  ],
   planeBoardIn !== null &&
     pile.avion && [
       planeBoardIn,
