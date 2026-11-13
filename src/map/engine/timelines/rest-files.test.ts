@@ -10,6 +10,7 @@ import { sceneOfFile } from '../gltf-scene.fixture';
 import { restGrowth } from '../figurines/figurine';
 import { type AirRole, TAIL_GAP } from './airfield';
 import { berths, layout } from './rest';
+import { gangwayDoor, plankFoot } from './gangway';
 
 /** #502 : un avion posé sur l'aire tient entre le rail des hangars et la rampe, de chaque fichier. */
 const planes = (['fighter', 'bomber', 'airTransport'] as const).flatMap((role) =>
@@ -78,6 +79,27 @@ describe('the mole, with the growth a hull is drawn at (#479)', () => {
           expect(stem).toBeGreaterThanOrEqual(MOLE.quay - 0.01);
         }
       }
+    },
+  );
+
+  it.each(hulls.filter(({ role }) => role === 'cargo'))(
+    'lets the plank of the $nation cargo run from its door to the mole, no further',
+    ({ url }) => {
+      const scene = sceneOfFile(url);
+      const box = new Box3().setFromObject(scene);
+      const size = box.getSize(new Vector3());
+      const k = troopMetres('cargo') / Math.max(size.x, size.z);
+      const [at] = berths(['cargo'], 1, ['mole']);
+      scene.updateMatrixWorld(true);
+      // The hull stands stem to the land (yaw π): its x and z are turned over. The file has the
+      // port mark; its starboard is its mirror (`site-kits.ts`).
+      const mark = new Vector3();
+      scene.getObjectByName('fx_passerelle')!.getWorldPosition(mark);
+      const marks = [mark.x, -mark.x].map((x) => ({ x: at!.x - x * k, y: 0, z: at!.z - mark.z * k }));
+      const door = gangwayDoor(marks);
+      expect(door.x).toBeLessThanOrEqual(MOLE.inner);
+      expect(plankFoot(door)[0]).toBeGreaterThanOrEqual(MOLE.inner);
+      expect(plankFoot(door)[0]).toBeLessThanOrEqual(MOLE.inner + 3);
     },
   );
 

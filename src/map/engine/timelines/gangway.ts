@@ -11,12 +11,12 @@ type Point = { readonly x: number; readonly y: number; readonly z: number };
 const DECK = MOLE.lift + 0.5;
 /** **Where the men walk on the mole**, in metres of `port.glb`: the line along the quay they take
  *  before it, the lane of the mole's outer edge (the mole is 20 m wide, its centre at `MOLE.x`),
- *  and how far from the door, towards the mole, the plank rests on the deck: the hull's flank
- *  stands where the door is, not at the mole's face (the hull is drawn larger than its berth).
- *  `@a-mesurer` (storyboard `mer-air`, « 1. Au cargo ») */
+ *  and how far in from the mole's face the plank rests on the deck: it spans the gap between the
+ *  hull's flank, where the door is, and the face. `@a-mesurer` (storyboard `mer-air`, « 1. Au
+ *  cargo ») */
 const QUAY_LINE = MOLE.quay - 2;
 const OUTER_LANE = MOLE.x + 7;
-const PLANK_REACH = 3;
+const PLANK_ONTO_DECK = 1;
 
 /**
  * **The gangway mark a hull is boarded by**: of its two (`fx_passerelle`, `fx_passerelle_tribord`),
@@ -29,8 +29,8 @@ export function gangwayDoor<T extends Point>(marks: ReadonlyArray<T>): T {
   );
 }
 
-/** Where the plank rests on the mole, at the door's station. */
-export const plankFoot = (door: Point): P3 => [door.x + PLANK_REACH, DECK, door.z];
+/** Where the plank rests on the mole, at the door's station: just in from its face. */
+export const plankFoot = (door: Point): P3 => [MOLE.inner + PLANK_ONTO_DECK, DECK, door.z];
 
 /**
  * **A man's way to the door**: from his rest, along the quay to the mole's outer edge, down it to
