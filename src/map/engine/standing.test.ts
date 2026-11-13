@@ -31,7 +31,13 @@ import {
 } from './standing';
 import { troopSpan } from '@/domain/piece-size';
 import { pieceScale } from './piece-scale';
-import { restGrowth, TANK_SHARE, troopPinSpan, troopScale } from './figurines/figurine';
+import {
+  beamShareOf,
+  restGrowth,
+  TANK_SHARE,
+  troopPinSpan,
+  troopScale,
+} from './figurines/figurine';
 
 // The loader wants a DOM: every file is a box of a metre.
 vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
@@ -1102,6 +1108,9 @@ describe('pieces resting at their post', () => {
     const slots = berths(
       pieces.groups.map(({ role }) => role as 'cargo' | 'escort'),
       g,
+      undefined,
+      // Each hull stands off the mole by its own file's beam (#505).
+      pieces.groups.map((_, k) => beamShareOf(layer.pieceOf(`p/${k}`)?.url)),
     );
     pieces.groups.forEach((_, k) => {
       const slot = slots[k]!;

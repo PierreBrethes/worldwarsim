@@ -367,6 +367,10 @@ export function figurineFor(
       // Each model brought to its role's real size, whatever it was sculpted at — measured at
       // rest: a gun's open trails do not shrink it.
       model.scale.setScalar(span / measureOf(rest!, role));
+      if (role !== 'infantry') {
+        const size = new Box3().setFromObject(rest!).getSize(new Vector3());
+        beamShares.set(files[0]!, size.x / Math.max(size.x, size.z));
+      }
       drawn = role === 'infantry' ? squadOf(makers) : makers[0]!.make();
       model.add(drawn);
       for (const fn of dressers) fn(drawn, true);
@@ -413,6 +417,12 @@ export function figurineFor(
     },
   };
 }
+
+/** **Each model's beam, a share of its length**, by file, once the file has landed (#505): what a
+ *  hull stands off the mole by (`berths`). */
+const beamShares = new Map<string, number>();
+export const beamShareOf = (url: string | undefined): number | undefined =>
+  url === undefined ? undefined : beamShares.get(url);
 
 /** **A model's measure in its own units**: a man's height in metres, the widest side at the ground of the rest. */
 export function measureOf(scene: Object3D, role: UnitRole): number {

@@ -40,6 +40,7 @@ import {
   LAID_OUT_FOR,
   FLOOR_PX,
   floorGrowth,
+  beamShareOf,
   restGrowth,
   floorSpanOf,
   GARRISON_FLOOR_PX,
@@ -1936,6 +1937,7 @@ export class StandingLayer implements SequenceHost {
             members.map(({ role }) => role as SeaRole),
             growth,
             hullPosts.posts,
+            members.map(({ entry, k }) => beamShareOf(entry.figurines[k]?.url)),
           )
         : layout(this.planesOf(site, members), growth);
       members.forEach(({ entry, k, role, troop }, n) => {

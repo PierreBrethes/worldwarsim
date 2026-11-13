@@ -105,16 +105,20 @@ export const settleHull = (held: ReadonlyArray<HullPost>): HullPost | null =>
 /**
  * **The berths**: the hull at the mole against its fenders, the one at its side alongside it, bows
  * level, the third in the roads past the mole's head, off to sea. `posts` gives each hull its
- * post, by default in the order of the roles; a hull with none is not drawn.
+ * post, by default in the order of the roles; a hull with none is not drawn. `beamShares` gives
+ * each hull its file's own beam, a share of its length, where it is known (#505: a mast reaches
+ * 12 m from the hull's middle, so a cargo stands off the mole by its own beam, not the widest's);
+ * `HULL_BEAM_SHARE` for one that is not.
  */
 export function berths(
   roles: ReadonlyArray<SeaRole>,
   growth: Growth = 1,
   posts: ReadonlyArray<HullPost | null> = roles.map((_, k) => POSTS[k] ?? null),
+  beamShares: ReadonlyArray<number | undefined> = [],
 ): Array<Rest | null> {
   const sizes = roles.map((role, k) => {
     const length = troopMetres(role);
-    const beam = HULL_BEAM_SHARE * length;
+    const beam = (beamShares[k] ?? HULL_BEAM_SHARE) * length;
     return { length, beam, g: growthOf(growth, k), berth: berthOf(role, beam) };
   });
   // From the mole's face outward: what the hull at the mole takes.
