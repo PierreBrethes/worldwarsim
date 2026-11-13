@@ -17,8 +17,8 @@ describe('a plane boarding cue (#502)', () => {
   async function engineOf({
     motion = 'full' as MapMotion,
     room = 8,
-    rig = { rig: FRENCH, metre: 0.01 } as unknown,
-    file = { hinge: FRENCH.hinge, foot: FRENCH.foot } as unknown,
+    rig = { rig: FRENCH, metre: 0.01, tail: 13.57 } as unknown,
+    file = { hinge: FRENCH.hinge, foot: FRENCH.foot, tail: 13.57 } as unknown,
   } = {}) {
     const { MapEngine } = await import('./index');
     const played: string[] = [];
@@ -137,6 +137,25 @@ describe('a plane boarding cue (#502)', () => {
       }),
     );
     expect(nearest).toBeLessThan(0.004);
+  });
+
+  it('goes round the tail when the yard lies on the flank away from the door', async () => {
+    const { run, sequences } = await engineOf();
+    run.cue(cue());
+    run.boardOf(run.boardings[0], 1000);
+    const squad = sequences.get('p/+a') as {
+      ms: number;
+      at(t: number): Record<string, { travel?: readonly number[] }>;
+    };
+    // The plane stands at z = 0 facing +z, its tail 13.57 m (0.1357) behind: the line they walk
+    // along is that and half the gap to the rail (TAIL_GAP, 2 m) further.
+    const deepest = Math.min(
+      ...Array.from({ length: Math.ceil(squad.ms / 20) }, (_, k) => {
+        const travel = squad.at(k * 20).man_0?.travel;
+        return travel === undefined ? Infinity : 0.2 + travel[2]!;
+      }),
+    );
+    expect(deepest).toBeCloseTo(-(13.57 + 1) * 0.01, 3);
   });
 
   it("waits while the plane's model has not landed: no door to read", async () => {

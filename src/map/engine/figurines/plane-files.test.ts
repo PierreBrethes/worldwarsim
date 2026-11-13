@@ -46,5 +46,7 @@ describe("the door and the foot of every nation's plane (#502)", () => {
       expect.closeTo(-5.9439, 3),
     ]);
     expect(file.foot).toEqual([expect.closeTo(2.1795, 3), expect.closeTo(-6.3439, 3)]);
+    // Its tail ends 13.57 m behind the wheels.
+    expect(file.tail).toBeCloseTo(13.57, 1);
   });
 });

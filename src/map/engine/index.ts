@@ -94,6 +94,7 @@ import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { boardingOf } from './timelines/boarding';
+import { TAIL_GAP } from './timelines/airfield';
 import { type Plank, planeBoardingOf } from './timelines/plane-boarding';
 import { PlankMesh } from './plank';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
@@ -4266,6 +4267,8 @@ export class MapEngine {
                 heading: Math.atan2(truck.front.x, truck.front.z),
                 metre: flight!.metre,
                 rig: flight!.rig,
+                // Round its tail, along the line it leaves clear: its end and half the gap to the rail.
+                behind: flight!.tail + TAIL_GAP / 2,
               },
               man: height,
               squads,

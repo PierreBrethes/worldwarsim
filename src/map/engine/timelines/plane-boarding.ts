@@ -62,6 +62,9 @@ export type PlaneBoarding = {
     readonly heading: number;
     readonly metre: number;
     readonly rig: PlaneRig;
+    /** How far behind the wheels the men may pass round its tail, in the plane's metres: its tail
+     *  end and half the gap it leaves to the rail. */
+    readonly behind?: number;
   };
   readonly man: number;
   readonly squads: ReadonlyArray<{ readonly men: ReadonlyArray<Flat> }>;
@@ -135,6 +138,21 @@ export function planeBoardingOf(
   const toSill = Math.atan2(sill[0] - foot[0], sill[1] - foot[1]);
   const sideLocal: Flat = [footLocal[0] + SIDE[0] * man, footLocal[1] + SIDE[1] * man];
 
+  // The men step out at the muster point; if it lies on the flank away from the door, they go
+  // round the tail, along the line it leaves clear, before they come to the side.
+  const musterLocal = muster === undefined ? null : toLocal(muster);
+  const roundTail =
+    musterLocal !== null &&
+    plane.behind !== undefined &&
+    Math.sign(musterLocal[0]) !== Math.sign(footLocal[0]);
+  const tailLine = -(plane.behind ?? 0) * m;
+  const route: Flat[] =
+    muster === undefined || musterLocal === null
+      ? []
+      : roundTail
+        ? [muster, toBoard([musterLocal[0], tailLine]), toBoard([sideLocal[0], tailLine])]
+        : [muster];
+
   type Man = {
     readonly squad: number;
     readonly k: number;
@@ -152,7 +170,7 @@ export function planeBoardingOf(
       place,
       way: wayOf([
         place,
-        muster ?? toBoard([toLocal(place)[0], sideLocal[1]]),
+        ...(muster === undefined ? [toBoard([toLocal(place)[0], sideLocal[1]])] : route),
         toBoard(sideLocal),
         foot,
       ]),

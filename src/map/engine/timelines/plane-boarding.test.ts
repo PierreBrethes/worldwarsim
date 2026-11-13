@@ -178,6 +178,60 @@ describe('planeBoardingOf, a garrison out of sight of the plane (#502)', () => {
   });
 });
 
+describe("planeBoardingOf, a door that turns its back to the yard's mouth (#502)", () => {
+  // The second transport stands in the lane on the far side of the alley: its door (+x) looks to
+  // the island's edge, the mouth is on its other flank. The men go round its tail, never through it.
+  const metre = 0.01;
+  const muster = [-0.3, -0.12] as const;
+  const behind = 14.6;
+  const across = (over: Partial<PlaneBoarding> = {}) =>
+    planeBoardingOf(
+      scene({
+        plane: { ...scene().plane, behind },
+        squads: [{ men: [[-0.3, -0.1]] }],
+        muster,
+        ...over,
+      }),
+    );
+  const throughFuselage = (a: ReturnType<typeof planeBoardingOf>) =>
+    times(a.settled).some((t) => {
+      const travel = a.squads[0]!.at(t).man_0?.travel;
+      // Up the plank, he is on his way in: only the walk counts.
+      if (travel === undefined || travel[1] > 0) return false;
+      const x = -0.3 + travel[0];
+      const z = -0.1 + travel[2];
+      // The fuselage, 3 m across, from its tail to well past the wheels.
+      return Math.abs(x) < 3 * metre * 0.5 && z > -behind * metre && z < 0.05;
+    });
+
+  it('does not walk him through the fuselage', () => {
+    expect(throughFuselage(across())).toBe(false);
+  });
+
+  it('walks him round the tail, behind the line the plane leaves clear', () => {
+    const a = across();
+    const deepest = Math.min(
+      ...times(a.settled).map((t) => {
+        const travel = a.squads[0]!.at(t).man_0?.travel;
+        return travel === undefined ? Infinity : -0.1 + travel[2];
+      }),
+    );
+    expect(deepest).toBeLessThan(-behind * metre * 0.95);
+    expect(deepest).toBeGreaterThan(-behind * metre * 1.05);
+  });
+
+  it('goes straight to the door from a mouth on its own flank', () => {
+    const a = across({ muster: [0.3, -0.12], squads: [{ men: [[0.3, -0.1]] }] });
+    const deepest = Math.min(
+      ...times(a.settled).map((t) => {
+        const travel = a.squads[0]!.at(t).man_0?.travel;
+        return travel === undefined ? Infinity : -0.1 + travel[2];
+      }),
+    );
+    expect(deepest).toBeGreaterThan(-behind * metre * 0.95);
+  });
+});
+
 describe('planeBoardingOf, men a long walk from the plane (#502)', () => {
   // The airfield's garrison stands in the alley between its hangars, some forty metres off: the
   // door opens as the first man nears the foot, not twenty seconds before him.
