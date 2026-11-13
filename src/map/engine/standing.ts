@@ -70,6 +70,7 @@ import { charred, DustBurst, PLUME_BY_WEAR, Smoke } from './smoke';
 import { PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { rankLayout } from './rank-layout';
+import { markOf } from './figurines/marks';
 import { block, GROUP_SPACING, SQUAD_SPACING, type Slot } from '@/domain/pile-layout';
 import {
   boxOfObject,
@@ -1132,6 +1133,13 @@ export class StandingLayer implements SequenceHost {
         .sort((a, b) => (a.name < b.name ? -1 : 1))
         .map((man) => man.getWorldPosition(new Vector3())),
     };
+  }
+
+  /** **A marker of a group's model** (`fx_passerelle`…), on the board, where its posed copy has put
+   *  it; `null` until placed, or when the model carries none (#479). */
+  markOf(id: string, name: string): Vector3 | null {
+    const lent = this.figurineOf(id);
+    return lent?.placed ? markOf(lent.figurine.object, name) : null;
   }
 
   /** **How long a group is drawn**, nose to tail along its own front, on the board: a turned

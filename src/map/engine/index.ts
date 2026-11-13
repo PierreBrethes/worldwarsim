@@ -81,6 +81,9 @@ import { type Cue, type Sequence, SequenceLayer } from './sequences';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
+import { Gangplanks } from './gangplanks';
+import { HullBoardings, type Started } from './hull-boardings';
+import { gangwayDoor, gangwayOf, plankFoot, quayWay } from './timelines/gangway';
 import { CombatLayer } from './combats';
 import { razedOf, RazeLayer } from './razes';
 import { veiledPiles } from './veils';
@@ -92,7 +95,7 @@ import { lengthOf, paceMs, together, walkOut, WALK_MIN_PX } from './timelines/wa
 import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
-import { boardingOf } from './timelines/boarding';
+import { BOARDING_PX, boardingOf } from './timelines/boarding';
 import { LOADING_PX, MAX_CRATES } from './timelines/loading';
 import {
   aroundTheFront,
@@ -772,6 +775,13 @@ export class MapEngine {
     readonly since: number;
     boards?: ReadonlyArray<string>;
   }> = [];
+  /** **Men boarding a hull at its quay** (#479, #504): one boarding per hull, waiting for the hull
+   *  and its men to stand, then played up its gangway, the tag fed as each is through the door. */
+  private readonly hullBoardings: HullBoardings;
+  /** The planks of the gangways the men go up. */
+  private readonly gangplanks = new Gangplanks();
+  /** The men drawn for a hull's boarding (`${pileId}/+${troopId}`), until it ends. */
+  private readonly hullDrawn = new WeakMap<object, ReadonlyArray<string>>();
   /** Told which riders a hull's tag may now show (`watchBoarded`). */
   private onBoarded: ((carrierId: string, riders: ReadonlyArray<string>) => void) | undefined;
   /** **Men coming down from a truck** (#277), waiting for their pile to stand. */
@@ -1267,6 +1277,18 @@ export class MapEngine {
       },
     });
     this.scene.add(this.moorings.group);
+    this.scene.add(this.gangplanks.group);
+    this.hullBoardings = new HullBoardings({
+      feed: (carrierId, riders) => {
+        this.onBoarded?.(carrierId, riders);
+        this.invalidate();
+      },
+      start: (cue, now) => this.startHullBoarding(cue, now),
+      unplayed: (cue) => {
+        for (const id of this.hullDrawn.get(cue) ?? []) this.standing.unboard(id);
+        this.standing.arrive(cue.hull.slice(0, cue.hull.lastIndexOf('/')), []);
+      },
+    });
     this.camps = new CampLayer(this.frame);
     this.scene.add(this.camps.group);
     this.pins = new PinLayer(
@@ -2629,6 +2651,7 @@ export class MapEngine {
     this.standing.dispose();
     this.loops.dispose();
     this.moorings.dispose();
+    this.gangplanks.dispose();
     this.sequences.dispose();
     this.combats.dispose();
     this.razes.dispose();
@@ -3480,9 +3503,16 @@ export class MapEngine {
         this.boardings.push({ cue, since: performance.now() });
         break;
       case 'embarquement':
-        // No sequence plays a hull's boarding yet (#505, #506 will wait for the hull here): the
-        // final pose, its ring of ink at reduced motion, and the tag takes every rider.
-        if (ringsLeft(this.sequences.motion, { veiled: false, unplayable: false }))
+        // A cargo's men go up its gangway, and its tag is fed as each is through the door; the
+        // second boarding of a hull, a beach, the other settings and a hull that cannot play pose
+        // the end at once (#479; the carrier and the vehicles are #506's and #505's).
+        if (this.sequences.motion === 'full' && cue.ground === 'quay') {
+          if (this.hullBoardings.cue(cue, performance.now())) {
+            // The rank holds where it stood until the men are up (`startHullBoarding`).
+            this.standing.expect(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
+            break;
+          }
+        } else if (ringsLeft(this.sequences.motion, { veiled: false, unplayable: false }))
           this.standing.inkArrival(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
         this.onBoarded?.(
           cue.carrierId,
@@ -4208,6 +4238,119 @@ export class MapEngine {
       this.inkDue.push({ at: since + ms, run: () => this.standing.inkArrival(pileId, true) });
     }
     return true;
+  }
+
+  /**
+   * **A cargo's men go up its gangway** (#479, storyboard `mer-air` « 1. Au cargo »): each squad of
+   * riders is drawn where it last stood, leaves its rank, goes along the quay and the mole's outer
+   * edge, up the plank laid from the mole to the door on the flank by the mole (`gangwayDoor`),
+   * and is taken by the dark of the door; the tag takes its riders as each squad is through. A
+   * vehicle or a rider with nowhere he stood is posed at once. `'wait'` while the hull, its port
+   * and the men are not drawn; `null` where it plays nothing: not a cargo (#506 plays the carrier),
+   * not at the mole (a hull at its side or in the roads is posed at once), out of the field or too
+   * far (`BOARDING_PX`), under a combat, no room left, or one of the men would not play.
+   */
+  private startHullBoarding(
+    cue: Extract<Cue, { kind: 'embarquement' }>,
+    now: number,
+  ): Started | 'wait' | null {
+    const pileId = cue.hull.slice(0, cue.hull.lastIndexOf('/'));
+    const hull = this.standing.placeOf(cue.hull);
+    const role =
+      this.standing.piecesOf(pileId)?.groups[Number(cue.hull.slice(pileId.length + 1))]?.role;
+    const box = this.standing.pieceOf(cue.hull)?.box;
+    if (hull === null || role === undefined || box === undefined || box === null) return 'wait';
+    const site = this.maquettes.siteOf(this.standing.restOf(cue.carrierId)?.site ?? '');
+    if (
+      role !== 'cargo' ||
+      this.standing.postOf(cue.hull) !== 'mole' ||
+      this.sequences.motion !== 'full' ||
+      this.veiled(hull.at) ||
+      !this.seenBig(box, BOARDING_PX)
+    )
+      return null;
+    if (site === null) return 'wait';
+    // The marks in the port's metres, as the file has it, a port laid in mirror turned back.
+    const marks = ['fx_passerelle', 'fx_passerelle_tribord'].map((name) =>
+      this.standing.markOf(cue.hull, name),
+    );
+    if (marks.some((mark) => mark === null)) return null;
+    const inPort = marks.map((mark) => site.toModel(mark!));
+    const door = gangwayDoor(inPort);
+    const doorBoard = marks[inPort.indexOf(door)]!;
+
+    const infantry = cue.riders.filter(({ role: kind }) => kind === 'infantry');
+    let drawn = this.hullDrawn.get(cue);
+    if (drawn === undefined) {
+      drawn = this.standing.board(
+        pileId,
+        infantry.flatMap(({ troopId, figures }) => {
+          const was = this.standing.lastSeen(troopId) ?? this.arcs.fileLeftBy(troopId);
+          return was === null ? [] : [{ troopId, figures, at: was.at, heading: was.heading }];
+        }),
+      );
+      this.hullDrawn.set(cue, drawn);
+    }
+    const places = drawn.map((id) => this.standing.placeOf(id));
+    if (places.some((place) => place === null)) return 'wait';
+    const size = new Vector3();
+    const height = Math.max(
+      0,
+      ...drawn.map((id) => this.standing.pieceOf(id)?.box?.getSize(size).y ?? 0),
+    );
+    if (drawn.length === 0 || height === 0 || this.sequences.room < drawn.length) return null;
+    const board = (x: number, y: number, z: number) => site.toBoard(new Vector3(x, y, z));
+    const plan = gangwayOf({
+      man: height,
+      squads: places.map((place) => ({
+        men: place!.men.map((man) => {
+          const from = site.toModel(man);
+          return [
+            [man.x, man.y, man.z] as const,
+            ...quayWay(from, door).map((at) => {
+              const point = board(...at);
+              return [point.x, point.y, point.z] as const;
+            }),
+          ];
+        }),
+      })),
+    });
+    // All or nothing: the men play together, or none does.
+    const walking = drawn.filter((id, n) =>
+      this.sequences.play(this.standing, id, plan.squads[n]!, now),
+    );
+    if (walking.length < drawn.length) {
+      for (const id of walking) this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+      return null;
+    }
+    this.standing.arrive(pileId, [plan.settled]);
+    this.gangplanks.lay(
+      cue.hull,
+      doorBoard,
+      board(...plankFoot(door)),
+      now,
+      plan.plank,
+      site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0))),
+    );
+    const troopOf = (id: string) => id.slice(pileId.length + 2);
+    const posed = cue.riders
+      .map(({ troopId }) => troopId)
+      .filter((troopId) => !drawn.some((id) => troopOf(id) === troopId));
+    return {
+      ms: plan.settled,
+      feeds: [
+        ...(posed.length > 0 ? [{ at: 0, riders: posed }] : []),
+        ...drawn
+          .map((id, n) => ({ at: plan.through[n]!, riders: [troopOf(id)] }))
+          .sort((a, b) => a.at - b.at),
+      ],
+      over: () => !drawn.some((id) => this.sequences.playsOn(this.standing, id)),
+      end: () => {
+        for (const id of drawn) this.standing.unboard(id);
+        // Cut before its time (a hand on the pile, the zoom), the plank goes with the men.
+        if (performance.now() < now + plan.plank.up) this.gangplanks.clear(cue.hull);
+      },
+    };
   }
 
   /**
@@ -5437,6 +5580,8 @@ export class MapEngine {
       this.razes.active ||
       this.pins.active ||
       this.moorings.active ||
+      this.hullBoardings.active ||
+      this.gangplanks.active ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -5545,7 +5690,11 @@ export class MapEngine {
     );
     this.undock(now);
     // After every order of this frame has said where the hulls are bound: the hawsers follow.
-    if (whole) this.moorings.update(now, this.unitsPerPixel(distance));
+    if (whole) {
+      this.moorings.update(now, this.unitsPerPixel(distance));
+      this.gangplanks.update(now, this.unitsPerPixel(distance), night);
+    }
+    this.hullBoardings.step(now);
     this.boardings = this.boardings.filter((boarding) => {
       if (this.boardOf(boarding, now)) return false;
       if (now - boarding.since < SORTIE_WAIT_MS) return true;

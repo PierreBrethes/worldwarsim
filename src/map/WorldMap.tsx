@@ -1989,7 +1989,13 @@ export function WorldMap({
           const troop = byId.get(troopId);
           if (troop === undefined) return [];
           const { carriedBy: _, ...alone } = troop;
-          return [{ troopId, figures: pilePieces([alone]).groups[0]?.figures ?? [] }];
+          return [
+            {
+              troopId,
+              role: troop.role,
+              figures: pilePieces([alone]).groups[0]?.figures ?? [],
+            },
+          ];
         }),
       });
   }, [troops, standing, readyEngine, blitz]);

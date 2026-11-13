@@ -9,7 +9,7 @@ import {
   Vector3,
 } from 'three';
 import type { LonLat } from '@/domain/geo';
-import type { UnitTier } from '@/domain/ids';
+import type { UnitRole, UnitTier } from '@/domain/ids';
 import type { MapMotion } from '@/domain/map-motion';
 import type { ReplayView } from '@/domain/player-view';
 import { isRigPart, type RigFamily, type RigPart } from '@/emblems/rigs';
@@ -188,7 +188,8 @@ export type Cue =
   /** **Men and vehicles board a hull** (#504): `hull` is its group, `carrierId` its troop, and
    *  each rider is drawn by its `figures` — where it last stood is read in the engine, as
    *  `boardOf` does (`lastSeen`, `fileLeftBy`). The engine answers every one by feeding its riders
-   *  to the tag (`watchBoarded`), played or not. */
+   *  to the tag (`watchBoarded`), played or not; at a cargo's quay the men walk up its gangway
+   *  first (#479), and the tag is fed as each is through the door. */
   | {
       readonly kind: 'embarquement';
       readonly hull: string;
@@ -196,6 +197,7 @@ export type Cue =
       readonly ground: 'quay' | 'beach';
       readonly riders: ReadonlyArray<{
         readonly troopId: string;
+        readonly role: UnitRole;
         readonly figures: ReadonlyArray<UnitTier>;
       }>;
     }
