@@ -4,11 +4,14 @@ import {
   fitRunway,
   RUNWAY_MIN_M,
   RUNWAY_MODULES,
+  SOCLE,
   runwayLength,
   runwayModules,
   type RunwayGround,
 } from './runway-fit';
 import { AIR } from './timelines/airfield';
+import { sceneOfFile } from './gltf-scene.fixture';
+import { Box3 } from 'three';
 
 /** A shore on the board, in the site's frame: `wet(x, z)` is the sea at a board point, and the site
  *  is carried to the board turned `turn` as `MaquetteLayer.pose` does. */
@@ -39,6 +42,17 @@ describe('a runway the coast presses (#493)', () => {
     // Nearer its heading it is wet: the step before it is the plain one.
     const { x1, z, length } = AIRFIELD.runway;
     expect(ground(x1 - length + 2, z, 0)).toBe(false);
+  });
+
+  it('tries the mirror turned by the same steps before cutting short', () => {
+    // Both free ends are in the sea at every turn but 15°, where only the side of +x is dry.
+    const only: RunwayGround = (x, _z, turn) =>
+      Math.abs(turn - Math.PI / 12) < 1e-9 ? x > -70 : Math.abs(x) < 100;
+    expect(fitRunway(only)).toEqual({
+      turn: Math.PI / 12,
+      mirrored: true,
+      modules: RUNWAY_MODULES,
+    });
   });
 
   it('is cut short, from the free end in, when no side nor turn keeps it whole', () => {
@@ -76,5 +90,17 @@ describe('a runway the coast presses (#493)', () => {
   it('reads the minimum off the planes, not a number of its own', () => {
     const roll = Math.max(...Object.values(AIR).map((each) => each.roll));
     expect(RUNWAY_MIN_M).toBe(AIRFIELD.runway.x1 - (AIRFIELD.lanes[0] - 12) + roll);
+  });
+});
+
+describe('the socle the fit reads', () => {
+  it('is the socle of airfield.glb', () => {
+    const scene = sceneOfFile('src/emblems/buildings/airfield.glb');
+    scene.updateWorldMatrix(true, true);
+    const box = new Box3().setFromObject(scene.getObjectByName('socle')!);
+    expect(box.max.x).toBeCloseTo(SOCLE.x, 1);
+    expect(box.min.x).toBeCloseTo(-SOCLE.x, 1);
+    expect(box.min.z).toBeCloseTo(SOCLE.z0, 1);
+    expect(box.max.z).toBeCloseTo(SOCLE.z1, 1);
   });
 });

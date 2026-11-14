@@ -35,6 +35,7 @@ import {
   RUNWAY_MODULES,
   RUNWAY_TURNS,
   runwayLength,
+  SOCLE_SAMPLES,
   SOCLE_WET,
   type RunwayFit,
 } from './runway-fit';
@@ -187,9 +188,6 @@ const RUNWAY = 'piste';
 
 /** **A port's water edge** (#436): its quay, the marker its model lays on the coast line. */
 const WATER_EDGE = 'fx_bord_eau';
-
-/** The socle is read wet or dry on a grid of this many cells a side. */
-const SOCLE_SAMPLES = 7;
 
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */
 export function yawOf(id: string): number {
@@ -954,7 +952,7 @@ export class MaquetteLayer implements SequenceHost {
         id.startsWith('building-port')
           ? `${id}:${item.at.x.toFixed(4)},${item.at.z.toFixed(4)},${item.scale},${lot.model !== null},${lot.mirrored}`
           : // An airfield's runway: its side and its length move where a thread leaves (#493).
-            `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)},${lot.mirrored},${lot.url}`,
+            `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)},${lot.model !== null},${lot.mirrored},${lot.url}`,
       )
       .sort()
       .join(';');

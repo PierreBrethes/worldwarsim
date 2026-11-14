@@ -8,9 +8,9 @@ export type RunwayModule = (typeof AIRFIELD.modules)[number];
  *  Décisions du 04/11): the share of a grid laid on the socle. */
 export const SOCLE_WET = 0.1;
 /** The socle of `airfield.glb`, in its metres (read from the file, a socle 127,6 m by 90,5 m). */
-const SOCLE = { x: 63.8, z0: -31.3, z1: 59.2 } as const;
+export const SOCLE = { x: 63.8, z0: -31.3, z1: 59.2 } as const;
 /** The socle is read on a grid of so many cells a side. */
-const SOCLE_SAMPLES = 7;
+export const SOCLE_SAMPLES = 7;
 /** **A runway is read every so many metres along it**, on three lines across; a single sample in
  *  water spoils the metres it stands for. `@a-mesurer` */
 const RUNWAY_SAMPLE_M = 5;
@@ -87,7 +87,7 @@ function modulesDry(dry: number): number {
 
 /**
  * **The runway's way onto its land** (#493): the other side first (mirror in x), then turned by
- * steps of 15°, nearest the hashed heading first, then cut short — the one of all these that
+ * steps of 15°, nearest the hashed heading first, the plain side then the mirror, then cut short — the one of all these that
  * keeps the longest runway, the first when several do. A socle in water more than `SOCLE_WET`
  * is worse than any runway; short of `RUNWAY_MIN_M` the runway is not drawn.
  */
@@ -96,6 +96,7 @@ export function fitRunway(onLand: RunwayGround): RunwayFit {
     { turn: 0, mirrored: false },
     { turn: 0, mirrored: true },
     ...RUNWAY_TURNS.slice(1).map((turn) => ({ turn, mirrored: false })),
+    ...RUNWAY_TURNS.slice(1).map((turn) => ({ turn, mirrored: true })),
   ];
   const readings: Reading[] = [];
   for (const { turn, mirrored } of sides) {
