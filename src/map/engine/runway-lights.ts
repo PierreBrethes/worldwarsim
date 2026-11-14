@@ -1,3 +1,4 @@
+import { Vector3 } from 'three';
 import { AIRFIELD } from '@/emblems/kits/manifest';
 
 /** **How long the first light takes to reach the runway's end**, ms. `@a-mesurer` */
@@ -17,4 +18,40 @@ export function runwayLit(reach: number, t: number, ms: number): number {
   const on = clamp01((t - start) / LIGHT_FADE_MS);
   const off = clamp01((ms - t) / LIGHT_FADE_MS);
   return Math.min(on, off);
+}
+
+/** **Where a runway light stands in its module's file**, metres: across the runway, along it, and the
+ *  height of its head (read from `piste.glb`, tied to it by `runway-lights.test.ts`). */
+const LAMP_AT = { across: 14.5, along: 0.4, height: 0.6 };
+/** **Halos an airfield may lay while a plane moves on it**; past it, one to a module. `@a-mesurer` */
+export const RUNWAY_HALO_CAP = 64;
+/** **How far a light's halo reaches**, model metres: a little over a module's width of the runway
+ *  between two lights, so a row reads as a line from afar. `@a-mesurer` */
+export const RUNWAY_HALO_RADIUS = 3;
+
+/** A halo to lay, `reach` metres out from the hangars, at `at` in the site's model (metres). */
+export type RunwayHalo = { readonly reach: number; readonly at: Vector3 };
+
+/**
+ * **The halos of a runway's lights**, in the site's frame (`AIRFIELD.runway`), for `toBoard` to
+ * carry to the board: one to a light — two to a module but the ends'; past `cap`, one to a module,
+ * at its axis. The `reach` is the one `runwayLit` is asked.
+ */
+export function runwayHalos(cap = RUNWAY_HALO_CAP): RunwayHalo[] {
+  const { x1, z } = AIRFIELD.runway;
+  const { across, along: shift, height } = LAMP_AT;
+  const lamps: RunwayHalo[] = [];
+  const axes: RunwayHalo[] = [];
+  let out = 0;
+  for (const [name, metres, way] of AIRFIELD.modules) {
+    const reach = out + metres / 2;
+    out += metres;
+    if (name === 'piste_bout') continue;
+    const x = x1 - reach;
+    axes.push({ reach, at: new Vector3(x, height, z) });
+    // The module is turned a quarter either way: its file's x runs across the runway.
+    for (const side of [-1, 1])
+      lamps.push({ reach, at: new Vector3(x + way * shift, height, z + side * across) });
+  }
+  return lamps.length > cap ? axes : lamps;
 }

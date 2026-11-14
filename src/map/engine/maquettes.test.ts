@@ -5,6 +5,7 @@ import {
   Color,
   Group,
   InstancedMesh,
+  type Material,
   Matrix4,
   Mesh,
   type MeshBasicMaterial,
@@ -1481,6 +1482,54 @@ describe('an airfield and its runway (#269)', () => {
       const takeoff = layer.runwayAt(lon, 0)!;
       expect(takeoff[0]).toBeCloseTo(free.x / Math.hypot(free.x, free.z), 6);
       expect(takeoff[1]).toBeCloseTo(free.z / Math.hypot(free.x, free.z), 6);
+    }
+  });
+
+  it('lays a halo on each runway light that is lit, on the board whatever the turn (#498)', async () => {
+    const { dressedScene, LAMP } = await import('./site-kits');
+    const { BUILDING_MAQUETTES } = await import('@/emblems/buildings/manifest');
+    const { runwayHalos, RUNWAY_HALO_CAP } = await import('./runway-lights');
+    const kit = () => sceneOfFile('src/emblems/kits/piste.glb');
+    for (const lon of [0, 0.01, 0.02, 0.03]) {
+      const site = airfield(lon);
+      const layer = new MaquetteLayer(
+        frame,
+        () => null,
+        () => {},
+        () => {},
+        () => true,
+      );
+      layer.display([site]);
+      await vi.waitFor(() => expect(layer.isDressed(site.id)).toBe(true));
+      layer.orient(new Vector3(lon, 3, 0.5), null, 0);
+      const copy = (
+        await dressedScene(BUILDING_MAQUETTES.airfield!, new Group(), async () => kit())
+      ).clone(true);
+      layer.standIn(site.id, copy);
+      layer.orient(new Vector3(lon, 3, 0.5), null, 0);
+      const lamps = new Map<number, Material>();
+      copy.traverse((node) => {
+        const material = (node as Mesh).material as Material | undefined;
+        if (material?.name === LAMP) lamps.set(material.userData.reach as number, material);
+      });
+      const lightsOnly = () => {
+        const all: Vector3[] = [];
+        layer.lights((at) => all.push(at.clone()));
+        return all;
+      };
+      // Out until a pose lights them: the airfield's own pile is the only halo.
+      const before = lightsOnly().length;
+      for (const material of lamps.values()) material.userData.lit = 1;
+      const lit = lightsOnly();
+      expect(lit.length - before).toBe(32);
+      expect(lit.length - before).toBeLessThanOrEqual(RUNWAY_HALO_CAP);
+      const drawn = layer.siteOf(site.id)!;
+      const expected = runwayHalos().map(({ at }) => drawn.toBoard(at));
+      for (const where of expected)
+        expect(Math.min(...lit.map((got) => got.distanceTo(where))), site.id).toBeLessThan(1e-9);
+      // The first reach alone lit: its two lights, and no others.
+      for (const [reach, material] of lamps) material.userData.lit = reach === 10 ? 0.5 : 0;
+      expect(lightsOnly().length - before).toBe(2);
     }
   });
 });

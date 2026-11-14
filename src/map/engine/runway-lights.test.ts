@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { AIRFIELD } from '@/emblems/kits/manifest';
-import { LIGHT_FADE_MS, LIGHT_WAVE_MS, runwayLit } from './runway-lights';
+import { Vector3 } from 'three';
+import {
+  LIGHT_FADE_MS,
+  LIGHT_WAVE_MS,
+  RUNWAY_HALO_CAP,
+  runwayHalos,
+  runwayLit,
+} from './runway-lights';
 
 const LENGTH = AIRFIELD.runway.length;
 const MS = 6000;
@@ -47,5 +54,51 @@ describe('the runway lights, lit one reach after another (#497)', () => {
         last = now;
       }
     }
+  });
+});
+
+describe('the runway lights, a halo to each (#498)', () => {
+  it('lays two halos to each module but the ends, 32 in all, under the cap', () => {
+    const halos = runwayHalos();
+    expect(halos).toHaveLength(32);
+    expect(halos.length).toBeLessThanOrEqual(RUNWAY_HALO_CAP);
+    const reaches = new Set(halos.map(({ reach }) => reach));
+    expect(reaches.size).toBe(16);
+  });
+
+  it('falls back to one a module, on its axis, past the cap', () => {
+    const halos = runwayHalos(31);
+    expect(halos).toHaveLength(16);
+    for (const { at } of halos) expect(at.z).toBe(AIRFIELD.runway.z);
+  });
+
+  it('stand on the lights of the file', async () => {
+    const { sceneOfFile } = await import('./gltf-scene.fixture');
+    const { dressedScene, RUNWAY_LIGHTS } = await import('./site-kits');
+    const { BUILDING_MAQUETTES } = await import('@/emblems/buildings/manifest');
+    const { Group } = await import('three');
+    const airfield = await dressedScene(BUILDING_MAQUETTES.airfield!, new Group(), async () =>
+      sceneOfFile('src/emblems/kits/piste.glb'),
+    );
+    airfield.updateWorldMatrix(true, true);
+    const halos = runwayHalos();
+    // A module's two lights are two meshes of one material, which names how far out they are.
+    const vertices = new Map<number, Vector3[]>();
+    airfield.traverse((node) => {
+      const mesh = node as import('three').Mesh;
+      if (!mesh.isMesh || (mesh.material as { name: string }).name !== RUNWAY_LIGHTS) return;
+      const { reach } = (mesh.material as unknown as { userData: { reach: number } }).userData;
+      const p = mesh.geometry.getAttribute('position');
+      const own = vertices.get(reach) ?? [];
+      for (let i = 0; i < p.count; i++)
+        own.push(new Vector3().fromBufferAttribute(p, i).applyMatrix4(mesh.matrixWorld));
+      vertices.set(reach, own);
+    });
+    for (const { reach, at } of halos) {
+      const own = vertices.get(reach)!;
+      expect(Math.min(...own.map((v) => Math.hypot(v.x - at.x, v.z - at.z)))).toBeLessThan(0.2);
+      expect(Math.abs(Math.max(...own.map((v) => v.y)) - at.y)).toBeLessThan(0.15);
+    }
+    expect(vertices.size).toBe(16);
   });
 });

@@ -49,7 +49,8 @@ import {
   stapleShare,
   traceStaple,
 } from './site-marks';
-import { lightRunway } from './site-kits';
+import { LAMP, lightRunway } from './site-kits';
+import { RUNWAY_HALO_RADIUS, runwayHalos } from './runway-lights';
 
 export { SOCLE_TOP };
 
@@ -1684,6 +1685,30 @@ export class MaquetteLayer implements SequenceHost {
         Math.max(model.box.max.x - model.box.min.x, model.box.max.z - model.box.min.z) / 2;
       for (const item of items) emit(item.at, reach * sizeOf(model, item) * item.near, item.near);
     }
+    this.runwayLights(emit);
+  }
+
+  /** **A halo on each runway light that is lit** (#498): where the copy of an airfield a plane
+   *  moves on has lit it (`Sequence.lit`), the lights' places of the site's frame carried to the
+   *  board with the airfield's turn. */
+  private runwayLights(emit: (at: Vector3, radius: number, near: number) => void): void {
+    for (const [id, copy] of this.copies) {
+      const dressed = this.byId.get(id);
+      const site = this.siteOf(id);
+      if (dressed === undefined || site === null) continue;
+      const lit = new Map<number, number>();
+      copy.traverse((node) => {
+        const material = (node as Mesh).material as Material | undefined;
+        if (material?.name === LAMP && typeof material.userData.reach === 'number')
+          lit.set(material.userData.reach, (material.userData.lit as number | undefined) ?? 0);
+      });
+      const scale = sizeOf(dressed.lot.model!, dressed.item);
+      for (const { reach, at } of RUNWAY_HALOS) {
+        const share = lit.get(reach) ?? 0;
+        if (share > 0)
+          emit(site.toBoard(at), RUNWAY_HALO_RADIUS * scale, dressed.item.near * share);
+      }
+    }
   }
 
   /** `cleared` is a replay's ground: what stands inside it steps aside while it plays. */
@@ -1855,6 +1880,8 @@ export class MaquetteLayer implements SequenceHost {
     this.group.removeFromParent();
   }
 }
+
+const RUNWAY_HALOS = runwayHalos();
 
 const hundredths = (weight: number): number => Math.round(weight * 100) / 100;
 
