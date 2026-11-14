@@ -3613,11 +3613,18 @@ export class MapEngine {
         );
         break;
       case 'debarquement':
-        // The canots carry the men to a beach (`landOnBeach`); a quay, a Blitz unit and the vehicles
-        // are posed at once, with a ring of ink at reduced motion (#509; the quay is #512's).
-        if (cue.ground === 'quay' || this.sequences.motion === 'off') break;
-        if (this.sequences.motion === 'reduced') {
-          this.standing.inkArrival(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
+        // The canots carry the men to a beach (`landOnBeach`); a quay (#512's), the other settings and
+        // the vehicles (#511) pose the end at once, with a ring of ink where `ringsLeft` says: a quay
+        // is a hull that cannot play, as at a boarding.
+        if (cue.ground === 'quay' || this.sequences.motion !== 'full') {
+          const at = this.standing.placeOf(cue.hull)?.at;
+          if (
+            ringsLeft(this.sequences.motion, {
+              veiled: at !== undefined && this.veiled(at),
+              unplayable: true,
+            })
+          )
+            this.standing.inkArrival(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
           break;
         }
         // The hull and its rank hold where they stood until the men are ashore.
@@ -4811,6 +4818,11 @@ export class MapEngine {
     if (piece?.box == null || piece.url === undefined) return false;
     const file = this.boatsOfFile(piece.url);
     if (file === undefined) return false;
+    // The water edge reads the coast: `landAt` does not ask for it, so it is asked for here.
+    if (this.coast === null) {
+      this.loadCoast();
+      return false;
+    }
     this.standing.anchor(cue.hull);
     const hull = this.standing.placeOf(cue.hull);
     const frame = this.standing.frameOf(cue.hull);
@@ -4860,6 +4872,8 @@ export class MapEngine {
       for (const { id } of parts)
         if (this.sequences.playsOn(this.standing, id))
           this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+      if (ringsLeft(this.sequences.motion, { veiled, unplayable: true }))
+        this.standing.inkArrival(pileId);
       this.standing.arrive(pileId, []);
       return true;
     }

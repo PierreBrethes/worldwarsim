@@ -351,6 +351,22 @@ describe('debarquementsOf (#509)', () => {
     expect(debarquementsOf(aboard('a'), mine, [...pilesOf(mine), enemy], false)).toEqual([]);
   });
 
+  it('gives nothing for a pile pierced by a Guet: its groups stand, but no troop of mine frees them', () => {
+    const pierced: StandingPile = {
+      id: 'e',
+      at: { lonLat: [2, 48] },
+      pieces: pilePieces([
+        troop('e:cargo:0', 'cargo', shore),
+        troop('e:infantry:0', 'infantry', shore),
+      ]),
+    };
+    // Even were the pierced ids written in the view's memory of what was aboard.
+    expect(debarquementsOf(aboard('e:infantry:0'), [], [pierced], false)).toEqual([]);
+    expect(
+      debarquementsOf(aboard('e:infantry:0'), [troop('m', 'armor', shore)], [pierced], false),
+    ).toEqual([]);
+  });
+
   it('gives no squad for a man melted into a group already known, but still names the hull', () => {
     const now = [troop('h', 'cargo', shore), troop('a', 'infantry', shore)];
     const [men, hull] = pilePieces(now).groups;
