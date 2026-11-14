@@ -127,6 +127,7 @@
  *  môle) ; vingt secondes plus tard, deux chasseurs et deux cargos sont formés ensemble (l'aire en
  *  tient quatre, les deux cargos vont à couple et en rade) ; vingt encore, un chasseur formé
  *  décolle de sa place.
+ * `--aerodrome-cote lon,lat` (#493) pose l'aérodrome de `--file` là où la côte serre sa piste (lieu `aerodrome`).
  * `--renfort [s]` (#472) pose l'aérodrome de `--largage`, son transport en garnison, et y recrute un
  *  chasseur qui sort dans `s` secondes (25 par défaut) : une pile de deux avions. Lieu `aerodrome`.
  * `--file [s]` (#478) pose un aérodrome sans transport où attendent deux chasseurs et un bombardier ;
@@ -302,6 +303,10 @@ const craneIn = craneAt < 0 ? null : Number(process.argv[craneAt + 1]) || 40;
  *  secondes (40 par défaut) ils décollent ensemble pour Lyon, puis rentrent se poser ensemble. */
 const queueAt = process.argv.indexOf('--file');
 const queueIn = queueAt < 0 ? null : Number(process.argv[queueAt + 1]) || 40;
+/** `--aerodrome-cote lon,lat` (#493) : l'aérodrome de `--file` (ou de `--largage`) posé là, sur une côte qui serre
+ *  sa piste : elle passe de l'autre côté, tourne ou se raccourcit. */
+const coastFieldAt = process.argv.indexOf('--aerodrome-cote');
+const coastField = coastFieldAt < 0 ? null : process.argv[coastFieldAt + 1].split(',').map(Number);
 /** `--renfort [s]` (#472) : l'aérodrome de `--largage`, un chasseur recruté qui sort dans s secondes. */
 const reinforceAt = process.argv.indexOf('--renfort');
 const reinforceIn = reinforceAt < 0 ? null : Number(process.argv[reinforceAt + 1]) || 25;
@@ -843,7 +848,15 @@ if (!bare) {
     ]);
   /** Un avion chargé à l'aérodrome, un point sans piste, une escouade isolée (ADR 0028 §4). */
   if (airdrops && scene.a !== null)
-    cli(['run', 'dev:airdropScene', JSON.stringify({ playerId: scene.a, bare: queueIn !== null })]);
+    cli([
+      'run',
+      'dev:airdropScene',
+      JSON.stringify({
+        playerId: scene.a,
+        bare: queueIn !== null,
+        ...(coastField !== null && { at: { lon: coastField[0], lat: coastField[1] } }),
+      }),
+    ]);
   /** Un port à Marseille, un cargo à quai, un avant-poste côtier à Agde (#129). */
   if (navy && scene.a !== null)
     for (const port of thresholdPorts
@@ -2793,8 +2806,9 @@ async function freeTheMole() {
  */
 async function queuedPlanes() {
   const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+  // The player's own airfield: not the one of Lyon the planes fly to.
   const airfield = me.buildings.find(
-    (building) => building.key === 'airfield' && building.point[1] > 47,
+    (building) => building.key === 'airfield' && building.point[1] !== 45.76,
   );
   places.aerodrome = {
     id: `building-airfield@${airfield.point[0]},${airfield.point[1]}`,

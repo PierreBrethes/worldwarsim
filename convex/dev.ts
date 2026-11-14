@@ -1604,20 +1604,24 @@ export const airdropScene = internalMutation({
     /** Sans l'avion de transport, qui tient seul un couloir de l'aire, et avec un second
      *  aérodrome à Lyon : la file de deux chasseurs et d'un bombardier (#478). */
     bare: v.optional(v.boolean()),
+    /** L'aérodrome ailleurs qu'à la capitale : une côte qui serre sa piste (#493). */
+    at: v.optional(LON_LAT),
   },
-  handler: async (ctx, { playerId, bare }) => {
+  handler: async (ctx, { playerId, bare, at }) => {
     const player = await ctx.db.get(playerId);
     if (player === null || !isNation(player.nation)) throw new Error('no such player');
     await headquartersOf(ctx, player);
     /** L'aérodrome et l'avion de transport sont derrière leurs cartes (ADR 0028 §5). */
     await ctx.db.patch(playerId, { researched: ['aviation', 'airlift'] });
-    const regionId = capitalRegionOf(player.nation);
+    const regionId =
+      at === undefined ? capitalRegionOf(player.nation) : nearestRegion([at.lon, at.lat])?.id;
+    if (regionId === undefined) throw new Error('no region under the airfield');
     const airfield = await ctx.db.insert('buildings', {
       seasonId: player.seasonId,
       playerId,
       key: 'airfield',
       regionId,
-      point: pointOfRegion(regionId),
+      point: at ?? pointOfRegion(regionId),
       level: 1,
     });
     if (bare === true) {

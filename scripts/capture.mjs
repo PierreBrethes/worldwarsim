@@ -371,7 +371,7 @@ try {
         .split(',')
         .map(Number);
       const id = accounts.places.aerodrome.id;
-      await page.evaluate(
+      const laid = await page.evaluate(
         ([reach, d, p, a, side, id]) => {
           const engine = globalThis.mapEngine;
           const site = engine.maquettes.siteOf(id);
@@ -390,9 +390,14 @@ try {
           engine.camera.position.set(at.x + sky[0] * d, at.y + sky[1] * d, at.z + sky[2] * d);
           engine.controls.update();
           engine.invalidate();
+          // How the runway lies (#493): its length in metres (0: none drawn), the side its free end is on.
+          const origin = site.toBoard(engine.frame.projectLonLat([0, 0]).clone().set(0, 0, 0));
+          const free = site.toBoard(engine.frame.projectLonLat([0, 0]).clone().set(-1, 0, 0));
+          return { runway: site.runway, freeEnd: [free.x - origin.x, free.z - origin.z] };
         },
         [reach, distance, pitch, azimuth, side, id],
       );
+      console.log('piste', JSON.stringify(laid));
       await page.waitForTimeout(1500);
       continue;
     } else if (kind === 'cale') {
