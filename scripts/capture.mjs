@@ -19,6 +19,11 @@
  * une touche ; `tenir=Shift` l'enfonce et `relever=Shift` la relâche (Maj + glisser : le lasso).
  * `doigt=x,y` (avec `--tactile`) pose un doigt, puis le glisse à chaque `doigt` suivant, et
  * `lever` le relève : une tuile portée du doigt, capturée main pleine avant `lever`.
+ * `sequence=ms` attend qu'une séquence de la carte joue (un ordre de joueur l'a lancée), puis `ms` de
+ * plus, sans attente commune après : `photo=` prend alors l'instant (les feux d'une piste, #497).
+ * `piste=portée,distance,pente°,azimut°[,côté]` cadre la piste de l'aérodrome de la démo, `portée` mètres
+ * au-delà du bout des hangars (#497).
+ * `calme` attend qu'aucune séquence ne joue plus.
  * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
  * `recharger` recharge la page dans le même navigateur, son stockage gardé, puis attend comme à
  * l'ouverture : un `lieu=` après lui recadre.
@@ -258,7 +263,22 @@ try {
       };
       await page.screenshot({ path: value, clip });
     } else if (kind === 'photo') await page.screenshot({ path: value });
-    else if (kind === 'recharger') {
+    else if (kind === 'sequence') {
+      // `sequence=ms` attend qu'une séquence de la carte joue (un ordre de joueur l'a lancée), puis
+      // `ms` de plus : les feux de piste (#497) se prennent à mi-progression.
+      await page.waitForFunction(() => globalThis.mapEngine.sequences.active, null, {
+        polling: 'raf',
+        timeout: 180000,
+      });
+      await page.waitForTimeout(x);
+      continue;
+    } else if (kind === 'calme') {
+      // `calme` attend que plus aucune séquence ne joue, puis la carte s'établit : la fin du mouvement.
+      await page.waitForFunction(() => !globalThis.mapEngine.sequences.active, null, {
+        polling: 'raf',
+        timeout: 180000,
+      });
+    } else if (kind === 'recharger') {
       await page.reload();
       await page.waitForTimeout(Number(option('attendre', 6000)));
     } else if (kind === 'pause') await page.waitForTimeout(x);
@@ -343,6 +363,37 @@ try {
         [x, y, distance, polar, azimuth],
       );
       await page.waitForTimeout(1500);
+    } else if (kind === 'piste') {
+      // `piste=portée,distance,pente°,azimut°[,côté]` cadre la piste de l'aérodrome de la démo à `portée`
+      // mètres du bout des hangars (#497) : les feux de bord, de près.
+      const [reach = 40, distance = 1.5, pitch = 25, azimuth = 0, side = 0] = value
+        .split(',')
+        .map(Number);
+      const id = accounts.places.aerodrome.id;
+      await page.evaluate(
+        ([reach, d, p, a, side, id]) => {
+          const engine = globalThis.mapEngine;
+          const site = engine.maquettes.siteOf(id);
+          const at = site.toBoard(
+            engine.frame
+              .projectLonLat([0, 0])
+              .clone()
+              .set(36 - reach, 0, 87.4 + side),
+          );
+          const sky = [
+            Math.sin((p * Math.PI) / 180) * Math.sin((a * Math.PI) / 180),
+            Math.cos((p * Math.PI) / 180),
+            Math.sin((p * Math.PI) / 180) * Math.cos((a * Math.PI) / 180),
+          ];
+          engine.controls.target.copy(at);
+          engine.camera.position.set(at.x + sky[0] * d, at.y + sky[1] * d, at.z + sky[2] * d);
+          engine.controls.update();
+          engine.invalidate();
+        },
+        [reach, distance, pitch, azimuth, side, id],
+      );
+      await page.waitForTimeout(1500);
+      continue;
     } else if (kind === 'lieu') {
       // `lieu=@id[,distance[,pente[,azimut]]]` : là où la pièce est dessinée, à 3 par défaut.
       const aimedAt = value.startsWith('@') ? splitSpot(value) : null;
