@@ -5055,7 +5055,7 @@ export class MapEngine {
       this.standing.arrive(pileId, []);
       return true;
     }
-    this.standing.arrive(pileId, [Math.max(plan?.settled ?? 0, barge?.hull.ms ?? 0)]);
+    this.standing.arrive(pileId, [Math.max(plan?.settled ?? 0, barge?.ms ?? 0)]);
     if (barge !== null) {
       this.unloading.push({
         hull: cue.hull,

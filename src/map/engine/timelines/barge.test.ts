@@ -84,7 +84,7 @@ describe.each(files)('the barge of the %s cargo (#511)', (nation, url) => {
 
     it('stands the barge on the hold nearest the stern, and hoists it back there', () => {
       const cale = toBoard(stern.hatch.at[0], stern.hatch.rim, stern.hatch.at[2]);
-      for (const t of [0, plan.ms - 2]) {
+      for (const t of [0, plan.hull.ms - 2]) {
         const at = plan.craft(t)!.at;
         expect(Math.hypot(at.x - cale.x, at.z - cale.z)).toBeLessThan(0.5 * k);
         expect(at.y).toBeCloseTo(cale.y, 1);
@@ -136,6 +136,21 @@ describe.each(files)('the barge of the %s cargo (#511)', (nation, url) => {
       expect(clear).toBeGreaterThan(10);
       // The barge is not under way before the tank is aboard, nor does it back with the tank on it.
       expect(plan.craft(0)!.ramp).toBe(0);
+    });
+
+    it('backs the barge away while the vehicle still drives up a long beach, and holds the pile for the vehicle', () => {
+      const far = bargeOf({
+        booms,
+        frame,
+        beam,
+        vehicle: { ...tank, rest: toBoard(60 + 600, 0, -20) },
+        ground,
+      })!;
+      expect(far.hull.ms).toBeLessThan(far.tank.ms);
+      expect(far.ms).toBe(far.tank.ms);
+      // The barge is hoisted home before the vehicle is at its rank.
+      expect(far.craft(far.hull.ms + 100)).toBeNull();
+      expect(far.tank.at(far.hull.ms + 100).root?.travel).toBeDefined();
     });
 
     it('moves only the masts and the hatch the lifts need, and puts them home', () => {

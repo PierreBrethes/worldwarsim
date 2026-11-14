@@ -97,7 +97,7 @@ export type BargePlan = {
     readonly floor: number;
     readonly ramp: number;
   };
-  /** The whole is put away at this instant (ms). */
+  /** All is over at this instant (ms): the barge is home and the vehicle at its rank. */
   readonly ms: number;
   readonly metre: number;
 };
@@ -207,7 +207,19 @@ export function bargeOf({
   const driven = measured(way);
   const driveMs = (driven.length / ((vehicle.length * DRIVE_LENGTHS) / 1000)) | 0;
   const offEnd = ashore + driveMs;
-  const leave = offEnd + CLEAR;
+  // The barge backs away once the vehicle has driven a craft's length past the ramp's tip, not
+  // when it is home: a rank may be far up the beach.
+  const clearOfRamp = Math.min(
+    driven.length,
+    Math.hypot(bow.x - craftAtGround.x, bow.z - craftAtGround.z) + length * metre,
+  );
+  let [lo, hi] = [0, 1];
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (ease.drive(mid) * driven.length < clearOfRamp) lo = mid;
+    else hi = mid;
+  }
+  const leave = ashore + hi * driveMs + CLEAR;
   const back = leave + run * BACK_SHARE;
   const backLift = out0.end - out0.dropped;
   const startBack = Math.max(back - backLift, sameMast ? startLower + lowerMs : START);
@@ -334,7 +346,7 @@ export function bargeOf({
       floor: floor * metre,
       ramp: ramp * metre,
     },
-    ms: end,
+    ms: Math.max(end, offEnd + 1),
     metre,
   };
 }

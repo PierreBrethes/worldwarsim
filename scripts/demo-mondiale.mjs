@@ -33,8 +33,8 @@
  * `--cargo-vehicules`, le char, posé d'un coup.
  * `--cargo-debarquer [s]` (#509) pose un cargo devant la plage du Cotentin (Utah), deux escouades de
  * fantassins à son bord (lieu : `plage`) ; à `s` secondes (25 par défaut), un ordre les débarque :
- * les canots les portent à terre. `--cargo-plus` y joint un char (posé d'un coup, #511) et une
- * troisième escouade (posée d'un coup, faute de canot).
+ * les canots les portent à terre. `--cargo-plus` y joint un char, que le chaland porte à terre
+ * (#511), et une troisième escouade (posée d'un coup, faute de canot).
  * `--cargo-rembarquer [s]` (#510) pose la même plage avec ses escouades déjà à terre ; à `s` secondes, un
  * ordre les fait rembarquer : elles courent au sable, sautent dans les canots, qui regagnent le cargo
  * (`--cargo-plus` : un char, posé d'un coup, et une troisième escouade, embarquée d'un coup).
