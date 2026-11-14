@@ -85,6 +85,7 @@ import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
 import { Gangplanks } from './gangplanks';
+import { Barges } from './barges';
 import { Hoists } from './hoists';
 import { HullBoardings, type Started } from './hull-boardings';
 import {
@@ -111,6 +112,7 @@ import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { BOARDING_PX, boardingOf } from './timelines/boarding';
+import { bargeGroundOf, bargeOf, merged } from './timelines/barge';
 import { beachBoatsOf } from './timelines/beach-boats';
 import { assaultOf, boatsOfScene, LANDING_PX, landingVerdict } from './timelines/beach-landing';
 import { TAIL_GAP } from './timelines/airfield';
@@ -803,6 +805,7 @@ export class MapEngine {
   private readonly gangplanks = new Gangplanks();
   /** The cables and hooks of the masts that lift a cargo's vehicles (#505). */
   private readonly hoists = new Hoists();
+  private readonly barges = new Barges();
   /** The masts of each cargo file, once it has landed. */
   private readonly booms = new Map<string, ReadonlyArray<Boom>>();
   private readonly boomsAsked = new Set<string>();
@@ -1334,6 +1337,7 @@ export class MapEngine {
     this.scene.add(this.moorings.group);
     this.scene.add(this.gangplanks.group);
     this.scene.add(this.hoists.group);
+    this.scene.add(this.barges.group);
     this.hullBoardings = new HullBoardings({
       feed: (carrierId, riders) => {
         this.onBoarded?.(carrierId, riders);
@@ -2752,6 +2756,7 @@ export class MapEngine {
     this.moorings.dispose();
     this.gangplanks.dispose();
     this.hoists.dispose();
+    this.barges.dispose();
     this.sequences.dispose();
     this.combats.dispose();
     this.razes.dispose();
@@ -4948,7 +4953,9 @@ export class MapEngine {
    * to the places the pile drew them in (`beachBoatsOf`); the hull stays where it stood. Judged on
    * the hull (`landingVerdict`), all or nothing as a boarding: the hull's boats and each squad
    * play together or none does, and the pile stands as it is, a ring of ink at reduced motion.
-   * The vehicles are posed at once (#511). `false` until the pile, and its file's boats, stand.
+   * The first vehicle comes ashore by the barge (`bargeOf`, #511): the masts put it to the water
+   * and the vehicle into it, it grounds, drops its ramp and the vehicle drives to its place; the
+   * other vehicles are posed at once. `false` until the pile, its file's boats and masts stand.
    */
   private landOnBeach({ cue }: (typeof this.debarkations)[number], now: number): boolean {
     const pileId = cue.hull.slice(0, cue.hull.lastIndexOf('/'));
@@ -4969,6 +4976,14 @@ export class MapEngine {
     const frame = this.standing.frameOf(cue.hull);
     const squads = cue.men.map((id) => this.standing.placeOf(id));
     if (hull === null || frame === null || squads.some((place) => place === null)) return false;
+    const pileGroups = this.standing.piecesOf(pileId)?.groups;
+    // One vehicle to a barge: the first a mast can lift, the others stand at once.
+    const lifted = cue.vehicles.find((id) =>
+      HOISTED_ROLES.has(pileGroups?.[Number(id.slice(pileId.length + 1))]?.role ?? ''),
+    );
+    const carried = lifted === undefined ? null : this.standing.placeOf(lifted);
+    const carriedBox = lifted === undefined ? null : this.standing.pieceOf(lifted)?.box;
+    if (lifted !== undefined && (carried === null || !carriedBox)) return false;
     // `assaultOf` leaves a squad with no man out: the ids it plays follow the same filter.
     const crews = cue.men.flatMap((id, n) =>
       squads[n]!.men.length > 0 ? [{ id, place: squads[n]! }] : [],
@@ -4979,31 +4994,49 @@ export class MapEngine {
       ...cue.men.map((id) => this.standing.pieceOf(id)?.box?.getSize(size).y ?? 0),
     );
     const veiled = this.veiled(hull.at);
-    const assault =
+    const plays =
       landingVerdict({
         role,
         ground: cue.ground,
         motion: this.sequences.motion,
         veiled,
         big: this.seenBig(piece.box, LANDING_PX),
-      }) === 'play' && man > 0
-        ? assaultOf({
-            frame,
-            ...file,
-            squads: crews.map(({ place }) => place),
-            man,
-            wet: (x, z) =>
-              !this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
-          })
+      }) === 'play';
+    const wet = (x: number, z: number) =>
+      !this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY));
+    const assault =
+      plays && man > 0
+        ? assaultOf({ frame, ...file, squads: crews.map(({ place }) => place), man, wet })
         : null;
     const plan = assault === null ? null : beachBoatsOf(assault);
-    // Judged on the hull above: the men and the boats play in the field or not, together.
+    // The masts are read off the file; until they are, the pile waits as it does for the boats.
+    const booms = plays && lifted !== undefined ? this.boomsOf(piece.url) : [];
+    if (booms === null) return false;
+    const barge =
+      carried === null || !carriedBox
+        ? null
+        : bargeOf({
+            booms,
+            frame,
+            beam: file.beam,
+            vehicle: {
+              rest: carried.at,
+              heading: Math.atan2(carried.front.x, carried.front.z),
+              length: Math.max(carriedBox.getSize(size).x, carriedBox.getSize(size).z),
+              height: carriedBox.getSize(size).y,
+            },
+            ground: bargeGroundOf({ frame, rest: carried.at, wet }),
+          });
+    const hullPart = merged(plan?.cargo ?? null, barge?.hull ?? null);
+    // Judged on the hull above: the men, the boats, the masts and the vehicle play in the field
+    // or not, together.
     const parts =
-      plan?.cargo == null
+      hullPart === null
         ? []
         : [
-            { id: cue.hull, sequence: plan.cargo as Sequence },
-            ...plan.squads.map((sequence, n) => ({ id: crews[n]!.id, sequence })),
+            { id: cue.hull, sequence: hullPart as Sequence },
+            ...(plan?.squads ?? []).map((sequence, n) => ({ id: crews[n]!.id, sequence })),
+            ...(barge === null ? [] : [{ id: lifted!, sequence: barge.tank as Sequence }]),
           ].map(({ id, sequence }) => ({
             id,
             sequence: { ...sequence, anywhere: true as const, pool: 'boarding' as const },
@@ -5022,7 +5055,17 @@ export class MapEngine {
       this.standing.arrive(pileId, []);
       return true;
     }
-    this.standing.arrive(pileId, [plan!.settled]);
+    this.standing.arrive(pileId, [Math.max(plan?.settled ?? 0, barge?.hull.ms ?? 0)]);
+    if (barge !== null) {
+      this.unloading.push({
+        hull: cue.hull,
+        ids: parts.map(({ id }) => id),
+        since: now,
+        through: [],
+      });
+      this.barges.lay(cue.hull, barge, now);
+      this.hoists.lay(cue.hull, barge.strokes, now, now + barge.ms, barge.metre);
+    }
     return true;
   }
 
@@ -5161,6 +5204,7 @@ export class MapEngine {
     this.unloading = this.unloading.filter(({ hull, ids, since, through }) => {
       if ([hull, ...ids].some((id) => this.sequences.playsOn(this.standing, id))) return true;
       this.hoists.clear(hull);
+      this.barges.clear(hull);
       if (cutShort(now - since, through)) this.gangplanks.clear(hull);
       return false;
     });
@@ -5176,7 +5220,7 @@ export class MapEngine {
       void posedScene(url)
         .then((scene) => this.boats.set(url, boatsOfScene(scene)))
         // A file that will not load puts no boat out: its men are posed at once.
-        .catch(() => this.boats.set(url, { boats: [], astern: 0 }));
+        .catch(() => this.boats.set(url, { boats: [], astern: 0, beam: 0 }));
     }
     return undefined;
   }
@@ -6283,6 +6327,7 @@ export class MapEngine {
       this.debarkations.length > 0 ||
       this.gangplanks.active ||
       this.hoists.active ||
+      this.barges.active ||
       this.unloading.length > 0 ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
@@ -6397,6 +6442,7 @@ export class MapEngine {
       this.moorings.update(now, this.unitsPerPixel(distance));
       this.gangplanks.update(now, this.unitsPerPixel(distance), night);
       this.hoists.update(now, this.unitsPerPixel(distance), night);
+      this.barges.update(now, night);
     }
     this.hullBoardings.step(now);
     this.clearUnloaded(now);

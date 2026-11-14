@@ -113,3 +113,19 @@ export const GANGWAY = {
   lift: 6.5,
   dark: '#15110c',
 } as const;
+
+/**
+ * **The landing craft, a stand-in** until the cargo files carry `chaland` and `chaland_rampe` (not
+ * delivered, #511): a plain hull of ink and a bow ramp, drawn by the engine, in metres of a hull
+ * whose mast is `BOOM` long (the junk's, shorter, scales it down). `floor` is how high the deck
+ * stands over the keel, `ramp` its length and `down` the angle it falls to from the vertical.
+ * Not in `RIG_PARTS` either, or `glb.test.ts` would ask the files for them. `@a-mesurer`
+ */
+export const LANDING_CRAFT = {
+  length: 10,
+  width: 4,
+  depth: 1.4,
+  floor: 0.4,
+  ramp: 3.5,
+  down: (100 * Math.PI) / 180,
+} as const;

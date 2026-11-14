@@ -58,8 +58,8 @@ const T = {
  *  to fade across it. `@a-mesurer` */
 const SHORT = 1.5;
 const HOISTED = 7;
-const OPEN = (105 * Math.PI) / 180;
-const SINK = 0.3;
+export const OPEN = (105 * Math.PI) / 180;
+export const SINK = 0.3;
 const FADE_SHARE = 0.6;
 
 /** **How far in from the mole's face a load is taken from the deck**, in the port's metres: the

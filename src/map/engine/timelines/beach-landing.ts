@@ -35,11 +35,13 @@ export function landingVerdict(hull: {
 /**
  * **The boats a cargo file hangs** (`boat_left`, `boat_right`, the junk has the first only) where
  * the rig finds them, and the z of its stern in the file's own metres, cleared of the water the
- * boat runs in. A file with no boat has `boats: []`.
+ * boat runs in, and the half width of the hull (`beam`: the barge floats off its flank, #511). A file
+ * with no boat has `boats: []`.
  */
 export function boatsOfScene(scene: Object3D): {
   readonly boats: Assault['boats'];
   readonly astern: number;
+  readonly beam: number;
 } {
   scene.updateMatrixWorld(true);
   const boats = (['boat_left', 'boat_right'] as const).flatMap((node) => {
@@ -48,7 +50,8 @@ export function boatsOfScene(scene: Object3D): {
     const at = found.getWorldPosition(new Vector3());
     return [{ node, rest: [at.x, at.y, at.z] as const }];
   });
-  return { boats, astern: new Box3().setFromObject(scene).min.z - ASTERN_CLEAR_M };
+  const box = new Box3().setFromObject(scene);
+  return { boats, astern: box.min.z - ASTERN_CLEAR_M, beam: box.max.x };
 }
 
 /**

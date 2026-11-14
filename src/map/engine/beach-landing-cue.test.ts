@@ -130,7 +130,7 @@ describe('landOnBeach when its canots cannot play (#509)', () => {
     }) as unknown as { boatsOfFile: (url: string) => unknown };
     expect(engine.boatsOfFile('bad.glb')).toBeUndefined();
     await new Promise((resolve) => setTimeout(resolve));
-    expect(engine.boatsOfFile('bad.glb')).toEqual({ boats: [], astern: 0 });
+    expect(engine.boatsOfFile('bad.glb')).toEqual({ boats: [], astern: 0, beam: 0 });
   });
 
   it('waits for the coast, asking for it, before it reads the water edge', async () => {
@@ -148,6 +148,162 @@ describe('landOnBeach when its canots cannot play (#509)', () => {
     const { done, play } = await land({ men: ['p/0', 'p/2'], empty: ['p/0'] });
     expect(done).toBe(true);
     expect(play.mock.calls.map((call) => (call as unknown[])[1])).toEqual(['p/1', 'p/2']);
+  });
+});
+
+/** **The barge carries the first vehicle ashore** (#511): what `landOnBeach` plays beside the boats,
+ *  and what it leaves to the pile when the barge cannot play. */
+describe('landOnBeach with a vehicle (#511)', () => {
+  const boom = {
+    n: 1,
+    length: 12,
+    pivot: [0.6, 6.5, -31] as const,
+    rest: { yaw: 0, lift: 0.43 },
+    hatch: { at: [0, 5.2, -37.9] as const, rim: 5.2 },
+  };
+  const land = async ({
+    roomFor = 8,
+    booms = [boom] as ReadonlyArray<typeof boom> | null,
+    motion = 'full' as MapMotion,
+    veiled = false,
+    vehicles = ['p/2'],
+    roles = ['infantry', 'cargo', 'armor', 'armor'],
+    refuses = false,
+  } = {}) => {
+    const { MapEngine } = await import('./index');
+    const arrive = vi.fn();
+    const inkArrival = vi.fn();
+    const retime = vi.fn();
+    const play = vi.fn(
+      (_host: unknown, _id: string, ..._rest: unknown[]) => !refuses || play.mock.calls.length < 3,
+    );
+    const layBarge = vi.fn();
+    const clearBarge = vi.fn();
+    const layHoist = vi.fn();
+    const clearHoist = vi.fn();
+    const playsOn = vi.fn(() => refuses);
+    const boomsOf = vi.fn(() => booms);
+    const squad = { at: new Vector3(), front: new Vector3(1, 0, 0), men: [new Vector3(1, 0, 1)] };
+    const tank = { at: new Vector3(40, 0, 10), front: new Vector3(0, 0, 1), men: [] };
+    const box = { getSize: (v: Vector3) => v.set(2, 2, 6) };
+    const engine = Object.assign(Object.create(MapEngine.prototype) as object, {
+      standing: {
+        piecesOf: () => ({ groups: roles.map((role) => ({ role })) }),
+        pieceOf: () => ({ box, url: 'cargo.glb' }),
+        placeOf: (id: string) =>
+          id === 'p/0' ? squad : id === 'p/1' ? { at: new Vector3() } : tank,
+        anchor: () => {},
+        frameOf: () => new Matrix4(),
+        arrive,
+        inkArrival,
+      },
+      sequences: { motion, roomFor: () => roomFor, playsOn, play, retime },
+      barges: { lay: layBarge, clear: clearBarge },
+      hoists: { lay: layHoist, clear: clearHoist },
+      gangplanks: { clear: () => {} },
+      unloading: [] as unknown[],
+      veiled: () => veiled,
+      seenBig: () => true,
+      landAt: () => true,
+      coast: {},
+      loadCoast: () => {},
+      frame: { lonLatAt: () => [0, 0], centerX: 0, centerY: 0 },
+      boatsOfFile: () => ({
+        boats: [{ node: 'boat_left' as const, rest: [7, 1, -3] as const }],
+        astern: -90,
+        beam: 8,
+      }),
+      boomsOf,
+    }) as unknown as {
+      landOnBeach: (l: unknown, now: number) => boolean;
+      clearUnloaded: (now: number) => void;
+    };
+    const done = engine.landOnBeach({ cue: { ...cue(), vehicles } }, 0);
+    return {
+      done,
+      arrive,
+      inkArrival,
+      retime,
+      play,
+      layBarge,
+      clearBarge,
+      layHoist,
+      clearHoist,
+      playsOn,
+      boomsOf,
+      engine,
+    };
+  };
+  const ids = (play: { mock: { calls: unknown[][] } }) => play.mock.calls.map((call) => call[1]);
+
+  it('plays the vehicle with the men and the hull, lays the craft and its cables, and holds the pile for the longest', async () => {
+    const { done, play, layBarge, layHoist, arrive } = await land();
+    expect(done).toBe(true);
+    // One sequence for the hull, the boats and the masts together (#510), then the squad, the vehicle.
+    expect(ids(play)).toEqual(['p/1', 'p/0', 'p/2']);
+    expect(layBarge).toHaveBeenCalledTimes(1);
+    expect(layHoist).toHaveBeenCalledTimes(1);
+    const [, plan] = layBarge.mock.calls[0]!;
+    expect(arrive.mock.calls[0]![1][0]).toBeGreaterThanOrEqual((plan as { ms: number }).ms);
+  });
+
+  it('carries one vehicle only: the others stand at once', async () => {
+    const { play } = await land({ vehicles: ['p/2', 'p/3'] });
+    expect(ids(play)).toEqual(['p/1', 'p/0', 'p/2']);
+  });
+
+  it('plays the barge alone, without a mast read, for a cargo with no vehicle a mast can lift', async () => {
+    const { play, layBarge, boomsOf } = await land({ roles: ['infantry', 'cargo', 'escort'] });
+    expect(ids(play)).toEqual(['p/1', 'p/0']);
+    expect(layBarge).not.toHaveBeenCalled();
+    expect(boomsOf).not.toHaveBeenCalled();
+  });
+
+  it('waits while the masts are not read', async () => {
+    const { done, play, arrive } = await land({ booms: null });
+    expect(done).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+    expect(arrive).not.toHaveBeenCalled();
+  });
+
+  it('leaves the vehicle where the pile stands it when the file has no mast', async () => {
+    const { play, layBarge } = await land({ booms: [] });
+    expect(ids(play)).toEqual(['p/1', 'p/0']);
+    expect(layBarge).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the pool is full', { roomFor: 0 }],
+    ['the motion is reduced', { motion: 'reduced' as MapMotion }],
+    ['the motion is cut', { motion: 'off' as MapMotion }],
+    ['the pile is under a combat', { veiled: true }],
+  ])('plays no barge and stands the pile at once when %s', async (_, change) => {
+    const { done, play, layBarge, layHoist, arrive } = await land(change);
+    expect(done).toBe(true);
+    expect(play).not.toHaveBeenCalled();
+    expect(layBarge).not.toHaveBeenCalled();
+    expect(layHoist).not.toHaveBeenCalled();
+    expect(arrive).toHaveBeenCalledWith('p', []);
+  });
+
+  it('cuts what plays when the vehicle will not, lays nothing, and frees the pile', async () => {
+    const { done, retime, layBarge, layHoist, arrive } = await land({ refuses: true });
+    expect(done).toBe(true);
+    expect(retime).toHaveBeenCalled();
+    expect(layBarge).not.toHaveBeenCalled();
+    expect(layHoist).not.toHaveBeenCalled();
+    expect(arrive).toHaveBeenCalledWith('p', []);
+  });
+
+  it('takes the craft and the cables away once nothing plays, not before', async () => {
+    const { engine, playsOn, clearBarge, clearHoist } = await land();
+    playsOn.mockReturnValue(true);
+    engine.clearUnloaded(1);
+    expect(clearBarge).not.toHaveBeenCalled();
+    playsOn.mockReturnValue(false);
+    engine.clearUnloaded(1);
+    expect(clearBarge).toHaveBeenCalledWith('p/1');
+    expect(clearHoist).toHaveBeenCalledWith('p/1');
   });
 });
 
@@ -214,6 +370,7 @@ describe('landAtQuay (#512)', () => {
       sequences: { motion: 'full', roomFor: () => roomFor, playsOn, play, retime },
       gangplanks: { lay: layPlank, clear: clearPlank },
       hoists: { lay: layHoist, clear: clearHoist },
+      barges: { clear: () => {} },
       unloading: [] as unknown[],
       veiled: () => false,
       seenBig: () => true,
