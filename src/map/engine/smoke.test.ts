@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { MeshStandardMaterial } from 'three';
-import { charred, PLUME_BY_WEAR, puffAt, Smoke, Wake, WAKE_LIFE, wakePuffAt } from './smoke';
+import {
+  charred,
+  PLUME_BY_WEAR,
+  puffAt,
+  Smoke,
+  Spray,
+  SPLASH_LIFE,
+  splashAt,
+  Wake,
+  WAKE_LIFE,
+  wakePuffAt,
+} from './smoke';
 
 describe('PLUME_BY_WEAR', () => {
   it('leaves a whole vehicle clean and burns thicker than it smokes', () => {
@@ -96,5 +107,32 @@ describe('a puff of smoke', () => {
   it('never catches the pointer: it is air over the piece', () => {
     const smoke = new Smoke(PLUME_BY_WEAR.smoking!);
     expect(smoke.object.children.every((puff) => puff.userData.ground === true)).toBe(true);
+  });
+});
+
+describe('a splash (#501)', () => {
+  it('is born transparent on the water, rises and spreads, and is gone at its life', () => {
+    const born = splashAt(0, 0, 1);
+    expect(born.opacity).toBe(0);
+    expect(born.y).toBe(0);
+    const mid = splashAt(0, SPLASH_LIFE / 2, 1);
+    expect(mid.y).toBeGreaterThan(0);
+    expect(mid.opacity).toBeGreaterThan(0);
+    expect(splashAt(0, SPLASH_LIFE, 1).opacity).toBeCloseTo(0, 5);
+  });
+
+  it('is as big as its scale', () => {
+    expect(splashAt(1, 0.6, 2).size).toBeCloseTo(2 * splashAt(1, 0.6, 1).size);
+    expect(splashAt(1, 0.6, 2).y).toBeCloseTo(2 * splashAt(1, 0.6, 1).y);
+  });
+
+  it('shows no puff before its birth or after its life', () => {
+    const spray = new Spray();
+    spray.frame(0.5, 1);
+    expect(spray.object.visible).toBe(true);
+    spray.frame(-0.1, 1);
+    expect(spray.object.visible).toBe(false);
+    spray.frame(SPLASH_LIFE + 0.1, 1);
+    expect(spray.object.visible).toBe(false);
   });
 });

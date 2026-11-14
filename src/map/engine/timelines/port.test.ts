@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { troopMetres } from '@/domain/piece-size';
 import { MOLE } from '@/emblems/kits/manifest';
 import {
   type Berth,
@@ -74,6 +75,23 @@ describe('a new hull is launched (#270)', () => {
     atBerth(role, track.at(track.ms));
     expect(worstStep(track)).toBeLessThan(3);
   });
+});
+
+describe("a launch throws two sprays at the slip's head (#501)", () => {
+  it.each(ROLES)(
+    '%s: one as its stern touches the water, one as its bow leaves the slip',
+    (role) => {
+      const track = launch(role, BEAM, 3);
+      const [stern, bow] = track.splashes;
+      const h = troopMetres(role) / 2;
+      expect(stern!.at).toBeLessThan(bow!.at);
+      // The stern is 6 m past the quay's edge, the bow at it.
+      expect(track.at(stern!.at).z + h).toBeCloseTo(MOLE.quay + 6, 1);
+      expect(track.at(bow!.at).z - h).toBeCloseTo(MOLE.quay, 1);
+      for (const { z } of track.splashes) expect(z).toBe(MOLE.quay + 6);
+      expect(bow!.scale).toBeGreaterThan(stern!.scale);
+    },
+  );
 });
 
 describe('a hull ends, and starts, where its pile stands it', () => {

@@ -2,7 +2,10 @@ import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { AIRFIELD } from '@/emblems/kits/manifest';
 import { troopMetres } from '@/domain/piece-size';
-import type { Sequence } from './sequences';
+import type { PartPose, Sequence } from './sequences';
+import { SPLASH_LIFE } from './smoke';
+
+const SPLASH_MS = SPLASH_LIFE * 1000;
 import {
   airfieldSequence,
   arrivalRings,
@@ -135,6 +138,33 @@ describe('the slip with a hull launched after another (#487)', () => {
     expect(slip.at(lead - 1)['accore_1' as never]!.turn![2]).not.toBe(0);
     expect(slip.at(lead)['accore_1' as never]!.turn![2]).toBeCloseTo(0, 9);
     expect(slip.at(lead)['coque_cale' as never]!.fade).toBe(1);
+  });
+});
+
+describe('the sprays of a launch (#501)', () => {
+  const first = launch('cargo', 18, 3, { x: 10, z: 175, yaw: Math.PI });
+  const second = launch('cargo', 18, 3, { x: 0, z: 175, yaw: Math.PI });
+  const lead = first.ms;
+  const slip = slipSequence([
+    { lead: 0, ...first },
+    { lead, ...second },
+  ]);
+  const [stern, bow] = first.splashes;
+  const sprays = (t: number) => (slip.at(t).root as PartPose | undefined)?.splashes ?? [];
+
+  it('throws nothing before the stern touches the water', () => {
+    expect(sprays(stern!.at - 1)).toEqual([]);
+  });
+
+  it('throws one at the stern, then one more at the bow, each aged from its instant', () => {
+    expect(sprays(stern!.at + 500)).toEqual([[[0, 0, stern!.z], 0.5, stern!.scale]]);
+    const both = sprays(bow!.at + 100);
+    expect(both.at(-1)).toEqual([[0, 0, bow!.z], 0.1, bow!.scale]);
+  });
+
+  it('lets each fade out, and throws again for the next hull from its own start', () => {
+    expect(sprays(bow!.at + SPLASH_MS + 1)).toEqual([]);
+    expect(sprays(lead + stern!.at + 200)[0]![1]).toBeCloseTo(0.2, 6);
   });
 });
 

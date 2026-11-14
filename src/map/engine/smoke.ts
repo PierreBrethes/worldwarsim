@@ -348,3 +348,70 @@ export function charred<M extends Material>(material: M): M {
   burnt.set(material, copy);
   return copy;
 }
+
+/**
+ * **A splash at a launch** (#501, storyboard « Lancement », `puffs({ size: 14, spread: 14, rise: 6,
+ * life: 1.3 })`): six soft discs thrown up and out of the water, swelling and fading. A function
+ * of `age` in seconds, in the file's metres, times `scale`. `@a-mesurer`
+ */
+export const SPLASH_LIFE = 1.3;
+const SPLASH_PUFFS = 6;
+const SPLASH = { size: 14, spread: 14, rise: 6, opacity: 0.75, color: '#eef3f1' } as const;
+
+export function splashAt(rank: number, age: number, scale: number) {
+  const k = Math.min(Math.max(age / SPLASH_LIFE, 0), 1);
+  const angle = (rank / SPLASH_PUFFS) * Math.PI * 2 + rank * 0.7;
+  const out = 1 - (1 - k) ** 2;
+  return {
+    x: Math.cos(angle) * (0.6 + (rank % 3) * 0.2) * SPLASH.spread * scale * out,
+    y: (0.6 + (rank % 4) * 0.15) * SPLASH.rise * scale * out,
+    z: Math.sin(angle) * (0.6 + (rank % 2) * 0.3) * SPLASH.spread * scale * out,
+    size: SPLASH.size * scale * (0.35 + 1.1 * Math.sqrt(k)),
+    opacity: SPLASH.opacity * (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85),
+  };
+}
+
+let splashSteps: SpriteMaterial[] | null = null;
+
+/** One splash, its pool fixed at birth; materials and texture are the module's. */
+export class Spray {
+  readonly object = new Group();
+
+  constructor() {
+    puffTexture ??= drawPuff();
+    splashSteps ??= Array.from(
+      { length: OPACITY_STEPS + 1 },
+      (_, k) =>
+        new SpriteMaterial({
+          map: puffTexture,
+          color: SPLASH.color,
+          transparent: true,
+          depthWrite: false,
+          opacity: (SPLASH.opacity * k) / OPACITY_STEPS,
+        }),
+    );
+    for (let k = 0; k < SPLASH_PUFFS; k++) {
+      const puff = new Sprite(splashSteps[0]);
+      puff.renderOrder = 3;
+      // Foam on the water: the pointer through it is on the sea.
+      puff.userData.ground = true;
+      this.object.add(puff);
+    }
+    this.object.visible = false;
+  }
+
+  /** At `age` seconds: hidden before its birth and after its life. */
+  frame(age: number, scale: number): void {
+    this.object.visible = age >= 0 && age <= SPLASH_LIFE;
+    if (!this.object.visible) return;
+    this.object.children.forEach((child, rank) => {
+      const puff = child as Sprite;
+      const { x, y, z, size, opacity } = splashAt(rank, age, scale);
+      const step = Math.round((opacity / SPLASH.opacity) * OPACITY_STEPS);
+      puff.visible = step > 0;
+      puff.material = splashSteps![step]!;
+      puff.position.set(x, y, z);
+      puff.scale.setScalar(size);
+    });
+  }
+}

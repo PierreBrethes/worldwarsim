@@ -20,7 +20,14 @@ import {
   HOOK_ABAFT_STEM,
   PORT_CRANE,
 } from './timelines/at-rest';
-import { type Berth, hauling, type HullTrack, type SeaRole } from './timelines/port';
+import {
+  type Berth,
+  hauling,
+  type HullTrack,
+  type SeaRole,
+  type Splashing,
+} from './timelines/port';
+import { SPLASH_LIFE } from './smoke';
 import type { HullPost, Rest } from './timelines/rest';
 import { troopMetres } from '@/domain/piece-size';
 import { ease, span } from './timelines/curves';
@@ -190,6 +197,7 @@ type Launched = {
   readonly ms: number;
   dressed(ms: number): number;
   shores(ms: number, k: number): number;
+  readonly splashes: ReadonlyArray<Splashing>;
 };
 
 /** **The port while hulls are launched, one after the other** (#270, #487): the hull on its slip
@@ -207,6 +215,11 @@ export function slipSequence(launches: ReadonlyArray<Launched>): Sequence<'port'
       const now = launches.filter(({ lead }) => lead <= t).at(-1) ?? launches[0]!;
       const τ = t - now.lead;
       const pose: Record<string, PartPose> = { coque_cale: { fade: 1 - now.dressed(τ) } };
+      // Spray where the stern touches the water and where the bow leaves the slip (#501).
+      const splashes = now.splashes
+        .map(({ at, z, scale }) => [[0, 0, z], (τ - at) / 1000, scale] as const)
+        .filter(([, age]) => age >= 0 && age <= SPLASH_LIFE);
+      if (splashes.length > 0) pose.root = { splashes };
       // The first three stand on -x, the others on +x: each falls away from the hull.
       for (const k of SHORES)
         pose[`accore_${k}`] = {

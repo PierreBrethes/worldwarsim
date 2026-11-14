@@ -409,6 +409,26 @@ describe('SequenceLayer', () => {
     expect(host.copies.get('a')!.getObjectByName('fx_sortie_remise')!.children).toHaveLength(1);
   });
 
+  it('throws a splash where the root pose asks for it, and takes it away with the copy (#501)', async () => {
+    const splashing: Sequence<'barracks'> = {
+      family: 'barracks',
+      ms: 1000,
+      at: (t) => (t < 800 ? { root: { splashes: [[[0, 0, 110], t / 1000, 1]] } } : {}),
+    };
+    const { layer } = layerOf(true);
+    const host = new FakeHost();
+    layer.play(host, 'a', splashing, 0);
+    await flush();
+    layer.step(300);
+    const spray = () => host.copies.get('a')!.children[0]!.children.find((c) => c.userData.spray);
+    expect(spray()!.position.z).toBe(110);
+    expect(spray()!.visible).toBe(true);
+    layer.step(900);
+    expect(spray()?.visible ?? false).toBe(false);
+    layer.dispose();
+    expect(host.copies.has('a')).toBe(false);
+  });
+
   describe('the whole copy', () => {
     const shared = new MeshStandardMaterial({ opacity: 0.8 });
     const withBody = (): Group => {

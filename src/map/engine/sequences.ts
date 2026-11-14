@@ -19,7 +19,7 @@ import { crateOf } from './crate';
 import { SLATS, WOOD } from './crates';
 import { movesOnItsOwn, posedScene, type RestPose } from './figurines/figurine';
 import { carrying, crateOnMan, hop, stand, stride } from './figurines/infantry';
-import { EXHAUST, Smoke } from './smoke';
+import { EXHAUST, Smoke, Spray } from './smoke';
 import { darkCrate } from './timelines/loading';
 
 /** A motor's breath leaves a door low under its lintel, in metres of the building. `@a-mesurer` */
@@ -65,6 +65,9 @@ export type PartPose = {
   /** A marker (`fx_*`) only: a motor's breath (`EXHAUST`) there, at this many seconds and this
    *  share of its strength. */
   readonly exhaust?: readonly [seconds: number, fade: number];
+  /** `root` only: splashes on the water (#501), each at its point of the model in metres, at this
+   *  many seconds old and this size; one that is not listed is not there. */
+  readonly splashes?: ReadonlyArray<readonly [at: Vec3, seconds: number, scale: number]>;
 };
 
 /** `root` is the whole copy, `man_*` a man of a squad: a troop that walks to its rank (#268). */
@@ -328,6 +331,8 @@ type Playing = {
   faded: Map<Mesh, { material: Material; opacity: number; depthWrite: boolean }>;
   /** The motors' breaths it hung on markers (`exhaust`). */
   breaths: Map<Object3D, Smoke>;
+  /** The splashes hung on its rig (`splashes`), by their rank in the pose. */
+  sprays: Spray[];
   /** The crates its men carry (`carry`), by man. */
   crates: Map<Object3D, Group>;
   /** Finie avant la fin de la cuisson : la copie n'a plus à se poser. */
@@ -429,6 +434,7 @@ export class SequenceLayer {
       rests: new Map(),
       faded: new Map(),
       breaths: new Map(),
+      sprays: [],
       crates: new Map(),
       over: false,
     };
@@ -567,6 +573,7 @@ export class SequenceLayer {
           ? pose[node === playing.rig ? 'root' : node.name]
           : undefined;
       if (own?.exhaust) this.breathe(playing, node, own.exhaust);
+      if (node === playing.rig) this.splash(playing, own?.splashes ?? []);
       if (rest !== undefined) {
         bentFromRest(node, rest, own);
         node.scale.copy(rest.scale);
@@ -619,6 +626,22 @@ export class SequenceLayer {
     }
     crate.visible = shown > 0;
     crate.userData.crate = shown;
+  }
+
+  /** The splashes of the pose hung on the rig, each hidden once it is not asked for. */
+  private splash(playing: Playing, asked: NonNullable<PartPose['splashes']>): void {
+    const { sprays, rig } = playing;
+    while (sprays.length < asked.length) {
+      const spray = new Spray();
+      spray.object.userData.spray = true;
+      rig!.add(spray.object);
+      sprays.push(spray);
+    }
+    sprays.forEach((spray, k) => {
+      const [at, seconds, scale] = asked[k] ?? [[0, 0, 0], -1, 1];
+      spray.object.position.set(...at);
+      spray.frame(seconds, scale);
+    });
   }
 
   /** A plume hung on the marker for the sequence, gone with its copy. */

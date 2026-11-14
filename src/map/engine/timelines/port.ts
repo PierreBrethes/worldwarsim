@@ -212,6 +212,13 @@ function weighing(p: number, b: Berth): HullTrack {
 const SLIP = { x: 0, stern: 85, slope: 0.025, top: 2.2 } as const;
 const slipTop = (z: number) => SLIP.top + Math.max(0, (MOLE.quay - z) * SLIP.slope);
 
+/** How far past the quay's edge a launch throws its spray, in metres (storyboard `L.H + 6`).
+ *  `@a-mesurer` */
+const SPLASH_PAST = 6;
+/** **A burst of spray** `at` ms of a launch, `z` along the slip in the file's metres, `scale` its
+ *  size: the stern touches the water at the first, the bow leaves the slip at the second. */
+export type Splashing = { readonly at: number; readonly z: number; readonly scale: number };
+
 /**
  * **A new hull is launched stern first and hauled to its berth** (Décisions du 03/11): it dresses
  * on the slip (`dressed`, 0 to 1), its shores fall (`shores`), it slides, its stern floats, it
@@ -223,7 +230,11 @@ export function launch(
   beam: number,
   keel: number,
   b = berthOf(role, beam),
-): HullTrack & { dressed(ms: number): number; shores(ms: number, k: number): number } {
+): HullTrack & {
+  dressed(ms: number): number;
+  shores(ms: number, k: number): number;
+  splashes: ReadonlyArray<Splashing>;
+} {
   const h = troopMetres(role) / 2;
   const H = MOLE.quay;
   const z0 = SLIP.stern - h;
@@ -232,6 +243,7 @@ export function launch(
   const acc = 6;
   const sBow = H - (z0 - h);
   const tBow = tSlide + Math.sqrt((2 * sBow) / acc);
+  const tStern = tSlide + Math.sqrt((2 * (H - (z0 + h) + SPLASH_PAST)) / acc);
   const vBow = acc * (tBow - tSlide);
   // In the roads it runs on to its anchorage: no haul across (#487).
   const roads = inRoads(role, b);
@@ -245,6 +257,10 @@ export function launch(
   const ms = tHauled * 1000;
   return {
     ms,
+    splashes: [
+      { at: tStern * 1000, z: H + SPLASH_PAST, scale: 1 },
+      { at: tBow * 1000, z: H + SPLASH_PAST, scale: 1.3 },
+    ],
     dressed: (t) => span(t / 1000, 0, tDressed),
     shores: (t, k) => ease.in2(span(t / 1000, tDressed + k * 0.04, tDressed + k * 0.04 + 0.5)),
     at(t) {
