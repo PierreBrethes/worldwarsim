@@ -33,6 +33,7 @@ import { troopMetres } from '@/domain/piece-size';
 import { ease, span } from './timelines/curves';
 import { WALK_MIN_PX } from './timelines/walk';
 import { MOORING_MS } from './mooring';
+import { AIRFIELD } from '@/emblems/kits/manifest';
 import { runwayLit } from './runway-lights';
 
 /** A site's frame on the board (`MaquetteLayer.siteOf`). */
@@ -137,6 +138,7 @@ export type Doors = { readonly lane: number; open(ms: number): number };
 export function airfieldSequence(
   ms: number | (() => number),
   doors: Doors | ReadonlyArray<Doors> = [],
+  length: number = AIRFIELD.runway.length,
 ): Sequence<'airfield'> {
   const hangars = 'lane' in doors ? [doors] : doors;
   return {
@@ -147,7 +149,7 @@ export function airfieldSequence(
       return typeof ms === 'number' ? ms : ms();
     },
     minPx: WALK_MIN_PX,
-    lit: (t, reach) => runwayLit(reach, t, typeof ms === 'number' ? ms : ms()),
+    lit: (t, reach) => runwayLit(reach, t, typeof ms === 'number' ? ms : ms(), length),
     at(t) {
       const pose: Record<string, PartPose> = {};
       // A hangar's doors may come from several orders (#478): the most open one rules.

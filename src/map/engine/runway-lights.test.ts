@@ -8,6 +8,7 @@ import {
   runwayHalos,
   runwayLit,
 } from './runway-lights';
+import { RUNWAY_MODULES, runwayLength } from './runway-fit';
 
 const LENGTH = AIRFIELD.runway.length;
 const MS = 6000;
@@ -54,6 +55,54 @@ describe('the runway lights, lit one reach after another (#497)', () => {
         last = now;
       }
     }
+  });
+});
+
+describe('the lights of a runway cut short (#493)', () => {
+  const cut = 15;
+  const length = runwayLength(cut);
+
+  it('light their wave over the runway that remains: the free end is reached in the same time', () => {
+    const t = LIGHT_WAVE_MS + LIGHT_FADE_MS;
+    expect(runwayLit(length - 5, t, MS * 2, length)).toBe(1);
+    expect(runwayLit(length - 5, 1200, MS, length)).toBe(0);
+    // Read against the whole one, the last reach of the short one would be lit earlier.
+    expect(runwayLit(length - 5, 1200, MS)).toBeGreaterThan(0);
+  });
+
+  it('stand on the modules of the cut runway, the whole one’s scene left as it was', async () => {
+    const { sceneOfFile } = await import('./gltf-scene.fixture');
+    const { dressedScene, RUNWAY_LIGHTS, withRunway } = await import('./site-kits');
+    const { BUILDING_MAQUETTES } = await import('@/emblems/buildings/manifest');
+    const file = sceneOfFile('src/emblems/buildings/airfield.glb');
+    const kit = async () => sceneOfFile('src/emblems/kits/piste.glb');
+    const url = BUILDING_MAQUETTES.airfield!;
+    const reaches = (scene: import('three').Object3D) => {
+      const found = new Set<number>();
+      scene.traverse((node) => {
+        const material = (node as import('three').Mesh).material as unknown as
+          { name: string; userData: { reach: number } } | undefined;
+        if (material?.name === RUNWAY_LIGHTS) found.add(material.userData.reach);
+      });
+      return [...found].sort((a, b) => a - b);
+    };
+    const cutScene = await dressedScene(withRunway(url, cut), file, kit);
+    const whole = await dressedScene(url, file, kit);
+    expect(reaches(cutScene)).toHaveLength(cut - 2);
+    expect(reaches(cutScene).at(-1)).toBeLessThan(length);
+    expect(reaches(whole)).toHaveLength(RUNWAY_MODULES - 2);
+    expect(file.getObjectByName('piste')).toBeUndefined();
+  });
+
+  it('lay their halos on the modules that remain, none beyond the free end', () => {
+    const halos = runwayHalos(RUNWAY_HALO_CAP, cut);
+    expect(halos).toHaveLength(2 * (cut - 2));
+    const { x1 } = AIRFIELD.runway;
+    for (const { reach, at } of halos) {
+      expect(reach).toBeLessThan(length);
+      expect(at.x).toBeGreaterThan(x1 - length - 1);
+    }
+    expect(runwayHalos(RUNWAY_HALO_CAP, 0)).toEqual([]);
   });
 });
 

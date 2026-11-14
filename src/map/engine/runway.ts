@@ -1,3 +1,4 @@
+import { AIRFIELD } from '@/emblems/kits/manifest';
 import type { Sequence } from './sequences';
 import {
   airfieldSequence,
@@ -110,7 +111,14 @@ export class Runways {
    * **The airfield's lights**, on until `end`: a plane queued behind another extends them, and the
    * doors of a formation cued while they burn open in the same sequence, shifted to its `since`.
    */
-  lightUp(site: string, since: number, end: number, doors: ReadonlyArray<Doors>, host: LightHost) {
+  lightUp(
+    site: string,
+    since: number,
+    end: number,
+    doors: ReadonlyArray<Doors>,
+    host: LightHost,
+    length: number = AIRFIELD.runway.length,
+  ) {
     const lit = this.lit.get(site);
     if (lit !== undefined && host.playing()) {
       lit.end = Math.max(lit.end, end);
@@ -120,7 +128,7 @@ export class Runways {
       return;
     }
     const state: Lit = { start: since, end, doors: [...doors] };
-    if (host.play(airfieldSequence(() => state.end - state.start, state.doors)))
+    if (host.play(airfieldSequence(() => state.end - state.start, state.doors, length)))
       this.lit.set(site, state);
   }
 

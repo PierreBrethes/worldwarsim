@@ -30,6 +30,14 @@ import {
 import { washedOf } from './standing';
 import { accessoriesShown, bakedSite, mirroredPart, onSocle, type Part } from './baking';
 import { mirroredPort } from './port-side';
+import {
+  fitRunway,
+  RUNWAY_MODULES,
+  RUNWAY_TURNS,
+  runwayLength,
+  SOCLE_WET,
+  type RunwayFit,
+} from './runway-fit';
 import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
@@ -49,7 +57,7 @@ import {
   stapleShare,
   traceStaple,
 } from './site-marks';
-import { LAMP, lightRunway } from './site-kits';
+import { LAMP, lightRunway, splitRunway, withRunway } from './site-kits';
 import { RUNWAY_HALO_RADIUS, runwayHalos } from './runway-lights';
 
 export { SOCLE_TOP };
@@ -180,10 +188,6 @@ const RUNWAY = 'piste';
 /** **A port's water edge** (#436): its quay, the marker its model lays on the coast line. */
 const WATER_EDGE = 'fx_bord_eau';
 
-/** **A coastal site turns when its hashed turn wets more of its socle than this** (#436,
- *  Décisions du 04/11). */
-const SOCLE_WET = 0.1;
-
 /** The socle is read wet or dry on a grid of this many cells a side. */
 const SOCLE_SAMPLES = 7;
 
@@ -257,6 +261,9 @@ type Model = {
   readonly signFoot: Vector3 | null;
   /** It has a runway laid beside it (#269): its turn keeps it on land too. */
   readonly runway: boolean;
+  /** How many modules of the runway its url asks for (#493): the whole runway's `RUNWAY_MODULES`
+   *  without a fragment, and for a file with no runway. */
+  readonly runwayModules: number;
   /** Set on a model in mirror (#476): the model it was mirrored from, in the frame its sequences
    *  and rests are written in. */
   readonly authored?: Model;
@@ -381,6 +388,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose, mirrored = false
         crates,
         rank,
         runway: scene.getObjectByName(RUNWAY) !== undefined,
+        runwayModules: splitRunway(url).modules,
       };
     });
     // Kept failed: the same file fails again, and it is said once, not at every rebuild.
@@ -523,12 +531,6 @@ function touchingSites(points: ReadonlyArray<Point>, spacings: ReadonlyArray<num
 }
 
 const FACINGS = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => (k * Math.PI) / 4);
-/** Every 15°, nearest the hashed turn first: an airfield's runway turned to find its land. */
-const RUNWAY_TURNS = Array.from(
-  { length: 24 },
-  (_, k) => (((k + 1) >> 1) * (k % 2 === 0 ? 1 : -1) * Math.PI) / 12,
-);
-
 /** The placement as it may stand, `null` when it strays or steps off the land. A lone site turns
  *  its garrison when its front is the sea or a neighbour's maquette — inland, away from the other
  *  sites; a ring's keeps its outward facing. */
@@ -725,6 +727,9 @@ type Placed = {
   seals: Object3D | null;
   /** When it stood up under the eyes (`Date.now()`): it bounces once. */
   settledAt: number | null;
+  /** How its runway sits on its land (`pose`, #493), `null` for none, or before the coast's
+   *  line is known. */
+  fit: RunwayFit | null;
 };
 
 /** **A site at work**: its lot alone, dressed once its model has landed (`WorksDressing`). */
@@ -794,6 +799,9 @@ export class MaquetteLayer implements SequenceHost {
    *  the coast's line is known (`mirrorPorts`), kept over a rebuild, which draws each in its own
    *  lot; a port gone is forgotten. */
   private readonly mirrored = new Set<string>();
+  /** **The modules of runway each airfield is drawn with** (#493), by id, the whole runway's
+   *  `RUNWAY_MODULES` when absent: decided as `mirrored` is (`fitRunways`), kept over a rebuild. */
+  private readonly runways = new Map<string, number>();
   private maquettes: ReadonlyArray<StandingMaquette> = [];
   private drawn = '';
   /** **A flag running up or down its pole** (#279), by the maquette's id: kept over a rebuild. */
@@ -852,6 +860,7 @@ export class MaquetteLayer implements SequenceHost {
     this.byId.clear();
     const standing = new Set(this.maquettes.map(({ id }) => id));
     for (const id of this.mirrored) if (!standing.has(id)) this.mirrored.delete(id);
+    for (const id of this.runways.keys()) if (!standing.has(id)) this.runways.delete(id);
     for (const maquette of this.maquettes) {
       this.held.delete(maquette.id);
       const ground =
@@ -863,13 +872,15 @@ export class MaquetteLayer implements SequenceHost {
       // The level and the state: two barracks of two levels do not share their meshes.
       const shown = accessoriesShown(maquette.level ?? 1, maquette.works?.phase);
       const mirrored = this.mirrored.has(maquette.id);
+      // An airfield with its runway cut short is another file's scene (#493).
+      const url = withRunway(maquette.url, this.runways.get(maquette.id) ?? RUNWAY_MODULES);
       const key = maquette.works
-        ? `${maquette.url} works ${maquette.id} ${mirrored}`
-        : `${maquette.url} ${maquette.washed} ${shown.join()} ${maquette.pose ?? ''} ${mirrored}`;
+        ? `${url} works ${maquette.id} ${mirrored}`
+        : `${url} ${maquette.washed} ${shown.join()} ${maquette.pose ?? ''} ${mirrored}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {
         lot = {
-          url: maquette.url,
+          url,
           washed: maquette.washed,
           ...(maquette.pose !== undefined && { pose: maquette.pose }),
           mirrored,
@@ -887,7 +898,7 @@ export class MaquetteLayer implements SequenceHost {
         this.group.add(lot.group);
         const landing = lot;
         // A model that fails to load leaves the plates; `modelOf` has said why.
-        modelOf(maquette.url, maquette.metres, maquette.pose, mirrored).then(
+        modelOf(url, maquette.metres, maquette.pose, mirrored).then(
           (model) => this.landed(landing, model, maquette.washed),
           () => {},
         );
@@ -920,6 +931,7 @@ export class MaquetteLayer implements SequenceHost {
         working: maquette.working === true && !maquette.works && !maquette.washed,
         smokes: [],
         settledAt: null,
+        fit: null,
         lisere: lisereOf(maquette),
         flag: maquette.flag === undefined ? null : new Color(maquette.flag),
         capture: maquette.capture ?? null,
@@ -941,7 +953,8 @@ export class MaquetteLayer implements SequenceHost {
       .map(([id, { item, lot }]) =>
         id.startsWith('building-port')
           ? `${id}:${item.at.x.toFixed(4)},${item.at.z.toFixed(4)},${item.scale},${lot.model !== null},${lot.mirrored}`
-          : `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)}`,
+          : // An airfield's runway: its side and its length move where a thread leaves (#493).
+            `${id}:${item.ground.x.toFixed(3)},${item.ground.z.toFixed(3)},${lot.mirrored},${lot.url}`,
       )
       .sort()
       .join(';');
@@ -976,11 +989,13 @@ export class MaquetteLayer implements SequenceHost {
    * An airfield is read by its label's id, `building-airfield@…`.
    */
   runwayAt(x: number, z: number): readonly [number, number] | null {
-    for (const [id, { item }] of this.byId) {
+    for (const [id, { item, lot }] of this.byId) {
       if (!id.startsWith('building-airfield')) continue;
       if (Math.hypot(item.ground.x - x, item.ground.z - z) > RUNWAY_TOLERANCE) continue;
-      // Toward its free end, its model's -x, as the site was turned to keep it on land (#436).
-      return [-Math.cos(item.yaw), Math.sin(item.yaw)];
+      // Toward its free end, its model's -x, as the site was turned to keep it on land (#436) —
+      // the other way for an airfield drawn in mirror (#493).
+      const way = lot.model === null ? 1 : flipOf(lot.model);
+      return [-way * Math.cos(item.yaw), way * Math.sin(item.yaw)];
     }
     return null;
   }
@@ -1071,7 +1086,40 @@ export class MaquetteLayer implements SequenceHost {
       if (model) this.pose(item, model);
     });
     // Every site is placed: the ports' sides read their neighbours as they stand.
-    if (this.mirrorPorts()) this.rebuild();
+    if (this.mirrorSites()) this.rebuild();
+  }
+
+  /** **Which ports are in mirror, and how each airfield's runway lies**: the lots are drawn again
+   *  when either changed. Both are decided, never short-circuited. */
+  private mirrorSites(): boolean {
+    const ports = this.mirrorPorts();
+    const runways = this.fitRunways();
+    return ports || runways;
+  }
+
+  /**
+   * **How each airfield's runway lies** (#493), once its model has landed and the coast's line is
+   * known: its side (`mirrored`, as a port's) and its modules, the fit `pose` found. `true` when
+   * any changed: the lots are drawn again, each airfield in the lot of its own variant.
+   */
+  private fitRunways(): boolean {
+    const fields = [...this.byId].filter(([id]) => id.startsWith('building-airfield'));
+    if (fields.some(([, { lot }]) => lot.model === null)) return false;
+    let changed = false;
+    for (const [id, { item, lot }] of fields) {
+      if (item.fit === null) continue;
+      const { mirrored, modules } = item.fit;
+      if (mirrored !== lot.mirrored) {
+        if (mirrored) this.mirrored.add(id);
+        else this.mirrored.delete(id);
+        changed = true;
+      }
+      if (modules !== lot.model!.runwayModules) {
+        this.runways.set(id, modules);
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   /**
@@ -1128,6 +1176,7 @@ export class MaquetteLayer implements SequenceHost {
     const shore = edge === undefined ? null : this.seaFront(item.ground.x, item.ground.z);
     const size = sizeOf(model, item);
     let yaw = yawOf(item.id);
+    item.fit = null;
     if (shore !== null) {
       const [sx, sz] = shore.seaward;
       yaw = Math.atan2(sx, sz);
@@ -1156,6 +1205,21 @@ export class MaquetteLayer implements SequenceHost {
         }
         at.set(at.x + step * sx, at.y, at.z + step * sz);
       }
+    } else if (
+      model.socle &&
+      model.runway &&
+      this.seaFront(item.ground.x, item.ground.z)?.line != null
+    ) {
+      // An airfield on the coast's line (#493): its runway goes over to the other side, turns,
+      // then is cut short, as `fitRunway` says. Before the line is known it only turns, below.
+      item.fit = fitRunway((x, z, turn) => {
+        const [cos, sin] = [Math.cos(yaw + turn), Math.sin(yaw + turn)];
+        return this.onLand(
+          item.at.x + size * (x * cos + z * sin),
+          item.at.z + size * (-x * sin + z * cos),
+        );
+      });
+      yaw += item.fit.turn;
     } else if (model.socle) {
       const wet = (turn: number) => {
         const { min, max } = model.box;
@@ -1196,7 +1260,7 @@ export class MaquetteLayer implements SequenceHost {
     // Its turn, and a port's place on its coast, waited on its model: each stands on its ring.
     for (const item of lot.items) this.pose(item, model);
     // A port the coast turns over is drawn again, in the lot of its side: not this one.
-    if (this.mirrorPorts()) {
+    if (this.mirrorSites()) {
       this.rebuild();
       return;
     }
@@ -1454,6 +1518,9 @@ export class MaquetteLayer implements SequenceHost {
     toModel(point: Vector3): Vector3;
     /** Where it wears its seals, out of service (`StandingMaquette.seal`): before its door. */
     readonly door: StandingMaquette['seal'] | null;
+    /** How long its runway is drawn, in its metres (#493): `0` for none, or for a site with no
+     *  runway. */
+    readonly runway: number;
   } | null {
     const dressed = this.byId.get(id);
     const model = dressed?.lot.model;
@@ -1480,6 +1547,7 @@ export class MaquetteLayer implements SequenceHost {
         return here.setX(way * here.x);
       },
       door: item.seal,
+      runway: model.runway ? runwayLength(model.runwayModules) : 0,
     };
   }
 
@@ -1568,6 +1636,8 @@ export class MaquetteLayer implements SequenceHost {
     toBoard(point: Vector3): Vector3;
     /** Drawn in mirror (#476): the rests kept from the other side are no longer where they were. */
     mirrored: boolean;
+    /** The modules of runway it is drawn with (#493): a runway cut short sets its rests anew. */
+    modules: number;
   } | null {
     const held = this.held.get(id);
     const dressed = this.byId.get(id);
@@ -1607,6 +1677,7 @@ export class MaquetteLayer implements SequenceHost {
         scale,
         toBoard,
         mirrored,
+        modules: model.runwayModules,
       };
     }
     // The hulls of a port keep its quay.
@@ -1625,6 +1696,7 @@ export class MaquetteLayer implements SequenceHost {
         scale,
         toBoard,
         mirrored,
+        modules: model.runwayModules,
       };
     }
     const edge = quay ? quayStep(item, model, pile * pieceScale.size) : null;
@@ -1639,6 +1711,7 @@ export class MaquetteLayer implements SequenceHost {
         scale,
         toBoard,
         mirrored,
+        modules: model.runwayModules,
       };
     // The site is drawn at its ring's scale; the pile, at the size it is handed in at (#433).
     const foot = garrisonFoot(span * scale, pile) * pieceScale.size * near;
@@ -1652,6 +1725,7 @@ export class MaquetteLayer implements SequenceHost {
       scale,
       toBoard,
       mirrored,
+      modules: model.runwayModules,
     };
   }
 
@@ -1705,7 +1779,7 @@ export class MaquetteLayer implements SequenceHost {
       const site = this.siteOf(id);
       if (dressed === undefined || site === null) continue;
       const scale = sizeOf(dressed.lot.model!, dressed.item);
-      for (const { reach, at } of RUNWAY_HALOS) {
+      for (const { reach, at } of halosOf(dressed.lot.model!.runwayModules)) {
         const share = lit.get(reach) ?? 0;
         if (share > 0)
           emit(site.toBoard(at), RUNWAY_HALO_RADIUS * scale, dressed.item.near * share);
@@ -1883,7 +1957,13 @@ export class MaquetteLayer implements SequenceHost {
   }
 }
 
-const RUNWAY_HALOS = runwayHalos();
+const halos = new Map<number, ReturnType<typeof runwayHalos>>();
+/** **The halos of a runway of `count` modules** (#498, #493), laid once. */
+function halosOf(count: number): ReturnType<typeof runwayHalos> {
+  let laid = halos.get(count);
+  if (laid === undefined) halos.set(count, (laid = runwayHalos(undefined, count)));
+  return laid;
+}
 
 const hundredths = (weight: number): number => Math.round(weight * 100) / 100;
 

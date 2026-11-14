@@ -4,12 +4,16 @@ import {
   type AirRole,
   ALT,
   APPROACH,
+  approachOf,
   doorCourse,
+  filOf,
   FIL,
   formation,
   groundAt,
   landing,
+  AIRFIELD_LANES,
   parkingZ,
+  runwayMinimum,
   type Track,
   takeoff,
 } from './airfield';
@@ -81,6 +85,47 @@ describe('a plane lands and comes back to its yard (#269)', () => {
     const touched = heights.findIndex((y) => y < 0.2);
     const after = heights.slice(touched, touched + 60);
     expect(Math.max(...after)).toBeGreaterThan(0.8);
+  });
+});
+
+describe('a runway cut short (#493)', () => {
+  const short = 140;
+  const x0 = AIRFIELD.runway.x1 - short;
+
+  it('moves its thread and its approach in with its free end', () => {
+    expect(filOf(AIRFIELD.runway.length)).toEqual(FIL);
+    expect(approachOf(AIRFIELD.runway.length)).toEqual(APPROACH);
+    expect(filOf(short).x).toBe(x0 - 90);
+    expect(approachOf(short).x).toBe(x0 - 140);
+  });
+
+  it.each(ROLES)('%s: takes off and ends on the thread of the short runway', (role) => {
+    const track = takeoff(role, place, 0, short);
+    expect(track.at(track.ms).x).toBeCloseTo(filOf(short).x, 0);
+    expect(worstStep(track)).toBeLessThan(1.2);
+    // It rolls on the runway that remains: never past its free end before it lifts.
+    for (let t = track.leaves; t >= 0; t -= 50) expect(track.at(t).x).toBeGreaterThan(x0);
+  });
+
+  it.each(ROLES)('%s: lands on the short runway and comes back to its yard', (role) => {
+    const track = landing(role, place, short);
+    expect(track.at(0).x).toBe(approachOf(short).x);
+    expect(worstStep(track)).toBeLessThan(1.2);
+    expect(track.at(track.ms).x).toBeCloseTo(place.x, 3);
+  });
+
+  it('rolls on a ground that stops at the free end of the cut runway', () => {
+    expect(groundAt(x0 + 1, AIRFIELD.runway.z, short)).toBe(0.1);
+    expect(groundAt(x0 - 1, AIRFIELD.runway.z, short)).toBe(0);
+    expect(groundAt(x0 - 1, AIRFIELD.runway.z)).toBe(0.1);
+  });
+
+  it('the longest run to its lift, from the farthest lane, is the minimum a runway is drawn at', () => {
+    for (const role of ROLES) {
+      const min = runwayMinimum();
+      const track = takeoff(role, { x: AIRFIELD_LANES[0], z: parkingZ(4.5) }, 0, min);
+      expect(track.at(track.leaves).x).toBeGreaterThanOrEqual(AIRFIELD.runway.x1 - min - 0.01);
+    }
   });
 });
 

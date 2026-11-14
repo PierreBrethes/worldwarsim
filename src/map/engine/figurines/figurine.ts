@@ -17,7 +17,7 @@ import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
 import { bakedRig } from '../baking';
 import { pieceScale } from '../piece-scale';
-import { dressedScene } from '../site-kits';
+import { dressedScene, splitRunway } from '../site-kits';
 import { crewOf, hasGun, POSED, squadOf } from './infantry';
 
 /**
@@ -214,7 +214,7 @@ const scenes = new Map<string, Promise<Object3D>>();
 export function sceneOf(url: string): Promise<Object3D> {
   let scene = scenes.get(url);
   if (!scene) {
-    scene = fileOfUrl(url).then((file) => dressedScene(url, file, fileOfUrl));
+    scene = fileOfUrl(splitRunway(url).file).then((file) => dressedScene(url, file, fileOfUrl));
     scenes.set(url, scene);
   }
   return scene;

@@ -27,6 +27,7 @@ import {
   MOLE,
   POSITION_LIGHTS,
 } from '@/emblems/kits/manifest';
+import { RUNWAY_MODULES, runwayModules } from './runway-fit';
 
 /** **The lamps the night lights** (`warmPieces`): a kit's `feux`, the position lights. */
 export const LAMP = 'feux';
@@ -35,6 +36,22 @@ export const LAMP = 'feux';
 export const RUNWAY_LIGHTS = 'feux_piste';
 
 type Load = (url: string) => Promise<Object3D>;
+
+/** **An airfield whose runway is cut short** (#493) is its file's url and this fragment, the
+ *  number of modules kept: one scene, one model and one rig to each length. */
+const RUNWAY_FRAGMENT = '#piste=';
+
+/** **The url of an airfield with `modules` of its runway**; the whole one's is the file's own. */
+export const withRunway = (url: string, modules: number): string =>
+  modules === RUNWAY_MODULES ? url : `${url}${RUNWAY_FRAGMENT}${modules}`;
+
+/** **A url's file and the modules of runway it asks for** (the whole runway without a fragment). */
+export function splitRunway(url: string): { file: string; modules: number } {
+  const at = url.indexOf(RUNWAY_FRAGMENT);
+  return at < 0
+    ? { file: url, modules: RUNWAY_MODULES }
+    : { file: url.slice(0, at), modules: Number(url.slice(at + RUNWAY_FRAGMENT.length)) };
+}
 
 /**
  * **The runway's edge lights on, in a copy of its airfield** (#269): its `feux_piste` become lamps
@@ -73,8 +90,13 @@ const LIT = new Map<string, UnitRole>(
  * every bake reads — the maquette's, the articulated copy's, the figurine's.
  */
 export async function dressedScene(url: string, scene: Object3D, load: Load): Promise<Object3D> {
-  if (url === BUILDING_MAQUETTES.airfield) scene.add(...(await airfieldKit(scene, load)));
-  else if (url === BUILDING_MAQUETTES.port) scene.add(await moleKit(load));
+  const { file, modules } = splitRunway(url);
+  if (file === BUILDING_MAQUETTES.airfield) {
+    // A copy of its own: the file's scene is shared by every length of runway.
+    const own = scene.clone(true);
+    own.add(...(await airfieldKit(own, load, modules)));
+    return own;
+  } else if (url === BUILDING_MAQUETTES.port) scene.add(await moleKit(load));
   else {
     const role = LIT.get(url);
     if (role !== undefined) {
@@ -102,13 +124,13 @@ function ownCopy(material: Material | null, color: string, name: string): Materi
   return copy;
 }
 
-async function airfieldKit(site: Object3D, load: Load): Promise<Object3D[]> {
+async function airfieldKit(site: Object3D, load: Load, count: number): Promise<Object3D[]> {
   const [kit, windsock] = await Promise.all([load(KITS.piste), load(KITS.manche)]);
   const runway = new Group();
   runway.name = 'piste';
   const lamp = materialOf(kit, LAMP);
   let along = 0;
-  for (const [name, metres, way] of AIRFIELD.modules) {
+  for (const [name, metres, way] of runwayModules(count)) {
     const module = kit.getObjectByName(name)!.clone(true);
     module.position.set(AIRFIELD.runway.x1 - (along + metres / 2), 0, AIRFIELD.runway.z);
     module.rotation.set(0, (way * Math.PI) / 2, 0);

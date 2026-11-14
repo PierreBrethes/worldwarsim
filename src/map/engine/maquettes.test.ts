@@ -95,12 +95,19 @@ vi.mock('./figurines/figurine', async (original) => {
     const { sceneOfFile } = await import('./gltf-scene.fixture');
     if (url === 'socle.glb') return sceneOfFile('src/emblems/buildings/barracks.glb');
     if (url === 'port.glb') return sceneOfFile('src/emblems/buildings/port.glb');
-    if (url === 'airfield.glb') {
-      // With its runway laid as the engine lays it, a plain slab in its place (`dressedScene`).
+    if (url.startsWith('airfield.glb')) {
+      // With its runway laid as the engine lays it, a plain slab in its place (`dressedScene`),
+      // as long as its url's fragment says (#493); none, an empty group, for no module.
       const { AIRFIELD } = await import('@/emblems/kits/manifest');
+      const { splitRunway } = await import('./site-kits');
+      const { runwayLength } = await import('./runway-fit');
+      const length = runwayLength(splitRunway(url).modules);
       const site = sceneOfFile('src/emblems/buildings/airfield.glb');
-      const { x1, length, z, half } = AIRFIELD.runway;
-      const runway = new Mesh(new BoxGeometry(length, 0.1, 2 * half), new MeshStandardMaterial());
+      const { x1, z, half } = AIRFIELD.runway;
+      const runway =
+        length === 0
+          ? new Group()
+          : new Mesh(new BoxGeometry(length, 0.1, 2 * half), new MeshStandardMaterial());
       runway.name = 'piste';
       runway.position.set(x1 - length / 2, 0, z);
       return site.add(runway);
@@ -1539,6 +1546,111 @@ describe('an airfield and its runway (#269)', () => {
       for (const [reach, material] of lamps) material.userData.lit = reach === 10 ? 0.5 : 0;
       expect(lightsOnly().length - before).toBe(2);
     }
+  });
+});
+
+describe('an airfield whose runway the coast presses (#493)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const ID = 'building-airfield@0,0';
+  const airfield = {
+    id: ID,
+    at: { lonLat: [0, 0] as const },
+    url: 'airfield.glb',
+    span: buildingSpan('airfield'),
+    metres: buildingMetres('airfield'),
+    footprint: buildingFootprint('airfield'),
+    reach: buildingReach('airfield'),
+    socle: true,
+    washed: false,
+  };
+  const known: SeaFront = { seaward: [1, 0], line: [0.1, 0.3] };
+  const layerOf = async (
+    onLand: (x: number, z: number) => boolean,
+    shore: SeaFront | null = known,
+  ) => {
+    const layer = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      onLand,
+      () => shore,
+    );
+    layer.display([airfield]);
+    await vi.waitFor(() => expect(layer.isDressed(ID)).toBe(true));
+    layer.orient(new Vector3(0, 0.5, 0.5), null, 0);
+    return layer;
+  };
+  /** Which way, on the board, the plain runway's free end lies, and the board units to a metre. */
+  const plain = async () => {
+    const layer = await layerOf(() => true, null);
+    const site = layer.siteOf(ID)!;
+    const origin = site.toBoard(new Vector3());
+    const free = site.toBoard(new Vector3(-1, 0, 0)).sub(origin);
+    return { origin, metre: free.length(), free: free.normalize() };
+  };
+  /** Sea past `s` metres from the site's middle toward the plain free end. */
+  const seaPast = async (s: number) => {
+    const { origin, metre, free } = await plain();
+    return (x: number, z: number) =>
+      ((x - origin.x) * free.x + (z - origin.z) * free.z) / metre < s;
+  };
+  /** Sea past `r` metres from the site's middle, every way: a little island. */
+  const island = async (r: number) => {
+    const { origin, metre } = await plain();
+    return (x: number, z: number) => Math.hypot(x - origin.x, z - origin.z) / metre < r;
+  };
+
+  it('lays it on the other side, in mirror, when its free end is in the sea', async () => {
+    const layer = await layerOf(await seaPast(100));
+    const site = layer.siteOf(ID)!;
+    const land = await seaPast(100);
+    const { x1, length, z, half } = AIRFIELD.runway;
+    for (const dz of [-half, half])
+      for (const x of [x1, x1 - length]) {
+        const at = site.toBoard(new Vector3(x, 0, z + dz));
+        expect(land(at.x, at.z)).toBe(true);
+      }
+    expect(site.runway).toBe(AIRFIELD.runway.length);
+    // Its takeoff leaves toward the free end, now the other way.
+    const { free } = await plain();
+    const way = layer.runwayAt(0, 0)!;
+    expect(way[0]).toBeCloseTo(-free.x, 6);
+    expect(way[1]).toBeCloseTo(-free.z, 6);
+  });
+
+  it('cuts it short, to the modules that stay on land, from the free end in', async () => {
+    const layer = await layerOf(await island(150));
+    const site = layer.siteOf(ID)!;
+    expect(site.runway).toBeLessThan(AIRFIELD.runway.length);
+    expect(site.runway).toBeGreaterThanOrEqual(138);
+    // Whole modules only.
+    const { runwayLength } = await import('./runway-fit');
+    expect(Array.from({ length: 19 }, (_, n) => runwayLength(n))).toContain(site.runway);
+  });
+
+  it('does not draw it under the minimum, and keeps its way out', async () => {
+    const layer = await layerOf(await island(135));
+    expect(layer.siteOf(ID)!.runway).toBe(0);
+    expect(layer.runwayAt(0, 0)).not.toBeNull();
+  });
+
+  it('keeps it whole and plain while the coast’s line is unknown', async () => {
+    const layer = await layerOf(await seaPast(100), null);
+    expect(layer.siteOf(ID)!.runway).toBe(AIRFIELD.runway.length);
+  });
+
+  it('draws the key of an airfield again when its variant turns, its place unmoved', async () => {
+    let land: (x: number, z: number) => boolean = () => true;
+    const layer = await layerOf((x, z) => land(x, z));
+    const before = layer.runwaysKey();
+    land = await island(150);
+    layer.resize();
+    await vi.waitFor(() => expect(layer.siteOf(ID)!.runway).toBeLessThan(170));
+    await vi.waitFor(() => expect(layer.isDressed(ID)).toBe(true));
+    expect(layer.runwaysKey()).not.toBe(before);
   });
 });
 

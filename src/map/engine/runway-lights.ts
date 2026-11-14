@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import { AIRFIELD } from '@/emblems/kits/manifest';
+import { RUNWAY_MODULES, runwayModules } from './runway-fit';
 
 /** **How long the first light takes to reach the runway's end**, ms. `@a-mesurer` */
 export const LIGHT_WAVE_MS = 1400;
@@ -11,10 +12,16 @@ const clamp01 = (k: number): number => Math.min(1, Math.max(0, k));
 /**
  * **How lit the runway's lights are `reach` metres out from the hangars' end, `t` ms into a
  * movement of `ms`** (#497, storyboard « La nuit »): they come on from the hangars out, then all
- * go out together in the movement's last `LIGHT_FADE_MS`. 0 out, 1 lit.
+ * go out together in the movement's last `LIGHT_FADE_MS`. 0 out, 1 lit. A runway cut short
+ * (#493) is `length` metres long, and its wave takes as long to reach its end.
  */
-export function runwayLit(reach: number, t: number, ms: number): number {
-  const start = (reach / AIRFIELD.runway.length) * LIGHT_WAVE_MS;
+export function runwayLit(
+  reach: number,
+  t: number,
+  ms: number,
+  length: number = AIRFIELD.runway.length,
+): number {
+  const start = (reach / length) * LIGHT_WAVE_MS;
   const on = clamp01((t - start) / LIGHT_FADE_MS);
   const off = clamp01((ms - t) / LIGHT_FADE_MS);
   return Math.min(on, off);
@@ -35,15 +42,16 @@ export type RunwayHalo = { readonly reach: number; readonly at: Vector3 };
 /**
  * **The halos of a runway's lights**, in the site's frame (`AIRFIELD.runway`), for `toBoard` to
  * carry to the board: one to a light — two to a module but the ends'; past `cap`, one to a module,
- * at its axis. The `reach` is the one `runwayLit` is asked.
+ * at its axis. The `reach` is the one `runwayLit` is asked. A runway of `count` modules (#493) has
+ * the lights of those.
  */
-export function runwayHalos(cap = RUNWAY_HALO_CAP): RunwayHalo[] {
+export function runwayHalos(cap = RUNWAY_HALO_CAP, count = RUNWAY_MODULES): RunwayHalo[] {
   const { x1, z } = AIRFIELD.runway;
   const { across, along: shift, height } = LAMP_AT;
   const lamps: RunwayHalo[] = [];
   const axes: RunwayHalo[] = [];
   let out = 0;
-  for (const [name, metres, way] of AIRFIELD.modules) {
+  for (const [name, metres, way] of runwayModules(count)) {
     const reach = out + metres / 2;
     out += metres;
     if (name === 'piste_bout') continue;
