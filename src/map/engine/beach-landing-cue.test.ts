@@ -72,24 +72,27 @@ describe('landOnBeach when its canots cannot play (#509)', () => {
     file = { boats: [{ node: 'boat_left' as const, rest: [1, 1, -3] as const }], astern: -9 },
     coast = {} as object | null,
     motion = 'full' as MapMotion,
+    men = ['p/0'],
+    empty = [] as string[],
   } = {}) => {
     const { MapEngine } = await import('./index');
     const arrive = vi.fn();
     const inkArrival = vi.fn();
     const loadCoast = vi.fn();
+    const play = vi.fn((..._args: unknown[]) => true);
     const squad = { at: new Vector3(), front: new Vector3(1, 0, 0), men: [new Vector3(1, 0, 1)] };
     const box = { getSize: (v: Vector3) => v.set(1, 2, 1) };
     const engine = Object.assign(Object.create(MapEngine.prototype) as object, {
       standing: {
         piecesOf: () => ({ groups: [{ role: 'infantry' }, { role: 'cargo' }] }),
         pieceOf: () => ({ box, url: 'cargo.glb' }),
-        placeOf: () => squad,
+        placeOf: (id: string) => (empty.includes(id) ? { ...squad, men: [] } : squad),
         anchor: () => {},
         frameOf: () => new Matrix4(),
         arrive,
         inkArrival,
       },
-      sequences: { motion, roomFor: () => roomFor, playsOn: () => false, play: () => true },
+      sequences: { motion, roomFor: () => roomFor, playsOn: () => false, play },
       veiled: () => false,
       seenBig: () => true,
       landAt: () => true,
@@ -98,8 +101,8 @@ describe('landOnBeach when its canots cannot play (#509)', () => {
       frame: { lonLatAt: () => [0, 0], centerX: 0, centerY: 0 },
       boatsOfFile: () => file,
     }) as unknown as { landOnBeach: (l: unknown, now: number) => boolean };
-    const done = engine.landOnBeach({ cue: cue() }, 0);
-    return { done, arrive, inkArrival, loadCoast };
+    const done = engine.landOnBeach({ cue: { ...cue(), men } }, 0);
+    return { done, arrive, inkArrival, loadCoast, play };
   };
 
   it('plays the boats when all is there: the pile stands with the plan, once', async () => {
@@ -139,6 +142,12 @@ describe('landOnBeach when its canots cannot play (#509)', () => {
 
   it('leaves a ring of ink where the sequence did not play, under the rule of the other settings', async () => {
     expect((await land({ roomFor: 0 })).inkArrival).toHaveBeenCalledWith('p');
+  });
+
+  it('plays each squad that has men on its own sequence when another has none', async () => {
+    const { done, play } = await land({ men: ['p/0', 'p/2'], empty: ['p/0'] });
+    expect(done).toBe(true);
+    expect(play.mock.calls.map((call) => (call as unknown[])[1])).toEqual(['p/1', 'p/2']);
   });
 });
 
@@ -319,12 +328,16 @@ describe('startBeachBoarding (#510)', () => {
     motion = 'full' as MapMotion,
     role = 'cargo',
     veiled = false,
+    ids = ['p/+t1'],
+    bare = false,
+    empty = [] as string[],
+    riders = embark.riders,
   } = {}) => {
     const { MapEngine } = await import('./index');
     const arrive = vi.fn();
     const inkArrival = vi.fn();
     const unboard = vi.fn();
-    const board = vi.fn((..._args: unknown[]) => ['p/+t1']);
+    const board = vi.fn((..._args: unknown[]) => ids);
     const loadCoast = vi.fn();
     const play = vi.fn(() => true);
     const squad = { at: new Vector3(), front: new Vector3(1, 0, 0), men: [new Vector3(1, 0, 1)] };
@@ -332,8 +345,8 @@ describe('startBeachBoarding (#510)', () => {
     const engine = Object.assign(Object.create(MapEngine.prototype) as object, {
       standing: {
         piecesOf: () => ({ groups: [{ role: 'infantry' }, { role }] }),
-        pieceOf: () => ({ box, url: 'cargo.glb' }),
-        placeOf: () => squad,
+        pieceOf: () => (bare ? {} : { box, url: 'cargo.glb' }),
+        placeOf: (id: string) => (empty.includes(id) ? { ...squad, men: [] } : squad),
         anchor: () => {},
         frameOf: () => new Matrix4(),
         lastSeen: () => ({ at: new Vector3(), heading: 0 }),
@@ -361,7 +374,7 @@ describe('startBeachBoarding (#510)', () => {
         | null
         | { ms: number; feeds: { at: number; riders: string[] }[]; over(): boolean; end(): void };
     };
-    const started = engine.startBeachBoarding(embark, 0);
+    const started = engine.startBeachBoarding({ ...embark, riders }, 0);
     return { started, arrive, inkArrival, unboard, board, loadCoast, play };
   };
 
@@ -403,5 +416,48 @@ describe('startBeachBoarding (#510)', () => {
     expect(carrier.started).toBeNull();
     expect(carrier.inkArrival).not.toHaveBeenCalled();
     expect(carrier.board).not.toHaveBeenCalled();
+  });
+
+  it('poses a carrier at once, without waiting for its box and file to be drawn', async () => {
+    expect((await start({ role: 'carrier', bare: true })).started).toBeNull();
+    expect((await start({ bare: true })).started).toBe('wait');
+  });
+
+  it('plays two squads with one canot, feeds each when through, and unboards every man it drew', async () => {
+    const riders = [
+      { troopId: 't1', role: 'infantry' as const, figures: [1 as const] },
+      { troopId: 't3', role: 'infantry' as const, figures: [1 as const] },
+    ];
+    const { started, play, unboard } = await start({ ids: ['p/+t1', 'p/+t3'], riders });
+    if (started === null || started === 'wait') throw new Error('expected a boarding');
+    // The cargo and the two squads play together; the second has no boat of its own.
+    expect(play).toHaveBeenCalledTimes(3);
+    // The squad past the boat goes aboard when the boat first grounds, before the other is in.
+    expect(started.feeds.map(({ riders: who }) => who)).toEqual([['t3'], ['t1']]);
+    expect(started.feeds[0]!.at).toBeLessThan(started.feeds[1]!.at);
+    expect(started.feeds[1]!.at).toBeLessThanOrEqual(started.ms);
+    expect(started.over()).toBe(true);
+    started.end();
+    expect(unboard).toHaveBeenCalledWith('p/+t1');
+    expect(unboard).toHaveBeenCalledWith('p/+t3');
+  });
+
+  it('keeps each squad to its own sequence and feed when one drawn squad has no man', async () => {
+    const riders = ['t1', 't2', 't3'].map((troopId) => ({
+      troopId,
+      role: 'infantry' as const,
+      figures: [1 as const],
+    }));
+    const { started, play } = await start({
+      ids: ['p/+t1', 'p/+t2', 'p/+t3'],
+      empty: ['p/+t1'],
+      riders,
+    });
+    if (started === null || started === 'wait') throw new Error('expected a boarding');
+    const ids = play.mock.calls.map((call) => (call as unknown[])[1]);
+    expect(ids).toEqual(['p/1', 'p/+t2', 'p/+t3']);
+    expect(started.feeds.find(({ riders: who }) => who[0] === 't1')!.at).toBe(0);
+    const through = started.feeds.filter(({ at }) => at > 0).map(({ riders: who }) => who[0]);
+    expect(through).toEqual(['t3', 't2']);
   });
 });

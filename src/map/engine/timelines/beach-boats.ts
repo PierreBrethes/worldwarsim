@@ -385,7 +385,7 @@ export function beachBoatsOf(
     }
     const men = squad.men.map((place, k) => {
       const start = trip.beach + T.manFirst + k * T.manGap;
-      const sand = lerp(bow, place, 0.25);
+      const sand = sandOf(bow, place);
       const walk = Math.max(1, gap(sand, place) / speed);
       return { place, start, sand, walk, toSand: headingOf(bow, sand), end: start + T.hop + walk };
     });

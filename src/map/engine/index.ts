@@ -4578,9 +4578,9 @@ export class MapEngine {
       this.standing.piecesOf(pileId)?.groups[Number(cue.hull.slice(pileId.length + 1))]?.role;
     const piece = this.standing.pieceOf(cue.hull);
     if (this.standing.placeOf(cue.hull) === null || role === undefined) return 'wait';
-    if (piece?.box == null || piece.url === undefined) return 'wait';
     // Only a cargo has canots: a carrier before a beach is posed at once, as it was.
     if (role !== 'cargo') return null;
+    if (piece?.box == null || piece.url === undefined) return 'wait';
     const file = this.boatsOfFile(piece.url);
     if (file === undefined) return 'wait';
     // The water edge reads the coast: `landAt` does not ask for it, so it is asked for here.
@@ -4606,8 +4606,12 @@ export class MapEngine {
       );
       this.hullDrawn.set(cue, drawn);
     }
-    const squads = drawn.map((id) => this.standing.placeOf(id));
-    if (squads.some((place) => place === null)) return 'wait';
+    const places = drawn.map((id) => this.standing.placeOf(id));
+    if (places.some((place) => place === null)) return 'wait';
+    // A squad with no man drawn has no canot: `assaultOf` leaves it out, so ids and squads stay aligned here.
+    const crews = drawn.flatMap((id, n) =>
+      places[n]!.men.length > 0 ? [{ id, place: places[n]! }] : [],
+    );
     const size = new Vector3();
     const man = Math.max(
       0,
@@ -4625,7 +4629,7 @@ export class MapEngine {
         ? assaultOf({
             frame,
             ...file,
-            squads: squads.map((place) => place!),
+            squads: crews.map(({ place }) => place),
             man,
             wet: (x, z) =>
               !this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
@@ -4637,7 +4641,7 @@ export class MapEngine {
         ? []
         : [
             { id: cue.hull, sequence: plan.cargo as Sequence },
-            ...plan.squads.map((sequence, n) => ({ id: drawn![n]!, sequence })),
+            ...plan.squads.map((sequence, n) => ({ id: crews[n]!.id, sequence })),
           ].map(({ id, sequence }) => ({
             id,
             sequence: { ...sequence, anywhere: true as const, pool: 'boarding' as const },
@@ -4660,12 +4664,12 @@ export class MapEngine {
     const troopOf = (id: string) => id.slice(pileId.length + 2);
     const posed = cue.riders
       .map(({ troopId }) => troopId)
-      .filter((troopId) => !drawn!.some((id) => troopOf(id) === troopId));
+      .filter((troopId) => !crews.some(({ id }) => troopOf(id) === troopId));
     return {
       ms: plan!.settled,
       feeds: [
         ...(posed.length > 0 ? [{ at: 0, riders: posed }] : []),
-        ...drawn.map((id, n) => ({ at: plan!.through[n]!, riders: [troopOf(id)] })),
+        ...crews.map(({ id }, n) => ({ at: plan!.through[n]!, riders: [troopOf(id)] })),
       ].sort((a, b) => a.at - b.at),
       over: () =>
         !drawn!.some((id) => this.sequences.playsOn(this.standing, id)) &&
@@ -4965,6 +4969,10 @@ export class MapEngine {
     const frame = this.standing.frameOf(cue.hull);
     const squads = cue.men.map((id) => this.standing.placeOf(id));
     if (hull === null || frame === null || squads.some((place) => place === null)) return false;
+    // `assaultOf` leaves a squad with no man out: the ids it plays follow the same filter.
+    const crews = cue.men.flatMap((id, n) =>
+      squads[n]!.men.length > 0 ? [{ id, place: squads[n]! }] : [],
+    );
     const size = new Vector3();
     const man = Math.max(
       0,
@@ -4982,7 +4990,7 @@ export class MapEngine {
         ? assaultOf({
             frame,
             ...file,
-            squads: squads.map((place) => place!),
+            squads: crews.map(({ place }) => place),
             man,
             wet: (x, z) =>
               !this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
@@ -4995,7 +5003,7 @@ export class MapEngine {
         ? []
         : [
             { id: cue.hull, sequence: plan.cargo as Sequence },
-            ...plan.squads.map((sequence, n) => ({ id: cue.men[n]!, sequence })),
+            ...plan.squads.map((sequence, n) => ({ id: crews[n]!.id, sequence })),
           ].map(({ id, sequence }) => ({
             id,
             sequence: { ...sequence, anywhere: true as const, pool: 'boarding' as const },
