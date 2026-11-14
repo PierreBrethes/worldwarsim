@@ -33,10 +33,10 @@ describe('the debarkation cue of a cargo (#509)', () => {
       },
       sequences: { motion },
       veiled: () => veiled,
-      beachLandings: [] as unknown[],
-    }) as unknown as { cue: (cue: unknown) => void; beachLandings: unknown[] };
+      debarkations: [] as unknown[],
+    }) as unknown as { cue: (cue: unknown) => void; debarkations: unknown[] };
     engine.cue(cue(ground));
-    return { inkArrival, expectPile, queued: engine.beachLandings.length };
+    return { inkArrival, expectPile, queued: engine.debarkations.length };
   };
 
   it('queues the canots on a beach at full motion, holding the pile', async () => {

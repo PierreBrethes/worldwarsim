@@ -830,7 +830,7 @@ export class MapEngine {
     readonly since: number;
   }> = [];
   /** **Men coming down from a cargo before a beach** (#509), waiting for their pile to stand. */
-  private beachLandings: Array<{
+  private debarkations: Array<{
     readonly cue: Extract<Cue, { kind: 'debarquement' }>;
     readonly since: number;
   }> = [];
@@ -3629,7 +3629,7 @@ export class MapEngine {
         }
         // The hull and its rank hold where they stood until the men are ashore.
         this.standing.expect(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
-        this.beachLandings.push({ cue, since: performance.now() });
+        this.debarkations.push({ cue, since: performance.now() });
         break;
       case 'dispersion':
         if (this.sequences.motion === 'off') break;
@@ -4809,7 +4809,7 @@ export class MapEngine {
    * play together or none does, and the pile stands as it is, a ring of ink at reduced motion.
    * The vehicles are posed at once (#511). `false` until the pile, and its file's boats, stand.
    */
-  private landOnBeach({ cue }: (typeof this.beachLandings)[number], now: number): boolean {
+  private landOnBeach({ cue }: (typeof this.debarkations)[number], now: number): boolean {
     const pileId = cue.hull.slice(0, cue.hull.lastIndexOf('/'));
     const role =
       this.standing.piecesOf(pileId)?.groups[Number(cue.hull.slice(pileId.length + 1))]?.role;
@@ -5995,7 +5995,7 @@ export class MapEngine {
       this.moorings.active ||
       this.planks.length > 0 ||
       this.hullBoardings.active ||
-      this.beachLandings.length > 0 ||
+      this.debarkations.length > 0 ||
       this.gangplanks.active ||
       this.hoists.active ||
       this.standing.isCarrying ||
@@ -6131,7 +6131,7 @@ export class MapEngine {
     this.landings = this.landings.filter(
       (landing) => !this.landOf(landing, now) && now - landing.since < SORTIE_WAIT_MS,
     );
-    this.beachLandings = this.beachLandings.filter(
+    this.debarkations = this.debarkations.filter(
       (landing) => !this.landOnBeach(landing, now) && now - landing.since < SORTIE_WAIT_MS,
     );
     this.dispersions = this.dispersions.filter(
