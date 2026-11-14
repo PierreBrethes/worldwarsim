@@ -26,6 +26,7 @@ import {
   launchLead,
   moors,
   playable,
+  playsInTheatre,
   restAt,
   dockLeads,
   craneSequence,
@@ -563,5 +564,14 @@ describe('the crane comes to the hull that touches the mole (#477)', () => {
     expect(both.ms).toBe(Math.max(slip.ms, sequence().ms));
     const pose = both.at(2000);
     expect(Object.keys(pose)).toEqual(expect.arrayContaining(['coque_cale', 'accore_1', 'cable']));
+  });
+});
+
+describe('what plays in a theatre (#499)', () => {
+  it('forms a plane, never lands one, and plays no hull', () => {
+    expect(playsInTheatre('formation', true)).toBe(true);
+    expect(playsInTheatre('retour', true)).toBe(false);
+    expect(playsInTheatre('formation', false)).toBe(false);
+    expect(playsInTheatre('retour', false)).toBe(false);
   });
 });

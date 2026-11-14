@@ -168,6 +168,7 @@ import {
   isAirRole,
   isSeaRole,
   moors,
+  playsInTheatre,
   slipSequence,
   spotOf,
   trackSequence,
@@ -763,7 +764,7 @@ export class MapEngine {
   /** The departures played, the runways held and the lights on: what the hulls putting to sea
    *  together and the planes of a queue wait for (#487, #478). */
   private airfields = new Runways();
-  /** **Une Blitz** : ni piste ni môle n'y jouent, rien n'y est amarré (Mondiale seule). */
+  /** **Une Blitz** : rien n'y est amarré ; un avion s'y forme et décolle, ne se pose pas, aucune coque ne navigue (#499). */
   private blitz = false;
   /** Columns waiting for their pile to stand before they deploy (#362). */
   private deployments: Array<{
@@ -3573,7 +3574,8 @@ export class MapEngine {
         break;
       case 'formation':
       case 'retour':
-        if (this.blitz) break;
+        if (this.blitz && !playsInTheatre(cue.kind, cue.siteId.startsWith('building-airfield')))
+          break;
         this.standing.arrivedAt(
           cue.pileId,
           cue.groups,
@@ -3586,11 +3588,11 @@ export class MapEngine {
         this.siteWays.push({ cue, since: performance.now() });
         break;
       case 'depart': {
-        if (this.blitz) break;
-        // Its hawsers stand a moment past its pile, until it casts them off (#500).
+        // Its hawsers stand a moment past its pile, until it casts them off (#500); a Blitz
+        // moors nothing, and a plane there takes off all the same (`departOf`, #499).
         const arc = this.arcs.viewOf(cue.arcId);
         const troop = arc?.state === 'mine' ? arc.troopIds[0] : undefined;
-        if (this.sequences.motion === 'full' && troop !== undefined)
+        if (!this.blitz && this.sequences.motion === 'full' && troop !== undefined)
           this.moorings.expectCastOff(troop, performance.now());
         this.siteWays.push({ cue, since: performance.now() });
         break;
