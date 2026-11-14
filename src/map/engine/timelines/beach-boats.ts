@@ -112,6 +112,9 @@ const turnOf = (yaw: number, pitch: number): Vec3 => {
   return [e.x, e.y, e.z];
 };
 
+/** Which way the assault plays: the men `land` from the boats, or `reembark` into them (#510). */
+export type Direction = 'land' | 'reembark';
+
 type Trip = {
   readonly node: 'boat_left' | 'boat_right';
   readonly rest: Vec3;
@@ -137,15 +140,24 @@ type Trip = {
  *
  * En « réduites » rien ne navigue : la pile est sur la plage, un anneau d'encre dessus 0,6 s ; en
  * « coupées », la pile seule.
+ *
+ * **Rembarquer** (#510, `direction: 'reembark'`) : les mêmes canots font le même voyage, mais les
+ * hommes partent de leurs places, marchent au sable, y font face au canot, sautent à son avant et
+ * s'effacent à bord ; le canot attend l'arrivée du dernier, jamais l'inverse. Les escouades
+ * au-delà des canots s'effacent d'un coup au premier échouage. `through` dit, pour chaque escouade,
+ * quand son dernier homme est à bord.
  */
 export function beachBoatsOf(
   assault: Assault,
   motion: MapMotion = 'full',
+  direction: Direction = 'land',
 ): {
   readonly cargo: Sequence<'cargo'> | null;
   readonly squads: ReadonlyArray<Sequence>;
   readonly ring: { readonly at: Flat; readonly ms: number } | null;
   readonly settled: number;
+  /** Per squad, when its last man is down in (or out of) the boat, ms from the start. */
+  readonly through: ReadonlyArray<number>;
 } {
   const { hull, boats, squads, man } = assault;
   const centre = (points: ReadonlyArray<Flat>): Flat => [
@@ -155,7 +167,7 @@ export function beachBoatsOf(
   if (motion !== 'full') {
     const ring =
       motion === 'reduced' ? { at: centre(squads.flatMap((s) => s.men)), ms: RAZE_RING_MS } : null;
-    return { cargo: null, squads: [], ring, settled: ring?.ms ?? 0 };
+    return { cargo: null, squads: [], ring, settled: ring?.ms ?? 0, through: [] };
   }
 
   const cos = Math.cos(hull.heading);
@@ -176,6 +188,18 @@ export function beachBoatsOf(
     (a, b) => Number(sign(b.rest[0]) === shore) - Number(sign(a.rest[0]) === shore),
   );
 
+  const speed = (MAN_SPEED * man) / 1000;
+  /** The bow of a boat aground at the end of `way`, in the board's plane. */
+  const bowOf = (way: ReturnType<typeof wayOf>): Flat => {
+    const end = way.at(1);
+    return toBoard([
+      end.at[0] + Math.sin(end.heading) * (HALF_BOAT - BOW_BACK),
+      end.at[1] + Math.cos(end.heading) * (HALF_BOAT - BOW_BACK),
+    ]);
+  };
+  /** Where a man waits on the sand, a quarter of the way from the bow to his place. */
+  const sandOf = (bow: Flat, place: Flat): Flat => lerp(bow, place, 0.25);
+
   const trips: Trip[] = ordered.slice(0, squads.length).map((boat, i) => {
     const [rx, ry, rz] = boat.rest;
     const out: Vec3 = [rx + sign(rx) * SWING_M, ry, rz];
@@ -192,7 +216,18 @@ export function beachBoatsOf(
           ],
     );
     const run = (way.length / BOAT_MPS) * 1000;
-    const t0 = T.first + i * T.stagger;
+    // Reembarking, the boat waits at its davit for the farthest walker to reach the sand.
+    const toGround = T.out + T.down + run;
+    const arrives = (
+      squads[i]!.men.length > 0 && direction === 'reembark'
+        ? squads[i]!.men.map((place, k) => {
+            const bow = bowOf(way);
+            const walk = Math.max(1, gap(place, sandOf(bow, place)) / speed);
+            return walk - T.manFirst - k * T.manGap - toGround;
+          })
+        : [0]
+    ).reduce((a, b) => Math.max(a, b), 0);
+    const t0 = Math.max(T.first + i * T.stagger, arrives);
     const down = t0 + T.out;
     const go = down + T.down;
     const beach = go + run;
@@ -273,29 +308,81 @@ export function beachBoatsOf(
     },
   };
 
-  const speed = (MAN_SPEED * man) / 1000;
   const squadSequences = squads.map((squad, i): Sequence => {
     const trip = trips[i];
     if (trip === undefined) {
       // Past the boats: aboard and gone until the first boat grounds, then at their places.
       // With no boat at all, they are ashore from the start.
       const appear = trips.length > 0 ? Math.min(...trips.map((x) => x.beach)) : 0;
+      const gone = Object.fromEntries(
+        squad.men.map((_, k) => [`man_${k}`, { fade: 0 } as PartPose]),
+      );
+      return direction === 'reembark'
+        ? // Aboard, all at once, as the first boat grounds, and out of sight to the end.
+          {
+            ms: trips.length > 0 ? cargoMs : 0,
+            at: (t) => (t < appear || t < 0 || t >= cargoMs ? {} : gone),
+          }
+        : {
+            ms: appear,
+            at(t) {
+              if (t < 0 || t >= appear) return {};
+              return gone;
+            },
+          };
+    }
+    // The bow of the boat aground, in the board's plane and height.
+    const bow = bowOf(trip.way);
+    const bowY = BOW_DECK * hull.metre;
+    if (direction === 'reembark') {
+      const crew = squad.men.map((place, k) => {
+        const hopAt = trip.beach + T.manFirst + k * T.manGap;
+        const sand = sandOf(bow, place);
+        const walk = Math.max(1, gap(place, sand) / speed);
+        return {
+          place,
+          sand,
+          hopAt,
+          from: hopAt - walk,
+          toSand: headingOf(place, sand),
+          toBoat: headingOf(sand, bow),
+        };
+      });
       return {
-        ms: appear,
+        ms: cargoMs,
         at(t) {
-          if (t < 0 || t >= appear) return {};
-          return Object.fromEntries(squad.men.map((_, k) => [`man_${k}`, { fade: 0 }]));
+          if (t < 0 || t >= cargoMs) return {};
+          const pose: Record<string, PartPose> = {};
+          crew.forEach((m, k) => {
+            const name = `man_${k}`;
+            if (t < m.from) return;
+            if (t < m.hopAt) {
+              const w = span(t, m.from, m.hopAt);
+              const at = lerp(m.place, m.sand, ease.march(w));
+              pose[name] = {
+                travel: [at[0] - m.place[0], 0, at[1] - m.place[1]],
+                heading: m.toSand + wrap(m.toBoat - m.toSand) * ease.inOut(span(w, 0.8, 1)),
+                stride: (t - m.from) / 1000,
+              };
+            } else if (t < m.hopAt + T.hop) {
+              const h = span(t, m.hopAt, m.hopAt + T.hop);
+              const at = lerp(m.sand, bow, h);
+              pose[name] = {
+                travel: [
+                  at[0] - m.place[0],
+                  bowY * h + Math.sin(Math.PI * h) * HOP_RISE * man,
+                  at[1] - m.place[1],
+                ],
+                heading: m.toBoat,
+                hop: Math.sin(Math.PI * h),
+                fade: 1 - span(h, 0.65, 1),
+              };
+            } else pose[name] = { fade: 0 };
+          });
+          return pose;
         },
       };
     }
-    // The bow of the boat aground, in the board's plane and height.
-    const end = trip.way.at(1);
-    const bowLocal: Flat = [
-      end.at[0] + Math.sin(end.heading) * (HALF_BOAT - BOW_BACK),
-      end.at[1] + Math.cos(end.heading) * (HALF_BOAT - BOW_BACK),
-    ];
-    const bow = toBoard(bowLocal);
-    const bowY = BOW_DECK * hull.metre;
     const men = squad.men.map((place, k) => {
       const start = trip.beach + T.manFirst + k * T.manGap;
       const sand = lerp(bow, place, 0.25);
@@ -340,5 +427,18 @@ export function beachBoatsOf(
   });
 
   const settled = Math.max(cargoMs, ...squadSequences.map((s) => s.ms));
-  return { cargo: trips.length > 0 ? cargo : null, squads: squadSequences, ring: null, settled };
+  const through = squads.map((_, i) =>
+    trips[i] === undefined
+      ? trips.length > 0
+        ? Math.min(...trips.map((x) => x.beach))
+        : 0
+      : trips[i]!.leave,
+  );
+  return {
+    cargo: trips.length > 0 ? cargo : null,
+    squads: squadSequences,
+    ring: null,
+    settled,
+    through,
+  };
 }

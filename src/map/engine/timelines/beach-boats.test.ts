@@ -1,6 +1,7 @@
 import { Euler, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { isRigPart } from '@/emblems/rigs';
+import type { Sequence } from '../sequences';
 import { beachBoatsOf, type Assault } from './beach-boats';
 
 const DEG = Math.PI / 180;
@@ -195,7 +196,7 @@ describe('beachBoatsOf, reduced and off motion (#482)', () => {
 
   it('puts the pile on the beach and nothing else when off', () => {
     const a = beachBoatsOf(scene(), 'off');
-    expect(a).toEqual({ cargo: null, squads: [], ring: null, settled: 0 });
+    expect(a).toEqual({ cargo: null, squads: [], ring: null, settled: 0, through: [] });
   });
 
   it('draws no ring when the motion is full', () => {
@@ -293,5 +294,115 @@ describe('beachBoatsOf, the hull turned and the odd cases (#482)', () => {
       times(a.cargo!.ms).map((t) => boat(a, node, t).at[2]);
     expect(Math.min(...zs('boat_left'))).toBeGreaterThan(-45);
     expect(Math.min(...zs('boat_right'))).toBeLessThanOrEqual(-45);
+  });
+});
+
+/** **The assault the other way** (#510): the same boats, the men walk from their places to the sand,
+ *  hop into the boat's bow face to it, and are gone aboard; the boat then goes home. */
+describe('beachBoatsOf, reembarking (#510)', () => {
+  const back = (over: Partial<Assault> = {}) => beachBoatsOf(scene(over), 'full', 'reembark');
+  const hopOf = (s: Sequence, ms: number, k = 0) =>
+    times(ms).filter((t) => (s.at(t)[`man_${k}` as const]?.hop ?? 0) > 0);
+  const aground = (a: ReturnType<typeof beachBoatsOf>) =>
+    times(a.cargo!.ms).find((t) => boat(a, 'boat_left', t).bowUp > 0.1)!;
+
+  it('leaves the men standing at their places, visible, until they set out', () => {
+    const a = back();
+    expect(a.squads[0]!.at(0)).toEqual({});
+    expect(a.squads[1]!.at(0)).toEqual({});
+  });
+
+  it('sails the boat bow first to the beach, grounds it, and brings it home to its davit', () => {
+    const a = back();
+    expect(boat(a, 'boat_left', 0).at).toEqual([7.18, 6.5, -10.3]);
+    expect(Math.max(...times(a.cargo!.ms).map((t) => boat(a, 'boat_left', t).at[0]))).toBeCloseTo(
+      30,
+      0,
+    );
+    expect(boat(a, 'boat_left', a.cargo!.ms - 1).at[0]).toBeCloseTo(7.18, 0);
+    expect(a.cargo!.at(a.cargo!.ms)).toEqual({});
+  });
+
+  it('has each man walk to the sand, face the boat, hop in and be gone aboard', () => {
+    const a = back();
+    const s = a.squads[0]!;
+    const hop = hopOf(s, s.ms);
+    expect(hop.length).toBeGreaterThan(5);
+    const m = s.at(hop[0]!)['man_0']!;
+    expect(m.travel![1]).toBeGreaterThan(0);
+    // He faces the bow he jumps to: the boat lies seaward of his place, towards -x.
+    expect(Math.sin(m.heading!)).toBeLessThan(-0.9);
+    expect(s.at(hop.at(-1)! + 40)['man_0']).toEqual({ fade: 0 });
+    // Gone aboard to the end: nothing shows him back at his place before the sequence is over.
+    expect(s.at(s.ms - 1)['man_0']).toEqual({ fade: 0 });
+    expect(s.at(s.ms - 1)['man_2']).toEqual({ fade: 0 });
+  });
+
+  it('walks before it hops, and hops only once the boat is aground', () => {
+    const a = back();
+    const s = a.squads[0]!;
+    const strode = times(s.ms).find((t) => s.at(t)['man_0']?.stride !== undefined)!;
+    expect(strode).toBeLessThan(hopOf(s, s.ms)[0]!);
+    expect(hopOf(s, s.ms)[0]!).toBeGreaterThanOrEqual(aground(a));
+    // He is not still walking when he jumps: his stride is over.
+    expect(s.at(hopOf(s, s.ms)[0]!)['man_0']!.stride).toBeUndefined();
+  });
+
+  it('has the men reach the sand together with the boat, whatever their walk: the boat waits on them', () => {
+    const far = back({
+      squads: [squad(-0.16, 1.2), squad(-0.1, 1.2)],
+    });
+    const s = far.squads[0]!;
+    const walkFrom = times(s.ms).find((t) => s.at(t)['man_0']?.stride !== undefined)!;
+    // He sets out from his own place: no jump of a few metres at his first step.
+    const first = s.at(walkFrom)['man_0']!.travel!;
+    expect(Math.hypot(first[0], first[2])).toBeLessThan(0.01);
+    expect(hopOf(s, s.ms)[0]!).toBeGreaterThanOrEqual(aground(far));
+    // And the boat never leaves before the last man is in.
+    const lastIn = Math.max(...hopOf(s, s.ms, 2));
+    const leaves = times(far.cargo!.ms).find(
+      (t) => t > aground(far) && boat(far, 'boat_left', t).bowUp < 0.1,
+    )!;
+    expect(leaves).toBeGreaterThanOrEqual(lastIn);
+  });
+
+  it('says when each squad is through: its last man in, before its boat leaves', () => {
+    const a = back();
+    expect(a.through).toHaveLength(2);
+    const s = a.squads[0]!;
+    expect(a.through[0]!).toBeGreaterThanOrEqual(Math.max(...hopOf(s, s.ms, 2)));
+    expect(a.through[0]!).toBeLessThan(a.cargo!.ms);
+  });
+
+  it('takes the squads past the boats aboard all at once, when the first boat grounds', () => {
+    const a = back({ squads: [squad(-0.16), squad(-0.1), squad(-0.04)] });
+    const extra = a.squads[2]!;
+    const g = aground(a);
+    expect(extra.at(g - 100)).toEqual({});
+    expect(extra.at(g + 100)['man_1']).toEqual({ fade: 0 });
+    expect(extra.at(extra.ms - 1)['man_1']).toEqual({ fade: 0 });
+    expect(a.through[2]!).toBeGreaterThanOrEqual(g - 20);
+    expect(a.through[2]!).toBeLessThanOrEqual(g + 20);
+  });
+
+  it('keeps the rings and the cut motion of the landing', () => {
+    const reduced = beachBoatsOf(scene(), 'reduced', 'reembark');
+    expect(reduced.cargo).toBeNull();
+    expect(reduced.ring!.ms).toBe(600);
+    expect(beachBoatsOf(scene(), 'off', 'reembark')).toEqual({
+      cargo: null,
+      squads: [],
+      ring: null,
+      settled: 0,
+      through: [],
+    });
+  });
+
+  it('keeps the landing as it was: the default way is down the boats', () => {
+    expect(beachBoatsOf(scene()).squads[0]!.at(0)).toEqual({
+      man_0: { fade: 0 },
+      man_1: { fade: 0 },
+      man_2: { fade: 0 },
+    });
   });
 });
