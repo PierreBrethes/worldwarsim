@@ -52,7 +52,10 @@ export class Barges {
     // The ramp is hinged at the bow, standing up when raised, and falls forward.
     const hinge = new Group();
     hinge.position.set(0, floor, length / 2);
-    const plank = new Mesh(new BoxGeometry(width * LANDING_CRAFT.rampWidth, ramp, wall), this.material);
+    const plank = new Mesh(
+      new BoxGeometry(width * LANDING_CRAFT.rampWidth, ramp, wall),
+      this.material,
+    );
     plank.position.y = ramp / 2;
     hinge.add(plank);
     body.add(hinge);
