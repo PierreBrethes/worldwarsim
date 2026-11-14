@@ -4392,14 +4392,9 @@ export class MapEngine {
     const carrier = role === 'carrier';
     // A cargo's door, its marks in the port's metres as the file has them, a port laid in mirror
     // turned back; a carrier has none, its men go up to the deck's edge (read off the file).
-    const marks = carrier
-      ? []
-      : ['fx_passerelle', 'fx_passerelle_tribord'].map((name) =>
-          this.standing.markOf(cue.hull, name),
-        );
-    if (marks.some((mark) => mark === null)) return null;
-    const inPort = marks.map((mark) => site.toModel(mark!));
-    const cargoDoor = carrier ? null : gangwayDoor(inPort);
+    const gate = carrier ? null : this.cargoDoorOf(cue.hull, site);
+    if (!carrier && gate === null) return null;
+    const cargoDoor = gate?.door ?? null;
     const deck = carrier ? this.deckOfFile(this.standing.pieceOf(cue.hull)?.url) : null;
     if (deck === undefined) return 'wait';
     if (carrier && deck === null) return null;
@@ -4459,8 +4454,7 @@ export class MapEngine {
           });
     if (deck !== null && menIds.length > 0 && aboard === null) return null;
     const door = aboard?.head ?? cargoDoor ?? new Vector3();
-    const doorBoard =
-      aboard?.headBoard ?? (cargoDoor === null ? door : marks[inPort.indexOf(cargoDoor)]!);
+    const doorBoard = aboard?.headBoard ?? gate?.doorBoard ?? door;
 
     const plan =
       aboard !== null
@@ -4552,6 +4546,21 @@ export class MapEngine {
           this.gangplanks.clear(cue.hull);
       },
     };
+  }
+
+  /** **A cargo's gangway door**, in the port's metres (`door`) and on the board: of its two marks,
+   *  the one by the mole. `null` while a mark is not drawn. */
+  private cargoDoorOf(
+    hull: string,
+    site: { readonly toModel: (board: Vector3) => Vector3 },
+  ): { readonly door: Vector3; readonly doorBoard: Vector3 } | null {
+    const marks = ['fx_passerelle', 'fx_passerelle_tribord'].map((name) =>
+      this.standing.markOf(hull, name),
+    );
+    if (marks.some((mark) => mark === null)) return null;
+    const inPort = marks.map((mark) => site.toModel(mark!));
+    const door = gangwayDoor(inPort);
+    return { door, doorBoard: marks[inPort.indexOf(door)]! };
   }
 
   /** **The flight deck of a carrier file**, read once the file has landed: `undefined` until then
