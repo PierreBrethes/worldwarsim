@@ -3613,10 +3613,10 @@ export class MapEngine {
         );
         break;
       case 'debarquement':
-        // The canots carry the men to a beach (`landOnBeach`); a quay (#512's), the other settings and
-        // the vehicles (#511) pose the end at once, with a ring of ink where `ringsLeft` says: a quay
-        // is a hull that cannot play, as at a boarding.
-        if (cue.ground === 'quay' || this.sequences.motion !== 'full') {
+        // The men go ashore in canots at a beach (`landOnBeach`), and come off a gangway and a derrick at
+        // a quay (`landAtQuay`); the other settings pose the end at once, with a ring of ink where
+        // `ringsLeft` says (the vehicles at a beach, #511).
+        if (this.sequences.motion !== 'full') {
           const at = this.standing.placeOf(cue.hull)?.at;
           if (
             ringsLeft(this.sequences.motion, {
@@ -4890,6 +4890,127 @@ export class MapEngine {
     return true;
   }
 
+  /**
+   * **A cargo's men and vehicles come off at its quay** (#512, `mer-air` « 1. Au cargo » the other
+   * way): each squad is shown by the dark of the gangway's door, comes down the plank, along the
+   * mole and the quay to the place the pile drew it in (`gangwayOf`, `way: 'off'`); each vehicle is
+   * lifted out of the hold by a mast, set down under its tip and driven to its place
+   * (`hoistedBoarding`, `way: 'off'`). Judged on the hull as a boarding is, all or nothing: what
+   * cannot play (a hull not at the mole, no room, a piece that will not) stands at once, with a ring
+   * of ink. `false` until the hull, its port, its masts and its pile stand.
+   */
+  private landAtQuay({ cue }: (typeof this.debarkations)[number], now: number): boolean {
+    const pileId = cue.hull.slice(0, cue.hull.lastIndexOf('/'));
+    const groups = this.standing.piecesOf(pileId)?.groups;
+    const roleOf = (id: string) => groups?.[Number(id.slice(pileId.length + 1))]?.role;
+    const box = this.standing.pieceOf(cue.hull)?.box;
+    const hull = this.standing.placeOf(cue.hull);
+    if (hull === null || roleOf(cue.hull) === undefined || !box) return false;
+    const veiled = this.veiled(hull.at);
+    const stands = (): true => {
+      if (ringsLeft(this.sequences.motion, { veiled, unplayable: true }))
+        this.standing.inkArrival(pileId);
+      this.standing.arrive(pileId, []);
+      return true;
+    };
+    const verdict = boardingVerdict({
+      role: roleOf(cue.hull)!,
+      post: this.standing.postOf(cue.hull),
+      motion: this.sequences.motion,
+      veiled,
+      big: this.seenBig(box, BOARDING_PX),
+    });
+    if (verdict === 'wait') return false;
+    if (verdict === null) return stands();
+    const site = this.maquettes.siteOf(this.standing.restOf(cue.carrierId)?.site ?? '');
+    const url = this.standing.pieceOf(cue.hull)?.url;
+    const booms = url === undefined ? null : this.boomsOf(url);
+    const frame = this.standing.frameOf(cue.hull);
+    if (site === null || booms === null || frame === null) return false;
+    const gate = this.cargoDoorOf(cue.hull, site);
+    if (gate === null) return stands();
+    this.standing.anchor(cue.hull);
+
+    const vehicles = cue.vehicles.filter((id) => HOISTED_ROLES.has(roleOf(id) ?? ''));
+    const squads = cue.men.map((id) => this.standing.placeOf(id));
+    const places = vehicles.map((id) => this.standing.placeOf(id));
+    if (squads.some((place) => place === null) || places.some((place) => place === null))
+      return false;
+    const size = new Vector3();
+    const sizeOf = (id: string) =>
+      this.standing.pieceOf(id)?.box?.getSize(size) ?? size.set(0, 0, 0);
+    const man = Math.max(0, ...cue.men.map((id) => sizeOf(id).y));
+    const { door, doorBoard } = gate;
+    const board = (x: number, y: number, z: number) => site.toBoard(new Vector3(x, y, z));
+    const portMetre = site.toBoard(new Vector3()).distanceTo(site.toBoard(new Vector3(1, 0, 0)));
+
+    const plan =
+      cue.men.length === 0 || man === 0
+        ? null
+        : gangwayOf({
+            man,
+            way: 'off',
+            squads: squads.map((place) => ({
+              men: place!.men.map((at) => [
+                [at.x, at.y, at.z] as const,
+                ...quayWay(site.toModel(at), door).map((point) => {
+                  const on = board(...point);
+                  return [on.x, on.y, on.z] as const;
+                }),
+              ]),
+            })),
+          });
+    const hoist = hoistedBoarding({
+      booms,
+      frame,
+      toModel: site.toModel,
+      toBoard: site.toBoard,
+      deck: plankFoot(door)[1],
+      way: 'off',
+      vehicles: vehicles.map((id, n) => ({
+        id,
+        rest: places[n]!.at,
+        length: Math.max(sizeOf(id).x, sizeOf(id).z),
+        height: sizeOf(id).y,
+      })),
+    });
+    const playing = [
+      ...(plan?.squads ?? []).map((sequence, n) => ({
+        id: cue.men[n]!,
+        sequence: sequence as Sequence,
+      })),
+      ...hoist.playing,
+    ];
+    if (playing.length === 0 || this.sequences.roomFor('boarding') < playing.length)
+      return stands();
+    const played = playing.filter(({ id, sequence }) =>
+      this.sequences.play(this.standing, id, sequence, now),
+    );
+    // The masts that lift the vehicles out of the hold: the hull's own part.
+    const mastsPlay =
+      hoist.hull === null || this.sequences.play(this.standing, cue.hull, hoist.hull, now);
+    if (played.length < playing.length || !mastsPlay) {
+      for (const { id } of played)
+        this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+      if (mastsPlay && hoist.hull !== null)
+        this.sequences.retime(this.standing, cue.hull, { ms: 0, at: () => ({}) });
+      return stands();
+    }
+    this.standing.arrive(pileId, [Math.max(plan?.settled ?? 0, hoist.settled)]);
+    if (plan !== null)
+      this.gangplanks.lay(
+        cue.hull,
+        doorBoard,
+        board(...plankFoot(door)),
+        now,
+        plan.plank,
+        portMetre,
+      );
+    if (hoist.playing.length > 0)
+      this.hoists.lay(cue.hull, hoist.strokes, now, now + hoist.settled - 1, hoist.metre);
+    return true;
+  }
+
   /** **The canots of a cargo file**, read once the file has landed: `undefined` until then (the
    *  caller waits), and for ever without boat for a file that will not load. */
   private boatsOfFile(url: string): ReturnType<typeof boatsOfScene> | undefined {
@@ -6141,7 +6262,10 @@ export class MapEngine {
       (landing) => !this.landOf(landing, now) && now - landing.since < SORTIE_WAIT_MS,
     );
     this.debarkations = this.debarkations.filter(
-      (landing) => !this.landOnBeach(landing, now) && now - landing.since < SORTIE_WAIT_MS,
+      (landing) =>
+        !(landing.cue.ground === 'quay'
+          ? this.landAtQuay(landing, now)
+          : this.landOnBeach(landing, now)) && now - landing.since < SORTIE_WAIT_MS,
     );
     this.dispersions = this.dispersions.filter(
       (dispersion) => !this.disperseOf(dispersion, now) && now - dispersion.since < SORTIE_WAIT_MS,

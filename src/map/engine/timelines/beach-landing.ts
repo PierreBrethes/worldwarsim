@@ -14,7 +14,7 @@ const ASTERN_CLEAR_M = 4.5;
 /**
  * **Whether a cargo's debarkation plays its boats**: `'play'` for a cargo before a beach, in the
  * field and near enough, at full motion and not under a combat; `null` where the pile stands at
- * once. A quay has no sequence until #512, a carrier or a plane has none at all.
+ * once. A quay is `boardingVerdict`'s (#512), a carrier or a plane has no sequence at all.
  */
 export function landingVerdict(hull: {
   readonly role: string;
