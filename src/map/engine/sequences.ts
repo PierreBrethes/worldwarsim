@@ -202,7 +202,8 @@ export type Cue =
    *  each rider is drawn by its `figures` — where it last stood is read in the engine, as
    *  `boardOf` does (`lastSeen`, `fileLeftBy`). The engine answers every one by feeding its riders
    *  to the tag (`watchBoarded`), played or not; at a cargo's quay the men walk up its gangway
-   *  first (#479), and the tag is fed as each is through the door. */
+   *  first (#479), and before a beach its men go back aboard in the canots (#510): the tag is fed as
+   *  each is through the door, or as each squad is in the boat. */
   | {
       readonly kind: 'embarquement';
       readonly hull: string;

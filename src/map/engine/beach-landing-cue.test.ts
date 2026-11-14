@@ -295,3 +295,113 @@ describe('landAtQuay (#512)', () => {
     expect(late.clearHoist).toHaveBeenCalledWith('p/1');
   });
 });
+
+/** **A cargo's men go back aboard before a beach** (#510): what `startBeachBoarding` plays, what it
+ *  feeds the tag and when, and how it lets the pile stand when the boats cannot play. */
+describe('startBeachBoarding (#510)', () => {
+  const embark = {
+    kind: 'embarquement' as const,
+    hull: 'p/1',
+    carrierId: 'h',
+    ground: 'beach' as const,
+    riders: [
+      { troopId: 't1', role: 'infantry' as const, figures: [1 as const] },
+      { troopId: 't2', role: 'armor' as const, figures: [1 as const] },
+    ],
+  };
+  const start = async ({
+    roomFor = 8,
+    file = { boats: [{ node: 'boat_left' as const, rest: [1, 1, -3] as const }], astern: -9 } as {
+      boats: unknown[];
+      astern: number;
+    } | null,
+    coast = {} as object | null,
+    motion = 'full' as MapMotion,
+    role = 'cargo',
+    veiled = false,
+  } = {}) => {
+    const { MapEngine } = await import('./index');
+    const arrive = vi.fn();
+    const inkArrival = vi.fn();
+    const unboard = vi.fn();
+    const board = vi.fn((..._args: unknown[]) => ['p/+t1']);
+    const loadCoast = vi.fn();
+    const play = vi.fn(() => true);
+    const squad = { at: new Vector3(), front: new Vector3(1, 0, 0), men: [new Vector3(1, 0, 1)] };
+    const box = { getSize: (v: Vector3) => v.set(1, 2, 1) };
+    const engine = Object.assign(Object.create(MapEngine.prototype) as object, {
+      standing: {
+        piecesOf: () => ({ groups: [{ role: 'infantry' }, { role }] }),
+        pieceOf: () => ({ box, url: 'cargo.glb' }),
+        placeOf: () => squad,
+        anchor: () => {},
+        frameOf: () => new Matrix4(),
+        lastSeen: () => ({ at: new Vector3(), heading: 0 }),
+        board,
+        unboard,
+        arrive,
+        inkArrival,
+      },
+      arcs: { fileLeftBy: () => null },
+      hullDrawn: new WeakMap(),
+      sequences: { motion, roomFor: () => roomFor, playsOn: () => false, play, retime: () => {} },
+      veiled: () => veiled,
+      seenBig: () => true,
+      landAt: () => true,
+      coast,
+      loadCoast,
+      frame: { lonLatAt: () => [0, 0], centerX: 0, centerY: 0 },
+      boatsOfFile: () => file ?? undefined,
+    }) as unknown as {
+      startBeachBoarding: (
+        cue: typeof embark,
+        now: number,
+      ) =>
+        | 'wait'
+        | null
+        | { ms: number; feeds: { at: number; riders: string[] }[]; over(): boolean; end(): void };
+    };
+    const started = engine.startBeachBoarding(embark, 0);
+    return { started, arrive, inkArrival, unboard, board, loadCoast, play };
+  };
+
+  it('plays the boats and the men together, and feeds the tag as the squad is through', async () => {
+    const { started, arrive, play, board } = await start();
+    if (started === null || started === 'wait') throw new Error('expected a boarding');
+    // Only the men are drawn: the vehicle (armor) is posed at once, as at a quay before #505.
+    expect(board.mock.calls[0]![1]).toHaveLength(1);
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(arrive).toHaveBeenCalledWith('p', [started.ms]);
+    expect(started.feeds[0]).toEqual({ at: 0, riders: ['t2'] });
+    expect(started.feeds[1]!.riders).toEqual(['t1']);
+    expect(started.feeds[1]!.at).toBeGreaterThan(0);
+    expect(started.feeds[1]!.at).toBeLessThan(started.ms);
+  });
+
+  it('waits for the file and the coast, asking for the coast once', async () => {
+    expect((await start({ file: null })).started).toBe('wait');
+    const { started, loadCoast } = await start({ coast: null });
+    expect(started).toBe('wait');
+    expect(loadCoast).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['the pool is full', { roomFor: 0 }],
+    ['the file hangs no boat', { file: { boats: [], astern: 0 } }],
+    ['the pile is under a combat', { veiled: true }],
+  ])('draws no one, and stands as it is, when %s', async (_, change) => {
+    const { started, unboard, play } = await start(change);
+    expect(started).toBeNull();
+    expect(unboard).toHaveBeenCalledWith('p/+t1');
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it('leaves a ring of ink where the boats did not play, but not for a carrier or when veiled', async () => {
+    expect((await start({ roomFor: 0 })).inkArrival).toHaveBeenCalledWith('p');
+    expect((await start({ veiled: true })).inkArrival).not.toHaveBeenCalled();
+    const carrier = await start({ role: 'carrier' });
+    expect(carrier.started).toBeNull();
+    expect(carrier.inkArrival).not.toHaveBeenCalled();
+    expect(carrier.board).not.toHaveBeenCalled();
+  });
+});

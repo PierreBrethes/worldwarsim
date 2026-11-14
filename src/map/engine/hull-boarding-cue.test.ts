@@ -43,9 +43,17 @@ describe('a hull boarding cue (#504, #479)', () => {
     expect(expectPile).not.toHaveBeenCalled();
   });
 
-  it('feeds every rider to the tag at once off a quay, and at reduced and cut motion', async () => {
+  it('keeps the old count before a beach too, at full motion (#510)', async () => {
+    const { onBoarded, queue, expectPile } = await play('full', 'beach');
+    expect(queue).toHaveBeenCalledTimes(1);
+    expect(onBoarded).not.toHaveBeenCalled();
+    expect(expectPile).toHaveBeenCalledWith('p');
+  });
+
+  it('feeds every rider to the tag at once at reduced and cut motion', async () => {
     for (const [motion, ground] of [
-      ['full', 'beach'],
+      ['reduced', 'beach'],
+      ['off', 'beach'],
       ['reduced', 'quay'],
       ['off', 'quay'],
     ] as const) {
@@ -58,6 +66,7 @@ describe('a hull boarding cue (#504, #479)', () => {
   it('lays a ring of ink under the pile at reduced motion only', async () => {
     expect((await play('reduced')).inkArrival).toHaveBeenCalledWith('p');
     expect((await play('full')).inkArrival).not.toHaveBeenCalled();
+    expect((await play('reduced', 'beach')).inkArrival).toHaveBeenCalledWith('p');
     expect((await play('full', 'beach')).inkArrival).not.toHaveBeenCalled();
   });
 });

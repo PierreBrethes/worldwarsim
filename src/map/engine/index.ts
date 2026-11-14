@@ -1339,7 +1339,10 @@ export class MapEngine {
         this.onBoarded?.(carrierId, riders);
         this.invalidate();
       },
-      start: (cue, now) => this.startHullBoarding(cue, now),
+      start: (cue, now) =>
+        cue.ground === 'beach'
+          ? this.startBeachBoarding(cue, now)
+          : this.startHullBoarding(cue, now),
       unplayed: (cue) => {
         for (const id of this.hullDrawn.get(cue) ?? []) this.standing.unboard(id);
         this.standing.arrive(cue.hull.slice(0, cue.hull.lastIndexOf('/')), []);
@@ -3604,10 +3607,11 @@ export class MapEngine {
         this.boardings.push({ cue, since: performance.now() });
         break;
       case 'embarquement':
-        // A cargo's men go up its gangway, a carrier's up a plank to its deck and down its lift, and the tag is fed as each is through; the
-        // second boarding of a hull, a beach, the other settings and a hull that cannot play pose
-        // the end at once (#479, #506; a cargo's vehicles go up by the derrick, #505).
-        if (this.sequences.motion === 'full' && cue.ground === 'quay') {
+        // A cargo's men go up its gangway, a carrier's up a plank to its deck and down its lift, and
+        // the tag is fed as each is through; before a beach a cargo's men go back aboard in its
+        // canots (#510). The second boarding of a hull, the other settings and a hull that cannot
+        // play pose the end at once (#479, #506; a cargo's vehicles go up by the derrick, #505).
+        if (this.sequences.motion === 'full') {
           if (this.hullBoardings.cue(cue, performance.now())) {
             // The rank holds where it stood until the men are up (`startHullBoarding`).
             this.standing.expect(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
@@ -4552,6 +4556,122 @@ export class MapEngine {
         // Cut before its time (a hand on the pile, the zoom), the plank goes with the men.
         if (plan !== null && cutShort(performance.now() - now, plan.through))
           this.gangplanks.clear(cue.hull);
+      },
+    };
+  }
+
+  /**
+   * **A cargo's men go back aboard before a beach** (#510, the assault the other way): each squad
+   * is drawn where it last stood, walks to the sand, jumps into the bow of the boat that waits
+   * for it and is gone aboard; the boats then go home and are hoisted (`beachBoatsOf`,
+   * `'reembark'`). The tag takes a squad as its last man is in. Judged on the hull as a landing is
+   * (`landingVerdict`), all or nothing; the vehicles are posed at once (#511). `'wait'` while the
+   * hull, its file's boats, the coast and the men are not drawn; `null` where it plays nothing, a
+   * ring of ink where the boats could not play, as at a landing.
+   */
+  private startBeachBoarding(
+    cue: Extract<Cue, { kind: 'embarquement' }>,
+    now: number,
+  ): Started | 'wait' | null {
+    const pileId = cue.hull.slice(0, cue.hull.lastIndexOf('/'));
+    const role =
+      this.standing.piecesOf(pileId)?.groups[Number(cue.hull.slice(pileId.length + 1))]?.role;
+    const piece = this.standing.pieceOf(cue.hull);
+    if (this.standing.placeOf(cue.hull) === null || role === undefined) return 'wait';
+    if (piece?.box == null || piece.url === undefined) return 'wait';
+    // Only a cargo has canots: a carrier before a beach is posed at once, as it was.
+    if (role !== 'cargo') return null;
+    const file = this.boatsOfFile(piece.url);
+    if (file === undefined) return 'wait';
+    // The water edge reads the coast: `landAt` does not ask for it, so it is asked for here.
+    if (this.coast === null) {
+      this.loadCoast();
+      return 'wait';
+    }
+    this.standing.anchor(cue.hull);
+    const hull = this.standing.placeOf(cue.hull);
+    const frame = this.standing.frameOf(cue.hull);
+    if (hull === null || frame === null) return 'wait';
+
+    let drawn = this.hullDrawn.get(cue);
+    if (drawn === undefined) {
+      drawn = this.standing.board(
+        pileId,
+        cue.riders.flatMap(({ troopId, figures, role: kind }) => {
+          const was = this.standing.lastSeen(troopId) ?? this.arcs.fileLeftBy(troopId);
+          return kind !== 'infantry' || was === null
+            ? []
+            : [{ troopId, figures, role: kind, at: was.at, heading: was.heading }];
+        }),
+      );
+      this.hullDrawn.set(cue, drawn);
+    }
+    const squads = drawn.map((id) => this.standing.placeOf(id));
+    if (squads.some((place) => place === null)) return 'wait';
+    const size = new Vector3();
+    const man = Math.max(
+      0,
+      ...drawn.map((id) => this.standing.pieceOf(id)?.box?.getSize(size).y ?? 0),
+    );
+    const veiled = this.veiled(hull.at);
+    const assault =
+      landingVerdict({
+        role,
+        ground: cue.ground,
+        motion: this.sequences.motion,
+        veiled,
+        big: this.seenBig(piece.box, LANDING_PX),
+      }) === 'play' && man > 0
+        ? assaultOf({
+            frame,
+            ...file,
+            squads: squads.map((place) => place!),
+            man,
+            wet: (x, z) =>
+              !this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
+          })
+        : null;
+    const plan = assault === null ? null : beachBoatsOf(assault, 'full', 'reembark');
+    const parts =
+      plan?.cargo == null
+        ? []
+        : [
+            { id: cue.hull, sequence: plan.cargo as Sequence },
+            ...plan.squads.map((sequence, n) => ({ id: drawn![n]!, sequence })),
+          ].map(({ id, sequence }) => ({
+            id,
+            sequence: { ...sequence, anywhere: true as const, pool: 'boarding' as const },
+          }));
+    const playing =
+      parts.length > 0 &&
+      this.sequences.roomFor('boarding') >= parts.length &&
+      parts.filter(({ id, sequence }) => this.sequences.play(this.standing, id, sequence, now))
+        .length === parts.length;
+    if (!playing) {
+      for (const { id } of parts)
+        if (this.sequences.playsOn(this.standing, id))
+          this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+      for (const id of drawn) this.standing.unboard(id);
+      if (ringsLeft(this.sequences.motion, { veiled, unplayable: true }))
+        this.standing.inkArrival(pileId);
+      return null;
+    }
+    this.standing.arrive(pileId, [plan!.settled]);
+    const troopOf = (id: string) => id.slice(pileId.length + 2);
+    const posed = cue.riders
+      .map(({ troopId }) => troopId)
+      .filter((troopId) => !drawn!.some((id) => troopOf(id) === troopId));
+    return {
+      ms: plan!.settled,
+      feeds: [
+        ...(posed.length > 0 ? [{ at: 0, riders: posed }] : []),
+        ...drawn.map((id, n) => ({ at: plan!.through[n]!, riders: [troopOf(id)] })),
+      ].sort((a, b) => a.at - b.at),
+      over: () =>
+        !drawn!.some((id) => this.sequences.playsOn(this.standing, id)) &&
+        !this.sequences.playsOn(this.standing, cue.hull),
+      end: () => {
+        for (const id of drawn!) this.standing.unboard(id);
       },
     };
   }
