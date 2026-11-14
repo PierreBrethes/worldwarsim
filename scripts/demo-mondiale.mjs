@@ -171,6 +171,8 @@
  * touche le môle et la grue vient sur lui, le second vient à couple quand le premier est amarré.
  * Un cargo est en chantier sur la cale : la grue boucle, puis reprend sa boucle après sa visite. Avec
  * `--port-miroir`, au port d'Almería, en miroir. `lieu=@port` cadre le port.
+ * `--lancement [s]` (#501) pose la scène de `--navire`, recrute un cargo au port par un ordre de joueur et le fait
+ * sortir de la cale dans `s` secondes (40 par défaut) : les deux gerbes du lancement. Avec `--port-miroir`, au port d'Almería. `lieu=@port` cadre le port.
  * `--flotte-cote [s]` (#395) pose la scène de `--navire` et envoie le cargo de Marseille vers un
  * point de terre à Agde, arrivée dans `s` secondes (25 par défaut) : le fil d'une flotte finit sur
  * la pile (#381), et `lieu=@flotte-cote` cadre ce point d'arrivée.
@@ -290,6 +292,9 @@ const crowded = process.argv.includes('--poste');
 /** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
 const runwayAt = process.argv.indexOf('--piste-mole');
 const runwayIn = runwayAt < 0 ? null : Number(process.argv[runwayAt + 1]) || 40;
+/** `--lancement [s]` (#501) : la scène de `--navire`, et un cargo recruté au port, lancé par la cale dans s secondes. */
+const slipAt = process.argv.indexOf('--lancement');
+const slipIn = slipAt < 0 ? null : Number(process.argv[slipAt + 1]) || 40;
 /** `--grue [s]` (#477) : le môle libre, deux cargos rentrent ensemble dans s secondes. */
 const craneAt = process.argv.indexOf('--grue');
 const craneIn = craneAt < 0 ? null : Number(process.argv[craneAt + 1]) || 40;
@@ -414,6 +419,7 @@ const carrierAtQuay = process.argv.includes('--sur-porte-avions');
 const navy =
   denseQuay ||
   craneIn !== null ||
+  slipIn !== null ||
   coastIn !== null ||
   runwayIn !== null ||
   mirrorPort ||
@@ -852,6 +858,7 @@ if (!bare) {
   if (runwayIn !== null && scene.a !== null) runwayScene = await runwayAndMole();
   if (queueIn !== null && scene.a !== null) queueScene = await queuedPlanes();
   if (craneIn !== null && scene.a !== null) craneScene = await freeTheMole();
+  if (slipIn !== null && scene.a !== null) await launchAtTheSlip();
   /** `--renfort` : la pile du transport reçoit un chasseur neuf, formé par un ordre (#472). */
   if (reinforceIn !== null && scene.a !== null) {
     const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
@@ -2723,6 +2730,28 @@ async function runwayAndMole() {
     JSON.stringify({ playerId: scene.a, afterMs: (runwayIn + 25) * 1000 }),
   ]);
   return leaving;
+}
+
+/**
+ * **`--lancement`** (#501): a cargo is recruited at the port, a player's order, and finished in
+ * `slipIn` seconds: it is launched off the slip, its two sprays at the slip's head.
+ */
+async function launchAtTheSlip() {
+  const { me } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+  const port = me.buildings.find((building) => building.key === 'port');
+  places.port = { id: `building-port@${port.point[0]},${port.point[1]}`, lonLat: port.point };
+  await client.mutation(api.troops.recruit, {
+    token: tokenA,
+    seasonId,
+    buildingId: port.id,
+    role: 'cargo',
+    tier: 1,
+  });
+  cli([
+    'run',
+    'dev:finishRecruitments',
+    JSON.stringify({ playerId: scene.a, afterMs: slipIn * 1000 }),
+  ]);
 }
 
 /**

@@ -387,6 +387,8 @@ export class Spray {
           color: SPLASH.color,
           transparent: true,
           depthWrite: false,
+          // It leaps up around the hull, which would hide it: spray reads over it.
+          depthTest: false,
           opacity: (SPLASH.opacity * k) / OPACITY_STEPS,
         }),
     );

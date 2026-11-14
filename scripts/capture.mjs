@@ -23,6 +23,7 @@
  * plus, sans attente commune après : `photo=` prend alors l'instant (les feux d'une piste, #497).
  * `piste=portée,distance,pente°,azimut°[,côté]` cadre la piste de l'aérodrome de la démo, `portée` mètres
  * au-delà du bout des hangars (#497).
+ * `cale=distance,pente°,azimut°[,dz]` cadre le bout de la cale du port de la démo (#501).
  * `calme` attend qu'aucune séquence ne joue plus.
  * `photo=chemin.png` prend une capture en cours de route, la dernière restant `<sortie.png>`.
  * `recharger` recharge la page dans le même navigateur, son stockage gardé, puis attend comme à
@@ -391,6 +392,34 @@ try {
           engine.invalidate();
         },
         [reach, distance, pitch, azimuth, side, id],
+      );
+      await page.waitForTimeout(1500);
+      continue;
+    } else if (kind === 'cale') {
+      // `cale=distance,pente°,azimut°[,dz]` cadre le bout de la cale du port de la démo, `dz` mètres plus
+      // loin en mer : les gerbes d'un lancement (#501).
+      const [distance = 0.5, pitch = 35, azimuth = 0, dz = 0] = value.split(',').map(Number);
+      const id = accounts.places.port.id;
+      await page.evaluate(
+        ([d, p, a, dz, id]) => {
+          const engine = globalThis.mapEngine;
+          const at = engine.maquettes.siteOf(id).toBoard(
+            engine.frame
+              .projectLonLat([0, 0])
+              .clone()
+              .set(0, 0, 111 + dz),
+          );
+          const sky = [
+            Math.sin((p * Math.PI) / 180) * Math.sin((a * Math.PI) / 180),
+            Math.cos((p * Math.PI) / 180),
+            Math.sin((p * Math.PI) / 180) * Math.cos((a * Math.PI) / 180),
+          ];
+          engine.controls.target.copy(at);
+          engine.camera.position.set(at.x + sky[0] * d, at.y + sky[1] * d, at.z + sky[2] * d);
+          engine.controls.update();
+          engine.invalidate();
+        },
+        [distance, pitch, azimuth, dz, id],
       );
       await page.waitForTimeout(1500);
       continue;
