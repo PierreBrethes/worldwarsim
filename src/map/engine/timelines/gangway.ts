@@ -81,7 +81,10 @@ export function plankAt(t: number, { up }: Plank): number {
 export const PLANK_MS = T.plank;
 
 /**
- * **The men of the squads that board a hull by its gangway** (#479, storyboard « 1. Au cargo »):
+ * **The men of the squads that board a hull by its gangway** (#479, storyboard « 1. Au cargo »),
+ * or, with `way: 'off'`, **that come off it** (#512): the same paths given in the same order, from
+ * the rest to the door, walked backwards, each man shown by the dark of the door and walking to
+ * his rest; the hours and the plank are the way on's.
  * each on his own path (board points, the first his rest), the nearest first, one every `T.gap`,
  * at his own pace; the dark of the door takes him over his last 200 ms. Rend la séquence de chaque
  * escouade, quand son dernier homme a passé la porte (`through`, in ms), la planche, et quand tout
@@ -93,6 +96,7 @@ export function gangwayOf(boarding: {
   /** A carrier's lift, `drop` board units deep: the men stand on it (their paths end on it) and
    *  are taken down, not through a door (#506). */
   readonly lift?: { readonly drop: number };
+  readonly way?: 'on' | 'off';
 }): {
   readonly squads: ReadonlyArray<Sequence<never>>;
   readonly through: ReadonlyArray<number>;
@@ -101,8 +105,17 @@ export function gangwayOf(boarding: {
   readonly settled: number;
 } {
   const speed = (MAN_SPEED * boarding.man) / 1000;
+  const off = boarding.way === 'off';
   const men = boarding.squads.flatMap(({ men: paths }, squad) =>
-    paths.map((path, k) => ({ squad, k, path, ...measured(path), start: 0, end: 0 })),
+    paths.map((path, k) => ({
+      squad,
+      k,
+      // The rest is where the man is drawn: the path's first point, its last when he comes off.
+      rest: path[0]!,
+      ...measured(off ? [...path].reverse() : path),
+      start: 0,
+      end: 0,
+    })),
   );
   [...men]
     .sort((a, b) => a.length - b.length)
@@ -129,17 +142,22 @@ export function gangwayOf(boarding: {
         if (t < 0 || t >= ms) return {};
         const pose: Record<string, PartPose> = {};
         for (const man of mine) {
-          if (t < man.start) continue;
+          const { rest } = man;
+          if (t < man.start) {
+            // Still in the dark of the door: the stand-in is there, empty.
+            if (off) pose[`man_${man.k}`] = { travel: sub(man.at(0).at, rest), fade: 0 };
+            continue;
+          }
           const s = Math.min(t - man.start, man.end - man.start) * speed;
           const { at, heading } = man.at(s);
-          const rest = man.path[0]!;
           const down = lift === null ? 0 : lift.depth(t) * boarding.lift!.drop;
           pose[`man_${man.k}`] = {
             travel: [at[0] - rest[0], at[1] - rest[1] - down, at[2] - rest[2]],
             heading,
             ...(t < man.end ? { stride: (t - man.start) / 1000 } : {}),
-            fade:
-              lift === null
+            fade: off
+              ? span(t, man.start, man.start + T.swallow)
+              : lift === null
                 ? 1 - span(t, man.end - T.swallow, man.end)
                 : 1 - span(t, lift.start + (1 - LIFT.dark) * LIFT.down, lift.bottom),
           };
@@ -180,6 +198,8 @@ function liftOf(start: number): GangwayLift {
     depth: (t) => ease.inOut(span(t, start, bottom)) * (1 - ease.inOut(span(t, back, end))),
   };
 }
+
+const sub = (a: P3, b: P3): [number, number, number] => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 
 /** A path's length, and the point and heading `s` along it. */
 export function measured(path: ReadonlyArray<P3>) {

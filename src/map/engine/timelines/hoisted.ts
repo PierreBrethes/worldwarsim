@@ -71,6 +71,30 @@ export function hoistedOf({
   };
 }
 
+/**
+ * **A boarding's sequence played the other way** (#512), over `total` ms: each instant is the
+ * boarding's at the mirrored one, the vehicle facing the way it now goes. Before the vehicle is
+ * lifted out of the hold, it is the boarding's last pose: gone.
+ */
+function reversed(sequence: Sequence<never>, total: number): Sequence<never> {
+  return {
+    ...sequence,
+    ms: total + 1,
+    at(t) {
+      if (t < 0 || t > total) return {};
+      const pose = sequence.at(Math.min(total - t, sequence.ms - 1)).root;
+      return pose === undefined
+        ? {}
+        : {
+            root: {
+              ...pose,
+              heading: pose.heading === undefined ? undefined : pose.heading + Math.PI,
+            },
+          };
+    },
+  };
+}
+
 /** One vehicle of a boarding: where it last stood on the board, and its length and height there. */
 export type Vehicle = {
   readonly id: string;
@@ -86,7 +110,9 @@ export type Vehicle = {
  * mirror included, and `deck` the mole's height in its metres. Rend les séquences à jouer
  * (chaque véhicule, puis la coque et ses mâts), l'instant où chacun est rangé (`feeds`), le
  * moment où tout l'est (`settled`, ms) et les traits des câbles à l'instant `t` ; rien quand le
- * fichier n'a pas de mât ou qu'il n'y a pas de véhicule : ils sont posés d'un coup.
+ * fichier n'a pas de mât ou qu'il n'y a pas de véhicule : ils sont posés d'un coup. Avec
+ * `way: 'off'` (#512), les mêmes heures à l'envers : les véhicules sortent de la cale, se posent et
+ * rentrent à leur place, les mâts et les câbles de même ; le tag n'attend rien.
  */
 export function hoistedBoarding({
   booms,
@@ -95,7 +121,9 @@ export function hoistedBoarding({
   toBoard: toBoardOf,
   deck,
   vehicles,
+  way = 'on',
 }: {
+  readonly way?: 'on' | 'off';
   readonly booms: ReadonlyArray<Boom>;
   readonly frame: Matrix4;
   readonly toModel: (board: Vector3) => Vector3;
@@ -160,28 +188,30 @@ export function hoistedBoarding({
     const [a, b] = [toBoard([0, 0, 0]), toBoard([Math.sin(yaw), 0, Math.cos(yaw)])];
     return Math.atan2(b[0] - a[0], b[2] - a[2]);
   };
+  const off = way === 'off';
+  const total = lifts.settled;
   return {
     playing: vehicles.map((vehicle, n) => {
       const { boom, driveStart, arrive, lift } = lifts.lifts[n]!;
-      return {
-        id: vehicle.id,
-        sequence: hoistedOf({
-          path: wayOf(vehicle, boom),
-          driveStart,
-          arrive,
-          lift,
-          toBoard,
-          swing,
-        }),
-      };
+      const boarding = hoistedOf({
+        path: wayOf(vehicle, boom),
+        driveStart,
+        arrive,
+        lift,
+        toBoard,
+        swing,
+      });
+      return { id: vehicle.id, sequence: off ? reversed(boarding, total) : boarding };
     }),
-    hull: lifts.hull,
+    hull: off
+      ? ({ ...lifts.hull, at: (t) => lifts.hull.at(total - t) } as Sequence<'cargo'>)
+      : lifts.hull,
     lifts: lifts.lifts,
-    feeds: vehicles.map(({ id }, n) => ({ at: lifts.lifts[n]!.lift.dropped, id })),
+    feeds: off ? [] : vehicles.map(({ id }, n) => ({ at: lifts.lifts[n]!.lift.dropped, id })),
     settled: lifts.settled + 1,
     strokes: (t) =>
       lifts.lifts.flatMap(({ boom, lift }) =>
-        strokesAt(booms[boom]!, lift, t).map(({ a, b, thick }: Stroke) => ({
+        strokesAt(booms[boom]!, lift, off ? total - t : t).map(({ a, b, thick }: Stroke) => ({
           a: new Vector3(...toBoard(a)),
           b: new Vector3(...toBoard(b)),
           thick,

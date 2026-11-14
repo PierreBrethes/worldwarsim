@@ -135,6 +135,44 @@ describe('gangwayOf (#479)', () => {
   });
 });
 
+describe('gangwayOf, the men coming off (#512)', () => {
+  const on = gangwayOf({ man: 1.8, squads: [squad(0), squad(-20)] });
+  const off = gangwayOf({ man: 1.8, squads: [squad(0), squad(-20)], way: 'off' });
+
+  it('is the same hours as the way on: the plank, the last man out, the whole', () => {
+    expect(off.through).toEqual(on.through);
+    expect(off.plank).toEqual(on.plank);
+    expect(off.settled).toBe(on.settled);
+  });
+
+  it('keeps every man out of sight at the door until he sets out', () => {
+    const man = off.squads[0]!.at(0).man_0!;
+    expect(man.fade).toBe(0);
+    // The door is where his path ended on the way on, 60 m and 40 m from his rest.
+    expect(man.travel).toEqual([60, 0, 40]);
+    expect(man.stride).toBeUndefined();
+  });
+
+  it('shows him at the door as he sets out, walks him the path backwards to his rest, facing the way he goes', () => {
+    const s = off.squads[0]!;
+    const first = [...Array(300).keys()]
+      .map((k) => k * 10)
+      .find((t) => s.at(t).man_0?.stride !== undefined)!;
+    expect(s.at(first + 10).man_0!.fade).toBeGreaterThan(0);
+    // His first leg runs back down the way's last: along -z, so heading π.
+    expect(Math.abs(s.at(first + 100).man_0!.heading!)).toBeCloseTo(Math.PI, 0);
+    const near = s.at(off.through[0]! - 1).man_0!;
+    expect(near.fade).toBe(1);
+    expect(Math.hypot(...near.travel!)).toBeLessThan(2);
+    // Back on the rest, his own heading is the pile's.
+    expect(s.at(s.ms)).toEqual({});
+  });
+
+  it('plays in the pool of the pieces that board', () => {
+    for (const s of off.squads) expect(s.pool).toBe('boarding');
+  });
+});
+
 describe('deckWay (#506)', () => {
   const head = { x: 60, y: 17, z: 160 };
   const spot = { x: 44, y: 17, z: 168 };

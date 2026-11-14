@@ -150,6 +150,39 @@ describe.each([false, true])(
       expect(plan.hull!.ms).toBeGreaterThanOrEqual(plan.settled - 1);
     });
 
+    it('plays the same hours backwards when the vehicles come off (#512): lowered out of the hold, set down, driven back to their rest', () => {
+      const off = hoistedBoarding({
+        booms,
+        frame,
+        toModel,
+        toBoard,
+        deck: DECK,
+        vehicles,
+        way: 'off',
+      });
+      const total = plan.settled - 1;
+      expect(off.settled).toBe(plan.settled);
+      expect(off.playing.map(({ id }) => id)).toEqual(['tank', 'truck']);
+      expect(off.feeds).toEqual([]);
+      off.playing.forEach(({ sequence }, n) => {
+        const boarding = plan.playing[n]!.sequence;
+        // Out of sight in the hold until it comes up, then at its rest once driven home.
+        expect(sequence.at(0).root!.fade).toBe(0);
+        expect(sequence.at(sequence.ms - 1)).toEqual({});
+        // Each instant is the boarding's at the mirrored one, facing the other way.
+        const { arrive } = plan.lifts[n]!;
+        const t = total - arrive - 1;
+        const then = boarding.at(arrive + 1).root!;
+        const now = sequence.at(t).root!;
+        expect(now.travel).toEqual(then.travel);
+        expect(now.heading).toBeCloseTo(then.heading! + Math.PI, 6);
+      });
+      for (const t of [0, 1000, 2500, total - 1]) {
+        expect(off.hull!.at(t)).toEqual(plan.hull!.at(total - t));
+        expect(off.strokes(t)).toEqual(plan.strokes(total - t));
+      }
+    });
+
     it('poses its vehicles at once when the file has no mast', () => {
       const none = noMast();
       expect(none.playing).toEqual([]);
