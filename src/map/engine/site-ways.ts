@@ -305,12 +305,6 @@ export function moors(at: Flat, end: Flat, far: Flat | null, blitz: boolean): bo
  *  a plane takes off whatever its flight. */
 export const departs = (air: boolean, moored: boolean): boolean => air || moored;
 
-/** **What a pile's storyboard plays in a theatre** (Blitz, #499): a plane is formed and takes off;
- *  it never lands (`HOVER_ALTITUDE`), and no hull sails (a Blitz moors nothing). A take-off needs
- *  no rule of its own: a hull's departs only moored (`departs`). */
-export const playsInTheatre = (kind: 'formation' | 'retour', air: boolean): boolean =>
-  air && kind === 'formation';
-
 /** Hulls cued within this of each other put to sea together (#487). `@a-mesurer` */
 export const DEPARTURE_WINDOW_MS = 1000;
 
