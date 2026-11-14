@@ -1482,15 +1482,20 @@ export class MaquetteLayer implements SequenceHost {
     };
   }
 
+  /** A copy taken off the board gives back the materials it wore of its own (liseré, flag, lamps). */
+  private retire(copy: Object3D): void {
+    copy.removeFromParent();
+    copy.traverse((node) => {
+      if (node.userData.ownLisere === true) ((node as Mesh).material as Material).dispose();
+    });
+  }
+
   /** The copy takes the instance's place: the instance shrinks to nothing at its own point, the
    *  copy gets the matrix it would have had. The next `orient` writes both. */
   standIn(id: string, copy: Object3D | null): void {
     const old = this.copies.get(id);
     if (old !== undefined && old !== copy) {
-      old.removeFromParent();
-      old.traverse((node) => {
-        if (node.userData.ownLisere === true) ((node as Mesh).material as Material).dispose();
-      });
+      this.retire(old);
     }
     if (copy === null) this.copies.delete(id);
     else {
@@ -1845,7 +1850,7 @@ export class MaquetteLayer implements SequenceHost {
     for (const lot of this.lots.values()) this.clear(lot);
     this.lots.clear();
     this.byId.clear();
-    for (const copy of this.copies.values()) copy.removeFromParent();
+    for (const copy of this.copies.values()) this.retire(copy);
     this.copies.clear();
     this.group.removeFromParent();
   }

@@ -1024,6 +1024,21 @@ describe('a site on its socle (ADR 0038)', () => {
     expect(disposed).toHaveBeenCalled();
   });
 
+  it('gives its copies materials back when the layer goes, as when a copy is taken away', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8' })]);
+    const copy = new Group().add(
+      new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name: 'lisere' })),
+    );
+    layer.standIn(MINE, copy);
+    const disposed = vi.fn();
+    ((copy.children[0] as Mesh).material as MeshStandardMaterial).addEventListener(
+      'dispose',
+      disposed,
+    );
+    layer.dispose();
+    expect(disposed).toHaveBeenCalled();
+  });
+
   it('glows the same by night on the instance and on the copy a sequence stands in, liseré and flag', async () => {
     const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' })]);
     const glow = (material: MeshStandardMaterial) => {
