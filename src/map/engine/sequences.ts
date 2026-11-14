@@ -218,8 +218,8 @@ export type Cue =
   /** **Men and vehicles step down from a cargo** (#509): `hull` is its group, `men` the squads
    *  and `vehicles` the groups that came down, by their id (`${pileId}/${group}`); `ground` says
    *  where the hull lies. The canots carry the men to a beach (`beachBoatsOf`); at a quay the men
-   *  come down the gangway and the vehicles off by the derrick (#512); a beach's vehicles are
-   *  posed at once until #511. */
+   *  come down the gangway and the vehicles off by the derrick (#512); a beach's first vehicle
+   *  goes ashore by the barge (#511), the others are posed at once. */
   | {
       readonly kind: 'debarquement';
       readonly hull: string;

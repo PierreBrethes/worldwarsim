@@ -3632,7 +3632,7 @@ export class MapEngine {
       case 'debarquement':
         // The men go ashore in canots at a beach (`landOnBeach`), and come off a gangway and a derrick at
         // a quay (`landAtQuay`); the other settings pose the end at once, with a ring of ink where
-        // `ringsLeft` says (the vehicles at a beach, #511).
+        // `ringsLeft` says.
         if (this.sequences.motion !== 'full') {
           const at = this.standing.placeOf(cue.hull)?.at;
           if (
