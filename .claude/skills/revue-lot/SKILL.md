@@ -87,6 +87,10 @@ Ce sont les défauts que les revues ont réellement trouvés.
 - **Ce qu'un rendu remplace** : quand un lot remplace un rendu par un autre (trait droit → arc,
   pion → scène), liste les cas où l'ancien jouait (scène non jouée, au-delà des limites, rejeu
   ouvert, animations coupées) ; un cas où plus rien ne s'affiche est un finding.
+- **Séquence coupée ou non jouée** : pour chaque séquence neuve du moteur, suis chaque repli
+  (réduites, voilé, pool plein, fichier sans repère, coupée en route par le réglage ou la main) :
+  la pile est relâchée, l'anneau d'encre passe par `ringsLeft`, et ce que la séquence a posé à
+  côté des pièces (planche, câbles, chaland) est retiré. Vu deux fois au lot Plage (#509, #512).
 - **Chiffres écrits** : chaque coût, poids ou décompte qu'un ADR, `CLAUDE.md` ou un commentaire
   annonce se remesure sur la pointe, avec tous les chemins qui le paient (premier appel, second
   index, terre comme mer). Un chiffre faux est un finding.
