@@ -28,6 +28,10 @@
  * `--sur-porte-avions` (#506, avec `--cargo-monter`) fait appareiller le cargo et accoster un porte-avions à sa place, quatre secondes après la scène :
  * les escouades montent par la planche au bord du pont et descendent par l'ascenseur ; avec
  * `--cargo-vehicules`, le char, posé d'un coup.
+ * `--cargo-debarquer [s]` (#509) pose un cargo devant la plage du Cotentin (Utah), deux escouades de
+ * fantassins à son bord (lieu : `plage`) ; à `s` secondes (25 par défaut), un ordre les débarque :
+ * les canots les portent à terre. `--cargo-plus` y joint un char (posé d'un coup, #511) et une
+ * troisième escouade (posée d'un coup, faute de canot).
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--brest` (#436) y ajoute un chantier
  * de port à Brest, sur sa rade. `--port-miroir` (#476) pose le port de `--navire` à Almería, sur une côte
@@ -518,6 +522,8 @@ const formingIn = gestureIn('--former');
 const disbandingIn = gestureIn('--dissoudre');
 const boardingIn = gestureIn('--monter');
 const landingIn = gestureIn('--descendre');
+const beachLandingIn = gestureIn('--cargo-debarquer');
+const beachLandingMore = process.argv.includes('--cargo-plus');
 const marchAboardIn = gestureIn('--embarquer');
 /** What the gestures of `--former`… act on, once the accounts are written. */
 const pile = {};
@@ -1643,6 +1649,17 @@ if (!bare) {
       later: hullBoardingTwice ? squads(1) : [],
     };
   }
+  /** `--cargo-debarquer` (#509) : un cargo devant une plage, deux escouades à son bord. */
+  if (beachLandingIn !== null && scene.a !== null) {
+    const at = { lon: -1.19, lat: 49.41 };
+    places.plage = [at.lon, at.lat];
+    const [hull] = spawned({ role: 'cargo', count: 1, ...at });
+    const aboard = (role, count) => spawned({ role, count, ...at, carriedBy: hull });
+    pile.plage = [
+      ...aboard('infantry', 2),
+      ...(beachLandingMore ? [...aboard('armor', 1), ...aboard('infantry', 1)] : []),
+    ];
+  }
   if (landingIn !== null && scene.a !== null) {
     const at = { lon: 3.3, lat: 47.1 };
     places.descendre = [at.lon, at.lat];
@@ -2437,6 +2454,18 @@ const gestures = [
           carrierId: carrier,
         });
         return "fantassins à bord de l'avion";
+      },
+    ],
+  beachLandingIn !== null &&
+    pile.plage && [
+      beachLandingIn,
+      async () => {
+        await client.mutation(api.movements.disembark, {
+          token: tokenA,
+          seasonId,
+          troopIds: pile.plage,
+        });
+        return 'les escouades débarquent du cargo, sur la plage';
       },
     ],
   landingIn !== null &&

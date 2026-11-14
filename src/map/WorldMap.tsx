@@ -63,6 +63,7 @@ import type { ReplayStep } from '@/domain/replay';
 import {
   aboardOf,
   chargementsOf,
+  debarquementsOf,
   descentesOf,
   dispersionsOf,
   embarquementsOf,
@@ -2019,6 +2020,9 @@ export function WorldMap({
     if (known === null) return;
     for (const descente of descentesOf(known, troops, standing))
       readyEngine?.cue({ kind: 'descente', ...descente });
+    // Men step down from a cargo: its boats carry them to a beach (#509). Mondiale only.
+    for (const debarquement of debarquementsOf(known, troops, standing, blitz !== null))
+      readyEngine?.cue({ kind: 'debarquement', ...debarquement });
     // Men board a truck one by one (#277); a Blitz unit is not three men.
     if (blitz !== null) return;
     const byId = new Map(troops.map((troop) => [troop.id, troop]));

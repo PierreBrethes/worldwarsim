@@ -26,6 +26,8 @@
  * coupée ; `photoporte=chemin.png` la prend serrée autour d'elle, vite (la marche dure plus d'une minute).
  * `levee=distance,pente°,azimut°[,dx,dz]` attend la levée d'un mât de charge (#505) puis cadre son
  * bout ; `photolevee=chemin.png` prend un cliché serré autour du bout du mât à cet instant.
+ * `groupe=<id de pile>/<k>;distance;pente;azimut` suit le k-ième groupe d'une pile (une escouade
+ * loin de sa coque) à l'œil, l'id étant `stack-point:lon,lat`, jusqu'à la fin de la capture.
  * `ralenti=10` passe toutes les animations dix fois plus lentement, pour en voir le milieu.
  * `camera=x,z,distance,pente°,azimut°` pose l'œil (cible au plateau en x, z ; azimut 0 = regard
  * vers le nord), puis laisse la boucle faire : les bords du plateau, de près, de loin, penché.
@@ -409,6 +411,37 @@ try {
         }
       }
       await checkFramed(gesture, distance);
+    } else if (kind === 'groupe') {
+      // `groupe=<id de pile>/<k>;distance;pente;azimut` : le k-ième groupe d'une pile, là où il est
+      // dessiné (une escouade loin de sa coque, #509) ; suivi à chaque image jusqu'au prochain cadrage.
+      const [id, distance, pitch = 40, azimuth = 0] = value.split(';');
+      await page.evaluate(
+        ([id, d, p, a]) => {
+          const engine = globalThis.mapEngine;
+          const follow = () => {
+            const place = engine.standing.placeOf(id);
+            if (place === null) return;
+            const target = place.at.clone();
+            const away = {
+              x: Math.sin((p * Math.PI) / 180) * Math.sin((a * Math.PI) / 180),
+              y: Math.cos((p * Math.PI) / 180),
+              z: Math.sin((p * Math.PI) / 180) * Math.cos((a * Math.PI) / 180),
+            };
+            engine.controls.target.copy(target);
+            engine.camera.position.set(
+              target.x + away.x * d,
+              target.y + away.y * d,
+              target.z + away.z * d,
+            );
+            engine.controls.update();
+            engine.invalidate();
+          };
+          follow();
+          globalThis.__groupFollow = setInterval(follow, 100);
+        },
+        [id, Number(distance), Number(pitch), Number(azimuth)],
+      );
+      await page.waitForTimeout(500);
     } else if (kind === 'horloge') {
       // L'heure du jeu passe là, la carte redessine, et la capture tombe `ms` après, sans l'attente
       // commune : le milieu d'un fondu d'une demi-seconde (#433).

@@ -68,6 +68,27 @@ describe('assaultOf on a bare frame (#509)', () => {
     expect(a.squads[0]!.heading).toBeCloseTo(Math.PI / 2, 6);
   });
 
+  it('grounds the boat at the water edge when the squad stands inland of it', () => {
+    // The shore runs along x = 5.2: water to the hull's side of it, sand beyond.
+    const wet = (x: number) => x < 5.2;
+    const a = assaultOf({ frame, boats, astern: -40, squads: [squad(5.4)], man: 0.02, wet })!;
+    expect(a.squads[0]!.landing[0]).toBeCloseTo(5.2, 1);
+    expect(a.squads[0]!.landing[0]).toBeGreaterThanOrEqual(5.18);
+    expect(a.squads[0]!.landing[1]).toBeCloseTo(3, 6);
+  });
+
+  it('keeps the landing short of its squad when the water is nearer than that', () => {
+    const a = assaultOf({
+      frame,
+      boats,
+      astern: -40,
+      squads: [squad(5.4)],
+      man: 0.02,
+      wet: (x) => x < 5.41,
+    })!;
+    expect(a.squads[0]!.landing[0]).toBeCloseTo(5.4 + 0.02 - 0.06, 6);
+  });
+
   it('keeps the landing short of the hull when the pile is packed tight', () => {
     const a = assaultOf({ frame, boats, astern: -40, squads: [squad(5.08)], man: 0.02 })!;
     expect(a.squads[0]!.landing[0]).toBeGreaterThan(5.04);

@@ -64,12 +64,15 @@ export function assaultOf({
   astern,
   squads,
   man,
+  wet,
 }: {
   readonly frame: Matrix4;
   readonly boats: Assault['boats'];
   readonly astern: number;
   readonly squads: ReadonlyArray<{ readonly men: ReadonlyArray<Vector3>; readonly front: Vector3 }>;
   readonly man: number;
+  /** Whether a board point is water: the boat grounds where the line from the hull first leaves it. */
+  readonly wet?: (x: number, z: number) => boolean;
 }): Assault | null {
   const squadsWithMen = squads.filter(({ men }) => men.length > 0);
   if (boats.length === 0 || squadsWithMen.length === 0) return null;
@@ -83,8 +86,17 @@ export function assaultOf({
       const centre = men.reduce((sum, m) => sum.add(m), new Vector3()).divideScalar(men.length);
       const toward = new Vector3(at.x - centre.x, 0, at.z - centre.z);
       // Never past half the way to the hull: a pile packed tight still has its boat short of it.
-      const back = Math.min(SETBACK_M * metre, toward.length() / 2);
-      const landing = centre.addScaledVector(toward.normalize(), back);
+      const length = toward.length();
+      toward.normalize();
+      let back = Math.min(SETBACK_M * metre, length / 2);
+      // A squad inland of the water edge is fetched from the edge: a boat does not cross sand.
+      if (wet !== undefined)
+        for (let d = back; d < length; d += metre)
+          if (wet(centre.x + toward.x * d, centre.z + toward.z * d)) {
+            back = d;
+            break;
+          }
+      const landing = centre.addScaledVector(toward, back);
       return {
         men: men.map((m) => [m.x, m.z] as const),
         heading: Math.atan2(front.x, front.z),

@@ -111,6 +111,8 @@ import { deployAt, deployMs } from './timelines/deploy';
 import { crownWayOf } from './timelines/disband';
 import { ringsLeft } from './unplayed';
 import { BOARDING_PX, boardingOf } from './timelines/boarding';
+import { beachBoatsOf } from './timelines/beach-boats';
+import { assaultOf, boatsOfScene, LANDING_PX, landingVerdict } from './timelines/beach-landing';
 import { TAIL_GAP } from './timelines/airfield';
 import { type Plank, planeBoardingOf } from './timelines/plane-boarding';
 import { PlankMesh } from './plank';
@@ -804,6 +806,9 @@ export class MapEngine {
   /** The masts of each cargo file, once it has landed. */
   private readonly booms = new Map<string, ReadonlyArray<Boom>>();
   private readonly boomsAsked = new Set<string>();
+  /** The canots of each cargo file and its stern, once it has landed (#509). */
+  private readonly boats = new Map<string, ReturnType<typeof boatsOfScene>>();
+  private readonly boatsAsked = new Set<string>();
   /** The flight deck of each carrier file, once it has landed (`null`: it has none to read). */
   private readonly decks = new Map<string, Deck | null>();
   private readonly decksAsked = new Set<string>();
@@ -822,6 +827,11 @@ export class MapEngine {
   /** **Men coming down from a truck** (#277), waiting for their pile to stand. */
   private landings: Array<{
     readonly cue: Extract<Cue, { kind: 'descente' }>;
+    readonly since: number;
+  }> = [];
+  /** **Men coming down from a cargo before a beach** (#509), waiting for their pile to stand. */
+  private beachLandings: Array<{
+    readonly cue: Extract<Cue, { kind: 'debarquement' }>;
     readonly since: number;
   }> = [];
   /** **Squads disbanded**, waiting for their crown to stand (#277, U). */
@@ -3602,6 +3612,18 @@ export class MapEngine {
           cue.riders.map(({ troopId }) => troopId),
         );
         break;
+      case 'debarquement':
+        // The canots carry the men to a beach (`landOnBeach`); a quay, a Blitz unit and the vehicles
+        // are posed at once, with a ring of ink at reduced motion (#509; the quay is #512's).
+        if (cue.ground === 'quay' || this.sequences.motion === 'off') break;
+        if (this.sequences.motion === 'reduced') {
+          this.standing.inkArrival(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
+          break;
+        }
+        // The hull and its rank hold where they stood until the men are ashore.
+        this.standing.expect(cue.hull.slice(0, cue.hull.lastIndexOf('/')));
+        this.beachLandings.push({ cue, since: performance.now() });
+        break;
       case 'dispersion':
         if (this.sequences.motion === 'off') break;
         // What stays glides to the point once the crown is laid out (`disperseOf`).
@@ -4772,6 +4794,94 @@ export class MapEngine {
     return true;
   }
 
+  /**
+   * **A cargo's men go ashore in its boats** (#509, storyboard `mer-air` « 4. L'assaut en
+   * canots »): the boats come off their davits, run to the beach and ground, the men jump and run
+   * to the places the pile drew them in (`beachBoatsOf`); the hull stays where it stood. Judged on
+   * the hull (`landingVerdict`), all or nothing as a boarding: the hull's boats and each squad
+   * play together or none does, and the pile stands as it is, a ring of ink at reduced motion.
+   * The vehicles are posed at once (#511). `false` until the pile, and its file's boats, stand.
+   */
+  private landOnBeach({ cue }: (typeof this.beachLandings)[number], now: number): boolean {
+    const pileId = cue.hull.slice(0, cue.hull.lastIndexOf('/'));
+    const role =
+      this.standing.piecesOf(pileId)?.groups[Number(cue.hull.slice(pileId.length + 1))]?.role;
+    const piece = this.standing.pieceOf(cue.hull);
+    if (this.standing.placeOf(cue.hull) === null || role === undefined) return false;
+    if (piece?.box == null || piece.url === undefined) return false;
+    const file = this.boatsOfFile(piece.url);
+    if (file === undefined) return false;
+    this.standing.anchor(cue.hull);
+    const hull = this.standing.placeOf(cue.hull);
+    const frame = this.standing.frameOf(cue.hull);
+    const squads = cue.men.map((id) => this.standing.placeOf(id));
+    if (hull === null || frame === null || squads.some((place) => place === null)) return false;
+    const size = new Vector3();
+    const man = Math.max(
+      0,
+      ...cue.men.map((id) => this.standing.pieceOf(id)?.box?.getSize(size).y ?? 0),
+    );
+    const veiled = this.veiled(hull.at);
+    const assault =
+      landingVerdict({
+        role,
+        ground: cue.ground,
+        motion: this.sequences.motion,
+        veiled,
+        big: this.seenBig(piece.box, LANDING_PX),
+      }) === 'play' && man > 0
+        ? assaultOf({
+            frame,
+            ...file,
+            squads: squads.map((place) => place!),
+            man,
+            wet: (x, z) =>
+              !this.landAt(this.frame.lonLatAt(x + this.frame.centerX, z + this.frame.centerY)),
+          })
+        : null;
+    const plan = assault === null ? null : beachBoatsOf(assault);
+    // Judged on the hull above: the men and the boats play in the field or not, together.
+    const parts =
+      plan?.cargo == null
+        ? []
+        : [
+            { id: cue.hull, sequence: plan.cargo as Sequence },
+            ...plan.squads.map((sequence, n) => ({ id: cue.men[n]!, sequence })),
+          ].map(({ id, sequence }) => ({
+            id,
+            sequence: { ...sequence, anywhere: true as const, pool: 'boarding' as const },
+          }));
+    const playing =
+      parts.length > 0 &&
+      this.sequences.roomFor('boarding') >= parts.length &&
+      parts.filter(({ id, sequence }) => this.sequences.play(this.standing, id, sequence, now))
+        .length === parts.length;
+    if (!playing) {
+      for (const { id } of parts)
+        if (this.sequences.playsOn(this.standing, id))
+          this.sequences.retime(this.standing, id, { ms: 0, at: () => ({}) });
+      this.standing.arrive(pileId, []);
+      return true;
+    }
+    this.standing.arrive(pileId, [plan!.settled]);
+    return true;
+  }
+
+  /** **The canots of a cargo file**, read once the file has landed: `undefined` until then (the
+   *  caller waits), and for ever without boat for a file that will not load. */
+  private boatsOfFile(url: string): ReturnType<typeof boatsOfScene> | undefined {
+    const known = this.boats.get(url);
+    if (known !== undefined) return known;
+    if (!this.boatsAsked.has(url)) {
+      this.boatsAsked.add(url);
+      void posedScene(url)
+        .then((scene) => this.boats.set(url, boatsOfScene(scene)))
+        // A file that will not load puts no boat out: its men are posed at once.
+        .catch(() => this.boats.set(url, { boats: [], astern: 0 }));
+    }
+    return undefined;
+  }
+
   /** Whether one of my columns still heads for the point a pile stands at (#277). */
   private headsThere(pileId: string): boolean {
     const at = this.piles.find((pile) => pile.id === pileId)?.at;
@@ -5871,6 +5981,7 @@ export class MapEngine {
       this.moorings.active ||
       this.planks.length > 0 ||
       this.hullBoardings.active ||
+      this.beachLandings.length > 0 ||
       this.gangplanks.active ||
       this.hoists.active ||
       this.standing.isCarrying ||
@@ -6005,6 +6116,9 @@ export class MapEngine {
     });
     this.landings = this.landings.filter(
       (landing) => !this.landOf(landing, now) && now - landing.since < SORTIE_WAIT_MS,
+    );
+    this.beachLandings = this.beachLandings.filter(
+      (landing) => !this.landOnBeach(landing, now) && now - landing.since < SORTIE_WAIT_MS,
     );
     this.dispersions = this.dispersions.filter(
       (dispersion) => !this.disperseOf(dispersion, now) && now - dispersion.since < SORTIE_WAIT_MS,
