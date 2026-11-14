@@ -59,6 +59,41 @@ describe('the runway lights (#269)', () => {
   });
 });
 
+describe('the runway lights, one material to each reach (#497)', () => {
+  const lampMeshes = (root: Object3D, name: string) => {
+    const found: Mesh[] = [];
+    root.traverse((node) => {
+      const mesh = node as Mesh;
+      if (mesh.isMesh && (mesh.material as Material).name === name) found.push(mesh);
+    });
+    return found;
+  };
+
+  it('stand out with a material of their own to each module, and say how far out it is', async () => {
+    const airfield = await dressedScene(BUILDING_MAQUETTES.airfield!, new Group(), load);
+    const out = lampMeshes(airfield, RUNWAY_LIGHTS).map((mesh) => mesh.material as Material);
+    expect(out).toHaveLength(AIRFIELD.modules.length);
+    expect(new Set(out).size).toBe(out.length);
+    const reaches = out.map((material) => material.userData.reach as number);
+    expect(reaches[0]).toBe(AIRFIELD.modules[0]![1] / 2);
+    expect(reaches).toEqual([...reaches].sort((a, b) => a - b));
+    expect(reaches.at(-1)).toBe(AIRFIELD.runway.length - AIRFIELD.modules.at(-1)![1] / 2);
+  });
+
+  it('light in each copy with materials of its own, out until a pose lights them', async () => {
+    const airfield = await dressedScene(BUILDING_MAQUETTES.airfield!, new Group(), load);
+    const [first, second] = [airfield.clone(true), airfield.clone(true)];
+    lightRunway(first);
+    lightRunway(second);
+    const [a, b] = [first, second].map((copy) =>
+      lampMeshes(copy, LAMP).map((mesh) => mesh.material as Material),
+    );
+    expect(new Set(a).size).toBe(AIRFIELD.modules.length);
+    for (const material of a!) expect(b).not.toContain(material);
+    for (const material of a!) expect(material.userData.lit).toBe(0);
+  });
+});
+
 describe('the stand-in marks and black planes of the sea (#503)', () => {
   const hullFile = (extra: ReadonlyArray<string> = []): Object3D => {
     const scene = new Group();

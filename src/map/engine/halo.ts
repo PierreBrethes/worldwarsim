@@ -200,7 +200,10 @@ export function warmPieces(root: Object3D, night: number, beat = 0): void {
     if (material.name === LAMP) {
       material.emissive
         .copy(material.color)
-        .multiplyScalar(LAMP_GAIN * MathUtils.clamp(night, 0, 1));
+        // A runway light is lit by the pose of its copy (`Sequence.lit`); any other lamp whole.
+        .multiplyScalar(
+          LAMP_GAIN * MathUtils.clamp(night, 0, 1) * ((material.userData.lit as number) ?? 1),
+        );
       return;
     }
     if (material.emissiveMap !== null && material.emissiveMap !== material.map) return;

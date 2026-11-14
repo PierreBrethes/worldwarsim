@@ -142,6 +142,30 @@ describe('SequenceLayer', () => {
     expect(host.calls.filter(([, standing]) => !standing)).toHaveLength(1);
   });
 
+  it('lights the lamps a sequence names by their reach, at the time it plays (#497)', async () => {
+    const lamp = (reach: number) => {
+      const material = new MeshStandardMaterial();
+      material.userData = { reach, lit: 0 };
+      return new Mesh(new BoxGeometry(), material);
+    };
+    const lit = (mesh: Object3D) =>
+      (mesh as Mesh<BoxGeometry, MeshStandardMaterial>).material.userData.lit;
+    const cooked = rig();
+    const [near, far] = [lamp(10), lamp(100)];
+    cooked.add(near, far);
+    const { layer } = layerOf(true, () => Promise.resolve(cooked));
+    const host = new FakeHost();
+    const lights: Sequence<'barracks'> = {
+      ...turning,
+      lit: (t, reach) => (reach < 50 ? t / 1000 : 0),
+    };
+    layer.play(host, 'a', lights, 0);
+    await flush();
+    layer.step(500);
+    expect(lit(near)).toBeCloseTo(0.5);
+    expect(lit(far)).toBe(0);
+  });
+
   it('plays a piece on with a new sequence on the same clock, which a longer one lengthens', async () => {
     const { layer } = layerOf();
     const host = new FakeHost();

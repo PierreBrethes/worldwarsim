@@ -93,6 +93,9 @@ export type Sequence<F extends RigFamily = RigFamily> = {
   readonly anywhere?: true;
   /** It plays at reduced motion too: a held pose, nothing moves (the file that holds, #362). */
   readonly reduced?: true;
+  /** How lit (0..1) the copy's lamps that say how far out they are (`userData.reach`, in metres)
+   *  are at `t`: the runway's lights, by night (#497). */
+  lit?(t: number, reach: number): number;
   at(t: number): Pose<F>;
 };
 
@@ -432,7 +435,7 @@ export class SequenceLayer {
     this.playing.push(playing);
     if (whole !== null) {
       this.standIn(playing, whole);
-      this.pose(playing, sequence.at(at - now) as Record<string, PartPose | undefined>);
+      this.pose(playing, sequence.at(at - now) as Record<string, PartPose | undefined>, at - now);
       if (seen(host.pieceOf(id)?.box ?? null)) return true;
       this.finish(playing);
       return false;
@@ -488,7 +491,7 @@ export class SequenceLayer {
         continue;
       }
       if (playing.copy !== null)
-        this.pose(playing, playing.sequence.at(t) as Record<string, PartPose | undefined>);
+        this.pose(playing, playing.sequence.at(t) as Record<string, PartPose | undefined>, t);
     }
   }
 
@@ -556,7 +559,7 @@ export class SequenceLayer {
     for (const { material } of playing.faded.values()) material.dispose();
   }
 
-  private pose(playing: Playing, pose: Record<string, PartPose | undefined>): void {
+  private pose(playing: Playing, pose: Record<string, PartPose | undefined>, t: number): void {
     const walk = (node: Object3D, fade: number): void => {
       const rest = playing.rests.get(node);
       const own =
@@ -576,7 +579,12 @@ export class SequenceLayer {
         if (MAN.test(node.name)) this.carry(playing, node, rest, own);
       }
       const seen = fade * (own?.fade ?? 1) * ((node.userData.crate as number | undefined) ?? 1);
-      if ((node as Mesh).isMesh) this.fadeMesh(playing, node as Mesh, seen);
+      if ((node as Mesh).isMesh) {
+        this.fadeMesh(playing, node as Mesh, seen);
+        const { userData } = (node as Mesh).material as Material;
+        if (playing.sequence.lit !== undefined && typeof userData.reach === 'number')
+          userData.lit = playing.sequence.lit(t, userData.reach);
+      }
       for (const child of node.children) walk(child, seen);
     };
     walk(playing.rig!, 1);

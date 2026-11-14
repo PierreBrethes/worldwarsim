@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Group, Mesh, MeshStandardMaterial, Texture, Vector3 } from 'three';
 import { brightest, Halos, warmPieces, type Flash } from './halo';
+import { LAMP } from './site-kits';
 
 beforeAll(() => {
   const ctx = new Proxy({}, { get: () => () => ({ addColorStop() {} }) });
@@ -48,6 +49,19 @@ describe('the glow on the pieces themselves', () => {
     pile.visible = false;
     warmPieces(board, 0);
     expect(material.emissive.getHex()).toBe(0);
+  });
+
+  it('lights a lamp by its share lit, a runway light a pose has not lit staying out (#497)', () => {
+    const lamp = new MeshStandardMaterial({ color: '#ffe6a8', name: LAMP });
+    warmPieces(piece(lamp), 1);
+    const whole = lamp.emissive.r;
+    expect(whole).toBeGreaterThan(0);
+    lamp.userData.lit = 0.5;
+    warmPieces(piece(lamp), 1);
+    expect(lamp.emissive.r).toBeCloseTo(whole / 2);
+    lamp.userData.lit = 0;
+    warmPieces(piece(lamp), 1);
+    expect(lamp.emissive.getHex()).toBe(0);
   });
 
   it('warms a textured piece through its own map', () => {

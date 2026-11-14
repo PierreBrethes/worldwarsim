@@ -94,6 +94,14 @@ describe('the airfield with a door set per hangar (#487)', () => {
     expect(lit.ms).toBe(9000);
   });
 
+  it('lights its runway by the clock of its movement (#497)', () => {
+    const lights = airfieldSequence(6000);
+    expect(lights.lit!(0, 5)).toBe(0);
+    expect(lights.lit!(2000, 5)).toBe(1);
+    expect(lights.lit!(2000, AIRFIELD.runway.length)).toBe(1);
+    expect(lights.lit!(6000, 5)).toBe(0);
+  });
+
   it('moves each hangar its doors name, the right one and the left one', () => {
     const both = airfieldSequence(3000, [
       { lane: AIRFIELD.lanes[0], open: () => 1 },

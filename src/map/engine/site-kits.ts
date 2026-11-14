@@ -36,23 +36,21 @@ export const RUNWAY_LIGHTS = 'feux_piste';
 
 type Load = (url: string) => Promise<Object3D>;
 
-const lit = new Map<string, Material>();
 /**
  * **The runway's edge lights on, in a copy of its airfield** (#269): its `feux_piste` become lamps
- * (`LAMP`), which the night lights (`warmPieces`); the airfield standing keeps them out.
+ * (`LAMP`), which the night lights (`warmPieces`); the airfield standing keeps them out. Each
+ * copy wears a lamp of its own to each reach, out (`lit` 0) until a pose lights it
+ * (`Sequence.lit`), and gives it back with the copy (`ownLisere`).
  */
 export function lightRunway(copy: Object3D): void {
   copy.traverse((node) => {
     const mesh = node as Mesh;
     if (!mesh.isMesh || (mesh.material as Material).name !== RUNWAY_LIGHTS) return;
-    const out = mesh.material as Material;
-    let lamp = lit.get(out.uuid);
-    if (lamp === undefined) {
-      lamp = out.clone();
-      lamp.name = LAMP;
-      lit.set(out.uuid, lamp);
-    }
+    const lamp = (mesh.material as Material).clone();
+    lamp.name = LAMP;
+    lamp.userData.lit = 0;
     mesh.material = lamp;
+    mesh.userData.ownLisere = true;
   });
 }
 
@@ -109,13 +107,17 @@ async function airfieldKit(site: Object3D, load: Load): Promise<Object3D[]> {
   const runway = new Group();
   runway.name = 'piste';
   const lamp = materialOf(kit, LAMP);
-  const out = lamp?.clone() ?? null;
-  if (out !== null) out.name = RUNWAY_LIGHTS;
   let along = 0;
   for (const [name, metres, way] of AIRFIELD.modules) {
     const module = kit.getObjectByName(name)!.clone(true);
     module.position.set(AIRFIELD.runway.x1 - (along + metres / 2), 0, AIRFIELD.runway.z);
     module.rotation.set(0, (way * Math.PI) / 2, 0);
+    // A material to each reach, to be lit in its turn (#497); `bakedSite` never merges two lamps.
+    const out = lamp?.clone() ?? null;
+    if (out !== null) {
+      out.name = RUNWAY_LIGHTS;
+      out.userData.reach = along + metres / 2;
+    }
     module.traverse((node) => {
       const mesh = node as Mesh;
       if (mesh.isMesh && out !== null && (mesh.material as Material).name === LAMP)

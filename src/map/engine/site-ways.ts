@@ -26,6 +26,7 @@ import { troopMetres } from '@/domain/piece-size';
 import { ease, span } from './timelines/curves';
 import { WALK_MIN_PX } from './timelines/walk';
 import { MOORING_MS } from './mooring';
+import { runwayLit } from './runway-lights';
 
 /** A site's frame on the board (`MaquetteLayer.siteOf`). */
 type Frame = { toBoard(point: Vector3): Vector3; toModel(point: Vector3): Vector3 };
@@ -139,6 +140,7 @@ export function airfieldSequence(
       return typeof ms === 'number' ? ms : ms();
     },
     minPx: WALK_MIN_PX,
+    lit: (t, reach) => runwayLit(reach, t, typeof ms === 'number' ? ms : ms()),
     at(t) {
       const pose: Record<string, PartPose> = {};
       // A hangar's doors may come from several orders (#478): the most open one rules.
