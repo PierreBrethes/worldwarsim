@@ -176,6 +176,9 @@ describe('landAtQuay (#512)', () => {
     );
     const layPlank = vi.fn();
     const layHoist = vi.fn();
+    const clearPlank = vi.fn();
+    const clearHoist = vi.fn();
+    const playsOn = vi.fn(() => true);
     const box = { getSize: (v: Vector3) => v.set(2, 2, 6) };
     const squad = {
       at: new Vector3(30, 2.7, 99),
@@ -199,15 +202,31 @@ describe('landAtQuay (#512)', () => {
       maquettes: {
         siteOf: () => ({ toModel: (v: Vector3) => v.clone(), toBoard: (v: Vector3) => v.clone() }),
       },
-      sequences: { motion: 'full', roomFor: () => roomFor, playsOn: () => true, play, retime },
-      gangplanks: { lay: layPlank },
-      hoists: { lay: layHoist },
+      sequences: { motion: 'full', roomFor: () => roomFor, playsOn, play, retime },
+      gangplanks: { lay: layPlank, clear: clearPlank },
+      hoists: { lay: layHoist, clear: clearHoist },
+      unloading: [] as unknown[],
       veiled: () => false,
       seenBig: () => true,
       boomsOf: () => booms,
-    }) as unknown as { landAtQuay: (l: unknown, now: number) => boolean };
+    }) as unknown as {
+      landAtQuay: (l: unknown, now: number) => boolean;
+      clearUnloaded: (now: number) => void;
+    };
     const done = engine.landAtQuay({ cue: quay(vehicles) }, 0);
-    return { done, arrive, inkArrival, retime, play, layPlank, layHoist };
+    return {
+      done,
+      arrive,
+      inkArrival,
+      retime,
+      play,
+      layPlank,
+      layHoist,
+      engine,
+      playsOn,
+      clearPlank,
+      clearHoist,
+    };
   };
 
   it('plays the men down the gangway, the vehicles off by the derrick and its masts, and holds the pile for the longest', async () => {
@@ -256,5 +275,23 @@ describe('landAtQuay (#512)', () => {
     expect(done).toBe(false);
     expect(play).not.toHaveBeenCalled();
     expect(arrive).not.toHaveBeenCalled();
+  });
+
+  it('takes the plank and the cables away once nothing plays, the plank only when the men were cut short', async () => {
+    const early = await land();
+    early.playsOn.mockReturnValue(true);
+    early.engine.clearUnloaded(1);
+    expect(early.clearPlank).not.toHaveBeenCalled();
+    expect(early.clearHoist).not.toHaveBeenCalled();
+    early.playsOn.mockReturnValue(false);
+    early.engine.clearUnloaded(1);
+    expect(early.clearPlank).toHaveBeenCalledWith('p/1');
+    expect(early.clearHoist).toHaveBeenCalledWith('p/1');
+    const late = await land();
+    late.playsOn.mockReturnValue(false);
+    late.engine.clearUnloaded(1e9);
+    // The sequence ran its course: the plank is taken in by itself.
+    expect(late.clearPlank).not.toHaveBeenCalled();
+    expect(late.clearHoist).toHaveBeenCalledWith('p/1');
   });
 });

@@ -183,6 +183,41 @@ describe.each([false, true])(
       }
     });
 
+    it('turns a vehicle that comes off to its rank’s heading as it drives home, not at its last step (#512)', () => {
+      const facing = vehicles.map((vehicle) => ({ ...vehicle, heading: 1.2 }));
+      const off = hoistedBoarding({
+        booms,
+        frame,
+        toModel,
+        toBoard,
+        deck: DECK,
+        vehicles: facing,
+        way: 'off',
+      });
+      const plain = hoistedBoarding({
+        booms,
+        frame,
+        toModel,
+        toBoard,
+        deck: DECK,
+        vehicles,
+        way: 'off',
+      });
+      const total = plan.settled - 1;
+      off.playing.forEach(({ sequence }, n) => {
+        const { driveStart } = plan.lifts[n]!;
+        const home = total - driveStart;
+        const near = sequence.at(home - 1).root!.heading!;
+        const wrapped = Math.atan2(Math.sin(near - 1.2), Math.cos(near - 1.2));
+        expect(Math.abs(wrapped)).toBeLessThan(0.1);
+        // Before the turn begins, it faces the way it drives, as without a rank heading.
+        expect(sequence.at(home - 700).root!.heading).toBeCloseTo(
+          plain.playing[n]!.sequence.at(home - 700).root!.heading!,
+          9,
+        );
+      });
+    });
+
     it('poses its vehicles at once when the file has no mast', () => {
       const none = noMast();
       expect(none.playing).toEqual([]);

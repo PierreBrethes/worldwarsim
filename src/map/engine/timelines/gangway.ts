@@ -81,14 +81,13 @@ export function plankAt(t: number, { up }: Plank): number {
 export const PLANK_MS = T.plank;
 
 /**
- * **The men of the squads that board a hull by its gangway** (#479, storyboard « 1. Au cargo »),
- * or, with `way: 'off'`, **that come off it** (#512): the same paths given in the same order, from
- * the rest to the door, walked backwards, each man shown by the dark of the door and walking to
- * his rest; the hours and the plank are the way on's.
+ * **The men of the squads that board a hull by its gangway** (#479, storyboard « 1. Au cargo »):
  * each on his own path (board points, the first his rest), the nearest first, one every `T.gap`,
  * at his own pace; the dark of the door takes him over his last 200 ms. Rend la séquence de chaque
  * escouade, quand son dernier homme a passé la porte (`through`, in ms), la planche, et quand tout
- * est rangé (`settled`).
+ * est rangé (`settled`). Avec `way: 'off'` (#512), les hommes en descendent : les mêmes chemins,
+ * donnés dans le même ordre, de leur place à la porte, parcourus à rebours, chacun paraissant à la
+ * porte et marchant jusqu'à sa place ; les heures et la planche sont celles de l'embarquement.
  */
 export function gangwayOf(boarding: {
   readonly man: number;

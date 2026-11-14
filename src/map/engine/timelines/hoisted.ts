@@ -71,12 +71,22 @@ export function hoistedOf({
   };
 }
 
+/** How long a vehicle that comes off takes to turn to its rank's heading, ending as it stops (ms).
+ *  `@a-mesurer` */
+const TURN_HOME_MS = 600;
+
 /**
  * **A boarding's sequence played the other way** (#512), over `total` ms: each instant is the
  * boarding's at the mirrored one, the vehicle facing the way it now goes. Before the vehicle is
- * lifted out of the hold, it is the boarding's last pose: gone.
+ * lifted out of the hold, it is the boarding's last pose: gone. Once driven home (`homeAt`, ms) it
+ * stands at the pile's own heading (`rest`): it turns to it over the end of its drive.
  */
-function reversed(sequence: Sequence<never>, total: number): Sequence<never> {
+function reversed(
+  sequence: Sequence<never>,
+  total: number,
+  homeAt: number,
+  rest: number | undefined,
+): Sequence<never> {
   return {
     ...sequence,
     ms: total + 1,
@@ -84,8 +94,15 @@ function reversed(sequence: Sequence<never>, total: number): Sequence<never> {
       if (t < 0 || t > total) return {};
       const pose = sequence.at(Math.min(total - t, sequence.ms - 1)).root;
       if (pose === undefined) return {};
+      if (pose.heading === undefined) return { root: pose };
+      const driving = pose.heading + Math.PI;
+      const toRest =
+        rest === undefined ? 0 : Math.atan2(Math.sin(rest - driving), Math.cos(rest - driving));
       return {
-        root: pose.heading === undefined ? pose : { ...pose, heading: pose.heading + Math.PI },
+        root: {
+          ...pose,
+          heading: driving + toRest * ease.inOut(span(t, homeAt - TURN_HOME_MS, homeAt)),
+        },
       };
     },
   };
@@ -97,6 +114,8 @@ export type Vehicle = {
   readonly rest: Vector3;
   readonly length: number;
   readonly height: number;
+  /** The heading its rank stands at, when it comes off: it ends the drive facing it. */
+  readonly heading?: number;
 };
 
 /**
@@ -131,6 +150,7 @@ export function hoistedBoarding({
   readonly hull: Sequence<'cargo'> | null;
   readonly lifts: ReadonlyArray<{
     readonly boom: number;
+    readonly driveStart: number;
     readonly arrive: number;
     readonly lift: Lift;
   }>;
@@ -197,7 +217,10 @@ export function hoistedBoarding({
         toBoard,
         swing,
       });
-      return { id: vehicle.id, sequence: off ? reversed(boarding, total) : boarding };
+      return {
+        id: vehicle.id,
+        sequence: off ? reversed(boarding, total, total - driveStart, vehicle.heading) : boarding,
+      };
     }),
     hull: off
       ? ({ ...lifts.hull, at: (t) => lifts.hull.at(total - t) } as Sequence<'cargo'>)

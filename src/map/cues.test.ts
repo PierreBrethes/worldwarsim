@@ -311,7 +311,7 @@ describe('debarquementsOf (#509)', () => {
     ]);
   });
 
-  it('says a quay as a quay: nothing plays there before #512, the engine poses at once', () => {
+  it('says a quay as a quay: its men and vehicles come off by the gangway and the derrick (#512)', () => {
     const now = [troop('h', 'cargo', port), troop('a', 'infantry', port)];
     expect(debarquementsOf(aboard('a'), now, pilesOf(now), false)).toEqual([
       { hull: 'p/1', carrierId: 'h', ground: 'quay', men: ['p/0'], vehicles: [] },

@@ -25,7 +25,7 @@ describe('landingVerdict (#509)', () => {
 
   it.each([
     ['a carrier', { role: 'carrier' }],
-    ['a quay, whose men have no sequence before #512', { ground: 'quay' }],
+    ['a quay, which is `boardingVerdict`’s (#512)', { ground: 'quay' }],
     ['reduced motion', { motion: 'reduced' }],
     ['motion off', { motion: 'off' }],
     ['a combat at the point', { veiled: true }],

@@ -834,6 +834,14 @@ export class MapEngine {
     readonly cue: Extract<Cue, { kind: 'debarquement' }>;
     readonly since: number;
   }> = [];
+  /** **Cargos coming off at a quay** (#512): what lies out while their sequences play, the plank
+   *  and the cables, until none plays (`clearUnloaded`). */
+  private unloading: Array<{
+    readonly hull: string;
+    readonly ids: ReadonlyArray<string>;
+    readonly since: number;
+    readonly through: ReadonlyArray<number>;
+  }> = [];
   /** **Squads disbanded**, waiting for their crown to stand (#277, U). */
   private dispersions: Array<{
     readonly cue: Extract<Cue, { kind: 'dispersion' }>;
@@ -4972,6 +4980,7 @@ export class MapEngine {
         rest: places[n]!.at,
         length: Math.max(sizeOf(id).x, sizeOf(id).z),
         height: sizeOf(id).y,
+        heading: Math.atan2(places[n]!.front.x, places[n]!.front.z),
       })),
     });
     const playing = [
@@ -4997,6 +5006,12 @@ export class MapEngine {
       return stands();
     }
     this.standing.arrive(pileId, [Math.max(plan?.settled ?? 0, hoist.settled)]);
+    this.unloading.push({
+      hull: cue.hull,
+      ids: playing.map(({ id }) => id),
+      since: now,
+      through: plan?.through ?? [],
+    });
     if (plan !== null)
       this.gangplanks.lay(
         cue.hull,
@@ -5009,6 +5024,18 @@ export class MapEngine {
     if (hoist.playing.length > 0)
       this.hoists.lay(cue.hull, hoist.strokes, now, now + hoist.settled - 1, hoist.metre);
     return true;
+  }
+
+  /** **Takes the plank and the cables away** of a cargo that came off at a quay once none of its
+   *  pieces plays, as a boarding does: a plank is taken in by itself after the last man, so it is
+   *  cleared only when the men were cut short (a hand on the pile, the motion setting, the zoom). */
+  private clearUnloaded(now: number): void {
+    this.unloading = this.unloading.filter(({ hull, ids, since, through }) => {
+      if ([hull, ...ids].some((id) => this.sequences.playsOn(this.standing, id))) return true;
+      this.hoists.clear(hull);
+      if (cutShort(now - since, through)) this.gangplanks.clear(hull);
+      return false;
+    });
   }
 
   /** **The canots of a cargo file**, read once the file has landed: `undefined` until then (the
@@ -6128,6 +6155,7 @@ export class MapEngine {
       this.debarkations.length > 0 ||
       this.gangplanks.active ||
       this.hoists.active ||
+      this.unloading.length > 0 ||
       this.standing.isCarrying ||
       (this.aimRibbon.isFlowing && this.ambience.motion !== 'off') ||
       this.veil.fading ||
@@ -6243,6 +6271,7 @@ export class MapEngine {
       this.hoists.update(now, this.unitsPerPixel(distance), night);
     }
     this.hullBoardings.step(now);
+    this.clearUnloaded(now);
     this.boardings = this.boardings.filter((boarding) => {
       if (this.boardOf(boarding, now)) return false;
       if (now - boarding.since < SORTIE_WAIT_MS) return true;
