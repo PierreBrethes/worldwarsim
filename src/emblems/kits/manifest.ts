@@ -127,5 +127,10 @@ export const LANDING_CRAFT = {
   depth: 1.4,
   floor: 0.4,
   ramp: 3.5,
+  /** The ramp's width as a share of the width, the walls' thickness as a share of it, and how
+   *  short of its rank a barge grounds at most, in metres of the hull. */
+  rampWidth: 0.9,
+  wall: 0.06,
+  setback: 6,
   down: (100 * Math.PI) / 180,
 } as const;

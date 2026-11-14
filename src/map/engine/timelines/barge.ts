@@ -68,7 +68,7 @@ export function bargeGroundOf({
   const toward = new Vector3(hull.x - rest.x, 0, hull.z - rest.z);
   const length = toward.length();
   toward.normalize();
-  let back = Math.min(6 * metre, length / 2);
+  let back = Math.min(LANDING_CRAFT.setback * metre, length / 2);
   if (wet !== undefined)
     for (let d = back; d < length; d += metre)
       if (wet(rest.x + toward.x * d, rest.z + toward.z * d)) {
@@ -199,9 +199,12 @@ export function bargeOf({
     0,
     aground[2] + toEdge.z * (length / 2 + ramp * Math.sin(LANDING_CRAFT.down)),
   ]);
+  const reachOfRamp = Math.hypot(bow.x - craftAtGround.x, bow.z - craftAtGround.z);
+  const toRank = Math.hypot(vehicle.rest.x - craftAtGround.x, vehicle.rest.z - craftAtGround.z);
+  // A rank nearer than the ramp's tip is driven to straight: no going out to the tip and back.
   const way: P3[] = [
     [craftAtGround.x, toBoard([0, deck[1], 0]).y, craftAtGround.z],
-    [bow.x, vehicle.rest.y, bow.z],
+    ...(toRank > reachOfRamp ? ([[bow.x, vehicle.rest.y, bow.z]] as P3[]) : []),
     [vehicle.rest.x, vehicle.rest.y, vehicle.rest.z],
   ];
   const driven = measured(way);
@@ -209,10 +212,7 @@ export function bargeOf({
   const offEnd = ashore + driveMs;
   // The barge backs away once the vehicle has driven a craft's length past the ramp's tip, not
   // when it is home: a rank may be far up the beach.
-  const clearOfRamp = Math.min(
-    driven.length,
-    Math.hypot(bow.x - craftAtGround.x, bow.z - craftAtGround.z) + length * metre,
-  );
+  const clearOfRamp = Math.min(driven.length, reachOfRamp + length * metre);
   let [lo, hi] = [0, 1];
   for (let i = 0; i < 24; i++) {
     const mid = (lo + hi) / 2;

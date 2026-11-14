@@ -153,6 +153,30 @@ describe.each(files)('the barge of the %s cargo (#511)', (nation, url) => {
       expect(far.tank.at(far.hull.ms + 100).root?.travel).toBeDefined();
     });
 
+    it('drives a vehicle that stands nearer than the fallen ramp straight to its rank, never out to the tip and back', () => {
+      // 2 m of the hull's metres inland of the grounding point, well inside the ramp's reach.
+      const near = bargeOf({
+        booms,
+        frame,
+        beam,
+        vehicle: { ...tank, rest: toBoard(52, 0, -20) },
+        ground,
+      })!;
+      let previous = Infinity;
+      let driven = 0;
+      for (let t = 0; t < near.tank.ms; t += 10) {
+        const pose = near.tank.at(t).root;
+        const c = near.craft(t);
+        if (pose?.travel === undefined || pose.fade === 0 || c === null || c.ramp < 0.99) continue;
+        // On the fallen ramp or the sand: its distance to its rank only shrinks.
+        const away = Math.hypot(pose.travel[0], pose.travel[2]);
+        expect(away).toBeLessThanOrEqual(previous + 1e-6);
+        previous = away;
+        driven++;
+      }
+      expect(driven).toBeGreaterThan(5);
+    });
+
     it('moves only the masts and the hatch the lifts need, and puts them home', () => {
       expect(plan.hull.at(plan.hull.ms)).toEqual({});
       const names = new Set<string>();

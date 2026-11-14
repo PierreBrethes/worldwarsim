@@ -34,7 +34,7 @@ export class Barges {
   lay(hull: string, plan: Pick<BargePlan, 'craft' | 'size' | 'ms'>, since: number): void {
     this.clear(hull);
     const { length, width, depth, floor, ramp } = plan.size;
-    const wall = width * 0.06;
+    const wall = width * LANDING_CRAFT.wall;
     const body = new Group();
     const piece = (
       [w, h, l]: readonly [number, number, number],
@@ -52,7 +52,7 @@ export class Barges {
     // The ramp is hinged at the bow, standing up when raised, and falls forward.
     const hinge = new Group();
     hinge.position.set(0, floor, length / 2);
-    const plank = new Mesh(new BoxGeometry(width * 0.9, ramp, wall), this.material);
+    const plank = new Mesh(new BoxGeometry(width * LANDING_CRAFT.rampWidth, ramp, wall), this.material);
     plank.position.y = ramp / 2;
     hinge.add(plank);
     body.add(hinge);
