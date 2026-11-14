@@ -1514,12 +1514,20 @@ describe('an airfield and its runway (#269)', () => {
       });
       const lightsOnly = () => {
         const all: Vector3[] = [];
-        layer.lights((at) => all.push(at.clone()));
+        layer.runwayLights((at) => all.push(at.clone()));
         return all;
       };
-      // Out until a pose lights them: the airfield's own pile is the only halo.
-      const before = lightsOnly().length;
+      const footprints = () => {
+        let count = 0;
+        layer.lights(() => (count += 1));
+        return count;
+      };
+      // Out until a pose lights them: no halo. Lit, the footprints (what the contact rings
+      // read) still hold none of them.
+      const [before, discs] = [lightsOnly().length, footprints()];
+      expect(before).toBe(0);
       for (const material of lamps.values()) material.userData.lit = 1;
+      expect(footprints()).toBe(discs);
       const lit = lightsOnly();
       expect(lit.length - before).toBe(32);
       expect(lit.length - before).toBeLessThanOrEqual(RUNWAY_HALO_CAP);

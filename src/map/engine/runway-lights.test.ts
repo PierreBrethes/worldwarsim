@@ -69,7 +69,13 @@ describe('the runway lights, a halo to each (#498)', () => {
   it('falls back to one a module, on its axis, past the cap', () => {
     const halos = runwayHalos(31);
     expect(halos).toHaveLength(16);
-    for (const { at } of halos) expect(at.z).toBe(AIRFIELD.runway.z);
+    for (const { reach, at } of halos) {
+      expect(at.z).toBe(AIRFIELD.runway.z);
+      expect(at.x).toBe(AIRFIELD.runway.x1 - reach);
+      const lamp = runwayHalos().find((each) => each.reach === reach)!;
+      expect(at.y).toBe(lamp.at.y);
+      expect(Math.abs(at.x - lamp.at.x)).toBeLessThan(1);
+    }
   });
 
   it('stand on the lights of the file', async () => {
@@ -94,11 +100,17 @@ describe('the runway lights, a halo to each (#498)', () => {
         own.push(new Vector3().fromBufferAttribute(p, i).applyMatrix4(mesh.matrixWorld));
       vertices.set(reach, own);
     });
-    for (const { reach, at } of halos) {
-      const own = vertices.get(reach)!;
-      expect(Math.min(...own.map((v) => Math.hypot(v.x - at.x, v.z - at.z)))).toBeLessThan(0.2);
-      expect(Math.abs(Math.max(...own.map((v) => v.y)) - at.y)).toBeLessThan(0.15);
-    }
+    // Each side of the axis, for each reach: a light of the file stands under the halo.
+    const sides = (own: Vector3[], side: number) =>
+      own.filter((v) => Math.sign(v.z - AIRFIELD.runway.z) === side);
+    for (const set of [halos, runwayHalos(31)])
+      for (const { reach, at } of set) {
+        if (at.z === AIRFIELD.runway.z) continue;
+        const own = sides(vertices.get(reach)!, Math.sign(at.z - AIRFIELD.runway.z));
+        expect(own.length).toBeGreaterThan(0);
+        expect(Math.min(...own.map((v) => Math.hypot(v.x - at.x, v.z - at.z)))).toBeLessThan(0.2);
+        expect(Math.abs(Math.max(...own.map((v) => v.y)) - at.y)).toBeLessThan(0.15);
+      }
     expect(vertices.size).toBe(16);
   });
 });

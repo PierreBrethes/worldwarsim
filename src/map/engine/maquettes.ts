@@ -1685,23 +1685,25 @@ export class MaquetteLayer implements SequenceHost {
         Math.max(model.box.max.x - model.box.min.x, model.box.max.z - model.box.min.z) / 2;
       for (const item of items) emit(item.at, reach * sizeOf(model, item) * item.near, item.near);
     }
-    this.runwayLights(emit);
   }
 
-  /** **A halo on each runway light that is lit** (#498): where the copy of an airfield a plane
+  /** **A halo on each runway light that is lit** (#498), by night alone: not a footprint, so not
+   *  in `lights`, which the contact rings read. Where the copy of an airfield a plane
    *  moves on has lit it (`Sequence.lit`), the lights' places of the site's frame carried to the
    *  board with the airfield's turn. */
-  private runwayLights(emit: (at: Vector3, radius: number, near: number) => void): void {
+  runwayLights(emit: (at: Vector3, radius: number, near: number) => void): void {
     for (const [id, copy] of this.copies) {
-      const dressed = this.byId.get(id);
-      const site = this.siteOf(id);
-      if (dressed === undefined || site === null) continue;
       const lit = new Map<number, number>();
       copy.traverse((node) => {
         const material = (node as Mesh).material as Material | undefined;
         if (material?.name === LAMP && typeof material.userData.reach === 'number')
           lit.set(material.userData.reach, (material.userData.lit as number | undefined) ?? 0);
       });
+      // Not an airfield's copy, or no light on yet: nothing to place.
+      if (![...lit.values()].some((share) => share > 0)) continue;
+      const dressed = this.byId.get(id);
+      const site = this.siteOf(id);
+      if (dressed === undefined || site === null) continue;
       const scale = sizeOf(dressed.lot.model!, dressed.item);
       for (const { reach, at } of RUNWAY_HALOS) {
         const share = lit.get(reach) ?? 0;

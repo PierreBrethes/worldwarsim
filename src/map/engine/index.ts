@@ -6580,6 +6580,7 @@ export class MapEngine {
         const lit = (at: Vector3, radius: number, near: number) => this.halos.add(at, radius, near);
         this.standing.lights(lit);
         this.maquettes.lights(lit);
+        this.maquettes.runwayLights(lit);
         this.combats.lights(lit);
         this.razes.lights(lit);
         this.pins.lights(lit, this.unitsPerPixel(distance));
