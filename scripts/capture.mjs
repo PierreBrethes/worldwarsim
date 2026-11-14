@@ -412,7 +412,7 @@ try {
             engine.frame
               .projectLonLat([0, 0])
               .clone()
-              .set(0, 0, 111 + dz),
+              .set(0, 0, 111 + dz), // 111 = MOLE.quay + SPLASH_PAST (105 + 6),
           );
           const sky = [
             Math.sin((p * Math.PI) / 180) * Math.sin((a * Math.PI) / 180),

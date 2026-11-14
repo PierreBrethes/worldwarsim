@@ -22,6 +22,9 @@ import { carrying, crateOnMan, hop, stand, stride } from './figurines/infantry';
 import { EXHAUST, Smoke, Spray } from './smoke';
 import { darkCrate } from './timelines/loading';
 
+/** A splash is born this high above the water, in metres of the model. `@a-mesurer` */
+const SPRAY_LIFT = 5;
+
 /** A motor's breath leaves a door low under its lintel, in metres of the building. `@a-mesurer` */
 const EXHAUST_HEIGHT = 1.5;
 
@@ -639,7 +642,8 @@ export class SequenceLayer {
     }
     sprays.forEach((spray, k) => {
       const [at, seconds, scale] = asked[k] ?? [[0, 0, 0], -1, 1];
-      spray.object.position.set(...at);
+      // Lifted a little, so the hull it leaps around does not bury it (`SPRAY_LIFT`).
+      spray.object.position.set(at[0], at[1] + SPRAY_LIFT, at[2]);
       spray.frame(seconds, scale);
     });
   }
