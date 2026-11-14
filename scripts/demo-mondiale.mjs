@@ -25,6 +25,9 @@
  * monter sur le cargo, par sa passerelle (lieu : `cargo`). `--cargo-bis` y ajoute, quatre secondes
  * après, une troisième escouade : son embarquement se pose d'un coup. `--cargo-vehicules` (#505) y
  * joint un char et un camion, dans le même ordre : le mât de charge les hisse un par un.
+ * `--cargo-quai [s]` (#512) pose la même scène avec ses fantassins déjà à bord du cargo ; à `s`
+ * secondes, un ordre les débarque : ils descendent la passerelle et longent le môle (`--cargo-vehicules`
+ * : le char et le camion sortent par le mât de charge, `--port-miroir` : le port d'Almería).
  * `--sur-porte-avions` (#506, avec `--cargo-monter`) fait appareiller le cargo et accoster un porte-avions à sa place, quatre secondes après la scène :
  * les escouades montent par la planche au bord du pont et descendent par l'ascenseur ; avec
  * `--cargo-vehicules`, le char, posé d'un coup.
@@ -396,7 +399,10 @@ const mirrorPort = process.argv.includes('--port-miroir');
 /** `--ports-seuil` (#476) : deux ports de part et d'autre du seuil de la pose en miroir, assez loin l'un
  *  de l'autre pour ne pas s'annelter (plus de 6 unités) : Biarritz en miroir, la côte d'Opale droite, à peine en deçà. */
 const thresholdPorts = process.argv.includes('--ports-seuil');
-const hullBoardingAt = process.argv.indexOf('--cargo-monter');
+/** `--cargo-quai` (#512) : la scène de `--cargo-monter`, ses passagers déjà à bord, que l'ordre débarque. */
+const quayUnloadAt = process.argv.indexOf('--cargo-quai');
+const unloadAtQuay = quayUnloadAt >= 0;
+const hullBoardingAt = Math.max(process.argv.indexOf('--cargo-monter'), quayUnloadAt);
 const hullBoardingIn = hullBoardingAt < 0 ? null : Number(process.argv[hullBoardingAt + 1]) || 25;
 const hullBoardingTwice = process.argv.includes('--cargo-bis');
 const hullBoardingVehicles = process.argv.includes('--cargo-vehicules');
@@ -1606,6 +1612,7 @@ if (!bare) {
         lon: port.point[0],
         lat: port.point[1],
         buildingId: port.id,
+        ...(unloadAtQuay ? { carriedBy: cargo.id } : {}),
       });
     const first = squads(2);
     // A tank and a truck at the quay: the cargo's mast lifts them aboard (#505); a carrier takes
@@ -1618,6 +1625,7 @@ if (!bare) {
             lon: port.point[0],
             lat: port.point[1],
             buildingId: port.id,
+            ...(unloadAtQuay ? { carriedBy: cargo.id } : {}),
           }),
         )
       : [];
@@ -2417,6 +2425,14 @@ const gestures = [
       hullBoardingIn,
       async () => {
         const { cargo, riders } = pile.cargo;
+        if (unloadAtQuay) {
+          await client.mutation(api.movements.disembark, {
+            token: tokenA,
+            seasonId,
+            troopIds: riders,
+          });
+          return 'les passagers débarquent du cargo, à quai';
+        }
         await client.mutation(api.movements.board, {
           token: tokenA,
           seasonId,
