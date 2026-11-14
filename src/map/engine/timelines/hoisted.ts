@@ -83,14 +83,10 @@ function reversed(sequence: Sequence<never>, total: number): Sequence<never> {
     at(t) {
       if (t < 0 || t > total) return {};
       const pose = sequence.at(Math.min(total - t, sequence.ms - 1)).root;
-      return pose === undefined
-        ? {}
-        : {
-            root: {
-              ...pose,
-              heading: pose.heading === undefined ? undefined : pose.heading + Math.PI,
-            },
-          };
+      if (pose === undefined) return {};
+      return {
+        root: pose.heading === undefined ? pose : { ...pose, heading: pose.heading + Math.PI },
+      };
     },
   };
 }
