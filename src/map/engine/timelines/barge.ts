@@ -80,7 +80,7 @@ export function bargeGroundOf({
 
 /** What the engine draws of the barge at an instant: its keel's middle on the board, the way it
  *  faces, and its ramp, 0 raised to 1 fallen. */
-export type Craft = { readonly at: Vector3; readonly heading: number; readonly ramp: number };
+type Craft = { readonly at: Vector3; readonly heading: number; readonly ramp: number };
 
 export type BargePlan = {
   /** The masts and the holds' hatches, to merge with the hull's other poses. */
