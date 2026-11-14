@@ -35,6 +35,9 @@
  * fantassins à son bord (lieu : `plage`) ; à `s` secondes (25 par défaut), un ordre les débarque :
  * les canots les portent à terre. `--cargo-plus` y joint un char (posé d'un coup, #511) et une
  * troisième escouade (posée d'un coup, faute de canot).
+ * `--cargo-rembarquer [s]` (#510) pose la même plage avec ses escouades déjà à terre ; à `s` secondes, un
+ * ordre les fait rembarquer : elles courent au sable, sautent dans les canots, qui regagnent le cargo
+ * (`--cargo-plus` : un char, posé d'un coup, et une troisième escouade, embarquée d'un coup).
  * `--navire` pose pour la France un port à Marseille, un cargo à quai et un avant-poste à Agde :
  * de quoi voir un navire s'écarter du quai puis s'y ranger (#129). `--brest` (#436) y ajoute un chantier
  * de port à Brest, sur sa rade. `--port-miroir` (#476) pose le port de `--navire` à Almería, sur une côte
@@ -529,6 +532,8 @@ const disbandingIn = gestureIn('--dissoudre');
 const boardingIn = gestureIn('--monter');
 const landingIn = gestureIn('--descendre');
 const beachLandingIn = gestureIn('--cargo-debarquer');
+/** `--cargo-rembarquer` (#510) : la même plage, les escouades déjà à terre, que l'ordre fait rembarquer. */
+const beachBoardIn = gestureIn('--cargo-rembarquer');
 const beachLandingMore = process.argv.includes('--cargo-plus');
 const marchAboardIn = gestureIn('--embarquer');
 /** What the gestures of `--former`… act on, once the accounts are written. */
@@ -1657,12 +1662,15 @@ if (!bare) {
       later: hullBoardingTwice ? squads(1) : [],
     };
   }
-  /** `--cargo-debarquer` (#509) : un cargo devant une plage, deux escouades à son bord. */
-  if (beachLandingIn !== null && scene.a !== null) {
+  /** `--cargo-debarquer` (#509) : un cargo devant une plage, deux escouades à son bord ;
+   *  `--cargo-rembarquer` (#510) : les mêmes escouades déjà à terre, que l'ordre embarque. */
+  if ((beachLandingIn !== null || beachBoardIn !== null) && scene.a !== null) {
     const at = { lon: -1.19, lat: 49.41 };
     places.plage = [at.lon, at.lat];
     const [hull] = spawned({ role: 'cargo', count: 1, ...at });
-    const aboard = (role, count) => spawned({ role, count, ...at, carriedBy: hull });
+    pile.plageCargo = hull;
+    const aboard = (role, count) =>
+      spawned({ role, count, ...at, ...(beachBoardIn === null ? { carriedBy: hull } : {}) });
     pile.plage = [
       ...aboard('infantry', 2),
       ...(beachLandingMore ? [...aboard('armor', 1), ...aboard('infantry', 1)] : []),
@@ -2482,6 +2490,19 @@ const gestures = [
           troopIds: pile.plage,
         });
         return 'les escouades débarquent du cargo, sur la plage';
+      },
+    ],
+  beachBoardIn !== null &&
+    pile.plage && [
+      beachBoardIn,
+      async () => {
+        await client.mutation(api.movements.board, {
+          token: tokenA,
+          seasonId,
+          troopIds: pile.plage,
+          carrierId: pile.plageCargo,
+        });
+        return 'les escouades de la plage rembarquent sur le cargo';
       },
     ],
   landingIn !== null &&
