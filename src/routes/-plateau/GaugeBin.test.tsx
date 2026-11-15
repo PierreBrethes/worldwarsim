@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
+import { setMapMotionSetting } from '@/data/mapMotion';
 import { PinContext } from '@/shell/ReserveCell';
 import { GaugeBin } from './GaugeBin';
 
@@ -11,15 +12,27 @@ import { GaugeBin } from './GaugeBin';
  * **Un bac en jauge** (#251) : « plein » prend la place du débit comme « à sec », et le survol dit
  * pourquoi. Ce qui l'emporte : à sec, puis plein, puis le débit.
  */
+let systemReduced = false;
 vi.stubGlobal('matchMedia', (query: string) => ({
-  matches: false,
+  get matches() {
+    return systemReduced;
+  },
   media: query,
   addEventListener: () => {},
   removeEventListener: () => {},
 }));
 
-beforeEach(() => localStorage.clear());
-afterEach(cleanup);
+beforeEach(() => {
+  localStorage.clear();
+  systemReduced = false;
+  setMapMotionSetting('auto');
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const NOW = 1_000_000;
 
@@ -80,5 +93,34 @@ describe('the gauge bin', () => {
   it('takes the pin of its ledger', () => {
     mount(viewWith(), ['coal']);
     expect(bin().getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('tags a gain under « actives » at full strength even when the system asks for less motion, and quietly under « auto »', () => {
+    systemReduced = true;
+    const pinned: ResourceKey[] = [];
+    const bin = (view: PlayerView) => (
+      <PinContext.Provider value={{ pinned, onPin: () => {} }}>
+        <GaugeBin
+          resource="coal"
+          view={view}
+          now={NOW}
+          shown={null}
+          register={() => {}}
+          onTake={null}
+          density="ample"
+        />
+      </PinContext.Provider>
+    );
+    const gain = () => viewWith({ coal: { stock: 90 } });
+    setMapMotionSetting('auto');
+    const quiet = render(bin(viewWith()));
+    quiet.rerender(bin(gain()));
+    expect(document.querySelector('.reserve-tag--quiet')).not.toBeNull();
+    quiet.unmount();
+    setMapMotionSetting('full');
+    const lively = render(bin(viewWith()));
+    lively.rerender(bin(gain()));
+    expect(document.querySelector('.reserve-tag')).not.toBeNull();
+    expect(document.querySelector('.reserve-tag--quiet')).toBeNull();
   });
 });
