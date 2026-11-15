@@ -1619,9 +1619,10 @@ export class MaquetteLayer implements SequenceHost {
         if (ink === undefined || ink === null) return;
         const own = (mesh.material as MeshStandardMaterial).clone();
         own.color.copy(ink);
-        // A clone does not keep the hook: the copy's cloth flies too (#422).
+        // A clone does not keep the hook: the copy's cloth flies too, or is held at its site's
+        // phase when the site is (#422, Q2).
         if (name === 'drapeau') {
-          windy(own);
+          windy(own, dressed?.item.flies === false ? dressed.item.yaw : undefined);
           mesh.userData.shadowless = true;
         }
         mesh.material = own;

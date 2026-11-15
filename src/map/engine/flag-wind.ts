@@ -5,8 +5,11 @@ import { LIVE_PX } from './site-loops';
 
 /** **The wind's clock**, seconds, shared by every cloth: the ambience advances it at its beat. */
 export const WIND_TIME = { value: 0 };
-/** **The instant a still cloth is held at** (reduced and cut motion, a site that does not
- *  live): a pose in the wind, never the cloth hanging straight down. `@a-mesurer` */
+/** **The instant the cloths are held at** when the ambience asks nothing (reduced and cut
+ *  motion): a pose in the wind, never the cloth hanging straight down. A site held still (sealed,
+ *  at work) stays at its own phase instead, on the instance as on its copy. Without the fx
+ *  `sites` the layer does not exist and the clock stays at 0: still a pose at each phase.
+ *  `@a-mesurer` */
 export const REST_WIND = 1.3;
 export const WIND_KEY = 'flag-wind';
 
@@ -21,13 +24,16 @@ const RIPPLE = 0.08;
  * lives, 0 for one held still, y its phase, so that a row of sites is not a parade; a copy
  * (no instancing) lives at phase 0. Nothing here asks for a frame: the clock is the ambience's.
  */
-export function windy<M extends Material>(material: M): M {
+export function windy<M extends Material>(material: M, still?: number): M {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWindTime = WIND_TIME;
+    // A copy held still reads its phase alone, never the clock.
+    if (still !== undefined) shader.uniforms.uWindStill = { value: still };
     shader.vertexShader = shader.vertexShader
       .replace(
         'void main() {',
         `uniform float uWindTime;
+${still === undefined ? '' : 'uniform float uWindStill;'}
 #ifdef USE_INSTANCING
 attribute vec2 aWind;
 #endif
@@ -39,12 +45,12 @@ void main() {`,
 #ifdef USE_INSTANCING
 float windAt = uWindTime * aWind.x + aWind.y;
 #else
-float windAt = uWindTime;
+float windAt = ${still === undefined ? 'uWindTime' : 'uWindStill'};
 #endif
 transformed += normalize(normal) * (sin(windAt * 3.0 - uv.x * 6.0) * ${SWELL.toFixed(2)} + sin(windAt * 5.3 - uv.x * 11.0) * ${RIPPLE.toFixed(2)}) * uv.x;`,
       );
   };
-  material.customProgramCacheKey = () => WIND_KEY;
+  material.customProgramCacheKey = () => (still === undefined ? WIND_KEY : `${WIND_KEY}-still`);
   return material;
 }
 

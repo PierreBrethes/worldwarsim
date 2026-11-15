@@ -21,6 +21,18 @@ describe('windy', () => {
     // The pole side (u = 0) does not move: the lift is multiplied by u.
     expect(shader.vertexShader).toMatch(/\)\s*\*\s*uv\.x;/);
   });
+
+  it('holds a copy still at its phase when told so, off the shared clock', () => {
+    const material = windy(new MeshStandardMaterial(), 0.7);
+    const shader = {
+      uniforms: {} as Record<string, { value: number }>,
+      vertexShader: 'void main() {\n#include <begin_vertex>\n}',
+    };
+    expect(material.customProgramCacheKey()).not.toBe(WIND_KEY);
+    material.onBeforeCompile(shader as never, null as never);
+    expect(shader.uniforms.uWindStill!.value).toBe(0.7);
+    expect(shader.vertexShader).toContain('uWindStill');
+  });
 });
 
 describe('the flags ambience', () => {

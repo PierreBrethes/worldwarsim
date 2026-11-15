@@ -1018,6 +1018,38 @@ describe('a site on its socle (ADR 0038)', () => {
     expect(cloth.userData.shadowless).toBe(true);
   });
 
+  it('holds the copy of a sealed site still at its phase, and winds the copy of a living one', async () => {
+    const ink = { side: 'mine' as const, ink: '#2a5ba8', flag: '#2a5ba8' };
+    const layer = await layerOf([
+      site(MINE, ink),
+      site('building-sealed', { ...ink, seal: [0, 5.2, 8, 0, 3.4] }),
+    ]);
+    const stillOf = (id: string) => {
+      const cloth = new Mesh(
+        new BoxGeometry(1, 1, 1),
+        new MeshStandardMaterial({ name: 'drapeau' }),
+      );
+      layer.standIn(id, new Group().add(cloth));
+      const shader = { uniforms: {} as Record<string, { value: number }>, vertexShader: '' };
+      const material = cloth.material as MeshStandardMaterial;
+      material.onBeforeCompile(shader as never, null as never);
+      return { key: material.customProgramCacheKey(), still: shader.uniforms.uWindStill };
+    };
+    expect(stillOf(MINE).key).toBe(WIND_KEY);
+    const sealed = stillOf('building-sealed');
+    expect(sealed.key).not.toBe(WIND_KEY);
+    expect(sealed.still!.value).toBeCloseTo(yawOf('building-sealed'), 5);
+  });
+
+  it('frees the geometry of a cloth once its lot is cleared', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' })]);
+    const cloth = meshes(layer).find((mesh) => nameOf(mesh) === 'drapeau')!;
+    const freed = vi.fn();
+    cloth.geometry.addEventListener('dispose', freed);
+    layer.rebuild();
+    expect(freed).toHaveBeenCalled();
+  });
+
   it('runs a staple round the socle to the share of its capture, pale once stopped', async () => {
     const clock = { progress: 0.5, at: Date.now(), rate: 0, durationMs: 1, rest: null };
     const layer = await layerOf([
