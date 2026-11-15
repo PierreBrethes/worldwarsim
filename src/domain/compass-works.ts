@@ -3,12 +3,14 @@ import {
   countryLabel,
   fr,
   noBuilding,
+  theBuilding,
   raiseHoldText,
   specialtyEffectText,
   upgradeHoldText,
 } from '@/i18n/fr';
 import {
   availabilityOf,
+  type Availability,
   demolitionRefusalOf,
   underCaptureOf,
   foundationHold,
@@ -492,6 +494,24 @@ function upgradeBranch(
 }
 
 /**
+ * **The one sentence of a bill that time will not pay**, for the window's raise line, the
+ * garrison sheet and the rose alike (ADR 0015). A deposit's matter names its deposit.
+ */
+export function neverText(
+  resource: ResourceKey,
+  when: Extract<Availability, { kind: 'never' | 'overCap' }>,
+): string {
+  if (when.kind === 'overCap') {
+    return fr.upgrade.overCap(when.cap, fr.resources[resource], theBuilding('warehouse'));
+  }
+  const none = noBuilding(PRODUCER_OF[resource]);
+  const deposit = DEPOSITS.find((key) => key === resource);
+  return deposit === undefined
+    ? fr.upgrade.never(none)
+    : fr.upgrade.neverOnDeposit(none, fr.deposits[deposit]);
+}
+
+/**
  * **Un refus qui compte est un mur, un refus qui se date est un plan** — la même phrase que la
  * ligne d'élévation des fenêtres (`UpgradeControl`), et pour la même raison. `never` nomme le
  * bâtiment à monter plutôt que de promettre une attente : rien ne produit la matière, donc
@@ -505,9 +525,5 @@ function whenAffordable(
   const when = availabilityOf(hold.needed, held, currentStock(held, view.loadedAt, view.loadedAt));
   if (when.kind === 'now') return null;
   if (when.kind === 'inMinutes') return fr.upgrade.availableIn(asDuration(when.minutes));
-  const none = noBuilding(PRODUCER_OF[hold.resource]);
-  const deposit = DEPOSITS.find((key) => key === hold.resource);
-  return deposit === undefined
-    ? fr.upgrade.never(none)
-    : fr.upgrade.neverOnDeposit(none, fr.deposits[deposit]);
+  return neverText(hold.resource, when);
 }

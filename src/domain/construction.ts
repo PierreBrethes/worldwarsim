@@ -388,17 +388,20 @@ export type UpgradeHold =
  *
  * `never` is the one that earns its place. When nothing produces the matter — no mine, so no
  * coal, ever — a countdown would be a lie, and the honest sentence names the building to
- * raise. The ceiling counts as never too: a bill above what the warehouses can hold is not
- * waiting on time, it is waiting on a warehouse.
+ * raise. The ceiling is its own case, `overCap`: the matter is produced, but a bill above what
+ * the warehouses hold is not waiting on time, it is waiting on a warehouse. With no producer
+ * as well, the producer comes first.
  */
 export type Availability =
   | { readonly kind: 'now' }
   | { readonly kind: 'inMinutes'; readonly minutes: number }
-  | { readonly kind: 'never' };
+  | { readonly kind: 'never' }
+  | { readonly kind: 'overCap'; readonly cap: number };
 
 export function availabilityOf(needed: number, held: Resource, stock: number): Availability {
   if (stock >= needed) return { kind: 'now' };
-  if (needed > held.cap || held.ratePerHour <= 0) return { kind: 'never' };
+  if (held.ratePerHour <= 0) return { kind: 'never' };
+  if (needed > held.cap) return { kind: 'overCap', cap: held.cap };
   return { kind: 'inMinutes', minutes: ((needed - stock) / held.ratePerHour) * 60 };
 }
 

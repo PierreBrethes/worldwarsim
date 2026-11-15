@@ -8,14 +8,8 @@ import {
   RELAY_SPEED_MULTIPLIER,
 } from '../../../convex/constants';
 import { isOnWatch, liaisonsOf, lookoutCoalPerHour, lookoutKmOf } from '@/domain/outposts';
-import {
-  fr,
-  noBuilding,
-  raiseHoldText,
-  specialtyEffectText,
-  specialtyRefusalText,
-} from '@/i18n/fr';
-import { PRODUCER_OF } from '@/domain/economy';
+import { fr, raiseHoldText, specialtyEffectText, specialtyRefusalText } from '@/i18n/fr';
+import { neverText } from '@/domain/compass-works';
 import { asDuration, asLocalTime } from '@/domain/duration';
 import {
   CHOSEN_SPECIALTIES,
@@ -480,11 +474,11 @@ function RaiseAvailability({
   return (
     <p
       className="mt-[4px] text-[10.5px] leading-[1.4]"
-      style={{ color: when.kind === 'never' ? 'var(--critical)' : 'var(--ink-soft)' }}
+      style={{ color: when.kind === 'inMinutes' ? 'var(--ink-soft)' : 'var(--critical)' }}
     >
       {when.kind === 'inMinutes'
         ? fr.upgrade.availableIn(asDuration(when.minutes))
-        : fr.upgrade.never(noBuilding(PRODUCER_OF[hold.resource]))}
+        : neverText(hold.resource, when)}
     </p>
   );
 }

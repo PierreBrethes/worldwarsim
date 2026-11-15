@@ -4041,6 +4041,10 @@ export const fr = {
      */
     availableIn: (time: string) => `disponible dans ${time}`,
     never: (none: string) => `jamais : ${none}`,
+    /** The matter is produced; the bill is above what the stock can hold, and a warehouse
+     *  lifts the ceiling of all five. */
+    overCap: (cap: number, resource: string, warehouse: string) =>
+      `le stock s’arrête à ${num(cap)} ${resource} : ${warehouse} relève ce plafond`,
     neverOnDeposit: (none: string, deposit: string) => `jamais : ${none} de ${deposit}`,
     neverNote: (a: string) => `bâtissez ${a}, rien d’autre ne débloque cette amélioration`,
     /** Une seule entrée par région, en cours ou en file — le refus que le serveur oppose. */
