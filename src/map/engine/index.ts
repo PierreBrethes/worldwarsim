@@ -81,6 +81,7 @@ import {
 } from './figurines/figurine';
 import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequences';
 import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
+import { FlagWindLayer } from './flag-wind';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
@@ -1326,6 +1327,12 @@ export class MapEngine {
       this.touch ? MAX_LIVING.touch : MAX_LIVING.desk,
     );
     this.ambience.add(this.loops);
+    this.ambience.add(
+      new FlagWindLayer(
+        () => this.maquettes.flying(),
+        (box, px) => this.seenBig(box, px),
+      ),
+    );
     this.moorings = new Moorings({
       hulls: () => this.standing.mooredHulls(),
       frameOf: (id) => {

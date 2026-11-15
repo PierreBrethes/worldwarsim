@@ -44,6 +44,8 @@ import { GROUP_SPACING, pileLayout } from '@/domain/pile-layout';
 import { articulatedOf } from './sequences';
 import { warmPieces } from './halo';
 import { sceneOfFile } from './gltf-scene.fixture';
+import { castShadows } from './lamp';
+import { WIND_KEY } from './flag-wind';
 import {
   ANONYMOUS_SPAN,
   LAID_OUT_FOR,
@@ -957,6 +959,63 @@ describe('a site on its socle (ADR 0038)', () => {
     // Halfway down its time, slowly first: a quarter of the way.
     const down = new Vector3(0, -1, 0).applyMatrix4(at(sign, 0));
     expect(new Vector3().applyMatrix4(at(flag, 0)).distanceTo(down)).toBeLessThan(1e-6);
+  });
+
+  /** **The flag flies** (#422): each cloth carries its phase and whether it lives; a site out of
+   *  service or at work holds it still (Q2). */
+  it('gives each flag its phase, and holds still the one of a site sealed or at work', async () => {
+    const works = {
+      phase: 'raising' as const,
+      level: 2,
+      finishesAt: null,
+      minutes: 1,
+      pennant: null,
+      stamp: null,
+    };
+    const ink = { side: 'mine' as const, ink: '#2a5ba8', flag: '#2a5ba8' };
+    const layer = await layerOf([
+      site(MINE, ink),
+      site('building-sealed', { ...ink, seal: [0, 5.2, 8, 0, 3.4] }),
+      site('building-works', { ...ink, works }),
+    ]);
+    // One lot for the two plain sites, another for the works' own.
+    const [plain, atWork, ...more] = meshes(layer).filter((mesh) => nameOf(mesh) === 'drapeau');
+    expect(more).toEqual([]);
+    const wind = (mesh: InstancedMesh, k: number) => {
+      const attribute = mesh.geometry.getAttribute('aWind');
+      return [attribute.getX(k), attribute.getY(k)];
+    };
+    expect(wind(plain!, 0)).toEqual([1, expect.closeTo(yawOf(MINE), 5)]);
+    expect(wind(plain!, 1)[0]).toBe(0);
+    expect(wind(atWork!, 0)[0]).toBe(0);
+  });
+
+  it('keeps the cloth out of the shadow pass, and reads it for the frame only while it lives', async () => {
+    const layer = await layerOf([
+      site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' }),
+      site('building-sealed', {
+        side: 'mine',
+        ink: '#2a5ba8',
+        flag: '#2a5ba8',
+        seal: [0, 5.2, 8, 0, 3.4],
+      }),
+      site('installation-seen', { side: 'seen' }),
+    ]);
+    castShadows(layer.group);
+    for (const mesh of meshes(layer)) expect(mesh.castShadow).toBe(nameOf(mesh) !== 'drapeau');
+    // Mine and living: one cloth, over its pole; none for the sealed one, nor the survey's bare pole.
+    const [flying, ...more] = layer.flying();
+    expect(more).toEqual([]);
+    const model = layer.boxOf(MINE)!;
+    expect(model.intersectsBox(flying!)).toBe(true);
+  });
+
+  it('winds the copy a sequence stands in as well, shadowless', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' })]);
+    const cloth = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({ name: 'drapeau' }));
+    layer.standIn(MINE, new Group().add(cloth));
+    expect((cloth.material as MeshStandardMaterial).customProgramCacheKey()).toBe(WIND_KEY);
+    expect(cloth.userData.shadowless).toBe(true);
   });
 
   it('runs a staple round the socle to the share of its capture, pale once stopped', async () => {
