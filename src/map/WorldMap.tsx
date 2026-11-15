@@ -315,6 +315,8 @@ type Props = {
     /** La distance d'arrivée, quand le sujet est un lieu à regarder de près — le combat d'une
      *  dépêche — et non une étiquette à retrouver : seule cette demande rapproche la caméra. */
     readonly distance?: number;
+    /** Cadrer la pièce dessinée plutôt que son étiquette (`MapEngine.journeyTo`). */
+    readonly onPiece?: boolean;
     readonly nonce: number;
   } | null;
   /**
@@ -1471,7 +1473,13 @@ export function WorldMap({
     if (focus === null) return;
     stopTourNow.current();
     if (finger.current) setRose(null);
-    readyEngine?.journeyTo(focus.ids, focus.places ?? [], focus.lift ?? 0, focus.distance);
+    readyEngine?.journeyTo(
+      focus.ids,
+      focus.places ?? [],
+      focus.lift ?? 0,
+      focus.distance,
+      focus.onPiece,
+    );
   }, [readyEngine, focus]);
 
   const replayStep = useRef(onReplayStep);

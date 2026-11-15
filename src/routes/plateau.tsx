@@ -69,6 +69,7 @@ import { BoardWindows } from './-plateau/BoardWindows';
 import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
+import { useFrameOnOpen } from './-plateau/useFrameOnOpen';
 import { MAT_LIFT, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
@@ -563,6 +564,7 @@ function BoardContent({
     readonly places?: ReadonlyArray<LonLat>;
     readonly lift?: number;
     readonly distance?: number;
+    readonly onPiece?: boolean;
     readonly nonce: number;
   } | null>(null);
   /**
@@ -589,6 +591,26 @@ function BoardContent({
     readonly floor: number;
     readonly nonce: number;
   } | null>(null);
+  /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
+   *  au-dessus. L'aperçu épouse son contenu jusqu'à mi-hauteur, et la fiche d'une troupe armée,
+   *  avec ses cibles, y monte (refonte mobile, 1b) : mesurée au tiers, elle laissait la troupe
+   *  sous la feuille. */
+  const [selectionSheet, setSelectionSheet] = useState<number | null>(null);
+  /** La hauteur du plateau personnel quand il couvre la carte sur un site, mesurée de même. */
+  const [boardCover, setBoardCover] = useState<number | null>(null);
+  /** **Ce que la surface ouverte couvre de la carte** : l'objet touché se recadre une fois,
+   *  au-dessus d'elle, quand elle est mesurée (`useFrameOnOpen`). */
+  const frameOnOpen = useFrameOnOpen<
+    | { readonly kind: 'journey'; readonly ids: ReadonlyArray<string> }
+    | { readonly kind: 'reveal'; readonly x: number; readonly y: number }
+  >(
+    selectionSheet ?? boardCover,
+    useCallback((request, covered) => {
+      if (request.kind === 'reveal')
+        setReveal({ x: request.x, y: request.y, floor: covered, nonce: Date.now() });
+      else setFocus({ ids: request.ids, lift: covered / 2, onPiece: true, nonce: Date.now() });
+    }, []),
+  );
   const [selectedRumorId, setSelectedRumorId] = useState<string | null>(null);
   const [selectedLoot, setSelectedLoot] = useState<OpenLoot | null>(null);
   const [selectedCamp, setSelectedCamp] = useState<OpenCamp | null>(null);
@@ -752,10 +774,11 @@ function BoardContent({
       const marker = markerOfStation({ me: view.me }, station);
       /** **Sous le seuil la garnison est une feuille à mi-hauteur** (A7) : la carte remonte le
        *  point au-dessus d'elle plutôt que de le cadrer dessous. */
-      if (marker !== null)
-        setFocus({ ids: [marker], lift: narrow ? sheetLift('half') : 0, nonce: Date.now() });
+      if (marker === null) return;
+      if (narrow) frameOnOpen({ kind: 'journey', ids: [marker] });
+      else setFocus({ ids: [marker], nonce: Date.now() });
     },
-    [view.me, narrow],
+    [view.me, narrow, frameOnOpen],
   );
 
   /**
@@ -842,15 +865,11 @@ function BoardContent({
         /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
          *  toucher qui la repose tomberait sur la feuille. */
         if (narrow && click.kind === 'pile')
-          setReveal({
-            ...boardPoint(clientX, clientY),
-            floor: sheetHeight('peek'),
-            nonce: Date.now(),
-          });
+          frameOnOpen({ kind: 'reveal', ...boardPoint(clientX, clientY) });
       }
       return false;
     },
-    [hand, liftHand, dropHand, narrow, boardPoint, unitsAt],
+    [hand, liftHand, dropHand, narrow, boardPoint, unitsAt, frameOnOpen],
   );
 
   /**
@@ -893,7 +912,8 @@ function BoardContent({
       if (!blitz && isProjectionKey(standing.key)) {
         setGarrison(null);
         setHand(EMPTY_HAND);
-        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        if (narrow) frameOnOpen({ kind: 'journey', ids: [buildingLabelId(standing)] });
+        else setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
         void navigate({
           search: (previous) => {
             const windows = (previous.windows ?? []).filter((open) => open !== 'site');
@@ -965,6 +985,7 @@ function BoardContent({
       unitsAt,
       selectClick,
       applyPileClick,
+      frameOnOpen,
     ],
   );
 
@@ -2769,11 +2790,6 @@ function BoardContent({
   }, [view.me.outposts]);
   const dismantled = view.me.outposts.find((outpost) => outpost.id === dismantling?.outpostId);
 
-  /** La place que la feuille à l'aperçu peut prendre au pied du plateau : la rose s'ouvre
-   *  au-dessus. L'aperçu épouse son contenu jusqu'à mi-hauteur, et la fiche d'une troupe armée,
-   *  avec ses cibles, y monte (refonte mobile, 1b) : mesurée au tiers, elle laissait la troupe
-   *  sous la feuille. */
-  const [selectionSheet, setSelectionSheet] = useState<number | null>(null);
   /** Les feuilles montées au téléphone : elles seules couvrent la carte (#189). */
   const [sheets, setSheets] = useState(0);
   const countSheet = useCallback((delta: 1 | -1) => setSheets((count) => count + delta), []);
@@ -3404,6 +3420,7 @@ function BoardContent({
                     site={selectedSite}
                     onDeselectSite={deselectSite}
                     onOpenSiteSheet={() => openWindow('site')}
+                    onCover={setBoardCover}
                     onHoldTile={holdTile}
                     placing={placing?.key ?? null}
                     onPlaceTile={placeTile}

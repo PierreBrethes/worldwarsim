@@ -96,6 +96,7 @@ export function PersonalBoard({
   site,
   onDeselectSite,
   onOpenSiteSheet,
+  onCover,
   onOpen,
   onResearch,
   onHoldTile,
@@ -127,6 +128,9 @@ export function PersonalBoard({
   onDeselectSite: () => void;
   /** « fiche du site » : garnison, niveau, élever. */
   onOpenSiteSheet: () => void;
+  /** **Ce que le plateau couvre de la carte** sous le seuil, quand il est déplié sur un site : sa
+   *  hauteur mesurée, `null` sinon. La caméra y recadre le bâtiment touché. */
+  onCover?: (height: number | null) => void;
   /** Arms the map's ghost for the tile in hand, or disarms it (ADR 0029). */
   onHoldTile: (key: BuildingKey | null) => void;
   /** The tile let go over the map, put down where the ghost stands: `true` when it went. */
@@ -180,6 +184,19 @@ export function PersonalBoard({
       : fr.footBar.grip.full;
   const foot = useFoot();
   useClaimFoot(narrow ? foot : null, board);
+  const covers = narrow && !folded && site !== null;
+  useLayoutEffect(() => {
+    const element = board.current;
+    if (onCover === undefined || !covers || element === null) return;
+    const publish = () => onCover(element.getBoundingClientRect().height);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      onCover(null);
+    };
+  }, [covers, onCover, board]);
   const handleRef = useRef<HTMLButtonElement>(null);
   useMatRise(board, `${folded}-${filled}-${research}-${cue?.text ?? ''}`);
   /** Un site ouvert resserre les bacs au plus juste : sa colonne a besoin de la place. */
