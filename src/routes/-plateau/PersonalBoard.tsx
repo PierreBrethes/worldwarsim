@@ -64,11 +64,8 @@ const DRAG_THRESHOLD_PX = 5;
 const MAT_GAP_PX = 8;
 
 /** The unfolded band's height at the desk: a site open needs room for its troop cards and their
- *  refusals; a Mondiale gauge also reads what waits at the foot (#548), a Blitz one has no heap. */
-const BAND_HEIGHT = {
-  mondiale: { site: '184px', rest: '174px' },
-  blitz: { site: '170px', rest: '156px' },
-} as const;
+ *  refusals; a gauge also reads what waits at the foot (#548). */
+const BAND_HEIGHT = { site: '184px', rest: '174px' } as const;
 
 /** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
 const FULL_ROOM =
@@ -385,15 +382,13 @@ export function PersonalBoard({
             {!folded && (
               <>
                 <div className="h-[54px] shrink-0 border-t border-(color:--ink)/30">{reserves}</div>
-                {view.mode !== 'blitz' && (
-                  <div className="grid shrink-0 grid-cols-5 items-start px-[1px] pt-[2px]">
-                    {RESOURCES.map((resource) => (
-                      <div key={resource} className="grid min-w-0 justify-items-center">
-                        <HeapBinLines view={view} resource={resource} now={now} short />
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="grid shrink-0 grid-cols-5 items-start px-[1px] pt-[2px]">
+                  {RESOURCES.map((resource) => (
+                    <div key={resource} className="grid min-w-0 justify-items-center">
+                      <HeapBinLines view={view} resource={resource} now={now} short />
+                    </div>
+                  ))}
+                </div>
               </>
             )}
           </>
@@ -456,9 +451,7 @@ export function PersonalBoard({
                 ? filled
                   ? '1fr'
                   : 'auto'
-                : BAND_HEIGHT[view.mode === 'blitz' ? 'blitz' : 'mondiale'][
-                    site === null ? 'rest' : 'site'
-                  ],
+                : BAND_HEIGHT[site === null ? 'rest' : 'site'],
           }}
           inert={folded}
         >
