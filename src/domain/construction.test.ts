@@ -739,6 +739,14 @@ describe('when the matter will be there', () => {
     expect(availabilityOf(150, held(100, 10), 20)).toEqual({ kind: 'overCap', cap: 100 });
   });
 
+  it('dates the wait when the bill is exactly the cap', () => {
+    expect(availabilityOf(100, held(100, 10), 0)).toEqual({ kind: 'inMinutes', minutes: 600 });
+  });
+
+  it('names the ceiling one unit above the cap', () => {
+    expect(availabilityOf(101, held(100, 10), 0)).toEqual({ kind: 'overCap', cap: 100 });
+  });
+
   it('names the producer first when both are missing', () => {
     expect(availabilityOf(150, held(100, 0), 20)).toEqual({ kind: 'never' });
   });
