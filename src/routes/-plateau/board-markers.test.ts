@@ -311,6 +311,50 @@ describe('the deposits markersOf draws', () => {
   });
 });
 
+describe('the building labels markersOf draws', () => {
+  const at: [number, number] = [5.744, 46.711];
+  const view = {
+    mode: 'mondiale',
+    loadedAt: 0,
+    me: {
+      nation: 'france',
+      ink: '#000',
+      buildings: [{ id: 'b1', key: 'warehouse', point: at, level: 1, regionId: 'r' }],
+      construction: null,
+      constructionQueue: [
+        { id: 'q1', key: 'warehouse', point: at, level: 1, regionId: 'r', outpostId: null },
+      ],
+      regions: [],
+      outposts: [],
+      troops: [],
+    },
+    surveyedInstallations: [],
+    surveyedOutposts: [],
+    neutralSites: [],
+    lootSightings: [],
+    camps: [],
+    objectives: [],
+    strategicPoints: [],
+    buildCatalog: { warehouse: { cost: {}, minutes: 30 } },
+  } as never;
+
+  it('gives a warehouse and a first-level site at its very point a label id each (#570)', () => {
+    const ids = markersOf(view, {
+      marching: new Set(),
+      regionAt: null,
+      toggles: { deposits: false, buildings: true } as never,
+      calls: null,
+      holders: new Map(),
+      knownRegionById: new Map(),
+    })
+      .filter((marker) => marker.kind === 'building')
+      .map((marker) => marker.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).toContain(`building-warehouse@${at}`);
+  });
+});
+
 describe('campsShown (#441)', () => {
   it('drops the garrison surveyed at an objective with its layer, for the map and the contacts alike', () => {
     const view = {
