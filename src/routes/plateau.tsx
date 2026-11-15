@@ -69,8 +69,8 @@ import { BoardWindows } from './-plateau/BoardWindows';
 import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
-import { useFrameOnOpen } from './-plateau/useFrameOnOpen';
-import { MAT_LIFT, useNarrowScreen } from '@/shell/viewport';
+import { tallest, useFrameOnOpen } from './-plateau/useFrameOnOpen';
+import { MAT_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import {
@@ -600,11 +600,11 @@ function BoardContent({
   const [boardCover, setBoardCover] = useState<number | null>(null);
   /** **Ce que la surface ouverte couvre de la carte** : l'objet touché se recadre une fois,
    *  au-dessus d'elle, quand elle est mesurée (`useFrameOnOpen`). */
-  const frameOnOpen = useFrameOnOpen<
+  const { ask: frameOnOpen, cancel: cancelFrame } = useFrameOnOpen<
     | { readonly kind: 'journey'; readonly ids: ReadonlyArray<string> }
     | { readonly kind: 'reveal'; readonly x: number; readonly y: number }
   >(
-    selectionSheet ?? boardCover,
+    tallest(selectionSheet === null ? null : selectionSheet + boardBottomPx(), boardCover),
     useCallback((request, covered) => {
       if (request.kind === 'reveal')
         setReveal({ x: request.x, y: request.y, floor: covered, nonce: Date.now() });
@@ -3058,6 +3058,7 @@ function BoardContent({
                   moment={playedMoment}
                   concluded={view.season.outcome.concludedAt !== null}
                   reveal={reveal}
+                  onHandOnBoard={cancelFrame}
                   replay={replay}
                   onReplayStep={replayStep}
                   replayBelow={narrow ? REPLAY_BELOW_NARROW : 0}
