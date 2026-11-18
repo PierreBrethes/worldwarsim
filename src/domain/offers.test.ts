@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { offersOf, type Offer, type OfferContext, type OfferTarget } from './offers';
+import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import { RESOURCES } from './ids';
 import type { Building, OutpostView, PlayerView, TroopStation, TroopView } from './player-view';
 import { fr } from '../i18n/fr';
@@ -113,6 +114,22 @@ describe('offersOf — a pile', () => {
     expect(found?.refusal).toBe(fr.errors.INFANTRY_ONLY({ role: 'armor' }));
   });
 
+  it('says one founds nothing at sea', () => {
+    const view = viewWith({ troops: [troop('i1', 'infantry')] });
+    const [found] = only(offersOf(pile(['i1'], { ground: 'sea' }), view, ctx), 'found');
+    expect(found?.refusal).toBe(fr.errors.NO_FOUNDING_AT_SEA());
+  });
+
+  it('names the region that already bears a building of mine', () => {
+    const view = viewWith({
+      troops: [troop('i1', 'infantry')],
+      buildings: [building({ regionId: 'DEU-1' })],
+      regions: [{ id: 'DEU-1', name: 'Thuringe' }],
+    } as unknown as Partial<PlayerView['me']>);
+    const [found] = only(offersOf(pile(['i1']), view, ctx), 'found');
+    expect(found?.refusal).toBe(fr.errors.FRIENDLY_TARGET({ region: 'Thuringe' }));
+  });
+
   it('has no founding for a garrison: one founds where one stands', () => {
     const station: TroopStation = { kind: 'outpost', outpostId: 'AP1' };
     const view = viewWith({ troops: [troop('i1', 'infantry', { stationedAt: station })] });
@@ -138,6 +155,19 @@ describe('offersOf — disembarking', () => {
       'disembark',
     );
     expect(offer?.refusal).toBe(fr.errors.DISEMBARK_AT_SEA());
+  });
+
+  it('says an air transport lands troops only at one of my airfields', () => {
+    const view = viewWith({
+      troops: [troop('a1', 'airTransport'), troop('i1', 'infantry', { carriedBy: 'a1' })],
+    });
+    const [offer] = only(offersOf(pile(['a1', 'i1']), view, ctx), 'disembark');
+    expect(offer?.refusal).toBe(fr.errors.AIRFIELD_TARGET_REQUIRED());
+    const [landed] = only(
+      offersOf(pile(['a1', 'i1']), view, { ...ctx, atAirfield: true }),
+      'disembark',
+    );
+    expect(landed?.refusal).toBeNull();
   });
 
   it('is absent when nobody held is aboard', () => {
@@ -306,7 +336,7 @@ describe('offersOf — recruiting', () => {
   const workshop = {
     troopsInService: 0,
     troopsQueued: 0,
-    facilities: [{ id: 'B1', queue: [] }],
+    facilities: [{ id: 'B1', queue: [] as unknown[] }],
     grid: [
       {
         role: 'infantry' as const,
@@ -361,6 +391,32 @@ describe('offersOf — recruiting', () => {
       fr.errors.INSUFFICIENT_RESOURCE({ resource: 'steel', needed: 10, available: 5 }),
     );
     expect(second?.refusal).toBe(fr.errors.RESEARCH_REQUIRED({ card: 'infantryMk2' }));
+  });
+
+  const refusalsOf = (extra: Partial<typeof workshop>, key: Partial<Building> = {}) => {
+    const view = viewWith({ buildings: [building(key)] });
+    return only(
+      offersOf(site({ workshop: { ...workshop, ...extra } } as Partial<OfferTarget>), view, ctx),
+      'recruit',
+    ).map((offer) => offer.refusal);
+  };
+
+  it('offers no card for a role this building does not form: the refusal is out of reach', () => {
+    expect(refusalsOf({}, { key: 'airfield' })).toEqual([]);
+  });
+
+  it('says the army bound is reached, counting the queued troops', () => {
+    const bound = fr.errors.TROOP_BOUND_REACHED();
+    expect(refusalsOf({ troopsInService: MONDIALE_TROOP_BOUND })[0]).toBe(bound);
+    expect(refusalsOf({ troopsInService: MONDIALE_TROOP_BOUND - 1, troopsQueued: 1 })[0]).toBe(
+      bound,
+    );
+  });
+
+  it('says the queue of the site is full, and only the queue of this site', () => {
+    const queue = Array.from({ length: MAX_QUEUED_BATCHES }, () => ({}));
+    expect(refusalsOf({ facilities: [{ id: 'B1', queue }] })[0]).toBe(fr.errors.QUEUE_FULL());
+    expect(refusalsOf({ facilities: [{ id: 'B2', queue }] })[0]).toBeNull();
   });
 
   it('has no card before the workshop arrives', () => {
