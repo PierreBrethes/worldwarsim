@@ -124,7 +124,7 @@
   --board-left: 0px;
   /* **Une ligne de la barre basse du téléphone** (#179), en pixels d'écran : la ligne des réserves
      repliée et sa clé. Les feuilles et les fenêtres se posent au-dessus (`--board-bottom`). */
-  --foot-bar: 84px;
+  --foot-bar: 66px;
   /* Le voile sous le menu des surfaces : la carte s'efface sans disparaître. */
   --veil-menu: rgb(15 10 4 / 35%);
   --dock-w: 430px;

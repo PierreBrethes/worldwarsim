@@ -1950,6 +1950,8 @@ export const fr = {
     full: 'plein',
     /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
+    /** Sous la largeur d'une cellule étroite : la durée seule, « à sec » est dans le survol. */
+    dryHoursShort: (hours: number) => `${num(hours)} h`,
     slots: 'mouvements',
   },
 

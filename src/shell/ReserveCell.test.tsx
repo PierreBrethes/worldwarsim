@@ -85,6 +85,17 @@ describe('the reserve cell', () => {
     expect(screen.queryAllByText(/à sec/i)).toHaveLength(2);
   });
 
+  it('says only the duration in a narrow cell, the whole alert above, and keeps it in the title', () => {
+    mount(viewWith({ steel: { stock: 30, ratePerHour: -2.9 } }));
+    const tag = cell('steel').querySelector('.bg-\\[var\\(--critical\\)\\]')!;
+    const [long, short] = Array.from(tag.children) as [Element, Element];
+    expect(long.textContent).toBe(fr.resourceBand.drySoonShort(10));
+    expect(long.className).toContain('@max-[70px]:hidden');
+    expect(short.textContent).toBe(fr.resourceBand.dryHoursShort(10));
+    expect(short.className).toContain('hidden @max-[70px]:inline');
+    expect(cell('steel').getAttribute('title')).toContain(fr.resourceBand.drySoonShort(10));
+  });
+
   it('asks for a reserve’s ledger on a touch', () => {
     const onPin = vi.fn();
     mount(viewWith(), { onPin });

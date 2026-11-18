@@ -81,17 +81,36 @@ export function dryLabelOf(stock: number, netPerHour: number): string | null {
     : fr.resourceBand.drySoonShort(Math.max(1, Math.floor(dry.hoursLeft)));
 }
 
+/** The duration alone (« 18 H »), for a narrow cell: the word « à sec » stays in the title.
+ *  `null` under the hour, where the label is already the short « à sec ». */
+function dryShortOf(stock: number, netPerHour: number): string | null {
+  const dry = drynessOf(stock, netPerHour);
+  return dry === null || dry.hoursLeft === 0
+    ? null
+    : fr.resourceBand.dryHoursShort(Math.max(1, Math.floor(dry.hoursLeft)));
+}
+
 /** L'étiquette d'une réserve, qui prend la place du débit, jamais une ligne de plus : rouge pour
  *  l'alerte (« à sec »), à encre pleine pour un bac au plafond — rien ne s'arrête, ce qui entre
  *  est perdu. */
-function StateTag({ label, tone }: { label: string; tone: 'dry' | 'full' }) {
+function StateTag({
+  label,
+  short = null,
+  tone,
+}: {
+  label: string;
+  /** What a narrow cell (`@max-[70px]`) says instead of `label`; `null` : the same word. */
+  short?: string | null;
+  tone: 'dry' | 'full';
+}) {
   return (
     <span
       className={`px-[3px] py-[1px] text-[12px] leading-none font-bold tracking-[.04em] whitespace-normal @max-[70px]:px-0 @max-[70px]:tracking-normal text-center uppercase text-[var(--paper)] ${
         tone === 'dry' ? 'bg-[var(--critical)]' : 'bg-[var(--ink)]'
       }`}
     >
-      {label}
+      <span className={short === null ? '' : '@max-[70px]:hidden'}>{label}</span>
+      {short !== null && <span className="hidden @max-[70px]:inline">{short}</span>}
     </span>
   );
 }
@@ -119,12 +138,15 @@ function reserveReading(
     fr.resourceBand.tooltip(fr.resources[resource], stock, reserve.cap, reserve.ratePerHour),
     source === null ? null : fr.resourceBand.source(fr.buildings[source.by], source.level),
     mark?.diagnosis ?? null,
+    // A narrow cell says only the duration: the title keeps the whole alert.
+    alert,
     // The bar drops the word « tas » on a narrow cell: the title keeps it.
     heap?.kind === 'foot' ? `${fr.heap.board.atFootShort} ${heap.amount}` : null,
   ]
     .filter((part) => part !== null)
     .join(' · ');
-  return { reserve, stock, displayed, share, alert, full: mark !== null, title };
+  const alertShort = dryShortOf(stock, reserve.ratePerHour);
+  return { reserve, stock, displayed, share, alert, alertShort, full: mark !== null, title };
 }
 
 const PLATE = 16;
@@ -165,6 +187,7 @@ export function ReserveCell({
     stock,
     share: fill,
     alert,
+    alertShort,
     full,
     title,
   } = reserveReading(view, resource, now, shown);
@@ -212,7 +235,7 @@ export function ReserveCell({
         </span>
       </span>
       {alert !== null ? (
-        <StateTag label={alert} tone="dry" />
+        <StateTag label={alert} short={alertShort} tone="dry" />
       ) : full ? (
         <StateTag label={fr.resourceBand.full} tone="full" />
       ) : (
