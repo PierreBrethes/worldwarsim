@@ -79,10 +79,6 @@ const DRAG_THRESHOLD_PX = 5;
 /** The air left between the band and what rises over it. */
 const MAT_GAP_PX = 8;
 
-/** The unfolded band's height at the desk: a site open needs room for its troop cards and their
- *  refusals; the volet's own (#580) is `--volet-h`, which the screen's height sets (`index.css`). */
-const BAND_HEIGHT = { site: '184px', rest: 'var(--volet-h)' } as const;
-
 /** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
 const FULL_ROOM =
   'calc((100dvh - var(--board-top) - var(--safe-bottom) - 26px) / var(--hud-scale))';
@@ -219,6 +215,9 @@ export function PersonalBoard({
   const handleRef = useRef<HTMLButtonElement>(null);
   useMatRise(board, `${folded}-${filled}-${research}-${cue?.text ?? ''}`);
   useUnfoldCascade(board, open && !research && !(shut && site === null), narrow, motion);
+  const swap = useRef<HTMLDivElement>(null);
+  const workshop = useQuery(api.troops.workshop, narrow ? 'skip' : seat);
+  useSiteSwap(swap, site?.id ?? null, site === null || workshop !== undefined, narrow, motion);
 
   // Escape lets the selected site go, or folds the band, when no window stands in front of it.
   const selected = site !== null;
@@ -425,12 +424,14 @@ export function PersonalBoard({
                 ? filled
                   ? '1fr'
                   : 'auto'
-                : BAND_HEIGHT[site === null ? 'rest' : 'site'],
+                : // A site holds the volet's height (#581): the fold's step never plays beside the cascade.
+                  'var(--volet-h)',
           }}
           inert={folded}
         >
           <div
-            className={`min-h-0 overflow-hidden ${
+            ref={swap}
+            className={`relative min-h-0 overflow-hidden ${
               narrow ? 'flex flex-col overflow-y-auto overscroll-contain' : 'grid'
             }`}
             style={
@@ -607,6 +608,92 @@ const CASCADE = {
   easing: 'cubic-bezier(.2,.8,.2,1)',
 } as const;
 
+/** The first lines enter one after the other, in opacity and a 10 px rise. */
+function enter(lines: readonly Element[]) {
+  const { line, easing } = CASCADE;
+  lines.slice(0, line.most).forEach((one, rank) =>
+    one.animate(
+      [
+        { opacity: 0, translate: '0 10px' },
+        { opacity: 1, translate: '0 0' },
+      ],
+      { duration: line.duration, delay: line.from + rank * line.step, easing, fill: 'backwards' },
+    ),
+  );
+}
+
+/** Each column cascades on its own: a long queue must not use up the others' share. */
+function cascadeVolet(node: ParentNode) {
+  node.querySelectorAll('[data-volet-column]').forEach((column) => {
+    enter(column.matches('.mat-line') ? [column] : [...column.querySelectorAll('.mat-line')]);
+  });
+}
+
+/** How long the old row takes to fade out before the new one comes in (the prototype's). */
+const SWAP_FADE_MS = 120;
+
+/**
+ * **Le rang qui change de contenu** (#581) : quand le site sélectionné change (tuiles → site,
+ * site → site, site → tuiles), l'ancien rang s'efface en 120 ms, puis le nouveau entre en cascade.
+ * La cascade attend que ses cartes existent (`ready`) et ne part qu'une fois par changement ; le
+ * dépliage et le repli à la main ne la rejouent pas. « actives » : fondu puis cascade ; « réduites » :
+ * le nouveau contenu fond en 120 ms ; « coupées » : aucun mouvement. Au bureau seulement.
+ */
+function useSiteSwap(
+  node: { readonly current: HTMLElement | null },
+  siteId: string | null,
+  ready: boolean,
+  narrow: boolean,
+  motion: MapMotion,
+) {
+  const was = useRef(siteId);
+  const pending = useRef(false);
+  /** The row as the last commit left it: the ghost of the next change. */
+  const last = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const row = node.current;
+    if (row === null || narrow || motion === 'off') return;
+    if (siteId !== was.current) {
+      was.current = siteId;
+      pending.current = true;
+      if (motion === 'full' && last.current !== null) {
+        const ghost = last.current;
+        ghost
+          .querySelectorAll('[data-volet-column]')
+          .forEach((one) => one.removeAttribute('data-volet-column'));
+        ghost.dataset.swapGhost = '';
+        ghost.inert = true;
+        Object.assign(ghost.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+        row.append(ghost);
+        ghost
+          .animate([{ opacity: 1 }, { opacity: 0 }], {
+            duration: SWAP_FADE_MS,
+            easing: CASCADE.easing,
+            fill: 'forwards',
+          })
+          .finished.then(
+            () => ghost.remove(),
+            () => ghost.remove(),
+          );
+      }
+    }
+    if (pending.current && ready) {
+      pending.current = false;
+      if (motion === 'reduced') row.animate([{ opacity: 0 }, { opacity: 1 }], SWAP_FADE_MS);
+      else {
+        const mine = (one: Element) => one.closest('[data-swap-ghost]') === null;
+        enter([...row.querySelectorAll('[data-site-card]')].filter(mine));
+        cascadeVolet(row);
+      }
+    }
+    if (motion !== 'full') last.current = null;
+    else {
+      last.current = row.cloneNode(true) as HTMLElement;
+      last.current.querySelector('[data-swap-ghost]')?.remove();
+    }
+  });
+}
+
 /**
  * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre le volet — pas quand la main le
  * replie le temps d'un geste —, ses lignes entrent (`.mat-line`, les 8 premières de chaque colonne, #580).
@@ -624,27 +711,7 @@ function useUnfoldCascade(
     was.current = unfolded;
     const node = board.current;
     if (!opened || node === null || narrow || motion !== 'full') return;
-    const { line, easing } = CASCADE;
-    // Each column cascades on its own: a long queue must not use up the others' share.
-    node.querySelectorAll('[data-volet-column]').forEach((column) => {
-      const lines = column.matches('.mat-line')
-        ? [column]
-        : [...column.querySelectorAll('.mat-line')];
-      lines.slice(0, line.most).forEach((one, rank) =>
-        one.animate(
-          [
-            { opacity: 0, translate: '0 10px' },
-            { opacity: 1, translate: '0 0' },
-          ],
-          {
-            duration: line.duration,
-            delay: line.from + rank * line.step,
-            easing,
-            fill: 'backwards',
-          },
-        ),
-      );
-    });
+    cascadeVolet(node);
   }, [board, unfolded, narrow, motion]);
 }
 
@@ -925,6 +992,7 @@ function TileFrame({
       {...grip}
       title={label}
       aria-label={label}
+      data-site-card={wide ? '' : undefined}
       className={`group relative grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'

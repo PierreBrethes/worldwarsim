@@ -2803,9 +2803,10 @@ function BoardContent({
 
   /**
    * **Les recrutements commencés, datés par l'atelier** : la vue ne sert que la liste des casernes
-   * occupées, et « En cours » ne vit que sous le seuil — l'abonnement aussi.
+   * occupées, et « En cours » ne vit que sous le seuil. Le bureau s'abonne aussi, pour que les
+   * cartes d'un site sélectionné soient prêtes au premier clic (#581).
    */
-  const workshop = useQuery(api.troops.workshop, narrow ? seat : 'skip');
+  const workshop = useQuery(api.troops.workshop, seat);
   const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
     () =>
       (workshop?.facilities ?? []).flatMap((facility) => {
