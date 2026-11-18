@@ -217,7 +217,14 @@ export function PersonalBoard({
   useUnfoldCascade(board, open && !research && !(shut && site === null), narrow, motion);
   const swap = useRef<HTMLDivElement>(null);
   const workshop = useQuery(api.troops.workshop, narrow ? 'skip' : seat);
-  useSiteSwap(swap, site?.id ?? null, site === null || workshop !== undefined, narrow, motion);
+  useSiteSwap(
+    swap,
+    site?.id ?? null,
+    site === null || workshop !== undefined,
+    open && !research && !(shut && site === null),
+    narrow,
+    motion,
+  );
 
   // Escape lets the selected site go, or folds the band, when no window stands in front of it.
   const selected = site !== null;
@@ -643,18 +650,29 @@ function useSiteSwap(
   node: { readonly current: HTMLElement | null },
   siteId: string | null,
   ready: boolean,
+  unfolded: boolean,
   narrow: boolean,
   motion: MapMotion,
 ) {
   const was = useRef(siteId);
+  const wasUnfolded = useRef(unfolded);
   const pending = useRef(false);
   /** The row as the last commit left it: the ghost of the next change. */
   const last = useRef<HTMLElement | null>(null);
+  /** Whether the row's DOM moved since `last` was cloned: only then is a new clone worth it. */
+  const moved = useRef(true);
+  const watcher = useRef<MutationObserver | null>(null);
+  useEffect(() => () => watcher.current?.disconnect(), []);
   useLayoutEffect(() => {
     const row = node.current;
+    // The volet opening in this very commit plays its own cascade (`useUnfoldCascade`): one trigger.
+    const opened = unfolded && !wasUnfolded.current;
+    wasUnfolded.current = unfolded;
+    const changed = siteId !== was.current;
+    was.current = siteId;
     if (row === null || narrow || motion === 'off') return;
-    if (siteId !== was.current) {
-      was.current = siteId;
+    if (opened) pending.current = false;
+    else if (changed) {
       pending.current = true;
       if (motion === 'full' && last.current !== null) {
         const ghost = last.current;
@@ -688,8 +706,21 @@ function useSiteSwap(
     }
     if (motion !== 'full') last.current = null;
     else {
-      last.current = row.cloneNode(true) as HTMLElement;
-      last.current.querySelector('[data-swap-ghost]')?.remove();
+      watcher.current ??= new MutationObserver(() => (moved.current = true));
+      watcher.current.observe(row, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+      if (watcher.current.takeRecords().length > 0) moved.current = true;
+      if (moved.current || last.current === null) {
+        moved.current = false;
+        const copy = row.cloneNode(true) as HTMLElement;
+        copy.querySelector('[data-swap-ghost]')?.remove();
+        copy.querySelectorAll('[id]').forEach((one) => one.removeAttribute('id'));
+        last.current = copy;
+      }
     }
   });
 }
