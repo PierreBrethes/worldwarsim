@@ -711,17 +711,7 @@ body {
     transform: translateY(-3px);
   }
 }
-.first-step-ring {
-  outline: 2px solid var(--arc-mine);
-  outline-offset: 3px;
-  animation: first-step-ring 1.4s ease-in-out infinite alternate;
-}
-@keyframes first-step-ring {
-  to {
-    outline-offset: 6px;
-  }
-}
-:root:is([data-motion='reduced'], [data-motion='off']) :is(.first-step-cue, .first-step-ring) {
+:root:is([data-motion='reduced'], [data-motion='off']) .first-step-cue {
   animation: none;
 }
 
