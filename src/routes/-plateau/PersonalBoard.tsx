@@ -1561,7 +1561,15 @@ function useHand({
   });
   const gesture = useRef<{ cancel: () => void } | null>(null);
 
-  useEffect(() => () => gesture.current?.cancel(), []);
+  /** The refusal's sentence waits for the shake: unmounted before, it never comes. */
+  const saying = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      gesture.current?.cancel();
+      window.clearTimeout(saying.current);
+    },
+    [],
+  );
 
   const take = (key: BuildingKey, { element, pointerId, x, y }: Grab): void => {
     gesture.current?.cancel();
@@ -1692,7 +1700,7 @@ function useHand({
       if (refusal !== null && !narrow) {
         abandon();
         if (motion === 'full') element.animate(SHAKE, { duration: 220, easing: 'ease-out' });
-        window.setTimeout(() => notify(refusal), motion === 'full' ? 220 : 0);
+        saying.current = window.setTimeout(() => notify(refusal), motion === 'full' ? 220 : 0);
         return;
       }
       if (refusal !== null) return drop(home);
