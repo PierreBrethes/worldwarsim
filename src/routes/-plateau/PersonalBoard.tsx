@@ -1028,7 +1028,7 @@ function TileFrame({
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
           : wide
-            ? 'h-[140px] w-[108px] px-[6px] pt-[5px] pb-[6px]'
+            ? 'h-[130px] w-[108px] px-[6px] pt-[5px] pb-[6px]'
             : 'h-[128px] w-[100px] px-[6px] pt-[5px] pb-[6px]'
       } ${
         locked
@@ -1337,7 +1337,7 @@ function SiteBand({
         className={`grid min-w-0 ${
           narrow
             ? 'grid-cols-1 gap-[6px] px-[10px] py-[6px]'
-            : 'grid-cols-[auto_1fr] gap-[10px] border-l border-[var(--ink)] py-[10px] pl-3'
+            : 'grid-cols-[auto_1fr] gap-[10px] border-l border-[var(--ink)] py-[6px] pl-3'
         }`}
       >
         {head}
