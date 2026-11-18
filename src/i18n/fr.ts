@@ -4138,7 +4138,7 @@ export const fr = {
     hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
     worksFold: 'chantiers',
     /** **Le volet du bureau** (#580) : sous la file, ce que coûte un « annuler ». */
-    refundNote: 'Un chantier en file s’annule et se rembourse ; commencé, il ne se rembourse plus.',
+    refundNote: 'En file, un chantier se rembourse ; commencé, non.',
     cancelWork: (work: string) => `Annuler ${work} : remboursé`,
     lotsHeader: 'arsenal · lots',
     noLots: 'aucun lot',
@@ -4153,6 +4153,9 @@ export const fr = {
     /** Sous le nom d'un chantier, une ligne : où, et où il en est. */
     runningAt: (region: string) => `${region} · en cours`,
     queuedAt: (region: string, time: string) => `${region} · ${time}, en file`,
+    /** Le volet coupe la région, jamais la durée : ce qui suit le lieu, seul. */
+    runningTail: (time: string) => ` · reste ${time}`,
+    queuedTail: (time: string) => ` · ${time}`,
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
     raiseTo: (from: number, to: number) => `niv.\u00a0${from} → ${to}`,
     starvedChain: (building: string, resource: string) =>

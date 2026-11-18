@@ -609,7 +609,7 @@ const CASCADE = {
 
 /**
  * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre le volet — pas quand la main le
- * replie le temps d'un geste —, ses lignes entrent (file, stocks, tas, lots : `.mat-line`, #580).
+ * replie le temps d'un geste —, ses lignes entrent (`.mat-line`, les 8 premières de chaque colonne, #580).
  * « actives » seulement ; au bureau seulement, le téléphone tire sa feuille.
  */
 function useUnfoldCascade(
@@ -625,20 +625,26 @@ function useUnfoldCascade(
     const node = board.current;
     if (!opened || node === null || narrow || motion !== 'full') return;
     const { line, easing } = CASCADE;
-    [...node.querySelectorAll('.mat-line')].slice(0, line.most).forEach((one, rank) =>
-      one.animate(
-        [
-          { opacity: 0, translate: '0 10px' },
-          { opacity: 1, translate: '0 0' },
-        ],
-        {
-          duration: line.duration,
-          delay: line.from + rank * line.step,
-          easing,
-          fill: 'backwards',
-        },
-      ),
-    );
+    // Each column cascades on its own: a long queue must not use up the others' share.
+    node.querySelectorAll('[data-volet-column]').forEach((column) => {
+      const lines = column.matches('.mat-line')
+        ? [column]
+        : [...column.querySelectorAll('.mat-line')];
+      lines.slice(0, line.most).forEach((one, rank) =>
+        one.animate(
+          [
+            { opacity: 0, translate: '0 10px' },
+            { opacity: 1, translate: '0 0' },
+          ],
+          {
+            duration: line.duration,
+            delay: line.from + rank * line.step,
+            easing,
+            fill: 'backwards',
+          },
+        ),
+      );
+    });
   }, [board, unfolded, narrow, motion]);
 }
 
@@ -1543,8 +1549,11 @@ function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
     'grid min-h-0 min-w-0 content-start gap-[4px] overflow-y-auto overscroll-contain border-l border-(color:--ink)/40 px-[12px] py-[6px] first:border-l-0';
   const chains = commandedChains(view);
   return (
-    <div className="grid min-h-0 grid-cols-[372fr_358fr_190fr_192fr] border-l border-[var(--ink)]">
-      <section className={column}>
+    <div className="grid min-h-0 grid-cols-[372fr_310fr_190fr_240fr] border-l border-[var(--ink)]">
+      <section
+        data-volet-column="works"
+        className={`${column} grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden`}
+      >
         <span className="flex items-baseline gap-[8px]">
           <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
           {view.me.hqLevel > 0 && (
@@ -1553,65 +1562,75 @@ function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
             </small>
           )}
         </span>
-        {works.length === 0 ? (
-          <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-            {fr.economy.constructionNone}
-          </p>
-        ) : (
-          <ol
-            aria-label={fr.personalBoard.worksHeader}
-            className="grid gap-x-[14px]"
-            style={works.length > QUEUE_ONE_COLUMN ? { gridTemplateColumns: '1fr 1fr' } : undefined}
-          >
-            {works.map(({ work, running, total, left, name }, index) => (
-              <li
-                key={work.id}
-                className="mat-line grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14 py-[1px]"
-              >
-                <span className="grid min-w-0 leading-[1.15]">
-                  <b className="truncate text-[12px] font-semibold">
-                    {fr.personalBoard.workRank(index + 1, name)}
-                  </b>
-                  <small className="truncate font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-                    {running
-                      ? `${fr.personalBoard.runningAt(work.regionName)}${fr.personalBoard.workTail(countdownLabel(left * 60_000), 0)}`
-                      : fr.personalBoard.queuedAt(work.regionName, countdownLabel(total * 60_000))}
-                  </small>
-                </span>
-                {running ? (
-                  <WorkBar total={total} left={left} className="w-[52px]" />
-                ) : (
-                  !observing && (
-                    <button
-                      type="button"
-                      title={fr.economy.queueCancelTitle}
-                      aria-label={fr.personalBoard.cancelWork(name)}
-                      onClick={() => cancel(work.id)}
-                      className="cursor-pointer border border-[var(--ink)] px-[6px] py-[2px] text-[10px] font-semibold tracking-[.06em] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
-                    >
-                      {fr.economy.queueCancel}
-                    </button>
-                  )
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-        {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
-        <p className="text-[11px] leading-[1.3] text-[var(--ink-soft)]">
+        <div className="grid min-h-0 content-start gap-[4px] overflow-y-auto overscroll-contain">
+          {works.length === 0 ? (
+            <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
+              {fr.economy.constructionNone}
+            </p>
+          ) : (
+            <ol
+              aria-label={fr.personalBoard.worksHeader}
+              className="grid gap-x-[14px]"
+              style={
+                works.length > QUEUE_ONE_COLUMN ? { gridTemplateColumns: '1fr 1fr' } : undefined
+              }
+            >
+              {works.map(({ work, running, total, left, name }, index) => (
+                <li
+                  key={work.id}
+                  className="mat-line grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14 py-[1px]"
+                >
+                  <span className="grid min-w-0 leading-[1.15]">
+                    <b className="truncate text-[12px] font-semibold">
+                      {fr.personalBoard.workRank(index + 1, name)}
+                    </b>
+                    <small className="flex min-w-0 font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                      <span className="truncate">{work.regionName}</span>
+                      <span className="shrink-0">
+                        {running
+                          ? fr.personalBoard.runningTail(countdownLabel(left * 60_000))
+                          : fr.personalBoard.queuedTail(countdownLabel(total * 60_000))}
+                      </span>
+                    </small>
+                  </span>
+                  {running ? (
+                    <WorkBar total={total} left={left} className="w-[52px]" />
+                  ) : (
+                    !observing && (
+                      <button
+                        type="button"
+                        title={fr.economy.queueCancelTitle}
+                        aria-label={fr.personalBoard.cancelWork(name)}
+                        onClick={() => cancel(work.id)}
+                        className="cursor-pointer border border-[var(--ink)] px-[6px] py-[2px] text-[10px] font-semibold tracking-[.06em] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
+                      >
+                        {fr.economy.queueCancel}
+                      </button>
+                    )
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+          {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
+        </div>
+        <p
+          title={fr.personalBoard.refundNote}
+          className="shrink-0 truncate text-[11px] leading-[1.3] text-[var(--ink-soft)]"
+        >
           {fr.personalBoard.refundNote}
         </p>
       </section>
-      <section className={`${column} gap-0`}>
+      <section data-volet-column="reserves" className={`${column} gap-0`}>
         {RESOURCES.map((resource) => (
           <ReserveLine key={resource} resource={resource} view={view} now={now} />
         ))}
       </section>
-      <section className={`mat-line ${column}`}>
+      <section data-volet-column="heaps" className={`mat-line ${column}`}>
         <HeapBoardNotes view={view} now={now} />
         <HarvestLines ledger={ledger} onReplay={onReplay} />
       </section>
-      <section className={`mat-line ${column}`}>
+      <section data-volet-column="lots" className={`mat-line ${column} [&>div]:px-0`}>
         <span className="eyebrow">{fr.personalBoard.lotsHeader}</span>
         {chains.length === 0 ? (
           <p className="text-[11.5px] text-[var(--ink-soft)]">{fr.personalBoard.noLots}</p>

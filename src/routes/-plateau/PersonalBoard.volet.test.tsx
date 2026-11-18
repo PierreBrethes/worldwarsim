@@ -174,4 +174,23 @@ describe('the unfolded volet at the desk', () => {
     const cards = screen.getByRole('region', { name: fr.personalBoard.siteCards('Caserne') });
     expect(cards.closest('[inert]')).toBeNull();
   });
+
+  it('cascades the first lines of each column, not only of the longest queue', () => {
+    const animated: Element[] = [];
+    Element.prototype.animate = function (this: Element) {
+      animated.push(this);
+      return {} as Animation;
+    };
+    const { rerender } = render(board(8, null, false));
+    animated.length = 0;
+    rerender(board(8));
+    const inColumn = (name: string) =>
+      animated.filter(
+        (one) => one.closest<HTMLElement>('[data-volet-column]')?.dataset.voletColumn === name,
+      );
+    expect(inColumn('works').length).toBe(8);
+    for (const name of ['reserves', 'heaps', 'lots']) {
+      expect(inColumn(name).length).toBeGreaterThan(0);
+    }
+  });
 });
