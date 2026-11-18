@@ -656,11 +656,6 @@ body {
   }
 }
 
-/* La colonne des chantiers du plateau déplié, et la poignée de l'en-tête qui s'y règle. */
-.mat-board {
-  --works-w: 236px;
-}
-
 /* Le fondu d'un rang ou d'une colonne qui continue : seul le côté où il y a une suite s'estompe. */
 .mat-rail[data-before='true'][data-after='true'] {
   mask-image: linear-gradient(

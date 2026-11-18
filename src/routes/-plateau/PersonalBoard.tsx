@@ -332,7 +332,7 @@ export function PersonalBoard({
       <section
         ref={board}
         aria-label={fr.personalBoard.header}
-        className={`mat-board hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
+        className={`hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
           narrow ? 'border-x-0 border-b-0' : ''
         }`}
         style={
