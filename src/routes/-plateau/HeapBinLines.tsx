@@ -74,7 +74,8 @@ export function HeapBinBar({
       aria-hidden
       className="font-(family-name:--font-body) text-[12px] leading-none font-semibold whitespace-nowrap"
     >
-      {fr.heap.board.atFootShort} {bin.amount}
+      <span className="@max-[70px]:hidden">{fr.heap.board.atFootShort} </span>
+      {bin.amount}
       {bin.full > 0 && <span className="text-[var(--critical)]"> ⚑{bin.full}</span>}
       {bin.come !== null && <span className="text-[var(--valid)]"> ▲</span>}
     </small>

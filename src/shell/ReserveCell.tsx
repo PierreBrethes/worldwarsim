@@ -19,6 +19,7 @@ import {
   onNewView,
   type Announcement,
 } from '@/domain/reserve-counter';
+import { heapBinOf } from '@/domain/heap-reading';
 import { drynessOf, marksOf, sourceOf } from '@/domain/resource-band';
 import { useMapMotion } from '@/data/mapMotion';
 import { HeapBinBar } from '@/routes/-plateau/HeapBinLines';
@@ -86,7 +87,7 @@ export function dryLabelOf(stock: number, netPerHour: number): string | null {
 function StateTag({ label, tone }: { label: string; tone: 'dry' | 'full' }) {
   return (
     <span
-      className={`px-[3px] py-[2px] text-[12px] leading-none font-bold tracking-[.04em] whitespace-normal text-center uppercase text-[var(--paper)] ${
+      className={`px-[3px] py-[1px] text-[12px] leading-none font-bold tracking-[.04em] whitespace-normal @max-[70px]:px-0 @max-[70px]:tracking-normal text-center uppercase text-[var(--paper)] ${
         tone === 'dry' ? 'bg-[var(--critical)]' : 'bg-[var(--ink)]'
       }`}
     >
@@ -113,10 +114,13 @@ function reserveReading(
   const alert = dryLabelOf(stock, reserve.ratePerHour);
   const source = sourceOf(view, resource);
   const mark = marksOf(view, now)[resource];
+  const heap = heapBinOf(view, resource, now);
   const title = [
     fr.resourceBand.tooltip(fr.resources[resource], stock, reserve.cap, reserve.ratePerHour),
     source === null ? null : fr.resourceBand.source(fr.buildings[source.by], source.level),
     mark?.diagnosis ?? null,
+    // The bar drops the word « tas » on a narrow cell: the title keeps it.
+    heap?.kind === 'foot' ? `${fr.heap.board.atFootShort} ${heap.amount}` : null,
   ]
     .filter((part) => part !== null)
     .join(' · ');
@@ -178,7 +182,7 @@ export function ReserveCell({
       title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
       aria-label={title}
       {...usePinning(resource, onTake)}
-      className={`relative flex h-full min-w-0 flex-1 touch-none flex-col items-center justify-center gap-[3px] border-l border-dotted border-(color:--ink)/25 px-[1px] select-none first:border-l-0 aria-pressed:shadow-[inset_0_-2px_0_var(--ink)] ${
+      className={`@container relative flex h-full min-w-0 flex-1 touch-none flex-col items-center justify-center gap-[3px] @max-[70px]:gap-[1px] border-l border-dotted border-(color:--ink)/25 px-[1px] select-none first:border-l-0 aria-pressed:shadow-[inset_0_-2px_0_var(--ink)] ${
         onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/14'
       }`}
     >
