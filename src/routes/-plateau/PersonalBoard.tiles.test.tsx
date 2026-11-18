@@ -126,6 +126,11 @@ describe('the tiles standing in the desk bar', () => {
     expect(tile('Quartier général').closest('[inert]')).toBeNull();
   });
 
+  it("are named by the hover wording at the desk, the touch wording being the phone's", () => {
+    mount();
+    expect(screen.getByRole('group', { name: fr.personalBoard.tilesNote })).toBeTruthy();
+  });
+
   it('write a short matter as stock over price, in red, and only that one', () => {
     mount();
     const price = within(tile('Quartier général')).getByText('23/60');

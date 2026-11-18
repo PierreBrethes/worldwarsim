@@ -833,7 +833,12 @@ function Tiles({
   }, [focusedKey]);
   return (
     <section className={`min-w-0 ${narrow ? 'px-[10px] py-[6px]' : 'relative flex-1'}`}>
-      <Rail narrow={narrow} standing={!narrow} motion={motion} label={fr.personalBoard.tilesNote}>
+      <Rail
+        narrow={narrow}
+        standing={!narrow}
+        motion={motion}
+        label={narrow ? fr.personalBoard.tilesNotePhone : fr.personalBoard.tilesNote}
+      >
         {(grip) =>
           BUILDABLE_BUILDINGS.map((key) => (
             <Tile

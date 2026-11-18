@@ -4110,6 +4110,8 @@ export const fr = {
     spilled: 'perdu',
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
     tilesNote: 'survolez une tuile, cliquez-la puis la carte',
+    /** Au téléphone rien ne se survole : la tuile se touche, puis la carte. */
+    tilesNotePhone: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
     tileCount: (count: number) => `×${count}`,
     /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
     tileKept: (kept: number, stands: number) =>
