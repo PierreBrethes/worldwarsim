@@ -19,6 +19,7 @@ import {
   PRICE_ORDER,
   settlesDebt,
   siteOfPoint,
+  UNIQUE_BUILDINGS,
   type PlacementRefusal,
   type Reach,
 } from './economy';
@@ -221,6 +222,23 @@ function verdictAmong(
     };
   }
   return { refusal: { code: refusal as Exclude<PlacementRefusal, 'TOO_CLOSE'> }, free };
+}
+
+/**
+ * **The standing twin a unique key aimed at its own point raises** (#579): the point is the
+ * spacing, the same disc that refuses a neighbour as `TOO_CLOSE`. Elsewhere, and for any key
+ * that may stand twice, nothing — the ghost keeps its refusal.
+ */
+export function raisableUnder(view: PlayerView, key: BuildingKey, lonLat: LonLat): Building | null {
+  if (!UNIQUE_BUILDINGS.includes(key)) return null;
+  return (
+    view.me.buildings.find(
+      (building) =>
+        building.key === key &&
+        building.captured !== true &&
+        distanceKm(building.point, lonLat) < BUILDING_SPACING_KM,
+    ) ?? null
+  );
 }
 
 /** A free deposit a held key calls (#239), with what the pose would say on its very point. */

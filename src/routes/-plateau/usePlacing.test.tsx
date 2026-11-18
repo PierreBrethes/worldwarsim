@@ -7,7 +7,8 @@ import { destinationPoint } from '@/domain/geo';
 import { DEPOSIT_POINTS } from '@/domain/world';
 import { usePlacing } from './usePlacing';
 
-vi.mock('convex/react', () => ({ useMutation: () => () => Promise.resolve() }));
+const start = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock('convex/react', () => ({ useMutation: () => start }));
 vi.mock('../../../convex/_generated/api', () => ({ api: { constructions: { start: 'start' } } }));
 
 const point = (id: string) => DEPOSIT_POINTS.find((deposit) => deposit.id === id)!.lonLat;
@@ -133,5 +134,65 @@ describe('the bill on the ghost (#577)', () => {
   it('says nothing when the stock covers the bill', () => {
     const { result } = holding('mine');
     expect(result.current.placingCard?.shortage).toBeNull();
+  });
+});
+
+describe('a unique key aimed at its standing twin (#579)', () => {
+  const PARIS = [2.35, 48.85] as const;
+  const standing = {
+    ...view,
+    me: {
+      ...view.me,
+      buildings: [
+        ...view.me.buildings,
+        {
+          id: 'hq-1',
+          key: 'hq',
+          name: 'Quartier général',
+          regionId: 'FRA-75',
+          point: PARIS,
+          level: 1,
+          nextLevelCost: { steel: 10 },
+          nextLevelMinutes: 20,
+          cappedByHq: false,
+        },
+      ],
+    },
+  } as unknown as PlayerView;
+  const aimAt = (lonLat: readonly [number, number]) => ({
+    lonLat: [...lonLat] as [number, number],
+    region: { id: 'FRA-75', name: 'Paris', country: 'FRA' },
+    coastal: false,
+    onLand: true,
+  });
+
+  it('raises it on a click at its point, by the very mutation the drop uses', () => {
+    start.mockClear();
+    const { result } = holding('hq', standing);
+    act(() => result.current.placeAt(aimAt(PARIS)));
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        building: 'hq',
+        regionId: 'FRA-75',
+        point: { lon: 2.35, lat: 48.85 },
+      }),
+    );
+  });
+
+  it('says the raise, not the refusal, on the ghost over its twin', () => {
+    const { result } = holding('hq', standing);
+    act(() => result.current.setPlacingAim(aimAt(PARIS)));
+    expect(result.current.placingCard?.refusal).toBeNull();
+    expect(result.current.placingCard?.name).toMatch(/^Élever .* au niveau 2$/);
+  });
+
+  it('keeps the unique refusal, and orders nothing, anywhere else', () => {
+    start.mockClear();
+    const { result } = holding('hq', standing);
+    const far = aimAt([5.4, 43.3]);
+    act(() => result.current.setPlacingAim(far));
+    act(() => result.current.placeAt(far));
+    expect(start).not.toHaveBeenCalled();
+    expect(result.current.placingCard?.refusal).toMatch(/unique — visez-le/);
   });
 });

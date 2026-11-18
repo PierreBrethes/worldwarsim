@@ -7,8 +7,10 @@ import {
   depositCalls,
   nearestDeposit,
   placementOf,
+  raisableUnder,
   reachesOf,
   tileBillOf,
+  upgradeHold,
   type DepositCall,
 } from '@/domain/construction';
 import { billShortageText } from '@/domain/compass-works';
@@ -19,7 +21,7 @@ import type { MapMotion } from '@/domain/map-motion';
 import type { PlayerView } from '@/domain/player-view';
 import { asDuration } from '@/domain/duration';
 import { buildingSprite } from '@/emblems/buildings/manifest';
-import { aimRefusalShort, aimRefusalText, countryLabel, fr } from '@/i18n/fr';
+import { aimRefusalShort, aimRefusalText, countryLabel, fr, upgradeHoldText } from '@/i18n/fr';
 import type { PlacingMagnet, PlacingSpot } from '@/map/engine';
 import type { PlacingBuilding } from '@/map/WorldMap';
 import { handleError } from '@/data/errors';
@@ -123,6 +125,12 @@ export function usePlacing(
       ? null
       : aimVerdict(view, placing.key, placingAim, reaches);
 
+  /** **Le jumeau debout que la clé unique tenue vise** (#579) : le clic l'élève. */
+  const twin =
+    placing === null || placingAim === null
+      ? null
+      : raisableUnder(view, placing.key, placingAim.lonLat);
+
   /** La carte du fantôme, écrite ici (ADR 0016) : le nom, la facture, et le refus du point visé
    *  dans les mots du serveur (`aimRefusalText`). */
   const placingCard = useMemo<PlacingBuilding | null>(() => {
@@ -130,8 +138,9 @@ export function usePlacing(
     const spec = view.buildCatalog[placing.key];
     // With several of a key standing, the server may debit another level by the aimed point (`tileCostOf`).
     const free = verdict?.free ?? false;
+    const raising = twin === null ? null : upgradeHold(twin, view, Date.now());
     const bill = tileBillOf(
-      free ? {} : spec.cost,
+      twin !== null ? twin.nextLevelCost : free ? {} : spec.cost,
       (resource) => view.me.resources[resource],
       view.loadedAt,
       Date.now(),
@@ -142,27 +151,36 @@ export function usePlacing(
       magnet,
       reaches: stableReaches,
       title: placingAim?.region?.name ?? placing.title,
-      name: fr.buildings[placing.key],
-      cost: spec.cost,
+      name:
+        twin === null
+          ? fr.buildings[placing.key]
+          : fr.personalBoard.raise(twin.name, twin.level + 1),
+      cost: twin === null ? spec.cost : twin.nextLevelCost,
       free,
       shortage: verdict === null ? null : billShortageText(bill),
-      duration: free ? fr.construction.immediate : asDuration(spec.minutes),
+      duration: free
+        ? fr.construction.immediate
+        : asDuration(twin === null ? spec.minutes : twin.nextLevelMinutes),
       refusal:
-        verdict?.refusal == null
-          ? null
-          : aimRefusalText(
-              verdict.refusal,
-              placing.key,
-              {
-                widestKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
-                hasOutposts: widest.length > 0,
-              },
-              spec.lockedBy,
-              kinds ?? [],
-            ),
+        twin !== null
+          ? raising === null
+            ? null
+            : upgradeHoldText(raising)
+          : verdict?.refusal == null
+            ? null
+            : aimRefusalText(
+                verdict.refusal,
+                placing.key,
+                {
+                  widestKm: widest.length === 0 ? outpostReachKm(1) : Math.max(...widest),
+                  hasOutposts: widest.length > 0,
+                },
+                spec.lockedBy,
+                kinds ?? [],
+              ),
       nearest: nearestLine(calls, kinds, placingAim?.lonLat ?? null),
     };
-  }, [placing, magnet, placingAim, verdict, reaches, stableReaches, view, calls, kinds]);
+  }, [placing, magnet, placingAim, verdict, twin, reaches, stableReaches, view, calls, kinds]);
 
   const hold = useCallback((held: HeldBuilding | null) => {
     setPlacingAim(null);
@@ -179,6 +197,25 @@ export function usePlacing(
   const placeAt = useCallback(
     (spot: PlacingSpot) => {
       if (placing === null || spot.region === null) return;
+      const twin = raisableUnder(view, placing.key, spot.lonLat);
+      if (twin !== null) {
+        if (upgradeHold(twin, view, Date.now()) !== null) return;
+        hold(null);
+        setOrderError(null);
+        startConstruction({
+          ...seat,
+          building: twin.key,
+          regionId: twin.regionId,
+          point: { lon: twin.point[0], lat: twin.point[1] },
+        }).then(
+          () => {
+            flySpent(twin.nextLevelCost, twin.point, motion);
+            notify(fr.personalBoard.raised(twin.name, twin.level + 1), 'info');
+          },
+          (problem: unknown) => handleError(problem, setOrderError),
+        );
+        return;
+      }
       if (aimVerdict(view, placing.key, spot, reaches).refusal !== null) return;
       const ordered = placing;
       const free = aimVerdict(view, placing.key, spot, reaches).free;
