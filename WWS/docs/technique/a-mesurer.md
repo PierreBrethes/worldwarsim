@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 47fdd51 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : c9a2c6c -->
 
 # Les constantes à mesurer
 
@@ -104,7 +104,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
 | `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:272` | « voir » |
-| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:73` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
+| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:74` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
 | `BEFORE_CITY_KM` | `30` | `src/domain/contacts.ts:35` | la maquette C le pose à 0,35 unité, environ 30 km |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:102` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `MOON_ELEVATION_DEG` | `53` | `src/domain/daylight.ts:103` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
