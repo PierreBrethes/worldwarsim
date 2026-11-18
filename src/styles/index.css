@@ -567,15 +567,16 @@ body {
 /* **Le sous-main** (#122) : la bande qui se plie au pas des fenêtres (#161), la tuile qui se lève
    au survol, la jauge qui monte. Réduites, rien ne glisse et la bande paraît en fondu bref ;
    coupées, la tuile ne se lève pas non plus. */
-/* Le volet du bureau (#580) : 172 px, 204 px sur un écran de plus de 860 px de haut, barre et volet
-   sous 40 % de l'écran à 1280×720. Il se déplie en 260 ms ; la maquette vise 320 ms (@a-mesurer). */
+/* Le volet du bureau (#580) : 172 px d'écran, 204 px sur un écran de plus de 860 px de haut, barre
+   et volet sous 40 % de l'écran à 1280×720. Il se déplie en 260 ms ; la maquette vise 320 ms
+   (@a-mesurer). */
 .mat-fold {
-  --volet-h: 172px;
+  --volet-h: calc(172px / var(--hud-scale));
   transition: grid-template-rows 260ms var(--ease-out);
 }
 @media (min-height: 860px) {
   .mat-fold {
-    --volet-h: 204px;
+    --volet-h: calc(204px / var(--hud-scale));
   }
 }
 .mat-tile {

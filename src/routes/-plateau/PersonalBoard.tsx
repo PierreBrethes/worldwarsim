@@ -1540,7 +1540,7 @@ function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
   const { cancel, error } = useCancelWork(seat, onSpent);
   const works = worksOf(view, now);
   const column =
-    'grid min-h-0 min-w-0 content-start gap-[5px] overflow-y-auto overscroll-contain border-l border-(color:--ink)/40 px-[12px] py-[8px] first:border-l-0';
+    'grid min-h-0 min-w-0 content-start gap-[4px] overflow-y-auto overscroll-contain border-l border-(color:--ink)/40 px-[12px] py-[6px] first:border-l-0';
   const chains = commandedChains(view);
   return (
     <div className="grid min-h-0 grid-cols-[372fr_358fr_190fr_192fr] border-l border-[var(--ink)]">
@@ -1566,7 +1566,7 @@ function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
             {works.map(({ work, running, total, left, name }, index) => (
               <li
                 key={work.id}
-                className="mat-line grid min-h-[30px] grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14"
+                className="mat-line grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14 py-[1px]"
               >
                 <span className="grid min-w-0 leading-[1.15]">
                   <b className="truncate text-[12px] font-semibold">

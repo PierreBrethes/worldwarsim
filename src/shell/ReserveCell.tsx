@@ -453,12 +453,12 @@ export function ReserveLine({
       title={title}
       aria-label={title}
       {...usePinning(resource, null)}
-      className="mat-line grid w-full min-w-0 cursor-pointer grid-cols-[18px_auto_auto_auto_minmax(0,1fr)] items-center gap-x-[6px] gap-y-[2px] border-b border-(color:--ink)/14 pt-[2px] text-left text-[12px] leading-[1.2] aria-pressed:shadow-[inset_0_-2px_0_var(--ink)]"
+      className="mat-line grid w-full min-w-0 cursor-pointer grid-cols-[18px_auto_auto_auto_minmax(0,1fr)] items-center gap-x-[6px] gap-y-[1px] border-b border-(color:--ink)/14 pt-[1px] text-left text-[12px] leading-[1.15] aria-pressed:shadow-[inset_0_-2px_0_var(--ink)]"
     >
       <ResourcePlate resource={resource} height={PLATE} width={PLATE} />
       <span className="truncate">{fr.resources[resource]}</span>
       <span aria-hidden className="font-(family-name:--font-mono) whitespace-nowrap">
-        <b className="text-[14px] font-semibold" style={{ color: ink }}>
+        <b className="text-[13px] font-semibold" style={{ color: ink }}>
           {displayed.toLocaleString('fr-FR')}
         </b>{' '}
         <span className="text-[var(--ink-soft)]">/ {reserve.cap.toLocaleString('fr-FR')}</span>
@@ -476,7 +476,7 @@ export function ReserveLine({
           <StateTag label={fr.resourceBand.full} tone="full" />
         ) : null}
       </span>
-      <small aria-hidden className="justify-self-end truncate text-[11px]">
+      <small aria-hidden className="truncate text-right text-[11px]">
         <HeapLong heap={heap} />
       </small>
       <span aria-hidden className="col-span-full block h-[3px] bg-(--ink)/15">
