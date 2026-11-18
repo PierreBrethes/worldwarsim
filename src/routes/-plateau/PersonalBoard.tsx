@@ -258,8 +258,10 @@ export function PersonalBoard({
   });
   const rackCue = cue !== null && cue.rack !== 'research' ? cue.text : null;
   const researchCue = cue?.rack === 'research' ? cue.text : null;
-  // Une clé en main : la bulle couvrirait la fiche de pose, au pied de l'écran (#239).
-  const unfoldCued = rackCue !== null && folded && !research && placing === null;
+  // Une clé en main : la bulle couvrirait la fiche de pose, au pied de l'écran (#239). Au bureau
+  // les tuiles sont debout, plateau replié (#579) : rien à déplier, la bulle les désigne.
+  const unfoldCued = rackCue !== null && folded && !research && placing === null && narrow;
+  const rackCued = narrow ? !folded : !research && placing === null;
 
   /** La poignée : sous le seuil une languette au-dessus de la barre, qui tire la bande — repliée,
    *  mi-hauteur, pleine, repliée ; au bureau le titre de la bande, qui la bascule. */
@@ -278,7 +280,7 @@ export function PersonalBoard({
         narrow
           ? 'paper-grain absolute -top-[16px] left-1/2 grid h-[16px] w-[64px] -translate-x-1/2 place-items-center border border-b-0 border-[var(--ink)] font-(family-name:--font-display) text-[10px]'
           : 'relative grid w-[28px] shrink-0 place-items-center content-center gap-[6px] self-stretch border-r border-[var(--ink)] font-(family-name:--font-body) text-[10px] tracking-[.1em] uppercase'
-      } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
+      }`}
     >
       {narrow ? (
         <span className="sr-only">{fr.personalBoard.header}</span>
@@ -291,7 +293,7 @@ export function PersonalBoard({
       <span aria-hidden className="font-(family-name:--font-body) text-[11px]">
         {(narrow ? filled : !folded) ? '▾' : '▴'}
       </span>
-      {/* Au bureau, la carte « à faire » se tient juste au-dessus : un anneau, pas une bulle. */}
+      {/* Au téléphone seulement : au bureau, les tuiles sont debout et la bulle les désigne. */}
       {unfoldCued && narrow && (
         <CueBubble
           text={fr.firstSteps.cue.unfold}
@@ -355,14 +357,14 @@ export function PersonalBoard({
               }
         }
       >
-        {rackCue !== null && !folded && (
+        {rackCue !== null && rackCued && (
           <CueBubble
             text={rackCue}
             place={
               narrow
                 ? 'absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2'
-                : // Over the tray.
-                  'absolute bottom-[calc(100%+9px)] left-[24px]'
+                : // Over the standing tiles.
+                  'absolute bottom-[calc(100%+9px)] left-[360px]'
             }
           />
         )}
