@@ -50,7 +50,9 @@ describe('the Blitz foot bar', () => {
     );
     const mondiale = {
       loadedAt: Date.now(),
-      me: { funds: null, chains: [], resources },
+      mode: 'mondiale',
+      arcs: [],
+      me: { funds: null, chains: [], resources, buildings: [], extraction: [], troops: [] },
     } as unknown as PlayerView;
     const foot: Foot = { key: <button type="button">la clé</button>, claim: vi.fn() };
     render(
