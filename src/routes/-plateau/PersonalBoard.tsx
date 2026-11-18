@@ -294,7 +294,7 @@ export function PersonalBoard({
         {(narrow ? filled : !folded) ? '▾' : '▴'}
       </span>
       {/* Au téléphone seulement : au bureau, les tuiles sont debout et la bulle les désigne. */}
-      {unfoldCued && narrow && (
+      {unfoldCued && (
         <CueBubble
           text={fr.firstSteps.cue.unfold}
           place="first-step-cue--start absolute bottom-[calc(100%+9px)] left-[4px]"
