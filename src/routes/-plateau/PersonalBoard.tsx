@@ -1580,7 +1580,10 @@ function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
                   key={work.id}
                   className="mat-line grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14 py-[1px]"
                 >
-                  <span className="grid min-w-0 leading-[1.15]">
+                  <span
+                    className="grid min-w-0 leading-[1.15]"
+                    title={`${fr.personalBoard.workRank(index + 1, name)} · ${work.regionName}`}
+                  >
                     <b className="truncate text-[12px] font-semibold">
                       {fr.personalBoard.workRank(index + 1, name)}
                     </b>
