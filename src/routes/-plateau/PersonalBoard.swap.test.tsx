@@ -173,7 +173,7 @@ describe('the row that changes content at the desk', () => {
     expect(ghosts()).toHaveLength(2);
     expect(ghostNodes()).toHaveLength(1 + 1);
     // The second ghost is a copy of B's row, never of the first ghost.
-    expect(ghostNodes()[1].querySelector('[data-swap-ghost]')).toBeNull();
+    expect(ghostNodes()[1]!.querySelector('[data-swap-ghost]')).toBeNull();
     await act(async () => resolvers.forEach((resolve) => resolve()));
     expect(ghostNodes()).toHaveLength(0);
   });
