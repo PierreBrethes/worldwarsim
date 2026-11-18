@@ -428,3 +428,86 @@ function Wheel({ digit, up, roll }: { digit: number; up: boolean; roll: boolean 
     </span>
   );
 }
+
+/**
+ * **Une réserve en une ligne, dans le volet du bureau** (#580, maquette « 340 / 400 · +4/h · au
+ * pied 46 ⚑1 ») : le nom, le stock sur son plafond, le débit et l'étiquette d'état, ce qui attend au
+ * pied en long, puis la jauge sur toute la ligne. La barre garde l'abrégé (`ReserveCell`) ; un
+ * toucher épingle le registre comme elle.
+ */
+export function ReserveLine({
+  resource,
+  view,
+  now,
+}: {
+  resource: ResourceKey;
+  view: PlayerView;
+  now: number;
+}) {
+  const { reserve, displayed, share, alert, full, title } = reserveReading(view, resource, now);
+  const heap = heapBinOf(view, resource, now);
+  const ink = alert === null ? 'var(--ink)' : 'var(--critical)';
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      {...usePinning(resource, null)}
+      className="mat-line grid w-full min-w-0 cursor-pointer grid-cols-[18px_auto_auto_auto_minmax(0,1fr)] items-center gap-x-[6px] gap-y-[2px] border-b border-(color:--ink)/14 pt-[2px] text-left text-[12px] leading-[1.2] aria-pressed:shadow-[inset_0_-2px_0_var(--ink)]"
+    >
+      <ResourcePlate resource={resource} height={PLATE} width={PLATE} />
+      <span className="truncate">{fr.resources[resource]}</span>
+      <span aria-hidden className="font-(family-name:--font-mono) whitespace-nowrap">
+        <b className="text-[14px] font-semibold" style={{ color: ink }}>
+          {displayed.toLocaleString('fr-FR')}
+        </b>{' '}
+        <span className="text-[var(--ink-soft)]">/ {reserve.cap.toLocaleString('fr-FR')}</span>
+      </span>
+      <span aria-hidden className="flex items-center gap-[5px] whitespace-nowrap">
+        <span
+          className="font-(family-name:--font-mono)"
+          style={{ color: reserve.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
+        >
+          {fr.personalBoard.rateShort(reserve.ratePerHour)}
+        </span>
+        {alert !== null ? (
+          <StateTag label={alert} tone="dry" />
+        ) : full ? (
+          <StateTag label={fr.resourceBand.full} tone="full" />
+        ) : null}
+      </span>
+      <small aria-hidden className="justify-self-end truncate text-[11px]">
+        <HeapLong heap={heap} />
+      </small>
+      <span aria-hidden className="col-span-full block h-[3px] bg-(--ink)/15">
+        <span
+          className="block h-full origin-left"
+          style={{
+            transform: `scaleX(${share})`,
+            background: alert === null ? resourceColor(resource, true) : ink,
+          }}
+        />
+      </span>
+    </button>
+  );
+}
+
+/** Ce qui attend au pied, en long : « au pied 46 ⚑1 ▲ 120 », ou pourquoi rien n'y attend. */
+function HeapLong({ heap }: { heap: ReturnType<typeof heapBinOf> }) {
+  if (heap === null) return <span className="text-[var(--ink-soft)]">{fr.heap.board.noHeap}</span>;
+  if (heap.kind !== 'foot')
+    return (
+      <span className="text-[var(--ink-soft)] italic">
+        {heap.kind === 'arsenal' ? fr.heap.board.fromArsenal : fr.heap.board.foundationOnly}
+      </span>
+    );
+  return (
+    <span className="font-(family-name:--font-mono)">
+      {fr.heap.board.atFoot} {heap.amount}
+      {heap.full > 0 && <span className="text-[var(--critical)]"> ⚑{heap.full}</span>}
+      {heap.come !== null && (
+        <span className="text-[var(--valid)]"> ▲ {Math.floor(heap.come.amount)}</span>
+      )}
+    </span>
+  );
+}

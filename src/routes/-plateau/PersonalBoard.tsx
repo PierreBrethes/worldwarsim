@@ -23,7 +23,7 @@ import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
-import { ReserveCell } from '@/shell/ReserveCell';
+import { ReserveCell, ReserveLine } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
 import {
   keptLevelOf,
@@ -80,8 +80,8 @@ const DRAG_THRESHOLD_PX = 5;
 const MAT_GAP_PX = 8;
 
 /** The unfolded band's height at the desk: a site open needs room for its troop cards and their
- *  refusals. */
-const BAND_HEIGHT = { site: '184px', rest: '174px' } as const;
+ *  refusals; the volet's own (#580) is `--volet-h`, which the screen's height sets (`index.css`). */
+const BAND_HEIGHT = { site: '184px', rest: 'var(--volet-h)' } as const;
 
 /** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
 const FULL_ROOM =
@@ -184,8 +184,13 @@ export function PersonalBoard({
     maquetteAt,
     narrow,
   });
+  /** **Armer une tuile replie le volet** (#580), au bureau, sans toucher l'adresse : il ne se
+   *  rouvre pas seul au désarmement, la poignée le rouvre. Un site sélectionné a sa bande. */
+  const [shut, setShut] = useState(false);
+  if (!narrow && placing !== null && open && !shut) setShut(true);
+  if (shut && !open) setShut(false);
   /** La main qui quitte la bande lui rend la carte : elle se replie le temps du geste. */
-  const folded = !open || research || away;
+  const folded = !open || research || away || (shut && site === null);
   /** **Plein**, sous le seuil : le plateau prend tout ce que la carte lui laisse. Replié, il
    *  repart à mi-hauteur à la prochaine ouverture. */
   const [full, setFull] = useState(false);
@@ -213,12 +218,12 @@ export function PersonalBoard({
   }, [covers, onCover, board]);
   const handleRef = useRef<HTMLButtonElement>(null);
   useMatRise(board, `${folded}-${filled}-${research}-${cue?.text ?? ''}`);
-  useUnfoldCascade(board, open && !research, narrow, motion);
+  useUnfoldCascade(board, open && !research && !(shut && site === null), narrow, motion);
 
   // Escape lets the selected site go, or folds the band, when no window stands in front of it.
   const selected = site !== null;
   useEffect(() => {
-    if (!front || !open) return;
+    if (!front || folded) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || held !== null || placing !== null) return;
       if (selected) onDeselectSite();
@@ -226,18 +231,18 @@ export function PersonalBoard({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [front, held, placing, open, onOpen, selected, onDeselectSite]);
+  }, [front, held, placing, folded, onOpen, selected, onDeselectSite]);
 
   // Folded, the focus that was inside the band (or that it took to the body) goes to its handle.
   const wasFolded = useRef(folded);
   useEffect(() => {
     const was = wasFolded.current;
     wasFolded.current = folded;
-    if (was || !folded || away) return;
+    if (was || !folded || away || shut) return;
     const active = document.activeElement;
     if (active === null || active === document.body || board.current?.contains(active))
       handleRef.current?.focus({ preventScroll: true });
-  }, [folded, away]);
+  }, [folded, away, shut]);
 
   const focusedBuilding = view.me.buildings.find((building) => building.id === focused) ?? null;
   const focusedKey = focusedBuilding?.key ?? null;
@@ -270,10 +275,11 @@ export function PersonalBoard({
       ref={handleRef}
       type="button"
       aria-expanded={!folded}
-      aria-label={narrow ? gripLabel : fr.personalBoard.header}
+      aria-label={narrow ? gripLabel : folded ? fr.footBar.grip.open : fr.footBar.grip.fold}
       onClick={() => {
         onResearch(false);
         if (narrow && !folded && !filled) setFull(true);
+        else if (folded && open && shut) setShut(false);
         else onOpen(folded);
       }}
       className={`cursor-pointer leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
@@ -428,7 +434,12 @@ export function PersonalBoard({
               narrow ? 'flex flex-col overflow-y-auto overscroll-contain' : 'grid'
             }`}
             style={
-              narrow ? undefined : { gridTemplateColumns: site === null ? '1fr' : '1fr 160px' }
+              narrow
+                ? undefined
+                : {
+                    gridTemplateColumns: site === null ? '1fr' : '1fr 160px',
+                    gridTemplateRows: 'minmax(0, 1fr)',
+                  }
             }
           >
             {site === null ? (
@@ -448,16 +459,27 @@ export function PersonalBoard({
                     onTake={observing ? null : take}
                   />
                 )}
-                <Works
-                  view={view}
-                  seat={seat}
-                  now={now}
-                  narrow={narrow}
-                  observing={observing}
-                  ledger={ledger}
-                  onReplay={harvest === null ? null : replay}
-                  onSpent={mark}
-                />
+                {narrow ? (
+                  <Works
+                    view={view}
+                    seat={seat}
+                    now={now}
+                    observing={observing}
+                    ledger={ledger}
+                    onReplay={harvest === null ? null : replay}
+                    onSpent={mark}
+                  />
+                ) : (
+                  <Volet
+                    view={view}
+                    seat={seat}
+                    now={now}
+                    observing={observing}
+                    ledger={ledger}
+                    onReplay={harvest === null ? null : replay}
+                    onSpent={mark}
+                  />
+                )}
               </>
             ) : (
               <SiteBand
@@ -579,15 +601,15 @@ function useMatRise(mat: { readonly current: HTMLElement | null }, shape: string
   }, [mat, shape]);
 }
 
-/** The tiles lift one after the other in a fade (#251). */
+/** The volet's lines come in one after the other in a fade (#251, #580). */
 const CASCADE = {
-  tile: { from: 80, step: 35, duration: 195, most: 8 },
+  line: { from: 80, step: 35, duration: 195, most: 8 },
   easing: 'cubic-bezier(.2,.8,.2,1)',
 } as const;
 
 /**
- * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre la bande — pas quand la main la
- * replie le temps d'un geste —, les tuiles se lèvent.
+ * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre le volet — pas quand la main le
+ * replie le temps d'un geste —, ses lignes entrent (file, stocks, tas, lots : `.mat-line`, #580).
  * « actives » seulement ; au bureau seulement, le téléphone tire sa feuille.
  */
 function useUnfoldCascade(
@@ -602,16 +624,16 @@ function useUnfoldCascade(
     was.current = unfolded;
     const node = board.current;
     if (!opened || node === null || narrow || motion !== 'full') return;
-    const { tile, easing } = CASCADE;
-    [...node.querySelectorAll('.mat-cascade')].slice(0, tile.most).forEach((one, rank) =>
+    const { line, easing } = CASCADE;
+    [...node.querySelectorAll('.mat-line')].slice(0, line.most).forEach((one, rank) =>
       one.animate(
         [
           { opacity: 0, translate: '0 10px' },
           { opacity: 1, translate: '0 0' },
         ],
         {
-          duration: tile.duration,
-          delay: tile.from + rank * tile.step,
+          duration: line.duration,
+          delay: line.from + rank * line.step,
           easing,
           fill: 'backwards',
         },
@@ -897,7 +919,7 @@ function TileFrame({
       {...grip}
       title={label}
       aria-label={label}
-      className={`group relative grid shrink-0 ${narrow ? '' : 'mat-cascade'} ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+      className={`group relative grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
           : wide
@@ -1318,114 +1340,57 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   );
 }
 
-/**
- * **Le chantier en tête et la file derrière** : la seule échéance est celle de la tête, sa règle
- * avance ; une ligne en file se retire et se rembourse, un chantier commencé non
- * (`constructions.cancel`). Dessous, la récolte et les lots que le joueur commande. Au téléphone,
- * le tout replié en une ligne qu'on déplie au toucher.
- */
-function Works({
-  view,
-  seat,
-  now,
-  narrow,
-  observing,
-  ledger,
-  onReplay,
-  onSpent,
-}: {
-  view: PlayerView;
-  seat: Seat;
-  now: number;
-  narrow: boolean;
-  observing: boolean;
-  ledger: string;
-  /** Rejouer la récolte : au téléphone, la bande n'a pas la place de sa ligne. */
-  onReplay: (() => void) | null;
-  onSpent: () => void;
-}) {
-  const drop = useMutation(api.constructions.cancel);
-  const column = useRef<HTMLElement>(null);
-  const more = useOverflow(column, 'y', narrow);
-  const [error, setError] = useState<string | null>(null);
-  const [unfolded, setUnfolded] = useState(false);
+/** Le chantier en tête puis la file, avec ce qui reste à chacun : le temps de la tête se lit
+ *  depuis sa date, celui d'une ligne en file est sa durée entière. */
+function worksOf(view: PlayerView, now: number) {
   const head = view.me.construction;
-  const rows = [
+  return [
     ...(head === null ? [] : [{ work: head, running: true as const }]),
     ...view.me.constructionQueue.map((work) => ({ work, running: false as const })),
-  ];
-  const list = (
-    <div className="grid gap-[5px]">
-      <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
-      {rows.length === 0 && (
-        <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.economy.constructionNone}
-        </p>
-      )}
-      {rows.map(({ work, running }, index) => {
-        const total =
-          (running ? work.minutes : undefined) ??
-          worksMinutes(work.key, work.level, view.me.hqLevel);
-        const left = running ? currentMinutes(work.minutesLeft, view.loadedAt, now) : total;
-        return (
-          <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
-            <span className="flex items-baseline gap-2">
-              <b className="min-w-0 flex-1 truncate font-semibold">
-                {fr.personalBoard.workRank(
-                  index + 1,
-                  fr.personalBoard.work(
-                    work.name,
-                    work.kept === undefined ? work.level : keptLevelOf(work.kept, view.me.hqLevel),
-                  ),
-                )}
-              </b>
-              {running && (
-                <small className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-                  {countdownLabel(left * 60_000)}
-                </small>
-              )}
-              {!running && !observing && (
-                <button
-                  type="button"
-                  title={fr.economy.queueCancelTitle}
-                  onClick={() => {
-                    setError(null);
-                    drop({ ...seat, constructionId: work.id as Id<'constructions'> }).then(
-                      onSpent,
-                      (problem: unknown) => handleError(problem, setError),
-                    );
-                  }}
-                  className="shrink-0 cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 opacity-55 hover:text-[var(--critical)] hover:opacity-100"
-                >
-                  {fr.economy.queueCancel}
-                </button>
-              )}
-            </span>
-            {running && (
-              <span aria-hidden className="block h-[3px] bg-(--ink)/14">
-                <i
-                  className="block h-full bg-[var(--arc-mine)]"
-                  style={{
-                    width: `${total > 0 ? Math.min(100, ((total - left) / total) * 100) : 0}%`,
-                  }}
-                />
-              </span>
-            )}
-            <small className="block truncate font-(family-name:--font-mono) text-[9.5px] leading-[1.2] text-[var(--ink-soft)]">
-              {running
-                ? fr.personalBoard.runningAt(work.regionName)
-                : fr.personalBoard.queuedAt(work.regionName, countdownLabel(total * 60_000))}
-            </small>
-          </div>
-        );
-      })}
-      {view.me.hqLevel > 0 && (
-        <small className="text-[9.5px] leading-[1.3] text-[var(--ink-soft)]">
-          {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
-        </small>
-      )}
-      {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
-      <HeapBoardNotes view={view} now={now} />
+  ].map(({ work, running }) => {
+    const total =
+      (running ? work.minutes : undefined) ?? worksMinutes(work.key, work.level, view.me.hqLevel);
+    return {
+      work,
+      running,
+      total,
+      left: running ? currentMinutes(work.minutesLeft, view.loadedAt, now) : total,
+      name: fr.personalBoard.work(
+        work.name,
+        work.kept === undefined ? work.level : keptLevelOf(work.kept, view.me.hqLevel),
+      ),
+    };
+  });
+}
+
+/** Une ligne en file se retire et se rembourse (`constructions.cancel`) ; son refus se dit. */
+function useCancelWork(seat: Seat, onSpent: () => void) {
+  const drop = useMutation(api.constructions.cancel);
+  const [error, setError] = useState<string | null>(null);
+  const cancel = (id: string) => {
+    setError(null);
+    drop({ ...seat, constructionId: id as Id<'constructions'> }).then(onSpent, (problem: unknown) =>
+      handleError(problem, setError),
+    );
+  };
+  return { cancel, error };
+}
+
+/** La barre du chantier en tête : la part déjà bâtie. */
+function WorkBar({ total, left, className }: { total: number; left: number; className: string }) {
+  return (
+    <span aria-hidden className={`block h-[3px] bg-(--ink)/14 ${className}`}>
+      <i
+        className="block h-full bg-[var(--arc-mine)]"
+        style={{ width: `${total > 0 ? Math.min(100, ((total - left) / total) * 100) : 0}%` }}
+      />
+    </span>
+  );
+}
+
+function HarvestLines({ ledger, onReplay }: { ledger: string; onReplay: (() => void) | null }) {
+  return (
+    <>
       <span className="mt-[4px] flex items-baseline gap-2">
         <span className="eyebrow">{fr.personalBoard.harvestHeader}</span>
         {onReplay !== null && (
@@ -1439,30 +1404,107 @@ function Works({
         )}
       </span>
       <p className="text-[11px] leading-[1.35] text-[var(--ink-soft)]">{ledger}</p>
-      {view.me.chains
-        .filter((chain) => chain.commanded && chain.level > 0)
-        .map((chain) => (
-          <LotControl
-            key={chain.by}
-            chain={chain}
-            seat={seat}
-            loadedAt={view.loadedAt}
-            now={now}
-            observing={observing}
-          />
-        ))}
+    </>
+  );
+}
+
+/** Les lots que le joueur commande, un par chaîne commandée (`LotControl`). */
+const commandedChains = (view: PlayerView) =>
+  view.me.chains.filter((chain) => chain.commanded && chain.level > 0);
+
+function Lots({
+  view,
+  seat,
+  now,
+  observing,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  observing: boolean;
+}) {
+  return commandedChains(view).map((chain) => (
+    <LotControl
+      key={chain.by}
+      chain={chain}
+      seat={seat}
+      loadedAt={view.loadedAt}
+      now={now}
+      observing={observing}
+    />
+  ));
+}
+
+type WorksProps = {
+  view: PlayerView;
+  seat: Seat;
+  now: number;
+  observing: boolean;
+  ledger: string;
+  /** Rejouer la récolte : la ligne de la barre n'est pas toujours sous la main. */
+  onReplay: (() => void) | null;
+  onSpent: () => void;
+};
+
+/**
+ * **Le chantier en tête et la file derrière, au téléphone** : la seule échéance est celle de la
+ * tête, sa règle avance ; une ligne en file se retire et se rembourse, un chantier commencé non
+ * (`constructions.cancel`). Dessous, la récolte et les lots que le joueur commande ; le tout replié
+ * en une ligne qu'on déplie au toucher.
+ */
+function Works({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksProps) {
+  const { cancel, error } = useCancelWork(seat, onSpent);
+  const [unfolded, setUnfolded] = useState(false);
+  const list = (
+    <div className="grid gap-[5px]">
+      <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
+      {view.me.construction === null && view.me.constructionQueue.length === 0 && (
+        <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
+          {fr.economy.constructionNone}
+        </p>
+      )}
+      {worksOf(view, now).map(({ work, running, total, left, name }, index) => (
+        <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
+          <span className="flex items-baseline gap-2">
+            <b className="min-w-0 flex-1 truncate font-semibold">
+              {fr.personalBoard.workRank(index + 1, name)}
+            </b>
+            {running && (
+              <small className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
+                {countdownLabel(left * 60_000)}
+              </small>
+            )}
+            {!running && !observing && (
+              <button
+                type="button"
+                title={fr.economy.queueCancelTitle}
+                aria-label={fr.personalBoard.cancelWork(name)}
+                onClick={() => cancel(work.id)}
+                className="shrink-0 cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 opacity-55 hover:text-[var(--critical)] hover:opacity-100"
+              >
+                {fr.economy.queueCancel}
+              </button>
+            )}
+          </span>
+          {running && <WorkBar total={total} left={left} className="" />}
+          <small className="block truncate font-(family-name:--font-mono) text-[9.5px] leading-[1.2] text-[var(--ink-soft)]">
+            {running
+              ? fr.personalBoard.runningAt(work.regionName)
+              : fr.personalBoard.queuedAt(work.regionName, countdownLabel(total * 60_000))}
+          </small>
+        </div>
+      ))}
+      {view.me.hqLevel > 0 && (
+        <small className="text-[9.5px] leading-[1.3] text-[var(--ink-soft)]">
+          {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
+        </small>
+      )}
+      {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
+      <HeapBoardNotes view={view} now={now} />
+      <HarvestLines ledger={ledger} onReplay={onReplay} />
+      <Lots view={view} seat={seat} now={now} observing={observing} />
     </div>
   );
-  if (!narrow)
-    return (
-      <section
-        ref={column}
-        data-after={more.after}
-        className="mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]"
-      >
-        {list}
-      </section>
-    );
   return (
     <section className="border-t border-[var(--ink)] px-[10px] py-[6px]">
       <button
@@ -1483,6 +1525,101 @@ function Works({
       </button>
       {unfolded && list}
     </section>
+  );
+}
+
+/** Au-delà de quatre chantiers, la file du volet passe sur deux colonnes (#580). */
+const QUEUE_ONE_COLUMN = 4;
+
+/**
+ * **Le volet du bureau** (#580, finaliste) : au-dessus de la barre, quatre colonnes — la file
+ * entière des chantiers, chaque « annuler » visible ; les stocks en lignes, plafond compris ; ce qui
+ * arrive, ce qui déborde et la récolte ; les lots. Chaque colonne défile seule.
+ */
+function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksProps) {
+  const { cancel, error } = useCancelWork(seat, onSpent);
+  const works = worksOf(view, now);
+  const column =
+    'grid min-h-0 min-w-0 content-start gap-[5px] overflow-y-auto overscroll-contain border-l border-(color:--ink)/40 px-[12px] py-[8px] first:border-l-0';
+  const chains = commandedChains(view);
+  return (
+    <div className="grid min-h-0 grid-cols-[372fr_358fr_190fr_192fr] border-l border-[var(--ink)]">
+      <section className={column}>
+        <span className="flex items-baseline gap-[8px]">
+          <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
+          {view.me.hqLevel > 0 && (
+            <small className="truncate text-[11px] text-[var(--ink-soft)]">
+              {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
+            </small>
+          )}
+        </span>
+        {works.length === 0 ? (
+          <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
+            {fr.economy.constructionNone}
+          </p>
+        ) : (
+          <ol
+            aria-label={fr.personalBoard.worksHeader}
+            className="grid gap-x-[14px]"
+            style={works.length > QUEUE_ONE_COLUMN ? { gridTemplateColumns: '1fr 1fr' } : undefined}
+          >
+            {works.map(({ work, running, total, left, name }, index) => (
+              <li
+                key={work.id}
+                className="mat-line grid min-h-[30px] grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14"
+              >
+                <span className="grid min-w-0 leading-[1.15]">
+                  <b className="truncate text-[12px] font-semibold">
+                    {fr.personalBoard.workRank(index + 1, name)}
+                  </b>
+                  <small className="truncate font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                    {running
+                      ? `${fr.personalBoard.runningAt(work.regionName)}${fr.personalBoard.workTail(countdownLabel(left * 60_000), 0)}`
+                      : fr.personalBoard.queuedAt(work.regionName, countdownLabel(total * 60_000))}
+                  </small>
+                </span>
+                {running ? (
+                  <WorkBar total={total} left={left} className="w-[52px]" />
+                ) : (
+                  !observing && (
+                    <button
+                      type="button"
+                      title={fr.economy.queueCancelTitle}
+                      aria-label={fr.personalBoard.cancelWork(name)}
+                      onClick={() => cancel(work.id)}
+                      className="cursor-pointer border border-[var(--ink)] px-[6px] py-[2px] text-[10px] font-semibold tracking-[.06em] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
+                    >
+                      {fr.economy.queueCancel}
+                    </button>
+                  )
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+        {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
+        <p className="text-[11px] leading-[1.3] text-[var(--ink-soft)]">
+          {fr.personalBoard.refundNote}
+        </p>
+      </section>
+      <section className={`${column} gap-0`}>
+        {RESOURCES.map((resource) => (
+          <ReserveLine key={resource} resource={resource} view={view} now={now} />
+        ))}
+      </section>
+      <section className={`mat-line ${column}`}>
+        <HeapBoardNotes view={view} now={now} />
+        <HarvestLines ledger={ledger} onReplay={onReplay} />
+      </section>
+      <section className={`mat-line ${column}`}>
+        <span className="eyebrow">{fr.personalBoard.lotsHeader}</span>
+        {chains.length === 0 ? (
+          <p className="text-[11.5px] text-[var(--ink-soft)]">{fr.personalBoard.noLots}</p>
+        ) : (
+          <Lots view={view} seat={seat} now={now} observing={observing} />
+        )}
+      </section>
+    </div>
   );
 }
 

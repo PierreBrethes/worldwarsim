@@ -242,10 +242,7 @@ async function runProfile(profile) {
       }, pileId);
     /** La poignée du plateau personnel : au doigt son nom dit l'état suivant (déplier, agrandir,
      *  replier), à la souris `aria-expanded` dit s'il est déplié. */
-    const boardHandle = () =>
-      page
-        .getByRole('button', { name: phone ? /le plateau personnel$/ : /^Plateau personnel/ })
-        .first();
+    const boardHandle = () => page.getByRole('button', { name: /le plateau personnel$/ }).first();
     const boardOpen = async () =>
       phone
         ? !/^déplier/.test((await boardHandle().getAttribute('aria-label')) ?? '')

@@ -1183,8 +1183,9 @@ async function play(profileName, pass) {
     await gesture('plateau plein', () => tap(button(/agrandir le plateau personnel/)));
     await gesture('plateau replié', () => tap(button(/replier le plateau personnel/)));
   } else {
-    await gesture('plateau déplié', () => button(/^Plateau personnel$/).click());
-    await gesture('plateau replié', () => button(/^Plateau personnel$/).click());
+    // La poignée dit son geste (#580, décision 10 du 18/11) : le volet n'a pas de nom.
+    await gesture('plateau déplié', () => button(/^déplier le plateau personnel$/).click());
+    await gesture('plateau replié', () => button(/^replier le plateau personnel$/).click());
   }
 
   // La fiche d'un bâtiment : son étiquette quand la carte la montre (de loin, au téléphone),

@@ -4082,6 +4082,8 @@ export const fr = {
       overflow: 'Débordent',
       noTour: 'aucune tournée',
       noOverflow: 'aucun tas plein',
+      /** La ligne d'un stock dans le volet (#580), quand rien n'attend au pied. */
+      noHeap: 'aucun tas',
       stoppedFor: (span: string) => `arrêtée ${span}`,
     },
   },
@@ -4135,6 +4137,11 @@ export const fr = {
     /** Ce que le QG rend aux chantiers, dit sous la file (ADR 0031). */
     hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
     worksFold: 'chantiers',
+    /** **Le volet du bureau** (#580) : sous la file, ce que coûte un « annuler ». */
+    refundNote: 'Un chantier en file s’annule et se rembourse ; commencé, il ne se rembourse plus.',
+    cancelWork: (work: string) => `Annuler ${work} : remboursé`,
+    lotsHeader: 'arsenal · lots',
+    noLots: 'aucun lot',
     noWorks: 'aucun chantier',
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
     work: (name: string, level: number) => `${name} niv. ${level}`,
