@@ -463,6 +463,9 @@ export type PlacingBuilding = {
   readonly free: boolean;
   readonly duration: string;
   readonly refusal: string | null;
+  /** What the stock lacks for the bill, dated — shown under no placement refusal, never a
+   *  refusal itself: the point is still taken, the server decides. */
+  readonly shortage: string | null;
   /** No deposit the pose takes (#239): the nearest free one, named. */
   readonly nearest: string | null;
 };
@@ -2490,6 +2493,11 @@ function PlacingLines({ placing, docked = false }: { placing: PlacingBuilding; d
       {placing.refusal !== null && (
         <span className="mt-[4px] block text-[11px] font-semibold text-[var(--critical)] first-letter:uppercase">
           {placing.refusal}
+        </span>
+      )}
+      {placing.refusal === null && placing.shortage !== null && (
+        <span className="mt-[4px] block text-[11px] font-semibold text-[var(--critical)] first-letter:uppercase">
+          {placing.shortage}
         </span>
       )}
       {placing.nearest !== null && (

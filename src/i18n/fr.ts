@@ -5114,6 +5114,8 @@ export const fr = {
    */
   placing: {
     hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
+    /** Le manque de la facture, dans l'ordre du serveur : la phrase qui le date suit. */
+    missing: (missing: number, resource: string) => `il manque ${Math.ceil(missing)} ${resource}`,
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
     coastPending: 'la côte arrive sur la carte — un instant',
     /** Au téléphone, la tuile se porte du doigt (#239). */

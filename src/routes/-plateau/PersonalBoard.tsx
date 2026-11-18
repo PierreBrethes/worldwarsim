@@ -25,7 +25,14 @@ import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
 import { ReserveCell } from '@/shell/ReserveCell';
 import { useNarrowScreen } from '@/shell/viewport';
-import { keptLevelOf, keptOf, placementOf, reachesOf, upgradeHold } from '@/domain/construction';
+import {
+  keptLevelOf,
+  keptOf,
+  placementOf,
+  reachesOf,
+  tileBillOf,
+  upgradeHold,
+} from '@/domain/construction';
 import { outpostReachKm } from '../../../convex/constants';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
@@ -952,6 +959,17 @@ function Tile({
    *  ligne de plus serait tronquée au bureau ; posée sur sa pareille, la main dit l'élévation. */
   const kept = keptOf(view.me.evacuated, buildingKey);
   const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
+  /** La facture que la tuile affiche, lue par la même fonction que le fantôme de pose. */
+  const bill = tileBillOf(
+    free
+      ? {}
+      : lowest === null || kept !== null
+        ? view.buildCatalog[buildingKey].cost
+        : lowest.nextLevelCost,
+    (resource) => view.me.resources[resource],
+    view.loadedAt,
+    view.loadedAt,
+  );
   return (
     <TileFrame
       ref={ref}
@@ -974,11 +992,7 @@ function Tile({
           fr.construction.free
         ) : (
           <Price
-            costs={
-              lowest === null || kept !== null
-                ? view.buildCatalog[buildingKey].cost
-                : lowest.nextLevelCost
-            }
+            costs={Object.fromEntries(bill.map((line) => [line.resource, line.due]))}
             size={10}
           />
         )

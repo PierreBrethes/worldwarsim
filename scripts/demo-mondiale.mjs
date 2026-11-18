@@ -49,6 +49,7 @@
  * l'Aube, en tête de file : son premier niveau monte. `--caserne-montee` (#366) élève la caserne
  * de niveau 3 du QG au niveau 4, en tête de file.
  * `--edition` publie tout de suite deux éditions de presse : le classement et ses variations.
+ * `--stock-court` (#577) laisse vingt d'acier et zéro charbon à chaque nation : le fantôme d'une pose dit ce qui manque.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
  * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
@@ -477,6 +478,9 @@ const lookout = process.argv.includes('--guet');
 /** `--accrochages` (#441) : des accrochages en Lorraine, en Manche, devant Francfort et en Égypte. */
 const contacts = process.argv.includes('--accrochages');
 const dryCoal = process.argv.includes('--sans-charbon');
+/** `--stock-court` (#577) : l'acier presque à sec et le charbon à zéro, pour lire le manque d'une
+ *  facture sur le fantôme de pose. */
+const shortStock = process.argv.includes('--stock-court');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
 const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
@@ -656,6 +660,10 @@ if (!lobbying) await client.mutation(api.seasons.launch, { token: tokenA, season
 const scene = { a: null, b: null };
 if (!bare) {
   cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 400 })]);
+  if (shortStock) {
+    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 20, only: 'steel' })]);
+    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 0, only: 'coal' })]);
+  }
   const rows = cli(['data', 'players', '--limit', '200', '--format', 'jsonl'])
     .split('\n')
     .filter((line) => line.startsWith('{'))

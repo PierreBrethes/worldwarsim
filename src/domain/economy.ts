@@ -17,11 +17,17 @@ export type Stocks = Readonly<Record<ResourceKey, number>>;
  * covered. The steel is read first, then the family's resource, the order a price is printed in:
  * the screen says the same shortage the server's `debit` refuses on.
  */
+/** The order a price is read in, steel first — the screen's lines and the server's refusal. */
+export const PRICE_ORDER: ReadonlyArray<ResourceKey> = [
+  'steel',
+  ...RESOURCES.filter((key) => key !== 'steel'),
+];
+
 export function shortfallOf(
   costs: Readonly<Partial<Record<ResourceKey, number>>>,
   stockOf: (resource: ResourceKey) => number,
 ): { readonly resource: ResourceKey; readonly missing: number } | null {
-  for (const resource of ['steel', ...RESOURCES.filter((key) => key !== 'steel')] as const) {
+  for (const resource of PRICE_ORDER) {
     const cost = costs[resource] ?? 0;
     if (cost <= 0) continue;
     const held = stockOf(resource);

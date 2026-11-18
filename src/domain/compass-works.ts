@@ -20,6 +20,7 @@ import {
   raiseChoosesSpecialty,
   upgradeHold,
   type OutpostRaiseHold,
+  type TileBillLine,
   type UpgradeHold,
 } from './construction';
 import { asDuration } from './duration';
@@ -509,6 +510,25 @@ export function neverText(
   return deposit === undefined
     ? fr.upgrade.never(none)
     : fr.upgrade.neverOnDeposit(none, fr.deposits[deposit]);
+}
+
+/**
+ * **Le manque d'une facture, dit** (le fantôme de pose) : la première ligne en manque, dans
+ * l'ordre du serveur, avec la phrase qui la date — la même que celle de l'élévation. `null`
+ * quand la facture se paie.
+ */
+export function billShortageText(bill: ReadonlyArray<TileBillLine>): string | null {
+  const line = bill.find((one) => one.missing > 0);
+  if (line === undefined) return null;
+  const when = line.availability;
+  const dated =
+    when.kind === 'inMinutes'
+      ? fr.upgrade.availableIn(asDuration(when.minutes))
+      : when.kind === 'now'
+        ? null
+        : neverText(line.resource, when);
+  const missing = fr.placing.missing(line.missing, fr.resources[line.resource]);
+  return dated === null ? missing : `${missing} · ${dated}`;
 }
 
 /**

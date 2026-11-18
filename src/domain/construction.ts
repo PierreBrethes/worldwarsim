@@ -16,6 +16,7 @@ import {
   keyRefusal,
   nearestBuilding,
   placementRefusal,
+  PRICE_ORDER,
   settlesDebt,
   siteOfPoint,
   type PlacementRefusal,
@@ -403,6 +404,44 @@ export function availabilityOf(needed: number, held: Resource, stock: number): A
   if (held.ratePerHour <= 0) return { kind: 'never' };
   if (needed > held.cap) return { kind: 'overCap', cap: held.cap };
   return { kind: 'inMinutes', minutes: ((needed - stock) / held.ratePerHour) * 60 };
+}
+
+export type TileBillLine = {
+  readonly resource: ResourceKey;
+  readonly due: number;
+  readonly held: number;
+  readonly missing: number;
+  readonly availability: Availability;
+};
+
+/**
+ * **A tile's bill, line by line** — the price in the order the server refuses in (`PRICE_ORDER`),
+ * each matter with what is held now, what is missing and when it will be there. An empty list
+ * is a bill that can be paid. Which price is read (free, kept, new, raise) is the caller's.
+ */
+export function tileBillOf(
+  cost: Cost,
+  resourceOf: (resource: ResourceKey) => Resource,
+  loadedAt: number,
+  now: number,
+): ReadonlyArray<TileBillLine> {
+  return PRICE_ORDER.flatMap((resource) => {
+    const due = cost[resource] ?? 0;
+    if (due <= 0) return [];
+    const reserve = resourceOf(resource);
+    const stock = currentStock(reserve, loadedAt, now);
+    // A negation, so that a stock which is not a number holds nothing.
+    const held = stock >= 0 ? stock : 0;
+    return [
+      {
+        resource,
+        due,
+        held,
+        missing: held >= due ? 0 : due - held,
+        availability: availabilityOf(due, reserve, held),
+      },
+    ];
+  });
 }
 
 /** A raise as the rules read it — the facts both ends hold: `reached` (a standing outpost, or

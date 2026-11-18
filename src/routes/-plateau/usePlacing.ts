@@ -8,8 +8,10 @@ import {
   nearestDeposit,
   placementOf,
   reachesOf,
+  tileBillOf,
   type DepositCall,
 } from '@/domain/construction';
+import { billShortageText } from '@/domain/compass-works';
 import { EXPLOITED_DEPOSITS, type FoundationDebt } from '@/domain/economy';
 import type { BuildingKey, DepositKey } from '@/domain/ids';
 import type { LonLat } from '@/domain/geo';
@@ -127,6 +129,12 @@ export function usePlacing(
     if (placing === null || magnet === null) return null;
     const spec = view.buildCatalog[placing.key];
     const free = verdict?.free ?? false;
+    const bill = tileBillOf(
+      free ? {} : spec.cost,
+      (resource) => view.me.resources[resource],
+      view.loadedAt,
+      Date.now(),
+    );
     const widest = reaches.map((reach) => reach.reachKm);
     return {
       sprite: buildingSprite(placing.key),
@@ -136,6 +144,7 @@ export function usePlacing(
       name: fr.buildings[placing.key],
       cost: spec.cost,
       free,
+      shortage: billShortageText(bill),
       duration: free ? fr.construction.immediate : asDuration(spec.minutes),
       refusal:
         verdict?.refusal == null

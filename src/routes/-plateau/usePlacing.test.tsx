@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { BUILDINGS, type BuildingKey } from '@/domain/ids';
+import { BUILDINGS, RESOURCES, type BuildingKey } from '@/domain/ids';
 import type { BuildSpec, PlayerView } from '@/domain/player-view';
 import { destinationPoint } from '@/domain/geo';
 import { DEPOSIT_POINTS } from '@/domain/world';
@@ -15,7 +15,11 @@ const point = (id: string) => DEPOSIT_POINTS.find((deposit) => deposit.id === id
 /** The maquette's game (#239): France, its mine on the coal of the Nord, an outpost at Namur,
  *  the Saar worked by an adversary it has surveyed. */
 const view = {
+  loadedAt: 0,
   me: {
+    resources: Object.fromEntries(
+      RESOURCES.map((key) => [key, { stock: 100, ratePerHour: 0, cap: 1000 }]),
+    ),
     nation: 'france',
     hqLevel: 1,
     foundation: [],
@@ -91,5 +95,26 @@ describe('a deposit key in hand (#239)', () => {
     expect(result.current.placingCard?.nearest).toMatch(
       /^aucun gisement de pétrole ne se prend — le plus proche : Roumanie, \d+ km, trop près de la caserne$/,
     );
+  });
+});
+
+describe('the bill on the ghost (#577)', () => {
+  const poor = {
+    ...view,
+    me: {
+      ...view.me,
+      resources: { ...view.me.resources, steel: { stock: 10, ratePerHour: 0, cap: 1000 } },
+    },
+  } as unknown as PlayerView;
+
+  it('says what the stock lacks, and does not refuse the point', () => {
+    const { result } = holding('mine', poor);
+    expect(result.current.placingCard?.shortage).toMatch(/^il manque 20 acier/);
+    expect(result.current.placingCard?.refusal).toBeNull();
+  });
+
+  it('says nothing when the stock covers the bill', () => {
+    const { result } = holding('mine');
+    expect(result.current.placingCard?.shortage).toBeNull();
   });
 });
