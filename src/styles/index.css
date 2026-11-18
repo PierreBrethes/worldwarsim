@@ -597,9 +597,6 @@ body {
 .mat-board {
   --works-w: 236px;
 }
-.mat-bins-width {
-  width: var(--works-w);
-}
 
 /* Le fondu d'un rang ou d'une colonne qui continue : seul le côté où il y a une suite s'estompe. */
 .mat-rail[data-before='true'][data-after='true'] {

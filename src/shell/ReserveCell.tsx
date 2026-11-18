@@ -86,7 +86,7 @@ export function dryLabelOf(stock: number, netPerHour: number): string | null {
 function StateTag({ label, tone }: { label: string; tone: 'dry' | 'full' }) {
   return (
     <span
-      className={`px-[3px] py-[2px] text-[12px] leading-none font-semibold whitespace-nowrap text-[var(--paper)] ${
+      className={`px-[3px] py-[2px] text-[12px] leading-none font-bold tracking-[.04em] whitespace-normal text-center uppercase text-[var(--paper)] ${
         tone === 'dry' ? 'bg-[var(--critical)]' : 'bg-[var(--ink)]'
       }`}
     >

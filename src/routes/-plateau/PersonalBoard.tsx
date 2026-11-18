@@ -266,10 +266,7 @@ export function PersonalBoard({
       className={`cursor-pointer font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
         narrow
           ? 'paper-grain absolute -top-[16px] left-1/2 grid h-[16px] w-[64px] -translate-x-1/2 place-items-center border border-b-0 border-[var(--ink)] text-[10px]'
-          : `relative self-stretch border-r border-[var(--ink)] px-3 ${
-              // Dépliée, la poignée prend la largeur de la colonne des chantiers.
-              folded ? '' : 'mat-bins-width flex items-center justify-between'
-            }`
+          : 'relative self-stretch border-r border-[var(--ink)] px-3'
       } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
     >
       <span className={narrow ? 'sr-only' : undefined}>{fr.personalBoard.header}</span>
