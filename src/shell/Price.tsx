@@ -21,6 +21,7 @@ export function Price({
   costs,
   onPaper = true,
   lacking = null,
+  held = null,
   size = 12,
   stacked = false,
 }: {
@@ -28,6 +29,9 @@ export function Price({
   /** False on an ink-dark ground, where the lighter inks of the plate read better. */
   onPaper?: boolean;
   lacking?: ResourceKey | null;
+  /** **Le prix contre le stock** (#579) : une matière que le stock ne couvre pas s'écrit
+   *  « stock/prix », en rouge ; les autres gardent leur prix seul. */
+  held?: Costs | null;
   size?: number;
   /** Une ressource par ligne : la cellule étroite d'un tableau. */
   stacked?: boolean;
@@ -41,9 +45,15 @@ export function Price({
       {ORDER.filter((key) => (costs[key] ?? 0) > 0).map((key) => (
         <span key={key} className="inline-flex items-center gap-[3px]" title={fr.resources[key]}>
           <ResourcePlate resource={key} height={plate} width={plate} onDark={!onPaper} />
-          <span style={lacking === key ? { color: 'var(--critical)' } : undefined}>
-            {costs[key]}
-          </span>
+          {held !== null && (held[key] ?? 0) < (costs[key] ?? 0) ? (
+            <span style={{ color: 'var(--critical)' }}>
+              {Math.floor(held[key] ?? 0)}/{costs[key]}
+            </span>
+          ) : (
+            <span style={lacking === key ? { color: 'var(--critical)' } : undefined}>
+              {costs[key]}
+            </span>
+          )}
         </span>
       ))}
     </span>

@@ -593,6 +593,69 @@ body {
   box-shadow: 0 2px 0 var(--ink);
 }
 
+/* **La tuile debout** (#579) : survolée ou au clavier, elle se lève et son pied sort de la barre,
+   chaque matière contre le stock et la phrase entière. Au doigt rien ne se lève. Réduites, elle
+   se lève sans trajet et son pied paraît en fondu bref ; coupées, sans fondu. */
+.desk-tile {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+.desk-tile-more {
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 100%;
+  height: 98px;
+  padding: 5px 6px;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  visibility: hidden;
+  transition: visibility 0s var(--dur-base);
+}
+.desk-tile-more[data-refused] {
+  border-style: dashed;
+  border-top-style: solid;
+}
+.desk-tile:focus-visible {
+  transform: translateY(-98px);
+  z-index: 4;
+  box-shadow:
+    0 2px 0 var(--ink),
+    0 12px 18px rgb(0 0 0 / 35%);
+}
+.desk-tile:focus-visible .desk-tile-more {
+  visibility: visible;
+  transition-delay: 0s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .desk-tile:hover {
+    transform: translateY(-98px);
+    z-index: 4;
+    box-shadow:
+      0 2px 0 var(--ink),
+      0 12px 18px rgb(0 0 0 / 35%);
+  }
+  .desk-tile:hover .desk-tile-more {
+    visibility: visible;
+    transition-delay: 0s;
+  }
+  :root[data-motion='reduced'] .desk-tile:hover .desk-tile-more {
+    animation: desk-tile-fade var(--dur-quick) var(--ease-out);
+  }
+}
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.desk-tile, .desk-tile-more) {
+  transition: none;
+}
+:root[data-motion='reduced'] .desk-tile:focus-visible .desk-tile-more {
+  animation: desk-tile-fade var(--dur-quick) var(--ease-out);
+}
+@keyframes desk-tile-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 /* La colonne des chantiers du plateau déplié, et la poignée de l'en-tête qui s'y règle. */
 .mat-board {
   --works-w: 236px;

@@ -4085,6 +4085,9 @@ export const fr = {
   },
 
   personalBoard: {
+    /** La poignée de la barre debout (#579) : son geste, le titre restant son nom. */
+    unfold: 'déplier',
+    fold: 'replier',
     header: 'Plateau personnel',
     previous: 'précédentes',
     next: 'suivantes',
@@ -4104,7 +4107,7 @@ export const fr = {
     /** Ce que dit un bac plein à la pastille en trop, un instant. */
     spilled: 'perdu',
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
-    tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
+    tilesNote: 'survolez une tuile, cliquez-la puis la carte',
     tileCount: (count: number) => `×${count}`,
     /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
     tileKept: (kept: number, stands: number) =>

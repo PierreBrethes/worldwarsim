@@ -1430,12 +1430,10 @@ async function play(profileName, pass) {
   };
   await clearSheets();
   // Au téléphone, le plateau tiré par un geste d'avant peut être déjà déplié : on ne le déplie
-  // qu'au besoin. Au bureau, il est replié et sa tuile est dans le DOM, cachée : on le déplie.
+  // qu'au besoin. Au bureau, la tuile est debout dans la barre (#579) : rien à déplier.
   const unfoldBoard = async () => {
-    if (!phone) {
-      const toggle = button(/^Plateau personnel$/);
-      if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
-    } else if (await button(/déplier le plateau personnel/).isVisible())
+    if (!phone) return;
+    if (await button(/déplier le plateau personnel/).isVisible())
       await tap(button(/déplier le plateau personnel/));
     await page.waitForTimeout(800);
   };
@@ -1475,8 +1473,6 @@ async function play(profileName, pass) {
   await page.waitForTimeout(2500);
   // Prendre une tuile replie le plateau au téléphone (la carte se découvre pour la poser) : la
   // tuile « Mine » reste dans le DOM, sous la bande des bacs. Un joueur redéplie ; le banc aussi.
-  // Au bureau aussi, le plateau se replie sur la bande du bas : `unfoldBoard` ne le déplie que
-  // s'il est replié.
   // Au téléphone, la fiche du pays survolé se pose sous le plateau déplié : le joueur replie le
   // plateau (la poignée passe par « agrandir » avant « replier ») pour atteindre son « fermer ».
   if (phone)
@@ -1495,9 +1491,10 @@ async function play(profileName, pass) {
     }
   });
   await page.keyboard.press('Escape');
-  await (phone ? button(/replier le plateau personnel/) : button(/^Plateau personnel$/))
-    .click({ timeout: 3000 })
-    .catch(() => {});
+  if (phone)
+    await button(/replier le plateau personnel/)
+      .click({ timeout: 3000 })
+      .catch(() => {});
 
   // Une région sous le pointeur, et sa fiche : la France à mi-distance.
   await page.evaluate(frameAt, near);
