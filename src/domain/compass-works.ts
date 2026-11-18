@@ -352,7 +352,7 @@ export function build(
  * qui n'est pas de l'infanterie, et le nom de la région déjà bâtie. `fr.errors` reste la seule
  * table de phrases — il n'y a pas de seconde formulation ici, seulement des détails en plus.
  */
-function foundingMotive(
+export function foundingMotive(
   refusal: OrderRefusal,
   held: ReadonlyArray<TroopView>,
   target: Extract<CompassTarget, { kind: 'force' }>,

@@ -1,0 +1,484 @@
+import { describe, expect, it } from 'vitest';
+import { offersOf, type Offer, type OfferContext, type OfferTarget } from './offers';
+import { RESOURCES } from './ids';
+import type { Building, OutpostView, PlayerView, TroopStation, TroopView } from './player-view';
+import { fr } from '../i18n/fr';
+
+const at: TroopStation = {
+  kind: 'point',
+  lonLat: [10, 50],
+  country: 'DEU',
+  afloat: false,
+  ground: 'land',
+  coastal: false,
+};
+
+const troop = (id: string, role: TroopView['role'], extra: Partial<TroopView> = {}): TroopView =>
+  ({ id, role, tier: 1, stationedAt: at, mending: false, ...extra }) as TroopView;
+
+const building = (extra: Partial<Building> = {}): Building =>
+  ({
+    id: 'B1',
+    key: 'barracks',
+    name: 'caserne',
+    regionId: 'FRA-1',
+    point: [2, 48],
+    level: 1,
+    nextLevelCost: { steel: 50 },
+    nextLevelMinutes: 60,
+    cappedByHq: false,
+    ...extra,
+  }) as Building;
+
+const outpost = (extra: Partial<OutpostView> = {}): OutpostView =>
+  ({
+    id: 'AP1',
+    hostCountry: 'NOR',
+    lonLat: [10, 60],
+    regionId: 'NOR-1',
+    specialty: 'general',
+    changingTo: null,
+    level: 2,
+    standsAt: null,
+    garrison: 0,
+    disabledMinutesLeft: null,
+    isMine: true,
+    serving: false,
+    besieged: false,
+    nextLevelCost: { steel: 90 },
+    nextLevelMinutes: 90,
+    atMaxLevel: false,
+    respecialtyCost: { steel: 45 },
+    respecialtyMinutes: 45,
+    coastal: false,
+    ...extra,
+  }) as OutpostView;
+
+const viewWith = (me: Partial<PlayerView['me']> = {}, rest: Partial<PlayerView> = {}) =>
+  ({
+    mode: 'mondiale',
+    loadedAt: 0,
+    arcs: [],
+    captures: [],
+    me: {
+      nation: 'germany',
+      slots: { total: 4, used: 0 },
+      troops: [],
+      outposts: [],
+      buildings: [],
+      regions: [],
+      lootPoints: [],
+      hqLevel: 1,
+      construction: null,
+      constructionQueue: [],
+      research: { researched: [], running: null, queue: [] },
+      resources: Object.fromEntries(
+        RESOURCES.map((key) => [key, { stock: 1000, ratePerHour: 0, cap: 1000 }]),
+      ),
+      ...me,
+    },
+    ...rest,
+  }) as unknown as PlayerView;
+
+const ctx: OfferContext = { now: 0, ground: null, afloat: false, atAirfield: false };
+
+const pile = (troopIds: ReadonlyArray<string>, extra: Partial<OfferTarget> = {}): OfferTarget =>
+  ({
+    kind: 'force',
+    id: 'pile',
+    country: 'DEU',
+    name: 'pile',
+    headcount: troopIds.length,
+    ground: 'land',
+    station: at,
+    regionId: 'DEU-1',
+    troopIds,
+    ...extra,
+  }) as OfferTarget;
+
+const only = (offers: ReadonlyArray<Offer>, key: Offer['key']) =>
+  offers.filter((offer) => offer.key === key);
+
+describe('offersOf — a pile', () => {
+  it('offers founding under the thumb to infantry standing on foreign ground', () => {
+    const view = viewWith({ troops: [troop('i1', 'infantry')] });
+    expect(only(offersOf(pile(['i1']), view, ctx), 'found')).toEqual([
+      { key: 'found', rank: 'thumb', refusal: null, loses: null, troopIds: ['i1'] },
+    ]);
+  });
+
+  it('says why a tank founds nothing, in its place', () => {
+    const view = viewWith({ troops: [troop('t1', 'armor')] });
+    const [found] = only(offersOf(pile(['t1']), view, ctx), 'found');
+    expect(found?.refusal).toBe(fr.errors.INFANTRY_ONLY({ role: 'armor' }));
+  });
+
+  it('has no founding for a garrison: one founds where one stands', () => {
+    const station: TroopStation = { kind: 'outpost', outpostId: 'AP1' };
+    const view = viewWith({ troops: [troop('i1', 'infantry', { stationedAt: station })] });
+    const target: OfferTarget = { kind: 'garrison', station, troopIds: ['i1'] };
+    expect(only(offersOf(target, view, ctx), 'found')).toEqual([]);
+  });
+});
+
+describe('offersOf — disembarking', () => {
+  const pileAboard = viewWith({
+    troops: [troop('c1', 'cargo'), troop('i1', 'infantry', { carriedBy: 'c1' })],
+  });
+
+  it('offers the riders of a transport under the thumb', () => {
+    expect(only(offersOf(pile(['c1', 'i1']), pileAboard, ctx), 'disembark')).toEqual([
+      { key: 'disembark', rank: 'thumb', refusal: null, loses: null, troopIds: ['i1'] },
+    ]);
+  });
+
+  it('refuses at sea, with the server’s sentence', () => {
+    const [offer] = only(
+      offersOf(pile(['c1', 'i1']), pileAboard, { ...ctx, afloat: true }),
+      'disembark',
+    );
+    expect(offer?.refusal).toBe(fr.errors.DISEMBARK_AT_SEA());
+  });
+
+  it('is absent when nobody held is aboard', () => {
+    const view = viewWith({ troops: [troop('i1', 'infantry')] });
+    expect(only(offersOf(pile(['i1']), view, ctx), 'disembark')).toEqual([]);
+  });
+});
+
+describe('offersOf — the patrol', () => {
+  const station: TroopStation = { kind: 'outpost', outpostId: 'AP1' };
+  const posts = [outpost(), outpost({ id: 'AP2', lonLat: [10.5, 60] })];
+  const garrison: OfferTarget = { kind: 'garrison', station, troopIds: ['i1'] };
+
+  it('offers each drawn liaison of its outpost as a target', () => {
+    const view = viewWith({
+      outposts: posts,
+      troops: [troop('i1', 'infantry', { stationedAt: station })],
+    });
+    expect(only(offersOf(garrison, view, ctx), 'patrol')).toEqual([
+      {
+        key: 'patrol',
+        rank: 'thumb',
+        refusal: null,
+        loses: null,
+        troopId: 'i1',
+        liaison: ['AP1', 'AP2'],
+      },
+    ]);
+  });
+
+  it('says why when no slot is free', () => {
+    const view = viewWith({
+      outposts: posts,
+      slots: { total: 1, used: 1 },
+      troops: [troop('i1', 'infantry', { stationedAt: station })],
+    });
+    const [offer] = only(offersOf(garrison, view, ctx), 'patrol');
+    expect(offer?.refusal).toBe(fr.errors.MOVEMENT_IN_FLIGHT({ maximum: 1 }));
+  });
+
+  it('is absent for a troop that does not patrol', () => {
+    const view = viewWith({
+      outposts: posts,
+      troops: [troop('c1', 'cargo', { stationedAt: station })],
+    });
+    expect(offersOf({ ...garrison, troopIds: ['c1'] }, view, ctx)).toEqual([]);
+  });
+
+  it('offers the recall of a running patrol, and nothing once recalled', () => {
+    const patrol = { ends: ['AP1', 'AP2'] as const, to: 'AP2', haltUntil: null, waiting: null };
+    const running = viewWith({
+      outposts: posts,
+      troops: [
+        troop('i1', 'infantry', { stationedAt: station, patrol: { ...patrol, recalled: false } }),
+      ],
+    });
+    expect(only(offersOf(garrison, running, ctx), 'recall')).toEqual([
+      { key: 'recall', rank: 'thumb', refusal: null, loses: null, troopId: 'i1' },
+    ]);
+    const recalled = viewWith({
+      outposts: posts,
+      troops: [
+        troop('i1', 'infantry', { stationedAt: station, patrol: { ...patrol, recalled: true } }),
+      ],
+    });
+    expect(only(offersOf(garrison, recalled, ctx), 'recall')).toEqual([]);
+  });
+});
+
+describe('offersOf — disbanding', () => {
+  const squad = viewWith({ troops: [troop('i1', 'infantry'), troop('i2', 'infantry')] });
+  const nowhere = {
+    landAt: () => true,
+    hostAt: ([lon, lat]: readonly [number, number]) => (lon === 10 && lat === 50 ? 'DEU' : 'POL'),
+    reached: () => true,
+  };
+
+  it('offers it second, with what the confirmation says is lost, while the ground is unknown', () => {
+    expect(only(offersOf(pile(['i1']), squad, ctx), 'disband')).toEqual([
+      {
+        key: 'disband',
+        rank: 'second',
+        refusal: null,
+        loses: fr.compass.disbandConsequence,
+        point: [10, 50],
+      },
+    ]);
+  });
+
+  it('says there is no room once the ground is read', () => {
+    const [offer] = only(offersOf(pile(['i1']), squad, { ...ctx, ground: nowhere }), 'disband');
+    expect(offer?.refusal).toBe(fr.errors.NO_ROOM_TO_DISBAND());
+  });
+
+  it('says a squad keeps the loot it carries', () => {
+    const loaded = viewWith({ ...squad.me, lootPoints: [{ lon: 10, lat: 50 }] });
+    const [offer] = only(offersOf(pile(['i1']), loaded, ctx), 'disband');
+    expect(offer?.refusal).toBe(fr.errors.SQUAD_CARRIES_LOOT());
+  });
+
+  it('is absent for a single piece, and in a Blitz', () => {
+    const alone = viewWith({ troops: [troop('i1', 'infantry')] });
+    expect(only(offersOf(pile(['i1']), alone, ctx), 'disband')).toEqual([]);
+    const blitz = viewWith(squad.me, { mode: 'blitz' } as Partial<PlayerView>);
+    expect(offersOf(pile(['i1']), blitz, ctx)).toEqual([]);
+  });
+});
+
+const site = (extra: Partial<OfferTarget> = {}): OfferTarget =>
+  ({
+    kind: 'building',
+    id: 'B1',
+    key: 'barracks',
+    level: 1,
+    regionId: 'FRA-1',
+    ...extra,
+  }) as OfferTarget;
+
+describe('offersOf — a building', () => {
+  it('offers raising in its sheet, a missing matter being no refusal (#577)', () => {
+    const view = viewWith({ buildings: [building({ nextLevelCost: { steel: 99999 } })] });
+    expect(only(offersOf(site(), view, ctx), 'raise')).toEqual([
+      { key: 'raise', rank: 'sheet', refusal: null, loses: null, buildingId: 'B1' },
+    ]);
+  });
+
+  it('says why it does not rise', () => {
+    const view = viewWith({ buildings: [building({ cappedByHq: true })] });
+    const [offer] = only(offersOf(site(), view, ctx), 'raise');
+    expect(offer?.refusal).toBe(fr.errors.CAPPED_BY_HQ());
+  });
+
+  it('offers razing in its sheet, with what is lost', () => {
+    const view = viewWith({ buildings: [building()] });
+    expect(only(offersOf(site(), view, ctx), 'demolish')).toEqual([
+      {
+        key: 'demolish',
+        rank: 'sheet',
+        refusal: null,
+        loses: fr.compass.demolishConsequence,
+        buildingId: 'B1',
+      },
+    ]);
+  });
+
+  it('refuses razing under a capture, and has no razing for the headquarters', () => {
+    const besieged = viewWith({ buildings: [building()] }, {
+      captures: [{ side: 'defender', target: { id: 'B1' }, stoppedAt: null }],
+    } as unknown as Partial<PlayerView>);
+    const [offer] = only(offersOf(site(), besieged, ctx), 'demolish');
+    expect(offer?.refusal).toBe(fr.errors.DEMOLITION_UNDER_CAPTURE());
+    const hq = viewWith({ buildings: [building({ key: 'hq' })] });
+    expect(
+      only(offersOf(site({ key: 'hq' } as Partial<OfferTarget>), hq, ctx), 'demolish'),
+    ).toEqual([]);
+  });
+
+  it('is nothing for a building that is not mine, nor in a Blitz', () => {
+    expect(offersOf(site(), viewWith(), ctx)).toEqual([]);
+    const blitz = viewWith({ buildings: [building()] }, { mode: 'blitz' } as Partial<PlayerView>);
+    expect(offersOf(site(), blitz, ctx)).toEqual([]);
+  });
+});
+
+describe('offersOf — recruiting', () => {
+  const workshop = {
+    troopsInService: 0,
+    troopsQueued: 0,
+    facilities: [{ id: 'B1', queue: [] }],
+    grid: [
+      {
+        role: 'infantry' as const,
+        unit: { costs: { steel: 10 } },
+        unitTier2: { costs: { steel: 20 } },
+      },
+      { role: 'cargo' as const, unit: { costs: { steel: 10 } }, unitTier2: null },
+    ],
+  };
+
+  it('offers one card per role and tier the site forms, in its queue tab', () => {
+    const view = viewWith({
+      buildings: [building()],
+      research: { researched: ['infantryMk2'], running: null, queue: [] },
+    } as Partial<PlayerView['me']>);
+    expect(
+      only(offersOf(site({ workshop } as Partial<OfferTarget>), view, ctx), 'recruit'),
+    ).toEqual([
+      {
+        key: 'recruit',
+        rank: 'queue',
+        refusal: null,
+        loses: null,
+        buildingId: 'B1',
+        role: 'infantry',
+        tier: 1,
+      },
+      {
+        key: 'recruit',
+        rank: 'queue',
+        refusal: null,
+        loses: null,
+        buildingId: 'B1',
+        role: 'infantry',
+        tier: 2,
+      },
+    ]);
+  });
+
+  it('says the research a tier waits for, and the stock that lacks', () => {
+    const view = viewWith({
+      buildings: [building()],
+      resources: Object.fromEntries(
+        RESOURCES.map((key) => [key, { stock: 5, ratePerHour: 0, cap: 1000 }]),
+      ),
+    } as unknown as Partial<PlayerView['me']>);
+    const [first, second] = only(
+      offersOf(site({ workshop } as Partial<OfferTarget>), view, ctx),
+      'recruit',
+    );
+    expect(first?.refusal).toBe(
+      fr.errors.INSUFFICIENT_RESOURCE({ resource: 'steel', needed: 10, available: 5 }),
+    );
+    expect(second?.refusal).toBe(fr.errors.RESEARCH_REQUIRED({ card: 'infantryMk2' }));
+  });
+
+  it('has no card before the workshop arrives', () => {
+    const view = viewWith({ buildings: [building()] });
+    expect(only(offersOf(site(), view, ctx), 'recruit')).toEqual([]);
+  });
+});
+
+const post = (extra: Partial<OfferTarget> = {}): OfferTarget =>
+  ({
+    kind: 'outpost',
+    id: 'AP1',
+    hostCountry: 'NOR',
+    name: 'Bergen',
+    coastal: false,
+    ...extra,
+  }) as OfferTarget;
+
+describe('offersOf — an outpost', () => {
+  it('raises and changes specialty whatever the stock: the price is not a refusal (#577)', () => {
+    const view = viewWith({
+      outposts: [
+        outpost({
+          specialty: 'fort',
+          nextLevelCost: { steel: 99999 },
+          respecialtyCost: { steel: 99999 },
+        }),
+      ],
+    });
+    expect(
+      offersOf(post(), view, ctx)
+        .filter((offer) => offer.key === 'raiseOutpost' || offer.key === 'specialty')
+        .map((offer) => offer.refusal),
+    ).toEqual([null, null, null]);
+  });
+
+  it('raises a level-one point in three specialties, without a specialty change', () => {
+    const view = viewWith({ outposts: [outpost({ level: 1 })] });
+    const offers = offersOf(post(), view, ctx);
+    expect(
+      only(offers, 'raiseOutpost').map((offer) => offer.key === 'raiseOutpost' && offer.specialty),
+    ).toEqual(['store', 'lookout', 'fort']);
+    expect(only(offers, 'specialty')).toEqual([]);
+  });
+
+  it('says the ceiling of a point at its last level', () => {
+    const view = viewWith({
+      outposts: [outpost({ level: 3, atMaxLevel: true, specialty: 'fort' })],
+    });
+    const [offer] = only(offersOf(post(), view, ctx), 'raiseOutpost');
+    expect(offer).toMatchObject({
+      rank: 'raise',
+      refusal: expect.any(String) as string,
+      specialty: null,
+    });
+  });
+
+  it('offers the other specialties, and says why a disabled point does not change', () => {
+    const view = viewWith({ outposts: [outpost({ specialty: 'fort' })] });
+    expect(
+      only(offersOf(post(), view, ctx), 'specialty').map(
+        (offer) => offer.key === 'specialty' && [offer.specialty, offer.refusal],
+      ),
+    ).toEqual([
+      ['store', null],
+      ['lookout', null],
+    ]);
+    const down = viewWith({ outposts: [outpost({ specialty: 'fort', disabledMinutesLeft: 30 })] });
+    const [offer] = only(offersOf(post(), down, ctx), 'specialty');
+    expect(offer?.refusal).toBe(fr.errors.OUTPOST_DISABLED());
+  });
+
+  it('has no raise for a point still rising, and keeps the dismantling', () => {
+    const view = viewWith({ outposts: [outpost({ standsAt: 10, level: 1 })] });
+    expect(offersOf(post(), view, ctx).map((offer) => offer.key)).toEqual(['dismantle']);
+  });
+
+  it('offers dismantling in its point tab, refused while it serves a movement', () => {
+    const view = viewWith({ outposts: [outpost()] });
+    expect(only(offersOf(post(), view, ctx), 'dismantle')).toEqual([
+      {
+        key: 'dismantle',
+        rank: 'point',
+        refusal: null,
+        loses: fr.compass.dismantleConsequence,
+        outpostId: 'AP1',
+      },
+    ]);
+    const serving = viewWith({ outposts: [outpost({ serving: true })] });
+    const [offer] = only(offersOf(post(), serving, ctx), 'dismantle');
+    expect(offer?.refusal).toBe(fr.errors.OUTPOST_SERVING());
+  });
+
+  it('is nothing for a point that is not mine, nor in a Blitz', () => {
+    expect(offersOf(post(), viewWith(), ctx)).toEqual([]);
+    const blitz = viewWith({ outposts: [outpost()] }, { mode: 'blitz' } as Partial<PlayerView>);
+    expect(offersOf(post(), blitz, ctx)).toEqual([]);
+  });
+});
+
+describe('offersOf — a sighted camp and an objective', () => {
+  it('offer nothing yet (#588)', () => {
+    const camp = {
+      kind: 'camp',
+      id: 'c',
+      point: [0, 0],
+      country: null,
+      name: 'camp',
+    } as OfferTarget;
+    const objective = {
+      kind: 'objective',
+      id: 'o',
+      point: [0, 0],
+      country: null,
+      name: 'o',
+      tier: 'I',
+    } as OfferTarget;
+    expect(offersOf(camp, viewWith(), ctx)).toEqual([]);
+    expect(offersOf(objective, viewWith(), ctx)).toEqual([]);
+  });
+});

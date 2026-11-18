@@ -5035,6 +5035,9 @@ export const fr = {
     dismantle: 'démanteler',
     dismantleConsequence:
       'Efface ce point, sa couleur et ce qu’il ancre. Rien de l’acier payé n’est rendu.',
+    /** **Dissoudre** (#576) : la confirmation dit ce que l'escouade perd — le geste unique. */
+    disbandConsequence:
+      'Défait l’escouade : ses pièces se posent autour du point et se commandent chacune à part.',
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',
