@@ -67,6 +67,54 @@ describe('the bottom sheet', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  /** A swipe of `travel` px whose last moves take `ms` milliseconds (the clock is the sheet's own). */
+  function flick(travel: number, ms: number): void {
+    const grip = sheet().firstElementChild!;
+    let now = 1000;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    act(() => {
+      grip.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 300, button: 0 }));
+      now += ms / 2;
+      window.dispatchEvent(new MouseEvent('pointermove', { clientY: 300 + travel / 2 }));
+      now += ms / 2;
+      window.dispatchEvent(new MouseEvent('pointermove', { clientY: 300 + travel }));
+      window.dispatchEvent(new MouseEvent('pointerup', { clientY: 300 + travel }));
+    });
+    clock.mockRestore();
+  }
+
+  it('takes a short, fast flick for the next step, and a short slow drag for a tremble', () => {
+    render(
+      <BottomSheet title="Calques de la carte" onClose={() => {}}>
+        <p>huit bascules</p>
+      </BottomSheet>,
+    );
+    flick(-25, 400);
+    expect(sheet().dataset.height).toBe('half');
+    flick(-25, 60);
+    expect(sheet().dataset.height).toBe('full');
+    flick(25, 60);
+    expect(sheet().dataset.height).toBe('half');
+  });
+
+  it('does not start a drag from the close button', () => {
+    const onClose = vi.fn();
+    render(
+      <BottomSheet title="À faire" onClose={onClose}>
+        <p>une ligne</p>
+      </BottomSheet>,
+    );
+    const button = screen.getByRole('button', { name: fr.common.close });
+    act(() => {
+      button.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, clientY: 300, button: 0 }),
+      );
+      window.dispatchEvent(new MouseEvent('pointermove', { clientY: 100 }));
+      window.dispatchEvent(new MouseEvent('pointerup', { clientY: 100 }));
+    });
+    expect(sheet().dataset.height).toBe('half');
+  });
+
   it('ignores a touch that only trembled', () => {
     const onClose = vi.fn();
     render(

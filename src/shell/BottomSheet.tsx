@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -9,7 +10,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { fr } from '@/i18n/fr';
-import { useLeaveGhost } from './paper-motion';
+import { motionNow, useLeaveGhost } from './paper-motion';
+import { isSettled, stepSpring, type Spring } from './sheet-spring';
 import { useSoleSurface } from './sole-surface';
 
 const SHEET_HEIGHTS = ['peek', 'half', 'full'] as const;
@@ -25,19 +27,32 @@ type KeepingHeight = (typeof KEEPING_HEIGHTS)[number];
 /**
  * **La part d'écran de chaque cran** — les mêmes fractions que `.board-sheet` (`index.css`), lues
  * par ce qui doit garder un point visible au-dessus d'une feuille : la carte qui remonte, la rose
- * qui se recale. Le plein écran n'y est pas, il ne laisse rien à garder.
+ * qui se recale. `full` est un plafond : la feuille haute laisse ~20 % de carte, jamais plus que
+ * ce que `--board-room` ouvre (`@a-mesurer`, d'après la capture 390×844 du finaliste).
  */
-const SHEET_SHARE = { peek: 0.3, half: 0.5 } as const;
+const SHEET_SHARE = { peek: 0.3, half: 0.5, full: 0.8 } as const;
 
 /** La hauteur d'une feuille à ce cran, en pixels d'écran. */
-export const sheetHeight = (height: keyof typeof SHEET_SHARE): number =>
-  window.innerHeight * SHEET_SHARE[height];
+export const sheetHeight = (height: keyof typeof SHEET_SHARE): number => {
+  const share = window.innerHeight * SHEET_SHARE[height];
+  if (height !== 'full') return share;
+  const edges = ['--board-top', '--board-bottom'].map(
+    (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0,
+  );
+  return Math.min(share, window.innerHeight - edges[0]! - edges[1]!);
+};
 
 /** Ce dont un point cadré au centre doit monter pour tomber au milieu de ce qui reste visible. */
 export const sheetLift = (height: keyof typeof SHEET_SHARE): number => sheetHeight(height) / 2;
 
 /** Ce qu'un doigt doit parcourir pour changer de cran : en deçà, c'est un toucher qui a tremblé. */
 const STEP_PX = 40;
+
+/** @a-mesurer : la part du geste qu'un lancer finirait seul — un lancer court et vif vaut un cran. */
+const THROW_MS = 150;
+
+/** La vitesse du doigt se mesure sur ses dernières millisecondes de mouvement. */
+const VELOCITY_WINDOW_MS = 80;
 
 const SheetCloseContext = createContext<(() => void) | null>(null);
 
@@ -99,53 +114,126 @@ export function BottomSheet({
   children: ReactNode;
 }) {
   const [height, setHeight] = useState<KeepingHeight>(initial);
-  const [pull, setPull] = useState(0);
-  /** Released short of a step, the sheet glides back; one that changed step is already where it
-   *  belongs, and a glide from the finger's offset would carry it the wrong way first. */
-  const [glide, setGlide] = useState(false);
+  /** Pendant un glisser et son ressort, la feuille garde la hauteur du cran haut (`data-moving`) et
+   *  se pose par `translateY` : ni mise en page ni recadrage de carte à chaque image. */
+  const [moving, setMoving] = useState(false);
   const sheet = useRef<HTMLElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   useLeaveGhost(sheet, 'sheet-rise', 'sheet-sink');
   /** Un glisser peut finir par un clic sur l'en-tête : sans ce témoin, ramener la feuille réduite
    *  à sa place la rouvrirait aussitôt. Remis à zéro à chaque appui, car le clic ne suit pas
    *  toujours. */
   const swiped = useRef(false);
+  /** Hauteur de chaque cran en pixels d'écran, mesurée à l'appui ; `live` est la hauteur de la
+   *  feuille à l'instant, pendant qu'elle bouge. */
+  const measured = useRef<Partial<Record<KeepingHeight, number>>>({});
+  const live = useRef<Spring | null>(null);
+  const frame = useRef(0);
+  const base = useRef(0);
   useSoleSurface(onClose ?? (() => {}), onClose !== undefined);
   const report = useContext(SelectionSheetReport);
   const reporting = keepsSelection ? report : null;
 
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  /** La feuille ne dit sa hauteur qu'au repos : le ressort ne la publie pas à chaque image. */
   useLayoutEffect(() => {
     const element = sheet.current;
-    if (reporting === null || element === null) return;
+    if (reporting === null || element === null || moving) return;
     const publish = () => reporting(element.getBoundingClientRect().height);
     publish();
     const observer = new ResizeObserver(publish);
     observer.observe(element);
-    return () => {
-      observer.disconnect();
-      reporting(null);
-    };
-  }, [reporting]);
+    return () => observer.disconnect();
+  }, [reporting, moving]);
+  useLayoutEffect(() => () => reporting?.(null), [reporting]);
+
+  const place = (h: number) => {
+    const element = sheet.current;
+    const top = measured.current.full ?? 0;
+    if (element === null || top === 0) return;
+    const drop = (top - h) / scaleOf(element);
+    element.style.transform = `translateY(${drop}px)`;
+    // Pushed down at the height of the top step, the sheet would cover the bar below it.
+    element.style.clipPath = `inset(0 0 ${drop}px 0)`;
+  };
+  useLayoutEffect(() => {
+    if (moving && live.current !== null) place(live.current.h);
+  });
+  const stop = () => {
+    cancelAnimationFrame(frame.current);
+    live.current = null;
+    sheet.current?.style.removeProperty('transform');
+    sheet.current?.style.removeProperty('clip-path');
+    setMoving(false);
+  };
 
   const steps: ReadonlyArray<KeepingHeight> = keepsSelection ? KEEPING_HEIGHTS : SHEET_HEIGHTS;
   const grip = useSwipe(
     (travel) => {
-      setGlide(false);
-      setPull(Math.max(0, travel));
+      const top = measured.current.full ?? 0;
+      live.current = { h: Math.min(top, Math.max(0, base.current - travel)), v: 0 };
+      place(live.current.h);
     },
-    (travel) => {
-      setPull(0);
-      setGlide(Math.abs(travel) <= STEP_PX);
-      swiped.current = Math.abs(travel) > STEP_PX;
+    (travel, velocity) => {
       const rank = steps.indexOf(height);
-      if (travel > STEP_PX) {
-        if (rank > 0) setHeight(steps[rank - 1]!);
-        else if (!keepsSelection) onClose?.();
-      } else if (travel < -STEP_PX && rank < steps.length - 1) {
-        setHeight(steps[rank + 1]!);
+      const thrown = travel + velocity * THROW_MS;
+      let target = rank;
+      let closing = false;
+      if (thrown > STEP_PX) {
+        if (rank > 0) target = rank - 1;
+        else closing = !keepsSelection;
+      } else if (thrown < -STEP_PX && rank < steps.length - 1) {
+        target = rank + 1;
       }
+      swiped.current = Math.abs(travel) > STEP_PX;
+      const goal = measured.current[steps[target]!] ?? 0;
+      const from = live.current;
+      const motion = motionNow();
+      if (target !== rank) setHeight(steps[target]!);
+      if (closing) {
+        stop();
+        onClose?.();
+        return;
+      }
+      if (motion !== 'full' || from === null || goal === 0) {
+        stop();
+        if (motion === 'reduced' && target !== rank) {
+          sheet.current?.animate?.({ opacity: [0.4, 1] }, { duration: 120 });
+        }
+        return;
+      }
+      const ceiling = measured.current.full ?? goal;
+      let state: Spring = { h: from.h, v: -velocity };
+      let last = performance.now();
+      const tick = (now: number) => {
+        state = stepSpring(state, goal, ceiling, now - last);
+        last = now;
+        live.current = state;
+        place(state.h);
+        if (isSettled(state, goal)) stop();
+        else frame.current = requestAnimationFrame(tick);
+      };
+      frame.current = requestAnimationFrame(tick);
     },
   );
   const collapsed = height === 'collapsed';
+
+  /** Une prise mesure les crans de ce que la feuille porte maintenant, ou reprend la feuille en
+   *  vol là où elle est. */
+  const take = () => {
+    const element = sheet.current;
+    if (element === null) return;
+    if (live.current === null) {
+      measured.current = measureSteps(element, body.current, steps);
+      base.current = measured.current[height] ?? 0;
+    } else {
+      cancelAnimationFrame(frame.current);
+      base.current = live.current.h;
+    }
+    live.current ??= { h: base.current, v: 0 };
+    setMoving(true);
+  };
 
   return createPortal(
     <SheetCloseContext.Provider value={onClose ?? null}>
@@ -154,20 +242,17 @@ export function BottomSheet({
         role="dialog"
         aria-label={title}
         data-height={height}
+        data-moving={moving ? '' : undefined}
         data-hug={hug ? '' : undefined}
-        className={`hud board-sheet paper-grain sheet-rise z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)] ${
-          glide ? 'sheet-return' : ''
-        }`}
-        style={
-          pull > 0 ? { transform: `translateY(${pull / scaleOf(sheet.current)}px)` } : undefined
-        }
+        className="hud board-sheet paper-grain sheet-rise z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]"
       >
         <div
           onPointerDown={(event) => {
             swiped.current = false;
+            take();
             grip.onPointerDown(event);
           }}
-          className="shrink-0 cursor-grab"
+          className="min-h-[44px] shrink-0 cursor-grab"
           style={{ touchAction: 'none' }}
           onClick={(event) => {
             if (!collapsed || swiped.current) return;
@@ -192,6 +277,7 @@ export function BottomSheet({
               <button
                 type="button"
                 onClick={onClose}
+                onPointerDown={(event) => event.stopPropagation()}
                 className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
               >
                 {fr.common.close}
@@ -200,7 +286,11 @@ export function BottomSheet({
           </div>
         </div>
         {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" hidden={collapsed}>
+        <div
+          ref={body}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          hidden={collapsed && !moving}
+        >
           {children}
         </div>
       </section>
@@ -211,28 +301,66 @@ export function BottomSheet({
 
 /**
  * **Un glisser vertical suivi à la fenêtre**, pas à la poignée : le doigt la quitte au premier
- * geste rapide. `travel` est en pixels d'écran, positif vers le bas.
+ * geste rapide. `travel` est en pixels d'écran, positif vers le bas ; `velocity` en pixels par
+ * milliseconde, mesurée sur les ~80 dernières ms de mouvement.
  */
 export function useSwipe(
   onPull: (travel: number) => void,
-  onRelease: (travel: number) => void,
+  onRelease: (travel: number, velocity: number) => void,
 ): { onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void } {
   return {
     onPointerDown: (event) => {
       if (event.button !== 0) return;
       const startY = event.clientY;
-      const move = (drag: PointerEvent) => onPull(drag.clientY - startY);
+      const samples = [{ t: performance.now(), y: startY }];
+      if (event.pointerId !== undefined) event.currentTarget.setPointerCapture?.(event.pointerId);
+      const move = (drag: PointerEvent) => {
+        samples.push({ t: performance.now(), y: drag.clientY });
+        onPull(drag.clientY - startY);
+      };
       const release = (end: PointerEvent) => {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', release);
         window.removeEventListener('pointercancel', release);
-        onRelease(end.type === 'pointercancel' ? 0 : end.clientY - startY);
+        if (end.type === 'pointercancel') return onRelease(0, 0);
+        onRelease(end.clientY - startY, velocityOf(samples));
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', release);
       window.addEventListener('pointercancel', release);
     },
   };
+}
+
+function velocityOf(samples: ReadonlyArray<{ t: number; y: number }>): number {
+  const last = samples[samples.length - 1]!;
+  let first = samples.find((sample) => sample.t >= last.t - VELOCITY_WINDOW_MS)!;
+  // One sample in the window: the finger paused, or the last move came late; use the one before.
+  if (first === last) first = samples[Math.max(0, samples.length - 2)]!;
+  // Events a hair apart (a synthetic burst) say nothing about speed.
+  return last.t - first.t >= 4 ? (last.y - first.y) / (last.t - first.t) : 0;
+}
+
+/** La hauteur en pixels d'écran de chaque cran, lue sur la feuille en le lui donnant un instant :
+ *  un aperçu qui épouse son contenu et l'en-tête seul n'ont de hauteur que mesurée. */
+function measureSteps(
+  element: HTMLElement,
+  content: HTMLElement | null,
+  steps: ReadonlyArray<KeepingHeight>,
+): Partial<Record<KeepingHeight, number>> {
+  const { height, moving } = element.dataset;
+  const hidden = content?.hidden ?? false;
+  delete element.dataset.moving;
+  const result: Partial<Record<KeepingHeight, number>> = {};
+  for (const step of steps) {
+    element.dataset.height = step;
+    if (content) content.hidden = step === 'collapsed';
+    result[step] = element.getBoundingClientRect().height;
+  }
+  element.dataset.height = height;
+  if (moving !== undefined) element.dataset.moving = moving;
+  if (content) content.hidden = hidden;
+  return result;
 }
 
 /** `.hud` porte un `zoom` : le doigt mesure en pixels d'écran, la translation s'écrit en pixels
