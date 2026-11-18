@@ -115,7 +115,7 @@ import {
   type PieceFrom,
 } from './DropHint';
 import { insideStroke } from '@/domain/selection';
-import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
+import { dropOutcomeOf, dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
 import type { TakeDepot } from './MapLabels';
 import type { TourLoop } from './engine/tour-ink';
 export type { TourLoop };
@@ -822,7 +822,7 @@ export function WorldMap({
       // Lifted by a click, a pose with nothing to order opens the rose on its reason, in hand.
       if (reading?.kind === 'orders') {
         setDown();
-        if (fingerRose === null || reading.verbs.length === 1) {
+        if (dropOutcomeOf(fingerRose !== null) === 'send') {
           setRose(null);
           onCompassAction(reading.verbs[chosenOf(reading.verbs)]!, at);
           return;

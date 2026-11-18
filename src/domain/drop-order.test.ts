@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Compass, CompassAction } from './compass-rose';
-import { chipOf, dropReadingOf, forbiddenGroundOf, turnChoice } from './drop-order';
+import { chipOf, dropOutcomeOf, dropReadingOf, forbiddenGroundOf, turnChoice } from './drop-order';
 
 const branch = (key: CompassAction['key'], label: string = key): CompassAction =>
   ({ key, label, pictogram: 'cabin', cost: null, consequence: '' }) as unknown as CompassAction;
@@ -110,5 +110,15 @@ describe('chipOf', () => {
       tone: 'order',
       verb: 'Ramasser',
     });
+  });
+});
+
+describe('dropOutcomeOf', () => {
+  it('sends the order at once with a mouse, whatever the verbs', () => {
+    expect(dropOutcomeOf(false)).toBe('send');
+  });
+
+  it('opens the rose under a finger, even on a single verb: the touch aims, the medallion sends', () => {
+    expect(dropOutcomeOf(true)).toBe('rose');
   });
 });

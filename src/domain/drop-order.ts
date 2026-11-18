@@ -48,6 +48,13 @@ export function dropReadingOf(compass: Compass | null): DropReading {
   return compass?.refusal ? { kind: 'refused', reason: compass.refusal } : { kind: 'none' };
 }
 
+/**
+ * **Envoyer ou ouvrir la rose** (ADR 0026, amendement du 18/11) : à la souris, poser ordonne ;
+ * au doigt, un toucher ou un lâcher vise, la rose s'ouvre — même sur un seul verbe — et c'est le
+ * médaillon qui envoie. Un toucher ailleurs ne part donc jamais au serveur.
+ */
+export const dropOutcomeOf = (finger: boolean): 'send' | 'rose' => (finger ? 'rose' : 'send');
+
 /** Le verbe choisi parmi `count`, tourné d'un cran dans un sens ou l'autre (Tab, chiffres). */
 export const turnChoice = (count: number, chosen: number, step: number): number =>
   (((chosen + step) % count) + count) % count;
