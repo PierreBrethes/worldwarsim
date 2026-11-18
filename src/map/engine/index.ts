@@ -81,6 +81,7 @@ import {
 } from './figurines/figurine';
 import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequences';
 import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
+import { FlagWindLayer } from './flag-wind';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
@@ -1326,6 +1327,12 @@ export class MapEngine {
       this.touch ? MAX_LIVING.touch : MAX_LIVING.desk,
     );
     this.ambience.add(this.loops);
+    this.ambience.add(
+      new FlagWindLayer(
+        () => this.maquettes.flying(),
+        (box, px) => this.seenBig(box, px),
+      ),
+    );
     this.moorings = new Moorings({
       hulls: () => this.standing.mooredHulls(),
       frameOf: (id) => {
@@ -2399,11 +2406,18 @@ export class MapEngine {
     /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder.
      *  Elle ne fait que rapprocher — déjà plus près, on y reste. */
     distance?: number,
+    /** Cadrer la pièce là où elle est dessinée, non son étiquette : un bâtiment qu'un anneau a
+     *  écarté de son point se tient loin de son mât, et la feuille qui s'ouvre le couvrirait. */
+    onPiece = false,
   ): void {
     this.invalidate();
     const points = [
       ...ids
-        .map((id) => this.labels.position(id, this.arcs.headPositions))
+        .map((id) => {
+          const anchor = this.labels.position(id, this.arcs.headPositions);
+          const drawn = onPiece ? this.maquettes.drawnAt(id) : null;
+          return drawn === null || anchor === undefined ? anchor : drawn.clone().setY(anchor.y);
+        })
         .filter((point): point is Vector3 => point !== undefined),
       ...places.map((place) => this.frame.projectLonLat(place)),
     ];

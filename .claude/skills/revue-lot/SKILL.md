@@ -11,7 +11,8 @@ findings **vérifiés**, que l'agent de correction appliquera sans te relire.
 ## 1. Cadrer
 
 - La plage : `<base>..<tête>`, donnée par la consigne ; à défaut, `git merge-base main HEAD`..HEAD.
-- La spec : l'issue (`gh issue view N --comments`, ou `Closes #N` dans les messages de la plage).
+- La spec : l'issue (`gh issue view N --comments`, ou `Closes #N` dans les messages de la plage ;
+  s'il sort vide, `gh api repos/PierreBrethes/worldwarsim/issues/N` puis `…/N/comments`).
   Les commentaires « Décisions » l'emportent sur le corps.
 - `CLAUDE.md` (invariants) et `CONVENTIONS.md`.
 

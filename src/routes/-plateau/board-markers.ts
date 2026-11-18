@@ -319,11 +319,15 @@ export function markersOf(
   // A first level has no building to hang its works on: the site gets its own mast at its
   // point, from the queue on. **Une élévation d'avant-poste ne plante rien** : le point a déjà
   // son mât (précision du 15/09), et `workSitesOf` laisse ses travaux au panneau du point.
+  const standingIds = new Set(standing.map((marker) => marker.id));
   const raising = works
     .filter((site) => site.phase !== 'raising')
     .map((site) => ({
       kind: 'building' as const,
-      id: buildingLabelId(site),
+      /** A site already standing at its point (a scene can put it there) keeps its own label. */
+      id: standingIds.has(buildingLabelId(site))
+        ? `${buildingLabelId(site)}#site`
+        : buildingLabelId(site),
       // Nothing stands: a click opens no line yet.
       buildingId: null,
       key: site.key,

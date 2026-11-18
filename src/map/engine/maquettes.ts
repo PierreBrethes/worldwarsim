@@ -2,6 +2,7 @@ import {
   Box3,
   Color,
   Group,
+  InstancedBufferAttribute,
   InstancedMesh,
   type Material,
   Matrix4,
@@ -43,6 +44,7 @@ import { ARC_COLORS, PALETTE } from './palette';
 import { pieceScale } from './piece-scale';
 import { nearer, type PieceHit } from './piece-pick';
 import type { AmbientLayer } from './ambience';
+import { windy } from './flag-wind';
 import type { SequenceHost } from './sequences';
 import { Smoke, type Plume } from './smoke';
 import { groundFootprint, SOCLE_TOP, WorksDressing, type Works } from './works';
@@ -372,7 +374,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose, mirrored = false
         flag: flag.map(({ geometry, material }) => {
           const white = (material as MeshStandardMaterial).clone();
           white.color.set(WHITE);
-          return { geometry, material: white };
+          return { geometry, material: windy(white) };
         }),
         socleBox: boundsOf(dressing),
         signFoot,
@@ -717,6 +719,9 @@ type Placed = {
   readonly lisere: Color | null;
   /** The colour of its flag, `null` for a bare pole. */
   readonly flag: Color | null;
+  /** Its flag flies (#422, Q2): not out of service, not at work. A cloth held still keeps its
+   *  pose in the wind. */
+  readonly flies: boolean;
   readonly capture: NonNullable<StandingMaquette['capture']> | null;
   /** Its staple (`stapleOf`) once its model has landed, while a capture runs on it. */
   staple: Mesh | null;
@@ -932,6 +937,7 @@ export class MaquetteLayer implements SequenceHost {
         fit: null,
         lisere: lisereOf(maquette),
         flag: maquette.flag === undefined ? null : new Color(maquette.flag),
+        flies: maquette.seal === undefined && !maquette.works,
         capture: maquette.capture ?? null,
         staple: null,
         seal: maquette.seal ?? null,
@@ -1307,9 +1313,20 @@ export class MaquetteLayer implements SequenceHost {
     lot.accessories = accessories;
     // Its flag (#279), in its owner's colour: none flies on a bare pole (`flagMatrixOf`).
     lot.flag =
-      model.signFoot === null ? [] : model.flag.map((part) => instanced(part, false, 'drapeau'));
-    for (const mesh of lot.flag)
+      model.signFoot === null
+        ? []
+        : model.flag.map(({ geometry, material }) =>
+            // Its own geometry: it carries this lot's `aWind`, per instance.
+            instanced({ geometry: geometry.clone(), material }, false, 'drapeau'),
+          );
+    for (const mesh of lot.flag) {
       lot.items.forEach((item, k) => mesh.setColorAt(k, item.flag ?? WHITE));
+      const wind = new InstancedBufferAttribute(new Float32Array(lot.items.length * 2), 2);
+      lot.items.forEach(({ flies, yaw }, k) => wind.setXY(k, flies ? 1 : 0, yaw));
+      mesh.geometry.setAttribute('aWind', wind);
+      // The cloth casts no shadow: a flapping one would redraw the shadow map (`castShadows`).
+      mesh.userData.shadowless = true;
+    }
     lot.meshes = [...lot.shell, ...dressing, ...lot.flag, ...accessories];
     if (lot.meshes.length > 0) lot.group.add(...lot.meshes);
     // A capture's staple round its socle, the seals of a site out of service: the item's own.
@@ -1340,6 +1357,7 @@ export class MaquetteLayer implements SequenceHost {
     const cut = lot.atWork?.dressing?.cut ?? null;
     for (const mesh of lot.meshes) {
       mesh.dispose();
+      if (lot.flag.includes(mesh)) mesh.geometry.dispose();
       if (cut !== null && (mesh.material as Material).clippingPlanes?.includes(cut))
         (mesh.material as Material).dispose();
     }
@@ -1433,6 +1451,20 @@ export class MaquetteLayer implements SequenceHost {
       const { id } = item;
       const { url, pose } = lot;
       return [{ id, url, ...(pose !== undefined && { pose }), box, metre }];
+    });
+  }
+
+  /** **The cloths of my sites that fly, drawn whole** (#422), as boxes of the board: what the
+   *  flags' ambience reads to rest while none is in view. */
+  flying(): Box3[] {
+    return [...this.byId.values()].flatMap(({ item, lot }) => {
+      const { model } = lot;
+      const cloth = lot.flag[0]?.geometry;
+      if (!item.flies || item.flag === null || model === null || cloth === undefined) return [];
+      if (item.cleared || item.drawnNear <= 0) return [];
+      if (cloth.boundingBox === null) cloth.computeBoundingBox();
+      matrix.compose(item.at, item.turn, scale.setScalar(item.drawnNear * sizeOf(model, item)));
+      return [cloth.boundingBox!.clone().applyMatrix4(matrix)];
     });
   }
 
@@ -1587,6 +1619,12 @@ export class MaquetteLayer implements SequenceHost {
         if (ink === undefined || ink === null) return;
         const own = (mesh.material as MeshStandardMaterial).clone();
         own.color.copy(ink);
+        // A clone does not keep the hook: the copy's cloth flies too, or is held at its site's
+        // phase when the site is (#422, Q2).
+        if (name === 'drapeau') {
+          windy(own, dressed?.item.flies === false ? dressed.item.yaw : undefined);
+          mesh.userData.shadowless = true;
+        }
         mesh.material = own;
         mesh.userData.ownLisere = true;
       });

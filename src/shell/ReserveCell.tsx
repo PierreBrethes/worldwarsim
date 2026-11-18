@@ -20,7 +20,7 @@ import {
   type Announcement,
 } from '@/domain/reserve-counter';
 import { drynessOf, marksOf, sourceOf } from '@/domain/resource-band';
-import { useMapMotion, usePrefersReducedMotion } from '@/data/mapMotion';
+import { useMapMotion } from '@/data/mapMotion';
 import { ResourcePlate } from '@/emblems/Plate';
 import { resourceColor } from '@/emblems/resource-color';
 
@@ -161,8 +161,7 @@ export function ReserveCell({
   } = reserveReading(view, resource, now, shown);
   const ink = alert === null ? 'var(--ink)' : 'var(--critical)';
   const motion = useMapMotion();
-  const reduced = usePrefersReducedMotion();
-  const still = motion === 'off' || reduced;
+  const still = motion === 'off';
   const announced = useAnnouncedStock(reserve, view.loadedAt, still);
   return (
     <button

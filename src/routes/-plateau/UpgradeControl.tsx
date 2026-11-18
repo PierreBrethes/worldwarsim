@@ -1,13 +1,14 @@
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../../convex/_generated/api';
-import { aBuilding, fr, noBuilding, upgradeHoldText } from '@/i18n/fr';
+import { aBuilding, fr, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
+import { neverText } from '@/domain/compass-works';
 import { availabilityOf, upgradeHold, type UpgradeHold } from '@/domain/construction';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration } from '@/domain/duration';
 import { speedsUp } from '@/domain/level-speed';
-import { DEPOSITS, RESOURCES } from '@/domain/ids';
+import { RESOURCES } from '@/domain/ids';
 import { currentStock, type Building, type Cost, type PlayerView } from '@/domain/player-view';
 import { ResourcePlate } from '@/emblems/Plate';
 import type { Seat } from '@/data/session';
@@ -118,25 +119,25 @@ function WhenAffordable({
   if (when.kind === 'now') return null;
 
   const producer = PRODUCER_OF[hold.resource];
-  const deposit = DEPOSITS.find((key) => key === hold.resource) ?? null;
 
   return (
     <span
       className="max-w-[42ch] text-right text-[11px] leading-[1.35]"
-      style={{ color: when.kind === 'never' ? 'var(--critical)' : 'var(--ink-soft)' }}
+      style={{ color: when.kind === 'inMinutes' ? 'var(--ink-soft)' : 'var(--critical)' }}
     >
       {when.kind === 'inMinutes' ? (
         fr.upgrade.availableIn(asDuration(when.minutes))
       ) : (
         <>
-          <span className="font-semibold">
-            {deposit === null
-              ? fr.upgrade.never(noBuilding(producer))
-              : fr.upgrade.neverOnDeposit(noBuilding(producer), fr.deposits[deposit])}
-          </span>{' '}
-          <span className="text-[var(--ink-soft)]">
-            — {fr.upgrade.neverNote(aBuilding(producer))}
-          </span>
+          <span className="font-semibold">{neverText(hold.resource, when)}</span>
+          {when.kind === 'never' && (
+            <>
+              {' '}
+              <span className="text-[var(--ink-soft)]">
+                — {fr.upgrade.neverNote(aBuilding(producer))}
+              </span>
+            </>
+          )}
         </>
       )}
     </span>
