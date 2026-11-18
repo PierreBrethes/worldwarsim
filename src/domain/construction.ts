@@ -406,6 +406,22 @@ export function availabilityOf(needed: number, held: Resource, stock: number): A
   return { kind: 'inMinutes', minutes: ((needed - stock) / held.ratePerHour) * 60 };
 }
 
+/**
+ * **The price a tile reads**: nothing for a free foundation, a new building's price when the
+ * kept level pays it or none stands, else the next level of the lowest standing one. With several
+ * of a key, the server may debit another level by the aimed point (`convex/constructions.ts`):
+ * flagged, not solved.
+ */
+export function tileCostOf(
+  free: boolean,
+  kept: number | null,
+  lowest: { readonly nextLevelCost: Cost } | null,
+  newCost: Cost,
+): Cost {
+  if (free) return {};
+  return lowest === null || kept !== null ? newCost : lowest.nextLevelCost;
+}
+
 export type TileBillLine = {
   readonly resource: ResourceKey;
   readonly due: number;

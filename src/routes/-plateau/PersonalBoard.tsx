@@ -31,6 +31,7 @@ import {
   placementOf,
   reachesOf,
   tileBillOf,
+  tileCostOf,
   upgradeHold,
 } from '@/domain/construction';
 import { outpostReachKm } from '../../../convex/constants';
@@ -961,11 +962,7 @@ function Tile({
   const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
   /** La facture que la tuile affiche, lue par la même fonction que le fantôme de pose. */
   const bill = tileBillOf(
-    free
-      ? {}
-      : lowest === null || kept !== null
-        ? view.buildCatalog[buildingKey].cost
-        : lowest.nextLevelCost,
+    tileCostOf(free, kept, lowest, view.buildCatalog[buildingKey].cost),
     (resource) => view.me.resources[resource],
     view.loadedAt,
     view.loadedAt,

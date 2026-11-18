@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { billShortageText } from './compass-works';
-import { tileBillOf } from './construction';
+import { tileBillOf, tileCostOf } from './construction';
 import { shortfallOf } from './economy';
 import type { ResourceKey } from './ids';
 import type { Cost, Resource } from './player-view';
@@ -81,5 +81,20 @@ describe('billShortageText', () => {
       lines({ steel: 100, coal: 40 }, { steel: held(50, 25), coal: held(0) }),
     );
     expect(text).toBe('il manque 50 acier · disponible dans 02:00:00');
+  });
+});
+
+describe('tileCostOf', () => {
+  const fresh: Cost = { steel: 30 };
+  const lowest = { nextLevelCost: { steel: 60 } };
+  it('is empty for a free foundation, whatever stands', () => {
+    expect(tileCostOf(true, null, lowest, fresh)).toEqual({});
+  });
+  it('is the new price when the kept level pays it, or nothing stands', () => {
+    expect(tileCostOf(false, 1, lowest, fresh)).toEqual(fresh);
+    expect(tileCostOf(false, null, null, fresh)).toEqual(fresh);
+  });
+  it('is the next level of the lowest standing one otherwise', () => {
+    expect(tileCostOf(false, null, lowest, fresh)).toEqual({ steel: 60 });
   });
 });

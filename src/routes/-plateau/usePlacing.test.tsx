@@ -107,8 +107,25 @@ describe('the bill on the ghost (#577)', () => {
     },
   } as unknown as PlayerView;
 
+  it('says nothing before the first aim: the pose may be a free foundation', () => {
+    const free = {
+      ...poor,
+      me: { ...poor.me, foundation: [{ key: 'mine' }] },
+    } as unknown as PlayerView;
+    const { result } = holding('mine', free);
+    expect(result.current.placingCard?.shortage).toBeNull();
+  });
+
   it('says what the stock lacks, and does not refuse the point', () => {
     const { result } = holding('mine', poor);
+    act(() =>
+      result.current.setPlacingAim({
+        lonLat: point('coal-BEL-2'),
+        region: { id: 'BEL-1', name: 'Namur', country: 'BEL' },
+        coastal: false,
+        onLand: true,
+      }),
+    );
     expect(result.current.placingCard?.shortage).toMatch(/^il manque 20 acier/);
     expect(result.current.placingCard?.refusal).toBeNull();
   });

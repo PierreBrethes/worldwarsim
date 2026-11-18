@@ -128,6 +128,7 @@ export function usePlacing(
   const placingCard = useMemo<PlacingBuilding | null>(() => {
     if (placing === null || magnet === null) return null;
     const spec = view.buildCatalog[placing.key];
+    // With several of a key standing, the server may debit another level by the aimed point (`tileCostOf`).
     const free = verdict?.free ?? false;
     const bill = tileBillOf(
       free ? {} : spec.cost,
@@ -144,7 +145,7 @@ export function usePlacing(
       name: fr.buildings[placing.key],
       cost: spec.cost,
       free,
-      shortage: billShortageText(bill),
+      shortage: verdict === null ? null : billShortageText(bill),
       duration: free ? fr.construction.immediate : asDuration(spec.minutes),
       refusal:
         verdict?.refusal == null
