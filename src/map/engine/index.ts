@@ -2406,11 +2406,18 @@ export class MapEngine {
     /** Une distance demandée : la seule façon de rapprocher la caméra, pour un lieu à regarder.
      *  Elle ne fait que rapprocher — déjà plus près, on y reste. */
     distance?: number,
+    /** Cadrer la pièce là où elle est dessinée, non son étiquette : un bâtiment qu'un anneau a
+     *  écarté de son point se tient loin de son mât, et la feuille qui s'ouvre le couvrirait. */
+    onPiece = false,
   ): void {
     this.invalidate();
     const points = [
       ...ids
-        .map((id) => this.labels.position(id, this.arcs.headPositions))
+        .map((id) => {
+          const anchor = this.labels.position(id, this.arcs.headPositions);
+          const drawn = onPiece ? this.maquettes.drawnAt(id) : null;
+          return drawn === null || anchor === undefined ? anchor : drawn.clone().setY(anchor.y);
+        })
         .filter((point): point is Vector3 => point !== undefined),
       ...places.map((place) => this.frame.projectLonLat(place)),
     ];

@@ -7,7 +7,7 @@ import { halifaxNoteOf } from '@/domain/movement-orders';
 import { HalifaxMark } from './HalifaxMark';
 import { currentMinutes, currentStock, type PlayerView } from '@/domain/player-view';
 import { displayedStock } from '@/domain/reserve-counter';
-import { useMapMotion, usePrefersReducedMotion } from '@/data/mapMotion';
+import { useMapMotion } from '@/data/mapMotion';
 import { asClockTime, asDuration } from '@/domain/duration';
 import { FlagWatermark } from '@/emblems/Flag';
 import { BuildingPlate } from '@/emblems/Plate';
@@ -277,8 +277,7 @@ export function FundsCell({
   );
   const stock = currentStock(reserve, loadedAt, now);
   const motion = useMapMotion();
-  const reduced = usePrefersReducedMotion();
-  const still = motion === 'off' || reduced;
+  const still = motion === 'off';
   const { shown, tag, clearTag } = useAnnouncedStock(reserve, loadedAt, still);
   return (
     <span

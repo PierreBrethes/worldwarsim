@@ -315,6 +315,8 @@ type Props = {
     /** La distance d'arrivée, quand le sujet est un lieu à regarder de près — le combat d'une
      *  dépêche — et non une étiquette à retrouver : seule cette demande rapproche la caméra. */
     readonly distance?: number;
+    /** Cadrer la pièce dessinée plutôt que son étiquette (`MapEngine.journeyTo`). */
+    readonly onPiece?: boolean;
     readonly nonce: number;
   } | null;
   /**
@@ -403,6 +405,8 @@ type Props = {
   concluded?: boolean;
   /** The journal's public uncertainty; no rumor identity or private fact crosses this boundary. */
   searchArea?: SearchArea | null;
+  /** **Une main du joueur sur la carte** : ce qu'un recadrage en attente ne doit pas lui reprendre. */
+  onHandOnBoard?: () => void;
   /**
    * **Un point de la carte qu'une feuille basse va couvrir**, en coordonnées du plateau : la
    * carte le remonte au milieu de ce qui reste visible au-dessus de `floor` pixels — la règle de
@@ -609,6 +613,7 @@ export function WorldMap({
   moment = null,
   concluded = false,
   reveal = null,
+  onHandOnBoard,
   replay = null,
   onReplayStep,
   replayBelow = 0,
@@ -1471,7 +1476,13 @@ export function WorldMap({
     if (focus === null) return;
     stopTourNow.current();
     if (finger.current) setRose(null);
-    readyEngine?.journeyTo(focus.ids, focus.places ?? [], focus.lift ?? 0, focus.distance);
+    readyEngine?.journeyTo(
+      focus.ids,
+      focus.places ?? [],
+      focus.lift ?? 0,
+      focus.distance,
+      focus.onPiece,
+    );
   }, [readyEngine, focus]);
 
   const replayStep = useRef(onReplayStep);
@@ -1943,11 +1954,14 @@ export function WorldMap({
   // doing what it does.
   useEffect(() => {
     if (readyEngine === null) return;
-    readyEngine.onHandOnBoard = () => skipMoment() || stopTour();
+    readyEngine.onHandOnBoard = () => {
+      onHandOnBoard?.();
+      return skipMoment() || stopTour();
+    };
     return () => {
       readyEngine.onHandOnBoard = undefined;
     };
-  }, [readyEngine, stopTour, skipMoment]);
+  }, [readyEngine, stopTour, skipMoment, onHandOnBoard]);
 
   // A combat plays at its point (#272): told once without its view, once with it.
   const combatsCued = useRef(new Map<string, boolean>());

@@ -71,3 +71,14 @@ export const MAT_LIFT_HUD = `calc(${MAT_LIFT} / var(--hud-scale))`;
  * du carré de la colonne, hors de sa boîte, elle couvre la carte sans que la colonne le mesure.
  */
 export const ColumnCardContext = createContext<(card: HTMLElement | null) => void>(() => {});
+
+/** **Ce que la barre basse laisse sous une feuille**, en pixels d'écran : `--board-bottom` est une
+ *  expression (`calc`), résolue ici par un élément de mesure. 0 sans la variable. */
+export function boardBottomPx(): number {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;visibility:hidden;width:0;height:var(--board-bottom,0px)';
+  document.body.append(probe);
+  const height = probe.getBoundingClientRect().height;
+  probe.remove();
+  return height;
+}

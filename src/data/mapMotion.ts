@@ -31,7 +31,7 @@ function subscribeSystem(listener: () => void): () => void {
   return () => query.removeEventListener('change', listener);
 }
 
-export const usePrefersReducedMotion = (): boolean =>
+const usePrefersReducedMotion = (): boolean =>
   useSyncExternalStore(subscribeSystem, () => matchMedia(REDUCED_QUERY).matches);
 
 export function useMapMotion(): MapMotion {

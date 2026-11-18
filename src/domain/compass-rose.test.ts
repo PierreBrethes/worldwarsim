@@ -1602,6 +1602,24 @@ describe('raising a level from the map', () => {
     });
   });
 
+  /** Le plafond n'est pas l'absence d'un producteur : la rose dit l'entrepôt, pas la mine. */
+  it('names the ceiling and the warehouse when a producer exists but the bill is above the cap', () => {
+    const over = standing(
+      { nextLevelCost: { steel: 1500 } },
+      {
+        resources: {
+          ...(view.me.resources as Record<string, unknown>),
+          steel: { stock: 0, ratePerHour: 10, cap: 1000 },
+        },
+      },
+    );
+    const availability = (compassOf(mast, over)?.actions[0] as { hold: { availability: string } })
+      .hold.availability;
+    expect(availability).toContain('1');
+    expect(availability).toContain('entrepôt');
+    expect(availability).not.toContain('jamais');
+  });
+
   /**
    * **Un mât à soi est une destination en visée** (décisions 64b, 69a, 70b) : la colonne vient
    * y entrer, la branche le dit, et la seule marche offerte est celle-là — ni « améliorer », qui

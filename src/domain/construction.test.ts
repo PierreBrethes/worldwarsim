@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aimVerdict,
+  availabilityOf,
   depositCalls,
   outpostRaiseHold,
   placementOf,
@@ -18,6 +19,7 @@ import {
   type SpecialtyChange,
   keptLevelOf,
 } from './construction';
+import { neverText } from './compass-works';
 import { respecialtyBill } from '../../convex/constants';
 import { BUILDINGS, RESOURCES, type BuildingKey, type ResearchCard, type ResourceKey } from './ids';
 import { BUILDING_SPACING_KM } from './economy';
@@ -715,5 +717,50 @@ describe('keptLevelOf (#450)', () => {
     expect(keptLevelOf(3, 5)).toBe(3);
     expect(keptLevelOf(4, 3)).toBe(3);
     expect(keptLevelOf(2, 0)).toBe(1);
+  });
+});
+
+describe('when the matter will be there', () => {
+  const held = (cap: number, ratePerHour: number) => ({ stock: 0, ratePerHour, cap });
+
+  it('is now once the stock covers the bill', () => {
+    expect(availabilityOf(50, held(100, 0), 50)).toEqual({ kind: 'now' });
+  });
+
+  it('dates the wait when something produces the matter', () => {
+    expect(availabilityOf(50, held(100, 10), 20)).toEqual({ kind: 'inMinutes', minutes: 180 });
+  });
+
+  it('says never only when nothing produces the matter', () => {
+    expect(availabilityOf(50, held(100, 0), 20)).toEqual({ kind: 'never' });
+  });
+
+  it('names the ceiling when the matter is produced but the bill is above the cap', () => {
+    expect(availabilityOf(150, held(100, 10), 20)).toEqual({ kind: 'overCap', cap: 100 });
+  });
+
+  it('dates the wait when the bill is exactly the cap', () => {
+    expect(availabilityOf(100, held(100, 10), 0)).toEqual({ kind: 'inMinutes', minutes: 600 });
+  });
+
+  it('names the ceiling one unit above the cap', () => {
+    expect(availabilityOf(101, held(100, 10), 0)).toEqual({ kind: 'overCap', cap: 100 });
+  });
+
+  it('names the producer first when both are missing', () => {
+    expect(availabilityOf(150, held(100, 0), 20)).toEqual({ kind: 'never' });
+  });
+});
+
+describe('the sentence of a bill that time will not pay', () => {
+  it('keeps the missing producer as it was', () => {
+    expect(neverText('steel', { kind: 'never' })).toBe('jamais : aucune mine');
+  });
+
+  it('says the ceiling and the building that lifts it, not a missing producer', () => {
+    const text = neverText('steel', { kind: 'overCap', cap: 100 });
+    expect(text).toContain('100');
+    expect(text).toContain('entrepôt');
+    expect(text).not.toContain('aucune');
   });
 });

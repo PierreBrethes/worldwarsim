@@ -5,7 +5,7 @@ import type { Density } from './board-density';
 import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import { displayedStock } from '@/domain/reserve-counter';
-import { useMapMotion, usePrefersReducedMotion } from '@/data/mapMotion';
+import { useMapMotion } from '@/data/mapMotion';
 import { ResourcePlate } from '@/emblems/Plate';
 import { resourceColor } from '@/emblems/resource-color';
 import {
@@ -54,8 +54,7 @@ export function GaugeBin({
     title,
   } = reserveReading(view, resource, now, shown);
   const motion = useMapMotion();
-  const reduced = usePrefersReducedMotion();
-  const still = motion === 'off' || reduced;
+  const still = motion === 'off';
   const announced = useAnnouncedStock(held, view.loadedAt, still);
   return (
     <button
@@ -123,11 +122,9 @@ export function GaugeBin({
           {fr.personalBoard.rate(held.ratePerHour)}
         </small>
       )}
-      {view.mode !== 'blitz' && (
-        <span className="flex min-h-[30px] w-full items-start justify-center">
-          <HeapBinLines view={view} resource={resource} now={now} />
-        </span>
-      )}
+      <span className="flex min-h-[30px] w-full items-start justify-center">
+        <HeapBinLines view={view} resource={resource} now={now} />
+      </span>
     </button>
   );
 }
