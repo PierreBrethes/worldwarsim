@@ -808,8 +808,8 @@ export function WorldMap({
         if (holding !== null) engine.current?.setDownPiece(clientX, clientY);
       };
       /** **Lâcher, c'est ordonner** (POC « Manipuler les pions », 16/10) : le verbe que la
-       *  pastille montrait part tel quel ; au doigt, sans molette ni clavier, une rose réduite
-       *  aux ordres de pièce laisse choisir quand il y en a plusieurs. */
+       *  pastille montrait part tel quel ; au doigt, la rose s'ouvre toujours et c'est son
+       *  médaillon qui envoie (`dropOutcomeOf`, ADR 0026, amendement du 18/11). */
       const reading = aiming ? dropReadingOf(drawn) : null;
       /** Une attente (la côte arrive) ouvre la rose sur son motif, pièce en main : la rose se
        *  relit à l'arrivée de la côte (`onCoast`). */
