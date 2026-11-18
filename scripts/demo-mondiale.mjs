@@ -660,10 +660,6 @@ if (!lobbying) await client.mutation(api.seasons.launch, { token: tokenA, season
 const scene = { a: null, b: null };
 if (!bare) {
   cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 400 })]);
-  if (shortStock) {
-    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 20, only: 'steel' })]);
-    cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 0, only: 'coal' })]);
-  }
   const rows = cli(['data', 'players', '--limit', '200', '--format', 'jsonl'])
     .split('\n')
     .filter((line) => line.startsWith('{'))
@@ -2091,6 +2087,11 @@ if (conclusion !== null)
     places,
     await concludeDemo({ client, cli, pause, tokens, seasonId, ...conclusion }),
   );
+
+if (shortStock) {
+  cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 20, only: 'steel' })]);
+  cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 0, only: 'coal' })]);
+}
 
 writeFileSync(
   accountsFile,
