@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setMapMotionSetting } from '@/data/mapMotion';
 import { fr } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
@@ -18,7 +19,10 @@ vi.stubGlobal('matchMedia', (query: string) => ({
   removeEventListener: () => {},
 }));
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  setMapMotionSetting('auto');
+});
 afterEach(cleanup);
 
 const NOW = 1_000_000;
@@ -26,8 +30,13 @@ const NOW = 1_000_000;
 const viewWith = (overrides: Partial<Record<ResourceKey, object>> = {}) =>
   ({
     loadedAt: NOW,
+    mode: 'mondiale',
+    arcs: [],
     me: {
       chains: [],
+      buildings: [],
+      extraction: [],
+      troops: [],
       resources: Object.fromEntries(
         RESOURCES.map((key) => [
           key,
@@ -98,6 +107,48 @@ describe('the reserve cell', () => {
     fireEvent.pointerDown(ammunition, { clientX: 10, clientY: 10 });
     fireEvent.pointerUp(ammunition, { clientX: 90, clientY: 40 });
     expect(onPin).not.toHaveBeenCalled();
+  });
+});
+
+describe('the reserve gauge', () => {
+  const fill = () => document.querySelector<HTMLElement>('[data-bin="coal"] [data-gauge]')!;
+
+  it('fills by scale, over 320 ms under « actives »', () => {
+    setMapMotionSetting('full');
+    mount(viewWith({ coal: { stock: 100 } }));
+    expect(fill().style.transform).toBe('scaleX(0.25)');
+    expect(fill().style.transition).toContain('320ms');
+  });
+
+  it('jumps to the notch and fades over 120 ms under « réduites »', () => {
+    setMapMotionSetting('reduced');
+    mount(viewWith({ coal: { stock: 100 } }));
+    expect(fill().style.transform).toBe('scaleX(0.3)');
+    expect(fill().style.transition).toBe('');
+    expect(fill().className).toContain('reserve-gauge--notch');
+  });
+
+  it('moves with no transition under « coupées »', () => {
+    setMapMotionSetting('off');
+    mount(viewWith({ coal: { stock: 100 } }));
+    expect(fill().style.transform).toBe('scaleX(0.25)');
+    expect(fill().style.transition).toBe('none');
+  });
+
+  it('keeps each state’s label whatever the setting', () => {
+    setMapMotionSetting('off');
+    mount(viewWith({ coal: { stock: 400 }, oil: { stock: 0, ratePerHour: 0 } }));
+    expect(cell('coal').textContent).toContain(fr.resourceBand.full);
+    expect(cell('oil').textContent).toContain(fr.resourceBand.dry);
+  });
+
+  it('carries the pin of its ledger as the bin once did', () => {
+    render(
+      <PinContext.Provider value={{ pinned: ['coal'], onPin: vi.fn() }}>
+        <ReserveCell resource="coal" view={viewWith()} now={NOW} />
+      </PinContext.Provider>,
+    );
+    expect(cell('coal').getAttribute('aria-pressed')).toBe('true');
   });
 });
 

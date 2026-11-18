@@ -53,8 +53,6 @@ import { UnitSprite } from '@/emblems/UnitSprite';
 import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';
 import { LotControl } from './LotControl';
-import { useBandDensity } from './board-density';
-import { GaugeBin } from './GaugeBin';
 import { HeapBinLines, HeapBoardNotes } from './HeapBinLines';
 import { Rail, type Grab, type Grip } from './Rail';
 import { useOverflow } from './useOverflow';
@@ -72,7 +70,7 @@ const DRAG_THRESHOLD_PX = 5;
 const MAT_GAP_PX = 8;
 
 /** The unfolded band's height at the desk: a site open needs room for its troop cards and their
- *  refusals; a gauge also reads what waits at the foot (#548). */
+ *  refusals. */
 const BAND_HEIGHT = { site: '184px', rest: '174px' } as const;
 
 /** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
@@ -82,8 +80,8 @@ const FULL_ROOM =
 /**
  * **Le plateau personnel, en sous-main** (issue #122, maquette B) : une bande sur toute la largeur
  * au pied de la table. Repliée, elle tient en une ligne qui garde les bacs — on en glisse des
- * jetons sur un transport sans la déplier —, le chantier en tête et la récolte. Dépliée, les bacs
- * en jauges jusqu'au plafond de l'entrepôt, le rang des tuiles de bâtiments qu'on fait défiler,
+ * jetons sur un transport sans la déplier —, le chantier en tête et la récolte. Dépliée, le même rang
+ * des réserves au pied, le rang des tuiles de bâtiments qu'on fait défiler,
  * et la file des chantiers. Un site de projection sélectionné sur la carte y met ses cartes de
  * troupes et sa file de formation (#163). Les consommations vivent dans les tickets du bandeau
  * (#121). « Recherche » ouvre la fenêtre de l'arbre (#123).
@@ -204,9 +202,6 @@ export function PersonalBoard({
   }, [covers, onCover, board]);
   const handleRef = useRef<HTMLButtonElement>(null);
   useMatRise(board, `${folded}-${filled}-${research}-${cue?.text ?? ''}`);
-  /** Un site ouvert resserre les bacs au plus juste : sa colonne a besoin de la place. */
-  const measured = useBandDensity(board);
-  const density = site === null ? measured : 'serre';
   useUnfoldCascade(board, open && !research, narrow, motion);
 
   // Escape lets the selected site go, or folds the band, when no window stands in front of it.
@@ -272,7 +267,7 @@ export function PersonalBoard({
         narrow
           ? 'paper-grain absolute -top-[16px] left-1/2 grid h-[16px] w-[64px] -translate-x-1/2 place-items-center border border-b-0 border-[var(--ink)] text-[10px]'
           : `relative self-stretch border-r border-[var(--ink)] px-3 ${
-              // Dépliée, la poignée prend la colonne des bacs (+ son filet) : un seul trait vertical.
+              // Dépliée, la poignée prend la largeur de la colonne des chantiers.
               folded ? '' : 'mat-bins-width flex items-center justify-between'
             }`
       } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
@@ -325,7 +320,6 @@ export function PersonalBoard({
       <section
         ref={board}
         aria-label={fr.personalBoard.header}
-        data-density={density}
         className={`mat-board hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
           narrow ? 'border-x-0 border-b-0' : ''
         }`}
@@ -355,8 +349,8 @@ export function PersonalBoard({
             place={
               narrow
                 ? 'absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2'
-                : // Over the tray, past the five gauges.
-                  'absolute bottom-[calc(100%+9px)] left-[390px]'
+                : // Over the tray.
+                  'absolute bottom-[calc(100%+9px)] left-[24px]'
             }
           />
         )}
@@ -389,7 +383,7 @@ export function PersonalBoard({
             </div>
             {!folded && (
               <>
-                <div className="h-[54px] shrink-0 border-t border-(color:--ink)/30">{reserves}</div>
+                <div className="h-[66px] shrink-0 border-t border-(color:--ink)/30">{reserves}</div>
                 <div className="grid shrink-0 grid-cols-5 items-start px-[1px] pt-[2px]">
                   {RESOURCES.map((resource) => (
                     <div key={resource} className="grid min-w-0 justify-items-center">
@@ -403,11 +397,11 @@ export function PersonalBoard({
         ) : (
           <div
             className={`flex shrink-0 items-center gap-[14px] pr-[10px] ${
-              folded ? 'h-[54px]' : 'h-[36px] border-b border-[var(--ink)]'
+              folded ? 'h-[66px]' : 'h-[36px] border-b border-[var(--ink)]'
             }`}
           >
             {handle}
-            {folded && <div className="flex h-full min-w-[330px] flex-[0_1_460px]">{reserves}</div>}
+            {folded && <div className="flex h-full min-w-[420px] flex-[0_1_540px]">{reserves}</div>}
             <span className="min-w-0 truncate text-[12px] leading-[1.2] text-[var(--ink-soft)]">
               <WorkLine view={view} now={now} />
             </span>
@@ -470,16 +464,9 @@ export function PersonalBoard({
             style={
               narrow
                 ? undefined
-                : { gridTemplateColumns: `auto 1fr ${site === null ? 'var(--works-w)' : '160px'}` }
+                : { gridTemplateColumns: `1fr ${site === null ? 'var(--works-w)' : '160px'}` }
             }
           >
-            {!narrow && (
-              <section className="grid grid-cols-[repeat(5,var(--bin-w))] gap-(--bin-gap) px-(--bin-pad) py-[10px]">
-                {RESOURCES.map((resource) => (
-                  <GaugeBin key={resource} {...bin(resource)} density={density} />
-                ))}
-              </section>
-            )}
             {site === null ? (
               <>
                 {narrow && focusedBuilding !== null && (
@@ -522,6 +509,9 @@ export function PersonalBoard({
             )}
           </div>
         </div>
+        {!narrow && !folded && (
+          <div className="h-[66px] shrink-0 border-t border-[var(--ink)]">{reserves}</div>
+        )}
       </section>
       {createPortal(
         <div
@@ -566,17 +556,15 @@ function useMatRise(mat: { readonly current: HTMLElement | null }, shape: string
   }, [mat, shape]);
 }
 
-/** The gauges rise one after the other, then the tiles lift in a fade: the whole of it laid down
- *  in 520ms (#251). */
+/** The tiles lift one after the other in a fade (#251). */
 const CASCADE = {
-  gauge: { from: 60, step: 45, duration: 280 },
   tile: { from: 80, step: 35, duration: 195, most: 8 },
   easing: 'cubic-bezier(.2,.8,.2,1)',
 } as const;
 
 /**
  * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre la bande — pas quand la main la
- * replie le temps d'un geste —, les jauges montent l'une après l'autre et les tuiles se lèvent.
+ * replie le temps d'un geste —, les tuiles se lèvent.
  * « actives » seulement ; au bureau seulement, le téléphone tire sa feuille.
  */
 function useUnfoldCascade(
@@ -591,15 +579,7 @@ function useUnfoldCascade(
     was.current = unfolded;
     const node = board.current;
     if (!opened || node === null || narrow || motion !== 'full') return;
-    const { gauge, tile, easing } = CASCADE;
-    node.querySelectorAll('.mat-gauge').forEach((fill, rank) =>
-      fill.animate([{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], {
-        duration: gauge.duration,
-        delay: gauge.from + rank * gauge.step,
-        easing,
-        fill: 'backwards',
-      }),
-    );
+    const { tile, easing } = CASCADE;
     [...node.querySelectorAll('.mat-cascade')].slice(0, tile.most).forEach((one, rank) =>
       one.animate(
         [

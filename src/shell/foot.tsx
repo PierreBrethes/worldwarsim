@@ -79,7 +79,7 @@ export function FootBar({ view }: { view: PlayerView }) {
               left: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
               right: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
               bottom: 'calc(var(--table-margin) / var(--hud-scale))',
-              height: '54px',
+              height: '66px',
             }
           : {
               left: 0,

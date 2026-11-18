@@ -510,6 +510,16 @@ body {
   }
 }
 
+/* La jauge d'une réserve sous « réduites » : elle saute au cran, et le cran se fond (#578). */
+.reserve-gauge--notch {
+  animation: reserve-gauge-fade 120ms var(--ease-out);
+}
+@keyframes reserve-gauge-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes reserve-tag-fade {
   10%,
   85% {
@@ -569,11 +579,7 @@ body {
   transform: translateY(-3px);
   box-shadow: 0 5px 0 var(--ink);
 }
-.mat-gauge {
-  transform-origin: bottom;
-  transition: height 500ms var(--ease-out);
-}
-:root:is([data-motion='reduced'], [data-motion='off']) :is(.mat-fold, .mat-tile, .mat-gauge) {
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.mat-fold, .mat-tile) {
   transition: none;
 }
 :root[data-motion='reduced'] .mat-fold > * {
@@ -587,48 +593,12 @@ body {
   box-shadow: 0 2px 0 var(--ink);
 }
 
-/* **Les bacs suivent la bande** (#251) : `board-density.ts` pose `data-density` sur le plateau
-   d'après sa largeur ; les jauges, la poignée de l'en-tête et la colonne des chantiers lisent ces
-   variables. Le chiffre ne descend jamais sous 12px, le débit sous 8,5px. */
+/* La colonne des chantiers du plateau déplié, et la poignée de l'en-tête qui s'y règle. */
 .mat-board {
-  --bin-w: 66px;
-  --bin-gap: 6px;
-  --bin-pad: 12px;
-  --tube-w: 16px;
-  --tube-h: 58px;
-  --bin-n: 13px;
-  --bin-s: 9.5px;
   --works-w: 236px;
 }
-.mat-board[data-density='moyen'] {
-  --bin-w: 54px;
-  --bin-gap: 4px;
-  --bin-pad: 10px;
-  --tube-w: 14px;
-  --tube-h: 54px;
-  --bin-n: 12px;
-  --bin-s: 9px;
-  --works-w: 212px;
-}
-.mat-board[data-density='serre'] {
-  --bin-w: 44px;
-  --bin-gap: 2px;
-  --bin-pad: 8px;
-  --tube-w: 12px;
-  --tube-h: 50px;
-  --bin-n: 12px;
-  --bin-s: 8.5px;
-  --works-w: 196px;
-}
 .mat-bins-width {
-  /* + 1px : le filet de la poignée se pose sur celui des tuiles. */
-  width: calc(5 * var(--bin-w) + 4 * var(--bin-gap) + 2 * var(--bin-pad) + 1px);
-}
-/* Le chiffre sous la jauge : ses deux lignes dès que la colonne se resserre. */
-.mat-board:is([data-density='moyen'], [data-density='serre']) .mat-bin-cap {
-  display: block;
-  margin-top: 2px;
-  text-align: center;
+  width: var(--works-w);
 }
 
 /* Le fondu d'un rang ou d'une colonne qui continue : seul le côté où il y a une suite s'estompe. */
@@ -666,20 +636,6 @@ body {
   background: var(--ink-soft);
   color: var(--paper);
   font: 600 9px/1 var(--font-mono);
-}
-/* Le registre épinglé se voit sur le bac même : un filet au pied, un losange dans le coin. */
-.mat-bin[aria-pressed='true'] {
-  box-shadow: inset 0 -3px 0 var(--arc-mine);
-}
-.mat-bin[aria-pressed='true']::before {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 5px;
-  height: 5px;
-  background: var(--arc-mine);
-  rotate: 45deg;
 }
 /* Le refus entier d'une tuile retenue : une fiche de papier posée sur elle, au survol ou au focus. */
 .mat-refusal {

@@ -54,6 +54,34 @@ export function HeapBinLines({
 }
 
 /**
+ * **L'abrégé du tas dans la barre des stocks** (#578) : « tas 74 ⚑1 ▲ », sans le montant ni le
+ * compte à rebours du ▲. Seul un tas au pied (`foot`) s'écrit en barre ; « aucun tas », l'arsenal et
+ * la fondation seule sont l'affaire du volet.
+ */
+export function HeapBinBar({
+  view,
+  resource,
+  now,
+}: {
+  view: PlayerView;
+  resource: ResourceKey;
+  now: number;
+}) {
+  const bin = heapBinOf(view, resource, now);
+  if (bin === null || bin.kind !== 'foot') return null;
+  return (
+    <small
+      aria-hidden
+      className="font-(family-name:--font-body) text-[12px] leading-none font-semibold whitespace-nowrap"
+    >
+      {fr.heap.board.atFootShort} {bin.amount}
+      {bin.full > 0 && <span className="text-[var(--critical)]"> ⚑{bin.full}</span>}
+      {bin.come !== null && <span className="text-[var(--valid)]"> ▲</span>}
+    </small>
+  );
+}
+
+/**
  * **Ce qui arrive, ce qui déborde** (ADR 0041, #548) : les transports qui ont une récolte à bord, et
  * les tas pleins, dont l'exploitation est arrêtée. Dans la colonne des chantiers du plateau personnel.
  */
