@@ -47,7 +47,9 @@ export function frameMaterial(theatre: Theatre): ShaderMaterial {
         float dx = min(lon - box.x, box.z - lon);
         float dy = min(vLonLat.y - box.y, box.w - vLonLat.y);
         float margin = min(dx, dy);
-        float stroke = min(${STROKE_DEG.toFixed(2)}, ${STROKE_MAX_PX.toFixed(1)} * trameScale * fwidth(margin));
+        // The true slope, not fwidth: |dx|+|dy| would swell a diagonal edge by up to √2.
+        float slope = length(vec2(dFdx(margin), dFdy(margin)));
+        float stroke = min(${STROKE_DEG.toFixed(2)}, ${STROKE_MAX_PX.toFixed(1)} * trameScale * slope);
         if (margin >= stroke) discard;
         gl_FragColor = margin < 0.0 ? vec4(paper, ${WASH.toFixed(2)}) : vec4(ink, 0.85);
         #include <colorspace_fragment>
