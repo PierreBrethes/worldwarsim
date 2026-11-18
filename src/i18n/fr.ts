@@ -5113,6 +5113,8 @@ export const fr = {
     hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
     /** Le manque de la facture, dans l'ordre du serveur : la phrase qui le date suit. */
     missing: (missing: number, resource: string) => `il manque ${Math.ceil(missing)} ${resource}`,
+    /** Le fantôme du QG hors du sien (#579) ; `HQ_ALREADY_BUILT` reste la phrase du serveur. */
+    hqUnique: 'le quartier général est unique — visez-le pour l’élever',
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
     coastPending: 'la côte arrive sur la carte — un instant',
     /** Au téléphone, la tuile se porte du doigt (#239). */
@@ -5451,7 +5453,7 @@ export function aimRefusalText(
     case 'RESEARCH_REQUIRED':
       return errors.RESEARCH_REQUIRED({ card: lockedBy });
     case 'ALREADY_BUILT':
-      return errors.ALREADY_BUILT({ building: key });
+      return key === 'hq' ? fr.placing.hqUnique : errors.ALREADY_BUILT({ building: key });
     case 'HQ_FIRST':
     case 'DEPOSIT_TAKEN':
     case 'NOT_ON_LAND':

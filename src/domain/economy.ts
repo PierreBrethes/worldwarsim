@@ -133,8 +133,9 @@ export type Spot = {
   readonly already: boolean;
 };
 
-/** **Ce qu'on ne bâtit qu'une fois** (#123) : le Centre de recherche. Le QG a sa propre règle. */
-const UNIQUE_BUILDINGS: ReadonlyArray<BuildingKey> = ['researchCenter'];
+/** **Ce qu'on ne bâtit qu'une fois** (#123) : le Centre de recherche, et le QG pour le fantôme —
+ *  le serveur refuse le second QG plus tôt, par `HQ_ALREADY_BUILT` (#579). */
+const UNIQUE_BUILDINGS: ReadonlyArray<BuildingKey> = ['researchCenter', 'hq'];
 
 /**
  * **What a key refuses wherever it is aimed** — the half of the rule a catalogue can read before
