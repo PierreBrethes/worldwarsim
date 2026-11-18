@@ -4088,9 +4088,6 @@ export const fr = {
     header: 'Plateau personnel',
     previous: 'précédentes',
     next: 'suivantes',
-    /** Un bac : son nombre exact sur son plafond, et son débit réel. */
-    ofCap: (cap: number) => `/ ${num(cap)}`,
-    rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
     /** Le débit d'une réserve sur la barre : cinq colonnes sur un téléphone, sans espaces. */
     rateShort: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))}/h`,
     harvest: (hours: number) =>
