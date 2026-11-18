@@ -5,7 +5,8 @@ description: Consigne d'un agent qui code une issue GitHub de La Manchette (#N) 
 
 # Lot
 
-Tu codes **une** issue (`gh issue view N --comments`) ou une feature de
+Tu codes **une** issue (`gh issue view N --comments` ; s'il sort vide,
+`gh api repos/PierreBrethes/worldwarsim/issues/N` puis `…/N/comments`) ou une feature de
 `WWS/docs/RESTE-A-CODER.md`. Pierre est absent : aucune question, tu tranches et tu le notes.
 
 ## 1. Lire
