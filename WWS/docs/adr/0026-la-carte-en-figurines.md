@@ -39,6 +39,15 @@ même fonction que le refus du serveur (ADR 0015). **Aucune règle de jeu ne cha
 > qui flotte, `forbiddenGroundOf`), un anneau et un fil à plomb marquent le point de chute, et la
 > fiche se tait. Le clic-clic reste. Hors lot : le lasso, le parachutage, rediriger en route.
 
+> **Révisée le 18/11/2026 — « au doigt, on vise puis on envoie »** (refonte du bas d'écran,
+> finaliste du 15/11, question 2 ; retour de Pierre du 15/11 : « bloqué, mal voir l'écran »).
+> Le §6 révisé le 16/10 ne tient plus **au doigt** : pile en main, un toucher ou un lâcher sur la carte **vise** — fil, lieu, distance, durée et heure
+> d'arrivée se lisent dans la fiche — et l'ordre part de son bouton « Envoyer » ; « Annuler », la
+> croix ou la pièce retouchée le défont. La carte nue, pile en main, vise au lieu de fermer. Deux
+> gestes au lieu d'un : un toucher qui ferme n'envoie plus rien. **À la souris, rien ne change** :
+> le clic et le lâcher posent. Restent au doigt : l'appui long qui prend une troupe pour scinder,
+> l'étiquette de cargaison, la pastille qui dit l'ordre ou le refus.
+
 > **Révisée le 18/10/2026 par l'[ADR 0028](0028-l-economie-de-la-mondiale.md) §6** : au-delà de
 > douze troupes, une escouade de Mondiale se dessine en une figurine par rôle, et son fanion porte
 > le compte. « Toutes troupes visibles » tient jusqu'à douze.

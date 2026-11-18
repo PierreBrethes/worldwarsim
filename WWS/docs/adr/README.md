@@ -33,7 +33,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0023](0023-geographie-serveur-en-raster.md) | La géographie du serveur est un raster à la maille de la grille | acceptée — précise 0012 |
 | [0024](0024-engagement-intentionnel-et-forces-posees-visibles.md) | L'engagement est intentionnel, et une force posée se voit dans la portée | acceptée — révise 0008, 0019 §3/§6, 0021 §2/§3 ; §1 révisé par 0037 |
 | [0025](0025-capacite-encombrement-et-embarquement-de-proximite.md) | Capacité, encombrement, et l'embarquement de proximité | acceptée — révise 0019 §2, fiche 09, décision 70b ; précisée par 0028 (jetons à bord) |
-| [0026](0026-la-carte-en-figurines.md) | La carte en figurines | acceptée — révise la décision du 30/08 (cartouche, visée) et la fiche 10 (unités) ; révisée par 0028 (escouade regroupée) |
+| [0026](0026-la-carte-en-figurines.md) | La carte en figurines | acceptée — révise la décision du 30/08 (cartouche, visée) et la fiche 10 (unités) ; révisée par 0028 (escouade regroupée) ; au doigt, viser puis « Envoyer » (18/11) |
 | [0027](0027-la-mondiale-au-centre.md) | La Mondiale au centre, et l'économie comme seul frein | acceptée — remplace la fiche 01, révise 0001, 0020 §10/§11 |
 | [0028](0028-l-economie-de-la-mondiale.md) | L'économie de la Mondiale : cinq ressources, la logistique par les pièces | acceptée — révise 0015, 0026 (16/10), 66a, R1/R5 du 14/10, le relais ; précise 0025 ; §1 et l'abandon du relais révisés par 0037 |
 | [0029](0029-placement-libre-et-gisements-ponctuels.md) | Le placement libre des bâtiments, et les gisements ponctuels | acceptée — révise 0013, 0015 (une bâtisse et un gisement par région) |
