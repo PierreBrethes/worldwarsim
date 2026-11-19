@@ -37,8 +37,8 @@ import { withoutHeld } from '@/domain/journal';
 import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
 import {
+  navigateOnce,
   readWindows,
-  sameAddress,
   withWindow,
   withoutWindow,
   yieldNavigation,
@@ -72,7 +72,12 @@ import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
 import { BareMapPort } from '@/shell/sole-surface';
-import { retouches } from './-plateau/retouch';
+import {
+  forgetThen,
+  garrisonRetouched as garrisonRetouchedBy,
+  sheetAfterTouch,
+  siteRetouched,
+} from './-plateau/retouch';
 import { tallest, useFrameOnOpen } from './-plateau/useFrameOnOpen';
 import { MAT_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
@@ -709,38 +714,42 @@ function BoardContent({
     (ids: ReadonlyArray<string>, clientX: number, clientY: number) => {
       const first = ids[0];
       if (first === undefined || aimingOnPhone) return;
-      const rank = selectedLoot === null ? -1 : ids.indexOf(selectedLoot.id);
-      const id = ids[(rank + 1) % ids.length] ?? first;
-      if (retouches(narrow, selectedLoot, id)) return closeLoot();
-      setSelectedLoot({ id, ...boardPoint(clientX, clientY) });
+      setSelectedLoot((previous) => {
+        const rank = previous === null ? -1 : ids.indexOf(previous.id);
+        const id = ids[(rank + 1) % ids.length] ?? first;
+        return sheetAfterTouch(narrow, previous, { id, ...boardPoint(clientX, clientY) });
+      });
     },
-    [boardPoint, aimingOnPhone, narrow, selectedLoot, closeLoot],
+    [boardPoint, aimingOnPhone, narrow],
   );
 
   const openCamp = useCallback(
     (campId: string, clientX: number, clientY: number) => {
       if (aimingOnPhone) return;
-      if (retouches(narrow, selectedCamp, campId)) return closeCamp();
-      setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) });
+      setSelectedCamp((previous) =>
+        sheetAfterTouch(narrow, previous, { id: campId, ...boardPoint(clientX, clientY) }),
+      );
     },
-    [boardPoint, aimingOnPhone, narrow, selectedCamp, closeCamp],
+    [boardPoint, aimingOnPhone, narrow],
   );
 
   const openObjective = useCallback(
     (objectiveId: string, clientX: number, clientY: number) => {
       if (aimingOnPhone) return;
-      if (retouches(narrow, selectedObjective, objectiveId)) return closeObjective();
-      setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) });
+      setSelectedObjective((previous) =>
+        sheetAfterTouch(narrow, previous, { id: objectiveId, ...boardPoint(clientX, clientY) }),
+      );
     },
-    [boardPoint, aimingOnPhone, narrow, selectedObjective, closeObjective],
+    [boardPoint, aimingOnPhone, narrow],
   );
   const openStrategic = useCallback(
     (pointId: string, clientX: number, clientY: number) => {
       if (aimingOnPhone) return;
-      if (retouches(narrow, selectedPoint, pointId)) return closePoint();
-      setSelectedPoint({ id: pointId, ...boardPoint(clientX, clientY) });
+      setSelectedPoint((previous) =>
+        sheetAfterTouch(narrow, previous, { id: pointId, ...boardPoint(clientX, clientY) }),
+      );
     },
-    [boardPoint, aimingOnPhone, narrow, selectedPoint, closePoint],
+    [boardPoint, aimingOnPhone, narrow],
   );
 
   /** Un relevé que le délai a périmé emporte le cartouche qui le lisait : la carte ne garde pas
@@ -819,15 +828,15 @@ function BoardContent({
 
   /** Fermée, la garnison lâche aussi le cadrage qu'elle avait demandé : un cran lâché ensuite ne
    *  doit pas ramener la carte sur elle. */
-  const closeGarrison = useCallback(() => {
-    forgetFrame();
-    setGarrison(null);
-  }, [forgetFrame]);
+  const closeGarrison = useMemo(
+    () => forgetThen(forgetFrame, () => setGarrison(null)),
+    [forgetFrame],
+  );
   const garrisonRetouched = useCallback(
     (station: TroopStation) =>
-      retouches(
+      garrisonRetouchedBy(
         narrow,
-        garrison === null ? null : { id: stationKeyOf(garrison.station) },
+        garrison === null ? null : stationKeyOf(garrison.station),
         stationKeyOf(station),
       ),
     [narrow, garrison],
@@ -890,14 +899,17 @@ function BoardContent({
     setOrderError(null);
   }, []);
 
-  const dropHand = useCallback(() => {
-    forgetFrame();
-    setHand(EMPTY_HAND);
-    setChain(null);
-    lastSeen.current = undefined;
-    lastThen.current = undefined;
-    setResting(null);
-  }, [forgetFrame]);
+  const dropHand = useMemo(
+    () =>
+      forgetThen(forgetFrame, () => {
+        setHand(EMPTY_HAND);
+        setChain(null);
+        lastSeen.current = undefined;
+        lastThen.current = undefined;
+        setResting(null);
+      }),
+    [forgetFrame],
+  );
 
   /**
    * **Maj + clic, ou au doigt un toucher pendant qu'on choisit** (#130) : la pile entre dans la
@@ -967,7 +979,7 @@ function BoardContent({
    *  sélectionné ne doit pas empiler une entrée que « retour » aurait à défaire. */
   const goTo = useCallback(
     (to: (previous: BoardSearch) => BoardSearch) => {
-      if (!sameAddress(routeSearch, to(routeSearch))) void navigate({ search: to });
+      navigateOnce(navigate, routeSearch, to);
     },
     [navigate, routeSearch],
   );
@@ -993,6 +1005,7 @@ function BoardContent({
       /** **En Mondiale, un site de projection se sélectionne** (#163, comme dans Warcraft III) :
        *  l'anneau sur son mât, et la bande du plateau personnel montre ce qu'il forme. Sa fiche
        *  s'ouvre depuis la bande. */
+      /** Retoucher ce mât ne ferme rien : c'est une sélection, pas une feuille. */
       if (!blitz && isProjectionKey(standing.key)) {
         setGarrison(null);
         setHand(EMPTY_HAND);
@@ -1012,10 +1025,7 @@ function BoardContent({
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
       const siteModal = hasSiteSheet(view.mode, standing.key);
       /** Sa fiche est déjà ouverte : le doigt qui revient dessus la ferme (#584). */
-      if (
-        siteModal &&
-        retouches(narrow, windows.includes('site') ? { id: focused ?? '' } : null, buildingId)
-      ) {
+      if (siteModal && siteRetouched(narrow, windows, focused, buildingId)) {
         void navigate({ search: (previous) => withoutWindow(previous, 'site') });
         return;
       }

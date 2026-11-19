@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  navigateOnce,
   sameAddress,
   withWindow,
   withoutWindow,
@@ -19,6 +20,16 @@ describe('the board’s search state', () => {
     expect(sameAddress(open, { ...open })).toBe(true);
     expect(sameAddress(open, { ...open, building: 'k18' })).toBe(false);
     expect(sameAddress(open, withoutWindow(open, 'site'))).toBe(false);
+  });
+
+  it('pushes an address once: touching the same mast again navigates nowhere', () => {
+    const open = { ...withWindow({}, 'site'), building: 'k17abc' };
+    const navigate = vi.fn();
+    const same = () => ({ ...open });
+    navigateOnce(navigate, open, same);
+    expect(navigate).not.toHaveBeenCalled();
+    navigateOnce(navigate, open, (previous) => ({ ...previous, building: 'k18' }));
+    expect(navigate).toHaveBeenCalledOnce();
   });
 
   it('stacks a window last, and never twice', () => {
