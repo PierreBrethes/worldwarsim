@@ -798,6 +798,9 @@ function NarrowSite({
 
   const pinned = (
     <div className="paper-grain border-b border-[var(--ink)]">
+      <p className="truncate px-4 pt-[6px] text-[12px] text-[var(--ink-soft)]">
+        {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
+      </p>
       {/* Un état, jamais une action (ADR 0020 §6) : ce qui se reprend se reprend sur la carte. */}
       {unlinked && (
         <div className="px-4 pt-2 pb-2">
@@ -844,14 +847,9 @@ function NarrowSite({
     <BottomSheet
       title={fr.buildings[building.key]}
       aside={
-        <>
-          <span className="min-w-0 truncate text-[12px] text-[var(--ink-soft)]">
-            {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
-          </span>
-          <span className="flex h-[36px] w-[44px] shrink-0 [&>button]:h-full [&>button]:w-full [&>button]:justify-center">
-            <GunneryButton onOpen={onOpenGunnery} />
-          </span>
-        </>
+        <span className="flex h-[36px] w-[44px] shrink-0 [&>button]:h-full [&>button]:w-full [&>button]:justify-center">
+          <GunneryButton onOpen={onOpenGunnery} />
+        </span>
       }
       onClose={onClose}
       initial="peek"
