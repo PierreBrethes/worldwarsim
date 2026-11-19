@@ -88,6 +88,15 @@ describe('FicheSheet cycle (#593)', () => {
     render(at('x', go));
     expect(screen.getByText('résumé x').closest('.tab-fade')).toBeNull();
   });
+
+  it('reads the next object from its top, not where the last one was scrolled', () => {
+    const go = { prev: () => {}, next: () => {} };
+    const { rerender } = render(at('x', go));
+    const body = document.querySelector<HTMLElement>('.overscroll-contain')!;
+    body.scrollTop = 120;
+    rerender(at('y', go));
+    expect(body.scrollTop).toBe(0);
+  });
 });
 
 describe('FicheSheet', () => {

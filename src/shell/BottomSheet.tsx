@@ -199,6 +199,7 @@ export function BottomSheet({
   const [moving, setMoving] = useState(false);
   const sheet = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
+  const objectKey = cycle?.at;
   const pin = useRef<HTMLDivElement>(null);
   const [foot, setFoot] = useState<HTMLDivElement | null>(null);
   useLeaveGhost(sheet, 'sheet-rise', 'sheet-sink');
@@ -222,6 +223,10 @@ export function BottomSheet({
   const onStep = ports?.onStep;
 
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  /** Un objet voisin se lit depuis son début, pas là où la fiche d'avant avait défilé. */
+  useEffect(() => {
+    if (body.current) body.current.scrollTop = 0;
+  }, [objectKey]);
 
   /** La feuille ne dit sa hauteur qu'au repos : le ressort ne la publie pas à chaque image. */
   useLayoutEffect(() => {
@@ -410,7 +415,7 @@ export function BottomSheet({
                   className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35"
                 />
                 <div
-                  className={`flex items-center border-b border-[var(--ink)] pt-[6px] pb-[8px] ${cycle === undefined ? 'gap-3 px-4' : 'gap-2 px-3'}`}
+                  className={`flex items-center border-b border-[var(--ink)] pt-[6px] pb-[8px] ${cycle === undefined ? 'gap-3 px-4' : 'gap-1 px-3'}`}
                 >
                   <h2
                     className={
@@ -436,7 +441,7 @@ export function BottomSheet({
                         aria-label={label}
                         onClick={go}
                         onPointerDown={(event) => event.stopPropagation()}
-                        className="min-h-[44px] min-w-[40px] shrink-0 cursor-pointer text-[20px] leading-none text-[var(--ink)]"
+                        className="min-h-[44px] min-w-[44px] shrink-0 cursor-pointer text-[20px] leading-none text-[var(--ink)]"
                       >
                         {glyph}
                       </button>
@@ -455,7 +460,7 @@ export function BottomSheet({
           </div>
           {pinned !== undefined && (
             <div ref={pin} className="shrink-0" hidden={collapsed && !moving}>
-              {cycle === undefined ? pinned : <CycleFade key={cycle.at}>{pinned}</CycleFade>}
+              {cycle === undefined ? pinned : <CycleFade key={objectKey}>{pinned}</CycleFade>}
             </div>
           )}
           {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
@@ -468,7 +473,7 @@ export function BottomSheet({
             }
             hidden={collapsed && !moving}
           >
-            {cycle === undefined ? children : <CycleFade key={cycle.at}>{children}</CycleFade>}
+            {cycle === undefined ? children : <CycleFade key={objectKey}>{children}</CycleFade>}
           </div>
           <div ref={setFoot} className="shrink-0 empty:hidden" hidden={collapsed && !moving} />
         </section>
