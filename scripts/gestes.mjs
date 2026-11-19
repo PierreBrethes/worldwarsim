@@ -605,6 +605,14 @@ async function runProfile(profile) {
           if (!phone) return;
           await closeBoard();
           const depth = () => page.evaluate(() => history.state?.__TSR_index);
+          /** Attend que `read` rende ce qu'on dit : pas de pause fixe, l'état fait foi. */
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          const sheets = () => sheet(/./).count();
           const sheet = (name) => page.getByRole('dialog', { name });
           const gone = (name) =>
             sheet(name)
@@ -644,13 +652,14 @@ async function runProfile(profile) {
           await gone('Calques de la carte');
           assert.equal(await depth(), base, 'écran : Retour après un remplacement');
 
-          // La carte nue ferme la surface, seulement.
+          // La carte nue ferme la surface, seulement. Les deux points visés ne le sont pas par un
+          // repère : la scène est cadrée sur Paris, (195, 180) tombe sur la mer au-dessus de la
+          // poignée, (95, 330) sur la Bretagne, à découvert de la colonne et des masts.
           await todo();
           await page.touchscreen.tap(195, 180);
           await gone('À faire');
-          await page.waitForTimeout(500);
-          assert.equal(await sheet(/./).count(), 0, 'écran : la carte nue a ouvert une feuille');
-          assert.equal(await depth(), base, 'écran : la carte nue laisse une entrée');
+          await until(depth, base, 'écran : la carte nue laisse une entrée');
+          await until(sheets, 0, 'écran : la carte nue a ouvert une feuille');
 
           // Sans surface, le sol touché ouvre sa fiche (adresse comprise) ; le toucher suivant la
           // ferme et l'adresse la perd, puis Retour la ferme aussi.
@@ -670,11 +679,24 @@ async function runProfile(profile) {
           await ground().waitFor({ state: 'detached', timeout: 5000 });
           assert.ok(!country(), 'écran : Retour laisse le pays dans l’adresse');
 
+          // Retoucher l'objet dont la feuille est ouverte la ferme (un point stratégique : le
+          // camp et l'objectif suivent le même chemin, `sheetAfterTouch`, mais la démo n'a ni
+          // l'un ni l'autre à portée).
+          const point = start.strategicPoints[0];
+          await frame(point.point, 4);
+          // Le nœud du mât n'a pas de taille : c'est son pictogramme qui se touche.
+          const mast = page.locator(`[data-label-id="strategic-${point.id}"] .label-pictogram`);
+          await tap(mast);
+          await until(sheets, 1, 'écran : le mât n’ouvre pas sa feuille');
+          assert.equal(await depth(), base + 1, 'écran : la feuille du mât pose plus d’une entrée');
+          await tap(mast);
+          await until(sheets, 0, 'écran : retoucher le mât laisse sa feuille ouverte');
+          await until(depth, base, 'écran : retoucher le mât laisse une entrée');
+
           // Sans feuille, Retour quitte le plateau comme avant.
           const here = page.url();
           await page.goBack();
-          await page.waitForTimeout(800);
-          assert.notEqual(page.url(), here, 'écran : Retour ne quitte pas le plateau');
+          await page.waitForFunction((here) => location.href !== here, here, { timeout: 5000 });
           await page.goForward().catch(() => {});
         },
       },
