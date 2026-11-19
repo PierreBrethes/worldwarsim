@@ -24,6 +24,7 @@ import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
 import { ReserveCell, ReserveLine } from '@/shell/ReserveCell';
+import { useSoleSurface } from '@/shell/sole-surface';
 import { useNarrowScreen } from '@/shell/viewport';
 import {
   keptLevelOf,
@@ -108,6 +109,7 @@ export function PersonalBoard({
   onCover,
   onUnfold,
   onOpen,
+  onYield = () => onOpen(false),
   onResearch,
   onHoldTile,
   onPlaceTile,
@@ -121,6 +123,9 @@ export function PersonalBoard({
   /** Dépliée : la fenêtre `personalBoard` de l'adresse, que sa languette bascule. */
   open: boolean;
   onOpen: (open: boolean) => void;
+  /** **Une autre surface s'ouvre** (téléphone) : la bande se replie, le site sélectionné reste.
+   *  Sans lui, `onOpen(false)`. */
+  onYield?: () => void;
   /** **La fenêtre de l'arbre ouverte** (#123) : la bande se replie devant elle. */
   research: boolean;
   onResearch: (open: boolean) => void;
@@ -201,6 +206,9 @@ export function PersonalBoard({
     : filled
       ? fr.footBar.grip.fold
       : fr.footBar.grip.full;
+  // Sous le seuil, déplié ou plein, le plateau est une surface comme la feuille ; replié il ne
+  // réclame pas, sinon il fermerait toute feuille.
+  useSoleSurface(onYield, !folded);
   const foot = useFoot();
   useClaimFoot(narrow ? foot : null, board);
   const covers = narrow && !folded && site !== null;

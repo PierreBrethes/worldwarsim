@@ -60,6 +60,7 @@ import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import type { RaceLead } from '@/domain/race-rings';
 import { bindSpots } from '@/shell/flights';
+import { useSoleSurface } from '@/shell/sole-surface';
 import type { ReplayStep } from '@/domain/replay';
 import {
   aboardOf,
@@ -867,6 +868,8 @@ export function WorldMap({
   }, []);
 
   const closeRose = useCallback(() => setRose(null), []);
+  // Sous le seuil, la rose est une surface : l'ouvrir referme le plateau déplié ou la feuille.
+  useSoleSurface(closeRose, rose !== null);
 
   /**
    * **Une seule lecture de la plage** (décision 72a, #224) : le moteur répond avec

@@ -90,6 +90,14 @@ export function withoutWindow(search: BoardSearch, name: BoardWindow): BoardSear
   return remaining.length ? { ...kept, windows: remaining } : kept;
 }
 
+/** **Une fenêtre cédée la place** : elle quitte l'adresse, mais le site qu'elle portait reste
+ *  sélectionné — ce n'est pas le joueur qui la ferme, une autre surface vient de s'ouvrir. */
+export function yieldWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
+  const { windows, ...rest } = search;
+  const remaining = (windows ?? []).filter((open) => open !== name);
+  return remaining.length ? { ...rest, windows: remaining } : rest;
+}
+
 export const toggleWindow = (search: BoardSearch, name: BoardWindow): BoardSearch =>
   (search.windows ?? []).includes(name) ? withoutWindow(search, name) : withWindow(search, name);
 

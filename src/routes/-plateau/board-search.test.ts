@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withWindow, withoutWindow, toggleWindow, windowOpen } from './board-search';
+import { withWindow, withoutWindow, toggleWindow, windowOpen, yieldWindow } from './board-search';
 
 /**
  * The URL is the board's whole state, so it is where the guarantees live: a shared link
@@ -32,6 +32,12 @@ describe('the board’s search state', () => {
     const toggled = toggleWindow(focused, 'site');
     expect(windowOpen(toggled, 'site')).toBe(false);
     expect(toggled.building).toBeUndefined();
+  });
+
+  it('yields the band without letting the selected site go', () => {
+    const open = { ...withWindow({}, 'personalBoard'), building: 'k17abc' };
+    expect(yieldWindow(open, 'personalBoard')).toEqual({ building: 'k17abc' });
+    expect(withoutWindow(open, 'personalBoard').building).toBeUndefined();
   });
 
   it('keeps one surface of the column at a time, and leaves the band alone', () => {
