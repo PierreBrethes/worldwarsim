@@ -1,4 +1,4 @@
-import { outpostPinId, pinsOf } from '@/domain/pins';
+import { campPinId, outpostPinId, pinsOf } from '@/domain/pins';
 import { contactsOf } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { DISPATCH_VIEW_DISTANCE, HOME_VIEW_DISTANCE } from './-plateau/view-distance';
@@ -123,6 +123,8 @@ import {
   campsShown,
   markerOfStation,
   markersOf,
+  objectiveMarkerId,
+  strategicMarkerId,
   standingPilesOf,
   marchingPiecesOf,
   type MaquetteAt,
@@ -2597,6 +2599,17 @@ function BoardContent({
     selectedPoint === null
       ? null
       : (view.strategicPoints.find((point) => point.id === selectedPoint.id) ?? null);
+  /** **L'objet que la surface ouverte tient** (#591), un seul : la pile en main, puis le site, le
+   *  camp, l'objectif, le point. Hors champ ou sous la feuille, la carte le rappelle au bord. */
+  const heldLabelId =
+    (hand.kind === 'held' ? markerOfStation(view, hand.station) : null) ??
+    (() => {
+      const site = view.me.buildings.find((building) => building.id === focused);
+      return site === undefined ? null : buildingLabelId(site);
+    })() ??
+    (selectedCampView === null ? null : campPinId(selectedCampView.id)) ??
+    (selectedObjectiveView === null ? null : objectiveMarkerId(selectedObjectiveView.id)) ??
+    (selectedPointView === null ? null : strategicMarkerId(selectedPointView.id));
   /** **Les ordres des fiches de cible** (#588) : une offre par pile, lue sur la même fonction que
    *  le serveur relit. Le sol d'un camp se lit sur son milieu : le serveur relit la grille. */
   const targetOffers = useCallback(
@@ -3413,6 +3426,7 @@ function BoardContent({
                         : stationKeyOf({ kind: 'building', buildingId: selectedSite.id })
                   }
                   selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
+                  heldLabel={heldLabelId}
                   reach={handReach ?? movementReach}
                   onCountryHover={setHoveredCountry}
                   onRegionHover={setHoveredRegion}

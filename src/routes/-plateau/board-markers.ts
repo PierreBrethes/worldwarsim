@@ -174,7 +174,7 @@ export function markersOf(
   const objectives: ReadonlyArray<MapMarker> = (toggles.objectives ? view.objectives : []).map(
     (objective) => ({
       kind: 'objective' as const,
-      id: `objective-${objective.id}`,
+      id: objectiveMarkerId(objective.id),
       objectiveId: objective.id,
       lonLat: objective.point,
       name: fr.objectives.names[objective.key] ?? objective.key,
@@ -188,7 +188,7 @@ export function markersOf(
    *  neutres ; contestés, ils le disent sans dire par qui. */
   const points: ReadonlyArray<MapMarker> = view.strategicPoints.map((point) => ({
     kind: 'strategic' as const,
-    id: `strategic-${point.id}`,
+    id: strategicMarkerId(point.id),
     pointId: point.id,
     lonLat: point.point,
     name: fr.points.names[point.key],
@@ -627,6 +627,11 @@ export const buildingsOfMaquette = <B extends { key: string; point: LonLat | nul
   buildings: ReadonlyArray<B>,
   labelId: string | null,
 ): B[] => buildings.filter((building) => buildingLabelId(building) === labelId);
+
+/** Les étiquettes d'un objectif neutre et d'un point stratégique : une seule écriture, pour le
+ *  marqueur et pour le plateau qui rappelle l'objet tenu (#591). */
+export const objectiveMarkerId = (objectiveId: string): string => `objective-${objectiveId}`;
+export const strategicMarkerId = (pointId: string): string => `strategic-${pointId}`;
 
 /** Where a station stands on the board, as the label layer names it. A building answers with
  *  its mast and an outpost with its own marker; a **point** has none — the camera then holds

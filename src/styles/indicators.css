@@ -111,6 +111,35 @@
   pointer-events: auto;
 }
 
+/* **L'objet tenu, rappelé au bord** (#591) : un rond au doigt (44 px), la flèche tournée vers
+   l'objet (`--heading`, posé par `EdgeIndicators`). */
+.held-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.held-edge {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  zoom: var(--hud-scale);
+  pointer-events: auto;
+}
+
+.held-edge > span {
+  transform: rotate(var(--heading, 0rad));
+}
+
 /* **Les accrochages** (#441, maquette `carte-lisible` C) : le numéro sur le cercle, le
    cartouche et son fil, le jeton au bord. Le cercle est au moteur (`contact-rings.ts`). */
 .contact-marks {

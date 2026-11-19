@@ -2449,6 +2449,7 @@ export const fr = {
   },
 
   edgeIndicators: {
+    held: "Revenir à l'objet sélectionné",
     groupTitle: (count: number, nature: string) => `${count} ${nature} hors champ`,
     singleTitle: (nature: string) => `${nature} — hors champ`,
     natures: {

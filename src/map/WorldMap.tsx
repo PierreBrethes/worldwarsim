@@ -274,6 +274,9 @@ type Props = {
   /** The address whose garrison window is open: the sheet of a transport stored there opens. */
   openStation?: string | null;
   selectedLootLabel?: string | null;
+  /** **L'objet que la surface ouverte tient** (#591) : hors champ ou sous la feuille, un jeton au
+   *  bord le rappelle (`EdgeIndicators`). */
+  heldLabel?: string | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
    * détection d'une troupe désignée. Le survol l'emporte tant qu'il dure et le rend ensuite —
@@ -594,6 +597,7 @@ export function WorldMap({
   outpostZones = null,
   patrolHand = null,
   selectedLootLabel = null,
+  heldLabel = null,
   reach = null,
   onCountryHover,
   onRegionHover,
@@ -2298,6 +2302,7 @@ export function WorldMap({
         engine={readyEngine}
         toggles={indicators}
         destinations={edgeNames}
+        held={heldLabel}
       />
       {/* Au coin droit, sous la réglette : au gauche, la fiche de la pièce en main la recouvrait.
           Ce qu'on y range d'autre s'empile dessous, jamais par-dessus. */}

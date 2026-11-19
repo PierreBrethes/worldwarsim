@@ -2468,14 +2468,22 @@ export class MapEngine {
 
   /** Où `journeyTo` viserait cet ancrage sur la page, `null` s'il n'est plus là ou tourne le dos. */
   screenOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
+    const local = this.boardPointOfAnchor(id, onPiece);
+    if (local === null) return null;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    return { x: box.left + local.x, y: box.top + local.y };
+  }
+
+  /** Le même point dans le cadre de la carte, sans lire la page : de quoi le suivre à chaque
+   *  image (l'objet tenu, `heldRim`). */
+  boardPointOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
     const at = this.anchorPoint(id, onPiece);
     if (at === undefined) return null;
     const point = at.clone().project(this.eye);
     if (point.z > 1) return null;
-    const box = this.renderer.domElement.getBoundingClientRect();
     return {
-      x: box.left + ((point.x + 1) / 2) * box.width,
-      y: box.top + ((1 - point.y) / 2) * box.height,
+      x: ((point.x + 1) / 2) * this.screenWidth,
+      y: ((1 - point.y) / 2) * this.screenHeight,
     };
   }
 
