@@ -9,10 +9,14 @@ import { Pictogram } from '@/shell/IndicatorGlyph';
 import { useClock } from '@/shell/clock';
 import { crowdedBy } from './underway-room';
 
-/** La hauteur d'un onglet et d'une ligne, et l'écart entre elles : la pile dépliée se calcule. */
+/** @a-mesurer : la hauteur d'un onglet et d'une ligne, l'écart entre elles et la largeur d'une ligne
+ *  dépliée : la pile dépliée se calcule d'eux. La largeur n'est pas lue sur le nœud, car la pile
+ *  repliée n'a plus de lignes à mesurer : elle se reprendrait puis se replierait en boucle. */
 const HEAD_PX = 28;
 const ROW_PX = 44;
 const ROW_GAP_PX = 5;
+export const ROW_WIDTH_PX = 174;
+const FOLDED_ROW_PX = 90;
 
 /**
  * **La pile se replie sur son onglet quand ce qui monte du bas de la carte la recouvrirait**
@@ -22,6 +26,7 @@ const ROW_GAP_PX = 5;
 function useCrowded(section: React.RefObject<HTMLElement | null>, count: number): boolean {
   const [crowded, setCrowded] = useState(false);
   useLayoutEffect(() => {
+    let queued = 0;
     const measure = () => {
       const head = section.current?.firstElementChild;
       if (!head) return;
@@ -29,7 +34,7 @@ function useCrowded(section: React.RefObject<HTMLElement | null>, count: number)
       const scale = at.height / HEAD_PX || 1;
       const pile = {
         left: at.left,
-        right: at.left + 174 * scale,
+        right: at.left + ROW_WIDTH_PX * scale,
         top: at.top,
         bottom: at.top + (HEAD_PX + count * (ROW_PX + ROW_GAP_PX)) * scale,
       };
@@ -38,13 +43,18 @@ function useCrowded(section: React.RefObject<HTMLElement | null>, count: number)
       );
       setCrowded(crowdedBy(pile, floors));
     };
+    /** Le style de la racine change à chaque image d'un glisser d'étage : une mesure par image. */
+    const later = () => {
+      if (queued === 0) queued = requestAnimationFrame(() => ((queued = 0), measure()));
+    };
     measure();
-    const watch = new MutationObserver(measure);
+    const watch = new MutationObserver(later);
     watch.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
-    addEventListener('resize', measure);
+    addEventListener('resize', later);
     return () => {
+      cancelAnimationFrame(queued);
       watch.disconnect();
-      removeEventListener('resize', measure);
+      removeEventListener('resize', later);
     };
   }, [section, count]);
   return crowded;
@@ -112,9 +122,8 @@ export function UnderwayColumn({
             type="button"
             title={fr.underway.locate(line.label)}
             onClick={() => onLocate(line)}
-            className={`flex h-[44px] cursor-pointer items-center gap-[7px] pr-[8px] pl-[4px] text-left float ${
-              open ? 'w-[174px]' : 'w-[90px]'
-            } ${isFresh ? 'border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),white_45%)]' : 'paper-grain border border-[var(--ink)]'}`}
+            style={{ width: open ? ROW_WIDTH_PX : FOLDED_ROW_PX }}
+            className={`flex h-[44px] cursor-pointer items-center gap-[7px] pr-[8px] pl-[4px] text-left float ${isFresh ? 'border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),white_45%)]' : 'paper-grain border border-[var(--ink)]'}`}
           >
             <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center">
               <Face face={line.face} nation={nation} />
