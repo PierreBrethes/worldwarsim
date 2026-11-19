@@ -1039,6 +1039,66 @@ async function runProfile(profile) {
         },
       },
       {
+        // ‹ › de l'en-tête d'une fiche de pile : la pile voisine prend la place de la fiche, la caméra
+        // y va, et Retour ferme au lieu de revenir à la précédente (#593). Au bureau rien ne change.
+        name: 'passer à la pile suivante depuis sa fiche',
+        run: async () => {
+          if (!phone) return;
+          const depth = () => page.evaluate(() => history.state?.__TSR_index);
+          const target = () =>
+            page.evaluate(() => {
+              const { x, z } = globalThis.mapEngine.controls.target;
+              return [x, z];
+            });
+          const sheet = page.getByRole('dialog').first();
+          const named = async () => (await sheet.getAttribute('aria-label')) ?? '';
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          if (await sheet.isVisible())
+            await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await sheet.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+          const base = await depth();
+          // La pile mixte, laissée à son point par les gestes d'avant, se lève d'un toucher.
+          await frame([1, 47.3], 3);
+          const [piece] = (await piecesOf('stack-point:1,47.3')).filter((one) => one.at);
+          assert.ok(piece, 'la pile mixte n’est pas dessinée à nu');
+          await page.touchscreen.tap(...piece.at);
+          await sheet.waitFor({ timeout: 5000 });
+          const first = await named();
+          const next = page.getByRole('button', { name: 'objet suivant' });
+          await next.waitFor({ timeout: 5000 }).catch(() => assert.fail('écran : pas de ›'));
+          const here = await target();
+          await next.tap();
+          const second = async () => ((await named()) === first ? '' : await named());
+          const deadline = Date.now() + 5000;
+          while ((await second()) === '' && Date.now() < deadline) await page.waitForTimeout(50);
+          assert.notEqual(await named(), first, 'écran : › laisse la fiche de la même pile');
+          await page.waitForTimeout(2500);
+          assert.notDeepEqual(await target(), here, 'écran : la caméra n’est pas allée à la pile');
+          assert.equal(await depth(), base + 1, 'écran : changer de pile a poussé une entrée');
+          // ‹ revient à la première : le cycle est stable.
+          await page.getByRole('button', { name: 'objet précédent' }).tap();
+          await until(named, first, 'écran : ‹ ne revient pas à la pile d’avant');
+          await page.getByRole('button', { name: 'objet suivant' }).tap();
+          await page.waitForFunction(
+            (first) =>
+              document.querySelector('[role=dialog]')?.getAttribute('aria-label') !== first,
+            first,
+            { timeout: 5000 },
+          );
+          // Retour ferme la fiche : il ne rouvre pas la pile d'avant.
+          await page.goBack();
+          await sheet
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : Retour laisse une fiche de pile ouverte'));
+          assert.equal(await depth(), base, 'écran : Retour laisse une entrée');
+        },
+      },
+      {
         // Un bâtiment touché ouvre sa fiche, la carte en vue ; au bureau le plateau personnel
         // reste ce qu'il est (#587).
         name: 'la fiche d’une caserne au téléphone',
