@@ -617,13 +617,15 @@ export const fr = {
    * stratégique. Un toucher envoie, la pile est nommée sur le bouton ; son refus se lit à sa place.
    */
   strikes: {
-    header: 'Envoyer une pile',
     pile: (place: string, troops: number) =>
       `${place} · ${troops} troupe${plural(troops, '', 's')}`,
     noPile: 'aucune pile à portée',
     noShip: 'aucune de vos piles ne prend la mer — il faut un transport naval',
-    /** Un point stratégique, la marche et la prise ne font qu'un geste (`captureOrderRefusalOf`). */
-    takeVerb: 'Marcher et capturer',
+    /** Un point stratégique : deux ordres par pile, comme la rose. */
+    marchVerb: 'Marcher',
+    takeVerb: 'Capturer',
+    /** Les piles au-delà des trois plus proches, repliées. */
+    others: (count: number) => `${count} autres pile${plural(count, '', 's')}`,
   },
 
   /**

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { noShipFor, offersOf, type Offer, type OfferContext, type OfferTarget } from './offers';
+import {
+  groundFactsAt,
+  noShipFor,
+  offersOf,
+  type Offer,
+  type OfferContext,
+  type OfferTarget,
+} from './offers';
 import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import { RESOURCES } from './ids';
 import type { Building, OutpostView, PlayerView, TroopStation, TroopView } from './player-view';
@@ -587,7 +594,7 @@ describe('offersOf — a sighted camp, an objective, a strategic point (#588)', 
           troop('tank', 'armor', { stationedAt: { ...at, lonLat: [12, 50] } }),
         ],
       },
-      { strategicPoints: [], ...rest },
+      { strategicPoints: [], objectives: [], ...rest },
     );
   const withPiles = { ...ctx, piles };
 
@@ -625,16 +632,64 @@ describe('offersOf — a sighted camp, an objective, a strategic point (#588)', 
     expect(offersOf(objective, view(), { ...ctx, piles: [] })).toEqual([]);
   });
 
-  it('offers the capture of a neutral strategic point, and nothing at the one I hold', () => {
-    const offers = only(offersOf(strategic, view(), withPiles), 'march');
-    expect(offers).toHaveLength(2);
-    expect(offers.every((offer) => offer.key === 'march' && offer.pile.troopIds.length === 1)).toBe(
-      true,
-    );
+  it('offers a march and a capture per pile on a neutral strategic point, nothing at the one I hold', () => {
+    const offers = offersOf(strategic, view(), withPiles);
+    expect(offers.map((offer) => offer.key)).toEqual(['march', 'capture', 'march', 'capture']);
+    expect(offers.every((offer) => 'pile' in offer && offer.pile.troopIds.length === 1)).toBe(true);
     const mine = view({
       strategicPoints: [{ id: 'p', mine: true }],
     } as unknown as Partial<PlayerView>);
     expect(offersOf(strategic, mine, withPiles)).toEqual([]);
+  });
+
+  it('lets a pile without infantry march on a strategic point and says its capture is refused', () => {
+    const offers = offersOf(strategic, view(), withPiles);
+    const tank = offers.filter((offer) => 'pile' in offer && offer.pile.place === 'Metz');
+    expect(tank.map((offer) => [offer.key, offer.refusal])).toEqual([
+      ['march', null],
+      ['capture', fr.errors.CAPTURE_NEEDS_INFANTRY()],
+    ]);
+  });
+
+  it('offers nothing against an objective already emptied', () => {
+    const emptied = view({
+      objectives: [{ id: 'o', status: 'taken' }],
+    } as unknown as Partial<PlayerView>);
+    expect(offersOf(objective, emptied, withPiles)).toEqual([]);
+    const standing = view({
+      objectives: [{ id: 'o', status: 'standing' }],
+    } as unknown as Partial<PlayerView>);
+    expect(offersOf(objective, standing, withPiles)).not.toEqual([]);
+  });
+
+  it('offers a fleet afloat the coastal camp, and refuses a land column an unwalkable one', () => {
+    const afloat = { ...at, afloat: true, ground: 'sea' as const };
+    const fleet = viewWith({ troops: [troop('ship', 'escort', { stationedAt: afloat })] });
+    const ship = [{ station: afloat, troopIds: ['ship'], place: 'Brest' }];
+    const ctxShip = { ...ctx, piles: ship };
+    const refusals = (target: OfferTarget, v: PlayerView, c: OfferContext) =>
+      only(offersOf(target, v, c), 'strike').map((offer) => offer.refusal);
+    expect(refusals(camp({ coastal: true }), fleet, ctxShip)).toEqual([null]);
+    expect(refusals(camp({ coastal: false }), fleet, ctxShip)).toEqual([
+      fr.errors.SEA_TARGET_REQUIRED(),
+    ]);
+    expect(refusals(camp({ walkable: false }), view(), withPiles)).toEqual([
+      fr.errors.NO_FOOTING(),
+      fr.errors.NO_FOOTING(),
+    ]);
+  });
+
+  it('reads the ground under a point as the rose does: ground, shore and footing together', () => {
+    const lookups = {
+      groundAt: () => 'lake' as const,
+      coastAt: () => true,
+      walkableAt: () => false,
+    };
+    expect(groundFactsAt([10, 51], lookups)).toEqual({
+      ground: 'lake',
+      coastal: true,
+      walkable: false,
+    });
   });
 
   it('reads the Blitz as the server does: a unit, a camp, the theatre’s box (B18)', () => {

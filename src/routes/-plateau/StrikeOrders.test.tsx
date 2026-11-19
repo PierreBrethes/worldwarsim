@@ -16,18 +16,43 @@ const station = {
   coastal: false,
 } as const;
 const aim = { kind: 'camp', campId: 'c', lon: 6, lat: 49, hostCountry: 'LUX' } as never;
-const offer = (place: string, refusal: string | null, code: string | null = null): Offer =>
+const offer = (
+  place: string,
+  refusal: string | null,
+  code: string | null = null,
+  ids: string[] = ['a', 'b'],
+): Offer =>
   ({
     key: 'strike',
     rank: 'strike',
     refusal,
     loses: null,
-    pile: { station, troopIds: ['a', 'b'], place },
+    pile: { station, troopIds: ids, place },
     aim,
     code,
   }) as Offer;
 
 describe('StrikeOrders', () => {
+  it('shows the three nearest piles and folds the others under « N autres piles »', () => {
+    const piles = ['Metz', 'Nancy', 'Toul', 'Verdun', 'Reims'].map((place, rank) =>
+      offer(place, null, null, [`t${rank}`]),
+    );
+    render(<StrikeOrders offers={piles} onOffer={() => {}} />);
+    expect(screen.getAllByRole('button', { name: /troupe/ })).toHaveLength(3);
+    expect(screen.queryByText(/Verdun/)).toBeNull();
+    act(() => screen.getByRole('button', { name: fr.strikes.others(2) }).click());
+    expect(screen.getAllByRole('button', { name: /troupe/ })).toHaveLength(5);
+    expect(screen.queryByRole('button', { name: fr.strikes.others(2) })).toBeNull();
+  });
+
+  it('folds nothing for three piles or fewer', () => {
+    const piles = ['Metz', 'Nancy', 'Toul'].map((place, rank) =>
+      offer(place, null, null, [`t${rank}`]),
+    );
+    render(<StrikeOrders offers={piles} onOffer={() => {}} />);
+    expect(screen.queryByRole('button', { name: /autre/ })).toBeNull();
+  });
+
   it('names the pile on the button, and a touch sends it (#588)', () => {
     const send = vi.fn();
     const ready = offer('Thionville', null);

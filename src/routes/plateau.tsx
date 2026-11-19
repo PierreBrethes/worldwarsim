@@ -22,7 +22,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
 import { effectiveSpecialty, isOnWatch, lookoutKmOf, sameLiaison } from '@/domain/outposts';
 import { drawnLiaisonsIn, holdsPatrolTroop, outpostNameIn, withoutPatrols } from '@/domain/patrol';
-import { offersOf, type Offer, type OfferTarget } from '@/domain/offers';
+import { offersOf, type GroundFacts, type Offer, type OfferTarget } from '@/domain/offers';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
@@ -584,6 +584,12 @@ function BoardContent({
   /** De quoi nommer la maquette sous un point, dès que la carte est prête (#205). */
   const [maquetteAt, setMaquetteAt] = useState<MaquetteAt | null>(null);
   const keepMaquetteAt = useCallback((lookup: MaquetteAt) => setMaquetteAt(() => lookup), []);
+  /** Le sol sous un point, lu comme la rose le lit : la fiche d'un camp y prend côte et pied (#588). */
+  const [groundFacts, setGroundFacts] = useState<((lonLat: LonLat) => GroundFacts) | null>(null);
+  const keepGroundFacts = useCallback(
+    (lookup: (lonLat: LonLat) => GroundFacts) => setGroundFacts(() => lookup),
+    [],
+  );
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
@@ -2615,11 +2621,13 @@ function BoardContent({
               point: selectedCampView.point,
               country: null,
               name: fr.camps.marker,
-              ground: selectedCampView.medium === 'sea' ? 'sea' : 'land',
+              ...(groundFacts?.(selectedCampView.point) ?? {
+                ground: selectedCampView.medium === 'sea' ? 'sea' : 'land',
+              }),
             },
             selectedCampView.point,
           ),
-    [selectedCampView, targetOffers],
+    [selectedCampView, targetOffers, groundFacts],
   );
   const objectiveOffers = useMemo(
     () =>
@@ -2658,10 +2666,19 @@ function BoardContent({
    *  ni « Envoyer », par le même envoi que la rose (`sendOrder`). La fiche se ferme au départ. */
   const strikeFrom = useCallback(
     (offer: Offer) => {
-      if ((offer.key !== 'strike' && offer.key !== 'march') || inFlight.current) return;
+      if (
+        (offer.key !== 'strike' && offer.key !== 'march' && offer.key !== 'capture') ||
+        inFlight.current
+      )
+        return;
       const { aim, pile } = offer;
-      const capturing = offer.key === 'march' && aim.kind === 'strategic';
-      const label = capturing ? fr.strikes.takeVerb : fr.drop.verbs.attack;
+      const capturing = offer.key === 'capture' && aim.kind === 'strategic';
+      const label =
+        offer.key === 'capture'
+          ? fr.strikes.takeVerb
+          : offer.key === 'march'
+            ? fr.strikes.marchVerb
+            : fr.drop.verbs.attack;
       const named =
         aim.kind === 'camp'
           ? fr.camps.marker
@@ -3402,6 +3419,7 @@ function BoardContent({
                   onRegionsLoaded={keepRegionAt}
                   onDisbandGround={blitz ? undefined : setDisbandGround}
                   onMaquetteLookup={keepMaquetteAt}
+                  onGroundLookup={keepGroundFacts}
                   onPointLookup={keepPointAt}
                   onArcHover={setHoveredArc}
                   onLabelHover={setHoveredLabel}

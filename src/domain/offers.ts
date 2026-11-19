@@ -31,6 +31,7 @@ import {
 } from './movement-orders';
 import { isNation } from './nations';
 import { patrolLineOf, type Liaison } from './patrol';
+import type { Ground } from './routing';
 import {
   currentStock,
   type Cost,
@@ -130,9 +131,17 @@ export type Offer = {
       /** Le code du refus, pour la phrase que la fiche dit de toutes les piles à la fois. */
       readonly code: string | null;
     }
-  /** Une pile marche sur un point stratégique pour le prendre : le refus de la capture. */
+  /** Une pile marche sur un point stratégique, comme la rose : le refus de `refusalOf('attack')`
+   *  (celui de `march` y est toujours `POINT_TARGET_ONLY`). */
   | {
       readonly key: 'march';
+      readonly pile: OfferPile;
+      readonly aim: MovementAim;
+      readonly code: string | null;
+    }
+  /** Une pile prend un point stratégique : le refus de `captureOrderRefusalOf`. */
+  | {
+      readonly key: 'capture';
       readonly pile: OfferPile;
       readonly aim: MovementAim;
       readonly code: string | null;
@@ -190,7 +199,9 @@ export function offersOf(
 /** **Aucune pile ne prend la mer** : toutes refusées, et toutes du même mot — une colonne à terre
  *  ne vise pas l'eau. La fiche le dit d'une phrase, au lieu de la répéter sur chaque ligne. */
 export const noShipFor = (offers: ReadonlyArray<Offer>): boolean => {
-  const struck = offers.filter((offer) => offer.key === 'strike' || offer.key === 'march');
+  const struck = offers.filter(
+    (offer) => offer.key === 'strike' || offer.key === 'march' || offer.key === 'capture',
+  );
   return (
     struck.length > 0 &&
     struck.every((offer) => 'code' in offer && offer.code === 'LAND_TARGET_REQUIRED')
@@ -223,10 +234,31 @@ function aimOfTarget(
 }
 
 /**
+ * **Le sol sous un point, lu comme la rose le lit** : terre, côte et pied marchable ensemble. La
+ * rose et la fiche d'un camp prennent leurs trois lectures ici, sur la même grille (ADR 0015).
+ */
+export type GroundLookups = {
+  readonly groundAt: (point: LonLat) => Ground;
+  readonly coastAt: (point: LonLat) => boolean;
+  readonly walkableAt: (point: LonLat) => boolean;
+};
+export type GroundFacts = {
+  readonly ground: Ground;
+  readonly coastal: boolean;
+  readonly walkable: boolean;
+};
+export const groundFactsAt = (point: LonLat, lookups: GroundLookups): GroundFacts => ({
+  ground: lookups.groundAt(point),
+  coastal: lookups.coastAt(point),
+  walkable: lookups.walkableAt(point),
+});
+
+/**
  * **Un ordre par pile, son refus à sa place** (#588, ADR 0015) : le camp et l'objectif s'attaquent
- * (`refusalOf('attack')`), le point stratégique se prend (`captureOrderRefusalOf`), tous deux lus
- * sur la colonne de la pile comme le serveur la lit. Un point que je tiens n'offre rien. Aucune
- * pile, aucun ordre : la fiche le dit.
+ * (`refusalOf('attack')`) ; le point stratégique offre, comme la rose, la marche (`attack`) et la
+ * capture (`captureOrderRefusalOf`), chacune avec son refus. Tous lus sur la colonne de la pile
+ * comme le serveur la lit. Un point que je tiens, un objectif épuisé n'offrent rien. Aucune pile,
+ * aucun ordre : la fiche le dit.
  */
 function strikeOffers(
   target: Extract<OfferTarget, { kind: 'camp' | 'objective' | 'strategic' }>,
@@ -238,22 +270,32 @@ function strikeOffers(
     view.strategicPoints.find((point) => point.id === target.id)?.mine === true
   )
     return [];
+  if (
+    target.kind === 'objective' &&
+    view.objectives.find((objective) => objective.id === target.id)?.status === 'taken'
+  )
+    return [];
   const aim = aimOfTarget(target);
-  return (ctx.piles ?? []).map((pile): Offer => {
+  return (ctx.piles ?? []).flatMap((pile): Offer[] => {
     const column = armedColumn(view, pile.station, pile.troopIds).rule;
-    const code =
-      target.kind === 'strategic'
-        ? captureOrderRefusalOf(aim, column, false)
-        : refusalOf('attack', aim, column);
-    return {
-      key: target.kind === 'strategic' ? 'march' : 'strike',
+    const offer = (key: 'strike' | 'march' | 'capture', code: string | null): Offer => ({
+      key,
       rank: 'strike',
-      refusal: code === null ? null : fr.errors[code](refusalDetails(aim, column)),
+      refusal:
+        code === null
+          ? null
+          : fr.errors[code as keyof typeof fr.errors](refusalDetails(aim, column)),
       loses: null,
       pile,
       aim,
       code,
-    };
+    });
+    return target.kind === 'strategic'
+      ? [
+          offer('march', refusalOf('attack', aim, column)),
+          offer('capture', captureOrderRefusalOf(aim, column, false)),
+        ]
+      : [offer('strike', refusalOf('attack', aim, column))];
   });
 }
 

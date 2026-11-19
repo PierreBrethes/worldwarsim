@@ -7,6 +7,7 @@ import { SweepOverlay, type SweepRequest } from './SweepOverlay';
 import { AbsenceTourBand, useAbsenceTour } from './AbsenceTour';
 import { BigStamp, useMomentScene } from './MomentScene';
 import type { Moment } from '@/domain/moments';
+import { groundFactsAt, type GroundFacts } from '@/domain/offers';
 import type { AbsenceTour } from '@/domain/absence-tour';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
 import type { Contact } from '@/domain/contacts';
@@ -292,6 +293,9 @@ type Props = {
   /** **La carte prête** tend au plateau de quoi nommer la maquette sous un point : une
    *  tuile du plateau personnel se lâche sur une maquette (#205). */
   onMaquetteLookup?: (maquetteAt: (clientX: number, clientY: number) => string | null) => void;
+  /** **La carte prête** tend le sol sous un point, comme la rose le lit : la fiche d'un camp y
+   *  prend sa terre, sa côte et son pied marchable (`groundFactsAt`, #588). */
+  onGroundLookup?: (factsAt: (lonLat: LonLat) => GroundFacts) => void;
   /** **La carte prête** tend de même le lieu sous un point de l'écran, pour ce qui doit se garder
    *  en lon/lat (`reveal`) : un pixel ne survit pas à un geste de carte. */
   onPointLookup?: (pointAt: (clientX: number, clientY: number) => LonLat | null) => void;
@@ -596,6 +600,7 @@ export function WorldMap({
   onRegionsLoaded,
   onDisbandGround,
   onMaquetteLookup,
+  onGroundLookup,
   onPointLookup,
   onArcHover,
   onLabelHover,
@@ -701,6 +706,16 @@ export function WorldMap({
   useEffect(() => {
     if (readyEngine) onMaquetteLookup?.((x, y) => readyEngine.maquetteAtPoint(x, y));
   }, [readyEngine, onMaquetteLookup]);
+  useEffect(() => {
+    if (readyEngine)
+      onGroundLookup?.((point) =>
+        groundFactsAt(point, {
+          groundAt: (at) => readyEngine.groundAt(at),
+          coastAt: (at) => readyEngine.coastAt(at),
+          walkableAt: (at) => readyEngine.walkableAt(at),
+        }),
+      );
+  }, [readyEngine, onGroundLookup]);
   useEffect(() => {
     if (readyEngine) onPointLookup?.((x, y) => readyEngine.pointAt(x, y));
   }, [readyEngine, onPointLookup]);
@@ -2884,9 +2899,9 @@ export function targetOfLabel(
       country,
       /** Sur le point du mât, jamais sous le curseur : un mât plein cadre déborde sa cellule, et
        *  une flotte vise le mouillage relevé, pas le pixel cliqué. */
-      ground: label.anchor.kind === 'ground' ? groundAt(label.anchor.lonLat) : 'sea',
-      coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
-      walkable: label.anchor.kind !== 'ground' || walkableAt(label.anchor.lonLat),
+      ...(label.anchor.kind === 'ground'
+        ? groundFactsAt(label.anchor.lonLat, { groundAt, coastAt, walkableAt })
+        : { ground: 'sea' as const, coastal: false, walkable: true }),
       name: fr.camps.marker,
     };
   }
