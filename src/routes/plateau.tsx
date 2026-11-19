@@ -1019,11 +1019,8 @@ function BoardContent({
       if (!blitz && !narrow && isProjectionKey(standing.key)) {
         setGarrison(null);
         setHand(EMPTY_HAND);
-        if (narrow) frameOnOpen({ kind: 'journey', ids: [buildingLabelId(standing)] });
-        else {
-          forgetFrame();
-          setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
-        }
+        forgetFrame();
+        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
         goTo((previous) => {
           const windows = (previous.windows ?? []).filter((open) => open !== 'site');
           return { ...withWindow({ ...previous, windows }, 'personalBoard'), building: buildingId };
