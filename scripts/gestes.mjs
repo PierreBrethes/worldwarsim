@@ -15,7 +15,7 @@
  * La souris porte du bouton premier : le moteur ne lève une pièce que de lui, quel que soit le
  * réglage des boutons (`armCarry`), et aucun geste de la liste ne passe par la rose.
  */
-/* global document, innerWidth, innerHeight, history -- les fonctions passées à `page.evaluate` tournent dans la page. */
+/* global document, innerWidth, innerHeight, history, location -- les fonctions passées à `page.evaluate` tournent dans la page. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
