@@ -61,6 +61,7 @@ const viewWith = (me: Partial<PlayerView['me']> = {}, rest: Partial<PlayerView> 
     loadedAt: 0,
     arcs: [],
     captures: [],
+    outpostFoundation: { cost: { steel: 20 }, minutes: 120 },
     me: {
       nation: 'germany',
       slots: { total: 4, used: 0 },
@@ -130,6 +131,19 @@ describe('offersOf — a pile', () => {
     expect(found?.refusal).toBe(fr.errors.FRIENDLY_TARGET({ region: 'Thuringe' }));
   });
 
+  it('says what is lacking instead of founding without the steel (ADR 0015)', () => {
+    const poor = viewWith({
+      troops: [troop('i1', 'infantry')],
+      resources: Object.fromEntries(
+        RESOURCES.map((key) => [key, { stock: 5.7, ratePerHour: 0, cap: 1000 }]),
+      ) as PlayerView['me']['resources'],
+    });
+    const [found] = only(offersOf(pile(['i1']), poor, ctx), 'found');
+    expect(found?.refusal).toBe(
+      fr.errors.INSUFFICIENT_RESOURCE({ resource: 'steel', needed: 20, available: 5 }),
+    );
+  });
+
   it('has no founding for a garrison: one founds where one stands', () => {
     const station: TroopStation = { kind: 'outpost', outpostId: 'AP1' };
     const view = viewWith({ troops: [troop('i1', 'infantry', { stationedAt: station })] });
@@ -147,6 +161,21 @@ describe('offersOf — disembarking', () => {
     expect(only(offersOf(pile(['c1', 'i1']), pileAboard, ctx), 'disembark')).toEqual([
       { key: 'disembark', rank: 'thumb', refusal: null, loses: null, troopIds: ['i1'] },
     ]);
+  });
+
+  it('offers one disembark per rider, each with its own troop', () => {
+    const view = viewWith({
+      troops: [
+        troop('c1', 'cargo'),
+        troop('i1', 'infantry', { carriedBy: 'c1' }),
+        troop('i2', 'infantry', { carriedBy: 'c1' }),
+      ],
+    });
+    expect(
+      only(offersOf(pile(['c1', 'i1', 'i2']), view, ctx), 'disembark').map((offer) =>
+        'troopIds' in offer ? offer.troopIds : null,
+      ),
+    ).toEqual([['i1'], ['i2']]);
   });
 
   it('refuses at sea, with the server’s sentence', () => {

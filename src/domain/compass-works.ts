@@ -450,8 +450,7 @@ function foundHere(
       regionId: target.regionId,
       troopIds: held.map((troop) => troop.id),
       figure: cost,
-      bill: billOf(cost, view),
-      duration: asDuration(view.outpostFoundation.minutes),
+      ...foundingTerms(view),
     },
     refusal: null,
   };

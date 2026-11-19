@@ -4,6 +4,7 @@ import type { CompassTarget } from './compass-rose';
 import { foundingMotive } from './compass-works';
 import {
   demolitionRefusalOf,
+  foundationHold,
   outpostDismantleRefusalOf,
   outpostRaiseHold,
   pledgedOutposts,
@@ -96,7 +97,7 @@ export type Offer = {
   readonly loses: string | null;
 } & (
   | { readonly key: 'found'; readonly troopIds: ReadonlyArray<string> }
-  /** Les passagers d'un transport de la pile. */
+  /** Un passager d'un transport de la pile. */
   | { readonly key: 'disembark'; readonly troopIds: ReadonlyArray<string> }
   /** Cible : une liaison tracée de son avant-poste (`drawnLiaisonsIn`, via `patrolLineOf`). */
   | { readonly key: 'patrol'; readonly troopId: string; readonly liaison: Liaison }
@@ -171,18 +172,30 @@ function troopOffers(
         view.me.buildings.some((building) => building.regionId === target.regionId),
       target.ground === 'land',
     );
+    // Le serveur débite la facture : la matière qui manque se dit comme la rose la dit.
+    const hold = refusal === null ? foundationHold(view, ctx.now) : null;
     offers.push({
       key: 'found',
       rank: 'thumb',
-      refusal: refusal === null ? null : foundingMotive(refusal, held, target, view),
+      refusal:
+        refusal !== null
+          ? foundingMotive(refusal, held, target, view)
+          : hold === null
+            ? null
+            : fr.errors.INSUFFICIENT_RESOURCE({
+                resource: hold.resource,
+                needed: hold.needed,
+                available: Math.floor(hold.available),
+              }),
       loses: null,
       troopIds: held.map((troop) => troop.id),
     });
   }
 
-  for (const carrier of pile) {
-    const riders = held.filter((troop) => carrierIn(troop, pile)?.id === carrier.id);
-    if (riders.length === 0) continue;
+  // Un passager à la fois : on débarque celui qu'on touche, la pile garde le reste à bord.
+  for (const rider of held) {
+    const carrier = carrierIn(rider, pile);
+    if (carrier === null) continue;
     const refusal = disembarkRefusalOf({
       carrier: carrier.role,
       afloat: ctx.afloat,
@@ -193,7 +206,7 @@ function troopOffers(
       rank: 'thumb',
       refusal: refusal === null ? null : fr.errors[refusal](),
       loses: null,
-      troopIds: riders.map((troop) => troop.id),
+      troopIds: [rider.id],
     });
   }
 
