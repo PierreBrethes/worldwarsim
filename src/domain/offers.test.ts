@@ -546,24 +546,103 @@ describe('offersOf — an outpost', () => {
   });
 });
 
-describe('offersOf — a sighted camp and an objective', () => {
-  it('offer nothing yet (#588)', () => {
-    const camp = {
+describe('offersOf — a sighted camp, an objective, a strategic point (#588)', () => {
+  const camp = (extra: Record<string, unknown> = {}) =>
+    ({
       kind: 'camp',
       id: 'c',
-      point: [0, 0],
-      country: null,
+      point: [10, 51],
+      country: 'DEU',
       name: 'camp',
-    } as OfferTarget;
-    const objective = {
-      kind: 'objective',
-      id: 'o',
-      point: [0, 0],
-      country: null,
-      name: 'o',
-      tier: 'I',
-    } as OfferTarget;
-    expect(offersOf(camp, viewWith(), ctx)).toEqual([]);
-    expect(offersOf(objective, viewWith(), ctx)).toEqual([]);
+      ...extra,
+    }) as OfferTarget;
+  const objective = {
+    kind: 'objective',
+    id: 'o',
+    point: [10, 51],
+    country: 'DEU',
+    name: 'o',
+    tier: 'I',
+  } as OfferTarget;
+  const strategic = {
+    kind: 'strategic',
+    id: 'p',
+    point: [10, 51],
+    country: 'DEU',
+    name: 'Tanger',
+  } as OfferTarget;
+  const piles = [
+    { station: at, troopIds: ['inf'], place: 'Thionville' },
+    {
+      station: { ...at, lonLat: [12, 50] as [number, number] },
+      troopIds: ['tank'],
+      place: 'Metz',
+    },
+  ];
+  const view = (rest: Partial<PlayerView> = {}) =>
+    viewWith(
+      {
+        troops: [
+          troop('inf', 'infantry'),
+          troop('tank', 'armor', { stationedAt: { ...at, lonLat: [12, 50] } }),
+        ],
+      },
+      { strategicPoints: [], ...rest },
+    );
+  const withPiles = { ...ctx, piles };
+
+  it('offers « attack » once per pile, each refused in its own place', () => {
+    const offers = only(offersOf(camp(), view(), withPiles), 'strike');
+    expect(offers.map((offer) => offer.key === 'strike' && offer.pile.place)).toEqual([
+      'Thionville',
+      'Metz',
+    ]);
+    expect(offers.map((offer) => offer.refusal)).toEqual([null, null]);
+  });
+
+  it('refuses a pile of land with the server’s sentence when the camp lies at sea', () => {
+    const offers = only(offersOf(camp({ ground: 'sea' }), view(), withPiles), 'strike');
+    expect(offers.map((offer) => offer.refusal)).toEqual([
+      fr.errors.LAND_TARGET_REQUIRED(),
+      fr.errors.LAND_TARGET_REQUIRED(),
+    ]);
+  });
+
+  it('says an objective needs infantry: the tank pile is refused, the infantry one is not', () => {
+    const offers = only(offersOf(objective, view(), withPiles), 'strike');
+    expect(offers.map((offer) => offer.refusal)).toEqual([null, fr.errors.INFANTRY_REQUIRED()]);
+  });
+
+  it('has nothing to offer from no pile at all', () => {
+    expect(offersOf(camp(), view(), ctx)).toEqual([]);
+    expect(offersOf(objective, view(), { ...ctx, piles: [] })).toEqual([]);
+  });
+
+  it('offers the capture of a neutral strategic point, and nothing at the one I hold', () => {
+    const offers = only(offersOf(strategic, view(), withPiles), 'march');
+    expect(offers).toHaveLength(2);
+    expect(offers.every((offer) => offer.key === 'march' && offer.pile.troopIds.length === 1)).toBe(
+      true,
+    );
+    const mine = view({
+      strategicPoints: [{ id: 'p', mine: true }],
+    } as unknown as Partial<PlayerView>);
+    expect(offersOf(strategic, mine, withPiles)).toEqual([]);
+  });
+
+  it('reads the Blitz as the server does: a unit, a camp, the theatre’s box (B18)', () => {
+    const blitz = view({ mode: 'blitz', theatre: 'europe' } as Partial<PlayerView>);
+    const alone = { ...withPiles, piles: [piles[0]!] };
+    expect(only(offersOf(camp(), blitz, alone), 'strike').map((offer) => offer.refusal)).toEqual([
+      null,
+    ]);
+    expect(
+      only(offersOf(camp({ point: [100, 0] }), blitz, alone), 'strike').map(
+        (offer) => offer.refusal,
+      ),
+    ).toEqual([fr.errors.OUTSIDE_THEATRE()]);
+    expect(only(offersOf(objective, blitz, alone), 'strike').map((offer) => offer.refusal)).toEqual(
+      [fr.errors.UNIT_TARGET_ONLY()],
+    );
   });
 });

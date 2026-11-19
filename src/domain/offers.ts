@@ -16,13 +16,18 @@ import {
 import type { LonLat } from './geo';
 import { CHOSEN_SPECIALTIES, RESOURCES, type ChosenSpecialty, type ResourceKey } from './ids';
 import type { UnitRole, UnitTier } from './ids';
+import { armedColumn } from './armed-column';
 import {
+  captureOrderRefusalOf,
   disbandRefusalOf,
   disbandSpanKm,
   disbandSpotsAt,
   disembarkRefusalOf,
   foundingRefusal,
+  refusalDetails,
+  refusalOf,
   type DisbandGround,
+  type MovementAim,
 } from './movement-orders';
 import { isNation } from './nations';
 import { patrolLineOf, type Liaison } from './patrol';
@@ -36,6 +41,7 @@ import {
 import {
   carrierIn,
   marchingTroopIds,
+  type MarchStation,
   projectionKeyOf,
   recruitRefusalOf,
   stationKeyOf,
@@ -63,8 +69,9 @@ type Workshop = {
 /**
  * **Ce que touche le joueur.** `force` est la pile posée de la rose, avec les troupes que la main
  * en tient ; `garrison`, les troupes tenues dans un bâtiment ou un avant-poste. Un bâtiment porte
- * l'atelier quand la query est arrivée : sans lui, pas de carte à former. Camp relevé et objectif
- * n'offrent rien encore (#588).
+ * l'atelier quand la query est arrivée : sans lui, pas de carte à former. Un camp relevé, un
+ * objectif et un point stratégique offrent un ordre par pile du joueur (`OfferContext.piles`) : ce
+ * que la fiche dit est ce que le brouillard laisse lire (#588).
  */
 export type OfferTarget =
   | (Extract<CompassTarget, { kind: 'force' }> & { readonly troopIds: ReadonlyArray<string> })
@@ -74,7 +81,15 @@ export type OfferTarget =
       readonly troopIds: ReadonlyArray<string>;
     }
   | (Extract<CompassTarget, { kind: 'building' }> & { readonly workshop?: Workshop })
-  | Extract<CompassTarget, { kind: 'outpost' | 'camp' | 'objective' }>;
+  | Extract<CompassTarget, { kind: 'outpost' | 'camp' | 'objective' | 'strategic' }>;
+
+/** **Une pile du joueur, telle que la fiche d'une cible l'envoie** : l'adresse, les troupes qui
+ *  partiraient, et le lieu en toutes lettres pour nommer le bouton. */
+export type OfferPile = {
+  readonly station: MarchStation;
+  readonly troopIds: ReadonlyArray<string>;
+  readonly place: string;
+};
 
 /** Les faits de l'instant que la vue ne porte pas. `ground` nul : la géographie n'est pas
  *  arrivée, la place de la couronne n'est pas tranchée — dissoudre est offert, le serveur juge. */
@@ -83,11 +98,14 @@ export type OfferContext = {
   readonly ground: DisbandGround | null;
   readonly afloat: boolean;
   readonly atAirfield: boolean;
+  /** Les piles que la fiche d'un camp, d'un objectif ou d'un point stratégique propose d'envoyer.
+   *  Absentes, la fiche n'offre aucun envoi. */
+  readonly piles?: ReadonlyArray<OfferPile>;
 };
 
 /** Sous le pouce, au second rang de l'essentiel, ou dans un onglet de la fiche : `sheet` (fiche
  *  d'un bâtiment), `queue` (file du site), `raise` (élévation d'un avant-poste), `point`. */
-type OfferRank = 'thumb' | 'second' | 'sheet' | 'queue' | 'raise' | 'point';
+type OfferRank = 'thumb' | 'second' | 'sheet' | 'queue' | 'raise' | 'point' | 'strike';
 
 export type Offer = {
   readonly rank: OfferRank;
@@ -104,6 +122,10 @@ export type Offer = {
   | { readonly key: 'recall'; readonly troopId: string }
   /** Cible : le point où la pile se tient. */
   | { readonly key: 'disband'; readonly point: LonLat }
+  /** Une pile attaque la cible, d'un toucher : `refusal` est celui de `refusalOf('attack')`. */
+  | { readonly key: 'strike'; readonly pile: OfferPile; readonly aim: MovementAim }
+  /** Une pile marche sur un point stratégique pour le prendre : le refus de la capture. */
+  | { readonly key: 'march'; readonly pile: OfferPile; readonly aim: MovementAim }
   | { readonly key: 'raise'; readonly buildingId: string }
   | { readonly key: 'demolish'; readonly buildingId: string }
   | {
@@ -149,8 +171,68 @@ export function offersOf(
     }
     case 'camp':
     case 'objective':
-      return [];
+    case 'strategic':
+      return strikeOffers(target, view, ctx);
   }
+}
+
+/** La visée que la cible est pour `refusalOf`, la même que celle de la rose. */
+function aimOfTarget(
+  target: Extract<OfferTarget, { kind: 'camp' | 'objective' | 'strategic' }>,
+): MovementAim {
+  const [lon, lat] = target.point;
+  const hostCountry = target.country ?? '';
+  switch (target.kind) {
+    case 'camp':
+      return {
+        kind: 'camp',
+        campId: target.id,
+        lon,
+        lat,
+        hostCountry,
+        ground: target.ground ?? 'land',
+        coastal: target.coastal ?? false,
+        ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
+      };
+    case 'objective':
+      return { kind: 'objective', objectiveId: target.id, lon, lat, hostCountry };
+    case 'strategic':
+      return { kind: 'strategic', pointId: target.id, lon, lat, hostCountry };
+  }
+}
+
+/**
+ * **Un ordre par pile, son refus à sa place** (#588, ADR 0015) : le camp et l'objectif s'attaquent
+ * (`refusalOf('attack')`), le point stratégique se prend (`captureOrderRefusalOf`), tous deux lus
+ * sur la colonne de la pile comme le serveur la lit. Un point que je tiens n'offre rien. Aucune
+ * pile, aucun ordre : la fiche le dit.
+ */
+function strikeOffers(
+  target: Extract<OfferTarget, { kind: 'camp' | 'objective' | 'strategic' }>,
+  view: PlayerView,
+  ctx: OfferContext,
+): Offer[] {
+  if (
+    target.kind === 'strategic' &&
+    view.strategicPoints.find((point) => point.id === target.id)?.mine === true
+  )
+    return [];
+  const aim = aimOfTarget(target);
+  return (ctx.piles ?? []).map((pile): Offer => {
+    const column = armedColumn(view, pile.station, pile.troopIds).rule;
+    const code =
+      target.kind === 'strategic'
+        ? captureOrderRefusalOf(aim, column, false)
+        : refusalOf('attack', aim, column);
+    return {
+      key: target.kind === 'strategic' ? 'march' : 'strike',
+      rank: 'strike',
+      refusal: code === null ? null : fr.errors[code](refusalDetails(aim, column)),
+      loses: null,
+      pile,
+      aim,
+    };
+  });
 }
 
 function troopOffers(
