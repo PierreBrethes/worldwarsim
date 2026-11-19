@@ -728,6 +728,45 @@ async function runProfile(profile) {
         },
       },
       {
+        // Un bâtiment touché ouvre sa fiche, la carte en vue ; au bureau le plateau personnel
+        // reste ce qu'il est (#587).
+        name: 'la fiche d’une caserne au téléphone',
+        run: async () => {
+          if (!phone) return;
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          const site = start.me.buildings.find((building) => building.key === 'barracks');
+          assert.ok(site, 'la démo n’a pas de caserne');
+          const id = `building-barracks@${site.point[0]},${site.point[1]}`;
+          await frame(site.point, 4);
+          const sheet = page.getByRole('dialog', { name: 'Caserne' });
+          const step = () => sheet.getAttribute('data-height');
+          await tap(page.locator(`[data-label-id="${id}"] .label-lines`).first());
+          await sheet.waitFor({ timeout: 5000 });
+          assert.equal(await step(), 'peek', 'écran : la fiche ne s’ouvre pas au rang');
+          // Un lancer vers le bas la réduit à son en-tête, le site reste sélectionné.
+          const box = await sheet.boundingBox();
+          const grip = [box.x + box.width / 2, box.y + 20];
+          await touch('touchStart', [grip]);
+          await fingers([grip], [[grip[0], grip[1] + 200]], 120);
+          await touch('touchEnd', []);
+          await until(step, 'collapsed', 'écran : un lancer vers le bas ne réduit pas la fiche');
+          assert.ok(await sheet.isVisible(), 'écran : la fiche réduite a disparu');
+          // La carte nue la ferme.
+          await frame([-6.5, 46], 3);
+          const [spot] = await bareSpots(380);
+          assert.ok(spot, 'aucun point de mer nue');
+          await page.touchscreen.tap(...spot);
+          await sheet
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : la carte nue ne ferme pas la fiche'));
+        },
+      },
+      {
         // Au bureau rien ne change : la feuille basse n'existe que sous le seuil (#584).
         name: 'fermer une feuille au téléphone',
         run: async () => {

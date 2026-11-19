@@ -748,7 +748,7 @@ function NarrowSite({
   const sheet = useRef<HTMLElement>(null);
   const pick = (next: SheetTab) => {
     setTab(next);
-    sheet.current?.parentElement?.scrollTo?.(0, 0);
+    if (sheet.current?.parentElement) sheet.current.parentElement.scrollTop = 0;
   };
 
   const ready = workshop !== undefined && facility !== null;
