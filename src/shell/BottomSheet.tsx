@@ -64,9 +64,11 @@ const VELOCITY_WINDOW_MS = 80;
 const SheetCloseContext = createContext<(() => void) | null>(null);
 
 /** **Le pied de la feuille** : ce qui s'y pose (`useSheetFoot`) reste sous le corps, qui défile
- *  dans ce qu'il laisse — rien de collé en bas ne recouvre une ligne. `null` hors d'une feuille. */
-const SheetFootContext = createContext<HTMLElement | null>(null);
-export const useSheetFoot = (): HTMLElement | null => useContext(SheetFootContext);
+ *  dans ce qu'il laisse — rien de collé en bas ne recouvre une ligne. `undefined` hors d'une
+ *  feuille ; `null` dans une feuille dont le pied n'est pas encore posé, le temps d'un premier
+ *  rendu : ce qui s'y destine attend, il ne se pose pas ailleurs pour sauter ensuite. */
+const SheetFootContext = createContext<HTMLElement | null | undefined>(undefined);
+export const useSheetFoot = (): HTMLElement | null | undefined => useContext(SheetFootContext);
 
 /**
  * **Où se tient la feuille d'une sélection, mesurée** : `report` dit sa hauteur en pixels d'écran

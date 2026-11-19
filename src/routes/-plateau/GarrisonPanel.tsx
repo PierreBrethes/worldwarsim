@@ -47,6 +47,13 @@ import type { Seat } from '@/data/session';
 
 const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
 
+/** « hors service — encore h mn » : la même phrase au panneau du bureau et à la fiche du téléphone. */
+const disabledText = (minutesLeft: number): string =>
+  fr.garrison.disabledFor(
+    Math.floor(minutesLeft / 60),
+    String(Math.floor(minutesLeft % 60)).padStart(2, '0'),
+  );
+
 /**
  * **La garnison d'une adresse qui n'est pas un site de production** — un avant-poste, une pile
  * posée, une troupe que le jeu ne sait plus placer. Le mât d'une caserne, d'un aérodrome ou d'un
@@ -231,10 +238,7 @@ export function GarrisonPanel({
              *  combien de temps encore — et c'est la seule chose que le joueur ait à peser ici,
              *  sa zone étant hachurée sur la carte pendant tout ce temps (ADR 0020 §7). */}
             <span className="text-center text-[10.5px] text-[var(--ink-soft)]">
-              {fr.garrison.disabledFor(
-                Math.floor(outpost.disabledMinutesLeft / 60),
-                String(Math.floor(outpost.disabledMinutesLeft % 60)).padStart(2, '0'),
-              )}
+              {disabledText(outpost.disabledMinutesLeft)}
             </span>
           </div>
         )}
@@ -343,10 +347,7 @@ function OutpostSheet({
   const state = building
     ? fr.garrison.standsAt(asLocalTime(outpost.standsAt ?? 0))
     : disabled
-      ? fr.garrison.disabledFor(
-          Math.floor((outpost.disabledMinutesLeft ?? 0) / 60),
-          String(Math.floor((outpost.disabledMinutesLeft ?? 0) % 60)).padStart(2, '0'),
-        )
+      ? disabledText(outpost.disabledMinutesLeft ?? 0)
       : null;
   const tabs = [
     { id: 'garrison', label: fr.garrison.tabs.garrison, count: String(count) },

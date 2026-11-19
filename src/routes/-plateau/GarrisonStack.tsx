@@ -529,7 +529,7 @@ export function PrepareBar({
       type="button"
       disabled={pickedIds.length === 0}
       onClick={() => onPrepare(station, pickedIds)}
-      className={`min-h-[44px] cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40 ${foot === null ? 'w-full' : 'w-[52%] shrink-0'}`}
+      className={`cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40 ${foot === undefined ? 'min-h-[52px] w-full' : 'min-h-[44px] w-[52%] shrink-0'}`}
     >
       {fr.garrison.prepare}
     </button>
@@ -537,7 +537,7 @@ export function PrepareBar({
   /** Dans le pied d'une feuille, le compte et le bouton tiennent sur une ligne : sur un petit écran
    *  la place que prend le pied est celle que perdent les troupes. */
   const bar =
-    foot === null ? (
+    foot === undefined ? (
       <div className="paper-grain sticky bottom-0 -mx-3 mt-[11px] flex flex-col gap-[6px] border-t-2 border-[var(--ink)] px-3 pt-[9px] pb-[2px]">
         <div className="flex items-baseline justify-between gap-2">
           {count}
@@ -554,5 +554,6 @@ export function PrepareBar({
         {button}
       </div>
     );
-  return foot === null ? bar : createPortal(bar, foot);
+  /** Dans une feuille dont le pied n'est pas posé, rien : le pied arrive avant la première image. */
+  return foot === undefined ? bar : foot === null ? null : createPortal(bar, foot);
 }
