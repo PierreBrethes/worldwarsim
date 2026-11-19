@@ -2203,7 +2203,9 @@ function BoardContent({
       switch (offer.key) {
         case 'found': {
           const found = heldRose?.compass.actions.find((action) => action.key === 'found');
+          // Jamais muet : sans branche de la rose, l'offre ou la rose dit pourquoi.
           if (found !== undefined) actOnCompass(found, boardPoint());
+          else setOrderError(offer.refusal ?? heldRose?.compass.refusal ?? fr.compass.refused);
           return;
         }
         case 'disembark':

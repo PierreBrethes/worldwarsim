@@ -3317,8 +3317,8 @@ export const fr = {
     /** « Aucune » ne ferme pas la fiche : elle dit ce qu'elle tient, c'est-à-dire rien. */
     nothingToSend: 'rien à envoyer',
     othersStay: 'les autres restent sur place',
-    /** Le second toucher de « dissoudre » : la ligne dit ce que l'escouade perd. */
-    confirm: 'confirmer',
+    /** Le second toucher de « dissoudre » : le bouton lui-même dit ce que l'escouade perd. */
+    confirm: (loses: string | null) => (loses === null ? 'confirmer' : `confirmer · ${loses}`),
     /** Les onglets de la pile ; les trois autres sont les rubriques de `fr.stats`. */
     troopsTab: 'troupes',
     /** Au loin, la pile levée n'est qu'une épingle : on descend la voir (#234). */

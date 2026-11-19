@@ -1,13 +1,15 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useMapMotion } from '@/data/mapMotion';
 import { fr } from '@/i18n/fr';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
 import { pileStatsOf } from '@/domain/stat-sheet';
 import { rubricOf, StatLines } from '@/shell/StatLines';
-import { GarrisonStack } from './GarrisonStack';
+import { unitsOf } from '@/domain/troops';
+import { GarrisonStack, PrepareBar } from './GarrisonStack';
 
 const TABS = ['troops', 'move', 'fight', 'carry'] as const;
-type Tab = (typeof TABS)[number];
+export type PileTab = (typeof TABS)[number];
+type Tab = PileTab;
 
 const label = (tab: Tab): string => (tab === 'troops' ? fr.hand.troopsTab : fr.stats.rubrics[tab]);
 
@@ -30,6 +32,7 @@ export function PileTabs({
   onPrepare,
   onPickedChange,
   onDisembark,
+  onTabChange,
 }: {
   view: PlayerView;
   station: TroopStation;
@@ -40,9 +43,39 @@ export function PileTabs({
   onPrepare?: ((station: TroopStation, troopIds: ReadonlyArray<string>) => void) | undefined;
   onPickedChange?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
   onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
+  /** L'onglet ouvert, pour ce que la fiche garde au-dessus (la confirmation de dissoudre). */
+  onTabChange?: ((tab: PileTab) => void) | undefined;
 }) {
   const motion = useMapMotion();
-  const [tab, setTab] = useState<Tab>('troops');
+  const id = useId();
+  const [tab, setTabState] = useState<Tab>('troops');
+  const tabs = useRef<Array<HTMLButtonElement | null>>([]);
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    onTabChange?.(next);
+  };
+  /** Flèches, Début et Fin déplacent l'onglet et le focus ; seul l'onglet ouvert se tabule. */
+  const onKey = (event: KeyboardEvent, index: number) => {
+    const last = TABS.length - 1;
+    const to =
+      event.key === 'ArrowRight'
+        ? index === last
+          ? 0
+          : index + 1
+        : event.key === 'ArrowLeft'
+          ? index === 0
+            ? last
+            : index - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : null;
+    if (to === null) return;
+    event.preventDefault();
+    setTab(TABS[to]!);
+    tabs.current[to]?.focus();
+  };
   const [picked, setPicked] = useState<ReadonlyArray<string>>(preselect);
   const ticked = useMemo(() => held.filter((troop) => picked.includes(troop.id)), [held, picked]);
   const rows = useMemo(
@@ -59,31 +92,48 @@ export function PileTabs({
   );
   const nothing = ticked.length === 0;
   const someLeft = !nothing && ticked.length < held.length;
+  /** Seule la pile des troupes porte « préparer » : ailleurs la barre est la sienne, sans refaire
+   *  ce que `GarrisonStack` sait (une unité seule part entière). */
+  const prepares = canPrepare && !observing && onPrepare !== undefined;
+  const alone = unitsOf(held).length === 1;
 
   return (
     <>
       <div
         role="tablist"
-        className="mb-[10px] grid h-[40px] grid-cols-4 border-b border-(color:--ink)/35"
+        className="mb-[10px] grid h-[44px] grid-cols-4 border-b border-(color:--ink)/35"
       >
-        {TABS.map((id) => (
+        {TABS.map((name, index) => (
           <button
-            key={id}
+            key={name}
+            ref={(node) => {
+              tabs.current[index] = node;
+            }}
+            id={`${id}-tab-${name}`}
             type="button"
             role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
+            aria-selected={tab === name}
+            aria-controls={`${id}-panel`}
+            tabIndex={tab === name ? 0 : -1}
+            onClick={() => setTab(name)}
+            onKeyDown={(event) => onKey(event, index)}
             className={`flex cursor-pointer items-center justify-center border-b-[3px] text-[10.5px] tracking-[.12em] uppercase ${
-              tab === id
+              tab === name
                 ? 'border-[var(--ink)] font-bold text-[var(--ink)]'
                 : 'border-transparent font-semibold text-[var(--ink-soft)]'
             }`}
           >
-            {label(id)}
+            {label(name)}
           </button>
         ))}
       </div>
-      <div key={tab} data-motion={motion} className={motion === 'off' ? undefined : 'tab-fade'}>
+      <div
+        key={tab}
+        id={`${id}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${id}-tab-${tab}`}
+        className={motion === 'off' ? undefined : 'tab-fade'}
+      >
         {tab === 'troops' ? (
           <>
             {nothing && (
@@ -124,6 +174,14 @@ export function PileTabs({
           <StatLines rows={rows.filter((row) => rubricOf(row.key) === tab)} grouped={false} />
         )}
       </div>
+      {tab !== 'troops' && prepares && (
+        <PrepareBar
+          station={station}
+          picked={alone ? null : picked.length}
+          pickedIds={picked}
+          onPrepare={onPrepare}
+        />
+      )}
     </>
   );
 }

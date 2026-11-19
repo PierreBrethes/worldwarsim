@@ -757,10 +757,6 @@ body {
   animation: surface-fade 120ms var(--ease-out) both;
 }
 
-:root[data-motion='off'] .tab-fade {
-  animation: none;
-}
-
 .sheet-return {
   transition: transform var(--dur-quick) var(--ease-out);
 }

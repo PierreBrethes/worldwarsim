@@ -1,6 +1,6 @@
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { pileSupplies } from '@/domain/supplies';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CARRY_CAPACITY_BY_ROLE, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { carryCapacityOf } from '@/domain/loot';
@@ -269,12 +269,12 @@ export function GarrisonStack({
        * peut ramener, puis « préparer un mouvement » sur toute la largeur.
        */}
       {composes && narrow ? (
-        <div className="paper-grain sticky bottom-0 -mx-3 mt-[11px] flex flex-col gap-[8px] border-t-2 border-[var(--ink)] px-3 pt-[9px] pb-[2px]">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
-              {alone ? '' : fr.garrison.picked(picked.size)}
-            </span>
-            {!statsBelow && (
+        <PrepareBar
+          station={station}
+          picked={alone ? null : picked.size}
+          onPrepare={onPrepare}
+          detail={
+            !statsBelow && (
               <span
                 className="font-(family-name:--font-mono) text-[11px]"
                 style={{ color: stranded ? 'var(--critical)' : 'var(--ink-soft)' }}
@@ -284,19 +284,10 @@ export function GarrisonStack({
                 {onLand && `${fr.garrison.paces[motorized(roles) ? 'motorized' : 'foot']} · `}
                 {fr.garrison.lootShort(carryCapacity)}
               </span>
-            )}
-          </div>
-          {onPrepare && (
-            <button
-              type="button"
-              disabled={picked.size === 0}
-              onClick={() => onPrepare(station, [...picked])}
-              className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {fr.garrison.prepare}
-            </button>
-          )}
-        </div>
+            )
+          }
+          pickedIds={[...picked]}
+        />
       ) : composes ? (
         <div className="mt-[11px] flex flex-wrap items-center justify-between gap-3">
           <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)]">
@@ -500,6 +491,46 @@ function TroopCards({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * **Le compte et « préparer un mouvement », collés en bas de la fiche** : la pile les montre sous
+ * l'onglet des troupes, `PileTabs` sous les trois autres — l'ordre ne disparaît pas avec l'onglet.
+ */
+export function PrepareBar({
+  station,
+  picked,
+  pickedIds,
+  detail,
+  onPrepare,
+}: {
+  station: TroopStation;
+  /** Le compte dit, ou `null` : une unité seule n'a rien à compter (#301). */
+  picked: number | null;
+  pickedIds: ReadonlyArray<string>;
+  detail?: ReactNode;
+  onPrepare: ((station: TroopStation, troopIds: ReadonlyArray<string>) => void) | undefined;
+}) {
+  return (
+    <div className="paper-grain sticky bottom-0 -mx-3 mt-[11px] flex flex-col gap-[8px] border-t-2 border-[var(--ink)] px-3 pt-[9px] pb-[2px]">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
+          {picked === null ? '' : fr.garrison.picked(picked)}
+        </span>
+        {detail}
+      </div>
+      {onPrepare && (
+        <button
+          type="button"
+          disabled={pickedIds.length === 0}
+          onClick={() => onPrepare(station, pickedIds)}
+          className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {fr.garrison.prepare}
+        </button>
+      )}
     </div>
   );
 }

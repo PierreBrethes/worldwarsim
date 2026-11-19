@@ -37,6 +37,7 @@ import { handleError } from '@/data/errors';
 import { Stamp } from '@/shell/Stamp';
 import { Draggable } from './Draggable';
 import { GarrisonStack } from './GarrisonStack';
+import { handOffersOf } from './hand-offers';
 import { PileTabs } from './PileTabs';
 import { useNarrowScreen } from '@/shell/viewport';
 import { Panel } from './Panel';
@@ -229,6 +230,17 @@ export function GarrisonPanel({
             onPickedChange={onPickedChange}
             onDisembark={(troopIds) => {
               setAshoreError(null);
+              /* Le même refus que la fiche de la pile en main : `offersOf`, jamais sa propre règle. */
+              const refused =
+                station.kind === 'home'
+                  ? undefined
+                  : handOffersOf(view, { station, troopIds }, null, view.loadedAt, null)
+                      .map((offer) => (offer.key === 'disembark' ? offer.refusal : null))
+                      .find((refusal) => refusal !== null);
+              if (refused !== undefined) {
+                setAshoreError(refused);
+                return;
+              }
               disembark({
                 ...seat,
                 troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),

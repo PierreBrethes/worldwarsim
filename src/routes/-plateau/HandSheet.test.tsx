@@ -250,6 +250,69 @@ describe('HandSheet in a Blitz', () => {
   });
 });
 
+describe('HandSheet disembarking, passenger by passenger', () => {
+  const held = [
+    troop('truck', 'landTransport'),
+    { ...troop('a', 'infantry'), carriedBy: 'truck' },
+    { ...troop('b', 'armor'), carriedBy: 'truck' },
+  ];
+  const view = (mode: string) =>
+    ({
+      mode,
+      arcs: [],
+      me: {
+        nation: 'france',
+        stationedCargo: [],
+        troops: held,
+        buildings: [],
+        lootPoints: [],
+        upkeep: { troops: 2 },
+      },
+    }) as unknown as PlayerView;
+  const sheet = (mode: string, afloat: boolean, onOffer: (offer: Offer) => void = () => {}) => {
+    const at = { ...station, afloat };
+    const offers = handOffersOf(
+      view(mode),
+      { station: at, troopIds: ['truck', 'a', 'b'] },
+      null,
+      0,
+      null,
+    );
+    render(
+      <HandSheet
+        view={view(mode)}
+        station={at}
+        place="Portugal"
+        held={held}
+        troopIds={['truck', 'a', 'b']}
+        offers={offers}
+        onCompose={() => {}}
+        onOffer={onOffer}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+        onApproach={() => {}}
+      />,
+    );
+  };
+
+  it('sets one rider ashore from the desk sheet, the other staying aboard', () => {
+    const onOffer = vi.fn();
+    sheet('mondiale', false, onOffer);
+    const buttons = screen.getAllByRole('button', { name: new RegExp(fr.hand.disembark, 'i') });
+    expect(buttons).toHaveLength(2);
+    act(() => buttons[1]!.click());
+    expect(onOffer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ key: 'disembark', troopIds: ['b'] }),
+    );
+  });
+
+  it('says the refusal in a Blitz strip, in place of the button', () => {
+    sheet('blitz', true);
+    expect(screen.queryByRole('button', { name: fr.hand.disembark })).toBeNull();
+    expect(screen.getAllByText(fr.errors.DISEMBARK_AT_SEA()).length).toBeGreaterThan(0);
+  });
+});
+
 const found = {
   key: 'found',
   rank: 'thumb',
@@ -308,6 +371,58 @@ describe('HandSheet offers', () => {
     expect(screen.queryByRole('button', { name: fr.selection.disband })).toBeNull();
   });
 
+  it('says what the steel lacks in place of « fonder » (ADR 0015)', () => {
+    const lacking = {
+      ...foundingView,
+      mode: 'mondiale',
+      arcs: [],
+      me: {
+        ...foundingView.me,
+        troops: [troop('inf', 'infantry')],
+        buildings: [],
+        lootPoints: [],
+        resources: { steel: { stock: 4, ratePerHour: 0, cap: 500 } },
+      },
+    } as unknown as PlayerView;
+    const offers = handOffersOf(
+      lacking,
+      { station, troopIds: ['inf'] },
+      {
+        kind: 'force',
+        id: 'p',
+        country: 'FRA',
+        name: 'x',
+        headcount: 1,
+        ground: 'land',
+        station,
+        regionId: null,
+      },
+      0,
+      null,
+    );
+    render(
+      <HandSheet
+        view={lacking}
+        station={station}
+        place="x"
+        held={[troop('inf', 'infantry')]}
+        troopIds={['inf']}
+        offers={offers}
+        onCompose={() => {}}
+        onOffer={() => {}}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+        onApproach={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: new RegExp(fr.hand.found, 'i') })).toBeNull();
+    expect(
+      screen.getByText(
+        fr.errors.INSUFFICIENT_RESOURCE({ resource: 'steel', needed: 20, available: 4 }),
+      ),
+    ).toBeTruthy();
+  });
+
   it('says why one cannot disembark rather than offering the button', () => {
     sheet([
       { key: 'disembark', rank: 'thumb', refusal: 'pas au large', loses: null, troopIds: ['inf'] },
@@ -320,6 +435,11 @@ describe('HandSheet offers', () => {
 /** **Au téléphone, la fiche s'ouvre à l'aperçu** : l'essentiel au pouce, les onglets en la
  *  déroulant ; « Aucune » la laisse ouverte ; dissoudre demande un second toucher (#585). */
 describe('HandSheet on a phone', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(1_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
   beforeEach(() =>
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query.includes('max-width'),
@@ -382,9 +502,63 @@ describe('HandSheet on a phone', () => {
     phone([disband], { onOffer });
     act(() => screen.getByRole('button', { name: fr.selection.disband }).click());
     expect(onOffer).not.toHaveBeenCalled();
-    expect(screen.getByText(fr.compass.disbandConsequence)).toBeTruthy();
-    act(() => screen.getByRole('button', { name: new RegExp(fr.hand.confirm, 'i') }).click());
+    expect(screen.getByRole('button', { name: fr.hand.confirm(disband.loses) })).toBeTruthy();
+    act(() => {
+      vi.setSystemTime(Date.now() + 400);
+      screen.getByRole('button', { name: new RegExp(fr.hand.confirm(null), 'i') }).click();
+    });
     expect(onOffer).toHaveBeenCalledWith(disband);
+  });
+
+  it('says what the squad loses on the confirm button itself, on one line', () => {
+    phone([disband]);
+    act(() => screen.getByRole('button', { name: fr.selection.disband }).click());
+    const confirm = screen.getByRole('button', { name: fr.hand.confirm(disband.loses) });
+    expect(confirm.textContent).toBe(fr.hand.confirm(disband.loses));
+    expect(confirm.querySelector('span')).toBeNull();
+  });
+
+  it('ignores a second touch that follows the first within 300 ms', () => {
+    const onOffer = vi.fn();
+    phone([disband], { onOffer });
+    act(() => screen.getByRole('button', { name: fr.selection.disband }).click());
+    act(() => {
+      vi.setSystemTime(Date.now() + 100);
+      screen.getByRole('button', { name: new RegExp(fr.hand.confirm(null), 'i') }).click();
+    });
+    expect(onOffer).not.toHaveBeenCalled();
+  });
+
+  it('forgets the confirmation when the hand, the tab or the offer changes', () => {
+    const props = (troopIds: string[], offer: Offer) => (
+      <HandSheet
+        view={foundingView}
+        station={station}
+        place="Saône-et-Loire"
+        held={held}
+        troopIds={troopIds}
+        offers={[offer]}
+        onCompose={() => {}}
+        onOffer={() => {}}
+        onOpenGunnery={() => {}}
+        onDrop={() => {}}
+        onApproach={() => {}}
+      />
+    );
+    const armed = () =>
+      screen.queryByRole('button', { name: new RegExp(fr.hand.confirm(null), 'i') });
+    const arm = () => act(() => screen.getByRole('button', { name: fr.selection.disband }).click());
+    const { rerender } = render(props(['inf', 'tank'], disband));
+    arm();
+    expect(armed()).not.toBeNull();
+    rerender(props(['inf'], disband));
+    expect(armed()).toBeNull();
+    arm();
+    act(() => screen.getByRole('tab', { name: fr.stats.rubrics.move }).click());
+    expect(armed()).toBeNull();
+    arm();
+    rerender(props(['inf'], { ...disband, point: [5, 47] }));
+    expect(armed()).toBeNull();
   });
 
   it('says the refusal of a disbanding instead of the button', () => {

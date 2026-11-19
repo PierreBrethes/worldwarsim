@@ -13,7 +13,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { GarrisonStack } from './GarrisonStack';
 import { GunneryButton } from './GunneryButton';
 import { MapCard } from './MapCard';
-import { PileTabs } from './PileTabs';
+import { PileTabs, type PileTab } from './PileTabs';
 
 /**
  * **La fiche de la pièce en main, posée au bord** (ADR 0026 §6) : les cases du panneau de
@@ -57,6 +57,7 @@ export function HandSheet({
   onApproach: () => void;
 }) {
   const narrow = useNarrowScreen();
+  const [tab, setTab] = useState<PileTab>('troops');
   const inHand = held.filter((troop) => troopIds.includes(troop.id));
   const supplied = inHand.every((troop) => troop.supplied);
   const hint = (
@@ -82,6 +83,7 @@ export function HandSheet({
         held={held}
         troopIds={troopIds}
         offers={offers}
+        tab={tab}
         onOffer={onOffer}
       />
     </>
@@ -120,6 +122,9 @@ export function HandSheet({
                   <span className="min-w-0 flex-1 truncate text-[11.5px]">
                     {fr.hand.aboard} · {roleLabel(passenger.role, 1)}
                   </span>
+                  {offer?.refusal != null && (
+                    <span className="text-[10.5px] text-[var(--critical)]">{offer.refusal}</span>
+                  )}
                   {offer !== undefined && offer.refusal === null && (
                     <button
                       type="button"
@@ -178,6 +183,7 @@ export function HandSheet({
             canPrepare
             observing={false}
             onPickedChange={onCompose}
+            onTabChange={setTab}
           />
         ) : (
           <GarrisonStack
@@ -223,6 +229,7 @@ function HandOffers({
   held,
   troopIds,
   offers,
+  tab,
   onOffer,
 }: {
   view: PlayerView;
@@ -230,15 +237,11 @@ function HandOffers({
   held: ReadonlyArray<TroopView>;
   troopIds: ReadonlyArray<string>;
   offers: ReadonlyArray<Offer>;
+  /** L'onglet de la pile : en changer remet la confirmation à zéro. */
+  tab: PileTab;
   onOffer: (offer: Offer) => void;
 }) {
   const narrow = useNarrowScreen();
-  const [confirming, setConfirming] = useState(false);
-  const disbanding = useRef<HTMLButtonElement>(null);
-  /** À l'aperçu, la phrase de la confirmation tombe sous le pied de la feuille : on la ramène. */
-  useEffect(() => {
-    if (confirming) disbanding.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [confirming]);
   const round = patrolLineOf(view, troopIds);
   const button = `w-full cursor-pointer ${narrow ? 'min-h-[44px]' : ''} border border-[var(--ink)] px-[12px] py-[7px] text-left text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]`;
   const sub = 'block font-(family-name:--font-mono) text-[10px] tracking-normal normal-case';
@@ -332,22 +335,56 @@ function HandOffers({
             return offer.refusal !== null ? (
               <div key="disband">{said(offer.refusal)}</div>
             ) : (
-              <button
-                key="disband"
-                ref={disbanding}
-                type="button"
-                onClick={() => (confirming ? onOffer(offer) : setConfirming(true))}
-                className={`mt-[8px] ${button} ${confirming ? 'border-[var(--critical)] text-[var(--critical)]' : ''}`}
-              >
-                {confirming ? fr.hand.confirm : fr.selection.disband}
-                {confirming && offer.loses !== null && <span className={sub}>{offer.loses}</span>}
-              </button>
+              <DisbandButton
+                /* Une confirmation armée ne survit pas à ce qu'elle confirmait : autre main, autre
+                   onglet, autre offre, et le premier toucher est à refaire. */
+                key={`${troopIds.join()}|${tab}|${offer.point.join()}|${offer.loses}`}
+                offer={offer}
+                className={`mt-[8px] ${button}`}
+                onOffer={onOffer}
+              />
             );
           default:
             return null;
         }
       })}
     </div>
+  );
+}
+
+/** Un second toucher plus rapide que ça est le premier qui rebondit : il ne confirme rien. */
+const CONFIRM_DELAY_MS = 300; // @a-mesurer
+
+/** **« Dissoudre » en deux touchers** : le second, qui dit ce que l'escouade perd sur le bouton
+ *  même, part l'ordre. L'état vit ici pour que `key` le remette à zéro. */
+function DisbandButton({
+  offer,
+  className,
+  onOffer,
+}: {
+  offer: Offer;
+  className: string;
+  onOffer: (offer: Offer) => void;
+}) {
+  const [armedAt, setArmedAt] = useState<number | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const confirming = armedAt !== null;
+  /** À l'aperçu, la confirmation tombe sous le pied de la feuille : on la ramène. */
+  useEffect(() => {
+    if (confirming) button.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [confirming]);
+  return (
+    <button
+      ref={button}
+      type="button"
+      onClick={() => {
+        if (armedAt === null) setArmedAt(Date.now());
+        else if (Date.now() - armedAt >= CONFIRM_DELAY_MS) onOffer(offer);
+      }}
+      className={`${className} ${confirming ? 'border-[var(--critical)] text-[var(--critical)]' : ''}`}
+    >
+      {confirming ? fr.hand.confirm(offer.loses) : fr.selection.disband}
+    </button>
   );
 }
 
