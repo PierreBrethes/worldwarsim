@@ -348,6 +348,13 @@ export function build(
   }
 }
 
+/** **Le prix et la durée d'une fondation**, dits comme la branche de la rose les dit : la fiche de
+ *  la pile en main les lit sans refaire la rose (#585). */
+export const foundingTerms = (view: PlayerView) => ({
+  bill: billOf(view.outpostFoundation.cost, view),
+  duration: asDuration(view.outpostFoundation.minutes),
+});
+
 /**
  * La phrase d'un refus de fondation, nourrie de ce que la rose a sous les yeux : le premier rôle
  * qui n'est pas de l'infanterie, et le nom de la région déjà bâtie. `fr.errors` reste la seule

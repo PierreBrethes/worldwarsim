@@ -752,6 +752,15 @@ body {
   animation: surface-in var(--dur-base) var(--ease-out) both;
 }
 
+/* **Un onglet change le contenu** : fondu de 120 ms, sans échelle ; coupées, rien ne bouge. */
+.tab-fade {
+  animation: surface-fade 120ms var(--ease-out) both;
+}
+
+:root[data-motion='off'] .tab-fade {
+  animation: none;
+}
+
 .sheet-return {
   transition: transform var(--dur-quick) var(--ease-out);
 }

@@ -43,6 +43,9 @@ const RUBRIC_OF: Readonly<Record<StatKey, Rubric>> = {
   raise: 'site',
 };
 
+/** La rubrique d'une statistique : les onglets de la fiche de la pile regroupent dessus. */
+export const rubricOf = (key: StatKey): Rubric => RUBRIC_OF[key];
+
 /** Les silhouettes pleines, 24 × 24, de la famille de `Glyph.tsx`. */
 const PATH_OF: Readonly<Record<StatKey, string>> = {
   pace: 'M2 5h4.5l7 7-7 7H2l7-7zm8.5 0H15l7 7-7 7h-4.5l7-7z',

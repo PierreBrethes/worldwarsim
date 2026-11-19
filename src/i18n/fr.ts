@@ -3192,7 +3192,7 @@ export const fr = {
   patrol: {
     title: 'Ronde',
     toward: (other: string) => `liaison vers ${other}`,
-    launch: 'lancer',
+    launchRound: 'lancer la ronde',
     recall: 'rappeler',
     recalledOnLabel: 'ronde rappelée',
     started: 'Ronde lancée',
@@ -3312,6 +3312,15 @@ export const fr = {
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
     hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
     found: 'fonder un avant-poste ici',
+    /** Au téléphone, les ordres de la fiche tiennent en verbes courts (#585). */
+    foundShort: 'fonder',
+    /** « Aucune » ne ferme pas la fiche : elle dit ce qu'elle tient, c'est-à-dire rien. */
+    nothingToSend: 'rien à envoyer',
+    othersStay: 'les autres restent sur place',
+    /** Le second toucher de « dissoudre » : la ligne dit ce que l'escouade perd. */
+    confirm: 'confirmer',
+    /** Les onglets de la pile ; les trois autres sont les rubriques de `fr.stats`. */
+    troopsTab: 'troupes',
     /** Au loin, la pile levée n'est qu'une épingle : on descend la voir (#234). */
     approach: 'approcher',
     aboard: 'à bord',

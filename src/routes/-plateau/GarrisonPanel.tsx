@@ -37,6 +37,8 @@ import { handleError } from '@/data/errors';
 import { Stamp } from '@/shell/Stamp';
 import { Draggable } from './Draggable';
 import { GarrisonStack } from './GarrisonStack';
+import { PileTabs } from './PileTabs';
+import { useNarrowScreen } from '@/shell/viewport';
 import { Panel } from './Panel';
 import { RazeButton } from './RazeButton';
 import type { Seat } from '@/data/session';
@@ -92,6 +94,7 @@ export function GarrisonPanel({
     [view.me, stationKey, marching],
   );
   const disembark = useMutation(api.movements.disembark);
+  const Stack = useNarrowScreen() ? PileTabs : GarrisonStack;
   const [ashoreError, setAshoreError] = useState<string | null>(null);
 
   const building =
@@ -213,7 +216,9 @@ export function GarrisonPanel({
         </div>
 
         <div className="mt-[10px]">
-          <GarrisonStack
+          {/* Au doigt, la pile d'une garnison se lit sous les mêmes onglets que la pile en main ;
+              le reste du panneau (tampons, élévation, vigie, rase) ne change pas (#585). */}
+          <Stack
             view={view}
             station={station}
             held={held}

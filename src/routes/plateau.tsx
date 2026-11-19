@@ -21,13 +21,8 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
 import { effectiveSpecialty, isOnWatch, lookoutKmOf, sameLiaison } from '@/domain/outposts';
-import {
-  drawnLiaisonsIn,
-  holdsPatrolTroop,
-  outpostNameIn,
-  patrolLineOf,
-  withoutPatrols,
-} from '@/domain/patrol';
+import { drawnLiaisonsIn, holdsPatrolTroop, outpostNameIn, withoutPatrols } from '@/domain/patrol';
+import type { Offer } from '@/domain/offers';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
@@ -235,6 +230,7 @@ import { shownStepOf } from '@/domain/first-steps';
 import { absenceTourOf } from '@/domain/absence-tour';
 import type { MapMotion } from '@/domain/map-motion';
 import { HandSheet } from './-plateau/HandSheet';
+import { handOffersOf } from './-plateau/hand-offers';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
 import { LootCrateCard } from './-plateau/LootCrateCard';
@@ -528,8 +524,14 @@ function BoardContent({
     [hand, forbidden],
   );
   const [resting, setResting] = useState<RestAim | null>(null);
-  /** La rose de la pile en main, lue par la carte : la fiche y prend « fonder ». */
-  const [heldCompass, setHeldCompass] = useState<Compass | null>(null);
+  /** La rose de la pile en main et sa cible, lues par la carte : la fiche y prend « fonder » et
+   *  ses offres (`handOffersOf`). */
+  const [heldRose, setHeld] = useState<{ compass: Compass; target: CompassTarget } | null>(null);
+  const setHeldCompass = useCallback(
+    (compass: Compass | null, target: CompassTarget | null) =>
+      setHeld(compass === null || target === null ? null : { compass, target }),
+    [],
+  );
   const [sent, setSent] = useState<SentOrder | null>(null);
   /** La carte ouverte au coin bas-droit — une seule à la fois, la colonne ne déborde pas. */
   const [corner, setCorner] = useState<Corner | null>(null);
@@ -1674,14 +1676,18 @@ function BoardContent({
   const compose = useCallback(
     (troopIds: ReadonlyArray<string>) => {
       if (hand.kind === 'held' && hand.troopIds.join() === troopIds.join()) return;
-      const move = composeHand(hand, troopIds, hand.kind === 'held' ? unitsAt(hand.station) : {});
+      const move = composeHand(hand, troopIds, {
+        ...(hand.kind === 'held' ? unitsAt(hand.station) : {}),
+        /** Au doigt, « Aucune » laisse la fiche ouverte : elle dit « rien à envoyer ». */
+        keepEmpty: narrow,
+      });
       if (move.kind !== 'lift') {
         dropHand();
         return;
       }
       setHand(move.hand);
     },
-    [hand, dropHand, unitsAt],
+    [hand, dropHand, unitsAt, narrow],
   );
 
   const restAt = useCallback(
@@ -2180,6 +2186,74 @@ function BoardContent({
       (problem: unknown) => handleError(problem, setBarRefusal),
     );
   }, [chosen, disbandRefusal, disbandMutation, seat, clearSelection]);
+
+  /** **Les ordres de la pile en main** (#585) : `offersOf` seul, sur ce que le plateau lit déjà. */
+  const handOffers = useMemo(
+    () =>
+      hand.kind === 'held' && hand.course === undefined
+        ? handOffersOf(view, hand, heldRose?.target ?? null, view.loadedAt, disbandGround)
+        : [],
+    [view, hand, heldRose, disbandGround],
+  );
+  /** **Exécuter une offre de la fiche** : la branche que la rose porterait, le même serveur. */
+  const runOffer = useCallback(
+    (offer: Offer) => {
+      setOrderError(null);
+      const failed = (problem: unknown) => handleError(problem, setOrderError);
+      switch (offer.key) {
+        case 'found': {
+          const found = heldRose?.compass.actions.find((action) => action.key === 'found');
+          if (found !== undefined) actOnCompass(found, boardPoint());
+          return;
+        }
+        case 'disembark':
+          void disembark({
+            ...seat,
+            troopIds: offer.troopIds.map((troopId) => troopId as Id<'troops'>),
+          }).then(
+            () =>
+              hand.kind === 'held' &&
+              compose(hand.troopIds.filter((troopId) => !offer.troopIds.includes(troopId))),
+            failed,
+          );
+          return;
+        case 'patrol':
+          launchPatrol(offer.troopId, offer.liaison);
+          return;
+        case 'recall':
+          void recallPatrol({ ...seat, troopId: offer.troopId as Id<'troops'> }).then(
+            dropHand,
+            failed,
+          );
+          return;
+        case 'disband':
+          void disbandMutation({
+            ...seat,
+            point: { lon: offer.point[0], lat: offer.point[1] },
+          }).then(() => {
+            clearSelection();
+            dropHand();
+          }, failed);
+          return;
+        default:
+          return;
+      }
+    },
+    [
+      heldRose,
+      actOnCompass,
+      boardPoint,
+      disembark,
+      seat,
+      hand,
+      compose,
+      launchPatrol,
+      recallPatrol,
+      dropHand,
+      disbandMutation,
+      clearSelection,
+    ],
+  );
 
   /** Échap lâche la sélection une fois la main vide ; G et U parlent à la sélection. */
   useEffect(() => {
@@ -3308,43 +3382,9 @@ function BoardContent({
                           nonce: Date.now(),
                         });
                     }}
+                    offers={handOffers}
                     onCompose={compose}
-                    onDisembark={(troopIds) =>
-                      disembark({
-                        ...seat,
-                        troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
-                      }).then(
-                        () =>
-                          compose(hand.troopIds.filter((troopId) => !troopIds.includes(troopId))),
-                        (problem: unknown) => handleError(problem, setOrderError),
-                      )
-                    }
-                    founding={
-                      heldCompass === null
-                        ? null
-                        : {
-                            action:
-                              heldCompass.actions.find(
-                                (action): action is Extract<CompassAction, { key: 'found' }> =>
-                                  action.key === 'found',
-                              ) ?? null,
-                            refusal: heldCompass.refusal,
-                            onFound: () => {
-                              const found = heldCompass.actions.find(
-                                (action) => action.key === 'found',
-                              );
-                              if (found !== undefined) actOnCompass(found, boardPoint());
-                            },
-                          }
-                    }
-                    patrol={patrolLineOf(view, hand.troopIds)}
-                    onPatrol={launchPatrol}
-                    onRecallPatrol={(troopId) =>
-                      recallPatrol({ ...seat, troopId: troopId as Id<'troops'> }).then(
-                        dropHand,
-                        (problem: unknown) => handleError(problem, setOrderError),
-                      )
-                    }
+                    onOffer={runOffer}
                     onOpenGunnery={() => openWindow('gunnery')}
                     onDrop={dropHand}
                   />
