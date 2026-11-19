@@ -696,6 +696,16 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
         ? 'DEMOLITION_UNDER_CAPTURE'
         : null;
 
+/**
+ * **Un chantier commencé ne s'annule plus** (#587, décision du 19/11) : la file entière se rend, la
+ * tête qui court non — elle a déjà consommé le temps de la file, et la reprendre à mi-chemin
+ * ouvrirait un aller-retour gratuit entre matière et temps. Le serveur (`constructions.cancel`) et
+ * la tête de file, qui dit sa phrase à la place du bouton, lisent cette seule fonction.
+ */
+export const cancelWorkRefusalOf = (work: {
+  readonly started: boolean;
+}): 'CONSTRUCTION_ALREADY_STARTED' | null => (work.started ? 'CONSTRUCTION_ALREADY_STARTED' : null);
+
 /** Une capture telle que le refus la lit, des deux côtés : ce qu'elle vise, et si elle court. */
 export type Siege = { readonly targetId: string; readonly stoppedAt?: number | null };
 
