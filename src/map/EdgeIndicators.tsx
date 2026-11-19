@@ -312,7 +312,15 @@ export function EdgeIndicators({
             title={fr.edgeIndicators.held}
             onClick={() => engine?.journeyTo([held.id], [], heldBottom / 2, undefined, true)}
           >
-            <span aria-hidden>›</span>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+              <path
+                d="M4 12h15M13 5l7 7-7 7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="square"
+              />
+            </svg>
           </button>
         </div>
       )}

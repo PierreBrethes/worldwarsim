@@ -129,14 +129,12 @@
   border-radius: 50%;
   background: var(--paper);
   color: var(--ink);
-  font-size: 22px;
-  line-height: 1;
   cursor: pointer;
   zoom: var(--hud-scale);
   pointer-events: auto;
 }
 
-.held-edge > span {
+.held-edge > svg {
   transform: rotate(var(--heading, 0rad));
 }
 
