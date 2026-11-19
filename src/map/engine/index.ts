@@ -2469,7 +2469,7 @@ export class MapEngine {
   /** Où `journeyTo` viserait cet ancrage sur la page, `null` s'il n'est plus là ou tourne le dos. */
   screenOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
     const ndc = this.ndcOfAnchor(id, onPiece);
-    if (ndc === null) return null;
+    if (ndc === null || ndc.z > 1) return null;
     const box = this.renderer.domElement.getBoundingClientRect();
     return {
       x: box.left + ((ndc.x + 1) / 2) * box.width,
@@ -2478,21 +2478,26 @@ export class MapEngine {
   }
 
   /** Le même point dans le cadre de la carte, sans lire la page : de quoi le suivre à chaque
-   *  image (l'objet tenu, `heldRim`). */
+   *  image (l'objet tenu, `heldRim`). Loin derrière le plan lointain il se lit encore, et dos
+   *  tourné il se lit au point opposé, comme les étiquettes au bord (`LabelLayer.project`). */
   boardPointOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
     const ndc = this.ndcOfAnchor(id, onPiece);
     if (ndc === null) return null;
-    return {
-      x: ((ndc.x + 1) / 2) * this.screenWidth,
-      y: ((1 - ndc.y) / 2) * this.screenHeight,
-    };
+    const x = ((ndc.x + 1) / 2) * this.screenWidth;
+    const y = ((1 - ndc.y) / 2) * this.screenHeight;
+    return ndc.behind ? { x: this.screenWidth - x, y: this.screenHeight - y } : { x, y };
   }
 
-  private ndcOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
+  private ndcOfAnchor(
+    id: string,
+    onPiece: boolean,
+  ): { x: number; y: number; z: number; behind: boolean } | null {
     const at = this.anchorPoint(id, onPiece);
     if (at === undefined) return null;
+    const behind =
+      at.clone().sub(this.eye.position).dot(this.eye.getWorldDirection(new Vector3())) < 0;
     const point = at.clone().project(this.eye);
-    return point.z > 1 ? null : point;
+    return { x: point.x, y: point.y, z: point.z, behind };
   }
 
   /** Où la caméra se tient de son point visé : un regroupement en tire la distance qui sépare

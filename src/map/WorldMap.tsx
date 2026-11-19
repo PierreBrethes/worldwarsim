@@ -276,7 +276,7 @@ type Props = {
   selectedLootLabel?: string | null;
   /** **L'objet que la surface ouverte tient** (#591) : hors champ ou sous la feuille, un jeton au
    *  bord le rappelle (`EdgeIndicators`). */
-  heldLabel?: string | null;
+  heldLabel?: { readonly id: string; readonly covered: number } | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
    * détection d'une troupe désignée. Le survol l'emporte tant qu'il dure et le rend ensuite —

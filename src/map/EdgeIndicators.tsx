@@ -58,12 +58,16 @@ export function EdgeIndicators({
   /**
    * **L'objet tenu** (#591) : l'étiquette de ce que la feuille ouverte porte — la pile en main, un
    * site, un camp, un objectif, un point. Hors champ ou sous la feuille, un jeton à lui le
-   * rappelle au bord ; comme les destinations, il ne suit ni bascule ni regroupement.
+   * rappelle au bord ; comme les destinations, il ne suit ni bascule ni regroupement. `covered`
+   * est ce que la feuille ouverte prend en bas, mesuré sur elle : la marge publiée la suit de
+   * moins près qu'une fiche posée sur la barre.
    */
-  held?: string | null;
+  held?: { readonly id: string; readonly covered: number } | null;
 }) {
   const insets = useBoardInsets();
   const heldTag = useRef<HTMLElement | null>(null);
+  const heldBottom = Math.max(insets.bottom, held?.covered ?? 0);
+  const heldInsets = useMemo(() => ({ ...insets, bottom: heldBottom }), [insets, heldBottom]);
   const kept = useMemo(
     () =>
       new Map(
@@ -162,9 +166,9 @@ export function EdgeIndicators({
       const heldNode = heldTag.current;
       if (heldNode !== null) {
         const rim = heldRim(
-          held === null ? null : engine.boardPointOfAnchor(held, true),
+          held === null ? null : engine.boardPointOfAnchor(held.id, true),
           size.current,
-          insets,
+          heldInsets,
         );
         heldNode.style.display = rim === null ? 'none' : '';
         if (rim !== null) {
@@ -237,14 +241,14 @@ export function EdgeIndicators({
     return () => {
       engine.onEdges = () => {};
     };
-  }, [engine, groups, sums, membership, size, held, insets]);
+  }, [engine, groups, sums, membership, size, held, heldInsets]);
 
   // Les nœuds posés ici naissent cachés et c'est la prochaine image qui les place. La carte ne
   // rend plus sans raison (`engine/frame-demand.ts`) : des groupes ou des noms neufs en demandent
   // une ; un rendu qui n'en change aucun, non (#189).
   useEffect(() => {
     engine?.invalidate();
-  }, [engine, groups, destinations, held, insets]);
+  }, [engine, groups, destinations, held, heldInsets]);
 
   // The attention accent falls at the due time, not per frame: a one-second beat suffices and
   // it is the same cadence as the labels' countdowns.
@@ -306,7 +310,7 @@ export function EdgeIndicators({
             className="held-edge"
             aria-label={fr.edgeIndicators.held}
             title={fr.edgeIndicators.held}
-            onClick={() => engine?.journeyTo([held], [], insets.bottom / 2, undefined, true)}
+            onClick={() => engine?.journeyTo([held.id], [], heldBottom / 2, undefined, true)}
           >
             <span aria-hidden>›</span>
           </button>

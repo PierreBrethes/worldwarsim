@@ -2601,7 +2601,7 @@ function BoardContent({
       : (view.strategicPoints.find((point) => point.id === selectedPoint.id) ?? null);
   /** **L'objet que la surface ouverte tient** (#591), un seul : la pile en main, puis le site, le
    *  camp, l'objectif, le point. Hors champ ou sous la feuille, la carte le rappelle au bord. */
-  const heldLabelId =
+  const heldId =
     (hand.kind === 'held' ? markerOfStation(view, hand.station) : null) ??
     (() => {
       const site = view.me.buildings.find((building) => building.id === focused);
@@ -2610,6 +2610,12 @@ function BoardContent({
     (selectedCampView === null ? null : campPinId(selectedCampView.id)) ??
     (selectedObjectiveView === null ? null : objectiveMarkerId(selectedObjectiveView.id)) ??
     (selectedPointView === null ? null : strategicMarkerId(selectedPointView.id));
+  /** Avec ce que la feuille ouverte couvre, mesuré sur elle (`selectionSheet`) comme le recadrage. */
+  const heldCovered = selectionSheet === null ? 0 : selectionSheet + boardBottomPx();
+  const heldLabel = useMemo(
+    () => (heldId === null ? null : { id: heldId, covered: heldCovered }),
+    [heldId, heldCovered],
+  );
   /** **Les ordres des fiches de cible** (#588) : une offre par pile, lue sur la même fonction que
    *  le serveur relit. Le sol d'un camp se lit sur son milieu : le serveur relit la grille. */
   const targetOffers = useCallback(
@@ -3426,7 +3432,7 @@ function BoardContent({
                         : stationKeyOf({ kind: 'building', buildingId: selectedSite.id })
                   }
                   selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
-                  heldLabel={heldLabelId}
+                  heldLabel={heldLabel}
                   reach={handReach ?? movementReach}
                   onCountryHover={setHoveredCountry}
                   onRegionHover={setHoveredRegion}

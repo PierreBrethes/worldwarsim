@@ -24,7 +24,7 @@ afterEach(() => {
 
 const insets = { top: 60, right: 0, bottom: 400, left: 0 };
 
-function setup(at: { x: number; y: number } | null) {
+function setup(at: { x: number; y: number } | null, covered = 0) {
   const engine = {
     boardPointOfAnchor: vi.fn(() => at),
     journeyTo: vi.fn(),
@@ -39,7 +39,7 @@ function setup(at: { x: number; y: number } | null) {
         engine={engine as never}
         toggles={{} as never}
         destinations={new Map()}
-        held="building-x"
+        held={{ id: 'building-x', covered }}
       />
     </BoardInsetsContext.Provider>,
   );
@@ -61,6 +61,14 @@ describe('EdgeIndicators, the held object (#591)', () => {
 
   it('shows the token for an object out of the frame', () => {
     expect(setup({ x: -200, y: 300 }).anchor.style.display).toBe('');
+  });
+
+  it('keeps the published margin when the measured sheet stands lower', () => {
+    expect(setup({ x: 200, y: 350 }, 300).anchor.style.display).toBe('none');
+  });
+
+  it('takes the sheet as it is measured when it stands higher than the published margin', () => {
+    expect(setup({ x: 200, y: 350 }, 500).anchor.style.display).toBe('');
   });
 
   it('brings the camera back above the sheet on a touch', () => {
