@@ -1000,6 +1000,43 @@ async function runProfile(profile) {
         },
       },
       {
+        // La fiche ouverte tient son objet : la carte déplacée jusqu'à le cacher, un jeton au bord
+        // le rappelle, et le toucher le ramène au-dessus de la feuille (#591).
+        name: 'rappeler l’objet de la fiche au bord',
+        run: async () => {
+          if (!phone) return;
+          const objective = start.objectives[0];
+          assert.ok(objective, 'la démo n’a pas d’objectif');
+          await frame(objective.point, 2);
+          await page
+            .locator(`[data-label-id="objective-${objective.id}"] .label-pictogram`)
+            .dispatchEvent('click');
+          const sheet = page.getByRole('dialog', { name: 'objectif neutre' });
+          await sheet.waitFor({ timeout: 5000 });
+          await page.waitForTimeout(1500);
+          const token = page.getByRole('button', { name: /Revenir à l.objet sélectionné/ });
+          assert.equal(await token.isVisible(), false, 'écran : le jeton paraît objet en vue');
+          await frame([objective.point[0] + 8, objective.point[1] + 5], 2);
+          await token.waitFor({ timeout: 5000 }).catch(() => assert.fail('écran : pas de jeton'));
+          const top = (await sheet.boundingBox()).y;
+          const rim = await token.boundingBox();
+          assert.ok(rim.y + rim.height <= top + 1, 'écran : le jeton passe sous la feuille');
+          await token.tap();
+          await page.waitForTimeout(2500);
+          const back = await page.evaluate(
+            (id) => globalThis.mapEngine.screenOfAnchor(`objective-${id}`, true),
+            objective.id,
+          );
+          assert.ok(
+            back && back.y < top && back.x > 0 && back.x < 390,
+            `écran : l’objet est en ${back?.x},${back?.y}`,
+          );
+          assert.equal(await token.isVisible(), false, 'écran : le jeton reste objet ramené');
+          await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await sheet.waitFor({ state: 'detached', timeout: 5000 });
+        },
+      },
+      {
         // Un bâtiment touché ouvre sa fiche, la carte en vue ; au bureau le plateau personnel
         // reste ce qu'il est (#587).
         name: 'la fiche d’une caserne au téléphone',
